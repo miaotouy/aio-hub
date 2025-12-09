@@ -47,7 +47,7 @@ function initRegistryListeners() {
     for (const source of syncRegistry) {
       // 强制推送全量状态给请求者（静默模式）
       source.pushState(true, requesterLabel, true).catch(err => {
-        errorHandler.error(err, '批量推送状态失败', { context: { stateKey: source.stateKey }, showToUser: false });
+        errorHandler.handle(err, { userMessage: '批量推送状态失败', context: { stateKey: source.stateKey }, showToUser: false });
       });
     }
     
@@ -61,7 +61,7 @@ function initRegistryListeners() {
     for (const source of syncRegistry) {
       // 广播全量状态（静默模式）
       source.pushState(true, undefined, true).catch(err => {
-        errorHandler.error(err, '广播状态失败', { context: { stateKey: source.stateKey }, showToUser: false });
+        errorHandler.handle(err, { userMessage: '广播状态失败', context: { stateKey: source.stateKey }, showToUser: false });
       });
     }
     
@@ -221,7 +221,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       stateVersion.value = payload.version;
       lastSyncedValue = safeDeepClone(state.value);
     } catch (error) {
-      errorHandler.error(error as Error, '应用状态更新失败', { context: { stateKey }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: '应用状态更新失败', context: { stateKey }, showToUser: false });
     } finally {
       // 【关键修复】使用 nextTick 延迟重置标志位
       // 确保在 Vue 的响应式系统完成更新、watch 回调执行之后再允许推送

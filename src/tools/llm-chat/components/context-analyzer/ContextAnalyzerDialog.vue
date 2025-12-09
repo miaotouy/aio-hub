@@ -126,7 +126,8 @@ const analyzeContext = async () => {
     });
   } catch (err) {
     error.value = err instanceof Error ? err.message : '分析上下文时发生错误';
-    errorHandler.error(err as Error, '上下文分析异常', {
+    errorHandler.handle(err as Error, {
+     userMessage: '上下文分析异常',
       context: { nodeId: props.nodeId },
       showToUser: false,
     });

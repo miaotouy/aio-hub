@@ -231,7 +231,7 @@ class ChatInputManager {
         this.stateVersion = payload.version;
         this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
       } catch (error) {
-        errorHandler.error(error as Error, "应用输入状态更新失败", { showToUser: false });
+        errorHandler.handle(error as Error, { userMessage: "应用输入状态更新失败", showToUser: false });
       } finally {
         this.isApplyingSyncState = false;
       }
@@ -339,7 +339,7 @@ class ChatInputManager {
         }
       }
     } catch (error) {
-      errorHandler.error(error, "恢复输入状态失败", { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "恢复输入状态失败", showToUser: false });
     }
   }
 
@@ -374,7 +374,7 @@ class ChatInputManager {
         temporaryModel: this.temporaryModel.value,
       });
     } catch (error) {
-      errorHandler.error(error, "保存输入状态失败", { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "保存输入状态失败", showToUser: false });
     }
   }
 

@@ -63,7 +63,8 @@ export function useTopicNamer() {
 
       // 检查模型配置
       if (!namingConfig.modelIdentifier) {
-        errorHandler.error(new Error('Model not configured'), '未配置话题命名模型', {
+        errorHandler.handle(new Error('Model not configured'), {
+          userMessage: '未配置话题命名模型',
           showToUser: false,
         });
         throw new Error('请先在设置中配置话题命名模型');
@@ -75,7 +76,8 @@ export function useTopicNamer() {
       const modelId = namingConfig.modelIdentifier.substring(firstColonIndex + 1);
 
       if (!profileId || !modelId) {
-        errorHandler.error(new Error('Invalid model identifier'), '无效的模型标识符', {
+        errorHandler.handle(new Error('Invalid model identifier'), {
+          userMessage: '无效的模型标识符',
           showToUser: false,
           context: { modelIdentifier: namingConfig.modelIdentifier },
         });

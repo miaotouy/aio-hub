@@ -322,7 +322,8 @@ export class MacroProcessor {
           resultLength: result.length,
         });
       } catch (error) {
-        errorHandler.error(error as Error, '宏执行失败', {
+        errorHandler.handle(error as Error, {
+          userMessage: '宏执行失败',
           showToUser: false,
           context: { phase, name, args },
         });
@@ -489,7 +490,8 @@ export class MacroProcessor {
       logger.debug('直接执行宏成功', { macroName, args, resultLength: result.length });
       return result;
     } catch (error) {
-      errorHandler.error(error as Error, '直接执行宏失败', {
+      errorHandler.handle(error as Error, {
+        userMessage: '直接执行宏失败',
         showToUser: false,
         context: { macroName, args },
       });

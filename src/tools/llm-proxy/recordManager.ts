@@ -229,7 +229,7 @@ export function importRecordsFromJson(jsonData: string): { success: boolean; imp
     return { success: true, imported };
     
   } catch (error) {
-    errorHandler.error(error, '导入记录失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '导入记录失败', showToUser: false });
     return { success: false, imported: 0, error: `解析失败: ${error}` };
   }
 }

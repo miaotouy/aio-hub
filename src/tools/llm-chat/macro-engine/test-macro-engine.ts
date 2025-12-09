@@ -61,7 +61,7 @@ async function testSimpleSubstitution(processor: MacroProcessor): Promise<void> 
   if (result.output === '你好 张三，我是 AI助手。') {
     logger.info('✅ 测试通过');
   } else {
-    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
+    errorHandler.handle(new Error('输出不符合预期'), { userMessage: '❌ 测试失败', showToUser: false });
   }
 }
 
@@ -85,7 +85,7 @@ async function testVariableOperations(processor: MacroProcessor): Promise<void> 
   if (result.output === '计数器初始值: 0增加后: 2') {
     logger.info('✅ 测试通过');
   } else {
-    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
+    errorHandler.handle(new Error('输出不符合预期'), { userMessage: '❌ 测试失败', showToUser: false });
   }
 }
 
@@ -110,7 +110,7 @@ async function testDateTimeMacros(processor: MacroProcessor): Promise<void> {
   if (result.output.includes('当前时间:') && result.output.includes('日期:')) {
     logger.info('✅ 测试通过');
   } else {
-    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
+    errorHandler.handle(new Error('输出不符合预期'), { userMessage: '❌ 测试失败', showToUser: false });
   }
 }
 
@@ -135,7 +135,7 @@ async function testFunctionMacros(processor: MacroProcessor): Promise<void> {
   if (result.output.includes('随机选择:') && result.output.includes('\n第二行')) {
     logger.info('✅ 测试通过');
   } else {
-    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', { showToUser: false });
+    errorHandler.handle(new Error('输出不符合预期'), { userMessage: '❌ 测试失败', showToUser: false });
   }
 }
 
@@ -187,7 +187,8 @@ async function testFullPipeline(processor: MacroProcessor): Promise<void> {
   if (checks.every(check => check)) {
     logger.info('✅ 测试通过');
   } else {
-    errorHandler.error(new Error('输出不符合预期'), '❌ 测试失败', {
+    errorHandler.handle(new Error('输出不符合预期'), {
+      userMessage: '❌ 测试失败',
       showToUser: false,
       context: { checks },
     });

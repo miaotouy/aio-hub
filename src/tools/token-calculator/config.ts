@@ -55,7 +55,7 @@ export const loadTokenCalculatorConfig = async (): Promise<TokenCalculatorConfig
   try {
     return await tokenCalculatorConfigManager.load();
   } catch (error) {
-    errorHandler.error(error as Error, '加载 Token Calculator 配置失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '加载 Token Calculator 配置失败', showToUser: false });
     return defaultTokenCalculatorConfig;
   }
 };
@@ -67,7 +67,7 @@ export const saveTokenCalculatorConfig = async (config: TokenCalculatorConfig): 
   try {
     await tokenCalculatorConfigManager.save(config);
   } catch (error) {
-    errorHandler.error(error as Error, '保存 Token Calculator 配置失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '保存 Token Calculator 配置失败', showToUser: false });
     throw error;
   }
 };
@@ -79,7 +79,7 @@ export const updateTokenCalculatorConfig = async (updates: Partial<TokenCalculat
   try {
     return await tokenCalculatorConfigManager.update(updates);
   } catch (error) {
-    errorHandler.error(error as Error, '更新 Token Calculator 配置失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '更新 Token Calculator 配置失败', showToUser: false });
     throw error;
   }
 };

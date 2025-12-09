@@ -73,7 +73,7 @@ export function useSmartOcrUiState() {
       isInitialized = true;
       logger.info('UI状态加载成功', state);
     } catch (error) {
-      errorHandler.error(error as Error, '加载UI状态失败', { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: '加载UI状态失败', showToUser: false });
       // 加载失败时使用默认值
       isInitialized = true;
     }

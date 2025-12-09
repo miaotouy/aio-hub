@@ -112,7 +112,7 @@ export const loadSmartOcrConfig = async (): Promise<SmartOcrConfig> => {
   try {
     return await smartOcrConfigManager.load();
   } catch (error) {
-    errorHandler.error(error as Error, '加载 SmartOCR 配置失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '加载 SmartOCR 配置失败', showToUser: false });
     return defaultSmartOcrConfig;
   }
 };
@@ -124,7 +124,7 @@ export const saveSmartOcrConfig = async (config: SmartOcrConfig): Promise<void> 
   try {
     await smartOcrConfigManager.save(config);
   } catch (error) {
-    errorHandler.error(error as Error, '保存 SmartOCR 配置失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '保存 SmartOCR 配置失败', showToUser: false });
     throw error;
   }
 };
@@ -136,7 +136,7 @@ export const updateSmartOcrConfig = async (updates: Partial<SmartOcrConfig>): Pr
   try {
     return await smartOcrConfigManager.update(updates);
   } catch (error) {
-    errorHandler.error(error as Error, '更新 SmartOCR 配置失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '更新 SmartOCR 配置失败', showToUser: false });
     throw error;
   }
 };

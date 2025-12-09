@@ -71,7 +71,8 @@ export function useOcrRunner() {
 
       return finalResults;
     } catch (error) {
-      errorHandler.error(error as Error, `OCR 识别失败 [${config.type}]`, {
+      errorHandler.handle(error as Error, {
+        userMessage: `OCR 识别失败 [${config.type}]`,
         context: {
           engineType: config.type,
           blocksCount: blocks.length,
@@ -131,30 +132,31 @@ export function useOcrRunner() {
 
     if (!profile) {
       const errorMsg = '请先在设置中配置云端 OCR 服务';
-      errorHandler.error(new Error(errorMsg), '云端 OCR 配置缺失', {
+      errorHandler.handle(new Error(errorMsg), {
+        userMessage: '云端 OCR 配置缺失',
         context: { activeProfileId: config.activeProfileId },
         showToUser: false,
       });
       throw new Error(errorMsg);
     }
-
-    if (!profile.enabled) {
-      const errorMsg = `云端 OCR 服务 "${profile.name}" 未启用`;
-      errorHandler.error(new Error(errorMsg), '云端 OCR 服务未启用', {
-        context: {
-          profileId: profile.id,
-          profileName: profile.name,
-        },
-        showToUser: false,
-      });
-      throw new Error(errorMsg);
-    }
-
-    logger.info(`使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.length} 块)`, {
+if (!profile.enabled) {
+  const errorMsg = `云端 OCR 服务 "${profile.name}" 未启用`;
+  errorHandler.handle(new Error(errorMsg), {
+    userMessage: '云端 OCR 服务未启用',
+    context: {
       profileId: profile.id,
       profileName: profile.name,
-      provider: profile.provider,
-    });
+    },
+    showToUser: false,
+  });
+  throw new Error(errorMsg);
+}
+
+logger.info(`使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.length} 块)`, {
+  profileId: profile.id,
+  profileName: profile.name,
+  provider: profile.provider,
+});
 
     // 使用云端 OCR 运行器
     const { runCloudOcr } = useCloudOcrRunner();

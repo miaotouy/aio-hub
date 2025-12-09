@@ -120,7 +120,7 @@ export function useAgentStorageSeparated() {
       // logger.debug('智能体加载成功', { agentId, name: agent.name });
       return agent;
     } catch (error) {
-      errorHandler.error(error as Error, "加载智能体失败", { context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "加载智能体失败", context: { agentId }, showToUser: false });
       return null;
     }
   }
@@ -182,7 +182,7 @@ export function useAgentStorageSeparated() {
         name: agent.name,
       });
     } catch (error) {
-      errorHandler.error(error as Error, "保存智能体失败", { context: { agentId: agent.id }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "保存智能体失败", context: { agentId: agent.id }, showToUser: false });
       throw error;
     }
   }
@@ -203,7 +203,7 @@ export function useAgentStorageSeparated() {
         logger.warn("智能体目录不存在，跳过删除", { agentId, path: agentDir });
       }
     } catch (error) {
-      errorHandler.error(error as Error, "删除智能体目录失败", { context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "删除智能体目录失败", context: { agentId }, showToUser: false });
       throw error;
     }
   }
@@ -232,7 +232,7 @@ export function useAgentStorageSeparated() {
       logger.debug("扫描智能体目录完成", { count: agentIds.length });
       return agentIds;
     } catch (error) {
-      errorHandler.error(error as Error, "扫描智能体目录失败", { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "扫描智能体目录失败", showToUser: false });
       return [];
     }
   }
@@ -367,7 +367,7 @@ export function useAgentStorageSeparated() {
 
         logger.info(`智能体 ${agentId} 迁移成功`);
       } catch (error) {
-        errorHandler.error(error as Error, `迁移智能体 ${agentId} 失败`, { context: { oldPath }, showToUser: false });
+        errorHandler.handle(error as Error, { userMessage: `迁移智能体 ${agentId} 失败`, context: { oldPath }, showToUser: false });
       }
     }
     logger.info("智能体数据迁移完成");
@@ -420,7 +420,7 @@ export function useAgentStorageSeparated() {
 
       return agents;
     } catch (error) {
-      errorHandler.error(error as Error, "加载所有智能体失败", { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "加载所有智能体失败", showToUser: false });
       return [];
     }
   }
@@ -451,7 +451,7 @@ export function useAgentStorageSeparated() {
 
       logger.debug("单个智能体保存成功", { agentId: agent.id });
     } catch (error) {
-      errorHandler.error(error as Error, "保存单个智能体失败", { context: { agentId: agent.id }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "保存单个智能体失败", context: { agentId: agent.id }, showToUser: false });
       throw error;
     }
   }
@@ -475,7 +475,8 @@ export function useAgentStorageSeparated() {
         agentCount: agents.length,
       });
     } catch (error) {
-      errorHandler.error(error as Error, "批量保存所有智能体失败", {
+      errorHandler.handle(error as Error, {
+       userMessage: "批量保存所有智能体失败",
         context: { agentCount: agents.length },
         showToUser: false,
       });
@@ -504,7 +505,7 @@ export function useAgentStorageSeparated() {
 
       logger.info("智能体已删除", { agentId });
     } catch (error) {
-      errorHandler.error(error as Error, "删除智能体失败", { context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "删除智能体失败", context: { agentId }, showToUser: false });
       throw error;
     }
   }
@@ -519,7 +520,7 @@ export function useAgentStorageSeparated() {
       await saveIndex(index);
       logger.debug("更新当前智能体", { agentId });
     } catch (error) {
-      errorHandler.error(error as Error, "更新当前智能体失败", { context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "更新当前智能体失败", context: { agentId }, showToUser: false });
       throw error;
     }
   }
@@ -532,7 +533,7 @@ export function useAgentStorageSeparated() {
       const index = await loadIndex();
       return index.currentAgentId;
     } catch (error) {
-      errorHandler.error(error as Error, "获取当前智能体失败", { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "获取当前智能体失败", showToUser: false });
       return null;
     }
   }
@@ -553,7 +554,7 @@ export function useAgentStorageSeparated() {
           await saveAgents(agents);
           logger.debug("防抖保存完成", { delay });
         } catch (error) {
-          errorHandler.error(error as Error, "防抖保存失败", { showToUser: false });
+          errorHandler.handle(error as Error, { userMessage: "防抖保存失败", showToUser: false });
         }
       }, delay);
     };

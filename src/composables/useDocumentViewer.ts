@@ -175,7 +175,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
 
       error.value = errorMessage;
       // 由于已经手动设置了 error.value，这里可以选择静默处理
-      errorHandler.error(e, '加载文档失败', { showToUser: false });
+      errorHandler.handle(e, { userMessage: '加载文档失败', showToUser: false });
     } finally {
       isLoading.value = false;
     }

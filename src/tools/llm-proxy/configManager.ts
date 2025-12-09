@@ -46,7 +46,7 @@ export async function loadSettings(): Promise<LlmProxySettings> {
     });
     return settings;
   } catch (error) {
-    errorHandler.error(error, '加载配置失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '加载配置失败', showToUser: false });
     // 返回默认配置
     return createDefaultSettings();
   }
@@ -60,7 +60,7 @@ export async function saveSettings(settings: LlmProxySettings): Promise<void> {
     configManager.saveDebounced(settings);
     logger.debug('配置保存请求已提交');
   } catch (error) {
-    errorHandler.error(error, '保存配置失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '保存配置失败', showToUser: false });
     throw error;
   }
 }
@@ -73,7 +73,7 @@ export async function saveSettingsImmediate(settings: LlmProxySettings): Promise
     await configManager.save(settings);
     logger.info('配置已立即保存');
   } catch (error) {
-    errorHandler.error(error, '立即保存配置失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '立即保存配置失败', showToUser: false });
     throw error;
   }
 }
@@ -88,7 +88,7 @@ export async function resetSettings(): Promise<LlmProxySettings> {
     logger.info('配置已重置为默认值');
     return defaultSettings;
   } catch (error) {
-    errorHandler.error(error, '重置配置失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '重置配置失败', showToUser: false });
     throw error;
   }
 }

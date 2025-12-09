@@ -102,10 +102,13 @@ export function useImageViewer(): UseImageViewerReturn {
             logger.debug(`路径 ${sanitizedSrc} 成功转换为 Blob URL`);
             return blobUrl;
           } else {
-            errorHandler.error(
+            errorHandler.handle(
               new Error("Conversion failed"),
-              "路径转换为 Blob URL 失败",
-              { context: { path: sanitizedSrc }, showToUser: false }
+              {
+                userMessage: "路径转换为 Blob URL 失败",
+                context: { path: sanitizedSrc },
+                showToUser: false,
+              }
             );
             return src; // 转换失败，返回原始路径，让其自然裂开
           }

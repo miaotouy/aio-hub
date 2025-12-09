@@ -140,12 +140,13 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
 
       // 使用新的 deleteProfile 方法（会同时删除文件和索引）
       const { deleteProfile } = useUserProfileStorage();
-      deleteProfile(profileId).catch((error: unknown) => {
-        errorHandler.error(error as Error, '删除用户档案文件失败', {
-          context: { profileId },
+      deleteProfile(profileId).catch((error: unknown) =>
+        errorHandler.handle(error as Error, {
+          userMessage: '删除用户档案文件失败',
           showToUser: false,
-        });
-      });
+          context: { profileId },
+        })
+      );
 
       this.profiles.splice(index, 1);
 
@@ -208,12 +209,13 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
      */
     persistProfiles(): void {
       const { saveProfiles } = useUserProfileStorage();
-      saveProfiles(this.profiles).catch((error: unknown) => {
-        errorHandler.error(error as Error, '持久化用户档案失败', {
-          context: { profileCount: this.profiles.length },
+      saveProfiles(this.profiles).catch((error: unknown) =>
+        errorHandler.handle(error as Error, {
+          userMessage: '持久化用户档案失败',
           showToUser: false,
-        });
-      });
+          context: { profileCount: this.profiles.length },
+        })
+      );
     },
 
     /**
@@ -227,12 +229,13 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       }
 
       const { persistProfile } = useUserProfileStorage();
-      persistProfile(profile).catch((error: unknown) => {
-        errorHandler.error(error as Error, '持久化单个用户档案失败', {
-          context: { profileId },
+      persistProfile(profile).catch((error: unknown) =>
+        errorHandler.handle(error as Error, {
+          userMessage: '持久化单个用户档案失败',
           showToUser: false,
-        });
-      });
+          context: { profileId },
+        })
+      );
     },
 
     /**
@@ -240,11 +243,12 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
      */
     persistSettings(): void {
       const { saveSettings } = useUserProfileStorage();
-      saveSettings({
-        globalProfileId: this.globalProfileId,
-      }).catch((error: unknown) => {
-        errorHandler.error(error as Error, '持久化用户档案设置失败', { showToUser: false });
-      });
+      saveSettings({ globalProfileId: this.globalProfileId }).catch((error: unknown) =>
+        errorHandler.handle(error as Error, {
+          userMessage: '持久化用户档案设置失败',
+          showToUser: false,
+        })
+      );
     },
 
     /**
@@ -268,7 +272,7 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
           logger.info('加载用户档案设置成功', { globalProfileId: settings.globalProfileId });
         }
       } catch (error) {
-        errorHandler.error(error as Error, '加载用户档案失败', { showToUser: false });
+        errorHandler.handle(error as Error, { userMessage: '加载用户档案失败', showToUser: false });
         this.profiles = [];
         this.globalProfileId = null;
       }

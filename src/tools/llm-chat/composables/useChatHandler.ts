@@ -65,7 +65,8 @@ export function useChatHandler() {
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
-      errorHandler.error(new Error("No agent selected"), "发送消息失败：没有选中智能体", {
+      errorHandler.handle(new Error("No agent selected"), {
+        userMessage: "发送消息失败：没有选中智能体",
         showToUser: false,
       });
       throw new Error("请先选择一个智能体");
@@ -75,11 +76,10 @@ export function useChatHandler() {
       parameterOverrides: session.parameterOverrides,
     });
     if (!agentConfig) {
-      errorHandler.error(
-        new Error("Agent config not found"),
-        "发送消息失败：无法获取智能体配置",
-        { showToUser: false }
-      );
+      errorHandler.handle(new Error("Agent config not found"), {
+        userMessage: "发送消息失败：无法获取智能体配置",
+        showToUser: false,
+      });
       throw new Error("无法获取智能体配置");
     }
 
@@ -233,7 +233,8 @@ export function useChatHandler() {
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
-      errorHandler.error(new Error("No agent selected"), "重新生成失败：没有选中智能体", {
+      errorHandler.handle(new Error("No agent selected"), {
+        userMessage: "重新生成失败：没有选中智能体",
         showToUser: false,
       });
       return;
@@ -244,11 +245,10 @@ export function useChatHandler() {
     });
 
     if (!agentConfig) {
-      errorHandler.error(
-        new Error("Agent config not found"),
-        "重新生成失败：无法获取智能体配置",
-        { showToUser: false }
-      );
+      errorHandler.handle(new Error("Agent config not found"), {
+        userMessage: "重新生成失败：无法获取智能体配置",
+        showToUser: false,
+      });
       return;
     }
 

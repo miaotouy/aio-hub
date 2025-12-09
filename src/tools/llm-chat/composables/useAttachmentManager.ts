@@ -113,7 +113,7 @@ export function useAttachmentManager(
 
       return true;
     } catch (error) {
-      errorHandler.error(error, "验证文件失败", { context: { path }, showToUser: false });
+      errorHandler.handle(error, { userMessage: "验证文件失败", context: { path }, showToUser: false });
       customMessage.error("验证文件失败");
       return false;
     }
@@ -234,7 +234,7 @@ export function useAttachmentManager(
 
       return pendingAsset;
     } catch (error) {
-      errorHandler.error(error, "创建待导入资产失败", { context: { path }, showToUser: false });
+      errorHandler.handle(error, { userMessage: "创建待导入资产失败", context: { path }, showToUser: false });
       return null;
     }
   };
@@ -245,7 +245,8 @@ export function useAttachmentManager(
    */
   const importPendingAsset = async (pendingAsset: Asset): Promise<void> => {
     if (!pendingAsset.originalPath) {
-      errorHandler.error(new Error("缺少原始路径，无法导入"), "缺少原始路径，无法导入", {
+      errorHandler.handle(new Error("缺少原始路径，无法导入"), {
+       userMessage: "缺少原始路径，无法导入",
         context: { assetId: pendingAsset.id },
         showToUser: false,
       });
@@ -310,7 +311,8 @@ export function useAttachmentManager(
         });
       }
     } catch (error) {
-      errorHandler.error(error, "导入资产失败", {
+      errorHandler.handle(error, {
+        userMessage: "导入资产失败",
         context: {
           assetId: pendingAsset.id,
           path: pendingAsset.originalPath,

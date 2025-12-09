@@ -235,7 +235,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       isConfigLoaded.value = true;
       logger.info("配置加载成功");
     } catch (error) {
-      errorHandler.error(error, "加载配置失败", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "加载配置失败", showToUser: false });
       // 加载失败时使用默认值（已在 ref 初始化时设置）
       isConfigLoaded.value = true;
     }
@@ -283,7 +283,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       await configManager.save(config);
       logger.debug("配置保存成功");
     } catch (error) {
-      errorHandler.error(error, "保存配置失败", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "保存配置失败", showToUser: false });
     }
   }
 

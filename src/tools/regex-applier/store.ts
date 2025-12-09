@@ -90,7 +90,8 @@ export const usePresetStore = defineStore('preset', () => {
       version.value = config.version || '1.0.0';
 
     } catch (error: any) {
-      errorHandler.error(error, '加载预设失败', {
+      errorHandler.handle(error, {
+        userMessage: '加载预设失败',
         context: { context: '从文件加载预设配置时发生错误，将使用默认配置' },
         showToUser: false,
       });

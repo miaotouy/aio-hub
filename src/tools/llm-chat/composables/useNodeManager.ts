@@ -461,7 +461,8 @@ export function useNodeManager() {
 
     const isValid = errors.length === 0;
     if (!isValid) {
-      errorHandler.error(new Error('Node integrity check failed'), '节点完整性验证失败', {
+      errorHandler.handle(new Error('Node integrity check failed'), {
+        userMessage: '节点完整性验证失败',
         showToUser: false,
         context: {
           sessionId: session.id,

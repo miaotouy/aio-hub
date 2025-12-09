@@ -60,7 +60,8 @@ export function useTesseractEngine() {
         confidence: result.data.confidence / 100,
       };
     } catch (error) {
-      errorHandler.error(error as Error, 'Tesseract 识别失败', {
+      errorHandler.handle(error as Error, {
+        userMessage: 'Tesseract 识别失败',
         context: { language },
         showToUser: false,
       });
@@ -119,7 +120,8 @@ export function useTesseractEngine() {
           textLength: text.length,
         });
       } catch (error) {
-        errorHandler.error(error as Error, `图片块识别失败 ${i + 1}/${blocks.length}`, {
+        errorHandler.handle(error as Error, {
+          userMessage: `图片块识别失败 ${i + 1}/${blocks.length}`,
           context: {
             blockId: block.id,
             language,

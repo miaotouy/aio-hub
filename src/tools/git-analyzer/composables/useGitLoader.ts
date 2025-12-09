@@ -60,7 +60,7 @@ export async function fetchBranches(path: string): Promise<GitBranch[]> {
     logger.info(`成功获取 ${branches.length} 个分支`);
     return branches;
   } catch (error) {
-    errorHandler.error(error as Error, "获取分支列表失败", { context: { path }, showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "获取分支列表失败", context: { path }, showToUser: false });
     throw error;
   }
 }
@@ -84,7 +84,7 @@ export async function fetchBranchCommits(
     logger.info(`成功获取 ${commits.length} 条提交`);
     return commits;
   } catch (error) {
-    errorHandler.error(error as Error, "获取分支提交失败", { context: { path, branch, limit }, showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "获取分支提交失败", context: { path, branch, limit }, showToUser: false });
     throw error;
   }
 }
@@ -106,7 +106,7 @@ export async function fetchCommitDetail(
     logger.info(`成功获取提交 ${hash} 的详情`);
     return commit;
   } catch (error) {
-    errorHandler.error(error as Error, "获取提交详情失败", { context: { path, hash }, showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "获取提交详情失败", context: { path, hash }, showToUser: false });
     throw error;
   }
 }
@@ -160,7 +160,7 @@ export async function streamLoadRepository(
       if (unlisten) {
         unlisten();
       }
-      errorHandler.error(error as Error, "流式加载失败", { context: { path, limit }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "流式加载失败", context: { path, limit }, showToUser: false });
       reject(error);
     }
   });
@@ -216,7 +216,7 @@ export async function streamIncrementalLoad(
       if (unlisten) {
         unlisten();
       }
-      errorHandler.error(error as Error, "增量加载失败", { context: { path, branch, skip, limit }, showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "增量加载失败", context: { path, branch, skip, limit }, showToUser: false });
       reject(error);
     }
   });

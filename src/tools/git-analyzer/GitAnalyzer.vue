@@ -238,7 +238,8 @@ async function loadConfig() {
     }
     commitRange.value = loadedConfig.commitRange || [0, 0];
   } catch (error) {
-    errorHandler.error(error, "加载配置失败", {
+    errorHandler.handle(error, {
+      userMessage: "加载配置失败",
       showToUser: false,
       context: { repoPath: repoPath.value },
     });

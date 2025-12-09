@@ -132,7 +132,8 @@ export function useVlmEngine() {
           textLength: text.length,
         });
       } catch (error) {
-        errorHandler.error(error as Error, `图片块识别失败 ${index + 1}/${blocks.length}`, {
+        errorHandler.handle(error as Error, {
+          userMessage: `图片块识别失败 ${index + 1}/${blocks.length}`,
           context: {
             blockId: block.id,
             modelId: config.modelId,

@@ -31,7 +31,7 @@ export function useNativeEngine() {
         confidence: result.confidence,
       };
     } catch (error) {
-      errorHandler.error(error as Error, 'Native OCR 识别失败', { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: 'Native OCR 识别失败', showToUser: false });
       throw error;
     }
   };
@@ -84,7 +84,8 @@ export function useNativeEngine() {
           textLength: text.length,
         });
       } catch (error) {
-        errorHandler.error(error as Error, `图片块识别失败 ${i + 1}/${blocks.length}`, {
+        errorHandler.handle(error as Error, {
+          userMessage: `图片块识别失败 ${i + 1}/${blocks.length}`,
           context: {
             blockId: block.id,
             engine: 'native',

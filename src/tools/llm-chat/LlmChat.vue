@@ -153,7 +153,7 @@ onMounted(async () => {
         handleNewSession({ agentId: agentStore.currentAgentId });
       }
     } catch (error) {
-      errorHandler.error(error, "主窗口初始化LLM Chat模块失败", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "主窗口初始化LLM Chat模块失败", showToUser: false });
     } finally {
       isLoading.value = false;
     }
@@ -179,7 +179,7 @@ onMounted(async () => {
       // 2. 状态同步引擎已由 useLlmChatSync 自动管理
       logger.info("分离窗口：状态同步服务已激活（用于跨窗口同步）");
     } catch (error) {
-      errorHandler.error(error, "分离窗口初始化LLM Chat模块失败", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "分离窗口初始化LLM Chat模块失败", showToUser: false });
     } finally {
       isLoading.value = false;
     }

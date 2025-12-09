@@ -415,12 +415,13 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     persistAgent(agent: ChatAgent): void {
       const { persistAgent: persistAgentToStorage } = useAgentStorage();
-      persistAgentToStorage(agent).catch(error => {
-        errorHandler.error(error as Error, '持久化智能体失败', {
+      persistAgentToStorage(agent).catch(error =>
+        errorHandler.handle(error as Error, {
+          userMessage: '持久化智能体失败',
           showToUser: false,
           context: { agentId: agent.id },
-        });
-      });
+        })
+      );
     },
 
     /**
@@ -428,12 +429,13 @@ export const useAgentStore = defineStore('llmChatAgent', {
      */
     persistAgents(): void {
       const { saveAgents } = useAgentStorage();
-      saveAgents(this.agents).catch(error => {
-        errorHandler.error(error as Error, '持久化所有智能体失败', {
+      saveAgents(this.agents).catch(error =>
+        errorHandler.handle(error as Error, {
+          userMessage: '持久化所有智能体失败',
           showToUser: false,
           context: { agentCount: this.agents.length },
-        });
-      });
+        })
+      );
     },
 
     /**
@@ -458,7 +460,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
           this.createDefaultAgents();
         }
       } catch (error) {
-        errorHandler.error(error as Error, '加载智能体失败', { showToUser: false });
+        errorHandler.handle(error as Error, { userMessage: '加载智能体失败', showToUser: false });
         this.agents = [];
         this.createDefaultAgents();
       }

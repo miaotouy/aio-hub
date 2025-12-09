@@ -157,7 +157,7 @@ const saveWindowConfig = debounce(async () => {
     await invoke("save_window_config", { label: windowLabel });
     logger.debug(`窗口配置已保存: ${windowLabel}`);
   } catch (error) {
-    errorHandler.error(error, "保存窗口配置失败", { showToUser: false });
+    errorHandler.handle(error, { userMessage: "保存窗口配置失败", showToUser: false });
   }
 }, 500); // 500ms 防抖
 

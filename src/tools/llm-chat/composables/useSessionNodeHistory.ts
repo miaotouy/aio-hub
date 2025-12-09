@@ -26,7 +26,8 @@ function cloneNodes(nodes: Record<string, ChatMessageNode>): Record<string, Chat
   try {
     return JSON.parse(JSON.stringify(nodes));
   } catch (error) {
-    errorHandler.error(error as Error, "克隆节点失败，可能存在循环引用或其他不可序列化的数据", {
+    errorHandler.handle(error as Error, {
+      userMessage: "克隆节点失败，可能存在循环引用或其他不可序列化的数据",
       showToUser: false,
       context: { nodeCount: Object.keys(nodes).length },
     });
@@ -182,7 +183,8 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
     }
 
     if (snapshotIndex < 0) {
-      errorHandler.error(new Error('Anchor snapshot not found'), '找不到锚点快照，历史数据可能已损坏。', {
+      errorHandler.handle(new Error('Anchor snapshot not found'), {
+        userMessage: '找不到锚点快照，历史数据可能已损坏。',
         showToUser: false,
         context: { targetIndex },
       });

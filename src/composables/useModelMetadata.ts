@@ -111,7 +111,7 @@ export function useModelMetadata() {
               });
             }
           } catch (e) {
-            errorHandler.error(e, "localStorage 数据迁移失败", { showToUser: false });
+            errorHandler.handle(e, { userMessage: "localStorage 数据迁移失败", showToUser: false });
           }
         }
       }

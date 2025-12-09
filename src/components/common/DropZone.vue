@@ -232,7 +232,7 @@ const handleFileDrop = async (paths: string[]) => {
             isValid = false
           }
         } catch (error) {
-          errorHandler.error(error, '检查路径类型失败', { path, showToUser: false })
+          errorHandler.handle(error, { userMessage: '检查路径类型失败', context: { path }, showToUser: false })
         }
       }
       

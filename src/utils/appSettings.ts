@@ -289,7 +289,8 @@ export const loadAppSettingsAsync = async (): Promise<AppSettings> => {
     logger.info("appSettings", "应用设置加载成功");
     return settings;
   } catch (error) {
-    errorHandler.error(error as Error, "加载应用设置失败", {
+    errorHandler.handle(error as Error, {
+      userMessage: "加载应用设置失败",
       context: { operation: "load" },
       showToUser: false,
     });
@@ -306,7 +307,8 @@ export const saveAppSettingsAsync = async (settings: AppSettings): Promise<void>
     cachedSettings = settings;
     logger.info("appSettings", "应用设置保存成功");
   } catch (error) {
-    errorHandler.error(error as Error, "保存应用设置失败", {
+    errorHandler.handle(error as Error, {
+      userMessage: "保存应用设置失败",
       context: { operation: "save" },
       showToUser: false,
     });
@@ -328,7 +330,8 @@ export const updateAppSettingsAsync = async (
     });
     return updatedSettings;
   } catch (error) {
-    errorHandler.error(error as Error, "更新应用设置失败", {
+    errorHandler.handle(error as Error, {
+      userMessage: "更新应用设置失败",
       context: {
         operation: "update",
         updatedKeys: Object.keys(updates),
@@ -349,7 +352,8 @@ export const resetAppSettingsAsync = async (): Promise<AppSettings> => {
     logger.info("appSettings", "应用设置重置成功");
     return defaultAppSettings;
   } catch (error) {
-    errorHandler.error(error as Error, "重置应用设置失败", {
+    errorHandler.handle(error as Error, {
+      userMessage: "重置应用设置失败",
       context: { operation: "reset" },
       showToUser: false,
     });
@@ -398,7 +402,8 @@ export const resetAppSettings = (): AppSettings => {
   cachedSettings = defaultAppSettings;
   // 异步保存，不等待结果
   resetAppSettingsAsync().catch((error) => {
-    errorHandler.error(error as Error, "异步重置设置失败", {
+    errorHandler.handle(error as Error, {
+      userMessage: "异步重置设置失败",
       context: { operation: "resetAsync" },
       showToUser: false,
     });

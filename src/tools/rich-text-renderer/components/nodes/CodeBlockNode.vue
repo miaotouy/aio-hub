@@ -275,7 +275,7 @@ const setAutomaticLayout = (enabled: boolean) => {
       editor.updateOptions({ automaticLayout: enabled });
     }
   } catch (error) {
-    errorHandler.error(error, "设置 automaticLayout 失败", { showToUser: false });
+    errorHandler.handle(error, { userMessage: "设置 automaticLayout 失败", showToUser: false });
   }
 };
 
@@ -349,7 +349,11 @@ const updateEditorFontSize = (size: number) => {
       editor.updateOptions({ fontSize: size });
     }
   } catch (error) {
-    errorHandler.error(error, "更新字体大小失败", { showToUser: false, context: { size } });
+    errorHandler.handle(error, {
+      userMessage: "更新字体大小失败",
+      showToUser: false,
+      context: { size },
+    });
   }
 };
 

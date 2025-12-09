@@ -114,7 +114,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
             isValid = false
           }
         } catch (error) {
-          errorHandler.error(error, '检查路径类型失败', { context: { path }, showToUser: false })
+          errorHandler.handle(error, { userMessage: '检查路径类型失败', context: { path }, showToUser: false })
           // 如果检查失败，仍然添加路径
         }
       }

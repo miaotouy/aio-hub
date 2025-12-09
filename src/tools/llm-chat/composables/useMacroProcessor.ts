@@ -144,7 +144,8 @@ export function useMacroProcessor() {
 
       return result.output;
     } catch (error) {
-      errorHandler.error(error as Error, '宏处理失败', {
+      errorHandler.handle(error as Error, {
+        userMessage: '宏处理失败',
         showToUser: false,
         context: { textPreview: text.substring(0, 100) },
       });
@@ -205,7 +206,8 @@ export function useMacroProcessor() {
 
       return result.outputs;
     } catch (error) {
-      errorHandler.error(error as Error, '批量宏处理失败', {
+      errorHandler.handle(error as Error, {
+        userMessage: '批量宏处理失败',
         showToUser: false,
         context: { textCount: texts.length },
       });

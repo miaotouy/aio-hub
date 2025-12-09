@@ -52,7 +52,8 @@ export function useSessionManager() {
     const agent = agentStore.getAgentById(agentId);
 
     if (!agent) {
-      errorHandler.error(new Error("Agent not found"), "创建会话失败：智能体不存在", {
+      errorHandler.handle(new Error("Agent not found"), {
+        userMessage: "创建会话失败：智能体不存在",
         showToUser: false,
         context: { agentId },
       });
@@ -141,7 +142,8 @@ export function useSessionManager() {
       await deleteSessionFile(sessionId);
       logger.info("删除会话", { sessionId, sessionName: session.name });
     } catch (error) {
-      errorHandler.error(error as Error, "删除会话文件失败", {
+      errorHandler.handle(error as Error, {
+        userMessage: "删除会话文件失败",
         showToUser: false,
         context: { sessionId },
       });
@@ -173,7 +175,7 @@ export function useSessionManager() {
       logger.info("加载会话成功", { sessionCount: sessions.length });
       return { sessions, currentSessionId };
     } catch (error) {
-      errorHandler.error(error as Error, "加载会话失败", { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "加载会话失败", showToUser: false });
       return { sessions: [], currentSessionId: null };
     }
   };
@@ -184,7 +186,8 @@ export function useSessionManager() {
   const persistSession = (session: ChatSession, currentSessionId: string | null): void => {
     const { persistSession: persistSessionToStorage } = useChatStorage();
     persistSessionToStorage(session, currentSessionId).catch((error) => {
-      errorHandler.error(error as Error, "持久化会话失败", {
+      errorHandler.handle(error as Error, {
+        userMessage: "持久化会话失败",
         showToUser: false,
         context: { sessionId: session.id },
       });
@@ -197,7 +200,8 @@ export function useSessionManager() {
   const persistSessions = (sessions: ChatSession[], currentSessionId: string | null): void => {
     const { saveSessions } = useChatStorage();
     saveSessions(sessions, currentSessionId).catch((error) => {
-      errorHandler.error(error as Error, "持久化所有会话失败", {
+      errorHandler.handle(error as Error, {
+        userMessage: "持久化所有会话失败",
         showToUser: false,
         context: { sessionCount: sessions.length },
       });
@@ -222,7 +226,8 @@ export function useSessionManager() {
       await updateCurrentSessionIdInStorage(currentSessionId);
       logger.debug("当前会话 ID 已持久化", { currentSessionId });
     } catch (error) {
-      errorHandler.error(error as Error, "持久化当前会话 ID 失败", {
+      errorHandler.handle(error as Error, {
+        userMessage: "持久化当前会话 ID 失败",
         showToUser: false,
         context: { currentSessionId },
       });

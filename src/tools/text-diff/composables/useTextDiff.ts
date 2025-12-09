@@ -101,7 +101,7 @@ export function useTextDiff() {
       totalDiffs.value = lineChanges.length;
       currentDiffIndex.value = 0;
     } catch (error) {
-      errorHandler.error(error as Error, 'Failed to get line changes', { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: 'Failed to get line changes', showToUser: false });
       totalDiffs.value = 0;
     }
   };
@@ -124,7 +124,7 @@ export function useTextDiff() {
         currentDiffIndex.value = totalDiffs.value - 1;
       }
     } catch (error) {
-      errorHandler.error(error as Error, 'goToPreviousDiff failed', { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: 'goToPreviousDiff failed', showToUser: false });
     }
   };
 
@@ -146,7 +146,7 @@ export function useTextDiff() {
         currentDiffIndex.value = 0;
       }
     } catch (error) {
-      errorHandler.error(error as Error, 'goToNextDiff failed', { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: 'goToNextDiff failed', showToUser: false });
     }
   };
 

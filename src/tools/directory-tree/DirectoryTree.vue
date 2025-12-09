@@ -454,7 +454,7 @@ onMounted(async () => {
       lastGenerationOptions.value = config.lastGenerationOptions;
     }
   } catch (error) {
-    errorHandler.error(error, "加载配置失败", { showToUser: false });
+    errorHandler.handle(error, { userMessage: "加载配置失败", showToUser: false });
   } finally {
     isLoadingConfig.value = false;
   }
@@ -483,7 +483,8 @@ const debouncedSaveConfig = debounce(async () => {
     };
     await saveConfig(config);
   } catch (error) {
-    errorHandler.error(error, "保存配置失败", {
+    errorHandler.handle(error, {
+     userMessage: "保存配置失败",
       context: {
         customPatterns: customPattern.value,
         lastFilterMode: filterMode.value,

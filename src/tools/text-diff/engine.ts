@@ -178,7 +178,7 @@ export function generatePatch(
       success: true,
     };
   } catch (error: any) {
-    errorHandler.error(error as Error, '生成补丁失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '生成补丁失败', showToUser: false });
     return {
       patch: '',
       success: false,

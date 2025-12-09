@@ -145,7 +145,7 @@ async function fetchHistory() {
     // 加载第一页
     await loadPage(1);
   } catch (error) {
-    errorHandler.error(error as Error, "加载历史记录索引失败", { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "加载历史记录索引失败", showToUser: false });
   } finally {
     isLoading.value = false;
   }
@@ -179,7 +179,7 @@ async function loadMore() {
   try {
     await loadPage(currentPage.value + 1);
   } catch (error) {
-    errorHandler.error(error as Error, "加载更多历史记录失败", { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "加载更多历史记录失败", showToUser: false });
   } finally {
     isLoadingMore.value = false;
   }
@@ -311,7 +311,7 @@ watch(
         try {
           assetBasePath.value = await getAssetBasePath();
         } catch (error) {
-          errorHandler.error(error as Error, "获取资产根目录失败", { showToUser: false });
+          errorHandler.handle(error as Error, { userMessage: "获取资产根目录失败", showToUser: false });
         }
       }
       fetchHistory();

@@ -115,7 +115,7 @@ async function loadReadme() {
     
     logger.info('README 加载成功');
   } catch (error) {
-    errorHandler.error(error as Error, '加载 README 失败', { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: '加载 README 失败', showToUser: false });
     readmeError.value = error instanceof Error ? error.message : '未知错误';
     readmeHtml.value = `<p class="readme-error">加载 README 失败: ${readmeError.value}</p>`;
   } finally {

@@ -106,7 +106,8 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
         `规则 ${index + 1} 错误: 无效的正则表达式 "${rule.regex}" - ${e.message}`,
         'error'
       );
-      errorHandler.error(e, `规则 ${index + 1} 应用失败`, {
+      errorHandler.handle(e, {
+        userMessage: `规则 ${index + 1} 应用失败`,
         context: {
           regex: rule.regex,
           replacement: rule.replacement,

@@ -77,7 +77,7 @@ export const resolveEnvPath = async (path: string): Promise<string> => {
         resolvedPath = resolvedPath.replace(/%HOME%/gi, homePath);
       }
     } catch (error) {
-      errorHandler.error(error, "解析环境变量失败", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "解析环境变量失败", showToUser: false });
     }
   }
 
@@ -91,7 +91,7 @@ export const resolveEnvPath = async (path: string): Promise<string> => {
         resolvedPath = resolvedPath.replace(/\$\{HOME\}/g, homePath);
       }
     } catch (error) {
-      errorHandler.error(error, "解析环境变量失败", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "解析环境变量失败", showToUser: false });
     }
   }
 

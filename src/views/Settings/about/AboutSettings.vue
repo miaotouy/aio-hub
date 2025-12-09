@@ -3,7 +3,7 @@ import { ref, onMounted, markRaw } from "vue";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
-import iconColor from "@/assets/aio-icon-color.svg";
+import iconUrl from "@/assets/aio-icon-color.svg";
 import { compareVersions } from "compare-versions";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
@@ -12,6 +12,7 @@ import { User, Link, DocumentCopy, Star, Present } from "@element-plus/icons-vue
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler("AboutSettings");
+const iconColor = ref(iconUrl);
 
 // 暴露枚举给模板使用
 const rendererVersion = RendererVersion;
@@ -114,7 +115,8 @@ onMounted(async () => {
     appInfo.value.name = await getName();
     appInfo.value.version = await getVersion();
   } catch (error) {
-    errorHandler.error(error as Error, "获取应用信息失败", {
+    errorHandler.handle(error as Error, {
+      userMessage: "获取应用信息失败",
       context: {
         fallbackName: "AIO Hub",
         fallbackVersion: "1.0.0",

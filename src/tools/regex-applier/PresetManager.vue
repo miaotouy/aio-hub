@@ -807,7 +807,8 @@ const validateRustCompatibility = debounce(async () => {
       });
     }
   } catch (error: any) {
-    errorHandler.error(error, "调用 Rust 验证命令失败", {
+    errorHandler.handle(error, {
+      userMessage: "调用 Rust 验证命令失败",
       context: { error: error.message },
       showToUser: false,
     });

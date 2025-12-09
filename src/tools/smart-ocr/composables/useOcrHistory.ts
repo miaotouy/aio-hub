@@ -127,7 +127,8 @@ export function useOcrHistory() {
       const content = await readTextFile(recordPath);
       return JSON.parse(content);
     } catch (error) {
-      errorHandler.error(error as Error, '加载历史记录失败', {
+      errorHandler.handle(error as Error, {
+        userMessage: '加载历史记录失败',
         context: { recordId },
         showToUser: false,
       });
@@ -177,7 +178,8 @@ export function useOcrHistory() {
       logger.info('新的 OCR 历史记录已添加', { recordId: record.id });
       return record;
     } catch (error) {
-      errorHandler.error(error as Error, '添加历史记录失败', {
+      errorHandler.handle(error as Error, {
+        userMessage: '添加历史记录失败',
         context: { recordId: record.id },
         showToUser: false,
       });
@@ -206,7 +208,8 @@ export function useOcrHistory() {
         await removeSourceFromAsset(assetId, 'smart-ocr');
         logger.info('已从资产移除 smart-ocr 来源', { assetId });
       } catch (assetError) {
-        errorHandler.error(assetError as Error, '移除资产来源失败', {
+        errorHandler.handle(assetError as Error, {
+          userMessage: '移除资产来源失败',
           context: { assetId },
           showToUser: false,
         });
@@ -224,7 +227,8 @@ export function useOcrHistory() {
 
       logger.info('历史记录已删除', { recordId });
     } catch (error) {
-      errorHandler.error(error as Error, '删除历史记录失败', {
+      errorHandler.handle(error as Error, {
+        userMessage: '删除历史记录失败',
         context: { recordId },
         showToUser: false,
       });

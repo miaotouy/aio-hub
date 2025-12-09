@@ -174,7 +174,7 @@ export function useGitAnalyzerRunner() {
         state.loading.value = false;
         const errorMsg = `${isIncremental ? "增量" : ""}加载失败: ${event.message}`;
         customMessage.error(errorMsg);
-        errorHandler.error(new Error(event.message || "Unknown error"), errorMsg, { showToUser: false });
+        errorHandler.handle(new Error(event.message || "Unknown error"), { userMessage: errorMsg, showToUser: false });
         break;
     }
   }

@@ -75,7 +75,8 @@ export class ConfigManager<T extends Record<string, any>> {
           await this.save(config);
           logger.debug(`防抖保存完成`, { moduleName: this.moduleName, delay });
         } catch (error) {
-          errorHandler.error(error as Error, `防抖保存失败`, {
+          errorHandler.handle(error as Error, {
+            userMessage: `防抖保存失败`,
             context: { moduleName: this.moduleName },
             showToUser: false,
           });
@@ -95,7 +96,8 @@ export class ConfigManager<T extends Record<string, any>> {
       // 只在错误时输出，正常情况不需要日志
       return configPath;
     } catch (error) {
-      errorHandler.error(error as Error, `获取配置路径失败`, {
+      errorHandler.handle(error as Error, {
+        userMessage: `获取配置路径失败`,
         context: {
           moduleName: this.moduleName,
           fileName: this.fileName,
@@ -121,7 +123,8 @@ export class ConfigManager<T extends Record<string, any>> {
         await mkdir(moduleDir, { recursive: true });
       }
     } catch (error) {
-      errorHandler.error(error as Error, `创建模块目录失败`, {
+      errorHandler.handle(error as Error, {
+        userMessage: `创建模块目录失败`,
         context: { moduleName: this.moduleName },
         showToUser: false,
       });
@@ -185,7 +188,8 @@ export class ConfigManager<T extends Record<string, any>> {
       logger.debug(`配置加载成功`, { moduleName: this.moduleName });
       return mergedConfig;
     } catch (error: any) {
-      errorHandler.error(error as Error, `加载配置失败`, {
+      errorHandler.handle(error as Error, {
+        userMessage: `加载配置失败`,
         context: {
           moduleName: this.moduleName,
           fileName: this.fileName,
@@ -234,7 +238,8 @@ export class ConfigManager<T extends Record<string, any>> {
       // 保存成功时输出简洁日志
       logger.info(`配置保存成功`, { moduleName: this.moduleName });
     } catch (error: any) {
-      errorHandler.error(error as Error, `保存配置失败`, {
+      errorHandler.handle(error as Error, {
+        userMessage: `保存配置失败`,
         context: {
           moduleName: this.moduleName,
           errorMessage: error?.message,
@@ -257,7 +262,8 @@ export class ConfigManager<T extends Record<string, any>> {
       // save() 已经会输出日志，这里不需要重复
       return newConfig;
     } catch (error) {
-      errorHandler.error(error as Error, `更新配置失败`, {
+      errorHandler.handle(error as Error, {
+        userMessage: `更新配置失败`,
         context: { moduleName: this.moduleName },
         showToUser: false,
       });

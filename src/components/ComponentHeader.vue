@@ -44,7 +44,7 @@ onMounted(async () => {
       const win = getCurrentWebviewWindow();
       isPinned.value = await win.isAlwaysOnTop();
     } catch (error) {
-      errorHandler.error(error, "获取窗口置顶状态失败", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "获取窗口置顶状态失败", showToUser: false });
     }
   }
 
@@ -53,7 +53,7 @@ onMounted(async () => {
     const plat = await platform();
     isMac.value = plat === "macos";
   } catch (error) {
-    errorHandler.error(error, "检查操作系统平台失败", { showToUser: false });
+    errorHandler.handle(error, { userMessage: "检查操作系统平台失败", showToUser: false });
   }
 });
 

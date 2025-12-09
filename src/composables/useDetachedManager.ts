@@ -216,7 +216,7 @@ const useDetachedWindowManager = () => {
       }
       return adjusted;
     } catch (error) {
-      errorHandler.error(error, "调整窗口位置失败", { context: { label }, showToUser: false });
+      errorHandler.handle(error, { userMessage: "调整窗口位置失败", context: { label }, showToUser: false });
       return false;
     }
   };

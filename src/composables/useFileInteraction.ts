@@ -226,8 +226,8 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
 
               errorHandler.handle(error, {
                 userMessage: `文件 ${filename} 上传失败`,
-                showToUser: false,
                 context: { filename },
+                showToUser: false,
               })
             }
           })()
@@ -235,11 +235,11 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         // 创建临时 Asset 阶段的错误（极少发生）
         errorHandler.handle(error, {
           userMessage: `准备文件 ${file.name} 失败`,
-          showToUser: false,
           context: {
             filename: file.name,
             type: file.type,
           },
+          showToUser: false,
         })
       }
     }

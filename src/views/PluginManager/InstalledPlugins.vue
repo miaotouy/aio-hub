@@ -147,7 +147,8 @@ async function togglePlugin(plugin: PluginProxy) {
           await pluginManager.loadAllPlugins();
           logger.info('已重新注册插件 UI', { pluginId: plugin.id });
         } catch (error) {
-          errorHandler.error(error as Error, '重新注册插件 UI 失败', {
+          errorHandler.handle(error as Error, {
+            userMessage: '重新注册插件 UI 失败',
             context: { pluginId: plugin.id },
             showToUser: false,
           });
@@ -225,7 +226,7 @@ async function uninstallPlugin(plugin: PluginProxy) {
   } catch (error) {
     // 用户取消操作
     if (error !== 'cancel') {
-      errorHandler.error(error as Error, '卸载确认失败', { showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: '卸载确认失败', showToUser: false });
     }
   }
 }
@@ -293,7 +294,8 @@ async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
       conflicts: conflicts.length > 0 ? conflicts : undefined,
     };
   } catch (error) {
-    errorHandler.error(error as Error, '插件预检失败', {
+    errorHandler.handle(error as Error, {
+      userMessage: '插件预检失败',
       context: { zipPath },
       showToUser: false,
     });

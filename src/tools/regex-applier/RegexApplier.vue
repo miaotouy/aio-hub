@@ -466,7 +466,7 @@ onMounted(async () => {
 
     addLog("已恢复上次的设置", "info");
   } catch (error) {
-    errorHandler.error(error, "加载应用配置失败", { showToUser: false });
+    errorHandler.handle(error, { userMessage: "加载应用配置失败", showToUser: false });
     // 如果没有选中的预设，默认选中第一个
     if (selectedPresetIds.value.length === 0 && store.presets.length > 0) {
       selectedPresetIds.value = [store.presets[0].id];
@@ -967,7 +967,8 @@ const processFiles = async () => {
       addLog(`已从列表中移除 ${successfulFiles.length} 个成功处理的文件`);
     }
   } catch (error: any) {
-    errorHandler.error(error, "文件处理失败", {
+    errorHandler.handle(error, {
+      userMessage: "文件处理失败",
       context: {
         operation: "processFiles",
         fileCount: files.value.length,

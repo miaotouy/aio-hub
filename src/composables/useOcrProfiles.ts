@@ -53,7 +53,7 @@ export function useOcrProfiles() {
             localStorage.removeItem(STORAGE_KEY);
             logger.info('数据迁移完成', { profileCount: loadedProfiles.length });
           } catch (parseError) {
-            errorHandler.error(parseError, '解析 localStorage 数据失败', { showToUser: false });
+            errorHandler.handle(parseError, { userMessage: '解析 localStorage 数据失败', showToUser: false });
           }
         }
       }

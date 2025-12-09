@@ -70,7 +70,8 @@ export function useChatAssetProcessor() {
     }
 
     // 超时
-    errorHandler.error(new Error("资产导入超时"), "资产导入超时", {
+    errorHandler.handle(new Error("资产导入超时"), {
+     userMessage: "资产导入超时",
       context: {
         timeout,
         stillPendingCount: assets.filter(
@@ -159,7 +160,8 @@ export function useChatAssetProcessor() {
               text: `[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\``,
             };
           } catch (error) {
-            errorHandler.error(error as Error, "读取文本文件失败，尝试使用 base64", {
+            errorHandler.handle(error as Error, {
+             userMessage: "读取文本文件失败，尝试使用 base64",
               context: {
                 assetId: asset.id,
                 assetName: asset.name,
@@ -221,7 +223,8 @@ export function useChatAssetProcessor() {
       });
       return null;
     } catch (error) {
-      errorHandler.error(error as Error, "附件转换失败", {
+      errorHandler.handle(error as Error, {
+       userMessage: "附件转换失败",
         context: {
           assetId: asset.id,
           assetName: asset.name,

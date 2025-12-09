@@ -85,11 +85,10 @@ export function useChatExecutor() {
         : null);
 
     if (!agentConfig) {
-      errorHandler.error(
-        new Error("Agent config not found"),
-        "执行请求失败：无法获取智能体配置",
-        { showToUser: false }
-      );
+      errorHandler.handle(new Error("Agent config not found"), {
+        userMessage: "执行请求失败：无法获取智能体配置",
+        showToUser: false,
+      });
       throw new Error("无法获取智能体配置");
     }
 

@@ -137,7 +137,8 @@ export async function generateTree(options: GenerateTreeOptions): Promise<TreeGe
       stats: statsWithTime,
     };
   } catch (error: any) {
-    errorHandler.error(error, '生成目录树失败', {
+    errorHandler.handle(error, {
+      userMessage: '生成目录树失败',
       showToUser: false,
       context: {
         path: options.path,
@@ -166,7 +167,7 @@ export async function selectDirectory(title = '选择要分析的目录'): Promi
 
     return null;
   } catch (error) {
-    errorHandler.error(error, '选择目录失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '选择目录失败', showToUser: false });
     throw error;
   }
 }
@@ -200,7 +201,7 @@ export async function exportToFile(content: string, targetPath: string): Promise
       logger.info('文件保存成功', { path: savePath });
     }
   } catch (error) {
-    errorHandler.error(error, '保存文件失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '保存文件失败', showToUser: false });
     throw error;
   }
 }
@@ -214,7 +215,7 @@ export async function loadConfig(): Promise<DirectoryTreeConfig> {
     logger.debug('配置加载成功');
     return config;
   } catch (error) {
-    errorHandler.error(error, '加载配置失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '加载配置失败', showToUser: false });
     throw error;
   }
 }
@@ -227,7 +228,7 @@ export async function saveConfig(config: DirectoryTreeConfig): Promise<void> {
     await saveConfigToStore(config);
     logger.debug('配置保存成功');
   } catch (error) {
-    errorHandler.error(error, '保存配置失败', { showToUser: false });
+    errorHandler.handle(error, { userMessage: '保存配置失败', showToUser: false });
     throw error;
   }
 }

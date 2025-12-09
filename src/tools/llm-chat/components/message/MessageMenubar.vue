@@ -33,6 +33,7 @@ import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "
 import { useLlmChatStore } from "../../store";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useAgentStore } from "../../agentStore";
+import { useChatInputManager } from "../../composables/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useSessionManager } from "../../composables/useSessionManager";
@@ -137,7 +138,21 @@ const handleDelete = async () => {
     // 用户取消，不做任何操作
   }
 };
-const handleRegenerate = () => emit("regenerate");
+const handleRegenerate = () => {
+  // 检查是否有临时模型
+  const inputManager = useChatInputManager();
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  if (temporaryModel) {
+    emit("regenerate", {
+      modelId: temporaryModel.modelId,
+      profileId: temporaryModel.profileId,
+    });
+  } else {
+    emit("regenerate");
+  }
+};
+
 // 切换模型重新生成
 const handleRegenerateWithModel = async () => {
   // 尝试定位当前消息使用的模型，如果消息没有记录（如 User 消息），则回退到当前智能体的模型
@@ -324,8 +339,8 @@ const handleExportBranch = async (options: ExportOptions) => {
     }
 
     // 保存文件 (使用本地时间)
-    const timestamp = formatDateTime(new Date(), 'yyyy-MM-dd');
-    
+    const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
+
     const defaultName = `${session.name}-分支-${timestamp}.${fileExtension}`;
 
     const filePath = await save({
@@ -480,11 +495,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       placement="top"
       :show-after="500"
     >
-      <el-dropdown
-        trigger="click"
-        placement="top"
-        @command="handleTranslationCommand"
-      >
+      <el-dropdown trigger="click" placement="top" @command="handleTranslationCommand">
         <div class="dropdown-trigger-wrapper">
           <button
             class="menu-btn"
@@ -549,9 +560,11 @@ const handleTranslateClick = (e: MouseEvent) => {
                 @click.stop="handleTranslationCommand('toggle-visible')"
               >
                 <Languages :size="14" />
-                <span>{{ hasTranslation ? (isTranslationVisible ? "隐藏" : "显示") : "翻译" }}</span>
+                <span>{{
+                  hasTranslation ? (isTranslationVisible ? "隐藏" : "显示") : "翻译"
+                }}</span>
               </div>
-              
+
               <div
                 class="action-btn retry-btn"
                 @click.stop="handleTranslationCommand('retry')"
@@ -560,7 +573,6 @@ const handleTranslateClick = (e: MouseEvent) => {
                 <RefreshCw :size="14" />
               </div>
             </div>
-
           </el-dropdown-menu>
         </template>
       </el-dropdown>

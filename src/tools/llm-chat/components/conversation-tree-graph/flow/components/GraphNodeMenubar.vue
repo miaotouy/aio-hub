@@ -1,28 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Copy, Eye, EyeOff, Trash2, MessageSquare, RefreshCw, GitFork } from 'lucide-vue-next';
-import { ElTooltip, ElPopconfirm } from 'element-plus';
+import { computed } from "vue";
+import { Copy, Eye, EyeOff, Trash2, MessageSquare, RefreshCw, GitFork } from "lucide-vue-next";
+import { ElTooltip, ElPopconfirm } from "element-plus";
+import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
 
 interface Props {
   isEnabled: boolean;
   isActiveLeaf: boolean;
   zoom: number;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
 }
 
 interface Emits {
-  (e: 'copy'): void;
-  (e: 'toggle-enabled'): void;
-  (e: 'delete'): void;
-  (e: 'view-detail', event: MouseEvent): void;
-  (e: 'regenerate'): void;
-  (e: 'create-branch'): void;
+  (e: "copy"): void;
+  (e: "toggle-enabled"): void;
+  (e: "delete"): void;
+  (e: "view-detail", event: MouseEvent): void;
+  (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
+  (e: "create-branch"): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const isUserOrAssistant = computed(() => props.role === 'user' || props.role === 'assistant');
+const isUserOrAssistant = computed(() => props.role === "user" || props.role === "assistant");
 
 // 计算反向缩放以保持固定大小,限定在合理范围内
 const menubarStyle = computed(() => {
@@ -32,19 +33,32 @@ const menubarStyle = computed(() => {
   // zoom ∈ [0.5, 2] 时，菜单栏能正常保持固定大小
   // zoom < 0.5 或 zoom > 2 时，使用边界值避免菜单栏过大或过小
   const clampedScale = Math.max(0.5, Math.min(2, inverseScale));
-  
+
   return {
     transform: `translateX(-50%) scale(${clampedScale})`,
-    transformOrigin: 'center top',
+    transformOrigin: "center top",
   };
 });
 
-const handleCopy = () => emit('copy');
-const handleToggleEnabled = () => emit('toggle-enabled');
-const handleDelete = () => emit('delete');
-const handleViewDetail = (event: MouseEvent) => emit('view-detail', event);
-const handleRegenerate = () => emit('regenerate');
-const handleCreateBranch = () => emit('create-branch');
+const handleCopy = () => emit("copy");
+const handleToggleEnabled = () => emit("toggle-enabled");
+const handleDelete = () => emit("delete");
+const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
+const handleRegenerate = () => {
+  // 检查是否有临时模型
+  const inputManager = useChatInputManager();
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  if (temporaryModel) {
+    emit("regenerate", {
+      modelId: temporaryModel.modelId,
+      profileId: temporaryModel.profileId,
+    });
+  } else {
+    emit("regenerate");
+  }
+};
+const handleCreateBranch = () => emit("create-branch");
 </script>
 
 <template>
@@ -71,14 +85,23 @@ const handleCreateBranch = () => emit('create-branch');
     </el-tooltip>
 
     <!-- 重新生成 -->
-    <el-tooltip v-if="isUserOrAssistant" :content="role === 'user' ? '重新生成回复' : '重新生成'" placement="bottom" :show-after="300">
+    <el-tooltip
+      v-if="isUserOrAssistant"
+      :content="role === 'user' ? '重新生成回复' : '重新生成'"
+      placement="bottom"
+      :show-after="300"
+    >
       <button class="menu-btn" @click="handleRegenerate">
         <RefreshCw :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 启用/禁用 -->
-    <el-tooltip :content="isEnabled ? '禁用此消息' : '启用此消息'" placement="bottom" :show-after="300">
+    <el-tooltip
+      :content="isEnabled ? '禁用此消息' : '启用此消息'"
+      placement="bottom"
+      :show-after="300"
+    >
       <button
         class="menu-btn"
         :class="{ 'menu-btn-highlight': !isEnabled }"

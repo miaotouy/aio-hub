@@ -1388,19 +1388,19 @@ export function useFlowTreeGraph(
   }
 
   /**
-   * 处理重新生成事件
-   */
-  function handleNodeRegenerate(nodeId: string): void {
+   /**
+    * 处理重新生成事件
+    */
+  function handleNodeRegenerate(nodeId: string, options?: { modelId?: string; profileId?: string }): void {
     const session = sessionRef();
     if (!session) return;
 
     const node = session.nodes[nodeId];
     if (!node) return;
 
-    logger.info("重新生成", { nodeId, role: node.role });
-    store.regenerateFromNode(nodeId);
+    logger.info("重新生成", { nodeId, role: node.role, options });
+    store.regenerateFromNode(nodeId, options);
   }
-
   /**
    * 处理创建分支事件
    */

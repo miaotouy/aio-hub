@@ -87,7 +87,7 @@ interface Emits {
   (e: "toggle-enabled"): void;
   (e: "delete"): void;
   (e: "view-detail", event: MouseEvent): void;
-  (e: "regenerate"): void;
+  (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
 }
 
@@ -111,7 +111,8 @@ const handleCopy = () => emit("copy");
 const handleToggleEnabled = () => emit("toggle-enabled");
 const handleDelete = () => emit("delete");
 const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
-const handleRegenerate = () => emit("regenerate");
+const handleRegenerate = (options?: { modelId?: string; profileId?: string }) =>
+  emit("regenerate", options);
 const handleCreateBranch = () => emit("create-branch");
 </script>
 

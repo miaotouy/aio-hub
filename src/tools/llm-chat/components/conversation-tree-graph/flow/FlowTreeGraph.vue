@@ -36,7 +36,7 @@
           @toggle-enabled="handleNodeToggleEnabled(id)"
           @delete="handleNodeDelete(id)"
           @view-detail="(event: MouseEvent) => handleNodeViewDetail(id, event)"
-          @regenerate="handleNodeRegenerate(id)"
+          @regenerate="(options) => handleNodeRegenerate(id, options)"
           @create-branch="handleNodeCreateBranch(id)"
           @mouseenter="handleNodeMouseEnter(id)"
           @mouseleave="handleNodeMouseLeave()"
@@ -782,7 +782,7 @@ onUnmounted(() => {
 });
 
 // SVG 调试层相关
-const debugSvgRef = ref<SVGSVGElement | null>(null);
+// const debugSvgRef = ref<SVGSVGElement | null>(null);
 
 // 将 D3 坐标转换为 SVG 视口坐标
 const transformD3ToSvg = (x: number, y: number) => {

@@ -37,6 +37,23 @@
           <div v-show="layoutMode === 'split' || layoutMode === 'input-only'" class="input-area">
             <div class="area-header">
               <h4>Markdown 内容</h4>
+              <div class="header-actions">
+                <el-popconfirm
+                  title="确定要重置为当前预设的内容吗？"
+                  confirm-button-text="确定"
+                  cancel-button-text="取消"
+                  @confirm="resetToPresetContent"
+                >
+                  <template #reference>
+                    <el-button
+                      size="small"
+                      :disabled="!selectedPreset"
+                    >
+                      重置
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+              </div>
             </div>
             <el-input
               ref="inputRef"
@@ -856,6 +873,20 @@ HTML 完整字符数: ${htmlContent.length}
   } catch (err) {
     customMessage.error("复制失败，请检查浏览器权限");
     console.error("Failed to copy comparison:", err);
+  }
+};
+
+// 重置到当前预设的内容
+const resetToPresetContent = () => {
+  if (!selectedPreset.value) {
+    return;
+  }
+  const preset = presets.find((p) => p.id === selectedPreset.value);
+  if (preset) {
+    inputContent.value = preset.content;
+    customMessage.success(`已重置为预设 "${preset.name}" 的内容`);
+  } else {
+    customMessage.warning("未找到对应的预设内容");
   }
 };
 

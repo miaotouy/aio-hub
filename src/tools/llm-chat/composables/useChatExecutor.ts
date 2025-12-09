@@ -388,10 +388,8 @@ export function useChatExecutor() {
       }
     } catch (error) {
       handleNodeError(session, assistantNode.id, error, "请求执行");
-      // AbortError 是用户主动取消，不应该作为错误向上传递
-      if (!(error instanceof Error && error.name === "AbortError")) {
-        throw error;
-      }
+      // 错误已由 handleNodeError 处理，不再向上抛出，避免重复提示
+      // AbortError 是用户主动取消，已由 handleNodeError 处理，无需额外操作
     } finally {
       // 清理节点级别的状态
       abortControllers.delete(assistantNode.id);

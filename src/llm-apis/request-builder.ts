@@ -390,7 +390,6 @@ export function filterParametersByCapabilities(
   filtered.onStream = options.onStream;
   filtered.onReasoningStream = options.onReasoningStream;
   filtered.signal = options.signal;
-  filtered.maxRetries = options.maxRetries;
   filtered.timeout = options.timeout;
 
   // 如果没有 provider 配置，保守策略：保留所有参数
@@ -532,7 +531,6 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "onStream",
   "onReasoningStream",
   "signal",
-  "maxRetries",
   "timeout",
 
   // 通用采样参数 (LlmParameters)

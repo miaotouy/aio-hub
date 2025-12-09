@@ -3,7 +3,6 @@ import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common
 import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
-import { createModuleErrorHandler } from "@utils/errorHandler";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -15,7 +14,6 @@ import {
 } from "./request-builder";
 
 const logger = createModuleLogger("VertexAiApi");
-const errorHandler = createModuleErrorHandler("VertexAiApi");
 
 /**
  * Vertex AI Content Part 类型

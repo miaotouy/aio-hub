@@ -6,7 +6,7 @@
 import type { LlmProfile, LlmModelInfo, ProviderType, ModelCapabilities } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
-import { fetchWithTimeout } from "./common";
+import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "../config/model-metadata";
@@ -43,10 +43,7 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
       headers,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
-    }
+    await ensureResponseOk(response);
 
     const data = await response.json();
     const models = parseModelsResponse(data, profile.type);
@@ -213,7 +210,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
           if (model.type === "model") {
             // 获取预设的 capabilities
             const presetCapabilities = extractModelCapabilities(model.id, "anthropic");
-            
+
             models.push({
               id: model.id,
               name: model.display_name || model.id,
@@ -301,10 +298,10 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
       if (data.models && Array.isArray(data.models)) {
         for (const model of data.models) {
           const modelId = model.name.split("/").pop() || model.name;
-          
+
           // 获取预设的 capabilities
           const presetCapabilities = extractModelCapabilities(modelId, "google");
-          
+
           models.push({
             id: modelId,
             name: model.displayName || modelId,

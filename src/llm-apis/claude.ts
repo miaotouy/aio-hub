@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
-import { fetchWithTimeout } from "./common";
+import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
@@ -123,14 +123,14 @@ interface ClaudeResponse {
  */
 interface ClaudeStreamEvent {
   type:
-    | "message_start"
-    | "content_block_start"
-    | "content_block_delta"
-    | "content_block_stop"
-    | "message_delta"
-    | "message_stop"
-    | "ping"
-    | "error";
+  | "message_start"
+  | "content_block_start"
+  | "content_block_delta"
+  | "content_block_stop"
+  | "message_delta"
+  | "message_stop"
+  | "ping"
+  | "error";
   message?: Partial<ClaudeResponse>;
   index?: number;
   content_block?: Partial<ClaudeContentBlock>;
@@ -541,14 +541,7 @@ export const callClaudeApi = async (
       options.signal
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const err = new Error(`Claude API 请求失败 (${response.status}): ${errorText}`);
-      errorHandler.error(err, "Claude API 请求失败", {
-        context: { status: response.status },
-      });
-      throw err;
-    }
+    await ensureResponseOk(response);
 
     if (!response.body) {
       throw new Error("响应体为空");
@@ -579,14 +572,7 @@ export const callClaudeApi = async (
     options.signal
   );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    const err = new Error(`Claude API 请求失败 (${response.status}): ${errorText}`);
-    errorHandler.error(err, "Claude API 请求失败", {
-      context: { status: response.status },
-    });
-    throw err;
-  }
+  await ensureResponseOk(response);
 
   const data: ClaudeResponse = await response.json();
 

@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
-import { fetchWithTimeout } from "./common";
+import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream } from "@utils/sse-parser";
 import {
@@ -195,10 +195,7 @@ export const callOpenAiResponsesApi = async (
       options.signal
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
-    }
+    await ensureResponseOk(response);
 
     // 处理流式响应
     if (!response.body) {
@@ -317,10 +314,7 @@ export const callOpenAiResponsesApi = async (
     options.signal // 这里之前漏了 signal，补上
   );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
-  }
+  await ensureResponseOk(response);
 
   const data = await response.json();
 

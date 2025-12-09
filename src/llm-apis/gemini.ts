@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
-import { fetchWithTimeout } from "./common";
+import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
@@ -596,10 +596,7 @@ export const callGeminiApi = async (
       options.signal
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
-    }
+    await ensureResponseOk(response);
 
     if (!response.body) {
       throw new Error("响应体为空");
@@ -701,10 +698,7 @@ export const callGeminiApi = async (
     options.signal // 补上 signal
   );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
-  }
+  await ensureResponseOk(response);
 
   const data = await response.json();
 

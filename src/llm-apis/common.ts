@@ -22,28 +22,28 @@ export interface LlmMessageContent {
   isError?: boolean;
   // 文档 - 支持多种格式
   documentSource?:
-    | {
-        // Claude/Gemini 格式：base64 编码
-        type: "base64";
-        media_type: string;
-        data: string;
-      }
-    | {
-        // OpenAI Responses 格式：file_url
-        type: "file_url";
-        file_url: string;
-      }
-    | {
-        // OpenAI Responses 格式：file_id（需先上传到 Files API）
-        type: "file_id";
-        file_id: string;
-      }
-    | {
-        // OpenAI Responses 格式：file_data（base64 data URL）
-        type: "file_data";
-        filename: string;
-        file_data: string; // data:application/pdf;base64,xxx
-      };
+  | {
+    // Claude/Gemini 格式：base64 编码
+    type: "base64";
+    media_type: string;
+    data: string;
+  }
+  | {
+    // OpenAI Responses 格式：file_url
+    type: "file_url";
+    file_url: string;
+  }
+  | {
+    // OpenAI Responses 格式：file_id（需先上传到 Files API）
+    type: "file_id";
+    file_id: string;
+  }
+  | {
+    // OpenAI Responses 格式：file_data（base64 data URL）
+    type: "file_data";
+    filename: string;
+    file_data: string; // data:application/pdf;base64,xxx
+  };
 }
 
 /**
@@ -69,7 +69,7 @@ export interface LlmRequestOptions {
   timeout?: number;
   /** 用于中止请求的 AbortSignal */
   signal?: AbortSignal;
-  
+
   // OpenAI 兼容的高级参数
   /** Top-p 采样参数，介于 0 和 1 之间 */
   topP?: number;
@@ -164,7 +164,7 @@ export interface LlmRequestOptions {
       };
     };
   };
-  
+
   // ===== Claude 特有参数 =====
   /** Claude: 停止序列 */
   stopSequences?: string[];
@@ -294,6 +294,43 @@ export class TimeoutError extends Error {
     this.name = 'TimeoutError';
   }
 }
+
+/**
+ * LLM API 错误
+ */
+export class LlmApiError extends Error {
+  status: number;
+  statusText: string;
+  body?: string;
+
+  constructor(message: string, status: number, statusText: string, body?: string) {
+    super(message);
+    this.name = 'LlmApiError';
+    this.status = status;
+    this.statusText = statusText;
+    this.body = body;
+  }
+}
+
+/**
+ * 确保响应成功，否则抛出 LlmApiError
+ */
+export const ensureResponseOk = async (response: Response): Promise<void> => {
+  if (!response.ok) {
+    let errorText = '';
+    try {
+      errorText = await response.text();
+    } catch {
+      // 忽略读取错误
+    }
+    throw new LlmApiError(
+      `API 请求失败 (${response.status} ${response.statusText}): ${errorText}`,
+      response.status,
+      response.statusText,
+      errorText
+    );
+  }
+};
 
 /**
  * 带超时控制的请求包装器

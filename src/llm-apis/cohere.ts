@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
-import { fetchWithTimeout } from "./common";
+import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -174,10 +174,7 @@ export const callCohereApi = async (
       options.signal
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
-    }
+    await ensureResponseOk(response);
 
     if (!response.body) {
       throw new Error("响应体为空");
@@ -222,10 +219,7 @@ export const callCohereApi = async (
     options.signal // 补上 signal
   );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
-  }
+  await ensureResponseOk(response);
 
   const data = await response.json();
 

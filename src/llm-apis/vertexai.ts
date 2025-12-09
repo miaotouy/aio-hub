@@ -1,6 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
-import { fetchWithTimeout } from "./common";
+import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
@@ -408,14 +408,7 @@ async function callVertexAiGemini(
       options.signal
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
-      errorHandler.error(err, "Vertex AI Gemini 请求失败", {
-        context: { status: response.status },
-      });
-      throw err;
-    }
+    await ensureResponseOk(response);
 
     if (!response.body) {
       throw new Error("响应体为空");
@@ -514,14 +507,7 @@ async function callVertexAiGemini(
     options.signal
   );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
-    errorHandler.error(err, "Vertex AI Gemini 请求失败", {
-      context: { status: response.status },
-    });
-    throw err;
-  }
+  await ensureResponseOk(response);
 
   const data = await response.json();
 
@@ -669,14 +655,7 @@ async function callVertexAiClaude(
       options.signal
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
-      errorHandler.error(err, "Vertex AI Claude 请求失败", {
-        context: { status: response.status },
-      });
-      throw err;
-    }
+    await ensureResponseOk(response);
 
     if (!response.body) {
       throw new Error("响应体为空");
@@ -737,14 +716,7 @@ async function callVertexAiClaude(
     options.signal
   );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    const err = new Error(`Vertex AI 请求失败 (${response.status}): ${errorText}`);
-    errorHandler.error(err, "Vertex AI Claude 请求失败", {
-      context: { status: response.status },
-    });
-    throw err;
-  }
+  await ensureResponseOk(response);
 
   const data = await response.json();
 

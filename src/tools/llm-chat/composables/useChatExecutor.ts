@@ -10,6 +10,7 @@ import { useUserProfileStore } from "../userProfileStore";
 import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { LlmApiError, TimeoutError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -299,8 +300,22 @@ export function useChatExecutor() {
           // 1. 如果是用户主动取消 (AbortError)，不重试
           // 2. 如果已经收到流式数据，不重试（避免内容错乱）
           // 3. 如果超过最大重试次数，不重试
+          // 4. 检查错误类型是否可重试
           const isAbort = error instanceof Error && error.name === "AbortError";
-          const shouldRetry = !isAbort && !hasReceivedStreamData && attempt < maxRetries;
+
+          let isRetryable = false;
+          if (error instanceof TimeoutError) {
+            isRetryable = true;
+          } else if (error instanceof LlmApiError) {
+            // 429 (Too Many Requests) 和 5xx (Server Errors) 可以重试
+            // 400, 401, 403, 404 等客户端错误不重试
+            isRetryable = error.status === 429 || error.status >= 500;
+          } else if (error instanceof Error && !isAbort) {
+            // 其他未知错误（如网络断开导致的 TypeError），尝试重试
+            isRetryable = true;
+          }
+
+          const shouldRetry = !isAbort && !hasReceivedStreamData && isRetryable && attempt < maxRetries;
 
           if (shouldRetry) {
             // 计算延迟时间
@@ -317,18 +332,18 @@ export function useChatExecutor() {
             // 如果在等待期间用户取消，应立即停止等待
             await new Promise<void>((resolve, reject) => {
               const timer = setTimeout(resolve, delayTime);
-              
+
               const abortHandler = () => {
                 clearTimeout(timer);
                 reject(new DOMException('Aborted', 'AbortError'));
               };
 
               abortController.signal.addEventListener('abort', abortHandler, { once: true });
-              
+
               // 如果定时器触发，记得移除监听器（虽然 once: true 会自动移除，但为了保险）
               // 这里通过 resolve 的回调链似乎很难移除，但在 resolve 后 abort 也没影响了
             });
-            
+
             continue;
           }
 

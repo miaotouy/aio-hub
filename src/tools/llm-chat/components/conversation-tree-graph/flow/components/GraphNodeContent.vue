@@ -2,54 +2,83 @@
   <div class="graph-node-content">
     <!-- 节点头部 -->
     <div class="node-header">
-      <Avatar
-        v-if="data.avatar"
-        :src="data.avatar"
-        :alt="data.name"
-        :size="48"
-        shape="square"
-        :radius="6"
-      />
-      <div class="node-info">
-        <div class="node-name-row">
-          <span class="node-name">{{ data.name }}</span>
-          <span v-if="data.isActiveLeaf" class="active-indicator">🎯</span>
+      <!-- 压缩节点特殊头部 -->
+      <div
+        v-if="data.isCompressionNode"
+        class="compression-header"
+        @click.stop="emit('toggle-expand')"
+      >
+        <div class="compression-icon">
+          <component :is="data.isExpanded ? 'span' : 'span'" class="icon-wrapper"> 📦 </component>
         </div>
-        <!-- 副标题：模型和渠道信息 -->
-        <div v-if="shouldShowSubtitle && data.subtitleInfo" class="node-subtitle">
-          <!-- 模型信息 -->
-          <div class="subtitle-item">
-            <DynamicIcon
-              :src="data.subtitleInfo.modelIcon || ''"
-              :alt="data.subtitleInfo.modelName"
-              class="subtitle-icon"
-            />
-            <span class="subtitle-text">{{ data.subtitleInfo.modelName }}</span>
+        <div class="node-info">
+          <div class="node-name-row">
+            <span class="node-name">上下文压缩</span>
+            <span class="compression-badge">{{ data.isExpanded ? "已展开" : "已折叠" }}</span>
           </div>
-          <!-- 分隔符 -->
-          <span class="subtitle-separator">·</span>
-          <!-- 渠道信息 -->
-          <div class="subtitle-item">
-            <DynamicIcon
-              :src="data.subtitleInfo.profileIcon || ''"
-              :alt="data.subtitleInfo.profileName"
-              class="subtitle-icon"
-            />
-            <span class="subtitle-text">{{ data.subtitleInfo.profileName }}</span>
+          <div class="node-subtitle">
+            <span class="subtitle-text">包含 {{ data.originalMessageCount || 0 }} 条消息</span>
           </div>
-        </div>
-        <!-- 时间戳和 Token 信息 -->
-        <div v-if="settings.uiPreferences.showTimestamp || (settings.uiPreferences.showTokenCount && data.tokens)" class="node-meta">
-          <span v-if="settings.uiPreferences.showTimestamp" class="meta-item">
-            {{ formatRelativeTime(data.timestamp) }}
-          </span>
-          <span v-if="settings.uiPreferences.showTokenCount && data.tokens" class="meta-item">
-            {{ formatTokens(data.tokens) }}
-          </span>
         </div>
       </div>
+
+      <!-- 普通节点头部 -->
+      <template v-else>
+        <Avatar
+          v-if="data.avatar"
+          :src="data.avatar"
+          :alt="data.name"
+          :size="48"
+          shape="square"
+          :radius="6"
+        />
+        <div class="node-info">
+          <div class="node-name-row">
+            <span class="node-name">{{ data.name }}</span>
+            <span v-if="data.isActiveLeaf" class="active-indicator">🎯</span>
+          </div>
+          <!-- 副标题：模型和渠道信息 -->
+          <div v-if="shouldShowSubtitle && data.subtitleInfo" class="node-subtitle">
+            <!-- 模型信息 -->
+            <div class="subtitle-item">
+              <DynamicIcon
+                :src="data.subtitleInfo.modelIcon || ''"
+                :alt="data.subtitleInfo.modelName"
+                class="subtitle-icon"
+              />
+              <span class="subtitle-text">{{ data.subtitleInfo.modelName }}</span>
+            </div>
+            <!-- 分隔符 -->
+            <span class="subtitle-separator">·</span>
+            <!-- 渠道信息 -->
+            <div class="subtitle-item">
+              <DynamicIcon
+                :src="data.subtitleInfo.profileIcon || ''"
+                :alt="data.subtitleInfo.profileName"
+                class="subtitle-icon"
+              />
+              <span class="subtitle-text">{{ data.subtitleInfo.profileName }}</span>
+            </div>
+          </div>
+          <!-- 时间戳和 Token 信息 -->
+          <div
+            v-if="
+              settings.uiPreferences.showTimestamp ||
+              (settings.uiPreferences.showTokenCount && data.tokens)
+            "
+            class="node-meta"
+          >
+            <span v-if="settings.uiPreferences.showTimestamp" class="meta-item">
+              {{ formatRelativeTime(data.timestamp) }}
+            </span>
+            <span v-if="settings.uiPreferences.showTokenCount && data.tokens" class="meta-item">
+              {{ formatTokens(data.tokens) }}
+            </span>
+          </div>
+        </div>
+      </template>
     </div>
-    
+
     <!-- 内容预览 -->
     <div class="node-preview">
       {{ data.contentPreview }}
@@ -91,15 +120,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { Copy, Check } from 'lucide-vue-next';
-import Avatar from '@/components/common/Avatar.vue';
-import DynamicIcon from '@/components/common/DynamicIcon.vue';
-import AttachmentCard from '@/tools/llm-chat/components/AttachmentCard.vue';
-import type { Asset } from '@/types/asset-management';
-import { useChatSettings } from '@/tools/llm-chat/composables/useChatSettings';
-import { customMessage } from '@/utils/customMessage';
-import { formatRelativeTime } from '@/utils/time';
+import { ref, computed } from "vue";
+import { Copy, Check } from "lucide-vue-next";
+import Avatar from "@/components/common/Avatar.vue";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
+import type { Asset } from "@/types/asset-management";
+import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import { customMessage } from "@/utils/customMessage";
+import { formatRelativeTime } from "@/utils/time";
 
 interface NodeData {
   name: string;
@@ -107,8 +136,8 @@ interface NodeData {
   contentPreview: string;
   isActiveLeaf: boolean;
   timestamp: string;
-  role: 'user' | 'assistant' | 'system';
-  status: 'generating' | 'complete' | 'error';
+  role: "user" | "assistant" | "system";
+  status: "generating" | "complete" | "error";
   errorMessage?: string;
   subtitleInfo: {
     profileName: string;
@@ -122,13 +151,23 @@ interface NodeData {
     completion?: number;
   } | null;
   attachments?: Asset[];
+  // 压缩节点相关
+  isCompressionNode?: boolean;
+  isExpanded?: boolean;
+  originalMessageCount?: number;
+  originalTokenCount?: number;
 }
 
 interface Props {
   data: NodeData;
 }
 
+interface Emits {
+  (e: "toggle-expand"): void;
+}
+
 const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
 const { settings } = useChatSettings();
 
@@ -137,9 +176,11 @@ const errorCopied = ref(false);
 
 // 是否显示副标题
 const shouldShowSubtitle = computed(() => {
-  return settings.value.uiPreferences.showModelInfo &&
-         props.data.role === 'assistant' &&
-         !!props.data.subtitleInfo;
+  return (
+    settings.value.uiPreferences.showModelInfo &&
+    props.data.role === "assistant" &&
+    !!props.data.subtitleInfo
+  );
 });
 
 // 格式化 Token 信息
@@ -153,7 +194,7 @@ const formatTokens = (tokens: { total: number; prompt?: number; completion?: num
 // 截断错误信息
 const truncateError = (error: string, maxLength: number = 100): string => {
   if (error.length <= maxLength) return error;
-  return error.substring(0, maxLength) + '...';
+  return error.substring(0, maxLength) + "...";
 };
 
 // 复制错误信息
@@ -163,14 +204,14 @@ const copyError = async () => {
   try {
     await navigator.clipboard.writeText(props.data.errorMessage);
     errorCopied.value = true;
-    customMessage.success('错误信息已复制');
+    customMessage.success("错误信息已复制");
 
     // 2秒后重置复制状态
     setTimeout(() => {
       errorCopied.value = false;
     }, 2000);
   } catch (err) {
-    customMessage.error('复制失败');
+    customMessage.error("复制失败");
   }
 };
 </script>
@@ -263,7 +304,7 @@ const copyError = async () => {
 }
 
 .meta-item:not(:last-child)::after {
-  content: '·';
+  content: "·";
   margin-left: 8px;
   color: var(--text-color-tertiary);
   opacity: 0.5;
@@ -359,5 +400,39 @@ const copyError = async () => {
   font-size: 11px;
   line-height: 1.4;
   word-break: break-word;
+}
+
+/* 压缩节点样式 */
+.compression-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.compression-header:hover {
+  background-color: var(--bg-color-soft);
+}
+
+.compression-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color-soft);
+  border-radius: 6px;
+  font-size: 20px;
+}
+
+.compression-badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background-color: var(--primary-color-light-opacity);
+  color: var(--primary-color);
 }
 </style>

@@ -40,6 +40,7 @@
           @create-branch="handleNodeCreateBranch(id)"
           @mouseenter="handleNodeMouseEnter(id)"
           @mouseleave="handleNodeMouseLeave()"
+          @toggle-expand="toggleCompressionExpanded(id)"
         />
       </template>
 
@@ -463,6 +464,7 @@ const {
   switchLayoutMode,
   toggleDebugMode,
   resetLayout,
+  toggleCompressionExpanded,
 } = useFlowTreeGraph(() => props.session, contextMenu, wrapperRef);
 
 const agentStore = useAgentStore();

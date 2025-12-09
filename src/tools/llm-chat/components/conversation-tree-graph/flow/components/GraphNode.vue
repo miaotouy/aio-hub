@@ -5,6 +5,8 @@
         'graph-node',
         { 'active-leaf': data.isActiveLeaf },
         { 'is-disabled': !data.isEnabled },
+        { 'is-compression': data.isCompressionNode },
+        { 'is-compression-expanded': data.isExpanded },
         { 'connection-target': isTarget },
         { 'connection-valid': isTarget && isTargetValid },
         { 'connection-invalid': isTarget && !isTargetValid },
@@ -15,7 +17,10 @@
       <Handle type="target" :position="Position.Top" />
 
       <!-- 节点内容 -->
-      <GraphNodeContent :data="data" />
+      <GraphNodeContent
+        :data="data"
+        @toggle-expand="emit('toggle-expand')"
+      />
 
       <!-- 底部：树结构出边的源连接点 -->
       <Handle type="source" :position="Position.Bottom" />
@@ -73,6 +78,11 @@ interface NodeData {
     completion?: number;
   } | null;
   attachments?: Asset[];
+  // 压缩节点相关
+  isCompressionNode?: boolean;
+  isExpanded?: boolean;
+  originalMessageCount?: number;
+  originalTokenCount?: number;
 }
 
 interface Props {
@@ -89,6 +99,7 @@ interface Emits {
   (e: "view-detail", event: MouseEvent): void;
   (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
+  (e: "toggle-expand"): void;
 }
 
 const props = defineProps<Props>();
@@ -185,7 +196,23 @@ const handleCreateBranch = () => emit("create-branch");
   box-shadow:
     0 0 0 1px var(--el-color-danger),
     0 0 16px 4px color-mix(in srgb, var(--el-color-danger) 50%, transparent),
-    inset 0 0 20px color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+    inset 0 20px color-mix(in srgb, var(--el-color-danger) 10%, transparent);
   background-color: color-mix(in srgb, var(--el-color-danger) 5%, var(--card-bg));
+}
+
+/* 压缩节点样式 */
+.graph-node.is-compression {
+  border-style: dashed;
+  background-color: var(--bg-color-soft);
+}
+
+.graph-node.is-compression:hover {
+  border-color: var(--primary-color);
+  background-color: var(--card-bg);
+}
+
+.graph-node.is-compression-expanded {
+  border-style: solid;
+  border-color: var(--primary-color-light);
 }
 </style>

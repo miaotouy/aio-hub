@@ -85,6 +85,11 @@ interface FlowNode {
     } | null;
     attachments?: Asset[];
     _node: ChatMessageNode;
+    // 压缩节点相关状态
+    isCompressionNode?: boolean;
+    isExpanded?: boolean;
+    originalMessageCount?: number;
+    originalTokenCount?: number;
   };
 }
 
@@ -189,6 +194,9 @@ export function useFlowTreeGraph(
   // 调试模式
   const debugMode = ref(false);
 
+  // 展开的压缩节点 ID 集合
+  const expandedCompressionIds = ref(new Set<string>());
+
   // 详情悬浮窗状态
   const detailPopupState = ref<DetailPopupState>({
     visible: false,
@@ -234,6 +242,19 @@ export function useFlowTreeGraph(
     isTargetValid: false,
     isGrafting: false,
   });
+
+  /**
+   * 切换压缩节点的展开/折叠状态
+   */
+  function toggleCompressionExpanded(nodeId: string) {
+    if (expandedCompressionIds.value.has(nodeId)) {
+      expandedCompressionIds.value.delete(nodeId);
+    } else {
+      expandedCompressionIds.value.add(nodeId);
+    }
+    // 状态变化后更新图表
+    updateChart();
+  }
 
   /**
     * 计算每个节点的直接子节点数
@@ -590,7 +611,8 @@ export function useFlowTreeGraph(
     }
 
     // 计算当前的拓扑结构指纹
-    const currentFingerprint = getStructureFingerprint(session);
+    // 注意：引入压缩折叠后，指纹还需要包含展开状态，否则折叠/展开不会触发结构更新
+    const currentFingerprint = getStructureFingerprint(session) + '|' + Array.from(expandedCompressionIds.value).sort().join(',');
     const isStructureChanged = forceResetPosition || currentFingerprint !== lastStructureFingerprint;
 
     // 记录旧节点位置，用于在更新时平滑过渡，避免整个树每次都从 (0, 0) 重新收缩成一团
@@ -602,8 +624,68 @@ export function useFlowTreeGraph(
       }
     }
 
+    // --- 预处理压缩节点逻辑 ---
+    const hiddenNodeIds = new Set<string>();
+    const nodeRepMap = new Map<string, string>(); // OriginalId -> RepresentativeId (SummaryNodeId)
+    const logicalParentMap = new Map<string, string>(); // SummaryNodeId -> LogicalParentId (FirstNode.parentId)
+
+    Object.values(session.nodes).forEach(node => {
+      if (
+        node.metadata?.isCompressionNode &&
+        node.isEnabled !== false &&
+        !expandedCompressionIds.value.has(node.id)
+      ) {
+        // 这是一个折叠的压缩节点
+        const compressedIds = node.metadata.compressedNodeIds || [];
+        if (compressedIds.length > 0) {
+          // 1. 标记被压缩的节点为隐藏
+          compressedIds.forEach(id => {
+            hiddenNodeIds.add(id);
+            nodeRepMap.set(id, node.id);
+          });
+
+          // 2. 确定压缩节点的逻辑父节点
+          // 找到第一个被压缩的节点，取其父节点
+          const firstNodeId = compressedIds[0];
+          const firstNode = session.nodes[firstNodeId];
+          if (firstNode && firstNode.parentId) {
+            logicalParentMap.set(node.id, firstNode.parentId);
+          }
+        }
+      }
+    });
+
+    // 辅助函数：获取可见的父节点 ID
+    const getVisibleParentId = (originalParentId: string): string | null => {
+      // 1. 如果父节点被隐藏，尝试找到它的代表（压缩节点）
+      let effectiveParentId = originalParentId;
+      if (hiddenNodeIds.has(effectiveParentId)) {
+        const rep = nodeRepMap.get(effectiveParentId);
+        if (rep) effectiveParentId = rep;
+      }
+      
+      // 2. 如果代表本身也被隐藏（嵌套压缩），递归查找（这里简单处理，假设只有一层或 rep 指向最外层）
+      // 如果 rep 也在 hiddenNodeIds 里，说明出现了嵌套且都被折叠。
+      // 为防止死循环，这里只做有限层级的查找或假设 nodeRepMap 已经扁平化（当前实现未扁平化，但通常压缩是线性的）
+      // 在当前上下文压缩实现中，通常不会有复杂的嵌套结构，如果有，也通常是线性的。
+      
+      // 检查 effectiveParentId 是否真的可见
+      if (hiddenNodeIds.has(effectiveParentId)) {
+        // 这里的逻辑可能需要更健壮，但对于目前的需求，如果父节点不可见，那就断开或连到上一级
+        return null;
+      }
+      
+      return effectiveParentId;
+    };
+
+
     // 转换节点数据为 Vue Flow 格式
-    const flowNodes: FlowNode[] = Object.values(session.nodes).map((node) => {
+    const flowNodes: FlowNode[] = [];
+    
+    Object.values(session.nodes).forEach((node) => {
+      // 如果节点被隐藏，跳过
+      if (hiddenNodeIds.has(node.id)) return;
+
       const colors = getNodeColor(session, node);
       const isActiveLeaf = node.id === session.activeLeafId;
       const isEnabled = node.isEnabled !== false;
@@ -611,6 +693,8 @@ export function useFlowTreeGraph(
       const contentPreview = truncateText(node.content, 150);
       const subtitleInfo = getSubtitleInfo(node);
       const attachments = node.attachments || [];
+      const isCompressionNode = !!node.metadata?.isCompressionNode;
+      const isExpanded = expandedCompressionIds.value.has(node.id);
 
       // 提取 Token 信息
       let tokens: { total: number; prompt?: number; completion?: number } | null = null;
@@ -626,22 +710,32 @@ export function useFlowTreeGraph(
         };
       }
 
+      // 确定用于定位的父节点
+      let positioningParentId = node.parentId;
+      if (isCompressionNode && !isExpanded && logicalParentMap.has(node.id)) {
+        positioningParentId = logicalParentMap.get(node.id)!;
+      }
+      // 获取可见的父节点 ID
+      if (positioningParentId) {
+        const visibleParent = getVisibleParentId(positioningParentId);
+        if (visibleParent) positioningParentId = visibleParent;
+      }
+
       const previousNode = previousNodesMap.get(node.id);
       let initialPosition;
 
       if (previousNode) {
         // 已有节点：继承位置
         initialPosition = { ...previousNode.position };
-      } else if (node.parentId && !forceResetPosition) {
+      } else if (positioningParentId && !forceResetPosition) {
         // 新节点且有父节点：出生在父节点下方 (仅在非强制重置时)
-        const parentNode = previousNodesMap.get(node.parentId);
+        const parentNode = previousNodesMap.get(positioningParentId);
         if (parentNode) {
           initialPosition = {
             x: parentNode.position.x,
             y: parentNode.position.y + 240, // 在父节点下方偏移一段距离
           };
         } else {
-          // 如果父节点也找不到（理论上不应该），则回退
           initialPosition = { x: 0, y: 0 };
         }
       } else {
@@ -649,7 +743,7 @@ export function useFlowTreeGraph(
         initialPosition = { x: 0, y: 0 };
       }
 
-      return {
+      flowNodes.push({
         id: node.id,
         type: 'custom',
         position: initialPosition,
@@ -668,28 +762,55 @@ export function useFlowTreeGraph(
           tokens,
           attachments,
           _node: node,
+          // 传递压缩相关状态
+          isCompressionNode,
+          isExpanded,
+          originalMessageCount: node.metadata?.originalMessageCount,
+          originalTokenCount: node.metadata?.originalTokenCount,
         },
-      };
+      });
     });
 
     // 转换边数据为 Vue Flow 格式
     const flowEdges: FlowEdge[] = [];
-    Object.values(session.nodes).forEach((node) => {
-      if (node.parentId) {
-        const isOnActivePath =
-          BranchNavigator.isNodeInActivePath(session, node.parentId) &&
-          BranchNavigator.isNodeInActivePath(session, node.id);
+    
+    // 遍历生成的 flowNodes 来建立连接，而不是遍历 session.nodes
+    // 这样可以确保只连接可见的节点
+    flowNodes.forEach(targetNode => {
+      const node = session.nodes[targetNode.id];
+      if (!node) return;
 
-        flowEdges.push({
-          id: `${node.parentId}-${node.id}`,
-          source: node.parentId,
-          target: node.id,
-          animated: isOnActivePath,
-          style: {
-            stroke: isOnActivePath ? palette.edge.active : palette.edge.inactive,
-            strokeWidth: isOnActivePath ? 2 : 1,
-          },
-        });
+      // 确定逻辑上的父节点 ID
+      let rawParentId = node.parentId;
+      
+      // 如果是折叠的压缩节点，它的逻辑父节点是它压缩的第一个节点的父节点
+      if (targetNode.data.isCompressionNode && !targetNode.data.isExpanded && logicalParentMap.has(node.id)) {
+        rawParentId = logicalParentMap.get(node.id)!;
+      }
+
+      if (rawParentId) {
+        const sourceId = getVisibleParentId(rawParentId);
+        
+        if (sourceId) {
+          // 检查源节点是否在 flowNodes 中 (防止连接到已被过滤的节点)
+          // 虽然 getVisibleParentId 应该已经处理了，但双重检查更安全
+          if (!flowNodes.find(n => n.id === sourceId)) return;
+
+          const isOnActivePath =
+            BranchNavigator.isNodeInActivePath(session, sourceId) &&
+            BranchNavigator.isNodeInActivePath(session, targetNode.id);
+
+          flowEdges.push({
+            id: `${sourceId}-${targetNode.id}`,
+            source: sourceId,
+            target: targetNode.id,
+            animated: isOnActivePath,
+            style: {
+              stroke: isOnActivePath ? palette.edge.active : palette.edge.inactive,
+              strokeWidth: isOnActivePath ? 2 : 1,
+            },
+          });
+        }
       }
     });
 
@@ -1557,6 +1678,7 @@ export function useFlowTreeGraph(
     switchLayoutMode, // 暴露布局模式切换函数
     resetLayout, // 暴露重置布局函数
     toggleDebugMode,
+    toggleCompressionExpanded,
     destroy,
   };
 }

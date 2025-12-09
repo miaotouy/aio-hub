@@ -77,34 +77,38 @@
     </div>
 
     <!-- 控制按钮组 -->
-    <div class="control-buttons">
+    <div class="control-buttons" :class="{ 'is-vertical': isNarrowLayout }">
       <transition name="el-fade-in-linear" mode="out-in">
-        <el-button-group v-if="isControlsExpanded" style="border-radius: 8px">
+        <el-button-group
+          v-if="isControlsExpanded"
+          style="border-radius: 8px"
+          :class="{ 'is-vertical': isNarrowLayout }"
+        >
           <!-- 布局模式切换按钮 -->
           <el-tooltip
             :content="layoutMode === 'tree' ? '切换到实时力导向图模式' : '切换到树状布局模式'"
-            placement="bottom"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
           >
             <el-button :icon="layoutMode === 'tree' ? Grid : Share" @click="toggleLayoutMode" />
           </el-tooltip>
 
           <!-- 重置布局按钮 -->
-          <el-tooltip content="重置布局" placement="bottom">
+          <el-tooltip content="重置布局" :placement="isNarrowLayout ? 'left' : 'bottom'">
             <el-button :icon="Refresh" @click="resetLayout" />
           </el-tooltip>
 
           <!-- 撤销按钮 -->
-          <el-tooltip :content="undoTooltip" placement="bottom">
+          <el-tooltip :content="undoTooltip" :placement="isNarrowLayout ? 'left' : 'bottom'">
             <el-button :icon="ArrowLeft" :disabled="!canUndo" @click="undo" />
           </el-tooltip>
 
           <!-- 重做按钮 -->
-          <el-tooltip :content="redoTooltip" placement="bottom">
+          <el-tooltip :content="redoTooltip" :placement="isNarrowLayout ? 'left' : 'bottom'">
             <el-button :icon="ArrowRight" :disabled="!canRedo" @click="redo" />
           </el-tooltip>
 
           <!-- 历史记录按钮 -->
-          <el-tooltip content="查看操作历史" placement="bottom">
+          <el-tooltip content="查看操作历史" :placement="isNarrowLayout ? 'left' : 'bottom'">
             <el-button
               :icon="Timer"
               :type="historyPanelState.visible ? 'primary' : 'default'"
@@ -113,12 +117,12 @@
           </el-tooltip>
 
           <!-- 视图设置按钮 -->
-          <el-tooltip content="视图设置" placement="bottom">
+          <el-tooltip content="视图设置" :placement="isNarrowLayout ? 'left' : 'bottom'">
             <el-button ref="viewSettingsBtnRef" :icon="Operation" />
           </el-tooltip>
 
           <!-- 使用说明按钮 -->
-          <el-tooltip content="使用说明" placement="bottom">
+          <el-tooltip content="使用说明" :placement="isNarrowLayout ? 'left' : 'bottom'">
             <el-button :icon="QuestionFilled" @click="isUsageGuideVisible = true" />
           </el-tooltip>
 
@@ -126,7 +130,7 @@
           <template v-if="chatSettings.developer.debugModeEnabled">
             <el-tooltip
               :content="debugMode ? '关闭调试叠加层' : '显示调试叠加层'"
-              placement="bottom"
+              :placement="isNarrowLayout ? 'left' : 'bottom'"
             >
               <el-button
                 :icon="View"
@@ -136,21 +140,29 @@
             </el-tooltip>
 
             <!-- 复制调试信息按钮 - 与调试模式按钮一起出现，保持布局稳定 -->
-            <el-tooltip content="复制调试信息到剪贴板" placement="bottom">
+            <el-tooltip
+              content="复制调试信息到剪贴板"
+              :placement="isNarrowLayout ? 'left' : 'bottom'"
+            >
               <el-button :icon="CopyDocument" :disabled="!debugMode" @click="copyDebugInfo" />
             </el-tooltip>
           </template>
 
           <!-- 收起按钮 -->
-          <el-tooltip content="收起工具栏" placement="bottom">
-            <el-button :icon="DArrowRight" @click="isControlsExpanded = false" />
+          <el-tooltip content="收起工具栏" :placement="isNarrowLayout ? 'left' : 'bottom'">
+            <el-button
+              class="rotate-icon"
+              :icon="DArrowRight"
+              @click="isControlsExpanded = false"
+            />
           </el-tooltip>
         </el-button-group>
 
         <!-- 展开按钮 (折叠状态下显示) -->
         <div v-else>
-          <el-tooltip content="展开工具栏" placement="bottom">
+          <el-tooltip content="展开工具栏" :placement="isNarrowLayout ? 'left' : 'bottom'">
             <el-button
+              class="rotate-icon"
               :icon="DArrowLeft"
               circle
               @click="isControlsExpanded = true"
@@ -315,7 +327,7 @@
       :virtual-ref="viewSettingsBtnRef"
       virtual-triggering
       trigger="click"
-      placement="bottom"
+      :placement="isNarrowLayout ? 'left-start' : 'bottom'"
       :width="200"
     >
       <div class="view-settings-list">
@@ -356,7 +368,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed, reactive } from "vue";
-import { useStorage } from "@vueuse/core";
+import { useStorage, useResizeObserver } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
@@ -395,7 +407,7 @@ import "@vue-flow/controls/dist/style.css";
 import "@vue-flow/minimap/dist/style.css";
 
 /**
- * 会话树图组件 V2
+ * 会话树图组件
  * 使用 Vue Flow + D3.js 力导向布局渲染对话历史的树状结构
  */
 
@@ -407,6 +419,15 @@ const props = defineProps<Props>();
 
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const viewSettingsBtnRef = ref();
+
+const isNarrowLayout = ref(false);
+
+useResizeObserver(wrapperRef, (entries) => {
+  const entry = entries[0];
+  const { width } = entry.contentRect;
+  // 当宽度小于此值时切换为垂直布局
+  isNarrowLayout.value = width < 600;
+});
 
 // 视图设置状态 (持久化)
 const viewSettings = useStorage("llm-chat-flow-graph-view-settings", {
@@ -1024,6 +1045,52 @@ onUnmounted(() => {
 
 .dark .control-buttons :deep(.el-button-group) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 垂直布局适配 */
+.control-buttons.is-vertical {
+  width: auto;
+  flex-direction: column;
+}
+
+.el-button-group.is-vertical {
+  display: flex;
+  flex-direction: column;
+}
+
+.el-button-group.is-vertical > .el-button {
+  margin-left: 0 !important;
+  width: 32px;
+  height: 32px;
+  padding: 8px;
+}
+
+.el-button-group.is-vertical > .el-button:not(:last-child) {
+  margin-bottom: -1px;
+}
+
+.el-button-group.is-vertical > .el-button:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.el-button-group.is-vertical > .el-button:last-child {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  border-bottom: none;
+}
+
+.el-button-group.is-vertical > .el-button:not(:first-child):not(:last-child) {
+  border-radius: 0;
+}
+
+/* 垂直布局时旋转特定图标 (收起/展开按钮) */
+.is-vertical .rotate-icon :deep(.el-icon) {
+  transform: rotate(-90deg);
 }
 
 /* HUD 面板样式 */

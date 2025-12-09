@@ -206,6 +206,11 @@ export interface LlmParameters {
    * 如果不存在此字段，则回退到旧行为（发送所有非 undefined 的参数）。
    */
   enabledParameters?: Array<keyof Omit<LlmParameters, "custom">>;
+
+  /**
+   * 上下文压缩配置
+   */
+  contextCompression?: ContextCompressionConfig;
 }
 /**
  * 用于唯一标识一个模型的结构
@@ -215,4 +220,32 @@ export interface ModelIdentifier {
   profileId: string;
   /** Model ID */
   modelId: string;
+}
+
+/**
+ * 上下文压缩配置
+ */
+export interface ContextCompressionConfig {
+  /** 是否启用上下文压缩 */
+  enabled?: boolean;
+  /** 是否自动触发压缩 */
+  autoTrigger?: boolean;
+  /** 触发模式：基于 Token 数量、消息条数或两者 */
+  triggerMode?: 'token' | 'count' | 'both';
+  /** Token 阈值 */
+  tokenThreshold?: number;
+  /** 消息条数阈值 */
+  countThreshold?: number;
+  /** 保护最近 N 条消息不被压缩 */
+  protectRecentCount?: number;
+  /** 每次压缩多少条消息 */
+  compressCount?: number;
+  /** 至少多少条历史才触发压缩 */
+  minHistoryCount?: number;
+  /** 摘要节点的角色 */
+  summaryRole?: 'system' | 'assistant' | 'user';
+  /** 生成摘要的模型（可选，默认使用当前模型） */
+  summaryModel?: ModelIdentifier;
+  /** 摘要提示词模板 */
+  summaryPrompt?: string;
 }

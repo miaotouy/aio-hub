@@ -14,6 +14,7 @@ import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useTranslation } from "@/tools/llm-chat/composables/useTranslation";
 import { useMessageBuilder } from "@/tools/llm-chat/composables/useMessageBuilder";
+import { useContextCompressor } from "@/tools/llm-chat/composables/useContextCompressor";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import type { Asset } from "@/types/asset-management";
@@ -37,9 +38,12 @@ const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
 const { settings, updateSettings, isLoaded: settingsLoaded, loadSettings } = useChatSettings();
 const { translateText } = useTranslation();
+const { manualCompress } = useContextCompressor();
 
 // 翻译相关状态
 const isTranslatingInput = ref(false);
+// 压缩相关状态
+const isCompressing = ref(false);
 
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
@@ -837,6 +841,36 @@ const handleNewSession = () => {
     chatStore.createSession(agentId);
   }
 };
+
+// 处理手动压缩上下文
+const handleCompressContext = async () => {
+  if (isCompressing.value) return;
+
+  const session = chatStore.currentSession;
+  if (!session) return;
+
+  // 检查是否在分离模式下，如果是，可能需要通过 bus 请求？
+  // 目前压缩逻辑是在前端执行的，直接操作 store。
+  // 如果在分离窗口中，store 是同步的吗？
+  // useLlmChatStore 应该是同步的，或者至少能操作。
+  // 假设可以直接操作。
+
+  isCompressing.value = true;
+  try {
+    const result = await manualCompress(session);
+    if (result) {
+      customMessage.success("上下文压缩成功");
+      // 触发 token 重新计算
+      debouncedCalculateTokens();
+    } else {
+      customMessage.info("没有可压缩的消息，或历史记录不足");
+    }
+  } catch (error) {
+    errorHandler.error(error, "手动压缩失败");
+  } finally {
+    isCompressing.value = false;
+  }
+};
 </script>
 <template>
   <div
@@ -925,6 +959,7 @@ const handleNewSession = () => {
             :has-attachments="attachmentManager.hasAttachments.value"
             :is-translating="isTranslatingInput"
             :translation-enabled="settings.translation.enabled"
+            :is-compressing="isCompressing"
             @toggle-streaming="toggleStreaming"
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
@@ -936,6 +971,7 @@ const handleNewSession = () => {
             @translate-input="handleTranslateInput"
             @switch-session="handleSwitchSession"
             @new-session="handleNewSession"
+            @compress-context="handleCompressContext"
           />
         </div>
       </div>

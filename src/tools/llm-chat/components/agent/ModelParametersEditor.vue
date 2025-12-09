@@ -18,6 +18,7 @@ import { useChatHandler } from "../../composables/useChatHandler";
 import type { ContextPreviewData } from "../../composables/useChatHandler";
 import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
+import ContextCompressionConfigPanel from "../settings/ContextCompressionConfigPanel.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
@@ -144,6 +145,8 @@ const {
 
 // 上下文管理折叠状态（局部状态）
 const contextManagementExpanded = ref(true);
+// 上下文压缩折叠状态（局部状态）
+const contextCompressionExpanded = ref(false);
 // 上下文后处理折叠状态（局部状态）
 const postProcessingExpanded = ref(true);
 // 安全设置折叠状态（局部状态）
@@ -622,16 +625,20 @@ const handleStateChange = () => {
 watch(() => chatStore.currentSessionId, handleStateChange);
 watch(() => chatStore.currentSession?.activeLeafId, handleStateChange);
 watch(() => agentStore.currentAgentId, handleStateChange);
-watch(
-  () => {
-    if (!agentStore.currentAgentId) return null;
-    const agent = agentStore.getAgentById(agentStore.currentAgentId);
-    return agent?.modelId;
-  },
-  handleStateChange
-);
+watch(() => {
+  if (!agentStore.currentAgentId) return null;
+  const agent = agentStore.getAgentById(agentStore.currentAgentId);
+  return agent?.modelId;
+}, handleStateChange);
 watch(
   () => localParams.value.contextManagement,
+  () => {
+    if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
+  },
+  { deep: true }
+);
+watch(
+  () => localParams.value.contextCompression,
   () => {
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
@@ -946,6 +953,18 @@ watch(
             retainedCharacters: $event === null ? 0 : $event,
           })
         "
+      />
+    </ConfigSection>
+
+    <!-- 上下文压缩分组 -->
+    <ConfigSection
+      title="上下文压缩"
+      :icon="'i-ep-files'"
+      v-model:expanded="contextCompressionExpanded"
+    >
+      <ContextCompressionConfigPanel
+        :model-value="localParams.contextCompression || {}"
+        @update:model-value="updateParameter('contextCompression', $event)"
       />
     </ConfigSection>
 

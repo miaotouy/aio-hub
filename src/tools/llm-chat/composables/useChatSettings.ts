@@ -13,7 +13,7 @@ import {
   type RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
 import { createDefaultChatRegexConfig } from "../types";
-import type { ChatRegexConfig } from "../types";
+import type { ChatRegexConfig, ContextCompressionConfig } from "../types";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
@@ -156,6 +156,8 @@ export interface ChatSettings {
   };
   /** 全局正则管道配置 */
   regexConfig: ChatRegexConfig;
+  /** 上下文压缩配置 */
+  contextCompression: ContextCompressionConfig;
 }
 
 /**
@@ -233,6 +235,19 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     debugModeEnabled: false,
   },
   regexConfig: createDefaultChatRegexConfig(),
+  contextCompression: {
+    enabled: false,
+    autoTrigger: true,
+    triggerMode: "token",
+    tokenThreshold: 80000,
+    countThreshold: 50,
+    protectRecentCount: 10,
+    compressCount: 20,
+    minHistoryCount: 15,
+    summaryRole: "system",
+    summaryPrompt:
+      "请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：\n\n{context}\n\n摘要要求：\n1. 用中文输出\n2. 保持客观中立\n3. 不超过 300 字",
+  },
 };
 
 /**
@@ -286,6 +301,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       regexConfig: {
         ...defaultConfig.regexConfig,
         ...(loadedConfig.regexConfig || {}),
+      },
+      contextCompression: {
+        ...defaultConfig.contextCompression,
+        ...(loadedConfig.contextCompression || {}),
       },
     };
   },
@@ -385,6 +404,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
         ...(updates.developer || {}),
       },
       regexConfig: updates.regexConfig ?? settings.value.regexConfig,
+      contextCompression: {
+        ...settings.value.contextCompression,
+        ...(updates.contextCompression || {}),
+      },
     };
     await saveSettings();
     logger.info("聊天设置已更新", { updates });

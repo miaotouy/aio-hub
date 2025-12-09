@@ -11,6 +11,7 @@ import {
   Globe,
   Regex,
   Languages,
+  Archive,
 } from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
@@ -273,6 +274,20 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "modelPreferences.defaultModel",
         hint: "新建智能体或会话时默认使用的模型，作为兜底选项",
         keywords: "model default 默认 模型",
+      },
+    ],
+  },
+  {
+    title: "上下文压缩",
+    icon: Archive,
+    items: [
+      {
+        id: "contextCompression",
+        label: "上下文压缩配置",
+        component: "ContextCompressionConfigPanel",
+        modelPath: "contextCompression",
+        hint: "配置自动或手动的上下文压缩策略，以节省 Token 并保持长对话的连贯性。",
+        keywords: "context compression summary token 上下文 压缩 摘要",
       },
     ],
   },

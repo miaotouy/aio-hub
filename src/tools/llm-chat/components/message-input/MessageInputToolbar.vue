@@ -6,7 +6,7 @@ export interface InputToolbarSettings {
 
 <script setup lang="ts">
 import { ElTooltip, ElPopover } from "element-plus";
-import { Paperclip, AtSign, X, Settings, Languages, MessageSquare } from "lucide-vue-next";
+import { Paperclip, AtSign, X, Settings, Languages, MessageSquare, Package } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
@@ -34,11 +34,13 @@ interface Props {
   settings: InputToolbarSettings;
   isTranslating?: boolean;
   translationEnabled?: boolean;
+  isCompressing?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isTranslating: false,
   translationEnabled: false,
+  isCompressing: false,
 });
 
 const emit = defineEmits<{
@@ -55,6 +57,7 @@ const emit = defineEmits<{
   (e: "translate-input"): void;
   (e: "switch-session", sessionId: string): void;
   (e: "new-session"): void;
+  (e: "compress-context"): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
@@ -160,6 +163,19 @@ const handleNewSession = () => {
       <el-tooltip content="临时指定模型" placement="top" :show-after="300">
         <button class="tool-btn" @click="emit('select-temporary-model')">
           <AtSign :size="16" />
+        </button>
+      </el-tooltip>
+
+      <!-- 上下文压缩按钮 -->
+      <el-tooltip content="压缩上下文" placement="top" :show-after="300">
+        <button
+          class="tool-btn"
+          :class="{ 'is-loading': props.isCompressing }"
+          :disabled="props.isCompressing || props.disabled"
+          @click="emit('compress-context')"
+        >
+          <Package :size="16" v-if="!props.isCompressing" />
+          <span v-else class="loading-dots">...</span>
         </button>
       </el-tooltip>
 

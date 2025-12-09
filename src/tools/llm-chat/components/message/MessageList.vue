@@ -7,6 +7,7 @@ import type { Asset } from "@/types/asset-management";
 import { useLlmChatStore } from "../../store";
 import { useChatSettings } from "../../composables/useChatSettings";
 import ChatMessage from "./ChatMessage.vue";
+import CompressionMessage from "./CompressionMessage.vue";
 
 interface Props {
   session: ChatSession | null;
@@ -35,8 +36,52 @@ const emit = defineEmits<Emits>();
 const store = useLlmChatStore();
 const { settings } = useChatSettings();
 
+// 临时展开的压缩节点 ID 集合
+const expandedCompressionIds = ref<Set<string>>(new Set());
+
+const toggleCompressionExpand = (nodeId: string) => {
+  const newSet = new Set(expandedCompressionIds.value);
+  if (newSet.has(nodeId)) {
+    newSet.delete(nodeId);
+  } else {
+    newSet.add(nodeId);
+  }
+  expandedCompressionIds.value = newSet;
+};
+
+// 计算实际显示的消息列表（处理压缩隐藏逻辑）
+const displayMessages = computed(() => {
+  // 1. 收集所有需要隐藏的节点 ID
+  const hiddenNodeIds = new Set<string>();
+
+  props.messages.forEach((node) => {
+    // 是压缩节点且已启用
+    if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
+      // 如果该压缩节点被手动展开查看，则不隐藏其内容
+      if (expandedCompressionIds.value.has(node.id)) {
+        return;
+      }
+
+      // 收集被压缩的 ID
+      if (node.metadata.compressedNodeIds) {
+        node.metadata.compressedNodeIds.forEach((id) => hiddenNodeIds.add(id));
+      }
+    }
+  });
+
+  // 2. 过滤列表
+  return props.messages.filter((node) => {
+    // 如果是被压缩隐藏的节点，则移除
+    if (hiddenNodeIds.has(node.id)) {
+      return false;
+    }
+    return true;
+  });
+});
+
 // 为每条消息计算兄弟节点信息
 const getMessageSiblings = (messageId: string) => {
+  // 注意：这里仍然在原始 messages 中查找，因为兄弟节点关系是基于原始树结构的
   const message = props.messages.find((m) => m.id === messageId);
 
   // 预设消息不在会话节点树中，返回只包含自己的特殊结构（不显示分支导航）
@@ -97,9 +142,9 @@ const currentVisibleIndex = computed(() => {
   // 过滤掉那些起始位置在视口下方的元素（overscan）
   // 然后取最后一个，即为当前视口中最下面一条可见的消息
   const visibleItems = items.filter((item) => item.start < scrollBottom);
-  
+
   if (visibleItems.length === 0) return 0;
-  
+
   const lastVisibleItem = visibleItems[visibleItems.length - 1];
   return lastVisibleItem.index + 1; // 转换为 1-based 索引
 });
@@ -183,7 +228,7 @@ const scrollToNext = () => {
   // 找到第一个真正可见的消息（底部位置大于当前滚动位置）
   // items 包含 overscan 的元素，所以 items[0] 可能是视口上方的元素
   const firstVisibleItem = items.find((item) => item.end > scrollTop);
-  
+
   // 如果没找到（理论上不可能），就回退到第一个 item
   const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
   const nextIndex = currentIndex + 1;
@@ -203,7 +248,7 @@ const scrollToPrev = () => {
 
   // 找到第一个真正可见的消息
   const firstVisibleItem = items.find((item) => item.end > scrollTop);
-  
+
   const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
   const prevIndex = currentIndex - 1;
 
@@ -254,7 +299,7 @@ defineExpose({
 <template>
   <div class="message-list-container">
     <div ref="messagesContainer" class="message-list" @scroll="onScroll">
-      <div v-if="messages.length === 0" class="empty-state">
+      <div v-if="displayMessages.length === 0" class="empty-state">
         <p>👋 开始新的对话吧！</p>
       </div>
 
@@ -270,7 +315,7 @@ defineExpose({
         <!-- 仅渲染可见的虚拟项 -->
         <div
           v-for="virtualItem in virtualItems"
-          :key="messages[virtualItem.index].id"
+          :key="displayMessages[virtualItem.index].id"
           :data-index="virtualItem.index"
           :ref="
             (el) => {
@@ -285,41 +330,53 @@ defineExpose({
           }"
         >
           <div class="message-wrapper">
+            <!-- 压缩节点渲染 -->
+            <CompressionMessage
+              v-if="displayMessages[virtualItem.index].metadata?.isCompressionNode"
+              :message="displayMessages[virtualItem.index]"
+              :is-expanded="expandedCompressionIds.has(displayMessages[virtualItem.index].id)"
+              @toggle-expand="toggleCompressionExpand(displayMessages[virtualItem.index].id)"
+              @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
+              @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
+            />
+
+            <!-- 普通消息渲染 -->
             <ChatMessage
+              v-else
               :session="props.session"
-              :message="messages[virtualItem.index]"
-              :message-depth="messages.length - 1 - virtualItem.index"
+              :message="displayMessages[virtualItem.index]"
+              :message-depth="displayMessages.length - 1 - virtualItem.index"
               :is-sending="isSending"
-              :siblings="getMessageSiblings(messages[virtualItem.index].id).siblings"
+              :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"
               :current-sibling-index="
-                getMessageSiblings(messages[virtualItem.index].id).currentIndex
+                getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex
               "
               :llm-think-rules="llmThinkRules"
               :rich-text-style-options="
-                messages[virtualItem.index].role === 'user'
+                displayMessages[virtualItem.index].role === 'user'
                   ? userRichTextStyleOptions || richTextStyleOptions
                   : richTextStyleOptions
               "
-              @delete="emit('delete-message', messages[virtualItem.index].id)"
-              @regenerate="handleRegenerate($event, messages[virtualItem.index].id)"
-              @switch-sibling="handleSwitchSibling($event, messages[virtualItem.index].id)"
+              @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
+              @regenerate="handleRegenerate($event, displayMessages[virtualItem.index].id)"
+              @switch-sibling="handleSwitchSibling($event, displayMessages[virtualItem.index].id)"
               @switch-branch="handleSwitchBranch"
-              @toggle-enabled="emit('toggle-enabled', messages[virtualItem.index].id)"
+              @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
               @edit="
                 (newContent: any, attachments: any) =>
-                  handleEditMessage(messages[virtualItem.index].id, newContent, attachments)
+                  handleEditMessage(displayMessages[virtualItem.index].id, newContent, attachments)
               "
               @save-to-branch="
                 (newContent: any, attachments: any) =>
-                  handleSaveToBranch(messages[virtualItem.index].id, newContent, attachments)
+                  handleSaveToBranch(displayMessages[virtualItem.index].id, newContent, attachments)
               "
               @copy="() => {}"
-              @abort="emit('abort-node', messages[virtualItem.index].id)"
-              @create-branch="emit('create-branch', messages[virtualItem.index].id)"
-              @analyze-context="emit('analyze-context', messages[virtualItem.index].id)"
+              @abort="emit('abort-node', displayMessages[virtualItem.index].id)"
+              @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
+              @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
               @update-translation="
                 (translation: any) =>
-                  store.updateMessageTranslation(messages[virtualItem.index].id, translation)
+                  store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
               "
             />
           </div>

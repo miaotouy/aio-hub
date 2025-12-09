@@ -21,6 +21,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useChatExecutor } from "./useChatExecutor";
 import { useChatContextBuilder, type ContextPreviewData } from "./useChatContextBuilder";
+import { useContextCompressor } from "./useContextCompressor";
 import { useMessageProcessor } from "./useMessageProcessor";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { filterParametersForModel } from "../config/parameter-config";
@@ -40,6 +41,7 @@ export function useChatHandler() {
   } = useChatExecutor();
   const { getLlmContextForPreview } = useChatContextBuilder();
   const { processMacros } = useMacroProcessor();
+  const { checkAndCompress } = useContextCompressor();
 
   /**
    * 发送消息
@@ -55,6 +57,16 @@ export function useChatHandler() {
       temporaryModel?: ModelIdentifier | null;
     }
   ): Promise<void> => {
+    // 尝试执行自动上下文压缩
+    // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
+    // 我们在创建新消息之前执行压缩，以确保新消息基于最新的上下文状态
+    try {
+      await checkAndCompress(session);
+    } catch (error) {
+      // 压缩失败仅记录日志，不阻断发送流程
+      logger.error("自动上下文压缩执行出错", error);
+    }
+
     const agentStore = useAgentStore();
     const userProfileStore = useUserProfileStore();
     const nodeManager = useNodeManager();

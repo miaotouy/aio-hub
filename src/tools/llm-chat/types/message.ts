@@ -198,5 +198,21 @@ export interface ChatMessageNode {
       /** 显示模式：translation=仅译文, both=双语对照 */
       displayMode?: TranslationDisplayMode;
     };
+    /** 是否为压缩/摘要节点 */
+    isCompressionNode?: boolean;
+    /** 被此节点压缩/隐藏的节点 ID 列表 */
+    compressedNodeIds?: string[];
+    /** 压缩时间戳 */
+    compressionTimestamp?: number;
+    /** 压缩前的 Token 总数 */
+    originalTokenCount?: number;
+    /** 压缩前的消息条数 */
+    originalMessageCount?: number;
+    /** 压缩配置快照 */
+    compressionConfig?: {
+      triggerMode: string;
+      thresholds: Record<string, number>;
+      summaryRole: string;
+    };
   };
 }

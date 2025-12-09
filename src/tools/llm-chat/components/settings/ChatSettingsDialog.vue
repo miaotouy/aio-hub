@@ -295,6 +295,7 @@ import { useElementSize, useWindowSize } from "@vueuse/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
+import ContextCompressionConfigPanel from "./ContextCompressionConfigPanel.vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   useChatSettings,
@@ -516,6 +517,7 @@ const componentMap: Record<string, Component> = {
   ElSelect,
   MarkdownStyleEditor,
   ChatRegexEditor,
+  ContextCompressionConfigPanel,
 };
 
 const resolveComponent = (componentName: SettingComponent | Component) => {

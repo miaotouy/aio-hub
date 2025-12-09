@@ -14,7 +14,8 @@ export type SettingComponent =
   | 'LlmModelSelector'
   | 'SliderWithInput'
   | 'MarkdownStyleEditor'
-  | 'ChatRegexEditor';
+  | 'ChatRegexEditor'
+  | 'ContextCompressionConfigPanel';
 
 /**
  * 定义单个设置项的配置结构
@@ -49,18 +50,18 @@ export interface SettingItem {
    * 支持静态数组或动态函数
    */
   options?:
-    | {
-        label: string;
-        value: string | number | boolean;
-        tags?: string[];
-        description?: string;
-      }[]
-    | ((settings: ChatSettings) => {
-        label: string;
-        value: string | number | boolean;
-        tags?: string[];
-        description?: string;
-      }[]);
+  | {
+    label: string;
+    value: string | number | boolean;
+    tags?: string[];
+    description?: string;
+  }[]
+  | ((settings: ChatSettings) => {
+    label: string;
+    value: string | number | boolean;
+    tags?: string[];
+    description?: string;
+  }[]);
   /**
    * 设置项的描述性提示文字
    */

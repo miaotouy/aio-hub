@@ -48,11 +48,32 @@ export function useChatContextBuilder() {
     capabilities?: ModelCapabilities,
     timestamp?: number
   ): Promise<LlmContextData> => {
-    // 过滤出有效的对话上下文（排除禁用节点和系统节点）
+    // 1. 识别所有启用的压缩节点，收集被它们压缩的节点 ID
+    const hiddenNodeIds = new Set<string>();
+    activePath.forEach((node) => {
+      if (
+        node.metadata?.isCompressionNode &&
+        node.isEnabled !== false &&
+        node.metadata.compressedNodeIds
+      ) {
+        node.metadata.compressedNodeIds.forEach((id) => hiddenNodeIds.add(id));
+      }
+    });
+
+    // 过滤出有效的对话上下文
     const llmContextPromises = activePath
+      // 排除被压缩隐藏的节点
+      .filter((node) => !hiddenNodeIds.has(node.id))
+      // 排除禁用节点
       .filter((node) => node.isEnabled !== false)
-      .filter((node) => node.role !== "system")
-      .filter((node) => node.role === "user" || node.role === "assistant")
+      // 排除系统节点（除非是压缩节点）和非 user/assistant 节点
+      .filter((node) => {
+        // 压缩节点总是保留（即使角色是 system）
+        if (node.metadata?.isCompressionNode) return true;
+
+        // 普通节点：排除 system，只保留 user 和 assistant
+        return node.role !== "system" && (node.role === "user" || node.role === "assistant");
+      })
       .map(async (node, index) => {
         // 使用统一的消息构建器处理文本和附件
         const content = await buildMessageContentForLlm(
@@ -72,7 +93,7 @@ export function useChatContextBuilder() {
         }
 
         return {
-          role: node.role as "user" | "assistant",
+          role: node.role as "user" | "assistant" | "system",
           content,
           sourceType: "session_history",
           sourceId: node.id,

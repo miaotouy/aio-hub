@@ -23,7 +23,11 @@
       <MiniMap v-if="viewSettings.showMiniMap" />
 
       <!-- 控制器 -->
-      <Controls v-if="viewSettings.showControls" />
+      <Controls v-if="viewSettings.showControls">
+        <ControlButton title="定位到当前激活节点" @click="locateActiveNode">
+          <el-icon><Aim /></el-icon>
+        </ControlButton>
+      </Controls>
 
       <!-- 自定义节点 -->
       <template #node-custom="{ data, id }">
@@ -357,8 +361,9 @@ import { storeToRefs } from "pinia";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { MiniMap } from "@vue-flow/minimap";
-import { Controls } from "@vue-flow/controls";
+import { Controls, ControlButton } from "@vue-flow/controls";
 import {
+  Aim,
   Grid,
   Share,
   View,
@@ -715,7 +720,29 @@ onMounted(() => {
 });
 
 // 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
-const { getNodes, getViewport } = useVueFlow();
+const { getNodes, getViewport, fitView } = useVueFlow();
+
+/**
+ * 定位到当前激活节点
+ */
+const locateActiveNode = () => {
+  const activeId = props.session?.activeLeafId;
+  if (!activeId) {
+    customMessage.warning("当前没有激活的节点");
+    return;
+  }
+
+  // 使用 fitView 定位到指定节点
+  // padding: 2 确保节点周围有足够空间
+  // maxZoom: 1 防止缩放过大贴在脸上
+  // duration: 800 平滑过渡动画
+  fitView({
+    nodes: [activeId],
+    padding: 2,
+    maxZoom: 1,
+    duration: 800,
+  });
+};
 
 // 状态监控 (FPS & Zoom)
 const graphStats = reactive({

@@ -284,7 +284,7 @@
 
               <!-- 消息文本预览（单行） -->
               <div class="message-text-compact">
-                {{ truncateText(element.content, 60) }}
+                {{ element.name ? truncateText(element.name, 60) : truncateText(element.content, 60) }}
               </div>
 
               <!-- Token 信息（紧凑模式） -->
@@ -358,6 +358,10 @@
                   </el-tag>
                 </div>
 
+                <!-- 消息名称（如果有） -->
+                <div v-if="element.name" class="message-name">
+                  {{ element.name }}
+                </div>
                 <!-- 消息文本预览 -->
                 <div class="message-text">
                   {{ truncateText(element.content, 120) }}
@@ -555,10 +559,12 @@ import type { InjectionStrategy } from "../../types";
 const editForm = ref<{
   role: MessageRole;
   content: string;
+  name?: string;
   injectionStrategy?: InjectionStrategy;
 }>({
   role: "system",
   content: "",
+  name: "",
   injectionStrategy: undefined,
 });
 
@@ -817,6 +823,7 @@ function handleAddMessage() {
   editForm.value = {
     role: "system",
     content: "",
+    name: "",
     injectionStrategy: undefined,
   };
   editDialogVisible.value = true;
@@ -843,6 +850,7 @@ function handleEditMessage(index: number) {
   editForm.value = {
     role: message.role,
     content: message.content,
+    name: message.name,
     injectionStrategy: message.injectionStrategy,
   };
   editDialogVisible.value = true;
@@ -875,6 +883,7 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
 async function handleSaveMessage(form: {
   role: MessageRole;
   content: string;
+  name?: string;
   injectionStrategy?: InjectionStrategy;
 }) {
   if (isEditMode.value) {
@@ -882,6 +891,7 @@ async function handleSaveMessage(form: {
     const message = localMessages.value[editingIndex.value];
     message.role = form.role;
     message.content = form.content;
+    message.name = form.name;
     message.injectionStrategy = form.injectionStrategy;
 
     // 如果有模型ID，重新计算 token
@@ -904,6 +914,7 @@ async function handleSaveMessage(form: {
       childrenIds: [],
       content: form.content,
       role: form.role,
+      name: form.name,
       status: "complete",
       type: "message", // 明确标记为普通消息
       isEnabled: true,
@@ -945,6 +956,7 @@ async function handleCopyMessage(index: number) {
   const dataToCopy = {
     role: message.role,
     content: message.content,
+    name: message.name,
     metadata: message.metadata,
   };
 
@@ -991,9 +1003,10 @@ async function handlePasteMessage(index: number) {
     const message = localMessages.value[index];
 
     if (isStructured) {
-      // 如果是结构化数据，则覆盖 role, content 和 metadata
+      // 如果是结构化数据，则覆盖 role, content, name 和 metadata
       message.role = data.role;
       message.content = data.content;
+      message.name = data.name;
       if (data.metadata) {
         message.metadata = { ...message.metadata, ...data.metadata };
       }
@@ -1442,6 +1455,14 @@ function handleConfirmSTImport(data: {
   font-size: 11px;
   color: var(--el-color-warning);
   flex-shrink: 0;
+}
+
+.message-name {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .message-text {

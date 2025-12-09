@@ -65,9 +65,10 @@ export function useExportManager() {
       if (node.role === "system") return; // 跳过系统根节点
 
       const role = node.role === "user" ? "用户" : "助手";
+      const nameStr = node.name ? ` - ${node.name}` : "";
       const time = node.timestamp ? new Date(node.timestamp).toLocaleTimeString("zh-CN") : "";
 
-      lines.push(`## ${role} (${time})`);
+      lines.push(`## ${role}${nameStr} (${time})`);
       lines.push("");
       lines.push(node.content);
       lines.push("");
@@ -156,14 +157,15 @@ export function useExportManager() {
         lines.push("");
 
         presetMessages.forEach((node) => {
+          const nameStr = node.name ? ` - ${node.name}` : "";
           if (node.role === "system") {
-            lines.push("### 系统提示");
+            lines.push(`### 系统提示${nameStr}`);
             lines.push("");
             lines.push(node.content);
             lines.push("");
           } else {
             const role = node.role === "user" ? "用户" : "助手";
-            lines.push(`### ${role}`);
+            lines.push(`### ${role}${nameStr}`);
             lines.push("");
             lines.push(node.content);
             lines.push("");
@@ -364,6 +366,7 @@ export function useExportManager() {
 
     interface ExportMessage {
       role: string;
+      name?: string;
       content: string;
       timestamp: number;
       isEnabled?: boolean;
@@ -410,6 +413,7 @@ export function useExportManager() {
         result.presetMessages = presetMessages.map((node) => {
           const msg: any = {
             role: node.role,
+            name: node.name,
             content: node.content,
             timestamp: node.timestamp,
           };
@@ -426,6 +430,7 @@ export function useExportManager() {
     allMessages.forEach((node) => {
       const msg: any = {
         role: node.role,
+        name: node.name,
         content: node.content,
         timestamp: node.timestamp,
         isEnabled: node.isEnabled,
@@ -572,6 +577,7 @@ export function useExportManager() {
       // 根据角色确定图标和名称
       let roleIcon = "";
       let roleName = "";
+      const nameStr = node.name ? ` [${node.name}]` : "";
 
       if (node.role === "user") {
         const userName = includeUserProfile && node.metadata?.userProfileName
@@ -598,7 +604,7 @@ export function useExportManager() {
 
       // 添加消息标题（使用列表项）
       const roleLabel = roleIcon ? `${roleIcon} ${roleName}` : roleName;
-      lines.push(`${indent}- **${roleLabel}** (${time})${enabledStatus}`);
+      lines.push(`${indent}- **${roleLabel}${nameStr}** (${time})${enabledStatus}`);
 
       // 添加元数据（缩进）
       const metaIndent = indent + "  ";

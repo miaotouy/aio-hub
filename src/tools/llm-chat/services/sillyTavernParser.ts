@@ -447,18 +447,20 @@ function createPresetMessage(
   injectionStrategy?: InjectionStrategy,
   isEnabled: boolean = true
 ): ChatMessageNode {
+  const metadata = name ? { stPromptName: name } : undefined;
   return {
     id: `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     parentId: null,
     childrenIds: [],
     content,
+    name,
     role,
     status: 'complete',
     type: 'message',
     isEnabled,
     timestamp: new Date().toISOString(),
     injectionStrategy,
-    metadata: name ? { stPromptName: name } : undefined,
+    metadata,
   };
 }
 // 注：正则转换逻辑已移至 chatRegexUtils.ts，使用 convertSillyTavernArrayToPreset

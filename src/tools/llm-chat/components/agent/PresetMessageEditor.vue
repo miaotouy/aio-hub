@@ -43,6 +43,19 @@
           </div>
         </div>
 
+        <!-- 名称输入行 -->
+        <div class="editor-row name-row">
+          <span class="field-label">名称</span>
+          <div class="name-input">
+            <el-input
+              v-model="form.name"
+              placeholder="可选，用于标识此预设消息"
+              size="small"
+              style="flex: 1; max-width: 400px;"
+            />
+          </div>
+        </div>
+
         <!-- 注入策略配置行 -->
         <div class="editor-row injection-row">
           <span class="field-label">注入</span>
@@ -233,6 +246,7 @@ import type { CompletionContext, CompletionResult } from "@codemirror/autocomple
 
 interface MessageForm {
   role: MessageRole;
+  name?: string;
   content: string;
   injectionStrategy?: InjectionStrategy;
 }
@@ -254,11 +268,10 @@ interface Emits {
   (e: "update:visible", value: boolean): void;
   (e: "save", form: MessageForm): void;
 }
-
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   isEditMode: false,
-  initialForm: () => ({ role: "system", content: "" }),
+  initialForm: () => ({ role: "system", name: "", content: "" }),
   agentName: "Assistant",
   userProfile: null,
   llmThinkRules: () => [],
@@ -274,6 +287,7 @@ const { getAvailableAnchors } = useAnchorRegistry();
 // 表单数据
 const form = ref<MessageForm>({
   role: "system",
+  name: "",
   content: "",
 });
 
@@ -654,6 +668,18 @@ function handleSave() {
 
 .view-mode-switch {
   margin-left: 16px;
+}
+
+.name-row {
+  /* 名称行与角色行对齐 */
+  min-height: 32px;
+}
+
+.name-input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  max-width: 400px;
 }
 
 .toolbar-row {

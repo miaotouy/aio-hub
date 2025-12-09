@@ -25,6 +25,7 @@ export interface CreateNodeConfig {
   isEnabled?: boolean;
   metadata?: Record<string, any>;
   attachments?: Asset[];
+  name?: string;
 }
 
 /**
@@ -37,7 +38,6 @@ export function useNodeManager() {
   const generateNodeId = (): string => {
     return `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
-
   /**
    * 创建新节点
    */
@@ -56,6 +56,7 @@ export function useNodeManager() {
       timestamp: now,
       metadata: config.metadata,
       attachments: config.attachments,
+      name: config.name,
     };
   };
 

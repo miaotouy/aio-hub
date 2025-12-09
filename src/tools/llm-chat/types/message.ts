@@ -73,6 +73,12 @@ export interface ChatMessageNode {
   content: string;
 
   /**
+   * 消息显示名称（可选）
+   * 用于在 UI 中标识此预设消息，便于区分和管理
+   */
+  name?: string;
+
+  /**
    * 消息作者的角色
    */
   role: MessageRole;

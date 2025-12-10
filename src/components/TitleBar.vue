@@ -507,6 +507,17 @@ const getProfileAvatarSrc = (profile: any) => {
   -webkit-app-region: no-drag;
 }
 
+/* 窄屏适配：当窗口较窄时，取消绝对居中，改为靠左显示 */
+@media (max-width: 800px) {
+  .title-area {
+    position: static;
+    transform: none;
+    flex: 1;
+    padding-left: 12px;
+    overflow: hidden;
+  }
+}
+
 .app-logo {
   width: 20px;
   height: 20px;

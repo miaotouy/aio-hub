@@ -3,7 +3,7 @@
 /* 亮色主题变量 */
 :root {
   /* 布局尺寸 */
-  --titlebar-height: 32px;
+  --titlebar-height: 36px;
 
   /* z-index 规范 */
   --z-index-title-bar: 9999; /* 应用顶层标题栏 */

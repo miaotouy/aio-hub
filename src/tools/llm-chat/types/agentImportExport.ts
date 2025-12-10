@@ -1,4 +1,4 @@
-import type { ChatMessageNode, LlmParameters } from '../types';
+import type { ChatMessageNode, LlmParameters, AgentCategory } from '../types';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 
 /**
@@ -23,7 +23,7 @@ export interface ExportableAgent {
     timeScale?: number;
   };
   tags?: string[];
-  category?: string;
+  category?: AgentCategory;
   regexConfig?: import('./chatRegex').ChatRegexConfig;
 }
 

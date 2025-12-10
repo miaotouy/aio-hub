@@ -8,6 +8,7 @@ import type {
   AgentImportPreflightResult,
   ConfirmImportParams,
 } from '../types/agentImportExport';
+import { AgentCategory, AgentCategoryLabels } from '../types';
 import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from './sillyTavernParser';
 import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
 import { invoke } from '@tauri-apps/api/core';
@@ -295,25 +296,56 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
           logger.warn('找不到 Agent 引用的资产，将忽略头像', { agentName: resolvedAgent.name, iconPath: resolvedAgent.icon });
         }
       }
+// 准备 Agent 基础数据（暂时不设置 icon，等头像存储后再更新）
+const agentName = resolvedAgent.newName || resolvedAgent.name;
 
-      // 准备 Agent 基础数据（暂时不设置 icon，等头像存储后再更新）
-      const agentName = resolvedAgent.newName || resolvedAgent.name;
-      const agentOptions = {
-        displayName: resolvedAgent.displayName,
-        description: resolvedAgent.description,
-        icon: pendingAvatarData ? undefined : resolvedAgent.icon, // 如果有待处理的头像，先不设置
-        userProfileId: resolvedAgent.userProfileId,
-        presetMessages: resolvedAgent.presetMessages,
-        displayPresetCount: resolvedAgent.displayPresetCount,
-        parameters: resolvedAgent.parameters,
-        llmThinkRules: resolvedAgent.llmThinkRules,
-        richTextStyleOptions: resolvedAgent.richTextStyleOptions,
-        tags: resolvedAgent.tags,
-        category: resolvedAgent.category,
-        regexConfig: resolvedAgent.regexConfig,
+// 验证并迁移 category
+let validCategory: AgentCategory | undefined = undefined;
+if (resolvedAgent.category) {
+  const category = resolvedAgent.category as string;
+  // 1. 如果已经是标准枚举值，直接使用
+  if (Object.values(AgentCategory).includes(category as AgentCategory)) {
+    validCategory = category as AgentCategory;
+  } else {
+    // 2. 尝试通过 Label 匹配 (中文名 -> 枚举值)
+    const entry = Object.entries(AgentCategoryLabels).find(
+      ([_, label]) => label === category
+    );
+    if (entry) {
+      validCategory = entry[0] as AgentCategory;
+    } else {
+      // 3. 特殊遗留映射（旧预设中的分类字符串 -> 新枚举）
+      const legacyMapping: Record<string, AgentCategory> = {
+        工具: AgentCategory.Workflow,
+        编程: AgentCategory.Expert,
+        写作: AgentCategory.Creative,
+        角色扮演: AgentCategory.Character,
+        助手: AgentCategory.Assistant,
       };
+      if (legacyMapping[category]) {
+        validCategory = legacyMapping[category];
+      }
+      // 4. 匹配不到，保留 undefined（即不设置 category）
+    }
+  }
+}
 
-      let finalAgentId: string;
+const agentOptions = {
+  displayName: resolvedAgent.displayName,
+  description: resolvedAgent.description,
+  icon: pendingAvatarData ? undefined : resolvedAgent.icon, // 如果有待处理的头像，先不设置
+  userProfileId: resolvedAgent.userProfileId,
+  presetMessages: resolvedAgent.presetMessages,
+  displayPresetCount: resolvedAgent.displayPresetCount,
+  parameters: resolvedAgent.parameters,
+  llmThinkRules: resolvedAgent.llmThinkRules,
+  richTextStyleOptions: resolvedAgent.richTextStyleOptions,
+  tags: resolvedAgent.tags,
+  category: validCategory,
+  regexConfig: resolvedAgent.regexConfig,
+};
+
+let finalAgentId: string;
 
       // 1. 先创建或更新 Agent，获取真实 ID
       if (resolvedAgent.overwriteExisting) {

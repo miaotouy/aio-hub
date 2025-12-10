@@ -10,6 +10,7 @@ import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, AgentEditData } from "../../types";
 import type { AgentPreset } from "../../types";
+import { AgentCategory, AgentCategoryLabels } from "../../types";
 import type { ExportableAgent, AgentExportFile } from "../../types/agentImportExport";
 import AgentListItem from "./AgentListItem.vue";
 
@@ -37,7 +38,13 @@ const allCategories = computed(() => {
       categories.add(agent.category);
     }
   });
-  return Array.from(categories).sort();
+  // 转换为 { value, label } 数组并排序
+  return Array.from(categories)
+    .sort()
+    .map((cat) => ({
+      value: cat,
+      label: AgentCategoryLabels[cat as AgentCategory] || cat, // 如果不是标准枚举，回退到原始值
+    }));
 });
 
 // 过滤和排序后的智能体列表
@@ -59,7 +66,11 @@ const filteredAndSortedAgents = computed(() => {
         (agent.displayName && agent.displayName.toLowerCase().includes(query)) ||
         (agent.description && agent.description.toLowerCase().includes(query)) ||
         (agent.icon && agent.icon.toLowerCase().includes(query)) ||
-        (agent.category && agent.category.toLowerCase().includes(query)) ||
+        (agent.category &&
+          (agent.category.toLowerCase().includes(query) ||
+            (AgentCategoryLabels[agent.category as AgentCategory] || "")
+              .toLowerCase()
+              .includes(query))) ||
         (agent.tags && agent.tags.some((tag) => tag.toLowerCase().includes(query)))
       );
     });
@@ -491,7 +502,12 @@ const handleImportFromTavernCard = async () => {
           style="flex: 1"
         >
           <el-option label="全部分类" value="all" />
-          <el-option v-for="cat in allCategories" :key="cat" :label="cat" :value="cat" />
+          <el-option
+            v-for="cat in allCategories"
+            :key="cat.value"
+            :label="cat.label"
+            :value="cat.value"
+          />
         </el-select>
         <el-select
           v-model="agentSortBy"

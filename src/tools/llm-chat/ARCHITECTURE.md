@@ -402,7 +402,7 @@ sequenceDiagram
     - **厂商专属配置**: 支持 `safetySettings` (Gemini)、`claudeMetadata` (Claude) 等特定于模型提供商的精细化设置。
     - **自定义参数**: `custom` 字段允许用户透传任意非标准的 API 参数，提供了极高的灵活性。
     - **高级功能**: 内置 `responseFormat` (强制JSON输出)、`tools` (工具调用)、`contextPostProcessing` (上下文后处理管道) 等高级配置。
-  - `category`: 智能体分类（如"编程", "角色扮演"）。
+  - `category`: 智能体分类（使用 AgentCategory 枚举，如 "assistant", "character"）。
   - `virtualTimeConfig`: 虚拟时间配置（基准时间、流速）。
   - `llmThinkRules`: LLM 思考过程的解析规则。
 

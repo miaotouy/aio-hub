@@ -121,7 +121,7 @@ const preset: Omit<AgentPreset, 'id'> = {
   parameters: {
     temperature: 0.5,
   },
-  category: '工具',
+  category: 'workflow',
   tags: ['向导'],
 };
 
@@ -184,7 +184,7 @@ parameters:
   temperature: 0.8
   maxTokens: 8192
 
-category: 角色扮演
+category: character
 tags:
   - 动漫
   - 角色扮演

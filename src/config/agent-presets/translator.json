@@ -19,6 +19,6 @@
     "temperature": 0.3,
     "maxTokens": 8192
   },
-  "category": "工具",
+  "category": "workflow",
   "tags": ["翻译", "语言"]
 }

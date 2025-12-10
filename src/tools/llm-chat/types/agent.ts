@@ -114,10 +114,9 @@ export interface ChatAgent {
 
   /**
    * 智能体分类
-   * 用于在UI中进行大类筛选
-   * 例如: "编程", "写作", "角色扮演", "工具"
+   * 使用预定义的枚举类型，不支持自定义
    */
-  category?: string;
+  category?: AgentCategory;
 
   /**
    * 正则管道配置
@@ -202,9 +201,8 @@ export interface AgentPreset {
   /**
    * 预设分类（可选）
    * 用于在创建对话框中进行大类筛选（替代原有的 Tag 筛选）
-   * 例如: "编程", "写作", "角色扮演", "工具"
    */
-  category?: string;
+  category?: AgentCategory;
 
   /**
    * LLM 思考块规则配置
@@ -236,3 +234,27 @@ export interface AgentPreset {
  * 剔除系统生成的只读字段
  */
 export type AgentEditData = Omit<ChatAgent, "id" | "createdAt" | "lastUsedAt">;
+
+/**
+ * 智能体分类枚举
+ */
+export enum AgentCategory {
+  Assistant = 'assistant',   // 智能助手
+  Character = 'character',   // 虚拟角色
+  Expert = 'expert',         // 领域专家
+  Creative = 'creative',     // 创意伙伴
+  Workflow = 'workflow',     // 工作流
+  Other = 'other'            // 其他
+}
+
+/**
+ * 智能体分类显示名称映射
+ */
+export const AgentCategoryLabels: Record<AgentCategory, string> = {
+  [AgentCategory.Assistant]: '智能助手',
+  [AgentCategory.Character]: '虚拟角色',
+  [AgentCategory.Expert]: '领域专家',
+  [AgentCategory.Creative]: '创意伙伴',
+  [AgentCategory.Workflow]: '工作流',
+  [AgentCategory.Other]: '其他'
+};

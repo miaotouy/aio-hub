@@ -3,6 +3,7 @@ import { reactive, watch, computed, onUnmounted } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useAgentStore } from "../../agentStore";
 import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../types";
+import { AgentCategoryLabels } from "../../types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
@@ -324,7 +325,7 @@ watch(
 // 监听 modelCombo 的变化，拆分为 profileId 和 modelId
 const handleModelComboChange = (value: string) => {
   if (value) {
-    const firstColonIndex = value.indexOf(':');
+    const firstColonIndex = value.indexOf(":");
     const profileId = value.substring(0, firstColonIndex);
     const modelId = value.substring(firstColonIndex + 1);
     editForm.profileId = profileId;
@@ -445,7 +446,19 @@ const handleSave = () => {
       </el-form-item>
 
       <el-form-item label="分类">
-        <el-input v-model="editForm.category" placeholder="为智能体设置一个分类（可选）" />
+        <el-select
+          v-model="editForm.category"
+          placeholder="选择分类（可选）"
+          clearable
+          style="width: 100%"
+        >
+          <el-option
+            v-for="[value, label] in Object.entries(AgentCategoryLabels)"
+            :key="value"
+            :value="value"
+            :label="label"
+          />
+        </el-select>
         <div class="form-hint">用于在侧边栏对智能体进行分组。</div>
       </el-form-item>
 

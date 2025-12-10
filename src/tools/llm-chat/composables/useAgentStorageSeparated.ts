@@ -7,7 +7,7 @@ import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { appDataDir, join, extname } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import { createConfigManager } from "@/utils/configManager";
-import type { ChatAgent } from "../types";
+import { type ChatAgent, AgentCategory, AgentCategoryLabels } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -30,7 +30,7 @@ interface AgentIndexItem {
   modelId: string;
   lastUsedAt?: string;
   createdAt: string;
-  category?: string;
+  category?: AgentCategory;
   tags?: string[];
 }
 
@@ -64,6 +64,44 @@ const indexManager = createConfigManager<AgentsIndex>({
   debounceDelay: 500,
   createDefault: createDefaultIndex,
 });
+
+/**
+ * 迁移旧的分类字符串到新的枚举类型
+ */
+function migrateAgentCategory(
+  category: string | undefined
+): AgentCategory | string | undefined {
+  if (!category) return undefined;
+
+  // 1. 如果已经是标准枚举值，直接返回
+  if (Object.values(AgentCategory).includes(category as AgentCategory)) {
+    return category as AgentCategory;
+  }
+
+  // 2. 尝试通过 Label 匹配 (中文名 -> 枚举值)
+  const entry = Object.entries(AgentCategoryLabels).find(
+    ([_, label]) => label === category
+  );
+  if (entry) {
+    return entry[0] as AgentCategory;
+  }
+
+  // 3. 特殊遗留映射（旧预设中的分类字符串 -> 新枚举）
+  const legacyMapping: Record<string, AgentCategory> = {
+    工具: AgentCategory.Workflow,
+    编程: AgentCategory.Expert,
+    写作: AgentCategory.Creative,
+    角色扮演: AgentCategory.Character,
+    助手: AgentCategory.Assistant,
+  };
+
+  if (legacyMapping[category]) {
+    return legacyMapping[category];
+  }
+
+  // 4. 匹配不到，保留原值
+  return category;
+}
 
 /**
  * 分离式智能体存储 composable
@@ -116,6 +154,13 @@ export function useAgentStorageSeparated() {
 
       const content = await readTextFile(agentPath);
       const agent: ChatAgent = JSON.parse(content);
+
+      // 处理分类兼容性
+      if (agent.category) {
+        agent.category = migrateAgentCategory(
+          agent.category as unknown as string
+        ) as AgentCategory;
+      }
 
       // logger.debug('智能体加载成功', { agentId, name: agent.name });
       return agent;

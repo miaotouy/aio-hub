@@ -19,6 +19,6 @@
     "temperature": 0.5,
     "maxTokens": 8192
   },
-  "category": "编程",
+  "category": "expert",
   "tags": ["开发", "技术"]
 }

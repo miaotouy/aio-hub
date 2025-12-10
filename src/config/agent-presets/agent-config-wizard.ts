@@ -8,6 +8,7 @@
  */
 
 import type { AgentPreset } from '@/tools/llm-chat/types';
+import { AgentCategory } from '@/tools/llm-chat/types';
 
 // ============ 类型定义文档 ============
 
@@ -49,8 +50,9 @@ interface AgentPreset {
   // 分类标签（可选），用于在 UI 中进行分组和筛选
   tags?: string[];
 
-  // 预设分类（可选），如 "编程", "写作", "角色扮演", "工具"
-  category?: string;
+  // 预设分类（可选），使用预定义的枚举值
+  // 可选值: 'assistant' | 'character' | 'expert' | 'creative' | 'workflow' | 'other'
+  category?: AgentCategory;
 
   // LLM 思考块规则配置（可选）
   llmThinkRules?: LlmThinkRule[];
@@ -403,7 +405,7 @@ parameters:
   temperature: 0.7
   maxTokens: 4096
 
-category: 助手
+category: assistant
 tags:
   - 通用
 \`\`\`
@@ -510,7 +512,7 @@ parameters:
   temperature: 0.8
   maxTokens: 8192
 
-category: 角色扮演
+category: character
 
 tags:
   - 示例
@@ -719,7 +721,7 @@ const preset: Omit<AgentPreset, 'id'> = {
     temperature: 0.5,
     maxTokens: 8192,
   },
-  category: '工具',
+  category: AgentCategory.Workflow,
   tags: ['配置', '转换', '向导'],
 };
 

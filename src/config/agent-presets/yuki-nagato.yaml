@@ -134,7 +134,7 @@ parameters:
   temperature: 0.1
   maxTokens: 8192
 
-category: 角色扮演
+category: character
 
 tags:
   - 动漫

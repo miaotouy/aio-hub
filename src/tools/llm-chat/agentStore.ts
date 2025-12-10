@@ -9,7 +9,7 @@ import { useChatSettings } from './composables/useChatSettings';
 import { useAgentStorageSeparated as useAgentStorage } from './composables/useAgentStorageSeparated';
 import { useLlmChatUiState } from './composables/useLlmChatUiState';
 import { useChatRegexResolver } from './composables/useChatRegexResolver';
-import type { ChatAgent, ChatMessageNode, LlmParameters } from './types';
+import type { ChatAgent, ChatMessageNode, LlmParameters, AgentCategory } from './types';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
@@ -104,7 +104,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         llmThinkRules?: LlmThinkRule[];
         richTextStyleOptions?: RichTextRendererStyleOptions;
         tags?: string[];
-        category?: string;
+        category?: AgentCategory;
         regexConfig?: import('./types').ChatRegexConfig;
       }
     ): string {

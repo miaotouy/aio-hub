@@ -18,7 +18,8 @@ import EditAgentDialog from "./agent/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
-import { Setting } from "@element-plus/icons-vue";
+import { Settings2 } from "lucide-vue-next";
+// import { Setting } from "@element-plus/icons-vue";
 
 const logger = createModuleLogger("ChatArea");
 const errorHandler = createModuleErrorHandler("ChatArea");
@@ -272,7 +273,7 @@ const handleSelectModel = async () => {
 const handleSaveAgent = async (data: AgentEditData) => {
   if (currentAgent.value) {
     logger.info("保存智能体", { agentId: currentAgent.value.id, data });
-    
+
     // 直接使用 data 作为 updates，避免手动枚举字段导致遗漏
     // EditAgentDialog 已经负责清洗数据，确保只传递有效的业务字段
     const updates = data;
@@ -626,7 +627,7 @@ onMounted(async () => {
       <el-tooltip content="聊天设置" placement="bottom">
         <div class="settings-button" @click="showChatSettings = true">
           <el-icon :size="18">
-            <Setting />
+            <Settings2 />
           </el-icon>
         </div>
       </el-tooltip>

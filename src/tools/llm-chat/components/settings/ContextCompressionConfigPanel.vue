@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { useVModel } from "@vueuse/core";
-import { Info } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import { useVModel, useElementSize } from "@vueuse/core";
 import type { ContextCompressionConfig } from "../../types/llm";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 
@@ -23,6 +22,11 @@ const emit = defineEmits<Emits>();
 
 // 使用 useVModel 实现双向绑定
 const config = useVModel(props, "modelValue", emit, { passive: true });
+
+// 容器尺寸响应式
+const containerRef = ref<HTMLElement | null>(null);
+const { width: containerWidth } = useElementSize(containerRef);
+const isCompact = computed(() => containerWidth.value < 500);
 
 // 摘要模型处理：将对象转换为 profileId:modelId 字符串
 const summaryModelValue = computed({
@@ -53,31 +57,36 @@ const resetPrompt = () => {
 </script>
 
 <template>
-  <div class="context-compression-config-panel">
+  <div
+    class="context-compression-config-panel"
+    ref="containerRef"
+    :class="{ 'is-compact': isCompact }"
+  >
     <el-form label-position="top" :disabled="disabled">
       <!-- 基础开关 -->
       <div class="config-group">
-        <div class="switch-row">
-          <div class="switch-label">
-            <span class="label-text">启用上下文压缩</span>
-            <el-tooltip
-              content="开启后，系统将根据策略自动或手动将历史消息压缩为摘要，以节省 Token 并保持上下文连贯。"
-              placement="top"
-            >
-              <el-icon class="info-icon"><Info /></el-icon>
-            </el-tooltip>
+        <div class="switches-grid">
+          <div class="switch-group">
+            <div class="switch-row">
+              <el-switch v-model="config.enabled" />
+              <div class="switch-label">
+                <span class="label-text">启用上下文压缩</span>
+              </div>
+            </div>
+            <div class="form-helper">
+              开启后，系统将根据策略自动或手动将历史消息压缩为摘要，以节省 Token 并保持上下文连贯。
+            </div>
           </div>
-          <el-switch v-model="config.enabled" />
-        </div>
 
-        <div class="switch-row" v-if="config.enabled">
-          <div class="switch-label">
-            <span class="label-text">自动触发压缩</span>
-            <el-tooltip content="当达到触发阈值时，自动在发送消息前执行压缩。" placement="top">
-              <el-icon class="info-icon"><Info /></el-icon>
-            </el-tooltip>
+          <div class="switch-group" v-if="config.enabled">
+            <div class="switch-row">
+              <el-switch v-model="config.autoTrigger" />
+              <div class="switch-label">
+                <span class="label-text">自动触发压缩</span>
+              </div>
+            </div>
+            <div class="form-helper">当达到触发阈值时，自动在发送消息前执行压缩。</div>
           </div>
-          <el-switch v-model="config.autoTrigger" />
         </div>
       </div>
 
@@ -124,18 +133,18 @@ const resetPrompt = () => {
               />
               <div class="form-helper">当历史消息条数超过此值时触发</div>
             </el-form-item>
-          </div>
 
-          <el-form-item label="最小历史条数">
-            <el-input-number
-              v-model="config.minHistoryCount"
-              :min="5"
-              :step="1"
-              style="width: 100%"
-              placeholder="默认: 15"
-            />
-            <div class="form-helper">至少积累多少条历史消息才允许触发压缩</div>
-          </el-form-item>
+            <el-form-item label="最小历史条数">
+              <el-input-number
+                v-model="config.minHistoryCount"
+                :min="5"
+                :step="1"
+                style="width: 100%"
+                placeholder="默认: 15"
+              />
+              <div class="form-helper">至少积累多少条历史消息才允许触发压缩</div>
+            </el-form-item>
+          </div>
         </div>
 
         <el-divider />
@@ -143,18 +152,8 @@ const resetPrompt = () => {
         <!-- 压缩范围 -->
         <div class="config-group">
           <div class="group-title">压缩范围</div>
-
           <div class="two-col">
             <el-form-item label="保护最近消息">
-              <template #label>
-                <span>保护最近消息</span>
-                <el-tooltip
-                  content="最近的 N 条消息将不会被压缩，以保持短期记忆清晰。"
-                  placement="top"
-                >
-                  <el-icon class="info-icon"><Info /></el-icon>
-                </el-tooltip>
-              </template>
               <el-input-number
                 v-model="config.protectRecentCount"
                 :min="0"
@@ -162,18 +161,10 @@ const resetPrompt = () => {
                 style="width: 100%"
                 placeholder="默认: 10"
               />
+              <div class="form-helper">最近的 N 条消息将不会被压缩，以保持短期记忆清晰。</div>
             </el-form-item>
 
             <el-form-item label="每次压缩条数">
-              <template #label>
-                <span>每次压缩条数</span>
-                <el-tooltip
-                  content="触发压缩时，将最旧的 N 条消息合并为一个摘要节点。"
-                  placement="top"
-                >
-                  <el-icon class="info-icon"><Info /></el-icon>
-                </el-tooltip>
-              </template>
               <el-input-number
                 v-model="config.compressCount"
                 :min="1"
@@ -181,6 +172,9 @@ const resetPrompt = () => {
                 style="width: 100%"
                 placeholder="默认: 20"
               />
+              <div class="form-helper">
+                触发压缩时，将最旧的 N 条消息合并为一个摘要节点。 不包括旧的摘要。
+              </div>
             </el-form-item>
           </div>
         </div>
@@ -191,19 +185,25 @@ const resetPrompt = () => {
         <div class="config-group">
           <div class="group-title">摘要生成</div>
 
-          <el-form-item label="摘要节点角色">
-            <el-select v-model="config.summaryRole" placeholder="默认: System" style="width: 100%">
-              <el-option label="System (系统)" value="system" />
-              <el-option label="Assistant (助手)" value="assistant" />
-              <el-option label="User (用户)" value="user" />
-            </el-select>
-            <div class="form-helper">压缩后的摘要节点将以什么角色插入对话历史</div>
-          </el-form-item>
+          <div class="settings-grid">
+            <el-form-item label="摘要节点角色">
+              <el-select
+                v-model="config.summaryRole"
+                placeholder="默认: System"
+                style="width: 100%"
+              >
+                <el-option label="System (系统)" value="system" />
+                <el-option label="Assistant (助手)" value="assistant" />
+                <el-option label="User (用户)" value="user" />
+              </el-select>
+              <div class="form-helper">压缩后的摘要节点将以什么角色插入对话历史</div>
+            </el-form-item>
 
-          <el-form-item label="摘要生成模型">
-            <LlmModelSelector v-model="summaryModelValue" :disabled="disabled" />
-            <div class="form-helper">指定用于生成摘要的模型，留空则使用当前对话模型</div>
-          </el-form-item>
+            <el-form-item label="摘要生成模型">
+              <LlmModelSelector v-model="summaryModelValue" :disabled="disabled" />
+              <div class="form-helper">指定用于生成摘要的模型，留空则使用当前对话模型</div>
+            </el-form-item>
+          </div>
 
           <el-form-item label="摘要提示词模板">
             <el-input
@@ -228,6 +228,8 @@ const resetPrompt = () => {
 <style scoped>
 .context-compression-config-panel {
   padding: 4px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .config-group {
@@ -241,11 +243,19 @@ const resetPrompt = () => {
   color: var(--el-text-color-primary);
 }
 
+.switches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px 24px;
+  margin-bottom: 12px;
+}
+
 .switch-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  margin-bottom: 12px;
+  padding: 4px 0;
+  gap: 8px;
 }
 
 .switch-label {
@@ -259,22 +269,28 @@ const resetPrompt = () => {
   color: var(--el-text-color-regular);
 }
 
-.info-icon {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-  cursor: help;
-}
-
-.threshold-inputs {
+.threshold-inputs,
+.settings-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px 24px;
 }
 
 .two-col {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px 24px;
+}
+.context-compression-config-panel.is-compact .switches-grid,
+.context-compression-config-panel.is-compact .threshold-inputs,
+.context-compression-config-panel.is-compact .settings-grid,
+.context-compression-config-panel.is-compact .two-col {
+  grid-template-columns: 1fr;
+}
+
+.context-compression-config-panel.is-compact .switch-row {
+  flex-direction: row-reverse;
+  justify-content: space-between;
 }
 
 .form-helper {

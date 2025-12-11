@@ -677,7 +677,23 @@ export function filterParametersByCapabilities(
   }
 
   // ===== 透传自定义参数 =====
-  // 将所有未知的自定义参数（不在 KNOWN_NON_MODEL_OPTIONS_KEYS 中的）也保留下来
+
+  // 1. 优先处理 options.custom 中的参数（前端 ModelParametersEditor 组件产生的结构）
+  // 必须将其展平到顶层，否则会被忽略
+  const customParams = (options as any).custom;
+  if (customParams && typeof customParams === "object") {
+    for (const key in customParams) {
+      if (Object.prototype.hasOwnProperty.call(customParams, key)) {
+        // 只有当该参数不在 KNOWN_NON_MODEL_OPTIONS_KEYS 中时才添加
+        // 这样可以防止用户通过 custom 覆盖核心参数（如 modelId, messages 等）
+        if (!KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) && customParams[key] !== undefined) {
+          (filtered as any)[key] = customParams[key];
+        }
+      }
+    }
+  }
+
+  // 2. 将所有未知的自定义参数（不在 KNOWN_NON_MODEL_OPTIONS_KEYS 中的）也保留下来
   // 这样它们才能在后续的 applyCustomParameters 中被处理
   for (const key in options) {
     if (Object.prototype.hasOwnProperty.call(options, key)) {

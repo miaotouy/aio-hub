@@ -128,7 +128,7 @@ export function useSmartOcrUiState() {
       
       logger.info('UI状态已重置');
     } catch (error) {
-      errorHandler.error(error as Error, '重置UI状态失败');
+      errorHandler.handle(error as Error, { userMessage: '重置UI状态失败' });
     }
   };
   

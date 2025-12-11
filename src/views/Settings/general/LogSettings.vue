@@ -101,7 +101,7 @@ onMounted(async () => {
     const date = new Date().toISOString().split("T")[0];
     logFilePath.value = await join(logsDir, `app-${date}.log`);
   } catch (error) {
-    errorHandler.error(error as Error, "获取日志文件路径失败", { showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "获取日志文件路径失败", showToUser: false });
   }
 });
 

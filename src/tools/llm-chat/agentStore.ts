@@ -621,7 +621,7 @@ export const useAgentStore = defineStore('llmChatAgent', {
         customMessage.success(`成功导入 ${params.resolvedAgents.length} 个智能体`);
       } catch (error) {
         // commitImportAgents 内部已经处理了错误，这里只记录顶层失败
-        errorHandler.error(error as Error, '确认导入失败');
+        errorHandler.handle(error as Error, { userMessage: '确认导入失败' });
       }
     },
   },

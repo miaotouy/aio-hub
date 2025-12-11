@@ -59,7 +59,7 @@ const applyLogConfig = (settings: AppSettings) => {
       bufferSize: settings.logBufferSize,
     });
   } catch (error) {
-    moduleErrorHandler.error(error, "应用日志配置失败", { showToUser: false });
+    moduleErrorHandler.handle(error, { userMessage: "应用日志配置失败", showToUser: false });
   }
 };
 

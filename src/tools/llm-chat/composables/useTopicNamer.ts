@@ -188,9 +188,12 @@ export function useTopicNamer() {
 
       return generatedTitle;
     } catch (error) {
-      errorHandler.error(error, '生成会话标题失败', {
-        sessionId: session.id,
-        sessionName: session.name,
+      errorHandler.handle(error, {
+        userMessage: '生成会话标题失败',
+        context: {
+          sessionId: session.id,
+          sessionName: session.name,
+        },
       });
       return null;
     } finally {

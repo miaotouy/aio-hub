@@ -156,7 +156,7 @@ export function useContextCompressor() {
 
       return response.content;
     } catch (error) {
-      logger.error('摘要生成失败', error);
+      errorHandler.handle(error, { userMessage: '摘要生成失败', showToUser: false });
       throw error;
     }
   };
@@ -222,7 +222,11 @@ export function useContextCompressor() {
       try {
         reparentNode(session, childId, summaryNode.id);
       } catch (error) {
-        logger.error('重挂载子节点失败', error, { childId, summaryNodeId: summaryNode.id });
+        errorHandler.handle(error, {
+          userMessage: '重挂载子节点失败',
+          context: { childId, summaryNodeId: summaryNode.id },
+          showToUser: false,
+        });
       }
     }
 
@@ -371,7 +375,10 @@ export function useContextCompressor() {
       return true;
     } catch (error) {
       // 压缩失败不应中断对话，只记录错误
-      errorHandler.error(error as Error, "上下文压缩执行失败");
+      errorHandler.handle(error as Error, {
+        userMessage: "上下文压缩执行失败",
+        showToUser: false,
+      });
       return false;
     }
   };

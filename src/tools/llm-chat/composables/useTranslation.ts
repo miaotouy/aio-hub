@@ -96,7 +96,7 @@ export function useTranslation() {
 
       return response.content;
     } catch (error) {
-      errorHandler.error(error, "翻译失败，请检查配置或重试");
+      errorHandler.handle(error, { userMessage: "翻译失败，请检查配置或重试" });
       throw error;
     }
   };

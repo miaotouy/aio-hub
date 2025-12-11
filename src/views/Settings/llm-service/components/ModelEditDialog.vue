@@ -8,6 +8,9 @@ import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("ModelEditDialog");
 
 const props = defineProps<{
   visible: boolean;
@@ -224,7 +227,7 @@ const customParametersJsonString = computed({
     try {
       return JSON.stringify(modelEditForm.value.customParameters, null, 2);
     } catch (e) {
-      console.error("Failed to stringify custom parameters:", e);
+      logger.error("Failed to stringify custom parameters", e);
       return "{}"; // 返回一个空对象字符串作为回退
     }
   },
@@ -240,7 +243,7 @@ const customParametersJsonString = computed({
     } catch (e) {
       // 解析失败时，设置错误提示，并且不更新数据
       jsonError.value = "JSON 格式无效，请检查语法。";
-      console.warn("Invalid JSON for custom parameters:", e);
+      logger.warn("Invalid JSON for custom parameters", e);
     }
   },
 });

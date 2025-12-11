@@ -106,10 +106,11 @@ onMounted(async () => {
             logger.info("加载工具组件", { toolPath: toolPath.value, toolName: config.name });
             toolComponent.value = defineAsyncComponent(config.component);
           } catch (error) {
-            errorHandler.error(error, "加载工具组件失败", { context: { toolPath: toolPath.value }, showToUser: false });
+            errorHandler.handle(error, { userMessage: "加载工具组件失败", context: { toolPath: toolPath.value }, showToUser: false });
           }
         } else {
-          errorHandler.error(new Error(`未找到工具配置: ${toolPath.value}`), "未找到工具配置", {
+          errorHandler.handle(new Error(`未找到工具配置: ${toolPath.value}`), {
+            userMessage: "未找到工具配置",
             context: { toolPath: toolPath.value },
             showToUser: false,
           });
@@ -143,7 +144,7 @@ onMounted(async () => {
         logger.info("窗口未固定，保持预览模式");
       }
     } catch (error) {
-      errorHandler.error(error, "检查窗口固定状态失败，默认使用预览模式", { showToUser: false });
+      errorHandler.handle(error, { userMessage: "检查窗口固定状态失败，默认使用预览模式", showToUser: false });
       isPreview.value = true;
     }
   };

@@ -115,7 +115,7 @@ export function useTranscriptionManager() {
       isInitialized.value = true;
       logger.info("转写管理器初始化成功");
     } catch (error) {
-      errorHandler.error(error, "初始化转写管理器失败");
+      errorHandler.handle(error, { userMessage: "初始化转写管理器失败" });
     }
   };
 
@@ -167,7 +167,11 @@ export function useTranscriptionManager() {
       await executeTranscription(pendingTask);
       pendingTask.status = "completed";
     } catch (error) {
-      logger.error("转写任务失败", error, { taskId: pendingTask.id, assetId: pendingTask.assetId });
+      errorHandler.handle(error, {
+        userMessage: "转写任务失败",
+        context: { taskId: pendingTask.id, assetId: pendingTask.assetId },
+        showToUser: false,
+      });
 
       const maxRetries = settings.value.transcription.maxRetries;
       if (pendingTask.retryCount < maxRetries) {
@@ -347,7 +351,11 @@ export function useTranscriptionManager() {
         data: info,
       });
     } catch (error) {
-      logger.error("更新衍生数据状态失败", error, { assetId });
+      errorHandler.handle(error, {
+        userMessage: "更新衍生数据状态失败",
+        context: { assetId },
+        showToUser: false,
+      });
     }
   };
 
@@ -404,7 +412,7 @@ export function useTranscriptionManager() {
       await saveTranscriptionResult(asset.id, asset.path, text, provider);
       logger.info("手动更新转写内容成功", { assetId: asset.id });
     } catch (error) {
-      errorHandler.error(error, "更新转写内容失败");
+      errorHandler.handle(error, { userMessage: "更新转写内容失败" });
       throw error;
     }
   };
@@ -431,7 +439,11 @@ export function useTranscriptionManager() {
       const text = new TextDecoder("utf-8").decode(buffer);
       return text;
     } catch (error) {
-      logger.error("读取转写文件失败", error, { path });
+      errorHandler.handle(error, {
+        userMessage: "读取转写文件失败",
+        context: { path },
+        showToUser: false,
+      });
       return null;
     }
   };

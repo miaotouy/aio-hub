@@ -269,7 +269,7 @@ export async function preflightImportAgents(
 
     return result;
   } catch (error) {
-    errorHandler.error(error as Error, '预检导入失败');
+    errorHandler.handle(error as Error, { userMessage: '预检导入失败' });
     throw error;
   }
 }
@@ -404,12 +404,12 @@ let finalAgentId: string;
           agentStore.updateAgent(finalAgentId, { icon: newFilename });
           logger.info('成功导入并存储专属头像', { agentId: finalAgentId, newFilename });
         } catch (avatarError) {
-          errorHandler.error(avatarError, `为 Agent "${agentName}" 导入头像失败，Agent 已创建但无头像`, { agentId: finalAgentId });
+          errorHandler.handle(avatarError, { userMessage: `为 Agent "${agentName}" 导入头像失败，Agent 已创建但无头像`, context: { agentId: finalAgentId } });
           // 头像导入失败不影响 Agent 本身，继续处理下一个
         }
       }
     } catch (error) {
-      errorHandler.error(error, `持久化 Agent "${resolvedAgent.name}" 失败`);
+      errorHandler.handle(error, { userMessage: `持久化 Agent "${resolvedAgent.name}" 失败` });
     }
   }
 

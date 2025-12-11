@@ -506,6 +506,12 @@ export function filterParametersByCapabilities(
 
   // Gemini/VertexAI 特有参数
   if (profile.type === 'gemini' || profile.type === 'vertexai') {
+    // 安全设置
+    const extendedOptions = options as any;
+    if (extendedOptions.safetySettings !== undefined) {
+      (filtered as any).safetySettings = extendedOptions.safetySettings;
+    }
+
     // 代码执行
     const supportsCodeExecution = supported.codeExecution && (!capabilities || capabilities.codeExecution);
     if (supportsCodeExecution) {

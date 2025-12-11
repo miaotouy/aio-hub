@@ -45,6 +45,8 @@ export const ALL_LLM_PARAMETER_KEYS = [
   "thinkingBudget",
   "reasoningEffort",
   "includeThoughts",
+  // Gemini 特有参数
+  "safetySettings",
 ] as const;
 
 export type ParameterType = "slider" | "switch" | "select" | "number" | "text";

@@ -10,14 +10,16 @@ import Avatar from "@/components/common/Avatar.vue";
 import AgentPresetEditor from "../agent/AgentPresetEditor.vue";
 import EditAgentDialog from "../agent/EditAgentDialog.vue";
 import ModelParametersEditor from "../agent/ModelParametersEditor.vue";
+import ModelEditDialog from "@/views/Settings/llm-service/components/ModelEditDialog.vue";
 import ConfigSection from "../common/ConfigSection.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatMessageNode, LlmParameters, AgentEditData } from "../../types";
-import { Edit } from "@element-plus/icons-vue";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import { Edit, Setting } from "@element-plus/icons-vue";
 
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
-const { enabledProfiles } = useLlmProfiles();
+const { enabledProfiles, getProfileById, saveProfile } = useLlmProfiles();
 
 // 获取当前智能体（从 store 读取）
 const currentAgent = computed(() => {
@@ -47,7 +49,8 @@ const currentProviderType = computed(() => {
 // 获取当前选中的模型
 const currentModel = computed(() => {
   if (!currentProfile.value || !currentAgent.value) return null;
-  return currentProfile.value.models.find((m) => m.id === currentAgent.value!.modelId);
+  const model = currentProfile.value.models.find((m) => m.id === currentAgent.value!.modelId);
+  return model || null;
 });
 
 // 获取模型的上下文窗口限制
@@ -66,7 +69,7 @@ const selectedModelCombo = computed({
   },
   set: (value: string) => {
     if (!value || !currentAgent.value || !agentStore.currentAgentId) return;
-    const firstColonIndex = value.indexOf(':');
+    const firstColonIndex = value.indexOf(":");
     const profileId = value.substring(0, firstColonIndex);
     const modelId = value.substring(firstColonIndex + 1);
     // 直接更新 Agent 的模型配置
@@ -78,10 +81,12 @@ const selectedModelCombo = computed({
 // 模型参数的双向绑定
 const modelParameters = computed<LlmParameters>({
   get: () => {
-    return currentAgent.value?.parameters ?? {
-      temperature: 0.7,
-      maxTokens: 4096,
-    };
+    return (
+      currentAgent.value?.parameters ?? {
+        temperature: 0.7,
+        maxTokens: 4096,
+      }
+    );
   },
   set: (value: LlmParameters) => {
     if (!currentAgent.value || !agentStore.currentAgentId) return;
@@ -110,6 +115,9 @@ const presetMessages = computed<ChatMessageNode[]>({
 // 编辑智能体弹窗
 const showEditDialog = ref(false);
 
+// 模型编辑弹窗
+const showModelEditDialog = ref(false);
+
 // 打开编辑弹窗
 const openEditDialog = () => {
   showEditDialog.value = true;
@@ -131,6 +139,51 @@ const handleSaveEdit = (data: AgentEditData) => {
     llmThinkRules: data.llmThinkRules,
   });
   customMessage.success("智能体已更新");
+};
+
+// 打开模型编辑弹窗
+const openModelEditDialog = () => {
+  if (!currentModel.value) {
+    customMessage.warning("请先选择一个模型");
+    return;
+  }
+  showModelEditDialog.value = true;
+};
+
+// 保存模型编辑
+const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
+  if (!currentProfile.value || !currentAgent.value) return;
+
+  // 找到并更新 profile 中的模型
+  const profile = getProfileById(currentProfile.value.id);
+  if (!profile) {
+    customMessage.error("找不到对应的服务配置");
+    return;
+  }
+
+  // 更新模型列表中对应的模型
+  const modelIndex = profile.models.findIndex((m) => m.id === updatedModel.id);
+  if (modelIndex === -1) {
+    customMessage.error("找不到对应的模型");
+    return;
+  }
+
+  // 创建更新后的 profile
+  const updatedProfile = {
+    ...profile,
+    models: [
+      ...profile.models.slice(0, modelIndex),
+      updatedModel,
+      ...profile.models.slice(modelIndex + 1),
+    ],
+  };
+
+  try {
+    await saveProfile(updatedProfile);
+    customMessage.success("模型配置已更新");
+  } catch (error) {
+    customMessage.error("保存模型配置失败");
+  }
 };
 </script>
 
@@ -176,7 +229,18 @@ const handleSaveEdit = (data: AgentEditData) => {
           <label class="param-label">
             <span>模型</span>
           </label>
-          <LlmModelSelector v-model="selectedModelCombo" />
+          <div class="model-selector-row">
+            <LlmModelSelector v-model="selectedModelCombo" class="model-selector" />
+            <el-tooltip content="编辑模型配置" placement="top">
+              <el-button
+                :icon="Setting"
+                size="small"
+                :disabled="!currentModel"
+                @click="openModelEditDialog"
+                class="model-edit-btn"
+              />
+            </el-tooltip>
+          </div>
         </div>
 
         <!-- 模型参数 - 使用独立组件 -->
@@ -189,7 +253,11 @@ const handleSaveEdit = (data: AgentEditData) => {
         />
 
         <!-- 预设消息分组 -->
-        <ConfigSection title="预设消息" :icon="'i-ep-chat-line-round'" v-model:expanded="presetMessagesExpanded">
+        <ConfigSection
+          title="预设消息"
+          :icon="'i-ep-chat-line-round'"
+          v-model:expanded="presetMessagesExpanded"
+        >
           <div class="preset-messages-compact">
             <AgentPresetEditor
               v-model="presetMessages"
@@ -199,9 +267,6 @@ const handleSaveEdit = (data: AgentEditData) => {
             />
           </div>
         </ConfigSection>
-
-        <!-- TODO: 会话临时调整功能 -->
-        <!-- 未来将在输入框工具区添加一个图标入口，打开小弹窗用于临时调整模型和参数 -->
       </div>
     </div>
 
@@ -211,6 +276,15 @@ const handleSaveEdit = (data: AgentEditData) => {
       mode="edit"
       :agent="currentAgent"
       @save="handleSaveEdit"
+    />
+
+    <!-- 模型编辑弹窗 -->
+    <ModelEditDialog
+      :visible="showModelEditDialog"
+      @update:visible="showModelEditDialog = $event"
+      :model="currentModel"
+      :is-editing="true"
+      @save="handleSaveModelEdit"
     />
   </div>
 </template>
@@ -317,6 +391,21 @@ const handleSaveEdit = (data: AgentEditData) => {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-color);
+}
+
+.model-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-selector {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-edit-btn {
+  flex-shrink: 0;
 }
 
 .override-badge {

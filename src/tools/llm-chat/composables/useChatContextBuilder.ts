@@ -48,6 +48,9 @@ export function useChatContextBuilder() {
     capabilities?: ModelCapabilities,
     timestamp?: number
   ): Promise<LlmContextData> => {
+    // 获取全局设置
+    const { settings } = useChatSettings();
+
     // 1. 识别所有启用的压缩节点，收集被它们压缩的节点 ID
     const hiddenNodeIds = new Set<string>();
     activePath.forEach((node) => {
@@ -121,7 +124,6 @@ export function useChatContextBuilder() {
     const { resolveRulesExplicit } = useChatRegexResolver();
 
     // 获取绑定模式设置（从全局设置）
-    const { settings } = useChatSettings();
     const bindingMode = settings.value.regexConfig.bindingMode;
 
     // Request Pipeline 的宏上下文是固定的 (基于当前请求的 Agent/User)

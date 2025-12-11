@@ -7,6 +7,8 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useAgentStore } from "../agentStore";
 import type { Asset, DerivedDataInfo } from "@/types/asset-management";
 import type { LlmRequestOptions, LlmMessageContent } from "@/llm-apis/common";
 
@@ -33,19 +35,80 @@ const isInitialized = ref(false);
 export function useTranscriptionManager() {
   const { settings } = useChatSettings();
   const { sendRequest } = useLlmRequest();
+  const { getProfileById } = useLlmProfiles();
 
   /**
    * 初始化管理器，监听资产导入事件
    */
   const init = async () => {
-    if (isInitialized.value) return;
+    if (isInitialized.value) {
+      logger.debug("转写管理器已初始化，跳过 init");
+      return;
+    }
+
+    logger.info("正在初始化转写管理器...", {
+      enabled: settings.value.transcription.enabled,
+      autoStart: settings.value.transcription.autoStartOnImport,
+      strategy: settings.value.transcription.strategy
+    });
 
     try {
       await listen<Asset>("asset-imported", (event) => {
         const asset = event.payload;
-        if (settings.value.transcription.enabled && settings.value.transcription.autoTranscribe) {
-          logger.info("检测到新资产导入，自动添加到转写队列", { assetId: asset.id });
-          addTask(asset);
+        const config = settings.value.transcription;
+
+        logger.debug("收到资产导入事件", {
+          assetId: asset.id,
+          type: asset.type,
+          enabled: config.enabled,
+          autoStart: config.autoStartOnImport
+        });
+
+        if (!config.enabled || !config.autoStartOnImport) {
+          logger.debug("转写功能未启用或未开启自动转写，跳过", { config });
+          return;
+        }
+
+        // 获取当前 Agent 配置以进行智能判断
+        const agentStore = useAgentStore();
+        const currentAgentId = agentStore.currentAgentId;
+
+        // 默认使用转写配置中的模型（仅作占位，实际 checkTranscriptionNecessity 会处理）
+        let modelId = "";
+        let profileId = "";
+
+        // 尝试获取当前会话使用的模型信息
+        // 这对于 Smart 策略至关重要：我们需要知道"发送时会用哪个模型"来决定是否需要转写
+        if (currentAgentId) {
+          const agentConfig = agentStore.getAgentConfig(currentAgentId);
+          if (agentConfig) {
+            modelId = agentConfig.modelId;
+            profileId = agentConfig.profileId;
+          }
+        }
+
+        const necessary = checkTranscriptionNecessity(asset, modelId, profileId);
+        
+        // 检查是否已经有转写结果（例如秒传的文件）
+        const currentStatus = getTranscriptionStatus(asset);
+        const alreadyTranscribed = currentStatus === "success";
+
+        logger.debug("转写必要性检查", {
+          assetId: asset.id,
+          necessary,
+          alreadyTranscribed,
+          status: currentStatus,
+          modelId,
+          profileId
+        });
+
+        if (necessary) {
+          if (alreadyTranscribed) {
+            logger.info("资产已有转写结果，跳过自动转写", { assetId: asset.id });
+          } else {
+            logger.info("自动触发转写任务 (导入时)", { assetId: asset.id });
+            addTask(asset);
+          }
         }
       });
       isInitialized.value = true;
@@ -354,11 +417,18 @@ export function useTranscriptionManager() {
       // 使用后端命令读取文本文件，这样更安全且支持相对路径
       return await invoke<string>("read_text_file", { relativePath: derived.path });
     } catch (error) {
-      logger.error("读取转写文件失败", error, { path: derived.path });
-      return null;
+      logger.warn("read_text_file 失败，尝试使用 getAssetBinary 回退", { error, path: derived.path });
+      try {
+        // Fallback: 使用 getAssetBinary 读取并解码
+        const buffer = await assetManagerEngine.getAssetBinary(derived.path);
+        const text = new TextDecoder("utf-8").decode(buffer);
+        return text;
+      } catch (binaryError) {
+        logger.error("读取转写文件失败 (所有方法)", binaryError, { path: derived.path });
+        return null;
+      }
     }
   };
-
   // 辅助：Uint8Array 转 Base64
   const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
     let binary = '';
@@ -367,6 +437,131 @@ export function useTranscriptionManager() {
       binary += String.fromCharCode(bytes[i]);
     }
     return window.btoa(binary);
+  };
+
+  /**
+   * 检查附件是否需要转写
+   * @param asset 资产对象
+   * @param modelId 当前使用的模型 ID
+   */
+  const checkTranscriptionNecessity = (asset: Asset, modelId: string, profileId: string): boolean => {
+    const config = settings.value.transcription;
+    if (!config.enabled) return false;
+
+    // 1. Always 策略：总是转写（只要是支持的类型）
+    if (config.strategy === "always") {
+      return asset.type === "image" || asset.type === "audio";
+    }
+
+    // 3. Smart 策略：根据模型能力判断
+    if (config.strategy === "smart") {
+      const profile = getProfileById(profileId);
+      const model = profile?.models.find((m) => m.id === modelId);
+
+      if (!model) {
+        logger.warn("无法找到模型信息，默认需要转写", { modelId, profileId });
+        return true;
+      }
+
+      const capabilities = model.capabilities || {};
+
+      if (asset.type === "image") {
+        // 如果模型支持视觉识别，且支持该图片格式（这里简化判断，假设支持所有图片），则不需要转写
+        // 反之，如果不支持视觉，则需要转写
+        return !capabilities.vision;
+      }
+
+      if (asset.type === "audio") {
+        // 如果模型支持音频输入，则不需要转写
+        return !capabilities.audio;
+      }
+    }
+
+    return false;
+  };
+
+  /**
+   * 确保所有需要转写的附件都已完成转写
+   * 用于 "send_and_wait" 模式
+   * @returns Promise，当所有必要的转写都完成（或失败）后 resolve
+   */
+  const ensureTranscriptions = async (
+    assets: Asset[],
+    modelId: string,
+    profileId: string
+  ): Promise<void> => {
+    const assetsToTranscribe = assets.filter(asset =>
+      checkTranscriptionNecessity(asset, modelId, profileId)
+    );
+
+    if (assetsToTranscribe.length === 0) return;
+
+    logger.info("开始确保转写任务", {
+      count: assetsToTranscribe.length,
+      assets: assetsToTranscribe.map(a => a.name)
+    });
+
+    // 1. 触发所有未开始的任务
+    for (const asset of assetsToTranscribe) {
+      const status = getTranscriptionStatus(asset);
+      if (status === "none" || status === "error") {
+        // 如果是 error 状态，自动重试
+        if (status === "error") {
+          retryTranscription(asset);
+        } else {
+          addTask(asset);
+        }
+      }
+    }
+
+    // 2. 等待所有任务完成
+    // 使用轮询检查状态，并增加超时保护
+    const timeoutMs = settings.value.transcription.timeout || 120000;
+
+    return new Promise((resolve, reject) => {
+      let isSettled = false;
+
+      // 超时计时器
+      const timeoutTimer = setTimeout(() => {
+        if (isSettled) return;
+        isSettled = true;
+        clearInterval(checkInterval);
+        
+        logger.warn("等待转写任务超时", {
+          timeoutMs,
+          pendingCount: assetsToTranscribe.filter(a => {
+            const s = getTranscriptionStatus(a);
+            return s === 'pending' || s === 'processing';
+          }).length
+        });
+        
+        reject(new Error("等待转写超时"));
+      }, timeoutMs);
+
+      // 轮询检查
+      const checkInterval = setInterval(() => {
+        if (isSettled) return;
+
+        let allFinished = true;
+
+        for (const asset of assetsToTranscribe) {
+          const status = getTranscriptionStatus(asset);
+          // 只要有一个还在 pending 或 processing，就继续等待
+          if (status === "pending" || status === "processing") {
+            allFinished = false;
+            break;
+          }
+        }
+
+        if (allFinished) {
+          isSettled = true;
+          clearInterval(checkInterval);
+          clearTimeout(timeoutTimer);
+          logger.info("所有转写任务已结束");
+          resolve();
+        }
+      }, 500); // 每 500ms 检查一次
+    });
   };
 
   return {
@@ -378,5 +573,7 @@ export function useTranscriptionManager() {
     updateTranscriptionContent,
     getTranscriptionStatus,
     getTranscriptionText,
+    checkTranscriptionNecessity,
+    ensureTranscriptions,
   };
 }

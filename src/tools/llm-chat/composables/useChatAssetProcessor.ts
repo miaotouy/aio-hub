@@ -72,7 +72,7 @@ export function useChatAssetProcessor() {
 
     // 超时
     errorHandler.handle(new Error("资产导入超时"), {
-     userMessage: "资产导入超时",
+      userMessage: "资产导入超时",
       context: {
         timeout,
         stillPendingCount: assets.filter(
@@ -111,10 +111,11 @@ export function useChatAssetProcessor() {
       shouldTranscribe = true;
     }
     // 3. 检查全局设置 (仅当 overrides 未指定时)
+    // 只要转写功能开启且存在有效的转写内容，就默认使用转写
+    // (在 Smart 策略下，如果模型支持 Vision，通常不会生成转写，因此不会进入此逻辑，除非用户手动触发)
     else if (
       overrides?.preferTranscribed === undefined &&
-      settings?.transcription?.enabled &&
-      settings?.transcription?.preferTranscribed
+      settings?.transcription?.enabled
     ) {
       shouldTranscribe = true;
     }
@@ -239,7 +240,7 @@ export function useChatAssetProcessor() {
             };
           } catch (error) {
             errorHandler.handle(error as Error, {
-             userMessage: "读取文本文件失败，尝试使用 base64",
+              userMessage: "读取文本文件失败，尝试使用 base64",
               context: {
                 assetId: asset.id,
                 assetName: asset.name,
@@ -252,10 +253,10 @@ export function useChatAssetProcessor() {
 
         // 对于非文本文档（如 PDF）：根据模型能力选择合适的格式
         const base64 = await convertAssetToBase64(asset.path);
-        
+
         // 根据模型的文档格式生成对应的内容
         const documentFormat = capabilities?.documentFormat || 'base64';
-        
+
         if (documentFormat === 'openai_file') {
           // OpenAI Responses 格式：使用 file_data（base64 data URL）
           logger.debug("文档附件转换为 OpenAI Responses 格式", {
@@ -302,7 +303,7 @@ export function useChatAssetProcessor() {
       return null;
     } catch (error) {
       errorHandler.handle(error as Error, {
-       userMessage: "附件转换失败",
+        userMessage: "附件转换失败",
         context: {
           assetId: asset.id,
           assetName: asset.name,

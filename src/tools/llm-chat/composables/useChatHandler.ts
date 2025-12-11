@@ -26,6 +26,8 @@ import { useMessageProcessor } from "./useMessageProcessor";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { filterParametersForModel } from "../config/parameter-config";
 import type { ModelIdentifier } from "../types";
+import { useTranscriptionManager } from "./useTranscriptionManager";
+import { useChatSettings } from "./useChatSettings";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -157,6 +159,58 @@ export function useChatHandler() {
     // 处理附件（如果有）
     if (options?.attachments && options.attachments.length > 0) {
       await processUserAttachments(userNode, session, options.attachments, pathUserNode);
+
+      // [send_and_wait 模式]：在此处等待转写完成
+      // 此时消息已上屏 (processUserAttachments 已更新 session.nodes)，用户可以看到附件
+      // 我们需要挂起流程，直到转写完成，以便后续 executeRequest -> buildLlmContext 能使用转写内容
+      const { settings } = useChatSettings();
+      // 只要启用转写且策略不是手动（已移除），并且行为是 send_and_wait，就应用等待逻辑
+      if (
+        settings.value.transcription.enabled &&
+        settings.value.transcription.sendBehavior === "send_and_wait"
+      ) {
+        const transcriptionManager = useTranscriptionManager();
+        const transcriptionController = new AbortController();
+        
+        // 注册到 abortControllers，以便用户点击停止时能取消等待
+        abortControllers.set(assistantNode.id, transcriptionController);
+        generatingNodes.add(assistantNode.id);
+
+        try {
+          logger.info("⏳ [send_and_wait] 等待附件转写...", { nodeId: assistantNode.id });
+          
+          // 更新助手节点状态提示（可选，如果 UI 支持显示 status）
+          // session.nodes[assistantNode.id].metadata = { ...session.nodes[assistantNode.id].metadata, status: 'transcribing' };
+
+          await Promise.race([
+            transcriptionManager.ensureTranscriptions(
+              options.attachments,
+              agentConfig.modelId,
+              agentConfig.profileId
+            ),
+            new Promise((_, reject) => {
+              transcriptionController.signal.addEventListener("abort", () => {
+                reject(new Error("User aborted"));
+              });
+            }),
+          ]);
+          logger.info("✅ [send_and_wait] 转写等待结束，继续发送流程");
+        } catch (error: any) {
+          if (error.message === "User aborted") {
+            logger.info("🛑 用户取消了发送（在转写等待阶段）");
+            // 清理状态并终止流程
+            abortControllers.delete(assistantNode.id);
+            generatingNodes.delete(assistantNode.id);
+            return;
+          }
+          // 其他错误（如超时、转写失败）记录日志但继续，降级为使用原始附件
+          logger.warn("⚠️ 转写等待期间出错，将尝试使用原始附件发送", error);
+        } finally {
+          // 清理控制器，executeRequest 会创建新的
+          abortControllers.delete(assistantNode.id);
+          generatingNodes.delete(assistantNode.id);
+        }
+      }
     }
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）

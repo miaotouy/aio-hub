@@ -1,5 +1,6 @@
 import { ref, onMounted, onUnmounted, Ref, watch, reactive } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { emit } from '@tauri-apps/api/event'
 import { nanoid } from 'nanoid'
 import { customMessage } from '@/utils/customMessage'
 import { createModuleLogger } from '@utils/logger'
@@ -218,6 +219,11 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
                 filename,
                 tempId,
                 realId: realAsset.id,
+              })
+
+              // 发射 asset-imported 事件，通知其他模块（如转写管理器）
+              emit('asset-imported', realAsset).catch((err) => {
+                logger.error('发射 asset-imported 事件失败', err)
               })
             } catch (error) {
               // 处理上传失败

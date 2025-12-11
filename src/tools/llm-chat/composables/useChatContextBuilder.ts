@@ -79,7 +79,8 @@ export function useChatContextBuilder() {
         const content = await buildMessageContentForLlm(
           node.content,
           node.attachments,
-          capabilities
+          capabilities,
+          settings.value // 传入当前设置，以便正确处理 preferTranscribed
         );
 
         if (node.attachments && node.attachments.length > 0) {

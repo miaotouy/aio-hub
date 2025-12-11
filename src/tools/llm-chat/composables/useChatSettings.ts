@@ -57,10 +57,12 @@ export interface TypeSpecificTranscriptionConfig {
 export interface TranscriptionConfig {
   /** 是否启用转写功能 */
   enabled: boolean;
-  /** 是否在附件导入时自动开始转写 */
-  autoTranscribe: boolean;
-  /** 发送消息时，是否默认优先使用转写内容（替代原始媒体） */
-  preferTranscribed: boolean;
+  /** 转写触发策略 */
+  strategy: "smart" | "always";
+  /** 是否在附件导入时自动开始转写 (基于策略) */
+  autoStartOnImport: boolean;
+  /** 发送行为 */
+  sendBehavior: "wait_before_send" | "send_and_wait";
   /** 转写使用的模型 ID (指向 LlmModelSelector) - 通用/默认 */
   modelIdentifier: string;
   /** 自定义转写 Prompt (可选) - 通用/默认 */
@@ -73,6 +75,8 @@ export interface TranscriptionConfig {
   maxConcurrentTasks: number;
   /** 最大重试次数 */
   maxRetries: number;
+  /** 转写等待超时时间 (ms) */
+  timeout: number;
   /** 是否启用分类型精细配置 */
   enableTypeSpecificConfig: boolean;
   /** 图片特定配置 */
@@ -245,8 +249,9 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   },
   transcription: {
     enabled: true,
-    autoTranscribe: false,
-    preferTranscribed: true,
+    strategy: "smart",
+    autoStartOnImport: true, // 默认开启，体验更好
+    sendBehavior: "send_and_wait",
     modelIdentifier: "",
     customPrompt: `你是一个高精度多模态内容分析器。请对输入的媒体内容进行全面、准确的文本化转录。
 
@@ -263,6 +268,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxTokens: 4096,
     maxConcurrentTasks: 2,
     maxRetries: 2,
+    timeout: 120000, // 默认 120 秒
     enableTypeSpecificConfig: false,
     image: {
       modelIdentifier: "",

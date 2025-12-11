@@ -22,6 +22,7 @@ import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
 import { customMessage } from "@/utils/customMessage";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler"; // <-- 插入
 import ComponentHeader from "@/components/ComponentHeader.vue";
@@ -39,11 +40,15 @@ const agentStore = useAgentStore();
 const { settings, updateSettings, isLoaded: settingsLoaded, loadSettings } = useChatSettings();
 const { translateText } = useTranslation();
 const { manualCompress } = useContextCompressor();
+const transcriptionManager = useTranscriptionManager();
 
 // 翻译相关状态
 const isTranslatingInput = ref(false);
 // 压缩相关状态
 const isCompressing = ref(false);
+// 转写等待状态
+const isWaitingForTranscription = ref(false);
+const transcriptionAbortController = ref<AbortController | null>(null);
 
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
@@ -149,16 +154,92 @@ const { isDraggingOver } = useChatFileInteraction({
 });
 
 // 处理发送
-const handleSend = () => {
+const handleSend = async () => {
   const content = inputText.value.trim();
-  if ((!content && !inputManager.hasAttachments.value) || props.disabled) {
+  if (
+    (!content && !inputManager.hasAttachments.value) ||
+    props.disabled ||
+    isWaitingForTranscription.value
+  ) {
     logger.info("发送被阻止", {
       hasContent: !!content,
       hasAttachments: inputManager.hasAttachments.value,
       disabled: props.disabled,
       isDetached: props.isDetached,
+      isWaiting: isWaitingForTranscription.value,
     });
     return;
+  }
+
+  // 检查是否需要等待转写 (wait_before_send 策略)
+  if (
+    settings.value.transcription.enabled &&
+    settings.value.transcription.sendBehavior === "wait_before_send" &&
+    inputManager.hasAttachments.value
+  ) {
+    const currentAttachments = inputManager.attachments.value;
+
+    // 获取当前模型信息以判断是否需要转写
+    let modelId = "";
+    let profileId = "";
+
+    if (inputManager.temporaryModel.value) {
+      modelId = inputManager.temporaryModel.value.modelId;
+      profileId = inputManager.temporaryModel.value.profileId;
+    } else if (agentStore.currentAgentId) {
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (agent) {
+        modelId = agent.modelId;
+        profileId = agent.profileId;
+      }
+    }
+
+    // 检查是否有正在进行或待处理的任务
+    // 注意：tasks 是 reactive 对象，直接访问，不需要 .value
+    const hasPendingTasks = transcriptionManager.tasks.some(
+      (t) =>
+        currentAttachments.some((a) => a.id === t.assetId) &&
+        t.status !== "completed" &&
+        t.status !== "error"
+    );
+
+    // 如果有挂起的任务，或者根据 Smart 策略需要启动新任务
+    // 简单起见，我们总是调用 ensureTranscriptions，它内部会进行必要性检查
+    // 但为了避免不必要的等待状态，我们可以先做一个预检查
+    const needsTranscription = currentAttachments.some((a) =>
+      transcriptionManager.checkTranscriptionNecessity(a, modelId, profileId)
+    );
+
+    if (hasPendingTasks || needsTranscription) {
+      isWaitingForTranscription.value = true;
+      transcriptionAbortController.value = new AbortController();
+      customMessage.info("正在等待附件转写完成...");
+
+      try {
+        // 使用 Promise.race 实现可取消的等待
+        await Promise.race([
+          transcriptionManager.ensureTranscriptions(currentAttachments, modelId, profileId),
+          new Promise((_, reject) => {
+            if (transcriptionAbortController.value?.signal.aborted) {
+              reject(new Error("User aborted"));
+            }
+            transcriptionAbortController.value?.signal.addEventListener("abort", () => {
+              reject(new Error("User aborted"));
+            });
+          }),
+        ]);
+      } catch (error: any) {
+        if (error.message === "User aborted") {
+          logger.info("用户取消了发送（等待转写阶段）");
+          return; // 直接返回，终止发送流程
+        }
+        logger.error("等待转写失败", error);
+        customMessage.warning("部分附件转写失败，将发送原始文件");
+      } finally {
+        isWaitingForTranscription.value = false;
+        transcriptionAbortController.value = null;
+      }
+    }
   }
 
   logger.info("发送消息", {
@@ -193,6 +274,12 @@ const handleSend = () => {
 
 // 处理中止
 const handleAbort = () => {
+  // 如果正在等待转写，优先取消转写等待
+  if (isWaitingForTranscription.value) {
+    transcriptionAbortController.value?.abort();
+    return;
+  }
+
   if (props.isDetached) {
     bus.requestAction("abort-sending", {});
     return;
@@ -564,6 +651,9 @@ watch(
 
 // 初始加载
 onMounted(async () => {
+  // 初始化转写管理器
+  transcriptionManager.init();
+
   // 加载聊天设置（确保 isLoaded 标志被设置）
   if (!settingsLoaded.value) {
     await loadSettings();
@@ -942,7 +1032,7 @@ const handleCompressContext = async () => {
             @paste="handlePaste"
           />
           <MessageInputToolbar
-            :is-sending="isCurrentBranchGenerating"
+            :is-sending="isCurrentBranchGenerating || isWaitingForTranscription"
             :disabled="disabled"
             :is-detached="props.isDetached"
             :is-expanded="isExpanded"

@@ -121,6 +121,14 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     className: "audio",
   },
   {
+    key: "video",
+    label: "视频",
+    description: "支持视频输入",
+    icon: markRaw(Video),
+    color: "#8b5cf6", // Violet 500 - 动态影像
+    className: "video",
+  },
+  {
     key: "videoGeneration",
     label: "视频生成",
     description: "支持文本到视频的生成",

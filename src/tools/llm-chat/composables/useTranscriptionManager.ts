@@ -25,6 +25,7 @@ export interface TranscriptionTask {
   retryCount: number;
   createdAt: number;
   mimeType?: string;
+  resultPath?: string; // 缓存结果路径，解决 Asset 更新延迟导致的读取失败问题
 }
 
 // 单例状态
@@ -288,13 +289,14 @@ export function useTranscriptionManager() {
     const transcriptionText = response.content;
 
     // 6. 保存结果
-    await saveTranscriptionResult(task.assetId, assetPath, transcriptionText, modelId);
+    const resultPath = await saveTranscriptionResult(task.assetId, assetPath, transcriptionText, modelId);
+    task.resultPath = resultPath;
   };
 
   /**
    * 保存转写结果
    */
-  const saveTranscriptionResult = async (assetId: string, assetPath: string, text: string, provider: string) => {
+  const saveTranscriptionResult = async (assetId: string, assetPath: string, text: string, provider: string): Promise<string> => {
     try {
       // 构建保存路径: derived/{type}/{date}/{uuid}/transcription.md
       const pathParts = assetPath.split('/');
@@ -328,6 +330,7 @@ export function useTranscriptionManager() {
       });
 
       logger.info("转写结果保存成功", { assetId, path: derivedRelPath });
+      return derivedRelPath;
     } catch (e) {
       throw new Error(`保存转写文件失败: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -410,25 +413,29 @@ export function useTranscriptionManager() {
    * 获取转写文本
    */
   const getTranscriptionText = async (asset: Asset): Promise<string | null> => {
-    const derived = asset.metadata?.derived?.transcription;
-    if (!derived || !derived.path) return null;
+    // 1. 优先从任务中获取路径（针对刚刚完成但 Asset 尚未同步的情况）
+    const task = tasks.find((t) => t.assetId === asset.id && t.status === "completed" && t.resultPath);
+    let path = task?.resultPath;
+
+    // 2. 如果任务中没有，则从 Asset 元数据获取
+    if (!path) {
+      path = asset.metadata?.derived?.transcription?.path;
+    }
+
+    if (!path) return null;
 
     try {
-      // 使用后端命令读取文本文件，这样更安全且支持相对路径
-      return await invoke<string>("read_text_file", { relativePath: derived.path });
+      // 统一使用 assetManagerEngine 读取，保持数据流向一致
+      // 读取为二进制然后解码，避免直接调用后端 read_text_file
+      const buffer = await assetManagerEngine.getAssetBinary(path);
+      const text = new TextDecoder("utf-8").decode(buffer);
+      return text;
     } catch (error) {
-      logger.warn("read_text_file 失败，尝试使用 getAssetBinary 回退", { error, path: derived.path });
-      try {
-        // Fallback: 使用 getAssetBinary 读取并解码
-        const buffer = await assetManagerEngine.getAssetBinary(derived.path);
-        const text = new TextDecoder("utf-8").decode(buffer);
-        return text;
-      } catch (binaryError) {
-        logger.error("读取转写文件失败 (所有方法)", binaryError, { path: derived.path });
-        return null;
-      }
+      logger.error("读取转写文件失败", error, { path });
+      return null;
     }
   };
+
   // 辅助：Uint8Array 转 Base64
   const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
     let binary = '';

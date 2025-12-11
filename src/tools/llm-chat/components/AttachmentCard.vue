@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { ElTooltip } from "element-plus";
+import {
+  Play,
+  FileText,
+  AlertCircle,
+  FilePenLine,
+  Loader2,
+  TriangleAlert,
+  X,
+} from "lucide-vue-next";
 import type { Asset } from "@/types/asset-management";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
@@ -47,7 +57,14 @@ const emit = defineEmits<Emits>();
 const { show: showImage } = useImageViewer();
 const { previewVideo } = useVideoViewer();
 const { saveAssetThumbnail } = useAssetManager();
-const { getTranscriptionStatus, getTranscriptionText, retryTranscription, updateTranscriptionContent } = useTranscriptionManager();
+const {
+  tasks,
+  getTranscriptionStatus,
+  getTranscriptionText,
+  retryTranscription,
+  updateTranscriptionContent,
+  addTask,
+} = useTranscriptionManager();
 
 const assetUrl = ref<string>("");
 const isLoadingUrl = ref(true);
@@ -93,15 +110,30 @@ const fileExtension = computed(() => {
 const showTranscriptionDialog = ref(false);
 const transcriptionContent = ref("");
 
-const transcriptionStatus = computed(() => getTranscriptionStatus(props.asset));
+// 强制依赖 tasks.length，确保任何任务变动都能触发重新计算
+const transcriptionStatus = computed(() => {
+  void tasks.length; // 访问属性以建立依赖
+  return getTranscriptionStatus(props.asset);
+});
+
+const isTranscribable = computed(
+  () => props.asset.type === "image" || props.asset.type === "audio"
+);
 
 const transcriptionStatusText = computed(() => {
   switch (transcriptionStatus.value) {
-    case "pending": return "等待转写...";
-    case "processing": return "正在转写...";
-    case "success": return "转写完成 (点击编辑)";
-    case "error": return "转写失败 (点击重试)";
-    default: return "";
+    case "pending":
+      return "等待转写...";
+    case "processing":
+      return "正在转写...";
+    case "success":
+      return "转写完成 (点击查看/编辑)";
+    case "error":
+      return "转写失败 (点击重试)";
+    case "none":
+      return "点击开始转写";
+    default:
+      return "";
   }
 });
 
@@ -113,6 +145,8 @@ const handleTranscriptionClick = async (e: Event) => {
     showTranscriptionDialog.value = true;
   } else if (transcriptionStatus.value === "error") {
     retryTranscription(props.asset);
+  } else if (transcriptionStatus.value === "none") {
+    addTask(props.asset);
   }
 };
 
@@ -335,29 +369,16 @@ onUnmounted(() => {
         <!-- 文件图标区域 -->
         <div class="bar-icon-wrapper">
           <template v-if="isLoadingUrl && !assetUrl">
-            <div class="spinner-small"></div>
+            <Loader2 class="spinner-small" />
           </template>
           <template v-else-if="loadError || hasImportError">
-            <span class="icon-emoji error">⚠️</span>
+            <TriangleAlert class="icon-emoji error" :size="16" />
           </template>
           <template v-else>
             <div v-if="assetUrl" class="bar-thumbnail-wrapper">
               <img :src="assetUrl" class="bar-thumbnail-image" alt="预览" />
               <div v-if="isVideo" class="bar-video-overlay">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="play-icon"
-                >
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
+                <Play class="play-icon" :size="16" fill="currentColor" />
               </div>
             </div>
             <div v-else class="file-type-badge" :data-type="asset.type">
@@ -367,14 +388,16 @@ onUnmounted(() => {
 
           <!-- 导入状态指示器 -->
           <div v-if="isImporting" class="bar-import-overlay">
-            <div class="import-spinner-small"></div>
+            <Loader2 class="import-spinner-small" />
           </div>
         </div>
 
         <!-- 文件信息区域 -->
         <div class="bar-info-wrapper">
           <div class="bar-header">
-            <div class="bar-file-name" :title="asset.name">{{ asset.name }}</div>
+            <el-tooltip :content="asset.name" placement="top" :show-after="500">
+              <div class="bar-file-name">{{ asset.name }}</div>
+            </el-tooltip>
           </div>
 
           <div class="bar-meta-row">
@@ -388,37 +411,33 @@ onUnmounted(() => {
             <!-- Token 信息 -->
             <template v-if="tokenError || tokenCount !== undefined">
               <span class="bar-meta-divider">·</span>
-              <span v-if="tokenError" class="bar-token-tag error" :title="tokenError">
-                Token 错误
-              </span>
+              <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
+                <span class="bar-token-tag error"> Token 错误 </span>
+              </el-tooltip>
               <span v-else class="bar-token-tag" :class="{ estimated: tokenEstimated }">
                 {{ tokenCount!.toLocaleString() }} tokens
               </span>
             </template>
 
             <!-- 转写状态 (长条模式) -->
-            <template v-if="transcriptionStatus !== 'none'">
+            <template v-if="isTranscribable">
               <span class="bar-meta-divider">·</span>
-              <div
-                class="transcription-status-icon bar-mode"
-                :class="transcriptionStatus"
-                :title="transcriptionStatusText"
-                @click="handleTranscriptionClick"
-              >
-                <div v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'" class="spinner-micro"></div>
-                <svg v-else-if="transcriptionStatus === 'success'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-                <svg v-else-if="transcriptionStatus === 'error'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="12"></line>
-                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-              </div>
+              <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
+                <div
+                  class="transcription-status-icon bar-mode"
+                  :class="transcriptionStatus"
+                  @click="handleTranscriptionClick"
+                >
+                  <Loader2
+                    v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'"
+                    class="spinner-micro"
+                  />
+                  <FileText v-else-if="transcriptionStatus === 'success'" :size="12" />
+                  <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="12" />
+                  <!-- None 状态图标 -->
+                  <FilePenLine v-else :size="12" class="icon-none" />
+                </div>
+              </el-tooltip>
             </template>
           </div>
         </div>
@@ -431,12 +450,12 @@ onUnmounted(() => {
       <div class="attachment-preview" @click="handlePreview">
         <template v-if="isLoadingUrl && !assetUrl">
           <div class="loading-placeholder">
-            <div class="spinner"></div>
+            <Loader2 class="spinner" />
           </div>
         </template>
         <template v-else-if="loadError || hasImportError">
           <div class="error-placeholder">
-            <span class="icon">⚠️</span>
+            <TriangleAlert class="icon" />
             <span class="text">{{ hasImportError ? "导入失败" : "加载失败" }}</span>
           </div>
         </template>
@@ -459,60 +478,58 @@ onUnmounted(() => {
           class="import-status-overlay"
           :class="{ 'mini-mode': isImage && assetUrl }"
         >
-          <div class="import-spinner"></div>
+          <Loader2 class="import-spinner" />
         </div>
 
         <!-- Token 信息标签（方形布局专用） -->
         <div v-if="!isBarLayout && (tokenError || tokenCount !== undefined)" class="token-badge">
-          <span v-if="tokenError" class="token-tag error" :title="tokenError"> Token 错误 </span>
+          <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
+            <span class="token-tag error"> Token 错误 </span>
+          </el-tooltip>
           <span v-else class="token-tag" :class="{ estimated: tokenEstimated }">
             {{ tokenCount!.toLocaleString() }}
           </span>
         </div>
 
+        <!-- 转写进度条 (方形模式 - Processing) -->
+        <div
+          v-if="
+            !isBarLayout &&
+            (transcriptionStatus === 'processing' || transcriptionStatus === 'pending')
+          "
+          class="transcription-progress-bar"
+        >
+          <el-tooltip content="正在转写..." placement="top" :show-after="500">
+            <div class="progress-fill"></div>
+          </el-tooltip>
+        </div>
       </div>
 
-    <!-- 转写状态 (方形模式 - 悬浮角标) -->
-    <div
-      v-if="!isBarLayout && transcriptionStatus !== 'none'"
-      class="transcription-badge"
-      :class="transcriptionStatus"
-      :title="transcriptionStatusText"
-      @click="handleTranscriptionClick"
-    >
-      <div v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'" class="spinner-micro"></div>
-      <svg v-else-if="transcriptionStatus === 'success'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-        <polyline points="14 2 14 8 20 8"></polyline>
-        <line x1="16" y1="13" x2="8" y2="13"></line>
-        <line x1="16" y1="17" x2="8" y2="17"></line>
-        <polyline points="10 9 9 9 8 9"></polyline>
-      </svg>
-      <svg v-else-if="transcriptionStatus === 'error'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="8" x2="12" y2="12"></line>
-        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-      </svg>
-    </div>
+      <!-- 转写操作/状态按钮 (方形模式 - 右下角) -->
+      <div v-if="!isBarLayout && isTranscribable">
+        <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
+          <div
+            class="transcription-action-btn"
+            :class="transcriptionStatus"
+            @click="handleTranscriptionClick"
+          >
+            <!-- Success: 文档图标 -->
+            <FileText v-if="transcriptionStatus === 'success'" :size="14" />
+            <!-- Error: 警示图标 -->
+            <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="14" />
+            <!-- None: 编辑/转写图标 -->
+            <FilePenLine v-else-if="transcriptionStatus === 'none'" :size="14" />
+          </div>
+        </el-tooltip>
+      </div>
     </template>
 
     <!-- 移除按钮 (统一使用外部悬浮按钮) -->
-    <button v-if="removable" class="remove-button" @click="handleRemove" title="移除附件">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-      </svg>
-    </button>
+    <el-tooltip v-if="removable" content="移除附件" placement="top" :show-after="500">
+      <button class="remove-button" @click="handleRemove">
+        <X :size="12" />
+      </button>
+    </el-tooltip>
 
     <!-- 文档预览对话框 -->
     <BaseDialog
@@ -694,9 +711,7 @@ onUnmounted(() => {
 .spinner {
   width: 24px;
   height: 24px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
+  color: var(--primary-color);
   animation: spin 0.8s linear infinite;
 }
 
@@ -724,7 +739,7 @@ onUnmounted(() => {
   gap: 2px;
   background: linear-gradient(
     to top,
-    rgba(0, 0, 0, 0.75) 0%,
+    rgba(0, 0, 0.75) 0%,
     rgba(0, 0, 0, 0.5) 60%,
     transparent 100%
   );
@@ -825,16 +840,13 @@ onUnmounted(() => {
 .import-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
+  color: #fff;
   animation: spin 0.6s linear infinite;
 }
 
 .import-status-overlay.mini-mode .import-spinner {
   width: 12px;
   height: 12px;
-  border-width: 1.5px;
 }
 
 /* 长条布局样式 */
@@ -904,7 +916,7 @@ onUnmounted(() => {
   background: rgba(230, 162, 60, 0.15);
 }
 .file-type-badge[data-type="video"] {
-  background: rgba(245, 108, 108, 0.15);
+  background: rgba(245, 108, 0.15);
 }
 .file-type-badge[data-type="image"] {
   background: rgba(103, 194, 58, 0.15);
@@ -977,9 +989,7 @@ onUnmounted(() => {
 .spinner-small {
   width: 16px;
   height: 16px;
-  border: 2px solid var(--border-color);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
+  color: var(--primary-color);
   animation: spin 0.8s linear infinite;
 }
 
@@ -1022,7 +1032,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.3);
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 0.9);
 }
 
 .bar-video-overlay .play-icon {
@@ -1090,7 +1100,6 @@ onUnmounted(() => {
   color: var(--text-color-secondary);
   line-height: 1.2;
 }
-</style>
 
 /* 转写状态样式 */
 .transcription-status-icon {
@@ -1104,6 +1113,15 @@ onUnmounted(() => {
 .transcription-status-icon.bar-mode {
   width: 12px;
   height: 12px;
+}
+
+.transcription-status-icon .icon-none {
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.transcription-status-icon:hover .icon-none {
+  opacity: 1;
 }
 
 .transcription-status-icon:hover {
@@ -1122,55 +1140,104 @@ onUnmounted(() => {
 .transcription-status-icon.pending {
   color: var(--el-color-warning);
 }
-.transcription-badge {
+
+/* 方形模式下的转写进度条 */
+.transcription-progress-bar {
   position: absolute;
-  top: -10px;
-  left: -10px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--primary-color);
+  width: 100%;
+  transform-origin: left;
+  animation: progress-indeterminate 1.5s infinite ease-in-out;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%) scaleX(0.2);
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.5);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.2);
+  }
+}
+
+/* 方形模式下的转写操作按钮 (右下角) */
+.transcription-action-btn {
+  position: absolute;
+  bottom: -6px;
+  right: -4px;
   width: 20px;
   height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  border-radius: 4px;
+  backdrop-filter: blur(2px);
   cursor: pointer;
   transition: all 0.2s;
-  z-index: 2;
-  opacity: 0;
+  z-index: 3;
+  color: #fff;
+  opacity: 0; /* 默认隐藏 */
+  transform: scale(0.9);
 }
 
-.attachment-card:hover .transcription-badge,
-.transcription-badge.processing,
-.transcription-badge.pending {
-  opacity: 1;
+.transcription-action-btn svg {
+  width: 12px;
+  height: 12px;
 }
 
-.transcription-badge:hover {
-  background: rgba(0, 0, 0, 0.8);
-  transform: scale(1.1);
-}
-
-.transcription-badge.success {
+/* 状态颜色 */
+.transcription-action-btn.success {
   color: #67c23a;
+  opacity: 1; /* 完成状态常驻显示 */
+  transform: scale(1);
 }
 
-.transcription-badge.error {
+.transcription-action-btn.error {
   color: #f56c6c;
+  opacity: 1; /* 错误状态常驻显示 */
+  transform: scale(1);
 }
 
-.transcription-badge.processing,
-.transcription-badge.pending {
-  color: #e6a23c;
+/* None 状态仅 hover 显示 */
+.attachment-card:hover .transcription-action-btn.none {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Processing 状态下隐藏按钮 */
+.transcription-action-btn.processing,
+.transcription-action-btn.pending {
+  display: none;
+}
+
+.transcription-action-btn:hover {
+  color: var(--primary-color);
+  transform: scale(1.2);
+}
+.transcription-action-btn.error:hover {
+  color: #f56c6c;
 }
 
 .spinner-micro {
   width: 8px;
   height: 8px;
-  border: 1.5px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
-
-/* 确保 spin 动画已定义（已在前面定义） */
+</style>

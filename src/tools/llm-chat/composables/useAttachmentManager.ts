@@ -7,6 +7,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { nanoid } from "nanoid";
 import { useAgentStore } from "../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useChatSettings } from "./useChatSettings";
 import { detectFileType, isTextFile as checkIsTextFile } from "@/utils/fileTypeDetector";
 
 const logger = createModuleLogger("AttachmentManager");
@@ -68,6 +69,7 @@ export function useAttachmentManager(
   // 在顶层初始化 composables，避免在嵌套函数中调用导致状态获取问题
   const agentStore = useAgentStore();
   const { getProfileById } = useLlmProfiles();
+  const { settings } = useChatSettings();
 
   // 计算属性
   const count = computed(() => attachments.value.length);
@@ -151,6 +153,7 @@ export function useAttachmentManager(
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
     const capabilities = model?.capabilities;
+    const transcriptionEnabled = settings.value.transcription.enabled;
 
     logger.debug("检查模型能力", {
       assetType,
@@ -160,6 +163,9 @@ export function useAttachmentManager(
       hasCapabilities: !!capabilities,
       visionSupport: capabilities?.vision,
       documentSupport: capabilities?.document,
+      audioSupport: capabilities?.audio,
+      videoSupport: capabilities?.video,
+      transcriptionEnabled,
     });
 
     // 无配置视为不支持（安全默认）
@@ -170,22 +176,61 @@ export function useAttachmentManager(
         modelName: model?.name || agentConfig.modelId,
       });
       
+      // 如果开启了转写，图片和音频可以被转写为文本，所以不视为不支持
+      if (transcriptionEnabled && (assetType === "image" || assetType === "audio")) {
+        return null;
+      }
+
       if (assetType === "image") {
-        return `当前模型「${model?.name || agentConfig.modelId}」未配置视觉能力，可能不支持图片输入。建议切换至支持视觉的模型（如 GPT-4o、Claude、Gemini）。`;
+        return `当前模型「${model?.name || agentConfig.modelId}」未配置视觉能力，可能不支持图片输入。建议切换至支持视觉的模型（如 GPT-4o、Claude、Gemini）或开启多模态转写。`;
+      }
+      
+      if (assetType === "audio") {
+        return `当前模型「${model?.name || agentConfig.modelId}」未配置音频能力，可能不支持音频输入。建议切换至支持音频的模型（如 GPT-4o-Audio、Gemini）或开启多模态转写。`;
+      }
+
+      if (assetType === "video") {
+        return `当前模型「${model?.name || agentConfig.modelId}」未配置视频能力，可能不支持视频输入。建议切换至支持视频的模型（如 Gemini 1.5 Pro）。`;
       }
       
       if (assetType === "document") {
         return `当前模型「${model?.name || agentConfig.modelId}」未配置文档处理能力，可能不支持文档输入。建议切换至支持文档的模型（如 GPT-4o、Claude、Gemini）。`;
       }
       
-      // 其他类型（音频、视频等）目前不检查
       return null;
     }
 
     // 检查图片支持
     if (assetType === "image" && !capabilities.vision) {
-      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持图片输入。建议切换至支持视觉的模型（如 GPT-4o、Claude、Gemini）。`;
+      // 如果开启了转写，则允许
+      if (transcriptionEnabled) {
+        return null;
+      }
+      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持图片输入。建议切换至支持视觉的模型（如 GPT-4o、Claude、Gemini）或开启多模态转写。`;
       logger.info("检测到不支持的附件类型：图片", {
+        modelName: model?.name || agentConfig.modelId,
+      });
+      return warning;
+    }
+
+    // 检查音频支持
+    if (assetType === "audio" && !capabilities.audio) {
+      // 如果开启了转写，则允许
+      if (transcriptionEnabled) {
+        return null;
+      }
+      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持音频输入。建议切换至支持音频的模型（如 GPT-4o-Audio、Gemini）或开启多模态转写。`;
+      logger.info("检测到不支持的附件类型：音频", {
+        modelName: model?.name || agentConfig.modelId,
+      });
+      return warning;
+    }
+
+    // 检查视频支持
+    // 注意：目前转写模块暂不支持视频，所以必须模型原生支持
+    if (assetType === "video" && !capabilities.video) {
+      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持视频输入。建议切换至支持视频的模型（如 Gemini 1.5 Pro）。`;
+      logger.info("检测到不支持的附件类型：视频", {
         modelName: model?.name || agentConfig.modelId,
       });
       return warning;

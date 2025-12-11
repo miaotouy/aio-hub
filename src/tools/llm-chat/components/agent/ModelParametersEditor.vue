@@ -16,6 +16,7 @@ import { useLlmChatStore } from "../../store";
 import { useAgentStore } from "../../agentStore";
 import { useChatHandler } from "../../composables/useChatHandler";
 import type { ContextPreviewData } from "../../composables/useChatHandler";
+import { getModelFamily } from "@/llm-apis/request-builder";
 import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "../settings/ContextCompressionConfigPanel.vue";
@@ -32,6 +33,7 @@ import { ParameterConfig, parameterConfigs } from "../../config/parameter-config
 interface Props {
   modelValue: LlmParameters;
   providerType?: ProviderType;
+  modelId?: string;
   capabilities?: LlmModelInfo["capabilities"];
   compact?: boolean;
   /** 模型的上下文窗口限制（如果为 undefined 则使用默认最大值） */
@@ -468,6 +470,21 @@ const hasActivePostProcessingRules = computed(() => {
 });
 
 // --- Gemini 安全设置逻辑 ---
+
+// 判断是否显示安全设置：Provider 支持 OR 模型属于 Gemini 家族
+const showSafetySettings = computed(() => {
+  if (supportedParameters.value.safetySettings) {
+    return true;
+  }
+
+  // 如果提供了 modelId，使用元数据判断模型家族
+  if (props.modelId) {
+    const family = getModelFamily(props.modelId, props.providerType);
+    return family === "gemini";
+  }
+
+  return false;
+});
 
 const safetyCategories = [
   { label: "骚扰内容 (Harassment)", value: "HARM_CATEGORY_HARASSMENT" },
@@ -1012,7 +1029,7 @@ watch(
 
     <!-- Gemini 安全设置分组 -->
     <ConfigSection
-      v-if="supportedParameters.safetySettings"
+      v-if="showSafetySettings"
       title="Gemini 安全设置"
       :icon="'i-ep-shield'"
       v-model:expanded="safetySettingsExpanded"

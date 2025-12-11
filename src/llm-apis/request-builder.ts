@@ -13,6 +13,20 @@
 import type { LlmMessageContent, LlmRequestOptions } from "./common";
 import type { LlmProfile, LlmModelInfo } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
+import { getMatchedModelProperties } from "../config/model-metadata";
+
+/**
+ * 模型家族类型
+ * 用于识别模型所属的 API 风格/家族，以便应用正确的参数格式
+ */
+export type ModelFamily =
+  | "openai" // OpenAI 及其兼容格式
+  | "claude" // Anthropic Claude 系列
+  | "gemini" // Google Gemini/Gemma 系列
+  | "cohere" // Cohere Command 系列
+  | "deepseek" // DeepSeek 系列
+  | "qwen" // 通义千问系列
+  | "unknown"; // 未知/通用
 
 /**
  * 解析后的消息内容结构
@@ -361,6 +375,91 @@ export function buildBase64DataUrl(base64Data: string, mimeType?: string): strin
 }
 
 /**
+ * 获取模型所属的家族
+ * 完全基于元数据系统判断，不再硬编码字符串匹配
+ *
+ * @param modelId - 模型 ID
+ * @param provider - 提供商标识（可选）
+ * @returns 模型家族类型
+ */
+export function getModelFamily(modelId: string, provider?: string): ModelFamily {
+  const props = getMatchedModelProperties(modelId, provider);
+  const group = props?.group?.toLowerCase();
+
+  if (!group) {
+    // 如果元数据没有匹配到，尝试通过 provider 推断
+    if (provider) {
+      const lowerProvider = provider.toLowerCase();
+      if (lowerProvider === "anthropic" || lowerProvider === "claude") return "claude";
+      if (
+        lowerProvider === "google" ||
+        lowerProvider === "gemini" ||
+        lowerProvider === "vertexai"
+      )
+        return "gemini";
+      if (lowerProvider === "cohere") return "cohere";
+      if (lowerProvider === "deepseek") return "deepseek";
+      if (lowerProvider === "qwen" || lowerProvider === "alibaba") return "qwen";
+    }
+    return "unknown";
+  }
+
+  // 基于 group 判断家族
+  // OpenAI 系列
+  if (group === "openai" || group === "openai responses" || group.startsWith("gpt")) {
+    return "openai";
+  }
+
+  // Claude 系列
+  if (group === "claude" || group.startsWith("claude")) {
+    return "claude";
+  }
+
+  // Gemini 系列
+  if (
+    group === "gemini" ||
+    group === "gemma" ||
+    group.startsWith("gemini") ||
+    group.startsWith("gemma")
+  ) {
+    return "gemini";
+  }
+
+  // Cohere 系列
+  if (group === "cohere" || group === "command") {
+    return "cohere";
+  }
+
+  // DeepSeek 系列
+  if (group === "deepseek") {
+    return "deepseek";
+  }
+
+  // Qwen 系列
+  if (group === "qwen" || group.startsWith("qwen")) {
+    return "qwen";
+  }
+
+  return "unknown";
+}
+
+/**
+ * 判断是否为 Claude 系列模型
+ * 基于统一的 getModelFamily 函数
+ */
+export function isClaudeModel(modelId: string, provider?: string): boolean {
+  return getModelFamily(modelId, provider) === "claude";
+}
+
+/**
+ * 判断是否为 OpenAI 系列模型
+ * 基于统一的 getModelFamily 函数
+ */
+export function isOpenAIModel(modelId: string, provider?: string): boolean {
+  return getModelFamily(modelId, provider) === "openai";
+}
+
+/**
  * 根据 Profile 和 Model 配置智能过滤 LLM 参数
  *
  * 双重过滤策略：
@@ -380,7 +479,7 @@ export function filterParametersByCapabilities(
   const providerInfo = getProviderTypeInfo(profile.type);
   const supported = providerInfo?.supportedParameters;
   const capabilities = model?.capabilities;
-  
+
   const filtered: Partial<LlmRequestOptions> = {};
 
   // 核心参数始终保留
@@ -485,10 +584,16 @@ export function filterParametersByCapabilities(
     filtered.prediction = options.prediction;
   }
 
-  // ===== Provider 特有参数 =====
-  
+  // ===== Provider/Model Family 特有参数 =====
+  // 使用统一的 getModelFamily 函数判断模型所属家族，而非仅依赖 profile.type
+  // 这样可以正确处理通过 OpenAI 兼容渠道访问其他厂商模型的场景
+  const modelFamily = getModelFamily(options.modelId, profile.type);
+
   // OpenAI 特有参数
-  if (profile.type === 'openai' || profile.type === 'openai-responses') {
+  // 条件：profile.type 是 openai 系列，且模型家族也是 openai（排除通过 OpenAI 渠道访问其他厂商的情况）
+  const isOpenAIProfile = profile.type === "openai" || profile.type === "openai-responses";
+  const shouldApplyOpenAIParams = isOpenAIProfile && (modelFamily === "openai" || modelFamily === "unknown");
+  if (shouldApplyOpenAIParams) {
     if (options.n !== undefined) filtered.n = options.n;
     if (options.logitBias !== undefined) filtered.logitBias = options.logitBias;
     if (options.store !== undefined) filtered.store = options.store;
@@ -499,23 +604,88 @@ export function filterParametersByCapabilities(
   }
 
   // Claude 特有参数
-  if (profile.type === 'claude') {
+  // 条件：profile.type 是 claude，或者模型家族是 claude（通过其他渠道访问 Claude 模型）
+  const shouldApplyClaudeParams = profile.type === "claude" || modelFamily === "claude";
+  if (shouldApplyClaudeParams) {
     if (options.stopSequences !== undefined) filtered.stopSequences = options.stopSequences;
     if (options.claudeMetadata !== undefined) filtered.claudeMetadata = options.claudeMetadata;
   }
 
   // Gemini/VertexAI 特有参数
-  if (profile.type === 'gemini' || profile.type === 'vertexai') {
+  // 条件：profile.type 是 gemini/vertexai，或者模型家族是 gemini（通过 OpenAI 渠道访问 Gemini 模型）
+  const shouldApplyGeminiParams =
+    profile.type === "gemini" || profile.type === "vertexai" || modelFamily === "gemini";
+  if (shouldApplyGeminiParams) {
     // 安全设置
     const extendedOptions = options as any;
     if (extendedOptions.safetySettings !== undefined) {
       (filtered as any).safetySettings = extendedOptions.safetySettings;
     }
 
+    // 其他 Gemini 特有参数
+    const geminiSpecificKeys = [
+      "enableCodeExecution",
+      "speechConfig",
+      "responseModalities",
+      "mediaResolution",
+      "enableEnhancedCivicAnswers",
+      "includeThoughts", // Gemini 的思考摘要参数
+    ] as const;
+
+    for (const key of geminiSpecificKeys) {
+      if (extendedOptions[key] !== undefined) {
+        (filtered as any)[key] = extendedOptions[key];
+      }
+    }
+
     // 代码执行
-    const supportsCodeExecution = supported.codeExecution && (!capabilities || capabilities.codeExecution);
+    const supportsCodeExecution =
+      supported.codeExecution && (!capabilities || capabilities.codeExecution);
     if (supportsCodeExecution) {
       // 代码执行相关参数在 gemini.ts 中处理
+    }
+  }
+
+  // DeepSeek 特有参数
+  // 条件：模型家族是 deepseek
+  if (modelFamily === "deepseek") {
+    const extendedOptions = options as any;
+    // DeepSeek 支持 FIM 和 prefix completion，相关参数保留
+    if (extendedOptions.prefix !== undefined) {
+      (filtered as any).prefix = extendedOptions.prefix;
+    }
+  }
+
+  // Cohere 特有参数
+  // 条件：profile.type 是 cohere，或者模型家族是 cohere
+  const shouldApplyCohereParams = profile.type === "cohere" || modelFamily === "cohere";
+  if (shouldApplyCohereParams) {
+    const extendedOptions = options as any;
+    // Cohere 特有的参数
+    if (extendedOptions.connectors !== undefined) {
+      (filtered as any).connectors = extendedOptions.connectors;
+    }
+    if (extendedOptions.searchQueriesOnly !== undefined) {
+      (filtered as any).searchQueriesOnly = extendedOptions.searchQueriesOnly;
+    }
+    if (extendedOptions.documents !== undefined) {
+      (filtered as any).documents = extendedOptions.documents;
+    }
+    if (extendedOptions.citationQuality !== undefined) {
+      (filtered as any).citationQuality = extendedOptions.citationQuality;
+    }
+  }
+
+  // ===== 透传自定义参数 =====
+  // 将所有未知的自定义参数（不在 KNOWN_NON_MODEL_OPTIONS_KEYS 中的）也保留下来
+  // 这样它们才能在后续的 applyCustomParameters 中被处理
+  for (const key in options) {
+    if (Object.prototype.hasOwnProperty.call(options, key)) {
+      // @ts-expect-error - key is a string
+      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) && options[key] !== undefined) {
+        // @ts-expect-error - key is a string
+        (filtered as any)[key] = options[key];
+      }
     }
   }
 

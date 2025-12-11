@@ -1,14 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
-import {
-  Collection,
-  ChatDotRound,
-  WarningFilled,
-  Plus,
-  EditPen,
-  MagicStick,
-} from "@element-plus/icons-vue";
-import type { LlmParameters, GeminiSafetySetting } from "../../types";
+import type { LlmParameters } from "../../types";
 import type { ProviderType, LlmParameterSupport, LlmModelInfo } from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
@@ -20,10 +12,13 @@ import { getModelFamily } from "@/llm-apis/request-builder";
 import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "../settings/ContextCompressionConfigPanel.vue";
-import BaseDialog from "@/components/common/BaseDialog.vue";
-import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { customMessage } from "@/utils/customMessage";
 import { ParameterConfig, parameterConfigs } from "../../config/parameter-config";
+
+// New Components
+import SafetySettingsPanel from "./parameters/SafetySettingsPanel.vue";
+import PostProcessingPanel from "./parameters/PostProcessingPanel.vue";
+import CustomParamsPanel from "./parameters/CustomParamsPanel.vue";
+import ContextStatsCard from "./parameters/ContextStatsCard.vue";
 
 /**
  * 模型参数编辑器组件
@@ -222,51 +217,6 @@ const shouldShowParameter = (key: keyof LlmParameters): boolean => {
   return true;
 };
 
-// --- 自定义参数逻辑 ---
-
-const isCustomParamsDialogVisible = ref(false);
-const customParamsJsonString = ref("");
-
-// 自定义参数直接从 `custom` 字段读取
-const customParams = computed(() => {
-  return localParams.value.custom || {};
-});
-
-const hasCustomParams = computed(() => Object.keys(customParams.value).length > 0);
-
-// 打开弹窗时，初始化 JSON 字符串
-const openCustomParamsDialog = () => {
-  customParamsJsonString.value = JSON.stringify(customParams.value, null, 2);
-  isCustomParamsDialogVisible.value = true;
-};
-
-// 保存自定义参数
-const saveCustomParams = () => {
-  try {
-    const newCustomParams = JSON.parse(customParamsJsonString.value);
-    if (typeof newCustomParams !== "object" || newCustomParams === null) {
-      throw new Error("JSON 必须是一个对象");
-    }
-
-    // 直接将新的自定义参数对象赋值给 `custom` 字段
-    const newLocalParams = { ...localParams.value, custom: newCustomParams };
-    localParams.value = newLocalParams;
-    emit("update:modelValue", localParams.value);
-
-    isCustomParamsDialogVisible.value = false;
-    customMessage.success("自定义参数已保存");
-  } catch (error: any) {
-    customMessage.error(`JSON 格式错误: ${error.message}`);
-  }
-};
-
-// 监听自定义参数变化，更新 JSON 字符串（如果弹窗是打开的）
-watch(customParams, (newVal) => {
-  if (isCustomParamsDialogVisible.value) {
-    customParamsJsonString.value = JSON.stringify(newVal, null, 2);
-  }
-});
-
 // --- 动态覆盖逻辑 ---
 
 // 计算 maxTokens 滑块的最大值
@@ -390,85 +340,6 @@ watch(
   }
 );
 
-// --- 上下文后处理逻辑 (保留原有逻辑) ---
-
-const availableRules = [
-  {
-    type: "merge-system-to-head" as const,
-    name: "合并 System 消息到头部",
-    description: "将所有 system 角色的消息合并为一条，并放在消息列表的最开头",
-    supportsSeparator: true,
-  },
-  {
-    type: "merge-consecutive-roles" as const,
-    name: "合并连续相同角色",
-    description: "合并连续出现的相同角色消息（如两个 user 消息相邻）",
-    supportsSeparator: true,
-  },
-  {
-    type: "convert-system-to-user" as const,
-    name: "转换 System 为 User",
-    description: "将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）",
-    supportsSeparator: false,
-  },
-  {
-    type: "ensure-alternating-roles" as const,
-    name: "确保角色交替",
-    description: "强制实现 user 和 assistant 的严格交替对话模式",
-    supportsSeparator: false,
-  },
-];
-
-type RuleType = (typeof availableRules)[number]["type"];
-
-const isRuleEnabled = (ruleType: string) => {
-  const rules = localParams.value.contextPostProcessing?.rules || [];
-  return rules.some((r) => r.type === ruleType && r.enabled);
-};
-
-const getRuleSeparator = (ruleType: string) => {
-  const rules = localParams.value.contextPostProcessing?.rules || [];
-  const rule = rules.find((r) => r.type === ruleType);
-  return rule?.separator || "";
-};
-
-const toggleRule = (ruleType: string, enabled: boolean) => {
-  const currentRules = localParams.value.contextPostProcessing?.rules || [];
-
-  if (enabled) {
-    const exists = currentRules.some((r) => r.type === ruleType);
-    if (!exists) {
-      const newRules = [
-        ...currentRules,
-        {
-          type: ruleType as RuleType,
-          enabled: true,
-          separator: "\n\n---\n\n",
-        },
-      ];
-      updateParameter("contextPostProcessing", { rules: newRules });
-    } else {
-      const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, enabled: true } : r));
-      updateParameter("contextPostProcessing", { rules: newRules });
-    }
-  } else {
-    const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, enabled: false } : r));
-    updateParameter("contextPostProcessing", { rules: newRules });
-  }
-};
-
-const updateRuleSeparator = (ruleType: string, separator: string) => {
-  const currentRules = localParams.value.contextPostProcessing?.rules || [];
-  const newRules = currentRules.map((r) => (r.type === ruleType ? { ...r, separator } : r));
-  updateParameter("contextPostProcessing", { rules: newRules });
-};
-
-// 计算是否有开启的后处理规则
-const hasActivePostProcessingRules = computed(() => {
-  const rules = localParams.value.contextPostProcessing?.rules || [];
-  return rules.some((r) => r.enabled);
-});
-
 // --- Gemini 安全设置逻辑 ---
 
 // 判断是否显示安全设置：Provider 支持 OR 模型属于 Gemini 家族
@@ -485,57 +356,6 @@ const showSafetySettings = computed(() => {
 
   return false;
 });
-
-const safetyCategories = [
-  { label: "骚扰内容 (Harassment)", value: "HARM_CATEGORY_HARASSMENT" },
-  { label: "仇恨言论 (Hate Speech)", value: "HARM_CATEGORY_HATE_SPEECH" },
-  { label: "色情内容 (Sexually Explicit)", value: "HARM_CATEGORY_SEXUALLY_EXPLICIT" },
-  { label: "危险内容 (Dangerous Content)", value: "HARM_CATEGORY_DANGEROUS_CONTENT" },
-  { label: "公民诚信 (Civic Integrity)", value: "HARM_CATEGORY_CIVIC_INTEGRITY" },
-] as const;
-
-const safetyThresholds = [
-  { label: "默认 (使用系统设置)", value: "SYSTEM_DEFAULT" },
-  { label: "关闭拦截 (OFF)", value: "OFF" },
-  { label: "不过滤 (BLOCK_NONE)", value: "BLOCK_NONE" },
-  { label: "仅拦截高风险 (BLOCK_ONLY_HIGH)", value: "BLOCK_ONLY_HIGH" },
-  { label: "拦截中等及以上 (BLOCK_MEDIUM_AND_ABOVE)", value: "BLOCK_MEDIUM_AND_ABOVE" },
-  { label: "拦截低风险及以上 (BLOCK_LOW_AND_ABOVE)", value: "BLOCK_LOW_AND_ABOVE" },
-];
-
-const getSafetyThreshold = (category: string) => {
-  const settings = localParams.value.safetySettings || [];
-  const setting = settings.find((s) => s.category === category);
-  return setting?.threshold ?? "SYSTEM_DEFAULT";
-};
-
-const updateSafetySetting = (
-  category: string,
-  threshold: GeminiSafetySetting["threshold"] | "SYSTEM_DEFAULT"
-) => {
-  const currentSettings = localParams.value.safetySettings || [];
-  let newSettings: GeminiSafetySetting[];
-
-  if (threshold === "SYSTEM_DEFAULT") {
-    // 移除该类别的设置
-    newSettings = currentSettings.filter((s) => s.category !== category);
-  } else {
-    // 更新或添加
-    const existingIndex = currentSettings.findIndex((s) => s.category === category);
-    if (existingIndex >= 0) {
-      newSettings = [...currentSettings];
-      newSettings[existingIndex] = { ...newSettings[existingIndex], threshold };
-    } else {
-      newSettings = [
-        ...currentSettings,
-        { category: category as GeminiSafetySetting["category"], threshold },
-      ];
-    }
-  }
-
-  // 如果数组为空，设为 undefined
-  updateParameter("safetySettings", newSettings.length > 0 ? newSettings : undefined);
-};
 
 // --- 上下文管理参数配置 ---
 const maxContextTokensConfig: ParameterConfig = {
@@ -694,6 +514,12 @@ watch(
     }
   }
 );
+
+// 计算是否有开启的后处理规则 (用于 ContextStatsCard 传递)
+const hasActivePostProcessingRules = computed(() => {
+  const rules = localParams.value.contextPostProcessing?.rules || [];
+  return rules.some((r) => r.enabled);
+});
 </script>
 
 <template>
@@ -739,185 +565,12 @@ watch(
       v-model:expanded="contextManagementExpanded"
     >
       <!-- 当前上下文统计 -->
-      <div v-if="contextStats" class="context-stats-card">
-        <!-- 核心指标卡片 -->
-        <div class="summary-card">
-          <!-- 总数 -->
-          <div class="total-section">
-            <div class="stat-label">Total Tokens</div>
-            <div class="total-value">
-              <span class="number">{{
-                contextStats.totalTokenCount?.toLocaleString() ?? "---"
-              }}</span>
-            </div>
-
-            <!-- 使用率展示 -->
-            <div
-              v-if="
-                localParams.contextManagement?.enabled &&
-                localParams.contextManagement.maxContextTokens > 0 &&
-                contextStats.totalTokenCount !== undefined
-              "
-              class="usage-info"
-            >
-              <div class="usage-text">
-                <span
-                  >使用率
-                  {{
-                    Math.round(
-                      (contextStats.totalTokenCount /
-                        localParams.contextManagement.maxContextTokens) *
-                        100
-                    )
-                  }}%</span
-                >
-                <span class="limit-text"
-                  >/ {{ localParams.contextManagement.maxContextTokens.toLocaleString() }}</span
-                >
-              </div>
-              <el-progress
-                :percentage="
-                  Math.min(
-                    100,
-                    Math.round(
-                      (contextStats.totalTokenCount /
-                        localParams.contextManagement.maxContextTokens) *
-                        100
-                    )
-                  )
-                "
-                :color="
-                  contextStats.totalTokenCount > localParams.contextManagement.maxContextTokens
-                    ? '#F56C6C'
-                    : contextStats.totalTokenCount >
-                        localParams.contextManagement.maxContextTokens * 0.8
-                      ? '#E6A23C'
-                      : '#67C23A'
-                "
-                :show-text="false"
-                :stroke-width="6"
-                class="mini-progress"
-              />
-            </div>
-
-            <div v-if="contextStats.isEstimated" class="estimate-badge">
-              <el-icon><WarningFilled /></el-icon>
-              <span>估算值 ({{ contextStats.tokenizerName }})</span>
-            </div>
-            <div v-else class="tokenizer-badge">
-              <span>{{ contextStats.tokenizerName }}</span>
-            </div>
-          </div>
-
-          <!-- 分布详情 -->
-          <div class="breakdown-section">
-            <!-- 预设消息 -->
-            <div class="breakdown-item">
-              <div class="item-icon preset-icon">
-                <el-icon><Collection /></el-icon>
-              </div>
-              <div class="item-content">
-                <div class="item-header">
-                  <span class="item-label">预设消息</span>
-                  <span class="item-value">
-                    {{
-                      contextStats.presetMessagesTokenCount?.toLocaleString() ??
-                      contextStats.presetMessagesCharCount.toLocaleString() + " 字符"
-                    }}
-                  </span>
-                </div>
-                <div
-                  class="progress-bg"
-                  v-if="
-                    contextStats.totalTokenCount &&
-                    contextStats.presetMessagesTokenCount !== undefined
-                  "
-                >
-                  <div
-                    class="progress-bar preset-bar"
-                    :style="{
-                      width: `${((contextStats.presetMessagesTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
-                    }"
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 会话历史 -->
-            <div class="breakdown-item">
-              <div class="item-icon history-icon">
-                <el-icon><ChatDotRound /></el-icon>
-              </div>
-              <div class="item-content">
-                <div class="item-header">
-                  <span class="item-label">会话历史</span>
-                  <span class="item-value">
-                    {{
-                      contextStats.chatHistoryTokenCount?.toLocaleString() ??
-                      contextStats.chatHistoryCharCount.toLocaleString() + " 字符"
-                    }}
-                  </span>
-                </div>
-                <div
-                  class="progress-bg"
-                  v-if="
-                    contextStats.totalTokenCount && contextStats.chatHistoryTokenCount !== undefined
-                  "
-                >
-                  <div
-                    class="progress-bar history-bar"
-                    :style="{
-                      width: `${((contextStats.chatHistoryTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
-                    }"
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 后处理消耗 -->
-            <div
-              class="breakdown-item"
-              v-if="
-                hasActivePostProcessingRules && contextStats.postProcessingTokenCount !== undefined
-              "
-            >
-              <div class="item-icon post-process-icon">
-                <el-icon><MagicStick /></el-icon>
-              </div>
-              <div class="item-content">
-                <div class="item-header">
-                  <span class="item-label">后处理消耗</span>
-                  <span class="item-value">
-                    {{ contextStats.postProcessingTokenCount.toLocaleString() }}
-                  </span>
-                </div>
-                <div class="progress-bg" v-if="contextStats.totalTokenCount">
-                  <div
-                    class="progress-bar post-process-bar"
-                    :style="{
-                      width: `${((contextStats.postProcessingTokenCount / contextStats.totalTokenCount) * 100).toFixed(1)}%`,
-                    }"
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 底部辅助信息 -->
-          <div class="stats-footer">
-            <div class="footer-item">
-              <span class="label">总字符数:</span>
-              <span class="value">{{ contextStats.totalCharCount.toLocaleString() }}</span>
-            </div>
-            <div class="footer-item" v-if="contextStats.totalTokenCount">
-              <span class="label">Token/字符:</span>
-              <span class="value">{{
-                (contextStats.totalTokenCount / (contextStats.totalCharCount || 1)).toFixed(3)
-              }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ContextStatsCard
+        :stats="contextStats"
+        :max-context-tokens="localParams.contextManagement?.maxContextTokens ?? 0"
+        :enabled="localParams.contextManagement?.enabled ?? false"
+        :has-active-post-processing-rules="hasActivePostProcessingRules"
+      />
 
       <!-- 启用上下文限制 -->
       <div class="param-group">
@@ -991,40 +644,10 @@ watch(
       :icon="'i-ep-connection'"
       v-model:expanded="postProcessingExpanded"
     >
-      <div class="param-hint">
-        配置消息发送前的后处理规则，用于调整消息格式以适配不同模型的要求。规则按顺序执行。
-      </div>
-
-      <!-- 规则列表 -->
-      <div class="post-process-rules">
-        <div
-          v-for="rule in availableRules"
-          :key="rule.type"
-          class="rule-item"
-          :class="{ enabled: isRuleEnabled(rule.type) }"
-        >
-          <div class="rule-header">
-            <el-checkbox
-              :model-value="isRuleEnabled(rule.type)"
-              @update:model-value="toggleRule(rule.type, $event)"
-            >
-              <span class="rule-name">{{ rule.name }}</span>
-            </el-checkbox>
-          </div>
-          <div class="rule-desc">{{ rule.description }}</div>
-
-          <!-- 分隔符配置（仅对需要合并的规则显示） -->
-          <div v-if="isRuleEnabled(rule.type) && rule.supportsSeparator" class="rule-separator">
-            <label class="separator-label">合并分隔符：</label>
-            <el-input
-              :model-value="getRuleSeparator(rule.type)"
-              @update:model-value="updateRuleSeparator(rule.type, $event)"
-              placeholder="默认: \n\n---\n\n"
-              size="small"
-            />
-          </div>
-        </div>
-      </div>
+      <PostProcessingPanel
+        :model-value="localParams.contextPostProcessing"
+        @update:model-value="updateParameter('contextPostProcessing', $event)"
+      />
     </ConfigSection>
 
     <!-- Gemini 安全设置分组 -->
@@ -1034,31 +657,10 @@ watch(
       :icon="'i-ep-shield'"
       v-model:expanded="safetySettingsExpanded"
     >
-      <div class="param-hint">
-        配置 Gemini 的内容安全过滤器。设置为 OFF 或 BLOCK_NONE 可以解除大部分限制。
-      </div>
-
-      <div class="safety-settings-list">
-        <div v-for="category in safetyCategories" :key="category.value" class="param-group">
-          <label class="param-label">
-            <span>{{ category.label }}</span>
-            <el-select
-              :model-value="getSafetyThreshold(category.value)"
-              @update:model-value="updateSafetySetting(category.value, $event)"
-              placeholder="默认"
-              size="small"
-              style="width: 180px"
-            >
-              <el-option
-                v-for="threshold in safetyThresholds"
-                :key="threshold.label"
-                :label="threshold.label"
-                :value="threshold.value"
-              />
-            </el-select>
-          </label>
-        </div>
-      </div>
+      <SafetySettingsPanel
+        :model-value="localParams.safetySettings"
+        @update:model-value="updateParameter('safetySettings', $event)"
+      />
     </ConfigSection>
 
     <!-- 特殊功能分组 -->
@@ -1090,52 +692,11 @@ watch(
       :icon="'i-ep-circle-plus'"
       v-model:expanded="customParamsExpanded"
     >
-      <div class="custom-params-container">
-        <div class="param-hint">你可以在这里添加自定义参数。参数将以 JSON 格式合并到请求体中。</div>
-        <el-button
-          :type="hasCustomParams ? 'primary' : 'default'"
-          :plain="hasCustomParams"
-          @click="openCustomParamsDialog"
-          class="edit-button"
-        >
-          <el-icon class="el-icon--left">
-            <component :is="hasCustomParams ? EditPen : Plus" />
-          </el-icon>
-          {{ hasCustomParams ? "编辑自定义参数" : "添加自定义参数" }}
-        </el-button>
-        <div v-if="hasCustomParams" class="custom-params-preview">
-          <pre><code>{{ JSON.stringify(customParams, null, 2) }}</code></pre>
-        </div>
-      </div>
+      <CustomParamsPanel
+        :model-value="localParams.custom"
+        @update:model-value="updateParameter('custom', $event)"
+      />
     </ConfigSection>
-
-    <!-- 自定义参数编辑弹窗 -->
-    <BaseDialog
-      v-model="isCustomParamsDialogVisible"
-      title="编辑自定义参数"
-      width="800px"
-      :show-close-button="false"
-      dialog-class="custom-params-dialog"
-    >
-      <div class="dialog-content">
-        <p class="dialog-hint">
-          请以 JSON 格式输入您想添加或覆盖的参数。这些参数将与标准参数合并后发送给 LLM API。
-        </p>
-        <RichCodeEditor
-          v-model="customParamsJsonString"
-          language="json"
-          class="json-editor"
-          :line-numbers="true"
-          :word-wrap="true"
-        />
-      </div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="isCustomParamsDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveCustomParams">保存</el-button>
-        </div>
-      </template>
-    </BaseDialog>
   </div>
 </template>
 
@@ -1145,203 +706,6 @@ watch(
 }
 .model-parameters-editor.compact {
   font-size: 12px;
-}
-
-/* 上下文统计卡片 */
-.context-stats-card {
-  margin-bottom: 20px;
-}
-
-/* 汇总卡片布局 */
-.summary-card {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--primary-color) 2%, var(--card-bg)),
-    color-mix(in srgb, var(--primary-color) 1%, var(--card-bg))
-  );
-  backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* 总数区域 */
-.total-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  border-bottom: 1px solid var(--border-color-light);
-  padding-bottom: 16px;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-
-.total-value .number {
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--primary-color);
-  font-family: "Consolas", "Monaco", monospace;
-  letter-spacing: -1px;
-  line-height: 1.2;
-}
-
-.estimate-badge {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 8px;
-  padding: 2px 8px;
-  background-color: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.tokenizer-badge {
-  margin-top: 8px;
-  padding: 2px 8px;
-  background-color: var(--bg-color-soft);
-  color: var(--text-color-secondary);
-  border-radius: 4px;
-  font-size: 11px;
-}
-
-.usage-info {
-  width: 100%;
-  margin-top: 12px;
-}
-
-.usage-text {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: 11px;
-  margin-bottom: 4px;
-  color: var(--text-color-secondary);
-}
-
-.limit-text {
-  opacity: 0.7;
-}
-
-/* 分布详情 */
-.breakdown-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.breakdown-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.item-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.preset-icon {
-  background-color: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
-}
-.history-icon {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
-.item-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0; /* 防止溢出 */
-}
-
-.item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-}
-
-.item-label {
-  color: var(--text-color-secondary);
-}
-
-.item-value {
-  font-weight: 600;
-  color: var(--text-color);
-  font-family: "Consolas", monospace;
-}
-
-.progress-bg {
-  height: 4px;
-  background-color: var(--border-color-light);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.preset-bar {
-  background-color: #8b5cf6;
-}
-.history-bar {
-  background-color: #10b981;
-}
-.post-process-icon {
-  background-color: rgba(236, 72, 153, 0.1);
-  color: #ec4899;
-}
-.post-process-bar {
-  background-color: #ec4899;
-}
-
-/* 底部辅助信息 */
-.stats-footer {
-  display: flex;
-  gap: 16px;
-  margin-top: 8px;
-  padding: 0 8px;
-}
-
-.footer-item {
-  font-size: 11px;
-  color: var(--text-color-secondary);
-  display: flex;
-  gap: 4px;
-}
-
-.footer-item .value {
-  font-family: "Consolas", monospace;
-  color: var(--text-color);
-}
-
-.limit-hint {
-  color: var(--text-color-secondary);
-  font-size: 11px;
 }
 
 .param-group {
@@ -1372,10 +736,6 @@ watch(
   color: var(--text-color);
 }
 
-.param-input {
-  width: 100px !important;
-}
-
 .param-desc {
   margin-top: 6px;
   font-size: 11px;
@@ -1395,88 +755,9 @@ watch(
   line-height: 1.5;
 }
 
-/* 修复部分输入框 placeholder 居中的问题 */
-:deep(.el-input__inner) {
-  text-align: left;
-}
-
-/* 安全设置样式 */
-.safety-settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* 上下文后处理规则样式 */
-.post-process-rules {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.rule-item {
-  padding: 12px;
-  background-color: var(--container-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  transition: all 0.2s;
-}
-
-.rule-item.enabled {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-success) 4%, var(--container-bg)),
-    color-mix(in srgb, var(--el-color-success) 2%, var(--container-bg))
-  );
-  backdrop-filter: blur(var(--ui-blur));
-  border-color: var(--el-color-success);
-}
-
-.rule-item:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.rule-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-.rule-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.rule-desc {
+.limit-hint {
+  color: var(--text-color-secondary);
   font-size: 11px;
-  color: var(--text-color-secondary);
-  line-height: 1.4;
-  margin-left: 24px;
-  margin-top: 4px;
-}
-
-.rule-separator {
-  margin-top: 10px;
-  margin-left: 24px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.separator-label {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  white-space: nowrap;
-  min-width: 80px;
-}
-
-.rule-separator :deep(.el-input) {
-  flex: 1;
-  max-width: 300px;
 }
 
 .empty-hint {
@@ -1487,52 +768,5 @@ watch(
   background: var(--container-bg);
   border-radius: 8px;
   border: 1px dashed var(--border-color);
-}
-
-/* 自定义参数样式 */
-.custom-params-container {
-  padding: 0 12px 12px;
-}
-
-.edit-button {
-  width: 100%;
-  margin-top: 8px;
-}
-
-.custom-params-preview {
-  margin-top: 16px;
-  padding: 12px;
-  background-color: var(--vscode-editor-background);
-  border-radius: 6px;
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-}
-
-.custom-params-preview pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  color: var(--text-color);
-  font-family: "Consolas", "Monaco", monospace;
-  font-size: 12px;
-}
-
-/* 弹窗样式 */
-.dialog-content {
-  padding: 0 20px;
-}
-
-.dialog-hint {
-  font-size: 14px;
-  color: var(--text-color-secondary);
-  margin-bottom: 16px;
-  line-height: 1.6;
-}
-
-.json-editor {
-  height: 400px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
 }
 </style>

@@ -21,6 +21,7 @@ import { useMessageProcessor } from "./useMessageProcessor";
 import { useChatContextBuilder } from "./useChatContextBuilder";
 import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useChatAssetProcessor } from "./useChatAssetProcessor";
+import { useMessageBuilder } from "./useMessageBuilder";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -450,6 +451,10 @@ export function useChatExecutor() {
 
   /**
    * 计算并保存用户消息的 Token 数
+   *
+   * 修复说明：此函数之前调用的是已废弃的 getTextAttachmentsContent，
+   * 该方法不传递 settings 参数，导致转写内容无法被识别，图片仍按图片 Token 计算。
+   * 现在改为使用 prepareSimpleMessageForTokenCalc，它会正确处理转写逻辑。
    */
   const calculateUserMessageTokens = async (
     userNode: ChatMessageNode,
@@ -459,32 +464,38 @@ export function useChatExecutor() {
     attachments?: Asset[]
   ): Promise<void> => {
     try {
-      // 获取文本附件的内容并合并到消息文本中
-      const { getTextAttachmentsContent } = useChatAssetProcessor();
-      const textAttachmentsContent = await getTextAttachmentsContent(attachments);
+      const { settings } = useChatSettings();
+      const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
 
-      // 合并原始内容和文本附件内容
-      const fullContent = textAttachmentsContent
-        ? `${content}\n\n${textAttachmentsContent}`
-        : content;
-
-      // 使用完整内容计算 token
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-        fullContent,
-        modelId,
-        attachments
+      // 使用统一的消息准备函数，它会根据 settings 决定是否使用转写内容
+      // 返回：合并后的文本（包含转写内容）和需要按媒体计算的附件
+      const { combinedText, mediaAttachments } = await prepareSimpleMessageForTokenCalc(
+        content,
+        attachments,
+        settings.value
       );
+
+      // 使用 tokenCalculatorService 计算 Token
+      // 传入合并后的文本和剩余的媒体附件（如果有）
+      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+        combinedText,
+        modelId,
+        mediaAttachments // 只传递未被转写的媒体附件
+      );
+
       session.nodes[userNode.id].metadata = {
         ...session.nodes[userNode.id].metadata,
         contentTokens: tokenResult.count,
       };
+
       logger.debug("用户消息 token 计算完成", {
         messageId: userNode.id,
         tokens: tokenResult.count,
         isEstimated: tokenResult.isEstimated,
         tokenizerName: tokenResult.tokenizerName,
-        hasTextAttachments: !!textAttachmentsContent,
-        textAttachmentsLength: textAttachmentsContent?.length || 0,
+        originalAttachmentCount: attachments?.length || 0,
+        mediaAttachmentCount: mediaAttachments.length,
+        combinedTextLength: combinedText.length,
       });
     } catch (error) {
       logger.warn("计算用户消息 token 失败", {

@@ -381,20 +381,10 @@ export function useChatAssetProcessor() {
     };
   };
 
-  /**
-   * 获取文本附件的完整内容（用于 Token 计算）
-   * @deprecated 请使用 processAssetsForMessage 替代
-   */
-  const getTextAttachmentsContent = async (attachments?: Asset[]): Promise<string> => {
-    const { textContent } = await processAssetsForMessage(attachments || []);
-    return textContent;
-  };
-
   return {
     waitForAssetsImport,
     convertAssetToBase64,
     assetToMessageContent,
-    getTextAttachmentsContent,
     processAssetsForMessage,
     resolveAssetContent,
   };

@@ -56,6 +56,7 @@ export interface CapabilityConfig {
  * 4. 确保能力定义与类型系统保持同步
  */
 export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
+  // --- 核心与热门能力 ---
   {
     key: "vision",
     label: "视觉",
@@ -93,17 +94,11 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     label: "代码",
     description: "支持代码解释器执行代码",
     icon: markRaw(Terminal),
-    color: "#3b82f6", // Blue 500 - 科技与代码
+    color: "#3b82f6", // Blue 50 - 科技与代码
     className: "code-exec",
   },
-  {
-    key: "fileSearch",
-    label: "文件",
-    description: "支持文件搜索和分析功能",
-    icon: markRaw(FileSearch),
-    color: "#eab308", // Yellow 500 - 经典的文件夹色
-    className: "file-search",
-  },
+
+  // --- 生成式能力 ---
   {
     key: "imageGeneration",
     label: "图像生成",
@@ -111,22 +106,6 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(Image),
     color: "#f43f5e", // Rose 500 - 艺术创作
     className: "image-gen",
-  },
-  {
-    key: "audio",
-    label: "音频",
-    description: "支持音频输入或输出",
-    icon: markRaw(Mic),
-    color: "#06b6d4", // Cyan 500 - 清晰的声波
-    className: "audio",
-  },
-  {
-    key: "video",
-    label: "视频",
-    description: "支持视频输入",
-    icon: markRaw(Video),
-    color: "#8b5cf6", // Violet 500 - 动态影像
-    className: "video",
   },
   {
     key: "videoGeneration",
@@ -144,6 +123,78 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     color: "#d946ef", // Fuchsia 500 - 律动的旋律
     className: "music-gen",
   },
+
+  // --- 多模态输入与处理 ---
+  {
+    key: "audio",
+    label: "音频",
+    description: "支持音频输入或输出",
+    icon: markRaw(Mic),
+    color: "#06b6d4", // Cyan 500 - 清晰的声波
+    className: "audio",
+  },
+  {
+    key: "video",
+    label: "视频",
+    description: "支持视频输入",
+    icon: markRaw(Video),
+    color: "#8b5cf6", // Violet 500 - 动态影像
+    className: "video",
+  },
+  {
+    key: "document",
+    label: "文档",
+    description: "支持原生文档格式处理 (如 PDF)",
+    icon: markRaw(FileText),
+    color: "#ef4444", // Red 500 - 致敬 PDF 图标
+    className: "document",
+  },
+
+  // --- 高级代理与特定功能 ---
+  {
+    key: "computerUse",
+    label: "计算机",
+    description: "支持模拟用户操作计算机 (Computer Use)",
+    icon: markRaw(Monitor),
+    color: "#6366f1", // Indigo 500 - 智能控制
+    className: "computer-use",
+  },
+  {
+    key: "fileSearch",
+    label: "文件",
+    description: "支持文件搜索和分析功能",
+    icon: markRaw(FileSearch),
+    color: "#eab308", // Yellow 500 - 经典的文件夹色
+    className: "file-search",
+  },
+  {
+    key: "jsonOutput",
+    label: "JSON",
+    description: "支持强制输出 JSON 对象格式",
+    icon: markRaw(Braces),
+    color: "#f59e0b", // Amber 500 - 结构化数据的颜色
+    className: "json-output",
+  },
+
+  // --- 开发者特性 ---
+  {
+    key: "fim",
+    label: "FIM",
+    description: "支持 Fill In the Middle 补全，用于代码补全等场景",
+    icon: markRaw(Code2),
+    color: "#2c55e", // Green 500 - 代码补全的绿色
+    className: "fim",
+  },
+  {
+    key: "prefixCompletion",
+    label: "续写",
+    description: "支持对话前缀续写，可从指定前缀继续生成",
+    icon: markRaw(MessageSquareMore),
+    color: "#0891b2", // Cyan 600 - 延续的流动感
+    className: "prefix-completion",
+  },
+
+  // --- 底层技术能力 ---
   {
     key: "embedding",
     label: "嵌入",
@@ -159,46 +210,6 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(ListOrdered),
     color: "#14b8a6", // Teal 500 - 有序整理
     className: "rerank",
-  },
-  {
-    key: "computerUse",
-    label: "计算机",
-    description: "支持模拟用户操作计算机 (Computer Use)",
-    icon: markRaw(Monitor),
-    color: "#6366f1", // Indigo 500 - 智能控制
-    className: "computer-use",
-  },
-  {
-    key: "document",
-    label: "文档",
-    description: "支持原生文档格式处理 (如 PDF)",
-    icon: markRaw(FileText),
-    color: "#ef4444", // Red 500 - 致敬 PDF 图标
-    className: "document",
-  },
-  {
-    key: "fim",
-    label: "FIM",
-    description: "支持 Fill In the Middle 补全，用于代码补全等场景",
-    icon: markRaw(Code2),
-    color: "#22c55e", // Green 500 - 代码补全的绿色
-    className: "fim",
-  },
-  {
-    key: "prefixCompletion",
-    label: "续写",
-    description: "支持对话前缀续写，可从指定前缀继续生成",
-    icon: markRaw(MessageSquareMore),
-    color: "#0891b2", // Cyan 600 - 延续的流动感
-    className: "prefix-completion",
-  },
-  {
-    key: "jsonOutput",
-    label: "JSON",
-    description: "支持强制输出 JSON 对象格式",
-    icon: markRaw(Braces),
-    color: "#f59e0b", // Amber 500 - 结构化数据的颜色
-    className: "json-output",
   },
 ] as const;
 

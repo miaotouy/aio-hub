@@ -42,19 +42,33 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
 
   try {
     let fullContent = node.content;
+    let mediaAttachments = node.attachments;
+
     if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
-      const { useChatAssetProcessor } = await import('../composables/useChatAssetProcessor');
-      const { getTextAttachmentsContent } = useChatAssetProcessor();
-      const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-      if (textAttachmentsContent) {
-        fullContent = `${node.content}\n\n${textAttachmentsContent}`;
-      }
+      // 动态导入所需模块
+      const { useChatSettings } = await import('../composables/useChatSettings');
+      const { useMessageBuilder } = await import('../composables/useMessageBuilder');
+      
+      // 获取当前设置
+      const { settings, loadSettings } = useChatSettings();
+      await loadSettings(); // 确保设置已加载
+
+      // 准备用于 Token 计算的消息内容
+      const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
+      const result = await prepareSimpleMessageForTokenCalc(
+        node.content,
+        node.attachments,
+        settings.value
+      );
+
+      fullContent = result.combinedText;
+      mediaAttachments = result.mediaAttachments;
     }
 
     const tokenResult = await tokenCalculatorService.calculateMessageTokens(
       fullContent,
       modelId,
-      node.attachments
+      mediaAttachments
     );
 
     if (!node.metadata) node.metadata = {};
@@ -117,18 +131,33 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
 
       try {
         let fullContent = node.content;
+        let mediaAttachments = node.attachments;
+
         if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
-          const { useChatAssetProcessor } = await import('../composables/useChatAssetProcessor');
-          const { getTextAttachmentsContent } = useChatAssetProcessor();
-          const textAttachmentsContent = await getTextAttachmentsContent(node.attachments);
-          if (textAttachmentsContent) {
-            fullContent = `${node.content}\n\n${textAttachmentsContent}`;
-          }
+          // 动态导入所需模块
+          const { useChatSettings } = await import('../composables/useChatSettings');
+          const { useMessageBuilder } = await import('../composables/useMessageBuilder');
+          
+          // 获取当前设置
+          const { settings, loadSettings } = useChatSettings();
+          await loadSettings(); // 确保设置已加载
+
+          // 准备用于 Token 计算的消息内容
+          const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
+          const result = await prepareSimpleMessageForTokenCalc(
+            node.content,
+            node.attachments,
+            settings.value
+          );
+
+          fullContent = result.combinedText;
+          mediaAttachments = result.mediaAttachments;
         }
+
         const tokenResult = await tokenCalculatorService.calculateMessageTokens(
           fullContent,
           modelId,
-          node.attachments
+          mediaAttachments
         );
 
         if (!node.metadata) node.metadata = {};

@@ -6,6 +6,7 @@
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
+import type { ChatSettings } from "./useChatSettings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -84,6 +85,61 @@ export function useChatAssetProcessor() {
   };
 
   /**
+   * 决定资产内容的使用方式（转写文本 vs 原始媒体）
+   * @param asset 资产对象
+   * @param settings 聊天设置
+   * @param overrides 临时覆盖设置
+   */
+  const resolveAssetContent = async (
+    asset: Asset,
+    settings?: ChatSettings,
+    overrides?: { preferTranscribed?: boolean }
+  ): Promise<{ useTranscription: boolean; content?: string }> => {
+    // 1. 检查是否存在成功的转写数据
+    const transcriptionData = asset.metadata?.derived?.transcription;
+    const hasTranscription =
+      transcriptionData && transcriptionData.path && !transcriptionData.error;
+
+    if (!hasTranscription) {
+      return { useTranscription: false };
+    }
+
+    let shouldTranscribe = false;
+
+    // 2. 检查 overrides
+    if (overrides?.preferTranscribed === true) {
+      shouldTranscribe = true;
+    }
+    // 3. 检查全局设置 (仅当 overrides 未指定时)
+    else if (
+      overrides?.preferTranscribed === undefined &&
+      settings?.transcription?.enabled &&
+      settings?.transcription?.preferTranscribed
+    ) {
+      shouldTranscribe = true;
+    }
+
+    if (shouldTranscribe) {
+      try {
+        const content = await invoke<string>("read_text_file", {
+          relativePath: transcriptionData!.path,
+        });
+        return { useTranscription: true, content };
+      } catch (error) {
+        logger.warn("读取转写文件失败，降级为原始附件", {
+          assetId: asset.id,
+          assetName: asset.name,
+          error,
+        });
+        // 读取失败，降级
+        return { useTranscription: false };
+      }
+    }
+
+    return { useTranscription: false };
+  };
+
+  /**
    * 将 Asset 的二进制数据转换为 base64
    * @param assetPath 资源相对路径
    * @returns base64 编码的字符串
@@ -109,15 +165,37 @@ export function useChatAssetProcessor() {
 
   /**
    * 将 Asset 转换为 LlmMessageContent
-   * 支持图片和文档类型
+   * 支持图片和文档类型，以及转写内容
    * @param asset 要转换的资产
    * @param capabilities 模型能力（可选，用于智能文档格式选择）
+   * @param settings 聊天设置（可选，用于决策是否使用转写）
+   * @param overrides 临时覆盖设置（可选）
    */
   const assetToMessageContent = async (
     asset: Asset,
-    capabilities?: ModelCapabilities
+    capabilities?: ModelCapabilities,
+    settings?: ChatSettings,
+    overrides?: { preferTranscribed?: boolean }
   ): Promise<LlmMessageContent | null> => {
     try {
+      // 0. 尝试使用转写内容
+      const { useTranscription, content: transcriptionContent } = await resolveAssetContent(
+        asset,
+        settings,
+        overrides
+      );
+
+      if (useTranscription && transcriptionContent) {
+        logger.debug("使用转写内容作为附件消息", {
+          assetId: asset.id,
+          assetName: asset.name,
+        });
+        return {
+          type: "text",
+          text: `[转写: ${asset.name}]\n${transcriptionContent}`,
+        };
+      }
+
       // 处理图片类型
       if (asset.type === "image") {
         const base64 = await convertAssetToBase64(asset.path);
@@ -236,51 +314,79 @@ export function useChatAssetProcessor() {
   };
 
   /**
-   * 获取文本附件的完整内容（用于 Token 计算）
+   * 处理附件列表，分离出文本内容（包括转写）和需要作为媒体处理的附件
+   * 用于 Token 计算和消息构建
+   *
    * @param attachments 附件列表
-   * @returns 所有文本附件的合并内容
+   * @param settings 聊天设置
+   * @param overrides 覆盖设置
    */
-  const getTextAttachmentsContent = async (attachments?: Asset[]): Promise<string> => {
+  const processAssetsForMessage = async (
+    attachments: Asset[],
+    settings?: ChatSettings,
+    overrides?: { preferTranscribed?: boolean }
+  ): Promise<{ textContent: string; mediaAssets: Asset[] }> => {
     if (!attachments || attachments.length === 0) {
-      return "";
+      return { textContent: "", mediaAssets: [] };
     }
 
-    const textContents: string[] = [];
+    const textParts: string[] = [];
+    const mediaAssets: Asset[] = [];
 
     for (const asset of attachments) {
-      // 只处理文档类型
-      if (asset.type !== "document") {
-        continue;
+      // 1. 尝试使用转写
+      const { useTranscription, content: transcriptionContent } = await resolveAssetContent(
+        asset,
+        settings,
+        overrides
+      );
+
+      if (useTranscription && transcriptionContent) {
+        textParts.push(`[转写: ${asset.name}]\n${transcriptionContent}`);
+        continue; // 已作为文本处理，跳过后续媒体处理
       }
 
-      // 使用统一的文本文件判断工具
-      const isText = isTextFile(asset.name, asset.mimeType);
-
-      if (isText) {
+      // 2. 如果不使用转写，检查是否为纯文本文件
+      if (asset.type === "document" && isTextFile(asset.name, asset.mimeType)) {
         try {
           const textContent = await invoke<string>("read_text_file", {
             relativePath: asset.path,
           });
-
-          // 使用与 assetToMessageContent 相同的格式
-          textContents.push(`[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\``);
-
-          logger.debug("读取文本附件内容用于 Token 计算", {
-            assetId: asset.id,
-            assetName: asset.name,
-            contentLength: textContent.length,
-          });
+          textParts.push(`[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\``);
         } catch (error) {
           logger.warn("读取文本附件失败", {
             assetId: asset.id,
             assetName: asset.name,
-            error: error instanceof Error ? error.message : String(error),
+            error,
           });
+          // 读取失败，如果是非文本文档，可能需要作为媒体处理？
+          // 目前逻辑是如果读取失败就忽略，或者可以放入 mediaAssets 让上层决定
+          // 保持原有行为：忽略
         }
+      } else if (
+        asset.type === "image" ||
+        asset.type === "video" ||
+        asset.type === "audio" ||
+        asset.type === "document" // 非文本文档（如PDF）也作为媒体处理
+      ) {
+        // 3. 其他情况作为媒体附件
+        mediaAssets.push(asset);
       }
     }
 
-    return textContents.join("\n\n");
+    return {
+      textContent: textParts.join("\n\n"),
+      mediaAssets,
+    };
+  };
+
+  /**
+   * 获取文本附件的完整内容（用于 Token 计算）
+   * @deprecated 请使用 processAssetsForMessage 替代
+   */
+  const getTextAttachmentsContent = async (attachments?: Asset[]): Promise<string> => {
+    const { textContent } = await processAssetsForMessage(attachments || []);
+    return textContent;
   };
 
   return {
@@ -288,5 +394,7 @@ export function useChatAssetProcessor() {
     convertAssetToBase64,
     assetToMessageContent,
     getTextAttachmentsContent,
+    processAssetsForMessage,
+    resolveAssetContent,
   };
 }

@@ -28,6 +28,20 @@ export interface AssetOrigin {
 }
 
 /**
+ * 衍生数据信息 (例如：转录文本、OCR 结果、翻译等)
+ */
+export interface DerivedDataInfo {
+  /** 衍生数据文件的相对路径 (例如: "transcriptions/uuid.json") */
+  path?: string;
+  /** 最后更新时间 (ISO 8601) */
+  updatedAt: string;
+  /** 提供者标识 (例如: "whisper-local", "azure-ocr") */
+  provider?: string;
+  /** 错误信息 (如果生成失败) */
+  error?: string;
+}
+
+/**
  * 资产元数据
  */
 export interface AssetMetadata {
@@ -39,6 +53,8 @@ export interface AssetMetadata {
   duration?: number;
   /** 文件 SHA-256 哈希值，用于去重 */
   sha256?: string;
+  /** 衍生数据映射表，key 为类型 (e.g., "transcription", "ocr") */
+  derived?: Record<string, DerivedDataInfo>;
 }
 
 /**

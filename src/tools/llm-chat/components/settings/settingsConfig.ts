@@ -12,6 +12,7 @@ import {
   Regex,
   Languages,
   Archive,
+  FileText,
 } from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
@@ -296,7 +297,7 @@ export const settingsConfig: SettingsSection[] = [
     icon: Languages,
     items: [
       {
-        id: "transEnabled",
+        id: "translationEnabled",
         label: "启用翻译功能",
         layout: "inline",
         component: "ElSwitch",
@@ -495,6 +496,249 @@ export const settingsConfig: SettingsSection[] = [
         hint: "生成标题时引用的最近消息数量",
         keywords: "topic naming context message 话题 命名 上下文",
         visible: (settings) => settings.topicNaming.enabled,
+      },
+    ],
+  },
+  {
+    title: "附件与转写",
+    icon: FileText,
+    items: [
+      // 1. 全局开关与策略
+      {
+        id: "transEnabled",
+        label: "启用转写功能",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.enabled",
+        hint: "开启后，可对图片/音频附件进行转写，提取文本内容",
+        keywords: "transcription enable 启用 转写",
+      },
+      {
+        id: "transAutoTranscribe",
+        label: "自动转写",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.autoTranscribe",
+        hint: "附件导入时自动开始转写任务（需配置模型）",
+        keywords: "transcription auto 自动 转写",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
+        id: "transPreferTranscribed",
+        label: "优先发送转写内容",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.preferTranscribed",
+        hint: "发送消息时，如果存在转写内容，优先使用转写文本替代原始图片/音频以节省 Token",
+        keywords: "transcription prefer text 优先 转写",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
+        id: "transMaxConcurrentTasks",
+        label: "最大并发任务数 ({{ localSettings.transcription.maxConcurrentTasks }})",
+        component: "ElSlider",
+        props: { min: 1, max: 15, step: 1, "format-tooltip": (val: number) => `${val}个` },
+        modelPath: "transcription.maxConcurrentTasks",
+        hint: "同时进行的转写任务数量，建议不要设置过高以免影响性能",
+        keywords: "transcription concurrent task 并发 任务",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
+        id: "transMaxRetries",
+        label: "最大重试次数 ({{ localSettings.transcription.maxRetries }})",
+        component: "ElSlider",
+        props: { min: 0, max: 5, step: 1, "format-tooltip": (val: number) => `${val}次` },
+        modelPath: "transcription.maxRetries",
+        hint: "转写失败时的自动重试次数",
+        keywords: "transcription retry 重试",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
+        id: "transEnableTypeSpecific",
+        label: "启用分类型配置",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.enableTypeSpecificConfig",
+        hint: "开启后，可分别为图片和音频设置不同的模型和提示词",
+        keywords: "transcription specific type 分类 配置",
+        visible: (settings) => settings.transcription.enabled,
+      },
+
+      // 2. 通用配置 (当 transEnableTypeSpecific 为 false 时显示)
+      {
+        id: "transModel",
+        label: "通用转写模型",
+        component: "LlmModelSelector",
+        modelPath: "transcription.modelIdentifier",
+        hint: "用于执行转写任务的多模态模型（推荐使用 Gemini Pro Vision 或 GPT-4o）",
+        keywords: "transcription model 转写 模型",
+        visible: (settings) =>
+          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transCustomPrompt",
+        label: "通用 Prompt",
+        component: "ElInput",
+        props: { type: "textarea", rows: 4, placeholder: "输入自定义转写提示词" },
+        modelPath: "transcription.customPrompt",
+        hint: "用于指导模型如何转写附件内容。",
+        keywords: "transcription prompt 提示词",
+        visible: (settings) =>
+          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+        action: "resetTranscriptionPrompt",
+        slots: {
+          append: () =>
+            h(
+              ElButton,
+              {
+                onClick: () => { }, // 在主组件处理重置
+                size: "small",
+                class: "reset-trans-prompt-btn",
+                title: "重置为默认提示词",
+              },
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+            ),
+        },
+      },
+      {
+        id: "transTemperature",
+        label: "温度 ({{ localSettings.transcription.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription temperature 转写 温度",
+        visible: (settings) =>
+          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transMaxTokens",
+        label: "输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 8192, step: 512 },
+        modelPath: "transcription.maxTokens",
+        hint: "转写结果的最大 token 数",
+        keywords: "transcription max tokens 转写 上限",
+        visible: (settings) =>
+          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+      },
+
+      // 3. 图片配置 (当 transEnableTypeSpecific 为 true 时显示)
+      {
+        id: "transImageModel",
+        label: "图片转写模型",
+        component: "LlmModelSelector",
+        modelPath: "transcription.image.modelIdentifier",
+        hint: "专门用于图片转写的模型",
+        keywords: "transcription image model 图片 转写 模型",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transImagePrompt",
+        label: "图片 Prompt",
+        component: "ElInput",
+        props: { type: "textarea", rows: 4, placeholder: "输入图片转写提示词" },
+        modelPath: "transcription.image.customPrompt",
+        hint: "用于指导模型如何转写图片内容。",
+        keywords: "transcription image prompt 图片 提示词",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+        action: "resetTranscriptionImagePrompt",
+        slots: {
+          append: () =>
+            h(
+              ElButton,
+              {
+                onClick: () => { }, // 在主组件处理重置
+                size: "small",
+                class: "reset-trans-image-prompt-btn",
+                title: "重置为默认提示词",
+              },
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+            ),
+        },
+      },
+      {
+        id: "transImageTemperature",
+        label: "图片温度 ({{ localSettings.transcription.image.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.image.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription image temperature 图片 转写 温度",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transImageMaxTokens",
+        label: "图片输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 8192, step: 512 },
+        modelPath: "transcription.image.maxTokens",
+        hint: "图片转写结果的最大 token 数",
+        keywords: "transcription image max tokens 图片 转写 上限",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+
+      // 4. 音频配置 (当 transEnableTypeSpecific 为 true 时显示)
+      {
+        id: "transAudioModel",
+        label: "音频转写模型",
+        component: "LlmModelSelector",
+        modelPath: "transcription.audio.modelIdentifier",
+        hint: "专门用于音频转写的模型",
+        keywords: "transcription audio model 音频 转写 模型",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transAudioPrompt",
+        label: "音频 Prompt",
+        component: "ElInput",
+        props: { type: "textarea", rows: 4, placeholder: "输入音频转写提示词" },
+        modelPath: "transcription.audio.customPrompt",
+        hint: "用于指导模型如何转写音频内容。",
+        keywords: "transcription audio prompt 音频 提示词",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+        action: "resetTranscriptionAudioPrompt",
+        slots: {
+          append: () =>
+            h(
+              ElButton,
+              {
+                onClick: () => { }, // 在主组件处理重置
+                size: "small",
+                class: "reset-trans-audio-prompt-btn",
+                title: "重置为默认提示词",
+              },
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+            ),
+        },
+      },
+      {
+        id: "transAudioTemperature",
+        label: "音频温度 ({{ localSettings.transcription.audio.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.audio.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription audio temperature 音频 转写 温度",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transAudioMaxTokens",
+        label: "音频输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 8192, step: 512 },
+        modelPath: "transcription.audio.maxTokens",
+        hint: "音频转写结果的最大 token 数",
+        keywords: "transcription audio max tokens 音频 转写 上限",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
       },
     ],
   },

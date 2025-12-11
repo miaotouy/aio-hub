@@ -100,6 +100,23 @@ pub struct AssetOrigin {
     pub source_module: String,
 }
 
+/// 衍生数据信息 (例如：转录文本、OCR 结果、翻译等)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedDataInfo {
+    /// 衍生数据文件的相对路径 (例如: "transcriptions/uuid.json")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// 最后更新时间 (ISO 8601)
+    pub updated_at: String,
+    /// 提供者标识 (例如: "whisper-local", "azure-ocr")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// 错误信息 (如果生成失败)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 /// 资产元数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -112,6 +129,9 @@ pub struct AssetMetadata {
     pub duration: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
+    /// 衍生数据映射表，key 为类型 (e.g., "transcription", "ocr")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub derived: Option<HashMap<String, DerivedDataInfo>>,
 }
 /// 资产对象
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -591,6 +611,7 @@ pub async fn import_asset_from_path(
         height: None,
         duration: None,
         sha256: file_hash.clone(),
+        derived: None,
     };
 
     if matches!(asset_type, AssetType::Image) {
@@ -732,6 +753,7 @@ pub async fn import_asset_from_bytes(
         height: None,
         duration: None,
         sha256: file_hash.clone(),
+        derived: None,
     };
 
     if matches!(asset_type, AssetType::Image) {
@@ -1202,6 +1224,7 @@ fn build_asset_from_path(file_path: &Path, base_dir: &Path) -> Result<Asset, Str
         height: None,
         duration: None,
         sha256: file_hash,
+        derived: None,
     };
 
     Ok(Asset {
@@ -1610,6 +1633,8 @@ struct CatalogEntry {
     #[serde(default = "default_origins")]
     origins: Vec<AssetOrigin>,
     sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    derived: Option<HashMap<String, DerivedDataInfo>>,
 
     // 旧版本字段，仅用于向后兼容
     #[serde(skip_serializing)]
@@ -1668,6 +1693,7 @@ fn convert_asset_to_catalog_entry(asset: &Asset) -> CatalogEntry {
         created_at: asset.created_at.clone(),
         origins: asset.origins.clone(),
         sha256: asset.metadata.as_ref().and_then(|m| m.sha256.clone()),
+        derived: asset.metadata.as_ref().and_then(|m| m.derived.clone()),
         // 旧字段设为 None，仅用于反序列化兼容
         source_module: None,
         origin_type: None,
@@ -1705,6 +1731,7 @@ fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
             height: None,
             duration: None,
             sha256: entry.sha256,
+            derived: entry.derived,
         }),
     }
 }
@@ -2355,4 +2382,38 @@ pub async fn find_asset_by_hash(
     }
 
     Ok(None)
+}
+
+/// 更新资产的衍生数据信息
+#[tauri::command]
+pub async fn update_asset_derived_data(
+    app: AppHandle,
+    asset_id: String,
+    key: String,
+    data: DerivedDataInfo,
+) -> Result<Asset, String> {
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    let mut updated_asset: Option<Asset> = None;
+
+    update_catalog_in_place(&base_dir, |entries| {
+        for entry in entries.iter_mut() {
+            if entry.id == asset_id {
+                // 初始化 derived map 如果不存在
+                if entry.derived.is_none() {
+                    entry.derived = Some(HashMap::new());
+                }
+
+                // 更新数据
+                if let Some(derived_map) = &mut entry.derived {
+                    derived_map.insert(key.clone(), data.clone());
+                }
+
+                updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
+                break;
+            }
+        }
+    })?;
+
+    updated_asset.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
 }

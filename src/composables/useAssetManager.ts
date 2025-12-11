@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import { ref, computed, onUnmounted } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import type {
@@ -385,6 +385,11 @@ export function useAssetManager() {
     }
     // 导入成功后，重新获取统计信息
     await fetchAssetStats();
+
+    // 发射全局事件，通知其他模块（如转写管理器）
+    emit("asset-imported", updatedOrNewAsset).catch((err) => {
+      logger.error("发射 asset-imported 事件失败", err);
+    });
   };
 
   /**

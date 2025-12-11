@@ -500,6 +500,24 @@ const handleResetTranslationPrompt = () => {
   customMessage.success("已重置翻译提示词为默认值");
 };
 
+const handleResetImagePrompt = () => {
+  set(
+    localSettings.value,
+    "transcription.image.customPrompt",
+    DEFAULT_SETTINGS.transcription.image.customPrompt
+  );
+  customMessage.success("已重置图片转写提示词");
+};
+
+const handleResetAudioPrompt = () => {
+  set(
+    localSettings.value,
+    "transcription.audio.customPrompt",
+    DEFAULT_SETTINGS.transcription.audio.customPrompt
+  );
+  customMessage.success("已重置音频转写提示词");
+};
+
 const handleClosed = () => {
   saveStatus.value = "idle";
 };
@@ -568,6 +586,8 @@ const getComponentClass = (item: SettingItem) => {
 const actionRegistry: Record<string, () => void> = {
   resetTopicNamingPrompt: handleResetPrompt,
   resetTranslationPrompt: handleResetTranslationPrompt,
+  resetTranscriptionImagePrompt: handleResetImagePrompt,
+  resetTranscriptionAudioPrompt: handleResetAudioPrompt,
 };
 
 const handleComponentClick = (item: SettingItem) => {

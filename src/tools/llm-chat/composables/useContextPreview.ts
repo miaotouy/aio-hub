@@ -5,6 +5,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { useMessageBuilder } from "./useMessageBuilder";
 import { useMacroProcessor } from "./useMacroProcessor";
 import { useMessageProcessor } from "./useMessageProcessor";
+import { useChatSettings } from "./useChatSettings";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { getMatchedModelProperties } from "@/config/model-metadata";
@@ -18,6 +19,7 @@ export function useContextPreview(buildLlmContext: (...args: any[]) => Promise<L
   const { prepareStructuredMessageForAnalysis } = useMessageBuilder();
   const { processMacros } = useMacroProcessor();
   const { calculatePostProcessingTokenDelta } = useMessageProcessor();
+  const { settings: chatSettings, loadSettings: loadChatSettings } = useChatSettings();
 
   const getValidTimestamp = (ts: any): number | null => {
     if (typeof ts === 'number') {
@@ -62,6 +64,9 @@ export function useContextPreview(buildLlmContext: (...args: any[]) => Promise<L
       return null;
     }
 
+    // 确保聊天设置已加载
+    await loadChatSettings();
+    
     const targetTimestamp = getValidTimestamp(targetNode.timestamp) ?? undefined;
     const nodePath = nodeManager.getNodePath(session, targetNodeId);
 
@@ -224,7 +229,7 @@ export function useContextPreview(buildLlmContext: (...args: any[]) => Promise<L
       nodePath
         .filter((node: ChatMessageNode) => node.isEnabled !== false && (node.role === "user" || node.role === "assistant"))
         .map(async (node: ChatMessageNode, index: number) => {
-          const { originalText, textAttachments, imageAttachments, videoAttachments, audioAttachments, otherAttachments } = await prepareStructuredMessageForAnalysis(node.content, node.attachments);
+          const { originalText, textAttachments, imageAttachments, videoAttachments, audioAttachments, otherAttachments } = await prepareStructuredMessageForAnalysis(node.content, node.attachments, chatSettings.value);
           const sanitizedContent = sanitizeForCharCount(originalText);
           let textTokenCount: number | undefined;
 

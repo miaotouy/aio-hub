@@ -41,6 +41,47 @@ export interface TranslationConfig {
 }
 
 /**
+ * 转写配置接口
+ */
+export interface TypeSpecificTranscriptionConfig {
+  /** 模型标识符 */
+  modelIdentifier: string;
+  /** 自定义 Prompt */
+  customPrompt: string;
+  /** 温度参数 */
+  temperature: number;
+  /** 输出上限（token） */
+  maxTokens: number;
+}
+
+export interface TranscriptionConfig {
+  /** 是否启用转写功能 */
+  enabled: boolean;
+  /** 是否在附件导入时自动开始转写 */
+  autoTranscribe: boolean;
+  /** 发送消息时，是否默认优先使用转写内容（替代原始媒体） */
+  preferTranscribed: boolean;
+  /** 转写使用的模型 ID (指向 LlmModelSelector) - 通用/默认 */
+  modelIdentifier: string;
+  /** 自定义转写 Prompt (可选) - 通用/默认 */
+  customPrompt: string;
+  /** 温度参数 - 通用/默认 */
+  temperature: number;
+  /** 输出上限（token） - 通用/默认 */
+  maxTokens: number;
+  /** 最大并发任务数 */
+  maxConcurrentTasks: number;
+  /** 最大重试次数 */
+  maxRetries: number;
+  /** 是否启用分类型精细配置 */
+  enableTypeSpecificConfig: boolean;
+  /** 图片特定配置 */
+  image: TypeSpecificTranscriptionConfig;
+  /** 音频特定配置 */
+  audio: TypeSpecificTranscriptionConfig;
+}
+
+/**
  * 聊天设置接口
  */
 export interface ChatSettings {
@@ -94,6 +135,8 @@ export interface ChatSettings {
   };
   /** 翻译设置 */
   translation: TranslationConfig;
+  /** 转写设置 */
+  transcription: TranscriptionConfig;
   /** 消息管理设置 */
   messageManagement: {
     /** 是否在删除消息前确认 */
@@ -200,6 +243,91 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     temperature: 0.3,
     maxTokens: 2000,
   },
+  transcription: {
+    enabled: true,
+    autoTranscribe: false,
+    preferTranscribed: true,
+    modelIdentifier: "",
+    customPrompt: `你是一个高精度多模态内容分析器。请对输入的媒体内容进行全面、准确的文本化转录。
+
+## 核心原则
+1. **忠实还原**：优先还原内容的原始意图，而非机械式转录
+2. **智能纠错**：对明显的口误、谐音错误进行合理修正，但保留原意
+3. **结构清晰**：输出采用层次分明的 Markdown 格式
+
+## 输出要求
+- 使用中文输出（除非内容本身是其他语言）
+- 对于文字内容，保持原文准确性
+- 对于非文字内容，提供客观描述`,
+    temperature: 0.2,
+    maxTokens: 4096,
+    maxConcurrentTasks: 2,
+    maxRetries: 2,
+    enableTypeSpecificConfig: false,
+    image: {
+      modelIdentifier: "",
+      customPrompt: `你是一个专业的图像内容分析器，具备高精度视觉识别和 OCR 能力。
+
+## 分析框架
+请按以下结构对图像进行全面分析：
+
+### 1. 场景概览
+- 图像类型（照片/截图/插图/图表等）
+- 整体场景描述（环境、氛围、主题）
+
+### 2. 核心元素
+- **主体识别**：画面中的主要对象、人物、物品
+- **空间关系**：各元素的位置布局和相互关系
+- **视觉特征**：色彩、光影、构图等显著特点
+
+### 3. 文字内容（OCR）
+- **精确转录**：逐字提取图中所有可见文本
+- **布局保持**：尽量还原文字的原始排版结构
+- **标注来源**：说明文字出现的位置（如标题、按钮、水印等）
+
+### 4. 深层信息（如适用）
+- 图表数据解读
+- UI 界面元素识别
+- 品牌/标识识别
+
+## 输出格式
+使用清晰的 Markdown 结构，必要时使用表格、列表等元素增强可读性。`,
+      temperature: 0.2,
+      maxTokens: 4096,
+    },
+    audio: {
+      modelIdentifier: "",
+      customPrompt: `你是一个专业的音频内容转录器，具备语音识别和声学场景分析能力。
+
+## 核心准则
+1. **意图优先**：转录应忠于说话者的真实意图，而非死板的音标还原
+2. **智能纠错**：自动修正口误、重复、语气词过多等问题，保持语义流畅
+3. **多声道整合**：区分不同说话者，标注对话角色
+
+## 分析框架
+
+### 1. 语音内容
+- **完整转录**：准确记录所有语音内容
+- **说话者标注**：如有多人，用 [说话者A]、[说话者B] 等标注
+- **时间标记**：对于较长音频，适当添加时间节点 [MM:SS]
+- **语气还原**：保留重要的语气、情感表达（如强调、疑问、感叹）
+
+### 2. 非语音元素
+- **背景音乐**：描述音乐风格、情绪、节奏变化
+- **音效/环境音**：记录显著的声音事件
+- **静音/停顿**：标注有意义的沉默段落
+
+### 3. 特殊内容处理
+- **歌词**：保留原语言，可附加翻译
+- **专业术语**：尽量准确，不确定处标注 [?]
+- **模糊音段**：标注为 [听不清] 或 [音质不佳]
+
+## 输出格式
+使用清晰的 Markdown 结构，对话使用引用块，时间标记使用行内代码。`,
+      temperature: 0.2,
+      maxTokens: 4096,
+    },
+  },
   messageManagement: {
     confirmBeforeDeleteMessage: false,
     confirmBeforeDeleteSession: true,
@@ -289,6 +417,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       translation: {
         ...defaultConfig.translation,
         ...(loadedConfig.translation || {}),
+      },
+      transcription: {
+        ...defaultConfig.transcription,
+        ...(loadedConfig.transcription || {}),
       },
       requestSettings: {
         ...defaultConfig.requestSettings,
@@ -393,6 +525,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       translation: {
         ...settings.value.translation,
         ...(updates.translation || {}),
+      },
+      transcription: {
+        ...settings.value.transcription,
+        ...(updates.transcription || {}),
       },
       requestSettings: {
         ...settings.value.requestSettings,

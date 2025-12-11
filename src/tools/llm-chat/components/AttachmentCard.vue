@@ -5,11 +5,14 @@ import type { Asset } from "@/types/asset-management";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
+import { useTranscriptionManager } from "../composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
+import TranscriptionDialog from "./dialogs/TranscriptionDialog.vue";
 import { generateVideoThumbnail } from "@/utils/mediaThumbnailUtils";
 
 const logger = createModuleLogger("AttachmentCard");
@@ -44,6 +47,8 @@ const emit = defineEmits<Emits>();
 const { show: showImage } = useImageViewer();
 const { previewVideo } = useVideoViewer();
 const { saveAssetThumbnail } = useAssetManager();
+const { getTranscriptionStatus, getTranscriptionText, retryTranscription, updateTranscriptionContent } = useTranscriptionManager();
+
 const assetUrl = ref<string>("");
 const isLoadingUrl = ref(true);
 const loadError = ref(false);
@@ -84,6 +89,46 @@ const fileExtension = computed(() => {
   if (index === -1) return "";
   return name.slice(index + 1).toUpperCase();
 });
+
+const showTranscriptionDialog = ref(false);
+const transcriptionContent = ref("");
+
+const transcriptionStatus = computed(() => getTranscriptionStatus(props.asset));
+
+const transcriptionStatusText = computed(() => {
+  switch (transcriptionStatus.value) {
+    case "pending": return "等待转写...";
+    case "processing": return "正在转写...";
+    case "success": return "转写完成 (点击编辑)";
+    case "error": return "转写失败 (点击重试)";
+    default: return "";
+  }
+});
+
+const handleTranscriptionClick = async (e: Event) => {
+  e.stopPropagation();
+  if (transcriptionStatus.value === "success") {
+    const text = await getTranscriptionText(props.asset);
+    transcriptionContent.value = text || "";
+    showTranscriptionDialog.value = true;
+  } else if (transcriptionStatus.value === "error") {
+    retryTranscription(props.asset);
+  }
+};
+
+const handleSaveTranscription = async (content: string) => {
+  try {
+    await updateTranscriptionContent(props.asset, content);
+    showTranscriptionDialog.value = false;
+    customMessage.success("转写内容已更新");
+  } catch (error) {
+    // error handled in composable
+  }
+};
+
+const handleRegenerateTranscription = () => {
+  retryTranscription(props.asset);
+};
 
 // 加载资产 URL
 const loadAssetUrl = async () => {
@@ -350,6 +395,31 @@ onUnmounted(() => {
                 {{ tokenCount!.toLocaleString() }} tokens
               </span>
             </template>
+
+            <!-- 转写状态 (长条模式) -->
+            <template v-if="transcriptionStatus !== 'none'">
+              <span class="bar-meta-divider">·</span>
+              <div
+                class="transcription-status-icon bar-mode"
+                :class="transcriptionStatus"
+                :title="transcriptionStatusText"
+                @click="handleTranscriptionClick"
+              >
+                <div v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'" class="spinner-micro"></div>
+                <svg v-else-if="transcriptionStatus === 'success'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <svg v-else-if="transcriptionStatus === 'error'" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -399,6 +469,29 @@ onUnmounted(() => {
             {{ tokenCount!.toLocaleString() }}
           </span>
         </div>
+
+        <!-- 转写状态 (方形模式) -->
+        <div
+          v-if="!isBarLayout && transcriptionStatus !== 'none'"
+          class="transcription-badge"
+          :class="transcriptionStatus"
+          :title="transcriptionStatusText"
+          @click="handleTranscriptionClick"
+        >
+          <div v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'" class="spinner-micro"></div>
+          <svg v-else-if="transcriptionStatus === 'success'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <svg v-else-if="transcriptionStatus === 'error'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
       </div>
     </template>
 
@@ -436,6 +529,16 @@ onUnmounted(() => {
         :show-engine-switch="true"
       />
     </BaseDialog>
+
+    <!-- 转写编辑器对话框 -->
+    <TranscriptionDialog
+      v-if="showTranscriptionDialog"
+      v-model="showTranscriptionDialog"
+      :asset="asset"
+      :initial-content="transcriptionContent"
+      @save="handleSaveTranscription"
+      @regenerate="handleRegenerateTranscription"
+    />
   </div>
 </template>
 
@@ -987,3 +1090,80 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 </style>
+
+/* 转写状态样式 */
+.transcription-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.transcription-status-icon.bar-mode {
+  width: 12px;
+  height: 12px;
+}
+
+.transcription-status-icon:hover {
+  opacity: 0.8;
+}
+
+.transcription-status-icon.success {
+  color: var(--el-color-success);
+}
+
+.transcription-status-icon.error {
+  color: var(--el-color-error);
+}
+
+.transcription-status-icon.processing,
+.transcription-status-icon.pending {
+  color: var(--el-color-warning);
+}
+
+.transcription-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 1;
+}
+
+.transcription-badge:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+
+.transcription-badge.success {
+  color: #67c23a;
+}
+
+.transcription-badge.error {
+  color: #f56c6c;
+}
+
+.transcription-badge.processing,
+.transcription-badge.pending {
+  color: #e6a23c;
+}
+
+.spinner-micro {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 确保 spin 动画已定义（已在前面定义） */

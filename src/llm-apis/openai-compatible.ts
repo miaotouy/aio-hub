@@ -360,7 +360,12 @@ export const callOpenAiCompatibleApi = async (
 
   return {
     content: message?.content || "",
-    reasoningContent: message?.reasoning_content || undefined,
+    reasoningContent:
+      message?.reasoning_content ||
+      message?.reasoning ||
+      message?.thinking ||
+      message?.thought ||
+      undefined,
     refusal: message?.refusal || null,
     finishReason: choice.finish_reason,
     toolCalls: message?.tool_calls,

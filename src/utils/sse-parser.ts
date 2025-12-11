@@ -150,7 +150,14 @@ export function extractReasoningFromSSE(data: string, providerType: string): str
     switch (providerType) {
       case 'openai':
         // DeepSeek reasoning 格式: choices[0].delta.reasoning_content
-        return json.choices?.[0]?.delta?.reasoning_content || null;
+        // 兼容其他可能的格式: reasoning, thinking, thought
+        return (
+          json.choices?.[0]?.delta?.reasoning_content ||
+          json.choices?.[0]?.delta?.reasoning ||
+          json.choices?.[0]?.delta?.thinking ||
+          json.choices?.[0]?.delta?.thought ||
+          null
+        );
 
       case 'cohere':
         // Cohere V2 格式: delta.message.content.thinking

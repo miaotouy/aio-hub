@@ -1,17 +1,26 @@
 <template>
-  <div class="mermaid-node">
-    <div class="mermaid-header">
+  <div
+    class="mermaid-node"
+    :class="{ 'seamless-mode': seamless, hovered: isHovered }"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
+  >
+    <div class="mermaid-header" :class="{ floating: seamless }">
       <div class="language-info">
         <span class="language-tag">Mermaid</span>
         <!-- 修复状态指示器 -->
-        <el-tooltip v-if="wasFixed" :content="showOriginal ? '当前显示原始代码（可能存在语法问题）' : '代码已自动修复'" :show-after="300">
+        <el-tooltip
+          v-if="wasFixed"
+          :content="showOriginal ? '当前显示原始代码（可能存在语法问题）' : '代码已自动修复'"
+          :show-after="300"
+        >
           <button
             class="fix-indicator"
             :class="{ 'showing-original': showOriginal }"
             @click="toggleOriginal"
           >
             <Wrench :size="12" />
-            <span class="fix-text">{{ showOriginal ? '原始' : '已修复' }}</span>
+            <span class="fix-text">{{ showOriginal ? "原始" : "已修复" }}</span>
           </button>
         </el-tooltip>
       </div>
@@ -70,11 +79,11 @@
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
         <details class="error-details">
-          <summary>查看源代码{{ showOriginal ? '' : wasFixed ? ' (已尝试自动修复)' : '' }}</summary>
+          <summary>查看源代码{{ showOriginal ? "" : wasFixed ? " (已尝试自动修复)" : "" }}</summary>
           <pre class="error-code">{{ activeContent }}</pre>
         </details>
       </div>
-      
+
       <!-- 加载状态：只有在 pending 且从未渲染成功过时显示 -->
       <div v-else-if="nodeStatus === 'pending' && !hasRendered" class="mermaid-pending">
         <div class="pending-icon">
@@ -82,29 +91,24 @@
         </div>
         <div class="pending-text">正在接收图表数据...</div>
       </div>
-      
+
       <!-- 图表显示区域：只要渲染成功过就显示，即使现在是 pending 状态 -->
       <div v-show="hasRendered" ref="mermaidRef" class="mermaid-svg"></div>
     </div>
   </div>
 
   <!-- 交互式查看器对话框 -->
-  <BaseDialog
-    v-model="showViewer"
-    title="Mermaid 图表查看器"
-    width="95%"
-    height="85vh"
-  >
+  <BaseDialog v-model="showViewer" title="Mermaid 图表查看器" width="95%" height="85vh">
     <MermaidInteractiveViewer :content="activeContent" />
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, useAttrs, defineOptions } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, useAttrs, inject } from "vue";
 
 // 禁用属性继承以避免警告
 defineOptions({
-  inheritAttrs: false
+  inheritAttrs: false,
 });
 import {
   Copy,
@@ -125,18 +129,56 @@ import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { fixMermaidCode } from "@/utils/mermaidFixer";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MermaidInteractiveViewer from "../MermaidInteractiveViewer.vue";
+import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
+
 const errorHandler = createModuleErrorHandler("MermaidNode");
 
-const props = defineProps<{
-  nodeId: string;
-  content: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    nodeId: string;
+    content: string;
+    seamless?: boolean;
+  }>(),
+  {
+    seamless: undefined,
+  }
+);
+
+// 注入上下文以获取全局设置
+const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
+const seamlessMode = context?.seamlessMode;
+
+// 无边框模式：优先使用 prop，其次使用上下文
+const seamless = computed(() => {
+  if (props.seamless !== undefined) {
+    return props.seamless;
+  }
+  return seamlessMode?.value ?? false;
+});
+
+// 悬停状态管理
+const isHovered = ref(false);
+let hoverTimer: any = null;
+
+const handleMouseEnter = () => {
+  if (hoverTimer) clearTimeout(hoverTimer);
+  isHovered.value = true;
+};
+
+const handleMouseLeave = () => {
+  // 延迟隐藏，给用户一点移动鼠标的时间
+  hoverTimer = setTimeout(() => {
+    isHovered.value = false;
+  }, 100);
+};
 
 // 修复后的代码（只有在渲染失败后才会被设置）
 const fixedContent = ref<string | null>(null);
 
 // 判断当前渲染是否使用了修复后的代码
-const wasFixed = computed(() => fixedContent.value !== null && fixedContent.value !== props.content);
+const wasFixed = computed(
+  () => fixedContent.value !== null && fixedContent.value !== props.content
+);
 
 // 是否强制显示原始内容（用户手动切换）
 const showOriginal = ref(false);
@@ -163,8 +205,8 @@ const attrs = useAttrs();
 
 // 获取节点状态
 const nodeStatus = computed(() => {
-  const status = attrs['data-node-status'] as 'stable' | 'pending' | undefined;
-  return status || 'stable';
+  const status = attrs["data-node-status"] as "stable" | "pending" | undefined;
+  return status || "stable";
 });
 
 const { isDark } = useTheme();
@@ -332,10 +374,10 @@ const renderDiagram = async () => {
 
   try {
     isRendering.value = true;
-    
+
     // 等待 DOM 更新，确保 mermaidRef 已经绑定到新的元素
     await nextTick();
-    
+
     // 如果已经有新的渲染请求，取消当前的
     if (currentRenderId !== lastRenderId.value) return;
 
@@ -346,7 +388,7 @@ const renderDiagram = async () => {
     // 如果用户选择显示原始内容，直接用原始内容渲染
     if (showOriginal.value) {
       const success = await renderDiagramWithContent(props.content);
-      if (!success && nodeStatus.value === 'stable') {
+      if (!success && nodeStatus.value === "stable") {
         error.value = "原始代码渲染失败";
       }
       return;
@@ -354,7 +396,7 @@ const renderDiagram = async () => {
 
     // 步骤 1: 先尝试用原始代码渲染
     const originalSuccess = await renderDiagramWithContent(props.content);
-    
+
     // 检查并发
     if (currentRenderId !== lastRenderId.value) return;
 
@@ -366,18 +408,18 @@ const renderDiagram = async () => {
 
     // 如果处于 pending 状态（流式输出中），不尝试修复
     // 因为代码尚未完整，修复通常无意义且可能导致闪烁
-    if (nodeStatus.value !== 'stable') {
+    if (nodeStatus.value !== "stable") {
       return;
     }
 
     // 步骤 2: 原始代码渲染失败，尝试修复
     const fixed = fixMermaidCode(props.content);
-    
+
     // 如果修复后的代码和原始代码相同，说明修复器没有做任何改动
     // 这种情况下不需要再次尝试渲染
     if (fixed === props.content) {
       // 修复器无法修复，在 stable 状态下显示错误
-      if (nodeStatus.value === 'stable') {
+      if (nodeStatus.value === "stable") {
         error.value = "Mermaid 语法错误，自动修复无效";
       }
       return;
@@ -385,7 +427,7 @@ const renderDiagram = async () => {
 
     // 步骤 3: 尝试用修复后的代码渲染
     const fixedSuccess = await renderDiagramWithContent(fixed);
-    
+
     // 检查并发
     if (currentRenderId !== lastRenderId.value) return;
 
@@ -396,7 +438,7 @@ const renderDiagram = async () => {
     }
 
     // 步骤 4: 修复后仍然失败
-    if (nodeStatus.value === 'stable') {
+    if (nodeStatus.value === "stable") {
       error.value = "Mermaid 语法错误，自动修复后仍无法渲染";
     }
   } catch (err: any) {
@@ -404,12 +446,12 @@ const renderDiagram = async () => {
     if (currentRenderId !== lastRenderId.value) return;
 
     // 只有在 stable 状态下才显示错误
-    if (nodeStatus.value === 'stable') {
+    if (nodeStatus.value === "stable") {
       errorHandler.handle(err, {
         userMessage: "Mermaid 渲染失败",
         showToUser: false,
         level: ErrorLevel.WARNING,
-        context: { diagramContent: props.content }
+        context: { diagramContent: props.content },
       });
       error.value = err?.message || "未知错误";
     }
@@ -471,16 +513,16 @@ watch(isDark, async (dark) => {
 
 // 监听内容和状态变化
 watch(
-  [() => props.content, () => attrs['data-node-status']],
+  [() => props.content, () => attrs["data-node-status"]],
   async ([newContent, newStatus], [oldContent, oldStatus]) => {
     if (!mermaid) return;
-    
+
     // 内容变化时，重置修复状态和显示原始状态
     if (newContent !== oldContent) {
       fixedContent.value = null;
       showOriginal.value = false;
     }
-    
+
     // 只要内容变化就尝试渲染，不再限制状态
     if (newContent !== oldContent || newStatus !== oldStatus) {
       await renderDiagram();
@@ -490,6 +532,10 @@ watch(
 
 onMounted(() => {
   initMermaid();
+  // 消除 containerRef 未使用的警告
+  if (containerRef.value) {
+    // no-op
+  }
 });
 
 onBeforeUnmount(() => {
@@ -509,6 +555,21 @@ onBeforeUnmount(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+/* 无边框模式样式 */
+.mermaid-node.seamless-mode {
+  border: none;
+  background-color: transparent;
+  margin: 8px 0;
+  overflow: visible; /* 允许 Header 溢出 */
+}
+
+.mermaid-node.seamless-mode .mermaid-container {
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  max-height: none;
 }
 
 .mermaid-header {
@@ -519,6 +580,56 @@ onBeforeUnmount(() => {
   background-color: var(--code-block-bg, var(--card-bg));
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+}
+
+/* 悬浮 Header 模式 */
+.mermaid-header.floating {
+  position: absolute;
+  top: -40px; /* 移到上方 */
+  height: 40px;
+  left: 0;
+  right: 0;
+  padding: 0 8px 4px 8px; /* 底部留一点空隙 */
+  background-color: transparent;
+  border-bottom: none;
+  pointer-events: none; /* 让鼠标穿透空白区域 */
+  z-index: 10;
+  justify-content: flex-end; /* 靠右对齐 */
+  align-items: flex-end; /* 底部对齐 */
+}
+
+.mermaid-header.floating .language-info {
+  display: none; /* 隐藏语言标签 */
+}
+
+.mermaid-header.floating .header-actions {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: var(--el-box-shadow-light);
+  pointer-events: auto; /* 恢复按钮点击 */
+  opacity: 0;
+  transform: translateY(5px);
+  transition: all 0.2s ease-in-out;
+  position: relative; /* 用于伪元素定位 */
+}
+
+/* 桥接层：增加一个透明的伪元素，填补 Header 和内容之间的缝隙，防止鼠标移出时状态丢失 */
+.mermaid-header.floating .header-actions::after {
+  content: "";
+  position: absolute;
+  bottom: -15px; /* 向下延伸 */
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: transparent;
+  z-index: -1;
+}
+
+.mermaid-node.hovered .mermaid-header.floating .header-actions {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .language-info {

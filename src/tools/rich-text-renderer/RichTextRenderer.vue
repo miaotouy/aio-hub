@@ -40,6 +40,7 @@ const props = withDefaults(
     generationMeta?: any; // 生成元数据（用于计时）
     isStreaming?: boolean; // 是否处于流式传输中（用于控制思考块的闭合状态）
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
+    seamlessMode?: boolean; // HTML 预览无边框模式
     throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
     regexRules?: ChatRegexRule[]; // 正则表达式规则
@@ -48,6 +49,7 @@ const props = withDefaults(
     version: RendererVersion.V1_MARKDOWN_IT,
     isStreaming: false,
     defaultRenderHtml: false,
+    seamlessMode: false,
     enableEnterAnimation: true,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
@@ -161,6 +163,7 @@ watch(
 provide(RICH_TEXT_CONTEXT_KEY, {
   images: imageList,
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
+  seamlessMode: computed(() => props.seamlessMode),
 });
 
 // 纯 markdown-it 渲染的 HTML

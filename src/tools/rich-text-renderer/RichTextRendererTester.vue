@@ -127,6 +127,7 @@
                 :regex-rules="activeRegexRules"
                 :generation-meta="simulateMeta ? generationMeta : undefined"
                 :throttle-ms="throttleMs"
+                :seamless-mode="seamlessMode"
               />
               <div v-else class="empty-placeholder">
                 <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -239,6 +240,7 @@ const {
   richTextStyleOptions,
   regexConfig: storeRegexConfig,
   copyOptions,
+  seamlessMode,
 } = storeToRefs(store);
 
 const activeRegexRules = computed(() => store.getActiveRegexRules());

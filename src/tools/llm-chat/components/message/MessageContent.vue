@@ -488,6 +488,7 @@ const containerClasses = computed(() => ({
           :generation-meta="generationMetaForRenderer"
           :is-streaming="message.status === 'generating'"
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
+          :seamless-mode="settings.uiPreferences.seamlessMode"
           :throttle-ms="settings.uiPreferences.rendererThrottleMs"
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
         />
@@ -522,6 +523,7 @@ const containerClasses = computed(() => ({
             :llm-think-rules="llmThinkRules"
             :style-options="richTextStyleOptions"
             :default-render-html="settings.uiPreferences.defaultRenderHtml"
+            :seamless-mode="settings.uiPreferences.seamlessMode"
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
             :is-streaming="isTranslating"
           />

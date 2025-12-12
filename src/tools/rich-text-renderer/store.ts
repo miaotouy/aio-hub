@@ -106,6 +106,7 @@ const configManager = createConfigManager<TesterConfig>({
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
     defaultRenderHtml: false,
+    seamlessMode: false,
     enableEnterAnimation: true,
     simulateMeta: false,
     selectedTokenizer: "gpt4o",
@@ -150,6 +151,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const visualizeBlockStatus = ref(false);
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
   const defaultRenderHtml = ref(false);
+  const seamlessMode = ref(false);
   const enableEnterAnimation = ref(true);
   const simulateMeta = ref(false);
   const selectedTokenizer = ref("gpt4o");
@@ -215,6 +217,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
       defaultRenderHtml.value = config.defaultRenderHtml ?? false;
+      seamlessMode.value = config.seamlessMode ?? false;
       enableEnterAnimation.value = config.enableEnterAnimation ?? true;
       simulateMeta.value = config.simulateMeta ?? false;
       selectedTokenizer.value = config.selectedTokenizer ?? "gpt4o";
@@ -271,6 +274,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         visualizeBlockStatus: visualizeBlockStatus.value,
         rendererVersion: rendererVersion.value,
         defaultRenderHtml: defaultRenderHtml.value,
+        seamlessMode: seamlessMode.value,
         enableEnterAnimation: enableEnterAnimation.value,
         simulateMeta: simulateMeta.value,
         selectedTokenizer: selectedTokenizer.value,
@@ -323,6 +327,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus: visualizeBlockStatus.value,
       rendererVersion: rendererVersion.value,
       defaultRenderHtml: defaultRenderHtml.value,
+      seamlessMode: seamlessMode.value,
       enableEnterAnimation: enableEnterAnimation.value,
       simulateMeta: simulateMeta.value,
       selectedTokenizer: selectedTokenizer.value,
@@ -358,6 +363,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus.value = false;
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
     defaultRenderHtml.value = false;
+    seamlessMode.value = false;
     enableEnterAnimation.value = true;
     simulateMeta.value = false;
     selectedTokenizer.value = "gpt4o";
@@ -444,6 +450,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus,
       rendererVersion,
       defaultRenderHtml,
+      seamlessMode,
       enableEnterAnimation,
       simulateMeta,
       selectedTokenizer,
@@ -484,6 +491,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus,
     rendererVersion,
     defaultRenderHtml,
+    seamlessMode,
     enableEnterAnimation,
     simulateMeta,
     selectedTokenizer,

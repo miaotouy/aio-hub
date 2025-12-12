@@ -150,6 +150,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui html render preview 预览 渲染",
       },
       {
+        id: "seamlessMode",
+        label: "HTML 预览无边框模式",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.seamlessMode",
+        hint: "开启后，HTML 预览将移除外框和头部，直接嵌入消息流中",
+        keywords: "ui html seamless preview 无缝 预览",
+      },
+      {
         id: "rendererVersion",
         label: "消息渲染器",
         component: "ElSelect",

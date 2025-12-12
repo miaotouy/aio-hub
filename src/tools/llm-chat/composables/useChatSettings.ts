@@ -132,6 +132,8 @@ export interface ChatSettings {
     autoSwitchAgentOnSessionChange: boolean;
     /** 是否默认渲染 HTML 代码块 */
     defaultRenderHtml: boolean;
+    /** 是否开启 HTML 预览无边框模式 */
+    seamlessMode: boolean;
     /** 全局 Markdown 样式 */
     markdownStyle?: RichTextRendererStyleOptions;
     /** 是否启用内容宽度限制 */
@@ -240,6 +242,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     headerBlurIntensity: 12, // 头部背景模糊强度
     autoSwitchAgentOnSessionChange: true, // 默认开启
     defaultRenderHtml: false, // 默认不自动渲染 HTML
+    seamlessMode: false, // 默认关闭无边框模式
     markdownStyle: undefined, // 默认不设置全局样式
     enableContentWidthLimit: false, // 默认不限制宽度
     contentMaxWidth: 800, // 默认最大宽度 800px

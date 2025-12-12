@@ -1,6 +1,12 @@
 <template>
-  <div class="markdown-code-block" v-bind="$attrs">
-    <div class="code-header">
+  <div
+    class="markdown-code-block"
+    :class="{ 'seamless-mode': seamless, hovered: isHovered }"
+    v-bind="$attrs"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
+  >
+    <div class="code-header" :class="{ floating: seamless && viewMode === 'preview' }">
       <div class="language-info">
         <span class="language-tag">{{ language || "文本" }}</span>
         <!-- 预览模式指示器 -->
@@ -103,7 +109,13 @@
 
     <!-- HTML 预览区域 (内嵌) -->
     <div v-if="viewMode === 'preview'" class="html-preview-container">
-      <HtmlInteractiveViewer :content="content" :immediate="closed" auto-height />
+      <HtmlInteractiveViewer
+        :content="content"
+        :immediate="closed"
+        auto-height
+        :seamless="seamless"
+        @content-hover="handleContentHover"
+      />
     </div>
   </div>
 
@@ -144,12 +156,18 @@ defineOptions({
   inheritAttrs: false,
 });
 
-const props = defineProps<{
-  nodeId: string;
-  content: string;
-  language?: string;
-  closed?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    nodeId: string;
+    content: string;
+    language?: string;
+    closed?: boolean;
+    seamless?: boolean;
+  }>(),
+  {
+    seamless: undefined,
+  }
+);
 
 const editorEl = ref<HTMLElement | null>(null);
 const { isDark } = useTheme();
@@ -161,6 +179,22 @@ const errorHandler = createModuleErrorHandler(
 // 注入上下文以获取全局设置
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const defaultRenderHtml = context?.defaultRenderHtml;
+const seamlessMode = context?.seamlessMode;
+
+// 无边框模式：优先使用 prop，其次使用上下文
+const seamless = computed(() => {
+  if (props.seamless !== undefined) {
+    return props.seamless;
+  }
+  return seamlessMode?.value ?? false;
+});
+
+// 监听无边框模式变化，自动切换到预览模式
+watch(seamless, (isSeamless) => {
+  if (isSeamless && isHtml.value) {
+    viewMode.value = "preview";
+  }
+});
 
 // 视图模式
 const viewMode = ref<"code" | "preview">("code");
@@ -170,6 +204,38 @@ const showDialog = ref(false);
 const isHtml = computed(() => {
   const lang = props.language?.toLowerCase();
   return lang === "html" || lang === "xml" || lang === "svg";
+});
+
+// 悬停状态管理
+const isHovered = ref(false);
+let hoverTimer: any = null;
+
+const handleMouseEnter = () => {
+  if (hoverTimer) clearTimeout(hoverTimer);
+  isHovered.value = true;
+};
+
+const handleMouseLeave = () => {
+  // 延迟隐藏，给用户一点移动鼠标的时间
+  hoverTimer = setTimeout(() => {
+    isHovered.value = false;
+  }, 100);
+};
+
+const handleContentHover = (hover: boolean) => {
+  // 只处理进入事件，保持悬停状态
+  // 离开事件由外层容器的 @mouseleave 统一处理
+  // 避免鼠标从 iframe 移入悬浮 Header 时导致 Header 闪烁
+  if (hover) {
+    handleMouseEnter();
+  }
+};
+
+// 监听无边框模式变化，自动切换到预览模式
+watch(seamless, (isSeamless) => {
+  if (isSeamless && isHtml.value) {
+    viewMode.value = "preview";
+  }
 });
 
 // 切换视图模式
@@ -400,7 +466,8 @@ const toggleWordWrap = () => {
 
 onMounted(async () => {
   // 初始化视图模式
-  if (isHtml.value && defaultRenderHtml?.value) {
+  // 如果是无边框模式且是 HTML，强制默认为预览模式
+  if (isHtml.value && (defaultRenderHtml?.value || seamless.value)) {
     viewMode.value = "preview";
   }
 
@@ -586,9 +653,22 @@ watch(
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
   /* 移除 content-visibility，避免在高度自适应计算时出现问题 */
   /* content-visibility: auto; */
   /* contain-intrinsic-size: 150px; */
+}
+
+/* 无边框模式样式 */
+.markdown-code-block.seamless-mode {
+  border: none;
+  background-color: transparent;
+  margin: 8px 0;
+  overflow: visible; /* 允许 Header 溢出 */
+}
+
+.markdown-code-block.seamless-mode .html-preview-container {
+  border-top: none;
 }
 
 .code-header {
@@ -598,6 +678,54 @@ watch(
   padding: 8px 12px;
   background-color: var(--code-block-bg, var(--card-bg));
   flex-shrink: 0;
+}
+/* 悬浮 Header 模式 */
+.code-header.floating {
+  position: absolute;
+  top: -40px; /* 移到上方 */
+  height: 40px;
+  left: 0;
+  right: 0;
+  padding: 0 8px 4px 8px; /* 底部留一点空隙 */
+  background-color: transparent;
+  pointer-events: none; /* 让鼠标穿透空白区域 */
+  z-index: 10;
+  justify-content: flex-end; /* 靠右对齐 */
+  align-items: flex-end; /* 底部对齐 */
+}
+
+.code-header.floating .language-info {
+  display: none; /* 隐藏语言标签 */
+}
+
+.code-header.floating .header-actions {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: var(--el-box-shadow-light);
+  pointer-events: auto; /* 恢复按钮点击 */
+  opacity: 0;
+  transform: translateY(5px);
+  transition: all 0.2s ease-in-out;
+  position: relative; /* 用于伪元素定位 */
+}
+
+/* 桥接层：增加一个透明的伪元素，填补 Header 和内容之间的缝隙，防止鼠标移出时状态丢失 */
+.code-header.floating .header-actions::after {
+  content: "";
+  position: absolute;
+  bottom: -15px; /* 向下延伸 */
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: transparent;
+  z-index: -1;
+}
+
+.markdown-code-block.hovered .code-header.floating .header-actions {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .language-info {

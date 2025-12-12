@@ -1,10 +1,10 @@
 <template>
   <div
     class="html-interactive-viewer"
-    :class="{ 'no-border': !bordered, 'auto-height': autoHeight }"
+    :class="{ 'no-border': !isBorderVisible, 'auto-height': autoHeight }"
   >
     <!-- 工具栏 -->
-    <div class="viewer-toolbar" v-if="showToolbar">
+    <div class="viewer-toolbar" v-if="isToolbarVisible">
       <div class="toolbar-left">
         <span class="title-text">{{ title }}</span>
         <el-tooltip v-if="!immediate" content="内容生成中..." placement="bottom">
@@ -63,11 +63,16 @@ const errorHandler = createModuleErrorHandler("HtmlInteractiveViewer");
 const iframeErrorHandler = createModuleErrorHandler("HtmlInteractiveViewer:Iframe");
 const logger = createModuleLogger("HtmlInteractiveViewer:Iframe");
 
+const emit = defineEmits<{
+  (e: "content-hover", value: boolean): void;
+}>();
+
 const props = withDefaults(
   defineProps<{
     content: string;
     showToolbar?: boolean;
     bordered?: boolean;
+    seamless?: boolean;
     /**
      * 是否立即渲染，跳过防抖和稳定性检查。
      * 适用于非流式加载的场景（如查看本地文件），此时内容被认为是完整且稳定的。
@@ -82,10 +87,14 @@ const props = withDefaults(
   {
     showToolbar: true,
     bordered: true,
+    seamless: false,
     immediate: false,
     autoHeight: false,
   }
 );
+
+const isToolbarVisible = computed(() => props.showToolbar && !props.seamless);
+const isBorderVisible = computed(() => props.bordered && !props.seamless);
 
 const loading = ref(true);
 const contentHeight = ref(300); // 默认高度
@@ -261,6 +270,27 @@ const logCaptureScript = `
       // 延迟一帧，确保布局完成
       requestAnimationFrame(sendHeight);
     });
+
+    // 交互感知：监听鼠标移动，通知父级显示悬浮菜单
+    // 使用节流防止消息轰炸
+    let lastMoveTime = 0;
+    const MOVE_THROTTLE = 200;
+    
+    document.addEventListener('mousemove', () => {
+      const now = Date.now();
+      if (now - lastMoveTime > MOVE_THROTTLE) {
+        lastMoveTime = now;
+        window.parent.postMessage({ type: 'iframe-mousemove' }, '*');
+      }
+    });
+
+    document.addEventListener('mouseenter', () => {
+      window.parent.postMessage({ type: 'iframe-mouseenter' }, '*');
+    });
+
+    document.addEventListener('mouseleave', () => {
+      window.parent.postMessage({ type: 'iframe-mouseleave' }, '*');
+    });
   })();
 <\/script>
 `;
@@ -339,6 +369,16 @@ const handleIframeMessage = (event: MessageEvent) => {
       // 缓冲区改为在 iframe 内部的 body padding-bottom 中提供
       contentHeight.value = newHeight;
     }
+    return;
+  }
+
+  // 处理交互事件
+  if (event.data.type === "iframe-mousemove" || event.data.type === "iframe-mouseenter") {
+    emit("content-hover", true);
+    return;
+  }
+  if (event.data.type === "iframe-mouseleave") {
+    emit("content-hover", false);
     return;
   }
 

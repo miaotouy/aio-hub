@@ -606,6 +606,8 @@ export interface TesterConfig {
   copyOptions: CopyOptions;
   /** 是否默认渲染 HTML 代码块 */
   defaultRenderHtml?: boolean;
+  /** HTML 预览无边框模式 */
+  seamlessMode?: boolean;
   /** 是否启用节点进入动画 */
   enableEnterAnimation?: boolean;
   /** 是否模拟元数据 */
@@ -675,11 +677,11 @@ export interface RenderPreset {
  * 注入 Key
  */
 export const RICH_TEXT_CONTEXT_KEY = Symbol("rich-text-context");
-
 /**
  * 富文本上下文接口
  */
 export interface RichTextContext {
   images: Ref<string[]>;
   defaultRenderHtml?: Ref<boolean>;
+  seamlessMode?: Ref<boolean>;
 }

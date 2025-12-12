@@ -57,6 +57,16 @@
         </div>
       </div>
 
+      <!-- 无边框模式控制 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label">无边框模式</label>
+          <el-tooltip content="开启后，HTML 渲染将移除外框和头部，直接嵌入消息流中" placement="left">
+            <el-switch v-model="seamlessMode" />
+          </el-tooltip>
+        </div>
+      </div>
+
       <!-- 进入动画控制 -->
       <div class="control-section">
         <div class="control-header">
@@ -284,6 +294,7 @@ const {
   defaultRenderHtml,
   enableEnterAnimation,
   llmThinkRules,
+  seamlessMode,
 } = storeToRefs(store);
 
 // Computed

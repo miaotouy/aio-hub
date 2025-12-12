@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useRouter } from "vue-router";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import type { LlmProfile, LlmModelInfo, ModelCapabilities } from "@/types/llm-profiles";
@@ -21,8 +22,13 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<Emits>();
 
+const router = useRouter();
 const { enabledProfiles } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
+
+const goToLlmSettings = () => {
+  router.push({ path: '/settings', query: { section: 'llm-service' } });
+};
 
 // 筛选并格式化所有可用模型
 const availableModels = computed(() => {
@@ -126,14 +132,15 @@ const modelGroups = computed(() => {
         </el-option>
       </el-option-group>
     </el-select>
-    <el-text
+    <el-link
       v-if="availableModels.length === 0"
-      size="small"
       type="warning"
-      style="margin-top: 8px; display: block"
+      :underline="false"
+      style="margin-top: 8px; display: block; cursor: pointer;"
+      @click="goToLlmSettings"
     >
       请先在设置中配置 LLM 服务并添加符合要求的模型
-    </el-text>
+    </el-link>
   </div>
 </template>
 

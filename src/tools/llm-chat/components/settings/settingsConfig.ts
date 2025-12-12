@@ -580,13 +580,23 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) => settings.transcription.enabled && settings.transcription.sendBehavior === 'wait_before_send',
       },
       {
+        id: "transVideoEnableCompression",
+        label: "启用视频压缩",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.video.enableCompression",
+        hint: "开启后，当视频体积超过限制时，将尝试自动调整码率以满足体积要求（需配置 FFmpeg）。",
+        keywords: "transcription video compression enable 启用 压缩",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
         id: "transFFmpegPath",
         label: "FFmpeg 路径",
         component: "ElInput",
         modelPath: "transcription.ffmpegPath",
         hint: "配置本地 FFmpeg 可执行文件路径以支持大视频压缩。未配置时将尝试直接上传原始视频。",
         keywords: "transcription ffmpeg path video 视频 路径",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
         action: "selectFFmpegPath",
         slots: {
           append: () =>
@@ -609,17 +619,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.video.maxDirectSizeMB",
         hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。",
         keywords: "transcription video size limit 视频 大小 阈值 限制",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transVideoEnableCompression",
-        label: "启用视频压缩",
-        layout: "inline",
-        component: "ElSwitch",
-        modelPath: "transcription.video.enableCompression",
-        hint: "开启后，当视频体积超过限制时，将尝试自动调整码率以满足体积要求（需配置 FFmpeg）。",
-        keywords: "transcription video compression enable 启用 压缩",
-        visible: (settings) => settings.transcription.enabled,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
       },
       {
         id: "transVideoMaxFps",
@@ -657,8 +657,11 @@ export const settingsConfig: SettingsSection[] = [
         id: "transModel",
         label: "通用转写模型",
         component: "LlmModelSelector",
+        props: {
+          capabilities: { vision: true },
+        },
         modelPath: "transcription.modelIdentifier",
-        hint: "用于执行转写任务的多模态模型（推荐使用 Gemini Pro Vision 或 GPT-4o）",
+        hint: "用于执行转写任务的多模态模型（推荐使用 gemini-flash-latest 或 GPT-4o）",
         keywords: "transcription model 转写 模型",
         visible: (settings) =>
           settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
@@ -716,6 +719,9 @@ export const settingsConfig: SettingsSection[] = [
         id: "transImageModel",
         label: "图片转写模型",
         component: "LlmModelSelector",
+        props: {
+          capabilities: { vision: true },
+        },
         modelPath: "transcription.image.modelIdentifier",
         hint: "专门用于图片转写的模型",
         keywords: "transcription image model 图片 转写 模型",
@@ -775,6 +781,9 @@ export const settingsConfig: SettingsSection[] = [
         id: "transAudioModel",
         label: "音频转写模型",
         component: "LlmModelSelector",
+        props: {
+          capabilities: { audio: true },
+        },
         modelPath: "transcription.audio.modelIdentifier",
         hint: "专门用于音频转写的模型",
         keywords: "transcription audio model 音频 转写 模型",
@@ -834,8 +843,11 @@ export const settingsConfig: SettingsSection[] = [
         id: "transVideoModel",
         label: "视频转写模型",
         component: "LlmModelSelector",
+        props: {
+          capabilities: { video: true },
+        },
         modelPath: "transcription.video.modelIdentifier",
-        hint: "专门用于视频转写的模型（建议使用支持视频理解的多模态模型，如 Gemini Pro 1.5）",
+        hint: "专门用于视频转写的模型（建议使用支持视频理解的多模态模型，如 gemini-flash-latest）",
         keywords: "transcription video model 视频 转写 模型",
         visible: (settings) =>
           settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
@@ -860,7 +872,7 @@ export const settingsConfig: SettingsSection[] = [
                 title: "重置为默认提示词",
                 style: { padding: "8px" },
               },
-              () => h(ElIcon, null, () => h(RefreshLeft))
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
             ),
         },
       },

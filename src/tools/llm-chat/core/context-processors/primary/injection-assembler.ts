@@ -26,9 +26,58 @@ export const injectionAssembler: ContextProcessor = {
       userProfile,
       timestamp,
     } = context;
-    const presetMessages = agentConfig.presetMessages;
+    const allPresetMessages = agentConfig.presetMessages || [];
+    const modelId = agentConfig.modelId;
 
-    if (!presetMessages || presetMessages.length === 0) {
+    // 过滤掉被禁用的预设消息
+    const presetMessages = allPresetMessages.filter((msg) => {
+      // 1. 检查全局启用开关
+      if (msg.isEnabled === false) {
+        return false;
+      }
+
+      // 2. 检查模型匹配规则
+      if (msg.modelMatch?.enabled && msg.modelMatch.patterns.length > 0) {
+        const isMatch = msg.modelMatch.patterns.some((pattern) => {
+          try {
+            const regex = new RegExp(pattern, "i");
+
+            // 解析出实际的模型 ID 部分 (去掉 profileId 前缀)
+            let modelIdPart = modelId;
+            const colonIndex = modelId.indexOf(":");
+            if (colonIndex !== -1) {
+              modelIdPart = modelId.substring(colonIndex + 1);
+            }
+            if (!modelIdPart) return false;
+
+            // 1. 尝试匹配模型 ID (例如 "openai/gpt-4o")
+            if (regex.test(modelIdPart)) return true;
+
+            // 2. 尝试匹配纯模型名 (去掉 provider 前缀，例如 "gpt-4o")
+            const slashIndex = modelIdPart.lastIndexOf("/");
+            if (slashIndex !== -1) {
+              const pureModelName = modelIdPart.substring(slashIndex + 1);
+              if (pureModelName && regex.test(pureModelName)) return true;
+            }
+
+            return false;
+          } catch (e) {
+            logger.warn(
+              `预设消息 [${msg.name || msg.id}] 中的模型匹配正则表达式无效: ${pattern}`,
+              e
+            );
+            return false;
+          }
+        });
+        if (!isMatch) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (presetMessages.length === 0) {
       context.logs.push({
         processorId: "primary:injection-assembler",
         level: "info",

@@ -592,7 +592,11 @@ onMounted(async () => {
             <span class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
           </div>
         </el-tooltip>
-        <el-tooltip v-if="currentModel" content="点击选择模型" placement="bottom">
+        <el-tooltip
+          v-if="currentModel && settings.uiPreferences.showModelSelector"
+          content="点击选择模型"
+          placement="bottom"
+        >
           <div class="model-info clickable" @click="handleSelectModel">
             <DynamicIcon
               :src="modelIcon || ''"

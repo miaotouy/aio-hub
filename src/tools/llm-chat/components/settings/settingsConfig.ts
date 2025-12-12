@@ -60,6 +60,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui performance metrics speed latency 性能 速度 延迟",
       },
       {
+        id: "showModelSelector",
+        label: "显示模型选择器",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showModelSelector",
+        hint: "在头部显示当前模型并允许切换",
+        keywords: "ui model selector switch 模型 选择 切换",
+      },
+      {
         id: "autoScroll",
         label: "自动滚动",
         layout: "inline",

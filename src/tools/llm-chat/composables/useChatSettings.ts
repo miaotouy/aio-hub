@@ -112,6 +112,8 @@ export interface ChatSettings {
     showModelInfo: boolean;
     /** 是否显示性能指标 */
     showPerformanceMetrics: boolean;
+    /** 是否显示模型选择器 */
+    showModelSelector: boolean;
     /** 是否自动滚动到最新消息 */
     autoScroll: boolean;
     /** 消息字体大小 (px) */
@@ -228,6 +230,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showTokenCount: true,
     showModelInfo: true,
     showPerformanceMetrics: true,
+    showModelSelector: true,
     autoScroll: true,
     fontSize: 14,
     lineHeight: 1.6,

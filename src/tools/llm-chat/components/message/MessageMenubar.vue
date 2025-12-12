@@ -404,7 +404,7 @@ const handleTranslateClick = (e: MouseEvent) => {
   <div class="message-menubar">
     <!-- Branch control (if applicable) -->
     <div v-if="siblings.length > 1" class="branch-control">
-      <el-tooltip content="上一个版本" placement="top">
+      <el-tooltip content="上一个版本" placement="top" :show-after="500">
         <button
           class="menu-btn"
           :disabled="currentSiblingIndex === 0 || isSending"
@@ -424,7 +424,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       >
         <template #reference>
           <div class="branch-indicator-wrapper">
-            <el-tooltip content="点击查看分支列表" placement="top">
+            <el-tooltip content="点击查看分支列表" placement="top" :show-after="500">
               <div
                 class="branch-indicator clickable"
                 :class="{ 'popover-active': showBranchPopover }"
@@ -441,7 +441,7 @@ const handleTranslateClick = (e: MouseEvent) => {
           @switch-branch="handleSwitchToBranch"
         />
       </el-popover>
-      <el-tooltip content="下一个版本" placement="top">
+      <el-tooltip content="下一个版本" placement="top" :show-after="500">
         <button
           class="menu-btn"
           :disabled="currentSiblingIndex === siblings.length - 1 || isSending"
@@ -454,7 +454,12 @@ const handleTranslateClick = (e: MouseEvent) => {
     <div v-if="siblings.length > 1" class="separator"></div>
 
     <!-- 更多菜单 -->
-    <el-tooltip v-if="props.buttonVisibility.moreMenu" content="更多" placement="top">
+    <el-tooltip
+      v-if="props.buttonVisibility.moreMenu"
+      content="更多"
+      placement="top"
+      :show-after="500"
+    >
       <el-dropdown trigger="click" placement="top">
         <button class="menu-btn">
           <Menu :size="16" />
@@ -578,7 +583,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       </el-dropdown>
     </el-tooltip>
     <!-- 复制 -->
-    <el-tooltip v-if="props.buttonVisibility.copy" content="复制" placement="top">
+    <el-tooltip v-if="props.buttonVisibility.copy" content="复制" placement="top" :show-after="500">
       <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click="copyMessage">
         <Check v-if="copied" :size="16" />
         <Copy v-else :size="16" />
@@ -590,6 +595,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-if="isGenerating && props.buttonVisibility.abort"
       content="终止生成"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn menu-btn-abort" @click="handleAbort">
         <XCircle :size="16" />
@@ -601,6 +607,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-if="(isUserMessage || isAssistantMessage) && !isGenerating && props.buttonVisibility.edit"
       content="编辑"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn" @click="handleEdit">
         <Edit :size="16" />
@@ -617,6 +624,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       "
       content="创建分支"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn" @click="handleCreateBranch">
         <GitFork :size="16" />
@@ -628,6 +636,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-if="(isUserMessage || isAssistantMessage) && !isGenerating && isPresetDisplay"
       content="预设消息暂不支持创建分支，需等预设系统树化后才能对接"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn menu-btn-disabled" disabled>
         <GitFork :size="16" />
@@ -643,6 +652,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       "
       :content="isUserMessage ? '重新生成回复' : '重新生成'"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn" @click="handleRegenerate">
         <RefreshCw :size="16" />
@@ -658,6 +668,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       "
       content="切换模型重新生成"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn" @click="handleRegenerateWithModel">
         <AtSign :size="16" />
@@ -669,6 +680,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-if="(isUserMessage || isAssistantMessage) && isPresetDisplay"
       content="预设消息不参与重试"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn menu-btn-disabled" disabled>
         <RefreshCw :size="16" />
@@ -680,6 +692,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-if="!isGenerating && props.buttonVisibility.toggleEnabled"
       :content="isDisabled ? '启用此消息' : '禁用此消息'"
       placement="top"
+      :show-after="500"
     >
       <button
         class="menu-btn"
@@ -696,6 +709,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-if="!isGenerating && !isPresetDisplay && props.buttonVisibility.delete"
       content="删除"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn menu-btn-danger" @click="handleDelete">
         <Trash2 :size="16" />
@@ -707,6 +721,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-if="!isGenerating && isPresetDisplay"
       content="预设消息需要在智能体设置中编辑或删除"
       placement="top"
+      :show-after="500"
     >
       <button class="menu-btn menu-btn-disabled" disabled>
         <Trash2 :size="16" />

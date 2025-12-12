@@ -325,3 +325,46 @@ src/tools/llm-chat/
 | `useMessageProcessor.ts`   | 硬编码逻辑拆分为可注册的处理器 | `core/context-processors/post/`     |
 
 > **注意**：在迁移过程中，应确保所有对这些 composables 的引用都已更新为新的导入路径，避免遗留死代码。
+
+## 10. 施工进度核查 (截至 2025-12-12 05点39分)
+
+根据对 `src/tools/llm-chat/` 目录的文件结构分析，当前重构进度评估如下：
+
+- [x] **Phase 1: 基础架构** - **已完成**
+  - [x] `PipelineContext` 和 `ContextProcessor` 接口已定义 (`core/pipeline/types.ts`)。
+  - [x] `usePrimaryContextPipelineStore` 和 `usePostProcessingPipelineStore` 已创建。
+  - [x] `context-utils` 和 `context-processors` 目录结构已建立。
+
+- [x] **Phase 2: 核心算法提取** - **已完成**
+  - [x] `builder.ts`, `regex.ts`, `limiter.ts`, `injection.ts`, `macro.ts` 均已提取到 `core/context-utils/`。
+
+- [x] **Phase 3: 主上下文管道实现** - **已完成**
+  - [x] 四个核心主管道处理器 (`session-loader`, `regex-processor`, `token-limiter`, `injection-assembler`) 已创建。
+  - [x] `useChatExecutor` 已完全迁移，其核心函数 `executeRequest` 和 `getContextForPreview` 均已调用新的管道模型。
+  - [ ] **待办**: 旧的 `useChatContextBuilder.ts` 尚未作为废弃代码被移除。
+
+- [x] **Phase 4: 后处理管道实现** - **已完成**
+  - [x] `useMessageProcessor.ts` 的核心逻辑已全部迁移至 `core/context-processors/post/builtin-processors.ts`。
+  - [x] 已基于迁移的逻辑创建了符合规范的可注册处理器，并建立了注册机制。
+  - [x] `useChatExecutor` 已调用新的后处理管道，旧模块已被架空。
+  - [ ] **待办**: 旧的 `useMessageProcessor.ts` 尚未作为废弃代码被移除。
+
+- [x] **Phase 5: UI 配置界面** - **已完成**
+  - [x] 主管道配置界面 `PrimaryPipelineConfig.vue` 已创建。
+  - [x] Agent 级别的后处理配置界面 `PostProcessingPanel.vue` 符合设计要求。
+
+- [ ] **Phase 6: 插件集成** - **未开始**
+  - [ ] 尚未提供 `registerPrimaryProcessor` 和 `registerPostProcessor` 的插件 API。
+
+- [ ] **Phase 7: 清理废弃代码** - **未开始**
+  - [ ] `useChatContextBuilder.ts` 仍存在。
+  - [ ] `useMessageBuilder.ts` 仍存在。
+  - [ ] `useChatRegexResolver.ts` 仍存在。
+  - [ ] `useContextLimiter.ts` 仍存在。
+  - [ ] `useContextInjection.ts` 仍存在。
+  - [ ] `useMacroProcessor.ts` 仍存在。
+  - [ ] `useMessageProcessor.ts` 仍存在。
+
+### 总结
+
+项目重构进度约 **60%**。核心架构和模块已按设计建立，但**新旧系统的替换和废弃代码的清理**是当前的主要瓶颈。后续工作的重点应放在完成 `useChatExecutor` 的重构，并彻底移除清单中的待废弃模块。

@@ -1,21 +1,22 @@
-import type { Component } from 'vue';
-import type { ChatSettings } from '../../composables/useChatSettings';
+import type { Component } from "vue";
+import type { ChatSettings } from "../../composables/useChatSettings";
 
 /**
  * 定义单个设置项的 UI 组件类型
  */
 export type SettingComponent =
-  | 'ElSwitch'
-  | 'ElSlider'
-  | 'ElRadioGroup'
-  | 'ElSelect'
-  | 'ElInputNumber'
-  | 'ElInput'
-  | 'LlmModelSelector'
-  | 'SliderWithInput'
-  | 'MarkdownStyleEditor'
-  | 'ChatRegexEditor'
-  | 'ContextCompressionConfigPanel';
+  | "ElSwitch"
+  | "ElSlider"
+  | "ElRadioGroup"
+  | "ElSelect"
+  | "ElInputNumber"
+  | "ElInput"
+  | "LlmModelSelector"
+  | "SliderWithInput"
+  | "MarkdownStyleEditor"
+  | "ChatRegexEditor"
+  | "ContextCompressionConfigPanel"
+  | "PrimaryPipelineConfig";
 
 /**
  * 定义单个设置项的配置结构
@@ -35,7 +36,7 @@ export interface SettingItem {
    * 'block': 控件和提示在不同行 (例如 ElSlider)
    * @default 'block'
    */
-  layout?: 'inline' | 'block';
+  layout?: "inline" | "block";
   /**
    * 用于渲染表单组件的类型
    */

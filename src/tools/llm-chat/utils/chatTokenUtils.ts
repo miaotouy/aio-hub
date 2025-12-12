@@ -7,19 +7,22 @@ const logger = createModuleLogger("llm-chat/token-utils");
 /**
  * 重新计算单个节点的 token
  */
-export async function recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
+export async function recalculateNodeTokens(
+  session: ChatSession,
+  nodeId: string,
+): Promise<void> {
   const node = session.nodes[nodeId];
   if (!node || !node.content) return;
-  if (node.role !== 'user' && node.role !== 'assistant') return;
+  if (node.role !== "user" && node.role !== "assistant") return;
 
   let modelId: string | undefined;
-  if (node.role === 'assistant' && node.metadata?.modelId) {
+  if (node.role === "assistant" && node.metadata?.modelId) {
     modelId = node.metadata.modelId;
-  } else if (node.role === 'user') {
+  } else if (node.role === "user") {
     let currentId: string | null = session.activeLeafId;
     while (currentId !== null) {
       const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
-      if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
+      if (pathNode?.role === "assistant" && pathNode.metadata?.modelId) {
         modelId = pathNode.metadata.modelId;
         break;
       }
@@ -27,7 +30,7 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
     }
     if (!modelId) {
       for (const n of Object.values(session.nodes)) {
-        if (n.role === 'assistant' && n.metadata?.modelId) {
+        if (n.role === "assistant" && n.metadata?.modelId) {
           modelId = n.metadata.modelId;
           break;
         }
@@ -36,7 +39,11 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
   }
 
   if (!modelId) {
-    logger.warn('无法确定模型ID，跳过token重新计算', { sessionId: session.id, nodeId, role: node.role });
+    logger.warn("无法确定模型ID，跳过token重新计算", {
+      sessionId: session.id,
+      nodeId,
+      role: node.role,
+    });
     return;
   }
 
@@ -44,21 +51,28 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
     let fullContent = node.content;
     let mediaAttachments = node.attachments;
 
-    if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
+    if (
+      node.role === "user" &&
+      node.attachments &&
+      node.attachments.length > 0
+    ) {
       // 动态导入所需模块
-      const { useChatSettings } = await import('../composables/useChatSettings');
-      const { useMessageBuilder } = await import('../composables/useMessageBuilder');
-      
+      const { useChatSettings } = await import(
+        "../composables/useChatSettings"
+      );
+      const { prepareSimpleMessageForTokenCalc } = await import(
+        "../core/context-utils/builder"
+      );
+
       // 获取当前设置
       const { settings, loadSettings } = useChatSettings();
       await loadSettings(); // 确保设置已加载
 
       // 准备用于 Token 计算的消息内容
-      const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
       const result = await prepareSimpleMessageForTokenCalc(
         node.content,
         node.attachments,
-        settings.value
+        settings.value,
       );
 
       fullContent = result.combinedText;
@@ -68,13 +82,13 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
     const tokenResult = await tokenCalculatorService.calculateMessageTokens(
       fullContent,
       modelId,
-      mediaAttachments
+      mediaAttachments,
     );
 
     if (!node.metadata) node.metadata = {};
     node.metadata.contentTokens = tokenResult.count;
 
-    logger.debug('重新计算消息 token', {
+    logger.debug("重新计算消息 token", {
       sessionId: session.id,
       nodeId,
       role: node.role,
@@ -82,7 +96,7 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
       isEstimated: tokenResult.isEstimated,
     });
   } catch (error) {
-    logger.warn('重新计算 token 失败', {
+    logger.warn("重新计算 token 失败", {
       sessionId: session.id,
       nodeId,
       role: node.role,
@@ -95,7 +109,9 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
  * 补充会话中缺失的 token 元数据
  * @returns 返回是否有会话被更新
  */
-export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise<ChatSession[]> {
+export async function fillMissingTokenMetadata(
+  sessions: ChatSession[],
+): Promise<ChatSession[]> {
   let updatedCount = 0;
   const sessionsToSave: ChatSession[] = [];
 
@@ -105,13 +121,14 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
       if (!node.content || node.metadata?.contentTokens !== undefined) continue;
 
       let modelId: string | undefined;
-      if (node.role === 'assistant' && node.metadata?.modelId) {
+      if (node.role === "assistant" && node.metadata?.modelId) {
         modelId = node.metadata.modelId;
-      } else if (node.role === 'user') {
+      } else if (node.role === "user") {
         let currentId: string | null = session.activeLeafId;
         while (currentId !== null) {
-          const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
-          if (pathNode?.role === 'assistant' && pathNode.metadata?.modelId) {
+          const pathNode: ChatMessageNode | undefined =
+            session.nodes[currentId];
+          if (pathNode?.role === "assistant" && pathNode.metadata?.modelId) {
             modelId = pathNode.metadata.modelId;
             break;
           }
@@ -119,7 +136,7 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
         }
         if (!modelId) {
           for (const n of Object.values(session.nodes)) {
-            if (n.role === 'assistant' && n.metadata?.modelId) {
+            if (n.role === "assistant" && n.metadata?.modelId) {
               modelId = n.metadata.modelId;
               break;
             }
@@ -133,21 +150,28 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
         let fullContent = node.content;
         let mediaAttachments = node.attachments;
 
-        if (node.role === 'user' && node.attachments && node.attachments.length > 0) {
+        if (
+          node.role === "user" &&
+          node.attachments &&
+          node.attachments.length > 0
+        ) {
           // 动态导入所需模块
-          const { useChatSettings } = await import('../composables/useChatSettings');
-          const { useMessageBuilder } = await import('../composables/useMessageBuilder');
-          
+          const { useChatSettings } = await import(
+            "../composables/useChatSettings"
+          );
+          const { prepareSimpleMessageForTokenCalc } = await import(
+            "../core/context-utils/builder"
+          );
+
           // 获取当前设置
           const { settings, loadSettings } = useChatSettings();
           await loadSettings(); // 确保设置已加载
 
           // 准备用于 Token 计算的消息内容
-          const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
           const result = await prepareSimpleMessageForTokenCalc(
             node.content,
             node.attachments,
-            settings.value
+            settings.value,
           );
 
           fullContent = result.combinedText;
@@ -157,7 +181,7 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
         const tokenResult = await tokenCalculatorService.calculateMessageTokens(
           fullContent,
           modelId,
-          mediaAttachments
+          mediaAttachments,
         );
 
         if (!node.metadata) node.metadata = {};
@@ -165,14 +189,21 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
         updatedCount++;
         sessionUpdated = true;
       } catch (error) {
-        logger.warn('计算 token 失败', { sessionId: session.id, nodeId, error });
+        logger.warn("计算 token 失败", {
+          sessionId: session.id,
+          nodeId,
+          error,
+        });
       }
     }
     if (sessionUpdated) sessionsToSave.push(session);
   }
 
   if (sessionsToSave.length > 0) {
-    logger.info('补充 token 元数据完成', { totalUpdated: updatedCount, sessionsUpdated: sessionsToSave.length });
+    logger.info("补充 token 元数据完成", {
+      totalUpdated: updatedCount,
+      sessionsUpdated: sessionsToSave.length,
+    });
   }
 
   return sessionsToSave;

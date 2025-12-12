@@ -1,22 +1,24 @@
 /**
  * 上下文后处理规则
+ * 现在 `type` 字段为任意字符串，对应注册到 postProcessingPipelineStore 中的处理器 ID。
+ * 内置处理器 ID 示例：
+ * - 'post:merge-system-to-head': 合并所有 system 消息到列表头部
+ * - 'post:merge-consecutive-roles': 合并连续相同角色的消息
+ * - 'post:ensure-alternating-roles': 确保 user/assistant 角色交替
+ * - 'post:convert-system-to-user': 将 system 角色转换为 user 角色
  */
 export interface ContextPostProcessRule {
-  /** 规则类型 */
-  type:
-  | 'merge-system-to-head'      // 合并所有 system 消息到列表头部
-  | 'merge-consecutive-roles'   // 合并连续相同角色的消息
-  | 'ensure-alternating-roles'  // 确保 user/assistant 角色交替
-  | 'convert-system-to-user';   // 将 system 角色转换为 user 角色
+  /** 规则类型（对应处理器 ID） */
+  type: string;
 
   /** 是否启用此规则 */
   enabled: boolean;
 
   /**
-   * 合并消息时使用的分隔符
-   * @default "\n\n---\n\n"
+   * 其他任意配置项
+   * 允许处理器定义自己的配置参数，如 separator, userPlaceholder 等
    */
-  separator?: string;
+  [key: string]: any;
 }
 
 /**
@@ -24,18 +26,18 @@ export interface ContextPostProcessRule {
  */
 export interface GeminiSafetySetting {
   category:
-  | "HARM_CATEGORY_HARASSMENT"
-  | "HARM_CATEGORY_HATE_SPEECH"
-  | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
-  | "HARM_CATEGORY_DANGEROUS_CONTENT"
-  | "HARM_CATEGORY_CIVIC_INTEGRITY";
+    | "HARM_CATEGORY_HARASSMENT"
+    | "HARM_CATEGORY_HATE_SPEECH"
+    | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+    | "HARM_CATEGORY_DANGEROUS_CONTENT"
+    | "HARM_CATEGORY_CIVIC_INTEGRITY";
   threshold:
-  | "BLOCK_NONE"
-  | "BLOCK_ONLY_HIGH"
-  | "BLOCK_MEDIUM_AND_ABOVE"
-  | "BLOCK_LOW_AND_ABOVE"
-  | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
-  | "OFF";
+    | "BLOCK_NONE"
+    | "BLOCK_ONLY_HIGH"
+    | "BLOCK_MEDIUM_AND_ABOVE"
+    | "BLOCK_LOW_AND_ABOVE"
+    | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
+    | "OFF";
 }
 
 /**
@@ -107,7 +109,11 @@ export interface LlmParameters {
     };
   }>;
   /** 工具选择策略 */
-  toolChoice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+  toolChoice?:
+    | "none"
+    | "auto"
+    | "required"
+    | { type: "function"; function: { name: string } };
   /** 是否启用并行工具调用 */
   parallelToolCalls?: boolean;
 
@@ -117,27 +123,27 @@ export interface LlmParameters {
   /** 音频输出参数 */
   audio?: {
     voice:
-    | "alloy"
-    | "ash"
-    | "ballad"
-    | "coral"
-    | "echo"
-    | "fable"
-    | "nova"
-    | "onyx"
-    | "sage"
-    | "shimmer";
+      | "alloy"
+      | "ash"
+      | "ballad"
+      | "coral"
+      | "echo"
+      | "fable"
+      | "nova"
+      | "onyx"
+      | "sage"
+      | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 预测输出配置 */
   prediction?: {
     type: "content";
     content:
-    | string
-    | Array<{
-      type: "text";
-      text: string;
-    }>;
+      | string
+      | Array<{
+          type: "text";
+          text: string;
+        }>;
   };
 
   // ===== 特殊功能 =====
@@ -231,7 +237,7 @@ export interface ContextCompressionConfig {
   /** 是否自动触发压缩 */
   autoTrigger?: boolean;
   /** 触发模式：基于 Token 数量、消息条数或两者 */
-  triggerMode?: 'token' | 'count' | 'both';
+  triggerMode?: "token" | "count" | "both";
   /** Token 阈值 */
   tokenThreshold?: number;
   /** 消息条数阈值 */
@@ -243,7 +249,7 @@ export interface ContextCompressionConfig {
   /** 至少多少条历史才触发压缩 */
   minHistoryCount?: number;
   /** 摘要节点的角色 */
-  summaryRole?: 'system' | 'assistant' | 'user';
+  summaryRole?: "system" | "assistant" | "user";
   /** 生成摘要的模型（可选，默认使用当前模型） */
   summaryModel?: ModelIdentifier;
   /** 摘要提示词模板 */

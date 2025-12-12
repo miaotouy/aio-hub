@@ -13,6 +13,7 @@ import {
   Languages,
   Archive,
   FileText,
+  Network,
 } from "lucide-vue-next";
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
@@ -99,7 +100,12 @@ export const settingsConfig: SettingsSection[] = [
         id: "fontSize",
         label: "字体大小 ({{ localSettings.uiPreferences.fontSize }}px)",
         component: "ElSlider",
-        props: { min: 12, max: 20, step: 1, "format-tooltip": (val: number) => `${val}px` },
+        props: {
+          min: 12,
+          max: 20,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
         modelPath: "uiPreferences.fontSize",
         hint: "",
         keywords: "ui font size 字体",
@@ -115,7 +121,8 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "headerBackgroundOpacity",
-        label: "头部背景不透明度 ({{ (localSettings.uiPreferences.headerBackgroundOpacity * 100).toFixed(0) }}%)",
+        label:
+          "头部背景不透明度 ({{ (localSettings.uiPreferences.headerBackgroundOpacity * 100).toFixed(0) }}%)",
         component: "ElSlider",
         props: { min: 0, max: 1, step: 0.05 },
         modelPath: "uiPreferences.headerBackgroundOpacity",
@@ -124,9 +131,15 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "headerBlurIntensity",
-        label: "头部背景模糊 ({{ localSettings.uiPreferences.headerBlurIntensity }}px)",
+        label:
+          "头部背景模糊 ({{ localSettings.uiPreferences.headerBlurIntensity }}px)",
         component: "ElSlider",
-        props: { min: 0, max: 50, step: 1, "format-tooltip": (val: number) => `${val}px` },
+        props: {
+          min: 0,
+          max: 50,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
         modelPath: "uiPreferences.headerBlurIntensity",
         hint: "控制聊天区域顶部的背景模糊强度，独立于全局设置",
         keywords: "ui header blur 模糊",
@@ -180,7 +193,8 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "rendererThrottleMs",
-        label: "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
+        label:
+          "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
         component: "ElSlider",
         props: {
           min: 16,
@@ -212,9 +226,15 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "contentMaxWidth",
-        label: "内容最大宽度 ({{ localSettings.uiPreferences.contentMaxWidth }}px)",
+        label:
+          "内容最大宽度 ({{ localSettings.uiPreferences.contentMaxWidth }}px)",
         component: "ElSlider",
-        props: { min: 300, max: 2600, step: 50, "format-tooltip": (val: number) => `${val}px` },
+        props: {
+          min: 300,
+          max: 2600,
+          step: 50,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
         modelPath: "uiPreferences.contentMaxWidth",
         hint: "设置消息内容区域的最大宽度",
         keywords: "ui width max 宽度 最大",
@@ -311,6 +331,20 @@ export const settingsConfig: SettingsSection[] = [
     ],
   },
   {
+    title: "主上下文构建",
+    icon: Network,
+    items: [
+      {
+        id: "primaryPipelineConfig",
+        label: "主上下文管道配置",
+        component: "PrimaryPipelineConfig",
+        modelPath: "", // This component manages its own state via Pinia
+        hint: "管理用于构建核心请求上下文的处理器系列。",
+        keywords: "context pipeline primary processor 上下文 管道 处理器",
+      },
+    ],
+  },
+  {
     title: "翻译助手",
     icon: Languages,
     items: [
@@ -397,12 +431,12 @@ export const settingsConfig: SettingsSection[] = [
             h(
               ElButton,
               {
-                onClick: () => { }, // 在主组件处理重置
+                onClick: () => {}, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-prompt-btn", // 特定类名用于事件委托
                 title: "重置为默认提示词",
               },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
             ),
         },
       },
@@ -454,7 +488,11 @@ export const settingsConfig: SettingsSection[] = [
         id: "prompt",
         label: "命名提示词",
         component: "ElInput",
-        props: { type: "textarea", rows: 4, placeholder: "输入用于生成标题的提示词" },
+        props: {
+          type: "textarea",
+          rows: 4,
+          placeholder: "输入用于生成标题的提示词",
+        },
         modelPath: "topicNaming.prompt",
         hint: "使用 <code>{context}</code> 占位符来指定对话内容的位置。<br />例如：<code>请为以下对话生成标题：\\n\\n{context}</code><br />如不使用占位符，对话内容将自动追加到提示词末尾。",
         keywords: "topic naming prompt 话题 命名 提示词",
@@ -466,12 +504,12 @@ export const settingsConfig: SettingsSection[] = [
               ElButton,
               {
                 // 这将通过自定义事件在主组件中处理
-                onClick: () => { },
+                onClick: () => {},
                 size: "small",
                 class: "reset-prompt-btn",
                 title: "重置为默认提示词",
               },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
             ),
         },
       },
@@ -537,8 +575,17 @@ export const settingsConfig: SettingsSection[] = [
         component: "ElSelect",
         modelPath: "transcription.strategy",
         options: [
-          { label: "智能判断 (Smart)", value: "smart", description: "根据当前模型能力判断：模型支持该附件类型则直接发送，不支持则自动转写" },
-          { label: "总是转写 (Always)", value: "always", description: "无论模型是否支持，都强制转写所有支持的附件" },
+          {
+            label: "智能判断 (Smart)",
+            value: "smart",
+            description:
+              "根据当前模型能力判断：模型支持该附件类型则直接发送，不支持则自动转写",
+          },
+          {
+            label: "总是转写 (Always)",
+            value: "always",
+            description: "无论模型是否支持，都强制转写所有支持的附件",
+          },
         ],
         hint: "控制何时触发附件转写功能",
         keywords: "transcription strategy 策略 触发",
@@ -560,8 +607,18 @@ export const settingsConfig: SettingsSection[] = [
         component: "ElSelect",
         modelPath: "transcription.sendBehavior",
         options: [
-          { label: "等待转写完成再发送", value: "wait_before_send", description: "点击发送后，等待所有转写任务完成后再构建消息发送（消息在转写期间不进入历史）" },
-          { label: "先发送再等待 (推荐)", value: "send_and_wait", description: "点击发送后立即上屏，转写在后台进行，完成后自动更新消息并请求 AI 回复" },
+          {
+            label: "等待转写完成再发送",
+            value: "wait_before_send",
+            description:
+              "点击发送后，等待所有转写任务完成后再构建消息发送（消息在转写期间不进入历史）",
+          },
+          {
+            label: "先发送再等待 (推荐)",
+            value: "send_and_wait",
+            description:
+              "点击发送后立即上屏，转写在后台进行，完成后自动更新消息并请求 AI 回复",
+          },
         ],
         hint: "控制发送带有转写任务的消息时的交互行为",
         keywords: "transcription send behavior 发送 行为",
@@ -569,9 +626,15 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "transMaxConcurrentTasks",
-        label: "最大并发任务数 ({{ localSettings.transcription.maxConcurrentTasks }})",
+        label:
+          "最大并发任务数 ({{ localSettings.transcription.maxConcurrentTasks }})",
         component: "ElSlider",
-        props: { min: 1, max: 15, step: 1, "format-tooltip": (val: number) => `${val}个` },
+        props: {
+          min: 1,
+          max: 15,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}个`,
+        },
         modelPath: "transcription.maxConcurrentTasks",
         hint: "同时进行的转写任务数量，建议不要设置过高以免影响性能",
         keywords: "transcription concurrent task 并发 任务",
@@ -581,7 +644,12 @@ export const settingsConfig: SettingsSection[] = [
         id: "transMaxRetries",
         label: "最大重试次数 ({{ localSettings.transcription.maxRetries }})",
         component: "ElSlider",
-        props: { min: 0, max: 5, step: 1, "format-tooltip": (val: number) => `${val}次` },
+        props: {
+          min: 0,
+          max: 5,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}次`,
+        },
         modelPath: "transcription.maxRetries",
         hint: "转写失败时的自动重试次数",
         keywords: "transcription retry 重试",
@@ -589,13 +657,21 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "transTimeout",
-        label: "等待超时 ({{ (localSettings.transcription.timeout / 1000).toFixed(0) }}秒)",
+        label:
+          "等待超时 ({{ (localSettings.transcription.timeout / 1000).toFixed(0) }}秒)",
         component: "ElSlider",
-        props: { min: 30000, max: 300000, step: 10000, "format-tooltip": (val: number) => `${val / 1000}秒` },
+        props: {
+          min: 30000,
+          max: 300000,
+          step: 10000,
+          "format-tooltip": (val: number) => `${val / 1000}秒`,
+        },
         modelPath: "transcription.timeout",
         hint: "发送前等待转写完成的最大时间，超时后将发送原始附件",
         keywords: "transcription timeout 超时",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.sendBehavior === 'wait_before_send',
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.sendBehavior === "wait_before_send",
       },
       {
         id: "transVideoEnableCompression",
@@ -614,50 +690,76 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.ffmpegPath",
         hint: "配置本地 FFmpeg 可执行文件路径以支持大视频压缩。未配置时将尝试直接上传原始视频。",
         keywords: "transcription ffmpeg path video 视频 路径",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
         action: "selectFFmpegPath",
         slots: {
           append: () =>
             h(
               ElButton,
               {
-                onClick: () => { }, // 事件由主组件代理处理
+                onClick: () => {}, // 事件由主组件代理处理
                 title: "选择文件",
                 style: { padding: "8px" },
               },
-              () => h(ElIcon, null, () => h(FolderOpened))
+              () => h(ElIcon, null, () => h(FolderOpened)),
             ),
         },
       },
       {
         id: "transVideoMaxDirectSize",
-        label: "视频体积限制 ({{ localSettings.transcription.video.maxDirectSizeMB }}MB)",
+        label:
+          "视频体积限制 ({{ localSettings.transcription.video.maxDirectSizeMB }}MB)",
         component: "SliderWithInput",
-        props: { min: 1, max: 100, step: 1, "format-tooltip": (val: number) => `${val}MB` },
+        props: {
+          min: 1,
+          max: 100,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}MB`,
+        },
         modelPath: "transcription.video.maxDirectSizeMB",
         hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。",
         keywords: "transcription video size limit 视频 大小 阈值 限制",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
       },
       {
         id: "transVideoMaxFps",
-        label: "视频帧率限制 ({{ localSettings.transcription.video.maxFps }} FPS)",
+        label:
+          "视频帧率限制 ({{ localSettings.transcription.video.maxFps }} FPS)",
         component: "SliderWithInput",
-        props: { min: 1, max: 60, step: 1, "format-tooltip": (val: number) => `${val} FPS` },
+        props: {
+          min: 1,
+          max: 60,
+          step: 1,
+          "format-tooltip": (val: number) => `${val} FPS`,
+        },
         modelPath: "transcription.video.maxFps",
         hint: "限制视频的最大帧率。较低的帧率（如 5 FPS）可显著减小体积且通常不影响 AI 理解。",
         keywords: "transcription video fps frame rate 视频 帧率",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
       },
       {
         id: "transVideoMaxResolution",
-        label: "视频尺寸限制 ({{ localSettings.transcription.video.maxResolution }}p)",
+        label:
+          "视频尺寸限制 ({{ localSettings.transcription.video.maxResolution }}p)",
         component: "SliderWithInput",
-        props: { min: 360, max: 2160, step: 120, "format-tooltip": (val: number) => `${val}p` },
+        props: {
+          min: 360,
+          max: 2160,
+          step: 120,
+          "format-tooltip": (val: number) => `${val}p`,
+        },
         modelPath: "transcription.video.maxResolution",
         hint: "限制视频的最大短边尺寸（如 720p）。超过此尺寸的视频将被等比缩放。",
         keywords: "transcription video resolution size 视频 分辨率 尺寸",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
       },
       {
         id: "transEnableTypeSpecific",
@@ -682,30 +784,36 @@ export const settingsConfig: SettingsSection[] = [
         hint: "用于执行转写任务的多模态模型（推荐使用 gemini-flash-latest 或 GPT-4o）",
         keywords: "transcription model 转写 模型",
         visible: (settings) =>
-          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          !settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transCustomPrompt",
         label: "通用 Prompt",
         component: "ElInput",
-        props: { type: "textarea", rows: 4, placeholder: "输入自定义转写提示词" },
+        props: {
+          type: "textarea",
+          rows: 4,
+          placeholder: "输入自定义转写提示词",
+        },
         modelPath: "transcription.customPrompt",
         hint: "用于指导模型如何转写附件内容。",
         keywords: "transcription prompt 提示词",
         visible: (settings) =>
-          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          !settings.transcription.enableTypeSpecificConfig,
         action: "resetTranscriptionPrompt",
         slots: {
           append: () =>
             h(
               ElButton,
               {
-                onClick: () => { }, // 在主组件处理重置
+                onClick: () => {}, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-prompt-btn",
                 title: "重置为默认提示词",
               },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
             ),
         },
       },
@@ -718,7 +826,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription temperature 转写 温度",
         visible: (settings) =>
-          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          !settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transMaxTokens",
@@ -729,7 +838,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "转写结果的最大 token 数",
         keywords: "transcription max tokens 转写 上限",
         visible: (settings) =>
-          settings.transcription.enabled && !settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          !settings.transcription.enableTypeSpecificConfig,
       },
 
       // 3. 图片配置 (当 transEnableTypeSpecific 为 true 时显示)
@@ -744,7 +854,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "专门用于图片转写的模型",
         keywords: "transcription image model 图片 转写 模型",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transImagePrompt",
@@ -755,19 +866,20 @@ export const settingsConfig: SettingsSection[] = [
         hint: "用于指导模型如何转写图片内容。",
         keywords: "transcription image prompt 图片 提示词",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
         action: "resetTranscriptionImagePrompt",
         slots: {
           append: () =>
             h(
               ElButton,
               {
-                onClick: () => { }, // 在主组件处理重置
+                onClick: () => {}, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-image-prompt-btn",
                 title: "重置为默认提示词",
               },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
             ),
         },
       },
@@ -780,7 +892,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription image temperature 图片 转写 温度",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transImageMaxTokens",
@@ -791,7 +904,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "图片转写结果的最大 token 数",
         keywords: "transcription image max tokens 图片 转写 上限",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
 
       // 4. 音频配置 (当 transEnableTypeSpecific 为 true 时显示)
@@ -806,7 +920,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "专门用于音频转写的模型",
         keywords: "transcription audio model 音频 转写 模型",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transAudioPrompt",
@@ -817,19 +932,20 @@ export const settingsConfig: SettingsSection[] = [
         hint: "用于指导模型如何转写音频内容。",
         keywords: "transcription audio prompt 音频 提示词",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
         action: "resetTranscriptionAudioPrompt",
         slots: {
           append: () =>
             h(
               ElButton,
               {
-                onClick: () => { }, // 在主组件处理重置
+                onClick: () => {}, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-audio-prompt-btn",
                 title: "重置为默认提示词",
               },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
             ),
         },
       },
@@ -842,7 +958,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription audio temperature 音频 转写 温度",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transAudioMaxTokens",
@@ -853,7 +970,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "音频转写结果的最大 token 数",
         keywords: "transcription audio max tokens 音频 转写 上限",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
 
       // 5. 视频配置 (当 transEnableTypeSpecific 为 true 时显示)
@@ -868,7 +986,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "专门用于视频转写的模型（建议使用支持视频理解的多模态模型，如 gemini-flash-latest）",
         keywords: "transcription video model 视频 转写 模型",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transVideoPrompt",
@@ -879,18 +998,19 @@ export const settingsConfig: SettingsSection[] = [
         hint: "用于指导模型如何转写视频内容。",
         keywords: "transcription video prompt 视频 提示词",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
         action: "resetTranscriptionVideoPrompt",
         slots: {
           append: () =>
             h(
               ElButton,
               {
-                onClick: () => { }, // 事件由主组件代理处理
+                onClick: () => {}, // 事件由主组件代理处理
                 title: "重置为默认提示词",
                 style: { padding: "8px" },
               },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"]
+              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
             ),
         },
       },
@@ -903,7 +1023,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription video temperature 视频 转写 温度",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
       {
         id: "transVideoMaxTokens",
@@ -914,7 +1035,8 @@ export const settingsConfig: SettingsSection[] = [
         hint: "视频转写结果的最大 token 数",
         keywords: "transcription video max tokens 视频 转写 上限",
         visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
       },
     ],
   },
@@ -1034,7 +1156,8 @@ export const settingsConfig: SettingsSection[] = [
     items: [
       {
         id: "timeout",
-        label: "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
+        label:
+          "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
         component: "ElSlider",
         props: {
           min: 10000,
@@ -1048,7 +1171,8 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "maxRetries",
-        label: "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
+        label:
+          "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
         component: "ElSlider",
         props: {
           min: 0,

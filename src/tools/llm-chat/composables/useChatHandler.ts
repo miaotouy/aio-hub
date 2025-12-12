@@ -5,9 +5,8 @@
  * 重构说明：
  * - 本文件已重构为"指挥家"角色，不再直接实现具体逻辑
  * - 具体功能已拆分到专门的 Composable：
- *   - useChatAssetProcessor: 附件处理
- *   - useChatContextBuilder: 上下文构建
- *   - useChatResponseHandler: 响应处理
+ *   - useChatAssetProcessor: 附件处理 (已废弃，逻辑整合入 useChatExecutor)
+ *   - useChatResponseHandler: 响应处理 (已废弃，逻辑整合入 useChatExecutor)
  *   - useChatExecutor: 核心请求执行
  */
 
@@ -20,11 +19,11 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useChatExecutor } from "./useChatExecutor";
-import { useChatContextBuilder, type ContextPreviewData } from "./useChatContextBuilder";
 import { useContextCompressor } from "./useContextCompressor";
-import { useMessageProcessor } from "./useMessageProcessor";
-import { useMacroProcessor } from "./useMacroProcessor";
 import { filterParametersForModel } from "../config/parameter-config";
+import { MacroProcessor } from "../macro-engine/MacroProcessor";
+import { buildMacroContext, processMacros } from "../core/context-utils/macro";
+import type { ContextPreviewData } from "../types/context";
 import type { ModelIdentifier } from "../types";
 import { useTranscriptionManager } from "./useTranscriptionManager";
 import { useChatSettings } from "./useChatSettings";
@@ -40,9 +39,8 @@ export function useChatHandler() {
     processUserAttachments,
     calculateUserMessageTokens,
     saveUserProfileSnapshot,
+    getContextForPreview,
   } = useChatExecutor();
-  const { getLlmContextForPreview } = useChatContextBuilder();
-  const { processMacros } = useMacroProcessor();
   const { checkAndCompress } = useContextCompressor();
 
   /**
@@ -57,7 +55,7 @@ export function useChatHandler() {
     options?: {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
-    }
+    },
   ): Promise<void> => {
     // 尝试执行自动上下文压缩
     // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
@@ -101,7 +99,9 @@ export function useChatHandler() {
     if (options?.temporaryModel) {
       const { getProfileById, getSupportedParameters } = useLlmProfiles();
       const targetProfile = getProfileById(options.temporaryModel.profileId);
-      const targetModel = targetProfile?.models.find((m) => m.id === options.temporaryModel?.modelId);
+      const targetModel = targetProfile?.models.find(
+        (m) => m.id === options.temporaryModel?.modelId,
+      );
 
       if (targetProfile && targetModel) {
         agentConfig.modelId = options.temporaryModel.modelId;
@@ -112,7 +112,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities
+          targetModel.capabilities,
         );
         logger.info("使用临时指定的模型（参数已过滤）", {
           modelId: agentConfig.modelId,
@@ -128,11 +128,18 @@ export function useChatHandler() {
     }
 
     // 处理用户输入中的宏
-    const processedContent = await processMacros(content, {
+    const macroProcessor = new MacroProcessor();
+    const macroContext = buildMacroContext({
       session,
       agent: currentAgent ?? undefined,
       input: content,
+      userProfile: userProfileStore.globalProfile ?? undefined, // 传递 userProfile
     });
+    const processedContent = await processMacros(
+      macroProcessor,
+      content,
+      macroContext,
+    );
 
     logger.debug("用户消息宏处理", {
       originalLength: content.length,
@@ -144,7 +151,7 @@ export function useChatHandler() {
     const { userNode, assistantNode } = nodeManager.createMessagePair(
       session,
       processedContent,
-      session.activeLeafId
+      session.activeLeafId,
     );
 
     // 更新活跃叶节点
@@ -158,7 +165,12 @@ export function useChatHandler() {
 
     // 处理附件（如果有）
     if (options?.attachments && options.attachments.length > 0) {
-      await processUserAttachments(userNode, session, options.attachments, pathUserNode);
+      await processUserAttachments(
+        userNode,
+        session,
+        options.attachments,
+        pathUserNode,
+      );
 
       // [send_and_wait 模式]：在此处等待转写完成
       // 此时消息已上屏 (processUserAttachments 已更新 session.nodes)，用户可以看到附件
@@ -171,14 +183,16 @@ export function useChatHandler() {
       ) {
         const transcriptionManager = useTranscriptionManager();
         const transcriptionController = new AbortController();
-        
+
         // 注册到 abortControllers，以便用户点击停止时能取消等待
         abortControllers.set(assistantNode.id, transcriptionController);
         generatingNodes.add(assistantNode.id);
 
         try {
-          logger.info("⏳ [send_and_wait] 等待附件转写...", { nodeId: assistantNode.id });
-          
+          logger.info("⏳ [send_and_wait] 等待附件转写...", {
+            nodeId: assistantNode.id,
+          });
+
           // 更新助手节点状态提示（可选，如果 UI 支持显示 status）
           // session.nodes[assistantNode.id].metadata = { ...session.nodes[assistantNode.id].metadata, status: 'transcribing' };
 
@@ -186,7 +200,7 @@ export function useChatHandler() {
             transcriptionManager.ensureTranscriptions(
               options.attachments,
               agentConfig.modelId,
-              agentConfig.profileId
+              agentConfig.profileId,
             ),
             new Promise((_, reject) => {
               transcriptionController.signal.addEventListener("abort", () => {
@@ -214,15 +228,24 @@ export function useChatHandler() {
     }
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）
-    let effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string; content: string } | null =
-      null;
+    let effectiveUserProfile: {
+      id: string;
+      name: string;
+      displayName?: string;
+      icon?: string;
+      content: string;
+    } | null = null;
     if (currentAgent?.userProfileId) {
-      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
+      const profile = userProfileStore.getProfileById(
+        currentAgent.userProfileId,
+      );
       if (profile) {
         effectiveUserProfile = profile;
       }
     } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
+      const profile = userProfileStore.getProfileById(
+        userProfileStore.globalProfileId,
+      );
       if (profile) {
         effectiveUserProfile = profile;
       }
@@ -237,7 +260,7 @@ export function useChatHandler() {
       session,
       content,
       agentConfig.modelId,
-      options?.attachments
+      options?.attachments,
     );
     // 获取模型信息用于元数据（提前设置，确保即时显示）
     const { getProfileById } = useLlmProfiles();
@@ -285,7 +308,7 @@ export function useChatHandler() {
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string }
+    options?: { modelId?: string; profileId?: string },
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -293,7 +316,10 @@ export function useChatHandler() {
     // 定位目标节点
     const targetNode = session.nodes[nodeId];
     if (!targetNode) {
-      logger.warn("重新生成失败：目标节点不存在", { sessionId: session.id, nodeId });
+      logger.warn("重新生成失败：目标节点不存在", {
+        sessionId: session.id,
+        nodeId,
+      });
       return;
     }
 
@@ -322,7 +348,9 @@ export function useChatHandler() {
     if (options?.modelId && options?.profileId) {
       const { getProfileById, getSupportedParameters } = useLlmProfiles();
       const targetProfile = getProfileById(options.profileId);
-      const targetModel = targetProfile?.models.find(m => m.id === options.modelId);
+      const targetModel = targetProfile?.models.find(
+        (m) => m.id === options.modelId,
+      );
 
       if (targetProfile && targetModel) {
         agentConfig.modelId = options.modelId;
@@ -333,7 +361,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities
+          targetModel.capabilities,
         );
 
         logger.info("使用指定的模型进行重试（参数已过滤）", {
@@ -412,39 +440,9 @@ export function useChatHandler() {
     });
   };
 
-  /**
-   * 获取指定节点的上下文预览数据（用于上下文分析器）
-   * @param session 当前会话
-   * @param targetNodeId 目标节点 ID
-   * @param agentId 要使用的 Agent ID (可选)
-   * @returns 详细的上下文分析数据，如果无法获取则返回 null
-   */
-  const getContextPreview = async (
-    session: ChatSession,
-    targetNodeId: string,
-    agentId?: string,
-    parameterOverrides?: any
-  ): Promise<ContextPreviewData | null> => {
-    const agentStore = useAgentStore();
-    const nodeManager = useNodeManager();
-    const { getProfileById } = useLlmProfiles();
-    const { applyProcessingPipeline } = useMessageProcessor();
-
-    return getLlmContextForPreview(
-      session,
-      targetNodeId,
-      agentStore,
-      nodeManager,
-      getProfileById,
-      applyProcessingPipeline,
-      agentId,
-      parameterOverrides
-    );
-  };
-
   return {
     sendMessage,
     regenerateFromNode,
-    getLlmContextForPreview: getContextPreview,
+    getLlmContextForPreview: getContextForPreview,
   };
 }

@@ -2,15 +2,14 @@
  * 用户档案管理 Store
  */
 
-import { defineStore } from 'pinia';
-import { useUserProfileStorage } from './composables/useUserProfileStorage';
-import { useChatRegexResolver } from './composables/useChatRegexResolver';
-import { type UserProfile, createDefaultUserProfileConfig } from './types';
-import { createModuleLogger } from '@utils/logger';
-import { createModuleErrorHandler } from '@utils/errorHandler';
+import { defineStore } from "pinia";
+import { useUserProfileStorage } from "./composables/useUserProfileStorage";
+import { type UserProfile, createDefaultUserProfileConfig } from "./types";
+import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 
-const logger = createModuleLogger('llm-chat/userProfileStore');
-const errorHandler = createModuleErrorHandler('llm-chat/userProfileStore');
+const logger = createModuleLogger("llm-chat/userProfileStore");
+const errorHandler = createModuleErrorHandler("llm-chat/userProfileStore");
 
 interface UserProfileStoreState {
   /** 所有用户档案列表 */
@@ -19,7 +18,7 @@ interface UserProfileStoreState {
   globalProfileId: string | null;
 }
 
-export const useUserProfileStore = defineStore('llmChatUserProfile', {
+export const useUserProfileStore = defineStore("llmChatUserProfile", {
   state: (): UserProfileStoreState => ({
     profiles: [],
     globalProfileId: null,
@@ -29,9 +28,11 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
     /**
      * 根据 ID 获取用户档案
      */
-    getProfileById: (state) => (id: string): UserProfile | undefined => {
-      return state.profiles.find(profile => profile.id === id);
-    },
+    getProfileById:
+      (state) =>
+      (id: string): UserProfile | undefined => {
+        return state.profiles.find((profile) => profile.id === id);
+      },
 
     /**
      * 按最后使用时间排序的档案列表
@@ -49,14 +50,18 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
      */
     globalProfile: (state): UserProfile | null => {
       if (!state.globalProfileId) return null;
-      return state.profiles.find(profile => profile.id === state.globalProfileId) || null;
+      return (
+        state.profiles.find(
+          (profile) => profile.id === state.globalProfileId,
+        ) || null
+      );
     },
 
     /**
      * 获取所有已启用的档案（按最后使用时间排序）
      */
     enabledProfiles(): UserProfile[] {
-      return this.sortedProfiles.filter(p => p.enabled !== false);
+      return this.sortedProfiles.filter((p) => p.enabled !== false);
     },
   },
 
@@ -70,10 +75,10 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       options?: {
         displayName?: string;
         icon?: string;
-        richTextStyleOptions?: import('@/tools/rich-text-renderer/types').RichTextRendererStyleOptions;
+        richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
         richTextStyleBehavior?: "follow_agent" | "custom";
-        regexConfig?: import('./types').ChatRegexConfig;
-      }
+        regexConfig?: import("./types").ChatRegexConfig;
+      },
     ): string {
       const profileId = `user-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
@@ -88,15 +93,17 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
         // 使用传入的 options 覆盖默认值（如果存在）
         displayName: options?.displayName ?? defaults.displayName,
         icon: options?.icon ?? defaults.icon,
-        richTextStyleOptions: options?.richTextStyleOptions ?? defaults.richTextStyleOptions,
-        richTextStyleBehavior: options?.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
+        richTextStyleOptions:
+          options?.richTextStyleOptions ?? defaults.richTextStyleOptions,
+        richTextStyleBehavior:
+          options?.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
         regexConfig: options?.regexConfig ?? defaults.regexConfig,
       };
 
       this.profiles.push(profile);
       this.persistProfile(profileId); // 使用单个档案保存
 
-      logger.info('创建新用户档案', {
+      logger.info("创建新用户档案", {
         profileId,
         name,
       });
@@ -106,33 +113,29 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
     /**
      * 更新用户档案
      */
-    updateProfile(profileId: string, updates: Partial<Omit<UserProfile, 'id' | 'createdAt'>>): void {
-      const profile = this.profiles.find(p => p.id === profileId);
+    updateProfile(
+      profileId: string,
+      updates: Partial<Omit<UserProfile, "id" | "createdAt">>,
+    ): void {
+      const profile = this.profiles.find((p) => p.id === profileId);
       if (!profile) {
-        logger.warn('更新用户档案失败：档案不存在', { profileId });
+        logger.warn("更新用户档案失败：档案不存在", { profileId });
         return;
-      }
-
-      // 检查是否更新了正则配置，如果是则清除相关缓存
-      if (updates.regexConfig !== undefined) {
-        const regexResolver = useChatRegexResolver();
-        regexResolver.clearCacheForUser(profileId);
-        logger.debug('UserProfile 正则配置已更新，清除相关缓存', { profileId });
       }
 
       Object.assign(profile, updates);
 
       this.persistProfile(profileId);
-      logger.info('更新用户档案成功', { profileId, updates });
+      logger.info("更新用户档案成功", { profileId, updates });
     },
 
     /**
      * 删除用户档案
      */
     deleteProfile(profileId: string): void {
-      const index = this.profiles.findIndex(p => p.id === profileId);
+      const index = this.profiles.findIndex((p) => p.id === profileId);
       if (index === -1) {
-        logger.warn('删除用户档案失败：档案不存在', { profileId });
+        logger.warn("删除用户档案失败：档案不存在", { profileId });
         return;
       }
 
@@ -142,10 +145,10 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       const { deleteProfile } = useUserProfileStorage();
       deleteProfile(profileId).catch((error: unknown) =>
         errorHandler.handle(error as Error, {
-          userMessage: '删除用户档案文件失败',
+          userMessage: "删除用户档案文件失败",
           showToUser: false,
           context: { profileId },
-        })
+        }),
       );
 
       this.profiles.splice(index, 1);
@@ -156,29 +159,29 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
         this.persistSettings();
       }
 
-      logger.info('用户档案已删除', { profileId, name: profile.name });
+      logger.info("用户档案已删除", { profileId, name: profile.name });
     },
 
     /**
      * 设置全局默认档案
      */
     selectGlobalProfile(profileId: string | null): void {
-      if (profileId && !this.profiles.find(p => p.id === profileId)) {
-        logger.warn('设置全局档案失败：档案不存在', { profileId });
+      if (profileId && !this.profiles.find((p) => p.id === profileId)) {
+        logger.warn("设置全局档案失败：档案不存在", { profileId });
         return;
       }
 
       this.globalProfileId = profileId;
       this.persistSettings();
 
-      logger.info('设置全局用户档案', { profileId });
+      logger.info("设置全局用户档案", { profileId });
     },
 
     /**
      * 更新档案的最后使用时间
      */
     updateLastUsed(profileId: string): void {
-      const profile = this.profiles.find(p => p.id === profileId);
+      const profile = this.profiles.find((p) => p.id === profileId);
       if (profile) {
         profile.lastUsedAt = new Date().toISOString();
         this.persistProfile(profileId);
@@ -189,16 +192,16 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
      * 切换档案启用状态
      */
     toggleProfileEnabled(profileId: string): void {
-      const profile = this.profiles.find(p => p.id === profileId);
+      const profile = this.profiles.find((p) => p.id === profileId);
       if (!profile) {
-        logger.warn('切换档案启用状态失败：档案不存在', { profileId });
+        logger.warn("切换档案启用状态失败：档案不存在", { profileId });
         return;
       }
 
       profile.enabled = !profile.enabled;
       this.persistProfile(profileId);
 
-      logger.info('切换用户档案启用状态', {
+      logger.info("切换用户档案启用状态", {
         profileId,
         enabled: profile.enabled,
       });
@@ -211,10 +214,10 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
       const { saveProfiles } = useUserProfileStorage();
       saveProfiles(this.profiles).catch((error: unknown) =>
         errorHandler.handle(error as Error, {
-          userMessage: '持久化用户档案失败',
+          userMessage: "持久化用户档案失败",
           showToUser: false,
           context: { profileCount: this.profiles.length },
-        })
+        }),
       );
     },
 
@@ -222,19 +225,19 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
      * 持久化单个档案到文件（推荐使用）
      */
     persistProfile(profileId: string): void {
-      const profile = this.profiles.find(p => p.id === profileId);
+      const profile = this.profiles.find((p) => p.id === profileId);
       if (!profile) {
-        logger.warn('档案不存在，无法持久化', { profileId });
+        logger.warn("档案不存在，无法持久化", { profileId });
         return;
       }
 
       const { persistProfile } = useUserProfileStorage();
       persistProfile(profile).catch((error: unknown) =>
         errorHandler.handle(error as Error, {
-          userMessage: '持久化单个用户档案失败',
+          userMessage: "持久化单个用户档案失败",
           showToUser: false,
           context: { profileId },
-        })
+        }),
       );
     },
 
@@ -243,11 +246,12 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
      */
     persistSettings(): void {
       const { saveSettings } = useUserProfileStorage();
-      saveSettings({ globalProfileId: this.globalProfileId }).catch((error: unknown) =>
-        errorHandler.handle(error as Error, {
-          userMessage: '持久化用户档案设置失败',
-          showToUser: false,
-        })
+      saveSettings({ globalProfileId: this.globalProfileId }).catch(
+        (error: unknown) =>
+          errorHandler.handle(error as Error, {
+            userMessage: "持久化用户档案设置失败",
+            showToUser: false,
+          }),
       );
     },
 
@@ -262,17 +266,24 @@ export const useUserProfileStore = defineStore('llmChatUserProfile', {
         const profiles = await loadProfiles();
         if (profiles.length > 0) {
           this.profiles = profiles;
-          logger.info('加载用户档案成功', { profileCount: this.profiles.length });
+          logger.info("加载用户档案成功", {
+            profileCount: this.profiles.length,
+          });
         }
 
         // 加载设置
         const settings = await loadSettings();
         if (settings.globalProfileId) {
           this.globalProfileId = settings.globalProfileId;
-          logger.info('加载用户档案设置成功', { globalProfileId: settings.globalProfileId });
+          logger.info("加载用户档案设置成功", {
+            globalProfileId: settings.globalProfileId,
+          });
         }
       } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: '加载用户档案失败', showToUser: false });
+        errorHandler.handle(error as Error, {
+          userMessage: "加载用户档案失败",
+          showToUser: false,
+        });
         this.profiles = [];
         this.globalProfileId = null;
       }

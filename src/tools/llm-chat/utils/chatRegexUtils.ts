@@ -5,15 +5,16 @@
  * @see design/chat-regex-pipeline.md
  */
 
-import { escapeRegExp } from 'lodash-es';
+import { escapeRegExp } from "lodash-es";
 import type {
   ChatRegexConfig,
   ChatRegexPreset,
   ChatRegexRule,
   MessageRole,
-} from '../types/chatRegex';
-import type { MacroContext } from '../macro-engine/MacroContext';
-import { useMacroProcessor } from '../composables/useMacroProcessor';
+} from "../types/chatRegex";
+import type { MacroContext } from "../macro-engine/MacroContext";
+import { MacroProcessor } from "../macro-engine/MacroProcessor";
+import { processMacros } from "../core/context-utils/macro";
 
 // =====================
 // 规则收集与过滤
@@ -28,7 +29,7 @@ import { useMacroProcessor } from '../composables/useMacroProcessor';
  * @returns 排序后的规则列表
  */
 export function collectRulesForPipeline(
-  stage: 'render' | 'request',
+  stage: "render" | "request",
   ...configs: (ChatRegexConfig | undefined)[]
 ): ChatRegexRule[] {
   const allRules: ChatRegexRule[] = [];
@@ -43,7 +44,7 @@ export function collectRulesForPipeline(
     for (const preset of enabledPresets) {
       // 过滤出启用的、且适用于当前阶段的规则
       const applicableRules = preset.rules.filter(
-        (rule) => rule.enabled && rule.applyTo[stage]
+        (rule) => rule.enabled && rule.applyTo[stage],
       );
       allRules.push(...applicableRules);
     }
@@ -62,7 +63,7 @@ export function collectRulesForPipeline(
  * @returns 排序后的规则列表
  */
 export function resolveRawRules(
-  stage: 'render' | 'request',
+  stage: "render" | "request",
   ...configs: (ChatRegexConfig | undefined)[]
 ): ChatRegexRule[] {
   return collectRulesForPipeline(stage, ...configs);
@@ -75,7 +76,10 @@ export function resolveRawRules(
  * @param role - 消息角色
  * @returns 过滤后的规则列表
  */
-export function filterRulesByRole(rules: ChatRegexRule[], role: MessageRole): ChatRegexRule[] {
+export function filterRulesByRole(
+  rules: ChatRegexRule[],
+  role: MessageRole,
+): ChatRegexRule[] {
   return rules.filter((rule) => rule.targetRoles.includes(role));
 }
 
@@ -86,7 +90,10 @@ export function filterRulesByRole(rules: ChatRegexRule[], role: MessageRole): Ch
  * @param depth - 消息深度 (0=最新)
  * @returns 过滤后的规则列表
  */
-export function filterRulesByDepth(rules: ChatRegexRule[], depth: number): ChatRegexRule[] {
+export function filterRulesByDepth(
+  rules: ChatRegexRule[],
+  depth: number,
+): ChatRegexRule[] {
   return rules.filter((rule) => {
     if (!rule.depthRange) return true;
     const { min, max } = rule.depthRange;
@@ -107,7 +114,7 @@ export function filterRulesByDepth(rules: ChatRegexRule[], depth: number): ChatR
  * @returns 过滤后的规则列表
  */
 export function resolveRulesForMessage(
-  stage: 'render' | 'request',
+  stage: "render" | "request",
   role: MessageRole,
   messageDepth: number,
   ...configs: (ChatRegexConfig | undefined)[]
@@ -135,42 +142,41 @@ export function resolveRulesForMessage(
  */
 export async function processRulesWithMacros(
   rules: ChatRegexRule[],
-  macroContext: MacroContext
+  macroContext: MacroContext,
 ): Promise<ChatRegexRule[]> {
-  // useMacroProcessor 可以在 setup 外调用，因为它只依赖 pinia
-  const { processor } = useMacroProcessor();
+  const processor = new MacroProcessor();
   const processedRules: ChatRegexRule[] = [];
 
   for (const rule of rules) {
     // 创建副本以避免修改 Pinia store 中的原始状态
     const newRule = JSON.parse(JSON.stringify(rule));
 
-    if (newRule.substitutionMode && newRule.substitutionMode !== 'NONE') {
+    if (newRule.substitutionMode && newRule.substitutionMode !== "NONE") {
       const transform =
-        newRule.substitutionMode === 'ESCAPED'
+        newRule.substitutionMode === "ESCAPED"
           ? (value: unknown) => escapeRegExp(String(value))
           : undefined;
 
       // 处理 regex 字段
-      newRule.regex = (
-        await processor.process(newRule.regex, macroContext, {
+      newRule.regex = await processMacros(
+        processor,
+        newRule.regex,
+        macroContext,
+        {
           valueTransformer: transform,
           silent: true, // 静默处理，避免在循环中刷屏
-        })
-      ).output;
+        },
+      );
 
       // 处理 trimStrings 字段
       if (newRule.trimStrings) {
         newRule.trimStrings = await Promise.all(
-          newRule.trimStrings.map(
-            async (str: string) =>
-              (
-                await processor.process(str, macroContext, {
-                  valueTransformer: transform, // 同样对 trimStrings 中的宏应用转义
-                  silent: true, // 静默处理
-                })
-              ).output
-          )
+          newRule.trimStrings.map((str: string) =>
+            processMacros(processor, str, macroContext, {
+              valueTransformer: transform, // 同样对 trimStrings 中的宏应用转义
+              silent: true, // 静默处理
+            }),
+          ),
         );
       }
     }
@@ -191,35 +197,43 @@ export async function processRulesWithMacros(
  * @param rules - 要应用的规则列表
  * @returns 处理后的内容
  */
-export function applyRegexRules(content: string, rules: ChatRegexRule[]): string {
+export function applyRegexRules(
+  content: string,
+  rules: ChatRegexRule[],
+): string {
   let result = content;
 
   for (const rule of rules) {
     try {
-      const flags = rule.flags ?? 'gm';
+      const flags = rule.flags ?? "gm";
       const regex = new RegExp(rule.regex, flags);
-      let replacement = rule.replacement;
+      const replacement = rule.replacement;
 
       // 处理 trimStrings (后处理捕获组)
       if (rule.trimStrings && rule.trimStrings.length > 0) {
         result = result.replace(regex, (...args) => {
           // args: [match, p1, p2, ..., offset, string, groups]
-          // 获取捕获组
-          const match = args[0];
+          const match = args[0] as string; // 获取完整的匹配字符串
           const groups = args.slice(1, -2); // 排除 offset 和 string
 
           // 对每个捕获组应用 trimStrings
           let processedReplacement = replacement;
           groups.forEach((group, index) => {
-            if (typeof group === 'string') {
+            if (typeof group === "string") {
               let trimmedGroup = group;
               for (const trimStr of rule.trimStrings!) {
-                trimmedGroup = trimmedGroup.split(trimStr).join('');
+                trimmedGroup = trimmedGroup.split(trimStr).join("");
               }
               // 替换 $1, $2, ... 或 ${1}, ${2}, ...
               processedReplacement = processedReplacement
-                .replace(new RegExp(`\\$${index + 1}(?!\\d)`, 'g'), trimmedGroup)
-                .replace(new RegExp(`\\$\\{${index + 1}\\}`, 'g'), trimmedGroup);
+                .replace(
+                  new RegExp(`\\$${index + 1}(?!\\d)`, "g"),
+                  trimmedGroup,
+                )
+                .replace(
+                  new RegExp(`\\$\\{${index + 1}\\}`, "g"),
+                  trimmedGroup,
+                );
             }
           });
 
@@ -234,7 +248,10 @@ export function applyRegexRules(content: string, rules: ChatRegexRule[]): string
       }
     } catch (error) {
       // 规则执行失败，跳过此规则
-      console.warn(`[ChatRegex] 规则 "${rule.name || rule.id}" 执行失败:`, error);
+      console.warn(
+        `[ChatRegex] 规则 "${rule.name || rule.id}" 执行失败:`,
+        error,
+      );
     }
   }
 
@@ -272,29 +289,32 @@ export interface SillyTavernRegexScript {
  * @param regexString - ST 的 findRegex 字符串
  * @returns 解析后的模式和标志
  */
-function parseRegexString(regexString: string): { pattern: string; flags: string } {
+function parseRegexString(regexString: string): {
+  pattern: string;
+  flags: string;
+} {
   if (!regexString) {
-    return { pattern: '', flags: 'gm' };
+    return { pattern: "", flags: "gm" };
   }
 
   // 尝试匹配 /pattern/flags 格式
   const regexMatch = regexString.match(/^\/(.*)\/([gimsuy]*)$/s);
   if (regexMatch) {
-    const pattern = regexMatch[1];
-    let flags = regexMatch[2] || '';
-    // 确保有 g 和 m 标志（如果原本没有的话，保持原样）
-    // ST 的行为是保留用户设置的标志
-    return { pattern, flags: flags || 'gm' };
+    const pattern = regexMatch[1]; // 获取捕获组 1
+    const flags = regexMatch[2] || ""; // 获取捕获组 2
+    return { pattern, flags: flags || "gm" };
   }
 
   // 如果不是 /pattern/flags 格式，当作纯模式处理
-  return { pattern: regexString, flags: 'gm' };
+  return { pattern: regexString, flags: "gm" };
 }
 
 /**
  * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexRule
  */
-export function convertSillyTavernScriptToRule(st: SillyTavernRegexScript): ChatRegexRule | null {
+export function convertSillyTavernScriptToRule(
+  st: SillyTavernRegexScript,
+): ChatRegexRule | null {
   if (!st.findRegex) return null;
 
   const applyTo = convertPlacementToApplyTo(st);
@@ -313,9 +333,9 @@ export function convertSillyTavernScriptToRule(st: SillyTavernRegexScript): Chat
   return {
     id: crypto.randomUUID(),
     enabled: !st.disabled, // 规则层级的开关
-    name: st.scriptName || '未命名规则',
+    name: st.scriptName || "未命名规则",
     regex: pattern,
-    replacement: st.replaceString || '',
+    replacement: st.replaceString || "",
     flags: flags,
     applyTo: applyTo,
     targetRoles: targetRoles,
@@ -327,16 +347,18 @@ export function convertSillyTavernScriptToRule(st: SillyTavernRegexScript): Chat
 }
 
 /**
- * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexPreset
+ * 将 SilyTavern 的 RegexScript 转换为本系统的 ChatRegexPreset
  */
-export function convertFromSillyTavern(st: SillyTavernRegexScript): ChatRegexPreset {
+export function convertFromSillyTavern(
+  st: SillyTavernRegexScript,
+): ChatRegexPreset {
   const rule = convertSillyTavernScriptToRule(st);
   const rules = rule ? [rule] : [];
 
   // 构建预设对象
   return {
     id: st.id || crypto.randomUUID(),
-    name: st.scriptName || '未命名预设',
+    name: st.scriptName || "未命名预设",
     enabled: !st.disabled,
     rules: rules,
     createdAt: Date.now(),
@@ -348,7 +370,10 @@ export function convertFromSillyTavern(st: SillyTavernRegexScript): ChatRegexPre
 /**
  * 将 SillyTavern 的 RegexScript 数组合并转换为单个 ChatRegexPreset
  */
-export function convertSillyTavernArrayToPreset(scripts: SillyTavernRegexScript[], presetName?: string): ChatRegexPreset {
+export function convertSillyTavernArrayToPreset(
+  scripts: SillyTavernRegexScript[],
+  presetName?: string,
+): ChatRegexPreset {
   const rules: ChatRegexRule[] = [];
 
   scripts.forEach((script, index) => {
@@ -364,7 +389,8 @@ export function convertSillyTavernArrayToPreset(scripts: SillyTavernRegexScript[
 
   return {
     id: crypto.randomUUID(),
-    name: presetName || `SillyTavern 导入组 (${new Date().toLocaleDateString()})`,
+    name:
+      presetName || `SillyTavern 导入组 (${new Date().toLocaleDateString()})`,
     enabled: true,
     rules: rules,
     createdAt: Date.now(),
@@ -377,14 +403,16 @@ export function convertSillyTavernArrayToPreset(scripts: SillyTavernRegexScript[
  * 转换 SillyTavern 的 substituteRegex 枚举值
  * @see SillyTavern: public/scripts/extensions/regex/engine.js
  */
-function convertSubstituteRegex(value: number | undefined): 'NONE' | 'RAW' | 'ESCAPED' {
+function convertSubstituteRegex(
+  value: number | undefined,
+): "NONE" | "RAW" | "ESCAPED" {
   switch (value) {
     case 1:
-      return 'RAW';
+      return "RAW";
     case 2:
-      return 'ESCAPED';
+      return "ESCAPED";
     default:
-      return 'NONE';
+      return "NONE";
   }
 }
 
@@ -421,29 +449,31 @@ function convertPlacementToApplyTo(script: SillyTavernRegexScript): {
  * - WORLD_INFO = 5 → system (暂未实现世界信息，目前映射到系统消息)
  * - REASONING = 6 → assistant (推理内容属于 AI 输出)
  */
-function convertPlacementToTargetRoles(script: SillyTavernRegexScript): MessageRole[] {
+function convertPlacementToTargetRoles(
+  script: SillyTavernRegexScript,
+): MessageRole[] {
   if (!Array.isArray(script.placement) || script.placement.length === 0) {
     // 如果没有 placement，默认应用于所有角色
-    return ['system', 'user', 'assistant'];
+    return ["system", "user", "assistant"];
   }
 
   const roles = new Set<MessageRole>();
 
   // MD_DISPLAY (0) - 已废弃，但为了兼容旧数据，映射到所有角色
   if (script.placement.includes(0)) {
-    roles.add('system');
-    roles.add('user');
-    roles.add('assistant');
+    roles.add("system");
+    roles.add("user");
+    roles.add("assistant");
   }
 
   // USER_INPUT (1) → user
   if (script.placement.includes(1)) {
-    roles.add('user');
+    roles.add("user");
   }
 
   // AI_OUTPUT (2) → assistant
   if (script.placement.includes(2)) {
-    roles.add('assistant');
+    roles.add("assistant");
   }
 
   // SLASH_COMMAND (3) - 忽略，我们不支持斜杠命令
@@ -451,18 +481,18 @@ function convertPlacementToTargetRoles(script: SillyTavernRegexScript): MessageR
   // WORLD_INFO (5) → system
   // 世界信息在 ST 中通常注入到上下文，映射到 system 角色
   if (script.placement.includes(5)) {
-    roles.add('system');
+    roles.add("system");
   }
 
   // REASONING (6) → assistant
   // 推理内容属于 AI 的思考过程，映射到 assistant
   if (script.placement.includes(6)) {
-    roles.add('assistant');
+    roles.add("assistant");
   }
 
   // 如果没有匹配到任何已知角色，回退到全部
   if (roles.size === 0) {
-    return ['system', 'user', 'assistant'];
+    return ["system", "user", "assistant"];
   }
 
   return Array.from(roles);
@@ -472,6 +502,8 @@ function convertPlacementToTargetRoles(script: SillyTavernRegexScript): MessageR
  * 批量导入 SillyTavern 正则脚本 (旧版行为：每个脚本转为一个预设)
  * @deprecated 建议使用 convertSillyTavernArrayToPreset 将其合并为一个预设
  */
-export function convertMultipleFromSillyTavern(scripts: SillyTavernRegexScript[]): ChatRegexPreset[] {
+export function convertMultipleFromSillyTavern(
+  scripts: SillyTavernRegexScript[],
+): ChatRegexPreset[] {
   return scripts.map(convertFromSillyTavern);
 }

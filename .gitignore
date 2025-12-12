@@ -33,6 +33,8 @@ Cargo.lock
 
 过时文档
 
+.VSCodeCounter
+
 # Plugins (单独仓库管理)
 plugins/*
 !plugins/README.md

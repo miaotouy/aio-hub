@@ -368,18 +368,11 @@ graph TD
 
 ```mermaid
 sequenceDiagram
-    participant UI (MessageInput.vue)
-    participant InputMgr (useChatInputManager)
-    participant Handler (useChatHandler)
-    participant Executor (useChatExecutor)
-    participant ResHandler (useChatResponseHandler)
-    participant NodeMgr (useNodeManager)
-    participant LlmAPI (useLlmRequest)
-    participant History (useSessionNodeHistory)
 
     UI->>InputMgr: 用户输入文本/添加附件
     UI->>Handler: 用户点击发送，调用 `sendMessage()`
     Handler->>InputMgr: 获取当前输入文本和附件
+    Handler->>InputMgr: 清空输入框内容
     Handler->>History: 清空撤销栈 (历史断点)
     Handler->>NodeMgr: 调用 `createMessagePair()` 创建用户和助手节点
     NodeMgr-->>Handler: 返回 `userNode` 和 `assistantNode`
@@ -403,7 +396,6 @@ sequenceDiagram
     ResHandler->>NodeMgr: 更新最终状态、Usage、转换 Base64
 
     Executor-->>Handler: 执行完成
-    Handler->>InputMgr: 清空输入框内容
 ```
 
 ## 5. 核心逻辑 (Composables)

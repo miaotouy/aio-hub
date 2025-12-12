@@ -291,6 +291,8 @@ import {
 import { get, set, debounce } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
 import { useElementSize, useWindowSize } from "@vueuse/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
@@ -518,6 +520,43 @@ const handleResetAudioPrompt = () => {
   customMessage.success("已重置音频转写提示词");
 };
 
+const handleResetVideoPrompt = () => {
+  set(
+    localSettings.value,
+    "transcription.video.customPrompt",
+    DEFAULT_SETTINGS.transcription.video.customPrompt
+  );
+  customMessage.success("已重置视频转写提示词");
+};
+
+const handleSelectFFmpegPath = async () => {
+  try {
+    const selected = await open({
+      multiple: false,
+      title: "选择 FFmpeg 可执行文件",
+      filters: [
+        {
+          name: "FFmpeg Executable",
+          extensions: ["exe", "bin", "*"], // Windows exe, others
+        },
+      ],
+    });
+
+    if (selected && typeof selected === "string") {
+      // 验证路径
+      const isValid = await invoke("check_ffmpeg_availability", { path: selected });
+      if (isValid) {
+        set(localSettings.value, "transcription.ffmpegPath", selected);
+        customMessage.success("FFmpeg 路径设置成功");
+      } else {
+        customMessage.error("无效的 FFmpeg 可执行文件，请检查路径");
+      }
+    }
+  } catch (error) {
+    errorHandler.error(error as Error, "选择 FFmpeg 路径失败");
+  }
+};
+
 const handleClosed = () => {
   saveStatus.value = "idle";
 };
@@ -588,6 +627,8 @@ const actionRegistry: Record<string, () => void> = {
   resetTranslationPrompt: handleResetTranslationPrompt,
   resetTranscriptionImagePrompt: handleResetImagePrompt,
   resetTranscriptionAudioPrompt: handleResetAudioPrompt,
+  resetTranscriptionVideoPrompt: handleResetVideoPrompt,
+  selectFFmpegPath: handleSelectFFmpegPath,
 };
 
 const handleComponentClick = (item: SettingItem) => {

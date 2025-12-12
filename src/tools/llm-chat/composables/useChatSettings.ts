@@ -83,6 +83,17 @@ export interface TranscriptionConfig {
   image: TypeSpecificTranscriptionConfig;
   /** 音频特定配置 */
   audio: TypeSpecificTranscriptionConfig;
+  /** FFmpeg 路径 */
+  ffmpegPath?: string;
+  /** 视频特定配置 */
+  video: TypeSpecificTranscriptionConfig & {
+    maxDirectSizeMB: number;
+    /** 是否启用视频压缩 */
+    enableCompression: boolean;
+    maxFps: number;
+    /** 最大分辨率（短边像素，压缩时保持比例缩放） */
+    maxResolution: number;
+  };
 }
 
 /**
@@ -270,6 +281,40 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxRetries: 2,
     timeout: 120000, // 默认 120 秒
     enableTypeSpecificConfig: false,
+    ffmpegPath: "",
+    video: {
+      maxDirectSizeMB: 10,
+      enableCompression: true,
+      maxFps: 12,
+      maxResolution: 720,
+      modelIdentifier: "",
+      customPrompt: `你是一个专业的视频内容分析器，具备对动态视觉内容和音频信息的综合理解能力。
+
+## 分析框架
+请按以下结构对视频进行全面分析：
+
+### 1. 视频概览
+- **主题与类型**：视频的主要内容类型（如新闻、教程、Vlog、监控画面等）
+- **核心事件**：视频中发生的主要事件或行为
+
+### 2. 关键视觉信息
+- **场景变化**：描述主要的场景切换和环境细节
+- **人物与动作**：识别主要人物及其关键动作
+- **文字与标识**：提取视频中出现的关键文字（字幕、标题、招牌等）
+
+### 3. 音频内容（如适用）
+- **语音摘要**：概括主要的对话或旁白内容
+- **关键声效**：显著的背景音乐或环境音效
+
+### 4. 时间线摘要
+- [MM:SS] 关键节点1
+- [MM:SS] 关键节点2
+
+## 输出格式
+使用清晰的 Markdown 结构。`,
+      temperature: 0.2,
+      maxTokens: 4096,
+    },
     image: {
       modelIdentifier: "",
       customPrompt: `你是一个专业的图像内容分析器，具备高精度视觉识别和 OCR 能力。

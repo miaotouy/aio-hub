@@ -1,5 +1,5 @@
 import { h } from "vue";
-import { RefreshLeft } from "@element-plus/icons-vue";
+import { RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
 import {
   Settings2,
   Bot,
@@ -580,6 +580,68 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) => settings.transcription.enabled && settings.transcription.sendBehavior === 'wait_before_send',
       },
       {
+        id: "transFFmpegPath",
+        label: "FFmpeg 路径",
+        component: "ElInput",
+        modelPath: "transcription.ffmpegPath",
+        hint: "配置本地 FFmpeg 可执行文件路径以支持大视频压缩。未配置时将尝试直接上传原始视频。",
+        keywords: "transcription ffmpeg path video 视频 路径",
+        visible: (settings) => settings.transcription.enabled,
+        action: "selectFFmpegPath",
+        slots: {
+          append: () =>
+            h(
+              ElButton,
+              {
+                onClick: () => { }, // 事件由主组件代理处理
+                title: "选择文件",
+                style: { padding: "8px" },
+              },
+              () => h(ElIcon, null, () => h(FolderOpened))
+            ),
+        },
+      },
+      {
+        id: "transVideoMaxDirectSize",
+        label: "视频体积限制 ({{ localSettings.transcription.video.maxDirectSizeMB }}MB)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 100, step: 1, "format-tooltip": (val: number) => `${val}MB` },
+        modelPath: "transcription.video.maxDirectSizeMB",
+        hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。",
+        keywords: "transcription video size limit 视频 大小 阈值 限制",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
+        id: "transVideoEnableCompression",
+        label: "启用视频压缩",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.video.enableCompression",
+        hint: "开启后，当视频体积超过限制时，将尝试自动调整码率以满足体积要求（需配置 FFmpeg）。",
+        keywords: "transcription video compression enable 启用 压缩",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
+        id: "transVideoMaxFps",
+        label: "视频帧率限制 ({{ localSettings.transcription.video.maxFps }} FPS)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 60, step: 1, "format-tooltip": (val: number) => `${val} FPS` },
+        modelPath: "transcription.video.maxFps",
+        hint: "限制视频的最大帧率。较低的帧率（如 5 FPS）可显著减小体积且通常不影响 AI 理解。",
+        keywords: "transcription video fps frame rate 视频 帧率",
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+      },
+      {
+        id: "transVideoMaxResolution",
+        label: "视频尺寸限制 ({{ localSettings.transcription.video.maxResolution }}p)",
+        component: "SliderWithInput",
+        props: { min: 360, max: 2160, step: 120, "format-tooltip": (val: number) => `${val}p` },
+        modelPath: "transcription.video.maxResolution",
+        hint: "限制视频的最大短边尺寸（如 720p）。超过此尺寸的视频将被等比缩放。",
+        keywords: "transcription video resolution size 视频 分辨率 尺寸",
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+      },
+      {
         id: "transEnableTypeSpecific",
         label: "启用分类型配置",
         layout: "inline",
@@ -763,6 +825,64 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.audio.maxTokens",
         hint: "音频转写结果的最大 token 数",
         keywords: "transcription audio max tokens 音频 转写 上限",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+
+      // 5. 视频配置 (当 transEnableTypeSpecific 为 true 时显示)
+      {
+        id: "transVideoModel",
+        label: "视频转写模型",
+        component: "LlmModelSelector",
+        modelPath: "transcription.video.modelIdentifier",
+        hint: "专门用于视频转写的模型（建议使用支持视频理解的多模态模型，如 Gemini Pro 1.5）",
+        keywords: "transcription video model 视频 转写 模型",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transVideoPrompt",
+        label: "视频 Prompt",
+        component: "ElInput",
+        props: { type: "textarea", rows: 4, placeholder: "输入视频转写提示词" },
+        modelPath: "transcription.video.customPrompt",
+        hint: "用于指导模型如何转写视频内容。",
+        keywords: "transcription video prompt 视频 提示词",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+        action: "resetTranscriptionVideoPrompt",
+        slots: {
+          append: () =>
+            h(
+              ElButton,
+              {
+                onClick: () => { }, // 事件由主组件代理处理
+                title: "重置为默认提示词",
+                style: { padding: "8px" },
+              },
+              () => h(ElIcon, null, () => h(RefreshLeft))
+            ),
+        },
+      },
+      {
+        id: "transVideoTemperature",
+        label: "视频温度 ({{ localSettings.transcription.video.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.video.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription video temperature 视频 转写 温度",
+        visible: (settings) =>
+          settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transVideoMaxTokens",
+        label: "视频输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 8192, step: 512 },
+        modelPath: "transcription.video.maxTokens",
+        hint: "视频转写结果的最大 token 数",
+        keywords: "transcription video max tokens 视频 转写 上限",
         visible: (settings) =>
           settings.transcription.enabled && settings.transcription.enableTypeSpecificConfig,
       },

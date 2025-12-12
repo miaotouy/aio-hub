@@ -119,7 +119,10 @@ use commands::{
     ClipboardMonitorState,
     // 窗口特效命令
     apply_window_effect,
-    list_directory_images
+    list_directory_images,
+    // 视频处理命令
+    check_ffmpeg_availability,
+    compress_video
 };
 // 导入全局鼠标监听器
 // 条件导入：仅在非 macOS 上导入
@@ -362,6 +365,9 @@ tauri::Builder::default()
             // 窗口特效命令
             apply_window_effect,
             list_directory_images,
+            // 视频处理命令
+            check_ffmpeg_availability,
+            compress_video,
             // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)
             #[cfg(not(target_os = "macos"))]
             start_drag_session

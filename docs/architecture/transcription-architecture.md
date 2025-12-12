@@ -10,8 +10,9 @@
 - **自动触发**：资产导入时根据设置自动加入转写队列
 - **队列管理**：支持并发控制、重试机制、状态跟踪
 - **元数据关联**：转写结果与资产元数据双向绑定
-- **多格式支持**：图片（视觉描述 + OCR）、音频（语音转文字）
+- **多格式支持**：图片（视觉描述 + OCR）、音频（语音转文字）、视频（视觉+听觉综合描述）
 - **配置灵活**：支持全局配置及分类型精细配置
+- **外部依赖可选**：支持配置本地 FFmpeg 路径以增强视频处理能力（压缩/转码），未配置时采用直传模式
 
 ## 架构图
 
@@ -38,12 +39,14 @@ graph TD
     subgraph Backend [后端 Rust 层]
         CmdUpdate["cmd: update_asset_derived_data"]
         CmdRead["cmd: read_text_file"]
+        CmdVideo["cmd: compress_video<br/>(Optional FFmpeg)"]
         Catalog["Asset Catalog<br/>(Metadata Index)"]
     end
 
     subgraph FS [文件系统]
-        OriginalFiles["原始资产文件<br/>(images/audio)"]
+        OriginalFiles["原始资产文件<br/>(images/audio/video)"]
         DerivedFiles["衍生数据文件<br/>(derived/.../transcription.md)"]
+        TempFiles["临时文件<br/>(Compressed Video)"]
     end
 
     ExtLLM[外部 LLM 服务]
@@ -56,9 +59,15 @@ graph TD
     %% 核心处理流程
     TM -- "管理" --> Queue
     Queue -- "调度任务" --> TM
-    TM -- "1. 获取二进制" --> AM
+    TM -- "1. 获取数据" --> AM
     AM -- "读取" --> OriginalFiles
-    TM -- "2. 请求转写" --> LLM_Req
+    
+    %% 视频特殊处理分支
+    TM -- "1a. 视频压缩 (可选)" --> CmdVideo
+    CmdVideo -- "FFmpeg 处理" --> TempFiles
+    TempFiles -.-> AM
+    
+    TM -- "2. 请求转写 (Base64)" --> LLM_Req
     LLM_Req -- "API Call" --> ExtLLM
     ExtLLM -- "Response" --> LLM_Req
     
@@ -103,9 +112,11 @@ graph TD
 AppData/assets/
 ├── images/2025-12/          # 原始图片
 ├── audio/2025-12/           # 原始音频
+├── video/2025-12/           # 原始视频
 └── derived/                 # 衍生数据目录
     ├── images/2025-12/{uuid}/transcription.md
-    └── audio/2025-12/{uuid}/transcription.md
+    ├── audio/2025-12/{uuid}/transcription.md
+    └── video/2025-12/{uuid}/transcription.md
 ```
 
 ## 数据流
@@ -117,8 +128,16 @@ AppData/assets/
 ### 2. 处理阶段
 1. **任务入队**：`addTask()` 创建 `TranscriptionTask` 对象，状态 `pending`
 2. **队列调度**：`processQueue()` 根据并发设置取出任务，状态改为 `processing`
-3. **数据准备**：通过 `useAssetManager` 获取资产二进制数据，转换为 Base64
-4. **LLM 请求**：构建 Prompt 和消息内容，调用 `useLlmRequest.sendRequest()`
+3. **数据准备**：
+   - **图片/音频**：直接通过 `useAssetManager` 读取二进制数据，转换为 Base64。
+   - **视频 (Video)**：
+     - **检查配置**：检查是否配置了有效的 `ffmpegPath`。
+     - **压缩决策**：如果配置了 FFmpeg 且文件大小 > `maxDirectSize` (如 10MB)，则调用后端 `compress_video` 进行本地压缩（降低分辨率/码率），生成临时文件。
+     - **直传模式**：如果未配置 FFmpeg 或文件较小，直接读取原始文件。
+     - **最终转换**：将（原始或压缩后的）视频数据转换为 Base64 字符串。
+4. **LLM 请求**：
+   - 构建 Payload：使用 `image_url` (兼容性做法) 或原生 `video` 字段，填入 Base64 数据。
+   - 调用 `useLlmRequest.sendRequest()`。
 5. **结果保存**：
    - 写入文件：`derived/{type}/{date}/{uuid}/transcription.md`
    - 更新元数据：调用 `update_asset_derived_data` 命令，将路径、提供者、时间戳写入 `asset.metadata.derived.transcription`
@@ -174,18 +193,23 @@ transcription: {
   maxConcurrentTasks: number;
   maxRetries: number;
   enableTypeSpecificConfig: boolean;
+  ffmpegPath?: string; // 用户配置的本地 FFmpeg 可执行文件路径
   image: { /* 图片专用配置 */ };
   audio: { /* 音频专用配置 */ };
+  video: {
+    maxDirectSizeMB: number; // 直传阈值，默认 10MB
+    compressionPreset: string; // "balanced" | "quality" | "speed"
+  };
 }
 ```
 
 ## 使用场景
 
 ### 1. 聊天附件增强
-用户发送图片/音频附件 → 自动转写 → 转写内容作为上下文附加到消息中 → LLM 获得更丰富的输入信息
+用户发送图片/音频/视频附件 → 自动转写 → 转写内容作为上下文附加到消息中 → LLM 获得更丰富的输入信息（包括视频的视觉与听觉内容）。
 
 ### 2. 资产库搜索
-转写内容可被全文搜索索引，用户可通过描述文字查找图片/音频
+转写内容可被全文搜索索引，用户可通过描述文字查找图片/音频/视频素材。
 
 ### 3. 无障碍支持
 为视觉/听觉障碍用户提供文字描述

@@ -75,6 +75,15 @@ export const usePrimaryContextPipelineStore = defineStore(
       });
     }
 
+    function resetToDefaults() {
+      const initial = getInitialProcessors();
+      processors.value = [...initial];
+      enabledProcessorIds.value = initial
+        .filter((p) => p.defaultEnabled !== false)
+        .map((p) => p.id);
+      logger.info("主上下文管道已重置为默认设置");
+    }
+
     async function executePipeline(
       context: PipelineContext,
     ): Promise<PipelineContext> {
@@ -107,6 +116,7 @@ export const usePrimaryContextPipelineStore = defineStore(
       unregisterProcessor,
       setProcessorEnabled,
       reorderProcessors,
+      resetToDefaults,
       executePipeline,
     };
   },

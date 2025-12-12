@@ -109,8 +109,59 @@ export function useChatContextBuilder() {
     const llmContext = await Promise.all(llmContextPromises);
 
     // 处理预设消息
-    const presetMessages = agentConfig.presetMessages || [];
-    // const enabledPresets = presetMessages.filter((msg: any) => msg.isEnabled !== false); // 不再预先过滤
+    const rawPresetMessages = agentConfig.presetMessages || [];
+    const currentModelId = agentConfig.modelId;
+
+    // 根据模型匹配规则预处理预设消息
+    // 如果消息设置了 modelMatch 且当前模型不匹配，则将其视为禁用
+    const presetMessages = rawPresetMessages.map((msg: any) => {
+      // 如果消息已经禁用，保持禁用
+      if (msg.isEnabled === false) return msg;
+
+      // 检查模型匹配
+      if (msg.modelMatch?.enabled && msg.modelMatch.patterns?.length > 0) {
+        if (!currentModelId) {
+          // 如果没有模型ID，且启用了匹配，视为不匹配
+          return { ...msg, isEnabled: false };
+        }
+
+        const isMatched = msg.modelMatch.patterns.some((pattern: string) => {
+          try {
+            const regex = new RegExp(pattern, "i");
+
+            // 解析出实际的模型 ID 部分 (去掉 profileId 前缀)
+            // currentModelId 格式通常为 "profileId:modelId"
+            let modelIdPart = currentModelId;
+            const colonIndex = currentModelId.indexOf(":");
+            if (colonIndex !== -1) {
+              modelIdPart = currentModelId.substring(colonIndex + 1);
+            }
+
+            if (!modelIdPart) return false;
+
+            // 1. 尝试匹配模型 ID (例如 "openai/gpt-4o")
+            if (regex.test(modelIdPart)) return true;
+
+            // 2. 尝试匹配纯模型名 (去掉 provider 前缀，例如 "gpt-4o")
+            const slashIndex = modelIdPart.lastIndexOf("/");
+            if (slashIndex !== -1) {
+              const pureModelName = modelIdPart.substring(slashIndex + 1);
+              if (pureModelName && regex.test(pureModelName)) return true;
+            }
+
+            return false;
+          } catch (e) {
+            logger.warn(`Invalid regex pattern in message ${msg.id}: ${pattern}`, e);
+            return false;
+          }
+        });
+
+        if (!isMatched) {
+          return { ...msg, isEnabled: false };
+        }
+      }
+      return msg;
+    });
 
     // 获取当前智能体信息（用于宏上下文）
     const agentStoreInstance = useAgentStore();

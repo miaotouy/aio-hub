@@ -281,6 +281,14 @@
               >
                 ⚓
               </span>
+              <!-- 模型匹配标记（紧凑） -->
+              <span
+                v-if="element.modelMatch?.enabled"
+                class="model-match-badge-compact"
+                title="仅特定模型生效"
+              >
+                🎯
+              </span>
 
               <!-- 消息文本预览（单行） -->
               <div class="message-text-compact">
@@ -345,6 +353,16 @@
                   >
                     ⚓ {{ element.injectionStrategy.anchorTarget }}
                     {{ element.injectionStrategy.anchorPosition === "before" ? "前" : "后" }}
+                  </el-tag>
+                  <!-- 模型匹配标签 -->
+                  <el-tag
+                    v-if="element.modelMatch?.enabled"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                    class="model-match-tag"
+                  >
+                    🎯 模型限定
                   </el-tag>
                   <!-- Token 数量 -->
                   <el-tag
@@ -561,11 +579,16 @@ const editForm = ref<{
   content: string;
   name?: string;
   injectionStrategy?: InjectionStrategy;
+  modelMatch?: {
+    enabled: boolean;
+    patterns: string[];
+  };
 }>({
   role: "system",
   content: "",
   name: "",
   injectionStrategy: undefined,
+  modelMatch: undefined,
 });
 
 // 文件导入
@@ -825,6 +848,7 @@ function handleAddMessage() {
     content: "",
     name: "",
     injectionStrategy: undefined,
+    modelMatch: undefined,
   };
   editDialogVisible.value = true;
 }
@@ -852,6 +876,7 @@ function handleEditMessage(index: number) {
     content: message.content,
     name: message.name,
     injectionStrategy: message.injectionStrategy,
+    modelMatch: message.modelMatch,
   };
   editDialogVisible.value = true;
 }
@@ -885,6 +910,10 @@ async function handleSaveMessage(form: {
   content: string;
   name?: string;
   injectionStrategy?: InjectionStrategy;
+  modelMatch?: {
+    enabled: boolean;
+    patterns: string[];
+  };
 }) {
   if (isEditMode.value) {
     // 编辑模式：更新现有消息
@@ -893,6 +922,7 @@ async function handleSaveMessage(form: {
     message.content = form.content;
     message.name = form.name;
     message.injectionStrategy = form.injectionStrategy;
+    message.modelMatch = form.modelMatch;
 
     // 如果有模型ID，重新计算 token
     if (props.modelId) {
@@ -920,6 +950,7 @@ async function handleSaveMessage(form: {
       isEnabled: true,
       timestamp: new Date().toISOString(),
       injectionStrategy: form.injectionStrategy,
+      modelMatch: form.modelMatch,
     };
 
     // 如果有模型ID，计算并保存 token
@@ -958,6 +989,7 @@ async function handleCopyMessage(index: number) {
     content: message.content,
     name: message.name,
     metadata: message.metadata,
+    modelMatch: message.modelMatch,
   };
 
   try {
@@ -1009,6 +1041,9 @@ async function handlePasteMessage(index: number) {
       message.name = data.name;
       if (data.metadata) {
         message.metadata = { ...message.metadata, ...data.metadata };
+      }
+      if (data.modelMatch) {
+        message.modelMatch = data.modelMatch;
       }
       customMessage.success("已粘贴并覆盖消息");
     } else {
@@ -1454,6 +1489,12 @@ function handleConfirmSTImport(data: {
 .injection-badge-compact {
   font-size: 11px;
   color: var(--el-color-warning);
+  flex-shrink: 0;
+}
+
+.model-match-badge-compact {
+  font-size: 11px;
+  color: var(--el-color-danger);
   flex-shrink: 0;
 }
 

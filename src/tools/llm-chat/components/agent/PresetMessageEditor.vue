@@ -51,8 +51,78 @@
               v-model="form.name"
               placeholder="可选，用于标识此预设消息"
               size="small"
-              style="flex: 1; max-width: 400px;"
+              style="flex: 1; max-width: 400px"
             />
+          </div>
+        </div>
+
+        <!-- 模型匹配配置行 -->
+        <div class="editor-row model-match-row">
+          <span class="field-label">模型</span>
+          <div class="model-match-config">
+            <el-switch
+              v-model="modelMatchEnabled"
+              size="small"
+              active-text="仅特定模型生效"
+              inactive-text="所有模型"
+            />
+            <div v-if="modelMatchEnabled" class="model-match-patterns">
+              <el-tooltip placement="top">
+                <template #content>
+                  <div style="max-width: 300px">
+                    <p>输入模型 ID 匹配规则，支持正则表达式。</p>
+                    <p>每行一个规则，满足任意一个即生效。</p>
+                    <p><strong>示例：</strong></p>
+                    <ul style="padding-left: 16px; margin: 4px 0; line-height: 1.6">
+                      <li style="margin-bottom: 4px">
+                        <code
+                          style="
+                            font-family: monospace;
+                            background: rgba(255, 255, 255, 0.1);
+                            padding: 2px 5px;
+                            border-radius: 3px;
+                          "
+                          >deepseek</code
+                        >
+                        - 匹配包含 deepseek 的模型
+                      </li>
+                      <li style="margin-bottom: 4px">
+                        <code
+                          style="
+                            font-family: monospace;
+                            background: rgba(255, 255, 255, 0.1);
+                            padding: 2px 5px;
+                            border-radius: 3px;
+                          "
+                          >^gpt-4</code
+                        >
+                        - 匹配以 gpt-4 开头的模型
+                      </li>
+                      <li>
+                        <code
+                          style="
+                            font-family: monospace;
+                            background: rgba(255, 255, 255, 0.1);
+                            padding: 2px 5px;
+                            border-radius: 3px;
+                          "
+                          >claude.*sonnet</code
+                        >
+                        - 正则匹配
+                      </li>
+                    </ul>
+                  </div>
+                </template>
+                <el-icon class="info-icon" style="margin-right: 8px"><InfoFilled /></el-icon>
+              </el-tooltip>
+              <el-input
+                v-model="modelMatchPatternsText"
+                type="textarea"
+                :rows="2"
+                placeholder="每行一个模型匹配规则（支持正则）"
+                style="flex: 1; max-width: 400px"
+              />
+            </div>
           </div>
         </div>
 
@@ -249,6 +319,10 @@ interface MessageForm {
   name?: string;
   content: string;
   injectionStrategy?: InjectionStrategy;
+  modelMatch?: {
+    enabled: boolean;
+    patterns: string[];
+  };
 }
 
 /** 注入模式 */
@@ -297,6 +371,10 @@ const depthValue = ref(0);
 const anchorTarget = ref("chat_history");
 const anchorPosition = ref<"before" | "after">("after");
 const orderValue = ref(100);
+
+// 模型匹配配置
+const modelMatchEnabled = ref(false);
+const modelMatchPatternsText = ref("");
 
 // 可用锚点列表
 const availableAnchors = computed(() => getAvailableAnchors());
@@ -482,6 +560,39 @@ const buildInjectionStrategy = (): InjectionStrategy | undefined => {
   return undefined;
 };
 
+/**
+ * 从 modelMatch 恢复 UI 状态
+ */
+const restoreModelMatch = (modelMatch?: { enabled: boolean; patterns: string[] }) => {
+  if (!modelMatch) {
+    modelMatchEnabled.value = false;
+    modelMatchPatternsText.value = "";
+    return;
+  }
+  modelMatchEnabled.value = modelMatch.enabled;
+  modelMatchPatternsText.value = modelMatch.patterns.join("\n");
+};
+
+/**
+ * 构建 modelMatch 对象
+ */
+const buildModelMatch = (): { enabled: boolean; patterns: string[] } | undefined => {
+  if (!modelMatchEnabled.value) {
+    return undefined;
+  }
+  const patterns = modelMatchPatternsText.value
+    .split("\n")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (patterns.length === 0) {
+    return undefined;
+  }
+  return {
+    enabled: true,
+    patterns,
+  };
+};
+
 // 监听 initialForm 的变化，更新本地表单
 watch(
   () => props.initialForm,
@@ -489,6 +600,7 @@ watch(
     if (newForm) {
       form.value = { ...newForm };
       restoreInjectionStrategy(newForm.injectionStrategy);
+      restoreModelMatch(newForm.modelMatch);
     }
   },
   { immediate: true, deep: true }
@@ -503,6 +615,7 @@ watch(
       if (props.initialForm) {
         form.value = { ...props.initialForm };
         restoreInjectionStrategy(props.initialForm.injectionStrategy);
+        restoreModelMatch(props.initialForm.modelMatch);
       }
     }
   }
@@ -613,7 +726,6 @@ async function handleOverwrite() {
   form.value.content = text;
   customMessage.success("已覆盖内容");
 }
-
 /**
  * 保存消息
  */
@@ -624,9 +736,11 @@ function handleSave() {
   }
 
   const injectionStrategy = buildInjectionStrategy();
+  const modelMatch = buildModelMatch();
   emit("save", {
     ...form.value,
     injectionStrategy,
+    modelMatch,
   });
 }
 </script>
@@ -732,6 +846,27 @@ function handleSave() {
 
 .preview-content {
   line-height: 1.6;
+}
+
+/* 模型匹配配置样式 */
+.model-match-row {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.model-match-config {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.model-match-patterns {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  flex: 1;
 }
 
 /* 注入策略配置样式 */

@@ -115,6 +115,18 @@ export interface ChatMessageNode {
   injectionStrategy?: InjectionStrategy;
 
   /**
+   * 模型匹配配置（可选）
+   * 用于控制该消息是否在当前模型下生效
+   * 如果未定义或 enabled 为 false，则对所有模型生效
+   */
+  modelMatch?: {
+    /** 是否启用匹配 */
+    enabled: boolean;
+    /** 匹配规则列表（正则字符串），只要满足其中一个即生效 */
+    patterns: string[];
+  };
+
+  /**
    * 消息创建的时间戳 (ISO 8601 格式)
    */
   timestamp?: string;

@@ -10,8 +10,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 export async function buildPreviewDataFromContext(
   context: PipelineContext,
 ): Promise<ContextPreviewData> {
-  const { messages, session, agentConfig, userProfile, timestamp, sharedData } =
-    context;
+  const { messages, session, agentConfig, userProfile, timestamp } = context;
 
   const presetMessages: ContextPreviewData["presetMessages"] = [];
   const chatHistory: ContextPreviewData["chatHistory"] = [];
@@ -23,6 +22,7 @@ export async function buildPreviewDataFromContext(
   let presetMessagesTokenCount = 0;
   let chatHistoryTokenCount = 0;
   let isEstimated = false;
+  let tokenizerName: string | undefined = undefined;
 
   const messageProcessingPromises = messages.map(async (msg) => {
     const content =
@@ -39,6 +39,10 @@ export async function buildPreviewDataFromContext(
 
     if (tokenResult.isEstimated) {
       isEstimated = true;
+    }
+    // 只要还没有 tokenizerName，就用第一个返回的结果来设置它
+    if (!tokenizerName && tokenResult.tokenizerName) {
+      tokenizerName = tokenResult.tokenizerName;
     }
 
     if (
@@ -83,8 +87,6 @@ export async function buildPreviewDataFromContext(
 
   await Promise.all(messageProcessingPromises);
 
-  const model = sharedData.get("model");
-
   return {
     presetMessages,
     chatHistory,
@@ -98,7 +100,7 @@ export async function buildPreviewDataFromContext(
       presetMessagesTokenCount,
       chatHistoryTokenCount,
       isEstimated,
-      tokenizerName: model?.tokenizer,
+      tokenizerName,
     },
     agentInfo: {
       id: agentConfig.id,

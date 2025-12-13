@@ -2,7 +2,12 @@ import type { Component } from "vue";
 import type { ChatSettings } from "../../composables/useChatSettings";
 
 /**
- * 定义单个设置项的 UI 组件类型
+ * 定义通过字符串映射解析的基础组件类型
+ *
+ * 注意：这里只列出在 SettingItemRenderer 的 baseComponentMap 中
+ * 有映射的组件。大型业务组件（如 MarkdownStyleEditor、ChatRegexEditor 等）
+ * 应通过 defineAsyncComponent 异步加载后直接作为 Component 对象传入，
+ * 不要添加到此枚举中。
  */
 export type SettingComponent =
   | "ElSwitch"
@@ -11,12 +16,8 @@ export type SettingComponent =
   | "ElSelect"
   | "ElInputNumber"
   | "ElInput"
-  | "LlmModelSelector"
   | "SliderWithInput"
-  | "MarkdownStyleEditor"
-  | "ChatRegexEditor"
-  | "ContextCompressionConfigPanel"
-  | "PrimaryPipelineConfig";
+  | "PromptEditor";
 
 /**
  * 定义单个设置项的配置结构

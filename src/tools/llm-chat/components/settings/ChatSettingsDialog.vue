@@ -57,10 +57,7 @@
             :label-width="formLabelWidth"
             :label-position="formLabelPosition"
           >
-            <template
-              v-for="(section, sectionIndex) in settingsConfig"
-              :key="section.title"
-            >
+            <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
               <div class="settings-section">
                 <div class="section-title">
                   <el-icon><component :is="section.icon" /></el-icon>
@@ -114,13 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  watch,
-  nextTick,
-  computed,
-  onUnmounted,
-} from "vue";
+import { ref, watch, nextTick, computed, onUnmounted } from "vue";
 import {
   ElMessageBox,
   ElTabs,
@@ -132,13 +123,7 @@ import {
   ElIcon,
 } from "element-plus";
 import { set, debounce } from "lodash-es";
-import {
-  RefreshLeft,
-  Loading,
-  Search,
-  SuccessFilled,
-  CircleClose,
-} from "@element-plus/icons-vue";
+import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
 import { useElementSize, useWindowSize } from "@vueuse/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -191,12 +176,9 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const { settings, loadSettings, updateSettings, resetSettings, isLoaded } =
-  useChatSettings();
+const { settings, loadSettings, updateSettings, resetSettings, isLoaded } = useChatSettings();
 
-const localSettings = ref<ChatSettings>(
-  JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
-);
+const localSettings = ref<ChatSettings>(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
 
 const isLoadingSettings = ref(false);
 const saveStatus = ref<"idle" | "saving" | "success" | "error">("idle");
@@ -224,9 +206,8 @@ const handleSettingsUpdate = (newSettings: ChatSettings) => {
 watch(
   () => localSettings.value.shortcuts.send,
   (sendKey) => {
-    localSettings.value.shortcuts.newLine =
-      sendKey === "ctrl+enter" ? "enter" : "shift+enter";
-  },
+    localSettings.value.shortcuts.newLine = sendKey === "ctrl+enter" ? "enter" : "shift+enter";
+  }
 );
 
 const autoSave = debounce(async () => {
@@ -260,7 +241,7 @@ watch(
     }
     autoSave();
   },
-  { deep: true },
+  { deep: true }
 );
 
 const handleClose = () => {
@@ -292,51 +273,6 @@ const handleReset = async () => {
 };
 
 // --- Action Handlers ---
-const handleResetPrompt = () => {
-  set(
-    localSettings.value,
-    "topicNaming.prompt",
-    DEFAULT_SETTINGS.topicNaming.prompt,
-  );
-  customMessage.success("已重置为默认提示词");
-};
-
-const handleResetTranslationPrompt = () => {
-  set(
-    localSettings.value,
-    "translation.prompt",
-    DEFAULT_SETTINGS.translation.prompt,
-  );
-  customMessage.success("已重置翻译提示词为默认值");
-};
-
-const handleResetImagePrompt = () => {
-  set(
-    localSettings.value,
-    "transcription.image.customPrompt",
-    DEFAULT_SETTINGS.transcription.image.customPrompt,
-  );
-  customMessage.success("已重置图片转写提示词");
-};
-
-const handleResetAudioPrompt = () => {
-  set(
-    localSettings.value,
-    "transcription.audio.customPrompt",
-    DEFAULT_SETTINGS.transcription.audio.customPrompt,
-  );
-  customMessage.success("已重置音频转写提示词");
-};
-
-const handleResetVideoPrompt = () => {
-  set(
-    localSettings.value,
-    "transcription.video.customPrompt",
-    DEFAULT_SETTINGS.transcription.video.customPrompt,
-  );
-  customMessage.success("已重置视频转写提示词");
-};
-
 const handleSelectFFmpegPath = async () => {
   try {
     const selected = await open({
@@ -368,11 +304,6 @@ const handleSelectFFmpegPath = async () => {
 };
 
 const actionRegistry: Record<string, () => void> = {
-  resetTopicNamingPrompt: handleResetPrompt,
-  resetTranslationPrompt: handleResetTranslationPrompt,
-  resetTranscriptionImagePrompt: handleResetImagePrompt,
-  resetTranscriptionAudioPrompt: handleResetAudioPrompt,
-  resetTranscriptionVideoPrompt: handleResetVideoPrompt,
   selectFFmpegPath: handleSelectFFmpegPath,
 };
 
@@ -399,8 +330,7 @@ const handleTabClick = (tab: any) => {
 
   const sectionTitle = tab.props.name;
 
-  const allSections =
-    scrollContainerRef.value.querySelectorAll(".settings-section");
+  const allSections = scrollContainerRef.value.querySelectorAll(".settings-section");
   let targetSection: HTMLElement | null = null;
 
   for (const section of allSections) {
@@ -437,11 +367,9 @@ const renderHint = (hint: string) => {
   return hint.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
     try {
       // eslint-disable-next-line no-new-func
-      return new Function("localSettings", `return ${expression}`)(
-        localSettings.value,
-      );
+      return new Function("localSettings", `return ${expression}`)(localSettings.value);
     } catch (e) {
-      return `{{ ${expression} }}`; 
+      return `{{ ${expression} }}`;
     }
   });
 };
@@ -455,14 +383,11 @@ const searchIndex = computed<SearchIndexItem[]>(() =>
         label: item.label,
         keywords: item.keywords,
         value: renderHint(`${section.title} > ${item.label}`),
-      })),
-  ),
+      }))
+  )
 );
 
-const querySearch = (
-  queryString: string,
-  cb: (results: SearchIndexItem[]) => void,
-) => {
+const querySearch = (queryString: string, cb: (results: SearchIndexItem[]) => void) => {
   const results = queryString
     ? searchIndex.value.filter((item) => {
         const query = queryString.toLowerCase().trim();
@@ -481,12 +406,12 @@ const handleSearchSelect = (item: Record<string, any>) => {
   if (!scrollContainerRef.value) return;
 
   const targetElement = scrollContainerRef.value.querySelector(
-    `[data-setting-id="${item.id}"]`,
+    `[data-setting-id="${item.id}"]`
   ) as HTMLElement;
 
   if (targetElement) {
     targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
-    
+
     // 触发高亮
     highlightedItemId.value = item.id;
     setTimeout(() => {
@@ -514,8 +439,7 @@ const addScrollListener = () => {
 
   removeScrollListener();
 
-  const sections =
-    scrollContainerRef.value.querySelectorAll(".settings-section");
+  const sections = scrollContainerRef.value.querySelectorAll(".settings-section");
   const sectionElements = Array.from(sections) as HTMLElement[];
 
   const options = {
@@ -529,9 +453,7 @@ const addScrollListener = () => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
         const sectionElement = entry.target as HTMLElement;
-        const titleElement = sectionElement.querySelector(
-          ".section-title span",
-        );
+        const titleElement = sectionElement.querySelector(".section-title span");
         if (titleElement && titleElement.textContent) {
           activeTab.value = titleElement.textContent;
         }
@@ -565,7 +487,7 @@ watch(
       removeScrollListener();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 </script>
 
@@ -696,11 +618,7 @@ watch(
 
 .navigation-tabs :deep(.el-tabs__item.is-active) {
   color: var(--el-color-primary);
-  background-color: color-mix(
-    in srgb,
-    var(--el-color-primary-light-5) 30%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 30%, transparent);
   border-radius: 4px 4px 0 0;
 }
 

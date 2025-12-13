@@ -1,5 +1,5 @@
 import { h, defineAsyncComponent } from "vue";
-import { RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
+import { FolderOpened } from "@element-plus/icons-vue";
 import {
   Settings2,
   Bot,
@@ -19,6 +19,7 @@ import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { DEFAULT_SETTINGS } from "../../composables/useChatSettings";
 
 // 异步加载大型业务组件
 const MarkdownStyleEditor = defineAsyncComponent(() =>
@@ -438,26 +439,16 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transPrompt",
         label: "翻译提示词",
-        component: "ElInput",
-        props: { type: "textarea", rows: 4, placeholder: "输入翻译提示词" },
+        component: "PromptEditor",
+        props: {
+          rows: 4,
+          placeholder: "输入翻译提示词",
+          defaultValue: DEFAULT_SETTINGS.translation.prompt,
+        },
         modelPath: "translation.prompt",
         hint: "使用 <code>{text}</code> 代表原文，<code>{targetLang}</code> 代表目标语言，<code>{thinkTags}</code> 代表需要保护的思考块标签（XML 标签本身保持不变，标签内的内容会被翻译）。<br />例如：<code>Translate to {targetLang}:\\n\\n{text}</code>",
         keywords: "translation prompt 翻译 提示词",
         visible: (settings) => settings.translation.enabled,
-        action: "resetTranslationPrompt",
-        slots: {
-          append: () =>
-            h(
-              ElButton,
-              {
-                onClick: () => { }, // 在主组件处理重置
-                size: "small",
-                class: "reset-trans-prompt-btn", // 特定类名用于事件委托
-                title: "重置为默认提示词",
-              },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
-            ),
-        },
       },
       {
         id: "transTemperature",
@@ -507,31 +498,16 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "prompt",
         label: "命名提示词",
-        component: "ElInput",
+        component: "PromptEditor",
         props: {
-          type: "textarea",
           rows: 4,
           placeholder: "输入用于生成标题的提示词",
+          defaultValue: DEFAULT_SETTINGS.topicNaming.prompt,
         },
         modelPath: "topicNaming.prompt",
         hint: "使用 <code>{context}</code> 占位符来指定对话内容的位置。<br />例如：<code>请为以下对话生成标题：\\n\\n{context}</code><br />如不使用占位符，对话内容将自动追加到提示词末尾。",
         keywords: "topic naming prompt 话题 命名 提示词",
         visible: (settings) => settings.topicNaming.enabled,
-        action: "resetTopicNamingPrompt",
-        slots: {
-          append: () =>
-            h(
-              ElButton,
-              {
-                // 这将通过自定义事件在主组件中处理
-                onClick: () => { },
-                size: "small",
-                class: "reset-prompt-btn",
-                title: "重置为默认提示词",
-              },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
-            ),
-        },
       },
       {
         id: "temperature",
@@ -812,11 +788,11 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transCustomPrompt",
         label: "通用 Prompt",
-        component: "ElInput",
+        component: "PromptEditor",
         props: {
-          type: "textarea",
           rows: 4,
           placeholder: "输入自定义转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.customPrompt,
         },
         modelPath: "transcription.customPrompt",
         hint: "用于指导模型如何转写附件内容。",
@@ -824,20 +800,6 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           !settings.transcription.enableTypeSpecificConfig,
-        action: "resetTranscriptionPrompt",
-        slots: {
-          append: () =>
-            h(
-              ElButton,
-              {
-                onClick: () => { }, // 在主组件处理重置
-                size: "small",
-                class: "reset-trans-prompt-btn",
-                title: "重置为默认提示词",
-              },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
-            ),
-        },
       },
       {
         id: "transTemperature",
@@ -883,28 +845,18 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transImagePrompt",
         label: "图片 Prompt",
-        component: "ElInput",
-        props: { type: "textarea", rows: 4, placeholder: "输入图片转写提示词" },
+        component: "PromptEditor",
+        props: {
+          rows: 4,
+          placeholder: "输入图片转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.image.customPrompt,
+        },
         modelPath: "transcription.image.customPrompt",
         hint: "用于指导模型如何转写图片内容。",
         keywords: "transcription image prompt 图片 提示词",
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
-        action: "resetTranscriptionImagePrompt",
-        slots: {
-          append: () =>
-            h(
-              ElButton,
-              {
-                onClick: () => { }, // 在主组件处理重置
-                size: "small",
-                class: "reset-trans-image-prompt-btn",
-                title: "重置为默认提示词",
-              },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
-            ),
-        },
       },
       {
         id: "transImageTemperature",
@@ -950,28 +902,18 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transAudioPrompt",
         label: "音频 Prompt",
-        component: "ElInput",
-        props: { type: "textarea", rows: 4, placeholder: "输入音频转写提示词" },
+        component: "PromptEditor",
+        props: {
+          rows: 4,
+          placeholder: "输入音频转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.audio.customPrompt,
+        },
         modelPath: "transcription.audio.customPrompt",
         hint: "用于指导模型如何转写音频内容。",
         keywords: "transcription audio prompt 音频 提示词",
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
-        action: "resetTranscriptionAudioPrompt",
-        slots: {
-          append: () =>
-            h(
-              ElButton,
-              {
-                onClick: () => { }, // 在主组件处理重置
-                size: "small",
-                class: "reset-trans-audio-prompt-btn",
-                title: "重置为默认提示词",
-              },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
-            ),
-        },
       },
       {
         id: "transAudioTemperature",
@@ -1017,27 +959,18 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transVideoPrompt",
         label: "视频 Prompt",
-        component: "ElInput",
-        props: { type: "textarea", rows: 4, placeholder: "输入视频转写提示词" },
+        component: "PromptEditor",
+        props: {
+          rows: 4,
+          placeholder: "输入视频转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.video.customPrompt,
+        },
         modelPath: "transcription.video.customPrompt",
         hint: "用于指导模型如何转写视频内容。",
         keywords: "transcription video prompt 视频 提示词",
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
-        action: "resetTranscriptionVideoPrompt",
-        slots: {
-          append: () =>
-            h(
-              ElButton,
-              {
-                onClick: () => { }, // 事件由主组件代理处理
-                title: "重置为默认提示词",
-                style: { padding: "8px" },
-              },
-              () => [h(ElIcon, null, () => h(RefreshLeft)), "重置"],
-            ),
-        },
       },
       {
         id: "transVideoTemperature",

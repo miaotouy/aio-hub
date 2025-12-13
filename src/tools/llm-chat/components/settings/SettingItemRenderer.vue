@@ -135,6 +135,7 @@ import {
   ElSelect,
 } from "element-plus";
 import { get, set } from "lodash-es";
+import PromptEditor from "./PromptEditor.vue";
 import type { SettingItem } from "./settings-types";
 import type { ChatSettings } from "../../composables/useChatSettings";
 
@@ -181,6 +182,7 @@ const baseComponentMap: Record<string, any> = {
   ElInputNumber,
   ElInput,
   ElSelect,
+  PromptEditor,
 };
 
 const resolvedComponent = computed(() => {

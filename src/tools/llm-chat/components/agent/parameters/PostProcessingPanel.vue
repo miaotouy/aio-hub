@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import type { LlmParameters } from "../../../types";
 import { usePostProcessingPipelineStore } from "../../../stores/postProcessingPipelineStore";
-import { Info } from "lucide-vue-next";
+import { Info, RotateCcw } from "lucide-vue-next";
 
 // 定义需要的类型
-type ContextPostProcessing = NonNullable<
-  LlmParameters["contextPostProcessing"]
->;
+type ContextPostProcessing = NonNullable<LlmParameters["contextPostProcessing"]>;
 type Rule = NonNullable<ContextPostProcessing["rules"]>[number];
 
 interface Props {
@@ -30,20 +28,14 @@ const isRuleEnabled = (processorId: string) => {
  * 将实际换行符转换为转义字符串以便在输入框中显示
  */
 const serializeEscapes = (value: string): string => {
-  return value
-    .replace(/\n/g, "\\n")
-    .replace(/\t/g, "\\t")
-    .replace(/\r/g, "\\r");
+  return value.replace(/\n/g, "\\n").replace(/\t/g, "\\t").replace(/\r/g, "\\r");
 };
 
 /**
  * 将转义字符串转换为实际换行符以便存储
  */
 const deserializeEscapes = (value: string): string => {
-  return value
-    .replace(/\\n/g, "\n")
-    .replace(/\\t/g, "\t")
-    .replace(/\\r/g, "\r");
+  return value.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r");
 };
 
 const getRuleConfigValue = (processorId: string, key: string) => {
@@ -66,9 +58,7 @@ const toggleRule = (processorId: string, enabled: boolean) => {
   if (enabled) {
     if (!exists) {
       // 动态获取默认值
-      const processor = postPipelineStore.processors.find(
-        (p) => p.id === processorId,
-      );
+      const processor = postPipelineStore.processors.find((p) => p.id === processorId);
       const defaultProps: Record<string, any> = {};
       processor?.configFields?.forEach((field) => {
         if (field.default !== undefined) {
@@ -87,7 +77,7 @@ const toggleRule = (processorId: string, enabled: boolean) => {
       updateModelValue(newRules);
     } else {
       const newRules = currentRules.map((r) =>
-        r.type === processorId ? { ...r, enabled: true } : r,
+        r.type === processorId ? { ...r, enabled: true } : r
       );
       updateModelValue(newRules);
     }
@@ -95,7 +85,7 @@ const toggleRule = (processorId: string, enabled: boolean) => {
     // 即使处理器被禁用，我们仍然保留其配置，只是将 enabled 设为 false
     if (exists) {
       const newRules = currentRules.map((r) =>
-        r.type === processorId ? { ...r, enabled: false } : r,
+        r.type === processorId ? { ...r, enabled: false } : r
       );
       updateModelValue(newRules);
     }
@@ -107,9 +97,22 @@ const updateRuleConfig = (processorId: string, key: string, value: string) => {
   // 将转义字符串转换为实际换行符以便存储
   const deserializedValue = deserializeEscapes(value);
   const newRules = currentRules.map((r) =>
-    r.type === processorId ? { ...r, [key]: deserializedValue } : r,
+    r.type === processorId ? { ...r, [key]: deserializedValue } : r
   );
   updateModelValue(newRules);
+};
+
+const resetRuleConfig = (processorId: string, key: string) => {
+  const processor = postPipelineStore.processors.find((p) => p.id === processorId);
+  const field = processor?.configFields?.find((f) => f.key === key);
+
+  if (field && field.default !== undefined) {
+    const currentRules = props.modelValue?.rules || [];
+    const newRules = currentRules.map((r) =>
+      r.type === processorId ? { ...r, [key]: field.default } : r
+    );
+    updateModelValue(newRules);
+  }
 };
 </script>
 
@@ -151,21 +154,33 @@ const updateRuleConfig = (processorId: string, key: string, value: string) => {
           v-if="isRuleEnabled(processor.id) && processor.configFields?.length"
           class="rule-configs"
         >
-          <div
-            v-for="field in processor.configFields"
-            :key="field.key"
-            class="config-item"
-          >
-            <label class="config-label">{{ field.label }}：</label>
-            <el-input
-              v-if="!field.type || field.type === 'text'"
-              :model-value="getRuleConfigValue(processor.id, field.key)"
-              @update:model-value="
-                updateRuleConfig(processor.id, field.key, $event)
-              "
-              :placeholder="field.placeholder"
-              size="small"
-            />
+          <div v-for="field in processor.configFields" :key="field.key" class="config-item">
+            <label class="config-label">{{ field.label }}</label>
+            <div class="config-input-wrapper">
+              <el-input
+                v-if="!field.type || field.type === 'text'"
+                :model-value="getRuleConfigValue(processor.id, field.key)"
+                @update:model-value="updateRuleConfig(processor.id, field.key, $event)"
+                :placeholder="field.placeholder"
+                size="small"
+              />
+              <el-tooltip
+                v-if="field.default !== undefined"
+                effect="dark"
+                content="重置为默认值"
+                placement="top"
+              >
+                <el-popconfirm
+                  title="确定要重置为默认值吗？"
+                  @confirm="resetRuleConfig(processor.id, field.key)"
+                  width="200"
+                >
+                  <template #reference>
+                    <el-button :icon="RotateCcw" text circle size="small" />
+                  </template>
+                </el-popconfirm>
+              </el-tooltip>
+            </div>
             <!-- 将来可以在这里扩展其他类型的输入组件，如 select, switch 等 -->
           </div>
         </div>
@@ -263,18 +278,24 @@ const updateRuleConfig = (processorId: string, key: string, value: string) => {
 
 .config-item {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-input-wrapper {
+  display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .config-label {
   font-size: 12px;
   color: var(--text-color-secondary);
   white-space: nowrap;
-  min-width: 90px;
 }
 
-.config-item :deep(.el-input) {
+.config-input-wrapper :deep(.el-input) {
   flex: 1;
   max-width: 300px;
 }

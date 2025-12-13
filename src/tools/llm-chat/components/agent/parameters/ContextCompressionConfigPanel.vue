@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
-import { type ContextCompressionConfig, DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../types/llm";
+import { type ContextCompressionConfig, DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../../types/llm";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 
 interface Props {

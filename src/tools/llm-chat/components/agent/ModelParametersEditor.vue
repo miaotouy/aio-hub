@@ -12,7 +12,7 @@ import { getModelFamily } from "@/llm-apis/request-builder";
 import { isEqual } from "lodash-es";
 import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
-import ContextCompressionConfigPanel from "../settings/ContextCompressionConfigPanel.vue";
+import ContextCompressionConfigPanel from "./parameters/ContextCompressionConfigPanel.vue";
 import { ParameterConfig, parameterConfigs } from "../../config/parameter-config";
 import { DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../types/llm";
 

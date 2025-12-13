@@ -6,6 +6,7 @@ import {
   filterRulesByDepth,
 } from "../../context-utils/regex";
 import type { MessageRole } from "@/tools/llm-chat/types/chatRegex";
+import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 
 const logger = createModuleLogger("primary:regex-processor");
 
@@ -20,10 +21,13 @@ export const regexProcessor: ContextProcessor = {
       return;
     }
 
-    // 1. 解析和缓存原始规则集 (此处为简化，不使用缓存)
-    // 注意：为简化，暂时忽略全局正则配置
+    // 1. 解析和缓存原始规则集
+    const { settings } = useChatSettings();
+    const globalConfig = settings.value.regexConfig;
+
     const rawRules = resolveRawRules(
       "request",
+      globalConfig,
       agentConfig.regexConfig,
       userProfile?.regexConfig,
     );

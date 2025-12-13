@@ -8,9 +8,11 @@ import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useChatSettings } from './useChatSettings';
 import { useAgentStore } from '../agentStore';
+import { useLlmChatStore } from '../store';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 
 const logger = createModuleLogger('llm-chat/context-compressor');
 const errorHandler = createModuleErrorHandler('llm-chat/context-compressor');
@@ -20,6 +22,7 @@ export function useContextCompressor() {
   const { sendRequest } = useLlmRequest();
   const { settings } = useChatSettings();
   const agentStore = useAgentStore();
+  const llmChatStore = useLlmChatStore();
 
   /**
    * 压缩上下文信息
@@ -57,38 +60,49 @@ export function useContextCompressor() {
         return false;
     }
   };
-
   /**
    * 计算当前有效路径的上下文统计信息
-   * (排除已被隐藏的节点)
+   * (优先使用 Store 中的 Pipeline 计算结果，不再自己重复计算)
    */
   const calculateContextStats = (path: ChatMessageNode[]): CompressionContext => {
     // 1. 找出所有启用的压缩节点及其隐藏的节点 ID
     const enabledCompressionNodes = path.filter(
-      node => node.metadata?.isCompressionNode && node.isEnabled !== false
+      (node) => node.metadata?.isCompressionNode && node.isEnabled !== false
     );
 
     const hiddenNodeIds = new Set<string>();
-    enabledCompressionNodes.forEach(node => {
-      (node.metadata?.compressedNodeIds || []).forEach(id => hiddenNodeIds.add(id));
+    enabledCompressionNodes.forEach((node) => {
+      (node.metadata?.compressedNodeIds || []).forEach((id) =>
+        hiddenNodeIds.add(id)
+      );
     });
 
     // 2. 过滤掉被隐藏的节点
-    const effectiveNodes = path.filter(node => !hiddenNodeIds.has(node.id));
+    const effectiveNodes = path.filter((node) => !hiddenNodeIds.has(node.id));
 
-    // 3. 统计
-    let totalTokens = 0;
-    let messageCount = 0;
-    // 历史总数指路径上的总节点数（不包括 system prompt 和当前正在生成的）
-    // 这里简单计算有效节点数作为近似
+    // 3. 基础统计 (Count)
+    // 历史总数指路径上的总节点数
     const historyCount = effectiveNodes.length;
+    // 这里简单计算有效节点数作为近似
+    const messageCount = historyCount;
 
-    effectiveNodes.forEach(node => {
-      // 累加 Token (优先使用本地计算的 tokenCount，如果没有则估算或为0)
-      totalTokens += node.metadata?.tokenCount || 0;
-      // 累加消息数 (通常每个节点算一条，除了 system prompt 可能不算？这里统一都算)
-      messageCount++;
-    });
+    // 4. Token 统计
+    let totalTokens = 0;
+
+    // 尝试从 Store 获取最新的上下文统计
+    // Store 中的统计数据由 Pipeline (preview-builder) 生成，已经处理了隐藏节点、附件 Token 等复杂逻辑
+    const storeStats = llmChatStore.contextStats;
+
+    if (storeStats && storeStats.totalTokenCount !== undefined) {
+      // 使用 Store 的精确 Token 数
+      totalTokens = storeStats.totalTokenCount;
+    } else {
+      // Fallback: 如果 Store 还没准备好，使用本地简单估算
+      logger.debug("Store 上下文统计未就绪，使用本地简单估算");
+      effectiveNodes.forEach((node) => {
+        totalTokens += node.metadata?.tokenCount || 0;
+      });
+    }
 
     return { totalTokens, messageCount, historyCount };
   };
@@ -203,6 +217,22 @@ export function useContextCompressor() {
         tokenCount: Math.ceil(summaryContent.length * 1.5), // 粗略估算
       },
     });
+
+    // 尝试使用 TokenCalculator 计算精确的 Token 数
+    try {
+      const currentAgentId = agentStore.currentAgentId;
+      const agent = currentAgentId ? agentStore.getAgentById(currentAgentId) : null;
+      // 如果没有指定模型，TokenCalculator 会自动回退到默认估算策略
+      const tokenResult = await tokenCalculatorService.calculateTokens(
+        summaryContent,
+        agent?.modelId || ""
+      );
+      if (summaryNode.metadata) {
+        summaryNode.metadata.tokenCount = tokenResult.count;
+      }
+    } catch (error) {
+      logger.warn("计算摘要节点 Token 失败，保留估算值", error);
+    }
 
     // 2. 插入到树中
     // 逻辑：Summary 节点插入到 lastNode 之后

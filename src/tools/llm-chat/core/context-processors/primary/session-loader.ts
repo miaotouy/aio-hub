@@ -17,12 +17,40 @@ function getActiveBranchHistory(
   const history: ChatMessageNode[] = [];
   let currentId: string | null = session.activeLeafId;
 
+  // 1. 收集被压缩节点 ID (这些节点应该被隐藏)
+  const hiddenNodeIds = new Set<string>();
+
+  // 第一遍遍历：收集 hiddenNodeIds
+  // 注意：我们需要从叶子往上遍历，因为摘要节点通常在被压缩节点之后（或作为其子节点）
+  // 但在这个树结构中，Summary 节点是 LastCompressedNode 的子节点。
+  // 所以从 activeLeafId 往上遍历时，会先遇到 Summary 节点。
+  let tempId: string | null = currentId;
+  while (tempId) {
+    const node: ChatMessageNode = session.nodes[tempId];
+    if (!node) break;
+
+    if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
+      const compressedIds = node.metadata.compressedNodeIds || [];
+      compressedIds.forEach((id: string) => hiddenNodeIds.add(id));
+    }
+    tempId = node.parentId;
+  }
+
+  // 2. 第二遍遍历：构建历史记录并过滤
   while (currentId) {
     const node: ChatMessageNode | undefined = session.nodes[currentId];
     if (!node) {
       logger.warn("提取历史记录中断：找不到节点", { nodeId: currentId });
       break;
     }
+
+    // 如果是被隐藏的节点，跳过
+    // 注意：Summary 节点本身不应该被过滤（除非它也被另一个 Summary 压缩了）
+    if (hiddenNodeIds.has(node.id)) {
+      currentId = node.parentId;
+      continue;
+    }
+
     // 根节点（通常是 system prompt）不应包含在历史记录中
     if (node.parentId) {
       history.unshift(node);

@@ -153,7 +153,7 @@ export class NativePluginAdapter implements PluginProxy {
    */
   getMetadata(): ServiceMetadata {
     return {
-      methods: this.manifest.methods,
+      methods: this.manifest.methods ?? [],
     };
   }
 
@@ -238,7 +238,7 @@ export function createNativePluginProxy(
       const propStr = String(prop);
 
       // 检查是否是 manifest 中声明的方法
-      const hasMethod = target.manifest.methods.some((m) => m.name === propStr);
+      const hasMethod = target.manifest.methods?.some((m) => m.name === propStr);
       if (!hasMethod) {
         return undefined;
       }

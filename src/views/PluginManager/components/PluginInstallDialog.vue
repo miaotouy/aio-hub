@@ -171,7 +171,7 @@ function handleCancel() {
               </span>
             </ElDescriptionsItem>
             <ElDescriptionsItem label="暴露方法数" :span="2">
-              {{ preflightResult.manifest.methods.length }} 个
+              {{ preflightResult.manifest.methods?.length ?? 0 }} 个
             </ElDescriptionsItem>
             <ElDescriptionsItem v-if="preflightResult.manifest.settingsSchema" label="配置项" :span="2">
               <ElTag type="info" size="small">
@@ -182,7 +182,7 @@ function handleCancel() {
         </div>
 
         <!-- 方法列表 -->
-        <div v-if="preflightResult.manifest.methods.length > 0" class="methods-section">
+        <div v-if="preflightResult.manifest.methods && preflightResult.manifest.methods.length > 0" class="methods-section">
           <h4 class="section-title">暴露的方法</h4>
           <div class="methods-list">
             <ElTag

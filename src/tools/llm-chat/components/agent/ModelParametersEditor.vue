@@ -9,6 +9,7 @@ import { useAgentStore } from "../../agentStore";
 import { useChatHandler } from "../../composables/useChatHandler";
 import type { ContextPreviewData } from "../../composables/useChatHandler";
 import { getModelFamily } from "@/llm-apis/request-builder";
+import { isEqual } from "lodash-es";
 import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "../settings/ContextCompressionConfigPanel.vue";
@@ -478,21 +479,17 @@ watch(() => {
 }, handleStateChange);
 watch(
   () => localParams.value.contextManagement,
-  () => {
+  (newVal, oldVal) => {
+    if (isEqual(newVal, oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
   { deep: true }
 );
-watch(
-  () => localParams.value.contextCompression,
-  () => {
-    if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
-  },
-  { deep: true }
-);
+// 注意：contextCompression 是运行时压缩配置，不影响预览结构，无需触发预览更新
 watch(
   () => localParams.value.contextPostProcessing,
-  () => {
+  (newVal, oldVal) => {
+    if (isEqual(newVal, oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
   { deep: true }
@@ -655,9 +652,7 @@ const hasActivePostProcessingRules = computed(() => {
     >
       <PostProcessingPanel
         :model-value="localParams.contextPostProcessing?.rules"
-        @update:model-value="
-          (rules) => updateParameter('contextPostProcessing', { rules })
-        "
+        @update:model-value="(rules) => updateParameter('contextPostProcessing', { rules })"
       />
     </ConfigSection>
 

@@ -595,10 +595,19 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         const agentStore = useAgentStore();
         if (!agentStore.currentAgentId) return null;
         const agent = agentStore.getAgentById(agentStore.currentAgentId);
+        // 仅监听影响上下文计算的核心参数
+        // 排除 temperature, topP 等生成参数
+        // contextManagement: 决定截断逻辑
+        // contextPostProcessing: 决定内容过滤/修改逻辑
+        const contextParams = {
+          contextManagement: agent?.parameters?.contextManagement,
+          contextPostProcessing: agent?.parameters?.contextPostProcessing,
+        };
+
         // 使用 JSON.stringify 进行稳定化比较，避免因对象引用变化（如状态同步时）导致的误触发
         return JSON.stringify({
           modelId: agent?.modelId,
-          params: agent?.parameters,
+          contextParams,
           presets: agent?.presetMessages,
         });
       },

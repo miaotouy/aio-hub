@@ -138,7 +138,11 @@ export function useChatStorageSeparated() {
       await indexManager.ensureModuleDir(); // 使用 ConfigManager 确保模块目录存在
       await ensureSessionsDir(); // 确保 sessions 子目录存在
       const sessionPath = await getSessionPath(session.id);
-      const newContent = JSON.stringify(session, null, 2);
+
+      // 创建要保存的数据副本，移除运行时专用的 history 字段
+      // 避免将撤销/重做栈持久化到磁盘
+      const { history, historyIndex, ...sessionToSave } = session;
+      const newContent = JSON.stringify(sessionToSave, null, 2);
 
       // 如果不是强制写入，先检查内容是否真的改变了
       if (!forceWrite) {

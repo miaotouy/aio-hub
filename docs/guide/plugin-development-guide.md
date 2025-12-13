@@ -64,7 +64,7 @@ plugins/
   "icon": "🔧",
   "tags": ["工具", "示例"],
   "host": {
-    "appVersion": ">=2.1.0",
+    "appVersion": ">=0.4.6",
     "apiVersion": 2
   },
   "type": "javascript",

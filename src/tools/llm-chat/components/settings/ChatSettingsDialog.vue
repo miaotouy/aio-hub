@@ -68,192 +68,14 @@
                 </div>
 
                 <template v-for="item in section.items" :key="item.id">
-                  <el-form-item
+                  <SettingItemRenderer
                     v-if="!item.visible || item.visible(localSettings)"
-                    :label="renderHint(item.label)"
-                    :data-setting-id="item.id"
-                    style="padding-left: 26px"
-                  >
-                    <!-- Block layout (default) -->
-                    <template v-if="item.layout !== 'inline'">
-                      <div class="setting-item-content">
-                        <!-- Collapsible Component Template -->
-                        <div
-                          v-if="item.collapsible"
-                          class="full-width"
-                          style="width: 100%"
-                        >
-                          <el-collapse v-model="activeCollapseNames">
-                            <el-collapse-item
-                              :title="item.collapsible.title"
-                              :name="item.collapsible.name"
-                            >
-                              <div :style="item.collapsible.style">
-                                <component
-                                  v-if="loadedComponents[item.collapsible.name]"
-                                  :is="resolveComponent(item.component)"
-                                  :model-value="
-                                    get(localSettings, item.modelPath) ||
-                                    item.collapsible.defaultValue
-                                  "
-                                  @update:model-value="
-                                    (value: any) =>
-                                      set(localSettings, item.modelPath, value)
-                                  "
-                                  v-bind="item.props"
-                                  :loading="
-                                    item.collapsible.useLoading
-                                      ? componentLoading[item.collapsible.name]
-                                      : undefined
-                                  "
-                                />
-                              </div>
-                            </el-collapse-item>
-                          </el-collapse>
-                        </div>
-
-                        <!-- Standard Component -->
-                        <component
-                          v-else-if="item.component !== 'SliderWithInput'"
-                          :is="resolveComponent(item.component)"
-                          :class="getComponentClass(item)"
-                          :model-value="get(localSettings, item.modelPath)"
-                          @update:model-value="
-                            (value: any) =>
-                              set(localSettings, item.modelPath, value)
-                          "
-                          v-bind="resolveProps(item)"
-                        >
-                          <!-- RadioGroup options -->
-                          <template
-                            v-if="
-                              item.component === 'ElRadioGroup' &&
-                              resolveOptions(item)
-                            "
-                          >
-                            <el-radio
-                              v-for="option in resolveOptions(item)"
-                              :key="option.value.toString()"
-                              :value="option.value"
-                            >
-                              {{ option.label }}
-                            </el-radio>
-                          </template>
-                          <!-- Select options -->
-                          <template
-                            v-if="
-                              item.component === 'ElSelect' &&
-                              resolveOptions(item)
-                            "
-                          >
-                            <el-option
-                              v-for="option in resolveOptions(item)"
-                              :key="option.value.toString()"
-                              :label="option.label"
-                              :value="option.value"
-                              :title="option.description"
-                            >
-                              <div class="select-option-with-tags">
-                                <span>{{ option.label }}</span>
-                                <div
-                                  v-if="option.tags && option.tags.length > 0"
-                                  class="tags-container"
-                                >
-                                  <el-tag
-                                    v-for="tag in option.tags"
-                                    :key="tag"
-                                    size="small"
-                                    :type="
-                                      tag === '基础'
-                                        ? 'success'
-                                        : tag === '高级'
-                                          ? 'warning'
-                                          : 'info'
-                                    "
-                                    class="option-tag"
-                                  >
-                                    {{ tag }}
-                                  </el-tag>
-                                </div>
-                              </div>
-                            </el-option>
-                          </template>
-                        </component>
-                        <!-- SliderWithInput Custom Composite Component -->
-                        <div
-                          v-if="item.component === 'SliderWithInput'"
-                          class="slider-with-input"
-                        >
-                          <el-slider
-                            :model-value="get(localSettings, item.modelPath)"
-                            @update:model-value="
-                              (value: any) =>
-                                set(localSettings, item.modelPath, value)
-                            "
-                            v-bind="item.props"
-                            class="slider-part"
-                          />
-                          <el-input-number
-                            :model-value="get(localSettings, item.modelPath)"
-                            @update:model-value="
-                              (value: any) =>
-                                set(localSettings, item.modelPath, value)
-                            "
-                            v-bind="item.props"
-                            class="input-part"
-                            :controls="true"
-                          />
-                        </div>
-                        <div
-                          v-if="item.slots?.append"
-                          class="append-slot"
-                          @click="handleComponentClick(item)"
-                        >
-                          <component :is="item.slots.append" />
-                        </div>
-                      </div>
-                      <div
-                        v-if="item.hint"
-                        class="form-hint"
-                        v-html="renderHint(item.hint)"
-                      ></div>
-                      <!-- 渲染器详情显示 - 仅显示当前选中的 -->
-                      <div
-                        v-if="
-                          item.id === 'rendererVersion' && resolveOptions(item)
-                        "
-                        class="form-hint"
-                      >
-                        {{
-                          resolveOptions(item)?.find(
-                            (opt: any) =>
-                              opt.value === get(localSettings, item.modelPath),
-                          )?.description
-                        }}
-                      </div>
-                    </template>
-
-                    <!-- Inline layout -->
-                    <template v-else>
-                      <div class="setting-item-content-inline">
-                        <component
-                          :is="resolveComponent(item.component)"
-                          :class="getComponentClass(item)"
-                          :model-value="get(localSettings, item.modelPath)"
-                          @update:model-value="
-                            (value: any) =>
-                              set(localSettings, item.modelPath, value)
-                          "
-                          v-bind="resolveProps(item)"
-                        />
-                        <div
-                          v-if="item.hint"
-                          class="form-hint-inline"
-                          v-html="renderHint(item.hint)"
-                        ></div>
-                      </div>
-                    </template>
-                  </el-form-item>
+                    :item="item"
+                    :settings="localSettings"
+                    @update:settings="handleSettingsUpdate"
+                    @action="handleAction"
+                    :is-highlighted="highlightedItemId === item.id"
+                  />
                 </template>
               </div>
               <el-divider v-if="sectionIndex < settingsConfig.length - 1" />
@@ -297,28 +119,19 @@ import {
   watch,
   nextTick,
   computed,
-  shallowRef,
-  type Component,
   onUnmounted,
-  defineAsyncComponent,
 } from "vue";
 import {
   ElMessageBox,
-  ElRadio,
-  ElSwitch,
-  ElSlider,
-  ElInputNumber,
-  ElInput,
-  ElRadioGroup,
   ElTabs,
   ElTabPane,
-  ElSelect,
-  ElOption,
-  ElTag,
-  ElCollapse,
-  ElCollapseItem,
+  ElForm,
+  ElDivider,
+  ElAutocomplete,
+  ElButton,
+  ElIcon,
 } from "element-plus";
-import { get, set, debounce } from "lodash-es";
+import { set, debounce } from "lodash-es";
 import {
   RefreshLeft,
   Loading,
@@ -331,13 +144,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
-import ContextCompressionConfigPanel from "./ContextCompressionConfigPanel.vue";
+import SettingItemRenderer from "./SettingItemRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
-const PrimaryPipelineConfig = defineAsyncComponent(
-  () => import("./PrimaryPipelineConfig.vue"),
-);
 import {
   useChatSettings,
   type ChatSettings,
@@ -347,14 +155,6 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { settingsConfig } from "./settingsConfig";
-import type { SettingComponent, SettingItem } from "./settings-types";
-
-const MarkdownStyleEditor = defineAsyncComponent(
-  () =>
-    import(
-      "@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue"
-    ),
-);
 
 const logger = createModuleLogger("ChatSettingsDialog");
 const errorHandler = createModuleErrorHandler("ChatSettingsDialog");
@@ -401,51 +201,7 @@ const localSettings = ref<ChatSettings>(
 const isLoadingSettings = ref(false);
 const saveStatus = ref<"idle" | "saving" | "success" | "error">("idle");
 const lastSaveTime = ref("");
-
-// --- 懒加载状态管理 ---
-const activeCollapseNames = ref<string[]>([]);
-// 通用懒加载状态
-const loadedComponents = ref<Record<string, boolean>>({});
-const componentLoading = ref<Record<string, boolean>>({});
-
-// 从 settingsConfig 中提取所有的 collapsible 配置
-const allCollapsibleConfigs = computed(() => {
-  const configs: Record<
-    string,
-    {
-      title: string;
-      name: string;
-      style?: any;
-      defaultValue?: any;
-      useLoading?: boolean;
-    }
-  > = {};
-
-  settingsConfig.forEach((section) => {
-    section.items.forEach((item) => {
-      if (item.collapsible) {
-        configs[item.collapsible.name] = item.collapsible;
-      }
-    });
-  });
-  return configs;
-});
-
-watch(activeCollapseNames, (newNames) => {
-  newNames.forEach((name) => {
-    // 查找配置
-    const config = allCollapsibleConfigs.value[name];
-    if (config && !loadedComponents.value[name]) {
-      if (config.useLoading) {
-        componentLoading.value[name] = true;
-        setTimeout(() => {
-          componentLoading.value[name] = false;
-        }, 500);
-      }
-      loadedComponents.value[name] = true;
-    }
-  });
-});
+const highlightedItemId = ref("");
 
 const loadLocalSettings = async () => {
   isLoadingSettings.value = true;
@@ -454,17 +210,15 @@ const loadLocalSettings = async () => {
       await loadSettings();
     }
     localSettings.value = JSON.parse(JSON.stringify(settings.value));
-
-    // 重置状态
-    activeCollapseNames.value = [];
-    loadedComponents.value = {};
-    componentLoading.value = {};
-
     logger.info("加载本地设置", { settings: localSettings.value });
   } finally {
     await nextTick();
     isLoadingSettings.value = false;
   }
+};
+
+const handleSettingsUpdate = (newSettings: ChatSettings) => {
+  localSettings.value = newSettings;
 };
 
 watch(
@@ -501,7 +255,6 @@ watch(
   localSettings,
   () => {
     if (isLoadingSettings.value) return;
-    // 当用户编辑时，如果之前有保存成功或失败的状态，则清除，以表示“未保存的更改”
     if (saveStatus.value === "success" || saveStatus.value === "error") {
       saveStatus.value = "idle";
     }
@@ -538,6 +291,7 @@ const handleReset = async () => {
   }
 };
 
+// --- Action Handlers ---
 const handleResetPrompt = () => {
   set(
     localSettings.value,
@@ -613,74 +367,6 @@ const handleSelectFFmpegPath = async () => {
   }
 };
 
-const handleClosed = () => {
-  saveStatus.value = "idle";
-};
-
-// --- 配置驱动渲染 ---
-const componentMap: Record<string, Component> = {
-  ElSwitch,
-  ElSlider,
-  ElRadioGroup,
-  ElInputNumber,
-  ElInput,
-  ElTabs,
-  ElTabPane,
-  LlmModelSelector,
-  ElSelect,
-  MarkdownStyleEditor,
-  ChatRegexEditor,
-  ContextCompressionConfigPanel,
-  PrimaryPipelineConfig,
-};
-
-const resolveComponent = (componentName: SettingComponent | Component) => {
-  if (typeof componentName === "string") {
-    return componentMap[componentName] || componentName;
-  }
-  return shallowRef(componentName);
-};
-
-const resolveProps = (item: SettingItem) => {
-  if (typeof item.props === "function") {
-    return item.props(localSettings.value);
-  }
-  return item.props || {};
-};
-
-const resolveOptions = (item: SettingItem) => {
-  if (typeof item.options === "function") {
-    return item.options(localSettings.value);
-  }
-  return item.options;
-};
-
-const renderHint = (hint: string) => {
-  return hint.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
-    try {
-      // eslint-disable-next-line no-new-func
-      return new Function("localSettings", `return ${expression}`)(
-        localSettings.value,
-      );
-    } catch (e) {
-      return `{{ ${expression} }}`; // Return original on error
-    }
-  });
-};
-
-const getComponentClass = (item: SettingItem) => {
-  const classes: string[] = [];
-  const props = resolveProps(item);
-  if (
-    item.component === "ElSlider" ||
-    (item.component === "ElInput" && props?.type === "textarea") ||
-    item.component === "SliderWithInput"
-  ) {
-    classes.push("full-width");
-  }
-  return classes;
-};
-
 const actionRegistry: Record<string, () => void> = {
   resetTopicNamingPrompt: handleResetPrompt,
   resetTranslationPrompt: handleResetTranslationPrompt,
@@ -690,10 +376,14 @@ const actionRegistry: Record<string, () => void> = {
   selectFFmpegPath: handleSelectFFmpegPath,
 };
 
-const handleComponentClick = (item: SettingItem) => {
-  if (item.action && actionRegistry[item.action]) {
-    actionRegistry[item.action]();
+const handleAction = (actionName: string) => {
+  if (actionRegistry[actionName]) {
+    actionRegistry[actionName]();
   }
+};
+
+const handleClosed = () => {
+  saveStatus.value = "idle";
 };
 
 // --- 搜索功能 ---
@@ -730,10 +420,9 @@ const handleTabClick = (tab: any) => {
       targetSection.classList.remove("section-highlight");
     }, 1500);
 
-    // 等待滚动结束后再恢复滚动监听
     setTimeout(() => {
       isClickingTab = false;
-    }, 1000); // 1s 的延迟应该足够平滑滚动完成
+    }, 1000);
   }
 };
 
@@ -743,6 +432,19 @@ interface SearchIndexItem {
   keywords: string;
   value: string;
 }
+
+const renderHint = (hint: string) => {
+  return hint.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
+    try {
+      // eslint-disable-next-line no-new-func
+      return new Function("localSettings", `return ${expression}`)(
+        localSettings.value,
+      );
+    } catch (e) {
+      return `{{ ${expression} }}`; 
+    }
+  });
+};
 
 const searchIndex = computed<SearchIndexItem[]>(() =>
   settingsConfig.flatMap((section) =>
@@ -784,10 +486,11 @@ const handleSearchSelect = (item: Record<string, any>) => {
 
   if (targetElement) {
     targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
-
-    targetElement.classList.add("highlight");
+    
+    // 触发高亮
+    highlightedItemId.value = item.id;
     setTimeout(() => {
-      targetElement.classList.remove("highlight");
+      highlightedItemId.value = "";
     }, 1500);
   }
 
@@ -867,18 +570,6 @@ watch(
 </script>
 
 <style scoped>
-.select-option-with-tags {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.tags-container {
-  display: flex;
-  gap: 4px;
-}
-
 /* 主容器使用 flex 布局 */
 .settings-container {
   display: flex;
@@ -911,15 +602,6 @@ watch(
   min-height: 0; /* 确保滚动条正常工作 */
 }
 
-:deep(.el-form-item.highlight) {
-  background-color: var(--el-color-primary-light-9);
-  border-radius: 4px;
-  transition: background-color 0.3s ease-in-out;
-  /* 垂直方向的 padding 和 margin 互相抵消，避免布局抖动 */
-  padding: 4px 8px;
-  margin: -4px -8px;
-}
-
 .settings-section {
   margin-bottom: 24px;
 }
@@ -939,19 +621,16 @@ watch(
   color: var(--primary-color);
 }
 
-.form-hint {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  margin-top: 4px;
-  padding-left: 8px;
-  line-height: 1.4;
+:deep(.el-form-item) {
+  margin-bottom: 20px;
 }
 
-.form-hint-inline {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  line-height: 1.4;
-  margin-left: 12px;
+:deep(.el-form-item__label) {
+  font-weight: 500;
+}
+
+:deep(.el-slider) {
+  margin-right: 12px;
 }
 
 .settings-footer-content {
@@ -988,59 +667,6 @@ watch(
 
 .auto-save-indicator .el-icon {
   font-size: 14px;
-}
-
-:deep(.el-form-item) {
-  margin-bottom: 20px;
-}
-
-:deep(.el-form-item__label) {
-  font-weight: 500;
-}
-
-:deep(.el-slider) {
-  margin-right: 12px;
-}
-
-.slider-with-input {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 16px;
-}
-
-.slider-with-input .slider-part {
-  flex: 1;
-  margin-right: 0;
-}
-
-.slider-with-input .input-part {
-  width: 140px;
-}
-
-.slider-with-input .input-part :deep(input) {
-  text-align: center;
-}
-
-.setting-item-content {
-  display: flex;
-  width: 100%;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.setting-item-content-inline {
-  display: flex;
-  align-items: center;
-}
-
-.setting-item-content > :deep(.full-width) {
-  flex: 1;
-}
-
-.append-slot {
-  flex-shrink: 0;
-  margin-top: 2px;
 }
 
 :global(.settings-search-popper) {
@@ -1129,10 +755,6 @@ watch(
     padding: 0 8px 12px;
   }
 
-  :deep(.el-form-item) {
-    margin-bottom: 16px;
-  }
-
   .settings-section {
     margin-bottom: 20px;
   }
@@ -1142,14 +764,6 @@ watch(
   .section-title {
     font-size: 15px;
     margin-bottom: 12px;
-  }
-
-  :deep(.el-form-item) {
-    margin-bottom: 14px;
-  }
-
-  .form-hint {
-    margin-top: 2px;
   }
 }
 

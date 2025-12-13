@@ -478,6 +478,19 @@ const settingsManager = createConfigManager<ChatSettings>({
       transcription: {
         ...defaultConfig.transcription,
         ...(loadedConfig.transcription || {}),
+        // 深度合并嵌套对象，防止旧配置覆盖新字段
+        image: {
+          ...defaultConfig.transcription.image,
+          ...(loadedConfig.transcription?.image || {}),
+        },
+        audio: {
+          ...defaultConfig.transcription.audio,
+          ...(loadedConfig.transcription?.audio || {}),
+        },
+        video: {
+          ...defaultConfig.transcription.video,
+          ...(loadedConfig.transcription?.video || {}),
+        },
       },
       requestSettings: {
         ...defaultConfig.requestSettings,

@@ -77,6 +77,10 @@ export interface SettingItem {
    */
   keywords: string;
   /**
+   * 当 modelPath 对应的值为 undefined 时的默认值
+   */
+  defaultValue?: any;
+  /**
    * 控制该设置项是否显示的条件函数
    * @param settings - 当前的设置对象
    * @returns boolean - 是否显示

@@ -1,4 +1,4 @@
-import { h } from "vue";
+import { h, defineAsyncComponent } from "vue";
 import { RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
 import {
   Settings2,
@@ -18,6 +18,23 @@ import {
 import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/store";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+
+// 异步加载大型业务组件
+const MarkdownStyleEditor = defineAsyncComponent(() =>
+  import(
+    "@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue"
+  )
+);
+const ChatRegexEditor = defineAsyncComponent(() =>
+  import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
+);
+const ContextCompressionConfigPanel = defineAsyncComponent(() =>
+  import("./ContextCompressionConfigPanel.vue")
+);
+const PrimaryPipelineConfig = defineAsyncComponent(() =>
+  import("./PrimaryPipelineConfig.vue")
+);
 
 export const settingsConfig: SettingsSection[] = [
   {
@@ -249,7 +266,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "markdownStyle",
         label: "全局消息样式",
-        component: "MarkdownStyleEditor",
+        component: MarkdownStyleEditor,
         props: {
           "editor-height": "400px",
         },
@@ -286,7 +303,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "regexConfig",
         label: "全局文本替换",
-        component: "ChatRegexEditor",
+        component: ChatRegexEditor,
         props: {
           "editor-height": "500px",
         },
@@ -309,10 +326,11 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "defaultModel",
         label: "默认模型",
-        component: "LlmModelSelector",
+        component: LlmModelSelector,
         modelPath: "modelPreferences.defaultModel",
         hint: "新建智能体或会话时默认使用的模型，作为兜底选项",
         keywords: "model default 默认 模型",
+        defaultValue: "",
       },
     ],
   },
@@ -323,7 +341,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "contextCompression",
         label: "上下文压缩配置",
-        component: "ContextCompressionConfigPanel",
+        component: ContextCompressionConfigPanel,
         modelPath: "contextCompression",
         hint: "配置自动或手动的上下文压缩策略，以节省 Token 并保持长对话的连贯性。",
         keywords: "context compression summary token 上下文 压缩 摘要",
@@ -337,7 +355,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "primaryPipelineConfig",
         label: "主上下文管道配置",
-        component: "PrimaryPipelineConfig",
+        component: PrimaryPipelineConfig,
         modelPath: "", // This component manages its own state via Pinia
         hint: "管理用于构建核心请求上下文的处理器系列。",
         keywords: "context pipeline primary processor 上下文 管道 处理器",
@@ -360,11 +378,12 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transModel",
         label: "翻译模型",
-        component: "LlmModelSelector",
+        component: LlmModelSelector,
         modelPath: "translation.modelIdentifier",
         hint: "用于执行翻译任务的 LLM 模型",
         keywords: "translation model 翻译 模型",
         visible: (settings) => settings.translation.enabled,
+        defaultValue: "",
       },
       {
         id: "transTargetLangList",
@@ -431,7 +450,7 @@ export const settingsConfig: SettingsSection[] = [
             h(
               ElButton,
               {
-                onClick: () => {}, // 在主组件处理重置
+                onClick: () => { }, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-prompt-btn", // 特定类名用于事件委托
                 title: "重置为默认提示词",
@@ -478,11 +497,12 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "modelIdentifier",
         label: "命名模型",
-        component: "LlmModelSelector",
+        component: LlmModelSelector,
         modelPath: "topicNaming.modelIdentifier",
         hint: "用于生成会话标题的 LLM 模型",
         keywords: "topic naming model 话题 命名 模型",
         visible: (settings) => settings.topicNaming.enabled,
+        defaultValue: "",
       },
       {
         id: "prompt",
@@ -504,7 +524,7 @@ export const settingsConfig: SettingsSection[] = [
               ElButton,
               {
                 // 这将通过自定义事件在主组件中处理
-                onClick: () => {},
+                onClick: () => { },
                 size: "small",
                 class: "reset-prompt-btn",
                 title: "重置为默认提示词",
@@ -663,7 +683,7 @@ export const settingsConfig: SettingsSection[] = [
         props: {
           min: 30000,
           max: 300000,
-          step: 10000,
+          step: 100,
           "format-tooltip": (val: number) => `${val / 1000}秒`,
         },
         modelPath: "transcription.timeout",
@@ -693,13 +713,14 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.video.enableCompression,
+        defaultValue: "",
         action: "selectFFmpegPath",
         slots: {
           append: () =>
             h(
               ElButton,
               {
-                onClick: () => {}, // 事件由主组件代理处理
+                onClick: () => { }, // 事件由主组件代理处理
                 title: "选择文件",
                 style: { padding: "8px" },
               },
@@ -776,7 +797,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transModel",
         label: "通用转写模型",
-        component: "LlmModelSelector",
+        component: LlmModelSelector,
         props: {
           capabilities: { vision: true },
         },
@@ -786,6 +807,7 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           !settings.transcription.enableTypeSpecificConfig,
+        defaultValue: "",
       },
       {
         id: "transCustomPrompt",
@@ -808,7 +830,7 @@ export const settingsConfig: SettingsSection[] = [
             h(
               ElButton,
               {
-                onClick: () => {}, // 在主组件处理重置
+                onClick: () => { }, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-prompt-btn",
                 title: "重置为默认提示词",
@@ -846,7 +868,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transImageModel",
         label: "图片转写模型",
-        component: "LlmModelSelector",
+        component: LlmModelSelector,
         props: {
           capabilities: { vision: true },
         },
@@ -856,6 +878,7 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
+        defaultValue: "",
       },
       {
         id: "transImagePrompt",
@@ -874,7 +897,7 @@ export const settingsConfig: SettingsSection[] = [
             h(
               ElButton,
               {
-                onClick: () => {}, // 在主组件处理重置
+                onClick: () => { }, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-image-prompt-btn",
                 title: "重置为默认提示词",
@@ -912,7 +935,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transAudioModel",
         label: "音频转写模型",
-        component: "LlmModelSelector",
+        component: LlmModelSelector,
         props: {
           capabilities: { audio: true },
         },
@@ -922,6 +945,7 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
+        defaultValue: "",
       },
       {
         id: "transAudioPrompt",
@@ -940,7 +964,7 @@ export const settingsConfig: SettingsSection[] = [
             h(
               ElButton,
               {
-                onClick: () => {}, // 在主组件处理重置
+                onClick: () => { }, // 在主组件处理重置
                 size: "small",
                 class: "reset-trans-audio-prompt-btn",
                 title: "重置为默认提示词",
@@ -978,7 +1002,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transVideoModel",
         label: "视频转写模型",
-        component: "LlmModelSelector",
+        component: LlmModelSelector,
         props: {
           capabilities: { video: true },
         },
@@ -988,6 +1012,7 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
+        defaultValue: "",
       },
       {
         id: "transVideoPrompt",
@@ -1006,7 +1031,7 @@ export const settingsConfig: SettingsSection[] = [
             h(
               ElButton,
               {
-                onClick: () => {}, // 事件由主组件代理处理
+                onClick: () => { }, // 事件由主组件代理处理
                 title: "重置为默认提示词",
                 style: { padding: "8px" },
               },

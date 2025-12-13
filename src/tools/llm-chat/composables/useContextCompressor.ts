@@ -3,10 +3,9 @@
  * 负责压缩检测、摘要生成和压缩节点创建
  */
 
-import type { ChatSession, ChatMessageNode, ContextCompressionConfig } from '../types';
+import { DEFAULT_CONTEXT_COMPRESSION_CONFIG, type ChatSession, type ChatMessageNode, type ContextCompressionConfig } from '../types';
 import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
-import { useChatSettings } from './useChatSettings';
 import { useAgentStore } from '../agentStore';
 import { useLlmChatStore } from '../store';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
@@ -20,7 +19,6 @@ const errorHandler = createModuleErrorHandler('llm-chat/context-compressor');
 export function useContextCompressor() {
   const { getNodePath, createNode, addNodeToSession, reparentNode } = useNodeManager();
   const { sendRequest } = useLlmRequest();
-  const { settings } = useChatSettings();
   const agentStore = useAgentStore();
   const llmChatStore = useLlmChatStore();
 
@@ -275,24 +273,40 @@ export function useContextCompressor() {
   /**
    * 获取有效配置
    */
-  const getEffectiveConfig = (config?: ContextCompressionConfig): ContextCompressionConfig => {
-    // 优先级：参数 config > Agent 配置 > 全局配置
-    const globalConfig = settings.value.contextCompression;
-    let effectiveConfig: ContextCompressionConfig = { ...globalConfig };
+  const getEffectiveConfig = (
+    config?: ContextCompressionConfig,
+    session?: ChatSession
+  ): ContextCompressionConfig => {
+    // 优先级：参数 config > Session 覆盖 > Agent 配置 > 默认配置
+    let effectiveConfig: ContextCompressionConfig = {
+      ...DEFAULT_CONTEXT_COMPRESSION_CONFIG,
+    };
 
-    // 如果传入了 config (通常是测试或手动触发)，覆盖全局
-    if (config) {
-      effectiveConfig = { ...effectiveConfig, ...config };
-    } else {
-      // 尝试获取当前 Agent 的配置覆盖
-      const currentAgentId = agentStore.currentAgentId;
-      if (currentAgentId) {
-        const agent = agentStore.getAgentById(currentAgentId);
-        if (agent?.parameters?.contextCompression) {
-          effectiveConfig = { ...effectiveConfig, ...agent.parameters.contextCompression };
-        }
+    // 1. 尝试获取当前 Agent 的配置覆盖 (作为基础)
+    const currentAgentId = agentStore.currentAgentId;
+    if (currentAgentId) {
+      const agent = agentStore.getAgentById(currentAgentId);
+      if (agent?.parameters?.contextCompression) {
+        effectiveConfig = {
+          ...effectiveConfig,
+          ...agent.parameters.contextCompression,
+        };
       }
     }
+
+    // 2. 尝试获取 Session 的配置覆盖 (优先级高于 Agent)
+    if (session?.parameterOverrides?.contextCompression) {
+      effectiveConfig = {
+        ...effectiveConfig,
+        ...session.parameterOverrides.contextCompression,
+      };
+    }
+
+    // 3. 如果传入了 config (通常是测试或手动触发)，优先级最高
+    if (config) {
+      effectiveConfig = { ...effectiveConfig, ...config };
+    }
+
     return effectiveConfig;
   };
 
@@ -304,7 +318,7 @@ export function useContextCompressor() {
     session: ChatSession,
     config?: ContextCompressionConfig
   ): Promise<boolean> => {
-    const effectiveConfig = getEffectiveConfig(config);
+    const effectiveConfig = getEffectiveConfig(config, session);
 
     // 检查是否启用
     if (!effectiveConfig.enabled) {
@@ -329,7 +343,7 @@ export function useContextCompressor() {
    * 手动触发压缩（忽略自动触发阈值）
    */
   const manualCompress = async (session: ChatSession): Promise<boolean> => {
-    const effectiveConfig = getEffectiveConfig();
+    const effectiveConfig = getEffectiveConfig(undefined, session);
     const path = getNodePath(session, session.activeLeafId);
 
     logger.info("手动触发上下文压缩", { config: effectiveConfig });

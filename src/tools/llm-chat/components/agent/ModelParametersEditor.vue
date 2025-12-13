@@ -13,6 +13,7 @@ import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "../settings/ContextCompressionConfigPanel.vue";
 import { ParameterConfig, parameterConfigs } from "../../config/parameter-config";
+import { DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../types/llm";
 
 // New Components
 import SafetySettingsPanel from "./parameters/SafetySettingsPanel.vue";
@@ -62,6 +63,14 @@ const supportedParameters = computed<LlmParameterSupport>(() => {
 // 初始化参数逻辑：如果 enabledParameters 不存在，根据值是否为 undefined 智能推断
 const initLocalParams = (params: LlmParameters): LlmParameters => {
   const newParams = { ...params };
+
+  // 确保 contextCompression 有默认结构（如果未定义）
+  if (!newParams.contextCompression) {
+    newParams.contextCompression = {
+      ...DEFAULT_CONTEXT_COMPRESSION_CONFIG,
+      enabled: false,
+    };
+  }
 
   if (!newParams.enabledParameters) {
     // 获取所有非 undefined 的参数键作为启用的参数

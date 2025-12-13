@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useVModel, useElementSize } from "@vueuse/core";
-import type { ContextCompressionConfig } from "../../types/llm";
+import { computed, ref, watch } from "vue";
+import { useElementSize } from "@vueuse/core";
+import { type ContextCompressionConfig, DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../types/llm";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 
 interface Props {
@@ -20,8 +20,29 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-// 使用 useVModel 实现双向绑定
-const config = useVModel(props, "modelValue", emit, { passive: true });
+// 本地状态，避免直接修改 props
+const config = ref<ContextCompressionConfig>({ ...props.modelValue });
+
+// 监听 props 变化，同步到本地状态
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    // 只有当新值与当前值不同时才更新，避免循环更新
+    if (JSON.stringify(newVal) !== JSON.stringify(config.value)) {
+      config.value = { ...newVal };
+    }
+  },
+  { deep: true }
+);
+
+// 监听本地状态变化，emit 更新
+watch(
+  config,
+  (newVal) => {
+    emit("update:modelValue", { ...newVal });
+  },
+  { deep: true }
+);
 
 // 容器尺寸响应式
 const containerRef = ref<HTMLElement | null>(null);
@@ -46,13 +67,9 @@ const summaryModelValue = computed({
   },
 });
 
-// 默认提示词
-const defaultPrompt =
-  "请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：\n\n{context}\n\n摘要要求：\n1. 用中文输出\n2. 保持客观中立\n3. 不超过 300 字";
-
 // 重置提示词
 const resetPrompt = () => {
-  config.value.summaryPrompt = defaultPrompt;
+  config.value.summaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryPrompt;
 };
 </script>
 
@@ -234,6 +251,7 @@ const resetPrompt = () => {
 
 .config-group {
   margin-bottom: 12px;
+  box-sizing: border-box;
 }
 
 .group-title {

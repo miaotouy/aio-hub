@@ -231,6 +231,23 @@ export interface ModelIdentifier {
 /**
  * 上下文压缩配置
  */
+/**
+ * 默认上下文压缩配置
+ */
+export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
+  enabled: false,
+  autoTrigger: true,
+  triggerMode: "token",
+  tokenThreshold: 80000,
+  countThreshold: 50,
+  protectRecentCount: 10,
+  compressCount: 20,
+  minHistoryCount: 15,
+  summaryRole: "system",
+  summaryPrompt:
+    "请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：\n\n{context}\n\n摘要要求：\n1. 用中文输出\n2. 保持客观中立\n3. 不超过 300 字",
+};
+
 export interface ContextCompressionConfig {
   /** 是否启用上下文压缩 */
   enabled?: boolean;

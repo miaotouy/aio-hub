@@ -11,7 +11,6 @@ import {
   Globe,
   Regex,
   Languages,
-  Archive,
   FileText,
   Network,
 } from "lucide-vue-next";
@@ -29,9 +28,6 @@ const MarkdownStyleEditor = defineAsyncComponent(() =>
 );
 const ChatRegexEditor = defineAsyncComponent(() =>
   import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
-);
-const ContextCompressionConfigPanel = defineAsyncComponent(() =>
-  import("./ContextCompressionConfigPanel.vue")
 );
 const PrimaryPipelineConfig = defineAsyncComponent(() =>
   import("./PrimaryPipelineConfig.vue")
@@ -1077,20 +1073,6 @@ export const settingsConfig: SettingsSection[] = [
           defaultValue: {},
           useLoading: true,
         },
-      },
-    ],
-  },
-  {
-    title: "上下文压缩",
-    icon: Archive,
-    items: [
-      {
-        id: "contextCompression",
-        label: "上下文压缩配置",
-        component: ContextCompressionConfigPanel,
-        modelPath: "contextCompression",
-        hint: "配置自动或手动的上下文压缩策略，以节省 Token 并保持长对话的连贯性。",
-        keywords: "context compression summary token 上下文 压缩 摘要",
       },
     ],
   },

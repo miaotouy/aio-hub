@@ -25,7 +25,7 @@ const { settings } = useChatSettings();
 // 过滤会话
 const filteredSessions = computed(() => {
   let result = chatStore.sessions;
-  
+
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
     result = result.filter((session) => session.name.toLowerCase().includes(query));
@@ -66,20 +66,6 @@ const handleNewSession = () => {
 
 <template>
   <div class="mini-session-list">
-    <div class="header">
-      <el-input
-        v-model="searchQuery"
-        placeholder="搜索会话..."
-        :prefix-icon="Search"
-        size="small"
-        clearable
-        class="search-input"
-      />
-      <el-tooltip content="新建对话" placement="top" :show-after="500">
-        <el-button :icon="Plus" size="small" circle @click="handleNewSession" />
-      </el-tooltip>
-    </div>
-
     <div class="list-container" v-bind="filteredSessions.length > 0 ? containerProps : {}">
       <div v-if="chatStore.sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
@@ -87,7 +73,7 @@ const handleNewSession = () => {
       <div v-else-if="filteredSessions.length === 0" class="empty-state">
         <p>无匹配结果</p>
       </div>
-      
+
       <div v-else v-bind="wrapperProps">
         <div
           v-for="{ data: session } in list"
@@ -115,6 +101,20 @@ const handleNewSession = () => {
         </div>
       </div>
     </div>
+
+    <div class="header">
+      <el-tooltip content="新建对话" placement="top" :show-after="500">
+        <el-button :icon="Plus" size="small" circle @click="handleNewSession" />
+      </el-tooltip>
+      <el-input
+        v-model="searchQuery"
+        placeholder="搜索会话..."
+        :prefix-icon="Search"
+        size="small"
+        clearable
+        class="search-input"
+      />
+    </div>
   </div>
 </template>
 
@@ -130,7 +130,7 @@ const handleNewSession = () => {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
   align-items: center;
 }
 

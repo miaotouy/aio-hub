@@ -115,9 +115,33 @@ export function useContextCompressor() {
   ): Promise<string> => {
     logger.info('开始生成摘要', { messageCount: messages.length });
 
-    // 1. 准备消息内容
+    // 1. 准备消息内容 - 使用更清晰的格式，优先使用元数据中的名称
+    const getRoleLabel = (msg: ChatMessageNode): string => {
+      const metadata = msg.metadata;
+      switch (msg.role) {
+        case 'user':
+          // 优先使用用户档案名称
+          return metadata?.userProfileName
+            ? `👤 ${metadata.userProfileName}`
+            : '👤 用户';
+        case 'assistant':
+          // 优先使用 Agent 名称
+          return metadata?.agentName
+            ? `🤖 ${metadata.agentName}`
+            : '🤖 助手';
+        case 'system':
+          return '⚙️ 系统';
+        default:
+          return msg.role;
+      }
+    };
+
     const contentText = messages
-      .map(msg => `${msg.role}: ${msg.content}`)
+      .map((msg, index) => {
+        const roleLabel = getRoleLabel(msg);
+        const separator = '─'.repeat(40);
+        return `${separator}\n【${index + 1}】${roleLabel}\n${separator}\n${msg.content}`;
+      })
       .join('\n\n');
 
     // 2. 准备提示词

@@ -73,11 +73,29 @@ export const usePostProcessingPipelineStore = defineStore(
     async function executePipeline(
       context: PipelineContext,
     ): Promise<PipelineContext> {
-      logger.info("开始执行后处理管道", {
-        processorCount: sortedAndEnabledProcessors.value.length,
+      // 动态确定要执行的处理器
+      // 优先使用 context 中的 agentConfig 配置，如果未配置则回退到 Store 的默认状态
+      let processorsToExecute: ContextProcessor[] = [];
+      const rules =
+        context.agentConfig.parameters?.contextPostProcessing?.rules || [];
+
+      // 严格模式：只执行明确启用的规则
+      // 这与 UI (PostProcessingPanel) 的表现保持一致：如果规则不存在或未启用，则不执行
+      processorsToExecute = processors.value.filter((processor) => {
+        const rule = rules.find((r) => r.type === processor.id);
+        return rule?.enabled === true;
       });
 
-      for (const processor of sortedAndEnabledProcessors.value) {
+      // 确保按优先级排序
+      processorsToExecute.sort((a, b) => a.priority - b.priority);
+
+      logger.info("开始执行后处理管道", {
+        processorCount: processorsToExecute.length,
+        usingRules: rules.length > 0,
+        executedIds: processorsToExecute.map((p) => p.id),
+      });
+
+      for (const processor of processorsToExecute) {
         await errorHandler.wrapAsync(
           async () => {
             logger.debug("执行处理器", { id: processor.id });

@@ -32,7 +32,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from "vue";
-import { ElButton, ElMessage } from "element-plus";
+import { ElButton } from "element-plus";
+import { isEqual } from "lodash-es";
+import { customMessage } from "@/utils/customMessage";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { useLlmChatStore } from "../../store";
@@ -54,6 +56,7 @@ const store = useLlmChatStore();
 const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 
 const jsonData = ref("");
+const originalNodeData = ref<Partial<ChatMessageNode> | null>(null);
 const parseError = ref<string | null>(null);
 
 const showDialog = computed({
@@ -68,6 +71,8 @@ watch(
       const session = store.currentSession;
       if (session && session.nodes[props.messageId]) {
         const node = session.nodes[props.messageId];
+        // 保存原始数据用于比较
+        originalNodeData.value = JSON.parse(JSON.stringify(node));
         // 使用 JSON.stringify 格式化输出
         jsonData.value = JSON.stringify(node, null, 2);
         parseError.value = null;
@@ -78,7 +83,7 @@ watch(
         });
       } else {
         logger.error("无法加载消息数据：节点不存在", { messageId: props.messageId });
-        ElMessage.error("无法加载消息数据，节点可能已被删除。");
+        customMessage.error("无法加载消息数据，节点可能已被删除。");
         handleClose();
       }
     }
@@ -94,22 +99,42 @@ const handleSave = async () => {
   } catch (error) {
     logger.warn("保存失败：JSON 解析错误", error);
     parseError.value = (error as Error).message;
-    ElMessage.error("JSON 格式错误，请检查后再保存。");
+    customMessage.error("JSON 格式错误，请检查后再保存。");
     return;
   }
 
-  if (!props.messageId) {
-    ElMessage.error("内部错误：缺少消息 ID。");
+  if (!props.messageId || !originalNodeData.value) {
+    customMessage.error("内部错误：缺少消息 ID 或原始数据。");
+    return;
+  }
+
+  // 比较数据是否有变化
+  // 创建一个用于比较的副本，移除由 updateNodeData 自动处理的字段
+  const originalComparable = { ...originalNodeData.value };
+  delete (originalComparable as any).id;
+  delete (originalComparable as any).parentId;
+  delete (originalComparable as any).childrenIds;
+  delete (originalComparable as any).updatedAt;
+
+  const newComparable = { ...parsedData };
+  delete (newComparable as any).id;
+  delete (newComparable as any).parentId;
+  delete (newComparable as any).childrenIds;
+  delete (newComparable as any).updatedAt;
+
+  if (isEqual(originalComparable, newComparable)) {
+    customMessage.info("未检测到数据更改。");
+    handleClose();
     return;
   }
 
   try {
     await store.updateNodeData(props.messageId, parsedData);
-    ElMessage.success("消息数据已更新。");
+    customMessage.success("消息数据已更新。");
     handleClose();
   } catch (error) {
     logger.error("更新节点数据时出错", error);
-    ElMessage.error(`保存失败：${(error as Error).message}`);
+    customMessage.error(`保存失败：${(error as Error).message}`);
   }
 };
 

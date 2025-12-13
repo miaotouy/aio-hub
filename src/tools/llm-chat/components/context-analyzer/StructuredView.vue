@@ -11,7 +11,7 @@
               'agent'
             ) || ''
           "
-          :alt="contextData.agentInfo.name"
+          :alt="agentDisplayName"
           :size="96"
           shape="square"
           :radius="8"
@@ -19,15 +19,35 @@
         <div class="agent-details">
           <div class="info-item">
             <span class="label">名称:</span>
-            <span class="value">{{ contextData.agentInfo.name || "未命名" }}</span>
+            <span class="value">
+              {{ agentDisplayName }}
+            </span>
           </div>
           <div class="info-item">
             <span class="label">模型:</span>
-            <span class="value">{{ contextData.agentInfo.modelId }}</span>
+            <span class="value">
+              <DynamicIcon
+                v-if="modelIcon"
+                :src="modelIcon"
+                :size="16"
+                class="value-icon"
+                alt="model icon"
+              />
+              {{ modelDisplayName }}
+            </span>
           </div>
           <div class="info-item">
             <span class="label">配置文件:</span>
-            <span class="value">{{ contextData.agentInfo.profileId }}</span>
+            <span class="value">
+              <DynamicIcon
+                v-if="providerIcon"
+                :src="providerIcon"
+                :size="16"
+                class="value-icon"
+                alt="provider icon"
+              />
+              {{ agentProfile?.name || "未知配置" }}
+            </span>
           </div>
         </div>
       </div>
@@ -141,7 +161,12 @@
                     ) ||
                     ''
                   "
-                  :alt="msg.agentName || contextData.agentInfo.name || '助手'"
+                  :alt="
+                    msg.agentName ||
+                    contextData.agentInfo.displayName ||
+                    contextData.agentInfo.name ||
+                    '助手'
+                  "
                   :size="24"
                   shape="square"
                   :radius="4"
@@ -205,10 +230,92 @@ import type { ContextPreviewData } from "../../types/context";
 import type { Asset } from "@/types/asset-management";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { useUserProfileStore } from "../../userProfileStore";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
 }>();
+
+const userProfileStore = useUserProfileStore();
+const { getProfileById } = useLlmProfiles();
+const { getModelIcon, getModelProperty } = useModelMetadata();
+
+const agentProfile = computed(() => {
+  if (!props.contextData.agentInfo.profileId) return undefined;
+  return getProfileById(props.contextData.agentInfo.profileId);
+});
+
+const agentModel = computed(() => {
+  if (!agentProfile.value || !props.contextData.agentInfo.modelId) return undefined;
+  return agentProfile.value.models.find((m) => m.id === props.contextData.agentInfo.modelId);
+});
+
+const modelDisplayName = computed(() => {
+  if (!agentModel.value) return props.contextData.agentInfo.modelId;
+  // LlmModelInfo 中用于显示的字段是 name
+  return getModelProperty(agentModel.value, "name") || agentModel.value.name || agentModel.value.id;
+});
+
+const modelIcon = computed(() => {
+  if (!agentModel.value) return null;
+  return getModelIcon(agentModel.value);
+});
+
+const providerIcon = computed(() => {
+  if (!agentProfile.value) return null;
+  // 优先使用 profile 根目录的 icon，其次是 logoUrl
+  return agentProfile.value.icon || agentProfile.value.logoUrl || null;
+});
+
+const agentDisplayName = computed(() => {
+  // 优先使用 agentInfo 中的 displayName
+  if (props.contextData.agentInfo.displayName) {
+    return props.contextData.agentInfo.displayName;
+  }
+  // 其次，尝试从历史记录中寻找最后一个 assistant 消息（兼容数据可能不一致的情况）
+  // 因为打开分析器时，最后一条消息通常是当前 agent 发出的
+  const historyWithAgentName = [...props.contextData.chatHistory]
+    .reverse()
+    .find((h) => h.role === "assistant" && h.agentName);
+  if (historyWithAgentName) {
+    return historyWithAgentName.agentName;
+  }
+  // 最后回退到 name
+  return props.contextData.agentInfo.name || "未命名";
+});
+
+/**
+ * 获取备用的用户信息，用于填充预设消息中的用户身份
+ * 优先级: 最后一个历史用户 > 全局用户配置
+ */
+const fallbackUserInfo = computed(() => {
+  // 1. 尝试从历史记录中找到最后一个发言的用户
+  const lastUserInHistory = [...props.contextData.chatHistory]
+    .reverse()
+    .find((h) => h.role === "user" && (h.userName || h.userIcon));
+  if (lastUserInHistory) {
+    return {
+      name: lastUserInHistory.userName,
+      icon: lastUserInHistory.userIcon,
+    };
+  }
+
+  // 2. 尝试获取全局用户配置
+  const globalProfile = userProfileStore.globalProfile;
+  if (globalProfile) {
+    // 适配：UserProfile 的 name 是内部ID，displayName 才是显示名
+    return {
+      name: globalProfile.displayName || globalProfile.name,
+      icon: globalProfile.icon,
+    };
+  }
+
+  // 3. 最终回退
+  return null;
+});
 
 /**
  * 统一消息类型
@@ -227,7 +334,7 @@ interface UnifiedMessage {
   agentName?: string;
   agentIcon?: string;
   // 附件（仅会话历史）
-  attachments?: ContextPreviewData["chatHistory"][0]["attachments"];
+  attachments?: ContextPreviewData["chatHistory"][number]["attachments"];
   _mergedSources?: any[];
 }
 
@@ -239,14 +346,14 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
   const { finalMessages, presetMessages, chatHistory } = props.contextData;
 
   // 建立预设消息索引 (index -> preset)
-  const presetMap = new Map<number, (typeof presetMessages)[0]>();
-  presetMessages.forEach((p: any) => presetMap.set(p.index, p));
+  const presetMap = new Map<number, (typeof presetMessages)[number]>();
+  presetMessages.forEach((p) => presetMap.set(p.index, p));
 
   // 建立历史消息索引 (nodeId -> history)
-  const historyMap = new Map<string, (typeof chatHistory)[0]>();
-  chatHistory.forEach((h: any) => historyMap.set(h.nodeId, h));
+  const historyMap = new Map<string, (typeof chatHistory)[number]>();
+  chatHistory.forEach((h) => historyMap.set(h.nodeId, h));
 
-  return finalMessages.map((finalMsg: any, i: number) => {
+  return finalMessages.map((finalMsg, i: number) => {
     // 基础信息
     const baseMsg: UnifiedMessage = {
       key: `msg-${i}`,
@@ -302,7 +409,7 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
         }
       }
 
-      return {
+      const result: UnifiedMessage = {
         ...baseMsg,
         key: `merged-${i}`,
         tokenCount: totalTokenCount > 0 ? totalTokenCount : undefined,
@@ -311,12 +418,20 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
         userIcon,
         agentName,
         agentIcon,
-        _mergedSources: finalMsg._mergedSources, // 传递下去用于调试或未来扩展
+        _mergedSources: finalMsg._mergedSources,
       };
+
+      // 为合并后的 user 消息应用回退逻辑
+      if (result.role === "user" && !result.userName && fallbackUserInfo.value) {
+        result.userName = fallbackUserInfo.value.name;
+        result.userIcon = fallbackUserInfo.value.icon;
+      }
+
+      return result;
     } else if (finalMsg.sourceType === "agent_preset" && finalMsg.sourceIndex !== undefined) {
       const preset = presetMap.get(finalMsg.sourceIndex);
       if (preset) {
-        return {
+        const result: UnifiedMessage = {
           ...baseMsg,
           key: `preset-${preset.index}-${i}`,
           tokenCount: preset.tokenCount,
@@ -324,6 +439,14 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           userName: preset.userName,
           userIcon: preset.userIcon,
         };
+
+        // 为预设的 user 消息应用回退逻辑
+        if (result.role === "user" && !result.userName && fallbackUserInfo.value) {
+          result.userName = fallbackUserInfo.value.name;
+          result.userIcon = fallbackUserInfo.value.icon;
+        }
+
+        return result;
       }
     } else if (finalMsg.sourceType === "session_history" && finalMsg.sourceId) {
       const history = historyMap.get(String(finalMsg.sourceId));
@@ -387,7 +510,12 @@ function getRoleName(msg: UnifiedMessage): string {
     return msg.userName || "用户";
   }
   if (msg.role === "assistant") {
-    return msg.agentName || props.contextData.agentInfo.name || "助手";
+    return (
+      msg.agentName ||
+      props.contextData.agentInfo.displayName ||
+      props.contextData.agentInfo.name ||
+      "助手"
+    );
   }
   return msg.role;
 }
@@ -503,7 +631,15 @@ const castToAssetArray = (val: any): Asset[] => val as Asset[];
   color: var(--el-text-color-primary);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+}
+
+.value-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 3px;
 }
 
 .agent-icon {

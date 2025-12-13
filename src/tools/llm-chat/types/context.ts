@@ -143,6 +143,7 @@ export interface ContextPreviewData {
   agentInfo: {
     id: string;
     name?: string;
+    displayName?: string;
     icon?: string;
     profileId: string;
     modelId: string;

@@ -51,6 +51,8 @@ export function useGraphActions(
     const success = branchManager.editMessage(session, nodeId, newContent, attachments);
 
     if (success) {
+      // 手动更新时间戳
+      session.nodes[nodeId].updatedAt = new Date().toISOString();
       const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
       const delta: HistoryDelta = {
         type: 'update',
@@ -258,10 +260,10 @@ export function useGraphActions(
     if (!node.metadata) {
       node.metadata = {};
     }
-    
+
     // 使用 JSON 序列化避免引用问题
     node.metadata.translation = JSON.parse(JSON.stringify(translation));
-    
+
     // 持久化
     sessionManager.persistSession(session, currentSessionId.value);
   }

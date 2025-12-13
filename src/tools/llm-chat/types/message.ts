@@ -132,6 +132,11 @@ export interface ChatMessageNode {
   timestamp?: string;
 
   /**
+   * 消息最后更新的时间戳 (ISO 8601 格式)
+   */
+  updatedAt?: string;
+
+  /**
    * 附加元数据
    */
   metadata?: {

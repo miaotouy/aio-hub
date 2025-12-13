@@ -682,6 +682,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     editAssistantMessage,
     updateParameters,
     updateMessageTranslation: graphActions.updateMessageTranslation,
+    updateNodeData: graphActions.updateNodeData,
 
     // 上下文统计
     contextStats,

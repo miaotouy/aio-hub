@@ -13,6 +13,7 @@ import {
 import { recalculateNodeTokens } from '../utils/chatTokenUtils';
 import type { useSessionNodeHistory } from './useSessionNodeHistory';
 import { createModuleLogger } from '@/utils/logger';
+import type { ChatMessageNode } from '../types';
 
 const logger = createModuleLogger('llm-chat/graph-actions');
 
@@ -31,6 +32,57 @@ export function useGraphActions(
 ) {
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
+
+  /**
+   * 全量更新消息节点数据（高级功能）
+   * 仅允许更新非结构性字段，防止破坏树结构
+   */
+  async function updateNodeData(nodeId: string, updates: Partial<ChatMessageNode>): Promise<void> {
+    const session = currentSession.value;
+    if (!session) return;
+
+    if (nodeId.startsWith('preset-')) {
+      logger.warn('暂不支持直接编辑预设消息的数据', { nodeId });
+      return;
+    }
+
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    // 1. 创建快照
+    const previousNodeState = JSON.parse(JSON.stringify(toRaw(node)));
+
+    // 2. 应用更新，但保护结构性字段
+    // 禁止更新的字段：id, parentId, childrenIds
+    const safeUpdates = { ...updates };
+    delete (safeUpdates as any).id;
+    delete (safeUpdates as any).parentId;
+    delete (safeUpdates as any).childrenIds;
+
+    Object.assign(node, safeUpdates);
+    
+    // 确保有 updatedAt
+    if (!safeUpdates.updatedAt) {
+      node.updatedAt = new Date().toISOString();
+    }
+
+    // 3. 记录历史
+    const finalNodeState = JSON.parse(JSON.stringify(toRaw(node)));
+    const delta: HistoryDelta = {
+      type: 'update',
+      payload: { nodeId, previousNodeState, finalNodeState },
+    };
+    // 使用自定义的操作类型名称，或者复用 NODE_EDIT
+    historyManager.recordHistory('NODE_DATA_UPDATE', [delta], { targetNodeId: nodeId });
+
+    // 4. 重新计算 token (因为 content 或 metadata 可能变了)
+    await recalculateNodeTokens(session, nodeId);
+
+    // 5. 持久化
+    sessionManager.persistSession(session, currentSessionId.value);
+    
+    logger.info('已全量更新节点数据', { nodeId });
+  }
 
   /**
    * 编辑消息
@@ -330,5 +382,6 @@ export function useGraphActions(
     graftBranch,
     moveNode,
     updateMessageTranslation,
+    updateNodeData,
   };
 }

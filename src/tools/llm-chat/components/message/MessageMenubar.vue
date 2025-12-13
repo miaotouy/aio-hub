@@ -28,6 +28,7 @@ import {
   Languages,
   BookOpen,
   Columns,
+  Database,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
 import { useLlmChatStore } from "../../store";
@@ -42,6 +43,7 @@ import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
 import { formatDateTime } from "@/utils/time";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
+import MessageDataEditor from "./MessageDataEditor.vue";
 
 interface Props {
   message: ChatMessageNode;
@@ -95,6 +97,9 @@ const copied = ref(false);
 
 // 导出对话框
 const showExportDialog = ref(false);
+
+// 数据编辑对话框
+const showDataEditor = ref(false);
 
 // 计算属性
 const isDisabled = computed(() => props.message.isEnabled === false);
@@ -484,6 +489,15 @@ const handleTranslateClick = (e: MouseEvent) => {
                 <span>导出分支</span>
               </div>
             </el-dropdown-item>
+            <el-dropdown-item
+              v-if="(isUserMessage || isAssistantMessage) && !isPresetDisplay && !isGenerating"
+              @click="showDataEditor = true"
+            >
+              <div class="dropdown-item-content">
+                <Database :size="16" />
+                <span>数据编辑 (高级)</span>
+              </div>
+            </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -737,6 +751,9 @@ const handleTranslateClick = (e: MouseEvent) => {
       :preset-messages="currentPresetMessages"
       @export="handleExportBranch"
     />
+
+    <!-- 数据编辑对话框 -->
+    <MessageDataEditor v-model="showDataEditor" :message-id="props.message.id" />
   </div>
 </template>
 

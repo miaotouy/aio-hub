@@ -9,6 +9,7 @@ import type { ChatMessageNode } from './message';
 export type HistoryActionTag =
   | "INITIAL_STATE" // 初始状态（空历史）
   | "NODE_EDIT" // 编辑节点内容/附件
+  | "NODE_DATA_UPDATE" // 全量更新节点数据（高级）
   | "NODE_DELETE" // 删除单个节点
   | "NODES_DELETE" // 批量删除（如删除分支）
   | "NODE_TOGGLE_ENABLED" // 切换节点启用状态

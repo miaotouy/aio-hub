@@ -1,44 +1,60 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import { Plus, EditPen } from "@element-plus/icons-vue";
+import type { LlmParameters } from "../../../types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 
+type CustomParams = LlmParameters["custom"];
+
 interface Props {
-  modelValue?: Record<string, any>;
+  modelValue?: CustomParams;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: "update:modelValue", value: Record<string, any>): void;
+  (e: "update:modelValue", value: CustomParams): void;
 }>();
 
 const isCustomParamsDialogVisible = ref(false);
 const customParamsJsonString = ref("");
 
-const customParams = computed(() => {
-  return props.modelValue || {};
+// 从 props 中派生出计算属性
+const paramsEnabled = computed({
+  get: () => props.modelValue?.enabled ?? false,
+  set: (enabled) => {
+    emit("update:modelValue", {
+      enabled,
+      params: props.modelValue?.params ?? {},
+    });
+  },
 });
 
-const hasCustomParams = computed(() => Object.keys(customParams.value).length > 0);
+const internalParams = computed(() => props.modelValue?.params ?? {});
+
+// 是否配置了内部参数（用于UI显示，如“编辑” vs “添加”）
+const hasInternalParams = computed(() => Object.keys(internalParams.value).length > 0);
 
 // 打开弹窗时，初始化 JSON 字符串
 const openCustomParamsDialog = () => {
-  customParamsJsonString.value = JSON.stringify(customParams.value, null, 2);
+  customParamsJsonString.value = JSON.stringify(internalParams.value, null, 2);
   isCustomParamsDialogVisible.value = true;
 };
 
 // 保存自定义参数
 const saveCustomParams = () => {
   try {
-    const newCustomParams = JSON.parse(customParamsJsonString.value);
-    if (typeof newCustomParams !== "object" || newCustomParams === null) {
+    const newParams = JSON.parse(customParamsJsonString.value);
+    if (typeof newParams !== "object" || newParams === null) {
       throw new Error("JSON 必须是一个对象");
     }
 
-    emit("update:modelValue", newCustomParams);
+    emit("update:modelValue", {
+      enabled: paramsEnabled.value,
+      params: newParams,
+    });
 
     isCustomParamsDialogVisible.value = false;
     customMessage.success("自定义参数已保存");
@@ -46,37 +62,33 @@ const saveCustomParams = () => {
     customMessage.error(`JSON 格式错误: ${error.message}`);
   }
 };
-
-// 监听自定义参数变化，更新 JSON 字符串（如果弹窗是打开的）
-watch(
-  () => props.modelValue,
-  (newVal) => {
-    if (isCustomParamsDialogVisible.value) {
-      customParamsJsonString.value = JSON.stringify(newVal || {}, null, 2);
-    }
-  },
-  { deep: true }
-);
 </script>
 
 <template>
   <div class="custom-params-panel">
     <div class="custom-params-container">
-      <div class="param-hint">你可以在这里添加自定义参数。参数将以 JSON 格式合并到请求体中。</div>
-      <el-button
-        :type="hasCustomParams ? 'primary' : 'default'"
-        :plain="hasCustomParams"
-        @click="openCustomParamsDialog"
-        class="edit-button"
-      >
-        <el-icon class="el-icon--left">
-          <component :is="hasCustomParams ? EditPen : Plus" />
-        </el-icon>
-        {{ hasCustomParams ? "编辑自定义参数" : "添加自定义参数" }}
-      </el-button>
-      <div v-if="hasCustomParams" class="custom-params-preview">
-        <pre><code>{{ JSON.stringify(customParams, null, 2) }}</code></pre>
+      <div class="param-header">
+        <span class="param-title">附加自定义参数</span>
+        <el-switch v-model="paramsEnabled" />
       </div>
+
+      <template v-if="paramsEnabled">
+        <div class="param-hint">你可以在这里添加自定义参数。参数将以 JSON 格式合并到请求体中。</div>
+        <el-button
+          :type="hasInternalParams ? 'primary' : 'default'"
+          :plain="hasInternalParams"
+          @click="openCustomParamsDialog"
+          class="edit-button"
+        >
+          <el-icon class="el-icon--left">
+            <component :is="hasInternalParams ? EditPen : Plus" />
+          </el-icon>
+          {{ hasInternalParams ? "编辑自定义参数" : "添加自定义参数" }}
+        </el-button>
+        <div v-if="hasInternalParams" class="custom-params-preview">
+          <pre><code>{{ JSON.stringify(modelValue?.params, null, 2) }}</code></pre>
+        </div>
+      </template>
     </div>
 
     <!-- 自定义参数编辑弹窗 -->
@@ -124,6 +136,19 @@ watch(
 
 .custom-params-container {
   padding: 0 12px 12px;
+}
+
+.param-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0 8px;
+}
+
+.param-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color-primary);
 }
 
 .edit-button {

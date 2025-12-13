@@ -83,6 +83,7 @@ const initLocalParams = (params: LlmParameters): LlmParameters => {
     };
   }
 
+
   if (!newParams.enabledParameters) {
     // 获取所有非 undefined 的参数键作为启用的参数
     // 这样既兼容了旧数据（有值的参数保持启用），又满足了新需求（没值的高级参数默认关闭）

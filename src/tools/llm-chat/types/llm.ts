@@ -46,7 +46,12 @@ export interface GeminiSafetySetting {
  */
 export interface LlmParameters {
   /** 自定义参数容器 */
-  custom?: Record<string, any>;
+  custom?: {
+    /** 是否启用自定义参数 */
+    enabled: boolean;
+    /** 参数键值对 */
+    params: Record<string, any>;
+  };
 
   // ===== 基础采样参数 =====
   /** 温度，控制输出的随机性（0-2） */

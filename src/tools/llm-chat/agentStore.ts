@@ -488,6 +488,26 @@ export const useAgentStore = defineStore("llmChatAgent", {
         const agents = await loadAgents();
 
         if (agents.length > 0) {
+          // 在加载后立即进行数据迁移
+          for (const agent of agents) {
+            if (agent.parameters?.custom) {
+              const custom = agent.parameters.custom as any;
+              // 检查是否为旧格式（是对象，但没有 enabled 和 params 属性）
+              if (
+                typeof custom === "object" &&
+                custom !== null &&
+                !("enabled" in custom) &&
+                !("params" in custom)
+              ) {
+                logger.info("迁移旧版 custom 参数格式", { agentId: agent.id });
+                agent.parameters.custom = {
+                  enabled: Object.keys(custom).length > 0, // 如果旧对象有内容，则默认启用
+                  params: custom,
+                };
+              }
+            }
+          }
+
           this.agents = agents;
           logger.info("加载智能体成功", { agentCount: this.agents.length });
 
@@ -601,12 +621,21 @@ export const useAgentStore = defineStore("llmChatAgent", {
       }
 
       // 分别合并基础参数和自定义参数容器
+      // 合并参数时需要更智能地处理 custom 结构
+      const baseParams = agent.parameters;
+      const overrideParams = overrides?.parameterOverrides || {};
+
       const parameters: LlmParameters = {
-        ...agent.parameters,
-        ...(overrides?.parameterOverrides || {}),
+        ...baseParams,
+        ...overrideParams,
+        // 智能合并 custom
         custom: {
-          ...(agent.parameters.custom || {}),
-          ...(overrides?.parameterOverrides?.custom || {}),
+          enabled:
+            overrideParams.custom?.enabled ?? baseParams.custom?.enabled ?? false,
+          params: {
+            ...(baseParams.custom?.params || {}),
+            ...(overrideParams.custom?.params || {}),
+          },
         },
       };
 

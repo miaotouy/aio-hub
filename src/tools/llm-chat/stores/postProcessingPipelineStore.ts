@@ -117,17 +117,7 @@ export const usePostProcessingPipelineStore = defineStore(
 
       const finalRules = Array.from(mergedRulesMap.values());
 
-      // 4. 将最终生效的规则写回 context.agentConfig
-      // 这样处理器在 execute 时能获取到正确的参数配置 (包括来自模型的默认参数)
-      if (!context.agentConfig.parameters) {
-        context.agentConfig.parameters = {};
-      }
-      if (!context.agentConfig.parameters.contextPostProcessing) {
-        context.agentConfig.parameters.contextPostProcessing = { rules: [] };
-      }
-      context.agentConfig.parameters.contextPostProcessing.rules = finalRules;
-
-      // 5. 筛选并排序要执行的处理器
+      // 4. 筛选并排序要执行的处理器
       let processorsToExecute: ContextProcessor[] = [];
 
       // 严格模式：只执行明确启用的规则

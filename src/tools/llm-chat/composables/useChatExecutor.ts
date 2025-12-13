@@ -29,7 +29,7 @@ import { useChatAssetProcessor } from "./useChatAssetProcessor";
 import { usePrimaryContextPipelineStore } from "../stores/primaryContextPipelineStore";
 import { prepareSimpleMessageForTokenCalc } from "../core/context-utils/builder";
 import { usePostProcessingPipelineStore } from "../stores/postProcessingPipelineStore";
-import type { PipelineContext } from "../core/pipeline/types";
+import type { PipelineContext } from "../types/pipeline";
 import { useNodeManager } from "./useNodeManager";
 import type { ContextPreviewData } from "../types/context";
 import { buildPreviewDataFromContext } from "../core/context-utils/preview-builder";

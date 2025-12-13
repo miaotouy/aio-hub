@@ -1,4 +1,4 @@
-import type { ContextProcessor } from "../../pipeline/types";
+import type { ContextProcessor } from "../../../types/pipeline";
 import { injectionAssembler } from "./injection-assembler";
 import { regexProcessor } from "./regex-processor";
 import { sessionLoader } from "./session-loader";

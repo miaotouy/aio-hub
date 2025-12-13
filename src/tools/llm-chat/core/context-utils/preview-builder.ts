@@ -1,4 +1,4 @@
-import type { PipelineContext } from "../pipeline/types";
+import type { PipelineContext } from "../../types/pipeline";
 import type { ContextPreviewData } from "../../types/context";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { prepareSimpleMessageForTokenCalc } from "./builder";

@@ -1,4 +1,4 @@
-import type { ContextProcessor, PipelineContext } from "../../pipeline/types";
+import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import {
   classifyPresetMessages,

@@ -344,8 +344,8 @@ src/tools/llm-chat/
 │   │   └── post/
 │   │       ├── index.ts
 │   │       └── builtin-processors.ts
-│   └── pipeline/
-│       └── types.ts              # PipelineContext, ContextProcessor 接口
+├── types/
+│   └── pipeline.ts               # PipelineContext, ContextProcessor 接口
 ├── stores/
 │   ├── primaryContextPipelineStore.ts
 │   └── postProcessingPipelineStore.ts
@@ -376,7 +376,7 @@ src/tools/llm-chat/
 根据对 `src/tools/llm-chat/` 目录的文件结构分析，当前重构进度评估如下：
 
 - [x] **Phase 1: 基础架构** - **已完成**
-  - [x] `PipelineContext` 和 `ContextProcessor` 接口已定义 (`core/pipeline/types.ts`)。
+  - [x] `PipelineContext` 和 `ContextProcessor` 接口已定义 (`types/pipeline.ts`)。
   - [x] `usePrimaryContextPipelineStore` 和 `usePostProcessingPipelineStore` 已创建。
   - [x] `context-utils` 和 `context-processors` 目录结构已建立。
 

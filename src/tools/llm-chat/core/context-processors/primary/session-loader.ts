@@ -1,5 +1,5 @@
 import { createModuleLogger } from "@/utils/logger";
-import type { ContextProcessor, PipelineContext } from "../../pipeline/types";
+import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
 import { buildMessageContentForLlm } from "../../context-utils/builder";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";

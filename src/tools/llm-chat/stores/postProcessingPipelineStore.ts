@@ -3,7 +3,7 @@ import { ref, computed } from "vue";
 import type {
   ContextProcessor,
   PipelineContext,
-} from "@/tools/llm-chat/core/pipeline/types";
+} from "@/tools/llm-chat/types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { CorePostProcessors } from "../core/context-processors/post";

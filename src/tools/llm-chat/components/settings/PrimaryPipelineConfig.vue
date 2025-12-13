@@ -63,7 +63,7 @@ import { VueDraggableNext } from "vue-draggable-next";
 import { usePrimaryContextPipelineStore } from "@/tools/llm-chat/stores/primaryContextPipelineStore";
 import { ElSwitch, ElAlert, ElIcon, ElEmpty, ElButton, ElMessageBox } from "element-plus";
 import { Rank, Refresh } from "@element-plus/icons-vue";
-import type { ContextProcessor } from "@/tools/llm-chat/core/pipeline/types";
+import type { ContextProcessor } from "@/tools/llm-chat/types/pipeline";
 import { customMessage } from "@/utils/customMessage";
 
 const pipelineStore = usePrimaryContextPipelineStore();
@@ -93,11 +93,11 @@ const toggleProcessor = (processorId: string, enabled: boolean) => {
 
 // 拖拽开始时记录当前顺序
 const onDragStart = () => {
-  orderBeforeDrag.value = draggableProcessors.value.map((p) => p.id);
+  orderBeforeDrag.value = draggableProcessors.value.map((p: ContextProcessor) => p.id);
 };
 
 const onDragEnd = () => {
-  const newOrder = draggableProcessors.value.map((p) => p.id);
+  const newOrder = draggableProcessors.value.map((p: ContextProcessor) => p.id);
 
   // 检查顺序是否真的发生了变化
   const hasChanged = !orderBeforeDrag.value.every((id, index) => id === newOrder[index]);

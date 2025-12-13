@@ -4,7 +4,7 @@
  * 采用类似宏注册的模式，将所有处理器定义在一个文件中，以减少文件数量。
  */
 
-import type { ContextProcessor, PipelineContext } from "../../pipeline/types";
+import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
 import { createModuleLogger } from "@/utils/logger";
 import type { LlmMessageContent } from "@/llm-apis/common";

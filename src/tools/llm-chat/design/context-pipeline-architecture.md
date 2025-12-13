@@ -307,8 +307,9 @@ export interface ProcessorConfigField {
 
 ### Phase 6: 插件集成
 
-1.  插件 API 暴露两个注册函数：`registerPrimaryProcessor` 和 `registerPostProcessor`。
-2.  支持插件将自定义处理器注入到任一管道的任意位置。
+1.  **插件 API**: 通过 `PluginContext` 对象向插件的 `activate` 钩子注入 `chat` API。
+2.  **动态注入**: 插件可以通过调用 `context.chat.registerPrimaryProcessor(...)` 和 `context.chat.registerPostProcessor(...)` 将自定义处理器注入到任一管道。
+3.  **生命周期管理**: 插件应在 `deactivate` 钩子中调用对应的 `unregister...` 函数来清理其注册的处理器。
 
 ### Phase 7: 清理废弃代码
 
@@ -399,8 +400,9 @@ src/tools/llm-chat/
   - [x] Agent 级别的后处理配置界面 `PostProcessingPanel.vue` 已创建（待重构为通用组件）。
   - [ ] 模型编辑器中的后处理配置尚未升级为通用组件。
 
-- [ ] **Phase 6: 插件集成** - **未开始**
-  - [ ] 尚未提供 `registerPrimaryProcessor` 和 `registerPostProcessor` 的插件 API。
+- [x] **Phase 6: 插件集成** - **已完成**
+  - [x] 已通过 `PluginContext` 向插件暴露 `chat.registerPrimaryProcessor` 和 `chat.registerPostProcessor` 等 API。
+  - [x] 插件可以在其 `activate` 生命周期钩子中调用这些 API，将自定义处理器动态注入到任一管道。
 
 - [x] **Phase 7: 清理废弃代码** - **已完成**
   - [x] `useChatContextBuilder.ts` 已移除。

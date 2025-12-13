@@ -133,8 +133,10 @@ export interface PluginManifest {
   /** 原生插件配置 (type='native' 时必需) */
   native?: NativeConfig;
   
-  /** 暴露的方法列表 */
-  methods: MethodMetadata[];
+  /**
+   * @deprecated 已废弃，插件方法现在通过模块导出自动发现
+   */
+  methods?: MethodMetadata[];
   
   /** 配置模式 (可选) */
   settingsSchema?: SettingsSchema;
@@ -153,8 +155,64 @@ export interface PluginManifest {
  * 
  * JS 插件必须 export default 一个实现此接口的对象
  */
+/**
+ * 插件上下文对象
+ *
+ * 该对象作为 activate 钩子的参数被注入，为插件提供与宿主应用交互的核心 API
+ */
+export interface PluginContext {
+  /**
+   * 聊天上下文管道 API
+   */
+  chat: {
+    /**
+     * 注册一个主上下文处理器
+     * @param processor 要注册的处理器对象
+     */
+    registerPrimaryProcessor: (processor: any) => void;
+    /**
+     * 注册一个后处理管道处理器
+     * @param processor 要注册的处理器对象
+     */
+    registerPostProcessor: (processor: any) => void;
+    /**
+     * 注销一个主上下文处理器
+     * @param processorId 处理器 ID
+     */
+    unregisterPrimaryProcessor: (processorId: string) => void;
+    /**
+     * 注销一个后处理管道处理器
+     * @param processorId 处理器 ID
+     */
+    unregisterPostProcessor: (processorId: string) => void;
+  };
+
+  // 未来可扩展其他 API，例如 ui.showNotification, commands.registerCommand 等
+}
+
+
+/**
+ * JavaScript 插件导出对象
+ *
+ * JS 插件必须 export default 一个实现此接口的对象
+ */
 export interface JsPluginExport {
-  [methodName: string]: (...args: any[]) => any;
+  /**
+   * 【可选】插件激活钩子
+   *
+   * 当插件被加载并启用时调用。这是插件注册监听器、处理器或执行初始化设置的理想位置。
+   * @param context 插件上下文对象，包含与宿主应用交互的 API
+   */
+  activate?: (context: PluginContext) => Promise<void> | void;
+
+  /**
+   * 【可选】插件停用钩子
+   *
+   * 当插件被禁用或卸载时调用。用于清理资源，例如注销监听器或处理器。
+   */
+  deactivate?: () => Promise<void> | void;
+
+  [methodName: string]: ((...args: any[]) => any) | undefined;
 }
 
 /**

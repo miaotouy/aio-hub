@@ -52,22 +52,33 @@ export class JsPluginAdapter implements PluginProxy {
 
     logger.info(`启用 JS 插件: ${this.id}`);
     this.enabled = true;
+    // 注意：activate 钩子在加载时调用，而不是启用时
   }
 
   /**
    * 禁用插件 - 卸载插件模块
    */
-  disable(): void {
+  async disable(): Promise<void> {
     if (!this.enabled) {
       logger.warn(`插件 ${this.id} 已经禁用`);
       return;
     }
 
     logger.info(`禁用 JS 插件: ${this.id}`);
+
+    // 调用 deactivate 钩子
+    if (this.pluginExport && typeof this.pluginExport.deactivate === "function") {
+      try {
+        logger.info(`调用插件 ${this.id} 的 deactivate 钩子`);
+        await this.pluginExport.deactivate();
+      } catch (error) {
+        errorHandler.error(error, `插件 ${this.id} 的 deactivate 钩子执行失败`);
+      }
+    }
+
     this.pluginExport = null;
     this.enabled = false;
   }
-
   /**
    * 设置插件导出对象
    * @internal 由插件加载器调用
@@ -88,8 +99,8 @@ export class JsPluginAdapter implements PluginProxy {
   /**
    * 销毁方法 (ToolRegistry 接口)
    */
-  dispose(): void {
-    this.disable();
+  async dispose(): Promise<void> {
+    await this.disable();
     logger.debug(`销毁插件: ${this.id}`);
   }
 
@@ -97,9 +108,35 @@ export class JsPluginAdapter implements PluginProxy {
    * 获取服务元数据 (ToolRegistry 接口)
    */
   getMetadata(): ServiceMetadata {
-    return {
-      methods: this.manifest.methods,
-    };
+   // 优先使用 manifest 中定义的 methods，以支持旧版插件
+   if (this.manifest.methods && this.manifest.methods.length > 0) {
+     return {
+       methods: this.manifest.methods,
+     };
+   }
+
+   // 如果 manifest 中没有定义 methods，则从导出对象动态生成
+   if (!this.pluginExport) {
+     return { methods: [] };
+   }
+
+   const dynamicMethods = Object.keys(this.pluginExport)
+     .filter(
+       (key) =>
+         typeof (this.pluginExport as any)[key] === "function" &&
+         key !== "activate" &&
+         key !== "deactivate"
+     )
+     .map((key) => ({
+       name: key,
+       description: `动态发现的方法: ${key}`, // 无法动态获取描述，提供一个默认值
+       parameters: [], // 无法动态获取参数
+       returnType: 'any', // 无法动态获取返回类型
+     }));
+
+   return {
+     methods: dynamicMethods,
+   };
   }
 
   /**
@@ -166,10 +203,18 @@ export function createJsPluginProxy(
       // 否则，返回一个函数，该函数会调用插件的对应方法
       const propStr = String(prop);
 
-      // 检查是否是 manifest 中声明的方法
-      const hasMethod = target.manifest.methods.some((m) => m.name === propStr);
-      if (!hasMethod) {
-        return undefined;
+      // 如果 manifest 中还定义了 methods，优先作为判断依据
+      if (target.manifest.methods && target.manifest.methods.length > 0) {
+        const hasMethod = target.manifest.methods.some((m) => m.name === propStr);
+        if (!hasMethod) {
+          // 如果 manifest.methods 存在但找不到方法，则认为方法不存在
+          return undefined;
+        }
+      } else {
+        // 如果 manifest.methods 不存在，则只要是导出对象的属性（且不是 activate/deactivate），就认为是可调用方法
+        if (!(propStr in (target as any).pluginExport) || propStr === 'activate' || propStr === 'deactivate') {
+          return undefined;
+        }
       }
 
       // 返回一个函数，调用插件的实际方法

@@ -13,7 +13,7 @@ declare global {
 
 import { path } from '@tauri-apps/api';
 import { readTextFile, readDir, exists } from '@tauri-apps/plugin-fs';
-import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport, PluginProxy } from './plugin-types';
+import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport, PluginProxy, PluginContext } from './plugin-types';
 import { createJsPluginProxy } from './js-plugin-adapter';
 import type { JsPluginAdapter } from './js-plugin-adapter';
 import { createSidecarPluginProxy } from './sidecar-plugin-adapter';
@@ -47,42 +47,44 @@ export class PluginLoader {
   }
 
   /**
-   * 加载所有插件
-   */
-  async loadAll(): Promise<PluginLoadResult> {
-    logger.info('开始加载所有插件');
-
-    const result: PluginLoadResult = {
-      plugins: [],
-      failed: [],
-    };
-
-    // 开发模式：同时加载开发和生产插件
-    if (this.devMode) {
-      const devResult = await this.loadDevPlugins();
-      const prodResult = await this.loadProdPlugins();
-      
-      result.plugins.push(...devResult.plugins, ...prodResult.plugins);
-      result.failed.push(...devResult.failed, ...prodResult.failed);
-      
-      logger.info('开发模式：同时加载开发和生产插件', {
-        devPlugins: devResult.plugins.length,
-        prodPlugins: prodResult.plugins.length,
-        total: result.plugins.length,
-        failed: result.failed.length,
-      });
-    } else {
-      // 生产模式：仅加载生产插件
-      return await this.loadProdPlugins();
-    }
-
-    return result;
-  }
-
+   /**
+    * 加载所有插件
+    * @param context 插件上下文对象，将注入到插件的 activate 钩子中
+    */
+   async loadAll(context: PluginContext): Promise<PluginLoadResult> {
+     logger.info('开始加载所有插件');
+ 
+     const result: PluginLoadResult = {
+       plugins: [],
+       failed: [],
+     };
+ 
+     // 开发模式：同时加载开发和生产插件
+     if (this.devMode) {
+       const devResult = await this.loadDevPlugins(context);
+       // 生产插件也需要上下文
+       const prodResult = await this.loadProdPlugins(context);
+       
+       result.plugins.push(...devResult.plugins, ...prodResult.plugins);
+       result.failed.push(...devResult.failed, ...prodResult.failed);
+       
+       logger.info('开发模式：同时加载开发和生产插件', {
+         devPlugins: devResult.plugins.length,
+         prodPlugins: prodResult.plugins.length,
+         total: result.plugins.length,
+         failed: result.failed.length,
+       });
+     } else {
+       // 生产模式：仅加载生产插件
+       return await this.loadProdPlugins(context);
+     }
+ 
+     return result;
+   }
   /**
    * 加载开发模式下的插件（从项目源码加载）
    */
-  private async loadDevPlugins(): Promise<PluginLoadResult> {
+  private async loadDevPlugins(context: PluginContext): Promise<PluginLoadResult> {
     logger.info('开发模式：从源码目录加载插件', { dir: this.devPluginsDir });
 
     const result: PluginLoadResult = {
@@ -166,6 +168,17 @@ export class PluginLoader {
 
             // 设置插件导出对象
             (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
+
+            // 如果插件已启用，则调用 activate 钩子
+            if (proxy.enabled && typeof pluginExport.activate === 'function') {
+              try {
+                logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
+                await pluginExport.activate(context);
+              } catch (e) {
+                errorHandler.error(e, `插件 ${manifest.id} 的 activate 钩子执行失败`);
+                // 钩子失败不应阻止插件加载
+              }
+            }
           } else if (manifest.type === 'sidecar') {
             // 加载 Sidecar 插件
             proxy = createSidecarPluginProxy(manifest, devInstallPath, true);
@@ -225,7 +238,7 @@ export class PluginLoader {
   /**
    * 加载生产模式下的插件（从安装目录加载）
    */
-  private async loadProdPlugins(): Promise<PluginLoadResult> {
+  private async loadProdPlugins(context: PluginContext): Promise<PluginLoadResult> {
     logger.info('从安装目录加载插件', { dir: this.prodPluginsDir });
 
     const result: PluginLoadResult = {
@@ -272,7 +285,7 @@ export class PluginLoader {
           // 根据插件类型加载
           if (manifest.type === 'javascript') {
             // 加载 JS 插件
-            const proxy = await this.loadProdJsPlugin(manifest, pluginPath);
+            const proxy = await this.loadProdJsPlugin(manifest, pluginPath, context);
             if (proxy) {
               result.plugins.push(proxy);
             }
@@ -315,7 +328,7 @@ export class PluginLoader {
   /**
    * 加载生产环境下的 JS 插件
    */
-  private async loadProdJsPlugin(manifest: PluginManifest, pluginPath: string): Promise<import('./plugin-types').PluginProxy | null> {
+  private async loadProdJsPlugin(manifest: PluginManifest, pluginPath: string, context: PluginContext): Promise<import('./plugin-types').PluginProxy | null> {
     if (!manifest.main) {
       throw new Error('JS 插件缺少 main 字段');
     }
@@ -347,6 +360,17 @@ export class PluginLoader {
         await proxy.enable();
       } else {
         logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+      }
+
+      // 如果插件已启用，则调用 activate 钩子
+      if (proxy.enabled && typeof pluginExport.activate === 'function') {
+        try {
+          logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
+          await pluginExport.activate(context);
+        } catch (e) {
+          errorHandler.error(e, `插件 ${manifest.id} 的 activate 钩子执行失败`);
+          // 钩子失败不应阻止插件加载
+        }
       }
 
       // 初始化插件配置

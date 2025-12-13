@@ -341,13 +341,13 @@ src/tools/llm-chat/
 - [x] **Phase 3: 主上下文管道实现** - **已完成**
   - [x] 四个核心主管道处理器 (`session-loader`, `regex-processor`, `token-limiter`, `injection-assembler`) 已创建。
   - [x] `useChatExecutor` 已完全迁移，其核心函数 `executeRequest` 和 `getContextForPreview` 均已调用新的管道模型。
-  - [ ] **待办**: 旧的 `useChatContextBuilder.ts` 尚未作为废弃代码被移除。
+  - [x] 旧的 `useChatContextBuilder.ts` 已移除。
 
 - [x] **Phase 4: 后处理管道实现** - **已完成**
   - [x] `useMessageProcessor.ts` 的核心逻辑已全部迁移至 `core/context-processors/post/builtin-processors.ts`。
   - [x] 已基于迁移的逻辑创建了符合规范的可注册处理器，并建立了注册机制。
   - [x] `useChatExecutor` 已调用新的后处理管道，旧模块已被架空。
-  - [ ] **待办**: 旧的 `useMessageProcessor.ts` 尚未作为废弃代码被移除。
+  - [x] 旧的 `useMessageProcessor.ts` 已移除。
 
 - [x] **Phase 5: UI 配置界面** - **已完成**
   - [x] 主管道配置界面 `PrimaryPipelineConfig.vue` 已创建。
@@ -356,15 +356,16 @@ src/tools/llm-chat/
 - [ ] **Phase 6: 插件集成** - **未开始**
   - [ ] 尚未提供 `registerPrimaryProcessor` 和 `registerPostProcessor` 的插件 API。
 
-- [ ] **Phase 7: 清理废弃代码** - **未开始**
-  - [ ] `useChatContextBuilder.ts` 仍存在。
-  - [ ] `useMessageBuilder.ts` 仍存在。
-  - [ ] `useChatRegexResolver.ts` 仍存在。
-  - [ ] `useContextLimiter.ts` 仍存在。
-  - [ ] `useContextInjection.ts` 仍存在。
-  - [ ] `useMacroProcessor.ts` 仍存在。
-  - [ ] `useMessageProcessor.ts` 仍存在。
+- [x] **Phase 7: 清理废弃代码** - **已完成**
+  - [x] `useChatContextBuilder.ts` 已移除。
+  - [x] `useMessageBuilder.ts` 已移除。
+  - [x] `useChatRegexResolver.ts` 已移除。
+  - [x] `useContextLimiter.ts` 已移除。
+  - [x] `useContextInjection.ts` 已移除。
+  - [x] `useMacroProcessor.ts` 已移除。
+  - [x] `useMessageProcessor.ts` 已移除。
+  - [x] `useContextPreview.ts` 已移除。
 
 ### 总结
 
-项目重构进度约 **60%**。核心架构和模块已按设计建立，但**新旧系统的替换和废弃代码的清理**是当前的主要瓶颈。后续工作的重点应放在完成 `useChatExecutor` 的重构，并彻底移除清单中的待废弃模块。
+项目重构进度约 **90%**。核心架构、模块迁移和废弃代码清理均已完成。目前仅剩插件集成 API 尚未实现。

@@ -13,56 +13,59 @@ LLM Chat 的上下文构建采用 **双管道架构 (Dual-Pipeline Architecture)
 
 ### 2.1. 数据流向
 
-以下 Mermaid 图展示了从用户输入到最终发送给 LLM 的完整流程：
+以下 Mermaid 图展示了从用户输入到最终发送给 LLM 的完整流程（已根据最新实现更新）：
 
 ```mermaid
 graph TD
     subgraph A [useChatHandler - 指挥中心]
-        A1(用户输入) --> A2{宏处理}
+        A1(用户输入) --> A2{宏与附件处理}
         A2 --> A3[创建消息节点]
-        A3 --> A4{处理附件}
     end
 
     subgraph B [useChatExecutor - 执行器]
-        B1(调用主管道)
-        B2{调用后处理管道}
+        B1(调用主上下文管道)
+        B_Merge(合并后处理配置)
+        B2(调用后处理管道)
     end
 
     subgraph PrimaryPipeline [主上下文管道]
         direction TB
-        P1[会话历史加载]
-        P2[正则处理器]
-        P3[Token 限制器]
-        P4[注入与骨架组装]
+        P1[1. 会话加载器]
+        P2[2. 正则处理器]
+        P3[3. Token 限制器]
+        P4[4. 注入组装器]
         P1 --> P2 --> P3 --> P4
     end
 
-    subgraph PostPipeline [后处理管道]
+    subgraph PostPipeline [后处理管道 (可配置)]
         direction TB
-        S1[模型默认规则]
-        S2[智能体规则]
-        S3[插件扩展点]
-        S1 --> S2 --> S3
+        S1[合并 System 消息]
+        S2[合并连续角色]
+        S3[转换 System 为 User]
+        S4[确保角色交替]
+        S5[插件扩展点]
+        S1 --> S2 --> S3 --> S4 --> S5
     end
 
-    A4 --> B1
+    A3 --> B1
     B1 --> PrimaryPipeline
-    P4 -- "初步上下文" --> B2
+    P4 -- "初步上下文" --> B_Merge
+    B_Merge --> B2
     B2 --> PostPipeline
-    S3 --> Final((发送至 LLM))
+    S5 --> Final((发送至 LLM))
 
     classDef stage fill:#f9f9f9,stroke:#333,stroke-width:2px;
     class A,B stage;
-    style S3 fill:#fff3e0,stroke:#ff6f00
+    style S5 fill:#fff3e0,stroke:#ff6f00
 ```
 
 ### 2.2. 核心概念
 
-| 概念                        | 说明                                                            |
-| :-------------------------- | :-------------------------------------------------------------- |
-| **PipelineContext**         | 在管道中流动的统一数据载体，包含消息列表、元数据和共享黑板      |
-| **ContextProcessor**        | 负责单一功能的模块化处理单元，可配置、可排序、可启用/禁用       |
-| **Infrastructure Services** | 如 `MacroProcessor`，作为基础能力被处理器按需调用，而非管道步骤 |
+| 概念                        | 说明                                                                                                |
+| :-------------------------- | :-------------------------------------------------------------------------------------------------- |
+| **PipelineContext**         | 在管道中流动的统一数据载体，包含消息列表、元数据和共享黑板                                          |
+| **ContextProcessor**        | 负责单一功能的模块化处理单元，可配置、可排序、可启用/禁用。支持通过 `configFields` 自动生成配置界面 |
+| **Infrastructure Services** | 如 `MacroProcessor`，作为基础能力被处理器按需调用，而非管道步骤                                     |
 
 ## 3. 主上下文管道
 
@@ -86,20 +89,47 @@ graph TD
 
 > **设计要点**：宏处理 (`macro`) 不是独立的管道处理器，而是被 `regex-processor` 和 `injection-assembler` 按需调用的基础能力。这确保了宏在正确的上下文中被解析。
 
-## 4. 后处理管道
+## 4. 后处理管道 (已重构)
 
-后处理管道对主管道输出的初步上下文进行最终调整，确保符合特定模型或智能体的要求。
+后处理管道对主管道输出的初步上下文进行最终调整。**该管道已重构为完全可配置的处理器模式**，取代了旧的硬编码逻辑。所有后处理器都作为 `ContextProcessor` 实现，并由 `postProcessingPipelineStore` 统一管理。
 
 ### 4.1. 内置处理器
 
-| ID                    | 名称         | 职责                       | 对应模块              |
-| :-------------------- | :----------- | :------------------------- | :-------------------- |
-| `post:model-defaults` | 模型默认规则 | 应用模型自带的后处理规则   | `useMessageProcessor` |
-| `post:agent-rules`    | 智能体规则   | 应用智能体配置的后处理规则 | `useMessageProcessor` |
+以下是系统内置的核心后处理器，定义于 `core/context-processors/post/builtin-processors.ts`：
+
+| ID                              | 名称                   | 职责                                                                       | 优先级 |
+| :------------------------------ | :--------------------- | :------------------------------------------------------------------------- | :----- |
+| `post:merge-system-to-head`     | 合并 System 消息到头部 | 将所有 `system` 角色的消息合并为一条，并放在列表最开头。                   | 100    |
+| `post:merge-consecutive-roles`  | 合并连续相同角色       | 合并连续出现的相同角色消息（如两个 `user` 消息相邻）。                     | 200    |
+| `post:convert-system-to-user`   | 转换 System 为 User    | 将所有 `system` 角色转换为 `user` 角色（用于不支持 `system` 角色的模型）。 | 300    |
+| `post:ensure-alternating-roles` | 确保角色交替           | 在 `user` 和 `assistant` 角色之间强制实现严格的交替对话模式。              | 400    |
 
 ### 4.2. 插件扩展点
 
-后处理管道提供 `post:plugin-slot` 扩展点，插件可以在此注入自定义处理逻辑。
+插件可以通过 `postProcessingPipelineStore` 的 `registerProcessor` 方法向后处理管道动态注册新的处理器。
+
+### 4.3. 配置合并策略 (Agent 与模型的协同)
+
+为了兼顾灵活性与一致性，后处理规则的配置采用两级合并策略，遵循 **“Agent 优先，模型兜底”** 的原则。
+
+**关键设计变更：统一配置结构**
+
+为了提供一致的用户体验，**模型层面的后处理配置将升级为与 Agent 层面完全一致的结构**。这意味着：
+1.  `LlmModelInfo` 中的 `defaultPostProcessingRules` 将不再是简单的 ID 列表，而是包含完整参数配置的对象数组。
+2.  现有的 `PostProcessingPanel.vue` 组件将被重构为通用组件，同时用于 Agent 编辑器和模型编辑器。
+
+**合并逻辑**:
+
+在 `useChatExecutor` 执行后处理管道之前，会进行以下合并：
+
+1.  **加载模型配置**: 获取当前模型定义的默认规则列表（包含参数）。
+2.  **加载 Agent 配置**: 获取当前 Agent 定义的规则列表（包含参数）。
+3.  **执行合并**:
+    - 如果某个规则仅在模型配置中存在，则直接使用模型配置。
+    - 如果某个规则仅在 Agent 配置中存在，则直接使用 Agent 配置。
+    - 如果某个规则在两者中都存在（ID 相同），则**Agent 配置完全覆盖模型配置**。这是为了确保 Agent 的特定需求（如特定的 Prompt 风格）总是优先于模型的默认行为。
+
+通过这种方式，模型可以携带一套“最佳实践”的默认后处理参数（例如，为某个特定模型预设好最佳的 System 消息转换逻辑），而 Agent 依然拥有最终的决定权。
 
 ## 5. 接口定义
 
@@ -184,15 +214,30 @@ export interface ContextProcessor {
    * 如果处理器有自定义配置，可以返回一个 Vue 组件名称
    */
   configComponent?: string;
+
+  /**
+   * 配置字段定义 (可选)
+   * 用于自动生成简单的配置 UI，无需编写自定义组件
+   */
+  configFields?: ProcessorConfigField[];
+}
+
+export interface ProcessorConfigField {
+  key: string;
+  label: string;
+  type?: "text" | "number" | "boolean" | "select";
+  placeholder?: string;
+  default?: any;
+  options?: { label: string; value: any }[];
 }
 ```
 
 ## 6. 存储与状态管理
 
-使用两个独立的 Pinia Store 分别管理两个管道：
+使用两个独立的 Pinia Store 分别管理两个管道，它们位于 `src/tools/llm-chat/stores/` 目录下：
 
-- **`usePrimaryContextPipelineStore`**：管理主上下文管道的处理器注册、排序、启用/禁用和执行调度。
-- **`usePostProcessingPipelineStore`**：管理后处理管道的处理器注册、排序、启用/禁用和执行调度。
+- **`primaryContextPipelineStore.ts`**：管理主上下文管道的处理器注册、排序、启用/禁用和执行调度。
+- **`postProcessingPipelineStore.ts`**：管理后处理管道的处理器注册、排序、启用/禁用和执行调度。
 
 ## 7. 实施路线图
 
@@ -227,14 +272,17 @@ export interface ContextProcessor {
 
 ### Phase 4: 后处理管道实现
 
-1.  将 `useMessageProcessor` 中的后处理逻辑拆分为独立的后处理处理器，并注册到全局注册表。
-2.  重构 `useChatExecutor`，使其在调用主管道后，接着调用后处理管道。
-3.  **移除 `useMessageProcessor.ts` 中的硬编码逻辑**：该文件将转变为注册表管理模块或被完全移除。
+1.  **[已完成]** `useMessageProcessor` 的核心逻辑已全部迁移至 `core/context-processors/post/builtin-processors.ts`。
+2.  **[已完成]** 已基于迁移的逻辑创建了符合规范的可注册处理器，并建立了注册机制。
+3.  **[已完成]** `useChatExecutor` 已调用新的后处理管道，旧模块已被架空。
+4.  **[已完成]** 旧的 `useMessageProcessor.ts` 已移除。
 
-### Phase 5: UI 配置界面
+### Phase 5: UI 配置界面与组件复用
 
-1.  在 **设置 → 聊天设置** 中创建 "主上下文构建" 配置面板。
-2.  该面板使用可拖拽组件管理处理器链，支持排序、启用/禁用。
+1.  **[已完成]** 在 **设置 → 聊天设置** 中创建 "主上下文构建" 配置面板。
+2.  **[进行中]** 重构 `PostProcessingPanel.vue`，使其与其依赖的数据源解耦，成为一个纯粹的 UI 组件，接受 `rules` 和 `onChange` props。
+3.  **[计划中]** 在 `ModelEditDialog.vue` 中集成重构后的 `PostProcessingPanel`，替换原有的简单多选框，实现模型层面后处理规则的可视化配置。
+4.  **[计划中]** 更新 `LlmModelInfo` 类型定义，使其 `defaultPostProcessingRules` 字段支持复杂的配置对象结构。
 
 #### 关于“请求后处理” (`ContextPostProcessing`) 的特别说明
 
@@ -295,12 +343,9 @@ src/tools/llm-chat/
 │   │   │   └── injection-assembler.ts
 │   │   └── post/
 │   │       ├── index.ts
-│   │       ├── model-defaults.ts
-│   │       └── agent-rules.ts
+│   │       └── builtin-processors.ts
 │   └── pipeline/
-│       ├── types.ts              # PipelineContext, ContextProcessor 接口
-│       ├── primary-pipeline.ts   # 主管道执行逻辑
-│       └── post-pipeline.ts      # 后处理管道执行逻辑
+│       └── types.ts              # PipelineContext, ContextProcessor 接口
 ├── stores/
 │   ├── primaryContextPipelineStore.ts
 │   └── postProcessingPipelineStore.ts
@@ -314,19 +359,19 @@ src/tools/llm-chat/
 
 以下 composables 将在重构完成后被移除，其核心逻辑将被迁移到新的架构中：
 
-| 文件                       | 废弃原因                       | 迁移目标                            |
-| :------------------------- | :----------------------------- | :---------------------------------- |
-| `useChatContextBuilder.ts` | 职责被管道机制完全取代         | `useChatExecutor` + Pipeline Stores |
-| `useMessageBuilder.ts`     | 核心算法提取为纯函数           | `core/context-utils/builder.ts`     |
-| `useChatRegexResolver.ts`  | 核心算法提取为纯函数           | `core/context-utils/regex.ts`       |
-| `useContextLimiter.ts`     | 核心算法提取为纯函数           | `core/context-utils/limiter.ts`     |
-| `useContextInjection.ts`   | 核心算法提取为纯函数           | `core/context-utils/injection.ts`   |
-| `useMacroProcessor.ts`     | 核心算法提取为纯函数           | `core/context-utils/macro.ts`       |
-| `useMessageProcessor.ts`   | 硬编码逻辑拆分为可注册的处理器 | `core/context-processors/post/`     |
+| 文件                       | 废弃原因                       | 迁移目标                                             |
+| :------------------------- | :----------------------------- | :--------------------------------------------------- |
+| `useChatContextBuilder.ts` | 职责被管道机制完全取代         | `useChatExecutor` + Pipeline Stores                  |
+| `useMessageBuilder.ts`     | 核心算法提取为纯函数           | `core/context-utils/builder.ts`                      |
+| `useChatRegexResolver.ts`  | 核心算法提取为纯函数           | `core/context-utils/regex.ts`                        |
+| `useContextLimiter.ts`     | 核心算法提取为纯函数           | `core/context-utils/limiter.ts`                      |
+| `useContextInjection.ts`   | 核心算法提取为纯函数           | `core/context-utils/injection.ts`                    |
+| `useMacroProcessor.ts`     | 核心算法提取为纯函数           | `core/context-utils/macro.ts`                        |
+| `useMessageProcessor.ts`   | 硬编码逻辑拆分为可注册的处理器 | `core/context-processors/post/builtin-processors.ts` |
 
 > **注意**：在迁移过程中，应确保所有对这些 composables 的引用都已更新为新的导入路径，避免遗留死代码。
 
-## 10. 施工进度核查 (截至 2025-12-12 05点39分)
+## 10. 施工进度核查 (截至 2025-12-12 12点22分)
 
 根据对 `src/tools/llm-chat/` 目录的文件结构分析，当前重构进度评估如下：
 
@@ -349,9 +394,10 @@ src/tools/llm-chat/
   - [x] `useChatExecutor` 已调用新的后处理管道，旧模块已被架空。
   - [x] 旧的 `useMessageProcessor.ts` 已移除。
 
-- [x] **Phase 5: UI 配置界面** - **已完成**
+- [ ] **Phase 5: UI 配置界面与组件复用** - **进行中**
   - [x] 主管道配置界面 `PrimaryPipelineConfig.vue` 已创建。
-  - [x] Agent 级别的后处理配置界面 `PostProcessingPanel.vue` 符合设计要求。
+  - [x] Agent 级别的后处理配置界面 `PostProcessingPanel.vue` 已创建（待重构为通用组件）。
+  - [ ] 模型编辑器中的后处理配置尚未升级为通用组件。
 
 - [ ] **Phase 6: 插件集成** - **未开始**
   - [ ] 尚未提供 `registerPrimaryProcessor` 和 `registerPostProcessor` 的插件 API。

@@ -1,26 +1,22 @@
 <script setup lang="ts">
-import type { LlmParameters } from "../../../types";
+import type { ContextPostProcessRule } from "../../../types/llm";
 import { usePostProcessingPipelineStore } from "../../../stores/postProcessingPipelineStore";
 import { Info, RotateCcw } from "lucide-vue-next";
 
-// 定义需要的类型
-type ContextPostProcessing = NonNullable<LlmParameters["contextPostProcessing"]>;
-type Rule = NonNullable<ContextPostProcessing["rules"]>[number];
-
 interface Props {
-  modelValue?: ContextPostProcessing;
+  modelValue?: ContextPostProcessRule[];
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (e: "update:modelValue", value: ContextPostProcessing): void;
+  (e: "update:modelValue", value: ContextPostProcessRule[]): void;
 }>();
 
 const postPipelineStore = usePostProcessingPipelineStore();
 
 const isRuleEnabled = (processorId: string) => {
-  const rules = props.modelValue?.rules || [];
+  const rules = props.modelValue || [];
   return rules.some((r) => r.type === processorId && r.enabled);
 };
 
@@ -39,19 +35,19 @@ const deserializeEscapes = (value: string): string => {
 };
 
 const getRuleConfigValue = (processorId: string, key: string) => {
-  const rules = props.modelValue?.rules || [];
+  const rules = props.modelValue || [];
   const rule = rules.find((r) => r.type === processorId);
   const rawValue = rule?.[key] ?? "";
   // 将实际换行符转换为转义字符串以便在输入框中显示
   return typeof rawValue === "string" ? serializeEscapes(rawValue) : rawValue;
 };
 
-const updateModelValue = (newRules: Rule[]) => {
-  emit("update:modelValue", { ...props.modelValue, rules: newRules });
+const updateModelValue = (newRules: ContextPostProcessRule[]) => {
+  emit("update:modelValue", newRules);
 };
 
 const toggleRule = (processorId: string, enabled: boolean) => {
-  const currentRules = props.modelValue?.rules || [];
+  const currentRules = props.modelValue || [];
 
   const exists = currentRules.some((r) => r.type === processorId);
 
@@ -93,7 +89,7 @@ const toggleRule = (processorId: string, enabled: boolean) => {
 };
 
 const updateRuleConfig = (processorId: string, key: string, value: string) => {
-  const currentRules = props.modelValue?.rules || [];
+  const currentRules = props.modelValue || [];
   // 将转义字符串转换为实际换行符以便存储
   const deserializedValue = deserializeEscapes(value);
   const newRules = currentRules.map((r) =>
@@ -107,7 +103,7 @@ const resetRuleConfig = (processorId: string, key: string) => {
   const field = processor?.configFields?.find((f) => f.key === key);
 
   if (field && field.default !== undefined) {
-    const currentRules = props.modelValue?.rules || [];
+    const currentRules = props.modelValue || [];
     const newRules = currentRules.map((r) =>
       r.type === processorId ? { ...r, [key]: field.default } : r
     );

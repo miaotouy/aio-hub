@@ -9,6 +9,8 @@ import { getMatchedModelProperties } from "@/config/model-metadata";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { createModuleLogger } from "@/utils/logger";
+import PostProcessingPanel from "@/tools/llm-chat/components/agent/parameters/PostProcessingPanel.vue";
+import type { ContextPostProcessRule } from "@/tools/llm-chat/types/llm";
 
 const logger = createModuleLogger("ModelEditDialog");
 
@@ -50,6 +52,24 @@ watch(
   () => props.model,
   (newModel) => {
     if (newModel) {
+      // 处理 defaultPostProcessingRules 的兼容性
+      let defaultRules: ContextPostProcessRule[] = [];
+      if (newModel.defaultPostProcessingRules) {
+        if (
+          newModel.defaultPostProcessingRules.length > 0 &&
+          typeof newModel.defaultPostProcessingRules[0] === "string"
+        ) {
+          // 旧数据格式 (string[]) -> 新格式 (ContextPostProcessRule[])
+          defaultRules = (newModel.defaultPostProcessingRules as unknown as string[]).map((id) => ({
+            type: id,
+            enabled: true,
+          }));
+        } else {
+          // 新数据格式
+          defaultRules = newModel.defaultPostProcessingRules as ContextPostProcessRule[];
+        }
+      }
+
       modelEditForm.value = {
         ...newModel,
         capabilities: {
@@ -60,6 +80,7 @@ watch(
         tokenLimits: newModel.tokenLimits || {},
         pricing: newModel.pricing || {},
         customParameters: newModel.customParameters || {},
+        defaultPostProcessingRules: defaultRules,
       };
     } else {
       // 新增模式，重置表单
@@ -433,19 +454,22 @@ const customParametersJsonString = computed({
           <el-divider content-position="left">默认配置</el-divider>
 
           <el-form-item label="默认后处理规则">
-            <el-select
-              v-model="modelEditForm.defaultPostProcessingRules"
-              multiple
-              placeholder="选择该模型的默认后处理规则"
-              style="width: 100%"
-            >
-              <el-option label="合并 System 消息到头部" value="merge-system-to-head" />
-              <el-option label="合并连续相同角色" value="merge-consecutive-roles" />
-              <el-option label="转换 System 为 User" value="convert-system-to-user" />
-              <el-option label="确保角色交替" value="ensure-alternating-roles" />
-            </el-select>
+            <template #label>
+              <div style="display: flex; align-items: center">
+                <span>后处理规则</span>
+                <el-tooltip
+                  content="此配置仅适用于 LLM Chat 工具，不会影响其他功能。"
+                  placement="top"
+                >
+                  <el-icon style="margin-left: 4px; color: var(--el-color-info)">
+                    <InfoFilled />
+                  </el-icon>
+                </el-tooltip>
+              </div>
+            </template>
+            <PostProcessingPanel v-model="modelEditForm.defaultPostProcessingRules" />
             <div class="form-hint">
-              该模型的默认后处理规则。这些规则会与智能体配置的规则合并使用。
+              Chat 工具专属配置。这些规则会作为默认值，与智能体的具体配置合并使用。
             </div>
           </el-form-item>
 

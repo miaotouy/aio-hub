@@ -309,8 +309,9 @@ export interface LlmModelInfo {
    */
   description?: string;
   /**
-   * 默认的上下文后处理规则类型列表（可选）
-   * 该模型默认启用的消息处理规则
+   * [LLM Chat 专属] 默认的上下文后处理规则列表（可选）
+   * 该模型默认启用的消息处理规则。
+   * 注意：此配置仅在 LLM Chat 工具中生效，不会影响其他工具。
    *
    * 规则合并策略：
    * - 智能体配置的规则优先级更高
@@ -322,7 +323,7 @@ export interface LlmModelInfo {
    * - 智能体规则：['merge-system-to-head'] (自定义了 separator)
    * - 最终生效：智能体的 merge-system-to-head（保留自定义配置）+ 模型的 convert-system-to-user
    */
-  defaultPostProcessingRules?: Array<ContextPostProcessRule['type']>;
+  defaultPostProcessingRules?: ContextPostProcessRule[];
   /**
    * 模型专属的自定义参数（可选）
    * 用于支持非标准的 API 参数，例如模型路由配置等

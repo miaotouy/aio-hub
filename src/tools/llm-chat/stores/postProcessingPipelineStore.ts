@@ -7,6 +7,8 @@ import type {
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { CorePostProcessors } from "../core/context-processors/post";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import type { ContextPostProcessRule } from "@/tools/llm-chat/types/llm";
 
 const logger = createModuleLogger("postProcessingPipelineStore");
 const errorHandler = createModuleErrorHandler("postProcessingPipelineStore");
@@ -73,16 +75,64 @@ export const usePostProcessingPipelineStore = defineStore(
     async function executePipeline(
       context: PipelineContext,
     ): Promise<PipelineContext> {
-      // 动态确定要执行的处理器
-      // 优先使用 context 中的 agentConfig 配置，如果未配置则回退到 Store 的默认状态
-      let processorsToExecute: ContextProcessor[] = [];
-      const rules =
+      // 1. 获取 Agent 配置的规则
+      const agentRules =
         context.agentConfig.parameters?.contextPostProcessing?.rules || [];
 
+      // 2. 获取模型配置的默认规则
+      const model = context.sharedData.get("model") as LlmModelInfo | undefined;
+      // 兼容处理：确保 defaultPostProcessingRules 是 ContextPostProcessRule[]
+      // 虽然类型定义已更新，但运行时数据可能仍是 string[] (旧数据)，这里做防御性编程
+      let modelRules: ContextPostProcessRule[] = [];
+      if (model?.defaultPostProcessingRules) {
+        if (
+          model.defaultPostProcessingRules.length > 0 &&
+          typeof model.defaultPostProcessingRules[0] === "string"
+        ) {
+          modelRules = (
+            model.defaultPostProcessingRules as unknown as string[]
+          ).map((id) => ({
+            type: id,
+            enabled: true,
+          }));
+        } else {
+          modelRules =
+            model.defaultPostProcessingRules as ContextPostProcessRule[];
+        }
+      }
+
+      // 3. 合并规则 (Agent 优先，模型兜底)
+      // 使用 Map 来去重，key 为 rule.type (processorId)
+      const mergedRulesMap = new Map<string, ContextPostProcessRule>();
+
+      // 先放入模型规则
+      modelRules.forEach((rule) => {
+        mergedRulesMap.set(rule.type, rule);
+      });
+
+      // 再放入 Agent 规则 (覆盖模型规则)
+      agentRules.forEach((rule) => {
+        mergedRulesMap.set(rule.type, rule);
+      });
+
+      const finalRules = Array.from(mergedRulesMap.values());
+
+      // 4. 将最终生效的规则写回 context.agentConfig
+      // 这样处理器在 execute 时能获取到正确的参数配置 (包括来自模型的默认参数)
+      if (!context.agentConfig.parameters) {
+        context.agentConfig.parameters = {};
+      }
+      if (!context.agentConfig.parameters.contextPostProcessing) {
+        context.agentConfig.parameters.contextPostProcessing = { rules: [] };
+      }
+      context.agentConfig.parameters.contextPostProcessing.rules = finalRules;
+
+      // 5. 筛选并排序要执行的处理器
+      let processorsToExecute: ContextProcessor[] = [];
+
       // 严格模式：只执行明确启用的规则
-      // 这与 UI (PostProcessingPanel) 的表现保持一致：如果规则不存在或未启用，则不执行
       processorsToExecute = processors.value.filter((processor) => {
-        const rule = rules.find((r) => r.type === processor.id);
+        const rule = finalRules.find((r) => r.type === processor.id);
         return rule?.enabled === true;
       });
 
@@ -91,7 +141,9 @@ export const usePostProcessingPipelineStore = defineStore(
 
       logger.info("开始执行后处理管道", {
         processorCount: processorsToExecute.length,
-        usingRules: rules.length > 0,
+        usingAgentRules: agentRules.length > 0,
+        usingModelRules: modelRules.length > 0,
+        finalRuleCount: finalRules.length,
         executedIds: processorsToExecute.map((p) => p.id),
       });
 

@@ -645,8 +645,10 @@ const hasActivePostProcessingRules = computed(() => {
       v-model:expanded="postProcessingExpanded"
     >
       <PostProcessingPanel
-        :model-value="localParams.contextPostProcessing"
-        @update:model-value="updateParameter('contextPostProcessing', $event)"
+        :model-value="localParams.contextPostProcessing?.rules"
+        @update:model-value="
+          (rules) => updateParameter('contextPostProcessing', { rules })
+        "
       />
     </ConfigSection>
 

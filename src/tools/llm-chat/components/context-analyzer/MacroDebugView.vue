@@ -177,7 +177,7 @@ import { Loading, MoreFilled } from "@element-plus/icons-vue";
 import { MacroProcessor, MacroRegistry } from "../../macro-engine";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { MacroProcessResult } from "../../macro-engine";
-import type { ContextPreviewData } from "../../composables/useChatContextBuilder";
+import type { ContextPreviewData } from "../../types/context";
 import { useAgentStore } from "../../agentStore";
 import { diffLines, diffWordsWithSpace, type Change } from "diff";
 

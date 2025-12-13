@@ -162,6 +162,9 @@ export const injectionAssembler: ContextProcessor = {
 
     // 添加 chat_history 锚点之前的骨架消息
     for (const msg of skeletonBefore) {
+      // 过滤掉禁用的消息
+      if (msg.isEnabled === false) continue;
+
       // 如果是 user_profile 锚点，则注入 user_profile 的内容
       if (msg.type === SYSTEM_ANCHORS.USER_PROFILE) {
         finalMessages.push(...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE));
@@ -181,6 +184,9 @@ export const injectionAssembler: ContextProcessor = {
 
     // 添加 chat_history 锚点之后的骨架消息
     for (const msg of skeletonAfter) {
+      // 过滤掉禁用的消息
+      if (msg.isEnabled === false) continue;
+
       if (msg.type === SYSTEM_ANCHORS.USER_PROFILE) {
         finalMessages.push(...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE));
         continue;

@@ -13,7 +13,7 @@ import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useTranslation } from "@/tools/llm-chat/composables/useTranslation";
-import { useMessageBuilder } from "@/tools/llm-chat/composables/useMessageBuilder";
+import { prepareSimpleMessageForTokenCalc } from "@/tools/llm-chat/core/context-utils/builder";
 import { useContextCompressor } from "@/tools/llm-chat/composables/useContextCompressor";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -485,13 +485,10 @@ const handleDragStart = (e: MouseEvent) => {
   });
 };
 
-// ===== 窗口大小调整功能 =====
+// 窗口大小调整功能 =====
 const { createResizeHandler } = useWindowResize();
 const handleResizeEast = createResizeHandler("East");
 const handleResizeWest = createResizeHandler("West");
-
-// 消息构建器（用于准备 Token 计算的数据）
-const { prepareSimpleMessageForTokenCalc } = useMessageBuilder();
 
 // 计算当前输入的 token 数量
 const calculateInputTokens = async () => {

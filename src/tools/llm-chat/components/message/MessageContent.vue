@@ -9,8 +9,9 @@ import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useAgentStore } from "../../agentStore";
 import { useUserProfileStore } from "../../userProfileStore";
-import { useMacroProcessor } from "../../composables/useMacroProcessor";
-import { useChatRegexResolver } from "../../composables/useChatRegexResolver";
+import { MacroProcessor } from "../../macro-engine";
+import { processMacros, buildMacroContext } from "../../core/context-utils/macro";
+import { resolveRawRules, filterRulesByRole, filterRulesByDepth } from "../../core/context-utils/regex";
 import { processRulesWithMacros } from "../../utils/chatRegexUtils";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
@@ -24,8 +25,7 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
-const { processMacros } = useMacroProcessor();
-const regexResolver = useChatRegexResolver();
+const macroProcessor = new MacroProcessor();
 
 interface Props {
   session: ChatSession | null;
@@ -140,13 +140,26 @@ const activeRules = computed(() => {
   const bindingMode = settings.value.regexConfig.bindingMode ?? "message";
   const { agentId, userProfileId } = getAgentAndUserProfileIds(props.message.metadata, bindingMode);
 
-  return regexResolver.resolveRulesExplicit(
-    agentId,
-    userProfileId,
-    props.message.role,
+  // 获取配置源
+  const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+  const userProfile = userProfileId
+    ? userProfileStore.getProfileById(userProfileId)
+    : userProfileStore.globalProfile;
+  const globalConfig = settings.value.regexConfig;
+
+  // 1. 解析原始规则 (全局 -> Agent -> UserProfile)
+  const rawRules = resolveRawRules(
     "render",
-    props.messageDepth ?? 0
+    globalConfig,
+    agent?.regexConfig,
+    userProfile?.regexConfig
   );
+
+  // 2. 按角色过滤
+  const roleFiltered = filterRulesByRole(rawRules, props.message.role);
+
+  // 3. 按深度过滤
+  return filterRulesByDepth(roleFiltered, props.messageDepth ?? 0);
 });
 
 // 经过宏处理的最终规则列表
@@ -295,10 +308,14 @@ watch(
 
     if (!props.isEditing && content && isPresetMessage) {
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-      displayedContent.value = await processMacros(content, {
+      
+      // 构建宏上下文
+      const context = buildMacroContext({
         agent,
         session: session ?? undefined,
       });
+
+      displayedContent.value = await processMacros(macroProcessor, content, context);
     } else {
       displayedContent.value = content;
     }

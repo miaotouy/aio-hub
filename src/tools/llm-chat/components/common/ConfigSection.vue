@@ -125,6 +125,8 @@ const toggle = () => {
   color: var(--primary-color);
   transition: transform 0.25s;
   flex-shrink: 0;
+  width: 16px;
+  height: 16px;
 }
 
 .config-section-header:hover .section-icon {

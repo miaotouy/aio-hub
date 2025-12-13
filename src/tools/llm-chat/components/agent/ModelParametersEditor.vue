@@ -21,6 +21,16 @@ import SafetySettingsPanel from "./parameters/SafetySettingsPanel.vue";
 import PostProcessingPanel from "./parameters/PostProcessingPanel.vue";
 import CustomParamsPanel from "./parameters/CustomParamsPanel.vue";
 import ContextStatsCard from "./parameters/ContextStatsCard.vue";
+import {
+  Setting,
+  Tools,
+  Document,
+  Files,
+  Connection,
+  MagicStick,
+  CirclePlus,
+} from "@element-plus/icons-vue";
+import { Shield } from "lucide-vue-next";
 
 /**
  * 模型参数编辑器组件
@@ -531,7 +541,7 @@ const hasActivePostProcessingRules = computed(() => {
 <template>
   <div class="model-parameters-editor" :class="{ compact }">
     <!-- 基础参数分组 -->
-    <ConfigSection title="基础参数" :icon="'i-ep-setting'" v-model:expanded="basicParamsExpanded">
+    <ConfigSection title="基础参数" :icon="Setting" v-model:expanded="basicParamsExpanded">
       <ParameterItem
         v-for="config in basicConfigs"
         :key="config.key"
@@ -549,7 +559,7 @@ const hasActivePostProcessingRules = computed(() => {
     <ConfigSection
       v-if="advancedConfigs.length > 0"
       title="高级参数"
-      :icon="'i-ep-tools'"
+      :icon="Tools"
       v-model:expanded="advancedParamsExpanded"
     >
       <ParameterItem
@@ -567,7 +577,7 @@ const hasActivePostProcessingRules = computed(() => {
     <!-- 上下文管理分组 -->
     <ConfigSection
       title="上下文管理"
-      :icon="'i-ep-document'"
+      :icon="Document"
       v-model:expanded="contextManagementExpanded"
     >
       <!-- 当前上下文统计 -->
@@ -635,7 +645,7 @@ const hasActivePostProcessingRules = computed(() => {
     <!-- 上下文压缩分组 -->
     <ConfigSection
       title="上下文压缩"
-      :icon="'i-ep-files'"
+      :icon="Files"
       v-model:expanded="contextCompressionExpanded"
     >
       <ContextCompressionConfigPanel
@@ -647,7 +657,7 @@ const hasActivePostProcessingRules = computed(() => {
     <!-- 上下文后处理管道分组 -->
     <ConfigSection
       title="上下文后处理"
-      :icon="'i-ep-connection'"
+      :icon="Connection"
       v-model:expanded="postProcessingExpanded"
     >
       <PostProcessingPanel
@@ -660,7 +670,7 @@ const hasActivePostProcessingRules = computed(() => {
     <ConfigSection
       v-if="showSafetySettings"
       title="Gemini 安全设置"
-      :icon="'i-ep-shield'"
+      :icon="Shield"
       v-model:expanded="safetySettingsExpanded"
     >
       <SafetySettingsPanel
@@ -673,7 +683,7 @@ const hasActivePostProcessingRules = computed(() => {
     <ConfigSection
       v-if="specialConfigs.length > 0"
       title="特殊功能"
-      :icon="'i-ep-magic-stick'"
+      :icon="MagicStick"
       v-model:expanded="specialFeaturesExpanded"
     >
       <ParameterItem
@@ -695,7 +705,7 @@ const hasActivePostProcessingRules = computed(() => {
     <!-- 自定义参数分组 -->
     <ConfigSection
       title="自定义参数"
-      :icon="'i-ep-circle-plus'"
+      :icon="CirclePlus"
       v-model:expanded="customParamsExpanded"
     >
       <CustomParamsPanel

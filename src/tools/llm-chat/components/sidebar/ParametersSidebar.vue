@@ -15,7 +15,7 @@ import ConfigSection from "../common/ConfigSection.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatMessageNode, LlmParameters, AgentEditData } from "../../types";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { Edit, Setting } from "@element-plus/icons-vue";
+import { Edit, Setting, ChatLineRound } from "@element-plus/icons-vue";
 
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
@@ -255,7 +255,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
         <!-- 预设消息分组 -->
         <ConfigSection
           title="预设消息"
-          :icon="'i-ep-chat-line-round'"
+          :icon="ChatLineRound"
           v-model:expanded="presetMessagesExpanded"
         >
           <div class="preset-messages-compact">

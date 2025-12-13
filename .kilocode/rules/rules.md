@@ -207,7 +207,7 @@
 - **FileIcon** - 文件图标组件，基于文件名后缀自动匹配 VSCode 风格或 Lucide 图标。
 - **DropZone** - 文件拖放区域组件，支持文件类型过滤和自定义验证。
 - **IconPresetSelector** - 图标预设选择器，支持搜索和分类过滤。
-- **DynamicIcon** - 动态图标加载组件，支持 SVG/图片/Emoji。
+- **DynamicIcon** - 动态图标加载组件，用于从 URL 或路径加载 SVG/图片资源。其核心是支持主题自适应（特别是对 SVG 的动态着色），并提供懒加载和字符回退。注意：它并非通用图标组件，不应用于替代 `lucide-vue-next` 等常规图标。
 - **DetachPreviewHint** - 可分离窗口的预览提示组件。
 - **InfoCard** - 信息卡片组件，el-card的封装，用于展示结构化信息。
 - **DocumentViewer** - 多格式文档预览组件，支持 Markdown 渲染、HTML 页面预览和代码文件预览，提供源码/预览模式切换和双引擎代码编辑器。

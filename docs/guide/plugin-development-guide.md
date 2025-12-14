@@ -113,6 +113,12 @@ async function activate(context: PluginContext) {
   });
 }
 
+// > **关于优先级的特别说明**
+// >
+// > `priority` 字段仅在插件首次安装且用户从未手动调整过 Pipeline 顺序时生效。
+// > 如果用户之前修改并保存过 Pipeline 的顺序，新注册的处理器（即 ID 未出现在保存配置中的处理器）将被**强制追加到 Pipeline 末尾**，其代码中定义的 `priority` 将被忽略。
+// > 建议在插件文档中提示用户：安装插件后，如果需要调整执行顺序，请前往设置界面的 "Context Pipeline 配置" 中手动拖拽调整。
+
 // 插件的停用钩子
 async function deactivate(context: PluginContext) {
   console.log("我的插件已被停用!");

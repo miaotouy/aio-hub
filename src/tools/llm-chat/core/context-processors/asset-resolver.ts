@@ -1,29 +1,12 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
-import { invoke } from "@tauri-apps/api/core";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { convertArrayBufferToBase64 } from "@/utils/base64";
 
 const logger = createModuleLogger("llm-chat/asset-resolver");
 const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
-
-/**
- * 将 Asset 的二进制数据转换为 base64
- * (内联实现，避免依赖已移除的外部工具)
- */
-const convertAssetToBase64 = async (assetPath: string): Promise<string> => {
-  const binaryData = await invoke<number[]>("get_asset_binary", {
-    relativePath: assetPath,
-  });
-  const uint8Array = new Uint8Array(binaryData);
-  let base64 = "";
-  const chunkSize = 0x8000; // 32KB chunks
-  for (let i = 0; i < uint8Array.length; i += chunkSize) {
-    const chunk = uint8Array.subarray(i, i + chunkSize);
-    base64 += String.fromCharCode.apply(null, Array.from(chunk));
-  }
-  return btoa(base64);
-};
 
 export const assetResolver: ContextProcessor = {
   id: "asset-resolver",
@@ -59,33 +42,51 @@ export const assetResolver: ContextProcessor = {
       // 2. 处理附件
       for (const asset of msg._attachments) {
         try {
-          if (asset.type === "image") {
-            const base64 = await convertAssetToBase64(asset.path);
-            logger.debug("图片附件转换为 base64", {
-              assetId: asset.id,
-              assetName: asset.name,
-              base64Length: base64.length,
-            });
-            newContentParts.push({
-              type: "image",
-              imageBase64: base64,
-            });
-            processedCount++;
-          } else if (asset.type === "document") {
-            // 二进制文档处理 (文本文件已在 transcription-processor 中处理)
-            const base64 = await convertAssetToBase64(asset.path);
-            const documentFormat = capabilities?.documentFormat || "base64";
+          // 获取二进制数据并转换为 Base64
+          // 统一处理所有类型的 Base64 转换逻辑，减少重复代码
+          if (["image", "document", "audio", "video"].includes(asset.type)) {
+            const buffer = await assetManagerEngine.getAssetBinary(asset.path);
+            const base64 = await convertArrayBufferToBase64(buffer);
 
-            if (documentFormat === "openai_file") {
-              newContentParts.push({
-                type: "document",
-                documentSource: {
-                  type: "file_data",
-                  filename: asset.name,
-                  file_data: `data:${asset.mimeType};base64,${base64}`,
-                },
+            if (asset.type === "image") {
+              logger.debug("图片附件转换为 base64", {
+                assetId: asset.id,
+                assetName: asset.name,
+                base64Length: base64.length,
               });
+              newContentParts.push({
+                type: "image",
+                imageBase64: base64,
+              });
+            } else if (asset.type === "document") {
+              const documentFormat = capabilities?.documentFormat || "base64";
+              if (documentFormat === "openai_file") {
+                newContentParts.push({
+                  type: "document",
+                  documentSource: {
+                    type: "file_data",
+                    filename: asset.name,
+                    file_data: `data:${asset.mimeType};base64,${base64}`,
+                  },
+                });
+              } else {
+                newContentParts.push({
+                  type: "document",
+                  documentSource: {
+                    type: "base64",
+                    media_type: asset.mimeType,
+                    data: base64,
+                  },
+                });
+              }
             } else {
+              // audio or video
+              logger.debug("音视频附件转换为 base64", {
+                assetId: asset.id,
+                assetName: asset.name,
+                type: asset.type,
+                base64Length: base64.length,
+              });
               newContentParts.push({
                 type: "document",
                 documentSource: {
@@ -95,26 +96,6 @@ export const assetResolver: ContextProcessor = {
                 },
               });
             }
-            processedCount++;
-          } else if (asset.type === "audio" || asset.type === "video") {
-            // 音频和视频处理：作为 document 类型发送 (base64)
-            // 这适用于支持原生音视频输入的模型（如 Gemini 1.5 Pro）
-            const base64 = await convertAssetToBase64(asset.path);
-            logger.debug("音视频附件转换为 base64", {
-              assetId: asset.id,
-              assetName: asset.name,
-              type: asset.type,
-              base64Length: base64.length,
-            });
-
-            newContentParts.push({
-              type: "document",
-              documentSource: {
-                type: "base64",
-                media_type: asset.mimeType,
-                data: base64,
-              },
-            });
             processedCount++;
           } else {
             logger.warn("跳过不支持的附件类型", {

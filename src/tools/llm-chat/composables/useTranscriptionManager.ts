@@ -9,7 +9,7 @@ import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAgentStore } from "../agentStore";
-import Base64Worker from "@/workers/base64.worker?worker";
+import { convertArrayBufferToBase64 } from "@/utils/base64";
 import type { Asset, DerivedDataInfo } from "@/types/asset-management";
 import type { LlmRequestOptions, LlmMessageContent } from "@/llm-apis/common";
 
@@ -572,31 +572,6 @@ export function useTranscriptionManager() {
     } catch (e) {
       logger.warn("清理临时文件失败 (可能已不存在)", { path, error: e });
     }
-  };
-
-  // 辅助：使用 Worker 进行 Base64 转换
-  const convertArrayBufferToBase64 = (buffer: ArrayBuffer): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const worker = new Base64Worker();
-
-      worker.onmessage = (e) => {
-        const { status, data, error } = e.data;
-        if (status === "success") {
-          resolve(data);
-        } else {
-          reject(new Error(error || "Unknown worker error"));
-        }
-        worker.terminate(); // 任务完成后销毁 Worker
-      };
-
-      worker.onerror = (err) => {
-        reject(err);
-        worker.terminate();
-      };
-
-      // 发送数据
-      worker.postMessage(buffer, [buffer]); // 使用 Transferable Objects 转移所有权，零拷贝
-    });
   };
 
   /**

@@ -26,18 +26,18 @@ export interface ContextPostProcessRule {
  */
 export interface GeminiSafetySetting {
   category:
-    | "HARM_CATEGORY_HARASSMENT"
-    | "HARM_CATEGORY_HATE_SPEECH"
-    | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
-    | "HARM_CATEGORY_DANGEROUS_CONTENT"
-    | "HARM_CATEGORY_CIVIC_INTEGRITY";
+  | "HARM_CATEGORY_HARASSMENT"
+  | "HARM_CATEGORY_HATE_SPEECH"
+  | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+  | "HARM_CATEGORY_DANGEROUS_CONTENT"
+  | "HARM_CATEGORY_CIVIC_INTEGRITY";
   threshold:
-    | "BLOCK_NONE"
-    | "BLOCK_ONLY_HIGH"
-    | "BLOCK_MEDIUM_AND_ABOVE"
-    | "BLOCK_LOW_AND_ABOVE"
-    | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
-    | "OFF";
+  | "BLOCK_NONE"
+  | "BLOCK_ONLY_HIGH"
+  | "BLOCK_MEDIUM_AND_ABOVE"
+  | "BLOCK_LOW_AND_ABOVE"
+  | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
+  | "OFF";
 }
 
 /**
@@ -115,10 +115,10 @@ export interface LlmParameters {
   }>;
   /** 工具选择策略 */
   toolChoice?:
-    | "none"
-    | "auto"
-    | "required"
-    | { type: "function"; function: { name: string } };
+  | "none"
+  | "auto"
+  | "required"
+  | { type: "function"; function: { name: string } };
   /** 是否启用并行工具调用 */
   parallelToolCalls?: boolean;
 
@@ -128,27 +128,27 @@ export interface LlmParameters {
   /** 音频输出参数 */
   audio?: {
     voice:
-      | "alloy"
-      | "ash"
-      | "ballad"
-      | "coral"
-      | "echo"
-      | "fable"
-      | "nova"
-      | "onyx"
-      | "sage"
-      | "shimmer";
+    | "alloy"
+    | "ash"
+    | "ballad"
+    | "coral"
+    | "echo"
+    | "fable"
+    | "nova"
+    | "onyx"
+    | "sage"
+    | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 预测输出配置 */
   prediction?: {
     type: "content";
     content:
-      | string
-      | Array<{
-          type: "text";
-          text: string;
-        }>;
+    | string
+    | Array<{
+      type: "text";
+      text: string;
+    }>;
   };
 
   // ===== 特殊功能 =====
@@ -198,7 +198,7 @@ export interface LlmParameters {
     /** 最大上下文 Token 数（0 表示不限制，使用模型的默认上限） */
     maxContextTokens: number;
     /** 截断消息时保留的字符数（让消息有简略开头，避免完全被削去） */
-    retainedCharacters: number;
+    retainedCharacters: number | undefined;
   };
 
   // ===== 上下文后处理管道 =====

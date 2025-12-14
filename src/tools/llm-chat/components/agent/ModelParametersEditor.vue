@@ -83,7 +83,6 @@ const initLocalParams = (params: LlmParameters): LlmParameters => {
     };
   }
 
-
   if (!newParams.enabledParameters) {
     // 获取所有非 undefined 的参数键作为启用的参数
     // 这样既兼容了旧数据（有值的参数保持启用），又满足了新需求（没值的高级参数默认关闭）
@@ -389,6 +388,7 @@ const maxContextTokensConfig: ParameterConfig = {
   min: 0,
   step: 512,
   defaultValue: 8192,
+  hideSwitch: true,
   suggestions: [
     { label: "4K", value: 4096 },
     { label: "8K", value: 8192 },
@@ -576,11 +576,7 @@ const hasActivePostProcessingRules = computed(() => {
     </ConfigSection>
 
     <!-- 上下文管理分组 -->
-    <ConfigSection
-      title="上下文管理"
-      :icon="Document"
-      v-model:expanded="contextManagementExpanded"
-    >
+    <ConfigSection title="上下文管理" :icon="Document" v-model:expanded="contextManagementExpanded">
       <!-- 当前上下文统计 -->
       <ContextStatsCard
         :stats="contextStats"
@@ -633,7 +629,13 @@ const hasActivePostProcessingRules = computed(() => {
         v-if="localParams.contextManagement?.enabled"
         :config="retainedCharactersConfig"
         :model-value="localParams.contextManagement?.retainedCharacters"
-        :enabled="true"
+        :enabled="localParams.contextManagement?.retainedCharacters !== undefined"
+        @update:enabled="
+          updateParameter('contextManagement', {
+            ...localParams.contextManagement!,
+            retainedCharacters: $event ? 100 : undefined,
+          })
+        "
         @update:model-value="
           updateParameter('contextManagement', {
             ...localParams.contextManagement!,
@@ -644,11 +646,7 @@ const hasActivePostProcessingRules = computed(() => {
     </ConfigSection>
 
     <!-- 上下文压缩分组 -->
-    <ConfigSection
-      title="上下文压缩"
-      :icon="Files"
-      v-model:expanded="contextCompressionExpanded"
-    >
+    <ConfigSection title="上下文压缩" :icon="Files" v-model:expanded="contextCompressionExpanded">
       <ContextCompressionConfigPanel
         :model-value="localParams.contextCompression || {}"
         @update:model-value="updateParameter('contextCompression', $event)"
@@ -704,11 +702,7 @@ const hasActivePostProcessingRules = computed(() => {
     </ConfigSection>
 
     <!-- 自定义参数分组 -->
-    <ConfigSection
-      title="自定义参数"
-      :icon="CirclePlus"
-      v-model:expanded="customParamsExpanded"
-    >
+    <ConfigSection title="自定义参数" :icon="CirclePlus" v-model:expanded="customParamsExpanded">
       <CustomParamsPanel
         :model-value="localParams.custom"
         @update:model-value="updateParameter('custom', $event)"

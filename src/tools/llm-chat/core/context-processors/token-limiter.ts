@@ -93,13 +93,12 @@ export const tokenLimiter: ContextProcessor = {
     let currentHistoryTokens = 0;
     let keepCount = 0;
     // 获取保留字符数配置 (默认为 0，即不保留)
-    // 注意：这里假设 parameter-config 中定义的 key 是 retainedCharacters
-    const retainedCharacters = (contextManagement as any).retainedCharacters ?? 0;
+    const retainedCharacters = contextManagement.retainedCharacters ?? 0;
     let truncationStats: { originalTokens: number; newTokens: number; originalLength: number } | null = null;
 
     for (let i = historyMessages.length - 1; i >= 0; i--) {
       const msg = historyMessages[i];
-      
+
       if (currentHistoryTokens + msg.tokenCount <= availableForHistory) {
         // 预算充足，完整保留
         currentHistoryTokens += msg.tokenCount;
@@ -110,7 +109,7 @@ export const tokenLimiter: ContextProcessor = {
           const originalContent = msg.content;
           // 截取开头，并添加提示
           const truncatedContent = originalContent.slice(0, retainedCharacters) + "\n...(已截断)";
-          
+
           // 重新计算截断后的 Token
           const { count: truncatedTokens } = await tokenCalculatorService.calculateMessageTokens(
             truncatedContent,
@@ -134,12 +133,12 @@ export const tokenLimiter: ContextProcessor = {
             // 但我们需要确保后续重组时使用的是这个修改后的 msg。
             msg.content = truncatedContent;
             msg.tokenCount = truncatedTokens;
-            
+
             currentHistoryTokens += truncatedTokens;
             keepCount++;
           }
         }
-        
+
         // 无论是否截断成功，一旦遇到第一条放不下的消息（处理完后），
         // 更早的消息都无法保留，直接结束循环
         break;

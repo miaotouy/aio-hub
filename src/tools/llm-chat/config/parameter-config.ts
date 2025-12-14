@@ -80,6 +80,9 @@ export interface ParameterConfig {
 
   // Suggestions for number/slider input
   suggestions?: { label: string; value: number }[];
+
+  // Hide the enable/disable switch
+  hideSwitch?: boolean;
 }
 
 export const parameterConfigs: ParameterConfig[] = [

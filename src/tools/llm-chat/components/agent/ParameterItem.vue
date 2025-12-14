@@ -112,6 +112,7 @@ const showReset = computed(() => {
 
         <!-- Enable Switch -->
         <el-switch
+          v-if="!activeConfig.hideSwitch"
           :model-value="enabled"
           @update:model-value="handleEnabledChange"
           :disabled="disabled"

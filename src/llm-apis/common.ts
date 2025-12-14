@@ -6,45 +6,97 @@ import { fetch } from '@tauri-apps/plugin-http';
 export const DEFAULT_TIMEOUT = 60000; // 60秒
 
 /**
+ * 视频元数据（Gemini 特有）
+ * 用于控制视频输入的处理方式
+ */
+export interface VideoMetadata {
+  /** 视频剪辑开始时间（格式：MM:SS 或秒数字符串如 "1250s"） */
+  startOffset?: string;
+  /** 视频剪辑结束时间（格式：MM:SS 或秒数字符串如 "1570s"） */
+  endOffset?: string;
+  /** 采样帧率（每秒帧数），默认 1 FPS */
+  fps?: number;
+}
+
+/**
  * LLM 请求的消息内容
  */
-export interface LlmMessageContent {
-  type: "text" | "image" | "tool_use" | "tool_result" | "document";
-  text?: string;
-  imageBase64?: string;
-  // 工具使用
-  toolUseId?: string;
-  toolName?: string;
-  toolInput?: Record<string, any>;
-  // 工具结果
-  toolResultId?: string;
-  toolResultContent?: string | LlmMessageContent[];
-  isError?: boolean;
-  // 文档 - 支持多种格式
-  documentSource?:
+/**
+ * 媒体内容的数据源定义
+ */
+export type MediaSource =
   | {
-    // Claude/Gemini 格式：base64 编码
+    /** 内联 Base64 数据 */
     type: "base64";
     media_type: string;
     data: string;
   }
   | {
-    // OpenAI Responses 格式：file_url
-    type: "file_url";
-    file_url: string;
-  }
-  | {
-    // OpenAI Responses 格式：file_id（需先上传到 Files API）
-    type: "file_id";
-    file_id: string;
-  }
-  | {
-    // OpenAI Responses 格式：file_data（base64 data URL）
-    type: "file_data";
-    filename: string;
-    file_data: string; // data:application/pdf;base64,xxx
+    /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
+    type: "file_uri";
+    file_uri: string;
+    mime_type: string;
   };
+
+// =================================================================
+// 定义不同类型的消息内容
+// =================================================================
+
+export interface TextContent {
+  type: "text";
+  text: string;
 }
+
+export interface ImageContent {
+  type: "image";
+  imageBase64: string;
+  // 未来可以扩展 source 以支持 URL
+}
+
+export interface AudioContent {
+  type: "audio";
+  source: MediaSource;
+}
+
+export interface VideoContent {
+  type: "video";
+  source: MediaSource;
+  videoMetadata?: VideoMetadata;
+}
+
+export interface ToolUseContent {
+  type: "tool_use";
+  toolUseId: string;
+  toolName: string;
+  toolInput: Record<string, any>;
+}
+
+export interface ToolResultContent {
+  type: "tool_result";
+  toolResultId: string;
+  toolResultContent: string | LlmMessageContent[];
+  isError?: boolean;
+}
+
+/**
+ * 文档类型（用于 PDF、TXT 等通用文件）
+ */
+export interface DocumentContent {
+  type: "document";
+  source: MediaSource;
+}
+
+/**
+ * LLM 请求的消息内容 - 统一的、结构化的多模态内容格式
+ */
+export type LlmMessageContent =
+  | TextContent
+  | ImageContent
+  | AudioContent
+  | VideoContent
+  | DocumentContent
+  | ToolUseContent
+  | ToolResultContent;
 
 /**
   * LLM 请求参数

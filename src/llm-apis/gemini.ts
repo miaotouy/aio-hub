@@ -44,6 +44,12 @@ interface GeminiPart {
     outcome: "OUTCOME_OK" | "OUTCOME_FAILED" | "OUTCOME_DEADLINE_EXCEEDED" | "OUTCOME_UNSPECIFIED";
     output: string;
   };
+  // Gemini 视频/音频元数据
+  videoMetadata?: {
+    startOffset?: string; // e.g. "10s"
+    endOffset?: string;
+    fps?: number;
+  };
 }
 
 // Content 类型
@@ -194,26 +200,69 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   }
 
   // 转换文档部分
-  for (const doc of parsed.documentParts) {
-    const docData = doc.source.data || doc.source.base64;
-    if (docData) {
+  // 转换音频部分
+  for (const audio of parsed.audioParts) {
+    if (audio.source.type === "base64") {
       parts.push({
         inlineData: {
-          mimeType: doc.source.mimeType || "application/pdf",
-          data: docData,
+          mimeType: audio.source.media_type,
+          data: audio.source.data,
         },
       });
-    } else if (doc.source.uri) {
-      // 使用 File API 上传的文件
+    } else if (audio.source.type === "uri") {
       parts.push({
         fileData: {
-          mimeType: doc.source.mimeType || "application/pdf",
-          fileUri: doc.source.uri,
+          mimeType: audio.source.media_type,
+          fileUri: audio.source.uri,
         },
       });
     }
   }
 
+  // 转换视频部分
+  for (const video of parsed.videoParts) {
+    let part: GeminiPart = {};
+    if (video.source.type === "base64") {
+      part = {
+        inlineData: {
+          mimeType: video.source.media_type,
+          data: video.source.data,
+        },
+      };
+    } else if (video.source.type === "uri") {
+      part = {
+        fileData: {
+          mimeType: video.source.media_type,
+          fileUri: video.source.uri,
+        },
+      };
+    }
+
+    // 附加视频元数据
+    if (video.videoMetadata) {
+      part.videoMetadata = video.videoMetadata;
+    }
+    parts.push(part);
+  }
+
+  // 转换文档部分（现在只处理纯文档）
+  for (const doc of parsed.documentParts) {
+    if (doc.source.type === "base64") {
+      parts.push({
+        inlineData: {
+          mimeType: doc.source.media_type,
+          data: doc.source.data,
+        },
+      });
+    } else if (doc.source.type === "uri") {
+      parts.push({
+        fileData: {
+          mimeType: doc.source.media_type,
+          fileUri: doc.source.uri,
+        },
+      });
+    }
+  }
   // 转换工具使用部分
   for (const toolUse of parsed.toolUseParts) {
     parts.push({

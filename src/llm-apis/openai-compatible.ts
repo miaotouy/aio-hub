@@ -66,6 +66,48 @@ export const callOpenAiCompatibleApi = async (
         });
       }
 
+      // 分别处理不同类型的媒体，避免类型混淆
+      // 处理文档
+      for (const docPart of parsed.documentParts) {
+        if (docPart.source.type === "base64") {
+          contentArray.push({
+            type: "image_url", // 兼容处理
+            image_url: {
+              url: buildBase64DataUrl(docPart.source.data, docPart.source.media_type),
+            },
+          });
+        }
+      }
+
+      // 处理音频
+      for (const audioPart of parsed.audioParts) {
+        if (audioPart.source.type === "base64") {
+          contentArray.push({
+            type: "image_url", // 兼容处理
+            image_url: {
+              url: buildBase64DataUrl(audioPart.source.data, audioPart.source.media_type),
+            },
+          });
+        }
+      }
+
+      // 处理视频
+      for (const videoPart of parsed.videoParts) {
+        if (videoPart.source.type === "base64") {
+          const part: any = {
+            type: "image_url", // 兼容处理
+            image_url: {
+              url: buildBase64DataUrl(videoPart.source.data, videoPart.source.media_type),
+            },
+          };
+          // 安全地访问 videoMetadata 并透传
+          if (videoPart.videoMetadata) {
+            part.video_metadata = videoPart.videoMetadata;
+          }
+          contentArray.push(part);
+        }
+      }
+
       messages.push({
         role: msg.role,
         content: contentArray,

@@ -54,8 +54,13 @@ export interface ParsedMessageContent {
     isError?: boolean;
   }>;
   /** 所有文档部分 */
-  documentParts: Array<{
+  documentParts: Array<{ source: Record<string, any> }>;
+  /** 所有音频部分 */
+  audioParts: Array<{ source: Record<string, any> }>;
+  /** 所有视频部分 */
+  videoParts: Array<{
     source: Record<string, any>;
+    videoMetadata?: Record<string, any>;
   }>;
 }
 
@@ -73,6 +78,8 @@ export function parseMessageContents(messages: LlmMessageContent[]): ParsedMessa
     toolUseParts: [],
     toolResultParts: [],
     documentParts: [],
+    audioParts: [],
+    videoParts: [],
   };
 
   for (const msg of messages) {
@@ -113,9 +120,22 @@ export function parseMessageContents(messages: LlmMessageContent[]): ParsedMessa
         break;
 
       case "document":
-        if (msg.documentSource) {
-          result.documentParts.push({
-            source: msg.documentSource,
+        if (msg.source) {
+          result.documentParts.push({ source: msg.source });
+        }
+        break;
+
+      case "audio":
+        if (msg.source) {
+          result.audioParts.push({ source: msg.source });
+        }
+        break;
+
+      case "video":
+        if (msg.source) {
+          result.videoParts.push({
+            source: msg.source,
+            videoMetadata: msg.videoMetadata,
           });
         }
         break;

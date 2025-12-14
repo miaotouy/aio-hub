@@ -378,15 +378,25 @@ export function useTranscriptionManager() {
         type: "image",
         imageBase64: base64Data
       });
-    } else if (task.assetType === "audio" || task.assetType === "video") {
-      // 音频和视频处理：使用 document 类型
+    } else if (task.assetType === "audio") {
       content.push({
-        type: "document",
-        documentSource: {
+        type: "audio",
+        source: {
           type: "base64",
           media_type: mimeType!,
-          data: base64Data
-        }
+          data: base64Data,
+        },
+      });
+    } else if (task.assetType === "video") {
+      content.push({
+        type: "video",
+        source: {
+          type: "base64",
+          media_type: mimeType!,
+          data: base64Data,
+        },
+        // 转写任务的目的是获取全部内容，因此不应附加 videoMetadata。
+        // videoMetadata 应该在用户直接与视频进行交互式对话时，由 asset-resolver 根据需要添加。
       });
     }
 

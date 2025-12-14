@@ -60,40 +60,38 @@ export const assetResolver: ContextProcessor = {
               });
             } else if (asset.type === "document") {
               const documentFormat = capabilities?.documentFormat || "base64";
-              if (documentFormat === "openai_file") {
-                newContentParts.push({
-                  type: "document",
-                  documentSource: {
-                    type: "file_data",
-                    filename: asset.name,
-                    file_data: `data:${asset.mimeType};base64,${base64}`,
-                  },
-                });
-              } else {
-                newContentParts.push({
-                  type: "document",
-                  documentSource: {
-                    type: "base64",
-                    media_type: asset.mimeType,
-                    data: base64,
-                  },
-                });
+              // `documentFormat` 逻辑暂时保留，但现在它会影响 `source` 的结构
+              // TODO: 扩展 MediaSource 以支持 file_data 等更多格式
+              if (documentFormat === 'openai_file') {
+                // 暂时还是用 base64，因为 MediaSource 不支持 file_data
+                logger.warn('documentFormat: openai_file 尚未完全支持，暂时回退到 base64');
               }
-            } else {
-              // audio or video
-              logger.debug("音视频附件转换为 base64", {
-                assetId: asset.id,
-                assetName: asset.name,
-                type: asset.type,
-                base64Length: base64.length,
-              });
               newContentParts.push({
                 type: "document",
-                documentSource: {
+                source: {
                   type: "base64",
                   media_type: asset.mimeType,
                   data: base64,
                 },
+              });
+            } else if (asset.type === "audio") {
+              newContentParts.push({
+                type: "audio",
+                source: {
+                  type: "base64",
+                  media_type: asset.mimeType,
+                  data: base64,
+                },
+              });
+            } else if (asset.type === "video") {
+              newContentParts.push({
+                type: "video",
+                source: {
+                  type: "base64",
+                  media_type: asset.mimeType,
+                  data: base64,
+                },
+                // asset-resolver 阶段不处理 videoMetadata
               });
             }
             processedCount++;

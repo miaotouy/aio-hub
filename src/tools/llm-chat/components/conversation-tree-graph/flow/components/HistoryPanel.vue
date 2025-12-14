@@ -123,7 +123,6 @@ const emit = defineEmits<{
   (e: "jump-to", index: number): void;
 }>();
 
-const historyListRef = ref<HTMLElement | null>(null);
 const historyItemRefs = ref<HTMLElement[]>([]);
 
 // 自动滚动到当前条目
@@ -143,6 +142,7 @@ onMounted(() => {
 const actionLabels: Record<HistoryActionTag, string> = {
   INITIAL_STATE: "初始状态",
   NODE_EDIT: "编辑节点",
+  NODE_DATA_UPDATE: "更新数据",
   NODE_DELETE: "删除节点",
   NODES_DELETE: "批量删除",
   NODE_TOGGLE_ENABLED: "切换启用",
@@ -157,6 +157,7 @@ const actionLabels: Record<HistoryActionTag, string> = {
 const actionTagTypes: Record<HistoryActionTag, any> = {
   INITIAL_STATE: "info",
   NODE_EDIT: "primary",
+  NODE_DATA_UPDATE: "primary",
   NODE_DELETE: "danger",
   NODES_DELETE: "danger",
   NODE_TOGGLE_ENABLED: "warning",

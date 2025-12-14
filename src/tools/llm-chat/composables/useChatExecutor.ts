@@ -31,6 +31,7 @@ import { useNodeManager } from "./useNodeManager";
 import type { ContextPreviewData } from "../types/context";
 import { buildPreviewDataFromContext } from "../core/context-utils/preview-builder";
 import { resolveAttachmentContent } from "../core/context-utils/attachment-resolver";
+import { useContextCompressor } from "./useContextCompressor";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -70,6 +71,8 @@ export function useChatExecutor() {
     finalizeNode,
     handleNodeError,
   } = useChatResponseHandler();
+
+  const { checkAndCompress } = useContextCompressor();
 
   /**
    * 执行 LLM 请求的核心逻辑
@@ -353,6 +356,17 @@ export function useChatExecutor() {
           response,
           agentStore.currentAgentId || "",
         );
+
+        // 尝试触发上下文压缩
+        // 注意：这不会阻塞 UI，但会等待压缩完成（如果触发的话）
+        // 放在 finalizeNode 之后，确保当前对话已完成且状态已保存
+        try {
+          await checkAndCompress(session);
+        } catch (error) {
+          logger.warn("自动上下文压缩执行失败（不影响主流程）", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
 
       logger.info("请求执行成功", {

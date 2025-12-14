@@ -45,11 +45,18 @@ export async function buildPreviewDataFromContext(
       return;
     }
 
-    const content =
-      typeof msg.content === "string"
-        ? msg.content
-        : JSON.stringify(msg.content);
-    const charCount = content.length;
+    // 提取纯文本内容，避免 Base64 污染
+    let contentText = "";
+    if (typeof msg.content === "string") {
+      contentText = msg.content;
+    } else if (Array.isArray(msg.content)) {
+      // 只提取文本部分
+      contentText = msg.content
+        .filter((p): p is { type: "text"; text: string } => p.type === "text" && !!p.text)
+        .map((p) => p.text)
+        .join("\n");
+    }
+    const charCount = contentText.length;
 
     // 预设消息和注入消息的 token 计算（简单文本）
     if (
@@ -59,7 +66,7 @@ export async function buildPreviewDataFromContext(
       msg.sourceType === "anchor_injection"
     ) {
       const tokenResult = await tokenCalculatorService.calculateTokens(
-        content,
+        contentText,
         agentConfig.modelId,
       );
       const tokenCount = tokenResult.count;
@@ -73,7 +80,7 @@ export async function buildPreviewDataFromContext(
 
       presetMessages.push({
         role: msg.role,
-        content: content,
+        content: contentText,
         charCount: charCount,
         tokenCount: tokenCount,
         source: "agent_preset", // 简化来源
@@ -90,7 +97,7 @@ export async function buildPreviewDataFromContext(
       if (!sourceNode) {
         // 回退到简单计算
         const tokenResult = await tokenCalculatorService.calculateTokens(
-          content,
+          contentText,
           agentConfig.modelId,
         );
         const tokenCount = tokenResult.count;
@@ -100,7 +107,7 @@ export async function buildPreviewDataFromContext(
 
         chatHistory.push({
           role: msg.role as "user" | "assistant",
-          content: content,
+          content: contentText,
           charCount: charCount,
           tokenCount: tokenCount,
           source: "session_history",
@@ -265,12 +272,49 @@ export async function buildPreviewDataFromContext(
       totalCharCount += combinedText.length;
       totalTokenCount += totalNodeTokenCount;
     } else {
-      // 其他未知来源的消息，简单处理
+      // 其他未知来源的消息，安全处理
+      // 1. 计算文本 Token
       const tokenResult = await tokenCalculatorService.calculateTokens(
-        content,
+        contentText,
         agentConfig.modelId,
       );
-      const tokenCount = tokenResult.count;
+      let tokenCount = tokenResult.count;
+
+      // 2. 计算附件 Token (如果有)
+      // 优先使用 _attachments 中的元数据进行精确计算
+      if (msg._attachments && msg._attachments.length > 0) {
+        for (const asset of msg._attachments) {
+          try {
+            if (asset.type === "image") {
+              if (visionTokenCost && asset.metadata?.width && asset.metadata?.height) {
+                tokenCount += tokenCalculatorEngine.calculateImageTokens(
+                  asset.metadata.width,
+                  asset.metadata.height,
+                  visionTokenCost,
+                );
+              } else {
+                // 如果没有元数据或不支持视觉Token，使用默认值
+                tokenCount += 1000;
+                isEstimated = true;
+              }
+            } else if (asset.type === "video" && asset.metadata?.duration) {
+              tokenCount += tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+            } else if (asset.type === "audio" && asset.metadata?.duration) {
+              tokenCount += tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
+            } else if (asset.type === "document") {
+              // 文档类型通常作为 base64 发送，Token 取决于大小或内容
+              // 这里暂时使用固定估算值，直到有更好的计算方法
+              tokenCount += 500;
+              isEstimated = true;
+            }
+          } catch (e) {
+            // 计算失败，回退到估算
+            tokenCount += 500;
+            isEstimated = true;
+          }
+        }
+      }
+
       if (tokenResult.isEstimated) isEstimated = true;
       if (!tokenizerName && tokenResult.tokenizerName)
         tokenizerName = tokenResult.tokenizerName;

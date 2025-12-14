@@ -81,11 +81,15 @@ export async function buildPreviewDataFromContext(
       presetMessages.push({
         role: msg.role,
         content: contentText,
+        originalContent: msg._originalContent,
         charCount: charCount,
         tokenCount: tokenCount,
         source: "agent_preset", // 简化来源
         index: typeof msg.sourceIndex === "number" ? msg.sourceIndex : -1,
         isUserProfile: msg.sourceType === "user_profile",
+        timestamp: msg._timestamp,
+        userName: msg._userName,
+        userIcon: msg._userIcon,
       });
       presetMessagesCharCount += charCount;
       presetMessagesTokenCount += tokenCount;

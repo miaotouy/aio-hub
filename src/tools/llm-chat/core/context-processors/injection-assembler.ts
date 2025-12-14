@@ -129,6 +129,14 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
       sourceType: "depth_injection",
       sourceId: inj.message.id,
       sourceIndex: presetMessages.indexOf(inj.message),
+      _originalContent: processedContents.has(inj.message.id)
+        ? inj.message.content
+        : undefined,
+      _timestamp: inj.message.timestamp
+        ? new Date(inj.message.timestamp).getTime()
+        : undefined,
+      _userName: inj.message.metadata?.userProfileName,
+      _userIcon: inj.message.metadata?.userProfileIcon,
     }));
 
     result.splice(insertIndex, 0, ...injectedMessages);
@@ -320,6 +328,14 @@ export const injectionAssembler: ContextProcessor = {
         sourceType: "anchor_injection",
         sourceId: inj.message.id,
         sourceIndex: presetMessages.indexOf(inj.message),
+        _originalContent: processedContents.has(inj.message.id)
+          ? inj.message.content
+          : undefined,
+        _timestamp: inj.message.timestamp
+          ? new Date(inj.message.timestamp).getTime()
+          : undefined,
+        _userName: inj.message.metadata?.userProfileName,
+        _userIcon: inj.message.metadata?.userProfileIcon,
       }));
     };
 
@@ -346,6 +362,12 @@ export const injectionAssembler: ContextProcessor = {
         sourceType: "agent_preset",
         sourceId: msg.id,
         sourceIndex: presetMessages.indexOf(msg),
+        _originalContent: processedContents.has(msg.id)
+          ? msg.content
+          : undefined,
+        _timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : undefined,
+        _userName: msg.metadata?.userProfileName,
+        _userIcon: msg.metadata?.userProfileIcon,
       });
     }
 
@@ -367,6 +389,12 @@ export const injectionAssembler: ContextProcessor = {
         sourceType: "agent_preset",
         sourceId: msg.id,
         sourceIndex: presetMessages.indexOf(msg),
+        _originalContent: processedContents.has(msg.id)
+          ? msg.content
+          : undefined,
+        _timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : undefined,
+        _userName: msg.metadata?.userProfileName,
+        _userIcon: msg.metadata?.userProfileIcon,
       });
     }
 

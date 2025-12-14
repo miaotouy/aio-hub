@@ -484,9 +484,9 @@ watch(
 
         // 为每条消息创建特定的上下文，确保时间戳和角色名称正确
         // 注意：presetMessages 没有节点时间戳，所以回退到 targetTimestamp
-        const messageTimestamp = (msg as any).timestamp || newData.targetTimestamp;
+        const messageTimestamp = msg.timestamp || newData.targetTimestamp;
         const messageContext = createMacroContext({
-          userName: baseContext.userName,
+          userName: msg.userName || baseContext.userName,
           charName: baseContext.charName,
           agent: baseContext.agent,
           userProfile: baseContext.userProfileObj,

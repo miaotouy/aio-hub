@@ -638,6 +638,19 @@ export function useChatExecutor() {
     const capabilities = model?.capabilities;
 
     const pathToUserNode = nodeManager.getNodePath(session, targetNodeId);
+    const targetNode = session.nodes[targetNodeId];
+
+    // 尝试从目标节点恢复用户档案快照
+    if (targetNode?.metadata?.userProfileName && effectiveUserProfile) {
+      effectiveUserProfile = {
+        ...effectiveUserProfile,
+        name: targetNode.metadata.userProfileName,
+        // 如果有 displayName 则优先使用，否则使用 name
+        displayName:
+          targetNode.metadata.userProfileName || effectiveUserProfile.displayName,
+        icon: targetNode.metadata.userProfileIcon || effectiveUserProfile.icon,
+      };
+    }
 
     // 1. 创建管道上下文
     const pipelineContext: PipelineContext = {
@@ -646,12 +659,14 @@ export function useChatExecutor() {
       userProfile: effectiveUserProfile || undefined,
       agentConfig: executionAgent,
       capabilities: capabilities || {},
-      timestamp: Date.now(),
+      // 使用目标节点的时间戳，如果不存在则回退到当前时间
+      timestamp: targetNode?.timestamp
+        ? new Date(targetNode.timestamp).getTime()
+        : Date.now(),
       sharedData: new Map<string, any>(),
       logs: [],
     };
 
-    const targetNode = session.nodes[targetNodeId];
     if (targetNode) {
       pipelineContext.sharedData.set("userMessageContent", targetNode.content);
     }

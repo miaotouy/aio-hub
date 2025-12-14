@@ -33,6 +33,17 @@ export interface ProcessableMessage {
    * 在 asset-resolver 阶段会被处理并合并入 content
    */
   _attachments?: Asset[];
+  /**
+   * [元数据] 原始消息内容
+   * 用于宏调试和差异对比，仅在宏处理发生时设置
+   */
+  _originalContent?: string;
+  /** [元数据] 消息时间戳（宏还原用） */
+  _timestamp?: number;
+  /** [元数据] 用户名称快照（宏还原用） */
+  _userName?: string;
+  /** [元数据] 用户头像快照（宏还原用） */
+  _userIcon?: string;
 }
 
 /**
@@ -82,6 +93,8 @@ export interface ContextPreviewData {
     userName?: string;
     /** 节点所使用的用户图标（快照） */
     userIcon?: string;
+    /** 消息时间戳（宏还原用） */
+    timestamp?: number;
     /** 是否为用户档案 */
     isUserProfile?: boolean;
   }>;

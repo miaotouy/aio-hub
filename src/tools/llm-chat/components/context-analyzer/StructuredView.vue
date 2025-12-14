@@ -189,6 +189,9 @@
                 </el-tag>
               </div>
               <div class="header-tags">
+                <el-tag v-if="msg.nonTextCount > 0" size="small" type="warning" effect="plain">
+                  +{{ msg.nonTextCount }} 非文本
+                </el-tag>
                 <el-tag v-if="msg.tokenCount !== undefined" size="small" type="success">
                   {{ msg.tokenCount }} tokens
                 </el-tag>
@@ -325,6 +328,7 @@ interface UnifiedMessage {
   role: "system" | "user" | "assistant";
   content: string | LlmMessageContent[];
   charCount: number;
+  nonTextCount: number;
   tokenCount?: number;
   source: "agent_preset" | "session_history" | "unknown";
   // 用户信息（user 角色）
@@ -360,19 +364,21 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
       role: finalMsg.role,
       content: finalMsg.content,
       charCount: 0, // 稍后计算
+      nonTextCount: 0,
       source: "unknown",
     };
 
-    // 计算字符数
+    // 计算字符数和非文本内容数
     let contentStr = "";
     if (typeof finalMsg.content === "string") {
       contentStr = finalMsg.content;
     } else if (Array.isArray(finalMsg.content)) {
       // 只提取文本部分，避免 Base64 导致字符数虚高
-      contentStr = finalMsg.content
-        .filter((p): p is { type: "text"; text: string } => p.type === "text" && !!p.text)
-        .map((p) => p.text)
-        .join("\n");
+      const textParts = finalMsg.content.filter(
+        (p): p is { type: "text"; text: string } => p.type === "text" && !!p.text
+      );
+      contentStr = textParts.map((p) => p.text).join("\n");
+      baseMsg.nonTextCount = finalMsg.content.length - textParts.length;
     }
     baseMsg.charCount = contentStr.length;
 
@@ -568,16 +574,10 @@ function getDisplayContent(content: string | LlmMessageContent[]): string {
     return content;
   }
   // 多模态内容，提取文本部分
-  const textParts = content
+  return content
     .filter((part) => part.type === "text" && part.text)
-    .map((part) => (part as { type: "text"; text: string }).text);
-  const otherParts = content.filter((part) => part.type !== "text");
-
-  let result = textParts.join("\n");
-  if (otherParts.length > 0) {
-    result += `\n[+ ${otherParts.length} 个非文本内容]`;
-  }
-  return result;
+    .map((part) => (part as { type: "text"; text: string }).text)
+    .join("\n");
 }
 
 // 辅助函数：解决 template 中直接使用 as unknown as 导致的高亮错乱问题

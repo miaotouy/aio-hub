@@ -415,7 +415,7 @@ const retainedCharactersConfig: ParameterConfig = {
   min: 0,
   max: 500,
   step: 10,
-  defaultValue: 200,
+  defaultValue: 100,
 };
 
 // --- 上下文统计数据逻辑 ---

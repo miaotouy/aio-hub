@@ -13,7 +13,6 @@ export const assetResolver: ContextProcessor = {
   name: "Base64 资源解析器",
   description: "将消息中的二进制附件引用转换为最终发送给 LLM 的 Base64 格式。",
   priority: 10000, // 确保最后执行
-  isCore: true,
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     const capabilities = context.capabilities;

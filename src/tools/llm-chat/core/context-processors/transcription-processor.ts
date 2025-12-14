@@ -13,7 +13,6 @@ export const transcriptionProcessor: ContextProcessor = {
   name: "转写与文本提取器",
   description: "处理音频/视频转写及文本附件读取，将其转换为消息文本以便参与 Token 计算。",
   priority: 250, // 必须在 Token 限制 (300) 之前执行
-  isCore: true,
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     const transcriptionManager = useTranscriptionManager();

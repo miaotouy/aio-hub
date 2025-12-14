@@ -254,7 +254,6 @@ export const messageFormatter: ContextProcessor = {
   name: "消息格式化",
   description: "应用一系列消息格式化规则（合并 System、合并连续角色等）",
   priority: 500,
-  isCore: true,
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     // 计算 Token 辅助函数

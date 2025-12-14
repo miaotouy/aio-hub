@@ -364,8 +364,16 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
     };
 
     // 计算字符数
-    const contentStr =
-      typeof finalMsg.content === "string" ? finalMsg.content : JSON.stringify(finalMsg.content);
+    let contentStr = "";
+    if (typeof finalMsg.content === "string") {
+      contentStr = finalMsg.content;
+    } else if (Array.isArray(finalMsg.content)) {
+      // 只提取文本部分，避免 Base64 导致字符数虚高
+      contentStr = finalMsg.content
+        .filter((p): p is { type: "text"; text: string } => p.type === "text" && !!p.text)
+        .map((p) => p.text)
+        .join("\n");
+    }
     baseMsg.charCount = contentStr.length;
 
     // 根据来源元数据进行匹配

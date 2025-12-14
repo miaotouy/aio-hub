@@ -671,13 +671,22 @@ export function useChatExecutor() {
 
     // 4. 计算最终的总 Token 数
     const finalTokenPromises = pipelineContext.messages.map(async (msg) => {
-      const content =
-        typeof msg.content === "string"
-          ? msg.content
-          : JSON.stringify(msg.content);
-      const tokenResult = await tokenCalculatorService.calculateTokens(
-        content,
+      let contentText = "";
+      if (typeof msg.content === "string") {
+        contentText = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        contentText = msg.content
+          .filter((p) => p.type === "text" && p.text)
+          .map((p) => (p as any).text)
+          .join("\n");
+      }
+
+      // 使用 calculateMessageTokens 正确计算文本和附件的 token
+      // 避免直接 JSON.stringify 包含 base64 的 content 导致 token 爆炸
+      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+        contentText,
         agentConfigSnippet.modelId,
+        msg._attachments || [],
       );
       return tokenResult.count;
     });

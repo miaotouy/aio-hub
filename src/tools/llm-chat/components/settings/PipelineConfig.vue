@@ -66,6 +66,10 @@ import { Rank, Refresh } from "@element-plus/icons-vue";
 import type { ContextProcessor } from "@/tools/llm-chat/types/pipeline";
 import { customMessage } from "@/utils/customMessage";
 
+const emit = defineEmits<{
+  (e: "change"): void;
+}>();
+
 const pipelineStore = useContextPipelineStore();
 
 // 创建一个可用于拖拽的本地 ref
@@ -89,6 +93,7 @@ const isEnabled = (processorId: string) => {
 
 const toggleProcessor = (processorId: string, enabled: boolean) => {
   pipelineStore.setProcessorEnabled(processorId, enabled);
+  emit("change");
 };
 
 // 拖拽开始时记录当前顺序
@@ -108,6 +113,7 @@ const onDragEnd = () => {
   }
 
   pipelineStore.reorderProcessors(newOrder);
+  emit("change");
 };
 
 const handleReset = () => {
@@ -123,6 +129,7 @@ const handleReset = () => {
     .then(() => {
       pipelineStore.resetToDefaults();
       customMessage.success("已重置为默认设置");
+      emit("change");
     })
     .catch(() => {
       // 用户取消

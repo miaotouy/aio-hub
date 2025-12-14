@@ -18,6 +18,7 @@
                   :is="resolvedComponent"
                   :model-value="modelValue"
                   @update:model-value="handleUpdate"
+                  @change="handleChange"
                   v-bind="resolvedProps"
                   :loading="isLoading"
                 />
@@ -172,6 +173,12 @@ const modelValue = computed({
 
 const handleUpdate = (val: any) => {
   modelValue.value = val;
+};
+
+const handleChange = () => {
+  // 即使没有具体的 modelPath 修改，也触发一次更新，强制父组件感知
+  // 这对于像 PipelineConfig 这样自己管理状态的组件很有用
+  emit("update:settings", { ...props.settings });
 };
 
 // 基础组件映射表

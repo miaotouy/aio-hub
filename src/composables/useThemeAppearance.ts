@@ -7,6 +7,7 @@ import {
   type WindowEffect,
   type BlendMode,
   defaultAppearanceSettings,
+  BUILTIN_WALLPAPERS,
 } from "@/utils/appSettings";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { useTheme } from "@/composables/useTheme";
@@ -14,6 +15,15 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ColorThief from "color-thief-ts";
+
+/**
+ * 获取内置壁纸的完整 URL
+ */
+function getBuiltinWallpaperUrl(filename: string): string {
+  // 在 Tauri/Vite 环境中，public 目录下的资源可以直接通过根路径访问
+  // 注意：生产构建后，这些资源位于资源根目录
+  return `/wallpapers/${filename}`;
+}
 
 // --- 颜色混合工具 ---
 
@@ -472,13 +482,30 @@ async function _switchToWallpaper(index: number, settings: AppearanceSettings) {
 
   const imagePath = list[index];
   try {
-    currentWallpaper.value = convertFileSrc(imagePath);
+    // 如果是内置壁纸 URL，直接使用；否则进行路径转换
+    if (imagePath.startsWith("/wallpapers/")) {
+      currentWallpaper.value = imagePath;
+    } else {
+      currentWallpaper.value = convertFileSrc(imagePath);
+    }
     _updateCssVariables(settings);
 
     // 更新并保存当前索引
     if (appearanceSettings.value.wallpaperSlideshowCurrentIndex !== index) {
+      const updates: Partial<AppearanceSettings> = {
+        wallpaperSlideshowCurrentIndex: index,
+      };
+
+      // 同步更新专用索引字段 (记忆功能)
+      const source = settings.wallpaperSource ?? "builtin";
+      if (source === "builtin") {
+        updates.builtinWallpaperSlideshowIndex = index;
+      } else {
+        updates.customWallpaperSlideshowIndex = index;
+      }
+
       // 直接调用模块级的更新函数，避免递归调用
-      updateAppearanceSetting({ wallpaperSlideshowCurrentIndex: index });
+      updateAppearanceSetting(updates);
     }
     logger.debug("幻灯片切换", { index, path: imagePath });
 
@@ -502,20 +529,34 @@ async function _switchToWallpaper(index: number, settings: AppearanceSettings) {
 
 async function _startSlideshow(settings: AppearanceSettings) {
   _stopSlideshow();
-  const { wallpaperSlideshowPath, wallpaperSlideshowInterval, wallpaperSlideshowShuffle } =
-    settings;
+  const {
+    wallpaperSlideshowPath,
+    wallpaperSlideshowInterval,
+    wallpaperSlideshowShuffle,
+    wallpaperSource,
+  } = settings;
 
-  if (!wallpaperSlideshowPath) {
-    logger.warn("幻灯片目录路径为空，无法启动");
-    wallpaperList.value = [];
-    shuffledList.value = [];
-    return;
-  }
+  // 确定壁纸来源
+  const source = wallpaperSource ?? "builtin";
 
   try {
-    wallpaperList.value = await invoke<string[]>("list_directory_images", {
-      directory: wallpaperSlideshowPath,
-    });
+    if (source === "builtin") {
+      // 内置壁纸模式：直接使用内置列表
+      wallpaperList.value = BUILTIN_WALLPAPERS.map((w) => getBuiltinWallpaperUrl(w.filename));
+      logger.info("加载内置轮播列表", { count: wallpaperList.value.length });
+    } else {
+      // 自定义模式：扫描目录
+      if (!wallpaperSlideshowPath) {
+        logger.warn("幻灯片目录路径为空，无法启动");
+        wallpaperList.value = [];
+        shuffledList.value = [];
+        return;
+      }
+
+      wallpaperList.value = await invoke<string[]>("list_directory_images", {
+        directory: wallpaperSlideshowPath,
+      });
+    }
 
     if (wallpaperList.value.length > 0) {
       shuffledList.value = shuffle(wallpaperList.value); // 总是预先生成随机列表
@@ -536,8 +577,25 @@ async function _startSlideshow(settings: AppearanceSettings) {
         _switchToWallpaper(nextIndex, appearanceSettings.value);
       };
 
-      // 恢复到上次的索引
-      const initialIndex = settings.wallpaperSlideshowCurrentIndex ?? 0;
+      // 恢复到上次的索引 (根据来源读取对应的记忆索引)
+      let initialIndex = 0;
+      if (source === "builtin") {
+        initialIndex = settings.builtinWallpaperSlideshowIndex ?? 0;
+      } else {
+        initialIndex = settings.customWallpaperSlideshowIndex ?? 0;
+      }
+
+      // 越界检查 (防止列表变动导致索引无效)
+      const list = settings.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+      if (initialIndex >= list.length) {
+        logger.warn("保存的轮播索引越界，已重置为 0", {
+          source,
+          savedIndex: initialIndex,
+          listLength: list.length,
+        });
+        initialIndex = 0;
+      }
+
       _switchToWallpaper(initialIndex, settings);
 
       // 启动定时器
@@ -545,13 +603,14 @@ async function _startSlideshow(settings: AppearanceSettings) {
         slideshowTimer = window.setInterval(playNext, wallpaperSlideshowInterval * 60 * 1000);
       }
     } else {
-      logger.warn("幻灯片目录为空", { path: wallpaperSlideshowPath });
+      logger.warn("幻灯片列表为空", { source, path: wallpaperSlideshowPath });
       wallpaperList.value = [];
       shuffledList.value = [];
     }
   } catch (error) {
     errorHandler.error(error, "启动幻灯片失败", {
       operation: "启动幻灯片",
+      source,
       path: wallpaperSlideshowPath,
     });
   }
@@ -639,37 +698,56 @@ async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: Appe
     settings.wallpaperMode === "slideshow" &&
     oldSettings.wallpaperMode !== "slideshow";
 
-  if (settings.wallpaperMode === "static" && settings.wallpaperPath) {
+  if (settings.wallpaperMode === "static") {
+    // 处理静态壁纸（内置或自定义）
     try {
-      logger.info("加载静态壁纸", { path: settings.wallpaperPath });
-      wallpaperList.value = []; // 清空列表
-      shuffledList.value = [];
-      currentWallpaper.value = convertFileSrc(settings.wallpaperPath);
-      logger.info("静态壁纸加载成功");
+      let wallpaperUrl = "";
+      const source = settings.wallpaperSource ?? "builtin";
 
-      // 如果开启了自动取色，从壁纸提取颜色
-      if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
-        const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
-        if (extractedColor) {
-          updateAppearanceSetting({
-            wallpaperExtractedColor: extractedColor,
-            backgroundColorOverlayEnabled: true, // 自动启用颜色叠加
-          });
+      if (source === "builtin") {
+        const filename = settings.builtinWallpaperName || BUILTIN_WALLPAPERS[0].filename;
+        wallpaperUrl = getBuiltinWallpaperUrl(filename);
+        logger.info("加载内置壁纸", { filename, url: wallpaperUrl });
+      } else if (settings.wallpaperPath) {
+        wallpaperUrl = convertFileSrc(settings.wallpaperPath);
+        logger.info("加载自定义壁纸", { path: settings.wallpaperPath, url: wallpaperUrl });
+      }
+
+      if (wallpaperUrl) {
+        wallpaperList.value = []; // 清空列表
+        shuffledList.value = [];
+        currentWallpaper.value = wallpaperUrl;
+        logger.info("静态壁纸加载成功");
+
+        // 如果开启了自动取色，从壁纸提取颜色
+        if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
+          const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
+          if (extractedColor) {
+            updateAppearanceSetting({
+              wallpaperExtractedColor: extractedColor,
+              backgroundColorOverlayEnabled: true, // 自动启用颜色叠加
+            });
+          }
         }
+      } else {
+        // 如果是自定义模式但没有路径，或者其他异常情况
+        currentWallpaper.value = "";
+        logger.warn("未找到有效的壁纸路径");
       }
     } catch (error) {
-      errorHandler.error(error, "转换静态壁纸路径失败", {
-        operation: "转换静态壁纸路径",
-        path: settings.wallpaperPath,
+      errorHandler.error(error, "加载静态壁纸失败", {
+        operation: "加载静态壁纸",
+        settings,
       });
       currentWallpaper.value = "";
     }
-  } else if (settings.wallpaperMode === "slideshow" && settings.wallpaperSlideshowPath) {
+  } else if (settings.wallpaperMode === "slideshow") {
     // 切换到轮播模式时，立即清除当前壁纸，防止显示旧的静态壁纸
     // 仅在刚刚切换到幻灯片模式时清除。
     if (modeJustSwitchedToSlideshow) {
       currentWallpaper.value = "";
     }
+    // 无论是 builtin 还是 custom，都由 _startSlideshow 内部处理
     await _startSlideshow(settings);
   } else {
     // 如果当前模式没有设置路径，则清除壁纸
@@ -751,14 +829,25 @@ export async function initThemeAppearance(isDetached = false) {
         logger.debug("外观设置变化", { newSettings, oldSettings });
 
         const old = oldSettings || defaultAppearanceSettings;
-        if (
+
+        // 检查是否需要重新加载壁纸系统（涉及文件列表扫描等重操作）
+        const shouldReloadWallpaper =
           newSettings.enableWallpaper !== old.enableWallpaper ||
           newSettings.wallpaperMode !== old.wallpaperMode ||
+          newSettings.wallpaperSource !== old.wallpaperSource ||
+          newSettings.builtinWallpaperName !== old.builtinWallpaperName ||
           newSettings.wallpaperPath !== old.wallpaperPath ||
           newSettings.wallpaperSlideshowPath !== old.wallpaperSlideshowPath ||
-          newSettings.wallpaperSlideshowInterval !== old.wallpaperSlideshowInterval
-        ) {
+          newSettings.wallpaperSlideshowInterval !== old.wallpaperSlideshowInterval;
+
+        if (shouldReloadWallpaper) {
           await _updateWallpaper(newSettings, old);
+        } else if (
+          newSettings.wallpaperMode === "slideshow" &&
+          newSettings.wallpaperSlideshowCurrentIndex !== old.wallpaperSlideshowCurrentIndex
+        ) {
+          // 如果只是轮播索引变化，直接切换壁纸，避免重新扫描目录
+          await _switchToWallpaper(newSettings.wallpaperSlideshowCurrentIndex ?? 0, newSettings);
         }
 
         // 如果自动取色开关发生变化，且当前有壁纸，则重新提取颜色
@@ -840,6 +929,7 @@ export function useThemeAppearance() {
         updateAppearanceSetting({
           wallpaperPath: selected,
           wallpaperMode: "static",
+          wallpaperSource: "custom", // 自动切换到自定义模式
         });
         logger.info("壁纸已选择", { path: selected });
       }
@@ -848,6 +938,38 @@ export function useThemeAppearance() {
         operation: "选择壁纸",
       });
     }
+  };
+
+  /**
+   * 选择内置壁纸
+   */
+  const selectBuiltinWallpaper = (filename: string) => {
+    const settings = appearanceSettings.value;
+    const targetUrl = getBuiltinWallpaperUrl(filename);
+
+    // 如果当前已经在内置轮播模式，则尝试在当前列表中跳转，保持轮播状态
+    if (settings.wallpaperMode === "slideshow" && settings.wallpaperSource === "builtin") {
+      const list = settings.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
+      const index = list.indexOf(targetUrl);
+
+      if (index !== -1) {
+        updateAppearanceSetting({
+          wallpaperSlideshowCurrentIndex: index,
+          // 同时更新记忆索引，以便下次启动时记住这张
+          builtinWallpaperSlideshowIndex: index,
+        });
+        logger.info("已在轮播模式下跳转到指定壁纸", { filename, index });
+        return;
+      }
+    }
+
+    // 其他情况（静态模式，或从自定义模式切换过来），切换到静态模式
+    updateAppearanceSetting({
+      builtinWallpaperName: filename,
+      wallpaperMode: "static",
+      wallpaperSource: "builtin",
+    });
+    logger.info("已选择内置壁纸", { filename });
   };
 
   /**
@@ -865,6 +987,7 @@ export function useThemeAppearance() {
         updateAppearanceSetting({
           wallpaperSlideshowPath: selected,
           wallpaperMode: "slideshow",
+          wallpaperSource: "custom", // 自动切换到自定义模式
           wallpaperSlideshowCurrentIndex: 0, // 重置索引
         });
         logger.info("壁纸目录已选择", { path: selected });
@@ -1011,6 +1134,7 @@ export function useThemeAppearance() {
 
     updateAppearanceSetting,
     selectWallpaper,
+    selectBuiltinWallpaper,
     selectWallpaperDirectory,
     clearWallpaper,
 

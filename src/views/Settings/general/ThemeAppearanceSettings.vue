@@ -33,7 +33,11 @@
               <div v-show="wallpaperMode === 'slideshow'">
                 <!-- 预览和缩略图容器 -->
                 <div class="wallpaper-preview-container" :class="{ 'wide-layout': isWideLayout }">
-                  <el-tooltip content="点击查看大图" placement="bottom" :disabled="!currentWallpaper">
+                  <el-tooltip
+                    content="点击查看大图"
+                    placement="bottom"
+                    :disabled="!currentWallpaper"
+                  >
                     <div
                       class="wallpaper-preview"
                       :class="{ 'is-clickable': currentWallpaper }"
@@ -122,23 +126,47 @@
                 <el-form-item label="壁纸模式">
                   <el-radio-group v-model="wallpaperMode">
                     <el-radio-button value="static">静态壁纸</el-radio-button>
-                    <el-radio-button value="slideshow">目录轮播</el-radio-button>
+                    <el-radio-button value="slideshow">轮播模式</el-radio-button>
                   </el-radio-group>
                 </el-form-item>
               </el-col>
               <el-col :md="12" :span="24">
-                <el-form-item v-if="wallpaperMode === 'slideshow'" label="轮播间隔（分钟）">
-                  <el-input-number
-                    v-model="wallpaperSlideshowInterval"
-                    :min="1"
-                    :max="1440"
-                    class="full-width"
-                  />
+                <el-form-item label="壁纸来源">
+                  <el-radio-group v-model="wallpaperSource">
+                    <el-radio-button value="builtin">内置壁纸</el-radio-button>
+                    <el-radio-button value="custom">自定义</el-radio-button>
+                  </el-radio-group>
                 </el-form-item>
               </el-col>
             </el-row>
 
-            <el-form-item v-if="wallpaperMode === 'static'" label="图片路径">
+            <el-form-item v-if="wallpaperMode === 'slideshow'" label="轮播间隔（分钟）">
+              <el-input-number
+                v-model="wallpaperSlideshowInterval"
+                :min="1"
+                :max="1440"
+                class="full-width"
+              />
+            </el-form-item>
+
+            <!-- 内置壁纸选择 -->
+            <div v-if="wallpaperSource === 'builtin'" class="builtin-wallpaper-grid">
+              <div
+                v-for="wp in BUILTIN_WALLPAPERS"
+                :key="wp.filename"
+                class="builtin-wallpaper-item"
+                :class="{ active: currentBuiltinWallpaperName === wp.filename }"
+                @click="selectBuiltinWallpaper(wp.filename)"
+              >
+                <img :src="`/wallpapers/${wp.filename}`" loading="lazy" />
+                <div class="wallpaper-name">{{ wp.name }}</div>
+              </div>
+            </div>
+
+            <el-form-item
+              v-if="wallpaperMode === 'static' && wallpaperSource === 'custom'"
+              label="图片路径"
+            >
               <el-input v-model="wallpaperPath" placeholder="输入图片路径或选择文件">
                 <template #append>
                   <el-button @click="selectWallpaper">选择图片</el-button>
@@ -146,7 +174,10 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item v-if="wallpaperMode === 'slideshow'" label="目录路径">
+            <el-form-item
+              v-if="wallpaperMode === 'slideshow' && wallpaperSource === 'custom'"
+              label="目录路径"
+            >
               <el-input v-model="wallpaperSlideshowPath" placeholder="输入目录路径或选择目录">
                 <template #append>
                   <el-button @click="selectWallpaperDirectory">选择目录</el-button>
@@ -228,14 +259,14 @@
               :class="{ 'is-disabled': !backgroundColorOverlayEnabled }"
             >
               <el-form-item>
-                <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px">
                   <el-switch v-model="autoExtractColorFromWallpaper" />
-                  <span style="font-size: 14px;">自动从壁纸提取颜色</span>
+                  <span style="font-size: 14px">自动从壁纸提取颜色</span>
                   <el-tooltip
                     content="启用后，每次切换壁纸时会自动提取主色调并应用到背景色叠加"
                     placement="top"
                   >
-                    <el-icon style="cursor: help; color: var(--el-text-color-secondary);">
+                    <el-icon style="cursor: help; color: var(--el-text-color-secondary)">
                       <QuestionFilled />
                     </el-icon>
                   </el-tooltip>
@@ -356,9 +387,7 @@
 
             <el-form-item label="窗口背景不透明度">
               <el-slider v-model="windowBackgroundOpacity" :min="0" :max="1" :step="0.05" />
-              <p class="form-item-description">
-                降低此值以透出桌面或窗口后的内容。
-              </p>
+              <p class="form-item-description">降低此值以透出桌面或窗口后的内容。</p>
             </el-form-item>
           </el-form>
         </InfoCard>
@@ -386,7 +415,7 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
-import type { WallpaperFit, BlendMode } from "@/utils/appSettings";
+import { type WallpaperFit, type BlendMode, BUILTIN_WALLPAPERS } from "@/utils/appSettings";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { type } from "@tauri-apps/plugin-os";
 
@@ -398,6 +427,7 @@ const {
   isShuffleEnabled,
   updateAppearanceSetting,
   selectWallpaper,
+  selectBuiltinWallpaper,
   selectWallpaperDirectory,
   clearWallpaper,
   playNextWallpaper,
@@ -410,8 +440,8 @@ const {
   extractColorFromCurrentWallpaper,
 } = useThemeAppearance();
 
-const isGlassEffectActive = computed(() =>
-  appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
+const isGlassEffectActive = computed(
+  () => appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
 );
 
 const imageViewer = useImageViewer();
@@ -420,9 +450,14 @@ const showWallpaperPreview = () => {
   if (!currentWallpaper.value) return;
 
   if (wallpaperMode.value === "static") {
-    // 使用原始路径，而不是转换后的 URL
-    if (appearanceSettings.value.wallpaperPath) {
-      imageViewer.show(appearanceSettings.value.wallpaperPath);
+    if (appearanceSettings.value.wallpaperSource === "builtin") {
+      // 内置壁纸直接用 currentWallpaper (它是 URL)
+      imageViewer.show(currentWallpaper.value);
+    } else {
+      // 自定义壁纸使用原始路径，而不是转换后的 URL
+      if (appearanceSettings.value.wallpaperPath) {
+        imageViewer.show(appearanceSettings.value.wallpaperPath);
+      }
     }
   } else {
     // currentWallpaperList 已经是原始路径列表
@@ -501,7 +536,7 @@ const visibleThumbnails = computed(() => {
     const path = list[originalIndex];
     thumbnails.push({
       path,
-      url: convertFileSrc(path), // 使用 Tauri API 同步转换路径
+      url: path.startsWith("/wallpapers/") ? path : convertFileSrc(path),
       originalIndex,
       isActive: originalIndex === currentIndex.value,
     });
@@ -582,6 +617,32 @@ const enableWallpaper = computed({
 const wallpaperMode = computed({
   get: () => appearanceSettings.value.wallpaperMode,
   set: (val) => updateAppearanceSetting({ wallpaperMode: val }),
+});
+
+const wallpaperSource = computed({
+  get: () => appearanceSettings.value.wallpaperSource ?? "builtin",
+  set: (val) => updateAppearanceSetting({ wallpaperSource: val }),
+});
+
+const currentBuiltinWallpaperName = computed(() => {
+  const settings = appearanceSettings.value;
+
+  // 如果处于内置壁纸的轮播模式
+  if (settings.wallpaperMode === "slideshow" && settings.wallpaperSource === "builtin") {
+    const list = currentWallpaperList.value;
+    const index = settings.wallpaperSlideshowCurrentIndex ?? 0;
+
+    if (list && list.length > index) {
+      const currentUrl = list[index];
+      // 内置壁纸 URL 格式通常是 /wallpapers/xxx.jpg
+      // 我们需要提取文件名与 BUILTIN_WALLPAPERS 中的 filename 进行匹配
+      if (currentUrl) {
+        return currentUrl.split("/").pop();
+      }
+    }
+  }
+
+  return appearanceSettings.value.builtinWallpaperName;
 });
 
 // 在壁纸模式切换到 'slideshow' 时，主动刷新壁纸列表
@@ -723,7 +784,7 @@ const backgroundColorOverlayColor = computed({
 const effectiveOverlayColor = computed(() => {
   return autoExtractColorFromWallpaper.value && appearanceSettings.value.wallpaperExtractedColor
     ? appearanceSettings.value.wallpaperExtractedColor
-    : appearanceSettings.value.backgroundColorOverlayColor ?? "#409eff";
+    : (appearanceSettings.value.backgroundColorOverlayColor ?? "#409eff");
 });
 
 // 处理手动颜色输入
@@ -1032,5 +1093,63 @@ const wallpaperPreviewStyle = computed(() => {
 .color-picker-with-input .el-input {
   /* 让输入字段占据剩余空间 */
   flex: 1;
+}
+
+.builtin-wallpaper-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.builtin-wallpaper-item {
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background-color: var(--card-bg);
+}
+
+.builtin-wallpaper-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.builtin-wallpaper-item.active {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-5);
+}
+
+.builtin-wallpaper-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.wallpaper-name {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 12px;
+  padding: 6px;
+  text-align: center;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  /* 修复圆角溢出问题：父元素 radius 8px - border 2px = 6px */
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.builtin-wallpaper-item:hover .wallpaper-name,
+.builtin-wallpaper-item.active .wallpaper-name {
+  opacity: 1;
 }
 </style>

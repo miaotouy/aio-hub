@@ -11,6 +11,9 @@ import type { UserCssSettings } from "@/types/css-override";
 // 壁纸模式类型
 export type WallpaperMode = "static" | "slideshow";
 
+// 壁纸来源类型
+export type WallpaperSource = "builtin" | "custom";
+
 // 壁纸填充模式
 export type WallpaperFit = "cover" | "contain" | "fill" | "tile";
 
@@ -21,6 +24,23 @@ export interface WallpaperTileOptions {
   flipVertical?: boolean; // 垂直翻转
   rotation?: number; // 旋转角度 (0-360)
 }
+
+// 内置壁纸定义
+export interface BuiltinWallpaper {
+  name: string;
+  filename: string;
+  previewUrl?: string; // 可选的预览图 URL
+}
+
+export const BUILTIN_WALLPAPERS: BuiltinWallpaper[] = [
+  { name: "抽象几何", filename: "abstract-shapes.png" },
+  { name: "云海奇峰", filename: "cloud-peaks.png" },
+  { name: "科技网格", filename: "tech-grid.png" },
+  { name: "极光夜空", filename: "aurora-night.png" },
+  { name: "霓虹锦鲤", filename: "neon-koi.png" },
+  { name: "虚空书阁", filename: "void-library.png" },
+  { name: "林间微趣", filename: "micro-forest.png" },
+];
 
 // 窗口特效类型（根据不同操作系统支持）
 export type WindowEffect = "none" | "blur" | "acrylic" | "mica" | "vibrancy";
@@ -49,11 +69,15 @@ export interface AppearanceSettings {
   // --- 壁纸设置 ---
   enableWallpaper: boolean; // 是否启用壁纸
   wallpaperMode: WallpaperMode; // 壁纸模式：静态或轮播
+  wallpaperSource: WallpaperSource; // 壁纸来源：内置或自定义
+  builtinWallpaperName?: string; // 内置壁纸文件名
   wallpaperPath: string; // 静态壁纸的图片路径
   wallpaperSlideshowPath: string; // 目录轮播的目录路径
   wallpaperSlideshowInterval: number; // 轮播间隔（分钟）
   wallpaperSlideshowShuffle?: boolean; // 是否随机播放
   wallpaperSlideshowCurrentIndex?: number; // 当前播放索引
+  builtinWallpaperSlideshowIndex?: number; // 内置壁纸轮播索引 (记忆)
+  customWallpaperSlideshowIndex?: number; // 自定义壁纸轮播索引 (记忆)
   wallpaperOpacity: number; // 壁纸透明度 (0.0 - 1.0)
   wallpaperFit: WallpaperFit; // 壁纸填充模式
   wallpaperTileOptions?: WallpaperTileOptions; // 拼贴模式的详细选项
@@ -139,11 +163,15 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   // 壁纸设置
   enableWallpaper: false, // 默认关闭壁纸
   wallpaperMode: "static",
+  wallpaperSource: "builtin", // 默认使用内置壁纸
+  builtinWallpaperName: "abstract-shapes.png", // 默认内置壁纸
   wallpaperPath: "", // 默认为空，使用纯色主题背景
   wallpaperSlideshowPath: "", // 目录轮播路径
   wallpaperSlideshowInterval: 30, // 30分钟切换
   wallpaperSlideshowShuffle: false, // 默认不随机
   wallpaperSlideshowCurrentIndex: 0, // 默认从第一张开始
+  builtinWallpaperSlideshowIndex: 0,
+  customWallpaperSlideshowIndex: 0,
   wallpaperOpacity: 0.3, // 默认调低一点，避免喧宾夺主
   wallpaperFit: "cover", // 默认覆盖模式
   wallpaperTileOptions: {
@@ -248,22 +276,34 @@ export const appSettingsManager = createConfigManager<AppSettings>({
     };
 
     // 深度合并 appearance 对象
-    const mergedAppearance = loadedConfig.appearance
+    let mergedAppearance = loadedConfig.appearance
       ? {
-          ...defaultConfig.appearance,
-          ...loadedConfig.appearance,
-          // 深度合并 layerOpacityOffsets
-          layerOpacityOffsets: {
-            ...defaultConfig.appearance?.layerOpacityOffsets,
-            ...loadedConfig.appearance?.layerOpacityOffsets,
-          },
-          // 深度合并 wallpaperTileOptions
-          wallpaperTileOptions: {
-            ...(defaultConfig.appearance?.wallpaperTileOptions ?? {}),
-            ...(loadedConfig.appearance?.wallpaperTileOptions ?? {}),
-          },
-        }
+        ...defaultConfig.appearance,
+        ...loadedConfig.appearance,
+        // 深度合并 layerOpacityOffsets
+        layerOpacityOffsets: {
+          ...defaultConfig.appearance?.layerOpacityOffsets,
+          ...loadedConfig.appearance?.layerOpacityOffsets,
+        },
+        // 深度合并 wallpaperTileOptions
+        wallpaperTileOptions: {
+          ...(defaultConfig.appearance?.wallpaperTileOptions ?? {}),
+          ...(loadedConfig.appearance?.wallpaperTileOptions ?? {}),
+        },
+      }
       : defaultConfig.appearance;
+
+    // --- 迁移逻辑：处理旧配置 ---
+    // 如果用户之前设置了 wallpaperPath 但没有 wallpaperSource，则将其视为自定义壁纸
+    // 如果 wallpaperPath 为空，则保持默认的 builtin
+    if (
+      mergedAppearance &&
+      loadedConfig.appearance &&
+      !loadedConfig.appearance.wallpaperSource &&
+      loadedConfig.appearance.wallpaperPath
+    ) {
+      mergedAppearance.wallpaperSource = "custom";
+    }
 
     return {
       ...defaultConfig,

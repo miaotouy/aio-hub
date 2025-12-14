@@ -1,8 +1,8 @@
 <template>
-  <div class="primary-pipeline-config">
-    <el-alert title="关于主上下文管道" type="info" :closable="false" show-icon class="mb-4">
+  <div class="pipeline-config">
+    <el-alert title="关于上下文管道" type="info" :closable="false" show-icon class="mb-4">
       <p>
-        主上下文管道 (Primary Context Pipeline)
+        上下文管道 (Context Pipeline)
         是一系列按顺序执行的处理器，用于在向大语言模型（LLM）发送请求之前，构建和准备核心上下文内容。
       </p>
       <p>你可以通过拖拽来调整处理器的执行顺序，或通过开关来启用/禁用它们。顺序和状态将自动保存。</p>
@@ -60,13 +60,13 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
-import { usePrimaryContextPipelineStore } from "@/tools/llm-chat/stores/primaryContextPipelineStore";
+import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
 import { ElSwitch, ElAlert, ElIcon, ElEmpty, ElButton, ElMessageBox } from "element-plus";
 import { Rank, Refresh } from "@element-plus/icons-vue";
 import type { ContextProcessor } from "@/tools/llm-chat/types/pipeline";
 import { customMessage } from "@/utils/customMessage";
 
-const pipelineStore = usePrimaryContextPipelineStore();
+const pipelineStore = useContextPipelineStore();
 
 // 创建一个可用于拖拽的本地 ref
 const draggableProcessors = ref<ContextProcessor[]>([...pipelineStore.processors]);
@@ -131,7 +131,7 @@ const handleReset = () => {
 </script>
 
 <style scoped>
-.primary-pipeline-config {
+.pipeline-config {
   padding: 10px;
 }
 

@@ -1,6 +1,5 @@
 import { createModuleLogger } from "@/utils/logger";
-import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
-import { buildMessageContentForLlm } from "../../context-utils/builder";
+import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
 
@@ -87,12 +86,10 @@ export const sessionLoader: ContextProcessor = {
       }
       const processableMessage: ProcessableMessage = {
         role: node.role,
-        content: await buildMessageContentForLlm(
-          node.content,
-          node.attachments,
-        ),
+        content: node.content,
         sourceType: "session_history",
         sourceId: node.id,
+        _attachments: node.attachments,
       };
       messages.push(processableMessage);
     }

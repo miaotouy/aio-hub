@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ContextPostProcessRule } from "../../../types/llm";
-import { usePostProcessingPipelineStore } from "../../../stores/postProcessingPipelineStore";
+import { AvailableFormatters } from "../../../core/context-processors/message-format-processors";
 import { Info, RotateCcw } from "lucide-vue-next";
 
 interface Props {
@@ -12,8 +12,6 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: ContextPostProcessRule[]): void;
 }>();
-
-const postPipelineStore = usePostProcessingPipelineStore();
 
 const isRuleEnabled = (processorId: string) => {
   const rules = props.modelValue || [];
@@ -54,7 +52,7 @@ const toggleRule = (processorId: string, enabled: boolean) => {
   if (enabled) {
     if (!exists) {
       // 动态获取默认值
-      const processor = postPipelineStore.processors.find((p) => p.id === processorId);
+      const processor = AvailableFormatters.find((p) => p.id === processorId);
       const defaultProps: Record<string, any> = {};
       processor?.configFields?.forEach((field) => {
         if (field.default !== undefined) {
@@ -99,7 +97,7 @@ const updateRuleConfig = (processorId: string, key: string, value: string) => {
 };
 
 const resetRuleConfig = (processorId: string, key: string) => {
-  const processor = postPipelineStore.processors.find((p) => p.id === processorId);
+  const processor = AvailableFormatters.find((p) => p.id === processorId);
   const field = processor?.configFields?.find((f) => f.key === key);
 
   if (field && field.default !== undefined) {
@@ -130,7 +128,7 @@ const resetRuleConfig = (processorId: string, key: string) => {
     <!-- 规则列表 -->
     <div class="post-process-rules">
       <div
-        v-for="processor in postPipelineStore.processors"
+        v-for="processor in AvailableFormatters"
         :key="processor.id"
         class="rule-item"
         :class="{ enabled: isRuleEnabled(processor.id) }"

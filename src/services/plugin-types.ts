@@ -166,25 +166,15 @@ export interface PluginContext {
    */
   chat: {
     /**
-     * 注册一个主上下文处理器
+     * 注册一个上下文处理器
      * @param processor 要注册的处理器对象
      */
-    registerPrimaryProcessor: (processor: any) => void;
+    registerProcessor: (processor: any) => void;
     /**
-     * 注册一个后处理管道处理器
-     * @param processor 要注册的处理器对象
-     */
-    registerPostProcessor: (processor: any) => void;
-    /**
-     * 注销一个主上下文处理器
+     * 注销一个上下文处理器
      * @param processorId 处理器 ID
      */
-    unregisterPrimaryProcessor: (processorId: string) => void;
-    /**
-     * 注销一个后处理管道处理器
-     * @param processorId 处理器 ID
-     */
-    unregisterPostProcessor: (processorId: string) => void;
+    unregisterProcessor: (processorId: string) => void;
   };
 
   // 未来可扩展其他 API，例如 ui.showNotification, commands.registerCommand 等

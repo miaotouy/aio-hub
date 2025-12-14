@@ -28,6 +28,11 @@ export interface ProcessableMessage {
   sourceIndex?: number;
   /** 用于存储被合并的原始消息 */
   _mergedSources?: ProcessableMessage[];
+  /**
+   * [中间格式] 暂存的附件列表
+   * 在 asset-resolver 阶段会被处理并合并入 content
+   */
+  _attachments?: Asset[];
 }
 
 /**
@@ -120,6 +125,8 @@ export interface ContextPreviewData {
     sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
     /** 用于存储被合并的原始消息 */
     _mergedSources?: any[];
+    /** [中间格式] 暂存的附件列表 */
+    _attachments?: Asset[];
     /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
     sourceId?: string | number;
     /** 在来源数组中的索引（用于精确匹配） */

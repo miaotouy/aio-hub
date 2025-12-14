@@ -1,4 +1,4 @@
-import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
+import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 

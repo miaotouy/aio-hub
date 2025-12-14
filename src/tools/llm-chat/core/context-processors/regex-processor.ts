@@ -1,14 +1,86 @@
-import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
+import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
-import {
-  resolveRawRules,
-  filterRulesByRole,
-  filterRulesByDepth,
-} from "../../context-utils/regex";
-import type { MessageRole } from "@/tools/llm-chat/types/chatRegex";
+import type {
+  ChatRegexConfig,
+  ChatRegexRule,
+  MessageRole,
+} from "../../types/chatRegex";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 
 const logger = createModuleLogger("primary:regex-processor");
+
+/**
+ * 从多个配置源收集适用于特定阶段的所有已启用规则
+ * (不过滤 role 和 depth，用于缓存)
+ */
+function resolveRawRules(
+  stage: "render" | "request",
+  ...configs: (ChatRegexConfig | undefined)[]
+): ChatRegexRule[] {
+  type WeightedRule = {
+    rule: ChatRegexRule;
+    priority: number;
+    order: number;
+  };
+
+  const weightedRules: WeightedRule[] = [];
+
+  for (const config of configs) {
+    if (!config?.presets) continue;
+
+    const enabledPresets = config.presets
+      .filter((preset) => preset.enabled)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    for (const preset of enabledPresets) {
+      const applicableRules = preset.rules.filter(
+        (rule) => rule.enabled && rule.applyTo[stage],
+      );
+
+      for (const rule of applicableRules) {
+        weightedRules.push({
+          rule,
+          priority: preset.priority ?? 100,
+          order: rule.order ?? 0,
+        });
+      }
+    }
+  }
+
+  weightedRules.sort((a, b) => {
+    const priorityDiff = a.priority - b.priority;
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.order - b.order;
+  });
+
+  return weightedRules.map((w) => w.rule);
+}
+
+/**
+ * 根据消息角色过滤规则
+ */
+function filterRulesByRole(
+  rules: ChatRegexRule[],
+  role: MessageRole,
+): ChatRegexRule[] {
+  return rules.filter((rule) => rule.targetRoles.includes(role));
+}
+
+/**
+ * 根据消息深度过滤规则
+ */
+function filterRulesByDepth(
+  rules: ChatRegexRule[],
+  depth: number,
+): ChatRegexRule[] {
+  return rules.filter((rule) => {
+    if (!rule.depthRange) return true;
+    const { min, max } = rule.depthRange;
+    if (min !== undefined && depth < min) return false;
+    if (max !== undefined && depth > max) return false;
+    return true;
+  });
+}
 
 export const regexProcessor: ContextProcessor = {
   id: "primary:regex-processor",

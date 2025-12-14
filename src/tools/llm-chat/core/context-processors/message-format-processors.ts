@@ -1,17 +1,20 @@
 /**
- * 内置的后处理器集合
+ * 消息格式化处理器集合
  * 这些处理器负责在将消息发送给 LLM 之前进行最终的格式转换和调整。
- * 采用类似宏注册的模式，将所有处理器定义在一个文件中，以减少文件数量。
+ * 对应架构中的 Step 5: 消息格式化
  */
 
-import type { ContextProcessor, PipelineContext } from "../../../types/pipeline";
-import type { ProcessableMessage } from "../../../types/context";
+import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
+import type { ProcessableMessage } from "../../types/context";
 import { createModuleLogger } from "@/utils/logger";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import type { ContextPostProcessRule } from "../../types/llm";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 
-const logger = createModuleLogger("llm-chat/builtin-post-processors");
+const logger = createModuleLogger("llm-chat/message-format-processors");
 
-// --- 1. 核心处理逻辑 (从旧的 message-processor.ts 迁移) ---
+// --- 1. 核心处理逻辑 ---
 
 export const DEFAULT_SEPARATOR = "\n\n---\n\n";
 export const DEFAULT_USER_PLACEHOLDER = "继续";
@@ -153,13 +156,13 @@ export const handleConvertSystemToUser = (
   });
 };
 
-// --- 2. 处理器定义 ---
+// --- 2. 子处理器定义 (用于 UI 配置和元数据) ---
 
 const mergeSystemToHeadProcessor: ContextProcessor = {
   id: "post:merge-system-to-head",
   name: "合并 System 消息到头部",
   description: "将所有 system 角色的消息合并为一条，并放在消息列表的最开头。",
-  priority: 100,
+  priority: 500,
   isCore: true,
   defaultEnabled: true,
   configFields: [
@@ -171,20 +174,14 @@ const mergeSystemToHeadProcessor: ContextProcessor = {
       default: DEFAULT_SEPARATOR,
     },
   ],
-  execute: async (context: PipelineContext) => {
-    const separator =
-      context.agentConfig.parameters?.contextPostProcessing?.rules?.find(
-        (r) => r.type === "post:merge-system-to-head",
-      )?.separator || DEFAULT_SEPARATOR;
-    context.messages = handleMergeSystemToHead(context.messages, separator);
-  },
+  execute: async () => {}, // 实际执行由 messageFormatter 统一调度
 };
 
 const mergeConsecutiveRolesProcessor: ContextProcessor = {
   id: "post:merge-consecutive-roles",
   name: "合并连续相同角色",
   description: "合并连续出现的相同角色消息（如两个 user 消息相邻）。",
-  priority: 200,
+  priority: 600,
   isCore: true,
   defaultEnabled: true,
   configFields: [
@@ -196,13 +193,7 @@ const mergeConsecutiveRolesProcessor: ContextProcessor = {
       default: DEFAULT_SEPARATOR,
     },
   ],
-  execute: async (context: PipelineContext) => {
-    const separator =
-      context.agentConfig.parameters?.contextPostProcessing?.rules?.find(
-        (r) => r.type === "post:merge-consecutive-roles",
-      )?.separator || DEFAULT_SEPARATOR;
-    context.messages = handleMergeConsecutiveRoles(context.messages, separator);
-  },
+  execute: async () => {},
 };
 
 const convertSystemToUserProcessor: ContextProcessor = {
@@ -210,19 +201,17 @@ const convertSystemToUserProcessor: ContextProcessor = {
   name: "转换 System 为 User",
   description:
     "将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）。",
-  priority: 300,
+  priority: 700,
   isCore: true,
   defaultEnabled: false,
-  execute: async (context: PipelineContext) => {
-    context.messages = handleConvertSystemToUser(context.messages);
-  },
+  execute: async () => {},
 };
 
 const ensureAlternatingRolesProcessor: ContextProcessor = {
   id: "post:ensure-alternating-roles",
   name: "确保角色交替",
   description: "强制实现 user 和 assistant 的严格交替对话模式。",
-  priority: 400,
+  priority: 800,
   isCore: true,
   defaultEnabled: false,
   configFields: [
@@ -241,29 +230,146 @@ const ensureAlternatingRolesProcessor: ContextProcessor = {
       default: DEFAULT_ASSISTANT_PLACEHOLDER,
     },
   ],
-  execute: async (context: PipelineContext) => {
-    const ruleConfig =
-      context.agentConfig.parameters?.contextPostProcessing?.rules?.find(
-        (r) => r.type === "post:ensure-alternating-roles",
-      );
-    const userPlaceholder =
-      ruleConfig?.userPlaceholder || DEFAULT_USER_PLACEHOLDER;
-    const assistantPlaceholder =
-      ruleConfig?.assistantPlaceholder || DEFAULT_ASSISTANT_PLACEHOLDER;
-    context.messages = handleEnsureAlternatingRoles(
-      context.messages,
-      userPlaceholder,
-      assistantPlaceholder,
-    );
-  },
+  execute: async () => {},
 };
 
-// --- 3. 导出处理器列表 ---
+// --- 3. 导出 ---
 
-export const BuiltinPostProcessors: ContextProcessor[] = [
+/**
+ * 可用的格式化器列表，用于 UI 配置展示
+ */
+export const AvailableFormatters: ContextProcessor[] = [
   mergeSystemToHeadProcessor,
   mergeConsecutiveRolesProcessor,
   convertSystemToUserProcessor,
   ensureAlternatingRolesProcessor,
 ];
 
+/**
+ * 统一的消息格式化处理器
+ * 负责按顺序执行所有启用的格式化规则
+ */
+export const messageFormatter: ContextProcessor = {
+  id: "message-formatter",
+  name: "消息格式化",
+  description: "应用一系列消息格式化规则（合并 System、合并连续角色等）",
+  priority: 500,
+  isCore: true,
+  defaultEnabled: true,
+  execute: async (context: PipelineContext) => {
+    // 计算 Token 辅助函数
+    const calculateTotalTokens = async (msgs: ProcessableMessage[], modelId: string) => {
+      let total = 0;
+      for (const msg of msgs) {
+        const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+        const result = await tokenCalculatorService.calculateTokens(content, modelId);
+        total += result.count;
+      }
+      return total;
+    };
+
+    const isPreview = context.sharedData.get("isPreviewMode");
+    let inputTokens = 0;
+
+    if (isPreview && context.agentConfig.modelId) {
+      try {
+        inputTokens = await calculateTotalTokens(context.messages, context.agentConfig.modelId);
+      } catch (error) {
+        logger.warn("计算输入 Token 失败", error);
+      }
+    }
+
+    // 1. 获取并合并规则配置 (Agent 优先，模型兜底)
+    const agentRules =
+      context.agentConfig.parameters?.contextPostProcessing?.rules || [];
+    
+    const model = context.sharedData.get("model") as LlmModelInfo | undefined;
+    let modelRules: ContextPostProcessRule[] = [];
+    
+    if (model?.defaultPostProcessingRules) {
+      if (
+        model.defaultPostProcessingRules.length > 0 &&
+        typeof model.defaultPostProcessingRules[0] === "string"
+      ) {
+        modelRules = (
+          model.defaultPostProcessingRules as unknown as string[]
+        ).map((id) => ({
+          type: id,
+          enabled: true,
+        }));
+      } else {
+        modelRules =
+          model.defaultPostProcessingRules as ContextPostProcessRule[];
+      }
+    }
+
+    const mergedRulesMap = new Map<string, ContextPostProcessRule>();
+    
+    // 默认启用状态
+    AvailableFormatters.forEach(p => {
+      mergedRulesMap.set(p.id, {
+        type: p.id,
+        enabled: p.defaultEnabled !== false
+      });
+    });
+
+    // 模型规则覆盖
+    modelRules.forEach((rule) => {
+      mergedRulesMap.set(rule.type, rule);
+    });
+
+    // Agent 规则覆盖
+    agentRules.forEach((rule) => {
+      mergedRulesMap.set(rule.type, rule);
+    });
+
+    const getRule = (id: string) => mergedRulesMap.get(id);
+    const isEnabled = (id: string) => mergedRulesMap.get(id)?.enabled === true;
+
+    // 2. 按固定顺序执行子逻辑
+
+    // Step 1: 合并 System 消息到头部
+    if (isEnabled("post:merge-system-to-head")) {
+      const rule = getRule("post:merge-system-to-head");
+      const separator = rule?.separator || DEFAULT_SEPARATOR;
+      context.messages = handleMergeSystemToHead(context.messages, separator);
+    }
+
+    // Step 2: 合并连续相同角色
+    if (isEnabled("post:merge-consecutive-roles")) {
+      const rule = getRule("post:merge-consecutive-roles");
+      const separator = rule?.separator || DEFAULT_SEPARATOR;
+      context.messages = handleMergeConsecutiveRoles(context.messages, separator);
+    }
+
+    // Step 3: 转换 System 为 User
+    if (isEnabled("post:convert-system-to-user")) {
+      context.messages = handleConvertSystemToUser(context.messages);
+    }
+
+    // Step 4: 确保角色交替
+    if (isEnabled("post:ensure-alternating-roles")) {
+      const rule = getRule("post:ensure-alternating-roles");
+      const userPlaceholder = rule?.userPlaceholder || DEFAULT_USER_PLACEHOLDER;
+      const assistantPlaceholder = rule?.assistantPlaceholder || DEFAULT_ASSISTANT_PLACEHOLDER;
+      context.messages = handleEnsureAlternatingRoles(
+        context.messages,
+        userPlaceholder,
+        assistantPlaceholder
+      );
+    }
+
+    if (isPreview && context.agentConfig.modelId) {
+      try {
+        const outputTokens = await calculateTotalTokens(context.messages, context.agentConfig.modelId);
+        const delta = outputTokens - inputTokens;
+        context.sharedData.set("postProcessingTokenDelta", delta);
+        logger.debug("计算 Token 差值", { inputTokens, outputTokens, delta });
+      } catch (error) {
+        logger.warn("计算输出 Token 失败", error);
+      }
+    }
+    
+    logger.debug("消息格式化完成", { messageCount: context.messages.length });
+  },
+};

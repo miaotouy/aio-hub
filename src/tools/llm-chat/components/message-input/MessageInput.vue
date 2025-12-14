@@ -13,7 +13,7 @@ import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useTranslation } from "@/tools/llm-chat/composables/useTranslation";
-import { prepareSimpleMessageForTokenCalc } from "@/tools/llm-chat/core/context-utils/builder";
+import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
 import { useContextCompressor } from "@/tools/llm-chat/composables/useContextCompressor";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -561,11 +561,12 @@ const calculateInputTokens = async () => {
   try {
     // 使用 MessageBuilder 预处理消息，将文本附件合并到文本中
     const attachments =
-      inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
+      inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : [];
 
-    const { combinedText, mediaAttachments } = await prepareSimpleMessageForTokenCalc(
+    const { combinedText, mediaAttachments } = await prepareMessageForTokenCalc(
       inputText.value,
-      attachments
+      attachments,
+      modelId
     );
 
     // 使用合并后的文本和媒体附件进行 token 计算

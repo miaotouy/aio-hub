@@ -1,8 +1,41 @@
 import type { ChatSession, ChatMessageNode } from "../types";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { createModuleLogger } from "@/utils/logger";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import type { Asset } from "@/types/asset-management";
+import { resolveAttachmentContent } from "../core/context-utils/attachment-resolver";
 
 const logger = createModuleLogger("llm-chat/token-utils");
+
+/**
+ * 准备用于 Token 计算的消息内容（本地辅助函数）
+ * 模拟 transcription-processor 的行为，读取文本附件和转写内容
+ */
+export async function prepareMessageForTokenCalc(
+  content: string,
+  attachments: Asset[],
+  modelId: string
+): Promise<{ combinedText: string; mediaAttachments: Asset[] }> {
+  let combinedText = content;
+  const mediaAttachments: Asset[] = [];
+  const { profiles } = useLlmProfiles();
+
+  // 尝试查找 profileId
+  const profile = profiles.value.find((p) => p.models.some((m) => m.id === modelId));
+  const profileId = profile?.id || "";
+
+  for (const asset of attachments) {
+    const result = await resolveAttachmentContent(asset, modelId, profileId);
+
+    if (result.type === "text" && result.content) {
+      combinedText += result.content;
+    } else {
+      mediaAttachments.push(asset);
+    }
+  }
+
+  return { combinedText, mediaAttachments };
+}
 
 /**
  * 重新计算单个节点的 token
@@ -56,23 +89,11 @@ export async function recalculateNodeTokens(
       node.attachments &&
       node.attachments.length > 0
     ) {
-      // 动态导入所需模块
-      const { useChatSettings } = await import(
-        "../composables/useChatSettings"
-      );
-      const { prepareSimpleMessageForTokenCalc } = await import(
-        "../core/context-utils/builder"
-      );
-
-      // 获取当前设置
-      const { settings, loadSettings } = useChatSettings();
-      await loadSettings(); // 确保设置已加载
-
       // 准备用于 Token 计算的消息内容
-      const result = await prepareSimpleMessageForTokenCalc(
+      const result = await prepareMessageForTokenCalc(
         node.content,
         node.attachments,
-        settings.value,
+        modelId
       );
 
       fullContent = result.combinedText;
@@ -155,23 +176,11 @@ export async function fillMissingTokenMetadata(
           node.attachments &&
           node.attachments.length > 0
         ) {
-          // 动态导入所需模块
-          const { useChatSettings } = await import(
-            "../composables/useChatSettings"
-          );
-          const { prepareSimpleMessageForTokenCalc } = await import(
-            "../core/context-utils/builder"
-          );
-
-          // 获取当前设置
-          const { settings, loadSettings } = useChatSettings();
-          await loadSettings(); // 确保设置已加载
-
           // 准备用于 Token 计算的消息内容
-          const result = await prepareSimpleMessageForTokenCalc(
+          const result = await prepareMessageForTokenCalc(
             node.content,
             node.attachments,
-            settings.value,
+            modelId
           );
 
           fullContent = result.combinedText;

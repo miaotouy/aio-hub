@@ -11,8 +11,12 @@ import { useAgentStore } from "../../agentStore";
 import { useUserProfileStore } from "../../userProfileStore";
 import { MacroProcessor } from "../../macro-engine";
 import { processMacros, buildMacroContext } from "../../core/context-utils/macro";
-import { resolveRawRules, filterRulesByRole, filterRulesByDepth } from "../../core/context-utils/regex";
-import { processRulesWithMacros } from "../../utils/chatRegexUtils";
+import {
+  resolveRawRules,
+  filterRulesByRole,
+  filterRulesByDepth,
+  processRulesWithMacros,
+} from "../../utils/chatRegexUtils";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";

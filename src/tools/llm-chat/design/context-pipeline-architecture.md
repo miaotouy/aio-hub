@@ -47,7 +47,7 @@ graph TD
     B2 --> UnifiedPipeline
     P10 --> Final((发送至 LLM))
 
-    classDef stage fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef stage fill:#f9f9f9,stroke:#33,stroke-width:2px;
     class A,B stage;
     style P10 fill:#e3f2fd,stroke:#1976d2
 ```
@@ -80,14 +80,14 @@ graph TD
 
 以下是系统内置的核心处理器，按优先级排序：
 
-| ID                        | 名称           | 职责                                                                           | 优先级  | 来源目录      |
-| :------------------------ | :------------- | :----------------------------------------------------------------------------- | :------ | :------------ |
-| `session-loader`          | 会话加载器     | 加载会话历史为中间格式消息（保留附件引用）                                     | 100     | `primary/`    |
-| `regex-processor`         | 正则处理器     | 对历史消息应用正则规则                                                         | 200     | `primary/`    |
-| `transcription-processor` | 转写与文本提取器 | 对音频/视频/图片转写，及**读取文本附件内容**，插入消息以便 Token 计算          | 250     | `primary/`    |
-| `injection-assembler`     | 注入组装器     | 处理预设、注入、宏，并与历史消息组装                                           | 300     | `primary/`    |
-| `token-limiter`           | Token 限制器   | 根据预算截断历史消息（基于消息类型标签精准识别）                               | 400     | `primary/`    |
-| `message-formatters`      | 消息格式化器组 | 包含一系列子处理器，负责合并System、合并连续角色、转换System、确保角色交替等。 | 500-800 | `processors/` |
+| ID                        | 名称              | 职责                                                                           | 优先级  | 来源目录      |
+| :------------------------ | :---------------- | :----------------------------------------------------------------------------- | :------ | :------------ |
+| `session-loader`          | 会话加载器        | 加载会话历史为中间格式消息（保留附件引用）                                     | 100     | `primary/`    |
+| `regex-processor`         | 正则处理器        | 对历史消息应用正则规则                                                         | 200     | `primary/`    |
+| `transcription-processor` | 转写与文本提取器  | 对音频/视频/图片转写，及**读取文本附件内容**，插入消息以便 Token 计算          | 250     | `primary/`    |
+| `injection-assembler`     | 注入组装器        | 处理预设、注入、宏，并与历史消息组装                                           | 300     | `primary/`    |
+| `token-limiter`           | Token 限制器      | 根据预算截断历史消息（基于消息类型标签精准识别）                               | 400     | `primary/`    |
+| `message-formatters`      | 消息格式化器组    | 包含一系列子处理器，负责合并System、合并连续角色、转换System、确保角色交替等。 | 500-800 | `processors/` |
 | `asset-resolver`          | Base64 资源解析器 | **最后一步**：将剩余的二进制附件引用转换为最终发送格式（如 base64 data URI）   | 10000   | `new`         |
 
 > **设计要点**：
@@ -258,64 +258,67 @@ export interface ProcessorConfigField {
 
 ## 7. 实施路线图
 
-### Phase 1: 创建统一存储
+### Phase 1: 创建统一存储 (已完成)
 
 1.  创建 `src/tools/llm-chat/stores/contextPipelineStore.ts`，合并 `primaryContextPipelineStore` 和 `postProcessingPipelineStore` 的逻辑。
 2.  更新 `useChatExecutor` 以使用新的统一存储。
 
-### Phase 2: 统一处理器目录
+### Phase 2: 统一处理器目录 (已完成)
 
 1.  将 `core/context-processors/primary/` 和 `core/context-processors/post/` 合并到 `core/context-processors/` 目录。
 2.  更新所有处理器的导入路径。
 3.  调整处理器的 `priority` 值，确保正确的执行顺序。
 
-### Phase 3: 创建资产解析器
+### Phase 3: 创建资产解析器 (已完成)
 
 1.  创建 `core/context-processors/asset-resolver.ts` 处理器。
 2.  实现附件引用到最终格式的转换逻辑。
 3.  修改 `session-loader`，使其输出中间格式消息（保留附件引用）而非最终格式。
 
-### Phase 4: 重构会话加载器
+### Phase 4: 重构会话加载器 (已完成)
 
 1.  修改 `session-loader.ts`，不再调用 `buildMessageContentForLlm`，而是输出包含附件引用的中间格式。
 2.  更新 `ProcessableMessage` 类型定义以支持中间格式。
 
-### Phase 5: 更新预览构建器
+### Phase 5: 更新预览构建器 (已完成)
 
 1.  修改 `preview-builder.ts`，使其能够正确处理中间格式消息。
 2.  确保 Token 计算在资产解析前后都能正确工作。
 
-### Phase 6: 清理旧存储
+### Phase 6: 清理旧存储 (已完成)
 
 1.  移除 `primaryContextPipelineStore.ts` 和 `postProcessingPipelineStore.ts`。
 2.  更新所有相关导入。
 
-### Phase 7: 插件 API 更新
+### Phase 7: 插件 API 更新 (进行中)
 
 1.  更新插件 API，提供统一的 `registerProcessor` 方法。
 2.  确保插件可以向后兼容。
+
+### Phase 8: 核心算法与工具层重构 (已完成)
+
+1.  **消除过度拆分**：将 `context-utils` 中的 `builder.ts`, `regex.ts`, `injection.ts`, `limiter.ts`, `message-processor.ts` 等文件逻辑合并回对应的核心处理器中。
+2.  **提升内聚性**：确保每个处理器逻辑自包含，减少不必要的文件碎片。
+3.  **优化 Token 计算**：在 `useChatExecutor` 中直接复用 `useTranscriptionManager` 进行 Token 预估，废弃重复的 `builder.ts` 逻辑。
 
 ## 8. 文件结构规划
 
 ```
 src/tools/llm-chat/
 ├── core/
-│   ├── context-utils/            # 核心算法工具函数层
+│   ├── context-utils/            # 辅助工具层 (精简后)
 │   │   ├── index.ts              # 统一导出
-│   │   ├── builder.ts            # 消息构建算法
-│   │   ├── regex.ts              # 正则处理算法
-│   │   ├── limiter.ts            # Token 截断算法
-│   │   ├── injection.ts          # 注入组装算法
-│   │   ├── macro.ts              # 宏解析算法
-│   │   └── asset-resolver.ts     # 资产解析算法（新增）
-│   ├── context-processors/       # 【统一目录】
+│   │   ├── macro.ts              # 宏解析算法 (复用)
+│   │   └── preview-builder.ts    # 预览数据构建器 (UI专用)
+│   ├── context-processors/       # 【统一目录 - 核心处理器】
 │   │   ├── index.ts              # 统一导出所有处理器
 │   │   ├── session-loader.ts     # 会话加载器
-│   │   ├── regex-processor.ts    # 正则处理器
-│   │   ├── token-limiter.ts      # Token 限制器
-│   │   ├── injection-assembler.ts # 注入组装器
-│   │   ├── message-format-processors.ts # 消息格式化处理器 (合并System, 合并连续角色, 转换System, 确保角色交替)
-│   │   └── asset-resolver.ts     # 资产解析器（新增）
+│   │   ├── regex-processor.ts    # 正则处理器 (含核心算法)
+│   │   ├── token-limiter.ts      # Token 限制器 (含核心算法)
+│   │   ├── injection-assembler.ts # 注入组装器 (含核心算法)
+│   │   ├── message-format-processors.ts # 消息格式化处理器组
+│   │   ├── transcription-processor.ts # 转写与文本提取
+│   │   └── asset-resolver.ts     # 资产解析器
 ├── types/
 │   └── pipeline.ts               # PipelineContext, ContextProcessor 接口
 ├── stores/
@@ -324,12 +327,3 @@ src/tools/llm-chat/
     └── settings/
         └── PipelineConfig.vue    # 【统一配置界面】
 ```
-
-## 9. 待废弃模块清单
-
-以下模块将在重构完成后被移除或替换：
-
-| 文件                             | 废弃原因       | 迁移目标                  |
-| :------------------------------- | :------------- | :------------------------ |
-| `primaryContextPipelineStore.ts` | 被统一存储取代 | `contextPipelineStore.ts` |
-| `postProcessingPipelineStore.ts` | 被统一存储取代 | `contextPipelineStore.ts` |

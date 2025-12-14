@@ -6,21 +6,38 @@ import type {
 } from "@/tools/llm-chat/types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { primaryProcessors } from "../core/context-processors/primary";
+import {
+  sessionLoader,
+  regexProcessor,
+  injectionAssembler,
+  transcriptionProcessor,
+  tokenLimiter,
+  messageFormatter,
+  assetResolver,
+} from "../core/context-processors";
 
-const logger = createModuleLogger("primaryContextPipelineStore");
-const errorHandler = createModuleErrorHandler("primaryContextPipelineStore");
+const logger = createModuleLogger("contextPipelineStore");
+const errorHandler = createModuleErrorHandler("contextPipelineStore");
 
 const getInitialProcessors = (): ContextProcessor[] => {
-  // 在这里可以添加从本地存储加载用户自定义处理器的逻辑
-  return primaryProcessors;
+  return [
+    sessionLoader,
+    regexProcessor,
+    injectionAssembler,
+    transcriptionProcessor,
+    tokenLimiter,
+    messageFormatter,
+    assetResolver,
+  ];
 };
 
-export const usePrimaryContextPipelineStore = defineStore(
-  "primaryContextPipeline",
+export const useContextPipelineStore = defineStore(
+  "contextPipeline",
   () => {
     const initialProcessors = getInitialProcessors();
     const processors = ref<ContextProcessor[]>(initialProcessors);
+    
+    // 默认启用所有 defaultEnabled !== false 的处理器
     const enabledProcessorIds = ref<string[]>(
       initialProcessors
         .filter((p) => p.defaultEnabled !== false)
@@ -41,7 +58,7 @@ export const usePrimaryContextPipelineStore = defineStore(
         ...processors.value.filter((p) => p.id !== processor.id),
         processor,
       ];
-      if (processor.defaultEnabled) {
+      if (processor.defaultEnabled !== false) {
         setProcessorEnabled(processor.id, true);
       }
       logger.info("处理器已注册", { id: processor.id });
@@ -67,12 +84,35 @@ export const usePrimaryContextPipelineStore = defineStore(
     }
 
     function reorderProcessors(orderedIds: string[]) {
-      processors.value.sort((a, b) => {
-        const indexA = orderedIds.indexOf(a.id);
-        const indexB = orderedIds.indexOf(b.id);
-        if (indexA === -1 || indexB === -1) return 0;
-        return indexA - indexB;
+      // 创建当前处理器的 Map 以便快速查找
+      const processorMap = new Map(processors.value.map((p) => [p.id, p]));
+      
+      const newProcessors: ContextProcessor[] = [];
+      let currentPriority = 100;
+
+      // 按新顺序重建数组并更新优先级
+      for (const id of orderedIds) {
+        const processor = processorMap.get(id);
+        if (processor) {
+          // 更新优先级以反映新顺序
+          // 注意：这会修改内存中的处理器对象，如果需要持久化，应在这里处理
+          processor.priority = currentPriority;
+          newProcessors.push(processor);
+          currentPriority += 100;
+        }
+      }
+
+      // 添加未在 orderedIds 中的处理器（如果有的话，虽然不太可能）
+      processors.value.forEach(p => {
+        if (!orderedIds.includes(p.id)) {
+          p.priority = currentPriority;
+          newProcessors.push(p);
+          currentPriority += 100;
+        }
       });
+
+      processors.value = newProcessors;
+      logger.info("处理器已重新排序");
     }
 
     function resetToDefaults() {
@@ -81,14 +121,15 @@ export const usePrimaryContextPipelineStore = defineStore(
       enabledProcessorIds.value = initial
         .filter((p) => p.defaultEnabled !== false)
         .map((p) => p.id);
-      logger.info("主上下文管道已重置为默认设置");
+      logger.info("上下文管道已重置为默认设置");
     }
 
     async function executePipeline(
       context: PipelineContext,
     ): Promise<PipelineContext> {
-      logger.info("开始执行主上下文管道", {
+      logger.info("开始执行上下文管道", {
         processorCount: sortedAndEnabledProcessors.value.length,
+        processors: sortedAndEnabledProcessors.value.map(p => p.id)
       });
 
       for (const processor of sortedAndEnabledProcessors.value) {
@@ -104,7 +145,7 @@ export const usePrimaryContextPipelineStore = defineStore(
         );
       }
 
-      logger.info("主上下文管道执行完毕");
+      logger.info("上下文管道执行完毕");
       return context;
     }
 

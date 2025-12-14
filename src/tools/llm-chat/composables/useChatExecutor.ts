@@ -25,14 +25,12 @@ import { ALL_LLM_PARAMETER_KEYS } from "../config/parameter-config";
 import { useTopicNamer } from "./useTopicNamer";
 import { useSessionManager } from "./useSessionManager";
 import { useChatResponseHandler } from "./useChatResponseHandler";
-import { useChatAssetProcessor } from "./useChatAssetProcessor";
-import { usePrimaryContextPipelineStore } from "../stores/primaryContextPipelineStore";
-import { prepareSimpleMessageForTokenCalc } from "../core/context-utils/builder";
-import { usePostProcessingPipelineStore } from "../stores/postProcessingPipelineStore";
+import { useContextPipelineStore } from "../stores/contextPipelineStore";
 import type { PipelineContext } from "../types/pipeline";
 import { useNodeManager } from "./useNodeManager";
 import type { ContextPreviewData } from "../types/context";
 import { buildPreviewDataFromContext } from "../core/context-utils/preview-builder";
+import { resolveAttachmentContent } from "../core/context-utils/attachment-resolver";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -98,8 +96,8 @@ export function useChatExecutor() {
       providedAgentConfig ||
       (agentStore.currentAgentId
         ? agentStore.getAgentConfig(agentStore.currentAgentId, {
-            parameterOverrides: session.parameterOverrides,
-          })
+          parameterOverrides: session.parameterOverrides,
+        })
         : null);
 
     if (!agentConfigSnippet || !currentAgent) {
@@ -202,8 +200,7 @@ export function useChatExecutor() {
       // Phase 5: 使用上下文管道重构
       logger.info("开始执行上下文构建管道...");
 
-      const primaryPipelineStore = usePrimaryContextPipelineStore();
-      const postProcessingPipelineStore = usePostProcessingPipelineStore();
+      const contextPipelineStore = useContextPipelineStore();
 
       // 1. 创建管道上下文
       const pipelineContext: PipelineContext = {
@@ -224,16 +221,9 @@ export function useChatExecutor() {
       }
       pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
 
-      // 2. 执行主管道
-      await primaryPipelineStore.executePipeline(pipelineContext);
-      logger.info("主上下文管道执行完毕", {
-        messageCount: pipelineContext.messages.length,
-        logCount: pipelineContext.logs.length,
-      });
-
-      // 3. 执行后处理管道
-      await postProcessingPipelineStore.executePipeline(pipelineContext);
-      logger.info("后处理管道执行完毕", {
+      // 2. 执行上下文管道 (一次性执行到底)
+      await contextPipelineStore.executePipeline(pipelineContext);
+      logger.info("上下文管道执行完毕", {
         messageCount: pipelineContext.messages.length,
         logCount: pipelineContext.logs.length,
       });
@@ -293,15 +283,15 @@ export function useChatExecutor() {
             timeout: settings.value.requestSettings.timeout,
             onStream: settings.value.uiPreferences.isStreaming
               ? (chunk: string) => {
-                  hasReceivedStreamData = true;
-                  handleStreamUpdate(session, assistantNode.id, chunk, false);
-                }
+                hasReceivedStreamData = true;
+                handleStreamUpdate(session, assistantNode.id, chunk, false);
+              }
               : undefined,
             onReasoningStream: settings.value.uiPreferences.isStreaming
               ? (chunk: string) => {
-                  hasReceivedStreamData = true;
-                  handleStreamUpdate(session, assistantNode.id, chunk, true);
-                }
+                hasReceivedStreamData = true;
+                handleStreamUpdate(session, assistantNode.id, chunk, true);
+              }
               : undefined,
           });
 
@@ -396,6 +386,81 @@ export function useChatExecutor() {
     }
   };
 
+  /**
+   * 等待资产导入完成
+   * @param assets 资产数组
+   * @param timeout 超时时间（毫秒），默认 30 秒
+   * @returns 是否所有资产都成功导入
+   */
+  const waitForAssetsImport = async (
+    assets: Asset[],
+    timeout: number = 30000,
+  ): Promise<boolean> => {
+    const startTime = Date.now();
+    const pendingAssets = assets.filter(
+      (asset) =>
+        asset.importStatus === "pending" || asset.importStatus === "importing",
+    );
+
+    if (pendingAssets.length === 0) {
+      return true; // 没有待导入的资产
+    }
+
+    logger.info("等待资产导入完成", {
+      totalAssets: assets.length,
+      pendingCount: pendingAssets.length,
+    });
+
+    // 轮询检查导入状态
+    while (Date.now() - startTime < timeout) {
+      const stillPending = assets.filter(
+        (asset) =>
+          asset.importStatus === "pending" ||
+          asset.importStatus === "importing",
+      );
+
+      if (stillPending.length === 0) {
+        // 检查是否有导入失败的
+        const failedAssets = assets.filter(
+          (asset) => asset.importStatus === "error",
+        );
+        if (failedAssets.length > 0) {
+          logger.warn("部分资产导入失败", {
+            failedCount: failedAssets.length,
+            failedAssets: failedAssets.map((a) => ({
+              id: a.id,
+              name: a.name,
+              error: a.importError,
+            })),
+          });
+          // 即使有失败的，也返回 true，让用户决定是否继续
+          return true;
+        }
+
+        logger.info("所有资产导入完成");
+        return true;
+      }
+
+      // 等待 100ms 后再次检查
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    // 超时
+    errorHandler.handle(new Error("资产导入超时"), {
+      userMessage: "资产导入超时",
+      context: {
+        timeout,
+        stillPendingCount: assets.filter(
+          (asset) =>
+            asset.importStatus === "pending" ||
+            asset.importStatus === "importing",
+        ).length,
+      },
+      showToUser: false,
+    });
+    return false;
+  };
+
   const processUserAttachments = async (
     userNode: ChatMessageNode,
     session: ChatSession,
@@ -403,7 +468,7 @@ export function useChatExecutor() {
     pathUserNode?: ChatMessageNode,
   ): Promise<void> => {
     if (!attachments || attachments.length === 0) return;
-    const { waitForAssetsImport } = useChatAssetProcessor();
+
     logger.info("检查附件导入状态", {
       attachmentCount: attachments.length,
       pendingCount: attachments.filter(
@@ -441,13 +506,27 @@ export function useChatExecutor() {
     attachments?: Asset[],
   ): Promise<void> => {
     try {
-      const { settings } = useChatSettings();
-      const { combinedText, mediaAttachments } =
-        await prepareSimpleMessageForTokenCalc(
-          content,
-          attachments,
-          settings.value,
-        );
+      // 准备用于 Token 计算的消息内容
+      // 逻辑复用自 Pipeline，但针对单条消息进行了简化
+      let combinedText = content;
+      const mediaAttachments: Asset[] = [];
+      const { profiles } = useLlmProfiles();
+
+      // 尝试查找 profileId
+      const profile = profiles.value.find((p) => p.models.some((m) => m.id === modelId));
+      const profileId = profile?.id || "";
+
+      if (attachments && attachments.length > 0) {
+        for (const asset of attachments) {
+          const result = await resolveAttachmentContent(asset, modelId, profileId);
+          if (result.type === "text" && result.content) {
+            combinedText += result.content;
+          } else {
+            mediaAttachments.push(asset);
+          }
+        }
+      }
+
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         combinedText,
         modelId,
@@ -580,24 +659,17 @@ export function useChatExecutor() {
       pipelineContext.sharedData.set("model", model);
     }
     pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
+    // 开启预览模式，通知处理器计算差值等
+    pipelineContext.sharedData.set("isPreviewMode", true);
 
-    // 2. 执行主管道
-    const primaryPipelineStore = usePrimaryContextPipelineStore();
-    await primaryPipelineStore.executePipeline(pipelineContext);
+    // 2. 执行上下文管道
+    const contextPipelineStore = useContextPipelineStore();
+    await contextPipelineStore.executePipeline(pipelineContext);
 
-    // 3. 构建基础预览数据（基于后处理前的状态，确保分类统计准确）
-    // 此时 pipelineContext.messages 是主管道的输出，尚未被后处理合并或修改
+    // 3. 构建预览数据（基于最终状态）
     const basePreviewData = await buildPreviewDataFromContext(pipelineContext);
 
-    // 记录后处理前的总 Token 数
-    const tokenCountBeforePostProcessing =
-      basePreviewData.statistics.totalTokenCount || 0;
-
-    // 4. 执行后处理管道
-    const postProcessingPipelineStore = usePostProcessingPipelineStore();
-    await postProcessingPipelineStore.executePipeline(pipelineContext);
-
-    // 5. 计算最终的总 Token 数（基于后处理后的消息）
+    // 4. 计算最终的总 Token 数
     const finalTokenPromises = pipelineContext.messages.map(async (msg) => {
       const content =
         typeof msg.content === "string"
@@ -612,17 +684,19 @@ export function useChatExecutor() {
     const finalTokenCounts = await Promise.all(finalTokenPromises);
     const finalTotalTokenCount = finalTokenCounts.reduce((a, b) => a + b, 0);
 
+    // 5. 获取后处理 Token 差值
+    const postProcessingTokenDelta =
+      (pipelineContext.sharedData.get("postProcessingTokenDelta") as number) ||
+      0;
+
     // 6. 更新预览数据中的统计信息
-    // 保持 basePreviewData 中的 preset/history 统计不变，只更新总数和差值
     const previewData: ContextPreviewData = {
       ...basePreviewData,
-      // 注意：finalMessages 更新为后处理后的最终消息列表，以便用户查看最终发送的内容
       finalMessages: pipelineContext.messages,
       statistics: {
         ...basePreviewData.statistics,
         totalTokenCount: finalTotalTokenCount,
-        postProcessingTokenCount:
-          finalTotalTokenCount - tokenCountBeforePostProcessing,
+        postProcessingTokenCount: postProcessingTokenDelta,
       },
     };
 

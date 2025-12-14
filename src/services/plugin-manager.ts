@@ -14,8 +14,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginStateService } from "./plugin-state.service";
 import type { PluginContext } from "./plugin-types";
-import { usePrimaryContextPipelineStore } from "@/tools/llm-chat/stores/primaryContextPipelineStore";
-import { usePostProcessingPipelineStore } from "@/tools/llm-chat/stores/postProcessingPipelineStore";
+import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
 
 const logger = createModuleLogger("services/plugin-manager");
 const errorHandler = createModuleErrorHandler("services/plugin-manager");
@@ -263,26 +262,17 @@ class PluginManager {
    */
   private createPluginContext(): PluginContext {
     // 在方法内部获取 store 实例，确保 Pinia 已初始化
-    const primaryStore = usePrimaryContextPipelineStore();
-    const postStore = usePostProcessingPipelineStore();
+    const contextPipelineStore = useContextPipelineStore();
 
     return {
       chat: {
-        registerPrimaryProcessor: (processor: any) => {
-          logger.info(`插件正在注册主管道处理器: ${processor.id}`);
-          primaryStore.registerProcessor(processor);
+        registerProcessor: (processor: any) => {
+          logger.info(`插件正在注册上下文处理器: ${processor.id}`);
+          contextPipelineStore.registerProcessor(processor);
         },
-        registerPostProcessor: (processor: any) => {
-          logger.info(`插件正在注册后处理管道处理器: ${processor.id}`);
-          postStore.registerProcessor(processor);
-        },
-        unregisterPrimaryProcessor: (processorId: string) => {
-          logger.info(`插件正在注销主管道处理器: ${processorId}`);
-          primaryStore.unregisterProcessor(processorId);
-        },
-        unregisterPostProcessor: (processorId: string) => {
-          logger.info(`插件正在注销后处理管道处理器: ${processorId}`);
-          postStore.unregisterProcessor(processorId);
+        unregisterProcessor: (processorId: string) => {
+          logger.info(`插件正在注销上下文处理器: ${processorId}`);
+          contextPipelineStore.unregisterProcessor(processorId);
         },
       },
     };

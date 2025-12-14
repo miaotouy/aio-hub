@@ -1,6 +1,6 @@
 /**
  * 上下文后处理规则
- * 现在 `type` 字段为任意字符串，对应注册到 postProcessingPipelineStore 中的处理器 ID。
+ * 现在 `type` 字段为任意字符串，对应注册到 contextPipelineStore 中的处理器 ID。
  * 内置处理器 ID 示例：
  * - 'post:merge-system-to-head': 合并所有 system 消息到列表头部
  * - 'post:merge-consecutive-roles': 合并连续相同角色的消息

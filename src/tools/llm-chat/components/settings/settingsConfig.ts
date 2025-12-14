@@ -29,8 +29,8 @@ const MarkdownStyleEditor = defineAsyncComponent(() =>
 const ChatRegexEditor = defineAsyncComponent(() =>
   import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
 );
-const PrimaryPipelineConfig = defineAsyncComponent(() =>
-  import("./PrimaryPipelineConfig.vue")
+const PipelineConfig = defineAsyncComponent(() =>
+  import("./PipelineConfig.vue")
 );
 
 export const settingsConfig: SettingsSection[] = [
@@ -1077,19 +1077,19 @@ export const settingsConfig: SettingsSection[] = [
     ],
   },
   {
-    title: "主上下文构建",
+    title: "上下文管道",
     icon: Network,
     items: [
       {
-        id: "primaryPipelineConfig",
-        label: "主上下文管道配置",
-        component: PrimaryPipelineConfig,
+        id: "pipelineConfig",
+        label: "上下文管道配置",
+        component: PipelineConfig,
         modelPath: "", // This component manages its own state via Pinia
-        hint: "管理用于构建核心请求上下文的处理器系列。",
-        keywords: "context pipeline primary processor 上下文 管道 处理器",
+        hint: "管理用于构建请求上下文的处理器系列。",
+        keywords: "context pipeline processor 上下文 管道 处理器",
         collapsible: {
           title: "点击展开配置上下文管道",
-          name: "primaryPipelineConfig",
+          name: "pipelineConfig",
           style: { minHeight: "300px" },
           useLoading: true,
         },

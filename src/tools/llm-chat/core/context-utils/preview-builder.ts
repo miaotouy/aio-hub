@@ -1,9 +1,11 @@
 import type { PipelineContext } from "../../types/pipeline";
 import type { ContextPreviewData } from "../../types/context";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
-import { prepareSimpleMessageForTokenCalc } from "./builder";
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
+import { resolveAttachmentContent } from "./attachment-resolver";
+import type { Asset } from "@/types/asset-management";
+import type { ProcessableMessage } from "../../types/context";
 
 /**
  * 从已完成的管道上下文中构建用于 UI 展示的预览数据。
@@ -33,7 +35,16 @@ export async function buildPreviewDataFromContext(
     : undefined;
   const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
 
-  const messageProcessingPromises = messages.map(async (msg) => {
+  // 递归处理消息函数
+  const processMessage = async (msg: ProcessableMessage) => {
+    // 递归处理合并消息
+    if (msg.sourceType === "merged" && msg._mergedSources) {
+      for (const subMsg of msg._mergedSources) {
+        await processMessage(subMsg);
+      }
+      return;
+    }
+
     const content =
       typeof msg.content === "string"
         ? msg.content
@@ -108,13 +119,25 @@ export async function buildPreviewDataFromContext(
         return;
       }
 
-      // 使用 prepareSimpleMessageForTokenCalc 获取文本和媒体附件
-      const { combinedText, mediaAttachments } =
-        await prepareSimpleMessageForTokenCalc(
-          sourceNode.content,
-          sourceNode.attachments,
-          undefined, // settings 可选
-        );
+      // 准备用于 Token 计算的消息内容
+      let combinedText = sourceNode.content;
+      const mediaAttachments: Asset[] = [];
+
+      if (sourceNode.attachments && sourceNode.attachments.length > 0) {
+        for (const asset of sourceNode.attachments) {
+          const result = await resolveAttachmentContent(
+            asset,
+            agentConfig.modelId,
+            agentConfig.profileId
+          );
+
+          if (result.type === "text" && result.content) {
+            combinedText += result.content;
+          } else {
+            mediaAttachments.push(asset);
+          }
+        }
+      }
 
       // 计算文本 token
       let textTokenCount = 0;
@@ -256,9 +279,12 @@ export async function buildPreviewDataFromContext(
       totalTokenCount += tokenCount;
       // 不加入 presetMessages 或 chatHistory
     }
-  });
+  };
 
-  await Promise.all(messageProcessingPromises);
+  // 串行执行以保证顺序
+  for (const msg of messages) {
+    await processMessage(msg);
+  }
 
   return {
     presetMessages,
@@ -287,11 +313,11 @@ export async function buildPreviewDataFromContext(
     targetTimestamp: timestamp,
     userInfo: userProfile
       ? {
-          id: userProfile.id,
-          name: userProfile.name,
-          displayName: userProfile.displayName,
-          icon: userProfile.icon,
-        }
+        id: userProfile.id,
+        name: userProfile.name,
+        displayName: userProfile.displayName,
+        icon: userProfile.icon,
+      }
       : undefined,
   };
 }

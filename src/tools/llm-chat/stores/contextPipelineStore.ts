@@ -6,6 +6,7 @@ import type {
 } from "@/tools/llm-chat/types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createConfigManager } from "@/utils/configManager";
 import {
   sessionLoader,
   regexProcessor,
@@ -18,6 +19,22 @@ import {
 
 const logger = createModuleLogger("contextPipelineStore");
 const errorHandler = createModuleErrorHandler("contextPipelineStore");
+
+// --- 持久化配置 ---
+interface PipelineSettings {
+  enabledProcessorIds: string[];
+  orderedProcessorIds: string[];
+}
+
+const settingsManager = createConfigManager<PipelineSettings>({
+  moduleName: "llm-chat",
+  fileName: "pipeline-settings.json",
+  version: "1.0.0",
+  createDefault: () => ({
+    enabledProcessorIds: [], // 默认值在加载逻辑中处理，这里为空即可
+    orderedProcessorIds: [],
+  }),
+});
 
 const getInitialProcessors = (): ContextProcessor[] => {
   return [
@@ -44,6 +61,56 @@ export const useContextPipelineStore = defineStore(
         .map((p) => p.id),
     );
 
+    // 初始化标志
+    const isInitialized = ref(false);
+
+    // 加载持久化配置
+    const loadSettings = async () => {
+      try {
+        const settings = await settingsManager.load();
+        
+        // 1. 恢复启用状态
+        if (settings.enabledProcessorIds && settings.enabledProcessorIds.length > 0) {
+          // 过滤掉已不存在的处理器 ID
+          const validIds = settings.enabledProcessorIds.filter(id =>
+            processors.value.some(p => p.id === id)
+          );
+          // 如果有有效的保存配置，则使用它；否则保留默认值
+          if (validIds.length > 0) {
+            enabledProcessorIds.value = validIds;
+          }
+        }
+
+        // 2. 恢复顺序
+        if (settings.orderedProcessorIds && settings.orderedProcessorIds.length > 0) {
+          reorderProcessors(settings.orderedProcessorIds, false); // false 表示不触发保存，避免循环
+        }
+        
+        isInitialized.value = true;
+        logger.info("Pipeline 设置已加载");
+      } catch (error) {
+        logger.warn("加载 Pipeline 设置失败，使用默认设置", error);
+      }
+    };
+
+    // 保存配置
+    const saveSettings = async () => {
+      if (!isInitialized.value) return;
+      
+      try {
+        await settingsManager.save({
+          enabledProcessorIds: enabledProcessorIds.value,
+          orderedProcessorIds: processors.value.map(p => p.id),
+        });
+        logger.debug("Pipeline 设置已保存");
+      } catch (error) {
+        errorHandler.error(error as Error, "保存 Pipeline 设置失败");
+      }
+    };
+
+    // 立即初始化
+    loadSettings();
+
     const sortedAndEnabledProcessors = computed(() => {
       return processors.value
         .filter((p) => enabledProcessorIds.value.includes(p.id))
@@ -69,6 +136,7 @@ export const useContextPipelineStore = defineStore(
       enabledProcessorIds.value = enabledProcessorIds.value.filter(
         (id) => id !== processorId,
       );
+      saveSettings();
       logger.info("处理器已卸载", { id: processorId });
     }
 
@@ -76,14 +144,16 @@ export const useContextPipelineStore = defineStore(
       const exists = enabledProcessorIds.value.includes(processorId);
       if (enabled && !exists) {
         enabledProcessorIds.value.push(processorId);
+        saveSettings();
       } else if (!enabled && exists) {
         enabledProcessorIds.value = enabledProcessorIds.value.filter(
           (id) => id !== processorId,
         );
+        saveSettings();
       }
     }
 
-    function reorderProcessors(orderedIds: string[]) {
+    function reorderProcessors(orderedIds: string[], shouldSave = true) {
       // 创建当前处理器的 Map 以便快速查找
       const processorMap = new Map(processors.value.map((p) => [p.id, p]));
       
@@ -112,6 +182,10 @@ export const useContextPipelineStore = defineStore(
       });
 
       processors.value = newProcessors;
+      
+      if (shouldSave) {
+        saveSettings();
+      }
       logger.info("处理器已重新排序");
     }
 
@@ -121,6 +195,7 @@ export const useContextPipelineStore = defineStore(
       enabledProcessorIds.value = initial
         .filter((p) => p.defaultEnabled !== false)
         .map((p) => p.id);
+      saveSettings();
       logger.info("上下文管道已重置为默认设置");
     }
 

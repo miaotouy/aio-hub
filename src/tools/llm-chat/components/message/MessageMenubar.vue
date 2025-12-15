@@ -185,7 +185,7 @@ const handleRegenerateWithModel = async () => {
     }
   }
 
-  const result = await openModelSelectDialog(currentSelection);
+  const result = await openModelSelectDialog({ current: currentSelection });
   if (result) {
     emit("regenerate", {
       modelId: result.model.id,

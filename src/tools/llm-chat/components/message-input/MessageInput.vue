@@ -846,7 +846,7 @@ const handleSelectTemporaryModel = async () => {
     }
   }
 
-  const result = await openModelSelectDialog(currentSelection);
+  const result = await openModelSelectDialog({ current: currentSelection });
   if (result) {
     inputManager.setTemporaryModel({
       profileId: result.profile.id,

@@ -239,7 +239,7 @@ const handleSelectModel = async () => {
     }
   }
 
-  const result = await openModelSelectDialog(currentSelection);
+  const result = await openModelSelectDialog({ current: currentSelection });
 
   if (result) {
     logger.info("用户选择了新模型", {

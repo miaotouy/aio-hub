@@ -676,30 +676,42 @@ export function useTranscriptionManager() {
       let isSettled = false;
 
       // 超时计时器
-      const timeoutTimer = setTimeout(() => {
+      const timeoutTimer = setTimeout(async () => {
         if (isSettled) return;
         isSettled = true;
         clearInterval(checkInterval);
 
+        // 获取最新的挂起任务数量
+        let pendingCount = 0;
+        for (const asset of assetsToTranscribe) {
+          const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+          const assetToCheck = latestAsset || asset;
+          const s = getTranscriptionStatus(assetToCheck);
+          if (s === 'pending' || s === 'processing') {
+            pendingCount++;
+          }
+        }
+
         logger.warn("等待转写任务超时", {
           timeoutMs,
-          pendingCount: assetsToTranscribe.filter(a => {
-            const s = getTranscriptionStatus(a);
-            return s === 'pending' || s === 'processing';
-          }).length
+          pendingCount,
         });
 
         reject(new Error("等待转写超时"));
       }, timeoutMs);
 
       // 轮询检查
-      const checkInterval = setInterval(() => {
+      const checkInterval = setInterval(async () => {
         if (isSettled) return;
 
         let allFinished = true;
 
         for (const asset of assetsToTranscribe) {
-          const status = getTranscriptionStatus(asset);
+          // 关键修复：获取最新的 Asset 对象
+          const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+          const assetToCheck = latestAsset || asset; // 回退到旧的以防万一
+
+          const status = getTranscriptionStatus(assetToCheck);
           // 只要有一个还在 pending 或 processing，就继续等待
           if (status === "pending" || status === "processing") {
             allFinished = false;

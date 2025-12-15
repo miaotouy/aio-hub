@@ -4,6 +4,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { resolveAttachmentContent } from "./attachment-resolver";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { Asset } from "@/types/asset-management";
 import type { ProcessableMessage } from "../../types/context";
 
@@ -134,16 +135,20 @@ export async function buildPreviewDataFromContext(
 
       if (sourceNode.attachments && sourceNode.attachments.length > 0) {
         for (const asset of sourceNode.attachments) {
+          // 关键修复：在解析前获取最新的 Asset 对象，确保能拿到转写结果
+          const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+          const assetToProcess = latestAsset || asset;
+
           const result = await resolveAttachmentContent(
-            asset,
+            assetToProcess,
             agentConfig.modelId,
-            agentConfig.profileId
+            agentConfig.profileId,
           );
 
           if (result.type === "text" && result.content) {
             combinedText += result.content;
           } else {
-            mediaAttachments.push(asset);
+            mediaAttachments.push(assetToProcess);
           }
         }
       }

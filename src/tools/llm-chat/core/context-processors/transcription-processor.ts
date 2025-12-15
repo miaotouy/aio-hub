@@ -3,7 +3,9 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
 import { resolveAttachmentContent } from "../../core/context-utils/attachment-resolver";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("llm-chat/transcription-processor");
 const errorHandler = createModuleErrorHandler("llm-chat/transcription-processor");
@@ -26,8 +28,6 @@ export const transcriptionProcessor: ContextProcessor = {
     let errorCount = 0;
 
     // 1. 预处理：收集所有附件并确保转写完成
-    // 无论 UI 层是否已经等待，Pipeline 作为最后一道防线，必须确保数据就绪。
-    // 特别是在 "send_and_wait" 模式下，这里是实际发生等待的地方。
     const allAttachments = context.messages.flatMap((msg) => msg._attachments || []);
     if (allAttachments.length > 0) {
       try {
@@ -37,8 +37,6 @@ export const transcriptionProcessor: ContextProcessor = {
           profileId
         );
       } catch (error) {
-        // 如果等待超时或失败，我们记录警告，但继续执行。
-        // 后续逻辑会检测到没有转写文本，从而回退到使用原始附件。
         logger.warn("等待转写任务完成时出错或超时", error);
         context.logs.push({
           processorId: "transcription-processor",
@@ -49,17 +47,13 @@ export const transcriptionProcessor: ContextProcessor = {
     }
 
     for (const msg of context.messages) {
-      // 如果没有附件，跳过
       if (!msg._attachments || msg._attachments.length === 0) {
         continue;
       }
 
-      // 准备新的附件列表，用于存储不需要转写（或转写失败）的附件
-      // 稍后会更新 msg._attachments
-      const remainingAttachments = [];
+      const remainingAttachments: Asset[] = [];
       let contentModified = false;
 
-      // 将当前 content 规范化为 LlmMessageContent[] 以便追加
       let currentContentParts: LlmMessageContent[] = [];
       if (typeof msg.content === "string") {
         if (msg.content) {
@@ -70,29 +64,32 @@ export const transcriptionProcessor: ContextProcessor = {
       }
 
       for (const asset of msg._attachments) {
+        let assetToProcess = asset;
         try {
-          const result = await resolveAttachmentContent(asset, modelId, profileId);
+          const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+          assetToProcess = latestAsset || asset;
+
+          const result = await resolveAttachmentContent(assetToProcess, modelId, profileId);
 
           if (result.type === "text" && result.content) {
             currentContentParts.push({
               type: "text",
-              text: result.content
+              text: result.content,
             });
 
             processedCount++;
             contentModified = true;
           } else {
-            remainingAttachments.push(asset);
+            remainingAttachments.push(assetToProcess);
           }
         } catch (error) {
           errorCount++;
-          // 出错时保留附件
-          remainingAttachments.push(asset);
+          remainingAttachments.push(assetToProcess);
 
           errorHandler.handle(error as Error, {
-            userMessage: `处理附件转写 [${asset.name}] 失败`,
-            context: { assetId: asset.id },
-            showToUser: false
+            userMessage: `处理附件转写 [${assetToProcess.name}] 失败`,
+            context: { assetId: assetToProcess.id },
+            showToUser: false,
           });
         }
       }

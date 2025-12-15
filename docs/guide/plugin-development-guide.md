@@ -83,47 +83,21 @@ plugins/
 
 #### 示例
 
-这是一个功能完整的 `index.ts` 示例，它演示了如何：
-
-1.  定义一个可被外部调用的普通方法 `addTimestamp`。
-2.  使用 `activate` 钩子向 LLM Chat 的后处理管道注册一个处理器。
-3.  使用 `deactivate` 钩子清理已注册的处理器。
+这是一个 `index.ts` 示例，它演示了如何定义生命周期钩子和导出方法：
 
 ```typescript
 import type { PluginContext } from "@/services/plugin-types";
 
-const MY_PROCESSOR_ID = "my-plugin:add-footer";
-
 // 插件的激活钩子
 async function activate(context: PluginContext) {
   console.log("我的插件已被激活!");
-
-  // 注册一个聊天后处理器
-  context.chat.registerPostProcessor({
-    id: MY_PROCESSOR_ID,
-    name: "添加插件页脚",
-    description: "在最终的 prompt 底部添加一个由本插件生成的页脚。",
-    priority: 500, // 在其他处理器之后执行
-    async execute(pipelineContext) {
-      const lastMessage = pipelineContext.messages[pipelineContext.messages.length - 1];
-      if (lastMessage) {
-        lastMessage.content += `\n\n--- 由 My-Plugin 在 ${new Date().toLocaleTimeString()} 添加`;
-      }
-    },
-  });
+  // 在这里进行初始化，例如注册服务、监听事件等
 }
-
-// > **关于优先级的特别说明**
-// >
-// > `priority` 字段仅在插件首次安装且用户从未手动调整过 Pipeline 顺序时生效。
-// > 如果用户之前修改并保存过 Pipeline 的顺序，新注册的处理器（即 ID 未出现在保存配置中的处理器）将被**强制追加到 Pipeline 末尾**，其代码中定义的 `priority` 将被忽略。
-// > 建议在插件文档中提示用户：安装插件后，如果需要调整执行顺序，请前往设置界面的 "Context Pipeline 配置" 中手动拖拽调整。
 
 // 插件的停用钩子
 async function deactivate(context: PluginContext) {
   console.log("我的插件已被停用!");
-  // 注销之前注册的处理器，以防内存泄漏
-  context.chat.unregisterPostProcessor(MY_PROCESSOR_ID);
+  // 在这里清理资源
 }
 
 // 一个普通的、可被外部调用的方法
@@ -138,6 +112,12 @@ export default {
   addTimestamp,
 };
 ```
+
+### 4. 特定模块插件开发
+
+AIO Hub 的不同模块（如 LLM Chat）提供了特定的扩展能力。
+
+- **LLM Chat 插件**: 想要扩展聊天功能（如 Context Pipeline、聊天设置等），请参考 [LLM Chat 插件开发指南](./llm-chat-plugin-guide.md)。
 
 ## 开发原生插件 (Native Plugin)
 

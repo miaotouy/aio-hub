@@ -110,11 +110,14 @@
             </template>
           </div>
         </div>
-        <div v-if="contextData.statistics.postProcessingTokenCount" class="stat-item">
+        <div v-if="contextData.statistics.postProcessingTokenCount !== undefined" class="stat-item">
           <div class="stat-label">后处理消耗</div>
           <div class="stat-value">
             {{ contextData.statistics.postProcessingTokenCount.toLocaleString() }} tokens
-            <span class="char-count" v-if="contextData.statistics.postProcessingCharCount">
+            <span
+              class="char-count"
+              v-if="contextData.statistics.postProcessingCharCount !== undefined"
+            >
               {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
             </span>
           </div>

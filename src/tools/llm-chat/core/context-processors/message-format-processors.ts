@@ -174,7 +174,7 @@ const mergeSystemToHeadProcessor: ContextProcessor = {
       default: DEFAULT_SEPARATOR,
     },
   ],
-  execute: async () => {}, // 实际执行由 messageFormatter 统一调度
+  execute: async () => { }, // 实际执行由 messageFormatter 统一调度
 };
 
 const mergeConsecutiveRolesProcessor: ContextProcessor = {
@@ -193,7 +193,7 @@ const mergeConsecutiveRolesProcessor: ContextProcessor = {
       default: DEFAULT_SEPARATOR,
     },
   ],
-  execute: async () => {},
+  execute: async () => { },
 };
 
 const convertSystemToUserProcessor: ContextProcessor = {
@@ -204,7 +204,7 @@ const convertSystemToUserProcessor: ContextProcessor = {
   priority: 700,
   isCore: true,
   defaultEnabled: false,
-  execute: async () => {},
+  execute: async () => { },
 };
 
 const ensureAlternatingRolesProcessor: ContextProcessor = {
@@ -230,7 +230,7 @@ const ensureAlternatingRolesProcessor: ContextProcessor = {
       default: DEFAULT_ASSISTANT_PLACEHOLDER,
     },
   ],
-  execute: async () => {},
+  execute: async () => { },
 };
 
 // --- 3. 导出 ---
@@ -256,35 +256,43 @@ export const messageFormatter: ContextProcessor = {
   priority: 500,
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
-    // 计算 Token 辅助函数
-    const calculateTotalTokens = async (msgs: ProcessableMessage[], modelId: string) => {
-      let total = 0;
+    // 计算 Token 和字符数辅助函数
+    const calculateTotals = async (msgs: ProcessableMessage[], modelId: string) => {
+      let totalTokens = 0;
+      let totalChars = 0;
       for (const msg of msgs) {
-        const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-        const result = await tokenCalculatorService.calculateTokens(content, modelId);
-        total += result.count;
+        const contentStr = contentToString(msg.content);
+        totalChars += contentStr.length;
+        try {
+          const result = await tokenCalculatorService.calculateTokens(contentStr, modelId);
+          totalTokens += result.count;
+        } catch (error) {
+          logger.warn("计算 Token 失败", { error, msg });
+        }
       }
-      return total;
+      return { totalTokens, totalChars };
     };
 
     const isPreview = context.sharedData.get("isPreviewMode");
     let inputTokens = 0;
+    let inputChars = 0;
 
     if (isPreview && context.agentConfig.modelId) {
-      try {
-        inputTokens = await calculateTotalTokens(context.messages, context.agentConfig.modelId);
-      } catch (error) {
-        logger.warn("计算输入 Token 失败", error);
-      }
+      const { totalTokens, totalChars } = await calculateTotals(
+        context.messages,
+        context.agentConfig.modelId,
+      );
+      inputTokens = totalTokens;
+      inputChars = totalChars;
     }
 
     // 1. 获取并合并规则配置 (Agent 优先，模型兜底)
     const agentRules =
       context.agentConfig.parameters?.contextPostProcessing?.rules || [];
-    
+
     const model = context.sharedData.get("model") as LlmModelInfo | undefined;
     let modelRules: ContextPostProcessRule[] = [];
-    
+
     if (model?.defaultPostProcessingRules) {
       if (
         model.defaultPostProcessingRules.length > 0 &&
@@ -303,7 +311,7 @@ export const messageFormatter: ContextProcessor = {
     }
 
     const mergedRulesMap = new Map<string, ContextPostProcessRule>();
-    
+
     // 默认启用状态
     AvailableFormatters.forEach(p => {
       mergedRulesMap.set(p.id, {
@@ -359,16 +367,26 @@ export const messageFormatter: ContextProcessor = {
     }
 
     if (isPreview && context.agentConfig.modelId) {
-      try {
-        const outputTokens = await calculateTotalTokens(context.messages, context.agentConfig.modelId);
-        const delta = outputTokens - inputTokens;
-        context.sharedData.set("postProcessingTokenDelta", delta);
-        logger.debug("计算 Token 差值", { inputTokens, outputTokens, delta });
-      } catch (error) {
-        logger.warn("计算输出 Token 失败", error);
-      }
+      const { totalTokens: outputTokens, totalChars: outputChars } = await calculateTotals(
+        context.messages,
+        context.agentConfig.modelId,
+      );
+      const tokenDelta = outputTokens - inputTokens;
+      const charDelta = outputChars - inputChars;
+
+      context.sharedData.set("postProcessingTokenDelta", tokenDelta);
+      context.sharedData.set("postProcessingCharDelta", charDelta);
+
+      logger.debug("计算后处理差异", {
+        inputTokens,
+        outputTokens,
+        tokenDelta,
+        inputChars,
+        outputChars,
+        charDelta,
+      });
     }
-    
+
     logger.debug("消息格式化完成", { messageCount: context.messages.length });
   },
 };

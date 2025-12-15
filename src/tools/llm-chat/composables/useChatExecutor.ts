@@ -729,10 +729,11 @@ export function useChatExecutor() {
     const finalTokenCounts = await Promise.all(finalTokenPromises);
     const finalTotalTokenCount = finalTokenCounts.reduce((a, b) => a + b, 0);
 
-    // 5. 获取后处理 Token 差值
+    // 5. 获取后处理差值
     const postProcessingTokenDelta =
-      (pipelineContext.sharedData.get("postProcessingTokenDelta") as number) ||
-      0;
+      (pipelineContext.sharedData.get("postProcessingTokenDelta") as number) || 0;
+    const postProcessingCharDelta =
+      (pipelineContext.sharedData.get("postProcessingCharDelta") as number) || 0;
 
     // 6. 更新预览数据中的统计信息
     const previewData: ContextPreviewData = {
@@ -742,6 +743,7 @@ export function useChatExecutor() {
         ...basePreviewData.statistics,
         totalTokenCount: finalTotalTokenCount,
         postProcessingTokenCount: postProcessingTokenDelta,
+        postProcessingCharCount: postProcessingCharDelta,
       },
     };
 

@@ -164,6 +164,7 @@ export function useChatHandler() {
     const pathUserNode = pathWithNewMessage[pathWithNewMessage.length - 1];
 
     // 处理附件（如果有）
+    const { settings } = useChatSettings();
     if (options?.attachments && options.attachments.length > 0) {
       await processUserAttachments(
         userNode,
@@ -172,29 +173,25 @@ export function useChatHandler() {
         pathUserNode,
       );
 
-      // [send_and_wait 模式]：在此处等待转写完成
-      // 此时消息已上屏 (processUserAttachments 已更新 session.nodes)，用户可以看到附件
-      // 我们需要挂起流程，直到转写完成，以便后续 executeRequest -> buildLlmContext 能使用转写内容
-      const { settings } = useChatSettings();
-      // 只要启用转写且策略不是手动（已移除），并且行为是 send_and_wait，就应用等待逻辑
-      if (
-        settings.value.transcription.enabled &&
-        settings.value.transcription.sendBehavior === "send_and_wait"
-      ) {
+      // 附件转写等待逻辑
+      // 无论 `wait_before_send` 还是 `send_and_wait`，核心的等待逻辑是相同的。
+      // 区别在于 UI 体验：
+      // - `wait_before_send`: 整个发送过程看起来是阻塞的，直到转写完成。
+      // - `send_and_wait`: 消息先上屏，用户看到附件卡片，然后在后台等待转写。
+      // 此处的实现对两种模式都生效，因为等待是必须的，以确保上下文构建时能拿到转写文本。
+      if (settings.value.transcription.enabled) {
         const transcriptionManager = useTranscriptionManager();
         const transcriptionController = new AbortController();
 
-        // 注册到 abortControllers，以便用户点击停止时能取消等待
+        // 两种模式都需要中止控制器，因为等待都可能被用户取消
         abortControllers.set(assistantNode.id, transcriptionController);
         generatingNodes.add(assistantNode.id);
 
         try {
-          logger.info("⏳ [send_and_wait] 等待附件转写...", {
+          const behavior = settings.value.transcription.sendBehavior;
+          logger.info(`⏳ [${behavior}] 模式，开始等待附件转写...`, {
             nodeId: assistantNode.id,
           });
-
-          // 更新助手节点状态提示（可选，如果 UI 支持显示 status）
-          // session.nodes[assistantNode.id].metadata = { ...session.nodes[assistantNode.id].metadata, status: 'transcribing' };
 
           await Promise.race([
             transcriptionManager.ensureTranscriptions(
@@ -208,25 +205,26 @@ export function useChatHandler() {
               });
             }),
           ]);
-          logger.info("✅ [send_and_wait] 转写等待结束，继续发送流程");
+
+          logger.info(`✅ [${behavior}] 转写等待结束，继续发送流程`);
         } catch (error: any) {
           if (error.message === "User aborted") {
             logger.info("🛑 用户取消了发送（在转写等待阶段）");
-            // 清理状态并终止流程
             abortControllers.delete(assistantNode.id);
             generatingNodes.delete(assistantNode.id);
+            // 注意：这里需要将新创建的节点从会话中移除，否则会留下一个孤立的用户消息
+            nodeManager.hardDeleteNode(session, userNode.id);
             return;
           }
-          // 其他错误（如超时、转写失败）记录日志但继续，降级为使用原始附件
-          logger.warn("⚠️ 转写等待期间出错，将尝试使用原始附件发送", error);
+          // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
+          logger.warn("⚠️ 转写等待期间出错，将使用原始附件发送", error);
         } finally {
-          // 清理控制器，executeRequest 会创建新的
+          // 清理，因为后续的 executeRequest 会创建自己的控制器
           abortControllers.delete(assistantNode.id);
           generatingNodes.delete(assistantNode.id);
         }
       }
     }
-
     // 确定生效的用户档案（智能体绑定 > 全局配置）
     let effectiveUserProfile: {
       id: string;

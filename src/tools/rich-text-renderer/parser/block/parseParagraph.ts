@@ -32,6 +32,11 @@ export function parseParagraph(
       break;
     }
 
+    // 检查是否是 LLM 思考块的开始 (即使没有空行也能中断段落)
+    if (t.type === "html_open" && ctx.getOptions().llmThinkTagNames.has(t.tagName)) {
+      break;
+    }
+
     contentTokens.push(t);
     i++;
   }

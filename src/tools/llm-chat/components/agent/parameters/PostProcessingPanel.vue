@@ -158,22 +158,20 @@ const resetRuleConfig = (processorId: string, key: string) => {
                 :placeholder="field.placeholder"
                 size="small"
               />
-              <el-tooltip
+              <el-popconfirm
                 v-if="field.default !== undefined"
-                effect="dark"
-                content="重置为默认值"
-                placement="top"
+                title="确定要重置为默认值吗？"
+                @confirm="resetRuleConfig(processor.id, field.key)"
+                width="200"
               >
-                <el-popconfirm
-                  title="确定要重置为默认值吗？"
-                  @confirm="resetRuleConfig(processor.id, field.key)"
-                  width="200"
-                >
-                  <template #reference>
-                    <el-button :icon="RotateCcw" text circle size="small" />
-                  </template>
-                </el-popconfirm>
-              </el-tooltip>
+                <template #reference>
+                  <span class="reset-btn-wrapper">
+                    <el-tooltip effect="dark" content="重置为默认值" placement="top">
+                      <el-button :icon="RotateCcw" text circle size="small" />
+                    </el-tooltip>
+                  </span>
+                </template>
+              </el-popconfirm>
             </div>
             <!-- 将来可以在这里扩展其他类型的输入组件，如 select, switch 等 -->
           </div>

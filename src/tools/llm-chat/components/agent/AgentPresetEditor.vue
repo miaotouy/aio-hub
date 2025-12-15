@@ -412,7 +412,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, toRaw } from "vue";
+import { ref, computed, watch, toRaw, markRaw } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import yaml from "js-yaml";
@@ -706,9 +706,9 @@ function getRoleTagType(role: MessageRole): "success" | "primary" | "info" {
 
 function getRoleIcon(role: MessageRole) {
   const iconMap: Record<MessageRole, any> = {
-    system: ChatDotRound,
-    user: User,
-    assistant: Service,
+    system: markRaw(ChatDotRound),
+    user: markRaw(User),
+    assistant: markRaw(Service),
   };
   return iconMap[role];
 }

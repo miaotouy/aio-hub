@@ -5,7 +5,7 @@
  * 锚点用于标记上下文流中可注入的位置，如 'chat_history'、'user_profile' 等。
  */
 
-import { ref } from 'vue';
+import { markRaw, ref } from 'vue';
 import { User, ChatDotRound } from '@element-plus/icons-vue';
 
 /**
@@ -56,7 +56,7 @@ export const SYSTEM_ANCHORS: AnchorDefinition[] = [
     defaultTemplate: `### {{user}}的档案
 
 {{persona}}`,
-    icon: User,
+    icon: markRaw(User),
     color: 'var(--el-color-primary)',
     tagType: 'primary',
   },
@@ -66,7 +66,7 @@ export const SYSTEM_ANCHORS: AnchorDefinition[] = [
     description: '会话消息的插入位置',
     isSystem: true,
     hasTemplate: false,  // 纯占位符
-    icon: ChatDotRound,
+    icon: markRaw(ChatDotRound),
     color: 'var(--el-color-warning)',
     tagType: 'warning',
   },

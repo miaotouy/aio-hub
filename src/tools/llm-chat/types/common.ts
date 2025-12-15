@@ -10,8 +10,9 @@ export type MessageStatus = "generating" | "complete" | "error";
 
 /**
  * 消息类型
- * - message: 普通消息
- * - chat_history: 历史消息占位符（用于标记实际会话消息的插入位置）
- * - user_profile: 用户档案占位符（用于标记用户档案内容的插入位置）
+ *
+ * 'message' 表示普通消息。
+ * 其他字符串值对应一个已注册的锚点ID (例如 'chat_history', 'user_profile')。
+ * 其有效性在运行时通过 `useAnchorRegistry` 进行检查。
  */
-export type MessageType = "message" | "chat_history" | "user_profile";
+export type MessageType = string;

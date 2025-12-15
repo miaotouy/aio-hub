@@ -32,6 +32,7 @@ import type { ContextPreviewData } from "../types/context";
 import { buildPreviewDataFromContext } from "../core/context-utils/preview-builder";
 import { resolveAttachmentContent } from "../core/context-utils/attachment-resolver";
 import { useContextCompressor } from "./useContextCompressor";
+import { useAnchorRegistry } from "./useAnchorRegistry";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -223,6 +224,9 @@ export function useChatExecutor() {
         pipelineContext.sharedData.set("model", model);
       }
       pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
+      // 提供锚点定义给注入处理器
+      const anchorRegistry = useAnchorRegistry();
+      pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());
 
       // 2. 执行上下文管道 (一次性执行到底)
       await contextPipelineStore.executePipeline(pipelineContext);
@@ -688,6 +692,9 @@ export function useChatExecutor() {
       pipelineContext.sharedData.set("model", model);
     }
     pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
+    // 提供锚点定义给注入处理器
+    const anchorRegistry = useAnchorRegistry();
+    pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());
     // 开启预览模式，通知处理器计算差值等
     pipelineContext.sharedData.set("isPreviewMode", true);
 

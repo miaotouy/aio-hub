@@ -6,6 +6,7 @@
  */
 
 import { ref } from 'vue';
+import { User, ChatDotRound } from '@element-plus/icons-vue';
 
 /**
  * 锚点定义
@@ -19,23 +20,55 @@ export interface AnchorDefinition {
   description: string;
   /** 是否为系统内置锚点 */
   isSystem: boolean;
+
+  /**
+   * 是否为模板锚点
+   * - true: 模板锚点，会渲染消息的 content 字段（支持宏替换）
+   * - false: 纯占位符，只标记位置，不渲染自身内容
+   * 默认为 false
+   */
+  hasTemplate?: boolean;
+
+  /**
+   * 默认模板内容
+   * 当 hasTemplate 为 true 时，新建该类型消息时使用此默认内容
+   */
+  defaultTemplate?: string;
+
+  /** 图标组件 */
+  icon?: any;
+  /** 主题色 */
+  color?: string;
+  /** Element Plus 的 Tag 类型 */
+  tagType?: 'success' | 'primary' | 'info' | 'warning' | 'danger';
 }
 
 /**
  * 系统内置锚点
  */
-const SYSTEM_ANCHORS: AnchorDefinition[] = [
+export const SYSTEM_ANCHORS: AnchorDefinition[] = [
+  {
+    id: 'user_profile',
+    name: '用户档案',
+    description: '用户档案内容的插入位置，支持模板编辑',
+    isSystem: true,
+    hasTemplate: true,   // 模板锚点
+    defaultTemplate: `### {{user}}的档案
+
+{{persona}}`,
+    icon: User,
+    color: 'var(--el-color-primary)',
+    tagType: 'primary',
+  },
   {
     id: 'chat_history',
     name: '会话历史',
     description: '会话消息的插入位置',
     isSystem: true,
-  },
-  {
-    id: 'user_profile',
-    name: '用户档案',
-    description: '用户档案内容的插入位置',
-    isSystem: true,
+    hasTemplate: false,  // 纯占位符
+    icon: ChatDotRound,
+    color: 'var(--el-color-warning)',
+    tagType: 'warning',
   },
 ];
 

@@ -477,19 +477,6 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           attachments: history.attachments,
         };
       }
-    } else if (finalMsg.sourceType === "user_profile" && finalMsg.sourceIndex !== undefined) {
-      // 系统预设（如用户档案），同样从 presetMap 获取详细信息
-      const preset = presetMap.get(finalMsg.sourceIndex);
-      if (preset) {
-        return {
-          ...baseMsg,
-          key: `system-preset-${preset.index}-${i}`,
-          tokenCount: preset.tokenCount,
-          source: "agent_preset", // 归类为预设
-          userName: preset.userName,
-          userIcon: preset.userIcon,
-        };
-      }
     } else if (
       (finalMsg.sourceType === "depth_injection" || finalMsg.sourceType === "anchor_injection") &&
       finalMsg.sourceIndex !== undefined

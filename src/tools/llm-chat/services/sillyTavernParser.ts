@@ -9,7 +9,7 @@ import { createModuleLogger } from '@/utils/logger';
 import type { ChatAgent } from '../types/agent';
 import type { ChatMessageNode, InjectionStrategy } from '../types/message';
 import type { MessageRole } from '../types/common';
-import { SYSTEM_ANCHORS } from '../types/context';
+import { ANCHOR_IDS } from '../types/context';
 import type { LlmParameters } from '../types/llm';
 import { pick } from 'lodash-es';
 import type { ChatRegexConfig } from '../types/chatRegex';
@@ -413,13 +413,13 @@ function convertInjectionStrategy(prompt: SillyTavernPrompt): InjectionStrategy 
         return undefined;
       case 1: // Before chat history
         return {
-          anchorTarget: SYSTEM_ANCHORS.CHAT_HISTORY,
+          anchorTarget: ANCHOR_IDS.CHAT_HISTORY,
           anchorPosition: 'before',
           order: 100,
         };
       case 2: // After chat history
         return {
-          anchorTarget: SYSTEM_ANCHORS.CHAT_HISTORY,
+          anchorTarget: ANCHOR_IDS.CHAT_HISTORY,
           anchorPosition: 'after',
           order: 100,
         };

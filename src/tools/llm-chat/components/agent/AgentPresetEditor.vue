@@ -89,28 +89,23 @@
             :key="element.id"
             class="message-card-wrapper"
           >
-            <!-- 历史消息占位符 - 紧凑模式 -->
+            <!-- 纯占位符锚点 - 紧凑模式 -->
             <div
-              v-if="element.type === 'chat_history' && props.compact"
-              class="message-card message-card-compact history-placeholder-compact"
-              :class="{ disabled: element.isEnabled === false }"
+              v-if="isPurePlaceholderAnchorType(element.type) && props.compact"
+              class="message-card message-card-compact placeholder-card-compact"
+              :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
             >
-              <!-- 拖拽手柄 -->
               <div class="drag-handle">
                 <el-icon><Rank /></el-icon>
               </div>
-
-              <!-- 历史图标 -->
               <div class="role-icon">
-                <el-icon color="var(--el-color-warning)">
-                  <ChatDotRound />
+                <el-icon :color="getAnchorColor(element.type)">
+                  <component :is="getAnchorIcon(element.type)" />
                 </el-icon>
               </div>
-
-              <!-- 文本 -->
-              <div class="message-text-compact placeholder-text">聊天历史插入位置</div>
-
-              <!-- 操作按钮 -->
+              <div class="message-text-compact placeholder-text">
+                {{ getAnchorDef(element.type)?.name }}
+              </div>
               <div class="message-actions-compact">
                 <el-switch
                   v-model="element.isEnabled"
@@ -122,34 +117,28 @@
               </div>
             </div>
 
-            <!-- 历史消息占位符 - 正常模式 -->
+            <!-- 纯占位符锚点 - 正常模式 -->
             <div
-              v-else-if="element.type === 'chat_history'"
-              class="message-card history-placeholder"
-              :class="{ disabled: element.isEnabled === false }"
+              v-else-if="isPurePlaceholderAnchorType(element.type)"
+              class="message-card placeholder-card"
+              :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
             >
-              <!-- 拖拽手柄 -->
               <div class="drag-handle">
                 <el-icon><Rank /></el-icon>
               </div>
-
-              <!-- 消息内容 -->
               <div class="message-content">
-                <!-- 角色标签 -->
                 <div class="message-role">
-                  <el-tag type="warning" size="small" effect="plain">
+                  <el-tag :type="getAnchorTagType(element.type)" size="small" effect="plain">
                     <el-icon style="margin-right: 4px">
-                      <ChatDotRound />
+                      <component :is="getAnchorIcon(element.type)" />
                     </el-icon>
-                    历史消息占位符
+                    {{ getAnchorDef(element.type)?.name }}
                   </el-tag>
                 </div>
-
-                <!-- 消息文本预览 -->
-                <div class="message-text placeholder-text">实际的聊天历史将在此处插入</div>
+                <div class="message-text placeholder-text">
+                  {{ getAnchorDef(element.type)?.description }}
+                </div>
               </div>
-
-              <!-- 操作按钮 -->
               <div class="message-actions">
                 <el-switch
                   v-model="element.isEnabled"
@@ -161,146 +150,61 @@
               </div>
             </div>
 
-            <!-- 用户档案占位符 - 紧凑模式 -->
-            <div
-              v-else-if="element.type === 'user_profile' && props.compact"
-              class="message-card message-card-compact user-profile-placeholder-compact"
-              :class="{ disabled: element.isEnabled === false }"
-            >
-              <!-- 拖拽手柄 -->
-              <div class="drag-handle">
-                <el-icon><Rank /></el-icon>
-              </div>
-
-              <!-- 用户档案图标 -->
-              <div class="role-icon">
-                <el-icon color="var(--el-color-primary)">
-                  <User />
-                </el-icon>
-              </div>
-
-              <!-- 文本 -->
-              <div class="message-text-compact placeholder-text">用户档案插入位置</div>
-
-              <!-- 操作按钮 -->
-              <div class="message-actions-compact">
-                <el-switch
-                  v-model="element.isEnabled"
-                  :active-value="true"
-                  :inactive-value="false"
-                  size="small"
-                  @change="handleToggleEnabled(index)"
-                />
-              </div>
-            </div>
-
-            <!-- 用户档案占位符 - 正常模式 -->
-            <div
-              v-else-if="element.type === 'user_profile'"
-              class="message-card user-profile-placeholder"
-              :class="{ disabled: element.isEnabled === false }"
-            >
-              <!-- 拖拽手柄 -->
-              <div class="drag-handle">
-                <el-icon><Rank /></el-icon>
-              </div>
-
-              <!-- 消息内容 -->
-              <div class="message-content">
-                <!-- 角色标签 -->
-                <div class="message-role">
-                  <el-tag type="primary" size="small" effect="plain">
-                    <el-icon style="margin-right: 4px">
-                      <User />
-                    </el-icon>
-                    用户档案占位符
-                  </el-tag>
-                  <!-- Token 数量 -->
-                  <el-tag
-                    v-if="props.modelId && messageTokens.has(element.id) && element.isEnabled"
-                    size="small"
-                    type="info"
-                    effect="plain"
-                    class="token-tag"
-                  >
-                    {{ messageTokens.get(element.id) }} tokens
-                  </el-tag>
-                </div>
-
-                <!-- 消息文本预览 -->
-                <div class="message-text placeholder-text">当前生效的用户档案内容将在此处插入</div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div class="message-actions">
-                <el-tooltip content="查看/编辑用户档案" placement="top" :show-after="500">
-                  <el-button link size="small" @click="handleViewUserProfile">
-                    <el-icon><View /></el-icon>
-                  </el-button>
-                </el-tooltip>
-                <el-switch
-                  v-model="element.isEnabled"
-                  :active-value="true"
-                  :inactive-value="false"
-                  size="small"
-                  @change="handleToggleEnabled(index)"
-                />
-              </div>
-            </div>
-            <!-- 普通预设消息 - 紧凑模式 -->
+            <!-- 模板锚点 & 普通消息 - 紧凑模式 -->
             <div
               v-else-if="props.compact"
               class="message-card message-card-compact"
-              :class="{ disabled: element.isEnabled === false }"
+              :class="{
+                disabled: element.isEnabled === false,
+                'template-anchor-card-compact': isTemplateAnchorType(element.type),
+              }"
               @click="handleEditMessage(index)"
             >
-              <!-- 拖拽手柄 -->
               <div class="drag-handle">
                 <el-icon><Rank /></el-icon>
               </div>
-
-              <!-- 角色图标 -->
               <div class="role-icon">
                 <el-icon :color="getRoleColor(element.role)">
                   <component :is="getRoleIcon(element.role)" />
                 </el-icon>
               </div>
 
-              <!-- 注入策略标记（紧凑） -->
+              <!-- 徽章们 -->
+              <span
+                v-if="isTemplateAnchorType(element.type)"
+                class="injection-badge-compact"
+                :title="getAnchorDef(element.type)?.name"
+                >⚓</span
+              >
               <span
                 v-if="element.injectionStrategy?.depth !== undefined"
                 class="injection-badge-compact"
                 title="深度注入"
+                >📍{{ element.injectionStrategy.depth }}</span
               >
-                📍{{ element.injectionStrategy.depth }}
-              </span>
               <span
                 v-else-if="element.injectionStrategy?.anchorTarget"
                 class="injection-badge-compact"
                 title="锚点注入"
+                >⚓</span
               >
-                ⚓
-              </span>
-              <!-- 模型匹配标记（紧凑） -->
               <span
                 v-if="element.modelMatch?.enabled"
                 class="model-match-badge-compact"
                 title="仅特定模型生效"
+                >🎯</span
               >
-                🎯
-              </span>
 
-              <!-- 消息文本预览（单行） -->
               <div class="message-text-compact">
-                {{ element.name ? truncateText(element.name, 60) : truncateText(element.content, 60) }}
+                {{
+                  element.name ? truncateText(element.name, 60) : truncateText(element.content, 60)
+                }}
               </div>
 
-              <!-- Token 信息（紧凑模式） -->
               <div v-if="props.modelId && messageTokens.has(element.id)" class="token-compact">
                 {{ messageTokens.get(element.id) }}
               </div>
 
-              <!-- 操作按钮 -->
               <div class="message-actions-compact" @click.stop>
                 <el-tooltip content="编辑消息" placement="top" :show-after="500">
                   <el-button link size="small" @click="handleEditMessage(index)">
@@ -317,22 +221,39 @@
               </div>
             </div>
 
-            <!-- 普通预设消息 - 正常模式 -->
-            <div v-else class="message-card" :class="{ disabled: element.isEnabled === false }">
-              <!-- 拖拽手柄 -->
+            <!-- 模板锚点 & 普通消息 - 正常模式 -->
+            <div
+              v-else
+              class="message-card"
+              :class="{
+                disabled: element.isEnabled === false,
+                'template-anchor-card': isTemplateAnchorType(element.type),
+              }"
+            >
               <div class="drag-handle">
                 <el-icon><Rank /></el-icon>
               </div>
 
-              <!-- 消息内容 -->
               <div class="message-content">
-                <!-- 角色标签和 Token 信息 -->
                 <div class="message-role">
                   <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
                     <el-icon style="margin-right: 4px">
                       <component :is="getRoleIcon(element.role)" />
                     </el-icon>
                     {{ getRoleLabel(element.role) }}
+                  </el-tag>
+                  <!-- 追加的模板锚点 Tag -->
+                  <el-tag
+                    v-if="isTemplateAnchorType(element.type)"
+                    :type="getAnchorTagType(element.type)"
+                    size="small"
+                    effect="plain"
+                    class="injection-tag"
+                  >
+                    <el-icon style="margin-right: 4px">
+                      <component :is="getAnchorIcon(element.type)" />
+                    </el-icon>
+                    {{ getAnchorDef(element.type)?.name }}
                   </el-tag>
                   <!-- 注入策略标签 -->
                   <el-tag
@@ -376,17 +297,14 @@
                   </el-tag>
                 </div>
 
-                <!-- 消息名称（如果有） -->
                 <div v-if="element.name" class="message-name">
                   {{ element.name }}
                 </div>
-                <!-- 消息文本预览 -->
                 <div class="message-text">
                   {{ truncateText(element.content, 120) }}
                 </div>
               </div>
 
-              <!-- 操作按钮 -->
               <div class="message-actions">
                 <el-tooltip content="编辑消息" placement="top" :show-after="500">
                   <el-button link size="small" @click="handleEditMessage(index)">
@@ -413,7 +331,13 @@
                     </el-popconfirm>
                   </span>
                 </el-tooltip>
-                <el-tooltip content="删除消息" placement="top" :show-after="500">
+                <!-- 模板锚点隐藏删除按钮 -->
+                <el-tooltip
+                  v-if="!isTemplateAnchorType(element.type)"
+                  content="删除消息"
+                  placement="top"
+                  :show-after="500"
+                >
                   <span>
                     <el-popconfirm
                       title="确定要删除这条预设消息吗？"
@@ -496,6 +420,7 @@ import { useUserProfileStore } from "../../userProfileStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
 import { MacroProcessor, createMacroContext } from "../../macro-engine";
 import { isPromptFile, parsePromptFile } from "../../services/sillyTavernParser";
+import { useAnchorRegistry, type AnchorDefinition } from "../../composables/useAnchorRegistry";
 import {
   QuestionFilled,
   Download,
@@ -509,8 +434,8 @@ import {
   ChatDotRound,
   User,
   Service,
-  View,
   ArrowDown,
+  Link,
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -553,9 +478,40 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
-
 const userProfileStore = useUserProfileStore();
 const showUserProfileDialog = ref(false);
+const anchorRegistry = useAnchorRegistry();
+
+// #region 辅助函数
+/**
+ * 判断消息是否为锚点类型
+ */
+const isAnchorType = (type?: string): boolean => {
+  return !!type && type !== "message" && anchorRegistry.hasAnchor(type);
+};
+
+/**
+ * 获取锚点定义
+ */
+const getAnchorDef = (type?: string): AnchorDefinition | undefined => {
+  if (!type) return undefined;
+  return anchorRegistry.getAnchorById(type);
+};
+
+/**
+ * 判断是否为模板锚点
+ */
+const isTemplateAnchorType = (type?: string): boolean => {
+  return getAnchorDef(type)?.hasTemplate === true;
+};
+
+/**
+ * 判断是否为纯占位符锚点
+ */
+const isPurePlaceholderAnchorType = (type?: string): boolean => {
+  return isAnchorType(type) && !isTemplateAnchorType(type);
+};
+// #endregion
 
 // 当前生效的用户档案（智能体绑定 > 全局配置）
 const effectiveUserProfile = computed(() => {
@@ -601,7 +557,7 @@ const stImportData = ref<ParsedPromptFile>({
   parameters: {},
 });
 
-// Token 计算
+// #region Token 计算
 const messageTokens = ref<Map<string, number>>(new Map());
 const isCalculatingTokens = ref(false);
 
@@ -623,63 +579,49 @@ const calculateAllTokens = async () => {
   const macroProcessor = new MacroProcessor();
 
   for (const message of localMessages.value) {
-    // 跳过历史记录占位符（无法预估）
-    if (message.type === "chat_history") {
+    // 跳过纯占位符锚点（无法预估）
+    if (isPurePlaceholderAnchorType(message.type)) {
       continue;
     }
 
-    // 处理用户档案占位符
-    if (message.type === "user_profile") {
-      if (message.isEnabled && effectiveUserProfile.value) {
-        try {
-          // 模拟 useChatContextBuilder 中的构建逻辑
-          const userProfilePrompt = `# 用户档案\n${effectiveUserProfile.value.content}`;
+    // 处理模板锚点和普通消息
+    if (message.isEnabled) {
+      try {
+        let template = message.content;
+        // 如果是模板锚点且内容为空，使用默认模板
+        if (isTemplateAnchorType(message.type) && !template) {
+          template = getAnchorDef(message.type)?.defaultTemplate || "";
+        }
 
-          // 使用 MacroProcessor 进行宏替换
-          const processed = await macroProcessor.process(userProfilePrompt, macroContext);
-
+        if (template) {
+          const processed = await macroProcessor.process(template, macroContext);
           const result = await tokenCalculatorEngine.calculateTokens(
             processed.output,
             props.modelId
           );
           newTokens.set(message.id, result.count);
-        } catch (error) {
-          console.error(`Failed to calculate tokens for user profile:`, error);
+
+          // 同步更新到消息的 metadata
+          if (!message.metadata) message.metadata = {};
+          if (message.metadata.contentTokens !== result.count) {
+            message.metadata.contentTokens = result.count;
+            hasChanges = true;
+          }
         }
+      } catch (error) {
+        console.error(`Failed to calculate tokens for message ${message.id}:`, error);
       }
-      continue;
-    }
-
-    // 处理普通消息
-    try {
-      // 先进行宏替换，再计算 Token
-      const processed = await macroProcessor.process(message.content, macroContext);
-      const result = await tokenCalculatorEngine.calculateTokens(processed.output, props.modelId);
-      newTokens.set(message.id, result.count);
-
-      // 同步更新到消息的 metadata（如果值有变化或不存在）
-      if (!message.metadata) {
-        message.metadata = {};
-      }
-      if (message.metadata.contentTokens !== result.count) {
-        message.metadata.contentTokens = result.count;
-        hasChanges = true;
-      }
-    } catch (error) {
-      console.error(`Failed to calculate tokens for message ${message.id}:`, error);
     }
   }
 
   messageTokens.value = newTokens;
   isCalculatingTokens.value = false;
 
-  // 如果有变化，同步到父组件
   if (hasChanges) {
     syncToParent();
   }
 };
 
-// 计算总 token 数
 const totalTokens = computed(() => {
   let total = 0;
   for (const count of messageTokens.value.values()) {
@@ -688,103 +630,71 @@ const totalTokens = computed(() => {
   return total;
 });
 
-// 监听消息变化，重新计算 token
 watch(
-  () => [localMessages.value, props.modelId] as const,
+  () => [localMessages.value, props.modelId, effectiveUserProfile.value] as const,
   async () => {
     if (props.modelId) {
       await calculateAllTokens();
     }
   },
-  { deep: true }
+  { deep: true, immediate: true }
 );
 
-// 容器高度
-// 容器高度
+// #endregion
+
 const containerHeight = computed(() => props.height);
 
-// 监听外部变化
 watch(
   () => props.modelValue,
   (newValue) => {
-    // 确保所有消息都有唯一ID，并且存在必要的占位符
-    const CHAT_HISTORY_PLACEHOLDER_ID = "chat-history-placeholder";
-    const USER_PROFILE_PLACEHOLDER_ID = "user-profile-placeholder";
-
-    // 从外部获取消息列表
     let existingMessages = [...(newValue || [])];
-
-    // 检查是否已存在历史消息占位符
-    const hasHistoryPlaceholder = existingMessages.some((msg) => msg.type === "chat_history");
-
-    // 检查是否已存在用户档案占位符
-    const hasUserProfilePlaceholder = existingMessages.some((msg) => msg.type === "user_profile");
-
     let needsSync = false;
 
-    // 如果不存在用户档案占位符，创建一个（添加到开头）
-    if (!hasUserProfilePlaceholder) {
-      const userProfilePlaceholder: ChatMessageNode = {
-        id: USER_PROFILE_PLACEHOLDER_ID,
-        parentId: null,
-        childrenIds: [],
-        role: "system",
-        content: "用户档案",
-        type: "user_profile",
-        status: "complete",
-        isEnabled: true,
-        timestamp: new Date().toISOString(),
-      };
-      // 将用户档案占位符添加到列表开头
-      existingMessages = [userProfilePlaceholder, ...existingMessages];
-      needsSync = true;
-    }
-
-    // 如果不存在历史消息占位符，创建一个（添加到末尾）
-    if (!hasHistoryPlaceholder) {
-      const historyPlaceholder: ChatMessageNode = {
-        id: CHAT_HISTORY_PLACEHOLDER_ID,
-        parentId: null,
-        childrenIds: [],
-        role: "system",
-        content: "聊天历史",
-        type: "chat_history",
-        status: "complete",
-        isEnabled: true,
-        timestamp: new Date().toISOString(),
-      };
-      // 将历史占位符添加到列表末尾
-      existingMessages = [...existingMessages, historyPlaceholder];
-      needsSync = true;
+    // 确保系统锚点存在
+    const systemAnchors = anchorRegistry.getSystemAnchors();
+    for (const anchor of systemAnchors) {
+      if (!existingMessages.some((msg) => msg.type === anchor.id)) {
+        const newPlaceholder: ChatMessageNode = {
+          id: `${anchor.id}-placeholder`,
+          parentId: null,
+          childrenIds: [],
+          role: "system",
+          content: anchor.defaultTemplate || "",
+          type: anchor.id as any,
+          status: "complete",
+          isEnabled: true,
+          timestamp: new Date().toISOString(),
+        };
+        // 模板锚点放到最前面，纯占位符锚点放到最后面
+        if (anchor.hasTemplate) {
+          existingMessages.unshift(newPlaceholder);
+        } else {
+          existingMessages.push(newPlaceholder);
+        }
+        needsSync = true;
+      }
     }
 
     localMessages.value = existingMessages;
 
-    // 如果我们添加了占位符，同步到外部
-    if (needsSync && existingMessages.length > 0) {
+    if (needsSync) {
       emit("update:modelValue", existingMessages);
     }
   },
   { immediate: true, deep: true }
 );
-// 拖拽开始事件
-function onDragStart() {
-  // 可以在这里添加日志或其他逻辑
-}
 
-// 拖拽结束事件 - 同步到外部
+function onDragStart() {}
+
 function onDragEnd() {
   emit("update:modelValue", localMessages.value);
 }
 
-// 同步到外部的辅助函数
 function syncToParent() {
-  emit("update:modelValue", localMessages.value);
+  emit("update:modelValue", toRaw(localMessages.value));
 }
 
-/**
- * 获取角色标签类型
- */
+// #region 样式和标签获取
 function getRoleTagType(role: MessageRole): "success" | "primary" | "info" {
   const typeMap: Record<MessageRole, "success" | "primary" | "info"> = {
     system: "info",
@@ -794,9 +704,6 @@ function getRoleTagType(role: MessageRole): "success" | "primary" | "info" {
   return typeMap[role];
 }
 
-/**
- * 获取角色图标
- */
 function getRoleIcon(role: MessageRole) {
   const iconMap: Record<MessageRole, any> = {
     system: ChatDotRound,
@@ -806,9 +713,6 @@ function getRoleIcon(role: MessageRole) {
   return iconMap[role];
 }
 
-/**
- * 获取角色标签文本
- */
 function getRoleLabel(role: MessageRole): string {
   const labelMap: Record<MessageRole, string> = {
     system: "System",
@@ -818,9 +722,6 @@ function getRoleLabel(role: MessageRole): string {
   return labelMap[role];
 }
 
-/**
- * 获取角色颜色（紧凑模式用）
- */
 function getRoleColor(role: MessageRole): string {
   const colorMap: Record<MessageRole, string> = {
     system: "var(--el-color-info)",
@@ -830,17 +731,27 @@ function getRoleColor(role: MessageRole): string {
   return colorMap[role];
 }
 
-/**
- * 截断文本
- */
-function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + "...";
+function getAnchorTagType(type?: string): "success" | "primary" | "info" | "warning" | "danger" {
+  return getAnchorDef(type)?.tagType || "success";
 }
 
-/**
- * 添加消息
- */
+function getAnchorIcon(type?: string) {
+  return getAnchorDef(type)?.icon || Link;
+}
+
+function getAnchorColor(type?: string): string {
+  return getAnchorDef(type)?.color || "var(--el-color-success)";
+}
+
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return "(空内容)";
+  const cleanedText = text.replace(/\s+/g, " ").trim();
+  if (cleanedText.length <= maxLength) return cleanedText;
+  return cleanedText.substring(0, maxLength) + "...";
+}
+// #endregion
+
+// #region 消息操作
 function handleAddMessage() {
   isEditMode.value = false;
   editForm.value = {
@@ -853,19 +764,10 @@ function handleAddMessage() {
   editDialogVisible.value = true;
 }
 
-/**
- * 编辑消息
- */
 function handleEditMessage(index: number) {
   const message = localMessages.value[index];
-
-  // 不允许编辑历史消息占位符和用户档案占位符
-  if (message.type === "chat_history") {
-    customMessage.warning("历史消息占位符不可编辑");
-    return;
-  }
-  if (message.type === "user_profile") {
-    customMessage.warning("用户档案占位符不可编辑");
+  if (isPurePlaceholderAnchorType(message.type)) {
+    customMessage.info("纯占位符锚点不可编辑内容");
     return;
   }
 
@@ -881,91 +783,21 @@ function handleEditMessage(index: number) {
   editDialogVisible.value = true;
 }
 
-/**
- * 查看/编辑用户档案
- */
-function handleViewUserProfile() {
-  if (effectiveUserProfile.value) {
-    showUserProfileDialog.value = true;
-  } else {
-    customMessage.info("当前没有生效的用户档案");
-  }
-}
-
-/**
- * 保存用户档案
- */
-function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "createdAt">>) {
-  if (effectiveUserProfile.value) {
-    userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
-  }
-  showUserProfileDialog.value = false;
-}
-
-/**
- * 保存消息（从子组件接收数据）
- */
-async function handleSaveMessage(form: {
-  role: MessageRole;
-  content: string;
-  name?: string;
-  injectionStrategy?: InjectionStrategy;
-  modelMatch?: {
-    enabled: boolean;
-    patterns: string[];
-  };
-}) {
+function handleSaveMessage(form: typeof editForm.value) {
   if (isEditMode.value) {
-    // 编辑模式：更新现有消息
     const message = localMessages.value[editingIndex.value];
-    message.role = form.role;
-    message.content = form.content;
-    message.name = form.name;
-    message.injectionStrategy = form.injectionStrategy;
-    message.modelMatch = form.modelMatch;
-
-    // 如果有模型ID，重新计算 token
-    if (props.modelId) {
-      try {
-        const result = await tokenCalculatorEngine.calculateTokens(form.content, props.modelId);
-        if (!message.metadata) {
-          message.metadata = {};
-        }
-        message.metadata.contentTokens = result.count;
-      } catch (error) {
-        console.error(`Failed to calculate tokens for edited message:`, error);
-      }
-    }
+    Object.assign(message, form);
   } else {
-    // 添加模式：创建新消息
     const newMessage: ChatMessageNode = {
       id: `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       parentId: null,
       childrenIds: [],
-      content: form.content,
-      role: form.role,
-      name: form.name,
+      ...form,
       status: "complete",
-      type: "message", // 明确标记为普通消息
+      type: "message",
       isEnabled: true,
       timestamp: new Date().toISOString(),
-      injectionStrategy: form.injectionStrategy,
-      modelMatch: form.modelMatch,
     };
-
-    // 如果有模型ID，计算并保存 token
-    if (props.modelId) {
-      try {
-        const result = await tokenCalculatorEngine.calculateTokens(form.content, props.modelId);
-        newMessage.metadata = {
-          contentTokens: result.count,
-        };
-      } catch (error) {
-        console.error(`Failed to calculate tokens for new message:`, error);
-      }
-    }
-
-    // 默认插入到历史记录占位符之前，对新手更友好
     const historyIndex = localMessages.value.findIndex((m) => m.type === "chat_history");
     if (historyIndex !== -1) {
       localMessages.value.splice(historyIndex, 0, newMessage);
@@ -973,372 +805,216 @@ async function handleSaveMessage(form: {
       localMessages.value.push(newMessage);
     }
   }
-
   editDialogVisible.value = false;
   syncToParent();
 }
 
-/**
- * 复制单条消息
- */
 async function handleCopyMessage(index: number) {
   const message = localMessages.value[index];
-  // 只复制关键字段
   const dataToCopy = {
     role: message.role,
     content: message.content,
     name: message.name,
-    metadata: message.metadata,
+    injectionStrategy: message.injectionStrategy,
     modelMatch: message.modelMatch,
   };
 
   try {
     await writeText(JSON.stringify(dataToCopy, null, 2));
-    customMessage.success("消息已复制到剪贴板");
+    customMessage.success("消息配置已复制");
   } catch (error) {
     customMessage.error("复制失败");
-    console.error("Copy message error:", error);
   }
 }
 
-/**
- * 粘贴单条消息
- */
 async function handlePasteMessage(index: number) {
   try {
     const text = await readText();
-    if (!text) {
-      customMessage.warning("剪贴板为空");
-      return;
-    }
+    if (!text) return customMessage.warning("剪贴板为空");
 
     let data: any;
-    let isStructured = false;
-
-    // 尝试解析为结构化数据
     try {
       data = JSON.parse(text);
-      if (data && typeof data === "object" && data.role && data.content) {
-        isStructured = true;
-      }
     } catch {
-      try {
-        data = yaml.load(text);
-        if (data && typeof data === "object" && data.role && data.content) {
-          isStructured = true;
-        }
-      } catch {
-        // 无法解析为 JSON 或 YAML，保持 isStructured 为 false
-      }
+      data = text; // 作为纯文本处理
     }
 
     const message = localMessages.value[index];
-
-    if (isStructured) {
-      // 如果是结构化数据，则覆盖 role, content, name 和 metadata
-      message.role = data.role;
-      message.content = data.content;
-      message.name = data.name;
-      if (data.metadata) {
-        message.metadata = { ...message.metadata, ...data.metadata };
-      }
-      if (data.modelMatch) {
-        message.modelMatch = data.modelMatch;
-      }
+    if (typeof data === "object" && data !== null) {
+      message.role = data.role || message.role;
+      message.content = data.content ?? message.content;
+      message.name = data.name || message.name;
+      message.injectionStrategy = data.injectionStrategy || message.injectionStrategy;
+      message.modelMatch = data.modelMatch || message.modelMatch;
       customMessage.success("已粘贴并覆盖消息");
     } else {
-      // 否则，只将纯文本写入 content
-      message.content = text;
+      message.content = data;
       customMessage.success("已粘贴文本内容");
     }
-
     syncToParent();
   } catch (error) {
     customMessage.error("粘贴失败");
-    console.error("Paste message error:", error);
   }
 }
 
-/**
- * 删除消息
- */
 function handleDeleteMessage(index: number) {
   const message = localMessages.value[index];
-
-  // 不允许删除历史消息占位符和用户档案占位符
-  if (message.type === "chat_history") {
-    customMessage.warning("历史消息占位符不可删除");
+  if (isAnchorType(message.type)) {
+    customMessage.warning("锚点消息不可删除");
     return;
   }
-  if (message.type === "user_profile") {
-    customMessage.warning("用户档案占位符不可删除");
-    return;
-  }
-
   localMessages.value.splice(index, 1);
   syncToParent();
   customMessage.success("删除成功");
 }
 
-/**
- * 切换启用状态
- */
 function handleToggleEnabled(_index: number) {
-  // 状态已经通过 v-model 自动更新，需要手动同步
   syncToParent();
 }
+// #endregion
 
-/**
- * 导出预设消息
- */
+// #region 导入导出
 function handleExport(format: "json" | "yaml" = "json") {
   if (localMessages.value.length === 0) {
-    customMessage.warning("没有可导出的预设消息");
-    return;
+    return customMessage.warning("没有可导出的预设消息");
   }
-
+  const dataToExport = toRaw(localMessages.value).filter((m) => !isAnchorType(m.type));
   let dataStr = "";
-  let mimeType = "";
-  let extension = "";
-
   if (format === "yaml") {
-    dataStr = yaml.dump(toRaw(localMessages.value));
-    mimeType = "application/x-yaml";
-    extension = "yaml";
+    dataStr = yaml.dump(dataToExport);
   } else {
-    dataStr = JSON.stringify(localMessages.value, null, 2);
-    mimeType = "application/json";
-    extension = "json";
+    dataStr = JSON.stringify(dataToExport, null, 2);
   }
-
-  const dataBlob = new Blob([dataStr], { type: mimeType });
-  const url = URL.createObjectURL(dataBlob);
+  const blob = new Blob([dataStr], { type: `application/${format}` });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
-
-  // 使用 agent 名称和日期作为文件名
   const agentNamePart = props.agentName ? `${props.agentName}-` : "";
-  const datePart = new Date().toISOString().split("T")[0];
-  link.download = `${agentNamePart}preset-messages-${datePart}.${extension}`;
-
+  link.download = `${agentNamePart}preset-${new Date().toISOString().split("T")[0]}.${format}`;
+  link.href = url;
   link.click();
   URL.revokeObjectURL(url);
-
-  customMessage.success(`已导出为 ${format.toUpperCase()} 格式`);
+  customMessage.success(`已导出为 ${format.toUpperCase()}`);
 }
 
-/**
- * 导入预设消息
- */
+async function handleCopy(format: "json" | "yaml" = "json") {
+  if (localMessages.value.length === 0) {
+    return customMessage.warning("没有可复制的消息");
+  }
+  try {
+    const dataToExport = toRaw(localMessages.value).filter((m) => !isAnchorType(m.type));
+    let dataStr = "";
+    if (format === "yaml") {
+      dataStr = yaml.dump(dataToExport);
+    } else {
+      dataStr = JSON.stringify(dataToExport, null, 2);
+    }
+    await writeText(dataStr);
+    customMessage.success(`预设已作为 ${format.toUpperCase()} 复制`);
+  } catch (error) {
+    customMessage.error("复制失败");
+  }
+}
+
+async function handlePaste() {
+  try {
+    const text = await readText();
+    if (!text) return customMessage.warning("剪贴板为空");
+
+    let imported: any;
+    try {
+      imported = JSON.parse(text);
+    } catch {
+      try {
+        imported = yaml.load(text);
+      } catch {
+        return customMessage.error("剪贴板内容不是有效的 JSON 或 YAML");
+      }
+    }
+    if (!Array.isArray(imported)) {
+      return customMessage.error("数据格式不正确（应为消息数组）");
+    }
+
+    const hasRealMessages = localMessages.value.some((m) => !isAnchorType(m.type));
+    if (hasRealMessages) {
+      await ElMessageBox.confirm("这将覆盖当前所有非锚点消息，确定吗？", "确认粘贴", {
+        type: "warning",
+        confirmButtonText: "覆盖",
+        cancelButtonText: "取消",
+      }).catch(() => {
+        throw new Error("User cancelled");
+      });
+    }
+
+    const nonAnchorMessages = localMessages.value.filter((m) => isAnchorType(m.type));
+    localMessages.value = [...nonAnchorMessages, ...imported];
+    syncToParent();
+    customMessage.success("粘贴成功");
+  } catch (error: any) {
+    if (error.message !== "User cancelled") {
+      customMessage.error("粘贴失败");
+    }
+  }
+}
+
 function handleImport() {
   importFileInput.value?.click();
 }
 
-/**
- * 复制预设消息
- */
-async function handleCopy(format: "json" | "yaml" = "json") {
-  if (localMessages.value.length === 0) {
-    customMessage.warning("没有可复制的预设消息");
-    return;
-  }
-  try {
-    let dataStr = "";
-    if (format === "yaml") {
-      dataStr = yaml.dump(toRaw(localMessages.value));
-    } else {
-      dataStr = JSON.stringify(toRaw(localMessages.value), null, 2);
-    }
-    await writeText(dataStr);
-    customMessage.success(`预设已作为 ${format.toUpperCase()} 复制到剪贴板`);
-  } catch (error) {
-    customMessage.error("复制失败");
-    console.error("Copy error:", error);
-  }
-}
-
-/**
- * 粘贴预设消息
- */
-async function handlePaste() {
-  try {
-    const text = await readText();
-    if (!text) {
-      customMessage.warning("剪贴板为空");
-      return;
-    }
-
-    let imported: ChatMessageNode[];
-    try {
-      // 尝试解析为 JSON
-      imported = JSON.parse(text);
-    } catch (e) {
-      try {
-        // 尝试解析为 YAML
-        imported = yaml.load(text) as ChatMessageNode[];
-      } catch (yamlError) {
-        customMessage.error("剪贴板内容不是有效的 JSON 或 YAML 格式");
-        return;
-      }
-    }
-
-    // 简单验证
-    if (!Array.isArray(imported)) {
-      customMessage.error("剪贴板内容格式不正确（应为消息数组）");
-      return;
-    }
-
-    // 如果当前已有消息（除了占位符），提示确认覆盖
-    const hasRealMessages = localMessages.value.some(
-      (m) => m.type !== "chat_history" && m.type !== "user_profile"
-    );
-
-    if (hasRealMessages) {
-      try {
-        await ElMessageBox.confirm("粘贴将覆盖当前所有预设消息，确定要继续吗？", "确认粘贴", {
-          type: "warning",
-          confirmButtonText: "覆盖",
-          cancelButtonText: "取消",
-        });
-      } catch {
-        return; // 用户取消
-      }
-    }
-
-    localMessages.value = imported;
-    syncToParent();
-    customMessage.success("粘贴成功");
-  } catch (error) {
-    customMessage.error("无法读取剪贴板");
-    console.error("Paste error:", error);
-  }
-}
-
-/**
- * 处理文件选择
- */
 async function handleFileSelected(event: Event) {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
+  const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
   try {
     const content = await file.text();
     let parsed: any;
-
     try {
-      // 优先尝试 JSON
       parsed = JSON.parse(content);
-    } catch (e) {
-      try {
-        // JSON 失败则尝试 YAML
-        parsed = yaml.load(content);
-      } catch (yamlError) {
-        throw new Error("无法解析文件内容：既不是有效的 JSON 也不是有效的 YAML");
-      }
+    } catch {
+      parsed = yaml.load(content);
     }
 
-    // 检测是否为 SillyTavern 预设文件
     if (isPromptFile(parsed)) {
-      await handleSTPresetImport(parsed);
-      return;
-    }
-
-    // 原有逻辑：导入 ChatMessageNode[] 格式
-    if (!Array.isArray(parsed)) {
+      stImportData.value = parsePromptFile(parsed);
+      showSTImportDialog.value = true;
+    } else if (Array.isArray(parsed)) {
+      localMessages.value = [...localMessages.value.filter((m) => isAnchorType(m.type)), ...parsed];
+      syncToParent();
+      customMessage.success("导入成功");
+    } else {
       throw new Error("文件格式不正确");
     }
-
-    localMessages.value = parsed as ChatMessageNode[];
-    syncToParent();
-    customMessage.success("导入成功");
   } catch (error) {
-    customMessage.error("导入失败：文件格式不正确");
-    console.error("Import error:", error);
+    customMessage.error("导入失败");
   } finally {
-    // 清空 input，允许重复导入同一文件
-    target.value = "";
+    (event.target as HTMLInputElement).value = "";
   }
 }
 
-/**
- * 处理 SillyTavern 预设文件导入
- */
-async function handleSTPresetImport(file: any) {
-  const result = parsePromptFile(file);
-  const totalCount =
-    result.systemPrompts.length + result.injectionPrompts.length + result.unorderedPrompts.length;
-
-  if (totalCount === 0) {
-    customMessage.warning("预设文件中没有可导入的提示词");
-    return;
-  }
-
-  stImportData.value = result;
-  showSTImportDialog.value = true;
-}
-
-/**
- * 确认导入 ST 预设
- */
-function handleConfirmSTImport(data: {
-  systemPrompts: ChatMessageNode[];
-  injectionPrompts: ChatMessageNode[];
-  unorderedPrompts: ChatMessageNode[];
-  parameters: Record<string, any>;
-}) {
-  const { systemPrompts, injectionPrompts, unorderedPrompts, parameters } = data;
-  let importedCount = 0;
-  const importedParamsCount = Object.keys(parameters).length;
-
-  // 1. 导入消息
-  if (systemPrompts.length > 0 || injectionPrompts.length > 0 || unorderedPrompts.length > 0) {
-    // 找到 chat_history 占位符的位置
+function handleConfirmSTImport(data: ParsedPromptFile) {
+  const { systemPrompts, injectionPrompts, unorderedPrompts } = data;
+  const newMessages = [...systemPrompts, ...injectionPrompts, ...unorderedPrompts];
+  if (newMessages.length > 0) {
     const historyIndex = localMessages.value.findIndex((m) => m.type === "chat_history");
-
-    // 追加前置消息：插入到 chat_history 之前
-    if (systemPrompts.length > 0) {
-      if (historyIndex !== -1) {
-        localMessages.value.splice(historyIndex, 0, ...systemPrompts);
-      } else {
-        // 如果没有 chat_history，追加到末尾
-        localMessages.value.push(...systemPrompts);
-      }
-      importedCount += systemPrompts.length;
-    }
-
-    // 追加注入消息：直接追加到末尾（它们有自己的 injectionStrategy）
-    if (injectionPrompts.length > 0) {
-      localMessages.value.push(...injectionPrompts);
-      importedCount += injectionPrompts.length;
-    }
-
-    // 追加未排序消息：直接追加到末尾
-    if (unorderedPrompts.length > 0) {
-      localMessages.value.push(...unorderedPrompts);
-      importedCount += unorderedPrompts.length;
-    }
-  }
-
-  // 2. 导入参数 (如果有)
-  if (importedParamsCount > 0 && props.agent) {
-    // 暂时：直接修改 props.agent.parameters (如果存在)
-    // 更好的做法是 emit 事件通知父组件
-    if (props.agent.generationConfig) {
-      Object.assign(props.agent.generationConfig, parameters);
-      customMessage.success(`已导入 ${importedCount} 条消息和 ${importedParamsCount} 个模型参数`);
+    if (historyIndex !== -1) {
+      localMessages.value.splice(historyIndex, 0, ...newMessages);
     } else {
-      customMessage.warning(
-        `已导入 ${importedCount} 条消息 (参数导入跳过：Agent 未初始化 generationConfig)`
-      );
+      localMessages.value.push(...newMessages);
     }
-  } else if (importedCount > 0) {
-    customMessage.success(`已导入 ${importedCount} 条消息`);
+    syncToParent();
+    customMessage.success(`成功导入 ${newMessages.length} 条消息`);
   }
-
   showSTImportDialog.value = false;
-  syncToParent();
 }
+// #endregion
+
+// #region 用户档案
+function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "createdAt">>) {
+  if (effectiveUserProfile.value) {
+    userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
+  }
+  showUserProfileDialog.value = false;
+}
+// #endregion
 </script>
 
 <style scoped>
@@ -1381,7 +1057,7 @@ function handleConfirmSTImport(data: {
   flex: 1;
   overflow: hidden;
   position: relative;
-  min-height: 0; /* 确保 flex 子元素可以正确收缩 */
+  min-height: 0;
 }
 
 .messages-scroll-wrapper {
@@ -1395,7 +1071,7 @@ function handleConfirmSTImport(data: {
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 12px; /* 使用 gap 替代每个 wrapper 的 margin-bottom */
+  gap: 12px;
 }
 
 .message-card {
@@ -1419,15 +1095,29 @@ function handleConfirmSTImport(data: {
   opacity: 0.5;
 }
 
-.message-card.history-placeholder {
-  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
-  border-color: var(--el-color-warning-light-5);
+.placeholder-card,
+.template-anchor-card {
   border-style: dashed;
 }
 
-.message-card.history-placeholder:hover {
+.placeholder-card.placeholder-chat_history,
+.template-anchor-card.template-anchor-chat_history {
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  border-color: var(--el-color-warning-light-5);
+}
+.placeholder-card.placeholder-chat_history:hover,
+.template-anchor-card.template-anchor-chat_history:hover {
   border-color: var(--el-color-warning);
   background: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
+}
+
+.template-anchor-card {
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border-color: var(--el-color-primary-light-5);
+}
+.template-anchor-card:hover {
+  border-color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
 }
 
 .placeholder-text {
@@ -1481,7 +1171,6 @@ function handleConfirmSTImport(data: {
   font-variant-numeric: tabular-nums;
 }
 
-/* 注入策略标签样式 */
 .injection-tag {
   font-size: 12px;
 }
@@ -1526,13 +1215,13 @@ function handleConfirmSTImport(data: {
   min-height: 300px;
 }
 
-/* 紧凑模式样式 */
+/* 紧凑模式 */
 .agent-preset-editor.compact .messages-scroll-wrapper {
   padding: 8px;
 }
 
 .agent-preset-editor.compact .messages-list {
-  gap: 8px; /* 紧凑模式下使用更小的间距 */
+  gap: 8px;
 }
 
 .message-card-compact {
@@ -1556,6 +1245,21 @@ function handleConfirmSTImport(data: {
 
 .message-card-compact.disabled {
   opacity: 0.5;
+}
+
+.placeholder-card-compact,
+.template-anchor-card-compact {
+  border-style: dashed;
+}
+
+.placeholder-card-compact.placeholder-chat_history {
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  border-color: var(--el-color-warning-light-5);
+}
+.placeholder-card-compact.placeholder-user_profile,
+.template-anchor-card-compact {
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border-color: var(--el-color-primary-light-5);
 }
 
 .message-card-compact .drag-handle {
@@ -1598,54 +1302,12 @@ function handleConfirmSTImport(data: {
   flex-shrink: 0;
 }
 
-/* 紧凑模式下的空状态 */
 .agent-preset-editor.compact .empty-state {
   min-height: 100px;
   font-size: 13px;
 }
-/* 紧凑模式下的历史消息占位符 */
-.history-placeholder-compact {
-  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
-  border-color: var(--el-color-warning-light-5);
-  border-style: dashed;
-}
 
-.history-placeholder-compact:hover {
-  border-color: var(--el-color-warning);
-  background: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
-}
-
-.history-placeholder-compact .placeholder-text {
-  color: var(--el-color-warning-dark-2);
-  font-weight: 500;
-}
-
-/* 用户档案占位符样式 - 正常模式 */
-.message-card.user-profile-placeholder {
-  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
-  border-color: var(--el-color-primary-light-5);
-  border-style: dashed;
-}
-
-.message-card.user-profile-placeholder:hover {
-  border-color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
-}
-
-/* 用户档案占位符样式 - 紧凑模式 */
-.user-profile-placeholder-compact {
-  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
-  border-color: var(--el-color-primary-light-5);
-  border-style: dashed;
-}
-
-.user-profile-placeholder-compact:hover {
-  border-color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
-}
-
-.user-profile-placeholder-compact .placeholder-text {
-  color: var(--el-color-primary-dark-2);
-  font-weight: 500;
+.el-button {
+  margin: 0;
 }
 </style>

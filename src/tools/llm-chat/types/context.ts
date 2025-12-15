@@ -6,8 +6,9 @@ import type { ChatMessageNode, InjectionStrategy } from "./message";
 /**
  * 系统内置锚点/消息类型常量
  * 这些常量同时用于 MessageType 判断和 InjectionStrategy.anchorTarget
+ * 注意：这是锚点 ID 的常量对象，不是锚点定义数组
  */
-export const SYSTEM_ANCHORS = {
+export const ANCHOR_IDS = {
   /** 历史消息占位符/锚点 */
   CHAT_HISTORY: 'chat_history',
   /** 用户档案占位符/锚点 */
@@ -21,7 +22,7 @@ export interface ProcessableMessage {
   role: "system" | "user" | "assistant";
   content: string | LlmMessageContent[];
   /** 消息来源类型 */
-  sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+  sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
   /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
   sourceId?: string | number;
   /** 在来源数组中的索引（用于精确匹配） */
@@ -64,7 +65,7 @@ export interface LlmContextData {
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
     /** 消息来源类型 */
-    sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+    sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
     /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
     sourceId?: string | number;
     /** 在来源数组中的索引（用于精确匹配） */
@@ -95,8 +96,6 @@ export interface ContextPreviewData {
     userIcon?: string;
     /** 消息时间戳（宏还原用） */
     timestamp?: number;
-    /** 是否为用户档案 */
-    isUserProfile?: boolean;
   }>;
   /** 会话历史部分 */
   chatHistory: Array<{
@@ -135,7 +134,7 @@ export interface ContextPreviewData {
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
     /** 消息来源类型 */
-    sourceType?: "agent_preset" | "session_history" | "user_profile" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+    sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
     /** 用于存储被合并的原始消息 */
     _mergedSources?: any[];
     /** [中间格式] 暂存的附件列表 */

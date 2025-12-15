@@ -61,7 +61,6 @@ export async function buildPreviewDataFromContext(
     // 预设消息和注入消息的 token 计算（简单文本）
     if (
       msg.sourceType === "agent_preset" ||
-      msg.sourceType === "user_profile" ||
       msg.sourceType === "depth_injection" ||
       msg.sourceType === "anchor_injection"
     ) {
@@ -86,7 +85,6 @@ export async function buildPreviewDataFromContext(
         tokenCount: tokenCount,
         source: "agent_preset", // 简化来源
         index: typeof msg.sourceIndex === "number" ? msg.sourceIndex : -1,
-        isUserProfile: msg.sourceType === "user_profile",
         timestamp: msg._timestamp,
         userName: msg._userName,
         userIcon: msg._userIcon,

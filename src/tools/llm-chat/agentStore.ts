@@ -28,6 +28,7 @@ import {
   commitImportAgents,
 } from "./services/agentImportService";
 import type { ConfirmImportParams } from "./types/agentImportExport";
+import { useAnchorRegistry } from "./composables/useAnchorRegistry";
 
 const logger = createModuleLogger("llm-chat/agentStore");
 const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
@@ -490,6 +491,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         if (agents.length > 0) {
           // 在加载后立即进行数据迁移
           for (const agent of agents) {
+            // 1. 迁移旧版 custom 参数格式
             if (agent.parameters?.custom) {
               const custom = agent.parameters.custom as any;
               // 检查是否为旧格式（是对象，但没有 enabled 和 params 属性）
@@ -504,6 +506,39 @@ export const useAgentStore = defineStore("llmChatAgent", {
                   enabled: Object.keys(custom).length > 0, // 如果旧对象有内容，则默认启用
                   params: custom,
                 };
+              }
+            }
+
+            // 2. 迁移旧版模板锚点格式
+            if (agent.presetMessages && agent.presetMessages.length > 0) {
+              const anchorRegistry = useAnchorRegistry();
+              let migratedCount = 0;
+              
+              for (const message of agent.presetMessages) {
+                if (!message.type) continue;
+                
+                const anchor = anchorRegistry.getAnchorById(message.type);
+                if (!anchor?.hasTemplate) continue;
+                
+                // 检查是否为旧格式的固定文本（需要转换为默认模板）
+                const legacyFixedTexts = ["用户档案", "user_profile", "User Profile"];
+                const isLegacyFixedContent = legacyFixedTexts.some(
+                  (text) => message.content.trim() === text
+                );
+                
+                const needsMigration = !message.content || isLegacyFixedContent;
+                
+                if (needsMigration && anchor.defaultTemplate) {
+                  message.content = anchor.defaultTemplate;
+                  migratedCount++;
+                }
+              }
+              
+              if (migratedCount > 0) {
+                logger.info("迁移旧版模板锚点格式", {
+                  agentId: agent.id,
+                  migratedCount,
+                });
               }
             }
           }

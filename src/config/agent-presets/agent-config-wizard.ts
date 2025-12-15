@@ -89,8 +89,8 @@ interface ChatMessageNode {
 
   // 消息类型（可选）
   // - 'message': 普通预设消息（默认）
-  // - 'chat_history': 历史消息占位符
-  // - 'user_profile': 用户档案占位符
+  // - 'chat_history': 历史消息占位符（纯占位符，不可编辑）
+  // - 'user_profile': 用户档案模板锚点（支持编辑内容，支持宏替换）
   type?: 'message' | 'chat_history' | 'user_profile';
 
   // 消息创建的时间戳 (ISO 8601 格式)
@@ -195,8 +195,8 @@ system (根节点)
 ### 关键概念
 
 1. **parentId 和 childrenIds**：定义消息之间的父子关系
-2. **chat_history 占位符**：标记实际用户对话的插入位置
-3. **user_profile 占位符**：标记用户档案内容的插入位置
+2. **chat_history 占位符**：标记实际用户对话的插入位置（纯占位符，不可编辑）
+3. **user_profile 模板锚点**：标记用户档案内容的插入位置，支持自定义模板和宏替换
 4. **displayPresetCount**：控制在聊天界面显示多少条预设消息作为开场白
 
 ### 示例：简单的角色扮演预设

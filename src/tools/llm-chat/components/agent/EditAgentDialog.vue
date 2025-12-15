@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch, computed, onUnmounted } from "vue";
+import { reactive, watch, computed, onUnmounted, defineAsyncComponent } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useAgentStore } from "../../agentStore";
 import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../types";
@@ -14,7 +14,7 @@ import { useChatSettings } from "../../composables/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
-import { ref, defineAsyncComponent } from "vue";
+import { ref } from "vue";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
 import MacroSelector from "./MacroSelector.vue";
 import type { MacroDefinition } from "../../macro-engine";
@@ -30,6 +30,10 @@ import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-te
 import { createDefaultChatRegexConfig } from "../../types";
 
 const ChatRegexEditor = defineAsyncComponent(() => import("../common/ChatRegexEditor.vue"));
+
+const EditUserProfileDialog = defineAsyncComponent(
+  () => import("../user-profile/EditUserProfileDialog.vue")
+);
 
 interface Props {
   visible: boolean;
@@ -54,6 +58,13 @@ const userProfileStore = useUserProfileStore();
 const agentStore = useAgentStore();
 const { settings } = useChatSettings();
 const { enabledProfiles } = useLlmProfiles();
+
+const effectiveUserProfile = computed(() => {
+  if (editForm.userProfileId) {
+    return userProfileStore.getProfileById(editForm.userProfileId) || null;
+  }
+  return userProfileStore.globalProfile;
+});
 
 // 从所有 agent 中提取的不重复标签列表
 const allTags = computed(() => {
@@ -99,6 +110,7 @@ const styleLoading = ref(false);
 
 // 宏选择器弹窗状态
 const macroSelectorVisible = ref(false);
+const userProfileDialogVisible = ref(false);
 
 // 虚拟时间预览相关
 const macroPreviewInput = ref("{{time}} | {{datetime_cn}} | {{shichen}}");
@@ -523,7 +535,12 @@ const handleSave = () => {
             </div>
           </el-option>
         </el-select>
-        <div class="form-hint">如果设置，则覆盖全局默认的用户档案</div>
+        <div class="form-hint-with-action">
+          <span>如果设置，则覆盖全局默认的用户档案</span>
+          <el-button type="primary" link @click="userProfileDialogVisible = true">
+            管理用户档案
+          </el-button>
+        </div>
       </el-form-item>
 
       <!-- 显示预设消息数量 -->
@@ -676,6 +693,13 @@ const handleSave = () => {
       </el-collapse>
     </el-form>
 
+    <!-- 用户档案编辑弹窗 -->
+    <EditUserProfileDialog
+      :visible="userProfileDialogVisible"
+      :profile="effectiveUserProfile"
+      @update:visible="userProfileDialogVisible = $event"
+    />
+
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
       <el-button type="primary" @click="handleSave">
@@ -689,7 +713,17 @@ const handleSave = () => {
 .form-hint {
   font-size: 12px;
   color: var(--text-color-secondary);
-  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+.form-hint-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-top: 4px;
 }
 
 /* 滑块+数字输入框组合 */

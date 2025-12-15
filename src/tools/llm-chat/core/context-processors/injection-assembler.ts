@@ -3,9 +3,10 @@ import { createModuleLogger } from "@/utils/logger";
 import { buildMacroContext, processMacros } from "../context-utils/macro";
 import { MacroProcessor } from "@/tools/llm-chat/macro-engine";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
-import { SYSTEM_ANCHORS } from "@/tools/llm-chat/types/context";
+import { ANCHOR_IDS } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode } from "../../types/message";
 import type { InjectionMessage } from "../../types/context";
+import { type AnchorDefinition } from "@/tools/llm-chat/composables/useAnchorRegistry";
 
 const logger = createModuleLogger("primary:injection-assembler");
 
@@ -82,12 +83,12 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
 ): (
   | T
   | {
-      role: string;
-      content: string;
-      sourceType: string;
-      sourceId: string;
-      sourceIndex: number;
-    }
+    role: string;
+    content: string;
+    sourceType: string;
+    sourceId: string;
+    sourceIndex: number;
+  }
 )[] => {
   if (depthInjections.length === 0) {
     return history;
@@ -109,12 +110,12 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   const result: (
     | T
     | {
-        role: string;
-        content: string;
-        sourceType: string;
-        sourceId: string;
-        sourceIndex: number;
-      }
+      role: string;
+      content: string;
+      sourceType: string;
+      sourceId: string;
+      sourceIndex: number;
+    }
   )[] = [...history];
 
   const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => b - a);
@@ -307,7 +308,7 @@ export const injectionAssembler: ContextProcessor = {
     // 4. 组装最终消息列表
     const finalMessages: ProcessableMessage[] = [];
     const historyAnchorIndex = skeleton.findIndex(
-      (msg) => msg.type === SYSTEM_ANCHORS.CHAT_HISTORY,
+      (msg) => msg.type === ANCHOR_IDS.CHAT_HISTORY,
     );
 
     // 过滤出有效的锚点注入
@@ -377,25 +378,65 @@ export const injectionAssembler: ContextProcessor = {
       });
     };
 
+    // 从 sharedData 获取锚点定义（上游必须提供）
+    const anchorDefinitionsFromShared = context.sharedData.get('anchorDefinitions') as AnchorDefinition[] | undefined;
+    let anchorDefinitions: AnchorDefinition[];
+    if (!anchorDefinitionsFromShared) {
+      logger.warn("缺少锚点定义：上游未提供 anchorDefinitions");
+      context.logs.push({
+        processorId: "primary:injection-assembler",
+        level: "warn",
+        message: "缺少锚点定义，无法处理模板锚点。",
+      });
+      // 继续执行，但模板锚点功能将不可用
+      // 为了向后兼容，我们使用一个空数组，这样 isTemplateAnchor 会始终返回 false
+      anchorDefinitions = [];
+    } else {
+      anchorDefinitions = anchorDefinitionsFromShared;
+    }
+
+    // 辅助函数：获取锚点定义
+    const getAnchorDefinition = (anchorId: string): AnchorDefinition | undefined => {
+      return anchorDefinitions.find((anchor) => anchor.id === anchorId);
+    };
+
+    // 辅助函数：检查是否为模板锚点
+    const isTemplateAnchor = (anchorId: string): boolean => {
+      const anchor = getAnchorDefinition(anchorId);
+      return anchor?.hasTemplate ?? false;
+    };
+
+    // 辅助函数：检查是否为旧格式的固定内容（向后兼容）
+    const isLegacyFixedContent = (content: string): boolean => {
+      const legacyFixedTexts = ["用户档案", "user_profile", "User Profile"];
+      return legacyFixedTexts.some((text) => content.trim() === text);
+    };
+
     // 添加 chat_history 锚点之前的骨架消息
     for (const msg of skeletonBefore) {
       // 过滤掉禁用的消息
       if (msg.isEnabled === false) continue;
 
-      // 如果是 user_profile 锚点，则注入 user_profile 的内容
-      if (msg.type === SYSTEM_ANCHORS.USER_PROFILE) {
-        finalMessages.push(
-          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "before"),
-        );
-        // 只有当消息内容不为空时才插入 User Profile 消息本身
-        // 这样如果用户只想用它做锚点，可以把内容留空
-        const content = processedContents.get(msg.id) ?? msg.content;
-        if (content && content.trim()) {
-          pushSkeletonMessage(msg);
+      // 检查是否为锚点消息
+      if (msg.type && msg.type !== 'message') {
+        const anchorId = msg.type;
+
+        // 注入 before 消息
+        finalMessages.push(...buildAnchorMessages(anchorId, "before"));
+
+        // 如果是模板锚点，渲染其内容（除非是旧格式的固定内容）
+        if (isTemplateAnchor(anchorId)) {
+          const content = processedContents.get(msg.id) ?? msg.content;
+          // 如果是旧格式的固定内容，视为空内容（不渲染）
+          if (content && content.trim() && !isLegacyFixedContent(content)) {
+            pushSkeletonMessage(msg);
+          }
         }
-        finalMessages.push(
-          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "after"),
-        );
+        // 如果是纯占位符锚点（如 chat_history），这里什么都不做
+        // chat_history 的内容由专门的历史插入逻辑处理
+
+        // 注入 after 消息
+        finalMessages.push(...buildAnchorMessages(anchorId, "after"));
         continue;
       }
       pushSkeletonMessage(msg);
@@ -404,13 +445,13 @@ export const injectionAssembler: ContextProcessor = {
     // 添加历史消息（已包含深度注入）
     // 1. 插入 chat_history 的 before 锚点
     finalMessages.push(
-      ...buildAnchorMessages(SYSTEM_ANCHORS.CHAT_HISTORY, "before"),
+      ...buildAnchorMessages(ANCHOR_IDS.CHAT_HISTORY, "before"),
     );
     // 2. 插入历史消息本体
     finalMessages.push(...historyWithDepthInjections);
     // 3. 插入 chat_history 的 after 锚点
     finalMessages.push(
-      ...buildAnchorMessages(SYSTEM_ANCHORS.CHAT_HISTORY, "after"),
+      ...buildAnchorMessages(ANCHOR_IDS.CHAT_HISTORY, "after"),
     );
 
     // 添加 chat_history 锚点之后的骨架消息
@@ -418,17 +459,25 @@ export const injectionAssembler: ContextProcessor = {
       // 过滤掉禁用的消息
       if (msg.isEnabled === false) continue;
 
-      if (msg.type === SYSTEM_ANCHORS.USER_PROFILE) {
-        finalMessages.push(
-          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "before"),
-        );
-        const content = processedContents.get(msg.id) ?? msg.content;
-        if (content && content.trim()) {
-          pushSkeletonMessage(msg);
+      // 检查是否为锚点消息
+      if (msg.type && msg.type !== 'message') {
+        const anchorId = msg.type;
+
+        // 注入 before 消息
+        finalMessages.push(...buildAnchorMessages(anchorId, "before"));
+
+        // 如果是模板锚点，渲染其内容（除非是旧格式的固定内容）
+        if (isTemplateAnchor(anchorId)) {
+          const content = processedContents.get(msg.id) ?? msg.content;
+          // 如果是旧格式的固定内容，视为空内容（不渲染）
+          if (content && content.trim() && !isLegacyFixedContent(content)) {
+            pushSkeletonMessage(msg);
+          }
         }
-        finalMessages.push(
-          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "after"),
-        );
+        // 如果是纯占位符锚点（如 chat_history），这里什么都不做
+
+        // 注入 after 消息
+        finalMessages.push(...buildAnchorMessages(anchorId, "after"));
         continue;
       }
       pushSkeletonMessage(msg);

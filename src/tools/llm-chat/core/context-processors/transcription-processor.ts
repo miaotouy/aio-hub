@@ -1,9 +1,7 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
-import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
 import { resolveAttachmentContent } from "../../core/context-utils/attachment-resolver";
-import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import type { TranscriptionConfig } from "../../composables/useChatSettings";
@@ -18,7 +16,6 @@ export const transcriptionProcessor: ContextProcessor = {
   priority: 250, // 必须在 Token 限制 (300) 之前执行
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
-    const transcriptionManager = useTranscriptionManager();
     const agentConfig = context.agentConfig;
     const transcriptionConfig = context.sharedData.get(
       "transcriptionConfig",
@@ -31,24 +28,10 @@ export const transcriptionProcessor: ContextProcessor = {
     let processedCount = 0;
     let errorCount = 0;
 
-    // 1. 预处理：收集所有附件并确保转写完成
-    const allAttachments = context.messages.flatMap((msg) => msg._attachments || []);
-    if (allAttachments.length > 0) {
-      try {
-        await transcriptionManager.ensureTranscriptions(
-          allAttachments,
-          modelId,
-          profileId
-        );
-      } catch (error) {
-        logger.warn("等待转写任务完成时出错或超时", error);
-        context.logs.push({
-          processorId: "transcription-processor",
-          level: "warn",
-          message: "部分附件转写可能未完成，将尝试使用原始附件。",
-        });
-      }
-    }
+    // 1. 从 sharedData 获取预处理阶段准备好的 Asset 映射
+    // 转写等待逻辑已在管道执行前由 useChatExecutor 完成
+    const updatedAssetsMap = (context.sharedData.get("updatedAssetsMap") as Map<string, Asset>)
+      || new Map<string, Asset>();
 
     const totalMessages = context.messages.length;
     for (let i = 0; i < totalMessages; i++) {
@@ -70,11 +53,10 @@ export const transcriptionProcessor: ContextProcessor = {
       }
 
       for (const asset of msg._attachments) {
-        let assetToProcess = asset;
-        try {
-          const latestAsset = await assetManagerEngine.getAssetById(asset.id);
-          assetToProcess = latestAsset || asset;
+        // 使用预处理阶段获取的最新 Asset，避免重复异步调用
+        const assetToProcess = updatedAssetsMap.get(asset.id) || asset;
 
+        try {
           // 检查是否需要强制转写
           let forceTranscription = false;
           if (

@@ -633,18 +633,26 @@ export function useTranscriptionManager() {
   /**
    * 确保所有需要转写的附件都已完成转写
    * 用于 "send_and_wait" 模式
-   * @returns Promise，当所有必要的转写都完成（或失败）后 resolve
+   * @returns 更新后的 Asset 映射 (id -> Asset)，包含最新的转写状态
    */
   const ensureTranscriptions = async (
     assets: Asset[],
     modelId: string,
     profileId: string
-  ): Promise<void> => {
+  ): Promise<Map<string, Asset>> => {
+    // 用于存储更新后的 Asset
+    const updatedAssets = new Map<string, Asset>();
+
+    // 初始化：先将所有传入的 Asset 放入映射
+    for (const asset of assets) {
+      updatedAssets.set(asset.id, asset);
+    }
+
     const assetsToTranscribe = assets.filter(asset =>
       checkTranscriptionNecessity(asset, modelId, profileId)
     );
 
-    if (assetsToTranscribe.length === 0) return;
+    if (assetsToTranscribe.length === 0) return updatedAssets;
 
     logger.info("开始确保转写任务", {
       count: assetsToTranscribe.length,
@@ -656,6 +664,9 @@ export function useTranscriptionManager() {
       // 在检查状态前，先获取最新的 Asset 对象，以确保 metadata 是最新的
       const latestAsset = await assetManagerEngine.getAssetById(asset.id);
       const assetToCheck = latestAsset || asset; // 如果获取失败，则回退到传入的 asset
+
+      // 更新映射
+      updatedAssets.set(asset.id, assetToCheck);
 
       const status = getTranscriptionStatus(assetToCheck);
       if (status === "none" || status === "error") {
@@ -711,6 +722,9 @@ export function useTranscriptionManager() {
           const latestAsset = await assetManagerEngine.getAssetById(asset.id);
           const assetToCheck = latestAsset || asset; // 回退到旧的以防万一
 
+          // 更新映射（确保最终返回的是最新状态）
+          updatedAssets.set(asset.id, assetToCheck);
+
           const status = getTranscriptionStatus(assetToCheck);
           // 只要有一个还在 pending 或 processing，就继续等待
           if (status === "pending" || status === "processing") {
@@ -724,7 +738,7 @@ export function useTranscriptionManager() {
           clearInterval(checkInterval);
           clearTimeout(timeoutTimer);
           logger.info("所有转写任务已结束");
-          resolve();
+          resolve(updatedAssets);
         }
       }, 500); // 每 500ms 检查一次
     });

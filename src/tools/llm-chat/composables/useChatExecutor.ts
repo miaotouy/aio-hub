@@ -33,6 +33,7 @@ import { buildPreviewDataFromContext } from "../core/context-utils/preview-build
 import { resolveAttachmentContent } from "../core/context-utils/attachment-resolver";
 import { useContextCompressor } from "./useContextCompressor";
 import { useAnchorRegistry } from "./useAnchorRegistry";
+import { useTranscriptionManager } from "./useTranscriptionManager";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -231,7 +232,32 @@ export function useChatExecutor() {
       const anchorRegistry = useAnchorRegistry();
       pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());
 
-      // 2. 执行上下文管道 (一次性执行到底)
+      // 2. 预处理：确保所有附件的转写任务完成
+      // 这一步在管道执行之前完成，确保处理器只需消费数据
+      const transcriptionManager = useTranscriptionManager();
+      const allAttachments = pathToUserNode.flatMap((node) => node.attachments || []);
+
+      if (allAttachments.length > 0) {
+        try {
+          const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
+            allAttachments,
+            agentConfigSnippet.modelId,
+            agentConfigSnippet.profileId
+          );
+          pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
+          logger.debug("转写预处理完成", { assetCount: updatedAssetsMap.size });
+        } catch (error) {
+          logger.warn("等待转写任务完成时出错或超时", error);
+          // 即使超时，也要初始化映射
+          const fallbackMap = new Map<string, Asset>();
+          for (const asset of allAttachments) {
+            fallbackMap.set(asset.id, asset);
+          }
+          pipelineContext.sharedData.set("updatedAssetsMap", fallbackMap);
+        }
+      }
+
+      // 3. 执行上下文管道 (一次性执行到底)
       await contextPipelineStore.executePipeline(pipelineContext);
       logger.info("上下文管道执行完毕", {
         messageCount: pipelineContext.messages.length,
@@ -706,7 +732,31 @@ export function useChatExecutor() {
     // 开启预览模式，通知处理器计算差值等
     pipelineContext.sharedData.set("isPreviewMode", true);
 
-    // 2. 执行上下文管道
+    // 2. 预处理：确保所有附件的转写任务完成（与 executeRequest 保持一致）
+    const transcriptionManager = useTranscriptionManager();
+    const allAttachments = pathToUserNode.flatMap((node) => node.attachments || []);
+
+    if (allAttachments.length > 0) {
+      try {
+        const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
+          allAttachments,
+          agentConfigSnippet.modelId,
+          agentConfigSnippet.profileId
+        );
+        pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
+        logger.debug("预览模式转写预处理完成", { assetCount: updatedAssetsMap.size });
+      } catch (error) {
+        logger.warn("预览模式等待转写任务完成时出错或超时", error);
+        // 即使超时，也要初始化映射
+        const fallbackMap = new Map<string, Asset>();
+        for (const asset of allAttachments) {
+          fallbackMap.set(asset.id, asset);
+        }
+        pipelineContext.sharedData.set("updatedAssetsMap", fallbackMap);
+      }
+    }
+
+    // 3. 执行上下文管道
     const contextPipelineStore = useContextPipelineStore();
     await contextPipelineStore.executePipeline(pipelineContext);
 

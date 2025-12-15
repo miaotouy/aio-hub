@@ -17,7 +17,8 @@ export type SettingComponent =
   | "ElInputNumber"
   | "ElInput"
   | "SliderWithInput"
-  | "PromptEditor";
+  | "PromptEditor"
+  | "FileSelector";
 
 /**
  * 定义单个设置项的配置结构

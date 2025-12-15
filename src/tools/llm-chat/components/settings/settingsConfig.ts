@@ -1,5 +1,4 @@
-import { h, defineAsyncComponent } from "vue";
-import { FolderOpened } from "@element-plus/icons-vue";
+import { defineAsyncComponent } from "vue";
 import {
   Settings2,
   Bot,
@@ -14,7 +13,6 @@ import {
   FileText,
   Network,
 } from "lucide-vue-next";
-import { ElButton, ElIcon } from "element-plus";
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
@@ -700,7 +698,7 @@ export const settingsConfig: SettingsSection[] = [
       {
         id: "transFFmpegPath",
         label: "FFmpeg 路径",
-        component: "ElInput",
+        component: "FileSelector",
         modelPath: "transcription.ffmpegPath",
         hint: "配置本地 FFmpeg 可执行文件路径以支持大视频压缩。未配置时将尝试直接上传原始视频。",
         keywords: "transcription ffmpeg path video 视频 路径",
@@ -709,18 +707,6 @@ export const settingsConfig: SettingsSection[] = [
           settings.transcription.video.enableCompression,
         defaultValue: "",
         action: "selectFFmpegPath",
-        slots: {
-          append: () =>
-            h(
-              ElButton,
-              {
-                onClick: () => { }, // 事件由主组件代理处理
-                title: "选择文件",
-                style: { padding: "8px" },
-              },
-              () => h(ElIcon, null, () => h(FolderOpened)),
-            ),
-        },
       },
       {
         id: "transVideoMaxDirectSize",

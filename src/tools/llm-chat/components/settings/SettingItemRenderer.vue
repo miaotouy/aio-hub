@@ -27,6 +27,21 @@
           </el-collapse>
         </div>
 
+        <!-- FileSelector Component -->
+        <el-input
+          v-else-if="item.component === 'FileSelector'"
+          :model-value="modelValue"
+          @update:model-value="handleUpdate"
+          v-bind="resolvedProps"
+          class="full-width"
+        >
+          <template #append>
+            <el-button @click="handleAction" title="选择文件" style="padding: 8px">
+              <el-icon><FolderOpened /></el-icon>
+            </el-button>
+          </template>
+        </el-input>
+
         <!-- Standard Component -->
         <component
           v-else-if="item.component !== 'SliderWithInput'"
@@ -134,7 +149,10 @@ import {
   ElRadioGroup,
   ElInput,
   ElSelect,
+  ElIcon,
+  ElButton,
 } from "element-plus";
+import { FolderOpened } from "@element-plus/icons-vue";
 import { get, set } from "lodash-es";
 import PromptEditor from "./PromptEditor.vue";
 import type { SettingItem } from "./settings-types";
@@ -216,9 +234,7 @@ const resolvedOptions = computed(() => {
 
 const selectedOptionDescription = computed(() => {
   if (props.item.component === "ElSelect" && resolvedOptions.value) {
-    const option = resolvedOptions.value.find(
-      (opt: any) => opt.value === modelValue.value
-    );
+    const option = resolvedOptions.value.find((opt: any) => opt.value === modelValue.value);
     return option?.description;
   }
   return undefined;
@@ -245,7 +261,8 @@ const componentClasses = computed(() => {
   if (
     props.item.component === "ElSlider" ||
     (props.item.component === "ElInput" && p?.type === "textarea") ||
-    props.item.component === "SliderWithInput"
+    props.item.component === "SliderWithInput" ||
+    props.item.component === "FileSelector"
   ) {
     classes.push("full-width");
   }

@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog v-model="visible" title="文本替换规则说明" width="75vw" class="regex-help-dialog">
+  <BaseDialog v-model="visible" title="文本替换规则说明" width="75vw">
     <div class="help-container">
       <el-tabs v-model="activeTab">
         <!-- Tab 1: 快速入门 (面向普通用户) -->
@@ -313,11 +313,6 @@ const activeTab = ref("intro");
 </script>
 
 <style scoped>
-.regex-help-dialog :deep(.el-dialog__body) {
-  padding-top: 10px;
-  padding-bottom: 20px;
-}
-
 .help-container {
   height: 60vh;
   display: flex;

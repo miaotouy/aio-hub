@@ -76,8 +76,9 @@ watch(
       if (latestAsset) {
         internalAsset.value = latestAsset;
       } else {
-        // Fallback to prop if fetch fails, but log a warning
-        logger.warn("无法获取最新的资产信息，UI 状态可能不正确", { assetId: newId });
+        // For new assets, it might take a moment for the engine to be aware of them.
+        // We'll use the prop and log a debug message.
+        logger.debug("无法立即获取资产信息 (可能是新资产)，临时使用 props", { assetId: newId });
         internalAsset.value = props.asset;
       }
     }

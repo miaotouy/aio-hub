@@ -22,6 +22,7 @@ import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
 import { customMessage } from "@/utils/customMessage";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler"; // <-- 插入
@@ -563,9 +564,17 @@ const calculateInputTokens = async () => {
     const attachments =
       inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : [];
 
+    // 关键修复：获取最新的附件状态，确保转写等信息是最新的
+    const latestAttachments = await Promise.all(
+      attachments.map(async (asset) => {
+        const latest = await assetManagerEngine.getAssetById(asset.id);
+        return latest || asset;
+      })
+    );
+
     const { combinedText, mediaAttachments } = await prepareMessageForTokenCalc(
       inputText.value,
-      attachments,
+      latestAttachments,
       modelId
     );
 

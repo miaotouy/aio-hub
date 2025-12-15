@@ -97,9 +97,9 @@
 
       <div v-if="item.hint" class="form-hint" v-html="resolvedHint"></div>
 
-      <!-- 渲染器详情显示 - 仅显示当前选中的 -->
-      <div v-if="item.id === 'rendererVersion' && resolvedOptions" class="form-hint">
-        {{ resolvedOptions.find((opt: any) => opt.value === modelValue)?.description }}
+      <!-- 选项详情显示 - 仅显示当前选中的 -->
+      <div v-if="selectedOptionDescription" class="form-hint">
+        {{ selectedOptionDescription }}
       </div>
     </template>
 
@@ -212,6 +212,16 @@ const resolvedOptions = computed(() => {
     return props.item.options(props.settings);
   }
   return props.item.options;
+});
+
+const selectedOptionDescription = computed(() => {
+  if (props.item.component === "ElSelect" && resolvedOptions.value) {
+    const option = resolvedOptions.value.find(
+      (opt: any) => opt.value === modelValue.value
+    );
+    return option?.description;
+  }
+  return undefined;
 });
 
 // 模板字符串替换 helper

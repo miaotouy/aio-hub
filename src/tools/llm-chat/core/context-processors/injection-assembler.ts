@@ -318,11 +318,23 @@ export const injectionAssembler: ContextProcessor = {
       getSortedAnchorInjections(activeAnchorInjections);
     const anchorGroups = getAnchorInjectionGroups(sortedAnchorInjections);
 
-    const buildAnchorMessages = (target: string): ProcessableMessage[] => {
+    const buildAnchorMessages = (
+      target: string,
+      position: "before" | "after" | "all" = "all",
+    ): ProcessableMessage[] => {
       const group = anchorGroups.get(target);
       if (!group) return [];
-      const all = [...group.before, ...group.after];
-      return all.map((inj) => ({
+
+      let injections: InjectionMessage[] = [];
+      if (position === "all") {
+        injections = [...group.before, ...group.after];
+      } else if (position === "before") {
+        injections = group.before;
+      } else {
+        injections = group.after;
+      }
+
+      return injections.map((inj) => ({
         role: inj.message.role,
         content: processedContents.get(inj.message.id) ?? inj.message.content,
         sourceType: "anchor_injection",
@@ -346,6 +358,25 @@ export const injectionAssembler: ContextProcessor = {
     const skeletonAfter =
       historyAnchorIndex === -1 ? [] : skeleton.slice(historyAnchorIndex + 1);
 
+    // 辅助函数：构建并添加普通消息
+    const pushSkeletonMessage = (msg: ChatMessageNode) => {
+      finalMessages.push({
+        role: msg.role,
+        content: processedContents.get(msg.id) ?? msg.content,
+        sourceType: "agent_preset",
+        sourceId: msg.id,
+        sourceIndex: presetMessages.indexOf(msg),
+        _originalContent: processedContents.has(msg.id)
+          ? msg.content
+          : undefined,
+        _timestamp: msg.timestamp
+          ? new Date(msg.timestamp).getTime()
+          : undefined,
+        _userName: msg.metadata?.userProfileName,
+        _userIcon: msg.metadata?.userProfileIcon,
+      });
+    };
+
     // 添加 chat_history 锚点之前的骨架消息
     for (const msg of skeletonBefore) {
       // 过滤掉禁用的消息
@@ -353,26 +384,34 @@ export const injectionAssembler: ContextProcessor = {
 
       // 如果是 user_profile 锚点，则注入 user_profile 的内容
       if (msg.type === SYSTEM_ANCHORS.USER_PROFILE) {
-        finalMessages.push(...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE));
+        finalMessages.push(
+          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "before"),
+        );
+        // 只有当消息内容不为空时才插入 User Profile 消息本身
+        // 这样如果用户只想用它做锚点，可以把内容留空
+        const content = processedContents.get(msg.id) ?? msg.content;
+        if (content && content.trim()) {
+          pushSkeletonMessage(msg);
+        }
+        finalMessages.push(
+          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "after"),
+        );
         continue;
       }
-      finalMessages.push({
-        role: msg.role,
-        content: processedContents.get(msg.id) ?? msg.content,
-        sourceType: "agent_preset",
-        sourceId: msg.id,
-        sourceIndex: presetMessages.indexOf(msg),
-        _originalContent: processedContents.has(msg.id)
-          ? msg.content
-          : undefined,
-        _timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : undefined,
-        _userName: msg.metadata?.userProfileName,
-        _userIcon: msg.metadata?.userProfileIcon,
-      });
+      pushSkeletonMessage(msg);
     }
 
     // 添加历史消息（已包含深度注入）
+    // 1. 插入 chat_history 的 before 锚点
+    finalMessages.push(
+      ...buildAnchorMessages(SYSTEM_ANCHORS.CHAT_HISTORY, "before"),
+    );
+    // 2. 插入历史消息本体
     finalMessages.push(...historyWithDepthInjections);
+    // 3. 插入 chat_history 的 after 锚点
+    finalMessages.push(
+      ...buildAnchorMessages(SYSTEM_ANCHORS.CHAT_HISTORY, "after"),
+    );
 
     // 添加 chat_history 锚点之后的骨架消息
     for (const msg of skeletonAfter) {
@@ -380,22 +419,19 @@ export const injectionAssembler: ContextProcessor = {
       if (msg.isEnabled === false) continue;
 
       if (msg.type === SYSTEM_ANCHORS.USER_PROFILE) {
-        finalMessages.push(...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE));
+        finalMessages.push(
+          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "before"),
+        );
+        const content = processedContents.get(msg.id) ?? msg.content;
+        if (content && content.trim()) {
+          pushSkeletonMessage(msg);
+        }
+        finalMessages.push(
+          ...buildAnchorMessages(SYSTEM_ANCHORS.USER_PROFILE, "after"),
+        );
         continue;
       }
-      finalMessages.push({
-        role: msg.role,
-        content: processedContents.get(msg.id) ?? msg.content,
-        sourceType: "agent_preset",
-        sourceId: msg.id,
-        sourceIndex: presetMessages.indexOf(msg),
-        _originalContent: processedContents.has(msg.id)
-          ? msg.content
-          : undefined,
-        _timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : undefined,
-        _userName: msg.metadata?.userProfileName,
-        _userIcon: msg.metadata?.userProfileIcon,
-      });
+      pushSkeletonMessage(msg);
     }
 
     context.messages = finalMessages;

@@ -604,6 +604,24 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) => settings.transcription.enabled,
       },
       {
+        id: "transForceAfter",
+        label:
+          "强制转写阈值 ({{ localSettings.transcription.forceTranscriptionAfter }}条)",
+        component: "SliderWithInput",
+        props: {
+          min: 0,
+          max: 50,
+          step: 1,
+          "format-tooltip": (val: number) => (val > 0 ? `倒数${val}条后` : "不启用"),
+        },
+        modelPath: "transcription.forceTranscriptionAfter",
+        hint: "在智能模式下，强制转写早于最新 N 条消息的附件。0 表示不启用。",
+        keywords: "transcription force smart 强制 智能",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.strategy === "smart",
+      },
+      {
         id: "transAutoStartOnImport",
         label: "导入时自动开始",
         layout: "inline",

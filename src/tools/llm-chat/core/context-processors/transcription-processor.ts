@@ -6,6 +6,7 @@ import { resolveAttachmentContent } from "../../core/context-utils/attachment-re
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
+import type { TranscriptionConfig } from "../../composables/useChatSettings";
 
 const logger = createModuleLogger("llm-chat/transcription-processor");
 const errorHandler = createModuleErrorHandler("llm-chat/transcription-processor");
@@ -19,6 +20,9 @@ export const transcriptionProcessor: ContextProcessor = {
   execute: async (context: PipelineContext) => {
     const transcriptionManager = useTranscriptionManager();
     const agentConfig = context.agentConfig;
+    const transcriptionConfig = context.sharedData.get(
+      "transcriptionConfig",
+    ) as TranscriptionConfig | undefined;
 
     // 获取当前上下文使用的模型信息
     const modelId = agentConfig.modelId;
@@ -46,7 +50,9 @@ export const transcriptionProcessor: ContextProcessor = {
       }
     }
 
-    for (const msg of context.messages) {
+    const totalMessages = context.messages.length;
+    for (let i = 0; i < totalMessages; i++) {
+      const msg = context.messages[i];
       if (!msg._attachments || msg._attachments.length === 0) {
         continue;
       }
@@ -69,7 +75,24 @@ export const transcriptionProcessor: ContextProcessor = {
           const latestAsset = await assetManagerEngine.getAssetById(asset.id);
           assetToProcess = latestAsset || asset;
 
-          const result = await resolveAttachmentContent(assetToProcess, modelId, profileId);
+          // 检查是否需要强制转写
+          let forceTranscription = false;
+          if (
+            transcriptionConfig?.strategy === "smart" &&
+            transcriptionConfig.forceTranscriptionAfter > 0
+          ) {
+            const messageIndexFromEnd = totalMessages - 1 - i;
+            if (messageIndexFromEnd >= transcriptionConfig.forceTranscriptionAfter) {
+              forceTranscription = true;
+            }
+          }
+
+          const result = await resolveAttachmentContent(
+            assetToProcess,
+            modelId,
+            profileId,
+            { force: forceTranscription },
+          );
 
           if (result.type === "text" && result.content) {
             currentContentParts.push({

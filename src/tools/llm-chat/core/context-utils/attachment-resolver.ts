@@ -27,7 +27,8 @@ export interface ResolvedAttachment {
 export async function resolveAttachmentContent(
   asset: Asset,
   modelId: string,
-  profileId: string
+  profileId: string,
+  options: { force?: boolean } = {}
 ): Promise<ResolvedAttachment> {
   const transcriptionManager = useTranscriptionManager();
 
@@ -68,11 +69,16 @@ export async function resolveAttachmentContent(
     }
 
     // 2. 检查是否需要转写 (针对 Image/Audio/Video)
-    const shouldTranscribe = transcriptionManager.checkTranscriptionNecessity(
+    let shouldTranscribe = transcriptionManager.checkTranscriptionNecessity(
       asset,
       modelId,
       profileId
     );
+
+    // 如果外部强制要求，则覆盖判断
+    if (options.force) {
+      shouldTranscribe = true;
+    }
 
     // 3. 尝试获取转写内容
     const transcriptionText = await transcriptionManager.getTranscriptionText(asset);

@@ -217,12 +217,15 @@ export function useChatExecutor() {
         sharedData: new Map<string, any>(),
         logs: [],
       };
-
       // 将额外信息放入 sharedData
       pipelineContext.sharedData.set("userMessageContent", userNode.content);
       if (model) {
         pipelineContext.sharedData.set("model", model);
       }
+      pipelineContext.sharedData.set(
+        "transcriptionConfig",
+        settings.value.transcription,
+      );
       pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
       // 提供锚点定义给注入处理器
       const anchorRegistry = useAnchorRegistry();
@@ -691,6 +694,11 @@ export function useChatExecutor() {
     if (model) {
       pipelineContext.sharedData.set("model", model);
     }
+    const { settings } = useChatSettings();
+    pipelineContext.sharedData.set(
+      "transcriptionConfig",
+      settings.value.transcription,
+    );
     pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
     // 提供锚点定义给注入处理器
     const anchorRegistry = useAnchorRegistry();

@@ -9,7 +9,8 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 
-const { isDialogVisible, currentSelection, select, cancel } = useModelSelectDialog();
+const { isDialogVisible, currentSelection, initialCapabilities, select, cancel } =
+  useModelSelectDialog();
 const { enabledProfiles } = useLlmProfiles();
 const { getModelIcon, getMatchedProperties } = useModelMetadata();
 
@@ -105,19 +106,27 @@ function getModelKey(profile: LlmProfile, model: LlmModelInfo): string {
 function handleSelectModel(profile: LlmProfile, model: LlmModelInfo) {
   select({ profile, model });
 }
-
 function handleClose() {
   cancel();
+  // 重置状态
+  searchQuery.value = "";
+  selectedCapabilities.value = [];
 }
 
-// 滚动到当前选中的模型
+// 滚动到当前选中的模型，并设置初始筛选
 watch(isDialogVisible, async (visible) => {
-  if (visible && currentSelection.value) {
-    await nextTick();
-    const currentKey = getModelKey(currentSelection.value.profile, currentSelection.value.model);
-    const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`);
-    if (currentElement && modelListWrapperRef.value) {
-      currentElement.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (visible) {
+    // 自动应用初始能力筛选
+    selectedCapabilities.value = initialCapabilities.value || [];
+
+    // 滚动到当前选中的模型
+    if (currentSelection.value) {
+      await nextTick();
+      const currentKey = getModelKey(currentSelection.value.profile, currentSelection.value.model);
+      const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`);
+      if (currentElement && modelListWrapperRef.value) {
+        currentElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
   }
 });

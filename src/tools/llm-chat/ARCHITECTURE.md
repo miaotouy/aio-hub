@@ -1,4 +1,4 @@
-# LLM Chat: 架构与开发者指南 (v3)
+# LLM Chat: 架构与开发者指南 (v4)
 
 本文档旨在深入解析 `llm-chat` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
@@ -101,10 +101,13 @@ graph TD
 
 ### 1.6. 上下文管理与截断 (Context Management)
 
-- **显式控制**: 用户可以在智能体参数中精细配置上下文管理策略。
-- **Token 限制**: 可设置上下文最大 Token 数。
-- **智能截断**: 当上下文超出限制时，系统会从最新的消息开始，保留尽可能多的对话历史，并对被截断的旧消息保留部分字符作为摘要。
-- **实时预览**: UI 会实时显示当前上下文的 Token 统计信息和使用率。
+- **统一管道处理**: 上下文截断由统一上下文管道中的 **Token 限制器 (`token-limiter`)** 处理器负责。
+- **策略**: 限制器在注入组装器 (`injection-assembler`) 之后运行，这意味着它能感知到所有将被发送的消息（包括预设和历史）。
+- **智能截断**:
+  - **优先保留预设**: 限制器会首先计算所有预设消息（如角色设定、世界信息）的 Token 占用。
+  - **预算分配**: 然后，它会用总的 `maxContextTokens` 减去预设消息占用的 Token，将剩余的预算完全分配给对话历史。
+  - **历史截断**: 从最旧的历史消息开始逐条移除，直到满足预算要求。
+- **部分保留**: 支持配置 `retainedCharacters`，在截断长消息时，保留其开头的若干字符作为摘要，避免信息完全丢失。
 
 ### 1.7. 上下文分析器 (Context Analyzer)
 
@@ -136,7 +139,7 @@ graph TD
 
 ### 1.10. 高级上下文注入策略 (Context Injection Strategy)
 
-为了提供类似 SillyTavern 的高级角色扮演体验，系统引入了一套声明式的消息注入机制。
+为了提供类似 SillyTavern 的高级角色扮演体验，系统引入了一套声明式的消息注入机制，该功能由统一上下文管道中的 **注入组装器 (`injection-assembler`)** 处理器实现。
 
 - **核心理念**: 将预设消息的"内容"与"位置"解耦。
 - **三种注入模式**:
@@ -180,9 +183,10 @@ graph TD
     - **Token 限制**: 允许为特定模型设置独立的上下文长度上限 (`maxContextTokens`)。
     - **智能截断**: 配置截断策略，包括保留字符数 (`retainedCharacters`) 等。
     - **实时统计**: 集成 `ContextStatsCard`，实时计算并显示当前会话的上下文消耗与剩余空间。
+  - **上下文压缩 (Context Compression)**: 压缩配置位于此处，允许按 Agent/Session 进行精细化控制。
   - **厂商专属配置 (Provider Specific)**:
     - **安全设置**: 针对 Gemini 等模型家族，动态加载安全过滤等级配置面板 (`SafetySettings`)。
-  - **自定义参数 (Custom)**: 允许用户直接透传任意非标准 API 参数，确保对新模型特性的零日支持。
+  - **自定义参数 (Custom)**: 允许用户直接透传任意非标准 API 参数。其结构已统一为 `{ enabled: boolean, params: Record<string, any> }`，并提供 UI 开关，确保对新模型特性的零日支持。
 
 - **动态能力适配**: 参数编辑器 (`ModelParametersEditor`) 会根据当前选中的模型 ID 和渠道类型，自动查询 `capabilities` 元数据，动态显示或隐藏不支持的参数组，通过数据驱动的方式解决了 UI 臃肿问题。
 
@@ -241,9 +245,10 @@ graph TD
 
 随着对话长度的增加，上下文窗口限制和 Token 成本成为主要瓶颈。上下文压缩系统通过智能摘要技术解决这一问题。
 
+- **配置位置**: 压缩配置位于智能体的模型参数 (`LlmParameters.contextCompression`) 中，实现了按 Agent/Session 的精细化控制。
 - **触发机制**:
-  - **Token 阈值**: 当上下文 Token 数超过设定值时自动触发。
-  - **消息数阈值**: 当消息条数超过设定值时自动触发。
+  - **自动触发**: 当上下文 Token 数或消息条数超过 Agent 中设定的阈值时自动触发。
+  - **对话后触发**: 支持在每次成功完成一次 LLM 请求后，异步检查并触发压缩，以优化下一次对话的性能。
   - **手动触发**: 用户可随时手动压缩当前对话。
 - **非破坏性压缩**: 压缩操作会生成一个新的**压缩节点 (Compression Node)**，它包含了一段由 LLM 生成的摘要，并隐藏了被压缩的原始消息节点。
 - **保护区**: 支持设置“最近 N 条消息不压缩”，确保最新的对话上下文保持完整细节。
@@ -254,12 +259,29 @@ graph TD
 转写系统旨在弥合多模态资产（图片、音频、视频）与纯文本模型之间的鸿沟，同时为资产搜索和内容分析提供基础。
 
 - **核心流程**: 将非文本资产发送给具备多模态能力的 LLM，生成详细的文本描述（OCR/ASR/视频理解），并将其作为**衍生数据 (Derived Data)** 与原始资产关联。
+- **统一管道集成**: 转写功能已作为 **转写与文本提取器 (`transcription-processor`)** 集成到统一上下文管道中。它负责在 Token 限制之前，将所有附件的文本内容（无论是 OCR、ASR 还是直接读取的 `.txt` 文件）提取出来并注入到消息体中，确保后续的 Token 计算是准确的。
 - **智能策略 (Smart Strategy)**: 系统能感知当前对话模型的模态能力。例如，当用户使用不支持视觉的模型发送图片时，系统会自动触发转写并将结果作为上下文补充；若模型本身支持视觉，则跳过转写以节省成本。
 - **视频处理管道**:
   - **本地压缩**: 集成 FFmpeg（可选），在上传前对大视频文件进行本地压缩（降低分辨率/帧率），突破 LLM 的文件大小限制。
   - **直传回退**: 若未配置 FFmpeg，则尝试直接上传原始数据。
 - **队列管理**: 内置任务队列，支持并发控制、失败重试和状态持久化，确保在处理大量资产时不阻塞 UI。
 - **数据消费**: 转写结果不仅用于当前对话，还会被索引以支持全局搜索。
+
+### 1.18. 统一上下文管道 (Unified Context Pipeline)
+
+统一上下文管道是一个单一、可配置、按优先级执行的处理器流水线，负责处理从会话历史到最终 LLM 请求的完整转换流程。
+
+- **单一数据流**: 所有处理步骤（加载、正则、转写、注入、截断、格式化、附件转换）都在同一个管道中按顺序执行。
+- **保留元数据**: 在管道执行过程中，消息保持包含附件引用的"中间格式"，直到最后一步才由 **资源解析器 (`asset-resolver`)** 转换为最终发送格式（如 Base64）。
+- **灵活配置**: 所有处理器都可配置、可排序、可启用/禁用。
+
+### 1.19. 消息数据编辑器 (Message Data Editor)
+
+为高级用户和开发者提供了一个强大的调试工具，允许直接查看和修改任意消息节点的底层 JSON 数据结构。
+
+- **核心功能**: 提供一个基于 Monaco Editor 的 JSON 编辑界面，用于修改 `ChatMessageNode` 的所有属性。
+- **安全更新**: 保存时会进行数据校验，确保不会破坏核心结构。
+- **撤销支持**: 所有通过数据编辑器进行的修改都会被记录到撤销/重做历史中，操作可回滚。
 
 ## 2. 会话区域 UI 架构 (ChatArea)
 
@@ -364,38 +386,54 @@ graph TD
 - **Sync (Engine)**:
   - `useLlmChatSync`: 负责跨窗口的状态同步和操作代理。
 
-## 4. 数据流：发送一条新消息
+## 4. 数据流：发送一条新消息 (统一管道架构)
 
 ```mermaid
-sequenceDiagram
-
-    UI->>InputMgr: 用户输入文本/添加附件
-    UI->>Handler: 用户点击发送，调用 `sendMessage()`
-    Handler->>InputMgr: 获取当前输入文本和附件
-    Handler->>InputMgr: 清空输入框内容
-    Handler->>History: 清空撤销栈 (历史断点)
-    Handler->>NodeMgr: 调用 `createMessagePair()` 创建用户和助手节点
-    NodeMgr-->>Handler: 返回 `userNode` 和 `assistantNode`
-    Handler->>NodeMgr: 调用 `updateActiveLeaf()` 更新活动叶节点
-
-    Handler->>Executor: 调用 `executeRequest()` 委托执行
-    Executor->>Executor: `buildLlmContext()` 构建请求上下文
-    Note right of Executor: 包含预设、档案、附件、截断历史
-
-    Executor->>LlmAPI: 调用 `sendRequest()` 发起流式/非流式请求
-    Note right of LlmAPI: 根据用户设置选择模式
-
-    loop 流式响应阶段
-        LlmAPI-->>Executor: onStream(chunk) 回调
-        Executor->>ResHandler: 调用 `handleStreamUpdate()`
-        ResHandler->>NodeMgr: 更新节点内容 (带节流缓冲)
+graph TD
+    subgraph A [用户交互层]
+        direction LR
+        A1(用户输入文本/附件) --> A2(点击发送)
     end
 
-    LlmAPI-->>Executor: 请求结束，返回最终结果
-    Executor->>ResHandler: 调用 `finalizeNode()`
-    ResHandler->>NodeMgr: 更新最终状态、Usage、转换 Base64
+    subgraph B [useChatHandler - 指挥中心]
+        B1(创建消息节点) --> B2(清空输入框)
+        B2 --> B3(清空撤销栈)
+        B3 --> B4(调用执行器 `executeRequest`)
+    end
 
-    Executor-->>Handler: 执行完成
+    subgraph C [useChatExecutor - 执行器]
+        C1(创建 PipelineContext) --> C2(调用统一管道)
+    end
+
+    subgraph D [UnifiedPipeline - 统一上下文管道]
+        direction TB
+        D1[1. 会话加载器]
+        D2[2. 正则处理器]
+        D3[3. 转写与文本提取器]
+        D4[4. 注入组装器]
+        D5[5. Token 限制器]
+        D6[6. 消息格式化]
+        D7[7. 插件扩展点]
+        D8[8. Base64 资源解析器]
+
+        D1 --> D2 --> D3 --> D4 --> D5 --> D6 --> D7 --> D8
+    end
+
+    subgraph E [LlmAPI - 请求发送]
+        E1(发送流式/非流式请求)
+    end
+
+    subgraph F [useChatResponseHandler - 响应处理]
+        F1(处理流式数据) --> F2(更新节点内容)
+        F2 --> F3(最终化节点状态)
+        F3 --> F4(异步触发上下文压缩)
+    end
+
+    A2 --> B1
+    B4 --> C1
+    C2 --> D
+    D8 --> E1
+    E1 --> F1
 ```
 
 ## 5. 核心逻辑 (Composables)
@@ -408,18 +446,24 @@ sequenceDiagram
 ### 5.2. 对话处理核心
 
 - **`useChatHandler`**: **对话流程的协调者**。负责处理 `sendMessage` 和 `regenerateFromNode` 的完整逻辑，协调各子模块工作。
-- **`useChatExecutor`**: **请求执行器**。封装了核心的 LLM 请求执行逻辑，包括调用 ContextBuilder 构建上下文、调用 LlmRequest 发送请求。
+- **`useChatExecutor`**: **请求执行器**。封装了核心的 LLM 请求执行逻辑，包括调用统一上下文管道构建上下文、调用 LlmRequest 发送请求。
 - **`useChatResponseHandler`**: **响应处理器**。专门负责处理流式数据更新（含节流逻辑）、节点状态终结、Base64 附件转换以及错误处理。
 
-### 5.3. 上下文构建与处理
+### 5.3. 上下文构建 (统一管道)
 
-- **`useChatContextBuilder`**: **上下文构建引擎**。负责从活动路径和智能体配置中构建发送给 LLM 的消息列表。
-- **`useContextInjection`**: **注入策略处理器**。负责解析消息的注入策略（Depth/Anchor），并将它们精准地插入到上下文流的正确位置。
-- **`useContextLimiter`**: **上下文截断器**。负责根据 Token 限制对上下文进行智能截断，保留关键信息。
-- **`useContextCompressor`**: **上下文压缩器**。负责检测压缩触发条件、调用 LLM 生成摘要、创建压缩节点并重构对话树。
+上下文构建由 **统一上下文管道** 的各个处理器协同完成。
+
+- **`useContextPipelineStore`**: **管道的中央管理器**。负责注册、存储、排序和执行所有上下文处理器。
+- **核心处理器 (位于 `core/context-processors/`)**:
+  - **`session-loader`**: **会话加载器**。加载会话历史为中间格式消息（保留附件引用）。
+  - **`regex-processor`**: **正则处理器**。对历史消息应用正则规则。
+  - **`transcription-processor`**: **转写与文本提取器**。对音频/视频/图片转写，并读取文本附件内容，以便后续 Token 计算。
+  - **`injection-assembler`**: **注入组装器**。处理预设、宏、深度注入、锚点注入，并与历史消息组装。
+  - **`token-limiter`**: **Token 限制器**。根据预算截断历史消息（优先保留预设消息）。
+  - **`message-format-processors`**: **消息格式化器组**。负责合并 System 消息、合并连续角色、确保角色交替等。
+  - **`asset-resolver`**: **Base64 资源解析器**。在管道最后一步，将剩余的二进制附件引用转换为最终发送格式。
+- **`useContextCompressor`**: **上下文压缩器**。负责检测压缩触发条件、调用 LLM 生成摘要、创建压缩节点并重构对话树。配置由 Agent 参数驱动。
 - **`useContextPreview`**: **上下文预览器**。提供完整的上下文可视化分析，包括 Token 统计、注入位置和最终请求结构。
-- **`useMessageProcessor`**: **消息后处理管道**。实现可扩展的消息处理规则系统（如合并 System 消息、确保角色交替）。
-- **`useChatAssetProcessor`**: **附件处理器**。负责将 Asset 转换为 LLM 可接受的消息内容（Base64、OpenAI File 等）。
 
 ### 5.4. 正则管道处理
 
@@ -527,8 +571,9 @@ sequenceDiagram
   - `parameters`: (`LlmParameters`) 强大的 LLM 参数配置中心，其核心能力包括：
     - **基础参数**: 支持 `temperature`, `topP`, `maxTokens` 等标准采样参数。
     - **模型思考能力**: 通过 `thinkingEnabled` 和 `thinkingBudget` 等字段，标准化控制 Claude、Gemini 等新模型的原生思考/推理能力。
+    - **上下文压缩**: `contextCompression` 字段，允许按 Agent 独立配置压缩策略。
     - **厂商专属配置**: 支持 `safetySettings` (Gemini)、`claudeMetadata` (Claude) 等特定于模型提供商的精细化设置。
-    - **自定义参数**: `custom` 字段允许用户透传任意非标准的 API 参数，提供了极高的灵活性。
+    - **自定义参数**: `custom` 字段结构已统一为 `{ enabled: boolean, params: Record<string, any> }`，并提供 UI 开关。
     - **高级功能**: 内置 `responseFormat` (强制JSON输出)、`tools` (工具调用)、`contextPostProcessing` (上下文后处理管道) 等高级配置。
   - `category`: 智能体分类（使用 AgentCategory 枚举，如 "assistant", "character"）。
   - `virtualTimeConfig`: 虚拟时间配置（基准时间、流速）。

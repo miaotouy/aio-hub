@@ -12,12 +12,12 @@ LLM Chat 是 AIO Hub 的核心模块之一，提供了强大的插件扩展能�
 
 ```typescript
 import { markRaw } from 'vue';
-import { registerPluginSettings } from '@/tools/llm-chat/composables/usePluginSettings';
+import { registerSettingsSection } from '@/tools/llm-chat/composables/usePluginSettings';
 // 假设你有一个图标组件
 import MyPluginIcon from './icons/MyPluginIcon.vue';
 
 export function activate(context) {
-  registerPluginSettings({
+  registerSettingsSection({
     title: '我的超级插件', // 设置分组的标题
     icon: markRaw(MyPluginIcon), // 设置分组的图标
     items: [
@@ -80,7 +80,7 @@ LLM Chat 使用 Context Pipeline 来处理消息和上下文。插件可以注�
 
 ```typescript
 export function activate(context) {
-  context.chat.registerPostProcessor({
+  context.chat.registerProcessor({
     id: 'my-plugin:add-footer',
     name: '添加页脚',
     description: '在消息末尾添加页脚',

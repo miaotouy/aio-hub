@@ -2417,3 +2417,40 @@ pub async fn update_asset_derived_data(
 
     updated_asset.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
 }
+
+/// 根据 ID 获取单个资产
+#[tauri::command]
+pub async fn get_asset_by_id(
+    app: AppHandle,
+    asset_id: String,
+) -> Result<Option<Asset>, String> {
+    use std::io::{BufRead, BufReader};
+
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    let catalog_path = get_catalog_path(&base_dir)?;
+
+    if !catalog_path.exists() {
+        return Ok(None);
+    }
+
+    let file =
+        fs::File::open(&catalog_path).map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
+        if line_content.trim().is_empty() {
+            continue;
+        }
+        if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
+            if entry.id == asset_id {
+                entry.migrate_if_needed();
+                let asset = convert_entry_to_asset(entry, &base_dir);
+                return Ok(Some(asset));
+            }
+        }
+    }
+
+    Ok(None)
+}

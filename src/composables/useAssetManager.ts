@@ -191,6 +191,13 @@ export const assetManagerEngine = {
   },
 
   /**
+   * 根据 ID 获取单个资产
+   */
+  getAssetById: async (assetId: string): Promise<Asset | null> => {
+    return await invoke<Asset | null>("get_asset_by_id", { assetId });
+  },
+
+  /**
    * 批量完全删除资产（移除所有来源并删除文件）
    * @returns {Promise<string[]>} 返回删除失败的资产 ID 列表
    */
@@ -696,6 +703,7 @@ export function useAssetManager() {
     totalSize,
 
     // 方法 - 直接从 engine 暴露，因为它们是无状态的
+    getAssetById: assetManagerEngine.getAssetById,
     getAssetBasePath: assetManagerEngine.getAssetBasePath,
     convertToAssetProtocol: assetManagerEngine.convertToAssetProtocol,
     getAssetBinary: assetManagerEngine.getAssetBinary,

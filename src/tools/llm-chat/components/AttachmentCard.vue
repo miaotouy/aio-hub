@@ -66,6 +66,25 @@ const {
   addTask,
 } = useTranscriptionManager();
 
+const internalAsset = ref<Asset>(props.asset);
+
+watch(
+  () => props.asset.id,
+  async (newId) => {
+    if (newId) {
+      const latestAsset = await assetManagerEngine.getAssetById(newId);
+      if (latestAsset) {
+        internalAsset.value = latestAsset;
+      } else {
+        // Fallback to prop if fetch fails, but log a warning
+        logger.warn("无法获取最新的资产信息，UI 状态可能不正确", { assetId: newId });
+        internalAsset.value = props.asset;
+      }
+    }
+  },
+  { immediate: true }
+);
+
 const assetUrl = ref<string>("");
 const isLoadingUrl = ref(true);
 const loadError = ref(false);
@@ -113,7 +132,7 @@ const transcriptionContent = ref("");
 // 强制依赖 tasks.length，确保任何任务变动都能触发重新计算
 const transcriptionStatus = computed(() => {
   void tasks.length; // 访问属性以建立依赖
-  return getTranscriptionStatus(props.asset);
+  return getTranscriptionStatus(internalAsset.value);
 });
 
 const isTranscribable = computed(
@@ -140,19 +159,19 @@ const transcriptionStatusText = computed(() => {
 const handleTranscriptionClick = async (e: Event) => {
   e.stopPropagation();
   if (transcriptionStatus.value === "success") {
-    const text = await getTranscriptionText(props.asset);
+    const text = await getTranscriptionText(internalAsset.value);
     transcriptionContent.value = text || "";
     showTranscriptionDialog.value = true;
   } else if (transcriptionStatus.value === "error") {
-    retryTranscription(props.asset);
+    retryTranscription(internalAsset.value);
   } else if (transcriptionStatus.value === "none") {
-    addTask(props.asset);
+    addTask(internalAsset.value);
   }
 };
 
 const handleSaveTranscription = async (content: string) => {
   try {
-    await updateTranscriptionContent(props.asset, content);
+    await updateTranscriptionContent(internalAsset.value, content);
     showTranscriptionDialog.value = false;
     customMessage.success("转写内容已更新");
   } catch (error) {
@@ -161,7 +180,7 @@ const handleSaveTranscription = async (content: string) => {
 };
 
 const handleRegenerateTranscription = () => {
-  retryTranscription(props.asset);
+  retryTranscription(internalAsset.value);
 };
 
 // 加载资产 URL

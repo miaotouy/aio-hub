@@ -653,13 +653,17 @@ export function useTranscriptionManager() {
 
     // 1. 触发所有未开始的任务
     for (const asset of assetsToTranscribe) {
-      const status = getTranscriptionStatus(asset);
+      // 在检查状态前，先获取最新的 Asset 对象，以确保 metadata 是最新的
+      const latestAsset = await assetManagerEngine.getAssetById(asset.id);
+      const assetToCheck = latestAsset || asset; // 如果获取失败，则回退到传入的 asset
+
+      const status = getTranscriptionStatus(assetToCheck);
       if (status === "none" || status === "error") {
         // 如果是 error 状态，自动重试
         if (status === "error") {
-          retryTranscription(asset);
+          retryTranscription(assetToCheck);
         } else {
-          addTask(asset);
+          addTask(assetToCheck);
         }
       }
     }

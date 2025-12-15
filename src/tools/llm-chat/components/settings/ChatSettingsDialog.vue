@@ -37,7 +37,7 @@
             class="navigation-tabs"
           >
             <el-tab-pane
-              v-for="section in settingsConfig"
+              v-for="section in mergedSettingsConfig"
               :key="section.title"
               :label="section.title"
               :name="section.title"
@@ -57,7 +57,7 @@
             :label-width="formLabelWidth"
             :label-position="formLabelPosition"
           >
-            <template v-for="(section, sectionIndex) in settingsConfig" :key="section.title">
+            <template v-for="(section, sectionIndex) in mergedSettingsConfig" :key="section.title">
               <div class="settings-section">
                 <div class="section-title">
                   <el-icon><component :is="section.icon" /></el-icon>
@@ -75,7 +75,7 @@
                   />
                 </template>
               </div>
-              <el-divider v-if="sectionIndex < settingsConfig.length - 1" />
+              <el-divider v-if="sectionIndex < mergedSettingsConfig.length - 1" />
             </template>
           </el-form>
         </div>
@@ -140,10 +140,18 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { settingsConfig } from "./settingsConfig";
+import { getPluginSettingsSections } from "../../composables/usePluginSettings";
+import type { SettingsSection } from "./settings-types";
 
 const logger = createModuleLogger("ChatSettingsDialog");
 const errorHandler = createModuleErrorHandler("ChatSettingsDialog");
 const bus = useWindowSyncBus();
+// 合并静态配置与插件配置
+const mergedSettingsConfig = computed<SettingsSection[]>(() => {
+  const staticConfig = settingsConfig;
+  const pluginSections = getPluginSettingsSections().value;
+  return [...staticConfig, ...pluginSections] as SettingsSection[];
+});
 
 // --- 响应式布局 ---
 const settingsContainerRef = ref<HTMLElement | null>(null);
@@ -375,7 +383,7 @@ const renderHint = (hint: string) => {
 };
 
 const searchIndex = computed<SearchIndexItem[]>(() =>
-  settingsConfig.flatMap((section) =>
+  mergedSettingsConfig.value.flatMap((section) =>
     section.items
       .filter((item) => !item.visible || item.visible(localSettings.value))
       .map((item) => ({
@@ -477,8 +485,8 @@ watch(
     if (visible) {
       saveStatus.value = "idle";
       await loadLocalSettings();
-      if (settingsConfig.length > 0) {
-        activeTab.value = settingsConfig[0].title;
+      if (mergedSettingsConfig.value.length > 0) {
+        activeTab.value = mergedSettingsConfig.value[0].title;
       }
       nextTick(() => {
         addScrollListener();

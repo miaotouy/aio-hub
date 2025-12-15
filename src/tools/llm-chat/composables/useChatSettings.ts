@@ -218,6 +218,8 @@ export interface ChatSettings {
   };
   /** 全局正则管道配置 */
   regexConfig: ChatRegexConfig;
+  /** 插件配置存储 */
+  plugins: Record<string, any>;
 }
 
 /**
@@ -418,6 +420,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     debugModeEnabled: false,
   },
   regexConfig: createDefaultChatRegexConfig(),
+  plugins: {},
 };
 
 /**
@@ -488,6 +491,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       regexConfig: {
         ...defaultConfig.regexConfig,
         ...(loadedConfig.regexConfig || {}),
+      },
+      plugins: {
+        ...defaultConfig.plugins,
+        ...(loadedConfig.plugins || {}),
       },
     };
   },
@@ -590,6 +597,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
         ...(updates.developer || {}),
       },
       regexConfig: updates.regexConfig ?? settings.value.regexConfig,
+      plugins: {
+        ...settings.value.plugins,
+        ...(updates.plugins || {}),
+      },
     };
     await saveSettings();
     logger.info("聊天设置已更新", { updates });

@@ -411,13 +411,22 @@ export class Tokenizer {
 
           // 2. 寻找匹配的闭合反引号（数量必须相同）
           // 注意：内容中可以包含反引号，只要数量不等于 tickCount
+          // 重要：行内代码不应跨越段落边界（连续两个换行符）
           let contentEndIndex = -1;
           let searchIndex = tickCount;
 
-          while (searchIndex < remaining.length) {
+          // 计算搜索边界：在遇到连续两个换行符（段落边界）时停止
+          // 这可以防止未闭合的行内代码"吞噬"后续的块级结构
+          let searchBoundary = remaining.length;
+          const paragraphBreakIndex = remaining.indexOf("\n\n", tickCount);
+          if (paragraphBreakIndex !== -1) {
+            searchBoundary = paragraphBreakIndex;
+          }
+
+          while (searchIndex < searchBoundary) {
             // 查找下一个反引号
             const nextTickIndex = remaining.indexOf("`", searchIndex);
-            if (nextTickIndex === -1) break;
+            if (nextTickIndex === -1 || nextTickIndex >= searchBoundary) break;
 
             // 检查这一组反引号的长度
             let currentTickCount = 0;

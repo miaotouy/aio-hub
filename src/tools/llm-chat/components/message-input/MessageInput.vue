@@ -968,6 +968,34 @@ const handleCompressContext = async () => {
     isCompressing.value = false;
   }
 };
+
+/**
+ * 检查附件是否会使用转写。
+ * 在输入框中，我们不考虑消息深度，只考虑模型能力。
+ */
+const getWillUseTranscription = (asset: Asset): boolean => {
+  let modelId = "";
+  let profileId = "";
+
+  const temporaryModel = inputManager.temporaryModel.value;
+  if (temporaryModel) {
+    modelId = temporaryModel.modelId;
+    profileId = temporaryModel.profileId;
+  } else if (agentStore.currentAgentId) {
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (agent) {
+      modelId = agent.modelId;
+      profileId = agent.profileId;
+    }
+  }
+
+  if (!modelId || !profileId) {
+    return false; // 无法确定模型，假定不使用转写
+  }
+
+  // 使用统一方法计算，输入框不考虑消息深度（传递 undefined）
+  return transcriptionManager.computeWillUseTranscription(asset, modelId, profileId, undefined);
+};
 </script>
 <template>
   <div
@@ -1017,6 +1045,7 @@ const handleCompressContext = async () => {
               :all-assets="attachmentManager.attachments.value"
               :removable="true"
               size="small"
+              :will-use-transcription="getWillUseTranscription(asset)"
               @remove="attachmentManager.removeAttachment"
             />
           </div>

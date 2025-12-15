@@ -8,6 +8,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useAgentStore } from "../../agentStore";
+import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
 import { useUserProfileStore } from "../../userProfileStore";
 import { MacroProcessor } from "../../macro-engine";
 import { processMacros, buildMacroContext } from "../../core/context-utils/macro";
@@ -29,6 +30,7 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
+const { computeWillUseTranscription } = useTranscriptionManager();
 const macroProcessor = new MacroProcessor();
 
 interface Props {
@@ -94,6 +96,38 @@ function getAgentAndUserProfileIds(
 
 // 附件管理器 - 用于编辑模式（使用默认配置）
 const attachmentManager = useAttachmentManager();
+
+const getWillUseTranscription = (asset: Asset) => {
+  const { modelId, profileId } = props.message.metadata || {};
+  
+  // 如果没有模型信息，尝试获取当前 Agent 的配置
+  let finalModelId = modelId;
+  let finalProfileId = profileId;
+  
+  if (!finalModelId || !finalProfileId) {
+    const currentAgentId = agentStore.currentAgentId;
+    if (currentAgentId) {
+      const agentConfig = agentStore.getAgentConfig(currentAgentId);
+      if (agentConfig) {
+        finalModelId = agentConfig.modelId;
+        finalProfileId = agentConfig.profileId;
+      }
+    }
+  }
+
+  // 如果仍然没有模型信息，返回 true（默认需要转写）
+  if (!finalModelId || !finalProfileId) {
+    return true;
+  }
+
+  // 使用统一方法计算
+  return computeWillUseTranscription(
+    asset,
+    finalModelId,
+    finalProfileId,
+    props.messageDepth
+  );
+};
 
 // 是否有附件 - 非编辑模式显示原始附件
 const hasAttachments = computed(() => {
@@ -412,6 +446,7 @@ const containerClasses = computed(() => ({
           :all-assets="message.attachments"
           :removable="false"
           size="large"
+          :will-use-transcription="getWillUseTranscription(attachment)"
           @preview-document="handlePreviewDocument"
         />
       </div>

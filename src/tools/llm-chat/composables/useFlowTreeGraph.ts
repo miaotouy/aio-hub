@@ -90,6 +90,9 @@ interface FlowNode {
     isExpanded?: boolean;
     originalMessageCount?: number;
     originalTokenCount?: number;
+    // 模型和配置 ID（用于转写状态计算）
+    modelId?: string;
+    profileId?: string;
   };
 }
 
@@ -742,6 +745,11 @@ export function useFlowTreeGraph(
         // 新节点、根节点或强制重置：使用 (0, 0)
         initialPosition = { x: 0, y: 0 };
       }
+      // 提取模型和配置 ID（用于转写状态计算）
+      const agentStore = useAgentStore();
+      const agent = node.metadata?.agentId ? agentStore.getAgentById(node.metadata.agentId) : null;
+      const modelId = node.metadata?.modelId || agent?.modelId;
+      const profileId = node.metadata?.profileId || agent?.profileId;
 
       flowNodes.push({
         id: node.id,
@@ -767,6 +775,9 @@ export function useFlowTreeGraph(
           isExpanded,
           originalMessageCount: node.metadata?.originalMessageCount,
           originalTokenCount: node.metadata?.originalTokenCount,
+          // 传递模型和配置 ID
+          modelId,
+          profileId,
         },
       });
     });

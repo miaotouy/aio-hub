@@ -83,6 +83,9 @@ interface NodeData {
   isExpanded?: boolean;
   originalMessageCount?: number;
   originalTokenCount?: number;
+  // 模型和配置 ID
+  modelId?: string;
+  profileId?: string;
 }
 
 interface Props {

@@ -40,6 +40,8 @@ interface Props {
   tokenEstimated?: boolean;
   /** Token 计算错误信息 */
   tokenError?: string;
+  /** 是否将使用转写 */
+  willUseTranscription?: boolean;
 }
 
 interface Emits {
@@ -137,21 +139,49 @@ const transcriptionStatus = computed(() => {
 });
 
 const isTranscribable = computed(
-  () => props.asset.type === "image" || props.asset.type === "audio"
+  () => props.asset.type === "image" || props.asset.type === "audio" || props.asset.type === "video"
 );
 
+// 判断当前模型是否需要使用转写（模型不支持该媒体类型时需要转写）
+// 优先使用 prop，如果未提供则为 undefined
+const willUseTranscription = computed(() => props.willUseTranscription);
+
 const transcriptionStatusText = computed(() => {
-  switch (transcriptionStatus.value) {
+  const status = transcriptionStatus.value;
+  const willUse = willUseTranscription.value;
+
+  // 如果父组件未提供 willUseTranscription 信息，则显示通用提示
+  if (willUse === undefined) {
+    switch (status) {
+      case "pending":
+        return "等待转写...";
+      case "processing":
+        return "正在转写...";
+      case "success":
+        return "转写完成 (点击查看/编辑)";
+      case "error":
+        return "转写失败 (点击重试)";
+      case "none":
+        return "点击开始转写";
+      default:
+        return "";
+    }
+  }
+
+  // 父组件提供了 willUseTranscription 信息
+  switch (status) {
     case "pending":
       return "等待转写...";
     case "processing":
       return "正在转写...";
     case "success":
-      return "转写完成 (点击查看/编辑)";
+      return willUse
+        ? "转写完成，将作为文本发送 (点击查看/编辑)"
+        : "已有转写，但当前模型支持直接处理 (点击查看/编辑)";
     case "error":
       return "转写失败 (点击重试)";
     case "none":
-      return "点击开始转写";
+      return willUse ? "需要转写，点击开始" : "当前模型支持直接处理，无需转写";
     default:
       return "";
   }
@@ -445,7 +475,7 @@ onUnmounted(() => {
               <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
                 <div
                   class="transcription-status-icon bar-mode"
-                  :class="transcriptionStatus"
+                  :class="[transcriptionStatus, { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription }]"
                   @click="handleTranscriptionClick"
                 >
                   <Loader2
@@ -530,7 +560,7 @@ onUnmounted(() => {
         <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
           <div
             class="transcription-action-btn"
-            :class="transcriptionStatus"
+            :class="[transcriptionStatus, { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription }]"
             @click="handleTranscriptionClick"
           >
             <!-- Success: 文档图标 -->
@@ -1148,8 +1178,14 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
-.transcription-status-icon.success {
+/* 转写状态颜色 - 根据是否会使用转写来区分 */
+.transcription-status-icon.success.will-use {
   color: var(--el-color-success);
+}
+
+.transcription-status-icon.success.wont-use {
+  color: var(--el-color-info);
+  opacity: 0.6;
 }
 
 .transcription-status-icon.error {
@@ -1159,6 +1195,18 @@ onUnmounted(() => {
 .transcription-status-icon.processing,
 .transcription-status-icon.pending {
   color: var(--el-color-warning);
+}
+
+/* None 状态 - 根据是否需要转写区分 */
+.transcription-status-icon.none.will-use .icon-none {
+  opacity: 0.7;
+  color: var(--el-color-warning);
+}
+
+.transcription-status-icon.none.wont-use .icon-none {
+  opacity: 0.3;
+  color: var(--el-color-info);
+  cursor: default;
 }
 
 /* 方形模式下的转写进度条 */
@@ -1222,10 +1270,16 @@ onUnmounted(() => {
   height: 12px;
 }
 
-/* 状态颜色 */
-.transcription-action-btn.success {
+/* 状态颜色 - 根据是否会使用转写来区分 */
+.transcription-action-btn.success.will-use {
   color: #67c23a;
   opacity: 1; /* 完成状态常驻显示 */
+  transform: scale(1);
+}
+
+.transcription-action-btn.success.wont-use {
+  color: var(--el-color-info);
+  opacity: 0.5; /* 已有但不会用，降低显眼度 */
   transform: scale(1);
 }
 
@@ -1236,9 +1290,16 @@ onUnmounted(() => {
 }
 
 /* None 状态仅 hover 显示 */
-.attachment-card:hover .transcription-action-btn.none {
+.attachment-card:hover .transcription-action-btn.none.will-use {
   opacity: 1;
   transform: scale(1);
+  color: var(--el-color-warning); /* 需要转写时用警告色提示 */
+}
+
+.attachment-card:hover .transcription-action-btn.none.wont-use {
+  opacity: 0.5;
+  transform: scale(1);
+  color: var(--el-color-info); /* 不需要时灰显 */
 }
 
 /* Processing 状态下隐藏按钮 */

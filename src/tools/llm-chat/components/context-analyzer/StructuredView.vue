@@ -217,6 +217,7 @@
                 :token-error="att.error"
                 :removable="false"
                 size="large"
+                :will-use-transcription="getWillUseTranscription(att)"
               />
             </div>
           </div>
@@ -240,6 +241,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useUserProfileStore } from "../../userProfileStore";
+import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
@@ -248,6 +250,7 @@ const props = defineProps<{
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
 const { getModelIcon, getModelProperty } = useModelMetadata();
+const { computeWillUseTranscription } = useTranscriptionManager();
 
 const agentProfile = computed(() => {
   if (!props.contextData.agentInfo.profileId) return undefined;
@@ -573,6 +576,27 @@ function getDisplayContent(content: string | LlmMessageContent[]): string {
 // 辅助函数：解决 template 中直接使用 as unknown as 导致的高亮错乱问题
 const castToAsset = (val: any): Asset => val as Asset;
 const castToAssetArray = (val: any): Asset[] => val as Asset[];
+
+/**
+ * 计算附件是否会使用转写
+ * 在上下文分析器中，我们使用当前 Agent 的模型信息
+ */
+const getWillUseTranscription = (asset: any): boolean => {
+  // 确保 asset 有必要的字段
+  if (!asset || typeof asset !== 'object') {
+    return true; // 无效资产，默认需要转写
+  }
+
+  const { modelId, profileId } = props.contextData.agentInfo;
+  if (!modelId || !profileId) {
+    return true; // 如果没有模型信息，默认需要转写
+  }
+
+  // 使用类型断言，因为上下文预览数据中的附件对象可能缺少某些字段
+  // 但 computeWillUseTranscription 只需要 type、id、path 等基本字段
+  // 这些字段在预览数据中应该都存在
+  return computeWillUseTranscription(asset as Asset, modelId, profileId, undefined);
+};
 </script>
 
 <style scoped>

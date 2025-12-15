@@ -585,9 +585,10 @@ export function useTranscriptionManager() {
   };
 
   /**
-   * 检查附件是否需要转写
+   * 检查附件是否需要转写（基于模型能力，不考虑消息深度）
    * @param asset 资产对象
    * @param modelId 当前使用的模型 ID
+   * @param profileId 配置文件 ID
    */
   const checkTranscriptionNecessity = (asset: Asset, modelId: string, profileId: string): boolean => {
     const config = settings.value.transcription;
@@ -595,10 +596,10 @@ export function useTranscriptionManager() {
 
     // 1. Always 策略：总是转写（只要是支持的类型）
     if (config.strategy === "always") {
-      return asset.type === "image" || asset.type === "audio";
+      return asset.type === "image" || asset.type === "audio" || asset.type === "video";
     }
 
-    // 3. Smart 策略：根据模型能力判断
+    // 2. Smart 策略：根据模型能力判断
     if (config.strategy === "smart") {
       const profile = getProfileById(profileId);
       const model = profile?.models.find((m) => m.id === modelId);
@@ -628,6 +629,50 @@ export function useTranscriptionManager() {
     }
 
     return false;
+  };
+
+  /**
+   * 计算附件在发送时是否会使用转写结果
+   * 这是一个统一的方法，综合考虑：
+   * 1. 模型能力（通过 checkTranscriptionNecessity）
+   * 2. 消息深度和强制转写设置（forceTranscriptionAfter）
+   *
+   * @param asset 资产对象
+   * @param modelId 模型 ID
+   * @param profileId 配置文件 ID
+   * @param messageDepth 消息深度（可选，0 表示最新消息，未提供则不考虑深度）
+   * @returns true 表示发送时会使用转写结果，false 表示会使用原始媒体
+   */
+  const computeWillUseTranscription = (
+    asset: Asset,
+    modelId: string,
+    profileId: string,
+    messageDepth?: number
+  ): boolean => {
+    const config = settings.value.transcription;
+
+    // 如果转写功能未启用，永远不会使用转写
+    if (!config.enabled) return false;
+
+    // 检查资产类型是否支持转写
+    if (asset.type !== "image" && asset.type !== "audio" && asset.type !== "video") {
+      return false;
+    }
+
+    // 1. 检查消息深度是否触发强制转写
+    if (
+      config.strategy === "smart" &&
+      messageDepth !== undefined &&
+      config.forceTranscriptionAfter > 0 &&
+      messageDepth >= config.forceTranscriptionAfter
+    ) {
+      // 强制转写：无论模型是否支持，都会使用转写
+      return true;
+    }
+
+    // 2. 检查模型能力
+    // 如果模型不支持该媒体类型，则需要使用转写
+    return checkTranscriptionNecessity(asset, modelId, profileId);
   };
 
   /**
@@ -754,6 +799,7 @@ export function useTranscriptionManager() {
     getTranscriptionStatus,
     getTranscriptionText,
     checkTranscriptionNecessity,
+    computeWillUseTranscription,
     ensureTranscriptions,
   };
 }

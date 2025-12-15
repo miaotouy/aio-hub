@@ -99,6 +99,7 @@
         size="extra-large"
         :removable="false"
         :all-assets="data.attachments"
+        :will-use-transcription="getWillUseTranscription(asset)"
         class="mini-attachment-card"
       />
     </div>
@@ -127,6 +128,7 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import type { Asset } from "@/types/asset-management";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
 import { customMessage } from "@/utils/customMessage";
 import { formatRelativeTime } from "@/utils/time";
 
@@ -156,6 +158,9 @@ interface NodeData {
   isExpanded?: boolean;
   originalMessageCount?: number;
   originalTokenCount?: number;
+  // 模型和配置 ID
+  modelId?: string;
+  profileId?: string;
 }
 
 interface Props {
@@ -170,6 +175,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const { settings } = useChatSettings();
+const { computeWillUseTranscription } = useTranscriptionManager();
 
 // 错误信息复制状态
 const errorCopied = ref(false);
@@ -195,6 +201,16 @@ const formatTokens = (tokens: { total: number; prompt?: number; completion?: num
 const truncateError = (error: string, maxLength: number = 100): string => {
   if (error.length <= maxLength) return error;
   return error.substring(0, maxLength) + "...";
+};
+
+// 判断附件是否会使用转写
+const getWillUseTranscription = (asset: Asset): boolean | undefined => {
+  const { modelId, profileId } = props.data;
+  if (!modelId || !profileId) {
+    return undefined; // 如果没有模型信息，则无法确定
+  }
+  // 注意：对话树图中的节点没有明确的“深度”概念，因此我们不传递 messageDepth
+  return computeWillUseTranscription(asset, modelId, profileId);
 };
 
 // 复制错误信息

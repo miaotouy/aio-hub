@@ -214,7 +214,7 @@ export function useChatHandler() {
             options.attachments,
             agentConfig.modelId,
             agentConfig.profileId,
-            new Set<string>(), // 当前消息的附件深度为0，不强制转写
+            // 当前消息的附件深度为0，不需要强制转写，传 undefined 即可
           ),
           new Promise((_, reject) => {
             transcriptionController.signal.addEventListener("abort", () => {

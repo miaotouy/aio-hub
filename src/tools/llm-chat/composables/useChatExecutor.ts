@@ -772,14 +772,37 @@ export function useChatExecutor() {
 
     if (allAttachments.length > 0) {
       try {
+        // 计算需要强制转写的附件（基于消息深度）——与 executeRequest 保持一致
+        const forceAssetIds = new Set<string>();
+        const config = settings.value.transcription;
+        
+        // 只有在智能模式下且设置了强制转写阈值时才计算
+        if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
+          for (let i = 0; i < pathToUserNode.length; i++) {
+            const node = pathToUserNode[i];
+            const nodeDepth = pathToUserNode.length - 1 - i;
+            
+            if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
+              for (const asset of node.attachments) {
+                if (asset.type === "image" || asset.type === "audio" || asset.type === "video") {
+                  forceAssetIds.add(asset.id);
+                }
+              }
+            }
+          }
+        }
+
         const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
           allAttachments,
           agentConfigSnippet.modelId,
           agentConfigSnippet.profileId,
-          new Set<string>() // 预览模式不考虑强制转写
+          forceAssetIds.size > 0 ? forceAssetIds : undefined
         );
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
-        logger.debug("预览模式转写预处理完成", { assetCount: updatedAssetsMap.size });
+        logger.debug("预览模式转写预处理完成", {
+          assetCount: updatedAssetsMap.size,
+          forcedCount: forceAssetIds.size
+        });
       } catch (error) {
         logger.warn("预览模式等待转写任务完成时出错或超时", error);
         // 即使超时，也要初始化映射

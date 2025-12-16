@@ -146,6 +146,13 @@ const isTranscribable = computed(
 // 优先使用 prop，如果未提供则为 undefined
 const willUseTranscription = computed(() => props.willUseTranscription);
 
+// 判断是否为硬错误（真正的错误 vs 有转写可用的提示）
+const isHardTokenError = computed(() => {
+  if (!props.tokenError) return false;
+  // 如果错误信息包含"转写内容可用"，则不是硬错误
+  return !props.tokenError.includes("转写内容可用");
+});
+
 const transcriptionStatusText = computed(() => {
   const status = transcriptionStatus.value;
   const willUse = willUseTranscription.value;
@@ -462,7 +469,9 @@ onUnmounted(() => {
             <template v-if="tokenError || tokenCount !== undefined">
               <span class="bar-meta-divider">·</span>
               <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
-                <span class="bar-token-tag error"> Token 错误 </span>
+                <span class="bar-token-tag" :class="isHardTokenError ? 'error' : 'warning'">
+                  {{ isHardTokenError ? 'Token 错误' : 'Token 未知' }}
+                </span>
               </el-tooltip>
               <span v-else class="bar-token-tag" :class="{ estimated: tokenEstimated }">
                 {{ tokenCount!.toLocaleString() }} tokens
@@ -534,7 +543,9 @@ onUnmounted(() => {
         <!-- Token 信息标签（方形布局专用） -->
         <div v-if="!isBarLayout && (tokenError || tokenCount !== undefined)" class="token-badge">
           <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
-            <span class="token-tag error"> Token 错误 </span>
+            <span class="token-tag" :class="isHardTokenError ? 'error' : 'warning'">
+              {{ isHardTokenError ? 'Token 错误' : '?' }}
+            </span>
           </el-tooltip>
           <span v-else class="token-tag" :class="{ estimated: tokenEstimated }">
             {{ tokenCount!.toLocaleString() }}
@@ -1036,6 +1047,11 @@ onUnmounted(() => {
   background: var(--el-color-danger-light-9);
 }
 
+.bar-token-tag.warning {
+  color: var(--el-color-warning);
+  background: var(--el-color-warning-light-9);
+}
+
 .spinner-small {
   width: 16px;
   height: 16px;
@@ -1138,6 +1154,10 @@ onUnmounted(() => {
 
 .token-tag.error {
   color: #f56c6c;
+}
+
+.token-tag.warning {
+  color: #e6a23c;
 }
 
 .bar-file-ext {

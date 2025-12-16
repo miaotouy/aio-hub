@@ -5,6 +5,8 @@ import { getMatchedModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { resolveAttachmentContent } from "./attachment-resolver";
 import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
+import { useChatSettings } from "../../composables/useChatSettings";
 import type { Asset } from "@/types/asset-management";
 import type { ProcessableMessage } from "../../types/context";
 
@@ -35,6 +37,24 @@ export async function buildPreviewDataFromContext(
     ? getMatchedModelProperties(agentConfig.modelId)
     : undefined;
   const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
+
+  // 获取转写设置
+  const { settings } = useChatSettings();
+  const transcriptionConfig = settings.value.transcription;
+
+  // 计算每条消息的深度映射（用于判断强制转写）
+  // 深度 = 总消息数 - 1 - 当前索引（最后一条消息深度为 0）
+  const messageDepthMap = new Map<string | number, number>();
+  
+  // 找出所有会话历史消息，按顺序计算深度
+  const historyMessages = messages.filter(m => m.sourceType === "session_history");
+  const totalHistoryCount = historyMessages.length;
+  historyMessages.forEach((msg, idx) => {
+    const depth = totalHistoryCount - 1 - idx;
+    if (msg.sourceId !== undefined) {
+      messageDepthMap.set(msg.sourceId, depth);
+    }
+  });
 
   // 递归处理消息函数
   const processMessage = async (msg: ProcessableMessage) => {
@@ -133,6 +153,9 @@ export async function buildPreviewDataFromContext(
       let combinedText = sourceNode.content;
       const mediaAttachments: Asset[] = [];
 
+      // 获取当前消息的深度
+      const currentMessageDepth = messageDepthMap.get(msg.sourceId as string) ?? 0;
+
       if (sourceNode.attachments && sourceNode.attachments.length > 0) {
         for (const asset of sourceNode.attachments) {
           // 关键修复：在解析前获取最新的 Asset 对象，确保能拿到转写结果
@@ -143,6 +166,7 @@ export async function buildPreviewDataFromContext(
             assetToProcess,
             agentConfig.modelId,
             agentConfig.profileId,
+            { messageDepth: currentMessageDepth }
           );
 
           if (result.type === "text" && result.content) {
@@ -172,13 +196,36 @@ export async function buildPreviewDataFromContext(
         [];
       let attachmentsTokenCount = 0;
       let attachmentsIsEstimated = false;
+      const transcriptionManager = useTranscriptionManager();
 
       for (const asset of mediaAttachments) {
         let tokenCount: number | undefined;
         let isAttachmentEstimated = false;
         let error: string | undefined;
 
-        if (asset.type === "image") {
+        // 检查附件是否已有转写
+        const hasTranscription = transcriptionManager.getTranscriptionStatus(asset) === "success";
+        
+        // 检查附件是否会因为消息深度被强制转写
+        // 这意味着即使模型支持，也会使用转写内容
+        const willForceTranscribe =
+          transcriptionConfig.enabled &&
+          transcriptionConfig.strategy === "smart" &&
+          transcriptionConfig.forceTranscriptionAfter > 0 &&
+          currentMessageDepth >= transcriptionConfig.forceTranscriptionAfter &&
+          (asset.type === "image" || asset.type === "audio" || asset.type === "video");
+
+        // 如果附件会被强制转写，但还没有转写内容，显示提示信息
+        if (willForceTranscribe) {
+          if (hasTranscription) {
+            // 有转写，但由于某些原因（例如 resolveAttachmentContent 返回 media）没有被使用
+            // 这是一个异常情况，理论上不应该发生
+            error = "此附件因消息深度将使用转写，但转写未被正确应用";
+          } else {
+            error = "此附件因消息深度将被强制转写，但尚无转写内容";
+          }
+          isAttachmentEstimated = true;
+        } else if (asset.type === "image") {
           if (visionTokenCost) {
             if (asset.metadata?.width && asset.metadata?.height) {
               try {
@@ -201,7 +248,12 @@ export async function buildPreviewDataFromContext(
               isAttachmentEstimated = true;
             }
           } else {
-            error = "模型不支持视觉能力或计费规则未知";
+            // 模型不支持视觉能力，但如果有转写就不显示硬错误
+            if (hasTranscription) {
+              error = "模型不支持直接处理此媒体，但已有转写内容可用";
+            } else {
+              error = "模型不支持视觉能力或计费规则未知";
+            }
             isAttachmentEstimated = true;
           }
         } else if (asset.type === "video") {
@@ -215,7 +267,11 @@ export async function buildPreviewDataFromContext(
               isAttachmentEstimated = true;
             }
           } else {
-            error = "缺少视频时长信息，无法计算";
+            if (hasTranscription) {
+              error = "缺少视频时长信息，但已有转写内容可用";
+            } else {
+              error = "缺少视频时长信息，无法计算";
+            }
             isAttachmentEstimated = true;
           }
         } else if (asset.type === "audio") {
@@ -229,7 +285,11 @@ export async function buildPreviewDataFromContext(
               isAttachmentEstimated = true;
             }
           } else {
-            error = "缺少音频时长信息，无法计算";
+            if (hasTranscription) {
+              error = "缺少音频时长信息，但已有转写内容可用";
+            } else {
+              error = "缺少音频时长信息，无法计算";
+            }
             isAttachmentEstimated = true;
           }
         } else {
@@ -254,6 +314,7 @@ export async function buildPreviewDataFromContext(
           error,
         });
       }
+
 
       const totalNodeTokenCount = textTokenCount + attachmentsTokenCount;
       if (textIsEstimated || attachmentsIsEstimated) isEstimated = true;

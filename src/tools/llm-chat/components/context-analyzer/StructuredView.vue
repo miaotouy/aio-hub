@@ -217,7 +217,7 @@
                 :token-error="att.error"
                 :removable="false"
                 size="large"
-                :will-use-transcription="getWillUseTranscription(att)"
+                :will-use-transcription="getWillUseTranscription(att, msg.messageDepth)"
               />
             </div>
           </div>
@@ -346,6 +346,8 @@ interface UnifiedMessage {
   // 附件（仅会话历史）
   attachments?: ContextPreviewData["chatHistory"][number]["attachments"];
   _mergedSources?: any[];
+  // 消息深度（用于判断强制转写）
+  messageDepth?: number;
 }
 
 /**
@@ -362,6 +364,15 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
   // 建立历史消息索引 (nodeId -> history)
   const historyMap = new Map<string, (typeof chatHistory)[number]>();
   chatHistory.forEach((h) => historyMap.set(h.nodeId, h));
+
+  // 计算会话历史消息的深度映射
+  // 深度 = 总消息数 - 1 - 当前索引（最后一条消息深度为 0）
+  const historyDepthMap = new Map<string, number>();
+  const totalHistoryCount = chatHistory.length;
+  chatHistory.forEach((h, idx) => {
+    const depth = totalHistoryCount - 1 - idx;
+    historyDepthMap.set(h.nodeId, depth);
+  });
 
   return finalMessages.map((finalMsg, i: number) => {
     // 基础信息
@@ -481,6 +492,7 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           agentName: history.agentName,
           agentIcon: history.agentIcon,
           attachments: history.attachments,
+          messageDepth: historyDepthMap.get(history.nodeId),
         };
       }
     } else if (
@@ -580,8 +592,10 @@ const castToAssetArray = (val: any): Asset[] => val as Asset[];
 /**
  * 计算附件是否会使用转写
  * 在上下文分析器中，我们使用当前 Agent 的模型信息
+ * @param asset 附件对象
+ * @param messageDepth 消息深度（用于判断是否触发强制转写）
  */
-const getWillUseTranscription = (asset: any): boolean => {
+const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => {
   // 确保 asset 有必要的字段
   if (!asset || typeof asset !== 'object') {
     return true; // 无效资产，默认需要转写
@@ -595,7 +609,7 @@ const getWillUseTranscription = (asset: any): boolean => {
   // 使用类型断言，因为上下文预览数据中的附件对象可能缺少某些字段
   // 但 computeWillUseTranscription 只需要 type、id、path 等基本字段
   // 这些字段在预览数据中应该都存在
-  return computeWillUseTranscription(asset as Asset, modelId, profileId, undefined);
+  return computeWillUseTranscription(asset as Asset, modelId, profileId, messageDepth);
 };
 </script>
 

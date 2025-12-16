@@ -19,16 +19,19 @@ export interface ResolvedAttachment {
 /**
  * 解析附件内容
  * 尝试将附件解析为文本（读取文本文件或获取转写内容），如果无法解析为文本则返回媒体类型
- * 
+ *
  * @param asset 资产对象
  * @param modelId 当前模型 ID
  * @param profileId 当前配置 ID
+ * @param options 选项
+ * @param options.force 强制使用转写
+ * @param options.messageDepth 消息深度（用于判断是否触发强制转写）
  */
 export async function resolveAttachmentContent(
   asset: Asset,
   modelId: string,
   profileId: string,
-  options: { force?: boolean } = {}
+  options: { force?: boolean; messageDepth?: number } = {}
 ): Promise<ResolvedAttachment> {
   const transcriptionManager = useTranscriptionManager();
 
@@ -69,10 +72,12 @@ export async function resolveAttachmentContent(
     }
 
     // 2. 检查是否需要转写 (针对 Image/Audio/Video)
-    let shouldTranscribe = transcriptionManager.checkTranscriptionNecessity(
+    // 使用 computeWillUseTranscription，它同时考虑模型能力和消息深度
+    let shouldTranscribe = transcriptionManager.computeWillUseTranscription(
       asset,
       modelId,
-      profileId
+      profileId,
+      options.messageDepth
     );
 
     // 如果外部强制要求，则覆盖判断

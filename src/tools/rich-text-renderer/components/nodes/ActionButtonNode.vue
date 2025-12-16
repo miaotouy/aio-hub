@@ -39,6 +39,9 @@ const handleClick = async () => {
       break;
     case "copy":
       await copy();
+      if (copied.value) {
+        customMessage.success("已复制到剪贴板");
+      }
       break;
   }
 };
@@ -58,7 +61,7 @@ const titleMap = {
 
 <template>
   <button
-    :class="{ 'action-button': !props.style, [`action-${props.action}`]: !props.style }"
+    :class="['hover-effect', { 'action-button': !props.style, [`action-${props.action}`]: !props.style }]"
     :style="props.style"
     :title="titleMap[props.action]"
     @click="handleClick"
@@ -79,6 +82,16 @@ const titleMap = {
 </template>
 
 <style scoped>
+.hover-effect {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+
+.hover-effect:hover {
+  transform: translateY(-2px);
+  z-index: 1;
+}
+
 .action-button {
   display: inline-flex;
   align-items: center;
@@ -96,6 +109,6 @@ const titleMap = {
   vertical-align: middle;
 }
 .action-button:hover {
-  border: 2px solid var(--primary-color);
+  border: 1px solid var(--primary-color);
 }
 </style>

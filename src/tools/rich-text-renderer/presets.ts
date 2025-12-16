@@ -21,6 +21,7 @@ import { htmlGameSnakePreset } from './presets/html-game-snake';
 import { indentedCodePreset } from './presets/indented-code';
 import { htmlNewlineTestPreset } from './presets/html-newline-test';
 import { mathjaxTestPreset } from './presets/mathjax-test';
+import { actionButtonTestPreset } from './presets/action-button-test';
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -45,4 +46,5 @@ export const presets: RenderPreset[] = [
   htmlGameSnakePreset,
   indentedCodePreset,
   htmlNewlineTestPreset,
+  actionButtonTestPreset,
 ];

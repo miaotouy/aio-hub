@@ -582,6 +582,11 @@ pub async fn import_asset_from_path(
                 })?;
             }
 
+            // 即使是重复资产，也需要发出事件（用于触发自动转写等功能）
+            if let Err(e) = app.emit("asset-imported", &existing_asset) {
+                log::error!("发出 asset-imported 事件失败 (重复资产): {}", e);
+            }
+
             return Ok(existing_asset);
         }
 
@@ -675,6 +680,11 @@ pub async fn import_asset_from_path(
         log::error!("更新 Catalog 索引失败: {}", e);
     }
 
+    // 发出 asset-imported 事件，通知前端（用于自动转写等功能）
+    if let Err(e) = app.emit("asset-imported", &asset) {
+        log::error!("发出 asset-imported 事件失败: {}", e);
+    }
+
     Ok(asset)
 }
 
@@ -726,6 +736,11 @@ pub async fn import_asset_from_bytes(
                         entry.origins.push(new_origin.clone());
                     }
                 })?;
+            }
+
+            // 即使是重复资产，也需要发出事件（用于触发自动转写等功能）
+            if let Err(e) = app.emit("asset-imported", &existing_asset) {
+                log::error!("发出 asset-imported 事件失败 (重复资产): {}", e);
             }
 
             return Ok(existing_asset);
@@ -815,6 +830,11 @@ pub async fn import_asset_from_bytes(
     let catalog_entry = convert_asset_to_catalog_entry(&asset);
     if let Err(e) = append_to_catalog(&base_dir, &catalog_entry) {
         log::error!("更新 Catalog 索引失败: {}", e);
+    }
+
+    // 发出 asset-imported 事件，通知前端（用于自动转写等功能）
+    if let Err(e) = app.emit("asset-imported", &asset) {
+        log::error!("发出 asset-imported 事件失败: {}", e);
     }
 
     Ok(asset)

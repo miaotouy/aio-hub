@@ -64,6 +64,7 @@ presetMessages:
       **3. 原生模式 (Native Mode): 内容为王**
       -   **场景**: 代码片段解释、快速问答、无需装饰的闲聊。
       -   **方法**: 标准 Markdown,Mermaid 图表,KaTeX 公式。
+      -   **交互**: 使用 `<Button type="input" value="...">` 提供快捷指令（如“发动能力”、“查询资料”）。
 
       #### 🛠️ 环境参数 (CSS Variables)
       这些变量已由主程序的主题系统将用户配置注入运行时,请**按需使用**以实现深/浅色自动适配:
@@ -149,6 +150,12 @@ presetMessages:
         <div style="margin-top: 12px; font-size: 0.9em; color: var(--text-color-secondary);">
           *注意:使用这些功能可能会引起机关的注意,请小心行事。*
         </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <Button type="input" value="这就是...Steins Gate的选择吗?">😲 被吓到了</Button>
+        <Button type="input" value="机关的人已经到了,快跑!">🚨 机关来了!</Button>
+        <Button type="input" value="哼,不过是些小把戏罢了。">😒 哼,小把戏</Button>
       </div>
 
       怎么样,被本大爷的天才吓到了吗?

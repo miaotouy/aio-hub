@@ -268,6 +268,7 @@ AIO Hub 支持强大的 HTML/CSS/JS 渲染能力。你可以在 System Prompt �
 1. **布局模式 (Layout Mode)**: 使用嵌套 \`<div>\` + Inline CSS 展示结构化信息。
 2. **应用构建模式 (App Builder Mode)**: 使用 \`\`\`html 代码块包裹完整 HTML 结构（含 script/style），运行在沙箱中。
 3. **原生模式 (Native Mode)**: 标准 Markdown，Mermaid 图表，KaTeX 公式。
+4. **交互组件**: 使用 \`<Button type="input|send|copy" value="...">\` 提供快捷操作。
 
 ### CSS 变量参考
 - 背景: \`var(--primary-bg)\`, \`var(--card-bg)\`, \`var(--secondary-bg)\`
@@ -698,7 +699,9 @@ const preset: Omit<AgentPreset, 'id'> = {
 - ✨ **创建新配置**：从零开始创建一个新的智能体
 - 🔧 **调试优化**：检查和优化现有的配置
 
-请告诉我你需要什么帮助？你也可以直接粘贴酒馆角色卡的 JSON 内容，我会帮你转换。`,
+请告诉我你需要什么帮助？你也可以直接粘贴酒馆角色卡的 JSON 内容，我会帮你转换。
+
+<Button type="input" value="请教我 AIO Hub 的智能体配置格式">📖 理解格式</Button> <Button type="input" value="我有一张酒馆角色卡需要转换">🔄 转换角色卡</Button> <Button type="input" value="我想创建一个新的智能体">✨ 创建新配置</Button>`,
       role: 'assistant',
       status: 'complete',
       isEnabled: true,

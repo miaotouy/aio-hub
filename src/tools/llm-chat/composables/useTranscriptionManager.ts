@@ -12,6 +12,8 @@ import { useAgentStore } from "../agentStore";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import type { Asset, DerivedDataInfo } from "@/types/asset-management";
 import type { LlmRequestOptions, LlmMessageContent } from "@/llm-apis/common";
+import type { ModelCapabilities } from "@/types/llm-profiles";
+import { convertPdfToImages } from "@/utils/pdfUtils";
 
 const logger = createModuleLogger("useTranscriptionManager");
 const errorHandler = createModuleErrorHandler("useTranscriptionManager");
@@ -19,7 +21,7 @@ const errorHandler = createModuleErrorHandler("useTranscriptionManager");
 export interface TranscriptionTask {
   id: string;
   assetId: string;
-  assetType: "image" | "audio" | "video";
+  assetType: "image" | "audio" | "video" | "document";
   path: string; // Asset relative path
   status: "pending" | "processing" | "completed" | "error";
   error?: string;
@@ -52,7 +54,7 @@ export function useTranscriptionManager() {
     logger.info("正在初始化转写管理器...", {
       enabled: settings.value.transcription.enabled,
       autoStart: settings.value.transcription.autoStartOnImport,
-      strategy: settings.value.transcription.strategy
+      strategy: settings.value.transcription.strategy,
     });
 
     try {
@@ -64,7 +66,7 @@ export function useTranscriptionManager() {
           assetId: asset.id,
           type: asset.type,
           enabled: config.enabled,
-          autoStart: config.autoStartOnImport
+          autoStart: config.autoStartOnImport,
         });
 
         if (!config.enabled || !config.autoStartOnImport) {
@@ -102,7 +104,7 @@ export function useTranscriptionManager() {
           alreadyTranscribed,
           status: currentStatus,
           modelId,
-          profileId
+          profileId,
         });
 
         if (necessary) {
@@ -132,7 +134,13 @@ export function useTranscriptionManager() {
     }
 
     // 检查类型支持
-    if (asset.type !== "image" && asset.type !== "audio" && asset.type !== "video") {
+    const isSupportedType =
+      asset.type === "image" ||
+      asset.type === "audio" ||
+      asset.type === "video" ||
+      (asset.type === "document" && asset.mimeType === "application/pdf");
+
+    if (!isSupportedType) {
       logger.debug("不支持的资产类型，跳过转写", { assetId: asset.id, type: asset.type });
       return;
     }
@@ -140,7 +148,7 @@ export function useTranscriptionManager() {
     const task: TranscriptionTask = {
       id: crypto.randomUUID(),
       assetId: asset.id,
-      assetType: asset.type as "image" | "audio" | "video",
+      assetType: asset.type as "image" | "audio" | "video" | "document",
       path: asset.path,
       status: "pending",
       retryCount: 0,
@@ -235,6 +243,12 @@ export function useTranscriptionManager() {
         prompt = config.video.customPrompt || prompt;
         temperature = config.video.temperature ?? temperature;
         maxTokens = config.video.maxTokens ?? maxTokens;
+      } else if (task.assetType === "document") {
+        // 假设 PDF 使用与图片相同的配置
+        modelIdentifier = config.image.modelIdentifier || modelIdentifier;
+        prompt = config.image.customPrompt || prompt;
+        temperature = config.image.temperature ?? temperature;
+        maxTokens = config.image.maxTokens ?? maxTokens;
       }
     }
 
@@ -254,7 +268,7 @@ export function useTranscriptionManager() {
         try {
           // 验证文件是否存在
           const basePath = await assetManagerEngine.getAssetBasePath();
-          const tempFullPath = `${basePath}/${task.tempFilePath}`.replace(/\\/g, '/');
+          const tempFullPath = `${basePath}/${task.tempFilePath}`.replace(/\\/g, "/");
           await stat(tempFullPath);
           finalPath = task.tempFilePath;
           reuseTempFile = true;
@@ -271,7 +285,7 @@ export function useTranscriptionManager() {
 
         // 获取文件信息
         const basePath = await assetManagerEngine.getAssetBasePath();
-        const fullPath = `${basePath}/${assetPath}`.replace(/\\/g, '/');
+        const fullPath = `${basePath}/${assetPath}`.replace(/\\/g, "/");
 
         let shouldCompress = false;
         // 只有在启用了压缩且配置了 FFmpeg 路径时才进行检查
@@ -286,7 +300,9 @@ export function useTranscriptionManager() {
 
               if (sizeMB > maxDirectSizeMB) {
                 shouldCompress = true;
-                logger.info(`视频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`, { assetId: task.assetId });
+                logger.info(`视频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`, {
+                  assetId: task.assetId,
+                });
               } else {
                 logger.debug(`视频大小 (${sizeMB.toFixed(2)}MB) 未超过阈值，直接上传`, { assetId: task.assetId });
               }
@@ -304,7 +320,14 @@ export function useTranscriptionManager() {
             const maxResolution = config.video?.maxResolution || 720;
             const outputPath = `${fullPath}_compressed.mp4`; // 临时文件路径
 
-            logger.info("开始压缩视频", { input: fullPath, output: outputPath, preset, maxSizeMb: maxDirectSizeMB, maxFps, maxResolution });
+            logger.info("开始压缩视频", {
+              input: fullPath,
+              output: outputPath,
+              preset,
+              maxSizeMb: maxDirectSizeMB,
+              maxFps,
+              maxResolution,
+            });
 
             // 调用 Rust 压缩
             await invoke("compress_video", {
@@ -314,7 +337,7 @@ export function useTranscriptionManager() {
               ffmpegPath: ffmpegPath, // 补上漏传的 ffmpegPath
               maxSizeMb: maxDirectSizeMB,
               maxFps: maxFps,
-              maxResolution: maxResolution
+              maxResolution: maxResolution,
             });
 
             // 构建压缩文件的相对路径，以便通过 AssetManager 读取
@@ -331,81 +354,48 @@ export function useTranscriptionManager() {
       }
     }
 
-    const buffer = await assetManagerEngine.getAssetBinary(finalPath);
+    // 2. 构建 LLM 请求内容
+    const [profileId, modelId] = modelIdentifier.split(":");
+    if (!profileId || !modelId) {
+      throw new Error(`无效的模型标识符: ${modelIdentifier}`);
+    }
+    const profile = getProfileById(profileId);
+    const model = profile?.models.find((m) => m.id === modelId);
+    const capabilities = model?.capabilities || {};
 
-    // 使用 Worker 转换 Base64，避免阻塞 UI
-    const base64Data = await convertArrayBufferToBase64(buffer);
+    const content: LlmMessageContent[] = [];
 
-    // 2. 确定 MIME Type
-    let mimeType = task.mimeType;
-    if (!mimeType) {
-      // Fallback: 如果 Task 中没有 mimeType (旧任务)，尝试推断
-      const ext = assetPath.split(".").pop()?.toLowerCase();
-      if (task.assetType === "audio") {
-        mimeType = ext === "mp3" ? "audio/mpeg" : `audio/${ext}`;
-      } else if (task.assetType === "video") {
-        mimeType = ext === "mp4" ? "video/mp4" : `video/${ext}`;
-      } else {
-        mimeType = ext === "png" ? "image/png" : `image/${ext}`;
-      }
-      logger.warn("Task 缺少 mimeType，使用后缀推断", { assetId: task.assetId, mimeType });
+    // PDF 特殊处理
+    if (task.assetType === "document" && task.mimeType === "application/pdf") {
+      await handlePdfTranscription(task, content, capabilities);
+    } else {
+      // 原有逻辑：处理 Image, Audio, Video
+      const buffer = await assetManagerEngine.getAssetBinary(finalPath);
+      const base64Data = await convertArrayBufferToBase64(buffer);
+      content.push(createMediaContent(task, base64Data));
     }
 
-    // 3. 构建 Prompt
+    // 4. 构建 Prompt
     if (!prompt) {
       if (task.assetType === "video") {
         prompt = "请详细描述这段视频的内容，包括主要事件、场景变化和关键信息。输出格式为 Markdown。";
       } else if (task.assetType === "audio") {
         prompt = "请详细转写这段音频的内容，区分不同的说话人（如果有）。输出格式为 Markdown。";
+      } else if (task.assetType === "document") {
+        prompt =
+          "这是一个多页文档，请详细描述每一页的内容，提取关键信息和文字。按页码顺序依次描述。输出格式为 Markdown。";
       } else {
         prompt = "请详细描述这张图片的内容，包括主要物体、文字信息（OCR）和场景细节。输出格式为 Markdown。";
       }
     }
 
-    // 4. 构建 LLM 请求
-    const [profileId, modelId] = modelIdentifier.split(":");
-    if (!profileId || !modelId) {
-      throw new Error(`无效的模型标识符: ${modelIdentifier}`);
-    }
-
-
-    const content: LlmMessageContent[] = [
-      { type: "text", text: prompt }
-    ];
-
-    if (task.assetType === "image") {
-      content.push({
-        type: "image",
-        imageBase64: base64Data
-      });
-    } else if (task.assetType === "audio") {
-      content.push({
-        type: "audio",
-        source: {
-          type: "base64",
-          media_type: mimeType!,
-          data: base64Data,
-        },
-      });
-    } else if (task.assetType === "video") {
-      content.push({
-        type: "video",
-        source: {
-          type: "base64",
-          media_type: mimeType!,
-          data: base64Data,
-        },
-        // 转写任务的目的是获取全部内容，因此不应附加 videoMetadata。
-        // videoMetadata 应该在用户直接与视频进行交互式对话时，由 asset-resolver 根据需要添加。
-      });
-    }
+    // 将 prompt 插入到内容数组的开头
+    content.unshift({ type: "text", text: prompt });
 
     const requestOptions: LlmRequestOptions = {
       profileId,
       modelId,
-      messages: [
-        { role: "user", content }
-      ],
+      messages: [{ role: "user", content }],
       stream: false,
       temperature,
       maxTokens,
@@ -420,19 +410,86 @@ export function useTranscriptionManager() {
     task.resultPath = resultPath;
   };
 
+  const createMediaContent = (task: TranscriptionTask, base64Data: string): LlmMessageContent => {
+    const mimeType = task.mimeType!;
+    switch (task.assetType) {
+      case "image":
+        return { type: "image", imageBase64: base64Data };
+      case "audio":
+        return { type: "audio", source: { type: "base64", media_type: mimeType, data: base64Data } };
+      case "video":
+        return { type: "video", source: { type: "base64", media_type: mimeType, data: base64Data } };
+      case "document":
+        // 对于原生支持的 PDF
+        return { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Data } };
+      default:
+        throw new Error(`Unsupported asset type for media content: ${task.assetType}`);
+    }
+  };
+
+  const handlePdfTranscription = async (
+    task: TranscriptionTask,
+    content: LlmMessageContent[],
+    capabilities: ModelCapabilities
+  ) => {
+    const buffer = await assetManagerEngine.getAssetBinary(task.path);
+
+    // 方案一：如果模型原生支持 PDF
+    if (capabilities.document) {
+      logger.debug("模型原生支持 PDF，直接发送", { assetId: task.assetId });
+      const base64Data = await convertArrayBufferToBase64(buffer);
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: base64Data,
+        },
+      });
+      return;
+    }
+
+    // 方案二：如果模型不支持 PDF，但支持视觉，则将 PDF 转为图片
+    if (capabilities.vision) {
+      logger.debug("模型不支持 PDF 但支持视觉，回退到逐页转图片", { assetId: task.assetId });
+
+      const images = await convertPdfToImages(buffer);
+
+      if (images.length === 0) {
+        throw new Error("PDF 转图片失败：未生成任何图片");
+      }
+
+      for (const img of images) {
+        content.push({
+          type: "image",
+          imageBase64: img.base64,
+        });
+      }
+      return;
+    }
+
+    throw new Error("无法处理 PDF：模型既不支持原生 PDF，也不支持视觉（图片）");
+  };
+
   /**
    * 保存转写结果
    */
-  const saveTranscriptionResult = async (assetId: string, assetPath: string, text: string, provider: string): Promise<string> => {
+  const saveTranscriptionResult = async (
+    assetId: string,
+    assetPath: string,
+    text: string,
+    provider: string
+  ): Promise<string> => {
     try {
       // 构建保存路径: derived/{type}/{date}/{uuid}/transcription.md
-      const pathParts = assetPath.split('/');
+      // assetPath 格式为: {type}/{date}/{uuid}/{filename}
+      const pathParts = assetPath.split("/");
       if (pathParts.length < 3) {
         throw new Error(`无法解析资产路径结构: ${assetPath}`);
       }
 
-      const typeDir = pathParts[0];
-      const dateDir = pathParts[1];
+      const typeDir = pathParts[0]; // e.g., "image", "audio", "video", "document"
+      const dateDir = pathParts[1]; // e.g., "2024-01-01"
 
       // 相对路径
       const derivedRelPath = `derived/${typeDir}/${dateDir}/${assetId}/transcription.md`;
@@ -440,8 +497,8 @@ export function useTranscriptionManager() {
       // 获取绝对路径以进行写入
       const basePath = await assetManagerEngine.getAssetBasePath();
       // 简单的路径拼接，注意 Windows 兼容性
-      const fullPath = `${basePath}/${derivedRelPath}`.replace(/\\/g, '/');
-      const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
+      const fullPath = `${basePath}/${derivedRelPath}`.replace(/\\/g, "/");
+      const dirPath = fullPath.substring(0, fullPath.lastIndexOf("/"));
 
       // 创建目录
       await mkdir(dirPath, { recursive: true });
@@ -485,12 +542,17 @@ export function useTranscriptionManager() {
   /**
    * 获取转写状态（用于 UI）
    */
-  const getTranscriptionStatus = (asset: Asset): "none" | "pending" | "processing" | "success" | "error" => {
+  const getTranscriptionStatus = (
+    asset: Asset
+  ): "none" | "pending" | "processing" | "success" | "error" => {
     // 1. 检查队列
     const task = tasks.find((t) => t.assetId === asset.id);
     if (task) {
       if (task.status === "error") return "error";
-      return task.status === "completed" ? "success" : "processing";
+      if (task.status === "pending") return "pending";
+      // completed 状态需要进一步检查，因为 asset 可能还没更新
+      if (task.status === "completed" && task.resultPath) return "success";
+      return "processing";
     }
 
     // 2. 检查 Asset 元数据
@@ -557,7 +619,6 @@ export function useTranscriptionManager() {
 
     try {
       // 统一使用 assetManagerEngine 读取，保持数据流向一致
-      // 读取为二进制然后解码，避免直接调用后端 read_text_file
       const buffer = await assetManagerEngine.getAssetBinary(path);
       const text = new TextDecoder("utf-8").decode(buffer);
       return text;
@@ -576,7 +637,7 @@ export function useTranscriptionManager() {
   const cleanupTempFile = async (path: string) => {
     try {
       const basePath = await assetManagerEngine.getAssetBasePath();
-      const fullPath = `${basePath}/${path}`.replace(/\\/g, '/');
+      const fullPath = `${basePath}/${path}`.replace(/\\/g, "/");
       await remove(fullPath);
       logger.debug("已清理临时文件", { path });
     } catch (e) {
@@ -594,9 +655,17 @@ export function useTranscriptionManager() {
     const config = settings.value.transcription;
     if (!config.enabled) return false;
 
-    // 1. Always 策略：总是转写（只要是支持的类型）
+    const isSupportedType =
+      asset.type === "image" ||
+      asset.type === "audio" ||
+      asset.type === "video" ||
+      (asset.type === "document" && asset.mimeType === "application/pdf");
+
+    if (!isSupportedType) return false;
+
+    // 1. Always 策略：总是转写
     if (config.strategy === "always") {
-      return asset.type === "image" || asset.type === "audio" || asset.type === "video";
+      return true;
     }
 
     // 2. Smart 策略：根据模型能力判断
@@ -612,19 +681,20 @@ export function useTranscriptionManager() {
       const capabilities = model.capabilities || {};
 
       if (asset.type === "image") {
-        // 如果模型支持视觉识别，且支持该图片格式（这里简化判断，假设支持所有图片），则不需要转写
-        // 反之，如果不支持视觉，则需要转写
         return !capabilities.vision;
       }
 
       if (asset.type === "audio") {
-        // 如果模型支持音频输入，则不需要转写
         return !capabilities.audio;
       }
 
       if (asset.type === "video") {
-        // 如果模型支持视频输入，则不需要转写
         return !capabilities.video;
+      }
+
+      if (asset.type === "document" && asset.mimeType === "application/pdf") {
+        // 如果模型原生支持 PDF (document:true)，则不需要转写。否则需要（通过转为图片）
+        return !capabilities.document;
       }
     }
 
@@ -636,7 +706,6 @@ export function useTranscriptionManager() {
    * 这是一个统一的方法，综合考虑：
    * 1. 模型能力（通过 checkTranscriptionNecessity）
    * 2. 消息深度和强制转写设置（forceTranscriptionAfter）
-   *
    * @param asset 资产对象
    * @param modelId 模型 ID
    * @param profileId 配置文件 ID
@@ -655,7 +724,13 @@ export function useTranscriptionManager() {
     if (!config.enabled) return false;
 
     // 检查资产类型是否支持转写
-    if (asset.type !== "image" && asset.type !== "audio" && asset.type !== "video") {
+    const isSupportedType =
+      asset.type === "image" ||
+      asset.type === "audio" ||
+      asset.type === "video" ||
+      (asset.type === "document" && asset.mimeType === "application/pdf");
+
+    if (!isSupportedType) {
       return false;
     }
 
@@ -701,12 +776,17 @@ export function useTranscriptionManager() {
     // 筛选需要转写的资产：
     // 1. 根据模型能力需要转写的
     // 2. 被强制要求转写的（forceAssetIds）
-    const assetsToTranscribe = assets.filter(asset => {
+    const assetsToTranscribe = assets.filter((asset) => {
       // 检查是否被强制要求转写
       const isForced = forceAssetIds?.has(asset.id) ?? false;
       if (isForced) {
         // 强制转写只对支持的媒体类型有效
-        return asset.type === "image" || asset.type === "audio" || asset.type === "video";
+        return (
+          asset.type === "image" ||
+          asset.type === "audio" ||
+          asset.type === "video" ||
+          (asset.type === "document" && asset.mimeType === "application/pdf")
+        );
       }
       // 否则根据模型能力判断
       return checkTranscriptionNecessity(asset, modelId, profileId);
@@ -717,7 +797,7 @@ export function useTranscriptionManager() {
     logger.info("开始确保转写任务", {
       count: assetsToTranscribe.length,
       forcedCount: forceAssetIds?.size ?? 0,
-      assets: assetsToTranscribe.map(a => a.name)
+      assets: assetsToTranscribe.map((a) => a.name),
     });
 
     // 1. 触发所有未开始的任务
@@ -759,7 +839,7 @@ export function useTranscriptionManager() {
           const latestAsset = await assetManagerEngine.getAssetById(asset.id);
           const assetToCheck = latestAsset || asset;
           const s = getTranscriptionStatus(assetToCheck);
-          if (s === 'pending' || s === 'processing') {
+          if (s === "pending" || s === "processing") {
             pendingCount++;
           }
         }

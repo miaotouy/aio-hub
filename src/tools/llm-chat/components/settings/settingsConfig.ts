@@ -578,8 +578,8 @@ export const settingsConfig: SettingsSection[] = [
         layout: "inline",
         component: "ElSwitch",
         modelPath: "transcription.enabled",
-        hint: "开启后，可对图片/音频附件进行转写，提取文本内容",
-        keywords: "transcription enable 启用 转写",
+        hint: "开启后，可对图片/音频/PDF附件进行转写，提取文本内容",
+        keywords: "transcription enable 启用 转写 pdf",
       },
       {
         id: "transStrategy",

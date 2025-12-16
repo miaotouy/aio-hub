@@ -65,7 +65,7 @@ export function useAttachmentManager(
 
   const attachments = ref<Asset[]>([]);
   const isProcessing = ref(false);
-  
+
   // 在顶层初始化 composables，避免在嵌套函数中调用导致状态获取问题
   const agentStore = useAgentStore();
   const { getProfileById } = useLlmProfiles();
@@ -127,7 +127,7 @@ export function useAttachmentManager(
    */
   const checkModelCapability = (asset: Asset): string | null => {
     const assetType = asset.type;
-    
+
     // 如果是文本文件，不需要检查文档能力（会被直接插入为文本）
     if (assetType === "document" && checkIsTextFile(asset.name, asset.mimeType)) {
       logger.debug("文本文件不需要文档处理能力", {
@@ -136,7 +136,7 @@ export function useAttachmentManager(
       });
       return null;
     }
-    
+
     // 如果没有选中的 Agent，跳过检查
     if (!agentStore.currentAgentId) {
       logger.debug("未选中 Agent，跳过能力检查");
@@ -175,28 +175,41 @@ export function useAttachmentManager(
         assetName: asset.name,
         modelName: model?.name || agentConfig.modelId,
       });
-      
-      // 如果开启了转写，图片和音频可以被转写为文本，所以不视为不支持
-      if (transcriptionEnabled && (assetType === "image" || assetType === "audio")) {
-        return null;
+
+      // 如果开启了转写，特定类型的附件可以被转写为文本
+      if (transcriptionEnabled) {
+        if (assetType === "image" || assetType === "audio" || assetType === "video" || (assetType === "document" && asset.mimeType === "application/pdf")) {
+          return null;
+        }
       }
 
       if (assetType === "image") {
         return `当前模型「${model?.name || agentConfig.modelId}」未配置视觉能力，可能不支持图片输入。建议切换至支持视觉的模型（如 GPT-4o、Claude、Gemini）或开启多模态转写。`;
       }
-      
+
       if (assetType === "audio") {
         return `当前模型「${model?.name || agentConfig.modelId}」未配置音频能力，可能不支持音频输入。建议切换至支持音频的模型（如 GPT-4o-Audio、Gemini）或开启多模态转写。`;
       }
 
       if (assetType === "video") {
-        return `当前模型「${model?.name || agentConfig.modelId}」未配置视频能力，可能不支持视频输入。建议切换至支持视频的模型（如 Gemini 1.5 Pro）。`;
+        // 视频转写已支持，但此处仍可作为模型原生能力的提示
+        if (!transcriptionEnabled) {
+          return `当前模型「${model?.name || agentConfig.modelId}」未配置视频能力，可能不支持视频输入。建议切换至支持视频的模型（如 Gemini 1.5 Pro）或开启多模态转写。`;
+        }
       }
-      
+
       if (assetType === "document") {
-        return `当前模型「${model?.name || agentConfig.modelId}」未配置文档处理能力，可能不支持文档输入。建议切换至支持文档的模型（如 GPT-4o、Claude、Gemini）。`;
+        const specificDocWarning = `当前模型「${model?.name || agentConfig.modelId}」未配置文档处理能力，可能不支持 ${asset.name}。建议切换至支持文档的模型或开启多模态转写。`;
+        // 如果是 PDF 且转写未开启
+        if (asset.mimeType === "application/pdf" && !transcriptionEnabled) {
+          return specificDocWarning;
+        }
+        // 其他文档类型
+        if (asset.mimeType !== "application/pdf") {
+          return specificDocWarning;
+        }
       }
-      
+
       return null;
     }
 
@@ -227,18 +240,25 @@ export function useAttachmentManager(
     }
 
     // 检查视频支持
-    // 注意：目前转写模块暂不支持视频，所以必须模型原生支持
     if (assetType === "video" && !capabilities.video) {
-      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持视频输入。建议切换至支持视频的模型（如 Gemini 1.5 Pro）。`;
+      // 如果开启了转写，则允许
+      if (transcriptionEnabled) {
+        return null;
+      }
+      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持视频输入。建议切换至支持视频的模型（如 Gemini 1.5 Pro）或开启多模态转写。`;
       logger.info("检测到不支持的附件类型：视频", {
         modelName: model?.name || agentConfig.modelId,
       });
       return warning;
     }
 
-    // 检查文档支持（只检查非文本的文档，如 PDF）
+    // 检查文档支持（非文本文件）
     if (assetType === "document" && !capabilities.document) {
-      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持文档输入。建议切换至支持文档的模型（如 GPT-4o、Claude、Gemini）。`;
+      // 如果是 PDF，转写可以作为备选方案
+      if (asset.mimeType === "application/pdf" && transcriptionEnabled) {
+        return null;
+      }
+      const warning = `当前模型「${model?.name || agentConfig.modelId}」不支持文档输入。建议切换至支持文档的模型（如 GPT-4o、Claude、Gemini）或开启多模态转写。`;
       logger.info("检测到不支持的附件类型：文档", {
         modelName: model?.name || agentConfig.modelId,
         assetName: asset.name,
@@ -291,7 +311,7 @@ export function useAttachmentManager(
   const importPendingAsset = async (pendingAsset: Asset): Promise<void> => {
     if (!pendingAsset.originalPath) {
       errorHandler.handle(new Error("缺少原始路径，无法导入"), {
-       userMessage: "缺少原始路径，无法导入",
+        userMessage: "缺少原始路径，无法导入",
         context: { assetId: pendingAsset.id },
         showToUser: false,
       });
@@ -346,10 +366,10 @@ export function useAttachmentManager(
         if ("originalPath" in updatedAsset) {
           delete (updatedAsset as { originalPath?: string }).originalPath;
         }
-        
+
         // 使用数组的 splice 方法替换元素，确保触发响应式
         attachments.value.splice(index, 1, updatedAsset);
-        
+
         logger.info("资产导入完成", {
           assetId: importedAsset.id,
           name: importedAsset.name,
@@ -506,7 +526,7 @@ export function useAttachmentManager(
       hasWarning: !!warning,
       warning: warning || "无警告",
     });
-    
+
     if (warning) {
       logger.info("显示模型能力警告", { warning });
       customMessage.warning(warning);

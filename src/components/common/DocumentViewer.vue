@@ -3,6 +3,7 @@ import { ref, computed, watch, watchEffect } from "vue";
 import { useDocumentViewer } from "@/composables/useDocumentViewer";
 import { createModuleLogger } from "@/utils/logger";
 import RichCodeEditor from "./RichCodeEditor.vue";
+import PdfViewer from "./PdfViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import HtmlInteractiveViewer from "@/tools/rich-text-renderer/components/HtmlInteractiveViewer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
@@ -48,12 +49,14 @@ watchEffect(() => {
 const {
   isLoading,
   error,
+  rawContent,
   decodedContent,
   mimeType,
   language,
   isTextContent,
   isMarkdown,
   isHtml,
+  isPdf,
   isRenderableHtml,
 } = useDocumentViewer(props);
 // --- 视图逻辑 ---
@@ -86,9 +89,11 @@ watch(
     }
   }
 );
-const showToolbar = computed(() => !isLoading.value && !error.value && decodedContent.value);
+const showToolbar = computed(
+  () => !isLoading.value && !error.value && decodedContent.value && !isPdf.value
+);
 
-const canPreview = computed(() => isMarkdown.value || isRenderableHtml.value);
+const canPreview = computed(() => isMarkdown.value || isRenderableHtml.value || isPdf.value);
 
 const editorLanguage = computed(() => {
   if (viewMode.value === "source") {
@@ -172,7 +177,7 @@ function toggleViewMode() {
         show-icon
       />
 
-      <div v-else-if="!decodedContent && !isTextContent" class="binary-placeholder">
+      <div v-else-if="!decodedContent && !isTextContent && !isPdf" class="binary-placeholder">
         <el-alert
           title="不支持预览的二进制文件"
           :description="`MIME 类型: ${mimeType || '未知'}`"
@@ -187,6 +192,13 @@ function toggleViewMode() {
         :content="decodedContent || undefined"
         :version="RendererVersion.V2_CUSTOM_PARSER"
         class="markdown-preview"
+      />
+
+      <PdfViewer
+        v-else-if="isPdf && viewMode === 'preview'"
+        :content="rawContent || undefined"
+        :file-name="fileName"
+        class="pdf-preview-component"
       />
 
       <HtmlInteractiveViewer
@@ -311,6 +323,13 @@ function toggleViewMode() {
 }
 /* HTML 预览样式 */
 .html-preview-component {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* PDF 预览样式 */
+.pdf-preview-component {
   width: 100%;
   height: 100%;
   box-sizing: border-box;

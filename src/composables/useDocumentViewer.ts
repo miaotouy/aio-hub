@@ -41,6 +41,8 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
 
   const isHtml = computed(() => mimeType.value === 'text/html');
 
+  const isPdf = computed(() => mimeType.value === 'application/pdf');
+
   /**
    * 检查 HTML 内容是否可能是一个简单的、可渲染的 HTML 文件，
    * 而不是需要编译的 Vue 组件或其他模板。
@@ -197,6 +199,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
     isTextContent,
     isMarkdown,
     isHtml,
+    isPdf,
     isRenderableHtml,
     loadDocument,
   };

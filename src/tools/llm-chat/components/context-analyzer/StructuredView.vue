@@ -156,14 +156,7 @@
                 />
                 <Avatar
                   v-else-if="msg.role === 'assistant'"
-                  :src="
-                    msg.agentIcon ||
-                    resolveAvatarPath(
-                      { id: contextData.agentInfo.id, icon: contextData.agentInfo.icon },
-                      'agent'
-                    ) ||
-                    ''
-                  "
+                  :src="getAssistantAvatarSrc(msg)"
                   :alt="
                     msg.agentName ||
                     contextData.agentInfo.displayName ||
@@ -517,6 +510,30 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
     return baseMsg;
   });
 });
+
+/**
+ * 获取 assistant 消息的头像路径
+ * 处理历史消息中可能是文件名格式的 agentIcon
+ */
+function getAssistantAvatarSrc(msg: UnifiedMessage): string {
+  // 如果消息有自己的 agentIcon
+  if (msg.agentIcon) {
+    // 检查是否需要解析（可能是文件名格式）
+    // 但由于历史消息没有存储 agentId，我们无法正确解析
+    // 只能尝试用当前 agent 的 id 来解析（假设是同一个 agent）
+    const resolved = resolveAvatarPath(
+      { id: props.contextData.agentInfo.id, icon: msg.agentIcon },
+      'agent'
+    );
+    if (resolved) return resolved;
+  }
+  
+  // 回退到当前 agent 的头像
+  return resolveAvatarPath(
+    { id: props.contextData.agentInfo.id, icon: props.contextData.agentInfo.icon },
+    'agent'
+  ) || '';
+}
 
 /**
  * 获取角色显示名称

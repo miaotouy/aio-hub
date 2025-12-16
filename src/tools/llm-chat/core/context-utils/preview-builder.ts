@@ -416,6 +416,7 @@ export async function buildPreviewDataFromContext(
     agentInfo: {
       id: agentConfig.id,
       name: agentConfig.name,
+      displayName: agentConfig.displayName,
       icon: agentConfig.icon,
       profileId: agentConfig.profileId,
       modelId: agentConfig.modelId,

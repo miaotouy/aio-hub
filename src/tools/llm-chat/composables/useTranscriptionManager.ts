@@ -678,12 +678,17 @@ export function useTranscriptionManager() {
   /**
    * 确保所有需要转写的附件都已完成转写
    * 用于 "send_and_wait" 模式
+   * @param assets 资产数组
+   * @param modelId 模型 ID
+   * @param profileId 配置文件 ID
+   * @param forceAssetIds 强制转写的资产 ID 集合（无论模型是否支持，例如基于消息深度）
    * @returns 更新后的 Asset 映射 (id -> Asset)，包含最新的转写状态
    */
   const ensureTranscriptions = async (
     assets: Asset[],
     modelId: string,
-    profileId: string
+    profileId: string,
+    forceAssetIds?: Set<string>
   ): Promise<Map<string, Asset>> => {
     // 用于存储更新后的 Asset
     const updatedAssets = new Map<string, Asset>();
@@ -693,14 +698,25 @@ export function useTranscriptionManager() {
       updatedAssets.set(asset.id, asset);
     }
 
-    const assetsToTranscribe = assets.filter(asset =>
-      checkTranscriptionNecessity(asset, modelId, profileId)
-    );
+    // 筛选需要转写的资产：
+    // 1. 根据模型能力需要转写的
+    // 2. 被强制要求转写的（forceAssetIds）
+    const assetsToTranscribe = assets.filter(asset => {
+      // 检查是否被强制要求转写
+      const isForced = forceAssetIds?.has(asset.id) ?? false;
+      if (isForced) {
+        // 强制转写只对支持的媒体类型有效
+        return asset.type === "image" || asset.type === "audio" || asset.type === "video";
+      }
+      // 否则根据模型能力判断
+      return checkTranscriptionNecessity(asset, modelId, profileId);
+    });
 
     if (assetsToTranscribe.length === 0) return updatedAssets;
 
     logger.info("开始确保转写任务", {
       count: assetsToTranscribe.length,
+      forcedCount: forceAssetIds?.size ?? 0,
       assets: assetsToTranscribe.map(a => a.name)
     });
 

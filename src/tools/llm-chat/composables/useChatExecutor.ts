@@ -239,13 +239,47 @@ export function useChatExecutor() {
 
       if (allAttachments.length > 0) {
         try {
+          // 计算需要强制转写的附件（基于消息深度）
+          const forceAssetIds = new Set<string>();
+          const config = settings.value.transcription;
+          
+          // 只有在智能模式下且设置了强制转写阈值时才计算
+          if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
+            // 计算每个附件在路径中的深度
+            // pathToUserNode 的最后一个元素是当前用户消息（深度 0）
+            // 倒数第二个是前一条消息（深度 1），以此类推
+            for (let i = 0; i < pathToUserNode.length; i++) {
+              const node = pathToUserNode[i];
+              const nodeDepth = pathToUserNode.length - 1 - i; // 当前节点距离最新消息的深度
+              
+              if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
+                for (const asset of node.attachments) {
+                  // 只对支持的媒体类型强制转写
+                  if (asset.type === "image" || asset.type === "audio" || asset.type === "video") {
+                    forceAssetIds.add(asset.id);
+                    logger.debug("识别到需要强制转写的附件", {
+                      assetId: asset.id,
+                      assetName: asset.name,
+                      nodeDepth,
+                      forceThreshold: config.forceTranscriptionAfter
+                    });
+                  }
+                }
+              }
+            }
+          }
+
           const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
             allAttachments,
             agentConfigSnippet.modelId,
-            agentConfigSnippet.profileId
+            agentConfigSnippet.profileId,
+            forceAssetIds.size > 0 ? forceAssetIds : undefined
           );
           pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
-          logger.debug("转写预处理完成", { assetCount: updatedAssetsMap.size });
+          logger.debug("转写预处理完成", {
+            assetCount: updatedAssetsMap.size,
+            forcedCount: forceAssetIds.size
+          });
         } catch (error) {
           logger.warn("等待转写任务完成时出错或超时", error);
           // 即使超时，也要初始化映射
@@ -741,7 +775,8 @@ export function useChatExecutor() {
         const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
           allAttachments,
           agentConfigSnippet.modelId,
-          agentConfigSnippet.profileId
+          agentConfigSnippet.profileId,
+          new Set<string>() // 预览模式不考虑强制转写
         );
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
         logger.debug("预览模式转写预处理完成", { assetCount: updatedAssetsMap.size });

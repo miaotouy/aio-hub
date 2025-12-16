@@ -73,7 +73,11 @@
     <template #footer>
       <div class="dialog-footer-content">
         <div class="left-actions">
-          <button class="btn btn-secondary btn-danger-hover" @click="handleRegenerate">
+          <button 
+            v-if="showRegenerate" 
+            class="btn btn-secondary btn-danger-hover" 
+            @click="handleRegenerate"
+          >
             <RefreshCw :size="16" class="btn-icon" />
             重新生成
           </button>
@@ -106,11 +110,14 @@ import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("TranscriptionDialog");
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean;
   asset: Asset;
   initialContent: string;
-}>();
+  showRegenerate?: boolean;
+}>(), {
+  showRegenerate: true
+});
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;

@@ -112,6 +112,14 @@
                   <el-icon><FolderOpened /></el-icon>
                   打开所在目录
                 </el-dropdown-item>
+                <el-dropdown-item
+                  v-if="row.metadata?.derived?.transcription?.path"
+                  divided
+                  @click="emit('view-transcription', row)"
+                >
+                  <el-icon><Document /></el-icon>
+                  查看转写
+                </el-dropdown-item>
                 <el-dropdown-item divided @click="handleDelete(row.id)">
                   <el-icon><Delete /></el-icon>
                   删除
@@ -126,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { View, Delete, MoreFilled, FolderOpened } from "@element-plus/icons-vue";
+import { View, Delete, MoreFilled, FolderOpened, Document } from "@element-plus/icons-vue";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { getTypeLabel, getOriginDisplayText } from "../utils/displayUtils";
@@ -151,6 +159,7 @@ const emit = defineEmits<{
   delete: [assetId: string];
   "selection-change": [asset: Asset, event: MouseEvent];
   "show-in-folder": [path: string];
+  "view-transcription": [asset: Asset];
 }>();
 
 // 获取资产的 URL

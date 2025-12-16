@@ -85,6 +85,7 @@
             @select="handleSelectAsset"
             @delete="handleDeleteAsset"
             @show-in-folder="handleShowInFolder"
+            @view-transcription="handleViewTranscription"
             @select-all="handleSelectAll"
             @deselect-all="handleDeselectAll"
           />
@@ -98,6 +99,16 @@
     </el-container>
 
     <!-- 文档预览弹窗 -->
+    <!-- 转写编辑器对话框 -->
+    <TranscriptionDialog
+      v-if="showTranscriptionDialog && currentTranscriptionAsset"
+      v-model="showTranscriptionDialog"
+      :asset="currentTranscriptionAsset"
+      :initial-content="currentTranscriptionContent"
+      :show-regenerate="false"
+      @save="handleSaveTranscription"
+    />
+
     <BaseDialog
       v-model="isPreviewDialogVisible"
       :title="selectedAssetForPreview?.name"
@@ -121,6 +132,7 @@
 import { ref, computed, onMounted, watch, reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
@@ -143,6 +155,12 @@ import Sidebar from "./components/Sidebar.vue";
 import AssetGroup from "./components/AssetGroup.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
+import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+
+const errorHandler = createModuleErrorHandler("AssetManager");
+const logger = createModuleLogger("AssetManager");
 
 // 使用资产管理器
 const {
@@ -174,6 +192,11 @@ const lastSelectedAssetId = ref<string | null>(null);
 const isSidebarCollapsed = ref(config.value.sidebarCollapsed);
 const isPreviewDialogVisible = ref(false);
 const selectedAssetForPreview = ref<Asset | null>(null);
+
+// 转写对话框状态
+const showTranscriptionDialog = ref(false);
+const currentTranscriptionAsset = ref<Asset | null>(null);
+const currentTranscriptionContent = ref("");
 
 // 分页与筛选请求载荷
 const listPayload = reactive({
@@ -727,6 +750,62 @@ const handleClearDuplicates = () => {
   duplicateHashes.value.clear();
   duplicateResult.value = null;
   customMessage.success("已清除重复文件标记");
+};
+
+// --- 转写相关逻辑 ---
+
+const handleViewTranscription = async (asset: Asset) => {
+  const derived = asset.metadata?.derived?.transcription;
+  if (!derived || !derived.path) {
+    customMessage.warning("该资产没有转写内容");
+    return;
+  }
+
+  try {
+    logger.debug("正在读取转写内容", { assetId: asset.id, path: derived.path });
+    const buffer = await assetManagerEngine.getAssetBinary(derived.path);
+    const text = new TextDecoder("utf-8").decode(buffer);
+    
+    currentTranscriptionAsset.value = asset;
+    currentTranscriptionContent.value = text;
+    showTranscriptionDialog.value = true;
+  } catch (error) {
+    errorHandler.error(error, "读取转写内容失败");
+  }
+};
+
+const handleSaveTranscription = async (content: string) => {
+  if (!currentTranscriptionAsset.value) return;
+  
+  const asset = currentTranscriptionAsset.value;
+  const derived = asset.metadata?.derived?.transcription;
+  
+  if (!derived || !derived.path) {
+    customMessage.error("无法保存：找不到转写文件路径");
+    return;
+  }
+
+  try {
+    const basePath = await assetManagerEngine.getAssetBasePath();
+    const fullPath = await join(basePath, derived.path);
+    
+    await writeTextFile(fullPath, content);
+    
+    // 更新元数据中的更新时间
+    await invoke("update_asset_derived_data", {
+      assetId: asset.id,
+      key: "transcription",
+      data: {
+        ...derived,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    
+    customMessage.success("转写内容已保存");
+    showTranscriptionDialog.value = false;
+  } catch (error) {
+    errorHandler.error(error, "保存转写内容失败");
+  }
 };
 </script>
 

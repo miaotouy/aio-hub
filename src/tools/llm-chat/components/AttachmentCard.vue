@@ -22,7 +22,7 @@ import { customMessage } from "@/utils/customMessage";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
-import TranscriptionDialog from "./dialogs/TranscriptionDialog.vue";
+import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
 import { generateVideoThumbnail } from "@/utils/mediaThumbnailUtils";
 
 const logger = createModuleLogger("AttachmentCard");

@@ -61,6 +61,14 @@
                       <el-icon><FolderOpened /></el-icon>
                       打开所在目录
                     </el-dropdown-item>
+                    <el-dropdown-item
+                      v-if="asset.metadata?.derived?.transcription?.path"
+                      divided
+                      @click="emit('view-transcription', asset)"
+                    >
+                      <el-icon><Document /></el-icon>
+                      查看转写
+                    </el-dropdown-item>
                     <el-dropdown-item divided @click="handleDelete(asset.id)">
                       <el-icon><Delete /></el-icon>
                       删除
@@ -77,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { MoreFilled, View, Delete, FolderOpened } from "@element-plus/icons-vue";
+import { MoreFilled, View, Delete, FolderOpened, Document } from "@element-plus/icons-vue";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import AssetIcon from "./AssetIcon.vue";
@@ -103,6 +111,7 @@ const emit = defineEmits<{
   delete: [assetId: string];
   "selection-change": [asset: Asset, event: MouseEvent];
   "show-in-folder": [path: string];
+  "view-transcription": [asset: Asset];
 }>();
 
 const handleSelect = (asset: Asset) => {

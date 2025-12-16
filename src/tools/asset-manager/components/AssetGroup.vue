@@ -28,6 +28,7 @@
           @select="(asset) => emit('select', asset)"
           @delete="(assetId) => emit('delete', assetId)"
           @show-in-folder="(path: string) => emit('show-in-folder', path)"
+          @view-transcription="(asset: Asset) => emit('view-transcription', asset)"
         />
       </KeepAlive>
     </div>
@@ -63,6 +64,7 @@ const emit = defineEmits<{
   'select-all': [assetIds: string[]];
   'deselect-all': [assetIds: string[]];
   'show-in-folder': [path: string];
+  'view-transcription': [asset: Asset];
 }>();
 
 // --- 预览 URL 管理 ---

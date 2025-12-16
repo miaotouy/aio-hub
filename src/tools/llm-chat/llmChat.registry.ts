@@ -331,6 +331,7 @@ export default class LlmChatRegistry implements ToolRegistry {
   /**
    * 发送消息
    * 注意：此方法直接通过 store 发送消息，不会修改输入框的内容，以免覆盖用户的正在输入的草稿。
+   * 如果没有当前会话但有可用会话，会自动切换到最近使用的会话。
    * @param content 要发送的内容
    */
   public async sendMessage(content: string): Promise<void> {
@@ -340,6 +341,37 @@ export default class LlmChatRegistry implements ToolRegistry {
         // 直接触发发送，不修改输入框状态，避免覆盖用户草稿或残留内容
         const { useLlmChatStore } = await import('./store');
         const store = useLlmChatStore();
+
+        // 如果没有当前会话，尝试自动选择或创建
+        if (!store.currentSession) {
+          if (store.sessions.length > 0) {
+            // 情况1：有历史会话但未选中 -> 自动切换到最近使用的会话
+            const sortedSessions = [...store.sessions].sort(
+              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            );
+            const targetSession = sortedSessions[0];
+            logger.info('自动切换到最近使用的会话', {
+              sessionId: targetSession.id,
+              sessionName: targetSession.name,
+            });
+            store.switchSession(targetSession.id);
+          } else {
+            // 情况2：完全没有会话 -> 尝试自动创建新会话
+            const { useAgentStore } = await import('./agentStore');
+            const agentStore = useAgentStore();
+
+            if (agentStore.currentAgentId) {
+              logger.info('没有可用会话，自动创建新会话', {
+                agentId: agentStore.currentAgentId
+              });
+              store.createSession(agentStore.currentAgentId);
+            } else {
+              // 情况3：连 Agent 都没选 -> 抛出错误让用户去选
+              throw new Error('请先选择一个智能体或创建一个会话');
+            }
+          }
+        }
+
         await store.sendMessage(content);
       },
       {

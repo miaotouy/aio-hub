@@ -53,7 +53,7 @@ const safeStyle = computed(() => {
         // 禁止定位属性和过大的层级
         return !["position", "z-index", "top", "left", "right", "bottom"].includes(trimmedKey);
       })
-      .join(";") + "; position: relative; z-index: 0;"
+      .join(";") + "; position: relative; z-index: 1;"
   ); // 强制重置为安全值
 });
 
@@ -84,12 +84,6 @@ const handleClick = async () => {
   }
 };
 
-const iconMap = {
-  send: "⚡",
-  input: "📝",
-  copy: "📋",
-};
-
 const titleMap = {
   send: "点击直接发送",
   input: "点击插入到输入框",
@@ -109,10 +103,7 @@ const titleMap = {
   >
     <!-- 如果没有内联样式，使用带图标的默认布局 -->
     <template v-if="!props.style">
-      <span class="action-icon">
-        <template v-if="props.action === 'copy' && copied">✅</template>
-        <template v-else>{{ iconMap[props.action] }}</template>
-      </span>
+      <span class="action-icon" v-if="props.action === 'copy' && copied">✅</span>
       <span class="action-label">{{ props.label }}</span>
     </template>
     <!-- 如果有内联样式，只显示文本内容，完全由 style 控制外观 -->
@@ -129,7 +120,7 @@ const titleMap = {
 }
 
 .hover-effect:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) !important;
   z-index: 1;
 }
 

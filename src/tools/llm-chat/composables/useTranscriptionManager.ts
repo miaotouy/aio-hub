@@ -389,21 +389,40 @@ export function useTranscriptionManager() {
       }
     }
 
-    // 将 prompt 插入到内容数组的开头
-    content.unshift({ type: "text", text: prompt });
+    // 检查是否有 PDF 分批数据需要处理
+    const pdfBatchData = (content as LlmMessageContent[] & {
+      _pdfBatchData?: { pageNumber: number; base64: string; width: number; height: number }[];
+    })._pdfBatchData;
 
-    const requestOptions: LlmRequestOptions = {
-      profileId,
-      modelId,
-      messages: [{ role: "user", content }],
-      stream: false,
-      temperature,
-      maxTokens,
-    };
+    let transcriptionText: string;
 
-    // 5. 发送请求
-    const response = await sendRequest(requestOptions);
-    const transcriptionText = response.content;
+    if (pdfBatchData) {
+      // PDF 分批处理模式
+      transcriptionText = await processPdfBatches(
+        pdfBatchData,
+        prompt,
+        profileId,
+        modelId,
+        temperature,
+        maxTokens
+      );
+    } else {
+      // 常规模式：将 prompt 插入到内容数组的开头
+      content.unshift({ type: "text", text: prompt });
+
+      const requestOptions: LlmRequestOptions = {
+        profileId,
+        modelId,
+        messages: [{ role: "user", content }],
+        stream: false,
+        temperature,
+        maxTokens,
+      };
+
+      // 5. 发送请求
+      const response = await sendRequest(requestOptions);
+      transcriptionText = response.content;
+    }
 
     // 6. 保存结果
     const resultPath = await saveTranscriptionResult(task.assetId, assetPath, transcriptionText, modelId);
@@ -426,6 +445,9 @@ export function useTranscriptionManager() {
         throw new Error(`Unsupported asset type for media content: ${task.assetType}`);
     }
   };
+
+  // PDF 分批处理常量
+  const PDF_BATCH_SIZE = 5; // 每批处理的页数
 
   const handlePdfTranscription = async (
     task: TranscriptionTask,
@@ -459,16 +481,84 @@ export function useTranscriptionManager() {
         throw new Error("PDF 转图片失败：未生成任何图片");
       }
 
-      for (const img of images) {
-        content.push({
-          type: "image",
-          imageBase64: img.base64,
-        });
+      // 如果页数较少，直接全部放入 content
+      if (images.length <= PDF_BATCH_SIZE) {
+        for (const img of images) {
+          content.push({
+            type: "image",
+            imageBase64: img.base64,
+          });
+        }
+        return;
       }
+
+      // 页数较多时，标记需要分批处理
+      // 我们将图片数据附加到 content 的特殊结构中，由调用方处理
+      // 使用特殊的 _pdfBatchData 标记
+      (content as LlmMessageContent[] & { _pdfBatchData?: typeof images })._pdfBatchData = images;
+      logger.info(`PDF 页数 (${images.length}) 超过单批限制 (${PDF_BATCH_SIZE})，将进行分批转写`);
       return;
     }
 
     throw new Error("无法处理 PDF：模型既不支持原生 PDF，也不支持视觉（图片）");
+  };
+
+  /**
+   * 分批处理 PDF 图片并合并转写结果
+   */
+  const processPdfBatches = async (
+    images: { pageNumber: number; base64: string; width: number; height: number }[],
+    prompt: string,
+    profileId: string,
+    modelId: string,
+    temperature: number,
+    maxTokens: number
+  ): Promise<string> => {
+    const batches: typeof images[] = [];
+    for (let i = 0; i < images.length; i += PDF_BATCH_SIZE) {
+      batches.push(images.slice(i, i + PDF_BATCH_SIZE));
+    }
+
+    logger.info(`开始分批处理 PDF，共 ${images.length} 页，分为 ${batches.length} 批`);
+
+    const batchResults: string[] = [];
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      const startPage = batch[0].pageNumber;
+      const endPage = batch[batch.length - 1].pageNumber;
+
+      logger.debug(`处理第 ${batchIndex + 1}/${batches.length} 批 (第 ${startPage}-${endPage} 页)`);
+
+      const batchContent: LlmMessageContent[] = [
+        {
+          type: "text",
+          text: `${prompt}\n\n[这是文档的第 ${startPage} 到第 ${endPage} 页，共 ${images.length} 页]`,
+        },
+      ];
+
+      for (const img of batch) {
+        batchContent.push({
+          type: "image",
+          imageBase64: img.base64,
+        });
+      }
+
+      const requestOptions: LlmRequestOptions = {
+        profileId,
+        modelId,
+        messages: [{ role: "user", content: batchContent }],
+        stream: false,
+        temperature,
+        maxTokens,
+      };
+
+      const response = await sendRequest(requestOptions);
+      batchResults.push(`## 第 ${startPage}-${endPage} 页\n\n${response.content}`);
+    }
+
+    // 合并所有批次的结果
+    return batchResults.join("\n\n---\n\n");
   };
 
   /**

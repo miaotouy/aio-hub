@@ -568,7 +568,7 @@ export const settingsConfig: SettingsSection[] = [
     ],
   },
   {
-    title: "附件与转写",
+    title: "附件转写",
     icon: FileText,
     items: [
       // 1. 全局开关与策略

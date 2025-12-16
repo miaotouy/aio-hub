@@ -18,36 +18,34 @@
 
 ```mermaid
 graph TD
-    Input[输入源 (Stream/Static)] --> Processor[处理层 (Processor Layer)]
+    Input[输入源] --> Processor[处理层]
 
-    subgraph "Processor Layer"
-        direction LR
-        StreamProcessor[StreamProcessor V1/V2]
-        CustomParser[自研解析器 V2]
+    subgraph ProcessorLayer[处理层 Processor Layer]
         Tokenizer[词法分析器]
-
+        CustomParser[自研解析器 V2]
+        StreamProcessor[StreamProcessor V1/V2]
         Tokenizer --> CustomParser
         CustomParser --> StreamProcessor
     end
 
-    Processor -->|Patches| State[状态层 (State Layer)]
+    Processor -->|Patches| State[状态层]
 
-    subgraph "State Layer"
-        Store[AST Store (useMarkdownAst)]
-        Config[全局配置 (Pinia Store)]
+    subgraph StateLayer[状态层 State Layer]
+        Store[AST Store - useMarkdownAst]
+        Config[全局配置 - Pinia Store]
     end
 
-    State -->|Reactive AST & Styles| View[视图层 (View Layer)]
+    State -->|Reactive AST & Styles| View[视图层]
 
-    subgraph "View Layer"
+    subgraph ViewLayer[视图层 View Layer]
         Root[RichTextRenderer]
-        NodeRenderer[AstNodeRenderer (递归组件)]
-        Components[具体节点组件 (CodeBlock, Table...)]
+        NodeRenderer[AstNodeRenderer 递归组件]
+        Components[具体节点组件]
         StyleEditor[样式编辑器]
     end
 
-    Config -- "动态样式" --> View
-    StyleEditor -- "修改配置" --> Config
+    Config -- 动态样式 --> View
+    StyleEditor -- 修改配置 --> Config
 ```
 
 ### 2.1 核心模块

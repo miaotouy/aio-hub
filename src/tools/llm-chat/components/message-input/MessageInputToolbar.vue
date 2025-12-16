@@ -467,14 +467,19 @@ const handleNewSession = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 8px 4px 12px;
+  padding: 4px 8px 4px 2px;
+  flex-wrap: wrap;
+  gap: 4px 0;
 }
 
 .tool-actions {
   display: flex;
-  gap: 8px;
+  gap: 2px;
   align-items: center;
   color: var(--text-color-light);
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* 流式输出图标按钮 */
@@ -572,6 +577,9 @@ const handleNewSession = () => {
   display: flex;
   gap: 8px;
   align-items: center;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .btn-send,

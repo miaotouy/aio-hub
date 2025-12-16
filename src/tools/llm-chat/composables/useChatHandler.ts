@@ -15,6 +15,7 @@ import type { Asset } from "@/types/asset-management";
 import { useAgentStore } from "../agentStore";
 import { useUserProfileStore } from "../userProfileStore";
 import { useNodeManager } from "./useNodeManager";
+import { useSessionManager } from "./useSessionManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -56,6 +57,7 @@ export function useChatHandler() {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
     },
+    currentSessionId?: string | null,
   ): Promise<void> => {
     // 尝试执行自动上下文压缩
     // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
@@ -172,58 +174,76 @@ export function useChatHandler() {
         options.attachments,
         pathUserNode,
       );
+    }
 
-      // 附件转写等待逻辑
-      // 无论 `wait_before_send` 还是 `send_and_wait`，核心的等待逻辑是相同的。
-      // 区别在于 UI 体验：
-      // - `wait_before_send`: 整个发送过程看起来是阻塞的，直到转写完成。
-      // - `send_and_wait`: 消息先上屏，用户看到附件卡片，然后在后台等待转写。
-      // 此处的实现对两种模式都生效，因为等待是必须的，以确保上下文构建时能拿到转写文本。
-      if (settings.value.transcription.enabled) {
-        const transcriptionManager = useTranscriptionManager();
-        const transcriptionController = new AbortController();
+    // 立即保存用户消息，防止等待 LLM 响应或转写期间程序崩溃导致消息丢失
+    // 这里先保存消息本身，后续的转写等待和元数据更新会在完成后再次触发保存
+    const sessionManager = useSessionManager();
+    sessionManager.persistSession(session, currentSessionId ?? null);
+    logger.debug("用户消息已即时保存（转写前）", {
+      sessionId: session.id,
+      userNodeId: userNode.id,
+    });
 
-        // 两种模式都需要中止控制器，因为等待都可能被用户取消
-        abortControllers.set(assistantNode.id, transcriptionController);
-        generatingNodes.add(assistantNode.id);
+    // 附件转写等待逻辑（在消息保存后执行）
+    // 无论 `wait_before_send` 还是 `send_and_wait`，核心的等待逻辑是相同的。
+    // 区别在于 UI 体验：
+    // - `wait_before_send`: 整个发送过程看起来是阻塞的，直到转写完成。
+    // - `send_and_wait`: 消息先上屏，用户看到附件卡片，然后在后台等待转写。
+    // 此处的实现对两种模式都生效，因为等待是必须的，以确保上下文构建时能拿到转写文本。
+    if (
+      options?.attachments &&
+      options.attachments.length > 0 &&
+      settings.value.transcription.enabled
+    ) {
+      const transcriptionManager = useTranscriptionManager();
+      const transcriptionController = new AbortController();
 
-        try {
-          const behavior = settings.value.transcription.sendBehavior;
-          logger.info(`⏳ [${behavior}] 模式，开始等待附件转写...`, {
-            nodeId: assistantNode.id,
-          });
+      // 两种模式都需要中止控制器，因为等待都可能被用户取消
+      abortControllers.set(assistantNode.id, transcriptionController);
+      generatingNodes.add(assistantNode.id);
 
-          await Promise.race([
-            transcriptionManager.ensureTranscriptions(
-              options.attachments,
-              agentConfig.modelId,
-              agentConfig.profileId,
-              new Set<string>(), // 当前消息的附件深度为0，不强制转写
-            ),
-            new Promise((_, reject) => {
-              transcriptionController.signal.addEventListener("abort", () => {
-                reject(new Error("User aborted"));
-              });
-            }),
-          ]);
+      try {
+        const behavior = settings.value.transcription.sendBehavior;
+        logger.info(`⏳ [${behavior}] 模式，开始等待附件转写...`, {
+          nodeId: assistantNode.id,
+        });
 
-          logger.info(`✅ [${behavior}] 转写等待结束，继续发送流程`);
-        } catch (error: any) {
-          if (error.message === "User aborted") {
-            logger.info("🛑 用户取消了发送（在转写等待阶段）");
-            abortControllers.delete(assistantNode.id);
-            generatingNodes.delete(assistantNode.id);
-            // 注意：这里需要将新创建的节点从会话中移除，否则会留下一个孤立的用户消息
-            nodeManager.hardDeleteNode(session, userNode.id);
-            return;
-          }
-          // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
-          logger.warn("⚠️ 转写等待期间出错，将使用原始附件发送", error);
-        } finally {
-          // 清理，因为后续的 executeRequest 会创建自己的控制器
+        await Promise.race([
+          transcriptionManager.ensureTranscriptions(
+            options.attachments,
+            agentConfig.modelId,
+            agentConfig.profileId,
+            new Set<string>(), // 当前消息的附件深度为0，不强制转写
+          ),
+          new Promise((_, reject) => {
+            transcriptionController.signal.addEventListener("abort", () => {
+              reject(new Error("User aborted"));
+            });
+          }),
+        ]);
+
+        logger.info(`✅ [${behavior}] 转写等待结束，继续发送流程`);
+      } catch (error: any) {
+        if (error.message === "User aborted") {
+          logger.info("🛑 用户取消了转写等待，保留用户消息，不发送请求");
           abortControllers.delete(assistantNode.id);
           generatingNodes.delete(assistantNode.id);
+          // 用户取消的是「等待转写」，而非「发送消息」
+          // 用户消息应当保留（用户已经明确发送了这条消息）
+          // 只需要清理助手节点，让用户之后可以选择重新生成
+          nodeManager.hardDeleteNode(session, assistantNode.id);
+          // 更新活跃叶节点为用户消息
+          nodeManager.updateActiveLeaf(session, userNode.id);
+          sessionManager.persistSession(session, currentSessionId ?? null);
+          return;
         }
+        // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
+        logger.warn("⚠️ 转写等待期间出错，将使用原始附件发送", error);
+      } finally {
+        // 清理，因为后续的 executeRequest 会创建自己的控制器
+        abortControllers.delete(assistantNode.id);
+        generatingNodes.delete(assistantNode.id);
       }
     }
     // 确定生效的用户档案（智能体绑定 > 全局配置）

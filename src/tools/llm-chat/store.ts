@@ -431,6 +431,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         abortControllers.value,
         generatingNodes.value,
         options,
+        currentSessionId.value,
       );
 
       const sessionManager = useSessionManager();

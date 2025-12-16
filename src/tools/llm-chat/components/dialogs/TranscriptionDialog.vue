@@ -25,21 +25,19 @@
                 alt="预览"
                 @click="handleImagePreview"
               />
-              <div v-else-if="isVideo" class="video-preview-placeholder">
-                <div class="icon-wrapper">
-                  <Video :size="48" />
-                </div>
-                <span class="hint">视频文件</span>
-                <button class="preview-btn" @click="handleVideoPreview">
-                  <Play :size="16" class="btn-icon-inline" />
-                  播放视频
-                </button>
+              <div v-else-if="isVideo" class="video-player-wrapper">
+                <VideoPlayer
+                  v-if="previewUrl"
+                  :src="previewUrl"
+                  :title="asset.name"
+                  :autoplay="false"
+                />
               </div>
               <div v-else-if="isAudio" class="audio-preview-placeholder">
                 <div class="icon-wrapper">
-                  <Music :size="48" />
+                  <Music :size="64" />
                 </div>
-                <span class="hint">音频文件</span>
+                <span class="hint">{{ asset.name }}</span>
                 <audio v-if="previewUrl" :src="previewUrl" controls class="audio-player"></audio>
               </div>
               <div v-else class="generic-preview">
@@ -98,12 +96,12 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
+import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
-import { useVideoViewer } from "@/composables/useVideoViewer";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
-import { Copy, RefreshCw, Video, Music, Play } from "lucide-vue-next";
+import { Copy, RefreshCw, Music } from "lucide-vue-next";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("TranscriptionDialog");
@@ -121,7 +119,6 @@ const emit = defineEmits<{
 }>();
 
 const { show: showImage } = useImageViewer();
-const { previewVideo } = useVideoViewer();
 
 const currentContent = ref("");
 const previewUrl = ref("");
@@ -211,10 +208,6 @@ const handleImagePreview = () => {
     showImage([previewUrl.value], 0);
   }
 };
-
-const handleVideoPreview = () => {
-  previewVideo(props.asset);
-};
 </script>
 
 <style scoped>
@@ -253,51 +246,44 @@ const handleVideoPreview = () => {
   cursor: zoom-in;
 }
 
-.video-preview-placeholder,
+.video-player-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 .audio-preview-placeholder,
 .generic-preview {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 24px;
   color: var(--text-color-secondary);
+  width: 100%;
+  padding: 20px;
 }
 
 .icon-wrapper {
   color: var(--text-color-secondary);
   opacity: 0.5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .hint {
   font-size: 14px;
-}
-
-.preview-btn {
-  padding: 8px 16px;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.preview-btn:hover {
-  background: var(--primary-hover-color);
-}
-
-.btn-icon-inline {
-  display: inline-block;
+  opacity: 0.8;
+  max-width: 80%;
+  text-align: center;
+  word-break: break-all;
 }
 
 .audio-player {
-  width: 80%;
-  max-width: 300px;
+  width: 90%;
+  max-width: 600px;
+  height: 40px;
 }
 
 .editor-column {

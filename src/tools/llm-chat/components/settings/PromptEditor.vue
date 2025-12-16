@@ -9,18 +9,20 @@
       class="prompt-textarea"
     />
     <div class="prompt-actions">
-      <el-tooltip content="重置为默认提示词" placement="top">
-        <el-button @click="handleReset" type="default" plain size="small">
-          <el-icon><RefreshLeft /></el-icon>
-          重置
-        </el-button>
-      </el-tooltip>
+      <el-popconfirm title="确定要重置为默认提示词吗？" @confirm="handleReset" width="200">
+        <template #reference>
+          <el-button type="default" plain size="small">
+            <el-icon><RefreshLeft /></el-icon>
+            重置
+          </el-button>
+        </template>
+      </el-popconfirm>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ElInput, ElButton, ElIcon, ElTooltip } from "element-plus";
+import { ElInput, ElButton, ElIcon, ElPopconfirm } from "element-plus";
 import { RefreshLeft } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 
@@ -35,7 +37,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: "",
   defaultValue: "",
   placeholder: "请输入提示词",
-  rows: 4,
+  rows: 6,
 });
 
 const emit = defineEmits<{

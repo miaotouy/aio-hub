@@ -869,7 +869,7 @@ export const settingsConfig: SettingsSection[] = [
         label: "图片 Prompt",
         component: "PromptEditor",
         props: {
-          rows: 4,
+          rows: 6,
           placeholder: "输入图片转写提示词",
           defaultValue: DEFAULT_SETTINGS.transcription.image.customPrompt,
         },
@@ -926,7 +926,7 @@ export const settingsConfig: SettingsSection[] = [
         label: "音频 Prompt",
         component: "PromptEditor",
         props: {
-          rows: 4,
+          rows: 6,
           placeholder: "输入音频转写提示词",
           defaultValue: DEFAULT_SETTINGS.transcription.audio.customPrompt,
         },
@@ -983,7 +983,7 @@ export const settingsConfig: SettingsSection[] = [
         label: "视频 Prompt",
         component: "PromptEditor",
         props: {
-          rows: 4,
+          rows: 6,
           placeholder: "输入视频转写提示词",
           defaultValue: DEFAULT_SETTINGS.transcription.video.customPrompt,
         },

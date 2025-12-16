@@ -16,8 +16,46 @@ const props = defineProps<{
 // 通过 Registry 获取服务实例，避免直接依赖内部实现
 const getChatService = () => toolRegistryManager.getRegistry<LlmChatRegistry>("llm-chat");
 // 使用 computed 确保响应式
+// 只有在 copy 时才使用原始 content，其他操作使用 safeContent
 const clipboardSource = computed(() => props.content);
 const { copy, copied } = useClipboard({ source: clipboardSource });
+
+// 安全过滤内容：防止控制字符和超长文本
+const safeContent = computed(() => {
+  if (!props.content) return "";
+
+  // 1. 长度限制：防止超长文本导致 UI 卡死或 DOS
+  const MAX_LENGTH = 5000;
+  let content = props.content;
+  if (content.length > MAX_LENGTH) {
+    content = content.slice(0, MAX_LENGTH);
+    customMessage.warning("内容过长，已自动截断");
+  }
+
+  // 2. 过滤控制字符：保留换行(\n, \r)和制表符(\t)，移除其他不可见控制字符
+  // ASCII 0-31 中，9是\t, 10是\n, 13是\r
+  return content.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");
+});
+
+// 安全过滤样式：防止 position: fixed 等覆盖主应用
+const safeStyle = computed(() => {
+  if (!props.style) return undefined;
+
+  // 简单的分号分割解析（不使用复杂的 CSS Parser 以保持轻量）
+  // 移除 position, z-index, top, left, right, bottom 等可能导致脱离文档流的属性
+  return (
+    props.style
+      .split(";")
+      .filter((rule) => {
+        const [key] = rule.split(":");
+        if (!key) return false;
+        const trimmedKey = key.trim().toLowerCase();
+        // 禁止定位属性和过大的层级
+        return !["position", "z-index", "top", "left", "right", "bottom"].includes(trimmedKey);
+      })
+      .join(";") + "; position: relative; z-index: 0;"
+  ); // 强制重置为安全值
+});
 
 const handleClick = async () => {
   const llmChatService = getChatService();
@@ -25,14 +63,14 @@ const handleClick = async () => {
   switch (props.action) {
     case "input":
       if (llmChatService) {
-        llmChatService.addContentToInput(props.content);
+        llmChatService.addContentToInput(safeContent.value);
       } else {
         customMessage.warning("聊天服务不可用");
       }
       break;
     case "send":
       if (llmChatService) {
-        await llmChatService.sendMessage(props.content);
+        await llmChatService.sendMessage(safeContent.value);
       } else {
         customMessage.warning("聊天服务不可用");
       }
@@ -61,8 +99,11 @@ const titleMap = {
 
 <template>
   <button
-    :class="['hover-effect', { 'action-button': !props.style, [`action-${props.action}`]: !props.style }]"
-    :style="props.style"
+    :class="[
+      'hover-effect',
+      { 'action-button': !props.style, [`action-${props.action}`]: !props.style },
+    ]"
+    :style="safeStyle"
     :title="titleMap[props.action]"
     @click="handleClick"
   >

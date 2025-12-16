@@ -46,7 +46,7 @@ export default class LlmChatRegistry implements ToolRegistry {
   public readonly description = '管理 LLM 聊天输入框的内容和附件，支持跨窗口和工具间协同';
 
   private _inputManager: ReturnType<typeof useChatInputManager> | null = null;
-  
+
   /**
    * 获取输入管理器实例（惰性初始化）
    */
@@ -71,7 +71,7 @@ export default class LlmChatRegistry implements ToolRegistry {
     return errorHandler.wrapSync(
       () => {
         const { position = 'append' } = options;
-        
+
         logger.info('添加内容到输入框', {
           contentLength: content.length,
           position,
@@ -118,7 +118,7 @@ export default class LlmChatRegistry implements ToolRegistry {
     return errorHandler.wrapSync(
       () => {
         logger.info('设置输入框内容', { contentLength: content.length });
-        
+
         this.inputManager.setContent(content);
 
         return {
@@ -306,7 +306,7 @@ export default class LlmChatRegistry implements ToolRegistry {
         });
 
         const processedContent = await processor(originalContent);
-        
+
         logger.info('内容处理完成', {
           originalLength: originalContent.length,
           processedLength: processedContent.length,
@@ -319,7 +319,7 @@ export default class LlmChatRegistry implements ToolRegistry {
         userMessage: '处理输入框内容失败',
       }
     );
-    
+
     // 如果发生错误，返回当前状态
     return result || {
       success: false,
@@ -328,6 +328,27 @@ export default class LlmChatRegistry implements ToolRegistry {
     };
   }
 
+  /**
+   * 发送消息
+   * 注意：此方法直接通过 store 发送消息，不会修改输入框的内容，以免覆盖用户的正在输入的草稿。
+   * @param content 要发送的内容
+   */
+  public async sendMessage(content: string): Promise<void> {
+    await errorHandler.wrapAsync(
+      async () => {
+        logger.info('通过 Registry 发送消息', { contentLength: content.length });
+        // 直接触发发送，不修改输入框状态，避免覆盖用户草稿或残留内容
+        const { useLlmChatStore } = await import('./store');
+        const store = useLlmChatStore();
+        await store.sendMessage(content);
+      },
+      {
+        level: ErrorLevel.ERROR,
+        userMessage: '发送消息失败',
+        context: { content },
+      }
+    );
+  }
   // ==================== 分离组件配置 ====================
 
   /**
@@ -336,7 +357,7 @@ export default class LlmChatRegistry implements ToolRegistry {
    */
   private useDetachedChatAreaAdapter(): { props: Ref<any>; listeners: Record<string, Function> } {
     const chatArea = useDetachedChatArea();
-    
+
     return {
       props: computed(() => ({
         isDetached: true,
@@ -474,6 +495,22 @@ await service.processContent(content => content.toUpperCase());
 await service.processContent(content => {
   return content.replace(/old/g, 'new');
 });`,
+        },
+        {
+          name: 'sendMessage',
+          description: '发送消息（直接发送，不修改输入框状态）',
+          parameters: [
+            {
+              name: 'content',
+              type: 'string',
+              required: true,
+              description: '要发送的消息内容',
+            },
+          ],
+          returnType: 'Promise<void>',
+          example: `
+// 发送一条消息
+await service.sendMessage('你好，请帮我分析一下这个文件');`,
         },
         {
           name: 'getAttachments',

@@ -364,7 +364,28 @@ export type AstNode =
   | TableNode
   | TableRowNode
   | TableCellNode
-  | KatexBlockNode; // KaTeX 块级公式
+  | KatexBlockNode // KaTeX 块级公式
+  | ActionButtonNode;
+
+/**
+ * 可交互按钮节点
+ * 用于渲染用户可点击的动作按钮
+ */
+export interface ActionButtonNode extends BaseAstNode {
+  type: 'action_button';
+  props: {
+    /** 动作类型：'send' 直接发送, 'input' 插入到输入框, 'copy' 复制 */
+    action: 'send' | 'input' | 'copy';
+    /** 按钮显示文本 */
+    label: string;
+    /** 点击时的实际内容 */
+    content: string;
+    /** 内联样式，当存在时，将完全替换组件的默认样式 */
+    style?: string;
+  };
+  children?: never;
+}
+
 // ============ Patch 指令相关类型 ============
 
 /**

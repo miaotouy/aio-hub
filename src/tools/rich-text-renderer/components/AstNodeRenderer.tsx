@@ -23,6 +23,7 @@ import ImageNode from "./nodes/ImageNode.vue";
 import HardBreakNode from "./nodes/HardBreakNode.vue";
 import HtmlInlineNode from "./nodes/HtmlInlineNode.vue";
 import GenericHtmlNode from "./nodes/GenericHtmlNode.vue";
+import ActionButtonNode from "./nodes/ActionButtonNode.vue";
 // 块级节点
 import ParagraphNode from "./nodes/ParagraphNode.vue";
 import HeadingNode from "./nodes/HeadingNode.vue";
@@ -58,6 +59,7 @@ const componentMap: Record<string, any> = {
   hard_break: HardBreakNode,
   html_inline: HtmlInlineNode,
   generic_html: GenericHtmlNode,
+  action_button: ActionButtonNode,
   // 块级节点
   paragraph: ParagraphNode,
   heading: HeadingNode,

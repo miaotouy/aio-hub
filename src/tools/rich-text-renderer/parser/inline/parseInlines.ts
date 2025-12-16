@@ -1,6 +1,25 @@
 import { Token, ParserContext } from "../types";
-import { AstNode, GenericHtmlNode } from "../../types";
+import { ActionButtonNode, AstNode, GenericHtmlNode } from "../../types";
 import { createTextNode } from "../utils/text-utils";
+
+/**
+ * 从 AST 节点数组中提取纯文本内容
+ * @param nodes AST 节点数组
+ * @returns 拼接后的纯文本
+ */
+function extractTextFromNodes(nodes: AstNode[]): string {
+  return nodes
+    .map((node) => {
+      if (node.type === "text") {
+        return node.props.content;
+      }
+      if (node.children) {
+        return extractTextFromNodes(node.children);
+      }
+      return "";
+    })
+    .join("");
+}
 
 /**
  * 内联解析
@@ -27,7 +46,67 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
     if (token.type === "html_open") {
       flushText();
 
-      const tagName = token.tagName;
+      const tagName = token.tagName.toLowerCase(); // 统一转为小写
+
+      // --- 新增逻辑：处理 <button> 标签 ---
+      if (tagName === "button") {
+        const action = token.attributes.type as "send" | "input" | "copy" | undefined;
+
+        // 安全性检查：只处理白名单内的 action 类型
+        if (action && ["send", "input", "copy"].includes(action)) {
+          let label = "";
+          let content = token.attributes.value || "";
+          const style = token.attributes.style; // 获取 style 属性
+
+          if (token.selfClosing) {
+            // 自闭合标签: label 和 content 都来自 value
+            label = token.attributes.value || "";
+            if (!content) {
+              content = label;
+            }
+          } else {
+            // 非自闭合标签: 收集内部 tokens
+            const innerTokens: Token[] = [];
+            let depth = 1;
+
+            while (i < tokens.length) {
+              i++;
+              if (i >= tokens.length) break;
+              const t = tokens[i];
+              
+              if (t.type === "html_open" && t.tagName.toLowerCase() === "button" && !t.selfClosing) {
+                depth++;
+              } else if (t.type === "html_close" && t.tagName.toLowerCase() === "button") {
+                depth--;
+                if (depth === 0) {
+                  break;
+                }
+              }
+              innerTokens.push(t);
+            }
+            
+            const childNodes = ctx.parseInlines(innerTokens);
+            label = extractTextFromNodes(childNodes);
+            if (!content) {
+              content = label;
+            }
+          }
+
+          const buttonNode: ActionButtonNode = {
+            id: "", // ID 将由上层统一分配
+            type: "action_button",
+            props: { action, label, content, style }, // 将 style 传递给 props
+            meta: { range: { start: 0, end: 0 }, status: "stable" },
+          };
+
+          nodes.push(buttonNode);
+          i++;
+          continue; // 处理完毕，继续下一个 token
+        }
+      }
+      // --- 结束新增逻辑 ---
+
+
       const htmlNode: GenericHtmlNode = {
         id: "",
         type: "generic_html",

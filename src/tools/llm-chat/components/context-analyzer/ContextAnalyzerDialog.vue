@@ -17,25 +17,25 @@
         <el-icon class="error-icon" :size="32"><WarningFilled /></el-icon>
         <p>{{ error }}</p>
       </div>
-<div v-else-if="contextData" class="analyzer-content">
-  <el-tabs v-model="activeTab" class="analyzer-tabs">
-    <el-tab-pane label="结构化视图" name="structured">
-      <StructuredView :context-data="contextData" />
-    </el-tab-pane>
+      <div v-else-if="contextData" class="analyzer-content">
+        <el-tabs v-model="activeTab" class="analyzer-tabs">
+          <el-tab-pane label="结构化视图" name="structured">
+            <StructuredView :context-data="contextData" />
+          </el-tab-pane>
 
-    <el-tab-pane label="原始请求" name="raw">
-      <RawRequestView :context-data="contextData" />
-    </el-tab-pane>
+          <el-tab-pane label="原始请求" name="raw">
+            <RawRequestView :context-data="contextData" />
+          </el-tab-pane>
 
-    <el-tab-pane label="内容分析" name="analysis">
-      <AnalysisChartView :context-data="contextData" :is-active="activeTab === 'analysis'" />
-    </el-tab-pane>
+          <el-tab-pane label="内容分析" name="analysis">
+            <AnalysisChartView :context-data="contextData" :is-active="activeTab === 'analysis'" />
+          </el-tab-pane>
 
-    <el-tab-pane label="宏调试" name="macro">
-      <MacroDebugView :context-data="contextData" />
-    </el-tab-pane>
-  </el-tabs>
-</div>
+          <el-tab-pane label="宏调试" name="macro">
+            <MacroDebugView :context-data="contextData" />
+          </el-tab-pane>
+        </el-tabs>
+      </div>
     </template>
 
     <template #footer>
@@ -45,20 +45,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { Loading, WarningFilled } from '@element-plus/icons-vue';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import StructuredView from './StructuredView.vue';
-import RawRequestView from './RawRequestView.vue';
-import AnalysisChartView from './AnalysisChartView.vue';
-import MacroDebugView from './MacroDebugView.vue';
-import { useChatHandler, type ContextPreviewData } from '../../composables/useChatHandler';
-import type { ChatSession } from '../../types';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { ref, watch, computed } from "vue";
+import { Loading, WarningFilled } from "@element-plus/icons-vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import StructuredView from "./StructuredView.vue";
+import RawRequestView from "./RawRequestView.vue";
+import AnalysisChartView from "./AnalysisChartView.vue";
+import MacroDebugView from "./MacroDebugView.vue";
+import { useChatHandler, type ContextPreviewData } from "../../composables/useChatHandler";
+import type { ChatSession } from "../../types";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('llm-chat/context-analyzer-dialog');
-const errorHandler = createModuleErrorHandler('llm-chat/context-analyzer-dialog');
+const logger = createModuleLogger("llm-chat/context-analyzer-dialog");
+const errorHandler = createModuleErrorHandler("llm-chat/context-analyzer-dialog");
 
 const props = defineProps<{
   visible: boolean;
@@ -67,15 +67,15 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', value: boolean): void;
+  (e: "update:visible", value: boolean): void;
 }>();
 
 const localVisible = computed({
   get: () => props.visible,
-  set: (value) => emit('update:visible', value),
+  set: (value) => emit("update:visible", value),
 });
 
-const activeTab = ref<'structured' | 'raw' | 'analysis' | 'macro'>('structured');
+const activeTab = ref<"structured" | "raw" | "analysis" | "macro">("structured");
 const loading = ref(false);
 const error = ref<string | null>(null);
 const contextData = ref<ContextPreviewData | null>(null);
@@ -90,7 +90,7 @@ watch(
       // 关闭时重置状态
       contextData.value = null;
       error.value = null;
-      activeTab.value = 'structured';
+      activeTab.value = "structured";
     }
   },
   { immediate: true }
@@ -98,7 +98,7 @@ watch(
 
 const analyzeContext = async () => {
   if (!props.nodeId || !props.session) {
-    error.value = '缺少必要参数';
+    error.value = "缺少必要参数";
     return;
   }
 
@@ -108,26 +108,31 @@ const analyzeContext = async () => {
 
   try {
     const { getLlmContextForPreview } = useChatHandler();
-    // 注意：这里不传递 agentId 参数，让函数自动从消息节点推断智能体
-    // 这样可以显示该消息实际发送时使用的智能体配置
-    const result = await getLlmContextForPreview(props.session, props.nodeId);
+    const node = props.session.nodes[props.nodeId];
+    const historicalAgentId = node?.metadata?.agentId;
+
+    if (!historicalAgentId) {
+      logger.warn("在消息节点元数据中找不到 agentId，将回退到当前智能体", { nodeId: props.nodeId });
+    }
+
+    const result = await getLlmContextForPreview(props.session, props.nodeId, historicalAgentId);
 
     if (!result) {
-      error.value = '无法生成上下文预览数据';
-      logger.warn('上下文分析失败', { nodeId: props.nodeId });
+      error.value = "无法生成上下文预览数据";
+      logger.warn("上下文分析失败", { nodeId: props.nodeId });
       return;
     }
 
     contextData.value = result;
-    logger.info('上下文分析成功', {
+    logger.info("上下文分析成功", {
       nodeId: props.nodeId,
       totalChars: result.statistics.totalCharCount,
       messageCount: result.statistics.messageCount,
     });
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '分析上下文时发生错误';
+    error.value = err instanceof Error ? err.message : "分析上下文时发生错误";
     errorHandler.handle(err as Error, {
-     userMessage: '上下文分析异常',
+      userMessage: "上下文分析异常",
       context: { nodeId: props.nodeId },
       showToUser: false,
     });

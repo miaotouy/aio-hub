@@ -677,8 +677,17 @@ export function useChatExecutor() {
     const userProfileStore = useUserProfileStore();
     const { getProfileById } = useLlmProfiles();
 
-    const currentAgentFromStore = agentId
-      ? agentStore.getAgentById(agentId)
+    const targetNode = session.nodes[targetNodeId];
+    const pathToUserNode = nodeManager.getNodePath(session, targetNodeId);
+
+    // 从消息元数据中提取历史配置（优先级最高）
+    const historicalProfileId = targetNode?.metadata?.profileId;
+    const historicalModelId = targetNode?.metadata?.modelId;
+    const historicalAgentId = agentId || targetNode?.metadata?.agentId;
+
+    // 获取 Agent 对象（用于预设消息等）
+    const currentAgentFromStore = historicalAgentId
+      ? agentStore.getAgentById(historicalAgentId)
       : agentStore.currentAgentId
         ? agentStore.getAgentById(agentStore.currentAgentId)
         : null;
@@ -688,6 +697,7 @@ export function useChatExecutor() {
       return null;
     }
 
+    // 获取 Agent 配置片段
     const agentConfigSnippet = agentStore.getAgentConfig(
       currentAgentFromStore.id,
       {
@@ -700,9 +710,17 @@ export function useChatExecutor() {
       return null;
     }
 
+    // 使用历史配置覆盖 Agent 当前配置
+    // 这确保上下文分析器显示的是消息生成时的实际配置
+    const effectiveProfileId = historicalProfileId || agentConfigSnippet.profileId;
+    const effectiveModelId = historicalModelId || agentConfigSnippet.modelId;
+
     const executionAgent: ChatAgent = {
       ...currentAgentFromStore,
       ...agentConfigSnippet,
+      // 覆盖为历史配置
+      profileId: effectiveProfileId,
+      modelId: effectiveModelId,
     };
 
     let effectiveUserProfile: UserProfile | null = null;
@@ -718,14 +736,12 @@ export function useChatExecutor() {
       if (profile) effectiveUserProfile = profile;
     }
 
-    const profile = getProfileById(agentConfigSnippet.profileId);
+    // 使用历史配置获取 Profile 和 Model
+    const profile = getProfileById(effectiveProfileId);
     const model: LlmModelInfo | undefined = profile?.models.find(
-      (m) => m.id === agentConfigSnippet.modelId,
+      (m) => m.id === effectiveModelId,
     );
     const capabilities = model?.capabilities;
-
-    const pathToUserNode = nodeManager.getNodePath(session, targetNodeId);
-    const targetNode = session.nodes[targetNodeId];
 
     // 尝试从目标节点恢复用户档案快照
     if (targetNode?.metadata?.userProfileName && effectiveUserProfile) {
@@ -757,17 +773,27 @@ export function useChatExecutor() {
     if (targetNode) {
       pipelineContext.sharedData.set("userMessageContent", targetNode.content);
     }
+    // 设置模型信息：优先使用实际的 model 对象，否则从元数据构造
     if (model) {
       pipelineContext.sharedData.set("model", model);
+    } else if (targetNode?.metadata?.modelId) {
+      // 如果找不到 model 对象（可能已被删除），但目标节点有快照，手动构造一个部分 model 对象
+      pipelineContext.sharedData.set("model", {
+        id: targetNode.metadata.modelId,
+        name: targetNode.metadata.modelName || targetNode.metadata.modelId,
+        capabilities: {},
+      });
     }
+
+    // 设置 Profile 信息：优先使用实际的 profile 对象，否则从元数据构造
     if (profile) {
       pipelineContext.sharedData.set("profile", profile);
-    } else if (targetNode?.metadata?.profileName) {
+    } else if (targetNode?.metadata?.profileId || targetNode?.metadata?.profileName) {
       // 如果找不到 profile 对象（可能已被删除），但目标节点有快照，手动构造一个部分 profile 对象
       // 这样下游（如 preview-builder）依然可以获取到渠道名称
       pipelineContext.sharedData.set("profile", {
-        id: targetNode.metadata.profileId || agentConfigSnippet.profileId,
-        name: targetNode.metadata.profileName,
+        id: targetNode.metadata.profileId || effectiveProfileId,
+        name: targetNode.metadata.profileName || effectiveProfileId,
         type: targetNode.metadata.providerType || "unknown",
         models: [], // 占位，避免空指针
       });
@@ -856,7 +882,7 @@ export function useChatExecutor() {
       // 避免直接 JSON.stringify 包含 base64 的 content 导致 token 爆炸
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         contentText,
-        agentConfigSnippet.modelId,
+        effectiveModelId,
         msg._attachments || [],
       );
       return tokenResult.count;

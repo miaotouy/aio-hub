@@ -25,7 +25,7 @@ const emit = defineEmits<Emits>();
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
-const { getModelIcon } = useModelMetadata();
+const { getModelIcon, getIconPath, getDisplayIconPath } = useModelMetadata();
 
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar> | null>(null);
 const branchItemsRef = ref<HTMLDivElement[]>([]);
@@ -107,8 +107,7 @@ const siblingsWithDisplayInfo = computed(() => {
       const agentId = sibling.metadata?.agentId;
       const agent = agentId ? agentStore.getAgentById(agentId) : null;
 
-      displayName =
-        sibling.metadata?.agentName || agent?.displayName || agent?.name || "助手";
+      displayName = sibling.metadata?.agentName || agent?.displayName || agent?.name || "助手";
 
       // 解析头像
       const avatarTarget = computed(() => {
@@ -127,20 +126,44 @@ const siblingsWithDisplayInfo = computed(() => {
       if (metadata) {
         const profileId = metadata.profileId;
         const modelId = metadata.modelId;
+        const providerType = metadata.providerType;
 
         if (profileId && modelId) {
           const profile = getProfileById(profileId);
-          if (profile) {
-            const model = profile.models.find((m) => m.id === modelId);
-            if (model) {
-              modelInfo = {
-                modelName: metadata.modelName || model.name || model.id,
-                profileName: profile.name,
-                modelIcon: getModelIcon(model) || undefined,
-                profileIcon: profile.icon || profile.logoUrl || undefined,
-              };
+          const model = profile?.models.find((m) => m.id === modelId);
+
+          // 优先使用元数据快照中的名称，如果没有则尝试从当前配置获取，最后回退到 ID
+          const displayModelName = metadata.modelName || model?.name || modelId;
+          const displayProfileName = metadata.profileName || profile?.name || profileId;
+
+          // 获取模型图标路径
+          let modelIconPath: string | undefined;
+          if (model) {
+            modelIconPath = getModelIcon(model) || undefined;
+          } else {
+            const iconPath = getIconPath(modelId, providerType);
+            if (iconPath) {
+              modelIconPath = getDisplayIconPath(iconPath);
             }
           }
+
+          // 获取渠道图标路径
+          let profileIconPath: string | undefined;
+          if (profile) {
+            profileIconPath = profile.icon || profile.logoUrl || undefined;
+          } else if (providerType) {
+            const iconPath = getIconPath(providerType);
+            if (iconPath) {
+              profileIconPath = getDisplayIconPath(iconPath);
+            }
+          }
+
+          modelInfo = {
+            modelName: displayModelName,
+            profileName: displayProfileName,
+            modelIcon: modelIconPath,
+            profileIcon: profileIconPath,
+          };
         }
       }
     } else {

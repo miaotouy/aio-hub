@@ -242,7 +242,7 @@ const props = defineProps<{
 
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
-const { getModelIcon, getModelProperty } = useModelMetadata();
+const { getModelIcon, getModelProperty, getIconPath, getDisplayIconPath } = useModelMetadata();
 const { computeWillUseTranscription } = useTranscriptionManager();
 
 const agentProfile = computed(() => {
@@ -256,20 +256,51 @@ const agentModel = computed(() => {
 });
 
 const modelDisplayName = computed(() => {
-  if (!agentModel.value) return props.contextData.agentInfo.modelId;
-  // LlmModelInfo 中用于显示的字段是 name
-  return getModelProperty(agentModel.value, "name") || agentModel.value.name || agentModel.value.id;
+  // 1. 优先使用快照中的模型名称
+  if (props.contextData.agentInfo.modelName) {
+    return props.contextData.agentInfo.modelName;
+  }
+  // 2. 如果快照没有，再尝试从当前配置获取（用于兼容旧数据）
+  if (agentModel.value) {
+    return (
+      getModelProperty(agentModel.value, "name") || agentModel.value.name || agentModel.value.id
+    );
+  }
+  // 3. 最终回退到使用 modelId
+  return props.contextData.agentInfo.modelId;
 });
 
 const modelIcon = computed(() => {
-  if (!agentModel.value) return null;
-  return getModelIcon(agentModel.value);
+  // 优先使用从当前配置获取的模型图标
+  if (agentModel.value) {
+    return getModelIcon(agentModel.value);
+  }
+  // 回退到通过 modelId 和 providerType 匹配图标（模型被删除时仍能显示图标）
+  const { modelId, providerType } = props.contextData.agentInfo;
+  if (modelId) {
+    const iconPath = getIconPath(modelId, providerType);
+    if (iconPath) {
+      return getDisplayIconPath(iconPath);
+    }
+  }
+  return null;
 });
 
 const providerIcon = computed(() => {
-  if (!agentProfile.value) return null;
-  // 优先使用 profile 根目录的 icon，其次是 logoUrl
-  return agentProfile.value.icon || agentProfile.value.logoUrl || null;
+  // 优先使用从当前配置获取的渠道图标
+  if (agentProfile.value) {
+    return agentProfile.value.icon || agentProfile.value.logoUrl || null;
+  }
+  // 如果渠道被删除，回退到通过 providerType 匹配图标
+  const { providerType } = props.contextData.agentInfo;
+  if (providerType) {
+    // 使用 providerType 作为 modelId 来匹配通用的提供商图标
+    const iconPath = getIconPath(providerType);
+    if (iconPath) {
+      return getDisplayIconPath(iconPath);
+    }
+  }
+  return null;
 });
 
 const agentDisplayName = computed(() => {

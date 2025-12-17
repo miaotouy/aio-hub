@@ -39,8 +39,26 @@ export async function buildPreviewDataFromContext(
 
   // 从 sharedData 获取 Profile 信息（可能是实时对象，也可能是从元数据恢复的临时对象）
   const profile = context.sharedData.get("profile") as
-    | { name?: string; type?: string }
+    | {
+      name?: string;
+      type?: string;
+      models?: Array<{ id: string; name?: string }>;
+    }
     | undefined;
+
+  // 获取模型显示名称
+  let modelName: string | undefined;
+  if (profile?.models) {
+    const model = profile.models.find((m) => m.id === agentConfig.modelId);
+    if (model) {
+      modelName = model.name;
+    }
+  }
+  // 如果 Profile 中没找到，尝试从元数据获取（如果有）
+  if (!modelName && modelMetadata?.name && typeof modelMetadata.name === "string") {
+    modelName = modelMetadata.name;
+  }
+
   const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
 
   // 获取转写设置
@@ -427,6 +445,7 @@ export async function buildPreviewDataFromContext(
       profileName: profile?.name,
       providerType: profile?.type,
       modelId: agentConfig.modelId,
+      modelName: modelName,
       virtualTimeConfig: agentConfig.virtualTimeConfig,
     },
     parameters: agentConfig.parameters,

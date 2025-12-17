@@ -20,7 +20,7 @@ const props = defineProps<Props>();
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
-const { getModelIcon } = useModelMetadata();
+const { getIconPath, getDisplayIconPath } = useModelMetadata();
 const { settings } = useChatSettings();
 
 // 获取消息关联的智能体信息
@@ -31,40 +31,43 @@ const agent = computed(() => {
 });
 
 // 获取消息生成时使用的 Profile 和 Model 信息
+// 核心原则：优先使用元数据中的快照信息（名称），图标通过模型 ID 匹配规则获取
 const agentProfileInfo = computed(() => {
   const metadata = props.message.metadata;
   if (!metadata) return null;
 
-  // 优先从消息元数据中读取 profileId 和 modelId
-  const profileId = metadata.profileId;
-  const modelId = metadata.modelId;
+  // 从元数据快照中获取显示名称（这是最可靠的来源）
+  const snapshotModelName = metadata.modelName;
+  const snapshotProfileName = metadata.profileName;
 
-  // 如果元数据中没有，回退到从智能体读取（兼容旧消息）
-  const fallbackProfileId = agent.value?.profileId;
-  const fallbackModelId = agent.value?.modelId;
+  // 获取模型 ID 和提供商类型（用于图标匹配）
+  const modelId = metadata.modelId || agent.value?.modelId;
+  const providerType = metadata.providerType;
 
-  const actualProfileId = profileId || fallbackProfileId;
-  const actualModelId = modelId || fallbackModelId;
+  // 如果元数据中连名称都没有，尝试从当前配置中获取（兼容旧消息）
+  const profileId = metadata.profileId || agent.value?.profileId;
+  const profile = profileId ? getProfileById(profileId) : null;
+  const model = profile?.models.find((m) => m.id === modelId);
 
-  if (!actualProfileId || !actualModelId) return null;
+  // 确定最终显示的名称：优先元数据快照，其次当前配置
+  const displayModelName = snapshotModelName || model?.name || model?.id || modelId;
+  const displayProfileName = snapshotProfileName || profile?.name || profileId;
 
-  const profile = getProfileById(actualProfileId);
-  if (!profile) return null;
+  // 如果连名称都无法确定，则不显示副标题
+  if (!displayModelName && !displayProfileName) return null;
 
-  const model = profile.models.find((m) => m.id === actualModelId);
-  if (!model) return null;
+  // 获取模型图标：优先通过模型 ID 匹配规则，无需依赖 model 对象
+  let modelIcon: string | null = null;
+  if (modelId) {
+    const iconPath = getIconPath(modelId, providerType);
+    modelIcon = iconPath ? getDisplayIconPath(iconPath) : null;
+  }
 
-  // 获取模型图标
-  const modelIcon = getModelIcon(model);
-
-  // 获取渠道图标（Profile 的 icon 或 logoUrl）
-  const profileIcon = profile.icon || profile.logoUrl;
-
-  // 优先使用元数据中的模型名称，如果没有则使用 model 对象的名称
-  const displayModelName = metadata.modelName || model.name || model.id;
+  // 获取渠道图标
+  const profileIcon = profile?.icon || profile?.logoUrl || null;
 
   return {
-    profileName: profile.name,
+    profileName: displayProfileName,
     profileIcon: profileIcon,
     modelName: displayModelName,
     modelIcon: modelIcon,

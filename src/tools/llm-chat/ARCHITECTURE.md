@@ -342,7 +342,7 @@ graph TD
   - **关键机制**:
     - **稳定区与待定区**: 区分已完成的语法块和流式传输中的未闭合标签，确保显示正确性。
     - **更新节流**: 配合 `requestAnimationFrame` 降低 CPU 负载。
-  - **特色功能**: 代码块沙箱、Mermaid 图表渲染、动态 CSS 样式支持。
+  - **特色功能**: 代码块沙箱、Mermaid 图表渲染、动态 CSS 样式支持、可交互按钮（支持 LLM 输出 `<button>` 标签执行 `send`/`input`/`copy` 等安全操作）。
 
 ### 3.4. 对话树图视图 (Tree Graph View)
 

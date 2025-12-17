@@ -36,6 +36,11 @@ export async function buildPreviewDataFromContext(
   const modelMetadata = agentConfig.modelId
     ? getMatchedModelProperties(agentConfig.modelId)
     : undefined;
+
+  // 从 sharedData 获取 Profile 信息（可能是实时对象，也可能是从元数据恢复的临时对象）
+  const profile = context.sharedData.get("profile") as
+    | { name?: string; type?: string }
+    | undefined;
   const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
 
   // 获取转写设置
@@ -45,7 +50,7 @@ export async function buildPreviewDataFromContext(
   // 计算每条消息的深度映射（用于判断强制转写）
   // 深度 = 总消息数 - 1 - 当前索引（最后一条消息深度为 0）
   const messageDepthMap = new Map<string | number, number>();
-  
+
   // 找出所有会话历史消息，按顺序计算深度
   const historyMessages = messages.filter(m => m.sourceType === "session_history");
   const totalHistoryCount = historyMessages.length;
@@ -205,7 +210,7 @@ export async function buildPreviewDataFromContext(
 
         // 检查附件是否已有转写
         const hasTranscription = transcriptionManager.getTranscriptionStatus(asset) === "success";
-        
+
         // 检查附件是否会因为消息深度被强制转写
         // 这意味着即使模型支持，也会使用转写内容
         const willForceTranscribe =
@@ -419,6 +424,8 @@ export async function buildPreviewDataFromContext(
       displayName: agentConfig.displayName,
       icon: agentConfig.icon,
       profileId: agentConfig.profileId,
+      profileName: profile?.name,
+      providerType: profile?.type,
       modelId: agentConfig.modelId,
       virtualTimeConfig: agentConfig.virtualTimeConfig,
     },

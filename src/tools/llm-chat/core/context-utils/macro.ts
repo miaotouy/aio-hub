@@ -26,6 +26,12 @@ export interface MacroContextData {
   userName?: string;
   charName?: string;
   timestamp?: number;
+  // 模型元数据
+  modelId?: string;
+  modelName?: string;
+  profileId?: string;
+  profileName?: string;
+  providerType?: string;
 }
 
 /**
@@ -44,6 +50,13 @@ export const buildMacroContext = (data: MacroContextData) => {
     session: data.session,
     timestamp: data.timestamp,
   });
+
+  // 填充模型元数据
+  if (data.modelId) baseContext.modelId = data.modelId;
+  if (data.modelName) baseContext.modelName = data.modelName;
+  if (data.profileId) baseContext.profileId = data.profileId;
+  if (data.profileName) baseContext.profileName = data.profileName;
+  if (data.providerType) baseContext.providerType = data.providerType;
 
   if (data.session) {
     const extractedContext = extractContextFromSession(

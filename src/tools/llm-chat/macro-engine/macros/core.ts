@@ -179,6 +179,78 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       contextFree: false,
       execute: (context) => context.input || '',
     },
+
+    // ==================== LLM 模型元数据宏 ====================
+
+    // 模型 ID
+    {
+      name: 'modelId',
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: '当前使用的完整模型 ID（例如: openai:gpt-4o）',
+      example: '{{modelId}}',
+      acceptsArgs: false,
+      priority: 150,
+      supported: true,
+      contextFree: false,
+      execute: (context) => context.modelId || context.agent?.modelId || '',
+    },
+
+    // 模型名称（显示名称）
+    {
+      name: 'modelName',
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: '当前使用的模型显示名称（例如: GPT-4o）',
+      example: '{{modelName}}',
+      acceptsArgs: false,
+      priority: 150,
+      supported: true,
+      contextFree: false,
+      execute: (context) => context.modelName || context.modelId || '',
+    },
+
+    // 配置文件 ID
+    {
+      name: 'profileId',
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: '当前使用的 LLM 配置文件 ID',
+      example: '{{profileId}}',
+      acceptsArgs: false,
+      priority: 150,
+      supported: true,
+      contextFree: false,
+      execute: (context) => context.profileId || context.agent?.profileId || '',
+    },
+
+    // 配置文件名称
+    {
+      name: 'profileName',
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: '当前使用的 LLM 配置文件名称（例如: 我的 OpenAI）',
+      example: '{{profileName}}',
+      acceptsArgs: false,
+      priority: 150,
+      supported: true,
+      contextFree: false,
+      execute: (context) => context.profileName || context.profileId || '',
+    },
+
+    // 模型提供商类型
+    {
+      name: 'provider',
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: '当前使用的模型提供商类型（例如: openai）',
+      example: '{{provider}}',
+      acceptsArgs: false,
+      priority: 150,
+      supported: true,
+      contextFree: false,
+      execute: (context) => context.providerType || '',
+    },
   ];
 
   registry.registerMany(coreMacros);

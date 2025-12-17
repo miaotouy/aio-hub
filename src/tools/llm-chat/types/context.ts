@@ -165,6 +165,8 @@ export interface ContextPreviewData {
     displayName?: string;
     icon?: string;
     profileId: string;
+    profileName?: string;
+    providerType?: string;
     modelId: string;
     virtualTimeConfig?: {
       virtualBaseTime: string;

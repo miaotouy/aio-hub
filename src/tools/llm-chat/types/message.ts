@@ -186,6 +186,10 @@ export interface ChatMessageNode {
     userProfileIcon?: string;
     /** 生成此消息时使用的 Profile ID */
     profileId?: string;
+    /** 生成此消息时使用的 Profile 名称（渠道名称） */
+    profileName?: string;
+    /** 生成此消息时使用的提供商类型（如 openai, anthropic） */
+    providerType?: string;
     /** 生成此消息时使用的模型 ID */
     modelId?: string;
     /** 使用的模型名称（显示用） */

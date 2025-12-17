@@ -45,6 +45,18 @@ export interface MacroContext {
   userProfileObj?: UserProfile;
   /** 宏执行时的基准时间戳（可选，默认为当前时间） */
   timestamp?: number;
+
+  // ==================== LLM 模型元数据 ====================
+  /** 当前使用的完整模型 ID */
+  modelId?: string;
+  /** 当前使用的模型显示名称 */
+  modelName?: string;
+  /** 当前使用的 LLM 配置文件 ID */
+  profileId?: string;
+  /** 当前使用的 LLM 配置文件名称（用户定义的名称） */
+  profileName?: string;
+  /** 当前使用的模型提供商标识（从模型信息中获取） */
+  providerType?: string;
 }
 
 /**
@@ -57,6 +69,11 @@ export function createMacroContext(options: {
   agent?: ChatAgent;
   userProfile?: UserProfile;
   timestamp?: number;
+  modelId?: string;
+  modelName?: string;
+  profileId?: string;
+  profileName?: string;
+  providerType?: string;
 }): MacroContext {
   return {
     userName: options.userName || 'User',
@@ -69,6 +86,11 @@ export function createMacroContext(options: {
     agent: options.agent,
     userProfileObj: options.userProfile,
     timestamp: options.timestamp,
+    modelId: options.modelId,
+    modelName: options.modelName,
+    profileId: options.profileId,
+    profileName: options.profileName,
+    providerType: options.providerType,
   };
 }
 
@@ -83,7 +105,7 @@ export function extractContextFromSession(
   // 从会话的活动路径中提取最后的消息
   const nodes = Object.values(session.nodes);
   const enabledNodes = nodes.filter(n => n.isEnabled !== false);
-  
+
   const lastMessage = enabledNodes[enabledNodes.length - 1]?.content;
   const lastUserMessage = enabledNodes.filter(n => n.role === 'user').pop()?.content;
   const lastCharMessage = enabledNodes.filter(n => n.role === 'assistant').pop()?.content;

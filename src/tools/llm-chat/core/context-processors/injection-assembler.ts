@@ -3,6 +3,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { buildMacroContext, processMacros } from "../context-utils/macro";
 import { MacroProcessor } from "@/tools/llm-chat/macro-engine";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { ANCHOR_IDS } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode } from "../../types/message";
 import type { InjectionMessage } from "../../types/context";
@@ -372,11 +373,21 @@ export const injectionAssembler: ContextProcessor = {
 
     // 1. 宏处理 (只处理活动的消息)
     const macroProcessor = new MacroProcessor();
+
+    // 准备模型元数据
+    const modelInfo = context.sharedData.get("model") as LlmModelInfo | undefined;
+    const profileInfo = context.sharedData.get("profile") as LlmProfile | undefined;
+
     const macroContext = buildMacroContext({
       session,
       agent: agentConfig,
       userProfile,
       timestamp,
+      modelId: agentConfig.modelId,
+      modelName: modelInfo?.name, // 使用模型显示名称
+      profileId: agentConfig.profileId,
+      profileName: profileInfo?.name, // 使用配置名称
+      providerType: profileInfo?.type || modelInfo?.provider,
     });
     const processedContents = new Map<string, string>();
     for (const msg of activePresetMessages) {

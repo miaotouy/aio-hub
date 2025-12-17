@@ -162,10 +162,13 @@ export function useChatExecutor() {
     abortControllers.set(assistantNode.id, abortController);
     generatingNodes.add(assistantNode.id);
 
-    // 记录请求开始时间
+    // 记录请求开始时间及模型元数据
     assistantNode.metadata = {
       ...assistantNode.metadata,
       requestStartTime: Date.now(),
+      profileName: profile?.name,
+      providerType: profile?.type,
+      modelName: model?.name || agentConfigSnippet.modelId, // 顺便确保 modelName 也有值
     };
     try {
       const { sendRequest } = useLlmRequest();
@@ -223,6 +226,9 @@ export function useChatExecutor() {
       if (model) {
         pipelineContext.sharedData.set("model", model);
       }
+      if (profile) {
+        pipelineContext.sharedData.set("profile", profile);
+      }
       pipelineContext.sharedData.set(
         "transcriptionConfig",
         settings.value.transcription,
@@ -242,7 +248,7 @@ export function useChatExecutor() {
           // 计算需要强制转写的附件（基于消息深度）
           const forceAssetIds = new Set<string>();
           const config = settings.value.transcription;
-          
+
           // 只有在智能模式下且设置了强制转写阈值时才计算
           if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
             // 计算每个附件在路径中的深度
@@ -251,7 +257,7 @@ export function useChatExecutor() {
             for (let i = 0; i < pathToUserNode.length; i++) {
               const node = pathToUserNode[i];
               const nodeDepth = pathToUserNode.length - 1 - i; // 当前节点距离最新消息的深度
-              
+
               if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
                 for (const asset of node.attachments) {
                   // 只对支持的媒体类型强制转写
@@ -754,6 +760,19 @@ export function useChatExecutor() {
     if (model) {
       pipelineContext.sharedData.set("model", model);
     }
+    if (profile) {
+      pipelineContext.sharedData.set("profile", profile);
+    } else if (targetNode?.metadata?.profileName) {
+      // 如果找不到 profile 对象（可能已被删除），但目标节点有快照，手动构造一个部分 profile 对象
+      // 这样下游（如 preview-builder）依然可以获取到渠道名称
+      pipelineContext.sharedData.set("profile", {
+        id: targetNode.metadata.profileId || agentConfigSnippet.profileId,
+        name: targetNode.metadata.profileName,
+        type: targetNode.metadata.providerType || "unknown",
+        models: [], // 占位，避免空指针
+      });
+    }
+
     const { settings } = useChatSettings();
     pipelineContext.sharedData.set(
       "transcriptionConfig",
@@ -775,13 +794,13 @@ export function useChatExecutor() {
         // 计算需要强制转写的附件（基于消息深度）——与 executeRequest 保持一致
         const forceAssetIds = new Set<string>();
         const config = settings.value.transcription;
-        
+
         // 只有在智能模式下且设置了强制转写阈值时才计算
         if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
           for (let i = 0; i < pathToUserNode.length; i++) {
             const node = pathToUserNode[i];
             const nodeDepth = pathToUserNode.length - 1 - i;
-            
+
             if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
               for (const asset of node.attachments) {
                 if (asset.type === "image" || asset.type === "audio" || asset.type === "video") {

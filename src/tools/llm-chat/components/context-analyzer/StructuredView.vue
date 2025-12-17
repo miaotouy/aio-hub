@@ -46,7 +46,7 @@
                 class="value-icon"
                 alt="provider icon"
               />
-              {{ agentProfile?.name || "未知配置" }}
+              {{ contextData.agentInfo.profileName || agentProfile?.name || "未知配置" }}
             </span>
           </div>
         </div>
@@ -523,16 +523,18 @@ function getAssistantAvatarSrc(msg: UnifiedMessage): string {
     // 只能尝试用当前 agent 的 id 来解析（假设是同一个 agent）
     const resolved = resolveAvatarPath(
       { id: props.contextData.agentInfo.id, icon: msg.agentIcon },
-      'agent'
+      "agent"
     );
     if (resolved) return resolved;
   }
-  
+
   // 回退到当前 agent 的头像
-  return resolveAvatarPath(
-    { id: props.contextData.agentInfo.id, icon: props.contextData.agentInfo.icon },
-    'agent'
-  ) || '';
+  return (
+    resolveAvatarPath(
+      { id: props.contextData.agentInfo.id, icon: props.contextData.agentInfo.icon },
+      "agent"
+    ) || ""
+  );
 }
 
 /**
@@ -614,7 +616,7 @@ const castToAssetArray = (val: any): Asset[] => val as Asset[];
  */
 const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => {
   // 确保 asset 有必要的字段
-  if (!asset || typeof asset !== 'object') {
+  if (!asset || typeof asset !== "object") {
     return true; // 无效资产，默认需要转写
   }
 

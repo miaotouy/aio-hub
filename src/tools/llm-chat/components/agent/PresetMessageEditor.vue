@@ -182,7 +182,9 @@
                       <li><strong>5</strong> → 仅在深度 5 注入</li>
                       <li><strong>3, 10, 15</strong> → 在多个深度各注入一次</li>
                       <li><strong>10~5</strong> → 从深度 10 开始，每 5 条注入</li>
-                      <li><strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10 起每 5 条注入一次</li>
+                      <li>
+                        <strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10 起每 5 条注入一次
+                      </li>
                     </ul>
                     <p style="margin: 8px 0 0 0; font-size: 12px; color: #909399">
                       注意：历史消息数不足时，对应深度点会被跳过
@@ -335,6 +337,7 @@ import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import { useChatSettings } from "../../composables/useChatSettings";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAnchorRegistry } from "../../composables/useAnchorRegistry";
 import * as monaco from "monaco-editor";
 import {
@@ -366,6 +369,7 @@ interface Props {
   initialForm?: MessageForm;
   agentName?: string;
   userProfile?: UserProfile | null;
+  agent?: any;
   llmThinkRules?: LlmThinkRule[];
   richTextStyleOptions?: RichTextRendererStyleOptions;
 }
@@ -388,6 +392,7 @@ const emit = defineEmits<Emits>();
 
 const errorHandler = createModuleErrorHandler("llm-chat/PresetMessageEditor");
 const { settings } = useChatSettings();
+const { getProfileById } = useLlmProfiles();
 const { getAvailableAnchors } = useAnchorRegistry();
 
 // 表单数据
@@ -516,11 +521,43 @@ const processPreviewMacros = async () => {
     return;
   }
 
+  // 准备模型元数据
+  let modelInfo: { id: string; name: string; provider: string } | undefined;
+  let profileInfo: { id: string; name: string; type: string } | undefined;
+
+  if (props.agent?.profileId) {
+    const profile = getProfileById(props.agent.profileId);
+    if (profile) {
+      profileInfo = {
+        id: profile.id,
+        name: profile.name,
+        type: profile.type,
+      };
+
+      if (props.agent.modelId) {
+        const model = profile.models.find((m) => m.id === props.agent.modelId);
+        if (model) {
+          modelInfo = {
+            id: model.id,
+            name: model.name || model.id,
+            provider: profile.type,
+          };
+        }
+      }
+    }
+  }
+
   // 创建基础上下文（不包含会话信息，仅支持基础宏）
   const context = createMacroContext({
     userName: props.userProfile?.name || "User",
     charName: props.agentName || "Assistant",
     userProfile: props.userProfile || undefined,
+    // 注入模型元数据
+    modelId: modelInfo?.id,
+    modelName: modelInfo?.name,
+    profileId: profileInfo?.id,
+    profileName: profileInfo?.name,
+    providerType: profileInfo?.type,
   });
 
   try {

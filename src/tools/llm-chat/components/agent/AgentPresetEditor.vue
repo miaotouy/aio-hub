@@ -188,7 +188,8 @@
               <span
                 v-else-if="
                   element.injectionStrategy?.type === 'depth' ||
-                  (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
+                  (!element.injectionStrategy?.type &&
+                    element.injectionStrategy?.depth !== undefined)
                 "
                 class="injection-badge-compact"
                 title="深度注入"
@@ -286,7 +287,8 @@
                   <el-tag
                     v-else-if="
                       element.injectionStrategy?.type === 'depth' ||
-                      (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
+                      (!element.injectionStrategy?.type &&
+                        element.injectionStrategy?.depth !== undefined)
                     "
                     size="small"
                     type="warning"
@@ -413,6 +415,7 @@
       :initial-form="editForm"
       :agent-name="props.agentName"
       :user-profile="effectiveUserProfile"
+      :agent="props.agent"
       :llm-think-rules="props.agent?.llmThinkRules"
       :rich-text-style-options="props.agent?.richTextStyleOptions"
       @save="handleSaveMessage"

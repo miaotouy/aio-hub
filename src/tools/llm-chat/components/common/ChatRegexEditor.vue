@@ -838,7 +838,6 @@ function truncateRegex(regex: string, maxLength = 30): string {
 .rule-item.is-selected {
   background-color: var(--card-bg);
   border-color: var(--primary-color);
-  box-shadow: var(--el-box-shadow-light);
 }
 
 .rule-item-main {

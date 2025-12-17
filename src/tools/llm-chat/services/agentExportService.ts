@@ -3,13 +3,14 @@ import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { customMessage } from '@/utils/customMessage';
 import JSZip from 'jszip';
 import yaml from 'js-yaml';
-import { assetManagerEngine } from '@/composables/useAssetManager';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile, writeFile, readFile } from '@tauri-apps/plugin-fs';
-import { join } from '@tauri-apps/api/path';
+import { writeTextFile, writeFile, readFile, exists } from '@tauri-apps/plugin-fs';
+import { join, appDataDir } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import type { ChatAgent } from '../types';
 import type { ExportableAgent, AgentExportFile } from '../types/agentImportExport';
+import { embedDataIntoPng } from '@/utils/pngMetadataWriter';
+import { convertArrayBufferToBase64 } from '@/utils/base64';
 
 const logger = createModuleLogger('llm-chat/agentExportService');
 const errorHandler = createModuleErrorHandler('llm-chat/agentExportService');
@@ -20,8 +21,9 @@ const errorHandler = createModuleErrorHandler('llm-chat/agentExportService');
 export interface ExportAgentsOptions {
   includeAssets: boolean;
   format?: 'json' | 'yaml';
-  exportType?: 'zip' | 'folder' | 'file';
+  exportType?: 'zip' | 'folder' | 'file' | 'png';
   separateFolders?: boolean;
+  previewImage?: File | string; // PNG 导出时的预览图来源
 }
 
 /**
@@ -133,9 +135,9 @@ export async function exportAgents(
     }
 
 
-    // 下面是常规导出逻辑（ZIP, Folder, 或单文件）
+    // 下面是常规导出逻辑（ZIP, Folder, File 或 PNG）
 
-    // 只有 zip 和 folder 模式才支持包含资产，file 模式强制不包含
+    // 只有 zip, folder 和 png 模式才支持包含资产，file 模式强制不包含
     const shouldIncludeAssets = options.includeAssets && exportType !== 'file';
     const separateFolders = options.separateFolders || false;
 
@@ -152,7 +154,9 @@ export async function exportAgents(
     }
 
     // 准备导出环境
-    const zip = exportType === 'zip' ? new JSZip() : null;
+    // PNG 模式也需要 ZIP 来打包数据（即使是单文件，为了统一处理也先打包成 ZIP，或者如果是单文件且无资产可以优化）
+    // 为了简化逻辑，PNG 模式下我们总是先打成 ZIP 包，然后嵌入
+    const zip = (exportType === 'zip' || exportType === 'png') ? new JSZip() : null;
     let targetDir = '';
     let commonAssetsDir = ''; // 仅在非分离模式下使用
 
@@ -176,8 +180,9 @@ export async function exportAgents(
       if (shouldIncludeAssets && !separateFolders) {
         commonAssetsDir = await join(targetDir, 'assets');
       }
-    } else if (exportType === 'zip') {
-      // ZIP 模式下，如果不分离文件夹，则创建公共 assets 文件夹
+    } else if (exportType === 'zip' || exportType === 'png') {
+      // ZIP 和 PNG 模式下，如果不分离文件夹，则创建公共 assets 文件夹
+      // PNG 模式下本质也是先生成 ZIP 数据
       if (shouldIncludeAssets && !separateFolders) {
         zip?.folder('assets');
       }
@@ -229,7 +234,7 @@ export async function exportAgents(
           if (exportType === 'folder') {
             const agentDir = await join(targetDir, uniqueName);
             currentAgentAssetsDir = await join(agentDir, 'assets');
-          } else if (exportType === 'zip' && zip) {
+          } else if ((exportType === 'zip' || exportType === 'png') && zip) {
             currentAgentAssetsZipFolder = zip.folder(uniqueName)?.folder('assets') || null;
           }
           assetsRelativePrefix = 'assets'; // 在独立目录中，引用路径仍为 assets/xxx
@@ -237,7 +242,7 @@ export async function exportAgents(
           // 混合模式：assets 在公共目录下
           if (exportType === 'folder') {
             currentAgentAssetsDir = commonAssetsDir;
-          } else if (exportType === 'zip' && zip) {
+          } else if ((exportType === 'zip' || exportType === 'png') && zip) {
             currentAgentAssetsZipFolder = zip.folder('assets') || null;
           }
           assetsRelativePrefix = 'assets';
@@ -249,7 +254,7 @@ export async function exportAgents(
         const processAsset = async (binary: Uint8Array, originalName: string) => {
           const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
 
-          if (exportType === 'zip') {
+          if (exportType === 'zip' || exportType === 'png') {
             currentAgentAssetsZipFolder?.file(uniqueFileName, binary);
           } else if (exportType === 'folder' && currentAgentAssetsDir) {
             const assetPath = await join(currentAgentAssetsDir, uniqueFileName);
@@ -268,11 +273,28 @@ export async function exportAgents(
         };
 
         try {
+          // 判断是否为纯文件名（包含扩展名但没有路径分隔符）
+          const isLikelyFilename = (s: string) => s.includes('.') && !s.includes('/') && !s.includes('\\') && !s.startsWith('http');
+          
           if (agent.icon.startsWith('appdata://')) {
+            // 处理 appdata:// 协议路径
             const relativePath = agent.icon.replace('appdata://', '');
-            const iconBinary = await assetManagerEngine.getAssetBinary(relativePath);
+            const appData = await appDataDir();
+            const fullPath = await join(appData, relativePath);
+            const iconBinary = await readFile(fullPath);
             const originalName = relativePath.split('/').pop() || 'icon.png';
-            await processAsset(new Uint8Array(iconBinary), originalName);
+            await processAsset(iconBinary, originalName);
+          } else if (isLikelyFilename(agent.icon)) {
+            // 处理纯文件名（存放在 agent 子目录）
+            const appData = await appDataDir();
+            const fullPath = await join(appData, 'llm-chat', 'agents', agent.id, agent.icon);
+            const fileExists = await exists(fullPath);
+            if (fileExists) {
+              const iconBinary = await readFile(fullPath);
+              await processAsset(iconBinary, agent.icon);
+            } else {
+              logger.warn('图标文件不存在，跳过', { agentId: agent.id, iconPath: fullPath });
+            }
           } else if (agent.icon.startsWith('/')) {
             const response = await fetch(agent.icon);
             if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
@@ -306,7 +328,7 @@ export async function exportAgents(
       lastContentString = contentString;
       const configFileName = `${uniqueName}.agent.${format}`;
 
-      if (exportType === 'zip' && zip) {
+      if ((exportType === 'zip' || exportType === 'png') && zip) {
         if (separateFolders) {
           zip.folder(uniqueName)?.file(configFileName, contentString);
         } else {
@@ -351,6 +373,94 @@ export async function exportAgents(
       } else {
         logger.info('用户取消了 ZIP 导出');
         return; // 用户取消，不显示成功消息
+      }
+    } else if (exportType === 'png' && zip) {
+      try {
+        // 1. 生成 ZIP 数据
+        const zipContent = await zip.generateAsync({ type: 'uint8array' });
+        
+        // 2. 准备预览图
+        let pngBuffer: ArrayBuffer;
+        if (options.previewImage) {
+          if (typeof options.previewImage === 'string') {
+            const imagePath = options.previewImage;
+            
+            if (imagePath.startsWith('appdata://')) {
+              // 处理 appdata:// 协议路径
+              // 注意：直接上传的头像文件存放在 agent 子目录，不是资产管理器目录
+              const relativePath = imagePath.replace('appdata://', '');
+              const appData = await appDataDir();
+              const fullPath = await join(appData, relativePath);
+              
+              // 检查文件是否存在
+              const fileExists = await exists(fullPath);
+              if (!fileExists) {
+                throw new Error(`预览图文件不存在: ${fullPath}`);
+              }
+              
+              const binary = await readFile(fullPath);
+              pngBuffer = binary.buffer;
+            } else if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('blob:')) {
+              // 处理 HTTP URL 或 Blob URL
+              const response = await fetch(imagePath);
+              pngBuffer = await response.arrayBuffer();
+            } else if (imagePath.startsWith('/')) {
+              // 处理本地静态资源路径（如 /agent-icons/xxx.png）
+              const response = await fetch(imagePath);
+              pngBuffer = await response.arrayBuffer();
+            } else {
+              // 处理绝对本地文件路径（Windows: C:\xxx 或 UNC: \\xxx）
+              const binary = await readFile(imagePath);
+              pngBuffer = binary.buffer;
+            }
+          } else {
+            // File 对象
+            pngBuffer = await options.previewImage.arrayBuffer();
+          }
+        } else {
+          // 如果没有提供预览图，抛出错误
+          throw new Error('导出 PNG 格式必须提供预览图');
+        }
+
+        // 3. 将 ZIP 数据转换为 Base64 (注意：这是 async 函数)
+        const zipBase64 = await convertArrayBufferToBase64(zipContent);
+
+        // 4. 构造 AIO Bundle 数据结构并嵌入到 PNG
+        // embedDataIntoPng 内部会再次进行 Base64 编码，所以这里直接传 JSON 字符串
+        const bundleData = {
+          version: 1,
+          type: 'AIO_Agent_Bundle',
+          compressed: true,
+          data: zipBase64
+        };
+        
+        const bundleString = JSON.stringify(bundleData);
+        const newPngBuffer = await embedDataIntoPng(pngBuffer, 'aiob', bundleString);
+
+        // 5. 保存文件
+        const fileName = `${baseName}.agent.png`;
+        const savePath = await save({
+          defaultPath: fileName,
+          filters: [{
+            name: 'Agent Image Bundle',
+            extensions: ['png']
+          }]
+        });
+
+        if (savePath) {
+          await invoke('write_file_force', {
+            path: savePath,
+            content: Array.from(new Uint8Array(newPngBuffer))
+          });
+          logger.info('智能体导出成功 (PNG)', { count: agents.length, fileName: savePath });
+        } else {
+          logger.info('用户取消了 PNG 导出');
+          return;
+        }
+
+      } catch (error) {
+        logger.error('PNG 导出失败', error as Error);
+        throw error;
       }
     } else if (exportType === 'folder' && targetDir) {
       logger.info('智能体导出成功 (Folder)', { count: agents.length, targetDir });

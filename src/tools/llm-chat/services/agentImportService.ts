@@ -122,9 +122,48 @@ export async function preflightImportAgents(
         agentExportFile = yaml.load(yamlText) as AgentExportFile;
       } else if (file.name.endsWith('.png')) {
         const buffer = await file.arrayBuffer();
-        const jsonData = await parseCharacterDataFromPng(buffer);
+        const jsonData = await parseCharacterDataFromPng(buffer) as any;
 
-        if (jsonData && isCharacterCard(jsonData)) {
+        if (!jsonData) {
+          throw new Error(`无法从 PNG 文件 ${file.name} 中解析出有效的角色卡数据。`);
+        }
+
+        // 检查是否是 AIO Agent Bundle
+        if (jsonData.type === 'AIO_Agent_Bundle' && jsonData.compressed && jsonData.data) {
+          // 这是 AIO 的 PNG 包，内部包含 ZIP 数据
+          const zipBase64 = jsonData.data;
+          const zipBinaryString = atob(zipBase64);
+          const zipBytes = new Uint8Array(zipBinaryString.length);
+          for (let i = 0; i < zipBinaryString.length; i++) {
+            zipBytes[i] = zipBinaryString.charCodeAt(i);
+          }
+
+          // 加载 ZIP 内容
+          const zip = new JSZip();
+          const zipContent = await zip.loadAsync(zipBytes);
+
+          // 复用 ZIP 解析逻辑
+          const agentJsonFile = zipContent.file(/\.agent\.json$/)[0];
+          const agentYamlFile = zipContent.file(/\.agent\.(yaml|yml)$/)[0];
+
+          if (agentJsonFile) {
+            const agentJsonText = await agentJsonFile.async('text');
+            agentExportFile = JSON.parse(agentJsonText);
+          } else if (agentYamlFile) {
+            const agentYamlText = await agentYamlFile.async('text');
+            agentExportFile = yaml.load(agentYamlText) as AgentExportFile;
+          } else {
+            throw new Error(`PNG 包中的 ZIP 数据未包含 agent.json 或 agent.yaml`);
+          }
+
+          const assetFiles = zipContent.file(/^assets\/.*/);
+          for (const assetFile of assetFiles) {
+            if (!assetFile.dir) {
+              const binary = await assetFile.async('arraybuffer');
+              fileAssets[assetFile.name] = binary;
+            }
+          }
+        } else if (isCharacterCard(jsonData)) {
           // 这是酒馆角色卡
           const { agent: parsedAgent, presetMessages } = parseCharacterCard(jsonData as SillyTavernCharacterCard);
 
@@ -150,7 +189,7 @@ export async function preflightImportAgents(
             agents: [exportableAgent],
           };
         } else {
-          throw new Error(`无法从 PNG 文件 ${file.name} 中解析出有效的角色卡数据。`);
+          throw new Error(`无法从 PNG 文件 ${file.name} 中解析出支持的格式 (AIO Bundle 或 SillyTavern)。`);
         }
       } else {
         throw new Error(`不支持的文件格式: ${file.name}`);

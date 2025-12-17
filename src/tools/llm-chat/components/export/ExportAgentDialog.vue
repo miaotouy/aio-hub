@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useAgentStore } from '../../agentStore';
-import { resolveAvatarPath } from '../../composables/useResolvedAvatar';
+import { ref, computed, watch, onBeforeUnmount } from "vue";
+import { useAgentStore } from "../../agentStore";
+import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import Avatar from '@/components/common/Avatar.vue';
-import { ElCheckbox, ElCheckboxGroup, ElRadioGroup, ElRadio } from 'element-plus';
-import type { CheckboxValueType } from 'element-plus';
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import Avatar from "@/components/common/Avatar.vue";
+import { ElCheckbox, ElCheckboxGroup, ElRadioGroup, ElRadio } from "element-plus";
+import type { CheckboxValueType } from "element-plus";
 
 const props = defineProps<{
   visible: boolean;
@@ -14,14 +14,15 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update:visible': [value: boolean];
-  'export': [
+  "update:visible": [value: boolean];
+  export: [
     agentIds: string[],
     options: {
       includeAssets: boolean;
-      format: 'json' | 'yaml';
-      exportType: 'zip' | 'folder' | 'file';
+      format: "json" | "yaml";
+      exportType: "zip" | "folder" | "file" | "png";
       separateFolders: boolean;
+      previewImage?: File | string;
     },
   ];
 }>();
@@ -30,14 +31,25 @@ const agentStore = useAgentStore();
 
 const selectedAgentIds = ref<string[]>([]);
 const includeAssets = ref(true);
-const exportFormat = ref<'json' | 'yaml'>('json');
-const exportType = ref<'zip' | 'folder' | 'file'>('zip');
+const exportFormat = ref<"json" | "yaml">("json");
+const exportType = ref<"zip" | "folder" | "file" | "png">("zip");
 const separateFolders = ref(false);
+
+// PNG 导出相关状态
+const previewImageSource = ref<"avatar" | "custom">("avatar");
+const customPreviewFile = ref<File | null>(null);
+const customPreviewUrl = ref<string>("");
 
 // 监听导出类型变化，自动调整 includeAssets
 watch(exportType, (newType) => {
-  if (newType === 'file') {
+  if (newType === "file") {
     includeAssets.value = false;
+  } else if (newType === "png") {
+    includeAssets.value = true;
+    // 切换到 PNG 时，如果是多选，强制切换到自定义图片
+    if (!isSingleMode.value) {
+      previewImageSource.value = "custom";
+    }
   } else {
     includeAssets.value = true;
   }
@@ -53,24 +65,47 @@ const isAllSelected = computed(() => {
 });
 
 const handleCheckAllChange = (val: CheckboxValueType) => {
-  selectedAgentIds.value = val ? agents.value.map(agent => agent.id) : [];
+  selectedAgentIds.value = val ? agents.value.map((agent) => agent.id) : [];
 };
-const handleExport = () => {
+const handleExport = async () => {
   if (selectedAgentIds.value.length === 0) {
-    // 可以在这里加一个提示，但通常按钮会是禁用状态
     return;
   }
-  emit('export', selectedAgentIds.value, {
+
+  let previewImage: File | string | undefined = undefined;
+
+  if (exportType.value === "png") {
+    if (previewImageSource.value === "avatar" && singleTargetAgent.value) {
+      // 使用头像作为预览图
+      // 尝试解析头像路径
+      const avatarPath = resolveAvatarPath(singleTargetAgent.value, "agent");
+      if (avatarPath) {
+        previewImage = avatarPath;
+      } else {
+        // 如果没有头像，可能需要提示用户
+        // 这里暂时不做处理，后端会报错
+      }
+    } else if (previewImageSource.value === "custom" && customPreviewFile.value) {
+      previewImage = customPreviewFile.value;
+    } else {
+      // 必填项检查
+      // 实际应用中应该在 UI 上禁用按钮
+      return;
+    }
+  }
+
+  emit("export", selectedAgentIds.value, {
     includeAssets: includeAssets.value,
     format: exportFormat.value,
     exportType: exportType.value,
     separateFolders: separateFolders.value,
+    previewImage,
   });
   handleClose();
 };
 
 const handleClose = () => {
-  emit('update:visible', false);
+  emit("update:visible", false);
 };
 
 // 当对话框打开时，根据 props 初始化选中状态
@@ -78,14 +113,63 @@ const handleOpen = () => {
   if (props.initialSelection && props.initialSelection.length > 0) {
     selectedAgentIds.value = [...props.initialSelection];
   } else {
-    selectedAgentIds.value = agents.value.map(agent => agent.id);
+    selectedAgentIds.value = agents.value.map((agent) => agent.id);
+  }
+  // 重置状态
+  exportType.value = "zip";
+  previewImageSource.value = "avatar";
+  customPreviewFile.value = null;
+  // 释放之前的 Object URL（如果有）
+  if (customPreviewUrl.value) {
+    URL.revokeObjectURL(customPreviewUrl.value);
+  }
+  customPreviewUrl.value = "";
+};
+
+const handleFileChange = (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (file) {
+    customPreviewFile.value = file;
+    // 释放之前的 Object URL（如果有）
+    if (customPreviewUrl.value) {
+      URL.revokeObjectURL(customPreviewUrl.value);
+    }
+    // 创建本地预览 URL
+    customPreviewUrl.value = URL.createObjectURL(file);
   }
 };
+
+// 组件卸载时清理 Object URL
+onBeforeUnmount(() => {
+  if (customPreviewUrl.value) {
+    URL.revokeObjectURL(customPreviewUrl.value);
+  }
+});
 
 const isSingleMode = computed(() => props.initialSelection?.length === 1);
 const singleTargetAgent = computed(() => {
   if (!isSingleMode.value) return null;
-  return agents.value.find(a => a.id === props.initialSelection![0]);
+  return agents.value.find((a) => a.id === props.initialSelection![0]);
+});
+
+// 计算 PNG 导出时预览图是否就绪
+const isPngPreviewReady = computed(() => {
+  if (exportType.value !== "png") return true;
+  
+  if (previewImageSource.value === "avatar") {
+    // 使用头像时，需要确保单选模式且智能体有头像
+    if (!isSingleMode.value) return false;
+    const avatarPath = singleTargetAgent.value ? resolveAvatarPath(singleTargetAgent.value, "agent") : null;
+    return !!avatarPath;
+  } else {
+    // 使用自定义图片时，需要确保已上传文件
+    return !!customPreviewFile.value;
+  }
+});
+
+// 计算导出按钮是否可用
+const canExport = computed(() => {
+  return selectedAgentIds.value.length > 0 && isPngPreviewReady.value;
 });
 </script>
 
@@ -143,21 +227,51 @@ const singleTargetAgent = computed(() => {
           />
           <div class="info-text">
             <div class="name">{{ singleTargetAgent.displayName || singleTargetAgent.name }}</div>
-            <div class="desc" v-if="singleTargetAgent.description">{{ singleTargetAgent.description }}</div>
+            <div class="desc" v-if="singleTargetAgent.description">
+              {{ singleTargetAgent.description }}
+            </div>
           </div>
         </div>
 
         <!-- 导出选项 -->
         <div class="options-section">
           <h4>导出选项</h4>
-          
+
           <div class="option-item">
             <span class="label">导出方式：</span>
             <el-radio-group v-model="exportType" size="small">
               <el-radio value="zip">ZIP 压缩包</el-radio>
               <el-radio value="folder">文件夹</el-radio>
               <el-radio value="file">仅配置文件</el-radio>
+              <el-radio value="png">PNG 图片包</el-radio>
             </el-radio-group>
+          </div>
+
+          <!-- PNG 预览图设置 -->
+          <div v-if="exportType === 'png'" class="option-item preview-setting">
+            <span class="label">预览图设置：</span>
+            <div class="preview-options">
+              <el-radio-group v-model="previewImageSource" size="small" :disabled="!isSingleMode">
+                <el-radio value="avatar">使用头像</el-radio>
+                <el-radio value="custom">自定义图片</el-radio>
+              </el-radio-group>
+
+              <div v-if="!isSingleMode" class="hint-text">
+                批量导出时必须使用自定义图片作为统一封面
+              </div>
+            </div>
+
+            <div v-if="previewImageSource === 'custom'" class="custom-upload">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                @change="handleFileChange"
+                class="file-input"
+              />
+              <div v-if="customPreviewUrl" class="preview-box">
+                <img :src="customPreviewUrl" alt="Preview" />
+              </div>
+            </div>
           </div>
 
           <div class="option-item">
@@ -169,12 +283,9 @@ const singleTargetAgent = computed(() => {
           </div>
 
           <div class="option-item" v-if="!isSingleMode">
-            <el-checkbox
-              v-model="separateFolders"
-              label="为每个智能体创建独立文件夹"
-            />
+            <el-checkbox v-model="separateFolders" label="为每个智能体创建独立文件夹" />
           </div>
-          
+
           <div class="option-item format-select">
             <span class="label">文件格式：</span>
             <el-radio-group v-model="exportFormat" size="small">
@@ -188,12 +299,8 @@ const singleTargetAgent = computed(() => {
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button
-        type="primary"
-        @click="handleExport"
-        :disabled="selectedAgentIds.length === 0"
-      >
-        {{ isSingleMode ? '导出' : `导出 (${selectedAgentIds.length})` }}
+      <el-button type="primary" @click="handleExport" :disabled="!canExport">
+        {{ isSingleMode ? "导出" : `导出 (${selectedAgentIds.length})` }}
       </el-button>
     </template>
   </BaseDialog>
@@ -304,5 +411,51 @@ const singleTargetAgent = computed(() => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.preview-setting {
+  border: 1px dashed var(--border-color);
+  padding: 12px;
+  border-radius: 6px;
+  background-color: var(--bg-color-soft);
+}
+
+.preview-options {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+}
+
+.custom-upload {
+  margin-top: 8px;
+}
+
+.file-input {
+  font-size: 12px;
+  width: 100%;
+}
+
+.preview-box {
+  margin-top: 8px;
+  width: 100px;
+  height: 100px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+}
+
+.preview-box img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 </style>

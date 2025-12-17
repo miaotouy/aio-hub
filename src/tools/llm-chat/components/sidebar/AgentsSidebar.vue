@@ -164,8 +164,9 @@ const handleExportAgents = (
   options: {
     includeAssets: boolean;
     format?: "json" | "yaml";
-    exportType?: "zip" | "folder" | "file";
+    exportType?: "zip" | "folder" | "file" | "png";
     separateFolders?: boolean;
+    previewImage?: File | string;
   }
 ) => {
   agentStore.exportAgents(agentIds, options);
@@ -177,7 +178,7 @@ const handleImportFromFile = async () => {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.accept = ".agent.zip,.agent.json,.agent.yaml,.agent.yml";
+    input.accept = ".agent.zip,.agent.json,.agent.yaml,.agent.yml,.agent.png";
     input.onchange = async (event) => {
       const files = Array.from((event.target as HTMLInputElement).files || []);
       if (files.length === 0) return;

@@ -726,8 +726,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
       options: {
         includeAssets: boolean;
         format?: "json" | "yaml";
-        exportType?: "zip" | "folder" | "file";
+        exportType?: "zip" | "folder" | "file" | "png";
         separateFolders?: boolean;
+        previewImage?: File | string;
       },
     ): Promise<void> {
       const agentsToExport = this.agents.filter((agent) =>

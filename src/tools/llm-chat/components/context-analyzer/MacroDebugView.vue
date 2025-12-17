@@ -175,7 +175,7 @@ import { ref, computed, watch, reactive } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import { Loading, MoreFilled } from "@element-plus/icons-vue";
 import { MacroProcessor, MacroRegistry } from "../../macro-engine";
-import { createMacroContext } from "../../macro-engine/MacroContext";
+import { createMacroContext, extractContextFromSession } from "../../macro-engine/MacroContext";
 import type { MacroProcessResult } from "../../macro-engine";
 import type { ContextPreviewData } from "../../types/context";
 import { useAgentStore } from "../../agentStore";
@@ -456,6 +456,7 @@ watch(
       charName: agent?.name || newData.agentInfo.name || "Assistant",
       agent: effectiveAgent as any, // 使用带有正确时间配置的 agent
       timestamp: newData.targetTimestamp,
+      session: newData.session,
     });
 
     if (newData.parameters) {
@@ -472,7 +473,7 @@ watch(
     let totalMacroCount = 0;
 
     try {
-      // 分别处理每条消息
+      // 只处理预设消息（宏只在预设消息中生效，历史消息不解析宏）
       for (let i = 0; i < newData.presetMessages.length; i++) {
         const msg = newData.presetMessages[i];
         const original = (msg as any).originalContent || msg.content || "";
@@ -482,16 +483,26 @@ watch(
           continue;
         }
 
-        // 为每条消息创建特定的上下文，确保时间戳和角色名称正确
-        // 注意：presetMessages 没有节点时间戳，所以回退到 targetTimestamp
-        const messageTimestamp = msg.timestamp || newData.targetTimestamp;
+        // 为每条消息创建特定的上下文
         const messageContext = createMacroContext({
           userName: msg.userName || baseContext.userName,
           charName: baseContext.charName,
           agent: baseContext.agent,
           userProfile: baseContext.userProfileObj,
-          timestamp: messageTimestamp,
+          timestamp: msg.timestamp || newData.targetTimestamp,
+          session: newData.session,
         });
+
+        // 从会话中提取历史上下文（如 lastMessage、lastUserMessage 等）
+        // 注意：预设消息的宏应该基于当前会话的最新状态来解析
+        if (newData.session) {
+          const sessionContext = extractContextFromSession(
+            newData.session,
+            baseContext.agent,
+            baseContext.userProfileObj
+          );
+          Object.assign(messageContext, sessionContext);
+        }
 
         const processResult = await processor.process(original, messageContext, {
           debug: true,

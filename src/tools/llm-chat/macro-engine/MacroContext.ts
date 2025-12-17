@@ -3,7 +3,7 @@
  * 提供宏执行时需要的所有数据和状态
  */
 
-import type { ChatSession, ChatAgent } from '../types';
+import type { ChatSession, ChatAgent, ChatMessageNode } from '../types';
 import type { UserProfile } from '../types';
 
 /**
@@ -96,16 +96,41 @@ export function createMacroContext(options: {
 
 /**
  * 从会话提取上下文信息
+ * @param session - 会话对象
+ * @param agent - 智能体对象
+ * @param userProfile - 用户档案
+ * @param targetNodeId - 目标节点 ID，如果提供，则从该节点开始回溯（用于调试/预览特定历史点）
  */
 export function extractContextFromSession(
   session: ChatSession,
   agent?: ChatAgent,
-  userProfile?: UserProfile
+  userProfile?: UserProfile,
+  targetNodeId?: string
 ): Partial<MacroContext> {
-  // 从会话的活动路径中提取最后的消息
-  const nodes = Object.values(session.nodes);
-  const enabledNodes = nodes.filter(n => n.isEnabled !== false);
+  // 1. 获取目标路径（优先使用指定的 targetNodeId，否则使用当前活动叶子）
+  const startNodeId = targetNodeId || session.activeLeafId;
+  
+  // 内部实现路径回溯，避免依赖 useNodeManager (Composable)
+  const enabledNodes: ChatMessageNode[] = [];
+  let currentId: string | null = startNodeId;
+  const visited = new Set<string>(); // 防止循环引用导致的死循环
 
+  while (currentId) {
+    const node: ChatMessageNode | undefined = session.nodes[currentId];
+    if (!node) break;
+
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+    
+    // 过滤掉根节点和禁用的节点
+    if (node.id !== session.rootNodeId && node.isEnabled !== false) {
+      enabledNodes.unshift(node);
+    }
+    
+    currentId = node.parentId;
+  }
+
+  // 2. 提取消息
   const lastMessage = enabledNodes[enabledNodes.length - 1]?.content;
   const lastUserMessage = enabledNodes.filter(n => n.role === 'user').pop()?.content;
   const lastCharMessage = enabledNodes.filter(n => n.role === 'assistant').pop()?.content;

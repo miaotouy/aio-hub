@@ -2,6 +2,7 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import type { LlmParameters } from "./llm";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
+import type { ChatSession } from './session';
 
 /**
  * 系统内置锚点/消息类型常量
@@ -185,4 +186,6 @@ export interface ContextPreviewData {
     displayName?: string;
     icon?: string;
   };
+  /** 完整的会话对象，用于宏调试等需要完整上下文的场景 */
+  session?: ChatSession;
 }

@@ -339,6 +339,7 @@ import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-te
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAnchorRegistry } from "../../composables/useAnchorRegistry";
+import { useLlmChatStore } from "../../store";
 import * as monaco from "monaco-editor";
 import {
   MacroProcessor,
@@ -346,6 +347,8 @@ import {
   MacroRegistry,
   initializeMacroEngine,
   type MacroDefinition,
+  type MacroContext,
+  extractContextFromSession,
 } from "../../macro-engine";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 
@@ -394,6 +397,7 @@ const errorHandler = createModuleErrorHandler("llm-chat/PresetMessageEditor");
 const { settings } = useChatSettings();
 const { getProfileById } = useLlmProfiles();
 const { getAvailableAnchors } = useAnchorRegistry();
+const chatStore = useLlmChatStore();
 
 // 表单数据
 const form = ref<MessageForm>({
@@ -547,18 +551,34 @@ const processPreviewMacros = async () => {
     }
   }
 
-  // 创建基础上下文（不包含会话信息，仅支持基础宏）
-  const context = createMacroContext({
+  // 1. 创建基础上下文（包含用户、角色、模型等静态信息）
+  const baseContext = createMacroContext({
     userName: props.userProfile?.name || "User",
     charName: props.agentName || "Assistant",
     userProfile: props.userProfile || undefined,
-    // 注入模型元数据
+    agent: props.agent,
     modelId: modelInfo?.id,
     modelName: modelInfo?.name,
     profileId: profileInfo?.id,
     profileName: profileInfo?.name,
     providerType: profileInfo?.type,
   });
+
+  // 2. 从 store 获取当前活跃会话，提取会话相关的动态上下文（如 last_message）
+  let sessionContext: Partial<MacroContext> = {};
+  if (chatStore.currentSession) {
+    sessionContext = extractContextFromSession(
+      chatStore.currentSession,
+      props.agent,
+      props.userProfile || undefined
+    );
+  }
+
+  // 3. 合并上下文
+  const context = {
+    ...baseContext,
+    ...sessionContext,
+  };
 
   try {
     const processor = new MacroProcessor();

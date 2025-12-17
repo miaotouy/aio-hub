@@ -453,8 +453,9 @@ import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import yaml from "js-yaml";
 import { useUserProfileStore } from "../../userProfileStore";
+import { useLlmChatStore } from "../../store";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
-import { MacroProcessor, createMacroContext } from "../../macro-engine";
+import { MacroProcessor, createMacroContext, extractContextFromSession } from "../../macro-engine";
 import { isPromptFile, parsePromptFile } from "../../services/sillyTavernParser";
 import { useAnchorRegistry, type AnchorDefinition } from "../../composables/useAnchorRegistry";
 import {
@@ -515,6 +516,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 const userProfileStore = useUserProfileStore();
+const chatStore = useLlmChatStore();
 const showUserProfileDialog = ref(false);
 const anchorRegistry = useAnchorRegistry();
 
@@ -606,12 +608,24 @@ const calculateAllTokens = async () => {
   let hasChanges = false;
 
   // 创建宏处理上下文
-  const macroContext = createMacroContext({
+  const baseContext = createMacroContext({
     userName: effectiveUserProfile.value?.name || "User",
     charName: props.agentName || "Assistant",
     userProfile: effectiveUserProfile.value || undefined,
     agent: props.agent as any,
   });
+
+  // 如果有活跃会话，合并会话上下文
+  if (chatStore.currentSession) {
+    const sessionContext = extractContextFromSession(
+      chatStore.currentSession,
+      props.agent as any,
+      effectiveUserProfile.value || undefined
+    );
+    Object.assign(baseContext, sessionContext);
+  }
+
+  const macroContext = baseContext;
   const macroProcessor = new MacroProcessor();
 
   for (const message of localMessages.value) {

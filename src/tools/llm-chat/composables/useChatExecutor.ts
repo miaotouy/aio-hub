@@ -880,6 +880,7 @@ export function useChatExecutor() {
         postProcessingTokenCount: postProcessingTokenDelta,
         postProcessingCharCount: postProcessingCharDelta,
       },
+      session,
     };
 
     return previewData;

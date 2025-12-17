@@ -566,8 +566,10 @@ onMounted(async () => {
 
     <!-- 头部区域 -->
     <div class="chat-header" :style="chatHeaderStyle">
-      <!-- 拖拽手柄 -->
+      <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
+      <!-- 仅在分离模式下总是显示，或在非分离模式且设置允许时显示 -->
       <ComponentHeader
+        v-if="props.isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"
         position="top"
         :drag-mode="props.isDetached ? 'window' : 'detach'"

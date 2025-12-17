@@ -188,6 +188,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui header blur 模糊",
       },
       {
+        id: "enableDetachableHandle",
+        label: "允许组件分离",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.enableDetachableHandle",
+        hint: "是否在组件（如输入框、对话区）上显示分离手柄。关闭后，非分离状态下将隐藏手柄。",
+        keywords: "ui detach handle 分离 手柄",
+      },
+      {
         id: "showWallpaperInDetachedMode",
         label: "分离模式下显示壁纸",
         layout: "inline",

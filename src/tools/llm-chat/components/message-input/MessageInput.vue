@@ -1022,7 +1022,9 @@ const getWillUseTranscription = (asset: Asset): boolean => {
     <!-- 主内容区 -->
     <div class="main-content">
       <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
+      <!-- 仅在分离模式下总是显示，或在非分离模式且设置允许时显示 -->
       <ComponentHeader
+        v-if="isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"
         position="left"
         :drag-mode="isDetached ? 'window' : 'detach'"

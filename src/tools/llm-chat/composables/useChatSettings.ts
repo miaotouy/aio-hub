@@ -148,6 +148,8 @@ export interface ChatSettings {
     enableEnterAnimation: boolean;
     /** 分离模式下是否显示壁纸 */
     showWallpaperInDetachedMode: boolean;
+    /** 是否允许组件分离（显示分离手柄） */
+    enableDetachableHandle: boolean;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -251,6 +253,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     rendererThrottleMs: 80, // 默认 80ms
     enableEnterAnimation: true, // 默认开启
     showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
+    enableDetachableHandle: true, // 默认允许组件分离
   },
   modelPreferences: {
     defaultModel: "",

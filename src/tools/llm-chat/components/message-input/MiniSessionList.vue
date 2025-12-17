@@ -62,6 +62,11 @@ const handleSessionClick = (session: ChatSession) => {
 const handleNewSession = () => {
   emit("new-session");
 };
+
+// 获取消息数量（排除系统根节点）
+const getMessageCount = (session: ChatSession) => {
+  return Object.keys(session.nodes).length - 1;
+};
 </script>
 
 <template>
@@ -95,6 +100,7 @@ const handleNewSession = () => {
               <span class="session-title">{{ session.name }}</span>
             </div>
             <div class="session-meta">
+              <span class="message-count">{{ getMessageCount(session) }} 条</span>
               <span class="session-time">{{ formatRelativeTime(session.updatedAt) }}</span>
             </div>
           </div>
@@ -205,7 +211,17 @@ const handleNewSession = () => {
 
 .session-meta {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.message-count {
+  font-size: 10px;
+  color: var(--text-color-light);
+  background-color: var(--container-bg);
+  padding: 0px 4px;
+  border-radius: 3px;
+  opacity: 0.8;
 }
 
 .session-time {

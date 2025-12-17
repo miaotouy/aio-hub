@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { useElementSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
@@ -58,6 +59,12 @@ const apiKeyInput = ref("");
 
 // 预设图标选择对话框
 const showPresetIconDialog = ref(false);
+
+// 容器响应式布局
+const containerRef = ref<HTMLElement | null>(null);
+const { width: containerWidth } = useElementSize(containerRef);
+const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 950);
+const formLabelPosition = computed(() => (isNarrow.value ? "top" : "left"));
 
 // 渠道创建对话框
 const showCreateProfileDialog = ref(false);
@@ -309,7 +316,7 @@ const showCustomHeadersDialog = ref(false);
 </script>
 
 <template>
-  <div class="llm-settings-page">
+  <div class="llm-settings-page" ref="containerRef">
     <div class="settings-layout">
       <!-- 左侧：渠道列表 -->
       <ProfileSidebar
@@ -350,7 +357,11 @@ const showCustomHeadersDialog = ref(false);
             fit="contain"
           />
         </template>
-        <el-form :model="editForm" label-width="100px" label-position="left">
+        <el-form
+          :model="editForm"
+          :label-width="isNarrow ? 'auto' : '100px'"
+          :label-position="formLabelPosition"
+        >
           <el-form-item label="渠道名称">
             <el-input
               v-model="editForm.name"
@@ -424,9 +435,7 @@ const showCustomHeadersDialog = ref(false);
                   (已配置 {{ Object.keys(editForm.customHeaders).length }} 个)
                 </span>
               </el-button>
-              <div class="form-hint">
-                添加自定义 HTTP 请求头，可用于客户端标识、超时控制等
-              </div>
+              <div class="form-hint">添加自定义 HTTP 请求头，可用于客户端标识、超时控制等</div>
             </div>
           </el-form-item>
 
@@ -476,11 +485,11 @@ const showCustomHeadersDialog = ref(false);
     <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%">
       <template #content>
         <IconPresetSelector
-        :icons="PRESET_ICONS"
-        :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
-        show-search
-        show-categories
-        @select="selectPresetIcon"
+          :icons="PRESET_ICONS"
+          :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
+          show-search
+          show-categories
+          @select="selectPresetIcon"
         />
       </template>
     </BaseDialog>

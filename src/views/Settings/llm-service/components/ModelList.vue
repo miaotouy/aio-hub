@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Plus, Delete, Edit, ArrowRight } from "@element-plus/icons-vue";
+import { Plus, Delete, Edit, ArrowRight, MoreFilled } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
+import { MODEL_CAPABILITIES, type CapabilityConfig } from "@/config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+
+const MAX_VISIBLE_CAPS = 4;
 
 interface Props {
   models: LlmModelInfo[];
@@ -81,6 +83,21 @@ const isGroupExpanded = (groupName: string): boolean => {
 
 // 使用统一的图标获取方法和分组方法
 const { getModelIcon, getModelGroup } = useModelMetadata();
+
+// 获取模型启用的所有能力配置
+const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
+  return MODEL_CAPABILITIES.filter((cap) => model.capabilities?.[cap.key]);
+};
+
+// 获取需要显示的能力（处理折叠逻辑）
+const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
+  const enabled = getEnabledCapabilities(model);
+  if (enabled.length <= MAX_VISIBLE_CAPS) {
+    return enabled;
+  }
+  // 如果超过最大显示数量，留一个位置给省略号，所以减1
+  return enabled.slice(0, MAX_VISIBLE_CAPS - 1);
+};
 </script>
 
 <template>
@@ -88,7 +105,9 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
     <div class="list-header">
       <span class="model-count">已添加 {{ models.length }} 个模型</span>
       <div class="list-actions">
-        <el-button v-if="editable" size="small" :loading="loading" @click="emit('fetch')"> 从 API 获取 </el-button>
+        <el-button v-if="editable" size="small" :loading="loading" @click="emit('fetch')">
+          从 API 获取
+        </el-button>
         <el-button v-if="editable" type="primary" size="small" :icon="Plus" @click="emit('add')">
           手动添加
         </el-button>
@@ -112,79 +131,108 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
       </div>
 
       <div v-else class="model-groups">
-      <div v-for="group in modelGroups" :key="group.name" class="model-group">
-        <!-- 分组标题 -->
-        <div class="group-header">
-          <div class="group-title" @click="toggleGroup(group.name)">
-            <el-icon class="expand-icon" :class="{ expanded: isGroupExpanded(group.name) }">
-              <ArrowRight />
-            </el-icon>
-            <span class="group-name">{{ group.name }}</span>
-            <span class="group-count">{{ group.models.length }}</span>
-          </div>
-          <div v-if="editable" class="group-actions">
-            <el-popconfirm
-              :title="`确定删除 '${group.name}' 分组下的所有模型吗?`"
-              width="240"
-              @confirm.stop="deleteGroup(group)"
-            >
-              <template #reference>
-                <el-button size="small" type="danger" :icon="Delete" circle @click.stop />
-              </template>
-            </el-popconfirm>
-          </div>
-        </div>
-
-        <!-- 分组内容 -->
-        <transition name="group-collapse">
-          <div v-show="isGroupExpanded(group.name)" class="group-content">
-            <div v-for="item in group.models" :key="item.model.id" class="model-item">
-              <!-- Logo -->
-              <DynamicIcon
-                class="model-logo"
-                :src="getModelIcon(item.model) || ''"
-                :alt="item.model.name"
-              />
-
-              <!-- 模型信息 -->
-              <div class="model-info">
-                <div class="model-name">{{ item.model.name }}</div>
-                <div class="model-id">{{ item.model.id }}</div>
-              </div>
-
-              <!-- 能力图标 -->
-              <div class="model-capabilities">
-                <template v-for="capability in MODEL_CAPABILITIES" :key="capability.key">
-                  <el-tooltip
-                    v-if="item.model.capabilities?.[capability.key]"
-                    :content="capability.description"
-                    placement="top"
-                  >
-                    <el-icon
-                      class="capability-icon"
-                      :class="capability.className"
-                      :style="{ color: capability.color }"
-                    >
-                      <component :is="capability.icon" />
-                    </el-icon>
-                  </el-tooltip>
+        <div v-for="group in modelGroups" :key="group.name" class="model-group">
+          <!-- 分组标题 -->
+          <div class="group-header">
+            <div class="group-title" @click="toggleGroup(group.name)">
+              <el-icon class="expand-icon" :class="{ expanded: isGroupExpanded(group.name) }">
+                <ArrowRight />
+              </el-icon>
+              <span class="group-name">{{ group.name }}</span>
+              <span class="group-count">{{ group.models.length }}</span>
+            </div>
+            <div v-if="editable" class="group-actions">
+              <el-popconfirm
+                :title="`确定删除 '${group.name}' 分组下的所有模型吗?`"
+                width="240"
+                @confirm.stop="deleteGroup(group)"
+              >
+                <template #reference>
+                  <el-button size="small" type="danger" :icon="Delete" circle @click.stop />
                 </template>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div v-if="editable" class="model-actions">
-                <el-button size="small" :icon="Edit" @click="emit('edit', item.index)" />
-                <el-button
-                  size="small"
-                  type="danger"
-                  :icon="Delete"
-                  @click="emit('delete', item.index)"
-                />
-              </div>
+              </el-popconfirm>
             </div>
           </div>
-        </transition>
-      </div>
+
+          <!-- 分组内容 -->
+          <transition name="group-collapse">
+            <div v-show="isGroupExpanded(group.name)" class="group-content">
+              <div v-for="item in group.models" :key="item.model.id" class="model-item">
+                <!-- Logo -->
+                <DynamicIcon
+                  class="model-logo"
+                  :src="getModelIcon(item.model) || ''"
+                  :alt="item.model.name"
+                />
+
+                <!-- 模型信息 -->
+                <div class="model-info">
+                  <div class="model-name">{{ item.model.name }}</div>
+                  <div class="model-id">{{ item.model.id }}</div>
+                </div>
+
+                <!-- 能力图标 -->
+                <div class="model-capabilities">
+                  <!-- 显示可见的能力图标 -->
+                  <template
+                    v-for="capability in getVisibleCapabilities(item.model)"
+                    :key="capability.key"
+                  >
+                    <el-tooltip :content="capability.description" placement="top">
+                      <el-icon
+                        class="capability-icon"
+                        :class="capability.className"
+                        :style="{ color: capability.color }"
+                      >
+                        <component :is="capability.icon" />
+                      </el-icon>
+                    </el-tooltip>
+                  </template>
+
+                  <!-- 更多能力折叠 -->
+                  <el-popover
+                    v-if="getEnabledCapabilities(item.model).length > MAX_VISIBLE_CAPS"
+                    placement="top"
+                    :width="220"
+                    trigger="hover"
+                    popper-class="capabilities-popover"
+                  >
+                    <template #reference>
+                      <div class="more-capabilities">
+                        <el-icon><MoreFilled /></el-icon>
+                      </div>
+                    </template>
+
+                    <div class="capabilities-list">
+                      <div class="capabilities-title">所有已启用能力</div>
+                      <div
+                        v-for="cap in getEnabledCapabilities(item.model)"
+                        :key="cap.key"
+                        class="capability-item"
+                      >
+                        <el-icon class="item-icon" :style="{ color: cap.color }">
+                          <component :is="cap.icon" />
+                        </el-icon>
+                        <span class="item-label">{{ cap.label }}</span>
+                      </div>
+                    </div>
+                  </el-popover>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div v-if="editable" class="model-actions">
+                  <el-button size="small" :icon="Edit" @click="emit('edit', item.index)" />
+                  <el-button
+                    size="small"
+                    type="danger"
+                    :icon="Delete"
+                    @click="emit('delete', item.index)"
+                  />
+                </div>
+              </div>
+            </div>
+          </transition>
+        </div>
       </div>
     </div>
   </div>
@@ -393,8 +441,58 @@ const { getModelIcon, getModelGroup } = useModelMetadata();
   /* 颜色通过配置文件的 color 属性动态设置 */
 }
 
+.more-capabilities {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.more-capabilities:hover {
+  background: var(--fill-color-light);
+  color: var(--text-color);
+}
+
 .model-actions {
   display: flex;
   gap: 4px;
+}
+</style>
+
+<style>
+.capabilities-popover {
+  padding: 12px !important;
+}
+
+.capabilities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.capabilities-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color-lighter);
+}
+
+.capability-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-color);
+}
+
+.capability-item .item-icon {
+  font-size: 16px;
 }
 </style>

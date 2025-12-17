@@ -18,6 +18,7 @@ const props = defineProps<{
   minimizeToTray: boolean;
   theme: string;
   autoAdjustWindowPosition: boolean;
+  sidebarMode: string;
 }>();
 
 const emit = defineEmits([
@@ -25,6 +26,7 @@ const emit = defineEmits([
   "update:minimizeToTray",
   "update:theme",
   "update:autoAdjustWindowPosition",
+  "update:sidebarMode",
   "configImported",
 ]);
 
@@ -46,6 +48,11 @@ const theme = computed({
 const autoAdjustWindowPosition = computed({
   get: () => props.autoAdjustWindowPosition,
   set: (value) => emit("update:autoAdjustWindowPosition", value),
+});
+
+const sidebarMode = computed({
+  get: () => props.sidebarMode,
+  set: (value) => emit("update:sidebarMode", value),
 });
 
 // 清除窗口状态
@@ -221,9 +228,7 @@ const handleImportConfig = async () => {
             <InfoFilled />
           </el-icon>
         </el-tooltip>
-        <span v-if="!showTrayIcon" class="setting-hint warning">
-          需要先启用【显示托盘图标】
-        </span>
+        <span v-if="!showTrayIcon" class="setting-hint warning"> 需要先启用【显示托盘图标】 </span>
       </div>
       <el-switch v-model="minimizeToTray" :disabled="!showTrayIcon" />
     </div>
@@ -246,6 +251,22 @@ const handleImportConfig = async () => {
 
     <div class="setting-item">
       <div class="setting-label">
+        <span>侧边栏模式</span>
+        <el-tooltip content="选择侧边栏的显示方式" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <el-radio-group v-model="sidebarMode">
+        <el-radio-button value="sidebar">默认</el-radio-button>
+        <el-radio-button value="drawer">抽屉</el-radio-button>
+        <el-radio-button value="dropdown">下拉菜单</el-radio-button>
+      </el-radio-group>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-label">
         <span>窗口位置记忆</span>
         <el-tooltip content="清除所有窗口的位置和大小记忆，恢复默认状态" placement="top">
           <el-icon class="info-icon">
@@ -259,10 +280,7 @@ const handleImportConfig = async () => {
     <div class="setting-item">
       <div class="setting-label">
         <span>自动调整窗口位置</span>
-        <el-tooltip
-          content="当工具窗口移动到屏幕外时，自动将其拉回可见区域"
-          placement="top"
-        >
+        <el-tooltip content="当工具窗口移动到屏幕外时，自动将其拉回可见区域" placement="top">
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>

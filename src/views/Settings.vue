@@ -550,6 +550,7 @@ onUnmounted(() => {
               v-model:minimize-to-tray="settings.minimizeToTray"
               v-model:theme="settings.theme"
               v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
+              v-model:sidebar-mode="settings.sidebarMode"
               @config-imported="onConfigImported"
             />
 

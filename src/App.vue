@@ -46,6 +46,7 @@ const isSpecialRoute = computed(() => {
 // 应用设置
 const appSettings = ref<AppSettings>({
   sidebarCollapsed: false,
+  sidebarMode: "sidebar",
   theme: "auto",
   toolsVisible: {},
 });
@@ -311,9 +312,9 @@ onUnmounted(() => {
 
       <!-- 实际内容 -->
       <template v-else>
-        <!-- 侧边栏 - 仅在非特殊路由显示 -->
+        <!-- 侧边栏 - 仅在非特殊路由且模式为 sidebar 时显示 -->
         <MainSidebar
-          v-if="!isSpecialRoute"
+          v-if="!isSpecialRoute && (!appSettings.sidebarMode || appSettings.sidebarMode === 'sidebar')"
           v-model:collapsed="isCollapsed"
           :tools-visible="appSettings.toolsVisible || {}"
           :is-detached="isDetached"

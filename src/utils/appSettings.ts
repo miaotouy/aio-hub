@@ -117,6 +117,7 @@ export interface AppearanceSettings {
 
 export interface AppSettings {
   sidebarCollapsed: boolean;
+  sidebarMode?: SidebarMode;
   theme?: "light" | "dark" | "auto";
 
   // 通用设置
@@ -215,9 +216,13 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   wallpaperExtractedColor: "", // 默认无提取颜色
 };
 
+// 侧边栏模式类型
+export type SidebarMode = "sidebar" | "drawer" | "dropdown";
+
 // 默认设置
 export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
+  sidebarMode: "sidebar",
   theme: "auto",
   showTrayIcon: true, // 默认显示托盘图标
   minimizeToTray: true, // 默认最小化到托盘

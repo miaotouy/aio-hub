@@ -11,6 +11,7 @@ import {
   Sunny,
   Moon,
   User,
+  Menu as MenuIcon,
 } from "@element-plus/icons-vue";
 import { useRoute, useRouter } from "vue-router";
 import { useToolsStore } from "@/stores/tools";
@@ -22,9 +23,11 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { platform } from "@tauri-apps/plugin-os";
 import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
+import { useDetachedManager } from "@/composables/useDetachedManager";
 import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
+import SidebarMenu from "@/components/SidebarMenu.vue";
 import { debounce } from "lodash-es";
 import {
   useResolvedAvatar,
@@ -47,6 +50,7 @@ const toolsStore = useToolsStore();
 const { currentTheme, applyTheme, isDark } = useTheme();
 const { appearanceSettings } = useThemeAppearance();
 const userProfileStore = useUserProfileStore();
+const { isDetached } = useDetachedManager();
 
 // 解析当前选中的全局用户档案头像
 const globalProfileAvatarSrc = useResolvedAvatar(
@@ -61,6 +65,8 @@ const isMacOS = ref(false); // 判断是否为 macOS
 const route = useRoute();
 const settings = ref<AppSettings | null>(null);
 const showProfileManagerDialog = ref(false);
+const drawerVisible = ref(false);
+const dropdownRef = ref<any>(null);
 
 // 用于区分手动和自动的最大化状态变更
 const isManualMaximizeChange = ref(false);
@@ -292,12 +298,46 @@ const openProfileManager = () => {
 const getProfileAvatarSrc = (profile: any) => {
   return resolveAvatarPath(profile, "user-profile");
 };
+
+const handleMenuSelect = () => {
+  drawerVisible.value = false;
+};
+
+const handleDropdownSelect = () => {
+  if (dropdownRef.value) {
+    dropdownRef.value.handleClose();
+  }
+};
 </script>
 
 <template>
   <Teleport to="body">
     <!-- 用户档案管理弹窗 -->
     <UserProfileManagerDialog v-model:visible="showProfileManagerDialog" />
+
+    <!-- 侧边栏抽屉 -->
+    <el-drawer
+      v-model="drawerVisible"
+      direction="ltr"
+      :with-header="false"
+      size="260px"
+      class="sidebar-drawer"
+      :modal-class="'sidebar-drawer-modal'"
+    >
+      <div class="drawer-content">
+        <div class="drawer-header">
+          <img :src="logoSrc" alt="Logo" class="sidebar-logo" />
+          <h2 class="sidebar-title">AIO Hub</h2>
+        </div>
+        <div class="drawer-menu-container">
+          <SidebarMenu
+            :tools-visible="settings?.toolsVisible || {}"
+            :is-detached="isDetached"
+            @select="handleMenuSelect"
+          />
+        </div>
+      </div>
+    </el-drawer>
 
     <div
       class="title-bar"
@@ -308,8 +348,46 @@ const getProfileAvatarSrc = (profile: any) => {
       data-tauri-drag-region
     >
       <div class="title-bar-content">
-        <!-- 左侧占位区域（macOS 需要为原生控件留出空间） -->
-        <div class="left-controls" :class="{ macos: isMacOS }"></div>
+        <!-- 左侧控制区域 -->
+        <div class="left-controls" :class="{ macos: isMacOS }">
+          <!-- 菜单按钮（仅在非 sidebar 模式下显示） -->
+          <template
+            v-if="isMainWindow && settings?.sidebarMode && settings.sidebarMode !== 'sidebar'"
+          >
+            <!-- 下拉菜单模式 -->
+            <el-dropdown
+              v-if="settings.sidebarMode === 'dropdown'"
+              ref="dropdownRef"
+              trigger="click"
+              placement="bottom-start"
+              popper-class="sidebar-dropdown-popper"
+              class="menu-dropdown"
+            >
+              <button class="control-btn menu-btn">
+                <el-icon><MenuIcon /></el-icon>
+              </button>
+              <template #dropdown>
+                <div class="dropdown-menu-container">
+                  <SidebarMenu
+                    :tools-visible="settings?.toolsVisible || {}"
+                    :is-detached="isDetached"
+                    @select="handleDropdownSelect"
+                  />
+                </div>
+              </template>
+            </el-dropdown>
+
+            <!-- 抽屉模式 -->
+            <button
+              v-else
+              class="control-btn menu-btn"
+              style="padding: 0 16px"
+              @click="drawerVisible = true"
+            >
+              <el-icon><MenuIcon /></el-icon>
+            </button>
+          </template>
+        </div>
 
         <!-- 中间标题区域 -->
         <div class="title-area">
@@ -583,6 +661,10 @@ const getProfileAvatarSrc = (profile: any) => {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+.menu-btn {
+  font-size: 16px;
+}
+
 .close-btn:hover {
   background-color: #e81123;
   color: white;
@@ -642,5 +724,61 @@ const getProfileAvatarSrc = (profile: any) => {
 .control-btn.profile-btn:focus-visible {
   background-color: transparent;
   outline: none;
+}
+
+/* 修复下拉菜单模式下按钮样式问题 */
+.menu-dropdown {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.menu-dropdown :deep(.el-dropdown-link) {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  outline: none;
+}
+
+/* 抽屉样式 */
+.drawer-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--sidebar-bg);
+  color: var(--sidebar-text);
+}
+
+.drawer-header {
+  padding: 20px 20px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo {
+  width: 32px;
+  height: 32px;
+  margin-right: 12px;
+}
+
+.sidebar-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
+  white-space: nowrap;
+  color: var(--sidebar-text);
+}
+
+.drawer-menu-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 覆盖 el-drawer 的默认内边距 */
+:global(.sidebar-drawer .el-drawer__body) {
+  padding: 0 !important;
+  background-color: var(--sidebar-bg);
 }
 </style>

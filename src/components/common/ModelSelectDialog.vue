@@ -12,7 +12,7 @@ import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 const { isDialogVisible, currentSelection, initialCapabilities, select, cancel } =
   useModelSelectDialog();
 const { enabledProfiles } = useLlmProfiles();
-const { getModelIcon, getMatchedProperties } = useModelMetadata();
+const { getModelIcon, getMatchedProperties, getModelGroup } = useModelMetadata();
 
 const searchQuery = ref("");
 const selectedCapabilities = ref<string[]>([]);
@@ -86,8 +86,25 @@ const modelGroups = computed(() => {
     groups.get(profile.id)!.models.push(model);
   });
 
-  // 简单排序，可以根据需要调整
-  return Array.from(groups.values()).sort((a, b) => a.profile.name.localeCompare(b.profile.name));
+  // 对每个 profile 下的模型进行排序，使其按分组聚合
+  for (const group of groups.values()) {
+    group.models.sort((a, b) => {
+      const groupA = getModelGroup(a);
+      const groupB = getModelGroup(b);
+
+      // 1. 优先按分组名称排序
+      if (groupA !== groupB) {
+        // 将"未分组"放到最后（可选，目前直接按字母序）
+        return groupA.localeCompare(groupB, "zh-CN");
+      }
+
+      // 2. 分组相同，按 ID 排序，保证顺序稳定
+      return a.id.localeCompare(b.id);
+    });
+  }
+
+  // 保持原始顺序（即 enabledProfiles 的顺序）
+  return Array.from(groups.values());
 });
 
 // 判断是否为当前选中的模型
@@ -221,7 +238,7 @@ watch(isDialogVisible, async (visible) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 400px;
+  min-height: 300px;
   max-height: 60vh;
 }
 

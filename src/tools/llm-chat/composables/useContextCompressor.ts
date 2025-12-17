@@ -291,22 +291,18 @@ export function useContextCompressor() {
   };
 
   /**
-   * 检查并执行压缩
-   * @returns 是否执行了压缩
-   */
-  /**
    * 获取有效配置
+   * 优先级：参数 config > Agent 配置 > 默认配置
+   * 注意：Session 级别的压缩配置已移除，仅保留 Agent 配置和默认兜底
    */
   const getEffectiveConfig = (
-    config?: ContextCompressionConfig,
-    session?: ChatSession
+    config?: ContextCompressionConfig
   ): ContextCompressionConfig => {
-    // 优先级：参数 config > Session 覆盖 > Agent 配置 > 默认配置
     let effectiveConfig: ContextCompressionConfig = {
       ...DEFAULT_CONTEXT_COMPRESSION_CONFIG,
     };
 
-    // 1. 尝试获取当前 Agent 的配置覆盖 (作为基础)
+    // 1. 尝试获取当前 Agent 的配置覆盖
     const currentAgentId = agentStore.currentAgentId;
     if (currentAgentId) {
       const agent = agentStore.getAgentById(currentAgentId);
@@ -318,15 +314,7 @@ export function useContextCompressor() {
       }
     }
 
-    // 2. 尝试获取 Session 的配置覆盖 (优先级高于 Agent)
-    if (session?.parameterOverrides?.contextCompression) {
-      effectiveConfig = {
-        ...effectiveConfig,
-        ...session.parameterOverrides.contextCompression,
-      };
-    }
-
-    // 3. 如果传入了 config (通常是测试或手动触发)，优先级最高
+    // 2. 如果传入了 config (通常是测试或手动触发)，优先级最高
     if (config) {
       effectiveConfig = { ...effectiveConfig, ...config };
     }
@@ -338,11 +326,15 @@ export function useContextCompressor() {
    * 检查并执行压缩
    * @returns 是否执行了压缩
    */
+  /**
+   * 检查并执行压缩
+   * @returns 是否执行了压缩
+   */
   const checkAndCompress = async (
     session: ChatSession,
     config?: ContextCompressionConfig
   ): Promise<boolean> => {
-    const effectiveConfig = getEffectiveConfig(config, session);
+    const effectiveConfig = getEffectiveConfig(config);
 
     // 检查是否启用
     if (!effectiveConfig.enabled) {
@@ -367,7 +359,7 @@ export function useContextCompressor() {
    * 手动触发压缩（忽略自动触发阈值）
    */
   const manualCompress = async (session: ChatSession): Promise<boolean> => {
-    const effectiveConfig = getEffectiveConfig(undefined, session);
+    const effectiveConfig = getEffectiveConfig();
     const path = getNodePath(session, session.activeLeafId);
 
     logger.info("手动触发上下文压缩", { config: effectiveConfig });

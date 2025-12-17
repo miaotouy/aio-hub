@@ -12,12 +12,7 @@ import type {
   ChatAgent,
   ChatMessageNode,
   LlmParameters,
-  AgentCategory,
 } from "./types";
-import type {
-  LlmThinkRule,
-  RichTextRendererStyleOptions,
-} from "@/tools/rich-text-renderer/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -101,45 +96,33 @@ export const useAgentStore = defineStore("llmChatAgent", {
   actions: {
     /**
      * 创建新智能体
+     * @param name 智能体名称
+     * @param profileId 服务配置 ID
+     * @param modelId 模型 ID
+     * @param options 可选的智能体配置（使用黑名单模式，自动支持未来新增字段和插件扩展）
      */
     createAgent(
       name: string,
       profileId: string,
       modelId: string,
-      options?: {
-        displayName?: string;
-        description?: string;
-        icon?: string;
-        userProfileId?: string | null;
-        presetMessages?: ChatMessageNode[];
-        displayPresetCount?: number;
-        parameters?: Partial<LlmParameters>;
-        llmThinkRules?: LlmThinkRule[];
-        richTextStyleOptions?: RichTextRendererStyleOptions;
-        tags?: string[];
-        category?: AgentCategory;
-        regexConfig?: import("./types").ChatRegexConfig;
-      },
+      options?: Partial<Omit<ChatAgent, "id" | "name" | "profileId" | "modelId" | "createdAt" | "lastUsedAt">>,
     ): string {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = getLocalISOString();
 
+      // 使用黑名单模式展开所有可选配置字段
+      // 这样可以自动支持未来新增的字段和插件扩展字段
       const agent: ChatAgent = {
+        // 先展开所有可选配置
+        ...options,
+        // 然后覆盖必填字段和系统生成字段
         id: agentId,
         name,
-        displayName: options?.displayName,
-        description: options?.description,
-        icon: options?.icon,
         profileId,
         modelId,
+        // 特殊处理 userProfileId 的默认值
         userProfileId: options?.userProfileId ?? null,
-        presetMessages: options?.presetMessages,
-        displayPresetCount: options?.displayPresetCount,
-        llmThinkRules: options?.llmThinkRules,
-        richTextStyleOptions: options?.richTextStyleOptions,
-        tags: options?.tags,
-        category: options?.category,
-        regexConfig: options?.regexConfig,
+        // 特殊处理 parameters 的默认值和合并逻辑
         parameters: {
           // 默认值
           temperature: 0.7,

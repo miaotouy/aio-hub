@@ -369,19 +369,27 @@ if (resolvedAgent.category) {
   }
 }
 
+// 使用黑名单模式：排除不需要传递给 createAgent 的字段，其余全部传递
+// 这样可以自动支持未来新增的字段和插件扩展字段
+const {
+  id: _id,
+  name: _name,
+  modelId: _modelId,
+  finalProfileId: _finalProfileId,
+  finalModelId: _finalModelId,
+  overwriteExisting: _overwriteExisting,
+  newName: _newName,
+  icon: originalIcon,
+  category: _category,
+  ...restOptions
+} = resolvedAgent;
+
 const agentOptions = {
-  displayName: resolvedAgent.displayName,
-  description: resolvedAgent.description,
-  icon: pendingAvatarData ? undefined : resolvedAgent.icon, // 如果有待处理的头像，先不设置
-  userProfileId: resolvedAgent.userProfileId,
-  presetMessages: resolvedAgent.presetMessages,
-  displayPresetCount: resolvedAgent.displayPresetCount,
-  parameters: resolvedAgent.parameters,
-  llmThinkRules: resolvedAgent.llmThinkRules,
-  richTextStyleOptions: resolvedAgent.richTextStyleOptions,
-  tags: resolvedAgent.tags,
+  ...restOptions,
+  // 特殊处理 icon：如果有待处理的头像，先不设置
+  icon: pendingAvatarData ? undefined : originalIcon,
+  // 特殊处理 category：使用验证后的值
   category: validCategory,
-  regexConfig: resolvedAgent.regexConfig,
 };
 
 let finalAgentId: string;

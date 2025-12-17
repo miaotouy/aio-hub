@@ -80,22 +80,9 @@ export async function exportAgents(
       };
 
       for (const agent of agents) {
-        // 构造单个 Agent 的导出对象
-        const exportableAgent: ExportableAgent = {
-          name: agent.name,
-          displayName: agent.displayName,
-          description: agent.description,
-          icon: agent.icon, // 仅配置文件模式不处理资产，保持原样
-          modelId: agent.modelId,
-          userProfileId: agent.userProfileId,
-          presetMessages: agent.presetMessages,
-          displayPresetCount: agent.displayPresetCount,
-          parameters: agent.parameters,
-          llmThinkRules: agent.llmThinkRules,
-          richTextStyleOptions: agent.richTextStyleOptions,
-          tags: agent.tags,
-          category: agent.category,
-        };
+        // 使用黑名单模式：排除本地专属字段，其余全部导出
+        // 这样可以自动支持未来新增的字段和插件扩展字段
+        const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgent } = agent;
 
         const exportData: AgentExportFile = {
           version: 1,
@@ -207,21 +194,11 @@ export async function exportAgents(
     for (const agent of agents) {
       const uniqueName = getUniqueFileName(agent.name);
 
-      const exportableAgent: ExportableAgent = {
-        name: agent.name,
-        displayName: agent.displayName,
-        description: agent.description,
-        icon: agent.icon,
-        modelId: agent.modelId,
-        userProfileId: agent.userProfileId,
-        presetMessages: agent.presetMessages,
-        displayPresetCount: agent.displayPresetCount,
-        parameters: agent.parameters,
-        llmThinkRules: agent.llmThinkRules,
-        richTextStyleOptions: agent.richTextStyleOptions,
-        tags: agent.tags,
-        category: agent.category,
-      };
+      // 使用黑名单模式：排除本地专属字段，其余全部导出
+      // 这样可以自动支持未来新增的字段和插件扩展字段
+      const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgentBase } = agent;
+      // 复制一份以便后续修改 icon 路径
+      const exportableAgent: ExportableAgent = { ...exportableAgentBase };
 
       // 确定当前 Agent 的 assets 目录
       let currentAgentAssetsDir = '';

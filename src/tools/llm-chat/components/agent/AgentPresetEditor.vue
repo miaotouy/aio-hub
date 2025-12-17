@@ -177,7 +177,13 @@
                 >⚓</span
               >
               <span
-                v-if="element.injectionStrategy?.depth !== undefined"
+                v-if="element.injectionStrategy?.depthConfig"
+                class="injection-badge-compact"
+                :title="`高级深度: ${element.injectionStrategy.depthConfig}`"
+                >🔩{{ element.injectionStrategy.depthConfig }}</span
+              >
+              <span
+                v-else-if="element.injectionStrategy?.depth !== undefined"
                 class="injection-badge-compact"
                 title="深度注入"
                 >📍{{ element.injectionStrategy.depth }}</span
@@ -257,7 +263,16 @@
                   </el-tag>
                   <!-- 注入策略标签 -->
                   <el-tag
-                    v-if="element.injectionStrategy?.depth !== undefined"
+                    v-if="element.injectionStrategy?.depthConfig"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                    class="injection-tag"
+                  >
+                    🔩 深度 {{ element.injectionStrategy.depthConfig }}
+                  </el-tag>
+                  <el-tag
+                    v-else-if="element.injectionStrategy?.depth !== undefined"
                     size="small"
                     type="warning"
                     effect="plain"

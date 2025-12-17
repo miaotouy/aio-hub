@@ -38,7 +38,7 @@ const classifyPresetMessages = (
 
     if (!strategy) {
       skeleton.push(msg);
-    } else if (strategy.depth !== undefined) {
+    } else if (strategy.depth !== undefined || strategy.depthConfig) {
       depthInjections.push({
         message: msg,
         strategy: { ...strategy, order: strategy.order ?? 100 },
@@ -95,12 +95,76 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   }
 
   const depthGroups = new Map<number, InjectionMessage[]>();
+  const historyLength = history.length;
+
   for (const injection of depthInjections) {
-    const depth = injection.strategy.depth ?? 0;
-    if (!depthGroups.has(depth)) {
-      depthGroups.set(depth, []);
+    const strategy = injection.strategy;
+
+    // 1. 优先处理高级深度配置 (depthConfig)
+    if (strategy.depthConfig) {
+      // 解析 depthConfig，支持混合语法：
+      // - 单点: "5"
+      // - 多点: "3, 10, 15"
+      // - 循环: "10~5" 或 "10:5"
+      // - 混合: "3, 10~5"
+      const segments = strategy.depthConfig.split(",").map((s) => s.trim());
+      const depths: number[] = [];
+
+      for (const segment of segments) {
+        if (!segment) continue;
+
+        // 检查是否为循环语法 (S~I 或 S:I)
+        const loopMatch = segment.match(/^(\d+)[~:](\d+)$/);
+        if (loopMatch) {
+          const start = parseInt(loopMatch[1], 10);
+          const interval = parseInt(loopMatch[2], 10);
+
+          if (!isNaN(start) && !isNaN(interval) && interval > 0) {
+            let currentDepth = start;
+            while (currentDepth <= historyLength) {
+              if (!depths.includes(currentDepth)) {
+                depths.push(currentDepth);
+              }
+              currentDepth += interval;
+            }
+          } else if (!isNaN(start)) {
+            // 如果间隔无效但起始有效，则视为单点
+            if (start <= historyLength && !depths.includes(start)) {
+              depths.push(start);
+            }
+          }
+        } else {
+          // 单点语法
+          const singleDepth = parseInt(segment, 10);
+          if (!isNaN(singleDepth) && singleDepth <= historyLength && !depths.includes(singleDepth)) {
+            depths.push(singleDepth);
+          }
+        }
+      }
+
+      // 将解析出的所有深度点添加到 depthGroups
+      for (const depth of depths) {
+        if (!depthGroups.has(depth)) {
+          depthGroups.set(depth, []);
+        }
+        depthGroups.get(depth)!.push(injection);
+      }
+
+      if (depths.length === 0) {
+        logger.debug(
+          `预设消息 [${injection.message.name || injection.message.id}] 的 depthConfig "${strategy.depthConfig}" 未产生有效深度点（可能历史长度不足）`,
+        );
+      }
     }
-    depthGroups.get(depth)!.push(injection);
+    // 2. 处理基础深度注入 (Legacy depth)
+    else if (strategy.depth !== undefined) {
+      const depth = strategy.depth;
+      // 旧逻辑：深度不足会插入到最前面 (由后续的 Math.max(0, length - depth) 保证)
+      if (!depthGroups.has(depth)) {
+        depthGroups.set(depth, []);
+      }
+      depthGroups.get(depth)!.push(injection);
+    }
   }
 
   for (const [depth, group] of depthGroups) {

@@ -142,6 +142,11 @@
                   <span>📍 深度</span>
                 </el-tooltip>
               </el-radio-button>
+              <el-radio-button value="advanced_depth">
+                <el-tooltip content="高级深度注入 (循环/条件)" placement="top">
+                  <span>🔩 高级</span>
+                </el-tooltip>
+              </el-radio-button>
               <el-radio-button value="anchor">
                 <el-tooltip content="吸附到特定锚点位置" placement="top">
                   <span>⚓ 锚点</span>
@@ -159,6 +164,33 @@
                 controls-position="right"
               />
               <span class="param-hint">0 = 紧跟最新消息</span>
+            </div>
+
+            <!-- 高级深度参数 -->
+            <div v-if="injectionMode === 'advanced_depth'" class="injection-params">
+              <el-input
+                v-model="depthConfigValue"
+                placeholder="如 3, 10~5"
+                size="small"
+                style="width: 160px"
+              />
+              <el-tooltip placement="top">
+                <template #content>
+                  <div style="max-width: 280px; line-height: 1.5">
+                    <p style="margin: 0 0 8px 0"><strong>混合深度语法</strong></p>
+                    <ul style="padding-left: 16px; margin: 0">
+                      <li><strong>5</strong> → 仅在深度 5 注入</li>
+                      <li><strong>3, 10, 15</strong> → 在多个深度各注入一次</li>
+                      <li><strong>10~5</strong> → 从深度 10 开始，每 5 条注入</li>
+                      <li><strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10 起每 5 条注入一次</li>
+                    </ul>
+                    <p style="margin: 8px 0 0 0; font-size: 12px; color: #909399">
+                      注意：历史消息数不足时，对应深度点会被跳过
+                    </p>
+                  </div>
+                </template>
+                <el-icon class="info-icon"><InfoFilled /></el-icon>
+              </el-tooltip>
             </div>
 
             <!-- 锚点参数 -->
@@ -326,7 +358,7 @@ interface MessageForm {
 }
 
 /** 注入模式 */
-type InjectionMode = "default" | "depth" | "anchor";
+type InjectionMode = "default" | "depth" | "advanced_depth" | "anchor";
 
 interface Props {
   visible: boolean;
@@ -368,6 +400,7 @@ const form = ref<MessageForm>({
 // 注入策略表单
 const injectionMode = ref<InjectionMode>("default");
 const depthValue = ref(0);
+const depthConfigValue = ref("");
 const anchorTarget = ref("chat_history");
 const anchorPosition = ref<"before" | "after">("after");
 const orderValue = ref(100);
@@ -521,7 +554,10 @@ const restoreInjectionStrategy = (strategy?: InjectionStrategy) => {
     return;
   }
 
-  if (strategy.depth !== undefined) {
+  if (strategy.depthConfig) {
+    injectionMode.value = "advanced_depth";
+    depthConfigValue.value = strategy.depthConfig;
+  } else if (strategy.depth !== undefined) {
     injectionMode.value = "depth";
     depthValue.value = strategy.depth;
   } else if (strategy.anchorTarget) {
@@ -545,6 +581,13 @@ const buildInjectionStrategy = (): InjectionStrategy | undefined => {
   if (injectionMode.value === "depth") {
     return {
       depth: depthValue.value,
+      order: orderValue.value,
+    };
+  }
+
+  if (injectionMode.value === "advanced_depth") {
+    return {
+      depthConfig: depthConfigValue.value,
       order: orderValue.value,
     };
   }

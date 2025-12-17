@@ -541,6 +541,36 @@ export const useAgentStore = defineStore("llmChatAgent", {
                 });
               }
             }
+
+            // 3. 迁移旧版 InjectionStrategy 格式（补充 type 字段）
+            if (agent.presetMessages && agent.presetMessages.length > 0) {
+              let injectionMigratedCount = 0;
+
+              for (const message of agent.presetMessages) {
+                const strategy = message.injectionStrategy;
+                // 如果 injectionStrategy 存在但没有 type 字段，则需要迁移
+                if (strategy && !strategy.type) {
+                  // 根据字段存在性推断 type
+                  if (strategy.depthConfig) {
+                    strategy.type = "advanced_depth";
+                  } else if (strategy.depth !== undefined) {
+                    strategy.type = "depth";
+                  } else if (strategy.anchorTarget) {
+                    strategy.type = "anchor";
+                  } else {
+                    strategy.type = "default";
+                  }
+                  injectionMigratedCount++;
+                }
+              }
+
+              if (injectionMigratedCount > 0) {
+                logger.info("迁移旧版 InjectionStrategy 格式", {
+                  agentId: agent.id,
+                  migratedCount: injectionMigratedCount,
+                });
+              }
+            }
           }
 
           this.agents = agents;

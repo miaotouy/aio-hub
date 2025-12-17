@@ -177,19 +177,28 @@
                 >⚓</span
               >
               <span
-                v-if="element.injectionStrategy?.depthConfig"
+                v-if="
+                  element.injectionStrategy?.type === 'advanced_depth' ||
+                  (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
+                "
                 class="injection-badge-compact"
                 :title="`高级深度: ${element.injectionStrategy.depthConfig}`"
                 >🔩{{ element.injectionStrategy.depthConfig }}</span
               >
               <span
-                v-else-if="element.injectionStrategy?.depth !== undefined"
+                v-else-if="
+                  element.injectionStrategy?.type === 'depth' ||
+                  (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
+                "
                 class="injection-badge-compact"
                 title="深度注入"
                 >📍{{ element.injectionStrategy.depth }}</span
               >
               <span
-                v-else-if="element.injectionStrategy?.anchorTarget"
+                v-else-if="
+                  element.injectionStrategy?.type === 'anchor' ||
+                  (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
+                "
                 class="injection-badge-compact"
                 title="锚点注入"
                 >⚓</span
@@ -263,7 +272,10 @@
                   </el-tag>
                   <!-- 注入策略标签 -->
                   <el-tag
-                    v-if="element.injectionStrategy?.depthConfig"
+                    v-if="
+                      element.injectionStrategy?.type === 'advanced_depth' ||
+                      (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
+                    "
                     size="small"
                     type="warning"
                     effect="plain"
@@ -272,7 +284,10 @@
                     🔩 深度 {{ element.injectionStrategy.depthConfig }}
                   </el-tag>
                   <el-tag
-                    v-else-if="element.injectionStrategy?.depth !== undefined"
+                    v-else-if="
+                      element.injectionStrategy?.type === 'depth' ||
+                      (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
+                    "
                     size="small"
                     type="warning"
                     effect="plain"
@@ -281,7 +296,10 @@
                     📍 深度 {{ element.injectionStrategy.depth }}
                   </el-tag>
                   <el-tag
-                    v-else-if="element.injectionStrategy?.anchorTarget"
+                    v-else-if="
+                      element.injectionStrategy?.type === 'anchor' ||
+                      (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
+                    "
                     size="small"
                     type="success"
                     effect="plain"

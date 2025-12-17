@@ -545,62 +545,62 @@ watch(viewMode, (newMode) => {
  * 从 injectionStrategy 恢复 UI 状态
  */
 const restoreInjectionStrategy = (strategy?: InjectionStrategy) => {
-  if (!strategy) {
-    injectionMode.value = "default";
+  // 1. 恢复所有数据字段 (如果存在)
+  if (strategy) {
+    if (strategy.depth !== undefined) depthValue.value = strategy.depth;
+    if (strategy.depthConfig !== undefined) depthConfigValue.value = strategy.depthConfig;
+    if (strategy.anchorTarget !== undefined) anchorTarget.value = strategy.anchorTarget;
+    if (strategy.anchorPosition !== undefined) anchorPosition.value = strategy.anchorPosition;
+    if (strategy.order !== undefined) orderValue.value = strategy.order;
+  } else {
+    // 如果没有策略对象，重置为默认值
     depthValue.value = 0;
+    depthConfigValue.value = "";
     anchorTarget.value = "chat_history";
     anchorPosition.value = "after";
     orderValue.value = 100;
+  }
+
+  // 2. 确定激活模式
+  if (!strategy) {
+    injectionMode.value = "default";
     return;
   }
 
+  // 优先使用显式的 type 字段
+  if (strategy.type) {
+    injectionMode.value = strategy.type;
+    return;
+  }
+
+  // 兼容旧数据：根据字段存在性推断
   if (strategy.depthConfig) {
     injectionMode.value = "advanced_depth";
-    depthConfigValue.value = strategy.depthConfig;
   } else if (strategy.depth !== undefined) {
     injectionMode.value = "depth";
-    depthValue.value = strategy.depth;
   } else if (strategy.anchorTarget) {
     injectionMode.value = "anchor";
-    anchorTarget.value = strategy.anchorTarget;
-    anchorPosition.value = strategy.anchorPosition ?? "after";
   } else {
     injectionMode.value = "default";
   }
-  orderValue.value = strategy.order ?? 100;
 };
 
 /**
  * 构建 injectionStrategy 对象
  */
 const buildInjectionStrategy = (): InjectionStrategy | undefined => {
-  if (injectionMode.value === "default") {
-    return undefined;
-  }
+  // 始终保存所有已配置的参数，以便在切换模式后数据不丢失
+  // 并显式设置 type 字段
+  const strategy: InjectionStrategy = {
+    type: injectionMode.value,
+    depth: depthValue.value,
+    depthConfig: depthConfigValue.value,
+    anchorTarget: anchorTarget.value,
+    anchorPosition: anchorPosition.value,
+    order: orderValue.value,
+  };
 
-  if (injectionMode.value === "depth") {
-    return {
-      depth: depthValue.value,
-      order: orderValue.value,
-    };
-  }
-
-  if (injectionMode.value === "advanced_depth") {
-    return {
-      depthConfig: depthConfigValue.value,
-      order: orderValue.value,
-    };
-  }
-
-  if (injectionMode.value === "anchor") {
-    return {
-      anchorTarget: anchorTarget.value,
-      anchorPosition: anchorPosition.value,
-      order: orderValue.value,
-    };
-  }
-
-  return undefined;
+  return strategy;
 };
 
 /**

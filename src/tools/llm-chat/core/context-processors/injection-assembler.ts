@@ -38,18 +38,45 @@ const classifyPresetMessages = (
 
     if (!strategy) {
       skeleton.push(msg);
-    } else if (strategy.depth !== undefined || strategy.depthConfig) {
-      depthInjections.push({
-        message: msg,
-        strategy: { ...strategy, order: strategy.order ?? 100 },
-      });
-    } else if (strategy.anchorTarget) {
-      anchorInjections.push({
-        message: msg,
-        strategy: { ...strategy, order: strategy.order ?? 100 },
-      });
+      continue;
+    }
+
+    // 优先根据 type 字段判断
+    if (strategy.type) {
+      switch (strategy.type) {
+        case "depth":
+        case "advanced_depth":
+          depthInjections.push({
+            message: msg,
+            strategy: { ...strategy, order: strategy.order ?? 100 },
+          });
+          break;
+        case "anchor":
+          anchorInjections.push({
+            message: msg,
+            strategy: { ...strategy, order: strategy.order ?? 100 },
+          });
+          break;
+        case "default":
+        default:
+          skeleton.push(msg);
+          break;
+      }
     } else {
-      skeleton.push(msg);
+      // 兼容旧数据：根据字段存在性推断
+      if (strategy.depth !== undefined || strategy.depthConfig) {
+        depthInjections.push({
+          message: msg,
+          strategy: { ...strategy, order: strategy.order ?? 100 },
+        });
+      } else if (strategy.anchorTarget) {
+        anchorInjections.push({
+          message: msg,
+          strategy: { ...strategy, order: strategy.order ?? 100 },
+        });
+      } else {
+        skeleton.push(msg);
+      }
     }
   }
 
@@ -100,8 +127,14 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   for (const injection of depthInjections) {
     const strategy = injection.strategy;
 
-    // 1. 优先处理高级深度配置 (depthConfig)
-    if (strategy.depthConfig) {
+    // 判断是否应该使用高级深度配置
+    // 如果有 type，必须是 advanced_depth；如果没有 type，则看 depthConfig 是否存在
+    const useAdvanced = strategy.type
+      ? strategy.type === "advanced_depth"
+      : !!strategy.depthConfig;
+
+    // 1. 处理高级深度配置 (depthConfig)
+    if (useAdvanced && strategy.depthConfig) {
       // 解析 depthConfig，支持混合语法：
       // - 单点: "5"
       // - 多点: "3, 10, 15"
@@ -157,7 +190,11 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
       }
     }
     // 2. 处理基础深度注入 (Legacy depth)
-    else if (strategy.depth !== undefined) {
+    // 如果有 type，必须是 depth；如果没有 type，则看 depth 是否存在
+    else if (
+      (!strategy.type || strategy.type === "depth") &&
+      strategy.depth !== undefined
+    ) {
       const depth = strategy.depth;
       // 旧逻辑：深度不足会插入到最前面 (由后续的 Math.max(0, length - depth) 保证)
       if (!depthGroups.has(depth)) {

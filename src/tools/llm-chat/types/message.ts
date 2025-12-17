@@ -9,6 +9,13 @@ import type { MessageRole, MessageStatus, MessageType } from './common';
  */
 export interface InjectionStrategy {
   /**
+   * 注入策略类型
+   * 用于明确指定当前生效的注入模式，解决不同模式参数可能共存时的歧义问题。
+   * 如果未定义，系统将根据字段存在性进行推断（兼容旧数据）。
+   */
+  type?: 'default' | 'depth' | 'advanced_depth' | 'anchor';
+
+  /**
    * 深度注入：相对于会话历史末尾的位置
    * - 0: 紧跟在最新消息之后（默认行为）
    * - N: 插入到倒数第 N 条消息之后 (如果历史不足 N 条，则插入到最前面)

@@ -145,7 +145,7 @@ export function useContextCompressor() {
       .join('\n\n');
 
     // 2. 准备提示词
-    const defaultPrompt = "请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：\n\n{context}\n\n摘要要求：\n1. 用中文输出\n2. 保持客观中立\n3. 不超过 300 字";
+    const defaultPrompt = "请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：\n\n{context}\n\n摘要要求：\n1. 用中文输出\n2. 保持客观中立\n3. 不超过 3000 字";
     const promptTemplate = config.summaryPrompt || defaultPrompt;
     const prompt = promptTemplate.replace('{context}', contentText);
 

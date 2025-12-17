@@ -32,6 +32,8 @@
       :is-active-leaf="data.isActiveLeaf"
       :zoom="viewport.zoom"
       :role="data.role"
+      :model-id="data.modelId"
+      :profile-id="data.profileId"
       @copy="handleCopy"
       @toggle-enabled="handleToggleEnabled"
       @delete="handleDelete"

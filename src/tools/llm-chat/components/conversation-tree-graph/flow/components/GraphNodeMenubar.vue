@@ -1,14 +1,28 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Copy, Eye, EyeOff, Trash2, MessageSquare, RefreshCw, GitFork } from "lucide-vue-next";
+import {
+  Copy,
+  Eye,
+  EyeOff,
+  Trash2,
+  MessageSquare,
+  RefreshCw,
+  GitFork,
+  AtSign,
+} from "lucide-vue-next";
 import { ElTooltip, ElPopconfirm } from "element-plus";
 import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useAgentStore } from "@/tools/llm-chat/agentStore";
 
 interface Props {
   isEnabled: boolean;
   isActiveLeaf: boolean;
   zoom: number;
   role: "user" | "assistant" | "system";
+  modelId?: string;
+  profileId?: string;
 }
 
 interface Emits {
@@ -59,6 +73,58 @@ const handleRegenerate = () => {
   }
 };
 const handleCreateBranch = () => emit("create-branch");
+
+// 处理选择模型并重新生成
+const { open: openModelSelectDialog } = useModelSelectDialog();
+const { getProfileById } = useLlmProfiles();
+const agentStore = useAgentStore();
+
+const handleSelectModelAndRegenerate = async () => {
+  let currentSelection = null;
+
+  // 确定回显的目标模型：节点自身 -> 临时模型 -> 智能体默认
+  let targetModelId = props.modelId;
+  let targetProfileId = props.profileId;
+
+  // 1. 如果节点没有模型信息，尝试使用输入框的临时模型
+  if (!targetModelId || !targetProfileId) {
+    const inputManager = useChatInputManager();
+    if (inputManager.temporaryModel.value) {
+      targetModelId = inputManager.temporaryModel.value.modelId;
+      targetProfileId = inputManager.temporaryModel.value.profileId;
+    }
+  }
+
+  // 2. 如果还是没有，尝试使用当前智能体的默认模型
+  if (!targetModelId || !targetProfileId) {
+    if (agentStore.currentAgentId) {
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (agent) {
+        targetModelId = agent.modelId;
+        targetProfileId = agent.profileId;
+      }
+    }
+  }
+
+  // 构建选中状态对象
+  if (targetProfileId && targetModelId) {
+    const profile = getProfileById(targetProfileId);
+    if (profile) {
+      const model = profile.models.find((m) => m.id === targetModelId);
+      if (model) {
+        currentSelection = { profile, model };
+      }
+    }
+  }
+
+  const result = await openModelSelectDialog({ current: currentSelection });
+  if (result) {
+    emit("regenerate", {
+      modelId: result.model.id,
+      profileId: result.profile.id,
+    });
+  }
+};
 </script>
 
 <template>
@@ -93,6 +159,18 @@ const handleCreateBranch = () => emit("create-branch");
     >
       <button class="menu-btn" @click="handleRegenerate">
         <RefreshCw :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 指定模型重新生成 -->
+    <el-tooltip
+      v-if="isUserOrAssistant"
+      content="指定模型重新生成"
+      placement="bottom"
+      :show-after="300"
+    >
+      <button class="menu-btn" @click="handleSelectModelAndRegenerate">
+        <AtSign :size="16" />
       </button>
     </el-tooltip>
 

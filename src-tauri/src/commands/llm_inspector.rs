@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::{Emitter, WebviewWindow};
+use tauri::{Emitter, Manager, WebviewWindow};
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
@@ -284,18 +284,38 @@ async fn proxy_handler(req: Request, window: WebviewWindow) -> Result<Response<B
     // 发送请求事件到前端
     let _ = window.emit("inspector-request", &request_record);
 
+    // 获取代理配置
+    let proxy_settings = super::config_manager::get_proxy_settings(&window.app_handle());
+    
     // 使用 reqwest 客户端来支持 HTTPS
     // 对于SSE流，我们需要禁用超时和自动解压
-    let client = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder()
         .danger_accept_invalid_certs(true) // 临时接受无效证书以进行测试
         .no_gzip() // 对于流式响应，禁用自动gzip解压
         .no_brotli() // 禁用自动brotli解压
-        .no_deflate() // 禁用自动deflate解压
-        .build()
-        .map_err(|e| {
-            log::error!("创建HTTP客户端失败: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .no_deflate(); // 禁用自动deflate解压
+
+    // 应用代理设置
+    match proxy_settings.mode.as_str() {
+        "none" => {
+            client_builder = client_builder.no_proxy();
+        }
+        "custom" => {
+            if !proxy_settings.custom_url.is_empty() {
+                if let Ok(proxy) = reqwest::Proxy::all(&proxy_settings.custom_url) {
+                    client_builder = client_builder.proxy(proxy);
+                }
+            }
+        }
+        _ => {
+            // "system" 模式，reqwest 默认会尝试读取系统代理（env vars）
+        }
+    }
+
+    let client = client_builder.build().map_err(|e| {
+        log::error!("创建HTTP客户端失败: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // 构建 reqwest 请求
     let mut req_builder = match method.as_str() {

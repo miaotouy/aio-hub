@@ -9,6 +9,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
+import type { ProxySettings, ProxyMode } from "@/utils/appSettings";
 
 const logger = createModuleLogger("GeneralSettings");
 const errorHandler = createModuleErrorHandler("GeneralSettings");
@@ -19,6 +20,7 @@ const props = defineProps<{
   theme: string;
   autoAdjustWindowPosition: boolean;
   sidebarMode: string;
+  proxy: ProxySettings;
 }>();
 
 const emit = defineEmits([
@@ -27,6 +29,7 @@ const emit = defineEmits([
   "update:theme",
   "update:autoAdjustWindowPosition",
   "update:sidebarMode",
+  "update:proxy",
   "configImported",
 ]);
 
@@ -53,6 +56,16 @@ const autoAdjustWindowPosition = computed({
 const sidebarMode = computed({
   get: () => props.sidebarMode,
   set: (value) => emit("update:sidebarMode", value),
+});
+
+const proxyMode = computed({
+  get: () => props.proxy.mode,
+  set: (value: ProxyMode) => emit("update:proxy", { ...props.proxy, mode: value }),
+});
+
+const proxyUrl = computed({
+  get: () => props.proxy.customUrl,
+  set: (value: string) => emit("update:proxy", { ...props.proxy, customUrl: value }),
 });
 
 // 清除窗口状态
@@ -289,6 +302,32 @@ const handleImportConfig = async () => {
       <el-switch v-model="autoAdjustWindowPosition" />
     </div>
 
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>网络代理</span>
+        <el-tooltip content="设置应用的网络代理模式" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <div class="setting-content-col">
+        <el-radio-group v-model="proxyMode">
+          <el-radio-button value="system">跟随系统</el-radio-button>
+          <el-radio-button value="none">不使用代理</el-radio-button>
+          <el-radio-button value="custom">自定义</el-radio-button>
+        </el-radio-group>
+        <div v-if="proxyMode === 'custom'" class="proxy-input-wrapper">
+          <el-input
+            v-model="proxyUrl"
+            placeholder="例如 http://127.0.0.1:7890"
+            clearable
+            style="width: 100%"
+          />
+        </div>
+      </div>
+    </div>
+
     <el-divider />
 
     <div class="setting-item">
@@ -359,5 +398,16 @@ const handleImportConfig = async () => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.setting-content-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.proxy-input-wrapper {
+  width: 240px;
 }
 </style>

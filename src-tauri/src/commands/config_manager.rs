@@ -9,6 +9,13 @@ use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxySettings {
+    pub mode: String,
+    pub custom_url: String,
+}
+
 /// 获取应用数据目录
 fn get_app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
@@ -201,6 +208,32 @@ pub async fn export_all_configs_to_zip(app: AppHandle) -> Result<Vec<u8>, String
     
     // 返回 ZIP 文件的二进制数据
     Ok(zip_buffer)
+}
+
+/// 从 settings.json 获取代理配置
+pub fn get_proxy_settings(app: &AppHandle) -> ProxySettings {
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(path) => path,
+        Err(_) => return ProxySettings { mode: "system".to_string(), custom_url: String::new() },
+    };
+    let settings_path = app_data_dir.join("settings.json");
+    
+    if settings_path.exists() {
+        if let Ok(contents) = std::fs::read_to_string(&settings_path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
+                if let Some(proxy) = json.get("proxy") {
+                    if let Ok(settings) = serde_json::from_value::<ProxySettings>(proxy.clone()) {
+                        return settings;
+                    }
+                }
+            }
+        }
+    }
+    
+    ProxySettings {
+        mode: "system".to_string(),
+        custom_url: String::new(),
+    }
 }
 
 /// 从 ZIP 压缩包导入配置

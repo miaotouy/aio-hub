@@ -1,9 +1,37 @@
-import { fetch } from '@tauri-apps/plugin-http';
+import { fetch, type ClientOptions } from '@tauri-apps/plugin-http';
+import { loadAppSettings } from '@/utils/appSettings';
 
 /**
  * 默认配置
  */
 export const DEFAULT_TIMEOUT = 60000; // 60秒
+
+/**
+ * 获取当前代理配置，转换为 Tauri HTTP 插件的格式
+ */
+const getProxyConfig = (): ClientOptions['proxy'] | undefined => {
+  const settings = loadAppSettings();
+  const proxySettings = settings?.proxy;
+  
+  if (!proxySettings) {
+    return undefined; // 使用默认行为（系统代理）
+  }
+  
+  switch (proxySettings.mode) {
+    case 'none':
+      // 禁用代理：通过将 noProxy 设置为 '*' 来屏蔽所有主机，强制直连
+      return { all: { url: 'http://localhost', noProxy: '*' } };
+    case 'custom':
+      if (proxySettings.customUrl) {
+        return { all: proxySettings.customUrl };
+      }
+      return undefined;
+    case 'system':
+    default:
+      // 系统代理：不传递 proxy 选项，让 Tauri 使用系统默认
+      return undefined;
+  }
+};
 
 /**
  * 视频元数据（Gemini 特有）
@@ -412,9 +440,11 @@ export const fetchWithTimeout = async (
   externalSignal?.addEventListener('abort', externalAbortHandler);
 
   try {
+    const proxyConfig = getProxyConfig();
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
+      ...(proxyConfig && { proxy: proxyConfig }),
     });
     return response;
   } finally {

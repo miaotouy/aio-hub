@@ -157,6 +157,9 @@ export interface AppSettings {
 
   // 外观设置
   appearance?: AppearanceSettings;
+
+  // 网络代理
+  proxy?: ProxySettings;
 }
 
 // 默认外观设置
@@ -219,6 +222,15 @@ export const defaultAppearanceSettings: AppearanceSettings = {
 // 侧边栏模式类型
 export type SidebarMode = "sidebar" | "drawer" | "dropdown";
 
+// 代理模式类型
+export type ProxyMode = "none" | "system" | "custom";
+
+// 代理设置接口
+export interface ProxySettings {
+  mode: ProxyMode;
+  customUrl: string;
+}
+
 // 默认设置
 export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
@@ -265,6 +277,11 @@ export const defaultAppSettings: AppSettings = {
   pluginManagerPanelWidth: 50, // 默认 50%
   // 外观设置
   appearance: defaultAppearanceSettings,
+  // 网络代理
+  proxy: {
+    mode: "system",
+    customUrl: "",
+  },
 };
 
 // 创建应用设置管理器实例
@@ -310,11 +327,18 @@ export const appSettingsManager = createConfigManager<AppSettings>({
       mergedAppearance.wallpaperSource = "custom";
     }
 
+    // 合并 proxy 设置
+    const mergedProxy = {
+      ...defaultConfig.proxy!,
+      ...(loadedConfig.proxy as ProxySettings),
+    };
+
     return {
       ...defaultConfig,
       ...loadedConfig,
       toolsVisible: mergedToolsVisible,
       appearance: mergedAppearance,
+      proxy: mergedProxy,
     };
   },
 });

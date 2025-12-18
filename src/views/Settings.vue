@@ -48,6 +48,10 @@ const settings = ref<AppSettings>({
   warningColor: "#e6a23c",
   dangerColor: "#f56c6c",
   infoColor: "#909399",
+  proxy: {
+    mode: "system",
+    customUrl: "",
+  },
   toolsVisible: {},
   toolsOrder: [],
   // 日志配置
@@ -551,6 +555,7 @@ onUnmounted(() => {
               v-model:theme="settings.theme"
               v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
               v-model:sidebar-mode="settings.sidebarMode"
+              v-model:proxy="settings.proxy"
               @config-imported="onConfigImported"
             />
 

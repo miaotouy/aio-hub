@@ -156,6 +156,27 @@ export default class SmartOcrRegistry implements ToolRegistry {
     );
   }
   /**
+   * [基础功能] 智能切图。
+   * 将长图按照空白区域切割成多个块。
+   */
+  public async sliceImage(
+    image: HTMLImageElement,
+    config?: Partial<SlicerConfig>,
+    imageId: string = 'default'
+  ): Promise<{ blocks: ImageBlock[]; lines: any[] }> {
+    const { sliceImage } = useImageSlicer();
+    
+    // 加载默认配置并应用覆盖
+    const fullConfig = await loadSmartOcrConfig();
+    const mergedSlicerConfig = {
+      ...fullConfig.slicerConfig,
+      ...config
+    };
+
+    return await sliceImage(image, mergedSlicerConfig, imageId);
+  }
+
+  /**
    * [Agent Friendly] 从文件路径识别图片文字并返回摘要。
    * 这是一个高级封装方法，为 Agent 和外部调用者设计。
    * 使用纯逻辑函数，无状态处理。

@@ -14,6 +14,7 @@ import type { Asset, DerivedDataInfo } from "@/types/asset-management";
 import type { LlmRequestOptions, LlmMessageContent } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { convertPdfToImages } from "@/utils/pdfUtils";
+import SmartOcrRegistry from "@/tools/smart-ocr/smartOcr.registry";
 
 const logger = createModuleLogger("useTranscriptionManager");
 const errorHandler = createModuleErrorHandler("useTranscriptionManager");
@@ -354,7 +355,41 @@ export function useTranscriptionManager() {
       }
     }
 
-    // 2. 构建 LLM 请求内容
+    // 2. 检查图片是否需要切图
+    let imageBatchData: { base64: string }[] | undefined;
+    if (task.assetType === "image") {
+      const enableSlicer = !!config.enableImageSlicer;
+      const slicerConfig = config.imageSlicerConfig;
+
+      if (enableSlicer) {
+        const buffer = await assetManagerEngine.getAssetBinary(finalPath);
+        const blob = new Blob([buffer], { type: task.mimeType });
+        const dataUrl = URL.createObjectURL(blob);
+
+        try {
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = dataUrl;
+          });
+
+          const ocrRegistry = new SmartOcrRegistry();
+          const { blocks } = await ocrRegistry.sliceImage(img, slicerConfig, task.assetId);
+
+          if (blocks.length > 1) {
+            logger.info(`图片触发智能切图，共切分为 ${blocks.length} 块`, { assetId: task.assetId });
+            imageBatchData = blocks.map((b) => ({ base64: b.dataUrl.split(",")[1] }));
+          }
+        } catch (e) {
+          logger.warn("图片切图检查失败，将使用原图", e);
+        } finally {
+          URL.revokeObjectURL(dataUrl);
+        }
+      }
+    }
+
+    // 3. 构建 LLM 请求内容
     const [profileId, modelId] = modelIdentifier.split(":");
     if (!profileId || !modelId) {
       throw new Error(`无效的模型标识符: ${modelIdentifier}`);
@@ -389,17 +424,21 @@ export function useTranscriptionManager() {
       }
     }
 
-    // 检查是否有 PDF 分批数据需要处理
+    // 检查是否有分批数据需要处理（PDF 或 切分后的图片）
     const pdfBatchData = (content as LlmMessageContent[] & {
       _pdfBatchData?: { pageNumber: number; base64: string; width: number; height: number }[];
     })._pdfBatchData;
 
     let transcriptionText: string;
 
-    if (pdfBatchData) {
-      // PDF 分批处理模式
-      transcriptionText = await processPdfBatches(
-        pdfBatchData,
+    if (pdfBatchData || imageBatchData) {
+      // 分批处理模式
+      const batches = pdfBatchData
+        ? pdfBatchData.map(img => ({ base64: img.base64, label: `第 ${img.pageNumber} 页` }))
+        : imageBatchData!.map((img, i) => ({ base64: img.base64, label: `第 ${i + 1} 部分` }));
+
+      transcriptionText = await processBatches(
+        batches,
         prompt,
         profileId,
         modelId,
@@ -504,43 +543,43 @@ export function useTranscriptionManager() {
   };
 
   /**
-   * 分批处理 PDF 图片并合并转写结果
+   * 分批处理媒体数据并合并转写结果
    */
-  const processPdfBatches = async (
-    images: { pageNumber: number; base64: string; width: number; height: number }[],
+  const processBatches = async (
+    items: { base64: string; label: string }[],
     prompt: string,
     profileId: string,
     modelId: string,
     temperature: number,
     maxTokens: number
   ): Promise<string> => {
-    const batches: typeof images[] = [];
-    for (let i = 0; i < images.length; i += PDF_BATCH_SIZE) {
-      batches.push(images.slice(i, i + PDF_BATCH_SIZE));
+    const batches: typeof items[] = [];
+    for (let i = 0; i < items.length; i += PDF_BATCH_SIZE) {
+      batches.push(items.slice(i, i + PDF_BATCH_SIZE));
     }
 
-    logger.info(`开始分批处理 PDF，共 ${images.length} 页，分为 ${batches.length} 批`);
+    logger.info(`开始分批处理，共 ${items.length} 项，分为 ${batches.length} 批`);
 
     const batchResults: string[] = [];
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      const startPage = batch[0].pageNumber;
-      const endPage = batch[batch.length - 1].pageNumber;
+      const startLabel = batch[0].label;
+      const endLabel = batch[batch.length - 1].label;
 
-      logger.debug(`处理第 ${batchIndex + 1}/${batches.length} 批 (第 ${startPage}-${endPage} 页)`);
+      logger.debug(`处理第 ${batchIndex + 1}/${batches.length} 批 (${startLabel} 到 ${endLabel})`);
 
       const batchContent: LlmMessageContent[] = [
         {
           type: "text",
-          text: `${prompt}\n\n[这是文档的第 ${startPage} 到第 ${endPage} 页，共 ${images.length} 页]`,
+          text: `${prompt}\n\n[这是内容的 ${startLabel} 到 ${endLabel}，共 ${items.length} 项]`,
         },
       ];
 
-      for (const img of batch) {
+      for (const item of batch) {
         batchContent.push({
           type: "image",
-          imageBase64: img.base64,
+          imageBase64: item.base64,
         });
       }
 
@@ -554,11 +593,11 @@ export function useTranscriptionManager() {
       };
 
       const response = await sendRequest(requestOptions);
-      batchResults.push(`## 第 ${startPage}-${endPage} 页\n\n${response.content}`);
+      batchResults.push(`## ${startLabel}-${endLabel}\n\n${response.content}`);
     }
 
     // 合并所有批次的结果
-    return batchResults.join("\n\n---\n\n");
+    return batchResults.join("\n---\n\n");
   };
 
   /**

@@ -856,7 +856,29 @@ export const settingsConfig: SettingsSection[] = [
           settings.transcription.enabled &&
           !settings.transcription.enableTypeSpecificConfig,
       },
-
+      {
+        id: "transEnableSlicer",
+        label: "图片智能切图",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.enableImageSlicer",
+        hint: "开启后，对于长图将自动检测空白区域进行切分，提高识别准确率",
+        keywords: "transcription slicer 图片 切图 智能",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
+        id: "transSlicerAspectRatio",
+        label:
+          "切图长宽比阈值 ({{ localSettings.transcription.imageSlicerConfig.aspectRatioThreshold }}:1)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 0.5 },
+        modelPath: "transcription.imageSlicerConfig.aspectRatioThreshold",
+        hint: "图片的长宽比超过此值时才会触发智能切图",
+        keywords: "transcription slicer aspect ratio 长宽比",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          !!settings.transcription.enableImageSlicer,
+      },
       // 3. 图片配置 (当 transEnableTypeSpecific 为 true 时显示)
       {
         id: "transImageModel",
@@ -913,7 +935,6 @@ export const settingsConfig: SettingsSection[] = [
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
       },
-
       // 4. 音频配置 (当 transEnableTypeSpecific 为 true 时显示)
       {
         id: "transAudioModel",

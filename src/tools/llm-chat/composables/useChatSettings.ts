@@ -73,6 +73,16 @@ export interface TranscriptionConfig {
   temperature: number;
   /** 输出上限（token） - 通用/默认 */
   maxTokens: number;
+  /** 是否启用智能切图 - 通用/默认 */
+  enableImageSlicer?: boolean;
+  /** 切图配置覆盖 - 通用/默认 */
+  imageSlicerConfig?: {
+    aspectRatioThreshold?: number;
+    blankThreshold?: number;
+    minBlankHeight?: number;
+    minCutHeight?: number;
+    cutLineOffset?: number;
+  };
   /** 最大并发任务数 */
   maxConcurrentTasks: number;
   /** 最大重试次数 */
@@ -289,6 +299,14 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 - 对于非文字内容，提供客观描述`,
     temperature: 0.2,
     maxTokens: 4096,
+    enableImageSlicer: true,
+    imageSlicerConfig: {
+      aspectRatioThreshold: 3,
+      blankThreshold: 0.3,
+      minBlankHeight: 20,
+      minCutHeight: 480,
+      cutLineOffset: 0.2,
+    },
     maxConcurrentTasks: 2,
     maxRetries: 2,
     timeout: 120000, // 默认 120 秒

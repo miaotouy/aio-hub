@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, defineAsyncComponent } from "vue";
+import { computed, ref, watch, onMounted, defineAsyncComponent } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import yaml from "js-yaml";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
-import { Plus, Search, Download, Upload, DocumentAdd } from "@element-plus/icons-vue";
+import { useLlmSearch, type MatchDetail } from "../../composables/useLlmSearch";
+import { Plus, Search, Download, Upload, DocumentAdd, Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, AgentEditData } from "../../types";
@@ -26,9 +27,34 @@ const agentStore = useAgentStore();
 // 使用持久化的UI状态
 const { agentSortBy } = useLlmChatUiState();
 
+// 后端搜索功能
+const { isSearching, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300 });
+
 // 搜索和筛选状态
 const searchQuery = ref("");
 const selectedCategory = ref("all");
+
+// 搜索结果 ID 到匹配详情的映射
+const searchMatchesMap = computed(() => {
+  const map = new Map<string, MatchDetail[]>();
+  for (const result of agentResults.value) {
+    map.set(result.id, result.matches);
+  }
+  return map;
+});
+
+// 是否处于搜索模式（有搜索词且长度>=2）
+const isInSearchMode = computed(() => searchQuery.value.trim().length >= 2);
+
+// 监听搜索词变化
+watch(searchQuery, (newQuery) => {
+  const trimmed = newQuery.trim();
+  if (trimmed.length >= 2) {
+    search(trimmed);
+  } else {
+    clearSearch();
+  }
+});
 
 // 获取所有唯一的分类
 const allCategories = computed(() => {
@@ -47,7 +73,7 @@ const allCategories = computed(() => {
     }));
 });
 
-// 过滤和排序后的智能体列表
+// 过滤和排序后的智能体列表（非搜索模式）
 const filteredAndSortedAgents = computed(() => {
   const start = performance.now();
   let agents = [...agentStore.agents];
@@ -57,8 +83,8 @@ const filteredAndSortedAgents = computed(() => {
     agents = agents.filter((agent) => agent.category === selectedCategory.value);
   }
 
-  // 2. 搜索过滤
-  if (searchQuery.value.trim()) {
+  // 2. 本地搜索过滤（仅在非后端搜索模式下使用）
+  if (!isInSearchMode.value && searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase().trim();
     agents = agents.filter((agent) => {
       return (
@@ -105,6 +131,38 @@ const filteredAndSortedAgents = computed(() => {
   );
   return agents;
 });
+
+// 搜索模式下的智能体列表（基于后端搜索结果）
+const searchResultAgents = computed(() => {
+  if (!isInSearchMode.value) return [];
+  
+  // 根据后端返回的搜索结果顺序获取 agent 对象
+  const agents: ChatAgent[] = [];
+  for (const result of agentResults.value) {
+    const agent = agentStore.getAgentById(result.id);
+    if (agent) {
+      // 如果有分类筛选，也需要应用
+      if (selectedCategory.value === "all" || agent.category === selectedCategory.value) {
+        agents.push(agent);
+      }
+    }
+  }
+  return agents;
+});
+
+// 最终显示的智能体列表
+const displayAgents = computed(() => {
+  return isInSearchMode.value ? searchResultAgents.value : filteredAndSortedAgents.value;
+});
+
+// 获取某个 agent 的匹配详情
+const getAgentMatches = (agentId: string): MatchDetail[] | undefined => {
+  if (!isInSearchMode.value) return undefined;
+  const matches = searchMatchesMap.value.get(agentId);
+  if (!matches) return undefined;
+  // 过滤掉名称显示，因为名称已经显示在列表项中了
+  return matches.filter(m => m.field !== 'name' && m.field !== 'displayName');
+};
 
 // 虚拟滚动
 const parentRef = ref<HTMLElement | null>(null);
@@ -523,14 +581,20 @@ const handleImportFromTavernCard = async () => {
     </div>
 
     <div class="agents-list" ref="parentRef">
-      <div v-if="filteredAndSortedAgents.length === 0 && !searchQuery" class="empty-state">
+      <!-- 搜索中的加载状态 -->
+      <div v-if="isInSearchMode && isSearching" class="loading-state">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>搜索中...</span>
+      </div>
+
+      <div v-else-if="displayAgents.length === 0 && !searchQuery" class="empty-state">
         <p>暂无智能体</p>
         <p class="hint">点击下方按钮创建智能体</p>
       </div>
 
-      <div v-else-if="filteredAndSortedAgents.length === 0" class="empty-state">
+      <div v-else-if="displayAgents.length === 0" class="empty-state">
         <p>没有找到匹配的智能体</p>
-        <p class="hint">尝试其他搜索关键词</p>
+        <p class="hint">{{ isInSearchMode ? '尝试其他搜索关键词，或减少筛选条件' : '尝试其他搜索关键词' }}</p>
       </div>
 
       <div
@@ -543,7 +607,7 @@ const handleImportFromTavernCard = async () => {
       >
         <div
           v-for="virtualItem in virtualItems"
-          :key="filteredAndSortedAgents[virtualItem.index].id"
+          :key="displayAgents[virtualItem.index].id"
           :data-index="virtualItem.index"
           :ref="(el) => virtualizer.measureElement(el as HTMLElement)"
           :style="{
@@ -555,8 +619,9 @@ const handleImportFromTavernCard = async () => {
           }"
         >
           <AgentListItem
-            :agent="filteredAndSortedAgents[virtualItem.index]"
-            :selected="isAgentSelected(filteredAndSortedAgents[virtualItem.index].id)"
+            :agent="displayAgents[virtualItem.index]"
+            :selected="isAgentSelected(displayAgents[virtualItem.index].id)"
+            :matches="getAgentMatches(displayAgents[virtualItem.index].id)"
             @select="selectAgent"
             @edit="handleEdit"
             @duplicate="handleDuplicateAgent"
@@ -701,6 +766,16 @@ const handleImportFromTavernCard = async () => {
   font-size: 12px;
   margin-top: 8px;
   opacity: 0.7;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--text-color-secondary);
+  font-size: 13px;
 }
 
 /* 滚动条样式 */

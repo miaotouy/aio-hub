@@ -4,10 +4,12 @@ import { Edit, Delete, MoreFilled, Download, CopyDocument, DocumentCopy } from "
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import type { ChatAgent } from "../../types";
+import type { MatchDetail } from "../../composables/useLlmSearch";
 
 const props = defineProps<{
   agent: ChatAgent;
   selected: boolean;
+  matches?: MatchDetail[];
 }>();
 
 defineEmits<{
@@ -25,6 +27,21 @@ const isMenuOpen = ref(false);
 const avatarSrc = computed(() => {
   return resolveAvatarPath(props.agent, "agent");
 });
+
+// 字段标签映射
+const fieldLabels: Record<string, string> = {
+  name: "名称",
+  displayName: "显示名称",
+  description: "描述",
+  presetMessage: "预设消息",
+  presetMessageName: "预设消息名",
+  content: "消息内容",
+  reasoningContent: "推理内容",
+};
+
+const getFieldLabel = (field: string): string => {
+  return fieldLabels[field] || field;
+};
 
 const handleVisibleChange = (visible: boolean) => {
   isMenuOpen.value = visible;
@@ -51,8 +68,20 @@ const showActions = computed(() => isHovered.value || isMenuOpen.value);
     
     <div class="agent-info">
       <div class="agent-name">{{ agent.displayName || agent.name }}</div>
-      <!-- 只在选中时显示详细信息 -->
-      <div v-if="selected && agent.description" class="agent-desc">
+      
+      <!-- 搜索匹配详情 -->
+      <div v-if="matches && matches.length > 0" class="match-details">
+        <div v-for="(match, index) in matches.slice(0, 3)" :key="index" class="match-item">
+          <span class="match-field">{{ getFieldLabel(match.field) }}{{ match.role ? `(${match.role})` : '' }}:</span>
+          <span class="match-context" :title="match.context">{{ match.context }}</span>
+        </div>
+        <div v-if="matches.length > 3" class="match-more">
+          +{{ matches.length - 3 }} 处匹配
+        </div>
+      </div>
+
+      <!-- 只在选中且无搜索结果时显示详细信息 -->
+      <div v-else-if="selected && agent.description" class="agent-desc">
         {{ agent.description }}
       </div>
     </div>
@@ -164,6 +193,38 @@ const showActions = computed(() => isHovered.value || isMenuOpen.value);
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.match-details {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-color-secondary);
+}
+
+.match-item {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 2px;
+  align-items: baseline;
+}
+
+.match-field {
+  flex-shrink: 0;
+  color: var(--text-color-light);
+  font-size: 10px;
+}
+
+.match-context {
+  color: var(--text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-more {
+  font-size: 10px;
+  color: var(--primary-color);
+  margin-top: 2px;
 }
 
 .agent-actions {

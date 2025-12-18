@@ -123,7 +123,9 @@ use commands::{
     list_directory_images,
     // 视频处理命令
     check_ffmpeg_availability,
-    compress_video
+    compress_video,
+    // LLM 搜索命令
+    search_llm_data
 };
 // 导入全局鼠标监听器
 // 条件导入：仅在非 macOS 上导入
@@ -370,6 +372,8 @@ tauri::Builder::default()
             // 视频处理命令
             check_ffmpeg_availability,
             compress_video,
+            // LLM 搜索命令
+            search_llm_data,
             // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)
             #[cfg(not(target_os = "macos"))]
             start_drag_session

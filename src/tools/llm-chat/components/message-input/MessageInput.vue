@@ -603,7 +603,7 @@ const debouncedCalculateTokens = () => {
   }
   tokenCalcTimer = setTimeout(() => {
     calculateInputTokens();
-  }, 300);
+  }, 800);
 };
 
 // 监听输入文本变化

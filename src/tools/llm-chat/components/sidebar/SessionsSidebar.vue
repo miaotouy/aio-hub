@@ -47,7 +47,7 @@ const { persistSession } = useSessionManager();
 const { settings } = useChatSettings();
 
 // 后端搜索功能
-const { isSearching, sessionResults, search, clearSearch, getFieldLabel, getRoleLabel } = useLlmSearch({ debounceMs: 300 });
+const { showLoadingIndicator, sessionResults, search, clearSearch, getFieldLabel, getRoleLabel } = useLlmSearch({ debounceMs: 300 });
 
 // 搜索结果 ID 到匹配详情的映射
 const searchMatchesMap = computed(() => {
@@ -469,7 +469,7 @@ const handleSessionClick = (session: ChatSession) => {
     </div>
     <div class="sessions-list" ref="parentRef">
       <!-- 搜索中的加载状态 -->
-      <div v-if="isInSearchMode && isSearching" class="loading-state">
+      <div v-if="isInSearchMode && showLoadingIndicator" class="loading-state">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>搜索中...</span>
       </div>

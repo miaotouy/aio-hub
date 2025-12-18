@@ -1,11 +1,11 @@
+use futures_util::stream::{self, StreamExt};
+use regex::{Regex, RegexBuilder};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
-use walkdir::WalkDir;
-use regex::{Regex, RegexBuilder};
 use tokio::fs;
-use futures_util::stream::{self, StreamExt};
+use walkdir::WalkDir;
 
 // --- 输出数据结构 ---
 
@@ -86,48 +86,68 @@ struct PartialMetadata {
 /// text: 原始文本
 /// re: 预编译的正则表达式（不区分大小写）
 /// context_len: 上下文长度（前后保留的字符数）
+///
+/// 优化版本：不再收集整个文本的 char_indices，而是从匹配点向前/向后迭代
 fn extract_context(text: &str, re: &Regex, context_len: usize) -> Option<String> {
     // 查找第一个匹配项
     let mat = re.find(text)?;
-    let start_byte = mat.start();
-    let end_byte = mat.end();
+    let match_start_byte = mat.start();
+    let match_end_byte = mat.end();
 
-    // 优化：直接在原始字符串上操作，避免 to_lowercase 的全量分配
-    // 需要处理 UTF-8 字符边界
-    
-    // 向前倒推寻找起始位置比较复杂，不如收集字符索引
-    // 为了性能，我们只在匹配成功后才进行字符遍历
-    let char_indices: Vec<(usize, char)> = text.char_indices().collect();
-    
-    // 找到匹配项在 char_indices 中的索引
-    let match_start_char_index = char_indices.iter().position(|(idx, _)| *idx == start_byte)?;
-    let match_end_char_index = char_indices.iter().position(|(idx, _)| *idx == end_byte).unwrap_or(char_indices.len());
-    let context_start_idx = match_start_char_index.saturating_sub(context_len);
-    let context_end_idx = std::cmp::min(match_end_char_index + context_len, char_indices.len());
-    
-    // 构建结果字符串
-    let mut result = String::with_capacity((context_end_idx - context_start_idx) * 4);
-    for (_, c) in char_indices.iter().take(context_end_idx).skip(context_start_idx) {
-        result.push(*c);
+    // --- 向前查找上下文起始字节位置 ---
+    // 从 match_start_byte 向前迭代 context_len 个字符
+    let mut context_start_byte = match_start_byte;
+    let mut chars_before = 0;
+    for (byte_idx, _) in text[..match_start_byte].char_indices().rev() {
+        context_start_byte = byte_idx;
+        chars_before += 1;
+        if chars_before >= context_len {
+            break;
+        }
     }
-    
-    // 清理换行符
-    let mut clean_result = result.replace('\n', " ").replace('\r', "");
-    
-    if context_start_idx > 0 {
-        clean_result = format!("...{}", clean_result);
+    // 如果迭代完了还没到 context_len 个字符，说明到了字符串开头
+    let prefix_ellipsis = chars_before >= context_len && context_start_byte > 0;
+
+    // --- 向后查找上下文结束字节位置 ---
+    // 从 match_end_byte 向后迭代 context_len 个字符
+    let mut context_end_byte = match_end_byte;
+    let mut chars_after = 0;
+    for (byte_offset, c) in text[match_end_byte..].char_indices() {
+        context_end_byte = match_end_byte + byte_offset + c.len_utf8();
+        chars_after += 1;
+        if chars_after >= context_len {
+            break;
+        }
     }
-    if context_end_idx < char_indices.len() {
-        clean_result = format!("{}...", clean_result);
+    let suffix_ellipsis = context_end_byte < text.len();
+
+    // --- 构建结果字符串 ---
+    // 直接切片，然后替换换行符
+    let slice = &text[context_start_byte..context_end_byte];
+
+    // 预估容量：原始长度 + 可能的省略号(6字节)
+    let mut result = String::with_capacity(slice.len() + 8);
+
+    if prefix_ellipsis {
+        result.push_str("...");
     }
-    
-    Some(clean_result)
+
+    // 单次遍历替换换行符
+    for c in slice.chars() {
+        match c {
+            '\n' | '\r' => result.push(' '),
+            _ => result.push(c),
+        }
+    }
+
+    if suffix_ellipsis {
+        result.push_str("...");
+    }
+
+    Some(result)
 }
 
-async fn search_agents(
-    base_dir: &Path,
-    re: &Regex
-) -> Vec<SearchResult> {
+async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
     let agents_dir = base_dir.join("agents");
     if !agents_dir.exists() {
         return Vec::new();
@@ -147,6 +167,12 @@ async fn search_agents(
     stream::iter(paths)
         .map(|path| async move {
             let content = fs::read_to_string(&path).await.ok()?;
+
+            // 预过滤：如果全文都不包含关键词，直接跳过昂贵的 JSON 解析
+            if !re.is_match(&content) {
+                return None;
+            }
+
             let agent = serde_json::from_str::<PartialAgent>(&content).ok()?;
             let mut matches = Vec::new();
 
@@ -185,8 +211,10 @@ async fn search_agents(
             if let Some(preset_messages) = &agent.preset_messages {
                 let mut matched_count = 0;
                 for msg in preset_messages {
-                    if matched_count >= 3 { break; }
-                    
+                    if matched_count >= 3 {
+                        break;
+                    }
+
                     // 检查预设消息的名称
                     if let Some(name) = &msg.name {
                         if re.is_match(name) {
@@ -199,7 +227,7 @@ async fn search_agents(
                             continue;
                         }
                     }
-                    
+
                     // 检查消息内容
                     if let Some(content) = &msg.content {
                         if let Some(ctx) = extract_context(content, re, 40) {
@@ -218,11 +246,8 @@ async fn search_agents(
                 return None;
             }
 
-            let title = agent.display_name
-                .as_ref()
-                .unwrap_or(&agent.name)
-                .clone();
-            
+            let title = agent.display_name.as_ref().unwrap_or(&agent.name).clone();
+
             Some(SearchResult {
                 id: agent.id.clone(),
                 kind: "agent".to_string(),
@@ -238,10 +263,7 @@ async fn search_agents(
         .await
 }
 
-async fn search_sessions(
-    base_dir: &Path,
-    re: &Regex
-) -> Vec<SearchResult> {
+async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
     let sessions_dir = base_dir.join("sessions");
     if !sessions_dir.exists() {
         return Vec::new();
@@ -253,7 +275,9 @@ async fn search_sessions(
         .max_depth(1)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file() && e.path().extension().is_some_and(|ext| ext == "json"))
+        .filter(|e| {
+            e.file_type().is_file() && e.path().extension().is_some_and(|ext| ext == "json")
+        })
         .map(|e| e.path().to_owned())
         .collect();
 
@@ -261,6 +285,12 @@ async fn search_sessions(
     stream::iter(paths)
         .map(|path| async move {
             let content = fs::read_to_string(&path).await.ok()?;
+
+            // 预过滤：如果全文都不包含关键词，直接跳过昂贵的 JSON 解析
+            if !re.is_match(&content) {
+                return None;
+            }
+
             let session = serde_json::from_str::<PartialSession>(&content).ok()?;
             let mut matches = Vec::new();
 
@@ -278,8 +308,10 @@ async fn search_sessions(
             // 注意：HashMap 迭代顺序不确定，如果需要稳定排序可能需要先收集 keys
             // 但这里只是搜索，顺序不重要，最后会按匹配数量排序
             for node in session.nodes.values() {
-                if matched_nodes_count >= 5 { break; }
-                
+                if matched_nodes_count >= 5 {
+                    break;
+                }
+
                 // 检查消息内容
                 if let Some(content) = &node.content {
                     if let Some(ctx) = extract_context(content, re, 40) {
@@ -291,7 +323,7 @@ async fn search_sessions(
                         matched_nodes_count += 1;
                     }
                 }
-                
+
                 // 检查推理内容
                 if let Some(metadata) = &node.metadata {
                     if let Some(reasoning) = &metadata.reasoning_content {
@@ -335,7 +367,7 @@ async fn search_sessions(
 pub async fn search_llm_data(
     app: AppHandle,
     query: String,
-    limit: Option<usize>
+    limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
     let query = query.trim();
     if query.is_empty() {
@@ -351,11 +383,13 @@ pub async fn search_llm_data(
         .map_err(|e| format!("Invalid regex: {}", e))?;
 
     // 获取 AppData 目录
-    let app_data_dir = app.path().app_data_dir()
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-    
+
     let llm_chat_dir = app_data_dir.join("llm-chat");
-    
+
     // 并行执行 Agent 和 Session 搜索
     let (agents, mut sessions) = tokio::join!(
         search_agents(&llm_chat_dir, &re),

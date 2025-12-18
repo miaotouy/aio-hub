@@ -28,7 +28,7 @@ const agentStore = useAgentStore();
 const { agentSortBy } = useLlmChatUiState();
 
 // 后端搜索功能
-const { isSearching, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300 });
+const { showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300 });
 
 // 搜索和筛选状态
 const searchQuery = ref("");
@@ -169,7 +169,7 @@ const parentRef = ref<HTMLElement | null>(null);
 
 const virtualizer = useVirtualizer({
   get count() {
-    return filteredAndSortedAgents.value.length;
+    return displayAgents.value.length;
   },
   getScrollElement: () => parentRef.value,
   estimateSize: () => 65, // 预估高度（基于未选中状态：padding 24 + content 32 + margin 8）
@@ -582,7 +582,7 @@ const handleImportFromTavernCard = async () => {
 
     <div class="agents-list" ref="parentRef">
       <!-- 搜索中的加载状态 -->
-      <div v-if="isInSearchMode && isSearching" class="loading-state">
+      <div v-if="isInSearchMode && showLoadingIndicator" class="loading-state">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>搜索中...</span>
       </div>

@@ -47,6 +47,8 @@ export interface SearchOptions {
   limit?: number;
   /** 防抖延迟（毫秒），默认 300 */
   debounceMs?: number;
+  /** loading 显示延迟（毫秒）。用于避免短时间搜索时的闪烁 */
+  loadingDelayMs?: number;
 }
 
 // --- 组合式函数 ---
@@ -58,13 +60,17 @@ export interface SearchOptions {
  * @returns 搜索状态和方法
  */
 export function useLlmSearch(options: SearchOptions = {}) {
-  const { limit = 50, debounceMs = 300 } = options;
+  const { limit = 50, debounceMs = 300, loadingDelayMs = 300 } = options;
 
   // 搜索状态
-  const isSearching = ref(false);
+  const isSearching = ref(false); // 内部状态：是否正在搜索
+  const showLoadingIndicator = ref(false); // 外部状态：是否显示 loading（带延迟）
   const searchResults = ref<SearchResult[]>([]);
   const searchError = ref<string | null>(null);
   const lastQuery = ref("");
+  
+  // loading 延迟计时器
+  let loadingDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
   // 按类型分组的结果
   const agentResults = computed(() => searchResults.value.filter((r) => r.kind === "agent"));
@@ -94,6 +100,29 @@ export function useLlmSearch(options: SearchOptions = {}) {
   };
 
   /**
+   * 清除 loading 延迟计时器
+   */
+  const clearLoadingTimer = () => {
+    if (loadingDelayTimer) {
+      clearTimeout(loadingDelayTimer);
+      loadingDelayTimer = null;
+    }
+  };
+
+  /**
+   * 开始 loading 延迟计时
+   */
+  const startLoadingTimer = () => {
+    clearLoadingTimer();
+    loadingDelayTimer = setTimeout(() => {
+      // 只有当仍在搜索时才显示 loading
+      if (isSearching.value) {
+        showLoadingIndicator.value = true;
+      }
+    }, loadingDelayMs);
+  };
+
+  /**
    * 搜索（带防抖）
    */
   const debouncedSearch = useDebounceFn(async (query: string) => {
@@ -104,11 +133,15 @@ export function useLlmSearch(options: SearchOptions = {}) {
       searchResults.value = [];
       searchError.value = null;
       isSearching.value = false;
+      showLoadingIndicator.value = false;
+      clearLoadingTimer();
       return;
     }
 
     isSearching.value = true;
     searchError.value = null;
+    // 启动 loading 延迟计时器
+    startLoadingTimer();
 
     try {
       searchResults.value = await executeSearch(trimmedQuery);
@@ -117,6 +150,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
       searchResults.value = [];
     } finally {
       isSearching.value = false;
+      showLoadingIndicator.value = false;
+      clearLoadingTimer();
     }
   }, debounceMs);
 
@@ -129,11 +164,13 @@ export function useLlmSearch(options: SearchOptions = {}) {
       searchResults.value = [];
       searchError.value = null;
       isSearching.value = false;
+      showLoadingIndicator.value = false;
       lastQuery.value = "";
+      clearLoadingTimer();
       return;
     }
 
-    // 设置搜索中状态（用于显示加载指示器）
+    // 标记内部搜索状态，但不立即显示 loading（由延迟计时器控制）
     isSearching.value = true;
     debouncedSearch(query);
   };
@@ -153,6 +190,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
 
     isSearching.value = true;
     searchError.value = null;
+    // 立即搜索也使用延迟显示 loading
+    startLoadingTimer();
 
     try {
       const results = await executeSearch(trimmedQuery);
@@ -164,6 +203,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
       return [];
     } finally {
       isSearching.value = false;
+      showLoadingIndicator.value = false;
+      clearLoadingTimer();
     }
   };
 
@@ -175,6 +216,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
     searchError.value = null;
     lastQuery.value = "";
     isSearching.value = false;
+    showLoadingIndicator.value = false;
+    clearLoadingTimer();
   };
 
   /**
@@ -208,7 +251,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
 
   return {
     // 状态
-    isSearching,
+    isSearching, // 内部搜索状态（用于逻辑判断）
+    showLoadingIndicator, // 外部显示状态（用于 UI 显示，带延迟）
     searchResults,
     searchError,
     lastQuery,

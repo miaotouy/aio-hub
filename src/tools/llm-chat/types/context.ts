@@ -162,6 +162,10 @@ export interface ContextPreviewData {
     truncatedMessageCount?: number;
     /** 通过截断节省的 Token 数 */
     savedTokenCount?: number;
+    /** 通过截断节省的字符数 */
+    savedCharCount?: number;
+    /** 原始总字符数（截断前） */
+    originalCharCount?: number;
   };
   /** Agent 信息 */
   agentInfo: {

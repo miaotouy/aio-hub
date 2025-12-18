@@ -51,7 +51,7 @@ export const tokenLimiter: ContextProcessor = {
           modelId,
           msg._attachments // 传入附件列表
         );
-        return { ...msg, tokenCount: count };
+        return { ...msg, tokenCount: count, charCount: contentText.length };
       }),
     );
 
@@ -91,6 +91,7 @@ export const tokenLimiter: ContextProcessor = {
 
     // 4. 对历史消息进行从后往前的截断
     let currentHistoryTokens = 0;
+    let currentHistoryChars = 0;
     let keepCount = 0;
     let totalSavedTokens = 0;
     let partialTruncatedCount = 0;
@@ -107,6 +108,7 @@ export const tokenLimiter: ContextProcessor = {
       if (currentHistoryTokens + msg.tokenCount <= availableForHistory) {
         // 预算充足，完整保留
         currentHistoryTokens += msg.tokenCount;
+        currentHistoryChars += msg.charCount;
         keepCount++;
         const msgIndex = messagesWithTokens.indexOf(msg);
         finalHistoryMessages.unshift({ original: messages[msgIndex], final: msg });
@@ -134,10 +136,12 @@ export const tokenLimiter: ContextProcessor = {
               ...msg,
               content: truncatedContent,
               tokenCount: truncatedTokens,
+              charCount: truncatedContent.length,
               isTruncated: true // 标记已被截断
             };
 
             currentHistoryTokens += truncatedTokens;
+            currentHistoryChars += truncatedMsg.charCount;
             keepCount++;
             const msgIndex = messagesWithTokens.indexOf(msg);
             finalHistoryMessages.unshift({ original: messages[msgIndex], final: truncatedMsg });
@@ -154,9 +158,13 @@ export const tokenLimiter: ContextProcessor = {
       }
     }
 
-    // 计算总节省 Token
+    // 计算总节省 Token 和 字符
     const originalHistoryTokens = historyMessages.reduce((sum, m) => sum + m.tokenCount, 0);
+    const originalHistoryChars = historyMessages.reduce((sum, m) => sum + m.charCount, 0);
+    const originalPresetChars = presetMessages.reduce((sum, m) => sum + m.charCount, 0);
+    
     totalSavedTokens = originalHistoryTokens - currentHistoryTokens;
+    const totalSavedChars = originalHistoryChars - currentHistoryChars;
 
     // 5. 重组最终消息列表 (保持原有顺序)
     // 建立一个从原始消息到最终消息（可能是截断后的）的映射
@@ -197,7 +205,9 @@ export const tokenLimiter: ContextProcessor = {
       presetTokens,
       historyTokens: currentHistoryTokens,
       totalTokens: presetTokens + currentHistoryTokens,
-      savedTokens: totalSavedTokens
+      savedTokens: totalSavedTokens,
+      savedChars: totalSavedChars,
+      originalTotalChars: originalPresetChars + originalHistoryChars
     });
 
     const message = `Token 限制处理完成。预设占用 ${presetTokens}，历史可用 ${availableForHistory}。保留历史 ${finalHistoryCount}/${originalHistoryCount} 条。`;

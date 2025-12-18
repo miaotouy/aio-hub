@@ -173,7 +173,9 @@ export async function buildPreviewDataFromContext(
       }
 
       // 准备用于 Token 计算的消息内容
-      let combinedText = sourceNode.content;
+      // 注意：优先使用 msg.content（可能被 token-limiter 截断），而非 sourceNode.content（原始内容）
+      // 这确保字符统计反映截断后的实际内容
+      let combinedText = typeof msg.content === "string" ? msg.content : sourceNode.content;
       const mediaAttachments: Asset[] = [];
 
       // 获取当前消息的深度
@@ -440,6 +442,8 @@ export async function buildPreviewDataFromContext(
       tokenizerName,
       truncatedMessageCount: tokenLimiterStats?.truncatedCount,
       savedTokenCount: tokenLimiterStats?.savedTokens,
+      savedCharCount: tokenLimiterStats?.savedChars,
+      originalCharCount: tokenLimiterStats?.originalTotalChars,
     },
     agentInfo: {
       id: agentConfig.id,

@@ -139,6 +139,9 @@ defineProps<Props>();
                 -{{ stats.savedTokenCount.toLocaleString() }}
               </span>
             </div>
+            <div class="item-sub-info" v-if="stats.savedCharCount">
+              字符截断: -{{ stats.savedCharCount.toLocaleString() }}
+            </div>
             <div class="progress-bg" v-if="stats.totalTokenCount">
               <div
                 class="progress-bar saved-bar"
@@ -181,7 +184,12 @@ defineProps<Props>();
       <div class="stats-footer">
         <div class="footer-item">
           <span class="label">总字符数:</span>
-          <span class="value">{{ stats.totalCharCount.toLocaleString() }}</span>
+          <span class="value">
+            {{ stats.totalCharCount.toLocaleString() }}
+            <template v-if="stats.originalCharCount && stats.originalCharCount > stats.totalCharCount">
+              <span class="original-value">/ {{ stats.originalCharCount.toLocaleString() }}</span>
+            </template>
+          </span>
         </div>
         <div class="footer-item" v-if="stats.totalTokenCount">
           <span class="label">Token/字符:</span>
@@ -338,6 +346,13 @@ defineProps<Props>();
   color: var(--text-color-secondary);
 }
 
+.item-sub-info {
+  font-size: 10px;
+  color: var(--text-color-secondary);
+  opacity: 0.8;
+  margin-top: -2px;
+}
+
 .item-value {
   font-weight: 600;
   color: var(--text-color);
@@ -412,5 +427,13 @@ defineProps<Props>();
   font-family: "Consolas", monospace;
   color: var(--text-color);
   font-weight: 500;
+}
+
+.original-value {
+  font-size: 0.9em;
+  opacity: 0.5;
+  font-weight: normal;
+  margin-left: 2px;
+  text-decoration: line-through;
 }
 </style>

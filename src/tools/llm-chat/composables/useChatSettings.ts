@@ -85,6 +85,8 @@ export interface TranscriptionConfig {
   };
   /** 最大并发任务数 */
   maxConcurrentTasks: number;
+  /** 任务执行延迟 (ms) - 用于控制请求速率，防止 429 */
+  executionDelay: number;
   /** 最大重试次数 */
   maxRetries: number;
   /** 转写等待超时时间 (ms) */
@@ -308,6 +310,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
       cutLineOffset: 0.2,
     },
     maxConcurrentTasks: 2,
+    executionDelay: 300, // 默认延迟
     maxRetries: 2,
     timeout: 120000, // 默认 120 秒
     enableTypeSpecificConfig: false,

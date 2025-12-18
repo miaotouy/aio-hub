@@ -37,6 +37,7 @@ export interface TranscriptionTask {
 const tasks = reactive<TranscriptionTask[]>([]);
 const processingCount = ref(0);
 const isInitialized = ref(false);
+const lastTaskStartTime = ref(0);
 
 export function useTranscriptionManager() {
   const { settings } = useChatSettings();
@@ -162,6 +163,30 @@ export function useTranscriptionManager() {
   };
 
   /**
+   * 等待速率限制冷却
+   * 这是一个全局锁，确保任何请求发送（任务启动或批次处理）都遵循最小间隔
+   */
+  const waitForRateLimit = async () => {
+    const executionDelay = settings.value.transcription.executionDelay || 0;
+    if (executionDelay <= 0) return;
+
+    // 使用循环确保在多任务竞争中正确等待
+    while (true) {
+      const now = Date.now();
+      const timeSinceLastStart = now - lastTaskStartTime.value;
+
+      if (timeSinceLastStart >= executionDelay) {
+        lastTaskStartTime.value = now; // 更新时间戳，抢占当前时间槽
+        return;
+      }
+
+      const waitTime = executionDelay - timeSinceLastStart;
+      // logger.debug(`速率限制冷却中，等待 ${waitTime}ms`);
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+  };
+
+  /**
    * 处理任务队列
    */
   const processQueue = async () => {
@@ -171,8 +196,22 @@ export function useTranscriptionManager() {
     const pendingTask = tasks.find((t) => t.status === "pending");
     if (!pendingTask) return;
 
+    // 预先标记状态以避免重复调度（虽然在 await waitForRateLimit 期间可能会有其他调度进来，但 find 只会找 pending 的）
+    // 但为了安全，我们在获取锁之后再检查一次状态
+
+    // 等待速率限制
+    // 注意：这里会阻塞当前 processQueue 的执行，但不会阻塞 UI
+    await waitForRateLimit();
+
+    // 再次检查条件，因为等待期间可能发生了变化
+    if (processingCount.value >= maxConcurrent) return;
+    if (pendingTask.status !== "pending") return; // 已经被其他调度处理了
+
     pendingTask.status = "processing";
     processingCount.value++;
+
+    // 尝试调度下一个任务（非阻塞），以填满并发池
+    processQueue();
 
     try {
       await executeTranscription(pendingTask);
@@ -563,6 +602,11 @@ export function useTranscriptionManager() {
     const batchResults: string[] = [];
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      // 每一批次发送前，也需要等待速率限制
+      // 这样可以确保即使是同一个任务内的连续请求，也不会违反全局速率限制
+      // 同时也让其他并发任务有机会插入（公平竞争时间槽）
+      await waitForRateLimit();
+
       const batch = batches[batchIndex];
       const startLabel = batch[0].label;
       const endLabel = batch[batch.length - 1].label;

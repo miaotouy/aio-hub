@@ -680,6 +680,22 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) => settings.transcription.enabled,
       },
       {
+        id: "transExecutionDelay",
+        label:
+          "任务执行延迟 ({{ localSettings.transcription.executionDelay }}ms)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 10000,
+          step: 100,
+          "format-tooltip": (val: number) => `${val}ms`,
+        },
+        modelPath: "transcription.executionDelay",
+        hint: "每个任务开始前的等待时间，用于控制请求频率，避免触发 API 速率限制 (429 错误)",
+        keywords: "transcription delay rate limit 延迟 速率",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
         id: "transMaxRetries",
         label: "最大重试次数 ({{ localSettings.transcription.maxRetries }})",
         component: "ElSlider",

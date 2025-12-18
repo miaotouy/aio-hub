@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, toRef, computed, onMounted, onUnmounted } from "vue";
 import { useStorage } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
@@ -13,18 +13,14 @@ import { useLlmChatStore } from "@/tools/llm-chat/store";
 import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useTranslation } from "@/tools/llm-chat/composables/useTranslation";
-import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
-import { MacroProcessor } from "../../macro-engine/MacroProcessor";
-import { buildMacroContext, processMacros } from "../../core/context-utils/macro";
 import { useContextCompressor } from "@/tools/llm-chat/composables/useContextCompressor";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { useChatInputTokenPreview } from "@/tools/llm-chat/composables/useChatInputTokenPreview";
 import type { Asset } from "@/types/asset-management";
-import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
+import type { ModelIdentifier } from "@/tools/llm-chat/types";
 import { customMessage } from "@/utils/customMessage";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler"; // <-- 插入
@@ -69,11 +65,6 @@ const isCurrentBranchGenerating = computed(() => {
   if (!session || !session.activeLeafId) return false;
   return chatStore.isNodeGenerating(session.activeLeafId);
 });
-
-// Token 计数相关
-const tokenCount = ref<number>(0);
-const isCalculatingTokens = ref(false);
-const tokenEstimated = ref(false);
 
 // 切换流式输出模式
 const toggleStreaming = () => {
@@ -120,6 +111,19 @@ const isExpanded = ref(false);
 // 使用全局输入管理器（替代本地状态）
 const inputManager = useChatInputManager();
 const inputText = inputManager.inputText; // 全局响应式状态
+
+// Token 预览逻辑
+const {
+  tokenCount,
+  isCalculatingTokens,
+  tokenEstimated,
+  triggerCalculation: debouncedCalculateTokens,
+} = useChatInputTokenPreview({
+  inputText,
+  attachments: inputManager.attachments,
+  temporaryModel: inputManager.temporaryModel,
+});
+
 const attachmentManager = {
   attachments: inputManager.attachments,
   isProcessing: inputManager.isProcessingAttachments,
@@ -492,186 +496,6 @@ const handleDragStart = (e: MouseEvent) => {
 const { createResizeHandler } = useWindowResize();
 const handleResizeEast = createResizeHandler("East");
 const handleResizeWest = createResizeHandler("West");
-
-// 计算当前输入的 token 数量
-const calculateInputTokens = async () => {
-  // 如果没有文本且没有附件，重置 token 计数
-  if (!inputText.value.trim() && inputManager.attachmentCount.value === 0) {
-    tokenCount.value = 0;
-    tokenEstimated.value = false;
-    return;
-  }
-
-  // 获取当前会话的模型 ID
-  const session = chatStore.currentSession;
-  if (!session) {
-    tokenCount.value = 0;
-    return;
-  }
-
-  // 查找当前会话使用的模型 ID
-  let modelId: string | undefined;
-
-  // 尝试从活动路径的助手消息中获取模型 ID
-  let currentId: string | null = session.activeLeafId;
-  while (currentId !== null) {
-    const node: ChatMessageNode | undefined = session.nodes[currentId];
-    if (node?.role === "assistant" && node.metadata?.modelId) {
-      modelId = node.metadata.modelId;
-      break;
-    }
-    currentId = node?.parentId ?? null;
-  }
-
-  // 如果活动路径上没有，查找整个会话中的任意助手消息
-  if (!modelId) {
-    for (const n of Object.values(session.nodes)) {
-      const node = n as ChatMessageNode;
-      if (node.role === "assistant" && node.metadata?.modelId) {
-        modelId = node.metadata.modelId;
-        break;
-      }
-    }
-  }
-
-  // 如果还是没有模型 ID，尝试使用会话的 displayAgentId
-  if (!modelId && session.displayAgentId) {
-    const agent = agentStore.getAgentById(session.displayAgentId);
-    if (agent?.modelId) {
-      modelId = agent.modelId;
-    }
-  }
-
-  // 最后尝试使用当前选中的智能体
-  if (!modelId && agentStore.currentAgentId) {
-    const agent = agentStore.getAgentById(agentStore.currentAgentId);
-    if (agent?.modelId) {
-      modelId = agent.modelId;
-    }
-  }
-
-  if (inputManager.temporaryModel.value) {
-    modelId = inputManager.temporaryModel.value.modelId;
-  }
-
-  if (!modelId) {
-    logger.warn("无法确定模型 ID，无法计算 token");
-    tokenCount.value = 0;
-    return;
-  }
-
-  isCalculatingTokens.value = true;
-  try {
-    // 使用 MessageBuilder 预处理消息，将文本附件合并到文本中
-    const attachments =
-      inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : [];
-
-    // 关键修复：获取最新的附件状态，确保转写等信息是最新的
-    const latestAttachments = await Promise.all(
-      attachments.map(async (asset) => {
-        const latest = await assetManagerEngine.getAssetById(asset.id);
-        return latest || asset;
-      })
-    );
-
-    // 1. 处理输入文本中的宏展开（仅用于 Token 预览）
-    let previewText = inputText.value;
-    if (previewText.includes("{{")) {
-      try {
-        const processor = new MacroProcessor();
-        const agentId = agentStore.currentAgentId || session?.displayAgentId;
-        const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-
-        const context = buildMacroContext({ session: session || undefined, agent });
-        previewText = await processMacros(processor, previewText, context, { silent: true });
-      } catch (e) {
-        logger.warn("输入框 Token 预览宏展开失败", e);
-      }
-    }
-
-    const { combinedText, mediaAttachments } = await prepareMessageForTokenCalc(
-      previewText,
-      latestAttachments,
-      modelId
-    );
-
-    // 使用合并后的文本和媒体附件进行 token 计算
-    const result = await tokenCalculatorService.calculateMessageTokens(
-      combinedText,
-      modelId,
-      mediaAttachments.length > 0 ? mediaAttachments : undefined
-    );
-    tokenCount.value = result.count;
-    tokenEstimated.value = result.isEstimated ?? false;
-  } catch (error) {
-    errorHandler.error(error, "计算 token 失败"); // <-- 替换
-    tokenCount.value = 0;
-    tokenEstimated.value = false;
-  } finally {
-    isCalculatingTokens.value = false;
-  }
-};
-
-// 防抖计算 token
-let tokenCalcTimer: ReturnType<typeof setTimeout> | null = null;
-const debouncedCalculateTokens = () => {
-  if (tokenCalcTimer) {
-    clearTimeout(tokenCalcTimer);
-  }
-  tokenCalcTimer = setTimeout(() => {
-    calculateInputTokens();
-  }, 800);
-};
-
-// 监听输入文本变化
-watch(inputText, () => {
-  debouncedCalculateTokens();
-});
-
-// 监听附件变化
-watch(
-  () => inputManager.attachments.value,
-  () => {
-    debouncedCalculateTokens();
-  },
-  { deep: true }
-);
-
-// 监听当前会话变化（切换会话时重新计算当前输入 Token）
-watch(
-  () => chatStore.currentSessionId,
-  () => {
-    debouncedCalculateTokens();
-  }
-);
-
-// 监听智能体切换（模型可能改变，需要重新计算当前输入 token）
-watch(
-  () => agentStore.currentAgentId,
-  () => {
-    debouncedCalculateTokens();
-  }
-);
-
-// 监听临时模型变化
-watch(
-  () => inputManager.temporaryModel.value,
-  () => {
-    debouncedCalculateTokens();
-  }
-);
-
-// 监听智能体模型变化（用户在智能体内更换模型）
-watch(
-  () => {
-    if (!agentStore.currentAgentId) return null;
-    const agent = agentStore.getAgentById(agentStore.currentAgentId);
-    return agent?.modelId;
-  },
-  () => {
-    debouncedCalculateTokens();
-  }
-);
 
 // 初始加载
 onMounted(async () => {

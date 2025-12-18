@@ -421,6 +421,9 @@ export async function buildPreviewDataFromContext(
     await processMessage(msg);
   }
 
+  // 从 sharedData 中获取 token-limiter 的统计信息
+  const tokenLimiterStats = context.sharedData.get("tokenLimiterStats");
+
   return {
     presetMessages,
     chatHistory,
@@ -435,6 +438,8 @@ export async function buildPreviewDataFromContext(
       chatHistoryTokenCount,
       isEstimated,
       tokenizerName,
+      truncatedMessageCount: tokenLimiterStats?.truncatedCount,
+      savedTokenCount: tokenLimiterStats?.savedTokens,
     },
     agentInfo: {
       id: agentConfig.id,

@@ -158,6 +158,10 @@ export interface ContextPreviewData {
     postProcessingTokenCount?: number;
     isEstimated?: boolean;
     tokenizerName?: string;
+    /** 历史消息被截断的条数 */
+    truncatedMessageCount?: number;
+    /** 通过截断节省的 Token 数 */
+    savedTokenCount?: number;
   };
   /** Agent 信息 */
   agentInfo: {

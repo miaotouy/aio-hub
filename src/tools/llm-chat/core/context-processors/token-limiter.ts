@@ -96,6 +96,9 @@ export const tokenLimiter: ContextProcessor = {
     const retainedCharacters = contextManagement.retainedCharacters ?? 0;
     let truncationStats: { originalTokens: number; newTokens: number; originalLength: number } | null = null;
 
+    // 记录哪些消息需要被保留，以及是否被修改过
+    const finalHistoryMessages: Array<{ original: any; final: any }> = [];
+
     for (let i = historyMessages.length - 1; i >= 0; i--) {
       const msg = historyMessages[i];
 
@@ -103,6 +106,12 @@ export const tokenLimiter: ContextProcessor = {
         // 预算充足，完整保留
         currentHistoryTokens += msg.tokenCount;
         keepCount++;
+        // 保存原始消息引用和（未修改的）计算后消息
+        // 注意：这里我们通过 messagesWithTokens 的索引找到原始 messages 中的对应项
+        // messagesWithTokens 是 messages 的 map 结果，所以索引是一一对应的
+        // 但我们需要在 messagesWithTokens 中找到 msg 的索引
+        const msgIndex = messagesWithTokens.indexOf(msg);
+        finalHistoryMessages.unshift({ original: messages[msgIndex], final: msg });
       } else {
         // 预算不足，尝试截断保留开头
         if (retainedCharacters > 0 && typeof msg.content === 'string') {
@@ -125,17 +134,18 @@ export const tokenLimiter: ContextProcessor = {
               originalLength: originalContent.length
             };
 
-            // 修改消息内容和 Token 计数
-            // 注意：这里直接修改了 historyMessages 中的引用，
-            // 但因为 historyMessages 是 messagesWithTokens 的子集引用，
-            // 而 messagesWithTokens 又是基于原始 messages 的浅拷贝(map返回新对象)，
-            // 所以修改 msg.content 不会影响原始 context.messages，
-            // 但我们需要确保后续重组时使用的是这个修改后的 msg。
-            msg.content = truncatedContent;
-            msg.tokenCount = truncatedTokens;
+            // 创建一个新的消息对象，包含修改后的内容
+            const truncatedMsg = {
+              ...msg,
+              content: truncatedContent,
+              tokenCount: truncatedTokens,
+              isTruncated: true // 标记已被截断
+            };
 
             currentHistoryTokens += truncatedTokens;
             keepCount++;
+            const msgIndex = messagesWithTokens.indexOf(msg);
+            finalHistoryMessages.unshift({ original: messages[msgIndex], final: truncatedMsg });
           }
         }
 
@@ -145,27 +155,46 @@ export const tokenLimiter: ContextProcessor = {
       }
     }
 
-    // 需要保留的历史消息是 historyMessages 的最后 keepCount 个
-    const messagesToKeep = new Set(
-      historyMessages.slice(historyMessages.length - keepCount),
-    );
-
     // 5. 重组最终消息列表 (保持原有顺序)
-    // 直接使用 messagesWithTokens 过滤，因为我们已经把所有信息都算好了
-    const finalMessagesList = messagesWithTokens.filter((msg) => {
-      if (msg.sourceType !== "session_history") return true;
-      return messagesToKeep.has(msg);
+    // 建立一个从原始消息到最终消息（可能是截断后的）的映射
+    const finalMsgMap = new Map<any, any>();
+    
+    // 预设消息直接映射
+    presetMessages.forEach(msg => {
+      const msgIndex = messagesWithTokens.indexOf(msg);
+      if (msgIndex !== -1) {
+        finalMsgMap.set(messages[msgIndex], msg);
+      }
     });
 
-    const originalMsgMap = new Map(messagesWithTokens.map((m, i) => [m, messages[i]]));
+    // 历史消息使用我们计算好的结果
+    finalHistoryMessages.forEach(item => {
+      finalMsgMap.set(item.original, item.final);
+    });
 
-    const newContextMessages = finalMessagesList.map(m => originalMsgMap.get(m)!);
+    // 按照原始 messages 的顺序构造最终列表
+    // 这样可以保持预设消息和历史消息的相对顺序（虽然通常预设在前，历史在后）
+    const newContextMessages = messages
+      .filter(m => finalMsgMap.has(m))
+      .map(m => finalMsgMap.get(m));
 
     const originalHistoryCount = historyMessages.length;
     const finalHistoryCount = keepCount;
     const truncatedCount = originalHistoryCount - finalHistoryCount;
 
     context.messages = newContextMessages;
+
+    // 将统计信息写入 sharedData 供预览使用
+    context.sharedData.set("tokenLimiterStats", {
+      originalHistoryCount,
+      finalHistoryCount,
+      truncatedCount,
+      presetTokens,
+      historyTokens: currentHistoryTokens,
+      totalTokens: presetTokens + currentHistoryTokens,
+      truncationStats,
+      savedTokens: (truncationStats?.originalTokens ?? 0) - (truncationStats?.newTokens ?? 0)
+    });
 
     const message = `Token 限制处理完成。预设占用 ${presetTokens}，历史可用 ${availableForHistory}。保留历史 ${finalHistoryCount}/${originalHistoryCount} 条。`;
     logger.info(message, {

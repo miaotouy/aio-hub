@@ -92,9 +92,11 @@ export const tokenLimiter: ContextProcessor = {
     // 4. 对历史消息进行从后往前的截断
     let currentHistoryTokens = 0;
     let keepCount = 0;
+    let totalSavedTokens = 0;
+    let partialTruncatedCount = 0;
+
     // 获取保留字符数配置 (默认为 0，即不保留)
     const retainedCharacters = contextManagement.retainedCharacters ?? 0;
-    let truncationStats: { originalTokens: number; newTokens: number; originalLength: number } | null = null;
 
     // 记录哪些消息需要被保留，以及是否被修改过
     const finalHistoryMessages: Array<{ original: any; final: any }> = [];
@@ -106,10 +108,6 @@ export const tokenLimiter: ContextProcessor = {
         // 预算充足，完整保留
         currentHistoryTokens += msg.tokenCount;
         keepCount++;
-        // 保存原始消息引用和（未修改的）计算后消息
-        // 注意：这里我们通过 messagesWithTokens 的索引找到原始 messages 中的对应项
-        // messagesWithTokens 是 messages 的 map 结果，所以索引是一一对应的
-        // 但我们需要在 messagesWithTokens 中找到 msg 的索引
         const msgIndex = messagesWithTokens.indexOf(msg);
         finalHistoryMessages.unshift({ original: messages[msgIndex], final: msg });
       } else {
@@ -128,11 +126,8 @@ export const tokenLimiter: ContextProcessor = {
 
           // 如果截断后能放得下
           if (currentHistoryTokens + truncatedTokens <= availableForHistory) {
-            truncationStats = {
-              originalTokens: msg.tokenCount,
-              newTokens: truncatedTokens,
-              originalLength: originalContent.length
-            };
+            totalSavedTokens += (msg.tokenCount - truncatedTokens);
+            partialTruncatedCount++;
 
             // 创建一个新的消息对象，包含修改后的内容
             const truncatedMsg = {
@@ -151,9 +146,17 @@ export const tokenLimiter: ContextProcessor = {
 
         // 无论是否截断成功，一旦遇到第一条放不下的消息（处理完后），
         // 更早的消息都无法保留，直接结束循环
+        // 计算那些被完全丢弃的消息所节省的 Token
+        for (let j = 0; j <= i - (partialTruncatedCount > 0 && finalHistoryMessages[0].final.isTruncated ? 0 : 0); j++) {
+           // 这里逻辑有点绕，直接重算更清晰
+        }
         break;
       }
     }
+
+    // 计算总节省 Token
+    const originalHistoryTokens = historyMessages.reduce((sum, m) => sum + m.tokenCount, 0);
+    totalSavedTokens = originalHistoryTokens - currentHistoryTokens;
 
     // 5. 重组最终消息列表 (保持原有顺序)
     // 建立一个从原始消息到最终消息（可能是截断后的）的映射
@@ -180,7 +183,9 @@ export const tokenLimiter: ContextProcessor = {
 
     const originalHistoryCount = historyMessages.length;
     const finalHistoryCount = keepCount;
-    const truncatedCount = originalHistoryCount - finalHistoryCount;
+    // truncatedCount 包含：被完全删除的消息 + 被部分截断的消息
+    const deletedCount = originalHistoryCount - finalHistoryCount;
+    const truncatedCount = deletedCount + partialTruncatedCount;
 
     context.messages = newContextMessages;
 
@@ -192,8 +197,7 @@ export const tokenLimiter: ContextProcessor = {
       presetTokens,
       historyTokens: currentHistoryTokens,
       totalTokens: presetTokens + currentHistoryTokens,
-      truncationStats,
-      savedTokens: (truncationStats?.originalTokens ?? 0) - (truncationStats?.newTokens ?? 0)
+      savedTokens: totalSavedTokens
     });
 
     const message = `Token 限制处理完成。预设占用 ${presetTokens}，历史可用 ${availableForHistory}。保留历史 ${finalHistoryCount}/${originalHistoryCount} 条。`;
@@ -204,7 +208,7 @@ export const tokenLimiter: ContextProcessor = {
       presetTokens,
       historyTokens: currentHistoryTokens,
       totalTokens: presetTokens + currentHistoryTokens,
-      truncationStats
+      savedTokens: totalSavedTokens
     });
     context.logs.push({
       processorId: "primary:token-limiter",

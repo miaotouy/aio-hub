@@ -122,6 +122,24 @@
             </span>
           </div>
         </div>
+        <div
+          v-if="
+            contextData.statistics.truncatedMessageCount &&
+            contextData.statistics.truncatedMessageCount > 0
+          "
+          class="stat-item warning"
+        >
+          <div class="stat-label">截断统计</div>
+          <div class="stat-value">
+            {{ contextData.statistics.truncatedMessageCount }} 条消息
+            <span
+              class="saved-count"
+              v-if="contextData.statistics.savedTokenCount !== undefined"
+            >
+              节省 {{ contextData.statistics.savedTokenCount.toLocaleString() }} tokens
+            </span>
+          </div>
+        </div>
       </div>
     </InfoCard>
 
@@ -787,10 +805,21 @@ const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => 
   color: var(--el-color-success);
 }
 
+.stat-item.warning .stat-value {
+  color: var(--el-color-warning);
+}
+
 .char-count {
   font-size: 12px;
   font-weight: normal;
   color: var(--el-text-color-secondary);
+  margin-top: 2px;
+}
+
+.saved-count {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--el-color-success);
   margin-top: 2px;
 }
 

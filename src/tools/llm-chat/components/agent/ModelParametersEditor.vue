@@ -7,7 +7,7 @@ import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { useLlmChatStore } from "../../store";
 import { useAgentStore } from "../../agentStore";
 import { useChatHandler } from "../../composables/useChatHandler";
-import type { ContextPreviewData } from "../../composables/useChatHandler";
+import type { ContextPreviewData } from "../../types/context";
 import { getModelFamily } from "@/llm-apis/request-builder";
 import { isEqual } from "lodash-es";
 import ConfigSection from "../common/ConfigSection.vue";

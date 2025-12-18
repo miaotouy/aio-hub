@@ -25,7 +25,7 @@ import type {
   LlmParameters,
   ModelIdentifier,
 } from "./types";
-import type { ContextPreviewData } from "./composables/useChatHandler";
+import type { ContextPreviewData } from "./types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";

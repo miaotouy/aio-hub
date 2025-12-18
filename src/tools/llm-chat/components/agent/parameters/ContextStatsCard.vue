@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { Collection, ChatDotRound, WarningFilled, MagicStick } from "@element-plus/icons-vue";
-import type { ContextPreviewData } from "../../../composables/useChatHandler";
+import {
+  Collection,
+  ChatDotRound,
+  WarningFilled,
+  MagicStick,
+  Scissor,
+} from "@element-plus/icons-vue";
+import type { ContextPreviewData } from "../../../types/context";
 
 interface Props {
   stats: ContextPreviewData["statistics"] | null;
@@ -121,29 +127,52 @@ defineProps<Props>();
           </div>
         </div>
 
-        <!-- 后处理消耗 -->
-        <div
-          class="breakdown-item"
-          v-if="hasActivePostProcessingRules && stats.postProcessingTokenCount !== undefined"
-        >
-          <div class="item-icon post-process-icon">
-            <el-icon><MagicStick /></el-icon>
+        <!-- Token 截断 -->
+        <div class="breakdown-item" v-if="stats.savedTokenCount && stats.savedTokenCount > 0">
+          <div class="item-icon saved-icon">
+            <el-icon><Scissor /></el-icon>
           </div>
           <div class="item-content">
             <div class="item-header">
-              <span class="item-label">后处理消耗</span>
-              <span class="item-value">
-                {{ stats.postProcessingTokenCount.toLocaleString() }}
+              <span class="item-label">Token 截断</span>
+              <span class="item-value saved-value">
+                -{{ stats.savedTokenCount.toLocaleString() }}
               </span>
             </div>
             <div class="progress-bg" v-if="stats.totalTokenCount">
               <div
-                class="progress-bar post-process-bar"
+                class="progress-bar saved-bar"
                 :style="{
-                  width: `${((stats.postProcessingTokenCount / stats.totalTokenCount) * 100).toFixed(1)}%`,
+                  width: `${Math.min(100, (stats.savedTokenCount / stats.totalTokenCount) * 100).toFixed(1)}%`,
                 }"
               ></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 后处理消耗 -->
+      <div
+        class="breakdown-item"
+        v-if="hasActivePostProcessingRules && stats.postProcessingTokenCount !== undefined"
+      >
+        <div class="item-icon post-process-icon">
+          <el-icon><MagicStick /></el-icon>
+        </div>
+        <div class="item-content">
+          <div class="item-header">
+            <span class="item-label">后处理消耗</span>
+            <span class="item-value">
+              {{ stats.postProcessingTokenCount.toLocaleString() }}
+            </span>
+          </div>
+          <div class="progress-bg" v-if="stats.totalTokenCount">
+            <div
+              class="progress-bar post-process-bar"
+              :style="{
+                width: `${((stats.postProcessingTokenCount / stats.totalTokenCount) * 100).toFixed(1)}%`,
+              }"
+            ></div>
           </div>
         </div>
       </div>
@@ -159,6 +188,10 @@ defineProps<Props>();
           <span class="value">{{
             (stats.totalTokenCount / (stats.totalCharCount || 1)).toFixed(3)
           }}</span>
+        </div>
+        <div class="footer-item" v-if="stats.truncatedMessageCount">
+          <span class="label">已截断消息:</span>
+          <span class="value">{{ stats.truncatedMessageCount }} 条</span>
         </div>
       </div>
     </div>
@@ -338,23 +371,46 @@ defineProps<Props>();
   background-color: #ec4899;
 }
 
+.saved-icon {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+.saved-bar {
+  background-color: #10b981;
+}
+.saved-value {
+  color: var(--el-color-success);
+}
+
 /* 底部辅助信息 */
 .stats-footer {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 8px;
-  padding: 0 8px;
 }
 
 .footer-item {
   font-size: 11px;
   color: var(--text-color-secondary);
   display: flex;
+  align-items: center;
   gap: 4px;
+  padding: 2px 8px;
+  background-color: var(--bg-color-soft);
+  border: 1px solid var(--border-color-light);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.footer-item:hover {
+  background-color: var(--border-color-light);
+  color: var(--text-color);
 }
 
 .footer-item .value {
   font-family: "Consolas", monospace;
   color: var(--text-color);
+  font-weight: 500;
 }
 </style>

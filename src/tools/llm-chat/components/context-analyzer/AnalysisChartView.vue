@@ -139,7 +139,7 @@
 import { ref, onMounted, nextTick, computed, watch } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import { useContextChart, type ChartMode } from "../../composables/useContextChart";
-import type { ContextPreviewData } from "../../composables/useChatHandler";
+import type { ContextPreviewData } from "../../types/context";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
@@ -149,7 +149,7 @@ const props = defineProps<{
 // 图表模式：token 或 char
 const chartMode = ref<ChartMode>("token");
 
-const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(
+const { drawChart, resizeChart, setupResizeObserver } = useContextChart(
   props.contextData,
   chartMode
 );

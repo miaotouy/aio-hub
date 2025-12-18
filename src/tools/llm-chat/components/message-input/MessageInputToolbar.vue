@@ -10,7 +10,7 @@ import { Paperclip, AtSign, X, Settings, Languages, MessageSquare, Package } fro
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
-import type { ContextPreviewData } from "@/tools/llm-chat/composables/useChatHandler";
+import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ModelIdentifier } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -313,6 +313,15 @@ const handleNewSession = () => {
               </div>
               <div v-if="props.contextStats.postProcessingTokenCount">
                 后处理: {{ props.contextStats.postProcessingTokenCount.toLocaleString() }} tokens
+              </div>
+              <div
+                v-if="props.contextStats.truncatedMessageCount"
+                style="color: var(--el-color-warning); margin-top: 2px"
+              >
+                已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
+                <span v-if="props.contextStats.savedTokenCount">
+                  (省 {{ props.contextStats.savedTokenCount.toLocaleString() }} tokens)
+                </span>
               </div>
               <div v-if="props.contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8">
                 {{ props.contextStats.isEstimated ? "字符估算" : "Token 计算" }} -

@@ -1,7 +1,7 @@
 import { ref, onUnmounted, watch, type Ref } from 'vue';
 import { useDark } from '@vueuse/core';
 import * as echarts from 'echarts';
-import type { ContextPreviewData } from './useChatHandler';
+import type { ContextPreviewData } from '../types/context';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('llm-chat/context-chart');

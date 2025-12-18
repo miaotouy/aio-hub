@@ -14,6 +14,8 @@ import { useAgentStore } from "@/tools/llm-chat/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 import { useTranslation } from "@/tools/llm-chat/composables/useTranslation";
 import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
+import { MacroProcessor } from "../../macro-engine/MacroProcessor";
+import { buildMacroContext, processMacros } from "../../core/context-utils/macro";
 import { useContextCompressor } from "@/tools/llm-chat/composables/useContextCompressor";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -572,8 +574,23 @@ const calculateInputTokens = async () => {
       })
     );
 
+    // 1. 处理输入文本中的宏展开（仅用于 Token 预览）
+    let previewText = inputText.value;
+    if (previewText.includes("{{")) {
+      try {
+        const processor = new MacroProcessor();
+        const agentId = agentStore.currentAgentId || session?.displayAgentId;
+        const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+
+        const context = buildMacroContext({ session: session || undefined, agent });
+        previewText = await processMacros(processor, previewText, context, { silent: true });
+      } catch (e) {
+        logger.warn("输入框 Token 预览宏展开失败", e);
+      }
+    }
+
     const { combinedText, mediaAttachments } = await prepareMessageForTokenCalc(
-      inputText.value,
+      previewText,
       latestAttachments,
       modelId
     );

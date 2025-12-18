@@ -1,6 +1,5 @@
 /**
  * useLlmSearch - LLM 聊天数据搜索组合式函数
- *
  * 封装对后端 search_llm_data 命令的调用，提供智能体和会话的全文搜索功能。
  */
 
@@ -45,6 +44,8 @@ export interface SearchResult {
 export interface SearchOptions {
   /** 最大结果数量，默认 50 */
   limit?: number;
+  /** 搜索范围：'agent' | 'session' | 'all' (默认) */
+  scope?: "agent" | "session" | "all";
   /** 防抖延迟（毫秒），默认 300 */
   debounceMs?: number;
   /** loading 显示延迟（毫秒）。用于避免短时间搜索时的闪烁 */
@@ -60,7 +61,7 @@ export interface SearchOptions {
  * @returns 搜索状态和方法
  */
 export function useLlmSearch(options: SearchOptions = {}) {
-  const { limit = 50, debounceMs = 300, loadingDelayMs = 300 } = options;
+  const { limit = 50, scope = "all", debounceMs = 300, loadingDelayMs = 300 } = options;
 
   // 搜索状态
   const isSearching = ref(false); // 内部状态：是否正在搜索
@@ -89,9 +90,10 @@ export function useLlmSearch(options: SearchOptions = {}) {
       const results = await invoke<SearchResult[]>("search_llm_data", {
         query: trimmedQuery,
         limit,
+        scope,
       });
 
-      logger.debug("搜索完成", { query: trimmedQuery, resultCount: results.length });
+      logger.debug("搜索完成", { query: trimmedQuery, scope, resultCount: results.length });
       return results;
     } catch (error) {
       errorHandler.error(error, "搜索失败");

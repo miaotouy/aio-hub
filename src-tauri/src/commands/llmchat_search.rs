@@ -369,6 +369,7 @@ pub async fn search_llm_data(
     app: AppHandle,
     query: String,
     limit: Option<usize>,
+    scope: Option<String>,
 ) -> Result<Vec<SearchResult>, String> {
     let start_time = Instant::now();
     let query = query.trim();
@@ -377,7 +378,8 @@ pub async fn search_llm_data(
         return Ok(Vec::new());
     }
 
-    log::info!("[LLM_SEARCH] 开始搜索: '{}'", query);
+    let scope = scope.unwrap_or_else(|| "all".to_string());
+    log::info!("[LLM_SEARCH] 开始搜索: '{}' (scope: {})", query, scope);
 
     let max_results = limit.unwrap_or(50);
 
@@ -395,18 +397,30 @@ pub async fn search_llm_data(
 
     let llm_chat_dir = app_data_dir.join("llm-chat");
 
-    // 并行执行 Agent 和 Session 搜索
-    let (agents, mut sessions) = tokio::join!(
-        search_agents(&llm_chat_dir, &re),
-        search_sessions(&llm_chat_dir, &re)
-    );
-
-    let agent_count = agents.len();
-    let session_count = sessions.len();
-
-    // 合并结果
-    let mut results = agents;
-    results.append(&mut sessions);
+    let (mut results, agent_count, session_count) = match scope.as_str() {
+        "agent" => {
+            let agents = search_agents(&llm_chat_dir, &re).await;
+            let count = agents.len();
+            (agents, count, 0)
+        }
+        "session" => {
+            let sessions = search_sessions(&llm_chat_dir, &re).await;
+            let count = sessions.len();
+            (sessions, 0, count)
+        }
+        _ => {
+            // 并行执行 Agent 和 Session 搜索
+            let (agents, mut sessions) = tokio::join!(
+                search_agents(&llm_chat_dir, &re),
+                search_sessions(&llm_chat_dir, &re)
+            );
+            let a_count = agents.len();
+            let s_count = sessions.len();
+            let mut all = agents;
+            all.append(&mut sessions);
+            (all, a_count, s_count)
+        }
+    };
 
     // 排序：匹配数量多的排前面，然后按更新时间倒序
     results.sort_by(|a, b| {

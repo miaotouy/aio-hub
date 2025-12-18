@@ -47,7 +47,7 @@ const { persistSession } = useSessionManager();
 const { settings } = useChatSettings();
 
 // 后端搜索功能
-const { showLoadingIndicator, sessionResults, search, clearSearch, getFieldLabel, getRoleLabel } = useLlmSearch({ debounceMs: 300 });
+const { showLoadingIndicator, sessionResults, search, clearSearch, getFieldLabel, getRoleLabel } = useLlmSearch({ debounceMs: 300, scope: "session" });
 
 // 搜索结果 ID 到匹配详情的映射
 const searchMatchesMap = computed(() => {

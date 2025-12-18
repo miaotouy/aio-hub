@@ -28,7 +28,7 @@ const agentStore = useAgentStore();
 const { agentSortBy } = useLlmChatUiState();
 
 // 后端搜索功能
-const { showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300 });
+const { showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300, scope: "agent" });
 
 // 搜索和筛选状态
 const searchQuery = ref("");

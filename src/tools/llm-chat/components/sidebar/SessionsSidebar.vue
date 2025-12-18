@@ -47,7 +47,7 @@ const { persistSession } = useSessionManager();
 const { settings } = useChatSettings();
 
 // 后端搜索功能
-const { showLoadingIndicator, sessionResults, search, clearSearch, getFieldLabel, getRoleLabel } = useLlmSearch({ debounceMs: 300, scope: "session" });
+const { isSearching, showLoadingIndicator, sessionResults, search, clearSearch, getFieldLabel, getRoleLabel } = useLlmSearch({ debounceMs: 300, scope: "session" });
 
 // 搜索结果 ID 到匹配详情的映射
 const searchMatchesMap = computed(() => {
@@ -170,12 +170,12 @@ const sortSessions = (sessions: ChatSession[]) => {
   });
 };
 
-// 合并所有筛选和排序（非搜索模式）
+// 合并所有筛选和排序（本地过滤）
 const filteredSessions = computed(() => {
   let sessions = props.sessions;
 
-  // 1. 本地搜索过滤（仅在非后端搜索模式下使用）
-  if (!isInSearchMode.value && searchQuery.value.trim()) {
+  // 1. 本地搜索过滤（始终生效，作为后端搜索的补充或过渡）
+  if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
     sessions = sessions.filter((session) => session.name.toLowerCase().includes(query));
   }
@@ -214,7 +214,22 @@ const searchResultSessions = computed(() => {
 
 // 最终显示的会话列表
 const displaySessions = computed(() => {
-  return isInSearchMode.value ? searchResultSessions.value : filteredSessions.value;
+  // 如果处于搜索模式
+  if (isInSearchMode.value) {
+    // 1. 如果有后端搜索结果，优先显示
+    if (searchResultSessions.value.length > 0) {
+      return searchResultSessions.value;
+    }
+    // 2. 如果正在搜索中（后端结果尚未返回），显示前端过滤结果作为过渡
+    if (isSearching.value) {
+      return filteredSessions.value;
+    }
+    // 3. 搜索完成且无结果，返回空数组
+    return [];
+  }
+  
+  // 非搜索模式，显示常规过滤列表
+  return filteredSessions.value;
 });
 
 // 获取 session 的匹配详情
@@ -381,7 +396,17 @@ const handleSessionClick = (session: ChatSession) => {
   <div class="sessions-sidebar">
     <div class="sessions-sidebar-header">
       <div class="header-top">
-        <el-input v-model="searchQuery" placeholder="搜索会话..." :prefix-icon="Search" clearable />
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索会话..."
+          :prefix-icon="Search"
+          :suffix-icon="showLoadingIndicator ? Loading : ''"
+          clearable
+        >
+          <template #suffix v-if="showLoadingIndicator">
+             <el-icon class="is-loading"><Loading /></el-icon>
+          </template>
+        </el-input>
 
         <el-popover trigger="click" width="320" popper-class="filter-popover">
           <template #reference>
@@ -468,13 +493,7 @@ const handleSessionClick = (session: ChatSession) => {
       <div class="session-count">{{ displaySessions.length }} / {{ sessions.length }} 个会话</div>
     </div>
     <div class="sessions-list" ref="parentRef">
-      <!-- 搜索中的加载状态 -->
-      <div v-if="isInSearchMode && showLoadingIndicator" class="loading-state">
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>搜索中...</span>
-      </div>
-
-      <div v-else-if="sessions.length === 0" class="empty-state">
+      <div v-if="sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
         <p class="hint">点击下方按钮创建新会话</p>
       </div>

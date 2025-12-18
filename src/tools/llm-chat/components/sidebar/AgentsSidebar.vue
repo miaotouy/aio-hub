@@ -28,7 +28,7 @@ const agentStore = useAgentStore();
 const { agentSortBy } = useLlmChatUiState();
 
 // 后端搜索功能
-const { showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300, scope: "agent" });
+const { isSearching, showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300, scope: "agent" });
 
 // 搜索和筛选状态
 const searchQuery = ref("");
@@ -83,8 +83,8 @@ const filteredAndSortedAgents = computed(() => {
     agents = agents.filter((agent) => agent.category === selectedCategory.value);
   }
 
-  // 2. 本地搜索过滤（仅在非后端搜索模式下使用）
-  if (!isInSearchMode.value && searchQuery.value.trim()) {
+  // 2. 本地搜索过滤（始终生效，作为后端搜索的补充或过渡）
+  if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase().trim();
     agents = agents.filter((agent) => {
       return (
@@ -152,7 +152,22 @@ const searchResultAgents = computed(() => {
 
 // 最终显示的智能体列表
 const displayAgents = computed(() => {
-  return isInSearchMode.value ? searchResultAgents.value : filteredAndSortedAgents.value;
+  // 如果处于搜索模式
+  if (isInSearchMode.value) {
+    // 1. 如果有后端搜索结果，优先显示
+    if (searchResultAgents.value.length > 0) {
+      return searchResultAgents.value;
+    }
+    // 2. 如果正在搜索中（后端结果尚未返回），显示前端过滤结果作为过渡
+    if (isSearching.value) {
+      return filteredAndSortedAgents.value;
+    }
+    // 3. 搜索完成且无结果，返回空数组
+    return [];
+  }
+
+  // 非搜索模式，显示常规过滤列表
+  return filteredAndSortedAgents.value;
 });
 
 // 获取某个 agent 的匹配详情
@@ -547,10 +562,15 @@ const handleImportFromTavernCard = async () => {
         <el-input
           v-model="searchQuery"
           :prefix-icon="Search"
+          :suffix-icon="showLoadingIndicator ? Loading : ''"
           placeholder="搜索名称、描述或标签..."
           clearable
           size="small"
-        />
+        >
+          <template #suffix v-if="showLoadingIndicator">
+             <el-icon class="is-loading"><Loading /></el-icon>
+          </template>
+        </el-input>
       </div>
       <div class="toolbar-row">
         <el-select
@@ -581,13 +601,7 @@ const handleImportFromTavernCard = async () => {
     </div>
 
     <div class="agents-list" ref="parentRef">
-      <!-- 搜索中的加载状态 -->
-      <div v-if="isInSearchMode && showLoadingIndicator" class="loading-state">
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>搜索中...</span>
-      </div>
-
-      <div v-else-if="displayAgents.length === 0 && !searchQuery" class="empty-state">
+      <div v-if="displayAgents.length === 0 && !searchQuery" class="empty-state">
         <p>暂无智能体</p>
         <p class="hint">点击下方按钮创建智能体</p>
       </div>

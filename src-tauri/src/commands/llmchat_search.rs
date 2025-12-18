@@ -1,6 +1,7 @@
 use futures_util::stream::{self, StreamExt};
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -31,54 +32,58 @@ pub struct SearchResult {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PartialAgent {
-    id: String,
-    name: String,
-    #[serde(default)]
-    display_name: Option<String>,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    preset_messages: Option<Vec<PartialMessageNode>>,
-    #[serde(default)]
-    last_used_at: Option<String>,
-    #[serde(default)]
-    created_at: Option<String>,
+struct PartialAgent<'a> {
+    #[serde(borrow)]
+    id: Cow<'a, str>,
+    #[serde(borrow)]
+    name: Cow<'a, str>,
+    #[serde(default, borrow)]
+    display_name: Option<Cow<'a, str>>,
+    #[serde(default, borrow)]
+    description: Option<Cow<'a, str>>,
+    #[serde(default, borrow)]
+    preset_messages: Option<Vec<PartialMessageNode<'a>>>,
+    #[serde(default, borrow)]
+    last_used_at: Option<Cow<'a, str>>,
+    #[serde(default, borrow)]
+    created_at: Option<Cow<'a, str>>,
 }
 
 // --- Session 相关数据结构 ---
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PartialSession {
-    id: String,
-    name: String,
-    #[serde(default)]
-    updated_at: Option<String>,
-    #[serde(default)]
-    nodes: HashMap<String, PartialMessageNode>,
+struct PartialSession<'a> {
+    #[serde(borrow)]
+    id: Cow<'a, str>,
+    #[serde(borrow)]
+    name: Cow<'a, str>,
+    #[serde(default, borrow)]
+    updated_at: Option<Cow<'a, str>>,
+    #[serde(default, borrow)]
+    nodes: HashMap<String, PartialMessageNode<'a>>,
 }
 
 // --- 通用消息节点结构 ---
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PartialMessageNode {
-    #[serde(default)]
-    content: Option<String>,
-    #[serde(default)]
-    role: Option<String>,
-    #[serde(default)]
-    name: Option<String>, // 预设消息的显示名称
-    #[serde(default)]
-    metadata: Option<PartialMetadata>,
+struct PartialMessageNode<'a> {
+    #[serde(default, borrow)]
+    content: Option<Cow<'a, str>>,
+    #[serde(default, borrow)]
+    role: Option<Cow<'a, str>>,
+    #[serde(default, borrow)]
+    name: Option<Cow<'a, str>>, // 预设消息的显示名称
+    #[serde(default, borrow)]
+    metadata: Option<PartialMetadata<'a>>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PartialMetadata {
-    #[serde(default)]
-    reasoning_content: Option<String>,
+struct PartialMetadata<'a> {
+    #[serde(default, borrow)]
+    reasoning_content: Option<Cow<'a, str>>,
 }
 
 // --- 辅助函数 ---
@@ -181,7 +186,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
             if re.is_match(&agent.name) {
                 matches.push(MatchDetail {
                     field: "name".to_string(),
-                    context: agent.name.clone(),
+                    context: agent.name.to_string(),
                     role: None,
                 });
             }
@@ -191,7 +196,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
                 if re.is_match(display_name) {
                     matches.push(MatchDetail {
                         field: "displayName".to_string(),
-                        context: display_name.clone(),
+                        context: display_name.to_string(),
                         role: None,
                     });
                 }
@@ -221,8 +226,8 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
                         if re.is_match(name) {
                             matches.push(MatchDetail {
                                 field: "presetMessageName".to_string(),
-                                context: name.clone(),
-                                role: msg.role.clone(),
+                                context: name.to_string(),
+                                role: msg.role.as_ref().map(|r| r.to_string()),
                             });
                             matched_count += 1;
                             continue;
@@ -235,7 +240,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
                             matches.push(MatchDetail {
                                 field: "presetMessage".to_string(),
                                 context: ctx,
-                                role: msg.role.clone(),
+                                role: msg.role.as_ref().map(|r| r.to_string()),
                             });
                             matched_count += 1;
                         }
@@ -247,18 +252,25 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
                 return None;
             }
 
-            let title = agent.display_name.as_ref().unwrap_or(&agent.name).clone();
+            let title = agent
+                .display_name
+                .as_ref()
+                .unwrap_or(&agent.name)
+                .to_string();
 
             Some(SearchResult {
-                id: agent.id.clone(),
+                id: agent.id.to_string(),
                 kind: "agent".to_string(),
                 title,
                 matches,
-                updated_at: agent.last_used_at.or(agent.created_at),
+                updated_at: agent
+                    .last_used_at
+                    .or(agent.created_at)
+                    .map(|s| s.to_string()),
                 path: format!("llm-chat/agents/{}/agent.json", agent.id),
             })
         })
-        .buffer_unordered(10) // 并发度 10
+        .buffer_unordered(50) // 并发度 50
         .filter_map(|res| async { res })
         .collect()
         .await
@@ -299,7 +311,7 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
             if re.is_match(&session.name) {
                 matches.push(MatchDetail {
                     field: "name".to_string(),
-                    context: session.name.clone(),
+                    context: session.name.to_string(),
                     role: None,
                 });
             }
@@ -319,7 +331,7 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
                         matches.push(MatchDetail {
                             field: "content".to_string(),
                             context: ctx,
-                            role: node.role.clone(),
+                            role: node.role.as_ref().map(|r| r.to_string()),
                         });
                         matched_nodes_count += 1;
                     }
@@ -332,7 +344,7 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
                             matches.push(MatchDetail {
                                 field: "reasoningContent".to_string(),
                                 context: ctx,
-                                role: node.role.clone(),
+                                role: node.role.as_ref().map(|r| r.to_string()),
                             });
                             matched_nodes_count += 1;
                         }
@@ -348,15 +360,15 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
             let filename = path.file_name()?.to_string_lossy().to_string();
 
             Some(SearchResult {
-                id: session.id.clone(),
+                id: session.id.to_string(),
                 kind: "session".to_string(),
-                title: session.name,
+                title: session.name.to_string(),
                 matches,
-                updated_at: session.updated_at,
+                updated_at: session.updated_at.map(|s| s.to_string()),
                 path: format!("llm-chat/sessions/{}", filename),
             })
         })
-        .buffer_unordered(10) // 并发度 10
+        .buffer_unordered(50) // 并发度 50
         .filter_map(|res| async { res })
         .collect()
         .await

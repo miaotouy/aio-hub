@@ -42,9 +42,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retryBlock: [blockId: string];
+  retryAllFailed: [];
   toggleIgnore: [blockId: string];
   updateText: [blockId: string, text: string];
 }>();
+
+// 是否有失败的结果
+const hasFailedResults = computed(() => {
+  return props.ocrResults.some((r) => r.status === "error");
+});
 
 // 按图片分组结果
 const groupedResults = computed(() => {
@@ -241,6 +247,15 @@ const isEditing = (blockId: string) => {
         <el-tag v-if="ocrResults.length > 0" size="small">
           {{ completedCount }} / {{ ocrResults.length }}
         </el-tag>
+        <el-button
+          v-if="hasFailedResults"
+          size="small"
+          type="warning"
+          :icon="Refresh"
+          @click="emit('retryAllFailed')"
+        >
+          重试失败
+        </el-button>
         <el-button v-if="allText" size="small" :icon="CopyDocument" @click="copyAllText">
           复制全部
         </el-button>
@@ -623,5 +638,9 @@ const isEditing = (blockId: string) => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.el-button {
+  margin: 0 2px;
 }
 </style>

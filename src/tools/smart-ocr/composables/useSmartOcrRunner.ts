@@ -438,6 +438,77 @@ export function useSmartOcrRunner() {
   }
 
   /**
+   * 重试所有失败的块
+   */
+  async function retryAllFailedBlocks(
+    onProgress?: (results: OcrResult[]) => void
+  ): Promise<OcrResult[]> {
+    return await errorHandler.wrapAsync(
+      async () => {
+        const failedResults = store.ocrResults.filter((r) => r.status === 'error');
+        if (failedResults.length === 0) {
+          return [];
+        }
+
+        const blocksToRetry: ImageBlock[] = [];
+        const imageIdMap = new Map<string, string>(); // blockId -> imageId
+
+        failedResults.forEach((res) => {
+          const blocks = store.imageBlocksMap.get(res.imageId);
+          const block = blocks?.find((b) => b.id === res.blockId);
+          if (block) {
+            blocksToRetry.push(block);
+            imageIdMap.set(block.id, res.imageId);
+          }
+        });
+
+        if (blocksToRetry.length === 0) {
+          return [];
+        }
+
+        logger.info('开始批量重试失败的块', { count: blocksToRetry.length });
+
+        // 更新状态为处理中
+        const processingResults = failedResults.map((r) => ({
+          ...r,
+          status: 'processing' as const,
+          error: undefined,
+        }));
+        store.updateOcrResults(processingResults);
+
+        // 执行 OCR 识别
+        const { runOcr } = useOcrRunner();
+        const results = await runOcr(
+          blocksToRetry,
+          store.engineConfig,
+          (progressResults: OcrResult[]) => {
+            // 需要补全 imageId
+            const mappedResults = progressResults.map((r) => ({
+              ...r,
+              imageId: imageIdMap.get(r.blockId)!,
+            }));
+            store.updateOcrResults(mappedResults);
+            onProgress?.(store.ocrResults);
+          }
+        );
+
+        // 最终更新
+        const finalResults = results.map((r) => ({
+          ...r,
+          imageId: imageIdMap.get(r.blockId)!,
+        }));
+        store.updateOcrResults(finalResults);
+
+        return finalResults;
+      },
+      {
+        level: ErrorLevel.ERROR,
+        userMessage: '批量重试识别失败',
+      }
+    ) || [];
+  }
+
+  /**
    * 切换块的忽略状态
    */
   function toggleBlockIgnore(blockId: string): void {
@@ -506,6 +577,7 @@ export function useSmartOcrRunner() {
     sliceAllImages,
     runFullOcrProcess,
     retryBlock,
+    retryAllFailedBlocks,
     toggleBlockIgnore,
     updateBlockText,
     getFormattedOcrSummary,

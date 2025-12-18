@@ -40,6 +40,7 @@ const {
   sliceImage,
   sliceAllImages,
   retryBlock,
+  retryAllFailedBlocks,
   toggleBlockIgnore,
   updateBlockText,
   updateEngineConfig,
@@ -68,7 +69,7 @@ const selectedImageId = ref<string | null>(null);
 const isHistoryDialogVisible = ref(false);
 
 // ControlPanel 组件引用（保留用于未来可能需要的方法调用）
-const controlPanelRef = ref<InstanceType<typeof ControlPanel>>();
+// const controlPanelRef = ref<InstanceType<typeof ControlPanel>>();
 
 // 拖拽处理
 const handleLeftDragStart = (e: MouseEvent) => {
@@ -179,6 +180,13 @@ const handleSliceAllImages = async () => {
 const handleRetryBlock = async (blockId: string) => {
   await retryBlock({ blockId });
   customMessage.success("重试完成");
+};
+
+// 处理重试所有失败的块
+const handleRetryAllFailed = async () => {
+  customMessage.info("正在将失败任务重新加入队列...");
+  await retryAllFailedBlocks();
+  customMessage.success("重试任务已全部处理完成");
 };
 
 // 处理切换忽略状态
@@ -424,6 +432,7 @@ const handleReRecognize = async (recordId: string) => {
             :uploaded-images="uploadedImages"
             :image-blocks-map="imageBlocksMap"
             @retry-block="handleRetryBlock"
+            @retry-all-failed="handleRetryAllFailed"
             @toggle-ignore="handleToggleIgnore"
             @update-text="handleUpdateText"
           />

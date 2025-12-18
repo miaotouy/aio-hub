@@ -285,7 +285,7 @@ async fn proxy_handler(req: Request, window: WebviewWindow) -> Result<Response<B
     let _ = window.emit("inspector-request", &request_record);
 
     // 获取代理配置
-    let proxy_settings = super::config_manager::get_proxy_settings(&window.app_handle());
+    let proxy_settings = super::config_manager::get_proxy_settings(window.app_handle());
     
     // 使用 reqwest 客户端来支持 HTTPS
     // 对于SSE流，我们需要禁用超时和自动解压

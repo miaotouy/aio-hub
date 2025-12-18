@@ -3,6 +3,7 @@ use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use tauri::{AppHandle, Manager};
 use tokio::fs;
 use walkdir::WalkDir;
@@ -369,10 +370,14 @@ pub async fn search_llm_data(
     query: String,
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
+    let start_time = Instant::now();
     let query = query.trim();
+    
     if query.is_empty() {
         return Ok(Vec::new());
     }
+
+    log::info!("[LLM_SEARCH] 开始搜索: '{}'", query);
 
     let max_results = limit.unwrap_or(50);
 
@@ -396,6 +401,9 @@ pub async fn search_llm_data(
         search_sessions(&llm_chat_dir, &re)
     );
 
+    let agent_count = agents.len();
+    let session_count = sessions.len();
+
     // 合并结果
     let mut results = agents;
     results.append(&mut sessions);
@@ -413,6 +421,16 @@ pub async fn search_llm_data(
     if results.len() > max_results {
         results.truncate(max_results);
     }
+
+    let duration = start_time.elapsed();
+    log::info!(
+        "[LLM_SEARCH] 搜索完成: '{}' | 耗时: {:?} | 结果: {} (Agents: {}, Sessions: {})",
+        query,
+        duration,
+        results.len(),
+        agent_count,
+        session_count
+    );
 
     Ok(results)
 }

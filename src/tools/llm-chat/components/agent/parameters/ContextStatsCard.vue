@@ -186,8 +186,8 @@ defineProps<Props>();
           <span class="label">总字符数:</span>
           <span class="value">
             {{ stats.totalCharCount.toLocaleString() }}
-            <template v-if="stats.originalCharCount && stats.originalCharCount > stats.totalCharCount">
-              <span class="original-value">/ {{ stats.originalCharCount.toLocaleString() }}</span>
+            <template v-if="stats.savedCharCount && stats.savedCharCount > 0">
+              <span class="original-value">/ {{ (stats.totalCharCount + stats.savedCharCount).toLocaleString() }}</span>
             </template>
           </span>
         </div>

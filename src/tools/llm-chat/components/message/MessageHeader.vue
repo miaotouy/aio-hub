@@ -166,6 +166,14 @@ const nameForAlt = computed(() => {
   }
   return "System";
 });
+
+// 格式化延迟时间：超过 1000ms 显示为秒
+const formatLatency = (ms: number) => {
+  if (ms >= 1000) {
+    return `${(ms / 1000).toFixed(2)}s`;
+  }
+  return `${ms}ms`;
+};
 </script>
 
 <template>
@@ -218,7 +226,21 @@ const nameForAlt = computed(() => {
           placement="top"
         >
           <span class="stat-item">
-            {{ message.metadata.firstTokenTime - message.metadata.requestStartTime }}ms
+            {{ formatLatency(message.metadata.firstTokenTime - message.metadata.requestStartTime) }}
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          v-if="message.metadata.requestStartTime && message.metadata.requestEndTime"
+          content="总耗时"
+          placement="top"
+        >
+          <span class="stat-item">
+            {{
+              (
+                (message.metadata.requestEndTime - message.metadata.requestStartTime) /
+                1000
+              ).toFixed(1)
+            }}s
           </span>
         </el-tooltip>
       </div>

@@ -376,7 +376,14 @@ export default class LlmChatRegistry implements ToolRegistry {
           }
         }
 
-        await store.sendMessage(content, options);
+        // 自动携带输入框中选择的临时模型
+        const temporaryModel = this.inputManager.temporaryModel.value;
+        const sendOptions = {
+          ...options,
+          temporaryModel,
+        };
+
+        await store.sendMessage(content, sendOptions);
       },
       {
         level: ErrorLevel.ERROR,

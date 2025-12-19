@@ -8,10 +8,18 @@
     <div class="mermaid-header" :class="{ floating: seamless }">
       <div class="language-info">
         <span class="language-tag">Mermaid</span>
+      </div>
+      <div class="header-actions">
         <!-- 修复状态指示器 -->
         <el-tooltip
           v-if="wasFixed"
-          :content="showOriginal ? '当前显示原始代码（可能存在语法问题）' : '代码已自动修复'"
+          :content="
+            showOriginal
+              ? '当前显示原始代码'
+              : error
+              ? '代码已尝试自动修复（仍有错误）'
+              : '代码已自动修复'
+          "
           :show-after="300"
         >
           <button
@@ -23,8 +31,7 @@
             <span class="fix-text">{{ showOriginal ? "原始" : "已修复" }}</span>
           </button>
         </el-tooltip>
-      </div>
-      <div class="header-actions">
+
         <!-- 缩放控制 -->
         <el-tooltip content="缩小" :show-after="300">
           <button class="action-btn" :disabled="currentScale <= scaleMin" @click="decreaseScale">
@@ -431,9 +438,11 @@ const renderDiagram = async () => {
     // 检查并发
     if (currentRenderId !== lastRenderId.value) return;
 
+    // 无论成功与否，只要尝试了修复且代码不同，就记录下来
+    // 这样用户在修复失败时也能切换查看修复前后的差异
+    fixedContent.value = fixed;
+
     if (fixedSuccess) {
-      // 修复后渲染成功，记录修复后的代码
-      fixedContent.value = fixed;
       return;
     }
 
@@ -644,37 +653,35 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
 }
-
 .fix-indicator {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
   border: none;
-  border-radius: 10px;
-  background-color: var(--el-color-success-light-8);
+  border-radius: 6px;
+  background-color: var(--el-color-success-light-9);
   color: var(--el-color-success);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-right: 4px;
 }
 
 .fix-indicator:hover {
-  background-color: var(--el-color-success-light-7);
+  background-color: var(--el-color-success-light-8);
+  transform: translateY(-1px);
 }
 
 .fix-indicator.showing-original {
-  background-color: var(--el-color-warning-light-8);
+  background-color: var(--el-color-warning-light-9);
   color: var(--el-color-warning);
 }
 
 .fix-indicator.showing-original:hover {
-  background-color: var(--el-color-warning-light-7);
-}
-
-.fix-text {
-  line-height: 1;
+  background-color: var(--el-color-warning-light-8);
 }
 
 .header-actions {

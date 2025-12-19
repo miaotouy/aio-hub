@@ -351,6 +351,7 @@ import {
   extractContextFromSession,
 } from "../../macro-engine";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
+import { processMessageAssets } from "../../utils/agentAssetUtils";
 
 interface MessageForm {
   role: MessageRole;
@@ -584,7 +585,9 @@ const processPreviewMacros = async () => {
     const processor = new MacroProcessor();
     // 仅处理不需要复杂上下文的宏
     const result = await processor.process(form.value.content, context);
-    previewContent.value = result.output;
+    
+    // 处理资产预览
+    previewContent.value = await processMessageAssets(result.output, props.agent);
   } catch (error) {
     // 如果处理失败，降级显示原始内容
     previewContent.value = form.value.content;

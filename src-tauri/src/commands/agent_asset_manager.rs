@@ -331,6 +331,50 @@ pub async fn get_agent_asset_path(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+/// 读取 Agent 资产的二进制内容
+///
+/// # 参数
+/// - `app`: Tauri 应用句柄
+/// - `agent_id`: Agent 的唯一标识符
+/// - `asset_path`: 资产的相对路径（相对于 Agent 目录，如 `assets/xxx.png`）
+///
+/// # 返回
+/// 返回文件的二进制数据
+#[tauri::command]
+pub async fn read_agent_asset_binary(
+    app: AppHandle,
+    agent_id: String,
+    asset_path: String,
+) -> Result<Vec<u8>, String> {
+    // 验证参数
+    if asset_path.contains("..") {
+        return Err("无效的资产路径：包含非法字符".to_string());
+    }
+
+    if agent_id.contains("..") || agent_id.contains('/') || agent_id.contains('\\') {
+        return Err("无效的 Agent ID：包含非法字符".to_string());
+    }
+
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+
+    let file_path = app_data_dir
+        .join("llm-chat")
+        .join("agents")
+        .join(&agent_id)
+        .join(&asset_path);
+
+    // 确保文件存在
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", asset_path));
+    }
+
+    // 读取文件内容
+    fs::read(&file_path).map_err(|e| format!("读取文件失败: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

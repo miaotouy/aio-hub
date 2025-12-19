@@ -15,6 +15,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref } from "vue";
+import AgentAssetsDialog from "./AgentAssetsDialog.vue";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
 import MacroSelector from "./MacroSelector.vue";
 import type { MacroDefinition } from "../../macro-engine";
@@ -92,6 +93,7 @@ const defaultFormState = {
   regexConfig: createDefaultChatRegexConfig(), // 正则管道配置
   tags: [] as string[],
   category: "",
+  assets: [] as import("../../types").AgentAsset[],
   virtualTimeConfig: {
     virtualBaseTime: new Date().toISOString(),
     realBaseTime: new Date().toISOString(),
@@ -114,6 +116,7 @@ const styleLoading = ref(false);
 // 宏选择器弹窗状态
 const macroSelectorVisible = ref(false);
 const userProfileDialogVisible = ref(false);
+const assetsDialogVisible = ref(false);
 
 // 虚拟时间预览相关
 const macroPreviewInput = ref("{{time}} | {{datetime_cn}} | {{shichen}}");
@@ -424,6 +427,7 @@ const handleSave = () => {
         : undefined,
     regexConfig: editForm.regexConfig,
     interactionConfig: editForm.interactionConfig,
+    assets: editForm.assets,
   });
 
   handleClose();
@@ -593,6 +597,28 @@ const handleSave = () => {
           </el-form-item>
         </el-collapse-item>
 
+        <el-collapse-item title="资产管理" name="assets">
+          <div class="form-hint" style="margin-bottom: 12px">
+            管理该智能体的专属资产（图片、音频等）。上传后可通过宏或 ID 在对话中引用。
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <el-button
+              type="primary"
+              plain
+              @click="assetsDialogVisible = true"
+              :disabled="!editForm.name"
+            >
+              打开资产管理器
+            </el-button>
+            <span v-if="!editForm.name" style="font-size: 12px; color: var(--el-color-warning)">
+              请先填写智能体名称/ID
+            </span>
+            <span v-else style="font-size: 12px; color: var(--el-text-color-secondary)">
+              当前包含 {{ editForm.assets.length }} 个资产
+            </span>
+          </div>
+        </el-collapse-item>
+
         <el-collapse-item title="思考块规则配置" name="thinkRules">
           <div class="form-hint" style="margin-bottom: 12px">
             <p>
@@ -711,6 +737,13 @@ const handleSave = () => {
       :visible="userProfileDialogVisible"
       :profile="effectiveUserProfile"
       @update:visible="userProfileDialogVisible = $event"
+    />
+
+    <!-- 资产管理弹窗 -->
+    <AgentAssetsDialog
+      v-model="assetsDialogVisible"
+      v-model:assets="editForm.assets"
+      :agent-id="editForm.name"
     />
 
     <template #footer>

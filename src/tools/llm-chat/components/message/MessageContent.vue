@@ -20,6 +20,7 @@ import {
 } from "../../utils/chatRegexUtils";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
+import { processMessageAssets } from "../../utils/agentAssetUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -365,9 +366,13 @@ watch(
         session: session ?? undefined,
       });
 
-      displayedContent.value = await processMacros(macroProcessor, content, context);
+      const macroProcessed = await processMacros(macroProcessor, content, context);
+      // 处理资产链接
+      displayedContent.value = await processMessageAssets(macroProcessed, agent);
     } else {
-      displayedContent.value = content;
+      // 即使不是预设消息，也需要处理资产链接（例如用户发送的 asset:// 引用）
+      const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+      displayedContent.value = await processMessageAssets(content, agent);
     }
   },
   { immediate: true }

@@ -21,6 +21,7 @@ import { registerDateTimeMacros } from './macros/datetime';
 import { registerVariableMacros } from './macros/variables';
 import { registerFunctionMacros } from './macros/functions';
 import { registerSystemMacros } from './macros/system';
+import { registerAssetMacros } from './macros/assets';
 
 /**
  * 初始化宏引擎（注册所有内置宏）
@@ -37,4 +38,5 @@ export function initializeMacroEngine(): void {
   registerVariableMacros(registry);
   registerFunctionMacros(registry);
   registerSystemMacros(registry);
+  registerAssetMacros(registry);
 }

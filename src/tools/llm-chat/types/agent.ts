@@ -3,6 +3,55 @@ import type { LlmParameters } from './llm';
 import type { ChatMessageNode } from './message';
 
 /**
+ * 资产类型
+ */
+export type AssetType = 'image' | 'audio' | 'video' | 'file';
+
+/**
+ * 资产用途
+ */
+export type AssetUsage = 'inline' | 'background';
+
+/**
+ * 资产附加选项
+ */
+export interface AssetOptions {
+  autoplay?: boolean;
+  loop?: boolean;
+  muted?: boolean;
+  /** 视频封面图的 handle/id */
+  coverId?: string;
+  /** 场景定位或样式控制 */
+  style?: string;
+}
+
+/**
+ * 智能体专属资产定义
+ */
+export interface AgentAsset {
+  /** 唯一标识符（Handle），用于宏替换，如 "sticker_ok" */
+  id: string;
+  /** 相对路径，如 "assets/xxx.png" */
+  path: string;
+  /** 原始文件名 */
+  filename: string;
+  /** 资产类型 */
+  type: AssetType;
+  /** 资产描述 */
+  description?: string;
+  /** 分组 */
+  group?: string;
+  /** 用途 */
+  usage?: AssetUsage;
+  /** 附加选项 */
+  options?: AssetOptions;
+  /** 文件大小（字节） */
+  size?: number;
+  /** MIME 类型 */
+  mimeType?: string;
+}
+
+/**
  * 智能体（Agent）- 包含完整的对话预设配置
  *
  * 智能体是模型、系统提示词、参数等配置的集合，
@@ -145,6 +194,11 @@ export interface ChatAgent {
    * 最后使用时间
    */
   lastUsedAt?: string;
+
+  /**
+   * 智能体专属资产
+   */
+  assets?: AgentAsset[];
 }
 
 /**

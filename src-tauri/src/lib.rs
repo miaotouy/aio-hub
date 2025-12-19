@@ -59,6 +59,7 @@ use commands::{
     process_files_with_regex,
     validate_regex_pattern,
     read_file_binary,
+    read_agent_asset_binary,
     read_app_data_file_binary,
     read_file_as_base64,
     save_uploaded_file,
@@ -364,6 +365,7 @@ tauri::Builder::default()
             get_asset_by_id,
             // Agent 资产管理命令
             save_agent_asset,
+            read_agent_asset_binary,
             delete_agent_asset,
             list_agent_assets,
             delete_all_agent_assets,

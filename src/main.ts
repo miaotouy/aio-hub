@@ -156,7 +156,11 @@ window.addEventListener("error", (event) => {
     return;
   }
 
-  errorHandler.handle(event.error, {
+  // 某些情况下（如跨域脚本错误或 Worker 错误），event.error 可能为空
+  // 此时回退使用 event.message 以获取有用的错误信息
+  const errorToHandle = event.error || event.message || "Unknown Global Error";
+
+  errorHandler.handle(errorToHandle, {
     module: "Global",
     level: ErrorLevel.ERROR,
     context: {

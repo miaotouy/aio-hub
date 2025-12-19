@@ -36,7 +36,7 @@
 在 `src/tools/llm-chat/types/agent.ts` 中扩展相关接口：
 
 ```typescript
-export type AssetType = "image" | "audio" | "video";
+export type AssetType = "image" | "audio" | "video" | "file";
 export type AssetUsage = "inline" | "background";
 
 export interface AssetOptions {
@@ -44,28 +44,60 @@ export interface AssetOptions {
   loop?: boolean; // 是否循环播放 (默认值视 usage 而定)
   muted?: boolean; // 是否静音 (主要用于 video background)
   coverId?: string; // 视频封面图的 Asset ID (可选)
+  style?: string; // 场景定位或样式控制
+}
+
+/**
+ * 资产分组定义
+ * 用于组织 Agent 的资产，提供分组的元数据信息
+ */
+export interface AssetGroup {
+  id: string; // 分组标识符，如 "emojis", "bgm", "scenes"
+  displayName: string; // 分组显示名称，如 "表情包", "背景音乐"
+  description?: string; // 分组描述（供 LLM 理解用途）
+  icon?: string; // 分组图标（emoji 或图标路径）
+  sortOrder?: number; // 排序权重（数值越小越靠前）
 }
 
 export interface AgentAsset {
   id: string; // Handle, e.g., "sad_bgm", "battle_video"
   path: string; // Relative path, e.g., "assets/music.mp3" (相对于 Agent 目录)
+  filename: string; // 原始文件名
   type: AssetType; // 媒体类型
-  description: string; // e.g., "Sad violin music", "Explosion effect"
-  group: string; // 分组名称，默认为 "default"
-  usage: AssetUsage; // 渲染提示
+  description?: string; // e.g., "Sad violin music", "Explosion effect"
+  group?: string; // 分组标识符，引用 AssetGroup.id
+  usage?: AssetUsage; // 渲染提示
   options?: AssetOptions; // 播放行为控制
+  size?: number; // 文件大小（字节）
+  mimeType?: string; // MIME 类型
 }
 
 export interface ChatAgent {
   // ... existing fields
-  assets?: AgentAsset[];
+  assetGroups?: AssetGroup[]; // 资产分组定义
+  assets?: AgentAsset[]; // 资产列表
 }
 
 export interface AgentPreset {
   // ... existing fields
+  assetGroups?: AssetGroup[];
   assets?: AgentAsset[];
 }
 ```
+
+### 3.1 分组结构说明
+
+采用**分离式设计**：分组定义 (`assetGroups`) 和资产列表 (`assets`) 分开存储。
+
+- `AssetGroup` 定义分组的元数据（名称、描述、图标等）
+- `AgentAsset.group` 通过 ID 引用对应的分组
+- 未指定 `group` 的资产归入隐式的 `default` 分组
+
+**设计优势**：
+1. **LLM 上下文增强**：宏注入时可以输出分组描述，帮助 LLM 理解资产用途
+2. **UI 展示友好**：分组有显示名称和图标，便于可视化管理
+3. **排序可控**：通过 `sortOrder` 控制分组在 UI 和宏输出中的顺序
+4. **扩展性强**：未来可为分组添加更多属性（如权限、标签等）
 
 ## 4. 协议设计
 

@@ -26,6 +26,25 @@ export interface AssetOptions {
 }
 
 /**
+ * 资产分组定义
+ *
+ * 用于组织 Agent 的资产，提供分组的元数据信息。
+ * 分组信息可用于 UI 展示和宏注入时的上下文说明。
+ */
+export interface AssetGroup {
+  /** 分组标识符，如 "emojis", "bgm", "scenes" */
+  id: string;
+  /** 分组显示名称，如 "表情包", "背景音乐" */
+  displayName: string;
+  /** 分组描述（供 LLM 理解用途），如 "角色的各种表情贴纸" */
+  description?: string;
+  /** 分组图标（emoji 或图标路径） */
+  icon?: string;
+  /** 排序权重（数值越小越靠前） */
+  sortOrder?: number;
+}
+
+/**
  * 智能体专属资产定义
  */
 export interface AgentAsset {
@@ -194,6 +213,12 @@ export interface ChatAgent {
    * 最后使用时间
    */
   lastUsedAt?: string;
+
+  /**
+   * 智能体资产分组定义
+   * 定义资产的分组元数据，如显示名称、描述等
+   */
+  assetGroups?: AssetGroup[];
 
   /**
    * 智能体专属资产

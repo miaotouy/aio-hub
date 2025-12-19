@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { 
+import { ref, watch, computed } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import {
   Plus,
   Delete,
   Search,
@@ -16,51 +16,55 @@ import {
   Collection,
   Close,
   Operation,
-  FolderAdd
-} from '@element-plus/icons-vue';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { createModuleLogger } from '@/utils/logger';
-import { useImageViewer } from '@/composables/useImageViewer';
-import type { AgentAsset, AssetType } from '../../types';
-import DropZone from '@/components/common/DropZone.vue';
-import FileIcon from '@/components/common/FileIcon.vue';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import VideoViewer from '@/components/common/VideoViewer.vue';
-import { useClipboard } from '@vueuse/core';
+  FolderAdd,
+  MoreFilled,
+} from "@element-plus/icons-vue";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+import { useImageViewer } from "@/composables/useImageViewer";
+import type { AgentAsset, AssetType, AssetGroup } from "../../types";
+import DropZone from "@/components/common/DropZone.vue";
+import FileIcon from "@/components/common/FileIcon.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import VideoViewer from "@/components/common/VideoViewer.vue";
+import { useClipboard } from "@vueuse/core";
 
-const errorHandler = createModuleErrorHandler('AgentAssetsManager');
-const logger = createModuleLogger('AgentAssetsManager');
+const errorHandler = createModuleErrorHandler("AgentAssetsManager");
+const logger = createModuleLogger("AgentAssetsManager");
 const { copy } = useClipboard();
 const imageViewer = useImageViewer();
 
 interface Props {
   modelValue: AgentAsset[];
+  assetGroups?: AssetGroup[];
   agentId: string;
   disabled?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => [],
-  disabled: false
+  assetGroups: () => [],
+  disabled: false,
 });
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: AgentAsset[]): void;
+  (e: "update:modelValue", value: AgentAsset[]): void;
+  (e: "update:assetGroups", value: AssetGroup[]): void;
 }>();
 
 const assets = ref<AgentAsset[]>([]);
+const assetGroups = ref<AssetGroup[]>([]);
 const isUploading = ref(false);
-const searchQuery = ref('');
+const searchQuery = ref("");
 const fileInput = ref<HTMLInputElement | null>(null);
-const selectedGroup = ref('all');
+const selectedGroup = ref("all");
 
 // 批量操作状态
 const isSelectionMode = ref(false);
 const selectedAssetIds = ref(new Set<string>());
 const batchMoveDialogVisible = ref(false);
-const batchTargetGroup = ref('');
-const isNewGroup = ref(false);
+const batchTargetGroup = ref("");
 
 // 拖拽状态
 const draggingAssetId = ref<string | null>(null);
@@ -69,73 +73,114 @@ const draggingAssetId = ref<string | null>(null);
 const editDialogVisible = ref(false);
 const editingAsset = ref<AgentAsset | null>(null);
 const editForm = ref({
-  id: '',
-  description: '',
-  group: ''
+  id: "",
+  description: "",
+  group: "",
 });
 
-// 分组列表
-const groups = computed(() => {
-  const groupSet = new Set<string>();
-  assets.value.forEach(asset => {
-    if (asset.group && asset.group !== 'default') {
-      groupSet.add(asset.group);
-    }
+// 分组编辑对话框状态
+const groupEditDialogVisible = ref(false);
+const editingGroup = ref<AssetGroup | null>(null);
+const groupEditForm = ref({
+  id: "",
+  displayName: "",
+  description: "",
+  icon: "",
+  sortOrder: 0,
+});
+
+// 分组列表（基于 assetGroups，按 sortOrder 排序）
+const sortedGroups = computed(() => {
+  return [...assetGroups.value].sort((a, b) => {
+    const orderA = a.sortOrder ?? 999;
+    const orderB = b.sortOrder ?? 999;
+    return orderA - orderB;
   });
-  return Array.from(groupSet).sort();
+});
+
+// 获取分组的 ID 列表（用于判断是否存在）
+const groupIds = computed(() => new Set(assetGroups.value.map((g) => g.id)));
+
+// 检查是否存在未定义分组的资产（用于显示"未分组"）
+const hasUngroupedAssets = computed(() => {
+  return assets.value.some(
+    (a) => !a.group || a.group === "default" || !groupIds.value.has(a.group)
+  );
 });
 
 // 计算各分组数量
 const groupCounts = computed(() => {
   const counts: Record<string, number> = {
     all: assets.value.length,
-    default: assets.value.filter(a => !a.group || a.group === 'default').length
+    default: assets.value.filter(
+      (a) => !a.group || a.group === "default" || !groupIds.value.has(a.group ?? "")
+    ).length,
   };
-  
-  groups.value.forEach(group => {
-    counts[group] = assets.value.filter(a => a.group === group).length;
+
+  assetGroups.value.forEach((group) => {
+    counts[group.id] = assets.value.filter((a) => a.group === group.id).length;
   });
-  
+
   return counts;
 });
 
 // 预览对话框状态（非图片资源）
 const mediaPreviewVisible = ref(false);
-const mediaPreviewUrl = ref('');
-const mediaPreviewType = ref<AssetType>('file');
+const mediaPreviewUrl = ref("");
+const mediaPreviewType = ref<AssetType>("file");
 
 // 同步外部数据
-watch(() => props.modelValue, (newVal) => {
-  assets.value = [...newVal];
-}, { immediate: true, deep: true });
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    assets.value = [...newVal];
+  },
+  { immediate: true, deep: true }
+);
+
+watch(
+  () => props.assetGroups,
+  (newVal) => {
+    assetGroups.value = [...(newVal || [])];
+  },
+  { immediate: true, deep: true }
+);
 
 // 过滤后的资产列表
 const filteredAssets = computed(() => {
   let result = assets.value;
 
   // 1. 分组过滤
-  if (selectedGroup.value === 'default') {
-    result = result.filter(a => !a.group || a.group === 'default');
-  } else if (selectedGroup.value !== 'all') {
-    result = result.filter(a => a.group === selectedGroup.value);
+  if (selectedGroup.value === "default") {
+    // 未分组：group 为空、为 'default'、或引用了不存在的分组
+    result = result.filter(
+      (a) => !a.group || a.group === "default" || !groupIds.value.has(a.group)
+    );
+  } else if (selectedGroup.value !== "all") {
+    result = result.filter((a) => a.group === selectedGroup.value);
   }
 
   // 2. 搜索过滤
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    result = result.filter(asset =>
-      asset.id.toLowerCase().includes(query) ||
-      asset.filename.toLowerCase().includes(query) ||
-      asset.description?.toLowerCase().includes(query)
+    result = result.filter(
+      (asset) =>
+        asset.id.toLowerCase().includes(query) ||
+        asset.filename.toLowerCase().includes(query) ||
+        asset.description?.toLowerCase().includes(query)
     );
   }
-  
+
   return result;
 });
 
 // 更新数据到父组件
 const notifyUpdate = () => {
-  emit('update:modelValue', assets.value);
+  emit("update:modelValue", assets.value);
+};
+
+const notifyGroupsUpdate = () => {
+  emit("update:assetGroups", assetGroups.value);
 };
 
 // 切换选择模式
@@ -158,7 +203,7 @@ const toggleSelectAll = () => {
   if (selectedAssetIds.value.size === filteredAssets.value.length) {
     selectedAssetIds.value.clear();
   } else {
-    filteredAssets.value.forEach(a => selectedAssetIds.value.add(a.id));
+    filteredAssets.value.forEach((a) => selectedAssetIds.value.add(a.id));
   }
 };
 
@@ -175,8 +220,8 @@ const handleAssetClick = (asset: AgentAsset) => {
 const handleDragStart = (ev: DragEvent, asset: AgentAsset) => {
   draggingAssetId.value = asset.id;
   if (ev.dataTransfer) {
-    ev.dataTransfer.effectAllowed = 'move';
-    ev.dataTransfer.setData('text/plain', asset.id);
+    ev.dataTransfer.effectAllowed = "move";
+    ev.dataTransfer.setData("text/plain", asset.id);
   }
 };
 
@@ -187,11 +232,11 @@ const handleDragEnd = () => {
 
 // 处理放置到分组
 const handleDropOnGroup = (group: string) => {
-  const targetGroup = group === 'all' ? 'default' : group;
-  
+  const targetGroup = group === "all" ? "default" : group;
+
   // 确定要移动的资产 ID 列表
   let idsToMove: string[] = [];
-  
+
   // 如果拖拽的是已选中的资产之一，则移动所有选中的资产
   if (draggingAssetId.value && selectedAssetIds.value.has(draggingAssetId.value)) {
     idsToMove = Array.from(selectedAssetIds.value);
@@ -199,12 +244,12 @@ const handleDropOnGroup = (group: string) => {
     // 否则只移动当前拖拽的资产
     idsToMove = [draggingAssetId.value];
   }
-  
+
   if (idsToMove.length === 0) return;
 
   // 执行移动
   let movedCount = 0;
-  assets.value.forEach(asset => {
+  assets.value.forEach((asset) => {
     if (idsToMove.includes(asset.id)) {
       if (asset.group !== targetGroup) {
         asset.group = targetGroup;
@@ -215,16 +260,17 @@ const handleDropOnGroup = (group: string) => {
 
   if (movedCount > 0) {
     notifyUpdate();
-    customMessage.success(`已将 ${movedCount} 个资产移动到 "${group === 'default' ? '未分组' : group}"`);
+    const displayName = getGroupDisplayName(targetGroup);
+    customMessage.success(`已将 ${movedCount} 个资产移动到 "${displayName}"`);
   }
-  
+
   draggingAssetId.value = null;
 };
 
 // 批量删除
 const handleBatchDelete = async () => {
   if (selectedAssetIds.value.size === 0) return;
-  
+
   if (!confirm(`确定要删除选中的 ${selectedAssetIds.value.size} 个资产吗？此操作不可恢复。`)) {
     return;
   }
@@ -233,12 +279,12 @@ const handleBatchDelete = async () => {
   let successCount = 0;
 
   for (const id of ids) {
-    const asset = assets.value.find(a => a.id === id);
+    const asset = assets.value.find((a) => a.id === id);
     if (asset) {
       try {
-        await invoke('delete_agent_asset', {
+        await invoke("delete_agent_asset", {
           agentId: props.agentId,
-          assetPath: asset.path
+          assetPath: asset.path,
         });
         const index = assets.value.indexOf(asset);
         if (index > -1) {
@@ -259,22 +305,21 @@ const handleBatchDelete = async () => {
 // 打开批量移动弹窗
 const openBatchMoveDialog = () => {
   if (selectedAssetIds.value.size === 0) return;
-  batchTargetGroup.value = '';
-  isNewGroup.value = false;
+  batchTargetGroup.value = "";
   batchMoveDialogVisible.value = true;
 };
 
 // 执行批量移动
 const handleBatchMove = () => {
   if (!batchTargetGroup.value) {
-    customMessage.warning('请输入或选择目标分组');
+    customMessage.warning("请选择目标分组");
     return;
   }
 
   const target = batchTargetGroup.value;
   let count = 0;
-  
-  assets.value.forEach(asset => {
+
+  assets.value.forEach((asset) => {
     if (selectedAssetIds.value.has(asset.id)) {
       if (asset.group !== target) {
         asset.group = target;
@@ -284,10 +329,154 @@ const handleBatchMove = () => {
   });
 
   notifyUpdate();
-  customMessage.success(`已移动 ${count} 个资产到 "${target}"`);
+  const displayName = getGroupDisplayName(target);
+  customMessage.success(`已移动 ${count} 个资产到 "${displayName}"`);
   batchMoveDialogVisible.value = false;
   selectedAssetIds.value.clear();
   isSelectionMode.value = false;
+};
+
+// ========== 分组管理 ==========
+
+/**
+ * 打开创建分组对话框
+ */
+const openCreateGroupDialog = () => {
+  editingGroup.value = null;
+  groupEditForm.value = {
+    id: "",
+    displayName: "",
+    description: "",
+    icon: "📁",
+    sortOrder: assetGroups.value.length,
+  };
+  groupEditDialogVisible.value = true;
+};
+
+/**
+ * 打开编辑分组对话框
+ */
+const openEditGroupDialog = (group: AssetGroup) => {
+  editingGroup.value = group;
+  groupEditForm.value = {
+    id: group.id,
+    displayName: group.displayName,
+    description: group.description || "",
+    icon: group.icon || "📁",
+    sortOrder: group.sortOrder ?? 0,
+  };
+  groupEditDialogVisible.value = true;
+};
+
+/**
+ * 保存分组（创建或更新）
+ */
+const saveGroup = () => {
+  const { id, displayName, description, icon, sortOrder } = groupEditForm.value;
+
+  if (!id.trim()) {
+    customMessage.warning("请输入分组 ID");
+    return;
+  }
+
+  if (!displayName.trim()) {
+    customMessage.warning("请输入分组名称");
+    return;
+  }
+
+  // ID 格式校验：只允许字母、数字、下划线、连字符
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+    customMessage.warning("分组 ID 只能包含字母、数字、下划线和连字符");
+    return;
+  }
+
+  if (editingGroup.value) {
+    // 更新现有分组
+    const oldId = editingGroup.value.id;
+    const index = assetGroups.value.findIndex((g) => g.id === oldId);
+    if (index > -1) {
+      assetGroups.value[index] = {
+        id,
+        displayName,
+        description: description || undefined,
+        icon: icon || undefined,
+        sortOrder,
+      };
+
+      // 如果 ID 变更，更新所有引用该分组的资产
+      if (oldId !== id) {
+        assets.value.forEach((asset) => {
+          if (asset.group === oldId) {
+            asset.group = id;
+          }
+        });
+        notifyUpdate();
+      }
+    }
+    customMessage.success("分组已更新");
+  } else {
+    // 创建新分组
+    if (assetGroups.value.some((g) => g.id === id)) {
+      customMessage.warning("该分组 ID 已存在");
+      return;
+    }
+
+    assetGroups.value.push({
+      id,
+      displayName,
+      description: description || undefined,
+      icon: icon || undefined,
+      sortOrder,
+    });
+    customMessage.success("分组已创建");
+  }
+
+  notifyGroupsUpdate();
+  groupEditDialogVisible.value = false;
+};
+
+/**
+ * 删除分组
+ */
+const deleteGroup = (group: AssetGroup) => {
+  const assetsInGroup = assets.value.filter((a) => a.group === group.id).length;
+  const message =
+    assetsInGroup > 0
+      ? `确定要删除分组 "${group.displayName}" 吗？其中的 ${assetsInGroup} 个资产将移至"未分组"。`
+      : `确定要删除分组 "${group.displayName}" 吗？`;
+
+  if (!confirm(message)) return;
+
+  // 将该分组的资产移至未分组
+  assets.value.forEach((asset) => {
+    if (asset.group === group.id) {
+      asset.group = "default";
+    }
+  });
+
+  // 删除分组
+  const index = assetGroups.value.findIndex((g) => g.id === group.id);
+  if (index > -1) {
+    assetGroups.value.splice(index, 1);
+  }
+
+  // 如果当前选中的是被删除的分组，切换到全部
+  if (selectedGroup.value === group.id) {
+    selectedGroup.value = "all";
+  }
+
+  notifyUpdate();
+  notifyGroupsUpdate();
+  customMessage.success("分组已删除");
+};
+
+/**
+ * 获取分组显示名称
+ */
+const getGroupDisplayName = (groupId: string) => {
+  if (!groupId || groupId === "default") return "未分组";
+  const group = assetGroups.value.find((g) => g.id === groupId);
+  return group?.displayName || groupId;
 };
 
 /**
@@ -295,14 +484,14 @@ const handleBatchMove = () => {
  */
 const getAssetUrl = async (asset: AgentAsset) => {
   try {
-    const fullPath = await invoke<string>('get_agent_asset_path', {
+    const fullPath = await invoke<string>("get_agent_asset_path", {
       agentId: props.agentId,
-      assetPath: asset.path
+      assetPath: asset.path,
     });
     return convertFileSrc(fullPath);
   } catch (error) {
-    logger.error('获取资产路径失败', error);
-    return '';
+    logger.error("获取资产路径失败", error);
+    return "";
   }
 };
 
@@ -311,49 +500,52 @@ const getAssetUrl = async (asset: AgentAsset) => {
  */
 const handleFileUpload = async (paths: string[]) => {
   if (props.disabled || !props.agentId) return;
-  
+
   isUploading.value = true;
   try {
     for (const path of paths) {
-      const data = await invoke<number[]>('read_file_binary', { path });
-      const fileName = path.split(/[/\\]/).pop() || 'file';
-      
-      const info = await invoke<any>('save_agent_asset', {
+      const data = await invoke<number[]>("read_file_binary", { path });
+      const fileName = path.split(/[/\\]/).pop() || "file";
+
+      const info = await invoke<any>("save_agent_asset", {
         agentId: props.agentId,
         fileName,
-        data: Array.from(new Uint8Array(data))
+        data: Array.from(new Uint8Array(data)),
       });
-      
+
       const newAsset: AgentAsset = {
-        id: info.filename.split('.')[0],
+        id: info.filename.split(".")[0],
         path: info.path,
         filename: fileName,
         type: inferAssetType(info.mimeType),
         size: info.size,
         mimeType: info.mimeType,
-        usage: 'inline',
-        group: selectedGroup.value === 'all' ? 'default' : selectedGroup.value
+        usage: "inline",
+        group:
+          selectedGroup.value === "all" || selectedGroup.value === "default"
+            ? "default"
+            : selectedGroup.value,
       };
-      
+
       assets.value.push(newAsset);
     }
-    
+
     notifyUpdate();
     customMessage.success(`成功上传 ${paths.length} 个资产`);
   } catch (error) {
-    errorHandler.error(error, '上传资产失败');
+    errorHandler.error(error, "上传资产失败");
   } finally {
     isUploading.value = false;
     // 重置 input 防止重复选择同一文件不触发 change
-    if (fileInput.value) fileInput.value.value = '';
+    if (fileInput.value) fileInput.value.value = "";
   }
 };
 
 const inferAssetType = (mimeType: string): AssetType => {
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (mimeType.startsWith('video/')) return 'video';
-  return 'file';
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("audio/")) return "audio";
+  if (mimeType.startsWith("video/")) return "video";
+  return "file";
 };
 
 /**
@@ -361,19 +553,19 @@ const inferAssetType = (mimeType: string): AssetType => {
  */
 const handleDeleteAsset = async (asset: AgentAsset) => {
   try {
-    await invoke('delete_agent_asset', {
+    await invoke("delete_agent_asset", {
       agentId: props.agentId,
-      assetPath: asset.path
+      assetPath: asset.path,
     });
-    
+
     const index = assets.value.indexOf(asset);
     if (index > -1) {
       assets.value.splice(index, 1);
       notifyUpdate();
-      customMessage.success('资产已删除');
+      customMessage.success("资产已删除");
     }
   } catch (error) {
-    errorHandler.error(error, '删除资产失败');
+    errorHandler.error(error, "删除资产失败");
   }
 };
 
@@ -384,7 +576,7 @@ const handlePreview = async (asset: AgentAsset) => {
   const url = await getAssetUrl(asset);
   if (!url) return;
 
-  if (asset.type === 'image') {
+  if (asset.type === "image") {
     imageViewer.show(url);
   } else {
     mediaPreviewType.value = asset.type;
@@ -409,8 +601,8 @@ const openEditDialog = (asset: AgentAsset) => {
   editingAsset.value = asset;
   editForm.value = {
     id: asset.id,
-    description: asset.description || '',
-    group: asset.group || 'default'
+    description: asset.description || "",
+    group: asset.group || "default",
   };
   editDialogVisible.value = true;
 };
@@ -420,48 +612,48 @@ const openEditDialog = (asset: AgentAsset) => {
  */
 const saveEdit = () => {
   if (!editingAsset.value) return;
-  
+
   // 检查 ID 是否冲突（排除自己）
-  const idExists = assets.value.some(a => a.id === editForm.value.id && a !== editingAsset.value);
+  const idExists = assets.value.some((a) => a.id === editForm.value.id && a !== editingAsset.value);
   if (idExists) {
-    customMessage.warning('该 ID 已存在，请使用唯一的 ID');
+    customMessage.warning("该 ID 已存在，请使用唯一的 ID");
     return;
   }
 
   editingAsset.value.id = editForm.value.id;
   editingAsset.value.description = editForm.value.description;
   editingAsset.value.group = editForm.value.group;
-  
+
   notifyUpdate();
   editDialogVisible.value = false;
-  customMessage.success('资产信息已更新');
+  customMessage.success("资产信息已更新");
 };
 
 // 格式化文件大小
 const formatSize = (bytes?: number) => {
-  if (bytes === undefined) return '--';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  if (bytes === undefined) return "--";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 };
 
 // 异步加载图片 URL 的组件逻辑
 const AssetThumbnail = {
-  props: ['asset', 'agentId'],
+  props: ["asset", "agentId"],
   setup(props: any) {
-    const src = ref('');
-    
+    const src = ref("");
+
     // 立即获取 URL
-    invoke<string>('get_agent_asset_path', {
+    invoke<string>("get_agent_asset_path", {
       agentId: props.agentId,
-      assetPath: props.asset.path
-    }).then(path => {
+      assetPath: props.asset.path,
+    }).then((path) => {
       src.value = convertFileSrc(path);
     });
 
     return { src };
   },
-  template: `<img v-if="src" :src="src" class="w-full h-full object-cover" loading="lazy" />`
+  template: `<img v-if="src" :src="src" class="w-full h-full object-cover" loading="lazy" />`,
 };
 </script>
 
@@ -471,6 +663,9 @@ const AssetThumbnail = {
     <div class="sidebar">
       <div class="sidebar-header">
         <span class="title">资产分组</span>
+        <el-tooltip content="创建分组" :show-after="500">
+          <el-button :icon="Plus" circle size="small" @click="openCreateGroupDialog" />
+        </el-tooltip>
       </div>
       <div class="group-list">
         <div
@@ -484,8 +679,9 @@ const AssetThumbnail = {
           <span class="name">全部资产</span>
           <span class="count">{{ groupCounts.all }}</span>
         </div>
-        
+
         <div
+          v-if="hasUngroupedAssets || assetGroups.length === 0"
           class="group-item"
           :class="{ active: selectedGroup === 'default' }"
           @click="selectedGroup = 'default'"
@@ -497,21 +693,39 @@ const AssetThumbnail = {
           <span class="count">{{ groupCounts.default }}</span>
         </div>
 
-        <div class="divider" v-if="groups.length > 0"></div>
-        <div class="group-label" v-if="groups.length > 0">自定义分组</div>
+        <div class="divider" v-if="sortedGroups.length > 0"></div>
+        <div class="group-label" v-if="sortedGroups.length > 0">自定义分组</div>
 
         <div
-          v-for="group in groups"
-          :key="group"
+          v-for="group in sortedGroups"
+          :key="group.id"
           class="group-item"
-          :class="{ active: selectedGroup === group }"
-          @click="selectedGroup = group"
+          :class="{ active: selectedGroup === group.id }"
+          @click="selectedGroup = group.id"
           @dragover.prevent
-          @drop="handleDropOnGroup(group)"
+          @drop="handleDropOnGroup(group.id)"
         >
-          <el-icon><Folder /></el-icon>
-          <span class="name">{{ group }}</span>
-          <span class="count">{{ groupCounts[group] }}</span>
+          <span v-if="group.icon" class="group-icon-emoji">{{ group.icon }}</span>
+          <el-icon v-else><Folder /></el-icon>
+          <span class="name" :title="group.description">{{ group.displayName }}</span>
+          <span class="count">{{ groupCounts[group.id] || 0 }}</span>
+          <el-dropdown
+            trigger="click"
+            @command="
+              (cmd: string) => (cmd === 'edit' ? openEditGroupDialog(group) : deleteGroup(group))
+            "
+            @click.stop
+          >
+            <el-button :icon="MoreFilled" circle size="small" class="group-menu-btn" @click.stop />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="edit" :icon="Edit">编辑分组</el-dropdown-item>
+                <el-dropdown-item command="delete" :icon="Delete" divided
+                  >删除分组</el-dropdown-item
+                >
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </div>
@@ -525,7 +739,7 @@ const AssetThumbnail = {
           <span class="selection-count">已选 {{ selectedAssetIds.size }} 项</span>
           <el-divider direction="vertical" />
           <el-button size="small" @click="toggleSelectAll">
-            {{ selectedAssetIds.size === filteredAssets.length ? '取消全选' : '全选' }}
+            {{ selectedAssetIds.size === filteredAssets.length ? "取消全选" : "全选" }}
           </el-button>
         </div>
         <div class="search-box" v-else>
@@ -540,18 +754,27 @@ const AssetThumbnail = {
         <div class="actions">
           <template v-if="isSelectionMode">
             <el-button-group>
-              <el-button :icon="FolderAdd" @click="openBatchMoveDialog" :disabled="selectedAssetIds.size === 0">
+              <el-button
+                :icon="FolderAdd"
+                @click="openBatchMoveDialog"
+                :disabled="selectedAssetIds.size === 0"
+              >
                 移动到...
               </el-button>
-              <el-button type="danger" :icon="Delete" @click="handleBatchDelete" :disabled="selectedAssetIds.size === 0">
+              <el-button
+                type="danger"
+                :icon="Delete"
+                @click="handleBatchDelete"
+                :disabled="selectedAssetIds.size === 0"
+              >
                 删除
               </el-button>
             </el-button-group>
           </template>
           <template v-else>
-            <el-button 
+            <el-button
               :type="isSelectionMode ? 'primary' : 'default'"
-              :icon="Operation" 
+              :icon="Operation"
               @click="toggleSelectionMode"
               title="批量管理"
             >
@@ -566,14 +789,21 @@ const AssetThumbnail = {
               上传
             </el-button>
           </template>
-          
+
           <input
             ref="fileInput"
             type="file"
             multiple
             style="display: none"
-            @change="(e) => handleFileUpload(Array.from((e.target as HTMLInputElement).files || []).map(f => (f as any).path || f.name))"
-          >
+            @change="
+              (e) =>
+                handleFileUpload(
+                  Array.from((e.target as HTMLInputElement).files || []).map(
+                    (f) => (f as any).path || f.name
+                  )
+                )
+            "
+          />
         </div>
       </div>
 
@@ -581,7 +811,7 @@ const AssetThumbnail = {
       <DropZone
         class="main-drop-zone"
         placeholder="拖拽文件到此处上传"
-        :hint="`支持图片、音频、视频等多种格式${selectedGroup !== 'all' && selectedGroup !== 'default' ? ' (将自动添加到 ' + selectedGroup + ' 分组)' : ''}`"
+        :hint="`支持图片、音频、视频等多种格式${selectedGroup !== 'all' && selectedGroup !== 'default' ? ' (将自动添加到 ' + getGroupDisplayName(selectedGroup) + ' 分组)' : ''}`"
         :icon="Plus"
         :compact="assets.length > 0"
         :disabled="disabled || !agentId"
@@ -602,9 +832,9 @@ const AssetThumbnail = {
               v-for="asset in filteredAssets"
               :key="asset.path"
               class="asset-card"
-              :class="{ 
+              :class="{
                 'is-selected': selectedAssetIds.has(asset.id),
-                'is-selection-mode': isSelectionMode
+                'is-selection-mode': isSelectionMode,
               }"
               draggable="true"
               @dragstart="handleDragStart($event, asset)"
@@ -613,7 +843,7 @@ const AssetThumbnail = {
             >
               <!-- 选中遮罩 (Selection Mode) -->
               <div class="selection-overlay" v-if="isSelectionMode">
-                <el-checkbox 
+                <el-checkbox
                   :model-value="selectedAssetIds.has(asset.id)"
                   @change="toggleAssetSelection(asset)"
                   @click.stop
@@ -629,7 +859,7 @@ const AssetThumbnail = {
                   :asset="asset"
                   :agent-id="agentId"
                 />
-                
+
                 <!-- 其他类型 -->
                 <div v-else class="generic-preview" :class="asset.type">
                   <el-icon v-if="asset.type === 'video'" :size="48"><VideoPlay /></el-icon>
@@ -644,17 +874,36 @@ const AssetThumbnail = {
                       <el-button circle size="small" :icon="ZoomIn" @click="handlePreview(asset)" />
                     </el-tooltip>
                     <el-tooltip content="复制引用 ID" :show-after="500">
-                      <el-button circle size="small" :icon="CopyDocument" @click="handleCopyId(asset.id)" />
+                      <el-button
+                        circle
+                        size="small"
+                        :icon="CopyDocument"
+                        @click="handleCopyId(asset.id)"
+                      />
                     </el-tooltip>
                     <el-tooltip content="编辑信息" :show-after="50">
-                      <el-button circle size="small" :icon="Edit" type="primary" plain @click="openEditDialog(asset)" />
+                      <el-button
+                        circle
+                        size="small"
+                        :icon="Edit"
+                        type="primary"
+                        plain
+                        @click="openEditDialog(asset)"
+                      />
                     </el-tooltip>
                     <el-tooltip content="删除" :show-after="500">
-                      <el-button circle size="small" :icon="Delete" type="danger" plain @click="handleDeleteAsset(asset)" />
+                      <el-button
+                        circle
+                        size="small"
+                        :icon="Delete"
+                        type="danger"
+                        plain
+                        @click="handleDeleteAsset(asset)"
+                      />
                     </el-tooltip>
                   </div>
                 </div>
-                
+
                 <!-- 类型标签 -->
                 <div class="asset-type-tag">
                   {{ asset.type.toUpperCase() }}
@@ -678,34 +927,26 @@ const AssetThumbnail = {
     </div>
 
     <!-- 批量移动弹窗 -->
-    <BaseDialog
-      v-model="batchMoveDialogVisible"
-      title="批量移动到分组"
-      width="400px"
-    >
+    <BaseDialog v-model="batchMoveDialogVisible" title="批量移动到分组" width="400px">
       <el-form label-width="80px">
         <el-form-item label="目标分组">
           <el-select
-            v-if="!isNewGroup"
             v-model="batchTargetGroup"
-            placeholder="选择现有分组"
+            placeholder="选择分组"
             style="width: 100%"
-            allow-create
             filterable
-            default-first-option
           >
-            <el-option label="未分组 (default)" value="default" />
+            <el-option label="未分组" value="default" />
             <el-option
-              v-for="group in groups"
-              :key="group"
-              :label="group"
-              :value="group"
+              v-for="group in sortedGroups"
+              :key="group.id"
+              :label="group.displayName"
+              :value="group.id"
             />
           </el-select>
-          <el-input v-else v-model="batchTargetGroup" placeholder="输入新分组名称" />
         </el-form-item>
-        <el-form-item>
-          <el-checkbox v-model="isNewGroup">输入新分组名称</el-checkbox>
+        <el-form-item v-if="sortedGroups.length === 0">
+          <el-text type="info" size="small"> 暂无自定义分组，请先在侧边栏创建分组 </el-text>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -715,18 +956,21 @@ const AssetThumbnail = {
     </BaseDialog>
 
     <!-- 编辑对话框 -->
-    <BaseDialog
-      v-model="editDialogVisible"
-      title="编辑资产信息"
-      width="400px"
-    >
+    <BaseDialog v-model="editDialogVisible" title="编辑资产信息" width="400px">
       <el-form :model="editForm" label-width="60px" @submit.prevent="saveEdit">
         <el-form-item label="ID" required>
           <el-input v-model="editForm.id" placeholder="唯一标识符，用于引用" />
-          <div class="form-tip">在对话中使用 <code>asset://{{ editForm.id || 'ID' }}</code> 引用此资产</div>
+          <div class="form-tip">
+            在对话中使用 <code>asset://{{ editForm.id || "ID" }}</code> 引用此资产
+          </div>
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="editForm.description" type="textarea" :rows="2" placeholder="资产描述（可选）" />
+          <el-input
+            v-model="editForm.description"
+            type="textarea"
+            :rows="2"
+            placeholder="资产描述（可选）"
+          />
         </el-form-item>
         <el-form-item label="分组">
           <el-input v-model="editForm.group" placeholder="例如: default" />
@@ -735,6 +979,56 @@ const AssetThumbnail = {
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="saveEdit">保存</el-button>
+      </template>
+    </BaseDialog>
+
+    <!-- 分组编辑对话框 -->
+    <BaseDialog
+      v-model="groupEditDialogVisible"
+      :title="editingGroup ? '编辑分组' : '创建分组'"
+      width="400px"
+    >
+      <el-form :model="groupEditForm" label-width="80px" @submit.prevent="saveGroup">
+        <el-form-item label="ID" required>
+          <el-input
+            v-model="groupEditForm.id"
+            placeholder="分组唯一标识 (英文)"
+            :disabled="!!editingGroup"
+          />
+          <div class="form-tip" v-if="!editingGroup">
+            创建后 ID 不可修改，只能包含字母、数字、下划线和连字符
+          </div>
+        </el-form-item>
+        <el-form-item label="名称" required>
+          <el-input v-model="groupEditForm.displayName" placeholder="显示名称" />
+        </el-form-item>
+        <el-form-item label="图标">
+          <el-input
+            v-model="groupEditForm.icon"
+            placeholder="Emoji 或图标字符"
+            style="width: 100px"
+          />
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-input-number
+            v-model="groupEditForm.sortOrder"
+            :min="0"
+            :step="1"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input
+            v-model="groupEditForm.description"
+            type="textarea"
+            :rows="2"
+            placeholder="分组描述（可选）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="groupEditDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveGroup">保存</el-button>
       </template>
     </BaseDialog>
 
@@ -993,8 +1287,14 @@ const AssetThumbnail = {
   height: 100%;
 }
 
-.generic-preview.video { background-color: #f0f9eb; color: var(--el-color-success); }
-.generic-preview.audio { background-color: #fdf6ec; color: var(--el-color-warning); }
+.generic-preview.video {
+  background-color: #f0f9eb;
+  color: var(--el-color-success);
+}
+.generic-preview.audio {
+  background-color: #fdf6ec;
+  color: var(--el-color-warning);
+}
 
 .asset-overlay {
   position: absolute;

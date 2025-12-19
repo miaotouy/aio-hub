@@ -94,6 +94,7 @@ const defaultFormState = {
   tags: [] as string[],
   category: "",
   assets: [] as import("../../types").AgentAsset[],
+  assetGroups: [] as import("../../types").AssetGroup[],
   virtualTimeConfig: {
     virtualBaseTime: new Date().toISOString(),
     realBaseTime: new Date().toISOString(),
@@ -428,6 +429,7 @@ const handleSave = () => {
     regexConfig: editForm.regexConfig,
     interactionConfig: editForm.interactionConfig,
     assets: editForm.assets,
+    assetGroups: editForm.assetGroups,
   });
 
   handleClose();
@@ -743,6 +745,7 @@ const handleSave = () => {
     <AgentAssetsDialog
       v-model="assetsDialogVisible"
       v-model:assets="editForm.assets"
+      v-model:asset-groups="editForm.assetGroups"
       :agent-id="editForm.name"
     />
 

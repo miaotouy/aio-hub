@@ -2,11 +2,12 @@
 import { computed } from 'vue';
 import BaseDialog from '@/components/common/BaseDialog.vue';
 import AgentAssetsManager from './AgentAssetsManager.vue';
-import type { AgentAsset } from '../../types';
+import type { AgentAsset, AssetGroup } from '../../types';
 
 interface Props {
   modelValue: boolean;
   assets: AgentAsset[];
+  assetGroups?: AssetGroup[];
   agentId: string;
 }
 
@@ -14,6 +15,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'update:assets', value: AgentAsset[]): void;
+  (e: 'update:assetGroups', value: AssetGroup[]): void;
 }>();
 
 const visible = computed({
@@ -24,6 +26,11 @@ const visible = computed({
 const localAssets = computed({
   get: () => props.assets,
   set: (val) => emit('update:assets', val)
+});
+
+const localAssetGroups = computed({
+  get: () => props.assetGroups || [],
+  set: (val) => emit('update:assetGroups', val)
 });
 </script>
 
@@ -39,6 +46,7 @@ const localAssets = computed({
   >
     <AgentAssetsManager
       v-model="localAssets"
+      v-model:asset-groups="localAssetGroups"
       :agent-id="agentId"
     />
   </BaseDialog>

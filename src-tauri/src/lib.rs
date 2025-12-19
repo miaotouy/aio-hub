@@ -110,6 +110,12 @@ use commands::{
     find_asset_by_hash,
     update_asset_derived_data,
     get_asset_by_id,
+    // Agent 资产管理命令
+    save_agent_asset,
+    delete_agent_asset,
+    list_agent_assets,
+    delete_all_agent_assets,
+    get_agent_asset_path,
     // 插件管理命令
     uninstall_plugin,
     install_plugin_from_zip,
@@ -356,6 +362,12 @@ tauri::Builder::default()
             find_asset_by_hash,
             update_asset_derived_data,
             get_asset_by_id,
+            // Agent 资产管理命令
+            save_agent_asset,
+            delete_agent_asset,
+            list_agent_assets,
+            delete_all_agent_assets,
+            get_agent_asset_path,
             // 插件管理命令
             uninstall_plugin,
             install_plugin_from_zip,

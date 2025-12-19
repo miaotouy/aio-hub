@@ -26,9 +26,9 @@
 
 ## 2. 后端开发 (Rust)
 
-### 2.1 新增模块 `agent_manager`
+### 2.1 新增模块 `agent_asset_manager`
 
-新建 `src-tauri/src/commands/agent_manager.rs`，专门处理 Agent 专属文件操作。
+新建 `src-tauri/src/commands/agent_asset_manager.rs`，专门处理 Agent 专属文件操作。
 
 #### Command: `save_agent_asset`
 
@@ -53,7 +53,7 @@ pub async fn save_agent_asset(
 
 ### 2.2 注册与导出
 
-- 更新 `src-tauri/src/commands/mod.rs`: 导出 `agent_manager`。
+- 更新 `src-tauri/src/commands/mod.rs`: 导出 `agent_asset_manager`。
 - 更新 `src-tauri/src/lib.rs`: 注册 `save_agent_asset` 命令。
 
 ## 3. 前端开发 (Vue/TS)
@@ -139,7 +139,7 @@ export interface ChatAgent {
 
 ## 5. 执行步骤 (Step-by-Step)
 
-1.  **Backend**: 创建 `agent_manager.rs` 并注册命令。
+1.  **Backend**: 创建 `agent_asset_manager.rs` 并注册命令。
 2.  **Types**: 更新 `agent.ts` 类型定义。
 3.  **UI - Manager**: 开发 `AgentAssetsManager.vue`。
 4.  **UI - Integration**: 将管理器集成到 `EditAgentDialog.vue`。

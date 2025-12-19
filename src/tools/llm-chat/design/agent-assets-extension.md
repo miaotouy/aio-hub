@@ -29,7 +29,7 @@
 
 ### 2.2 后端支持
 
-后端需提供 `agent_manager` 模块，支持将前端上传的文件直接写入 Agent 的 assets 目录。
+后端需提供 `agent_asset_manager` 模块，支持将前端上传的文件直接写入 Agent 的 assets 目录。
 
 ## 3. 数据结构设计
 
@@ -220,7 +220,7 @@ function resolveAssetUrls(htmlContent: string, agentAssets: AgentAsset[], agentI
 
 ### Phase 1: Core & Data
 
-- 后端: 创建 `agent_manager.rs` 并注册 `save_agent_asset` 命令。
+- 后端: 创建 `agent_asset_manager.rs` 并注册 `save_agent_asset` 命令。
 - 前端: 更新 `AgentAsset` 类型定义，增加 `path`, `type` 和 `options`。
 - 宏: 升级宏逻辑，支持 `{{assets}}` 注入。
 

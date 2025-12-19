@@ -333,8 +333,12 @@ export default class LlmChatRegistry implements ToolRegistry {
    * 注意：此方法直接通过 store 发送消息，不会修改输入框的内容，以免覆盖用户的正在输入的草稿。
    * 如果没有当前会话但有可用会话，会自动切换到最近使用的会话。
    * @param content 要发送的内容
+   * @param options 发送选项
    */
-  public async sendMessage(content: string): Promise<void> {
+  public async sendMessage(
+    content: string,
+    options?: { parentId?: string }
+  ): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
         logger.info('通过 Registry 发送消息', { contentLength: content.length });
@@ -372,7 +376,7 @@ export default class LlmChatRegistry implements ToolRegistry {
           }
         }
 
-        await store.sendMessage(content);
+        await store.sendMessage(content, options);
       },
       {
         level: ErrorLevel.ERROR,
@@ -538,11 +542,20 @@ await service.processContent(content => {
               required: true,
               description: '要发送的消息内容',
             },
+            {
+              name: 'options',
+              type: '{ parentId?: string }',
+              required: false,
+              description: '发送选项，可指定父节点 ID 以创建新分支',
+            },
           ],
           returnType: 'Promise<void>',
           example: `
 // 发送一条消息
-await service.sendMessage('你好，请帮我分析一下这个文件');`,
+await service.sendMessage('你好，请帮我分析一下这个文件');
+
+// 在指定消息下创建新分支
+await service.sendMessage('这是新分支的内容', { parentId: 'msg-123' });`,
         },
         {
           name: 'getAttachments',

@@ -56,6 +56,7 @@ export function useChatHandler() {
     options?: {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
+      parentId?: string;
     },
     currentSessionId?: string | null,
   ): Promise<void> => {
@@ -149,11 +150,14 @@ export function useChatHandler() {
       hasChange: content !== processedContent,
     });
 
+    // 使用指定的 parentId 或当前活跃叶节点作为父节点
+    const parentId = options?.parentId || session.activeLeafId;
+
     // 使用节点管理器创建消息对（使用处理后的内容）
     const { userNode, assistantNode } = nodeManager.createMessagePair(
       session,
       processedContent,
-      session.activeLeafId,
+      parentId,
     );
 
     // 更新活跃叶节点

@@ -97,6 +97,9 @@ const defaultFormState = {
     realBaseTime: new Date().toISOString(),
     timeScale: 1.0,
   },
+  interactionConfig: {
+    sendButtonCreateBranch: false,
+  },
 };
 
 // 编辑表单
@@ -420,6 +423,7 @@ const handleSave = () => {
           }
         : undefined,
     regexConfig: editForm.regexConfig,
+    interactionConfig: editForm.interactionConfig,
   });
 
   handleClose();
@@ -580,6 +584,15 @@ const handleSave = () => {
       <el-divider content-position="left">高级设置</el-divider>
 
       <el-collapse v-model="activeCollapseNames">
+        <el-collapse-item title="交互行为配置" name="interactionConfig">
+          <el-form-item label="分支发送">
+            <el-switch v-model="editForm.interactionConfig.sendButtonCreateBranch" />
+            <div class="form-hint">
+              开启后，点击消息中的可交互发送按钮（如“继续”）将不再追加到当前对话末尾，而是作为该消息的新分支发送。
+            </div>
+          </el-form-item>
+        </el-collapse-item>
+
         <el-collapse-item title="思考块规则配置" name="thinkRules">
           <div class="form-hint" style="margin-bottom: 12px">
             <p>

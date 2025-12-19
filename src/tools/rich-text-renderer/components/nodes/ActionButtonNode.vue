@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, inject, type Ref } from "vue";
 import { useClipboard } from "@vueuse/core";
 import { toolRegistryManager } from "@/services/registry";
 import type LlmChatRegistry from "@/tools/llm-chat/llmChat.registry";
@@ -19,6 +19,12 @@ const getChatService = () => toolRegistryManager.getRegistry<LlmChatRegistry>("l
 // 只有在 copy 时才使用原始 content，其他操作使用 safeContent
 const clipboardSource = computed(() => props.content);
 const { copy, copied } = useClipboard({ source: clipboardSource });
+
+// 注入来自父组件（MessageContent）的消息 ID 和设置
+const messageId = inject<string | undefined>("messageId", undefined);
+const agentInteractionConfig = inject<
+  Ref<{ sendButtonCreateBranch?: boolean } | undefined> | undefined
+>("agentInteractionConfig", undefined);
 
 // 安全过滤内容：防止控制字符和超长文本
 const safeContent = computed(() => {
@@ -70,7 +76,11 @@ const handleClick = async () => {
       break;
     case "send":
       if (llmChatService) {
-        await llmChatService.sendMessage(safeContent.value);
+        // 检查 Agent 配置：是否作为新分支发送
+        const createBranch = agentInteractionConfig?.value?.sendButtonCreateBranch ?? false;
+        const options = createBranch && messageId ? { parentId: messageId } : undefined;
+
+        await llmChatService.sendMessage(safeContent.value, options);
       } else {
         customMessage.warning("聊天服务不可用");
       }

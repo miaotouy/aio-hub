@@ -403,6 +403,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     options?: {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
+      parentId?: string;
     },
   ): Promise<void> {
     const session = currentSession.value;

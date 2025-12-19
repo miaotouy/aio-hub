@@ -125,6 +125,18 @@ export interface ChatAgent {
   regexConfig?: import('./chatRegex').ChatRegexConfig;
 
   /**
+   * 交互行为配置
+   */
+  interactionConfig?: {
+    /**
+     * 按钮点击发送时是否创建新分支
+     * true: 创建新分支
+     * false/undefined: 追加到当前对话末尾
+     */
+    sendButtonCreateBranch?: boolean;
+  };
+
+  /**
    * 创建时间
    */
   createdAt: string;
@@ -227,6 +239,13 @@ export interface AgentPreset {
    * 正则管道配置
    */
   regexConfig?: import('./chatRegex').ChatRegexConfig;
+
+  /**
+   * 交互行为配置
+   */
+  interactionConfig?: {
+    sendButtonCreateBranch?: boolean;
+  };
 }
 
 /**

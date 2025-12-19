@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, provide } from "vue";
 import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSession, TranslationDisplayMode } from "../../types";
@@ -56,6 +56,11 @@ const props = withDefaults(defineProps<Props>(), {
   translationContent: "",
   messageDepth: 0,
 });
+
+// 提供消息 ID 给后代组件（如可交互按钮）
+provide("messageId", props.message.id);
+// 提供设置给后代组件
+provide("chatSettings", settings);
 const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
@@ -94,16 +99,28 @@ function getAgentAndUserProfileIds(
   return { agentId, userProfileId };
 }
 
+// 获取当前生效的 Agent
+const currentAgent = computed(() => {
+  const { agentId } = getAgentAndUserProfileIds(props.message.metadata, "message");
+  return agentId ? agentStore.getAgentById(agentId) : undefined;
+});
+
+// 提供 Agent 交互配置给后代组件
+provide(
+  "agentInteractionConfig",
+  computed(() => currentAgent.value?.interactionConfig)
+);
+
 // 附件管理器 - 用于编辑模式（使用默认配置）
 const attachmentManager = useAttachmentManager();
 
 const getWillUseTranscription = (asset: Asset) => {
   const { modelId, profileId } = props.message.metadata || {};
-  
+
   // 如果没有模型信息，尝试获取当前 Agent 的配置
   let finalModelId = modelId;
   let finalProfileId = profileId;
-  
+
   if (!finalModelId || !finalProfileId) {
     const currentAgentId = agentStore.currentAgentId;
     if (currentAgentId) {
@@ -121,12 +138,7 @@ const getWillUseTranscription = (asset: Asset) => {
   }
 
   // 使用统一方法计算
-  return computeWillUseTranscription(
-    asset,
-    finalModelId,
-    finalProfileId,
-    props.messageDepth
-  );
+  return computeWillUseTranscription(asset, finalModelId, finalProfileId, props.messageDepth);
 };
 
 // 是否有附件 - 非编辑模式显示原始附件
@@ -346,7 +358,7 @@ watch(
 
     if (!props.isEditing && content && isPresetMessage) {
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-      
+
       // 构建宏上下文
       const context = buildMacroContext({
         agent,

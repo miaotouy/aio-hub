@@ -219,15 +219,17 @@ const renderableContent = computed(() => {
     return nodeStatus.value === "pending" ? trimLastLine(props.content) : props.content;
   }
 
-  // 获取基础内容（修复后的或原始的）
-  const baseContent = fixedContent.value ?? props.content;
+  // 如果有修复后的内容，直接使用它（不再进行裁剪，因为修复是基于已裁剪的内容进行的）
+  if (fixedContent.value !== null) {
+    return fixedContent.value;
+  }
 
   // 在流式状态下，削掉最后一行
   if (nodeStatus.value === "pending") {
-    return trimLastLine(baseContent);
+    return trimLastLine(props.content);
   }
 
-  return baseContent;
+  return props.content;
 });
 
 // 当前实际使用的内容（用于显示和复制 - 始终使用完整内容）
@@ -496,18 +498,13 @@ const renderDiagram = async () => {
       return;
     }
 
-    // 如果处于 pending 状态（流式输出中），不尝试修复
-    // 因为代码尚未完整，修复通常无意义且可能导致闪烁
-    if (nodeStatus.value !== "stable") {
-      return;
-    }
-
     // 步骤 2: 原始代码渲染失败，尝试修复
-    const fixed = fixMermaidCode(props.content);
+    // 注意：修复应该基于 contentToRender（如果是 pending 状态，这是已裁剪的内容），而不是 props.content
+    const fixed = fixMermaidCode(contentToRender);
 
     // 如果修复后的代码和原始代码相同，说明修复器没有做任何改动
     // 这种情况下不需要再次尝试渲染
-    if (fixed === props.content) {
+    if (fixed === contentToRender) {
       // 修复器无法修复，在 stable 状态下显示错误
       if (nodeStatus.value === "stable") {
         error.value =

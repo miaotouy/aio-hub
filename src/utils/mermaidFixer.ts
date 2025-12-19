@@ -20,9 +20,21 @@ export function fixMermaidCode(code: string): string {
 
     // 如果包含敏感字符，或者是空的（空标签也建议加引号），则添加引号
     if (sensitiveChars.test(content) || content.trim() === '') {
-      // 如果内容里本身有双引号，将其转义
-      const escapedContent = content.replace(/"/g, '#quot;');
-      return `${id}${open}"${escapedContent}"${close}`;
+      // 检查内容是否包含双引号
+      if (content.includes('"')) {
+        // 如果有双引号，检查是否也有单引号
+        if (content.includes("'")) {
+          // 两种引号都有，使用双引号包裹并转义内部双引号为 HTML 实体
+          const escapedContent = content.replace(/"/g, '&quot;');
+          return `${id}${open}"${escapedContent}"${close}`;
+        } else {
+          // 只有双引号，用单引号包裹（Mermaid 支持单引号）
+          return `${id}${open}'${content}'${close}`;
+        }
+      } else {
+        // 没有双引号，直接用双引号包裹
+        return `${id}${open}"${content}"${close}`;
+      }
     }
 
     return match;
@@ -74,7 +86,15 @@ export function fixMermaidCode(code: string): string {
   // 如果 Label 包含特殊字符且未加引号，则添加引号
   fixed = fixed.replace(/--\s+([^"\n>]+?)\s+--/g, (match, content) => {
     if (sensitiveChars.test(content)) {
-      return `-- "${content.replace(/"/g, '#quot;')}" --`;
+      // 检查内容是否包含双引号
+      if (content.includes('"')) {
+        if (content.includes("'")) {
+          return `-- "${content.replace(/"/g, '&quot;')}" --`;
+        } else {
+          return `-- '${content}' --`;
+        }
+      }
+      return `-- "${content}" --`;
     }
     return match;
   });
@@ -84,7 +104,15 @@ export function fixMermaidCode(code: string): string {
     // 排除逻辑运算中的 ||
     if (content.trim() === '') return match;
     if (sensitiveChars.test(content)) {
-      return `|"${content.replace(/"/g, '#quot;')}"|`;
+      // 检查内容是否包含双引号
+      if (content.includes('"')) {
+        if (content.includes("'")) {
+          return `|"${content.replace(/"/g, '&quot;')}"|`;
+        } else {
+          return `|'${content}'|`;
+        }
+      }
+      return `|"${content}"|`;
     }
     return match;
   });

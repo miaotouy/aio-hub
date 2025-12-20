@@ -19,6 +19,32 @@ import SmartOcrRegistry from "@/tools/smart-ocr/smartOcr.registry";
 const logger = createModuleLogger("useTranscriptionManager");
 const errorHandler = createModuleErrorHandler("useTranscriptionManager");
 
+/**
+ * 清理 LLM 输出，移除思考链部分
+ * 支持多种常见的思考链格式：
+ * - **Reasoning:** ... **Response:**
+ * - <think>...</think>
+ * - [思考]...[/思考]
+ */
+const cleanLlmOutput = (text: string): string => {
+  let cleaned = text;
+
+  // 1. 移除 **Reasoning:** ... **Response:** 格式
+  // 匹配从 **Reasoning:** 开始到 **Response:** 之前的所有内容
+  cleaned = cleaned.replace(/\*\*Reasoning:\*\*[\s\S]*?\*\*Response:\*\*\s*/gi, "");
+
+  // 2. 移除 <think>...</think> 格式
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>\s*/gi, "");
+
+  // 3. 移除 [思考]...[/思考] 格式
+  cleaned = cleaned.replace(/\[思考\][\s\S]*?\[\/思考\]\s*/gi, "");
+
+  // 4. 移除开头可能残留的 **Response:** 标记
+  cleaned = cleaned.replace(/^\s*\*\*Response:\*\*\s*/i, "");
+
+  return cleaned.trim();
+};
+
 export interface TranscriptionTask {
   id: string;
   assetId: string;
@@ -502,8 +528,9 @@ export function useTranscriptionManager() {
       transcriptionText = response.content;
     }
 
-    // 6. 保存结果
-    const resultPath = await saveTranscriptionResult(task.assetId, assetPath, transcriptionText, modelId);
+    // 6. 清理思考链并保存结果
+    const cleanedText = cleanLlmOutput(transcriptionText);
+    const resultPath = await saveTranscriptionResult(task.assetId, assetPath, cleanedText, modelId);
     task.resultPath = resultPath;
   };
 

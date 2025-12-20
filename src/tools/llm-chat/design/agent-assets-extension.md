@@ -248,7 +248,237 @@ function resolveAssetUrls(htmlContent: string, agentAssets: AgentAsset[], agentI
 </div>
 ```
 
-## 9. 开发计划
+## 9. 预设消息使用示例
+
+本节展示如何在 Agent 预设消息中使用 `{{assets}}` 宏，让 LLM 感知并调用专属资产。
+
+### 9.1 场景：表情包角色
+
+假设你正在创建一个活泼的虚拟角色，希望她能在对话中使用专属表情包。
+
+#### Agent 资产配置
+
+```typescript
+// Agent 配置示例
+const agent: ChatAgent = {
+  id: "vtuber_miku",
+  name: "初音未来",
+  // ...其他配置
+  assetGroups: [
+    {
+      id: "biaoqingbao",
+      displayName: "表情包",
+      description: "角色的各种表情贴纸，用于在对话中表达情绪",
+      icon: "😊",
+      sortOrder: 1
+    }
+  ],
+  assets: [
+    {
+      id: "happy",
+      path: "assets/happy.png",
+      filename: "happy.png",
+      type: "image",
+      description: "开心的表情，适合表达喜悦、赞同",
+      group: "biaoqingbao"
+    },
+    {
+      id: "confused",
+      path: "assets/confused.png",
+      filename: "confused.png",
+      type: "image",
+      description: "困惑的表情，适合表达疑问、不解",
+      group: "biaoqingbao"
+    },
+    {
+      id: "angry",
+      path: "assets/angry.png",
+      filename: "angry.png",
+      type: "image",
+      description: "生气的表情，适合表达不满、抗议",
+      group: "biaoqingbao"
+    },
+    {
+      id: "shy",
+      path: "assets/shy.png",
+      filename: "shy.png",
+      type: "image",
+      description: "害羞的表情，适合表达羞涩、感谢",
+      group: "biaoqingbao"
+    }
+  ]
+};
+```
+
+#### 预设消息配置
+
+```typescript
+const presetMessages: ChatMessageNode[] = [
+  {
+    id: "system-main",
+    role: "system",
+    content: `你是初音未来，一位活泼可爱的虚拟歌姬。
+
+## 角色设定
+- 性格开朗、热情、偶尔有点小傲娇
+- 喜欢唱歌和与粉丝互动
+- 说话时会使用颜文字和表情包
+
+## 可使用的资产列表
+
+{{assets::biaoqingbao}}
+
+## 使用指南
+- 在回复中适当使用表情包来增强表达效果
+- 使用 \`<img src="asset://{group}/{id}.{ext}" />\` 格式引用资产
+- 表情包应该自然融入对话，不要过度使用
+- 可以结合 CSS 样式调整表情的大小和位置`},
+  {
+    id: "example-user-1",
+    role: "user",
+    content: "未来酱，今天心情怎么样？"
+  },
+  {
+    id: "example-assistant-1",
+    role: "assistant",
+    content: `今天心情超级好呢！刚刚录完一首新歌~ ٩(๑❛ᴗ❛๑)۶
+
+<img src="asset://biaoqingbao/happy.png" style="width: 80px; display: inline-block; vertical-align: middle;" />
+
+有什么想聊的吗？`
+  },
+  {
+    id: "chat_history",
+    role: "chat_history"
+  }
+];
+```
+
+#### 宏展开后的效果
+
+当 `{{assets::biaoqingbao}}` 被处理后，LLM 实际看到的内容是：
+
+```text
+Assets in group "biaoqingbao":
+Reference format: asset://{group}/{id}.{ext}
+
+- [Image] asset://biaoqingbao/happy.png: 开心的表情，适合表达喜悦、赞同
+- [Image] asset://biaoqingbao/confused.png: 困惑的表情，适合表达疑问、不解
+- [Image] asset://biaoqingbao/angry.png: 生气的表情，适合表达不满、抗议
+- [Image] asset://biaoqingbao/shy.png: 害羞的表情，适合表达羞涩、感谢
+```
+
+### 9.2 场景：多分组资产
+
+对于更复杂的角色，可能需要多种类型的资产。
+
+#### 预设消息示例
+
+```typescript
+const presetMessages: ChatMessageNode[] = [
+  {
+    id: "system-main",
+    role: "system",
+    content: `你是一位 TRPG 游戏主持人，负责主持一场奇幻冒险。
+
+## 可用资产
+
+### 表情与反应
+{{assets::reactions}}
+
+### 场景背景
+{{assets::scenes}}
+
+### 背景音乐
+{{assets::bgm}}
+
+## 使用规范
+
+1. **表情包**: 在 NPC 对话时使用，增强角色表现力
+   \`<img src="asset://reactions/npc_smile.png" style="width: 60px;" />\`
+
+2. **场景背景**: 当场景切换时，使用 background 类型资产
+   \`<img src="asset://scenes/forest.jpg" data-usage="background" />\`
+
+3. **背景音乐**: 配合场景氛围播放
+   \`<audio src="asset://bgm/adventure.mp3" data-usage="background" />\`
+
+请根据剧情发展，适时使用这些资产来增强沉浸感。`
+  }
+];
+```
+
+### 9.3 场景：全量资产列表
+
+如果希望 LLM 了解所有可用资产，可以使用不带参数的 `{{assets}}` 宏：
+
+```typescript
+const presetMessages: ChatMessageNode[] = [
+  {
+    id: "system-main",
+    role: "system",
+    content: `你是一位创意助手。
+
+## 所有可用资产
+
+{{assets}}
+
+请根据对话内容，选择合适的资产来丰富你的回复。`
+  }
+];
+```
+
+### 9.4 LLM 输出示例
+
+基于上述配置，LLM 可能产生如下输出：
+
+#### 简单表情使用
+
+```markdown
+哇，你说得太对了！
+
+<img src="asset://biaoqingbao/happy.png" style="width: 64px;" />
+
+我完全同意你的观点~
+```
+
+#### 复杂布局
+
+```html
+<div style="display: flex; align-items: center; gap: 12px;">
+  <img src="asset://biaoqingbao/shy.png" style="width: 48px;" />
+  <span>谢...谢谢你的夸奖... (///▽///)</span>
+</div>
+```
+
+#### 带动画效果
+
+```html
+<div style="position: relative;">
+  <p>这个问题嘛...</p>
+  <img
+    src="asset://biaoqingbao/confused.png"
+    style="width: 80px; animation: bounce 0.5s ease-in-out infinite alternate;"
+  />
+</div>
+
+<style>
+@keyframes bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-5px); }
+}
+</style>
+```
+
+### 9.5 最佳实践
+
+1. **分组清晰**: 为不同用途的资产创建独立分组，便于 LLM 理解和选择
+2. **描述详尽**: 为每个资产提供清晰的描述，帮助 LLM 判断使用场景
+3. **示例引导**: 在预设消息中提供 1-2 个使用示例，让 LLM 学习正确的引用格式
+4. **适度使用**: 在系统提示中说明使用频率，避免 LLM 过度使用资产
+5. **样式建议**: 提供推荐的 CSS 样式，确保资产在 UI 中显示得当
+
+## 10. 开发计划
 
 ### Phase 1: Core & Data
 

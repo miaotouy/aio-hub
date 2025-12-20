@@ -20,7 +20,6 @@ import {
 } from "../../utils/chatRegexUtils";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
-import { processMessageAssets } from "../../utils/agentAssetUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -111,6 +110,9 @@ provide(
   "agentInteractionConfig",
   computed(() => currentAgent.value?.interactionConfig)
 );
+
+// 提供当前 Agent 给后代组件（用于解析 agent-asset:// URL）
+provide("currentAgent", currentAgent);
 
 // 附件管理器 - 用于编辑模式（使用默认配置）
 const attachmentManager = useAttachmentManager();
@@ -367,12 +369,10 @@ watch(
       });
 
       const macroProcessed = await processMacros(macroProcessor, content, context);
-      // 处理资产链接
-      displayedContent.value = await processMessageAssets(macroProcessed, agent);
+      displayedContent.value = macroProcessed;
     } else {
-      // 即使不是预设消息，也需要处理资产链接（例如用户发送的 agent-asset:// 引用）
-      const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-      displayedContent.value = await processMessageAssets(content, agent);
+      // 直接显示内容，agent-asset:// URL 会在 ImageNode 中解析
+      displayedContent.value = content;
     }
   },
   { immediate: true }

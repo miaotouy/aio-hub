@@ -40,13 +40,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, inject } from "vue";
+import { ref, watch, inject, type ComputedRef } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { customMessage } from "@/utils/customMessage";
+import { resolveAgentAssetUrlSync } from "@/tools/llm-chat/utils/agentAssetUtils";
+import type { ChatAgent } from "@/tools/llm-chat/types";
 
 const props = defineProps<{
   nodeId: string;
@@ -57,6 +59,8 @@ const props = defineProps<{
 
 // 注入上下文
 const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
+// 注入当前 Agent（由 MessageContent 提供，用于解析 agent-asset:// URL）
+const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>("currentAgent", null);
 const imageViewer = useImageViewer();
 
 const resolvedSrc = ref("");
@@ -71,7 +75,18 @@ const resolveUrl = async () => {
   hasError.value = false;
 
   try {
-    if (props.src.startsWith("appdata://")) {
+    if (props.src.startsWith("agent-asset://")) {
+      // Agent 资产协议：使用同步解析（依赖缓存）
+      const agent = currentAgent?.value;
+      if (agent) {
+        const resolved = resolveAgentAssetUrlSync(props.src, agent);
+        resolvedSrc.value = resolved;
+      } else {
+        // 没有 Agent 上下文，无法解析
+        console.warn(`[ImageNode] No agent context for agent-asset:// URL: ${props.src}`);
+        resolvedSrc.value = props.src;
+      }
+    } else if (props.src.startsWith("appdata://")) {
       if (!basePath) {
         basePath = await assetManagerEngine.getAssetBasePath();
       }
@@ -105,7 +120,14 @@ watch(() => props.src, resolveUrl, { immediate: true });
  * 辅助函数：将路径转换为可预览的 URL
  */
 const convertToPreviewUrl = async (src: string): Promise<string> => {
-  if (src.startsWith("appdata://")) {
+  if (src.startsWith("agent-asset://")) {
+    // Agent 资产协议
+    const agent = currentAgent?.value;
+    if (agent) {
+      return resolveAgentAssetUrlSync(src, agent);
+    }
+    return src;
+  } else if (src.startsWith("appdata://")) {
     if (!basePath) {
       basePath = await assetManagerEngine.getAssetBasePath();
     }

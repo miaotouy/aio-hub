@@ -1,15 +1,20 @@
 <template>
-  <div class="markdown-html-block" v-html="sanitizedContent"></div>
+  <div class="markdown-html-block" v-html="processedContent"></div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject, type ComputedRef } from 'vue';
 import DOMPurify from 'dompurify';
+import { processMessageAssetsSync } from '@/tools/llm-chat/utils/agentAssetUtils';
+import type { ChatAgent } from '@/tools/llm-chat/types';
 
 const props = defineProps<{
   nodeId: string;
   content: string;
 }>();
+
+// 注入当前 Agent（由 MessageContent 提供，用于解析 agent-asset:// URL）
+const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>("currentAgent", null);
 
 // 净化 HTML 内容以防止 XSS 攻击
 // 块级 HTML 允许更多标签，但仍然严格过滤危险内容
@@ -63,6 +68,18 @@ const sanitizedContent = computed(() => {
     FORBID_TAGS: ['script', 'style', 'object', 'embed', 'applet', 'link', 'meta', 'base'],
     FORBID_ATTR: ['onerror', 'onload', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
   });
+});
+
+// 处理 agent-asset:// URL 后的最终内容
+const processedContent = computed(() => {
+  const sanitized = sanitizedContent.value;
+  
+  // 如果内容中包含 agent-asset:// URL，且有 Agent 上下文，则进行转换
+  if (sanitized.includes('agent-asset://') && currentAgent?.value) {
+    return processMessageAssetsSync(sanitized, currentAgent.value);
+  }
+  
+  return sanitized;
 });
 </script>
 

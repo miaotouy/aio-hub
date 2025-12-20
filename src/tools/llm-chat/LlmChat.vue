@@ -22,6 +22,7 @@ const ContextAnalyzerDialog = defineAsyncComponent(
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { initializeMacroEngine } from "./macro-engine";
+import { initAgentAssetCache } from "./utils/agentAssetUtils";
 
 const logger = createModuleLogger("LlmChat");
 const errorHandler = createModuleErrorHandler("LlmChat");
@@ -121,6 +122,10 @@ onMounted(async () => {
 
   // 初始化宏引擎（全局一次）
   initializeMacroEngine();
+  // 初始化 agent 资产缓存（必须在加载智能体数据之前）
+  // 这样后续渲染 agent 资产时可以同步解析路径
+  await initAgentAssetCache();
+  
   // 加载并启动UI状态的持久化
   await loadUiState();
   startWatching();

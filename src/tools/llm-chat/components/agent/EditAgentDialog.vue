@@ -19,7 +19,7 @@ import AgentAssetsDialog from "./AgentAssetsDialog.vue";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
 import MacroSelector from "./MacroSelector.vue";
 import type { MacroDefinition } from "../../macro-engine";
-import { MagicStick } from "@element-plus/icons-vue";
+import { MagicStick, Folder, Collection } from "@element-plus/icons-vue";
 
 const LlmThinkRulesEditor = defineAsyncComponent(
   () => import("@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue")
@@ -118,6 +118,27 @@ const styleLoading = ref(false);
 const macroSelectorVisible = ref(false);
 const userProfileDialogVisible = ref(false);
 const assetsDialogVisible = ref(false);
+
+// 资产分组统计
+const assetGroupStats = computed(() => {
+  const counts: Record<string, number> = {};
+
+  // 初始化自定义分组
+  editForm.assetGroups.forEach((g: any) => (counts[g.id] = 0));
+  counts["default"] = 0;
+
+  // 统计资产
+  editForm.assets.forEach((asset: any) => {
+    const gid = asset.group && counts[asset.group] !== undefined ? asset.group : "default";
+    counts[gid]++;
+  });
+
+  return counts;
+});
+
+const sortedAssetGroups = computed(() => {
+  return [...editForm.assetGroups].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+});
 
 // 虚拟时间预览相关
 const macroPreviewInput = ref("{{time}} | {{datetime_cn}} | {{shichen}}");
@@ -619,6 +640,35 @@ const handleSave = () => {
               当前包含 {{ editForm.assets.length }} 个资产
             </span>
           </div>
+
+          <!-- 资产分组预览 -->
+          <div
+            class="asset-groups-preview"
+            v-if="editForm.assets.length > 0 || editForm.assetGroups.length > 0"
+          >
+            <!-- 自定义分组 -->
+            <div v-for="group in sortedAssetGroups" :key="group.id" class="group-preview-item">
+              <div class="group-icon">
+                <span v-if="group.icon">{{ group.icon }}</span>
+                <el-icon v-else><Folder /></el-icon>
+              </div>
+              <div class="group-info">
+                <div class="group-name" :title="group.displayName">{{ group.displayName }}</div>
+                <div class="group-count">{{ assetGroupStats[group.id] }} 个资产</div>
+              </div>
+            </div>
+
+            <!-- 未分组 (仅当有资产时显示) -->
+            <div v-if="assetGroupStats['default'] > 0" class="group-preview-item">
+              <div class="group-icon">
+                <el-icon><Collection /></el-icon>
+              </div>
+              <div class="group-info">
+                <div class="group-name">未分组</div>
+                <div class="group-count">{{ assetGroupStats["default"] }} 个资产</div>
+              </div>
+            </div>
+          </div>
         </el-collapse-item>
 
         <el-collapse-item title="思考块规则配置" name="thinkRules">
@@ -817,5 +867,62 @@ const handleSave = () => {
 
 .el-switch {
   margin-right: 12px;
+}
+
+/* 资产分组预览样式 */
+.asset-groups-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.group-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  transition: all 0.2s;
+}
+
+.group-preview-item:hover {
+  background: var(--el-fill-color);
+  border-color: var(--el-border-color);
+}
+
+.group-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--el-text-color-secondary);
+  width: 24px;
+  height: 24px;
+}
+
+.group-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.group-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.group-count {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
 }
 </style>

@@ -603,7 +603,7 @@ const handleSave = () => {
           <div class="form-hint" style="margin-bottom: 12px">
             管理该智能体的专属资产（图片、音频等）。上传后可通过宏或 ID 在对话中引用。
           </div>
-          <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px">
             <el-button
               type="primary"
               plain
@@ -813,5 +813,9 @@ const handleSave = () => {
 
 .macro-input-wrapper .el-input {
   flex: 1;
+}
+
+.el-switch {
+  margin-right: 12px;
 }
 </style>

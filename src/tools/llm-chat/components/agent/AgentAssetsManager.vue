@@ -436,6 +436,17 @@ const saveGroup = () => {
 };
 
 /**
+ * 复制分组宏到剪贴板
+ * 格式: {{assets::groupId}}
+ */
+const copyGroupMacro = (groupId: string) => {
+  const macro = `{{assets::${groupId}}}`;
+  copy(macro);
+  const displayName = getGroupDisplayName(groupId);
+  customMessage.success(`已复制宏: ${macro} (${displayName})`);
+};
+
+/**
  * 删除分组
  */
 const deleteGroup = (group: AssetGroup) => {
@@ -731,7 +742,11 @@ const AssetThumbnail = {
           <el-dropdown
             trigger="click"
             @command="
-              (cmd: string) => (cmd === 'edit' ? openEditGroupDialog(group) : deleteGroup(group))
+              (cmd: string) => {
+                if (cmd === 'edit') openEditGroupDialog(group);
+                else if (cmd === 'delete') deleteGroup(group);
+                else if (cmd === 'copyMacro') copyGroupMacro(group.id);
+              }
             "
             @click.stop
           >
@@ -739,6 +754,7 @@ const AssetThumbnail = {
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="edit" :icon="Edit">编辑分组</el-dropdown-item>
+                <el-dropdown-item command="copyMacro" :icon="CopyDocument">复制分组宏</el-dropdown-item>
                 <el-dropdown-item command="delete" :icon="Delete" divided
                   >删除分组</el-dropdown-item
                 >

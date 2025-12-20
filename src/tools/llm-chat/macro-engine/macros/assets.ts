@@ -11,38 +11,62 @@ import type { MacroDefinition } from '../MacroRegistry';
  * 注册资产宏
  */
 export function registerAssetMacros(registry: MacroRegistry): void {
+  // 辅助函数：获取文件后缀
+  const getFileExtension = (filename: string): string => {
+    const lastDot = filename.lastIndexOf('.');
+    if (lastDot === -1 || lastDot === filename.length - 1) return '';
+    return filename.substring(lastDot + 1).toLowerCase();
+  };
+
+  // 辅助函数：生成完整的资产引用路径
+  const buildAssetRef = (asset: { group?: string; id: string; filename: string }): string => {
+    const group = asset.group || 'default';
+    const ext = getFileExtension(asset.filename);
+    return ext ? `asset://${group}/${asset.id}.${ext}` : `asset://${group}/${asset.id}`;
+  };
+
   const assetMacros: MacroDefinition[] = [
     {
       name: 'assets',
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: '列出当前智能体可用的所有资产',
+      description: '列出当前智能体可用的资产。可选参数：分组ID，只列出该分组下的资产',
       example: '{{assets}}',
-      acceptsArgs: false,
+      acceptsArgs: true,
       priority: 100,
       supported: true,
       contextFree: false,
-      execute: (context) => {
-        const assets = context.agent?.assets;
-        if (!assets || assets.length === 0) {
+      execute: (context, args) => {
+        const allAssets = context.agent?.assets;
+        if (!allAssets || allAssets.length === 0) {
           return 'No assets available for this agent.';
         }
 
-        // 辅助函数：获取文件后缀
-        const getFileExtension = (filename: string): string => {
-          const lastDot = filename.lastIndexOf('.');
-          if (lastDot === -1 || lastDot === filename.length - 1) return '';
-          return filename.substring(lastDot + 1).toLowerCase();
-        };
+        // 如果指定了分组参数，则过滤
+        const groupFilter = args?.[0];
+        let assets = allAssets;
+        
+        if (groupFilter) {
+          if (groupFilter === 'default') {
+            // 未分组：group 为空、为 'default'、或引用了不存在的分组
+            const definedGroupIds = new Set(context.agent?.assetGroups?.map(g => g.id) || []);
+            assets = allAssets.filter(a =>
+              !a.group || a.group === 'default' || !definedGroupIds.has(a.group)
+            );
+          } else {
+            assets = allAssets.filter(a => a.group === groupFilter);
+          }
+        }
 
-        // 辅助函数：生成完整的资产引用路径
-        const buildAssetRef = (asset: typeof assets[0]): string => {
-          const group = asset.group || 'default';
-          const ext = getFileExtension(asset.filename);
-          return ext ? `asset://${group}/${asset.id}.${ext}` : `asset://${group}/${asset.id}`;
-        };
+        if (assets.length === 0) {
+          return groupFilter
+            ? `No assets in group "${groupFilter}".`
+            : 'No assets available for this agent.';
+        }
 
-        let output = 'Available Assets:\n';
+        let output = groupFilter
+          ? `Assets in group "${groupFilter}":\n`
+          : 'Available Assets:\n';
         output += 'Reference format: asset://{group}/{id}.{ext}\n\n';
         
         assets.forEach(asset => {

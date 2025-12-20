@@ -629,12 +629,12 @@ const handleSave = () => {
               type="primary"
               plain
               @click="assetsDialogVisible = true"
-              :disabled="!editForm.name"
+              :disabled="mode === 'create'"
             >
               打开资产管理器
             </el-button>
-            <span v-if="!editForm.name" style="font-size: 12px; color: var(--el-color-warning)">
-              请先填写智能体名称/ID
+            <span v-if="mode === 'create'" style="font-size: 12px; color: var(--el-color-warning)">
+              请先保存智能体后再管理资产
             </span>
             <span v-else style="font-size: 12px; color: var(--el-text-color-secondary)">
               当前包含 {{ editForm.assets.length }} 个资产
@@ -792,11 +792,15 @@ const handleSave = () => {
     />
 
     <!-- 资产管理弹窗 -->
+    <!-- 注意：agentId 必须使用真正的智能体 ID（如 agent-xxx），而不是名称 -->
+    <!-- 创建模式下智能体还没有 ID，所以资产管理功能不可用 -->
     <AgentAssetsDialog
+      v-if="mode === 'edit' && agent?.id"
       v-model="assetsDialogVisible"
       v-model:assets="editForm.assets"
       v-model:asset-groups="editForm.assetGroups"
-      :agent-id="editForm.name"
+      :agent-id="agent.id"
+      :agent-name="editForm.displayName || editForm.name"
     />
 
     <template #footer>

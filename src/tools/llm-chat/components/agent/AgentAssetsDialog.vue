@@ -9,6 +9,7 @@ interface Props {
   assets: AgentAsset[];
   assetGroups?: AssetGroup[];
   agentId: string;
+  agentName?: string; // 用于标题显示的智能体名称
 }
 
 const props = defineProps<Props>();
@@ -37,7 +38,7 @@ const localAssetGroups = computed({
 <template>
   <BaseDialog
     v-model="visible"
-    :title="`资产管理 - ${agentId}`"
+    :title="`资产管理 - ${agentName || agentId}`"
     width="90%"
     height="85vh"
     :show-footer="false"

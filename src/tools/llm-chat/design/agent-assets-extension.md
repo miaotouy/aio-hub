@@ -107,21 +107,21 @@ export interface AgentPreset {
 
 ### 4.2 语法规范
 
-使用标准 HTML 标签 (`img`, `video`, `audio`)，其 `src` 属性指向 `asset://{handle}`：
+使用标准 HTML 标签 (`img`, `video`, `audio`)，其 `src` 属性指向 `agent-asset://{handle}`：
 
-- **Image**: `<img src="asset://handle" style="..." />`
-- **Video**: `<video src="asset://handle" controls />`
-- **Audio**: `<audio src="asset://handle" controls />`
+- **Image**: `<img src="agent-asset://handle" style="..." />`
+- **Video**: `<video src="agent-asset://handle" controls />`
+- **Audio**: `<audio src="agent-asset://handle" controls />`
 
 ### 4.3 解析机制
 
-Markdown 渲染器在处理 HTML 标签时，拦截 `asset://` 协议，根据 Agent 的 `assets` 配置查找对应的文件路径，并拼接为完整 URL。
+Markdown 渲染器在处理 HTML 标签时，拦截 `agent-asset://` 协议，根据 Agent 的 `assets` 配置查找对应的文件路径，并拼接为完整 URL。
 
 解析流程：
 
-1. **LLM 输出**: `<img src="asset://my_sticker" />`
+1. **LLM 输出**: `<img src="agent-asset://my_sticker" />`
 2. **预处理**:
-   - 解析 `asset://my_sticker`
+   - 解析 `agent-asset://my_sticker`
    - 查找 Agent 配置: `agent.assets.find(a => a.id === 'my_sticker')`
    - 获取相对路径: `assets/sticker.png`
    - 拼接完整协议路径: `appdata://llm-chat/agents/{agent_id}/assets/sticker.png`
@@ -147,7 +147,7 @@ Markdown 渲染器在处理 HTML 标签时，拦截 `asset://` 协议，根据 A
 
 默认宏输出格式：
 
-- `[Image: handle] (src="asset://handle") Description`
+- `[Image: handle] (src="agent-asset://handle") Description`
 
 ### 5.3 宏变体
 
@@ -173,11 +173,11 @@ Markdown 渲染器在处理 HTML 标签时，拦截 `asset://` 协议，根据 A
 
 #### URL 转换 (Transform)
 
-在 HTML 渲染阶段，正则匹配 `src="asset://([\w-]+)"`，查找当前 Agent 的 `assets` 列表，结合当前消息的 `agentId` 获取真实路径并替换。
+在 HTML 渲染阶段，正则匹配 `src="agent-asset://([\w-]+)"`，查找当前 Agent 的 `assets` 列表，结合当前消息的 `agentId` 获取真实路径并替换。
 
 ```typescript
 function resolveAssetUrls(htmlContent: string, agentAssets: AgentAsset[], agentId: string): string {
-  return htmlContent.replace(/src="asset:\/\/([\w-]+)"/g, (match, handle) => {
+  return htmlContent.replace(/src="agent-asset:\/\/([\w-]+)"/g, (match, handle) => {
     const asset = agentAssets.find((a) => a.id === handle);
     if (asset) {
       // 这里的路径构建逻辑需适配 Tauri 的安全资源访问协议
@@ -228,7 +228,7 @@ function resolveAssetUrls(htmlContent: string, agentAssets: AgentAsset[], agentI
 <div style="position: relative; padding-bottom: 20px;">
   <p>这段代码逻辑清晰，测试通过。</p>
   <img
-    src="asset://stamp_approved"
+    src="agent-asset://stamp_approved"
     alt="Approved"
     style="position: absolute; right: -10px; bottom: -10px; transform: rotate(-15deg); width: 100px; opacity: 0.9; pointer-events: none;"
   />
@@ -330,7 +330,7 @@ const presetMessages: ChatMessageNode[] = [
 
 ## 使用指南
 - 在回复中适当使用表情包来增强表达效果
-- 使用 \`<img src="asset://{group}/{id}.{ext}" />\` 格式引用资产
+- 使用 \`<img src="agent-asset://{group}/{id}.{ext}" />\` 格式引用资产
 - 表情包应该自然融入对话，不要过度使用
 - 可以结合 CSS 样式调整表情的大小和位置`},
   {
@@ -343,7 +343,7 @@ const presetMessages: ChatMessageNode[] = [
     role: "assistant",
     content: `今天心情超级好呢！刚刚录完一首新歌~ ٩(๑❛ᴗ❛๑)۶
 
-<img src="asset://biaoqingbao/happy.png" style="width: 80px; display: inline-block; vertical-align: middle;" />
+<img src="agent-asset://biaoqingbao/happy.png" style="width: 80px; display: inline-block; vertical-align: middle;" />
 
 有什么想聊的吗？`
   },
@@ -360,12 +360,12 @@ const presetMessages: ChatMessageNode[] = [
 
 ```text
 Assets in group "biaoqingbao":
-Reference format: asset://{group}/{id}.{ext}
+Reference format: agent-asset://{group}/{id}.{ext}
 
-- [Image] asset://biaoqingbao/happy.png: 开心的表情，适合表达喜悦、赞同
-- [Image] asset://biaoqingbao/confused.png: 困惑的表情，适合表达疑问、不解
-- [Image] asset://biaoqingbao/angry.png: 生气的表情，适合表达不满、抗议
-- [Image] asset://biaoqingbao/shy.png: 害羞的表情，适合表达羞涩、感谢
+- [Image] agent-asset://biaoqingbao/happy.png: 开心的表情，适合表达喜悦、赞同
+- [Image] agent-asset://biaoqingbao/confused.png: 困惑的表情，适合表达疑问、不解
+- [Image] agent-asset://biaoqingbao/angry.png: 生气的表情，适合表达不满、抗议
+- [Image] agent-asset://biaoqingbao/shy.png: 害羞的表情，适合表达羞涩、感谢
 ```
 
 ### 9.2 场景：多分组资产
@@ -395,13 +395,13 @@ const presetMessages: ChatMessageNode[] = [
 ## 使用规范
 
 1. **表情包**: 在 NPC 对话时使用，增强角色表现力
-   \`<img src="asset://reactions/npc_smile.png" style="width: 60px;" />\`
+   \`<img src="agent-asset://reactions/npc_smile.png" style="width: 60px;" />\`
 
 2. **场景背景**: 当场景切换时，使用 background 类型资产
-   \`<img src="asset://scenes/forest.jpg" data-usage="background" />\`
+   \`<img src="agent-asset://scenes/forest.jpg" data-usage="background" />\`
 
 3. **背景音乐**: 配合场景氛围播放
-   \`<audio src="asset://bgm/adventure.mp3" data-usage="background" />\`
+   \`<audio src="agent-asset://bgm/adventure.mp3" data-usage="background" />\`
 
 请根据剧情发展，适时使用这些资产来增强沉浸感。`
   }
@@ -437,7 +437,7 @@ const presetMessages: ChatMessageNode[] = [
 ```markdown
 哇，你说得太对了！
 
-<img src="asset://biaoqingbao/happy.png" style="width: 64px;" />
+<img src="agent-asset://biaoqingbao/happy.png" style="width: 64px;" />
 
 我完全同意你的观点~
 ```
@@ -446,7 +446,7 @@ const presetMessages: ChatMessageNode[] = [
 
 ```html
 <div style="display: flex; align-items: center; gap: 12px;">
-  <img src="asset://biaoqingbao/shy.png" style="width: 48px;" />
+  <img src="agent-asset://biaoqingbao/shy.png" style="width: 48px;" />
   <span>谢...谢谢你的夸奖... (///▽///)</span>
 </div>
 ```
@@ -457,7 +457,7 @@ const presetMessages: ChatMessageNode[] = [
 <div style="position: relative;">
   <p>这个问题嘛...</p>
   <img
-    src="asset://biaoqingbao/confused.png"
+    src="agent-asset://biaoqingbao/confused.png"
     style="width: 80px; animation: bounce 0.5s ease-in-out infinite alternate;"
   />
 </div>
@@ -493,7 +493,7 @@ const presetMessages: ChatMessageNode[] = [
 
 ### Phase 3: Renderer & Environment
 
-- 在 `MessageContent.vue` 中实现 `asset://` 协议解析。
+- 在 `MessageContent.vue` 中实现 `agent-asset://` 协议解析。
 - 在 `ChatArea` 中实现 **Environment Layer** (背景层 + BGM 控制器)。
 - 实现 `inline` 和 `background` 的事件通信机制。
 

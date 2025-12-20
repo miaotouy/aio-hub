@@ -370,7 +370,7 @@ watch(
       // 处理资产链接
       displayedContent.value = await processMessageAssets(macroProcessed, agent);
     } else {
-      // 即使不是预设消息，也需要处理资产链接（例如用户发送的 asset:// 引用）
+      // 即使不是预设消息，也需要处理资产链接（例如用户发送的 agent-asset:// 引用）
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
       displayedContent.value = await processMessageAssets(content, agent);
     }

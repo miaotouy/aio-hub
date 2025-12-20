@@ -15,9 +15,9 @@
 
 ### 1.2 协议解析流 (Protocol Resolution Flow)
 
-1.  **LLM 输出**: `<img src="asset://my_sticker" />`
+1.  **LLM 输出**: `<img src="agent-asset://my_sticker" />`
 2.  **宏/渲染前处理 (`MessageContent.vue`)**:
-    - 解析 `asset://my_sticker`
+    - 解析 `agent-asset://my_sticker`
     - 查找 Agent 配置: `agent.assets.find(a => a.id === 'my_sticker')`
     - 获取相对路径: `assets/sticker.png`
     - 拼接完整协议路径: `appdata://llm-chat/agents/{agent_id}/assets/sticker.png`
@@ -109,7 +109,7 @@ export interface ChatAgent {
 
 - **预处理逻辑**:
   - 在传递给 `RichTextRenderer` 之前，处理 `content` 字符串。
-  - 正则匹配 `src="asset://([\w-]+)"`。
+  - 正则匹配 `src="agent-asset://([\w-]+)"`。
   - 替换为 `convertFileSrc` 处理后的真实 URL。
   - **关键点**: 需要获取当前消息所属的 `agentId` (如果是用户消息则无需处理，或者是 Assistant 消息但需回溯 Agent ID)。通常从 `props.message.agentId` 获取。
 
@@ -135,7 +135,7 @@ export interface ChatAgent {
 ### 4.2 资源访问权限
 
 - 确保 Tauri 的 `fs` scope 配置允许访问 `appdata` 目录 (通常默认允许)。
-- `asset://` 协议本质上是前端的虚拟协议，最终转换为 `https://asset.localhost/...`，这是 Tauri 的标准资源访问方式，安全且高效。
+- `agent-asset://` 协议本质上是前端的虚拟协议，最终转换为 `https://asset.localhost/...`，这是 Tauri 的标准资源访问方式，安全且高效。
 
 ## 5. 执行步骤 (Step-by-Step)
 

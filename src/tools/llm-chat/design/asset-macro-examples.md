@@ -27,11 +27,11 @@ const presetMessages: ChatMessageNode[] = [
 **宏展开效果**：
 ```
 Available Assets:
-Reference format: asset://{group}/{id}.{ext}
+Reference format: agent-asset://{group}/{id}.{ext}
 
-- [Image] asset://default/logo.png: 应用 Logo
-- [Audio] asset://bgm/calm.mp3: 平静的背景音乐
-- [Video] asset://scenes/sunset.mp4: 日落场景视频
+- [Image] agent-asset://default/logo.png: 应用 Logo
+- [Audio] agent-asset://bgm/calm.mp3: 平静的背景音乐
+- [Video] agent-asset://scenes/sunset.mp4: 日落场景视频
 ```
 
 ### 1.2 按分组列出资产
@@ -119,7 +119,7 @@ const presetMessages: ChatMessageNode[] = [
 
 ## 使用指南
 1. 在回复中适当使用表情包来增强表达效果
-2. 使用 \`<img src="asset://biaoqingbao/happy.png" />\` 格式引用表情包
+2. 使用 \`<img src="agent-asset://biaoqingbao/happy.png" />\` 格式引用表情包
 3. 可以结合 CSS 样式调整表情的大小和位置
 4. 语音片段用于特殊场合，如庆祝、感谢等`
   },
@@ -133,7 +133,7 @@ const presetMessages: ChatMessageNode[] = [
     role: "assistant",
     content: `今天心情超级好呢！刚刚录完一首新歌~ ٩(๑❛ᴗ❛๑)۶
 
-<img src="asset://biaoqingbao/happy.png" style="width: 80px; display: inline-block; vertical-align: middle;" />
+<img src="agent-asset://biaoqingbao/happy.png" style="width: 80px; display: inline-block; vertical-align: middle;" />
 
 要听听看吗？`
   }
@@ -166,16 +166,16 @@ const presetMessages: ChatMessageNode[] = [
 ## 使用规范
 
 1. **表情包**: 在 NPC 对话时使用，增强角色表现力
-   \`<img src="asset://reactions/npc_smile.png" style="width: 60px;" />\`
+   \`<img src="agent-asset://reactions/npc_smile.png" style="width: 60px;" />\`
 
 2. **场景背景**: 当场景切换时，使用 background 类型资产
-   \`<img src="asset://scenes/forest.jpg" data-usage="background" />\`
+   \`<img src="agent-asset://scenes/forest.jpg" data-usage="background" />\`
 
 3. **背景音乐**: 配合场景氛围播放
-   \`<audio src="asset://bgm/adventure.mp3" data-usage="background" />\`
+   \`<audio src="agent-asset://bgm/adventure.mp3" data-usage="background" />\`
 
 4. **音效**: 在特定事件发生时使用
-   \`<audio src="asset://sfx/sword_clash.mp3" />\`
+   \`<audio src="agent-asset://sfx/sword_clash.mp3" />\`
 
 请根据剧情发展，适时使用这些资产来增强沉浸感。`
   }
@@ -203,9 +203,9 @@ const presetMessages: ChatMessageNode[] = [
 
 \`\`\`html
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-  <img src="asset://inspiration/design_1.jpg" style="width: 100%; border-radius: 8px;" />
-  <img src="asset://inspiration/design_2.jpg" style="width: 100%; border-radius: 8px;" />
-  <img src="asset://inspiration/design_3.jpg" style="width: 100%; border-radius: 8px;" />
+  <img src="agent-asset://inspiration/design_1.jpg" style="width: 100%; border-radius: 8px;" />
+  <img src="agent-asset://inspiration/design_2.jpg" style="width: 100%; border-radius: 8px;" />
+  <img src="agent-asset://inspiration/design_3.jpg" style="width: 100%; border-radius: 8px;" />
 </div>
 \`\`\`
 
@@ -215,11 +215,11 @@ const presetMessages: ChatMessageNode[] = [
 <div style="display: flex; gap: 20px;">
   <div style="flex: 1;">
     <h4>方案 A</h4>
-    <img src="asset://inspiration/option_a.jpg" style="width: 100%;" />
+    <img src="agent-asset://inspiration/option_a.jpg" style="width: 100%;" />
   </div>
   <div style="flex: 1;">
     <h4>方案 B</h4>
-    <img src="asset://inspiration/option_b.jpg" style="width: 100%;" />
+    <img src="agent-asset://inspiration/option_b.jpg" style="width: 100%;" />
   </div>
 </div>
 \`\`\``
@@ -245,13 +245,13 @@ const presetMessages: ChatMessageNode[] = [
 ## 教学指南
 
 1. **发音示范**: 使用音频资产展示正确发音
-   \`<audio src="asset://learning/pronunciation_1.mp3" controls />\`
+   \`<audio src="agent-asset://learning/pronunciation_1.mp3" controls />\`
 
 2. **词汇图片**: 使用图片资产展示词汇含义
-   \`<img src="asset://learning/vocab_cat.jpg" style="width: 120px;" />\`
+   \`<img src="agent-asset://learning/vocab_cat.jpg" style="width: 120px;" />\`
 
 3. **场景视频**: 使用视频资产展示实际使用场景
-   \`<video src="asset://learning/dialogue_1.mp4" controls style="width: 300px;" />\`
+   \`<video src="agent-asset://learning/dialogue_1.mp4" controls style="width: 300px;" />\`
 
 请根据学生的学习进度，选择合适的资源进行教学。`
   }
@@ -285,8 +285,8 @@ const presetMessages: ChatMessageNode[] = [
 
 \`\`\`html
 <!-- 根据情绪动态选择 -->
-<img src="asset://emotions/happy_celebrate.png" style="width: 100px;" />
-<audio src="asset://emotions/cheerful_bgm.mp3" data-usage="background" />
+<img src="agent-asset://emotions/happy_celebrate.png" style="width: 100px;" />
+<audio src="agent-asset://emotions/cheerful_bgm.mp3" data-usage="background" />
 \`\`\``
   }
 ];
@@ -324,15 +324,15 @@ const presetMessages: ChatMessageNode[] = [
 \`\`\`html
 <div style="position: relative; width: 400px; height: 300px;">
   <!-- 背景模板 -->
-  <img src="asset://templates/social_media_1.png" style="width: 100%; height: 100%;" />
+  <img src="agent-asset://templates/social_media_1.png" style="width: 100%; height: 100%;" />
   
   <!-- 前景内容 -->
   <div style="position: absolute; top: 50px; left: 50px;">
-    <img src="asset://visuals/product_shot.jpg" style="width: 200px; border-radius: 12px;" />
+    <img src="agent-asset://visuals/product_shot.jpg" style="width: 200px; border-radius: 12px;" />
   </div>
   
   <!-- 背景音乐 -->
-  <audio src="asset://audio/upbeat_bgm.mp3" data-usage="background" />
+  <audio src="agent-asset://audio/upbeat_bgm.mp3" data-usage="background" />
 </div>
 \`\`\``
   }
@@ -398,7 +398,7 @@ video {
 
 如果资产引用后无法显示，请检查：
 1. 资产文件是否已正确上传到 Agent 目录
-2. `asset://` 协议是否正确解析
+2. `agent-asset://` 协议是否正确解析
 3. 文件路径是否正确
 
 ### 7.3 LLM 不理解资产

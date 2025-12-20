@@ -1,20 +1,23 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import type { ChatAgent, AgentAsset } from '../types';
 
+/** 智能体资产协议前缀 */
+const AGENT_ASSET_PROTOCOL = 'agent-asset://';
+
 /**
- * 解析 asset:// URL 的各个部分
+ * 解析 agent-asset:// URL 的各个部分
  *
  * 支持的格式：
- * - asset://{group}/{id}.{ext}  (新格式，推荐)
- * - asset://{id}                (旧格式，向后兼容)
+ * - agent-asset://{group}/{id}.{ext}  (新格式，推荐)
+ * - agent-asset://{id}                (旧格式，向后兼容)
  *
- * @param assetUrl asset:// 格式的 URL
+ * @param assetUrl agent-asset:// 格式的 URL
  * @returns 解析后的 group、id、ext，如果解析失败返回 null
  */
 function parseAssetUrl(assetUrl: string): { group: string; id: string; ext: string } | null {
-  if (!assetUrl.startsWith('asset://')) return null;
+  if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return null;
   
-  const path = assetUrl.replace('asset://', '');
+  const path = assetUrl.replace(AGENT_ASSET_PROTOCOL, '');
   
   // 尝试解析新格式: {group}/{id}.{ext}
   const slashIndex = path.indexOf('/');
@@ -63,18 +66,18 @@ function findAsset(
 }
 
 /**
- * 将 asset:// 协议的 URL 转换为真实的浏览器可访问 URL
+ * 将 agent-asset:// 协议的 URL 转换为真实的浏览器可访问 URL
  *
  * 支持的格式：
- * - asset://{group}/{id}.{ext}  (新格式，推荐)
- * - asset://{id}                (旧格式，向后兼容)
+ * - agent-asset://{group}/{id}.{ext}  (新格式，推荐)
+ * - agent-asset://{id}                (旧格式，向后兼容)
  *
- * @param assetUrl 格式如 asset://biaoqingbao/喝茶.png 或 asset://sticker_ok
+ * @param assetUrl 格式如 agent-asset://biaoqingbao/喝茶.png 或 agent-asset://sticker_ok
  * @param agent 当前智能体对象
  * @returns 真实的 URL，如果找不到则返回原始 URL
  */
 export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): Promise<string> {
-  if (!assetUrl.startsWith('asset://')) return assetUrl;
+  if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return assetUrl;
   
   const parsed = parseAssetUrl(assetUrl);
   if (!parsed) return assetUrl;
@@ -106,13 +109,13 @@ export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): 
  * @returns 替换后的内容
  */
 export async function processMessageAssets(content: string, agent?: ChatAgent): Promise<string> {
-  if (!agent || !content.includes('asset://')) return content;
+  if (!agent || !content.includes('agent-asset://')) return content;
   
   let result = content;
 
-  // 1. 处理 HTML src 属性: src="asset://..." 或 src='asset://...'
-  // 支持新格式 asset://{group}/{id}.{ext}，路径中可能包含中文、斜杠、点号等
-  const htmlPattern = /src=["'](asset:\/\/[^"']+)["']/g;
+  // 1. 处理 HTML src 属性: src="agent-asset://..." 或 src='agent-asset://...'
+  // 支持新格式 agent-asset://{group}/{id}.{ext}，路径中可能包含中文、斜杠、点号等
+  const htmlPattern = /src=["'](agent-asset:\/\/[^"']+)["']/g;
   const htmlMatches = Array.from(content.matchAll(htmlPattern));
   
   for (const match of htmlMatches) {
@@ -126,14 +129,14 @@ export async function processMessageAssets(content: string, agent?: ChatAgent): 
     }
   }
 
-  // 2. 处理 Markdown 语法: ![alt](asset://...) 或 [link](asset://...)
-  // 支持新格式 asset://{group}/{id}.{ext}，路径中可能包含中文、斜杠、点号等
-  const mdPattern = /\((asset:\/\/[^)]+)\)/g;
+  // 2. 处理 Markdown 语法: ![alt](agent-asset://...) 或 [link](agent-asset://...)
+  // 支持新格式 agent-asset://{group}/{id}.{ext}，路径中可能包含中文、斜杠、点号等
+  const mdPattern = /\((agent-asset:\/\/[^)]+)\)/g;
   const mdMatches = Array.from(result.matchAll(mdPattern));
 
   for (const match of mdMatches) {
-    const fullMatch = match[0]; // (asset://...)
-    const assetUrl = match[1]; // asset://...
+    const fullMatch = match[0]; // (agent-asset://...)
+    const assetUrl = match[1]; // agent-asset://...
     const resolvedUrl = await resolveAgentAssetUrl(assetUrl, agent);
 
     if (resolvedUrl !== assetUrl) {

@@ -607,12 +607,12 @@ const getFileExtension = (filename: string): string => {
 
 /**
  * 生成完整的资产引用路径
- * 格式: asset://{group}/{id}.{ext}
+ * 格式: agent-asset://{group}/{id}.{ext}
  */
 const buildAssetRef = (asset: AgentAsset): string => {
   const group = asset.group || "default";
   const ext = getFileExtension(asset.filename);
-  return ext ? `asset://${group}/${asset.id}.${ext}` : `asset://${group}/${asset.id}`;
+  return ext ? `agent-asset://${group}/${asset.id}.${ext}` : `agent-asset://${group}/${asset.id}`;
 };
 
 /**
@@ -998,7 +998,7 @@ const AssetThumbnail = {
           <div class="form-tip">
             在对话中使用
             <code
-              >asset://{{ editForm.group || "default" }}/{{
+              >agent-asset://{{ editForm.group || "default" }}/{{
                 editForm.id || "ID"
               }}.{{ editingAsset ? getFileExtension(editingAsset.filename) || "ext" : "ext" }}</code
             >

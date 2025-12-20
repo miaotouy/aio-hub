@@ -22,7 +22,7 @@ export function registerAssetMacros(registry: MacroRegistry): void {
   const buildAssetRef = (asset: { group?: string; id: string; filename: string }): string => {
     const group = asset.group || 'default';
     const ext = getFileExtension(asset.filename);
-    return ext ? `asset://${group}/${asset.id}.${ext}` : `asset://${group}/${asset.id}`;
+    return ext ? `agent-asset://${group}/${asset.id}.${ext}` : `agent-asset://${group}/${asset.id}`;
   };
 
   const assetMacros: MacroDefinition[] = [
@@ -67,7 +67,7 @@ export function registerAssetMacros(registry: MacroRegistry): void {
         let output = groupFilter
           ? `Assets in group "${groupFilter}":\n`
           : 'Available Assets:\n';
-        output += 'Reference format: asset://{group}/{id}.{ext}\n\n';
+        output += 'Reference format: agent-asset://{group}/{id}.{ext}\n\n';
         
         assets.forEach(asset => {
           const typeLabel = asset.type.charAt(0).toUpperCase() + asset.type.slice(1);

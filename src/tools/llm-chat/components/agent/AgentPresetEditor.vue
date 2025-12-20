@@ -3,6 +3,11 @@
     <!-- 头部操作栏 -->
     <div v-if="!props.compact" class="editor-header">
       <div class="header-title">
+        <el-button link size="small" class="collapse-btn" @click="isCollapsed = !isCollapsed">
+          <el-icon :class="{ 'is-collapsed': isCollapsed }">
+            <ArrowDown />
+          </el-icon>
+        </el-button>
         <span>预设消息配置</span>
         <el-tooltip content="预设消息将作为所有对话的上下文基础" placement="top">
           <el-icon><QuestionFilled /></el-icon>
@@ -68,345 +73,353 @@
       </div>
     </div>
 
-    <!-- 消息列表滚动容器 -->
-    <div class="messages-container" :style="{ height: containerHeight }">
-      <div class="messages-scroll-wrapper">
-        <VueDraggableNext
-          v-model="localMessages"
-          item-key="id"
-          handle=".drag-handle"
-          @start="onDragStart"
-          @end="onDragEnd"
-          class="messages-list"
-          ghost-class="ghost-message"
-          drag-class="drag-message"
-          :force-fallback="true"
-          :fallback-tolerance="3"
-          :animation="200"
-        >
-          <div
-            v-for="(element, index) in localMessages"
-            :key="element.id"
-            class="message-card-wrapper"
+    <!-- 消息列表滚动容器 --><Transition name="collapse">
+      <div
+        v-show="!isCollapsed || props.compact"
+        class="messages-container"
+        :style="{ height: containerHeight }"
+      >
+        <div class="messages-scroll-wrapper">
+          <VueDraggableNext
+            v-model="localMessages"
+            item-key="id"
+            handle=".drag-handle"
+            @start="onDragStart"
+            @end="onDragEnd"
+            class="messages-list"
+            ghost-class="ghost-message"
+            drag-class="drag-message"
+            :force-fallback="true"
+            :fallback-tolerance="3"
+            :animation="200"
           >
-            <!-- 纯占位符锚点 - 紧凑模式 -->
             <div
-              v-if="isPurePlaceholderAnchorType(element.type) && props.compact"
-              class="message-card message-card-compact placeholder-card-compact"
-              :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
+              v-for="(element, index) in localMessages"
+              :key="element.id"
+              class="message-card-wrapper"
             >
-              <div class="drag-handle">
-                <el-icon><Rank /></el-icon>
-              </div>
-              <div class="role-icon">
-                <el-icon :color="getAnchorColor(element.type)">
-                  <component :is="getAnchorIcon(element.type)" />
-                </el-icon>
-              </div>
-              <div class="message-text-compact placeholder-text">
-                {{ getAnchorDef(element.type)?.name }}
-              </div>
-              <div class="message-actions-compact">
-                <el-switch
-                  v-model="element.isEnabled"
-                  :active-value="true"
-                  :inactive-value="false"
-                  size="small"
-                  @change="handleToggleEnabled(index)"
-                />
-              </div>
-            </div>
-
-            <!-- 纯占位符锚点 - 正常模式 -->
-            <div
-              v-else-if="isPurePlaceholderAnchorType(element.type)"
-              class="message-card placeholder-card"
-              :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
-            >
-              <div class="drag-handle">
-                <el-icon><Rank /></el-icon>
-              </div>
-              <div class="message-content">
-                <div class="message-role">
-                  <el-tag :type="getAnchorTagType(element.type)" size="small" effect="plain">
-                    <el-icon style="margin-right: 4px">
-                      <component :is="getAnchorIcon(element.type)" />
-                    </el-icon>
-                    {{ getAnchorDef(element.type)?.name }}
-                  </el-tag>
+              <!-- 纯占位符锚点 - 紧凑模式 -->
+              <div
+                v-if="isPurePlaceholderAnchorType(element.type) && props.compact"
+                class="message-card message-card-compact placeholder-card-compact"
+                :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
+              >
+                <div class="drag-handle">
+                  <el-icon><Rank /></el-icon>
                 </div>
-                <div class="message-text placeholder-text">
-                  {{ getAnchorDef(element.type)?.description }}
+                <div class="role-icon">
+                  <el-icon :color="getAnchorColor(element.type)">
+                    <component :is="getAnchorIcon(element.type)" />
+                  </el-icon>
                 </div>
-              </div>
-              <div class="message-actions">
-                <el-switch
-                  v-model="element.isEnabled"
-                  :active-value="true"
-                  :inactive-value="false"
-                  size="small"
-                  @change="handleToggleEnabled(index)"
-                />
-              </div>
-            </div>
-
-            <!-- 模板锚点 & 普通消息 - 紧凑模式 -->
-            <div
-              v-else-if="props.compact"
-              class="message-card message-card-compact"
-              :class="{
-                disabled: element.isEnabled === false,
-                'template-anchor-card-compact': isTemplateAnchorType(element.type),
-              }"
-              @click="handleEditMessage(index)"
-            >
-              <div class="drag-handle">
-                <el-icon><Rank /></el-icon>
-              </div>
-              <div class="role-icon">
-                <el-icon :color="getRoleColor(element.role)">
-                  <component :is="getRoleIcon(element.role)" />
-                </el-icon>
-              </div>
-
-              <!-- 徽章们 -->
-              <span
-                v-if="isTemplateAnchorType(element.type)"
-                class="injection-badge-compact"
-                :title="getAnchorDef(element.type)?.name"
-                >⚓</span
-              >
-              <span
-                v-if="
-                  element.injectionStrategy?.type === 'advanced_depth' ||
-                  (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
-                "
-                class="injection-badge-compact"
-                :title="`高级深度: ${element.injectionStrategy.depthConfig}`"
-                >🔩{{ element.injectionStrategy.depthConfig }}</span
-              >
-              <span
-                v-else-if="
-                  element.injectionStrategy?.type === 'depth' ||
-                  (!element.injectionStrategy?.type &&
-                    element.injectionStrategy?.depth !== undefined)
-                "
-                class="injection-badge-compact"
-                title="深度注入"
-                >📍{{ element.injectionStrategy.depth }}</span
-              >
-              <span
-                v-else-if="
-                  element.injectionStrategy?.type === 'anchor' ||
-                  (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
-                "
-                class="injection-badge-compact"
-                title="锚点注入"
-                >⚓</span
-              >
-              <span
-                v-if="element.modelMatch?.enabled"
-                class="model-match-badge-compact"
-                title="仅特定模型生效"
-                >🎯</span
-              >
-
-              <div class="message-text-compact">
-                {{
-                  element.name ? truncateText(element.name, 60) : truncateText(element.content, 60)
-                }}
-              </div>
-
-              <div v-if="props.modelId && messageTokens.has(element.id)" class="token-compact">
-                {{ messageTokens.get(element.id) }}
-              </div>
-
-              <div class="message-actions-compact" @click.stop>
-                <el-tooltip content="编辑消息" placement="top" :show-after="500">
-                  <el-button link size="small" @click="handleEditMessage(index)">
-                    <el-icon><Edit /></el-icon>
-                  </el-button>
-                </el-tooltip>
-                <el-switch
-                  v-model="element.isEnabled"
-                  :active-value="true"
-                  :inactive-value="false"
-                  size="small"
-                  @change="handleToggleEnabled(index)"
-                />
-              </div>
-            </div>
-
-            <!-- 模板锚点 & 普通消息 - 正常模式 -->
-            <div
-              v-else
-              class="message-card"
-              :class="{
-                disabled: element.isEnabled === false,
-                'template-anchor-card': isTemplateAnchorType(element.type),
-              }"
-            >
-              <div class="drag-handle">
-                <el-icon><Rank /></el-icon>
-              </div>
-
-              <div class="message-content">
-                <div class="message-role">
-                  <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
-                    <el-icon style="margin-right: 4px">
-                      <component :is="getRoleIcon(element.role)" />
-                    </el-icon>
-                    {{ getRoleLabel(element.role) }}
-                  </el-tag>
-                  <!-- 追加的模板锚点 Tag -->
-                  <el-tag
-                    v-if="isTemplateAnchorType(element.type)"
-                    :type="getAnchorTagType(element.type)"
-                    size="small"
-                    effect="plain"
-                    class="injection-tag"
-                  >
-                    <el-icon style="margin-right: 4px">
-                      <component :is="getAnchorIcon(element.type)" />
-                    </el-icon>
-                    {{ getAnchorDef(element.type)?.name }}
-                  </el-tag>
-                  <!-- 注入策略标签 -->
-                  <el-tag
-                    v-if="
-                      element.injectionStrategy?.type === 'advanced_depth' ||
-                      (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
-                    "
-                    size="small"
-                    type="warning"
-                    effect="plain"
-                    class="injection-tag"
-                  >
-                    🔩 深度 {{ element.injectionStrategy.depthConfig }}
-                  </el-tag>
-                  <el-tag
-                    v-else-if="
-                      element.injectionStrategy?.type === 'depth' ||
-                      (!element.injectionStrategy?.type &&
-                        element.injectionStrategy?.depth !== undefined)
-                    "
-                    size="small"
-                    type="warning"
-                    effect="plain"
-                    class="injection-tag"
-                  >
-                    📍 深度 {{ element.injectionStrategy.depth }}
-                  </el-tag>
-                  <el-tag
-                    v-else-if="
-                      element.injectionStrategy?.type === 'anchor' ||
-                      (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
-                    "
-                    size="small"
-                    type="success"
-                    effect="plain"
-                    class="injection-tag"
-                  >
-                    ⚓ {{ element.injectionStrategy.anchorTarget }}
-                    {{ element.injectionStrategy.anchorPosition === "before" ? "前" : "后" }}
-                  </el-tag>
-                  <!-- 模型匹配标签 -->
-                  <el-tag
-                    v-if="element.modelMatch?.enabled"
-                    size="small"
-                    type="warning"
-                    effect="plain"
-                    class="model-match-tag"
-                  >
-                    🎯 模型限定
-                  </el-tag>
-                  <!-- Token 数量 -->
-                  <el-tag
-                    v-if="props.modelId && messageTokens.has(element.id)"
-                    size="small"
-                    type="info"
-                    effect="plain"
-                    class="token-tag"
-                  >
-                    {{ messageTokens.get(element.id) }} tokens
-                  </el-tag>
+                <div class="message-text-compact placeholder-text">
+                  {{ getAnchorDef(element.type)?.name }}
                 </div>
-
-                <div v-if="element.name" class="message-name">
-                  {{ element.name }}
-                </div>
-                <div class="message-text">
-                  {{ truncateText(element.content, 120) }}
+                <div class="message-actions-compact">
+                  <el-switch
+                    v-model="element.isEnabled"
+                    :active-value="true"
+                    :inactive-value="false"
+                    size="small"
+                    @change="handleToggleEnabled(index)"
+                  />
                 </div>
               </div>
 
-              <div class="message-actions">
-                <el-tooltip content="编辑消息" placement="top" :show-after="500">
-                  <el-button link size="small" @click="handleEditMessage(index)">
-                    <el-icon><Edit /></el-icon>
-                  </el-button>
-                </el-tooltip>
-                <el-tooltip content="复制消息配置" placement="top" :show-after="500">
-                  <el-button link size="small" @click="handleCopyMessage(index)">
-                    <el-icon><CopyDocument /></el-icon>
-                  </el-button>
-                </el-tooltip>
-                <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
-                  <span>
-                    <el-popconfirm
-                      title="确定要用剪贴板内容覆盖这条消息吗？"
-                      @confirm="handlePasteMessage(index)"
-                      width="220"
-                    >
-                      <template #reference>
-                        <el-button link size="small">
-                          <el-icon><DocumentCopy /></el-icon>
-                        </el-button>
-                      </template>
-                    </el-popconfirm>
-                  </span>
-                </el-tooltip>
-                <!-- 模板锚点隐藏删除按钮 -->
-                <el-tooltip
-                  v-if="!isTemplateAnchorType(element.type)"
-                  content="删除消息"
-                  placement="top"
-                  :show-after="500"
+              <!-- 纯占位符锚点 - 正常模式 -->
+              <div
+                v-else-if="isPurePlaceholderAnchorType(element.type)"
+                class="message-card placeholder-card"
+                :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
+              >
+                <div class="drag-handle">
+                  <el-icon><Rank /></el-icon>
+                </div>
+                <div class="message-content">
+                  <div class="message-role">
+                    <el-tag :type="getAnchorTagType(element.type)" size="small" effect="plain">
+                      <el-icon style="margin-right: 4px">
+                        <component :is="getAnchorIcon(element.type)" />
+                      </el-icon>
+                      {{ getAnchorDef(element.type)?.name }}
+                    </el-tag>
+                  </div>
+                  <div class="message-text placeholder-text">
+                    {{ getAnchorDef(element.type)?.description }}
+                  </div>
+                </div>
+                <div class="message-actions">
+                  <el-switch
+                    v-model="element.isEnabled"
+                    :active-value="true"
+                    :inactive-value="false"
+                    size="small"
+                    @change="handleToggleEnabled(index)"
+                  />
+                </div>
+              </div>
+
+              <!-- 模板锚点 & 普通消息 - 紧凑模式 -->
+              <div
+                v-else-if="props.compact"
+                class="message-card message-card-compact"
+                :class="{
+                  disabled: element.isEnabled === false,
+                  'template-anchor-card-compact': isTemplateAnchorType(element.type),
+                }"
+                @click="handleEditMessage(index)"
+              >
+                <div class="drag-handle">
+                  <el-icon><Rank /></el-icon>
+                </div>
+                <div class="role-icon">
+                  <el-icon :color="getRoleColor(element.role)">
+                    <component :is="getRoleIcon(element.role)" />
+                  </el-icon>
+                </div>
+
+                <!-- 徽章们 -->
+                <span
+                  v-if="isTemplateAnchorType(element.type)"
+                  class="injection-badge-compact"
+                  :title="getAnchorDef(element.type)?.name"
+                  >⚓</span
                 >
-                  <span>
-                    <el-popconfirm
-                      title="确定要删除这条预设消息吗？"
-                      @confirm="handleDeleteMessage(index)"
-                      width="240"
+                <span
+                  v-if="
+                    element.injectionStrategy?.type === 'advanced_depth' ||
+                    (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
+                  "
+                  class="injection-badge-compact"
+                  :title="`高级深度: ${element.injectionStrategy.depthConfig}`"
+                  >🔩{{ element.injectionStrategy.depthConfig }}</span
+                >
+                <span
+                  v-else-if="
+                    element.injectionStrategy?.type === 'depth' ||
+                    (!element.injectionStrategy?.type &&
+                      element.injectionStrategy?.depth !== undefined)
+                  "
+                  class="injection-badge-compact"
+                  title="深度注入"
+                  >📍{{ element.injectionStrategy.depth }}</span
+                >
+                <span
+                  v-else-if="
+                    element.injectionStrategy?.type === 'anchor' ||
+                    (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
+                  "
+                  class="injection-badge-compact"
+                  title="锚点注入"
+                  >⚓</span
+                >
+                <span
+                  v-if="element.modelMatch?.enabled"
+                  class="model-match-badge-compact"
+                  title="仅特定模型生效"
+                  >🎯</span
+                >
+
+                <div class="message-text-compact">
+                  {{
+                    element.name
+                      ? truncateText(element.name, 60)
+                      : truncateText(element.content, 60)
+                  }}
+                </div>
+
+                <div v-if="props.modelId && messageTokens.has(element.id)" class="token-compact">
+                  {{ messageTokens.get(element.id) }}
+                </div>
+
+                <div class="message-actions-compact" @click.stop>
+                  <el-tooltip content="编辑消息" placement="top" :show-after="500">
+                    <el-button link size="small" @click="handleEditMessage(index)">
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-switch
+                    v-model="element.isEnabled"
+                    :active-value="true"
+                    :inactive-value="false"
+                    size="small"
+                    @change="handleToggleEnabled(index)"
+                  />
+                </div>
+              </div>
+
+              <!-- 模板锚点 & 普通消息 - 正常模式 -->
+              <div
+                v-else
+                class="message-card"
+                :class="{
+                  disabled: element.isEnabled === false,
+                  'template-anchor-card': isTemplateAnchorType(element.type),
+                }"
+              >
+                <div class="drag-handle">
+                  <el-icon><Rank /></el-icon>
+                </div>
+
+                <div class="message-content">
+                  <div class="message-role">
+                    <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
+                      <el-icon style="margin-right: 4px">
+                        <component :is="getRoleIcon(element.role)" />
+                      </el-icon>
+                      {{ getRoleLabel(element.role) }}
+                    </el-tag>
+                    <!-- 追加的模板锚点 Tag -->
+                    <el-tag
+                      v-if="isTemplateAnchorType(element.type)"
+                      :type="getAnchorTagType(element.type)"
+                      size="small"
+                      effect="plain"
+                      class="injection-tag"
                     >
-                      <template #reference>
-                        <el-button link size="small" type="danger">
-                          <el-icon><Delete /></el-icon>
-                        </el-button>
-                      </template>
-                    </el-popconfirm>
-                  </span>
-                </el-tooltip>
-                <el-switch
-                  v-model="element.isEnabled"
-                  :active-value="true"
-                  :inactive-value="false"
-                  size="small"
-                  @change="handleToggleEnabled(index)"
-                />
+                      <el-icon style="margin-right: 4px">
+                        <component :is="getAnchorIcon(element.type)" />
+                      </el-icon>
+                      {{ getAnchorDef(element.type)?.name }}
+                    </el-tag>
+                    <!-- 注入策略标签 -->
+                    <el-tag
+                      v-if="
+                        element.injectionStrategy?.type === 'advanced_depth' ||
+                        (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
+                      "
+                      size="small"
+                      type="warning"
+                      effect="plain"
+                      class="injection-tag"
+                    >
+                      🔩 深度 {{ element.injectionStrategy.depthConfig }}
+                    </el-tag>
+                    <el-tag
+                      v-else-if="
+                        element.injectionStrategy?.type === 'depth' ||
+                        (!element.injectionStrategy?.type &&
+                          element.injectionStrategy?.depth !== undefined)
+                      "
+                      size="small"
+                      type="warning"
+                      effect="plain"
+                      class="injection-tag"
+                    >
+                      📍 深度 {{ element.injectionStrategy.depth }}
+                    </el-tag>
+                    <el-tag
+                      v-else-if="
+                        element.injectionStrategy?.type === 'anchor' ||
+                        (!element.injectionStrategy?.type &&
+                          element.injectionStrategy?.anchorTarget)
+                      "
+                      size="small"
+                      type="success"
+                      effect="plain"
+                      class="injection-tag"
+                    >
+                      ⚓ {{ element.injectionStrategy.anchorTarget }}
+                      {{ element.injectionStrategy.anchorPosition === "before" ? "前" : "后" }}
+                    </el-tag>
+                    <!-- 模型匹配标签 -->
+                    <el-tag
+                      v-if="element.modelMatch?.enabled"
+                      size="small"
+                      type="warning"
+                      effect="plain"
+                      class="model-match-tag"
+                    >
+                      🎯 模型限定
+                    </el-tag>
+                    <!-- Token 数量 -->
+                    <el-tag
+                      v-if="props.modelId && messageTokens.has(element.id)"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      class="token-tag"
+                    >
+                      {{ messageTokens.get(element.id) }} tokens
+                    </el-tag>
+                  </div>
+
+                  <div v-if="element.name" class="message-name">
+                    {{ element.name }}
+                  </div>
+                  <div class="message-text">
+                    {{ truncateText(element.content, 120) }}
+                  </div>
+                </div>
+
+                <div class="message-actions">
+                  <el-tooltip content="编辑消息" placement="top" :show-after="500">
+                    <el-button link size="small" @click="handleEditMessage(index)">
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip content="复制消息配置" placement="top" :show-after="500">
+                    <el-button link size="small" @click="handleCopyMessage(index)">
+                      <el-icon><CopyDocument /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
+                    <span>
+                      <el-popconfirm
+                        title="确定要用剪贴板内容覆盖这条消息吗？"
+                        @confirm="handlePasteMessage(index)"
+                        width="220"
+                      >
+                        <template #reference>
+                          <el-button link size="small">
+                            <el-icon><DocumentCopy /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-popconfirm>
+                    </span>
+                  </el-tooltip>
+                  <!-- 模板锚点隐藏删除按钮 -->
+                  <el-tooltip
+                    v-if="!isTemplateAnchorType(element.type)"
+                    content="删除消息"
+                    placement="top"
+                    :show-after="500"
+                  >
+                    <span>
+                      <el-popconfirm
+                        title="确定要删除这条预设消息吗？"
+                        @confirm="handleDeleteMessage(index)"
+                        width="240"
+                      >
+                        <template #reference>
+                          <el-button link size="small" type="danger">
+                            <el-icon><Delete /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-popconfirm>
+                    </span>
+                  </el-tooltip>
+                  <el-switch
+                    v-model="element.isEnabled"
+                    :active-value="true"
+                    :inactive-value="false"
+                    size="small"
+                    @change="handleToggleEnabled(index)"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </VueDraggableNext>
+          </VueDraggableNext>
 
-        <!-- 空状态 -->
-        <div v-if="localMessages.length === 0" class="empty-state">
-          <el-empty description="暂无预设消息，点击上方按钮添加">
-            <el-button type="primary" @click="handleAddMessage"> 添加第一条消息 </el-button>
-          </el-empty>
+          <!-- 空状态 -->
+          <div v-if="localMessages.length === 0" class="empty-state">
+            <el-empty description="暂无预设消息，点击上方按钮添加">
+              <el-button type="primary" @click="handleAddMessage"> 添加第一条消息 </el-button>
+            </el-empty>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
 
     <!-- 消息编辑器 -->
     <PresetMessageEditor
@@ -519,6 +532,9 @@ const userProfileStore = useUserProfileStore();
 const chatStore = useLlmChatStore();
 const showUserProfileDialog = ref(false);
 const anchorRegistry = useAnchorRegistry();
+
+// 折叠状态，默认展开
+const isCollapsed = ref(false);
 
 // #region 辅助函数
 /**
@@ -1092,6 +1108,38 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
+}
+
+.collapse-btn {
+  padding: 4px;
+  margin-right: 4px;
+}
+
+.collapse-btn .el-icon {
+  transition: transform 0.3s ease;
+}
+
+.collapse-btn .el-icon.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+/* 折叠过渡动画 */
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  opacity: 1;
+  max-height: 2000px;
 }
 
 .token-info {

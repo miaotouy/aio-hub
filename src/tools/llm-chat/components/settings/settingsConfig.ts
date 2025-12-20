@@ -275,6 +275,20 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "uiPreferences.rendererThrottleMs",
         hint: "控制消息渲染的节流时间，数值越小越实时，但性能开销越大",
         keywords: "ui renderer throttle 节流 性能",
+      },{
+        id: "virtualListOverscan",
+        label:
+          "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
+        component: "ElSlider",
+        props: {
+          min: 5,
+          max: 100,
+          step: 5,
+          "format-tooltip": (val: number) => `${val}条`,
+        },
+        modelPath: "uiPreferences.virtualListOverscan",
+        hint: "预渲染消息列表可视区域外的消息数量，数值越大滚动越平滑，但内存占用越高。如果遇到长消息导致滚动条抖动，可适当增大此值。",
+        keywords: "ui virtual list overscan 虚拟 消息 列表 预渲染 滚动 性能",
       },
     ],
   },

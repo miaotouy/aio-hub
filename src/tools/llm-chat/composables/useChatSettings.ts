@@ -162,6 +162,8 @@ export interface ChatSettings {
     showWallpaperInDetachedMode: boolean;
     /** 是否允许组件分离（显示分离手柄） */
     enableDetachableHandle: boolean;
+    /** 虚拟列表预渲染数量 */
+    virtualListOverscan: number;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -266,6 +268,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     enableEnterAnimation: true, // 默认开启
     showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
     enableDetachableHandle: true, // 默认允许组件分离
+    virtualListOverscan: 20, // 预渲染可视区域外的消息数量
   },
   modelPreferences: {
     defaultModel: "",

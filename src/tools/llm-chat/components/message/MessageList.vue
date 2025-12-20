@@ -117,7 +117,9 @@ const virtualizer = useVirtualizer({
   },
   getScrollElement: () => messagesContainer.value,
   estimateSize: () => 160, // 预估每条消息的高度
-  overscan: 30, // 预渲染可视区域外的 30 条消息，防止长消息导致滚动条抖动
+  get overscan() {
+    return settings.value.uiPreferences.virtualListOverscan;
+  },
 });
 
 // 虚拟项列表

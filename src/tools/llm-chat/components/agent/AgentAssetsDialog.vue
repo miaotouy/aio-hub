@@ -42,8 +42,6 @@ const localAssetGroups = computed({
     width="90%"
     height="85vh"
     :show-footer="false"
-    append-to-body
-    class="agent-assets-dialog"
   >
     <AgentAssetsManager
       v-model="localAssets"
@@ -54,9 +52,4 @@ const localAssetGroups = computed({
 </template>
 
 <style scoped>
-.agent-assets-dialog :deep(.el-dialog__body) {
-  padding: 0;
-  height: calc(100% - 50px); /* 减去 header 高度 */
-  overflow: hidden;
-}
 </style>

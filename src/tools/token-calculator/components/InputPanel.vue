@@ -66,7 +66,6 @@
       v-model="dialogVisible"
       :title="dialogTitle"
       width="400px"
-      append-to-body
       destroy-on-close
     >
       <el-form :model="mediaForm" label-width="80px">

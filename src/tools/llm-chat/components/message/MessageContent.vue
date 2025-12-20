@@ -20,6 +20,7 @@ import {
 } from "../../utils/chatRegexUtils";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
+import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -367,12 +368,12 @@ watch(
         agent,
         session: session ?? undefined,
       });
-
       const macroProcessed = await processMacros(macroProcessor, content, context);
-      displayedContent.value = macroProcessed;
+      // 预处理资产链接（同步），确保 v-html 模式下也能正确渲染
+      displayedContent.value = processMessageAssetsSync(macroProcessed, currentAgent.value);
     } else {
-      // 直接显示内容，agent-asset:// URL 会在 ImageNode 中解析
-      displayedContent.value = content;
+      // 直接显示内容，但也需要预处理资产链接
+      displayedContent.value = processMessageAssetsSync(content, currentAgent.value);
     }
   },
   { immediate: true }

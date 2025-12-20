@@ -586,10 +586,29 @@ const handlePreview = async (asset: AgentAsset) => {
 };
 
 /**
- * 复制资产 ID
+ * 获取文件后缀名
  */
-const handleCopyId = (id: string) => {
-  const refText = `asset://${id}`;
+const getFileExtension = (filename: string): string => {
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot === -1 || lastDot === filename.length - 1) return "";
+  return filename.substring(lastDot + 1).toLowerCase();
+};
+
+/**
+ * 生成完整的资产引用路径
+ * 格式: asset://{group}/{id}.{ext}
+ */
+const buildAssetRef = (asset: AgentAsset): string => {
+  const group = asset.group || "default";
+  const ext = getFileExtension(asset.filename);
+  return ext ? `asset://${group}/${asset.id}.${ext}` : `asset://${group}/${asset.id}`;
+};
+
+/**
+ * 复制资产引用
+ */
+const handleCopyId = (asset: AgentAsset) => {
+  const refText = buildAssetRef(asset);
   copy(refText);
   customMessage.success(`已复制引用: ${refText}`);
 };
@@ -873,12 +892,12 @@ const AssetThumbnail = {
                     <el-tooltip content="预览" :show-after="500">
                       <el-button circle size="small" :icon="ZoomIn" @click="handlePreview(asset)" />
                     </el-tooltip>
-                    <el-tooltip content="复制引用 ID" :show-after="500">
+                    <el-tooltip content="复制引用路径" :show-after="500">
                       <el-button
                         circle
                         size="small"
                         :icon="CopyDocument"
-                        @click="handleCopyId(asset.id)"
+                        @click="handleCopyId(asset)"
                       />
                     </el-tooltip>
                     <el-tooltip content="编辑信息" :show-after="50">
@@ -961,7 +980,13 @@ const AssetThumbnail = {
         <el-form-item label="ID" required>
           <el-input v-model="editForm.id" placeholder="唯一标识符，用于引用" />
           <div class="form-tip">
-            在对话中使用 <code>asset://{{ editForm.id || "ID" }}</code> 引用此资产
+            在对话中使用
+            <code
+              >asset://{{ editForm.group || "default" }}/{{
+                editForm.id || "ID"
+              }}.{{ editingAsset ? getFileExtension(editingAsset.filename) || "ext" : "ext" }}</code
+            >
+            引用此资产
           </div>
         </el-form-item>
         <el-form-item label="描述">

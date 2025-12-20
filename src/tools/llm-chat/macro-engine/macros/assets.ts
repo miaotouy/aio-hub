@@ -28,10 +28,27 @@ export function registerAssetMacros(registry: MacroRegistry): void {
           return 'No assets available for this agent.';
         }
 
+        // 辅助函数：获取文件后缀
+        const getFileExtension = (filename: string): string => {
+          const lastDot = filename.lastIndexOf('.');
+          if (lastDot === -1 || lastDot === filename.length - 1) return '';
+          return filename.substring(lastDot + 1).toLowerCase();
+        };
+
+        // 辅助函数：生成完整的资产引用路径
+        const buildAssetRef = (asset: typeof assets[0]): string => {
+          const group = asset.group || 'default';
+          const ext = getFileExtension(asset.filename);
+          return ext ? `asset://${group}/${asset.id}.${ext}` : `asset://${group}/${asset.id}`;
+        };
+
         let output = 'Available Assets:\n';
+        output += 'Reference format: asset://{group}/{id}.{ext}\n\n';
+        
         assets.forEach(asset => {
           const typeLabel = asset.type.charAt(0).toUpperCase() + asset.type.slice(1);
-          output += `- [${typeLabel}] ${asset.id} (id: ${asset.id})`;
+          const ref = buildAssetRef(asset);
+          output += `- [${typeLabel}] ${ref}`;
           if (asset.description) {
             output += `: ${asset.description}`;
           }

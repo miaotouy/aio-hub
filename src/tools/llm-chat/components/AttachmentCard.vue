@@ -14,6 +14,7 @@ import {
 import type { Asset } from "@/types/asset-management";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
+import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
@@ -58,6 +59,7 @@ const emit = defineEmits<Emits>();
 
 const { show: showImage } = useImageViewer();
 const { previewVideo } = useVideoViewer();
+const { previewPlaylist: previewAudioPlaylist } = useAudioViewer();
 const { saveAssetThumbnail } = useAssetManager();
 const {
   tasks,
@@ -114,6 +116,8 @@ const formattedSize = computed(() => {
 const isImage = computed(() => props.asset.type === "image");
 // 是否为视频类型
 const isVideo = computed(() => props.asset.type === "video");
+// 是否为音频类型
+const isAudio = computed(() => props.asset.type === "audio");
 
 // 是否应该使用长条形式（非图片类型都用长条）
 const isBarLayout = computed(() => !isImage.value);
@@ -321,10 +325,33 @@ const handlePreview = async () => {
     return;
   }
 
+  // 音频类型：打开音频预览
+  if (isAudio.value) {
+    await handleAudioPreview();
+    return;
+  }
+
   // 文档类型：打开预览对话框
   if (isDocument.value) {
     showDocumentPreview.value = true;
     return;
+  }
+};
+
+// 处理音频预览
+const handleAudioPreview = async () => {
+  try {
+    // 获取所有音频类型的附件
+    const allAssets = props.allAssets || [props.asset];
+    const audioAssets = allAssets.filter((asset) => asset.type === "audio");
+
+    // 查找当前音频在音频列表中的索引
+    const currentIndex = audioAssets.findIndex((asset) => asset.id === props.asset.id);
+
+    // 传递音频数组和当前索引给音频查看器
+    await previewAudioPlaylist(audioAssets, currentIndex >= 0 ? currentIndex : 0);
+  } catch (error) {
+    errorHandler.error(error, "打开音频预览失败");
   }
 };
 
@@ -420,7 +447,7 @@ onUnmounted(() => {
     <template v-if="isBarLayout">
       <div
         class="bar-layout-container"
-        :class="{ clickable: isDocument || isVideo }"
+        :class="{ clickable: isDocument || isVideo || isAudio }"
         @click="handlePreview"
       >
         <!-- 文件图标区域 -->
@@ -434,7 +461,8 @@ onUnmounted(() => {
           <template v-else>
             <div v-if="assetUrl" class="bar-thumbnail-wrapper">
               <img :src="assetUrl" class="bar-thumbnail-image" alt="预览" />
-              <div v-if="isVideo" class="bar-video-overlay">
+              <!-- 视频需要播放图标暗示，音频封面直接展示即可 -->
+              <div v-if="isVideo" class="bar-media-overlay">
                 <Play class="play-icon" :size="16" fill="currentColor" />
               </div>
             </div>
@@ -1088,7 +1116,7 @@ onUnmounted(() => {
   object-fit: cover;
 }
 
-.bar-video-overlay {
+.bar-media-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -1098,16 +1126,17 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.3);
-  color: rgba(255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.bar-video-overlay .play-icon {
+.bar-media-overlay .play-icon {
   width: 16px;
   height: 16px;
   fill: rgba(255, 255, 255, 0.9);
   stroke: none;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
+
 
 .import-spinner-small {
   width: 14px;

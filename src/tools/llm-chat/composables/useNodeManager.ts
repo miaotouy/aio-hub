@@ -868,13 +868,14 @@ export function useNodeManager() {
       return null;
     }
 
-    // 创建新节点，保留源节点的角色
+    // 创建新节点，保留源节点的角色和元数据（如用户档案信息）
     const newNode = createNode({
       role: sourceNode.role,
       content: newContent,
       parentId: sourceNode.parentId,
       status: 'complete',
       attachments,
+      metadata: sourceNode.metadata ? { ...sourceNode.metadata } : undefined,
     });
 
     // 添加到会话

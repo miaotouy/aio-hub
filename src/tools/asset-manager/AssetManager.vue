@@ -138,6 +138,7 @@ import { ElMessageBox } from "element-plus";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
+import { useAudioViewer } from "@/composables/useAudioViewer";
 import { customMessage } from "@/utils/customMessage";
 import type {
   Asset,
@@ -178,6 +179,7 @@ const {
 } = useAssetManager();
 const imageViewer = useImageViewer();
 const videoViewer = useVideoViewer();
+const audioViewer = useAudioViewer();
 
 // --- 状态管理 ---
 const config = ref(createDefaultConfig());
@@ -347,6 +349,8 @@ const handleSelectAsset = async (asset: Asset) => {
     imageViewer.show(urls, index >= 0 ? index : 0);
   } else if (asset.type === "video") {
     videoViewer.previewVideo(asset);
+  } else if (asset.type === "audio") {
+    audioViewer.previewAudio(asset);
   } else if (asset.type === "document") {
     selectedAssetForPreview.value = asset;
     isPreviewDialogVisible.value = true;

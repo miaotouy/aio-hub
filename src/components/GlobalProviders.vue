@@ -3,8 +3,10 @@ import { onMounted } from "vue";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
+import { useAudioViewer } from "@/composables/useAudioViewer";
 import ImageViewer from "@/components/common/ImageViewer.vue";
 import VideoViewer from "@/components/common/VideoViewer.vue";
+import AudioViewer from "@/components/common/AudioViewer.vue";
 import ModelSelectDialog from "@/components/common/ModelSelectDialog.vue";
 import SyncServiceProvider from "@/components/SyncServiceProvider.vue";
 
@@ -12,6 +14,8 @@ import SyncServiceProvider from "@/components/SyncServiceProvider.vue";
 const imageViewer = useImageViewer();
 // 全局视频查看器状态
 const videoViewer = useVideoViewer();
+// 全局音频查看器状态
+const audioViewer = useAudioViewer();
 
 onMounted(() => {
   // 初始化跨窗口通信总线
@@ -43,8 +47,18 @@ onMounted(() => {
     v-model:visible="videoViewer.visible.value"
     :src="videoViewer.src.value"
     :title="videoViewer.title.value"
-    :poster="videoViewer.poster?.value"
+    :poster="videoViewer.poster.value"
     @close="videoViewer.close"
+  />
+
+  <!-- 全局音频预览器 -->
+  <AudioViewer
+    v-model:visible="audioViewer.visible.value"
+    :src="audioViewer.src.value"
+    :title="audioViewer.title.value"
+    :poster="audioViewer.poster.value"
+    :artist="audioViewer.artist.value"
+    @close="audioViewer.close"
   />
 
   <!-- 插槽，用于渲染应用主体内容 -->

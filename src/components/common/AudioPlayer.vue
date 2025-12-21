@@ -1,0 +1,887 @@
+<template>
+  <div
+    class="audio-player"
+    :class="{ 'is-playing': isPlaying }"
+    @keydown="handleKeydown"
+    tabindex="0"
+  >
+    <!-- 音频元素 (隐藏) -->
+    <audio
+      ref="audioRef"
+      :src="src"
+      :loop="isLoop"
+      :muted="isMuted"
+      :autoplay="autoplay"
+      @timeupdate="handleTimeUpdate"
+      @loadedmetadata="handleLoadedMetadata"
+      @ended="handleEnded"
+      @play="onPlay"
+      @pause="onPause"
+      @volumechange="handleVolumeChange"
+      @error="handleError"
+    ></audio>
+
+    <!-- 顶部信息区 -->
+    <div class="audio-header">
+      <div class="cover-container" :class="{ 'rotating': isPlaying }">
+        <img v-if="poster" :src="poster" class="cover-image" alt="poster" />
+        <div v-else class="cover-placeholder">
+          <Music :size="32" />
+        </div>
+      </div>
+      <div class="audio-info">
+        <h3 class="audio-title">{{ audioName }}</h3>
+        <p class="audio-artist">{{ artist || '未知艺术家' }}</p>
+      </div>
+      <div class="header-actions">
+        <slot name="actions"></slot>
+      </div>
+    </div>
+
+    <!-- 波形图/进度条区域 -->
+    <div class="waveform-section">
+      <div
+        class="waveform-container"
+        ref="waveformRef"
+        @mousedown="startDragging"
+        @mousemove="handleProgressHover"
+        @mouseleave="showHoverPreview = false"
+      >
+        <!-- 波形条 -->
+        <div class="waveform-bars">
+          <div
+            v-for="(bar, index) in waveformData"
+            :key="index"
+            class="waveform-bar-wrapper"
+          >
+            <div
+              class="waveform-bar bar-bg"
+              :style="{ height: (bar * 100) + '%' }"
+            ></div>
+            <div
+              class="waveform-bar bar-fg"
+              :style="{
+                height: (bar * 100) + '%',
+                opacity: (index / waveformData.length * 100) < progressPercentage ? 1 : 0
+              }"
+            ></div>
+          </div>
+        </div>
+
+        <!-- 播放头指示器 -->
+        <div
+          class="playhead"
+          :style="{ left: progressPercentage + '%' }"
+        ></div>
+
+        <!-- 悬停预览线 -->
+        <div
+          v-if="showHoverPreview"
+          class="hover-line"
+          :style="{ left: hoverPosition + '%' }"
+        >
+          <span class="hover-time">{{ formattedHoverTime }}</span>
+        </div>
+
+        <!-- 缓冲进度 -->
+        <div class="buffer-bar" :style="{ width: bufferedPercentage + '%' }"></div>
+      </div>
+
+      <!-- 时间显示 -->
+      <div class="time-info">
+        <span>{{ formattedCurrentTime }}</span>
+        <span>{{ formattedDuration }}</span>
+      </div>
+    </div>
+
+    <!-- 控制栏 -->
+    <div class="controls-bar">
+      <div class="controls-left">
+        <!-- 倍速控制 -->
+        <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
+          <button
+            class="control-btn text-btn"
+            @click="showPlaybackRateMenu = !showPlaybackRateMenu"
+            @mouseenter="showPlaybackRateMenu = true"
+          >
+            {{ playbackRate }}x
+          </button>
+          <div v-if="showPlaybackRateMenu" class="popup-menu rate-menu">
+            <div
+              v-for="rate in [2.0, 1.5, 1.25, 1.0, 0.75, 0.5]"
+              :key="rate"
+              class="menu-item"
+              :class="{ active: playbackRate === rate }"
+              @click="setPlaybackRate(rate)"
+            >
+              {{ rate }}x
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls-center">
+        <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
+          <Rewind :size="20" />
+        </button>
+        <button class="control-btn main-btn" @click="togglePlay" :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'">
+          <component :is="isPlaying ? Pause : Play" :size="28" fill="currentColor" />
+        </button>
+        <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
+          <FastForward :size="20" />
+        </button>
+      </div>
+
+      <div class="controls-right">
+        <!-- 音量控制 -->
+        <div
+          class="volume-control"
+          @mouseenter="showVolumeSlider = true"
+          @mouseleave="showVolumeSlider = false"
+        >
+          <button class="control-btn" @click="toggleMute">
+            <component :is="volumeIcon" :size="20" />
+          </button>
+          <div class="volume-slider-container">
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="volume"
+              @input="setVolume"
+              class="volume-slider"
+              :style="{ '--volume-percent': volume * 100 + '%' }"
+            />
+          </div>
+        </div>
+
+        <!-- 循环模式 -->
+        <button
+          class="control-btn"
+          :class="{ 'is-active': isLoop }"
+          @click="toggleLoop"
+          :title="isLoop ? '单曲循环' : '列表播放'"
+        >
+          <Repeat :size="20" />
+        </button>
+      </div>
+    </div>
+
+    <!-- 加载/错误状态 -->
+    <div v-if="isLoading" class="status-overlay">
+      <div class="spinner"></div>
+    </div>
+    <div v-if="error" class="status-overlay error">
+      <AlertCircle :size="24" />
+      <span>播放失败</span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import {
+  Play,
+  Pause,
+  Music,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Repeat,
+  Rewind,
+  FastForward,
+  AlertCircle,
+} from "lucide-vue-next";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("AudioPlayer");
+
+const props = withDefaults(
+  defineProps<{
+    src: string;
+    title?: string;
+    artist?: string;
+    poster?: string;
+    autoplay?: boolean;
+    loop?: boolean;
+    muted?: boolean;
+    showWaveform?: boolean;
+  }>(),
+  {
+    autoplay: false,
+    loop: false,
+    muted: false,
+    showWaveform: true,
+  }
+);
+
+const emit = defineEmits<{
+  (e: "play"): void;
+  (e: "pause"): void;
+  (e: "ended"): void;
+  (e: "error", err: any): void;
+}>();
+
+// 引用
+const audioRef = ref<HTMLAudioElement | null>(null);
+const waveformRef = ref<HTMLElement | null>(null);
+
+// 状态
+const isPlaying = ref(false);
+const currentTime = ref(0);
+const duration = ref(0);
+const isLoading = ref(true);
+const error = ref(false);
+
+const STORAGE_KEY_VOLUME = "audio-player-volume";
+const STORAGE_KEY_MUTED = "audio-player-muted";
+
+const savedVolume = localStorage.getItem(STORAGE_KEY_VOLUME);
+const savedMuted = localStorage.getItem(STORAGE_KEY_MUTED);
+
+const volume = ref(savedVolume !== null ? parseFloat(savedVolume) : 1);
+const isMuted = ref(savedMuted !== null ? savedMuted === "true" : props.muted);
+const isLoop = ref(props.loop);
+const playbackRate = ref(1);
+const bufferedPercentage = ref(0);
+
+// 波形数据
+const waveformData = ref<number[]>([]);
+const samples = 120;
+
+// 交互状态
+const isDragging = ref(false);
+const showHoverPreview = ref(false);
+const hoverTime = ref(0);
+const hoverPosition = ref(0);
+const showPlaybackRateMenu = ref(false);
+const showVolumeSlider = ref(false);
+
+// 计算属性
+const progressPercentage = computed(() => {
+  if (duration.value === 0) return 0;
+  return (currentTime.value / duration.value) * 100;
+});
+
+const volumeIcon = computed(() => {
+  if (isMuted.value || volume.value === 0) return VolumeX;
+  if (volume.value < 0.5) return Volume1;
+  return Volume2;
+});
+
+const formattedCurrentTime = computed(() => formatTime(currentTime.value));
+const formattedDuration = computed(() => formatTime(duration.value));
+const formattedHoverTime = computed(() => formatTime(hoverTime.value));
+
+const audioName = computed(() => {
+  if (props.title) return props.title;
+  if (!props.src) return "未知音频";
+  try {
+    const urlParts = props.src.split(/[/\\]/);
+    let name = urlParts.pop() || "";
+    name = name.split("?")[0];
+    return decodeURIComponent(name);
+  } catch {
+    return "未知音频";
+  }
+});
+
+// 方法
+function formatTime(seconds: number): string {
+  if (!seconds || isNaN(seconds)) return "00:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+function togglePlay() {
+  if (!audioRef.value) return;
+  if (audioRef.value.paused) {
+    audioRef.value.play().catch((e) => {
+      logger.error("播放失败", e);
+      error.value = true;
+      emit("error", e);
+    });
+  } else {
+    audioRef.value.pause();
+  }
+}
+
+function onPlay() {
+  isPlaying.value = true;
+  isLoading.value = false;
+  emit("play");
+}
+
+function onPause() {
+  isPlaying.value = false;
+  emit("pause");
+}
+
+function handleTimeUpdate() {
+  if (!audioRef.value || isDragging.value) return;
+  currentTime.value = audioRef.value.currentTime;
+  updateBuffered();
+}
+
+function updateBuffered() {
+  if (!audioRef.value) return;
+  const buffered = audioRef.value.buffered;
+  if (buffered.length > 0) {
+    for (let i = 0; i < buffered.length; i++) {
+      if (
+        buffered.start(i) <= audioRef.value.currentTime &&
+        buffered.end(i) >= audioRef.value.currentTime
+      ) {
+        bufferedPercentage.value = (buffered.end(i) / audioRef.value.duration) * 100;
+        break;
+      }
+    }
+  }
+}
+
+function handleLoadedMetadata() {
+  if (!audioRef.value) return;
+  duration.value = audioRef.value.duration;
+  isLoading.value = false;
+  audioRef.value.volume = volume.value;
+  audioRef.value.muted = isMuted.value;
+}
+
+function handleEnded() {
+  isPlaying.value = false;
+  emit("ended");
+}
+
+function handleError(e: any) {
+  isLoading.value = false;
+  error.value = true;
+  emit("error", e);
+}
+
+// 波形解析
+async function initWaveform() {
+  if (!props.src || !props.showWaveform) {
+    // 填充默认数据
+    waveformData.value = Array(samples).fill(0.1);
+    return;
+  }
+
+  try {
+    const response = await fetch(props.src);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    
+    const channelData = audioBuffer.getChannelData(0);
+    const blockSize = Math.floor(channelData.length / samples);
+    const rawData: number[] = [];
+    
+    for (let i = 0; i < samples; i++) {
+      const start = i * blockSize;
+      let sum = 0;
+      for (let j = 0; j < blockSize; j++) {
+        sum += Math.abs(channelData[start + j]);
+      }
+      rawData.push(sum / blockSize);
+    }
+    
+    const max = Math.max(...rawData);
+    waveformData.value = rawData.map(v => Math.max(0.05, v / max));
+    await audioCtx.close();
+  } catch (err) {
+    logger.warn("波形解析失败", err);
+    waveformData.value = Array(samples).fill(0.2);
+  }
+}
+
+// 交互逻辑
+function calculateTimeFromEvent(e: MouseEvent): number {
+  if (!waveformRef.value || duration.value === 0) return 0;
+  const rect = waveformRef.value.getBoundingClientRect();
+  const offsetX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+  return (offsetX / rect.width) * duration.value;
+}
+
+function startDragging(e: MouseEvent) {
+  if (duration.value === 0) return;
+  isDragging.value = true;
+  handleDrag(e);
+  document.addEventListener("mousemove", handleDrag);
+  document.addEventListener("mouseup", stopDragging);
+}
+
+function handleDrag(e: MouseEvent) {
+  if (!isDragging.value) return;
+  const time = calculateTimeFromEvent(e);
+  currentTime.value = time;
+}
+
+function stopDragging(e: MouseEvent) {
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  document.removeEventListener("mousemove", handleDrag);
+  document.removeEventListener("mouseup", stopDragging);
+
+  const time = calculateTimeFromEvent(e);
+  currentTime.value = time;
+  if (audioRef.value) {
+    audioRef.value.currentTime = time;
+  }
+}
+
+function handleProgressHover(e: MouseEvent) {
+  if (!waveformRef.value) return;
+  const rect = waveformRef.value.getBoundingClientRect();
+  const offsetX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+
+  hoverPosition.value = (offsetX / rect.width) * 100;
+  hoverTime.value = (offsetX / rect.width) * duration.value;
+  showHoverPreview.value = true;
+}
+
+function toggleMute() {
+  if (!audioRef.value) return;
+  isMuted.value = !isMuted.value;
+  audioRef.value.muted = isMuted.value;
+}
+
+function setVolume(e: Event) {
+  if (!audioRef.value) return;
+  const val = parseFloat((e.target as HTMLInputElement).value);
+  volume.value = val;
+  audioRef.value.volume = val;
+  if (val > 0 && isMuted.value) {
+    isMuted.value = false;
+    audioRef.value.muted = false;
+  }
+}
+
+function handleVolumeChange() {
+  if (!audioRef.value) return;
+  volume.value = audioRef.value.volume;
+  isMuted.value = audioRef.value.muted;
+  localStorage.setItem(STORAGE_KEY_VOLUME, volume.value.toString());
+  localStorage.setItem(STORAGE_KEY_MUTED, isMuted.value.toString());
+}
+
+function setPlaybackRate(rate: number) {
+  if (!audioRef.value) return;
+  playbackRate.value = rate;
+  audioRef.value.playbackRate = rate;
+  showPlaybackRateMenu.value = false;
+}
+
+function toggleLoop() {
+  isLoop.value = !isLoop.value;
+}
+
+function skip(seconds: number) {
+  if (!audioRef.value) return;
+  audioRef.value.currentTime = Math.min(
+    Math.max(audioRef.value.currentTime + seconds, 0),
+    duration.value
+  );
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+  switch (e.code) {
+    case "Space":
+      e.preventDefault();
+      togglePlay();
+      break;
+    case "ArrowLeft":
+      e.preventDefault();
+      skip(-5);
+      break;
+    case "ArrowRight":
+      e.preventDefault();
+      skip(5);
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      const volUp = Math.min(volume.value + 0.1, 1);
+      volume.value = volUp;
+      if (audioRef.value) audioRef.value.volume = volUp;
+      break;
+    case "ArrowDown":
+      e.preventDefault();
+      const volDown = Math.max(volume.value - 0.1, 0);
+      volume.value = volDown;
+      if (audioRef.value) audioRef.value.volume = volDown;
+      break;
+  }
+}
+
+// 监听源变化
+watch(() => props.src, () => {
+  error.value = false;
+  isLoading.value = true;
+  initWaveform();
+});
+
+onMounted(() => {
+  initWaveform();
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("mousemove", handleDrag);
+  document.removeEventListener("mouseup", stopDragging);
+});
+</script>
+
+<style scoped>
+.audio-player {
+  width: 100%;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--el-text-color-primary);
+  outline: none;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.audio-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cover-container {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cover-container.rotating {
+  animation: rotate 20s linear infinite;
+  border-radius: 50%;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-placeholder {
+  color: var(--el-text-color-secondary);
+}
+
+.audio-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.audio-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-artist {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 波形图区域 */
+.waveform-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.waveform-container {
+  position: relative;
+  height: 64px;
+  cursor: pointer;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.waveform-bars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  gap: 2px;
+}
+
+.waveform-bar-wrapper {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.waveform-bar {
+  width: 100%;
+  max-width: 4px;
+  border-radius: 2px;
+  transition: opacity 0.15s ease;
+}
+
+.waveform-bar.bar-bg {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.waveform-bar.bar-fg {
+  position: absolute;
+  background: var(--el-color-primary);
+}
+
+.playhead {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--el-color-primary);
+  border-radius: 1px;
+  box-shadow: 0 0 8px var(--el-color-primary);pointer-events: none;
+  z-index: 5;
+  transition: left 0.1s linear;
+}
+
+.time-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--el-text-color-secondary);
+}
+
+.buffer-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.hover-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hover-time {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: white;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+/* 控制栏 */
+.controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.controls-left, .controls-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.controls-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.controls-right {
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--el-text-color-primary);
+}
+
+.control-btn.main-btn {
+  background: var(--el-color-primary);
+  color: white;
+  padding: 10px;
+  border-radius: 50%;
+}
+
+.control-btn.main-btn:hover {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
+
+.control-btn.is-active {
+  color: var(--el-color-primary);
+}
+
+.text-btn {
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 36px;
+}
+
+/* 音量控制 */
+.volume-control {
+  display: flex;
+  align-items: center;
+}
+
+.volume-slider-container {
+  width: 0;
+  overflow: hidden;
+  transition: width 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.volume-control:hover .volume-slider-container {
+  width: 80px;
+  margin-left: 8px;
+}
+
+.volume-slider {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 0.1);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+}
+
+/* 菜单 */
+.menu-container {
+  position: relative;
+}
+
+.popup-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+  z-index: 100;
+  min-width: 80px;
+}
+
+.menu-item {
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.menu-item.active {
+  color: var(--el-color-primary);
+}
+
+/* 状态遮罩 */
+.status-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--el-color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.status-overlay.error {
+  color: var(--el-color-danger);
+}
+</style>

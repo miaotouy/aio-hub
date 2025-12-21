@@ -33,12 +33,13 @@
                   :autoplay="false"
                 />
               </div>
-              <div v-else-if="isAudio" class="audio-preview-placeholder">
-                <div class="icon-wrapper">
-                  <Music :size="64" />
-                </div>
-                <span class="hint">{{ asset.name }}</span>
-                <audio v-if="previewUrl" :src="previewUrl" controls class="audio-player"></audio>
+              <div v-else-if="isAudio" class="audio-player-wrapper">
+                <AudioPlayer
+                  v-if="previewUrl"
+                  :src="previewUrl"
+                  :title="asset.name"
+                  :autoplay="false"
+                />
               </div>
               <div v-else class="generic-preview">
                 <FileIcon :file-name="asset.name" :file-type="asset.type" :size="64" />
@@ -101,11 +102,12 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
+import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
-import { Copy, RefreshCw, Music } from "lucide-vue-next";
+import { Copy, RefreshCw } from "lucide-vue-next";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("TranscriptionDialog");
@@ -259,7 +261,16 @@ const handleImagePreview = () => {
   overflow: hidden;
 }
 
-.audio-preview-placeholder,
+.audio-player-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
 .generic-preview {
   display: flex;
   flex-direction: column;
@@ -269,28 +280,6 @@ const handleImagePreview = () => {
   color: var(--text-color-secondary);
   width: 100%;
   padding: 20px;
-}
-
-.icon-wrapper {
-  color: var(--text-color-secondary);
-  opacity: 0.5;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.hint {
-  font-size: 14px;
-  opacity: 0.8;
-  max-width: 80%;
-  text-align: center;
-  word-break: break-all;
-}
-
-.audio-player {
-  width: 90%;
-  max-width: 600px;
-  height: 40px;
 }
 
 .editor-column {

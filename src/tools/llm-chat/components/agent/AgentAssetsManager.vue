@@ -28,6 +28,7 @@ import DropZone from "@/components/common/DropZone.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import VideoViewer from "@/components/common/VideoViewer.vue";
+import AudioViewer from "@/components/common/AudioViewer.vue";
 import { useClipboard } from "@vueuse/core";
 
 const errorHandler = createModuleErrorHandler("AgentAssetsManager");
@@ -1083,7 +1084,15 @@ const AssetThumbnail = {
       :title="editingAsset?.filename || '视频预览'"
     />
 
-    <!-- 音频/文件预览对话框 -->
+    <!-- 音频预览 -->
+    <AudioViewer
+      v-else-if="mediaPreviewType === 'audio'"
+      v-model:visible="mediaPreviewVisible"
+      :src="mediaPreviewUrl"
+      :title="editingAsset?.filename || '音频预览'"
+    />
+
+    <!-- 文件预览对话框 -->
     <BaseDialog
       v-else
       v-model="mediaPreviewVisible"
@@ -1092,14 +1101,7 @@ const AssetThumbnail = {
       :show-footer="false"
     >
       <div class="media-container">
-        <audio
-          v-if="mediaPreviewType === 'audio'"
-          :src="mediaPreviewUrl"
-          controls
-          autoplay
-          class="preview-player audio"
-        />
-        <div v-else class="file-preview-placeholder">
+        <div class="file-preview-placeholder">
           <FileIcon :filename="mediaPreviewUrl" :size="64" />
           <p>此文件类型不支持在线预览</p>
         </div>
@@ -1449,17 +1451,6 @@ code {
   border-radius: 4px;
   overflow: hidden;
   min-height: 200px;
-}
-
-.preview-player {
-  max-width: 100%;
-  max-height: 60vh;
-}
-
-.preview-player.audio {
-  width: 100%;
-  height: 50px;
-  margin: 20px;
 }
 
 .file-preview-placeholder {

@@ -1241,14 +1241,19 @@ const AssetThumbnail = {
   flex: 1;
   min-height: 0; /* Fix flex overflow */
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  /* 覆盖 DropZone border 变体的负 margin，防止溢出 */
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
 }
 
 .assets-grid-container {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .empty-state {
@@ -1264,7 +1269,6 @@ const AssetThumbnail = {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 16px;
-  width: 100%;
 }
 
 /* Asset Card */

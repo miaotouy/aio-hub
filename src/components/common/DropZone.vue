@@ -431,10 +431,16 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .drop-zone__slot {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .drop-zone__default {

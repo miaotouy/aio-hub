@@ -38,6 +38,7 @@
                   v-if="previewUrl"
                   :src="previewUrl"
                   :title="asset.name"
+                  :poster="posterUrl"
                   :autoplay="false"
                 />
               </div>
@@ -131,6 +132,7 @@ const { show: showImage } = useImageViewer();
 
 const currentContent = ref("");
 const previewUrl = ref("");
+const posterUrl = ref("");
 const isLoadingUrl = ref(false);
 const isSaving = ref(false);
 
@@ -144,6 +146,7 @@ const loadPreviewUrl = async () => {
   try {
     const basePath = await assetManagerEngine.getAssetBasePath();
 
+    // 1. 加载主资源 URL
     // 如果是 pending 状态，使用 originalPath
     if (props.asset.importStatus === "pending" || props.asset.importStatus === "importing") {
       const originalPath = props.asset.originalPath || props.asset.path;
@@ -155,6 +158,16 @@ const loadPreviewUrl = async () => {
     } else {
       // 已导入状态
       previewUrl.value = assetManagerEngine.convertToAssetProtocol(props.asset.path, basePath);
+    }
+
+    // 2. 加载缩略图/封面 URL (如有)
+    if (props.asset.thumbnailPath) {
+      posterUrl.value = assetManagerEngine.convertToAssetProtocol(
+        props.asset.thumbnailPath,
+        basePath
+      );
+    } else {
+      posterUrl.value = "";
     }
   } catch (error) {
     logger.error("加载预览 URL 失败", error);

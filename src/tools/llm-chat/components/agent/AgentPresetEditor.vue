@@ -2,13 +2,13 @@
   <div class="agent-preset-editor" :class="{ compact: props.compact }">
     <!-- 头部操作栏 -->
     <div v-if="!props.compact" class="editor-header">
-      <div class="header-title">
-        <el-button link size="small" class="collapse-btn" @click="isCollapsed = !isCollapsed">
+      <div class="header-title" @click="isCollapsed = !isCollapsed">
+        <el-button link size="small" class="collapse-btn">
           <el-icon :class="{ 'is-collapsed': isCollapsed }">
             <ArrowDown />
           </el-icon>
         </el-button>
-        <span>预设消息配置</span>
+        <span class="title-text">预设消息配置</span>
         <el-tooltip content="预设消息将作为所有对话的上下文基础" placement="top">
           <el-icon><QuestionFilled /></el-icon>
         </el-tooltip>
@@ -1105,14 +1105,24 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
 .header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   font-size: 16px;
   font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.header-title:hover {
+  background-color: var(--el-fill-color-light);
 }
 
 .collapse-btn {
-  padding: 4px;
-  margin-right: 4px;
+  padding: 0;
+  pointer-events: none;
 }
 
 .collapse-btn .el-icon {

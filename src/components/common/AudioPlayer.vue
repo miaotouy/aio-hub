@@ -123,11 +123,7 @@
 
       <div class="controls-right">
         <!-- 音量控制 -->
-        <div
-          class="volume-control"
-          @mouseenter="showVolumeSlider = true"
-          @mouseleave="showVolumeSlider = false"
-        >
+        <div class="volume-control">
           <button class="control-btn" @click="toggleMute">
             <component :is="volumeIcon" :size="20" />
           </button>
@@ -142,6 +138,7 @@
               class="volume-slider"
               :style="{ '--volume-percent': volume * 100 + '%' }"
             />
+            <span class="volume-value">{{ volumePercentage }}%</span>
           </div>
         </div>
 
@@ -251,7 +248,6 @@ const showHoverPreview = ref(false);
 const hoverTime = ref(0);
 const hoverPosition = ref(0);
 const showPlaybackRateMenu = ref(false);
-const showVolumeSlider = ref(false);
 
 // 计算属性
 const progressPercentage = computed(() => {
@@ -268,6 +264,7 @@ const volumeIcon = computed(() => {
 const formattedCurrentTime = computed(() => formatTime(currentTime.value));
 const formattedDuration = computed(() => formatTime(duration.value));
 const formattedHoverTime = computed(() => formatTime(hoverTime.value));
+const volumePercentage = computed(() => Math.round(volume.value * 100));
 
 const audioName = computed(() => {
   if (props.title) return props.title;
@@ -999,16 +996,18 @@ onBeforeUnmount(() => {
 }
 
 .volume-slider-container {
-  width: 0;
-  overflow: hidden;
-  transition: width 0.2s;
+  width: 120px;
+  margin-left: 8px;
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
-.volume-control:hover .volume-slider-container {
-  width: 80px;
-  margin-left: 8px;
+.volume-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--el-text-color-secondary);
+  min-width: 32px;
 }
 
 .volume-slider {

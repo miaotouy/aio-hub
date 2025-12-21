@@ -12,10 +12,12 @@
       <AudioPlayer
         v-if="visible"
         :src="src"
-        :title="displayTitle"
+        :title="title || displayTitle"
         :autoplay="true"
         :poster="poster"
         :artist="artist"
+        :playlist="playlist"
+        :initial-index="initialIndex"
       />
     </div>
   </BaseDialog>
@@ -24,14 +26,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import BaseDialog from "./BaseDialog.vue";
-import AudioPlayer from "./AudioPlayer.vue";
+import AudioPlayer, { type AudioItem } from "./AudioPlayer.vue";
 
 const props = defineProps<{
   visible: boolean;
-  src: string;
+  src?: string;
   title?: string;
   poster?: string;
   artist?: string;
+  playlist?: AudioItem[];
+  initialIndex?: number;
 }>();
 
 const emit = defineEmits<{
@@ -41,9 +45,13 @@ const emit = defineEmits<{
 
 const displayTitle = computed(() => {
   if (props.title) return props.title;
-  if (!props.src) return "音频预览";
+  if (!props.src && (!props.playlist || props.playlist.length === 0)) return "音频预览";
+
+  const targetSrc = props.src || (props.playlist && props.playlist[props.initialIndex || 0]?.src);
+  if (!targetSrc) return "音频预览";
+
   try {
-    const urlParts = props.src.split(/[/\\]/);
+    const urlParts = targetSrc.split(/[/\\]/);
     let name = urlParts.pop() || "";
     name = name.split("?")[0];
     return decodeURIComponent(name) || "音频预览";
@@ -54,4 +62,14 @@ const displayTitle = computed(() => {
 </script>
 
 <style scoped>
+.audio-viewer-content {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.player-wrapper {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
 </style>

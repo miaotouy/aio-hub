@@ -350,7 +350,17 @@ const handleSelectAsset = async (asset: Asset) => {
   } else if (asset.type === "video") {
     videoViewer.previewVideo(asset);
   } else if (asset.type === "audio") {
-    audioViewer.previewAudio(asset);
+    // 筛选当前列表中的所有音频
+    const audioAssets = assets.value.filter((a) => a.type === "audio");
+    console.log("Audio Assets Filtered:", {
+      clicked: asset.name,
+      count: audioAssets.length,
+      allAudioNames: audioAssets.map(a => a.name)
+    });
+    // 找到当前点击音频在列表中的索引
+    const index = audioAssets.findIndex((a) => a.id === asset.id);
+    // 预览播放列表
+    audioViewer.previewPlaylist(audioAssets, index >= 0 ? index : 0);
   } else if (asset.type === "document") {
     selectedAssetForPreview.value = asset;
     isPreviewDialogVisible.value = true;

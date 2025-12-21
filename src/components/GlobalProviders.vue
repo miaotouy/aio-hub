@@ -58,6 +58,8 @@ onMounted(() => {
     :title="audioViewer.title.value"
     :poster="audioViewer.poster.value"
     :artist="audioViewer.artist.value"
+    :playlist="audioViewer.playlist.value"
+    :initial-index="audioViewer.initialIndex.value"
     @close="audioViewer.close"
   />
 

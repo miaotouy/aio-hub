@@ -8,7 +8,7 @@
     <!-- 音频元素 (隐藏) -->
     <audio
       ref="audioRef"
-      :src="src"
+      :src="currentAudio.src"
       :loop="isLoop"
       :muted="isMuted"
       :autoplay="autoplay"
@@ -36,7 +36,12 @@
           <div class="ripple"></div>
         </div>
         <div class="cover-container" :class="{ rotating: isPlaying }">
-          <img v-if="poster" :src="poster" class="cover-image" alt="poster" />
+          <img
+            v-if="currentAudio.poster"
+            :src="currentAudio.poster"
+            class="cover-image"
+            alt="poster"
+          />
           <div v-else class="cover-placeholder">
             <Music :size="48" />
           </div>
@@ -44,7 +49,12 @@
       </div>
       <div class="audio-info">
         <h3 class="audio-title">{{ audioName }}</h3>
-        <p class="audio-artist">{{ artist || "未知艺术家" }}</p>
+        <p class="audio-artist">
+          {{ currentAudio.artist || "未知艺术家" }}
+          <span v-if="effectivePlaylist.length > 1" style="opacity: 0.5; font-size: 12px;">
+            ({{ currentIndex + 1 }}/{{ effectivePlaylist.length }})
+          </span>
+        </p>
       </div>
     </div>
 
@@ -106,6 +116,14 @@
       </div>
 
       <div class="controls-center">
+        <button
+          v-if="effectivePlaylist.length > 1"
+          class="control-btn"
+          @click="prev"
+          title="上一曲"
+        >
+          <SkipBack :size="20" fill="currentColor" />
+        </button>
         <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
           <Rewind :size="20" />
         </button>
@@ -118,6 +136,14 @@
         </button>
         <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
           <FastForward :size="20" />
+        </button>
+        <button
+          v-if="effectivePlaylist.length > 1"
+          class="control-btn"
+          @click="next"
+          title="下一曲"
+        >
+          <SkipForward :size="20" fill="currentColor" />
         </button>
       </div>
 
@@ -151,6 +177,17 @@
         >
           <Repeat :size="20" />
         </button>
+
+        <!-- 播放列表 -->
+        <button
+          v-if="effectivePlaylist.length > 1"
+          class="control-btn"
+          :class="{ 'is-active': showPlaylist }"
+          @click="showPlaylist = !showPlaylist"
+          title="播放列表"
+        >
+          <ListMusic :size="20" />
+        </button>
       </div>
     </div>
 
@@ -162,6 +199,41 @@
       <AlertCircle :size="24" />
       <span>播放失败</span>
     </div>
+
+    <!-- 播放列表抽屉/浮层 -->
+    <Transition name="slide-up">
+      <div v-if="showPlaylist" class="playlist-overlay">
+        <div class="playlist-header">
+          <span>播放列表 ({{ effectivePlaylist.length }})</span>
+          <button class="close-btn" @click="showPlaylist = false">×</button>
+        </div>
+        <div class="playlist-items">
+          <div
+            v-for="(item, index) in effectivePlaylist"
+            :key="index"
+            class="playlist-item"
+            :class="{ active: currentIndex === index }"
+            @click="selectTrack(index)"
+          >
+            <div class="item-left">
+              <div class="item-poster">
+                <img v-if="item.poster" :src="item.poster" alt="poster" />
+                <Music v-else :size="16" />
+              </div>
+              <div class="item-info">
+                <span class="item-title">{{ item.title || "未知音频" }}</span>
+                <span class="item-artist">{{ item.artist || "未知艺术家" }}</span>
+              </div>
+            </div>
+            <div v-if="currentIndex === index && isPlaying" class="playing-icon">
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -179,27 +251,42 @@ import {
   Rewind,
   FastForward,
   AlertCircle,
+  SkipBack,
+  SkipForward,
+  ListMusic,
 } from "lucide-vue-next";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("AudioPlayer");
 
+export interface AudioItem {
+  src: string;
+  title?: string;
+  artist?: string;
+  poster?: string;
+}
+
 const props = withDefaults(
   defineProps<{
-    src: string;
+    src?: string;
     title?: string;
     artist?: string;
     poster?: string;
+    playlist?: AudioItem[];
+    initialIndex?: number;
     autoplay?: boolean;
     loop?: boolean;
     muted?: boolean;
     showWaveform?: boolean;
   }>(),
   {
+    src: "",
     autoplay: false,
     loop: false,
     muted: false,
     showWaveform: true,
+    playlist: () => [],
+    initialIndex: 0,
   }
 );
 
@@ -208,6 +295,7 @@ const emit = defineEmits<{
   (e: "pause"): void;
   (e: "ended"): void;
   (e: "error", err: any): void;
+  (e: "change", index: number, item: AudioItem): void;
 }>();
 
 // 引用
@@ -231,6 +319,8 @@ const savedMuted = localStorage.getItem(STORAGE_KEY_MUTED);
 const volume = ref(savedVolume !== null ? parseFloat(savedVolume) : 1);
 const isMuted = ref(savedMuted !== null ? savedMuted === "true" : props.muted);
 const isLoop = ref(props.loop);
+const currentIndex = ref(props.initialIndex);
+const showPlaylist = ref(false);
 const playbackRate = ref(1);
 const bufferedPercentage = ref(0);
 const posterColor = ref<string | null>(null);
@@ -266,11 +356,28 @@ const formattedDuration = computed(() => formatTime(duration.value));
 const formattedHoverTime = computed(() => formatTime(hoverTime.value));
 const volumePercentage = computed(() => Math.round(volume.value * 100));
 
+const currentAudio = computed<AudioItem>(() => {
+  const list = effectivePlaylist.value;
+  return list[currentIndex.value] || list[0] || { src: props.src };
+});
+
+const effectivePlaylist = computed(() => {
+  if (props.playlist && props.playlist.length > 0) {
+    return props.playlist;
+  }
+  return [{
+    src: props.src,
+    title: props.title,
+    artist: props.artist,
+    poster: props.poster,
+  }];
+});
+
 const audioName = computed(() => {
-  if (props.title) return props.title;
-  if (!props.src) return "未知音频";
+  if (currentAudio.value.title) return currentAudio.value.title;
+  if (!currentAudio.value.src) return "未知音频";
   try {
-    const urlParts = props.src.split(/[/\\]/);
+    const urlParts = currentAudio.value.src.split(/[/\\]/);
     let name = urlParts.pop() || "";
     name = name.split("?")[0];
     return decodeURIComponent(name);
@@ -342,8 +449,55 @@ function handleLoadedMetadata() {
 }
 
 function handleEnded() {
-  isPlaying.value = false;
-  emit("ended");
+  if (isLoop.value) {
+    audioRef.value?.play();
+    return;
+  }
+
+  const list = effectivePlaylist.value;
+  if (list.length > 1) {
+    next();
+  } else {
+    isPlaying.value = false;
+    emit("ended");
+  }
+}
+
+function next() {
+  const list = effectivePlaylist.value;
+  if (list.length > 0) {
+    currentIndex.value = (currentIndex.value + 1) % list.length;
+    emit("change", currentIndex.value, currentAudio.value);
+    playAfterChange();
+  }
+}
+
+function prev() {
+  const list = effectivePlaylist.value;
+  if (list.length > 0) {
+    currentIndex.value =
+      (currentIndex.value - 1 + list.length) % list.length;
+    emit("change", currentIndex.value, currentAudio.value);
+    playAfterChange();
+  }
+}
+
+function selectTrack(index: number) {
+  currentIndex.value = index;
+  emit("change", currentIndex.value, currentAudio.value);
+  playAfterChange();
+  showPlaylist.value = false;
+}
+
+function playAfterChange() {
+  isLoading.value = true;
+  error.value = false;
+  // 给一丢丢延迟让 src 切换生效
+  setTimeout(() => {
+    audioRef.value?.play().catch((e) => {
+      logger.error("切歌播放失败", e);
+    });
+  }, 50);
 }
 
 function handleError(e: any) {
@@ -678,7 +832,7 @@ async function extractPosterColor() {
 
 // 监听源变化
 watch(
-  () => props.src,
+  () => currentAudio.value.src,
   () => {
     error.value = false;
     isLoading.value = true;
@@ -687,9 +841,14 @@ watch(
 );
 
 // 监听封面变化
-watch(() => props.poster, extractPosterColor, { immediate: true });
+watch(() => currentAudio.value.poster, extractPosterColor, { immediate: true });
 
 onMounted(() => {
+  logger.debug("AudioPlayer mounted", {
+    playlistLength: props.playlist?.length,
+    src: props.src,
+    currentIndex: currentIndex.value
+  });
   initWaveform(); // 监听容器大小变化
   if (waveformRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -1094,5 +1253,148 @@ onBeforeUnmount(() => {
 
 .status-overlay.error {
   color: var(--el-color-danger);
+}
+
+/* 播放列表样式 */
+.playlist-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 70%;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(20px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+  border-radius: 16px 16px 0 0;
+}
+
+.playlist-header {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--el-text-color-secondary);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.playlist-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.playlist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.playlist-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.playlist-item.active {
+  background: rgba(var(--el-color-primary-rgb), 0.15);
+  color: var(--el-color-primary);
+}
+
+.item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.item-poster {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+}
+
+.item-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.item-title {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-artist {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 播放中动画 */
+.playing-icon {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.playing-icon .bar {
+  width: 2px;
+  background: var(--el-color-primary);
+  animation: bar-dance 0.8s ease-in-out infinite alternate;
+}
+
+.playing-icon .bar:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.playing-icon .bar:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bar-dance {
+  from { height: 4px; }
+  to { height: 12px; }
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
 }
 </style>

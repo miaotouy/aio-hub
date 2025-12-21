@@ -754,7 +754,9 @@ const AssetThumbnail = {
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="edit" :icon="Edit">编辑分组</el-dropdown-item>
-                <el-dropdown-item command="copyMacro" :icon="CopyDocument">复制分组宏</el-dropdown-item>
+                <el-dropdown-item command="copyMacro" :icon="CopyDocument"
+                  >复制分组宏</el-dropdown-item
+                >
                 <el-dropdown-item command="delete" :icon="Delete" divided
                   >删除分组</el-dropdown-item
                 >
@@ -998,9 +1000,9 @@ const AssetThumbnail = {
           <div class="form-tip">
             在对话中使用
             <code
-              >agent-asset://{{ editForm.group || "default" }}/{{
-                editForm.id || "ID"
-              }}.{{ editingAsset ? getFileExtension(editingAsset.filename) || "ext" : "ext" }}</code
+              >agent-asset://{{ editForm.group || "default" }}/{{ editForm.id || "ID" }}.{{
+                editingAsset ? getFileExtension(editingAsset.filename) || "ext" : "ext"
+              }}</code
             >
             引用此资产
           </div>
@@ -1128,6 +1130,9 @@ const AssetThumbnail = {
 .sidebar-header {
   padding: 16px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .title {

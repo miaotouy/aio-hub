@@ -23,18 +23,20 @@
 
     <!-- 顶部信息区 -->
     <div class="audio-header">
-      <div class="cover-container" :class="{ 'rotating': isPlaying }">
-        <img v-if="poster" :src="poster" class="cover-image" alt="poster" />
-        <div v-else class="cover-placeholder">
-          <Music :size="32" />
+      <div class="header-actions-top">
+        <slot name="actions"></slot>
+      </div>
+      <div class="cover-wrapper">
+        <div class="cover-container" :class="{ rotating: isPlaying }">
+          <img v-if="poster" :src="poster" class="cover-image" alt="poster" />
+          <div v-else class="cover-placeholder">
+            <Music :size="48" />
+          </div>
         </div>
       </div>
       <div class="audio-info">
         <h3 class="audio-title">{{ audioName }}</h3>
-        <p class="audio-artist">{{ artist || '未知艺术家' }}</p>
-      </div>
-      <div class="header-actions">
-        <slot name="actions"></slot>
+        <p class="audio-artist">{{ artist || "未知艺术家" }}</p>
       </div>
     </div>
 
@@ -47,39 +49,14 @@
         @mousemove="handleProgressHover"
         @mouseleave="showHoverPreview = false"
       >
-        <!-- 波形条 -->
-        <div class="waveform-bars">
-          <div
-            v-for="(bar, index) in waveformData"
-            :key="index"
-            class="waveform-bar-wrapper"
-          >
-            <div
-              class="waveform-bar bar-bg"
-              :style="{ height: (bar * 100) + '%' }"
-            ></div>
-            <div
-              class="waveform-bar bar-fg"
-              :style="{
-                height: (bar * 100) + '%',
-                opacity: (index / waveformData.length * 100) < progressPercentage ? 1 : 0
-              }"
-            ></div>
-          </div>
-        </div>
+        <!-- Canvas 波形 -->
+        <canvas ref="waveformCanvasRef" class="waveform-canvas"></canvas>
 
         <!-- 播放头指示器 -->
-        <div
-          class="playhead"
-          :style="{ left: progressPercentage + '%' }"
-        ></div>
+        <div class="playhead" :style="{ left: progressPercentage + '%' }"></div>
 
         <!-- 悬停预览线 -->
-        <div
-          v-if="showHoverPreview"
-          class="hover-line"
-          :style="{ left: hoverPosition + '%' }"
-        >
+        <div v-if="showHoverPreview" class="hover-line" :style="{ left: hoverPosition + '%' }">
           <span class="hover-time">{{ formattedHoverTime }}</span>
         </div>
 
@@ -124,7 +101,11 @@
         <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
           <Rewind :size="20" />
         </button>
-        <button class="control-btn main-btn" @click="togglePlay" :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'">
+        <button
+          class="control-btn main-btn"
+          @click="togglePlay"
+          :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'"
+        >
           <component :is="isPlaying ? Pause : Play" :size="28" fill="currentColor" />
         </button>
         <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
@@ -226,6 +207,7 @@ const emit = defineEmits<{
 // 引用
 const audioRef = ref<HTMLAudioElement | null>(null);
 const waveformRef = ref<HTMLElement | null>(null);
+const waveformCanvasRef = ref<HTMLCanvasElement | null>(null);
 
 // 状态
 const isPlaying = ref(false);
@@ -248,7 +230,7 @@ const bufferedPercentage = ref(0);
 
 // 波形数据
 const waveformData = ref<number[]>([]);
-const samples = 120;
+const samples = 300;
 
 // 交互状态
 const isDragging = ref(false);
@@ -365,6 +347,7 @@ async function initWaveform() {
   if (!props.src || !props.showWaveform) {
     // 填充默认数据
     waveformData.value = Array(samples).fill(0.1);
+    drawWaveform();
     return;
   }
 
@@ -373,11 +356,11 @@ async function initWaveform() {
     const arrayBuffer = await response.arrayBuffer();
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    
+
     const channelData = audioBuffer.getChannelData(0);
     const blockSize = Math.floor(channelData.length / samples);
     const rawData: number[] = [];
-    
+
     for (let i = 0; i < samples; i++) {
       const start = i * blockSize;
       let sum = 0;
@@ -386,15 +369,150 @@ async function initWaveform() {
       }
       rawData.push(sum / blockSize);
     }
-    
+
     const max = Math.max(...rawData);
-    waveformData.value = rawData.map(v => Math.max(0.05, v / max));
+    waveformData.value = rawData.map((v) => Math.max(0.05, v / max));
     await audioCtx.close();
+    drawWaveform();
   } catch (err) {
     logger.warn("波形解析失败", err);
     waveformData.value = Array(samples).fill(0.2);
+    drawWaveform();
   }
 }
+
+// 绘制连续波形
+function drawWaveform() {
+  const canvas = waveformCanvasRef.value;
+  if (!canvas) return;
+
+  const container = waveformRef.value;
+  if (!container) return;
+
+  // 设置 canvas 尺寸（考虑设备像素比）
+  const dpr = window.devicePixelRatio || 1;
+  const rect = container.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = `${rect.width}px`;
+  canvas.style.height = `${rect.height}px`;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.scale(dpr, dpr);
+
+  const width = rect.width;
+  const height = rect.height;
+  const data = waveformData.value;
+  const progress = progressPercentage.value / 100;
+
+  // 清空画布
+  ctx.clearRect(0, 0, width, height);
+
+  // 获取主题色
+  const computedStyle = getComputedStyle(document.documentElement);
+  const primaryColor = computedStyle.getPropertyValue("--el-color-primary").trim() || "#409eff";
+
+  // 绘制背景波形（未播放部分）
+  drawWaveformPath(ctx, data, width, height, "rgba(255, 255, 255, 0.15)", 0, 1);
+
+  // 绘制进度波形（已播放部分）- 使用渐变
+  if (progress > 0) {
+    const gradient = ctx.createLinearGradient(0, 0, width * progress, 0);
+    gradient.addColorStop(0, primaryColor);
+    gradient.addColorStop(1, primaryColor);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, width * progress, height);
+    ctx.clip();
+    drawWaveformPath(ctx, data, width, height, gradient, 0, 1);
+    ctx.restore();
+  }
+}
+
+// 绘制波形路径（使用贝塞尔曲线平滑）
+function drawWaveformPath(
+  ctx: CanvasRenderingContext2D,
+  data: number[],
+  width: number,
+  height: number,
+  fillStyle: string | CanvasGradient,
+  startRatio: number,
+  endRatio: number
+) {
+  if (data.length === 0) return;
+
+  const padding = 8; // 上下留白
+  const availableHeight = (height - padding * 2) / 2;
+  const centerY = height / 2;
+  const stepX = width / (data.length - 1);
+
+  ctx.fillStyle = fillStyle;
+  ctx.beginPath();
+
+  // 上半部分波形
+  const startIndex = Math.floor(data.length * startRatio);
+  const endIndex = Math.ceil(data.length * endRatio);
+
+  // 移动到起点
+  ctx.moveTo(startIndex * stepX, centerY);
+
+  // 绘制上半部分（使用二次贝塞尔曲线平滑）
+  for (let i = startIndex; i < endIndex; i++) {
+    const x = i * stepX;
+    const y = centerY - data[i] * availableHeight;
+    if (i === startIndex) {
+      ctx.lineTo(x, y);
+    } else {
+      const prevX = (i - 1) * stepX;
+      const prevY = centerY - data[i - 1] * availableHeight;
+      const cpX = (prevX + x) / 2;
+      ctx.quadraticCurveTo(prevX, prevY, cpX, (prevY + y) / 2);
+    }
+  }
+
+  // 连接到最后一个点
+  if (endIndex > startIndex) {
+    const lastX = (endIndex - 1) * stepX;
+    const lastY = centerY - data[endIndex - 1] * availableHeight;
+    ctx.lineTo(lastX, lastY);
+  }
+
+  // 绘制下半部分（镜像）
+  for (let i = endIndex - 1; i >= startIndex; i--) {
+    const x = i * stepX;
+    const y = centerY + data[i] * availableHeight;
+
+    if (i === endIndex - 1) {
+      ctx.lineTo(x, y);
+    } else {
+      const nextX = (i + 1) * stepX;
+      const nextY = centerY + data[i + 1] * availableHeight;
+      const cpX = (nextX + x) / 2;
+      ctx.quadraticCurveTo(nextX, nextY, cpX, (nextY + y) / 2);
+    }
+  }
+
+  // 连接回起点
+  if (startIndex < data.length) {
+    const firstX = startIndex * stepX;
+    const firstY = centerY + data[startIndex] * availableHeight;
+    ctx.lineTo(firstX, firstY);
+  }
+
+  ctx.closePath();
+  ctx.fill();
+}
+
+// 监听进度变化重绘波形
+watch(progressPercentage, () => {
+  drawWaveform();
+});
+
+// 监听窗口大小变化
+let resizeObserver: ResizeObserver | null = null;
 
 // 交互逻辑
 function calculateTimeFromEvent(e: MouseEvent): number {
@@ -517,19 +635,33 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 // 监听源变化
-watch(() => props.src, () => {
-  error.value = false;
-  isLoading.value = true;
-  initWaveform();
-});
+watch(
+  () => props.src,
+  () => {
+    error.value = false;
+    isLoading.value = true;
+    initWaveform();
+  }
+);
 
 onMounted(() => {
-  initWaveform();
+  initWaveform(); // 监听容器大小变化
+  if (waveformRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      drawWaveform();
+    });
+    resizeObserver.observe(waveformRef.value);
+  }
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("mousemove", handleDrag);
   document.removeEventListener("mouseup", stopDragging);
+
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
 });
 </script>
 
@@ -539,7 +671,6 @@ onBeforeUnmount(() => {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
-  border-radius: 12px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -554,21 +685,34 @@ onBeforeUnmount(() => {
 
 .audio-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  position: relative;
+}
+
+.header-actions-top {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.cover-wrapper {
+  padding: 8px 0;
 }
 
 .cover-container {
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
+  width: 240px;
+  height: 240px;
+  border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 .cover-container.rotating {
@@ -577,8 +721,12 @@ onBeforeUnmount(() => {
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .cover-image {
@@ -592,13 +740,14 @@ onBeforeUnmount(() => {
 }
 
 .audio-info {
-  flex: 1;
+  width: 100%;
+  text-align: center;
   min-width: 0;
 }
 
 .audio-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -607,7 +756,7 @@ onBeforeUnmount(() => {
 
 .audio-artist {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
 }
 
@@ -627,42 +776,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.waveform-bars {
+.waveform-canvas {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 4px;
-  gap: 2px;
-}
-
-.waveform-bar-wrapper {
-  position: relative;
-  flex: 1;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.waveform-bar {
   width: 100%;
-  max-width: 4px;
-  border-radius: 2px;
-  transition: opacity 0.15s ease;
-}
-
-.waveform-bar.bar-bg {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.waveform-bar.bar-fg {
-  position: absolute;
-  background: var(--el-color-primary);
+  height: 100%;
 }
 
 .playhead {
@@ -672,7 +791,8 @@ onBeforeUnmount(() => {
   width: 2px;
   background: var(--el-color-primary);
   border-radius: 1px;
-  box-shadow: 0 0 8px var(--el-color-primary);pointer-events: none;
+  box-shadow: 0 0 8px var(--el-color-primary);
+  pointer-events: none;
   z-index: 5;
   transition: left 0.1s linear;
 }
@@ -724,7 +844,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
 }
 
-.controls-left, .controls-right {
+.controls-left,
+.controls-right {
   flex: 1;
   display: flex;
   align-items: center;
@@ -804,7 +925,6 @@ onBeforeUnmount(() => {
   appearance: none;
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 0.1);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -878,7 +998,9 @@ onBeforeUnmount(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .status-overlay.error {

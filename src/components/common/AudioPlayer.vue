@@ -26,7 +26,15 @@
       <div class="header-actions-top">
         <slot name="actions"></slot>
       </div>
-      <div class="cover-wrapper">
+      <div
+        class="cover-wrapper"
+        :style="{ '--ripple-color': posterColor || 'var(--el-color-primary)' }"
+      >
+        <div v-if="isPlaying" class="ripples">
+          <div class="ripple"></div>
+          <div class="ripple"></div>
+          <div class="ripple"></div>
+        </div>
         <div class="cover-container" :class="{ rotating: isPlaying }">
           <img v-if="poster" :src="poster" class="cover-image" alt="poster" />
           <div v-else class="cover-placeholder">
@@ -162,6 +170,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import ColorThief from "color-thief-ts";
 import {
   Play,
   Pause,
@@ -227,6 +236,10 @@ const isMuted = ref(savedMuted !== null ? savedMuted === "true" : props.muted);
 const isLoop = ref(props.loop);
 const playbackRate = ref(1);
 const bufferedPercentage = ref(0);
+const posterColor = ref<string | null>(null);
+
+// 取色器
+const colorThief = new ColorThief();
 
 // 波形数据
 const waveformData = ref<number[]>([]);
@@ -634,6 +647,38 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+// 提取封面颜色
+async function extractPosterColor() {
+  if (!props.poster) {
+    posterColor.value = null;
+    return;
+  }
+
+  try {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = props.poster;
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("图片加载失败"));
+    });
+
+    const color = colorThief.getColor(img) as string | number[];
+    if (color) {
+      // color-thief-ts 可能返回 HEX 字符串或 RGB 数组
+      if (typeof color === "string") {
+        posterColor.value = (color as string).startsWith("#") ? color : `#${color}`;
+      } else if (Array.isArray(color)) {
+        posterColor.value = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+      }
+    }
+  } catch (err) {
+    logger.warn("提取封面颜色失败", err);
+    posterColor.value = null;
+  }
+}
+
 // 监听源变化
 watch(
   () => props.src,
@@ -643,6 +688,9 @@ watch(
     initWaveform();
   }
 );
+
+// 监听封面变化
+watch(() => props.poster, extractPosterColor, { immediate: true });
 
 onMounted(() => {
   initWaveform(); // 监听容器大小变化
@@ -695,15 +743,60 @@ onBeforeUnmount(() => {
 }
 
 .cover-wrapper {
-  padding: 8px 0;
+  padding: 32px 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ripples {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ripple {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: var(--ripple-color);
+  opacity: 0;
+  animation: ripple-out 4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.ripple:nth-child(2) {
+  animation-delay: 1.3s;
+}
+
+.ripple:nth-child(3) {
+  animation-delay: 2.6s;
+}
+
+@keyframes ripple-out {
+  0% {
+    transform: scale(1);
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(1.36);
+    opacity: 0;
+  }
 }
 
 .cover-container {
+  position: relative;
+  z-index: 1;
   width: 240px;
   height: 240px;
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;

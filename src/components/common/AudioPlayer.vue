@@ -51,7 +51,7 @@
         <h3 class="audio-title">{{ audioName }}</h3>
         <p class="audio-artist">
           {{ currentAudio.artist || "未知艺术家" }}
-          <span v-if="effectivePlaylist.length > 1" style="opacity: 0.5; font-size: 12px;">
+          <span v-if="effectivePlaylist.length > 1" style="opacity: 0.5; font-size: 12px">
             ({{ currentIndex + 1 }}/{{ effectivePlaylist.length }})
           </span>
         </p>
@@ -365,12 +365,14 @@ const effectivePlaylist = computed(() => {
   if (props.playlist && props.playlist.length > 0) {
     return props.playlist;
   }
-  return [{
-    src: props.src,
-    title: props.title,
-    artist: props.artist,
-    poster: props.poster,
-  }];
+  return [
+    {
+      src: props.src,
+      title: props.title,
+      artist: props.artist,
+      poster: props.poster,
+    },
+  ];
 });
 
 const audioName = computed(() => {
@@ -475,8 +477,7 @@ function next() {
 function prev() {
   const list = effectivePlaylist.value;
   if (list.length > 0) {
-    currentIndex.value =
-      (currentIndex.value - 1 + list.length) % list.length;
+    currentIndex.value = (currentIndex.value - 1 + list.length) % list.length;
     emit("change", currentIndex.value, currentAudio.value);
     playAfterChange();
   }
@@ -847,7 +848,7 @@ onMounted(() => {
   logger.debug("AudioPlayer mounted", {
     playlistLength: props.playlist?.length,
     src: props.src,
-    currentIndex: currentIndex.value
+    currentIndex: currentIndex.value,
   });
   initWaveform(); // 监听容器大小变化
   if (waveformRef.value) {
@@ -1018,7 +1019,7 @@ onBeforeUnmount(() => {
   height: 64px;
   cursor: pointer;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--el-fill-color-lighter);
   overflow: hidden;
 }
 
@@ -1122,7 +1123,7 @@ onBeforeUnmount(() => {
 }
 
 .control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
 }
 
@@ -1195,8 +1196,8 @@ onBeforeUnmount(() => {
   position: absolute;
   bottom: 100%;
   left: 0;
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(10px);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   padding: 4px;
   margin-bottom: 8px;
@@ -1213,7 +1214,7 @@ onBeforeUnmount(() => {
 }
 
 .menu-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--el-fill-color-light);
 }
 
 .menu-item.active {
@@ -1227,7 +1228,8 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--el-mask-color-extra-light);
+  backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1262,8 +1264,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   height: 70%;
-  background: rgba(20, 20, 20, 0.95);
-  backdrop-filter: blur(20px);
+  background: var(--container-bg);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -1276,7 +1277,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-color);
   font-weight: 600;
 }
 
@@ -1306,11 +1307,11 @@ onBeforeUnmount(() => {
 }
 
 .playlist-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--el-fill-color-light);
 }
 
 .playlist-item.active {
-  background: rgba(var(--el-color-primary-rgb), 0.15);
+  background: color-mix(in srgb, var(--el-color-primary-light-9) 60%, transparent);
   color: var(--el-color-primary);
 }
 
@@ -1384,8 +1385,12 @@ onBeforeUnmount(() => {
 }
 
 @keyframes bar-dance {
-  from { height: 4px; }
-  to { height: 12px; }
+  from {
+    height: 4px;
+  }
+  to {
+    height: 12px;
+  }
 }
 
 .slide-up-enter-active,

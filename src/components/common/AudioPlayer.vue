@@ -668,9 +668,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .audio-player {
   width: 100%;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
   padding: 16px;
   display: flex;
   flex-direction: column;

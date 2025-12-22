@@ -167,8 +167,10 @@ export function useChatExecutor() {
       ...assistantNode.metadata,
       requestStartTime: Date.now(),
       profileName: profile?.name,
+      profileDisplayName: profile?.name,
       providerType: profile?.type,
       modelName: model?.name || agentConfigSnippet.modelId, // 顺便确保 modelName 也有值
+      modelDisplayName: model?.name || agentConfigSnippet.modelId,
     };
     try {
       const { sendRequest } = useLlmRequest();
@@ -653,7 +655,8 @@ export function useChatExecutor() {
     userNode.metadata = {
       ...userNode.metadata,
       userProfileId: effectiveUserProfile.id,
-      userProfileName:
+      userProfileName: effectiveUserProfile.name,
+      userProfileDisplayName:
         effectiveUserProfile.displayName || effectiveUserProfile.name,
       userProfileIcon: effectiveUserProfile.icon,
     };

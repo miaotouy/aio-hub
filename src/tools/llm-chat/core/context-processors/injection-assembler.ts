@@ -239,6 +239,7 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
         ? new Date(inj.message.timestamp).getTime()
         : undefined,
       _userName: inj.message.metadata?.userProfileName,
+      _userDisplayName: inj.message.metadata?.userProfileDisplayName || inj.message.metadata?.userProfileName,
       _userIcon: inj.message.metadata?.userProfileIcon,
     }));
 
@@ -460,6 +461,7 @@ export const injectionAssembler: ContextProcessor = {
           ? new Date(inj.message.timestamp).getTime()
           : undefined,
         _userName: inj.message.metadata?.userProfileName,
+        _userDisplayName: inj.message.metadata?.userProfileDisplayName || inj.message.metadata?.userProfileName,
         _userIcon: inj.message.metadata?.userProfileIcon,
       }));
     };
@@ -486,6 +488,7 @@ export const injectionAssembler: ContextProcessor = {
           ? new Date(msg.timestamp).getTime()
           : undefined,
         _userName: msg.metadata?.userProfileName,
+        _userDisplayName: msg.metadata?.userProfileDisplayName || msg.metadata?.userProfileName,
         _userIcon: msg.metadata?.userProfileIcon,
       });
     };

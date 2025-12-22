@@ -176,24 +176,32 @@ export interface ChatMessageNode {
     agentId?: string;
     /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */
     agentName?: string;
+    /** 生成此消息时使用的 Agent 显示名称（快照） */
+    agentDisplayName?: string;
     /** 生成此消息时使用的 Agent 图标（快照，防止 Agent 被删除后无法显示） */
     agentIcon?: string;
     /** 生成此消息时使用的用户档案 ID */
     userProfileId?: string;
     /** 生成此消息时使用的用户档案名称（快照） */
     userProfileName?: string;
+    /** 生成此消息时使用的用户档案显示名称（快照） */
+    userProfileDisplayName?: string;
     /** 生成此消息时使用的用户档案图标（快照） */
     userProfileIcon?: string;
     /** 生成此消息时使用的 Profile ID */
     profileId?: string;
     /** 生成此消息时使用的 Profile 名称（渠道名称） */
     profileName?: string;
+    /** 生成此消息时使用的 Profile 显示名称 */
+    profileDisplayName?: string;
     /** 生成此消息时使用的提供商类型（如 openai, anthropic） */
     providerType?: string;
     /** 生成此消息时使用的模型 ID */
     modelId?: string;
-    /** 使用的模型名称（显示用） */
+    /** 使用的模型名称（原始名称/ID） */
     modelName?: string;
+    /** 使用的模型显示名称 */
+    modelDisplayName?: string;
     /** 是否被截断 */
     isTruncated?: boolean;
     /** 错误信息 */

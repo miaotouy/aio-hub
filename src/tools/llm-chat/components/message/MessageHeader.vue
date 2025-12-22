@@ -37,8 +37,8 @@ const agentProfileInfo = computed(() => {
   if (!metadata) return null;
 
   // 从元数据快照中获取显示名称（这是最可靠的来源）
-  const snapshotModelName = metadata.modelName;
-  const snapshotProfileName = metadata.profileName;
+  const snapshotModelName = metadata.modelDisplayName || metadata.modelName;
+  const snapshotProfileName = metadata.profileDisplayName || metadata.profileName;
 
   // 获取模型 ID 和提供商类型（用于图标匹配）
   const modelId = metadata.modelId || agent.value?.modelId;
@@ -90,18 +90,24 @@ const effectiveUserProfile = computed(() => {
 const displayName = computed(() => {
   if (props.message.role === "user") {
     // 优先使用消息元数据中的用户档案快照
-    if (props.message.metadata?.userProfileName) {
-      return props.message.metadata.userProfileName;
+    if (props.message.metadata?.userProfileDisplayName || props.message.metadata?.userProfileName) {
+      return props.message.metadata.userProfileDisplayName || props.message.metadata.userProfileName;
     }
     // 回退到当前生效的用户档案
     if (effectiveUserProfile.value) {
-      return effectiveUserProfile.value.name;
+      return effectiveUserProfile.value.displayName || effectiveUserProfile.value.name;
     }
     // 最后使用默认值
     return "你";
   } else if (props.message.role === "assistant") {
     // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）
-    return props.message.metadata?.agentName || agent.value?.name || "助手";
+    return (
+      props.message.metadata?.agentDisplayName ||
+      props.message.metadata?.agentName ||
+      agent.value?.displayName ||
+      agent.value?.name ||
+      "助手"
+    );
   } else {
     return "系统";
   }
@@ -159,7 +165,12 @@ const shouldShowSubtitle = computed(() => {
 
 const nameForAlt = computed(() => {
   if (props.message.role === "user") {
-    return props.message.metadata?.userProfileName || effectiveUserProfile.value?.name;
+    return (
+      props.message.metadata?.userProfileDisplayName ||
+      props.message.metadata?.userProfileName ||
+      effectiveUserProfile.value?.displayName ||
+      effectiveUserProfile.value?.name
+    );
   } else if (props.message.role === "assistant") {
     // 从 agent 中获取原始 name，这通常比 displayName 更干净
     return agent.value?.name;

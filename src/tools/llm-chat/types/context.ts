@@ -44,6 +44,8 @@ export interface ProcessableMessage {
   _timestamp?: number;
   /** [元数据] 用户名称快照（宏还原用） */
   _userName?: string;
+  /** [元数据] 用户显示名称快照（宏还原用） */
+  _userDisplayName?: string;
   /** [元数据] 用户头像快照（宏还原用） */
   _userIcon?: string;
 }
@@ -93,6 +95,8 @@ export interface ContextPreviewData {
     index: number;
     /** 节点所使用的用户名称（快照） */
     userName?: string;
+    /** 节点所使用的用户显示名称（快照） */
+    userDisplayName?: string;
     /** 节点所使用的用户图标（快照） */
     userIcon?: string;
     /** 消息时间戳（宏还原用） */
@@ -109,10 +113,14 @@ export interface ContextPreviewData {
     index: number;
     /** 节点所使用的智能体名称（快照） */
     agentName?: string;
+    /** 节点所使用的智能体显示名称（快照） */
+    agentDisplayName?: string;
     /** 节点所使用的智能体图标（快照） */
     agentIcon?: string;
     /** 节点所使用的用户名称（快照） */
     userName?: string;
+    /** 节点所使用的用户显示名称（快照） */
+    userDisplayName?: string;
     /** 节点所使用的用户图标（快照） */
     userIcon?: string;
     /** 附件的详细分析 */

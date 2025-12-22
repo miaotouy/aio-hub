@@ -122,6 +122,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         isPresetDisplay: true,
         agentId: agent.id,
         agentName: agent.name,
+        agentDisplayName: agent.displayName || agent.name,
         agentIcon: agent.icon,
         profileId: agent.profileId,
         modelId: agent.modelId,

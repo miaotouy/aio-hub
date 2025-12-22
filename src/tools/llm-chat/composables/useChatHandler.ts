@@ -294,11 +294,15 @@ export function useChatHandler() {
     // 直接修改 session.nodes 中的节点，确保响应式更新
     session.nodes[assistantNode.id].metadata = {
       agentId: agentStore.currentAgentId,
-      agentName: currentAgent?.displayName || currentAgent?.name,
+      agentName: currentAgent?.name,
+      agentDisplayName: currentAgent?.displayName || currentAgent?.name,
       agentIcon: currentAgent?.icon,
       profileId: agentConfig.profileId,
+      profileName: profile?.name,
+      profileDisplayName: profile?.name,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,
+      modelDisplayName: model?.name || model?.id,
       virtualTimeConfig: currentAgent?.virtualTimeConfig,
     };
 
@@ -425,11 +429,15 @@ export function useChatHandler() {
     // 直接修改 session.nodes 中的节点，确保响应式更新
     session.nodes[assistantNode.id].metadata = {
       agentId: agentStore.currentAgentId,
-      agentName: currentAgent?.displayName || currentAgent?.name,
+      agentName: currentAgent?.name,
+      agentDisplayName: currentAgent?.displayName || currentAgent?.name,
       agentIcon: currentAgent?.icon,
       profileId: agentConfig.profileId,
+      profileName: profile?.name,
+      profileDisplayName: profile?.name,
       modelId: agentConfig.modelId,
       modelName: model?.name || model?.id,
+      modelDisplayName: model?.name || model?.id,
       virtualTimeConfig: currentAgent?.virtualTimeConfig,
     };
 

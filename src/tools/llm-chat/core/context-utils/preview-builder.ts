@@ -160,8 +160,10 @@ export async function buildPreviewDataFromContext(
           nodeId: msg.sourceId as string,
           index: typeof msg.sourceIndex === "number" ? msg.sourceIndex : -1,
           agentName: undefined,
+          agentDisplayName: undefined,
           agentIcon: undefined,
           userName: undefined,
+          userDisplayName: undefined,
           userIcon: undefined,
           // 没有附件信息
         });
@@ -354,8 +356,10 @@ export async function buildPreviewDataFromContext(
         nodeId: msg.sourceId as string,
         index: typeof msg.sourceIndex === "number" ? msg.sourceIndex : -1,
         agentName: sourceNode.metadata?.agentName,
+        agentDisplayName: sourceNode.metadata?.agentDisplayName || sourceNode.metadata?.agentName,
         agentIcon: sourceNode.metadata?.agentIcon,
         userName: sourceNode.metadata?.userProfileName,
+        userDisplayName: sourceNode.metadata?.userProfileDisplayName || sourceNode.metadata?.userProfileName,
         userIcon: sourceNode.metadata?.userProfileIcon,
         attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
       });

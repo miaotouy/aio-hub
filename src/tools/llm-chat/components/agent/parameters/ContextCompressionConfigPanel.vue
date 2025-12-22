@@ -73,6 +73,7 @@ const summaryModelValue = computed({
 // 重置提示词
 const resetPrompt = () => {
   config.value.summaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryPrompt;
+  config.value.continueSummaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.continueSummaryPrompt;
 };
 </script>
 
@@ -249,7 +250,7 @@ const resetPrompt = () => {
             </el-form-item>
           </div>
 
-          <el-form-item label="摘要提示词模板">
+          <el-form-item label="摘要提示词模板 (初始)">
             <el-input
               v-model="config.summaryPrompt"
               type="textarea"
@@ -257,12 +258,27 @@ const resetPrompt = () => {
               placeholder="输入提示词模板..."
             />
             <div class="form-helper">
-              使用 <code>{context}</code> 代表被压缩的对话内容。<br />
-              <el-button link type="primary" size="small" @click="resetPrompt"
-                >重置为默认提示词</el-button
-              >
+              用于首次压缩。使用 <code>{context}</code> 代表对话内容。
             </div>
           </el-form-item>
+
+          <el-form-item label="摘要提示词模板 (续写)">
+            <el-input
+              v-model="config.continueSummaryPrompt"
+              type="textarea"
+              :rows="4"
+              placeholder="输入续写提示词模板..."
+            />
+            <div class="form-helper">
+              用于在已有摘要基础上追加。使用 <code>{previous_summary}</code> 代表旧摘要，<code>{context}</code> 代表新内容。
+            </div>
+          </el-form-item>
+
+          <div class="prompt-actions">
+            <el-button link type="primary" size="small" @click="resetPrompt">
+              重置所有提示词为默认值
+            </el-button>
+          </div>
         </div>
       </template>
     </el-form>
@@ -336,6 +352,13 @@ const resetPrompt = () => {
 .context-compression-config-panel.is-compact .switch-row {
   flex-direction: row-reverse;
   justify-content: space-between;
+}
+
+.prompt-actions {
+  margin-top: -8px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .compact-slider :deep(.el-slider__input) {

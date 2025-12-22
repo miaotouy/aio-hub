@@ -3,7 +3,7 @@
  * 负责压缩检测、摘要生成和压缩节点创建
  */
 
-import { DEFAULT_CONTEXT_COMPRESSION_CONFIG, DEFAULT_CONTEXT_COMPRESSION_PROMPT, type ChatSession, type ChatMessageNode, type ContextCompressionConfig } from '../types';
+import { DEFAULT_CONTEXT_COMPRESSION_CONFIG, DEFAULT_CONTEXT_COMPRESSION_PROMPT, CONTINUE_CONTEXT_COMPRESSION_PROMPT, type ChatSession, type ChatMessageNode, type ContextCompressionConfig } from '../types';
 import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAgentStore } from '../agentStore';
@@ -111,9 +111,13 @@ export function useContextCompressor() {
   const generateSummary = async (
     messages: ChatMessageNode[],
     config: ContextCompressionConfig,
-    agentId?: string
+    agentId?: string,
+    previousSummary?: string
   ): Promise<string> => {
-    logger.info('开始生成摘要', { messageCount: messages.length });
+    logger.info('开始生成摘要', {
+      messageCount: messages.length,
+      hasPreviousSummary: !!previousSummary
+    });
 
     // 1. 准备消息内容 - 使用更清晰的格式，优先使用元数据中的名称
     const getRoleLabel = (msg: ChatMessageNode): string => {
@@ -145,8 +149,18 @@ export function useContextCompressor() {
       .join('\n\n');
 
     // 2. 准备提示词
-    const promptTemplate = config.summaryPrompt || DEFAULT_CONTEXT_COMPRESSION_PROMPT;
-    const prompt = promptTemplate.replace('{context}', contentText);
+    let prompt = "";
+    if (previousSummary) {
+      // 如果有前情提要，使用续写提示词
+      const promptTemplate = config.continueSummaryPrompt || CONTINUE_CONTEXT_COMPRESSION_PROMPT;
+      prompt = promptTemplate
+        .replace('{previous_summary}', previousSummary)
+        .replace('{context}', contentText);
+    } else {
+      // 否则使用默认提示词
+      const promptTemplate = config.summaryPrompt || DEFAULT_CONTEXT_COMPRESSION_PROMPT;
+      prompt = promptTemplate.replace('{context}', contentText);
+    }
 
     // 3. 确定使用的模型
     let profileId: string;

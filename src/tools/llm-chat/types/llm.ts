@@ -289,6 +289,57 @@ export const DEFAULT_CONTEXT_COMPRESSION_PROMPT = `你的任务是创建一份�
 4. 对于任何待处理事项，请直接引用最近对话中的内容，确保任务之间上下文不会丢失信息
 5. 仅输出摘要内容，不包括任何额外的评论或解释`;
 
+/**
+ * 续写上下文压缩提示词模板
+ * 用于在已有压缩摘要的基础上，根据新的对话内容生成更新后的摘要。
+ */
+export const CONTINUE_CONTEXT_COMPRESSION_PROMPT = `你的任务是根据新增的对话内容，生成一份**全新的、完整的对话摘要**。
+
+**重要说明：**
+- "前情提要"是之前对话的摘要，仅供你**理解历史背景**使用
+- 你需要输出的是一份**独立完整的新摘要**，而不是在旧摘要上追加内容
+- 新摘要应反映对话的**最新状态**：保留仍然相关的历史信息，更新或移除已过时的内容
+
+摘要应使用以下结构：
+
+## 上下文摘要
+
+### 1. 对话概述
+提供整个对话（从最初到现在）的高级概述，重点突出当前阶段。
+
+### 2. 当前焦点
+详细描述最近正在讨论或处理的内容。
+
+### 3. 关键概念与主题
+列出所有重要的概念、术语、方法论或主题。
+
+### 4. 重要信息与资料
+记录对话中提及的重要信息、数据、引用或资源。
+
+### 5. 已解决与进行中的事项
+总结迄今为止已解决的问题和正在进行的工作。
+
+### 6. 待处理事项与后续方向
+列出所有待处理的请求和未来的对话方向。
+
+---
+
+【前情提要 - 仅供参考】
+{previous_summary}
+
+---
+
+【新增对话历史 - 需要总结的内容】
+{context}
+
+---
+
+**输出要求：**
+1. 使用中文输出
+2. 输出一份**完整独立的新摘要**，不要写成"在原有基础上新增了..."这种追加式表述
+3. 摘要应简洁但信息完整，不超过 3000 字
+4. 仅输出摘要内容，不包括任何额外的评论或解释`;
+
 export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   enabled: false,
   autoTrigger: true,
@@ -302,6 +353,7 @@ export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   summaryTemperature: 0.3,
   summaryMaxTokens: 4096,
   summaryPrompt: DEFAULT_CONTEXT_COMPRESSION_PROMPT,
+  continueSummaryPrompt: CONTINUE_CONTEXT_COMPRESSION_PROMPT,
 };
 
 export interface ContextCompressionConfig {
@@ -331,4 +383,6 @@ export interface ContextCompressionConfig {
   summaryMaxTokens?: number;
   /** 摘要提示词模板 */
   summaryPrompt?: string;
+  /** 续写摘要提示词模板 */
+  continueSummaryPrompt?: string;
 }

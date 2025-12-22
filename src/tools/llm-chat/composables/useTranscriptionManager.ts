@@ -156,9 +156,29 @@ export function useTranscriptionManager() {
    */
   const addTask = (asset: Asset) => {
     // 检查是否已存在任务
-    if (tasks.some((t) => t.assetId === asset.id && t.status !== "error")) {
-      logger.warn("任务已存在，跳过", { assetId: asset.id });
-      return;
+    const existingTask = tasks.find((t) => t.assetId === asset.id);
+    if (existingTask) {
+      // 如果任务正在处理中或等待中，跳过
+      if (existingTask.status === "pending" || existingTask.status === "processing") {
+        logger.warn("任务已存在且正在处理中，跳过", { assetId: asset.id, status: existingTask.status });
+        return;
+      }
+      // 如果任务已完成，跳过（不应该重复转写成功的任务）
+      if (existingTask.status === "completed") {
+        logger.debug("任务已完成，跳过", { assetId: asset.id });
+        return;
+      }
+      // 如果任务是 error 状态，重用该任务而不是创建新任务
+      if (existingTask.status === "error") {
+        logger.info("重用已存在的失败任务", { assetId: asset.id });
+        existingTask.status = "pending";
+        existingTask.retryCount = 0;
+        existingTask.error = undefined;
+        existingTask.path = asset.path; // 更新路径（可能文件被重新导入）
+        existingTask.mimeType = asset.mimeType;
+        processQueue();
+        return;
+      }
     }
 
     // 检查类型支持

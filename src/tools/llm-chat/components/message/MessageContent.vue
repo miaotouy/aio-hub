@@ -432,6 +432,11 @@ const showTranslation = computed(() => {
   );
 });
 
+// 资产转换钩子
+const resolveAsset = (content: string) => {
+  return processMessageAssetsSync(content, currentAgent.value);
+};
+
 // 响应式布局
 const containerRef = ref<HTMLElement | null>(null);
 const containerWidth = ref(0);
@@ -485,6 +490,7 @@ const containerClasses = computed(() => ({
         :content="message.metadata.reasoningContent"
         :version="settings.uiPreferences.rendererVersion"
         :style-options="richTextStyleOptions"
+        :resolve-asset="resolveAsset"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
         :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
@@ -556,6 +562,7 @@ const containerClasses = computed(() => ({
           v-if="displayedContent"
           :content="displayedContent"
           :regex-rules="processedRules"
+          :resolve-asset="resolveAsset"
           :version="settings.uiPreferences.rendererVersion"
           :llm-think-rules="llmThinkRules"
           :style-options="richTextStyleOptions"
@@ -600,6 +607,7 @@ const containerClasses = computed(() => ({
             :seamless-mode="settings.uiPreferences.seamlessMode"
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
             :is-streaming="isTranslating"
+            :resolve-asset="resolveAsset"
           />
           <div v-if="isTranslating" class="streaming-indicator translation-loading">
             <span class="dot"></span>

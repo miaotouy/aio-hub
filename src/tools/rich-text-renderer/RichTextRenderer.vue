@@ -2,11 +2,11 @@
   <div class="rich-text-renderer" :style="cssVariables">
     <!-- AST 渲染模式（V1/V2 等） -->
     <AstNodeRenderer
-          v-if="useAstRenderer"
-          :nodes="ast"
-          :generation-meta="generationMeta"
-          :enable-enter-animation="enableEnterAnimation"
-        />
+      v-if="useAstRenderer"
+      :nodes="ast"
+      :generation-meta="generationMeta"
+      :enable-enter-animation="enableEnterAnimation"
+    />
     <!-- 纯 markdown-it 渲染模式 -->
     <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
   </div>
@@ -41,9 +41,10 @@ const props = withDefaults(
     isStreaming?: boolean; // 是否处于流式传输中（用于控制思考块的闭合状态）
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
     seamlessMode?: boolean; // HTML 预览无边框模式
-    throttleMs?: number; // 节流时间（毫秒）
+    throttleMs: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
     regexRules?: ChatRegexRule[]; // 正则表达式规则
+    resolveAsset?: (content: string) => string; // 资产路径解析钩子
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
@@ -164,6 +165,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   images: imageList,
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
   seamlessMode: computed(() => props.seamlessMode),
+  resolveAsset: props.resolveAsset,
 });
 
 // 纯 markdown-it 渲染的 HTML
@@ -211,10 +213,18 @@ let unsubscribeComplete: (() => void) | null = null;
  * 这是所有渲染逻辑的统一入口点
  */
 const processedContent = computed(() => {
-  const text = props.content || "";
+  let text = props.content || "";
+
+  // 1. 应用正则规则
   if (props.regexRules && props.regexRules.length > 0) {
-    return applyRegexRules(text, props.regexRules);
+    text = applyRegexRules(text, props.regexRules);
   }
+
+  // 2. 解析资产路径
+  if (props.resolveAsset) {
+    text = props.resolveAsset(text);
+  }
+
   return text;
 });
 
@@ -321,12 +331,19 @@ onMounted(() => {
   // 订阅流式数据
   unsubscribe = props.streamSource.subscribe((chunk) => {
     buffer.value += chunk;
-    
-    // 在流式模式下，我们必须手动应用正则规则到 buffer
+
+    // 在流式模式下，我们必须手动应用正则规则和资产解析到 buffer
     // 因为 props.content 通常是空的或静态的，而 buffer 才是包含最新内容的数据源
     let bufferToProcess = buffer.value;
+
+    // 1. 应用正则规则
     if (props.regexRules && props.regexRules.length > 0) {
       bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules);
+    }
+
+    // 2. 解析资产路径
+    if (props.resolveAsset) {
+      bufferToProcess = props.resolveAsset(bufferToProcess);
     }
 
     if (useAstRenderer.value) {

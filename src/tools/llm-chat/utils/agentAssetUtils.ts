@@ -24,12 +24,12 @@ let _cacheInitPromise: Promise<void> | null = null;
  */
 export async function initAgentAssetCache(): Promise<void> {
   if (_cachedAppDataDir) return;
-  
+
   if (_cacheInitPromise) {
     await _cacheInitPromise;
     return;
   }
-  
+
   _cacheInitPromise = (async () => {
     try {
       _cachedAppDataDir = await appDataDir();
@@ -45,7 +45,7 @@ export async function initAgentAssetCache(): Promise<void> {
       throw error;
     }
   })();
-  
+
   await _cacheInitPromise;
 }
 
@@ -63,7 +63,7 @@ export function getCachedAppDataDir(): string | null {
  */
 export function resetAgentAssetCache(): void {
   _cachedAppDataDir = null;
-  _cacheInitPromise = null;logger.info('Agent 资产缓存已重置');
+  _cacheInitPromise = null; logger.info('Agent 资产缓存已重置');
 }
 
 /**
@@ -77,10 +77,10 @@ export function buildAgentAssetPath(agentId: string, assetPath: string): string 
   if (!_cachedAppDataDir) {
     return null;
   }
-  
+
   // 标准化路径
   const normalizedAssetPath = assetPath.replace(/\//g, '\\');
-  
+
   // 构建完整路径: {appDataDir}\llm-chat\agents\{agentId}\{assetPath}
   return `${_cachedAppDataDir}\\llm-chat\\agents\\${agentId}\\${normalizedAssetPath}`;
 }
@@ -97,7 +97,7 @@ export function convertAgentAssetToUrl(agentId: string, assetPath: string): stri
   if (!fullPath) {
     return null;
   }
-  
+
   return convertFileSrc(fullPath);
 }
 
@@ -113,16 +113,16 @@ export function convertAgentAssetToUrl(agentId: string, assetPath: string): stri
  */
 function parseAssetUrl(assetUrl: string): { group: string; id: string; ext: string } | null {
   if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return null;
-  
+
   const path = assetUrl.replace(AGENT_ASSET_PROTOCOL, '');
-  
+
   // 尝试解析新格式: {group}/{id}.{ext}
   const slashIndex = path.indexOf('/');
   if (slashIndex > 0) {
     const group = decodeURIComponent(path.substring(0, slashIndex));
     const rest = path.substring(slashIndex + 1);
     const lastDotIndex = rest.lastIndexOf('.');
-    
+
     if (lastDotIndex > 0) {
       const id = decodeURIComponent(rest.substring(0, lastDotIndex));
       const ext = rest.substring(lastDotIndex + 1).toLowerCase();
@@ -133,7 +133,7 @@ function parseAssetUrl(assetUrl: string): { group: string; id: string; ext: stri
       return { group, id, ext: '' };
     }
   }
-  
+
   // 旧格式兼容: 只有 id
   return { group: '', id: decodeURIComponent(path), ext: '' };
 }
@@ -180,11 +180,11 @@ function findAsset(
     });
     if (filenameMatch) return filenameMatch;
   }
-  
+
   // 回退：只匹配 id（向后兼容旧格式）
   const idMatch = assets.find(a => a.id === parsed.id);
   if (idMatch) return idMatch;
-  
+
   // 最后尝试：只匹配 filename（不带扩展名）
   return assets.find(a => getFilenameWithoutExt(a.filename) === parsed.id);
 }
@@ -201,42 +201,30 @@ function findAsset(
  */
 export function resolveAgentAssetUrlSync(assetUrl: string, agent: ChatAgent): string {
   if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return assetUrl;
-  
+
   // 检查缓存状态
   if (!_cachedAppDataDir) {
     logger.warn('resolveAgentAssetUrlSync: 缓存未初始化', { assetUrl });
     return assetUrl;
   }
-  
+
   const parsed = parseAssetUrl(assetUrl);
   if (!parsed) {
     logger.warn('resolveAgentAssetUrlSync: URL 解析失败', { assetUrl });
     return assetUrl;
   }
-  
+
   const asset = agent.assets ? findAsset(parsed, agent.assets) : undefined;
   if (!asset) {
-    logger.warn('resolveAgentAssetUrlSync: 资产未找到', {
-      parsed,
-      agentId: agent.id,
-      availableAssets: agent.assets?.map(a => ({
-        id: a.id,
-        group: a.group,
-        filename: a.filename,
-        filenameWithoutExt: getFilenameWithoutExt(a.filename)
-      }))
-    });
     return assetUrl;
   }
-  
+
   // 使用缓存同步解析
   const resolvedUrl = convertAgentAssetToUrl(agent.id, asset.path);
   if (!resolvedUrl) {
-    logger.warn('resolveAgentAssetUrlSync: 路径转换失败', { agentId: agent.id, assetPath: asset.path });
     return assetUrl;
   }
-  
-  logger.debug('resolveAgentAssetUrlSync: 成功解析', { assetUrl, resolvedUrl });
+
   return resolvedUrl;
 }
 
@@ -254,17 +242,17 @@ export function resolveAgentAssetUrlSync(assetUrl: string, agent: ChatAgent): st
  */
 export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): Promise<string> {
   if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return assetUrl;
-  
+
   // 优先尝试同步解析
   const syncResult = resolveAgentAssetUrlSync(assetUrl, agent);
   if (syncResult !== assetUrl) {
     return syncResult;
   }
-  
+
   // 回退到异步解析（缓存未初始化时）
   const parsed = parseAssetUrl(assetUrl);
   if (!parsed) return assetUrl;
-  
+
   const asset = agent.assets ? findAsset(parsed, agent.assets) : undefined;
   if (!asset) {
     logger.warn('Asset not found', {
@@ -273,7 +261,7 @@ export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): 
     });
     return assetUrl;
   }
-  
+
   try {
     const fullPath = await invoke<string>('get_agent_asset_path', {
       agentId: agent.id,
@@ -297,19 +285,26 @@ export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): 
  * @returns 替换后的内容
  */
 export function processMessageAssetsSync(content: string, agent?: ChatAgent): string {
-  if (!agent || !content.includes('agent-asset://')) return content;
-  
+  if (!content.includes('agent-asset://')) return content;
+
+  if (!agent) {
+    logger.warn('processMessageAssetsSync: 发现资产链接但缺失 agent 对象', {
+      contentSnippet: content.slice(0, 100)
+    });
+    return content;
+  }
+
   let result = content;
 
   // 1. 处理 HTML src 属性: src="agent-asset://..." 或 src='agent-asset://...'
   const htmlPattern = /src=["'](agent-asset:\/\/[^"']+)["']/g;
   const htmlMatches = Array.from(content.matchAll(htmlPattern));
-  
+
   for (const match of htmlMatches) {
     const fullMatch = match[0];
     const assetUrl = match[1];
     const resolvedUrl = resolveAgentAssetUrlSync(assetUrl, agent);
-    
+
     if (resolvedUrl !== assetUrl) {
       const quote = fullMatch.includes('"') ? '"' : "'";
       result = result.replace(fullMatch, `src=${quote}${resolvedUrl}${quote}`);
@@ -329,7 +324,15 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
       result = result.replace(fullMatch, `(${resolvedUrl})`);
     }
   }
-  
+
+  // 3. 兜底处理: 替换所有剩余的 agent-asset:// 链接
+  // 改进正则：允许匹配到引号、括号或标签结束符之前的任何内容
+  const remainingPattern = /agent-asset:\/\/[^"'\s<>)]+/g;
+  result = result.replace(remainingPattern, (url) => {
+    return resolveAgentAssetUrlSync(url, agent);
+  });
+
+
   return result;
 }
 
@@ -344,24 +347,24 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
  */
 export async function processMessageAssets(content: string, agent?: ChatAgent): Promise<string> {
   if (!agent || !content.includes('agent-asset://')) return content;
-  
+
   // 优先尝试同步处理
   if (_cachedAppDataDir) {
     return processMessageAssetsSync(content, agent);
   }
-  
+
   // 回退到异步处理
   let result = content;
 
   // 1. 处理 HTML src 属性: src="agent-asset://..." 或 src='agent-asset://...'
   const htmlPattern = /src=["'](agent-asset:\/\/[^"']+)["']/g;
   const htmlMatches = Array.from(content.matchAll(htmlPattern));
-  
+
   for (const match of htmlMatches) {
     const fullMatch = match[0];
     const assetUrl = match[1];
     const resolvedUrl = await resolveAgentAssetUrl(assetUrl, agent);
-    
+
     if (resolvedUrl !== assetUrl) {
       const quote = fullMatch.includes('"') ? '"' : "'";
       result = result.replace(fullMatch, `src=${quote}${resolvedUrl}${quote}`);
@@ -381,6 +384,6 @@ export async function processMessageAssets(content: string, agent?: ChatAgent): 
       result = result.replace(fullMatch, `(${resolvedUrl})`);
     }
   }
-  
+
   return result;
 }

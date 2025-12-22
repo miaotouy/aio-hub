@@ -705,4 +705,9 @@ export interface RichTextContext {
   images: Ref<string[]>;
   defaultRenderHtml?: Ref<boolean>;
   seamlessMode?: Ref<boolean>;
+  /**
+   * 资产路径解析钩子
+   * 用于将自定义协议（如 agent-asset://）转换为真实 URL
+   */
+  resolveAsset?: (content: string) => string;
 }

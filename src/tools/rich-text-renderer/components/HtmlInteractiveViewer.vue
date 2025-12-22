@@ -258,6 +258,12 @@ const logCaptureScript = `
       });
     };
     
+    // 注入 CSP 策略，允许加载 asset: 协议资源
+    const meta = document.createElement('meta');
+    meta.httpEquiv = "Content-Security-Policy";
+    meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *;";
+    document.head.appendChild(meta);
+
     // 根据 DOM 状态决定何时设置观察器
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', setupObservers);
@@ -324,6 +330,7 @@ const srcDoc = computed(() => {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *;">
           ${logCaptureScript}
           <style>
             body {

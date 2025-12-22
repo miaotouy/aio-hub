@@ -110,7 +110,7 @@
     <!-- HTML 预览区域 (内嵌) -->
     <div v-if="viewMode === 'preview'" class="html-preview-container">
       <HtmlInteractiveViewer
-        :content="content"
+        :content="processedHtmlContent"
         :immediate="closed"
         auto-height
         :seamless="seamless"
@@ -121,7 +121,7 @@
 
   <!-- 弹窗预览 -->
   <BaseDialog v-model="showDialog" title="HTML 预览" width="90%" height="85vh">
-    <HtmlInteractiveViewer :content="content" :immediate="true" />
+    <HtmlInteractiveViewer :content="processedHtmlContent" :immediate="true" />
   </BaseDialog>
 </template>
 
@@ -180,6 +180,15 @@ const errorHandler = createModuleErrorHandler(
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const defaultRenderHtml = context?.defaultRenderHtml;
 const seamlessMode = context?.seamlessMode;
+const resolveAsset = context?.resolveAsset;
+
+// 经过资产转换后的内容（用于 HTML 预览）
+const processedHtmlContent = computed(() => {
+  if (isHtml.value && resolveAsset) {
+    return resolveAsset(props.content);
+  }
+  return props.content;
+});
 
 // 无边框模式：优先使用 prop，其次使用上下文
 const seamless = computed(() => {

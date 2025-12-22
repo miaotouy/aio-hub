@@ -258,6 +258,37 @@ export function useImageSlicer() {
     config: SlicerConfig,
     imageId: string = 'default'
   ): Promise<{ blocks: ImageBlock[]; lines: CutLine[] }> => {
+    // 0. 检查长宽比阈值
+    const aspectRatio = image.height / image.width;
+    if (aspectRatio <= config.aspectRatioThreshold) {
+      logger.debug('图片长宽比未达到阈值，跳过切图', {
+        imageId,
+        aspectRatio: aspectRatio.toFixed(2),
+        threshold: config.aspectRatioThreshold
+      });
+      
+      // 返回整张图作为单个块
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(image, 0, 0);
+      
+      return {
+        blocks: [{
+          id: 'full',
+          imageId,
+          canvas,
+          dataUrl: canvas.toDataURL(),
+          startY: 0,
+          endY: image.height,
+          width: image.width,
+          height: image.height
+        }],
+        lines: []
+      };
+    }
+
     // 创建canvas获取图像数据
     const canvas = document.createElement('canvas');
     canvas.width = image.width;

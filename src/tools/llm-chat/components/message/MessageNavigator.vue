@@ -19,6 +19,8 @@ interface Emits {
   (e: "scroll-to-bottom"): void;
   (e: "scroll-to-next"): void;
   (e: "scroll-to-prev"): void;
+  /** 已看到新消息（触底时触发） */
+  (e: "seen-new-messages"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -115,6 +117,17 @@ const handleMouseEnter = () => {
 const handleMouseLeave = () => {
   isExpanded.value = false;
 };
+
+// 监听触底状态，如果当前有新消息标记且触底了，通知外部清除
+import { watch } from "vue";
+watch(
+  () => arrivedState.bottom,
+  (isAtBottom) => {
+    if (isAtBottom && props.hasNewMessages) {
+      emit("seen-new-messages");
+    }
+  }
+);
 </script>
 
 <template>

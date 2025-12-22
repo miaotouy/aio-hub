@@ -679,6 +679,7 @@ onMounted(async () => {
               :message-count="finalMessages.length"
               :current-index="messageListRef?.currentVisibleIndex"
               :has-new-messages="hasNewMessages"
+              @seen-new-messages="hasNewMessages = false"
               @scroll-to-top="handleScrollToTop"
               @scroll-to-bottom="handleScrollToBottom"
               @scroll-to-next="handleScrollToNext"

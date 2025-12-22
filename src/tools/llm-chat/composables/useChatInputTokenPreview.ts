@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from "vue";
+import { ref, watch, computed, type Ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useLlmChatStore } from "@/tools/llm-chat/store";
@@ -8,6 +8,7 @@ import { MacroProcessor } from "../macro-engine/MacroProcessor";
 import { buildMacroContext, processMacros } from "../core/context-utils/macro";
 import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { useTranscriptionManager } from "./useTranscriptionManager";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
 
@@ -29,10 +30,23 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
 
   const chatStore = useLlmChatStore();
   const agentStore = useAgentStore();
+  const transcriptionManager = useTranscriptionManager();
 
   const tokenCount = ref<number>(0);
   const isCalculatingTokens = ref(false);
   const tokenEstimated = ref(false);
+
+  /**
+   * 检查当前附件中是否有正在转写的任务
+   */
+  const hasTranscribingAttachments = computed(() => {
+    const attachmentIds = new Set(attachments.value.map((a) => a.id));
+    return transcriptionManager.tasks.some(
+      (t) =>
+        attachmentIds.has(t.assetId) &&
+        (t.status === "pending" || t.status === "processing")
+    );
+  });
 
   /**
    * 确定当前应使用的模型 ID
@@ -117,6 +131,12 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
       return;
     }
 
+    // 如果有附件正在转写中，跳过本次计算，等待转写完成后再计算
+    if (hasTranscribingAttachments.value) {
+      logger.debug("有附件正在转写中，跳过本次 token 计算");
+      return;
+    }
+
     const modelId = resolveModelId();
     if (!modelId) {
       logger.warn("无法确定模型 ID，停止计算 token");
@@ -126,7 +146,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
 
     isCalculatingTokens.value = true;
     try {
-      // 1. 获取最新的附件状态
+      // 1. 获取最新的附件状态（包括可能已完成的转写结果）
       const latestAttachments = await Promise.all(
         attachmentValue.map(async (asset) => {
           const latest = await assetManagerEngine.getAssetById(asset.id);
@@ -191,6 +211,26 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     },
     () => {
       triggerCalculation();
+    }
+  );
+
+  // 监听转写任务状态变化
+  // 当有任务完成时，触发重新计算（因为转写结果可能影响 token 计算）
+  watch(
+    () => {
+      // 只关注当前附件相关的任务状态
+      const attachmentIds = new Set(attachments.value.map((a) => a.id));
+      const relevantTasks = transcriptionManager.tasks.filter((t) =>
+        attachmentIds.has(t.assetId)
+      );
+      // 返回一个状态快照字符串，用于检测变化
+      return relevantTasks.map((t) => `${t.assetId}:${t.status}`).join(",");
+    },
+    (newVal, oldVal) => {
+      if (newVal !== oldVal) {
+        logger.debug("转写任务状态变化，触发 token 重新计算", { newVal, oldVal });
+        triggerCalculation();
+      }
     }
   );
 

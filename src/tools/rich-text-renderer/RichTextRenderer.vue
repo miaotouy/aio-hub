@@ -42,7 +42,7 @@ const props = withDefaults(
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
     seamlessMode?: boolean; // HTML 预览无边框模式
     enableCdnLocalizer?: boolean; // 是否启用 CDN 资源本地化
-    throttleMs: number; // 节流时间（毫秒）
+    throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
     regexRules?: ChatRegexRule[]; // 正则表达式规则
     resolveAsset?: (content: string) => string; // 资产路径解析钩子

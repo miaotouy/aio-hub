@@ -164,6 +164,8 @@ export interface ChatSettings {
     enableDetachableHandle: boolean;
     /** 虚拟列表预渲染数量 */
     virtualListOverscan: number;
+    /** 是否启用 CDN 资源本地化 */
+    enableCdnLocalizer: boolean;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -269,6 +271,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
     enableDetachableHandle: true, // 默认允许组件分离
     virtualListOverscan: 20, // 预渲染可视区域外的消息数量
+    enableCdnLocalizer: true, // 默认开启 CDN 资源本地化
   },
   modelPreferences: {
     defaultModel: "",

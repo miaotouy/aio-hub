@@ -492,6 +492,7 @@ const containerClasses = computed(() => ({
         :style-options="richTextStyleOptions"
         :resolve-asset="resolveAsset"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
+        :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
         :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
       />
@@ -570,6 +571,7 @@ const containerClasses = computed(() => ({
           :is-streaming="message.status === 'generating'"
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
           :seamless-mode="settings.uiPreferences.seamlessMode"
+          :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
           :throttle-ms="settings.uiPreferences.rendererThrottleMs"
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
         />
@@ -605,6 +607,7 @@ const containerClasses = computed(() => ({
             :style-options="richTextStyleOptions"
             :default-render-html="settings.uiPreferences.defaultRenderHtml"
             :seamless-mode="settings.uiPreferences.seamlessMode"
+            :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"

@@ -233,6 +233,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui html seamless preview 无缝 预览",
       },
       {
+        id: "enableCdnLocalizer",
+        label: "CDN 资源本地化",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.enableCdnLocalizer",
+        hint: "开启后，HTML 预览将自动拦截常用 CDN 资源并重定向到本地库，解决离线渲染问题",
+        keywords: "ui html cdn localizer 资源 本地化 离线",
+      },
+      {
         id: "showPerformanceMetrics",
         label: "显示性能指标",
         layout: "inline",

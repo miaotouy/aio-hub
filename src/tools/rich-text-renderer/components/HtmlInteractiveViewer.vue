@@ -52,18 +52,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, inject } from "vue";
 import { RotateCw, ExternalLink, Loader2 } from "lucide-vue-next";
 import { useDebounceFn, useThrottleFn } from "@vueuse/core";
 import { localizeCdnLinks } from "../utils/cdnLocalizer";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
+import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../types";
 import { useIframeTheme } from "@/composables/useIframeTheme";
 
 const errorHandler = createModuleErrorHandler("HtmlInteractiveViewer");
 const iframeErrorHandler = createModuleErrorHandler("HtmlInteractiveViewer:Iframe");
 const logger = createModuleLogger("HtmlInteractiveViewer:Iframe");
+
+// 注入上下文以获取全局设置
+const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
+const enableCdnLocalizer = context?.enableCdnLocalizer;
 
 const emit = defineEmits<{
   (e: "content-hover", value: boolean): void;
@@ -310,8 +315,10 @@ const srcDoc = computed(() => {
   if (!content) return "";
 
   // 1. CDN 本地化拦截
-  const { html: localizedContent } = localizeCdnLinks(content);
-  content = localizedContent;
+  if (enableCdnLocalizer?.value !== false) {
+    const { html: localizedContent } = localizeCdnLinks(content);
+    content = localizedContent;
+  }
 
   // 如果内容已经包含了 html 标签，则不再包裹，而是尝试注入脚本
   const trimmed = content.trim().toLowerCase();

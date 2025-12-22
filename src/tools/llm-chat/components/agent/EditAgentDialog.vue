@@ -801,6 +801,7 @@ const handleSave = () => {
       v-model:asset-groups="editForm.assetGroups"
       :agent-id="agent.id"
       :agent-name="editForm.displayName || editForm.name"
+      @physical-change="handleSave"
     />
 
     <template #footer>

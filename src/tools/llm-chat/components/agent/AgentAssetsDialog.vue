@@ -17,6 +17,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'update:assets', value: AgentAsset[]): void;
   (e: 'update:assetGroups', value: AssetGroup[]): void;
+  (e: 'physical-change'): void;
 }>();
 
 const visible = computed({
@@ -47,6 +48,7 @@ const localAssetGroups = computed({
       v-model="localAssets"
       v-model:asset-groups="localAssetGroups"
       :agent-id="agentId"
+      @physical-change="emit('physical-change')"
     />
   </BaseDialog>
 </template>

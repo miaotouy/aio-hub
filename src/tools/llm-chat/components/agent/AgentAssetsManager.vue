@@ -52,6 +52,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: "update:modelValue", value: AgentAsset[]): void;
   (e: "update:assetGroups", value: AssetGroup[]): void;
+  (e: "physical-change"): void;
 }>();
 
 const assets = ref<AgentAsset[]>([]);
@@ -301,6 +302,7 @@ const handleBatchDelete = async () => {
 
   selectedAssetIds.value.clear();
   notifyUpdate();
+  emit("physical-change");
   customMessage.success(`成功删除 ${successCount} 个资产`);
 };
 
@@ -563,6 +565,7 @@ const handleFileUpload = async (paths: string[]) => {
     }
 
     notifyUpdate();
+    emit("physical-change");
     customMessage.success(`成功上传 ${paths.length} 个资产`);
   } catch (error) {
     errorHandler.error(error, "上传资产失败");
@@ -594,6 +597,7 @@ const handleDeleteAsset = async (asset: AgentAsset) => {
     if (index > -1) {
       assets.value.splice(index, 1);
       notifyUpdate();
+      emit("physical-change");
       customMessage.success("资产已删除");
     }
   } catch (error) {

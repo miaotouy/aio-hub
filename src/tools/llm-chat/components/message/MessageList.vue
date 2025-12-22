@@ -36,31 +36,14 @@ const emit = defineEmits<Emits>();
 const store = useLlmChatStore();
 const { settings } = useChatSettings();
 
-// 临时展开的压缩节点 ID 集合
-const expandedCompressionIds = ref<Set<string>>(new Set());
-
-const toggleCompressionExpand = (nodeId: string) => {
-  const newSet = new Set(expandedCompressionIds.value);
-  if (newSet.has(nodeId)) {
-    newSet.delete(nodeId);
-  } else {
-    newSet.add(nodeId);
-  }
-  expandedCompressionIds.value = newSet;
-};
-
 /**
  * 被压缩的节点 ID 集合
- * 逻辑：如果路径上存在启用的压缩节点，且该压缩节点未被手动展开，则其管辖的节点 ID 属于此集合
+ * 逻辑：如果路径上存在启用的压缩节点，则其管辖的节点 ID 属于此集合
  */
 const compressedNodeIds = computed(() => {
   const ids = new Set<string>();
   props.messages.forEach((node) => {
     if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
-      // 如果该压缩节点被手动展开，则不视作压缩
-      if (expandedCompressionIds.value.has(node.id)) {
-        return;
-      }
       if (node.metadata.compressedNodeIds) {
         node.metadata.compressedNodeIds.forEach((id) => ids.add(id));
       }
@@ -331,10 +314,14 @@ defineExpose({
             <CompressionMessage
               v-if="displayMessages[virtualItem.index].metadata?.isCompressionNode"
               :message="displayMessages[virtualItem.index]"
-              :is-expanded="expandedCompressionIds.has(displayMessages[virtualItem.index].id)"
-              @toggle-expand="toggleCompressionExpand(displayMessages[virtualItem.index].id)"
               @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
               @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
+              @update-content="
+                (content) => store.editMessage(displayMessages[virtualItem.index].id, content)
+              "
+              @update-role="
+                (role) => store.updateNodeData(displayMessages[virtualItem.index].id, { role })
+              "
             />
 
             <!-- 普通消息渲染 -->

@@ -1,21 +1,41 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { ChatMessageNode } from "../../types";
-import { FoldVertical, Expand, Database, Eye, EyeOff } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import type { ChatMessageNode, MessageRole } from "../../types";
+import {
+  Database,
+  Edit2,
+  Check,
+  X,
+  User,
+  Bot,
+  Settings,
+  Trash2,
+} from "lucide-vue-next";
 
 interface Props {
   message: ChatMessageNode;
-  isExpanded: boolean; // 是否处于临时展开状态（查看被压缩的消息）
 }
 
 interface Emits {
-  (e: "toggle-expand"): void;
   (e: "toggle-enabled"): void;
   (e: "delete"): void;
+  (e: "update-content", content: string): void;
+  (e: "update-role", role: MessageRole): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+// 编辑状态
+const isEditing = ref(false);
+const editedContent = ref(props.message.content);
+
+// 角色列表
+const roles: { label: string; value: MessageRole; icon: any }[] = [
+  { label: "系统", value: "system", icon: Settings },
+  { label: "用户", value: "user", icon: User },
+  { label: "助手", value: "assistant", icon: Bot },
+];
 
 // 压缩节点是否启用（影响上下文构建）
 const isEnabled = computed(() => props.message.isEnabled !== false);
@@ -25,11 +45,6 @@ const stats = computed(() => {
   const meta = props.message.metadata || {};
   return {
     msgCount: meta.originalMessageCount || 0,
-    tokens: meta.originalTokenCount || 0,
-    ratio:
-      meta.originalTokenCount && meta.contentTokens
-        ? Math.round((1 - meta.contentTokens / meta.originalTokenCount) * 100)
-        : 0,
   };
 });
 
@@ -41,19 +56,53 @@ const formattedTime = computed(() => {
     minute: "2-digit",
   });
 });
+
+const startEdit = () => {
+  editedContent.value = props.message.content;
+  isEditing.value = true;
+};
+
+const cancelEdit = () => {
+  isEditing.value = false;
+};
+
+const saveEdit = () => {
+  if (editedContent.value !== props.message.content) {
+    emit("update-content", editedContent.value);
+  }
+  isEditing.value = false;
+};
+
+const handleRoleChange = (role: MessageRole) => {
+  if (role !== props.message.role) {
+    emit("update-role", role);
+  }
+};
+
+watch(
+  () => props.message.content,
+  (newVal) => {
+    if (!isEditing.value) {
+      editedContent.value = newVal;
+    }
+  }
+);
 </script>
 
 <template>
   <div
     class="compression-message"
-    :class="{ 'is-disabled': !isEnabled, 'is-expanded': isExpanded }"
+    :class="{ 'is-disabled': !isEnabled, 'is-editing': isEditing }"
   >
     <!-- 装饰性侧边栏 -->
-    <div class="compression-bar" @click="emit('toggle-expand')">
+    <div
+      class="compression-bar"
+      :title="isEnabled ? '禁用压缩 (恢复上下文)' : '启用压缩'"
+      @click="emit('toggle-enabled')"
+    >
       <div class="bar-line"></div>
       <div class="bar-icon">
-        <FoldVertical v-if="!isExpanded" :size="14" />
-        <Expand v-else :size="14" />
+        <Database :size="14" :class="{ 'text-primary': isEnabled }" />
       </div>
       <div class="bar-line"></div>
     </div>
@@ -62,45 +111,82 @@ const formattedTime = computed(() => {
       <!-- 头部信息 -->
       <div class="compression-header">
         <div class="header-left">
+          <el-dropdown trigger="click" @command="handleRoleChange">
+            <span class="role-badge" :class="message.role">
+              <component :is="roles.find((r) => r.value === message.role)?.icon" :size="12" />
+              {{ roles.find((r) => r.value === message.role)?.label }}
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="role in roles"
+                  :key="role.value"
+                  :command="role.value"
+                  :disabled="message.role === role.value"
+                >
+                  <component :is="role.icon" :size="14" style="margin-right: 8px" />
+                  {{ role.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <span class="badge">上下文压缩</span>
           <span class="time">{{ formattedTime }}</span>
         </div>
         <div class="header-right">
-          <!-- 操作按钮 -->
-          <button
-            class="action-btn"
-            :title="isExpanded ? '收起原始消息' : '查看原始消息'"
-            @click="emit('toggle-expand')"
-          >
-            <Eye v-if="!isExpanded" :size="14" />
-            <EyeOff v-else :size="14" />
-          </button>
+          <!-- 编辑模式按钮 -->
+          <template v-if="isEditing">
+            <button class="action-btn success" title="保存修改" @click="saveEdit">
+              <Check :size="14" />
+            </button>
+            <button class="action-btn danger" title="取消编辑" @click="cancelEdit">
+              <X :size="14" />
+            </button>
+          </template>
 
-          <button
-            class="action-btn"
-            :title="isEnabled ? '禁用压缩 (恢复上下文)' : '启用压缩'"
-            @click="emit('toggle-enabled')"
-          >
-            <Database :size="14" :class="{ 'text-primary': isEnabled }" />
-          </button>
+          <!-- 常规模式按钮 -->
+          <template v-else>
+            <button class="action-btn" title="编辑摘要" @click="startEdit">
+              <Edit2 :size="14" />
+            </button>
 
-          <!-- 暂时不支持重新生成摘要，预留位置 -->
-          <!-- <button class="action-btn" title="重新生成摘要"><RotateCcw :size="14" /></button> -->
+            <button
+              class="action-btn"
+              :title="isEnabled ? '禁用压缩 (恢复原始消息)' : '启用压缩 (隐藏原始消息)'"
+              @click="emit('toggle-enabled')"
+            >
+              <Database :size="14" :class="{ 'text-primary': isEnabled }" />
+            </button>
+
+            <el-popconfirm title="确定删除此压缩节点吗？" @confirm="emit('delete')">
+              <template #reference>
+                <button class="action-btn danger-hover" title="删除">
+                  <Trash2 :size="14" />
+                </button>
+              </template>
+            </el-popconfirm>
+          </template>
         </div>
       </div>
 
       <!-- 摘要内容 -->
       <div class="compression-summary">
-        {{ message.content }}
+        <el-input
+          v-if="isEditing"
+          v-model="editedContent"
+          type="textarea"
+          :autosize="{ minRows: 1, maxRows: 10 }"
+          placeholder="请输入压缩摘要..."
+          class="edit-input"
+        />
+        <template v-else>
+          {{ message.content }}
+        </template>
       </div>
 
       <!-- 底部统计 -->
       <div class="compression-footer">
         <span class="stat-item" title="原始消息数量"> 包含 {{ stats.msgCount }} 条消息 </span>
-        <span class="divider">•</span>
-        <span class="stat-item" title="原始 Token 数"> 原始 {{ stats.tokens }} tokens </span>
-        <span class="divider">•</span>
-        <span class="stat-item highlight"> 节省 {{ stats.ratio }}% </span>
       </div>
     </div>
   </div>
@@ -131,9 +217,8 @@ const formattedTime = computed(() => {
   background-color: transparent;
 }
 
-.compression-message.is-expanded {
-  border-style: solid;
-  border-color: var(--primary-color-light);
+.compression-message.is-editing {
+  border-color: var(--primary-color);
   background-color: var(--bg-color-soft);
 }
 
@@ -184,6 +269,40 @@ const formattedTime = computed(() => {
   gap: 8px;
 }
 
+.role-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: var(--bg-color-mute);
+  color: var(--text-color-secondary);
+}
+
+.role-badge:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-color-primary);
+}
+
+.role-badge.system {
+  background-color: var(--warning-color-light-opacity);
+  color: var(--warning-color);
+}
+
+.role-badge.user {
+  background-color: var(--primary-color-light-opacity);
+  color: var(--primary-color);
+}
+
+.role-badge.assistant {
+  background-color: var(--success-color-light-opacity);
+  color: var(--success-color);
+}
+
 .badge {
   font-size: 11px;
   font-weight: 600;
@@ -222,6 +341,27 @@ const formattedTime = computed(() => {
   color: var(--text-color-primary);
 }
 
+.action-btn.success {
+  color: var(--success-color);
+}
+
+.action-btn.success:hover {
+  background-color: var(--success-color-light-opacity);
+}
+
+.action-btn.danger {
+  color: var(--danger-color);
+}
+
+.action-btn.danger:hover {
+  background-color: var(--danger-color-light-opacity);
+}
+
+.action-btn.danger-hover:hover {
+  background-color: var(--danger-color-light-opacity);
+  color: var(--danger-color);
+}
+
 .text-primary {
   color: var(--primary-color);
 }
@@ -234,20 +374,25 @@ const formattedTime = computed(() => {
   word-break: break-word;
 }
 
+.edit-input :deep(.el-textarea__inner) {
+  background-color: var(--input-bg);
+  border-color: var(--border-color);
+  color: var(--text-color-primary);
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.edit-input :deep(.el-textarea__inner:focus) {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color-light-opacity);
+}
+
 .compression-footer {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 11px;
   color: var(--text-color-light);
-}
-
-.divider {
-  opacity: 0.5;
-}
-
-.highlight {
-  color: var(--success-color);
-  font-weight: 50;
 }
 </style>

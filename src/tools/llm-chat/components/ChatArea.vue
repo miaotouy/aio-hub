@@ -270,9 +270,9 @@ const handleSelectModel = async () => {
   }
 };
 
-const handleSaveAgent = async (data: AgentEditData) => {
+const handleSaveAgent = async (data: AgentEditData, options: { silent?: boolean } = {}) => {
   if (currentAgent.value) {
-    logger.info("保存智能体", { agentId: currentAgent.value.id, data });
+    logger.info("保存智能体", { agentId: currentAgent.value.id, data, silent: options.silent });
 
     // 直接使用 data 作为 updates，避免手动枚举字段导致遗漏
     // EditAgentDialog 已经负责清洗数据，确保只传递有效的业务字段
@@ -291,7 +291,10 @@ const handleSaveAgent = async (data: AgentEditData) => {
       agentStore.updateAgent(currentAgent.value.id, updates);
     }
   }
-  showEditAgentDialog.value = false;
+
+  if (!options.silent) {
+    showEditAgentDialog.value = false;
+  }
 };
 
 const handleEditUserProfile = () => {

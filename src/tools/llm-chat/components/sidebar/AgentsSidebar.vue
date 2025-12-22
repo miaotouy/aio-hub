@@ -417,11 +417,13 @@ const handleEdit = (agent: ChatAgent) => {
 
 // 保存智能体
 // 使用统一的 AgentEditData 类型，确保字段完整传递
-const handleSaveAgent = (data: AgentEditData) => {
+const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean } = {}) => {
   if (editDialogMode.value === "edit" && editingAgent.value) {
     // 更新模式
     agentStore.updateAgent(editingAgent.value.id, data);
-    customMessage.success("智能体已更新");
+    if (!options.silent) {
+      customMessage.success("智能体已更新");
+    }
   } else {
     // 创建模式
     const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, data);

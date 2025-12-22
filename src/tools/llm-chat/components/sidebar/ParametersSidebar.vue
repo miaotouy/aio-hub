@@ -124,10 +124,11 @@ const openEditDialog = () => {
 };
 
 // 保存编辑的智能体
-const handleSaveEdit = (data: AgentEditData) => {
+const handleSaveEdit = (data: AgentEditData, options: { silent?: boolean } = {}) => {
   if (!currentAgent.value || !agentStore.currentAgentId) return;
   agentStore.updateAgent(agentStore.currentAgentId, {
     name: data.name,
+    displayName: data.displayName,
     description: data.description,
     icon: data.icon,
     profileId: data.profileId,
@@ -137,8 +138,12 @@ const handleSaveEdit = (data: AgentEditData) => {
     displayPresetCount: data.displayPresetCount,
     parameters: data.parameters,
     llmThinkRules: data.llmThinkRules,
+    assets: data.assets,
+    assetGroups: data.assetGroups,
   });
-  customMessage.success("智能体已更新");
+  if (!options.silent) {
+    customMessage.success("智能体已更新");
+  }
 };
 
 // 打开模型编辑弹窗

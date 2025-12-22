@@ -44,7 +44,7 @@ interface Props {
 }
 interface Emits {
   (e: "update:visible", value: boolean): void;
-  (e: "save", data: AgentEditData): void;
+  (e: "save", data: AgentEditData, options?: { silent?: boolean }): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -400,7 +400,7 @@ const handleClose = () => {
 };
 
 // 保存智能体
-const handleSave = () => {
+const handleSave = (options: { silent?: boolean } = {}) => {
   if (!editForm.name.trim()) {
     customMessage.warning("智能体名称不能为空");
     return;
@@ -451,9 +451,11 @@ const handleSave = () => {
     interactionConfig: editForm.interactionConfig,
     assets: editForm.assets,
     assetGroups: editForm.assetGroups,
-  });
+  }, options);
 
-  handleClose();
+  if (!options.silent) {
+    handleClose();
+  }
 };
 </script>
 <template>
@@ -801,7 +803,7 @@ const handleSave = () => {
       v-model:asset-groups="editForm.assetGroups"
       :agent-id="agent.id"
       :agent-name="editForm.displayName || editForm.name"
-      @physical-change="handleSave"
+      @physical-change="handleSave({ silent: true })"
     />
 
     <template #footer>

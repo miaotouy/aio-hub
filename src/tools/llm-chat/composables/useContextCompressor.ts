@@ -186,8 +186,8 @@ export function useContextCompressor() {
         profileId,
         modelId,
         messages: [{ role: 'user', content: prompt }], // 摘要任务通常作为单次 Prompt
-        temperature: 0.3, // 摘要通常需要较低的温度
-        maxTokens: 1000,
+        temperature: config.summaryTemperature ?? DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryTemperature,
+        maxTokens: config.summaryMaxTokens ?? DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryMaxTokens,
       });
 
       return response.content;

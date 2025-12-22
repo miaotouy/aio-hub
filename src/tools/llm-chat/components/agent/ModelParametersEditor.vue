@@ -75,13 +75,11 @@ const supportedParameters = computed<LlmParameterSupport>(() => {
 const initLocalParams = (params: LlmParameters): LlmParameters => {
   const newParams = { ...params };
 
-  // 确保 contextCompression 有默认结构（如果未定义）
-  if (!newParams.contextCompression) {
-    newParams.contextCompression = {
-      ...DEFAULT_CONTEXT_COMPRESSION_CONFIG,
-      enabled: false,
-    };
-  }
+  // 确保 contextCompression 有默认结构并补全缺失字段
+  newParams.contextCompression = {
+    ...DEFAULT_CONTEXT_COMPRESSION_CONFIG,
+    ...(newParams.contextCompression || {}),
+  };
 
   if (!newParams.enabledParameters) {
     // 获取所有非 undefined 的参数键作为启用的参数

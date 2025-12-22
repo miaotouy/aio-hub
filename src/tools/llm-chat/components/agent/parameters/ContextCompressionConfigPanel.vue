@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
-import { type ContextCompressionConfig, DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../../types/llm";
+import {
+  type ContextCompressionConfig,
+  DEFAULT_CONTEXT_COMPRESSION_CONFIG,
+} from "../../../types/llm";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 
 interface Props {
@@ -220,6 +223,30 @@ const resetPrompt = () => {
               <LlmModelSelector v-model="summaryModelValue" :disabled="disabled" />
               <div class="form-helper">指定用于生成摘要的模型，留空则使用当前对话模型</div>
             </el-form-item>
+
+            <el-form-item label="摘要生成温度">
+              <el-slider
+                v-model="config.summaryTemperature"
+                class="compact-slider"
+                :min="0"
+                :max="1"
+                :step="0.1"
+                show-input
+                :input-size="'small'"
+              />
+              <div class="form-helper">控制摘要生成的随机性，建议保持较低值以获得稳定的结果。</div>
+            </el-form-item>
+
+            <el-form-item label="摘要最大 Token 数">
+              <el-input-number
+                v-model="config.summaryMaxTokens"
+                :min="100"
+                :max="32000"
+                :step="100"
+                style="width: 100%"
+              />
+              <div class="form-helper">限制生成摘要的最大长度，防止内容被截断。</div>
+            </el-form-item>
           </div>
 
           <el-form-item label="摘要提示词模板">
@@ -309,6 +336,10 @@ const resetPrompt = () => {
 .context-compression-config-panel.is-compact .switch-row {
   flex-direction: row-reverse;
   justify-content: space-between;
+}
+
+.compact-slider :deep(.el-slider__input) {
+  width: 90px;
 }
 
 .form-helper {

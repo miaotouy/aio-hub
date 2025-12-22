@@ -249,6 +249,8 @@ export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   compressCount: 20,
   minHistoryCount: 15,
   summaryRole: "system",
+  summaryTemperature: 0.3,
+  summaryMaxTokens: 4096,
   summaryPrompt:
     "请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：\n\n{context}\n\n摘要要求：\n1. 用中文输出\n2. 保持客观中立\n3. 不超过 3000 字",
 };
@@ -274,6 +276,10 @@ export interface ContextCompressionConfig {
   summaryRole?: "system" | "assistant" | "user";
   /** 生成摘要的模型（可选，默认使用当前模型） */
   summaryModel?: ModelIdentifier;
+  /** 摘要生成温度 */
+  summaryTemperature?: number;
+  /** 摘要生成最大 Token 数 */
+  summaryMaxTokens?: number;
   /** 摘要提示词模板 */
   summaryPrompt?: string;
 }

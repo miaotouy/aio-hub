@@ -2,6 +2,7 @@
 import { ref, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { appDataDir, join } from "@tauri-apps/api/path";
 import {
   Plus,
   Delete,
@@ -495,6 +496,25 @@ const getGroupDisplayName = (groupId: string) => {
 };
 
 /**
+ * 打开资产目录
+ */
+const handleOpenAssetsDir = async () => {
+  try {
+    const appDir = await appDataDir();
+    const assetsPath = await join(appDir, "llm-chat", "agents", props.agentId, "assets");
+    logger.info("尝试打开资产目录", {
+      appDir,
+      agentId: props.agentId,
+      assetsPath,
+    });
+    await invoke("open_file_directory", { filePath: assetsPath });
+  } catch (error) {
+    logger.error("打开资产目录失败", error);
+    errorHandler.error(error, "打开资产目录失败");
+  }
+};
+
+/**
  * 获取资产的真实 URL
  */
 const getAssetUrl = async (asset: AgentAsset) => {
@@ -886,6 +906,9 @@ const ThumbnailPreview = {
             >
               批量
             </el-button>
+            <el-tooltip content="打开本地资产目录" :show-after="500" placement="top">
+              <el-button :icon="Folder" @click="handleOpenAssetsDir" />
+            </el-tooltip>
             <el-button
               type="primary"
               :icon="Plus"
@@ -1226,6 +1249,11 @@ const ThumbnailPreview = {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
 }
 
 .title {

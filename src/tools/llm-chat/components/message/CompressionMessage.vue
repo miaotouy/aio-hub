@@ -1,19 +1,25 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import type { ChatMessageNode, MessageRole } from "../../types";
+import { computed, ref, watch, provide } from "vue";
+import { useResizeObserver } from "@vueuse/core";
+import type { ChatMessageNode, MessageRole, ChatSession } from "../../types";
+import { Database, Edit2, Check, X, User, Bot, Settings, Trash2 } from "lucide-vue-next";
+import { useChatSettings } from "../../composables/useChatSettings";
+import { useAgentStore } from "../../agentStore";
+import { useUserProfileStore } from "../../userProfileStore";
 import {
-  Database,
-  Edit2,
-  Check,
-  X,
-  User,
-  Bot,
-  Settings,
-  Trash2,
-} from "lucide-vue-next";
+  resolveRawRules,
+  filterRulesByRole,
+  filterRulesByDepth,
+  processRulesWithMacros,
+} from "../../utils/chatRegexUtils";
+import { createMacroContext } from "../../macro-engine/MacroContext";
+import type { ChatRegexRule } from "../../types/chatRegex";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 
 interface Props {
+  session: ChatSession | null;
   message: ChatMessageNode;
+  messageDepth?: number;
 }
 
 interface Emits {
@@ -23,12 +29,99 @@ interface Emits {
   (e: "update-role", role: MessageRole): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  messageDepth: 0,
+});
 const emit = defineEmits<Emits>();
+
+const { settings } = useChatSettings();
+const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
+
+// 提供消息 ID 给后代组件
+provide("messageId", props.message.id);
+// 提供设置给后代组件
+provide("chatSettings", settings);
 
 // 编辑状态
 const isEditing = ref(false);
 const editedContent = ref(props.message.content);
+
+// ===== 背景分块渲染逻辑 (规避超长消息 backdrop-filter 失效) =====
+const messageRef = ref<HTMLElement | null>(null);
+const messageHeight = ref(0);
+const BLOCK_SIZE = 2000;
+
+useResizeObserver(messageRef, (entries) => {
+  const entry = entries[0];
+  const { height } = entry.contentRect;
+  messageHeight.value = height;
+});
+
+const backgroundBlocks = computed(() => {
+  if (messageHeight.value <= 0) return 1;
+  return Math.ceil(messageHeight.value / BLOCK_SIZE);
+});
+
+// ===== 正则规则处理逻辑 =====
+function getAgentAndUserProfileIds(metadata: any): {
+  agentId: string | undefined;
+  userProfileId: string | undefined;
+} {
+  const agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+  const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+  let userProfileId =
+    metadata?.userProfileId ??
+    agent?.userProfileId ??
+    userProfileStore.globalProfileId ??
+    undefined;
+  return { agentId, userProfileId };
+}
+
+const activeRules = computed(() => {
+  const { agentId, userProfileId } = getAgentAndUserProfileIds(props.message.metadata);
+  const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+  const userProfile = userProfileId
+    ? userProfileStore.getProfileById(userProfileId)
+    : userProfileStore.globalProfile;
+  const globalConfig = settings.value.regexConfig;
+
+  const rawRules = resolveRawRules(
+    "render",
+    globalConfig,
+    agent?.regexConfig,
+    userProfile?.regexConfig
+  );
+
+  const roleFiltered = filterRulesByRole(rawRules, props.message.role);
+  return filterRulesByDepth(roleFiltered, props.messageDepth);
+});
+
+const processedRules = ref<ChatRegexRule[]>([]);
+
+watch(
+  [activeRules, () => props.session, () => props.message.metadata],
+  async ([rules, session, metadata]) => {
+    if (!rules || rules.length === 0) {
+      processedRules.value = [];
+      return;
+    }
+    const { agentId, userProfileId } = getAgentAndUserProfileIds(metadata);
+    const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+    const userProfile = userProfileId
+      ? userProfileStore.getProfileById(userProfileId)
+      : userProfileStore.globalProfile;
+
+    const macroContext = createMacroContext({
+      agent,
+      userProfile: userProfile ?? undefined,
+      session: session ?? undefined,
+    });
+
+    processedRules.value = await processRulesWithMacros(rules, macroContext);
+  },
+  { immediate: true }
+);
 
 // 角色列表
 const roles: { label: string; value: MessageRole; icon: any }[] = [
@@ -91,9 +184,24 @@ watch(
 
 <template>
   <div
+    ref="messageRef"
     class="compression-message"
     :class="{ 'is-disabled': !isEnabled, 'is-editing': isEditing }"
   >
+    <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
+    <div class="message-background-container">
+      <div
+        v-for="i in backgroundBlocks"
+        :key="i"
+        class="message-background-slice"
+        :style="{
+          top: `${(i - 1) * BLOCK_SIZE}px`,
+          height: i === backgroundBlocks ? 'auto' : `${BLOCK_SIZE}px`,
+          bottom: i === backgroundBlocks ? '0' : 'auto',
+        }"
+      ></div>
+    </div>
+
     <!-- 装饰性侧边栏 -->
     <div
       class="compression-bar"
@@ -180,7 +288,14 @@ watch(
           class="edit-input"
         />
         <template v-else>
-          {{ message.content }}
+          <RichTextRenderer
+            :content="message.content"
+            :regex-rules="processedRules"
+            :version="settings.uiPreferences.rendererVersion"
+            :default-render-html="settings.uiPreferences.defaultRenderHtml"
+            :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+            :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
+          />
         </template>
       </div>
 
@@ -194,21 +309,53 @@ watch(
 
 <style scoped>
 .compression-message {
+  position: relative;
   display: flex;
   gap: 12px;
   padding: 8px 16px;
   margin: 8px 0;
-  background-color: var(--card-bg);
-  border: 1px dashed var(--border-color);
   border-radius: 8px;
   transition: all 0.2s ease;
   font-size: 13px;
   color: var(--text-color-secondary);
+  content-visibility: auto;
+  contain-intrinsic-size: 100px;
 }
 
-.compression-message:hover {
+/* 背景层容器 */
+.message-background-container {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 独立的边框层 */
+.compression-message::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+  transition: border-color 0.2s;
+}
+
+/* 背景切片 */
+.message-background-slice {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.compression-message:hover::after {
   border-color: var(--primary-color);
-  background-color: var(--bg-color-soft);
+  border-style: solid;
 }
 
 .compression-message.is-disabled {
@@ -224,6 +371,8 @@ watch(
 
 /* 左侧装饰条 */
 .compression-bar {
+  position: relative;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -250,6 +399,8 @@ watch(
 
 /* 内容区域 */
 .compression-content-wrapper {
+  position: relative;
+  z-index: 3;
   flex: 1;
   display: flex;
   flex-direction: column;

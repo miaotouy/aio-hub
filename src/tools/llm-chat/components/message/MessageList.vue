@@ -313,7 +313,9 @@ defineExpose({
             <!-- 压缩节点渲染 -->
             <CompressionMessage
               v-if="displayMessages[virtualItem.index].metadata?.isCompressionNode"
+              :session="props.session"
               :message="displayMessages[virtualItem.index]"
+              :message-depth="displayMessages.length - 1 - virtualItem.index"
               @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
               @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
               @update-content="

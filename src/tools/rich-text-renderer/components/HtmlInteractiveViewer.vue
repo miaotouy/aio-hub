@@ -55,6 +55,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { RotateCw, ExternalLink, Loader2 } from "lucide-vue-next";
 import { useDebounceFn, useThrottleFn } from "@vueuse/core";
+import { localizeCdnLinks } from "../utils/cdnLocalizer";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
@@ -307,6 +308,10 @@ const logCaptureScript = `
 const srcDoc = computed(() => {
   let content = themedContent.value;
   if (!content) return "";
+
+  // 1. CDN 本地化拦截
+  const { html: localizedContent } = localizeCdnLinks(content);
+  content = localizedContent;
 
   // 如果内容已经包含了 html 标签，则不再包裹，而是尝试注入脚本
   const trimmed = content.trim().toLowerCase();

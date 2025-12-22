@@ -7,9 +7,12 @@
 //!
 //! 资产存储路径：`appdata://llm-chat/agents/{agent_id}/assets/{filename}`
 
+use image::ImageFormat;
+use lofty::file::TaggedFileExt;
+use lofty::probe::Probe;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
@@ -17,14 +20,16 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentAssetInfo {
-    /// 文件名
+    /// 文件名（存储时的实际文件名）
     pub filename: String,
     /// 相对路径（相对于 Agent 目录）
     pub path: String,
     /// 文件大小（字节）
     pub size: u64,
     /// MIME 类型
-    pub mime_type: String,
+    pub mime_type: String,/// 缩略图相对路径（如果有）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail_path: Option<String>,
 }
 
 /// 获取 Agent 资产目录的基础路径
@@ -87,6 +92,146 @@ fn guess_mime_type_from_extension(filename: &str) -> String {
     .to_string()
 }
 
+/// 清理 ID 字符串，移除不安全的字符
+///
+/// 只保留字母、数字、下划线、连字符和点号
+fn sanitize_id(id: &str) -> String {
+    id.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
+        .collect()
+}
+
+/// 从文件名提取不带扩展名的基础名称
+fn extract_base_name(file_name: &str) -> String {
+    // 找到最后一个点的位置
+    if let Some(dot_pos) = file_name.rfind('.') {
+        if dot_pos > 0 {
+            return file_name[..dot_pos].to_string();
+        }
+    }
+    file_name.to_string()
+}
+
+/// 生成唯一的文件名
+///
+/// 如果目标文件已存在，会在文件名后添加数字后缀
+fn generate_unique_filename(assets_dir: &Path, base_name: &str, extension: &str) -> String {
+    let initial_filename = format!("{}.{}", base_name, extension);
+    let initial_path = assets_dir.join(&initial_filename);
+
+    if !initial_path.exists() {
+        return initial_filename;
+    }
+
+    // 文件已存在，添加数字后缀
+    let mut counter = 1;
+    loop {
+        let new_filename = format!("{}-{}.{}", base_name, counter, extension);
+        let new_path = assets_dir.join(&new_filename);
+        if !new_path.exists() {
+            return new_filename;
+        }
+        counter += 1;
+        // 防止无限循环
+        if counter > 1000 {
+            // 回退到 UUID
+            return format!("{}-{}.{}", base_name, Uuid::new_v4(), extension);
+        }
+    }
+}
+
+/// 生成音频封面缩略图
+///
+/// 从音频文件的元数据中提取封面图片并生成缩略图
+fn generate_audio_thumbnail(
+    source_path: &Path,
+    assets_dir: &Path,
+    base_name: &str,
+) -> Result<Option<String>, String> {
+    // 使用 Probe 读取文件
+    let tagged_file = match Probe::open(source_path) {
+        Ok(probe) => match probe.read() {
+            Ok(tf) => tf,
+            Err(_) => return Ok(None),
+        },
+        Err(_) => return Ok(None),
+    };
+
+    // 尝试获取标签
+    let tag = match tagged_file.primary_tag() {
+        Some(tag) => tag,
+        None => match tagged_file.first_tag() {
+            Some(tag) => tag,
+            None => return Ok(None),
+        },
+    };
+
+    // 获取图片列表
+    let pictures = tag.pictures();
+    if pictures.is_empty() {
+        return Ok(None);
+    }
+
+    // 取第一张图片
+    let picture = &pictures[0];
+    let data = picture.data();
+
+    // 加载图片数据
+    let img = match image::load_from_memory(data) {
+        Ok(img) => img,
+        Err(_) => return Ok(None),
+    };
+
+    // 生成缩略图
+    let thumbnail = img.thumbnail(400, 400);
+
+    // 确保缩略图目录存在
+    let thumbnails_dir = assets_dir.join(".thumbnails");
+    fs::create_dir_all(&thumbnails_dir).map_err(|e| format!("创建缩略图目录失败: {}", e))?;
+
+    let thumbnail_filename = format!("{}.jpg", base_name);
+    let thumbnail_path = thumbnails_dir.join(&thumbnail_filename);
+
+    // 保存缩略图
+    thumbnail
+        .to_rgb8()
+        .save_with_format(&thumbnail_path, ImageFormat::Jpeg)
+        .map_err(|e| format!("保存音频封面失败: {}", e))?;
+
+    Ok(Some(format!("assets/.thumbnails/{}", thumbnail_filename)))
+}
+
+/// 生成图片缩略图
+fn generate_image_thumbnail(
+    source_path: &Path,
+    assets_dir: &Path,
+    base_name: &str,
+) -> Result<Option<String>, String> {
+    // 加载图片
+    let img = match image::open(source_path) {
+        Ok(img) => img,
+        Err(_) => return Ok(None),
+    };
+
+    // 生成缩略图
+    let thumbnail = img.thumbnail(400, 400);
+
+    // 确保缩略图目录存在
+    let thumbnails_dir = assets_dir.join(".thumbnails");
+    fs::create_dir_all(&thumbnails_dir).map_err(|e| format!("创建缩略图目录失败: {}", e))?;
+
+    let thumbnail_filename = format!("{}.jpg", base_name);
+    let thumbnail_path = thumbnails_dir.join(&thumbnail_filename);
+
+    // 保存缩略图
+    thumbnail
+        .to_rgb8()
+        .save_with_format(&thumbnail_path, ImageFormat::Jpeg)
+        .map_err(|e| format!("保存缩略图失败: {}", e))?;
+
+    Ok(Some(format!("assets/.thumbnails/{}", thumbnail_filename)))
+}
+
 /// 保存 Agent 资产文件
 ///
 /// 将前端上传的二进制数据保存到指定 Agent 的 assets 目录。
@@ -94,17 +239,19 @@ fn guess_mime_type_from_extension(filename: &str) -> String {
 /// # 参数
 /// - `app`: Tauri 应用句柄
 /// - `agent_id`: Agent 的唯一标识符
-/// - `file_name`: 原始文件名（用于提取扩展名）
+/// - `file_name`: 原始文件名（用于提取扩展名和默认 ID）
 /// - `data`: 文件的二进制数据
+/// - `custom_id`: 可选的自定义 ID，如果不提供则使用原始文件名（去扩展名）
 ///
 /// # 返回
-/// 返回保存后的相对路径（相对于 Agent 目录），格式为 `assets/{uuid}.{ext}`
+/// 返回保存后的资产信息
 #[tauri::command]
 pub async fn save_agent_asset(
     app: AppHandle,
     agent_id: String,
     file_name: String,
     data: Vec<u8>,
+    custom_id: Option<String>,
 ) -> Result<AgentAssetInfo, String> {
     // 获取 Agent 资产目录
     let assets_dir = get_agent_assets_dir(&app, &agent_id)?;
@@ -119,9 +266,29 @@ pub async fn save_agent_asset(
         .filter(|ext| !ext.is_empty() && ext.len() <= 10)
         .unwrap_or("bin");
 
-    // 生成唯一文件名
-    let uuid = Uuid::new_v4().to_string();
-    let new_filename = format!("{}.{}", uuid, extension);
+    // 确定基础文件名
+    let base_name = if let Some(id) = custom_id {
+        let sanitized = sanitize_id(&id);
+        if sanitized.is_empty() {
+            // 如果清理后为空，使用原始文件名
+            sanitize_id(&extract_base_name(&file_name))
+        } else {
+            sanitized
+        }
+    } else {
+        // 使用原始文件名（去扩展名）
+        sanitize_id(&extract_base_name(&file_name))
+    };
+
+    // 如果基础名称仍为空，使用 UUID
+    let base_name = if base_name.is_empty() {
+        Uuid::new_v4().to_string()
+    } else {
+        base_name
+    };
+
+    // 生成唯一文件名（处理重名）
+    let new_filename = generate_unique_filename(&assets_dir, &base_name, extension);
     let target_path = assets_dir.join(&new_filename);
 
     // 写入文件
@@ -133,11 +300,35 @@ pub async fn save_agent_asset(
     // 推断 MIME 类型
     let mime_type = guess_mime_type_from_extension(&file_name);
 
+    // 生成缩略图（针对图片和音频）
+    let actual_base_name = new_filename
+        .rsplit('.')
+        .skip(1)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(".");
+    let actual_base_name = if actual_base_name.is_empty() {
+        new_filename.clone()
+    } else {
+        actual_base_name
+    };
+
+    let thumbnail_path = if mime_type.starts_with("image/") {
+        generate_image_thumbnail(&target_path, &assets_dir, &actual_base_name)?
+    } else if mime_type.starts_with("audio/") {
+        generate_audio_thumbnail(&target_path, &assets_dir, &actual_base_name)?
+    } else {
+        None
+    };
+
     Ok(AgentAssetInfo {
         filename: new_filename,
         path: relative_path,
         size: data.len() as u64,
         mime_type,
+        thumbnail_path,
     })
 }
 
@@ -232,6 +423,9 @@ pub async fn list_agent_assets(
 
     let entries = fs::read_dir(&assets_dir).map_err(|e| format!("读取资产目录失败: {}", e))?;
 
+    // 检查缩略图目录
+    let thumbnails_dir = assets_dir.join(".thumbnails");
+
     for entry in entries.flatten() {
         let path = entry.path();
 
@@ -252,11 +446,22 @@ pub async fn list_agent_assets(
             let size = metadata.map(|m| m.len()).unwrap_or(0);
             let mime_type = guess_mime_type_from_extension(&filename_str);
 
+            // 检查是否有对应的缩略图
+            let base_name = extract_base_name(&filename_str);
+            let thumbnail_filename = format!("{}.jpg", base_name);
+            let thumbnail_path = thumbnails_dir.join(&thumbnail_filename);
+            let thumbnail_relative = if thumbnail_path.exists() {
+                Some(format!("assets/.thumbnails/{}", thumbnail_filename))
+            } else {
+                None
+            };
+
             assets.push(AgentAssetInfo {
                 filename: filename_str.clone(),
                 path: format!("assets/{}", filename_str),
                 size,
                 mime_type,
+                thumbnail_path: thumbnail_relative,
             });
         }
     }

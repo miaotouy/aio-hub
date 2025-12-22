@@ -68,6 +68,8 @@ export interface AgentAsset {
   size?: number;
   /** MIME 类型 */
   mimeType?: string;
+  /** 缩略图相对路径（如果有） */
+  thumbnailPath?: string;
 }
 
 /**

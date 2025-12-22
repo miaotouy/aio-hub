@@ -128,6 +128,7 @@ const groupCounts = computed(() => {
 // 预览对话框状态（非图片资源）
 const mediaPreviewVisible = ref(false);
 const mediaPreviewUrl = ref("");
+const mediaPreviewPoster = ref("");
 const mediaPreviewType = ref<AssetType>("file");
 
 // 同步外部数据
@@ -508,6 +509,17 @@ const getAssetUrl = async (asset: AgentAsset) => {
 };
 
 /**
+ * 从文件名提取不带扩展名的基础名称
+ */
+const extractBaseName = (fileName: string): string => {
+  const lastDot = fileName.lastIndexOf(".");
+  if (lastDot > 0) {
+    return fileName.substring(0, lastDot);
+  }
+  return fileName;
+};
+
+/**
  * 处理文件上传
  */
 const handleFileUpload = async (paths: string[]) => {
@@ -519,14 +531,21 @@ const handleFileUpload = async (paths: string[]) => {
       const data = await invoke<number[]>("read_file_binary", { path });
       const fileName = path.split(/[/\\]/).pop() || "file";
 
+      // 使用原始文件名（去扩展名）作为自定义 ID
+      const customId = extractBaseName(fileName);
+
       const info = await invoke<any>("save_agent_asset", {
         agentId: props.agentId,
         fileName,
         data: Array.from(new Uint8Array(data)),
+        customId,
       });
 
+      // 从返回的 filename 中提取实际的 ID（去扩展名）
+      const actualId = extractBaseName(info.filename);
+
       const newAsset: AgentAsset = {
-        id: info.filename.split(".")[0],
+        id: actualId,
         path: info.path,
         filename: fileName,
         type: inferAssetType(info.mimeType),
@@ -537,6 +556,7 @@ const handleFileUpload = async (paths: string[]) => {
           selectedGroup.value === "all" || selectedGroup.value === "default"
             ? "default"
             : selectedGroup.value,
+        thumbnailPath: info.thumbnailPath,
       };
 
       assets.value.push(newAsset);
@@ -580,7 +600,6 @@ const handleDeleteAsset = async (asset: AgentAsset) => {
     errorHandler.error(error, "删除资产失败");
   }
 };
-
 /**
  * 预览资产
  */
@@ -593,6 +612,21 @@ const handlePreview = async (asset: AgentAsset) => {
   } else {
     mediaPreviewType.value = asset.type;
     mediaPreviewUrl.value = url;
+    mediaPreviewPoster.value = "";
+
+    // 如果是音频且有缩略图，加载缩略图作为封面
+    if (asset.type === "audio" && asset.thumbnailPath) {
+      try {
+        const fullPath = await invoke<string>("get_agent_asset_path", {
+          agentId: props.agentId,
+          assetPath: asset.thumbnailPath,
+        });
+        mediaPreviewPoster.value = convertFileSrc(fullPath);
+      } catch (error) {
+        logger.warn("加载预览封面失败", error);
+      }
+    }
+
     mediaPreviewVisible.value = true;
   }
 };
@@ -685,6 +719,36 @@ const AssetThumbnail = {
     return { src };
   },
   template: `<img v-if="src" :src="src" class="w-full h-full object-cover" loading="lazy" />`,
+};
+
+// 异步加载缩略图 URL 的组件逻辑（用于音频封面等）
+const ThumbnailPreview = {
+  props: ["thumbnailPath", "agentId", "fallbackIcon"],
+  setup(props: any) {
+    const src = ref("");
+    const loaded = ref(false);
+
+    // 如果有缩略图路径，获取 URL
+    if (props.thumbnailPath) {
+      invoke<string>("get_agent_asset_path", {
+        agentId: props.agentId,
+        assetPath: props.thumbnailPath,
+      })
+        .then((path) => {
+          src.value = convertFileSrc(path);
+          loaded.value = true;
+        })
+        .catch(() => {
+          loaded.value = false;
+        });
+    }
+
+    return { src, loaded };
+  },
+  template: `
+    <img v-if="loaded && src" :src="src" class="w-full h-full object-cover" loading="lazy" />
+    <slot v-else name="fallback"></slot>
+  `,
 };
 </script>
 
@@ -898,10 +962,28 @@ const AssetThumbnail = {
                   :agent-id="agentId"
                 />
 
+                <!-- 音频类型（可能有封面缩略图） -->
+                <template v-else-if="asset.type === 'audio'">
+                  <component
+                    v-if="asset.thumbnailPath"
+                    :is="ThumbnailPreview"
+                    :thumbnail-path="asset.thumbnailPath"
+                    :agent-id="agentId"
+                  >
+                    <template #fallback>
+                      <div class="generic-preview audio">
+                        <el-icon :size="48"><Headset /></el-icon>
+                      </div>
+                    </template>
+                  </component>
+                  <div v-else class="generic-preview audio">
+                    <el-icon :size="48"><Headset /></el-icon>
+                  </div>
+                </template>
+
                 <!-- 其他类型 -->
                 <div v-else class="generic-preview" :class="asset.type">
                   <el-icon v-if="asset.type === 'video'" :size="48"><VideoPlay /></el-icon>
-                  <el-icon v-else-if="asset.type === 'audio'" :size="48"><Headset /></el-icon>
                   <FileIcon v-else :filename="asset.filename" :size="48" />
                 </div>
 
@@ -1089,6 +1171,7 @@ const AssetThumbnail = {
       v-else-if="mediaPreviewType === 'audio'"
       v-model:visible="mediaPreviewVisible"
       :src="mediaPreviewUrl"
+      :poster="mediaPreviewPoster"
       :title="editingAsset?.filename || '音频预览'"
     />
 

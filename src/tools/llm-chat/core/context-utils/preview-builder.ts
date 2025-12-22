@@ -361,6 +361,8 @@ export async function buildPreviewDataFromContext(
         userName: sourceNode.metadata?.userProfileName,
         userDisplayName: sourceNode.metadata?.userProfileDisplayName || sourceNode.metadata?.userProfileName,
         userIcon: sourceNode.metadata?.userProfileIcon,
+        isCompressionNode: sourceNode.metadata?.isCompressionNode,
+        originalMessageCount: sourceNode.metadata?.originalMessageCount,
         attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
       });
 

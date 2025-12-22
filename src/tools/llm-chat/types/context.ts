@@ -123,6 +123,10 @@ export interface ContextPreviewData {
     userDisplayName?: string;
     /** 节点所使用的用户图标（快照） */
     userIcon?: string;
+    /** 是否为压缩节点 */
+    isCompressionNode?: boolean;
+    /** 原始消息数量 */
+    originalMessageCount?: number;
     /** 附件的详细分析 */
     attachments?: Array<{
       id: string;

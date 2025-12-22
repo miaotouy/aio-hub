@@ -132,10 +132,7 @@
           <div class="stat-label">截断统计</div>
           <div class="stat-value">
             {{ contextData.statistics.truncatedMessageCount }} 条消息
-            <span
-              class="saved-count"
-              v-if="contextData.statistics.savedTokenCount !== undefined"
-            >
+            <span class="saved-count" v-if="contextData.statistics.savedTokenCount !== undefined">
               节省 {{ contextData.statistics.savedTokenCount.toLocaleString() }} tokens
             </span>
           </div>
@@ -192,6 +189,16 @@
                   {{ getRoleName(msg) }}
                   #{{ index + 1 }}
                 </span>
+                <!-- 摘要节点标识 -->
+                <el-tag
+                  v-if="msg.isCompressionNode"
+                  size="small"
+                  type="info"
+                  effect="dark"
+                  class="compression-tag"
+                >
+                  上下文摘要
+                </el-tag>
                 <!-- 来源标签 -->
                 <el-tag
                   :type="getSourceTagType(msg.source)"
@@ -212,8 +219,17 @@
                 <el-tag size="small" type="info"> {{ msg.charCount }} 字符 </el-tag>
               </div>
             </div>
+            <!-- 摘要详情 -->
+            <div v-if="msg.isCompressionNode" class="compression-details">
+              <span class="detail-item">
+                <el-icon><ChatLineRound /></el-icon>
+                压缩历史: {{ msg.originalMessageCount }} 条
+              </span>
+            </div>
           </template>
-          <div class="message-content">{{ getDisplayContent(msg.content) }}</div>
+          <div class="message-content" :class="{ 'is-summary': msg.isCompressionNode }">
+            {{ getDisplayContent(msg.content) }}
+          </div>
           <!-- 附件分析（仅会话历史消息有） -->
           <div v-if="msg.attachments && msg.attachments.length > 0" class="attachments-section">
             <div class="attachments-title">附件分析</div>
@@ -240,7 +256,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Setting } from "@element-plus/icons-vue";
+import { Setting, ChatLineRound } from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -385,6 +401,9 @@ interface UnifiedMessage {
   // 智能体信息（assistant 角色）
   agentName?: string;
   agentIcon?: string;
+  // 摘要信息
+  isCompressionNode?: boolean;
+  originalMessageCount?: number;
   // 附件（仅会话历史）
   attachments?: ContextPreviewData["chatHistory"][number]["attachments"];
   _mergedSources?: any[];
@@ -533,6 +552,8 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           userIcon: history.userIcon,
           agentName: history.agentName,
           agentIcon: history.agentIcon,
+          isCompressionNode: history.isCompressionNode,
+          originalMessageCount: history.originalMessageCount,
           attachments: history.attachments,
           messageDepth: historyDepthMap.get(history.nodeId),
         };
@@ -886,6 +907,42 @@ const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => 
   max-height: 400px;
   overflow-y: auto;
   line-height: 1.6;
+}
+
+.message-content.is-summary {
+  font-style: italic;
+  color: var(--el-text-color-secondary);
+  background-color: var(--el-fill-color-lighter);
+  padding: 12px;
+  border-radius: 4px;
+  border-left: 4px solid var(--el-border-color);
+}
+
+.compression-tag {
+  margin-left: 8px;
+  font-weight: normal;
+}
+
+.compression-details {
+  margin-top: 8px;
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  padding: 4px 8px;
+  background-color: var(--el-fill-color-blank);
+  border-radius: 4px;
+  border: 1px dashed var(--el-border-color-lighter);
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.detail-item .el-icon {
+  font-size: 14px;
 }
 
 .attachments-section {

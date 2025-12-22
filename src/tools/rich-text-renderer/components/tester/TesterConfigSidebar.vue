@@ -57,6 +57,16 @@
         </div>
       </div>
 
+      <!-- CDN 本地化控制 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label">CDN 本地化</label>
+          <el-tooltip content="开启后，HTML 预览将自动拦截 CDN 资源并重定向到本地库" placement="left">
+            <el-switch v-model="enableCdnLocalizer" />
+          </el-tooltip>
+        </div>
+      </div>
+
       <!-- 无边框模式控制 -->
       <div class="control-section">
         <div class="control-header">
@@ -292,6 +302,7 @@ const {
   charsFluctuation,
   rendererVersion,
   defaultRenderHtml,
+  enableCdnLocalizer,
   enableEnterAnimation,
   llmThinkRules,
   seamlessMode,

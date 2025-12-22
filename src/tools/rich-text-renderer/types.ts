@@ -629,6 +629,8 @@ export interface TesterConfig {
   defaultRenderHtml?: boolean;
   /** HTML 预览无边框模式 */
   seamlessMode?: boolean;
+  /** 是否启用 CDN 资源本地化 */
+  enableCdnLocalizer?: boolean;
   /** 是否启用节点进入动画 */
   enableEnterAnimation?: boolean;
   /** 是否模拟元数据 */

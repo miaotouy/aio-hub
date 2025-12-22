@@ -121,6 +121,7 @@
                 :stream-source="streamSource"
                 :version="rendererVersion"
                 :default-render-html="defaultRenderHtml"
+                :enable-cdn-localizer="enableCdnLocalizer"
                 :enable-enter-animation="enableEnterAnimation"
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
@@ -233,6 +234,7 @@ const {
   visualizeBlockStatus,
   rendererVersion,
   defaultRenderHtml,
+  enableCdnLocalizer,
   enableEnterAnimation,
   simulateMeta,
   selectedTokenizer,

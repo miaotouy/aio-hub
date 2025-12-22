@@ -1136,7 +1136,22 @@ const ThumbnailPreview = {
           />
         </el-form-item>
         <el-form-item label="分组">
-          <el-input v-model="editForm.group" placeholder="例如: default" />
+          <el-select
+            v-model="editForm.group"
+            placeholder="选择或输入分组 ID"
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+          >
+            <el-option label="未分组 (default)" value="default" />
+            <el-option
+              v-for="group in sortedGroups"
+              :key="group.id"
+              :label="`${group.displayName} (${group.id})`"
+              :value="group.id"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>

@@ -1455,13 +1455,19 @@ const ThumbnailPreview = {
 }
 
 .asset-preview {
-  height: 120px;
+  aspect-ratio: 1 / 1;
   position: relative;
   background-color: var(--el-fill-color-light);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.asset-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .generic-preview {

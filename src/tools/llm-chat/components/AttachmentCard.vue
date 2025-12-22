@@ -170,6 +170,8 @@ const transcriptionStatusText = computed(() => {
         return "正在转写...";
       case "success":
         return "转写完成 (点击查看/编辑)";
+      case "warning":
+        return "转写完成但内容为空 (点击查看/编辑)";
       case "error":
         return "转写失败 (点击重试)";
       case "none":
@@ -189,6 +191,8 @@ const transcriptionStatusText = computed(() => {
       return willUse
         ? "转写完成，将作为文本发送 (点击查看/编辑)"
         : "已有转写，但当前模型支持直接处理 (点击查看/编辑)";
+    case "warning":
+      return "转写完成但内容为空 (点击查看/编辑)";
     case "error":
       return "转写失败 (点击重试)";
     case "none":
@@ -200,7 +204,7 @@ const transcriptionStatusText = computed(() => {
 
 const handleTranscriptionClick = async (e: Event) => {
   e.stopPropagation();
-  if (transcriptionStatus.value === "success") {
+  if (transcriptionStatus.value === "success" || transcriptionStatus.value === "warning") {
     const text = await getTranscriptionText(internalAsset.value);
     transcriptionContent.value = text || "";
     showTranscriptionDialog.value = true;
@@ -520,6 +524,7 @@ onUnmounted(() => {
                     class="spinner-micro"
                   />
                   <FileText v-else-if="transcriptionStatus === 'success'" :size="12" />
+                  <TriangleAlert v-else-if="transcriptionStatus === 'warning'" :size="12" />
                   <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="12" />
                   <!-- None 状态图标 -->
                   <FilePenLine v-else :size="12" class="icon-none" />
@@ -604,6 +609,8 @@ onUnmounted(() => {
           >
             <!-- Success: 文档图标 -->
             <FileText v-if="transcriptionStatus === 'success'" :size="14" />
+            <!-- Warning: 警告图标 -->
+            <TriangleAlert v-if="transcriptionStatus === 'warning'" :size="14" />
             <!-- Error: 警示图标 -->
             <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="14" />
             <!-- None: 编辑/转写图标 -->
@@ -1241,6 +1248,10 @@ onUnmounted(() => {
   color: var(--el-color-error);
 }
 
+.transcription-status-icon.warning {
+  color: var(--el-color-warning);
+}
+
 .transcription-status-icon.processing,
 .transcription-status-icon.pending {
   color: var(--el-color-warning);
@@ -1329,6 +1340,12 @@ onUnmounted(() => {
 .transcription-action-btn.success.wont-use {
   color: var(--el-color-info);
   opacity: 0.5; /* 已有但不会用，降低显眼度 */
+  transform: scale(1);
+}
+
+.transcription-action-btn.warning {
+  color: var(--el-color-warning);
+  opacity: 1;
   transform: scale(1);
 }
 

@@ -560,7 +560,18 @@ export function useTranscriptionManager() {
 
     // 6. 清理思考链并保存结果
     const cleanedText = cleanLlmOutput(transcriptionText);
-    const resultPath = await saveTranscriptionResult(task.assetId, assetPath, cleanedText, modelId);
+    
+    // 检查转写内容是否为空（模型返回 200 但内容为空的情况）
+    const isEmptyResult = !cleanedText || cleanedText.trim().length === 0;
+    if (isEmptyResult) {
+      logger.warn("模型返回空内容，转写结果为空", {
+        assetId: task.assetId,
+        assetName: task.filename,
+        modelId,
+      });
+    }
+    
+    const resultPath = await saveTranscriptionResult(task.assetId, assetPath, cleanedText, modelId, isEmptyResult);
     task.resultPath = resultPath;
   };
 
@@ -710,7 +721,8 @@ export function useTranscriptionManager() {
     assetId: string,
     assetPath: string,
     text: string,
-    provider: string
+    provider: string,
+    isEmpty: boolean = false
   ): Promise<string> => {
     try {
       // 构建保存路径: derived/{type}/{date}/{uuid}/transcription.md
@@ -739,11 +751,18 @@ export function useTranscriptionManager() {
       await writeTextFile(fullPath, text);
 
       // 更新元数据
-      await updateDerivedStatus(assetId, {
+      const derivedInfo: DerivedDataInfo = {
         path: derivedRelPath,
         updatedAt: new Date().toISOString(),
         provider,
-      });
+      };
+      
+      // 如果内容为空，添加警告信息
+      if (isEmpty) {
+        derivedInfo.warning = "模型返回空内容";
+      }
+      
+      await updateDerivedStatus(assetId, derivedInfo);
 
       logger.info("转写结果保存成功", { assetId, path: derivedRelPath });
       return derivedRelPath;
@@ -776,7 +795,7 @@ export function useTranscriptionManager() {
    */
   const getTranscriptionStatus = (
     asset: Asset
-  ): "none" | "pending" | "processing" | "success" | "error" => {
+  ): "none" | "pending" | "processing" | "success" | "warning" | "error" => {
     // 1. 检查队列
     const task = tasks.find((t) => t.assetId === asset.id);
     if (task) {
@@ -791,6 +810,7 @@ export function useTranscriptionManager() {
     const derived = asset.metadata?.derived?.transcription;
     if (derived) {
       if (derived.error) return "error";
+      if (derived.warning) return "warning";
       if (derived.path) return "success";
     }
 

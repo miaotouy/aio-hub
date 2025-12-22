@@ -39,6 +39,8 @@ export interface DerivedDataInfo {
   provider?: string;
   /** 错误信息 (如果生成失败) */
   error?: string;
+  /** 警告信息 (如果生成成功但结果可能有问题，例如内容为空) */
+  warning?: string;
 }
 
 /**

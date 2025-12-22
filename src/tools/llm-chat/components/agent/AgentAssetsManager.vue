@@ -860,26 +860,34 @@ const ThumbnailPreview = {
     <div class="main-content">
       <!-- 顶部工具栏 -->
       <div class="toolbar">
-        <div class="left-tools" v-if="isSelectionMode">
-          <el-button :icon="Close" circle size="small" @click="toggleSelectionMode" />
-          <span class="selection-count">已选 {{ selectedAssetIds.size }} 项</span>
-          <el-divider direction="vertical" />
-          <el-button size="small" @click="toggleSelectAll">
-            {{ selectedAssetIds.size === filteredAssets.length ? "取消全选" : "全选" }}
-          </el-button>
-        </div>
-        <div class="search-box" v-else>
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索资产 (ID、文件名)..."
-            :prefix-icon="Search"
-            clearable
-          />
+        <div class="left-tools">
+          <template v-if="isSelectionMode">
+            <span class="selection-count">已选 {{ selectedAssetIds.size }} 项</span>
+            <el-divider direction="vertical" />
+            <el-button size="small" @click="toggleSelectAll">
+              {{
+                selectedAssetIds.size > 0 && selectedAssetIds.size === filteredAssets.length
+                  ? "取消全选"
+                  : "全选"
+              }}
+            </el-button>
+          </template>
+          <div class="search-box">
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索资产 (ID、文件名)..."
+              :prefix-icon="Search"
+              clearable
+              size="small"
+            />
+          </div>
         </div>
 
         <div class="actions">
           <template v-if="isSelectionMode">
-            <el-button-group>
+            <el-button size="small" :icon="Close" @click="toggleSelectionMode">退出批量</el-button>
+            <el-divider direction="vertical" />
+            <el-button-group size="small">
               <el-button
                 :icon="FolderAdd"
                 @click="openBatchMoveDialog"
@@ -898,18 +906,14 @@ const ThumbnailPreview = {
             </el-button-group>
           </template>
           <template v-else>
-            <el-button
-              :type="isSelectionMode ? 'primary' : 'default'"
-              :icon="Operation"
-              @click="toggleSelectionMode"
-              title="批量管理"
-            >
+            <el-button size="small" :icon="Operation" @click="toggleSelectionMode" title="批量管理">
               批量
             </el-button>
             <el-tooltip content="打开本地资产目录" :show-after="500" placement="top">
-              <el-button :icon="Folder" @click="handleOpenAssetsDir" />
+              <el-button size="small" :icon="Folder" @click="handleOpenAssetsDir" />
             </el-tooltip>
             <el-button
+              size="small"
               type="primary"
               :icon="Plus"
               :loading="isUploading"
@@ -1351,25 +1355,27 @@ const ThumbnailPreview = {
   gap: 16px;
   padding: 16px;
   border-bottom: 1px solid var(--el-border-color-lighter);
-  height: 64px;
   box-sizing: border-box;
 }
 
 .left-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
 .selection-count {
   font-size: 13px;
   color: var(--el-text-color-regular);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .search-box {
   flex: 1;
-  max-width: 300px;
+  max-width: 240px;
 }
 
 .upload-overlay-container {

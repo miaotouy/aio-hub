@@ -39,6 +39,7 @@
       </div>
 
       <iframe
+        ref="iframeRef"
         :key="iframeKey"
         class="preview-iframe"
         :srcdoc="srcDoc"
@@ -98,6 +99,7 @@ const isBorderVisible = computed(() => props.bordered && !props.seamless);
 
 const loading = ref(true);
 const contentHeight = ref(300); // 默认高度
+const iframeRef = ref<HTMLIFrameElement | null>(null);
 // 用于强制重新挂载 iframe 的 key
 const iframeKey = ref(0);
 // 用于实际渲染的内容，与 props.content 解耦以实现防抖和稳定性检查
@@ -365,7 +367,10 @@ const srcDoc = computed(() => {
 
 // 处理 iframe 传来的日志和消息
 const handleIframeMessage = (event: MessageEvent) => {
-  if (!event.data) return;
+  if (!event.data || !iframeRef.value) return;
+
+  // 严格隔离：只处理来自当前实例 iframe 的消息
+  if (event.source !== iframeRef.value.contentWindow) return;
 
   // 处理高度调整消息
   if (event.data.type === "iframe-resize" && props.autoHeight) {

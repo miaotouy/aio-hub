@@ -34,6 +34,10 @@ export interface LlmChatUiState {
   // ModelParametersEditor 折叠状态
   basicParamsExpanded: boolean;
   advancedParamsExpanded: boolean;
+  contextManagementExpanded: boolean;
+  contextCompressionExpanded: boolean;
+  postProcessingExpanded: boolean;
+  safetySettingsExpanded: boolean;
   specialFeaturesExpanded: boolean;
   customParamsExpanded: boolean;
   
@@ -56,6 +60,10 @@ const defaultUiState: LlmChatUiState = {
   presetMessagesExpanded: true,
   basicParamsExpanded: true,
   advancedParamsExpanded: false,
+  contextManagementExpanded: true,
+  contextCompressionExpanded: false,
+  postProcessingExpanded: false,
+  safetySettingsExpanded: false,
   specialFeaturesExpanded: false,
   customParamsExpanded: false,
   viewMode: 'linear',
@@ -85,6 +93,10 @@ const currentAgentId = ref<string | null>(defaultUiState.currentAgentId);
 const presetMessagesExpanded = ref(defaultUiState.presetMessagesExpanded);
 const basicParamsExpanded = ref(defaultUiState.basicParamsExpanded);
 const advancedParamsExpanded = ref(defaultUiState.advancedParamsExpanded);
+const contextManagementExpanded = ref(defaultUiState.contextManagementExpanded);
+const contextCompressionExpanded = ref(defaultUiState.contextCompressionExpanded);
+const postProcessingExpanded = ref(defaultUiState.postProcessingExpanded);
+const safetySettingsExpanded = ref(defaultUiState.safetySettingsExpanded);
 const specialFeaturesExpanded = ref(defaultUiState.specialFeaturesExpanded);
 const customParamsExpanded = ref(defaultUiState.customParamsExpanded);
 const viewMode = ref<'linear' | 'force-graph'>(defaultUiState.viewMode);
@@ -114,6 +126,10 @@ export function useLlmChatUiState() {
       presetMessagesExpanded.value = state.presetMessagesExpanded;
       basicParamsExpanded.value = state.basicParamsExpanded;
       advancedParamsExpanded.value = state.advancedParamsExpanded;
+      contextManagementExpanded.value = state.contextManagementExpanded ?? defaultUiState.contextManagementExpanded;
+      contextCompressionExpanded.value = state.contextCompressionExpanded ?? defaultUiState.contextCompressionExpanded;
+      postProcessingExpanded.value = state.postProcessingExpanded ?? defaultUiState.postProcessingExpanded;
+      safetySettingsExpanded.value = state.safetySettingsExpanded ?? defaultUiState.safetySettingsExpanded;
       specialFeaturesExpanded.value = state.specialFeaturesExpanded;
       customParamsExpanded.value = state.customParamsExpanded;
       viewMode.value = state.viewMode;
@@ -147,6 +163,10 @@ export function useLlmChatUiState() {
       presetMessagesExpanded: presetMessagesExpanded.value,
       basicParamsExpanded: basicParamsExpanded.value,
       advancedParamsExpanded: advancedParamsExpanded.value,
+      contextManagementExpanded: contextManagementExpanded.value,
+      contextCompressionExpanded: contextCompressionExpanded.value,
+      postProcessingExpanded: postProcessingExpanded.value,
+      safetySettingsExpanded: safetySettingsExpanded.value,
       specialFeaturesExpanded: specialFeaturesExpanded.value,
       customParamsExpanded: customParamsExpanded.value,
       viewMode: viewMode.value,
@@ -173,6 +193,10 @@ export function useLlmChatUiState() {
         presetMessagesExpanded,
         basicParamsExpanded,
         advancedParamsExpanded,
+        contextManagementExpanded,
+        contextCompressionExpanded,
+        postProcessingExpanded,
+        safetySettingsExpanded,
         specialFeaturesExpanded,
         customParamsExpanded,
         viewMode,
@@ -202,6 +226,10 @@ export function useLlmChatUiState() {
       presetMessagesExpanded.value = defaultUiState.presetMessagesExpanded;
       basicParamsExpanded.value = defaultUiState.basicParamsExpanded;
       advancedParamsExpanded.value = defaultUiState.advancedParamsExpanded;
+      contextManagementExpanded.value = defaultUiState.contextManagementExpanded;
+      contextCompressionExpanded.value = defaultUiState.contextCompressionExpanded;
+      postProcessingExpanded.value = defaultUiState.postProcessingExpanded;
+      safetySettingsExpanded.value = defaultUiState.safetySettingsExpanded;
       specialFeaturesExpanded.value = defaultUiState.specialFeaturesExpanded;
       customParamsExpanded.value = defaultUiState.customParamsExpanded;
       viewMode.value = defaultUiState.viewMode;
@@ -224,6 +252,10 @@ export function useLlmChatUiState() {
     presetMessagesExpanded,
     basicParamsExpanded,
     advancedParamsExpanded,
+    contextManagementExpanded,
+    contextCompressionExpanded,
+    postProcessingExpanded,
+    safetySettingsExpanded,
     specialFeaturesExpanded,
     customParamsExpanded,
     viewMode,

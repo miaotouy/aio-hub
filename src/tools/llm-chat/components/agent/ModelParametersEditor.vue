@@ -154,18 +154,13 @@ const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
 const {
   basicParamsExpanded,
   advancedParamsExpanded,
+  contextManagementExpanded,
+  contextCompressionExpanded,
+  postProcessingExpanded,
+  safetySettingsExpanded,
   specialFeaturesExpanded,
   customParamsExpanded,
 } = useLlmChatUiState();
-
-// 上下文管理折叠状态（局部状态）
-const contextManagementExpanded = ref(true);
-// 上下文压缩折叠状态（局部状态）
-const contextCompressionExpanded = ref(false);
-// 上下文后处理折叠状态（局部状态）
-const postProcessingExpanded = ref(true);
-// 安全设置折叠状态（局部状态）
-const safetySettingsExpanded = ref(false);
 
 // --- 参数配置分组 ---
 

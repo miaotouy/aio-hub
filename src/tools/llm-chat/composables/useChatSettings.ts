@@ -291,7 +291,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     autoStartOnImport: true, // 默认开启，体验更好
     sendBehavior: "send_and_wait",
     modelIdentifier: "",
-    customPrompt: `你是一个高精度多模态内容分析器。请对输入的媒体内容进行全面、准确的文本化转录。
+    customPrompt: `你是一个高精度多模态内容分析器。正在处理文件：{filename}。请对输入的媒体内容进行全面、准确的文本化转录。
 
 ## 核心原则
 1. **忠实还原**：优先还原内容的原始意图，而非机械式转录
@@ -324,7 +324,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
       maxFps: 12,
       maxResolution: 720,
       modelIdentifier: "",
-      customPrompt: `你是一个专业的视频内容分析器，具备对动态视觉内容和音频信息的综合理解能力。
+      customPrompt: `你是一个专业的视频内容分析器，正在处理视频：{filename}。具备对动态视觉内容和音频信息的综合理解能力。
 
 ## 分析框架
 请按以下结构对视频进行全面分析：
@@ -353,7 +353,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     },
     image: {
       modelIdentifier: "",
-      customPrompt: `你是一个专业的图像内容分析器，具备高精度视觉识别和 OCR 能力。
+      customPrompt: `你是一个专业的图像内容分析器，正在处理图像：{filename}。具备高精度视觉识别和 OCR 能力。
 
 ## 分析框架
 请按以下结构对图像进行全面分析：
@@ -384,7 +384,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     },
     audio: {
       modelIdentifier: "",
-      customPrompt: `你是一个专业的音频内容分析工具，精通语音识别、歌词转录及音乐理论分析。
+      customPrompt: `你是一个专业的音频内容分析工具，正在处理音频：{filename}。精通语音识别、歌词转录及音乐理论分析。
 
 ## 核心任务
 请对输入的音频内容进行全方位的听感分析与转录，兼顾“语音对话”与“音乐元素”的深度解析。

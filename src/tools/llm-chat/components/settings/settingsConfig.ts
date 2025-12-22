@@ -853,8 +853,8 @@ export const settingsConfig: SettingsSection[] = [
           defaultValue: DEFAULT_SETTINGS.transcription.customPrompt,
         },
         modelPath: "transcription.customPrompt",
-        hint: "用于指导模型如何转写附件内容。",
-        keywords: "transcription prompt 提示词",
+        hint: "用于指导模型如何转写附件内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription prompt 提示词 filename 文件名",
         visible: (settings) =>
           settings.transcription.enabled &&
           !settings.transcription.enableTypeSpecificConfig,
@@ -932,8 +932,8 @@ export const settingsConfig: SettingsSection[] = [
           defaultValue: DEFAULT_SETTINGS.transcription.image.customPrompt,
         },
         modelPath: "transcription.image.customPrompt",
-        hint: "用于指导模型如何转写图片内容。",
-        keywords: "transcription image prompt 图片 提示词",
+        hint: "用于指导模型如何转写图片内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription image prompt 图片 提示词 filename 文件名",
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
@@ -988,8 +988,8 @@ export const settingsConfig: SettingsSection[] = [
           defaultValue: DEFAULT_SETTINGS.transcription.audio.customPrompt,
         },
         modelPath: "transcription.audio.customPrompt",
-        hint: "用于指导模型如何转写音频内容。",
-        keywords: "transcription audio prompt 音频 提示词",
+        hint: "用于指导模型如何转写音频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription audio prompt 音频 提示词 filename 文件名",
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
@@ -1045,8 +1045,8 @@ export const settingsConfig: SettingsSection[] = [
           defaultValue: DEFAULT_SETTINGS.transcription.video.customPrompt,
         },
         modelPath: "transcription.video.customPrompt",
-        hint: "用于指导模型如何转写视频内容。",
-        keywords: "transcription video prompt 视频 提示词",
+        hint: "用于指导模型如何转写视频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription video prompt 视频 提示词 filename 文件名",
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,

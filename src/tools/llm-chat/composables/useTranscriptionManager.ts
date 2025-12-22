@@ -55,6 +55,7 @@ export interface TranscriptionTask {
   retryCount: number;
   createdAt: number;
   mimeType?: string;
+  filename?: string; // 原始文件名，用于 {filename} 占位符替换
   resultPath?: string; // 缓存结果路径，解决 Asset 更新延迟导致的读取失败问题
   tempFilePath?: string; // 临时文件路径（如压缩后的视频），用于重试复用和最终清理
 }
@@ -202,6 +203,7 @@ export function useTranscriptionManager() {
       retryCount: 0,
       createdAt: Date.now(),
       mimeType: asset.mimeType,
+      filename: asset.name, // 保存原始文件名
     };
 
     tasks.push(task);
@@ -508,6 +510,11 @@ export function useTranscriptionManager() {
       } else {
         prompt = "请详细描述这张图片的内容，包括主要物体、文字信息（OCR）和场景细节。输出格式为 Markdown。";
       }
+    }
+
+    // 替换 {filename} 占位符
+    if (task.filename) {
+      prompt = prompt.replace(/\{filename\}/g, task.filename);
     }
 
     // 检查是否有分批数据需要处理（PDF 或 切分后的图片）

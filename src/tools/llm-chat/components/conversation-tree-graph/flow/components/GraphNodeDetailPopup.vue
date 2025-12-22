@@ -227,7 +227,7 @@ const chatMessageProps = computed(() => {
 <style scoped>
 .graph-node-detail-popup-wrapper {
   position: fixed;
-  z-index: 2500; /* Higher than el-popover's default z-index */
+  z-index: 3500; /* Higher than el-popover's default z-index */
   max-height: 80vh;
   display: flex; /* Make wrapper a flex container */
   flex-direction: column;

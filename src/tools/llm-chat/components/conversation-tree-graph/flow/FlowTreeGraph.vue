@@ -310,17 +310,19 @@
       :items="contextMenu.items"
     />
 
-    <!-- 节点详情悬浮窗 -->
-    <GraphNodeDetailPopup
-      v-if="session"
-      :session="session"
-      :visible="detailPopupState.visible"
-      :message="selectedNodeForDetail"
-      :llm-think-rules="agentConfigForDetail.llmThinkRules"
-      :rich-text-style-options="agentConfigForDetail.richTextStyleOptions"
-      :initial-position="detailPopupState.initialPosition"
-      @close="closeDetailPopup"
-    />
+    <!-- 节点详情悬浮窗 - 使用 Teleport 挂载到 body，避免被父级层叠上下文限制 -->
+    <Teleport to="body">
+      <GraphNodeDetailPopup
+        v-if="session"
+        :session="session"
+        :visible="detailPopupState.visible"
+        :message="selectedNodeForDetail"
+        :llm-think-rules="agentConfigForDetail.llmThinkRules"
+        :rich-text-style-options="agentConfigForDetail.richTextStyleOptions"
+        :initial-position="detailPopupState.initialPosition"
+        @close="closeDetailPopup"
+      />
+    </Teleport>
 
     <!-- 视图设置弹窗 -->
     <el-popover

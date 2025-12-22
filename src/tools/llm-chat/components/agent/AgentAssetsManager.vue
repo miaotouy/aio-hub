@@ -909,18 +909,9 @@ const ThumbnailPreview = {
         </div>
       </div>
 
-      <!-- 主体区域：DropZone 包裹 -->
-      <DropZone
-        class="main-drop-zone"
-        placeholder="拖拽文件到此处上传"
-        :hint="`支持图片、音频、视频等多种格式${selectedGroup !== 'all' && selectedGroup !== 'default' ? ' (将自动添加到 ' + getGroupDisplayName(selectedGroup) + ' 分组)' : ''}`"
-        :icon="Plus"
-        :compact="assets.length > 0"
-        :disabled="disabled || !agentId"
-        :hide-content="assets.length > 0"
-        variant="border"
-        @drop="handleFileUpload"
-      >
+      <!-- 主体区域 -->
+      <div class="main-body">
+        <!-- 资产列表网格 -->
         <div v-if="filteredAssets.length === 0" class="empty-state">
           <el-empty
             :description="searchQuery ? '未找到匹配的资产' : '暂无资产，拖拽文件或点击上传按钮添加'"
@@ -1043,7 +1034,20 @@ const ThumbnailPreview = {
             </div>
           </div>
         </div>
-      </DropZone>
+
+        <!-- 覆盖层模式的 DropZone 容器 -->
+        <div class="upload-overlay-container">
+          <DropZone
+            class="upload-overlay"
+            placeholder="上传到当前分组"
+            :hint="`支持图片、音频、视频等多种格式${selectedGroup !== 'all' && selectedGroup !== 'default' ? ' (将自动添加到 ' + getGroupDisplayName(selectedGroup) + ' 分组)' : ''}`"
+            :icon="Plus"
+            :disabled="disabled || !agentId"
+            variant="border"
+            @drop="handleFileUpload"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- 批量移动弹窗 -->
@@ -1297,6 +1301,15 @@ const ThumbnailPreview = {
   flex-direction: column;
   min-width: 0;
   background-color: var(--el-bg-color);
+  position: relative;
+}
+
+.main-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .toolbar {
@@ -1327,14 +1340,51 @@ const ThumbnailPreview = {
   max-width: 300px;
 }
 
-.main-drop-zone {
-  flex: 1;
-  min-height: 0; /* Fix flex overflow */
+.upload-overlay-container {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  /* 关键：隔离内部 DropZone 的负 margin，防止撑开父级滚动条 */
   overflow: hidden;
-  /* 覆盖 DropZone border 变体的负 margin，防止溢出 */
-  margin: 0 !important;
-  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
   box-sizing: border-box;
+}
+
+.upload-overlay {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-color: transparent;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 12px;
+  /* 初始状态：略微缩小且透明 */
+  transform: scale(0.98);
+  opacity: 0;
+}
+
+/* 只有当 DropZone 内部检测到拖拽（isDraggingOver 为真）时才启用交互并显示背景 */
+.upload-overlay.drop-zone--dragover {
+  pointer-events: auto;
+  background-color: var(--el-mask-color-extra-light);
+  backdrop-filter: blur(8px);
+  transform: scale(1);
+  opacity: 1;
+  box-shadow: var(--el-box-shadow-dark);
+  border: 1px solid var(--el-color-primary-light-5);
+}
+
+/* 覆盖 DropZone 内部样式，使其在覆盖层模式下更美观 */
+.upload-overlay :deep(.drop-zone__content) {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.upload-overlay.drop-zone--dragover :deep(.drop-zone__content) {
+  opacity: 1;
 }
 
 .assets-grid-container {
@@ -1342,6 +1392,7 @@ const ThumbnailPreview = {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  /* 预留一点 padding 确保卡片阴影和 DropZone 效果不被截断 */
   padding: 16px;
   box-sizing: border-box;
 }

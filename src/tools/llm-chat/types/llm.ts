@@ -234,11 +234,61 @@ export interface ModelIdentifier {
 }
 
 /**
- * 上下文压缩配置
- */
-/**
  * 默认上下文压缩配置
  */
+/**
+ * 默认上下文压缩提示词模板
+ * 设计目标：全面捕捉对话的核心信息、关键转折点和待处理事项，确保上下文连续性
+ */
+export const DEFAULT_CONTEXT_COMPRESSION_PROMPT = `你的任务是创建一份详细的对话摘要，密切关注用户的明确请求和助手之前采取的行动。
+这份摘要应全面捕捉核心信息、关键概念和重要决策，这些对于继续对话和支持任何持续任务至关重要。
+
+摘要应结构如下：
+
+## 上下文摘要
+
+### 1. 对话概述
+关于整个对话中讨论内容的高级概述。这应该写得让某人能够快速理解对话的主题和整体流程。
+
+### 2. 当前焦点
+详细描述在此请求之前正在讨论或处理的内容。特别注意对话中较新的消息和最近的交互。
+
+### 3. 关键概念与主题
+列出所有重要的概念、术语、方法论或主题，这些可能与继续此对话相关：
+- [概念/主题 1]
+- [概念/主题 2]
+- [...]
+
+### 4. 重要信息与资料
+如果适用，记录对话中提及的重要信息、数据、引用或资源：
+- [信息/资料 1]: [简要说明]
+- [信息/资料 2]: [简要说明]
+- [...]
+
+### 5. 已解决与进行中的事项
+记录迄今为止已解决的问题、已完成的任务，以及任何正在进行的讨论或工作。
+
+### 6. 待处理事项与后续方向
+概述所有待处理的请求、未完成的任务，以及对话可能的后续方向：
+- [事项 1]: [详细说明和当前状态]
+- [事项 2]: [详细说明和当前状态]
+- [...]
+
+---
+
+以下是需要压缩的对话历史：
+
+{context}
+
+---
+
+**输出要求：**
+1. 使用中文输出
+2. 保持客观中立，忠实于原始对话内容
+3. 摘要应简洁但信息完整，不超过 3000 字
+4. 对于任何待处理事项，请直接引用最近对话中的内容，确保任务之间上下文不会丢失信息
+5. 仅输出摘要内容，不包括任何额外的评论或解释`;
+
 export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   enabled: false,
   autoTrigger: true,
@@ -251,8 +301,7 @@ export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   summaryRole: "system",
   summaryTemperature: 0.3,
   summaryMaxTokens: 4096,
-  summaryPrompt:
-    "请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：\n\n{context}\n\n摘要要求：\n1. 用中文输出\n2. 保持客观中立\n3. 不超过 3000 字",
+  summaryPrompt: DEFAULT_CONTEXT_COMPRESSION_PROMPT,
 };
 
 export interface ContextCompressionConfig {

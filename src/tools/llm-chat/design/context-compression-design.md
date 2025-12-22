@@ -16,6 +16,7 @@
 ### 2.1. 压缩节点 (Compression Node)
 
 一个特殊的消息节点，它：
+
 - 包含对一组历史消息的**摘要内容**
 - 记录它所压缩的原始消息的 ID 列表
 - 当节点**启用**时，它所压缩的原始消息在上下文构建和 UI 渲染中**自动隐藏**
@@ -32,10 +33,10 @@
 
 ### 2.3. 双层配置体系
 
-| 层级 | 作用 | 优先级 |
-|------|------|--------|
-| **全局设置** | 提供默认配置，影响所有会话 | 低 |
-| **智能体设置** | 覆盖全局配置，针对特定智能体 | 高 |
+| 层级           | 作用                         | 优先级 |
+| -------------- | ---------------------------- | ------ |
+| **全局设置**   | 提供默认配置，影响所有会话   | 低     |
+| **智能体设置** | 覆盖全局配置，针对特定智能体 | 高     |
 
 ## 3. 配置结构
 
@@ -46,10 +47,10 @@
 contextCompression: {
   // 总开关
   enabled: boolean;
-  
+
   // 自动触发开关
   autoTrigger: boolean;
-  
+
   // 默认策略
   defaultStrategy: {
     triggerMode: 'token' | 'count' | 'both';  // 触发模式
@@ -59,7 +60,7 @@ contextCompression: {
     compressCount: number;                    // 每次压缩多少条 (默认: 20)
     minHistoryCount: number;                  // 至少多少条历史才触发 (默认: 15)
   };
-  
+
   // 摘要生成配置
   summaryRole: 'system' | 'assistant' | 'user';  // 摘要节点的角色
   summaryModel?: ModelIdentifier;                // 生成摘要的模型（可选，默认使用当前模型）
@@ -74,7 +75,7 @@ contextCompression: {
 contextCompression?: {
   enabled?: boolean;                    // 是否启用（覆盖全局）
   autoTrigger?: boolean;                // 自动触发开关（覆盖全局）
-  
+
   // 策略覆盖（可选）
   triggerMode?: 'token' | 'count' | 'both';
   tokenThreshold?: number;
@@ -82,7 +83,7 @@ contextCompression?: {
   protectRecentCount?: number;
   compressCount?: number;
   minHistoryCount?: number;
-  
+
   // 摘要生成覆盖（可选）
   summaryRole?: 'system' | 'assistant' | 'user';
   summaryModel?: ModelIdentifier;
@@ -117,13 +118,13 @@ graph TD
 
 ```typescript
 function shouldCompress(context): boolean {
-  if (triggerMode === 'token') {
+  if (triggerMode === "token") {
     return totalTokens > tokenThreshold;
   }
-  if (triggerMode === 'count') {
+  if (triggerMode === "count") {
     return messageCount > countThreshold;
   }
-  if (triggerMode === 'both') {
+  if (triggerMode === "both") {
     return totalTokens > tokenThreshold || messageCount > countThreshold;
   }
   return false;
@@ -135,6 +136,7 @@ function shouldCompress(context): boolean {
 在消息输入框工具栏或消息菜单中添加"压缩上下文"按钮，用户可主动触发压缩。
 
 **手动触发特点：**
+
 - 忽略自动触发阈值
 - 可指定压缩范围（默认：压缩所有符合条件的旧消息）
 - 立即执行，无需等待发送消息
@@ -147,22 +149,22 @@ function shouldCompress(context): boolean {
 // 扩展 src/tools/llm-chat/types/message.ts
 metadata?: {
   // ... 现有字段
-  
+
   /** 是否为压缩/摘要节点 */
   isCompressionNode?: boolean;
-  
+
   /** 被此节点压缩/隐藏的节点 ID 列表 */
   compressedNodeIds?: string[];
-  
+
   /** 压缩时间戳 */
   compressionTimestamp?: number;
-  
+
   /** 压缩前的 Token 总数（用于统计） */
   originalTokenCount?: number;
-  
+
   /** 压缩前的消息条数 */
   originalMessageCount?: number;
-  
+
   /** 摘要生成配置快照 */
   compressionConfig?: {
     triggerMode: string;
@@ -209,7 +211,7 @@ sequenceDiagram
 
     User->>Handler: sendMessage()
     Handler->>Compressor: checkAndCompress(session, config)
-    
+
     alt 需要压缩
         Compressor->>Compressor: 计算当前 Token/条数
         Compressor->>Compressor: 确定压缩范围 (排除保护区)
@@ -221,7 +223,7 @@ sequenceDiagram
     else 不需要压缩
         Compressor-->>Handler: 跳过
     end
-    
+
     Handler->>Handler: 继续发送消息
 ```
 
@@ -233,15 +235,56 @@ sequenceDiagram
 4. **创建压缩节点**：使用生成的摘要内容，设置相关元数据
 
 **默认摘要提示词：**
+
 ```
-请将以下对话历史压缩为一个简洁的摘要，保留核心信息和关键对话转折点：
+你的任务是创建一份详细的对话摘要，密切关注用户的明确请求和助手之前采取的行动。
+这份摘要应全面捕捉核心信息、关键概念和重要决策，这些对于继续对话和支持任何持续任务至关重要。
+
+摘要应结构如下：
+
+## 上下文摘要
+
+### 1. 对话概述
+关于整个对话中讨论内容的高级概述。这应该写得让某人能够快速理解对话的主题和整体流程。
+
+### 2. 当前焦点
+详细描述在此请求之前正在讨论或处理的内容。特别注意对话中较新的消息和最近的交互。
+
+### 3. 关键概念与主题
+列出所有重要的概念、术语、方法论或主题，这些可能与继续此对话相关：
+- [概念/主题 1]
+- [概念/主题 2]
+- [...]
+
+### 4. 重要信息与资料
+如果适用，记录对话中提及的重要信息、数据、引用或资源：
+- [信息/资料 1]: [简要说明]
+- [信息/资料 2]: [简要说明]
+- [...]
+
+### 5. 已解决与进行中的事项
+记录迄今为止已解决的问题、已完成的任务，以及任何正在进行的讨论或工作。
+
+### 6. 待处理事项与后续方向
+概述所有待处理的请求、未完成的任务，以及对话可能的后续方向：
+- [事项 1]: [详细说明和当前状态]
+- [事项 2]: [详细说明和当前状态]
+- [...]
+
+---
+
+以下是需要压缩的对话历史：
 
 {被压缩的消息内容}
 
-摘要要求：
-1. 用中文输出
-2. 保持客观中立
-3. 不超过 3000 字
+---
+
+**输出要求：**
+1. 使用中文输出
+2. 保持客观中立，忠实于原始对话内容
+3. 摘要应简洁但信息完整，不超过 3000 字
+4. 对于任何待处理事项，请直接引用最近对话中的内容，确保任务之间上下文不会丢失信息
+5. 仅输出摘要内容，不包括任何额外的评论或解释
 ```
 
 ## 7. 上下文构建与 UI 渲染
@@ -254,18 +297,18 @@ sequenceDiagram
 function buildLlmContext(activePath, agentConfig) {
   // 1. 收集所有启用的压缩节点
   const enabledCompressionNodes = activePath.filter(
-    node => node.metadata?.isCompressionNode && node.isEnabled !== false
+    (node) => node.metadata?.isCompressionNode && node.isEnabled !== false
   );
-  
+
   // 2. 构建隐藏节点 ID 集合
   const hiddenNodeIds = new Set();
-  enabledCompressionNodes.forEach(node => {
-    (node.metadata.compressedNodeIds || []).forEach(id => hiddenNodeIds.add(id));
+  enabledCompressionNodes.forEach((node) => {
+    (node.metadata.compressedNodeIds || []).forEach((id) => hiddenNodeIds.add(id));
   });
-  
+
   // 3. 过滤 activePath，排除被隐藏的节点
-  const filteredPath = activePath.filter(node => !hiddenNodeIds.has(node.id));
-  
+  const filteredPath = activePath.filter((node) => !hiddenNodeIds.has(node.id));
+
   // 4. 使用 filteredPath 继续构建上下文
   // ... 原有逻辑
 }
@@ -279,21 +322,22 @@ function buildLlmContext(activePath, agentConfig) {
 // 计算显示的消息列表
 const displayMessages = computed(() => {
   const enabledCompressionNodes = props.messages.filter(
-    node => node.metadata?.isCompressionNode && node.isEnabled !== false
+    (node) => node.metadata?.isCompressionNode && node.isEnabled !== false
   );
-  
+
   const hiddenNodeIds = new Set();
-  enabledCompressionNodes.forEach(node => {
-    (node.metadata.compressedNodeIds || []).forEach(id => hiddenNodeIds.add(id));
+  enabledCompressionNodes.forEach((node) => {
+    (node.metadata.compressedNodeIds || []).forEach((id) => hiddenNodeIds.add(id));
   });
-  
-  return props.messages.filter(node => !hiddenNodeIds.has(node.id));
+
+  return props.messages.filter((node) => !hiddenNodeIds.has(node.id));
 });
 ```
 
 ### 7.3. 压缩节点的特殊渲染
 
 压缩节点在 UI 上应有特殊样式：
+
 - **视觉标记**：折叠图标 + "已压缩 N 条消息"标签
 - **交互功能**：
   - 点击展开/折叠：临时显示被压缩的消息
@@ -304,28 +348,28 @@ const displayMessages = computed(() => {
 
 ### 8.1. 新增模块
 
-| 模块 | 职责 | 依赖 |
-|------|------|------|
-| `useContextCompressor.ts` | 压缩检测、摘要生成、节点创建 | `useNodeManager`, `useLlmRequest` |
+| 模块                      | 职责                             | 依赖                               |
+| ------------------------- | -------------------------------- | ---------------------------------- |
+| `useContextCompressor.ts` | 压缩检测、摘要生成、节点创建     | `useNodeManager`, `useLlmRequest`  |
 | `useCompressionConfig.ts` | 配置解析（合并全局与智能体配置） | `useChatSettings`, `useAgentStore` |
 
 ### 8.2. 修改模块
 
-| 模块 | 修改内容 |
-|------|----------|
-| `types/message.ts` | 扩展 `metadata` 类型定义 |
-| `types/llm.ts` | 添加 `ContextCompressionConfig` 类型 |
-| `types/ui.ts` | 在 `ChatSettings` 中添加全局配置 |
-| `useChatContextBuilder.ts` | 添加压缩节点过滤逻辑 |
-| `useChatHandler.ts` | 在 `sendMessage` 前调用压缩检查 |
-| `MessageList.vue` | 实现 UI 过滤和特殊渲染 |
-| `ChatMessage.vue` | 压缩节点的特殊样式和交互 |
+| 模块                       | 修改内容                             |
+| -------------------------- | ------------------------------------ |
+| `types/message.ts`         | 扩展 `metadata` 类型定义             |
+| `types/llm.ts`             | 添加 `ContextCompressionConfig` 类型 |
+| `types/ui.ts`              | 在 `ChatSettings` 中添加全局配置     |
+| `useChatContextBuilder.ts` | 添加压缩节点过滤逻辑                 |
+| `useChatHandler.ts`        | 在 `sendMessage` 前调用压缩检查      |
+| `MessageList.vue`          | 实现 UI 过滤和特殊渲染               |
+| `ChatMessage.vue`          | 压缩节点的特殊样式和交互             |
 
 ### 8.3. 配置 UI
 
-| 界面 | 修改内容 |
-|------|----------|
-| `settingsConfig.ts` | 添加"上下文压缩"设置分组 |
+| 界面                        | 修改内容                             |
+| --------------------------- | ------------------------------------ |
+| `settingsConfig.ts`         | 添加"上下文压缩"设置分组             |
 | `ModelParametersEditor.vue` | 在智能体参数编辑器中添加压缩配置面板 |
 
 ## 9. UI 交互设计
@@ -375,6 +419,7 @@ const displayMessages = computed(() => {
 ```
 
 点击"压缩上下文"按钮时：
+
 1. 显示压缩范围选择器（默认：压缩所有符合条件的旧消息）
 2. 执行压缩，显示进度
 3. 完成后显示通知："已压缩 15 条消息，节省约 12K Token"
@@ -394,18 +439,21 @@ const displayMessages = computed(() => {
 ## 10. 后续规划
 
 ### 10.1. 第一阶段（核心能力）
+
 - [ ] 类型定义扩展
 - [ ] 压缩逻辑实现 (`useContextCompressor`)
 - [ ] 上下文构建过滤
 - [ ] UI 隐藏逻辑
 
 ### 10.2. 第二阶段（配置与交互）
+
 - [ ] 全局设置 UI
 - [ ] 智能体设置 UI
 - [ ] 手动触发按钮
 - [ ] 压缩节点特殊渲染
 
 ### 10.3. 未来增强
+
 - **增量压缩**：多次压缩形成压缩链
 - **智能摘要**：根据对话类型优化摘要提示词
 - **压缩质量评估**：评估摘要是否丢失关键信息
@@ -415,16 +463,19 @@ const displayMessages = computed(() => {
 ## 11. 注意事项
 
 ### 11.1. 性能考虑
+
 - 压缩检测应轻量，避免影响发送消息的响应速度
 - 摘要生成是异步操作，应有超时和错误处理
 - UI 过滤逻辑应高效，避免重复计算
 
 ### 11.2. 数据一致性
+
 - 压缩节点与被压缩节点的关系应始终保持一致
 - 删除压缩节点时，被压缩节点应恢复显示
 - 撤销/重做系统应支持压缩操作
 
 ### 11.3. 用户体验
+
 - 自动压缩应有明确提示，告知用户发生了什么
 - 压缩节点应提供足够的信息，让用户了解被压缩的内容
 - 应提供简单的恢复机制（禁用压缩节点即可）
@@ -434,12 +485,15 @@ const displayMessages = computed(() => {
 ## 附录：与其他功能的关系
 
 ### 与上下文截断的关系
+
 - **上下文截断**：直接丢弃超出 Token 限制的部分内容
 - **上下文压缩**：保留内容但以摘要形式呈现
 - **协同工作**：先尝试压缩，如果压缩后仍超出限制，再应用截断
 
 ### 与撤销/重做系统的关系
+
 压缩操作应记录到撤销栈中，支持撤销压缩和恢复原始状态。
 
 ### 与跨窗口同步的关系
+
 压缩状态应同步到所有窗口，确保主窗口和分离窗口显示一致。

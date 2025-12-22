@@ -17,7 +17,7 @@ const logger = createModuleLogger('llm-chat/context-compressor');
 const errorHandler = createModuleErrorHandler('llm-chat/context-compressor');
 
 export function useContextCompressor() {
-  const { getNodePath, createNode, addNodeToSession, reparentNode } = useNodeManager();
+  const { getNodePath, createNode, addNodeToSession } = useNodeManager();
   const { sendRequest } = useLlmRequest();
   const agentStore = useAgentStore();
   const llmChatStore = useLlmChatStore();
@@ -269,16 +269,33 @@ export function useContextCompressor() {
     addNodeToSession(session, summaryNode);
 
     // 3. 将原有的子节点转移到 summaryNode 下
+    // 注意：不能使用 reparentNode，因为它会清空被移动节点的 childrenIds 并将其子节点交给旧父节点
+    // 这里需要保持子树完整，只更新 parentId 关系
     for (const childId of childrenToTransfer) {
-      try {
-        reparentNode(session, childId, summaryNode.id);
-      } catch (error) {
-        errorHandler.handle(error, {
-          userMessage: '重挂载子节点失败',
-          context: { childId, summaryNodeId: summaryNode.id },
-          showToUser: false,
-        });
+      const childNode = session.nodes[childId];
+      if (!childNode) {
+        logger.warn('转移子节点失败：子节点不存在', { childId, summaryNodeId: summaryNode.id });
+        continue;
       }
+
+      // 从 lastNode 的 childrenIds 中移除（但保留 summaryNode）
+      const lastNodeChildIndex = lastNode.childrenIds.indexOf(childId);
+      if (lastNodeChildIndex !== -1) {
+        lastNode.childrenIds.splice(lastNodeChildIndex, 1);
+      }
+
+      // 更新子节点的 parentId 指向 summaryNode
+      childNode.parentId = summaryNode.id;
+
+      // 将子节点添加到 summaryNode 的 childrenIds
+      if (!summaryNode.childrenIds.includes(childId)) {
+        summaryNode.childrenIds.push(childId);
+      }
+      logger.debug('子节点已转移到压缩节点下', {
+        childId,
+        oldParentId: lastNode.id,
+        newParentId: summaryNode.id,
+      });
     }
 
     logger.info('压缩节点创建并插入成功', {

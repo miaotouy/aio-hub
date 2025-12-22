@@ -1,8 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Edit, Delete, MoreFilled, Download, CopyDocument, DocumentCopy } from "@element-plus/icons-vue";
+import {
+  Edit,
+  Delete,
+  MoreFilled,
+  Download,
+  CopyDocument,
+  DocumentCopy,
+  FolderOpened,
+} from "@element-plus/icons-vue";
+import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
+import { useAgentStorageSeparated } from "../../composables/useAgentStorageSeparated";
+import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
 import type { MatchDetail } from "../../composables/useLlmSearch";
 
@@ -50,6 +61,17 @@ const handleVisibleChange = (visible: boolean) => {
 // 只有在 hover 或菜单打开时才显示操作按钮区域
 // 只有在确实需要交互时才渲染 el-dropdown，极大提升长列表性能
 const showActions = computed(() => isHovered.value || isMenuOpen.value);
+
+// 打开智能体目录并选中配置文件
+const handleOpenDirectory = async () => {
+  try {
+    const { getAgentConfigPath } = useAgentStorageSeparated();
+    const configPath = await getAgentConfigPath(props.agent.id);
+    await invoke("open_file_directory", { filePath: configPath });
+  } catch (error) {
+    customMessage.error("打开目录失败");
+  }
+};
 </script>
 
 <template>
@@ -116,6 +138,10 @@ const showActions = computed(() => isHovered.value || isMenuOpen.value);
             <el-dropdown-item @click="$emit('export', agent)" divided>
               <el-icon><Download /></el-icon>
               导出...
+            </el-dropdown-item>
+            <el-dropdown-item @click="handleOpenDirectory">
+              <el-icon><FolderOpened /></el-icon>
+              打开目录
             </el-dropdown-item>
             <el-dropdown-item @click="$emit('delete', agent)" divided>
               <el-icon><Delete /></el-icon>

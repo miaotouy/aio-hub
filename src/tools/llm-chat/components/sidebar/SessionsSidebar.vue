@@ -13,11 +13,14 @@ import {
   MagicStick,
   Operation,
   Loading,
+  FolderOpened,
 } from "@element-plus/icons-vue";
+import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
 import { useTopicNamer } from "../../composables/useTopicNamer";
 import { useSessionManager } from "../../composables/useSessionManager";
 import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatStorageSeparated } from "../../composables/useChatStorageSeparated";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
@@ -361,9 +364,20 @@ const openExportDialog = (session: ChatSession) => {
   exportSessionDialogVisible.value = true;
 };
 
+// 打开会话目录并选中文件
+const handleOpenDirectory = async (session: ChatSession) => {
+  try {
+    const { getSessionPath } = useChatStorageSeparated();
+    const sessionPath = await getSessionPath(session.id);
+    await invoke("open_file_directory", { filePath: sessionPath });
+  } catch (error) {
+    customMessage.error("打开目录失败");
+  }
+};
+
 // 处理菜单命令
 const handleMenuCommand = (
-  command: "delete" | "rename" | "generate-name" | "export",
+  command: "delete" | "rename" | "generate-name" | "export" | "open-directory",
   session: ChatSession
 ) => {
   if (command === "delete") {
@@ -374,6 +388,8 @@ const handleMenuCommand = (
     handleGenerateName(session);
   } else if (command === "export") {
     openExportDialog(session);
+  } else if (command === "open-directory") {
+    handleOpenDirectory(session);
   }
 };
 
@@ -591,6 +607,9 @@ const handleSessionClick = (session: ChatSession) => {
                       <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
                       <el-dropdown-item command="export" :icon="Operation">
                         导出会话
+                      </el-dropdown-item>
+                      <el-dropdown-item command="open-directory" :icon="FolderOpened">
+                        打开目录
                       </el-dropdown-item>
                       <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
                     </el-dropdown-menu>

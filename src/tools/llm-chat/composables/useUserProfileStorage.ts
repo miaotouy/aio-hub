@@ -570,5 +570,7 @@ export function useUserProfileStorage() {
     deleteProfile, // 新增：删除档案
     loadSettings,
     saveSettings,
+    getProfileDirPath,
+    getProfileConfigPath,
   };
 }

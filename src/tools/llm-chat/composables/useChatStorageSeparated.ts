@@ -513,6 +513,15 @@ export function useChatStorageSeparated() {
     }, delay);
   }
 
+  /**
+   * 获取会话存储目录路径
+   */
+  async function getSessionsDir(): Promise<string> {
+    const appDir = await appDataDir();
+    const moduleDir = await join(appDir, MODULE_NAME);
+    return await join(moduleDir, SESSIONS_SUBDIR);
+  }
+
   return {
     loadSessions,
     saveSessions,
@@ -522,5 +531,7 @@ export function useChatStorageSeparated() {
     createDebouncedSave,
     loadSession,
     saveSession,
+    getSessionsDir,
+    getSessionPath,
   };
 }

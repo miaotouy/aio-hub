@@ -615,5 +615,7 @@ export function useAgentStorageSeparated() {
     setCurrentAgentId,
     getCurrentAgentId,
     createDebouncedSave,
+    getAgentDirPath,
+    getAgentConfigPath,
   };
 }

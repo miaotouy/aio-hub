@@ -45,6 +45,11 @@
         :show-save="false"
         @delete="handleDelete"
       >
+        <template #extra-actions>
+          <el-button size="small" :icon="FolderOpened" @click="handleOpenDirectory">
+            打开目录
+          </el-button>
+        </template>
         <template #header-actions>
           <Avatar
             v-if="editForm.icon"
@@ -83,7 +88,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import { ElMessageBox } from "element-plus";
-import { RefreshLeft } from '@element-plus/icons-vue';
+import { RefreshLeft, FolderOpened } from '@element-plus/icons-vue';
+import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
 import type { UserProfile } from "@/tools/llm-chat/types";
@@ -95,6 +101,7 @@ import UserProfileForm from "./components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { resolveAvatarPath } from '@/tools/llm-chat/composables/useResolvedAvatar';
+import { useUserProfileStorage } from "@/tools/llm-chat/composables/useUserProfileStorage";
 
 const logger = createModuleLogger("UserProfileSettings");
 const errorHandler = createModuleErrorHandler("UserProfileSettings");
@@ -275,6 +282,18 @@ const handleDelete = async () => {
 // 切换启用状态
 const handleToggle = (profile: { id: string }) => {
   userProfileStore.toggleProfileEnabled(profile.id);
+};
+
+// 打开档案目录并选中配置文件
+const handleOpenDirectory = async () => {
+  if (!selectedProfileId.value) return;
+  try {
+    const { getProfileConfigPath } = useUserProfileStorage();
+    const configPath = await getProfileConfigPath(selectedProfileId.value);
+    await invoke("open_file_directory", { filePath: configPath });
+  } catch (error) {
+    customMessage.error("打开目录失败");
+  }
 };
 
 // 格式化日期（简短格式）

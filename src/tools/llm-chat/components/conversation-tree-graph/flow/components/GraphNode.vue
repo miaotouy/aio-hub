@@ -178,11 +178,12 @@ const handleCreateBranch = () => emit("create-branch");
 }
 
 .graph-node.is-disabled {
-  opacity: 0.5;
+  opacity: 0.6;
+  filter: grayscale(0.8);
 }
 
 .graph-node.is-disabled :deep(.node-preview) {
-  color: var(--text-color-light);
+  color: var(--el-text-color-secondary);
 }
 
 .graph-node.connection-valid {

@@ -2,9 +2,10 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { X } from "lucide-vue-next";
 import { useDraggable } from "@vueuse/core";
-import type { ChatMessageNode, ChatSession } from "../../../../types";
+import type { ChatMessageNode, ChatSession, MessageRole } from "../../../../types";
 import type { Asset } from "@/types/asset-management";
 import ChatMessage from "../../../message/ChatMessage.vue";
+import CompressionMessage from "../../../message/CompressionMessage.vue";
 import { useLlmChatStore } from "../../../../store";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
@@ -40,6 +41,25 @@ const handleRegenerate = () => {
   if (props.message) {
     store.regenerateFromNode(props.message.id);
     handleClose(); // 重新生成通常会跳转到新分支，关闭弹窗体验更好
+  }
+};
+
+const handleToggleEnabled = () => {
+  if (props.message) {
+    store.toggleNodeEnabled(props.message.id);
+  }
+};
+
+const handleDelete = () => {
+  if (props.message) {
+    store.deleteMessage(props.message.id);
+    handleClose();
+  }
+};
+
+const handleUpdateRole = (role: MessageRole) => {
+  if (props.message) {
+    store.updateNodeData(props.message.id, { role });
   }
 };
 
@@ -180,12 +200,24 @@ const chatMessageProps = computed(() => {
         </button>
       </div>
       <div class="detail-popup-content">
-        <ChatMessage
-          v-if="chatMessageProps"
-          v-bind="chatMessageProps"
-          @edit="handleEdit"
-          @regenerate="handleRegenerate"
-        />
+        <template v-if="message?.metadata?.isCompressionNode">
+          <CompressionMessage
+            :session="session"
+            :message="message"
+            @toggle-enabled="handleToggleEnabled"
+            @delete="handleDelete"
+            @update-content="(content) => handleEdit(content)"
+            @update-role="handleUpdateRole"
+          />
+        </template>
+        <template v-else>
+          <ChatMessage
+            v-if="chatMessageProps"
+            v-bind="chatMessageProps"
+            @edit="handleEdit"
+            @regenerate="handleRegenerate"
+          />
+        </template>
       </div>
       <div class="resize-handle" @mousedown="initResize"></div>
     </div>
@@ -271,6 +303,16 @@ const chatMessageProps = computed(() => {
 
 /* 移除 ChatMessage 自带的背景层容器 */
 .detail-popup-content :deep(.message-background-container) {
+  display: none;
+}
+
+/* 适配 CompressionMessage 在弹窗中的样式 */
+.detail-popup-content :deep(.compression-message) {
+  margin: 0;
+  padding: 0;
+}
+
+.detail-popup-content :deep(.compression-message::after) {
   display: none;
 }
 

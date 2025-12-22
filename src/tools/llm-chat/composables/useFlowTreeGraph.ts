@@ -642,13 +642,14 @@ export function useFlowTreeGraph(
           // 无论是否展开，都记录这些节点是被压缩的
           compressedIds.forEach(id => compressedNodeIds.add(id));
 
-          // 只有未展开时才标记为隐藏（折叠效果）
-          if (!isExpanded) {
-            compressedIds.forEach(id => {
-              hiddenNodeIds.add(id);
+          // 不再标记为隐藏，而是记录它们被压缩了，以便在渲染时应用禁用样式
+          compressedIds.forEach(id => {
+            compressedNodeIds.add(id);
+            if (!isExpanded) {
+              // 如果没有展开，我们将它们逻辑上链接到压缩节点，但节点本身保持可见
               nodeRepMap.set(id, node.id);
-            });
-          }
+            }
+          });
 
           // 2. 确定压缩节点的逻辑父节点
           // 找到第一个被压缩的节点，取其父节点
@@ -689,7 +690,7 @@ export function useFlowTreeGraph(
     const flowNodes: FlowNode[] = [];
 
     Object.values(session.nodes).forEach((node) => {
-      // 如果节点被隐藏，跳过
+      // 如果节点被显式隐藏（例如其他过滤逻辑），跳过
       if (hiddenNodeIds.has(node.id)) return;
 
       const isCompressed = compressedNodeIds.has(node.id);

@@ -906,9 +906,11 @@ const ThumbnailPreview = {
             </el-button-group>
           </template>
           <template v-else>
-            <el-button size="small" :icon="Operation" @click="toggleSelectionMode" title="批量管理">
-              批量
-            </el-button>
+            <el-tooltip content="批量管理资产" :show-after="500" placement="top">
+              <el-button size="small" :icon="Operation" @click="toggleSelectionMode">
+                批量
+              </el-button>
+            </el-tooltip>
             <el-tooltip content="打开本地资产目录" :show-after="500" placement="top">
               <el-button size="small" :icon="Folder" @click="handleOpenAssetsDir" />
             </el-tooltip>
@@ -1012,10 +1014,10 @@ const ThumbnailPreview = {
                 <!-- 悬停遮罩 (非选择模式下显示) -->
                 <div class="asset-overlay" @click.stop v-if="!isSelectionMode">
                   <div class="overlay-actions">
-                    <el-tooltip content="预览" :show-after="500">
+                    <el-tooltip content="预览" :show-after="500" placement="top">
                       <el-button circle size="small" :icon="ZoomIn" @click="handlePreview(asset)" />
                     </el-tooltip>
-                    <el-tooltip content="复制引用路径" :show-after="500">
+                    <el-tooltip content="复制引用路径" :show-after="500" placement="top">
                       <el-button
                         circle
                         size="small"
@@ -1023,7 +1025,7 @@ const ThumbnailPreview = {
                         @click="handleCopyId(asset)"
                       />
                     </el-tooltip>
-                    <el-tooltip content="编辑信息" :show-after="50">
+                    <el-tooltip content="编辑信息" :show-after="500" placement="top">
                       <el-button
                         circle
                         size="small"
@@ -1033,7 +1035,7 @@ const ThumbnailPreview = {
                         @click="openEditDialog(asset)"
                       />
                     </el-tooltip>
-                    <el-tooltip content="删除" :show-after="500">
+                    <el-tooltip content="删除" :show-after="500" placement="top">
                       <el-button
                         circle
                         size="small"
@@ -1101,7 +1103,7 @@ const ThumbnailPreview = {
           </el-select>
         </el-form-item>
         <el-form-item v-if="sortedGroups.length === 0">
-          <el-text type="info" size="small"> 暂无自定义分组，请先在侧边栏创建分组 </el-text>
+          <div class="form-tip">暂无自定义分组，请先在侧边栏创建分组</div>
         </el-form-item>
       </el-form>
       <template #footer>

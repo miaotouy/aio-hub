@@ -169,9 +169,13 @@ const dialogWidth = computed(() => {
 });
 
 const isCompact = computed(() => containerWidth.value < 600);
+const isWide = computed(() => containerWidth.value > 1000);
 
 const formLabelPosition = computed(() => (isCompact.value ? "top" : "left"));
-const formLabelWidth = computed(() => (isCompact.value ? "auto" : "140px"));
+const formLabelWidth = computed(() => {
+  if (isCompact.value) return "auto";
+  return isWide.value ? "200px" : "140px";
+});
 
 interface Props {
   visible: boolean;

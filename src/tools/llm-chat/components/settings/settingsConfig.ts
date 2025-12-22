@@ -726,14 +726,13 @@ export const settingsConfig: SettingsSection[] = [
       },
       {
         id: "transTimeout",
-        label:
-          "任务等待超时 ({{ (localSettings.transcription.timeout / 1000).toFixed(0) }}秒)",
-        component: "ElSlider",
+        label: "任务等待超时 ({{ localSettings.transcription.timeout }}秒)",
+        component: "SliderWithInput",
         props: {
-          min: 30000,
-          max: 600000,
-          step: 1000,
-          "format-tooltip": (val: number) => `${val / 1000}秒`,
+          min: 30,
+          max: 600,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}秒`,
         },
         modelPath: "transcription.timeout",
         hint: "转写任务的最大等待时间。在“等待发送”模式下，超时将直接发送原始附件；在“先发送”模式下，超时将停止后台等待并标记为超时。",

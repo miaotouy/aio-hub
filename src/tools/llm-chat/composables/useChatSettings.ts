@@ -315,7 +315,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxConcurrentTasks: 2,
     executionDelay: 300, // 默认延迟
     maxRetries: 2,
-    timeout: 120000, // 默认 120 秒
+    timeout: 120, // 默认 120 秒
     enableTypeSpecificConfig: false,
     ffmpegPath: "",
     video: {

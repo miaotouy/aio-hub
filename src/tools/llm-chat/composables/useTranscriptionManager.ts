@@ -311,7 +311,7 @@ export function useTranscriptionManager() {
     let prompt = config.customPrompt;
     let temperature = config.temperature;
     let maxTokens = config.maxTokens;
-    const timeout = config.timeout;
+    const timeout = config.timeout * 1000;
 
     // 处理分类型精细配置
     if (config.enableTypeSpecificConfig) {
@@ -1047,7 +1047,7 @@ export function useTranscriptionManager() {
 
     // 2. 等待所有任务完成
     // 使用轮询检查状态，并增加超时保护
-    const timeoutMs = settings.value.transcription.timeout || 120000;
+    const timeoutMs = (settings.value.transcription.timeout || 120) * 1000;
 
     return new Promise((resolve, reject) => {
       let isSettled = false;

@@ -22,6 +22,7 @@ interface Props {
   richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   buttonVisibility?: ButtonVisibility;
   messageDepth?: number;
+  isCompressed?: boolean; // 是否因为上下文压缩而视作禁用
 }
 
 interface Emits {
@@ -52,7 +53,7 @@ const translationContent = ref("");
 const isEditing = ref(false);
 
 // 计算属性
-const isDisabled = computed(() => props.message.isEnabled === false);
+const isDisabled = computed(() => props.message.isEnabled === false || props.isCompressed);
 const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
 
 // ===== 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) =====

@@ -440,13 +440,13 @@ export function useFlowTreeGraph(
   /**
    * 根据节点状态计算颜色
    */
-  function getNodeColor(session: ChatSession, node: ChatMessageNode): {
+  function getNodeColor(session: ChatSession, node: ChatMessageNode, isCompressed: boolean = false): {
     background: string;
     border: string;
   } {
     const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
     const isActiveLeaf = node.id === session.activeLeafId;
-    const isEnabled = node.isEnabled !== false;
+    const isEnabled = node.isEnabled !== false && !isCompressed;
 
     type RoleColorKey = 'user' | 'assistant' | 'system';
     const roleKey = node.role as RoleColorKey;
@@ -629,23 +629,26 @@ export function useFlowTreeGraph(
 
     // --- 预处理压缩节点逻辑 ---
     const hiddenNodeIds = new Set<string>();
+    const compressedNodeIds = new Set<string>(); // 记录所有当前被压缩的节点 ID
     const nodeRepMap = new Map<string, string>(); // OriginalId -> RepresentativeId (SummaryNodeId)
     const logicalParentMap = new Map<string, string>(); // SummaryNodeId -> LogicalParentId (FirstNode.parentId)
 
     Object.values(session.nodes).forEach(node => {
-      if (
-        node.metadata?.isCompressionNode &&
-        node.isEnabled !== false &&
-        !expandedCompressionIds.value.has(node.id)
-      ) {
-        // 这是一个折叠的压缩节点
+      if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
         const compressedIds = node.metadata.compressedNodeIds || [];
+        const isExpanded = expandedCompressionIds.value.has(node.id);
+
         if (compressedIds.length > 0) {
-          // 1. 标记被压缩的节点为隐藏
-          compressedIds.forEach(id => {
-            hiddenNodeIds.add(id);
-            nodeRepMap.set(id, node.id);
-          });
+          // 无论是否展开，都记录这些节点是被压缩的
+          compressedIds.forEach(id => compressedNodeIds.add(id));
+
+          // 只有未展开时才标记为隐藏（折叠效果）
+          if (!isExpanded) {
+            compressedIds.forEach(id => {
+              hiddenNodeIds.add(id);
+              nodeRepMap.set(id, node.id);
+            });
+          }
 
           // 2. 确定压缩节点的逻辑父节点
           // 找到第一个被压缩的节点，取其父节点
@@ -689,9 +692,10 @@ export function useFlowTreeGraph(
       // 如果节点被隐藏，跳过
       if (hiddenNodeIds.has(node.id)) return;
 
-      const colors = getNodeColor(session, node);
+      const isCompressed = compressedNodeIds.has(node.id);
       const isActiveLeaf = node.id === session.activeLeafId;
-      const isEnabled = node.isEnabled !== false;
+      const isEnabled = node.isEnabled !== false && !isCompressed; // 被压缩也视作禁用
+      const colors = getNodeColor(session, node, isCompressed);
       const roleDisplay = getRoleDisplay(node);
       const contentPreview = truncateText(node.content, 150);
       const subtitleInfo = getSubtitleInfo(node);

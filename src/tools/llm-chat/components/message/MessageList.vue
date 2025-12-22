@@ -49,34 +49,29 @@ const toggleCompressionExpand = (nodeId: string) => {
   expandedCompressionIds.value = newSet;
 };
 
-// 计算实际显示的消息列表（处理压缩隐藏逻辑）
-const displayMessages = computed(() => {
-  // 1. 收集所有需要隐藏的节点 ID
-  const hiddenNodeIds = new Set<string>();
-
+/**
+ * 被压缩的节点 ID 集合
+ * 逻辑：如果路径上存在启用的压缩节点，且该压缩节点未被手动展开，则其管辖的节点 ID 属于此集合
+ */
+const compressedNodeIds = computed(() => {
+  const ids = new Set<string>();
   props.messages.forEach((node) => {
-    // 是压缩节点且已启用
     if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
-      // 如果该压缩节点被手动展开查看，则不隐藏其内容
+      // 如果该压缩节点被手动展开，则不视作压缩
       if (expandedCompressionIds.value.has(node.id)) {
         return;
       }
-
-      // 收集被压缩的 ID
       if (node.metadata.compressedNodeIds) {
-        node.metadata.compressedNodeIds.forEach((id) => hiddenNodeIds.add(id));
+        node.metadata.compressedNodeIds.forEach((id) => ids.add(id));
       }
     }
   });
+  return ids;
+});
 
-  // 2. 过滤列表
-  return props.messages.filter((node) => {
-    // 如果是被压缩隐藏的节点，则移除
-    if (hiddenNodeIds.has(node.id)) {
-      return false;
-    }
-    return true;
-  });
+// 计算实际显示的消息列表（不再隐藏被压缩的节点，而是全量显示）
+const displayMessages = computed(() => {
+  return props.messages;
 });
 
 // 为每条消息计算兄弟节点信息
@@ -107,8 +102,8 @@ const messagesContainer = ref<HTMLElement | null>(null);
 // 暴露滚动容器供外部使用（如 MessageNavigator）
 const getScrollElement = () => messagesContainer.value;
 
-// 消息数量（响应式）
-const messageCount = computed(() => props.messages.length);
+// 消息数量（响应式）- 使用 displayMessages 的长度，因为虚拟列表渲染的是过滤后的消息
+const messageCount = computed(() => displayMessages.value.length);
 
 // 创建虚拟化器
 const virtualizer = useVirtualizer({
@@ -347,6 +342,7 @@ defineExpose({
               v-else
               :session="props.session"
               :message="displayMessages[virtualItem.index]"
+              :is-compressed="compressedNodeIds.has(displayMessages[virtualItem.index].id)"
               :message-depth="displayMessages.length - 1 - virtualItem.index"
               :is-sending="isSending"
               :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"

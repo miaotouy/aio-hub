@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
+import { Maximize2 } from "lucide-vue-next";
 import {
   type ContextCompressionConfig,
   DEFAULT_CONTEXT_COMPRESSION_CONFIG,
 } from "../../../types/llm";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 
 interface Props {
   modelValue: ContextCompressionConfig;
@@ -71,9 +74,42 @@ const summaryModelValue = computed({
 });
 
 // 重置提示词
-const resetPrompt = () => {
-  config.value.summaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryPrompt;
-  config.value.continueSummaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.continueSummaryPrompt;
+const resetPrompt = (key?: "summaryPrompt" | "continueSummaryPrompt") => {
+  if (key) {
+    config.value[key] = DEFAULT_CONTEXT_COMPRESSION_CONFIG[key];
+    // 如果弹窗开启且正在编辑该 key，同步更新临时值
+    if (promptEditorVisible.value && editingPromptKey.value === key) {
+      tempPromptValue.value = DEFAULT_CONTEXT_COMPRESSION_CONFIG[key] || "";
+    }
+  } else {
+    config.value.summaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryPrompt;
+    config.value.continueSummaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.continueSummaryPrompt;
+    if (promptEditorVisible.value) {
+      tempPromptValue.value = DEFAULT_CONTEXT_COMPRESSION_CONFIG[editingPromptKey.value] || "";
+    }
+  }
+};
+
+// 弹窗编辑器相关
+const promptEditorVisible = ref(false);
+const editingPromptKey = ref<"summaryPrompt" | "continueSummaryPrompt">("summaryPrompt");
+const tempPromptValue = ref("");
+
+const editorTitle = computed(() => {
+  return editingPromptKey.value === "summaryPrompt"
+    ? "编辑摘要提示词 (初始)"
+    : "编辑摘要提示词 (续写)";
+});
+
+const openPromptEditor = (key: "summaryPrompt" | "continueSummaryPrompt") => {
+  editingPromptKey.value = key;
+  tempPromptValue.value = config.value[key] || "";
+  promptEditorVisible.value = true;
+};
+
+const handleSavePrompt = () => {
+  config.value[editingPromptKey.value] = tempPromptValue.value;
+  promptEditorVisible.value = false;
 };
 </script>
 
@@ -250,19 +286,65 @@ const resetPrompt = () => {
             </el-form-item>
           </div>
 
-          <el-form-item label="摘要提示词模板 (初始)">
+          <el-form-item>
+            <template #label>
+              <div class="label-with-action">
+                <div class="label-left">
+                  <span>摘要提示词模板 (初始)</span>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="resetPrompt('summaryPrompt')"
+                    style="margin-left: 8px; font-weight: normal"
+                  >
+                    重置
+                  </el-button>
+                </div>
+                <el-tooltip content="全屏编辑" placement="top">
+                  <el-button
+                    link
+                    type="primary"
+                    :icon="Maximize2"
+                    @click="openPromptEditor('summaryPrompt')"
+                  />
+                </el-tooltip>
+              </div>
+            </template>
             <el-input
               v-model="config.summaryPrompt"
               type="textarea"
               :rows="4"
               placeholder="输入提示词模板..."
             />
-            <div class="form-helper">
-              用于首次压缩。使用 <code>{context}</code> 代表对话内容。
-            </div>
+            <div class="form-helper">用于首次压缩。使用 <code>{context}</code> 代表对话内容。</div>
           </el-form-item>
 
-          <el-form-item label="摘要提示词模板 (续写)">
+          <el-form-item>
+            <template #label>
+              <div class="label-with-action">
+                <div class="label-left">
+                  <span>摘要提示词模板 (续写)</span>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="resetPrompt('continueSummaryPrompt')"
+                    style="margin-left: 8px; font-weight: normal"
+                  >
+                    重置
+                  </el-button>
+                </div>
+                <el-tooltip content="全屏编辑" placement="top">
+                  <el-button
+                    link
+                    type="primary"
+                    :icon="Maximize2"
+                    @click="openPromptEditor('continueSummaryPrompt')"
+                  />
+                </el-tooltip>
+              </div>
+            </template>
             <el-input
               v-model="config.continueSummaryPrompt"
               type="textarea"
@@ -270,7 +352,10 @@ const resetPrompt = () => {
               placeholder="输入续写提示词模板..."
             />
             <div class="form-helper">
-              用于在已有摘要基础上追加。使用 <code>{previous_summary}</code> 代表旧摘要，<code>{context}</code> 代表新内容。
+              用于在已有摘要基础上追加。使用 <code>{previous_summary}</code> 代表旧摘要，<code
+                >{context}</code
+              >
+              代表新内容。
             </div>
           </el-form-item>
 
@@ -282,6 +367,40 @@ const resetPrompt = () => {
         </div>
       </template>
     </el-form>
+
+    <!-- 提示词编辑弹窗 -->
+    <BaseDialog v-model="promptEditorVisible" :title="editorTitle" width="80vw" height="75vh">
+      <div class="prompt-editor-container">
+        <div class="editor-helper" v-if="editingPromptKey === 'summaryPrompt'">
+          使用 <code>{context}</code> 代表对话内容。
+        </div>
+        <div class="editor-helper" v-else>
+          使用 <code>{previous_summary}</code> 代表旧摘要，<code>{context}</code> 代表新内容。
+        </div>
+        <div class="editor-main">
+          <RichCodeEditor
+            v-model="tempPromptValue"
+            language="markdown"
+            editor-type="codemirror"
+            :line-numbers="true"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button
+            link
+            type="danger"
+            @click="resetPrompt(editingPromptKey)"
+            style="margin-right: auto"
+          >
+            恢复默认
+          </el-button>
+          <el-button @click="promptEditorVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSavePrompt">保存修改</el-button>
+        </div>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -363,6 +482,45 @@ const resetPrompt = () => {
 
 .compact-slider :deep(.el-slider__input) {
   width: 90px;
+}
+
+.label-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.label-left {
+  display: flex;
+  align-items: center;
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.prompt-editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: hidden; /* 防止双重滚动 */
+}
+
+.editor-main {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-helper {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  padding: 8px;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 4px;
 }
 
 .form-helper {

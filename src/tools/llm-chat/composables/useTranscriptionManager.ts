@@ -291,6 +291,7 @@ export function useTranscriptionManager() {
     let prompt = config.customPrompt;
     let temperature = config.temperature;
     let maxTokens = config.maxTokens;
+    const timeout = config.timeout;
 
     // 处理分类型精细配置
     if (config.enableTypeSpecificConfig) {
@@ -508,7 +509,8 @@ export function useTranscriptionManager() {
         profileId,
         modelId,
         temperature,
-        maxTokens
+        maxTokens,
+        timeout
       );
     } else {
       // 常规模式：将 prompt 插入到内容数组的开头
@@ -521,6 +523,7 @@ export function useTranscriptionManager() {
         stream: false,
         temperature,
         maxTokens,
+        timeout,
       };
 
       // 5. 发送请求
@@ -617,7 +620,8 @@ export function useTranscriptionManager() {
     profileId: string,
     modelId: string,
     temperature: number,
-    maxTokens: number
+    maxTokens: number,
+    timeout?: number
   ): Promise<string> => {
     const batches: typeof items[] = [];
     for (let i = 0; i < items.length; i += PDF_BATCH_SIZE) {
@@ -661,6 +665,7 @@ export function useTranscriptionManager() {
         stream: false,
         temperature,
         maxTokens,
+        timeout,
       };
 
       const response = await sendRequest(requestOptions);

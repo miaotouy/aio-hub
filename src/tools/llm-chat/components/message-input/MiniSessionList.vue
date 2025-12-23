@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useVirtualList } from "@vueuse/core";
 import { useAgentStore } from "../../agentStore";
 import { useLlmChatStore } from "../../store";
 import type { ChatSession } from "../../types";
-import { Plus, Search } from "@element-plus/icons-vue";
+import { useLlmSearch } from "../../composables/useLlmSearch";
+import { Plus, Search, Loading } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { formatRelativeTime } from "@/utils/time";
@@ -22,8 +23,32 @@ const chatStore = useLlmChatStore();
 const searchQuery = ref("");
 const { settings } = useChatSettings();
 
-// 过滤会话
-const filteredSessions = computed(() => {
+// 后端搜索功能
+const {
+  isSearching,
+  showLoadingIndicator,
+  sessionResults,
+  search,
+  clearSearch,
+  getFieldLabel,
+  getRoleLabel,
+} = useLlmSearch({ debounceMs: 300, scope: "session" });
+
+// 是否处于搜索模式（有搜索词且长度>=2）
+const isInSearchMode = computed(() => searchQuery.value.trim().length >= 2);
+
+// 监听搜索词变化
+watch(searchQuery, (newQuery) => {
+  const trimmed = newQuery.trim();
+  if (trimmed.length >= 2) {
+    search(trimmed);
+  } else {
+    clearSearch();
+  }
+});
+
+// 本地过滤和排序逻辑（用于非搜索模式或过渡）
+const localFilteredSessions = computed(() => {
   let result = chatStore.sessions;
 
   if (searchQuery.value.trim()) {
@@ -37,9 +62,67 @@ const filteredSessions = computed(() => {
   });
 });
 
+// 搜索模式下的会话列表（基于后端搜索结果）
+const searchResultSessions = computed(() => {
+  if (!isInSearchMode.value) return [];
+
+  const sessions: ChatSession[] = [];
+  const sessionMap = new Map(chatStore.sessions.map((s) => [s.id, s]));
+
+  for (const result of sessionResults.value) {
+    const session = sessionMap.get(result.id);
+    if (session) {
+      sessions.push(session);
+    }
+  }
+  return sessions;
+});
+
+// 最终显示的会话列表
+const displaySessions = computed(() => {
+  if (isInSearchMode.value) {
+    if (searchResultSessions.value.length > 0) {
+      return searchResultSessions.value;
+    }
+    // 正在搜索时，显示前端过滤结果作为过渡
+    if (isSearching.value) {
+      return localFilteredSessions.value;
+    }
+    return [];
+  }
+  return localFilteredSessions.value;
+});
+
+// 搜索结果 ID 到匹配详情的映射
+const searchMatchesMap = computed(() => {
+  const map = new Map<string, any[]>();
+  for (const result of sessionResults.value) {
+    map.set(result.id, result.matches);
+  }
+  return map;
+});
+
+// 获取 session 的匹配详情
+const getSessionMatches = (sessionId: string) => {
+  if (!isInSearchMode.value) return undefined;
+  const matches = searchMatchesMap.value.get(sessionId);
+  if (!matches) return undefined;
+  // 过滤掉名称匹配，因为名称已经显示在标题中了
+  return matches.filter((m) => m.field !== "name");
+};
+
 // 虚拟滚动列表
-const { list, containerProps, wrapperProps } = useVirtualList(filteredSessions, {
-  itemHeight: 50, // 更紧凑的高度
+const { list, containerProps, wrapperProps } = useVirtualList(displaySessions, {
+  itemHeight: (index) => {
+    const session = displaySessions.value[index];
+    if (!session) return 50;
+    const matches = getSessionMatches(session.id);
+    // 如果有搜索匹配详情，增加高度
+    if (matches && matches.length > 0) {
+      return 50 + Math.min(matches.length, 2) * 16 + 4;
+    }
+    return 50;
+  },
 });
 
 // 获取会话当前显示的智能体信息
@@ -71,11 +154,11 @@ const getMessageCount = (session: ChatSession) => {
 
 <template>
   <div class="mini-session-list">
-    <div class="list-container" v-bind="filteredSessions.length > 0 ? containerProps : {}">
+    <div class="list-container" v-bind="displaySessions.length > 0 ? containerProps : {}">
       <div v-if="chatStore.sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
       </div>
-      <div v-else-if="filteredSessions.length === 0" class="empty-state">
+      <div v-else-if="displaySessions.length === 0" class="empty-state">
         <p>无匹配结果</p>
       </div>
 
@@ -83,7 +166,14 @@ const getMessageCount = (session: ChatSession) => {
         <div
           v-for="{ data: session } in list"
           :key="session.id"
-          :class="['session-item', { active: session.id === chatStore.currentSessionId }]"
+          :class="[
+            'session-item',
+            {
+              active: session.id === chatStore.currentSessionId,
+              'has-matches': getSessionMatches(session.id)?.length,
+            },
+          ]"
+          :style="{ height: 'auto', minHeight: '50px' }"
           @click="handleSessionClick(session)"
         >
           <div class="session-content">
@@ -99,6 +189,22 @@ const getMessageCount = (session: ChatSession) => {
               />
               <span class="session-title">{{ session.name }}</span>
             </div>
+
+            <!-- 搜索匹配详情 -->
+            <div v-if="getSessionMatches(session.id)?.length" class="match-details">
+              <div
+                v-for="(match, index) in getSessionMatches(session.id)!.slice(0, 2)"
+                :key="index"
+                class="match-item"
+              >
+                <span class="match-field"
+                  >{{ getFieldLabel(match.field)
+                  }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:</span
+                >
+                <span class="match-context" :title="match.context">{{ match.context }}</span>
+              </div>
+            </div>
+
             <div class="session-meta">
               <span class="message-count">{{ getMessageCount(session) }} 条</span>
               <span class="session-time">{{ formatRelativeTime(session.updatedAt) }}</span>
@@ -119,7 +225,11 @@ const getMessageCount = (session: ChatSession) => {
         size="small"
         clearable
         class="search-input"
-      />
+      >
+        <template #suffix v-if="showLoadingIndicator">
+          <el-icon class="is-loading"><Loading /></el-icon>
+        </template>
+      </el-input>
     </div>
   </div>
 </template>
@@ -164,7 +274,7 @@ const getMessageCount = (session: ChatSession) => {
   align-items: center;
   padding: 8px 10px;
   margin-bottom: 2px;
-  height: 50px;
+  min-height: 50px;
   box-sizing: border-box;
   border-radius: 6px;
   cursor: pointer;
@@ -202,10 +312,41 @@ const getMessageCount = (session: ChatSession) => {
 
 .session-title {
   font-size: 13px;
+  font-weight: 500;
   color: var(--text-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+}
+
+.match-details {
+  margin: 2px 0;
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.match-item {
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.match-field {
+  flex-shrink: 0;
+  color: var(--text-color-light);
+  font-size: 10px;
+}
+
+.match-context {
+  color: var(--text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   flex: 1;
 }
 

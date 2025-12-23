@@ -284,7 +284,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "uiPreferences.rendererThrottleMs",
         hint: "控制消息渲染的节流时间，数值越小越实时，但性能开销越大",
         keywords: "ui renderer throttle 节流 性能",
-      },{
+      }, {
         id: "virtualListOverscan",
         label:
           "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
@@ -749,6 +749,45 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) => settings.transcription.enabled,
       },
       {
+        id: "transEnableSlicer",
+        label: "图片智能切图",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.enableImageSlicer",
+        hint: "开启后，对于长图将自动检测空白区域进行切分，提高识别准确率",
+        keywords: "transcription slicer 图片 切图 智能",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "imageSlicerConfig", title: "图片切图配置" },
+      },
+      {
+        id: "transSlicerAspectRatio",
+        label:
+          "切图长宽比阈值 ({{ localSettings.transcription.imageSlicerConfig.aspectRatioThreshold }}:1)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 0.5 },
+        modelPath: "transcription.imageSlicerConfig.aspectRatioThreshold",
+        hint: "图片的长宽比超过此值时才会触发智能切图",
+        keywords: "transcription slicer aspect ratio 长宽比",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          !!settings.transcription.enableImageSlicer,
+        groupCollapsible: { name: "imageSlicerConfig", title: "图片切图配置" },
+      },
+      {
+        id: "transSlicerMinCutHeight",
+        label:
+          "最小切片高度 ({{ localSettings.transcription.imageSlicerConfig.minCutHeight }}px)",
+        component: "SliderWithInput",
+        props: { min: 100, max: 2000, step: 20 },
+        modelPath: "transcription.imageSlicerConfig.minCutHeight",
+        hint: "控制切片的最小高度。设置较大的值可以防止切图太碎，保持上下文连贯。建议 400-800px。",
+        keywords: "transcription slicer min height 切片 高度",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          !!settings.transcription.enableImageSlicer,
+        groupCollapsible: { name: "imageSlicerConfig", title: "图片切图配置" },
+      },
+      {
         id: "transVideoEnableCompression",
         label: "启用视频压缩",
         layout: "inline",
@@ -757,6 +796,7 @@ export const settingsConfig: SettingsSection[] = [
         hint: "开启后，当视频体积超过限制时，将尝试自动调整码率以满足体积要求（需配置 FFmpeg）。",
         keywords: "transcription video compression enable 启用 压缩",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
       },
       {
         id: "transFFmpegPath",
@@ -770,6 +810,7 @@ export const settingsConfig: SettingsSection[] = [
           settings.transcription.video.enableCompression,
         defaultValue: "",
         action: "selectFFmpegPath",
+        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
       },
       {
         id: "transVideoMaxDirectSize",
@@ -788,6 +829,7 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.video.enableCompression,
+        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
       },
       {
         id: "transVideoMaxFps",
@@ -806,6 +848,7 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.video.enableCompression,
+        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
       },
       {
         id: "transVideoMaxResolution",
@@ -824,6 +867,7 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.video.enableCompression,
+        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
       },
       {
         id: "transEnableTypeSpecific",
@@ -891,42 +935,6 @@ export const settingsConfig: SettingsSection[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           !settings.transcription.enableTypeSpecificConfig,
-      },
-      {
-        id: "transEnableSlicer",
-        label: "图片智能切图",
-        layout: "inline",
-        component: "ElSwitch",
-        modelPath: "transcription.enableImageSlicer",
-        hint: "开启后，对于长图将自动检测空白区域进行切分，提高识别准确率",
-        keywords: "transcription slicer 图片 切图 智能",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transSlicerAspectRatio",
-        label:
-          "切图长宽比阈值 ({{ localSettings.transcription.imageSlicerConfig.aspectRatioThreshold }}:1)",
-        component: "SliderWithInput",
-        props: { min: 1, max: 10, step: 0.5 },
-        modelPath: "transcription.imageSlicerConfig.aspectRatioThreshold",
-        hint: "图片的长宽比超过此值时才会触发智能切图",
-        keywords: "transcription slicer aspect ratio 长宽比",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          !!settings.transcription.enableImageSlicer,
-      },
-      {
-        id: "transSlicerMinCutHeight",
-        label:
-          "最小切片高度 ({{ localSettings.transcription.imageSlicerConfig.minCutHeight }}px)",
-        component: "SliderWithInput",
-        props: { min: 100, max: 2000, step: 20 },
-        modelPath: "transcription.imageSlicerConfig.minCutHeight",
-        hint: "控制切片的最小高度。设置较大的值可以防止切图太碎，保持上下文连贯。建议 400-800px。",
-        keywords: "transcription slicer min height 切片 高度",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          !!settings.transcription.enableImageSlicer,
       },
       // 3. 图片配置 (当 transEnableTypeSpecific 为 true 时显示)
       {

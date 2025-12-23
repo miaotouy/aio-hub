@@ -125,6 +125,20 @@ export interface SettingItem {
      */
     useLoading?: boolean;
   };
+  /**
+   * 组内折叠配置，用于将多个相关配置项折叠成一组
+   * 具有相同 groupCollapsible.name 的配置项会被渲染在同一个折叠面板中
+   */
+  groupCollapsible?: {
+    /**
+     * 折叠组的唯一标识，相同 name 的配置项会被分到同一组
+     */
+    name: string;
+    /**
+     * 折叠组的标题（只有组内第一个配置项的 title 会被使用）
+     */
+    title: string;
+  };
 }
 
 /**

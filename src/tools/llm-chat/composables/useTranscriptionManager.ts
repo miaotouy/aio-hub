@@ -524,11 +524,9 @@ export function useTranscriptionManager() {
 
     let transcriptionText: string;
 
-    if (pdfBatchData || imageBatchData) {
-      // 分批处理模式
-      const batches = pdfBatchData
-        ? pdfBatchData.map(img => ({ base64: img.base64, label: `第 ${img.pageNumber} 页` }))
-        : imageBatchData!.map((img, i) => ({ base64: img.base64, label: `第 ${i + 1} 部分` }));
+    if (pdfBatchData) {
+      // PDF 依然保持分批处理，因为页数可能非常多
+      const batches = pdfBatchData.map((img) => ({ base64: img.base64, label: `第 ${img.pageNumber} 页` }));
 
       transcriptionText = await processBatches(
         batches,
@@ -539,6 +537,47 @@ export function useTranscriptionManager() {
         maxTokens,
         timeout
       );
+    } else if (imageBatchData) {
+      // 图片切片处理：优先塞入同一个请求以保持上下文连贯
+      // 除非切片数量多得离谱（比如超过 15 块），否则不建议分批
+      const MAX_IMAGE_PER_REQUEST = 15;
+
+      if (imageBatchData.length <= MAX_IMAGE_PER_REQUEST) {
+        logger.info(`将 ${imageBatchData.length} 个图片切片塞入单次请求`, { assetId: task.assetId });
+        content.push({ type: "text", text: prompt });
+        for (let i = 0; i < imageBatchData.length; i++) {
+          content.push({
+            type: "image",
+            imageBase64: imageBatchData[i].base64,
+          });
+        }
+
+        const requestOptions: LlmRequestOptions = {
+          profileId,
+          modelId,
+          messages: [{ role: "user", content }],
+          stream: false,
+          temperature,
+          maxTokens,
+          timeout,
+        };
+
+        const response = await sendRequest(requestOptions);
+        transcriptionText = response.content;
+      } else {
+        // 极端情况下（超长图切了几十块）才走分批拼接
+        logger.warn(`图片切片过多 (${imageBatchData.length})，被迫采用分批请求模式`);
+        const batches = imageBatchData.map((img, i) => ({ base64: img.base64, label: `第 ${i + 1} 部分` }));
+        transcriptionText = await processBatches(
+          batches,
+          prompt,
+          profileId,
+          modelId,
+          temperature,
+          maxTokens,
+          timeout
+        );
+      }
     } else {
       // 常规模式：将 prompt 插入到内容数组的开头
       content.unshift({ type: "text", text: prompt });

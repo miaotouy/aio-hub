@@ -915,6 +915,19 @@ export const settingsConfig: SettingsSection[] = [
           settings.transcription.enabled &&
           !!settings.transcription.enableImageSlicer,
       },
+      {
+        id: "transSlicerMinCutHeight",
+        label:
+          "最小切片高度 ({{ localSettings.transcription.imageSlicerConfig.minCutHeight }}px)",
+        component: "SliderWithInput",
+        props: { min: 100, max: 2000, step: 20 },
+        modelPath: "transcription.imageSlicerConfig.minCutHeight",
+        hint: "控制切片的最小高度。设置较大的值可以防止切图太碎，保持上下文连贯。建议 400-800px。",
+        keywords: "transcription slicer min height 切片 高度",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          !!settings.transcription.enableImageSlicer,
+      },
       // 3. 图片配置 (当 transEnableTypeSpecific 为 true 时显示)
       {
         id: "transImageModel",

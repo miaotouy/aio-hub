@@ -204,19 +204,23 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
-      - name: 构建前端
-        run: bun run build
-
-      - name: 构建 Rust 后端
+      - name: 构建 Tauri 二进制文件 (包含前端资源嵌入)
         run: |
-          cd src-tauri
-          cargo build --release --target x86_64-unknown-linux-gnu
+          # 使用 tauri build 确保资源正确嵌入，--bundles none 表示只生成二进制文件
+          bun tauri build --target x86_64-unknown-linux-gnu --bundles none
 
       - name: 准备 Flatpak 源文件
         run: |
           # 将所有源文件复制到 src-tauri 目录（清单文件所在位置）
           # 这样 flatpak-builder 可以通过相对路径找到它们
-          cp src-tauri/target/x86_64-unknown-linux-gnu/release/aiohub src-tauri/aiohub
+          # 注意：tauri build 生成的路径可能不带 target 目录名（取决于配置），这里使用 find 确保找到
+          BINARY_PATH=$(find src-tauri/target/x86_64-unknown-linux-gnu/release -maxdepth 1 -type f -name "aiohub" | head -n 1)
+          if [ -z "$BINARY_PATH" ]; then
+            BINARY_PATH="src-tauri/target/release/aiohub"
+          fi
+          cp "$BINARY_PATH" src-tauri/aiohub
+          # 剥离调试符号以减小体积
+          strip src-tauri/aiohub
           chmod +x src-tauri/aiohub
           cp src-tauri/icons/128x128.png src-tauri/com.mty.aiohub.png
           # 列出准备好的文件

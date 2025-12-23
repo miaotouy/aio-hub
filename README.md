@@ -206,6 +206,7 @@ _专为 LLM 流式输出打造的高性能渲染方案_
 | **Windows** | `.exe`      | NSIS 安装包                         |
 | **macOS**   | `.dmg`      | 支持 Apple Silicon (M系列) 和 Intel |
 | **Linux**   | `.AppImage` | 通用格式，需赋予执行权限            |
+|             | `.flatpak`  | 推荐，沙盒化运行，支持跨发行版      |
 
 ### 开发者：源码构建
 

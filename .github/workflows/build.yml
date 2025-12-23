@@ -216,7 +216,7 @@ jobs:
         run: |
           mkdir -p flatpak-build
           # 拷贝二进制文件
-          cp src-tauri/target/x86_64-unknown-linux-gnu/release/aio-hub flatpak-build/aiohub
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/aiohub flatpak-build/aiohub
           chmod +x flatpak-build/aiohub
           # 拷贝资源文件
           cp src-tauri/com.mty.aiohub.desktop flatpak-build/com.mty.aiohub.desktop

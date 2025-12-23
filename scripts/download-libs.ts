@@ -2,10 +2,13 @@
  * 自动下载常用公共库到 public/libs 目录
  * 使用方式: bun run scripts/download-libs.ts
  */
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 const LIBS_DIR = join(process.cwd(), "public", "libs");
+
+// 检查是否强制下载
+const FORCE_DOWNLOAD = process.argv.includes("--force") || process.argv.includes("-f");
 
 const LIBS_TO_DOWNLOAD = [
   {
@@ -51,6 +54,17 @@ const LIBS_TO_DOWNLOAD = [
 ];
 
 async function downloadFile(url: string, dest: string) {
+  // 检查文件是否已存在
+  if (!FORCE_DOWNLOAD) {
+    try {
+      await stat(dest);
+      console.log(`⏭️  跳过已存在的文件: ${dest}`);
+      return;
+    } catch {
+      // 文件不存在，继续下载
+    }
+  }
+
   console.log(`正在下载: ${url} -> ${dest}`);
   try {
     const response = await fetch(url);

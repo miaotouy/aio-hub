@@ -23,7 +23,8 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 vue-tsc --noEmit && cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build",
+    "download:libs": "bun scripts/download-libs.ts",
+    "build": "bun run download:libs ; cross-env NODE_OPTIONS=--max-old-space-size=8192 vue-tsc --noEmit ; cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

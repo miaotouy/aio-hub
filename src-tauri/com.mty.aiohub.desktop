@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=AIO Hub
+Comment=All-in-one tools hub for developers
+Exec=aiohub
+Icon=com.mty.aiohub
+Terminal=false
+Type=Application
+Categories=Utility;Development;
+Keywords=AI;Tools;LLM;OCR;
+StartupWMClass=aio-hub

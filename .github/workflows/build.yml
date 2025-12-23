@@ -163,3 +163,86 @@ jobs:
           name: aio-hub-${{ steps.get-version.outputs.version }}-${{ steps.platform-name.outputs.name }}.${{ steps.platform-name.outputs.ext }}
           path: dist-artifacts/*
           if-no-files-found: warn
+
+  # Flatpak 构建 (独立 Job)
+  build-flatpak:
+    runs-on: ubuntu-22.04
+    needs: build  # 等待主构建完成
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: 安装 Flatpak 构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          # 添加 Flathub 仓库
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          # 安装 Freedesktop SDK 和 Platform
+          sudo flatpak install -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+
+      - name: 安装 Tauri 构建依赖
+        run: |
+          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: 安装前端依赖
+        run: bun install
+
+      - name: 构建前端
+        run: bun run build
+
+      - name: 构建 Rust 后端
+        run: |
+          cd src-tauri
+          cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: 准备 Flatpak 构建目录
+        run: |
+          mkdir -p flatpak-build
+          # 拷贝二进制文件
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/aio-hub flatpak-build/aiohub
+          chmod +x flatpak-build/aiohub
+          # 拷贝资源文件
+          cp src-tauri/com.mty.aiohub.desktop flatpak-build/com.mty.aiohub.desktop
+          cp src-tauri/icons/128x128.png flatpak-build/com.mty.aiohub.png
+          # 拷贝清单文件以便 flatpak-builder 在同级目录查找资源
+          cp src-tauri/com.mty.aiohub.yml flatpak-build/com.mty.aiohub.yml
+
+      - name: 构建 Flatpak
+        run: |
+          flatpak-builder --force-clean --repo=flatpak-repo flatpak-build flatpak-build/com.mty.aiohub.yml
+          flatpak build-bundle flatpak-repo aio-hub.flatpak com.mty.aiohub
+
+      - name: 获取版本号
+        id: get-version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+            echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 上传 Flatpak 构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-hub-${{ steps.get-version.outputs.version }}-linux-x64.flatpak
+          path: aio-hub.flatpak
+          if-no-files-found: warn

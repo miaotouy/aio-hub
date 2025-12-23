@@ -1,0 +1,30 @@
+id: com.mty.aiohub
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: aiohub
+finish-args:
+  # 网络访问
+  - --share=network
+  # 图形显示 (X11 & Wayland)
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --share=ipc
+  # 硬件加速 (解决 EGL 问题关键)
+  - --device=dri
+  # 通知支持
+  - --talk-name=org.freedesktop.Notifications
+  # 文件保存对话框支持
+  - --talk-name=org.freedesktop.portal.Documents
+  - --talk-name=org.freedesktop.portal.Desktop
+  # 允许访问用户下载目录（可选，根据 AIO Hub 工具需求）
+  - --filesystem=xdg-downloads
+modules:
+  - name: aiohub
+    buildsystem: simple
+    build-commands:
+      # 安装二进制文件
+      - install -D aiohub /app/bin/aiohub
+      # 安装图标和桌面文件
+      - install -D com.mty.aiohub.desktop /app/share/applications/com.mty.aiohub.desktop
+      - install -D com.mty.aiohub.png /app/share/icons/hicolor/128x128/apps/com.mty.aiohub.png

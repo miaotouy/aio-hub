@@ -252,13 +252,23 @@ tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app.get_webview_window("main").map(|w| {
-                let _ = w.show();
-                let _ = w.unminimize();
-                let _ = w.set_focus();
-            });
-        }))
+        .plugin({
+            #[cfg(not(debug_assertions))]
+            {
+                tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                    let _ = app.get_webview_window("main").map(|w| {
+                        let _ = w.show();
+                        let _ = w.unminimize();
+                        let _ = w.set_focus();
+                    });
+                })
+            }
+            #[cfg(debug_assertions)]
+            {
+                // 开发模式下不启用单实例插件，从而允许与正式版共存
+                tauri_plugin_opener::init() // 这里随便返回一个已有的插件初始化即可，或者使用空插件
+            }
+        })
         // 管理状态
         .manage(ClipboardMonitorState::new())
         .manage(commands::native_plugin::NativePluginState::default())

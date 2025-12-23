@@ -1,7 +1,7 @@
+use crate::utils::mime;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
 use content_inspector::{inspect, ContentType};
-use infer;
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
 use serde::{Deserialize, Serialize};
@@ -243,171 +243,6 @@ fn determine_asset_type(mime: &str, path: Option<&Path>) -> AssetType {
     }
 }
 
-/// 根据文件内容和扩展名智能推断 MIME 类型
-///
-/// 优先使用 infer 库通过文件魔数检测，回退到扩展名映射
-pub fn guess_mime_type(path: &Path) -> String {
-    // 尝试读取文件前 8KB 用于魔数检测
-    if let Ok(mut file) = fs::File::open(path) {
-        use std::io::Read;
-        let mut buffer = vec![0; 8192];
-        if let Ok(n) = file.read(&mut buffer) {
-            buffer.truncate(n);
-
-            // 使用 infer 库通过文件魔数检测
-            if let Some(kind) = infer::get(&buffer) {
-                return kind.mime_type().to_string();
-            }
-        }
-    }
-
-    // 回退到基于扩展名的检测
-    if let Some(ext) = path.extension() {
-        let ext_str = ext.to_string_lossy().to_lowercase();
-
-        // 常见的文本文件扩展名（更全面的列表）
-        let text_extensions = [
-            // 常规文本
-            "txt",
-            "text",
-            "log",
-            "cfg",
-            "conf",
-            "ini",
-            "env",
-            // 标记语言
-            "md",
-            "markdown",
-            "rst",
-            "adoc",
-            "asciidoc",
-            "xml",
-            "html",
-            "htm",
-            "xhtml",
-            "svg",
-            // 数据格式
-            "json",
-            "yaml",
-            "yml",
-            "toml",
-            "csv",
-            "tsv",
-            // 编程语言
-            "js",
-            "jsx",
-            "ts",
-            "tsx",
-            "mjs",
-            "cjs",
-            "py",
-            "pyw",
-            "pyi",
-            "rb",
-            "php",
-            "java",
-            "kt",
-            "kts",
-            "c",
-            "cpp",
-            "cc",
-            "cxx",
-            "h",
-            "hpp",
-            "hxx",
-            "cs",
-            "go",
-            "rs",
-            "swift",
-            "m",
-            "mm",
-            "scala",
-            "lua",
-            "perl",
-            "pl",
-            "r",
-            "sh",
-            "bash",
-            "zsh",
-            "fish",
-            "ps1",
-            "bat",
-            "cmd",
-            // Web
-            "css",
-            "scss",
-            "sass",
-            "less",
-            "styl",
-            "vue",
-            "svelte",
-            "astro",
-            // 配置和脚本
-            "gitignore",
-            "dockerignore",
-            "editorconfig",
-            "makefile",
-            "cmake",
-            "gradle",
-            // 其他
-            "sql",
-            "graphql",
-            "proto",
-            "thrift",
-        ];
-
-        if text_extensions.contains(&ext_str.as_str()) {
-            return format!("text/{}", ext_str);
-        }
-
-        // 已知的特定 MIME 类型映射
-        let mime = match ext_str.as_str() {
-            // 图片
-            "jpg" | "jpeg" => "image/jpeg",
-            "png" => "image/png",
-            "gif" => "image/gif",
-            "webp" => "image/webp",
-            "bmp" => "image/bmp",
-            "ico" => "image/x-icon",
-            "tiff" | "tif" => "image/tiff",
-            "avif" => "image/avif",
-            // 音频
-            "mp3" => "audio/mpeg",
-            "wav" => "audio/wav",
-            "ogg" => "audio/ogg",
-            "flac" => "audio/flac",
-            "aac" => "audio/aac",
-            "m4a" => "audio/mp4",
-            // 视频
-            "mp4" => "video/mp4",
-            "webm" => "video/webm",
-            "avi" => "video/x-msvideo",
-            "mov" => "video/quicktime",
-            "mkv" => "video/x-matroska",
-            "flv" => "video/x-flv",
-            // 文档
-            "pdf" => "application/pdf",
-            "doc" => "application/msword",
-            "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "xls" => "application/vnd.ms-excel",
-            "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "ppt" => "application/vnd.ms-powerpoint",
-            "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            // JSON
-            "json" => "application/json",
-            // JavaScript/TypeScript
-            "js" | "mjs" | "cjs" => "application/javascript",
-            "ts" | "tsx" => "application/typescript",
-            // 其他
-            _ => "application/octet-stream",
-        };
-
-        mime.to_string()
-    } else {
-        "application/octet-stream".to_string()
-    }
-}
-
 /// 计算文件的 SHA-256 哈希值
 fn calculate_file_hash(path: &Path) -> Result<String, String> {
     let bytes = fs::read(path).map_err(|e| format!("读取文件失败: {}", e))?;
@@ -544,7 +379,7 @@ pub async fn import_asset_from_path(
         .map_err(|e| format!("读取文件元数据失败: {}", e))?;
     let file_size = metadata.len();
 
-    let mime_type = guess_mime_type(&source_path);
+    let mime_type = mime::guess_mime_type(&source_path);
     let asset_type = determine_asset_type(&mime_type, Some(&source_path));
 
     let base_path = get_asset_base_path(app.clone())?;
@@ -699,7 +534,7 @@ pub async fn import_asset_from_bytes(
     let opts = options.unwrap_or_default();
 
     let temp_path = PathBuf::from(&original_name);
-    let mime_type = guess_mime_type(&temp_path);
+    let mime_type = mime::guess_mime_type(&temp_path);
     let asset_type = determine_asset_type(&mime_type, None);
 
     let base_path = get_asset_base_path(app.clone())?;
@@ -1228,7 +1063,7 @@ fn build_asset_from_path(file_path: &Path, base_dir: &Path) -> Result<Asset, Str
         .strip_prefix(base_dir)
         .map_err(|e| e.to_string())?;
 
-    let mime_type = guess_mime_type(file_path);
+    let mime_type = mime::guess_mime_type(file_path);
     let asset_type = determine_asset_type(&mime_type, Some(file_path));
 
     let uuid = file_path

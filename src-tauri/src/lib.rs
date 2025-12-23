@@ -2,6 +2,7 @@
 mod commands;
 mod events;
 mod tray;
+mod utils;
 
 // 导入所需的依赖
 use std::sync::{Arc, Mutex};

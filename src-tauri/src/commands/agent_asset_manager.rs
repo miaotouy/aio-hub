@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
+use crate::utils::mime;
 use uuid::Uuid;
 
 /// 资产信息结构
@@ -51,45 +52,6 @@ fn get_agent_assets_dir(app: &AppHandle, agent_id: &str) -> Result<PathBuf, Stri
         .join("agents")
         .join(agent_id)
         .join("assets"))
-}
-
-/// 根据文件扩展名推断 MIME 类型
-fn guess_mime_type_from_extension(filename: &str) -> String {
-    let extension = filename
-        .rsplit('.')
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
-
-    match extension.as_str() {
-        // 图片
-        "jpg" | "jpeg" => "image/jpeg",
-        "png" => "image/png",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "svg" => "image/svg+xml",
-        "bmp" => "image/bmp",
-        "ico" => "image/x-icon",
-        "avif" => "image/avif",
-        // 音频
-        "mp3" => "audio/mpeg",
-        "wav" => "audio/wav",
-        "ogg" => "audio/ogg",
-        "flac" => "audio/flac",
-        "aac" => "audio/aac",
-        "m4a" => "audio/mp4",
-        "weba" => "audio/webm",
-        // 视频
-        "mp4" => "video/mp4",
-        "webm" => "video/webm",
-        "avi" => "video/x-msvideo",
-        "mov" => "video/quicktime",
-        "mkv" => "video/x-matroska",
-        "flv" => "video/x-flv",
-        // 默认
-        _ => "application/octet-stream",
-    }
-    .to_string()
 }
 
 /// 清理 ID 字符串，移除不安全的字符
@@ -298,7 +260,7 @@ pub async fn save_agent_asset(
     let relative_path = format!("assets/{}", new_filename);
 
     // 推断 MIME 类型
-    let mime_type = guess_mime_type_from_extension(&file_name);
+    let mime_type = mime::guess_mime_type(&target_path);
 
     // 生成缩略图（针对图片和音频）
     let actual_base_name = new_filename
@@ -444,7 +406,7 @@ pub async fn list_agent_assets(
 
             let metadata = path.metadata().ok();
             let size = metadata.map(|m| m.len()).unwrap_or(0);
-            let mime_type = guess_mime_type_from_extension(&filename_str);
+            let mime_type = mime::guess_mime_type(&path);
 
             // 检查是否有对应的缩略图
             let base_name = extract_base_name(&filename_str);
@@ -586,12 +548,12 @@ mod tests {
 
     #[test]
     fn test_guess_mime_type() {
-        assert_eq!(guess_mime_type_from_extension("test.png"), "image/png");
-        assert_eq!(guess_mime_type_from_extension("test.jpg"), "image/jpeg");
-        assert_eq!(guess_mime_type_from_extension("test.mp3"), "audio/mpeg");
-        assert_eq!(guess_mime_type_from_extension("test.mp4"), "video/mp4");
+        assert_eq!(mime::guess_mime_type_from_filename("test.png"), "image/png");
+        assert_eq!(mime::guess_mime_type_from_filename("test.jpg"), "image/jpeg");
+        assert_eq!(mime::guess_mime_type_from_filename("test.mp3"), "audio/mpeg");
+        assert_eq!(mime::guess_mime_type_from_filename("test.mp4"), "video/mp4");
         assert_eq!(
-            guess_mime_type_from_extension("test.unknown"),
+            mime::guess_mime_type_from_filename("test.unknown"),
             "application/octet-stream"
         );
     }

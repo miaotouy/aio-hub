@@ -45,15 +45,8 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
-      - name: 构建前端
-        run: bun run build
-
-      - name: 构建 Rust 后端 (强制生产模式以嵌入资源)
-        env:
-          TAURI_ENV: production
-        run: |
-          cd src-tauri
-          cargo build --release --target x86_64-unknown-linux-gnu
+      - name: 构建应用 (使用 tauri build 确保资源嵌入)
+        run: bun tauri build
 
       - name: 准备 Flatpak 源文件
         run: |

@@ -204,10 +204,15 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
-      - name: 构建 Tauri 二进制文件 (包含前端资源嵌入)
+      - name: 构建前端
+        run: bun run build
+
+      - name: 构建 Rust 后端 (强制生产模式以嵌入资源)
+        env:
+          TAURI_ENV: production
         run: |
-          # 使用 tauri build 确保资源正确嵌入，--bundles none 表示只生成二进制文件
-          bun tauri build --target x86_64-unknown-linux-gnu --bundles none
+          cd src-tauri
+          cargo build --release --target x86_64-unknown-linux-gnu
 
       - name: 准备 Flatpak 源文件
         run: |

@@ -45,28 +45,38 @@ const formattedJson = computed(() => {
     })
   );
 
-  // 过滤掉内部处理参数，只保留真正的 API 参数
-  const internalParams = [
+  // 模拟请求构建器的逻辑，过滤掉内部控制参数，但展开并保留自定义参数
+  const internalKeys = [
     "contextManagement",
     "contextPostProcessing",
     "contextCompression",
     "enabledParameters",
-    "custom",
+    "custom", // 容器本身过滤，内容展开
   ];
 
-  const filteredParams = Object.entries(props.contextData.parameters || {}).reduce(
-    (acc, [key, value]) => {
-      if (!internalParams.includes(key)) {
-        acc[key] = value;
+  const filteredParams: Record<string, any> = {};
+  const rawParams = props.contextData.parameters || {};
+
+  // 1. 处理普通参数和未知自定义参数
+  for (const [key, value] of Object.entries(rawParams)) {
+    if (!internalKeys.includes(key) && value !== undefined) {
+      filteredParams[key] = value;
+    }
+  }
+
+  // 2. 展开 custom.params 中的参数 (如果启用)
+  const customConfig = rawParams.custom as any;
+  if (customConfig?.enabled && customConfig.params) {
+    for (const [key, value] of Object.entries(customConfig.params)) {
+      if (!internalKeys.includes(key) && value !== undefined) {
+        filteredParams[key] = value;
       }
-      return acc;
-    },
-    {} as Record<string, any>
-  );
+    }
+  }
 
   const requestBody: Record<string, any> = {
     model: props.contextData.agentInfo.modelId,
-    ...filteredParams, // 展开显示过滤后的请求参数
+    ...filteredParams,
     messages: cleanMessages,
   };
 

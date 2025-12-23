@@ -252,6 +252,13 @@ tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = app.get_webview_window("main").map(|w| {
+                let _ = w.show();
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            });
+        }))
         // 管理状态
         .manage(ClipboardMonitorState::new())
         .manage(commands::native_plugin::NativePluginState::default())

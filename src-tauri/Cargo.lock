@@ -84,6 +84,7 @@ dependencies = [
  "tauri-plugin-log",
  "tauri-plugin-opener",
  "tauri-plugin-os",
+ "tauri-plugin-single-instance",
  "tokio",
  "tokio-util",
  "tower 0.4.13",
@@ -5909,6 +5910,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-single-instance"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50a0e5a4ce43cb3a733c3aef85e8478bc769dac743c615e26639cbf5d953faf7"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror 2.0.12",
+ "tracing",
+ "windows-sys 0.60.2",
+ "zbus 5.11.0",
+]
+
+[[package]]
 name = "tauri-runtime"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7825,8 +7841,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d07e46d035fb8e375b2ce63ba4e4ff90a7f73cf2ffb0138b29e1158d2eaadf7"
 dependencies = [
  "async-broadcast",
+ "async-executor",
+ "async-io",
+ "async-lock",
+ "async-process",
  "async-recursion",
+ "async-task",
  "async-trait",
+ "blocking",
  "enumflags2",
  "event-listener",
  "futures-core",

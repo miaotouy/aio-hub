@@ -27,6 +27,7 @@ tauri-plugin-clipboard-manager = { version = "2" } # Use the same version as mai
 tauri-plugin-fs = "2" # Add filesystem plugin
 tauri-plugin-global-shortcut = "2" # Add global shortcut plugin
 tauri-plugin-os = "2" # Add OS info plugin
+tauri-plugin-single-instance = "2"
 tauri-plugin-log = { version = "2", features = ["colored"] } # Add log plugin
 log = "0.4"
 serde = { version = "1", features = ["derive"] }

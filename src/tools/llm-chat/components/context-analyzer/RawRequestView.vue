@@ -45,9 +45,28 @@ const formattedJson = computed(() => {
     })
   );
 
+  // 过滤掉内部处理参数，只保留真正的 API 参数
+  const internalParams = [
+    "contextManagement",
+    "contextPostProcessing",
+    "contextCompression",
+    "enabledParameters",
+    "custom",
+  ];
+
+  const filteredParams = Object.entries(props.contextData.parameters || {}).reduce(
+    (acc, [key, value]) => {
+      if (!internalParams.includes(key)) {
+        acc[key] = value;
+      }
+      return acc;
+    },
+    {} as Record<string, any>
+  );
+
   const requestBody: Record<string, any> = {
     model: props.contextData.agentInfo.modelId,
-    ...props.contextData.parameters, // 展开显示请求参数
+    ...filteredParams, // 展开显示过滤后的请求参数
     messages: cleanMessages,
   };
 

@@ -18,7 +18,7 @@ finish-args:
   - --talk-name=org.freedesktop.portal.Documents
   - --talk-name=org.freedesktop.portal.Desktop
   # 允许访问用户下载目录（可选，根据 AIO Hub 工具需求）
-  - --filesystem=xdg-downloads
+  - --filesystem=xdg-download
 modules:
   - name: aiohub
     buildsystem: simple

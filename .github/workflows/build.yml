@@ -212,21 +212,23 @@ jobs:
           cd src-tauri
           cargo build --release --target x86_64-unknown-linux-gnu
 
-      - name: 准备 Flatpak 构建目录
+      - name: 准备 Flatpak 源文件
         run: |
-          mkdir -p flatpak-build
-          # 拷贝二进制文件
-          cp src-tauri/target/x86_64-unknown-linux-gnu/release/aiohub flatpak-build/aiohub
-          chmod +x flatpak-build/aiohub
-          # 拷贝资源文件
-          cp src-tauri/com.mty.aiohub.desktop flatpak-build/com.mty.aiohub.desktop
-          cp src-tauri/icons/128x128.png flatpak-build/com.mty.aiohub.png
-          # 拷贝清单文件以便 flatpak-builder 在同级目录查找资源
-          cp src-tauri/com.mty.aiohub.yml flatpak-build/com.mty.aiohub.yml
+          # 将所有源文件复制到 src-tauri 目录（清单文件所在位置）
+          # 这样 flatpak-builder 可以通过相对路径找到它们
+          cp src-tauri/target/x86_64-unknown-linux-gnu/release/aiohub src-tauri/aiohub
+          chmod +x src-tauri/aiohub
+          cp src-tauri/icons/128x128.png src-tauri/com.mty.aiohub.png
+          # 列出准备好的文件
+          echo "准备好的 Flatpak 源文件："
+          ls -la src-tauri/aiohub src-tauri/com.mty.aiohub.desktop src-tauri/com.mty.aiohub.png src-tauri/com.mty.aiohub.yml
 
       - name: 构建 Flatpak
         run: |
-          flatpak-builder --force-clean --repo=flatpak-repo flatpak-build flatpak-build/com.mty.aiohub.yml
+          # flatpak-builder <build-dir> <manifest-path>
+          # build-dir: flatpak-builder 的工作目录（会被清空）
+          # manifest-path: 清单文件路径，源文件路径相对于清单文件位置
+          flatpak-builder --force-clean --repo=flatpak-repo flatpak-build src-tauri/com.mty.aiohub.yml
           flatpak build-bundle flatpak-repo aio-hub.flatpak com.mty.aiohub
 
       - name: 获取版本号

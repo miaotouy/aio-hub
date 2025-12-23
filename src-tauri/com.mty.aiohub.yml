@@ -22,6 +22,14 @@ finish-args:
 modules:
   - name: aiohub
     buildsystem: simple
+    sources:
+      # 本地文件源 - flatpak-builder 会将这些文件复制到构建目录
+      - type: file
+        path: aiohub
+      - type: file
+        path: com.mty.aiohub.desktop
+      - type: file
+        path: com.mty.aiohub.png
     build-commands:
       # 安装二进制文件
       - install -D aiohub /app/bin/aiohub

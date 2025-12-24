@@ -1,5 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
+import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 import {
@@ -21,7 +22,7 @@ export const callCohereApi = async (
   if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
   // 移除可能存在的 v1 后缀
   if (baseUrl.endsWith("/v1")) baseUrl = baseUrl.slice(0, -3);
-  
+
   const url = `${baseUrl}/v2/chat`;
 
   // 获取第一个可用的 API Key
@@ -91,7 +92,7 @@ export const callCohereApi = async (
     // 注意：如果 thinkingEnabled 为 false，也需要显式传 disabled 吗？
     // 文档说默认是 enabled (对于支持的模型)，所以如果用户想关掉，需要传 disabled
     // 如果用户想开启，且有 budget，则传 budget
-    
+
     if (options.thinkingEnabled) {
       const thinkingConfig: any = { type: "enabled" };
       if (options.thinkingBudget) {
@@ -245,16 +246,86 @@ export const callCohereApi = async (
     content: content,
     usage: data.usage?.tokens
       ? {
-          promptTokens: data.usage.tokens.input_tokens,
-          completionTokens: data.usage.tokens.output_tokens,
-          totalTokens: data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
-        }
+        promptTokens: data.usage.tokens.input_tokens,
+        completionTokens: data.usage.tokens.output_tokens,
+        totalTokens: data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
+      }
       : data.meta?.tokens // V1 兼容
-      ? {
+        ? {
           promptTokens: data.meta.tokens.input_tokens,
           completionTokens: data.meta.tokens.output_tokens,
           totalTokens: data.meta.tokens.input_tokens + data.meta.tokens.output_tokens,
         }
-      : undefined,
+        : undefined,
+  };
+};
+
+/**
+* 调用 Cohere Embedding API (V2)
+*/
+export const callCohereEmbeddingApi = async (
+  profile: LlmProfile,
+  options: EmbeddingRequestOptions
+): Promise<EmbeddingResponse> => {
+  let baseUrl = profile.baseUrl || "https://api.cohere.com";
+  if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
+  if (baseUrl.endsWith("/v1")) baseUrl = baseUrl.slice(0, -3);
+
+  const url = `${baseUrl}/v2/embed`;
+  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+
+  const taskTypeMap: Record<string, string> = {
+    RETRIEVAL_QUERY: 'search_query',
+    RETRIEVAL_DOCUMENT: 'search_document',
+    SEMANTIC_SIMILARITY: 'search_query',
+    CLASSIFICATION: 'classification',
+    CLUSTERING: 'clustering',
+  };
+
+  const body: any = {
+    model: options.modelId,
+    texts: Array.isArray(options.input) ? options.input : [options.input],
+    input_type: taskTypeMap[options.taskType || 'RETRIEVAL_QUERY'],
+    embedding_types: [options.encodingFormat || 'float'],
+  };
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    },
+    options.timeout,
+    options.signal
+  );
+
+  await ensureResponseOk(response);
+
+  const data = await response.json();
+  const format = options.encodingFormat || 'float';
+  const embeddings = data.embeddings[format];
+
+  return {
+    object: "list",
+    data: embeddings.map((embedding: number[], index: number) => ({
+      object: "embedding",
+      index,
+      embedding,
+    })),
+    model: options.modelId,
+    usage: {
+      promptTokens: data.meta?.billed_units?.input_tokens || 0,
+      totalTokens: data.meta?.billed_units?.input_tokens || 0,
+    },
   };
 };

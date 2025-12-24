@@ -1,5 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "./common";
+import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
@@ -812,4 +813,65 @@ export const callVertexAiApi = async (
   } else {
     return callVertexAiClaude(profile, options, url, apiKey);
   }
+};
+
+/**
+ * 调用 Vertex AI Embedding API
+ */
+export const callVertexAiEmbeddingApi = async (
+  profile: LlmProfile,
+  options: EmbeddingRequestOptions
+): Promise<EmbeddingResponse> => {
+  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const endpoint = `publishers/google/models/${options.modelId}:predict`;
+  const url = buildLlmApiUrl(profile.baseUrl, "vertexai", endpoint);
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
+  const taskType = options.taskType || 'RETRIEVAL_QUERY';
+  const inputs = Array.isArray(options.input) ? options.input : [options.input];
+
+  const body = {
+    instances: inputs.map(text => ({
+      content: text,
+      task_type: taskType,
+      ...(options.title && taskType === 'RETRIEVAL_DOCUMENT' ? { title: options.title } : {})
+    }))
+  };
+
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    },
+    options.timeout,
+    options.signal
+  );
+
+  await ensureResponseOk(response);
+
+  const data = await response.json();
+
+  return {
+    object: "list",
+    data: data.predictions.map((pred: any, index: number) => ({
+      object: "embedding",
+      index,
+      embedding: pred.embeddings.values,
+    })),
+    model: options.modelId,
+    usage: {
+      promptTokens: 0,
+      totalTokens: 0,
+    },
+  };
 };

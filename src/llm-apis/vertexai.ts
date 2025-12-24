@@ -1,5 +1,5 @@
 import type { LlmProfile } from "../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
+import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "./common";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
@@ -178,14 +178,12 @@ function buildVertexAiParts(messages: LlmMessageContent[]): VertexAiPart[] {
  * 构建多轮对话 Contents（Gemini 格式）
  * 注意：system 消息会被单独提取到 systemInstruction，不包含在 contents 中
  */
-function buildVertexAiContents(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string | LlmMessageContent[] }>
-): VertexAiContent[] {
+function buildVertexAiContents(messages: LlmMessage[]): VertexAiContent[] {
   const contents: VertexAiContent[] = [];
 
   // 过滤掉 system 消息，只处理 user 和 assistant
   for (const msg of messages) {
-    if (msg.role === 'system') continue;
+    if (msg.role === "system") continue;
 
     const parts =
       typeof msg.content === "string" ? [{ text: msg.content }] : buildVertexAiParts(msg.content);
@@ -244,17 +242,19 @@ function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToolConfig
  * 构建 Claude 格式的消息（Anthropic Publisher）
  * 注意：system 消息会被单独提取，不包含在 messages 中
  */
-function buildClaudeMessages(
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string | LlmMessageContent[] }>
-): VertexAiClaudeRequest["messages"] {
+function buildClaudeMessages(messages: LlmMessage[]): VertexAiClaudeRequest["messages"] {
   const claudeMessages: VertexAiClaudeRequest["messages"] = [];
 
   // 过滤掉 system 消息
   for (const msg of messages) {
-    if (msg.role === 'system') continue;
+    if (msg.role === "system") continue;
+
+    // 处理角色适配
+    const role = msg.role === "assistant" ? "assistant" : "user";
+
     if (typeof msg.content === "string") {
       claudeMessages.push({
-        role: msg.role,
+        role,
         content: msg.content,
       });
     } else {
@@ -277,7 +277,7 @@ function buildClaudeMessages(
       }
 
       claudeMessages.push({
-        role: msg.role,
+        role,
         content: contentBlocks,
       });
     }

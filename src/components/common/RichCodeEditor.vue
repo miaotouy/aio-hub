@@ -502,6 +502,7 @@ defineExpose({
   border-radius: 4px;
   background-color: var(--card-bg);
   transition: border-color 0.2s ease-in-out;
+  overflow: hidden;
 }
 
 .rich-code-editor-wrapper.is-focused {

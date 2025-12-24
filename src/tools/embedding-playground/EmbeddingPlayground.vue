@@ -178,7 +178,6 @@ const selectedModelCombo = computed({
   background-color: var(--bg-color-soft);
   padding: 3px;
   border-radius: 8px;
-  border: 1px solid var(--border-color-light);
 }
 
 .tab-item {
@@ -202,7 +201,7 @@ const selectedModelCombo = computed({
 .tab-item.active {
   background-color: var(--bg-color);
   color: var(--primary-color);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--primary-color);
   font-weight: 600;
 }
 

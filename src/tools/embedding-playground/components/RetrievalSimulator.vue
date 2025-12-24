@@ -5,58 +5,77 @@
       <div class="library-panel">
         <div class="panel-header">
           <div class="title-group">
-            <span class="panel-title">知识库 (Knowledge Base)</span>
-            <span class="panel-subtitle">管理用于检索的文档片段</span>
+            <span class="panel-title">模拟知识库</span>
+            <span class="panel-subtitle"
+              >管理用于检索的文档片段 ({{ store.knowledgeBase.length }})</span
+            >
           </div>
-          <el-button type="primary" link :icon="Plus" @click="addDocument" size="small"
-            >添加文档</el-button
-          >
-        </div>
-
-        <div class="panel-content scrollbar-custom">
-          <div class="doc-list">
-            <div v-for="(item, index) in store.knowledgeBase" :key="index" class="doc-item">
-              <div class="doc-content-wrapper">
-                <el-input
-                  v-model="store.knowledgeBase[index].text"
-                  type="textarea"
-                  :rows="2"
-                  placeholder="输入文档内容..."
-                  class="doc-input"
-                />
-              </div>
-              <div class="doc-actions">
-                <el-tag
-                  v-if="item.embedding"
-                  size="small"
-                  type="success"
-                  effect="plain"
-                  class="status-tag"
-                  >已向量化</el-tag
-                >
-                <el-button
-                  type="danger"
-                  link
-                  :icon="X"
-                  @click="removeDocument(index)"
-                  class="remove-btn"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="batch-actions mt-4">
+          <div class="header-actions">
             <el-button
-              class="w-full"
               type="primary"
-              plain
+              size="small"
               :loading="isLoading"
               @click="handleBatchEmbedding"
               :disabled="!store.selectedProfile || store.knowledgeBase.length === 0"
             >
-              <el-icon class="mr-1"><Cpu /></el-icon>
-              一键向量化知识库
+              一键向量化
             </el-button>
+            <el-button :icon="Plus" @click="addDocument" size="small" circle />
+            <el-button
+              v-if="store.knowledgeBase.length > 0"
+              type="danger"
+              plain
+              :icon="Trash2"
+              @click="clearKnowledgeBase"
+              size="small"
+              circle
+            />
+          </div>
+        </div>
+
+        <div class="panel-content scrollbar-custom">
+          <div v-if="store.knowledgeBase.length === 0" class="empty-docs">
+            <el-empty :image-size="60" description="暂无文档">
+              <el-button type="primary" plain size="small" @click="addDocument">立即添加</el-button>
+            </el-empty>
+          </div>
+          <div v-else class="doc-list">
+            <div
+              v-for="(item, index) in store.knowledgeBase"
+              :key="index"
+              class="doc-item"
+              :class="{ 'is-embedded': item.embedding }"
+              @click="openEditDialog(index)"
+            >
+              <div class="doc-item-header">
+                <div class="doc-index">#{{ store.knowledgeBase.length - index }}</div>
+                <div class="doc-meta">
+                  <span class="char-count">{{ item.text.length }} 字符</span>
+                  <el-tag
+                    v-if="item.embedding"
+                    size="small"
+                    type="success"
+                    effect="light"
+                    class="status-tag"
+                    >已向量化</el-tag
+                  >
+                </div>
+                <div class="item-actions">
+                  <el-button
+                    type="primary"
+                    link
+                    :icon="Edit3"
+                    @click.stop="openEditDialog(index)"
+                  />
+                  <el-button type="danger" link :icon="X" @click.stop="removeDocument(index)" />
+                </div>
+              </div>
+              <div class="doc-content-wrapper">
+                <div class="doc-preview" :class="{ 'is-empty': !item.text.trim() }">
+                  {{ item.text.trim() || "点击输入文档内容..." }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -80,35 +99,66 @@
               v-model="store.searchQuery"
               placeholder="输入查询语句，按回车开始检索..."
               class="search-input"
+              clearable
               @keyup.enter="handleSearch"
             >
               <template #prefix>
                 <el-icon><Search /></el-icon>
               </template>
-              <template #append>
-                <el-button :loading="isLoading" @click="handleSearch">检索</el-button>
-              </template>
             </el-input>
+            <el-button type="primary" :loading="isLoading" @click="handleSearch"> 检索 </el-button>
           </div>
 
           <!-- 检索结果 -->
           <div class="results-section">
-            <div class="section-header-mini">
-              <span>Top-K 检索结果</span>
-              <el-select v-model="topK" size="small" style="width: 80px" class="ml-2">
-                <el-option :value="3" label="K=3" />
-                <el-option :value="5" label="K=5" />
-                <el-option :value="10" label="K=10" />
-              </el-select>
+            <div class="search-config-bar">
+              <div class="config-item">
+                <span class="config-label">Top-K</span>
+                <el-input-number
+                  v-model="store.searchTopK"
+                  :min="1"
+                  :max="50"
+                  size="small"
+                  controls-position="right"
+                  class="k-input"
+                />
+              </div>
+              <div class="config-item">
+                <span class="config-label">相似度算法</span>
+                <el-select v-model="store.similarityAlgorithm" size="small" style="width: 110px">
+                  <el-option value="cosine" label="余弦相似度" />
+                  <el-option value="euclidean" label="欧氏距离" />
+                  <el-option value="dot" label="内积" />
+                  <el-option value="manhattan" label="曼哈顿距离" />
+                </el-select>
+              </div>
+              <div class="config-item threshold-item">
+                <span class="config-label"
+                  >搜索阈值: {{ (store.searchThreshold * 100).toFixed(0) }}%</span
+                >
+                <el-slider
+                  v-model="store.searchThreshold"
+                  :min="0"
+                  :max="1"
+                  :step="0.01"
+                  :show-tooltip="false"
+                  size="small"
+                />
+              </div>
             </div>
 
             <div v-if="searchResults.length" class="hit-list">
               <div v-for="(item, index) in searchResults" :key="index" class="hit-card">
                 <div class="hit-header">
                   <div class="hit-rank">TOP {{ index + 1 }}</div>
-                  <div class="hit-score">
-                    <span class="label">Score</span>
-                    <span class="value">{{ item.score.toFixed(4) }}</span>
+                  <div class="hit-score-wrapper">
+                    <div class="hit-score">
+                      <span class="label">Similarity</span>
+                      <span class="value">{{ (item.score * 100).toFixed(2) }}%</span>
+                    </div>
+                    <div class="score-bar-bg">
+                      <div class="score-bar-fill" :style="{ width: `${item.score * 100}%` }"></div>
+                    </div>
                   </div>
                 </div>
                 <div class="hit-text">{{ item.text }}</div>
@@ -124,15 +174,36 @@
       </div>
     </div>
   </div>
+
+  <!-- 编辑对话框 -->
+  <BaseDialog v-model="isEditDialogVisible" title="编辑文档片段" width="800px">
+    <div v-if="editingIndex !== null" class="edit-dialog-content">
+      <div class="dialog-editor-wrapper">
+        <RichCodeEditor
+          v-model="store.knowledgeBase[editingIndex].text"
+          language="markdown"
+          placeholder="请输入文档内容..."
+          height="400px"
+        />
+      </div>
+      <div class="edit-dialog-tip">修改内容后，需要重新点击“一键向量化”以更新检索索引。</div>
+    </div>
+    <template #footer>
+      <el-button type="primary" @click="isEditDialogVisible = false">完成</el-button>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useEmbeddingPlaygroundStore } from "../store";
 import { useEmbeddingRunner } from "../composables/useEmbeddingRunner";
 import { useVectorMath } from "../composables/useVectorMath";
-import { Plus, X, Search, Cpu, Target } from "lucide-vue-next";
+import { Plus, X, Search, Target, Trash2, Edit3 } from "lucide-vue-next";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
+import { ElMessageBox } from "element-plus";
 
 const store = useEmbeddingPlaygroundStore();
 const { isLoading, runEmbedding } = useEmbeddingRunner();
@@ -141,13 +212,75 @@ const { calculateSimilarity } = useVectorMath();
 const topK = ref(3);
 const searchResults = ref<{ text: string; score: number }[]>([]);
 
+const isEditDialogVisible = ref(false);
+const editingIndex = ref<number | null>(null);
+
+const openEditDialog = (index: number) => {
+  editingIndex.value = index;
+  isEditDialogVisible.value = true;
+};
+
+// 缓存查询向量
+const lastQueryEmbedding = ref<number[] | null>(null);
+const lastQueryInputs = ref<{
+  profileId: string;
+  modelId: string;
+  query: string;
+} | null>(null);
+
 const addDocument = () => {
   store.knowledgeBase.unshift({ text: "" });
+  openEditDialog(0);
 };
 
 const removeDocument = (index: number) => {
   store.knowledgeBase.splice(index, 1);
 };
+
+const clearKnowledgeBase = async () => {
+  try {
+    await ElMessageBox.confirm("确定要清空所有文档吗？此操作不可撤销。", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+    store.knowledgeBase = [];
+    searchResults.value = [];
+    lastQueryEmbedding.value = null;
+    customMessage.success("知识库已清空");
+  } catch {
+    // 用户取消
+  }
+};
+
+const updateSearchResults = () => {
+  if (!lastQueryEmbedding.value) return;
+
+  const results = store.knowledgeBase
+    .filter((doc) => doc.embedding)
+    .map((doc) => ({
+      text: doc.text,
+      score: calculateSimilarity(
+        lastQueryEmbedding.value!,
+        doc.embedding!,
+        store.similarityAlgorithm
+      ),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK.value);
+
+  searchResults.value = results;
+  if (results.length === 0) {
+    customMessage.warning("知识库中没有已向量化的文档，请先执行“一键向量化”");
+  }
+};
+
+// 监听算法或 TopK 变化自动重算
+watch([() => store.similarityAlgorithm, topK], () => {
+  if (lastQueryEmbedding.value) {
+    updateSearchResults();
+  }
+});
 
 const handleBatchEmbedding = async () => {
   if (!store.selectedProfile || !store.selectedModelId) {
@@ -173,6 +306,10 @@ const handleBatchEmbedding = async () => {
       }
     });
     customMessage.success("知识库向量化完成");
+    // 如果已有查询，同步更新结果
+    if (lastQueryEmbedding.value) {
+      updateSearchResults();
+    }
   }
 };
 
@@ -180,6 +317,24 @@ const handleSearch = async () => {
   if (!store.searchQuery.trim()) return;
   if (!store.selectedProfile || !store.selectedModelId) {
     customMessage.warning("请先选择 Profile 和模型");
+    return;
+  }
+
+  const currentInputs = {
+    profileId: store.selectedProfile.id,
+    modelId: store.selectedModelId,
+    query: store.searchQuery,
+  };
+
+  // 检查缓存
+  if (
+    lastQueryInputs.value &&
+    lastQueryInputs.value.profileId === currentInputs.profileId &&
+    lastQueryInputs.value.modelId === currentInputs.modelId &&
+    lastQueryInputs.value.query === currentInputs.query &&
+    lastQueryEmbedding.value
+  ) {
+    updateSearchResults();
     return;
   }
 
@@ -191,22 +346,9 @@ const handleSearch = async () => {
   });
 
   if (response) {
-    const queryVec = response.data[0].embedding;
-
-    // 计算相似度并排序
-    const results = store.knowledgeBase
-      .filter((doc) => doc.embedding)
-      .map((doc) => ({
-        text: doc.text,
-        score: calculateSimilarity(queryVec, doc.embedding!, "cosine"),
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK.value);
-
-    searchResults.value = results;
-    if (results.length === 0) {
-      customMessage.warning("知识库中没有已向量化的文档，请先执行“一键向量化”");
-    }
+    lastQueryEmbedding.value = response.data[0].embedding;
+    lastQueryInputs.value = currentInputs;
+    updateSearchResults();
   }
 };
 </script>
@@ -248,7 +390,6 @@ const handleSearch = async () => {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  border-bottom: 1px solid var(--border-color-light);
   flex-shrink: 0;
 }
 
@@ -286,44 +427,157 @@ const handleSearch = async () => {
 .doc-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .doc-item {
-  background-color: var(--bg-color-soft);
-  border: 1px solid var(--border-color-light);
-  border-radius: 8px;
-  padding: 10px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
 }
 
-.doc-input :deep(.el-textarea__inner) {
-  background-color: var(--input-bg);
-  font-size: 13px;
-  padding: 8px;
+.doc-item:hover {
+  border-color: var(--primary-color-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
-.doc-actions {
+.doc-item.is-embedded {
+  border-left: 4px solid var(--el-color-success);
+}
+
+.doc-item-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
+.doc-index {
+  font-family: "Consolas", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-color-secondary);
+  opacity: 0.6;
+}
+
+.doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  margin-left: 12px;
+}
+
+.char-count {
+  font-size: 11px;
+  color: var(--text-color-light);
+}
+.doc-preview {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-color);
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+  min-height: 40px;
+}
+
+.doc-preview.is-empty {
+  color: var(--text-color-placeholder);
+  font-style: italic;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.doc-item:hover .item-actions {
+  opacity: 1;
+}
+
+.edit-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-dialog-tip {
+  font-size: 12px;
+  color: var(--el-color-warning);
+  background-color: var(--el-color-warning-light-9);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--el-color-warning);
+}
+
 .status-tag {
   font-size: 10px;
+  height: 18px;
+  padding: 0 6px;
+}
+
+.empty-docs {
+  padding: 40px 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
 }
 
 /* 检索区 */
 .search-box-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.search-input :deep(.el-input-group__append) {
-  background-color: var(--primary-color);
-  color: white;
-  border: none;
+.search-config-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  background-color: var(--bg-color-soft);
+  border-radius: 8px;
+}
+
+.config-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.config-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color-secondary);
+}
+
+.threshold-item {
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-input {
+  flex: 1;
 }
 
 .section-header-mini {
@@ -387,9 +641,32 @@ const handleSearch = async () => {
 
 .hit-score .value {
   font-family: "Consolas", monospace;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--el-color-success);
+}
+
+.hit-score-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.score-bar-bg {
+  width: 100%;
+  height: 4px;
+  background-color: var(--bg-color-soft);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color-light), var(--el-color-success));
+  border-radius: 2px;
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .hit-text {
@@ -425,17 +702,4 @@ const handleSearch = async () => {
   font-size: 13px;
 }
 
-/* 自定义滚动条 */
-.scrollbar-custom::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollbar-custom::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 10px;
-}
-
-.scrollbar-custom::-webkit-scrollbar-track {
-  background: transparent;
-}
 </style>

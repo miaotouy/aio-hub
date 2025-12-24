@@ -280,6 +280,7 @@
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  box-sizing: border-box;
   /*box-shadow: var(--el-box-shadow-light); /* 可选，复用 Element Plus 的阴影 */
 }
 ```

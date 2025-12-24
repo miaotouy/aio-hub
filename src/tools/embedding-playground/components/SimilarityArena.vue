@@ -15,7 +15,6 @@
             :disabled="!store.selectedProfile || !store.selectedModelId"
             class="run-btn"
           >
-            <el-icon class="mr-1"><Play /></el-icon>
             开始对比
           </el-button>
         </div>
@@ -34,13 +33,14 @@
 
           <div class="config-section">
             <label class="section-label">基准文本 (Anchor)</label>
-            <el-input
-              v-model="store.anchorText"
-              type="textarea"
-              :rows="2"
-              placeholder="输入作为对比基准的中心文本..."
-              class="custom-textarea"
-            />
+            <div class="editor-container">
+              <RichCodeEditor
+                v-model="store.anchorText"
+                language="markdown"
+                placeholder="输入作为对比基准的中心文本..."
+                height="200px"
+              />
+            </div>
           </div>
 
           <div class="config-section">
@@ -116,18 +116,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useEmbeddingPlaygroundStore } from '../store';
 import { useEmbeddingRunner } from '../composables/useEmbeddingRunner';
 import { useVectorMath } from '../composables/useVectorMath';
-import { Plus, X, Play, BarChart3 } from 'lucide-vue-next';
+import { Plus, X, BarChart3 } from 'lucide-vue-next';
+import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
 import { customMessage } from '@/utils/customMessage';
+import { isEqual } from 'lodash-es';
 
 const store = useEmbeddingPlaygroundStore();
 const { isLoading, runEmbedding } = useEmbeddingRunner();
 const { calculateSimilarity } = useVectorMath();
 
 const results = ref<{ text: string; score: number }[]>([]);
+
+// 缓存机制
+const lastEmbeddings = ref<number[][]>([]);
+const lastInputs = ref<{
+  profileId: string;
+  modelId: string;
+  texts: string[];
+} | null>(null);
 
 const sortedResults = computed(() => {
   return [...results.value].sort((a, b) => b.score - a.score);
@@ -147,6 +157,32 @@ const getScoreColor = (score: number) => {
   return 'var(--el-color-danger)';
 };
 
+// 纯计算逻辑
+const updateScores = () => {
+  if (lastEmbeddings.value.length < 2 || !lastInputs.value) return;
+
+  const anchorVec = lastEmbeddings.value[0];
+  const newResults = [];
+
+  for (let i = 1; i < lastEmbeddings.value.length; i++) {
+    const compareVec = lastEmbeddings.value[i];
+    const score = calculateSimilarity(anchorVec, compareVec, store.similarityAlgorithm);
+    newResults.push({
+      text: lastInputs.value.texts[i],
+      score: score
+    });
+  }
+
+  results.value = newResults;
+};
+
+// 监听算法变化，自动重算
+watch(() => store.similarityAlgorithm, () => {
+  if (lastEmbeddings.value.length > 0) {
+    updateScores();
+  }
+});
+
 const handleCompare = async () => {
   if (!store.selectedProfile || !store.selectedModelId) {
     customMessage.warning('请先选择 Profile 和模型');
@@ -159,7 +195,21 @@ const handleCompare = async () => {
     return;
   }
 
-  // 批量获取 Embedding
+  const currentInputs = {
+    profileId: store.selectedProfile.id,
+    modelId: store.selectedModelId,
+    texts: allTexts
+  };
+
+  // 检查缓存
+  const isCacheHit = lastInputs.value && isEqual(lastInputs.value, currentInputs);
+
+  if (isCacheHit) {
+    updateScores();
+    return;
+  }
+
+  // 缓存未命中，获取新 Embedding
   const response = await runEmbedding(store.selectedProfile, {
     modelId: store.selectedModelId,
     input: allTexts,
@@ -167,19 +217,9 @@ const handleCompare = async () => {
   });
 
   if (response && response.data.length === allTexts.length) {
-    const anchorVec = response.data[0].embedding;
-    const newResults = [];
-
-    for (let i = 1; i < response.data.length; i++) {
-      const compareVec = response.data[i].embedding;
-      const score = calculateSimilarity(anchorVec, compareVec, store.similarityAlgorithm);
-      newResults.push({
-        text: allTexts[i],
-        score: score
-      });
-    }
-
-    results.value = newResults;
+    lastEmbeddings.value = response.data.map(item => item.embedding);
+    lastInputs.value = currentInputs;
+    updateScores();
   }
 };
 </script>
@@ -220,7 +260,6 @@ const handleCompare = async () => {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  border-bottom: 1px solid var(--border-color-light);
   flex-shrink: 0;
 }
 
@@ -403,17 +442,4 @@ const handleCompare = async () => {
   font-size: 13px;
 }
 
-/* 自定义滚动条 */
-.scrollbar-custom::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollbar-custom::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 10px;
-}
-
-.scrollbar-custom::-webkit-scrollbar-track {
-  background: transparent;
-}
 </style>

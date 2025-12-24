@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { LlmProfile } from '@/types/llm-profiles';
-import type { EmbeddingTaskType } from '@/llm-apis/embedding-types';
 import type { SimilarityAlgorithm } from './composables/useVectorMath';
 
 export const useEmbeddingPlaygroundStore = defineStore('embedding-playground', () => {
@@ -12,7 +11,6 @@ export const useEmbeddingPlaygroundStore = defineStore('embedding-playground', (
   // --- 基础调试状态 ---
   const rawInput = ref('这是一段用于测试 Embedding 的文本。');
   const rawDimensions = ref<number | undefined>(undefined);
-  const rawTaskType = ref<EmbeddingTaskType>('RETRIEVAL_QUERY');
 
   // --- 相似度对比状态 ---
   const similarityAlgorithm = ref<SimilarityAlgorithm>('cosine');
@@ -33,6 +31,8 @@ export const useEmbeddingPlaygroundStore = defineStore('embedding-playground', (
     { text: 'Tauri 用于构建跨平台桌面应用。' }
   ]);
   const searchQuery = ref('');
+  const searchTopK = ref(3);
+  const searchThreshold = ref(20);
 
   return {
     // 共享
@@ -42,7 +42,6 @@ export const useEmbeddingPlaygroundStore = defineStore('embedding-playground', (
     // 基础调试
     rawInput,
     rawDimensions,
-    rawTaskType,
     
     // 相似度对比
     similarityAlgorithm,
@@ -52,5 +51,7 @@ export const useEmbeddingPlaygroundStore = defineStore('embedding-playground', (
     // 检索模拟
     knowledgeBase,
     searchQuery,
+    searchTopK,
+    searchThreshold,
   };
 });

@@ -227,68 +227,97 @@ export async function exportAgents(
       }
 
       // 处理图标资产
-      if (shouldIncludeAssets && agent.icon) {
-        const processAsset = async (binary: Uint8Array, originalName: string) => {
-          const uniqueFileName = `icon_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
+      // 辅助函数：处理并保存二进制资产
+      const processBinaryAsset = async (binary: Uint8Array, originalName: string, prefix: string = 'asset') => {
+        const uniqueFileName = `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${originalName}`;
 
-          if (exportType === 'zip' || exportType === 'png') {
-            currentAgentAssetsZipFolder?.file(uniqueFileName, binary);
-          } else if (exportType === 'folder' && currentAgentAssetsDir) {
-            const assetPath = await join(currentAgentAssetsDir, uniqueFileName);
-            try {
-              await invoke('write_file_force', {
-                path: assetPath,
-                content: Array.from(binary)
-              });
-            } catch (writeError) {
-              logger.error('写入资产文件失败', writeError as Error, { assetPath });
-              throw writeError;
-            }
+        if (exportType === 'zip' || exportType === 'png') {
+          currentAgentAssetsZipFolder?.file(uniqueFileName, binary);
+        } else if (exportType === 'folder' && currentAgentAssetsDir) {
+          const assetPath = await join(currentAgentAssetsDir, uniqueFileName);
+          try {
+            await invoke('write_file_force', {
+              path: assetPath,
+              content: Array.from(binary)
+            });
+          } catch (writeError) {
+            logger.error('写入资产文件失败', writeError as Error, { assetPath });
+            throw writeError;
           }
+        }
 
-          exportableAgent.icon = `${assetsRelativePrefix}/${uniqueFileName}`;
-        };
+        return `${assetsRelativePrefix}/${uniqueFileName}`;
+      };
 
-        try {
-          // 判断是否为纯文件名（包含扩展名但没有路径分隔符）
-          const isLikelyFilename = (s: string) => s.includes('.') && !s.includes('/') && !s.includes('\\') && !s.startsWith('http');
-          
-          if (agent.icon.startsWith('appdata://')) {
-            // 处理 appdata:// 协议路径
-            const relativePath = agent.icon.replace('appdata://', '');
-            const appData = await appDataDir();
-            const fullPath = await join(appData, relativePath);
-            const iconBinary = await readFile(fullPath);
-            const originalName = relativePath.split('/').pop() || 'icon.png';
-            await processAsset(iconBinary, originalName);
-          } else if (isLikelyFilename(agent.icon)) {
-            // 处理纯文件名（存放在 agent 子目录）
-            const appData = await appDataDir();
-            const fullPath = await join(appData, 'llm-chat', 'agents', agent.id, agent.icon);
-            const fileExists = await exists(fullPath);
-            if (fileExists) {
-              const iconBinary = await readFile(fullPath);
-              await processAsset(iconBinary, agent.icon);
-            } else {
-              logger.warn('图标文件不存在，跳过', { agentId: agent.id, iconPath: fullPath });
-            }
-          } else if (agent.icon.startsWith('/')) {
-            const response = await fetch(agent.icon);
-            if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+      // 辅助函数：从路径读取资产内容
+      const readAssetBinary = async (path: string, agentId: string) => {
+        // 判断是否为纯文件名（包含扩展名但没有路径分隔符）
+        const isLikelyFilename = (s: string) => s.includes('.') && !s.includes('/') && !s.includes('\\') && !s.startsWith('http');
+
+        if (path.startsWith('appdata://')) {
+          const relativePath = path.replace('appdata://', '');
+          const appData = await appDataDir();
+          const fullPath = await join(appData, relativePath);
+          return await readFile(fullPath);
+        } else if (isLikelyFilename(path)) {
+          const appData = await appDataDir();
+          const fullPath = await join(appData, 'llm-chat', 'agents', agentId, path);
+          if (await exists(fullPath)) {
+            return await readFile(fullPath);
+          }
+        } else if (path.startsWith('/')) {
+          const response = await fetch(path);
+          if (response.ok) {
             const blob = await response.blob();
-            const arrayBuffer = await blob.arrayBuffer();
-            await processAsset(new Uint8Array(arrayBuffer), agent.icon.split('/').pop() || 'icon.png');
-          } else if (/^[A-Za-z]:[\/\\]/.test(agent.icon) || agent.icon.startsWith('\\\\')) {
-            const iconBinary = await readFile(agent.icon);
-            await processAsset(iconBinary, agent.icon.split(/[/\\]/).pop() || 'icon.png');
+            return new Uint8Array(await blob.arrayBuffer());
+          }
+        } else if (/^[A-Za-z]:[\/\\]/.test(path) || path.startsWith('\\\\')) {
+          return await readFile(path);
+        }
+        return null;
+      };
+
+      // 处理图标资产
+      if (shouldIncludeAssets && agent.icon) {
+        try {
+          const iconBinary = await readAssetBinary(agent.icon, agent.id);
+          if (iconBinary) {
+            const originalName = agent.icon.split(/[/\\]/).pop() || 'icon.png';
+            exportableAgent.icon = await processBinaryAsset(iconBinary, originalName, 'icon');
           }
         } catch (error) {
-          logger.warn('导出图标失败，将使用原始路径', {
-            agentId: agent.id,
-            iconPath: agent.icon,
-            error,
-          });
+          logger.warn('导出图标失败，将使用原始路径', { agentId: agent.id, iconPath: agent.icon, error });
         }
+      }
+
+      // 处理 Agent 专属资产列表
+      if (shouldIncludeAssets && agent.assets && agent.assets.length > 0) {
+        const exportedAssets = [...agent.assets];
+        for (let i = 0; i < exportedAssets.length; i++) {
+          const asset = exportedAssets[i];
+          try {
+            // 处理主资产文件
+            const assetBinary = await readAssetBinary(asset.path, agent.id);
+            if (assetBinary) {
+              const originalName = asset.filename || asset.path.split(/[/\\]/).pop() || 'file';
+              const newRelativePath = await processBinaryAsset(assetBinary, originalName, 'file');
+              exportedAssets[i] = { ...asset, path: newRelativePath };
+            }
+
+            // 处理缩略图（如果有）
+            if (asset.thumbnailPath) {
+              const thumbBinary = await readAssetBinary(asset.thumbnailPath, agent.id);
+              if (thumbBinary) {
+                const thumbOriginalName = asset.thumbnailPath.split(/[/\\]/).pop() || 'thumb.png';
+                const newThumbPath = await processBinaryAsset(thumbBinary, thumbOriginalName, 'thumb');
+                exportedAssets[i].thumbnailPath = newThumbPath;
+              }
+            }
+          } catch (error) {
+            logger.warn('导出资产文件失败，将保留原始路径', { agentId: agent.id, assetPath: asset.path, error });
+          }
+        }
+        exportableAgent.assets = exportedAssets;
       }
 
       // 为每个智能体生成独立的导出数据

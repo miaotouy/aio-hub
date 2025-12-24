@@ -1,4 +1,4 @@
-import type { ChatMessageNode, LlmParameters, AgentCategory } from '../types';
+import type { ChatMessageNode, LlmParameters, AgentCategory, AgentAsset, AssetGroup } from '../types';
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 
 /**
@@ -25,6 +25,8 @@ export interface ExportableAgent {
   tags?: string[];
   category?: AgentCategory;
   regexConfig?: import('./chatRegex').ChatRegexConfig;
+  assetGroups?: AssetGroup[];
+  assets?: AgentAsset[];
 }
 
 /**

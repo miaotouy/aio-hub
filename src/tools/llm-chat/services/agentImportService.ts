@@ -325,17 +325,41 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
 
   for (const resolvedAgent of resolvedAgents) {
     try {
-      // 暂存头像资产数据（如果有的话）
-      let pendingAvatarData: { binary: ArrayBuffer; originalPath: string } | null = null;
+      // 收集待处理的资产
+      const pendingAssets: Array<{
+        type: 'icon' | 'asset' | 'thumb';
+        binary: ArrayBuffer;
+        originalPath: string;
+        assetIndex?: number; // 如果是 assets 列表中的项，记录索引
+      }> = [];
+
+      // 1. 检查图标
       if (resolvedAgent.icon && resolvedAgent.icon.startsWith('assets/')) {
         const assetBinary = assets[resolvedAgent.icon];
         if (assetBinary) {
-          pendingAvatarData = { binary: assetBinary, originalPath: resolvedAgent.icon };
-        } else {
-          logger.warn('找不到 Agent 引用的资产，将忽略头像', { agentName: resolvedAgent.name, iconPath: resolvedAgent.icon });
+          pendingAssets.push({ type: 'icon', binary: assetBinary, originalPath: resolvedAgent.icon });
         }
       }
-// 准备 Agent 基础数据（暂时不设置 icon，等头像存储后再更新）
+
+      // 2. 检查资产列表
+      if (resolvedAgent.assets && resolvedAgent.assets.length > 0) {
+        resolvedAgent.assets.forEach((asset, index) => {
+          if (asset.path && asset.path.startsWith('assets/')) {
+            const binary = assets[asset.path];
+            if (binary) {
+              pendingAssets.push({ type: 'asset', binary, originalPath: asset.path, assetIndex: index });
+            }
+          }
+          if (asset.thumbnailPath && asset.thumbnailPath.startsWith('assets/')) {
+            const binary = assets[asset.thumbnailPath];
+            if (binary) {
+              pendingAssets.push({ type: 'thumb', binary, originalPath: asset.thumbnailPath, assetIndex: index });
+            }
+          }
+        });
+      }
+
+// 准备 Agent 基础数据（暂时不设置 icon 和 assets，等资产存储后再更新）
 const agentName = resolvedAgent.newName || resolvedAgent.name;
 
 // 验证并迁移 category
@@ -380,14 +404,16 @@ const {
   overwriteExisting: _overwriteExisting,
   newName: _newName,
   icon: originalIcon,
+  assets: originalAssets,
   category: _category,
   ...restOptions
 } = resolvedAgent;
 
 const agentOptions = {
   ...restOptions,
-  // 特殊处理 icon：如果有待处理的头像，先不设置
-  icon: pendingAvatarData ? undefined : originalIcon,
+  // 特殊处理资产：如果有待处理的资产，先不设置或保留原始（非 assets/ 路径的）
+  icon: pendingAssets.some(a => a.type === 'icon') ? undefined : originalIcon,
+  assets: pendingAssets.some(a => a.type === 'asset' || a.type === 'thumb') ? originalAssets?.filter(a => !a.path.startsWith('assets/')) : originalAssets,
   // 特殊处理 category：使用验证后的值
   category: validCategory,
 };
@@ -427,32 +453,55 @@ let finalAgentId: string;
         logger.info('成功新增 Agent', { name: agentName, agentId: finalAgentId });
       }
 
-      // 2. 如果有待处理的头像，现在用真实 ID 存储
-      if (pendingAvatarData) {
+      // 2. 处理待持久化的资产
+      if (pendingAssets.length > 0) {
         try {
-          const originalFilename = pendingAvatarData.originalPath.split('/').pop() || 'avatar.png';
-          const extension = originalFilename.split('.').pop() || 'png';
-          const timestamp = Date.now();
-          const newFilename = `avatar-${timestamp}.${extension}`;
-          const subdirectory = `llm-chat/agents/${finalAgentId}`; // 使用真实 Agent ID
+          let updatedIcon = originalIcon;
+          const updatedAssets = originalAssets ? [...originalAssets] : [];
 
-          // 将 ArrayBuffer 转换为 Uint8Array，再转为普通数组以便 tauri invoke 传递
-          const uint8Array = new Uint8Array(pendingAvatarData.binary);
-          const bytes = Array.from(uint8Array);
+          for (const assetInfo of pendingAssets) {
+            const originalFilename = assetInfo.originalPath.split('/').pop() || 'file';
+            const extension = originalFilename.includes('.') ? originalFilename.split('.').pop() : 'png';
+            const timestamp = Date.now();
+            const randomStr = Math.random().toString(36).substring(2, 8);
+            const newFilename = `${assetInfo.type}-${timestamp}-${randomStr}.${extension}`;
+            
+            // 图标放在根目录，其他资产放在 assets/ 子目录
+            const subdirectory = assetInfo.type === 'icon'
+              ? `llm-chat/agents/${finalAgentId}`
+              : `llm-chat/agents/${finalAgentId}/assets`;
 
-          // 调用 Rust 端存储头像
-          await invoke('save_uploaded_file', {
-            fileData: bytes,
-            subdirectory,
-            filename: newFilename,
+            const bytes = Array.from(new Uint8Array(assetInfo.binary));
+
+            await invoke('save_uploaded_file', {
+              fileData: bytes,
+              subdirectory,
+              filename: newFilename,
+            });
+
+            if (assetInfo.type === 'icon') {
+              updatedIcon = newFilename;
+            } else if (assetInfo.type === 'asset' && assetInfo.assetIndex !== undefined) {
+              updatedAssets[assetInfo.assetIndex] = {
+                ...updatedAssets[assetInfo.assetIndex],
+                path: `assets/${newFilename}`
+              };
+            } else if (assetInfo.type === 'thumb' && assetInfo.assetIndex !== undefined) {
+              updatedAssets[assetInfo.assetIndex] = {
+                ...updatedAssets[assetInfo.assetIndex],
+                thumbnailPath: `assets/${newFilename}`
+              };
+            }
+          }
+
+          // 3. 更新 Agent 资产字段
+          agentStore.updateAgent(finalAgentId, {
+            icon: updatedIcon,
+            assets: updatedAssets
           });
-
-          // 3. 更新 Agent 的 icon 字段为最终文件名
-          agentStore.updateAgent(finalAgentId, { icon: newFilename });
-          logger.info('成功导入并存储专属头像', { agentId: finalAgentId, newFilename });
-        } catch (avatarError) {
-          errorHandler.handle(avatarError, { userMessage: `为 Agent "${agentName}" 导入头像失败，Agent 已创建但无头像`, context: { agentId: finalAgentId } });
-          // 头像导入失败不影响 Agent 本身，继续处理下一个
+          logger.info('成功导入并存储 Agent 资产', { agentId: finalAgentId, assetCount: pendingAssets.length });
+        } catch (assetError) {
+          errorHandler.handle(assetError, { userMessage: `为 Agent "${agentName}" 导入资产失败`, context: { agentId: finalAgentId } });
         }
       }
     } catch (error) {

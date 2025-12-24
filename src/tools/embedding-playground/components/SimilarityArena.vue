@@ -46,7 +46,9 @@
           <div class="config-section">
             <div class="flex items-center justify-between mb-2">
               <label class="section-label m-0">对比文本组</label>
-              <el-button type="primary" link :icon="Plus" @click="addText" size="small">添加文本</el-button>
+              <el-button type="primary" link :icon="Plus" @click="addText" size="small"
+                >添加文本</el-button
+              >
             </div>
             <div class="comparison-list">
               <div v-for="(_, index) in store.comparisonTexts" :key="index" class="comparison-item">
@@ -78,9 +80,20 @@
             <span class="panel-title">语义相似度排行</span>
             <span v-if="results.length" class="panel-subtitle">基于向量空间的语义距离计算</span>
           </div>
-          <el-tag v-if="results.length" type="info" size="small" effect="plain" class="count-tag">
-            {{ results.length }} 条结果
-          </el-tag>
+          <div v-if="results.length" class="header-actions">
+            <el-tag type="info" size="small" effect="plain" class="count-tag">
+              {{ results.length }} 条结果
+            </el-tag>
+            <el-tooltip content="复制排行结果" placement="top">
+              <el-button
+                circle
+                size="small"
+                :icon="isCopied ? Check : Copy"
+                @click="copyResults"
+                class="copy-btn"
+              />
+            </el-tooltip>
+          </div>
         </div>
 
         <div class="panel-content scrollbar-custom">
@@ -116,14 +129,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useEmbeddingPlaygroundStore } from '../store';
-import { useEmbeddingRunner } from '../composables/useEmbeddingRunner';
-import { useVectorMath } from '../composables/useVectorMath';
-import { Plus, X, BarChart3 } from 'lucide-vue-next';
-import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
-import { customMessage } from '@/utils/customMessage';
-import { isEqual } from 'lodash-es';
+import { ref, computed, watch } from "vue";
+import { useEmbeddingPlaygroundStore } from "../store";
+import { useEmbeddingRunner } from "../composables/useEmbeddingRunner";
+import { useVectorMath } from "../composables/useVectorMath";
+import { Plus, X, BarChart3, Copy, Check } from "lucide-vue-next";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import { customMessage } from "@/utils/customMessage";
 
 const store = useEmbeddingPlaygroundStore();
 const { isLoading, runEmbedding } = useEmbeddingRunner();
@@ -132,19 +144,22 @@ const { calculateSimilarity } = useVectorMath();
 const results = ref<{ text: string; score: number }[]>([]);
 
 // 缓存机制
-const lastEmbeddings = ref<number[][]>([]);
-const lastInputs = ref<{
-  profileId: string;
-  modelId: string;
-  texts: string[];
-} | null>(null);
+// 结构: Map<ModelId, Map<TextContent, EmbeddingVector>>
+const embeddingCache = ref<Map<string, Map<string, number[]>>>(new Map());
+
+// 当前展示用的向量数据
+const currentEmbeddings = ref<number[][]>([]);
+// 记录当前参与计算的文本列表，用于后续重算分数
+const currentTexts = ref<string[]>([]);
+
+const isCopied = ref(false);
 
 const sortedResults = computed(() => {
   return [...results.value].sort((a, b) => b.score - a.score);
 });
 
 const addText = () => {
-  store.comparisonTexts.push('');
+  store.comparisonTexts.push("");
 };
 
 const removeText = (index: number) => {
@@ -152,24 +167,45 @@ const removeText = (index: number) => {
 };
 
 const getScoreColor = (score: number) => {
-  if (score > 0.8) return 'var(--el-color-success)';
-  if (score > 0.5) return 'var(--el-color-warning)';
-  return 'var(--el-color-danger)';
+  if (score > 0.8) return "var(--el-color-success)";
+  if (score > 0.5) return "var(--el-color-warning)";
+  return "var(--el-color-danger)";
+};
+
+const copyResults = async () => {
+  if (sortedResults.value.length === 0) return;
+
+  const header = `语义相似度排行 (算法: ${store.similarityAlgorithm})\n基准文本: ${store.anchorText}\n\n`;
+  const content = sortedResults.value
+    .map((item, index) => `#${index + 1} [${item.score.toFixed(4)}] ${item.text}`)
+    .join("\n");
+
+  try {
+    await navigator.clipboard.writeText(header + content);
+    isCopied.value = true;
+    customMessage.success("结果已复制到剪贴板");
+    setTimeout(() => {
+      isCopied.value = false;
+    }, 200);
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
 };
 
 // 纯计算逻辑
 const updateScores = () => {
-  if (lastEmbeddings.value.length < 2 || !lastInputs.value) return;
+  if (currentEmbeddings.value.length < 2 || currentTexts.value.length < 2) return;
 
-  const anchorVec = lastEmbeddings.value[0];
+  const anchorVec = currentEmbeddings.value[0];
   const newResults = [];
 
-  for (let i = 1; i < lastEmbeddings.value.length; i++) {
-    const compareVec = lastEmbeddings.value[i];
+  // 从索引 1 开始，因为 0 是 Anchor
+  for (let i = 1; i < currentEmbeddings.value.length; i++) {
+    const compareVec = currentEmbeddings.value[i];
     const score = calculateSimilarity(anchorVec, compareVec, store.similarityAlgorithm);
     newResults.push({
-      text: lastInputs.value.texts[i],
-      score: score
+      text: currentTexts.value[i],
+      score: score,
     });
   }
 
@@ -177,50 +213,89 @@ const updateScores = () => {
 };
 
 // 监听算法变化，自动重算
-watch(() => store.similarityAlgorithm, () => {
-  if (lastEmbeddings.value.length > 0) {
-    updateScores();
+watch(
+  () => store.similarityAlgorithm,
+  () => {
+    if (currentEmbeddings.value.length > 0) {
+      updateScores();
+    }
   }
-});
+);
 
+/**
+ * 核心逻辑：增量 Embedding
+ */
 const handleCompare = async () => {
   if (!store.selectedProfile || !store.selectedModelId) {
-    customMessage.warning('请先选择 Profile 和模型');
+    customMessage.warning("请先选择 Profile 和模型");
     return;
   }
 
-  const allTexts = [store.anchorText, ...store.comparisonTexts.filter(t => t.trim())];
+  // 1. 准备数据
+  const modelId = store.selectedModelId;
+  const allTexts = [store.anchorText, ...store.comparisonTexts.filter((t) => t.trim())];
+
   if (allTexts.length < 2) {
-    customMessage.warning('至少需要一个基准文本和一个对比文本');
+    customMessage.warning("至少需要一个基准文本和一个对比文本");
     return;
   }
 
-  const currentInputs = {
-    profileId: store.selectedProfile.id,
-    modelId: store.selectedModelId,
-    texts: allTexts
-  };
-
-  // 检查缓存
-  const isCacheHit = lastInputs.value && isEqual(lastInputs.value, currentInputs);
-
-  if (isCacheHit) {
-    updateScores();
-    return;
+  // 2. 初始化该模型的缓存池
+  if (!embeddingCache.value.has(modelId)) {
+    embeddingCache.value.set(modelId, new Map());
   }
+  const modelCache = embeddingCache.value.get(modelId)!;
 
-  // 缓存未命中，获取新 Embedding
-  const response = await runEmbedding(store.selectedProfile, {
-    modelId: store.selectedModelId,
-    input: allTexts,
-    taskType: 'SEMANTIC_SIMILARITY'
+  // 3. 找出未缓存的文本
+  const textsToEmbed: string[] = [];
+  const textIndicesToFetch: number[] = []; // 记录需要请求的文本在 allTexts 中的原始索引
+
+  allTexts.forEach((text, index) => {
+    if (!modelCache.has(text)) {
+      textsToEmbed.push(text);
+      textIndicesToFetch.push(index);
+    }
   });
 
-  if (response && response.data.length === allTexts.length) {
-    lastEmbeddings.value = response.data.map(item => item.embedding);
-    lastInputs.value = currentInputs;
-    updateScores();
+  // 4. 如果有未命中的，发起请求
+  if (textsToEmbed.length > 0) {
+    const response = await runEmbedding(store.selectedProfile, {
+      modelId: modelId,
+      input: textsToEmbed,
+      taskType: "SEMANTIC_SIMILARITY",
+    });
+
+    if (!response || response.data.length !== textsToEmbed.length) {
+      // 错误处理已在 useEmbeddingRunner 中完成，这里直接中断
+      return;
+    }
+
+    // 5. 将新结果存入缓存
+    response.data.forEach((item, i) => {
+      const text = textsToEmbed[i];
+      modelCache.set(text, item.embedding);
+    });
   }
+
+  // 6. 从缓存中组装最终的向量列表
+  // 此时所有文本在 modelCache 中都应该有值了
+  const finalEmbeddings: number[][] = [];
+
+  for (const text of allTexts) {
+    const vec = modelCache.get(text);
+    if (vec) {
+      finalEmbeddings.push(vec);
+    } else {
+      // 理论上不应执行到这里，除非上面的请求失败了但没被捕获
+      customMessage.error(`无法获取文本向量: ${text.slice(0, 10)}...`);
+      return;
+    }
+  }
+
+  // 7. 更新状态并计算分数
+  currentEmbeddings.value = finalEmbeddings;
+  currentTexts.value = allTexts;
+  updateScores();
 };
 </script>
 
@@ -239,7 +314,8 @@ const handleCompare = async () => {
 }
 
 /* 面板通用样式 */
-.config-panel, .result-panel {
+.config-panel,
+.result-panel {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -278,6 +354,23 @@ const handleCompare = async () => {
   font-size: 11px;
   color: var(--text-color-secondary);
   margin-top: 1px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.copy-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-color-secondary);
+}
+
+.copy-btn:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
 }
 
 .panel-content {
@@ -441,5 +534,4 @@ const handleCompare = async () => {
 .empty-state span {
   font-size: 13px;
 }
-
 </style>

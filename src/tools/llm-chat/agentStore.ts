@@ -53,9 +53,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
      */
     getAgentById:
       (state) =>
-      (id: string): ChatAgent | undefined => {
-        return state.agents.find((agent) => agent.id === id);
-      },
+        (id: string): ChatAgent | undefined => {
+          return state.agents.find((agent) => agent.id === id);
+        },
 
     /**
      * 按最后使用时间排序的智能体列表
@@ -213,62 +213,42 @@ export const useAgentStore = defineStore("llmChatAgent", {
         existingVisibleNames,
       );
 
-      // 如果 icon 是一个私有资产（纯文件名），则复制它
-      const icon = originalAgent.icon;
-      // 修正判断逻辑：
-      // 1. 必须存在
-      // 2. 不包含路径分隔符 (\ 或 /)
-      // 3. 不包含冒号 (排除 http:, https:, appdata: 等协议)
-      // 4. 包含点号 (文件名通常有扩展名，而 Emoji 没有)
-      // 之前的 /\p{Emoji}/u 会错误地匹配数字，导致文件名被误判为 Emoji
-      const isAssetIcon = icon && !/[\\/:]/.test(icon) && icon.includes(".");
+      // 物理复制整个智能体目录（包含头像、资产附件等所有文件）
+      const sourceDir = `llm-chat/agents/${originalAgent.id}`;
+      const targetDir = `llm-chat/agents/${newAgentId}`;
 
-      logger.debug("尝试复制智能体头像", {
-        agentId,
-        icon,
-        isAssetIcon,
-        hasPathOrProtocol: icon ? /[\\/:]/.test(icon) : "N/A",
-        hasDot: icon ? icon.includes(".") : "N/A",
-      });
+      try {
+        const { getAgentDirPath } = useAgentStorage();
+        const sourceFullDir = await getAgentDirPath(originalAgent.id);
+        const sourceExists = await invoke<boolean>("path_exists", {
+          path: sourceFullDir,
+        });
 
-      if (isAssetIcon) {
-        try {
-          // 1. 构建源文件相对路径
-          const sourceRelativePath = `llm-chat/agents/${originalAgent.id}/${icon}`;
-          logger.debug("读取源头像文件", { path: sourceRelativePath });
-
-          // 2. 读取源文件二进制数据
-          const fileData: number[] = await invoke("read_app_data_file_binary", {
-            relativePath: sourceRelativePath,
+        if (sourceExists) {
+          logger.debug("检测到源智能体目录，开始物理复制", {
+            sourceDir,
+            targetDir,
           });
-
-          // 3. 构建目标子目录
-          const targetSubdirectory = `llm-chat/agents/${newAgentId}`;
-          logger.debug("写入新头像文件", {
-            dir: targetSubdirectory,
-            filename: icon,
+          await invoke("copy_directory_in_app_data", {
+            sourceRelativePath: sourceDir,
+            targetRelativePath: targetDir,
           });
-
-          // 4. 写入新文件
-          await invoke("save_uploaded_file", {
-            fileData,
-            subdirectory: targetSubdirectory,
-            filename: icon,
-          });
-
-          logger.info("成功复制智能体头像", {
-            from: sourceRelativePath,
-            to: targetSubdirectory,
-          });
-        } catch (error) {
-          logger.error("复制智能体头像过程中出错", error as Error, {
+          logger.info("成功物理复制智能体目录", { sourceDir, targetDir });
+        } else {
+          logger.debug("源智能体目录不存在，跳过物理复制", {
             agentId: originalAgent.id,
-            icon,
           });
-          // 即使头像复制失败，也继续创建智能体，只是没有头像
         }
-      } else {
-        logger.debug("跳过头像复制：不是私有资产", { icon });
+      } catch (error) {
+        // 只有在源目录确实存在但复制失败时，才中断流程
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.error("物理复制智能体目录失败", error as Error, {
+          agentId: originalAgent.id,
+          sourceDir,
+          targetDir,
+        });
+        customMessage.error(`复制智能体资产失败: ${errorMsg}`);
+        return null; // 中断流程，防止产生“半成品”
       }
 
       // 准备新的智能体对象
@@ -496,27 +476,27 @@ export const useAgentStore = defineStore("llmChatAgent", {
             if (agent.presetMessages && agent.presetMessages.length > 0) {
               const anchorRegistry = useAnchorRegistry();
               let migratedCount = 0;
-              
+
               for (const message of agent.presetMessages) {
                 if (!message.type) continue;
-                
+
                 const anchor = anchorRegistry.getAnchorById(message.type);
                 if (!anchor?.hasTemplate) continue;
-                
+
                 // 检查是否为旧格式的固定文本（需要转换为默认模板）
                 const legacyFixedTexts = ["用户档案", "user_profile", "User Profile"];
                 const isLegacyFixedContent = legacyFixedTexts.some(
                   (text) => message.content.trim() === text
                 );
-                
+
                 const needsMigration = !message.content || isLegacyFixedContent;
-                
+
                 if (needsMigration && anchor.defaultTemplate) {
                   message.content = anchor.defaultTemplate;
                   migratedCount++;
                 }
               }
-              
+
               if (migratedCount > 0) {
                 logger.info("迁移旧版模板锚点格式", {
                   agentId: agent.id,

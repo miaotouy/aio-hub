@@ -1652,6 +1652,57 @@ pub async fn delete_directory_in_app_data(app: AppHandle, relative_path: String)
     Ok(format!("目录已移入回收站: {}", full_path.display()))
 }
 
+// Tauri 命令：在应用数据目录内复制整个目录
+// 用于智能体复制等场景，一次性复制所有资产文件
+#[tauri::command]
+pub async fn copy_directory_in_app_data(
+    app: AppHandle,
+    source_relative_path: String,
+    target_relative_path: String,
+) -> Result<String, String> {
+    // 获取应用数据目录
+    let app_data_dir = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+
+    // 构建完整路径
+    let source_path = app_data_dir.join(&source_relative_path);
+    let target_path = app_data_dir.join(&target_relative_path);
+
+    // 安全性检查：确保路径仍在 app_data_dir 内
+    if !source_path.starts_with(&app_data_dir) {
+        return Err("源路径不在应用数据目录内".to_string());
+    }
+    if !target_path.starts_with(&app_data_dir) {
+        return Err("目标路径不在应用数据目录内".to_string());
+    }
+
+    // 检查源目录是否存在
+    if !source_path.exists() {
+        return Err(format!("源目录不存在: {}", source_path.display()));
+    }
+    if !source_path.is_dir() {
+        return Err(format!("源路径不是目录: {}", source_path.display()));
+    }
+
+    // 确保目标目录存在
+    if !target_path.exists() {
+        fs::create_dir_all(&target_path)
+            .map_err(|e| format!("创建目标目录失败: {}", e))?;
+    }
+
+    // 使用 fs_extra 进行目录内容复制
+    let mut options = fs_extra::dir::CopyOptions::new();
+    options.content_only = true; // 只复制目录下的内容
+    options.overwrite = true;    // 允许覆盖（虽然目标目录应该是新的）
+
+    // 执行复制：将 source_path 下的所有内容复制到 target_path 中
+    fs_extra::dir::copy(&source_path, &target_path, &options)
+        .map_err(|e| format!("复制目录内容失败: {}", e))?;
+
+    Ok(format!("目录已复制: {} -> {}", source_relative_path, target_relative_path))
+}
+
 // Tauri 命令：强制写入文件（绕过前端路径检查，自动创建父目录）
 // 安全限制：仅允许写入特定扩展名的文件，防止覆盖系统文件或写入可执行程序
 #[tauri::command]

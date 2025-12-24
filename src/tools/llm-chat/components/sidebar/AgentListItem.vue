@@ -8,6 +8,7 @@ import {
   CopyDocument,
   DocumentCopy,
   FolderOpened,
+  Refresh,
 } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
@@ -16,6 +17,7 @@ import { useAgentStorageSeparated } from "../../composables/useAgentStorageSepar
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
 import type { MatchDetail } from "../../composables/useLlmSearch";
+import AgentUpgradeDialog from "../agent/AgentUpgradeDialog.vue";
 
 const props = defineProps<{
   agent: ChatAgent;
@@ -34,6 +36,7 @@ defineEmits<{
 
 const isHovered = ref(false);
 const isMenuOpen = ref(false);
+const upgradeDialogVisible = ref(false);
 
 const avatarSrc = computed(() => {
   return resolveAvatarPath(props.agent, "agent");
@@ -127,6 +130,10 @@ const handleOpenDirectory = async () => {
               <el-icon><CopyDocument /></el-icon>
               创建副本
             </el-dropdown-item>
+            <el-dropdown-item @click="upgradeDialogVisible = true">
+              <el-icon><Refresh /></el-icon>
+              升级智能体...
+            </el-dropdown-item>
             <el-dropdown-item @click="$emit('copy-config', agent, 'json')" divided>
               <el-icon><DocumentCopy /></el-icon>
               复制为 JSON
@@ -151,6 +158,12 @@ const handleOpenDirectory = async () => {
         </template>
       </el-dropdown>
     </div>
+
+    <!-- 升级对话框 -->
+    <AgentUpgradeDialog
+      v-model:visible="upgradeDialogVisible"
+      :agent="agent"
+    />
   </div>
 </template>
 

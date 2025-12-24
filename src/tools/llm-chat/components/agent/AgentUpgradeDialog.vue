@@ -90,11 +90,13 @@ const handleFileUpload = async (file: File) => {
     const result = await agentStore.preflightImportAgents(file);
 
     if (result.agents.length > 0) {
-      parsedConfig.value = result.agents[0];
-      parsedAssets.value = result.assets || {};
+      const firstAgent = result.agents[0];
+      parsedConfig.value = firstAgent;
+      // 从按 ID 隔离的资产桶中提取资产
+      parsedAssets.value = result.assets[firstAgent.id || ''] || {};
       logger.debug("文件解析成功", {
-        agentName: result.agents[0].name,
-        assetCount: Object.keys(result.assets).length,
+        agentName: firstAgent.name,
+        assetCount: Object.keys(parsedAssets.value).length,
       });
     } else {
       throw new Error("未在文件中找到有效的智能体配置");
@@ -166,18 +168,25 @@ const handleConfirm = async () => {
     if (assetEntries.length > 0) {
       logger.info("开始升级智能体资产", { count: assetEntries.length });
       for (const [path, buffer] of assetEntries) {
-        const fileName = path.split("/").pop() || "asset";
-        const subdirectory = `llm-chat/agents/${currentAgent.id}`;
+        // 提取路径结构
+        const rawRelativePath = path.replace(/^assets[/\\]/, '');
+        const pathParts = rawRelativePath.split(/[/\\]/);
+        const filename = pathParts.pop() || 'file';
+        const relativeSubDir = pathParts.join('/');
+
+        // 保持子目录结构存储
+        const subdirectory = `llm-chat/agents/${currentAgent.id}/${relativeSubDir}`.replace(/\/+$/, '');
 
         await invoke("save_uploaded_file", {
           fileData: Array.from(new Uint8Array(buffer)),
           subdirectory,
-          filename: fileName,
+          filename: filename,
         });
 
         // 如果是头像资产，更新 icon 字段
         if (path.includes("avatar_for_") || parsedConfig.value?.icon === path) {
-          agentStore.updateAgent(currentAgent.id, { icon: fileName });
+          const finalIconPath = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
+          agentStore.updateAgent(currentAgent.id, { icon: finalIconPath });
         }
       }
     }
@@ -275,13 +284,13 @@ const previewInfo = computed(() => {
             <span class="p-value">{{ previewInfo.hasRules ? "是" : "否" }}</span>
           </div>
           <div class="preview-item">
-            <span class="p-label">包含资产:</span>
+            <span class="p-label">私有资产:</span>
             <span class="p-value">
               <template v-if="Object.keys(parsedAssets).length > 0">
                 {{ Object.keys(parsedAssets).length }} 个文件
               </template>
-              <template v-else-if="previewInfo.hasIcon"> 仅引用 (无文件) </template>
-              <template v-else>否</template>
+              <template v-else-if="previewInfo.hasIcon"> 仅外部引用 </template>
+              <template v-else>无</template>
             </span>
           </div>
         </div>

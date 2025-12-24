@@ -277,7 +277,7 @@ const canExport = computed(() => {
           <div class="option-item">
             <el-checkbox
               v-model="includeAssets"
-              label="包含图标等资产文件"
+              label="包含头像、表情、背景等私有资产文件"
               :disabled="exportType === 'file'"
             />
           </div>

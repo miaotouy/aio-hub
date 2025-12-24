@@ -44,8 +44,8 @@ export interface AgentExportFile {
 export interface AgentImportPreflightResult {
   /** 解析出的可导出 Agent 列表 */
   agents: ExportableAgent[];
-  /** 资源文件映射 { relativePath: ArrayBuffer } */
-  assets: Record<string, ArrayBuffer>;
+  /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
+  assets: Record<string, Record<string, ArrayBuffer>>;
   /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
   unmatchedModels: Array<{ agentIndex: number; agentName: string; modelId: string }>;
   /** 名称冲突的 Agent { agentIndex: number, agentName: string } */
@@ -71,5 +71,6 @@ export interface ResolvedAgentToImport extends ExportableAgent {
  */
 export interface ConfirmImportParams {
   resolvedAgents: ResolvedAgentToImport[];
-  assets: Record<string, ArrayBuffer>;
+  /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
+  assets: Record<string, Record<string, ArrayBuffer>>;
 }

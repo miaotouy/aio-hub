@@ -50,12 +50,22 @@ const parseConfig = (text: string) => {
       data = jsYaml.load(text);
     }
 
-    // 基础校验：至少应该有 presetMessages 或 parameters 之一
+    // 基础校验
     if (!data || typeof data !== "object") {
       throw new Error("无效的配置文件格式");
     }
 
-    parsedConfig.value = data;
+    // 自动识别导出包格式 (AIO_Agent_Export)
+    if (data.type === "AIO_Agent_Export" && Array.isArray(data.agents) && data.agents.length > 0) {
+      parsedConfig.value = data.agents[0];
+      // 如果包里自带资产列表，也同步一下（虽然粘贴文本拿不到二进制，但预览能看到）
+      if (data.assets) {
+        logger.debug("从导出包中识别到资产定义");
+      }
+    } else {
+      parsedConfig.value = data;
+    }
+
     parseError.value = null;
     logger.debug("配置解析成功", { strategy: upgradeStrategy.value });
   } catch (error) {
@@ -199,6 +209,7 @@ const previewInfo = computed(() => {
     hasParams: !!c.parameters,
     hasRules: !!c.llmThinkRules?.length,
     hasRegex: !!c.regexConfig?.presets?.some((p) => p.rules?.length > 0),
+    hasIcon: !!c.icon,
   };
 });
 </script>
@@ -265,9 +276,13 @@ const previewInfo = computed(() => {
           </div>
           <div class="preview-item">
             <span class="p-label">包含资产:</span>
-            <span class="p-value">{{
-              Object.keys(parsedAssets).length > 0 ? `${Object.keys(parsedAssets).length} 个` : "否"
-            }}</span>
+            <span class="p-value">
+              <template v-if="Object.keys(parsedAssets).length > 0">
+                {{ Object.keys(parsedAssets).length }} 个文件
+              </template>
+              <template v-else-if="previewInfo.hasIcon"> 仅引用 (无文件) </template>
+              <template v-else>否</template>
+            </span>
           </div>
         </div>
       </div>

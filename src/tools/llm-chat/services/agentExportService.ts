@@ -145,7 +145,6 @@ export async function exportAgents(
     // 为了简化逻辑，PNG 模式下我们总是先打成 ZIP 包，然后嵌入
     const zip = (exportType === 'zip' || exportType === 'png') ? new JSZip() : null;
     let targetDir = '';
-    let commonAssetsDir = ''; // 仅在非分离模式下使用
 
     if (exportType === 'folder') {
       // 选择目标目录
@@ -163,10 +162,6 @@ export async function exportAgents(
       // 创建导出根目录
       targetDir = await join(selected as string, baseName);
 
-      // 如果不分离文件夹，则创建公共 assets 目录
-      if (shouldIncludeAssets && !separateFolders) {
-        commonAssetsDir = await join(targetDir, 'assets');
-      }
     } else if (exportType === 'zip' || exportType === 'png') {
       // ZIP 和 PNG 模式下，如果不分离文件夹，则创建公共 assets 文件夹
       // PNG 模式下本质也是先生成 ZIP 数据
@@ -200,31 +195,6 @@ export async function exportAgents(
       // 复制一份以便后续修改 icon 路径
       const exportableAgent: ExportableAgent = { ...exportableAgentBase };
 
-      // 确定当前 Agent 的 assets 目录
-      let currentAgentAssetsDir = '';
-      let currentAgentAssetsZipFolder: JSZip | null = null;
-      let assetsRelativePrefix = 'assets';
-
-      if (shouldIncludeAssets) {
-        if (separateFolders) {
-          // 分离模式：assets 在 Agent 独立目录下
-          if (exportType === 'folder') {
-            const agentDir = await join(targetDir, uniqueName);
-            currentAgentAssetsDir = await join(agentDir, 'assets');
-          } else if ((exportType === 'zip' || exportType === 'png') && zip) {
-            currentAgentAssetsZipFolder = zip.folder(uniqueName)?.folder('assets') || null;
-          }
-          assetsRelativePrefix = 'assets'; // 在独立目录中，引用路径仍为 assets/xxx
-        } else {
-          // 混合模式：assets 在公共目录下
-          if (exportType === 'folder') {
-            currentAgentAssetsDir = commonAssetsDir;
-          } else if ((exportType === 'zip' || exportType === 'png') && zip) {
-            currentAgentAssetsZipFolder = zip.folder('assets') || null;
-          }
-          assetsRelativePrefix = 'assets';
-        }
-      }
 
       // Agent 私有目录的基础路径
       const agentPrivateDir = await join(await appDataDir(), 'llm-chat', 'agents', agent.id);

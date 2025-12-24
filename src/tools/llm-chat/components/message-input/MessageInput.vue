@@ -94,6 +94,9 @@ interface Emits {
     }
   ): void;
   (e: "abort"): void;
+  (e: "complete-input", content: string, options?: { modelId?: string; profileId?: string }): void;
+  (e: "select-continuation-model"): void;
+  (e: "clear-continuation-model"): void;
 }
 
 const props = defineProps<Props>();
@@ -696,6 +699,35 @@ const handleSelectTemporaryModel = async () => {
   }
 };
 
+// 处理续写模型选择
+const handleSelectContinuationModel = async () => {
+  if (props.isDetached) {
+    bus.requestAction("select-continuation-model", {});
+    return;
+  }
+
+  let currentSelection = null;
+  const continuationModel = inputManager.continuationModel.value;
+
+  if (continuationModel) {
+    const profile = getProfileById(continuationModel.profileId);
+    if (profile) {
+      const model = profile.models.find((m) => m.id === continuationModel.modelId);
+      if (model) {
+        currentSelection = { profile, model };
+      }
+    }
+  }
+
+  const result = await openModelSelectDialog({ current: currentSelection });
+  if (result) {
+    inputManager.setContinuationModel({
+      profileId: result.profile.id,
+      modelId: result.model.id,
+    });
+  }
+};
+
 // 处理输入翻译
 const handleTranslateInput = async () => {
   if (isTranslatingInput.value) return;
@@ -752,6 +784,23 @@ const handleTranslateInput = async () => {
     // 错误已在 useTranslation 中处理
   } finally {
     isTranslatingInput.value = false;
+  }
+};
+
+// 处理输入补全
+// 处理输入补全
+const handleCompleteInput = (content: string) => {
+  const options = inputManager.continuationModel.value
+    ? {
+        modelId: inputManager.continuationModel.value.modelId,
+        profileId: inputManager.continuationModel.value.profileId,
+      }
+    : undefined;
+
+  if (props.isDetached) {
+    bus.requestAction("complete-input", { content, options });
+  } else {
+    emit("complete-input", content, options);
   }
 };
 
@@ -929,6 +978,7 @@ const getWillUseTranscription = (asset: Asset): boolean => {
             :is-translating="isTranslatingInput"
             :translation-enabled="settings.translation.enabled"
             :is-compressing="isCompressing"
+            :continuation-model="inputManager.continuationModel.value"
             @toggle-streaming="toggleStreaming"
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
@@ -941,6 +991,9 @@ const getWillUseTranscription = (asset: Asset): boolean => {
             @switch-session="handleSwitchSession"
             @new-session="handleNewSession"
             @compress-context="handleCompressContext"
+            @complete-input="handleCompleteInput"
+            @select-continuation-model="handleSelectContinuationModel"
+            @clear-continuation-model="inputManager.clearContinuationModel"
           />
         </div>
       </div>

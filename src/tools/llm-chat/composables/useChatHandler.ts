@@ -14,6 +14,7 @@ import type { ChatSession, ChatMessageNode } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useAgentStore } from "../agentStore";
 import { useUserProfileStore } from "../userProfileStore";
+import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useNodeManager } from "./useNodeManager";
 import { useSessionManager } from "./useSessionManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -471,9 +472,157 @@ export function useChatHandler() {
     });
   };
 
+  /**
+   * 续写生成
+   */
+  const continueGeneration = async (
+    session: ChatSession,
+    nodeId: string,
+    abortControllers: Map<string, AbortController>,
+    generatingNodes: Set<string>,
+    options?: { modelId?: string; profileId?: string },
+  ): Promise<void> => {
+    const agentStore = useAgentStore();
+    const nodeManager = useNodeManager();
+
+    // 1. 创建续写分支
+    const result = nodeManager.createContinuationBranch(session, nodeId);
+    if (!result) return;
+
+    const { assistantNode, userNode } = result;
+
+    // 2. 更新活跃叶节点
+    nodeManager.updateActiveLeaf(session, assistantNode.id);
+
+    // 3. 获取路径
+    // 如果是 Assistant 续写，路径包含新节点本身（因为新节点内容 = 前缀内容，它就是最后一条消息）
+    // 如果是 User 续写，路径包含 User 节点（新节点是空的助手节点，接在后面）
+    const pathToUserNode = nodeManager.getNodePath(
+      session,
+      session.nodes[nodeId].role === 'assistant' ? assistantNode.id : (userNode?.id || nodeId)
+    );
+    // 4. 获取配置
+    const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId || "", {
+      parameterOverrides: session.parameterOverrides,
+    });
+
+    if (!agentConfig) {
+      errorHandler.handle(new Error("Agent config not found"), {
+        userMessage: "续写失败：无法获取智能体配置",
+        showToUser: false,
+      });
+      return;
+    }
+
+    // 如果提供了特定的模型选项，覆盖 agentConfig 中的设置
+    if (options?.modelId && options?.profileId) {
+      const { getProfileById, getSupportedParameters } = useLlmProfiles();
+      const targetProfile = getProfileById(options.profileId);
+      const targetModel = targetProfile?.models.find(
+        (m) => m.id === options.modelId,
+      );
+
+      if (targetProfile && targetModel) {
+        agentConfig.modelId = options.modelId;
+        agentConfig.profileId = options.profileId;
+
+        // 过滤参数，只保留目标模型支持的参数
+        const supportedParameters = getSupportedParameters(targetProfile.type);
+        agentConfig.parameters = filterParametersForModel(
+          agentConfig.parameters,
+          supportedParameters,
+          targetModel.capabilities,
+        );
+
+        logger.info("续写使用指定的模型（参数已过滤）", {
+          modelId: options.modelId,
+          profileId: options.profileId,
+        });
+      }
+    }
+
+    // 5. 设置元数据
+    const { getProfileById } = useLlmProfiles();
+    const profile = getProfileById(agentConfig.profileId);
+    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
+    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId || "");
+
+    session.nodes[assistantNode.id].metadata = {
+      ...session.nodes[assistantNode.id].metadata,
+      agentId: agentStore.currentAgentId || undefined,
+      agentName: currentAgent?.name,
+      agentDisplayName: currentAgent?.displayName || currentAgent?.name,
+      agentIcon: currentAgent?.icon,
+      profileId: agentConfig.profileId,
+      profileName: profile?.name,
+      modelId: agentConfig.modelId,
+      modelName: model?.name || model?.id,
+    };
+
+    // 6. 执行请求
+    await executeRequest({
+      session,
+      userNode: userNode || assistantNode, // 如果是 Assistant 续写，userNode 为 null 或父节点
+      assistantNode,
+      pathToUserNode,
+      isContinuation: true, // 核心标记
+      abortControllers,
+      generatingNodes,
+      agentConfig,
+    });
+  };
+
+  /**
+   * 补全输入框内容
+   */
+  const completeInput = async (
+    text: string,
+    _session?: ChatSession,
+    options?: { modelId?: string; profileId?: string },
+  ): Promise<string> => {
+    const { sendRequest } = useLlmRequest();
+    const agentStore = useAgentStore();
+
+    let profileId = options?.profileId;
+    let modelId = options?.modelId;
+
+    if (!profileId || !modelId) {
+      const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId || "");
+      if (!agentConfig) throw new Error("Agent config not found");
+      profileId = profileId || agentConfig.profileId;
+      modelId = modelId || agentConfig.modelId;
+    }
+
+    // 构建补全请求的消息列表
+    const messages: any[] = [
+      {
+        role: "system",
+        content: "You are a helpful writing assistant. Complete the user's text naturally. Do not repeat the input. Output ONLY the completion part.",
+      },
+      {
+        role: "user",
+        content: text,
+      }
+    ];
+
+    // 如果提供了会话，可以尝试获取上下文（可选增强）
+    
+    const response = await sendRequest({
+      profileId,
+      modelId,
+      messages,
+      temperature: 0.3, // 补全通常需要更确定的结果
+      maxTokens: 200,
+    });
+
+    return response.content;
+  };
+
   return {
     sendMessage,
     regenerateFromNode,
+    continueGeneration,
+    completeInput,
     getLlmContextForPreview: getContextForPreview,
   };
 }

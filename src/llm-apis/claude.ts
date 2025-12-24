@@ -1,5 +1,5 @@
 import type { LlmProfile } from "../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
+import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "./common";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
@@ -152,19 +152,22 @@ interface ClaudeStreamEvent {
  * 将内部消息格式转换为 Claude API 格式
  */
 const convertToClaudeMessages = (
-  messages: Array<{ role: "user" | "assistant"; content: string | LlmMessageContent[] }>
+  messages: LlmMessage[]
 ): ClaudeMessage[] => {
   const claudeMessages: ClaudeMessage[] = [];
 
   for (const msg of messages) {
+    // 处理角色
+    const role = msg.role === "assistant" ? "assistant" : "user";
+    
     if (typeof msg.content === "string") {
       claudeMessages.push({
-        role: msg.role,
+        role,
         content: msg.content,
       });
     } else {
       claudeMessages.push({
-        role: msg.role,
+        role,
         content: convertContentBlocks(msg.content),
       });
     }
@@ -431,10 +434,7 @@ export const callClaudeApi = async (
 
   // 从 messages 中提取 system 消息
   const systemMessages = options.messages.filter(m => m.role === 'system');
-  const userAssistantMessages = options.messages.filter(m => m.role !== 'system') as Array<{
-    role: 'user' | 'assistant';
-    content: string | LlmMessageContent[];
-  }>;
+  const userAssistantMessages = options.messages.filter(m => m.role !== 'system');
 
   // 构建消息
   const messages = convertToClaudeMessages(userAssistantMessages);

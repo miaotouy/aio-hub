@@ -34,6 +34,7 @@ interface Emits {
   (e: "edit", newContent: string, attachments?: Asset[]): void;
   (e: "copy"): void;
   (e: "abort"): void;
+  (e: "continue"): void;
   (e: "create-branch"): void;
   (e: "analyze-context"): void;
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
@@ -244,6 +245,7 @@ defineExpose({
         @switch="onSwitchSibling"
         @switch-branch="onSwitchBranch"
         @abort="emit('abort')"
+        @continue="emit('continue')"
         @create-branch="emit('create-branch')"
         @analyze-context="emit('analyze-context')"
         @translate="handleTranslate"

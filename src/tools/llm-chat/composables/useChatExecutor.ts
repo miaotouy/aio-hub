@@ -50,6 +50,11 @@ interface ExecuteRequestParams {
   assistantNode: ChatMessageNode;
   /** 到用户消息的完整路径（包含用户消息） */
   pathToUserNode: ChatMessageNode[];
+  /**
+   * 是否为续写模式
+   * 如果为 true，则 pathToUserNode 的最后一条消息将被标记为 prefix: true
+   */
+  isContinuation?: boolean;
   /** AbortController 集合 */
   abortControllers: Map<string, AbortController>;
   /** 正在生成的节点集合 */
@@ -85,6 +90,7 @@ export function useChatExecutor() {
     userNode,
     assistantNode,
     pathToUserNode,
+    isContinuation,
     abortControllers,
     generatingNodes,
     agentConfig: providedAgentConfig,
@@ -330,10 +336,15 @@ export function useChatExecutor() {
         })),
       });
 
-      const messagesForRequest = messages.map(({ role, content }) => ({
-        role,
-        content,
-      }));
+      const messagesForRequest = messages.map((msg, index) => {
+        const isLast = index === messages.length - 1;
+        return {
+          role: msg.role,
+          content: msg.content,
+          // 如果是续写模式且是最后一条消息，标记为 prefix
+          prefix: isContinuation && isLast ? true : undefined,
+        };
+      });
 
       const maxRetries = settings.value.requestSettings.maxRetries;
       const retryInterval = settings.value.requestSettings.retryInterval;
@@ -593,6 +604,7 @@ export function useChatExecutor() {
     content: string,
     modelId: string,
     attachments?: Asset[],
+    isContinuation: boolean = false,
   ): Promise<void> => {
     try {
       // 准备用于 Token 计算的消息内容
@@ -621,10 +633,15 @@ export function useChatExecutor() {
         modelId,
         mediaAttachments,
       );
-      session.nodes[userNode.id].metadata = {
-        ...session.nodes[userNode.id].metadata,
-        contentTokens: tokenResult.count,
-      };
+
+      // 如果是续写，这个节点的 tokens 应该被视为 prompt tokens 的一部分
+      // 但在节点级别，我们记录它自身的内容 token
+      const node = session.nodes[userNode.id];
+      if (node && node.metadata) {
+        node.metadata.contentTokens = tokenResult.count;
+        node.metadata.isContinuationPrefix = isContinuation || undefined;
+      }
+
       logger.debug("用户消息 token 计算完成", {
         messageId: userNode.id,
         tokens: tokenResult.count,

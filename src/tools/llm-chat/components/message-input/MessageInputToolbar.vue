@@ -5,8 +5,18 @@ export interface InputToolbarSettings {
 </script>
 
 <script setup lang="ts">
-import { ElTooltip, ElPopover } from "element-plus";
-import { Paperclip, AtSign, X, Settings, Languages, MessageSquare, Package } from "lucide-vue-next";
+import { ElTooltip, ElPopover, ElDropdown, ElDropdownMenu, ElDropdownItem, ElSwitch, ElIcon } from "element-plus";
+import {
+  Paperclip,
+  AtSign,
+  X,
+  Settings,
+  Languages,
+  MessageSquare,
+  Package,
+  MoreHorizontal,
+  Sparkles
+} from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
@@ -35,12 +45,16 @@ interface Props {
   isTranslating?: boolean;
   translationEnabled?: boolean;
   isCompressing?: boolean;
+  continuationModel?: ModelIdentifier | null;
+  isCompleting?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isTranslating: false,
   translationEnabled: false,
   isCompressing: false,
+  continuationModel: null,
+  isCompleting: false,
 });
 
 const emit = defineEmits<{
@@ -58,9 +72,24 @@ const emit = defineEmits<{
   (e: "switch-session", sessionId: string): void;
   (e: "new-session"): void;
   (e: "compress-context"): void;
+  (e: "complete-input", content: string): void;
+  (e: "select-continuation-model"): void;
+  (e: "clear-continuation-model"): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
+
+const continuationModelInfo = computed(() => {
+  if (!props.continuationModel) return null;
+  const profile = getProfileById(props.continuationModel.profileId);
+  if (!profile) return null;
+  const model = profile.models.find((m) => m.id === props.continuationModel?.modelId);
+  if (!model) return null;
+  return {
+    profileName: profile.name,
+    modelName: model.name || model.id,
+  };
+});
 
 const temporaryModelInfo = computed(() => {
   if (!props.temporaryModel) return null;
@@ -166,36 +195,68 @@ const handleNewSession = () => {
         </button>
       </el-tooltip>
 
-      <!-- 上下文压缩按钮 -->
-      <el-tooltip content="压缩上下文" placement="top" :show-after="300">
-        <button
-          class="tool-btn"
-          :class="{ 'is-loading': props.isCompressing }"
-          :disabled="props.isCompressing || props.disabled"
-          @click="emit('compress-context')"
-        >
-          <Package :size="16" v-if="!props.isCompressing" />
-          <span v-else class="loading-dots">...</span>
+      <!-- 更多工具菜单 -->
+      <el-dropdown trigger="click" placement="top">
+        <button class="tool-btn">
+          <MoreHorizontal :size="16" />
         </button>
-      </el-tooltip>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <!-- 智能补全 -->
+            <el-dropdown-item
+              :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
+              @click="emit('complete-input', props.inputText)"
+            >
+              <div class="dropdown-item-content">
+                <Sparkles :size="16" class="sparkles-icon" />
+                <span>智能补全</span>
+                <span v-if="props.isCompleting" class="loading-dots">...</span>
+              </div>
+            </el-dropdown-item>
 
-      <!-- 翻译按钮 -->
-      <el-tooltip
-        v-if="props.translationEnabled"
-        content="翻译输入内容"
-        placement="top"
-        :show-after="300"
-      >
-        <button
-          class="tool-btn"
-          :class="{ 'is-loading': props.isTranslating }"
-          :disabled="props.isTranslating || !props.inputText.trim()"
-          @click="emit('translate-input')"
-        >
-          <Languages :size="16" v-if="!props.isTranslating" />
-          <span v-else class="loading-dots">...</span>
-        </button>
-      </el-tooltip>
+            <!-- 补全模型设置 -->
+            <el-dropdown-item
+              :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
+              @click="emit('select-continuation-model')"
+            >
+              <div class="dropdown-item-content">
+                <AtSign :size="16" />
+                <span>指定补全模型</span>
+                <span v-if="continuationModelInfo" class="model-badge">
+                  {{ continuationModelInfo.modelName }}
+                </span>
+              </div>
+            </el-dropdown-item>
+
+            <div class="dropdown-divider"></div>
+
+            <!-- 翻译 -->
+            <el-dropdown-item
+              v-if="props.translationEnabled"
+              :disabled="props.isTranslating || !props.inputText.trim()"
+              @click="emit('translate-input')"
+            >
+              <div class="dropdown-item-content">
+                <Languages :size="16" />
+                <span>翻译输入</span>
+                <span v-if="props.isTranslating" class="loading-dots">...</span>
+              </div>
+            </el-dropdown-item>
+
+            <!-- 压缩 -->
+            <el-dropdown-item
+              :disabled="props.isCompressing || props.disabled"
+              @click="emit('compress-context')"
+            >
+              <div class="dropdown-item-content">
+                <Package :size="16" />
+                <span>压缩上下文</span>
+                <span v-if="props.isCompressing" class="loading-dots">...</span>
+              </div>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
 
       <!-- 设置菜单 -->
       <el-tooltip content="工具栏设置" placement="top" :show-after="300">
@@ -273,10 +334,27 @@ const handleNewSession = () => {
       </el-tooltip>
     </div>
     <div class="input-actions">
+      <!-- 续写模型显示 -->
+      <el-tooltip
+        v-if="continuationModelInfo"
+        :content="`续写模型: ${continuationModelInfo.profileName} - ${continuationModelInfo.modelName}`"
+        placement="top"
+        :show-after="300"
+      >
+        <div class="temporary-model-indicator continuation-model">
+          <Sparkles :size="14" />
+          <span class="model-name">
+            {{ continuationModelInfo.modelName }}
+          </span>
+          <button class="clear-btn" @click="emit('clear-continuation-model')">
+            <X :size="14" />
+          </button>
+        </div>
+      </el-tooltip>
       <!-- 临时模型显示 -->
       <el-tooltip
         v-if="temporaryModelInfo"
-        :content="`${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
+        :content="`临时模型: ${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
         placement="top"
         :show-after="300"
       >
@@ -729,6 +807,45 @@ const handleNewSession = () => {
 
 .temporary-model-indicator .clear-btn:hover {
   background-color: rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: var(--el-border-color-lighter);
+  margin: 4px 0;
+}
+
+.model-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background-color: var(--el-fill-color-darker);
+  color: var(--text-color-secondary);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sparkles-icon {
+  color: var(--el-color-warning);
+}
+
+.continuation-model {
+  background: var(--el-color-warning-light-9) !important;
+  color: var(--el-color-warning) !important;
+}
+
+.continuation-model .clear-btn {
+  color: var(--el-color-warning) !important;
 }
 </style>
 

@@ -23,6 +23,9 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { initializeMacroEngine } from "./macro-engine";
 import { initAgentAssetCache } from "./utils/agentAssetUtils";
+import { useChatInputManager } from "./composables/useChatInputManager";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 
 const logger = createModuleLogger("LlmChat");
 const errorHandler = createModuleErrorHandler("LlmChat");
@@ -32,6 +35,8 @@ const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const chatSettings = useChatSettings();
 const bus = useWindowSyncBus();
+const inputManager = useChatInputManager();
+const { open: openModelSelectDialog } = useModelSelectDialog();
 
 // 检测当前窗口类型
 const isInDetachedToolWindow = bus.windowType === "detached-tool";
@@ -256,6 +261,48 @@ const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: an
 const handleCreateBranch = (nodeId: string) => {
   store.createBranch(nodeId);
 };
+
+// 处理续写
+const handleContinue = (
+  nodeId: string,
+  options?: { modelId?: string; profileId?: string }
+) => {
+  store.continueGeneration(nodeId, options);
+};
+
+// 处理输入补全
+const handleCompleteInput = (
+  content: string,
+  options?: { modelId?: string; profileId?: string }
+) => {
+  store.completeInput(content, options);
+};
+
+// 处理续写模型选择
+const handleSelectContinuationModel = async () => {
+  let currentSelection = null;
+  const continuationModel = inputManager.continuationModel.value;
+
+  if (continuationModel) {
+    const { getProfileById } = useLlmProfiles();
+    const profile = getProfileById(continuationModel.profileId);
+    if (profile) {
+      const model = profile.models.find((m: any) => m.id === continuationModel.modelId);
+      if (model) {
+        currentSelection = { profile, model };
+      }
+    }
+  }
+
+  const result = await openModelSelectDialog({ current: currentSelection });
+  if (result) {
+    inputManager.setContinuationModel({
+      profileId: result.profile.id,
+      modelId: result.model.id,
+    });
+  }
+};
+
 // 处理中止单个节点的生成
 const handleAbortNode = (nodeId: string) => {
   store.abortNodeGeneration(nodeId);
@@ -449,6 +496,10 @@ useStateSyncEngine(parametersToSync, {
             @create-branch="handleCreateBranch"
             @analyze-context="handleAnalyzeContext"
             @save-to-branch="handleSaveToBranch"
+            @continue="handleContinue"
+            @complete-input="handleCompleteInput"
+            @select-continuation-model="handleSelectContinuationModel"
+            @clear-continuation-model="inputManager.clearContinuationModel"
           />
 
           <!-- 分离后的占位提示 -->

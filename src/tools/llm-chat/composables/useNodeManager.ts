@@ -255,6 +255,63 @@ export function useNodeManager() {
   };
 
   /**
+   * 创建续写分支
+   * - Assistant 续写：创建一个新的助手节点作为兄弟，初始内容等于原内容
+   * - User 续写：创建一个新的助手节点作为子节点，初始内容为空
+   */
+  const createContinuationBranch = (
+    session: ChatSession,
+    targetNodeId: string
+  ): { assistantNode: ChatMessageNode; userNode: ChatMessageNode | null } | null => {
+    const targetNode = session.nodes[targetNodeId];
+    if (!targetNode) return null;
+
+    if (targetNode.role === 'assistant') {
+      // Assistant 续写：创建一个新的助手节点作为兄弟
+      const newAssistantNode = createNode({
+        role: 'assistant',
+        content: targetNode.content, // 初始内容等于原内容
+        parentId: targetNode.parentId,
+        status: 'generating',
+        metadata: targetNode.metadata ? { ...targetNode.metadata } : undefined,
+      });
+
+      addNodeToSession(session, newAssistantNode);
+
+      // 找到对应的用户节点（父节点）
+      const userNode = targetNode.parentId ? session.nodes[targetNode.parentId] : null;
+
+      logger.info('创建 Assistant 续写分支', {
+        sessionId: session.id,
+        targetNodeId,
+        newNodeId: newAssistantNode.id,
+      });
+
+      return { assistantNode: newAssistantNode, userNode };
+    } else if (targetNode.role === 'user') {
+      // User 续写：创建一个新的助手节点作为子节点
+      const newAssistantNode = createNode({
+        role: 'assistant',
+        content: '', // 初始内容为空（因为是角色接力）
+        parentId: targetNode.id,
+        status: 'generating',
+      });
+
+      addNodeToSession(session, newAssistantNode);
+
+      logger.info('创建 User 续写分支', {
+        sessionId: session.id,
+        targetNodeId,
+        newNodeId: newAssistantNode.id,
+      });
+
+      return { assistantNode: newAssistantNode, userNode: targetNode };
+    }
+
+    return null;
+  };
+
+  /**
    * 更新活跃叶节点
    */
   const updateActiveLeaf = (
@@ -899,6 +956,7 @@ export function useNodeManager() {
     disableNodeTree,
     createMessagePair,
     createRegenerateBranch,
+    createContinuationBranch,
     createBranchFromEdit,
     updateActiveLeaf,
     softDeleteNode,

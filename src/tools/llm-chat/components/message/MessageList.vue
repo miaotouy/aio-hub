@@ -25,6 +25,7 @@ interface Emits {
   (e: "toggle-enabled", nodeId: string): void;
   (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
   (e: "abort-node", nodeId: string): void;
+  (e: "continue", nodeId: string, options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch", nodeId: string): void;
   (e: "analyze-context", nodeId: string): void;
   (e: "save-to-branch", nodeId: string, newContent: string, attachments?: Asset[]): void;
@@ -247,6 +248,13 @@ const handleRegenerate = (
   emit("regenerate", messageId, options);
 };
 
+const handleContinue = (
+  options: { modelId?: string; profileId?: string } | undefined,
+  messageId: string
+) => {
+  emit("continue", messageId, options);
+};
+
 const handleSwitchSibling = (direction: "prev" | "next", messageId: string) => {
   emit("switch-sibling", messageId, direction);
 };
@@ -319,10 +327,10 @@ defineExpose({
               @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
               @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
               @update-content="
-                (content) => store.editMessage(displayMessages[virtualItem.index].id, content)
+                (content: string) => store.editMessage(displayMessages[virtualItem.index].id, content)
               "
               @update-role="
-                (role) => store.updateNodeData(displayMessages[virtualItem.index].id, { role })
+                (role: any) => store.updateNodeData(displayMessages[virtualItem.index].id, { role })
               "
             />
 
@@ -359,6 +367,7 @@ defineExpose({
               "
               @copy="() => {}"
               @abort="emit('abort-node', displayMessages[virtualItem.index].id)"
+              @continue="handleContinue($event, displayMessages[virtualItem.index].id)"
               @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
               @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
               @update-translation="

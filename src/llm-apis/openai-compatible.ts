@@ -44,10 +44,15 @@ export const callOpenAiCompatibleApi = async (
   for (const msg of options.messages) {
     // 如果消息内容是字符串，直接使用
     if (typeof msg.content === "string") {
-      messages.push({
+      const messageObj: any = {
         role: msg.role,
         content: msg.content,
-      });
+      };
+      // 支持 DeepSeek prefix 模式
+      if (msg.prefix) {
+        messageObj.prefix = true;
+      }
+      messages.push(messageObj);
     } else {
       // 如果是复杂内容，需要转换格式
       const parsed = parseMessageContents(msg.content);
@@ -108,10 +113,15 @@ export const callOpenAiCompatibleApi = async (
         }
       }
 
-      messages.push({
+      const messageObj: any = {
         role: msg.role,
         content: contentArray,
-      });
+      };
+      // 支持 DeepSeek prefix 模式
+      if (msg.prefix) {
+        messageObj.prefix = true;
+      }
+      messages.push(messageObj);
     }
   }
 

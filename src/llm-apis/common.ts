@@ -127,16 +127,26 @@ export type LlmMessageContent =
   | ToolResultContent;
 
 /**
+ * LLM 消息结构
+ */
+export interface LlmMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string | LlmMessageContent[];
+  /**
+   * 是否作为续写前缀 (DeepSeek / Claude Prefill)
+   * 如果为 true，该消息必须是列表中的最后一条，且 role 通常为 assistant
+   */
+  prefix?: boolean;
+}
+
+/**
   * LLM 请求参数
   */
 export interface LlmRequestOptions {
   profileId: string;
   modelId: string;
   /** 完整的消息列表（包括 role 和 content），现已支持 system 角色 */
-  messages: Array<{
-    role: 'system' | 'user' | 'assistant';
-    content: string | LlmMessageContent[];
-  }>;
+  messages: LlmMessage[];
   maxTokens?: number;
   temperature?: number;
   /** 是否启用流式响应 */

@@ -50,6 +50,10 @@ interface Emits {
   (e: "toggle-enabled", nodeId: string): void;
   (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
   (e: "abort-node", nodeId: string): void;
+  (e: "continue", nodeId: string, options?: { modelId?: string; profileId?: string }): void;
+  (e: "complete-input", content: string, options?: { modelId?: string; profileId?: string }): void;
+  (e: "select-continuation-model"): void;
+  (e: "clear-continuation-model"): void;
   (e: "create-branch", nodeId: string): void;
   (e: "analyze-context", nodeId: string): void;
   (e: "save-to-branch", nodeId: string, newContent: string, attachments?: Asset[]): void;
@@ -416,6 +420,12 @@ const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) =>
   emit("edit-message", nodeId, newContent, attachments);
 const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
+const handleContinue = (nodeId: string, options?: { modelId?: string; profileId?: string }) =>
+  emit("continue", nodeId, options);
+const handleCompleteInput = (
+  content: string,
+  options?: { modelId?: string; profileId?: string }
+) => emit("complete-input", content, options);
 const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
 const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: Asset[]) =>
@@ -666,6 +676,7 @@ onMounted(async () => {
               @toggle-enabled="handleToggleEnabled"
               @edit-message="handleEditMessage"
               @abort-node="handleAbortNode"
+              @continue="handleContinue"
               @create-branch="handleCreateBranch"
               @analyze-context="handleAnalyzeContext"
               @save-to-branch="handleSaveToBranch"
@@ -703,6 +714,9 @@ onMounted(async () => {
           :is-sending="finalIsSending"
           @send="handleSendMessage"
           @abort="handleAbort"
+          @complete-input="handleCompleteInput"
+          @select-continuation-model="emit('select-continuation-model')"
+          @clear-continuation-model="emit('clear-continuation-model')"
           :style="contentWidthStyle"
         />
       </div>

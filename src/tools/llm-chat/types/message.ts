@@ -265,6 +265,8 @@ export interface ChatMessageNode {
       /** 显示模式：translation=仅译文, both=双语对照 */
       displayMode?: TranslationDisplayMode;
     };
+    /** 是否为续写的前缀消息 */
+    isContinuationPrefix?: boolean;
     /** 是否为压缩/摘要节点 */
     isCompressionNode?: boolean;
     /** 被此节点压缩/隐藏的节点 ID 列表 */

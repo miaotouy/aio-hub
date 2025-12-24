@@ -29,6 +29,7 @@ import {
   BookOpen,
   Columns,
   Database,
+  StepForward,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
 import { useLlmChatStore } from "../../store";
@@ -58,6 +59,7 @@ interface Emits {
   (e: "create-branch"): void;
   (e: "delete"): void;
   (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
+  (e: "continue", options?: { modelId?: string; profileId?: string }): void;
   (e: "toggle-enabled"): void;
   (e: "switch", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
@@ -143,6 +145,56 @@ const handleDelete = async () => {
     // 用户取消，不做任何操作
   }
 };
+const handleContinue = () => {
+  // 检查是否有临时模型
+  const inputManager = useChatInputManager();
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  if (temporaryModel) {
+    emit("continue", {
+      modelId: temporaryModel.modelId,
+      profileId: temporaryModel.profileId,
+    });
+  } else {
+    emit("continue");
+  }
+};
+
+// 切换模型续写
+const handleContinueWithModel = async () => {
+  let currentSelection = null;
+  let targetModelId = props.message.metadata?.modelId;
+  let targetProfileId = props.message.metadata?.profileId;
+
+  if (!targetModelId || !targetProfileId) {
+    if (agentStore.currentAgentId) {
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (agent) {
+        targetModelId = targetModelId || agent.modelId;
+        targetProfileId = targetProfileId || agent.profileId;
+      }
+    }
+  }
+
+  if (targetProfileId && targetModelId) {
+    const profile = getProfileById(targetProfileId);
+    if (profile) {
+      const model = profile.models.find((m) => m.id === targetModelId);
+      if (model) {
+        currentSelection = { profile, model };
+      }
+    }
+  }
+
+  const result = await openModelSelectDialog({ current: currentSelection });
+  if (result) {
+    emit("continue", {
+      modelId: result.model.id,
+      profileId: result.profile.id,
+    });
+  }
+};
+
 const handleRegenerate = () => {
   // 检查是否有临时模型
   const inputManager = useChatInputManager();
@@ -471,6 +523,24 @@ const handleTranslateClick = (e: MouseEvent) => {
         </button>
         <template #dropdown>
           <el-dropdown-menu>
+            <el-dropdown-item
+              v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+              @click="handleContinue"
+            >
+              <div class="dropdown-item-content">
+                <StepForward :size="16" />
+                <span>续写消息</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item
+              v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+              @click="handleContinueWithModel"
+            >
+              <div class="dropdown-item-content">
+                <AtSign :size="16" />
+                <span>选择模型续写</span>
+              </div>
+            </el-dropdown-item>
             <el-dropdown-item
               v-if="props.buttonVisibility.analyzeContext"
               @click="handleAnalyzeContext"
@@ -924,6 +994,11 @@ const handleTranslateClick = (e: MouseEvent) => {
 }
 
 .menu-btn-abort:hover {
+  opacity: 0.8;
+}
+
+.continue-model-icon {
+  transform: scale(0.85);
   opacity: 0.8;
 }
 

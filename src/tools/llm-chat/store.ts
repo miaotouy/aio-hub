@@ -454,6 +454,66 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
+   * 续写消息
+   */
+  async function continueGeneration(
+    nodeId: string,
+    options?: { modelId?: string; profileId?: string }
+  ): Promise<void> {
+    const session = currentSession.value;
+    if (!session) return;
+
+    isSending.value = true;
+    try {
+      const chatHandler = useChatHandler();
+      await chatHandler.continueGeneration(
+        session,
+        nodeId,
+        abortControllers.value,
+        generatingNodes.value,
+        options
+      );
+
+      const sessionManager = useSessionManager();
+      sessionManager.persistSession(session, currentSessionId.value);
+      historyManager.clearHistory();
+    } catch (error) {
+      const sessionManager = useSessionManager();
+      sessionManager.persistSession(session, currentSessionId.value);
+      throw error;
+    } finally {
+      if (generatingNodes.value.size === 0) {
+        isSending.value = false;
+      }
+    }
+  }
+
+  /**
+   * 输入框补全
+   */
+  async function completeInput(
+    content: string,
+    options?: { modelId?: string; profileId?: string }
+  ): Promise<void> {
+    const session = currentSession.value;
+    if (!session) return;
+
+    try {
+      const chatHandler = useChatHandler();
+      const completion = await chatHandler.completeInput(content, session, options);
+      if (completion) {
+        // 将补全内容追加到输入框
+        // 动态导入以避免循环依赖
+        const { useChatInputManager } = await import("./composables/useChatInputManager");
+        const inputManager = useChatInputManager();
+        inputManager.inputText.value += completion;
+      }
+    } catch (error) {
+      logger.error("补全输入失败", error);
+    }
+  }
+
+  /**
    * 从指定节点重新生成（历史断点）
    */
   async function regenerateFromNode(
@@ -561,8 +621,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     try {
       // 动态导入以避免潜在的循环依赖
-      const { useChatHandler } = await import("./composables/useChatHandler");
-      const { getLlmContextForPreview } = useChatHandler();
+      const { useChatHandler: useChatHandlerInternal } = await import("./composables/useChatHandler");
+      const { getLlmContextForPreview } = useChatHandlerInternal();
 
       const previewData = await getLlmContextForPreview(
         session,
@@ -674,6 +734,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sendMessage,
     regenerateFromNode,
     regenerateLastMessage,
+    continueGeneration,
+    completeInput,
     abortSending,
     abortNodeGeneration,
 

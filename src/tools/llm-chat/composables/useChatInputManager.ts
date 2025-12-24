@@ -43,6 +43,7 @@ interface ChatInputDraft {
   text: string;
   attachments: Asset[];
   temporaryModel?: ModelIdentifier | null;
+  continuationModel?: ModelIdentifier | null;
   timestamp: number;
 }
 
@@ -54,16 +55,20 @@ class ChatInputManager {
   public inputText: Ref<string> = ref("");
   // 临时指定的模型
   public temporaryModel: Ref<ModelIdentifier | null> = ref(null);
+  // 续写指定的模型
+  public continuationModel: Ref<ModelIdentifier | null> = ref(null);
 
   // 用于跨窗口同步的状态对象（可写的 ref）
   public syncState: Ref<{
     text: string;
     attachments: Asset[];
     temporaryModel: ModelIdentifier | null;
+    continuationModel: ModelIdentifier | null;
   }> = ref({
     text: "",
     attachments: [],
     temporaryModel: null,
+    continuationModel: null,
   });
 
   // 附件管理器实例
@@ -86,7 +91,8 @@ class ChatInputManager {
     text: string;
     attachments: Asset[];
     temporaryModel: ModelIdentifier | null;
-  } = { text: "", attachments: [], temporaryModel: null };
+    continuationModel: ModelIdentifier | null;
+  } = { text: "", attachments: [], temporaryModel: null, continuationModel: null };
 
   // 防抖推送计时器
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -110,11 +116,13 @@ class ChatInputManager {
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
+      continuationModel: this.continuationModel.value,
     };
     this.lastSyncedValue = {
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
       temporaryModel: this.temporaryModel.value,
+      continuationModel: this.continuationModel.value,
     };
 
     // 监听输入框文本变化，同步到 syncState（用于跨窗口同步）
@@ -160,6 +168,18 @@ class ChatInputManager {
       this.debouncedSaveToStorage();
     });
 
+    // 监听续写模型变化
+    watch(this.continuationModel, (newModel) => {
+      if (!this.isApplyingSyncState) {
+        this.syncState.value = {
+          ...this.syncState.value,
+          continuationModel: newModel,
+        };
+        this.debouncedPushState();
+      }
+      this.debouncedSaveToStorage();
+    });
+
     // 监听 syncState 变化，同步回 inputText 和附件（来自其他窗口的更新）
     watch(
       this.syncState,
@@ -190,6 +210,12 @@ class ChatInputManager {
         if (JSON.stringify(newState.temporaryModel) !== JSON.stringify(this.temporaryModel.value)) {
           this.temporaryModel.value = newState.temporaryModel;
           logger.debug("从同步状态更新临时模型", { model: newState.temporaryModel });
+        }
+
+        // 同步续写模型
+        if (JSON.stringify(newState.continuationModel) !== JSON.stringify(this.continuationModel.value)) {
+          this.continuationModel.value = newState.continuationModel;
+          logger.debug("从同步状态更新续写模型", { model: newState.continuationModel });
         }
 
         this.isApplyingSyncState = false;
@@ -321,6 +347,7 @@ class ChatInputManager {
         const draft: ChatInputDraft = JSON.parse(stored);
         this.inputText.value = draft.text || "";
         this.temporaryModel.value = draft.temporaryModel || null;
+        this.continuationModel.value = draft.continuationModel || null;
 
         // 恢复附件列表
         if (draft.attachments && Array.isArray(draft.attachments)) {
@@ -365,6 +392,7 @@ class ChatInputManager {
         text: this.inputText.value,
         attachments: [...this.attachmentManager.attachments.value],
         temporaryModel: this.temporaryModel.value,
+        continuationModel: this.continuationModel.value,
         timestamp: Date.now(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
@@ -477,6 +505,15 @@ class ChatInputManager {
   clearTemporaryModel(): void {
     this.temporaryModel.value = null;
   }
+
+  // ========== 续写模型操作 ==========
+  setContinuationModel(modelIdentifier: ModelIdentifier | null): void {
+    this.continuationModel.value = modelIdentifier;
+  }
+
+  clearContinuationModel(): void {
+    this.continuationModel.value = null;
+  }
 }
 
 /**
@@ -499,6 +536,8 @@ export function useChatInputManager() {
     inputText: manager.inputText,
     /** 临时指定的模型 */
     temporaryModel: manager.temporaryModel,
+    /** 续写指定的模型 */
+    continuationModel: manager.continuationModel,
 
     // ========== 附件管理 ==========
     /** 附件列表（只读） */
@@ -541,6 +580,12 @@ export function useChatInputManager() {
     setTemporaryModel: manager.setTemporaryModel.bind(manager),
     /** 清除临时模型 */
     clearTemporaryModel: manager.clearTemporaryModel.bind(manager),
+
+    // ========== 续写模型操作 ==========
+    /** 设置续写模型 */
+    setContinuationModel: manager.setContinuationModel.bind(manager),
+    /** 清除续写模型 */
+    clearContinuationModel: manager.clearContinuationModel.bind(manager),
 
     // 暴露给 useLlmChatSync 用于手动触发推送
     pushState: manager.pushState.bind(manager),

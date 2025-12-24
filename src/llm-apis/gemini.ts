@@ -1,5 +1,5 @@
 import type { LlmProfile } from "../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse, LlmMessageContent } from "./common";
+import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "./common";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
@@ -296,7 +296,7 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
  * 注意：system 消息会被单独提取到 systemInstruction，不包含在 contents 中
  */
 function buildGeminiContents(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string | LlmMessageContent[] }>
+  messages: LlmMessage[]
 ): GeminiContent[] {
   const contents: GeminiContent[] = [];
 

@@ -11,7 +11,7 @@ import {
   Menu,
   FolderOpened,
 } from '@element-plus/icons-vue';
-import { Braces, FlaskConical, Pipette } from 'lucide-vue-next';
+import { Braces, FlaskConical, Pipette, Layers } from 'lucide-vue-next';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
 import RichTextRendererIcon from '../components/icons/RichTextRendererIcon.vue';
@@ -170,6 +170,14 @@ const initialTools: ToolConfig[] = [
     icon: markRaw(TokenCalculatorIcon),
     component: () => import('../tools/token-calculator/TokenCalculator.vue'),
     description: '计算文本的 Token 数量，支持多种 LLM 分词器',
+    category: '开发工具'
+  },
+  {
+    name: 'Embedding 测试',
+    path: '/embedding-playground',
+    icon: markRaw(Layers),
+    component: () => import('../tools/embedding-playground/EmbeddingPlayground.vue'),
+    description: 'Embedding API 调试工具，支持相似度对比和语义检索模拟',
     category: '开发工具'
   },
   {

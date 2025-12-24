@@ -19,7 +19,7 @@ import {
   Mic,
   Video,
   Music,
-  Network,
+  Layers,
   ListOrdered,
   Monitor,
   FileText,
@@ -199,7 +199,7 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     key: "embedding",
     label: "嵌入",
     description: "支持生成文本嵌入向量 (Embedding)",
-    icon: markRaw(Network),
+    icon: markRaw(Layers),
     color: "#64748b", // Slate 500 - 稳重的底层数据
     className: "embedding",
   },

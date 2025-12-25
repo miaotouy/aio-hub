@@ -5,10 +5,13 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
 import { useAgentStore } from "../../agentStore";
+import { useWorldbookStore } from "../../worldbookStore";
+import { normalizeWorldbook } from "../../services/worldbookImportService";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import jsYaml from "js-yaml";
 import { invoke } from "@tauri-apps/api/core";
+import { isEqual } from "lodash-es";
 
 const logger = createModuleLogger("llm-chat/AgentUpgradeDialog");
 const errorHandler = createModuleErrorHandler("llm-chat/AgentUpgradeDialog");
@@ -24,12 +27,15 @@ const emit = defineEmits<{
 }>();
 
 const agentStore = useAgentStore();
+const worldbookStore = useWorldbookStore();
 
 // 状态
 const importText = ref("");
 const upgradeStrategy = ref<"merge" | "overwrite">("merge");
 const parsedConfig = ref<Partial<ChatAgent> | null>(null);
 const parsedAssets = ref<Record<string, ArrayBuffer>>({});
+const parsedBundledWorldbooks = ref<any[]>([]);
+const parsedEmbeddedWorldbook = ref<any>(null);
 const parseError = ref<string | null>(null);
 const isDragging = ref(false);
 const isParsing = ref(false);
@@ -93,10 +99,16 @@ const handleFileUpload = async (file: File) => {
       const firstAgent = result.agents[0];
       parsedConfig.value = firstAgent;
       // 从按 ID 隔离的资产桶中提取资产
-      parsedAssets.value = result.assets[firstAgent.id || ''] || {};
+      const tempId = firstAgent.id || "";
+      parsedAssets.value = result.assets[tempId] || {};
+      parsedBundledWorldbooks.value = result.bundledWorldbooks?.[tempId] || [];
+      parsedEmbeddedWorldbook.value = result.embeddedWorldbooks?.[tempId] || null;
+
       logger.debug("文件解析成功", {
         agentName: firstAgent.name,
         assetCount: Object.keys(parsedAssets.value).length,
+        bundledWbCount: parsedBundledWorldbooks.value.length,
+        hasEmbeddedWb: !!parsedEmbeddedWorldbook.value,
       });
     } else {
       throw new Error("未在文件中找到有效的智能体配置");
@@ -126,6 +138,18 @@ const onDrop = (e: DragEvent) => {
   }
 };
 
+// 辅助函数：查找内容完全一致的现有世界书 (参考自 agentImportService)
+const findDuplicateWorldbook = async (content: any, name: string): Promise<string | null> => {
+  const candidates = worldbookStore.worldbooks.filter((wb) => wb.name === name);
+  for (const candidate of candidates) {
+    const existingContent = await worldbookStore.getWorldbookContent(candidate.id);
+    if (existingContent && isEqual(existingContent.entries, content.entries)) {
+      return candidate.id;
+    }
+  }
+  return null;
+};
+
 // 执行升级
 const handleConfirm = async () => {
   if (!parsedConfig.value) return;
@@ -133,6 +157,41 @@ const handleConfirm = async () => {
   try {
     const currentAgent = props.agent;
     const newConfig = parsedConfig.value;
+    const agentName = newConfig.displayName || newConfig.name || currentAgent.name;
+
+    // 1. 处理世界书导入
+    const importedWorldbookIds: string[] = [];
+
+    // 处理嵌入的世界书
+    if (parsedEmbeddedWorldbook.value) {
+      const wb = parsedEmbeddedWorldbook.value;
+      const wbName = wb.metadata?.name || `${agentName} 的世界书`;
+      const normalizedWb = normalizeWorldbook(wb);
+      const existingId = await findDuplicateWorldbook(normalizedWb, wbName);
+      if (existingId) {
+        importedWorldbookIds.push(existingId);
+      } else {
+        const wbId = await worldbookStore.importWorldbook(wbName, normalizedWb);
+        importedWorldbookIds.push(wbId);
+      }
+    }
+
+    // 处理随包打包的世界书
+    if (parsedBundledWorldbooks.value.length > 0) {
+      for (const bundled of parsedBundledWorldbooks.value) {
+        if (bundled.content) {
+          const existingId = await findDuplicateWorldbook(bundled.content, bundled.name);
+          if (existingId) {
+            importedWorldbookIds.push(existingId);
+          } else {
+            const wbId = await worldbookStore.importWorldbook(bundled.name, bundled.content);
+            importedWorldbookIds.push(wbId);
+          }
+        }
+      }
+    }
+
+    // 2. 准备更新数据
     let updatedData: Partial<ChatAgent> = {};
 
     if (upgradeStrategy.value === "merge") {
@@ -148,6 +207,20 @@ const handleConfirm = async () => {
         regexConfig: newConfig.regexConfig ?? currentAgent.regexConfig,
         interactionConfig: newConfig.interactionConfig ?? currentAgent.interactionConfig,
         virtualTimeConfig: newConfig.virtualTimeConfig ?? currentAgent.virtualTimeConfig,
+        // 世界书引用处理：合并导入的 ID 和配置中的 ID
+        worldbookIds: Array.from(
+          new Set([
+            ...(currentAgent.worldbookIds || []),
+            ...(newConfig.worldbookIds || []),
+            ...importedWorldbookIds,
+          ])
+        ),
+        // 世界书设置处理
+        worldbookSettings: newConfig.worldbookSettings ?? currentAgent.worldbookSettings,
+        // 资产分组定义处理
+        assetGroups: newConfig.assetGroups ?? currentAgent.assetGroups,
+        // 资产列表定义处理
+        assets: newConfig.assets ?? currentAgent.assets,
         // 合并标签
         tags: Array.from(new Set([...(currentAgent.tags || []), ...(newConfig.tags || [])])),
       };
@@ -157,6 +230,10 @@ const handleConfirm = async () => {
       const { id, createdAt, lastUsedAt, ...rest } = newConfig as any;
       updatedData = {
         ...rest,
+        // 替换模式下，世界书也以导入的为准
+        worldbookIds: Array.from(
+          new Set([...(newConfig.worldbookIds || []), ...importedWorldbookIds])
+        ),
       };
     }
 
@@ -169,13 +246,18 @@ const handleConfirm = async () => {
       logger.info("开始升级智能体资产", { count: assetEntries.length });
       for (const [path, buffer] of assetEntries) {
         // 提取路径结构
-        const rawRelativePath = path.replace(/^assets[/\\]/, '');
+        const rawRelativePath = path.replace(/^assets[/\\]/, "");
         const pathParts = rawRelativePath.split(/[/\\]/);
-        const filename = pathParts.pop() || 'file';
-        const relativeSubDir = pathParts.join('/');
+        const filename = pathParts.pop() || "file";
+        const relativeSubDir = pathParts.join("/");
 
         // 保持子目录结构存储
-        const subdirectory = `llm-chat/agents/${currentAgent.id}/${relativeSubDir}`.replace(/\/+$/, '');
+        // 注意：parsedAssets 仅包含 assets/ 路径下的文件，不含 worldbooks/
+        // 世界书的持久化已由 worldbookStore.importWorldbook 处理
+        const subdirectory = `llm-chat/agents/${currentAgent.id}/${relativeSubDir}`.replace(
+          /\/+$/,
+          ""
+        );
 
         await invoke("save_uploaded_file", {
           fileData: Array.from(new Uint8Array(buffer)),
@@ -188,6 +270,10 @@ const handleConfirm = async () => {
           const finalIconPath = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
           agentStore.updateAgent(currentAgent.id, { icon: finalIconPath });
         }
+
+        // 如果是世界书资产，确保路径正确（通常在 worldbook/ 目录下）
+        // 这里的逻辑已经由上面的 invoke("save_uploaded_file") 处理了全量保存
+        // 只要 relativeSubDir 包含 worldbook，它就会被存入正确位置
       }
     }
 
@@ -219,6 +305,8 @@ const previewInfo = computed(() => {
     hasRules: !!c.llmThinkRules?.length,
     hasRegex: !!c.regexConfig?.presets?.some((p) => p.rules?.length > 0),
     hasIcon: !!c.icon,
+    worldbookCount: c.worldbookIds?.length || 0,
+    assetCount: c.assets?.length || 0,
   };
 });
 </script>
@@ -282,6 +370,12 @@ const previewInfo = computed(() => {
           <div class="preview-item">
             <span class="p-label">思考规则:</span>
             <span class="p-value">{{ previewInfo.hasRules ? "是" : "否" }}</span>
+          </div>
+          <div class="preview-item">
+            <span class="p-label">世界书引用:</span>
+            <span class="p-value">{{
+              previewInfo.worldbookCount > 0 ? `${previewInfo.worldbookCount} 个` : "无"
+            }}</span>
           </div>
           <div class="preview-item">
             <span class="p-label">私有资产:</span>

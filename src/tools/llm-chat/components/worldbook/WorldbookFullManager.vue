@@ -13,19 +13,36 @@ import {
   ChevronRight,
   Pencil,
   Copy,
+  CheckSquare,
+  X,
 } from "lucide-vue-next";
 import DropZone from "@/components/common/DropZone.vue";
 import WorldbookDetail from "./WorldbookDetail.vue";
 import { useElementSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 const worldbookStore = useWorldbookStore();
 const selectedWbId = ref<string | null>(null);
+const isSelectionMode = ref(false);
+const selectedIds = ref<Set<string>>(new Set());
 const containerRef = ref<HTMLElement | null>(null);
 const { width } = useElementSize(containerRef);
 
 // 考虑到内部还有一层条目列表，外层阈值需要提高
 const isWide = computed(() => width.value > 1280);
+
+const allSelected = computed(() => {
+  return (
+    worldbookStore.worldbooks.length > 0 &&
+    selectedIds.value.size === worldbookStore.worldbooks.length
+  );
+});
+
+const isIndeterminate = computed(() => {
+  return selectedIds.value.size > 0 && selectedIds.value.size < worldbookStore.worldbooks.length;
+});
 
 onMounted(async () => {
   await worldbookStore.loadWorldbooks();
@@ -160,55 +177,178 @@ const handleExport = async () => {
     customMessage.error("导出失败");
   }
 };
+
+// --- 批量操作逻辑 ---
+
+const toggleSelectionMode = () => {
+  isSelectionMode.value = !isSelectionMode.value;
+  selectedIds.value.clear();
+  if (!isSelectionMode.value && worldbookStore.worldbooks.length > 0 && !selectedWbId.value) {
+    // 退出选择模式时，如果没有选中项，默认选中第一个
+    selectedWbId.value = worldbookStore.worldbooks[0].id;
+  }
+};
+
+const toggleSelection = (id: string) => {
+  if (selectedIds.value.has(id)) {
+    selectedIds.value.delete(id);
+  } else {
+    selectedIds.value.add(id);
+  }
+};
+
+const handleSelectAll = (val: any) => {
+  if (val) {
+    worldbookStore.worldbooks.forEach((wb) => selectedIds.value.add(wb.id));
+  } else {
+    selectedIds.value.clear();
+  }
+};
+
+const handleBatchDelete = async () => {
+  if (selectedIds.value.size === 0) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedIds.value.size} 本世界书吗？此操作不可恢复。`,
+      "批量删除",
+      {
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
+
+    const idsToDelete = Array.from(selectedIds.value);
+    await worldbookStore.deleteWorldbooks(idsToDelete);
+
+    selectedIds.value.clear();
+    customMessage.success("批量删除成功");
+
+    // 如果当前选中的被删除了，重置
+    if (selectedWbId.value && idsToDelete.includes(selectedWbId.value)) {
+      selectedWbId.value =
+        worldbookStore.worldbooks.length > 0 ? worldbookStore.worldbooks[0].id : null;
+    }
+  } catch (error) {
+    // 取消或失败
+  }
+};
+
+const handleBatchExport = async () => {
+  if (selectedIds.value.size === 0) return;
+  const loading = customMessage.info({
+    message: "正在准备导出...",
+    duration: 0,
+  });
+
+  try {
+    const zip = new JSZip();
+    const ids = Array.from(selectedIds.value);
+    let successCount = 0;
+
+    for (const id of ids) {
+      const wbMeta = worldbookStore.worldbooks.find((w) => w.id === id);
+      if (!wbMeta) continue;
+
+      const content = await worldbookStore.getWorldbookContent(id);
+      if (content) {
+        // 处理文件名非法字符
+        const safeName = wbMeta.name.replace(/[\\/:*?"<>|]/g, "_");
+        zip.file(`${safeName}.json`, JSON.stringify(content, null, 2));
+        successCount++;
+      }
+    }
+
+    if (successCount === 0) {
+      throw new Error("没有可导出的内容");
+    }
+
+    const content = await zip.generateAsync({ type: "blob" });
+    const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
+    saveAs(content, `worldbooks_export_${dateStr}.zip`);
+
+    loading.close();
+    customMessage.success(`成功导出 ${successCount} 本世界书`);
+    isSelectionMode.value = false;
+    selectedIds.value.clear();
+  } catch (error) {
+    loading.close();
+    customMessage.error("批量导出失败");
+    console.error(error);
+  }
+};
 </script>
 
 <template>
   <div class="worldbook-full-manager" ref="containerRef" :class="{ 'is-narrow': !isWide }">
-    <!-- 窄屏模式：顶部下拉选择 -->
-    <div v-if="!isWide" class="manager-header">
-      <div class="selector-section">
-        <el-select
-          v-model="selectedWbId"
-          placeholder="切换世界书..."
-          class="wb-selector"
-          filterable
-        >
-          <template #prefix>
-            <el-icon><Book /></el-icon>
-          </template>
-          <el-option
-            v-for="wb in worldbookStore.worldbooks"
-            :key="wb.id"
-            :label="wb.name"
-            :value="wb.id"
-          />
-        </el-select>
-      </div>
-
-      <div class="actions-section">
-        <el-button-group>
-          <el-tooltip content="新建世界书" placement="top">
-            <el-button :icon="Plus" @click="handleCreate" />
-          </el-tooltip>
-          <el-tooltip content="导入世界书" placement="top">
-            <el-button :icon="Upload" @click="handleImport" />
-          </el-tooltip>
-          <el-tooltip content="重命名" placement="top">
-            <el-button :icon="Pencil" :disabled="!selectedWbId" @click="handleRename" />
-          </el-tooltip>
-          <el-tooltip content="克隆" placement="top">
-            <el-button :icon="Copy" :disabled="!selectedWbId" @click="handleDuplicate" />
-          </el-tooltip>
-          <el-tooltip content="导出当前世界书" placement="top">
-            <el-button :icon="Download" :disabled="!selectedWbId" @click="handleExport" />
-          </el-tooltip>
-          <el-popconfirm title="确定删除当前世界书吗？" @confirm="handleDelete">
-            <template #reference>
-              <el-button :icon="Trash2" plain :disabled="!selectedWbId" />
+    <!-- 顶部操作栏 -->
+    <div class="manager-header" :class="{ 'selection-mode': isSelectionMode }">
+      <!-- 正常模式 -->
+      <template v-if="!isSelectionMode">
+        <div v-if="!isWide" class="selector-section">
+          <el-select
+            v-model="selectedWbId"
+            placeholder="切换世界书..."
+            class="wb-selector"
+            filterable
+          >
+            <template #prefix>
+              <el-icon><Book /></el-icon>
             </template>
-          </el-popconfirm>
-        </el-button-group>
-      </div>
+            <el-option
+              v-for="wb in worldbookStore.worldbooks"
+              :key="wb.id"
+              :label="wb.name"
+              :value="wb.id"
+            />
+          </el-select>
+        </div>
+        <div v-else class="header-title">
+          <Book :size="20" />
+          <span>世界书管理</span>
+        </div>
+
+        <div class="actions-section">
+          <el-button-group>
+            <el-button :icon="CheckSquare" @click="toggleSelectionMode">批量管理</el-button>
+            <el-button :icon="Plus" @click="handleCreate">新建</el-button>
+            <el-button :icon="Upload" @click="handleImport">导入</el-button>
+          </el-button-group>
+        </div>
+      </template>
+
+      <!-- 批量模式：显示统一的操作条 -->
+      <template v-else>
+        <div class="batch-bar">
+          <div class="batch-info">
+            <el-checkbox
+              :model-value="allSelected"
+              :indeterminate="isIndeterminate"
+              @change="handleSelectAll"
+            >
+              全选
+            </el-checkbox>
+            <span class="count">已选 {{ selectedIds.size }} 项</span>
+          </div>
+          <div class="batch-ops">
+            <el-button
+              :icon="Download"
+              :disabled="selectedIds.size === 0"
+              @click="handleBatchExport"
+              >导出</el-button
+            >
+            <el-button
+              :icon="Trash2"
+              type="danger"
+              plain
+              :disabled="selectedIds.size === 0"
+              @click="handleBatchDelete"
+              >删除</el-button
+            >
+            <el-button :icon="X" @click="toggleSelectionMode">退出</el-button>
+          </div>
+        </div>
+      </template>
     </div>
 
     <div class="manager-content">
@@ -216,7 +356,6 @@ const handleExport = async () => {
       <aside v-if="isWide" class="wb-list-sidebar">
         <div class="sidebar-top">
           <span class="title">世界书仓库</span>
-          <el-button :icon="Plus" circle size="small" @click="handleCreate" title="新建世界书" />
         </div>
 
         <div class="wb-items custom-scrollbar">
@@ -224,17 +363,28 @@ const handleExport = async () => {
             v-for="wb in worldbookStore.worldbooks"
             :key="wb.id"
             class="wb-item"
-            :class="{ active: selectedWbId === wb.id }"
-            @click="selectedWbId = wb.id"
+            :class="{
+              active: !isSelectionMode && selectedWbId === wb.id,
+              'is-selecting': isSelectionMode,
+            }"
+            @click="isSelectionMode ? toggleSelection(wb.id) : (selectedWbId = wb.id)"
           >
-            <div class="wb-item-icon">
+            <div class="wb-item-icon" v-if="!isSelectionMode">
               <FileJson :size="18" />
             </div>
+            <div class="wb-checkbox" v-else>
+              <el-checkbox
+                :model-value="selectedIds.has(wb.id)"
+                @change="toggleSelection(wb.id)"
+                @click.stop
+              />
+            </div>
+
             <div class="wb-item-info">
               <div class="wb-name">{{ wb.name }}</div>
               <div class="wb-meta">{{ wb.entryCount }} 个条目</div>
             </div>
-            <ChevronRight class="arrow" :size="16" />
+            <ChevronRight v-if="!isSelectionMode" class="arrow" :size="16" />
           </div>
 
           <div v-if="worldbookStore.worldbooks.length === 0" class="empty-state">
@@ -242,7 +392,8 @@ const handleExport = async () => {
           </div>
         </div>
 
-        <div class="sidebar-footer" v-if="selectedWbId">
+        <!-- 单个操作栏 -->
+        <div class="sidebar-footer" v-if="!isSelectionMode && selectedWbId">
           <el-button-group class="full-width">
             <el-button :icon="Pencil" @click="handleRename" title="重命名" />
             <el-button :icon="Copy" @click="handleDuplicate" title="克隆" />
@@ -256,8 +407,33 @@ const handleExport = async () => {
         </div>
       </aside>
 
-      <!-- 主体内容区 -->
-      <main class="manager-main">
+      <!-- 窄屏批量模式：显示列表 -->
+      <div v-if="!isWide && isSelectionMode" class="narrow-selection-list custom-scrollbar">
+        <div
+          v-for="wb in worldbookStore.worldbooks"
+          :key="wb.id"
+          class="wb-item"
+          @click="toggleSelection(wb.id)"
+        >
+          <div class="wb-checkbox">
+            <el-checkbox
+              :model-value="selectedIds.has(wb.id)"
+              @change="toggleSelection(wb.id)"
+              @click.stop
+            />
+          </div>
+          <div class="wb-item-info">
+            <div class="wb-name">{{ wb.name }}</div>
+            <div class="wb-meta">{{ wb.entryCount }} 个条目</div>
+          </div>
+        </div>
+        <div v-if="worldbookStore.worldbooks.length === 0" class="empty-state">
+          <span>暂无世界书</span>
+        </div>
+      </div>
+
+      <!-- 主体内容区（非批量模式或宽屏时显示） -->
+      <main v-if="!isSelectionMode || isWide" class="manager-main">
         <DropZone
           v-if="!selectedWbId"
           @files-dropped="handleFilesDrop"
@@ -299,6 +475,43 @@ const handleExport = async () => {
   background-color: var(--sidebar-bg);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  gap: 16px;
+}
+
+.manager-header.selection-mode {
+  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.batch-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.batch-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.batch-info .count {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+}
+
+.batch-ops {
+  display: flex;
+  gap: 8px;
 }
 
 .manager-content {
@@ -362,6 +575,13 @@ const handleExport = async () => {
 
 .wb-item.active .wb-item-icon {
   color: var(--el-color-primary);
+}
+
+.wb-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
 }
 
 .wb-item-info {
@@ -439,6 +659,31 @@ const handleExport = async () => {
 .empty-state {
   padding: 20px;
   text-align: center;
+}
+
+/* 窄屏批量选择列表 */
+.narrow-selection-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.narrow-selection-list .wb-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+  gap: 12px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+}
+
+.narrow-selection-list .wb-item:hover {
+  background-color: var(--el-fill-color-light);
+  border-color: color-mix(in srgb, var(--el-color-primary), transparent 50%);
 }
 
 /* Custom Scrollbar */

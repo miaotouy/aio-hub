@@ -210,6 +210,32 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
       } catch (error) {
         errorHandler.handle(error as Error, { userMessage: "删除世界书失败" });
       }
+    },
+
+    /**
+     * 批量删除世界书
+     */
+    async deleteWorldbooks(ids: string[]) {
+      try {
+        const storage = useWorldbookStorageSeparated();
+        
+        // 1. 并行删除物理文件
+        await Promise.all(ids.map(id => storage.deleteWorldbookFile(id)));
+
+        // 2. 更新内存状态
+        const idSet = new Set(ids);
+        this.worldbooks = this.worldbooks.filter(wb => !idSet.has(wb.id));
+        ids.forEach(id => this.loadedWorldbooks.delete(id));
+
+        // 3. 更新索引 (只写一次)
+        const index = await storage.loadIndex();
+        index.worldbooks = this.worldbooks;
+        await storage.saveIndex(index);
+
+        logger.info("批量删除世界书成功", { count: ids.length });
+      } catch (error) {
+        errorHandler.handle(error as Error, { userMessage: "批量删除世界书失败" });
+      }
     }
   }
 });

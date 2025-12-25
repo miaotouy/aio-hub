@@ -195,6 +195,7 @@
 项目主要在 `src/components/common/` 目录下（部分位于 `src/components/` 或 `src/tools/`）封装了一系列可复用的通用组件，详细使用方法请参考各组件的示例文档：
 
 - **BaseDialog** - 解决 Element Plus Dialog 样式问题的干净对话框组件，支持精确高度控制和 bare 模式。
+  - **尺寸准则**: 对于功能性表单或管理界面，应优先使用响应式尺寸（如 `width="90%"` 或 `width="1200px"`），高度建议设为 `height="80vh"` 或以上，确保内容展示充分。
 - **DraggablePanel** - 通用悬浮面板组件，支持拖拽移动、调整大小、最小化、视口自动吸附和状态持久化。
 - **Avatar** - 通用头像组件，自动识别图片/Emoji/文字，支持 `appdata://` 路径，支持名字首字回退。
 - **AvatarSelector** - 高级头像选择器（暂时只支持chat相关的头像选择），支持预设图标、本地图片引用、图片上传（自动存入 AppData）和历史记录管理。

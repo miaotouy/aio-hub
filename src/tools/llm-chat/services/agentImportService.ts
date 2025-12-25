@@ -9,8 +9,10 @@ import type {
   ConfirmImportParams,
 } from '../types/agentImportExport';
 import { AgentCategory, AgentCategoryLabels } from '../types';
+import { STWorldbook } from '../types/worldbook';
 import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from './sillyTavernParser';
 import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
+import { useWorldbookStore } from '../worldbookStore';
 import { invoke } from '@tauri-apps/api/core';
 import { useAgentStore } from '../agentStore';
 import { useChatSettings } from '../composables/useChatSettings';
@@ -43,6 +45,7 @@ export async function preflightImportAgents(
 
     const combinedAgents: ExportableAgent[] = [];
     const combinedAssets: Record<string, Record<string, ArrayBuffer>> = {};
+    const combinedWorldbooks: Record<string, STWorldbook> = {};
 
     // 辅助函数：解析单个文件
     const parseFile = async (file: File) => {
@@ -113,6 +116,12 @@ export async function preflightImportAgents(
             type: 'AIO_Agent_Export',
             agents: [exportableAgent],
           };
+
+          // 提取嵌入的世界书
+          const characterBook = jsonData.character_book || jsonData.data?.character_book;
+          if (characterBook && characterBook.entries) {
+            (exportableAgent as any)._tempWorldbook = characterBook;
+          }
         } else {
           agentExportFile = jsonData;
         }
@@ -181,6 +190,12 @@ export async function preflightImportAgents(
             type: 'AIO_Agent_Export',
             agents: [exportableAgent],
           };
+
+          // 提取嵌入的世界书
+          const characterBook = jsonData.character_book || jsonData.data?.character_book;
+          if (characterBook && characterBook.entries) {
+            (exportableAgent as any)._tempWorldbook = characterBook;
+          }
         } else {
           throw new Error(`无法从 PNG 文件 ${file.name} 中解析出支持的格式 (AIO Bundle 或 SillyTavern)。`);
         }
@@ -204,6 +219,12 @@ export async function preflightImportAgents(
 
         if (!agent.modelId && defaultModelId) {
           agent.modelId = defaultModelId;
+        }
+
+        // 处理暂存的世界书
+        if ((agent as any)._tempWorldbook) {
+          combinedWorldbooks[tempId] = (agent as any)._tempWorldbook;
+          delete (agent as any)._tempWorldbook;
         }
 
         combinedAgents.push(agent);
@@ -252,6 +273,7 @@ export async function preflightImportAgents(
     const result: AgentImportPreflightResult = {
       agents: combinedAgents,
       assets: combinedAssets,
+      embeddedWorldbooks: combinedWorldbooks,
       nameConflicts,
       unmatchedModels,
     };
@@ -272,8 +294,9 @@ export async function preflightImportAgents(
  * 提交导入请求，处理资产并持久化 Agent
  */
 export async function commitImportAgents(params: ConfirmImportParams): Promise<void> {
-  const { resolvedAgents, assets: allAssets } = params;
+  const { resolvedAgents, assets: allAssets, embeddedWorldbooks = {} } = params;
   const agentStore = useAgentStore();
+  const worldbookStore = useWorldbookStore();
   logger.info('开始提交导入', { agentCount: resolvedAgents.length });
 
   for (const resolvedAgent of resolvedAgents) {
@@ -367,11 +390,20 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
       const cleanRestOptions = JSON.parse(JSON.stringify(restOptions));
       clearAssetRefs(cleanRestOptions);
 
+      // 处理嵌入的世界书
+      const worldbookContent = embeddedWorldbooks[resolvedAgent.id || ''];
+      let importedWorldbookId: string | undefined;
+      if (worldbookContent) {
+        const wbName = worldbookContent.metadata?.name || `${agentName} 的世界书`;
+        importedWorldbookId = await worldbookStore.importWorldbook(wbName, worldbookContent);
+      }
+
       const agentOptions = {
         ...cleanRestOptions,
         icon: (originalIcon?.startsWith('assets/')) ? undefined : originalIcon,
         assets: originalAssets?.filter(a => !a.path.startsWith('assets/')),
         category: validCategory,
+        worldbookIds: importedWorldbookId ? [importedWorldbookId] : resolvedAgent.worldbookIds,
       };
 
       let finalAgentId: string;

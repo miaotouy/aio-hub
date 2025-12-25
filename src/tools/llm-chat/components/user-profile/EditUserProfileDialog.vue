@@ -75,6 +75,7 @@ watch(
         richTextStyleOptions: profile.richTextStyleOptions ?? defaults.richTextStyleOptions,
         richTextStyleBehavior: profile.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
         regexConfig: profile.regexConfig ?? defaults.regexConfig,
+        worldbookIds: profile.worldbookIds ?? defaults.worldbookIds ?? [],
       };
     }
   },

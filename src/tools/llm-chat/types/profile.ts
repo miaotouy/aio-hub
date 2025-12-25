@@ -64,6 +64,11 @@ export interface UserProfile {
    * 用于对消息内容进行动态清洗、格式转换等
    */
   regexConfig?: import('./chatRegex').ChatRegexConfig;
+
+  /**
+   * 关联的世界书 ID 列表
+   */
+  worldbookIds?: string[];
 }
 
 /**
@@ -91,4 +96,5 @@ export const createDefaultUserProfileConfig = (): UserProfileEditData => ({
   richTextStyleOptions: {},
   richTextStyleBehavior: "follow_agent",
   regexConfig: { presets: [] },
+  worldbookIds: [],
 });

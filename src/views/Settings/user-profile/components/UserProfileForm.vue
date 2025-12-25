@@ -53,6 +53,19 @@
       <div class="form-hint">此描述将作为用户角色在对话中的身份信息</div>
     </el-form-item>
 
+    <el-form-item label="关联世界书">
+      <WorldbookSelector
+        :model-value="formData.worldbookIds || []"
+        @update:model-value="
+          (val) => {
+            formData.worldbookIds = val;
+            handleInput();
+          }
+        "
+      />
+      <div class="form-hint">关联世界书后，当对话中出现关键字时，将自动注入对应设定。</div>
+    </el-form-item>
+
     <el-divider />
 
     <el-form-item label="消息样式">
@@ -117,6 +130,7 @@
 <script setup lang="ts">
 import { ref, watch, defineAsyncComponent } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
+import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types";
@@ -139,6 +153,7 @@ interface UserProfileFormData {
   richTextStyleOptions?: RichTextRendererStyleOptions;
   richTextStyleBehavior?: "follow_agent" | "custom";
   regexConfig?: ChatRegexConfig;
+  worldbookIds?: string[];
 }
 
 interface Props {
@@ -183,6 +198,7 @@ const formData = ref<UserProfileFormData>({
   richTextStyleBehavior: props.modelValue.richTextStyleBehavior || "follow_agent",
   richTextStyleOptions: props.modelValue.richTextStyleOptions || {},
   regexConfig: props.modelValue.regexConfig || { presets: [] },
+  worldbookIds: props.modelValue.worldbookIds || [],
 });
 
 const styleLoading = ref(false);
@@ -196,6 +212,7 @@ watch(
       richTextStyleBehavior: newValue.richTextStyleBehavior || "follow_agent",
       richTextStyleOptions: newValue.richTextStyleOptions || {},
       regexConfig: newValue.regexConfig || { presets: [] },
+      worldbookIds: newValue.worldbookIds || [],
     };
   },
   { deep: true }

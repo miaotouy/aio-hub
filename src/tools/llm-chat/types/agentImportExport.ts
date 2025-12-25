@@ -27,6 +27,7 @@ export interface ExportableAgent {
   regexConfig?: import('./chatRegex').ChatRegexConfig;
   assetGroups?: AssetGroup[];
   assets?: AgentAsset[];
+  worldbookIds?: string[];
 }
 
 /**
@@ -46,6 +47,8 @@ export interface AgentImportPreflightResult {
   agents: ExportableAgent[];
   /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
   assets: Record<string, Record<string, ArrayBuffer>>;
+  /** 待导入的世界书内容 { agentId: STWorldbook } (针对角色卡中嵌入的世界书) */
+  embeddedWorldbooks?: Record<string, import('./worldbook').STWorldbook>;
   /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
   unmatchedModels: Array<{ agentIndex: number; agentName: string; modelId: string }>;
   /** 名称冲突的 Agent { agentIndex: number, agentName: string } */
@@ -73,4 +76,6 @@ export interface ConfirmImportParams {
   resolvedAgents: ResolvedAgentToImport[];
   /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
   assets: Record<string, Record<string, ArrayBuffer>>;
+  /** 待导入的世界书内容 { agentId: STWorldbook } */
+  embeddedWorldbooks?: Record<string, import('./worldbook').STWorldbook>;
 }

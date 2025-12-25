@@ -14,6 +14,7 @@ import type { LlmParameters } from '../types/llm';
 import { pick } from 'lodash-es';
 import type { ChatRegexConfig } from '../types/chatRegex';
 import { convertSillyTavernArrayToPreset, type SillyTavernRegexScript } from '../utils/chatRegexUtils';
+import type { STWorldbook } from '../types/worldbook';
 
 const logger = createModuleLogger('llm-chat/sillyTavernParser');
 
@@ -35,6 +36,7 @@ export interface SillyTavernCharacterCard {
   avatar?: string;
   creatorcomment?: string; // v2 creator notes
   regex_scripts?: SillyTavernRegexScript[]; // v2 regex scripts
+  character_book?: STWorldbook; // Embedded character book
   // v3 spec 标识
   spec?: 'chara_card_v2' | 'chara_card_v3';
   spec_version?: string;
@@ -53,6 +55,7 @@ export interface SillyTavernCharacterCard {
     creator?: string;
     character_version?: string;
     alternate_greetings?: string[];
+    character_book?: STWorldbook; // Embedded character book in v3 data
     extensions?: {
       talkativeness?: string;
       fav?: boolean;

@@ -240,6 +240,8 @@ export interface ChatSettings {
   regexConfig: ChatRegexConfig;
   /** 插件配置存储 */
   plugins: Record<string, any>;
+  /** 全局关联的世界书 ID 列表 */
+  worldbookIds: string[];
 }
 
 /**
@@ -464,6 +466,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   },
   regexConfig: createDefaultChatRegexConfig(),
   plugins: {},
+  worldbookIds: [],
 };
 
 /**
@@ -539,6 +542,7 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...defaultConfig.plugins,
         ...(loadedConfig.plugins || {}),
       },
+      worldbookIds: loadedConfig.worldbookIds || [],
     };
   },
 });
@@ -644,6 +648,7 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
         ...settings.value.plugins,
         ...(updates.plugins || {}),
       },
+      worldbookIds: updates.worldbookIds ?? settings.value.worldbookIds,
     };
     await saveSettings();
     logger.info("聊天设置已更新", { updates });

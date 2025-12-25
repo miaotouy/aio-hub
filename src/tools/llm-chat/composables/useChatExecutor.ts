@@ -241,6 +241,19 @@ export function useChatExecutor() {
         "transcriptionConfig",
         settings.value.transcription,
       );
+      // 聚合并预加载世界书内容
+      const worldbookStore = import.meta.env.SSR ? null : (await import('../worldbookStore')).useWorldbookStore();
+      const allWorldbookIds = Array.from(new Set([
+        ...(settings.value.worldbookIds || []),
+        ...(effectiveUserProfile?.worldbookIds || []),
+        ...(executionAgent.worldbookIds || [])
+      ]));
+      
+      if (worldbookStore && allWorldbookIds.length > 0) {
+        const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
+        pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
+      }
+
       pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
       // 提供锚点定义给注入处理器
       const anchorRegistry = useAnchorRegistry();
@@ -824,6 +837,19 @@ export function useChatExecutor() {
       "transcriptionConfig",
       settings.value.transcription,
     );
+    // 聚合并预加载世界书内容 (预览模式)
+    const worldbookStore = import.meta.env.SSR ? null : (await import('../worldbookStore')).useWorldbookStore();
+    const allWorldbookIds = Array.from(new Set([
+      ...(settings.value.worldbookIds || []),
+      ...(effectiveUserProfile?.worldbookIds || []),
+      ...(executionAgent.worldbookIds || [])
+    ]));
+    
+    if (worldbookStore && allWorldbookIds.length > 0) {
+      const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
+      pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
+    }
+
     pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
     // 提供锚点定义给注入处理器
     const anchorRegistry = useAnchorRegistry();

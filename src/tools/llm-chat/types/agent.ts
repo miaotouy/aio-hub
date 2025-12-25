@@ -226,6 +226,11 @@ export interface ChatAgent {
    * 智能体专属资产
    */
   assets?: AgentAsset[];
+
+  /**
+   * 关联的世界书 ID 列表
+   */
+  worldbookIds?: string[];
 }
 
 /**
@@ -327,6 +332,11 @@ export interface AgentPreset {
   interactionConfig?: {
     sendButtonCreateBranch?: boolean;
   };
+
+  /**
+   * 关联的世界书 ID 列表
+   */
+  worldbookIds?: string[];
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   Languages,
   FileText,
   Network,
+  BookMarked,
 } from "lucide-vue-next";
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/store";
@@ -29,6 +30,12 @@ const ChatRegexEditor = defineAsyncComponent(() =>
 );
 const PipelineConfig = defineAsyncComponent(() =>
   import("./PipelineConfig.vue")
+);
+const WorldbookManager = defineAsyncComponent(() =>
+  import("../worldbook/WorldbookManager.vue")
+);
+const WorldbookSelector = defineAsyncComponent(() =>
+  import("../worldbook/WorldbookSelector.vue")
 );
 
 export const settingsConfig: SettingsSection[] = [
@@ -1139,6 +1146,35 @@ export const settingsConfig: SettingsSection[] = [
           name: "regexOptions",
           style: { minHeight: "400px" },
           defaultValue: [],
+        },
+      },
+    ],
+  },
+  {
+    title: "世界书",
+    icon: BookMarked,
+    items: [
+      {
+        id: "globalWorldbookIds",
+        label: "全局关联世界书",
+        component: WorldbookSelector,
+        modelPath: "worldbookIds",
+        hint: "在这里选择的世界书将全局生效，应用于所有会话和所有角色。",
+        keywords: "global worldbook ids 全局 世界书 关联",
+        layout: "block",
+      },
+      {
+        id: "worldbookManager",
+        label: "世界书库管理",
+        component: WorldbookManager,
+        modelPath: "", // 内部管理自己的状态
+        hint: "管理已导入的世界书（Lorebook/World Info）。在这里可以导入 SillyTavern 格式的 JSON 文件。",
+        keywords: "worldbook lorebook world info 世界书 设定 导入",
+        collapsible: {
+          title: "点击展开世界书库",
+          name: "worldbookManager",
+          style: { minHeight: "160px" },
+          useLoading: true,
         },
       },
     ],

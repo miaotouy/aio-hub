@@ -16,6 +16,7 @@ import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { ref } from "vue";
 import AgentAssetsDialog from "./AgentAssetsDialog.vue";
+import WorldbookSelector from "../worldbook/WorldbookSelector.vue";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
 import MacroSelector from "./MacroSelector.vue";
 import type { MacroDefinition } from "../../macro-engine";
@@ -93,6 +94,7 @@ const defaultFormState = {
   regexConfig: createDefaultChatRegexConfig(), // 正则管道配置
   tags: [] as string[],
   category: "",
+  worldbookIds: [] as string[],
   assets: [] as import("../../types").AgentAsset[],
   assetGroups: [] as import("../../types").AssetGroup[],
   virtualTimeConfig: {
@@ -449,6 +451,7 @@ const handleSave = (options: { silent?: boolean } = {}) => {
         : undefined,
     regexConfig: editForm.regexConfig,
     interactionConfig: editForm.interactionConfig,
+    worldbookIds: editForm.worldbookIds,
     assets: editForm.assets,
     assetGroups: editForm.assetGroups,
   }, options);
@@ -573,6 +576,14 @@ const handleSave = (options: { silent?: boolean } = {}) => {
           <el-button type="primary" link @click="userProfileDialogVisible = true">
             管理用户档案
           </el-button>
+        </div>
+      </el-form-item>
+
+      <!-- 世界书绑定 -->
+      <el-form-item label="关联世界书">
+        <WorldbookSelector v-model="editForm.worldbookIds" />
+        <div class="form-hint">
+          关联世界书（World Info）后，对话中匹配到关键字时将自动注入相关设定。
         </div>
       </el-form-item>
 

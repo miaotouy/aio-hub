@@ -145,6 +145,7 @@ export class WorldbookProcessor implements ContextProcessor {
 
     const allEntries: { entry: STWorldbookEntry, bookName: string }[] = [];
     for (const book of worldbooks) {
+      // 这里的 bookName 必须优先从 metadata 拿，如果 metadata 没被 Store 补全，则回退
       const bookName = book.metadata?.name || 'Unknown';
       if (book.entries) {
         Object.values(book.entries).forEach(entry => {
@@ -181,7 +182,8 @@ export class WorldbookProcessor implements ContextProcessor {
     const defaultScanDepth = agentSettings?.defaultScanDepth ?? globalSettings?.defaultScanDepth ?? 2;
     const maxRecursionSteps = (context.settings as any).world_info_max_recursion_steps ?? 0;
 
-    const activatedEntries = new Map<string, STWorldbookEntry>();
+    // 使用 Map 存储激活的条目及其元数据，键使用 uid + bookName 的组合以确保唯一性
+    const activatedEntries = new Map<string, { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }>();
     let scanState: 'INITIAL' | 'RECURSION' | 'DONE' = 'INITIAL';
     let loopCount = 0;
     let currentTokenBudget = 0;
@@ -198,8 +200,11 @@ export class WorldbookProcessor implements ContextProcessor {
       if (loopCount >= 20) break; // 硬限制防止死循环
 
       loopCount++;
-      let newlyActivatedInThisLoop: { entry: STWorldbookEntry, bookName: string }[] = [];
-      const candidates = allEntries.filter(item => !item.entry.disable && !activatedEntries.has(String(item.entry.uid)));
+      let newlyActivatedInThisLoop: { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }[] = [];
+      const candidates = allEntries.filter(item => {
+        const key = `${item.entry.uid}-${item.bookName}`;
+        return !item.entry.disable && !activatedEntries.has(key);
+      });
 
       for (const item of candidates) {
         const { entry } = item;
@@ -211,27 +216,34 @@ export class WorldbookProcessor implements ContextProcessor {
         if (scanState !== 'RECURSION' && entry.delayUntilRecursion) continue;
         if (scanState === 'RECURSION' && entry.delayUntilRecursion && (entry.delayUntilRecursionLevel || 1) > currentRecursionDelayLevel) continue;
 
-        if (this.checkActivation(entry, buffer, defaultScanDepth, historyTexts.length)) {
+        const matchResult = this.checkActivation(entry, buffer, defaultScanDepth, historyTexts.length);
+        if (matchResult.isMatched) {
           if (entry.useProbability && entry.probability < 100) {
             if (Math.random() * 100 > entry.probability) continue;
           }
-          newlyActivatedInThisLoop.push(item);
+          // 将匹配到的关键词记录下来
+          newlyActivatedInThisLoop.push({
+            ...item,
+            matchedKeys: matchResult.matchedKeys
+          });
         }
       }
 
       // 处理组竞争
       const winners = this.filterInclusionGroups(
-        newlyActivatedInThisLoop.map(i => i.entry),
+        newlyActivatedInThisLoop,
         activatedEntries
       );
 
       if (winners.length > 0) {
         let addedAnyForRecursion = false;
-        for (const entry of winners) {
+        for (const winner of winners) {
+          const { entry, bookName, matchedKeys } = winner;
           const entryTokens = Math.ceil(entry.content.length / 4);
           if (!entry.ignoreBudget && (currentTokenBudget + entryTokens > maxTokens)) continue;
 
-          activatedEntries.set(String(entry.uid), entry);
+          const key = `${entry.uid}-${bookName}`;
+          activatedEntries.set(key, { entry, bookName, matchedKeys });
           currentTokenBudget += entryTokens;
           if (!entry.preventRecursion && !disableRecursion) {
             buffer.addRecurse(entry.content);
@@ -252,12 +264,11 @@ export class WorldbookProcessor implements ContextProcessor {
 
     if (activatedEntries.size === 0) return;
 
-    const matchedEntries: MatchedWorldbookEntry[] = Array.from(activatedEntries.values()).map(entry => {
-      const sourceInfo = allEntries.find(i => i.entry.uid === entry.uid);
+    const matchedEntries: MatchedWorldbookEntry[] = Array.from(activatedEntries.values()).map(item => {
       return {
-        raw: entry,
-        worldbookName: sourceInfo?.bookName || 'Unknown',
-        matchedKeys: []
+        raw: item.entry,
+        worldbookName: item.bookName,
+        matchedKeys: item.matchedKeys
       };
     });
 
@@ -268,7 +279,14 @@ export class WorldbookProcessor implements ContextProcessor {
       processorId: this.id,
       level: 'info',
       message: `激活了 ${matchedEntries.length} 条世界书条目 (Budget: ${currentTokenBudget} tokens)`,
-      details: { uids: matchedEntries.map(m => m.raw.uid) }
+      details: {
+        totalTokens: currentTokenBudget,
+        activated: matchedEntries.map(m => ({
+          uid: m.raw.uid,
+          name: m.raw.comment || m.raw.key?.[0] || 'Unnamed Entry',
+          worldbook: m.worldbookName
+        }))
+      }
     });
 
     logger.debug('世界书处理完成', { activatedCount: matchedEntries.length, tokens: currentTokenBudget });
@@ -304,23 +322,24 @@ export class WorldbookProcessor implements ContextProcessor {
     }
   }
 
-  private checkActivation(entry: STWorldbookEntry, buffer: WorldbookBuffer, defaultDepth: number, historyCount: number): boolean {
-    if (entry.constant) return true;
+  private checkActivation(entry: STWorldbookEntry, buffer: WorldbookBuffer, defaultScanDepth: number, historyCount: number): { isMatched: boolean, matchedKeys: string[] } {
+    if (entry.constant) return { isMatched: true, matchedKeys: [] };
 
     // 1. Delay 检查 (历史消息数量不足 N 条时不激活)
     if (entry.delay && historyCount < entry.delay) {
-      return false;
+      return { isMatched: false, matchedKeys: [] };
     }
 
     // 2. Cooldown 检查 (激活后 N 条消息内不再激活)
     if (entry.cooldown && entry.cooldown > 0) {
       if (buffer.checkMatchInHistory(entry.key, entry.cooldown, entry)) {
-        return false;
+        return { isMatched: false, matchedKeys: [] };
       }
     }
 
-    const scanText = buffer.getScanText(entry, defaultDepth);
-    let isMatched = entry.key.some(k => buffer.matchKeys(scanText, k, entry));
+    const scanText = buffer.getScanText(entry, defaultScanDepth);
+    const matchedKeys = entry.key.filter(k => buffer.matchKeys(scanText, k, entry));
+    let isMatched = matchedKeys.length > 0;
 
     // 3. Sticky 检查 (如果当前未匹配，但在回溯范围内匹配过，则视为激活)
     if (!isMatched && entry.sticky && entry.sticky > 0) {
@@ -329,55 +348,63 @@ export class WorldbookProcessor implements ContextProcessor {
       }
     }
 
-    if (!isMatched) return false;
+    if (!isMatched) return { isMatched: false, matchedKeys: [] };
 
     if (entry.selective && entry.keysecondary.length > 0) {
       const secondaryMatches = entry.keysecondary.map(k => buffer.matchKeys(scanText, k, entry));
       const matchCount = secondaryMatches.filter(Boolean).length;
 
+      let selectiveMatched = false;
       switch (entry.selectiveLogic) {
-        case STWorldbookLogic.AND_ANY: return matchCount > 0;
-        case STWorldbookLogic.AND_ALL: return matchCount === entry.keysecondary.length;
-        case STWorldbookLogic.NOT_ANY: return matchCount === 0;
-        case STWorldbookLogic.NOT_ALL: return matchCount < entry.keysecondary.length;
-        default: return matchCount > 0;
+        case STWorldbookLogic.AND_ANY: selectiveMatched = matchCount > 0; break;
+        case STWorldbookLogic.AND_ALL: selectiveMatched = matchCount === entry.keysecondary.length; break;
+        case STWorldbookLogic.NOT_ANY: selectiveMatched = matchCount === 0; break;
+        case STWorldbookLogic.NOT_ALL: selectiveMatched = matchCount < entry.keysecondary.length; break;
+        default: selectiveMatched = matchCount > 0;
       }
+
+      if (!selectiveMatched) return { isMatched: false, matchedKeys: [] };
     }
-    return true;
+
+    return { isMatched: true, matchedKeys };
   }
 
-  private filterInclusionGroups(newlyActivated: STWorldbookEntry[], alreadyActivated: Map<string, STWorldbookEntry>): STWorldbookEntry[] {
-    const groups = new Map<string, STWorldbookEntry[]>();
-    const nonGrouped: STWorldbookEntry[] = [];
+  private filterInclusionGroups(
+    newlyActivated: { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }[],
+    alreadyActivated: Map<string, { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }>
+  ): { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }[] {
+    const groups = new Map<string, { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }[]>();
+    const nonGrouped: { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }[] = [];
 
-    for (const entry of newlyActivated) {
+    for (const item of newlyActivated) {
+      const { entry } = item;
       if (entry.group) {
         const groupNames = entry.group.split(/,\s*/).filter(Boolean);
         groupNames.forEach(gn => {
           if (!groups.has(gn)) groups.set(gn, []);
-          groups.get(gn)!.push(entry);
+          groups.get(gn)!.push(item);
         });
       } else {
-        nonGrouped.push(entry);
+        nonGrouped.push(item);
       }
     }
 
-    const winners = new Set<STWorldbookEntry>(nonGrouped);
+    const winners = new Set<{ entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }>(nonGrouped);
 
     for (const [groupName, members] of groups) {
-      const isGroupAlreadyActive = Array.from(alreadyActivated.values()).some(e => e.group?.includes(groupName));
+      const isGroupAlreadyActive = Array.from(alreadyActivated.values()).some(e => e.entry.group?.includes(groupName));
       if (isGroupAlreadyActive) continue;
 
-      const overrideWinner = members.find(m => m.groupOverride);
+      const overrideWinner = members.find(m => m.entry.groupOverride);
       if (overrideWinner) {
         winners.add(overrideWinner);
         continue;
       }
 
-      const totalWeight = members.reduce((sum, m) => sum + (m.groupWeight ?? 100), 0);
+      const totalWeight = members.reduce((sum, m) => sum + (m.entry.groupWeight ?? 100), 0);
       let roll = Math.random() * totalWeight;
       for (const member of members) {
-        roll -= (member.groupWeight ?? 100);
+        roll -= (member.entry.groupWeight ?? 100);
         if (roll <= 0) {
           winners.add(member);
           break;

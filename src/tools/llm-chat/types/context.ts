@@ -3,6 +3,7 @@ import type { LlmParameters } from "./llm";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
 import type { ChatSession } from './session';
+import type { STWorldbookPosition } from './worldbook';
 
 /**
  * 系统内置锚点/消息类型常量
@@ -178,6 +179,12 @@ export interface ContextPreviewData {
     savedCharCount?: number;
     /** 原始总字符数（截断前） */
     originalCharCount?: number;
+    /** 世界书条目数量 */
+    worldbookEntryCount?: number;
+    /** 世界书条目总字符数 */
+    worldbookCharCount?: number;
+    /** 世界书条目总 Token 数 */
+    worldbookTokenCount?: number;
   };
   /** Agent 信息 */
   agentInfo: {
@@ -209,4 +216,40 @@ export interface ContextPreviewData {
   };
   /** 完整的会话对象，用于宏调试等需要完整上下文的场景 */
   session?: ChatSession;
+  /** 激活的世界书条目 */
+  worldbookEntries?: WorldbookEntryPreview[];
+}
+
+/**
+ * 世界书条目预览数据（用于上下文分析器展示）
+ */
+export interface WorldbookEntryPreview {
+  /** 条目 UID */
+  uid: number;
+  /** 条目名称/备注 */
+  comment?: string;
+  /** 条目内容 */
+  content: string;
+  /** 字符数 */
+  charCount: number;
+  /** Token 数（估算） */
+  tokenCount?: number;
+  /** 所属世界书名称 */
+  worldbookName: string;
+  /** 匹配到的关键词 */
+  matchedKeys: string[];
+  /** 主要关键词 */
+  keys: string[];
+  /** 次要关键词 */
+  keysecondary: string[];
+  /** 插入位置 */
+  position: STWorldbookPosition;
+  /** 插入深度（当 position 为 Depth 时有效） */
+  depth?: number;
+  /** 插入顺序 */
+  order: number;
+  /** 是否为常量 */
+  constant: boolean;
+  /** 角色 (0=System, 1=User, 2=Assistant) */
+  role?: number;
 }

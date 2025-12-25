@@ -59,12 +59,27 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
 
     /**
      * 为 Agent 获取所有关联的世界书条目
+     * 确保返回的世界书包含正确的元数据名称
      */
     async getEntriesForAgent(worldbookIds: string[]): Promise<STWorldbook[]> {
+      // 确保索引已加载，否则无法获取世界书名称
+      if (this.worldbooks.length === 0) {
+        await this.loadWorldbooks();
+      }
+
       const results: STWorldbook[] = [];
       for (const id of worldbookIds) {
         const content = await this.getWorldbookContent(id);
         if (content) {
+          // 从索引中获取世界书名称，确保 metadata.name 被正确设置
+          const metadata = this.worldbooks.find((wb) => wb.id === id);
+          if (metadata) {
+            content.metadata = {
+              ...content.metadata,
+              name: metadata.name,
+              description: metadata.description,
+            };
+          }
           results.push(content);
         }
       }
@@ -91,7 +106,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
         const storage = useWorldbookStorageSeparated();
         // 保存内容
         await storage.saveWorldbookContent(id, content);
-        
+
         // 更新索引
         this.worldbooks.push(metadata);
         const index = await storage.loadIndex();
@@ -118,7 +133,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
 
       const now = getLocalISOString();
       const metadata = this.worldbooks[index];
-      
+
       const newMetadata: WorldbookMetadata = {
         ...metadata,
         ...updates,
@@ -129,7 +144,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
       try {
         const storage = useWorldbookStorageSeparated();
         await storage.saveWorldbookContent(id, content);
-        
+
         this.worldbooks[index] = newMetadata;
         const indexConfig = await storage.loadIndex();
         indexConfig.worldbooks = this.worldbooks;
@@ -218,7 +233,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
     async deleteWorldbooks(ids: string[]) {
       try {
         const storage = useWorldbookStorageSeparated();
-        
+
         // 1. 并行删除物理文件
         await Promise.all(ids.map(id => storage.deleteWorldbookFile(id)));
 

@@ -122,6 +122,18 @@
             </span>
           </div>
         </div>
+        <div v-if="contextData.statistics.worldbookEntryCount" class="stat-item worldbook">
+          <div class="stat-label">世界书条目</div>
+          <div class="stat-value">
+            {{ contextData.statistics.worldbookEntryCount }} 条
+            <span class="char-count" v-if="contextData.statistics.worldbookTokenCount">
+              {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
+              <template v-if="contextData.statistics.worldbookCharCount">
+                / {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+              </template>
+            </span>
+          </div>
+        </div>
         <div
           v-if="
             contextData.statistics.truncatedMessageCount &&
@@ -138,6 +150,127 @@
           </div>
         </div>
       </div>
+    </InfoCard>
+
+    <!-- 世界书条目 -->
+    <InfoCard
+      v-if="contextData.worldbookEntries && contextData.worldbookEntries.length > 0"
+      class="worldbook-section-card"
+    >
+      <template #header>
+        <div class="card-header clickable" @click="worldbookExpanded = !worldbookExpanded">
+          <div class="header-left">
+            <el-icon class="expand-icon" :class="{ expanded: worldbookExpanded }">
+              <ArrowRight />
+            </el-icon>
+            <el-icon class="section-icon worldbook-color"><MagicStick /></el-icon>
+            <span>激活的世界书条目</span>
+          </div>
+          <div class="header-tags">
+            <el-tag size="small" type="warning">
+              {{ contextData.worldbookEntries.length }} 条
+            </el-tag>
+            <el-tag v-if="contextData.statistics.worldbookTokenCount" size="small" type="success">
+              {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
+            </el-tag>
+            <el-tag v-if="contextData.statistics.worldbookCharCount" size="small" type="info">
+              {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+            </el-tag>
+            <el-divider direction="vertical" />
+            <el-button
+              link
+              type="primary"
+              size="small"
+              class="expand-all-btn"
+              @click.stop="toggleAllEntries"
+            >
+              {{ isAllEntriesExpanded ? "一键收起" : "一键展开" }}
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <el-collapse-transition>
+        <div v-show="worldbookExpanded" class="worldbook-list">
+          <div
+            v-for="entry in contextData.worldbookEntries"
+            :key="entry.uid"
+            class="worldbook-entry"
+          >
+            <div class="entry-header" @click="toggleEntryExpand(entry.uid)">
+              <div class="entry-title">
+                <el-icon
+                  class="expand-icon small"
+                  :class="{ expanded: expandedEntries.has(entry.uid) }"
+                >
+                  <ArrowRight />
+                </el-icon>
+                <span class="entry-name">
+                  {{ entry.comment || `条目 #${entry.uid}` }}
+                </span>
+                <el-tag v-if="entry.constant" size="small" type="danger" effect="dark">
+                  常量
+                </el-tag>
+                <el-tag size="small" type="info" effect="plain" class="entry-source-tag">
+                  {{ entry.worldbookName }}
+                </el-tag>
+              </div>
+              <div class="entry-meta">
+                <el-tag size="small" type="warning" effect="plain">
+                  {{ getPositionLabel(entry.position, entry.depth) }}
+                </el-tag>
+                <el-tag v-if="entry.tokenCount !== undefined" size="small" type="success">
+                  {{ entry.tokenCount }} tokens
+                </el-tag>
+                <el-tag size="small" type="info"> {{ entry.charCount }} 字符 </el-tag>
+              </div>
+            </div>
+            <el-collapse-transition>
+              <div v-show="expandedEntries.has(entry.uid)" class="entry-details">
+                <!-- 关键词信息 -->
+                <div class="worldbook-keywords">
+                  <div v-if="entry.keys.length > 0" class="keyword-group">
+                    <el-icon class="keyword-icon"><Key /></el-icon>
+                    <span class="keyword-label">主要:</span>
+                    <el-tag
+                      v-for="(key, idx) in entry.keys.slice(0, 8)"
+                      :key="idx"
+                      size="small"
+                      type="primary"
+                      effect="plain"
+                      class="keyword-tag"
+                    >
+                      {{ key }}
+                    </el-tag>
+                    <span v-if="entry.keys.length > 8" class="more-keywords">
+                      +{{ entry.keys.length - 8 }}
+                    </span>
+                  </div>
+                  <div v-if="entry.keysecondary.length > 0" class="keyword-group">
+                    <span class="keyword-label">次要:</span>
+                    <el-tag
+                      v-for="(key, idx) in entry.keysecondary.slice(0, 5)"
+                      :key="idx"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      class="keyword-tag"
+                    >
+                      {{ key }}
+                    </el-tag>
+                    <span v-if="entry.keysecondary.length > 5" class="more-keywords">
+                      +{{ entry.keysecondary.length - 5 }}
+                    </span>
+                  </div>
+                </div>
+                <!-- 内容 -->
+                <div class="worldbook-content">
+                  {{ entry.content }}
+                </div>
+              </div>
+            </el-collapse-transition>
+          </div>
+        </div>
+      </el-collapse-transition>
     </InfoCard>
 
     <!-- 统一消息列表（按实际上下文顺序） -->
@@ -255,8 +388,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { Setting, ChatLineRound } from "@element-plus/icons-vue";
+import { computed, ref } from "vue";
+import { Setting, ChatLineRound, MagicStick, Key, ArrowRight } from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -269,6 +402,7 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useUserProfileStore } from "../../userProfileStore";
 import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
+import { STWorldbookPosition } from "../../types/worldbook";
 
 const props = defineProps<{
   contextData: ContextPreviewData;
@@ -276,6 +410,36 @@ const props = defineProps<{
 
 const userProfileStore = useUserProfileStore();
 const { getProfileById } = useLlmProfiles();
+
+// 世界书折叠状态
+const worldbookExpanded = ref(false);
+const expandedEntries = ref(new Set<number>());
+
+function toggleEntryExpand(uid: number) {
+  if (expandedEntries.value.has(uid)) {
+    expandedEntries.value.delete(uid);
+  } else {
+    expandedEntries.value.add(uid);
+  }
+}
+
+const isAllEntriesExpanded = computed(() => {
+  if (!props.contextData.worldbookEntries?.length) return false;
+  return expandedEntries.value.size >= props.contextData.worldbookEntries.length;
+});
+
+function toggleAllEntries() {
+  if (isAllEntriesExpanded.value) {
+    expandedEntries.value.clear();
+  } else {
+    props.contextData.worldbookEntries?.forEach((entry) => {
+      expandedEntries.value.add(entry.uid);
+    });
+    // 同时也确保大卡片是展开的
+    worldbookExpanded.value = true;
+  }
+}
+
 const { getModelIcon, getModelProperty, getIconPath, getDisplayIconPath } = useModelMetadata();
 const { computeWillUseTranscription } = useTranscriptionManager();
 
@@ -700,6 +864,32 @@ const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => 
   // 这些字段在预览数据中应该都存在
   return computeWillUseTranscription(asset as Asset, modelId, profileId, messageDepth);
 };
+
+/**
+ * 获取世界书条目位置的显示文本
+ */
+function getPositionLabel(position: STWorldbookPosition, depth?: number): string {
+  switch (position) {
+    case STWorldbookPosition.BeforeChar:
+      return "角色设定前";
+    case STWorldbookPosition.AfterChar:
+      return "角色设定后";
+    case STWorldbookPosition.BeforeAN:
+      return "作者注释前";
+    case STWorldbookPosition.AfterAN:
+      return "作者注释后";
+    case STWorldbookPosition.Depth:
+      return `深度 ${depth ?? 0}`;
+    case STWorldbookPosition.BeforeEM:
+      return "示例消息前";
+    case STWorldbookPosition.AfterEM:
+      return "示例消息后";
+    case STWorldbookPosition.Outlet:
+      return "Outlet";
+    default:
+      return "未知位置";
+  }
+}
 </script>
 
 <style scoped>
@@ -962,5 +1152,162 @@ const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => 
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* 世界书样式 */
+.stat-item.worldbook .stat-value {
+  color: var(--el-color-warning);
+}
+
+.worldbook-section-card {
+  margin-bottom: 8px;
+}
+
+.card-header.clickable {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.expand-icon {
+  transition: transform 0.2s ease;
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+}
+
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.expand-icon.small {
+  font-size: 12px;
+}
+
+.section-icon {
+  font-size: 16px;
+}
+
+.section-icon.worldbook-color {
+  color: var(--el-color-warning);
+}
+
+.worldbook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.worldbook-entry {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--el-fill-color-blank);
+}
+
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+  background-color: var(--el-fill-color-light);
+  transition: background-color 0.2s;
+}
+
+.entry-header:hover {
+  background-color: var(--el-fill-color);
+}
+
+.entry-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.entry-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.entry-source-tag {
+  opacity: 0.8;
+}
+
+.entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.entry-details {
+  padding: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.worldbook-keywords {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 12px;
+}
+
+.keyword-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.keyword-icon {
+  font-size: 14px;
+  color: var(--el-color-primary);
+}
+
+.keyword-label {
+  font-weight: 500;
+  min-width: 36px;
+}
+
+.keyword-tag {
+  font-size: 11px;
+}
+
+.more-keywords {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+}
+
+.worldbook-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--el-text-color-primary);
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.6;
+  font-size: 12px;
+  background-color: var(--el-fill-color-lighter);
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-warning);
 }
 </style>

@@ -1,5 +1,5 @@
 import type { PipelineContext } from "../../types/pipeline";
-import type { ContextPreviewData } from "../../types/context";
+import type { ContextPreviewData, WorldbookEntryPreview } from "../../types/context";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
@@ -9,6 +9,7 @@ import { useTranscriptionManager } from "../../composables/useTranscriptionManag
 import { useChatSettings } from "../../composables/useChatSettings";
 import type { Asset } from "@/types/asset-management";
 import type { ProcessableMessage } from "../../types/context";
+import type { MatchedWorldbookEntry } from "../../types/worldbook";
 
 /**
  * 从已完成的管道上下文中构建用于 UI 展示的预览数据。
@@ -432,10 +433,57 @@ export async function buildPreviewDataFromContext(
   // 从 sharedData 中获取 token-limiter 的统计信息
   const tokenLimiterStats = context.sharedData.get("tokenLimiterStats");
 
+  // 从 sharedData 中获取激活的世界书条目
+  const activatedWorldbookEntries = context.sharedData.get("activatedWorldbookEntries") as MatchedWorldbookEntry[] | undefined;
+
+  // 构建世界书预览数据
+  const worldbookEntries: WorldbookEntryPreview[] = [];
+  let worldbookCharCount = 0;
+  let worldbookTokenCount = 0;
+
+  if (activatedWorldbookEntries && activatedWorldbookEntries.length > 0) {
+    for (const matched of activatedWorldbookEntries) {
+      const entry = matched.raw;
+      const charCount = entry.content.length;
+
+      // 计算 Token（简单估算）
+      const tokenResult = await tokenCalculatorService.calculateTokens(
+        entry.content,
+        agentConfig.modelId,
+      );
+      const tokenCount = tokenResult.count;
+
+      if (tokenResult.isEstimated) {
+        isEstimated = true;
+      }
+
+      worldbookEntries.push({
+        uid: entry.uid,
+        comment: entry.comment,
+        content: entry.content,
+        charCount,
+        tokenCount,
+        worldbookName: matched.worldbookName,
+        matchedKeys: matched.matchedKeys,
+        keys: entry.key,
+        keysecondary: entry.keysecondary,
+        position: entry.position,
+        depth: entry.depth,
+        order: entry.order,
+        constant: entry.constant,
+        role: entry.role,
+      });
+
+      worldbookCharCount += charCount;
+      worldbookTokenCount += tokenCount;
+    }
+  }
+
   return {
     presetMessages,
     chatHistory,
     finalMessages: messages,
+    worldbookEntries: worldbookEntries.length > 0 ? worldbookEntries : undefined,
     statistics: {
       totalCharCount,
       presetMessagesCharCount,
@@ -450,6 +498,9 @@ export async function buildPreviewDataFromContext(
       savedTokenCount: tokenLimiterStats?.savedTokens,
       savedCharCount: tokenLimiterStats?.savedChars,
       originalCharCount: tokenLimiterStats?.originalTotalChars,
+      worldbookEntryCount: worldbookEntries.length > 0 ? worldbookEntries.length : undefined,
+      worldbookCharCount: worldbookCharCount > 0 ? worldbookCharCount : undefined,
+      worldbookTokenCount: worldbookTokenCount > 0 ? worldbookTokenCount : undefined,
     },
     agentInfo: {
       id: agentConfig.id,

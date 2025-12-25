@@ -2,8 +2,7 @@
 import { ref } from "vue";
 import { UploadFilled } from "@element-plus/icons-vue";
 import WorldbookOverview from "./WorldbookOverview.vue";
-import WorldbookFullManager from "./WorldbookFullManager.vue";
-import BaseDialog from "@/components/common/BaseDialog.vue";
+import WorldbookManagerDialog from "./WorldbookManagerDialog.vue";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { importSTWorldbookFromPath } from "../../services/worldbookImportService";
 import { useWorldbookStore } from "../../worldbookStore";
@@ -71,19 +70,7 @@ const { isDraggingOver: isDragging } = useFileDrop({
     <WorldbookOverview @manage="openFullManager" />
 
     <!-- 完整管理弹窗 -->
-    <BaseDialog
-      v-model="showFullManager"
-      title="世界书库管理"
-      width="90%"
-      height="85vh"
-      destroy-on-close
-    >
-      <WorldbookFullManager />
-
-      <template #footer>
-        <el-button @click="showFullManager = false">关闭</el-button>
-      </template>
-    </BaseDialog>
+    <WorldbookManagerDialog v-model:visible="showFullManager" />
   </div>
 </template>
 

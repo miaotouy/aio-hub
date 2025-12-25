@@ -16,10 +16,12 @@ import {
   StickyNote,
   ArrowDownAZ,
   ArrowDown01,
-  Anchor,
   User,
+  ChevronRight,
+  ArrowLeftRight,
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { useDebounceFn, useElementSize } from "@vueuse/core";
 
@@ -32,6 +34,11 @@ const loading = ref(false);
 const currentBook = ref<STWorldbook | null>(null);
 const selectedEntryUid = ref<number | null>(null);
 const searchQuery = ref("");
+
+// 移动/复制对话框
+const moveCopyDialogVisible = ref(false);
+const moveCopyTargetId = ref("");
+const isMoveMode = ref(false);
 
 const detailContainerRef = ref<HTMLElement | null>(null);
 const { width } = useElementSize(detailContainerRef);
@@ -228,11 +235,55 @@ const handleDuplicateEntry = (entry: STWorldbookEntry) => {
   saveChanges();
 };
 
+const handleMoveCopyEntry = () => {
+  moveCopyTargetId.value = "";
+  moveCopyDialogVisible.value = true;
+};
+
+const executeMoveCopy = async () => {
+  if (!currentEntry.value || !moveCopyTargetId.value || !currentBook.value) return;
+
+  const targetId = moveCopyTargetId.value;
+  const entryToProcess = JSON.parse(JSON.stringify(currentEntry.value));
+
+  try {
+    // 1. 获取目标世界书内容
+    const targetBook = await store.getWorldbookContent(targetId);
+    if (!targetBook) {
+      customMessage.error("获取目标世界书失败");
+      return;
+    }
+
+    // 2. 注入条目（生成新 UID 避免冲突，除非是完全不同的书，但生成新 UID 更安全）
+    const newUid = Date.now();
+    entryToProcess.uid = newUid;
+    targetBook.entries[newUid] = entryToProcess;
+
+    // 3. 保存目标世界书
+    await store.updateWorldbook(targetId, targetBook);
+
+    // 4. 如果是移动模式，从当前书中删除
+    if (isMoveMode.value) {
+      const oldUid = currentEntry.value.uid;
+      delete currentBook.value.entries[oldUid];
+      selectedEntryUid.value = null;
+      await saveChanges();
+      customMessage.success("条目已移动到目标世界书");
+    } else {
+      customMessage.success("条目已复制到目标世界书");
+    }
+
+    moveCopyDialogVisible.value = false;
+  } catch (error) {
+    customMessage.error("操作失败");
+  }
+};
+
 // 自动保存
 const saveChanges = useDebounceFn(async () => {
   if (!currentBook.value || !props.id) return;
   await store.updateWorldbook(props.id, currentBook.value);
-}, 1000);
+}, 100);
 
 // 监听整个世界书内容变化触发保存 (包括列表中的行内编辑)
 watch(
@@ -275,16 +326,14 @@ const triggerOptions = [
   { label: "静默 (Quiet)", value: "quiet" },
 ];
 
-// 模拟酒馆的三态逻辑
+// 模拟酒馆的条目类型逻辑 (不再包含 disable，由独立开关控制)
 const getEntryState = (entry: STWorldbookEntry) => {
-  if (entry.disable) return "disabled";
   if (entry.constant) return "constant";
   if (entry.vectorized) return "vectorized";
   return "normal";
 };
 
 const setEntryState = (entry: STWorldbookEntry, state: string) => {
-  entry.disable = state === "disabled";
   entry.constant = state === "constant";
   entry.vectorized = state === "vectorized";
 };
@@ -292,29 +341,36 @@ const setEntryState = (entry: STWorldbookEntry, state: string) => {
 const stateOptions = [
   { label: "🔵 永久", value: "constant" },
   { label: "🟢 关键词", value: "normal" },
-  { label: "🔗 向量化", value: "vectorized" },
+  { label: "🔗 向量化 [暂不支持]", value: "vectorized" },
 ];
 
 const enhancedPositionOptions = [
+  { label: "@D ⚙ [系统]在深度", value: STWorldbookPosition.Depth, role: 0 },
+  { label: "@D 👤 [用户]在深度", value: STWorldbookPosition.Depth, role: 1 },
+  { label: "@D 🤖 [AI]在深度", value: STWorldbookPosition.Depth, role: 2 },
   { label: "角色之前 (Before Char)", value: STWorldbookPosition.BeforeChar, role: null },
   { label: "角色之后 (After Char)", value: STWorldbookPosition.AfterChar, role: null },
   { label: "示例之前 (Before EM) [降级]", value: STWorldbookPosition.BeforeEM, role: null },
   { label: "示例之后 (After EM) [降级]", value: STWorldbookPosition.AfterEM, role: null },
   { label: "作者注之前 (Before AN) [降级]", value: STWorldbookPosition.BeforeAN, role: null },
   { label: "作者注之后 (After AN) [降级]", value: STWorldbookPosition.AfterAN, role: null },
-  { label: "@D ⚙ [系统]在深度", value: STWorldbookPosition.Depth, role: 0 },
-  { label: "@D 👤 [用户]在深度", value: STWorldbookPosition.Depth, role: 1 },
-  { label: "@D 🤖 [AI]在深度", value: STWorldbookPosition.Depth, role: 2 },
   { label: "➡️ Outlet [不支持]", value: STWorldbookPosition.Outlet, role: null },
 ];
 
-const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
-  const opt = enhancedPositionOptions.find(
-    (o) => o.value === val && (o.role === null || o.role === entry.role)
-  );
-  if (opt && opt.role !== null) {
-    entry.role = opt.role;
+const handlePositionChange = (entry: STWorldbookEntry, compositeVal: string) => {
+  const [pos, roleStr] = compositeVal.split("_");
+  const posVal = parseInt(pos);
+  const roleVal = roleStr === "null" ? null : parseInt(roleStr);
+
+  entry.position = posVal;
+  if (roleVal !== null) {
+    entry.role = roleVal;
   }
+};
+
+const getCompositePosition = (entry: STWorldbookEntry) => {
+  const role = entry.position === STWorldbookPosition.Depth ? (entry.role ?? 0) : "null";
+  return `${entry.position}_${role}`;
 };
 </script>
 
@@ -367,11 +423,8 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
             <el-tooltip content="刷新数据">
               <el-button :icon="RotateCw" link @click="handleRefresh" />
             </el-tooltip>
-            <el-tooltip content="展开视图">
-              <el-button :icon="Expand" link @click="isCompact = false" :disabled="!isCompact" />
-            </el-tooltip>
-            <el-tooltip content="紧凑视图">
-              <el-button :icon="Shrink" link @click="isCompact = true" :disabled="isCompact" />
+            <el-tooltip :content="isCompact ? '展开视图' : '紧凑视图'">
+              <el-button :icon="isCompact ? Expand : Shrink" link @click="isCompact = !isCompact" />
             </el-tooltip>
             <el-tooltip content="填充空备注 (使用首个关键词)">
               <el-button :icon="StickyNote" link @click="handleBackfillMemos" />
@@ -424,7 +477,8 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
         <span class="col-pos">位置</span>
         <span class="col-depth" v-if="!isCompact">深度</span>
         <span class="col-order" v-if="!isCompact">顺序</span>
-        <span class="col-prob" v-if="!isCompact">概率</span>
+        <span class="col-prob" v-if="!isCompact">概率%</span>
+        <span class="col-handle"></span>
       </div>
 
       <div class="entry-list custom-scrollbar">
@@ -437,26 +491,33 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
         >
           <!-- 状态与开关 (仿酒馆三态) -->
           <div class="cell col-status" @click.stop>
-            <el-select
-              :model-value="getEntryState(entry)"
-              @update:model-value="(val: string) => setEntryState(entry, val)"
-              size="small"
-              class="state-select-mini"
-            >
-              <el-option
-                v-for="opt in stateOptions"
-                :key="opt.value"
-                :label="opt.label.split(' ')[0]"
-                :value="opt.value"
-                :title="opt.label"
+            <div class="status-controls">
+              <el-switch
+                :model-value="!entry.disable"
+                @update:model-value="(val: boolean) => (entry.disable = !val)"
+                size="small"
+                class="entry-disable-switch"
+                title="启用/禁用条目"
               />
-            </el-select>
+              <el-select
+                :model-value="getEntryState(entry)"
+                @update:model-value="(val: string) => setEntryState(entry, val)"
+                size="small"
+                class="state-select-mini"
+              >
+                <el-option
+                  v-for="opt in stateOptions"
+                  :key="opt.value"
+                  :label="opt.label"
+                  :value="opt.value"
+                />
+              </el-select>
+            </div>
           </div>
 
           <!-- 标题备注 -->
           <div class="cell col-name" @click.stop>
             <div class="name-wrapper">
-              <el-icon v-if="entry.constant" class="constant-icon" :size="12"><Anchor /></el-icon>
               <el-input
                 v-model="entry.comment"
                 size="small"
@@ -469,10 +530,10 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
           <!-- 插入位置 -->
           <div class="cell col-pos" @click.stop>
             <el-select
-              v-model="entry.position"
+              :model-value="getCompositePosition(entry)"
               size="small"
               class="compact-select"
-              @change="(val: any) => handlePositionChange(entry, val)"
+              @change="(val: string) => handlePositionChange(entry, val)"
             >
               <el-option
                 v-for="opt in enhancedPositionOptions"
@@ -482,7 +543,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
                     ? opt.label.split(']')[0] + ']'
                     : opt.label.split('(')[0].trim()
                 "
-                :value="opt.value"
+                :value="`${opt.value}_${opt.role ?? 'null'}`"
               />
             </el-select>
           </div>
@@ -520,6 +581,11 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
               class="compact-number"
             />
           </div>
+
+          <!-- 选中手柄 (位于右侧，靠近编辑区) -->
+          <div class="cell col-handle">
+            <el-icon class="handle-icon"><ChevronRight /></el-icon>
+          </div>
         </div>
 
         <el-empty v-if="entryList.length === 0" description="没有找到条目" :image-size="60" />
@@ -538,10 +604,12 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
             v-model="currentEntry.comment"
             placeholder="条目备注/名称"
             class="entry-name-input"
-            size="large"
           />
         </div>
         <div class="header-actions">
+          <el-tooltip content="移动/复制到其他世界书">
+            <el-button :icon="ArrowLeftRight" circle @click="handleMoveCopyEntry" />
+          </el-tooltip>
           <el-tooltip content="复制条目">
             <el-button :icon="Copy" circle @click="handleDuplicateEntry(currentEntry)" />
           </el-tooltip>
@@ -551,7 +619,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
               @confirm="handleDeleteEntry(currentEntry.uid)"
             >
               <template #reference>
-                <el-button :icon="Trash2" circle type="danger" plain />
+                <el-button :icon="Trash2" circle plain />
               </template>
             </el-popconfirm>
           </el-tooltip>
@@ -565,7 +633,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
           <div class="form-group">
             <label class="form-label">
               触发关键词 (Keys)
-              <span class="sub-label">使用逗号分隔</span>
+              <span class="sub-label">输入后按回车分割</span>
             </label>
             <el-select
               v-model="currentEntry.key"
@@ -601,32 +669,43 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
             <div class="advanced-grid">
               <div class="control-item">
                 <span class="label">条目状态</span>
-                <el-select
-                  :model-value="getEntryState(currentEntry)"
-                  @update:model-value="(val: any) => setEntryState(currentEntry!, val)"
-                  size="small"
-                >
-                  <el-option
-                    v-for="opt in stateOptions"
-                    :key="opt.value"
-                    :label="opt.label"
-                    :value="opt.value"
+                <div class="flex-center gap-8">
+                  <el-switch
+                    :model-value="!currentEntry.disable"
+                    @update:model-value="(val: boolean) => (currentEntry!.disable = !val)"
+                    size="small"
+                    active-text="已启用"
+                    inactive-text="已禁用"
+                    inline-prompt
                   />
-                </el-select>
+                  <el-select
+                    :model-value="getEntryState(currentEntry)"
+                    @update:model-value="(val: any) => setEntryState(currentEntry!, val)"
+                    size="small"
+                    style="flex: 1"
+                  >
+                    <el-option
+                      v-for="opt in stateOptions"
+                      :key="opt.value"
+                      :label="opt.label"
+                      :value="opt.value"
+                    />
+                  </el-select>
+                </div>
               </div>
 
               <div class="control-item">
                 <span class="label">插入位置</span>
                 <el-select
-                  v-model="currentEntry.position"
+                  :model-value="getCompositePosition(currentEntry)"
                   size="small"
-                  @change="(val: any) => handlePositionChange(currentEntry!, val)"
+                  @change="(val: string) => handlePositionChange(currentEntry!, val)"
                 >
                   <el-option
                     v-for="opt in enhancedPositionOptions"
                     :key="opt.label"
                     :label="opt.label"
-                    :value="opt.value"
+                    :value="`${opt.value}_${opt.role ?? 'null'}`"
                   />
                 </el-select>
               </div>
@@ -677,7 +756,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
               </div>
 
               <div class="control-item unsupported">
-                <span class="label">自动化 ID (仅兼容)</span>
+                <span class="label">自动化 ID (不支持)</span>
                 <el-input
                   v-model="currentEntry.automationId"
                   size="small"
@@ -807,7 +886,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
             </div>
             <div class="advanced-grid">
               <div class="control-item unsupported">
-                <span class="label">排除递归 (仅兼容)</span>
+                <span class="label">排除递归 (不支持)</span>
                 <el-switch v-model="currentEntry.excludeRecursion" size="small" disabled />
               </div>
 
@@ -817,12 +896,12 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
               </div>
 
               <div class="control-item unsupported">
-                <span class="label">延迟到递归 (仅兼容)</span>
+                <span class="label">延迟到递归 (不支持)</span>
                 <el-switch v-model="currentEntry.delayUntilRecursion" size="small" disabled />
               </div>
 
               <div class="control-item unsupported">
-                <span class="label">递归等级 (仅兼容)</span>
+                <span class="label">递归等级 (不支持)</span>
                 <el-input-number
                   v-model="currentEntry.delayUntilRecursionLevel"
                   size="small"
@@ -837,7 +916,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
           <div class="flat-section unsupported">
             <div class="section-header">
               <el-icon><Filter /></el-icon>
-              <span>触发器过滤 (仅兼容)</span>
+              <span>触发器过滤 (不支持)</span>
             </div>
             <div class="advanced-grid">
               <div class="control-item full-width">
@@ -874,12 +953,12 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
               </div>
               <div class="control-item unsupported">
                 <el-checkbox v-model="currentEntry.matchCharacterPersonality" size="small" disabled
-                  >角色性格 (仅兼容)</el-checkbox
+                  >角色性格 (不支持)</el-checkbox
                 >
               </div>
               <div class="control-item unsupported">
                 <el-checkbox v-model="currentEntry.matchScenario" size="small" disabled
-                  >情景 (仅兼容)</el-checkbox
+                  >情景 (不支持)</el-checkbox
                 >
               </div>
               <div class="control-item">
@@ -889,12 +968,12 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
               </div>
               <div class="control-item unsupported">
                 <el-checkbox v-model="currentEntry.matchCharacterDepthPrompt" size="small" disabled
-                  >角色备注 (仅兼容)</el-checkbox
+                  >角色备注 (不支持)</el-checkbox
                 >
               </div>
               <div class="control-item unsupported">
                 <el-checkbox v-model="currentEntry.matchCreatorNotes" size="small" disabled
-                  >创作者注释 (仅兼容)</el-checkbox
+                  >创作者注释 (不支持)</el-checkbox
                 >
               </div>
             </div>
@@ -904,7 +983,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
           <div class="flat-section unsupported" v-if="currentEntry.characterFilter">
             <div class="section-header">
               <el-icon><User /></el-icon>
-              <span>角色/标签绑定 (仅兼容)</span>
+              <span>角色/标签绑定 (不支持)</span>
             </div>
             <div class="advanced-grid">
               <div class="control-item full-width">
@@ -921,7 +1000,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
                   allow-create
                   placeholder="不支持过滤"
                   size="small"
-                  style="width: 10%"
+                  style="width: 100%"
                   disabled
                 />
               </div>
@@ -934,6 +1013,40 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
     <div v-else class="empty-selection">
       <el-empty description="选择一个条目开始编辑" />
     </div>
+
+    <!-- 移动/复制对话框 -->
+    <BaseDialog v-model="moveCopyDialogVisible" title="移动/复制条目" width="400px" height="auto">
+      <div class="move-copy-dialog-content">
+        <div class="dialog-form-item">
+          <label>目标世界书</label>
+          <el-select v-model="moveCopyTargetId" placeholder="请选择目标世界书" style="width: 100%">
+            <el-option
+              v-for="book in store.worldbooks.filter((b) => b.id !== props.id)"
+              :key="book.id"
+              :label="book.name"
+              :value="book.id"
+            />
+          </el-select>
+        </div>
+        <div class="dialog-form-item" style="margin-top: 16px">
+          <label>操作模式</label>
+          <div style="margin-top: 8px">
+            <el-radio-group v-model="isMoveMode">
+              <el-radio :label="false">复制 (保留当前条目)</el-radio>
+              <el-radio :label="true">移动 (删除当前条目)</el-radio>
+            </el-radio-group>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="moveCopyDialogVisible = false">取消</el-button>
+          <el-button type="primary" :disabled="!moveCopyTargetId" @click="executeMoveCopy">
+            确定
+          </el-button>
+        </div>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -945,6 +1058,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   width: 100%;
   background-color: var(--card-bg);
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .wb-detail-container.is-inner-narrow {
@@ -956,7 +1070,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
   background-color: var(--sidebar-bg);
   flex-shrink: 0;
   height: 48px;
@@ -984,7 +1098,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-bottom: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
   background-color: var(--card-bg);
 }
 
@@ -1017,24 +1131,39 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
 }
 
 .sort-select {
-  width: 110px;
+  width: 130px;
 }
 
 .entry-list-header {
   display: flex;
   padding: 4px 8px;
-  background-color: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--border-color);
+  background-color: color-mix(in srgb, var(--el-fill-color-lighter), transparent 40%);
+  border: 1px solid var(--border-color);
   font-size: 11px;
   color: var(--el-text-color-secondary);
   font-weight: bold;
 }
 
 .col-status {
-  width: 45px;
+  width: 85px;
   flex-shrink: 0;
   text-align: center;
 }
+
+.col-handle {
+  width: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .col-name {
   flex: 1;
   min-width: 100px;
@@ -1073,29 +1202,52 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   display: flex;
   align-items: center;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .entry-item-row:hover {
-  background-color: var(--el-fill-color-light);
+  background-color: color-mix(in srgb, var(--el-fill-color-light), transparent 50%);
 }
 
 .entry-item-row.active {
-  background-color: var(--el-color-primary-light-9);
-  box-shadow: inset 2px 0 0 var(--el-color-primary);
+  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+}
+
+.entry-item-row.active .col-handle {
+  color: var(--el-color-primary);
+}
+
+.entry-item-row.active .handle-icon {
+  transform: scale(1.1);
+  color: var(--el-color-primary);
+}
+
+.entry-item-row:not(.active):hover .col-handle {
+  color: var(--el-text-color-regular);
 }
 
 .entry-item-row.disabled {
   opacity: 0.6;
-  background-color: var(--el-fill-color-lighter);
+  background-color: color-mix(in srgb, var(--el-fill-color-lighter), transparent 20%);
 }
 
 .cell {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
+}
+
+.handle-icon {
+  font-size: 14px;
+  color: var(--el-text-color-placeholder);
+  transition: all 0.2s;
+}
+
+.entry-item-row:hover .handle-icon {
+  color: var(--el-text-color-secondary);
 }
 
 .compact-input :deep(.el-input__wrapper),
@@ -1105,13 +1257,23 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   box-shadow: none !important;
   background: transparent;
   border: 1px solid transparent;
+  transition: all 0.2s;
 }
 
+/* Hover 状态 */
 .entry-item-row:hover .compact-input :deep(.el-input__wrapper),
 .entry-item-row:hover .compact-select :deep(.el-select__wrapper),
 .entry-item-row:hover .compact-number :deep(.el-input__wrapper) {
-  border-color: var(--el-border-color-lighter);
-  background: var(--el-bg-color);
+  border-color: var(--border-color);
+  background: var(--input-bg);
+}
+
+/* Focus 状态 - 确保在输入时边框高亮 */
+.compact-input :deep(.el-input__wrapper.is-focus),
+.compact-select :deep(.el-select__wrapper.is-focus),
+.compact-number :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--el-color-primary) !important;
+  background: var(--input-bg) !important;
 }
 
 .compact-number {
@@ -1135,7 +1297,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   align-items: center;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
 }
 
 .filter-group {
@@ -1158,7 +1320,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
 
 .editor-header {
   padding: 16px 24px;
-  border-bottom: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1172,8 +1334,14 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
 
 .entry-name-input :deep(.el-input__wrapper) {
   box-shadow: none;
-  background: transparent;
+  border: 1px solid var(--border-color);
   padding-left: 0;
+  transition: border-color 0.2s;
+  background: transparent;
+}
+
+.entry-name-input :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--el-color-primary);
 }
 
 .entry-name-input :deep(.el-input__inner) {
@@ -1185,6 +1353,7 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  box-sizing: border-box;
 }
 
 .section-core {
@@ -1226,7 +1395,13 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
-  background-color: var(--el-fill-color-blank);
+  background-color: var(--input-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  transition: all 0.3s;
+}
+
+.flat-section:focus-within {
+  border-color: color-mix(in srgb, var(--el-color-primary), transparent 60%);
 }
 
 .section-header {
@@ -1254,12 +1429,23 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   margin-bottom: 8px;
 }
 
+.flex-center {
+  display: flex;
+  align-items: center;
+}
+
+.gap-8 {
+  gap: 8px;
+}
+
 .state-select-mini {
-  width: 45px;
+  width: 42px;
 }
 .state-select-mini :deep(.el-select__wrapper) {
   padding: 0 4px;
   box-shadow: none !important;
+  background-color: transparent;
+  transition: all 0.2s;
 }
 
 .name-wrapper {
@@ -1267,11 +1453,6 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   align-items: center;
   gap: 4px;
   width: 100%;
-}
-
-.constant-icon {
-  color: var(--el-color-warning);
-  flex-shrink: 0;
 }
 
 .control-item {
@@ -1304,6 +1485,24 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Move/Copy Dialog */
+.move-copy-dialog-content {
+  padding: 10px 0;
+}
+
+.dialog-form-item label {
+  display: block;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 /* Custom Scrollbar */

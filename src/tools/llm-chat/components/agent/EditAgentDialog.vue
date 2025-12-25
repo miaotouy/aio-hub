@@ -36,6 +36,9 @@ const ChatRegexEditor = defineAsyncComponent(() => import("../common/ChatRegexEd
 const EditUserProfileDialog = defineAsyncComponent(
   () => import("../user-profile/EditUserProfileDialog.vue")
 );
+const WorldbookManagerDialog = defineAsyncComponent(
+  () => import("../worldbook/WorldbookManagerDialog.vue")
+);
 
 interface Props {
   visible: boolean;
@@ -124,6 +127,7 @@ const styleLoading = ref(false);
 // 宏选择器弹窗状态
 const macroSelectorVisible = ref(false);
 const userProfileDialogVisible = ref(false);
+const worldbookManagerVisible = ref(false);
 const assetsDialogVisible = ref(false);
 
 // 资产分组统计
@@ -588,8 +592,11 @@ const handleSave = (options: { silent?: boolean } = {}) => {
       <el-form-item label="关联世界书">
         <div style="width: 100%">
           <WorldbookSelector v-model="editForm.worldbookIds" />
-          <div class="form-hint">
-            关联世界书（World Info）后，对话中匹配到关键字时将自动注入相关设定。
+          <div class="form-hint-with-action">
+            <span>关联世界书后，当对话中匹配到关键字时，将自动注入相关设定。</span>
+            <el-button type="primary" link @click="worldbookManagerVisible = true">
+              管理世界书
+            </el-button>
           </div>
 
           <!-- 世界书覆盖设置 -->
@@ -852,6 +859,9 @@ const handleSave = (options: { silent?: boolean } = {}) => {
       :profile="effectiveUserProfile"
       @update:visible="userProfileDialogVisible = $event"
     />
+
+    <!-- 世界书管理弹窗 -->
+    <WorldbookManagerDialog v-model:visible="worldbookManagerVisible" />
 
     <!-- 资产管理弹窗 -->
     <!-- 注意：agentId 必须使用真正的智能体 ID（如 agent-xxx），而不是名称 -->

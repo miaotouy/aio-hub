@@ -89,8 +89,12 @@ export function normalizeWorldbook(data: any): STWorldbook {
       const e = entry as any;
       result.entries[id] = {
         uid: e.uid,
-        key: Array.isArray(e.key) ? e.key : [],
-        keysecondary: Array.isArray(e.keysecondary) ? e.keysecondary : [],
+        key: Array.isArray(e.key)
+          ? e.key
+          : (typeof e.key === 'string' ? e.key.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
+        keysecondary: Array.isArray(e.keysecondary)
+          ? e.keysecondary
+          : (typeof e.keysecondary === 'string' ? e.keysecondary.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
         comment: e.comment || "",
         content: e.content || "",
         constant: !!e.constant,
@@ -99,7 +103,7 @@ export function normalizeWorldbook(data: any): STWorldbook {
         selectiveLogic: e.selectiveLogic ?? e.selective_logic,
         order: e.order ?? 100,
         position: e.position ?? 0,
-        role: e.role,
+        role: e.role ?? e.insertion_role,
         disable: !!(e.disable ?? e.disabled),
         probability: e.probability ?? 100,
         useProbability: e.useProbability ?? e.use_probability ?? true,

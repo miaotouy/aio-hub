@@ -63,7 +63,12 @@
           }
         "
       />
-      <div class="form-hint">关联世界书后，当对话中出现关键字时，将自动注入对应设定。</div>
+      <div class="form-hint-with-action">
+        <span>关联世界书后，当对话中出现关键字时，将自动注入对应设定。</span>
+        <el-button type="primary" link @click="worldbookManagerVisible = true">
+          管理世界书
+        </el-button>
+      </div>
     </el-form-item>
 
     <el-divider />
@@ -125,6 +130,9 @@
       </el-form-item>
     </template>
   </el-form>
+
+  <!-- 世界书管理弹窗 -->
+  <WorldbookManagerDialog v-model:visible="worldbookManagerVisible" />
 </template>
 
 <script setup lang="ts">
@@ -140,6 +148,9 @@ const MarkdownStyleEditor = defineAsyncComponent(
 );
 const ChatRegexEditor = defineAsyncComponent(
   () => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
+);
+const WorldbookManagerDialog = defineAsyncComponent(
+  () => import("@/tools/llm-chat/components/worldbook/WorldbookManagerDialog.vue")
 );
 
 interface UserProfileFormData {
@@ -202,6 +213,7 @@ const formData = ref<UserProfileFormData>({
 });
 
 const styleLoading = ref(false);
+const worldbookManagerVisible = ref(false);
 
 // 监听外部数据变化
 watch(
@@ -251,6 +263,16 @@ const formatDateTime = (dateStr?: string) => {
 <style scoped>
 /* 表单提示 */
 .form-hint {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-top: 4px;
+}
+
+.form-hint-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 4px;

@@ -204,7 +204,7 @@ const handleExport = async () => {
           </el-tooltip>
           <el-popconfirm title="确定删除当前世界书吗？" @confirm="handleDelete">
             <template #reference>
-              <el-button :icon="Trash2" type="danger" plain :disabled="!selectedWbId" />
+              <el-button :icon="Trash2" plain :disabled="!selectedWbId" />
             </template>
           </el-popconfirm>
         </el-button-group>
@@ -288,6 +288,7 @@ const handleExport = async () => {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--border-color);
+  box-sizing: border-box;
 }
 
 .manager-header {

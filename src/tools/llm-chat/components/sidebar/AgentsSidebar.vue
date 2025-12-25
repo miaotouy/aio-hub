@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, defineAsyncComponent } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
+import { invoke } from "@tauri-apps/api/core";
 import yaml from "js-yaml";
 import { useAgentStore } from "../../agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { useLlmSearch, type MatchDetail } from "../../composables/useLlmSearch";
+import { useFileDrop } from "@/composables/useFileDrop";
 import { Plus, Search, Download, Upload, DocumentAdd, Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ChatAgent, AgentEditData } from "../../types";
 import type { AgentPreset } from "../../types";
 import { AgentCategory, AgentCategoryLabels } from "../../types";
 import type { ExportableAgent, AgentExportFile } from "../../types/agentImportExport";
 import AgentListItem from "./AgentListItem.vue";
+
+// 创建模块错误处理器
+const errorHandler = createModuleErrorHandler("llm-chat/AgentsSidebar");
 
 console.log("[AgentsSidebar] Setup started");
 
@@ -28,7 +34,10 @@ const agentStore = useAgentStore();
 const { agentSortBy } = useLlmChatUiState();
 
 // 后端搜索功能
-const { isSearching, showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({ debounceMs: 300, scope: "agent" });
+const { isSearching, showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({
+  debounceMs: 300,
+  scope: "agent",
+});
 
 // 搜索和筛选状态
 const searchQuery = ref("");
@@ -135,7 +144,7 @@ const filteredAndSortedAgents = computed(() => {
 // 搜索模式下的智能体列表（基于后端搜索结果）
 const searchResultAgents = computed(() => {
   if (!isInSearchMode.value) return [];
-  
+
   // 根据后端返回的搜索结果顺序获取 agent 对象
   const agents: ChatAgent[] = [];
   for (const result of agentResults.value) {
@@ -176,11 +185,42 @@ const getAgentMatches = (agentId: string): MatchDetail[] | undefined => {
   const matches = searchMatchesMap.value.get(agentId);
   if (!matches) return undefined;
   // 过滤掉名称显示，因为名称已经显示在列表项中了
-  return matches.filter(m => m.field !== 'name' && m.field !== 'displayName');
+  return matches.filter((m) => m.field !== "name" && m.field !== "displayName");
 };
 
 // 虚拟滚动
+const sidebarRef = ref<HTMLElement>();
 const parentRef = ref<HTMLElement | null>(null);
+
+// 拖拽导入支持
+const { isDraggingOver } = useFileDrop({
+  element: sidebarRef,
+  fileOnly: true,
+  multiple: true,
+  accept: [".zip", ".json", ".yaml", ".yml", ".png"],
+  onDrop: async (paths) => {
+    if (paths.length === 0) return;
+
+    importLoading.value = true;
+    try {
+      const files: File[] = [];
+      for (const path of paths) {
+        const contents = await invoke<number[]>("read_file_binary", { path });
+        const name = path.split(/[/\\]/).pop() || "file";
+        files.push(new File([new Uint8Array(contents)], name));
+      }
+
+      const result = await agentStore.preflightImportAgents(files);
+      importPreflightResult.value = result;
+      importDialogVisible.value = true;
+    } catch (error) {
+      // 错误已由 preflight 处理或在此捕获
+      errorHandler.error(error, "读取拖放文件失败");
+    } finally {
+      importLoading.value = false;
+    }
+  },
+});
 
 const virtualizer = useVirtualizer({
   get count() {
@@ -269,14 +309,17 @@ const handleImportFromFile = async () => {
     };
     input.click();
   } catch (error) {
-    customMessage.error(`打开文件选择器失败: ${error}`);
+    errorHandler.error(error, "打开文件选择器失败");
   }
 };
 
-const handleConfirmImport = (resolvedAgents: any[], worldbookOptions: {
-  bundledWorldbooks: Record<string, any[]>;
-  embeddedWorldbooks: Record<string, any>;
-}) => {
+const handleConfirmImport = (
+  resolvedAgents: any[],
+  worldbookOptions: {
+    bundledWorldbooks: Record<string, any[]>;
+    embeddedWorldbooks: Record<string, any>;
+  }
+) => {
   if (!importPreflightResult.value) return;
   agentStore.confirmImportAgents({
     resolvedAgents,
@@ -451,7 +494,7 @@ const handleDelete = (agent: ChatAgent) => {
         await agentStore.deleteAgent(agent.id);
         customMessage.success("智能体已删除并移入回收站");
       } catch (error) {
-        customMessage.error(`删除智能体失败: ${error}`);
+        errorHandler.error(error, "删除智能体失败");
       }
     })
     .catch(() => {
@@ -492,7 +535,7 @@ const handleCopyConfig = async (agent: ChatAgent, format: "json" | "yaml") => {
     const name = agent.displayName || agent.name;
     customMessage.success(`智能体 "${name}" 的 ${format.toUpperCase()} 配置已复制到剪贴板`);
   } catch (error) {
-    customMessage.error(`复制配置失败: ${error}`);
+    errorHandler.error(error, "复制配置失败");
   }
 };
 
@@ -527,7 +570,7 @@ const handleImportFromClipboard = async () => {
       importLoading.value = false;
     }
   } catch (error) {
-    customMessage.error(`读取剪贴板失败: ${error}`);
+    errorHandler.error(error, "读取剪贴板失败");
   }
 };
 
@@ -556,13 +599,21 @@ const handleImportFromTavernCard = async () => {
     };
     input.click();
   } catch (error) {
-    customMessage.error(`打开文件选择器失败: ${error}`);
+    errorHandler.error(error, "打开文件选择器失败");
   }
 };
 </script>
 
 <template>
-  <div class="agents-sidebar-content">
+  <div class="agents-sidebar-content" ref="sidebarRef">
+    <!-- 拖拽覆盖层 -->
+    <div v-if="isDraggingOver" class="drop-overlay">
+      <div class="drop-hint">
+        <el-icon :size="40"><Download /></el-icon>
+        <span>松开以导入智能体</span>
+      </div>
+    </div>
+
     <!-- 搜索和排序工具栏 -->
     <div class="agents-toolbar">
       <div class="toolbar-row">
@@ -575,7 +626,7 @@ const handleImportFromTavernCard = async () => {
           size="small"
         >
           <template #suffix v-if="showLoadingIndicator">
-             <el-icon class="is-loading"><Loading /></el-icon>
+            <el-icon class="is-loading"><Loading /></el-icon>
           </template>
         </el-input>
       </div>
@@ -615,7 +666,9 @@ const handleImportFromTavernCard = async () => {
 
       <div v-else-if="displayAgents.length === 0" class="empty-state">
         <p>没有找到匹配的智能体</p>
-        <p class="hint">{{ isInSearchMode ? '尝试其他搜索关键词，或减少筛选条件' : '尝试其他搜索关键词' }}</p>
+        <p class="hint">
+          {{ isInSearchMode ? "尝试其他搜索关键词，或减少筛选条件" : "尝试其他搜索关键词" }}
+        </p>
       </div>
 
       <div
@@ -728,6 +781,35 @@ const handleImportFromTavernCard = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+}
+
+.drop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  /* 使用 rgba 确保背景半透明，配合 backdrop-filter 实现磨砂效果 */
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  border: 2px dashed var(--el-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(var(--ui-blur));
+  pointer-events: none;
+  border-radius: 4px;
+  margin: 4px;
+}
+
+.drop-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--el-color-primary);
+  font-weight: bold;
 }
 
 .agents-toolbar {

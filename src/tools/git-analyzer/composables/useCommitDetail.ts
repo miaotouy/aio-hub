@@ -1,11 +1,13 @@
 import { ref } from 'vue'
 import { customMessage } from '@/utils/customMessage'
+import { createModuleErrorHandler } from '@/utils/errorHandler'
 import { invoke } from '@tauri-apps/api/core'
 import type { GitCommit } from '../types'
 import { createModuleLogger } from '@utils/logger'
 import { commitCache } from './useCommitCache'
 
 const logger = createModuleLogger('git-analyzer:useCommitDetail')
+const errorHandler = createModuleErrorHandler('git-analyzer:useCommitDetail')
 
 export function useCommitDetail(repoPath: () => string) {
   // 状态
@@ -51,7 +53,7 @@ export function useCommitDetail(repoPath: () => string) {
       commitCache.setCommitDetail(hash, detail)
       selectedCommit.value = detail
     } catch (error) {
-      customMessage.error(`加载提交详情失败: ${error}`)
+      errorHandler.error(error, '加载提交详情失败')
     }
   }
 

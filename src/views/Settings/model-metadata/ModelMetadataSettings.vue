@@ -318,6 +318,7 @@
 import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import { useModelMetadata } from "@composables/useModelMetadata";
 import type { ModelMetadataRule, MetadataMatchType } from "../../../types/model-metadata";
@@ -346,6 +347,7 @@ const {
 const showPresets = ref(false);
 const editingConfig = ref<Partial<ModelMetadataRule> | null>(null);
 const isNewConfig = ref(false);
+const errorHandler = createModuleErrorHandler("Settings/ModelMetadataSettings");
 
 // 搜索和过滤
 const searchText = ref("");
@@ -553,9 +555,9 @@ async function handleReset() {
     if (await resetToDefaults()) {
       customMessage.success("已重置为默认配置");
     } else {
-      customMessage.error("重置失败");
+      errorHandler.error(new Error("resetToDefaults 返回 false"), "重置失败");
     }
-  } catch {
+  } catch (error) {
     customMessage.info("操作已取消");
   }
 }
@@ -580,9 +582,9 @@ async function handleMerge() {
     }
   } catch (error) {
     if (error !== "cancel") {
-      customMessage.error("合并配置失败");
+      errorHandler.error(error, "合并配置失败");
     }
-  }
+}
 }
 
 // 处理导出

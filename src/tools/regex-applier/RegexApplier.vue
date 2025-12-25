@@ -967,16 +967,11 @@ const processFiles = async () => {
       addLog(`已从列表中移除 ${successfulFiles.length} 个成功处理的文件`);
     }
   } catch (error: any) {
-    errorHandler.handle(error, {
-      userMessage: "文件处理失败",
-      context: {
-        operation: "processFiles",
-        fileCount: files.value.length,
-        outputDir: outputDirectory.value,
-      },
-      showToUser: false,
+    errorHandler.error(error, "文件处理失败", {
+      operation: "processFiles",
+      fileCount: files.value.length,
+      outputDir: outputDirectory.value,
     });
-    customMessage.error(`文件处理失败: ${error}`);
     addLog(`文件处理失败: ${error}`, "error");
     files.value.forEach((file) => {
       if (file.status === "processing") {

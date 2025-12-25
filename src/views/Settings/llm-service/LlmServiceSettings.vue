@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
 import ModelList from "./components/ModelList.vue";
@@ -19,6 +20,8 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
 import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+
+const errorHandler = createModuleErrorHandler("LlmServiceSettings");
 
 const {
   profiles,
@@ -263,7 +266,7 @@ const fetchModels = async () => {
     fetchedModels.value = models;
     showModelFetcherDialog.value = true;
   } catch (error: any) {
-    customMessage.error(`获取模型列表失败: ${error.message}`);
+    errorHandler.error(error, "获取模型列表失败");
   } finally {
     isFetchingModels.value = false;
   }

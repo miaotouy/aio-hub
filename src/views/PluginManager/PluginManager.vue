@@ -7,7 +7,10 @@ import PluginDetailPanel from './components/PluginDetailPanel.vue';
 import type { PluginProxy } from '@/services/plugin-types';
 import { pluginManager } from '@/services/plugin-manager';
 import { customMessage } from '@/utils/customMessage';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { loadAppSettings, updateAppSettings } from '@/utils/appSettings';
+
+const errorHandler = createModuleErrorHandler('PluginManager');
 
 // 当前激活的标签页
 const activeTab = ref<'installed' | 'market'>('installed');
@@ -100,7 +103,7 @@ const handleTogglePlugin = async () => {
       customMessage.success(`已启用插件: ${selectedPlugin.value.name}`);
     }
   } catch (error) {
-    customMessage.error(`操作失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    errorHandler.error(error, '操作失败');
   }
 };
 
@@ -132,7 +135,7 @@ const handleUninstallPlugin = async () => {
   } catch (error) {
     // 用户取消操作
     if (error !== 'cancel') {
-      customMessage.error(`卸载失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      errorHandler.error(error, '卸载失败');
     }
   }
 };

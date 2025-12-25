@@ -389,7 +389,7 @@ export function useAttachmentManager(
       pendingAsset.importStatus = "error";
       pendingAsset.importError = error instanceof Error ? error.message : "导入失败";
 
-      customMessage.error(`导入失败: ${pendingAsset.name}`);
+      errorHandler.error(error, "导入失败", { assetName: pendingAsset.name });
     }
   };
 

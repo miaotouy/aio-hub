@@ -52,7 +52,7 @@ export function useTranslation() {
     const modelId = modelIdentifier.substring(firstColonIndex + 1);
 
     if (!profileId || !modelId) {
-      customMessage.error(`翻译模型配置无效: ${modelIdentifier}`);
+      errorHandler.error(new Error(`翻译模型配置无效: ${modelIdentifier}`), "翻译模型配置无效");
       return "";
     }
 

@@ -80,6 +80,7 @@ import type {
 } from '../colorPicker.store';
 import { useColorConverter, getContrastColor, copyToClipboard } from '../composables/useColorConverter';
 import { customMessage } from '@/utils/customMessage';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 interface Props {
   algorithm: AnalysisAlgorithm;
@@ -90,6 +91,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const errorHandler = createModuleErrorHandler('ColorPicker/PaletteDisplay');
 
 /**
  * 是否有分析结果
@@ -133,7 +135,7 @@ async function copyColor(hexColor: string) {
       customMessage.success(`已复制: ${formattedColor}`);
     },
     (error) => {
-      customMessage.error(`复制失败: ${error.message}`);
+      errorHandler.error(error, '复制失败');
     }
   );
 }

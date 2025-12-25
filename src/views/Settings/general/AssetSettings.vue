@@ -2,10 +2,13 @@
 import { ref, onMounted } from "vue";
 import { InfoFilled, FolderOpened } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { updateAppSettings, loadAppSettings } from "@/utils/appSettings";
 import { resetAssetBasePathCache } from "@/composables/useAssetManager";
+
+const errorHandler = createModuleErrorHandler("Settings/AssetSettings");
 
 // 资产路径配置
 const customAssetPath = ref<string>("");
@@ -26,8 +29,7 @@ const loadConfig = async () => {
     // 获取当前实际使用的路径
     currentAssetPath.value = customAssetPath.value || defaultAssetPath.value;
   } catch (error) {
-    console.error("加载资产路径配置失败:", error);
-    customMessage.error("加载配置失败");
+    errorHandler.error(error, "加载配置失败");
   } finally {
     isLoading.value = false;
   }
@@ -47,8 +49,7 @@ const selectCustomPath = async () => {
       saveConfig();
     }
   } catch (error) {
-    console.error("选择目录失败:", error);
-    customMessage.error("选择目录失败");
+    errorHandler.error(error, "选择目录失败");
   }
 };
 // 保存配置
@@ -68,8 +69,7 @@ const saveConfig = () => {
 
     customMessage.success("资产路径配置已保存，将在下次资源加载时生效");
   } catch (error) {
-    console.error("保存配置失败:", error);
-    customMessage.error("保存配置失败");
+    errorHandler.error(error, "保存配置失败");
   }
 };
 
@@ -86,8 +86,7 @@ const openAssetDirectory = async () => {
       filePath: currentAssetPath.value,
     });
   } catch (error) {
-    console.error("打开目录失败:", error);
-    customMessage.error("打开目录失败");
+    errorHandler.error(error, "打开目录失败");
   }
 };
 

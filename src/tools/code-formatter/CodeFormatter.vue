@@ -64,6 +64,7 @@
 import { ref, watch } from 'vue';
 import InfoCard from '@/components/common/InfoCard.vue';
 import { customMessage } from '@/utils/customMessage';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import debounce from 'lodash/debounce';
@@ -74,6 +75,7 @@ import { useSendToChat } from '@/composables/useSendToChat';
 
 // 获取服务实例
 const codeFormatterRegistry = toolRegistryManager.getRegistry<CodeFormatterRegistry>('code-formatter');
+const errorHandler = createModuleErrorHandler('CodeFormatter');
 
 // 获取发送到聊天功能
 const { sendCodeToChat } = useSendToChat();
@@ -120,7 +122,7 @@ const copyFormattedCode = async () => {
     await writeText(formattedCodeOutput.value);
     customMessage.success('格式化后的代码已复制到剪贴板！');
   } catch (error: any) {
-    customMessage.error(`复制失败: ${error.message}`);
+    errorHandler.error(error, '复制失败');
   }
 };
 

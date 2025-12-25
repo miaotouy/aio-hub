@@ -6,6 +6,7 @@ import { VueDraggableNext } from "vue-draggable-next";
 import { ref, onMounted } from "vue";
 import { updateAppSettings } from "@/utils/appSettings";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 // 定义 props 和 emits
 interface ToolsVisible {
@@ -13,6 +14,7 @@ interface ToolsVisible {
 }
 const toolsVisible = defineModel<ToolsVisible>("toolsVisible", { required: true });
 const toolsStore = useToolsStore();
+const errorHandler = createModuleErrorHandler("Settings/ToolsSettings");
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
@@ -79,8 +81,7 @@ const onDragEnd = () => {
     toolsStore.updateOrder(newOrder);
     customMessage.success("工具顺序已更新");
   } catch (error) {
-    console.error("保存工具顺序失败:", error);
-    customMessage.error("保存工具顺序失败");
+    errorHandler.error(error, "保存工具顺序失败");
   }
 };
 
@@ -95,8 +96,7 @@ const resetOrder = () => {
     sortedTools.value = [...toolsStore.orderedTools];
     customMessage.success("工具顺序已重置为默认");
   } catch (error) {
-    console.error("重置工具顺序失败:", error);
-    customMessage.error("重置工具顺序失败");
+    errorHandler.error(error, "重置工具顺序失败");
   }
 };
 </script>

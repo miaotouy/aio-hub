@@ -35,13 +35,13 @@ import { ref, watch, computed, nextTick } from "vue";
 import { ElButton } from "element-plus";
 import { isEqual } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { useLlmChatStore } from "../../store";
 import type { ChatMessageNode } from "../../types";
-import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger("MessageDataEditor");
+const errorHandler = createModuleErrorHandler("LlmChat/MessageDataEditor");
 
 const props = defineProps<{
   modelValue: boolean;
@@ -82,8 +82,7 @@ watch(
           editorRef.value?.focusEditor();
         });
       } else {
-        logger.error("无法加载消息数据：节点不存在", { messageId: props.messageId });
-        customMessage.error("无法加载消息数据，节点可能已被删除。");
+        errorHandler.error(null, "无法加载消息数据，节点可能已被删除。", { messageId: props.messageId });
         handleClose();
       }
     }
@@ -97,14 +96,13 @@ const handleSave = async () => {
   try {
     parsedData = JSON.parse(jsonData.value);
   } catch (error) {
-    logger.warn("保存失败：JSON 解析错误", error);
     parseError.value = (error as Error).message;
-    customMessage.error("JSON 格式错误，请检查后再保存。");
+    errorHandler.error(error, "JSON 格式错误，请检查后再保存。");
     return;
   }
 
   if (!props.messageId || !originalNodeData.value) {
-    customMessage.error("内部错误：缺少消息 ID 或原始数据。");
+    errorHandler.error("内部错误：缺少消息 ID 或原始数据。");
     return;
   }
 
@@ -133,8 +131,7 @@ const handleSave = async () => {
     customMessage.success("消息数据已更新。");
     handleClose();
   } catch (error) {
-    logger.error("更新节点数据时出错", error);
-    customMessage.error(`保存失败：${(error as Error).message}`);
+    errorHandler.error(error, "保存失败");
   }
 };
 

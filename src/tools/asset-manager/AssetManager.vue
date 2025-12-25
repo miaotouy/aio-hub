@@ -234,8 +234,7 @@ const handleRefresh = async () => {
     await Promise.all([fetchData(false), fetchAssetStats()]);
     customMessage.success("已刷新");
   } catch (error) {
-    console.error("刷新失败:", error);
-    customMessage.error("刷新失败");
+    errorHandler.error(error, "刷新失败");
   }
 };
 
@@ -373,8 +372,7 @@ const handleShowInFolder = async (path: string) => {
     const absolutePath = await join(assetBasePath.value, path);
     await invoke("open_file_directory", { filePath: absolutePath });
   } catch (err) {
-    console.error("打开文件所在目录失败:", err);
-    customMessage.error(`打开文件所在目录失败: ${err}`);
+    errorHandler.error(err, "打开文件所在目录失败");
   }
 };
 
@@ -407,8 +405,7 @@ const handleDeleteAsset = async (assetId: string) => {
 
     customMessage.success("已成功删除资产");
   } catch (err) {
-    console.error("删除资产失败:", err);
-    customMessage.error(`删除失败: ${err}`);
+    errorHandler.error(err, "删除失败");
   }
 };
 
@@ -501,8 +498,7 @@ const handleDeleteSelected = async () => {
   } catch (err) {
     // 用户取消操作
     if (err !== "cancel") {
-      console.error("批量删除失败:", err);
-      customMessage.error(`批量删除失败: ${err}`);
+      errorHandler.error(err, "批量删除失败");
     }
   }
 };
@@ -795,7 +791,7 @@ const handleSaveTranscription = async (content: string) => {
   const derived = asset.metadata?.derived?.transcription;
   
   if (!derived || !derived.path) {
-    customMessage.error("无法保存：找不到转写文件路径");
+    errorHandler.error("无法保存：找不到转写文件路径");
     return;
   }
 

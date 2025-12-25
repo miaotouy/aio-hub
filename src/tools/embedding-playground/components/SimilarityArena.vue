@@ -136,8 +136,10 @@ import { useVectorMath } from "../composables/useVectorMath";
 import { Plus, X, BarChart3, Copy, Check } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const store = useEmbeddingPlaygroundStore();
+const errorHandler = createModuleErrorHandler("EmbeddingPlayground/SimilarityArena");
 const { isLoading, runEmbedding } = useEmbeddingRunner();
 const { calculateSimilarity } = useVectorMath();
 
@@ -281,16 +283,16 @@ const handleCompare = async () => {
   // 此时所有文本在 modelCache 中都应该有值了
   const finalEmbeddings: number[][] = [];
 
-  for (const text of allTexts) {
-    const vec = modelCache.get(text);
-    if (vec) {
-      finalEmbeddings.push(vec);
-    } else {
-      // 理论上不应执行到这里，除非上面的请求失败了但没被捕获
-      customMessage.error(`无法获取文本向量: ${text.slice(0, 10)}...`);
-      return;
-    }
+for (const text of allTexts) {
+  const vec = modelCache.get(text);
+  if (vec) {
+    finalEmbeddings.push(vec);
+  } else {
+    // 理论上不应执行到这里，除非上面的请求失败了但没被捕获
+    errorHandler.error(`无法获取文本向量: ${text.slice(0, 10)}...`);
+    return;
   }
+}
 
   // 7. 更新状态并计算分数
   currentEmbeddings.value = finalEmbeddings;

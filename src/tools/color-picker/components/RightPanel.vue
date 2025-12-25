@@ -203,6 +203,7 @@ import { Pipette } from 'lucide-vue-next';
 import { useColorPickerStore } from '../colorPicker.store';
 import { useColorConverter, getContrastColor, copyToClipboard } from '../composables/useColorConverter';
 import { customMessage } from '@/utils/customMessage';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import InfoCard from '@/components/common/InfoCard.vue';
 
 interface Props {
@@ -214,6 +215,7 @@ interface Props {
 
 defineProps<Props>();
 const store = useColorPickerStore();
+const errorHandler = createModuleErrorHandler('ColorPicker/RightPanel');
 
 const algorithmOptions = [
   { label: '主色调', value: 'quantize' },
@@ -269,7 +271,7 @@ async function copyColor(hexColor: string) {
   await copyToClipboard(
     formattedColor,
     () => customMessage.success(`已复制: ${formattedColor}`),
-    (error) => customMessage.error(`复制失败: ${error.message}`)
+    (error) => errorHandler.error(error, '复制失败')
   );
 }
 
@@ -293,7 +295,7 @@ async function copyAllAnalysisColors() {
   await copyToClipboard(
     formattedColors,
     () => customMessage.success(`已复制 ${colors.length} 个颜色`),
-    (error) => customMessage.error(`复制失败: ${error.message}`)
+    (error) => errorHandler.error(error, '复制失败')
   );
 }
 
@@ -305,7 +307,7 @@ async function copyAllManualColors() {
   await copyToClipboard(
     colors,
     () => customMessage.success(`已复制 ${store.manualPalette.length} 个颜色`),
-    (error) => customMessage.error(`复制失败: ${error.message}`)
+    (error) => errorHandler.error(error, '复制失败')
   );
 }
 

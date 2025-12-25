@@ -5,6 +5,7 @@ import type { LlmParameters } from "../../../types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 type CustomParams = LlmParameters["custom"];
 
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const errorHandler = createModuleErrorHandler("LlmChat/CustomParamsPanel");
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: CustomParams): void;
@@ -59,7 +61,7 @@ const saveCustomParams = () => {
     isCustomParamsDialogVisible.value = false;
     customMessage.success("自定义参数已保存");
   } catch (error: any) {
-    customMessage.error(`JSON 格式错误: ${error.message}`);
+    errorHandler.error(error, "JSON 格式错误");
   }
 };
 </script>

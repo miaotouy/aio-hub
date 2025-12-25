@@ -100,6 +100,7 @@ import { useExportManager } from "../../composables/useExportManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 
 interface Props {
@@ -141,6 +142,7 @@ const includeAttachments = ref(true);
 const includeErrors = ref(true);
 
 const exporting = ref(false);
+const errorHandler = createModuleErrorHandler("LlmChat/ExportSessionDialog");
 
 // 格式化日期
 const formatDate = (timestamp?: string) => {
@@ -254,7 +256,7 @@ const handleExport = async () => {
     customMessage.success("会话导出成功");
     localVisible.value = false;
   } catch (error) {
-    customMessage.error(`导出失败: ${error}`);
+    errorHandler.error(error, "导出失败");
   } finally {
     exporting.value = false;
   }

@@ -601,7 +601,7 @@ const importPreset = async () => {
 
     customMessage.success(`成功导入预设: ${importedPreset.name}`);
   } catch (error: any) {
-    customMessage.error(`导入预设失败: ${error.message}`);
+    errorHandler.error(error, "导入预设失败");
   }
 };
 
@@ -673,7 +673,7 @@ const importFromClipboard = async () => {
       throw new Error("无效的格式：必须是规则数组或包含 name 和 rules 的预设对象");
     }
   } catch (error: any) {
-    customMessage.error(`导入失败: ${error.message}`);
+    errorHandler.error(error, "导入失败");
   }
 };
 
@@ -696,7 +696,7 @@ const exportCurrentPreset = async () => {
       }
     }
   } catch (error: any) {
-    customMessage.error(`导出预设失败: ${error.message}`);
+    errorHandler.error(error, "导出预设失败");
   }
 };
 

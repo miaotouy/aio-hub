@@ -134,6 +134,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
   WarningFilled,
   DocumentCopy,
@@ -156,6 +157,7 @@ import { useSendToChat } from "@/composables/useSendToChat";
 
 // 获取服务实例
 const jsonFormatterRegistry = toolRegistryManager.getRegistry<JsonFormatterRegistry>("json-formatter");
+const errorHandler = createModuleErrorHandler("JsonFormatter");
 
 // 获取发送到聊天功能
 const { sendCodeToChat } = useSendToChat();
@@ -218,8 +220,7 @@ const setupClipboardMonitor = async () => {
     isClipboardListening.value = true;
     customMessage.success("剪贴板监听已开启");
   } catch (error) {
-    customMessage.error("无法启动剪贴板监听");
-    console.error(error);
+    errorHandler.error(error, "无法启动剪贴板监听");
     isClipboardListening.value = false;
   }
 };
@@ -288,7 +289,7 @@ const pasteToJson = async () => {
     handleFormatJson();
     customMessage.success("已从剪贴板粘贴内容");
   } catch (error: any) {
-    customMessage.error(`粘贴失败: ${error.message}`);
+    errorHandler.error(error, "粘贴失败");
   }
 };
 
@@ -301,7 +302,7 @@ const copyFormattedJson = async () => {
     await writeText(formattedJsonOutput.value);
     customMessage.success("已复制到剪贴板");
   } catch (error: any) {
-    customMessage.error(`复制失败: ${error.message}`);
+    errorHandler.error(error, "复制失败");
   }
 };
 
@@ -411,7 +412,7 @@ const handleDrop = async (event: DragEvent) => {
       handleFormatJson();
       customMessage.success(`成功读取文件: ${result.fileName}`);
     } else {
-      customMessage.error(result.error || "读取文件失败");
+      errorHandler.error(result.error || "读取文件失败");
     }
   }
 };

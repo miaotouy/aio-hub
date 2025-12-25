@@ -558,7 +558,7 @@ const generateTree = async () => {
 
     customMessage.success("目录树生成成功");
   } catch (error: any) {
-    customMessage.error(`生成失败: ${error}`);
+    errorHandler.error(error, "生成失败");
     treeData.value = null;
   } finally {
     isGenerating.value = false;

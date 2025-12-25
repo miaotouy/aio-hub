@@ -241,13 +241,12 @@ export const useAgentStore = defineStore("llmChatAgent", {
         }
       } catch (error) {
         // 只有在源目录确实存在但复制失败时，才中断流程
-        const errorMsg = error instanceof Error ? error.message : String(error);
         logger.error("物理复制智能体目录失败", error as Error, {
           agentId: originalAgent.id,
           sourceDir,
           targetDir,
         });
-        customMessage.error(`复制智能体资产失败: ${errorMsg}`);
+        errorHandler.error(error, "复制智能体资产失败");
         return null; // 中断流程，防止产生“半成品”
       }
 

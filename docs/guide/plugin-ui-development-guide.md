@@ -140,8 +140,9 @@ import { ref } from 'vue';
 import { ElInput, ElButton } from 'element-plus';
 import InfoCard from '@/components/common/InfoCard.vue'; // 主应用提供的封装组件
 import { execute } from '@/services/executor';
-import { customMessage } from '@/utils/customMessage';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
+const errorHandler = createModuleErrorHandler('HelloWorldPlugin');
 const name = ref('');
 const greeting = ref('');
 const isLoading = ref(false);
@@ -163,7 +164,7 @@ async function doGreet() {
   if (result.success) {
     greeting.value = result.data;
   } else {
-    customMessage.error(`调用失败: ${result.error}`);
+    errorHandler.error(result.error, '调用失败');
   }
 }
 </script>
@@ -337,8 +338,9 @@ import { ref } from 'vue';
 import { ElInput, ElButton } from 'element-plus';
 import InfoCard from '@/components/common/InfoCard.vue'; // 主应用提供的封装组件
 import { execute } from '@/services/executor';
-import { customMessage } from '@/utils/customMessage';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
+const errorHandler = createModuleErrorHandler('HelloWorldPlugin');
 const name = ref('');
 const greeting = ref('');
 const isLoading = ref(false);
@@ -359,7 +361,7 @@ async function doGreet() {
   if (result.success) {
     greeting.value = result.data;
   } else {
-    customMessage.error(`调用失败: ${result.error}`);
+    errorHandler.error(result.error, '调用失败');
   }
 }
 </script>

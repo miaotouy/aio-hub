@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
@@ -28,6 +29,8 @@ const props = withDefaults(defineProps<Props>(), {
   profileType: "agent",
   nameForFallback: "图标",
 });
+
+const errorHandler = createModuleErrorHandler("AvatarSelector");
 
 export interface IconUpdatePayload {
   value: string;
@@ -173,8 +176,7 @@ const selectLocalImage = async () => {
       emit("update:icon", { value: selectedPath, source: "input" });
     }
   } catch (error) {
-    console.error("选择本地图像失败:", error);
-    customMessage.error(`选择本地图像失败: ${error}`);
+    errorHandler.error(error, "选择本地图像失败");
   }
 };
 
@@ -192,7 +194,7 @@ const uploadCustomImage = async () => {
 
     // **上传逻辑：与 assets 解耦**
     if (!props.entityId) {
-      customMessage.error("上传失败：缺少 entityId");
+      errorHandler.error("缺少 entityId", "上传失败");
       return;
     }
 
@@ -209,7 +211,7 @@ const uploadCustomImage = async () => {
     } else if (props.profileType === "user") {
       subdirectory = `llm-chat/user-profiles/${props.entityId}`;
     } else {
-      customMessage.error(`上传失败：未知的 profileType '${props.profileType}'`);
+      errorHandler.error(`未知的 profileType '${props.profileType}'`, "上传失败");
       return;
     }
 
@@ -223,8 +225,7 @@ const uploadCustomImage = async () => {
     emit("update:icon", { value: newFilename, source: "upload" });
     customMessage.success("专属头像上传成功");
   } catch (error) {
-    console.error("上传图像失败:", error);
-    customMessage.error(`上传图像失败: ${error}`);
+    errorHandler.error(error, "上传图像失败");
   } finally {
     isUploadingImage.value = false;
   }

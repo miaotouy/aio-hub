@@ -71,7 +71,7 @@ export function useGitAnalyzerRunner() {
 
       return true;
     } catch (error) {
-      customMessage.error(`加载分支失败: ${error}`);
+      errorHandler.error(error, "加载分支失败");
       return false;
     }
   }
@@ -102,7 +102,7 @@ export function useGitAnalyzerRunner() {
       customMessage.success(`切换到分支: ${branch}`);
       return true;
     } catch (error) {
-      customMessage.error(`切换分支失败: ${error}`);
+      errorHandler.error(error, "切换分支失败");
       return false;
     } finally {
       state.loading.value = false;
@@ -173,8 +173,7 @@ export function useGitAnalyzerRunner() {
         state.progress.value.loading = false;
         state.loading.value = false;
         const errorMsg = `${isIncremental ? "增量" : ""}加载失败: ${event.message}`;
-        customMessage.error(errorMsg);
-        errorHandler.handle(new Error(event.message || "Unknown error"), { userMessage: errorMsg, showToUser: false });
+        errorHandler.error(new Error(event.message || "Unknown error"), errorMsg);
         break;
     }
   }
@@ -227,7 +226,7 @@ export function useGitAnalyzerRunner() {
       } catch (error) {
         state.progress.value.loading = false;
         state.loading.value = false;
-        customMessage.error(`增量加载失败: ${error}`);
+        errorHandler.error(error, "增量加载失败");
         return false;
       }
     }
@@ -254,7 +253,7 @@ export function useGitAnalyzerRunner() {
     } catch (error) {
       state.progress.value.loading = false;
       state.loading.value = false;
-      customMessage.error(`加载仓库失败: ${error}`);
+      errorHandler.error(error, "加载仓库失败");
       return false;
     }
   }

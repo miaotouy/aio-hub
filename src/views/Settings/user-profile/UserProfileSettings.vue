@@ -292,7 +292,7 @@ const handleOpenDirectory = async () => {
     const configPath = await getProfileConfigPath(selectedProfileId.value);
     await invoke("open_file_directory", { filePath: configPath });
   } catch (error) {
-    customMessage.error("打开目录失败");
+    errorHandler.error(error, "打开目录失败");
   }
 };
 

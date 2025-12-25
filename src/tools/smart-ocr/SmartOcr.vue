@@ -14,10 +14,12 @@ import { useSmartOcrRunner } from "./composables/useSmartOcrRunner";
 import { useOcrHistory } from "./composables/useOcrHistory";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
 import { nanoid } from "nanoid";
 
 // 创建模块日志记录器
 const log = createModuleLogger("SmartOCR");
+const errorHandler = createModuleErrorHandler("SmartOCR");
 
 // 1. 获取 store 和响应式状态
 const store = useSmartOcrStore();
@@ -265,8 +267,7 @@ const handleLoadRecord = async (recordId: string) => {
     isHistoryDialogVisible.value = false;
     customMessage.success("历史记录已加载");
   } catch (error) {
-    customMessage.error(`加载历史记录失败: ${error}`);
-    log.error("加载历史记录失败", error, { recordId });
+    errorHandler.error(error, "加载历史记录失败", { recordId });
   }
 };
 
@@ -292,8 +293,7 @@ const handleReRecognize = async (recordId: string) => {
 
     isHistoryDialogVisible.value = false;
   } catch (error) {
-    customMessage.error(`重识别失败: ${error}`);
-    log.error("重识别失败", error, { recordId });
+    errorHandler.error(error, "重识别失败", { recordId });
   }
 };
 </script>

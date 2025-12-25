@@ -266,11 +266,7 @@ watch(
       await invoke("set_show_tray_icon", { show: newValue });
       customMessage.success(newValue ? "托盘图标已显示" : "托盘图标已隐藏");
     } catch (error) {
-      errorHandler.error(error, "更新托盘图标显示状态失败", {
-        context: { show: newValue },
-        showToUser: false,
-      });
-      customMessage.error("更新托盘图标失败");
+      errorHandler.error(error, "更新托盘图标失败", { show: newValue });
     }
   }
 );
@@ -285,11 +281,7 @@ watch(
       // 同步到 Rust 后端
       await invoke("update_tray_setting", { enabled: newValue });
     } catch (error) {
-      errorHandler.error(error, "更新系统托盘设置失败", {
-        context: { enabled: newValue },
-        showToUser: false,
-      });
-      customMessage.error("更新托盘设置失败");
+      errorHandler.error(error, "更新托盘设置失败", { enabled: newValue });
     }
   }
 );
@@ -429,7 +421,9 @@ onMounted(async () => {
     try {
       await invoke("update_tray_setting", { enabled: settings.value.minimizeToTray || false });
     } catch (error) {
-      errorHandler.error(error, "初始化系统托盘设置失败", {
+      // 初始化时静默处理，只记录日志
+      errorHandler.handle(error, {
+        userMessage: "初始化系统托盘设置失败",
         context: { enabled: settings.value.minimizeToTray || false },
         showToUser: false,
       });

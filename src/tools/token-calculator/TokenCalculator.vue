@@ -49,12 +49,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, type Ref } from 'vue';
 import { customMessage } from '@/utils/customMessage';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { useTokenCalculator } from '@/tools/token-calculator/composables/useTokenCalculatorState';
 import { usePanelResize } from './composables/usePanelResize';
 import ToolBar from './components/ToolBar.vue';
 import InputPanel from './components/InputPanel.vue';
 import ResultPanel from './components/ResultPanel.vue';
+
+const errorHandler = createModuleErrorHandler('TokenCalculator');
 
 // 使用 composable
 const {
@@ -109,7 +112,7 @@ const pasteText = async () => {
     setInputText(text);
     customMessage.success('已从剪贴板粘贴内容');
   } catch (error: any) {
-    customMessage.error(`粘贴失败: ${error.message}`);
+    errorHandler.error(error, '粘贴失败');
   }
 };
 
@@ -123,7 +126,7 @@ const copyText = async () => {
     await writeText(inputText.value);
     customMessage.success('已复制到剪贴板');
   } catch (error: any) {
-    customMessage.error(`复制失败: ${error.message}`);
+    errorHandler.error(error, '复制失败');
   }
 };
 </script>

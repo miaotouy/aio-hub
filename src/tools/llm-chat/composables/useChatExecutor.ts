@@ -224,6 +224,7 @@ export function useChatExecutor() {
         session,
         userProfile: effectiveUserProfile || undefined,
         agentConfig: executionAgent,
+        settings: settings.value,
         capabilities: capabilities || {},
         timestamp: Date.now(),
         sharedData: new Map<string, any>(),
@@ -788,12 +789,15 @@ export function useChatExecutor() {
       };
     }
 
+    const { settings } = useChatSettings();
+
     // 1. 创建管道上下文
     const pipelineContext: PipelineContext = {
       messages: [],
       session,
       userProfile: effectiveUserProfile || undefined,
       agentConfig: executionAgent,
+      settings: settings.value,
       capabilities: capabilities || {},
       // 使用目标节点的时间戳，如果不存在则回退到当前时间
       timestamp: targetNode?.timestamp
@@ -832,7 +836,6 @@ export function useChatExecutor() {
       });
     }
 
-    const { settings } = useChatSettings();
     pipelineContext.sharedData.set(
       "transcriptionConfig",
       settings.value.transcription,

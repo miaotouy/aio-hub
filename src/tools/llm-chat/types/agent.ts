@@ -231,6 +231,18 @@ export interface ChatAgent {
    * 关联的世界书 ID 列表
    */
   worldbookIds?: string[];
+
+  /**
+   * 世界书覆盖设置
+   */
+  worldbookSettings?: {
+    /** 注入的最大 Token 预算 */
+    maxTokens?: number;
+    /** 是否禁用递归扫描 */
+    disableRecursion?: boolean;
+    /** 默认扫描深度 */
+    defaultScanDepth?: number;
+  };
 }
 
 /**
@@ -337,6 +349,18 @@ export interface AgentPreset {
    * 关联的世界书 ID 列表
    */
   worldbookIds?: string[];
+
+  /**
+   * 世界书覆盖设置
+   */
+  worldbookSettings?: {
+    /** 注入的最大 Token 预算 */
+    maxTokens?: number;
+    /** 是否禁用递归扫描 */
+    disableRecursion?: boolean;
+    /** 默认扫描深度 */
+    defaultScanDepth?: number;
+  };
 }
 
 /**

@@ -43,6 +43,8 @@ export interface STWorldbookEntry {
   probability: number;
   /** 是否使用概率 */
   useProbability?: boolean;
+  /** 条目状态 (constant, normal, vectorized) */
+  entryStateSelector?: 'constant' | 'normal' | 'vectorized';
   /** 插入深度 (当 position 为 Depth 时有效) */
   depth: number;
   /** 分组名称 (同组条目会发生竞争) */

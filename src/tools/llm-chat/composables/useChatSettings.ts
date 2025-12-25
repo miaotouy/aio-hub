@@ -242,6 +242,15 @@ export interface ChatSettings {
   plugins: Record<string, any>;
   /** 全局关联的世界书 ID 列表 */
   worldbookIds: string[];
+  /** 世界书全局设置 */
+  worldbook: {
+    /** 注入的最大 Token 预算 */
+    maxTokens: number;
+    /** 是否禁用递归扫描 */
+    disableRecursion: boolean;
+    /** 默认扫描深度 */
+    defaultScanDepth: number;
+  };
 }
 
 /**
@@ -467,6 +476,11 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   regexConfig: createDefaultChatRegexConfig(),
   plugins: {},
   worldbookIds: [],
+  worldbook: {
+    maxTokens: 4000,
+    disableRecursion: false,
+    defaultScanDepth: 2,
+  },
 };
 
 /**
@@ -543,6 +557,10 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...(loadedConfig.plugins || {}),
       },
       worldbookIds: loadedConfig.worldbookIds || [],
+      worldbook: {
+        ...defaultConfig.worldbook,
+        ...(loadedConfig.worldbook || {}),
+      },
     };
   },
 });
@@ -649,6 +667,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
         ...(updates.plugins || {}),
       },
       worldbookIds: updates.worldbookIds ?? settings.value.worldbookIds,
+      worldbook: {
+        ...settings.value.worldbook,
+        ...(updates.worldbook || {}),
+      },
     };
     await saveSettings();
     logger.info("聊天设置已更新", { updates });

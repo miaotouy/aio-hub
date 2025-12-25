@@ -95,6 +95,11 @@ const defaultFormState = {
   tags: [] as string[],
   category: "",
   worldbookIds: [] as string[],
+  worldbookSettings: {
+    maxTokens: 4000,
+    disableRecursion: false,
+    defaultScanDepth: 2,
+  },
   assets: [] as import("../../types").AgentAsset[],
   assetGroups: [] as import("../../types").AssetGroup[],
   virtualTimeConfig: {
@@ -581,9 +586,53 @@ const handleSave = (options: { silent?: boolean } = {}) => {
 
       <!-- 世界书绑定 -->
       <el-form-item label="关联世界书">
-        <WorldbookSelector v-model="editForm.worldbookIds" />
-        <div class="form-hint">
-          关联世界书（World Info）后，对话中匹配到关键字时将自动注入相关设定。
+        <div style="width: 100%">
+          <WorldbookSelector v-model="editForm.worldbookIds" />
+          <div class="form-hint">
+            关联世界书（World Info）后，对话中匹配到关键字时将自动注入相关设定。
+          </div>
+
+          <!-- 世界书覆盖设置 -->
+          <div class="worldbook-settings-trigger" style="margin-top: 12px">
+            <el-popover placement="bottom-start" :width="320" trigger="click">
+            <template #reference>
+              <el-button size="small" :icon="MagicStick" plain>世界书高级设置</el-button>
+            </template>
+            <div class="worldbook-settings-form">
+              <div style="font-weight: bold; margin-bottom: 12px; font-size: 14px">
+                世界书扫描与注入设置
+              </div>
+              <el-form label-width="120px" size="small" label-position="left">
+                <el-form-item label="最大 Token 预算">
+                  <el-input-number
+                    v-model="editForm.worldbookSettings.maxTokens"
+                    :min="0"
+                    :max="128000"
+                    :step="1000"
+                    controls-position="right"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <el-form-item label="禁用递归扫描">
+                  <el-switch v-model="editForm.worldbookSettings.disableRecursion" />
+                </el-form-item>
+                <el-form-item label="默认扫描深度">
+                  <el-input-number
+                    v-model="editForm.worldbookSettings.defaultScanDepth"
+                    :min="0"
+                    :max="100"
+                    :step="1"
+                    controls-position="right"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </el-form>
+                <div class="form-hint" style="margin-top: 8px; color: var(--el-color-info)">
+                  注：这里的设置将覆盖全局默认值。扫描深度决定了回溯多少条历史消息进行关键词匹配。
+                </div>
+              </div>
+            </el-popover>
+          </div>
         </div>
       </el-form-item>
 

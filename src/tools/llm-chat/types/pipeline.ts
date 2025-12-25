@@ -3,6 +3,7 @@ import type { UserProfile } from "@/tools/llm-chat/types/profile";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import type { ChatAgent } from "@/tools/llm-chat/types/agent";
+import type { ChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
 
 export interface PipelineContext {
   // --- 核心可变数据 ---
@@ -16,6 +17,7 @@ export interface PipelineContext {
   readonly session: ChatSession;
   readonly userProfile?: UserProfile;
   readonly agentConfig: ChatAgent; // 完整的智能体配置
+  readonly settings: ChatSettings; // 全局聊天设置
   readonly capabilities?: ModelCapabilities;
   readonly timestamp: number;
 

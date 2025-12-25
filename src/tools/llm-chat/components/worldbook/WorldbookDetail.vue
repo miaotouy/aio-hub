@@ -293,20 +293,19 @@ const stateOptions = [
   { label: "🔵 永久", value: "constant" },
   { label: "🟢 关键词", value: "normal" },
   { label: "🔗 向量化", value: "vectorized" },
-  { label: "⚪ 禁用", value: "disabled" },
 ];
 
 const enhancedPositionOptions = [
   { label: "角色之前 (Before Char)", value: STWorldbookPosition.BeforeChar, role: null },
   { label: "角色之后 (After Char)", value: STWorldbookPosition.AfterChar, role: null },
-  { label: "示例之前 (Before EM)", value: STWorldbookPosition.BeforeEM, role: null },
-  { label: "示例之后 (After EM)", value: STWorldbookPosition.AfterEM, role: null },
-  { label: "作者注之前 (Before AN)", value: STWorldbookPosition.BeforeAN, role: null },
-  { label: "作者注之后 (After AN)", value: STWorldbookPosition.AfterAN, role: null },
+  { label: "示例之前 (Before EM) [降级]", value: STWorldbookPosition.BeforeEM, role: null },
+  { label: "示例之后 (After EM) [降级]", value: STWorldbookPosition.AfterEM, role: null },
+  { label: "作者注之前 (Before AN) [降级]", value: STWorldbookPosition.BeforeAN, role: null },
+  { label: "作者注之后 (After AN) [降级]", value: STWorldbookPosition.AfterAN, role: null },
   { label: "@D ⚙ [系统]在深度", value: STWorldbookPosition.Depth, role: 0 },
   { label: "@D 👤 [用户]在深度", value: STWorldbookPosition.Depth, role: 1 },
   { label: "@D 🤖 [AI]在深度", value: STWorldbookPosition.Depth, role: 2 },
-  { label: "➡️ Outlet", value: STWorldbookPosition.Outlet, role: null },
+  { label: "➡️ Outlet [不支持]", value: STWorldbookPosition.Outlet, role: null },
 ];
 
 const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
@@ -677,12 +676,13 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
                 />
               </div>
 
-              <div class="control-item">
-                <span class="label">自动化 ID</span>
+              <div class="control-item unsupported">
+                <span class="label">自动化 ID (仅兼容)</span>
                 <el-input
                   v-model="currentEntry.automationId"
                   size="small"
-                  placeholder="Automation ID"
+                  placeholder="不支持"
+                  disabled
                 />
               </div>
             </div>
@@ -800,16 +800,15 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
               </div>
             </div>
           </div>
-
           <div class="flat-section">
             <div class="section-header">
               <el-icon><RotateCw /></el-icon>
               <span>递归控制 (Recursion Control)</span>
             </div>
             <div class="advanced-grid">
-              <div class="control-item">
-                <span class="label">排除递归 (不可被激活)</span>
-                <el-switch v-model="currentEntry.excludeRecursion" size="small" />
+              <div class="control-item unsupported">
+                <span class="label">排除递归 (仅兼容)</span>
+                <el-switch v-model="currentEntry.excludeRecursion" size="small" disabled />
               </div>
 
               <div class="control-item">
@@ -817,37 +816,40 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
                 <el-switch v-model="currentEntry.preventRecursion" size="small" />
               </div>
 
-              <div class="control-item">
-                <span class="label">延迟到递归</span>
-                <el-switch v-model="currentEntry.delayUntilRecursion" size="small" />
+              <div class="control-item unsupported">
+                <span class="label">延迟到递归 (仅兼容)</span>
+                <el-switch v-model="currentEntry.delayUntilRecursion" size="small" disabled />
               </div>
 
-              <div class="control-item">
-                <span class="label">递归等级</span>
+              <div class="control-item unsupported">
+                <span class="label">递归等级 (仅兼容)</span>
                 <el-input-number
                   v-model="currentEntry.delayUntilRecursionLevel"
                   size="small"
                   :min="1"
                   controls-position="right"
+                  disabled
                 />
               </div>
             </div>
           </div>
 
-          <div class="flat-section">
+          <div class="flat-section unsupported">
             <div class="section-header">
               <el-icon><Filter /></el-icon>
-              <span>触发器过滤 (Generation Triggers)</span>
+              <span>触发器过滤 (仅兼容)</span>
             </div>
             <div class="advanced-grid">
               <div class="control-item full-width">
                 <el-select
                   v-model="currentEntry.triggers"
                   multiple
-                  placeholder="所有类型 (默认)"
+                  placeholder="不支持过滤"
                   size="small"
                   style="width: 100%"
+                  disabled
                 >
+                  >
                   <el-option
                     v-for="opt in triggerOptions"
                     :key="opt.value"
@@ -870,43 +872,45 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
                   >角色描述</el-checkbox
                 >
               </div>
-              <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchCharacterPersonality" size="small"
-                  >角色性格</el-checkbox
+              <div class="control-item unsupported">
+                <el-checkbox v-model="currentEntry.matchCharacterPersonality" size="small" disabled
+                  >角色性格 (仅兼容)</el-checkbox
                 >
               </div>
-              <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchScenario" size="small">情景</el-checkbox>
+              <div class="control-item unsupported">
+                <el-checkbox v-model="currentEntry.matchScenario" size="small" disabled
+                  >情景 (仅兼容)</el-checkbox
+                >
               </div>
               <div class="control-item">
                 <el-checkbox v-model="currentEntry.matchPersonaDescription" size="small"
                   >用户设定描述</el-checkbox
                 >
               </div>
-              <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchCharacterDepthPrompt" size="small"
-                  >角色备注</el-checkbox
+              <div class="control-item unsupported">
+                <el-checkbox v-model="currentEntry.matchCharacterDepthPrompt" size="small" disabled
+                  >角色备注 (仅兼容)</el-checkbox
                 >
               </div>
-              <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchCreatorNotes" size="small"
-                  >创作者注释</el-checkbox
+              <div class="control-item unsupported">
+                <el-checkbox v-model="currentEntry.matchCreatorNotes" size="small" disabled
+                  >创作者注释 (仅兼容)</el-checkbox
                 >
               </div>
             </div>
           </div>
 
           <!-- 角色/标签绑定 (Character Filter) -->
-          <div class="flat-section" v-if="currentEntry.characterFilter">
+          <div class="flat-section unsupported" v-if="currentEntry.characterFilter">
             <div class="section-header">
               <el-icon><User /></el-icon>
-              <span>角色/标签绑定 (Character Filter)</span>
+              <span>角色/标签绑定 (仅兼容)</span>
             </div>
             <div class="advanced-grid">
               <div class="control-item full-width">
                 <div class="flex-between mb-8">
-                  <span class="label">绑定到角色或标签 (绑定后仅在对应角色对话中激活)</span>
-                  <el-checkbox v-model="currentEntry.characterFilter.isExclude"
+                  <span class="label">绑定到角色或标签 (当前不支持)</span>
+                  <el-checkbox v-model="currentEntry.characterFilter.isExclude" disabled
                     >排除模式 (Exclude)</el-checkbox
                   >
                 </div>
@@ -915,9 +919,10 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
                   multiple
                   filterable
                   allow-create
-                  placeholder="输入角色名/标签..."
+                  placeholder="不支持过滤"
                   size="small"
-                  style="width: 100%"
+                  style="width: 10%"
+                  disabled
                 />
               </div>
             </div>
@@ -1283,6 +1288,15 @@ const handlePositionChange = (entry: STWorldbookEntry, val: number) => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-bottom: 4px;
+}
+
+.unsupported {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
+.unsupported :deep(*) {
+  cursor: not-allowed !important;
 }
 
 .empty-selection {

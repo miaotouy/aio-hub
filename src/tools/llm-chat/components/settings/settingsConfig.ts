@@ -1170,12 +1170,6 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "", // 内部管理自己的状态
         hint: "管理已导入的世界书（Lorebook/World Info）。在这里可以导入 SillyTavern 格式的 JSON 文件。",
         keywords: "worldbook lorebook world info 世界书 设定 导入",
-        collapsible: {
-          title: "点击展开世界书库",
-          name: "worldbookManager",
-          style: { minHeight: "160px" },
-          useLoading: true,
-        },
       },
     ],
   },

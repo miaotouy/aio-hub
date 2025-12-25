@@ -77,6 +77,7 @@ async function importSTWorldbookFromText(text: string, fileName: string): Promis
 
 /**
  * 规范化世界书数据，处理 SnakeCase 到 CamelCase 的转换
+ * 兼容 SillyTavern V2/V3 格式
  */
 export function normalizeWorldbook(data: any): STWorldbook {
   const result: STWorldbook = {
@@ -84,58 +85,89 @@ export function normalizeWorldbook(data: any): STWorldbook {
     metadata: data.metadata || {},
   };
 
-  if (data.entries) {
-    for (const [id, entry] of Object.entries(data.entries)) {
-      const e = entry as any;
-      result.entries[id] = {
-        uid: e.uid,
-        key: Array.isArray(e.key)
-          ? e.key
-          : (typeof e.key === 'string' ? e.key.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
-        keysecondary: Array.isArray(e.keysecondary)
-          ? e.keysecondary
-          : (typeof e.keysecondary === 'string' ? e.keysecondary.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
-        comment: e.comment || "",
-        content: e.content || "",
-        constant: !!e.constant,
-        vectorized: !!e.vectorized,
-        selective: e.selective !== undefined ? !!e.selective : true,
-        selectiveLogic: e.selectiveLogic ?? e.selective_logic,
-        order: e.order ?? 100,
-        position: e.position ?? 0,
-        role: e.role ?? e.insertion_role,
-        disable: !!(e.disable ?? e.disabled),
-        probability: e.probability ?? 100,
-        useProbability: e.useProbability ?? e.use_probability ?? true,
-        depth: e.depth ?? 4,
-        group: e.group || "",
-        groupWeight: e.groupWeight ?? e.group_weight ?? 10,
-        groupOverride: !!(e.groupOverride ?? e.group_override),
-        useGroupScoring: e.useGroupScoring ?? e.use_group_scoring,
-        excludeRecursion: !!(e.excludeRecursion ?? e.exclude_recursion),
-        preventRecursion: !!(e.preventRecursion ?? e.prevent_recursion),
-        delayUntilRecursion: !!(e.delayUntilRecursion ?? e.delay_until_recursion),
-        delayUntilRecursionLevel: e.delayUntilRecursionLevel ?? e.delay_until_recursion_level ?? 1,
-        scanDepth: e.scanDepth ?? e.scan_depth,
-        caseSensitive: e.caseSensitive ?? e.case_sensitive,
-        matchWholeWords: e.matchWholeWords ?? e.match_whole_words,
-        sticky: e.sticky,
-        cooldown: e.cooldown,
-        delay: e.delay,
-        ignoreBudget: !!(e.ignoreBudget ?? e.ignore_budget),
-        automationId: e.automationId ?? e.automation_id,
-        outletName: e.outletName ?? e.outlet_name,
-        triggers: Array.isArray(e.triggers) ? e.triggers : [],
-        characterFilter: e.characterFilter || { isExclude: false, names: [], tags: [] },
-        matchCharacterDescription: e.matchCharacterDescription ?? e.match_character_description ?? true,
-        matchCharacterPersonality: e.matchCharacterPersonality ?? e.match_character_personality ?? true,
-        matchScenario: e.matchScenario ?? e.match_scenario ?? true,
-        matchPersonaDescription: e.matchPersonaDescription ?? e.match_persona_description ?? false,
-        matchCharacterDepthPrompt: e.matchCharacterDepthPrompt ?? e.match_character_depth_prompt ?? false,
-        matchCreatorNotes: e.matchCreatorNotes ?? e.match_creator_notes ?? false,
-      };
+  if (!data.entries) return result;
+
+  // 映射字符串位置到枚举值
+  const positionMap: Record<string, number> = {
+    "before_char": 0,
+    "after_char": 1,
+    "before_an": 2,
+    "after_an": 3,
+    "depth": 4,
+    "before_em": 5,
+    "after_em": 6,
+    "outlet": 7
+  };
+
+  // 处理 entries 可能为数组或对象的情况
+  const entriesArray = Array.isArray(data.entries)
+    ? data.entries
+    : Object.values(data.entries);
+
+  entriesArray.forEach((entry: any, index: number) => {
+    const e = entry as any;
+    const ext = e.extensions || {};
+
+    // 确定 UID：优先使用 uid，其次 id，最后用索引
+    const uid = e.uid ?? e.id ?? index;
+    const uidStr = String(uid);
+
+    // 确定位置：优先使用 extensions.position (通常是数字)，
+    // 其次尝试转换字符串 position，最后回退到原始值或默认 0
+    let position = ext.position ?? e.position;
+    if (typeof position === 'string') {
+      position = positionMap[position.toLowerCase()] ?? 0;
     }
-  }
+    position = Number(position) || 0;
+
+    result.entries[uidStr] = {
+      uid: Number(uid),
+      key: Array.isArray(e.key)
+        ? e.key
+        : (typeof e.key === 'string' ? e.key.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
+      keysecondary: Array.isArray(e.keysecondary)
+        ? e.keysecondary
+        : (typeof e.keysecondary === 'string' ? e.keysecondary.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
+      comment: e.comment || "",
+      content: e.content || "",
+      constant: !!(e.constant ?? ext.constant),
+      vectorized: !!(e.vectorized ?? ext.vectorized),
+      selective: e.selective !== undefined ? !!e.selective : true,
+      selectiveLogic: ext.selectiveLogic ?? e.selectiveLogic ?? e.selective_logic ?? 0,
+      order: e.insertion_order ?? e.order ?? 100,
+      position: position,
+      role: ext.role ?? e.role ?? e.insertion_role ?? 0,
+      disable: !!(e.disable ?? e.disabled ?? e.enabled === false),
+      probability: e.probability ?? ext.probability ?? 100,
+      useProbability: e.useProbability ?? e.use_probability ?? ext.useProbability ?? true,
+      depth: ext.depth ?? e.depth ?? 4,
+      group: e.group || ext.group || "",
+      groupWeight: e.groupWeight ?? e.group_weight ?? ext.group_weight ?? 10,
+      groupOverride: !!(e.groupOverride ?? e.group_override ?? ext.group_override),
+      useGroupScoring: e.useGroupScoring ?? e.use_group_scoring ?? ext.use_group_scoring,
+      excludeRecursion: !!(e.excludeRecursion ?? e.exclude_recursion ?? ext.exclude_recursion),
+      preventRecursion: !!(e.preventRecursion ?? e.prevent_recursion ?? ext.prevent_recursion),
+      delayUntilRecursion: !!(e.delayUntilRecursion ?? e.delay_until_recursion ?? ext.delay_until_recursion),
+      delayUntilRecursionLevel: e.delayUntilRecursionLevel ?? e.delay_until_recursion_level ?? ext.delay_until_recursion_level ?? 1,
+      scanDepth: e.scanDepth ?? e.scan_depth ?? ext.scan_depth,
+      caseSensitive: e.caseSensitive ?? e.case_sensitive ?? ext.case_sensitive,
+      matchWholeWords: e.matchWholeWords ?? e.match_whole_words ?? ext.match_whole_words,
+      sticky: e.sticky ?? ext.sticky,
+      cooldown: e.cooldown ?? ext.coldown,
+      delay: e.delay ?? ext.delay,
+      ignoreBudget: !!(e.ignoreBudget ?? e.ignore_budget ?? ext.ignore_budget),
+      automationId: e.automationId ?? e.automation_id ?? ext.automation_id,
+      outletName: e.outletName ?? e.outlet_name ?? ext.outlet_name,
+      triggers: Array.isArray(e.triggers) ? e.triggers : (Array.isArray(ext.triggers) ? ext.triggers : []),
+      characterFilter: e.characterFilter || { isExclude: false, names: [], tags: [] },
+      matchCharacterDescription: e.matchCharacterDescription ?? e.match_character_description ?? ext.match_character_description ?? true,
+      matchCharacterPersonality: e.matchCharacterPersonality ?? e.match_character_personality ?? ext.match_character_personality ?? true,
+      matchScenario: e.matchScenario ?? e.match_scenario ?? ext.match_scenario ?? true,
+      matchPersonaDescription: e.matchPersonaDescription ?? e.match_persona_description ?? ext.match_persona_description ?? false,
+      matchCharacterDepthPrompt: e.matchCharacterDepthPrompt ?? e.match_character_depth_prompt ?? ext.match_character_depth_prompt ?? false,
+      matchCreatorNotes: e.matchCreatorNotes ?? e.match_creator_notes ?? ext.match_creator_notes ?? false,
+    };
+  });
 
   return result;
 }

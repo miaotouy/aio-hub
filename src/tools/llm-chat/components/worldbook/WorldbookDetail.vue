@@ -613,16 +613,13 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
           <el-tooltip content="复制条目">
             <el-button :icon="Copy" circle @click="handleDuplicateEntry(currentEntry)" />
           </el-tooltip>
-          <el-tooltip content="删除条目">
-            <el-popconfirm
-              title="确定删除此条目吗？"
-              @confirm="handleDeleteEntry(currentEntry.uid)"
-            >
-              <template #reference>
+          <el-popconfirm title="确定删除此条目吗？" @confirm="handleDeleteEntry(currentEntry.uid)">
+            <template #reference>
+              <el-tooltip content="删除条目">
                 <el-button :icon="Trash2" circle plain />
-              </template>
-            </el-popconfirm>
-          </el-tooltip>
+              </el-tooltip>
+            </template>
+          </el-popconfirm>
         </div>
       </div>
 
@@ -928,7 +925,6 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                   style="width: 100%"
                   disabled
                 >
-                  >
                   <el-option
                     v-for="opt in triggerOptions"
                     :key="opt.value"

@@ -273,11 +273,16 @@ const handleImportFromFile = async () => {
   }
 };
 
-const handleConfirmImport = (resolvedAgents: any[]) => {
+const handleConfirmImport = (resolvedAgents: any[], worldbookOptions: {
+  bundledWorldbooks: Record<string, any[]>;
+  embeddedWorldbooks: Record<string, any>;
+}) => {
   if (!importPreflightResult.value) return;
   agentStore.confirmImportAgents({
     resolvedAgents,
     assets: importPreflightResult.value.assets,
+    bundledWorldbooks: worldbookOptions.bundledWorldbooks,
+    embeddedWorldbooks: worldbookOptions.embeddedWorldbooks,
   });
   importDialogVisible.value = false;
   importPreflightResult.value = null;

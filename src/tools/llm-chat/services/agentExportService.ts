@@ -8,9 +8,10 @@ import { writeTextFile, writeFile, readFile, exists } from '@tauri-apps/plugin-f
 import { join, appDataDir } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import type { ChatAgent } from '../types';
-import type { ExportableAgent, AgentExportFile } from '../types/agentImportExport';
+import type { ExportableAgent, AgentExportFile, BundledWorldbook } from '../types/agentImportExport';
 import { embedDataIntoPng } from '@/utils/pngMetadataWriter';
 import { convertArrayBufferToBase64 } from '@/utils/base64';
+import { useWorldbookStore } from '../worldbookStore';
 
 const logger = createModuleLogger('llm-chat/agentExportService');
 const errorHandler = createModuleErrorHandler('llm-chat/agentExportService');
@@ -20,6 +21,8 @@ const errorHandler = createModuleErrorHandler('llm-chat/agentExportService');
  */
 export interface ExportAgentsOptions {
   includeAssets: boolean;
+  includeWorldbooks?: boolean;
+  embedWorldbooks?: boolean;
   format?: 'json' | 'yaml';
   exportType?: 'zip' | 'folder' | 'file' | 'png';
   separateFolders?: boolean;
@@ -48,6 +51,7 @@ export async function exportAgents(
     const exportType = options.exportType || 'zip';
     // 增强文件名过滤，防止路径遍历和非法字符
     const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.\./g, '').trim();
+    
     // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
     if (exportType === 'file' && agents.length > 1) {
       const selected = await open({
@@ -81,7 +85,6 @@ export async function exportAgents(
 
       for (const agent of agents) {
         // 使用黑名单模式：排除本地专属字段，其余全部导出
-        // 这样可以自动支持未来新增的字段和插件扩展字段
         const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgent } = agent;
 
         const exportData: AgentExportFile = {
@@ -99,14 +102,12 @@ export async function exportAgents(
 
         let filePath: string;
         if (separateFolders) {
-          // 如果选择独立文件夹，则创建 子文件夹/文件名
           const agentDir = await join(targetDir, uniqueName);
           filePath = await join(agentDir, fileName);
         } else {
           filePath = await join(targetDir, fileName);
         }
 
-        // 同样使用强制写入，确保有权限写入（会自动创建父目录）
         const encoder = new TextEncoder();
         const contentBytes = encoder.encode(contentString);
 
@@ -121,11 +122,10 @@ export async function exportAgents(
       return;
     }
 
-
     // 下面是常规导出逻辑（ZIP, Folder, File 或 PNG）
-
-    // 只有 zip, folder 和 png 模式才支持包含资产，file 模式强制不包含
     const shouldIncludeAssets = options.includeAssets && exportType !== 'file';
+    const shouldIncludeWorldbooks = options.includeWorldbooks && exportType !== 'file';
+    const shouldEmbedWorldbooks = options.embedWorldbooks && shouldIncludeWorldbooks;
     const separateFolders = options.separateFolders || false;
 
     // 生成基础名称（用于文件名或文件夹名）
@@ -140,14 +140,10 @@ export async function exportAgents(
       baseName = `${agents.slice(0, 2).map(a => sanitizeFilename(a.name)).join(' & ')}_等${count}个智能体`;
     }
 
-    // 准备导出环境
-    // PNG 模式也需要 ZIP 来打包数据（即使是单文件，为了统一处理也先打包成 ZIP，或者如果是单文件且无资产可以优化）
-    // 为了简化逻辑，PNG 模式下我们总是先打成 ZIP 包，然后嵌入
     const zip = (exportType === 'zip' || exportType === 'png') ? new JSZip() : null;
     let targetDir = '';
 
     if (exportType === 'folder') {
-      // 选择目标目录
       const selected = await open({
         directory: true,
         multiple: false,
@@ -159,21 +155,14 @@ export async function exportAgents(
         return;
       }
 
-      // 创建导出根目录
       targetDir = await join(selected as string, baseName);
-
     } else if (exportType === 'zip' || exportType === 'png') {
-      // ZIP 和 PNG 模式下，如果不分离文件夹，则创建公共 assets 文件夹
-      // PNG 模式下本质也是先生成 ZIP 数据
       if (shouldIncludeAssets && !separateFolders) {
         zip?.folder('assets');
       }
     }
 
-    // 用于保存最后一次生成的配置内容（供单文件导出使用）
     let lastContentString = '';
-
-    // 用于处理文件名冲突
     const usedFileNames = new Set<string>();
     const getUniqueFileName = (name: string) => {
       let fileName = sanitizeFilename(name);
@@ -186,33 +175,23 @@ export async function exportAgents(
       return fileName;
     };
 
+    const worldbookStore = useWorldbookStore();
+
     for (const agent of agents) {
       const uniqueName = getUniqueFileName(agent.name);
-
-      // 使用黑名单模式：排除本地专属字段，其余全部导出
-      // 这样可以自动支持未来新增的字段和插件扩展字段
       const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgentBase } = agent;
-      // 复制一份以便后续修改 icon 路径
       const exportableAgent: ExportableAgent = { ...exportableAgentBase };
 
-
-      // Agent 私有目录的基础路径
       const agentPrivateDir = await join(await appDataDir(), 'llm-chat', 'agents', agent.id);
 
-      // 辅助函数：判断路径是否为 Agent 私有资产
       const isAgentPrivateAsset = (path: string): boolean => {
         if (!path || typeof path !== 'string') return false;
-        // 排除 URL
         if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) return false;
-        // 排除全局 appdata:// 资产
         if (path.startsWith('appdata://')) return false;
-        // 排除绝对路径
         if (/^[A-Za-z]:[\/\\]/.test(path) || path.startsWith('\\\\') || path.startsWith('/')) return false;
-        // 纯文件名或 assets/ 开头的相对路径
         return true;
       };
 
-      // 辅助函数：读取 Agent 私有资产
       const readAgentAsset = async (relativePath: string): Promise<Uint8Array | null> => {
         try {
           const fullPath = await join(agentPrivateDir, relativePath);
@@ -225,26 +204,17 @@ export async function exportAgents(
         return null;
       };
 
-      // 辅助函数：保存资产到导出目标（保留完整相对路径结构）
       const saveAssetToExport = async (binary: Uint8Array, relativePath: string): Promise<string> => {
-        // 清理路径，防止路径穿越
         const cleanPath = relativePath.replace(/\.\./g, '__').replace(/^[/\\]+/, '');
-        
-        // 导出路径：assets/ + 原始相对路径
-        // 例如：icon.png -> assets/icon.png
-        //       assets/xxx.png -> assets/assets/xxx.png（保持原样）
-        // 为了简化，我们统一放到 assets/ 下，但保留内部结构
         const exportPath = cleanPath.startsWith('assets/') ? cleanPath : `assets/${cleanPath}`;
 
         if (exportType === 'zip' || exportType === 'png') {
-          // ZIP 模式：直接写入文件
           if (separateFolders && zip) {
             zip.folder(uniqueName)?.file(exportPath, binary);
           } else if (zip) {
             zip.file(exportPath, binary);
           }
         } else if (exportType === 'folder' && targetDir) {
-          // 文件夹模式：写入文件系统
           let assetPath: string;
           if (separateFolders) {
             assetPath = await join(targetDir, uniqueName, exportPath);
@@ -261,18 +231,14 @@ export async function exportAgents(
             throw writeError;
           }
         }
-
         return exportPath;
       };
 
-      // 深度递归扫描并处理资产路径
       const processAssetsRecursively = async (obj: any): Promise<any> => {
         if (!obj || typeof obj !== 'object') return obj;
-        
         if (Array.isArray(obj)) {
           return Promise.all(obj.map(item => processAssetsRecursively(item)));
         }
-
         const newObj = { ...obj };
         for (const [key, value] of Object.entries(newObj)) {
           if (typeof value === 'string' && isAgentPrivateAsset(value)) {
@@ -292,12 +258,57 @@ export async function exportAgents(
       };
 
       if (shouldIncludeAssets) {
-        // 使用递归扫描处理所有私有资产
         const processedAgent = await processAssetsRecursively(exportableAgent);
         Object.assign(exportableAgent, processedAgent);
       }
 
-      // 为每个智能体生成独立的导出数据
+      // 处理世界书导出
+      if (shouldIncludeWorldbooks && agent.worldbookIds && agent.worldbookIds.length > 0) {
+        const bundledWorldbooks: BundledWorldbook[] = [];
+        for (const wbId of agent.worldbookIds) {
+          const content = await worldbookStore.getWorldbookContent(wbId);
+          const metadata = worldbookStore.worldbooks.find(w => w.id === wbId);
+          if (content && metadata) {
+            const bundled: BundledWorldbook = {
+              id: wbId,
+              name: metadata.name,
+            };
+
+            if (shouldEmbedWorldbooks) {
+              bundled.content = content;
+            } else {
+              const wbFileName = `worldbooks/${sanitizeFilename(metadata.name)}.${format}`;
+              bundled.fileName = wbFileName;
+
+              const wbContentString = format === 'yaml'
+                ? yaml.dump(content)
+                : JSON.stringify(content, null, 2);
+              if ((exportType === 'zip' || exportType === 'png') && zip) {
+                if (separateFolders) {
+                  zip.folder(uniqueName)?.file(wbFileName, wbContentString);
+                } else {
+                  zip.file(wbFileName, wbContentString);
+                }
+              } else if (exportType === 'folder' && targetDir) {
+                const wbPath = separateFolders 
+                  ? await join(targetDir, uniqueName, wbFileName)
+                  : await join(targetDir, wbFileName);
+                
+                const encoder = new TextEncoder();
+                await invoke('write_file_force', {
+                  path: wbPath,
+                  content: Array.from(encoder.encode(wbContentString))
+                });
+              }
+            }
+            bundledWorldbooks.push(bundled);
+          }
+        }
+        if (bundledWorldbooks.length > 0) {
+          exportableAgent.bundledWorldbooks = bundledWorldbooks;
+        }
+      }
+
       const exportData: AgentExportFile = {
         version: 1,
         type: 'AIO_Agent_Export',
@@ -337,11 +348,9 @@ export async function exportAgents(
     }
 
     if (exportType === 'zip' && zip) {
-      // 生成 ZIP 文件数据
       const content = await zip.generateAsync({ type: 'uint8array' });
       const fileName = `${baseName}.agent.zip`;
 
-      // 使用系统对话框保存文件
       const savePath = await save({
         defaultPath: fileName,
         filters: [{
@@ -355,61 +364,42 @@ export async function exportAgents(
         logger.info('智能体导出成功 (ZIP)', { count: agents.length, fileName: savePath });
       } else {
         logger.info('用户取消了 ZIP 导出');
-        return; // 用户取消，不显示成功消息
+        return;
       }
     } else if (exportType === 'png' && zip) {
       try {
-        // 1. 生成 ZIP 数据
         const zipContent = await zip.generateAsync({ type: 'uint8array' });
-        
-        // 2. 准备预览图
         let pngBuffer: ArrayBuffer;
         if (options.previewImage) {
           if (typeof options.previewImage === 'string') {
             const imagePath = options.previewImage;
-            
             if (imagePath.startsWith('appdata://')) {
-              // 处理 appdata:// 协议路径
-              // 注意：直接上传的头像文件存放在 agent 子目录，不是资产管理器目录
               const relativePath = imagePath.replace('appdata://', '');
               const appData = await appDataDir();
               const fullPath = await join(appData, relativePath);
-              
-              // 检查文件是否存在
-              const fileExists = await exists(fullPath);
-              if (!fileExists) {
+              if (!(await exists(fullPath))) {
                 throw new Error(`预览图文件不存在: ${fullPath}`);
               }
-              
               const binary = await readFile(fullPath);
               pngBuffer = binary.buffer;
             } else if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('blob:')) {
-              // 处理 HTTP URL 或 Blob URL
               const response = await fetch(imagePath);
               pngBuffer = await response.arrayBuffer();
             } else if (imagePath.startsWith('/')) {
-              // 处理本地静态资源路径（如 /agent-icons/xxx.png）
               const response = await fetch(imagePath);
               pngBuffer = await response.arrayBuffer();
             } else {
-              // 处理绝对本地文件路径（Windows: C:\xxx 或 UNC: \\xxx）
               const binary = await readFile(imagePath);
               pngBuffer = binary.buffer;
             }
           } else {
-            // File 对象
             pngBuffer = await options.previewImage.arrayBuffer();
           }
         } else {
-          // 如果没有提供预览图，抛出错误
           throw new Error('导出 PNG 格式必须提供预览图');
         }
 
-        // 3. 将 ZIP 数据转换为 Base64 (注意：这是 async 函数)
         const zipBase64 = await convertArrayBufferToBase64(zipContent);
-
-        // 4. 构造 AIO Bundle 数据结构并嵌入到 PNG
-        // embedDataIntoPng 内部会再次进行 Base64 编码，所以这里直接传 JSON 字符串
         const bundleData = {
           version: 1,
           type: 'AIO_Agent_Bundle',
@@ -420,7 +410,6 @@ export async function exportAgents(
         const bundleString = JSON.stringify(bundleData);
         const newPngBuffer = await embedDataIntoPng(pngBuffer, 'aiob', bundleString);
 
-        // 5. 保存文件
         const fileName = `${baseName}.agent.png`;
         const savePath = await save({
           defaultPath: fileName,
@@ -440,7 +429,6 @@ export async function exportAgents(
           logger.info('用户取消了 PNG 导出');
           return;
         }
-
       } catch (error) {
         logger.error('PNG 导出失败', error as Error);
         throw error;
@@ -448,9 +436,7 @@ export async function exportAgents(
     } else if (exportType === 'folder' && targetDir) {
       logger.info('智能体导出成功 (Folder)', { count: agents.length, targetDir });
     } else if (exportType === 'file') {
-      // 直接导出单个配置文件
       const fileName = `${baseName}.agent.${format}`;
-
       const savePath = await save({
         defaultPath: fileName,
         filters: [{

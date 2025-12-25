@@ -19,6 +19,8 @@ const emit = defineEmits<{
     agentIds: string[],
     options: {
       includeAssets: boolean;
+      includeWorldbooks: boolean;
+      embedWorldbooks: boolean;
       format: "json" | "yaml";
       exportType: "zip" | "folder" | "file" | "png";
       separateFolders: boolean;
@@ -31,6 +33,8 @@ const agentStore = useAgentStore();
 
 const selectedAgentIds = ref<string[]>([]);
 const includeAssets = ref(true);
+const includeWorldbooks = ref(true);
+const embedWorldbooks = ref(false);
 const exportFormat = ref<"json" | "yaml">("json");
 const exportType = ref<"zip" | "folder" | "file" | "png">("zip");
 const separateFolders = ref(false);
@@ -96,6 +100,8 @@ const handleExport = async () => {
 
   emit("export", selectedAgentIds.value, {
     includeAssets: includeAssets.value,
+    includeWorldbooks: includeWorldbooks.value,
+    embedWorldbooks: embedWorldbooks.value,
     format: exportFormat.value,
     exportType: exportType.value,
     separateFolders: separateFolders.value,
@@ -282,6 +288,18 @@ const canExport = computed(() => {
             />
           </div>
 
+          <div class="option-item">
+            <el-checkbox
+              v-model="includeWorldbooks"
+              label="包含关联的世界书"
+              :disabled="exportType === 'file'"
+            />
+          </div>
+
+          <div class="option-item sub-option" v-if="includeWorldbooks && exportType !== 'file'">
+            <el-checkbox v-model="embedWorldbooks" label="将世界书内嵌到配置文件中 (默认打包为独立文件)" />
+          </div>
+
           <div class="option-item" v-if="!isSingleMode">
             <el-checkbox v-model="separateFolders" label="为每个智能体创建独立文件夹" />
           </div>
@@ -364,6 +382,11 @@ const canExport = computed(() => {
 
 .option-item {
   margin-bottom: 8px;
+}
+
+.sub-option {
+  margin-left: 24px;
+  margin-top: -4px;
 }
 
 .format-select {

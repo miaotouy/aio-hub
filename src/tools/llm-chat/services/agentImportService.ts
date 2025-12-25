@@ -2,11 +2,13 @@ import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import JSZip from 'jszip';
 import yaml from 'js-yaml';
+import { isEqual } from 'lodash-es';
 import type {
   ExportableAgent,
   AgentExportFile,
   AgentImportPreflightResult,
   ConfirmImportParams,
+  BundledWorldbook,
 } from '../types/agentImportExport';
 import { AgentCategory, AgentCategoryLabels } from '../types';
 import { STWorldbook } from '../types/worldbook';
@@ -46,12 +48,14 @@ export async function preflightImportAgents(
 
     const combinedAgents: ExportableAgent[] = [];
     const combinedAssets: Record<string, Record<string, ArrayBuffer>> = {};
+    const combinedBundledWorldbooks: Record<string, BundledWorldbook[]> = {};
     const combinedWorldbooks: Record<string, STWorldbook> = {};
 
     // 辅助函数：解析单个文件
     const parseFile = async (file: File) => {
       let agentExportFile: AgentExportFile;
       const fileAssets: Record<string, ArrayBuffer> = {};
+      const fileWorldbooks: Record<string, STWorldbook> = {};
 
       if (file.name.endsWith('.zip')) {
         const zip = new JSZip();
@@ -75,6 +79,22 @@ export async function preflightImportAgents(
           if (!assetFile.dir) {
             const binary = await assetFile.async('arraybuffer');
             fileAssets[assetFile.name] = binary;
+          }
+        }
+
+        const wbFiles = zipContent.file(/^worldbooks\/.*/);
+        for (const wbFile of wbFiles) {
+          if (!wbFile.dir) {
+            const text = await wbFile.async('text');
+            try {
+              if (wbFile.name.endsWith('.yaml') || wbFile.name.endsWith('.yml')) {
+                fileWorldbooks[wbFile.name] = yaml.load(text) as STWorldbook;
+              } else {
+                fileWorldbooks[wbFile.name] = JSON.parse(text);
+              }
+            } catch (e) {
+              logger.warn(`解析世界书文件 ${wbFile.name} 失败`, e as Error);
+            }
           }
         }
       } else if (file.name.endsWith('.json')) {
@@ -168,6 +188,22 @@ export async function preflightImportAgents(
               fileAssets[assetFile.name] = binary;
             }
           }
+
+          const wbFiles = zipContent.file(/^worldbooks\/.*/);
+          for (const wbFile of wbFiles) {
+            if (!wbFile.dir) {
+              const text = await wbFile.async('text');
+              try {
+                if (wbFile.name.endsWith('.yaml') || wbFile.name.endsWith('.yml')) {
+                  fileWorldbooks[wbFile.name] = yaml.load(text) as STWorldbook;
+                } else {
+                  fileWorldbooks[wbFile.name] = JSON.parse(text);
+                }
+              } catch (e) {
+                logger.warn(`解析世界书文件 ${wbFile.name} 失败`, e as Error);
+              }
+            }
+          }
         } else if (isCharacterCard(jsonData)) {
           const { agent: parsedAgent, presetMessages } = parseCharacterCard(jsonData as SillyTavernCharacterCard);
 
@@ -218,11 +254,29 @@ export async function preflightImportAgents(
           combinedAssets[tempId][path] = content;
         }
 
+        // 处理随包导出的世界书
+        if (agent.bundledWorldbooks && agent.bundledWorldbooks.length > 0) {
+          const resolvedBundled: BundledWorldbook[] = [];
+          for (const bundled of agent.bundledWorldbooks) {
+            if (bundled.content) {
+              resolvedBundled.push(bundled);
+            } else if (bundled.fileName && fileWorldbooks[bundled.fileName]) {
+              resolvedBundled.push({
+                ...bundled,
+                content: fileWorldbooks[bundled.fileName]
+              });
+            }
+          }
+          if (resolvedBundled.length > 0) {
+            combinedBundledWorldbooks[tempId] = resolvedBundled;
+          }
+        }
+
         if (!agent.modelId && defaultModelId) {
           agent.modelId = defaultModelId;
         }
 
-        // 处理暂存的世界书
+        // 处理暂存的世界书 (酒馆角色卡内嵌)
         if ((agent as any)._tempWorldbook) {
           combinedWorldbooks[tempId] = (agent as any)._tempWorldbook;
           delete (agent as any)._tempWorldbook;
@@ -274,6 +328,7 @@ export async function preflightImportAgents(
     const result: AgentImportPreflightResult = {
       agents: combinedAgents,
       assets: combinedAssets,
+      bundledWorldbooks: combinedBundledWorldbooks,
       embeddedWorldbooks: combinedWorldbooks,
       nameConflicts,
       unmatchedModels,
@@ -295,7 +350,7 @@ export async function preflightImportAgents(
  * 提交导入请求，处理资产并持久化 Agent
  */
 export async function commitImportAgents(params: ConfirmImportParams): Promise<void> {
-  const { resolvedAgents, assets: allAssets, embeddedWorldbooks = {} } = params;
+  const { resolvedAgents, assets: allAssets, bundledWorldbooks = {}, embeddedWorldbooks = {} } = params;
   const agentStore = useAgentStore();
   const worldbookStore = useWorldbookStore();
   logger.info('开始提交导入', { agentCount: resolvedAgents.length });
@@ -391,13 +446,57 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
       const cleanRestOptions = JSON.parse(JSON.stringify(restOptions));
       clearAssetRefs(cleanRestOptions);
 
-      // 处理嵌入的世界书
+      // 辅助函数：查找内容完全一致的现有世界书
+      const findDuplicateWorldbook = async (content: STWorldbook, name: string): Promise<string | null> => {
+        // 先按名字筛选候选
+        const candidates = worldbookStore.worldbooks.filter(wb => wb.name === name);
+        
+        for (const candidate of candidates) {
+          const existingContent = await worldbookStore.getWorldbookContent(candidate.id);
+          if (existingContent && isEqual(existingContent.entries, content.entries)) {
+            logger.info('发现内容完全一致的世界书，复用现有 ID', {
+              existingId: candidate.id,
+              name
+            });
+            return candidate.id;
+          }
+        }
+        return null;
+      };
+
+      // 处理嵌入的世界书 (角色卡内嵌)
       const worldbookContent = embeddedWorldbooks[resolvedAgent.id || ''];
-      let importedWorldbookId: string | undefined;
+      const importedWorldbookIds: string[] = [];
+
       if (worldbookContent) {
         const wbName = worldbookContent.metadata?.name || `${agentName} 的世界书`;
         const normalizedWb = normalizeWorldbook(worldbookContent);
-        importedWorldbookId = await worldbookStore.importWorldbook(wbName, normalizedWb);
+        
+        // 先检查是否有重复
+        const existingId = await findDuplicateWorldbook(normalizedWb, wbName);
+        if (existingId) {
+          importedWorldbookIds.push(existingId);
+        } else {
+          const wbId = await worldbookStore.importWorldbook(wbName, normalizedWb);
+          importedWorldbookIds.push(wbId);
+        }
+      }
+
+      // 处理随包打包的世界书
+      const bundledList = bundledWorldbooks[resolvedAgent.id || ''];
+      if (bundledList && bundledList.length > 0) {
+        for (const bundled of bundledList) {
+          if (bundled.content) {
+            // 先检查是否有重复
+            const existingId = await findDuplicateWorldbook(bundled.content, bundled.name);
+            if (existingId) {
+              importedWorldbookIds.push(existingId);
+            } else {
+              const wbId = await worldbookStore.importWorldbook(bundled.name, bundled.content);
+              importedWorldbookIds.push(wbId);
+            }
+          }
+        }
       }
 
       const agentOptions = {
@@ -405,7 +504,7 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
         icon: (originalIcon?.startsWith('assets/')) ? undefined : originalIcon,
         assets: originalAssets?.filter(a => !a.path.startsWith('assets/')),
         category: validCategory,
-        worldbookIds: importedWorldbookId ? [importedWorldbookId] : resolvedAgent.worldbookIds,
+        worldbookIds: importedWorldbookIds.length > 0 ? importedWorldbookIds : resolvedAgent.worldbookIds,
       };
 
       let finalAgentId: string;

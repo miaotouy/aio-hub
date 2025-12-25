@@ -4,7 +4,7 @@ import type { AgentImportPreflightResult, ResolvedAgentToImport } from "../../ag
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag } from "element-plus";
+import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag, ElCheckbox } from "element-plus";
 
 const props = defineProps<{
   visible: boolean;
@@ -14,19 +14,26 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:visible": [value: boolean];
-  confirm: [resolvedAgents: ResolvedAgentToImport[]];
+  confirm: [resolvedAgents: ResolvedAgentToImport[], worldbookOptions: {
+    bundledWorldbooks: Record<string, import("../../types/agentImportExport").BundledWorldbook[]>;
+    embeddedWorldbooks: Record<string, import("../../types/worldbook").STWorldbook>;
+  }];
   cancel: [];
 }>();
 
 const { enabledProfiles } = useLlmProfiles();
 
 // 为每个导入的 Agent 创建解决方案的响应式数据
-const resolvedAgents = ref<ResolvedAgentToImport[]>([]);
+const resolvedAgents = ref<(ResolvedAgentToImport & {
+  importBundledWorldbooks?: boolean;
+  importEmbeddedWorldbook?: boolean;
+})[]>([]);
 
 // 当预检结果变化时，初始化 resolvedAgents
 const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
   resolvedAgents.value = result.agents.map((agent, index) => {
     const unmatched = result.unmatchedModels.find((m) => m.agentIndex === index);
+    const tempId = agent.id || '';
 
     // 尝试为不匹配的模型找一个可用的
     let finalProfileId = "";
@@ -65,6 +72,8 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
       finalProfileId,
       finalModelId,
       overwriteExisting: false,
+      importBundledWorldbooks: !!(result.bundledWorldbooks && result.bundledWorldbooks[tempId]),
+      importEmbeddedWorldbook: !!(result.embeddedWorldbooks && result.embeddedWorldbooks[tempId]),
     };
   });
 };
@@ -82,7 +91,32 @@ watch(
 
 const handleConfirm = () => {
   if (!props.preflightResult) return;
-  emit("confirm", resolvedAgents.value);
+  
+  // 根据用户选择过滤世界书数据
+  const filteredBundledWorldbooks: Record<string, import("../../types/agentImportExport").BundledWorldbook[]> = {};
+  const filteredEmbeddedWorldbooks: Record<string, import("../../types/worldbook").STWorldbook> = {};
+  
+  // 将 UI 层的选项应用回数据结构
+  const finalResolved = resolvedAgents.value.map(agent => {
+    const { importBundledWorldbooks, importEmbeddedWorldbook, ...rest } = agent;
+    const agentId = agent.id || '';
+    
+    // 根据用户选择决定是否包含世界书
+    if (importBundledWorldbooks && props.preflightResult?.bundledWorldbooks?.[agentId]) {
+      filteredBundledWorldbooks[agentId] = props.preflightResult.bundledWorldbooks[agentId];
+    }
+    
+    if (importEmbeddedWorldbook && props.preflightResult?.embeddedWorldbooks?.[agentId]) {
+      filteredEmbeddedWorldbooks[agentId] = props.preflightResult.embeddedWorldbooks[agentId];
+    }
+    
+    return rest;
+  });
+
+  emit("confirm", finalResolved, {
+    bundledWorldbooks: filteredBundledWorldbooks,
+    embeddedWorldbooks: filteredEmbeddedWorldbooks,
+  });
 };
 
 const handleCancel = () => {
@@ -113,6 +147,9 @@ const handleCancel = () => {
             <p>
               即将导入 <strong>{{ preflightResult.agents.length }}</strong> 个智能体。
             </p>
+            <p v-if="Object.keys(preflightResult.bundledWorldbooks || {}).length > 0">
+              包含 <strong>{{ Object.values(preflightResult.bundledWorldbooks || {}).flat().length }}</strong> 个随包世界书。
+            </p>
             <p v-if="preflightResult.unmatchedModels.length > 0" class="conflict-detail">
               发现 <strong>{{ preflightResult.unmatchedModels.length }}</strong> 个模型不匹配。
             </p>
@@ -141,7 +178,32 @@ const handleCancel = () => {
                 </ElTag>
                 <ElTag v-else type="success" size="small"> 可直接导入 </ElTag>
               </ElDescriptionsItem>
+              <ElDescriptionsItem label="包含资源" v-if="preflightResult.assets[agent.id!]">
+                <ElTag type="info" size="small">
+                  {{ Object.keys(preflightResult.assets[agent.id!] || {}).length }} 个文件
+                </ElTag>
+              </ElDescriptionsItem>
             </ElDescriptions>
+
+            <!-- 世界书选项 -->
+            <div class="worldbook-options" v-if="preflightResult.bundledWorldbooks?.[agent.id!] || preflightResult.embeddedWorldbooks?.[agent.id!]">
+              <h5>世界书处理</h5>
+              <div class="wb-import-item" v-if="preflightResult.bundledWorldbooks?.[agent.id!]">
+                <ElCheckbox v-model="resolvedAgents[index].importBundledWorldbooks">
+                  导入随包打包的世界书 ({{ preflightResult.bundledWorldbooks[agent.id!].length }} 个)
+                </ElCheckbox>
+                <div class="wb-list-hint">
+                  <span v-for="wb in preflightResult.bundledWorldbooks[agent.id!]" :key="wb.id" class="wb-name-tag">
+                    {{ wb.name }}
+                  </span>
+                </div>
+              </div>
+              <div class="wb-import-item" v-if="preflightResult.embeddedWorldbooks?.[agent.id!]">
+                <ElCheckbox v-model="resolvedAgents[index].importEmbeddedWorldbook">
+                  导入内嵌的世界书 (酒馆格式)
+                </ElCheckbox>
+              </div>
+            </div>
 
             <!-- 冲突解决选项 -->
             <div

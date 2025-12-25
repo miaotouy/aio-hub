@@ -2,6 +2,20 @@ import type { ChatMessageNode, LlmParameters, AgentCategory, AgentAsset, AssetGr
 import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
 
 /**
+ * 随包导出的世界书定义
+ */
+export interface BundledWorldbook {
+  /** 原始 ID 或临时标识符 */
+  id: string;
+  /** 世界书名称 */
+  name: string;
+  /** 相对路径（如果是独立文件打包） */
+  fileName?: string;
+  /** 世界书内容（如果是内嵌到配置文件） */
+  content?: import('./worldbook').STWorldbook;
+}
+
+/**
  * 可导出的 Agent 数据结构（不包含本地元数据）
  */
 export interface ExportableAgent {
@@ -28,6 +42,8 @@ export interface ExportableAgent {
   assetGroups?: AssetGroup[];
   assets?: AgentAsset[];
   worldbookIds?: string[];
+  /** 随包导出的世界书信息 */
+  bundledWorldbooks?: BundledWorldbook[];
 }
 
 /**
@@ -47,6 +63,8 @@ export interface AgentImportPreflightResult {
   agents: ExportableAgent[];
   /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
   assets: Record<string, Record<string, ArrayBuffer>>;
+  /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
+  bundledWorldbooks?: Record<string, BundledWorldbook[]>;
   /** 待导入的世界书内容 { agentId: STWorldbook } (针对角色卡中嵌入的世界书) */
   embeddedWorldbooks?: Record<string, import('./worldbook').STWorldbook>;
   /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
@@ -76,6 +94,8 @@ export interface ConfirmImportParams {
   resolvedAgents: ResolvedAgentToImport[];
   /** 资源文件映射 { agentId: { relativePath: ArrayBuffer } } */
   assets: Record<string, Record<string, ArrayBuffer>>;
+  /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
+  bundledWorldbooks?: Record<string, BundledWorldbook[]>;
   /** 待导入的世界书内容 { agentId: STWorldbook } */
   embeddedWorldbooks?: Record<string, import('./worldbook').STWorldbook>;
 }

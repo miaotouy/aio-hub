@@ -228,8 +228,8 @@ const handleExport = async () => {
     exporting.value = true;
 
     // 生成默认文件名 (使用本地时间)
-    const timestamp = formatDateTime(new Date(), 'yyyy-MM-dd');
-    
+    const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
+
     const isJson = exportFormat.value === "json" || exportFormat.value === "raw";
     const extension = isJson ? "json" : "md";
     const defaultFileName = `${props.session.name}-${timestamp}.${extension}`;

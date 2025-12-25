@@ -584,7 +584,7 @@ async function handleMerge() {
     if (error !== "cancel") {
       errorHandler.error(error, "合并配置失败");
     }
-}
+  }
 }
 
 // 处理导出
@@ -646,7 +646,6 @@ function formatDate(dateString: string): string {
     return `${years}年前`;
   }
 }
-
 </script>
 
 <style scoped>

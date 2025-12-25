@@ -156,7 +156,8 @@ import type JsonFormatterRegistry from "./jsonFormatter.registry";
 import { useSendToChat } from "@/composables/useSendToChat";
 
 // 获取服务实例
-const jsonFormatterRegistry = toolRegistryManager.getRegistry<JsonFormatterRegistry>("json-formatter");
+const jsonFormatterRegistry =
+  toolRegistryManager.getRegistry<JsonFormatterRegistry>("json-formatter");
 const errorHandler = createModuleErrorHandler("JsonFormatter");
 
 // 获取发送到聊天功能

@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { ElMessageBox } from 'element-plus';
-import InstalledPlugins from './InstalledPlugins.vue';
-import PluginMarket from './PluginMarket.vue';
-import PluginDetailPanel from './components/PluginDetailPanel.vue';
-import type { PluginProxy } from '@/services/plugin-types';
-import { pluginManager } from '@/services/plugin-manager';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { loadAppSettings, updateAppSettings } from '@/utils/appSettings';
+import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ElMessageBox } from "element-plus";
+import InstalledPlugins from "./InstalledPlugins.vue";
+import PluginMarket from "./PluginMarket.vue";
+import PluginDetailPanel from "./components/PluginDetailPanel.vue";
+import type { PluginProxy } from "@/services/plugin-types";
+import { pluginManager } from "@/services/plugin-manager";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { loadAppSettings, updateAppSettings } from "@/utils/appSettings";
 
-const errorHandler = createModuleErrorHandler('PluginManager');
+const errorHandler = createModuleErrorHandler("PluginManager");
 
 // 当前激活的标签页
-const activeTab = ref<'installed' | 'market'>('installed');
+const activeTab = ref<"installed" | "market">("installed");
 
 // 右侧面板状态
 const isPanelCollapsed = ref(true);
@@ -21,7 +21,7 @@ const isPanelCollapsed = ref(true);
 const settings = loadAppSettings();
 const panelWidthPercent = ref(settings.pluginManagerPanelWidth || 50); // 使用百分比存储（默认50%）
 const selectedPlugin = ref<PluginProxy | null>(null);
-const initialTab = ref<string>('detail');
+const initialTab = ref<string>("detail");
 
 // 监听面板宽度变化，保存到设置
 watch(panelWidthPercent, (newWidth) => {
@@ -39,8 +39,8 @@ const handleDragStart = (e: MouseEvent) => {
   dragStartX.value = e.clientX;
   dragStartPercent.value = panelWidthPercent.value;
   e.preventDefault();
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
 };
 
 const handleMouseMove = (e: MouseEvent) => {
@@ -49,11 +49,11 @@ const handleMouseMove = (e: MouseEvent) => {
     // 将像素差值转换为百分比差值
     const deltaPercent = (delta / window.innerWidth) * 100;
     const newPercent = dragStartPercent.value - deltaPercent;
-    
+
     // 计算最小百分比（确保至少300px）
     const minPercent = Math.max(20, (300 / window.innerWidth) * 100);
     const maxPercent = 70;
-    
+
     if (newPercent >= minPercent && newPercent <= maxPercent) {
       panelWidthPercent.value = newPercent;
     }
@@ -62,22 +62,22 @@ const handleMouseMove = (e: MouseEvent) => {
 
 const handleMouseUp = () => {
   isDragging.value = false;
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
 };
 
 onMounted(() => {
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener("mousemove", handleMouseMove);
+  document.addEventListener("mouseup", handleMouseUp);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', handleMouseUp);
+  document.removeEventListener("mousemove", handleMouseMove);
+  document.removeEventListener("mouseup", handleMouseUp);
 });
 
 // 处理插件选择 - 显示详情（支持取消选中）
-const handlePluginSelect = (plugin: PluginProxy | null, tab: string = 'detail') => {
+const handlePluginSelect = (plugin: PluginProxy | null, tab: string = "detail") => {
   if (plugin === null) {
     // 取消选中，折叠面板
     selectedPlugin.value = null;
@@ -93,7 +93,7 @@ const handlePluginSelect = (plugin: PluginProxy | null, tab: string = 'detail') 
 // 切换插件启用状态
 const handleTogglePlugin = async () => {
   if (!selectedPlugin.value) return;
-  
+
   try {
     if (selectedPlugin.value.enabled) {
       selectedPlugin.value.disable();
@@ -103,39 +103,39 @@ const handleTogglePlugin = async () => {
       customMessage.success(`已启用插件: ${selectedPlugin.value.name}`);
     }
   } catch (error) {
-    errorHandler.error(error, '操作失败');
+    errorHandler.error(error, "操作失败");
   }
 };
 
 // 卸载插件
 const handleUninstallPlugin = async () => {
   if (!selectedPlugin.value) return;
-  
+
   const plugin = selectedPlugin.value;
-  
+
   try {
     await ElMessageBox.confirm(
       `确定要卸载插件"${plugin.name}"吗？插件文件将被移入回收站。`,
-      '卸载插件',
+      "卸载插件",
       {
-        confirmButtonText: '确定卸载',
-        cancelButtonText: '取消',
-        type: 'warning',
+        confirmButtonText: "确定卸载",
+        cancelButtonText: "取消",
+        type: "warning",
       }
     );
 
     // 调用插件管理器执行卸载
     await pluginManager.uninstallPlugin(plugin.id);
-    
+
     customMessage.success(`插件"${plugin.name}"已成功卸载，文件已移入回收站`);
-    
+
     // 清除选中状态
     selectedPlugin.value = null;
     isPanelCollapsed.value = true;
   } catch (error) {
     // 用户取消操作
-    if (error !== 'cancel') {
-      errorHandler.error(error, '卸载失败');
+    if (error !== "cancel") {
+      errorHandler.error(error, "卸载失败");
     }
   }
 };
@@ -150,7 +150,7 @@ const handleUninstallPlugin = async () => {
           <el-tab-pane label="已安装" name="installed">
             <InstalledPlugins @select-plugin="handlePluginSelect" />
           </el-tab-pane>
-          
+
           <el-tab-pane label="发现" name="market">
             <PluginMarket />
           </el-tab-pane>
@@ -158,11 +158,7 @@ const handleUninstallPlugin = async () => {
       </div>
 
       <!-- 右侧面板 -->
-      <div
-        v-if="!isPanelCollapsed"
-        class="side-panel"
-        :style="{ width: `${panelWidthPercent}%` }"
-      >
+      <div v-if="!isPanelCollapsed" class="side-panel" :style="{ width: `${panelWidthPercent}%` }">
         <!-- 拖拽分隔条 -->
         <div
           class="resize-handle"

@@ -354,7 +354,7 @@ const handleSelectAsset = async (asset: Asset) => {
     console.log("Audio Assets Filtered:", {
       clicked: asset.name,
       count: audioAssets.length,
-      allAudioNames: audioAssets.map(a => a.name)
+      allAudioNames: audioAssets.map((a) => a.name),
     });
     // 找到当前点击音频在列表中的索引
     const index = audioAssets.findIndex((a) => a.id === asset.id);
@@ -775,7 +775,7 @@ const handleViewTranscription = async (asset: Asset) => {
     logger.debug("正在读取转写内容", { assetId: asset.id, path: derived.path });
     const buffer = await assetManagerEngine.getAssetBinary(derived.path);
     const text = new TextDecoder("utf-8").decode(buffer);
-    
+
     currentTranscriptionAsset.value = asset;
     currentTranscriptionContent.value = text;
     showTranscriptionDialog.value = true;
@@ -786,10 +786,10 @@ const handleViewTranscription = async (asset: Asset) => {
 
 const handleSaveTranscription = async (content: string) => {
   if (!currentTranscriptionAsset.value) return;
-  
+
   const asset = currentTranscriptionAsset.value;
   const derived = asset.metadata?.derived?.transcription;
-  
+
   if (!derived || !derived.path) {
     errorHandler.error("无法保存：找不到转写文件路径");
     return;
@@ -798,9 +798,9 @@ const handleSaveTranscription = async (content: string) => {
   try {
     const basePath = await assetManagerEngine.getAssetBasePath();
     const fullPath = await join(basePath, derived.path);
-    
+
     await writeTextFile(fullPath, content);
-    
+
     // 更新元数据中的更新时间
     await invoke("update_asset_derived_data", {
       assetId: asset.id,
@@ -810,7 +810,7 @@ const handleSaveTranscription = async (content: string) => {
         updatedAt: new Date().toISOString(),
       },
     });
-    
+
     customMessage.success("转写内容已保存");
     showTranscriptionDialog.value = false;
   } catch (error) {

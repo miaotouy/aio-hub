@@ -44,6 +44,7 @@
 ✅ **开发模式现已支持直接使用 .vue 单文件组件！**
 
 在开发模式下（`bun run dev`），插件可以：
+
 - 直接使用 `.vue` 单文件组件，无需手动编译
 - 享受 Vite 提供的 HMR（热模块替换）
 - 使用完整的 Vue SFC 特性（`<template>`、`<script setup>`、`<style scoped>`）
@@ -53,6 +54,7 @@
 ⚠️ **生产模式下插件 UI 组件仍需编译为 JavaScript 文件（.js 或 .mjs）**
 
 原因：
+
 - 生产环境的插件位于用户的 appData 目录
 - 无法通过 Vite 动态编译
 - 需要通过 `convertFileSrc` API 加载
@@ -60,11 +62,13 @@
 ### 开发工具链
 
 **开发模式**：
+
 - ✅ 直接使用 `.vue` 文件
 - ✅ 无需构建工具
 - ✅ 自动 HMR
 
 **生产模式**：
+
 - 需要构建流程将 `.vue` 编译为 `.js`
 - **推荐方案**: 使用 `vite` + `@vitejs/plugin-vue`
 - **备选方案**: 使用 Vue 3 的 `h()` 渲染函数手写组件
@@ -88,7 +92,7 @@
   "type": "javascript",
   "main": "index.js",
   "methods": [...],
-  
+
   "ui": {
     "displayName": "Display Name",
     "component": "YourComponent.js",
@@ -99,11 +103,11 @@
 
 ### UI 配置字段
 
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| `displayName` | string | 否 | 显示名称（默认使用 `name`） |
-| `component` | string | 是 | 组件文件路径（相对于插件根目录） |
-| `icon` | string | 否 | 图标（Emoji、SVG 路径或图片路径） |
+| 字段          | 类型   | 必需 | 说明                              |
+| ------------- | ------ | ---- | --------------------------------- |
+| `displayName` | string | 否   | 显示名称（默认使用 `name`）       |
+| `component`   | string | 是   | 组件文件路径（相对于插件根目录）  |
+| `icon`        | string | 否   | 图标（Emoji、SVG 路径或图片路径） |
 
 ---
 
@@ -136,27 +140,27 @@ Vite 会自动处理组件之间的依赖关系，无论你的项目结构如何
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ElInput, ElButton } from 'element-plus';
-import InfoCard from '@/components/common/InfoCard.vue'; // 主应用提供的封装组件
-import { execute } from '@/services/executor';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { ref } from "vue";
+import { ElInput, ElButton } from "element-plus";
+import InfoCard from "@/components/common/InfoCard.vue"; // 主应用提供的封装组件
+import { execute } from "@/services/executor";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const errorHandler = createModuleErrorHandler('HelloWorldPlugin');
-const name = ref('');
-const greeting = ref('');
+const errorHandler = createModuleErrorHandler("HelloWorldPlugin");
+const name = ref("");
+const greeting = ref("");
 const isLoading = ref(false);
 
 async function doGreet() {
   if (!name.value) {
-    customMessage.warning('请输入名字！');
+    customMessage.warning("请输入名字！");
     return;
   }
   isLoading.value = true;
   // 调用插件自身的 "greet" 方法
   const result = await execute({
-    service: 'example-hello-world', // 插件自身 ID
-    method: 'greet',
+    service: "example-hello-world", // 插件自身 ID
+    method: "greet",
     params: { name: name.value },
   });
   isLoading.value = false;
@@ -164,7 +168,7 @@ async function doGreet() {
   if (result.success) {
     greeting.value = result.data;
   } else {
-    errorHandler.error(result.error, '调用失败');
+    errorHandler.error(result.error, "调用失败");
   }
 }
 </script>
@@ -202,17 +206,19 @@ async function doGreet() {
 1.  **添加 `package.json`**: 用于管理 `vite`, `@vitejs/plugin-vue` 等前端构建相关的开发依赖。
 2.  **创建 `vite.config.js`**: 配置 Vite 的库模式 (`lib mode`) 构建。核心是 **外部化 (externalize)** 所有由主应用提供的依赖（如 `vue`, `element-plus`, 以及路径别名 `/@/`），这能极大减小打包体积，避免重复加载。
 3.  **创建构建脚本 (可选)**: 使用 `build.js` 或 `build.bat` 等脚本，可以一键完成所有构建任务，例如：
-    -   编译 Rust 后端 (对于 Sidecar/Native 插件)。
-    -   编译 Vue 前端。
-    -   将所有产物（后端可执行文件、前端 JS、`manifest.json` 等）整合到 `dist` 目录，方便打包和分发。
+    - 编译 Rust 后端 (对于 Sidecar/Native 插件)。
+    - 编译 Vue 前端。
+    - 将所有产物（后端可执行文件、前端 JS、`manifest.json` 等）整合到 `dist` 目录，方便打包和分发。
 
 **最佳实践参考: `plugins/example-file-hasher/`**
 
 `example-file-hasher` 是一个完美的 "Sidecar + Vue UI" 插件范例，它完整地展示了：
--   独立的 `package.json` 和 `vite.config.js`。
--   使用 `build.js` 统一构建 Rust 后端和 Vue 前端。
--   将复杂的 UI 拆分为多个子组件。
--   最终如何配置 `manifest.json` 以指向编译后的 `.js` 组件。
+
+- 独立的 `package.json` 和 `vite.config.js`。
+- 使用 `build.js` 统一构建 Rust 后端和 Vue 前端。
+- 将复杂的 UI 拆分为多个子组件。
+- 最终如何配置 `manifest.json` 以指向编译后的 `.js` 组件。
+
 ### 与插件后端及主应用交互
 
 #### 调用插件自身方法
@@ -220,13 +226,15 @@ async function doGreet() {
 使用项目统一的 `execute` 函数，可以方便地调用插件在 `manifest.json` 中定义的任何方法。
 
 ```typescript
-import { execute } from '@/services/executor';
+import { execute } from "@/services/executor";
 
 // 假设 serviceId 是 'my-plugin', 方法是 'myMethod'
 const result = await execute({
-  service: 'my-plugin',
-  method: 'myMethod',
-  params: { /* ... */ }
+  service: "my-plugin",
+  method: "myMethod",
+  params: {
+    /* ... */
+  },
 });
 ```
 
@@ -236,11 +244,11 @@ const result = await execute({
 
 ```typescript
 // ✅ 复用主应用的 Composables
-import { useTheme } from '@/composables/useTheme';
+import { useTheme } from "@/composables/useTheme";
 // ✅ 复用主应用的工具函数
-import { customMessage } from '@/utils/customMessage';
+import { customMessage } from "@/utils/customMessage";
 // ✅ 复用主应用的 UI 组件
-import { ElButton } from 'element-plus';
+import { ElButton } from "element-plus";
 
 const { currentTheme } = useTheme();
 
@@ -248,6 +256,7 @@ function showMessage() {
   customMessage.info(`当前主题是: ${currentTheme.value}`);
 }
 ```
+
 ---
 
 ## 图标配置
@@ -317,11 +326,12 @@ your-plugin/
 - **仓库地址**: [https://github.com/miaotouy/aiohub-plugin-example-hello-world](https://github.com/miaotouy/aiohub-plugin-example-hello-world)
 - **类型**: JavaScript 插件 (纯前端)
 - **特点**:
-    - **极简配置**: `manifest.json` 直接指向 `.vue` 文件，无需构建流程。
-    - **核心交互**: 演示了如何在 UI (`HelloWorld.vue`) 中调用插件自身的 `greet` 方法。
-    - **快速上手**: 适合理解插件 UI 的基本工作流程。
+  - **极简配置**: `manifest.json` 直接指向 `.vue` 文件，无需构建流程。
+  - **核心交互**: 演示了如何在 UI (`HelloWorld.vue`) 中调用插件自身的 `greet` 方法。
+  - **快速上手**: 适合理解插件 UI 的基本工作流程。
 
 #### `HelloWorld.vue` 示例代码
+
 ```vue
 <template>
   <div class="container">
@@ -334,26 +344,26 @@ your-plugin/
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ElInput, ElButton } from 'element-plus';
-import InfoCard from '@/components/common/InfoCard.vue'; // 主应用提供的封装组件
-import { execute } from '@/services/executor';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { ref } from "vue";
+import { ElInput, ElButton } from "element-plus";
+import InfoCard from "@/components/common/InfoCard.vue"; // 主应用提供的封装组件
+import { execute } from "@/services/executor";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const errorHandler = createModuleErrorHandler('HelloWorldPlugin');
-const name = ref('');
-const greeting = ref('');
+const errorHandler = createModuleErrorHandler("HelloWorldPlugin");
+const name = ref("");
+const greeting = ref("");
 const isLoading = ref(false);
 
 async function doGreet() {
   if (!name.value) {
-    customMessage.warning('请输入名字！');
+    customMessage.warning("请输入名字！");
     return;
   }
   isLoading.value = true;
   const result = await execute({
-    service: 'example-hello-world', // 插件自身 ID
-    method: 'greet',
+    service: "example-hello-world", // 插件自身 ID
+    method: "greet",
     params: { name: name.value },
   });
   isLoading.value = false;
@@ -361,7 +371,7 @@ async function doGreet() {
   if (result.success) {
     greeting.value = result.data;
   } else {
-    errorHandler.error(result.error, '调用失败');
+    errorHandler.error(result.error, "调用失败");
   }
 }
 </script>
@@ -384,10 +394,10 @@ async function doGreet() {
 - **仓库地址**: [https://github.com/miaotouy/aiohub-plugin-example-file-hasher](https://github.com/miaotouy/aiohub-plugin-example-file-hasher)
 - **类型**: Sidecar 插件 (Rust 后端 + Vue 前端)
 - **特点**:
-    - **独立构建**: 包含 `package.json`, `vite.config.js` 和 `build.js`，演示了如何为生产环境编译 UI。
-    - **复杂 UI**: 展示了如何将 UI 拆分为多个子组件 (`components/` 目录)。
-    - **前后端协作**: 演示了 Vue UI 如何与 Rust Sidecar 后端进行交互。
-    - **生产就绪**: 是发布独立插件的绝佳模板。
+  - **独立构建**: 包含 `package.json`, `vite.config.js` 和 `build.js`，演示了如何为生产环境编译 UI。
+  - **复杂 UI**: 展示了如何将 UI 拆分为多个子组件 (`components/` 目录)。
+  - **前后端协作**: 演示了 Vue UI 如何与 Rust Sidecar 后端进行交互。
+  - **生产就绪**: 是发布独立插件的绝佳模板。
 
 ### 示例 3：`aiohub-plugin-example-native` (进阶)
 
@@ -396,8 +406,8 @@ async function doGreet() {
 - **仓库地址**: [https://github.com/miaotouy/aiohub-plugin-example-native](https://github.com/miaotouy/aiohub-plugin-example-native)
 - **类型**: 原生插件 (Rust 后端 + Vue 前端)
 - **特点**:
-    - **独立构建**: 同样包含 `package.json`, `vite.config.js` 和 `build.js`。
-    - **原生后端**: 演示了 UI 如何与高性能的原生 Rust 模块进行交互。
+  - **独立构建**: 同样包含 `package.json`, `vite.config.js` 和 `build.js`。
+  - **原生后端**: 演示了 UI 如何与高性能的原生 Rust 模块进行交互。
 
 ### 本地开发与测试
 
@@ -479,6 +489,7 @@ AIO Hub 会自动检测并加载 `/plugins/` 目录下的所有插件，并提�
 ### Q: 开发模式和生产模式的区别？
 
 A:
+
 - **开发模式**：支持直接使用 `.vue` 文件，享受 Vite HMR，无需手动编译
 - **生产模式**：需要预先将 `.vue` 编译为 `.js` 文件，因为生产环境无法动态编译
 
@@ -487,13 +498,14 @@ A:
 A: 通过导入主应用的 composables、工具函数和组件：
 
 ```javascript
-import { useTheme } from '@/composables/useTheme';
-import { customMessage } from '@/utils/customMessage';
+import { useTheme } from "@/composables/useTheme";
+import { customMessage } from "@/utils/customMessage";
 ```
 
 ### Q: 可以使用第三方库吗？
 
 A: 可以，但建议：
+
 - 优先使用主应用已有的依赖
 - 避免打包大型库（如 Vue、Element Plus）
 - 使用 CDN 或动态导入减小体积
@@ -505,24 +517,27 @@ A: 是的，插件工具自动支持窗口分离，与内置工具行为一致�
 ### Q: 如何更新插件 UI？
 
 A:
+
 - **开发模式**：修改 `.vue` 文件后自动热重载（HMR），无需刷新
 - **生产模式**：需要重新安装插件或重启应用
 
 ### Q: .vue 文件找不到模块怎么办？
 
 A: 这是正常的 TypeScript 提示。在开发模式下，主应用会提供这些模块：
+
 ```vue
 <script setup>
 // 这些导入在运行时是有效的
-import { execute } from '@/services/executor';  // ✅ 主应用提供
-import { customMessage } from '@/utils/customMessage';  // ✅ 主应用提供
-import { ElButton } from 'element-plus';  // ✅ 主应用提供
+import { execute } from "@/services/executor"; // ✅ 主应用提供
+import { customMessage } from "@/utils/customMessage"; // ✅ 主应用提供
+import { ElButton } from "element-plus"; // ✅ 主应用提供
 </script>
 ```
 
 ### Q: 推荐使用哪种开发方式？
 
 A:
+
 - **开发阶段**：优先使用 `.vue` 文件，开发体验最好
 - **发布阶段**：编译为 `.js` 文件，确保跨环境兼容性
 - **简单组件**：可以直接手写 `h()` 函数，无需编译

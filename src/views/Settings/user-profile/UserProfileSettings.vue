@@ -29,11 +29,13 @@
           <div class="profile-info">
             <div class="profile-name">{{ profile.displayName || profile.name }}</div>
             <div class="profile-description" v-if="profile.content">
-              {{ profile.content.length > 40 ? profile.content.substring(0, 40) + '...' : profile.content }}
+              {{
+                profile.content.length > 40
+                  ? profile.content.substring(0, 40) + "..."
+                  : profile.content
+              }}
             </div>
-            <div class="profile-meta">
-              创建于 {{ formatDate(profile.createdAt) }}
-            </div>
+            <div class="profile-meta">创建于 {{ formatDate(profile.createdAt) }}</div>
           </div>
         </template>
       </ProfileSidebar>
@@ -81,14 +83,13 @@
       @update:visible="showCreateDialog = $event"
       @create="handleCreateProfile"
     />
-
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import { ElMessageBox } from "element-plus";
-import { RefreshLeft, FolderOpened } from '@element-plus/icons-vue';
+import { RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
@@ -100,7 +101,7 @@ import CreateUserProfileDialog from "./components/CreateUserProfileDialog.vue";
 import UserProfileForm from "./components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { resolveAvatarPath } from '@/tools/llm-chat/composables/useResolvedAvatar';
+import { resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
 import { useUserProfileStorage } from "@/tools/llm-chat/composables/useUserProfileStorage";
 
 const logger = createModuleLogger("UserProfileSettings");
@@ -121,11 +122,11 @@ const selectedProfileId = ref<string | null>(null);
 
 // 编辑表单
 const editForm = ref<UserProfile>({
-id: "",
-name: "",
-displayName: "",
-icon: "",
-content: "",
+  id: "",
+  name: "",
+  displayName: "",
+  icon: "",
+  content: "",
   createdAt: "",
 });
 
@@ -138,7 +139,7 @@ const profiles = computed(() => {
 });
 
 const getAvatarSrc = (profile: UserProfile) => {
-  return resolveAvatarPath(profile, 'user-profile');
+  return resolveAvatarPath(profile, "user-profile");
 };
 
 // 计算当前选中的档案
@@ -165,23 +166,24 @@ const handleAddClick = () => {
 };
 
 // 处理创建档案
-const handleCreateProfile = (data: { name: string; displayName?: string; content: string; icon?: string }) => {
-  const profileId = userProfileStore.createProfile(
-    data.name,
-    data.content,
-    {
-      displayName: data.displayName,
-      icon: data.icon,
-      // 确保新创建的档案包含空的 regexConfig
-      regexConfig: { presets: [] },
-    }
-  );
-  
+const handleCreateProfile = (data: {
+  name: string;
+  displayName?: string;
+  content: string;
+  icon?: string;
+}) => {
+  const profileId = userProfileStore.createProfile(data.name, data.content, {
+    displayName: data.displayName,
+    icon: data.icon,
+    // 确保新创建的档案包含空的 regexConfig
+    regexConfig: { presets: [] },
+  });
+
   // 选中新创建的档案
   selectedProfileId.value = profileId;
   selectProfile(profileId);
-  
-  customMessage.success('档案创建成功');
+
+  customMessage.success("档案创建成功");
 };
 
 // 保存档案（验证并保存）
@@ -197,21 +199,17 @@ const saveCurrentProfile = () => {
 
   // 检查是否是新档案
   const existingProfile = userProfileStore.profiles.find((p) => p.id === editForm.value.id);
-  
+
   if (!existingProfile) {
     // 新档案：创建
-    userProfileStore.createProfile(
-      editForm.value.name.trim(),
-      editForm.value.content.trim(),
-      {
-        displayName: editForm.value.displayName?.trim() || undefined,
-        icon: editForm.value.icon,
-        // 保存富文本样式和正则配置
-        richTextStyleBehavior: editForm.value.richTextStyleBehavior,
-        richTextStyleOptions: editForm.value.richTextStyleOptions,
-        regexConfig: editForm.value.regexConfig,
-      }
-    );
+    userProfileStore.createProfile(editForm.value.name.trim(), editForm.value.content.trim(), {
+      displayName: editForm.value.displayName?.trim() || undefined,
+      icon: editForm.value.icon,
+      // 保存富文本样式和正则配置
+      richTextStyleBehavior: editForm.value.richTextStyleBehavior,
+      richTextStyleOptions: editForm.value.richTextStyleOptions,
+      regexConfig: editForm.value.regexConfig,
+    });
   } else {
     // 现有档案：更新
     userProfileStore.updateProfile(editForm.value.id, {
@@ -225,7 +223,7 @@ const saveCurrentProfile = () => {
       regexConfig: editForm.value.regexConfig,
     });
   }
-  
+
   return true;
 };
 
@@ -267,7 +265,7 @@ const handleDelete = async () => {
         type: "warning",
       }
     );
-    
+
     userProfileStore.deleteProfile(selectedProfile.value.id);
     selectedProfileId.value = userProfileStore.profiles[0]?.id || null;
     if (selectedProfileId.value) {
@@ -314,26 +312,25 @@ const formatDate = (dateStr: string) => {
   }
 };
 
-
 // 组件挂载时加载用户档案
 onMounted(async () => {
   try {
     isLoading.value = true;
-    logger.info('开始加载用户档案');
-    
+    logger.info("开始加载用户档案");
+
     await userProfileStore.loadProfiles();
-    
-    logger.info('用户档案加载完成', {
-      profileCount: userProfileStore.profiles.length
+
+    logger.info("用户档案加载完成", {
+      profileCount: userProfileStore.profiles.length,
     });
-    
+
     // 如果有档案，自动选中第一个
     if (userProfileStore.profiles.length > 0 && !selectedProfileId.value) {
       selectedProfileId.value = userProfileStore.profiles[0].id;
       selectProfile(selectedProfileId.value);
     }
   } catch (error) {
-    errorHandler.error(error, '加载用户档案失败');
+    errorHandler.error(error, "加载用户档案失败");
   } finally {
     isLoading.value = false;
   }

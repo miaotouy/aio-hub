@@ -70,7 +70,7 @@ export function useTranslation() {
     if (prompt.includes("{thinkTags}")) {
       prompt = prompt.split("{thinkTags}").join(thinkTags || "<think>...</think>");
     }
-    
+
     // 使用全局替换，支持提示词中多次出现占位符
     prompt = prompt.split("{targetLang}").join(finalTargetLang);
     prompt = prompt.split("{text}").join(text);

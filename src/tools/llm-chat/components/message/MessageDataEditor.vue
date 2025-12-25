@@ -82,7 +82,9 @@ watch(
           editorRef.value?.focusEditor();
         });
       } else {
-        errorHandler.error(null, "无法加载消息数据，节点可能已被删除。", { messageId: props.messageId });
+        errorHandler.error(null, "无法加载消息数据，节点可能已被删除。", {
+          messageId: props.messageId,
+        });
         handleClose();
       }
     }

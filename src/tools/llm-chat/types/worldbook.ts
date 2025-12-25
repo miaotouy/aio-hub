@@ -35,6 +35,8 @@ export interface STWorldbookEntry {
    * 插入位置 (见 STWorldbookPosition)
    */
   position: STWorldbookPosition;
+  /** 插入角色 (用于 Depth 位置，0=System, 1=User, 2=Assistant) */
+  role?: number;
   /** 是否禁用 */
   disable: boolean;
   /** 触发概率 (0-100) */
@@ -47,14 +49,18 @@ export interface STWorldbookEntry {
   group?: string;
   /** 组内权重 (用于加权随机) */
   groupWeight?: number;
+  /** 是否使用组评分 */
+  useGroupScoring?: boolean | null;
   /** 组优先级覆盖 (如果为 true，则在组内胜出) */
   groupOverride?: boolean;
   /** 排除递归 (扫描递归缓冲区时不考虑此条目) */
   excludeRecursion?: boolean;
   /** 阻止递归 (此条目激活后其内容不加入递归缓冲区) */
   preventRecursion?: boolean;
-  /** 延迟递归 (数值或布尔值，用于控制递归层级) */
-  delayUntilRecursion?: number | boolean;
+  /** 延迟递归 (用于控制是否仅在递归时激活) */
+  delayUntilRecursion?: boolean;
+  /** 递归等级 (定义递归扫描的延迟级别) */
+  delayUntilRecursionLevel?: number;
   /** 扫描深度 (匹配历史消息的范围) */
   scanDepth?: number | null;
   /** 是否区分大小写 */
@@ -75,6 +81,12 @@ export interface STWorldbookEntry {
   delay?: number | null;
   /** 是否忽略预算限制 */
   ignoreBudget?: boolean;
+  /** 自动化 ID (用于触发快速回复) */
+  automationId?: string;
+  /** Outlet 名称 (当 position 为 Outlet 时有效) */
+  outletName?: string;
+  /** 触发器过滤 (normal, continue, swipe 等) */
+  triggers?: string[];
   /** 扫描开关 */
   matchPersonaDescription?: boolean;
   matchCharacterDescription?: boolean;

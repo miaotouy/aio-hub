@@ -12,6 +12,7 @@ import { AgentCategory, AgentCategoryLabels } from '../types';
 import { STWorldbook } from '../types/worldbook';
 import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from './sillyTavernParser';
 import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
+import { normalizeWorldbook } from './worldbookImportService';
 import { useWorldbookStore } from '../worldbookStore';
 import { invoke } from '@tauri-apps/api/core';
 import { useAgentStore } from '../agentStore';
@@ -395,7 +396,8 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
       let importedWorldbookId: string | undefined;
       if (worldbookContent) {
         const wbName = worldbookContent.metadata?.name || `${agentName} 的世界书`;
-        importedWorldbookId = await worldbookStore.importWorldbook(wbName, worldbookContent);
+        const normalizedWb = normalizeWorldbook(worldbookContent);
+        importedWorldbookId = await worldbookStore.importWorldbook(wbName, normalizedWb);
       }
 
       const agentOptions = {

@@ -143,6 +143,55 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
     },
 
     /**
+     * 创建空白世界书
+     */
+    async createWorldbook(name: string): Promise<string> {
+      const emptyContent: STWorldbook = {
+        entries: {},
+      };
+      return await this.importWorldbook(name, emptyContent);
+    },
+
+    /**
+     * 重命名世界书
+     */
+    async renameWorldbook(id: string, newName: string) {
+      const index = this.worldbooks.findIndex(wb => wb.id === id);
+      if (index === -1) return;
+
+      const now = getLocalISOString();
+      this.worldbooks[index] = {
+        ...this.worldbooks[index],
+        name: newName,
+        updatedAt: now,
+      };
+
+      try {
+        const storage = useWorldbookStorageSeparated();
+        const indexConfig = await storage.loadIndex();
+        indexConfig.worldbooks = this.worldbooks;
+        await storage.saveIndex(indexConfig);
+        logger.info("世界书重命名成功", { id, newName });
+      } catch (error) {
+        errorHandler.handle(error as Error, { userMessage: "重命名世界书失败" });
+      }
+    },
+
+    /**
+     * 克隆世界书
+     */
+    async duplicateWorldbook(id: string): Promise<string | null> {
+      const original = this.worldbooks.find(wb => wb.id === id);
+      if (!original) return null;
+
+      const content = await this.getWorldbookContent(id);
+      if (!content) return null;
+
+      const newName = `${original.name} (副本)`;
+      return await this.importWorldbook(newName, content, original.description);
+    },
+
+    /**
      * 删除世界书
      */
     async deleteWorldbook(id: string) {

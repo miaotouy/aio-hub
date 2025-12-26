@@ -335,7 +335,7 @@ export function filterParametersForModel(
   supportedParameters: LlmParameterSupport,
   capabilities?: ModelCapabilities
 ): LlmParameters {
-  const filteredParams: LlmParameters = {};
+  const filteredParams: LlmParameters & Record<string, any> = {};
 
   // 遍历原始参数
   for (const [key, value] of Object.entries(parameters)) {
@@ -348,13 +348,13 @@ export function filterParametersForModel(
       key === "contextManagement" ||
       key === "contextPostProcessing"
     ) {
-      (filteredParams as any)[key] = value;
+      filteredParams[key] = value;
       continue;
     }
 
     // 检查参数是否被目标模型支持
     if (isParameterSupportedByModel(key as keyof LlmParameters, supportedParameters, capabilities)) {
-      (filteredParams as any)[key] = value;
+      filteredParams[key] = value;
     }
   }
 
@@ -365,5 +365,5 @@ export function filterParametersForModel(
     );
   }
 
-  return filteredParams;
+  return filteredParams as LlmParameters;
 }

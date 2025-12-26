@@ -187,13 +187,13 @@ export function useChatExecutor() {
 
       // 1. 处理标准参数
       const isStrictFilter = Array.isArray(configParams.enabledParameters);
-      const enabledList = new Set(configParams.enabledParameters || []);
+      const enabledList = new Set<string>(configParams.enabledParameters || []);
 
       for (const key of ALL_LLM_PARAMETER_KEYS) {
         const value = configParams[key as keyof Omit<LlmParameters, "custom">];
         if (value === undefined) continue;
 
-        const isEnabled = isStrictFilter ? enabledList.has(key as any) : true;
+        const isEnabled = isStrictFilter ? enabledList.has(key) : true;
         if (isEnabled) {
           effectiveParams[key] = value;
         }
@@ -922,8 +922,8 @@ export function useChatExecutor() {
         contentText = msg.content;
       } else if (Array.isArray(msg.content)) {
         contentText = msg.content
-          .filter((p) => p.type === "text" && p.text)
-          .map((p) => (p as any).text)
+          .map((p) => (p.type === "text" && p.text ? p.text : ""))
+          .filter(Boolean)
           .join("\n");
       }
 

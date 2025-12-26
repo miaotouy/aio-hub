@@ -40,10 +40,10 @@ export function mergeStyleOptions(
     // 检查 overrideCategory 是否是一个表示启用的对象
     if (isObject(overrideCategory) && overrideCategory.enabled) {
       // 如果覆盖配置中的这个分类是启用的，就用它覆盖全局的
-      (mergedOptions as any)[categoryKey] = overrideCategory;
+      mergedOptions[categoryKey] = overrideCategory as any;
     } else if (isObject(overrideCategory) && !overrideCategory.enabled) {
       // 如果覆盖配置中显式禁用了，那就禁用它
-      (mergedOptions as any)[categoryKey] = { enabled: false };
+      mergedOptions[categoryKey] = { enabled: false } as any;
     }
     // 如果 overrideCategory 是 boolean 或者不存在，我们保留 mergedOptions 中的全局设置，不做任何操作
   }

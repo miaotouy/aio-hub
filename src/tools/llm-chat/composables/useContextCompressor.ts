@@ -3,7 +3,7 @@
  * 负责压缩检测、摘要生成和压缩节点创建
  */
 
-import { DEFAULT_CONTEXT_COMPRESSION_CONFIG, DEFAULT_CONTEXT_COMPRESSION_PROMPT, CONTINUE_CONTEXT_COMPRESSION_PROMPT, type ChatSession, type ChatMessageNode, type ContextCompressionConfig } from '../types';
+import { DEFAULT_CONTEXT_COMPRESSION_CONFIG, DEFAULT_CONTEXT_COMPRESSION_PROMPT, CONTINUE_CONTEXT_COMPRESSION_PROMPT, type ChatSession, type ChatMessageNode, type ContextCompressionConfig, type MessageRole } from '../types';
 import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAgentStore } from '../agentStore';
@@ -230,7 +230,7 @@ export function useContextCompressor() {
 
     // 1. 创建压缩节点
     const summaryNode = createNode({
-      role: (config.summaryRole as any) || 'system',
+      role: (config.summaryRole as MessageRole) || 'system',
       content: summaryContent,
       parentId: lastNode.id, // 暂时设为 lastNode，稍后调整
       status: 'complete',

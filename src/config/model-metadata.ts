@@ -2301,12 +2301,12 @@ export function getModelIconPath(
     const monoIcon = `${candidate}.svg`;
 
     // 检查彩色图标
-    if (AVAILABLE_ICONS.includes(colorIcon as any)) {
+    if ((AVAILABLE_ICONS as readonly string[]).includes(colorIcon)) {
       return `${PRESET_ICONS_DIR}/${colorIcon}`;
     }
 
     // 检查普通图标
-    if (AVAILABLE_ICONS.includes(monoIcon as any)) {
+    if ((AVAILABLE_ICONS as readonly string[]).includes(monoIcon)) {
       return `${PRESET_ICONS_DIR}/${monoIcon}`;
     }
   }

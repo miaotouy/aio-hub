@@ -109,7 +109,7 @@ export function parseBlockquote(
         const validTypes = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
 
         if (validTypes.includes(type)) {
-          alertType = type.toLowerCase() as any;
+          alertType = type.toLowerCase() as 'note' | 'tip' | 'important' | 'warning' | 'caution';
           // 移除 Alert 标记 tokens (从 [ 到 ])
           firstLine.splice(0, closeIndex + 1);
         }

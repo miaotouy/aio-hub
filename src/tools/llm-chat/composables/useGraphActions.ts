@@ -54,10 +54,7 @@ export function useGraphActions(
 
     // 2. 应用更新，但保护结构性字段
     // 禁止更新的字段：id, parentId, childrenIds
-    const safeUpdates = { ...updates };
-    delete (safeUpdates as any).id;
-    delete (safeUpdates as any).parentId;
-    delete (safeUpdates as any).childrenIds;
+    const { id: _, parentId: __, childrenIds: ___, ...safeUpdates } = updates;
 
     Object.assign(node, safeUpdates);
     

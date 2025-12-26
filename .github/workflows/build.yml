@@ -3,8 +3,8 @@ name: 构建和发布
 on:
   push:
     tags:
-      - 'v*.*.*'  # 当推送版本标签时触发（如 v0.1.9）
-  workflow_dispatch:  # 允许手动触发
+      - "v*.*.*" # 当推送版本标签时触发（如 v0.1.9）
+  workflow_dispatch: # 允许手动触发
 
 permissions:
   contents: write
@@ -15,21 +15,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'windows-latest'
-            target: 'x86_64-pc-windows-msvc'
-            bundles: 'nsis'
-          - platform: 'ubuntu-22.04'
-            target: 'x86_64-unknown-linux-gnu'
-            bundles: 'deb,appimage'
-          - platform: 'macos-latest'
-            target: 'aarch64-apple-darwin'
-            bundles: 'dmg'
-          - platform: 'macos-latest'
-            target: 'x86_64-apple-darwin'
-            bundles: 'dmg'
+          - platform: "windows-latest"
+            target: "x86_64-pc-windows-msvc"
+            bundles: "nsis"
+          - platform: "ubuntu-22.04"
+            target: "x86_64-unknown-linux-gnu"
+            bundles: "deb,appimage"
+          - platform: "macos-latest"
+            target: "aarch64-apple-darwin"
+            bundles: "dmg"
+          - platform: "macos-latest"
+            target: "x86_64-apple-darwin"
+            bundles: "dmg"
 
     runs-on: ${{ matrix.platform }}
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -59,7 +59,7 @@ jobs:
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: 安装前端依赖
         run: bun install
@@ -70,18 +70,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'AIO Hub ${{ github.ref_name }}'
+          releaseName: "AIO Hub ${{ github.ref_name }}"
           releaseBody: |
             ## 🎉 新版本发布
-            
+
             ### 变更内容
             查看完整的 [Changelog](https://github.com/miaotouy/aio-hub/blob/main/CHANGELOG.md)
-            
+
             ### 下载说明
-            - **Windows**: 下载 `.exe` 安装程序
-            - **macOS**: 下载 `.dmg` 镜像文件
-            - **Linux**: 下载 `.deb` (Debian/Ubuntu) 或 `.AppImage` (通用)
-            
+            - **Windows**: `.exe` (x64 安装程序)
+            - **macOS**:
+              - `_aarch64.dmg` (Apple Silicon: M1/M2/M3)
+              - `_x64.dmg` (Intel 芯片)
+            - **Linux**:
+              - `.deb` (Debian/Ubuntu)
+              - `.AppImage` (通用)
+              - `.flatpak` (沙盒版)
+
             ### 注意事项
             - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行
             - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
@@ -134,7 +139,7 @@ jobs:
         run: |
           # 创建临时目录用于存放扁平化的文件
           mkdir -p dist-artifacts
-          
+
           # 根据平台类型，将嵌套在子目录中的文件复制到扁平目录
           case "${{ matrix.target }}" in
             "x86_64-pc-windows-msvc")
@@ -152,7 +157,7 @@ jobs:
               find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.dmg" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
               ;;
           esac
-          
+
           # 显示准备好的文件列表
           echo "准备上传的文件："
           ls -lh dist-artifacts/
@@ -167,8 +172,8 @@ jobs:
   # Flatpak 构建 (独立 Job)
   build-flatpak:
     runs-on: ubuntu-22.04
-    needs: build  # 等待主构建完成
-    
+    needs: build # 等待主构建完成
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -199,7 +204,7 @@ jobs:
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: 安装前端依赖
         run: bun install
@@ -244,9 +249,17 @@ jobs:
             echo "version=v${VERSION}" >> $GITHUB_OUTPUT
           fi
 
-      - name: 上传 Flatpak 构建产物
+      - name: 上传 Flatpak 构建产物到 Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: aio-hub-${{ steps.get-version.outputs.version }}-linux-x64.flatpak
           path: aio-hub.flatpak
           if-no-files-found: warn
+
+      - name: 上传 Flatpak 到 Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: aio-hub.flatpak
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

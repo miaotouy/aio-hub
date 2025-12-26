@@ -22,16 +22,27 @@ AIO Hub 的主题系统基于 **CSS 变量 (CSS Custom Properties)** 和 **VueUs
 - **`isDark`**: 响应式的布尔值，表示当前实际是否为深色模式（由 `useDark` 管理）。
 - **`applyTheme`**: 切换主题模式，并处理 `auto` 模式下的系统监听。
 
-### 2.2 颜色引擎 (`themeColors.ts`)
+### 2.2 图标自适应系统 (`DynamicIcon.vue` & `useThemeAwareIcon.ts`)
 
-负责颜色的计算和注入。
+为了解决外部 SVG 图标在深色模式下可能因硬编码颜色（如纯黑/纯白）而不可见的问题，系统实现了一套智能颜色反转机制。
 
-- **`applyThemeColors`**: 接收基础色（如 `primary`），动态计算出色阶并注入到 `document.documentElement` 的 style 属性中。
+- **`DynamicIcon` 组件**: 统一的图标渲染入口，支持远程 URL、本地路径、SVG 和位图。
+- **`useThemeAwareIcon` 逻辑**:
+  - **智能识别**: 自动识别 SVG 中的单色部分（黑色 `#000` 或白色 `#fff`）。
+  - **动态替换**: 将这些单色属性（`fill`, `stroke`）替换为 CSS 变量 `currentColor`。
+  - **彩色保留**: 非黑白的彩色部分保持不变，确保品牌色或多色图标的视觉呈现。
+  - **CSS 联动**: 在组件样式中，`.dynamic-icon` 默认绑定 `color: var(--el-text-color-primary)`，从而实现图标随主题自动切换颜色。
+
+### 2.3 颜色引擎 (`src/utils/themeColors.ts`)
+
+负责颜色的计算逻辑，由 `main.ts` 或 `useTheme.ts` 调用进行注入。
+
+- **`applyThemeColors`**: 接收基础色（如 `primary`），动态计算出色阶并注入到 `document.documentElement` 的 style 属性中（主要用于覆盖 Element Plus 的变量）。
 - **颜色算法**:
   - **`lightenColor` / `darkenColor`**: 基于 RGB 混合算法生成颜色的变体。
-  - **智能反转**: 在深色模式下，"变亮"操作会自动转换为"变暗"，以确保视觉层级的一致性。
+  - **智能反转**: 在深色模式下，生成色阶时会自动调整混合比例，以确保视觉层级的一致性。
 
-### 2.3 全局初始化 (`App.vue`)
+### 2.4 全局初始化 (`App.vue`)
 
 - **初始化**: 在 `onMounted` 中调用 `initThemeAppearance`。
 - **监听**: 监听 `app-settings-changed` 事件，实现跨窗口的主题同步（如在设置页修改主题，主窗口即时响应）。
@@ -42,18 +53,22 @@ AIO Hub 的主题系统基于 **CSS 变量 (CSS Custom Properties)** 和 **VueUs
 
 ### 3.1 基础变量 (Base Variables)
 
-定义在 `src/assets/main.css` (或类似全局样式) 中：
+定义在 `src/styles/index.css` 中，作为全局样式的基石：
 
 ```css
 :root {
-  --bg-color: #ffffff;
-  --text-color: #303133;
+  --bg-color: #f4f4f4;
+  --container-bg: #fff;
+  --text-color: #333;
+  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
   /* ... */
 }
 
 html.dark {
   --bg-color: #1a1a1a;
-  --text-color: #E5EAF3;
+  --container-bg: #242424;
+  --text-color: #e5e5e5;
+  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
   /* ... */
 }
 ```
@@ -81,8 +96,8 @@ html.dark {
 ```css
 .my-component {
   background-color: var(--bg-color); /* ✅ 正确 */
-  color: var(--text-color);          /* ✅ 正确 */
-  border: 1px solid #ccc;            /* ❌ 错误：在深色模式下会太亮 */
+  color: var(--text-color); /* ✅ 正确 */
+  border: 1px solid #ccc; /* ❌ 错误：在深色模式下会太亮 */
   border: 1px solid var(--border-color); /* ✅ 正确 */
 }
 ```
@@ -140,14 +155,14 @@ html.dark {
   --wallpaper-size: cover;
 
   /* --- UI 质感 --- */
-  --ui-blur: 10px; /* UI 元素的背景模糊强度 */
-  --border-opacity: 0.3;
+  --ui-blur: 15px; /* UI 元素的背景模糊强度，由 JS 动态更新 */
+  --border-opacity: 0.9;
 
-  /* --- 动态计算的背景色 (已包含透明度和颜色叠加) --- */
-  --card-bg: rgba(43, 43, 43, 0.7);
-  --sidebar-bg: rgba(30, 30, 30, 0.65);
-  --container-bg: rgba(20, 20, 20, 0.8);
-  --input-bg: rgba(43, 43, 43, 0.7);
+  /* --- 动态计算的背景色 (由 useThemeAppearance.ts 注入，包含透明度和颜色叠加) --- */
+  --card-bg: rgba(...);
+  --sidebar-bg: rgba(...);
+  --container-bg: rgba(...);
+  --input-bg: rgba(...);
 
   /* --- 窗口特效 --- */
   --window-bg-opacity: 0.8; /* 控制整个窗口背景的透明度 */

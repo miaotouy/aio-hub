@@ -5,6 +5,7 @@ import {
   WarningFilled,
   MagicStick,
   Scissor,
+  Reading,
 } from "@element-plus/icons-vue";
 import type { ContextPreviewData } from "../../../types/context";
 
@@ -92,6 +93,35 @@ defineProps<Props>();
                 class="progress-bar preset-bar"
                 :style="{
                   width: `${((stats.presetMessagesTokenCount / stats.totalTokenCount) * 100).toFixed(1)}%`,
+                }"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 世界书 -->
+        <div class="breakdown-item" v-if="stats.worldbookTokenCount || stats.worldbookCharCount">
+          <div class="item-icon worldbook-icon">
+            <el-icon><Reading /></el-icon>
+          </div>
+          <div class="item-content">
+            <div class="item-header">
+              <span class="item-label">世界书</span>
+              <span class="item-value">
+                {{
+                  stats.worldbookTokenCount?.toLocaleString() ??
+                  (stats.worldbookCharCount?.toLocaleString() ?? "0") + " 字符"
+                }}
+              </span>
+            </div>
+            <div
+              class="progress-bg"
+              v-if="stats.totalTokenCount && stats.worldbookTokenCount !== undefined"
+            >
+              <div
+                class="progress-bar worldbook-bar"
+                :style="{
+                  width: `${((stats.worldbookTokenCount / stats.totalTokenCount) * 100).toFixed(1)}%`,
                 }"
               ></div>
             </div>
@@ -187,7 +217,9 @@ defineProps<Props>();
           <span class="value">
             {{ stats.totalCharCount.toLocaleString() }}
             <template v-if="stats.savedCharCount && stats.savedCharCount > 0">
-              <span class="original-value">/ {{ (stats.totalCharCount + stats.savedCharCount).toLocaleString() }}</span>
+              <span class="original-value"
+                >/ {{ (stats.totalCharCount + stats.savedCharCount).toLocaleString() }}</span
+              >
             </template>
           </span>
         </div>
@@ -374,6 +406,13 @@ defineProps<Props>();
 
 .preset-bar {
   background-color: #8b5cf6;
+}
+.worldbook-icon {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+.worldbook-bar {
+  background-color: #f59e0b;
 }
 .history-bar {
   background-color: #10b981;

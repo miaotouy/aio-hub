@@ -5,7 +5,15 @@ export interface InputToolbarSettings {
 </script>
 
 <script setup lang="ts">
-import { ElTooltip, ElPopover, ElDropdown, ElDropdownMenu, ElDropdownItem, ElSwitch, ElIcon } from "element-plus";
+import {
+  ElTooltip,
+  ElPopover,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+  ElSwitch,
+  ElIcon,
+} from "element-plus";
 import {
   Paperclip,
   AtSign,
@@ -15,7 +23,7 @@ import {
   MessageSquare,
   Package,
   MoreHorizontal,
-  Sparkles
+  Sparkles,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
@@ -204,7 +212,9 @@ const handleNewSession = () => {
           <el-dropdown-menu>
             <!-- 智能补全 -->
             <el-dropdown-item
-              :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
+              :disabled="
+                props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
+              "
               @click="emit('complete-input', props.inputText)"
             >
               <div class="dropdown-item-content">
@@ -216,7 +226,9 @@ const handleNewSession = () => {
 
             <!-- 补全模型设置 -->
             <el-dropdown-item
-              :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
+              :disabled="
+                props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
+              "
               @click="emit('select-continuation-model')"
             >
               <div class="dropdown-item-content">
@@ -385,6 +397,9 @@ const handleNewSession = () => {
               <div>总计: {{ props.contextStats.totalTokenCount.toLocaleString() }} tokens</div>
               <div v-if="props.contextStats.presetMessagesTokenCount">
                 预设消息: {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
+              </div>
+              <div v-if="props.contextStats.worldbookTokenCount">
+                世界书: {{ props.contextStats.worldbookTokenCount.toLocaleString() }} tokens
               </div>
               <div v-if="props.contextStats.chatHistoryTokenCount">
                 会话历史: {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }} tokens

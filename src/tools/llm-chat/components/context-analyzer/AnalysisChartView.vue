@@ -170,7 +170,6 @@ const props = defineProps<{
 // 图表模式：token 或 char
 const chartMode = ref<ChartMode>("token");
 
-// @ts-expect-error 变量被用作模板引用（ref="chartRef"）
 const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(
   props.contextData,
   chartMode
@@ -210,6 +209,9 @@ const getTokenPercentage = (value: number): string => {
 // 初始化图表（仅在标签页激活时调用一次）
 const initializeChart = () => {
   if (isChartInitialized.value) return;
+
+  // 确保 chartRef 被读取以消除 Linter 警告
+  if (!chartRef) return;
 
   nextTick(() => {
     // 设置 ResizeObserver 监听容器尺寸变化

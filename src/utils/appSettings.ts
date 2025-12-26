@@ -451,14 +451,9 @@ export const saveAppSettingsDebounced = (settings: AppSettings): void => {
  * 注意：首次调用前需要先调用 loadAppSettingsAsync 初始化
  */
 export const loadAppSettings = (): AppSettings => {
-  if (!cachedSettings) {
-    logger.warn("appSettings", "设置尚未加载，返回默认设置", {
-      operation: "loadSync",
-      hint: "请先调用 loadAppSettingsAsync 初始化",
-    });
-    return defaultAppSettings;
-  }
-  return cachedSettings;
+  // 注意：在应用启动初期 cachedSettings 为空是正常现象
+  // 此时直接返回默认设置，避免调用 logger 导致循环依赖或递归警告
+  return cachedSettings || defaultAppSettings;
 };
 
 /**

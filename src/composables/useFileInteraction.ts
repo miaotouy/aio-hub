@@ -118,7 +118,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         // 生成文件名（如果文件名为空或是默认名称，使用类型生成）
         let filename = file.name
         if (!filename || filename === 'image.png') {
-          // 使用本地时间生成时间戳
+          // 使用应用时区生成时间戳
           const timestamp = formatDateTime(new Date(), 'yyyy-MM-ddTHH-mm-ss-SSS')
           const extension = file.type.split('/')[1] || 'bin'
           const typePrefix = file.type.startsWith('image/') ? 'image' : 'file'

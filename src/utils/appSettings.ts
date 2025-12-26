@@ -160,6 +160,9 @@ export interface AppSettings {
 
   // 网络代理
   proxy?: ProxySettings;
+
+  // 时区设置
+  timezone?: string;
 }
 
 // 默认外观设置
@@ -282,6 +285,8 @@ export const defaultAppSettings: AppSettings = {
     mode: "system",
     customUrl: "",
   },
+  // 默认时区
+  timezone: "auto",
 };
 
 // 创建应用设置管理器实例

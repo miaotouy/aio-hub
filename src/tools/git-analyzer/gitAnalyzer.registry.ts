@@ -1,6 +1,7 @@
 import type { ToolRegistry } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { formatDateTime } from "@/utils/time";
 import { fetchBranches, fetchBranchCommits, fetchCommitDetail } from "./composables/useGitLoader";
 import { getContributorStats } from "./composables/useGitProcessor";
 import type { GitCommit, RepoStatistics } from "./types";
@@ -195,7 +196,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
         const formatCommitDate = (date: string) => {
           switch (dateFormat) {
             case 'local':
-              return new Date(date).toLocaleString('zh-CN');
+              return formatDateTime(date, 'yyyy-MM-dd HH:mm:ss');
             case 'relative': {
               const now = Date.now();
               const commitTime = new Date(date).getTime();
@@ -306,7 +307,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
         const formatCommitDate = (date: string) => {
           switch (dateFormat) {
             case 'local':
-              return new Date(date).toLocaleString('zh-CN');
+              return formatDateTime(date, 'yyyy-MM-dd HH:mm:ss');
             case 'relative': {
               const now = Date.now();
               const commitTime = new Date(date).getTime();

@@ -52,6 +52,7 @@ const settings = ref<AppSettings>({
     mode: "system",
     customUrl: "",
   },
+  timezone: "auto",
   toolsVisible: {},
   toolsOrder: [],
   // 日志配置
@@ -550,6 +551,7 @@ onUnmounted(() => {
               v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
               v-model:sidebar-mode="settings.sidebarMode"
               v-model:proxy="settings.proxy"
+              v-model:timezone="settings.timezone"
               @config-imported="onConfigImported"
             />
 

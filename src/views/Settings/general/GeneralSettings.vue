@@ -6,6 +6,7 @@ import { customMessage } from "@/utils/customMessage";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { formatDateTime } from "@/utils/time";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
@@ -21,6 +22,7 @@ const props = defineProps<{
   autoAdjustWindowPosition: boolean;
   sidebarMode: string;
   proxy: ProxySettings;
+  timezone: string;
 }>();
 
 const emit = defineEmits([
@@ -30,6 +32,7 @@ const emit = defineEmits([
   "update:autoAdjustWindowPosition",
   "update:sidebarMode",
   "update:proxy",
+  "update:timezone",
   "configImported",
 ]);
 
@@ -67,6 +70,15 @@ const proxyUrl = computed({
   get: () => props.proxy.customUrl,
   set: (value: string) => emit("update:proxy", { ...props.proxy, customUrl: value }),
 });
+
+const timezone = computed({
+  get: () => props.timezone,
+  set: (value) => emit("update:timezone", value),
+});
+
+// 获取系统支持的所有时区
+// @ts-ignore - TypeScript lib definitions might be outdated for this relatively new API
+const timezones = Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : [];
 
 // 清除窗口状态
 const handleClearWindowState = async () => {
@@ -120,7 +132,7 @@ const handleExportConfig = async () => {
   try {
     const filePath = await save({
       title: "导出配置",
-      defaultPath: `AIO-Tools-Backup-${new Date().toISOString().split("T")[0]}.zip`,
+      defaultPath: `AIO-Tools-Backup-${formatDateTime(new Date(), 'yyyy-MM-dd')}.zip`,
       filters: [
         {
           name: "ZIP 压缩包",
@@ -300,6 +312,21 @@ const handleImportConfig = async () => {
         </el-tooltip>
       </div>
       <el-switch v-model="autoAdjustWindowPosition" />
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-label">
+        <span>系统时区</span>
+        <el-tooltip content="设置应用使用的时区，默认为系统本地时区" placement="top">
+          <el-icon class="info-icon">
+            <InfoFilled />
+          </el-icon>
+        </el-tooltip>
+      </div>
+      <el-select v-model="timezone" filterable placeholder="选择时区" style="width: 240px">
+        <el-option label="跟随系统" value="auto" />
+        <el-option v-for="tz in timezones" :key="tz" :label="tz" :value="tz" />
+      </el-select>
     </div>
 
     <div class="setting-item">

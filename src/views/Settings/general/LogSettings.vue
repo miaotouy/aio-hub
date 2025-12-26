@@ -4,6 +4,7 @@ import { InfoFilled, FolderOpened, Delete } from "@element-plus/icons-vue";
 import { ElMessageBox, ElButton } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { logger, LogLevel } from "@/utils/logger";
+import { formatDateTime } from "@/utils/time";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { createModuleLogger } from "@/utils/logger";
@@ -98,7 +99,7 @@ onMounted(async () => {
   try {
     const appDir = await appDataDir();
     const logsDir = await join(appDir, "logs");
-    const date = new Date().toISOString().split("T")[0];
+    const date = formatDateTime(new Date(), 'yyyy-MM-dd');
     logFilePath.value = await join(logsDir, `app-${date}.log`);
   } catch (error) {
     errorHandler.handle(error as Error, { userMessage: "获取日志文件路径失败", showToUser: false });
@@ -194,7 +195,7 @@ const handleExportLogs = async () => {
     const { save } = await import("@tauri-apps/plugin-dialog");
     const filePath = await save({
       title: "导出日志",
-      defaultPath: `logs-${new Date().toISOString().split("T")[0]}.txt`,
+      defaultPath: `logs-${formatDateTime(new Date(), 'yyyy-MM-dd')}.txt`,
       filters: [
         {
           name: "文本文件",

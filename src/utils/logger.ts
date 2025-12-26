@@ -53,7 +53,7 @@ class Logger {
         await mkdir(this.logsDir, { recursive: true });
       }
 
-      // 使用本地时间生成文件名，避免时区导致日期偏差
+      // 使用应用时区生成文件名，避免时区导致日期偏差
       const date = formatDateTime(new Date(), 'yyyy-MM-dd');
 
       this.logFilePath = await join(this.logsDir, `app-${date}.log`);
@@ -162,7 +162,7 @@ class Logger {
       }
 
       // 3. 执行轮转
-      // 生成备份文件名: app-YYYY-MM-DD.HH-mm-ss.log (使用本地时间)
+      // 生成备份文件名: app-YYYY-MM-DD.HH-mm-ss.log (使用应用时区)
       const now = new Date();
       const dateStr = formatDateTime(now, 'yyyy-MM-dd');
       const timeStr = formatDateTime(now, 'HH-mm-ss');
@@ -312,7 +312,7 @@ class Logger {
     error?: Error,
     collapsed?: boolean
   ): LogEntry {
-    // 使用本地时间格式 YYYY-MM-DD HH:mm:ss.SSS
+    // 使用应用时区格式 YYYY-MM-DD HH:mm:ss.SSS
     const timestamp = formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss.SSS');
 
     return {

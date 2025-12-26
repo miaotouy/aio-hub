@@ -18,7 +18,7 @@ import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
-import { format } from "date-fns";
+import { formatDateTime } from "@/utils/time";
 
 const props = defineProps<{
   visible: boolean;
@@ -403,7 +403,7 @@ onUnmounted(() => {
           </el-table-column>
           <el-table-column label="识别时间" width="180">
             <template #default="{ row }">
-              <span>{{ format(new Date(row.createdAt), "yyyy-MM-dd HH:mm:ss") }}</span>
+              <span>{{ formatDateTime(row.createdAt, "yyyy-MM-dd HH:mm:ss") }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="280" fixed="right">

@@ -8,6 +8,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useUserProfileStore } from "../userProfileStore";
 import { useAgentStore } from "../agentStore";
 import { createModuleLogger } from "@/utils/logger";
+import { formatDateTime } from "@/utils/time";
 
 const logger = createModuleLogger("llm-chat/export-manager");
 
@@ -53,8 +54,8 @@ export function useExportManager() {
     const lines: string[] = [
       `# ${session.name}`,
       "",
-      `创建时间：${new Date(session.createdAt).toLocaleString("zh-CN")}`,
-      `更新时间：${new Date(session.updatedAt).toLocaleString("zh-CN")}`,
+      `创建时间：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `更新时间：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
       "",
       "---",
       "",
@@ -66,7 +67,7 @@ export function useExportManager() {
 
       const role = node.role === "user" ? "用户" : "助手";
       const nameStr = node.name ? ` - ${node.name}` : "";
-      const time = node.timestamp ? new Date(node.timestamp).toLocaleTimeString("zh-CN") : "";
+      const time = node.timestamp ? formatDateTime(node.timestamp, 'HH:mm:ss') : "";
 
       lines.push(`## ${role}${nameStr} (${time})`);
       lines.push("");
@@ -137,7 +138,7 @@ export function useExportManager() {
     const lines: string[] = [
       `# ${session.name} - 分支导出`,
       "",
-      `导出时间：${new Date().toLocaleString("zh-CN")}`,
+      `导出时间：${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`,
       `分支节点：${messagePath.length} 条消息`,
       "",
       "---",
@@ -187,7 +188,7 @@ export function useExportManager() {
 
     // 添加消息
     allMessages.forEach((node) => {
-      const time = node.timestamp ? new Date(node.timestamp).toLocaleTimeString("zh-CN") : "";
+      const time = node.timestamp ? formatDateTime(node.timestamp, 'HH:mm:ss') : "";
       const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
 
       if (node.role === "user") {
@@ -534,9 +535,9 @@ export function useExportManager() {
     const lines: string[] = [
       `# ${session.name} - 完整会话导出`,
       "",
-      `导出时间：${new Date().toLocaleString("zh-CN")}`,
-      `创建时间：${new Date(session.createdAt).toLocaleString("zh-CN")}`,
-      `更新时间：${new Date(session.updatedAt).toLocaleString("zh-CN")}`,
+      `导出时间：${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`,
+      `创建时间：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `更新时间：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
       "",
       "---",
       "",
@@ -571,7 +572,7 @@ export function useExportManager() {
       const indent = "  ".repeat(depth);
 
       // 格式化时间和状态
-      const time = node.timestamp ? new Date(node.timestamp).toLocaleTimeString("zh-CN") : "";
+      const time = node.timestamp ? formatDateTime(node.timestamp, 'HH:mm:ss') : "";
       const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
 
       // 根据角色确定图标和名称

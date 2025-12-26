@@ -1,4 +1,5 @@
 import type { CombinedRecord, FilterOptions } from './types';
+import { formatDateTime } from '@/utils/time';
 
 /**
  * 格式化 URL，只显示路径和查询参数
@@ -16,8 +17,7 @@ export function formatUrl(url: string): string {
  * 格式化时间戳为本地时间字符串
  */
 export function formatTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString();
+  return formatDateTime(timestamp, 'HH:mm:ss');
 }
 
 /**

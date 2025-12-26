@@ -5,6 +5,7 @@
 
 import type { Ref } from "vue";
 import type { GitCommit, ExportConfig, RepoStatistics } from "../types";
+import { formatDateTime } from "@/utils/time";
 import {
   formatDate,
   escapeHtml,
@@ -68,7 +69,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     lines.push("");
     lines.push(`**仓库路径**: ${repoPath.value || "当前目录"}`);
     lines.push(`**分支**: ${branch.value}`);
-    lines.push(`**生成时间**: ${new Date().toLocaleString("zh-CN")}`);
+    lines.push(`**生成时间**: ${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
     lines.push("");
 
     // 筛选信息
@@ -359,7 +360,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     lines.push("");
     lines.push(`仓库路径: ${repoPath.value || "当前目录"}`);
     lines.push(`分支: ${branch.value}`);
-    lines.push(`生成时间: ${new Date().toLocaleString("zh-CN")}`);
+    lines.push(`生成时间: ${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
     lines.push("");
 
     if (cfg.includeFilterInfo && hasActiveFilters.value) {

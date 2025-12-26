@@ -186,9 +186,33 @@ pub async fn export_all_configs_to_zip(app: AppHandle) -> Result<Vec<u8>, String
         }
     }
     
+    // 获取时区设置
+    let timezone_str = {
+        let app_data_dir = get_app_data_dir(&app)?;
+        let settings_path = app_data_dir.join("settings.json");
+        if settings_path.exists() {
+            let contents = fs::read_to_string(settings_path).unwrap_or_default();
+            let json: serde_json::Value = serde_json::from_str(&contents).unwrap_or_default();
+            json.get("timezone").and_then(|v| v.as_str()).unwrap_or("auto").to_string()
+        } else {
+            "auto".to_string()
+        }
+    };
+
+    // 格式化导出时间戳
+    let timestamp = if timezone_str != "auto" {
+        if let Ok(tz) = timezone_str.parse::<chrono_tz::Tz>() {
+            chrono::Utc::now().with_timezone(&tz).to_rfc3339()
+        } else {
+            chrono::Local::now().to_rfc3339()
+        }
+    } else {
+        chrono::Local::now().to_rfc3339()
+    };
+
     // 创建并添加清单文件
     let manifest = ZipManifest {
-        timestamp: chrono::Local::now().to_rfc3339(),
+        timestamp,
         app_version: app.package_info().version.to_string(),
         file_count,
     };

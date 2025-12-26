@@ -159,6 +159,7 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { formatDateTime } from "@/utils/time";
 
 const errorHandler = createModuleErrorHandler("AssetManager");
 const logger = createModuleLogger("AssetManager");
@@ -623,7 +624,7 @@ const groupedAssets = computed(() => {
       switch (groupBy.value) {
         case "month":
           const date = new Date(`${key}-01`);
-          label = date.toLocaleString("zh-CN", { month: "long", year: "numeric" });
+          label = formatDateTime(date, 'yyyy年MM月');
           break;
         case "type":
           const typeLabels: Record<AssetType, string> = {

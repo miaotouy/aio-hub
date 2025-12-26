@@ -215,7 +215,8 @@ fn print_window_list(app_handle: &tauri::AppHandle) {
     log::info!("========================================");
 }
 
-use chrono::Local;
+use chrono::{Local, Utc};
+use chrono_tz::Tz;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -225,12 +226,64 @@ pub fn run() {
 
     let context = tauri::generate_context!();
 
+    // 读取配置以获取时区
+    let (show_tray_icon, minimize_to_tray, timezone_str) = {
+        let app_data_dir = data_dir()
+            .map(|p| p.join(&context.config().identifier))
+            .expect("Failed to get app data dir");
+        let settings_path = app_data_dir.join("settings.json");
+        
+        if settings_path.exists() {
+            if let Ok(contents) = std::fs::read_to_string(&settings_path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
+                    let show = json.get("showTrayIcon").and_then(|v| v.as_bool()).unwrap_or(true);
+                    let minimize = json.get("minimizeToTray").and_then(|v| v.as_bool()).unwrap_or(true);
+                    let tz = json.get("timezone").and_then(|v| v.as_str()).unwrap_or("auto").to_string();
+                    (show, minimize, tz)
+                } else {
+                    (true, true, "auto".to_string())
+                }
+            } else {
+                (true, true, "auto".to_string())
+            }
+        } else {
+            (true, true, "auto".to_string())
+        }
+    };
+
+    // 解析时区并计算偏移量
+    let (timezone_strategy, now_formatted, date_filename) = {
+        let now_utc = Utc::now();
+        if timezone_str != "auto" {
+            if let Ok(tz) = timezone_str.parse::<Tz>() {
+                let now_tz = now_utc.with_timezone(&tz);
+                (
+                    TimezoneStrategy::UseLocal,
+                    now_tz.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    now_tz.format("%Y-%m-%d").to_string()
+                )
+            } else {
+                (
+                    TimezoneStrategy::UseLocal,
+                    Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Local::now().format("%Y-%m-%d").to_string()
+                )
+            }
+        } else {
+            (
+                TimezoneStrategy::UseLocal,
+                Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                Local::now().format("%Y-%m-%d").to_string()
+            )
+        }
+    };
+
     // Manually construct the path to AppData/Roaming/{bundle_id}/logs
     let log_dir = data_dir()
         .map(|p| p.join(&context.config().identifier).join("logs"))
         .expect("Failed to construct log directory path");
 
-    let log_filename = format!("backend-{}", Local::now().format("%Y-%m-%d"));
+    let log_filename = format!("backend-{}", date_filename);
 tauri::Builder::default()
     .plugin(
         tauri_plugin_log::Builder::new()
@@ -242,7 +295,7 @@ tauri::Builder::default()
                     file_name: Some(log_filename),
                 }),
             ])
-            .timezone_strategy(TimezoneStrategy::UseLocal) // 使用本地时区
+            .timezone_strategy(timezone_strategy)
             .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
             .build()
         )
@@ -413,39 +466,16 @@ tauri::Builder::default()
             start_drag_session
         ])
         // 设置应用
-        .setup(|app| {
+        .setup(move |app| {
             // 打印启动元数据
             let package_info = app.package_info();
             log::info!("========================================");
             log::info!("🚀 应用启动: {}", package_info.name);
             log::info!("📦 版本: v{}", package_info.version);
             log::info!("🖥️  系统: {} ({})", std::env::consts::OS, std::env::consts::ARCH);
-            log::info!("⏰ 时间: {}", Local::now().format("%Y-%m-%d %H:%M:%S"));
+            log::info!("⏰ 时间: {}", now_formatted);
             log::info!("========================================");
 
-            // 读取配置
-            let (show_tray_icon, minimize_to_tray) = {
-                let app_data_dir = app.path().app_data_dir()
-                    .expect("Failed to get app data dir");
-                let settings_path = app_data_dir.join("settings.json");
-                
-                if settings_path.exists() {
-                    if let Ok(contents) = std::fs::read_to_string(&settings_path) {
-                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
-                            let show = json.get("showTrayIcon").and_then(|v| v.as_bool()).unwrap_or(true);
-                            let minimize = json.get("minimizeToTray").and_then(|v| v.as_bool()).unwrap_or(true);
-                            (show, minimize)
-                        } else {
-                            (true, true) // 解析失败，默认启用
-                        }
-                    } else {
-                        (true, true) // 读取失败，默认启用
-                    }
-                } else {
-                    (true, true) // 文件不存在，默认启用
-                }
-            };
-            
             // 更新应用状态
             if let Some(state) = app.try_state::<AppState>() {
                 if let Ok(mut minimize_to_tray_state) = state.minimize_to_tray.lock() {

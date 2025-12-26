@@ -1,4 +1,5 @@
 import type { GitCommit } from "../types";
+import { formatDateTime } from "@/utils/time";
 
 /**
  * Git 数据处理器
@@ -17,13 +18,13 @@ export function formatDate(date: string, format: string): string {
     case "iso":
       return d.toISOString();
     case "local":
-      return d.toLocaleString("zh-CN");
+      return formatDateTime(d, 'yyyy-MM-dd HH:mm:ss');
     case "relative":
       return getRelativeTime(d);
     case "timestamp":
       return String(d.getTime());
     default:
-      return d.toLocaleString("zh-CN");
+      return formatDateTime(d, 'yyyy-MM-dd HH:mm:ss');
   }
 }
 

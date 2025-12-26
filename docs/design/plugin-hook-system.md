@@ -2,266 +2,322 @@
 
 ## 1. 概述
 
-目前的插件系统采用了“工具箱模式”，插件之间相互隔离，无法感知彼此的存在。为了支持类似游戏 Mod 的“叠加”和“魔改”能力，我们需要将系统升级为“乐高模式”。
+### 1.1 现有能力回顾
 
-本设计文档旨在引入两个核心机制：
+当前插件系统已具备以下能力（详见 [`plugin-development-guide.md`](../guide/plugin-development-guide.md)）：
 
-1.  **依赖管理 (Dependency Management)**：确保插件按正确的顺序加载。
-2.  **钩子系统 (Hook System)**：允许插件拦截、修改和扩展其他插件或主应用的逻辑。
+| 能力           | 状态      | 实现位置                                  |
+| -------------- | --------- | ----------------------------------------- |
+| 三种插件类型   | ✅ 已实现 | JavaScript / Native / Sidecar             |
+| 生命周期钩子   | ✅ 已实现 | `activate(context)` / `deactivate()`      |
+| UI 集成        | ✅ 已实现 | `manifest.ui` → 自动注册侧边栏和路由      |
+| 配置系统       | ✅ 已实现 | `settingsSchema` + `context.settings` API |
+| 聊天上下文管道 | ✅ 已实现 | `context.chat.registerProcessor()`        |
+| 聊天设置集成   | ✅ 已实现 | `registerSettingsSection()`               |
+| 插件安装/卸载  | ✅ 已实现 | ZIP 导入、预检、拖放安装、回收站卸载      |
+| 插件状态持久化 | ✅ 已实现 | `pluginStateService`                      |
+| 权限声明       | 🔜 预留   | `manifest.permissions` 字段               |
+
+### 1.2 本次升级目标
+
+为了实现类似 **Minecraft 模组加载器** 的"叠加"和"魔改"能力，本设计引入以下**新机制**：
+
+| 新能力           | 目的                                                 | 优先级 |
+| ---------------- | ---------------------------------------------------- | ------ |
+| **依赖管理**     | 确保插件按正确顺序加载，支持软依赖和冲突声明         | 高     |
+| **通用钩子系统** | 允许插件拦截、修改**任意模块**的逻辑（不仅限于聊天） | 高     |
+| **插件间通信**   | 允许插件暴露 API 供其他插件调用                      | 中     |
+| **UI 扩展点**    | 在宿主 UI 中预埋占位符，插件可声明式注入组件         | 中     |
+
+### 1.3 与现有 Context Pipeline 的关系
+
+现有的 `context.chat.registerProcessor()` 是一个**特定领域**的钩子实现，专门用于聊天上下文处理。它已经能满足大部分聊天相关的扩展需求。
+
+本设计引入的**通用钩子系统**是对其的补充和泛化：
+
+- 可用于任意模块（不仅限于聊天）
+- 支持更丰富的钩子类型（Waterfall / Bail / Sync）
+- 支持优先级控制
 
 ## 2. 依赖管理 (Dependency Management)
 
 ### 2.1 Manifest 变更
 
-在 `manifest.json` 中新增 `dependencies` 字段，用于声明该插件依赖的其他插件 ID。
+在 `manifest.json` 中新增依赖相关字段：
 
 ```json
 {
   "id": "better-chat-ui",
   "version": "1.0.0",
   "dependencies": {
-    "chat-core": ">=1.0.0",
+    "chat-core": ">=1.0.0"
+  },
+  "optionalDependencies": {
     "theme-manager": "*"
-  }
+  },
+  "incompatibleWith": ["old-chat-plugin"]
 }
 ```
 
+| 字段                   | 说明                                 |
+| ---------------------- | ------------------------------------ |
+| `dependencies`         | 硬依赖，缺失则报错并拒绝加载         |
+| `optionalDependencies` | 软依赖，存在则先加载，不存在也不报错 |
+| `incompatibleWith`     | 冲突声明，同时启用时警告用户         |
+
 ### 2.2 加载流程重构 (拓扑排序)
 
-目前的加载器 (`PluginLoader`) 是并行或按文件系统顺序加载的。新的加载流程将分为两个阶段：
+修改 `PluginLoader.loadAll()` 流程：
 
-1.  **扫描阶段 (Scanning Phase)**：
-    - 扫描所有插件目录，读取 `manifest.json`。
-    - 构建插件元数据列表。
+1. **扫描阶段**：收集所有插件的 `manifest.json`。
+2. **解析阶段**：
+   - 构建依赖图 (Dependency Graph)。
+   - 执行**拓扑排序**，计算加载顺序。
+   - 检测循环依赖并报错。- 检测缺失的硬依赖并报错。- 检测冲突并警告。
+3. **加载阶段**：按计算出的顺序依次调用 `activate()`。
 
-2.  **解析阶段 (Resolution Phase)**：
-    - 构建依赖图 (Dependency Graph)。
-    - 执行 **拓扑排序 (Topological Sort)**，计算出正确的加载顺序。
-    - 检测循环依赖并报错。
-    - 检测缺失的依赖并报错。
-
-3.  **加载阶段 (Loading Phase)**：
-    - 按照计算出的顺序依次初始化插件。
-
-## 3. 钩子系统 (Hook System)
-
-钩子是实现“魔改”的核心。我们借鉴 Webpack 的 `Tapable` 库设计思想，提供几种标准的钩子类型。
+## 3. 通用钩子系统 (Hook System)
 
 ### 3.1 核心类：HookRegistry
 
-全局单例服务，负责管理所有钩子的注册和触发。
+新增全局单例服务 `src/services/hook-registry.ts`：
 
 ```typescript
 interface HookRegistry {
   /**
-   * 注册一个钩子监听器
-   * @param hookName 钩子名称 (建议格式: "plugin-id:hook-name")
+   * 注册钩子监听器
+   * @param hookName 钩子名称 (建议格式: "module:action")
    * @param handler 处理函数
+   * @param options 可选配置
    */
-  tap(hookName: string, handler: Function): void;
-
-  /**
-   * 触发同步钩子 (广播事件)
-   */
-  callSync(hookName: string, ...args: any[]): void;
+  tap(hookName: string, handler: Function, options?: TapOptions): void;
 
   /**
    * 触发瀑布流钩子 (数据加工管道)
-   * 上一个处理器的返回值将作为下一个处理器的参数
+   * 上一个处理器的返回值作为下一个处理器的输入
    */
-  callWaterfall(hookName: string, initialValue: any, ...args: any[]): Promise<any>;
+  callWaterfall<T>(hookName: string, initialValue: T, ...args: any[]): Promise<T>;
 
   /**
    * 触发熔断钩子 (逻辑拦截)
-   * 如果任何处理器返回 false/undefined 以外的值，流程终止并返回该值
+   * 任何处理器返回非 undefined 值，流程终止并返回该值
    */
-  callBail(hookName: string, ...args: any[]): Promise<any>;
+  callBail<T>(hookName: string, ...args: any[]): Promise<T | undefined>;
+
+  /**
+   * 触发同步钩子 (广播事件)
+   * 所有处理器依次执行，不关心返回值
+   */
+  callSync(hookName: string, ...args: any[]): void;
+}
+
+interface TapOptions {
+  /** 优先级，数值越大越先执行，默认 0 */
+  priority?: number;
+  /** 注册此钩子的插件 ID，用于调试 */
+  pluginId?: string;
 }
 ```
 
-### 3.2 钩子类型详解
+### 3.3 钩子类型详解
 
-#### A. Waterfall Hook (瀑布流钩子) - 用于“修改”
+| 类型          | 用途     | 示例场景                                 |
+| ------------- | -------- | ---------------------------------------- |
+| **Waterfall** | 数据加工 | 修改消息文本、合并配置、转换数据格式     |
+| **Bail**      | 逻辑拦截 | 权限检查、前置条件验证、阻止操作         |
+| **Sync**      | 事件通知 | 生命周期事件 (`app:ready`)、状态变更通知 |
 
-这是 Mod 系统中最常用的类型。它允许后续插件修改前一个插件产生的数据。
+### 3.3 PluginContext 扩展
 
-- **场景**：文本处理、配置合并、UI 属性修改。
-- **逻辑**：`Input -> Plugin A -> Modified Input -> Plugin B -> Final Output`
-
-#### B. Sync Hook (同步钩子) - 用于“监听”
-
-用于通知发生了某事，但不关心返回值。
-
-- **场景**：生命周期事件（`app:ready`）、日志记录。
-- **逻辑**：`Event -> Plugin A (Received) -> Plugin B (Received)`
-
-#### C. Bail Hook (熔断钩子) - 用于“拦截”
-
-允许插件阻止某个操作的继续执行。
-
-- **场景**：权限检查、前置条件验证。
-- **逻辑**：`Request -> Plugin A (Allow) -> Plugin B (Deny) -> Stop`
-
-## 4. 插件 API 变更
-
-在 JS 插件的执行上下文中，我们将注入 `hooks` 对象，使插件能够定义和使用钩子。
-
-### 4.1 注入 Context
-
-修改 `JsPluginAdapter.callPluginMethod`，在 `context` 中注入 `hooks` API。
+在现有 `PluginContext` 中新增 `hooks` API：
 
 ```typescript
-// 插件方法签名
-type PluginMethod = (params: any, context: PluginContext) => Promise<any>;
-
 interface PluginContext {
-  settings: SettingsAPI;
-  hooks: HookAPI; // 新增
-  ui: UiAPI; // 新增，用于注册 UI 扩展
+  // 现有 API
+  chat: { registerProcessor; unregisterProcessor };
+
+  // 新增 API
+  hooks: {
+    tap: (hookName: string, handler: Function, options?: TapOptions) => void;
+    // 插件通常只需要 tap，触发由宿主负责
+  };
+}
+```
+
+### 3.5 使用示例
+
+**宿主代码 (llm-chat)：定义钩子点**
+
+```typescript
+// src/tools/llm-chat/composables/useMessageBuilder.ts
+import { hookRegistry } from "@/services/hook-registry";
+
+async function buildMessageContentForLlm(text: string, attachments: any[]) {
+  // 触发钩子，允许插件修改文本
+  const processedText = await hookRegistry.callWaterfall("llm-chat:build-message", text, {
+    attachments,
+  });
+
+  // 继续原有逻辑...
+}
+```
+
+**插件代码：注册钩子**
+
+```typescript
+// emoji-plugin/index.ts
+export async function activate(context) {
+  context.hooks.tap(
+    "llm-chat:build-message",
+    (text) => {
+      return text.replace(/:smile:/g, "😊");
+    },
+    { priority: 100 }
+  );
+}
+```
+
+## 4. 插件间通信 (Inter-Plugin API)
+
+### 4.1 API 暴露与获取
+
+在 `PluginContext` 中新增 `api` 命名空间：
+
+```typescript
+interface PluginContext {
+  api: {
+    /**
+     * 暴露 API 供其他插件调用
+     * @param namespace 命名空间，通常使用插件 ID
+     * @param apiObject 要暴露的 API 对象
+     */
+    expose: (namespace: string, apiObject: Record<string, Function>) => void;
+
+    /**
+     * 获取其他插件暴露的 API
+     * @param namespace 目标插件的命名空间
+     * @returns API 对象，如果插件未加载或未暴露则返回 null
+     */
+    get: <T>(namespace: string) => T | null;
+  };
 }
 ```
 
 ### 4.2 使用示例
 
-#### 场景：聊天消息增强
-
-**Plugin A (Core): 定义钩子**
+**Plugin A (chat-core)：暴露 API**
 
 ```typescript
-// chat-core/index.ts
-export async function sendMessage(params, context) {
-  let { text } = params;
-
-  // 触发瀑布流钩子，允许其他插件修改消息内容
-  // 钩子名称约定：'插件ID:动作'
-  text = await context.hooks.callWaterfall("chat-core:before-send", text);
-
-  console.log("Sending:", text);
-  return { success: true };
+export async function activate(context) {
+  context.api.expose("chat-core", {
+    sendMessage: async (text) => {
+      /* ... */
+    },
+    getHistory: () => {
+      /* ... */
+    },
+  });
 }
 ```
 
-**Plugin B (Emoji): 注册钩子**
+**Plugin B (translator)：调用 API**
 
 ```typescript
-// emoji-plugin/index.ts
-// 必须在 manifest.json 中声明依赖 "chat-core"
-
-// 这是一个特殊的初始化方法，插件加载时自动调用
-export async function onActivate(context) {
-  context.hooks.tap("chat-core:before-send", (text) => {
-    return text.replace(/:smile:/g, "😊");
-  });
+export async function activate(context) {
+  const chatApi = context.api.get<ChatCoreApi>("chat-core");
+  if (chatApi) {
+    // 可以调用 chat-core 的方法
+    await chatApi.sendMessage("Hello!");
+  }
 }
 ```
 
 ## 5. UI 扩展点 (Extension Points)
 
-除了逻辑钩子，我们还需要 UI 钩子。
+### 5.1 声明式 UI 注入
 
-### 5.1 ExtensionPoint 组件
+在 `manifest.json` 中新增 `contributes` 字段：
 
-引入全局组件 `<ExtensionPoint name="xxx" :context="data" />`。
-
-### 5.2 注册 UI 扩展
-
-插件可以通过 `manifest.json` 或代码注册组件到特定的扩展点。
-
-```typescript
-// Plugin B
-export async function onActivate(context) {
-  // 注册一个 Vue 组件到头像旁边
-  context.ui.registerExtension("user-avatar-suffix", "BadgeComponent.vue");
+```json
+{
+  "id": "share-button-plugin",
+  "contributes": {
+    "ui-extensions": [
+      {
+        "point": "chat-message-actions",
+        "component": "ShareButton.vue",
+        "priority": 50
+      }
+    ],
+    "styles": ["custom-theme.css"]
+  }
 }
 ```
 
-## 6. 宿主工具改造示例：LLM Chat
+### 5.2 ExtensionPoint 组件
 
-为了验证这套系统，我们将以 `llm-chat` 工具为试点进行改造。
-
-### 6.1 逻辑层埋点
-
-#### 消息构建 (Message Builder)
-
-文件：`src/tools/llm-chat/composables/useMessageBuilder.ts`
-
-在 `buildMessageContentForLlm` 方法中插入 **Waterfall Hook**，允许插件修改即将发送给 LLM 的内容。
-
-```typescript
-// 改造前
-const messageContents = [];
-if (text) messageContents.push({ type: "text", text });
-
-// 改造后
-let processedText = text;
-// 触发钩子：允许插件修改文本（如：翻译、添加 Prompt 前缀）
-processedText = await hookRegistry.callWaterfall("llm-chat:build-message", processedText, {
-  attachments,
-});
-
-const messageContents = [];
-if (processedText) messageContents.push({ type: "text", text: processedText });
-```
-
-#### 上下文构建 (Context Builder)
-
-文件：`src/tools/llm-chat/composables/useChatContextBuilder.ts`
-
-在 `buildLlmContext` 方法末尾插入 **Waterfall Hook**，允许插件修改最终的上下文列表。
-
-```typescript
-// 改造前
-return { messages };
-
-// 改造后
-// 触发钩子：允许插件修改完整的上下文列表（如：RAG 注入、全局 System Prompt）
-const processedMessages = await hookRegistry.callWaterfall("llm-chat:build-context", messages, {
-  session,
-});
-return { messages: processedMessages };
-```
-
-### 6.2 UI 层埋点
-
-#### 消息组件 (ChatMessage)
-
-文件：`src/tools/llm-chat/components/message/ChatMessage.vue`
-
-引入 `<ExtensionPoint>` 组件，在关键位置埋点。
+宿主在 Vue 模板中使用 `<ExtensionPoint>` 组件预埋占位符：
 
 ```vue
 <template>
   <div class="chat-message">
-    <div class="message-inner">
-      <MessageHeader :message="message">
-        <!-- 扩展点：头部后缀（如：用户等级图标） -->
-        <template #suffix>
-          <ExtensionPoint name="chat-message-header-suffix" :context="{ message }" />
-        </template>
-      </MessageHeader>
+    <MessageContent :message="message" />
 
-      <MessageContent :message="message" />
-
-      <!-- 扩展点：内容底部（如：翻译结果、代码执行结果） -->
-      <ExtensionPoint name="chat-message-content-footer" :context="{ message }" />
-    </div>
-
-    <div class="menubar-wrapper">
-      <MessageMenubar>
-        <!-- 扩展点：操作栏按钮（如：分享、保存） -->
-        <template #actions>
-          <ExtensionPoint name="chat-message-actions" :context="{ message }" />
-        </template>
-      </MessageMenubar>
-    </div>
+    <!-- 扩展点：消息操作按钮 -->
+    <ExtensionPoint name="chat-message-actions" :context="{ message }" />
   </div>
 </template>
 ```
 
-## 7. 实施计划
+### 5.3 样式注入
 
-1.  **Phase 1 (Core)**: 实现 `HookRegistry` 和基础钩子逻辑。
-2.  **Phase 2 (Loader)**: 修改 `PluginLoader` 实现拓扑排序。
-3.  **Phase 3 (Adapter)**: 升级 `JsPluginAdapter`，注入 `hooks` API。
-4.  **Phase 4 (Host)**: 改造 `llm-chat`，埋设逻辑钩子和 UI 扩展点。
-5.  **Phase 5 (Demo)**: 开发一个 Demo 插件（如 "自动翻译插件"）来验证整个流程。
+插件可通过 `contributes.styles` 声明要注入的 CSS 文件，支持：
+
+- 覆盖 CSS Variables（如 `--el-color-primary`）
+- 针对特定选择器的样式修改
+
+## 6. 实施计划
+
+| 阶段    | 内容                                            | 优先级 |
+| ------- | ----------------------------------------------- | ------ |
+| Phase 1 | 实现 `HookRegistry` 核心类                      | 高     |
+| Phase 2 | 修改 `PluginLoader` 实现拓扑排序                | 高     |
+| Phase 3 | 扩展 `PluginContext`，注入 `hooks` 和 `api`     | 高     |
+| Phase 4 | 实现 `ExtensionPoint` 组件和 `contributes` 解析 | 中     |
+| Phase 5 | 改造 `llm-chat`，埋设钩子点                     | 中     |
+| Phase 6 | 开发示例插件验证整体流程                        | 低     |
+
+## 7. 与 MC 模组系统的对比
+
+| 能力               | MC Forge/Fabric  | 本设计     | 备注                  |
+| ------------------ | ---------------- | ---------- | --------------------- |
+| 依赖管理           | ✅               | ✅ Phase 2 | 拓扑排序 + 软依赖     |
+| 事件/钩子系统      | ✅               | ✅ Phase 1 | Waterfall/Bail/Sync   |
+| 优先级控制         | ✅               | ✅         | `TapOptions.priority` |
+| 插件间通信         | ✅ InterModComms | ✅ Phase 3 | `context.api`         |
+| UI 扩展            | ✅               | ✅ Phase 4 | `ExtensionPoint` 组件 |
+| 字节码注入 (Mixin) | ✅               | ❌         | JS 环境不适用         |
+
+### 7.1 关于 Mixin 的说明
+
+Mixin 级别的代码注入在 JS 环境下可通过以下方式实现：
+
+- **Proxy 拦截**：包装对象，拦截属性访问和方法调用
+- **Monkey Patch**：直接替换原函数
+
+但这些方式会带来：
+
+- 维护成本高（需要跟踪宿主代码变更）
+- 稳定性风险（可能与其他插件冲突）
+- 调试困难（堆栈信息不清晰）
+
+因此暂不纳入本设计。如有强需求，可在后续版本以 `context.patch()` API 的形式提供，但需要插件开发者自行承担兼容性风险。
+
+## 8. 附录：现有代码参考
+
+| 文件                                                                     | 说明                               |
+| ------------------------------------------------------------------------ | ---------------------------------- |
+| [`src/services/plugin-loader.ts`](../../src/services/plugin-loader.ts)   | 插件加载器，需修改以支持拓扑排序   |
+| [`src/services/plugin-manager.ts`](../../src/services/plugin-manager.ts) | 插件管理器，需扩展 `PluginContext` |
+| [`src/services/plugin-types.ts`](../../src/services/plugin-types.ts)     | 类型定义，需新增依赖相关字段       |
+| [`src/views/PluginManager/`](../../src/views/PluginManager/)             | 插件管理 UI，可能需要展示依赖关系  |

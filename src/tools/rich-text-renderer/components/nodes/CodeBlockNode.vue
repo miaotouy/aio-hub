@@ -110,12 +110,19 @@
     <!-- HTML 预览区域 (内嵌) -->
     <div v-if="viewMode === 'preview'" class="html-preview-container">
       <HtmlInteractiveViewer
+        v-if="!shouldFreeze"
         :content="processedHtmlContent"
         :immediate="closed"
         auto-height
         :seamless="seamless"
         @content-hover="handleContentHover"
       />
+      <div v-else class="html-preview-frozen">
+        <div class="frozen-tip">
+          <span class="tip-text">HTML 预览已冻结以节流性能</span>
+          <el-button size="small" type="primary" @click="manualActive = true"> 恢复预览 </el-button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -181,6 +188,16 @@ const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const defaultRenderHtml = context?.defaultRenderHtml;
 const seamlessMode = context?.seamlessMode;
 const resolveAsset = context?.resolveAsset;
+
+// 手动激活状态（用于覆盖冻结逻辑）
+const manualActive = ref(false);
+
+// 冻结状态
+const shouldFreeze = computed(() => {
+  // 如果用户手动激活了，则不冻结
+  if (manualActive.value) return false;
+  return context?.shouldFreeze?.value ?? false;
+});
 
 // 经过资产转换后的内容（用于 HTML 预览）
 const processedHtmlContent = computed(() => {
@@ -835,6 +852,28 @@ watch(
   height: auto;
   /* max-height: 75vh;  如果不希望有限制，可以注释掉这行，或者设得更大 */
   border-top: 1px solid var(--border-color);
+}
+
+.html-preview-frozen {
+  padding: 40px 20px;
+  background-color: var(--bg-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+}
+
+.frozen-tip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-color-light);
+  font-size: 13px;
+}
+
+.frozen-tip .tip-text {
+  opacity: 0.8;
 }
 
 /* Monaco 编辑器容器的 div 高度由 JS 动态设置 */

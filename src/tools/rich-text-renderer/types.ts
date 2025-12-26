@@ -714,4 +714,9 @@ export interface RichTextContext {
    * 用于将自定义协议（如 agent-asset://）转换为真实 URL
    */
   resolveAsset?: (content: string) => string;
+  /**
+   * 是否冻结 HTML 预览
+   * 当消息深度超过阈值时，用于节流性能开销
+   */
+  shouldFreeze?: Ref<boolean>;
 }

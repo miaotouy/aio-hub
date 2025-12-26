@@ -47,6 +47,7 @@ const props = withDefaults(
     allowExternalScripts?: boolean; // 是否允许加载外部资源（如 CDN 脚本、样式）
     regexRules?: ChatRegexRule[]; // 正则表达式规则
     resolveAsset?: (content: string) => string; // 资产路径解析钩子
+    shouldFreeze?: boolean; // 是否冻结 HTML 预览
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
@@ -56,6 +57,7 @@ const props = withDefaults(
     enableCdnLocalizer: true,
     allowExternalScripts: false,
     enableEnterAnimation: true,
+    shouldFreeze: false,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
@@ -172,6 +174,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   enableCdnLocalizer: computed(() => props.enableCdnLocalizer),
   allowExternalScripts: computed(() => props.allowExternalScripts),
   resolveAsset: props.resolveAsset,
+  shouldFreeze: computed(() => props.shouldFreeze),
 });
 
 // 纯 markdown-it 渲染的 HTML

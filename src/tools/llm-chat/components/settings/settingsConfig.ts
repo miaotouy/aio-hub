@@ -323,6 +323,31 @@ export const settingsConfig: SettingsSection[] = [
         hint: "允许 HTML 预览加载外部 CDN 脚本和样式。关闭后将应用严格的 CSP 策略以增强安全性。",
         keywords: "ui html external script cdn csp 安全 脚本 外部",
       },
+      {
+        id: "enableHtmlFreezer",
+        label: "HTML 预览冻结",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.enableHtmlFreezer",
+        hint: "启用后，将自动冻结非最新的 HTML 预览容器，显著降低连续生成单页应用时的 CPU 和内存开销",
+        keywords: "ui html freezer performance freeze 冻结 性能 优化",
+      },
+      {
+        id: "htmlFreezerKeepAliveCount",
+        label:
+          "消息保持活动数 ({{ localSettings.uiPreferences.htmlFreezerKeepAliveCount }}条)",
+        component: "ElSlider",
+        props: {
+          min: 1,
+          max: 20,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}条消息`,
+        },
+        modelPath: "uiPreferences.htmlFreezerKeepAliveCount",
+        hint: "设置保持 HTML 预览活跃的最近消息数量。例如设为 5，则最近 5 条消息的 HTML 预览保持活跃，更早的消息将被冻结以节省性能",
+        keywords: "ui html freezer count keepalive 保持 数量 冻结 消息",
+        visible: (settings) => settings.uiPreferences.enableHtmlFreezer,
+      },
     ],
   },
   {

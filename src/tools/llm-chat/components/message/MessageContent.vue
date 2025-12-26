@@ -451,6 +451,20 @@ const isWideLayout = computed(() => {
   return containerWidth.value > 800 && displayMode.value === "both" && showTranslation.value;
 });
 
+/**
+ * 计算当前消息的 HTML 预览是否应该被冻结
+ * 基于消息深度判断：深度 >= 设定值的消息将被冻结
+ */
+const shouldFreezeHtml = computed(() => {
+  // 如果未启用冻结功能，则不冻结
+  if (!settings.value.uiPreferences.enableHtmlFreezer) return false;
+
+  // 基于消息深度判断是否冻结
+  // messageDepth 从 0 开始，0 表示最新消息
+  // 例如：keepAliveCount = 5 时，深度 0-4 的消息保持活跃，深度 >= 5 的消息被冻结
+  return props.messageDepth >= settings.value.uiPreferences.htmlFreezerKeepAliveCount;
+});
+
 const containerClasses = computed(() => ({
   "is-wide-layout": isWideLayout.value,
   "is-translating": props.isTranslating || !!props.message.metadata?.translation,
@@ -576,6 +590,7 @@ const containerClasses = computed(() => ({
           :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
           :throttle-ms="settings.uiPreferences.rendererThrottleMs"
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
+          :should-freeze="shouldFreezeHtml"
         />
         <div v-if="message.status === 'generating'" class="streaming-indicator">
           <span class="dot"></span>
@@ -614,6 +629,7 @@ const containerClasses = computed(() => ({
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"
+            :should-freeze="shouldFreezeHtml"
           />
           <div v-if="isTranslating" class="streaming-indicator translation-loading">
             <span class="dot"></span>
@@ -792,7 +808,7 @@ const containerClasses = computed(() => ({
 }
 
 .edit-mode.is-dragging {
-  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
   border-color: var(--primary-color);
 }
 
@@ -814,7 +830,7 @@ const containerClasses = computed(() => ({
 .edit-textarea:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
 .edit-actions {
@@ -834,7 +850,7 @@ const containerClasses = computed(() => ({
 
 .attachment-count {
   padding: 2px 8px;
-  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
   border-radius: 12px;
   color: var(--primary-color);
   font-weight: 500;
@@ -896,7 +912,7 @@ const containerClasses = computed(() => ({
 .message-content:not(.is-wide-layout) .translation-column {
   margin-top: 8px;
   padding: 12px;
-  background-color: var(--bg-color-soft, rgba(0, 0, 0, 0.02));
+  background-color: var(--bg-color);
   border-radius: 8px;
   border: 1px dashed var(--border-color);
 }

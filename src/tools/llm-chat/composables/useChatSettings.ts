@@ -166,6 +166,8 @@ export interface ChatSettings {
     virtualListOverscan: number;
     /** 是否启用 CDN 资源本地化 */
     enableCdnLocalizer: boolean;
+    /** 是否允许加载外部资源（如 CDN 脚本、样式） */
+    allowExternalScripts: boolean;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -283,6 +285,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     enableDetachableHandle: true, // 默认允许组件分离
     virtualListOverscan: 20, // 预渲染可视区域外的消息数量
     enableCdnLocalizer: true, // 默认开启 CDN 资源本地化
+    allowExternalScripts: false, // 默认禁止外部资源，增强安全性
   },
   modelPreferences: {
     defaultModel: "",

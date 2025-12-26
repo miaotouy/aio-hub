@@ -249,6 +249,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui html cdn localizer 资源 本地化 离线",
       },
       {
+        id: "allowExternalScripts",
+        label: "允许 HTML 外部资源",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.allowExternalScripts",
+        hint: "允许 HTML 预览加载外部 CDN 脚本和样式。关闭后将应用严格的 CSP 策略以增强安全性。",
+        keywords: "ui html external script cdn csp 安全 脚本 外部",
+      },
+      {
         id: "showPerformanceMetrics",
         label: "显示性能指标",
         layout: "inline",

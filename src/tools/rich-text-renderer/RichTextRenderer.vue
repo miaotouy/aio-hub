@@ -44,6 +44,7 @@ const props = withDefaults(
     enableCdnLocalizer?: boolean; // 是否启用 CDN 资源本地化
     throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
+    allowExternalScripts?: boolean; // 是否允许加载外部资源（如 CDN 脚本、样式）
     regexRules?: ChatRegexRule[]; // 正则表达式规则
     resolveAsset?: (content: string) => string; // 资产路径解析钩子
   }>(),
@@ -53,6 +54,7 @@ const props = withDefaults(
     defaultRenderHtml: false,
     seamlessMode: false,
     enableCdnLocalizer: true,
+    allowExternalScripts: false,
     enableEnterAnimation: true,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
@@ -168,6 +170,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
   seamlessMode: computed(() => props.seamlessMode),
   enableCdnLocalizer: computed(() => props.enableCdnLocalizer),
+  allowExternalScripts: computed(() => props.allowExternalScripts),
   resolveAsset: props.resolveAsset,
 });
 

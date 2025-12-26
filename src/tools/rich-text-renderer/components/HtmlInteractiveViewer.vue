@@ -69,6 +69,7 @@ const logger = createModuleLogger("HtmlInteractiveViewer:Iframe");
 // 注入上下文以获取全局设置
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const enableCdnLocalizer = context?.enableCdnLocalizer;
+const contextAllowExternalScripts = context?.allowExternalScripts;
 
 const emit = defineEmits<{
   (e: "content-hover", value: boolean): void;
@@ -90,6 +91,11 @@ const props = withDefaults(
      * 如果为 true，组件高度将跟随 iframe 内容高度变化。
      */
     autoHeight?: boolean;
+    /**
+     * 是否允许加载外部资源（如 CDN 脚本、样式）。
+     * 如果为 false，将应用严格的 CSP 策略。
+     */
+    allowExternalScripts?: boolean;
   }>(),
   {
     showToolbar: true,
@@ -97,6 +103,7 @@ const props = withDefaults(
     seamless: false,
     immediate: false,
     autoHeight: false,
+    allowExternalScripts: false,
   }
 );
 
@@ -156,6 +163,21 @@ const throttledUpdateContent = useThrottleFn((newContent: string) => {
 
 // 使用 useIframeTheme 自动注入主题样式，依赖 renderContent 而不是 props.content
 const { themedContent } = useIframeTheme(() => renderContent.value);
+
+// 动态构建 CSP 策略
+const cspContent = computed(() => {
+  // 优先使用 props，如果未定义则使用上下文中的全局设置
+  const allowExternal = props.allowExternalScripts ?? contextAllowExternalScripts?.value ?? false;
+
+  if (allowExternal) {
+    // 宽松模式：允许所有来源，支持 inline 和 eval（为了兼容各种库）
+    return "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *;";
+  } else {
+    // 严格模式：限制脚本和连接只能是本地或安全协议，禁止外部 CDN
+    // 允许 'unsafe-inline' 是因为注入的脚本和样式需要它，但限制了来源不含 *
+    return "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: asset:; style-src 'self' 'unsafe-inline' asset:; img-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; media-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; connect-src 'self' asset: agent-asset: http://asset.localhost https://asset.localhost; frame-src 'self';";
+  }
+});
 
 const title = computed(() => {
   const match = props.content.match(/<title[^>]*>(.*?)<\/title>/i);
@@ -266,10 +288,10 @@ const logCaptureScript = `
       });
     };
     
-    // 注入 CSP 策略，允许加载 asset: 协议资源
+    // 注入 CSP 策略
     const meta = document.createElement('meta');
     meta.httpEquiv = "Content-Security-Policy";
-    meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *;";
+    meta.content = __CSP_CONTENT__;
     document.head.appendChild(meta);
 
     // 根据 DOM 状态决定何时设置观察器
@@ -314,6 +336,10 @@ const srcDoc = computed(() => {
   let content = themedContent.value;
   if (!content) return "";
 
+  // 处理注入脚本中的 CSP 占位符
+  // 使用 JSON.stringify 确保生成有效的 JavaScript 字符串字面量
+  const processedLogCaptureScript = logCaptureScript.replace("__CSP_CONTENT__", JSON.stringify(cspContent.value));
+
   // 1. CDN 本地化拦截
   if (enableCdnLocalizer?.value !== false) {
     const { html: localizedContent } = localizeCdnLinks(content);
@@ -328,12 +354,12 @@ const srcDoc = computed(() => {
     // 尝试注入脚本到 head 或 body
     // 注入脚本
     if (content.includes("</head>")) {
-      return content.replace("</head>", `${logCaptureScript}</head>`);
+      return content.replace("</head>", `${processedLogCaptureScript}</head>`);
     } else if (content.includes("<body>")) {
-      return content.replace("<body>", `<body>${logCaptureScript}`);
+      return content.replace("<body>", `<body>${processedLogCaptureScript}`);
     } else {
       // 实在找不到位置，就追加到最后
-      return content + logCaptureScript;
+      return content + processedLogCaptureScript;
     }
   } else {
     // 片段模式，包裹基本结构
@@ -344,8 +370,8 @@ const srcDoc = computed(() => {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *;">
-          ${logCaptureScript}
+          <meta http-equiv="Content-Security-Policy" content="${cspContent.value}">
+          ${processedLogCaptureScript}
           <style>
             body {
               margin: 0;

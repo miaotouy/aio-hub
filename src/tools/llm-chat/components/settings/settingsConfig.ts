@@ -13,6 +13,7 @@ import {
   FileText,
   Network,
   BookMarked,
+  Zap,
 } from "lucide-vue-next";
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/store";
@@ -212,6 +213,62 @@ export const settingsConfig: SettingsSection[] = [
         hint: "当聊天窗口分离时，在其内部显示全局壁纸",
         keywords: "ui wallpaper background detached 分离 壁纸 背景",
       },
+    ],
+  },
+  {
+    title: "渲染设置",
+    icon: Zap,
+    items: [
+      {
+        id: "rendererVersion",
+        label: "消息渲染器",
+        component: "ElSelect",
+        props: {
+          placeholder: "选择渲染器版本",
+          style: { width: "100%" },
+        },
+        options: availableVersions
+          .filter((v) => v.enabled)
+          .map((v) => ({
+            label: v.name,
+            value: v.version,
+            tags: v.tags,
+            description: v.description,
+          })),
+        modelPath: "uiPreferences.rendererVersion",
+        hint: "",
+        keywords: "ui renderer markdown parser 渲染器 解析器",
+      },
+      {
+        id: "rendererThrottleMs",
+        label:
+          "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
+        component: "ElSlider",
+        props: {
+          min: 16,
+          max: 512,
+          step: 8,
+          "format-tooltip": (val: number) => `${val}ms`,
+        },
+        modelPath: "uiPreferences.rendererThrottleMs",
+        hint: "控制消息渲染的节流时间，数值越小越实时，但性能开销越大",
+        keywords: "ui renderer throttle 节流 性能",
+      },
+      {
+        id: "virtualListOverscan",
+        label:
+          "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
+        component: "ElSlider",
+        props: {
+          min: 5,
+          max: 100,
+          step: 5,
+          "format-tooltip": (val: number) => `${val}条`,
+        },
+        modelPath: "uiPreferences.virtualListOverscan",
+        hint: "预渲染消息列表可视区域外的消息数量，数值越大滚动越平滑，但内存占用越高。如果遇到长消息导致滚动条抖动，可适当增大此值。",
+        keywords: "ui virtual list overscan 虚拟 消息 列表 预渲染 滚动 性能",
+      },
       {
         id: "enableEnterAnimation",
         label: "节点进入动画",
@@ -220,6 +277,15 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "uiPreferences.enableEnterAnimation",
         hint: "为渲染的消息节点（如代码块、列表）启用淡入动画",
         keywords: "ui animation effect 动画 特效",
+      },
+      {
+        id: "showPerformanceMetrics",
+        label: "显示性能指标",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showPerformanceMetrics",
+        hint: "显示生成速度(t/s)和首字延迟(TTFT)",
+        keywords: "ui performance metrics speed latency 性能 速度 延迟",
       },
       {
         id: "defaultRenderHtml",
@@ -256,64 +322,6 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "uiPreferences.allowExternalScripts",
         hint: "允许 HTML 预览加载外部 CDN 脚本和样式。关闭后将应用严格的 CSP 策略以增强安全性。",
         keywords: "ui html external script cdn csp 安全 脚本 外部",
-      },
-      {
-        id: "showPerformanceMetrics",
-        label: "显示性能指标",
-        layout: "inline",
-        component: "ElSwitch",
-        modelPath: "uiPreferences.showPerformanceMetrics",
-        hint: "显示生成速度(t/s)和首字延迟(TTFT)",
-        keywords: "ui performance metrics speed latency 性能 速度 延迟",
-      },
-      {
-        id: "rendererVersion",
-        label: "消息渲染器",
-        component: "ElSelect",
-        props: {
-          placeholder: "选择渲染器版本",
-          style: { width: "100%" },
-        },
-        options: availableVersions
-          .filter((v) => v.enabled)
-          .map((v) => ({
-            label: v.name,
-            value: v.version,
-            tags: v.tags,
-            description: v.description,
-          })),
-        modelPath: "uiPreferences.rendererVersion",
-        hint: "",
-        keywords: "ui renderer markdown parser 渲染器 解析器",
-      },
-      {
-        id: "rendererThrottleMs",
-        label:
-          "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
-        component: "ElSlider",
-        props: {
-          min: 16,
-          max: 512,
-          step: 8,
-          "format-tooltip": (val: number) => `${val}ms`,
-        },
-        modelPath: "uiPreferences.rendererThrottleMs",
-        hint: "控制消息渲染的节流时间，数值越小越实时，但性能开销越大",
-        keywords: "ui renderer throttle 节流 性能",
-      }, {
-        id: "virtualListOverscan",
-        label:
-          "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
-        component: "ElSlider",
-        props: {
-          min: 5,
-          max: 100,
-          step: 5,
-          "format-tooltip": (val: number) => `${val}条`,
-        },
-        modelPath: "uiPreferences.virtualListOverscan",
-        hint: "预渲染消息列表可视区域外的消息数量，数值越大滚动越平滑，但内存占用越高。如果遇到长消息导致滚动条抖动，可适当增大此值。",
-        keywords: "ui virtual list overscan 虚拟 消息 列表 预渲染 滚动 性能",
       },
     ],
   },

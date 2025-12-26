@@ -247,7 +247,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [build, build-flatpak]
-    if: startsWith(github.ref, 'refs/tags/')
+    # 允许 Tag 触发或手动触发时运行
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: 检出代码
@@ -257,7 +258,12 @@ jobs:
         id: get-version
         shell: bash
         run: |
-          VERSION="${{ github.ref_name }}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            # 手动触发时从 package.json 获取
+            VERSION="v$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')"
+          fi
           VERSION_NUM="${VERSION#v}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "version_num=${VERSION_NUM}" >> $GITHUB_OUTPUT
@@ -287,8 +293,8 @@ jobs:
       - name: 创建 Release 并上传所有文件
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "AIO Hub ${{ github.ref_name }}"
+          tag_name: ${{ steps.get-version.outputs.version }}
+          name: "AIO Hub ${{ steps.get-version.outputs.version }}"
           body: |
             ## 🎉 新版本发布
 
@@ -309,7 +315,7 @@ jobs:
             - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行，或参考 https://github.com/miaotouy/aio-hub/blob/main/docs/guide/macos-gatekeeper-fix.md 中的运行方法
             - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
           draft: true
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'dev') }}
+          prerelease: ${{ contains(steps.get-version.outputs.version, 'beta') || contains(steps.get-version.outputs.version, 'alpha') || contains(steps.get-version.outputs.version, 'dev') }}
           files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

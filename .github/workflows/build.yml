@@ -64,36 +64,13 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
-      - name: 构建应用
+      - name: 构建应用 (仅构建，不创建 Release)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "AIO Hub ${{ github.ref_name }}"
-          releaseBody: |
-            ## 🎉 新版本发布
-
-            ### 变更内容
-            查看完整的 [Changelog](https://github.com/miaotouy/aio-hub/blob/main/CHANGELOG.md)
-
-            ### 下载说明
-            - **Windows**: `.exe` (x64 安装程序)
-            - **macOS**:
-              - `_aarch64.dmg` (Apple Silicon: M1/M2/M3)
-              - `_x64.dmg` (Intel 芯片)
-            - **Linux**:
-              - `.deb` (Debian/Ubuntu)
-              - `.AppImage` (通用)
-              - `.flatpak` (沙盒版)
-
-            ### 注意事项
-            - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行
-            - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          # 不传递 tagName/releaseName/releaseBody，禁用自动创建 Release
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-
       - name: 获取版本号
         id: get-version
         shell: bash
@@ -266,11 +243,73 @@ jobs:
           path: AIO.Hub_${{ steps.get-version.outputs.version_num }}_amd64.flatpak
           if-no-files-found: warn
 
-      - name: 上传 Flatpak 到 Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+  # 统一发布 Job - 等待所有构建完成后统一上传到 Release
+  release:
+    runs-on: ubuntu-latest
+    needs: [build, build-flatpak]
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 获取版本号
+        id: get-version
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION_NUM="${VERSION#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_num=${VERSION_NUM}" >> $GITHUB_OUTPUT
+
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
         with:
-          files: AIO.Hub_${{ steps.get-version.outputs.version_num }}_amd64.flatpak
+          path: artifacts
+          merge-multiple: false
+
+      - name: 整理发布文件
+        shell: bash
+        run: |
+          mkdir -p release-files
+
+          # 遍历所有 artifact 目录，将文件复制到 release-files
+          echo "=== 下载的 Artifacts 结构 ==="
+          find artifacts -type f -ls
+
+          echo "=== 复制文件到 release-files ==="
+          # 复制所有构建产物（排除目录）
+          find artifacts -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.flatpak" \) -exec cp {} release-files/ \;
+
+          echo "=== 准备上传的文件 ==="
+          ls -lh release-files/
+
+      - name: 创建 Release 并上传所有文件
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "AIO Hub ${{ github.ref_name }}"
+          body: |
+            ## 🎉 新版本发布
+
+            ### 变更内容
+            查看完整的 [Changelog](https://github.com/miaotouy/aio-hub/blob/main/CHANGELOG.md)
+
+            ### 下载说明
+            - **Windows**: `.exe` (x64 安装程序)
+            - **macOS**:
+              - `_aarch64.dmg` (Apple Silicon: M1/M2/M3)
+              - `_x64.dmg` (Intel 芯片)
+            - **Linux**:
+              - `.deb` (Debian/Ubuntu)
+              - `.AppImage` (通用)
+              - `.flatpak` (沙盒版)
+
+            ### 注意事项
+            - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行，或参考 https://github.com/miaotouy/aio-hub/blob/main/docs/guide/macos-gatekeeper-fix.md 中的运行方法
+            - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
           draft: true
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'dev') }}
+          files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

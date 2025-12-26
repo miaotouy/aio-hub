@@ -122,14 +122,27 @@
             </span>
           </div>
         </div>
-        <div v-if="contextData.statistics.worldbookEntryCount" class="stat-item worldbook">
+        <div
+          v-if="
+            contextData.statistics.worldbookEntryCount ||
+            contextData.statistics.worldbookTokenCount ||
+            contextData.statistics.worldbookCharCount
+          "
+          class="stat-item worldbook"
+        >
           <div class="stat-label">世界书条目</div>
           <div class="stat-value">
-            {{ contextData.statistics.worldbookEntryCount }} 条
-            <span class="char-count" v-if="contextData.statistics.worldbookTokenCount">
-              {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
-              <template v-if="contextData.statistics.worldbookCharCount">
-                / {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+            {{ contextData.statistics.worldbookEntryCount || 0 }} 条
+            <span class="char-count">
+              <template v-if="contextData.statistics.worldbookTokenCount !== undefined">
+                {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
+              </template>
+              <template v-if="contextData.statistics.worldbookCharCount !== undefined">
+                {{ (contextData.statistics.worldbookTokenCount !== undefined) ? ' / ' : '' }}
+                {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+              </template>
+              <template v-if="contextData.statistics.worldbookTokenCount === undefined && contextData.statistics.worldbookCharCount === undefined">
+                0 消耗
               </template>
             </span>
           </div>

@@ -1,25 +1,11 @@
 <template>
   <div class="analysis-chart-view">
-    <div class="view-header">
-      <el-alert title="内容占比分析" type="success" :closable="false" show-icon>
-        <template #default>
-          <span>
-            {{
-              chartMode === "token"
-                ? "以下图表展示了上下文各部分内容的 Token 占比分布。"
-                : "以下图表展示了上下文各部分内容的字符数占比分布。"
-            }}
-          </span>
-        </template>
-      </el-alert>
-    </div>
-
     <div ref="chartContainerRef" class="chart-container">
       <el-radio-group v-model="chartMode" size="small" class="mode-switch">
         <el-radio-button value="token">Token 占比</el-radio-button>
         <el-radio-button value="char">字符数占比</el-radio-button>
       </el-radio-group>
-      <div ref="chartRef" class="chart"></div>
+      <div ref="chartRef" class="chart" style="width: 100%; height: 100%"></div>
     </div>
 
     <div class="stats-detail">
@@ -34,11 +20,25 @@
           </div>
         </template>
         <div class="stats-table">
+          <div class="stats-row total">
+            <span class="stats-label">总计</span>
+            <span class="stats-value">
+              <template v-if="contextData.statistics.totalTokenCount !== undefined">
+                {{ contextData.statistics.totalTokenCount.toLocaleString() }} tokens
+                <span class="char-total">
+                  {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
+                </span>
+              </template>
+              <template v-else>
+                {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
+              </template>
+            </span>
+          </div>
           <div class="stats-row">
             <span class="stats-label">
               <span
                 class="color-indicator"
-                :style="{ backgroundColor: themeColors.warning }"
+                :style="{ backgroundColor: themeColors.primary }"
               ></span>
               预设消息
             </span>
@@ -56,6 +56,41 @@
                 {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
                 <span class="stats-percent">
                   ({{ getPercentage(contextData.statistics.presetMessagesCharCount) }}%)
+                </span>
+              </template>
+            </span>
+          </div>
+          <div
+            class="stats-row"
+            v-if="
+              contextData.statistics.worldbookTokenCount ||
+              contextData.statistics.worldbookCharCount
+            "
+          >
+            <span class="stats-label">
+              <span
+                class="color-indicator"
+                :style="{ backgroundColor: themeColors.warning }"
+              ></span>
+              世界书
+            </span>
+            <span class="stats-value">
+              <template v-if="contextData.statistics.worldbookTokenCount !== undefined">
+                {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
+                <span class="stats-percent">
+                  ({{ getTokenPercentage(contextData.statistics.worldbookTokenCount) }}%)
+                </span>
+                <span
+                  class="char-info"
+                  v-if="contextData.statistics.worldbookCharCount !== undefined"
+                >
+                  {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+                </span>
+              </template>
+              <template v-else-if="contextData.statistics.worldbookCharCount !== undefined">
+                {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+                <span class="stats-percent">
+                  ({{ getPercentage(contextData.statistics.worldbookCharCount) }}%)
                 </span>
               </template>
             </span>
@@ -115,20 +150,6 @@
               </template>
             </span>
           </div>
-          <div class="stats-row total">
-            <span class="stats-label">总计</span>
-            <span class="stats-value">
-              <template v-if="contextData.statistics.totalTokenCount !== undefined">
-                {{ contextData.statistics.totalTokenCount.toLocaleString() }} tokens
-                <span class="char-total">
-                  {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
-                </span>
-              </template>
-              <template v-else>
-                {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
-              </template>
-            </span>
-          </div>
         </div>
       </InfoCard>
     </div>
@@ -149,12 +170,13 @@ const props = defineProps<{
 // 图表模式：token 或 char
 const chartMode = ref<ChartMode>("token");
 
-const { drawChart, resizeChart, setupResizeObserver } = useContextChart(
+// @ts-expect-error 变量被用作模板引用（ref="chartRef"）
+const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(
   props.contextData,
   chartMode
 );
 
-// 图表容器的父元素引用
+// 图表容器的父元素引用（用于 ResizeObserver）
 const chartContainerRef = ref<HTMLDivElement>();
 
 // 标记图表是否已初始化
@@ -289,9 +311,8 @@ watch(
 }
 
 .stats-row.total {
-  border-bottom: none;
-  border-top: 2px solid var(--el-border-color);
-  padding-top: 12px;
+  border-bottom: 2px solid var(--el-border-color);
+  padding-bottom: 12px;
   font-weight: bold;
 }
 

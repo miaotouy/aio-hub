@@ -40,24 +40,20 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
    * 绘制内容占比堆叠柱状图
    */
   function drawChart() {
-    if (!chartRef.value) {
-      logger.warn('图表容器未准备好');
+    const el = chartRef.value;
+    if (!el) {
       return;
     }
 
-    // 检查 DOM 尺寸
-    if (chartRef.value.clientWidth === 0 || chartRef.value.clientHeight === 0) {
-      logger.warn('图表容器尺寸为零，无法渲染', {
-        width: chartRef.value.clientWidth,
-        height: chartRef.value.clientHeight,
-      });
+    // 检查 DOM 尺寸，如果尺寸为 0 则跳过渲染，不打印警告以避免干扰日志
+    if (el.clientWidth === 0 || el.clientHeight === 0) {
       return;
     }
 
     // 获取或创建图表实例
-    let chart = echarts.getInstanceByDom(chartRef.value);
+    let chart = echarts.getInstanceByDom(el);
     if (!chart) {
-      chart = echarts.init(chartRef.value);
+      chart = echarts.init(el);
     }
 
     const colors = getThemeColors();
@@ -70,6 +66,9 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
     const presetMessagesData = isTokenMode
       ? (stats.presetMessagesTokenCount && stats.presetMessagesTokenCount > 0 ? [stats.presetMessagesTokenCount] : [0])
       : (stats.presetMessagesCharCount > 0 ? [stats.presetMessagesCharCount] : [0]);
+    const worldbookData = isTokenMode
+      ? (stats.worldbookTokenCount && stats.worldbookTokenCount > 0 ? [stats.worldbookTokenCount] : [0])
+      : (stats.worldbookCharCount && stats.worldbookCharCount > 0 ? [stats.worldbookCharCount] : [0]);
     const chatHistoryData = isTokenMode
       ? (stats.chatHistoryTokenCount && stats.chatHistoryTokenCount > 0 ? [stats.chatHistoryTokenCount] : [0])
       : (stats.chatHistoryCharCount > 0 ? [stats.chatHistoryCharCount] : [0]);
@@ -79,14 +78,15 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
 
     // 计算每个系列在堆叠中的位置，用于正确设置圆角
     const seriesData = [
-      { name: '预设消息', data: presetMessagesData, color: colors.warningColor },
+      { name: '预设消息', data: presetMessagesData, color: colors.primaryColor },
+      { name: '世界书', data: worldbookData, color: colors.warningColor },
       { name: '会话历史', data: chatHistoryData, color: colors.successColor },
       { name: '后处理消耗', data: postProcessingData, color: colors.dangerColor }
     ];
 
     // 过滤出有数据的系列
     const activeSeries = seriesData.filter(item => item.data[0] > 0);
-    
+
     // 为每个系列计算正确的圆角（横向柱状图）
     // borderRadius 格式: [左上, 右上, 右下, 左下]
     const getBorderRadius = (index: number, total: number) => {

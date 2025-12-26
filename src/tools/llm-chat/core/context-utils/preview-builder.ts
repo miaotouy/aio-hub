@@ -477,6 +477,10 @@ export async function buildPreviewDataFromContext(
       worldbookCharCount += charCount;
       worldbookTokenCount += tokenCount;
     }
+
+    // 将世界书消耗计入总计，确保占比分析图表准确
+    totalCharCount += worldbookCharCount;
+    totalTokenCount += worldbookTokenCount;
   }
 
   return {

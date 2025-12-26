@@ -254,19 +254,25 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 获取版本号
-        id: get-version
+      - name: 获取发布信息
+        id: get-release-info
         shell: bash
         run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # 标签触发：使用真实版本号
             VERSION="${{ github.ref_name }}"
+            RELEASE_NAME="AIO Hub ${VERSION}"
+            IS_MAIN_DRAFT="false"
           else
-            # 手动触发时从 package.json 获取
-            VERSION="v$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')"
+            # 手动触发：使用 main 草案，标记提交哈希
+            VERSION="main"
+            RELEASE_NAME="AIO Hub main 草案 (${SHORT_SHA})"
+            IS_MAIN_DRAFT="true"
           fi
-          VERSION_NUM="${VERSION#v}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "version_num=${VERSION_NUM}" >> $GITHUB_OUTPUT
+          echo "name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          echo "is_main_draft=${IS_MAIN_DRAFT}" >> $GITHUB_OUTPUT
 
       - name: 下载所有构建产物
         uses: actions/download-artifact@v4
@@ -293,8 +299,8 @@ jobs:
       - name: 创建 Release 并上传所有文件
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get-version.outputs.version }}
-          name: "AIO Hub ${{ steps.get-version.outputs.version }}"
+          tag_name: ${{ steps.get-release-info.outputs.version }}
+          name: ${{ steps.get-release-info.outputs.name }}
           body: |
             ## 🎉 新版本发布
 
@@ -315,7 +321,8 @@ jobs:
             - macOS 用户首次打开可能需要在"系统偏好设置 > 安全性与隐私"中允许运行，或参考 https://github.com/miaotouy/aio-hub/blob/main/docs/guide/macos-gatekeeper-fix.md 中的运行方法
             - Linux 用户使用 AppImage 需要先添加执行权限: `chmod +x *.AppImage`
           draft: true
-          prerelease: ${{ contains(steps.get-version.outputs.version, 'beta') || contains(steps.get-version.outputs.version, 'alpha') || contains(steps.get-version.outputs.version, 'dev') }}
+          prerelease: ${{ steps.get-release-info.outputs.is_main_draft == 'true' || contains(steps.get-release-info.outputs.version, 'beta') || contains(steps.get-release-info.outputs.version, 'alpha') || contains(steps.get-release-info.outputs.version, 'dev') }}
+          make_latest: ${{ steps.get-release-info.outputs.is_main_draft != 'true' }}
           files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

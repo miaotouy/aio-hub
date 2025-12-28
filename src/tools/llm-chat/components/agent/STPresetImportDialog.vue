@@ -34,6 +34,7 @@
               <div
                 v-for="(item, index) in systemPrompts"
                 :key="'system-' + index"
+                v-memo="[item.selected, item.enabled, item.message.content]"
                 class="message-item"
                 :class="{ selected: item.selected }"
               >
@@ -68,6 +69,7 @@
               <div
                 v-for="(item, index) in injectionPrompts"
                 :key="'injection-' + index"
+                v-memo="[item.selected, item.enabled, item.message.content]"
                 class="message-item"
                 :class="{ selected: item.selected }"
               >
@@ -108,6 +110,7 @@
               <div
                 v-for="(item, index) in unorderedPrompts"
                 :key="'unordered-' + index"
+                v-memo="[item.selected, item.enabled, item.message.content]"
                 class="message-item"
                 :class="{ selected: item.selected }"
               >
@@ -131,7 +134,11 @@
 
           <!-- 空状态 -->
           <el-empty
-            v-if="systemPrompts.length === 0 && injectionPrompts.length === 0 && unorderedPrompts.length === 0"
+            v-if="
+              systemPrompts.length === 0 &&
+              injectionPrompts.length === 0 &&
+              unorderedPrompts.length === 0
+            "
             description="预设文件中没有可导入的消息"
           />
         </div>
@@ -168,9 +175,7 @@
       <div class="dialog-footer">
         <span class="selected-count">
           已选择 {{ totalSelectedCount }} 条消息
-          <span v-if="selectedParametersCount > 0">
-            和 {{ selectedParametersCount }} 个参数
-          </span>
+          <span v-if="selectedParametersCount > 0"> 和 {{ selectedParametersCount }} 个参数 </span>
         </span>
         <div class="footer-actions">
           <el-button @click="emit('update:visible', false)">取消</el-button>
@@ -188,10 +193,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import type { ChatMessageNode, MessageRole } from '../../types';
-import type { ParsedPromptFile } from '../../services/sillyTavernParser';
+import { ref, computed, watch } from "vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import type { ChatMessageNode, MessageRole } from "../../types";
+import type { ParsedPromptFile } from "../../services/sillyTavernParser";
 
 interface SelectableMessage {
   message: ChatMessageNode;
@@ -211,9 +216,9 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'update:visible', value: boolean): void;
+  (e: "update:visible", value: boolean): void;
   (
-    e: 'confirm',
+    e: "confirm",
     data: {
       systemPrompts: ChatMessageNode[];
       injectionPrompts: ChatMessageNode[];
@@ -252,13 +257,11 @@ watch(
         selected: false, // 未排序消息默认不选中
         enabled: false,
       }));
-      selectableParameters.value = Object.entries(result.parameters || {}).map(
-        ([key, value]) => ({
-          key,
-          value,
-          selected: false, // 参数默认不选中
-        })
-      );
+      selectableParameters.value = Object.entries(result.parameters || {}).map(([key, value]) => ({
+        key,
+        value,
+        selected: false, // 参数默认不选中
+      }));
     }
   },
   { immediate: true }
@@ -283,13 +286,11 @@ const selectAllSystem = computed({
   set: () => {},
 });
 const isSystemIndeterminate = computed(
-  () =>
-    systemPrompts.value.some((m) => m.selected) && !systemPrompts.value.every((m) => m.selected)
+  () => systemPrompts.value.some((m) => m.selected) && !systemPrompts.value.every((m) => m.selected)
 );
 
 const selectAllInjection = computed({
-  get: () =>
-    injectionPrompts.value.length > 0 && injectionPrompts.value.every((m) => m.selected),
+  get: () => injectionPrompts.value.length > 0 && injectionPrompts.value.every((m) => m.selected),
   set: () => {},
 });
 const isInjectionIndeterminate = computed(
@@ -299,8 +300,7 @@ const isInjectionIndeterminate = computed(
 );
 
 const selectAllUnordered = computed({
-  get: () =>
-    unorderedPrompts.value.length > 0 && unorderedPrompts.value.every((m) => m.selected),
+  get: () => unorderedPrompts.value.length > 0 && unorderedPrompts.value.every((m) => m.selected),
   set: () => {},
 });
 const isUnorderedIndeterminate = computed(
@@ -315,8 +315,7 @@ const selectedParametersCount = computed(
 );
 const allParametersSelected = computed({
   get: () =>
-    selectableParameters.value.length > 0 &&
-    selectableParameters.value.every((p) => p.selected),
+    selectableParameters.value.length > 0 && selectableParameters.value.every((p) => p.selected),
   set: (value) => toggleAllParameters(value),
 });
 const isParametersIndeterminate = computed(
@@ -354,27 +353,27 @@ function toggleAllParameters(val: boolean) {
   selectableParameters.value.forEach((p) => (p.selected = val));
 }
 
-function getRoleTagType(role: MessageRole): 'success' | 'primary' | 'info' {
-  const typeMap: Record<MessageRole, 'success' | 'primary' | 'info'> = {
-    system: 'info',
-    user: 'primary',
-    assistant: 'success',
+function getRoleTagType(role: MessageRole): "success" | "primary" | "info" {
+  const typeMap: Record<MessageRole, "success" | "primary" | "info"> = {
+    system: "info",
+    user: "primary",
+    assistant: "success",
   };
   return typeMap[role];
 }
 
 function getRoleLabel(role: MessageRole): string {
   const labelMap: Record<MessageRole, string> = {
-    system: 'System',
-    user: 'User',
-    assistant: 'Assistant',
+    system: "System",
+    user: "User",
+    assistant: "Assistant",
   };
   return labelMap[role];
 }
 
 function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  return text.substring(0, maxLength) + "...";
 }
 
 function handleConfirm() {
@@ -401,12 +400,15 @@ function handleConfirm() {
 
   const parameters = selectableParameters.value
     .filter((p) => p.selected)
-    .reduce((obj, p) => {
-      obj[p.key] = p.value;
-      return obj;
-    }, {} as Record<string, any>);
+    .reduce(
+      (obj, p) => {
+        obj[p.key] = p.value;
+        return obj;
+      },
+      {} as Record<string, any>
+    );
 
-  emit('confirm', {
+  emit("confirm", {
     systemPrompts: selectedSystem,
     injectionPrompts: selectedInjection,
     unorderedPrompts: selectedUnordered,

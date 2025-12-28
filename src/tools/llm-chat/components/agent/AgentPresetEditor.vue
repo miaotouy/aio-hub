@@ -96,6 +96,15 @@
             <div
               v-for="(element, index) in localMessages"
               :key="element.id"
+              v-memo="[
+                element.isEnabled,
+                element.content,
+                element.role,
+                element.name,
+                element.injectionStrategy,
+                element.modelMatch,
+                messageTokens.get(element.id),
+              ]"
               class="message-card-wrapper"
             >
               <!-- 纯占位符锚点 - 紧凑模式 -->
@@ -462,6 +471,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, toRaw, markRaw } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import yaml from "js-yaml";
@@ -614,10 +624,12 @@ const stImportData = ref<ParsedPromptFile>({
 // #region Token 计算
 const messageTokens = ref<Map<string, number>>(new Map());
 const isCalculatingTokens = ref(false);
-
 // 计算所有消息的 token 数量，并保存到 metadata
 const calculateAllTokens = async () => {
-  if (!props.modelId) return;
+  if (!props.modelId || localMessages.value.length === 0) {
+    messageTokens.value = new Map();
+    return;
+  }
 
   isCalculatingTokens.value = true;
   const newTokens = new Map<string, number>();
@@ -644,10 +656,15 @@ const calculateAllTokens = async () => {
   const macroContext = baseContext;
   const macroProcessor = new MacroProcessor();
 
-  for (const message of localMessages.value) {
+  // 1. 先获取分词器元数据，确定缓存标识符（使用 tokenizer 名称而不是 modelId，因为不同模型可能使用相同分词器）
+  const tokenizerResult = await tokenCalculatorEngine.calculateTokens("", props.modelId);
+  const tokenizerName = tokenizerResult.tokenizerName;
+
+  // 2. 并行计算所有消息
+  const promises = localMessages.value.map(async (message) => {
     // 跳过纯占位符锚点（无法预估）
     if (isPurePlaceholderAnchorType(message.type)) {
-      continue;
+      return;
     }
 
     // 处理模板锚点和普通消息
@@ -660,6 +677,19 @@ const calculateAllTokens = async () => {
         }
 
         if (template) {
+          // 缓存键包含：分词器名称、模板内容、宏上下文（简化为关键信息）
+          // 注意：macroContext 包含 agent/userProfile 等，这里简化处理，如果追求极致可以做更细粒度的 hash
+          const contextKey = `${effectiveUserProfile.value?.id || "default"}:${props.agentName}`;
+          const contentHash = `v2:${tokenizerName}:${template}:${contextKey}`;
+
+          if (
+            message.metadata?.lastCalcHash === contentHash &&
+            message.metadata?.contentTokens !== undefined
+          ) {
+            newTokens.set(message.id, message.metadata.contentTokens);
+            return;
+          }
+
           const processed = await macroProcessor.process(template, macroContext);
           const result = await tokenCalculatorEngine.calculateTokens(
             processed.output,
@@ -669,8 +699,12 @@ const calculateAllTokens = async () => {
 
           // 同步更新到消息的 metadata
           if (!message.metadata) message.metadata = {};
-          if (message.metadata.contentTokens !== result.count) {
+          if (
+            message.metadata.contentTokens !== result.count ||
+            message.metadata.lastCalcHash !== contentHash
+          ) {
             message.metadata.contentTokens = result.count;
+            message.metadata.lastCalcHash = contentHash;
             hasChanges = true;
           }
         }
@@ -678,7 +712,9 @@ const calculateAllTokens = async () => {
         console.error(`Failed to calculate tokens for message ${message.id}:`, error);
       }
     }
-  }
+  });
+
+  await Promise.all(promises);
 
   messageTokens.value = newTokens;
   isCalculatingTokens.value = false;
@@ -687,6 +723,8 @@ const calculateAllTokens = async () => {
     syncToParent();
   }
 };
+
+const debouncedCalculateTokens = useDebounceFn(calculateAllTokens, 300);
 
 const totalTokens = computed(() => {
   let total = 0;
@@ -698,9 +736,9 @@ const totalTokens = computed(() => {
 
 watch(
   () => [localMessages.value, props.modelId, effectiveUserProfile.value] as const,
-  async () => {
+  () => {
     if (props.modelId) {
-      await calculateAllTokens();
+      debouncedCalculateTokens();
     }
   },
   { deep: true, immediate: true }

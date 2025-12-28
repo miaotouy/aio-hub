@@ -64,6 +64,12 @@
             导入
           </el-button>
         </el-tooltip>
+        <el-tooltip content="批量管理消息（移动/删除/启用）" placement="top" :show-after="300">
+          <el-button size="small" @click="handleOpenBatchManager">
+            <el-icon><Operation /></el-icon>
+            批量管理
+          </el-button>
+        </el-tooltip>
         <el-tooltip content="添加一条新的预设消息" placement="top" :show-after="300">
           <el-button type="primary" size="small" @click="handleAddMessage">
             <el-icon><Plus /></el-icon>
@@ -466,6 +472,13 @@
       :parsed-result="stImportData"
       @confirm="handleConfirmSTImport"
     />
+
+    <!-- 批量管理对话框 -->
+    <AgentPresetBatchDialog
+      v-model:visible="showBatchManager"
+      :messages="localMessages"
+      @save="handleBatchSave"
+    />
   </div>
 </template>
 
@@ -496,6 +509,7 @@ import {
   Service,
   ArrowDown,
   Link,
+  Operation,
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -503,6 +517,7 @@ import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useT
 import PresetMessageEditor from "./PresetMessageEditor.vue";
 import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
 import STPresetImportDialog from "./STPresetImportDialog.vue";
+import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { ParsedPromptFile } from "../../services/sillyTavernParser";
 
@@ -1138,6 +1153,23 @@ function handleConfirmSTImport(data: ParsedPromptFile) {
     customMessage.success(`成功导入 ${newMessages.length} 条消息`);
   }
   showSTImportDialog.value = false;
+}
+
+// 批量管理
+const showBatchManager = ref(false);
+
+function handleOpenBatchManager() {
+  if (localMessages.value.length === 0) {
+    customMessage.warning("暂无消息可管理");
+    return;
+  }
+  showBatchManager.value = true;
+}
+
+function handleBatchSave(newMessages: ChatMessageNode[]) {
+  localMessages.value = newMessages;
+  syncToParent();
+  customMessage.success("批量修改已应用");
 }
 // #endregion
 

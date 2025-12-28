@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useWorldbookStore } from "../../worldbookStore";
 import { Book, Plus, Search } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -16,9 +16,22 @@ const emit = defineEmits<{
 const worldbookStore = useWorldbookStore();
 const showDialog = ref(false);
 const searchQuery = ref("");
+const isLoading = ref(false);
 
 onMounted(async () => {
   await worldbookStore.loadWorldbooks();
+});
+
+// 每次打开选择对话框时重新加载世界书列表，确保能看到最新导入的世界书
+watch(showDialog, async (newVal) => {
+  if (newVal) {
+    isLoading.value = true;
+    try {
+      await worldbookStore.loadWorldbooks();
+    } finally {
+      isLoading.value = false;
+    }
+  }
 });
 
 const selectedIds = computed({
@@ -76,8 +89,11 @@ const addWb = (id: string) => {
           class="search-input"
         />
 
-        <div class="wb-list">
-          <el-empty v-if="availableWorldbooks.length === 0" description="没有可选的世界书" />
+        <div class="wb-list" v-loading="isLoading">
+          <el-empty
+            v-if="!isLoading && availableWorldbooks.length === 0"
+            description="没有可选的世界书"
+          />
 
           <div v-for="wb in availableWorldbooks" :key="wb.id" class="wb-item" @click="addWb(wb.id)">
             <div class="wb-info">

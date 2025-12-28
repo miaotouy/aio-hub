@@ -137,7 +137,7 @@ const handleNewSession = () => {
           props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
         "
         placement="top"
-        :show-after="300"
+        :show-after="500"
       >
         <button
           class="streaming-icon-button"
@@ -150,7 +150,7 @@ const handleNewSession = () => {
       </el-tooltip>
 
       <!-- 宏选择器按钮 -->
-      <el-tooltip content="添加宏变量" placement="top" :show-after="300">
+      <el-tooltip content="添加宏变量" placement="top" :show-after="500">
         <div>
           <el-popover
             :visible="props.macroSelectorVisible"
@@ -171,14 +171,14 @@ const handleNewSession = () => {
       </el-tooltip>
 
       <!-- 添加附件按钮 -->
-      <el-tooltip content="添加附件" placement="top" :show-after="300">
+      <el-tooltip content="添加附件" placement="top" :show-after="500">
         <button class="attachment-button" @click="emit('trigger-attachment')">
           <el-icon><Paperclip /></el-icon>
         </button>
       </el-tooltip>
 
       <!-- 会话列表按钮 -->
-      <el-tooltip content="切换会话" placement="top" :show-after="300">
+      <el-tooltip content="切换会话" placement="top" :show-after="500">
         <div>
           <el-popover
             v-model:visible="sessionListVisible"
@@ -197,7 +197,7 @@ const handleNewSession = () => {
         </div>
       </el-tooltip>
       <!-- 临时模型选择器 -->
-      <el-tooltip content="临时指定模型" placement="top" :show-after="300">
+      <el-tooltip content="临时指定模型" placement="top" :show-after="500">
         <button class="tool-btn" @click="emit('select-temporary-model')">
           <AtSign :size="16" />
         </button>
@@ -271,7 +271,7 @@ const handleNewSession = () => {
       </el-dropdown>
 
       <!-- 设置菜单 -->
-      <el-tooltip content="工具栏设置" placement="top" :show-after="300">
+      <el-tooltip content="工具栏设置" placement="top" :show-after="500">
         <div>
           <el-popover
             placement="top"
@@ -305,7 +305,7 @@ const handleNewSession = () => {
         v-if="!props.isDetached"
         :content="props.isExpanded ? '收起输入框' : '展开输入框'"
         placement="top"
-        :show-after="300"
+        :show-after="500"
       >
         <button
           class="expand-toggle-button"
@@ -351,7 +351,7 @@ const handleNewSession = () => {
         v-if="continuationModelInfo"
         :content="`续写模型: ${continuationModelInfo.profileName} - ${continuationModelInfo.modelName}`"
         placement="top"
-        :show-after="300"
+        :show-after="500"
       >
         <div class="temporary-model-indicator continuation-model">
           <Sparkles :size="14" />
@@ -368,7 +368,7 @@ const handleNewSession = () => {
         v-if="temporaryModelInfo"
         :content="`临时模型: ${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
         placement="top"
-        :show-after="300"
+        :show-after="500"
       >
         <div class="temporary-model-indicator">
           <AtSign :size="14" />
@@ -388,7 +388,7 @@ const handleNewSession = () => {
           props.contextStats.totalTokenCount !== undefined
         "
         placement="top"
-        :show-after="300"
+        :show-after="500"
       >
         <template #content>
           <div style="text-align: left; line-height: 1.6">
@@ -450,7 +450,7 @@ const handleNewSession = () => {
         v-if="props.settings.showTokenUsage && (props.tokenCount > 0 || props.isCalculatingTokens)"
         :content="props.tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
         placement="top"
-        :show-after="300"
+        :show-after="500"
       >
         <span class="token-count input-tokens">
           <svg

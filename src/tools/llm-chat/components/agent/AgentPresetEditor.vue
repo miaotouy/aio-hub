@@ -87,7 +87,7 @@
       >
         <div class="messages-scroll-wrapper">
           <VueDraggableNext
-            v-model="localMessages"
+            v-model="currentPageMessages"
             item-key="id"
             handle=".drag-handle"
             @start="onDragStart"
@@ -100,7 +100,7 @@
             :animation="200"
           >
             <div
-              v-for="(element, index) in localMessages"
+              v-for="element in currentPageMessages"
               :key="element.id"
               v-memo="[
                 element.isEnabled,
@@ -136,7 +136,7 @@
                     :active-value="true"
                     :inactive-value="false"
                     size="small"
-                    @change="handleToggleEnabled(index)"
+                    @change="handleToggleEnabled"
                   />
                 </div>
               </div>
@@ -169,7 +169,7 @@
                     :active-value="true"
                     :inactive-value="false"
                     size="small"
-                    @change="handleToggleEnabled(index)"
+                    @change="handleToggleEnabled"
                   />
                 </div>
               </div>
@@ -182,7 +182,7 @@
                   disabled: element.isEnabled === false,
                   'template-anchor-card-compact': isTemplateAnchorType(element.type),
                 }"
-                @click="handleEditMessage(index)"
+                @click="handleEditMessage(element)"
               >
                 <div class="drag-handle">
                   <el-icon><Rank /></el-icon>
@@ -249,7 +249,7 @@
 
                 <div class="message-actions-compact" @click.stop>
                   <el-tooltip content="编辑消息" placement="top" :show-after="500">
-                    <el-button link size="small" @click="handleEditMessage(index)">
+                    <el-button link size="small" @click="handleEditMessage(element)">
                       <el-icon><Edit /></el-icon>
                     </el-button>
                   </el-tooltip>
@@ -258,7 +258,7 @@
                     :active-value="true"
                     :inactive-value="false"
                     size="small"
-                    @change="handleToggleEnabled(index)"
+                    @change="handleToggleEnabled"
                   />
                 </div>
               </div>
@@ -369,12 +369,12 @@
 
                 <div class="message-actions">
                   <el-tooltip content="编辑消息" placement="top" :show-after="500">
-                    <el-button link size="small" @click="handleEditMessage(index)">
+                    <el-button link size="small" @click="handleEditMessage(element)">
                       <el-icon><Edit /></el-icon>
                     </el-button>
                   </el-tooltip>
                   <el-tooltip content="复制消息配置" placement="top" :show-after="500">
-                    <el-button link size="small" @click="handleCopyMessage(index)">
+                    <el-button link size="small" @click="handleCopyMessage(element)">
                       <el-icon><CopyDocument /></el-icon>
                     </el-button>
                   </el-tooltip>
@@ -382,7 +382,7 @@
                     <span>
                       <el-popconfirm
                         title="确定要用剪贴板内容覆盖这条消息吗？"
-                        @confirm="handlePasteMessage(index)"
+                        @confirm="handlePasteMessage(element)"
                         width="220"
                       >
                         <template #reference>
@@ -403,7 +403,7 @@
                     <span>
                       <el-popconfirm
                         title="确定要删除这条预设消息吗？"
-                        @confirm="handleDeleteMessage(index)"
+                        @confirm="handleDeleteMessage(element)"
                         width="240"
                       >
                         <template #reference>
@@ -419,7 +419,7 @@
                     :active-value="true"
                     :inactive-value="false"
                     size="small"
-                    @change="handleToggleEnabled(index)"
+                    @change="handleToggleEnabled"
                   />
                 </div>
               </div>
@@ -432,6 +432,18 @@
               <el-button type="primary" @click="handleAddMessage"> 添加第一条消息 </el-button>
             </el-empty>
           </div>
+        </div>
+
+        <!-- 分页控制 -->
+        <div v-if="localMessages.length > pageSize" class="pagination-container">
+          <el-pagination
+            v-model:current-page="currentPage"
+            :page-size="pageSize"
+            :total="localMessages.length"
+            layout="total, prev, pager, next, jumper"
+            size="small"
+            background
+          />
         </div>
       </div>
     </Transition>
@@ -603,10 +615,29 @@ const effectiveUserProfile = computed(() => {
 // 本地消息列表
 const localMessages = ref<ChatMessageNode[]>([]);
 
+// 分页状态
+const currentPage = ref(1);
+const pageSize = ref(50); // 每页 50 条，对于预设消息来说足够了
+
+const currentPageMessages = computed({
+  get: () => {
+    const start = (currentPage.value - 1) * pageSize.value;
+    const end = start + pageSize.value;
+    return localMessages.value.slice(start, end);
+  },
+  set: (newVal) => {
+    // 处理拖拽后的同步
+    const start = (currentPage.value - 1) * pageSize.value;
+    const newList = [...localMessages.value];
+    newList.splice(start, pageSize.value, ...newVal);
+    localMessages.value = newList;
+  },
+});
+
 // 编辑对话框状态
 const editDialogVisible = ref(false);
 const isEditMode = ref(false);
-const editingIndex = ref(-1);
+const editingId = ref<string | null>(null);
 import type { InjectionStrategy } from "../../types";
 
 const editForm = ref<{
@@ -913,15 +944,14 @@ function handleAddMessage() {
   editDialogVisible.value = true;
 }
 
-function handleEditMessage(index: number) {
-  const message = localMessages.value[index];
+function handleEditMessage(message: ChatMessageNode) {
   if (isPurePlaceholderAnchorType(message.type)) {
     customMessage.info("纯占位符锚点不可编辑内容");
     return;
   }
 
   isEditMode.value = true;
-  editingIndex.value = index;
+  editingId.value = message.id;
   editForm.value = {
     role: message.role,
     content: message.content,
@@ -933,9 +963,11 @@ function handleEditMessage(index: number) {
 }
 
 function handleSaveMessage(form: typeof editForm.value) {
-  if (isEditMode.value) {
-    const message = localMessages.value[editingIndex.value];
-    Object.assign(message, form);
+  if (isEditMode.value && editingId.value) {
+    const message = localMessages.value.find((m) => m.id === editingId.value);
+    if (message) {
+      Object.assign(message, form);
+    }
   } else {
     const newMessage: ChatMessageNode = {
       id: `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -958,8 +990,7 @@ function handleSaveMessage(form: typeof editForm.value) {
   syncToParent();
 }
 
-async function handleCopyMessage(index: number) {
-  const message = localMessages.value[index];
+async function handleCopyMessage(message: ChatMessageNode) {
   const dataToCopy = {
     role: message.role,
     content: message.content,
@@ -976,7 +1007,7 @@ async function handleCopyMessage(index: number) {
   }
 }
 
-async function handlePasteMessage(index: number) {
+async function handlePasteMessage(message: ChatMessageNode) {
   try {
     const text = await readText();
     if (!text) return customMessage.warning("剪贴板为空");
@@ -988,7 +1019,6 @@ async function handlePasteMessage(index: number) {
       data = text; // 作为纯文本处理
     }
 
-    const message = localMessages.value[index];
     if (typeof data === "object" && data !== null) {
       message.role = data.role || message.role;
       message.content = data.content ?? message.content;
@@ -1006,18 +1036,20 @@ async function handlePasteMessage(index: number) {
   }
 }
 
-function handleDeleteMessage(index: number) {
-  const message = localMessages.value[index];
+function handleDeleteMessage(message: ChatMessageNode) {
   if (isAnchorType(message.type)) {
     customMessage.warning("锚点消息不可删除");
     return;
   }
-  localMessages.value.splice(index, 1);
-  syncToParent();
-  customMessage.success("删除成功");
+  const index = localMessages.value.findIndex((m) => m.id === message.id);
+  if (index !== -1) {
+    localMessages.value.splice(index, 1);
+    syncToParent();
+    customMessage.success("删除成功");
+  }
 }
 
-function handleToggleEnabled(_index: number) {
+function handleToggleEnabled() {
   syncToParent();
 }
 // #endregion
@@ -1266,14 +1298,24 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   overflow: hidden;
   position: relative;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .messages-scroll-wrapper {
-  height: 100%;
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px;
   box-sizing: border-box;
+}
+
+.pagination-container {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  display: flex;
+  justify-content: center;
 }
 
 .messages-list {

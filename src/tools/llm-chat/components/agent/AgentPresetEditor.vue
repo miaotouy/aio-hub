@@ -624,6 +624,35 @@ const stImportData = ref<ParsedPromptFile>({
 // #region Token 计算
 const messageTokens = ref<Map<string, number>>(new Map());
 const isCalculatingTokens = ref(false);
+
+/**
+ * 分批并发执行异步任务
+ * @param tasks 任务数组（每个任务是一个返回 Promise 的函数）
+ * @param concurrency 最大并发数
+ */
+async function runWithConcurrency<T>(
+  tasks: (() => Promise<T>)[],
+  concurrency: number
+): Promise<T[]> {
+  const results: T[] = [];
+  let index = 0;
+
+  async function runNext(): Promise<void> {
+    while (index < tasks.length) {
+      const currentIndex = index++;
+      results[currentIndex] = await tasks[currentIndex]();
+    }
+  }
+
+  // 启动 concurrency 个并发 worker
+  const workers = Array(Math.min(concurrency, tasks.length))
+    .fill(null)
+    .map(() => runNext());
+
+  await Promise.all(workers);
+  return results;
+}
+
 // 计算所有消息的 token 数量，并保存到 metadata
 const calculateAllTokens = async () => {
   if (!props.modelId || localMessages.value.length === 0) {
@@ -660,8 +689,8 @@ const calculateAllTokens = async () => {
   const tokenizerResult = await tokenCalculatorEngine.calculateTokens("", props.modelId);
   const tokenizerName = tokenizerResult.tokenizerName;
 
-  // 2. 并行计算所有消息
-  const promises = localMessages.value.map(async (message) => {
+  // 2. 构建任务列表，使用并发控制（限制同时计算的消息数量，避免 100+ 条消息同时计算导致卡顿）
+  const tasks = localMessages.value.map((message) => async () => {
     // 跳过纯占位符锚点（无法预估）
     if (isPurePlaceholderAnchorType(message.type)) {
       return;
@@ -714,7 +743,8 @@ const calculateAllTokens = async () => {
     }
   });
 
-  await Promise.all(promises);
+  // 限制并发数为 10，避免大量预设消息同时计算导致 UI 卡顿
+  await runWithConcurrency(tasks, 10);
 
   messageTokens.value = newTokens;
   isCalculatingTokens.value = false;

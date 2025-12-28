@@ -177,7 +177,6 @@ export class WorldbookProcessor implements ContextProcessor {
     const globalSettings = context.settings.worldbook;
     const agentSettings = agentConfig.worldbookSettings;
 
-    const maxTokens = agentSettings?.maxTokens ?? globalSettings?.maxTokens ?? 4000;
     const disableRecursion = agentSettings?.disableRecursion ?? globalSettings?.disableRecursion ?? false;
     const defaultScanDepth = agentSettings?.defaultScanDepth ?? globalSettings?.defaultScanDepth ?? 2;
     const maxRecursionSteps = (context.settings as any).world_info_max_recursion_steps ?? 0;
@@ -186,7 +185,6 @@ export class WorldbookProcessor implements ContextProcessor {
     const activatedEntries = new Map<string, { entry: STWorldbookEntry, bookName: string, matchedKeys: string[] }>();
     let scanState: 'INITIAL' | 'RECURSION' | 'DONE' = 'INITIAL';
     let loopCount = 0;
-    let currentTokenBudget = 0;
 
     // 处理延迟递归层级
     const availableRecursionDelayLevels = [...new Set(allEntries
@@ -239,12 +237,9 @@ export class WorldbookProcessor implements ContextProcessor {
         let addedAnyForRecursion = false;
         for (const winner of winners) {
           const { entry, bookName, matchedKeys } = winner;
-          const entryTokens = Math.ceil(entry.content.length / 4);
-          if (!entry.ignoreBudget && (currentTokenBudget + entryTokens > maxTokens)) continue;
 
           const key = `${entry.uid}-${bookName}`;
           activatedEntries.set(key, { entry, bookName, matchedKeys });
-          currentTokenBudget += entryTokens;
           if (!entry.preventRecursion && !disableRecursion) {
             buffer.addRecurse(entry.content);
             addedAnyForRecursion = true;
@@ -278,9 +273,8 @@ export class WorldbookProcessor implements ContextProcessor {
     context.logs.push({
       processorId: this.id,
       level: 'info',
-      message: `激活了 ${matchedEntries.length} 条世界书条目 (Budget: ${currentTokenBudget} tokens)`,
+      message: `激活了 ${matchedEntries.length} 条世界书条目`,
       details: {
-        totalTokens: currentTokenBudget,
         activated: matchedEntries.map(m => ({
           uid: m.raw.uid,
           name: m.raw.comment || m.raw.key?.[0] || 'Unnamed Entry',
@@ -289,7 +283,7 @@ export class WorldbookProcessor implements ContextProcessor {
       }
     });
 
-    logger.debug('世界书处理完成', { activatedCount: matchedEntries.length, tokens: currentTokenBudget });
+    logger.debug('世界书处理完成', { activatedCount: matchedEntries.length });
   }
 
   /**

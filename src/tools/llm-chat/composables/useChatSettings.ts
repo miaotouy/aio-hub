@@ -250,8 +250,6 @@ export interface ChatSettings {
   worldbookIds: string[];
   /** 世界书全局设置 */
   worldbook: {
-    /** 注入的最大 Token 预算 */
-    maxTokens: number;
     /** 是否禁用递归扫描 */
     disableRecursion: boolean;
     /** 默认扫描深度 */
@@ -486,7 +484,6 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   plugins: {},
   worldbookIds: [],
   worldbook: {
-    maxTokens: 4000,
     disableRecursion: false,
     defaultScanDepth: 2,
   },

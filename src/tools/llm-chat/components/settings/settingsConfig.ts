@@ -1206,15 +1206,6 @@ export const settingsConfig: SettingsSection[] = [
         layout: "block",
       },
       {
-        id: "worldbookMaxTokens",
-        label: "世界书最大 Token 预算",
-        component: "SliderWithInput",
-        props: { min: 0, max: 128000, step: 1000 },
-        modelPath: "worldbook.maxTokens",
-        hint: "执行关键词扫描后，允许注入到上下文中的世界书条目总 Token 限制",
-        keywords: "worldbook max tokens budget 世界书 预算",
-      },
-      {
         id: "worldbookDisableRecursion",
         label: "禁用递归扫描",
         layout: "inline",

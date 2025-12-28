@@ -236,8 +236,6 @@ export interface ChatAgent {
    * 世界书覆盖设置
    */
   worldbookSettings?: {
-    /** 注入的最大 Token 预算 */
-    maxTokens?: number;
     /** 是否禁用递归扫描 */
     disableRecursion?: boolean;
     /** 默认扫描深度 */
@@ -354,8 +352,6 @@ export interface AgentPreset {
    * 世界书覆盖设置
    */
   worldbookSettings?: {
-    /** 注入的最大 Token 预算 */
-    maxTokens?: number;
     /** 是否禁用递归扫描 */
     disableRecursion?: boolean;
     /** 默认扫描深度 */

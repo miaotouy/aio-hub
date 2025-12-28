@@ -99,7 +99,6 @@ const defaultFormState = {
   category: "",
   worldbookIds: [] as string[],
   worldbookSettings: {
-    maxTokens: 4000,
     disableRecursion: false,
     defaultScanDepth: 2,
   },
@@ -610,16 +609,6 @@ const handleSave = (options: { silent?: boolean } = {}) => {
                 世界书扫描与注入设置
               </div>
               <el-form label-width="120px" size="small" label-position="left">
-                <el-form-item label="最大 Token 预算">
-                  <el-input-number
-                    v-model="editForm.worldbookSettings.maxTokens"
-                    :min="0"
-                    :max="128000"
-                    :step="1000"
-                    controls-position="right"
-                    style="width: 100%"
-                  />
-                </el-form-item>
                 <el-form-item label="禁用递归扫描">
                   <el-switch v-model="editForm.worldbookSettings.disableRecursion" />
                 </el-form-item>

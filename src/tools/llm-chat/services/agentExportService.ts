@@ -7,6 +7,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, writeFile, readFile, exists } from '@tauri-apps/plugin-fs';
 import { join, appDataDir } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
+import { formatDateTime } from '@/utils/time';
 import type { ChatAgent } from '../types';
 import type { ExportableAgent, AgentExportFile, BundledWorldbook } from '../types/agentImportExport';
 import { embedDataIntoPng } from '@/utils/pngMetadataWriter';
@@ -49,9 +50,11 @@ export async function exportAgents(
 
     const format = options.format || 'json';
     const exportType = options.exportType || 'zip';
+    const timestamp = formatDateTime(new Date(), 'yyyyMMdd_HHmmss');
+
     // 增强文件名过滤，防止路径遍历和非法字符
     const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.\./g, '').trim();
-    
+
     // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
     if (exportType === 'file' && agents.length > 1) {
       const selected = await open({
@@ -139,6 +142,9 @@ export async function exportAgents(
     } else if (count > 3) {
       baseName = `${agents.slice(0, 2).map(a => sanitizeFilename(a.name)).join(' & ')}_等${count}个智能体`;
     }
+
+    // 添加时间戳后缀，方便管理和避免冲突
+    baseName = `${baseName}_${timestamp}`;
 
     const zip = (exportType === 'zip' || exportType === 'png') ? new JSZip() : null;
     let targetDir = '';
@@ -290,10 +296,10 @@ export async function exportAgents(
                   zip.file(wbFileName, wbContentString);
                 }
               } else if (exportType === 'folder' && targetDir) {
-                const wbPath = separateFolders 
+                const wbPath = separateFolders
                   ? await join(targetDir, uniqueName, wbFileName)
                   : await join(targetDir, wbFileName);
-                
+
                 const encoder = new TextEncoder();
                 await invoke('write_file_force', {
                   path: wbPath,
@@ -406,7 +412,7 @@ export async function exportAgents(
           compressed: true,
           data: zipBase64
         };
-        
+
         const bundleString = JSON.stringify(bundleData);
         const newPngBuffer = await embedDataIntoPng(pngBuffer, 'aiob', bundleString);
 

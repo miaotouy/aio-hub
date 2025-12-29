@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, computed } from "vue";
 import { useWorldbookStore } from "../../worldbookStore";
 import { importSTWorldbook } from "../../services/worldbookImportService";
+import { exportWorldbook, exportWorldbooksBatch } from "../../services/worldbookExportService";
 import { customMessage } from "@/utils/customMessage";
 import {
   Book,
@@ -20,8 +21,6 @@ import DropZone from "@/components/common/DropZone.vue";
 import WorldbookDetail from "./WorldbookDetail.vue";
 import { useElementSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 
 const worldbookStore = useWorldbookStore();
 const selectedWbId = ref<string | null>(null);
@@ -155,27 +154,9 @@ const handleDelete = async () => {
     customMessage.error("删除失败");
   }
 };
-
 const handleExport = async () => {
   if (!selectedWbId.value) return;
-  const wb = worldbookStore.worldbooks.find((w) => w.id === selectedWbId.value);
-  if (!wb) return;
-
-  try {
-    const content = await worldbookStore.getWorldbookContent(wb.id);
-    if (!content) throw new Error("内容为空");
-
-    const blob = new Blob([JSON.stringify(content, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${wb.name}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    customMessage.success("导出成功");
-  } catch (error) {
-    customMessage.error("导出失败");
-  }
+  await exportWorldbook(selectedWbId.value);
 };
 
 // --- 批量操作逻辑 ---
@@ -236,46 +217,10 @@ const handleBatchDelete = async () => {
 
 const handleBatchExport = async () => {
   if (selectedIds.value.size === 0) return;
-  const loading = customMessage.info({
-    message: "正在准备导出...",
-    duration: 0,
-  });
-
-  try {
-    const zip = new JSZip();
-    const ids = Array.from(selectedIds.value);
-    let successCount = 0;
-
-    for (const id of ids) {
-      const wbMeta = worldbookStore.worldbooks.find((w) => w.id === id);
-      if (!wbMeta) continue;
-
-      const content = await worldbookStore.getWorldbookContent(id);
-      if (content) {
-        // 处理文件名非法字符
-        const safeName = wbMeta.name.replace(/[\\/:*?"<>|]/g, "_");
-        zip.file(`${safeName}.json`, JSON.stringify(content, null, 2));
-        successCount++;
-      }
-    }
-
-    if (successCount === 0) {
-      throw new Error("没有可导出的内容");
-    }
-
-    const content = await zip.generateAsync({ type: "blob" });
-    const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
-    saveAs(content, `worldbooks_export_${dateStr}.zip`);
-
-    loading.close();
-    customMessage.success(`成功导出 ${successCount} 本世界书`);
-    isSelectionMode.value = false;
-    selectedIds.value.clear();
-  } catch (error) {
-    loading.close();
-    customMessage.error("批量导出失败");
-    console.error(error);
-  }
+  const ids = Array.from(selectedIds.value);
+  await exportWorldbooksBatch(ids);
+  isSelectionMode.value = false;
+  selectedIds.value.clear();
 };
 </script>
 

@@ -311,6 +311,10 @@ export const injectionAssembler: ContextProcessor = {
     const allPresetMessages = agentConfig.presetMessages || [];
     const modelId = agentConfig.modelId;
 
+    // 准备模型和渠道信息
+    const modelInfo = context.sharedData.get("model") as LlmModelInfo | undefined;
+    const profileInfo = context.sharedData.get("profile") as LlmProfile | undefined;
+
     // 根据模型匹配规则等动态调整预设消息的启用状态
     const presetMessages = allPresetMessages.map((msg) => {
       // 如果消息本身已被禁用，则直接返回
@@ -318,24 +322,42 @@ export const injectionAssembler: ContextProcessor = {
         return msg;
       }
 
-      // 检查模型匹配规则
+      // 检查模型/渠道匹配规则
       if (msg.modelMatch?.enabled && msg.modelMatch.patterns.length > 0) {
         const isMatch = msg.modelMatch.patterns.some((pattern) => {
           try {
             const regex = new RegExp(pattern, "i");
+
+            // 1. 尝试匹配模型显示名称 (modelName)
+            if (modelInfo?.name && regex.test(modelInfo.name)) {
+              return true;
+            }
+
+            // 2. 尝试匹配模型 ID (modelId)
             let modelIdPart = modelId;
             const colonIndex = modelId.indexOf(":");
             if (colonIndex !== -1) {
               modelIdPart = modelId.substring(colonIndex + 1);
             }
-            if (!modelIdPart) return false;
+            
+            if (modelIdPart && regex.test(modelIdPart)) {
+              return true;
+            }
 
-            if (regex.test(modelIdPart)) return true;
+            // 3. 尝试匹配模型 ID 的最后一段 (如斜杠后的部分)
+            if (modelIdPart) {
+              const slashIndex = modelIdPart.lastIndexOf("/");
+              if (slashIndex !== -1) {
+                const pureModelNamePart = modelIdPart.substring(slashIndex + 1);
+                if (pureModelNamePart && regex.test(pureModelNamePart)) return true;
+              }
+            }
 
-            const slashIndex = modelIdPart.lastIndexOf("/");
-            if (slashIndex !== -1) {
-              const pureModelName = modelIdPart.substring(slashIndex + 1);
-              if (pureModelName && regex.test(pureModelName)) return true;
+            // 4. 尝试匹配渠道名称 (Profile Name)
+            if (msg.modelMatch?.matchProfileName && profileInfo?.name) {
+              if (regex.test(profileInfo.name)) {
+                return true;
+              }
             }
 
             return false;
@@ -374,10 +396,6 @@ export const injectionAssembler: ContextProcessor = {
 
     // 1. 宏处理 (只处理活动的消息)
     const macroProcessor = new MacroProcessor();
-
-    // 准备模型元数据
-    const modelInfo = context.sharedData.get("model") as LlmModelInfo | undefined;
-    const profileInfo = context.sharedData.get("profile") as LlmProfile | undefined;
 
     const macroContext = buildMacroContext({
       session,

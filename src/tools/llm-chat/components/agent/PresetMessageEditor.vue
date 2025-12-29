@@ -58,69 +58,40 @@
 
         <!-- 模型匹配配置行 -->
         <div class="editor-row model-match-row">
-          <span class="field-label">模型</span>
+          <span class="field-label">过滤</span>
           <div class="model-match-config">
-            <el-switch
-              v-model="modelMatchEnabled"
-              size="small"
-              active-text="仅特定模型生效"
-              inactive-text="所有模型"
-            />
-            <div v-if="modelMatchEnabled" class="model-match-patterns">
-              <el-tooltip placement="top">
-                <template #content>
-                  <div style="max-width: 300px">
-                    <p>输入模型 ID 匹配规则，支持正则表达式。</p>
-                    <p>每行一个规则，满足任意一个即生效。</p>
-                    <p><strong>示例：</strong></p>
-                    <ul style="padding-left: 16px; margin: 4px 0; line-height: 1.6">
-                      <li style="margin-bottom: 4px">
-                        <code
-                          style="
-                            font-family: monospace;
-                            background: rgba(255, 255, 255, 0.1);
-                            padding: 2px 5px;
-                            border-radius: 3px;
-                          "
-                          >deepseek</code
-                        >
-                        - 匹配包含 deepseek 的模型
-                      </li>
-                      <li style="margin-bottom: 4px">
-                        <code
-                          style="
-                            font-family: monospace;
-                            background: rgba(255, 255, 255, 0.1);
-                            padding: 2px 5px;
-                            border-radius: 3px;
-                          "
-                          >^gpt-4</code
-                        >
-                        - 匹配以 gpt-4 开头的模型
-                      </li>
-                      <li>
-                        <code
-                          style="
-                            font-family: monospace;
-                            background: rgba(255, 255, 255, 0.1);
-                            padding: 2px 5px;
-                            border-radius: 3px;
-                          "
-                          >claude.*sonnet</code
-                        >
-                        - 正则匹配
-                      </li>
-                    </ul>
-                  </div>
-                </template>
-                <el-icon class="info-icon" style="margin-right: 8px"><InfoFilled /></el-icon>
-              </el-tooltip>
+            <div class="match-switches">
+              <el-switch v-model="modelMatchEnabled" size="small" active-text="启用匹配过滤" />
+              <template v-if="modelMatchEnabled">
+                <el-divider direction="vertical" />
+                <el-checkbox v-model="matchProfileName" size="small">同时匹配渠道名</el-checkbox>
+
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div style="max-width: 300px">
+                      <p>输入匹配规则，支持正则表达式。</p>
+                      <p>每行一个规则，满足任意一个即生效。</p>
+                      <p><strong>匹配范围：</strong></p>
+                      <ul style="padding-left: 16px; margin: 4px 0; line-height: 1.6">
+                        <li>模型 ID (如 gpt-4o)</li>
+                        <li>模型显示名称 (如 GPT-4o)</li>
+                        <li v-if="matchProfileName">渠道名称 (如 我的本地 Ollama)</li>
+                      </ul>
+                    </div>
+                  </template>
+                  <el-icon class="info-icon" style="margin-left: 4px"><InfoFilled /></el-icon>
+                </el-tooltip>
+              </template>
+            </div>
+
+            <!-- 匹配规则输入框 (换行显示) -->
+            <div v-if="modelMatchEnabled" class="model-match-patterns-area">
               <el-input
                 v-model="modelMatchPatternsText"
                 type="textarea"
                 :rows="2"
-                placeholder="每行一个模型匹配规则（支持正则）"
-                style="flex: 1; max-width: 400px"
+                placeholder="每行一个匹配规则（支持正则）"
+                style="width: 100%; max-width: 600px"
               />
             </div>
           </div>
@@ -361,6 +332,7 @@ interface MessageForm {
   modelMatch?: {
     enabled: boolean;
     patterns: string[];
+    matchProfileName?: boolean;
   };
 }
 
@@ -417,6 +389,7 @@ const orderValue = ref(100);
 
 // 模型匹配配置
 const modelMatchEnabled = ref(false);
+const matchProfileName = ref(false);
 const modelMatchPatternsText = ref("");
 
 // 可用锚点列表
@@ -585,7 +558,7 @@ const processPreviewMacros = async () => {
     const processor = new MacroProcessor();
     // 仅处理不需要复杂上下文的宏
     const result = await processor.process(form.value.content, context);
-    
+
     // 处理资产预览
     previewContent.value = await processMessageAssets(result.output, props.agent);
   } catch (error) {
@@ -666,20 +639,28 @@ const buildInjectionStrategy = (): InjectionStrategy | undefined => {
 /**
  * 从 modelMatch 恢复 UI 状态
  */
-const restoreModelMatch = (modelMatch?: { enabled: boolean; patterns: string[] }) => {
+const restoreModelMatch = (modelMatch?: {
+  enabled: boolean;
+  patterns: string[];
+  matchProfileName?: boolean;
+}) => {
   if (!modelMatch) {
     modelMatchEnabled.value = false;
+    matchProfileName.value = false;
     modelMatchPatternsText.value = "";
     return;
   }
   modelMatchEnabled.value = modelMatch.enabled;
+  matchProfileName.value = modelMatch.matchProfileName || false;
   modelMatchPatternsText.value = modelMatch.patterns.join("\n");
 };
 
 /**
  * 构建 modelMatch 对象
  */
-const buildModelMatch = (): { enabled: boolean; patterns: string[] } | undefined => {
+const buildModelMatch = ():
+  | { enabled: boolean; patterns: string[]; matchProfileName?: boolean }
+  | undefined => {
   if (!modelMatchEnabled.value) {
     return undefined;
   }
@@ -693,6 +674,7 @@ const buildModelMatch = (): { enabled: boolean; patterns: string[] } | undefined
   return {
     enabled: true,
     patterns,
+    matchProfileName: matchProfileName.value,
   };
 };
 
@@ -953,23 +935,28 @@ function handleSave() {
 
 /* 模型匹配配置样式 */
 .model-match-row {
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: flex-start; /* 顶部对齐，因为有换行内容 */
+}
+
+.model-match-row .field-label {
+  margin-top: 4px; /* 标签向下偏移，与其他行垂直居中对齐 */
 }
 
 .model-match-config {
   flex: 1;
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.model-match-patterns {
+.match-switches {
   display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  flex: 1;
+  align-items: center;
+  height: 32px;
+}
+
+.model-match-patterns-area {
+  width: 100%;
 }
 
 /* 注入策略配置样式 */

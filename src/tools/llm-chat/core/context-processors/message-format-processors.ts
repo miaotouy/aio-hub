@@ -61,6 +61,7 @@ export const handleMergeSystemToHead = (
     content: mergedSystemContent,
     sourceType: "merged",
     _mergedSources: systemMessages,
+    _attachments: systemMessages.flatMap(msg => msg._attachments || []),
   };
 
   logger.debug("合并 system 消息", {
@@ -96,6 +97,7 @@ export const handleMergeConsecutiveRoles = (
           content: mergedContent,
           sourceType: "merged",
           _mergedSources: currentGroup,
+          _attachments: currentGroup.flatMap(msg => msg._attachments || []),
         });
       } else {
         result.push(currentGroup[0]);
@@ -113,6 +115,7 @@ export const handleMergeConsecutiveRoles = (
       content: mergedContent,
       sourceType: "merged",
       _mergedSources: currentGroup,
+      _attachments: currentGroup.flatMap(msg => msg._attachments || []),
     });
   } else if (currentGroup.length === 1) {
     result.push(currentGroup[0]);

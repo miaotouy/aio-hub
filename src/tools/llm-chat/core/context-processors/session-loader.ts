@@ -80,8 +80,11 @@ export const sessionLoader: ContextProcessor = {
 
     const messages: ProcessableMessage[] = [];
     for (const node of historyNodes) {
-      // 忽略空消息或只有空白字符的消息
-      if (!node.content.trim()) {
+      // 忽略空消息且没有附件的消息
+      const hasContent = !!node.content.trim();
+      const hasAttachments = !!(node.attachments && node.attachments.length > 0);
+
+      if (!hasContent && !hasAttachments) {
         continue;
       }
       const processableMessage: ProcessableMessage = {

@@ -39,6 +39,14 @@ const exportFormat = ref<"json" | "yaml">("json");
 const exportType = ref<"zip" | "folder" | "file" | "png">("zip");
 const separateFolders = ref(false);
 
+const hasWorldbooks = computed(() => {
+  if (selectedAgentIds.value.length === 0) return false;
+  return selectedAgentIds.value.some((id) => {
+    const agent = agents.value.find((a) => a.id === id);
+    return agent?.worldbookIds && agent.worldbookIds.length > 0;
+  });
+});
+
 // PNG 导出相关状态
 const previewImageSource = ref<"avatar" | "custom">("avatar");
 const customPreviewFile = ref<File | null>(null);
@@ -121,6 +129,10 @@ const handleOpen = () => {
   } else {
     selectedAgentIds.value = agents.value.map((agent) => agent.id);
   }
+
+  // 初始化世界书包含状态
+  includeWorldbooks.value = hasWorldbooks.value;
+
   // 重置状态
   exportType.value = "zip";
   previewImageSource.value = "avatar";
@@ -161,11 +173,13 @@ const singleTargetAgent = computed(() => {
 // 计算 PNG 导出时预览图是否就绪
 const isPngPreviewReady = computed(() => {
   if (exportType.value !== "png") return true;
-  
+
   if (previewImageSource.value === "avatar") {
     // 使用头像时，需要确保单选模式且智能体有头像
     if (!isSingleMode.value) return false;
-    const avatarPath = singleTargetAgent.value ? resolveAvatarPath(singleTargetAgent.value, "agent") : null;
+    const avatarPath = singleTargetAgent.value
+      ? resolveAvatarPath(singleTargetAgent.value, "agent")
+      : null;
     return !!avatarPath;
   } else {
     // 使用自定义图片时，需要确保已上传文件
@@ -291,13 +305,18 @@ const canExport = computed(() => {
           <div class="option-item">
             <el-checkbox
               v-model="includeWorldbooks"
-              label="包含关联的世界书"
-              :disabled="exportType === 'file'"
-            />
+              :disabled="exportType === 'file' || !hasWorldbooks"
+            >
+              包含关联的世界书
+              <span v-if="!hasWorldbooks" class="disabled-reason"> (所选智能体未关联世界书) </span>
+            </el-checkbox>
           </div>
 
           <div class="option-item sub-option" v-if="includeWorldbooks && exportType !== 'file'">
-            <el-checkbox v-model="embedWorldbooks" label="将世界书内嵌到配置文件中 (默认打包为独立文件)" />
+            <el-checkbox
+              v-model="embedWorldbooks"
+              label="将世界书内嵌到配置文件中 (默认打包为独立文件)"
+            />
           </div>
 
           <div class="option-item" v-if="!isSingleMode">
@@ -448,10 +467,16 @@ const canExport = computed(() => {
   margin-bottom: 8px;
 }
 
-.hint-text {
+.hint-text,
+.disabled-reason {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-top: 4px;
+}
+
+.disabled-reason {
+  margin-left: 4px;
+  font-weight: normal;
 }
 
 .custom-upload {

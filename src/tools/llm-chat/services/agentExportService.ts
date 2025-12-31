@@ -74,6 +74,9 @@ export async function exportAgents(
     // 增强文件名过滤，防止路径遍历和非法字符
     const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.\./g, '').trim();
 
+    // 获取智能体的显示名称，优先使用 displayName，回退到 name
+    const getAgentDisplayName = (agent: ChatAgent) => agent.displayName || agent.name;
+
     // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
     if (exportType === 'file' && agents.length > 1) {
       const selected = await open({
@@ -124,7 +127,7 @@ export async function exportAgents(
           ? yaml.dump(exportData)
           : JSON.stringify(exportData, null, 2);
 
-        const uniqueName = getUniqueName(agent.name);
+        const uniqueName = getUniqueName(getAgentDisplayName(agent));
         const fileName = `${uniqueName}.agent.${format}`;
 
         let filePath: string;
@@ -160,11 +163,11 @@ export async function exportAgents(
     const count = agents.length;
 
     if (count === 1) {
-      baseName = sanitizeFilename(agents[0].name);
+      baseName = sanitizeFilename(getAgentDisplayName(agents[0]));
     } else if (count > 1 && count <= 3) {
-      baseName = agents.map(a => sanitizeFilename(a.name)).join(' & ');
+      baseName = agents.map(a => sanitizeFilename(getAgentDisplayName(a))).join(' & ');
     } else if (count > 3) {
-      baseName = `${agents.slice(0, 2).map(a => sanitizeFilename(a.name)).join(' & ')}_等${count}个智能体`;
+      baseName = `${agents.slice(0, 2).map(a => sanitizeFilename(getAgentDisplayName(a))).join(' & ')}_等${count}个智能体`;
     }
 
     // 添加时间戳后缀，方便管理和避免冲突
@@ -208,7 +211,7 @@ export async function exportAgents(
     const worldbookStore = useWorldbookStore();
 
     for (const agent of agents) {
-      const uniqueName = getUniqueFileName(agent.name);
+      const uniqueName = getUniqueFileName(getAgentDisplayName(agent));
       const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgentBase } = agent;
       const exportableAgent: ExportableAgent = { ...exportableAgentBase };
 

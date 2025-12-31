@@ -1055,11 +1055,31 @@ function handleToggleEnabled() {
 // #endregion
 
 // #region 导入导出
+/**
+ * 清理消息对象以用于导出（移除运行时元数据）
+ */
+function cleanMessagesForExport(messages: ChatMessageNode[]): any[] {
+  return messages
+    .filter((m) => !isAnchorType(m.type))
+    .map((m) => {
+      const cloned = JSON.parse(JSON.stringify(toRaw(m)));
+      if (cloned.metadata) {
+        delete cloned.metadata.lastCalcHash;
+        delete cloned.metadata.contentTokens;
+        // 如果 metadata 变空了，直接删掉
+        if (Object.keys(cloned.metadata).length === 0) {
+          delete cloned.metadata;
+        }
+      }
+      return cloned;
+    });
+}
+
 function handleExport(format: "json" | "yaml" = "json") {
   if (localMessages.value.length === 0) {
     return customMessage.warning("没有可导出的预设消息");
   }
-  const dataToExport = toRaw(localMessages.value).filter((m) => !isAnchorType(m.type));
+  const dataToExport = cleanMessagesForExport(localMessages.value);
   let dataStr = "";
   if (format === "yaml") {
     dataStr = yaml.dump(dataToExport);
@@ -1082,7 +1102,7 @@ async function handleCopy(format: "json" | "yaml" = "json") {
     return customMessage.warning("没有可复制的消息");
   }
   try {
-    const dataToExport = toRaw(localMessages.value).filter((m) => !isAnchorType(m.type));
+    const dataToExport = cleanMessagesForExport(localMessages.value);
     let dataStr = "";
     if (format === "yaml") {
       dataStr = yaml.dump(dataToExport);

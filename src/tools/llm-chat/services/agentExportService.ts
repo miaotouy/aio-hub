@@ -8,7 +8,7 @@ import { writeTextFile, writeFile, readFile, exists } from '@tauri-apps/plugin-f
 import { join, appDataDir } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import { formatDateTime } from '@/utils/time';
-import type { ChatAgent } from '../types';
+import type { ChatAgent, ChatMessageNode } from '../types';
 import type { ExportableAgent, AgentExportFile, BundledWorldbook } from '../types/agentImportExport';
 import { embedDataIntoPng } from '@/utils/pngMetadataWriter';
 import { convertArrayBufferToBase64 } from '@/utils/base64';
@@ -28,6 +28,25 @@ export interface ExportAgentsOptions {
   exportType?: 'zip' | 'folder' | 'file' | 'png';
   separateFolders?: boolean;
   previewImage?: File | string; // PNG 导出时的预览图来源
+}
+
+/**
+ * 清理消息节点中的运行时元数据
+ */
+function cleanMessageMetadata(messages?: ChatMessageNode[]): ChatMessageNode[] | undefined {
+  if (!messages) return messages;
+  return messages.map((msg) => {
+    if (!msg.metadata) return msg;
+    // 移除运行时属性
+    const { lastCalcHash: _, contentTokens: __, ...restMetadata } = msg.metadata;
+    const cleanedMsg = { ...msg };
+    if (Object.keys(restMetadata).length > 0) {
+      cleanedMsg.metadata = restMetadata;
+    } else {
+      delete cleanedMsg.metadata;
+    }
+    return cleanedMsg;
+  });
 }
 
 /**
@@ -89,6 +108,11 @@ export async function exportAgents(
       for (const agent of agents) {
         // 使用黑名单模式：排除本地专属字段，其余全部导出
         const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgent } = agent;
+
+        // 清理预设消息中的运行时元数据
+        if (exportableAgent.presetMessages) {
+          exportableAgent.presetMessages = cleanMessageMetadata(exportableAgent.presetMessages);
+        }
 
         const exportData: AgentExportFile = {
           version: 1,
@@ -187,6 +211,11 @@ export async function exportAgents(
       const uniqueName = getUniqueFileName(agent.name);
       const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgentBase } = agent;
       const exportableAgent: ExportableAgent = { ...exportableAgentBase };
+
+      // 清理预设消息中的运行时元数据
+      if (exportableAgent.presetMessages) {
+        exportableAgent.presetMessages = cleanMessageMetadata(exportableAgent.presetMessages) as typeof exportableAgent.presetMessages;
+      }
 
       const agentPrivateDir = await join(await appDataDir(), 'llm-chat', 'agents', agent.id);
 

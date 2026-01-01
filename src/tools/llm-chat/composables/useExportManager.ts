@@ -145,24 +145,35 @@ export function useExportManager() {
     // 在顶部添加参与者信息
     const participants: string[] = [];
 
-    // 查找用户名称
+    // 收集所有参与的用户和智能体
     if (includeUserProfile) {
-      const userNode = messagePath.find(n => n.role === 'user');
-      if (userNode?.metadata?.userProfileName) {
-        participants.push(`用户: ${userNode.metadata.userProfileName}`);
+      const uniqueUsers = new Set<string>();
+      messagePath.forEach(node => {
+        if (node.role === 'user' && node.metadata?.userProfileName) {
+          uniqueUsers.add(node.metadata.userProfileName);
+        }
+      });
+
+      if (uniqueUsers.size > 0) {
+        participants.push(`用户: ${Array.from(uniqueUsers).join(', ')}`);
       }
     }
 
-    // 查找智能体名称
     if (includeAgentInfo) {
-      const assistantNode = messagePath.find(n => n.role === 'assistant');
-      if (assistantNode?.metadata?.agentName) {
-        participants.push(`智能体: ${assistantNode.metadata.agentName}`);
+      const uniqueAgents = new Set<string>();
+      messagePath.forEach(node => {
+        if (node.role === 'assistant' && node.metadata?.agentName) {
+          uniqueAgents.add(node.metadata.agentName);
+        }
+      });
+
+      if (uniqueAgents.size > 0) {
+        participants.push(`智能体: ${Array.from(uniqueAgents).join(', ')}`);
       }
     }
 
     if (participants.length > 0) {
-      lines.push(`对话参与者：${participants.join(' & ')}`);
+      lines.push(`对话参与者：${participants.join(' | ')}`);
     }
 
     lines.push("");

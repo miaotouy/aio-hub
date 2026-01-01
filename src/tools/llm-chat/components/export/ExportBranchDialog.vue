@@ -11,23 +11,30 @@
         <!-- 导出信息摘要 -->
         <div class="export-summary">
           <div class="summary-item summary-item-full">
-            <span class="summary-label">智能体:</span>
-            <span class="summary-value">
-              <Avatar
-                v-if="currentAgent?.icon"
-                :src="agentAvatarSrc || ''"
-                :alt="currentAgent.name!"
-                :size="24"
-                shape="square"
-                :radius="4"
-                :border="false"
-              />
-              <span class="agent-name">{{ currentAgent?.name || "未知" }}</span>
-            </span>
+            <span class="summary-label">参与智能体:</span>
+            <div class="summary-value agents-list">
+              <div
+                v-for="agent in participatingAgents"
+                :key="agent.id || agent.name"
+                class="agent-item"
+              >
+                <Avatar
+                  v-if="agent.icon"
+                  :src="agent.avatarSrc || ''"
+                  :alt="agent.name!"
+                  :size="20"
+                  shape="square"
+                  :radius="4"
+                  :border="false"
+                />
+                <span class="agent-name">{{ agent.name || "未知" }}</span>
+              </div>
+              <span v-if="participatingAgents.length === 0" class="agent-name">未知</span>
+            </div>
           </div>
-          <div class="summary-item" v-if="modelInfo">
-            <span class="summary-label">模型:</span>
-            <span class="summary-value">{{ modelInfo.name || modelInfo.id }}</span>
+          <div class="summary-item" v-if="participatingModels.length > 0">
+            <span class="summary-label">涉及模型:</span>
+            <span class="summary-value">{{ participatingModels.join(", ") }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">对话消息:</span>
@@ -100,12 +107,35 @@
               <h4>内容预览</h4>
               <span class="preview-stats">{{ previewStats }}</span>
             </div>
+            <div class="header-actions">
+              <el-button-group>
+                <el-tooltip v-if="exportFormat === 'markdown'" content="切换视图" placement="top">
+                  <el-button
+                    size="small"
+                    :icon="viewMode === 'preview' ? Code : Book"
+                    @click="toggleViewMode"
+                  />
+                </el-tooltip>
+                <el-tooltip content="复制内容" placement="top">
+                  <el-button size="small" :icon="Copy" @click="handleCopy" />
+                </el-tooltip>
+              </el-button-group>
+            </div>
           </div>
           <div class="preview-content">
-            <DocumentViewer
+            <RichTextRenderer
+              v-if="exportFormat === 'markdown' && viewMode === 'preview'"
               :content="previewContent"
-              :file-name="previewFileName"
-              class="preview-viewer"
+              :version="RendererVersion.V2_CUSTOM_PARSER"
+              :resolve-asset="resolveAsset"
+              class="markdown-preview"
+            />
+            <RichCodeEditor
+              v-else
+              :model-value="previewContent"
+              :language="previewLanguage"
+              :read-only="true"
+              class="code-preview"
             />
           </div>
         </div>
@@ -121,15 +151,27 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ElCheckbox, ElButton, ElRadioGroup, ElRadioButton } from "element-plus";
+import {
+  ElCheckbox,
+  ElButton,
+  ElRadioGroup,
+  ElRadioButton,
+  ElButtonGroup,
+  ElTooltip,
+} from "element-plus";
+import { Copy, Book, Code } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import DocumentViewer from "@/components/common/DocumentViewer.vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import type { ChatSession, ChatMessageNode } from "../../types";
 import { useExportManager } from "../../composables/useExportManager";
 import { useAgentStore } from "../../agentStore";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
+import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
+import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
+import { customMessage } from "@/utils/customMessage";
+import { useClipboard } from "@vueuse/core";
 
 interface Props {
   visible: boolean;
@@ -170,6 +212,7 @@ const localVisible = computed({
 
 // 导出格式
 const exportFormat = ref<"markdown" | "json" | "raw">("markdown");
+const viewMode = ref<"preview" | "source">("preview");
 
 // 细粒度的导出选项
 const includePreset = ref(false);
@@ -184,50 +227,98 @@ const includeErrors = ref(true);
 const exporting = ref(false);
 
 const agentStore = useAgentStore();
-const { getProfileById } = useLlmProfiles();
+const { copy } = useClipboard();
+const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
 
-// 获取当前智能体信息
-const currentAgent = computed(() => {
-  if (!agentStore.currentAgentId) return null;
-  return agentStore.getAgentById(agentStore.currentAgentId);
-});
-
-const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
-
-// 获取模型信息
-const modelInfo = computed(() => {
-  if (!currentAgent.value) return null;
-  const profile = getProfileById(currentAgent.value.profileId);
-  if (!profile) return null;
-  return profile.models.find((m) => m.id === currentAgent.value!.modelId);
-});
-
-// 计算分支路径中的消息数量
-const branchMessageCount = computed(() => {
-  if (!props.session) return 0;
-
-  let count = 0;
+// 计算路径中的所有参与节点
+const pathNodes = computed(() => {
+  if (!props.session || !props.messageId) return [];
+  const nodes: ChatMessageNode[] = [];
   let currentId: string | null = props.messageId;
-
   while (currentId !== null) {
     const node: ChatMessageNode | undefined = props.session.nodes[currentId];
     if (!node) break;
     if (node.id !== props.session.rootNodeId) {
-      count++;
+      nodes.unshift(node);
     }
     currentId = node.parentId;
   }
-
-  return count;
+  return nodes;
 });
+
+// 获取所有参与的智能体信息
+const participatingAgents = computed(() => {
+  const agentsMap = new Map<
+    string,
+    { id?: string; name: string; icon?: string; avatarSrc: string | null }
+  >();
+
+  pathNodes.value.forEach((node) => {
+    if (node.role === "assistant" && node.metadata) {
+      const agentName = node.metadata.agentName || "未知助手";
+      const agentId = node.metadata.agentId;
+      const key = agentId || agentName;
+
+      if (!agentsMap.has(key)) {
+        // 使用 resolveAvatarPath 纯函数解析头像路径
+        const entity = agentId ? { id: agentId, icon: node.metadata.agentIcon } : null;
+        const avatarSrc = entity ? resolveAvatarPath(entity, "agent") : null;
+
+        agentsMap.set(key, {
+          id: agentId,
+          name: agentName,
+          icon: node.metadata.agentIcon,
+          avatarSrc,
+        });
+      }
+    }
+  });
+
+  const result = Array.from(agentsMap.values());
+
+  // 如果路径中没有智能体信息，回退到当前智能体（如果是正在进行的会话导出）
+  if (result.length === 0 && agentStore.currentAgentId) {
+    const current = agentStore.getAgentById(agentStore.currentAgentId);
+    if (current) {
+      const avatarSrc = resolveAvatarPath(current, "agent");
+      return [
+        {
+          id: current.id,
+          name: current.name || "未知",
+          icon: current.icon,
+          avatarSrc,
+        },
+      ];
+    }
+  }
+
+  return result;
+});
+
+// 获取所有涉及的模型信息
+const participatingModels = computed(() => {
+  const models = new Set<string>();
+  pathNodes.value.forEach((node) => {
+    if (node.role === "assistant" && node.metadata) {
+      if (node.metadata.modelName) {
+        models.add(node.metadata.modelName);
+      } else if (node.metadata.modelId) {
+        models.add(node.metadata.modelId);
+      }
+    }
+  });
+  return Array.from(models);
+});
+
+// 计算分支路径中的消息数量
+const branchMessageCount = computed(() => pathNodes.value.length);
 
 // 生成预览内容
 const previewContent = computed(() => {
-  if (!props.session) {
+  if (!props.session || !props.messageId) {
     return "暂无会话数据";
   }
 
-  const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
   const options: ExportOptions = {
     format: exportFormat.value,
     includePreset: includePreset.value,
@@ -267,6 +358,7 @@ const previewContent = computed(() => {
     );
     return JSON.stringify(jsonData, null, 2);
   } else {
+    // Markdown 导出保持原始协议，不做字符串替换
     return exportBranchAsMarkdown(
       props.session,
       props.messageId,
@@ -275,6 +367,29 @@ const previewContent = computed(() => {
       options
     );
   }
+});
+
+// 资产路径解析钩子：在预览渲染时动态解析 agent-asset://
+const resolveAsset = (content: string) => {
+  let processed = content;
+  // 遍历路径中的所有智能体进行解析
+  participatingAgents.value.forEach((agentInfo) => {
+    if (agentInfo.id) {
+      const agent = agentStore.getAgentById(agentInfo.id);
+      if (agent) {
+        processed = processMessageAssetsSync(processed, agent);
+      }
+    }
+  });
+  return processed;
+};
+
+// 计算预览语言
+const previewLanguage = computed(() => {
+  if (exportFormat.value === "json" || exportFormat.value === "raw") {
+    return "json";
+  }
+  return "markdown";
 });
 
 // 计算预览统计信息
@@ -289,11 +404,14 @@ const previewStats = computed(() => {
   return `${lines} 行 · ${chars} 字符 · ${exportFormat.value.toUpperCase()} 格式`;
 });
 
-const previewFileName = computed(() => {
-  const name = currentAgent.value?.name || "chat-export";
-  const ext = exportFormat.value === "markdown" ? "md" : "json";
-  return `${name}.${ext}`;
-});
+const handleCopy = () => {
+  copy(previewContent.value);
+  customMessage.success("已复制到剪贴板");
+};
+
+const toggleViewMode = () => {
+  viewMode.value = viewMode.value === "preview" ? "source" : "preview";
+};
 
 const handleExport = () => {
   const options: ExportOptions = {
@@ -355,6 +473,17 @@ const handleExport = () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.agents-list {
+  gap: 12px;
+}
+
+.agent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .agent-name {
@@ -491,8 +620,14 @@ const handleExport = () => {
   flex-direction: column;
 }
 
-.preview-viewer {
-  border: none !important;
-  border-radius: 0 !important;
+.markdown-preview {
+  padding: 16px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.code-preview {
+  height: 100%;
+  border: none;
 }
 </style>

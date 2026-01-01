@@ -96,11 +96,17 @@
 
         <div class="preview-section">
           <div class="preview-header">
-            <h4>内容预览</h4>
-            <span class="preview-stats">{{ previewStats }}</span>
+            <div class="header-left">
+              <h4>内容预览</h4>
+              <span class="preview-stats">{{ previewStats }}</span>
+            </div>
           </div>
           <div class="preview-content">
-            <pre>{{ previewContent }}</pre>
+            <DocumentViewer
+              :content="previewContent"
+              :file-name="previewFileName"
+              class="preview-viewer"
+            />
           </div>
         </div>
       </div>
@@ -118,6 +124,7 @@ import { ref, computed } from "vue";
 import { ElCheckbox, ElButton, ElRadioGroup, ElRadioButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import type { ChatSession, ChatMessageNode } from "../../types";
 import { useExportManager } from "../../composables/useExportManager";
 import { useAgentStore } from "../../agentStore";
@@ -279,7 +286,13 @@ const previewStats = computed(() => {
   } else if (exportFormat.value === "json") {
     return `${lines} 行 · ${chars} 字符 · JSON 格式`;
   }
-  return `${lines} 行 · ${chars} 字符 · Markdown 格式`;
+  return `${lines} 行 · ${chars} 字符 · ${exportFormat.value.toUpperCase()} 格式`;
+});
+
+const previewFileName = computed(() => {
+  const name = currentAgent.value?.name || "chat-export";
+  const ext = exportFormat.value === "markdown" ? "md" : "json";
+  return `${name}.${ext}`;
 });
 
 const handleExport = () => {
@@ -436,25 +449,33 @@ const handleExport = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 300px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
+  background-color: var(--card-bg);
 }
 
 .preview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 12px;
   background-color: var(--container-bg);
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .preview-header h4 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-color);
 }
 
@@ -465,18 +486,13 @@ const handleExport = () => {
 
 .preview-content {
   flex: 1;
-  overflow: auto;
-  padding: 12px;
-  background-color: var(--bg-color);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.preview-content pre {
-  margin: 0;
-  font-family: "Courier New", monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-color);
-  white-space: pre-wrap;
-  word-wrap: break-word;
+.preview-viewer {
+  border: none !important;
+  border-radius: 0 !important;
 }
 </style>

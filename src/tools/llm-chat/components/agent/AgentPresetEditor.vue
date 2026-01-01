@@ -1247,13 +1247,14 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 12px 16px;
   border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 12px;
 }
-
 .header-title {
   display: flex;
   align-items: center;
@@ -1266,6 +1267,16 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   margin-left: -8px;
   border-radius: 6px;
   transition: background-color 0.2s;
+  flex: 1;
+  /* 确保标题至少有足够的宽度，不至于竖起来 */
+  min-width: 140px;
+}
+
+.title-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
 }
 
 .header-title:hover {
@@ -1305,12 +1316,29 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
 }
 
 .token-info {
-  margin-left: 12px;
+  margin-left: 8px;
+  flex-shrink: 0;
 }
 
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  /* 按钮组在宽度不足时，作为整体换行 */
+  flex: 2;
+  min-width: 320px;
+}
+
+/* 当屏幕非常窄时，允许标题和按钮组各自占据一行 */
+@media (max-width: 600px) {
+  .header-title {
+    flex: 1 1 100%;
+  }
+  .header-actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
 }
 
 .messages-container {

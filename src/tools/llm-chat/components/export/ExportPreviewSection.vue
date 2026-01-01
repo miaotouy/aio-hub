@@ -7,14 +7,19 @@
       </div>
       <div class="header-actions">
         <el-button-group>
-          <el-tooltip v-if="format === 'markdown'" content="切换视图" placement="top">
+          <el-tooltip
+            v-if="format === 'markdown'"
+            content="切换视图"
+            placement="top"
+            :show-after="500"
+          >
             <el-button
               size="small"
               :icon="viewMode === 'preview' ? Code : Book"
               @click="toggleViewMode"
             />
           </el-tooltip>
-          <el-tooltip content="复制内容" placement="top">
+          <el-tooltip content="复制内容" placement="top" :show-after="500">
             <el-button size="small" :icon="Copy" @click="handleCopy" />
           </el-tooltip>
         </el-button-group>

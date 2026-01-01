@@ -469,6 +469,21 @@ const containerClasses = computed(() => ({
   "is-wide-layout": isWideLayout.value,
   "is-translating": props.isTranslating || !!props.message.metadata?.translation,
 }));
+
+// 元数据响应式提取，确保异步更新能被触发
+const messageMetadata = computed(() => props.message.metadata);
+const showMeta = computed(() => {
+  const metadata = messageMetadata.value;
+  if (!metadata) return false;
+
+  const showToken = settings.value.uiPreferences.showTokenCount;
+  return (
+    (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) || !!metadata.error
+  );
+});
+const usageInfo = computed(() => messageMetadata.value?.usage);
+const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
+const errorMessage = computed(() => messageMetadata.value?.error);
 </script>
 
 <template>
@@ -644,35 +659,22 @@ const containerClasses = computed(() => ({
     </div>
 
     <!-- 元数据 -->
-    <div
-      v-if="
-        (settings.uiPreferences.showTokenCount &&
-          (message.metadata?.usage || message.metadata?.contentTokens !== undefined)) ||
-        message.metadata?.error
-      "
-      class="message-meta"
-    >
+    <div v-if="showMeta" class="message-meta">
       <!-- API 返回的完整 Usage 信息（助手消息） -->
-      <div
-        v-if="settings.uiPreferences.showTokenCount && message.metadata?.usage"
-        class="usage-info"
-      >
-        <span>Token: {{ message.metadata.usage.totalTokens }}</span>
+      <div v-if="settings.uiPreferences.showTokenCount && usageInfo" class="usage-info">
+        <span>Token: {{ usageInfo.totalTokens }}</span>
         <span class="usage-detail">
-          (输入: {{ message.metadata.usage.promptTokens }}, 输出:
-          {{ message.metadata.usage.completionTokens }})
+          (输入: {{ usageInfo.promptTokens }}, 输出: {{ usageInfo.completionTokens }})
         </span>
       </div>
       <!-- 本地计算的单条消息 Token（用户消息） -->
       <div
-        v-else-if="
-          settings.uiPreferences.showTokenCount && message.metadata?.contentTokens !== undefined
-        "
+        v-else-if="settings.uiPreferences.showTokenCount && contentTokensValue !== undefined"
         class="usage-info"
       >
-        <span>本条消息: {{ message.metadata.contentTokens.toLocaleString("en-US") }} tokens</span>
+        <span>本条消息: {{ contentTokensValue.toLocaleString("en-US") }} tokens</span>
       </div>
-      <div v-if="message.metadata?.error" class="error-info">
+      <div v-if="errorMessage" class="error-info">
         <el-button
           @click="copyError"
           class="error-copy-btn"
@@ -682,7 +684,7 @@ const containerClasses = computed(() => ({
           size="small"
           text
         />
-        <span class="error-text"> {{ message.metadata.error }}</span>
+        <span class="error-text"> {{ errorMessage }}</span>
       </div>
     </div>
 

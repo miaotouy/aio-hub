@@ -216,10 +216,10 @@ const handleExport = async () => {
 
     const isJson = exportFormat.value === "json" || exportFormat.value === "raw";
     const extension = isJson ? "json" : "md";
-    const sessionName = props.session.name || "未命名会话";
-    // 对整个文件名主体进行清理，确保万无一失
-    const safeFileNameBody = sanitizeFilename(`${sessionName}-${timestamp}`);
-    const defaultFileName = `${safeFileNameBody}.${extension}`;
+
+    // 对会话名称和时间戳分别清理并合并，确保万无一失
+    const safeSessionName = sanitizeFilename(props.session.name || "未命名会话");
+    const defaultFileName = `${safeSessionName}-${timestamp}.${extension}`;
 
     // 打开保存对话框
     const filePath = await save({

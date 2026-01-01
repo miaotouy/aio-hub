@@ -43,6 +43,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
 import { formatDateTime } from "@/utils/time";
+import { sanitizeFilename } from "@/utils/fileUtils";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 import MessageDataEditor from "./MessageDataEditor.vue";
 
@@ -398,7 +399,9 @@ const handleExportBranch = async (options: ExportOptions) => {
     // 保存文件 (使用本地时间)
     const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
 
-    const defaultName = `${session.name}-分支-${timestamp}.${fileExtension}`;
+    // 清理文件名，确保 Windows 下可用
+    const safeSessionName = sanitizeFilename(session.name || "未命名会话");
+    const defaultName = `${safeSessionName}-分支-${timestamp}.${fileExtension}`;
 
     const filePath = await save({
       defaultPath: defaultName,

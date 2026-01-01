@@ -46,99 +46,24 @@
           </div>
         </div>
 
-        <div class="export-options">
-          <div class="options-section">
-            <div class="section-title">导出格式</div>
-            <el-radio-group v-model="exportFormat" class="format-group">
-              <el-radio-button value="markdown">Markdown</el-radio-button>
-              <el-radio-button value="json">JSON</el-radio-button>
-              <el-radio-button value="raw">Raw (JSON)</el-radio-button>
-            </el-radio-group>
-          </div>
+        <ExportOptionsPanel
+          v-model:format="exportFormat"
+          v-model:include-preset="includePreset"
+          v-model:merge-preset-into-messages="mergePresetIntoMessages"
+          v-model:include-user-profile="includeUserProfile"
+          v-model:include-agent-info="includeAgentInfo"
+          v-model:include-model-info="includeModelInfo"
+          v-model:include-token-usage="includeTokenUsage"
+          v-model:include-attachments="includeAttachments"
+          v-model:include-errors="includeErrors"
+          :preset-count="presetCount"
+        />
 
-          <div class="options-section">
-            <div class="section-title">包含内容</div>
-            <div class="options-grid">
-              <el-checkbox v-model="includePreset" class="option-checkbox">
-                <span class="option-label">
-                  智能体预设消息
-                  <span v-if="presetCount > 0" class="option-hint">（{{ presetCount }} 条）</span>
-                </span>
-              </el-checkbox>
-
-              <el-checkbox
-                v-model="mergePresetIntoMessages"
-                class="option-checkbox"
-                :disabled="!includePreset"
-              >
-                <span class="option-label"> 合并预设到消息列表 </span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeUserProfile" class="option-checkbox">
-                <span class="option-label">用户档案信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeAgentInfo" class="option-checkbox">
-                <span class="option-label">智能体信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeModelInfo" class="option-checkbox">
-                <span class="option-label">模型信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeTokenUsage" class="option-checkbox">
-                <span class="option-label">Token 用量</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeAttachments" class="option-checkbox">
-                <span class="option-label">附件信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeErrors" class="option-checkbox">
-                <span class="option-label">错误信息</span>
-              </el-checkbox>
-            </div>
-          </div>
-        </div>
-
-        <div class="preview-section">
-          <div class="preview-header">
-            <div class="header-left">
-              <h4>内容预览</h4>
-              <span class="preview-stats">{{ previewStats }}</span>
-            </div>
-            <div class="header-actions">
-              <el-button-group>
-                <el-tooltip v-if="exportFormat === 'markdown'" content="切换视图" placement="top">
-                  <el-button
-                    size="small"
-                    :icon="viewMode === 'preview' ? Code : Book"
-                    @click="toggleViewMode"
-                  />
-                </el-tooltip>
-                <el-tooltip content="复制内容" placement="top">
-                  <el-button size="small" :icon="Copy" @click="handleCopy" />
-                </el-tooltip>
-              </el-button-group>
-            </div>
-          </div>
-          <div class="preview-content">
-            <RichTextRenderer
-              v-if="exportFormat === 'markdown' && viewMode === 'preview'"
-              :content="previewContent"
-              :version="RendererVersion.V2_CUSTOM_PARSER"
-              :resolve-asset="resolveAsset"
-              class="markdown-preview"
-            />
-            <RichCodeEditor
-              v-else
-              :model-value="previewContent"
-              :language="previewLanguage"
-              :read-only="true"
-              class="code-preview"
-            />
-          </div>
-        </div>
+        <ExportPreviewSection
+          :content="previewContent"
+          :format="exportFormat"
+          :resolve-asset="resolveAsset"
+        />
       </div>
     </template>
 
@@ -151,27 +76,16 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import {
-  ElCheckbox,
-  ElButton,
-  ElRadioGroup,
-  ElRadioButton,
-  ElButtonGroup,
-  ElTooltip,
-} from "element-plus";
-import { Copy, Book, Code } from "lucide-vue-next";
+import { ElButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import ExportOptionsPanel from "./ExportOptionsPanel.vue";
+import ExportPreviewSection from "./ExportPreviewSection.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
-import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import type { ChatSession, ChatMessageNode } from "../../types";
 import { useExportManager } from "../../composables/useExportManager";
 import { useAgentStore } from "../../agentStore";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
-import { customMessage } from "@/utils/customMessage";
-import { useClipboard } from "@vueuse/core";
 
 interface Props {
   visible: boolean;
@@ -212,7 +126,6 @@ const localVisible = computed({
 
 // 导出格式
 const exportFormat = ref<"markdown" | "json" | "raw">("markdown");
-const viewMode = ref<"preview" | "source">("preview");
 
 // 细粒度的导出选项
 const includePreset = ref(false);
@@ -227,7 +140,6 @@ const includeErrors = ref(true);
 const exporting = ref(false);
 
 const agentStore = useAgentStore();
-const { copy } = useClipboard();
 const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
 
 // 计算路径中的所有参与节点
@@ -384,35 +296,6 @@ const resolveAsset = (content: string) => {
   return processed;
 };
 
-// 计算预览语言
-const previewLanguage = computed(() => {
-  if (exportFormat.value === "json" || exportFormat.value === "raw") {
-    return "json";
-  }
-  return "markdown";
-});
-
-// 计算预览统计信息
-const previewStats = computed(() => {
-  const lines = previewContent.value.split("\n").length;
-  const chars = previewContent.value.length;
-  if (exportFormat.value === "raw") {
-    return `${lines} 行 · ${chars} 字符 · Raw JSON 格式`;
-  } else if (exportFormat.value === "json") {
-    return `${lines} 行 · ${chars} 字符 · JSON 格式`;
-  }
-  return `${lines} 行 · ${chars} 字符 · ${exportFormat.value.toUpperCase()} 格式`;
-});
-
-const handleCopy = () => {
-  copy(previewContent.value);
-  customMessage.success("已复制到剪贴板");
-};
-
-const toggleViewMode = () => {
-  viewMode.value = viewMode.value === "preview" ? "source" : "preview";
-};
-
 const handleExport = () => {
   const options: ExportOptions = {
     format: exportFormat.value,
@@ -490,144 +373,4 @@ const handleExport = () => {
   font-weight: 500;
 }
 
-.export-options {
-  flex-shrink: 0;
-  padding: 12px;
-  background-color: var(--container-bg);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.options-header {
-  margin-bottom: 12px;
-}
-
-.options-header h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.options-section {
-  margin-bottom: 16px;
-}
-
-.options-section:last-child {
-  margin-bottom: 0;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-color);
-  margin-bottom: 8px;
-}
-
-.format-group {
-  display: flex;
-  gap: 8px;
-}
-
-.format-group :deep(.el-radio-button) {
-  .el-radio-button__inner {
-    border: 1px solid var(--border-color);
-    border-radius: 4px !important;
-    padding: 5px 15px;
-  }
-
-  &:not(:last-child) .el-radio-button__inner {
-    border-right: 1px solid var(--border-color);
-  }
-
-  &.is-active .el-radio-button__inner {
-    border-color: var(--el-color-primary);
-    background-color: var(--el-color-primary);
-    color: var(--el-color-white);
-  }
-
-  &:hover .el-radio-button__inner {
-    border-color: var(--el-color-primary);
-  }
-}
-
-.options-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-}
-
-.option-checkbox {
-  display: flex;
-  align-items: flex-start;
-}
-
-.option-label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 13px;
-}
-
-.option-hint {
-  color: var(--text-color-light);
-  font-size: 12px;
-}
-
-.preview-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-  background-color: var(--card-bg);
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 12px;
-  background-color: var(--container-bg);
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.preview-header h4 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.preview-stats {
-  font-size: 12px;
-  color: var(--text-color-light);
-}
-
-.preview-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.markdown-preview {
-  padding: 16px;
-  overflow-y: auto;
-  height: 100%;
-}
-
-.code-preview {
-  height: 100%;
-  border: none;
-}
 </style>

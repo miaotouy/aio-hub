@@ -32,55 +32,22 @@
           </div>
         </div>
 
-        <div class="export-options">
-          <div class="options-section">
-            <div class="section-title">导出格式</div>
-            <el-radio-group v-model="exportFormat" class="format-group">
-              <el-radio-button value="markdown">Markdown (树状)</el-radio-button>
-              <el-radio-button value="json">JSON</el-radio-button>
-              <el-radio-button value="raw">Raw (JSON)</el-radio-button>
-            </el-radio-group>
-          </div>
+        <ExportOptionsPanel
+          v-model:format="exportFormat"
+          v-model:include-user-profile="includeUserProfile"
+          v-model:include-agent-info="includeAgentInfo"
+          v-model:include-model-info="includeModelInfo"
+          v-model:include-token-usage="includeTokenUsage"
+          v-model:include-attachments="includeAttachments"
+          v-model:include-errors="includeErrors"
+          is-session
+        />
 
-          <div class="options-section">
-            <div class="section-title">包含内容</div>
-            <div class="options-grid">
-              <el-checkbox v-model="includeUserProfile" class="option-checkbox">
-                <span class="option-label">用户档案信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeAgentInfo" class="option-checkbox">
-                <span class="option-label">智能体信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeModelInfo" class="option-checkbox">
-                <span class="option-label">模型信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeTokenUsage" class="option-checkbox">
-                <span class="option-label">Token 用量</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeAttachments" class="option-checkbox">
-                <span class="option-label">附件信息</span>
-              </el-checkbox>
-
-              <el-checkbox v-model="includeErrors" class="option-checkbox">
-                <span class="option-label">错误信息</span>
-              </el-checkbox>
-            </div>
-          </div>
-        </div>
-
-        <div class="preview-section">
-          <div class="preview-header">
-            <h4>内容预览</h4>
-            <span class="preview-stats">{{ previewStats }}</span>
-          </div>
-          <div class="preview-content">
-            <pre>{{ previewContent }}</pre>
-          </div>
-        </div>
+        <ExportPreviewSection
+          :content="previewContent"
+          :format="exportFormat"
+          :resolve-asset="resolveAsset"
+        />
       </div>
     </template>
 
@@ -93,10 +60,15 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ElCheckbox, ElButton, ElRadioGroup, ElRadioButton } from "element-plus";
+import { ElButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import ExportOptionsPanel from "./ExportOptionsPanel.vue";
+import ExportPreviewSection from "./ExportPreviewSection.vue";
 import type { ChatSession } from "../../types";
 import { useExportManager } from "../../composables/useExportManager";
+import { useAgentStore } from "../../agentStore";
+import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
+import { sanitizeFilename } from "@/utils/fileUtils";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
@@ -143,6 +115,7 @@ const includeErrors = ref(true);
 
 const exporting = ref(false);
 const errorHandler = createModuleErrorHandler("LlmChat/ExportSessionDialog");
+const agentStore = useAgentStore();
 
 // 格式化日期
 const formatDate = (timestamp?: string) => {
@@ -206,17 +179,28 @@ const previewContent = computed(() => {
   }
 });
 
-// 计算预览统计信息
-const previewStats = computed(() => {
-  const lines = previewContent.value.split("\n").length;
-  const chars = previewContent.value.length;
-  if (exportFormat.value === "raw") {
-    return `${lines} 行 · ${chars} 字符 · Raw JSON 格式`;
-  } else if (exportFormat.value === "json") {
-    return `${lines} 行 · ${chars} 字符 · JSON 格式`;
-  }
-  return `${lines} 行 · ${chars} 字符 · Markdown 格式`;
-});
+// 资产路径解析钩子
+const resolveAsset = (content: string) => {
+  if (!props.session) return content;
+  let processed = content;
+
+  // 收集会话中涉及的所有智能体
+  const agentIds = new Set<string>();
+  Object.values(props.session.nodes).forEach((node) => {
+    if (node.role === "assistant" && node.metadata?.agentId) {
+      agentIds.add(node.metadata.agentId);
+    }
+  });
+
+  agentIds.forEach((id) => {
+    const agent = agentStore.getAgentById(id);
+    if (agent) {
+      processed = processMessageAssetsSync(processed, agent);
+    }
+  });
+
+  return processed;
+};
 
 const handleExport = async () => {
   if (!props.session) {
@@ -232,7 +216,10 @@ const handleExport = async () => {
 
     const isJson = exportFormat.value === "json" || exportFormat.value === "raw";
     const extension = isJson ? "json" : "md";
-    const defaultFileName = `${props.session.name}-${timestamp}.${extension}`;
+    const sessionName = props.session.name || "未命名会话";
+    // 对整个文件名主体进行清理，确保万无一失
+    const safeFileNameBody = sanitizeFilename(`${sessionName}-${timestamp}`);
+    const defaultFileName = `${safeFileNameBody}.${extension}`;
 
     // 打开保存对话框
     const filePath = await save({
@@ -306,132 +293,5 @@ const handleExport = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.export-options {
-  flex-shrink: 0;
-  padding: 12px;
-  background-color: var(--container-bg);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.options-header {
-  margin-bottom: 12px;
-}
-
-.options-header h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.options-section {
-  margin-bottom: 16px;
-}
-
-.options-section:last-child {
-  margin-bottom: 0;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-color);
-  margin-bottom: 8px;
-}
-
-.format-group {
-  display: flex;
-  gap: 8px;
-}
-
-.format-group :deep(.el-radio-button) {
-  .el-radio-button__inner {
-    border: 1px solid var(--border-color);
-    border-radius: 4px !important;
-    padding: 5px 15px;
-  }
-
-  &:not(:last-child) .el-radio-button__inner {
-    border-right: 1px solid var(--border-color);
-  }
-
-  &.is-active .el-radio-button__inner {
-    border-color: var(--el-color-primary);
-    background-color: var(--el-color-primary);
-    color: var(--el-color-white);
-  }
-
-  &:hover .el-radio-button__inner {
-    border-color: var(--el-color-primary);
-  }
-}
-
-.options-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-}
-
-.option-checkbox {
-  display: flex;
-  align-items: flex-start;
-}
-
-.option-label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 13px;
-}
-
-.preview-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background-color: var(--container-bg);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.preview-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.preview-stats {
-  font-size: 12px;
-  color: var(--text-color-light);
-}
-
-.preview-content {
-  flex: 1;
-  overflow: auto;
-  padding: 12px;
-  background-color: var(--bg-color);
-}
-
-.preview-content pre {
-  margin: 0;
-  font-family: "Courier New", monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-color);
-  white-space: pre-wrap;
-  word-wrap: break-word;
 }
 </style>

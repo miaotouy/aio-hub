@@ -12,6 +12,7 @@ import type { ChatAgent, ChatMessageNode } from '../types';
 import type { ExportableAgent, AgentExportFile, BundledWorldbook } from '../types/agentImportExport';
 import { embedDataIntoPng } from '@/utils/pngMetadataWriter';
 import { convertArrayBufferToBase64 } from '@/utils/base64';
+import { sanitizeFilename } from '@/utils/fileUtils';
 import { useWorldbookStore } from '../worldbookStore';
 
 const logger = createModuleLogger('llm-chat/agentExportService');
@@ -70,9 +71,6 @@ export async function exportAgents(
     const format = options.format || 'json';
     const exportType = options.exportType || 'zip';
     const timestamp = formatDateTime(new Date(), 'yyyyMMdd_HHmmss');
-
-    // 增强文件名过滤，防止路径遍历和非法字符
-    const sanitizeFilename = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.\./g, '').trim();
 
     // 获取智能体的显示名称，优先使用 displayName，回退到 name
     const getAgentDisplayName = (agent: ChatAgent) => agent.displayName || agent.name;

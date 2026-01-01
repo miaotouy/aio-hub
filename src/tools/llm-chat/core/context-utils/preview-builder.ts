@@ -62,9 +62,10 @@ export async function buildPreviewDataFromContext(
 
   const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
 
-  // 获取转写设置
+  // 获取转写设置和转写管理器（提升到外层避免重复调用）
   const { settings } = useChatSettings();
   const transcriptionConfig = settings.value.transcription;
+  const transcriptionManager = useTranscriptionManager();
 
   // 计算每条消息的深度映射（用于判断强制转写）
   // 深度 = 总消息数 - 1 - 当前索引（最后一条消息深度为 0）
@@ -224,7 +225,6 @@ export async function buildPreviewDataFromContext(
         [];
       let attachmentsTokenCount = 0;
       let attachmentsIsEstimated = false;
-      const transcriptionManager = useTranscriptionManager();
 
       for (const asset of mediaAttachments) {
         let tokenCount: number | undefined;
@@ -342,7 +342,6 @@ export async function buildPreviewDataFromContext(
           error,
         });
       }
-
 
       const totalNodeTokenCount = textTokenCount + attachmentsTokenCount;
       if (textIsEstimated || attachmentsIsEstimated) isEstimated = true;

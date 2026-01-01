@@ -249,7 +249,7 @@ export function useChatExecutor() {
         ...(effectiveUserProfile?.worldbookIds || []),
         ...(executionAgent.worldbookIds || [])
       ]));
-      
+
       if (worldbookStore && allWorldbookIds.length > 0) {
         const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
         pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
@@ -467,14 +467,14 @@ export function useChatExecutor() {
             error: error instanceof Error ? error.message : String(error),
           });
         }
-      }
 
-      logger.info("请求执行成功", {
-        sessionId: session.id,
-        assistantNodeId: assistantNode.id,
-        messageLength: response.content.length,
-        usage: response.usage,
-      });
+        logger.info("请求执行成功", {
+          sessionId: session.id,
+          assistantNodeId: assistantNode.id,
+          messageLength: response.content.length,
+          usage: response.usage,
+        });
+      }
 
       const { shouldAutoName, generateTopicName } = useTopicNamer();
       if (shouldAutoName(session)) {
@@ -847,7 +847,7 @@ export function useChatExecutor() {
       ...(effectiveUserProfile?.worldbookIds || []),
       ...(executionAgent.worldbookIds || [])
     ]));
-    
+
     if (worldbookStore && allWorldbookIds.length > 0) {
       const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
       pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
@@ -888,8 +888,8 @@ export function useChatExecutor() {
 
         const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
           allAttachments,
-          agentConfigSnippet.modelId,
-          agentConfigSnippet.profileId,
+          effectiveModelId,
+          effectiveProfileId,
           forceAssetIds.size > 0 ? forceAssetIds : undefined
         );
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);

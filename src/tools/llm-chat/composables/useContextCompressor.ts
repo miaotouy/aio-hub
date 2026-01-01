@@ -357,18 +357,27 @@ export function useContextCompressor() {
    * @returns 是否执行了压缩
    */
   /**
+   * 压缩执行结果统计
+   */
+  interface CompressionResult {
+    success: boolean;
+    messageCount?: number;
+    savedTokenCount?: number;
+  }
+
+  /**
    * 检查并执行压缩
-   * @returns 是否执行了压缩
+   * @returns 压缩执行结果
    */
   const checkAndCompress = async (
     session: ChatSession,
     config?: ContextCompressionConfig
-  ): Promise<boolean> => {
+  ): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig(config);
 
     // 检查是否启用
     if (!effectiveConfig.enabled) {
-      return false;
+      return { success: false };
     }
 
     // 2. 获取路径并计算统计
@@ -377,7 +386,7 @@ export function useContextCompressor() {
 
     // 3. 判断是否需要压缩
     if (!shouldCompress(contextStats, effectiveConfig)) {
-      return false;
+      return { success: false };
     }
 
     logger.info("触发上下文压缩", { contextStats, config: effectiveConfig });
@@ -388,7 +397,7 @@ export function useContextCompressor() {
   /**
    * 手动触发压缩（忽略自动触发阈值）
    */
-  const manualCompress = async (session: ChatSession): Promise<boolean> => {
+  const manualCompress = async (session: ChatSession): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig();
     const path = getNodePath(session, session.activeLeafId);
 
@@ -404,7 +413,7 @@ export function useContextCompressor() {
     session: ChatSession,
     path: ChatMessageNode[],
     effectiveConfig: ContextCompressionConfig
-  ): Promise<boolean> => {
+  ): Promise<CompressionResult> => {
     // 4. 确定压缩范围
     // 策略：保护最近 N 条，压缩之前的 M 条
     // 过滤出有效节点（未被隐藏的）
@@ -434,7 +443,7 @@ export function useContextCompressor() {
         candidateCount: candidateNodes.length,
         protectCount,
       });
-      return false;
+      return { success: false };
     }
 
     // 确定要压缩的节点：从候选列表头部开始，取 compressCount 个
@@ -451,7 +460,7 @@ export function useContextCompressor() {
     const nodesToCompress = compressibleNodes.slice(0, compressCount);
 
     if (nodesToCompress.length === 0) {
-      return false;
+      return { success: false };
     }
 
     // 5. 执行压缩
@@ -459,17 +468,25 @@ export function useContextCompressor() {
       // 生成摘要
       const summary = await generateSummary(nodesToCompress, effectiveConfig);
 
+      // 计算预计节省的 Token
+      let originalTokenCount = 0;
+      nodesToCompress.forEach(n => originalTokenCount += (n.metadata?.tokenCount || 0));
+
       // 创建节点并更新树
       await compressNodes(session, nodesToCompress, summary, effectiveConfig);
 
-      return true;
+      return {
+        success: true,
+        messageCount: nodesToCompress.length,
+        savedTokenCount: originalTokenCount
+      };
     } catch (error) {
       // 压缩失败不应中断对话，只记录错误
       errorHandler.handle(error as Error, {
         userMessage: "上下文压缩执行失败",
         showToUser: false,
       });
-      return false;
+      return { success: false };
     }
   };
 

@@ -23,14 +23,14 @@ import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
-import { createModuleErrorHandler } from "@/utils/errorHandler"; // <-- 插入
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import MessageInputToolbar, { type InputToolbarSettings } from "./MessageInputToolbar.vue";
 import type { MacroDefinition } from "../../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
-const errorHandler = createModuleErrorHandler("MessageInput"); // <-- 插入
+const errorHandler = createModuleErrorHandler("MessageInput");
 const bus = useWindowSyncBus();
 
 // 获取聊天 store 以访问流式输出开关
@@ -55,10 +55,15 @@ const isStreamingEnabled = computed(() => {
 });
 
 // UI 设置状态 (持久化)
-const inputSettings = useStorage<InputToolbarSettings>("chat-input-settings", {
-  showTokenUsage: true,
-  enableMacroParsing: true,
-}, localStorage, { mergeDefaults: true });
+const inputSettings = useStorage<InputToolbarSettings>(
+  "chat-input-settings",
+  {
+    showTokenUsage: true,
+    enableMacroParsing: true,
+  },
+  localStorage,
+  { mergeDefaults: true }
+);
 
 // 计算当前分支是否正在生成
 const isCurrentBranchGenerating = computed(() => {
@@ -848,8 +853,11 @@ const handleCompressContext = async () => {
   isCompressing.value = true;
   try {
     const result = await manualCompress(session);
-    if (result) {
-      customMessage.success("上下文压缩成功");
+    if (result.success) {
+      const msg =
+        `上下文压缩成功：已压缩 ${result.messageCount} 条消息` +
+        (result.savedTokenCount ? `，节省约 ${result.savedTokenCount.toLocaleString()} Token` : "");
+      customMessage.success(msg);
       // 触发 token 重新计算
       debouncedCalculateTokens();
     } else {

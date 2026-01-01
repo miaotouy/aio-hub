@@ -133,6 +133,10 @@ const handleNewSession = () => {
   <div class="input-bottom-bar">
     <div class="tool-actions">
       <span v-if="props.isProcessingAttachments" class="processing-hint"> 正在处理文件... </span>
+      <span v-if="props.isCompressing" class="processing-hint compressing">
+        <el-icon class="is-loading"><Package /></el-icon>
+        正在压缩上下文...
+      </span>
       <el-tooltip
         :content="
           props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'

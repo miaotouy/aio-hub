@@ -1,6 +1,7 @@
 <script lang="ts">
 export interface InputToolbarSettings {
   showTokenUsage: boolean;
+  enableMacroParsing: boolean;
 }
 </script>
 
@@ -292,6 +293,20 @@ const handleNewSession = () => {
                   @update:model-value="
                     (val: boolean | string | number) =>
                       emit('update:settings', { ...props.settings, showTokenUsage: val as boolean })
+                  "
+                  size="small"
+                />
+              </div>
+              <div class="setting-item">
+                <span class="setting-label">启用输入宏解析</span>
+                <el-switch
+                  :model-value="props.settings.enableMacroParsing"
+                  @update:model-value="
+                    (val: boolean | string | number) =>
+                      emit('update:settings', {
+                        ...props.settings,
+                        enableMacroParsing: val as boolean,
+                      })
                   "
                   size="small"
                 />

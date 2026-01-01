@@ -203,6 +203,7 @@ const handleSendMessage = async (payload: {
   content: string;
   attachments?: any[];
   temporaryModel?: any;
+  disableMacroParsing?: boolean;
 }) => {
   if (!store.currentSession) {
     logger.warn("发送消息失败：没有活动会话");
@@ -211,6 +212,7 @@ const handleSendMessage = async (payload: {
   await store.sendMessage(payload.content, {
     attachments: payload.attachments,
     temporaryModel: payload.temporaryModel,
+    disableMacroParsing: payload.disableMacroParsing,
   });
 };
 

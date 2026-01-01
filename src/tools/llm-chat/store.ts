@@ -405,6 +405,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
       parentId?: string;
+      disableMacroParsing?: boolean;
     },
   ): Promise<void> {
     const session = currentSession.value;

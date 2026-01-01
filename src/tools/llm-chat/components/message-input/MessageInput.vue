@@ -57,7 +57,8 @@ const isStreamingEnabled = computed(() => {
 // UI 设置状态 (持久化)
 const inputSettings = useStorage<InputToolbarSettings>("chat-input-settings", {
   showTokenUsage: true,
-});
+  enableMacroParsing: true,
+}, localStorage, { mergeDefaults: true });
 
 // 计算当前分支是否正在生成
 const isCurrentBranchGenerating = computed(() => {
@@ -91,6 +92,7 @@ interface Emits {
       content: string;
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
+      disableMacroParsing?: boolean;
     }
   ): void;
   (e: "abort"): void;
@@ -263,8 +265,9 @@ const handleSend = async () => {
   const attachments =
     inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
   const temporaryModel = inputManager.temporaryModel.value;
+  const disableMacroParsing = !inputSettings.value.enableMacroParsing;
 
-  const payload = { content, attachments, temporaryModel };
+  const payload = { content, attachments, temporaryModel, disableMacroParsing };
 
   if (props.isDetached) {
     bus.requestAction("send-message", payload);

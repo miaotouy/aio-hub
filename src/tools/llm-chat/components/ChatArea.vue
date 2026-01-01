@@ -40,6 +40,7 @@ interface Emits {
       content: string;
       attachments?: Asset[];
       temporaryModel?: any; // 保持与 LlmChat.vue 一致
+      disableMacroParsing?: boolean;
     }
   ): void;
   (e: "abort"): void;
@@ -408,6 +409,7 @@ const handleSendMessage = (payload: {
   content: string;
   attachments?: Asset[];
   temporaryModel?: any;
+  disableMacroParsing?: boolean;
 }) => emit("send", payload);
 const handleAbort = () => emit("abort");
 const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);

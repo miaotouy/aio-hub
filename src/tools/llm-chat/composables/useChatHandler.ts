@@ -58,6 +58,7 @@ export function useChatHandler() {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
       parentId?: string;
+      disableMacroParsing?: boolean;
     },
     currentSessionId?: string | null,
   ): Promise<void> => {
@@ -133,17 +134,20 @@ export function useChatHandler() {
 
     // 处理用户输入中的宏
     const macroProcessor = new MacroProcessor();
-    const macroContext = buildMacroContext({
-      session,
-      agent: currentAgent ?? undefined,
-      input: content,
-      userProfile: userProfileStore.globalProfile ?? undefined, // 传递 userProfile
-    });
-    const processedContent = await processMacros(
-      macroProcessor,
-      content,
-      macroContext,
-    );
+    let processedContent = content;
+    if (!options?.disableMacroParsing) {
+      const macroContext = buildMacroContext({
+        session,
+        agent: currentAgent ?? undefined,
+        input: content,
+        userProfile: userProfileStore.globalProfile ?? undefined, // 传递 userProfile
+      });
+      processedContent = await processMacros(
+        macroProcessor,
+        content,
+        macroContext,
+      );
+    }
 
     logger.debug("用户消息宏处理", {
       originalLength: content.length,

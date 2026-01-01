@@ -65,7 +65,7 @@ interface Props {
   presetCount?: number;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   isSession: false,
   presetCount: 0,
 });

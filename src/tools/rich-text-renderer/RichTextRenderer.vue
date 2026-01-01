@@ -41,6 +41,7 @@ const props = withDefaults(
     isStreaming?: boolean; // 是否处于流式传输中（用于控制思考块的闭合状态）
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
     seamlessMode?: boolean; // HTML 预览无边框模式
+    defaultCodeBlockExpanded?: boolean; // 代码块默认展开
     enableCdnLocalizer?: boolean; // 是否启用 CDN 资源本地化
     throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
@@ -54,6 +55,7 @@ const props = withDefaults(
     isStreaming: false,
     defaultRenderHtml: false,
     seamlessMode: false,
+    defaultCodeBlockExpanded: false,
     enableCdnLocalizer: true,
     allowExternalScripts: false,
     enableEnterAnimation: true,
@@ -171,6 +173,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   images: imageList,
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
   seamlessMode: computed(() => props.seamlessMode),
+  defaultCodeBlockExpanded: computed(() => props.defaultCodeBlockExpanded),
   enableCdnLocalizer: computed(() => props.enableCdnLocalizer),
   allowExternalScripts: computed(() => props.allowExternalScripts),
   resolveAsset: props.resolveAsset,

@@ -57,6 +57,16 @@
         </div>
       </div>
 
+      <!-- 代码块默认展开控制 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label">代码块默认展开</label>
+          <el-tooltip content="开启后，消息中的代码块将默认处于展开状态" placement="left">
+            <el-switch v-model="defaultCodeBlockExpanded" />
+          </el-tooltip>
+        </div>
+      </div>
+
       <!-- CDN 本地化控制 -->
       <div class="control-section">
         <div class="control-header">
@@ -302,6 +312,7 @@ const {
   charsFluctuation,
   rendererVersion,
   defaultRenderHtml,
+  defaultCodeBlockExpanded,
   enableCdnLocalizer,
   enableEnterAnimation,
   llmThinkRules,

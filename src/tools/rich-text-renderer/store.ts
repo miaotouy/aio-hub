@@ -106,6 +106,7 @@ const configManager = createConfigManager<TesterConfig>({
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
     defaultRenderHtml: false,
+    defaultCodeBlockExpanded: false,
     seamlessMode: false,
     enableCdnLocalizer: true,
     enableEnterAnimation: true,
@@ -152,6 +153,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const visualizeBlockStatus = ref(false);
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
   const defaultRenderHtml = ref(false);
+  const defaultCodeBlockExpanded = ref(false);
   const seamlessMode = ref(false);
   const enableCdnLocalizer = ref(true);
   const enableEnterAnimation = ref(true);
@@ -219,6 +221,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus.value = config.visualizeBlockStatus;
       rendererVersion.value = config.rendererVersion;
       defaultRenderHtml.value = config.defaultRenderHtml ?? false;
+      defaultCodeBlockExpanded.value = config.defaultCodeBlockExpanded ?? false;
       seamlessMode.value = config.seamlessMode ?? false;
       enableCdnLocalizer.value = config.enableCdnLocalizer ?? true;
       enableEnterAnimation.value = config.enableEnterAnimation ?? true;
@@ -277,6 +280,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         visualizeBlockStatus: visualizeBlockStatus.value,
         rendererVersion: rendererVersion.value,
         defaultRenderHtml: defaultRenderHtml.value,
+        defaultCodeBlockExpanded: defaultCodeBlockExpanded.value,
         seamlessMode: seamlessMode.value,
         enableCdnLocalizer: enableCdnLocalizer.value,
         enableEnterAnimation: enableEnterAnimation.value,
@@ -331,6 +335,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus: visualizeBlockStatus.value,
       rendererVersion: rendererVersion.value,
       defaultRenderHtml: defaultRenderHtml.value,
+      defaultCodeBlockExpanded: defaultCodeBlockExpanded.value,
       seamlessMode: seamlessMode.value,
       enableCdnLocalizer: enableCdnLocalizer.value,
       enableEnterAnimation: enableEnterAnimation.value,
@@ -368,6 +373,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus.value = false;
     rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
     defaultRenderHtml.value = false;
+    defaultCodeBlockExpanded.value = false;
     seamlessMode.value = false;
     enableCdnLocalizer.value = true;
     enableEnterAnimation.value = true;
@@ -456,6 +462,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       visualizeBlockStatus,
       rendererVersion,
       defaultRenderHtml,
+      defaultCodeBlockExpanded,
       seamlessMode,
       enableCdnLocalizer,
       enableEnterAnimation,
@@ -498,6 +505,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     visualizeBlockStatus,
     rendererVersion,
     defaultRenderHtml,
+    defaultCodeBlockExpanded,
     seamlessMode,
     enableCdnLocalizer,
     enableEnterAnimation,

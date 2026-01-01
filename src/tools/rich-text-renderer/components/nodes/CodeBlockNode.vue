@@ -170,9 +170,11 @@ const props = withDefaults(
     language?: string;
     closed?: boolean;
     seamless?: boolean;
+    defaultExpanded?: boolean;
   }>(),
   {
     seamless: undefined,
+    defaultExpanded: undefined,
   }
 );
 
@@ -270,9 +272,6 @@ const openDialogPreview = () => {
 // 复制状态
 const copied = ref(false);
 
-// 展开状态
-const isExpanded = ref(false);
-
 // 换行状态
 const wordWrapEnabled = ref(false);
 
@@ -311,6 +310,11 @@ const lastContent = ref("");
 
 // ResizeObserver 清理函数
 let cleanupResizeObserver: (() => void) | null = null;
+
+// 展开状态
+const isExpanded = ref(
+  props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false
+);
 
 // 复制代码
 const copyCode = async () => {

@@ -297,6 +297,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui html render preview 预览 渲染",
       },
       {
+        id: "defaultCodeBlockExpanded",
+        label: "代码块默认展开",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.defaultCodeBlockExpanded",
+        hint: "开启后，消息中的代码块将默认处于展开状态",
+        keywords: "ui code block expand 展开 代码块",
+      },
+      {
         id: "seamlessMode",
         label: "HTML 预览无边框模式",
         layout: "inline",

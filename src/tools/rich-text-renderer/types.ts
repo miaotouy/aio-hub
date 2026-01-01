@@ -627,6 +627,8 @@ export interface TesterConfig {
   copyOptions: CopyOptions;
   /** 是否默认渲染 HTML 代码块 */
   defaultRenderHtml?: boolean;
+  /** 代码块默认展开 */
+  defaultCodeBlockExpanded?: boolean;
   /** HTML 预览无边框模式 */
   seamlessMode?: boolean;
   /** 是否启用 CDN 资源本地化 */
@@ -707,6 +709,7 @@ export interface RichTextContext {
   images: Ref<string[]>;
   defaultRenderHtml?: Ref<boolean>;
   seamlessMode?: Ref<boolean>;
+  defaultCodeBlockExpanded?: Ref<boolean>;
   enableCdnLocalizer?: Ref<boolean>;
   allowExternalScripts?: Ref<boolean>;
   /**

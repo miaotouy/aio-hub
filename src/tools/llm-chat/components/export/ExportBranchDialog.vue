@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
     v-model="localVisible"
-    title="导出分支"
+    title="导出对话"
     width="1000px"
     height="80vh"
     :close-on-backdrop-click="true"

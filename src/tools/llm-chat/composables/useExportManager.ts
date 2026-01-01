@@ -52,10 +52,10 @@ export function useExportManager() {
     }
 
     const lines: string[] = [
-      `# ${session.name}`,
+      `# 对话记录: ${session.name}`,
       "",
-      `创建时间：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
-      `更新时间：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `会话创建：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `最后更新：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
       "",
       "---",
       "",
@@ -136,18 +136,42 @@ export function useExportManager() {
     const messagePath = path.filter((node) => node.id !== session.rootNodeId);
 
     const lines: string[] = [
-      `# ${session.name} - 分支导出`,
+      `# 对话记录: ${session.name}`,
       "",
       `导出时间：${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`,
-      `分支节点：${messagePath.length} 条消息`,
-      "",
-      "---",
-      "",
+      `消息统计：共 ${messagePath.length} 条消息`,
     ];
+
+    // 在顶部添加参与者信息
+    const participants: string[] = [];
+
+    // 查找用户名称
+    if (includeUserProfile) {
+      const userNode = messagePath.find(n => n.role === 'user');
+      if (userNode?.metadata?.userProfileName) {
+        participants.push(`用户: ${userNode.metadata.userProfileName}`);
+      }
+    }
+
+    // 查找智能体名称
+    if (includeAgentInfo) {
+      const assistantNode = messagePath.find(n => n.role === 'assistant');
+      if (assistantNode?.metadata?.agentName) {
+        participants.push(`智能体: ${assistantNode.metadata.agentName}`);
+      }
+    }
+
+    if (participants.length > 0) {
+      lines.push(`对话参与者：${participants.join(' & ')}`);
+    }
+
+    lines.push("");
+    lines.push("---");
+    lines.push("");
 
     // 准备要导出的消息列表
     let allMessages: ChatMessageNode[] = [];
-    
+
     if (includePreset && presetMessages.length > 0) {
       if (mergePresetIntoMessages) {
         // 合并模式：将预设消息和会话消息合并到一起
@@ -177,7 +201,7 @@ export function useExportManager() {
         lines.push("");
         lines.push("## 💬 会话消息");
         lines.push("");
-        
+
         // 只添加会话消息
         allMessages = messagePath;
       }
@@ -209,16 +233,10 @@ export function useExportManager() {
         const userIcon = includeUserProfile && node.metadata?.userProfileIcon && isEmoji(node.metadata.userProfileIcon)
           ? node.metadata.userProfileIcon
           : "";
-        
+
         const userLabel = userIcon ? `${userIcon} ${userName}` : userName;
         lines.push(`## ${userLabel} (${time})${enabledStatus}`);
         lines.push("");
-        
-        // 添加用户档案信息（仅在启用时）
-        if (includeUserProfile && node.metadata?.userProfileName) {
-          lines.push(`**用户档案**: ${node.metadata.userProfileName}`);
-          lines.push("");
-        }
       } else if (node.role === "assistant") {
         // 助手消息
         let agentName = "助手";
@@ -237,38 +255,26 @@ export function useExportManager() {
         const agentIcon = includeAgentInfo && node.metadata?.agentIcon && isEmoji(node.metadata.agentIcon)
           ? node.metadata.agentIcon
           : "";
-        
+
         const agentLabel = agentIcon ? `${agentIcon} ${agentName}` : agentName;
         lines.push(`## ${agentLabel} (${time})${enabledStatus}`);
         lines.push("");
-        
-        // 添加智能体和模型信息
+
+        // 添加模型信息
         const metadata = node.metadata;
-        if (metadata) {
-          // 显示智能体名称
-          if (includeAgentInfo && metadata.agentName) {
-            lines.push(`**智能体**: ${metadata.agentName}`);
-          }
-          
-          // 获取并显示模型信息
-          if (includeModelInfo) {
-            if (metadata.profileId && metadata.modelId) {
-              const profile = getProfileById(metadata.profileId);
-              if (profile) {
-                const model = profile.models.find(m => m.id === metadata.modelId);
-                if (model) {
-                  const modelName = metadata.modelName || model.name || model.id;
-                  lines.push(`**模型**: ${modelName}`);
-                  lines.push(`**渠道**: ${profile.name}`);
-                }
+        if (metadata && includeModelInfo) {
+          if (metadata.profileId && metadata.modelId) {
+            const profile = getProfileById(metadata.profileId);
+            if (profile) {
+              const model = profile.models.find(m => m.id === metadata.modelId);
+              if (model) {
+                const modelName = metadata.modelName || model.name || model.id;
+                lines.push(`*模型: ${modelName} (${profile.name})*`);
+                lines.push("");
               }
-            } else if (metadata.modelName) {
-              // 如果没有 profileId/modelId，但有 modelName，也显示
-              lines.push(`**模型**: ${metadata.modelName}`);
             }
-          }
-          
-          if ((includeAgentInfo && metadata.agentName) || includeModelInfo) {
+          } else if (metadata.modelName) {
+            lines.push(`*模型: ${metadata.modelName}*`);
             lines.push("");
           }
         }
@@ -305,7 +311,7 @@ export function useExportManager() {
         lines.push(`**错误**: ${node.metadata.error}`);
         lines.push("");
       }
-      
+
       // 添加分隔线（在消息之间）
       lines.push("---");
       lines.push("");
@@ -404,7 +410,7 @@ export function useExportManager() {
 
     // 准备要导出的消息列表
     let allMessages: ChatMessageNode[] = [];
-    
+
     if (includePreset && presetMessages.length > 0) {
       if (mergePresetIntoMessages) {
         // 合并模式：将预设消息和会话消息合并到一起
@@ -533,11 +539,11 @@ export function useExportManager() {
     } = options;
 
     const lines: string[] = [
-      `# ${session.name} - 完整会话导出`,
+      `# 完整对话记录: ${session.name}`,
       "",
       `导出时间：${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`,
-      `创建时间：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
-      `更新时间：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `会话创建：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `最后更新：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
       "",
       "---",
       "",
@@ -609,7 +615,7 @@ export function useExportManager() {
 
       // 添加元数据（缩进）
       const metaIndent = indent + "  ";
-      
+
       if (node.role === "assistant" && node.metadata) {
         if (includeModelInfo) {
           if (node.metadata.profileId && node.metadata.modelId) {
@@ -663,14 +669,14 @@ export function useExportManager() {
       if (node.childrenIds && node.childrenIds.length > 0) {
         // 如果有多个子节点，说明有分支
         if (node.childrenIds.length > 1) {
-          lines.push(`${indent}  *[分支点 - ${node.childrenIds.length} 个分支]*`);
+          lines.push(`${indent}  *[此处产生了 ${node.childrenIds.length} 条不同的对话路径]*`);
           lines.push("");
         }
 
         node.childrenIds.forEach((childId, index) => {
           // 为每个分支添加标记（如果有多个分支）
           if (node.childrenIds.length > 1) {
-            lines.push(`${indent}  **分支 ${index + 1}:**`);
+            lines.push(`${indent}  **路径 ${index + 1}:**`);
             lines.push("");
           }
           traverseNode(childId, depth + 1);

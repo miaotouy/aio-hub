@@ -4,8 +4,7 @@
     title="预设消息批量管理"
     width="900px"
     height="80vh"
-    class="batch-manager-dialog"
-    :close-on-click-modal="false"
+    :closeOnBackdropClick="false"
   >
     <div class="batch-manager">
       <!-- 顶部工具栏 -->

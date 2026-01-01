@@ -456,7 +456,7 @@ onUnmounted(() => {
       >
         <!-- 文件图标区域 -->
         <div class="bar-icon-wrapper">
-          <template v-if="isLoadingUrl && !assetUrl">
+          <template v-if="isLoadingUrl && !assetUrl && (isImage || isVideo)">
             <Loader2 class="spinner-small" />
           </template>
           <template v-else-if="loadError || hasImportError">
@@ -475,8 +475,8 @@ onUnmounted(() => {
             </div>
           </template>
 
-          <!-- 导入状态指示器 -->
-          <div v-if="isImporting" class="bar-import-overlay">
+          <!-- 导入状态指示器 (仅在没有 URL 时显示，避免遮挡已有预览) -->
+          <div v-if="isImporting && !assetUrl" class="bar-import-overlay">
             <Loader2 class="import-spinner-small" />
           </div>
         </div>
@@ -502,7 +502,7 @@ onUnmounted(() => {
               <span class="bar-meta-divider">·</span>
               <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
                 <span class="bar-token-tag" :class="isHardTokenError ? 'error' : 'warning'">
-                  {{ isHardTokenError ? 'Token 错误' : 'Token 未知' }}
+                  {{ isHardTokenError ? "Token 错误" : "Token 未知" }}
                 </span>
               </el-tooltip>
               <span v-else class="bar-token-tag" :class="{ estimated: tokenEstimated }">
@@ -516,7 +516,10 @@ onUnmounted(() => {
               <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
                 <div
                   class="transcription-status-icon bar-mode"
-                  :class="[transcriptionStatus, { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription }]"
+                  :class="[
+                    transcriptionStatus,
+                    { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
+                  ]"
                   @click="handleTranscriptionClick"
                 >
                   <Loader2
@@ -540,7 +543,7 @@ onUnmounted(() => {
     <template v-else>
       <!-- 预览区域 -->
       <div class="attachment-preview" @click="handlePreview">
-        <template v-if="isLoadingUrl && !assetUrl">
+        <template v-if="isLoadingUrl && !assetUrl && (isImage || isVideo)">
           <div class="loading-placeholder">
             <Loader2 class="spinner" />
           </div>
@@ -564,9 +567,9 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <!-- 导入状态指示器 -->
+        <!-- 导入状态指示器 (仅在没有预览时显示大转圈) -->
         <div
-          v-if="isImporting"
+          v-if="isImporting && !assetUrl"
           class="import-status-overlay"
           :class="{ 'mini-mode': isImage && assetUrl }"
         >
@@ -577,7 +580,7 @@ onUnmounted(() => {
         <div v-if="!isBarLayout && (tokenError || tokenCount !== undefined)" class="token-badge">
           <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
             <span class="token-tag" :class="isHardTokenError ? 'error' : 'warning'">
-              {{ isHardTokenError ? 'Token 错误' : '?' }}
+              {{ isHardTokenError ? "Token 错误" : "?" }}
             </span>
           </el-tooltip>
           <span v-else class="token-tag" :class="{ estimated: tokenEstimated }">
@@ -604,7 +607,10 @@ onUnmounted(() => {
         <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
           <div
             class="transcription-action-btn"
-            :class="[transcriptionStatus, { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription }]"
+            :class="[
+              transcriptionStatus,
+              { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
+            ]"
             @click="handleTranscriptionClick"
           >
             <!-- Success: 文档图标 -->
@@ -1143,7 +1149,6 @@ onUnmounted(() => {
   stroke: none;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
-
 
 .import-spinner-small {
   width: 14px;

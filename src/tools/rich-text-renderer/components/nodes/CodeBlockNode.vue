@@ -257,13 +257,6 @@ const handleContentHover = (hover: boolean) => {
   }
 };
 
-// 监听无边框模式变化，自动切换到预览模式
-watch(seamless, (isSeamless) => {
-  if (isSeamless && isHtml.value) {
-    viewMode.value = "preview";
-  }
-});
-
 // 切换视图模式
 const toggleViewMode = () => {
   viewMode.value = viewMode.value === "code" ? "preview" : "code";
@@ -308,9 +301,13 @@ const monacoLanguage = computed(() => {
 
 // stream-monaco helpers - 提供默认空实现
 let updateCode: (code: string, lang: string) => void = () => {};
+let appendCode: (code: string, lang: string) => void = () => {};
 let cleanupEditor: () => void = () => {};
 let setTheme: (theme: any) => Promise<void> = async () => {};
 let getEditorView: () => any = () => ({ updateOptions: () => {} });
+
+// 追踪内容以支持流式追加
+const lastContent = ref("");
 
 // ResizeObserver 清理函数
 let cleanupResizeObserver: (() => void) | null = null;
@@ -459,40 +456,44 @@ const toggleWordWrap = () => {
       editor.updateOptions({
         wordWrap: wordWrapEnabled.value ? "on" : "off",
       });
-      // 换行状态改变后需要重新计算高度和布局
-      nextTick(() => {
-        const contentHeight = computeContentHeight();
-        if (contentHeight && contentHeight > 0 && editorEl.value) {
-          const container = editorEl.value.parentElement;
-
-          if (isExpanded.value) {
-            // 展开状态：使用完整内容高度
-            editorEl.value.style.height = `${contentHeight}px`;
-            if (container) {
-              container.style.maxHeight = `${contentHeight}px`;
-            }
-          } else {
-            // 收起状态：限制为 min(内容高度, 500px)
-            const maxHeightInCollapsed = 500;
-            const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
-            editorEl.value.style.height = `${editorHeight}px`;
-          }
-        }
-
-        // 触发重新布局
-        if (typeof editor.layout === "function") {
-          editor.layout();
-        }
-      });
+      adjustLayout();
     }
   } catch (error) {
     errorHandler.error(error, "切换换行失败");
   }
 };
 
+// 统一的高度调整逻辑，增加防抖以优化性能
+let layoutTimer: any = null;
+const adjustLayout = () => {
+  if (layoutTimer) clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(() => {
+    nextTick(() => {
+      const editor = getEditorView();
+      const container = editorEl.value?.parentElement;
+      if (!editor || !container || !editorEl.value) return;
+
+      const contentHeight = computeContentHeight();
+      if (contentHeight && contentHeight > 0) {
+        if (isExpanded.value) {
+          editorEl.value.style.height = `${contentHeight}px`;
+          container.style.maxHeight = `${contentHeight}px`;
+        } else {
+          const maxHeightInCollapsed = 500;
+          const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+          editorEl.value.style.height = `${editorHeight}px`;
+        }
+      }
+      // 触发重新布局
+      if (typeof editor.layout === "function") {
+        editor.layout();
+      }
+    });
+  }, 100);
+};
+
 onMounted(async () => {
   // 初始化视图模式
-  // 如果是无边框模式且是 HTML，强制默认为预览模式
   if (isHtml.value && (defaultRenderHtml?.value || seamless.value)) {
     viewMode.value = "preview";
   }
@@ -506,7 +507,6 @@ onMounted(async () => {
       import("shiki/themes/github-dark.mjs"),
     ]);
 
-    // 再次检查，防止在异步加载模块期间组件被卸载
     if (!editorEl.value) return;
 
     const useMonaco = sm.useMonaco;
@@ -523,10 +523,8 @@ onMounted(async () => {
       fontSize: 13,
       lineNumbers: "on" as const,
       renderLineHighlight: "none" as const,
-      // 禁用验证装饰器（波浪线），避免流式传输时频繁报错
       renderValidationDecorations: "off" as const,
       scrollbar: {
-        // 让 Monaco 自己处理滚动
         vertical: "auto" as const,
         horizontal: "auto" as const,
         handleMouseWheel: true,
@@ -534,7 +532,6 @@ onMounted(async () => {
       wordWrap: "off" as const,
       wrappingIndent: "same" as const,
       folding: true,
-      // 禁用自动布局，使用固定高度
       automaticLayout: false,
       theme: isDark.value ? "github-dark" : "github-light",
     };
@@ -542,29 +539,22 @@ onMounted(async () => {
     const helpers = useMonaco({
       ...editorOptions,
       themes: [themeLight.default, themeDark.default],
-      // 关键：节流更新，避免每一帧都重绘导致 CPU 飙升和闪烁
       updateThrottleMs: 120,
     });
 
-    // 创建空编辑器，然后通过 updateCode 填充内容，
-    // 以此统一初始加载和流式更新的逻辑，规避初始渲染空白的问题。
-    await helpers.createEditor(
-      editorEl.value,
-      "", // Start with an empty editor
-      monacoLanguage.value
-    );
+    await helpers.createEditor(editorEl.value, "", monacoLanguage.value);
 
     updateCode = helpers.updateCode;
+    appendCode = helpers.appendCode || helpers.updateCode;
     cleanupEditor = helpers.cleanupEditor;
     setTheme = helpers.setTheme;
     getEditorView = helpers.getEditorView || getEditorView;
 
-    // 使用 updateCode 加载初始内容，模拟流式路径
     if (props.content) {
       updateCode(props.content, monacoLanguage.value);
+      lastContent.value = props.content;
     }
 
-    // 设置初始字体大小
     const editor = getEditorView();
     if (editor && typeof editor.updateOptions === "function") {
       const actualFontSize = editorOptions.fontSize || 13;
@@ -572,47 +562,26 @@ onMounted(async () => {
       codeFontSize.value = actualFontSize;
     }
 
-    // 等待 Monaco 渲染完成后再计算高度
-    // 使用 setTimeout 确保 Monaco 有足够时间渲染内容
     await new Promise((resolve) => setTimeout(resolve, 100));
-    await nextTick();
+    adjustLayout();
 
     if (editorEl.value) {
-      const contentHeight = computeContentHeight();
-      if (contentHeight && contentHeight > 0) {
-        // 初始状态是收起的，所以限制高度为 min(内容高度, 500px)
-        const maxHeightInCollapsed = 500;
-        const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
-        editorEl.value.style.height = `${editorHeight}px`;
-      } else {
-        // 如果计算失败，设置一个合理的默认高度
-        editorEl.value.style.height = "100px";
-      }
       editorEl.value.style.width = "100%";
       editorEl.value.style.overflow = "hidden";
       editorEl.value.style.maxHeight = "none";
     }
 
-    // 强制重新布局以确保尺寸正确
-    if (typeof editor.layout === "function") {
-      editor.layout();
-    }
-
-    // 添加 ResizeObserver 监听容器宽度变化
     const container = editorEl.value?.parentElement;
     if (container) {
       const resizeObserver = new ResizeObserver(() => {
         const editor = getEditorView();
         if (editor && typeof editor.layout === "function") {
-          // 使用 requestAnimationFrame 避免频繁触发
           requestAnimationFrame(() => {
             editor.layout();
           });
         }
       });
-
       resizeObserver.observe(container);
-
       cleanupResizeObserver = () => {
         resizeObserver.disconnect();
       };
@@ -627,9 +596,7 @@ watch(isDark, async (dark) => {
 });
 
 onUnmounted(() => {
-  // 清理编辑器
   cleanupEditor();
-  // 清理 ResizeObserver
   if (cleanupResizeObserver) {
     cleanupResizeObserver();
     cleanupResizeObserver = null;
@@ -639,32 +606,33 @@ onUnmounted(() => {
 // 内容更新时，需要同步更新编辑器内容和高度
 watch(
   () => props.content,
-  (newContent, oldContent) => {
-    // 避免在组件初始化时重复执行
-    if (newContent === oldContent) return;
+  (newContent) => {
+    if (newContent === lastContent.value) return;
 
-    updateCode(newContent, monacoLanguage.value);
-
-    // 使用 nextTick 等待 Monaco 更新 DOM
-    nextTick(() => {
-      const editor = getEditorView();
-      const container = editorEl.value?.parentElement;
-      if (!editor || !container || !editorEl.value) return;
-
-      const contentHeight = computeContentHeight();
-      if (contentHeight && contentHeight > 0) {
-        if (isExpanded.value) {
-          // 展开状态：使用完整内容高度
-          editorEl.value.style.height = `${contentHeight}px`;
-          container.style.maxHeight = `${contentHeight}px`;
-        } else {
-          // 收起状态：限制为 min(内容高度, 500px)
-          const maxHeightInCollapsed = 500;
-          const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
-          editorEl.value.style.height = `${editorHeight}px`;
-        }
+    // 流式追加优化
+    if (newContent.startsWith(lastContent.value) && lastContent.value !== "") {
+      const addedText = newContent.slice(lastContent.value.length);
+      if (addedText) {
+        appendCode(addedText, monacoLanguage.value);
       }
-    });
+    } else {
+      updateCode(newContent, monacoLanguage.value);
+    }
+
+    lastContent.value = newContent;
+    adjustLayout();
+  }
+);
+
+// 监听流结束状态
+watch(
+  () => props.closed,
+  (isClosed) => {
+    if (isClosed) {
+      updateCode(props.content, monacoLanguage.value);
+      lastContent.value = props.content;
+      adjustLayout();
+    }
   }
 );
 </script>

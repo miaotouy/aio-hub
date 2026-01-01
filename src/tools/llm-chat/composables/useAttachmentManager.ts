@@ -41,6 +41,11 @@ export interface UseAttachmentManagerReturn {
   removeAttachmentById: (assetId: string) => void;
   /** 清空附件 */
   clearAttachments: () => void;
+  /**
+   * 同步附件列表（智能合并）
+   * 保留正在导入的本地资产引用，避免状态丢失
+   */
+  syncAttachments: (newAssets: Asset[]) => void;
   /** 附件数量 */
   count: ComputedRef<number>;
   /** 是否有附件 */
@@ -562,6 +567,49 @@ export function useAttachmentManager(
     logger.info("清空附件", { count });
   };
 
+  /**
+   * 同步附件列表（智能合并）
+   * 用于跨窗口同步时，保留本地正在导入的资产引用
+   */
+  const syncAttachments = (newAssets: Asset[]): void => {
+    const currentAssets = attachments.value;
+    const mergedAssets: Asset[] = [];
+    let hasChanges = false;
+
+    // 如果数量不同，肯定有变化
+    if (currentAssets.length !== newAssets.length) {
+      hasChanges = true;
+    }
+
+    for (const newAsset of newAssets) {
+      // 查找本地是否存在同名/同ID资产
+      const localAsset = currentAssets.find(a => a.id === newAsset.id);
+
+      // 如果本地存在且正在导入（pending/importing），保留本地引用
+      // 因为本地引用可能绑定了正在进行的后台任务或回调
+      if (localAsset && (localAsset.importStatus === 'pending' || localAsset.importStatus === 'importing')) {
+        mergedAssets.push(localAsset);
+        // 如果新资产状态已经是完成，说明同步源比本地快（罕见），但为了安全保留本地引用
+        // 实际上通常是本地比同步源快（本地已开始上传，同步源还是 pending）
+      } else {
+        // 否则使用同步过来的新资产
+        mergedAssets.push(newAsset);
+        if (!localAsset || JSON.stringify(localAsset) !== JSON.stringify(newAsset)) {
+          hasChanges = true;
+        }
+      }
+    }
+
+    // 只有在真正有变化时才更新，避免不必要的响应式触发
+    if (hasChanges) {
+      attachments.value = mergedAssets;
+      logger.debug("已同步附件列表（保留了正在导入的资产）", {
+        count: mergedAssets.length,
+        preservedCount: mergedAssets.filter(a => a.importStatus === 'pending' || a.importStatus === 'importing').length
+      });
+    }
+  };
+
   return {
     attachments: attachments as Readonly<typeof attachments>,
     isProcessing: isProcessing as Readonly<typeof isProcessing>,
@@ -571,6 +619,7 @@ export function useAttachmentManager(
     removeAttachment,
     removeAttachmentById,
     clearAttachments,
+    syncAttachments,
     count,
     hasAttachments,
     isFull,

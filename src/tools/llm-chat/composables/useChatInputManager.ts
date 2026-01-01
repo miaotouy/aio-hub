@@ -192,19 +192,8 @@ class ChatInputManager {
           logger.debug("从同步状态更新输入框", { textLength: newState.text.length });
         }
 
-        // 同步附件
-        if (
-          JSON.stringify(newState.attachments) !==
-          JSON.stringify(this.attachmentManager.attachments.value)
-        ) {
-          // 清空现有附件
-          this.attachmentManager.clearAttachments();
-          // 添加新附件
-          if (newState.attachments.length > 0) {
-            this.attachmentManager.addAssets(newState.attachments);
-            logger.debug("从同步状态更新附件", { count: newState.attachments.length });
-          }
-        }
+        // 同步附件（使用智能合并，保留正在导入的资产引用）
+        this.attachmentManager.syncAttachments(newState.attachments);
 
         // 同步临时模型
         if (JSON.stringify(newState.temporaryModel) !== JSON.stringify(this.temporaryModel.value)) {

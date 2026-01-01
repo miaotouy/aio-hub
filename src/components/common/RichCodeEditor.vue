@@ -99,6 +99,7 @@ const editableCompartment = new Compartment();
 const lineNumbersCompartment = new Compartment();
 const foldGutterCompartment = new Compartment();
 const themeCompartment = new Compartment();
+const languageCompartment = new Compartment();
 const wrapperRef = ref<HTMLDivElement | null>(null);
 
 // Monaco Editor 相关状态
@@ -321,6 +322,7 @@ const initCodeMirror = async () => {
         : (props.disableDefaultCompletion ? [] : undefined),
     }),
     EditorView.lineWrapping,
+    languageCompartment.of([]),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         const newContent = update.state.doc.toString();
@@ -337,12 +339,6 @@ const initCodeMirror = async () => {
     }),
   ];
 
-  // 动态加载并添加语言支持
-  const languageExt = await getCodeMirrorLanguage(props.language);
-  if (languageExt) {
-    extensions.push(languageExt);
-  }
-
   const startState = EditorState.create({
     doc: props.modelValue,
     extensions,
@@ -354,6 +350,16 @@ const initCodeMirror = async () => {
   });
   
   editorView.value = view;
+
+  // 初始化语言
+  if (props.language) {
+    const languageExt = await getCodeMirrorLanguage(props.language);
+    if (languageExt) {
+      view.dispatch({
+        effects: languageCompartment.reconfigure(languageExt),
+      });
+    }
+  }
 };
 
 const destroyCodeMirror = () => {
@@ -447,6 +453,18 @@ watch(cmTheme, (newTheme) => {
     });
   }
 });
+
+watch(
+  () => props.language,
+  async (newLang) => {
+    if (!props.diff && props.editorType === "codemirror" && editorView.value) {
+      const languageExt = await getCodeMirrorLanguage(newLang);
+      editorView.value.dispatch({
+        effects: languageCompartment.reconfigure(languageExt || []),
+      });
+    }
+  }
+);
 
 // 暴露一些有用的方法（统一 CodeMirror 和 Monaco 的 API）
 const getContent = (): string => {

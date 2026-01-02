@@ -50,7 +50,15 @@ const { persistSession } = useSessionManager();
 const { settings } = useChatSettings();
 
 // 后端搜索功能
-const { isSearching, showLoadingIndicator, sessionResults, search, clearSearch, getFieldLabel, getRoleLabel } = useLlmSearch({ debounceMs: 300, scope: "session" });
+const {
+  isSearching,
+  showLoadingIndicator,
+  sessionResults,
+  search,
+  clearSearch,
+  getFieldLabel,
+  getRoleLabel,
+} = useLlmSearch({ debounceMs: 300, scope: "session" });
 
 // 搜索结果 ID 到匹配详情的映射
 const searchMatchesMap = computed(() => {
@@ -114,7 +122,7 @@ const availableAgents = computed(() => {
   });
   return Array.from(agentIds)
     .map((id) => agentStore.getAgentById(id))
-    .filter((agent): agent is NonNullable<typeof agent> => agent !== null);
+    .filter((agent): agent is NonNullable<typeof agent> => !!agent);
 });
 
 // 时间筛选逻辑
@@ -198,11 +206,11 @@ const filteredSessions = computed(() => {
 // 搜索模式下的会话列表（基于后端搜索结果）
 const searchResultSessions = computed(() => {
   if (!isInSearchMode.value) return [];
-  
+
   // 根据后端返回的搜索结果顺序获取 session 对象
   const sessions: ChatSession[] = [];
-  const sessionMap = new Map(props.sessions.map(s => [s.id, s]));
-  
+  const sessionMap = new Map(props.sessions.map((s) => [s.id, s]));
+
   for (const result of sessionResults.value) {
     const session = sessionMap.get(result.id);
     if (session) {
@@ -230,7 +238,7 @@ const displaySessions = computed(() => {
     // 3. 搜索完成且无结果，返回空数组
     return [];
   }
-  
+
   // 非搜索模式，显示常规过滤列表
   return filteredSessions.value;
 });
@@ -241,7 +249,7 @@ const getSessionMatches = (sessionId: string): MatchDetail[] | undefined => {
   const matches = searchMatchesMap.value.get(sessionId);
   if (!matches) return undefined;
   // 过滤掉名称匹配，因为名称已经显示在标题中了
-  return matches.filter(m => m.field !== 'name');
+  return matches.filter((m) => m.field !== "name");
 };
 
 // 虚拟滚动列表
@@ -420,7 +428,7 @@ const handleSessionClick = (session: ChatSession) => {
           clearable
         >
           <template #suffix v-if="showLoadingIndicator">
-             <el-icon class="is-loading"><Loading /></el-icon>
+            <el-icon class="is-loading"><Loading /></el-icon>
           </template>
         </el-input>
 
@@ -477,10 +485,10 @@ const handleSessionClick = (session: ChatSession) => {
                 </div>
                 <div
                   v-for="agent in availableAgents"
-                  :key="agent.id"
+                  :key="agent?.id"
                   class="agent-filter-item"
-                  :class="{ active: filterAgent === agent.id }"
-                  @click="filterAgent = agent.id"
+                  :class="{ active: filterAgent === agent?.id }"
+                  @click="agent && (filterAgent = agent.id)"
                 >
                   <Avatar
                     :src="resolveAvatarPath(agent, 'agent') || ''"
@@ -541,50 +549,85 @@ const handleSessionClick = (session: ChatSession) => {
           }"
         >
           <div
-            :class="['session-item', { active: displaySessions[virtualItem.index].id === currentSessionId }]"
+            :class="[
+              'session-item',
+              { active: displaySessions[virtualItem.index].id === currentSessionId },
+            ]"
             @click="handleSessionClick(displaySessions[virtualItem.index])"
           >
             <div class="session-content">
               <div class="session-title">
-                <el-tooltip
-                  v-if="getSessionDisplayAgent(displaySessions[virtualItem.index])"
-                  :content="`当前使用: ${
-                    getSessionDisplayAgent(displaySessions[virtualItem.index])?.displayName ||
-                    getSessionDisplayAgent(displaySessions[virtualItem.index])?.name
-                  }`"
-                  placement="top"
-                  :show-after="50"
-                >
-                  <Avatar
-                    :src="resolveAvatarPath(getSessionDisplayAgent(displaySessions[virtualItem.index]), 'agent') || ''"
-                    :alt="
+                <template v-if="getSessionDisplayAgent(displaySessions[virtualItem.index])">
+                  <el-tooltip
+                    :content="`当前使用: ${
                       getSessionDisplayAgent(displaySessions[virtualItem.index])?.displayName ||
-                      getSessionDisplayAgent(displaySessions[virtualItem.index])?.name
-                    "
-                    :size="20"
-                    shape="square"
-                    :radius="4"
-                  />
-                </el-tooltip>
-                <span :class="['title-text', { generating: isGenerating(displaySessions[virtualItem.index].id) }]">
+                      getSessionDisplayAgent(displaySessions[virtualItem.index])?.name ||
+                      ''
+                    }`"
+                    placement="top"
+                    :show-after="50"
+                  >
+                    <Avatar
+                      :src="
+                        resolveAvatarPath(
+                          getSessionDisplayAgent(displaySessions[virtualItem.index]),
+                          'agent'
+                        ) || ''
+                      "
+                      :alt="
+                        getSessionDisplayAgent(displaySessions[virtualItem.index])?.displayName ||
+                        getSessionDisplayAgent(displaySessions[virtualItem.index])?.name ||
+                        ''
+                      "
+                      :size="20"
+                      shape="square"
+                      :radius="4"
+                    />
+                  </el-tooltip>
+                </template>
+                <span
+                  :class="[
+                    'title-text',
+                    { generating: isGenerating(displaySessions[virtualItem.index].id) },
+                  ]"
+                >
                   {{ displaySessions[virtualItem.index].name }}
                 </span>
               </div>
-              
+
               <!-- 搜索匹配详情 -->
-              <div v-if="getSessionMatches(displaySessions[virtualItem.index].id)" class="match-details">
-                <div v-for="(match, index) in getSessionMatches(displaySessions[virtualItem.index].id)!.slice(0, 3)" :key="index" class="match-item">
-                  <span class="match-field">{{ getFieldLabel(match.field) }}{{ match.role ? `(${getRoleLabel(match.role)})` : '' }}:</span>
+              <div
+                v-if="getSessionMatches(displaySessions[virtualItem.index].id)"
+                class="match-details"
+              >
+                <div
+                  v-for="(match, index) in getSessionMatches(
+                    displaySessions[virtualItem.index].id
+                  )!.slice(0, 3)"
+                  :key="index"
+                  class="match-item"
+                >
+                  <span class="match-field"
+                    >{{ getFieldLabel(match.field)
+                    }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:</span
+                  >
                   <span class="match-context" :title="match.context">{{ match.context }}</span>
                 </div>
-                <div v-if="getSessionMatches(displaySessions[virtualItem.index].id)!.length > 3" class="match-more">
+                <div
+                  v-if="getSessionMatches(displaySessions[virtualItem.index].id)!.length > 3"
+                  class="match-more"
+                >
                   +{{ getSessionMatches(displaySessions[virtualItem.index].id)!.length - 3 }} 处匹配
                 </div>
               </div>
 
               <div class="session-info">
-                <span class="message-count">{{ getMessageCount(displaySessions[virtualItem.index]) }} 条</span>
-                <span class="session-time">{{ formatRelativeTime(displaySessions[virtualItem.index].updatedAt) }}</span>
+                <span class="message-count"
+                  >{{ getMessageCount(displaySessions[virtualItem.index]) }} 条</span
+                >
+                <span class="session-time">{{
+                  formatRelativeTime(displaySessions[virtualItem.index].updatedAt)
+                }}</span>
                 <el-dropdown
                   @command="handleMenuCommand($event, displaySessions[virtualItem.index])"
                   trigger="click"
@@ -602,7 +645,11 @@ const handleSessionClick = (session: ChatSession) => {
                         :icon="MagicStick"
                         :disabled="isGenerating(displaySessions[virtualItem.index].id)"
                       >
-                        {{ isGenerating(displaySessions[virtualItem.index].id) ? "生成中..." : "生成标题" }}
+                        {{
+                          isGenerating(displaySessions[virtualItem.index].id)
+                            ? "生成中..."
+                            : "生成标题"
+                        }}
                       </el-dropdown-item>
                       <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
                       <el-dropdown-item command="export" :icon="Operation">
@@ -611,7 +658,9 @@ const handleSessionClick = (session: ChatSession) => {
                       <el-dropdown-item command="open-directory" :icon="FolderOpened">
                         打开目录
                       </el-dropdown-item>
-                      <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
+                      <el-dropdown-item command="delete" :icon="Delete">
+                        删除会话
+                      </el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>

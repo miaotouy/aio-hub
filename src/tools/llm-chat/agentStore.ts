@@ -291,10 +291,16 @@ export const useAgentStore = defineStore("llmChatAgent", {
       // 从内存中移除
       this.agents.splice(index, 1);
 
-      // 如果删除的是当前智能体，切换到第一个智能体
+      // 如果删除的是当前智能体，切换到邻近的智能体
       const { currentAgentId } = useLlmChatUiState();
       if (currentAgentId.value === agentId) {
-        currentAgentId.value = this.agents[0]?.id || null;
+        if (this.agents.length > 0) {
+          // 优先选择原位置的下一个，如果原位置是最后一个则选择新的最后一个
+          const nextIndex = Math.min(index, this.agents.length - 1);
+          currentAgentId.value = this.agents[nextIndex].id;
+        } else {
+          currentAgentId.value = null;
+        }
       }
 
       logger.info("智能体已删除", { agentId, name: agent.name });

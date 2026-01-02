@@ -132,9 +132,18 @@ export function useSessionManager() {
     const updatedSessions = [...sessions];
     updatedSessions.splice(index, 1);
 
-    // 如果删除的是当前会话，切换到第一个会话或清空
-    const newCurrentSessionId =
-      currentSessionId === sessionId ? updatedSessions[0]?.id || null : currentSessionId;
+    // 如果删除的是当前会话，尝试切换到邻近的会话
+    let newCurrentSessionId = currentSessionId;
+    if (currentSessionId === sessionId) {
+      if (updatedSessions.length > 0) {
+        // 优先选择原位置的下一个（即 index 位置，因为 splice 后后续元素前移了）
+        // 如果原位置是最后一个，则选择新的最后一个（即 index - 1）
+        const nextIndex = Math.min(index, updatedSessions.length - 1);
+        newCurrentSessionId = updatedSessions[nextIndex].id;
+      } else {
+        newCurrentSessionId = null;
+      }
+    }
 
     // 使用统一存储接口删除会话文件和更新索引
     try {

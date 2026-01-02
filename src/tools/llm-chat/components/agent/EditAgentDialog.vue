@@ -95,9 +95,11 @@ const loadFormData = () => {
     localAgentId.value = props.agent.id;
   }
 
-  // 1. 重置为默认值
+  // 1. 彻底重置为默认值（使用 JSON 深拷贝确保引用断开）
   const defaults = JSON.parse(JSON.stringify(defaultFormState));
-  Object.assign(editForm, defaults);
+  for (const key of Object.keys(editForm)) {
+    (editForm as any)[key] = defaults[key as keyof typeof defaults];
+  }
 
   // 确定数据源：编辑模式用当前编辑的对象，创建模式用 initialData
   const sourceData =
@@ -107,6 +109,7 @@ const loadFormData = () => {
 
   // 2. 动态合并数据
   for (const key of Object.keys(editForm)) {
+    // 如果源数据中有该键，则同步（包括 null/undefined）
     if (key in sourceData) {
       const val = (sourceData as any)[key];
       if (val !== undefined && val !== null) {
@@ -115,8 +118,13 @@ const loadFormData = () => {
         } else {
           (editForm as any)[key] = val;
         }
+      } else {
+        // 显式重置为默认值，防止残留
+        (editForm as any)[key] = (defaults as any)[key];
       }
     }
+    // 如果源数据中没有该键（比如 Agent 对象缺少某些可选字段），
+    // 由于步骤 1 已经重置过了，这里不需要额外处理
   }
 
   // 3. 特殊字段处理
@@ -149,6 +157,8 @@ const loadFormData = () => {
 };
 
 const agentListVisible = ref(false);
+const isSwitching = ref(false);
+const activeTab = ref("basic");
 
 // 切换编辑的智能体
 const switchToAgent = (targetAgent: ChatAgent) => {
@@ -163,8 +173,13 @@ const switchToAgent = (targetAgent: ChatAgent) => {
     return;
   }
 
-  // 先尝试保存当前的修改（静默）
-  handleSave({ silent: true });
+  // 先尝试保存当前的修改（静默，显式指定保存到当前正在编辑的 ID）
+  if (localAgentId.value) {
+    handleSave({ silent: true, overrideAgentId: localAgentId.value });
+  }
+
+  // 标记正在切换，防止中间态的误保存
+  isSwitching.value = true;
 
   // 切换逻辑
   if (props.syncToChat) {
@@ -174,6 +189,7 @@ const switchToAgent = (targetAgent: ChatAgent) => {
     // 解耦模式：仅更新内部追踪的 ID 并重新加载数据
     localAgentId.value = targetAgent.id;
     loadFormData();
+    isSwitching.value = false;
   }
 
   agentListVisible.value = false;
@@ -205,6 +221,8 @@ watch(
     if (props.visible && props.syncToChat && newId) {
       localAgentId.value = newId;
       loadFormData();
+      // 加载完成后重置切换标志
+      isSwitching.value = false;
     }
   }
 );
@@ -215,7 +233,10 @@ const handleClose = () => {
 };
 
 // 保存智能体
-const handleSave = (options: { silent?: boolean } = {}) => {
+const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}) => {
+  // 如果正在切换中，且不是显式指定的 override 保存，则忽略
+  if (isSwitching.value && !options.overrideAgentId) return;
+
   if (!editForm.name.trim()) {
     customMessage.warning("智能体名称不能为空");
     return;
@@ -261,7 +282,7 @@ const handleSave = (options: { silent?: boolean } = {}) => {
     },
     {
       ...options,
-      agentId: localAgentId.value || undefined,
+      agentId: options.overrideAgentId || localAgentId.value || undefined,
     }
   );
 
@@ -281,8 +302,10 @@ const handleSave = (options: { silent?: boolean } = {}) => {
   >
     <AgentEditor
       v-model="editForm"
+      v-model:active-tab="activeTab"
       :agent="currentEditingAgent"
       :mode="mode"
+      :key="localAgentId || 'create'"
       @save="handleSave"
     />
 

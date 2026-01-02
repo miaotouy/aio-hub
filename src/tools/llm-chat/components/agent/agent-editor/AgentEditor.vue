@@ -21,13 +21,15 @@ interface Props {
   modelValue: any; // editForm 数据
   agent?: any; // 原始智能体实例
   mode: "create" | "edit";
+  activeTab?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   agent: null,
+  activeTab: "basic",
 });
 
-const emit = defineEmits(["update:modelValue", "save"]);
+const emit = defineEmits(["update:modelValue", "save", "update:activeTab"]);
 
 // Stores
 const userProfileStore = useUserProfileStore();
@@ -48,7 +50,15 @@ const formLabelWidth = computed(() => {
 });
 
 // --- 状态管理 ---
-const activeTab = ref("basic");
+const internalActiveTab = ref(props.activeTab);
+const activeTab = computed({
+  get: () => props.activeTab || internalActiveTab.value,
+  set: (val) => {
+    internalActiveTab.value = val;
+    emit("update:activeTab", val);
+  },
+});
+
 const searchQuery = ref("");
 const highlightedItemId = ref("");
 

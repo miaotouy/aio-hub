@@ -504,7 +504,7 @@ import { useUserProfileStore } from "../../userProfileStore";
 import { useLlmChatStore } from "../../store";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
 import { MacroProcessor, createMacroContext, extractContextFromSession } from "../../macro-engine";
-import { isPromptFile, parsePromptFile } from "../../services/sillyTavernParser";
+import { isPromptFile, parsePromptFile, convertMacros } from "../../services/sillyTavernParser";
 import { useAnchorRegistry, type AnchorDefinition } from "../../composables/useAnchorRegistry";
 import {
   QuestionFilled,
@@ -1021,13 +1021,13 @@ async function handlePasteMessage(message: ChatMessageNode) {
 
     if (typeof data === "object" && data !== null) {
       message.role = data.role || message.role;
-      message.content = data.content ?? message.content;
+      message.content = convertMacros(data.content ?? message.content);
       message.name = data.name || message.name;
       message.injectionStrategy = data.injectionStrategy || message.injectionStrategy;
       message.modelMatch = data.modelMatch || message.modelMatch;
       customMessage.success("已粘贴并覆盖消息");
     } else {
-      message.content = data;
+      message.content = convertMacros(data);
       customMessage.success("已粘贴文本内容");
     }
     syncToParent();
@@ -1135,6 +1135,12 @@ async function handlePaste() {
       return customMessage.error("数据格式不正确（应为消息数组）");
     }
 
+    // 处理宏转换
+    const processedImported = imported.map((m) => ({
+      ...m,
+      content: typeof m.content === "string" ? convertMacros(m.content) : m.content,
+    }));
+
     const hasRealMessages = localMessages.value.some((m) => !isAnchorType(m.type));
     if (hasRealMessages) {
       await ElMessageBox.confirm("这将覆盖当前所有非锚点消息，确定吗？", "确认粘贴", {
@@ -1147,7 +1153,7 @@ async function handlePaste() {
     }
 
     const nonAnchorMessages = localMessages.value.filter((m) => isAnchorType(m.type));
-    localMessages.value = [...nonAnchorMessages, ...imported];
+    localMessages.value = [...nonAnchorMessages, ...processedImported];
     syncToParent();
     customMessage.success("粘贴成功");
   } catch (error: any) {
@@ -1178,7 +1184,12 @@ async function handleFileSelected(event: Event) {
       stImportData.value = parsePromptFile(parsed);
       showSTImportDialog.value = true;
     } else if (Array.isArray(parsed)) {
-      localMessages.value = [...localMessages.value.filter((m) => isAnchorType(m.type)), ...parsed];
+      // 普通数组导入也处理宏
+      const processed = parsed.map((m) => ({
+        ...m,
+        content: typeof m.content === "string" ? convertMacros(m.content) : m.content,
+      }));
+      localMessages.value = [...localMessages.value.filter((m) => isAnchorType(m.type)), ...processed];
       syncToParent();
       customMessage.success("导入成功");
     } else {

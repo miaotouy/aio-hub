@@ -196,7 +196,7 @@
 import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { ChatMessageNode, MessageRole } from "../../types";
-import type { ParsedPromptFile } from "../../services/sillyTavernParser";
+import { type ParsedPromptFile, convertMacros } from "../../services/sillyTavernParser";
 
 interface SelectableMessage {
   message: ChatMessageNode;
@@ -242,18 +242,24 @@ watch(
   () => props.parsedResult,
   (result) => {
     if (result) {
+      // 辅助函数：确保消息内容经过宏转换
+      const processMsg = (msg: ChatMessageNode) => ({
+        ...msg,
+        content: convertMacros(msg.content),
+      });
+
       systemPrompts.value = result.systemPrompts.map((msg) => ({
-        message: msg,
+        message: processMsg(msg),
         selected: msg.isEnabled !== false, // 默认选中启用的消息
         enabled: msg.isEnabled !== false,
       }));
       injectionPrompts.value = result.injectionPrompts.map((msg) => ({
-        message: msg,
+        message: processMsg(msg),
         selected: msg.isEnabled !== false,
         enabled: msg.isEnabled !== false,
       }));
       unorderedPrompts.value = (result.unorderedPrompts || []).map((msg) => ({
-        message: msg,
+        message: processMsg(msg),
         selected: false, // 未排序消息默认不选中
         enabled: false,
       }));

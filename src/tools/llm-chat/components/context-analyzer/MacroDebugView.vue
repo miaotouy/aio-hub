@@ -23,7 +23,7 @@
       <div v-if="uniqueDetectedMacros.length > 0" class="detected-macros">
         <InfoCard title="检测到的宏">
           <el-table :data="uniqueDetectedMacros" stripe size="small">
-            <el-table-column prop="name" label="宏名称" width="120">
+            <el-table-column prop="name" label="宏名称" width="140">
               <template #default="{ row }">
                 <el-tag effect="plain">{{ row.name }}</el-tag>
               </template>
@@ -48,7 +48,7 @@
 
             <el-table-column label="预览值" min-width="150">
               <template #default="{ row }">
-                <span v-if="macroPreviews[row.fullMatch]" class="preview-value">
+                <span v-if="macroPreviews[row.fullMatch] !== undefined" class="preview-value">
                   {{ macroPreviews[row.fullMatch] }}
                 </span>
                 <span v-else class="preview-loading">
@@ -179,6 +179,7 @@ import { createMacroContext, extractContextFromSession } from "../../macro-engin
 import type { MacroProcessResult } from "../../macro-engine";
 import type { ContextPreviewData } from "../../types/context";
 import { useAgentStore } from "../../agentStore";
+import { useUserProfileStore } from "../../userProfileStore";
 import { diffLines, diffWordsWithSpace, type Change } from "diff";
 
 const props = defineProps<{
@@ -188,6 +189,7 @@ const props = defineProps<{
 const macroResult = ref<MacroProcessResult | null>(null);
 const macroPreviews = reactive<Record<string, string>>({});
 const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
 
 // Diff 状态
 interface DiffLine {
@@ -442,19 +444,33 @@ watch(
     const agentId = newData.agentInfo.id;
     const agent = agentStore.getAgentById(agentId);
 
+    // 确定生效的用户档案（智能体绑定 > 全局配置）
+    let effectiveUserProfile = null;
+    if (agent?.userProfileId) {
+      effectiveUserProfile = userProfileStore.getProfileById(agent.userProfileId);
+    }
+    if (!effectiveUserProfile && userProfileStore.globalProfileId) {
+      effectiveUserProfile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
+    }
+
     // 基础上下文，用于宏预览等
     // 注意：如果 contextData 中有 virtualTimeConfig，应该优先使用（这可能是从历史记录恢复的快照）
     // 我们需要构造一个临时的 agent 对象或配置来传递给 createMacroContext
-    const effectiveAgent = agent ? {
-      ...agent,
-      // 如果 contextData 中有虚拟时间配置，覆盖 agent 中的配置
-      virtualTimeConfig: newData.agentInfo.virtualTimeConfig || agent.virtualTimeConfig
-    } : (newData.agentInfo.virtualTimeConfig ? { virtualTimeConfig: newData.agentInfo.virtualTimeConfig } : undefined);
+    const effectiveAgent = agent
+      ? {
+          ...agent,
+          // 如果 contextData 中有虚拟时间配置，覆盖 agent 中的配置
+          virtualTimeConfig: newData.agentInfo.virtualTimeConfig || agent.virtualTimeConfig,
+        }
+      : newData.agentInfo.virtualTimeConfig
+        ? { virtualTimeConfig: newData.agentInfo.virtualTimeConfig }
+        : undefined;
 
     const baseContext = createMacroContext({
       userName: newData.userInfo?.name || "User",
       charName: agent?.name || newData.agentInfo.name || "Assistant",
       agent: effectiveAgent as any, // 使用带有正确时间配置的 agent
+      userProfile: effectiveUserProfile || undefined,
       timestamp: newData.targetTimestamp,
       session: newData.session,
     });

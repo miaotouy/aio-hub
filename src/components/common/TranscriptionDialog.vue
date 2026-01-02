@@ -106,10 +106,10 @@
     <template #content>
       <div class="regenerate-form">
         <div class="form-item">
-          <label>指定模型</label>
+          <label>指定模型（可选）</label>
           <LlmModelSelector
             v-model="selectedModelId"
-            placeholder="选择模型 (可选，默认使用上次模型)"
+            placeholder="选择模型 (可选，默认使用全局设置)"
             :capabilities="requiredCapabilities"
             :teleported="true"
             popper-class="transcription-regenerate-popper"
@@ -120,14 +120,16 @@
           <el-input
             v-model="tempPrompt"
             type="textarea"
-            :rows="4"
+            :rows="6"
             placeholder="输入额外的指令来引导重新生成，例如：'请以更正式的语气转写' 或 '着重提取关键技术术语'..."
-            resize="none"
           />
         </div>
         <div class="form-tip">
           <Info :size="14" />
-          <span>重新生成将覆盖当前编辑器中的内容。</span>
+          <div class="tip-content">
+            <p>重新生成将覆盖当前编辑器中的内容。</p>
+            <p>附加提示将<b>追加</b>到全局转写提示词之后。</p>
+          </div>
         </div>
       </div>
     </template>
@@ -523,13 +525,22 @@ const handleImagePreview = () => {
 
 .form-tip {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
   font-size: 12px;
   color: var(--text-color-secondary);
   background: var(--hover-bg);
-  padding: 8px 12px;
+  padding: 4px 12px;
   border-radius: 6px;
+}
+
+.tip-content p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.tip-content b {
+  color: var(--primary-color);
 }
 
 .confirm-footer {

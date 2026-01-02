@@ -58,6 +58,8 @@ export interface TranscriptionTask {
   filename?: string; // 原始文件名，用于 {filename} 占位符替换
   resultPath?: string; // 缓存结果路径，解决 Asset 更新延迟导致的读取失败问题
   tempFilePath?: string; // 临时文件路径（如压缩后的视频），用于重试复用和最终清理
+  customModelId?: string; // 手动指定的模型 ID
+  additionalPrompt?: string; // 手动追加的提示词
 }
 
 // 单例状态
@@ -155,7 +157,7 @@ export function useTranscriptionManager() {
   /**
    * 添加任务到队列
    */
-  const addTask = (asset: Asset) => {
+  const addTask = (asset: Asset, options?: { modelId?: string; additionalPrompt?: string }) => {
     // 检查是否已存在任务
     const existingTask = tasks.find((t) => t.assetId === asset.id);
     if (existingTask) {
@@ -177,6 +179,8 @@ export function useTranscriptionManager() {
         existingTask.error = undefined;
         existingTask.path = asset.path; // 更新路径（可能文件被重新导入）
         existingTask.mimeType = asset.mimeType;
+        existingTask.customModelId = options?.modelId;
+        existingTask.additionalPrompt = options?.additionalPrompt;
         processQueue();
         return;
       }
@@ -204,6 +208,8 @@ export function useTranscriptionManager() {
       createdAt: Date.now(),
       mimeType: asset.mimeType,
       filename: asset.name, // 保存原始文件名
+      customModelId: options?.modelId,
+      additionalPrompt: options?.additionalPrompt,
     };
 
     tasks.push(task);
@@ -309,7 +315,7 @@ export function useTranscriptionManager() {
    */
   const executeTranscription = async (task: TranscriptionTask) => {
     const config = settings.value.transcription;
-    let modelIdentifier = config.modelIdentifier;
+    let modelIdentifier = task.customModelId || config.modelIdentifier;
     let prompt = config.customPrompt;
     let temperature = config.temperature;
     let maxTokens = config.maxTokens;
@@ -318,22 +324,22 @@ export function useTranscriptionManager() {
     // 处理分类型精细配置
     if (config.enableTypeSpecificConfig) {
       if (task.assetType === "image") {
-        modelIdentifier = config.image.modelIdentifier || modelIdentifier;
+        modelIdentifier = task.customModelId || config.image.modelIdentifier || modelIdentifier;
         prompt = config.image.customPrompt || prompt;
         temperature = config.image.temperature ?? temperature;
         maxTokens = config.image.maxTokens ?? maxTokens;
       } else if (task.assetType === "audio") {
-        modelIdentifier = config.audio.modelIdentifier || modelIdentifier;
+        modelIdentifier = task.customModelId || config.audio.modelIdentifier || modelIdentifier;
         prompt = config.audio.customPrompt || prompt;
         temperature = config.audio.temperature ?? temperature;
         maxTokens = config.audio.maxTokens ?? maxTokens;
       } else if (task.assetType === "video") {
-        modelIdentifier = config.video.modelIdentifier || modelIdentifier;
+        modelIdentifier = task.customModelId || config.video.modelIdentifier || modelIdentifier;
         prompt = config.video.customPrompt || prompt;
         temperature = config.video.temperature ?? temperature;
         maxTokens = config.video.maxTokens ?? maxTokens;
       } else if (task.assetType === "document") {
-        modelIdentifier = config.document.modelIdentifier || modelIdentifier;
+        modelIdentifier = task.customModelId || config.document.modelIdentifier || modelIdentifier;
         prompt = config.document.customPrompt || prompt;
         temperature = config.document.temperature ?? temperature;
         maxTokens = config.document.maxTokens ?? maxTokens;
@@ -514,6 +520,11 @@ export function useTranscriptionManager() {
     // 替换 {filename} 占位符
     if (task.filename) {
       prompt = prompt.replace(/\{filename\}/g, task.filename);
+    }
+
+    // 追加额外的提示词
+    if (task.additionalPrompt) {
+      prompt = `${prompt}\n\n${task.additionalPrompt}`;
     }
 
     // 检查是否有分批数据需要处理（PDF 或 切分后的图片）
@@ -857,21 +868,29 @@ export function useTranscriptionManager() {
 
   /**
    * 重试转写任务
+   * @param asset 资产对象
+   * @param options 可选的重试选项，如指定模型或追加提示词
    */
-  const retryTranscription = (asset: Asset) => {
+  const retryTranscription = (
+    asset: Asset,
+    options?: { modelId?: string; additionalPrompt?: string }
+  ) => {
     const existingTask = tasks.find((t) => t.assetId === asset.id);
     if (existingTask) {
-      logger.info("重试转写任务", { assetId: asset.id });
+      logger.info("重试转写任务", { assetId: asset.id, options });
       existingTask.status = "pending";
       existingTask.retryCount = 0;
       existingTask.error = undefined;
+      existingTask.customModelId = options?.modelId;
+      existingTask.additionalPrompt = options?.additionalPrompt;
+
       // 补充 mimeType
       if (!existingTask.mimeType) {
         existingTask.mimeType = asset.mimeType;
       }
       processQueue();
     } else {
-      addTask(asset);
+      addTask(asset, options);
     }
   };
 

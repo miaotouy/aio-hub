@@ -12,6 +12,8 @@ interface Props {
   disabled?: boolean;
   teleported?: boolean;
   popperClass?: string;
+  placeholder?: string;
+  clearable?: boolean;
 }
 
 interface Emits {
@@ -22,6 +24,8 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   capabilities: () => ({}),
   teleported: true,
+  placeholder: "选择模型",
+  clearable: true,
 });
 const emit = defineEmits<Emits>();
 
@@ -98,7 +102,8 @@ const modelGroups = computed(() => {
   <div class="llm-model-selector">
     <el-select
       v-model="selectedModelCombo"
-      placeholder="选择模型"
+      :placeholder="placeholder"
+      :clearable="clearable"
       style="width: 100%"
       :disabled="disabled || availableModels.length === 0"
       :teleported="teleported"

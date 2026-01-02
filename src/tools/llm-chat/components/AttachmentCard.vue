@@ -225,8 +225,11 @@ const handleSaveTranscription = async (content: string) => {
   }
 };
 
-const handleRegenerateTranscription = () => {
-  retryTranscription(internalAsset.value);
+const handleRegenerateTranscription = (payload: { modelId: string; prompt: string }) => {
+  retryTranscription(internalAsset.value, {
+    modelId: payload.modelId,
+    additionalPrompt: payload.prompt,
+  });
 };
 
 // 加载资产 URL

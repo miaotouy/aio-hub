@@ -8,7 +8,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { parseCharacterDataFromPng } from "@/utils/pngMetadataReader";
-import { isCharacterCard } from "./sillyTavernParser";
+import { isCharacterCard, convertMacros } from "./sillyTavernParser";
 
 const logger = createModuleLogger("llm-chat/worldbookImportService");
 const errorHandler = createModuleErrorHandler("llm-chat/worldbookImportService");
@@ -129,7 +129,7 @@ export function normalizeWorldbook(data: any): STWorldbook {
         ? e.keysecondary
         : (typeof e.keysecondary === 'string' ? e.keysecondary.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
       comment: e.comment || "",
-      content: e.content || "",
+      content: convertMacros(e.content || ""),
       constant: !!(e.constant ?? ext.constant),
       vectorized: !!(e.vectorized ?? ext.vectorized),
       selective: e.selective !== undefined ? !!e.selective : true,

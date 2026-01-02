@@ -103,6 +103,20 @@ export interface SillyTavernPrompt {
 // ==================== 解析结果类型 ====================
 
 /**
+ * 将 SillyTavern 的快捷宏 (如 <char>, <user>) 转换为本系统支持的格式 (如 {{char}}, {{user}})
+ */
+export function convertMacros(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/<char>/g, '{{char}}')
+    .replace(/<user>/g, '{{user}}')
+    .replace(/<persona>/g, '{{persona}}')
+    .replace(/<description>/g, '{{description}}')
+    .replace(/<scenario>/g, '{{scenario}}')
+    .replace(/<world>/g, '{{world}}');
+}
+
+/**
  * 标准化后的角色卡数据，用于统一处理 v2 和 v3 格式
  */
 interface NormalizedCardData {
@@ -154,33 +168,39 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
 
   // 1. System Prompt (v3)
   if (data.system_prompt) {
-    presetMessages.push(createPresetMessage('system', data.system_prompt, 'System Prompt'));
+    presetMessages.push(createPresetMessage('system', convertMacros(data.system_prompt), 'System Prompt'));
   }
 
   // 2. Description
   if (data.description) {
-    presetMessages.push(createPresetMessage('system', `[角色描述]\n${data.description}`, 'Description'));
+    presetMessages.push(
+      createPresetMessage('system', `[角色描述]\n${convertMacros(data.description)}`, 'Description')
+    );
   }
 
   // 3. Personality
   if (data.personality) {
-    presetMessages.push(createPresetMessage('system', `[角色性格]\n${data.personality}`, 'Personality'));
+    presetMessages.push(
+      createPresetMessage('system', `[角色性格]\n${convertMacros(data.personality)}`, 'Personality')
+    );
   }
 
   // 4. Scenario
   if (data.scenario) {
-    presetMessages.push(createPresetMessage('system', `[场景设定]\n${data.scenario}`, 'Scenario'));
+    presetMessages.push(createPresetMessage('system', `[场景设定]\n${convertMacros(data.scenario)}`, 'Scenario'));
   }
 
   // 5. Example Messages
   if (data.mes_example) {
-    presetMessages.push(createPresetMessage('system', `[对话示例]\n${data.mes_example}`, 'Example Messages'));
+    presetMessages.push(
+      createPresetMessage('system', `[对话示例]\n${convertMacros(data.mes_example)}`, 'Example Messages')
+    );
   }
 
   // 6. Post History Instructions (v3) - 通常作为深度注入
   if (data.post_history_instructions) {
     presetMessages.push(
-      createPresetMessage('system', data.post_history_instructions, 'Post History Instructions', {
+      createPresetMessage('system', convertMacros(data.post_history_instructions), 'Post History Instructions', {
         depth: 0, // 紧跟最新消息
         order: 100,
       })
@@ -191,7 +211,7 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
   const depthPrompt = data.extensions?.depth_prompt;
   if (depthPrompt && depthPrompt.prompt) {
     presetMessages.push(
-      createPresetMessage(depthPrompt.role || 'system', depthPrompt.prompt, 'Depth Prompt', {
+      createPresetMessage(depthPrompt.role || 'system', convertMacros(depthPrompt.prompt), 'Depth Prompt', {
         depth: depthPrompt.depth ?? 4,
         order: 100,
       })
@@ -208,7 +228,7 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
       presetMessages.push(
         createPresetMessage(
           'assistant',
-          greeting,
+          convertMacros(greeting),
           index === 0 ? 'First Message' : `Alternate Greeting ${index}`,
           undefined,
           index === 0 // 只启用第一个
@@ -306,7 +326,7 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
     }
     const message = createPresetMessage(
       prompt.role || 'system',
-      prompt.content,
+      convertMacros(prompt.content),
       prompt.name, // 传入名称
       undefined, // 前置消息不应有注入策略
       item.enabled
@@ -324,7 +344,7 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
     const injectionStrategy = convertInjectionStrategy(prompt);
     const message = createPresetMessage(
       prompt.role || 'system',
-      prompt.content,
+      convertMacros(prompt.content),
       prompt.name,
       injectionStrategy,
       item.enabled
@@ -341,7 +361,7 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
     const injectionStrategy = convertInjectionStrategy(prompt);
     const message = createPresetMessage(
       prompt.role || 'system',
-      prompt.content,
+      convertMacros(prompt.content),
       prompt.name,
       injectionStrategy,
       false // 默认禁用，让用户选择

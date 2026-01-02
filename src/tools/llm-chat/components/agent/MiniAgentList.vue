@@ -13,7 +13,7 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
-const props = defineProps<{
+defineProps<{
   currentAgentId?: string | null;
 }>();
 

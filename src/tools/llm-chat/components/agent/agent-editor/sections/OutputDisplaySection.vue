@@ -84,6 +84,11 @@ watch(
           开启后，点击消息中的可交互发送按钮（如“继续”）将不再追加到当前对话末尾，而是作为该消息的新分支发送。
         </div>
       </el-form-item>
+
+      <el-form-item label="工具调用折叠">
+        <el-switch v-model="editForm.defaultToolCallCollapsed" />
+        <div class="form-hint">开启后，消息中的工具调用组件将默认处于折叠状态。</div>
+      </el-form-item>
     </div>
   </div>
 </template>

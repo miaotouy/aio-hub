@@ -42,6 +42,7 @@ const props = withDefaults(
     defaultRenderHtml?: boolean; // 是否默认渲染 HTML 代码块
     seamlessMode?: boolean; // HTML 预览无边框模式
     defaultCodeBlockExpanded?: boolean; // 代码块默认展开
+    defaultToolCallCollapsed?: boolean; // 工具调用默认折叠
     enableCdnLocalizer?: boolean; // 是否启用 CDN 资源本地化
     throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
@@ -56,6 +57,7 @@ const props = withDefaults(
     defaultRenderHtml: false,
     seamlessMode: false,
     defaultCodeBlockExpanded: false,
+    defaultToolCallCollapsed: false,
     enableCdnLocalizer: true,
     allowExternalScripts: false,
     enableEnterAnimation: true,
@@ -174,6 +176,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
   seamlessMode: computed(() => props.seamlessMode),
   defaultCodeBlockExpanded: computed(() => props.defaultCodeBlockExpanded),
+  defaultToolCallCollapsed: computed(() => props.defaultToolCallCollapsed),
   enableCdnLocalizer: computed(() => props.enableCdnLocalizer),
   allowExternalScripts: computed(() => props.allowExternalScripts),
   resolveAsset: props.resolveAsset,
@@ -206,11 +209,15 @@ const createProcessor = (version: RendererVersion) => {
         onPatch: enqueuePatch,
         llmThinkTagNames: thinkTagNames,
         llmThinkRules: props.llmThinkRules || [],
+        defaultToolCallCollapsed: props.defaultToolCallCollapsed,
       });
     }
     case RendererVersion.V1_MARKDOWN_IT:
     default:
-      return new StreamProcessor({ onPatch: enqueuePatch });
+      return new StreamProcessor({
+        onPatch: enqueuePatch,
+        defaultToolCallCollapsed: props.defaultToolCallCollapsed,
+      });
   }
 };
 

@@ -522,6 +522,9 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         :resolve-asset="resolveAsset"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
         :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
+        :default-tool-call-collapsed="
+          currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
+        "
         :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
         :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
@@ -602,6 +605,9 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :is-streaming="message.status === 'generating'"
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
           :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
+          :default-tool-call-collapsed="
+            currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
+          "
           :seamless-mode="settings.uiPreferences.seamlessMode"
           :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
           :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
@@ -641,6 +647,10 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :style-options="richTextStyleOptions"
             :default-render-html="settings.uiPreferences.defaultRenderHtml"
             :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
+            :default-tool-call-collapsed="
+              currentAgent?.defaultToolCallCollapsed ??
+              settings.uiPreferences.defaultToolCallCollapsed
+            "
             :seamless-mode="settings.uiPreferences.seamlessMode"
             :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
             :allow-external-scripts="settings.uiPreferences.allowExternalScripts"

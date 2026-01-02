@@ -43,7 +43,7 @@ class MarkdownBoundaryDetector {
   private hasUnclosedKatexBlock(text: string): boolean {
     // 移除转义的 \$
     const cleanText = text.replace(/\\\$/g, '');
-    
+
     // 统计 $$ 的出现次数
     let count = 0;
     let i = 0;
@@ -55,7 +55,7 @@ class MarkdownBoundaryDetector {
         i++;
       }
     }
-    
+
     // 如果 $$ 出现次数为奇数，说明有未闭合的块级公式
     return count % 2 !== 0;
   }
@@ -185,9 +185,13 @@ export class StreamProcessorV2 {
   constructor(options: StreamProcessorOptions) {
     this.onPatch = options.onPatch;
     this.llmThinkRules = options.llmThinkRules || [];
-    
+
     const llmThinkTagNames = options.llmThinkTagNames || new Set();
-    this.parser = new CustomParser(llmThinkTagNames, this.llmThinkRules);
+    this.parser = new CustomParser(
+      llmThinkTagNames,
+      this.llmThinkRules,
+      options.defaultToolCallCollapsed
+    );
     this.boundaryDetector = new MarkdownBoundaryDetector(llmThinkTagNames);
   }
 

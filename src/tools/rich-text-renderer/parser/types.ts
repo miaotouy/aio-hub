@@ -34,7 +34,16 @@ export type Token =
   | { type: "code_fence"; language: string; raw: string; closed?: boolean }
   | { type: "katex_block"; content: string }
   | { type: "katex_inline"; content: string }
-  | { type: "autolink"; url: string; raw: string };
+  | { type: "autolink"; url: string; raw: string }
+  | {
+      type: "vcp_tool";
+      raw: string;
+      closed: boolean;
+      tool_name: string;
+      command: string;
+      maid?: string;
+      args: Record<string, string>;
+    };
 
 // ============ 解析器上下文 ============
 

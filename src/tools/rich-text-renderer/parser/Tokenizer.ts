@@ -326,6 +326,60 @@ export class Tokenizer {
             continue;
           }
         }
+
+        // VCP 工具请求块
+        // 格式: <<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>
+        if (remaining.slice(indent).startsWith("<<<[TOOL_REQUEST]>>>")) {
+          const startMarker = "<<<[TOOL_REQUEST]>>>";
+          const endMarker = "<<<[END_TOOL_REQUEST]>>>";
+          i += indent + startMarker.length;
+
+          let vcpContent = "";
+          let closed = false;
+          const endIdx = text.indexOf(endMarker, i);
+
+          if (endIdx !== -1) {
+            vcpContent = text.slice(i, endIdx);
+            i = endIdx + endMarker.length;
+            closed = true;
+          } else {
+            // 未闭合，收集剩余所有内容
+            vcpContent = text.slice(i);
+            i = text.length;
+            closed = false;
+          }
+
+          // 解析 VCP 内容: key:「始」value「末」
+          const args: Record<string, string> = {};
+          let tool_name = "";
+          let command = "";
+          let maid = "";
+
+          // 使用正则提取所有键值对
+          const vcpRegex = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
+          let match;
+          while ((match = vcpRegex.exec(vcpContent)) !== null) {
+            const key = match[1];
+            const value = match[2];
+            if (key === "tool_name") tool_name = value;
+            else if (key === "command") command = value;
+            else if (key === "maid") maid = value;
+            else args[key] = value;
+          }
+
+          tokens.push({
+            type: "vcp_tool",
+            raw: startMarker + vcpContent + (closed ? endMarker : ""),
+            closed,
+            tool_name,
+            command,
+            maid,
+            args,
+          });
+
+          atLineStart = true;
+          continue;
+        }
       }
 
       // Markdown 内联定界符

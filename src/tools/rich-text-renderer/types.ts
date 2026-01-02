@@ -365,7 +365,8 @@ export type AstNode =
   | TableRowNode
   | TableCellNode
   | KatexBlockNode // KaTeX 块级公式
-  | ActionButtonNode;
+  | ActionButtonNode
+  | VcpToolNode;
 
 /**
  * 可交互按钮节点
@@ -382,6 +383,38 @@ export interface ActionButtonNode extends BaseAstNode {
     content: string;
     /** 内联样式，当存在时，将完全替换组件的默认样式 */
     style?: string;
+  };
+  children?: never;
+}
+
+/**
+ * VCP 工具节点
+ * 用于渲染 VCP (Virtual Character Protocol) 工具调用格式
+ * 格式示例：
+ * <<<[TOOL_REQUEST]>>>
+ * maid:「始」[咕咕]咕咕「末」
+ * tool_name:「始」DailyNote「末」
+ * command:「始」create「末」
+ * ...
+ * <<<[END_TOOL_REQUEST]>>>
+ */
+export interface VcpToolNode extends BaseAstNode {
+  type: 'vcp_tool';
+  props: {
+    /** 原始完整文本，用于调试 */
+    raw: string;
+    /** 是否已闭合（流式传输中可能未闭合） */
+    closed: boolean;
+    /** 解析后的工具名称 */
+    tool_name: string;
+    /** 解析后的命令 */
+    command: string;
+    /** 解析后的 maid（可选） */
+    maid?: string;
+    /** 其他参数键值对 */
+    args: Record<string, string>;
+    /** 是否默认折叠 */
+    collapsedByDefault?: boolean;
   };
   children?: never;
 }
@@ -500,6 +533,8 @@ export interface StreamProcessorOptions {
   llmThinkTagNames?: Set<string>;
   /** LLM 思考规则配置（仅 V2 使用） */
   llmThinkRules?: LlmThinkRule[];
+  /** 工具调用默认折叠 */
+  defaultToolCallCollapsed?: boolean;
 }
 
 /**
@@ -629,6 +664,8 @@ export interface TesterConfig {
   defaultRenderHtml?: boolean;
   /** 代码块默认展开 */
   defaultCodeBlockExpanded?: boolean;
+  /** 工具调用默认折叠 */
+  defaultToolCallCollapsed?: boolean;
   /** HTML 预览无边框模式 */
   seamlessMode?: boolean;
   /** 是否启用 CDN 资源本地化 */
@@ -710,6 +747,7 @@ export interface RichTextContext {
   defaultRenderHtml?: Ref<boolean>;
   seamlessMode?: Ref<boolean>;
   defaultCodeBlockExpanded?: Ref<boolean>;
+  defaultToolCallCollapsed?: Ref<boolean>;
   enableCdnLocalizer?: Ref<boolean>;
   allowExternalScripts?: Ref<boolean>;
   /**

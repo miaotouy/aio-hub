@@ -164,6 +164,11 @@ export interface ChatAgent {
   richTextStyleOptions?: RichTextRendererStyleOptions;
 
   /**
+   * 工具调用默认折叠
+   */
+  defaultToolCallCollapsed?: boolean;
+
+  /**
    * 虚拟时间配置
    * 用于设定智能体的虚拟时间流逝规则
    */
@@ -321,6 +326,11 @@ export interface AgentPreset {
    * 富文本渲染器样式配置
    */
   richTextStyleOptions?: RichTextRendererStyleOptions;
+
+  /**
+   * 工具调用默认折叠
+   */
+  defaultToolCallCollapsed?: boolean;
 
   /**
    * 虚拟时间配置

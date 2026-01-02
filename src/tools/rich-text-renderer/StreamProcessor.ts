@@ -131,7 +131,7 @@ class MarkdownBoundaryDetector {
 
     return thinkTagStack.length > 0;
   }
-  
+
   /**
    * 找到安全的块边界，将文本分割为稳定区和待定区
    */
@@ -179,6 +179,7 @@ export class StreamProcessor {
   private boundaryDetector: MarkdownBoundaryDetector;
   private llmThinkTagNames: Set<string>;
   private llmThinkRules: LlmThinkRule[];
+  private defaultToolCallCollapsed: boolean;
 
   // 状态
   private stableAst: AstNode[] = [];      // 已稳定的节点
@@ -189,15 +190,16 @@ export class StreamProcessor {
     this.onPatch = options.onPatch;
     this.llmThinkTagNames = options.llmThinkTagNames || new Set();
     this.llmThinkRules = options.llmThinkRules || [];
+    this.defaultToolCallCollapsed = options.defaultToolCallCollapsed ?? false;
     this.boundaryDetector = new MarkdownBoundaryDetector(this.llmThinkTagNames);
-    
+
     this.md = new MarkdownIt({
       html: true, // 启用 HTML 解析
       breaks: true,
       linkify: true,
       typographer: true,
     });
-    
+
     // 使用 texmath 插件添加 KaTeX 数学公式支持
     this.md.use(texmath, {
       engine: katex,
@@ -230,12 +232,12 @@ export class StreamProcessor {
 
     // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
     this.forceStopThinking(finalAst);
-    
+
     const currentAst = [...this.stableAst, ...this.pendingAst];
     this.preserveExistingIds(finalAst, currentAst);
 
     const patches = this.diffAst(currentAst, finalAst);
-    
+
     if (patches.length > 0) {
       this.onPatch(patches);
     } else if (currentAst.length === 0 && finalAst.length > 0) {
@@ -261,10 +263,10 @@ export class StreamProcessor {
       this.assignIds(newStableAst);
       this.markNodesStatus(newStableAst, 'stable');
       this.preserveExistingIds(newStableAst, this.stableAst);
-      
+
       const stablePatches = this.diffAst(this.stableAst, newStableAst);
       allPatches.push(...stablePatches);
-      
+
       this.stableAst = newStableAst;
       this.stableTextLength = stableText.length;
     }
@@ -273,7 +275,7 @@ export class StreamProcessor {
     const newPendingAst = this.parseMarkdown(pendingText);
     this.assignIds(newPendingAst);
     this.markNodesStatus(newPendingAst, 'pending');
-    
+
     const pendingPatches = this.replacePendingRegion(this.pendingAst, newPendingAst);
     allPatches.push(...pendingPatches);
     this.pendingAst = newPendingAst;
@@ -359,7 +361,7 @@ export class StreamProcessor {
         patches.push({ op: 'replace-root', newRoot: newPending });
       }
     }
-    
+
     return patches;
   }
 
@@ -441,12 +443,12 @@ export class StreamProcessor {
   private diffSingleNode(oldNode: AstNode, newNode: AstNode): Patch[] {
     // ID 必须预先处理好
     newNode.id = oldNode.id;
-    
+
     // 检查类型、内容或状态是否发生变化
     const typeChanged = oldNode.type !== newNode.type;
     const contentChanged = this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
     const statusChanged = oldNode.meta.status !== newNode.meta.status;
-    
+
     if (typeChanged || contentChanged || statusChanged) {
       // 节点类型、内容或状态发生变化，直接替换
       // 递归保留子节点 ID
@@ -512,9 +514,13 @@ export class StreamProcessor {
       const token = tokens[i];
       const node = this.tokenToNode(token, tokens, i);
       if (node) {
+        // 如果是 VCP 工具节点，注入默认折叠状态
+        if (node.type === "vcp_tool") {
+          node.props.collapsedByDefault = this.defaultToolCallCollapsed;
+        }
         ast.push(node);
-        if (token.type.endsWith('_open')) {
-          i = this.skipToClosingToken(tokens, i, token.type.replace('_open', ''));
+        if (token.type.endsWith("_open")) {
+          i = this.skipToClosingToken(tokens, i, token.type.replace("_open", ""));
         }
       }
       i++;
@@ -522,80 +528,80 @@ export class StreamProcessor {
     return ast;
   }
 
-    private parseInlineTokens(tokens: any[]): AstNode[] {
-      const nodes: AstNode[] = [];
-      let i = 0;
-      while (i < tokens.length) {
-        const token = tokens[i];
-  
-        // 组合连续的 text 和 html_inline 令牌
-        if (token.type === 'text' || token.type === 'html_inline') {
-          let buffer = '';
-          let currentPos = i;
-          while (currentPos < tokens.length && (tokens[currentPos].type === 'text' || tokens[currentPos].type === 'html_inline')) {
-            buffer += tokens[currentPos].content;
-            currentPos++;
-          }
-  
-          // 如果组合后的内容包含 HTML 标签，则创建 HtmlInlineNode，否则创建 TextNode
-          // 这样可以避免将纯文本错误地用 v-html 渲染
-          if (/<[a-z][\s\S]*>/i.test(buffer)) {
-            nodes.push({ id: this.generateNodeId(), type: 'html_inline', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as HtmlInlineNode);
-          } else {
-            nodes.push({ id: this.generateNodeId(), type: 'text', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as TextNode);
-          }
-          
-          i = currentPos; // 快进索引
-          continue; // 继续下一次大循环
+  private parseInlineTokens(tokens: any[]): AstNode[] {
+    const nodes: AstNode[] = [];
+    let i = 0;
+    while (i < tokens.length) {
+      const token = tokens[i];
+
+      // 组合连续的 text 和 html_inline 令牌
+      if (token.type === 'text' || token.type === 'html_inline') {
+        let buffer = '';
+        let currentPos = i;
+        while (currentPos < tokens.length && (tokens[currentPos].type === 'text' || tokens[currentPos].type === 'html_inline')) {
+          buffer += tokens[currentPos].content;
+          currentPos++;
         }
-        
-        // 处理其他非文本/html的令牌
-        switch (token.type) {
-          case 'strong_open': {
-            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'strong_close');
-            nodes.push({ id: this.generateNodeId(), type: 'strong', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrongNode);
-            i = nextIndex;
-            break;
-          }
-          case 'em_open': {
-            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'em_close');
-            nodes.push({ id: this.generateNodeId(), type: 'em', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as EmNode);
-            i = nextIndex;
-            break;
-          }
-          case 's_open': {
-            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 's_close');
-            nodes.push({ id: this.generateNodeId(), type: 'strikethrough', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrikethroughNode);
-            i = nextIndex;
-            break;
-          }
-          case 'code_inline':
-            nodes.push({ id: this.generateNodeId(), type: 'inline_code', props: { content: token.content }, meta: { range: { start: 0, end: 0 } } } as InlineCodeNode);
-            break;
-          case 'math_inline':
-          case 'math_inline_double': {
-            // KaTeX 行内公式
-            nodes.push({
-              id: this.generateNodeId(),
-              type: 'katex_inline',
-              props: { content: token.content },
-              meta: { range: { start: 0, end: 0 } }
-            } as KatexInlineNode);
-            break;
-          }
-          case 'link_open': {
-            const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'link_close');
-            const href = token.attrGet('href') || '';
-            const title = token.attrGet('title') || undefined;
-            nodes.push({ id: this.generateNodeId(), type: 'link', props: { href, title }, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as LinkNode);
-            i = nextIndex;
-            break;
-          }
+
+        // 如果组合后的内容包含 HTML 标签，则创建 HtmlInlineNode，否则创建 TextNode
+        // 这样可以避免将纯文本错误地用 v-html 渲染
+        if (/<[a-z][\s\S]*>/i.test(buffer)) {
+          nodes.push({ id: this.generateNodeId(), type: 'html_inline', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as HtmlInlineNode);
+        } else {
+          nodes.push({ id: this.generateNodeId(), type: 'text', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as TextNode);
         }
-        i++;
+
+        i = currentPos; // 快进索引
+        continue; // 继续下一次大循环
       }
-      return nodes;
+
+      // 处理其他非文本/html的令牌
+      switch (token.type) {
+        case 'strong_open': {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'strong_close');
+          nodes.push({ id: this.generateNodeId(), type: 'strong', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrongNode);
+          i = nextIndex;
+          break;
+        }
+        case 'em_open': {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'em_close');
+          nodes.push({ id: this.generateNodeId(), type: 'em', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as EmNode);
+          i = nextIndex;
+          break;
+        }
+        case 's_open': {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 's_close');
+          nodes.push({ id: this.generateNodeId(), type: 'strikethrough', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrikethroughNode);
+          i = nextIndex;
+          break;
+        }
+        case 'code_inline':
+          nodes.push({ id: this.generateNodeId(), type: 'inline_code', props: { content: token.content }, meta: { range: { start: 0, end: 0 } } } as InlineCodeNode);
+          break;
+        case 'math_inline':
+        case 'math_inline_double': {
+          // KaTeX 行内公式
+          nodes.push({
+            id: this.generateNodeId(),
+            type: 'katex_inline',
+            props: { content: token.content },
+            meta: { range: { start: 0, end: 0 } }
+          } as KatexInlineNode);
+          break;
+        }
+        case 'link_open': {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'link_close');
+          const href = token.attrGet('href') || '';
+          const title = token.attrGet('title') || undefined;
+          nodes.push({ id: this.generateNodeId(), type: 'link', props: { href, title }, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as LinkNode);
+          i = nextIndex;
+          break;
+        }
+      }
+      i++;
     }
+    return nodes;
+  }
 
   private extractInnerTokens(tokens: any[], startIndex: number, closingType: string): { innerTokens: any[], nextIndex: number } {
     const innerTokens: any[] = [];
@@ -676,31 +682,31 @@ export class StreamProcessor {
     // 匹配开始标签：<tagName>
     const openTagRegex = /<([a-zA-Z][a-zA-Z0-9_-]*)\s*[^>]*?>/;
     const openMatch = htmlContent.match(openTagRegex);
-    
+
     if (!openMatch) return null;
-    
+
     const tagName = openMatch[1].toLowerCase();
-    
+
     // 检查是否是 LLM 思考标签
     if (!this.llmThinkTagNames.has(tagName)) return null;
-    
+
     // 查找对应的规则
     const rule = this.llmThinkRules.find((r) => r.tagName === tagName);
     const ruleId = rule?.id || `auto-${tagName}`;
     const displayName = rule?.displayName || tagName;
     const collapsedByDefault = rule?.collapsedByDefault ?? true;
-    
+
     // 提取内容（去除开始和结束标签）
     const closeTagRegex = new RegExp(`</${tagName}\\s*>`, 'i');
     let content = htmlContent.replace(openTagRegex, '').replace(closeTagRegex, '').trim();
-    
+
     // 检查标签是否闭合
     const isThinking = !closeTagRegex.test(htmlContent);
-    
+
     // 解析内容为 AST
     const contentTokens = this.md.parse(content, {});
     const children = this.tokensToAst(contentTokens);
-    
+
     return {
       id: this.generateNodeId(),
       type: 'llm_think',

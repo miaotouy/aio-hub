@@ -34,13 +34,16 @@ import { parseInlines } from "./parser/inline/parseInlines";
 export class CustomParser implements ParserContext {
   private llmThinkTagNames: Set<string>;
   private llmThinkRules: LlmThinkRule[];
+  private defaultToolCallCollapsed: boolean;
 
   constructor(
     llmThinkTagNames: Set<string> = new Set(["think"]),
-    llmThinkRules: LlmThinkRule[] = []
+    llmThinkRules: LlmThinkRule[] = [],
+    defaultToolCallCollapsed: boolean = false
   ) {
     this.llmThinkTagNames = llmThinkTagNames;
     this.llmThinkRules = llmThinkRules;
+    this.defaultToolCallCollapsed = defaultToolCallCollapsed;
   }
 
   public getOptions(): ParserOptions {
@@ -167,6 +170,26 @@ export class CustomParser implements ParserContext {
           type: "hr",
           props: {},
           meta: { range: { start: 0, end: 0 }, status: "stable" },
+        });
+        i++;
+        continue;
+      }
+
+      // VCP 工具请求
+      if (token.type === "vcp_tool") {
+        blocks.push({
+          id: "",
+          type: "vcp_tool",
+          props: {
+            raw: token.raw,
+            closed: token.closed,
+            tool_name: token.tool_name,
+            command: token.command,
+            maid: token.maid,
+            args: token.args,
+            collapsedByDefault: this.defaultToolCallCollapsed,
+          },
+          meta: { range: { start: 0, end: 0 }, status: token.closed ? "stable" : "pending" },
         });
         i++;
         continue;

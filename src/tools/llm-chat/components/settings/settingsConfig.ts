@@ -306,6 +306,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui code block expand 展开 代码块",
       },
       {
+        id: "defaultToolCallCollapsed",
+        label: "工具调用默认折叠",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.defaultToolCallCollapsed",
+        hint: "开启后，消息中的工具调用将默认处于折叠状态",
+        keywords: "ui tool call collapse 折叠 工具调用",
+      },
+      {
         id: "seamlessMode",
         label: "HTML 预览无边框模式",
         layout: "inline",

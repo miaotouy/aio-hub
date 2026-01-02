@@ -36,6 +36,25 @@ watch(
 
 <template>
   <div class="agent-section">
+    <!-- 交互行为 -->
+    <div class="section-group" data-setting-id="interaction">
+      <div class="section-group-title">交互行为配置</div>
+      <el-form-item label="分支发送模式">
+        <el-switch v-model="editForm.interactionConfig.sendButtonCreateBranch" />
+        <div class="form-hint">
+          开启后，点击消息中由 LLM 生成的交互按钮（如 RPG
+          选项）时，将从<strong>该消息下方创建新分支</strong>，而不是追加到对话末尾。这允许你随时回到原处尝试不同的选项。
+        </div>
+      </el-form-item>
+
+      <el-form-item label="工具调用折叠">
+        <el-switch v-model="editForm.defaultToolCallCollapsed" />
+        <div class="form-hint">开启后，消息中的工具调用组件将默认处于折叠状态。</div>
+      </el-form-item>
+    </div>
+
+    <el-divider />
+
     <!-- 文本替换规则 -->
     <div class="section-group" data-setting-id="regex">
       <div class="section-group-title">文本替换规则</div>
@@ -72,24 +91,6 @@ watch(
         />
       </div>
     </div>
-
-    <el-divider />
-
-    <!-- 交互行为 -->
-    <div class="section-group" data-setting-id="interaction">
-      <div class="section-group-title">交互行为配置</div>
-      <el-form-item label="分支发送">
-        <el-switch v-model="editForm.interactionConfig.sendButtonCreateBranch" />
-        <div class="form-hint">
-          开启后，点击消息中的可交互发送按钮（如“继续”）将不再追加到当前对话末尾，而是作为该消息的新分支发送。
-        </div>
-      </el-form-item>
-
-      <el-form-item label="工具调用折叠">
-        <el-switch v-model="editForm.defaultToolCallCollapsed" />
-        <div class="form-hint">开启后，消息中的工具调用组件将默认处于折叠状态。</div>
-      </el-form-item>
-    </div>
   </div>
 </template>
 
@@ -106,5 +107,8 @@ watch(
   font-size: 12px;
   color: var(--text-color-secondary);
   margin-top: 4px;
+}
+.el-switch {
+  margin-right: 8px;
 }
 </style>

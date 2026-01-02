@@ -10,6 +10,8 @@ interface Props {
   modelValue: string; // combo `profileId:modelId`
   capabilities?: Partial<ModelCapabilities>;
   disabled?: boolean;
+  teleported?: boolean;
+  popperClass?: string;
 }
 
 interface Emits {
@@ -19,6 +21,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   capabilities: () => ({}),
+  teleported: true,
 });
 const emit = defineEmits<Emits>();
 
@@ -27,7 +30,7 @@ const { enabledProfiles } = useLlmProfiles();
 const { getModelIcon } = useModelMetadata();
 
 const goToLlmSettings = () => {
-  router.push({ path: '/settings', query: { section: 'llm-service' } });
+  router.push({ path: "/settings", query: { section: "llm-service" } });
 };
 
 // 筛选并格式化所有可用模型
@@ -98,6 +101,8 @@ const modelGroups = computed(() => {
       placeholder="选择模型"
       style="width: 100%"
       :disabled="disabled || availableModels.length === 0"
+      :teleported="teleported"
+      :popper-class="popperClass"
       class="custom-select"
     >
       <template #prefix>
@@ -136,7 +141,7 @@ const modelGroups = computed(() => {
       v-if="availableModels.length === 0"
       type="warning"
       :underline="false"
-      style="margin-top: 8px; display: block; cursor: pointer;"
+      style="margin-top: 8px; display: block; cursor: pointer"
       @click="goToLlmSettings"
     >
       请先在设置中配置 LLM 服务并添加符合要求的模型

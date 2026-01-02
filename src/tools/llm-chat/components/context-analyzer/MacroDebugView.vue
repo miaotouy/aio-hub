@@ -115,7 +115,7 @@
                     <div
                       v-if="hunk.isCollapsed"
                       class="hunk-divider"
-                      @click.stop="expandHunk(msgIndex, index)"
+                      @click.stop="toggleHunk(msgIndex, index)"
                     >
                       <el-icon><MoreFilled /></el-icon>
                       <span>展开 {{ hunk.lines.length }} 行未变化内容</span>
@@ -123,6 +123,17 @@
 
                     <!-- 差异块内容 -->
                     <div v-else class="hunk-content">
+                      <!-- 允许折叠的展开块提供一个收起按钮 -->
+                      <div
+                        v-if="!hunk.isChangeHunk && !hunk.hasMacro"
+                        class="hunk-divider is-expanded"
+                        @click.stop="toggleHunk(msgIndex, index)"
+                        title="收起未变化内容"
+                      >
+                        <el-icon><MoreFilled /></el-icon>
+                        <span>收起 {{ hunk.lines.length }} 行内容</span>
+                      </div>
+
                       <div
                         v-for="(line, lineIndex) in hunk.lines"
                         :key="lineIndex"
@@ -421,15 +432,39 @@ const toggleAllContext = () => {
   allContextExpanded.value = !allContextExpanded.value;
   messageResults.value.forEach((msg) => {
     msg.diffHunks.forEach((h) => {
-      h.isCollapsed = !allContextExpanded.value;
+      // 只有原本可以折叠的块（非变更、非宏）才受此开关控制
+      if (!h.isChangeHunk && !h.hasMacro) {
+        h.isCollapsed = !allContextExpanded.value;
+      }
     });
   });
 };
 
-const expandHunk = (msgIndex: number, hunkIndex: number) => {
+const toggleHunk = (msgIndex: number, hunkIndex: number) => {
   const msg = messageResults.value[msgIndex];
   if (msg && msg.diffHunks[hunkIndex]) {
-    msg.diffHunks[hunkIndex].isCollapsed = false;
+    msg.diffHunks[hunkIndex].isCollapsed = !msg.diffHunks[hunkIndex].isCollapsed;
+
+    // 检查是否所有可折叠块的状态都一致，更新全局 allContextExpanded
+    updateAllContextState();
+  }
+};
+
+const updateAllContextState = () => {
+  let anyCollapsed = false;
+  let hasToggleable = false;
+
+  messageResults.value.forEach((msg) => {
+    msg.diffHunks.forEach((h) => {
+      if (!h.isChangeHunk && !h.hasMacro) {
+        hasToggleable = true;
+        if (h.isCollapsed) anyCollapsed = true;
+      }
+    });
+  });
+
+  if (hasToggleable) {
+    allContextExpanded.value = !anyCollapsed;
   }
 };
 
@@ -671,6 +706,14 @@ watch(
 .hunk-divider:hover {
   background-color: var(--el-fill-color);
   color: var(--el-color-primary);
+}
+
+.hunk-divider.is-expanded {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  opacity: 0.6;
+}
+.hunk-divider.is-expanded:hover {
+  opacity: 1;
 }
 
 .diff-line {

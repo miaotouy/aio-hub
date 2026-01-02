@@ -97,6 +97,8 @@ export interface TranscriptionConfig {
   image: TypeSpecificTranscriptionConfig;
   /** 音频特定配置 */
   audio: TypeSpecificTranscriptionConfig;
+  /** 文档特定配置 */
+  document: TypeSpecificTranscriptionConfig;
   /** FFmpeg 路径 */
   ffmpegPath?: string;
   /** 视频特定配置 */
@@ -451,6 +453,27 @@ export const DEFAULT_SETTINGS: ChatSettings = {
       temperature: 0.2,
       maxTokens: 4096,
     },
+    document: {
+      modelIdentifier: "",
+      customPrompt: `你是一个专业的文档解析专家，正在处理文档：{filename}。具备极高的文档结构理解和文字提取能力。
+
+## 核心任务
+请将输入的文档内容转换为结构清晰、排版优雅的 Markdown 格式。
+
+## 处理准则
+1. **结构映射**：准确识别标题（H1-H6）、列表、表格、引用块等结构，并使用对应的 Markdown 语法。
+2. **内容忠实**：逐字提取所有文本，不遗漏任何细节，不随意更改原文表述。
+3. **表格还原**：对于文档中的表格，请使用 Markdown 表格语法进行完美还原。
+4. **数学公式**：如果文档中包含数学公式，请使用 LaTeX 语法（$ 或 $$）进行转录。
+5. **非文字元素**：对于文档中的图片或图表，提供文字描述。
+
+## 输出规范
+- 使用 Markdown 格式输出。
+- 保持文档的原始阅读顺序。
+- 仅输出解析后的内容，不包含任何个人评论。`,
+      temperature: 0.1,
+      maxTokens: 16384,
+    },
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,
@@ -550,6 +573,10 @@ const settingsManager = createConfigManager<ChatSettings>({
         video: {
           ...defaultConfig.transcription.video,
           ...(loadedConfig.transcription?.video || {}),
+        },
+        document: {
+          ...defaultConfig.transcription.document,
+          ...(loadedConfig.transcription?.document || {}),
         },
       },
       requestSettings: {

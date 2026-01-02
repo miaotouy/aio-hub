@@ -333,11 +333,10 @@ export function useTranscriptionManager() {
         temperature = config.video.temperature ?? temperature;
         maxTokens = config.video.maxTokens ?? maxTokens;
       } else if (task.assetType === "document") {
-        // 假设 PDF 使用与图片相同的配置
-        modelIdentifier = config.image.modelIdentifier || modelIdentifier;
-        prompt = config.image.customPrompt || prompt;
-        temperature = config.image.temperature ?? temperature;
-        maxTokens = config.image.maxTokens ?? maxTokens;
+        modelIdentifier = config.document.modelIdentifier || modelIdentifier;
+        prompt = config.document.customPrompt || prompt;
+        temperature = config.document.temperature ?? temperature;
+        maxTokens = config.document.maxTokens ?? maxTokens;
       }
     }
 
@@ -599,7 +598,7 @@ export function useTranscriptionManager() {
 
     // 6. 清理思考链并保存结果
     const cleanedText = cleanLlmOutput(transcriptionText);
-    
+
     // 检查转写内容是否为空（模型返回 200 但内容为空的情况）
     const isEmptyResult = !cleanedText || cleanedText.trim().length === 0;
     if (isEmptyResult) {
@@ -609,7 +608,7 @@ export function useTranscriptionManager() {
         modelId,
       });
     }
-    
+
     const resultPath = await saveTranscriptionResult(task.assetId, assetPath, cleanedText, modelId, isEmptyResult);
     task.resultPath = resultPath;
   };
@@ -795,12 +794,12 @@ export function useTranscriptionManager() {
         updatedAt: new Date().toISOString(),
         provider,
       };
-      
+
       // 如果内容为空，添加警告信息
       if (isEmpty) {
         derivedInfo.warning = "模型返回空内容";
       }
-      
+
       await updateDerivedStatus(assetId, derivedInfo);
 
       logger.info("转写结果保存成功", { assetId, path: derivedRelPath });

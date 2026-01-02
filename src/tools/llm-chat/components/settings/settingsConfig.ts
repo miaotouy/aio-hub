@@ -1172,6 +1172,62 @@ export const settingsConfig: SettingsSection[] = [
           settings.transcription.enabled &&
           settings.transcription.enableTypeSpecificConfig,
       },
+      // 6. 文档配置 (当 transEnableTypeSpecific 为 true 时显示)
+      {
+        id: "transDocumentModel",
+        label: "文档转写模型",
+        component: LlmModelSelector,
+        props: {
+          capabilities: { document: true },
+        },
+        modelPath: "transcription.document.modelIdentifier",
+        hint: "专门用于文档（PDF/Word等）转写的模型",
+        keywords: "transcription document model 文档 转写 模型",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
+        defaultValue: "",
+      },
+      {
+        id: "transDocumentPrompt",
+        label: "文档 Prompt",
+        component: "PromptEditor",
+        props: {
+          rows: 6,
+          placeholder: "输入文档转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.document.customPrompt,
+        },
+        modelPath: "transcription.document.customPrompt",
+        hint: "用于指导模型如何解析和转录文档内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription document prompt 文档 提示词 filename 文件名",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transDocumentTemperature",
+        label: "文档温度 ({{ localSettings.transcription.document.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.document.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription document temperature 文档 转写 温度",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
+      },
+      {
+        id: "transDocumentMaxTokens",
+        label: "文档输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 32768, step: 1024 },
+        modelPath: "transcription.document.maxTokens",
+        hint: "文档转写结果的最大 token 数",
+        keywords: "transcription document max tokens 文档 转写 上限",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.enableTypeSpecificConfig,
+      },
     ],
   },
   {

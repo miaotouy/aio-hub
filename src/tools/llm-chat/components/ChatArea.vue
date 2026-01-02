@@ -275,9 +275,13 @@ const handleSelectModel = async () => {
   }
 };
 
-const handleSaveAgent = async (data: AgentEditData, options: { silent?: boolean } = {}) => {
-  if (currentAgent.value) {
-    logger.info("保存智能体", { agentId: currentAgent.value.id, data, silent: options.silent });
+const handleSaveAgent = async (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
+  const targetId = options.agentId || currentAgent.value?.id;
+  if (targetId) {
+    logger.info("保存智能体", { agentId: targetId, data, silent: options.silent });
 
     // 直接使用 data 作为 updates，避免手动枚举字段导致遗漏
     // EditAgentDialog 已经负责清洗数据，确保只传递有效的业务字段
@@ -286,14 +290,14 @@ const handleSaveAgent = async (data: AgentEditData, options: { silent?: boolean 
     if (bus.windowType === "detached-component") {
       try {
         await bus.requestAction("update-agent", {
-          agentId: currentAgent.value.id,
+          agentId: targetId,
           updates,
         });
       } catch (error) {
         errorHandler.error(error, "请求更新智能体失败");
       }
     } else {
-      agentStore.updateAgent(currentAgent.value.id, updates);
+      agentStore.updateAgent(targetId, updates);
     }
   }
 
@@ -740,6 +744,7 @@ onMounted(async () => {
       :visible="showEditAgentDialog"
       mode="edit"
       :agent="currentAgent"
+      sync-to-chat
       @update:visible="showEditAgentDialog = $event"
       @save="handleSaveAgent"
     />

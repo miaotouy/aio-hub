@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch, ref } from "vue";
+import { reactive, watch, ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -19,15 +19,21 @@ interface Props {
   mode: "create" | "edit";
   agent?: ChatAgent | null;
   initialData?: Partial<AgentEditData> | null;
+  /**
+   * 切换编辑对象时，是否同步切换当前聊天所选的智能体
+   * @default false
+   */
+  syncToChat?: boolean;
 }
 interface Emits {
   (e: "update:visible", value: boolean): void;
-  (e: "save", data: AgentEditData, options?: { silent?: boolean }): void;
+  (e: "save", data: AgentEditData, options?: { silent?: boolean; agentId?: string }): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   agent: null,
   initialData: null,
+  syncToChat: false,
 });
 
 const emit = defineEmits<Emits>();
@@ -70,17 +76,34 @@ const defaultFormState = {
   },
 };
 
+// 内部追踪当前正在编辑的智能体 ID (解耦全局选中)
+const localAgentId = ref<string | null>(null);
+
+// 当前正在编辑的智能体对象
+const currentEditingAgent = computed(() => {
+  if (props.mode === "create") return null;
+  return agentStore.getAgentById(localAgentId.value || "");
+});
+
 // 编辑表单
 const editForm = reactive(JSON.parse(JSON.stringify(defaultFormState)));
 
 // 加载表单数据
 const loadFormData = () => {
+  // 0. 初始化本地 ID (仅在编辑模式且 localAgentId 为空时，从 props 同步一次)
+  if (props.mode === "edit" && !localAgentId.value && props.agent) {
+    localAgentId.value = props.agent.id;
+  }
+
   // 1. 重置为默认值
   const defaults = JSON.parse(JSON.stringify(defaultFormState));
   Object.assign(editForm, defaults);
 
-  // 确定数据源：编辑模式用 agent，创建模式用 initialData
-  const sourceData = props.mode === "edit" && props.agent ? props.agent : props.initialData || {};
+  // 确定数据源：编辑模式用当前编辑的对象，创建模式用 initialData
+  const sourceData =
+    props.mode === "edit" && currentEditingAgent.value
+      ? currentEditingAgent.value
+      : props.initialData || {};
 
   // 2. 动态合并数据
   for (const key of Object.keys(editForm)) {
@@ -129,7 +152,7 @@ const agentListVisible = ref(false);
 
 // 切换编辑的智能体
 const switchToAgent = (targetAgent: ChatAgent) => {
-  if (props.mode === "edit" && props.agent?.id === targetAgent.id) {
+  if (localAgentId.value === targetAgent.id) {
     agentListVisible.value = false;
     return;
   }
@@ -143,10 +166,16 @@ const switchToAgent = (targetAgent: ChatAgent) => {
   // 先尝试保存当前的修改（静默）
   handleSave({ silent: true });
 
-  // 切换逻辑：
-  // 由于 EditAgentDialog 的 agent 是由父组件通过 props 传入的，
-  // 这里我们选择 selectAgent 来同步全局状态，父组件监听到 currentAgentId 变化后会更新 props.agent
-  agentStore.selectAgent(targetAgent.id);
+  // 切换逻辑
+  if (props.syncToChat) {
+    // 同步模式：直接切换全局选中的智能体
+    agentStore.selectAgent(targetAgent.id);
+  } else {
+    // 解耦模式：仅更新内部追踪的 ID 并重新加载数据
+    localAgentId.value = targetAgent.id;
+    loadFormData();
+  }
+
   agentListVisible.value = false;
 };
 
@@ -154,16 +183,29 @@ const switchToAgent = (targetAgent: ChatAgent) => {
 watch(
   () => props.visible,
   (newVisible) => {
-    if (newVisible) loadFormData();
+    if (newVisible) {
+      // 每次打开时，如果是编辑模式，尝试从 props 同步初始 ID
+      if (props.mode === "edit" && props.agent) {
+        localAgentId.value = props.agent.id;
+      }
+      loadFormData();
+    } else {
+      // 关闭时重置本地 ID，确保下次打开时能重新同步
+      localAgentId.value = null;
+    }
   },
   { immediate: true }
 );
 
-// 监听 agent 变化（用于在对话框打开状态下切换编辑对象）
+// 监听 props.agent 变化
+// 仅在 syncToChat 为 true 时，才响应外部传入的 agent 变化（因为此时外部是权威源）
 watch(
   () => props.agent?.id,
-  () => {
-    if (props.visible) loadFormData();
+  (newId) => {
+    if (props.visible && props.syncToChat && newId) {
+      localAgentId.value = newId;
+      loadFormData();
+    }
   }
 );
 
@@ -186,8 +228,8 @@ const handleSave = (options: { silent?: boolean } = {}) => {
 
   let parameters: ChatAgent["parameters"] = { temperature: 0.7, maxTokens: 8192 };
 
-  if (props.mode === "edit" && props.agent) {
-    parameters = props.agent.parameters;
+  if (props.mode === "edit" && currentEditingAgent.value) {
+    parameters = currentEditingAgent.value.parameters;
   } else if (props.mode === "create" && props.initialData?.parameters) {
     parameters = JSON.parse(JSON.stringify(props.initialData.parameters));
   }
@@ -217,7 +259,10 @@ const handleSave = (options: { silent?: boolean } = {}) => {
       assets: editForm.assets,
       assetGroups: editForm.assetGroups,
     },
-    options
+    {
+      ...options,
+      agentId: localAgentId.value || undefined,
+    }
   );
 
   if (!options.silent) {
@@ -234,7 +279,12 @@ const handleSave = (options: { silent?: boolean } = {}) => {
     width="90%"
     height="90vh"
   >
-    <AgentEditor v-model="editForm" :agent="agent" :mode="mode" @save="handleSave" />
+    <AgentEditor
+      v-model="editForm"
+      :agent="currentEditingAgent"
+      :mode="mode"
+      @save="handleSave"
+    />
 
     <template #footer>
       <div class="dialog-footer">
@@ -251,19 +301,19 @@ const handleSave = (options: { silent?: boolean } = {}) => {
                 <el-button :icon="Users" circle plain title="切换智能体" />
               </template>
               <MiniAgentList
-                :currentAgentId="agent?.id"
+                :currentAgentId="localAgentId"
                 @switch="switchToAgent"
                 @create="handleClose"
               />
             </el-popover>
-            <div v-if="agent" class="current-editing-info">
+            <div v-if="currentEditingAgent" class="current-editing-info">
               <Avatar
-                :src="resolveAvatarPath(agent, 'agent') || ''"
-                :name="agent.name"
+                :src="resolveAvatarPath(currentEditingAgent, 'agent') || ''"
+                :name="currentEditingAgent.name"
                 :size="24"
               />
               <span class="current-editing-label">
-                正在编辑: <b>{{ agent.displayName || agent.name }}</b>
+                正在编辑: <b>{{ currentEditingAgent.displayName || currentEditingAgent.name }}</b>
               </span>
             </div>
           </template>

@@ -465,10 +465,13 @@ const handleEdit = (agent: ChatAgent) => {
 
 // 保存智能体
 // 使用统一的 AgentEditData 类型，确保字段完整传递
-const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean } = {}) => {
-  if (editDialogMode.value === "edit" && editingAgent.value) {
+const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
+  if (editDialogMode.value === "edit") {
+    const targetId = options.agentId || editingAgent.value?.id;
+    if (!targetId) return;
+
     // 更新模式
-    agentStore.updateAgent(editingAgent.value.id, data);
+    agentStore.updateAgent(targetId, data);
     if (!options.silent) {
       customMessage.success("智能体已更新");
     }

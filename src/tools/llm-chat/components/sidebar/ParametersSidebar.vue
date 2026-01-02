@@ -124,23 +124,15 @@ const openEditDialog = () => {
 };
 
 // 保存编辑的智能体
-const handleSaveEdit = (data: AgentEditData, options: { silent?: boolean } = {}) => {
-  if (!currentAgent.value || !agentStore.currentAgentId) return;
-  agentStore.updateAgent(agentStore.currentAgentId, {
-    name: data.name,
-    displayName: data.displayName,
-    description: data.description,
-    icon: data.icon,
-    profileId: data.profileId,
-    modelId: data.modelId,
-    userProfileId: data.userProfileId,
-    presetMessages: data.presetMessages,
-    displayPresetCount: data.displayPresetCount,
-    parameters: data.parameters,
-    llmThinkRules: data.llmThinkRules,
-    assets: data.assets,
-    assetGroups: data.assetGroups,
-  });
+const handleSaveEdit = (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
+  const targetId = options.agentId || agentStore.currentAgentId;
+  if (!targetId) return;
+
+  agentStore.updateAgent(targetId, data);
+
   if (!options.silent) {
     customMessage.success("智能体已更新");
   }
@@ -280,6 +272,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
       v-model:visible="showEditDialog"
       mode="edit"
       :agent="currentAgent"
+      sync-to-chat
       @save="handleSaveEdit"
     />
 

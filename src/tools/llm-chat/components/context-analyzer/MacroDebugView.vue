@@ -92,6 +92,7 @@
                     <span class="role-tag" :class="msgResult.role">{{
                       msgResult.role.toUpperCase()
                     }}</span>
+                    <span v-if="msgResult.name" class="message-name">{{ msgResult.name }}</span>
                     <span class="diff-status">
                       <el-tag v-if="msgResult.hasChanges" size="small" type="warning" effect="plain"
                         >已修改</el-tag
@@ -209,6 +210,7 @@ interface DiffHunk {
 
 interface MessageDiffResult {
   role: string;
+  name?: string;
   original: string;
   modified: string;
   diffHunks: DiffHunk[];
@@ -535,6 +537,7 @@ watch(
 
         results.push({
           role: msg.role,
+          name: msg.name,
           original,
           modified,
           diffHunks: hunks,
@@ -730,5 +733,18 @@ watch(
   padding: 20px;
   text-align: center;
   color: var(--el-text-color-secondary);
+}
+
+.message-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.message-name {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-right: 4px;
 }
 </style>

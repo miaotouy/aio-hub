@@ -49,6 +49,8 @@ export interface ProcessableMessage {
   _userDisplayName?: string;
   /** [元数据] 用户头像快照（宏还原用） */
   _userIcon?: string;
+  /** [元数据] 消息名称（用于 UI 展示） */
+  _name?: string;
 }
 
 /**
@@ -102,6 +104,8 @@ export interface ContextPreviewData {
     userIcon?: string;
     /** 消息时间戳（宏还原用） */
     timestamp?: number;
+    /** 消息名称（用于 UI 展示） */
+    name?: string;
   }>;
   /** 会话历史部分 */
   chatHistory: Array<{

@@ -134,6 +134,7 @@ export async function buildPreviewDataFromContext(
         timestamp: msg._timestamp,
         userName: msg._userName,
         userIcon: msg._userIcon,
+        name: msg._name,
       });
       presetMessagesCharCount += charCount;
       presetMessagesTokenCount += tokenCount;

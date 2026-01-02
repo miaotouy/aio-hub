@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { reactive, watch } from "vue";
+import { reactive, watch, ref } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import Avatar from "@/components/common/Avatar.vue";
+import { Users } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useAgentStore } from "../../agentStore";
+import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { createDefaultChatRegexConfig } from "../../types";
 import AgentEditor from "./agent-editor/AgentEditor.vue";
+import MiniAgentList from "./MiniAgentList.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {
@@ -29,6 +34,7 @@ const emit = defineEmits<Emits>();
 
 const { settings } = useChatSettings();
 const { enabledProfiles } = useLlmProfiles();
+const agentStore = useAgentStore();
 
 // 定义表单默认值
 const defaultFormState = {
@@ -119,6 +125,31 @@ const loadFormData = () => {
   }
 };
 
+const agentListVisible = ref(false);
+
+// 切换编辑的智能体
+const switchToAgent = (targetAgent: ChatAgent) => {
+  if (props.mode === "edit" && props.agent?.id === targetAgent.id) {
+    agentListVisible.value = false;
+    return;
+  }
+
+  // 校验当前表单（复用保存逻辑的校验）
+  if (!editForm.name.trim()) {
+    customMessage.warning("当前正在编辑的智能体名称不能为空，请先修正后再切换");
+    return;
+  }
+
+  // 先尝试保存当前的修改（静默）
+  handleSave({ silent: true });
+
+  // 切换逻辑：
+  // 由于 EditAgentDialog 的 agent 是由父组件通过 props 传入的，
+  // 这里我们选择 selectAgent 来同步全局状态，父组件监听到 currentAgentId 变化后会更新 props.agent
+  agentStore.selectAgent(targetAgent.id);
+  agentListVisible.value = false;
+};
+
 // 监听对话框打开
 watch(
   () => props.visible,
@@ -126,6 +157,14 @@ watch(
     if (newVisible) loadFormData();
   },
   { immediate: true }
+);
+
+// 监听 agent 变化（用于在对话框打开状态下切换编辑对象）
+watch(
+  () => props.agent?.id,
+  () => {
+    if (props.visible) loadFormData();
+  }
 );
 
 // 关闭对话框
@@ -198,14 +237,90 @@ const handleSave = (options: { silent?: boolean } = {}) => {
     <AgentEditor v-model="editForm" :agent="agent" :mode="mode" @save="handleSave" />
 
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSave()">
-        {{ mode === "edit" ? "保存修改" : "立即创建" }}
-      </el-button>
+      <div class="dialog-footer">
+        <div class="footer-left">
+          <template v-if="mode === 'edit'">
+            <el-popover
+              v-model:visible="agentListVisible"
+              placement="top-start"
+              :width="300"
+              trigger="click"
+              popper-class="mini-agent-list-popover"
+            >
+              <template #reference>
+                <el-button :icon="Users" circle plain title="切换智能体" />
+              </template>
+              <MiniAgentList
+                :currentAgentId="agent?.id"
+                @switch="switchToAgent"
+                @create="handleClose"
+              />
+            </el-popover>
+            <div v-if="agent" class="current-editing-info">
+              <Avatar
+                :src="resolveAvatarPath(agent, 'agent') || ''"
+                :name="agent.name"
+                :size="24"
+              />
+              <span class="current-editing-label">
+                正在编辑: <b>{{ agent.displayName || agent.name }}</b>
+              </span>
+            </div>
+          </template>
+        </div>
+        <div class="footer-right">
+          <el-button @click="handleClose">取消</el-button>
+          <el-button type="primary" @click="handleSave()">
+            {{ mode === "edit" ? "保存修改" : "立即创建" }}
+          </el-button>
+        </div>
+      </div>
     </template>
   </BaseDialog>
 </template>
 
 <style scoped>
-/* 样式已移至 AgentEditor */
+.dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.current-editing-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 4px;
+}
+
+.current-editing-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.current-editing-label b {
+  color: var(--el-text-color-primary);
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+</style>
+
+<style>
+.mini-agent-list-popover {
+  padding: 0 !important;
+}
+.mini-agent-list-popover .el-popover__body {
+  padding: 0;
+}
 </style>

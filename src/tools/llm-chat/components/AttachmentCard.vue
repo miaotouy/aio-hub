@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ElTooltip } from "element-plus";
+import { ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
 import {
   Play,
   FileText,
@@ -66,6 +66,7 @@ const {
   getTranscriptionStatus,
   getTranscriptionText,
   retryTranscription,
+  cancelTranscription,
   updateTranscriptionContent,
   addTask,
 } = useTranscriptionManager();
@@ -408,9 +409,14 @@ const handleImagePreview = async () => {
 };
 
 // 处理移除
-const handleRemove = (e: Event) => {
-  e.stopPropagation();
+const handleRemove = (e?: Event) => {
+  e?.stopPropagation();
   emit("remove", props.asset);
+};
+
+const handleCancelTranscription = (e?: Event) => {
+  e?.stopPropagation();
+  cancelTranscription(props.asset.id);
 };
 
 // 监听 asset 变化，重新加载 URL
@@ -436,233 +442,282 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    class="attachment-card"
-    :class="[
-      `size-${size}`,
-      {
-        'is-image': isImage,
-        // 'is-video': isVideo, // 视频现在也是横条布局，不再需要特殊的顶层类
-        'is-bar-layout': isBarLayout,
-        'is-document': isDocument,
-        'has-error': loadError || hasImportError,
-        'is-importing': isImporting,
-      },
-    ]"
-  >
-    <!-- 长条布局（非图片类型） -->
-    <template v-if="isBarLayout">
-      <div
-        class="bar-layout-container"
-        :class="{ clickable: isDocument || isVideo || isAudio }"
-        @click="handlePreview"
-      >
-        <!-- 文件图标区域 -->
-        <div class="bar-icon-wrapper">
+  <el-dropdown trigger="contextmenu" class="attachment-card-dropdown" placement="bottom-start">
+    <div
+      class="attachment-card"
+      :class="[
+        `size-${size}`,
+        {
+          'is-image': isImage,
+          // 'is-video': isVideo, // 视频现在也是横条布局，不再需要特殊的顶层类
+          'is-bar-layout': isBarLayout,
+          'is-document': isDocument,
+          'has-error': loadError || hasImportError,
+          'is-importing': isImporting,
+        },
+      ]"
+    >
+      <!-- 长条布局（非图片类型） -->
+      <template v-if="isBarLayout">
+        <div
+          class="bar-layout-container"
+          :class="{ clickable: isDocument || isVideo || isAudio }"
+          @click="handlePreview"
+        >
+          <!-- 文件图标区域 -->
+          <div class="bar-icon-wrapper">
+            <template v-if="isLoadingUrl && !assetUrl && (isImage || isVideo)">
+              <Loader2 class="spinner-small" />
+            </template>
+            <template v-else-if="loadError || hasImportError">
+              <TriangleAlert class="icon-emoji error" :size="16" />
+            </template>
+            <template v-else>
+              <div v-if="assetUrl" class="bar-thumbnail-wrapper">
+                <img :src="assetUrl" class="bar-thumbnail-image" alt="预览" />
+                <!-- 视频需要播放图标暗示，音频封面直接展示即可 -->
+                <div v-if="isVideo" class="bar-media-overlay">
+                  <Play class="play-icon" :size="16" fill="currentColor" />
+                </div>
+              </div>
+              <div v-else class="file-type-badge" :data-type="asset.type">
+                <FileIcon :file-name="asset.name" :file-type="asset.type" :size="20" />
+              </div>
+            </template>
+
+            <!-- 导入状态指示器 (仅在没有 URL 时显示，避免遮挡已有预览) -->
+            <div v-if="isImporting && !assetUrl" class="bar-import-overlay">
+              <Loader2 class="import-spinner-small" />
+            </div>
+          </div>
+
+          <!-- 文件信息区域 -->
+          <div class="bar-info-wrapper">
+            <div class="bar-header">
+              <el-tooltip :content="asset.name" placement="top" :show-after="500">
+                <div class="bar-file-name">{{ asset.name }}</div>
+              </el-tooltip>
+            </div>
+
+            <div class="bar-meta-row">
+              <span class="bar-file-size">{{ formattedSize }}</span>
+
+              <template v-if="fileExtension">
+                <span class="bar-meta-divider">·</span>
+                <span class="bar-file-ext">{{ fileExtension }}</span>
+              </template>
+
+              <!-- Token 信息 -->
+              <template v-if="tokenError || tokenCount !== undefined">
+                <span class="bar-meta-divider">·</span>
+                <el-tooltip
+                  v-if="tokenError"
+                  :content="tokenError"
+                  placement="top"
+                  :show-after="500"
+                >
+                  <span class="bar-token-tag" :class="isHardTokenError ? 'error' : 'warning'">
+                    {{ isHardTokenError ? "Token 错误" : "Token 未知" }}
+                  </span>
+                </el-tooltip>
+                <span v-else class="bar-token-tag" :class="{ estimated: tokenEstimated }">
+                  {{ tokenCount!.toLocaleString() }} tokens
+                </span>
+              </template>
+
+              <!-- 转写状态 (长条模式) -->
+              <template v-if="isTranscribable">
+                <span class="bar-meta-divider">·</span>
+                <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
+                  <div
+                    class="transcription-status-icon bar-mode"
+                    :class="[
+                      transcriptionStatus,
+                      { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
+                    ]"
+                    @click="handleTranscriptionClick"
+                  >
+                    <Loader2
+                      v-if="
+                        transcriptionStatus === 'processing' || transcriptionStatus === 'pending'
+                      "
+                      class="spinner-micro"
+                    />
+                    <FileText v-else-if="transcriptionStatus === 'success'" :size="12" />
+                    <TriangleAlert v-else-if="transcriptionStatus === 'warning'" :size="12" />
+                    <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="12" />
+                    <!-- None 状态图标 -->
+                    <FilePenLine v-else :size="12" class="icon-none" />
+                  </div>
+                </el-tooltip>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 方形卡片布局（仅图片） -->
+      <template v-else>
+        <!-- 预览区域 -->
+        <div class="attachment-preview" @click="handlePreview">
           <template v-if="isLoadingUrl && !assetUrl && (isImage || isVideo)">
-            <Loader2 class="spinner-small" />
+            <div class="loading-placeholder">
+              <Loader2 class="spinner" />
+            </div>
           </template>
           <template v-else-if="loadError || hasImportError">
-            <TriangleAlert class="icon-emoji error" :size="16" />
+            <div class="error-placeholder">
+              <TriangleAlert class="icon" />
+              <span class="text">{{ hasImportError ? "导入失败" : "加载失败" }}</span>
+            </div>
           </template>
           <template v-else>
-            <div v-if="assetUrl" class="bar-thumbnail-wrapper">
-              <img :src="assetUrl" class="bar-thumbnail-image" alt="预览" />
-              <!-- 视频需要播放图标暗示，音频封面直接展示即可 -->
-              <div v-if="isVideo" class="bar-media-overlay">
-                <Play class="play-icon" :size="16" fill="currentColor" />
-              </div>
-            </div>
-            <div v-else class="file-type-badge" :data-type="asset.type">
-              <FileIcon :file-name="asset.name" :file-type="asset.type" :size="20" />
+            <img
+              v-if="isImage && assetUrl"
+              :src="assetUrl"
+              :alt="asset.name"
+              class="preview-image"
+              :class="{ clickable: isImage }"
+            />
+            <div v-else class="file-icon">
+              <FileIcon :file-name="asset.name" :file-type="asset.type" :size="36" />
             </div>
           </template>
 
-          <!-- 导入状态指示器 (仅在没有 URL 时显示，避免遮挡已有预览) -->
-          <div v-if="isImporting && !assetUrl" class="bar-import-overlay">
-            <Loader2 class="import-spinner-small" />
+          <!-- 导入状态指示器 (仅在没有预览时显示大转圈) -->
+          <div
+            v-if="isImporting && !assetUrl"
+            class="import-status-overlay"
+            :class="{ 'mini-mode': isImage && assetUrl }"
+          >
+            <Loader2 class="import-spinner" />
           </div>
-        </div>
 
-        <!-- 文件信息区域 -->
-        <div class="bar-info-wrapper">
-          <div class="bar-header">
-            <el-tooltip :content="asset.name" placement="top" :show-after="500">
-              <div class="bar-file-name">{{ asset.name }}</div>
+          <!-- Token 信息标签（方形布局专用） -->
+          <div v-if="!isBarLayout && (tokenError || tokenCount !== undefined)" class="token-badge">
+            <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
+              <span class="token-tag" :class="isHardTokenError ? 'error' : 'warning'">
+                {{ isHardTokenError ? "Token 错误" : "?" }}
+              </span>
+            </el-tooltip>
+            <span v-else class="token-tag" :class="{ estimated: tokenEstimated }">
+              {{ tokenCount!.toLocaleString() }}
+            </span>
+          </div>
+
+          <!-- 转写进度条 (方形模式 - Processing) -->
+          <div
+            v-if="
+              !isBarLayout &&
+              (transcriptionStatus === 'processing' || transcriptionStatus === 'pending')
+            "
+            class="transcription-progress-bar"
+          >
+            <el-tooltip content="正在转写..." placement="top" :show-after="500">
+              <div class="progress-fill"></div>
             </el-tooltip>
           </div>
-
-          <div class="bar-meta-row">
-            <span class="bar-file-size">{{ formattedSize }}</span>
-
-            <template v-if="fileExtension">
-              <span class="bar-meta-divider">·</span>
-              <span class="bar-file-ext">{{ fileExtension }}</span>
-            </template>
-
-            <!-- Token 信息 -->
-            <template v-if="tokenError || tokenCount !== undefined">
-              <span class="bar-meta-divider">·</span>
-              <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
-                <span class="bar-token-tag" :class="isHardTokenError ? 'error' : 'warning'">
-                  {{ isHardTokenError ? "Token 错误" : "Token 未知" }}
-                </span>
-              </el-tooltip>
-              <span v-else class="bar-token-tag" :class="{ estimated: tokenEstimated }">
-                {{ tokenCount!.toLocaleString() }} tokens
-              </span>
-            </template>
-
-            <!-- 转写状态 (长条模式) -->
-            <template v-if="isTranscribable">
-              <span class="bar-meta-divider">·</span>
-              <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
-                <div
-                  class="transcription-status-icon bar-mode"
-                  :class="[
-                    transcriptionStatus,
-                    { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
-                  ]"
-                  @click="handleTranscriptionClick"
-                >
-                  <Loader2
-                    v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'"
-                    class="spinner-micro"
-                  />
-                  <FileText v-else-if="transcriptionStatus === 'success'" :size="12" />
-                  <TriangleAlert v-else-if="transcriptionStatus === 'warning'" :size="12" />
-                  <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="12" />
-                  <!-- None 状态图标 -->
-                  <FilePenLine v-else :size="12" class="icon-none" />
-                </div>
-              </el-tooltip>
-            </template>
-          </div>
-        </div>
-      </div>
-    </template>
-
-    <!-- 方形卡片布局（仅图片） -->
-    <template v-else>
-      <!-- 预览区域 -->
-      <div class="attachment-preview" @click="handlePreview">
-        <template v-if="isLoadingUrl && !assetUrl && (isImage || isVideo)">
-          <div class="loading-placeholder">
-            <Loader2 class="spinner" />
-          </div>
-        </template>
-        <template v-else-if="loadError || hasImportError">
-          <div class="error-placeholder">
-            <TriangleAlert class="icon" />
-            <span class="text">{{ hasImportError ? "导入失败" : "加载失败" }}</span>
-          </div>
-        </template>
-        <template v-else>
-          <img
-            v-if="isImage && assetUrl"
-            :src="assetUrl"
-            :alt="asset.name"
-            class="preview-image"
-            :class="{ clickable: isImage }"
-          />
-          <div v-else class="file-icon">
-            <FileIcon :file-name="asset.name" :file-type="asset.type" :size="36" />
-          </div>
-        </template>
-
-        <!-- 导入状态指示器 (仅在没有预览时显示大转圈) -->
-        <div
-          v-if="isImporting && !assetUrl"
-          class="import-status-overlay"
-          :class="{ 'mini-mode': isImage && assetUrl }"
-        >
-          <Loader2 class="import-spinner" />
         </div>
 
-        <!-- Token 信息标签（方形布局专用） -->
-        <div v-if="!isBarLayout && (tokenError || tokenCount !== undefined)" class="token-badge">
-          <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
-            <span class="token-tag" :class="isHardTokenError ? 'error' : 'warning'">
-              {{ isHardTokenError ? "Token 错误" : "?" }}
-            </span>
-          </el-tooltip>
-          <span v-else class="token-tag" :class="{ estimated: tokenEstimated }">
-            {{ tokenCount!.toLocaleString() }}
-          </span>
-        </div>
-
-        <!-- 转写进度条 (方形模式 - Processing) -->
-        <div
-          v-if="
-            !isBarLayout &&
-            (transcriptionStatus === 'processing' || transcriptionStatus === 'pending')
-          "
-          class="transcription-progress-bar"
-        >
-          <el-tooltip content="正在转写..." placement="top" :show-after="500">
-            <div class="progress-fill"></div>
+        <!-- 转写操作/状态按钮 (方形模式 - 右下角) -->
+        <div v-if="!isBarLayout && isTranscribable">
+          <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
+            <div
+              class="transcription-action-btn"
+              :class="[
+                transcriptionStatus,
+                { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
+              ]"
+              @click="handleTranscriptionClick"
+            >
+              <!-- Success: 文档图标 -->
+              <FileText v-if="transcriptionStatus === 'success'" :size="14" />
+              <!-- Warning: 警告图标 -->
+              <TriangleAlert v-if="transcriptionStatus === 'warning'" :size="14" />
+              <!-- Error: 警示图标 -->
+              <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="14" />
+              <!-- None: 编辑/转写图标 -->
+              <FilePenLine v-else-if="transcriptionStatus === 'none'" :size="14" />
+            </div>
           </el-tooltip>
         </div>
-      </div>
+      </template>
 
-      <!-- 转写操作/状态按钮 (方形模式 - 右下角) -->
-      <div v-if="!isBarLayout && isTranscribable">
-        <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
-          <div
-            class="transcription-action-btn"
-            :class="[
-              transcriptionStatus,
-              { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
-            ]"
+      <!-- 移除按钮 (统一使用外部悬浮按钮) -->
+      <el-tooltip v-if="removable" content="移除附件" placement="top" :show-after="500">
+        <button class="remove-button" @click="handleRemove">
+          <X :size="12" />
+        </button>
+      </el-tooltip>
+
+      <!-- 文档预览对话框 -->
+      <BaseDialog
+        v-model="showDocumentPreview"
+        :title="asset.name"
+        width="80vw"
+        height="80vh"
+        :show-close-button="true"
+        :close-on-backdrop-click="true"
+      >
+        <DocumentViewer
+          v-if="showDocumentPreview"
+          :file-path="previewFilePath"
+          :file-name="asset.name"
+          :show-engine-switch="true"
+        />
+      </BaseDialog>
+
+      <!-- 转写编辑器对话框 -->
+      <TranscriptionDialog
+        v-if="showTranscriptionDialog"
+        v-model="showTranscriptionDialog"
+        :asset="asset"
+        :initial-content="transcriptionContent"
+        @save="handleSaveTranscription"
+        @regenerate="handleRegenerateTranscription"
+      />
+    </div>
+
+    <template #dropdown>
+      <el-dropdown-menu>
+        <el-dropdown-item v-if="isDocument || isVideo || isAudio" @click="handlePreview">
+          预览文件
+        </el-dropdown-item>
+
+        <template v-if="isTranscribable">
+          <el-dropdown-item
+            v-if="transcriptionStatus === 'success' || transcriptionStatus === 'warning'"
             @click="handleTranscriptionClick"
           >
-            <!-- Success: 文档图标 -->
-            <FileText v-if="transcriptionStatus === 'success'" :size="14" />
-            <!-- Warning: 警告图标 -->
-            <TriangleAlert v-if="transcriptionStatus === 'warning'" :size="14" />
-            <!-- Error: 警示图标 -->
-            <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="14" />
-            <!-- None: 编辑/转写图标 -->
-            <FilePenLine v-else-if="transcriptionStatus === 'none'" :size="14" />
-          </div>
-        </el-tooltip>
-      </div>
+            查看/编辑转写
+          </el-dropdown-item>
+          <el-dropdown-item v-if="transcriptionStatus === 'none'" @click="handleTranscriptionClick">
+            开始转写
+          </el-dropdown-item>
+          <el-dropdown-item
+            v-if="
+              transcriptionStatus === 'success' ||
+              transcriptionStatus === 'warning' ||
+              transcriptionStatus === 'error'
+            "
+            @click="retryTranscription(internalAsset)"
+          >
+            重新转写
+          </el-dropdown-item>
+          <el-dropdown-item
+            v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'"
+            @click="handleCancelTranscription"
+          >
+            取消转写
+          </el-dropdown-item>
+        </template>
+
+        <el-dropdown-item divided class="remove-item" @click="handleRemove">
+          移除附件
+        </el-dropdown-item>
+      </el-dropdown-menu>
     </template>
-
-    <!-- 移除按钮 (统一使用外部悬浮按钮) -->
-    <el-tooltip v-if="removable" content="移除附件" placement="top" :show-after="500">
-      <button class="remove-button" @click="handleRemove">
-        <X :size="12" />
-      </button>
-    </el-tooltip>
-
-    <!-- 文档预览对话框 -->
-    <BaseDialog
-      v-model="showDocumentPreview"
-      :title="asset.name"
-      width="80vw"
-      height="80vh"
-      :show-close-button="true"
-      :close-on-backdrop-click="true"
-    >
-      <DocumentViewer
-        v-if="showDocumentPreview"
-        :file-path="previewFilePath"
-        :file-name="asset.name"
-        :show-engine-switch="true"
-      />
-    </BaseDialog>
-
-    <!-- 转写编辑器对话框 -->
-    <TranscriptionDialog
-      v-if="showTranscriptionDialog"
-      v-model="showTranscriptionDialog"
-      :asset="asset"
-      :initial-content="transcriptionContent"
-      @save="handleSaveTranscription"
-      @regenerate="handleRegenerateTranscription"
-    />
-  </div>
+  </el-dropdown>
 </template>
 
 <style scoped>
@@ -740,6 +795,15 @@ onUnmounted(() => {
 .attachment-card.size-extra-large.is-bar-layout {
   width: 100%;
   max-width: 100%;
+}
+
+.attachment-card-dropdown {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.remove-item {
+  color: var(--el-color-danger);
 }
 
 .attachment-card:hover {

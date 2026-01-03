@@ -50,7 +50,7 @@ export interface TranscriptionTask {
   assetId: string;
   assetType: "image" | "audio" | "video" | "document";
   path: string; // Asset relative path
-  status: "pending" | "processing" | "completed" | "error";
+  status: "pending" | "processing" | "completed" | "error" | "cancelled";
   error?: string;
   retryCount: number;
   createdAt: number;
@@ -269,6 +269,14 @@ export function useTranscriptionManager() {
 
     try {
       await executeTranscription(pendingTask);
+
+      // 如果在执行过程中被取消了，则不更新为 completed
+      // 使用类型断言避开 TS 对 status 状态流转的过度推断
+      if ((pendingTask as TranscriptionTask).status === "cancelled") {
+        logger.info(`任务 ${pendingTask.id} 已在执行中被取消，跳过结果保存`);
+        return;
+      }
+
       pendingTask.status = "completed";
 
       // 任务成功，清理临时文件
@@ -620,6 +628,9 @@ export function useTranscriptionManager() {
       });
     }
 
+    // 再次检查是否被取消
+    if (task.status === "cancelled") return;
+
     const resultPath = await saveTranscriptionResult(task.assetId, assetPath, cleanedText, modelId, isEmptyResult);
     task.resultPath = resultPath;
   };
@@ -850,6 +861,7 @@ export function useTranscriptionManager() {
     if (task) {
       if (task.status === "error") return "error";
       if (task.status === "pending") return "pending";
+      if (task.status === "cancelled") return "none"; // 取消了就相当于没做
       // completed 状态需要进一步检查，因为 asset 可能还没更新
       if (task.status === "completed" && task.resultPath) return "success";
       return "processing";
@@ -891,6 +903,28 @@ export function useTranscriptionManager() {
       processQueue();
     } else {
       addTask(asset, options);
+    }
+  };
+
+  /**
+   * 取消转写任务
+   */
+  const cancelTranscription = (assetId: string) => {
+    const taskIndex = tasks.findIndex((t) => t.assetId === assetId);
+    if (taskIndex === -1) return;
+
+    const task = tasks[taskIndex];
+    if (task.status === "pending") {
+      // 等待中的直接移除
+      tasks.splice(taskIndex, 1);
+      logger.info("已取消等待中的转写任务", { assetId });
+    } else if (task.status === "processing") {
+      // 处理中的标记为取消
+      task.status = "cancelled";
+      logger.info("已标记正在处理的转写任务为取消", { assetId });
+    } else if (task.status === "error" || task.status === "completed") {
+      // 已结束的直接移除
+      tasks.splice(taskIndex, 1);
     }
   };
 
@@ -1200,6 +1234,7 @@ export function useTranscriptionManager() {
     init,
     addTask,
     retryTranscription,
+    cancelTranscription,
     updateTranscriptionContent,
     getTranscriptionStatus,
     getTranscriptionText,

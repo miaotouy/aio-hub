@@ -116,6 +116,7 @@
     "katex": "^0.16.25",
     "lodash-es": "^4.17.21",
     "lucide-vue-next": "^0.546.0",
+    "lunar-typescript": "^1.8.6",
     "markdown-it": "^14.1.0",
     "markdown-it-texmath": "^1.0.0",
     "mermaid": "^11.12.1",

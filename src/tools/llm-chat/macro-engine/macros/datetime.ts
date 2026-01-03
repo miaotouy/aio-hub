@@ -3,6 +3,7 @@
  * 提供时间和日期相关的宏，包括现代格式、古风格式和多语言支持
  */
 
+import { Lunar } from 'lunar-typescript';
 import type { MacroContext } from '../MacroContext';
 import type { MacroRegistry } from '../MacroRegistry';
 import { MacroPhase, MacroType } from '../MacroRegistry';
@@ -73,17 +74,6 @@ function formatDate(date: Date): string {
 // 古风中文时间系统
 // ============================================================================
 
-/** 天干 */
-const HEAVENLY_STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
-/** 地支 */
-const EARTHLY_BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
-/** 生肖 */
-const ZODIAC_ANIMALS = ['鼠', '牛', '虎', '兔', '龙', '蛇', '马', '羊', '猴', '鸡', '狗', '猪'];
-/** 农历月份 */
-const LUNAR_MONTHS = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊'];
-/** 农历日期 */
-const LUNAR_DAYS_PREFIX = ['初', '初', '初', '初', '初', '初', '初', '初', '初', '初', '十', '十', '十', '十', '十', '十', '十', '十', '十', '二', '廿', '廿', '廿', '廿', '廿', '廿', '廿', '廿', '廿', '三'];
-const LUNAR_DAYS_SUFFIX = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 /** 时辰名称 */
 const SHICHEN_NAMES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 /** 刻数中文 */
@@ -173,58 +163,11 @@ function formatUppercaseChineseTime(date: Date): string {
 function formatUppercaseChineseDatetime(date: Date): string {
   return `${formatUppercaseChineseDate(date)} ${formatUppercaseChineseTime(date)}`;
 }
-
 /**
- * 计算干支年（简化算法，基于公历年份）
+ * 获取农历对象
  */
-function getGanzhiYear(year: number): string {
-  // 以1984年（甲子年）为基准
-  const offset = year - 1984;
-  const stemIndex = ((offset % 10) + 10) % 10;
-  const branchIndex = ((offset % 12) + 12) % 12;
-  return HEAVENLY_STEMS[stemIndex] + EARTHLY_BRANCHES[branchIndex];
-}
-
-/**
- * 获取生肖
- */
-function getZodiac(year: number): string {
-  const offset = year - 1984;
-  const index = ((offset % 12) + 12) % 12;
-  return ZODIAC_ANIMALS[index];
-}
-
-/**
- * 简化的公历转农历（近似算法）
- * 注意：这是一个简化版本，实际农历计算非常复杂
- */
-function getApproximateLunarDate(date: Date): { month: number; day: number; isLeapMonth: boolean } {
-  // 使用简化算法：假设农历比公历晚约一个月
-  // 实际应用中应该使用完整的农历算法库
-  const month = date.getMonth(); // 0-11
-  const day = date.getDate();
-
-  // 简化处理：农历月份约等于公历月份-1（粗略近似）
-  let lunarMonth = month; // 0-11 对应 正月-腊月
-  let lunarDay = day;
-
-  // 如果日期在月初，可能还在上个农历月
-  if (day <= 3) {
-    lunarMonth = (month - 1 + 12) % 12;
-    lunarDay = 27 + day; // 近似
-  }
-
-  return { month: lunarMonth, day: Math.min(lunarDay, 30), isLeapMonth: false };
-}
-
-/**
- * 格式化农历日期
- */
-function formatLunarDay(day: number): string {
-  if (day === 10) return '初十';
-  if (day === 20) return '二十';
-  if (day === 30) return '三十';
-  return LUNAR_DAYS_PREFIX[day] + LUNAR_DAYS_SUFFIX[day];
+function getLunarDate(date: Date): Lunar {
+  return Lunar.fromDate(date);
 }
 
 /**
@@ -254,12 +197,11 @@ function getShichen(hour: number, minute: number = 0): { name: string; index: nu
  * 格式化古风中文日期
  */
 function formatAncientChineseDate(date: Date): string {
-  const year = date.getFullYear();
-  const ganzhi = getGanzhiYear(year);
-  const zodiac = getZodiac(year);
-  const lunar = getApproximateLunarDate(date);
-  const lunarMonthName = LUNAR_MONTHS[lunar.month];
-  const lunarDayName = formatLunarDay(lunar.day);
+  const lunar = getLunarDate(date);
+  const ganzhi = lunar.getYearInGanZhi();
+  const zodiac = lunar.getYearShengXiao();
+  const lunarMonthName = lunar.getMonthInChinese();
+  const lunarDayName = lunar.getDayInChinese();
 
   return `${ganzhi}年（${zodiac}年）${lunarMonthName}月${lunarDayName}`;
 }

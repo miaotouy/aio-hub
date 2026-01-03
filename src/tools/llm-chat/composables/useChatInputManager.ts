@@ -104,7 +104,7 @@ class ChatInputManager {
   constructor() {
     // 创建附件管理器
     this.attachmentManager = useAttachmentManager({
-      maxCount: 20,
+      maxCount: 100,
       maxFileSize: 50 * 1024 * 1024,
     });
 
@@ -539,6 +539,8 @@ export function useChatInputManager() {
     attachmentCount: manager.attachmentManager.count,
     /** 附件是否已满 */
     isAttachmentsFull: manager.attachmentManager.isFull,
+    /** 最大附件数量 */
+    maxAttachmentCount: manager.attachmentManager.maxCount,
 
     // ========== 内容操作方法 ==========
     /** 向输入框添加内容 */

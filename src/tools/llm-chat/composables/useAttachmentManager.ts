@@ -52,6 +52,8 @@ export interface UseAttachmentManagerReturn {
   hasAttachments: ComputedRef<boolean>;
   /** 是否已满 */
   isFull: ComputedRef<boolean>;
+  /** 最大数量 */
+  maxCount: number;
 }
 
 /**
@@ -62,7 +64,7 @@ export function useAttachmentManager(
   options: AttachmentManagerOptions = {}
 ): UseAttachmentManagerReturn {
   const {
-    maxCount = 20,
+    maxCount = 100,
     maxFileSize = 50 * 1024 * 1024, // 默认 50MB
     allowedTypes = [],
     generateThumbnail = true,
@@ -623,5 +625,6 @@ export function useAttachmentManager(
     count,
     hasAttachments,
     isFull,
+    maxCount,
   };
 }

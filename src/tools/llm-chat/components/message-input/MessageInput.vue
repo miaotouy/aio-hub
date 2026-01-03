@@ -144,6 +144,7 @@ const attachmentManager = {
   addAsset: inputManager.addAsset,
   removeAttachment: (asset: Asset) => inputManager.removeAttachment(asset.id),
   clearAttachments: inputManager.clearAttachments,
+  maxAttachmentCount: inputManager.maxAttachmentCount,
 };
 
 // 统一的文件交互处理（拖放 + 粘贴）
@@ -954,7 +955,7 @@ const getWillUseTranscription = (asset: Asset): boolean => {
           </div>
           <!-- 附件数量浮动显示 -->
           <div class="attachments-info">
-            <span class="attachment-count"> {{ attachmentManager.count.value }} / {{ 20 }} </span>
+            <span class="attachment-count"> {{ attachmentManager.count.value }} / {{ attachmentManager.maxAttachmentCount }} </span>
           </div>
         </div>
 

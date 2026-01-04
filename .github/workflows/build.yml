@@ -120,9 +120,16 @@ jobs:
           # 根据平台类型，将嵌套在子目录中的文件复制到扁平目录
           case "${{ matrix.target }}" in
             "x86_64-pc-windows-msvc")
-              # Windows: 从 nsis/ 目录中提取 .exe 和 .msi
+              # Windows: 从 nsis/ 目录中提取安装程序
               find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.exe" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
               find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.msi" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+              # 提取原始二进制文件作为便携版
+              RAW_EXE="src-tauri/target/${{ matrix.target }}/release/aiohub.exe"
+              if [ -f "$RAW_EXE" ]; then
+                cp "$RAW_EXE" "dist-artifacts/AIO-Hub-${{ steps.get-version.outputs.version }}-windows-x64-Portable.exe"
+                # 创建标识文件
+                echo "Portable Mode Enabled" > dist-artifacts/portable.flag
+              fi
               ;;
             "x86_64-unknown-linux-gnu")
               # Linux: 从各自的子目录中提取 .deb 和 .AppImage
@@ -308,7 +315,9 @@ jobs:
             查看完整的 [Changelog](https://github.com/miaotouy/aio-hub/blob/main/CHANGELOG.md)
 
             ### 下载说明
-            - **Windows**: `.exe` (x64 安装程序)
+            - **Windows**:
+              - `.exe` (x64 安装程序)
+              - `-Portable.exe` (绿色便携版，数据存放在同级 data 目录)
             - **macOS**:
               - `_aarch64.dmg` (Apple Silicon: M1/M2/M3)
               - `_x64.dmg` (Intel 芯片)

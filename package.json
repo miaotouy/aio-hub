@@ -29,6 +29,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "build:portable": "bun scripts/build-portable.ts",
+    "b:p": "bun scripts/build-portable.ts",
     "t:d": "tauri dev",
     "t:b": "tauri build",
     "check": "bun run check:frontend; bun run check:backend",

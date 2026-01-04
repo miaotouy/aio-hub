@@ -310,13 +310,18 @@ tauri::Builder::default()
         .plugin({
             #[cfg(not(debug_assertions))]
             {
-                tauri_plugin_single_instance::init(|app, _args, _cwd| {
-                    let _ = app.get_webview_window("main").map(|w| {
-                        let _ = w.show();
-                        let _ = w.unminimize();
-                        let _ = w.set_focus();
-                    });
-                })
+                // 如果是便携模式，禁用单实例插件，允许运行多个实例进行测试
+                if std::env::var("AIO_PORTABLE_MODE").is_ok() {
+                    tauri_plugin_opener::init()
+                } else {
+                    tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                        let _ = app.get_webview_window("main").map(|w| {
+                            let _ = w.show();
+                            let _ = w.unminimize();
+                            let _ = w.set_focus();
+                        });
+                    })
+                }
             }
             #[cfg(debug_assertions)]
             {

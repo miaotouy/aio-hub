@@ -38,6 +38,7 @@ regex = "1"
 url = "2"
 urlencoding = "2.1"
 dirs-next = "2.0"
+clap = { version = "4.5", features = ["derive"] }
 
 # LLM代理服务依赖
 tokio = { version = "1", features = ["full"] }

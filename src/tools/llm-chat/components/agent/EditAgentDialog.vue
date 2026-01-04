@@ -301,7 +301,8 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
     height="90vh"
   >
     <AgentEditor
-      v-model="editForm"
+      :modelValue="editForm"
+      @update:modelValue="Object.assign(editForm, $event)"
       v-model:active-tab="activeTab"
       :agent="currentEditingAgent"
       :mode="mode"

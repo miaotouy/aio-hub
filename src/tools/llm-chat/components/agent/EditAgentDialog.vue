@@ -44,6 +44,7 @@ const agentStore = useAgentStore();
 
 // 定义表单默认值
 const defaultFormState = {
+  id: "",
   name: "",
   displayName: "",
   description: "",

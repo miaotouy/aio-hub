@@ -322,7 +322,7 @@ import {
   extractContextFromSession,
 } from "../../macro-engine";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { processMessageAssets } from "../../utils/agentAssetUtils";
+import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 
 interface MessageForm {
   role: MessageRole;
@@ -559,8 +559,22 @@ const processPreviewMacros = async () => {
     // 仅处理不需要复杂上下文的宏
     const result = await processor.process(form.value.content, context);
 
-    // 处理资产预览
-    previewContent.value = await processMessageAssets(result.output, props.agent);
+    // 处理资产预览，确保传入有效的 agent 对象以避免路径中出现 undefined
+    // 优先级：props.agent.id > props.agent.agentId > props.agentName (作为 fallback ID)
+    let agentId = props.agent?.id || props.agent?.agentId;
+    if (!agentId && props.agentName) {
+      agentId = props.agentName;
+    }
+
+    // 最后的 fallback，如果连名称都没有，使用 'temp_agent'
+    if (!agentId) {
+      agentId = "temp_agent";
+    }
+
+    const displayAgent = { ...props.agent, id: agentId };
+
+    // 使用同步版本 processMessageAssetsSync
+    previewContent.value = processMessageAssetsSync(result.output, displayAgent);
   } catch (error) {
     // 如果处理失败，降级显示原始内容
     previewContent.value = form.value.content;

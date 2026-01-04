@@ -14,6 +14,8 @@ export default defineConfig({
   // 路径别名配置
   resolve: {
     alias: {
+      "fs": "node:fs",
+      "path": "node:path",
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@types": fileURLToPath(new URL("./src/types", import.meta.url)),
       "@components": fileURLToPath(new URL("./src/components", import.meta.url)),

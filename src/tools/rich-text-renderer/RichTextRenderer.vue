@@ -244,6 +244,11 @@ const processedContent = computed(() => {
     text = props.resolveAsset(text);
   }
 
+  // 3. 补全末尾换行：确保处于末尾的块（如思考块、工具调用）能被正确闭合检测
+  if (text && !text.endsWith("\n")) {
+    text += "\n";
+  }
+
   return text;
 });
 
@@ -363,6 +368,11 @@ onMounted(() => {
     // 2. 解析资产路径
     if (props.resolveAsset) {
       bufferToProcess = props.resolveAsset(bufferToProcess);
+    }
+
+    // 3. 补全末尾换行：辅助解析器闭合末尾的块节点
+    if (bufferToProcess && !bufferToProcess.endsWith("\n")) {
+      bufferToProcess += "\n";
     }
 
     if (useAstRenderer.value) {

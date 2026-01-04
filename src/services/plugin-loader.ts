@@ -12,6 +12,7 @@ declare global {
 }
 
 import { path } from '@tauri-apps/api';
+import { getAppConfigDir } from '@/utils/appPath';
 import { readTextFile, readDir, exists } from '@tauri-apps/plugin-fs';
 import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport, PluginProxy, PluginContext } from './plugin-types';
 import { createJsPluginProxy } from './js-plugin-adapter';
@@ -515,7 +516,7 @@ export async function createPluginLoader(): Promise<PluginLoader> {
   
   // 无论开发模式还是生产模式，都配置生产插件目录
   // 开发模式下也可能需要测试生产插件的加载
-  const appDataDir = await path.appDataDir();
+  const appDataDir = await getAppConfigDir();
   const prodPluginsDir = await path.join(appDataDir, 'plugins');
 
   return new PluginLoader({

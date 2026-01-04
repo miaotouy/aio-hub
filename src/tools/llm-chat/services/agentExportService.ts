@@ -5,7 +5,8 @@ import JSZip from 'jszip';
 import yaml from 'js-yaml';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, writeFile, readFile, exists } from '@tauri-apps/plugin-fs';
-import { join, appDataDir } from '@tauri-apps/api/path';
+import { join } from '@tauri-apps/api/path';
+import { getAppConfigDir } from '@/utils/appPath';
 import { invoke } from '@tauri-apps/api/core';
 import { formatDateTime } from '@/utils/time';
 import type { ChatAgent, ChatMessageNode } from '../types';
@@ -218,7 +219,7 @@ export async function exportAgents(
         exportableAgent.presetMessages = cleanMessageMetadata(exportableAgent.presetMessages) as typeof exportableAgent.presetMessages;
       }
 
-      const agentPrivateDir = await join(await appDataDir(), 'llm-chat', 'agents', agent.id);
+      const agentPrivateDir = await join(await getAppConfigDir(), 'llm-chat', 'agents', agent.id);
 
       const isAgentPrivateAsset = (path: string): boolean => {
         if (!path || typeof path !== 'string') return false;
@@ -411,7 +412,7 @@ export async function exportAgents(
             const imagePath = options.previewImage;
             if (imagePath.startsWith('appdata://')) {
               const relativePath = imagePath.replace('appdata://', '');
-              const appData = await appDataDir();
+              const appData = await getAppConfigDir();
               const fullPath = await join(appData, relativePath);
               if (!(await exists(fullPath))) {
                 throw new Error(`预览图文件不存在: ${fullPath}`);

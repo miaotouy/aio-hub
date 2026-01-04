@@ -2,7 +2,8 @@
 import { ref, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import {
   Plus,
   Delete,
@@ -500,7 +501,7 @@ const getGroupDisplayName = (groupId: string) => {
  */
 const handleOpenAssetsDir = async () => {
   try {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const assetsPath = await join(appDir, "llm-chat", "agents", props.agentId, "assets");
     logger.info("尝试打开资产目录", {
       appDir,

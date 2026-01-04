@@ -11,6 +11,7 @@ use tokio_util::sync::CancellationToken;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use log::LevelFilter;
 use dirs_next::data_dir;
+use std::path::PathBuf;
 
 // 导入命令模块
 use commands::{
@@ -69,6 +70,10 @@ use commands::{
     delete_file_to_trash,
     delete_directory_in_app_data,
     write_file_force,
+    append_file_force,
+    create_dir_force,
+    read_text_file_force,
+    open_path_force,
     open_file_directory,
     path_exists,
     get_file_metadata,
@@ -201,6 +206,11 @@ fn set_show_tray_icon(app: tauri::AppHandle, show: bool) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn get_app_config_dir(app: tauri::AppHandle) -> Result<String, String> {
+    Ok(get_app_data_dir(app.config()).to_string_lossy().to_string())
+}
+
 // 打印当前窗口列表
 fn print_window_list(app_handle: &tauri::AppHandle) {
     let windows = app_handle.webview_windows();
@@ -218,6 +228,38 @@ fn print_window_list(app_handle: &tauri::AppHandle) {
 use chrono::{Local, Utc};
 use chrono_tz::Tz;
 
+/// 获取应用数据目录，支持便携模式
+pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
+    // 优先检查显式设置的数据目录
+    if let Ok(data_dir) = std::env::var("AIO_PORTABLE_DATA_DIR") {
+        let path = PathBuf::from(data_dir);
+        if !path.exists() {
+            let _ = std::fs::create_dir_all(&path);
+        }
+        return path;
+    }
+
+    // 兼容旧的便携模式检查逻辑
+    if let Ok(portable_mode) = std::env::var("AIO_PORTABLE_MODE") {
+        if portable_mode == "1" {
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(exe_dir) = exe_path.parent() {
+                    let portable_dir = exe_dir.join("data");
+                    if !portable_dir.exists() {
+                        let _ = std::fs::create_dir_all(&portable_dir);
+                    }
+                    return portable_dir;
+                }
+            }
+        }
+    }
+
+    // 回退到标准目录
+    data_dir()
+        .map(|p| p.join(&config.identifier))
+        .expect("Failed to get app data dir")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 解决 Linux 下 WebKitGTK 渲染崩溃问题 (EGL_BAD_PARAMETER)
@@ -228,9 +270,7 @@ pub fn run() {
 
     // 读取配置以获取时区
     let (show_tray_icon, minimize_to_tray, timezone_str) = {
-        let app_data_dir = data_dir()
-            .map(|p| p.join(&context.config().identifier))
-            .expect("Failed to get app data dir");
+        let app_data_dir = get_app_data_dir(context.config());
         let settings_path = app_data_dir.join("settings.json");
         
         if settings_path.exists() {
@@ -279,9 +319,7 @@ pub fn run() {
     };
 
     // Manually construct the path to AppData/Roaming/{bundle_id}/logs
-    let log_dir = data_dir()
-        .map(|p| p.join(&context.config().identifier).join("logs"))
-        .expect("Failed to construct log directory path");
+    let log_dir = get_app_data_dir(context.config()).join("logs");
 
     let log_filename = format!("backend-{}", date_filename);
 tauri::Builder::default()
@@ -339,6 +377,7 @@ tauri::Builder::default()
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             greet,
+            get_app_config_dir,
             update_tray_setting,
             get_tray_setting,
             exit_app,
@@ -364,6 +403,10 @@ tauri::Builder::default()
             delete_file_to_trash,
             delete_directory_in_app_data,
             write_file_force,
+            append_file_force,
+            create_dir_force,
+            read_text_file_force,
+            open_path_force,
             open_file_directory,
             validate_file_for_link,
             path_exists,
@@ -472,6 +515,15 @@ tauri::Builder::default()
         ])
         // 设置应用
         .setup(move |app| {
+            // 动态扩展文件系统权限 (Scope)，确保便携模式下前端插件也能访问数据目录
+            let app_data_dir = get_app_data_dir(app.config());
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_fs::FsExt;
+                let _ = app.fs_scope().allow_directory(&app_data_dir, true);
+                log::info!("[SCOPE] 已允许访问数据目录 (fs): {:?}", app_data_dir);
+            }
+
             // 打印启动元数据
             let package_info = app.package_info();
             log::info!("========================================");

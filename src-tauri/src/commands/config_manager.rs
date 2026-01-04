@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
@@ -18,9 +18,7 @@ pub struct ProxySettings {
 
 /// 获取应用数据目录
 fn get_app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {}", e))
+    Ok(crate::get_app_data_dir(app.config()))
 }
 
 /// 深度合并两个 JSON 值
@@ -236,10 +234,7 @@ pub async fn export_all_configs_to_zip(app: AppHandle) -> Result<Vec<u8>, String
 
 /// 从 settings.json 获取代理配置
 pub fn get_proxy_settings(app: &AppHandle) -> ProxySettings {
-    let app_data_dir = match app.path().app_data_dir() {
-        Ok(path) => path,
-        Err(_) => return ProxySettings { mode: "system".to_string(), custom_url: String::new() },
-    };
+    let app_data_dir = crate::get_app_data_dir(app.config());
     let settings_path = app_data_dir.join("settings.json");
     
     if settings_path.exists() {

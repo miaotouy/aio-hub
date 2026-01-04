@@ -55,6 +55,9 @@ fn main() {
             std::env::set_var("APPDATA", &target_path_str);
             std::env::set_var("LOCALAPPDATA", &target_path_str);
         }
+
+        // 设置一个自定义环境变量，记录最终确定的数据目录
+        std::env::set_var("AIO_PORTABLE_DATA_DIR", &target_path_str);
         
         #[cfg(not(windows))]
         {

@@ -9,7 +9,7 @@ use fs_extra;
 use std::path::Component;
 use tokio_util::sync::CancellationToken;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use std::time::SystemTime;
 use lazy_static::lazy_static;
 use std::io::{Read, Write};
@@ -1009,12 +1009,8 @@ pub async fn save_uploaded_file(
     filename: String,
     subdirectory: String,
 ) -> Result<String, String> {
-    use tauri::Manager;
-    
     // 获取应用数据目录
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
     
     // 创建子目录路径
     let target_dir = app_data_dir.join(&subdirectory);
@@ -1200,8 +1196,6 @@ pub async fn copy_file_to_app_data(
     subdirectory: String,
     new_filename: Option<String>,
 ) -> Result<String, String> {
-    use tauri::Manager;
-    
     let source = PathBuf::from(&source_path);
     
     // 检查源文件是否存在
@@ -1214,9 +1208,7 @@ pub async fn copy_file_to_app_data(
     }
     
     // 获取应用数据目录
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
     
     // 创建子目录路径
     let target_dir = app_data_dir.join(&subdirectory);
@@ -1255,17 +1247,13 @@ pub async fn uninstall_plugin(
     app: AppHandle,
     plugin_id: String,
 ) -> Result<String, String> {
-    use tauri::Manager;
-    
     // 安全性验证：plugin_id 不应包含路径分隔符
     if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
         return Err(format!("非法的插件 ID: {}", plugin_id));
     }
     
     // 获取应用数据目录
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
     
     // 构建插件目录路径
     let plugins_root = app_data_dir.join("plugins");
@@ -1316,8 +1304,6 @@ pub async fn install_plugin_from_zip(
     app: AppHandle,
     zip_path: String,
 ) -> Result<PluginInstallResult, String> {
-    use tauri::Manager;
-    
     let zip_file_path = PathBuf::from(&zip_path);
     
     // 检查 ZIP 文件是否存在
@@ -1393,9 +1379,7 @@ pub async fn install_plugin_from_zip(
     }
     
     // 获取应用数据目录
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
     
     // 构建插件安装目录
     let plugins_root = app_data_dir.join("plugins");
@@ -1601,9 +1585,7 @@ pub async fn preflight_plugin_zip(
 #[tauri::command]
 pub fn read_app_data_file_binary(app: AppHandle, relative_path: String) -> Result<Vec<u8>, String> {
     // 获取应用数据目录
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     // 构建完整路径
     let full_path = app_data_dir.join(&relative_path);
@@ -1627,9 +1609,7 @@ pub fn read_app_data_file_binary(app: AppHandle, relative_path: String) -> Resul
 #[tauri::command]
 pub async fn delete_directory_in_app_data(app: AppHandle, relative_path: String) -> Result<String, String> {
     // 获取应用数据目录
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     // 构建完整路径
     let full_path = app_data_dir.join(&relative_path);
@@ -1661,9 +1641,7 @@ pub async fn copy_directory_in_app_data(
     target_relative_path: String,
 ) -> Result<String, String> {
     // 获取应用数据目录
-    let app_data_dir = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     // 构建完整路径
     let source_path = app_data_dir.join(&source_relative_path);
@@ -1742,5 +1720,103 @@ pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), Stri
     fs::write(&file_path, &content)
         .map_err(|e| format!("写入文件失败: {}", e))?;
         
+    Ok(())
+}
+
+// Tauri 命令：强制读取文本文件（绕过前端路径检查）
+#[tauri::command]
+pub async fn read_text_file_force(path: String) -> Result<String, String> {
+    let file_path = PathBuf::from(&path);
+    
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
+    
+    fs::read_to_string(file_path)
+        .map_err(|e| format!("读取文件失败: {}", e))
+}
+
+// Tauri 命令：强制追加内容到文件（绕过前端路径检查，自动创建父目录）
+#[tauri::command]
+pub async fn append_file_force(path: String, content: Vec<u8>) -> Result<(), String> {
+    let file_path = PathBuf::from(&path);
+    
+    // 安全限制：仅允许写入特定扩展名的文件
+    let allowed_extensions = ["log", "txt", "json", "jsonl"];
+    let ext = file_path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    if !allowed_extensions.contains(&ext.as_str()) {
+        return Err(format!("安全限制：不允许追加到扩展名为 .{} 的文件", ext));
+    }
+
+    // 确保父目录存在
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建父目录失败: {}", e))?;
+        }
+    }
+    
+    // 以追加模式打开文件
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file_path)
+        .map_err(|e| format!("打开文件失败: {}", e))?;
+        
+    file.write_all(&content)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+        
+    Ok(())
+}
+
+// Tauri 命令：强制打开路径（绕过前端 Scope 检查）
+#[tauri::command]
+pub fn open_path_force(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开路径失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开路径失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开路径失败: {}", e))?;
+    }
+
+    Ok(())
+}
+
+// Tauri 命令：强制创建目录（绕过前端路径检查）
+#[tauri::command]
+pub async fn create_dir_force(path: String) -> Result<(), String> {
+    let dir_path = PathBuf::from(&path);
+    
+    if !dir_path.exists() {
+        fs::create_dir_all(&dir_path)
+            .map_err(|e| format!("强制创建目录失败: {}", e))?;
+    }
+    
     Ok(())
 }

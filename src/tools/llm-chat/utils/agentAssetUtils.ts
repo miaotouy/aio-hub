@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import { appDataDir } from '@tauri-apps/api/path';
+import { getAppConfigDir } from '@/utils/appPath';
 import type { ChatAgent, AgentAsset } from '../types';
 import { createModuleLogger } from '@/utils/logger';
 
@@ -32,7 +32,7 @@ export async function initAgentAssetCache(): Promise<void> {
 
   _cacheInitPromise = (async () => {
     try {
-      _cachedAppDataDir = await appDataDir();
+      _cachedAppDataDir = await getAppConfigDir();
       // 标准化路径分隔符为反斜杠（Windows）
       _cachedAppDataDir = _cachedAppDataDir.replace(/\//g, '\\');
       // 移除末尾的斜杠

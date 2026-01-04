@@ -4,7 +4,8 @@
  */
 
 import { exists, readTextFile, writeTextFile, remove } from "@tauri-apps/plugin-fs";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import { debounce } from "lodash-es";
 import type { ChatSession } from "../types";
@@ -67,7 +68,7 @@ export function useChatStorageSeparated() {
    * 获取会话文件路径
    */
   async function getSessionPath(sessionId: string): Promise<string> {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
     return join(sessionsDir, `${sessionId}.json`);
@@ -119,7 +120,7 @@ export function useChatStorageSeparated() {
    * 确保 sessions 子目录存在
    */
   async function ensureSessionsDir(): Promise<void> {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
 
@@ -205,7 +206,7 @@ export function useChatStorageSeparated() {
   async function scanSessionDirectory(): Promise<string[]> {
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
-      const appDir = await appDataDir();
+      const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, MODULE_NAME);
       const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
 
@@ -517,7 +518,7 @@ export function useChatStorageSeparated() {
    * 获取会话存储目录路径
    */
   async function getSessionsDir(): Promise<string> {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     return await join(moduleDir, SESSIONS_SUBDIR);
   }

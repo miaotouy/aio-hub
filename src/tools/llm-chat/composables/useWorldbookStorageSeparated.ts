@@ -4,7 +4,8 @@
  */
 
 import { exists, readTextFile, writeTextFile, remove } from "@tauri-apps/plugin-fs";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import type { STWorldbook, WorldbookMetadata } from "../types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
@@ -49,7 +50,7 @@ export function useWorldbookStorageSeparated() {
    * 获取世界书文件路径
    */
   async function getWorldbookPath(id: string): Promise<string> {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const wbDir = await join(moduleDir, WORLDBOOKS_SUBDIR);
     return join(wbDir, `${id}.json`);
@@ -59,7 +60,7 @@ export function useWorldbookStorageSeparated() {
    * 确保 worldbooks 目录存在
    */
   async function ensureWorldbooksDir(): Promise<void> {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const wbDir = await join(moduleDir, WORLDBOOKS_SUBDIR);
 
@@ -149,7 +150,7 @@ export function useWorldbookStorageSeparated() {
   async function syncIndex(currentIndex: WorldbooksIndex): Promise<WorldbookMetadata[]> {
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
-      const appDir = await appDataDir();
+      const appDir = await getAppConfigDir();
       const wbDir = await join(appDir, MODULE_NAME, WORLDBOOKS_SUBDIR);
 
       if (!(await exists(wbDir))) return [];

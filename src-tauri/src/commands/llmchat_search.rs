@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tokio::fs;
 use walkdir::WalkDir;
 
@@ -402,10 +402,7 @@ pub async fn search_llm_data(
         .map_err(|e| format!("Invalid regex: {}", e))?;
 
     // 获取 AppData 目录
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     let llm_chat_dir = app_data_dir.join("llm-chat");
 

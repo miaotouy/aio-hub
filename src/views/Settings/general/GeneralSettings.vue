@@ -9,7 +9,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
-import { appDataDir } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import type { ProxySettings, ProxyMode } from "@/utils/appSettings";
 
 const logger = createModuleLogger("GeneralSettings");
@@ -105,7 +105,7 @@ const handleClearWindowState = async () => {
 // 打开配置文件目录
 const handleOpenConfigDir = async () => {
   try {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
 
     // 使用后端命令打开目录
     try {

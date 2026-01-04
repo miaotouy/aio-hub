@@ -5,8 +5,9 @@ import { ElMessageBox, ElButton } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { logger, LogLevel } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
-import { appDataDir, join } from "@tauri-apps/api/path";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -97,7 +98,7 @@ onMounted(async () => {
 
   // 获取日志文件路径
   try {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const logsDir = await join(appDir, "logs");
     const date = formatDateTime(new Date(), 'yyyy-MM-dd');
     logFilePath.value = await join(logsDir, `app-${date}.log`);
@@ -157,9 +158,10 @@ const updateLogStats = () => {
 // 打开日志目录
 const handleOpenLogDir = async () => {
   try {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const logsDir = await join(appDir, "logs");
-    await openPath(logsDir);
+    // 使用 Rust 后端命令强制打开路径，绕过前端 Scope 限制
+    await invoke("open_path_force", { path: logsDir });
     customMessage.success("日志目录已打开");
   } catch (error) {
     errorHandler.error(error as Error, "打开日志目录失败");

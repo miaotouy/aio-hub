@@ -21,10 +21,7 @@ pub struct WindowConfig {
 
 /// 获取配置文件路径
 fn get_config_file_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
     
     // 确保目录存在
     fs::create_dir_all(&app_data_dir)

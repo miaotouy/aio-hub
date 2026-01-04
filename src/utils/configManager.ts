@@ -3,8 +3,9 @@
  * 提供配置文件的持久化、加载和保存功能
  */
 
-import { mkdir, exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "./appPath";
 import * as yaml from "js-yaml";
 import { createModuleLogger } from "./logger";
 import { createModuleErrorHandler } from "./errorHandler";
@@ -90,7 +91,7 @@ export class ConfigManager<T extends Record<string, any>> {
    */
   async getConfigPath(): Promise<string> {
     try {
-      const appDir = await appDataDir();
+      const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, this.moduleName);
       const configPath = await join(moduleDir, this.fileName);
       // 只在错误时输出，正常情况不需要日志
@@ -115,12 +116,13 @@ export class ConfigManager<T extends Record<string, any>> {
    */
   async ensureModuleDir(): Promise<void> {
     try {
-      const appDir = await appDataDir();
+      const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, this.moduleName);
 
-      if (!(await exists(moduleDir))) {
+      const isExists = await invoke<boolean>("path_exists", { path: moduleDir });
+      if (!isExists) {
         logger.info(`创建模块目录: ${moduleDir}`, { moduleName: this.moduleName });
-        await mkdir(moduleDir, { recursive: true });
+        await invoke("create_dir_force", { path: moduleDir });
       }
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -142,7 +144,8 @@ export class ConfigManager<T extends Record<string, any>> {
       await this.ensureModuleDir();
       const configPath = await this.getConfigPath();
 
-      if (!(await exists(configPath))) {
+      const isExists = await invoke<boolean>("path_exists", { path: configPath });
+      if (!isExists) {
         // 配置文件不存在，创建默认配置
         logger.info(`配置文件不存在，创建默认配置`, { moduleName: this.moduleName, configPath });
         const defaultConfig = this.createDefault();
@@ -150,7 +153,7 @@ export class ConfigManager<T extends Record<string, any>> {
         return defaultConfig;
       }
 
-      const content = await readTextFile(configPath);
+      const content = await invoke<string>("read_text_file_force", { path: configPath });
       let loadedConfig: Partial<T> = {};
 
       switch (this.fileType) {
@@ -233,7 +236,13 @@ export class ConfigManager<T extends Record<string, any>> {
         default:
           throw new Error(`不支持的文件类型: ${this.fileType}`);
       }
-      await writeTextFile(configPath, content);
+      // 使用 Rust 后端命令强制写入，绕过前端 Scope 限制
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(content);
+      await invoke("write_file_force", {
+        path: configPath,
+        content: Array.from(uint8Array)
+      });
 
       // 保存成功时输出简洁日志
       logger.info(`配置保存成功`, { moduleName: this.moduleName });

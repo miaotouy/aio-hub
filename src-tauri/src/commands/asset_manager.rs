@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 // --- 新增的分页、排序和统计相关结构体 ---
@@ -325,10 +325,7 @@ fn try_get_custom_path_from_config(config_path: &Path) -> Option<String> {
 /// 获取资产存储根目录
 #[tauri::command]
 pub fn get_asset_base_path(app: AppHandle) -> Result<String, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     let config_path = app_data_dir.join("settings.json");
 

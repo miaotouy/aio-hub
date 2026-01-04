@@ -6,7 +6,8 @@
  */
 
 import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { appDataDir, join, extname } from "@tauri-apps/api/path";
+import { join, extname } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
 import { createConfigManager } from "@/utils/configManager";
 import type { UserProfile } from "../types";
@@ -77,7 +78,7 @@ export function useUserProfileStorage() {
    * 获取用户档案目录路径
    */
   async function getProfileDirPath(profileId: string): Promise<string> {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
     return join(profilesDir, profileId);
@@ -232,7 +233,7 @@ export function useUserProfileStorage() {
   async function scanProfileDirectory(): Promise<string[]> {
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
-      const appDir = await appDataDir();
+      const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, MODULE_NAME);
       const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
 
@@ -315,7 +316,7 @@ export function useUserProfileStorage() {
    */
   async function runMigration(): Promise<void> {
     const { readDir } = await import("@tauri-apps/plugin-fs");
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
 

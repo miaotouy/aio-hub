@@ -13,7 +13,7 @@ use lofty::probe::Probe;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use crate::utils::mime;
 use uuid::Uuid;
 
@@ -42,10 +42,7 @@ fn get_agent_assets_dir(app: &AppHandle, agent_id: &str) -> Result<PathBuf, Stri
         return Err("无效的 Agent ID：包含非法字符".to_string());
     }
 
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     Ok(app_data_dir
         .join("llm-chat")
@@ -318,10 +315,7 @@ pub async fn delete_agent_asset(
         return Err("无效的资产路径：必须在 assets 目录下".to_string());
     }
 
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     // 验证 agent_id
     if agent_id.contains("..") || agent_id.contains('/') || agent_id.contains('\\') {
@@ -479,10 +473,7 @@ pub async fn get_agent_asset_path(
         return Err("无效的 Agent ID：包含非法字符".to_string());
     }
 
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     let file_path = app_data_dir
         .join("llm-chat")
@@ -522,10 +513,7 @@ pub async fn read_agent_asset_binary(
         return Err("无效的 Agent ID：包含非法字符".to_string());
     }
 
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let app_data_dir = crate::get_app_data_dir(app.config());
 
     let file_path = app_data_dir
         .join("llm-chat")

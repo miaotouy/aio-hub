@@ -3,8 +3,9 @@
  * 提供分级日志、错误追踪和日志持久化功能
  */
 
-import { writeTextFile, exists, mkdir, stat, rename } from "@tauri-apps/plugin-fs";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "./appPath";
 import { formatDateTime } from "./time";
 
 export enum LogLevel {
@@ -46,11 +47,12 @@ class Logger {
    */
   private async initialize() {
     try {
-      const appDir = await appDataDir();
+      const appDir = await getAppConfigDir();
       this.logsDir = await join(appDir, "logs");
 
-      if (!(await exists(this.logsDir))) {
-        await mkdir(this.logsDir, { recursive: true });
+      const isDirExists = await invoke<boolean>("path_exists", { path: this.logsDir });
+      if (!isDirExists) {
+        await invoke("create_dir_force", { path: this.logsDir });
       }
 
       // 使用应用时区生成文件名，避免时区导致日期偏差
@@ -59,8 +61,9 @@ class Logger {
       this.logFilePath = await join(this.logsDir, `app-${date}.log`);
 
       // 获取当前文件大小
-      if (await exists(this.logFilePath)) {
-        const fileInfo = await stat(this.logFilePath);
+      const isFileExists = await invoke<boolean>("path_exists", { path: this.logFilePath });
+      if (isFileExists) {
+        const fileInfo = await invoke<{ size: number }>("get_file_metadata", { path: this.logFilePath });
         this.currentFileSize = fileInfo.size;
       } else {
         this.currentFileSize = 0;
@@ -144,13 +147,14 @@ class Logger {
     try {
       // 2. 真实性检查：多窗口环境下，内存状态可能滞后
       // 必须获取文件实际大小，确认是否真的需要轮转
-      if (!(await exists(this.logFilePath))) {
+      const isExists = await invoke<boolean>("path_exists", { path: this.logFilePath });
+      if (!isExists) {
         // 文件不存在，说明可能被删除了或刚被轮转，重置状态
         this.currentFileSize = 0;
         return;
       }
 
-      const fileInfo = await stat(this.logFilePath);
+      const fileInfo = await invoke<{ size: number }>("get_file_metadata", { path: this.logFilePath });
       const realSize = fileInfo.size;
 
       // 如果实际大小小于阈值，说明文件已经被其他实例轮转过了
@@ -170,6 +174,9 @@ class Logger {
       const backupPath = await join(this.logsDir, backupName);
 
       // 重命名当前日志文件
+      // 注意：这里暂时保留原有的 rename 调用，因为 fs_scope 已经扩展
+      // 如果 rename 依然受限，后续可考虑增加 move_file_force 命令
+      const { rename } = await import("@tauri-apps/plugin-fs");
       await rename(this.logFilePath, backupPath);
 
       // 重置当前文件大小
@@ -274,7 +281,14 @@ class Logger {
           await this.checkAndRotate();
         }
 
-        await writeTextFile(this.logFilePath, logLine, { append: true });
+        // 使用 Rust 后端命令强制追加，绕过前端 Scope 限制
+        const encoder = new TextEncoder();
+        const uint8Array = encoder.encode(logLine);
+        await invoke("append_file_force", {
+          path: this.logFilePath,
+          content: Array.from(uint8Array)
+        });
+
         this.currentFileSize += lineSize;
       } catch (error) {
         // 写入失败不影响主流程
@@ -381,7 +395,13 @@ class Logger {
   async exportLogs(filePath: string): Promise<void> {
     try {
       const logs = this.logBuffer.map((entry) => this.formatLogEntry(entry)).join("\n");
-      await writeTextFile(filePath, logs);
+      // 导出日志也使用强制写入命令
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(logs);
+      await invoke("write_file_force", {
+        path: filePath,
+        content: Array.from(uint8Array)
+      });
     } catch (error) {
       console.error("导出日志失败:", error);
       throw error;

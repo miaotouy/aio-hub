@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
@@ -64,10 +64,7 @@ pub async fn execute_sidecar(
         workspace_dir.join("plugins").join(original_id)
     } else {
         // 生产模式：从 appDataDir 查找
-        let app_data_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("获取应用数据目录失败: {}", e))?;
+        let app_data_dir = crate::get_app_data_dir(app.config());
         app_data_dir.join("plugins").join(&request.plugin_id)
     };
 

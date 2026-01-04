@@ -11,7 +11,8 @@ import { Star, Upload, RefreshLeft, FolderOpened, Clock } from "@element-plus/ic
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
-import { extname, appDataDir, join } from "@tauri-apps/api/path";
+import { extname, join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
 
@@ -84,7 +85,7 @@ const loadHistoryAvatars = async () => {
   historyAvatars.value = [];
 
   try {
-    const appData = await appDataDir();
+    const appData = await getAppConfigDir();
     let subdirectory = "";
 
     if (props.profileType === "agent") {

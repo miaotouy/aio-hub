@@ -7,7 +7,8 @@
  */
 
 import { exists, readTextFile, writeTextFile, remove } from '@tauri-apps/plugin-fs';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { join } from '@tauri-apps/api/path';
+import { getAppConfigDir } from '@/utils/appPath';
 import { createConfigManager } from '@/utils/configManager';
 import { useAssetManager } from '@/composables/useAssetManager';
 import type { OcrHistoryIndexItem, OcrHistoryRecord, OcrEngineConfig } from '../types';
@@ -75,7 +76,7 @@ export function useOcrHistory() {
    * 获取 history 子目录的路径
    */
   async function getHistoryDir(): Promise<string> {
-    const appDir = await appDataDir();
+    const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     return join(moduleDir, HISTORY_SUBDIR);
   }

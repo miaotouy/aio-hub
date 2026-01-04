@@ -6,7 +6,7 @@ mod utils;
 
 // 导入所需的依赖
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, image::Image};
 use tokio_util::sync::CancellationToken;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use log::LevelFilter;
@@ -549,6 +549,15 @@ tauri::Builder::default()
             .title("AIO Hub")
             .inner_size(1280.0, 768.0)
             .min_inner_size(360.0, 112.0);
+
+            // 开发模式下使用特殊的窗口图标
+            #[cfg(debug_assertions)]
+            {
+                let icon_bytes = include_bytes!("../icons/icon-dev.png");
+                if let Ok(icon) = Image::from_bytes(icon_bytes) {
+                    win_builder = win_builder.icon(icon).expect("Failed to set window icon");
+                }
+            }
 
             // 根据不同平台应用不同的窗口样式
             #[cfg(target_os = "macos")]

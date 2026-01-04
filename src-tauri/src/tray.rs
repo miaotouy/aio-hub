@@ -33,7 +33,11 @@ pub fn build_system_tray(app_handle: &AppHandle) -> tauri::Result<()> {
     )?;
 
     // 加载托盘图标
+    #[cfg(debug_assertions)]
+    let icon_bytes = include_bytes!("../icons/icon-dev.png");
+    #[cfg(not(debug_assertions))]
     let icon_bytes = include_bytes!("../icons/icon.png");
+
     let icon = Image::from_bytes(icon_bytes)
         .expect("Failed to load tray icon");
     

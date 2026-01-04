@@ -78,7 +78,7 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,
+        drop_console: false,
         drop_debugger: true,
         passes: 1, // 减少压缩次数
       },

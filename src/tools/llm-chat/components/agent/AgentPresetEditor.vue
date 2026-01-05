@@ -283,85 +283,144 @@
 
                 <div class="message-content">
                   <div class="message-role">
-                    <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
-                      <el-icon style="margin-right: 4px">
-                        <component :is="getRoleIcon(element.role)" />
-                      </el-icon>
-                      {{ getRoleLabel(element.role) }}
-                    </el-tag>
-                    <!-- 追加的模板锚点 Tag -->
-                    <el-tag
-                      v-if="isTemplateAnchorType(element.type)"
-                      :type="getAnchorTagType(element.type)"
-                      size="small"
-                      effect="plain"
-                      class="injection-tag"
-                    >
-                      <el-icon style="margin-right: 4px">
-                        <component :is="getAnchorIcon(element.type)" />
-                      </el-icon>
-                      {{ getAnchorDef(element.type)?.name }}
-                    </el-tag>
-                    <!-- 注入策略标签 -->
-                    <el-tag
-                      v-if="
-                        element.injectionStrategy?.type === 'advanced_depth' ||
-                        (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
-                      "
-                      size="small"
-                      type="warning"
-                      effect="plain"
-                      class="injection-tag"
-                    >
-                      🔩 深度 {{ element.injectionStrategy.depthConfig }}
-                    </el-tag>
-                    <el-tag
-                      v-else-if="
-                        element.injectionStrategy?.type === 'depth' ||
-                        (!element.injectionStrategy?.type &&
-                          element.injectionStrategy?.depth !== undefined)
-                      "
-                      size="small"
-                      type="warning"
-                      effect="plain"
-                      class="injection-tag"
-                    >
-                      📍 深度 {{ element.injectionStrategy.depth }}
-                    </el-tag>
-                    <el-tag
-                      v-else-if="
-                        element.injectionStrategy?.type === 'anchor' ||
-                        (!element.injectionStrategy?.type &&
-                          element.injectionStrategy?.anchorTarget)
-                      "
-                      size="small"
-                      type="success"
-                      effect="plain"
-                      class="injection-tag"
-                    >
-                      ⚓ {{ element.injectionStrategy.anchorTarget }}
-                      {{ element.injectionStrategy.anchorPosition === "before" ? "前" : "后" }}
-                    </el-tag>
-                    <!-- 模型匹配标签 -->
-                    <el-tag
-                      v-if="element.modelMatch?.enabled"
-                      size="small"
-                      type="warning"
-                      effect="plain"
-                      class="model-match-tag"
-                    >
-                      🎯 模型限定
-                    </el-tag>
-                    <!-- Token 数量 -->
-                    <el-tag
-                      v-if="props.modelId && messageTokens.has(element.id)"
-                      size="small"
-                      type="info"
-                      effect="plain"
-                      class="token-tag"
-                    >
-                      {{ messageTokens.get(element.id) }} tokens
-                    </el-tag>
+                    <div class="role-tags">
+                      <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
+                        <el-icon style="margin-right: 4px">
+                          <component :is="getRoleIcon(element.role)" />
+                        </el-icon>
+                        {{ getRoleLabel(element.role) }}
+                      </el-tag>
+                      <!-- 追加的模板锚点 Tag -->
+                      <el-tag
+                        v-if="isTemplateAnchorType(element.type)"
+                        :type="getAnchorTagType(element.type)"
+                        size="small"
+                        effect="plain"
+                        class="injection-tag"
+                      >
+                        <el-icon style="margin-right: 4px">
+                          <component :is="getAnchorIcon(element.type)" />
+                        </el-icon>
+                        {{ getAnchorDef(element.type)?.name }}
+                      </el-tag>
+                      <!-- 注入策略标签 -->
+                      <el-tag
+                        v-if="
+                          element.injectionStrategy?.type === 'advanced_depth' ||
+                          (!element.injectionStrategy?.type &&
+                            element.injectionStrategy?.depthConfig)
+                        "
+                        size="small"
+                        type="warning"
+                        effect="plain"
+                        class="injection-tag"
+                      >
+                        🔩 深度 {{ element.injectionStrategy.depthConfig }}
+                      </el-tag>
+                      <el-tag
+                        v-else-if="
+                          element.injectionStrategy?.type === 'depth' ||
+                          (!element.injectionStrategy?.type &&
+                            element.injectionStrategy?.depth !== undefined)
+                        "
+                        size="small"
+                        type="warning"
+                        effect="plain"
+                        class="injection-tag"
+                      >
+                        📍 深度 {{ element.injectionStrategy.depth }}
+                      </el-tag>
+                      <el-tag
+                        v-else-if="
+                          element.injectionStrategy?.type === 'anchor' ||
+                          (!element.injectionStrategy?.type &&
+                            element.injectionStrategy?.anchorTarget)
+                        "
+                        size="small"
+                        type="success"
+                        effect="plain"
+                        class="injection-tag"
+                      >
+                        ⚓ {{ element.injectionStrategy.anchorTarget }}
+                        {{ element.injectionStrategy.anchorPosition === "before" ? "前" : "后" }}
+                      </el-tag>
+                      <!-- 模型匹配标签 -->
+                      <el-tag
+                        v-if="element.modelMatch?.enabled"
+                        size="small"
+                        type="warning"
+                        effect="plain"
+                        class="model-match-tag"
+                      >
+                        🎯 模型限定
+                      </el-tag>
+                      <!-- Token 数量 -->
+                      <el-tag
+                        v-if="props.modelId && messageTokens.has(element.id)"
+                        size="small"
+                        type="info"
+                        effect="plain"
+                        class="token-tag"
+                      >
+                        {{ messageTokens.get(element.id) }} tokens
+                      </el-tag>
+                    </div>
+
+                    <div class="message-actions">
+                      <el-tooltip content="编辑消息" placement="top" :show-after="500">
+                        <el-button link size="small" @click="handleEditMessage(element)">
+                          <el-icon><Edit /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                      <el-tooltip content="复制消息配置" placement="top" :show-after="500">
+                        <el-button link size="small" @click="handleCopyMessage(element)">
+                          <el-icon><CopyDocument /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                      <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
+                        <span>
+                          <el-popconfirm
+                            title="确定要用剪贴板内容覆盖这条消息吗？"
+                            @confirm="handlePasteMessage(element)"
+                            width="220"
+                          >
+                            <template #reference>
+                              <el-button link size="small">
+                                <el-icon><DocumentCopy /></el-icon>
+                              </el-button>
+                            </template>
+                          </el-popconfirm>
+                        </span>
+                      </el-tooltip>
+                      <!-- 模板锚点隐藏删除按钮 -->
+                      <el-tooltip
+                        v-if="!isTemplateAnchorType(element.type)"
+                        content="删除消息"
+                        placement="top"
+                        :show-after="500"
+                      >
+                        <span>
+                          <el-popconfirm
+                            title="确定要删除这条预设消息吗？"
+                            @confirm="handleDeleteMessage(element)"
+                            width="240"
+                          >
+                            <template #reference>
+                              <el-button link size="small" type="danger">
+                                <el-icon><Delete /></el-icon>
+                              </el-button>
+                            </template>
+                          </el-popconfirm>
+                        </span>
+                      </el-tooltip>
+                      <el-switch
+                        v-model="element.isEnabled"
+                        :active-value="true"
+                        :inactive-value="false"
+                        size="small"
+                        @change="handleToggleEnabled"
+                      />
+                    </div>
                   </div>
 
                   <div v-if="element.name" class="message-name">
@@ -370,62 +429,6 @@
                   <div class="message-text">
                     {{ truncateText(element.content, 120) }}
                   </div>
-                </div>
-
-                <div class="message-actions">
-                  <el-tooltip content="编辑消息" placement="top" :show-after="500">
-                    <el-button link size="small" @click="handleEditMessage(element)">
-                      <el-icon><Edit /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip content="复制消息配置" placement="top" :show-after="500">
-                    <el-button link size="small" @click="handleCopyMessage(element)">
-                      <el-icon><CopyDocument /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
-                    <span>
-                      <el-popconfirm
-                        title="确定要用剪贴板内容覆盖这条消息吗？"
-                        @confirm="handlePasteMessage(element)"
-                        width="220"
-                      >
-                        <template #reference>
-                          <el-button link size="small">
-                            <el-icon><DocumentCopy /></el-icon>
-                          </el-button>
-                        </template>
-                      </el-popconfirm>
-                    </span>
-                  </el-tooltip>
-                  <!-- 模板锚点隐藏删除按钮 -->
-                  <el-tooltip
-                    v-if="!isTemplateAnchorType(element.type)"
-                    content="删除消息"
-                    placement="top"
-                    :show-after="500"
-                  >
-                    <span>
-                      <el-popconfirm
-                        title="确定要删除这条预设消息吗？"
-                        @confirm="handleDeleteMessage(element)"
-                        width="240"
-                      >
-                        <template #reference>
-                          <el-button link size="small" type="danger">
-                            <el-icon><Delete /></el-icon>
-                          </el-button>
-                        </template>
-                      </el-popconfirm>
-                    </span>
-                  </el-tooltip>
-                  <el-switch
-                    v-model="element.isEnabled"
-                    :active-value="true"
-                    :inactive-value="false"
-                    size="small"
-                    @change="handleToggleEnabled"
-                  />
                 </div>
               </div>
             </div>
@@ -1481,10 +1484,19 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
 
 .message-role {
   display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.role-tags {
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .token-tag {

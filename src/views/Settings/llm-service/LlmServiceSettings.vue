@@ -327,7 +327,7 @@ const openMultiKeyManager = () => {
 </script>
 
 <template>
-  <div class="llm-settings-page" ref="containerRef">
+  <div class="llm-settings-page" :class="{ 'is-narrow': isNarrow }" ref="containerRef">
     <div class="settings-layout">
       <!-- 左侧：渠道列表 -->
       <ProfileSidebar
@@ -547,6 +547,32 @@ const openMultiKeyManager = () => {
   grid-template-columns: 280px 1fr;
   gap: 20px;
   flex: 1;
+  min-height: 0;
+}
+
+.is-narrow .settings-layout {
+  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 0 12px 20px 12px;
+  gap: 12px;
+}
+
+.is-narrow :deep(.profile-sidebar) {
+  height: auto;
+  max-height: 320px;
+  min-height: 200px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.is-narrow :deep(.profile-editor) {
+  border: none;
+  background: transparent;
+}
+
+.is-narrow .empty-state {
+  min-height: 200px;
 }
 
 .profile-editor-icon {
@@ -568,6 +594,20 @@ const openMultiKeyManager = () => {
 }
 
 /* 列表项样式 */
+.profile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .profile-type {
   font-size: 12px;
   color: var(--text-color-secondary);

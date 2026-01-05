@@ -7,6 +7,7 @@
 //!
 //! 资产存储路径：`appdata://llm-chat/agents/{agent_id}/assets/{filename}`
 
+use crate::utils::mime;
 use image::ImageFormat;
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
@@ -14,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
-use crate::utils::mime;
 use uuid::Uuid;
 
 /// 资产信息结构
@@ -28,7 +28,8 @@ pub struct AgentAssetInfo {
     /// 文件大小（字节）
     pub size: u64,
     /// MIME 类型
-    pub mime_type: String,/// 缩略图相对路径（如果有）
+    pub mime_type: String,
+    /// 缩略图相对路径（如果有）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumbnail_path: Option<String>,
 }
@@ -317,11 +318,8 @@ pub async fn delete_agent_asset(
         return Err("无效的 Agent ID：包含非法字符".to_string());
     }
 
-    let agent_dir = app_data_dir
-        .join("llm-chat")
-        .join("agents")
-        .join(&agent_id);
-    
+    let agent_dir = app_data_dir.join("llm-chat").join("agents").join(&agent_id);
+
     let assets_dir = agent_dir.join("assets");
     let file_path = agent_dir.join(&asset_path);
 
@@ -340,7 +338,9 @@ pub async fn delete_agent_asset(
     if let Some(filename) = file_path.file_name() {
         let filename_str = filename.to_string_lossy();
         let base_name = extract_base_name(&filename_str);
-        let thumbnail_path = assets_dir.join(".thumbnails").join(format!("{}.jpg", base_name));
+        let thumbnail_path = assets_dir
+            .join(".thumbnails")
+            .join(format!("{}.jpg", base_name));
         if thumbnail_path.exists() {
             let _ = trash::delete(&thumbnail_path);
         }
@@ -348,6 +348,73 @@ pub async fn delete_agent_asset(
 
     // 删除文件（移动到回收站）
     trash::delete(&file_path).map_err(|e| format!("删除文件失败: {}", e))?;
+
+    Ok(())
+}
+
+/// 批量删除 Agent 资产文件
+///
+/// # 参数
+/// - `app`: Tauri 应用句柄
+/// - `agent_id`: Agent 的唯一标识符
+/// - `asset_paths`: 资产的相对路径列表
+#[tauri::command]
+pub async fn batch_delete_agent_assets(
+    app: AppHandle,
+    agent_id: String,
+    asset_paths: Vec<String>,
+) -> Result<(), String> {
+    // 验证 agent_id
+    if agent_id.contains("..") || agent_id.contains('/') || agent_id.contains('\\') {
+        return Err("无效的 Agent ID：包含不允许的字符".to_string());
+    }
+
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let agent_dir = app_data_dir.join("llm-chat").join("agents").join(&agent_id);
+    let assets_dir = agent_dir.join("assets");
+
+    let mut errors = Vec::new();
+
+    for asset_path in asset_paths {
+        // 验证 asset_path
+        if asset_path.contains("..") {
+            errors.push(format!("{}: 无效路径", asset_path));
+            continue;
+        }
+
+        let file_path = agent_dir.join(&asset_path);
+
+        // 安全检查
+        if !file_path.starts_with(&assets_dir) {
+            errors.push(format!("{}: 越权访问", asset_path));
+            continue;
+        }
+
+        if !file_path.exists() {
+            continue; // 文件不存在则跳过，不报错
+        }
+
+        // 删除缩略图
+        if let Some(filename) = file_path.file_name() {
+            let filename_str = filename.to_string_lossy();
+            let base_name = extract_base_name(&filename_str);
+            let thumbnail_path = assets_dir
+                .join(".thumbnails")
+                .join(format!("{}.jpg", base_name));
+            if thumbnail_path.exists() {
+                let _ = trash::delete(&thumbnail_path);
+            }
+        }
+
+        // 删除原文件
+        if let Err(e) = trash::delete(&file_path) {
+            errors.push(format!("{}: {}", asset_path, e));
+        }
+    }
+
+    if !errors.is_empty() {
+        return Err(format!("部分文件删除失败: {}", errors.join("; ")));
+    }
 
     Ok(())
 }
@@ -536,8 +603,14 @@ mod tests {
     #[test]
     fn test_guess_mime_type() {
         assert_eq!(mime::guess_mime_type_from_filename("test.png"), "image/png");
-        assert_eq!(mime::guess_mime_type_from_filename("test.jpg"), "image/jpeg");
-        assert_eq!(mime::guess_mime_type_from_filename("test.mp3"), "audio/mpeg");
+        assert_eq!(
+            mime::guess_mime_type_from_filename("test.jpg"),
+            "image/jpeg"
+        );
+        assert_eq!(
+            mime::guess_mime_type_from_filename("test.mp3"),
+            "audio/mpeg"
+        );
         assert_eq!(mime::guess_mime_type_from_filename("test.mp4"), "video/mp4");
         assert_eq!(
             mime::guess_mime_type_from_filename("test.unknown"),

@@ -291,42 +291,28 @@ const handleBatchDelete = async () => {
     return;
   }
 
-  let successCount = 0;
-  let failCount = 0;
-  let lastError: any = null;
-
-  // 过滤出要删除的资产对象
   const assetsToDelete = assets.value.filter((a) => selectedAssetIds.value.has(a.id));
+  const assetPaths = assetsToDelete.map((a) => a.path);
 
-  for (const asset of assetsToDelete) {
-    try {
-      await invoke("delete_agent_asset", {
-        agentId: props.agentId,
-        assetPath: asset.path,
-      });
-      
-      const index = assets.value.findIndex(a => a.id === asset.id);
-      if (index > -1) {
-        assets.value.splice(index, 1);
-        successCount++;
-      }
-    } catch (error) {
-      failCount++;
-      lastError = error;
-      logger.error(`删除资产失败: ${asset.id}`, error);
-    }
+  try {
+    await invoke("batch_delete_agent_assets", {
+      agentId: props.agentId,
+      assetPaths,
+    });
+
+    // 从本地列表中移除
+    assets.value = assets.value.filter((a) => !selectedAssetIds.value.has(a.id));
+
+    customMessage.success(`成功删除 ${assetsToDelete.length} 个资产`);
+    notifyUpdate();
+    emit("physical-change");
+  } catch (error) {
+    logger.error("批量删除资产失败", error);
+    errorHandler.error(error, "批量删除资产失败");
   }
 
   selectedAssetIds.value.clear();
   isSelectionMode.value = false;
-  notifyUpdate();
-  emit("physical-change");
-  
-  if (failCount > 0) {
-    errorHandler.error(lastError, `成功删除 ${successCount} 个资产，${failCount} 个失败`);
-  } else {
-    customMessage.success(`成功删除 ${successCount} 个资产`);
-  }
 };
 
 // 打开批量移动弹窗

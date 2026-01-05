@@ -121,6 +121,7 @@ use commands::{
     // Agent 资产管理命令
     save_agent_asset,
     delete_agent_asset,
+    batch_delete_agent_assets,
     list_agent_assets,
     delete_all_agent_assets,
     get_agent_asset_path,
@@ -488,6 +489,7 @@ tauri::Builder::default()
             save_agent_asset,
             read_agent_asset_binary,
             delete_agent_asset,
+            batch_delete_agent_assets,
             list_agent_assets,
             delete_all_agent_assets,
             get_agent_asset_path,

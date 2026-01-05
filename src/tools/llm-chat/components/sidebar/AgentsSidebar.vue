@@ -8,7 +8,15 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { useLlmSearch, type MatchDetail } from "../../composables/useLlmSearch";
 import { useFileDrop } from "@/composables/useFileDrop";
-import { Plus, Search, Download, Upload, DocumentAdd, Loading } from "@element-plus/icons-vue";
+import {
+  Plus,
+  Search,
+  Download,
+  Upload,
+  DocumentAdd,
+  Loading,
+  Notebook,
+} from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -27,6 +35,9 @@ const CreateAgentDialog = defineAsyncComponent(() => import("../agent/CreateAgen
 const EditAgentDialog = defineAsyncComponent(() => import("../agent/EditAgentDialog.vue"));
 const ExportAgentDialog = defineAsyncComponent(() => import("../export/ExportAgentDialog.vue"));
 const ImportAgentDialog = defineAsyncComponent(() => import("../export/ImportAgentDialog.vue"));
+const WorldbookManagerDialog = defineAsyncComponent(
+  () => import("../worldbook/WorldbookManagerDialog.vue")
+);
 
 const agentStore = useAgentStore();
 
@@ -264,6 +275,7 @@ const exportInitialSelection = ref<string[]>([]);
 const importDialogVisible = ref(false);
 const importPreflightResult = ref<any>(null);
 const importLoading = ref(false);
+const worldbookManagerVisible = ref(false);
 
 // 打开导出对话框
 const handleOpenExportDialog = (agentIds?: string[]) => {
@@ -465,7 +477,10 @@ const handleEdit = (agent: ChatAgent) => {
 
 // 保存智能体
 // 使用统一的 AgentEditData 类型，确保字段完整传递
-const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
+const handleSaveAgent = (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
   if (editDialogMode.value === "edit") {
     const targetId = options.agentId || editingAgent.value?.id;
     if (!targetId) return;
@@ -736,6 +751,10 @@ const handleImportFromTavernCard = async () => {
               <el-icon><Upload /></el-icon>
               批量导出智能体...
             </el-dropdown-item>
+            <el-dropdown-item @click="worldbookManagerVisible = true" divided>
+              <el-icon><Notebook /></el-icon>
+              世界书库...
+            </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -776,6 +795,9 @@ const handleImportFromTavernCard = async () => {
       @confirm="handleConfirmImport"
       @cancel="handleCancelImport"
     />
+
+    <!-- 世界书管理对话框 -->
+    <WorldbookManagerDialog v-model:visible="worldbookManagerVisible" />
   </div>
 </template>
 

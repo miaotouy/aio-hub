@@ -4,6 +4,7 @@
  */
 
 import { useLlmProfiles } from "./useLlmProfiles";
+import { useLlmKeyManager } from "./useLlmKeyManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
@@ -22,11 +23,14 @@ const errorHandler = createModuleErrorHandler("LlmRequest");
 
 export function useLlmRequest() {
   const { getProfileById } = useLlmProfiles();
+  const { pickKey, reportSuccess, reportFailure } = useLlmKeyManager();
 
   /**
    * 发送 LLM 请求
    */
   const sendRequest = async (options: LlmRequestOptions): Promise<LlmResponse> => {
+    let selectedApiKey: string | undefined;
+
     try {
       logger.info("发送 LLM 请求", {
         profileId: options.profileId,
@@ -72,8 +76,19 @@ export function useLlmRequest() {
         modelId: options.modelId,
       });
 
+      // 获取当前轮询且可用的 API Key
+      selectedApiKey = pickKey(profile);
+
+      // 构造临时 Profile 对象，注入选中的 Key
+      // 如果没有获取到 Key（例如 Profile 没配置 Key），则保持原样，让下游报错
+      const effectiveProfile: LlmProfile = {
+        ...profile,
+        // 覆盖 apiKeys 为选中的单个 Key，确保下游 Provider 只看到这一个
+        apiKeys: selectedApiKey ? [selectedApiKey] : (profile.apiKeys || []),
+      };
+
       // 根据 Provider 和 Model 能力智能过滤参数
-      let filteredOptions = filterParametersByCapabilities(options, profile, model) as LlmRequestOptions;
+      let filteredOptions = filterParametersByCapabilities(options, effectiveProfile, model) as LlmRequestOptions;
 
       // 合并模型的自定义参数
       // customParameters 的优先级低于用户在 options 中明确设置的参数
@@ -91,28 +106,28 @@ export function useLlmRequest() {
 
       // 根据提供商类型调用对应的 API
       let response: LlmResponse;
-      switch (profile.type) {
+      switch (effectiveProfile.type) {
         case "openai":
-          response = await callOpenAiCompatibleApi(profile, filteredOptions);
+          response = await callOpenAiCompatibleApi(effectiveProfile, filteredOptions);
           break;
         case "openai-responses":
-          response = await callOpenAiResponsesApi(profile, filteredOptions);
+          response = await callOpenAiResponsesApi(effectiveProfile, filteredOptions);
           break;
         case "gemini":
-          response = await callGeminiApi(profile, filteredOptions);
+          response = await callGeminiApi(effectiveProfile, filteredOptions);
           break;
         case "claude":
-          response = await callClaudeApi(profile, filteredOptions);
+          response = await callClaudeApi(effectiveProfile, filteredOptions);
           break;
         case "cohere":
-          response = await callCohereApi(profile, filteredOptions);
+          response = await callCohereApi(effectiveProfile, filteredOptions);
           break;
         case "vertexai":
-          response = await callVertexAiApi(profile, filteredOptions);
+          response = await callVertexAiApi(effectiveProfile, filteredOptions);
           break;
         default:
-          const error = new Error(`不支持的提供商类型: ${profile.type}`);
-          errorHandler.error(error, "不支持的提供商类型", { context: { providerType: profile.type } });
+          const error = new Error(`不支持的提供商类型: ${effectiveProfile.type}`);
+          errorHandler.error(error, "不支持的提供商类型", { context: { providerType: effectiveProfile.type } });
           throw error;
       }
 
@@ -122,6 +137,11 @@ export function useLlmRequest() {
         contentLength: response.content.length,
         usage: response.usage,
       });
+
+      // 报告成功，重置错误状态
+      if (selectedApiKey) {
+        reportSuccess(options.profileId, selectedApiKey);
+      }
 
       return response;
     } catch (error) {
@@ -147,6 +167,11 @@ export function useLlmRequest() {
           modelId: options.modelId,
         });
       } else {
+        // 报告失败，累加错误计数
+        if (selectedApiKey) {
+          reportFailure(options.profileId, selectedApiKey, error);
+        }
+
         errorHandler.error(error, "LLM 请求失败", {
           context: {
             profileId: options.profileId,

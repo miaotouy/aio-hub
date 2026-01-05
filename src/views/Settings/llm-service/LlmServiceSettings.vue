@@ -11,6 +11,7 @@ import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
 import CreateProfileDialog from "./components/CreateProfileDialog.vue";
 import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
+import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { providerTypes } from "@/config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "@/types/llm-profiles";
@@ -32,6 +33,7 @@ const {
   createFromPreset,
   updateProfilesOrder,
 } = useLlmProfiles();
+
 // 使用统一的图标获取方法
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
 
@@ -316,6 +318,12 @@ const openProviderIconSelector = () => {
 
 // 自定义请求头弹窗
 const showCustomHeadersDialog = ref(false);
+
+// 多密钥管理弹窗
+const showMultiKeyManager = ref(false);
+const openMultiKeyManager = () => {
+  showMultiKeyManager.value = true;
+};
 </script>
 
 <template>
@@ -420,8 +428,11 @@ const showCustomHeadersDialog = ref(false);
               show-password
               @blur="updateApiKeys"
             />
-            <div v-if="editForm.apiKeys.length > 0" class="form-hint">
-              已配置 {{ editForm.apiKeys.length }} 个密钥
+            <div v-if="editForm.apiKeys.length > 0" class="form-hint multi-key-hint">
+              <span>已配置 {{ editForm.apiKeys.length }} 个密钥</span>
+              <el-button link type="primary" size="small" @click="openMultiKeyManager">
+                管理密钥状态
+              </el-button>
             </div>
           </el-form-item>
 
@@ -510,6 +521,14 @@ const showCustomHeadersDialog = ref(false);
     <CustomHeadersEditor
       v-model:visible="showCustomHeadersDialog"
       v-model="editForm.customHeaders"
+    />
+
+    <!-- 多密钥管理弹窗 -->
+    <MultiKeyManagerDialog
+      v-if="selectedProfile"
+      v-model="showMultiKeyManager"
+      :profile="selectedProfile"
+      @update:profile="saveProfile"
     />
   </div>
 </template>
@@ -615,5 +634,11 @@ const showCustomHeadersDialog = ref(false);
   margin-left: 4px;
   font-size: 12px;
   color: var(--text-color-secondary);
+}
+
+.multi-key-hint {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style>

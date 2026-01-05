@@ -228,7 +228,7 @@ const logCaptureScript = `
     let lastSentHeight = 0;
     let debounceTimer = null;
     const HEIGHT_THRESHOLD = 10; // 高度变化超过 10px 才更新
-    const DEBOUNCE_DELAY = 100; // 100ms 防抖
+    const DEBOUNCE_DELAY = 500; // 增加到 500ms 防抖，等待布局更稳定
     
     const sendHeight = () => {
       const body = document.body;
@@ -338,7 +338,10 @@ const srcDoc = computed(() => {
 
   // 处理注入脚本中的 CSP 占位符
   // 使用 JSON.stringify 确保生成有效的 JavaScript 字符串字面量
-  const processedLogCaptureScript = logCaptureScript.replace("__CSP_CONTENT__", JSON.stringify(cspContent.value));
+  const processedLogCaptureScript = logCaptureScript.replace(
+    "__CSP_CONTENT__",
+    JSON.stringify(cspContent.value)
+  );
 
   // 1. CDN 本地化拦截
   if (enableCdnLocalizer?.value !== false) {
@@ -352,11 +355,15 @@ const srcDoc = computed(() => {
 
   if (isFullHtml) {
     // 尝试注入脚本到 head 或 body
-    // 注入脚本
-    if (content.includes("</head>")) {
-      return content.replace("</head>", `${processedLogCaptureScript}</head>`);
-    } else if (content.includes("<body>")) {
-      return content.replace("<body>", `<body>${processedLogCaptureScript}`);
+    // 使用正则匹配以支持大小写不敏感和流式输出
+    if (/<\/head>/i.test(content)) {
+      return content.replace(/<\/head>/i, `${processedLogCaptureScript}</head>`);
+    } else if (/<head[^>]*>/i.test(content)) {
+      return content.replace(/<head[^>]*>/i, (match) => `${match}${processedLogCaptureScript}`);
+    } else if (/<body[^>]*>/i.test(content)) {
+      return content.replace(/<body[^>]*>/i, (match) => `${match}${processedLogCaptureScript}`);
+    } else if (/<html[^>]*>/i.test(content)) {
+      return content.replace(/<html[^>]*>/i, (match) => `${match}${processedLogCaptureScript}`);
     } else {
       // 实在找不到位置，就追加到最后
       return content + processedLogCaptureScript;

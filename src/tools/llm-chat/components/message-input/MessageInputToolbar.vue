@@ -155,7 +155,7 @@ const handleNewSession = () => {
       </el-tooltip>
 
       <!-- 宏选择器按钮 -->
-      <el-tooltip content="添加宏变量" placement="top" :show-after="500">
+      <el-tooltip content="添加宏变量" placement="top" :show-after="1500">
         <div>
           <el-popover
             :visible="props.macroSelectorVisible"
@@ -183,7 +183,7 @@ const handleNewSession = () => {
       </el-tooltip>
 
       <!-- 会话列表按钮 -->
-      <el-tooltip content="切换会话" placement="top" :show-after="500">
+      <el-tooltip content="切换会话" placement="top" :show-after="2500">
         <div>
           <el-popover
             v-model:visible="sessionListVisible"

@@ -752,14 +752,9 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                 />
               </div>
 
-              <div class="control-item unsupported">
+              <div class="control-item">
                 <span class="label">自动化 ID (不支持)</span>
-                <el-input
-                  v-model="currentEntry.automationId"
-                  size="small"
-                  placeholder="不支持"
-                  disabled
-                />
+                <el-input v-model="currentEntry.automationId" size="small" placeholder="不支持" />
               </div>
             </div>
           </div>
@@ -882,9 +877,9 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
               <span>递归控制 (Recursion Control)</span>
             </div>
             <div class="advanced-grid">
-              <div class="control-item unsupported">
+              <div class="control-item">
                 <span class="label">排除递归 (不支持)</span>
-                <el-switch v-model="currentEntry.excludeRecursion" size="small" disabled />
+                <el-switch v-model="currentEntry.excludeRecursion" size="small" />
               </div>
 
               <div class="control-item">
@@ -892,25 +887,24 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                 <el-switch v-model="currentEntry.preventRecursion" size="small" />
               </div>
 
-              <div class="control-item unsupported">
-                <span class="label">延迟到递归 (不支持)</span>
-                <el-switch v-model="currentEntry.delayUntilRecursion" size="small" disabled />
+              <div class="control-item">
+                <span class="label">延迟到递归</span>
+                <el-switch v-model="currentEntry.delayUntilRecursion" size="small" />
               </div>
 
-              <div class="control-item unsupported">
-                <span class="label">递归等级 (不支持)</span>
+              <div class="control-item">
+                <span class="label">递归等级</span>
                 <el-input-number
                   v-model="currentEntry.delayUntilRecursionLevel"
                   size="small"
                   :min="1"
                   controls-position="right"
-                  disabled
                 />
               </div>
             </div>
           </div>
 
-          <div class="flat-section unsupported">
+          <div class="flat-section">
             <div class="section-header">
               <el-icon><Filter /></el-icon>
               <span>触发器过滤 (不支持)</span>
@@ -923,7 +917,6 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                   placeholder="不支持过滤"
                   size="small"
                   style="width: 100%"
-                  disabled
                 >
                   <el-option
                     v-for="opt in triggerOptions"
@@ -947,45 +940,43 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                   >角色描述</el-checkbox
                 >
               </div>
-              <div class="control-item unsupported">
-                <el-checkbox v-model="currentEntry.matchCharacterPersonality" size="small" disabled
-                  >角色性格 (不支持)</el-checkbox
+              <div class="control-item">
+                <el-checkbox v-model="currentEntry.matchCharacterPersonality" size="small"
+                  >角色性格</el-checkbox
                 >
               </div>
-              <div class="control-item unsupported">
-                <el-checkbox v-model="currentEntry.matchScenario" size="small" disabled
-                  >情景 (不支持)</el-checkbox
-                >
+              <div class="control-item">
+                <el-checkbox v-model="currentEntry.matchScenario" size="small">情景</el-checkbox>
               </div>
               <div class="control-item">
                 <el-checkbox v-model="currentEntry.matchPersonaDescription" size="small"
                   >用户设定描述</el-checkbox
                 >
               </div>
-              <div class="control-item unsupported">
-                <el-checkbox v-model="currentEntry.matchCharacterDepthPrompt" size="small" disabled
-                  >角色备注 (不支持)</el-checkbox
+              <div class="control-item">
+                <el-checkbox v-model="currentEntry.matchCharacterDepthPrompt" size="small"
+                  >角色备注</el-checkbox
                 >
               </div>
-              <div class="control-item unsupported">
-                <el-checkbox v-model="currentEntry.matchCreatorNotes" size="small" disabled
-                  >创作者注释 (不支持)</el-checkbox
+              <div class="control-item">
+                <el-checkbox v-model="currentEntry.matchCreatorNotes" size="small"
+                  >创作者注释</el-checkbox
                 >
               </div>
             </div>
           </div>
 
           <!-- 角色/标签绑定 (Character Filter) -->
-          <div class="flat-section unsupported" v-if="currentEntry.characterFilter">
+          <div class="flat-section" v-if="currentEntry.characterFilter">
             <div class="section-header">
               <el-icon><User /></el-icon>
-              <span>角色/标签绑定 (不支持)</span>
+              <span>角色/标签绑定</span>
             </div>
             <div class="advanced-grid">
               <div class="control-item full-width">
                 <div class="flex-between mb-8">
-                  <span class="label">绑定到角色或标签 (当前不支持)</span>
-                  <el-checkbox v-model="currentEntry.characterFilter.isExclude" disabled
+                  <span class="label">绑定到角色或标签</span>
+                  <el-checkbox v-model="currentEntry.characterFilter.isExclude"
                     >排除模式 (Exclude)</el-checkbox
                   >
                 </div>
@@ -994,10 +985,9 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                   multiple
                   filterable
                   allow-create
-                  placeholder="不支持过滤"
+                  placeholder="输入角色名或标签..."
                   size="small"
                   style="width: 100%"
-                  disabled
                 />
               </div>
             </div>

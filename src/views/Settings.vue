@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted, nextTick } from "vue";
+import { ref, onMounted, watch, onUnmounted, nextTick, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ArrowLeft } from "@element-plus/icons-vue";
+import { ArrowLeft, RefreshRight } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
+import { useWindowSize } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import {
   loadAppSettingsAsync,
@@ -25,6 +26,9 @@ const toolsStore = useToolsStore();
 const route = useRoute();
 const router = useRouter();
 const isLoading = ref(true);
+
+const { width } = useWindowSize();
+const isMobile = computed(() => width.value < 1000);
 
 // 返回上一页
 const handleGoBack = () => {
@@ -59,7 +63,7 @@ const settings = ref<AppSettings>({
   logLevel: "INFO",
   logToFile: true,
   logToConsole: true,
-  logBufferSize: 1000,
+  logBufferSize: 100,
   maxFileSize: 2 * 1024 * 1024,
   version: "1.0.0",
 });
@@ -505,88 +509,124 @@ onUnmounted(() => {
 
       <!-- 实际内容 -->
       <template v-else>
-        <!-- 左侧导航 -->
-        <aside class="settings-nav">
-          <button class="back-button" @click="handleGoBack">
-            <el-icon><ArrowLeft /></el-icon>
-            <span>返回</span>
-          </button>
-          <h1 class="nav-title">设置</h1>
-          <div class="nav-menu">
-            <button
+        <div class="settings-container" :class="{ 'is-mobile': isMobile }">
+          <!-- 移动端顶栏 -->
+          <header v-if="isMobile" class="mobile-header">
+            <div class="header-top">
+              <button class="mobile-back" @click="handleGoBack">
+                <el-icon><ArrowLeft /></el-icon>
+              </button>
+              <h1 class="mobile-title">设置</h1>
+              <el-tooltip content="重置所有设置" placement="bottom">
+                <button class="mobile-reset" @click="handleReset">
+                  <el-icon><RefreshRight /></el-icon>
+                </button>
+              </el-tooltip>
+            </div>
+            <div class="header-nav">
+              <el-select
+                v-model="activeSection"
+                @change="handleSelect"
+                placeholder="跳转到..."
+                size="default"
+              >
+                <el-option
+                  v-for="module in settingsModules"
+                  :key="module.id"
+                  :label="module.title"
+                  :value="module.id"
+                />
+              </el-select>
+            </div>
+          </header>
+
+          <!-- 桌面端侧边栏 -->
+          <aside v-else class="settings-sidebar">
+            <div class="sidebar-header">
+              <button class="back-button" @click="handleGoBack">
+                <el-icon><ArrowLeft /></el-icon>
+                <span>返回</span>
+              </button>
+              <h1 class="sidebar-title">设置</h1>
+            </div>
+
+            <div class="nav-menu">
+              <button
+                v-for="module in settingsModules"
+                :key="module.id"
+                class="nav-menu-item"
+                :class="{ active: activeSection === module.id }"
+                @click="handleSelect(module.id)"
+              >
+                {{ module.title }}
+              </button>
+            </div>
+
+            <div class="sidebar-footer">
+              <el-button @click="handleReset" type="danger" plain class="reset-btn">
+                重置所有设置
+              </el-button>
+            </div>
+          </aside>
+
+          <!-- 内容区域 -->
+          <main class="settings-main" ref="contentRef">
+            <section
               v-for="module in settingsModules"
               :key="module.id"
-              class="nav-menu-item"
-              :class="{ active: activeSection === module.id }"
-              @click="handleSelect(module.id)"
+              :id="module.id"
+              class="settings-section component-section"
+              :style="{ minHeight: module.minHeight || 'auto' }"
             >
-              {{ module.title }}
-            </button>
-          </div>
+              <h2 class="section-title">{{ module.title }}</h2>
 
-          <div class="nav-actions">
-            <el-button @click="handleReset" type="danger" plain> 重置所有设置 </el-button>
-          </div>
-        </aside>
+              <!-- 通用设置 -->
+              <component
+                v-if="module.id === 'general'"
+                :is="module.component"
+                v-model:show-tray-icon="settings.showTrayIcon"
+                v-model:minimize-to-tray="settings.minimizeToTray"
+                v-model:theme="settings.theme"
+                v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
+                v-model:sidebar-mode="settings.sidebarMode"
+                v-model:proxy="settings.proxy"
+                v-model:timezone="settings.timezone"
+                @config-imported="onConfigImported"
+              />
 
-        <!-- 右侧内容 -->
-        <div class="settings-content" ref="contentRef">
-          <!-- 直接渲染所有设置模块 -->
-          <section
-            v-for="module in settingsModules"
-            :key="module.id"
-            :id="module.id"
-            class="settings-section component-section"
-            :style="{ minHeight: module.minHeight || 'auto' }"
-          >
-            <h2 class="section-title">{{ module.title }}</h2>
+              <!-- 主题色配置 -->
+              <component
+                v-else-if="module.id === 'theme-colors'"
+                :is="module.component"
+                v-model:theme-color="settings.themeColor"
+                v-model:success-color="settings.successColor"
+                v-model:warning-color="settings.warningColor"
+                v-model:danger-color="settings.dangerColor"
+                v-model:info-color="settings.infoColor"
+              />
 
-            <!-- 通用设置 -->
-            <component
-              v-if="module.id === 'general'"
-              :is="module.component"
-              v-model:show-tray-icon="settings.showTrayIcon"
-              v-model:minimize-to-tray="settings.minimizeToTray"
-              v-model:theme="settings.theme"
-              v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
-              v-model:sidebar-mode="settings.sidebarMode"
-              v-model:proxy="settings.proxy"
-              v-model:timezone="settings.timezone"
-              @config-imported="onConfigImported"
-            />
+              <!-- 日志配置 -->
+              <component
+                v-else-if="module.id === 'log-settings'"
+                :is="module.component"
+                v-model:log-level="settings.logLevel"
+                v-model:log-to-file="settings.logToFile"
+                v-model:log-to-console="settings.logToConsole"
+                v-model:log-buffer-size="settings.logBufferSize"
+                v-model:max-file-size="settings.maxFileSize"
+              />
 
-            <!-- 主题色配置 -->
-            <component
-              v-else-if="module.id === 'theme-colors'"
-              :is="module.component"
-              v-model:theme-color="settings.themeColor"
-              v-model:success-color="settings.successColor"
-              v-model:warning-color="settings.warningColor"
-              v-model:danger-color="settings.dangerColor"
-              v-model:info-color="settings.infoColor"
-            />
+              <!-- 工具模块配置 -->
+              <component
+                v-else-if="module.id === 'tools'"
+                :is="module.component"
+                v-model:tools-visible="settings.toolsVisible"
+              />
 
-            <!-- 日志配置 -->
-            <component
-              v-else-if="module.id === 'log-settings'"
-              :is="module.component"
-              v-model:log-level="settings.logLevel"
-              v-model:log-to-file="settings.logToFile"
-              v-model:log-to-console="settings.logToConsole"
-              v-model:log-buffer-size="settings.logBufferSize"
-              v-model:max-file-size="settings.maxFileSize"
-            />
-
-            <!-- 工具模块配置 -->
-            <component
-              v-else-if="module.id === 'tools'"
-              :is="module.component"
-              v-model:tools-visible="settings.toolsVisible"
-            />
-
-            <!-- 其他动态组件 -->
-            <component v-else :is="module.component" />
-          </section>
+              <!-- 其他动态组件 -->
+              <component v-else :is="module.component" />
+            </section>
+          </main>
         </div>
       </template>
     </div>
@@ -597,45 +637,62 @@ onUnmounted(() => {
 .settings-page {
   height: 100%;
   overflow: hidden;
-  /* 由右侧内容滚动 */
   background: var(--bg-color);
   box-sizing: border-box;
 }
 
-/* 新布局：左侧导航 + 右侧内容 */
 .settings-wrapper {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 20px;
   height: 100%;
-  align-items: start;
   box-sizing: border-box;
 }
 
-/* 左侧导航 */
-.settings-nav {
+/* 容器布局 */
+.settings-container {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  height: 100%;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.settings-container.is-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 桌面端侧边栏 */
+.settings-sidebar {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
-  border-radius: 8px;
-  padding: 16px;
-  position: sticky;
-  top: 20px;
+  border-radius: 12px;
+  padding: 20px 16px;
   height: 100%;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+}
+
+.sidebar-header {
+  margin-bottom: 20px;
+}
+
+.sidebar-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-color);
+  margin: 12px 0 0 12px;
 }
 
 .back-button {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 0 12px;
-  height: 36px;
-  margin-bottom: 8px;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--text-color-secondary);
@@ -643,7 +700,6 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
-  outline: none;
 }
 
 .back-button:hover {
@@ -651,23 +707,12 @@ onUnmounted(() => {
   background-color: rgba(var(--primary-color-rgb), 0.08);
 }
 
-.back-button .el-icon {
-  font-size: 16px;
-}
-
-.nav-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-color);
-  margin: 0 0 12px 0;
-}
-
-/* 自定义导航菜单样式 */
 .nav-menu {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 16px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .nav-menu-item {
@@ -675,183 +720,151 @@ onUnmounted(() => {
   height: 40px;
   padding: 0 16px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-color);
   font-size: 14px;
   text-align: left;
   cursor: pointer;
   position: relative;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   outline: none;
 }
 
-/* 默认 hover 效果 */
 .nav-menu-item:hover:not(.active) {
   background-color: rgba(var(--primary-color-rgb), 0.05);
   color: var(--primary-color);
 }
 
-/* 激活状态 - 左侧边缘高亮 */
 .nav-menu-item.active {
   color: var(--primary-color);
   background-color: rgba(var(--primary-color-rgb), 0.08);
-  font-weight: 500;
+  font-weight: 600;
 }
 
-/* 左侧高亮条 */
 .nav-menu-item.active::before {
   content: "";
   position: absolute;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 60%;
+  height: 20px;
   width: 3px;
   background-color: var(--primary-color);
   border-radius: 0 2px 2px 0;
-  box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.4);
 }
 
-/* 点击效果 */
-.nav-menu-item:active {
-  transform: scale(0.98);
-}
-
-.nav-actions {
+.sidebar-footer {
   margin-top: auto;
-  /* 底部对齐 */
-  padding-top: 16px;
+  padding-top: 20px;
 }
 
-.nav-actions .el-button {
+.reset-btn {
   width: 100%;
 }
 
-/* 右侧内容区域滚动 */
-.settings-content {
+/* 移动端顶栏 */
+.mobile-header {
+  position: sticky;
+  top: 12px;
+  z-index: 100;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin: 0 12px 12px;
+  padding: 8px 16px 12px;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  margin-bottom: 8px;
+}
+
+.mobile-back,
+.mobile-reset {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-color-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.mobile-back:active,
+.mobile-reset:active {
+  background: rgba(var(--primary-color-rgb), 0.1);
+}
+
+.mobile-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.header-nav {
+  width: 100%;
+}
+
+.header-nav :deep(.el-select) {
+  width: 100%;
+}
+
+/* 主内容区域 */
+.settings-main {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  border-radius: 8px;
+  border-radius: 12px;
   box-sizing: border-box;
-  padding-right: 10px;
   padding-bottom: 40px;
+  scroll-behavior: smooth;
 }
 
-/* 添加 CSS 变量支持 */
-:root {
-  --primary-color-rgb: 64, 158, 255;
-  /* 默认蓝色 */
+.is-mobile .settings-main {
+  padding: 16px;
+  padding-bottom: 80px;
 }
 
-/* 暗色模式下的主色调 RGB */
-.dark {
-  --primary-color-rgb: 64, 158, 255;
-}
-
-/* 滚动条样式优化 */
-.settings-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-.settings-content::-webkit-scrollbar-track {
-  background: var(--bg-color);
-  border-radius: 4px;
-}
-
-.settings-content::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
-}
-
-.settings-content::-webkit-scrollbar-thumb:hover {
-  background: var(--text-color-secondary);
-}
-
-.page-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--text-color);
-  margin-bottom: 30px;
-}
-
-/* 卡片与条目 */
+/* 设置卡片 */
 .settings-section {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 24px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .section-title {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-color);
-  margin: 0 0 12px 0;
+  margin: 0 0 16px 0;
   padding-bottom: 12px;
-  border-radius: 8px 8px 0 0;
-  backdrop-filter: blur(var(--ui-blur));
   border-bottom: 1px solid var(--border-color);
 }
 
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
+/* 滚动条 */
+.settings-main::-webkit-scrollbar {
+  width: 6px;
 }
 
-.setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color);
+.settings-main::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
 }
 
-.setting-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--text-color);
-}
-
-.setting-hint {
-  font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  margin-left: 4px;
-  white-space: nowrap;
-}
-
-.setting-hint.warning {
-  color: var(--warning-color, #e6a23c);
-  background-color: rgba(230, 162, 60, 0.1);
-  border: 1px solid rgba(230, 162, 60, 0.3);
-}
-
-.info-icon {
-  color: var(--text-color-secondary);
-  cursor: help;
-}
-
-/* 配置管理按钮组 */
-.config-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* 动态组件 section 特殊样式 */
-.component-section {
-  padding: 0; /* 子组件自己控制 */
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  max-height: 95%;
-}
-
-.component-section .section-title {
-  padding: 12px;
-  margin: 0;
+/* 变量 */
+:root {
+  --primary-color-rgb: 64, 158, 255;
 }
 </style>

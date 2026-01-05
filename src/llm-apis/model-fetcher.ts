@@ -5,7 +5,7 @@
 
 import type { LlmProfile, LlmModelInfo, ProviderType, ModelCapabilities } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
-import { buildLlmApiUrl } from "@utils/llm-api-url";
+import { buildLlmApiUrl } from "@/utils/llm-api-url";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";

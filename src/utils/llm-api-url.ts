@@ -4,62 +4,79 @@
  */
 
 import type { ProviderType } from '../types/llm-profiles';
+import { openAiUrlHandler } from '@/llm-apis/openai-compatible';
+import { openAiResponsesUrlHandler } from '@/llm-apis/openai-responses';
+import { claudeUrlHandler } from '@/llm-apis/claude';
+import { geminiUrlHandler } from '@/llm-apis/gemini';
+import { cohereUrlHandler } from '@/llm-apis/cohere';
+import { vertexAiUrlHandler } from '@/llm-apis/vertexai';
+
+/**
+ * 适配器 URL 处理接口
+ */
+interface AdapterUrlHandler {
+  buildUrl: (baseUrl: string, endpoint?: string) => string;
+  getHint: () => string;
+}
+
+/**
+ * 适配器 URL 处理映射
+ * 注册各个适配器的 URL 处理逻辑
+ */
+const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
+  openai: openAiUrlHandler,
+  'openai-responses': openAiResponsesUrlHandler,
+  claude: claudeUrlHandler,
+  gemini: geminiUrlHandler,
+  cohere: cohereUrlHandler,
+  vertexai: vertexAiUrlHandler,
+  huggingface: {
+    buildUrl: (baseUrl, endpoint) => {
+      const host = formatLlmApiHost(baseUrl);
+      return endpoint ? `${host}${endpoint}` : `${host}models/{model}`;
+    },
+    getHint: () => '将自动添加 /models/{model}'
+  }
+};
 
 /**
  * 格式化 LLM API Host 地址
- * 根据URL特征和Provider类型智能添加版本路径
+ * 基础格式化逻辑：确保以斜杠结尾，并处理特殊标记
  *
  * @param host - 原始API地址
- * @param providerType - 服务提供商类型（可选）
  * @returns 格式化后的API地址
  */
-export function formatLlmApiHost(host: string, providerType?: ProviderType): string {
-  // 特殊情况判断函数
-  const shouldKeepOriginal = (): boolean => {
-    // 已经以斜杠结尾，不添加
-    if (host.endsWith('/')) {
-      return true;
-    }
-    
-    // 火山引擎等特殊路径，不添加
-    if (host.includes('/api/v3') || host.includes('/api/v4')) {
-      return true;
-    }
-    
-    return false;
-  };
+export function formatLlmApiHost(host: string): string {
+  if (!host) return "";
 
-  if (shouldKeepOriginal()) {
-    return host;
+  // 如果以#结尾，表示禁用自动补全，去掉#并返回
+  if (host.endsWith('#')) {
+    return host.slice(0, -1);
   }
 
-  // 根据 Provider 类型添加对应的版本路径
-  switch (providerType) {
-    case 'gemini':
-      // Gemini 使用 /v1beta/
-      return `${host}/v1beta/`;
-    case 'cohere':
-      // Cohere 使用 /v2/
-      return `${host}/v2/`;
-    case 'vertexai':
-      // Vertex AI 使用 /v1/
-      return `${host}/v1/`;
-    case 'huggingface':
-      // Hugging Face 不需要版本路径
-      return `${host}/`;
-    case 'openai':
-    case 'openai-responses':
-    case 'claude':
-    default:
-      // OpenAI、OpenAI Responses 和 Claude 使用 /v1/
-      return `${host}/v1/`;
-  }
+  // 确保以斜杠结尾
+  let formattedHost = host.endsWith('/') ? host : `${host}/`;
+
+  return formattedHost;
+}
+
+/**
+ * 判断 URL 是否已经包含 API 版本路径
+ * 识别模式如 /v1/, /v2/, /v3/, /api/v3/, /api/v4/ 等
+ */
+export function hasApiVersionPath(url: string): boolean {
+  // 匹配 /vN/ 或 /api/vN/ 格式，其中 N 是数字
+  const versionRegex = /\/(api\/)?v\d+\/?$/i;
+  // 同时也匹配路径中间包含版本的情况，如 /v1/chat
+  const midVersionRegex = /\/(api\/)?v\d+\//i;
+  
+  return versionRegex.test(url) || midVersionRegex.test(url);
 }
 
 /**
  * 生成完整的 LLM API 端点 URL
  * 根据provider类型自动添加正确的端点路径
- * 
+ *
  * @param baseUrl - API基础地址
  * @param providerType - 服务提供商类型
  * @param endpoint - 具体端点（可选，用于实际请求）
@@ -74,49 +91,23 @@ export function buildLlmApiUrl(
     return '';
   }
 
-  // 特殊处理：如果URL以#结尾，去掉#并不添加后缀
-  // 这允许用户精确控制URL，禁用自动补全
-  if (baseUrl.endsWith('#')) {
-    const cleanUrl = baseUrl.replace('#', '');
+  // 如果禁用自动补全（以#结尾）
+  if (isLlmUrlAutoCompletionDisabled(baseUrl)) {
+    const cleanUrl = formatLlmApiHost(baseUrl);
+    // 即使禁用了自动补全，如果用户没写具体的 chat/completions 等，
+    // 我们在实际请求时（endpoint 有值时）还是应该拼接
     return endpoint ? `${cleanUrl}${endpoint}` : cleanUrl;
   }
-  
-  // 格式化基础URL（传入providerType以便正确处理版本路径）
-  const formattedHost = formatLlmApiHost(baseUrl, providerType);
-  
-  // 如果指定了端点，直接拼接
-  if (endpoint) {
-    return `${formattedHost}${endpoint}`;
+
+  // 优先从适配器获取 URL 处理逻辑
+  const handler = adapterUrlHandlers[providerType];
+  if (handler) {
+    return handler.buildUrl(baseUrl, endpoint);
   }
-  // 根据provider类型返回默认端点
-  switch (providerType) {
-    case 'openai':
-      return `${formattedHost}chat/completions`;
-      
-    case 'openai-responses':
-      return `${formattedHost}responses`;
-      
-    case 'gemini':
-      // Gemini 需要模型ID,这里返回模板
-      return `${formattedHost}models/{model}:generateContent`;
-      
-    case 'claude':
-      return `${formattedHost}messages`;
-      
-    case 'cohere':
-      return `${formattedHost}chat`;
-      
-    case 'huggingface':
-      // Hugging Face 需要模型ID
-      return `${formattedHost}models/{model}`;
-      
-    case 'vertexai':
-      // Vertex AI 需要项目和位置信息
-      return `${formattedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
-      
-    default:
-      return formattedHost;
-  }
+
+  // 回退到基础拼接逻辑
+  const formattedHost = formatLlmApiHost(baseUrl);
+  return endpoint ? `${formattedHost}${endpoint}` : formattedHost;
 }
 
 /**
@@ -142,27 +133,14 @@ export function isLlmUrlAutoCompletionDisabled(url: string): boolean {
 
 /**
  * 获取 LLM API 端点路径提示文本
- * 
+ *
  * @param providerType - 服务提供商类型
  * @returns 提示文本
  */
 export function getLlmEndpointHint(providerType: ProviderType): string {
-  switch (providerType) {
-    case 'openai':
-      return '将自动添加 /v1/chat/completions（如需禁用请在URL末尾加#）';
-    case 'openai-responses':
-      return '将自动添加 /v1/responses（支持工具调用和推理的有状态交互）';
-    case 'gemini':
-      return '将自动添加 /v1beta/models/{model}:generateContent';
-    case 'claude':
-      return '将自动添加 /v1/messages';
-    case 'cohere':
-      return '将自动添加 /v2/chat';
-    case 'huggingface':
-      return '将自动添加 /models/{model}';
-    case 'vertexai':
-      return '将自动添加 /v1/projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent';
-    default:
-      return '';
+  const handler = adapterUrlHandlers[providerType];
+  if (handler) {
+    return handler.getHint();
   }
+  return '';
 }

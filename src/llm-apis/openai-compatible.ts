@@ -2,7 +2,6 @@ import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
 import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
-import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -16,6 +15,22 @@ import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("openai-compatible");
 
+/**
+ * OpenAI 适配器的 URL 处理逻辑
+ */
+export const openAiUrlHandler = {
+  buildUrl: (baseUrl: string, endpoint?: string): string => {
+    // 确保 baseUrl 以 / 结尾
+    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    // 智能添加 v1 版本路径（如果没加的话）
+    // 如果已经包含 /v1, /v2, /v3 或 /api/v3 等，则不再添加
+    const versionedHost = (host.includes('/v1') || host.includes('/v2') || host.includes('/v3') || host.includes('/api/v')) ? host : `${host}v1/`;
+    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat/completions`;
+  },
+  getHint: (): string => {
+    return '将自动添加 /v1/chat/completions（如需禁用请在URL末尾加#）';
+  }
+};
 
 /**
  * 调用 OpenAI 兼容格式的 API
@@ -24,7 +39,7 @@ export const callOpenAiCompatibleApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = buildLlmApiUrl(profile.baseUrl, "openai", "chat/completions");
+  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "chat/completions");
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -468,7 +483,7 @@ export const callOpenAiEmbeddingApi = async (
   profile: LlmProfile,
   options: EmbeddingRequestOptions
 ): Promise<EmbeddingResponse> => {
-  const url = buildLlmApiUrl(profile.baseUrl, "openai", "embeddings");
+  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "embeddings");
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

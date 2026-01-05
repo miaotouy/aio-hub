@@ -1,7 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "./common";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
-import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -11,13 +10,28 @@ import {
 } from "./request-builder";
 
 /**
+ * OpenAI Responses 适配器的 URL 处理逻辑
+ */
+export const openAiResponsesUrlHandler = {
+  buildUrl: (baseUrl: string, endpoint?: string): string => {
+    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    // 智能添加 v1 版本路径（如果没加的话），同时兼容 v2, v3 等
+    const versionedHost = (host.includes('/v1') || host.includes('/v2') || host.includes('/v3') || host.includes('/api/v')) ? host : `${host}v1/`;
+    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}responses`;
+  },
+  getHint: (): string => {
+    return '将自动添加 /v1/responses（支持工具调用和推理的有状态交互）';
+  }
+};
+
+/**
  * 调用 OpenAI Responses API
  */
 export const callOpenAiResponsesApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = buildLlmApiUrl(profile.baseUrl, "openai-responses", "responses");
+  const url = openAiResponsesUrlHandler.buildUrl(profile.baseUrl, "responses");
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

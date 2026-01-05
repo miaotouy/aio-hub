@@ -2,7 +2,6 @@ import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "./common";
 import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
-import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
@@ -16,6 +15,20 @@ import {
 } from "./request-builder";
 
 const logger = createModuleLogger("VertexAiApi");
+
+/**
+ * Vertex AI 适配器的 URL 处理逻辑
+ */
+export const vertexAiUrlHandler = {
+  buildUrl: (baseUrl: string, endpoint?: string): string => {
+    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes('/v1') ? host : `${host}v1/`;
+    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
+  },
+  getHint: (): string => {
+    return '将自动添加 /v1/projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent';
+  }
+};
 
 /**
  * Vertex AI Content Part 类型
@@ -806,7 +819,7 @@ export const callVertexAiApi = async (
         : `publishers/anthropic/models/${options.modelId}:rawPredict`;
   }
 
-  const url = buildLlmApiUrl(profile.baseUrl, "vertexai", endpoint);
+  const url = vertexAiUrlHandler.buildUrl(profile.baseUrl, endpoint);
 
   logger.info("调用 Vertex AI API", {
     publisher,
@@ -831,7 +844,7 @@ export const callVertexAiEmbeddingApi = async (
 ): Promise<EmbeddingResponse> => {
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
   const endpoint = `publishers/google/models/${options.modelId}:predict`;
-  const url = buildLlmApiUrl(profile.baseUrl, "vertexai", endpoint);
+  const url = vertexAiUrlHandler.buildUrl(profile.baseUrl, endpoint);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

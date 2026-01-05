@@ -2,7 +2,6 @@ import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "./common";
 import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
-import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -580,6 +579,20 @@ function convertSchemaType(type: string): GeminiSchema["type"] {
 }
 
 /**
+ * Gemini 适配器的 URL 处理逻辑
+ */
+export const geminiUrlHandler = {
+  buildUrl: (baseUrl: string, endpoint?: string): string => {
+    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes('/v1') ? host : `${host}v1beta/`;
+    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}models/{model}:generateContent`;
+  },
+  getHint: (): string => {
+    return '将自动添加 /v1beta/models/{model}:generateContent';
+  }
+};
+
+/**
  * 调用 Google Gemini API
  */
 export const callGeminiApi = async (
@@ -595,7 +608,7 @@ export const callGeminiApi = async (
       ? `models/${options.modelId}:streamGenerateContent`
       : `models/${options.modelId}:generateContent`;
 
-  const baseUrl = buildLlmApiUrl(profile.baseUrl, "gemini", endpoint);
+  const baseUrl = geminiUrlHandler.buildUrl(profile.baseUrl, endpoint);
   const url = `${baseUrl}?key=${apiKey}${options.stream ? "&alt=sse" : ""}`;
 
   // 从 messages 中提取 system 消息
@@ -946,7 +959,7 @@ export const callGeminiEmbeddingApi = async (
   const isBatch = Array.isArray(options.input);
   const endpoint = isBatch ? `models/${options.modelId}:batchEmbedContents` : `models/${options.modelId}:embedContent`;
 
-  const baseUrl = buildLlmApiUrl(profile.baseUrl, "gemini", endpoint);
+  const baseUrl = geminiUrlHandler.buildUrl(profile.baseUrl, endpoint);
   const url = `${baseUrl}?key=${apiKey}`;
 
   const headers: Record<string, string> = {

@@ -11,6 +11,20 @@ import {
 } from "./request-builder";
 
 /**
+ * Cohere 适配器的 URL 处理逻辑
+ */
+export const cohereUrlHandler = {
+  buildUrl: (baseUrl: string, endpoint?: string): string => {
+    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes('/v2') ? host : `${host}v2/`;
+    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat`;
+  },
+  getHint: (): string => {
+    return '将自动添加 /v2/chat';
+  }
+};
+
+/**
  * 调用 Cohere API
  */
 export const callCohereApi = async (
@@ -23,7 +37,7 @@ export const callCohereApi = async (
   // 移除可能存在的 v1 后缀
   if (baseUrl.endsWith("/v1")) baseUrl = baseUrl.slice(0, -3);
 
-  const url = `${baseUrl}/v2/chat`;
+  const url = cohereUrlHandler.buildUrl(profile.baseUrl, "chat");
 
   // 获取第一个可用的 API Key
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";

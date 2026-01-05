@@ -1,7 +1,6 @@
 import type { LlmProfile } from "../types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "./common";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
-import { buildLlmApiUrl } from "@utils/llm-api-url";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { parseSSEStream } from "@utils/sse-parser";
@@ -16,6 +15,20 @@ import {
 
 const logger = createModuleLogger("ClaudeApi");
 const errorHandler = createModuleErrorHandler("ClaudeApi");
+
+/**
+ * Claude 适配器的 URL 处理逻辑
+ */
+export const claudeUrlHandler = {
+  buildUrl: (baseUrl: string, endpoint?: string): string => {
+    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes('/v1') ? host : `${host}v1/`;
+    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}messages`;
+  },
+  getHint: (): string => {
+    return '将自动添加 /v1/messages';
+  }
+};
 
 /**
  * Claude API 消息内容块类型
@@ -450,7 +463,7 @@ export const callClaudeApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = buildLlmApiUrl(profile.baseUrl, "claude", "messages");
+  const url = claudeUrlHandler.buildUrl(profile.baseUrl, "messages");
 
   // 从 messages 中提取 system 消息
   const systemMessages = options.messages.filter(m => m.role === 'system');

@@ -73,25 +73,43 @@ export const callOpenAiCompatibleApi = async (
       }
 
       // 分别处理不同类型的媒体，避免类型混淆
+      // 注意：OpenAI 官方 API 目前对音频、视频和文档的支持各不相同
+      // 这里的处理旨在尽可能兼容各种聚合渠道
+
       // 处理文档
       for (const docPart of parsed.documentParts) {
         if (docPart.source.type === "base64") {
-          contentArray.push({
-            type: "image_url", // 兼容处理
-            image_url: {
-              url: buildBase64DataUrl(docPart.source.data, docPart.source.media_type),
-            },
-          });
+          const mediaType = docPart.source.media_type;
+          // 兼容性处理：
+          // 1. 如果是图片类型的文档
+          // 2. 如果是 PDF，在 OpenAI 兼容协议中，很多中转层（如 NewAPI/OneAPI）
+          //    支持通过 image_url 传递 PDF 数据，并自动转换为上游（如 Gemini）的内联文档格式。
+          if (mediaType.startsWith("image/") || mediaType === "application/pdf") {
+            contentArray.push({
+              type: "image_url",
+              image_url: {
+                url: buildBase64DataUrl(docPart.source.data, mediaType),
+              },
+            });
+          } else {
+            // 其他类型文档尝试使用 document 格式（非标，仅部分渠道支持）
+            contentArray.push({
+              type: "document",
+              source: docPart.source,
+            });
+          }
         }
       }
 
       // 处理音频
       for (const audioPart of parsed.audioParts) {
         if (audioPart.source.type === "base64") {
+          // OpenAI 官方支持 input_audio 格式
           contentArray.push({
-            type: "image_url", // 兼容处理
-            image_url: {
-              url: buildBase64DataUrl(audioPart.source.data, audioPart.source.media_type),
+            type: "input_audio",
+            input_audio: {
+              data: audioPart.source.data,
+              format: audioPart.source.media_type === "audio/wav" ? "wav" : "mp3", // 粗略适配
             },
           });
         }
@@ -100,13 +118,13 @@ export const callOpenAiCompatibleApi = async (
       // 处理视频
       for (const videoPart of parsed.videoParts) {
         if (videoPart.source.type === "base64") {
+          // 视频目前没有统一标准，暂时作为 image_url 尝试（某些多模态模型支持）
           const part: any = {
-            type: "image_url", // 兼容处理
+            type: "image_url",
             image_url: {
               url: buildBase64DataUrl(videoPart.source.data, videoPart.source.media_type),
             },
           };
-          // 安全地访问 videoMetadata 并透传
           if (videoPart.videoMetadata) {
             part.video_metadata = videoPart.videoMetadata;
           }

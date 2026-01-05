@@ -579,7 +579,7 @@ export function filterParametersByCapabilities(
   }
 
   // ===== 思考模式 (通用) =====
-  // 只要 Provider 支持 thinking，就允许传递这些通用参数
+  // 只要 Provider 支持 thinking，就允许传递 these 通用参数
   // 具体参数的转换由各 API 模块内部处理
   const supportsThinking = supported.thinking && (!capabilities || capabilities.thinking);
   if (supportsThinking) {
@@ -706,6 +706,7 @@ export function filterParametersByCapabilities(
       if (Object.prototype.hasOwnProperty.call(customConfig.params, key)) {
         if (
           !KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) &&
+          !key.startsWith("_") && // 过滤掉以 _ 开头的内部字段
           customConfig.params[key] !== undefined
         ) {
           (filtered as any)[key] = customConfig.params[key];
@@ -718,8 +719,12 @@ export function filterParametersByCapabilities(
   // 这样它们才能在后续的 applyCustomParameters 中被处理
   for (const key in options) {
     if (Object.prototype.hasOwnProperty.call(options, key)) {
-      // @ts-expect-error - key is a string
-      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) && options[key] !== undefined) {
+      if (
+        !KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) &&
+        !key.startsWith("_") && // 过滤掉以 _ 开头的内部字段
+        // @ts-expect-error - key is a string
+        options[key] !== undefined
+      ) {
         // @ts-expect-error - key is a string
         (filtered as any)[key] = options[key];
       }
@@ -773,6 +778,12 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "thinking", // 旧版兼容
   "thinkingEnabled",
   "thinkingBudget",
+  "thinkingLevel",
+  "includeThoughts", // Gemini 特有
+  "enabledParameters", // 内部控制
+  "contextCompression", // 内部控制
+  "enabled", // 内部控制
+  "params", // 内部控制
 
   // 多模态与特定功能
   "modalities",

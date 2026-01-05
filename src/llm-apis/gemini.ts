@@ -136,7 +136,8 @@ interface GeminiSpeechConfig {
 // 思考配置
 interface GeminiThinkingConfig {
   includeThoughts?: boolean;
-  thinkingBudget?: number; // 模型应生成的想法 token 数量
+  thinkingBudget?: number; // 模型应生成的想法 token 数量 (Gemini 2.5)
+  thinkingLevel?: "minimal" | "low" | "medium" | "high"; // 思考级别 (Gemini 3)
 }
 
 // 生成配置
@@ -461,34 +462,48 @@ function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerati
   // 扩展参数支持
   const extendedOptions = options as ExtendedLlmRequestOptions;
 
-  // 思考配置
-  // 如果 includeThoughts 为 true 或 thinkingEnabled 为 true（向后兼容），则创建 thinkingConfig
-  const shouldIncludeThoughts = extendedOptions.includeThoughts === true || extendedOptions.thinkingEnabled === true;
+  // 思考配置 (Thinking Config)
+  // Gemini 3 使用 thinkingLevel, Gemini 2.5 使用 thinkingBudget
+  const isGemini3 = options.modelId.includes("gemini-3");
+  const hasThinkingLevel = extendedOptions.thinkingLevel !== undefined || extendedOptions.reasoningEffort !== undefined;
   const hasThinkingBudget = extendedOptions.thinkingBudget !== undefined;
-  const hasReasoningEffort = extendedOptions.reasoningEffort !== undefined;
+  const shouldIncludeThoughts = extendedOptions.includeThoughts === true || extendedOptions.thinkingEnabled === true;
 
-  if (shouldIncludeThoughts || hasThinkingBudget || hasReasoningEffort) {
-    const thinkingConfig: any = {};
+  if (hasThinkingLevel || hasThinkingBudget || shouldIncludeThoughts) {
+    const thinkingConfig: GeminiThinkingConfig = {};
 
-    // 只有当显式要求返回思考时才设置 includeThoughts
-    if (extendedOptions.includeThoughts === true) {
-      thinkingConfig.includeThoughts = true;
-    } else if (extendedOptions.thinkingEnabled === true) {
-      // 向后兼容：thinkingEnabled 也意味着 includeThoughts
+    // 1. 设置 includeThoughts (是否返回思考摘要)
+    if (shouldIncludeThoughts) {
       thinkingConfig.includeThoughts = true;
     }
 
-    // Gemini 2.5+ Budget 模式
-    // 注意：thinkingBudget 可以是 0（禁用思考）或 -1（动态思考）
-    if (extendedOptions.thinkingBudget !== undefined) {
-      thinkingConfig.thinkingBudget = extendedOptions.thinkingBudget;
-    }
+    // 2. 设置思考强度/预算
+    if (isGemini3) {
+      // Gemini 3 优先使用 thinkingLevel
+      const level = (extendedOptions.thinkingLevel || extendedOptions.reasoningEffort)?.toLowerCase();
+      if (level) {
+        // 映射到合法的 Gemini 3 Level
+        if (["minimal", "low", "medium", "high"].includes(level)) {
+          thinkingConfig.thinkingLevel = level as any;
+        } else {
+          // 默认映射
+          thinkingConfig.thinkingLevel = level === "max" ? "high" : "low";
+        }
+      }
 
-    // Gemini 3.0 Level 模式 (low/high)
-    // 注意：API 文档显示 thinkingLevel 应该使用小写值
-    if (extendedOptions.reasoningEffort) {
-      // @ts-ignore
-      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toLowerCase();
+      // 向后兼容：如果设置了 budget 但没设置 level，Gemini 3 也会接受 budget
+      if (!thinkingConfig.thinkingLevel && hasThinkingBudget) {
+        thinkingConfig.thinkingBudget = extendedOptions.thinkingBudget;
+      }
+    } else {
+      // Gemini 2.5 使用 thinkingBudget
+      if (hasThinkingBudget) {
+        thinkingConfig.thinkingBudget = extendedOptions.thinkingBudget;
+      } else if (hasThinkingLevel) {
+        // 如果 2.5 模型传了 level，尝试转换为 budget (粗略映射)
+        const level = (extendedOptions.thinkingLevel || extendedOptions.reasoningEffort)?.toLowerCase();
+        thinkingConfig.thinkingBudget = level === "high" || level === "max" ? -1 : 1024;
+      }
     }
 
     config.thinkingConfig = thinkingConfig;
@@ -621,7 +636,32 @@ export const callGeminiApi = async (
   }
 
   // 应用自定义参数
+  // 注意：Gemini API 对请求体结构非常敏感，未知字段会导致 400 错误
   applyCustomParameters(body, options);
+
+  // 额外清理：确保内部对象不会泄露到顶层
+  // Gemini API 对请求体结构非常敏感，未知字段会导致 400 错误
+  // 虽然上层 filterParametersByCapabilities 已经做了一层过滤，但为了保险起见，
+  // 适配器层仍应根据 API 规范进行最终的负载清理。
+  const forbiddenTopLevelKeys = [
+    "custom",
+    "enabledParameters",
+    "contextCompression",
+    "includeThoughts",
+    "enabled",
+    "params",
+    "contextManagement",
+    "contextPostProcessing",
+    "thinkingEnabled",
+    "thinkingBudget",
+    "thinkingLevel",
+    "reasoningEffort",
+  ];
+  for (const key of forbiddenTopLevelKeys) {
+    if (key in body) {
+      delete (body as any)[key];
+    }
+  }
 
   // 构建请求头
   const headers: Record<string, string> = {
@@ -804,7 +844,7 @@ function parseGeminiResponse(data: any): LlmResponse {
       } else if (part.codeExecutionResult) {
         // 代码执行结果
         const outcomeText = part.codeExecutionResult.outcome === "OUTCOME_OK" ? "成功" : "失败";
-        content += `\n**代码执行结果 (${outcomeText}):**\n\`\`\`\n${part.codeExecutionResult.output}\n\`\`\`\n`;
+        content += `\n**代码执行结果 (${outcomeText}):**\n\`\`\n${part.codeExecutionResult.output}\n\`\`\`\n`;
       }
     }
   }
@@ -889,6 +929,7 @@ interface ExtendedLlmRequestOptions extends LlmRequestOptions {
   responseModalities?: Array<"TEXT" | "IMAGE" | "AUDIO">;
   mediaResolution?: GeminiGenerationConfig["mediaResolution"];
   enableEnhancedCivicAnswers?: boolean;
+  thinkingLevel?: "minimal" | "low" | "medium" | "high";
 }
 
 /**

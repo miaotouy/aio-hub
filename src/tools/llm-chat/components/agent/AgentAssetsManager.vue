@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
+import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
@@ -276,36 +277,56 @@ const handleDropOnGroup = (group: string) => {
 const handleBatchDelete = async () => {
   if (selectedAssetIds.value.size === 0) return;
 
-  if (!confirm(`确定要删除选中的 ${selectedAssetIds.value.size} 个资产吗？此操作不可恢复。`)) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedAssetIds.value.size} 个资产吗？此操作不可恢复。`,
+      "批量删除确认",
+      {
+        confirmButtonText: "确定删除",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
+  } catch {
     return;
   }
 
-  const ids = Array.from(selectedAssetIds.value);
   let successCount = 0;
+  let failCount = 0;
+  let lastError: any = null;
 
-  for (const id of ids) {
-    const asset = assets.value.find((a) => a.id === id);
-    if (asset) {
-      try {
-        await invoke("delete_agent_asset", {
-          agentId: props.agentId,
-          assetPath: asset.path,
-        });
-        const index = assets.value.indexOf(asset);
-        if (index > -1) {
-          assets.value.splice(index, 1);
-          successCount++;
-        }
-      } catch (error) {
-        console.error(`Failed to delete asset ${id}:`, error);
+  // 过滤出要删除的资产对象
+  const assetsToDelete = assets.value.filter((a) => selectedAssetIds.value.has(a.id));
+
+  for (const asset of assetsToDelete) {
+    try {
+      await invoke("delete_agent_asset", {
+        agentId: props.agentId,
+        assetPath: asset.path,
+      });
+      
+      const index = assets.value.findIndex(a => a.id === asset.id);
+      if (index > -1) {
+        assets.value.splice(index, 1);
+        successCount++;
       }
+    } catch (error) {
+      failCount++;
+      lastError = error;
+      logger.error(`删除资产失败: ${asset.id}`, error);
     }
   }
 
   selectedAssetIds.value.clear();
+  isSelectionMode.value = false;
   notifyUpdate();
   emit("physical-change");
-  customMessage.success(`成功删除 ${successCount} 个资产`);
+  
+  if (failCount > 0) {
+    errorHandler.error(lastError, `成功删除 ${successCount} 个资产，${failCount} 个失败`);
+  } else {
+    customMessage.success(`成功删除 ${successCount} 个资产`);
+  }
 };
 
 // 打开批量移动弹窗
@@ -455,14 +476,23 @@ const copyGroupMacro = (groupId: string) => {
 /**
  * 删除分组
  */
-const deleteGroup = (group: AssetGroup) => {
+const deleteGroup = async (group: AssetGroup) => {
   const assetsInGroup = assets.value.filter((a) => a.group === group.id).length;
   const message =
     assetsInGroup > 0
-      ? `确定要删除分组 "${group.displayName}" 吗？其中的 ${assetsInGroup} 个资产将移至"未分组"。`
+      ? `确定要删除分组 "${group.displayName}" 吗？其中的 ${assetsInGroup} 个资产将移至"未分组"。<br>`
       : `确定要删除分组 "${group.displayName}" 吗？`;
 
-  if (!confirm(message)) return;
+  try {
+    await ElMessageBox.confirm(message, "删除分组确认", {
+      confirmButtonText: "确定删除",
+      cancelButtonText: "取消",
+      type: "warning",
+      dangerouslyUseHTMLString: true,
+    });
+  } catch {
+    return;
+  }
 
   // 将该分组的资产移至未分组
   assets.value.forEach((asset) => {
@@ -549,10 +579,18 @@ const handleFileUpload = async (paths: string[]) => {
   if (props.disabled || !props.agentId) return;
 
   isUploading.value = true;
+  let skipCount = 0;
   try {
     for (const path of paths) {
-      const data = await invoke<number[]>("read_file_binary", { path });
       const fileName = path.split(/[/\\]/).pop() || "file";
+
+      // 检查是否已存在同名文件
+      if (assets.value.some((a) => a.filename === fileName)) {
+        skipCount++;
+        continue;
+      }
+
+      const data = await invoke<number[]>("read_file_binary", { path });
 
       // 使用原始文件名（去扩展名）作为自定义 ID
       const customId = extractBaseName(fileName);
@@ -587,7 +625,15 @@ const handleFileUpload = async (paths: string[]) => {
 
     notifyUpdate();
     emit("physical-change");
-    customMessage.success(`成功上传 ${paths.length} 个资产`);
+
+    const successCount = paths.length - skipCount;
+    if (successCount > 0) {
+      customMessage.success(
+        `成功上传 ${successCount} 个资产${skipCount > 0 ? `（跳过 ${skipCount} 个同名资产）` : ""}`
+      );
+    } else if (skipCount > 0) {
+      customMessage.warning(`所选资产已全部存在，已跳过`);
+    }
   } catch (error) {
     errorHandler.error(error, "上传资产失败");
   } finally {
@@ -609,12 +655,22 @@ const inferAssetType = (mimeType: string): AssetType => {
  */
 const handleDeleteAsset = async (asset: AgentAsset) => {
   try {
+    await ElMessageBox.confirm(
+      `确定要删除资产 "${asset.filename}" 吗？此操作不可恢复。`,
+      "删除确认",
+      {
+        confirmButtonText: "确定删除",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
+
     await invoke("delete_agent_asset", {
       agentId: props.agentId,
       assetPath: asset.path,
     });
 
-    const index = assets.value.indexOf(asset);
+    const index = assets.value.findIndex(a => a.id === asset.id);
     if (index > -1) {
       assets.value.splice(index, 1);
       notifyUpdate();
@@ -622,6 +678,8 @@ const handleDeleteAsset = async (asset: AgentAsset) => {
       customMessage.success("资产已删除");
     }
   } catch (error) {
+    if (error === "cancel" || error === "cancel") return;
+    logger.error("删除资产失败", error);
     errorHandler.error(error, "删除资产失败");
   }
 };

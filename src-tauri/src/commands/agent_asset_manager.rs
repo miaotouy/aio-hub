@@ -310,11 +310,6 @@ pub async fn delete_agent_asset(
         return Err("无效的资产路径：包含非法字符".to_string());
     }
 
-    // 确保路径以 assets/ 开头
-    if !asset_path.starts_with("assets/") {
-        return Err("无效的资产路径：必须在 assets 目录下".to_string());
-    }
-
     let app_data_dir = crate::get_app_data_dir(app.config());
 
     // 验证 agent_id
@@ -322,29 +317,33 @@ pub async fn delete_agent_asset(
         return Err("无效的 Agent ID：包含非法字符".to_string());
     }
 
-    let file_path = app_data_dir
+    let agent_dir = app_data_dir
         .join("llm-chat")
         .join("agents")
-        .join(&agent_id)
-        .join(&asset_path);
+        .join(&agent_id);
+    
+    let assets_dir = agent_dir.join("assets");
+    let file_path = agent_dir.join(&asset_path);
+
+    // 安全检查：确保路径在 assets 目录下且不包含 ..
+    if !file_path.starts_with(&assets_dir) {
+        return Err("无效的资产路径：必须在 assets 目录下且不能越权访问".to_string());
+    }
 
     // 确保文件存在
     if !file_path.exists() {
         return Err(format!("文件不存在: {}", asset_path));
     }
 
-    // 确保路径在预期目录内（二次验证）
-    let canonical_path = file_path
-        .canonicalize()
-        .map_err(|e| format!("无法解析文件路径: {}", e))?;
-    let expected_base = app_data_dir
-        .join("llm-chat")
-        .join("agents")
-        .join(&agent_id)
-        .join("assets");
-
-    if !canonical_path.starts_with(&expected_base) {
-        return Err("安全检查失败：路径超出允许范围".to_string());
+    // 尝试获取缩略图路径并一并删除
+    // 缩略图路径规则：assets/.thumbnails/{base_name}.jpg
+    if let Some(filename) = file_path.file_name() {
+        let filename_str = filename.to_string_lossy();
+        let base_name = extract_base_name(&filename_str);
+        let thumbnail_path = assets_dir.join(".thumbnails").join(format!("{}.jpg", base_name));
+        if thumbnail_path.exists() {
+            let _ = trash::delete(&thumbnail_path);
+        }
     }
 
     // 删除文件（移动到回收站）

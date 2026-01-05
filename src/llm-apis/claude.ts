@@ -11,6 +11,7 @@ import {
   parseToolChoice,
   extractCommonParameters,
   applyCustomParameters,
+  cleanPayload,
 } from "./request-builder";
 
 const logger = createModuleLogger("ClaudeApi");
@@ -497,6 +498,9 @@ export const callClaudeApi = async (
 
   // 应用自定义参数
   applyCustomParameters(body, options);
+
+  // 额外清理：确保内部对象不会泄露到顶层
+  cleanPayload(body);
 
   // 获取 API Key
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";

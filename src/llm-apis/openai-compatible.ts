@@ -9,6 +9,7 @@ import {
   extractCommonParameters,
   buildBase64DataUrl,
   applyCustomParameters,
+  cleanPayload,
 } from "./request-builder";
 
 import { createModuleLogger } from "@/utils/logger";
@@ -250,6 +251,9 @@ export const callOpenAiCompatibleApi = async (
 
   // 动态透传所有未知的自定义参数
   applyCustomParameters(body, options);
+
+  // 额外清理：确保内部对象不会泄露到顶层
+  cleanPayload(body);
 
   // 如果启用流式响应
   if (options.stream && options.onStream) {

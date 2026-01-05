@@ -853,3 +853,45 @@ export function applyCustomParameters(body: any, options: LlmRequestOptions): an
   }
   return body;
 }
+
+/**
+ * 清理请求体中的敏感或内部字段。
+ *
+ * 许多 LLM API（特别是 Gemini 和 Vertex AI）对请求体结构非常敏感，
+ * 任何未定义的顶层字段都会导致 400 错误。
+ * 该函数用于在发送请求前进行最后的“大扫除”。
+ *
+ * @param body - 请求体对象 (将被原地修改)
+ * @returns 修改后的 body 对象
+ */
+export function cleanPayload(body: any): any {
+  if (!body || typeof body !== "object") return body;
+
+  const forbiddenKeys = [
+    "profileId",
+    "onStream",
+    "onReasoningStream",
+    "signal",
+    "timeout",
+    "custom",
+    "enabledParameters",
+    "contextCompression",
+    "enabled",
+    "params",
+    "contextManagement",
+    "contextPostProcessing",
+    "thinkingEnabled",
+    "thinkingBudget",
+    "thinkingLevel",
+    "reasoningEffort",
+    "includeThoughts",
+  ];
+
+  for (const key of forbiddenKeys) {
+    if (key in body) {
+      delete body[key];
+    }
+  }
+
+  return body;
+}

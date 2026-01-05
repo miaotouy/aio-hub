@@ -12,6 +12,7 @@ import {
   extractToolDefinitions,
   parseToolChoice,
   applyCustomParameters,
+  cleanPayload,
 } from "./request-builder";
 
 const logger = createModuleLogger("VertexAiApi");
@@ -377,6 +378,9 @@ async function callVertexAiGemini(
   // 应用自定义参数
   applyCustomParameters(body, options);
 
+  // 额外清理：确保内部对象不会泄露到顶层
+  cleanPayload(body);
+
   logger.info("发送 Vertex AI Gemini 请求", {
     model: options.modelId,
     hasTools: !!tools,
@@ -623,6 +627,9 @@ async function callVertexAiClaude(
 
   // 应用自定义参数
   applyCustomParameters(body, options);
+
+  // 额外清理：确保内部对象不会泄露到顶层
+  cleanPayload(body);
 
   logger.info("发送 Vertex AI Claude 请求", {
     model: options.modelId,

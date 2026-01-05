@@ -11,6 +11,7 @@ import {
   extractCommonParameters,
   inferMediaMimeType,
   applyCustomParameters,
+  cleanPayload,
 } from "./request-builder";
 
 /**
@@ -640,28 +641,7 @@ export const callGeminiApi = async (
   applyCustomParameters(body, options);
 
   // 额外清理：确保内部对象不会泄露到顶层
-  // Gemini API 对请求体结构非常敏感，未知字段会导致 400 错误
-  // 虽然上层 filterParametersByCapabilities 已经做了一层过滤，但为了保险起见，
-  // 适配器层仍应根据 API 规范进行最终的负载清理。
-  const forbiddenTopLevelKeys = [
-    "custom",
-    "enabledParameters",
-    "contextCompression",
-    "includeThoughts",
-    "enabled",
-    "params",
-    "contextManagement",
-    "contextPostProcessing",
-    "thinkingEnabled",
-    "thinkingBudget",
-    "thinkingLevel",
-    "reasoningEffort",
-  ];
-  for (const key of forbiddenTopLevelKeys) {
-    if (key in body) {
-      delete (body as any)[key];
-    }
-  }
+  cleanPayload(body);
 
   // 构建请求头
   const headers: Record<string, string> = {

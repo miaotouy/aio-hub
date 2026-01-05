@@ -1,7 +1,12 @@
 <template>
   <div class="agent-preset-editor" :class="{ compact: props.compact }">
     <!-- 头部操作栏 -->
-    <div v-if="!props.compact" class="editor-header">
+    <div
+      v-if="!props.compact"
+      ref="headerRef"
+      class="editor-header"
+      :class="{ 'is-narrow': isNarrow }"
+    >
       <div class="header-title" @click="isCollapsed = !isCollapsed">
         <el-button link size="small" class="collapse-btn">
           <el-icon :class="{ 'is-collapsed': isCollapsed }">
@@ -496,7 +501,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, toRaw, markRaw } from "vue";
-import { useDebounceFn } from "@vueuse/core";
+import { useDebounceFn, useElementSize } from "@vueuse/core";
 import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import yaml from "js-yaml";
@@ -569,6 +574,11 @@ const userProfileStore = useUserProfileStore();
 const chatStore = useLlmChatStore();
 const showUserProfileDialog = ref(false);
 const anchorRegistry = useAnchorRegistry();
+
+// 容器宽度监测
+const headerRef = ref<HTMLElement | null>(null);
+const { width: headerWidth } = useElementSize(headerRef);
+const isNarrow = computed(() => headerWidth.value > 0 && headerWidth.value < 800);
 
 // 折叠状态，默认展开
 const isCollapsed = ref(false);
@@ -1189,7 +1199,10 @@ async function handleFileSelected(event: Event) {
         ...m,
         content: typeof m.content === "string" ? convertMacros(m.content) : m.content,
       }));
-      localMessages.value = [...localMessages.value.filter((m) => isAnchorType(m.type)), ...processed];
+      localMessages.value = [
+        ...localMessages.value.filter((m) => isAnchorType(m.type)),
+        ...processed,
+      ];
       syncToParent();
       customMessage.success("导入成功");
     } else {
@@ -1287,7 +1300,7 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex-shrink: 1;
+  min-width: 100px;
 }
 
 .header-title:hover {
@@ -1341,15 +1354,13 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   min-width: 320px;
 }
 
-/* 当屏幕非常窄时，允许标题和按钮组各自占据一行 */
-@media (max-width: 600px) {
-  .header-title {
-    flex: 1 1 100%;
-  }
-  .header-actions {
-    flex: 1 1 100%;
-    justify-content: flex-start;
-  }
+/* 当宽度低于 800px 时，强制标题和按钮组各自占据一行，避免挤在一起 */
+.editor-header.is-narrow .header-title {
+  flex: 1 100%;
+}
+.editor-header.is-narrow .header-actions {
+  flex: 1 1 100%;
+  justify-content: flex-start;
 }
 
 .messages-container {

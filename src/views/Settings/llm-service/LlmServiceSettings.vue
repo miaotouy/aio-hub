@@ -324,6 +324,15 @@ const showMultiKeyManager = ref(false);
 const openMultiKeyManager = () => {
   showMultiKeyManager.value = true;
 };
+
+// 重置 API 地址到默认值
+const resetBaseUrl = () => {
+  const defaultUrl = getProviderTypeInfo(editForm.value.type)?.defaultBaseUrl;
+  if (defaultUrl) {
+    editForm.value.baseUrl = defaultUrl;
+    customMessage.success("已重置为默认地址");
+  }
+};
 </script>
 
 <template>
@@ -410,13 +419,46 @@ const openMultiKeyManager = () => {
           </el-form-item>
 
           <el-form-item label="API 地址">
-            <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com" />
+            <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com">
+              <template #append>
+                <el-popconfirm
+                  title="确定要重置为默认 API 地址吗？"
+                  confirm-button-text="确定"
+                  cancel-button-text="取消"
+                  @confirm="resetBaseUrl"
+                >
+                  <template #reference>
+                    <el-button>重置</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-input>
             <div v-if="apiEndpointPreview" class="api-preview-container">
               <div class="api-preview-url">{{ apiEndpointPreview }}</div>
-              <div class="api-preview-hint">{{ endpointHintText }}</div>
+              <div class="api-preview-hint">
+                {{ endpointHintText }}
+                <el-divider direction="vertical" />
+                <el-button link type="primary" size="small" @click="showCustomHeadersDialog = true">
+                  自定义请求头
+                  <span
+                    v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0"
+                  >
+                    ({{ Object.keys(editForm.customHeaders).length }})
+                  </span>
+                </el-button>
+              </div>
             </div>
             <div v-else class="form-hint">
-              默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}
+              <span>默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}</span>
+              <el-divider direction="vertical" />
+              <el-button link type="primary" size="small" @click="showCustomHeadersDialog = true">
+                自定义请求头
+                <span
+                  v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0"
+                >
+                  ({{ Object.keys(editForm.customHeaders).length }})
+                </span>
+              </el-button>
             </div>
           </el-form-item>
 
@@ -433,23 +475,6 @@ const openMultiKeyManager = () => {
               <el-button link type="primary" size="small" @click="openMultiKeyManager">
                 管理密钥状态
               </el-button>
-            </div>
-          </el-form-item>
-
-          <el-divider />
-
-          <el-form-item label="自定义请求头">
-            <div class="custom-headers-section">
-              <el-button @click="showCustomHeadersDialog = true">
-                配置自定义请求头
-                <span
-                  v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0"
-                  class="header-count"
-                >
-                  (已配置 {{ Object.keys(editForm.customHeaders).length }} 个)
-                </span>
-              </el-button>
-              <div class="form-hint">添加自定义 HTTP 请求头，可用于客户端标识、超时控制等</div>
             </div>
           </el-form-item>
 

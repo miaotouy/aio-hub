@@ -320,7 +320,7 @@ function isPresetSelected(presetId: string | null): boolean {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding:24px;
+  padding: 0;
   height: 100%;
   overflow: hidden;
 }

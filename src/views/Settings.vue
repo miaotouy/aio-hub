@@ -772,7 +772,7 @@ onUnmounted(() => {
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  margin: 0 12px 12px;
+  margin: 12px 12px 0; /* 增加顶部边距，移除底部边距由 main 的 padding 处理 */
   padding: 8px 16px 12px;
 }
 
@@ -831,8 +831,7 @@ onUnmounted(() => {
 }
 
 .is-mobile .settings-main {
-  padding: 16px;
-  padding-bottom: 80px;
+  padding: 16px 12px 80px; /* 增加顶部 padding 以提供间距 */
 }
 
 /* 设置卡片 */
@@ -842,6 +841,11 @@ onUnmounted(() => {
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px;
+}
+
+.is-mobile .settings-section {
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
 .section-title {

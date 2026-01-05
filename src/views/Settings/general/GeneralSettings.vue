@@ -377,7 +377,7 @@ const handleImportConfig = async () => {
 
 <style scoped>
 .general-settings {
-  padding: 24px;
+  padding: 0;
 }
 
 .setting-item {

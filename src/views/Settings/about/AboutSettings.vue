@@ -228,7 +228,7 @@ onMounted(async () => {
 
 <style scoped>
 .about-settings {
-  padding: 24px;
+  padding: 0;
   width: 100%;
   box-sizing: border-box;
 }

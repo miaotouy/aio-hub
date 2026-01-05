@@ -410,7 +410,7 @@ watch(internalMaxFileSize, (newValue) => {
 
 <style scoped>
 .log-settings {
-  padding: 24px;
+  padding: 0;
 }
 
 .setting-item {

@@ -537,7 +537,7 @@ const openMultiKeyManager = () => {
 .llm-settings-page {
   flex: 1;
   display: flex;
-  padding: 20px;
+  padding: 0;
   box-sizing: border-box;
   min-height: 0;
 }

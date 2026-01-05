@@ -652,7 +652,7 @@ function formatDate(dateString: string): string {
 .model-metadata-settings {
   display: flex;
   flex-direction: column;
-  padding: 1.5rem;
+  padding: 0;
   overflow: hidden;
   height: 100%;
 }

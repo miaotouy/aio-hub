@@ -882,7 +882,7 @@ const wallpaperPreviewStyle = computed(() => {
 }
 
 .theme-appearance-settings {
-  padding: 20px;
+  padding: 0;
 }
 
 .settings-grid {

@@ -166,7 +166,7 @@ const resetOrder = () => {
 
 <style scoped>
 .tools-settings {
-  padding: 24px;
+  padding: 0;
 }
 
 .setting-item {

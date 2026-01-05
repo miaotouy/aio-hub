@@ -179,7 +179,7 @@ onMounted(() => {
 
 <style scoped>
 .asset-settings {
-  padding: 24px 24px;
+  padding: 0;
 }
 
 .setting-group {

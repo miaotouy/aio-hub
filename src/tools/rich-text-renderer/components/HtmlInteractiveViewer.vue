@@ -32,7 +32,28 @@
     <!-- 内容区域 -->
     <div
       class="viewer-content"
-      :style="autoHeight ? { height: contentHeight + 'px', flex: 'none' } : {}"
+      :style="
+        autoHeight
+          ? {
+              height: contentHeight + 'px',
+              // 初始 minHeight 设大一些，防止高度塌陷
+              minHeight: loading
+                ? typeof maxHeight === 'number'
+                  ? maxHeight + 'px'
+                  : maxHeight || '650px'
+                : '400px',
+              maxHeight: maxHeight
+                ? typeof maxHeight === 'number'
+                  ? maxHeight + 'px'
+                  : maxHeight
+                : '65vh',
+              flex: 'none',
+              overflow: 'auto',
+              // 只有在高度已经稳定（loading结束）后才允许平滑过渡
+              transition: loading ? 'none' : 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            }
+          : {}
+      "
     >
       <div v-if="loading" class="loading-overlay">
         <Loader2 class="animate-spin" :size="24" />
@@ -44,7 +65,11 @@
         class="preview-iframe"
         :srcdoc="srcDoc"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-        :scrolling="autoHeight ? 'no' : 'auto'"
+        :scrolling="
+          autoHeight && (!maxHeight || contentHeight < parseFloat(maxHeight.toString()))
+            ? 'no'
+            : 'auto'
+        "
         @load="onLoad"
       ></iframe>
     </div>
@@ -96,6 +121,11 @@ const props = withDefaults(
      * 如果为 false，将应用严格的 CSP 策略。
      */
     allowExternalScripts?: boolean;
+    /**
+     * 最大高度限制。
+     * 仅在 autoHeight 为 true 时生效。
+     */
+    maxHeight?: number | string;
   }>(),
   {
     showToolbar: true,
@@ -111,7 +141,24 @@ const isToolbarVisible = computed(() => props.showToolbar && !props.seamless);
 const isBorderVisible = computed(() => props.bordered && !props.seamless);
 
 const loading = ref(true);
-const contentHeight = ref(300); // 默认高度
+
+/**
+ * 获取最大高度的数值
+ */
+const getMaxHeightPx = () => {
+  if (typeof props.maxHeight === "number") return props.maxHeight;
+  if (typeof props.maxHeight === "string") {
+    if (props.maxHeight.endsWith("px")) return parseFloat(props.maxHeight);
+    if (props.maxHeight.endsWith("vh")) {
+      return (window.innerHeight * parseFloat(props.maxHeight)) / 100;
+    }
+  }
+  // 默认 65vh 的近似值
+  return (window.innerHeight * 65) / 100;
+};
+
+// 默认高度：如果开启了自适应高度，初始直接设为最大高度，实现“一步到位”
+const contentHeight = ref(props.autoHeight ? getMaxHeightPx() : 300);
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 // 用于强制重新挂载 iframe 的 key
 const iframeKey = ref(0);
@@ -228,27 +275,31 @@ const logCaptureScript = `
     let lastSentHeight = 0;
     let debounceTimer = null;
     const HEIGHT_THRESHOLD = 10; // 高度变化超过 10px 才更新
-    const DEBOUNCE_DELAY = 500; // 增加到 500ms 防抖，等待布局更稳定
+    const DEBOUNCE_DELAY = 500; // 增加到 500ms 防抖
     
     const sendHeight = () => {
       const body = document.body;
-      if (!body) return;
+      const html = document.documentElement;
+      if (!body || !html) return;
       
       // 计算内容的自然高度
-      // 使用 scrollHeight 获取内容完整高度
-      const height = body.scrollHeight;
-      
-      console.debug('[iframe-height] 计算高度:', {
-        bodyScrollHeight: body.scrollHeight,
-        bodyOffsetHeight: body.offsetHeight,
-        bodyClientHeight: body.clientHeight,
-        lastSentHeight: lastSentHeight,
-        diff: Math.abs(height - lastSentHeight),
-        willSend: height > 0 && Math.abs(height - lastSentHeight) > HEIGHT_THRESHOLD
-      });
+      // 取 scrollHeight 和 offsetHeight 的较大值，但受限于内容本身
+      // 在 autoHeight 模式下，我们需要的是内容的“真实”边界
+      const height = Math.max(
+        body.scrollHeight,
+        body.offsetHeight,
+        html.scrollHeight,
+        html.offsetHeight
+      );
       
       // 只有当高度变化超过阈值时才发送
       if (height > 0 && Math.abs(height - lastSentHeight) > HEIGHT_THRESHOLD) {
+        // 增加一个简单的环路保护：如果高度短时间内连续大幅增长，可能存在循环
+        if (lastSentHeight > 0 && height > lastSentHeight * 2 && height > 2000) {
+          console.warn('[iframe-height] 检测到疑似高度环路，停止自动增长');
+          return;
+        }
+
         lastSentHeight = height;
         window.parent.postMessage({
           type: 'iframe-resize',
@@ -354,19 +405,37 @@ const srcDoc = computed(() => {
   const isFullHtml = trimmed.includes("<html") || trimmed.includes("<!doctype");
 
   if (isFullHtml) {
+    // 对于完整 HTML，如果是自适应高度模式，我们需要注入一段 CSS 来打破高度循环
+    // 强制让 html/body 不要追随视口高度
+    // 注意：转义结束标签以避免 Vue SFC 编译错误
+    const autoHeightFixStyle = props.autoHeight
+      ? `
+      <style>
+        html.auto-height-fix, html.auto-height-fix body {
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+        }
+      <\/style>
+      <script>document.documentElement.classList.add('auto-height-fix');<\/script>
+    `
+      : "";
+
+    const injection = processedLogCaptureScript + autoHeightFixStyle;
+
     // 尝试注入脚本到 head 或 body
     // 使用正则匹配以支持大小写不敏感和流式输出
     if (/<\/head>/i.test(content)) {
-      return content.replace(/<\/head>/i, `${processedLogCaptureScript}</head>`);
+      return content.replace(/<\/head>/i, `${injection}</head>`);
     } else if (/<head[^>]*>/i.test(content)) {
-      return content.replace(/<head[^>]*>/i, (match) => `${match}${processedLogCaptureScript}`);
+      return content.replace(/<head[^>]*>/i, (match) => `${match}${injection}`);
     } else if (/<body[^>]*>/i.test(content)) {
-      return content.replace(/<body[^>]*>/i, (match) => `${match}${processedLogCaptureScript}`);
+      return content.replace(/<body[^>]*>/i, (match) => `${match}${injection}`);
     } else if (/<html[^>]*>/i.test(content)) {
-      return content.replace(/<html[^>]*>/i, (match) => `${match}${processedLogCaptureScript}`);
+      return content.replace(/<html[^>]*>/i, (match) => `${match}${injection}`);
     } else {
       // 实在找不到位置，就追加到最后
-      return content + processedLogCaptureScript;
+      return content + injection;
     }
   } else {
     // 片段模式，包裹基本结构
@@ -421,9 +490,12 @@ const handleIframeMessage = (event: MessageEvent) => {
   if (event.data.type === "iframe-resize" && props.autoHeight) {
     const newHeight = event.data.height;
     if (newHeight && newHeight > 0) {
-      // 不再添加缓冲区，因为这会导致反馈循环：
-      // 父组件设置高度 → iframe body 高度变化 → scrollHeight 变化 → 报告新高度 → 循环
-      // 缓冲区改为在 iframe 内部的 body padding-bottom 中提供
+      // 优化“一步到位”体验：
+      // 如果正在加载或内容刚开始渲染，且新高度比当前预设高度小，则忽略它
+      // 这样可以防止高度从 650px 缩回到 iframe 初始计算的 100px 再慢慢涨回来
+      if (loading.value && newHeight < contentHeight.value) {
+        return;
+      }
       contentHeight.value = newHeight;
     }
     return;
@@ -540,6 +612,10 @@ watch(
     // 后续更新尽量静默，避免遮罩层频繁闪烁
     if (!renderContent.value) {
       loading.value = true;
+      if (props.autoHeight) {
+        // 切换内容时，重置高度到最大高度，实现“一步到位”
+        contentHeight.value = getMaxHeightPx();
+      }
     }
 
     if (isImmediate) {

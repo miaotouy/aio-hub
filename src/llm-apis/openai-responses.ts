@@ -79,15 +79,20 @@ export const callOpenAiResponsesApi = async (
             file_id: source.file_id,
           });
         } else if (source.type === "file_data") {
-          // base64 data URL 方式（当前使用的）
+          // base64 data URL 方式
           contentArray.push({
             type: "input_file",
-            filename: source.filename,
+            filename: source.filename || "document.pdf",
             file_data: source.file_data,
           });
+        } else if (source.type === "base64") {
+          // 内部统一的 base64 格式，转换为 OpenAI 的 input_file 格式
+          contentArray.push({
+            type: "input_file",
+            filename: (source as any).filename || "document.pdf",
+            file_data: buildBase64DataUrl(source.data, source.media_type),
+          });
         }
-        // base64 格式（Claude/Gemini）不应该出现在 OpenAI Responses API 中
-        // 如果出现，说明配置错误，跳过
       }
 
       messages.push({

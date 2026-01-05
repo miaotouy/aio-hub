@@ -160,7 +160,7 @@ const convertToClaudeMessages = (
   for (const msg of messages) {
     // 处理角色
     const role = msg.role === "assistant" ? "assistant" : "user";
-    
+
     if (typeof msg.content === "string") {
       claudeMessages.push({
         role,
@@ -234,16 +234,35 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
     blocks.push(toolResultBlock);
   }
 
-  // 转换文档部分
+  // 转换文档部分 (Claude 官方 PDF & Files API 支持)
   for (const doc of parsed.documentParts) {
-    if (doc.source.base64 || doc.source.data) {
+    const source = doc.source;
+    if (source.type === "base64" || source.data || (source as any).base64) {
       blocks.push({
         type: "document",
         source: {
           type: "base64",
-          media_type: doc.source.mimeType || "application/pdf",
-          data: doc.source.base64 || doc.source.data || "",
+          media_type: source.media_type || (source as any).mimeType || "application/pdf",
+          data: source.data || (source as any).base64 || "",
         },
+      });
+    } else if (source.type === "file") {
+      // 支持 Files API 引用
+      blocks.push({
+        type: "document",
+        source: {
+          type: "file",
+          file_id: (source as any).file_id,
+        } as any,
+      });
+    } else if (source.type === "url") {
+      // 支持 URL 引用
+      blocks.push({
+        type: "document",
+        source: {
+          type: "url",
+          url: (source as any).url,
+        } as any,
       });
     }
   }
@@ -512,9 +531,16 @@ export const callClaudeApi = async (
     "anthropic-version": "2023-06-01",
   };
 
-  // 添加 beta 功能头（如果使用了 thinking 或其他 beta 功能）
+  // 添加 beta 功能头
+  const betas: string[] = [];
   if (options.thinkingEnabled) {
-    headers["anthropic-beta"] = "thinking-2025-12-05";
+    betas.push("thinking-2025-12-05");
+  }
+  // 始终开启 Files API beta 支持，以便处理 document 块
+  betas.push("files-api-2025-04-14");
+
+  if (betas.length > 0) {
+    headers["anthropic-beta"] = betas.join(",");
   }
 
   // 应用自定义请求头

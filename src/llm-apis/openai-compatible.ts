@@ -81,15 +81,23 @@ export const callOpenAiCompatibleApi = async (
       for (const docPart of parsed.documentParts) {
         if (docPart.source.type === "base64") {
           const mediaType = docPart.source.media_type;
-          // 兼容性处理：
-          // 1. 如果是图片类型的文档
-          // 2. 如果是 PDF，在 OpenAI 兼容协议中，很多中转层（如 NewAPI/OneAPI）
-          //    支持通过 image_url 传递 PDF 数据，并自动转换为上游（如 Gemini）的内联文档格式。
-          if (mediaType.startsWith("image/") || mediaType === "application/pdf") {
+          const isPdf = mediaType === "application/pdf";
+
+          if (mediaType.startsWith("image/")) {
             contentArray.push({
               type: "image_url",
               image_url: {
                 url: buildBase64DataUrl(docPart.source.data, mediaType),
+              },
+            });
+          } else if (isPdf) {
+            // 针对 PDF 的兼容性处理：使用 OpenRouter 风格的 type: "file"
+            // 这在大多数聚合渠道（如 OpenRouter, OneAPI）中对 PDF 的支持较好
+            contentArray.push({
+              type: "file",
+              file: {
+                filename: "document.pdf",
+                file_data: buildBase64DataUrl(docPart.source.data, mediaType),
               },
             });
           } else {

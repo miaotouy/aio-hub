@@ -63,73 +63,83 @@ const settings = ref<AppSettings>({
   logLevel: "INFO",
   logToFile: true,
   logToConsole: true,
-  logBufferSize: 100,
+  logBufferSize: 1000,
   maxFileSize: 2 * 1024 * 1024,
   version: "1.0.0",
 });
 
 // 左侧导航状态与滚动容器
+// 左侧导航状态与滚动容器
 const activeSection = ref("general");
 const contentRef = ref<HTMLElement | null>(null);
 const isScrollingProgrammatically = ref(false);
+let resizeObserver: ResizeObserver | null = null;
 
-// IntersectionObserver 实例
-let sectionObserver: IntersectionObserver | null = null;
+// 滚动监听逻辑
+const handleScroll = () => {
+  if (isScrollingProgrammatically.value || !contentRef.value) return;
 
-// 初始化 IntersectionObserver 监听各 section 的可见性
-const initSectionObserver = () => {
-  if (!contentRef.value) return;
+  const container = contentRef.value;
+  const containerRect = container.getBoundingClientRect();
 
-  // 清理旧的 observer
-  if (sectionObserver) {
-    sectionObserver.disconnect();
+  // 判定线：容器顶部下方的一定距离
+  const scrollThreshold = isMobile.value ? 120 : 80;
+
+  let currentSectionId = "";
+  let bestMatch = { id: "", distance: -Infinity };
+
+  for (const module of settingsModules) {
+    const element = document.getElementById(module.id);
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      const relativeTop = rect.top - containerRect.top;
+
+      // 如果元素顶部已经超过了判定线
+      if (relativeTop <= scrollThreshold) {
+        // 记录当前最接近判定线但已超过它的元素
+        if (relativeTop > bestMatch.distance) {
+          bestMatch = { id: module.id, distance: relativeTop };
+        }
+      }
+    }
   }
 
-  // 创建新的 observer
-  sectionObserver = new IntersectionObserver(
-    (entries) => {
-      // 如果是程序触发的滚动，不处理
-      if (isScrollingProgrammatically.value) return;
+  currentSectionId = bestMatch.id || settingsModules[0].id;
 
-      // 找到所有可见的 section
-      const visibleSections = entries
-        .filter((entry) => entry.isIntersecting)
-        .map((entry) => ({
-          id: entry.target.id,
-          ratio: entry.intersectionRatio,
-          top: entry.boundingClientRect.top,
-        }));
-
-      if (visibleSections.length === 0) return;
-
-      // 选择最靠近顶部的可见 section
-      const topSection = visibleSections.reduce((prev, curr) =>
-        curr.top < prev.top ? curr : prev
-      );
-
-      if (topSection.id && activeSection.value !== topSection.id) {
-        activeSection.value = topSection.id;
-      }
-    },
-    {
-      root: contentRef.value,
-      // 当 section 进入视口顶部 30% 区域时触发
-      rootMargin: "-30% 0px -60% 0px",
-      threshold: [0, 0.1, 0.5, 1],
-    }
-  );
-
-  // 观察所有 section
-  nextTick(() => {
-    settingsModules.forEach((module) => {
-      const element = document.getElementById(module.id);
-      if (element) {
-        sectionObserver?.observe(element);
-      }
-    });
-  });
+  if (currentSectionId && activeSection.value !== currentSectionId) {
+    activeSection.value = currentSectionId;
+  }
 };
 
+// 初始化观察器（现改为监听 scroll）
+const initSectionObserver = () => {
+  if (!contentRef.value) {
+    // 如果还没准备好，等待下一个 tick 再试一次
+    nextTick(() => {
+      if (contentRef.value) {
+        initSectionObserver();
+      }
+    });
+    return;
+  }
+
+  // 移除旧的监听
+  contentRef.value.removeEventListener("scroll", handleScroll);
+  // 添加新的监听
+  contentRef.value.addEventListener("scroll", handleScroll, { passive: true });
+
+  // 使用 ResizeObserver 监听内容变化，确保同步
+  if (!resizeObserver) {
+    resizeObserver = new ResizeObserver(() => {
+      handleScroll();
+    });
+  }
+  resizeObserver.disconnect();
+  resizeObserver.observe(contentRef.value);
+
+  // 初始执行一次
+  handleScroll();
+};
 // 滚动到指定 section
 const scrollToSection = (id: string) => {
   isScrollingProgrammatically.value = true;
@@ -144,19 +154,30 @@ const scrollToSection = (id: string) => {
     const elementRect = element.getBoundingClientRect();
 
     // 计算相对位置并加上当前滚动量
-    // 减去 20px 是为了留一点顶部呼吸空间
-    const targetTop = container.scrollTop + (elementRect.top - containerRect.top) - 20;
+    // 适配新的布局间距：桌面端 24px, 移动端 16px
+    const offset = isMobile.value ? 16 : 24;
+    const targetTop = container.scrollTop + (elementRect.top - containerRect.top) - offset;
 
     container.scrollTo({
       top: targetTop,
       behavior: "smooth",
     });
-  }
 
-  // 滚动完成后重置标记
-  setTimeout(() => {
-    isScrollingProgrammatically.value = false;
-  }, 500);
+    // 监听滚动停止
+    const handleScrollEnd = () => {
+      isScrollingProgrammatically.value = false;
+      container.removeEventListener("scrollend", handleScrollEnd);
+    };
+
+    // 兼容性处理：如果浏览器不支持 scrollend，使用 timeout 保底
+    container.addEventListener("scrollend", handleScrollEnd);
+    setTimeout(() => {
+      if (isScrollingProgrammatically.value) {
+        isScrollingProgrammatically.value = false;
+        container.removeEventListener("scrollend", handleScrollEnd);
+      }
+    }, 1000);
+  }
 };
 
 const handleSelect = (key: string) => {
@@ -468,22 +489,46 @@ onMounted(async () => {
   }
 });
 
+// 监听加载状态，完成后初始化观察器
+watch(isLoading, (newVal) => {
+  if (!newVal) {
+    nextTick(() => {
+      // 给予额外的延迟确保子组件也渲染完成
+      setTimeout(() => {
+        initSectionObserver();
+        checkRouteAndScroll(route.query);
+      }, 100);
+    });
+  }
+});
+
 // 监听路由查询参数变化，支持页面内导航
 watch(
   () => route.query,
   (newQuery) => {
-    checkRouteAndScroll(newQuery);
+    if (!isLoading.value) {
+      checkRouteAndScroll(newQuery);
+    }
   }
 );
 
-// 清理事件监听器和观察器
+// 监听移动端状态变化，重新初始化观察器
+watch(isMobile, () => {
+  nextTick(() => {
+    initSectionObserver();
+  });
+});
+
+// 清理事件监听器
 onUnmounted(() => {
   if (handleSettingsChange) {
     window.removeEventListener("app-settings-changed", handleSettingsChange);
   }
-  if (sectionObserver) {
-    sectionObserver.disconnect();
-    sectionObserver = null;
+  if (contentRef.value) {
+    contentRef.value.removeEventListener("scroll", handleScroll);
+  }
+  if (resizeObserver) {
+    resizeObserver.disconnect();
   }
 });
 </script>
@@ -827,11 +872,13 @@ onUnmounted(() => {
   border-radius: 12px;
   box-sizing: border-box;
   padding-bottom: 40px;
-  scroll-behavior: smooth;
+  /* 移除 CSS 层的 smooth 滚动，由 JS 控制以避免干扰 isScrollingProgrammatically 标记 */
+  scroll-behavior: auto;
 }
 
 .is-mobile .settings-main {
-  padding: 16px 12px 80px; /* 增加顶部 padding 以提供间距 */
+  padding: 4px 12px 80px;
+  margin-top: 12px;
 }
 
 /* 设置卡片 */

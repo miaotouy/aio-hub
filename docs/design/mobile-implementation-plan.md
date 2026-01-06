@@ -16,23 +16,43 @@ _截止日期：2026-01-05_
 - [x] **核心依赖**：已补全 `vue-router`, `pinia`, `lucide-vue-next`, `lodash-es`, `@vueuse/core`。
 - [x] **基础设施**：已实现 `errorHandler`, `logger` 的移动端平替。
 
-## 3. 核心工程规范 (Engineering Protocols)
+## 3. 核心工程规范与决策 (Engineering Protocols & Decisions)
 
 ### 3.1. 基础设施平替 (Infrastructure Parity)
 
 移动端实现核心 `utils/` 工具集时，应优先遵循移动端交互规范。对于 `errorHandler` 等核心逻辑，内部实现应直接对接 Varlet API，而非机械模拟 PC 端的补丁逻辑。
 
-| 功能     | 桌面端依赖        | 移动端实现          | 备注                                        |
-| :------- | :---------------- | :------------------ | :------------------------------------------ |
-| 消息提示 | `customMessage`   | `Snackbar` (Varlet) | 移动端直接使用 Varlet 原生 API              |
-| 错误处理 | `errorHandler.ts` | `errorHandler.ts`   | 内部逻辑改为直接调用 Varlet Dialog/Snackbar |
-| 日志系统 | `logger.ts`       | `logger.ts`         | 保持接口一致，生产环境对接 Tauri 日志插件   |
-| 图标库   | `lucide-vue-next` | `lucide-vue-next`   | 保持一致，避免样式心智负担                  |
-| 存储     | `localStorage`    | `localStorage`      | 暂不使用 Tauri Store，保持 Web 标准         |
-| LLM 配置 | `useLlmProfiles`  | `useLlmProfiles`    | 存储逻辑改为 `localStorage`                 |
-| LLM 请求 | `useLlmRequest`   | `useLlmRequest`     | 保持接口一致，迁移 `llm-apis` 核心实现      |
+| 功能     | 桌面端依赖         | 移动端实现          | 决策与备注                                             |
+| :------- | :----------------- | :------------------ | :----------------------------------------------------- |
+| 消息提示 | `customMessage`    | `Snackbar` (Varlet) | 移动端直接使用 Varlet 原生 API                         |
+| 错误处理 | `errorHandler.ts`  | `errorHandler.ts`   | 内部逻辑改为直接调用 Varlet Dialog/Snackbar            |
+| 日志系统 | `logger.ts`        | `logger.ts`         | 保持接口一致，生产环境对接 Tauri 日志插件              |
+| 图标库   | `lucide-vue-next`  | `lucide-vue-next`   | 保持一致，避免样式心智负担                             |
+| 存储     | `Tauri Store`      | `Tauri Store`       | **决策**：移动端直接引入 Store 插件，保持存储驱动一致  |
+| LLM 服务 | `useLlmProfiles`等 | `LlmCoreService`    | **决策**：聚合所有配置与请求逻辑，拒绝细碎 Composables |
 
-### 3.2. 样式与适配规范 (Style Migration)
+### 3.2. 移动端特有交互决策 (Mobile Interaction UX)
+
+为了实现“一步到位”的高质量体验，制定以下交互决策：
+
+1.  **显性操作按钮与长按结合 (Explicit Actions & Long Press)**：
+    - **三点按钮 (More Actions)**：由于移动端没有 `hover` 且当前聊天界面为非气泡布局，每条消息的 Header 右侧或底部应常驻一个“三点按钮”。
+    - **消息操作菜单**：点击三点按钮弹出 `ActionSheet` (底部动作面板)，包含：[复制, 重新生成, 引用, 编辑, 删除, 朗读/翻译]。
+    - **长按交互**：保留长按功能，但主要用于**文本选择**或**快速引用**。对于 Agent 切换等列表项，可使用长按唤起管理菜单。
+2.  **双侧边栏 -> 抽屉与菜单 (Drawers)**：
+    - **左侧抽屉 (Sessions)**：从屏幕左侧边缘滑出，展示会话历史。
+    - **右侧菜单/Popup (Agent Config)**：点击顶部标题或右侧按钮，弹出当前 Agent 的详细配置（模型、温度、宏等）。
+3.  **侧边栏抽屉化**：
+    - 桌面端 `LlmChat` 的“历史记录”和“Agent 列表”在移动端改为从左右滑出的 `var-popup`。
+    - 顶部导航栏左侧为“会话历史”，右侧为“当前 Agent 设置”。
+4.  **软键盘避让策略**：
+    - 输入框采用 `var-input`，并配合 `var-sticky` 或视口高度监听，确保键盘弹出时输入框始终可见。
+    - **决策**：移动端取消输入框的高度拖拽功能。
+5.  **资产预览**：
+    - 图片预览使用 `var-image-preview`。
+    - 文件下载/预览优先调用系统原生分享接口 (Tauri Share Plugin)。
+
+### 3.3. 样式与适配规范 (Style Migration)
 
 **目标文件**：`mobile/src/assets/styles/theme.css` (由 `src/styles/index.css` 提炼)
 
@@ -45,7 +65,24 @@ _截止日期：2026-01-05_
 
 ## 4. 目录结构与职责 (Standard Directory Structure)
 
-严禁“全局大杂烩”，每个工具必须作为一个**自包含的特区**。
+### 4.1. 核心准则：逻辑函数式化 (Functional Core)
+
+针对桌面端 Composables 过于扁平、零散且“有状态逻辑”泛滥的问题，移动端采取以下最高准则：
+
+1.  **纯函数逻辑 (Pure Functional Logic)**：
+    - **禁止**将复杂业务逻辑塞进 `useXXX`。
+    - **提倡**将逻辑抽离为**纯函数**，放置在工具的 `core/` 或 `logic/` 目录下（如 `MacroEngine.ts`, `ContextPipeline.ts`）。
+    - 逻辑函数应保持“无状态”，仅负责数据处理与转换，不依赖 Vue 的 `ref` 或生命周期。
+2.  **状态与逻辑分离 (Decoupling)**：
+    - **Store**：仅作为数据仓库，存储响应式数据，不包含复杂业务逻辑。
+    - **Logic**：纯函数模块，负责计算、请求、转换。
+    - **Composables (Glue)**：仅作为 UI 与 Logic/Store 之间的“粘合剂”，保持极简。
+3.  **逻辑物理聚合**：
+    - 工具内部逻辑必须通过子目录隔离，严禁在工具根目录铺开大量文件。
+4.  **接口极简**：
+    - UI 组件只需调用一个聚合后的 `Manager` 或 `Service`，减少 `setup` 顶层的导入负担。
+
+### 4.2. 目录结构示例
 
 ```text
 mobile/src/
@@ -104,14 +141,18 @@ export default {
 
 ### 第一阶段：环境补完 (CLI Ready)
 
-- [ ] **执行安装**：`cd mobile; bun add vue-router pinia lucide-vue-next lodash-es @vueuse/core @varlet/ui @varlet/use;`
-- [ ] **样式提炼**：从桌面端 `index.css` 提取色彩变量至 `mobile/src/assets/styles/theme.css`。
-- [ ] **基础设施实现**：
-  - 编写 `mobile/src/utils/logger.ts` (保持 `createModuleLogger` 接口，支持日志持久化)。
-  - 编写 `mobile/src/utils/errorHandler.ts` (直接调用 Varlet `Dialog/Snackbar`)。
+- [x] **执行安装**：`cd mobile; bun add vue-router pinia lucide-vue-next lodash-es @vueuse/core @varlet/ui @varlet/use;`
+- [x] **样式提炼**：从桌面端 `index.css` 提取色彩变量至 `mobile/src/assets/styles/theme.css`。
+- [x] **基础设施实现**：
+  - [x] 编写 `mobile/src/utils/logger.ts` (保持 `createModuleLogger` 接口)。
+  - [x] 编写 `mobile/src/utils/errorHandler.ts` (直接调用 Varlet `Dialog/Snackbar`)。
+- [ ] **存储系统准备**：
+  - [ ] 在 `mobile/src-tauri/Cargo.toml` 中添加 `tauri-plugin-store`。
+  - [ ] 在 `mobile/src-tauri/src/lib.rs` 中注册插件。
 - [ ] **LLM 核心迁移 (API Layer)**：
-  - 迁移 `src/llm-apis/` 核心逻辑到 `mobile/src/tools/llm-core/api/` (保留 OpenAI, Gemini, Claude 等 Provider)。
-  - 迁移 `src/types/llm-profiles.ts` 等类型定义到 `mobile/src/tools/llm-core/types/`。
+  - [ ] **决策**：将所有 LLM 服务（渠道/Providers）迁移至 `mobile/src/tools/llm-core/api/`。
+  - [ ] 迁移 `src/llm-apis/` 核心逻辑，通过环境判断屏蔽桌面端特有的本地探测逻辑。
+  - [ ] 迁移 `src/types/llm-profiles.ts` 等类型定义到 `mobile/src/tools/llm-core/types/`。
 
 ### 第二阶段：骨架搭建 (Scaffolding)
 

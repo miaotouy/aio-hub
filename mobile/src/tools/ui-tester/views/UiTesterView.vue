@@ -38,6 +38,9 @@ const clearStorage = () => {
 const isTauri = ref(false);
 const tauriVersion = ref("");
 const fsTestResult = ref("");
+const storeTestResult = ref("");
+const storeValueInput = ref("Hello Store!");
+const storeReadValue = ref("");
 
 const checkTauri = async () => {
   // @ts-ignore
@@ -83,6 +86,36 @@ const testFileSystem = async () => {
     fsTestResult.value = `FS 测试失败: ${err.message}`;
     logger.error("FS Test Failed", err);
     errorHandler.handle(err, { userMessage: "文件系统测试失败", showToUser: true });
+  }
+};
+
+const testTauriStore = async () => {
+  if (!isTauri.value) {
+    Snackbar.warning("非 Tauri 环境，无法测试 Store");
+    return;
+  }
+
+  try {
+    storeTestResult.value = "正在测试 Store...";
+    const { load } = await import("@tauri-apps/plugin-store");
+    
+    // 加载或创建 store
+    const store = await load("test_settings.json", { autoSave: true, defaults: {} });
+    
+    // 写入
+    await store.set("test-key", { value: storeValueInput.value, time: Date.now() });
+    
+    // 读取验证
+    const val: any = await store.get("test-key");
+    storeReadValue.value = JSON.stringify(val);
+    
+    storeTestResult.value = "Store 读写测试成功！";
+    Snackbar.success("Store 测试成功");
+    logger.info("Store Test Success", { val });
+  } catch (err: any) {
+    storeTestResult.value = `Store 测试失败: ${err.message}`;
+    logger.error("Store Test Failed", err);
+    errorHandler.handle(err, { userMessage: "Store 测试失败", showToUser: true });
   }
 };
 
@@ -156,8 +189,8 @@ onMounted(() => {
         </template>
       </var-card>
 
-      <!-- Tauri 环境与 FS 测试 -->
-      <var-card title="Tauri 环境与 FS 测试" class="mt-4">
+      <!-- Tauri 环境与 FS/Store 测试 -->
+      <var-card title="Tauri 环境与存储测试" class="mt-4">
         <template #description>
           <var-cell title="是否在 Tauri 环境">
             <template #extra>
@@ -174,6 +207,17 @@ onMounted(() => {
             </var-button>
             <div v-if="fsTestResult" class="mt-2 p-2 bg-secondary rounded text-xs break-all">
               {{ fsTestResult }}
+            </div>
+
+            <var-divider class="my-4" />
+
+            <var-input v-model="storeValueInput" placeholder="输入要存入 Store 的内容" label="Store 测试值" />
+            <var-button type="info" block size="small" class="mt-2" @click="testTauriStore">
+              测试 Tauri Store (Store Plugin)
+            </var-button>
+            <div v-if="storeTestResult" class="mt-2 p-2 bg-secondary rounded text-xs break-all">
+              <div>状态: {{ storeTestResult }}</div>
+              <div v-if="storeReadValue" class="mt-1">读取到: {{ storeReadValue }}</div>
             </div>
           </div>
 

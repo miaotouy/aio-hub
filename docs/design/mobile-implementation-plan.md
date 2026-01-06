@@ -29,6 +29,8 @@ _截止日期：2026-01-05_
 | 日志系统 | `logger.ts`       | `logger.ts`         | 保持接口一致，生产环境对接 Tauri 日志插件   |
 | 图标库   | `lucide-vue-next` | `lucide-vue-next`   | 保持一致，避免样式心智负担                  |
 | 存储     | `localStorage`    | `localStorage`      | 暂不使用 Tauri Store，保持 Web 标准         |
+| LLM 配置 | `useLlmProfiles`  | `useLlmProfiles`    | 存储逻辑改为 `localStorage`                 |
+| LLM 请求 | `useLlmRequest`   | `useLlmRequest`     | 保持接口一致，迁移 `llm-apis` 核心实现      |
 
 ### 3.2. 样式与适配规范 (Style Migration)
 
@@ -56,6 +58,7 @@ mobile/src/
 ├── utils/              # 基础设施平替实现
 ├── views/              # 顶级页面 (Home, Settings)
 └── tools/              # 工具自治特区
+    ├── llm-core/       # LLM 核心服务 (Profiles, Request, Providers)
     └── [tool-name]/    # 示例：对话 (LlmChat)
         ├── views/      # 工具主界面 (LlmChatView.vue)
         ├── components/ # 该工具专用组件 (agent/, user/, 会话/, 输入/)
@@ -106,6 +109,9 @@ export default {
 - [ ] **基础设施实现**：
   - 编写 `mobile/src/utils/logger.ts` (保持 `createModuleLogger` 接口，支持日志持久化)。
   - 编写 `mobile/src/utils/errorHandler.ts` (直接调用 Varlet `Dialog/Snackbar`)。
+- [ ] **LLM 核心迁移 (API Layer)**：
+  - 迁移 `src/llm-apis/` 核心逻辑到 `mobile/src/tools/llm-core/api/` (保留 OpenAI, Gemini, Claude 等 Provider)。
+  - 迁移 `src/types/llm-profiles.ts` 等类型定义到 `mobile/src/tools/llm-core/types/`。
 
 ### 第二阶段：骨架搭建 (Scaffolding)
 
@@ -116,9 +122,16 @@ export default {
 
 ### 第三阶段：核心工具迁移 (Tool Migration)
 
+- [ ] **LLM 核心工具化 (Module Layer)**：
+  - 在 `mobile/src/tools/llm-core/` 建立统一入口。
+  - 实现 `useLlmProfiles` (适配 `localStorage` 存储)。
+  - 实现 `useLlmRequest` (对接内部 `api/` 子目录)。
+  - 实现 `useModelMetadata`。
+  - **原则**：禁止在全局 `composables/` 放置 LLM 逻辑，所有工具通过 `@tools/llm-core` 引用。
 - [ ] **LLM Chat 迁移**：
   - 按照 `mobile/src/tools/llm-chat/` 结构建立目录。
-  - 迁移 `useLlmRequest.ts` 到 `composables/`。
+  - 接入 `llm-core` 核心工具。
+  - 迁移 `useLlmRequest.ts` 到工具内部 `use组件/` (处理工具特有的请求包装，如 Context/Pipeline)。
   - 使用 Varlet `Paper`, `Input`, `Space` 重写输入区域，实现长按操作菜单。
 
 ## 7. Agent 施工指令 (Prompt for Agent)

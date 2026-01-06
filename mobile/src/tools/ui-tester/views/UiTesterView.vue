@@ -1,26 +1,116 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { Snackbar } from "@varlet/ui";
+import { Snackbar, Dialog } from "@varlet/ui";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const router = useRouter();
-const value = ref("");
-const switchValue = ref(false);
-const radioValue = ref("1");
-const checkboxValue = ref(["1"]);
+const logger = createModuleLogger("UiTester");
+const errorHandler = createModuleErrorHandler("UiTester");
+
+// --- LocalStorage 测试 ---
+const storageKey = ref("mobile_test_key");
+const storageValue = ref("");
+const savedValue = ref("");
+
+const saveToStorage = () => {
+  localStorage.setItem(storageKey.value, storageValue.value);
+  savedValue.value = storageValue.value;
+  Snackbar.success("已保存到 LocalStorage");
+  logger.info("LocalStorage Saved", { key: storageKey.value, value: storageValue.value });
+};
+
+const loadFromStorage = () => {
+  const val = localStorage.getItem(storageKey.value);
+  savedValue.value = val || "(无数据)";
+  Snackbar.info("已读取数据");
+  logger.info("LocalStorage Loaded", { key: storageKey.value, value: val });
+};
+
+const clearStorage = () => {
+  localStorage.removeItem(storageKey.value);
+  savedValue.value = "(已清除)";
+  Snackbar.warning("已清除数据");
+};
+
+// --- Tauri API & FS 测试 ---
+const isTauri = ref(false);
+const tauriVersion = ref("");
+const fsTestResult = ref("");
+
+const checkTauri = async () => {
+  // @ts-ignore
+  isTauri.value = !!window.__TAURI_INTERNALS__ || !!window.__TAURI__;
+  if (isTauri.value) {
+    try {
+      const { getVersion } = await import("@tauri-apps/api/app");
+      tauriVersion.value = await getVersion();
+      logger.info("Tauri Info", { version: tauriVersion.value });
+    } catch (e) {
+      logger.error("Tauri API Error", e);
+    }
+  }
+};
+
+const testFileSystem = async () => {
+  if (!isTauri.value) {
+    Snackbar.warning("非 Tauri 环境，无法测试文件系统");
+    return;
+  }
+
+  try {
+    fsTestResult.value = "正在尝试写入测试文件...";
+    const { writeTextFile, readTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+
+    const fileName = `aio_mobile_test.txt`;
+    const content = `Hello from AIO Hub Mobile! Time: ${new Date().toLocaleString()}`;
+
+    // 写入
+    await writeTextFile(fileName, content, {
+      baseDir: BaseDirectory.AppData,
+    });
+
+    // 读取验证
+    const readContent = await readTextFile(fileName, {
+      baseDir: BaseDirectory.AppData,
+    });
+
+    fsTestResult.value = `成功! 读取内容: "${readContent}"`;
+    Snackbar.success("文件读写测试成功");
+    logger.info("FS Test Success", { fileName, readContent });
+  } catch (err: any) {
+    fsTestResult.value = `FS 测试失败: ${err.message}`;
+    logger.error("FS Test Failed", err);
+    errorHandler.handle(err, { userMessage: "文件系统测试失败", showToUser: true });
+  }
+};
+
+// --- 基础设施测试 ---
+const triggerError = () => {
+  errorHandler.error(new Error("这是一个测试错误"), "测试错误弹窗", {
+    detail: "姐姐你看，这是测试详情",
+  });
+};
+
+const triggerCritical = () => {
+  errorHandler.critical("这是一个严重错误", "系统可能需要重启", { fatal: true });
+};
 
 const goBack = () => {
   router.back();
 };
 
-const showSnackbar = () => {
-  Snackbar.success("这是一条成功消息");
-};
+onMounted(() => {
+  checkTauri();
+  const initial = localStorage.getItem(storageKey.value);
+  if (initial) savedValue.value = initial;
+});
 </script>
 
 <template>
   <div class="ui-tester-view">
-    <var-app-bar title="UI 组件测试" title-position="center">
+    <var-app-bar title="组件与 API 测试" title-position="center">
       <template #left>
         <var-button round text @click="goBack">
           <var-icon name="chevron-left" />
@@ -29,52 +119,78 @@ const showSnackbar = () => {
     </var-app-bar>
 
     <div class="content safe-area-bottom">
-      <var-card title="按钮测试" class="mt-4">
+      <!-- 基础设施测试 -->
+      <var-card title="基础设施测试 (Logger/Error)" class="mt-4">
         <template #description>
-          <div class="button-group">
-            <var-space direction="column" :size="[12, 12]">
-              <var-button type="primary" block>Primary Button</var-button>
-              <var-button type="success" block>Success Button</var-button>
-              <var-button type="warning" block>Warning Button</var-button>
-              <var-button type="danger" block>Danger Button</var-button>
-              <var-button @click="showSnackbar" block>测试 Snackbar</var-button>
+          <var-space direction="column" :size="[12, 12]" class="py-2">
+            <var-button type="info" block @click="logger.info('这是一条普通日志', { foo: 'bar' })">
+              触发 Logger.info
+            </var-button>
+            <var-button type="warning" block @click="triggerError">
+              触发 ErrorHandler.error (Snackbar)
+            </var-button>
+            <var-button type="danger" block @click="triggerCritical">
+              触发 ErrorHandler.critical (Dialog)
+            </var-button>
+          </var-space>
+        </template>
+      </var-card>
+
+      <!-- LocalStorage 测试 -->
+      <var-card title="LocalStorage 稳定性测试" class="mt-4">
+        <template #description>
+          <div class="py-2">
+            <var-input v-model="storageKey" placeholder="Key" label="存储键" />
+            <var-input v-model="storageValue" placeholder="Value" label="存储值" class="mt-2" />
+
+            <div class="mt-4 p-3 bg-secondary rounded text-sm">
+              当前读取值: <span class="text-primary font-bold">{{ savedValue }}</span>
+            </div>
+
+            <var-space :size="[8, 8]" class="mt-4">
+              <var-button type="primary" size="small" @click="saveToStorage">保存</var-button>
+              <var-button type="info" size="small" @click="loadFromStorage">读取</var-button>
+              <var-button type="warning" size="small" @click="clearStorage">清除</var-button>
             </var-space>
           </div>
         </template>
       </var-card>
 
-      <var-card title="表单组件测试" class="mt-4">
+      <!-- Tauri 环境与 FS 测试 -->
+      <var-card title="Tauri 环境与 FS 测试" class="mt-4">
         <template #description>
-          <div class="form-group">
-            <var-input v-model="value" placeholder="请输入内容" />
-            
-            <div class="flex-row mt-4">
-              <span>开关</span>
-              <var-switch v-model="switchValue" />
-            </div>
+          <var-cell title="是否在 Tauri 环境">
+            <template #extra>
+              <var-chip :type="isTauri ? 'success' : 'danger'" size="small">
+                {{ isTauri ? "YES" : "NO" }}
+              </var-chip>
+            </template>
+          </var-cell>
+          <var-cell v-if="isTauri" title="Tauri 版本" :description="tauriVersion" />
 
-            <div class="mt-4">
-              <var-radio-group v-model="radioValue">
-                <var-radio checked-value="1">单选 1</var-radio>
-                <var-radio checked-value="2">单选 2</var-radio>
-              </var-radio-group>
+          <div class="p-3">
+            <var-button type="primary" block size="small" @click="testFileSystem">
+              测试文件读写 (FS Plugin)
+            </var-button>
+            <div v-if="fsTestResult" class="mt-2 p-2 bg-secondary rounded text-xs break-all">
+              {{ fsTestResult }}
             </div>
+          </div>
 
-            <div class="mt-4">
-              <var-checkbox-group v-model="checkboxValue">
-                <var-checkbox checked-value="1">多选 1</var-checkbox>
-                <var-checkbox checked-value="2">多选 2</var-checkbox>
-              </var-checkbox-group>
-            </div>
+          <div v-if="!isTauri" class="p-3 text-xs text-hint">
+            提示：如果在普通浏览器打开，Tauri API 将不可用。
           </div>
         </template>
       </var-card>
 
-      <var-card title="列表与单元格" class="mt-4">
+      <!-- 原生 UI 组件预览 -->
+      <var-card title="常用移动端组件预览" class="mt-4">
         <template #description>
-          <var-cell title="普通单元格" description="描述文字" />
-          <var-cell title="带图标单元格" icon="account-circle" />
-          <var-cell title="可点击单元格" ripple />
+          <var-cell title="Snackbar 测试" ripple @click="Snackbar.info('消息提示')" />
+          <var-cell title="Dialog 测试" ripple @click="Dialog('确认对话框')" />
+          <div class="p-3">
+            <var-loading type="cube" />
+          </div>
         </template>
       </var-card>
     </div>
@@ -91,17 +207,41 @@ const showSnackbar = () => {
   padding: 16px;
 }
 
+.mt-2 {
+  margin-top: 8px;
+}
 .mt-4 {
   margin-top: 16px;
 }
-
-.button-group, .form-group {
-  padding: 12px 0;
+.py-2 {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.p-3 {
+  padding: 12px;
 }
 
-.flex-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.bg-secondary {
+  background-color: color-mix(in srgb, var(--primary-color), transparent 90%);
+}
+
+.rounded {
+  border-radius: 8px;
+}
+
+.text-sm {
+  font-size: 14px;
+}
+.text-xs {
+  font-size: 12px;
+}
+.text-primary {
+  color: var(--primary-color);
+}
+.text-hint {
+  color: #888;
+}
+.font-bold {
+  font-weight: bold;
 }
 </style>

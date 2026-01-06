@@ -24,7 +24,7 @@ const getIcon = (iconName: string) => {
 </script>
 
 <template>
-  <div class="home-container">
+  <div class="home-container safe-area-top">
     <div class="content safe-area-bottom">
       <div class="header">
         <h2 class="greeting">欢迎使用 AIO Hub</h2>
@@ -51,22 +51,19 @@ const getIcon = (iconName: string) => {
 
 <style scoped>
 .home-container {
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-color);
   padding: 16px;
 }
 
 .content {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
 .header {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .greeting {

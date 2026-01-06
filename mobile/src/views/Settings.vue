@@ -17,7 +17,7 @@ const toggleTheme = () => {
 </script>
 
 <template>
-  <div class="settings-container safe-area-bottom">
+  <div class="settings-container safe-area-top safe-area-bottom">
     <h2 class="page-title">设置</h2>
 
     <div class="settings-list">
@@ -31,8 +31,6 @@ const toggleTheme = () => {
 
 <style scoped>
 .settings-container {
-  min-height: 100vh;
-  background-color: var(--bg-color);
   padding: 16px;
 }
 

@@ -1,50 +1,18 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-
-const route = useRoute();
-const router = useRouter();
-const active = ref("home");
-
-// 根据路由更新激活状态
-watch(
-  () => route.path,
-  (path) => {
-    if (path === "/") active.value = "home";
-    else if (path === "/settings") active.value = "settings";
-    else active.value = "tools";
-  },
-  { immediate: true }
-);
-
-const handleChange = (value: string | number) => {
-  const val = String(value);
-  if (val === "home") router.push("/");
-  else if (val === "settings") router.push("/settings");
-  // 'tools' 默认留在首页或展示工具列表
-};
+import AppBottomNav from "./components/AppBottomNav.vue";
 </script>
 
 <template>
   <div class="app-container">
-    <div class="main-content">
+    <main class="main-content">
       <router-view v-slot="{ Component }">
         <keep-alive>
           <component :is="Component" />
         </keep-alive>
       </router-view>
-    </div>
+    </main>
 
-    <var-bottom-navigation
-      v-model:active="active"
-      @change="handleChange"
-      fixed
-      safe-area
-    >
-      <var-bottom-navigation-item label="首页" name="home" icon="home" />
-      <var-bottom-navigation-item label="工具" name="tools" icon="magnify" />
-      <var-bottom-navigation-item label="设置" name="settings" icon="cog" />
-    </var-bottom-navigation>
+    <AppBottomNav />
   </div>
 </template>
 
@@ -52,6 +20,12 @@ const handleChange = (value: string | number) => {
 /* 全局样式移入 App.vue 或保持在 theme.css */
 :root {
   --var-bottom-navigation-height: 56px;
+  /* 状态栏保底高度，如果 env 无效则使用 24px */
+  --status-bar-height: env(safe-area-inset-top, 24px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
 }
 
 .app-container {

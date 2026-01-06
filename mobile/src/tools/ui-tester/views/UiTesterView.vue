@@ -98,17 +98,17 @@ const testTauriStore = async () => {
   try {
     storeTestResult.value = "正在测试 Store...";
     const { load } = await import("@tauri-apps/plugin-store");
-    
+
     // 加载或创建 store
     const store = await load("test_settings.json", { autoSave: true, defaults: {} });
-    
+
     // 写入
     await store.set("test-key", { value: storeValueInput.value, time: Date.now() });
-    
+
     // 读取验证
     const val: any = await store.get("test-key");
     storeReadValue.value = JSON.stringify(val);
-    
+
     storeTestResult.value = "Store 读写测试成功！";
     Snackbar.success("Store 测试成功");
     logger.info("Store Test Success", { val });
@@ -143,7 +143,13 @@ onMounted(() => {
 
 <template>
   <div class="ui-tester-view">
-    <var-app-bar title="组件与 API 测试" title-position="center">
+    <var-app-bar
+      title="组件与 API 测试"
+      title-position="center"
+      class="custom-app-bar"
+      fixed
+      :z-index="100"
+    >
       <template #left>
         <var-button round text @click="goBack">
           <var-icon name="chevron-left" />
@@ -151,36 +157,49 @@ onMounted(() => {
       </template>
     </var-app-bar>
 
-    <div class="content safe-area-bottom">
+    <div class="content has-fixed-app-bar safe-area-bottom">
       <!-- 基础设施测试 -->
-      <var-card title="基础设施测试 (Logger/Error)" class="mt-4">
+      <var-card title="基础设施测试 (Logger/Error)" class="mt-4" elevation="2">
         <template #description>
-          <var-space direction="column" :size="[12, 12]" class="py-2">
-            <var-button type="info" block @click="logger.info('这是一条普通日志', { foo: 'bar' })">
-              触发 Logger.info
-            </var-button>
-            <var-button type="warning" block @click="triggerError">
-              触发 ErrorHandler.error (Snackbar)
-            </var-button>
-            <var-button type="danger" block @click="triggerCritical">
-              触发 ErrorHandler.critical (Dialog)
-            </var-button>
-          </var-space>
+          <div class="card-content">
+            <var-space direction="column" :size="[12, 12]">
+              <var-button
+                type="info"
+                block
+                @click="logger.info('这是一条普通日志', { foo: 'bar' })"
+              >
+                触发 Logger.info
+              </var-button>
+              <var-button type="warning" block @click="triggerError">
+                触发 ErrorHandler.error (Snackbar)
+              </var-button>
+              <var-button type="danger" block @click="triggerCritical">
+                触发 ErrorHandler.critical (Dialog)
+              </var-button>
+            </var-space>
+          </div>
         </template>
       </var-card>
 
       <!-- LocalStorage 测试 -->
-      <var-card title="LocalStorage 稳定性测试" class="mt-4">
+      <var-card title="LocalStorage 稳定性测试" class="mt-4" elevation="2">
         <template #description>
-          <div class="py-2">
-            <var-input v-model="storageKey" placeholder="Key" label="存储键" />
-            <var-input v-model="storageValue" placeholder="Value" label="存储值" class="mt-2" />
+          <div class="card-content">
+            <var-input v-model="storageKey" placeholder="Key" label="存储键" variant="standard" />
+            <var-input
+              v-model="storageValue"
+              placeholder="Value"
+              label="存储值"
+              class="mt-2"
+              variant="standard"
+            />
 
-            <div class="mt-4 p-3 bg-secondary rounded text-sm">
-              当前读取值: <span class="text-primary font-bold">{{ savedValue }}</span>
+            <div class="mt-4 p-3 bg-secondary rounded text-sm border-l-4">
+              <div class="text-hint mb-1">当前读取值:</div>
+              <div class="text-primary font-bold break-all">{{ savedValue }}</div>
             </div>
 
-            <var-space :size="[8, 8]" class="mt-4">
+            <var-space :size="[12, 12]" class="mt-4">
               <var-button type="primary" size="small" @click="saveToStorage">保存</var-button>
               <var-button type="info" size="small" @click="loadFromStorage">读取</var-button>
               <var-button type="warning" size="small" @click="clearStorage">清除</var-button>
@@ -190,18 +209,20 @@ onMounted(() => {
       </var-card>
 
       <!-- Tauri 环境与 FS/Store 测试 -->
-      <var-card title="Tauri 环境与存储测试" class="mt-4">
+      <var-card title="Tauri 环境与存储测试" class="mt-4" elevation="2">
         <template #description>
-          <var-cell title="是否在 Tauri 环境">
-            <template #extra>
-              <var-chip :type="isTauri ? 'success' : 'danger'" size="small">
-                {{ isTauri ? "YES" : "NO" }}
-              </var-chip>
-            </template>
-          </var-cell>
-          <var-cell v-if="isTauri" title="Tauri 版本" :description="tauriVersion" />
+          <div class="pb-2">
+            <var-cell title="是否在 Tauri 环境" border>
+              <template #extra>
+                <var-chip :type="isTauri ? 'success' : 'danger'" size="small" variant="block">
+                  {{ isTauri ? "YES" : "NO" }}
+                </var-chip>
+              </template>
+            </var-cell>
+            <var-cell v-if="isTauri" title="Tauri 版本" :description="tauriVersion" border />
+          </div>
 
-          <div class="p-3">
+          <div class="card-content">
             <var-button type="primary" block size="small" @click="testFileSystem">
               测试文件读写 (FS Plugin)
             </var-button>
@@ -209,31 +230,44 @@ onMounted(() => {
               {{ fsTestResult }}
             </div>
 
-            <var-divider class="my-4" />
+            <var-divider class="my-6" />
 
-            <var-input v-model="storeValueInput" placeholder="输入要存入 Store 的内容" label="Store 测试值" />
-            <var-button type="info" block size="small" class="mt-2" @click="testTauriStore">
+            <var-input
+              v-model="storeValueInput"
+              placeholder="输入内容"
+              label="Store 测试值"
+              variant="standard"
+            />
+            <var-button type="info" block size="small" class="mt-4" @click="testTauriStore">
               测试 Tauri Store (Store Plugin)
             </var-button>
-            <div v-if="storeTestResult" class="mt-2 p-2 bg-secondary rounded text-xs break-all">
-              <div>状态: {{ storeTestResult }}</div>
-              <div v-if="storeReadValue" class="mt-1">读取到: {{ storeReadValue }}</div>
+
+            <div
+              v-if="storeTestResult"
+              class="mt-3 p-3 bg-secondary rounded text-xs break-all border-l-4"
+            >
+              <div class="font-bold mb-1">状态: {{ storeTestResult }}</div>
+              <div v-if="storeReadValue" class="mt-1 opacity-80">读取到: {{ storeReadValue }}</div>
             </div>
           </div>
 
-          <div v-if="!isTauri" class="p-3 text-xs text-hint">
+          <div v-if="!isTauri" class="px-4 pb-4 text-xs text-hint italic">
             提示：如果在普通浏览器打开，Tauri API 将不可用。
           </div>
         </template>
       </var-card>
 
       <!-- 原生 UI 组件预览 -->
-      <var-card title="常用移动端组件预览" class="mt-4">
+      <var-card title="常用移动端组件预览" class="mt-4" elevation="2">
         <template #description>
-          <var-cell title="Snackbar 测试" ripple @click="Snackbar.info('消息提示')" />
-          <var-cell title="Dialog 测试" ripple @click="Dialog('确认对话框')" />
-          <div class="p-3">
-            <var-loading type="cube" />
+          <var-cell title="Snackbar 测试" ripple border @click="Snackbar.info('消息提示')">
+            <template #extra><var-icon name="chevron-right" size="20" /></template>
+          </var-cell>
+          <var-cell title="Dialog 测试" ripple border @click="Dialog('确认对话框')">
+            <template #extra><var-icon name="chevron-right" size="20" /></template>
+          </var-cell>
+          <div class="card-content flex justify-center py-6">
+            <var-loading type="cube" size="large" />
           </div>
         </template>
       </var-card>
@@ -257,20 +291,60 @@ onMounted(() => {
 .mt-4 {
   margin-top: 16px;
 }
-.py-2 {
-  padding-top: 8px;
+.mt-6 {
+  margin-top: 24px;
+}
+.mb-1 {
+  margin-bottom: 4px;
+}
+.my-6 {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.py-6 {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+.px-4 {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.pb-2 {
   padding-bottom: 8px;
 }
+.pb-4 {
+  padding-bottom: 16px;
+}
+
 .p-3 {
   padding: 12px;
 }
 
+.card-content {
+  padding: 16px;
+}
+
 .bg-secondary {
-  background-color: color-mix(in srgb, var(--primary-color), transparent 90%);
+  background-color: color-mix(in srgb, var(--primary-color), transparent 92%);
+}
+
+.border-l-4 {
+  border-left: 4px solid var(--primary-color);
 }
 
 .rounded {
   border-radius: 8px;
+}
+
+.flex {
+  display: flex;
+}
+
+.justify-center {
+  justify-content: center;
 }
 
 .text-sm {
@@ -287,5 +361,14 @@ onMounted(() => {
 }
 .font-bold {
   font-weight: bold;
+}
+.break-all {
+  word-break: break-all;
+}
+.opacity-80 {
+  opacity: 0.8;
+}
+.italic {
+  font-style: italic;
 }
 </style>

@@ -13,8 +13,8 @@ _截止日期：2026-01-05_
 - [x] **基础框架**：基于 Vite + Vue 3 + TypeScript 初始化 `mobile/` 目录。
 - [x] **UI 框架**：已安装 `@varlet/ui` 并完成按需引入配置 (MD3 模式)。
 - [x] **平台适配**：Tauri Android 端环境已就绪。
-- [ ] **核心依赖**：缺失 `vue-router`, `pinia`, `lucide-vue-next`, `lodash-es`, `@vueuse/core`。
-- [ ] **基础设施**：缺失 `errorHandler`, `logger` 的移动端平替实现。
+- [x] **核心依赖**：已补全 `vue-router`, `pinia`, `lucide-vue-next`, `lodash-es`, `@vueuse/core`。
+- [x] **基础设施**：已实现 `errorHandler`, `logger` 的移动端平替。
 
 ## 3. 核心工程规范 (Engineering Protocols)
 
@@ -22,13 +22,13 @@ _截止日期：2026-01-05_
 
 移动端实现核心 `utils/` 工具集时，应优先遵循移动端交互规范。对于 `errorHandler` 等核心逻辑，内部实现应直接对接 Varlet API，而非机械模拟 PC 端的补丁逻辑。
 
-| 功能     | 桌面端依赖        | 移动端实现           | 备注                                      |
-| :------- | :---------------- | :------------------- | :---------------------------------------- |
-| 消息提示 | `customMessage`   | `Snackbar` (Varlet)  | 移动端直接使用 Varlet 原生 API            |
-| 错误处理 | `errorHandler.ts` | `errorHandler.ts`    | 内部逻辑改为直接调用 Varlet Dialog/Snackbar |
-| 日志系统 | `logger.ts`       | `logger.ts`          | 保持接口一致，生产环境对接 Tauri 日志插件 |
-| 图标库   | `lucide-vue-next` | `lucide-vue-next`    | 保持一致，避免样式心智负担                |
-| 存储     | `localStorage`    | `localStorage`       | 暂不使用 Tauri Store，保持 Web 标准       |
+| 功能     | 桌面端依赖        | 移动端实现          | 备注                                        |
+| :------- | :---------------- | :------------------ | :------------------------------------------ |
+| 消息提示 | `customMessage`   | `Snackbar` (Varlet) | 移动端直接使用 Varlet 原生 API              |
+| 错误处理 | `errorHandler.ts` | `errorHandler.ts`   | 内部逻辑改为直接调用 Varlet Dialog/Snackbar |
+| 日志系统 | `logger.ts`       | `logger.ts`         | 保持接口一致，生产环境对接 Tauri 日志插件   |
+| 图标库   | `lucide-vue-next` | `lucide-vue-next`   | 保持一致，避免样式心智负担                  |
+| 存储     | `localStorage`    | `localStorage`      | 暂不使用 Tauri Store，保持 Web 标准         |
 
 ### 3.2. 样式与适配规范 (Style Migration)
 
@@ -117,8 +117,8 @@ export default {
 ### 第三阶段：核心工具迁移 (Tool Migration)
 
 - [ ] **LLM Chat 迁移**：
-  - 按照 `mobile/src/tools/对话/` 结构建立目录。
-  - 迁移 `useLlmRequest.ts` 到 `use组件/`。
+  - 按照 `mobile/src/tools/llm-chat/` 结构建立目录。
+  - 迁移 `useLlmRequest.ts` 到 `composables/`。
   - 使用 Varlet `Paper`, `Input`, `Space` 重写输入区域，实现长按操作菜单。
 
 ## 7. Agent 施工指令 (Prompt for Agent)

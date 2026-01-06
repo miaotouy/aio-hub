@@ -1,0 +1,109 @@
+/* AIO Hub Mobile Theme Base */
+/* Derived from src/styles/index.css & theme-appearance.css */
+
+:root {
+  /* 基础色彩变量 - 亮色 */
+  --bg-color: #f4f4f4;
+  --bg-color-rgb: 244, 244, 244;
+  --container-bg: #fff;
+  --container-bg-rgb: 255, 255, 255;
+  --text-color: #333;
+  --text-color-rgb: 51, 51, 51;
+  --text-color-light: #666;
+  --border-color-rgb: 221, 221, 221;
+  --border-opacity: 0.8;
+  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
+  --primary-color: #409eff;
+  --primary-hover-color: #66b1ff;
+  --success-color: #67c23a;
+  --warning-color: #e6a23c;
+  --danger-color: #f56c6c;
+  --info-color: #909399;
+  --error-color: #f56c6c;
+  --input-bg: #fff;
+  --input-bg-rgb: 255, 255, 255;
+  --sidebar-bg: #f0f2f5;
+  --sidebar-bg-rgb: 240, 242, 245;
+  --card-bg: #ffffff;
+  --card-bg-rgb: 255, 255, 255;
+  --border-color-light: #eee;
+
+  /* 质感变量 */
+  --ui-blur: 10px;
+  --card-opacity: 0.85;
+
+  /* Varlet 变量覆盖 - 亮色 */
+  --color-primary: var(--primary-color);
+  --color-success: var(--success-color);
+  --color-warning: var(--warning-color);
+  --color-danger: var(--danger-color);
+  --color-info: var(--info-color);
+  
+  /* 圆角规范 */
+  --app-radius-lg: 12px;
+  --app-radius-md: 8px;
+  --app-radius-sm: 4px;
+}
+
+html.dark {
+  /* 基础色彩变量 - 暗色 */
+  --bg-color: #1a1a1a;
+  --bg-color-rgb: 26, 26, 26;
+  --container-bg: #242424;
+  --container-bg-rgb: 36, 36, 36;
+  --text-color: #e5e5e5;
+  --text-color-rgb: 229, 229, 229;
+  --text-color-light: #a8a8a8;
+  --border-color-rgb: 58, 58, 58;
+  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
+  --border-color-light: #2f2f2f;
+  --primary-color: #409eff;
+  --primary-hover-color: #66b1ff;
+  --error-color: #ff6b6b;
+  --input-bg: #1f1f1f;
+  --input-bg-rgb: 31, 31, 31;
+  --sidebar-bg: #242424;
+  --sidebar-bg-rgb: 36, 36, 36;
+  --card-bg: #2a2a2a;
+  --card-bg-rgb: 42, 42, 42;
+
+  /* Varlet 变量覆盖 - 暗色 */
+  --color-body: var(--bg-color);
+  --color-text: var(--text-color);
+  --color-surface-container-highest: var(--card-bg);
+}
+
+/* 全局基础样式 */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* IDE 风格卡片适配 */
+.app-card {
+  background-color: var(--card-bg) !important;
+  backdrop-filter: blur(var(--ui-blur));
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--app-radius-lg) !important;
+  overflow: hidden;
+}
+
+/* 高密度间距压缩 */
+.compact-layout {
+  --var-spacing-m: 8px;
+  --var-spacing-s: 4px;
+}
+
+/* 安全区域适配 */
+.safe-area-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+}

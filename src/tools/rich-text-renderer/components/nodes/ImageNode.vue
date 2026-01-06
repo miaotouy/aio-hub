@@ -76,15 +76,20 @@ const resolveUrl = async () => {
 
   try {
     if (props.src.startsWith("agent-asset://")) {
-      // Agent 资产协议：使用同步解析（依赖缓存）
-      const agent = currentAgent?.value;
-      if (agent) {
-        const resolved = resolveAgentAssetUrlSync(props.src, agent);
-        resolvedSrc.value = resolved;
+      // Agent 资产协议：优先使用上下文提供的解析钩子
+      if (context?.resolveAsset) {
+        resolvedSrc.value = context.resolveAsset(props.src);
       } else {
-        // 没有 Agent 上下文，无法解析
-        console.warn(`[ImageNode] No agent context for agent-asset:// URL: ${props.src}`);
-        resolvedSrc.value = props.src;
+        // 降级使用同步解析（依赖缓存）
+        const agent = currentAgent?.value;
+        if (agent) {
+          const resolved = resolveAgentAssetUrlSync(props.src, agent);
+          resolvedSrc.value = resolved;
+        } else {
+          // 没有 Agent 上下文，无法解析
+          console.warn(`[ImageNode] No agent context or resolveAsset hook for agent-asset:// URL: ${props.src}`);
+          resolvedSrc.value = props.src;
+        }
       }
     } else if (props.src.startsWith("appdata://")) {
       if (!basePath) {
@@ -112,7 +117,9 @@ const resolveUrl = async () => {
   }
 };
 
-watch(() => props.src, resolveUrl, { immediate: true });
+// 监听 src 或 Agent 上下文的变化
+// 解决竟态问题：当 Agent 数据加载完成时，重新解析资产路径
+watch([() => props.src, () => currentAgent?.value], resolveUrl, { immediate: true });
 
 // === 功能实现 ===
 
@@ -122,6 +129,9 @@ watch(() => props.src, resolveUrl, { immediate: true });
 const convertToPreviewUrl = async (src: string): Promise<string> => {
   if (src.startsWith("agent-asset://")) {
     // Agent 资产协议
+    if (context?.resolveAsset) {
+      return context.resolveAsset(src);
+    }
     const agent = currentAgent?.value;
     if (agent) {
       return resolveAgentAssetUrlSync(src, agent);

@@ -240,7 +240,9 @@ const processedContent = computed(() => {
   }
 
   // 2. 解析资产路径
-  if (props.resolveAsset) {
+  // 注意：在 AST 模式下，我们不再全局替换资产链接，而是交给具体的节点组件（如 ImageNode）处理
+  // 这样可以避免 Markdown 解析器对转换后的本地 URL 进行二次编码导致 Tauri 无法识别路径
+  if (props.resolveAsset && !useAstRenderer.value) {
     text = props.resolveAsset(text);
   }
 
@@ -366,7 +368,7 @@ onMounted(() => {
     }
 
     // 2. 解析资产路径
-    if (props.resolveAsset) {
+    if (props.resolveAsset && !useAstRenderer.value) {
       bufferToProcess = props.resolveAsset(bufferToProcess);
     }
 

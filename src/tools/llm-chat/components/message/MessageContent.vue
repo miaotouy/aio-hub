@@ -354,26 +354,28 @@ const copyError = async () => {
 
 // 监听消息内容或相关上下文变化，异步处理宏
 watch(
-  [() => props.message.content, () => props.message.metadata?.agentId, () => props.session],
-  async ([content, agentId, session]) => {
+  [
+    () => props.message.content,
+    () => currentAgent.value, // 监听解析后的 Agent 对象变化
+    () => props.session,
+  ],
+  async ([content, agent, session]) => {
     // 仅对预设消息进行宏处理（非编辑模式下）
     // 普通会话消息在发送时已经处理过宏，不需要二次处理
     const isPresetMessage = props.message.metadata?.isPresetDisplay === true;
 
     if (!props.isEditing && content && isPresetMessage) {
-      const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-
       // 构建宏上下文
       const context = buildMacroContext({
         agent,
         session: session ?? undefined,
       });
       const macroProcessed = await processMacros(macroProcessor, content, context);
-      // 预处理资产链接（同步），确保 v-html 模式下也能正确渲染
-      displayedContent.value = processMessageAssetsSync(macroProcessed, currentAgent.value);
+      // 不再提前处理资产链接，交给 RichTextRenderer 内部的节点处理，避免 Markdown 二次编码问题
+      displayedContent.value = macroProcessed;
     } else {
-      // 直接显示内容，但也需要预处理资产链接
-      displayedContent.value = processMessageAssetsSync(content, currentAgent.value);
+      // 直接显示内容
+      displayedContent.value = content || "";
     }
   },
   { immediate: true }
@@ -606,7 +608,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
           :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
           :default-tool-call-collapsed="
-            currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
+            currentAgent?.defaultToolCallCollapsed ??
+            settings.uiPreferences.defaultToolCallCollapsed
           "
           :seamless-mode="settings.uiPreferences.seamlessMode"
           :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
@@ -637,9 +640,11 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         <div class="translation-content">
           <RichTextRenderer
             :content="
-              isTranslating || !message.metadata?.translation
-                ? translationContent
-                : message.metadata.translation.content
+              resolveAsset(
+                isTranslating || !message.metadata?.translation
+                  ? translationContent
+                  : message.metadata.translation.content
+              )
             "
             :regex-rules="processedRules"
             :version="settings.uiPreferences.rendererVersion"

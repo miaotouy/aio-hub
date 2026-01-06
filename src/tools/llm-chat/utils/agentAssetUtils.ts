@@ -33,13 +33,21 @@ export async function initAgentAssetCache(): Promise<void> {
   _cacheInitPromise = (async () => {
     try {
       _cachedAppDataDir = await getAppConfigDir();
-      // 标准化路径分隔符为反斜杠（Windows）
-      _cachedAppDataDir = _cachedAppDataDir.replace(/\//g, '\\');
-      // 移除末尾的斜杠
-      if (_cachedAppDataDir.endsWith('\\')) {
-        _cachedAppDataDir = _cachedAppDataDir.slice(0, -1);
+      
+      // 在 Windows 上，保持反斜杠以确保 convertFileSrc 能正确处理盘符
+      const isWindows = _cachedAppDataDir.includes('\\') || _cachedAppDataDir.includes(':');
+      if (isWindows) {
+        _cachedAppDataDir = _cachedAppDataDir.replace(/\//g, '\\');
+        if (_cachedAppDataDir.endsWith('\\')) {
+          _cachedAppDataDir = _cachedAppDataDir.slice(0, -1);
+        }
+      } else {
+        if (_cachedAppDataDir.endsWith('/')) {
+          _cachedAppDataDir = _cachedAppDataDir.slice(0, -1);
+        }
       }
-      logger.info('Agent 资产缓存已初始化', { appDataDir: _cachedAppDataDir });
+      
+      logger.info('Agent 资产缓存已初始化', { appDataDir: _cachedAppDataDir, isWindows });
     } catch (error) {
       logger.error('初始化 agent 资产缓存失败', error as Error);
       throw error;
@@ -78,11 +86,13 @@ export function buildAgentAssetPath(agentId: string, assetPath: string): string 
     return null;
   }
 
-  // 标准化路径
-  const normalizedAssetPath = assetPath.replace(/\//g, '\\');
-
-  // 构建完整路径: {appDataDir}\llm-chat\agents\{agentId}\{assetPath}
-  return `${_cachedAppDataDir}\\llm-chat\\agents\\${agentId}\\${normalizedAssetPath}`;
+  // 统一使用正斜杠构建路径，Tauri 的 convertFileSrc 在所有平台上都能很好地处理正斜杠
+  // 且正斜杠能避免在 Markdown 环境下被误认为转义符
+  const normalizedAssetPath = assetPath.replace(/\\/g, '/');
+  const normalizedBase = _cachedAppDataDir.replace(/\\/g, '/');
+  
+  const separator = normalizedBase.endsWith('/') ? '' : '/';
+  return `${normalizedBase}${separator}llm-chat/agents/${agentId}/${normalizedAssetPath}`;
 }
 
 /**
@@ -296,39 +306,12 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
 
   let result = content;
 
-  // 1. 处理 HTML src 属性: src="agent-asset://..." 或 src='agent-asset://...'
-  const htmlPattern = /src=["'](agent-asset:\/\/[^"']+)["']/g;
-  const htmlMatches = Array.from(content.matchAll(htmlPattern));
-
-  for (const match of htmlMatches) {
-    const fullMatch = match[0];
-    const assetUrl = match[1];
-    const resolvedUrl = resolveAgentAssetUrlSync(assetUrl, agent);
-
-    if (resolvedUrl !== assetUrl) {
-      const quote = fullMatch.includes('"') ? '"' : "'";
-      result = result.replace(fullMatch, `src=${quote}${resolvedUrl}${quote}`);
-    }
-  }
-
-  // 2. 处理 Markdown 语法: ![alt](agent-asset://...) 或 [link](agent-asset://...)
-  const mdPattern = /\((agent-asset:\/\/[^)]+)\)/g;
-  const mdMatches = Array.from(result.matchAll(mdPattern));
-
-  for (const match of mdMatches) {
-    const fullMatch = match[0];
-    const assetUrl = match[1];
-    const resolvedUrl = resolveAgentAssetUrlSync(assetUrl, agent);
-
-    if (resolvedUrl !== assetUrl) {
-      result = result.replace(fullMatch, `(${resolvedUrl})`);
-    }
-  }
-
-  // 3. 兜底处理: 替换所有剩余的 agent-asset:// 链接
-  // 改进正则：允许匹配到引号、括号或标签结束符之前的任何内容
-  const remainingPattern = /agent-asset:\/\/[^"'\s<>)]+/g;
-  result = result.replace(remainingPattern, (url) => {
+  // 使用统一的正则表达式匹配所有 agent-asset:// 链接
+  // 改进正则：排除末尾可能存在的标点符号（如 Markdown 链接的闭括号）
+  // 匹配规则：以 agent-asset:// 开头，直到遇到引号、空格、尖括号、或者作为结尾的括号
+  const assetPattern = /agent-asset:\/\/[^"'\s<>\)]+?(?=[)\]"'\s<>]|$)/g;
+  
+  result = content.replace(assetPattern, (url) => {
     return resolveAgentAssetUrlSync(url, agent);
   });
 

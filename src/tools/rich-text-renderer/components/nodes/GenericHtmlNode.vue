@@ -10,13 +10,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
+import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from '../../types';
 
 const props = defineProps<{
   nodeId: string;
   tagName: string;
   attributes: Record<string, string>;
 }>();
+
+// 注入上下文以获取资产解析钩子
+const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
 
 // 验证标签名是否合法
 // HTML 标签名必须以字母开头,只能包含字母、数字、连字符和下划线
@@ -88,6 +92,13 @@ const filteredAttributes = computed(() => {
     // 处理特殊属性
     if (lowerKey === 'style') {
       attrs.style = value;
+    } else if (lowerKey === 'src' && value.startsWith('agent-asset://')) {
+      // 解析智能体资产链接
+      if (context?.resolveAsset) {
+        attrs.src = context.resolveAsset(value);
+      } else {
+        attrs.src = value;
+      }
     } else {
       // 其他属性直接传递
       attrs[key] = value;

@@ -11,7 +11,7 @@ const title = ref('AI Chat Placeholder')
       <MessageSquare :size="48" class="icon" />
       <h2>{{ title }}</h2>
       <p>AI 对话功能正在开发中...</p>
-      <el-button type="primary" plain @click="$router.back()">返回首页</el-button>
+      <var-button type="primary" @click="$router.back()">返回首页</var-button>
     </div>
   </div>
 </template>

@@ -134,7 +134,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@tauri-apps/api": "^2",
-        "@tauri-apps/plugin-fs": "^2.4.4",
+        "@tauri-apps/plugin-fs": "~2",
         "@tauri-apps/plugin-opener": "^2",
         "@varlet/ui": "^3.13.0",
         "@varlet/use": "^3.13.0",

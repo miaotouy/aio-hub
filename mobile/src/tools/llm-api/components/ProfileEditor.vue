@@ -6,6 +6,7 @@ import {
   Globe,
   Key,
   Box,
+  ChevronLeft,
   ChevronRight,
   Trash2,
   ExternalLink,
@@ -122,10 +123,10 @@ const handleIconSelect = (icon: any) => {
     style="width: 100%; height: 100%"
   >
     <div class="editor-popup">
-      <var-app-bar title="编辑渠道" safe-area>
+      <var-app-bar title="编辑渠道" fixed safe-area>
         <template #left>
           <var-button round text @click="emit('update:show', false)">
-            <span class="close-icon">×</span>
+            <ChevronLeft :size="24" />
           </var-button>
         </template>
         <template #right>
@@ -312,7 +313,8 @@ const handleIconSelect = (icon: any) => {
 .editor-content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  /* 避让 fixed AppBar: 54px (AppBar) + 24px (原padding) */
+  padding: 78px 24px 24px;
 }
 
 .section-header {

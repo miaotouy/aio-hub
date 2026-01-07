@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
-import { Plus, Layers } from "lucide-vue-next";
+import { Plus, Layers, ChevronLeft } from "lucide-vue-next";
 import { Snackbar } from "@varlet/ui";
 import type { LlmProfile } from "../types";
 
@@ -10,6 +11,7 @@ import ProfileCard from "../components/ProfileCard.vue";
 import PresetSelector from "../components/PresetSelector.vue";
 import ProfileEditor from "../components/ProfileEditor.vue";
 
+const router = useRouter();
 const store = useLlmProfilesStore();
 const isManagementMode = ref(false);
 const multiSelectedIds = ref<Set<string>>(new Set());
@@ -101,6 +103,11 @@ const handleToggleMultiSelect = (id: string) => {
 <template>
   <div class="llm-settings-view">
     <var-app-bar title="LLM 渠道管理" fixed safe-area>
+      <template #left>
+        <var-button round text @click="router.back()">
+          <ChevronLeft :size="24" />
+        </var-button>
+      </template>
       <template #right>
         <var-button round text @click="handleAddProfile">
           <Plus :size="24" />

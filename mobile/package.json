@@ -15,6 +15,7 @@
     "check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@material/material-color-utilities": "^0.3.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-fs": "~2",
     "@tauri-apps/plugin-http": "^2.5.4",

@@ -7,6 +7,8 @@ export type ThemeMode = "light" | "dark" | "auto";
 export interface AppearanceSettings {
   /** 主题模式 */
   theme: ThemeMode;
+  /** 主题种子颜色 */
+  themeColor?: string;
   /** 是否启用触感反馈 */
   hapticFeedback: boolean;
   /** 字体大小缩放 (1.0 为正常) */
@@ -39,6 +41,7 @@ export interface MobileAppSettings {
 export const DEFAULT_APP_SETTINGS: MobileAppSettings = {
   appearance: {
     theme: "auto",
+    themeColor: "#409EFF",
     hapticFeedback: true,
     fontSizeScale: 1.0,
   },

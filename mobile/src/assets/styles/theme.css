@@ -1,44 +1,30 @@
 /* AIO Hub Mobile Theme Base */
-/* Derived from src/styles/index.css & theme-appearance.css */
+/* 
+ * 核心颜色系统已对接 MD3 (Material Design 3)
+ * 由 src/stores/theme.ts 通过 StyleProvider 动态派生并注入
+ */
 
 :root {
-  /* 基础色彩变量 - 亮色 */
-  --bg-color: #f4f4f4;
-  --bg-color-rgb: 244, 244, 244;
-  --container-bg: #fff;
-  --container-bg-rgb: 255, 255, 255;
-  --text-color: #333;
-  --text-color-rgb: 51, 51, 51;
-  --text-color-light: #666;
-  --border-color-rgb: 221, 221, 221;
-  --border-opacity: 0.8;
-  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
-  --primary-color: #409eff;
-  --primary-hover-color: #66b1ff;
-  --success-color: #67c23a;
-  --warning-color: #e6a23c;
-  --danger-color: #f56c6c;
-  --info-color: #909399;
-  --error-color: #f56c6c;
-  --input-bg: #fff;
-  --input-bg-rgb: 255, 255, 255;
-  --sidebar-bg: #f0f2f5;
-  --sidebar-bg-rgb: 240, 242, 245;
-  --card-bg: #ffffff;
-  --card-bg-rgb: 255, 255, 255;
-  --border-color-light: #eee;
+  /* --- 桌面端兼容变量映射 --- */
+  /* 将桌面端常用的变量名映射到 Varlet/MD3 派生变量上 */
+  --primary-color: var(--color-primary);
+  --success-color: var(--color-success);
+  --warning-color: var(--color-warning);
+  --danger-color: var(--color-danger);
+  --info-color: var(--color-info);
+  --error-color: var(--color-error);
 
+  --bg-color: var(--color-body);
+  --text-color: var(--color-text);
+  --border-color: var(--color-outline);
+  --card-bg: var(--color-surface-container-low);
+  --container-bg: var(--color-surface-container);
+  --input-bg: var(--color-surface-container-high);
+  --sidebar-bg: var(--color-surface-container-low);
+  
   /* 质感变量 */
   --ui-blur: 10px;
   --card-opacity: 0.85;
-
-  /* Varlet 变量覆盖 - 亮色 */
-  --color-primary: var(--primary-color);
-  --color-success: var(--success-color);
-  --color-warning: var(--warning-color);
-  --color-danger: var(--danger-color);
-  --color-info: var(--info-color);
-  --bottom-navigation-background-color: var(--container-bg);
   
   /* 圆角规范 */
   --app-radius-lg: 12px;
@@ -47,54 +33,26 @@
 
   /* 导航栏与安全区域变量 */
   --app-bar-height: 54px;
-  /* 状态栏避让高度，在移动端有安全区域时使用安全区域，无安全区域时保留 16px 基础边距 */
+  /* 状态栏避让高度 */
   --app-safe-area-top: max(env(safe-area-inset-top), 16px);
   /* 顶部总占用高度 */
   --app-top-offset: calc(var(--app-bar-height) + var(--app-safe-area-top));
 }
 
-html.dark {
-  /* 基础色彩变量 - 暗色 */
-  --bg-color: #1a1a1a;
-  --bg-color-rgb: 26, 26, 26;
-  --container-bg: #242424;
-  --container-bg-rgb: 36, 36, 36;
-  --text-color: #e5e5e5;
-  --text-color-rgb: 229, 229, 229;
-  --text-color-light: #a8a8a8;
-  --border-color-rgb: 58, 58, 58;
-  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
-  --border-color-light: #2f2f2f;
-  --primary-color: #409eff;
-  --primary-hover-color: #66b1ff;
-  --error-color: #ff6b6b;
-  --input-bg: #1f1f1f;
-  --input-bg-rgb: 31, 31, 31;
-  --sidebar-bg: #242424;
-  --sidebar-bg-rgb: 36, 36, 36;
-  --card-bg: #2a2a2a;
-  --card-bg-rgb: 42, 42, 42;
-/* Varlet 变量覆盖 - 暗色 */
---color-body: var(--bg-color);
---color-text: var(--text-color);
---color-surface-container-highest: var(--card-bg);
---bottom-navigation-background-color: var(--container-bg);
---bottom-navigation-item-inactive-color: var(--text-color-light);
-}
-}
-
-/* 全局基础样式 */
+/* 
+ * 移动端特定全局样式 
+ */
 html, body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-color);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -107,13 +65,7 @@ body {
   overflow: hidden;
 }
 
-/* 高密度间距压缩 */
-.compact-layout {
-  --var-spacing-m: 8px;
-  --var-spacing-s: 4px;
-}
-
-/* 安全区域适配 */
+/* 安全区域适配辅助类 */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -122,18 +74,15 @@ body {
   padding-top: var(--app-safe-area-top);
 }
 
-/* 全局 Varlet 组件覆盖 */
-/* 自动处理 AppBar 的顶部避让 */
+/* Varlet 组件覆盖适配 */
 .var-app-bar--fixed {
   padding-top: var(--app-safe-area-top) !important;
 }
 
-/* 内容区域避让固定导航栏 */
 .has-fixed-app-bar {
   padding-top: var(--app-top-offset);
 }
 
-/* 视图容器基础类 */
 .app-view {
   min-height: 100vh;
   display: flex;
@@ -142,7 +91,6 @@ body {
   box-sizing: border-box;
 }
 
-/* 自动避让状态栏的视图（不带导航栏时使用） */
 .app-view--safe-top {
   padding-top: var(--app-safe-area-top);
 }

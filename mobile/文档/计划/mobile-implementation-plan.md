@@ -225,3 +225,6 @@ mobile
     - 富文本渲染器/
       - RichTextRendererView.vue（实际上就是测试器视图，因为富文本渲染器作为嵌入式用的组件本来也没有可作为主页的）
       - RichTextRenderer.vue（渲染器本体）
+
+
+我觉得Alias 共享可能是必要的，针对资产图标啥的这样处理

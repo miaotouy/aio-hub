@@ -17,6 +17,15 @@
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-meta-recursive",
+    "http:default",
+    {
+      "identifier": "http:allow-request",
+      "allow": [
+        {
+          "url": "*://*"
+        }
+      ]
+    },
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [

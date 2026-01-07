@@ -118,38 +118,39 @@ async function fetchAndProcessSvg(url: string): Promise<string> {
 /**
  * Vue Composable：根据主题智能处理图标
  */
-export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
+export function useThemeAwareIcon(iconSrcRef: Ref<string | undefined>) {
   const svgContent = ref<string>("");
   const error = ref<Error | null>(null);
   const isLoading = ref(false);
 
   const isSvg = computed(() => {
-    return iconSrcRef.value && iconSrcRef.value.toLowerCase().endsWith(".svg");
+    const src = iconSrcRef?.value;
+    return src && typeof src === 'string' && src.toLowerCase().endsWith(".svg");
   });
 
   const iconUrl = computed(() => {
     if (isSvg.value) return "";
     
-    const src = iconSrcRef.value;
-    if (src && !src.includes("/") && !src.includes("\\")) {
+    const src = iconSrcRef?.value;
+    if (src && typeof src === 'string' && !src.includes("/") && !src.includes("\\")) {
       return `/model-icons/${src}`;
     }
     return src;
   });
 
   const loadSvg = async () => {
-    if (!isSvg.value) {
+    const src = iconSrcRef?.value;
+    if (!isSvg.value || !src) {
       svgContent.value = "";
       return;
     }
 
-    const src = iconSrcRef.value;
     isLoading.value = true;
     error.value = null;
 
     try {
       let finalUrl = src;
-      if (!src.includes("/") && !src.includes("\\")) {
+      if (typeof src === 'string' && !src.includes("/") && !src.includes("\\")) {
         finalUrl = `/model-icons/${src}`;
       }
       svgContent.value = await fetchAndProcessSvg(finalUrl);

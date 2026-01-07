@@ -18,6 +18,7 @@
     <!-- 分类标签 -->
     <div v-if="showCategories && categories.length > 1" class="category-tabs-container">
       <var-tabs
+        v-if="categories.includes(selectedCategory)"
         v-model:active="selectedCategory"
         scrollable="always"
         class="category-tabs"
@@ -34,9 +35,10 @@
     <!-- 图标网格区域 -->
     <div class="presets-scroll-area">
       <div v-if="filteredIcons.length > 0" class="presets-grid" :class="gridClass">
-        <var-ripple
+        <div
           v-for="icon in filteredIcons"
           :key="icon.path"
+          v-ripple
           class="preset-item"
           @click="handleSelect(icon)"
         >
@@ -51,7 +53,7 @@
               </span>
             </div>
           </div>
-        </var-ripple>
+        </div>
       </div>
 
       <!-- 空状态 -->

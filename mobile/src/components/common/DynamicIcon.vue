@@ -50,9 +50,9 @@ const wrapperRef = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
 onMounted(() => {
-  if (props.lazy) {
+  if (props.lazy && typeof IntersectionObserver !== 'undefined') {
     observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
+      if (entries[0] && entries[0].isIntersecting) {
         shouldLoad.value = true;
         observer?.disconnect();
         observer = null;
@@ -61,6 +61,9 @@ onMounted(() => {
     if (wrapperRef.value) {
       observer.observe(wrapperRef.value);
     }
+  } else if (props.lazy) {
+    // 回退方案：如果不支持 IntersectionObserver，直接加载
+    shouldLoad.value = true;
   }
 });
 

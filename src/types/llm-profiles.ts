@@ -2,7 +2,14 @@
  * LLM 服务配置相关的类型定义
  */
 
-import type { ContextPostProcessRule } from '@/tools/llm-chat/types';
+/**
+ * 上下文后处理规则 (简易定义，避免循环依赖和跨端导入问题)
+ */
+export interface ContextPostProcessRule {
+  type: string;
+  enabled: boolean;
+  [key: string]: any;
+}
 
 /**
  * LLM 服务提供商类型

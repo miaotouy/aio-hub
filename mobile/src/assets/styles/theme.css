@@ -38,6 +38,7 @@
   --color-warning: var(--warning-color);
   --color-danger: var(--danger-color);
   --color-info: var(--info-color);
+  --bottom-navigation-background-color: var(--container-bg);
   
   /* 圆角规范 */
   --app-radius-lg: 12px;
@@ -73,11 +74,13 @@ html.dark {
   --sidebar-bg-rgb: 36, 36, 36;
   --card-bg: #2a2a2a;
   --card-bg-rgb: 42, 42, 42;
-
-  /* Varlet 变量覆盖 - 暗色 */
-  --color-body: var(--bg-color);
-  --color-text: var(--text-color);
-  --color-surface-container-highest: var(--card-bg);
+/* Varlet 变量覆盖 - 暗色 */
+--color-body: var(--bg-color);
+--color-text: var(--text-color);
+--color-surface-container-highest: var(--card-bg);
+--bottom-navigation-background-color: var(--container-bg);
+--bottom-navigation-item-inactive-color: var(--text-color-light);
+}
 }
 
 /* 全局基础样式 */

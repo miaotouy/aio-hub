@@ -31,7 +31,8 @@ const handleChange = (value: string | number) => {
     @change="handleChange"
     fixed
     safe-area
-    teleport="body"
+    variant
+    active-color="var(--primary-color)"
   >
     <var-bottom-navigation-item label="首页" name="home" icon="home" />
     <var-bottom-navigation-item label="工具" name="tools" icon="magnify" />

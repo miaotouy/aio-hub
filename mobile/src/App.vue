@@ -22,15 +22,17 @@ onMounted(() => {
   </div>
 
   <div v-else class="app-container">
-    <main class="main-content">
-      <router-view v-slot="{ Component }">
-        <keep-alive>
-          <component :is="Component" />
-        </keep-alive>
-      </router-view>
-    </main>
+    <var-style-provider>
+      <main class="main-content">
+        <router-view v-slot="{ Component }">
+          <keep-alive>
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
+      </main>
 
-    <AppBottomNav />
+      <AppBottomNav />
+    </var-style-provider>
   </div>
 </template>
 

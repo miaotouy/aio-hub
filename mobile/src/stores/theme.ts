@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
 import { useSettingsStore } from "./settings";
+import { StyleProvider, Themes } from "@varlet/ui";
 
 export const useThemeStore = defineStore("theme", () => {
   const settingsStore = useSettingsStore();
@@ -29,8 +30,10 @@ export const useThemeStore = defineStore("theme", () => {
   const applyTheme = () => {
     if (isDark.value) {
       document.documentElement.classList.add("dark");
+      StyleProvider(Themes.md3Dark);
     } else {
       document.documentElement.classList.remove("dark");
+      StyleProvider(Themes.md3Light);
     }
   };
 

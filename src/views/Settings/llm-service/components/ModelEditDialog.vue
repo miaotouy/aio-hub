@@ -3,7 +3,7 @@ import { ref, computed, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { InfoFilled, MagicStick } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
+import { PRESET_ICONS } from "@/config/preset-icons";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
@@ -123,7 +123,7 @@ const handleClose = () => {
 
 // 选择预设图标
 const selectPresetIcon = (icon: any) => {
-  const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
+  const iconPath = icon.path;
   modelEditForm.value.icon = iconPath;
   showPresetIconDialog.value = false;
 };
@@ -538,7 +538,7 @@ const customParametersJsonString = computed({
       <template #content>
         <IconPresetSelector
           :icons="PRESET_ICONS"
-          :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
+          :get-icon-path="(path: string) => path"
           show-search
           show-categories
           @select="selectPresetIcon"

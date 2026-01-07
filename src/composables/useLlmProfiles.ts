@@ -9,6 +9,7 @@ import { providerTypes } from "../config/llm-providers";
 import { createConfigManager } from "@utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { normalizeIconPath } from "../config/model-metadata";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");
@@ -32,18 +33,28 @@ export function useLlmProfiles() {
    * 数据迁移：将旧格式的 apiKey 转换为 apiKeys 数组
    */
   const migrateProfile = (profile: any): LlmProfile => {
-    // 如果已经是新格式，直接返回
-    if (Array.isArray(profile.apiKeys)) {
-      return profile as LlmProfile;
+    // 1. 处理 API Key 迁移 (从 apiKey 到 apiKeys 数组)
+    let apiKeys = profile.apiKeys;
+    let rest = { ...profile };
+
+    if (!Array.isArray(apiKeys)) {
+      const { apiKey, ...otherProps } = profile;
+      apiKeys = apiKey ? [apiKey] : [];
+      rest = otherProps;
     }
 
-    // 迁移旧格式：解构出 apiKey，其余属性放入 rest
-    const { apiKey, ...rest } = profile;
-
+    // 2. 总是执行图标路径规范化 (向后兼容带路径的配置)
     const migratedProfile: LlmProfile = {
       ...rest,
-      apiKeys: apiKey ? [apiKey] : [],
+      apiKeys: apiKeys,
       logoUrl: rest.logoUrl || undefined,
+      icon: rest.icon ? normalizeIconPath(rest.icon) : undefined,
+      models: Array.isArray(rest.models)
+        ? rest.models.map((m: any) => ({
+          ...m,
+          icon: m.icon ? normalizeIconPath(m.icon) : undefined,
+        }))
+        : [],
       customHeaders: rest.customHeaders || undefined,
     };
 

@@ -3,6 +3,8 @@ import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { acquireBlobUrl, releaseBlobUrl, acquireBlobUrlSync } from "@/utils/avatarImageCache";
 import { useIntersectionObserver } from "@vueuse/core";
+import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
+import { normalizeIconPath } from "@/config/model-metadata";
 
 interface Props {
   /** 头像源：可以是图片 URL、appdata:// 路径、emoji 或其他字符 */
@@ -64,7 +66,9 @@ const managedSrc = ref<string | null>(null); // 追踪被管理的 blob url 的�
 const sanitizedSrc = computed(() => {
   if (!props.src) return "";
   // 移除开头和结尾多余的空格和引号
-  return props.src.trim().replace(/^"|"$/g, "").trim();
+  let s = props.src.trim().replace(/^"|"$/g, "").trim();
+  // 规范化路径（处理旧的 /model-icons/ 前缀）
+  return normalizeIconPath(s);
 });
 
 // 判断是否为图片路径
@@ -79,7 +83,9 @@ const isImagePath = computed(() => {
       s.startsWith("data:") ||
       s.startsWith("file://") ||
       /^[A-Za-z]:[\/\\]/.test(s) || // Windows 绝对路径（支持正反斜杠）
-      s.startsWith("\\\\")) // UNC 路径
+      s.startsWith("\\\\") || // UNC 路径
+      LOBE_ICONS_MAP[s] !== undefined || // 预设图标库
+      LOCAL_ICONS_MAP[s] !== undefined) // 本地图标库
   );
 });
 
@@ -95,7 +101,22 @@ const processSrc = async () => {
     return;
   }
 
-  // 1. HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
+  // 1. 检查是否为预设图标 (Lobe 或 Local)
+  if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
+    const svgContent = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
+    // 如果内容已经是 data: 或者是 URL 则直接用，否则视为 SVG 源码转为 Data URL
+    if (svgContent.startsWith("data:") || svgContent.startsWith("http") || svgContent.startsWith("/")) {
+      processedSrc.value = svgContent;
+    } else {
+      processedSrc.value = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
+    }
+    isSrcReady.value = true;
+    imageLoadFailed.value = false;
+    managedSrc.value = null;
+    return;
+  }
+
+  // 2. HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
   if (
     currentSrc.startsWith("http") ||
     currentSrc.startsWith("data:") ||

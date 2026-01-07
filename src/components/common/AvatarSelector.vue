@@ -5,7 +5,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
+import { PRESET_ICONS } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Star, Upload, RefreshLeft, FolderOpened, Clock } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -157,7 +157,7 @@ const openPresetIconSelector = () => {
 
 // 选择预设图标
 const selectPresetIcon = (icon: any) => {
-  const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
+  const iconPath = icon.path;
   emit("update:icon", { value: iconPath, source: "preset" });
   showPresetIconDialog.value = false;
   customMessage.success("已选择预设图标");
@@ -411,7 +411,7 @@ const handleIconClick = () => {
     <template #content>
       <IconPresetSelector
         :icons="PRESET_ICONS"
-        :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
+        :get-icon-path="(path: string) => path"
         show-search
         show-categories
         @select="selectPresetIcon"

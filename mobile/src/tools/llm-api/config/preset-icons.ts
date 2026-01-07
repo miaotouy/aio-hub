@@ -1,11 +1,6 @@
 import type { PresetIconInfo } from "../types/model-metadata";
 
 /**
- * 预设图标目录（相对于 public 目录）
- */
-export const PRESET_ICONS_DIR = "/model-icons";
-
-/**
  * 手动维护的精选图标列表
  */
 export const PRESET_ICONS: PresetIconInfo[] = [

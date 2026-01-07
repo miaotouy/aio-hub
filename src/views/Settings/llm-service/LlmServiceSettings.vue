@@ -18,7 +18,7 @@ import type { LlmProfile, LlmModelInfo, ProviderType } from "@/types/llm-profile
 import type { LlmPreset } from "@/config/llm-providers";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@/utils/llm-api-url";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "@/config/preset-icons";
+import { PRESET_ICONS } from "@/config/preset-icons";
 import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
@@ -304,7 +304,7 @@ const getProviderIcon = (profile: LlmProfile) => {
 };
 
 const selectPresetIcon = (icon: any) => {
-  const iconPath = `${PRESET_ICONS_DIR}/${icon.path}`;
+  const iconPath = icon.path;
   if (editForm.value) {
     editForm.value.icon = iconPath;
   }
@@ -525,7 +525,7 @@ const resetBaseUrl = () => {
       <template #content>
         <IconPresetSelector
           :icons="PRESET_ICONS"
-          :get-icon-path="(path: string) => `${PRESET_ICONS_DIR}/${path}`"
+          :get-icon-path="(path: string) => path"
           show-search
           show-categories
           @select="selectPresetIcon"

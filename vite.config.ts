@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import Icons from "unplugin-icons/vite";
+import { FileSystemIconLoader } from "unplugin-icons/loaders";
 import IconsResolver from "unplugin-icons/resolver";
 import Components from "unplugin-vue-components/vite";
 import VueDevTools from "vite-plugin-vue-devtools";
@@ -48,7 +49,8 @@ export default defineConfig({
       resolvers: [
         IconsResolver({
           prefix: "i",
-          enabledCollections: ["ep"],
+          enabledCollections: ["ep", "lobe"],
+          customCollections: ["lobe"],
         }),
       ],
       dts: "src/components.d.ts",
@@ -56,6 +58,11 @@ export default defineConfig({
     Icons({
       autoInstall: true,
       compiler: "vue3",
+      customCollections: {
+        lobe: FileSystemIconLoader("./node_modules/@lobehub/icons-static-svg/icons", (svg) =>
+          svg.replace(/^<svg /, '<svg fill="currentColor" ')
+        ),
+      },
     }),
   ].filter(Boolean),
 

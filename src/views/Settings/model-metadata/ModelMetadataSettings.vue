@@ -295,7 +295,7 @@
       <template #content>
         <IconPresetSelector
           :icons="presetIcons"
-          :get-icon-path="(path) => `${PRESET_ICONS_DIR}/${path}`"
+          :get-icon-path="(path) => path"
           show-search
           show-categories
           @select="selectPreset"
@@ -324,7 +324,6 @@ import { useModelMetadata } from "@composables/useModelMetadata";
 import type { ModelMetadataRule, MetadataMatchType } from "../../../types/model-metadata";
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
-import { PRESET_ICONS_DIR } from "../../../config/preset-icons";
 import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
 import DynamicIcon from "@components/common/DynamicIcon.vue";
 
@@ -479,7 +478,7 @@ function selectPreset(preset: any) {
     if (!editingConfig.value.properties) {
       editingConfig.value.properties = {};
     }
-    editingConfig.value.properties.icon = `${PRESET_ICONS_DIR}/${preset.path}`;
+    editingConfig.value.properties.icon = preset.path;
   }
   showPresets.value = false; // Close dialog on selection
 }

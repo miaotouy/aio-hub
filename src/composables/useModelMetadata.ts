@@ -18,9 +18,10 @@ import {
   getMatchedModelProperties,
   getModelIconPath,
   isValidIconPath,
+  normalizeIconPath,
   testRuleMatch,
 } from "../config/model-metadata";
-import { PRESET_ICONS, PRESET_ICONS_DIR } from "../config/preset-icons";
+import { PRESET_ICONS } from "../config/preset-icons";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { createConfigManager } from "@utils/configManager";
 import { createModuleLogger } from "@utils/logger";
@@ -91,7 +92,7 @@ export function useModelMetadata() {
                 matchType: config.matchType,
                 matchValue: config.matchValue,
                 properties: {
-                  icon: config.iconPath,
+                  icon: normalizeIconPath(config.iconPath),
                   group: config.groupName,
                 },
                 priority: config.priority,
@@ -116,7 +117,14 @@ export function useModelMetadata() {
         }
       }
 
-      rules.value = data.rules;
+      // 规范化所有规则中的图标路径（向后兼容）
+      rules.value = data.rules.map((rule) => ({
+        ...rule,
+        properties: {
+          ...rule.properties,
+          icon: rule.properties.icon ? normalizeIconPath(rule.properties.icon) : undefined,
+        },
+      }));
       isLoaded.value = true;
     } catch (error) {
       errorHandler.error(error, "加载模型元数据规则失败");
@@ -156,6 +164,10 @@ export function useModelMetadata() {
         id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         enabled: rule.enabled !== false,
         createdAt: new Date().toISOString(),
+        properties: {
+          ...rule.properties,
+          icon: rule.properties.icon ? normalizeIconPath(rule.properties.icon) : undefined,
+        },
       };
 
       // 验证图标路径（如果有）
@@ -186,18 +198,24 @@ export function useModelMetadata() {
         throw new Error("规则不存在");
       }
 
+      // 规范化图标路径
+      const processedUpdates = { ...updates };
+      if (processedUpdates.properties?.icon) {
+        processedUpdates.properties.icon = normalizeIconPath(processedUpdates.properties.icon);
+      }
+
       // 验证图标路径（如果更新了图标）
-      if (updates.properties?.icon && !isValidIconPath(updates.properties.icon)) {
+      if (processedUpdates.properties?.icon && !isValidIconPath(processedUpdates.properties.icon)) {
         throw new Error("无效的图标路径");
       }
 
       // 合并更新（注意 properties 需要深度合并）
       rules.value[index] = {
         ...rules.value[index],
-        ...updates,
+        ...processedUpdates,
         properties: {
           ...rules.value[index].properties,
-          ...(updates.properties || {}),
+          ...(processedUpdates.properties || {}),
         },
       };
 
@@ -434,7 +452,7 @@ export function useModelMetadata() {
    * 获取预设图标完整路径
    */
   function getPresetIconPath(presetPath: string): string {
-    return `${PRESET_ICONS_DIR}/${presetPath}`;
+    return presetPath;
   }
 
   /**

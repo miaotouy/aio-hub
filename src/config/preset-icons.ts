@@ -16,7 +16,6 @@ const lobeIcons = import.meta.glob("../../node_modules/@lobehub/icons-static-svg
 // 获取本地自定义图标名
 const localIcons = import.meta.glob("../../public/model-icons/*.{svg,png,jpg,webp}", {
   eager: true,
-  query: "?raw",
 });
 
 export const LOBE_ICONS_MAP = Object.entries(lobeIcons).reduce((acc, [path, content]) => {
@@ -25,9 +24,10 @@ export const LOBE_ICONS_MAP = Object.entries(lobeIcons).reduce((acc, [path, cont
   return acc;
 }, {} as Record<string, string>);
 
-export const LOCAL_ICONS_MAP = Object.entries(localIcons).reduce((acc, [path, content]) => {
+export const LOCAL_ICONS_MAP = Object.entries(localIcons).reduce((acc, [path, _content]) => {
   const name = path.split("/").pop()!;
-  acc[name] = (content as any).default;
+  // 对于 public 目录下的本地图标，我们直接映射到其在运行时的公共路径
+  acc[name] = `/model-icons/${name}`;
   return acc;
 }, {} as Record<string, string>);
 

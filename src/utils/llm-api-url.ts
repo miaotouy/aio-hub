@@ -3,7 +3,7 @@
  * 用于格式化LLM服务的API地址和生成端点预览
  */
 
-import type { ProviderType } from '../types/llm-profiles';
+import type { ProviderType, LlmProfile } from '../types/llm-profiles';
 import { openAiUrlHandler } from '@/llm-apis/openai-compatible';
 import { openAiResponsesUrlHandler } from '@/llm-apis/openai-responses';
 import { claudeUrlHandler } from '@/llm-apis/claude';
@@ -15,7 +15,7 @@ import { vertexAiUrlHandler } from '@/llm-apis/vertexai';
  * 适配器 URL 处理接口
  */
 interface AdapterUrlHandler {
-  buildUrl: (baseUrl: string, endpoint?: string) => string;
+  buildUrl: (baseUrl: string, endpoint?: string, profile?: LlmProfile) => string;
   getHint: () => string;
 }
 
@@ -85,7 +85,8 @@ export function hasApiVersionPath(url: string): boolean {
 export function buildLlmApiUrl(
   baseUrl: string,
   providerType: ProviderType,
-  endpoint?: string
+  endpoint?: string,
+  profile?: LlmProfile
 ): string {
   if (!baseUrl) {
     return '';
@@ -102,7 +103,7 @@ export function buildLlmApiUrl(
   // 优先从适配器获取 URL 处理逻辑
   const handler = adapterUrlHandlers[providerType];
   if (handler) {
-    return handler.buildUrl(baseUrl, endpoint);
+    return handler.buildUrl(baseUrl, endpoint, profile);
   }
 
   // 回退到基础拼接逻辑

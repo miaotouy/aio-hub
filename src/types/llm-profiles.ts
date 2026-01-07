@@ -388,4 +388,38 @@ export interface LlmProfile {
    * key 为分组名称，value 为是否展开
    */
   modelGroupsExpandState?: Record<string, boolean>;
+  /**
+   * 自定义 API 端点（可选）
+   * 用于高级配置，直接指定完整的 URL
+   */
+  customEndpoints?: {
+    /** 聊天补全端点 (Chat Completions)，例如 '/v1/chat/completions' */
+    chatCompletions?: string;
+    /** 文本补全端点 (Completions)，例如 '/v1/completions' */
+    completions?: string;
+    /** 模型列表端点 (Models)，例如 '/v1/models' */
+    models?: string;
+    /** 嵌入端点 (Embeddings)，例如 '/v1/embeddings' */
+    embeddings?: string;
+    /** 重排端点 (Rerank)，例如 '/v1/rerank' */
+    rerank?: string;
+    /** 图像生成端点 (Images Generations)，例如 '/v1/images/generations' */
+    imagesGenerations?: string;
+    /** 图像编辑端点 (Images Edits)，例如 '/v1/images/edits' */
+    imagesEdits?: string;
+    /** 图像变体端点 (Images Variations)，例如 '/v1/images/variations' */
+    imagesVariations?: string;
+    /** 语音合成端点 (Audio Speech)，例如 '/v1/audio/speech' */
+    audioSpeech?: string;
+    /** 语音转文字端点 (Audio Transcriptions)，例如 '/v1/audio/transcriptions' */
+    audioTranscriptions?: string;
+    /** 语音翻译端点 (Audio Translations)，例如 '/v1/audio/translations' */
+    audioTranslations?: string;
+    /** 内容审查端点 (Moderations)，例如 '/v1/moderations' */
+    moderations?: string;
+    /** 视频生成端点 (Videos)，例如 '/v1/videos' */
+    videos?: string;
+    /** 视频查询端点 (Video Status)，例如 '/v1/videos/{video_id}' */
+    videoStatus?: string;
+  };
 }

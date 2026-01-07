@@ -19,7 +19,49 @@ const logger = createModuleLogger("openai-compatible");
  * OpenAI 适配器的 URL 处理逻辑
  */
 export const openAiUrlHandler = {
-  buildUrl: (baseUrl: string, endpoint?: string): string => {
+  buildUrl: (baseUrl: string, endpoint?: string, profile?: LlmProfile, pathParams?: Record<string, string>): string => {
+    // 如果提供了 profile 且有对应的自定义端点，则优先使用
+    if (profile?.customEndpoints) {
+      const custom = profile.customEndpoints as Record<string, string | undefined>;
+      // 根据 endpoint 映射到对应的自定义配置键
+      const mapping: Record<string, keyof NonNullable<LlmProfile['customEndpoints']>> = {
+        'chat/completions': 'chatCompletions',
+        'completions': 'completions',
+        'models': 'models',
+        'embeddings': 'embeddings',
+        'rerank': 'rerank',
+        'images/generations': 'imagesGenerations',
+        'images/edits': 'imagesEdits',
+        'images/variations': 'imagesVariations',
+        'audio/speech': 'audioSpeech',
+        'audio/transcriptions': 'audioTranscriptions',
+        'audio/translations': 'audioTranslations',
+        'moderations': 'moderations',
+        'videos': 'videos',
+        'videoStatus': 'videoStatus',
+      };
+      
+      const customKey = endpoint ? mapping[endpoint] : 'chatCompletions';
+      if (customKey && custom[customKey]) {
+        let customEndpoint = custom[customKey]!;
+
+        // 处理路径参数替换，例如 /v1/videos/{video_id}
+        if (pathParams) {
+          for (const [key, value] of Object.entries(pathParams)) {
+            customEndpoint = customEndpoint.replace(`{${key}}`, value);
+          }
+        }
+
+        // 如果自定义端点是完整的 URL，直接返回
+        if (customEndpoint.startsWith('http')) return customEndpoint;
+        // 否则将其拼接到 baseUrl
+        const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+        // 去掉自定义端点开头的 /
+        const cleanEndpoint = customEndpoint.startsWith('/') ? customEndpoint.substring(1) : customEndpoint;
+        return `${host}${cleanEndpoint}`;
+      }
+    }
+
     // 确保 baseUrl 以 / 结尾
     const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     // 智能添加 v1 版本路径（如果没加的话）
@@ -39,7 +81,7 @@ export const callOpenAiCompatibleApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "chat/completions");
+  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "chat/completions", profile);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -483,7 +525,7 @@ export const callOpenAiEmbeddingApi = async (
   profile: LlmProfile,
   options: EmbeddingRequestOptions
 ): Promise<EmbeddingResponse> => {
-  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "embeddings");
+  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "embeddings", profile);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

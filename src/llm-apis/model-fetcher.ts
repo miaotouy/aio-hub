@@ -30,7 +30,7 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
     endpoint: providerInfo.modelListEndpoint,
   });
 
-  const url = buildLlmApiUrl(profile.baseUrl, profile.type, providerInfo.modelListEndpoint);
+  const url = buildLlmApiUrl(profile.baseUrl, profile.type, providerInfo.modelListEndpoint, profile);
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 根据不同提供商构建请求头

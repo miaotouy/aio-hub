@@ -11,6 +11,7 @@ import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
 import CreateProfileDialog from "./components/CreateProfileDialog.vue";
 import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
+import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { providerTypes } from "@/config/llm-providers";
@@ -319,6 +320,9 @@ const openProviderIconSelector = () => {
 // 自定义请求头弹窗
 const showCustomHeadersDialog = ref(false);
 
+// 高级端点配置弹窗
+const showCustomEndpointsDialog = ref(false);
+
 // 多密钥管理弹窗
 const showMultiKeyManager = ref(false);
 const openMultiKeyManager = () => {
@@ -446,6 +450,22 @@ const resetBaseUrl = () => {
                     ({{ Object.keys(editForm.customHeaders).length }})
                   </span>
                 </el-button>
+                <el-divider direction="vertical" />
+                <el-button
+                  link
+                  type="primary"
+                  size="small"
+                  @click="showCustomEndpointsDialog = true"
+                >
+                  高级端点
+                  <span
+                    v-if="
+                      editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
+                    "
+                  >
+                    ({{ Object.keys(editForm.customEndpoints).length }})
+                  </span>
+                </el-button>
               </div>
             </div>
             <div v-else class="form-hint">
@@ -457,6 +477,15 @@ const resetBaseUrl = () => {
                   v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0"
                 >
                   ({{ Object.keys(editForm.customHeaders).length }})
+                </span>
+              </el-button>
+              <el-divider direction="vertical" />
+              <el-button link type="primary" size="small" @click="showCustomEndpointsDialog = true">
+                高级端点
+                <span
+                  v-if="editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0"
+                >
+                  ({{ Object.keys(editForm.customEndpoints).length }})
                 </span>
               </el-button>
             </div>
@@ -546,6 +575,12 @@ const resetBaseUrl = () => {
     <CustomHeadersEditor
       v-model:visible="showCustomHeadersDialog"
       v-model="editForm.customHeaders"
+    />
+
+    <!-- 高级端点配置弹窗 -->
+    <CustomEndpointsEditor
+      v-model:visible="showCustomEndpointsDialog"
+      v-model="editForm.customEndpoints"
     />
 
     <!-- 多密钥管理弹窗 -->

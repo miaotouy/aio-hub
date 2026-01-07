@@ -3,6 +3,7 @@
  */
 import type { LlmProfile, LlmModelInfo, ProviderType } from "../types";
 import { getProviderTypeInfo } from "../config/llm-providers";
+import { openAiUrlHandler } from "./adapters/openai-compatible";
 import { httpClient } from "@/utils/http-client";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -28,11 +29,16 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
   });
 
   // 构建 URL
-  let url = profile.baseUrl;
-  if (!url.endsWith("/")) url += "/";
-  url += providerInfo.modelListEndpoint.startsWith("/")
-    ? providerInfo.modelListEndpoint.slice(1)
-    : providerInfo.modelListEndpoint;
+  let url = "";
+  if (profile.type === "openai" || profile.type === "openai-responses") {
+    url = openAiUrlHandler.buildUrl(profile.baseUrl, providerInfo.modelListEndpoint, profile);
+  } else {
+    url = profile.baseUrl;
+    if (!url.endsWith("/")) url += "/";
+    url += providerInfo.modelListEndpoint.startsWith("/")
+      ? providerInfo.modelListEndpoint.slice(1)
+      : providerInfo.modelListEndpoint;
+  }
 
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
   const headers = buildRequestHeaders(profile.type, apiKey);

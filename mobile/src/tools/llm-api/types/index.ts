@@ -63,4 +63,23 @@ export interface LlmProfile {
   models: LlmModelInfo[];
   icon?: string;
   customHeaders?: Record<string, string>;
+  /**
+   * 自定义 API 端点（可选）
+   */
+  customEndpoints?: {
+    chatCompletions?: string;
+    completions?: string;
+    models?: string;
+    embeddings?: string;
+    rerank?: string;
+    imagesGenerations?: string;
+    imagesEdits?: string;
+    imagesVariations?: string;
+    audioSpeech?: string;
+    audioTranscriptions?: string;
+    audioTranslations?: string;
+    moderations?: string;
+    videos?: string;
+    videoStatus?: string;
+  };
 }

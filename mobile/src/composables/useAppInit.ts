@@ -1,15 +1,15 @@
 import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
-import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
+import { getRegisteredTools } from "@/router";
 import { createModuleLogger } from "@/utils/logger";
+import type { ToolRegistry } from "@/types/tool";
 
 const logger = createModuleLogger("AppInit");
 
 export function useAppInit() {
   const settingsStore = useSettingsStore();
   const themeStore = useThemeStore();
-  const llmProfilesStore = useLlmProfilesStore();
 
   const initialized = ref(false);
   const progress = ref(0);
@@ -30,13 +30,26 @@ export function useAppInit() {
       
       // 2. 初始化主题
       statusMessage.value = "正在应用主题...";
-      progress.value = 60;
+      progress.value = 40;
       themeStore.initTheme();
-      
-      // 3. 初始化 LLM 配置
-      statusMessage.value = "正在加载 LLM 服务...";
-      progress.value = 80;
-      await llmProfilesStore.init();
+
+      // 3. 初始化已注册工具
+      const tools = getRegisteredTools() as ToolRegistry[];
+      const toolsToInit = tools.filter((t) => typeof t.init === "function");
+
+      if (toolsToInit.length > 0) {
+        const stepSize = 40 / toolsToInit.length; // 剩余 40% 进度分配给工具
+        for (let i = 0; i < toolsToInit.length; i++) {
+          const tool = toolsToInit[i];
+          statusMessage.value = `正在初始化工具: ${tool.name}...`;
+          try {
+            await tool.init!();
+          } catch (e) {
+            logger.error(`工具 ${tool.id} 初始化失败`, e);
+          }
+          progress.value = Math.floor(40 + (i + 1) * stepSize);
+        }
+      }
 
       // 4. 初始化调试工具
       if (settingsStore.settings.debugMode) {

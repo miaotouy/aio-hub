@@ -2,24 +2,20 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { getRegisteredTools } from "../router";
-import * as LucideIcons from "lucide-vue-next";
+import ToolIcon from "@/components/ToolIcon.vue";
+import type { ToolRegistry } from "@/types/tool";
 
 const router = useRouter();
-const tools = ref<any[]>([]);
+const tools = ref<ToolRegistry[]>([]);
 
 onMounted(() => {
-  tools.value = getRegisteredTools();
+  tools.value = getRegisteredTools() as ToolRegistry[];
 });
 
-const handleToolClick = (tool: any) => {
+const handleToolClick = (tool: ToolRegistry) => {
   if (tool.route && tool.route.path) {
     router.push(tool.route.path);
   }
-};
-
-// 获取图标组件
-const getIcon = (iconName: string) => {
-  return (LucideIcons as any)[iconName] || LucideIcons.HelpCircle;
 };
 </script>
 
@@ -40,7 +36,7 @@ const getIcon = (iconName: string) => {
           @click="handleToolClick(tool)"
         >
           <div class="tool-icon">
-            <component :is="getIcon(tool.icon)" :size="32" />
+            <ToolIcon :icon="tool.icon" :size="32" />
           </div>
           <div class="tool-name">{{ tool.name }}</div>
         </div>

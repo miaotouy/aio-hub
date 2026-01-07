@@ -1,8 +1,5 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from "vue-router";
-
-// 扫描所有 tools 目录下的 registry.ts
-const toolModules = import.meta.glob("../tools/*/registry.ts", { eager: true });
-const toolRoutes = Object.values(toolModules).map((mod: any) => mod.default.route);
+import { toolManager } from "@/utils/toolManager";
 
 const routes: RouteRecordRaw[] = [
   {
@@ -17,7 +14,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import("../views/Settings.vue"),
     meta: { title: "设置" },
   },
-  ...toolRoutes,
+  ...toolManager.getToolRoutes(),
 ];
 
 const router = createRouter({
@@ -29,7 +26,8 @@ export default router;
 
 /**
  * 获取所有已注册的工具元数据
+ * @deprecated 请直接使用 toolManager.getRegisteredTools()
  */
 export function getRegisteredTools() {
-  return Object.values(toolModules).map((mod: any) => mod.default);
+  return toolManager.getRegisteredTools();
 }

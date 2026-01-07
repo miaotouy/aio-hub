@@ -14,8 +14,10 @@ const lobeIcons = import.meta.glob("../../node_modules/@lobehub/icons-static-svg
 });
 
 // 获取本地自定义图标名
+// 使用 ?url 显式告知 Vite 我们只需要这些资源的 URL 路径，避免 "cannot be imported" 警告
 const localIcons = import.meta.glob("../../public/model-icons/*.{svg,png,jpg,webp}", {
   eager: true,
+  query: "?url",
 });
 
 export const LOBE_ICONS_MAP = Object.entries(lobeIcons).reduce((acc, [path, content]) => {

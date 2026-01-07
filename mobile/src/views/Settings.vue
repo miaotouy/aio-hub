@@ -67,7 +67,7 @@ const showVersionInfo = () => {
 </script>
 
 <template>
-  <div class="settings-container safe-area-top">
+  <div class="app-view app-view--safe-top settings-container">
     <div class="header">
       <h1 class="title">设置</h1>
     </div>
@@ -209,8 +209,6 @@ const showVersionInfo = () => {
 
 <style scoped>
 .settings-container {
-  min-height: 100%;
-  background-color: var(--bg-color);
   padding-bottom: 32px;
 }
 

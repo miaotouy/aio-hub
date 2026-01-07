@@ -47,8 +47,8 @@
 
   /* 导航栏与安全区域变量 */
   --app-bar-height: 54px;
-  /* 状态栏避让高度，至少保留 12px 的呼吸感 */
-  --app-safe-area-top: max(env(safe-area-inset-top), 12px);
+  /* 状态栏避让高度，在移动端有安全区域时使用安全区域，无安全区域时保留 16px 基础边距 */
+  --app-safe-area-top: max(env(safe-area-inset-top), 16px);
   /* 顶部总占用高度 */
   --app-top-offset: calc(var(--app-bar-height) + var(--app-safe-area-top));
 }
@@ -131,4 +131,18 @@ body {
 /* 内容区域避让固定导航栏 */
 .has-fixed-app-bar {
   padding-top: var(--app-top-offset);
+}
+
+/* 视图容器基础类 */
+.app-view {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color);
+  box-sizing: border-box;
+}
+
+/* 自动避让状态栏的视图（不带导航栏时使用） */
+.app-view--safe-top {
+  padding-top: var(--app-safe-area-top);
 }

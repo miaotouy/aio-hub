@@ -40,12 +40,6 @@ onMounted(() => {
 /* 全局样式移入 App.vue 或保持在 theme.css */
 :root {
   --var-bottom-navigation-height: 56px;
-  /* 状态栏保底高度，如果 env 无效则使用 24px */
-  --status-bar-height: env(safe-area-inset-top, 24px);
-}
-
-.safe-area-top {
-  padding-top: env(safe-area-inset-top);
 }
 
 .app-init-overlay {

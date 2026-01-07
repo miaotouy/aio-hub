@@ -58,8 +58,8 @@ const handleFetchModels = async () => {
 </script>
 
 <template>
-  <div class="llm-settings h-screen flex flex-col">
-    <var-app-bar title="LLM 渠道管理">
+  <div class="app-view llm-settings">
+    <var-app-bar title="LLM 渠道管理" fixed>
       <template #right>
         <var-button round text @click="handleAddProfile">
           <Plus :size="24" />
@@ -67,7 +67,7 @@ const handleFetchModels = async () => {
       </template>
     </var-app-bar>
 
-    <div class="flex-1 overflow-y-auto p-4">
+    <div class="flex-1 overflow-y-auto p-4 has-fixed-app-bar">
       <div
         v-for="profile in store.profiles"
         :key="profile.id"

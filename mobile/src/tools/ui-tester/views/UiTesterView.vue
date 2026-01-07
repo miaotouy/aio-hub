@@ -36,6 +36,37 @@ const storeTestResult = ref("");
 const storeValueInput = ref("Hello Store!");
 const storeReadValue = ref("");
 
+// --- 避让数值测试 ---
+const safeAreaInsets = ref({
+  top: "0px",
+  bottom: "0px",
+  left: "0px",
+  right: "0px",
+});
+
+const updateSafeAreaInsets = () => {
+  // 创建一个隐藏的探测元素
+  const probe = document.createElement("div");
+  probe.style.position = "fixed";
+  probe.style.top = "env(safe-area-inset-top)";
+  probe.style.bottom = "env(safe-area-inset-bottom)";
+  probe.style.left = "env(safe-area-inset-left)";
+  probe.style.right = "env(safe-area-inset-right)";
+  probe.style.visibility = "hidden";
+  probe.style.pointerEvents = "none";
+  document.body.appendChild(probe);
+
+  const style = window.getComputedStyle(probe);
+  safeAreaInsets.value = {
+    top: style.top,
+    bottom: style.bottom,
+    left: style.left,
+    right: style.right,
+  };
+
+  document.body.removeChild(probe);
+};
+
 const checkTauri = async () => {
   // @ts-ignore
   isTauri.value = !!window.__TAURI_INTERNALS__ || !!window.__TAURI__;
@@ -130,11 +161,13 @@ const goBack = () => {
 
 onMounted(() => {
   checkTauri();
+  updateSafeAreaInsets();
+  window.addEventListener("resize", updateSafeAreaInsets);
 });
 </script>
 
 <template>
-  <div class="ui-tester-view">
+  <div class="app-view ui-tester-view">
     <var-app-bar
       title="组件与 API 测试"
       title-position="center"
@@ -150,6 +183,33 @@ onMounted(() => {
     </var-app-bar>
 
     <div class="content has-fixed-app-bar safe-area-bottom">
+      <!-- 避让数值测试 -->
+      <var-card title="安全区域避让测试 (Safe Area)" elevation="2">
+        <template #description>
+          <div class="card-content">
+            <var-cell title="Top (Status Bar)" :description="safeAreaInsets.top" border />
+            <var-cell title="Bottom (Home Indicator)" :description="safeAreaInsets.bottom" border />
+            <var-cell title="Left" :description="safeAreaInsets.left" border />
+            <var-cell title="Right" :description="safeAreaInsets.right" border />
+            
+            <div class="mt-4 p-3 bg-secondary rounded text-xs">
+              <div class="text-hint mb-1">CSS 变量值:</div>
+              <div class="flex justify-between mb-1">
+                <span>--app-safe-area-top:</span>
+                <span class="text-primary">var(--app-safe-area-top)</span>
+              </div>
+              <div class="text-hint italic mt-2">
+                提示：在真机或模拟器上，Top 值通常 > 0。
+              </div>
+            </div>
+            
+            <var-button type="primary" block size="small" class="mt-4" @click="updateSafeAreaInsets">
+              手动刷新数值
+            </var-button>
+          </div>
+        </template>
+      </var-card>
+
       <!-- 基础设施测试 -->
       <var-card title="基础设施测试 (Logger/Error)" class="mt-4" elevation="2">
         <template #description>
@@ -272,11 +332,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.ui-tester-view {
-  min-height: 100vh;
-  background-color: var(--bg-color);
-}
-
 .content {
   padding: 16px;
 }

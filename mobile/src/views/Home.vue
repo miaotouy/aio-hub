@@ -20,7 +20,7 @@ const handleToolClick = (tool: ToolRegistry) => {
 </script>
 
 <template>
-  <div class="home-container safe-area-top">
+  <div class="app-view app-view--safe-top home-container">
     <div class="content safe-area-bottom">
       <div class="header">
         <h2 class="greeting">欢迎使用 AIO Hub</h2>
@@ -47,8 +47,6 @@ const handleToolClick = (tool: ToolRegistry) => {
 
 <style scoped>
 .home-container {
-  display: flex;
-  flex-direction: column;
   padding: 16px;
 }
 

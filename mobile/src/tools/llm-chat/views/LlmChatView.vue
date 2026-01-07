@@ -6,7 +6,7 @@ const title = ref('AI Chat Placeholder')
 </script>
 
 <template>
-  <div class="llm-chat-placeholder">
+  <div class="app-view app-view--safe-top llm-chat-placeholder">
     <div class="content">
       <MessageSquare :size="48" class="icon" />
       <h2>{{ title }}</h2>
@@ -18,13 +18,11 @@ const title = ref('AI Chat Placeholder')
 
 <style scoped>
 .llm-chat-placeholder {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  width: 100%;
-  background-color: var(--card-bg);
-  color: var(--el-text-color-primary);
+  background-color: var(--bg-color);
 }
 
 .content {

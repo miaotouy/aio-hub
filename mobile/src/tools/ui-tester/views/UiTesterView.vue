@@ -4,34 +4,28 @@ import { useRouter } from "vue-router";
 import { Snackbar, Dialog } from "@varlet/ui";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useSettingsStore } from "@/stores/settings";
+import { useThemeStore } from "@/stores/theme";
 
 const router = useRouter();
 const logger = createModuleLogger("UiTester");
 const errorHandler = createModuleErrorHandler("UiTester");
+const settingsStore = useSettingsStore();
+const themeStore = useThemeStore();
 
-// --- LocalStorage 测试 ---
-const storageKey = ref("mobile_test_key");
-const storageValue = ref("");
-const savedValue = ref("");
+// --- Settings Store 测试 ---
+const debugMode = ref(settingsStore.debugMode);
 
-const saveToStorage = () => {
-  localStorage.setItem(storageKey.value, storageValue.value);
-  savedValue.value = storageValue.value;
-  Snackbar.success("已保存到 LocalStorage");
-  logger.info("LocalStorage Saved", { key: storageKey.value, value: storageValue.value });
+const toggleDebugMode = async () => {
+  await settingsStore.updateSettings({ debugMode: !settingsStore.debugMode });
+  debugMode.value = settingsStore.debugMode;
+  Snackbar.success(`调试模式已${settingsStore.debugMode ? "开启" : "关闭"}`);
 };
 
-const loadFromStorage = () => {
-  const val = localStorage.getItem(storageKey.value);
-  savedValue.value = val || "(无数据)";
-  Snackbar.info("已读取数据");
-  logger.info("LocalStorage Loaded", { key: storageKey.value, value: val });
-};
-
-const clearStorage = () => {
-  localStorage.removeItem(storageKey.value);
-  savedValue.value = "(已清除)";
-  Snackbar.warning("已清除数据");
+const testUpdateLanguage = async () => {
+  const newLang = settingsStore.settings.language === "zh-CN" ? "en-US" : "zh-CN";
+  await settingsStore.updateSettings({ language: newLang });
+  Snackbar.info(`语言已切换为: ${newLang}`);
 };
 
 // --- Tauri API & FS 测试 ---
@@ -136,8 +130,6 @@ const goBack = () => {
 
 onMounted(() => {
   checkTauri();
-  const initial = localStorage.getItem(storageKey.value);
-  if (initial) savedValue.value = initial;
 });
 </script>
 
@@ -181,29 +173,33 @@ onMounted(() => {
         </template>
       </var-card>
 
-      <!-- LocalStorage 测试 -->
-      <var-card title="LocalStorage 稳定性测试" class="mt-4" elevation="2">
+      <!-- Settings Store 测试 -->
+      <var-card title="应用配置系统测试 (SettingsStore)" class="mt-4" elevation="2">
         <template #description>
           <div class="card-content">
-            <var-input v-model="storageKey" placeholder="Key" label="存储键" variant="standard" />
-            <var-input
-              v-model="storageValue"
-              placeholder="Value"
-              label="存储值"
-              class="mt-2"
-              variant="standard"
-            />
-
-            <div class="mt-4 p-3 bg-secondary rounded text-sm border-l-4">
-              <div class="text-hint mb-1">当前读取值:</div>
-              <div class="text-primary font-bold break-all">{{ savedValue }}</div>
-            </div>
+            <var-cell title="调试模式">
+              <template #extra>
+                <var-switch v-model="debugMode" @change="toggleDebugMode" />
+              </template>
+            </var-cell>
+            <var-cell title="当前语言" :description="settingsStore.settings.language" />
+            <var-cell title="主题模式" :description="settingsStore.settings.appearance.theme" />
 
             <var-space :size="[12, 12]" class="mt-4">
-              <var-button type="primary" size="small" @click="saveToStorage">保存</var-button>
-              <var-button type="info" size="small" @click="loadFromStorage">读取</var-button>
-              <var-button type="warning" size="small" @click="clearStorage">清除</var-button>
+              <var-button type="primary" size="small" @click="testUpdateLanguage">
+                切换语言
+              </var-button>
+              <var-button type="info" size="small" @click="themeStore.toggleTheme">
+                切换主题
+              </var-button>
             </var-space>
+
+            <div class="mt-4 p-3 bg-secondary rounded text-xs border-l-4">
+              <div class="text-hint mb-1">Store 实时状态 (JSON):</div>
+              <pre class="text-primary font-mono overflow-auto max-h-32">{{
+                JSON.stringify(settingsStore.settings, null, 2)
+              }}</pre>
+            </div>
           </div>
         </template>
       </var-card>

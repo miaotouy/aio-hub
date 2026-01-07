@@ -6,13 +6,17 @@ import router from "./router";
 // Varlet 样式
 import "@varlet/ui/es/style";
 
-// 自定义主题灵魂
+// 应用自身主题
 import "./assets/styles/theme.css";
 
-const app = createApp(App);
-const pinia = createPinia();
+function bootstrap() {
+  const app = createApp(App);
+  const pinia = createPinia();
 
-app.use(pinia);
-app.use(router);
+  app.use(pinia);
+  app.use(router);
 
-app.mount("#app");
+  app.mount("#app");
+}
+
+bootstrap();

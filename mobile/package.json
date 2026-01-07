@@ -21,6 +21,7 @@
     "@varlet/ui": "^3.13.0",
     "@varlet/use": "^3.13.0",
     "@vueuse/core": "^14.1.0",
+    "eruda": "^3.4.3",
     "lodash-es": "^4.17.22",
     "lucide-vue-next": "^0.562.0",
     "pinia": "^3.0.4",

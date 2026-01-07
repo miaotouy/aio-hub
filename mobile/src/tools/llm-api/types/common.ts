@@ -115,6 +115,28 @@ export interface LlmMessage {
 }
 
 /**
+ * 模型信息
+ */
+export interface LlmModelInfo {
+  /** 模型 ID */
+  id: string;
+  /** 提供商标识 */
+  provider: string;
+  /** 模型显示名称 */
+  name?: string;
+  /** 图标路径 */
+  icon?: string;
+  /** 分组 */
+  group?: string;
+  /** 模型能力 */
+  capabilities?: ModelCapabilities;
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 任意其他元数据 */
+  [key: string]: unknown;
+}
+
+/**
  * 模型能力定义
  */
 export interface ModelCapabilities {

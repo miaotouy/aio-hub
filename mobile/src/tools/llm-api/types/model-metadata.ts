@@ -99,6 +99,21 @@ export interface ModelMetadataRule {
 
   /** 备注说明 */
   description?: string;
+
+  /** 创建时间 */
+  createdAt?: string;
+}
+
+/**
+ * 模型元数据存储格式
+ */
+export interface ModelMetadataStore {
+  /** 版本号 */
+  version: string;
+  /** 规则列表 */
+  rules: ModelMetadataRule[];
+  /** 更新时间 */
+  updatedAt: string;
 }
 
 /**

@@ -288,4 +288,47 @@
 
 通用组件中的已经预先适配过了
 
-通过遵循这些规范，可以确保所有 UI 元素都能响应设置中的“界面质感”调整，提供统一、高度可定制的用户体验。
+通过遵循 these 规范，可以确保所有 UI 元素都能响应设置中的“界面质感”调整，提供统一、高度可定制的用户体验。
+
+---
+
+# 移动端规范 (Mobile Protocols)
+
+移动端开发遵循**“独立重构，全量对齐，架构自治”**的原则。移动端位于 `mobile/` 目录，作为一个与桌面端对等的完整系统。
+
+## 1. 移动端技术栈
+
+- **核心框架**: Vue 3 + Vite
+- **UI 框架**: `@varlet/ui` (Material Design 3 风格)
+- **状态管理**: Pinia
+- **路由管理**: Vue Router (支持工具路由自动扫描)
+- **调试工具**: `eruda`
+- **核心工具**: `@vueuse/core`, `lodash-es`, `lucide-vue-next`
+- **跨平台框架**: Tauri ^2.0 (Android / iOS)
+
+## 2. 核心开发规范
+
+### 2.1. 架构原则：逻辑函数式化 (Functional Core)
+
+移动端拒绝过于扁平、零散的 Composables，采取以下准则：
+
+- **纯函数逻辑 (Pure Functional Logic)**: 复杂业务逻辑应抽离为纯函数，放置在工具的 `core/` 或 `logic/` 目录下。逻辑函数应保持“无状态”，不依赖 Vue 的 `ref` 或生命周期。
+- **状态与逻辑分离**: Store 仅作为数据仓库；Logic 模块负责计算与请求；Composables 仅作为 UI 与 Logic/Store 之间的“粘合剂”。
+- **逻辑物理聚合**: 工具内部逻辑必须通过子目录隔离（如 `composables/`, `components/`, `types/`），严禁在工具根目录铺开大量文件。
+
+### 2.2. 工具自治特区 (Tool Autonomy)
+
+移动端工具位于 `mobile/src/tools/` 下，每个工具都是一个自治单元。
+
+- **注册机制**: 每个工具必须包含 `registry.ts`，定义工具的元数据（ID、名称、图标、路由）。
+- **自动路由**: `mobile/src/router/index.ts` 会自动扫描所有工具的 `registry.ts` 并注册路由。
+- **基础设施平替**: 移动端使用 `mobile/src/utils/` 下的平替工具（如 `errorHandler`, `logger`），它们保持与桌面端一致的接口，但内部对接 Varlet UI。
+
+## 3. 移动端专用脚本
+
+为了方便开发，根目录 `package.json` 中内置了移动端命令的快捷入口：
+
+- **`mtad`** – `tauri android dev` (Android 开发模式)。
+- **`mtab`** – `tauri android build` (Android 构建)。
+- **`mtid`** – `tauri ios dev` (iOS 开发模式)。
+- **`mtib`** – `tauri ios build` (iOS 构建)。

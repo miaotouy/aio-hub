@@ -1,5 +1,5 @@
 {
-  "name": "aio-hub",
+  "name": "aiohub-mobile",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,7 +11,9 @@
     "mtab": "tauri android build",
     "mtid": "tauri ios dev",
     "mtib": "tauri ios build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "check": "vue-tsc --noEmit",
+    "format": "prettier --write . --cache"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

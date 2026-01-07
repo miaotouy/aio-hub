@@ -30,18 +30,27 @@ jobs:
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: |
+            ./src-tauri -> target
+            ./mobile/src-tauri -> target
 
       - name: 安装前端依赖
         run: bun install
 
-      - name: 类型检查
-        run: bun run build
+      - name: 类型检查 (桌面端)
+        run: bun run check:frontend
 
-      - name: Cargo 检查
+      - name: 类型检查 (移动端)
+        run: bun run check:mobile
+
+      - name: Cargo 检查 (桌面端)
         working-directory: src-tauri
         run: cargo check
 
-      - name: Cargo 测试
+      - name: Cargo 检查 (移动端)
+        working-directory: mobile/src-tauri
+        run: cargo check
+
+      - name: Cargo 测试 (桌面端)
         working-directory: src-tauri
         run: cargo test

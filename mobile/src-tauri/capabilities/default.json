@@ -11,15 +11,13 @@
     "opener:allow-open-url",
     "fs:default",
     "fs:allow-exists",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
     "fs:allow-mkdir",
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-meta-recursive",
     "http:default",
     {
-      "identifier": "http:allow-request",
+      "identifier": "http:allow-fetch",
       "allow": [
         {
           "url": "*://*"

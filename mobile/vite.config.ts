@@ -11,7 +11,7 @@ export default defineConfig(async () => ({
   plugins: [
     vue(),
     Components({
-      resolvers: [VarletImportResolver()],
+      resolvers: [VarletImportResolver({ importStyle: false })],
     }),
   ],
   resolve: {

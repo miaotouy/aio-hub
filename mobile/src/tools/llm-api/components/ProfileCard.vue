@@ -5,17 +5,25 @@ import type { LlmProfile } from "../types";
 
 defineProps<{
   profile: LlmProfile;
-  isSelected: boolean;
+  isSelected: boolean; // 是否是当前选中的首选渠道
+  isManagementMode?: boolean; // 是否处于批量管理模式
+  isMultiSelected?: boolean; // 在管理模式下是否被勾选
 }>();
 
 defineEmits<{
   (e: "click"): void;
   (e: "select"): void;
+  (e: "toggle-enabled", enabled: boolean): void;
+  (e: "toggle-multi-select"): void;
 }>();
 </script>
 
 <template>
-  <div class="profile-card" :class="{ 'is-selected': isSelected }" @click="$emit('click')">
+  <div
+    class="profile-card"
+    :class="{ 'is-disabled': !profile.enabled }"
+    @click="$emit('click')"
+  >
     <div class="card-content">
       <div class="icon-wrapper">
         <DynamicIcon :src="profile.icon || ''" :alt="profile.name" />
@@ -29,8 +37,17 @@ defineEmits<{
         <div class="profile-url">{{ profile.baseUrl }}</div>
       </div>
 
-      <div class="select-wrapper" @click.stop>
-        <var-checkbox :model-value="isSelected" @change="$emit('select')" />
+      <div class="action-wrapper" @click.stop>
+        <var-checkbox
+          v-if="isManagementMode"
+          :model-value="isMultiSelected"
+          @change="$emit('toggle-multi-select')"
+        />
+        <var-switch
+          v-else
+          :model-value="profile.enabled"
+          @change="(val) => $emit('toggle-enabled', val)"
+        />
       </div>
     </div>
 
@@ -63,9 +80,9 @@ defineEmits<{
   opacity: 0.9;
 }
 
-.profile-card.is-selected {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px var(--color-primary);
+
+.profile-card.is-disabled {
+  opacity: 0.7;
 }
 
 .card-content {

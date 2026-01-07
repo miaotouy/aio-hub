@@ -2,11 +2,20 @@
 import { ref, onMounted, computed } from "vue";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { fetchModelsFromApi } from "../core/model-fetcher";
-import { providerTypes } from "../config/llm-providers";
+import { providerTypes, llmPresets } from "../config/llm-providers";
 import {
-  Plus, Settings2, RefreshCw, Globe, Key, Box,
-  ChevronRight, Trash2, Layers, ExternalLink,
-  Sparkles
+  Plus,
+  Settings2,
+  RefreshCw,
+  Globe,
+  Key,
+  Box,
+  ChevronRight,
+  Trash2,
+  Layers,
+  ExternalLink,
+  Sparkles,
+  Zap,
 } from "lucide-vue-next";
 import { Snackbar, Dialog } from "@varlet/ui";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
@@ -21,7 +30,11 @@ import CustomHeadersEditor from "../components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "../components/CustomEndpointsEditor.vue";
 
 const store = useLlmProfilesStore();
+const isManagementMode = ref(false);
+const multiSelectedIds = ref<Set<string>>(new Set());
+
 const showEditPopup = ref(false);
+const showPresetsPopup = ref(false);
 const editingProfile = ref<LlmProfile | null>(null);
 const isFetchingModels = ref(false);
 
@@ -33,8 +46,29 @@ const showIconSelectorPopup = ref(false);
 onMounted(() => {
   store.init();
 });
-
 const handleAddProfile = () => {
+  showPresetsPopup.value = true;
+};
+
+const applyPreset = (preset: any) => {
+  const newProfile: LlmProfile = {
+    id: crypto.randomUUID(),
+    name: preset.name,
+    type: preset.type,
+    baseUrl: preset.defaultBaseUrl,
+    apiKeys: [""],
+    enabled: true,
+    models: preset.defaultModels ? JSON.parse(JSON.stringify(preset.defaultModels)) : [],
+    icon: preset.logoUrl,
+    customHeaders: {},
+    customEndpoints: {},
+  };
+  editingProfile.value = newProfile;
+  showPresetsPopup.value = false;
+  showEditPopup.value = true;
+};
+
+const createCustomProfile = () => {
   const newProfile: LlmProfile = {
     id: crypto.randomUUID(),
     name: "新渠道",
@@ -46,7 +80,8 @@ const handleAddProfile = () => {
     customHeaders: {},
     customEndpoints: {},
   };
-  editingProfile.value = JSON.parse(JSON.stringify(newProfile));
+  editingProfile.value = newProfile;
+  showPresetsPopup.value = false;
   showEditPopup.value = true;
 };
 
@@ -61,7 +96,14 @@ const saveEdit = () => {
       Snackbar.warning("请输入渠道名称");
       return;
     }
-    store.updateProfile(editingProfile.value.id, editingProfile.value);
+
+    const isNew = !store.profiles.some((p) => p.id === editingProfile.value?.id);
+    if (isNew) {
+      store.addProfile(editingProfile.value);
+    } else {
+      store.updateProfile(editingProfile.value.id, editingProfile.value);
+    }
+
     showEditPopup.value = false;
     Snackbar.success("配置已保存");
   }
@@ -75,7 +117,7 @@ const handleDelete = async () => {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
   });
-  
+
   if (confirm === "confirm") {
     store.deleteProfile(editingProfile.value.id);
     showEditPopup.value = false;
@@ -111,9 +153,12 @@ const apiKeyString = computed({
   get: () => editingProfile.value?.apiKeys.join(", ") || "",
   set: (val: string) => {
     if (editingProfile.value) {
-      editingProfile.value.apiKeys = val.split(",").map(k => k.trim()).filter(Boolean);
+      editingProfile.value.apiKeys = val
+        .split(",")
+        .map((k) => k.trim())
+        .filter(Boolean);
     }
-  }
+  },
 });
 
 const handleIconSelect = (icon: any) => {
@@ -121,6 +166,19 @@ const handleIconSelect = (icon: any) => {
     editingProfile.value.icon = icon.path;
     showIconSelectorPopup.value = false;
     Snackbar.success("已选择图标");
+  }
+};
+
+const handleToggleEnabled = (profileId: string, enabled: boolean) => {
+  store.updateProfile(profileId, { enabled });
+  Snackbar.success(enabled ? "已启用" : "已禁用");
+};
+
+const handleToggleMultiSelect = (id: string) => {
+  if (multiSelectedIds.value.has(id)) {
+    multiSelectedIds.value.delete(id);
+  } else {
+    multiSelectedIds.value.add(id);
   }
 };
 </script>
@@ -146,19 +204,18 @@ const handleIconSelect = (icon: any) => {
           v-for="profile in store.profiles"
           :key="profile.id"
           :profile="profile"
-          :is-selected="store.selectedProfileId === profile.id"
-          @click="openEdit(profile)"
-          @select="store.selectProfile(profile.id)"
+          :is-selected="false"
+          :is-management-mode="isManagementMode"
+          :is-multi-selected="multiSelectedIds.has(profile.id)"
+          @click="isManagementMode ? handleToggleMultiSelect(profile.id) : openEdit(profile)"
+          @toggle-enabled="(val) => handleToggleEnabled(profile.id, val)"
+          @toggle-multi-select="handleToggleMultiSelect(profile.id)"
         />
       </div>
     </div>
 
     <!-- 详情/编辑 弹窗 (全屏) -->
-    <var-popup
-      v-model:show="showEditPopup"
-      position="right"
-      style="width: 100%; height: 100%"
-    >
+    <var-popup v-model:show="showEditPopup" position="right" style="width: 100%; height: 100%">
       <div class="editor-popup">
         <var-app-bar title="编辑渠道" safe-area>
           <template #left>
@@ -202,7 +259,12 @@ const handleIconSelect = (icon: any) => {
               variant="outlined"
               class="form-item"
             >
-              <var-option v-for="t in providerTypes" :key="t.type" :label="t.name" :value="t.type" />
+              <var-option
+                v-for="t in providerTypes"
+                :key="t.type"
+                :label="t.name"
+                :value="t.type"
+              />
             </var-select>
             <var-input
               v-model="editingProfile.icon"
@@ -231,7 +293,7 @@ const handleIconSelect = (icon: any) => {
             >
               <template #prepend-icon><Globe :size="18" class="field-icon" /></template>
             </var-input>
-            
+
             <div v-if="apiEndpointPreview" class="url-preview">
               <div class="preview-text">预览: {{ apiEndpointPreview }}</div>
               <div class="preview-hint">{{ endpointHint }}</div>
@@ -261,9 +323,7 @@ const handleIconSelect = (icon: any) => {
               <var-cell ripple class="custom-cell" @click="showEndpointsPopup = true">
                 <template #icon><ExternalLink :size="18" class="field-icon" /></template>
                 高级端点配置
-                <template #description>
-                  针对不同功能的路径微调
-                </template>
+                <template #description> 针对不同功能的路径微调 </template>
                 <template #extra><ChevronRight :size="18" /></template>
               </var-cell>
             </div>
@@ -323,6 +383,49 @@ const handleIconSelect = (icon: any) => {
       v-model:show="showEndpointsPopup"
       v-model:endpoints="editingProfile.customEndpoints"
     />
+
+    <!-- 预设渠道选择弹窗 -->
+    <var-popup
+      v-model:show="showPresetsPopup"
+      position="bottom"
+      style="height: 85%; border-radius: 24px 24px 0 0"
+    >
+      <div class="presets-popup-container">
+        <div class="popup-header">
+          <div class="popup-title-group">
+            <Zap :size="20" class="title-icon" />
+            <span class="popup-title">选择预设渠道</span>
+          </div>
+          <var-button round text @click="showPresetsPopup = false">
+            <span class="close-icon">×</span>
+          </var-button>
+        </div>
+
+        <div class="popup-body">
+          <div class="presets-grid">
+            <div
+              v-for="preset in llmPresets"
+              :key="preset.name"
+              class="preset-item"
+              v-ripple
+              @click="applyPreset(preset)"
+            >
+              <div class="preset-icon-wrapper">
+                <DynamicIcon :src="preset.logoUrl || ''" :alt="preset.name" />
+              </div>
+              <div class="preset-name">{{ preset.name }}</div>
+              <div class="preset-desc">{{ preset.description }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="popup-footer">
+          <var-button block type="primary" outline @click="createCustomProfile">
+            <Plus :size="18" /> 自定义添加
+          </var-button>
+        </div>
+      </div>
+    </var-popup>
 
     <!-- 图标选择弹窗 -->
     <var-popup
@@ -578,6 +681,88 @@ const handleIconSelect = (icon: any) => {
 
 .popup-body {
   flex: 1;
+  overflow-y: auto;
+}
+
+/* 预设列表样式 */
+.presets-popup-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-surface);
+}
+
+.popup-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title-icon {
+  color: var(--color-primary);
+}
+
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 20px;
+}
+
+.preset-item {
+  background: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.preset-item:active {
+  transform: scale(0.96);
+  background: var(--color-surface-container-high);
+}
+
+.preset-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preset-icon-wrapper :deep(img),
+.preset-icon-wrapper :deep(svg) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preset-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--color-on-surface);
+}
+
+.preset-desc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
+  line-height: 1.3;
+}
+
+.popup-footer {
+  padding: 20px;
+  padding-bottom: calc(20px + var(--safe-area-bottom));
+  border-top: 1px solid var(--color-outline-variant);
 }
 </style>

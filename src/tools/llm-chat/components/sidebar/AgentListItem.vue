@@ -132,7 +132,7 @@ const handleOpenDirectory = async () => {
             </el-dropdown-item>
             <el-dropdown-item @click="upgradeDialogVisible = true">
               <el-icon><Refresh /></el-icon>
-              升级智能体...
+              覆盖配置升级...
             </el-dropdown-item>
             <el-dropdown-item @click="$emit('copy-config', agent, 'json')" divided>
               <el-icon><DocumentCopy /></el-icon>

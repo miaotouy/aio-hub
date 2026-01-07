@@ -13,8 +13,8 @@ import jsYaml from "js-yaml";
 import { invoke } from "@tauri-apps/api/core";
 import { isEqual } from "lodash-es";
 
-const logger = createModuleLogger("llm-chat/AgentUpgradeDialog");
-const errorHandler = createModuleErrorHandler("llm-chat/AgentUpgradeDialog");
+const logger = createModuleLogger("llm-chat/AgentOverwriteDialog");
+const errorHandler = createModuleErrorHandler("llm-chat/AgentOverwriteDialog");
 
 const props = defineProps<{
   visible: boolean;
@@ -243,7 +243,7 @@ const handleConfirm = async () => {
     // 处理资产更新 (如果有新资产)
     const assetEntries = Object.entries(parsedAssets.value);
     if (assetEntries.length > 0) {
-      logger.info("开始升级智能体资产", { count: assetEntries.length });
+      logger.info("开始更新智能体资产", { count: assetEntries.length });
       for (const [path, buffer] of assetEntries) {
         // 提取路径结构
         const rawRelativePath = path.replace(/^assets[/\\]/, "");
@@ -277,7 +277,7 @@ const handleConfirm = async () => {
       }
     }
 
-    customMessage.success("智能体升级成功");
+    customMessage.success("智能体配置覆盖成功");
     emit("upgraded");
     handleClose();
   } catch (error) {
@@ -315,12 +315,12 @@ const previewInfo = computed(() => {
   <BaseDialog
     :modelValue="visible"
     @update:modelValue="emit('update:visible', $event)"
-    title="升级智能体"
+    title="覆盖智能体配置"
     width="600px"
   >
     <div class="upgrade-container">
       <div class="agent-target-info">
-        <span class="label">正在升级：</span>
+        <span class="label">正在覆盖：</span>
         <span class="name">{{ agent.displayName || agent.name }}</span>
       </div>
 
@@ -391,7 +391,7 @@ const previewInfo = computed(() => {
       </div>
 
       <div class="strategy-section">
-        <div class="section-title">升级策略</div>
+        <div class="section-title">覆盖策略</div>
         <el-radio-group v-model="upgradeStrategy">
           <el-radio-button label="merge" value="merge">
             <div class="radio-content">
@@ -419,7 +419,7 @@ const previewInfo = computed(() => {
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
       <el-button type="primary" :disabled="!parsedConfig" @click="handleConfirm">
-        确认升级
+        确认覆盖
       </el-button>
     </template>
   </BaseDialog>

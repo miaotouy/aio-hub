@@ -1,6 +1,11 @@
 import { ref } from "vue";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { callOpenAiCompatibleApi } from "../core/adapters/openai-compatible";
+import { callOpenAiResponsesApi } from "../core/adapters/openai-responses";
+import { callClaudeApi } from "../core/adapters/claude";
+import { callGeminiApi } from "../core/adapters/gemini";
+import { callCohereApi } from "../core/adapters/cohere";
+import { callVertexAiApi } from "../core/adapters/vertexai";
 import type { LlmRequestOptions } from "../types/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -20,7 +25,7 @@ export function useLlmRequest() {
   async function sendRequest(options: LlmRequestOptions, profileId?: string) {
     if (!store.isLoaded) await store.init();
 
-    const profile = profileId 
+    const profile = profileId
       ? store.profiles.find(p => p.id === profileId)
       : store.selectedProfile;
 
@@ -34,12 +39,25 @@ export function useLlmRequest() {
     logger.info("开始发送 LLM 请求", { modelId: options.modelId, profile: profile.name });
 
     try {
-      // 目前主要支持 OpenAI 兼容格式，后续根据 profile.type 分发到不同适配器
       let result;
       switch (profile.type) {
         case "openai":
-        case "openai-responses":
           result = await callOpenAiCompatibleApi(profile, options);
+          break;
+        case "openai-responses":
+          result = await callOpenAiResponsesApi(profile, options);
+          break;
+        case "claude":
+          result = await callClaudeApi(profile, options);
+          break;
+        case "gemini":
+          result = await callGeminiApi(profile, options);
+          break;
+        case "cohere":
+          result = await callCohereApi(profile, options);
+          break;
+        case "vertexai":
+          result = await callVertexAiApi(profile, options);
           break;
         default:
           // 暂时回退到 OpenAI 兼容模式（很多 Provider 都是兼容的）

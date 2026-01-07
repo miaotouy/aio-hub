@@ -1,52 +1,77 @@
 import type { LlmProfile } from "../../types";
-import type { LlmRequestOptions } from "../../types/common";
-import { httpClient } from "@/utils/http-client";
+import type { LlmRequestOptions, LlmResponse } from "../common";
+// import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
+import { fetchWithTimeout, ensureResponseOk } from "../common";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@/utils/sse-parser";
-import { parseMessageContents, cleanPayload, buildBase64DataUrl } from "../request-builder";
+import {
+  parseMessageContents,
+  extractCommonParameters,
+  buildBase64DataUrl,
+  applyCustomParameters,
+  cleanPayload,
+} from "../request-builder";
+
 import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger("llm/openai-compatible");
+const logger = createModuleLogger("openai-compatible");
 
+/**
+ * OpenAI 适配器的 URL 处理逻辑
+ */
 export const openAiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
+    // 确保 baseUrl 以 / 结尾
     const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    // 智能添加 v1 版本路径（如果没加的话）
+    // 如果已经包含 /v1, /v2, /v3 或 /api/v3 等，则不再添加
     const versionedHost = (host.includes('/v1') || host.includes('/v2') || host.includes('/v3') || host.includes('/api/v')) ? host : `${host}v1/`;
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat/completions`;
+  },
+  getHint: (): string => {
+    return '将自动添加 /v1/chat/completions（如需禁用请在URL末尾加#）';
   }
 };
 
-
 /**
- * 调用 OpenAI 兼容格式的 API (移动端对等版)
+ * 调用 OpenAI 兼容格式的 API
  */
 export const callOpenAiCompatibleApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
-) => {
+): Promise<LlmResponse> => {
   const url = openAiUrlHandler.buildUrl(profile.baseUrl, "chat/completions");
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
+  // 使用第一个可用的 API Key
   if (profile.apiKeys && profile.apiKeys.length > 0) {
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
   }
 
+  // 应用自定义请求头
   if (profile.customHeaders) {
     Object.assign(headers, profile.customHeaders);
   }
 
   const messages: any[] = [];
 
+  // 直接转换所有消息（包括 system 角色）
   for (const msg of options.messages) {
+    // 如果消息内容是字符串，直接使用
     if (typeof msg.content === "string") {
       const messageObj: any = {
         role: msg.role,
         content: msg.content,
       };
+      // 支持 DeepSeek prefix 模式
+      if (msg.prefix) {
+        messageObj.prefix = true;
+      }
       messages.push(messageObj);
     } else {
+      // 如果是复杂内容，需要转换格式
       const parsed = parseMessageContents(msg.content);
       const contentArray: any[] = [];
 
@@ -63,114 +88,459 @@ export const callOpenAiCompatibleApi = async (
         });
       }
 
-      // 移动端也支持基本的文档/媒体转换逻辑（对齐桌面端）
-      if ((parsed as any).documentParts) {
-        for (const docPart of (parsed as any).documentParts) {
-          if (docPart.source.type === "base64") {
-            const mediaType = docPart.source.media_type;
-            if (mediaType.startsWith("image/")) {
-              contentArray.push({
-                type: "image_url",
-                image_url: { url: buildBase64DataUrl(docPart.source.data, mediaType) },
-              });
-            } else if (mediaType === "application/pdf") {
-              contentArray.push({
-                type: "file",
-                file: {
-                  filename: "document.pdf",
-                  file_data: buildBase64DataUrl(docPart.source.data, mediaType),
-                },
-              });
-            }
+      // 分别处理不同类型的媒体，避免类型混淆
+      // 注意：OpenAI 官方 API 目前对音频、视频和文档的支持各不相同
+      // 这里的处理旨在尽可能兼容各种聚合渠道
+
+      // 处理文档
+      for (const docPart of parsed.documentParts) {
+        if (docPart.source.type === "base64") {
+          const mediaType = docPart.source.media_type;
+          const isPdf = mediaType === "application/pdf";
+
+          if (mediaType.startsWith("image/")) {
+            contentArray.push({
+              type: "image_url",
+              image_url: {
+                url: buildBase64DataUrl(docPart.source.data, mediaType),
+              },
+            });
+          } else if (isPdf) {
+            // 针对 PDF 的兼容性处理：使用 OpenRouter 风格的 type: "file"
+            // 这在大多数聚合渠道（如 OpenRouter, OneAPI）中对 PDF 的支持较好
+            contentArray.push({
+              type: "file",
+              file: {
+                filename: "document.pdf",
+                file_data: buildBase64DataUrl(docPart.source.data, mediaType),
+              },
+            });
+          } else {
+            // 其他类型文档尝试使用 document 格式（非标，仅部分渠道支持）
+            contentArray.push({
+              type: "document",
+              source: docPart.source,
+            });
           }
         }
       }
 
-      messages.push({
+      // 处理音频
+      for (const audioPart of parsed.audioParts) {
+        if (audioPart.source.type === "base64") {
+          // OpenAI 官方支持 input_audio 格式
+          contentArray.push({
+            type: "input_audio",
+            input_audio: {
+              data: audioPart.source.data,
+              format: audioPart.source.media_type === "audio/wav" ? "wav" : "mp3", // 粗略适配
+            },
+          });
+        }
+      }
+
+      // 处理视频
+      for (const videoPart of parsed.videoParts) {
+        if (videoPart.source.type === "base64") {
+          // 视频目前没有统一标准，暂时作为 image_url 尝试（某些多模态模型支持）
+          const part: any = {
+            type: "image_url",
+            image_url: {
+              url: buildBase64DataUrl(videoPart.source.data, videoPart.source.media_type),
+            },
+          };
+          if (videoPart.videoMetadata) {
+            part.video_metadata = videoPart.videoMetadata;
+          }
+          contentArray.push(part);
+        }
+      }
+
+      const messageObj: any = {
         role: msg.role,
         content: contentArray,
-      });
+      };
+      // 支持 DeepSeek prefix 模式
+      if (msg.prefix) {
+        messageObj.prefix = true;
+      }
+      messages.push(messageObj);
     }
   }
+
+  // 使用共享函数提取通用参数
+  const commonParams = extractCommonParameters(options);
 
   const body: any = {
     model: options.modelId,
     messages,
-    temperature: options.temperature ?? 0.7,
-    stream: options.stream || false,
+    temperature: commonParams.temperature ?? 0.5,
   };
 
-  // 参数映射
-  if (options.maxTokens) body.max_tokens = options.maxTokens;
-  if (options.topP) body.top_p = options.topP;
-  if (options.stop) body.stop = options.stop;
-  if (options.presencePenalty) body.presence_penalty = options.presencePenalty;
-  if (options.frequencyPenalty) body.frequency_penalty = options.frequencyPenalty;
-  if (options.seed) body.seed = options.seed;
-  
-  // 处理推理参数 (DeepSeek/OpenAI o1)
-  if (options.reasoningEffort) body.reasoning_effort = options.reasoningEffort;
-
-  // 透传自定义参数
-  if (options.extra) {
-    Object.assign(body, options.extra);
+  // max_tokens 和 max_completion_tokens（优先使用新参数）
+  if (options.maxCompletionTokens !== undefined) {
+    body.max_completion_tokens = options.maxCompletionTokens;
+  } else if (commonParams.maxTokens !== undefined) {
+    body.max_tokens = commonParams.maxTokens;
   }
 
+  // 添加通用参数
+  if (commonParams.topP !== undefined) {
+    body.top_p = commonParams.topP;
+  }
+  if (commonParams.frequencyPenalty !== undefined) {
+    body.frequency_penalty = commonParams.frequencyPenalty;
+  }
+  if (commonParams.presencePenalty !== undefined) {
+    body.presence_penalty = commonParams.presencePenalty;
+  }
+  if (commonParams.stop !== undefined) {
+    body.stop = commonParams.stop;
+  }
+  if (commonParams.seed !== undefined) {
+    body.seed = commonParams.seed;
+  }
+
+  // 添加 OpenAI 特有的参数
+  if (options.n !== undefined) {
+    body.n = options.n;
+  }
+  if (options.logprobs !== undefined) {
+    body.logprobs = options.logprobs;
+  }
+  if (options.topLogprobs !== undefined) {
+    body.top_logprobs = options.topLogprobs;
+  }
+  if (options.responseFormat !== undefined) {
+    body.response_format = options.responseFormat;
+  }
+  if (options.tools !== undefined) {
+    body.tools = options.tools;
+  }
+  if (options.toolChoice !== undefined) {
+    body.tool_choice = options.toolChoice;
+  }
+  if (options.parallelToolCalls !== undefined) {
+    body.parallel_tool_calls = options.parallelToolCalls;
+  }
+  if (options.user !== undefined) {
+    body.user = options.user;
+  }
+  if (options.logitBias !== undefined) {
+    body.logit_bias = options.logitBias;
+  }
+  if (options.store !== undefined) {
+    body.store = options.store;
+  }
+  if (options.reasoningEffort !== undefined) {
+    body.reasoning_effort = options.reasoningEffort;
+  }
+  if (options.metadata !== undefined) {
+    body.metadata = options.metadata;
+  }
+  if (options.modalities !== undefined) {
+    body.modalities = options.modalities;
+  }
+  if (options.prediction !== undefined) {
+    body.prediction = options.prediction;
+  }
+  if (options.audio !== undefined) {
+    body.audio = options.audio;
+  }
+  if (options.serviceTier !== undefined) {
+    body.service_tier = options.serviceTier;
+  }
+  if (options.webSearchOptions !== undefined) {
+    body.web_search_options = options.webSearchOptions;
+  }
+  if (options.streamOptions !== undefined) {
+    body.stream_options = options.streamOptions;
+  }
+
+  // 透传 Gemini 安全设置 (如果存在)
+  // 许多聚合网关（如 One API）支持通过 safety_settings 字段透传 Gemini 安全配置
+  const extendedOptions = options as any;
+  if (extendedOptions.safetySettings) {
+    body.safety_settings = extendedOptions.safetySettings;
+  }
+
+  // 警告：如果 custom 字段仍然存在，说明上游逻辑可能存在问题
+  if (extendedOptions.custom && typeof extendedOptions.custom === "object" && Object.keys(extendedOptions.custom).length > 0) {
+    logger.warn(
+      "检测到 'custom' 参数容器，但它未被上游逻辑解包。这可能是一个错误。",
+      { customParams: extendedOptions.custom }
+    );
+  }
+
+  // 动态透传所有未知的自定义参数
+  applyCustomParameters(body, options);
+
+  // 额外清理：确保内部对象不会泄露到顶层
   cleanPayload(body);
 
-  try {
-    const response = await httpClient(url, {
+  // 如果启用流式响应
+  if (options.stream && options.onStream) {
+    body.stream = true;
+
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      },
+      options.timeout,
+      options.signal
+    );
+
+    await ensureResponseOk(response);
+
+    // 处理流式响应
+    if (!response.body) {
+      throw new Error("响应体为空");
+    }
+
+    const reader = response.body.getReader();
+    let fullContent = "";
+    let fullReasoningContent = "";
+    let usage: LlmResponse["usage"] | undefined;
+
+    await parseSSEStream(
+      reader,
+      (data) => {
+        const text = extractTextFromSSE(data, "openai");
+        if (text) {
+          fullContent += text;
+          options.onStream!(text);
+        }
+
+        // 提取推理内容（DeepSeek reasoning）
+        const reasoningText = extractReasoningFromSSE(data, "openai");
+        if (reasoningText) {
+          fullReasoningContent += reasoningText;
+          // 实时回调推理内容
+          if (options.onReasoningStream) {
+            options.onReasoningStream(reasoningText);
+          }
+        }
+
+        // 尝试从流数据中提取 usage 信息（OpenAI 在流结束时会发送 usage）
+        try {
+          const json = JSON.parse(data);
+          if (json.usage) {
+            usage = {
+              promptTokens: json.usage.prompt_tokens,
+              completionTokens: json.usage.completion_tokens,
+              totalTokens: json.usage.total_tokens,
+              promptTokensDetails: json.usage.prompt_tokens_details
+                ? {
+                  cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+                  audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+                }
+                : undefined,
+              completionTokensDetails: json.usage.completion_tokens_details
+                ? {
+                  reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
+                  audioTokens: json.usage.completion_tokens_details.audio_tokens,
+                  acceptedPredictionTokens:
+                    json.usage.completion_tokens_details.accepted_prediction_tokens,
+                  rejectedPredictionTokens:
+                    json.usage.completion_tokens_details.rejected_prediction_tokens,
+                }
+                : undefined,
+            };
+          }
+        } catch {
+          // 忽略非 JSON 数据
+        }
+      },
+      undefined,
+      options.signal
+    );
+
+    return {
+      content: fullContent,
+      reasoningContent: fullReasoningContent || undefined,
+      usage,
+      isStream: true,
+    };
+  }
+
+  // 非流式响应
+  const response = await fetchWithTimeout(
+    url,
+    {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal: options.signal,
-      timeout: options.timeout,
-    });
+    },
+    options.timeout,
+    options.signal
+  );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-    }
+  await ensureResponseOk(response);
 
-    if (options.stream && options.onStream) {
-      if (!response.body) throw new Error("响应体为空");
-      const reader = response.body.getReader();
-      let fullContent = "";
-      let fullReasoning = "";
+  const data = await response.json();
 
-      await parseSSEStream(
-        reader,
-        (data) => {
-          const text = extractTextFromSSE(data, "openai");
-          if (text) {
-            fullContent += text;
-            options.onStream!(text);
-          }
-          const reasoning = extractReasoningFromSSE(data, "openai");
-          if (reasoning) {
-            fullReasoning += reasoning;
-            options.onReasoningStream?.(reasoning);
-          }
-        },
-        undefined,
-        options.signal
-      );
-
-      return { content: fullContent, reasoningContent: fullReasoning, isStream: true };
-    }
-
-    const data = await response.json();
-    const choice = data.choices?.[0];
-    if (!choice) throw new Error("API 响应格式异常");
-
-    return {
-      content: choice.message?.content || "",
-      reasoningContent: choice.message?.reasoning_content || choice.message?.thinking || choice.message?.thought || "",
-      isStream: false,
-      usage: data.usage,
-    };
-  } catch (error) {
-    logger.error("API 调用失败", error as Error, { url });
-    throw error;
+  // 验证响应格式
+  const choice = data.choices?.[0];
+  if (!choice) {
+    throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
   }
+
+  const message = choice.message;
+
+  // 提取注释信息（如网络搜索的URL引用）
+  const annotations = message?.annotations?.map((ann: any) => ({
+    type: "url_citation" as const,
+    urlCitation: {
+      startIndex: ann.url_citation?.start_index,
+      endIndex: ann.url_citation?.end_index,
+      url: ann.url_citation?.url,
+      title: ann.url_citation?.title,
+    },
+  }));
+
+  // 提取音频信息
+  const audio = message?.audio
+    ? {
+      id: message.audio.id,
+      data: message.audio.data,
+      transcript: message.audio.transcript,
+      expiresAt: message.audio.expires_at,
+    }
+    : undefined;
+
+  // 处理 logprobs（包括 refusal）
+  const logprobs = choice.logprobs
+    ? {
+      content: choice.logprobs.content,
+      refusal: choice.logprobs.refusal,
+    }
+    : undefined;
+
+  // 构建 usage 信息
+  const usage = data.usage
+    ? {
+      promptTokens: data.usage.prompt_tokens,
+      completionTokens: data.usage.completion_tokens,
+      totalTokens: data.usage.total_tokens,
+      promptTokensDetails: data.usage.prompt_tokens_details
+        ? {
+          cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
+          audioTokens: data.usage.prompt_tokens_details.audio_tokens,
+        }
+        : undefined,
+      completionTokensDetails: data.usage.completion_tokens_details
+        ? {
+          reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
+          audioTokens: data.usage.completion_tokens_details.audio_tokens,
+          acceptedPredictionTokens:
+            data.usage.completion_tokens_details.accepted_prediction_tokens,
+          rejectedPredictionTokens:
+            data.usage.completion_tokens_details.rejected_prediction_tokens,
+        }
+        : undefined,
+    }
+    : undefined;
+
+  // 如果有拒绝消息，优先返回拒绝消息
+  if (message?.refusal) {
+    return {
+      content: "",
+      refusal: message.refusal,
+      finishReason: choice.finish_reason,
+      systemFingerprint: data.system_fingerprint,
+      serviceTier: data.service_tier,
+      usage,
+    };
+  }
+
+  return {
+    content: message?.content || "",
+    reasoningContent:
+      message?.reasoning_content ||
+      message?.reasoning ||
+      message?.thinking ||
+      message?.thought ||
+      undefined,
+    refusal: message?.refusal || null,
+    finishReason: choice.finish_reason,
+    toolCalls: message?.tool_calls,
+    logprobs,
+    annotations,
+    audio,
+    systemFingerprint: data.system_fingerprint,
+    serviceTier: data.service_tier,
+    usage,
+  };
 };
+
+/**
+* 调用 OpenAI 兼容的 Embedding API
+* (移动端暂未启用)
+*/
+// export const callOpenAiEmbeddingApi = async (
+//   profile: LlmProfile,
+//   options: any
+// ): Promise<any> => {
+//   const url = openAiUrlHandler.buildUrl(profile.baseUrl, "embeddings");
+//
+//   const headers: Record<string, string> = {
+//     "Content-Type": "application/json",
+//   };
+//
+//   if (profile.apiKeys && profile.apiKeys.length > 0) {
+//     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
+//   }
+//
+//   if (profile.customHeaders) {
+//     Object.assign(headers, profile.customHeaders);
+//   }
+//
+//   const body: any = {
+//     model: options.modelId,
+//     input: options.input,
+//   };
+//
+//   if (options.dimensions !== undefined) {
+//     body.dimensions = options.dimensions;
+//   }
+//
+//   if (options.user !== undefined) {
+//     body.user = options.user;
+//   }
+//
+//   if (options.encodingFormat !== undefined) {
+//     body.encoding_format = options.encodingFormat;
+//   }
+//
+//   const response = await fetchWithTimeout(
+//     url,
+//     {
+//       method: "POST",
+//       headers,
+//       body: JSON.stringify(body),
+//     },
+//     options.timeout,
+//     options.signal
+//   );
+//
+//   await ensureResponseOk(response);
+//
+//   const data = await response.json();
+//
+//   return {
+//     object: "list",
+//     data: data.data.map((item: any) => ({
+//       object: "embedding",
+//       index: item.index,
+//       embedding: item.embedding,
+//     })),
+//     model: data.model,
+//     usage: {
+//       promptTokens: data.usage.prompt_tokens,
+//       totalTokens: data.usage.total_tokens,
+//     },
+//   };
+// };

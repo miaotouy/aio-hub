@@ -94,6 +94,12 @@ function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record
       }
       headers["x-goog-api-client"] = "google-genai-sdk/1.0.1 gl-node/web";
       break;
+
+    case "cohere":
+      if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+      break;
   }
 
   return headers;
@@ -162,6 +168,24 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
             provider: "gemini",
             description: model.description,
             capabilities: metadata?.capabilities || { vision: true },
+          });
+        }
+      }
+      break;
+
+    case "cohere":
+      if (data.models && Array.isArray(data.models)) {
+        for (const model of data.models) {
+          const modelId = model.model_id || model.name;
+          const metadata = getMatchedModelProperties(modelId, "cohere");
+
+          models.push({
+            id: modelId,
+            name: modelId,
+            group: metadata?.group || "Cohere",
+            provider: "cohere",
+            description: model.description,
+            capabilities: metadata?.capabilities || { vision: false },
           });
         }
       }

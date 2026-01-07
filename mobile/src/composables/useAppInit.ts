@@ -1,7 +1,7 @@
 import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
-import { useLlmProfilesStore } from "@/tools/llm/stores/llmProfiles";
+import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("AppInit");

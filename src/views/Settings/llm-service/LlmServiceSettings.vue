@@ -483,7 +483,9 @@ const resetBaseUrl = () => {
               <el-button link type="primary" size="small" @click="showCustomEndpointsDialog = true">
                 高级端点
                 <span
-                  v-if="editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0"
+                  v-if="
+                    editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
+                  "
                 >
                   ({{ Object.keys(editForm.customEndpoints).length }})
                 </span>

@@ -66,8 +66,16 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
   const enabledProfiles = computed(() => profiles.value.filter(p => p.enabled));
 
   function addProfile(profile: LlmProfile) {
-    profiles.value.push(profile);
-    if (!selectedProfileId.value) selectedProfileId.value = profile.id;
+    // 确保必要字段存在
+    const newProfile: LlmProfile = {
+      ...profile,
+      customHeaders: profile.customHeaders || {},
+      customEndpoints: profile.customEndpoints || {},
+      models: profile.models || [],
+      apiKeys: profile.apiKeys || [],
+    };
+    profiles.value.push(newProfile);
+    if (!selectedProfileId.value) selectedProfileId.value = newProfile.id;
     save();
   }
 

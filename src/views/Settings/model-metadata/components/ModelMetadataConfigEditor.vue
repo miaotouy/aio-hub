@@ -57,7 +57,7 @@
           <input
             v-model="localConfig.properties!.icon"
             type="text"
-            placeholder="例如: /model-icons/openai.svg"
+            placeholder="自定义图标路径或URL，或选择预设"
           />
           <button @click="handleSelectFile" class="btn-action">选择文件</button>
           <button @click="$emit('open-presets')" class="btn-action">选择预设</button>

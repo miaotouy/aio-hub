@@ -1,6 +1,7 @@
 import { ref, watch, computed, Ref } from "vue";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useTheme } from "./useTheme";
+import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
 
 const errorHandler = createModuleErrorHandler("ThemeAwareIcon");
 
@@ -152,7 +153,14 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
 
   // 如果是 PNG 或其他格式，直接返回原始 src
   const iconUrl = computed(() => {
-    return isSvg.value ? "" : iconSrcRef.value;
+    if (isSvg.value) return "";
+    
+    const src = iconSrcRef.value;
+    // 如果是纯文件名，拼接默认路径
+    if (src && !src.includes("/") && !src.includes("\\")) {
+      return `/model-icons/${src}`;
+    }
+    return src;
   });
 
   // 加载和处理 SVG
@@ -162,11 +170,26 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
       return;
     }
 
+    const src = iconSrcRef.value;
+
+    // 1. 优先从内存 Map 中获取（已通过 Vite glob 加载）
+    if (LOBE_ICONS_MAP[src] || LOCAL_ICONS_MAP[src]) {
+      const rawSvg = LOBE_ICONS_MAP[src] || LOCAL_ICONS_MAP[src];
+      svgContent.value = processSvgContent(rawSvg);
+      return;
+    }
+
+    // 2. 如果不在 Map 中（可能是外部路径或动态生成的路径），则尝试 fetch
     isLoading.value = true;
     error.value = null;
 
     try {
-      svgContent.value = await fetchAndProcessSvg(iconSrcRef.value);
+      // 如果是纯文件名但不在 Map 中，尝试拼接默认路径（向后兼容）
+      let finalUrl = src;
+      if (!src.includes("/") && !src.includes("\\")) {
+        finalUrl = `/model-icons/${src}`;
+      }
+      svgContent.value = await fetchAndProcessSvg(finalUrl);
     } catch (err) {
       error.value = err as Error;
       // 使用 handle 方法以支持 showToUser: false 选项，避免不必要的弹窗干扰用户

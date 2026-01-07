@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "path";
+import Icons from "unplugin-icons/vite";
+import { FileSystemIconLoader } from "unplugin-icons/loaders";
+import IconsResolver from "unplugin-icons/resolver";
 import Components from "unplugin-vue-components/vite";
 import { VarletImportResolver } from "@varlet/import-resolver";
 
@@ -11,7 +14,22 @@ export default defineConfig(async () => ({
   plugins: [
     vue(),
     Components({
-      resolvers: [VarletImportResolver({ importStyle: false })],
+      resolvers: [
+        VarletImportResolver({ importStyle: false }),
+        IconsResolver({
+          prefix: "i",
+          enabledCollections: ["lobe"],
+          customCollections: ["lobe"],
+        }),
+      ],
+    }),
+    Icons({
+      compiler: "vue3",
+      customCollections: {
+        lobe: FileSystemIconLoader("../node_modules/@lobehub/icons-static-svg/icons", (svg) =>
+          svg.replace(/^<svg /, '<svg fill="currentColor" ')
+        ),
+      },
     }),
   ],
   resolve: {

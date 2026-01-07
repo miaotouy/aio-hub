@@ -4,8 +4,6 @@
  * 此文件仅包含规则定义，不包含逻辑，以便在桌面端和移动端之间复用。
  */
 import type { ModelMetadataRule } from "../types/model-metadata";
-import { PRESET_ICONS_DIR } from "./preset-icons";
-
 export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   // === 能力自动匹配 (优先级 5) ===
   // 视觉能力
@@ -235,7 +233,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "openai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
     },
     priority: 10,
@@ -247,7 +245,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "openai-responses",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI Responses",
     },
     priority: 10,
@@ -259,7 +257,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "anthropic",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/claude-color.svg`,
+      icon: `claude-color.svg`,
       group: "Claude",
     },
     priority: 10,
@@ -271,7 +269,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "google",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      icon: `gemini-color.svg`,
       group: "Gemini",
     },
     priority: 10,
@@ -283,7 +281,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "gemini",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      icon: `gemini-color.svg`,
       group: "Gemini",
     },
     priority: 10,
@@ -295,7 +293,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "cohere",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+      icon: `cohere-color.svg`,
       group: "Cohere",
     },
     priority: 10,
@@ -307,7 +305,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "mistral",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+      icon: `mistral-color.svg`,
       group: "Mistral",
     },
     priority: 10,
@@ -319,7 +317,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "meta",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
+      icon: `meta-color.svg`,
       group: "Meta",
     },
     priority: 10,
@@ -331,7 +329,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "microsoft",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+      icon: `microsoft-color.svg`,
       group: "Microsoft",
     },
     priority: 10,
@@ -343,7 +341,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "xai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/xai.svg`,
+      icon: `xai.svg`,
       group: "xAI",
     },
     priority: 10,
@@ -355,7 +353,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "groq",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/groq.svg`,
+      icon: `groq.svg`,
       group: "Groq",
     },
     priority: 10,
@@ -367,7 +365,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "ai21",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+      icon: `aionlabs-color.svg`,
       group: "AI21",
     },
     priority: 10,
@@ -381,7 +379,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "deepseek",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
+      icon: `deepseek-color.svg`,
       group: "DeepSeek",
     },
     priority: 10,
@@ -393,7 +391,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "moonshot",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/kimi-color.svg`,
+      icon: `kimi-color.svg`,
       group: "Kimi",
     },
     priority: 10,
@@ -405,7 +403,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "zhipu",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/zhipu-color.svg`,
+      icon: `zhipu-color.svg`,
       group: "Zhipu",
     },
     priority: 10,
@@ -417,7 +415,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "qwen",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      icon: `qwen-color.svg`,
       group: "Qwen",
     },
     priority: 10,
@@ -429,7 +427,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "bytedance",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/bytedance-color.svg`,
+      icon: `bytedance-color.svg`,
       group: "ByteDance",
     },
     priority: 10,
@@ -441,7 +439,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "baidu",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/wenxin-color.svg`,
+      icon: `wenxin-color.svg`,
       group: "Baidu",
     },
     priority: 10,
@@ -453,7 +451,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "tencent",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/hunyuan-color.svg`,
+      icon: `hunyuan-color.svg`,
       group: "Tencent",
     },
     priority: 10,
@@ -465,7 +463,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "minimax",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+      icon: `minimax-color.svg`,
       group: "MiniMax",
     },
     priority: 10,
@@ -477,7 +475,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "01ai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/yi-color.svg`,
+      icon: `yi-color.svg`,
       group: "Yi",
     },
     priority: 10,
@@ -489,7 +487,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "baichuan",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
+      icon: `baichuan-color.svg`,
       group: "Baichuan",
     },
     priority: 10,
@@ -501,7 +499,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "sensenova",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/sensenova-color.svg`,
+      icon: `sensenova-color.svg`,
       group: "SenseNova",
     },
     priority: 10,
@@ -514,7 +512,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "kwai-kolors|kwaipilot",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+      icon: `kolors-color.svg`,
       group: "Kwai",
     },
     priority: 10,
@@ -526,7 +524,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "siliconflow",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/siliconcloud-color.svg`,
+      icon: `siliconcloud-color.svg`,
       group: "SiliconFlow",
     },
     priority: 10,
@@ -538,7 +536,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "inclusionai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/ling.png`,
+      icon: `ling.png`,
       group: "InclusionAI",
     },
     priority: 10,
@@ -550,7 +548,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "wan-ai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      icon: `qwen-color.svg`,
       group: "Qwen",
     },
     priority: 10,
@@ -562,7 +560,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "stepfun-ai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+      icon: `stepfun-color.svg`,
       group: "StepFun",
     },
     priority: 10,
@@ -574,7 +572,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "teleai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/TeleAI.svg`,
+      icon: `TeleAI.svg`,
       group: "TeleAI",
     },
     priority: 10,
@@ -586,7 +584,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "ascend-tribe",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/ascend_tribe.png`,
+      icon: `ascend_tribe.png`,
       group: "Pangu",
     },
     priority: 10,
@@ -598,7 +596,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "fnlp",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openmoss.svg`,
+      icon: `openmoss.svg`,
       group: "MOSS",
     },
     priority: 10,
@@ -610,7 +608,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "funaudiollm",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+      icon: `FunAudioLLM.png`,
       group: "FunAudioLLM",
     },
     priority: 10,
@@ -622,7 +620,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "indexteam",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+      icon: `IndexTeam.svg`,
       group: "IndexTeam",
     },
     priority: 10,
@@ -634,7 +632,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "netease-youdao",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+      icon: `netease-youdao.svg`,
       group: "Netease Youdao",
     },
     priority: 10,
@@ -646,7 +644,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "fishaudio",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+      icon: `fishaudio.svg`,
       group: "FishAudio",
     },
     priority: 10,
@@ -660,7 +658,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "huggingface",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/huggingface-color.svg`,
+      icon: `huggingface-color.svg`,
       group: "HuggingFace",
     },
     priority: 10,
@@ -672,7 +670,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "z-ai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/zai.svg`,
+      icon: `zai.svg`,
       group: "Z AI",
     },
     priority: 10,
@@ -684,7 +682,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "nebius",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/nebius.svg`,
+      icon: `nebius.svg`,
       group: "Nebius",
     },
     priority: 10,
@@ -696,7 +694,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "stabilityai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/stability-color.svg`,
+      icon: `stability-color.svg`,
       group: "Stability AI",
     },
     priority: 10,
@@ -708,7 +706,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "baai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/baai.svg`,
+      icon: `baai.svg`,
       group: "BAAI",
     },
     priority: 10,
@@ -720,7 +718,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "black-forest-labs",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/flux.svg`,
+      icon: `flux.svg`,
       group: "Black Forest Labs",
     },
     priority: 10,
@@ -732,7 +730,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "nemotron",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/nvidia-color.svg`,
+      icon: `nvidia-color.svg`,
       group: "NVIDIA",
     },
     priority: 20,
@@ -744,7 +742,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "nvidia",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/nvidia-color.svg`,
+      icon: `nvidia-color.svg`,
       group: "NVIDIA",
     },
     priority: 10,
@@ -756,7 +754,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "meituan",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/longcat-color.svg`,
+      icon: `longcat-color.svg`,
       group: "Meituan",
     },
     priority: 10,
@@ -768,7 +766,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "longcat",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/longcat-color.svg`,
+      icon: `longcat-color.svg`,
       group: "Meituan",
     },
     priority: 20,
@@ -782,7 +780,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "provider",
     matchValue: "openrouter",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openrouter.svg`,
+      icon: `openrouter.svg`,
       group: "OpenRouter",
     },
     priority: 10,
@@ -794,7 +792,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "openrouter",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openrouter.svg`,
+      icon: `openrouter.svg`,
       group: "OpenRouter",
     },
     priority: 20,
@@ -809,7 +807,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-4o",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 使用 o200k_base 编码
       capabilities: {
@@ -840,7 +838,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-5",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-5 使用 o200k_base 编码
       capabilities: {
@@ -871,7 +869,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-image",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 图像生成模型使用 o200k_base 编码
     },
@@ -884,7 +882,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-oss",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-OSS 使用 gpt4o 分词器
     },
@@ -897,7 +895,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-audio",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 音频模型使用 o200k_base 编码
     },
@@ -910,7 +908,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-realtime",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 实时模型使用 o200k_base 编码
     },
@@ -923,7 +921,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-4.1",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-4.1 使用 o200k_base 编码
       capabilities: {
@@ -954,7 +952,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-4",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4", // 使用 cl100k_base 编码
       capabilities: {
@@ -980,7 +978,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-3.5",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4", // GPT-3.5-turbo 使用 cl100k_base 编码
       capabilities: {
@@ -997,7 +995,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "o1",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // o1 系列使用 o200k_base 编码
       capabilities: {
@@ -1019,7 +1017,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "o4-mini",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // o4-mini 使用 o200k_base 编码
       capabilities: {
@@ -1035,7 +1033,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "o3-pro",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o",
       capabilities: {
@@ -1051,7 +1049,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "o3-mini",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o",
       capabilities: {
@@ -1067,7 +1065,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "o3",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // o3 系列使用 o200k_base 编码
       capabilities: {
@@ -1083,7 +1081,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "chatgpt-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // ChatGPT 系列使用 o200k_base 编码
     },
@@ -1098,7 +1096,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "claude-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/claude-color.svg`,
+      icon: `claude-color.svg`,
       group: "Claude",
       tokenizer: "claude", // Claude 系列使用专用分词器
       capabilities: {
@@ -1260,7 +1258,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gemini-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      icon: `gemini-color.svg`,
       group: "Gemini",
       tokenizer: "gemini", // Gemini 系列使用专用分词器
       capabilities: {
@@ -1290,7 +1288,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gemma3",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/gemma-color.svg`,
+      icon: `gemma-color.svg`,
       group: "Gemma",
       tokenizer: "gemini", // Gemma3 使用 gemini 分词器
     },
@@ -1303,7 +1301,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gemma-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/gemma-color.svg`,
+      icon: `gemma-color.svg`,
       group: "Gemma",
       tokenizer: "gemini", // Gemma 使用与 Gemini 相同的分词器
     },
@@ -1318,7 +1316,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "deepseek-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/deepseek-color.svg`,
+      icon: `deepseek-color.svg`,
       group: "DeepSeek",
       tokenizer: "deepseek_v3", // DeepSeek 系列使用专用分词器
       capabilities: {
@@ -1339,7 +1337,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "glm-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
+      icon: `chatglm-color.svg`,
       group: "Zhipu",
       tokenizer: "gpt4", // GLM 系列使用类似 GPT-4 的分词器
     },
@@ -1352,7 +1350,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "chatglm-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/chatglm-color.svg`,
+      icon: `chatglm-color.svg`,
       group: "Zhipu",
       tokenizer: "gpt4", // ChatGLM 系列使用类似 GPT-4 的分词器
     },
@@ -1367,7 +1365,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "moonshot-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/moonshot.svg`,
+      icon: `moonshot.svg`,
       group: "moonshot",
       tokenizer: "gpt4", // Moonshot 使用类似 GPT-4 的分词器
     },
@@ -1380,7 +1378,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "kimi-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/kimi-color.svg`,
+      icon: `kimi-color.svg`,
       group: "Kimi",
       tokenizer: "gpt4", // Kimi 使用类似 GPT-4 的分词器
     },
@@ -1395,7 +1393,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "qwen3",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      icon: `qwen-color.svg`,
       group: "Qwen",
       tokenizer: "qwen3", // Qwen3 使用最新分词器
     },
@@ -1408,7 +1406,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "qwen",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      icon: `qwen-color.svg`,
       group: "Qwen",
       tokenizer: "qwen3", // Qwen 系列使用 qwen3 分词器
     },
@@ -1421,7 +1419,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "qwq-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      icon: `qwen-color.svg`,
       group: "Qwen",
       tokenizer: "qwen3", // QwQ 使用 qwen3 分词器
     },
@@ -1436,7 +1434,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "doubao-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/doubao-color.svg`,
+      icon: `doubao-color.svg`,
       group: "ByteDance",
       tokenizer: "gpt4", // 豆包系列使用类似 GPT-4 的分词器
     },
@@ -1451,7 +1449,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "hunyuan-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/hunyuan-color.svg`,
+      icon: `hunyuan-color.svg`,
       group: "Tencent",
       tokenizer: "gpt4", // 混元系列使用类似 GPT-4 的分词器
     },
@@ -1466,7 +1464,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "ernie-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/wenxin-color.svg`,
+      icon: `wenxin-color.svg`,
       group: "Baidu",
       tokenizer: "gpt4", // ERNIE 系列使用类似 GPT-4 的分词器
     },
@@ -1481,7 +1479,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "abab",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+      icon: `minimax-color.svg`,
       group: "MiniMax",
       tokenizer: "gpt4", // ABAB 系列使用类似 GPT-4 的分词器
     },
@@ -1494,7 +1492,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "minimax-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/minimax-color.svg`,
+      icon: `minimax-color.svg`,
       group: "MiniMax",
       tokenizer: "gpt4", // MiniMax 系列使用类似 GPT-4 的分词器
     },
@@ -1509,7 +1507,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "yi-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/yi-color.svg`,
+      icon: `yi-color.svg`,
       group: "Yi",
       tokenizer: "llama3_2", // Yi 系列基于 Llama 架构
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1525,7 +1523,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "baichuan",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/baichuan-color.svg`,
+      icon: `baichuan-color.svg`,
       group: "Baichuan",
       tokenizer: "llama3_2", // 百川系列基于 Llama 架构
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1541,7 +1539,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "internlm",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/internlm-color.svg`,
+      icon: `internlm-color.svg`,
       group: "InternLM",
       tokenizer: "llama3_2", // InternLM 系列基于 Llama 架构
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1557,7 +1555,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "minicpm",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/minicpm-color.svg`,
+      icon: `minicpm-color.svg`,
       group: "MiniCPM",
       tokenizer: "llama3_2", // MiniCPM 使用 llama3_2 分词器
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1573,7 +1571,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "skywork",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/skywork-color.svg`,
+      icon: `skywork-color.svg`,
       group: "Skywork",
       tokenizer: "gpt4", // Skywork 系列使用类似 GPT-4 的分词器
     },
@@ -1588,7 +1586,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "rwkv",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/rwkv-color.svg`,
+      icon: `rwkv-color.svg`,
       group: "RWKV",
       tokenizer: "gpt4", // RWKV 系列使用类似 GPT-4 的分词器
     },
@@ -1603,7 +1601,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "grok-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/grok.svg`,
+      icon: `grok.svg`,
       group: "xAI",
       tokenizer: "gpt4", // Grok 系列使用类似 GPT-4 的分词器
     },
@@ -1616,7 +1614,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "imagine-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/xai.svg`,
+      icon: `xai.svg`,
       group: "xAI",
       tokenizer: "gpt4", // xAI Imagine 系列使用类似 GPT-4 的分词器
     },
@@ -1632,7 +1630,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "llama-?3[._-]?2",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
+      icon: `meta-color.svg`,
       group: "Meta",
       tokenizer: "llama3_2", // Llama 3.2 使用专用分词器
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1647,7 +1645,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "(?<!o)llama[1-9-]",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/meta-color.svg`,
+      icon: `meta-color.svg`,
       group: "Meta",
       tokenizer: "llama3_2", // Llama 系列使用 llama3_2 分词器
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1663,7 +1661,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "mistral-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+      icon: `mistral-color.svg`,
       group: "Mistral",
       tokenizer: "llama3_2", // Mistral 系列基于 Llama 架构
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1677,7 +1675,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "mixtral-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/mistral-color.svg`,
+      icon: `mistral-color.svg`,
       group: "Mistral",
       tokenizer: "llama3_2", // Mixtral 系列基于 Llama 架构
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1693,7 +1691,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "command-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+      icon: `cohere-color.svg`,
       group: "Cohere",
       tokenizer: "gpt4", // Command 系列使用类似 GPT-4 的分词器
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1707,7 +1705,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "aya-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/cohere-color.svg`,
+      icon: `cohere-color.svg`,
       group: "Cohere",
       tokenizer: "gpt4", // Aya 系列使用类似 GPT-4 的分词器
     },
@@ -1722,7 +1720,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "jamba-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/aionlabs-color.svg`,
+      icon: `aionlabs-color.svg`,
       group: "AI21",
       tokenizer: "llama3_2", // Jamba 系列基于混合架构，使用 llama3_2 分词器
       defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
@@ -1738,7 +1736,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "microsoft",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+      icon: `microsoft-color.svg`,
       group: "Microsoft",
     },
     priority: 15,
@@ -1750,7 +1748,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "phi-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/microsoft-color.svg`,
+      icon: `microsoft-color.svg`,
       group: "Microsoft",
       tokenizer: "gpt4", // Phi 系列使用类似 GPT-4 的分词器
     },
@@ -1765,7 +1763,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "stable-diffusion",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/stability-color.svg`,
+      icon: `stability-color.svg`,
       group: "Stability AI",
     },
     priority: 20,
@@ -1779,7 +1777,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "bge-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/baai.svg`,
+      icon: `baai.svg`,
       group: "BAAI",
     },
     priority: 20,
@@ -1793,7 +1791,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "flux",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/flux.svg`,
+      icon: `flux.svg`,
       group: "Black Forest Labs",
     },
     priority: 20,
@@ -1808,7 +1806,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "kolors|kat-coder",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/kolors-color.svg`,
+      icon: `kolors-color.svg`,
       group: "Kwai",
     },
     priority: 20,
@@ -1822,7 +1820,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "inclusionai|ling",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/ling.png`,
+      icon: `ling.png`,
       group: "InclusionAI",
     },
     priority: 20,
@@ -1837,7 +1835,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "bytedance-seed|seed-",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/bytedance-color.svg`,
+      icon: `bytedance-color.svg`,
       group: "ByteDance",
     },
     priority: 20,
@@ -1851,7 +1849,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "wan-ai",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/qwen-color.svg`,
+      icon: `qwen-color.svg`,
       group: "Qwen",
     },
     priority: 20,
@@ -1865,7 +1863,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "stepfun",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/stepfun-color.svg`,
+      icon: `stepfun-color.svg`,
       group: "StepFun",
     },
     priority: 20,
@@ -1879,7 +1877,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "pangu",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/ascend_tribe.png`,
+      icon: `ascend_tribe.png`,
       group: "Pangu",
     },
     priority: 20,
@@ -1893,7 +1891,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "moss",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openmoss.svg`,
+      icon: `openmoss.svg`,
       group: "MOSS",
     },
     priority: 20,
@@ -1908,7 +1906,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "cosyvoice|sensevoice",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/FunAudioLLM.png`,
+      icon: `FunAudioLLM.png`,
       group: "FunAudioLLM",
     },
     priority: 20,
@@ -1922,7 +1920,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "indextts",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/IndexTeam.svg`,
+      icon: `IndexTeam.svg`,
       group: "IndexTeam",
     },
     priority: 20,
@@ -1936,7 +1934,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "bce-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/netease-youdao.svg`,
+      icon: `netease-youdao.svg`,
       group: "Netease Youdao",
     },
     priority: 20,
@@ -1950,7 +1948,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "fish-speech",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/fishaudio.svg`,
+      icon: `fishaudio.svg`,
       group: "FishAudio",
     },
     priority: 20,
@@ -1965,7 +1963,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "dall-e",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
     },
     priority: 30,
@@ -1977,7 +1975,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "whisper",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
     },
     priority: 30,
@@ -1989,7 +1987,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "tts-",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
     },
     priority: 30,
@@ -2002,7 +2000,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "text-moderation|omni-moderation",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
     },
     priority: 30,
@@ -2014,7 +2012,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "codex",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o",
     },
@@ -2027,7 +2025,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "babbage",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
     },
     priority: 10,
@@ -2039,7 +2037,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "davinci",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/openai.svg`,
+      icon: `openai.svg`,
       group: "OpenAI",
     },
     priority: 10,
@@ -2053,7 +2051,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "sora",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/sora-color.svg`,
+      icon: `sora-color.svg`,
       group: "OpenAI",
     },
     priority: 30,
@@ -2067,7 +2065,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "kling",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/kling-color.svg`,
+      icon: `kling-color.svg`,
       group: "Kwai",
     },
     priority: 30,
@@ -2080,7 +2078,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "veo",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/gemini-color.svg`,
+      icon: `gemini-color.svg`,
       group: "Gemini",
       capabilities: {
         videoGeneration: true,
@@ -2098,7 +2096,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "suno",
     properties: {
-      icon: `${PRESET_ICONS_DIR}/suno.svg`,
+      icon: `suno.svg`,
       group: "Suno",
     },
     priority: 30,
@@ -2113,7 +2111,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "midjourney|mj",
     useRegex: true,
     properties: {
-      icon: `${PRESET_ICONS_DIR}/midjourney.svg`,
+      icon: `midjourney.svg`,
       group: "Midjourney",
     },
     priority: 30,

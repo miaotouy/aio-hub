@@ -6,12 +6,40 @@
  */
 
 import type { PresetIconInfo } from "../types/model-metadata";
-import { AVAILABLE_ICONS } from "./generated-icon-list";
+
+// 获取库中的所有图标名
+const lobeIcons = import.meta.glob("../../node_modules/@lobehub/icons-static-svg/icons/*.svg", {
+  eager: true,
+  query: "?raw",
+});
+
+// 获取本地自定义图标名
+const localIcons = import.meta.glob("../../public/model-icons/*.{svg,png,jpg,webp}", {
+  eager: true,
+  query: "?raw",
+});
+
+export const LOBE_ICONS_MAP = Object.entries(lobeIcons).reduce((acc, [path, content]) => {
+  const name = path.split("/").pop()!;
+  acc[name] = (content as any).default;
+  return acc;
+}, {} as Record<string, string>);
+
+export const LOCAL_ICONS_MAP = Object.entries(localIcons).reduce((acc, [path, content]) => {
+  const name = path.split("/").pop()!;
+  acc[name] = (content as any).default;
+  return acc;
+}, {} as Record<string, string>);
 
 /**
- * 预设图标目录（相对于 public 目录）
+ * 所有可用图标的列表（动态生成）
  */
-export const PRESET_ICONS_DIR = "/model-icons";
+export const AVAILABLE_ICONS = [
+  ...new Set([
+    ...Object.keys(LOBE_ICONS_MAP),
+    ...Object.keys(LOCAL_ICONS_MAP),
+  ]),
+].sort();
 
 /**
  * 手动维护的精选图标列表

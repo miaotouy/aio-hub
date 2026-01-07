@@ -8,15 +8,14 @@
 import type { ModelMetadataRule, ModelMetadataProperties } from "../types/model-metadata";
 import { createModuleLogger } from "@utils/logger";
 import { merge } from "lodash-es";
-import { PRESET_ICONS_DIR, PRESET_ICONS } from "./preset-icons";
-import { AVAILABLE_ICONS } from "./generated-icon-list";
+import { PRESET_ICONS, AVAILABLE_ICONS } from "./preset-icons";
 import { DEFAULT_METADATA_RULES as PRESET_RULES } from "./model-metadata-presets";
 
 // 创建模块日志器
 const logger = createModuleLogger("model-metadata");
 
 // 重新导出预设图标配置供外部使用
-export { PRESET_ICONS_DIR, PRESET_ICONS };
+export { PRESET_ICONS };
 
 /**
  * 默认元数据规则配置
@@ -172,11 +171,11 @@ export function getModelIconPath(
     const monoIcon = `${candidate}.svg`;
 
     if ((AVAILABLE_ICONS as readonly string[]).includes(colorIcon)) {
-      return `${PRESET_ICONS_DIR}/${colorIcon}`;
+      return colorIcon;
     }
 
     if ((AVAILABLE_ICONS as readonly string[]).includes(monoIcon)) {
-      return `${PRESET_ICONS_DIR}/${monoIcon}`;
+      return monoIcon;
     }
   }
 

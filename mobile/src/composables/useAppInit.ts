@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
+import { useLlmProfilesStore } from "@/tools/llm/stores/llmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("AppInit");
@@ -8,6 +9,7 @@ const logger = createModuleLogger("AppInit");
 export function useAppInit() {
   const settingsStore = useSettingsStore();
   const themeStore = useThemeStore();
+  const llmProfilesStore = useLlmProfilesStore();
 
   const initialized = ref(false);
   const progress = ref(0);
@@ -31,7 +33,12 @@ export function useAppInit() {
       progress.value = 60;
       themeStore.initTheme();
       
-      // 3. 初始化调试工具
+      // 3. 初始化 LLM 配置
+      statusMessage.value = "正在加载 LLM 服务...";
+      progress.value = 80;
+      await llmProfilesStore.init();
+
+      // 4. 初始化调试工具
       if (settingsStore.settings.debugMode) {
         statusMessage.value = "正在启动调试面板...";
         const eruda = await import("eruda");

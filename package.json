@@ -42,10 +42,6 @@
     "check:frontend": "vue-tsc --noEmit",
     "check:mobile": "cd mobile ; bun run check",
     "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings ; cargo clippy --manifest-path mobile/src-tauri/Cargo.toml -- -D warnings",
-    "format": "bun run format:frontend ; bun run format:mobile ; bun run format:backend",
-    "format:frontend": "prettier --write . --cache",
-    "format:mobile": "cd mobile ; bun run format",
-    "format:backend": "cargo fmt --manifest-path src-tauri/Cargo.toml ; cargo fmt --manifest-path mobile/src-tauri/Cargo.toml",
     "sync:icons": "bun scripts/sync-icons.ts"
   },
   "dependencies": {

@@ -55,9 +55,6 @@
 - **`check`** – 同时运行前端类型检查与后端代码检查（`cargo clippy`）。
 - **`check:frontend`** – 仅运行前端 TypeScript 类型检查。
 - **`check:backend`** – 仅运行 Rust 代码的 Clippy 检查。
-- **`format`** – 同时格式化前端与后端代码。
-- **`format:frontend`** – 使用 Prettier 格式化前端代码（支持多种文件类型）。
-- **`format:backend`** – 使用 `cargo fmt` 格式化 Rust 代码。
 - **`sync:icons`** – 同步图标资源（将预设图标复制到应用数据目录）。
 
 这些脚本可通过 `bun run <script>` 执行（例如 `bun run dev`）。在开发过程中，最常用的命令是 `bun run tauri:dev`（或 `bun run t:d`）以启动完整的桌面应用开发环境。

@@ -27,6 +27,7 @@ export default defineConfig({
       "@views": fileURLToPath(new URL("./src/views", import.meta.url)),
       "@styles": fileURLToPath(new URL("./src/styles", import.meta.url)),
       "@assets": fileURLToPath(new URL("./src/assets", import.meta.url)),
+      "@lobe-icons": fileURLToPath(new URL("./node_modules/@lobehub/icons-static-svg/icons", import.meta.url)),
     },
   },
 

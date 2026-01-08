@@ -46,6 +46,48 @@
     "确认刷新": "Confirm Refresh",
     "刷新提示": "Refreshing the page will attempt to bypass the cache and reload resources. Unsaved state will be lost.",
     "已切换至": "Switched to {theme}",
-    "语言已切换至": "Language switched to {lang}"
+    "语言已切换至": "Language switched to {lang}",
+    "主题色板": {
+      "标题": "Theme Palette",
+      "描述": "Customize global theme color",
+      "自定义": "Custom",
+      "重置默认": "Reset Default",
+      "当前主题色": "Current Theme Color",
+      "自定义颜色": "Custom Color",
+      "自定义对话框标题": "Custom Theme Color",
+      "无效颜色值": "Please enter a valid Hex color value",
+      "重置成功": "Theme color reset",
+      "切换成功": "Switched to: {name} ({color})",
+      "分组": {
+        "蓝色系": {
+          "名称": "Blue Series",
+          "描述": "Classic, tech and deep"
+        },
+        "绿色系": {
+          "名称": "Green Series",
+          "描述": "Natural, growth and success"
+        },
+        "橙黄色系": {
+          "名称": "Orange & Yellow",
+          "描述": "Warning, vitality and warmth"
+        },
+        "红色系": {
+          "名称": "Red Series",
+          "描述": "Danger, passion and rigor"
+        },
+        "灰色系": {
+          "名称": "Grey Series",
+          "描述": "Neutral, steady and simple"
+        },
+        "紫色系": {
+          "名称": "Purple Series",
+          "描述": "Elegant, mysterious and inspired"
+        },
+        "粉红系": {
+          "名称": "Pink Series",
+          "描述": "Cute, romantic and energetic"
+        }
+      }
+    }
   }
 }

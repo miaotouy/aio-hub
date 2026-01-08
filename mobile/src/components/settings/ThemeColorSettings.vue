@@ -3,7 +3,9 @@ import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { Check, RotateCcw, Pipette, Palette, ChevronRight } from "lucide-vue-next";
 import { Snackbar } from "@varlet/ui";
+import { useI18n } from "vue-i18n";
 
+const { t } = useI18n();
 const settingsStore = useSettingsStore();
 
 interface PresetColor {
@@ -20,8 +22,8 @@ interface ColorGroup {
 // 颜色配置列表 - 移植自桌面端并按色系命名
 const colorGroups: ColorGroup[] = [
   {
-    label: "蓝色系",
-    description: "经典、科技与深邃",
+    label: t("settings.主题色板.分组.蓝色系.名称"),
+    description: t("settings.主题色板.分组.蓝色系.描述"),
     presets: [
       { name: "默认蓝", color: "#409eff" },
       { name: "深海蓝", color: "#1890ff" },
@@ -34,8 +36,8 @@ const colorGroups: ColorGroup[] = [
     ],
   },
   {
-    label: "绿色系",
-    description: "自然、成长与成功",
+    label: t("settings.主题色板.分组.绿色系.名称"),
+    description: t("settings.主题色板.分组.绿色系.描述"),
     presets: [
       { name: "Element绿", color: "#67c23a" },
       { name: "翡翠绿", color: "#00b96b" },
@@ -51,8 +53,8 @@ const colorGroups: ColorGroup[] = [
     ],
   },
   {
-    label: "橙黄色系",
-    description: "警告、活力与温暖",
+    label: t("settings.主题色板.分组.橙黄色系.名称"),
+    description: t("settings.主题色板.分组.橙黄色系.描述"),
     presets: [
       { name: "Element橙", color: "#e6a23c" },
       { name: "日暮橙", color: "#ff8c00" },
@@ -71,27 +73,24 @@ const colorGroups: ColorGroup[] = [
     ],
   },
   {
-    label: "红色系",
-    description: "危险、热情与严谨",
+    label: t("settings.主题色板.分组.红色系.名称"),
+    description: t("settings.主题色板.分组.红色系.描述"),
     presets: [
       { name: "Element红", color: "#f56c6c" },
       { name: "火焰红", color: "#ff4d4f" },
       { name: "鲜红", color: "#ef4444" },
       { name: "深红", color: "#dc2626" },
       { name: "玫瑰红", color: "#f43f5e" },
-      { name: "粉红", color: "#ec4899" },
       { name: "暗红", color: "#b91c1c" },
       { name: "珊瑚红", color: "#ff6b6b" },
-      { name: "巡音流歌", color: "#FAAFBE" },
       { name: "MEIKO红", color: "#D80000" },
       { name: "乐正绫", color: "#EE0000" },
       { name: "赤羽红", color: "#FF4004" },
-      { name: "IA粉", color: "#FFABBC" },
     ],
   },
   {
-    label: "灰色系",
-    description: "中性、稳重与简约",
+    label: t("settings.主题色板.分组.灰色系.名称"),
+    description: t("settings.主题色板.分组.灰色系.描述"),
     presets: [
       { name: "Element灰", color: "#909399" },
       { name: "金属灰", color: "#6b7280" },
@@ -104,8 +103,8 @@ const colorGroups: ColorGroup[] = [
     ],
   },
   {
-    label: "紫色系",
-    description: "优雅、神秘与灵感",
+    label: t("settings.主题色板.分组.紫色系.名称"),
+    description: t("settings.主题色板.分组.紫色系.描述"),
     presets: [
       { name: "科技紫", color: "#7c3aed" },
       { name: "薰衣紫", color: "#8b7ec8" },
@@ -115,8 +114,8 @@ const colorGroups: ColorGroup[] = [
     ],
   },
   {
-    label: "粉红系",
-    description: "可爱、浪漫与活力",
+    label: t("settings.主题色板.分组.粉红系.名称"),
+    description: t("settings.主题色板.分组.粉红系.描述"),
     presets: [
       { name: "樱花粉", color: "#ff69b4" },
       { name: "粉红", color: "#ec4899" },
@@ -136,19 +135,19 @@ const currentThemeColorName = computed(() => {
     );
     if (preset) return preset.name;
   }
-  return "自定义颜色";
+  return t("settings.主题色板.自定义颜色");
 });
 
 const selectColor = async (color: string, name?: string) => {
   await settingsStore.updateAppearance({ themeColor: color });
   if (name) {
-    Snackbar.success(`已切换至: ${name} (${color.toUpperCase()})`);
+    Snackbar.success(t("settings.主题色板.切换成功", { name, color: color.toUpperCase() }));
   }
 };
 
 const resetColor = async () => {
   await settingsStore.updateAppearance({ themeColor: "#409eff" });
-  Snackbar.success("已重置主题色");
+  Snackbar.success(t("settings.主题色板.重置成功"));
 };
 
 // 自定义颜色处理
@@ -165,7 +164,7 @@ const handleCustomColorApply = async () => {
     await selectColor(customColor.value);
     showCustomPicker.value = false;
   } else {
-    Snackbar.error("请输入有效的 Hex 颜色值");
+    Snackbar.error(t("settings.主题色板.无效颜色值"));
   }
 };
 
@@ -183,8 +182,8 @@ const showDrawer = ref(false);
         </div>
       </template>
       <div class="cell-content">
-        <div class="cell-label">主题色板</div>
-        <div class="cell-desc">自定义应用全局主题颜色</div>
+        <div class="cell-label">{{ t("settings.主题色板.标题") }}</div>
+        <div class="cell-desc">{{ t("settings.主题色板.描述") }}</div>
       </div>
       <template #extra>
         <div class="current-color-preview">
@@ -198,26 +197,28 @@ const showDrawer = ref(false);
     <var-popup position="bottom" v-model:show="showDrawer" round>
       <div class="drawer-content">
         <div class="drawer-header">
-          <div class="drawer-title">主题色板</div>
-          <var-button type="primary" text @click="showDrawer = false">完成</var-button>
+          <div class="drawer-title">{{ t("settings.主题色板.标题") }}</div>
+          <var-button type="primary" text @click="showDrawer = false">{{
+            t("common.确定")
+          }}</var-button>
         </div>
 
         <div class="scroll-area">
           <div class="action-bar">
             <div class="action-item" @click="openCustomPicker">
               <Pipette :size="18" />
-              <span>自定义</span>
+              <span>{{ t("settings.主题色板.自定义") }}</span>
             </div>
             <div class="action-item" @click="resetColor">
               <RotateCcw :size="18" />
-              <span>重置默认</span>
+              <span>{{ t("settings.主题色板.重置默认") }}</span>
             </div>
           </div>
 
           <!-- 当前选中预览 -->
           <div class="current-preview-card">
             <div class="preview-info">
-              <div class="preview-label">当前主题色</div>
+              <div class="preview-label">{{ t("settings.主题色板.当前主题色") }}</div>
               <div class="preview-value">
                 <span class="color-name">{{ currentThemeColorName }}</span>
                 <span class="color-hex">{{ currentThemeColor.toUpperCase() }}</span>
@@ -260,7 +261,7 @@ const showDrawer = ref(false);
     <!-- 自定义颜色弹窗 -->
     <var-dialog
       v-model:show="showCustomPicker"
-      title="自定义主题色"
+      :title="t('settings.主题色板.自定义对话框标题')"
       @confirm="handleCustomColorApply"
     >
       <div class="custom-picker-content">

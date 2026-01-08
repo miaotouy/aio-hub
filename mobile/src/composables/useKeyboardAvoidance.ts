@@ -53,14 +53,37 @@ export function useKeyboardAvoidance() {
   const updateKeyboardState = () => {
     // 1. 优先尝试 visualViewport (真机/现代浏览器)
     if (window.visualViewport) {
-      const diff = window.innerHeight - window.visualViewport.height;
-      if (diff > 80) {
+      const vv = window.visualViewport;
+      const diff = Math.max(0, initialHeight - vv.height);
+      
+      if (diff > 80 || vv.offsetTop > 40) {
+        const finalHeight = diff > 80 ? diff : vv.offsetTop;
         logger.debug("Detected via visualViewport", {
+          initialHeight,
           innerHeight: window.innerHeight,
-          viewportHeight: window.visualViewport.height,
-          diff
+          vvHeight: vv.height,
+          vvOffset: vv.offsetTop,
+          finalHeight
         });
-        setKeyboardState(true, diff, false);
+        setKeyboardState(true, finalHeight, false);
+        
+        // 精准避让逻辑
+        const activeEl = document.activeElement as HTMLElement;
+        if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.closest('.var-input'))) {
+          setTimeout(() => {
+            const rect = activeEl.getBoundingClientRect();
+            const realViewportHeight = window.visualViewport?.height || window.innerHeight;
+            const effectiveViewportHeight = isSimulated.value 
+              ? realViewportHeight - keyboardHeight.value 
+              : realViewportHeight;
+            
+            const isObscured = rect.bottom > (effectiveViewportHeight - 20) || rect.top < 60;
+            
+            if (isObscured) {
+              activeEl.scrollIntoView({ block: "center", behavior: "smooth" });
+            }
+          }, 300);
+        }
         return;
       }
     }
@@ -69,7 +92,6 @@ export function useKeyboardAvoidance() {
     const currentHeight = window.innerHeight;
     const heightDiff = initialHeight - currentHeight;
 
-    // 如果高度减少超过 150px，通常是键盘弹出
     if (heightDiff > 150) {
       setKeyboardState(true, heightDiff, false);
       return;
@@ -77,38 +99,53 @@ export function useKeyboardAvoidance() {
 
     // 3. 检查当前是否有聚焦的输入框 (保底逻辑)
     const activeEl = document.activeElement;
-    const isInputFocused = activeEl && (
+    const isInputFocused = !!(activeEl && (
       activeEl.tagName === "INPUT" ||
       activeEl.tagName === "TEXTAREA" ||
       (activeEl as HTMLElement).isContentEditable ||
-      activeEl.closest('.var-input')
-    );
+      activeEl.closest('.var-input') ||
+      // 增加对 Varlet 输入框内部 input 的识别
+      activeEl.classList.contains('var-input__input')
+    ));
 
-    if (!isInputFocused) {
-      setKeyboardState(false, 0);
+    // 关键修正：只要输入框还聚焦，绝对不允许关闭键盘状态
+    if (isInputFocused) {
+      if (isKeyboardVisible.value) return; // 已经开了就别动了
+      
+      // 如果没开，但我们确定它聚焦了，说明系统没给高度反馈
+      // 这里的逻辑交给 handleFocusIn 去处理强制开启
+      return;
     }
+
+    // 只有在确定没有输入框聚焦时，才允许关闭
+    setKeyboardState(false, 0);
   };
 
   const debouncedUpdate = debounce(updateKeyboardState, 150);
 
   const handleFocusIn = (e: FocusEvent) => {
-    // 模拟器可能不触发 resize，我们在 focus 后延迟强制检查一次
+    logger.debug("FocusIn detected", { target: (e.target as HTMLElement).tagName });
+    
     setTimeout(() => {
       updateKeyboardState();
-      // 如果 250ms 后还是没检测到高度变化，但输入框确实聚焦了，启动模拟模式
-      // 缩短时间以配合组件内部的滚动逻辑
+      
       setTimeout(() => {
-        if (!isKeyboardVisible.value && document.activeElement === e.target) {
-          logger.info("No height change detected after focus, using simulation");
-          // 预估键盘高度为屏幕的 40%
-          setKeyboardState(true, Math.floor(initialHeight * 0.4), true);
+        const activeEl = document.activeElement;
+        if (activeEl === e.target && !isKeyboardVisible.value) {
+          logger.info("Force enabling keyboard state via focus (Viewport height unchange)");
+          const estimatedHeight = Math.floor(initialHeight * 0.4);
+          setKeyboardState(true, estimatedHeight, true);
+          
+          if (activeEl instanceof HTMLElement) {
+            logger.debug("Force scrolling after simulated focus");
+            activeEl.scrollIntoView({ block: "center", behavior: "smooth" });
+          }
         }
-      }, 150);
+      }, 100);
     }, 100);
   };
 
   const handleFocusOut = () => {
-    // 延迟检查，防止从一个输入框跳到另一个时闪烁
     setTimeout(() => {
       const activeEl = document.activeElement;
       const isStillInput = activeEl && (
@@ -136,7 +173,6 @@ export function useKeyboardAvoidance() {
       window.visualViewport.addEventListener("scroll", debouncedUpdate);
     }
 
-    // 监听 body 属性变化作为最后的保底
     observer = new MutationObserver(debouncedUpdate);
     observer.observe(document.body, { attributes: true, childList: true, subtree: true });
 

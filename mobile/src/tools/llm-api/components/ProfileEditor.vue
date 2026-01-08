@@ -208,7 +208,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
       viewportHeight,
       availableHeight,
       groupRect: { top: groupRect.top, bottom: groupRect.bottom },
-      targetScrollTop
+      targetScrollTop,
     });
 
     // 判定是否需要滚动：如果输入框在屏幕下半部或者快被遮挡了

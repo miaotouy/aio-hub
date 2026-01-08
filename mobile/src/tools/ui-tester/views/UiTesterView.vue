@@ -397,7 +397,7 @@ onMounted(() => {
               </div>
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Applied (CSS) H</div>
-                <div class="text-warning font-bold">var(--keyboard-height)</div>
+                <div class="text-warning font-bold">{{ viewportInfo.cssKeyboardHeight }}px</div>
               </div>
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Simulated Mode</div>

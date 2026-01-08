@@ -130,19 +130,24 @@ onMounted(() => {
   max-height: var(--viewport-height) !important;
 }
 
-/* 键盘可见时，给所有滚动容器增加底部空间 */
-/* 注意：popup 是 teleport 到 body 的，所以需要用 :root 级别的选择器 */
-.keyboard-visible .editor-content,
-.keyboard-visible .keyboard-aware-scroll,
-.keyboard-visible .popup-scroll-content {
-  /* 增加额外 Padding 确保内容能滚上去 */
-  padding-bottom: calc(var(--keyboard-height) + 40px) !important;
-  transition: padding-bottom 0.3s ease-out;
+/* 键盘可见时，仅针对特定的浮层（如 popup）保持高度限制 */
+.keyboard-visible .var-popup__content {
+  max-height: var(--viewport-height) !important;
 }
 
 /* 聚焦的输入框自动滚动到可见区域 */
 .keyboard-visible input:focus,
-.keyboard-visible textarea:focus {
-  scroll-margin-bottom: calc(var(--keyboard-height) + 60px);
+.keyboard-visible textarea:focus,
+.keyboard-visible .var-input:focus-within {
+  /* 增加巨大的滚动边距，强行让它滚上去 */
+  scroll-margin-bottom: calc(var(--keyboard-height) + 120px);
+}
+
+/* 强制增加底部占位 */
+.keyboard-visible .main-content::after {
+  content: "";
+  display: block;
+  height: var(--keyboard-height);
+  width: 100%;
 }
 </style>

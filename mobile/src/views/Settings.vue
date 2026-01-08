@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { Snackbar } from "@varlet/ui";
+import ThemeColorSettings from "@/components/settings/ThemeColorSettings.vue";
 import {
   Palette,
   Languages,
@@ -76,7 +77,6 @@ const showVersionInfo = () => {
       <!-- 外观设置 -->
       <var-paper :elevation="1" class="settings-group">
         <div class="group-title">外观</div>
-        
         <var-cell ripple>
           <template #icon>
             <div class="group-icon">
@@ -104,12 +104,17 @@ const showVersionInfo = () => {
               <template #selected>
                 <div class="selected-value">
                   <component :is="currentThemeIcon" :size="16" class="mr-1" />
-                  {{ themeOptions.find(o => o.value === settingsStore.settings.appearance.theme)?.label }}
+                  {{
+                    themeOptions.find((o) => o.value === settingsStore.settings.appearance.theme)
+                      ?.label
+                  }}
                 </div>
               </template>
             </var-select>
           </template>
         </var-cell>
+
+        <ThemeColorSettings />
 
         <var-cell ripple>
           <template #icon>
@@ -172,10 +177,7 @@ const showVersionInfo = () => {
             <div class="cell-desc">显示开发者相关的调试信息</div>
           </div>
           <template #extra>
-            <var-switch
-              v-model="settingsStore.settings.debugMode"
-              @change="handleDebugChange"
-            />
+            <var-switch v-model="settingsStore.settings.debugMode" @change="handleDebugChange" />
           </template>
         </var-cell>
       </var-paper>
@@ -200,9 +202,7 @@ const showVersionInfo = () => {
         </var-cell>
       </var-paper>
 
-      <div class="footer-hint">
-        Made with ❤️ by AIO Team
-      </div>
+      <div class="footer-hint">Made with ❤️ by AIO Team</div>
     </div>
   </div>
 </template>

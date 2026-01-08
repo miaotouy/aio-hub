@@ -34,6 +34,7 @@ export const useSettingsStore = defineStore("settings", () => {
     try {
       const loaded = await configManager.load();
       settings.value = loaded;
+      syncThemeToLocalStorage();
       logger.info("设置加载成功", { settings: settings.value });
     } catch (err: any) {
       error.value = err;
@@ -45,11 +46,23 @@ export const useSettingsStore = defineStore("settings", () => {
   }
 
   /**
+   * 同步主题到 localStorage 以便 index.html 提前读取，防止白屏闪烁
+   */
+  function syncThemeToLocalStorage() {
+    try {
+      localStorage.setItem("aio_hub_theme_cache", settings.value.appearance.theme);
+    } catch (e) {
+      // 忽略
+    }
+  }
+
+  /**
    * 保存设置
    */
   async function save() {
     try {
       await configManager.save(settings.value);
+      syncThemeToLocalStorage();
       logger.debug("设置已保存");
     } catch (err) {
       errorHandler.error(err, "保存设置失败");

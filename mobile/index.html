@@ -5,6 +5,33 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>AIO Hub mobile</title>
+    <style>
+      :root {
+        --bg-color: #ffffff;
+      }
+      html.dark {
+        --bg-color: #121212;
+      }
+      html,
+      body {
+        background-color: var(--bg-color);
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+    <script>
+      (function () {
+        const cache = localStorage.getItem("aio_hub_theme_cache") || "auto";
+        const isDark =
+          cache === "dark" ||
+          (cache === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (isDark) {
+          document.documentElement.classList.add("dark");
+        }
+      })();
+    </script>
   </head>
 
   <body>

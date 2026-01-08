@@ -149,11 +149,29 @@ export function generateMd3Theme(
   themeConfig["--hsl-surface-container-highest"] = hexToVarletHsl(themeConfig["--color-surface-container-highest"]);
 
   // 修复 BottomNavigation 等组件的紫色高亮问题
-  // 强制覆盖 Varlet 内部可能引用的 info-container 变量
   const primaryContainer = hexFromArgb(scheme.primaryContainer);
+  const onPrimaryContainer = hexFromArgb(scheme.onPrimaryContainer);
   themeConfig["--bottom-navigation-item-active-background-color"] = primaryContainer;
   themeConfig["--bottom-navigation-item-variant-active-background-color"] = primaryContainer;
-  themeConfig["--bottom-navigation-item-variant-active-color"] = hexFromArgb(scheme.onPrimaryContainer);
+  themeConfig["--bottom-navigation-item-variant-active-color"] = onPrimaryContainer;
+
+  // AppBar 颜色适配
+  themeConfig["--app-bar-color"] = hexFromArgb(scheme.surface);
+  themeConfig["--app-bar-text-color"] = hexFromArgb(scheme.onSurface);
+
+  // 补充 Varlet 组件变量覆盖
+  themeConfig["--dialog-background"] = themeConfig["--color-surface-container-high"];
+  themeConfig["--popup-content-background-color"] = themeConfig["--color-surface-container-high"];
+  themeConfig["--menu-background-color"] = themeConfig["--color-surface-container"];
+  themeConfig["--select-scroller-background"] = themeConfig["--color-surface-container"];
+  themeConfig["--action-sheet-background"] = themeConfig["--color-surface-container-high"];
+  themeConfig["--picker-background"] = themeConfig["--color-body"];
+
+  // 按钮与交互组件
+  themeConfig["--button-default-color"] = themeConfig["--color-surface-container-highest"];
+  themeConfig["--button-default-text-color"] = themeConfig["--color-primary"];
+  themeConfig["--card-background"] = themeConfig["--color-surface-container-low"];
+  themeConfig["--paper-background"] = themeConfig["--color-surface-container-highest"];
 
   return themeConfig;
 }

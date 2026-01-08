@@ -324,6 +324,7 @@ const showDrawer = ref(false);
 .drawer-content {
   background-color: var(--card-bg);
   max-height: 80vh;
+  max-height: 80dvh;
   display: flex;
   flex-direction: column;
 }

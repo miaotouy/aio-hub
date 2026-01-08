@@ -96,6 +96,7 @@ const updateValue = (key: string, val: string) => {
   padding: 24px;
   background: var(--color-surface);
   max-height: 80vh;
+  max-height: 80dvh;
   display: flex;
   flex-direction: column;
 }

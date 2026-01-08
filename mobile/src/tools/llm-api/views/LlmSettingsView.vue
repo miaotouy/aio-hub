@@ -179,6 +179,7 @@ const handleToggleMultiSelect = (id: string) => {
 
 .empty-state {
   height: 60vh;
+  height: 60dvh;
   display: flex;
   flex-direction: column;
   align-items: center;

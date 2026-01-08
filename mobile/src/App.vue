@@ -24,7 +24,7 @@ onMounted(() => {
   </div>
 
   <div v-else class="app-container">
-    <var-style-provider :style="themeStore.themeVars">
+    <var-style-provider :style="themeStore.themeVars" class="app-style-provider">
       <main class="main-content">
         <router-view v-slot="{ Component }">
           <keep-alive>
@@ -84,10 +84,21 @@ onMounted(() => {
 }
 
 .app-container {
-  height: 100vh;
+  height: 100%;
+  /* 也可以使用 100dvh 适配移动端动态工具栏 */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-color);
+  overflow: hidden;
+}
+
+.app-style-provider {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 .main-content {

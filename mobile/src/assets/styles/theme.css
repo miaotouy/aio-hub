@@ -84,7 +84,8 @@ body {
 }
 
 .app-view {
-  min-height: 100vh;
+  min-height: 100%;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-color);

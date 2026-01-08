@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import {
   Settings2,
   RefreshCw,
@@ -11,6 +11,8 @@ import {
   Trash2,
   ExternalLink,
   Sparkles,
+  Eye,
+  EyeOff,
 } from "lucide-vue-next";
 import { Snackbar, Dialog } from "@varlet/ui";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
@@ -23,6 +25,9 @@ import type { LlmProfile } from "../types";
 import CustomHeadersEditor from "./CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./CustomEndpointsEditor.vue";
 import IconSelector from "./IconSelector.vue";
+
+// 密码可见性
+const showApiKey = ref(false);
 
 const props = defineProps<{
   show: boolean;
@@ -41,41 +46,48 @@ const showHeadersPopup = ref(false);
 const showEndpointsPopup = ref(false);
 const showIconSelectorPopup = ref(false);
 
-const localProfile = computed({
-  get: () => props.profile,
-  set: (val) => emit("update:profile", val),
-});
+const innerProfile = ref<LlmProfile | null>(null);
+
+watch(
+  () => props.show,
+  (val) => {
+    if (val && props.profile) {
+      innerProfile.value = JSON.parse(JSON.stringify(props.profile));
+    }
+  },
+  { immediate: true }
+);
 
 const saveEdit = () => {
-  if (localProfile.value) {
-    if (!localProfile.value.name.trim()) {
+  if (innerProfile.value) {
+    if (!innerProfile.value.name.trim()) {
       Snackbar.warning("请输入渠道名称");
       return;
     }
-    emit("save", localProfile.value);
+    emit("save", innerProfile.value);
   }
 };
 
 const handleDelete = async () => {
-  if (!localProfile.value) return;
+  if (!innerProfile.value) return;
   const confirm = await Dialog({
     title: "确认删除",
-    message: `确定要删除渠道 "${localProfile.value.name}" 吗？`,
+    message: `确定要删除渠道 "${innerProfile.value.name}" 吗？`,
     confirmButtonText: "确定",
     cancelButtonText: "取消",
   });
 
   if (confirm === "confirm") {
-    emit("delete", localProfile.value.id);
+    emit("delete", innerProfile.value.id);
   }
 };
 
 const handleFetchModels = async () => {
-  if (!localProfile.value) return;
+  if (!innerProfile.value) return;
   isFetchingModels.value = true;
   try {
-    const models = await fetchModelsFromApi(localProfile.value);
-    localProfile.value.models = models;
+    const models = await fetchModelsFromApi(innerProfile.value);
+    innerProfile.value.models = models;
     Snackbar.success(`成功获取 ${models.length} 个模型`);
   } catch (err: any) {
     Snackbar.error(`获取失败: ${err.message}`);
@@ -85,20 +97,57 @@ const handleFetchModels = async () => {
 };
 
 const apiEndpointPreview = computed(() => {
-  if (!localProfile.value?.baseUrl) return "";
-  return generateLlmApiEndpointPreview(localProfile.value.baseUrl, localProfile.value.type);
+  if (!innerProfile.value?.baseUrl) return "";
+  return generateLlmApiEndpointPreview(innerProfile.value.baseUrl, innerProfile.value.type);
 });
 
 const endpointHint = computed(() => {
-  if (!localProfile.value) return "";
-  return getLlmEndpointHint(localProfile.value.type);
+  if (!innerProfile.value) return "";
+  return getLlmEndpointHint(innerProfile.value.type);
+});
+
+// 为 var-input 创建独立的 computed 属性，避免嵌套对象导致的 placeholder 偏移和粘贴 bug
+const profileName = computed({
+  get: () => innerProfile.value?.name || "",
+  set: (val: string) => {
+    if (innerProfile.value) {
+      innerProfile.value.name = val;
+    }
+  },
+});
+
+const profileType = computed({
+  get: () => innerProfile.value?.type || "openai",
+  set: (val: string) => {
+    if (innerProfile.value) {
+      innerProfile.value.type = val as any;
+    }
+  },
+});
+
+const profileIcon = computed({
+  get: () => innerProfile.value?.icon || "",
+  set: (val: string) => {
+    if (innerProfile.value) {
+      innerProfile.value.icon = val;
+    }
+  },
+});
+
+const profileBaseUrl = computed({
+  get: () => innerProfile.value?.baseUrl || "",
+  set: (val: string) => {
+    if (innerProfile.value) {
+      innerProfile.value.baseUrl = val;
+    }
+  },
 });
 
 const apiKeyString = computed({
-  get: () => localProfile.value?.apiKeys.join(", ") || "",
+  get: () => innerProfile.value?.apiKeys.join(", ") || "",
   set: (val: string) => {
-    if (localProfile.value) {
-      localProfile.value.apiKeys = val
+    if (innerProfile.value) {
+      innerProfile.value.apiKeys = val
         .split(",")
         .map((k) => k.trim())
         .filter(Boolean);
@@ -107,11 +156,24 @@ const apiKeyString = computed({
 });
 
 const handleIconSelect = (icon: any) => {
-  if (localProfile.value) {
-    localProfile.value.icon = icon.path;
+  if (innerProfile.value) {
+    innerProfile.value.icon = icon.path;
     showIconSelectorPopup.value = false;
     Snackbar.success("已选择图标");
   }
+};
+
+// 处理输入框聚焦时滚动到可见区域
+const scrollIntoViewOnFocus = (event: FocusEvent) => {
+  nextTick(() => {
+    const target = event.target as HTMLElement;
+    // 向上寻找最近的 group 容器，确保整个组（包含 label 和提示）都可见
+    const group = target.closest(".native-input-group") || target;
+    // 延迟执行以等待键盘弹出
+    setTimeout(() => {
+      group.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
+  });
 };
 </script>
 
@@ -134,17 +196,14 @@ const handleIconSelect = (icon: any) => {
         </template>
       </var-app-bar>
 
-      <div class="editor-content" v-if="localProfile">
+      <div class="editor-content" v-if="innerProfile">
         <!-- 基础信息 -->
         <div class="section-header">基础信息</div>
         <div class="config-card">
           <!-- 头像选择区域 -->
           <div class="avatar-select-section">
             <div class="avatar-preview-large" v-ripple @click="showIconSelectorPopup = true">
-              <DynamicIcon :src="localProfile.icon || ''" :alt="localProfile.name" />
-              <div class="edit-badge">
-                <Sparkles :size="14" />
-              </div>
+              <DynamicIcon :src="innerProfile.icon || ''" :alt="innerProfile.name" />
             </div>
             <div class="avatar-info">
               <div class="avatar-label">渠道图标</div>
@@ -152,76 +211,100 @@ const handleIconSelect = (icon: any) => {
             </div>
           </div>
 
-          <var-input
-            v-model="localProfile.name"
-            label="渠道名称"
-            placeholder="例如: 我的 OpenAI"
-            variant="outlined"
-            class="form-item"
-          />
-          <var-select
-            v-model="localProfile.type"
-            label="提供商类型"
-            variant="outlined"
-            class="form-item"
-          >
-            <var-option
-              v-for="t in providerTypes"
-              :key="t.type"
-              :label="t.name"
-              :value="t.type"
+          <div class="native-input-group form-item">
+            <label class="native-input-label">渠道名称</label>
+            <input
+              v-model="profileName"
+              type="text"
+              class="native-input"
+              placeholder="输入渠道名称"
+              @focus="scrollIntoViewOnFocus"
             />
-          </var-select>
-          <var-input
-            v-model="localProfile.icon"
-            label="图标路径/URL"
-            placeholder="图标文件名(如 openai.svg)或URL"
-            variant="outlined"
-            class="form-item"
-          >
-            <template #append-icon>
-              <var-button round text size="small" @click="showIconSelectorPopup = true">
+          </div>
+
+          <div class="native-input-group form-item">
+            <label class="native-input-label">提供商类型</label>
+            <select v-model="profileType" class="native-select">
+              <option v-for="t in providerTypes" :key="t.type" :value="t.type">
+                {{ t.name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="native-input-group form-item">
+            <label class="native-input-label">图标路径/URL</label>
+            <div class="native-input-with-action">
+              <input
+                v-model="profileIcon"
+                type="text"
+                class="native-input"
+                placeholder="输入图标路径或URL"
+                @focus="scrollIntoViewOnFocus"
+              />
+              <button class="input-action-btn" @click="showIconSelectorPopup = true">
                 <Sparkles :size="18" />
-              </var-button>
-            </template>
-          </var-input>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- 连接配置 -->
         <div class="section-header">连接配置</div>
         <div class="config-card">
-          <var-input
-            v-model="localProfile.baseUrl"
-            label="API 基础地址"
-            placeholder="https://api.openai.com/v1"
-            variant="outlined"
-            class="form-item"
-          >
-            <template #prepend-icon><Globe :size="18" class="field-icon" /></template>
-          </var-input>
+          <div class="native-input-group form-item">
+            <label class="native-input-label"
+              ><Globe :size="16" class="label-icon" />
+              API 基础地址
+            </label>
 
-          <div v-if="apiEndpointPreview" class="url-preview">
-            <div class="preview-text">预览: {{ apiEndpointPreview }}</div>
-            <div class="preview-hint">{{ endpointHint }}</div>
+            <div v-if="apiEndpointPreview" class="url-preview in-group">
+              <div class="preview-text">预览: {{ apiEndpointPreview }}</div>
+              <div class="preview-hint">{{ endpointHint }}</div>
+            </div>
+
+            <input
+              v-model="profileBaseUrl"
+              type="url"
+              class="native-input mono"
+              placeholder="https://api.example.com/v1"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="none"
+              spellcheck="false"
+              @focus="scrollIntoViewOnFocus"
+            />
           </div>
 
-          <var-input
-            v-model="apiKeyString"
-            label="API Key"
-            type="password"
-            placeholder="sk-... (多个用逗号分隔)"
-            variant="outlined"
-            class="form-item"
-          >
-            <template #prepend-icon><Key :size="18" class="field-icon" /></template>
-          </var-input>
+          <div class="native-input-group form-item">
+            <label class="native-input-label">
+              <Key :size="16" class="label-icon" />
+              API Key
+            </label>
+            <div class="native-input-with-action">
+              <input
+                v-model="apiKeyString"
+                :type="showApiKey ? 'text' : 'password'"
+                class="native-input mono"
+                placeholder="sk-xxxx (多个用逗号分隔)"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="none"
+                spellcheck="false"
+                @focus="scrollIntoViewOnFocus"
+              />
+              <button class="input-action-btn" @click="showApiKey = !showApiKey">
+                <Eye v-if="showApiKey" :size="18" />
+                <EyeOff v-else :size="18" />
+              </button>
+            </div>
+          </div>
 
           <div class="cell-group">
             <var-cell ripple class="custom-cell" @click="showHeadersPopup = true">
               <template #icon><Settings2 :size="18" class="field-icon" /></template>
               自定义请求头
               <template #description>
-                已配置 {{ Object.keys(localProfile.customHeaders || {}).length }} 个
+                已配置 {{ Object.keys(innerProfile.customHeaders || {}).length }} 个
               </template>
               <template #extra><ChevronRight :size="18" /></template>
             </var-cell>
@@ -249,12 +332,12 @@ const handleIconSelect = (icon: any) => {
           </var-button>
         </div>
         <div class="config-card no-padding overflow-hidden">
-          <div v-if="localProfile.models.length === 0" class="empty-models">
+          <div v-if="innerProfile.models.length === 0" class="empty-models">
             暂无模型，请点击自动获取
           </div>
           <div v-else class="model-scroll-list">
             <var-cell
-              v-for="m in localProfile.models"
+              v-for="m in innerProfile.models"
               :key="m.id"
               :title="m.name"
               :description="m.id"
@@ -278,22 +361,19 @@ const handleIconSelect = (icon: any) => {
 
     <!-- 子编辑器 -->
     <CustomHeadersEditor
-      v-if="localProfile && localProfile.customHeaders"
+      v-if="innerProfile && innerProfile.customHeaders"
       v-model:show="showHeadersPopup"
-      v-model:headers="localProfile.customHeaders"
+      v-model:headers="innerProfile.customHeaders"
     />
 
     <CustomEndpointsEditor
-      v-if="localProfile && localProfile.customEndpoints"
+      v-if="innerProfile && innerProfile.customEndpoints"
       v-model:show="showEndpointsPopup"
-      v-model:endpoints="localProfile.customEndpoints"
+      v-model:endpoints="innerProfile.customEndpoints"
     />
 
     <!-- 图标选择 -->
-    <IconSelector
-      v-model:show="showIconSelectorPopup"
-      @select="handleIconSelect"
-    />
+    <IconSelector v-model:show="showIconSelectorPopup" @select="handleIconSelect" />
   </var-popup>
 </template>
 
@@ -360,6 +440,121 @@ const handleIconSelect = (icon: any) => {
   margin-bottom: 0;
 }
 
+/* 原生输入框样式 */
+.native-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.native-input-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-on-surface);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label-icon {
+  opacity: 0.7;
+}
+
+.native-input,
+.native-select {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-on-surface);
+  background: var(--color-surface-container);
+  border: 1.5px solid var(--color-outline);
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+}
+
+.native-input::placeholder {
+  color: var(--color-on-surface);
+  opacity: 0.4;
+}
+
+.native-input:focus,
+.native-select:focus {
+  border-color: var(--color-primary);
+  background: var(--color-surface-container-high);
+  box-shadow: 0 0 0 3px var(--color-primary-container);
+}
+
+.native-input.mono {
+  font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
+  font-size: 14px;
+}
+
+.native-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+.native-input-with-action {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--color-surface-container);
+  border: 1.5px solid var(--color-outline);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.native-input-with-action:focus-within {
+  border-color: var(--color-primary);
+  background: var(--color-surface-container-high);
+  box-shadow: 0 0 0 3px var(--color-primary-container);
+}
+
+.native-input-with-action .native-input {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.native-input-with-action .native-input:focus {
+  box-shadow: none;
+}
+
+.input-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  background: transparent;
+  border: none;
+  color: var(--color-on-surface);
+  opacity: 0.6;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    background 0.2s;
+}
+
+.input-action-btn:hover {
+  opacity: 1;
+  background: var(--color-surface-container-highest);
+}
+
+.input-action-btn:active {
+  background: var(--color-surface-container);
+}
+
 .avatar-select-section {
   display: flex;
   align-items: center;
@@ -375,7 +570,7 @@ const handleIconSelect = (icon: any) => {
   background: var(--color-surface-container-high);
   border-radius: 20px;
   padding: 16px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1.5px solid var(--color-outline);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -423,6 +618,11 @@ const handleIconSelect = (icon: any) => {
   padding: 0 4px;
 }
 
+.url-preview.in-group {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
 .preview-text {
   font-size: 10px;
   opacity: 0.5;
@@ -445,8 +645,8 @@ const handleIconSelect = (icon: any) => {
 
 .custom-cell {
   border-radius: 12px;
-  border: 1px solid var(--color-outline-variant);
-  background: var(--color-surface-container-low);
+  border: 1.5px solid var(--color-outline);
+  background: var(--color-surface-container);
 }
 
 .empty-models {

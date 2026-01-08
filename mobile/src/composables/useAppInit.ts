@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
+import { setI18nLanguage } from "@/i18n";
 import { useDebugPanel } from "@/composables/useDebugPanel";
 import { toolManager } from "@/utils/toolManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -30,12 +31,17 @@ export function useAppInit() {
       progress.value = 20;
       await settingsStore.init();
 
-      // 2. 初始化主题
+      // 2. 初始化语言
+      statusMessage.value = "正在应用语言设置...";
+      progress.value = 30;
+      setI18nLanguage(settingsStore.settings.language);
+
+      // 3. 初始化主题
       statusMessage.value = "正在应用主题...";
-      progress.value = 40;
+      progress.value = 45;
       themeStore.initTheme();
 
-      // 3. 初始化已注册工具
+      // 4. 初始化已注册工具
       const tools = toolManager.getRegisteredTools() as ToolRegistry[];
       const toolsToInit = tools.filter((t) => typeof t.init === "function");
 
@@ -53,7 +59,7 @@ export function useAppInit() {
         }
       }
 
-      // 4. 初始化调试工具
+      // 5. 初始化调试工具
       if (settingsStore.settings.debugMode) {
         statusMessage.value = "正在启动调试面板...";
         toggleDebugPanel(true);

@@ -22,12 +22,12 @@ const i18n = createI18n({
  */
 export function useI18n() {
   const { t, ...rest } = i18n.global;
-  
+
   // 强类型版本 - 只接受预定义的 I18nKey
   const typedT: TypedT = (key, ...args) => {
     return (t as any)(key, ...args);
   };
-  
+
   // 宽松版本 - 用于动态 key（如工具私有 key）
   const rawT: RawT = (key, ...args) => {
     return (t as any)(key, ...args);
@@ -38,6 +38,13 @@ export function useI18n() {
     tRaw: rawT,
     ...rest,
   };
+}
+
+/**
+ * 设置当前语言
+ */
+export function setI18nLanguage(locale: any) {
+  i18n.global.locale.value = locale;
 }
 
 // 扩展全局组件类型，让模板中的 t 也能享受类型提示

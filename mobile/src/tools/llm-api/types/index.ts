@@ -4,6 +4,7 @@
 
 export * from "./common";
 export * from "./model-metadata";
+import type { LlmModelInfo } from "./common";
 
 export type ProviderType =
   | "openai"
@@ -37,21 +38,6 @@ export interface LlmParameterSupport {
   webSearch?: boolean;
 }
 
-export interface LlmModelInfo {
-  id: string;
-  name: string;
-  group?: string;
-  provider?: string;
-  capabilities?: import("./common").ModelCapabilities;
-  tokenLimits?: {
-    output?: number;
-    contextLength?: number;
-  };
-  icon?: string;
-  description?: string;
-  /** 通用的扩展属性，用于特定工具的规则 */
-  extra?: Record<string, any>;
-}
 
 export interface LlmProfile {
   id: string;
@@ -63,6 +49,7 @@ export interface LlmProfile {
   models: LlmModelInfo[];
   icon?: string;
   customHeaders?: Record<string, string>;
+  modelGroupsExpandState?: string[];
   /**
    * 自定义 API 端点（可选）
    */

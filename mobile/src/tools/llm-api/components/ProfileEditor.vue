@@ -6,10 +6,8 @@ const logger = createModuleLogger("ProfileEditor");
 
 import {
   Settings2,
-  RefreshCw,
   Globe,
   Key,
-  Box,
   ChevronLeft,
   ChevronRight,
   Trash2,
@@ -23,12 +21,15 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { providerTypes } from "../config/llm-providers";
 import { fetchModelsFromApi } from "../core/model-fetcher";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "../utils/url";
-import type { LlmProfile } from "../types";
+import type { LlmProfile, LlmModelInfo } from "../types";
 
 // 导入子组件
 import CustomHeadersEditor from "./CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./CustomEndpointsEditor.vue";
 import IconSelector from "./IconSelector.vue";
+import ModelList from "./ModelList.vue";
+import ModelFetcherPopup from "./ModelFetcherPopup.vue";
+import ModelEditorPopup from "./ModelEditorPopup.vue";
 
 // 密码可见性
 const showApiKey = ref(false);
@@ -49,6 +50,10 @@ const isFetchingModels = ref(false);
 const showHeadersPopup = ref(false);
 const showEndpointsPopup = ref(false);
 const showIconSelectorPopup = ref(false);
+const showModelFetcherPopup = ref(false);
+const showModelEditorPopup = ref(false);
+const editingModel = ref<LlmModelInfo | null>(null);
+const fetchedModels = ref<LlmModelInfo[]>([]);
 
 const innerProfile = ref<LlmProfile | null>(null);
 
@@ -91,13 +96,73 @@ const handleFetchModels = async () => {
   isFetchingModels.value = true;
   try {
     const models = await fetchModelsFromApi(innerProfile.value);
-    innerProfile.value.models = models;
-    Snackbar.success(`成功获取 ${models.length} 个模型`);
+    fetchedModels.value = models;
+    showModelFetcherPopup.value = true;
   } catch (err: any) {
     Snackbar.error(`获取失败: ${err.message}`);
   } finally {
     isFetchingModels.value = false;
   }
+};
+
+const handleAddModels = (models: LlmModelInfo[]) => {
+  if (!innerProfile.value) return;
+  const existingIds = new Set(innerProfile.value.models.map((m: LlmModelInfo) => m.id));
+  const newModels = models.filter((m: LlmModelInfo) => !existingIds.has(m.id));
+  innerProfile.value.models = [...innerProfile.value.models, ...newModels];
+
+  // 自动展开新添加模型的分组
+  const newGroups = new Set(newModels.map((m) => m.group).filter((g): g is string => !!g));
+  if (newGroups.size > 0) {
+    const currentExpandState = new Set(innerProfile.value.modelGroupsExpandState || []);
+    newGroups.forEach((g) => currentExpandState.add(g));
+    innerProfile.value.modelGroupsExpandState = Array.from(currentExpandState);
+  }
+
+  Snackbar.success(`成功添加 ${newModels.length} 个模型`);
+};
+
+const handleAddSingleModel = () => {
+  editingModel.value = null;
+  showModelEditorPopup.value = true;
+};
+
+const handleEditModel = (model: LlmModelInfo) => {
+  editingModel.value = model;
+  showModelEditorPopup.value = true;
+};
+
+const handleSaveModel = (model: LlmModelInfo) => {
+  if (!innerProfile.value) return;
+  const index = innerProfile.value.models.findIndex((m: LlmModelInfo) => m.id === model.id);
+  if (index > -1) {
+    innerProfile.value.models[index] = model;
+  } else {
+    innerProfile.value.models = [...innerProfile.value.models, model];
+  }
+  Snackbar.success("模型已保存");
+};
+
+const handleDeleteModel = (modelId: string) => {
+  if (!innerProfile.value) return;
+  innerProfile.value.models = innerProfile.value.models.filter(
+    (m: LlmModelInfo) => m.id !== modelId
+  );
+  Snackbar.success("模型已删除");
+};
+
+const handleDeleteGroup = (modelIds: string[]) => {
+  if (!innerProfile.value) return;
+  innerProfile.value.models = innerProfile.value.models.filter(
+    (m: LlmModelInfo) => !modelIds.includes(m.id)
+  );
+  Snackbar.success(`已删除 ${modelIds.length} 个模型`);
+};
+
+const handleClearModels = () => {
+  if (!innerProfile.value) return;
+  innerProfile.value.models = [];
+  Snackbar.success("已清空所有模型");
 };
 
 const apiEndpointPreview = computed(() => {
@@ -355,7 +420,8 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               <template #icon><Settings2 :size="18" class="field-icon" /></template>
               自定义请求头
               <template #description>
-                已配置 {{ Object.keys(innerProfile.customHeaders || {}).length }} 个
+                已配置
+                {{ Object.keys(innerProfile.customHeaders || {}).length }} 个
               </template>
               <template #extra><ChevronRight :size="18" /></template>
             </var-cell>
@@ -370,35 +436,26 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
         </div>
 
         <!-- 模型管理 -->
-        <div class="section-header-row">
-          <span class="section-header no-margin">模型管理</span>
-          <var-button
-            size="mini"
-            type="primary"
-            plain
+        <div class="model-management-section">
+          <ModelList
+            v-if="innerProfile"
+            :models="innerProfile.models"
+            :expand-state="innerProfile.modelGroupsExpandState || []"
             :loading="isFetchingModels"
-            @click="handleFetchModels"
-          >
-            <RefreshCw :size="14" /> 自动获取
-          </var-button>
-        </div>
-        <div class="config-card no-padding overflow-hidden">
-          <div v-if="innerProfile.models.length === 0" class="empty-models">
-            暂无模型，请点击自动获取
-          </div>
-          <div v-else class="model-scroll-list">
-            <var-cell
-              v-for="m in innerProfile.models"
-              :key="m.id"
-              :title="m.name"
-              :description="m.id"
-              border
-            >
-              <template #icon>
-                <Box :size="16" class="field-icon opacity-50" />
-              </template>
-            </var-cell>
-          </div>
+            @update:expand-state="
+              (state) => {
+                if (innerProfile) {
+                  innerProfile.modelGroupsExpandState = state;
+                }
+              }
+            "
+            @add="handleAddSingleModel"
+            @edit="handleEditModel"
+            @delete="handleDeleteModel"
+            @delete-group="handleDeleteGroup"
+            @clear="handleClearModels"
+            @fetch="handleFetchModels"
+          />
         </div>
 
         <!-- 危险操作 -->
@@ -425,6 +482,22 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
     <!-- 图标选择 -->
     <IconSelector v-model:show="showIconSelectorPopup" @select="handleIconSelect" />
+
+    <!-- 模型获取弹窗 -->
+    <ModelFetcherPopup
+      v-model:show="showModelFetcherPopup"
+      :models="fetchedModels"
+      :existing-models="innerProfile?.models || []"
+      @add-models="handleAddModels"
+    />
+
+    <!-- 模型编辑弹窗 -->
+    <ModelEditorPopup
+      v-model:show="showModelEditorPopup"
+      :model="editingModel"
+      @save="handleSaveModel"
+      @delete="handleDeleteModel"
+    />
   </var-popup>
 </template>
 
@@ -468,6 +541,10 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.model-management-section {
+  margin-bottom: 32px;
 }
 
 .config-card {
@@ -700,22 +777,6 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   border-radius: 12px;
   border: 1.5px solid var(--color-outline);
   background: var(--color-surface-container);
-}
-
-.empty-models {
-  padding: 48px 24px;
-  text-align: center;
-  opacity: 0.4;
-  font-size: 14px;
-  border: 1px dashed var(--color-outline-variant);
-  border-radius: 20px;
-}
-
-.model-scroll-list {
-  max-height: 300px;
-  overflow-y: auto;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 20px;
 }
 
 .danger-zone {

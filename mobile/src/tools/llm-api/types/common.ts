@@ -105,7 +105,7 @@ export type LlmMessageContent =
  * LLM 消息结构
  */
 export interface LlmMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: "system" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
   /**
    * 是否作为续写前缀 (DeepSeek / Claude Prefill)
@@ -115,25 +115,38 @@ export interface LlmMessage {
 }
 
 /**
- * 模型信息
+ * 视觉 Token 计费规则
  */
-export interface LlmModelInfo {
-  /** 模型 ID */
-  id: string;
-  /** 提供商标识 */
-  provider: string;
-  /** 模型显示名称 */
-  name?: string;
-  /** 图标路径 */
-  icon?: string;
-  /** 分组 */
-  group?: string;
-  /** 模型能力 */
-  capabilities?: ModelCapabilities;
-  /** 是否启用 */
-  enabled?: boolean;
-  /** 任意其他元数据 */
-  [key: string]: unknown;
+export interface VisionTokenCost {
+  /**
+   * 计算方法
+   * - 'fixed': 固定成本（每张图片固定 token 数）
+   * - 'openai_tile': OpenAI 的瓦片计算法（基础成本 + 瓦片数 × 瓦片成本）
+   * - 'claude_3': Claude 3 的动态计算（API 会返回实际值，这里作为预估）
+   * - 'gemini_2_0': Gemini 2.0 的瓦片计算法
+   */
+  calculationMethod: "fixed" | "openai_tile" | "claude_3" | "gemini_2_0";
+
+  /**
+   * 计算参数
+   * 根据不同的 calculationMethod 使用不同的参数：
+   * - 'fixed': 使用 costPerImage
+   * - 'openai_tile': 使用 baseCost, tileCost, tileSize
+   * - 'claude_3': 使用 costPerImage (作为预估，实际值由 API 返回)
+   */
+  parameters: {
+    /** 固定成本（每张图片的 token 数） */
+    costPerImage?: number;
+
+    /** 基础成本（例如 OpenAI 的固定 85 tokens） */
+    baseCost?: number;
+
+    /** 每个瓦片的成本（例如 OpenAI 的 170 tokens per tile） */
+    tileCost?: number;
+
+    /** 瓦片大小（像素，例如 512x512） */
+    tileSize?: number;
+  };
 }
 
 /**
@@ -142,39 +155,225 @@ export interface LlmModelInfo {
 export interface ModelCapabilities {
   /** 是否支持视觉 (多模态图片) */
   vision?: boolean;
+
+  /** 视觉 Token 计费规则（仅当 vision 为 true 时有效） */
+  visionTokenCost?: VisionTokenCost;
+
   /** 是否支持工具调用 (Function Calling) */
   toolUse?: boolean;
+
   /** 是否支持 JSON 模式输出 */
   jsonOutput?: boolean;
+
   /** 是否支持思考模式 (Reasoning/Thinking) */
   thinking?: boolean;
+
+  /**
+   * 思考能力的配置模式
+   * - 'none': 无思考能力配置
+   * - 'switch': 简单的启用/禁用开关
+   * - 'budget': 开关 + Token 预算滑块
+   * - 'effort': 推理等级/工作量选择器
+   */
+  thinkingConfigType?: "none" | "switch" | "budget" | "effort";
+
+  /** 可用的推理等级选项 (当 thinkingConfigType 为 'effort' 时使用) */
+  reasoningEffortOptions?: string[];
+
   /** 是否支持代码执行 (Code Execution) */
   codeExecution?: boolean;
+
   /** 是否支持联网搜索 (Web Search) */
   webSearch?: boolean;
+
   /** 是否支持文件搜索 (RAG/Retrieval) */
   fileSearch?: boolean;
+
   /** 是否支持计算机使用 (Computer Use) */
   computerUse?: boolean;
+
   /** 是否支持文档处理 (PDF/Doc) */
   document?: boolean;
+
+  /**
+   * 文档格式（仅当 document 为 true 时有效）
+   * 指定该模型使用的文档传输格式
+   *
+   * - 'base64': Claude/Gemini 格式，直接在消息中嵌入 base64 编码的文档
+   * - 'openai_file': OpenAI Responses 格式，支持 file_url/file_id/file_data 三种方式
+   */
+  documentFormat?: "base64" | "openai_file";
+
+  /**
+   * 文档 Token 计费规则（仅当 document 为 true 时有效）
+   * 用于计算 PDF 等文档的 token 消耗
+   */
+  documentTokenCost?: {
+    /**
+     * 计算方法
+     * - 'per_page': 按页计算（如 Gemini: 258 tokens/page）
+     * - 'dynamic': 动态计算（API 返回实际值）
+     */
+    calculationMethod: "per_page" | "dynamic";
+
+    /** 每页的 token 数（仅当 calculationMethod 为 'per_page' 时使用） */
+    tokensPerPage?: number;
+  };
+
   /** 是否支持图像生成 (Text-to-Image) */
   imageGeneration?: boolean;
+
+  /** 是否支持视频输入 */
+  video?: boolean;
+
   /** 是否支持视频生成 (Text-to-Video) */
   videoGeneration?: boolean;
+
+  /** 是否支持音频输入或输出 */
+  audio?: boolean;
+
   /** 是否支持音乐生成 (Text-to-Audio) */
   musicGeneration?: boolean;
+
+  /** 是否支持嵌入 (Embedding) */
+  embedding?: boolean;
+
+  /** 是否支持重排 (Rerank) */
+  rerank?: boolean;
+
   /** 是否支持 FIM (Fill-in-the-middle) 补全 */
   fim?: boolean;
+
   /** 是否支持前缀续写 (Prefix Completion) */
   prefixCompletion?: boolean;
+
   /** 任意其他能力标签 */
-  [key: string]: boolean | undefined;
+  [key: string]: any;
 }
 
 /**
-  * LLM 请求参数
-  */
+ * 模型信息
+ */
+export interface LlmModelInfo {
+  /**
+   * 模型ID，用于 API 请求，例如 'gpt-4o', 'llava'
+   */
+  id: string;
+
+  /**
+   * 显示名称，用于 UI 展示，例如 'GPT-4o', 'LLaVA 1.5'
+   */
+  name: string;
+
+  /**
+   * 可选的分组名称，用于在 UI 中对模型进行分类
+   */
+  group?: string;
+
+  /**
+   * 模型所属的提供商标识 (e.g., 'openai', 'gemini', 'anthropic')
+   * 用于 UI 显示 logo 等
+   */
+  provider?: string;
+
+  /**
+   * 模型能力标识
+   */
+  capabilities?: ModelCapabilities;
+
+  /**
+   * Token 限制信息（可选）
+   */
+  tokenLimits?: {
+    /** 输出 token 限制 */
+    output?: number;
+    /** 上下文窗口大小 */
+    contextLength?: number;
+  };
+
+  /**
+   * 架构和模态信息（可选）
+   */
+  architecture?: {
+    /** 模态类型，如 'text->text', 'text+image->text' */
+    modality?: string;
+    /** 输入模态列表 */
+    inputModalities?: string[];
+    /** 输出模态列表 */
+    outputModalities?: string[];
+  };
+
+  /**
+   * 支持的生成方法或参数（可选）
+   */
+  supportedFeatures?: {
+    /** 支持的生成方法（Gemini） */
+    generationMethods?: string[];
+    /** 支持的参数列表（OpenRouter） */
+    parameters?: string[];
+  };
+
+  /**
+   * 默认参数建议（可选）
+   */
+  defaultParameters?: {
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    maxTemperature?: number;
+  };
+
+  /**
+   * 价格信息（可选）
+   */
+  pricing?: {
+    /** 输入价格（每 token） */
+    prompt?: string;
+    /** 输出价格（每 token） */
+    completion?: string;
+    /** 请求价格 */
+    request?: string;
+    /** 图片价格 */
+    image?: string;
+  };
+
+  /**
+   * 模型版本（可选）
+   */
+  version?: string;
+
+  /**
+   * 自定义模型图标路径（可选）
+   * 优先级高于 provider 图标和全局匹配规则
+   */
+  icon?: string;
+
+  /**
+   * 模型描述信息（可选）
+   * 用于在 UI 中显示模型的特性和用途说明
+   */
+  description?: string;
+
+  /**
+   * 模型专属的自定义参数（可选）
+   * 用于支持非标准的 API 参数，例如模型路由配置等
+   * 会在请求时与标准参数合并
+   */
+  customParameters?: Record<string, any>;
+
+  /** 是否启用 */
+  enabled?: boolean;
+
+  /** 通用的扩展属性，用于特定工具的规则 */
+  extra?: Record<string, any>;
+
+  /** 任意其他元数据 */
+  [key: string]: unknown;
+}
+
+/**
+ * LLM 请求参数
+ */
 export interface LlmRequestOptions {
   profileId?: string;
   modelId: string;
@@ -232,7 +431,11 @@ export interface LlmRequestOptions {
     };
   }>;
   /** 工具选择策略 */
-  toolChoice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+  toolChoice?:
+  | "none"
+  | "auto"
+  | "required"
+  | { type: "function"; function: { name: string } };
   /** 是否启用并行工具调用 */
   parallelToolCalls?: boolean;
   /** 流式选项 */
@@ -262,14 +465,26 @@ export interface LlmRequestOptions {
   /** 预测输出配置 */
   prediction?: {
     type: "content";
-    content: string | Array<{
+    content:
+    | string
+    | Array<{
       type: "text";
       text: string;
     }>;
   };
   /** 音频输出参数 */
   audio?: {
-    voice: "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer";
+    voice:
+    | "alloy"
+    | "ash"
+    | "ballad"
+    | "coral"
+    | "echo"
+    | "fable"
+    | "nova"
+    | "onyx"
+    | "sage"
+    | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 服务层级 */
@@ -367,7 +582,17 @@ export interface LlmResponse {
   /** 模型的拒绝消息（如果模型拒绝响应） */
   refusal?: string | null;
   /** 停止原因 */
-  finishReason?: "stop" | "length" | "content_filter" | "tool_calls" | "function_call" | "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
+  finishReason?:
+  | "stop"
+  | "length"
+  | "content_filter"
+  | "tool_calls"
+  | "function_call"
+  | "end_turn"
+  | "max_tokens"
+  | "stop_sequence"
+  | "tool_use"
+  | null;
   /** 停止序列（Claude） */
   stopSequence?: string | null;
   /** 工具调用结果（函数调用） */

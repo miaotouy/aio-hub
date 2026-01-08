@@ -83,26 +83,33 @@ const updateViewportInfo = (event?: Event) => {
 };
 
 const updateSafeAreaInsets = () => {
-  // 创建一个隐藏的探测元素
-  const probe = document.createElement("div");
-  probe.style.position = "fixed";
-  probe.style.top = "env(safe-area-inset-top)";
-  probe.style.bottom = "env(safe-area-inset-bottom)";
-  probe.style.left = "env(safe-area-inset-left)";
-  probe.style.right = "env(safe-area-inset-right)";
-  probe.style.visibility = "hidden";
-  probe.style.pointerEvents = "none";
-  document.body.appendChild(probe);
+  // 优先从根元素读取 CSS 变量（这些通常由全局样式或系统注入）
+  const style = getComputedStyle(document.documentElement);
+  const top = style.getPropertyValue("--app-safe-area-top").trim();
+  const bottom = style.getPropertyValue("--app-safe-area-bottom").trim();
 
-  const style = window.getComputedStyle(probe);
-  safeAreaInsets.value = {
-    top: style.top,
-    bottom: style.bottom,
-    left: style.left,
-    right: style.right,
-  };
-
-  document.body.removeChild(probe);
+  // 如果 CSS 变量没值且在真机/模拟器环境，再尝试 DOM 探测
+  if ((!top || top === "0px") && isTauri.value) {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:fixed;top:env(safe-area-inset-top);bottom:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none;";
+    document.body.appendChild(probe);
+    const probeStyle = window.getComputedStyle(probe);
+    safeAreaInsets.value = {
+      top: probeStyle.top,
+      bottom: probeStyle.bottom,
+      left: probeStyle.left,
+      right: probeStyle.right,
+    };
+    document.body.removeChild(probe);
+  } else {
+    safeAreaInsets.value = {
+      top: top || "0px",
+      bottom: bottom || "0px",
+      left: style.getPropertyValue("--app-safe-area-left").trim() || "0px",
+      right: style.getPropertyValue("--app-safe-area-right").trim() || "0px",
+    };
+  }
 };
 
 const checkTauri = async () => {

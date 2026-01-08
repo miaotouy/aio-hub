@@ -21,7 +21,7 @@ const handleToolClick = (tool: ToolRegistry) => {
 
 <template>
   <div class="app-view app-view--safe-top home-container">
-    <div class="content safe-area-bottom">
+    <div class="content">
       <div class="header">
         <h2 class="greeting">欢迎使用 AIO Hub</h2>
         <p class="subtitle">一体化工具集合</p>

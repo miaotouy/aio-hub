@@ -104,6 +104,9 @@ onMounted(() => {
 .main-content {
   flex: 1;
   overflow-y: auto;
+  /* 只有当内容超出时才需要 padding 给 fixed 的导航栏留位置 */
+  /* 但为了保证滚动到底部时内容不被遮挡，padding 还是需要的 */
   padding-bottom: calc(var(--var-bottom-navigation-height) + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

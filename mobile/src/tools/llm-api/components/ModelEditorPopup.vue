@@ -186,7 +186,13 @@ const toggleCapability = (key: string) => {
     innerModel.value.capabilities = {};
   }
   const current = innerModel.value.capabilities[key as any];
-  innerModel.value.capabilities[key as any] = !current;
+  const newValue = !current;
+  innerModel.value.capabilities[key as any] = newValue;
+
+  // 如果是切换思考能力，同步更新思考配置模式
+  if (key === "thinking") {
+    innerModel.value.capabilities.thinkingConfigType = newValue ? "switch" : "none";
+  }
 };
 
 const isCapabilityActive = (key: string): boolean => {
@@ -377,7 +383,7 @@ const setTokenLimit = (
           <div class="capabilities-grid" v-if="innerModel.capabilities">
             <div
               v-for="cap in MODEL_CAPABILITIES.filter(
-                (c) => !['thinking', 'embedding', 'rerank'].includes(String(c.key))
+                (c) => !['embedding', 'rerank'].includes(String(c.key))
               )"
               :key="String(cap.key)"
               class="capability-toggle"
@@ -409,6 +415,13 @@ const setTokenLimit = (
                 :hint="false"
                 :line="false"
                 class="custom-var-select"
+                @update:model-value="
+                  (val: any) => {
+                    if (innerModel.capabilities) {
+                      innerModel.capabilities.thinking = val !== 'none';
+                    }
+                  }
+                "
               >
                 <var-option label="无思考能力" value="none" />
                 <var-option label="简单开关 (DeepSeek)" value="switch" />

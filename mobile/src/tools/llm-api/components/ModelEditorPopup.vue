@@ -6,6 +6,7 @@ import { useModelMetadata } from "../composables/useModelMetadata";
 import { MODEL_CAPABILITIES } from "../config/model-capabilities";
 import { Snackbar, Dialog } from "@varlet/ui";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import IconSelector from "./IconSelector.vue";
 
 interface Props {
   show: boolean;
@@ -147,6 +148,7 @@ const handleApplyPreset = () => {
 const handleIconSelect = (icon: any) => {
   innerModel.value.icon = icon.path;
   showIconSelector.value = false;
+  Snackbar.success("已选择图标");
 };
 
 const handleSave = () => {
@@ -230,6 +232,17 @@ const setTokenLimit = (
       <div class="editor-content">
         <div class="section-header">基本信息</div>
         <div class="config-card">
+          <!-- 图标选择区域 -->
+          <div class="avatar-select-section">
+            <div class="avatar-preview-large" v-ripple @click="showIconSelector = true">
+              <DynamicIcon :src="innerModel.icon || ''" :alt="innerModel.name" />
+            </div>
+            <div class="avatar-info">
+              <div class="avatar-label">模型图标</div>
+              <div class="avatar-hint">点击图标选择预设</div>
+            </div>
+          </div>
+
           <div class="form-item">
             <div class="native-input-group">
               <label class="native-input-label">模型 ID *</label>
@@ -274,7 +287,7 @@ const setTokenLimit = (
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">图标</label>
+              <label class="native-input-label">图标路径/URL</label>
               <div class="native-input-with-action">
                 <input
                   v-model="innerModel.icon"
@@ -282,14 +295,8 @@ const setTokenLimit = (
                   class="native-input"
                   placeholder="输入图标路径或URL"
                 />
-                <button class="input-action-btn icon-preview-btn" @click="showIconSelector = true">
-                  <DynamicIcon
-                    v-if="innerModel.icon"
-                    :src="innerModel.icon"
-                    :alt="innerModel.name"
-                    class="preview-icon"
-                  />
-                  <Sparkles v-else :size="18" />
+                <button class="input-action-btn" @click="showIconSelector = true">
+                  <Sparkles :size="18" />
                 </button>
               </div>
             </div>
@@ -395,12 +402,19 @@ const setTokenLimit = (
           <div class="form-item">
             <div class="native-input-group">
               <label class="native-input-label">配置模式</label>
-              <select v-model="innerModel.capabilities.thinkingConfigType" class="native-select">
-                <option value="none">无思考能力</option>
-                <option value="switch">简单开关 (DeepSeek)</option>
-                <option value="budget">预算模式 (Claude)</option>
-                <option value="effort">等级模式 (OpenAI o1/o3)</option>
-              </select>
+              <var-select
+                v-model="innerModel.capabilities.thinkingConfigType"
+                variant="outlined"
+                placeholder="请选择配置模式"
+                :hint="false"
+                :line="false"
+                class="custom-var-select"
+              >
+                <var-option label="无思考能力" value="none" />
+                <var-option label="简单开关 (DeepSeek)" value="switch" />
+                <var-option label="预算模式 (Claude)" value="budget" />
+                <var-option label="等级模式 (OpenAI o1/o3)" value="effort" />
+              </var-select>
             </div>
           </div>
           <div v-if="innerModel.capabilities.thinkingConfigType === 'effort'" class="form-item">
@@ -501,7 +515,7 @@ const setTokenLimit = (
 .editor-content {
   flex: 1;
   overflow-y: auto;
-  padding: 78px 16px 24px;
+  padding: 78px 24px 24px;
 }
 
 .section-header {
@@ -515,13 +529,13 @@ const setTokenLimit = (
 
 .config-card {
   background: var(--color-surface-container);
-  border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 24px;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 32px;
 }
 
 .form-item {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .form-item:last-child {
@@ -531,7 +545,7 @@ const setTokenLimit = (
 .native-input-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
 }
 
@@ -543,43 +557,51 @@ const setTokenLimit = (
 
 .native-input {
   width: 100%;
-  padding: 12px 14px;
-  font-size: 15px;
+  padding: 14px 16px;
+  font-size: 16px;
+  line-height: 1.5;
   color: var(--color-on-surface);
-  background: var(--color-surface);
+  background: var(--color-surface-container);
   border: 1.5px solid var(--color-outline);
-  border-radius: 10px;
+  border-radius: 12px;
   outline: none;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
 }
 
 .native-input::placeholder {
-  color: var(--color-on-surface-variant);
-  opacity: 0.5;
+  color: var(--color-on-surface);
+  opacity: 0.4;
 }
 
-.native-input:focus,
-.native-select:focus {
+.native-input:focus {
   border-color: var(--color-primary);
   background: var(--color-surface-container-high);
+  box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
-.native-select {
-  width: 100%;
-  padding: 12px 14px;
-  font-size: 15px;
-  color: var(--color-on-surface);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-outline);
-  border-radius: 10px;
-  outline: none;
-  transition: all 0.2s;
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 16px;
+/* 自定义 VarSelect 样式以匹配 native-input */
+.custom-var-select {
+  --select-border-radius: 12px;
+  --select-padding: 14px 16px;
+  --select-font-size: 16px;
+  --field-decorator-outlined-border-color: var(--color-outline);
+  --field-decorator-focus-color: var(--color-primary);
+  --field-decorator-text-color: var(--color-on-surface);
+  --field-decorator-placeholder-color: rgba(var(--color-on-surface), 0.4);
+}
+
+:deep(.custom-var-select .var-field-decorator--outlined) {
+  border-width: 1.5px;
+  background: var(--color-surface-container);
+  transition: all 0.2s ease;
+}
+
+:deep(.custom-var-select .var-field-decorator--focus) {
+  background: var(--color-surface-container-high);
+  box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
 .native-input.mono {
@@ -591,9 +613,9 @@ const setTokenLimit = (
   display: flex;
   align-items: stretch;
   gap: 0;
-  background: var(--color-surface);
+  background: var(--color-surface-container);
   border: 1.5px solid var(--color-outline);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   transition: all 0.2s ease;
 }
@@ -637,17 +659,43 @@ const setTokenLimit = (
 
 .input-action-btn:active {
   background: var(--color-surface-container);
-  opacity: 1;
 }
 
-.input-action-btn.icon-preview-btn {
-  width: 52px;
-  padding: 8px;
+.avatar-select-section {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+  padding: 4px;
 }
 
-.input-action-btn .preview-icon {
-  width: 28px;
-  height: 28px;
+.avatar-preview-large {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  background: var(--color-surface-container-high);
+  border-radius: 20px;
+  padding: 16px;
+  border: 1.5px solid var(--color-outline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatar-info {
+  flex: 1;
+}
+
+.avatar-label {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.avatar-hint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 
 .input-hint {
@@ -707,6 +755,12 @@ const setTokenLimit = (
   top: 6px;
   right: 6px;
   color: var(--cap-color, var(--color-primary));
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 .danger-zone {

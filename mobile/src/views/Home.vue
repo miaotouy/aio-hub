@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "@/i18n";
 import { getRegisteredTools } from "../router";
 import ToolIcon from "@/components/ToolIcon.vue";
 import type { ToolRegistry } from "@/types/tool";
 
 const router = useRouter();
+const { t } = useI18n();
 const tools = ref<ToolRegistry[]>([]);
 
 onMounted(() => {
@@ -23,8 +25,8 @@ const handleToolClick = (tool: ToolRegistry) => {
   <div class="app-view app-view--safe-top home-container">
     <div class="content">
       <div class="header">
-        <h2 class="greeting">欢迎使用 AIO Hub</h2>
-        <p class="subtitle">一体化工具集合</p>
+        <h2 class="greeting">{{ t('home.欢迎使用') }}</h2>
+        <p class="subtitle">{{ t('home.副标题') }}</p>
       </div>
 
       <div class="tools-grid">

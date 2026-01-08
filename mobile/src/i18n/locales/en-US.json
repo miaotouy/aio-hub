@@ -1,0 +1,51 @@
+{
+  "common": {
+    "确认": "Confirm",
+    "取消": "Cancel",
+    "保存": "Save",
+    "重置": "Reset",
+    "删除": "Delete",
+    "编辑": "Edit",
+    "成功": "Success",
+    "失败": "Failed",
+    "提示": "Info",
+    "警告": "Warning",
+    "加载中": "Loading...",
+    "确定": "OK"
+  },
+  "nav": {
+    "首页": "Home",
+    "工具": "Tools",
+    "设置": "Settings"
+  },
+  "home": {
+    "欢迎使用": "Welcome to AIO Hub",
+    "副标题": "All-in-one tool collection"
+  },
+  "settings": {
+    "标题": "Settings",
+    "外观": "Appearance",
+    "通用": "General",
+    "关于": "About",
+    "主题模式": "Theme Mode",
+    "主题模式描述": "Set the visual style of the application",
+    "跟随 system": "Follow System",
+    "浅色模式": "Light Mode",
+    "深色模式": "Dark Mode",
+    "触感反馈": "Haptic Feedback",
+    "触感反馈描述": "Trigger slight vibration during interaction",
+    "语言": "Language",
+    "调试模式": "Debug Mode",
+    "调试模式描述": "Show developer-related debug information",
+    "调试面板已加载": "Debug panel loaded",
+    "调试面板已卸载": "Debug panel uninstalled",
+    "版本信息": "Version Info",
+    "当前版本": "Current Version {version}",
+    "强制刷新": "Force Refresh",
+    "强制刷新描述": "Bypass cache and reload application resources",
+    "确认刷新": "Confirm Refresh",
+    "刷新提示": "Refreshing the page will attempt to bypass the cache and reload resources. Unsaved state will be lost.",
+    "已切换至": "Switched to {theme}",
+    "语言已切换至": "Language switched to {lang}"
+  }
+}

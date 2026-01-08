@@ -323,15 +323,143 @@
 
 ### 2.3. 多语言架构 (i18n Strategy)
 
-移动端采用 **“中文作为 Key (Source Text as Key)”** 的方案，以提高开发直观度。
+移动端采用 **"中文作为 Key (Source Text as Key)"** 的方案，以提高开发直观度。
 
-- **核心原则**:
-    - **直观开发**: 代码中直接书写 `t('通用.确认')`，无需在文件间频繁跳转。
-    - **强类型推导**: 利用 TypeScript 从 `zh-CN.json` 自动推导 Key 的联合类型，确保拼写检查与自动补全。
-- **工具自治**:
-    - 工具私有文案存放在工具目录内的 `locales/` 下，使用工具 ID 作为命名空间。
-    - 工具初始化时需调用 `i18n.mergeLocaleMessage` 注册私有语言包。
-- **覆盖机制**: 优先级为 `外部自定义 JSON > 工具私有包 > 内置核心包`。
+#### 2.3.1. 核心原则
+
+- **直观开发**: 代码中直接书写中文 Key，无需在文件间频繁跳转。
+- **强类型推导**: 利用 TypeScript 从 `zh-CN.json` 自动推导 Key 的联合类型，确保拼写检查与自动补全。
+- **命名空间隔离**: 通过层级结构区分不同模块的文案，避免冲突。
+
+#### 2.3.2. 命名空间结构
+
+语言包采用层级命名空间，核心结构如下：
+
+```json
+{
+  "common": { "确认": "...", "取消": "...", "保存": "..." },
+  "nav": { "首页": "...", "工具": "...", "设置": "..." },
+  "settings": { "标题": "...", "外观": "..." },
+  "tools": {
+    "llm-api": { "编辑渠道": "...", "渠道名称": "..." },
+    "llm-chat": { "发送消息": "...", "清空对话": "..." }
+  }
+}
+```
+
+- **`common`**: 全局通用文案（按钮文字、状态提示等），所有模块均可复用。
+- **`nav`**: 导航栏相关文案。
+- **`settings`**: 设置页面文案。
+- **`tools.{toolId}`**: 工具私有文案，使用工具 ID 作为子命名空间。
+
+#### 2.3.3. 翻译函数：`t()` vs `tRaw()`
+
+系统提供两种翻译函数，适用于不同场景：
+
+| 函数     | 类型安全  | 适用场景                   | 示例                             |
+| -------- | --------- | -------------------------- | -------------------------------- |
+| `t()`    | ✅ 强类型 | 核心语言包中的预定义 Key   | `t('common.确认')`               |
+| `tRaw()` | ❌ 宽松   | 工具私有 Key、动态拼接 Key | `tRaw('tools.llm-api.编辑渠道')` |
+
+**使用原则**:
+
+- **优先使用 `t()`**: 对于 `common`, `nav`, `settings` 等核心命名空间，使用 `t()` 以获得类型检查和自动补全。
+- **工具私有使用 `tRaw()`**: 工具私有文案（`tools.xxx`）由于是动态注册的，必须使用 `tRaw()`。
+
+```typescript
+import { useI18n } from "@/i18n";
+
+const { t, tRaw } = useI18n();
+
+// 通用文案使用 t()
+t("common.确认");
+t("common.取消");
+
+// 工具私有文案使用 tRaw()
+tRaw("tools.llm-api.编辑渠道");
+tRaw("tools.llm-api.渠道名称");
+```
+
+#### 2.3.4. 工具私有语言包
+
+工具私有文案存放在工具目录内的 `locales/` 下，通过 `registerToolLocales` 注册。
+
+**目录结构**:
+
+```
+mobile/src/tools/llm-api/
+├── registry.ts
+├── locales/
+│   ├── zh-CN.json
+│   └── en-US.json
+└── ...
+```
+
+**语言包格式** (无需包含 `tools.llm-api` 前缀):
+
+```json
+// locales/zh-CN.json
+{
+  "编辑渠道": "编辑渠道",
+  "渠道名称": "渠道名称",
+  "删除确认": "确定要删除渠道 \"{name}\" 吗？"
+}
+
+// locales/en-US.json
+{
+  "编辑渠道": "Edit Channel",
+  "渠道名称": "Channel Name",
+  "删除确认": "Are you sure you want to delete channel \"{name}\"?"
+}
+```
+
+**注册方式** (在 `registry.ts` 中):
+
+```typescript
+import { registerToolLocales, useI18n } from "@/i18n";
+import zhCN from "./locales/zh-CN.json";
+import enUS from "./locales/en-US.json";
+
+// 提前注册语言包，确保路由 meta.title 等 getter 能正确获取翻译
+registerToolLocales("llm-api", {
+  "zh-CN": zhCN,
+  "en-US": enUS,
+});
+
+export default {
+  id: "llm-api",
+  get name() {
+    const { tRaw } = useI18n();
+    return tRaw("tools.llm-api.LLM 服务");
+  },
+  // ...
+};
+```
+
+#### 2.3.5. 复用 common 与语序处理
+
+**复用 common 的最佳实践**:
+
+- 通用按钮文字（确认、取消、保存、删除等）使用 `common` 命名空间。
+- 工具私有文案中不要重复定义已存在于 `common` 中的文案。
+
+**语序差异处理**:
+
+不同语言的语序可能不同（如中文"成功添加 5 个模型" vs 英文"Successfully added 5 models"）。使用**参数插值**而非字符串拼接来处理：
+
+**复杂语序示例**:
+
+```typescript
+// 删除确认对话框
+tRaw("tools.llm-api.删除确认", { name: profile.name });
+
+// zh-CN: "删除确认": "确定要删除渠道 \"{name}\" 吗？"
+// en-US: "删除确认": "Are you sure you want to delete channel \"{name}\"?"
+```
+
+#### 2.3.6. 覆盖机制
+
+优先级为 `外部自定义 JSON > 工具私有包 > 内置核心包`。
 
 ## 3. 移动端专用脚本
 

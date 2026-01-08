@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
-import { Snackbar } from "@varlet/ui";
+import { Snackbar, Dialog } from "@varlet/ui";
 import { useDebugPanel } from "@/composables/useDebugPanel";
 import ThemeColorSettings from "@/components/settings/ThemeColorSettings.vue";
 import {
@@ -14,6 +14,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  RefreshCw,
 } from "lucide-vue-next";
 
 const settingsStore = useSettingsStore();
@@ -63,6 +64,22 @@ const handleDebugChange = async (value: any) => {
 
 const showVersionInfo = () => {
   Snackbar.info("AIO Hub Mobile v0.1.0");
+};
+
+const handleRefresh = async () => {
+  const action = await Dialog({
+    title: "确认刷新",
+    message: "刷新页面将尝试绕过缓存并重新加载资源，未保存的状态将丢失。",
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+  });
+
+  if (action === "confirm") {
+    // 通过添加随机参数强制绕过部分 WebView 的缓存优化
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", Date.now().toString());
+    window.location.href = url.toString();
+  }
 };
 </script>
 
@@ -194,6 +211,21 @@ const showVersionInfo = () => {
           <div class="cell-content">
             <div class="cell-label">版本信息</div>
             <div class="cell-desc">当前版本 0.1.0</div>
+          </div>
+          <template #extra>
+            <ChevronRight :size="20" class="text-hint" />
+          </template>
+        </var-cell>
+
+        <var-cell ripple @click="handleRefresh">
+          <template #icon>
+            <div class="group-icon">
+              <RefreshCw :size="20" />
+            </div>
+          </template>
+          <div class="cell-content">
+            <div class="cell-label">强制刷新</div>
+            <div class="cell-desc">绕过缓存重载应用资源</div>
           </div>
           <template #extra>
             <ChevronRight :size="20" class="text-hint" />

@@ -5,6 +5,7 @@ import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { Plus, Layers, ChevronLeft } from "lucide-vue-next";
 import { Snackbar } from "@varlet/ui";
 import type { LlmProfile } from "../types";
+import { generateUuid } from "@/utils/uuid";
 
 // 导入子组件
 import ProfileCard from "../components/ProfileCard.vue";
@@ -30,7 +31,7 @@ const handleAddProfile = () => {
 
 const applyPreset = (preset: any) => {
   const newProfile: LlmProfile = {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     name: preset.name,
     type: preset.type,
     baseUrl: preset.defaultBaseUrl,
@@ -48,7 +49,7 @@ const applyPreset = (preset: any) => {
 
 const createCustomProfile = () => {
   const newProfile: LlmProfile = {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     name: "新渠道",
     type: "openai",
     baseUrl: "https://api.openai.com/v1",

@@ -1,3 +1,4 @@
+m
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
@@ -6,6 +7,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
+import { generateUuid } from "@/utils/uuid";
 
 const router = useRouter();
 const logger = createModuleLogger("UiTester");
@@ -76,7 +78,7 @@ const updateViewportInfo = (event?: Event) => {
 
   logger.debug("Viewport updated", {
     event: event?.type || "manual",
-    viewport: { ...viewportInfo.value }
+    viewport: { ...viewportInfo.value },
   });
 };
 
@@ -189,6 +191,13 @@ const triggerError = () => {
 
 const triggerCritical = () => {
   errorHandler.critical("这是一个严重错误", "系统可能需要重启", { fatal: true });
+};
+
+// --- UUID 测试 ---
+const lastGeneratedUuid = ref("");
+const generateNewUuid = () => {
+  lastGeneratedUuid.value = generateUuid();
+  logger.info("Generated UUID", { uuid: lastGeneratedUuid.value });
 };
 
 const goBack = () => {
@@ -372,6 +381,23 @@ onMounted(() => {
           </var-cell>
           <div class="card-content flex justify-center py-6">
             <var-loading type="cube" size="large" />
+          </div>
+        </template>
+      </var-card>
+
+      <!-- UUID 测试 -->
+      <var-card title="工具类测试 (Utils)" class="mt-4" elevation="2">
+        <template #description>
+          <div class="card-content">
+            <var-cell title="UUID 生成测试" description="测试 generateUuid 工具函数" />
+            <div class="mt-2 p-3 bg-secondary rounded text-xs font-mono break-all">
+              <div class="text-hint mb-1">生成的 ID:</div>
+              <div v-if="lastGeneratedUuid" class="text-primary">{{ lastGeneratedUuid }}</div>
+              <div v-else class="text-hint italic">尚未生成</div>
+            </div>
+            <var-button type="primary" block size="small" class="mt-4" @click="generateNewUuid">
+              生成新 UUID
+            </var-button>
           </div>
         </template>
       </var-card>

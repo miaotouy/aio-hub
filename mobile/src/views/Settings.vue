@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { Snackbar } from "@varlet/ui";
+import { useDebugPanel } from "@/composables/useDebugPanel";
 import ThemeColorSettings from "@/components/settings/ThemeColorSettings.vue";
 import {
   Palette,
@@ -48,16 +49,14 @@ const handleLanguageChange = async (value: any) => {
 const handleHapticChange = async (value: any) => {
   await settingsStore.updateAppearance({ hapticFeedback: value });
 };
+const { toggleDebugPanel } = useDebugPanel();
 
 const handleDebugChange = async (value: any) => {
   await settingsStore.updateSettings({ debugMode: value });
+  toggleDebugPanel(value);
   if (value) {
-    const eruda = await import("eruda");
-    eruda.default.init();
     Snackbar.success("调试面板已加载");
   } else {
-    const eruda = await import("eruda");
-    eruda.default.destroy();
     Snackbar.info("调试面板已卸载");
   }
 };

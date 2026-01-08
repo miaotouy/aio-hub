@@ -1,7 +1,8 @@
 import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
-import { getRegisteredTools } from "@/router";
+import { useDebugPanel } from "@/composables/useDebugPanel";
+import { toolManager } from "@/utils/toolManager";
 import { createModuleLogger } from "@/utils/logger";
 import type { ToolRegistry } from "@/types/tool";
 
@@ -11,6 +12,7 @@ export function useAppInit() {
   const settingsStore = useSettingsStore();
   const themeStore = useThemeStore();
 
+  const { toggleDebugPanel } = useDebugPanel();
   const initialized = ref(false);
   const progress = ref(0);
   const statusMessage = ref("正在准备应用...");
@@ -22,19 +24,19 @@ export function useAppInit() {
 
     try {
       logger.info("开始应用初始化流程...");
-      
+
       // 1. 加载应用设置
       statusMessage.value = "正在加载配置...";
       progress.value = 20;
       await settingsStore.init();
-      
+
       // 2. 初始化主题
       statusMessage.value = "正在应用主题...";
       progress.value = 40;
       themeStore.initTheme();
 
       // 3. 初始化已注册工具
-      const tools = getRegisteredTools() as ToolRegistry[];
+      const tools = toolManager.getRegisteredTools() as ToolRegistry[];
       const toolsToInit = tools.filter((t) => typeof t.init === "function");
 
       if (toolsToInit.length > 0) {
@@ -54,10 +56,9 @@ export function useAppInit() {
       // 4. 初始化调试工具
       if (settingsStore.settings.debugMode) {
         statusMessage.value = "正在启动调试面板...";
-        const eruda = await import("eruda");
-        eruda.default.init();
+        toggleDebugPanel(true);
       }
-      
+
       statusMessage.value = "准备就绪";
       progress.value = 100;
       initialized.value = true;

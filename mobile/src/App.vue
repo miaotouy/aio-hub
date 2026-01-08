@@ -4,12 +4,17 @@ import AppBottomNav from "./components/AppBottomNav.vue";
 import { useAppInit } from "@/composables/useAppInit";
 import { useThemeStore } from "@/stores/theme";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
+import { useDebugPanel } from "@/composables/useDebugPanel";
 
 const { isReady, progress, statusMessage, bootstrap } = useAppInit();
 const themeStore = useThemeStore();
+const { syncWithSettings } = useDebugPanel();
 
 // 全局键盘避让
 useKeyboardAvoidance();
+
+// 同步调试面板状态
+syncWithSettings();
 
 onMounted(() => {
   bootstrap();

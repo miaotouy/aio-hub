@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import { ChevronLeft, Sparkles, Trash2, Check } from "lucide-vue-next";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
-import { MODEL_CAPABILITIES } from "../config/model-capabilities";
+import { useTranslatedCapabilities } from "../config/model-capabilities";
 import { Snackbar, Dialog } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
@@ -28,6 +28,7 @@ const emit = defineEmits<Emits>();
 const { t, tRaw } = useI18n();
 
 const { getMatchedProperties } = useModelMetadata();
+const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
 
 const createDefaultCapabilities = () => ({
   vision: false,
@@ -182,6 +183,30 @@ const handleDelete = async () => {
     emit("update:show", false);
   }
 };
+
+let longPressTimer: number | null = null;
+const handleCapabilityTouchStart = (cap: any) => {
+  longPressTimer = window.setTimeout(() => {
+    Snackbar.info({
+      content: cap.description,
+      duration: 2000,
+    });
+    longPressTimer = null;
+  }, 500);
+};
+
+const handleCapabilityTouchEnd = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+};
+
+onUnmounted(() => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+  }
+});
 
 const toggleCapability = (key: string) => {
   if (!innerModel.value.capabilities) {
@@ -388,7 +413,7 @@ const setTokenLimit = (
         <div class="config-card">
           <div class="capabilities-grid" v-if="innerModel.capabilities">
             <div
-              v-for="cap in MODEL_CAPABILITIES.filter(
+              v-for="cap in translatedCapabilities.filter(
                 (c) => !['embedding', 'rerank'].includes(String(c.key))
               )"
               :key="String(cap.key)"
@@ -401,6 +426,9 @@ const setTokenLimit = (
                 '--cap-bg': isCapabilityActive(String(cap.key)) ? `${cap.color}15` : 'transparent',
               }"
               @click="toggleCapability(String(cap.key))"
+              @touchstart="handleCapabilityTouchStart(cap)"
+              @touchend="handleCapabilityTouchEnd"
+              @touchmove="handleCapabilityTouchEnd"
             >
               <component :is="cap.icon" :size="18" />
               <span>{{ cap.label }}</span>

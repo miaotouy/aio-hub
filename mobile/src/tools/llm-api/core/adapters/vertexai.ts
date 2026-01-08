@@ -13,6 +13,7 @@ import {
   applyCustomParameters,
   cleanPayload,
 } from "../request-builder";
+import { useI18n } from "@/i18n";
 
 const logger = createModuleLogger("VertexAiApi");
 
@@ -26,7 +27,8 @@ export const vertexAiUrlHandler = {
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent';
+    const { tRaw } = useI18n();
+    return tRaw('tools.llm-api.Adapters.VertexAI提示');
   }
 };
 

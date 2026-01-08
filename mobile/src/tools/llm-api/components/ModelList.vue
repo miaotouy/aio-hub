@@ -5,7 +5,7 @@ import { Dialog } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
-import { MODEL_CAPABILITIES, type CapabilityConfig } from "../config/model-capabilities";
+import { useTranslatedCapabilities, type CapabilityConfig } from "../config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 interface Props {
@@ -32,6 +32,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const { getModelIcon, getModelGroup } = useModelMetadata();
+const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
 
 const modelGroups = computed(() => {
   const groups = new Map<string, Array<{ model: LlmModelInfo }>>();
@@ -75,9 +76,8 @@ const deleteGroup = async (group: { name: string; models: { model: LlmModelInfo 
     emit("delete-group", modelIds);
   }
 };
-
 const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
-  return MODEL_CAPABILITIES.filter((cap) => model.capabilities?.[cap.key]);
+  return translatedCapabilities.value.filter((cap) => model.capabilities?.[cap.key]);
 };
 </script>
 

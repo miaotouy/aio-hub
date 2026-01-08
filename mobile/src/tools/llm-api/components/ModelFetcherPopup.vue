@@ -5,7 +5,7 @@ import { ChevronLeft, Search, Check, Plus, Filter } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
-import { MODEL_CAPABILITIES } from "../config/model-capabilities";
+import { useTranslatedCapabilities } from "../config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 interface Props {
@@ -25,6 +25,7 @@ const emit = defineEmits<Emits>();
 const { t, tRaw } = useI18n();
 
 const { getModelIcon, getModelGroup, getMatchedProperties } = useModelMetadata();
+const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
 
 const searchQuery = ref("");
 const selectedCapabilities = ref<string[]>([]);
@@ -170,10 +171,9 @@ const getModelCapabilities = (model: LlmModelInfo) => {
   const modelCapabilities = model.capabilities || {};
   return merge({}, matchedCapabilities, modelCapabilities);
 };
-
 const getActiveCapabilities = (model: LlmModelInfo) => {
   const capabilities = getModelCapabilities(model);
-  return MODEL_CAPABILITIES.filter((cap) => capabilities[cap.key as keyof typeof capabilities]);
+  return translatedCapabilities.value.filter((cap) => capabilities[cap.key as keyof typeof capabilities]);
 };
 
 const toggleCapabilityFilter = (capKey: string) => {
@@ -227,7 +227,7 @@ const toggleCapabilityFilter = (capKey: string) => {
             </div>
             <div class="filter-chips">
               <div
-                v-for="cap in MODEL_CAPABILITIES"
+                v-for="cap in translatedCapabilities"
                 :key="String(cap.key)"
                 class="filter-chip"
                 :class="{

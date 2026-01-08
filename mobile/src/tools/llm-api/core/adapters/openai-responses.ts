@@ -2,6 +2,7 @@ import type { LlmProfile } from "../../types";
 import type { LlmRequestOptions, LlmResponse } from "../common";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
 import { parseSSEStream } from "@/utils/sse-parser";
+import { useI18n } from "@/i18n";
 import {
   parseMessageContents,
   extractCommonParameters,
@@ -20,7 +21,8 @@ export const openAiResponsesUrlHandler = {
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}responses`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/responses（支持工具调用和推理的有状态交互）';
+    const { tRaw } = useI18n();
+    return tRaw('tools.llm-api.Adapters.OpenAIResponses提示');
   }
 };
 

@@ -3,6 +3,7 @@ import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } fr
 // import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
 import { parseSSEStream, extractTextFromSSE } from "@/utils/sse-parser";
+import { useI18n } from "@/i18n";
 import {
   parseMessageContents,
   extractToolDefinitions,
@@ -588,7 +589,8 @@ export const geminiUrlHandler = {
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}models/{model}:generateContent`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1beta/models/{model}:generateContent';
+    const { tRaw } = useI18n();
+    return tRaw('tools.llm-api.Adapters.Gemini提示');
   }
 };
 

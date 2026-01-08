@@ -1,6 +1,7 @@
 import type { LlmProfile } from "../../types";
 import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "../common";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
+import { useI18n } from "@/i18n";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { parseSSEStream } from "@/utils/sse-parser";
@@ -26,7 +27,8 @@ export const claudeUrlHandler = {
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}messages`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/messages';
+    const { tRaw } = useI18n();
+    return tRaw('tools.llm-api.Adapters.Claude提示');
   }
 };
 

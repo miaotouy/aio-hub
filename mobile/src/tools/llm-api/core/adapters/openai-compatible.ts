@@ -3,6 +3,7 @@ import type { LlmRequestOptions, LlmResponse } from "../common";
 // import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@/utils/sse-parser";
+import { useI18n } from "@/i18n";
 import {
   parseMessageContents,
   extractCommonParameters,
@@ -70,7 +71,8 @@ export const openAiUrlHandler = {
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat/completions`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/chat/completions（如需禁用请在URL末尾加#）';
+    const { tRaw } = useI18n();
+    return tRaw('tools.llm-api.Adapters.OpenAI提示');
   }
 };
 

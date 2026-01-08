@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch } from "vue";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("ProfileEditor");
+
 import {
   Settings2,
   RefreshCw,
@@ -165,15 +169,62 @@ const handleIconSelect = (icon: any) => {
 
 // 处理输入框聚焦时滚动到可见区域
 const scrollIntoViewOnFocus = (event: FocusEvent) => {
-  nextTick(() => {
-    const target = event.target as HTMLElement;
-    // 向上寻找最近的 group 容器，确保整个组（包含 label 和提示）都可见
-    const group = target.closest(".native-input-group") || target;
-    // 延迟执行以等待键盘弹出
-    setTimeout(() => {
-      group.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 300);
-  });
+  const target = event.target as HTMLElement;
+  const group = (target.closest(".native-input-group") || target) as HTMLElement;
+
+  // 找到滚动容器
+  const scrollContainer = target.closest(".editor-content") as HTMLElement;
+  if (!scrollContainer) return;
+
+  // 延迟执行，等待键盘弹出、Padding 撑开以及 CSS 变量更新
+  // 增加重试机制，如果第一次计算时键盘高度还没出来，再试一次
+  const tryScroll = (retryCount = 0) => {
+    const keyboardHeight =
+      parseInt(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-height")) ||
+      0;
+
+    // 如果高度还是0且重试次数少于3次，延迟再试
+    if (keyboardHeight === 0 && retryCount < 3) {
+      setTimeout(() => tryScroll(retryCount + 1), 100);
+      return;
+    }
+
+    const viewportHeight = window.innerHeight;
+    const availableHeight = viewportHeight - keyboardHeight;
+
+    const groupRect = group.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+
+    // 计算输入框组中心点在滚动容器坐标系中的位置
+    const groupCenterInContainer =
+      groupRect.top - containerRect.top + scrollContainer.scrollTop + groupRect.height / 2;
+
+    // 目标：将输入框组中心滚动到可用视口区域的中部偏上位置 (约 40% 处)
+    // 同时避开顶部 AppBar (54px)
+    const targetScrollTop = groupCenterInContainer - availableHeight * 0.4;
+
+    logger.debug("Auto-scrolling calculation", {
+      keyboardHeight,
+      viewportHeight,
+      availableHeight,
+      groupRect: { top: groupRect.top, bottom: groupRect.bottom },
+      targetScrollTop
+    });
+
+    // 判定是否需要滚动：如果输入框在屏幕下半部或者快被遮挡了
+    // 在模拟模式下，我们需要更积极地滚动
+    const isSimulated = document.documentElement.classList.contains("keyboard-simulated");
+    const threshold = isSimulated ? availableHeight - 20 : availableHeight - 40;
+
+    if (groupRect.bottom > threshold || groupRect.top < 100) {
+      scrollContainer.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: "smooth",
+      });
+    }
+  };
+
+  setTimeout(() => tryScroll(), 300);
 };
 </script>
 
@@ -395,6 +446,8 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   overflow-y: auto;
   /* 避让 fixed AppBar: 54px (AppBar) + 24px (原padding) */
   padding: 78px 24px 24px;
+  /* 键盘弹出时的额外空间由全局 CSS 控制 */
+  scroll-behavior: smooth;
 }
 
 .section-header {

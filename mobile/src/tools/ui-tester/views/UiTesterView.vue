@@ -44,6 +44,42 @@ const safeAreaInsets = ref({
   right: "0px",
 });
 
+const viewportInfo = ref({
+  windowInnerHeight: 0,
+  visualViewportHeight: 0,
+  visualViewportOffsetTop: 0,
+  keyboardHeight: 0,
+  cssKeyboardHeight: 0,
+  isSimulated: false,
+  resizeCount: 0,
+  viewportEventCount: 0,
+});
+
+const updateViewportInfo = (event?: Event) => {
+  viewportInfo.value.windowInnerHeight = window.innerHeight;
+  if (window.visualViewport) {
+    viewportInfo.value.visualViewportHeight = window.visualViewport.height;
+    viewportInfo.value.visualViewportOffsetTop = window.visualViewport.offsetTop;
+    viewportInfo.value.keyboardHeight = window.innerHeight - window.visualViewport.height;
+  }
+
+  // 从 CSS 变量读取实际生效的值
+  const cssHeight = getComputedStyle(document.documentElement).getPropertyValue(
+    "--keyboard-height"
+  );
+  viewportInfo.value.cssKeyboardHeight = parseInt(cssHeight) || 0;
+  viewportInfo.value.isSimulated =
+    document.documentElement.classList.contains("keyboard-simulated");
+
+  if (event?.type === "resize") viewportInfo.value.resizeCount++;
+  if (event?.type === "scroll" || !event) viewportInfo.value.viewportEventCount++;
+
+  logger.debug("Viewport updated", {
+    event: event?.type || "manual",
+    viewport: { ...viewportInfo.value }
+  });
+};
+
 const updateSafeAreaInsets = () => {
   // 创建一个隐藏的探测元素
   const probe = document.createElement("div");
@@ -162,7 +198,15 @@ const goBack = () => {
 onMounted(() => {
   checkTauri();
   updateSafeAreaInsets();
-  window.addEventListener("resize", updateSafeAreaInsets);
+  updateViewportInfo();
+  window.addEventListener("resize", () => {
+    updateSafeAreaInsets();
+    updateViewportInfo({ type: "resize" } as any);
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", (e) => updateViewportInfo(e));
+    window.visualViewport.addEventListener("scroll", (e) => updateViewportInfo(e));
+  }
 });
 </script>
 
@@ -182,28 +226,32 @@ onMounted(() => {
       </template>
     </var-app-bar>
 
-    <div class="content has-fixed-app-bar safe-area-bottom">
+    <div class="content has-fixed-app-bar safe-area-bottom keyboard-aware-scroll">
       <!-- 避让数值测试 -->
-      <var-card title="安全区域避让测试 (Safe Area)" elevation="2">
+      <var-card title="安全区域避让测试 (Safe Area)" class="mt-4" elevation="2">
         <template #description>
           <div class="card-content">
             <var-cell title="Top (Status Bar)" :description="safeAreaInsets.top" border />
             <var-cell title="Bottom (Home Indicator)" :description="safeAreaInsets.bottom" border />
             <var-cell title="Left" :description="safeAreaInsets.left" border />
             <var-cell title="Right" :description="safeAreaInsets.right" border />
-            
+
             <div class="mt-4 p-3 bg-secondary rounded text-xs">
               <div class="text-hint mb-1">CSS 变量值:</div>
               <div class="flex justify-between mb-1">
                 <span>--app-safe-area-top:</span>
                 <span class="text-primary">var(--app-safe-area-top)</span>
               </div>
-              <div class="text-hint italic mt-2">
-                提示：在真机或模拟器上，Top 值通常 > 0。
-              </div>
+              <div class="text-hint italic mt-2">提示：在真机或模拟器上，Top 值通常 > 0。</div>
             </div>
-            
-            <var-button type="primary" block size="small" class="mt-4" @click="updateSafeAreaInsets">
+
+            <var-button
+              type="primary"
+              block
+              size="small"
+              class="mt-4"
+              @click="updateSafeAreaInsets"
+            >
               手动刷新数值
             </var-button>
           </div>
@@ -327,6 +375,66 @@ onMounted(() => {
           </div>
         </template>
       </var-card>
+
+      <!-- 键盘与视口测试 -->
+      <var-card title="键盘与视口实时监控" class="mt-4" elevation="2">
+        <template #description>
+          <div class="card-content">
+            <div class="grid grid-cols-2 gap-2 text-xs mb-4">
+              <div class="p-2 bg-secondary rounded">
+                <div class="text-hint">Window InnerHeight</div>
+                <div class="text-primary font-bold">{{ viewportInfo.windowInnerHeight }}px</div>
+              </div>
+              <div class="p-2 bg-secondary rounded">
+                <div class="text-hint">Visual Viewport H</div>
+                <div class="text-primary font-bold">{{ viewportInfo.visualViewportHeight }}px</div>
+              </div>
+              <div class="p-2 bg-secondary rounded">
+                <div class="text-hint">Real Keyboard H</div>
+                <div class="text-danger font-bold">
+                  {{ viewportInfo.keyboardHeight.toFixed(1) }}px
+                </div>
+              </div>
+              <div class="p-2 bg-secondary rounded">
+                <div class="text-hint">Applied (CSS) H</div>
+                <div class="text-warning font-bold">var(--keyboard-height)</div>
+              </div>
+              <div class="p-2 bg-secondary rounded">
+                <div class="text-hint">Simulated Mode</div>
+                <div
+                  class="font-bold"
+                  :class="viewportInfo.isSimulated ? 'text-primary' : 'text-hint'"
+                >
+                  {{ viewportInfo.isSimulated ? "YES" : "NO" }}
+                </div>
+              </div>
+              <div class="p-2 bg-secondary rounded">
+                <div class="text-hint">Viewport OffsetTop</div>
+                <div class="text-primary font-bold">
+                  {{ viewportInfo.visualViewportOffsetTop }}px
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-2 mb-4">
+              <var-chip size="mini">Resize: {{ viewportInfo.resizeCount }}</var-chip>
+              <var-chip size="mini">Viewport: {{ viewportInfo.viewportEventCount }}</var-chip>
+            </div>
+
+            <var-input
+              placeholder="点击这里测试键盘弹出"
+              variant="outlined"
+              @focus="updateViewportInfo"
+            />
+            <var-input
+              placeholder="再点这里对比"
+              class="mt-2"
+              variant="outlined"
+              @focus="updateViewportInfo"
+            />
+          </div>
+        </template>
+      </var-card>
     </div>
   </div>
 </template>
@@ -334,6 +442,8 @@ onMounted(() => {
 <style scoped>
 .content {
   padding: 16px;
+  /* 避让固定的 app-bar (54px) + 安全区域 */
+  padding-top: calc(54px + var(--app-safe-area-top, 0px));
 }
 
 .mt-2 {

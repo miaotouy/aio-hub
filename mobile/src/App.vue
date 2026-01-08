@@ -3,9 +3,13 @@ import { onMounted } from "vue";
 import AppBottomNav from "./components/AppBottomNav.vue";
 import { useAppInit } from "@/composables/useAppInit";
 import { useThemeStore } from "@/stores/theme";
+import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 
 const { isReady, progress, statusMessage, bootstrap } = useAppInit();
 const themeStore = useThemeStore();
+
+// 全局键盘避让
+useKeyboardAvoidance();
 
 onMounted(() => {
   bootstrap();
@@ -84,13 +88,13 @@ onMounted(() => {
 }
 
 .app-container {
-  height: 100%;
-  /* 也可以使用 100dvh 适配移动端动态工具栏 */
-  height: 100dvh;
+  /* 关键：键盘弹出时缩小容器高度 */
+  height: var(--viewport-height, 100dvh);
   display: flex;
   flex-direction: column;
   background-color: var(--bg-color);
   overflow: hidden;
+  transition: height 0.3s ease-out;
 }
 
 .app-style-provider {
@@ -108,5 +112,32 @@ onMounted(() => {
   /* 但为了保证滚动到底部时内容不被遮挡，padding 还是需要的 */
   padding-bottom: calc(var(--var-bottom-navigation-height) + env(safe-area-inset-bottom));
   box-sizing: border-box;
+}
+
+/* 全局键盘避让样式 */
+:root {
+  --keyboard-height: 0px;
+  --viewport-height: 100vh;
+}
+
+/* 当键盘可见时，调整 popup 等浮层的高度 */
+.keyboard-visible .var-popup__content {
+  max-height: var(--viewport-height) !important;
+}
+
+/* 键盘可见时，给所有滚动容器增加底部空间 */
+/* 注意：popup 是 teleport 到 body 的，所以需要用 :root 级别的选择器 */
+.keyboard-visible .editor-content,
+.keyboard-visible .keyboard-aware-scroll,
+.keyboard-visible .popup-scroll-content {
+  /* 增加额外 Padding 确保内容能滚上去 */
+  padding-bottom: calc(var(--keyboard-height) + 40px) !important;
+  transition: padding-bottom 0.3s ease-out;
+}
+
+/* 聚焦的输入框自动滚动到可见区域 */
+.keyboard-visible input:focus,
+.keyboard-visible textarea:focus {
+  scroll-margin-bottom: calc(var(--keyboard-height) + 60px);
 }
 </style>

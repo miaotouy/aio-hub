@@ -299,7 +299,7 @@
 - **UI 框架**: `@varlet/ui` (Material Design 3 风格)
 - **状态管理**: Pinia
 - **路由管理**: Vue Router (支持工具路由自动扫描)
-- **调试工具**: `eruda`
+- **调试工具**: `vConsole`
 - **核心工具**: `@vueuse/core`, `lodash-es`, `lucide-vue-next`
 - **跨平台框架**: Tauri ^2.0 (Android / iOS)
 
@@ -307,7 +307,7 @@
 
 ### 2.1. 架构原则：逻辑函数式化 (Functional Core)
 
-移动端拒绝过于扁平、零散的 Composables，采取以下准则：
+移动端减少使用过于扁平、零散的 Composables，采取以下准则：
 
 - **纯函数逻辑 (Pure Functional Logic)**: 复杂业务逻辑应抽离为纯函数，放置在工具的 `core/` 或 `logic/` 目录下。逻辑函数应保持“无状态”，不依赖 Vue 的 `ref` 或生命周期。
 - **状态与逻辑分离**: Store 仅作为数据仓库；Logic 模块负责计算与请求；Composables 仅作为 UI 与 Logic/Store 之间的“粘合剂”。

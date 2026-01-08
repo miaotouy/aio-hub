@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { Trash2, Edit, Plus, List } from "lucide-vue-next";
 import { Dialog } from "@varlet/ui";
+import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import { MODEL_CAPABILITIES, type CapabilityConfig } from "../config/model-capabilities";
@@ -56,12 +57,17 @@ const handleExpandChange = (value: any) => {
   emit("update:expandState", state);
 };
 
+const { t, tRaw } = useI18n();
+
 const deleteGroup = async (group: { name: string; models: { model: LlmModelInfo }[] }) => {
   const confirm = await Dialog({
-    title: "确认删除分组",
-    message: `确定要删除分组 "${group.name}" 下的所有 ${group.models.length} 个模型吗？`,
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
+    title: tRaw("tools.llm-api.ModelList.确认删除分组"),
+    message: tRaw("tools.llm-api.ModelList.确定要删除分组N下的所有M个模型吗", {
+      name: group.name,
+      count: group.models.length,
+    }),
+    confirmButtonText: t("common.确认"),
+    cancelButtonText: t("common.取消"),
   });
 
   if (confirm === "confirm") {
@@ -78,13 +84,15 @@ const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
 <template>
   <div class="model-list">
     <div class="list-header">
-      <span class="model-count">已添加 {{ models.length }} 个模型</span>
+      <span class="model-count">{{
+        tRaw("tools.llm-api.ModelList.已添加N个模型", { count: models.length })
+      }}</span>
       <div class="list-actions">
         <var-button v-if="editable" size="mini" type="primary" plain @click="emit('fetch')">
-          <List :size="14" /> 从 API 获取
+          <List :size="14" /> {{ tRaw("tools.llm-api.ModelList.从 API 获取") }}
         </var-button>
         <var-button v-if="editable" size="mini" type="primary" @click="emit('add')">
-          <Plus :size="14" /> 手动添加
+          <Plus :size="14" /> {{ tRaw("tools.llm-api.ModelList.手动添加") }}
         </var-button>
         <var-button
           v-if="editable && models.length > 0"
@@ -93,15 +101,15 @@ const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
           plain
           @click="emit('clear')"
         >
-          <Trash2 :size="14" /> 清空
+          <Trash2 :size="14" /> {{ tRaw("tools.llm-api.ModelList.清空") }}
         </var-button>
       </div>
     </div>
 
     <div class="list-content">
       <div v-if="models.length === 0" class="list-empty">
-        <p>还没有添加任何模型</p>
-        <p class="hint">点击"手动添加"或"从 API 获取"来添加模型</p>
+        <p>{{ tRaw("tools.llm-api.ModelList.还没有添加任何模型") }}</p>
+        <p class="hint">{{ tRaw("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型") }}</p>
       </div>
 
       <div v-else class="model-groups">

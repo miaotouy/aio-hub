@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { Info, ChevronRight } from "lucide-vue-next";
+import { useI18n } from "@/i18n";
 import type { LlmProfile } from "../types";
 
-type CustomEndpoints = NonNullable<LlmProfile['customEndpoints']>;
+type CustomEndpoints = NonNullable<LlmProfile["customEndpoints"]>;
+
+const { t, tRaw } = useI18n();
 
 const props = defineProps<{
   show: boolean;
@@ -20,62 +23,71 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
 </script>
 
 <template>
-  <var-popup :show="show" @update:show="$emit('update:show', $event)" position="right" style="width: 100%; height: 100%">
+  <var-popup
+    :show="show"
+    @update:show="$emit('update:show', $event)"
+    position="right"
+    style="width: 100%; height: 100%"
+  >
     <div class="full-popup">
-      <var-app-bar title="高级端点配置" safe-area>
+      <var-app-bar :title="tRaw('tools.llm-api.CustomEndpointsEditor.高级端点配置')" safe-area>
         <template #left>
           <var-button round text @click="$emit('update:show', false)">
             <ChevronRight :size="24" class="back-btn" />
           </var-button>
         </template>
       </var-app-bar>
-      
+
       <div class="popup-content">
         <div class="info-card">
           <Info :size="20" class="info-icon" />
-          <div class="info-text">填写相对路径(如 /v1/chat)将拼接到基础地址，填写完整 URL 则直接使用。留空则使用默认。</div>
+          <div class="info-text">
+            {{ tRaw("tools.llm-api.CustomEndpointsEditor.填写相对路径提示") }}
+          </div>
         </div>
 
         <div class="form-list">
-          <var-input 
-            :model-value="endpoints.chatCompletions" 
+          <var-input
+            :model-value="endpoints.chatCompletions"
             @update:model-value="updateField('chatCompletions', $event)"
-            label="聊天补全 (Chat)" 
-            placeholder="/v1/chat/completions" 
-            variant="outlined" 
+            :label="tRaw('tools.llm-api.CustomEndpointsEditor.聊天补全 (Chat)')"
+            placeholder="/v1/chat/completions"
+            variant="outlined"
           />
-          <var-input 
-            :model-value="endpoints.models" 
+          <var-input
+            :model-value="endpoints.models"
             @update:model-value="updateField('models', $event)"
-            label="模型列表 (Models)" 
-            placeholder="/v1/models" 
-            variant="outlined" 
+            :label="tRaw('tools.llm-api.CustomEndpointsEditor.模型列表 (Models)')"
+            placeholder="/v1/models"
+            variant="outlined"
           />
-          <var-input 
-            :model-value="endpoints.embeddings" 
+          <var-input
+            :model-value="endpoints.embeddings"
             @update:model-value="updateField('embeddings', $event)"
-            label="嵌入 (Embeddings)" 
-            placeholder="/v1/embeddings" 
-            variant="outlined" 
+            :label="tRaw('tools.llm-api.CustomEndpointsEditor.嵌入 (Embeddings)')"
+            placeholder="/v1/embeddings"
+            variant="outlined"
           />
-          <var-input 
-            :model-value="endpoints.audioSpeech" 
+          <var-input
+            :model-value="endpoints.audioSpeech"
             @update:model-value="updateField('audioSpeech', $event)"
-            label="语音合成 (TTS)" 
-            placeholder="/v1/audio/speech" 
-            variant="outlined" 
+            :label="tRaw('tools.llm-api.CustomEndpointsEditor.语音合成 (TTS)')"
+            placeholder="/v1/audio/speech"
+            variant="outlined"
           />
-          <var-input 
-            :model-value="endpoints.audioTranscriptions" 
+          <var-input
+            :model-value="endpoints.audioTranscriptions"
             @update:model-value="updateField('audioTranscriptions', $event)"
-            label="语音转文字 (STT)" 
-            placeholder="/v1/audio/transcriptions" 
-            variant="outlined" 
+            :label="tRaw('tools.llm-api.CustomEndpointsEditor.语音转文字 (STT)')"
+            placeholder="/v1/audio/transcriptions"
+            variant="outlined"
           />
         </div>
-        
+
         <div class="footer-actions">
-          <var-button block type="primary" @click="$emit('update:show', false)">确定</var-button>
+          <var-button block type="primary" @click="$emit('update:show', false)">{{
+            t("common.确认")
+          }}</var-button>
         </div>
       </div>
     </div>

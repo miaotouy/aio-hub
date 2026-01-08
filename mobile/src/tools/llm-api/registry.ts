@@ -15,12 +15,12 @@ export default {
   id: "llm-api",
   get name() {
     const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.LLM 服务");
+    return tRaw("tools.llm-api.common.LLM 服务");
   },
   icon: markRaw(Bot),
   get description() {
     const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.管理 LLM 渠道与模型配置");
+    return tRaw("tools.llm-api.common.管理 LLM 渠道与模型配置");
   },
   route: {
     path: "/tools/llm-api",
@@ -29,7 +29,7 @@ export default {
     meta: {
       get title() {
         const { tRaw } = useI18n();
-        return tRaw("tools.llm-api.LLM 渠道管理");
+        return tRaw("tools.llm-api.common.LLM 渠道管理");
       },
     },
   },

@@ -2,6 +2,7 @@
 import { ref, computed } from "vue";
 import { merge } from "lodash-es";
 import { ChevronLeft, Search, Check, Plus, Filter } from "lucide-vue-next";
+import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import { MODEL_CAPABILITIES } from "../config/model-capabilities";
@@ -21,6 +22,7 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
+const { t, tRaw } = useI18n();
 
 const { getModelIcon, getModelGroup, getMatchedProperties } = useModelMetadata();
 
@@ -193,7 +195,7 @@ const toggleCapabilityFilter = (capKey: string) => {
     style="width: 100%; height: 100%"
   >
     <div class="fetcher-popup">
-      <var-app-bar title="从 API 添加模型" fixed safe-area>
+      <var-app-bar :title="tRaw('tools.llm-api.ModelFetcherPopup.从 API 添加模型')" fixed safe-area>
         <template #left>
           <var-button round text @click="closePopup">
             <ChevronLeft :size="24" />
@@ -201,7 +203,7 @@ const toggleCapabilityFilter = (capKey: string) => {
         </template>
         <template #right>
           <var-button type="primary" :disabled="selectedModels.length === 0" @click="handleConfirm">
-            添加
+            {{ tRaw("tools.llm-api.ModelFetcherPopup.添加模型") }}
           </var-button>
         </template>
       </var-app-bar>
@@ -214,14 +216,14 @@ const toggleCapabilityFilter = (capKey: string) => {
               v-model="searchQuery"
               type="text"
               class="search-input"
-              placeholder="搜索模型名称或 ID..."
+              :placeholder="tRaw('tools.llm-api.ModelFetcherPopup.搜索模型 占位符')"
             />
           </div>
 
           <div class="capability-filters">
             <div class="filter-label">
               <Filter :size="14" />
-              <span>能力筛选</span>
+              <span>{{ tRaw("tools.llm-api.ModelFetcherPopup.能力筛选") }}</span>
             </div>
             <div class="filter-chips">
               <div
@@ -237,9 +239,9 @@ const toggleCapabilityFilter = (capKey: string) => {
                     ? `${cap.color}15`
                     : 'transparent',
                 }"
-                @click="toggleCapabilityFilter(cap.key as string)"
+                @click="toggleCapabilityFilter(String(cap.key))"
               >
-                <component :is="cap.icon" :size="14" />
+                <component v-if="cap.icon" :is="cap.icon" :size="14" />
                 <span>{{ cap.label }}</span>
               </div>
             </div>
@@ -247,15 +249,17 @@ const toggleCapabilityFilter = (capKey: string) => {
         </div>
 
         <div class="toolbar">
-          <span class="toolbar-hint">共 {{ allVisibleModels.length }} 个模型</span>
+          <span class="toolbar-hint">{{
+            tRaw("tools.llm-api.ModelFetcherPopup.共 N 个模型", { count: allVisibleModels.length })
+          }}</span>
           <var-button size="mini" type="primary" plain @click="toggleSelectAll">
-            {{ isAllSelected ? "取消全选" : "全选" }}
+            {{ isAllSelected ? t("common.取消全选") : t("common.全选") }}
           </var-button>
         </div>
 
         <div class="model-list-container">
           <div v-if="Object.keys(filteredGroups).length === 0" class="empty-state">
-            <p>没有找到匹配的模型</p>
+            <p>{{ tRaw("tools.llm-api.ModelFetcherPopup.没有找到匹配的模型") }}</p>
           </div>
 
           <div v-else class="model-groups">
@@ -282,8 +286,8 @@ const toggleCapabilityFilter = (capKey: string) => {
                   >
                     {{
                       groupModels.every((m) => isModelSelected(m) || isModelExisting(m.id))
-                        ? "取消"
-                        : "全选"
+                        ? t("common.取消")
+                        : t("common.全选")
                     }}
                   </var-button>
                 </template>
@@ -316,7 +320,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 
                       <div class="model-status">
                         <div v-if="isModelExisting(model.id)" class="status-tag existing">
-                          已存在
+                          {{ tRaw("tools.llm-api.ModelFetcherPopup.已存在") }}
                         </div>
                         <Check
                           v-else-if="isModelSelected(model)"
@@ -339,7 +343,7 @@ const toggleCapabilityFilter = (capKey: string) => {
                             color: cap.color,
                           }"
                         >
-                          <component :is="cap.icon" :size="12" />
+                          <component v-if="cap.icon" :is="cap.icon" :size="12" />
                           <span class="capability-label">{{ cap.label }}</span>
                         </div>
                       </template>
@@ -353,7 +357,9 @@ const toggleCapabilityFilter = (capKey: string) => {
       </div>
 
       <div class="footer-bar">
-        <span class="selected-count">已选择 {{ selectedModels.length }} 个模型</span>
+        <span class="selected-count">{{
+          tRaw("tools.llm-api.ModelFetcherPopup.已选择 N 个模型", { count: selectedModels.length })
+        }}</span>
       </div>
     </div>
   </var-popup>

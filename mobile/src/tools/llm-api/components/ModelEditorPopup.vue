@@ -5,6 +5,7 @@ import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import { MODEL_CAPABILITIES } from "../config/model-capabilities";
 import { Snackbar, Dialog } from "@varlet/ui";
+import { useI18n } from "@/i18n";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import IconSelector from "./IconSelector.vue";
 
@@ -24,6 +25,7 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
+const { t, tRaw } = useI18n();
 
 const { getMatchedProperties } = useModelMetadata();
 
@@ -121,7 +123,7 @@ const isEditMode = computed(() => !!props.model);
 
 const handleApplyPreset = () => {
   if (!innerModel.value.id) {
-    Snackbar.warning("请先输入模型 ID");
+    Snackbar.warning(tRaw("tools.llm-api.ModelEditorPopup.请先输入模型 ID"));
     return;
   }
 
@@ -139,25 +141,25 @@ const handleApplyPreset = () => {
         ...matchedProps.capabilities,
       };
     }
-    Snackbar.success("已应用预设配置");
+    Snackbar.success(tRaw("tools.llm-api.ModelEditorPopup.已应用预设配置"));
   } else {
-    Snackbar.info("未找到匹配的预设配置");
+    Snackbar.info(tRaw("tools.llm-api.ModelEditorPopup.未找到匹配的预设配置"));
   }
 };
 
 const handleIconSelect = (icon: any) => {
   innerModel.value.icon = icon.path;
   showIconSelector.value = false;
-  Snackbar.success("已选择图标");
+  Snackbar.success(tRaw("tools.llm-api.ModelEditorPopup.已选择图标"));
 };
 
 const handleSave = () => {
   if (!innerModel.value.id.trim()) {
-    Snackbar.warning("请输入模型 ID");
+    Snackbar.warning(tRaw("tools.llm-api.ModelEditorPopup.请输入模型 ID"));
     return;
   }
   if (!innerModel.value.name.trim()) {
-    Snackbar.warning("请输入模型名称");
+    Snackbar.warning(tRaw("tools.llm-api.ModelEditorPopup.请输入模型名称"));
     return;
   }
 
@@ -169,10 +171,10 @@ const handleDelete = async () => {
   if (!innerModel.value.id) return;
 
   const confirm = await Dialog({
-    title: "确认删除",
-    message: `确定要删除模型 "${innerModel.value.name}" 吗？`,
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
+    title: t("common.确认"),
+    message: tRaw("tools.llm-api.ModelEditorPopup.删除确认", { name: innerModel.value.name }),
+    confirmButtonText: t("common.确认"),
+    cancelButtonText: t("common.取消"),
   });
 
   if (confirm === "confirm") {
@@ -224,19 +226,23 @@ const setTokenLimit = (
     style="width: 100%; height: 100%"
   >
     <div class="editor-popup">
-      <var-app-bar :title="isEditMode ? '编辑模型' : '添加模型'" fixed safe-area>
+      <var-app-bar
+        :title="isEditMode ? tRaw('tools.llm-api.ModelEditorPopup.编辑模型') : tRaw('tools.llm-api.ModelEditorPopup.添加模型')"
+        fixed
+        safe-area
+      >
         <template #left>
           <var-button round text @click="emit('update:show', false)">
             <ChevronLeft :size="24" />
           </var-button>
         </template>
         <template #right>
-          <var-button type="primary" @click="handleSave">保存</var-button>
+          <var-button type="primary" @click="handleSave">{{ t("common.保存") }}</var-button>
         </template>
       </var-app-bar>
 
       <div class="editor-content">
-        <div class="section-header">基本信息</div>
+        <div class="section-header">{{ tRaw("tools.llm-api.ModelEditorPopup.基本信息") }}</div>
         <div class="config-card">
           <!-- 图标选择区域 -->
           <div class="avatar-select-section">
@@ -244,62 +250,62 @@ const setTokenLimit = (
               <DynamicIcon :src="innerModel.icon || ''" :alt="innerModel.name" />
             </div>
             <div class="avatar-info">
-              <div class="avatar-label">模型图标</div>
-              <div class="avatar-hint">点击图标选择预设</div>
+              <div class="avatar-label">{{ tRaw("tools.llm-api.ModelEditorPopup.模型图标") }}</div>
+              <div class="avatar-hint">{{ tRaw("tools.llm-api.ModelEditorPopup.点击图标选择预设") }}</div>
             </div>
           </div>
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">模型 ID *</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.模型 ID") }} *</label>
               <div class="native-input-with-action">
                 <input
                   v-model="innerModel.id"
                   type="text"
                   class="native-input mono"
-                  placeholder="例如: gpt-4o"
+                  :placeholder="tRaw('tools.llm-api.ModelEditorPopup.模型 ID 示例')"
                 />
                 <button class="input-action-btn" @click="handleApplyPreset">
                   <Sparkles :size="18" />
                 </button>
               </div>
-              <div class="input-hint">输入 ID 后点击 ✨ 自动填充预设配置</div>
+              <div class="input-hint">{{ tRaw("tools.llm-api.ModelEditorPopup.输入 ID 后点击自动填充预设配置") }}</div>
             </div>
           </div>
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">显示名称 *</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.显示名称") }} *</label>
               <input
                 v-model="innerModel.name"
                 type="text"
                 class="native-input"
-                placeholder="例如: GPT-4o"
+                :placeholder="tRaw('tools.llm-api.ModelEditorPopup.显示名称 示例')"
               />
             </div>
           </div>
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">分组</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.分组") }}</label>
               <input
                 v-model="innerModel.group"
                 type="text"
                 class="native-input"
-                placeholder="例如: GPT-4 系列"
+                :placeholder="tRaw('tools.llm-api.ModelEditorPopup.分组 示例')"
               />
             </div>
           </div>
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">图标路径/URL</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.图标路径") }}</label>
               <div class="native-input-with-action">
                 <input
                   v-model="innerModel.icon"
                   type="text"
                   class="native-input"
-                  placeholder="输入图标路径或URL"
+                  :placeholder="tRaw('tools.llm-api.ModelEditorPopup.输入图标路径或URL')"
                 />
                 <button class="input-action-btn" @click="showIconSelector = true">
                   <Sparkles :size="18" />
@@ -310,28 +316,28 @@ const setTokenLimit = (
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">描述</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.描述") }}</label>
               <input
                 v-model="innerModel.description"
                 type="text"
                 class="native-input"
-                placeholder="模型的用途或特性"
+                :placeholder="tRaw('tools.llm-api.ModelEditorPopup.模型描述 占位符')"
               />
             </div>
           </div>
         </div>
 
-        <div class="section-header">Token 限制</div>
+        <div class="section-header">{{ tRaw("tools.llm-api.ModelEditorPopup.Token 限制") }}</div>
         <div class="config-card">
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">上下文窗口</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.上下文窗口") }}</label>
               <div class="preset-input-row">
                 <input
                   :value="innerModel.tokenLimits?.contextLength || ''"
                   type="number"
                   class="native-input mono"
-                  placeholder="例如: 128000"
+                  :placeholder="tRaw('tools.llm-api.ModelEditorPopup.上下文窗口 示例')"
                   @input="(e: any) => setTokenLimit('contextLength', e.target.value)"
                 />
                 <div class="preset-chips">
@@ -353,13 +359,13 @@ const setTokenLimit = (
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">输出限制</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.输出限制") }}</label>
               <div class="preset-input-row">
                 <input
                   :value="innerModel.tokenLimits?.output || ''"
                   type="number"
                   class="native-input mono"
-                  placeholder="例如: 16384"
+                  :placeholder="tRaw('tools.llm-api.ModelEditorPopup.输出限制 示例')"
                   @input="(e: any) => setTokenLimit('output', e.target.value)"
                 />
                 <div class="preset-chips">
@@ -378,7 +384,7 @@ const setTokenLimit = (
           </div>
         </div>
 
-        <div class="section-header">模型能力</div>
+        <div class="section-header">{{ tRaw("tools.llm-api.ModelEditorPopup.模型能力") }}</div>
         <div class="config-card">
           <div class="capabilities-grid" v-if="innerModel.capabilities">
             <div
@@ -403,15 +409,15 @@ const setTokenLimit = (
           </div>
         </div>
 
-        <div class="section-header">思考配置</div>
+        <div class="section-header">{{ tRaw("tools.llm-api.ModelEditorPopup.思考配置") }}</div>
         <div class="config-card" v-if="innerModel.capabilities">
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">配置模式</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.配置模式") }}</label>
               <var-select
                 v-model="innerModel.capabilities.thinkingConfigType"
                 variant="outlined"
-                placeholder="请选择配置模式"
+                :placeholder="tRaw('tools.llm-api.ModelEditorPopup.请选择配置模式')"
                 :hint="false"
                 :line="false"
                 class="custom-var-select"
@@ -423,16 +429,16 @@ const setTokenLimit = (
                   }
                 "
               >
-                <var-option label="无思考能力" value="none" />
-                <var-option label="简单开关 (DeepSeek)" value="switch" />
-                <var-option label="预算模式 (Claude)" value="budget" />
-                <var-option label="等级模式 (OpenAI o1/o3)" value="effort" />
+                <var-option :label="tRaw('tools.llm-api.ModelEditorPopup.无思考能力')" value="none" />
+                <var-option :label="tRaw('tools.llm-api.ModelEditorPopup.简单开关')" value="switch" />
+                <var-option :label="tRaw('tools.llm-api.ModelEditorPopup.预算模式')" value="budget" />
+                <var-option :label="tRaw('tools.llm-api.ModelEditorPopup.等级模式')" value="effort" />
               </var-select>
             </div>
           </div>
           <div v-if="innerModel.capabilities.thinkingConfigType === 'effort'" class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">可用推理等级</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.可用推理等级") }}</label>
               <div class="preset-chips">
                 <var-chip
                   v-for="effort in ['low', 'medium', 'high']"
@@ -463,11 +469,11 @@ const setTokenLimit = (
           </div>
         </div>
 
-        <div class="section-header">价格配置（待实现）</div>
+        <div class="section-header">{{ tRaw("tools.llm-api.ModelEditorPopup.价格配置") }}</div>
         <div class="config-card" v-if="innerModel.pricing">
           <div class="pricing-grid">
             <div class="native-input-group">
-              <label class="native-input-label">输入 ($/1M)</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.输入价格") }}</label>
               <input
                 v-model="innerModel.pricing.prompt"
                 type="text"
@@ -476,7 +482,7 @@ const setTokenLimit = (
               />
             </div>
             <div class="native-input-group">
-              <label class="native-input-label">输出 ($/1M)</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.输出价格") }}</label>
               <input
                 v-model="innerModel.pricing.completion"
                 type="text"
@@ -485,7 +491,7 @@ const setTokenLimit = (
               />
             </div>
             <div class="native-input-group">
-              <label class="native-input-label">请求 ($/次)</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.请求价格") }}</label>
               <input
                 v-model="innerModel.pricing.request"
                 type="text"
@@ -494,7 +500,7 @@ const setTokenLimit = (
               />
             </div>
             <div class="native-input-group">
-              <label class="native-input-label">图片 ($/1K)</label>
+              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.图片价格") }}</label>
               <input
                 v-model="innerModel.pricing.image"
                 type="text"
@@ -507,7 +513,7 @@ const setTokenLimit = (
 
         <div v-if="isEditMode" class="danger-zone">
           <var-button block type="danger" outline @click="handleDelete">
-            <Trash2 :size="18" /> 删除此模型
+            <Trash2 :size="18" /> {{ tRaw("tools.llm-api.ModelEditorPopup.删除此模型") }}
           </var-button>
         </div>
       </div>

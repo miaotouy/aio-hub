@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { Trash2, Plus } from "lucide-vue-next";
+import { useI18n } from "@/i18n";
+
+const { t, tRaw } = useI18n();
 
 const props = defineProps<{
   show: boolean;
@@ -48,9 +51,9 @@ const updateValue = (key: string, val: string) => {
   >
     <div class="popup-container">
       <div class="popup-header">
-        <span class="popup-title">自定义请求头</span>
+        <span class="popup-title">{{ tRaw("tools.llm-api.CustomHeadersEditor.自定义请求头") }}</span>
         <var-button size="small" type="primary" @click="addHeader">
-          <Plus :size="18" /> 添加
+          <Plus :size="18" /> {{ t("common.添加") }}
         </var-button>
       </div>
 
@@ -77,11 +80,15 @@ const updateValue = (key: string, val: string) => {
           </var-button>
         </div>
 
-        <div v-if="Object.keys(headers).length === 0" class="empty-hint">暂无自定义请求头</div>
+        <div v-if="Object.keys(headers).length === 0" class="empty-hint">
+          {{ tRaw("tools.llm-api.CustomHeadersEditor.暂无自定义请求头") }}
+        </div>
       </div>
 
       <div class="popup-footer">
-        <var-button block type="primary" @click="$emit('update:show', false)">确定</var-button>
+        <var-button block type="primary" @click="$emit('update:show', false)">{{
+          t("common.确认")
+        }}</var-button>
       </div>
     </div>
   </var-popup>

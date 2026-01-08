@@ -11,7 +11,12 @@
     "提示": "Info",
     "警告": "Warning",
     "加载中": "Loading...",
-    "确定": "OK"
+    "确定": "OK",
+    "添加": "Add",
+    "个": "items",
+    "N个": "{count} items",
+    "全选": "Select All",
+    "取消全选": "Deselect All"
   },
   "nav": {
     "首页": "Home",

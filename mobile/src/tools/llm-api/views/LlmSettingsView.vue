@@ -52,7 +52,7 @@ const applyPreset = (preset: any) => {
 const createCustomProfile = () => {
   const newProfile: LlmProfile = {
     id: generateUuid(),
-    name: tRaw("tools.llm-api.新渠道"),
+    name: tRaw("tools.llm-api.ProfileEditor.新渠道"),
     type: "openai",
     baseUrl: "https://api.openai.com/v1",
     apiKeys: [""],
@@ -80,18 +80,18 @@ const handleSave = (profile: LlmProfile) => {
   }
 
   showEditPopup.value = false;
-  Snackbar.success(tRaw("tools.llm-api.配置已保存"));
+  Snackbar.success(tRaw("tools.llm-api.common.配置已保存"));
 };
 
 const handleDelete = (id: string) => {
   store.deleteProfile(id);
   showEditPopup.value = false;
-  Snackbar.success(tRaw("tools.llm-api.删除成功"));
+  Snackbar.success(tRaw("tools.llm-api.common.删除成功"));
 };
 
 const handleToggleEnabled = (profileId: string, enabled: boolean) => {
   store.updateProfile(profileId, { enabled });
-  Snackbar.success(enabled ? tRaw("tools.llm-api.已启用") : tRaw("tools.llm-api.已禁用"));
+  Snackbar.success(enabled ? tRaw("tools.llm-api.common.已启用") : tRaw("tools.llm-api.common.已禁用"));
 };
 
 const handleToggleMultiSelect = (id: string) => {
@@ -105,7 +105,7 @@ const handleToggleMultiSelect = (id: string) => {
 
 <template>
   <div class="llm-settings-view">
-    <var-app-bar :title="tRaw('tools.llm-api.LLM 渠道管理')" fixed safe-area>
+    <var-app-bar :title="tRaw('tools.llm-api.common.LLM 渠道管理')" fixed safe-area>
       <template #left>
         <var-button round text @click="router.back()">
           <ChevronLeft :size="24" />
@@ -121,7 +121,7 @@ const handleToggleMultiSelect = (id: string) => {
     <div class="view-content">
       <div v-if="store.profiles.length === 0" class="empty-state">
         <Layers :size="64" class="empty-icon" />
-        <p>{{ tRaw("tools.llm-api.暂无渠道，请点击右上角添加") }}</p>
+        <p>{{ tRaw("tools.llm-api.LlmSettingsView.暂无渠道提示") }}</p>
       </div>
 
       <div v-else class="profile-list">

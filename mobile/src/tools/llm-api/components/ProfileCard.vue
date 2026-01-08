@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ShieldCheck, Layers } from "lucide-vue-next";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { useI18n } from "@/i18n";
 import type { LlmProfile } from "../types";
+
+const { tRaw } = useI18n();
 
 defineProps<{
   profile: LlmProfile;
@@ -53,13 +56,14 @@ defineEmits<{
 
     <div class="card-footer">
       <span class="model-count">
-        <Layers :size="12" /> {{ profile.models.length }} 个可用模型
+        <Layers :size="12" />
+        {{ tRaw("tools.llm-api.ProfileCard.N个可用模型", { count: profile.models.length }) }}
       </span>
       <div class="status-wrapper">
         <span v-if="profile.enabled" class="status-enabled">
-          <ShieldCheck :size="12" /> 已启用
+          <ShieldCheck :size="12" /> {{ tRaw("tools.llm-api.common.已启用") }}
         </span>
-        <span v-else class="status-disabled">已禁用</span>
+        <span v-else class="status-disabled">{{ tRaw("tools.llm-api.common.已禁用") }}</span>
       </div>
     </div>
   </div>

@@ -463,7 +463,7 @@ const setTokenLimit = (
           </div>
         </div>
 
-        <div class="section-header">价格配置</div>
+        <div class="section-header">价格配置（待实现）</div>
         <div class="config-card" v-if="innerModel.pricing">
           <div class="pricing-grid">
             <div class="native-input-group">

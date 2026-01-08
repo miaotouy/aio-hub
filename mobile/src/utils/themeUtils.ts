@@ -33,10 +33,21 @@ function hexToVarletHsl(hex: string): string {
   return `${Math.round(h * 360)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%`;
 }
 
+interface CustomColors {
+  success?: string;
+  warning?: string;
+  danger?: string;
+  info?: string;
+}
+
 /**
  * 将 MD3 主题转换为 Varlet 兼容的 CSS 变量对象
  */
-export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
+export function generateMd3Theme(
+  sourceColorHex: string,
+  isDark: boolean,
+  customColors: CustomColors = {}
+) {
   const theme = themeFromSourceColor(argbFromHex(sourceColorHex));
   const scheme = isDark ? theme.schemes.dark : theme.schemes.light;
 
@@ -48,76 +59,92 @@ export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
     themeConfig[`--hsl-${key}`] = hexToVarletHsl(hex);
   };
 
-  addColor("primary", scheme.primary);
+  // 核心主色处理：MD3 默认生成的 primary 往往比种子色暗
+  // 在浅色模式下，我们优先使用用户选择的原始色以保证视觉一致性
+  const primaryHex = isDark ? hexFromArgb(scheme.primary) : sourceColorHex;
+  themeConfig[`--color-primary`] = primaryHex;
+  themeConfig[`--hsl-primary`] = hexToVarletHsl(primaryHex);
+
   addColor("on-primary", scheme.onPrimary);
   addColor("primary-container", scheme.primaryContainer);
   addColor("on-primary-container", scheme.onPrimaryContainer);
-  
+
   addColor("secondary", scheme.secondary);
   addColor("on-secondary", scheme.onSecondary);
   addColor("secondary-container", scheme.secondaryContainer);
   addColor("on-secondary-container", scheme.onSecondaryContainer);
-  
+
   addColor("tertiary", scheme.tertiary);
   addColor("on-tertiary", scheme.onTertiary);
   addColor("tertiary-container", scheme.tertiaryContainer);
   addColor("on-tertiary-container", scheme.onTertiaryContainer);
-  
+
   addColor("error", scheme.error);
   addColor("on-error", scheme.onError);
   addColor("error-container", scheme.errorContainer);
   addColor("on-error-container", scheme.onErrorContainer);
-  
+
   addColor("surface", scheme.surface);
   addColor("on-surface", scheme.onSurface);
   addColor("surface-variant", scheme.surfaceVariant);
   addColor("on-surface-variant", scheme.onSurfaceVariant);
-  
+
   addColor("outline", scheme.outline);
   addColor("outline-variant", scheme.outlineVariant);
   addColor("inverse-surface", scheme.inverseSurface);
   addColor("inverse-on-surface", scheme.inverseOnSurface);
   addColor("inverse-primary", scheme.inversePrimary);
-  
+
   // 核心语义映射
+  themeConfig["--primary-color"] = primaryHex;
   themeConfig["--color-body"] = hexFromArgb(scheme.surface);
   themeConfig["--hsl-body"] = hexToVarletHsl(themeConfig["--color-body"]);
-  
+
   themeConfig["--color-text"] = hexFromArgb(scheme.onSurface);
   themeConfig["--hsl-text"] = hexToVarletHsl(themeConfig["--color-text"]);
 
   // 映射语义颜色 (MD3 默认没有 info, success, warning)
-  // 我们根据 MD3 的 secondary 和 tertiary 来模拟
-  const infoHex = hexFromArgb(scheme.secondary);
+  // 优先使用用户自定义颜色，否则根据 MD3 的 secondary 和 tertiary 来模拟
+
+  // Info
+  const infoHex = customColors.info || hexFromArgb(scheme.secondary);
   themeConfig["--color-info"] = infoHex;
   themeConfig["--hsl-info"] = hexToVarletHsl(infoHex);
-  
+
   const infoContainerHex = hexFromArgb(scheme.secondaryContainer);
   themeConfig["--color-info-container"] = infoContainerHex;
   themeConfig["--hsl-info-container"] = hexToVarletHsl(infoContainerHex);
   themeConfig["--color-on-info-container"] = hexFromArgb(scheme.onSecondaryContainer);
 
-  // 成功色 (MD3 库通常不直接提供 success，我们借用 tertiary 颜色)
-  const successHex = hexFromArgb(scheme.tertiary);
+  // Success
+  const successHex = customColors.success || hexFromArgb(scheme.tertiary);
   themeConfig["--color-success"] = successHex;
   themeConfig["--hsl-success"] = hexToVarletHsl(successHex);
   themeConfig["--color-success-container"] = hexFromArgb(scheme.tertiaryContainer);
 
-  // 警告色 (MD3 库不直接提供，我们可以通过 tertiary 或者手动调整)
-  // 这里为了简单，我们先保持一个映射
-  themeConfig["--color-warning"] = hexFromArgb(scheme.tertiary);
-  themeConfig["--hsl-warning"] = hexToVarletHsl(themeConfig["--color-warning"]);
+  // Warning
+  const warningHex = customColors.warning || hexFromArgb(scheme.tertiary);
+  themeConfig["--color-warning"] = warningHex;
+  themeConfig["--hsl-warning"] = hexToVarletHsl(warningHex);
+
+  // Danger/Error (MD3 默认有 error，但用户可能想自定义)
+  if (customColors.danger) {
+    themeConfig["--color-danger"] = customColors.danger;
+    themeConfig["--hsl-danger"] = hexToVarletHsl(customColors.danger);
+    themeConfig["--color-error"] = customColors.danger;
+    themeConfig["--hsl-error"] = hexToVarletHsl(customColors.danger);
+  }
 
   // 容器类颜色映射 (MD3 规范)
   themeConfig["--color-surface-container"] = hexFromArgb(scheme.surfaceVariant);
   themeConfig["--hsl-surface-container"] = hexToVarletHsl(themeConfig["--color-surface-container"]);
-  
+
   themeConfig["--color-surface-container-low"] = hexFromArgb(scheme.surface);
   themeConfig["--hsl-surface-container-low"] = hexToVarletHsl(themeConfig["--color-surface-container-low"]);
-  
+
   themeConfig["--color-surface-container-high"] = hexFromArgb(scheme.surfaceVariant);
   themeConfig["--hsl-surface-container-high"] = hexToVarletHsl(themeConfig["--color-surface-container-high"]);
-  
+
   themeConfig["--color-surface-container-highest"] = hexFromArgb(scheme.surfaceVariant);
   themeConfig["--hsl-surface-container-highest"] = hexToVarletHsl(themeConfig["--color-surface-container-highest"]);
 

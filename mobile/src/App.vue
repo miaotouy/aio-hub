@@ -2,8 +2,10 @@
 import { onMounted } from "vue";
 import AppBottomNav from "./components/AppBottomNav.vue";
 import { useAppInit } from "@/composables/useAppInit";
+import { useThemeStore } from "@/stores/theme";
 
 const { isReady, progress, statusMessage, bootstrap } = useAppInit();
+const themeStore = useThemeStore();
 
 onMounted(() => {
   bootstrap();
@@ -22,7 +24,7 @@ onMounted(() => {
   </div>
 
   <div v-else class="app-container">
-    <var-style-provider>
+    <var-style-provider :style="themeStore.themeVars">
       <main class="main-content">
         <router-view v-slot="{ Component }">
           <keep-alive>

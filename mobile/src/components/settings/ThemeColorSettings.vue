@@ -1,62 +1,41 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
-import { Check, RotateCcw, Pipette, Info } from "lucide-vue-next";
+import { Check, RotateCcw, Pipette, Palette, ChevronRight } from "lucide-vue-next";
 import { Snackbar } from "@varlet/ui";
 
 const settingsStore = useSettingsStore();
-
-// 颜色类型定义
-type ColorType = "primary" | "success" | "warning" | "danger" | "info";
 
 interface PresetColor {
   name: string;
   color: string;
 }
 
-interface ColorConfig {
-  type: ColorType;
+interface ColorGroup {
   label: string;
-  modelKey: "themeColor" | "successColor" | "warningColor" | "dangerColor" | "infoColor";
-  defaultColor: string;
   description: string;
   presets: PresetColor[];
 }
 
 // 颜色配置列表 - 移植自桌面端并按色系命名
-const colorConfigs: ColorConfig[] = [
+const colorGroups: ColorGroup[] = [
   {
-    type: "primary",
     label: "蓝色系",
-    modelKey: "themeColor",
-    defaultColor: "#409eff",
-    description: "应用的主要色调",
+    description: "经典、科技与深邃",
     presets: [
       { name: "默认蓝", color: "#409eff" },
       { name: "深海蓝", color: "#1890ff" },
       { name: "天空蓝", color: "#0ea5e9" },
-      { name: "翡翠绿", color: "#00b96b" },
-      { name: "薰衣紫", color: "#8b7ec8" },
-      { name: "科技紫", color: "#7c3aed" },
-      { name: "樱花粉", color: "#ff69b4" },
-      { name: "日暮橙", color: "#ff8c00" },
-      { name: "初音绿", color: "#39C5BB" },
       { name: "洛天依蓝", color: "#66CCFF" },
       { name: "KAITO蓝", color: "#0000FF" },
       { name: "徵羽摩柯", color: "#0080FF" },
-      { name: "星尘紫", color: "#9999FF" },
       { name: "海伊蓝", color: "#3399FF" },
-      { name: "心华紫", color: "#EE82EE" },
-      { name: "乐步紫", color: "#9880D7" },
       { name: "LUMi蓝", color: "#83C5D6" },
     ],
   },
   {
-    type: "success",
     label: "绿色系",
-    modelKey: "successColor",
-    defaultColor: "#67c23a",
-    description: "成功状态或自然色调",
+    description: "自然、成长与成功",
     presets: [
       { name: "Element绿", color: "#67c23a" },
       { name: "翡翠绿", color: "#00b96b" },
@@ -72,11 +51,8 @@ const colorConfigs: ColorConfig[] = [
     ],
   },
   {
-    type: "warning",
     label: "橙黄色系",
-    modelKey: "warningColor",
-    defaultColor: "#e6a23c",
-    description: "警告、注意或暖色调",
+    description: "警告、活力与温暖",
     presets: [
       { name: "Element橙", color: "#e6a23c" },
       { name: "日暮橙", color: "#ff8c00" },
@@ -95,11 +71,8 @@ const colorConfigs: ColorConfig[] = [
     ],
   },
   {
-    type: "danger",
     label: "红色系",
-    modelKey: "dangerColor",
-    defaultColor: "#f56c6c",
-    description: "危险、错误或强调色调",
+    description: "危险、热情与严谨",
     presets: [
       { name: "Element红", color: "#f56c6c" },
       { name: "火焰红", color: "#ff4d4f" },
@@ -117,11 +90,8 @@ const colorConfigs: ColorConfig[] = [
     ],
   },
   {
-    type: "info",
     label: "灰色系",
-    modelKey: "infoColor",
-    defaultColor: "#909399",
-    description: "中性、辅助或背景色调",
+    description: "中性、稳重与简约",
     presets: [
       { name: "Element灰", color: "#909399" },
       { name: "金属灰", color: "#6b7280" },
@@ -133,46 +103,66 @@ const colorConfigs: ColorConfig[] = [
       { name: "钢青灰", color: "#71717a" },
     ],
   },
+  {
+    label: "紫色系",
+    description: "优雅、神秘与灵感",
+    presets: [
+      { name: "科技紫", color: "#7c3aed" },
+      { name: "薰衣紫", color: "#8b7ec8" },
+      { name: "星尘紫", color: "#9999FF" },
+      { name: "心华紫", color: "#EE82EE" },
+      { name: "乐步紫", color: "#9880D7" },
+    ],
+  },
+  {
+    label: "粉红系",
+    description: "可爱、浪漫与活力",
+    presets: [
+      { name: "樱花粉", color: "#ff69b4" },
+      { name: "粉红", color: "#ec4899" },
+      { name: "巡音流歌", color: "#FAAFBE" },
+      { name: "IA粉", color: "#FFABBC" },
+    ],
+  },
 ];
 
-const getCurrentColor = (type: ColorType): string => {
-  const key = colorConfigs.find((c) => c.type === type)?.modelKey;
-  if (!key) return "#000000";
-  return (
-    settingsStore.settings.appearance[key] ||
-    colorConfigs.find((c) => c.type === type)!.defaultColor
-  );
-};
+const currentThemeColor = computed(() => settingsStore.settings.appearance.themeColor || "#409eff");
 
-const selectColor = async (type: ColorType, color: string) => {
-  const key = colorConfigs.find((c) => c.type === type)?.modelKey;
-  if (key) {
-    await settingsStore.updateAppearance({ [key]: color });
+// 获取当前颜色名称
+const currentThemeColorName = computed(() => {
+  for (const group of colorGroups) {
+    const preset = group.presets.find(
+      (p) => p.color.toLowerCase() === currentThemeColor.value.toLowerCase()
+    );
+    if (preset) return preset.name;
+  }
+  return "自定义颜色";
+});
+
+const selectColor = async (color: string, name?: string) => {
+  await settingsStore.updateAppearance({ themeColor: color });
+  if (name) {
+    Snackbar.success(`已切换至: ${name} (${color.toUpperCase()})`);
   }
 };
 
-const resetColor = async (type: ColorType) => {
-  const config = colorConfigs.find((c) => c.type === type);
-  if (config) {
-    await settingsStore.updateAppearance({ [config.modelKey]: config.defaultColor });
-    Snackbar.success(`已重置${config.label}`);
-  }
+const resetColor = async () => {
+  await settingsStore.updateAppearance({ themeColor: "#409eff" });
+  Snackbar.success("已重置主题色");
 };
 
 // 自定义颜色处理
 const showCustomPicker = ref(false);
-const activeType = ref<ColorType | null>(null);
 const customColor = ref("");
 
-const openCustomPicker = (type: ColorType) => {
-  activeType.value = type;
-  customColor.value = getCurrentColor(type);
+const openCustomPicker = () => {
+  customColor.value = currentThemeColor.value;
   showCustomPicker.value = true;
 };
 
 const handleCustomColorApply = async () => {
-  if (activeType.value && /^#[0-9A-F]{6}$/i.test(customColor.value)) {
-    await selectColor(activeType.value, customColor.value);
+  if (/^#[0-9A-F]{6}$/i.test(customColor.value)) {
+    await selectColor(customColor.value);
     showCustomPicker.value = false;
   } else {
     Snackbar.error("请输入有效的 Hex 颜色值");
@@ -194,14 +184,11 @@ const showDrawer = ref(false);
       </template>
       <div class="cell-content">
         <div class="cell-label">主题色板</div>
-        <div class="cell-desc">自定义应用各状态颜色</div>
+        <div class="cell-desc">自定义应用全局主题颜色</div>
       </div>
       <template #extra>
         <div class="current-color-preview">
-          <div
-            class="color-dot"
-            :style="{ backgroundColor: settingsStore.settings.appearance.themeColor }"
-          ></div>
+          <div class="color-dot" :style="{ backgroundColor: currentThemeColor }"></div>
           <ChevronRight :size="20" class="text-hint" />
         </div>
       </template>
@@ -216,73 +203,53 @@ const showDrawer = ref(false);
         </div>
 
         <div class="scroll-area">
-          <div v-for="config in colorConfigs" :key="config.type" class="color-group">
+          <div class="action-bar">
+            <div class="action-item" @click="openCustomPicker">
+              <Pipette :size="18" />
+              <span>自定义</span>
+            </div>
+            <div class="action-item" @click="resetColor">
+              <RotateCcw :size="18" />
+              <span>重置默认</span>
+            </div>
+          </div>
+
+          <!-- 当前选中预览 -->
+          <div class="current-preview-card">
+            <div class="preview-info">
+              <div class="preview-label">当前主题色</div>
+              <div class="preview-value">
+                <span class="color-name">{{ currentThemeColorName }}</span>
+                <span class="color-hex">{{ currentThemeColor.toUpperCase() }}</span>
+              </div>
+            </div>
+            <div class="preview-dot" :style="{ backgroundColor: currentThemeColor }"></div>
+          </div>
+
+          <div v-for="group in colorGroups" :key="group.label" class="color-group">
             <div class="group-header">
-              <span class="group-title">{{ config.label }}</span>
-              <var-tooltip :content="config.description">
-                <Info :size="14" class="info-icon" />
-              </var-tooltip>
+              <span class="group-title">{{ group.label }}</span>
+              <span class="group-desc">{{ group.description }}</span>
             </div>
 
             <div class="preset-grid">
-              <div
-                v-for="preset in config.presets"
-                :key="preset.color"
-                class="color-swatch-wrapper"
-              >
-                <button
-                  class="color-swatch"
-                  :style="{ backgroundColor: preset.color }"
-                  @click="selectColor(config.type, preset.color)"
-                >
-                  <Transition name="fade">
-                    <Check
-                      v-if="
-                        getCurrentColor(config.type).toLowerCase() === preset.color.toLowerCase()
-                      "
-                      :size="16"
-                      class="check-icon"
-                    />
-                  </Transition>
-                </button>
-              </div>
-
-              <!-- 自定义颜色按钮 -->
-              <div class="color-swatch-wrapper">
-                <button
-                  class="color-swatch custom-btn"
-                  :class="{
-                    active: !config.presets.some(
-                      (p) => p.color.toLowerCase() === getCurrentColor(config.type).toLowerCase()
-                    ),
-                  }"
-                  :style="{
-                    backgroundColor: !config.presets.some(
-                      (p) => p.color.toLowerCase() === getCurrentColor(config.type).toLowerCase()
-                    )
-                      ? getCurrentColor(config.type)
-                      : 'transparent',
-                  }"
-                  @click="openCustomPicker(config.type)"
-                >
-                  <Check
-                    v-if="
-                      !config.presets.some(
-                        (p) => p.color.toLowerCase() === getCurrentColor(config.type).toLowerCase()
-                      )
-                    "
-                    :size="16"
-                    class="check-icon"
-                  />
-                  <Pipette v-else :size="16" />
-                </button>
-              </div>
-
-              <!-- 重置按钮 -->
-              <div class="color-swatch-wrapper">
-                <button class="color-swatch reset-btn" @click="resetColor(config.type)">
-                  <RotateCcw :size="16" />
-                </button>
+              <div v-for="preset in group.presets" :key="preset.color" class="color-swatch-wrapper">
+                <var-tooltip :content="preset.name">
+                  <button
+                    class="color-swatch"
+                    :style="{ backgroundColor: preset.color }"
+                    @click="selectColor(preset.color, preset.name)"
+                  >
+                    <Transition name="fade">
+                      <Check
+                        v-if="currentThemeColor.toLowerCase() === preset.color.toLowerCase()"
+                        :size="16"
+                        class="check-icon"
+                      />
+                    </Transition>
+                  </button>
+                </var-tooltip>
+                <span class="swatch-name">{{ preset.name }}</span>
               </div>
             </div>
           </div>
@@ -293,7 +260,7 @@ const showDrawer = ref(false);
     <!-- 自定义颜色弹窗 -->
     <var-dialog
       v-model:show="showCustomPicker"
-      :title="`自定义${activeType ? colorConfigs.find((c) => c.type === activeType)?.label : ''}`"
+      title="自定义主题色"
       @confirm="handleCustomColorApply"
     >
       <div class="custom-picker-content">
@@ -342,10 +309,11 @@ const showDrawer = ref(false);
 }
 
 .color-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   border: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .text-hint {
@@ -375,11 +343,86 @@ const showDrawer = ref(false);
 }
 
 .scroll-area {
-  padding: 20px 16px;
+  padding: 0 16px 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.action-bar {
+  display: flex;
+  gap: 12px;
+  padding: 16px 0;
+  position: sticky;
+  top: 0;
+  background-color: var(--card-bg);
+  z-index: 10;
+}
+
+.action-item {
+  flex: 1;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--color-surface-container-high);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--color-on-surface);
+}
+
+.action-item:active {
+  opacity: 0.7;
+}
+
+.current-preview-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background-color: var(--color-surface-container-low);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview-label {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.preview-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.color-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.color-hex {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--color-on-surface-variant);
+  opacity: 0.8;
+}
+
+.preview-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  border: 2px solid #fff;
 }
 
 .color-group {
@@ -390,35 +433,46 @@ const showDrawer = ref(false);
 
 .group-header {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 8px;
   padding: 0 4px;
 }
 
 .group-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--color-on-surface);
 }
 
-.info-icon {
+.group-desc {
+  font-size: 12px;
   color: var(--color-on-surface-variant);
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 .preset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 16px 12px;
   justify-items: center;
 }
 
 .color-swatch-wrapper {
-  width: 40px;
-  height: 40px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.swatch-name {
+  font-size: 10px;
+  color: var(--color-on-surface-variant);
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .color-swatch {
@@ -442,17 +496,6 @@ const showDrawer = ref(false);
 .check-icon {
   color: #fff;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
-}
-
-.custom-btn,
-.reset-btn {
-  background-color: var(--color-surface-container-high);
-  color: var(--color-on-surface-variant);
-  border: 1px solid var(--color-outline-variant);
-}
-
-.custom-btn.active {
-  border: none;
 }
 
 .custom-picker-content {

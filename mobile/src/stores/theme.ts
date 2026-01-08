@@ -1,6 +1,9 @@
 import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
 import { useSettingsStore } from "./settings";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("ThemeStore");
 import { StyleProvider, Themes } from "@varlet/ui";
 import { generateMd3Theme } from "@/utils/themeUtils";
 
@@ -10,6 +13,10 @@ export const useThemeStore = defineStore("theme", () => {
 
   const themeMode = computed(() => settingsStore.settings.appearance.theme);
   const themeColor = computed(() => settingsStore.settings.appearance.themeColor || "#409EFF");
+  const successColor = computed(() => settingsStore.settings.appearance.successColor);
+  const warningColor = computed(() => settingsStore.settings.appearance.warningColor);
+  const dangerColor = computed(() => settingsStore.settings.appearance.dangerColor);
+  const infoColor = computed(() => settingsStore.settings.appearance.infoColor);
 
   const initTheme = () => {
     updateIsDark();
@@ -29,28 +36,41 @@ export const useThemeStore = defineStore("theme", () => {
     await settingsStore.updateAppearance({ theme: newTheme });
   };
 
+  const themeVars = computed(() => {
+    const md3Theme = generateMd3Theme(themeColor.value, isDark.value, {
+      success: successColor.value,
+      warning: warningColor.value,
+      danger: dangerColor.value,
+      info: infoColor.value,
+    });
+
+    return {
+      ...(isDark.value ? Themes.md3Dark : Themes.md3Light),
+      ...md3Theme,
+    };
+  });
+
   const applyTheme = () => {
-    const md3Theme = generateMd3Theme(themeColor.value, isDark.value);
-    
     if (isDark.value) {
       document.documentElement.classList.add("dark");
-      StyleProvider({
-        ...Themes.md3Dark,
-        ...md3Theme
-      });
     } else {
       document.documentElement.classList.remove("dark");
-      StyleProvider({
-        ...Themes.md3Light,
-        ...md3Theme
-      });
     }
+
+    // 同时也保留函数式调用，以防万一有组件没在 StyleProvider 下
+    StyleProvider(themeVars.value);
   };
 
-  // 监听设置中的主题模式或颜色变化
-  watch([themeMode, themeColor], () => {
-    updateIsDark();
-  });
+  // 深度监听 settingsStore.settings.appearance 的变化
+  watch(
+    () => settingsStore.settings.appearance,
+    () => {
+      logger.debug("外观设置发生变化，重新应用主题");
+      updateIsDark();
+      applyTheme();
+    },
+    { immediate: true, deep: true }
+  );
 
   watch(isDark, () => {
     applyTheme();
@@ -65,6 +85,7 @@ export const useThemeStore = defineStore("theme", () => {
 
   return {
     isDark,
+    themeVars,
     initTheme,
     toggleTheme,
   };

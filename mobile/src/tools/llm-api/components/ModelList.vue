@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Trash2, Edit, Plus, List } from "lucide-vue-next";
-import { Dialog } from "@varlet/ui";
+import { Dialog, Snackbar } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
@@ -78,6 +78,13 @@ const deleteGroup = async (group: { name: string; models: { model: LlmModelInfo 
 };
 const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
   return translatedCapabilities.value.filter((cap) => model.capabilities?.[cap.key]);
+};
+
+const showCapabilityDesc = (capability: CapabilityConfig) => {
+  Snackbar.info({
+    content: capability.description,
+    duration: 4000,
+  });
 };
 </script>
 
@@ -195,6 +202,8 @@ const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
                         '--cap-color': capability.color,
                         color: capability.color,
                       }"
+                      v-ripple
+                      @click.stop="showCapabilityDesc(capability)"
                     >
                       <component :is="capability.icon" :size="12" />
                       <span class="capability-label">{{ capability.label }}</span>

@@ -374,11 +374,10 @@ const resetBaseUrl = () => {
         @delete="handleDelete"
       >
         <template #header-actions>
-          <el-image
-            v-if="editForm.icon"
-            :src="getDisplayIconPath(editForm.icon)"
+          <DynamicIcon
+            :src="getProviderIcon(editForm) || ''"
             class="profile-editor-icon"
-            fit="contain"
+            :alt="editForm.name"
           />
         </template>
         <el-form
@@ -610,6 +609,10 @@ const resetBaseUrl = () => {
   gap: 20px;
   flex: 1;
   min-height: 0;
+}
+
+.settings-layout :deep(.profile-sidebar) {
+  max-height: 100vh;
 }
 
 .is-narrow .settings-layout {

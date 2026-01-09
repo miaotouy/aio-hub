@@ -1,6 +1,7 @@
 {
   "name": "aiohub-mobile",
   "private": true,
+  "license": "Proprietary",
   "version": "0.1.1-m-beta.1",
   "type": "module",
   "scripts": {

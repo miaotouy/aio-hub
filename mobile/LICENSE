@@ -1,0 +1,29 @@
+AIO Hub Mobile Proprietary License
+
+Copyright (c) 2025-2026 miaotouy
+
+IMPORTANT: PLEASE READ THIS LICENSE CAREFULLY.
+
+1. DEFINITIONS
+"Software" refers to the AIO Hub Mobile application and all associated source code, assets, and documentation located within the `mobile/` directory of this repository.
+
+2. LICENSE GRANT
+This Software is provided for personal, non-commercial use only. You are permitted to:
+- Download and compile the source code for personal study and private use.
+- Modify the code for personal, non-redistributable use.
+
+3. RESTRICTIONS
+You are STRICTLY PROHIBITED from:
+- Commercial Use: Using the Software or any part of it for commercial purposes, including but not limited to selling the Software, using it to provide paid services, or embedding it in commercial products.
+- Redistribution: Distributing, publishing, or uploading the Software (in source or binary form) to any third-party platforms, app stores, or websites without explicit written permission from the copyright holder.
+- Sublicensing: Granting any third party the rights to use or distribute the Software.
+- Reverse Engineering: Attempting to bypass any security measures or license checks if implemented.
+
+4. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
+
+5. TERMINATION
+This license terminates automatically if you fail to comply with any of its terms. Upon termination, you must cease all use of the Software and destroy all copies in your possession.
+
+6. RESERVATION OF RIGHTS
+All rights not expressly granted in this license are reserved by miaotouy.

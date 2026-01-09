@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    mobile_lib::run()
+    aiohub_mobile_lib::run()
 }

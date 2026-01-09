@@ -3,7 +3,10 @@
     "LLM 服务": "LLM Service",
     "管理 LLM 渠道与模型配置": "Manage LLM channels and model configurations",
     "LLM 渠道管理": "LLM Channel Management",
-    "配置已保存": "Configuration saved"
+    "配置已保存": "Configuration saved",
+    "选择模型": "Select Model",
+    "未配置模型": "No models configured",
+    "去配置": "Go to Config"
   },
   "LlmSettingsView": {
     "暂无渠道提示": "No channels yet, click the top right to add",

@@ -34,7 +34,7 @@
   /* 导航栏与安全区域变量 */
   --app-bar-height: 54px;
   /* 状态栏避让高度 */
-  --app-safe-area-top: max(env(safe-area-inset-top), 16px);
+  --app-safe-area-top: max(env(safe-area-inset-top), var(--app-safe-area-top-offset, 16px));
   /* 顶部总占用高度 */
   --app-top-offset: calc(var(--app-bar-height) + var(--app-safe-area-top));
 }

@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, watchEffect } from "vue";
 import AppBottomNav from "./components/AppBottomNav.vue";
 import { useAppInit } from "@/composables/useAppInit";
 import { useThemeStore } from "@/stores/theme";
+import { useSettingsStore } from "@/stores/settings";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useDebugPanel } from "@/composables/useDebugPanel";
 
 const { isReady, progress, statusMessage, bootstrap } = useAppInit();
 const themeStore = useThemeStore();
+const settingsStore = useSettingsStore();
 const { syncWithSettings } = useDebugPanel();
 
 // 全局键盘避让
@@ -15,6 +17,16 @@ useKeyboardAvoidance();
 
 // 同步调试面板状态
 syncWithSettings();
+
+// 同步避让距离设置到 CSS 变量
+watchEffect(() => {
+  const { safeTopDistance, keyboardAvoidanceDistance } = settingsStore.settings.appearance;
+  document.documentElement.style.setProperty("--app-safe-area-top-offset", `${safeTopDistance}px`);
+  document.documentElement.style.setProperty(
+    "--keyboard-avoidance-distance",
+    `${keyboardAvoidanceDistance}px`
+  );
+});
 
 onMounted(() => {
   bootstrap();

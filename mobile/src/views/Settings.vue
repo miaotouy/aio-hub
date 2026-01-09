@@ -16,15 +16,17 @@ import {
   Sun,
   Monitor,
   RefreshCw,
+  ArrowUpToLine,
+  Keyboard,
 } from "lucide-vue-next";
 const settingsStore = useSettingsStore();
 const { t, locale } = useI18n();
 
 // 主题选项
 const themeOptions = computed(() => [
-  { label: t('settings.跟随系统'), value: "auto", icon: Monitor },
-  { label: t('settings.浅色模式'), value: "light", icon: Sun },
-  { label: t('settings.深色模式'), value: "dark", icon: Moon },
+  { label: t("settings.跟随系统"), value: "auto", icon: Monitor },
+  { label: t("settings.浅色模式"), value: "light", icon: Sun },
+  { label: t("settings.深色模式"), value: "dark", icon: Moon },
 ]);
 
 // 语言选项
@@ -40,17 +42,29 @@ const currentThemeIcon = computed(() => {
 
 const handleThemeChange = async (value: any) => {
   await settingsStore.updateAppearance({ theme: value });
-  Snackbar.success(t('settings.已切换至', { theme: themeOptions.value.find((opt) => opt.value === value)?.label }));
+  Snackbar.success(
+    t("settings.已切换至", { theme: themeOptions.value.find((opt) => opt.value === value)?.label })
+  );
 };
 
 const handleLanguageChange = async (value: any) => {
   await settingsStore.updateSettings({ language: value });
   locale.value = value;
-  Snackbar.success(t('settings.语言已切换至', { lang: languageOptions.find((opt) => opt.value === value)?.label }));
+  Snackbar.success(
+    t("settings.语言已切换至", { lang: languageOptions.find((opt) => opt.value === value)?.label })
+  );
 };
 
 const handleHapticChange = async (value: any) => {
   await settingsStore.updateAppearance({ hapticFeedback: value });
+};
+
+const handleSafeTopChange = async (value: any) => {
+  await settingsStore.updateAppearance({ safeTopDistance: Number(value) || 0 });
+};
+
+const handleKeyboardAvoidanceChange = async (value: any) => {
+  await settingsStore.updateAppearance({ keyboardAvoidanceDistance: Number(value) || 0 });
 };
 const { toggleDebugPanel } = useDebugPanel();
 
@@ -58,9 +72,9 @@ const handleDebugChange = async (value: any) => {
   await settingsStore.updateSettings({ debugMode: value });
   toggleDebugPanel(value);
   if (value) {
-    Snackbar.success(t('settings.调试面板已加载'));
+    Snackbar.success(t("settings.调试面板已加载"));
   } else {
-    Snackbar.info(t('settings.调试面板已卸载'));
+    Snackbar.info(t("settings.调试面板已卸载"));
   }
 };
 
@@ -70,10 +84,10 @@ const showVersionInfo = () => {
 
 const handleRefresh = async () => {
   const action = await Dialog({
-    title: t('settings.确认刷新'),
-    message: t('settings.刷新提示'),
-    confirmButtonText: t('common.确定'),
-    cancelButtonText: t('common.取消'),
+    title: t("settings.确认刷新"),
+    message: t("settings.刷新提示"),
+    confirmButtonText: t("common.确定"),
+    cancelButtonText: t("common.取消"),
   });
 
   if (action === "confirm") {
@@ -88,13 +102,13 @@ const handleRefresh = async () => {
 <template>
   <div class="app-view app-view--safe-top settings-container">
     <div class="header">
-      <h1 class="title">{{ t('settings.标题') }}</h1>
+      <h1 class="title">{{ t("settings.标题") }}</h1>
     </div>
 
     <div class="settings-content">
       <!-- 外观设置 -->
       <var-paper :elevation="1" class="settings-group">
-        <div class="group-title">{{ t('settings.外观') }}</div>
+        <div class="group-title">{{ t("settings.外观") }}</div>
         <var-cell ripple>
           <template #icon>
             <div class="group-icon">
@@ -102,8 +116,8 @@ const handleRefresh = async () => {
             </div>
           </template>
           <div class="cell-content">
-            <div class="cell-label">{{ t('settings.主题模式') }}</div>
-            <div class="cell-desc">{{ t('settings.主题模式描述') }}</div>
+            <div class="cell-label">{{ t("settings.主题模式") }}</div>
+            <div class="cell-desc">{{ t("settings.主题模式描述") }}</div>
           </div>
           <template #extra>
             <var-select
@@ -141,8 +155,8 @@ const handleRefresh = async () => {
             </div>
           </template>
           <div class="cell-content">
-            <div class="cell-label">{{ t('settings.触感反馈') }}</div>
-            <div class="cell-desc">{{ t('settings.触感反馈描述') }}</div>
+            <div class="cell-label">{{ t("settings.触感反馈") }}</div>
+            <div class="cell-desc">{{ t("settings.触感反馈描述") }}</div>
           </div>
           <template #extra>
             <var-switch
@@ -151,11 +165,59 @@ const handleRefresh = async () => {
             />
           </template>
         </var-cell>
+
+        <var-cell ripple>
+          <template #icon>
+            <div class="group-icon">
+              <ArrowUpToLine :size="20" />
+            </div>
+          </template>
+          <div class="cell-content">
+            <div class="cell-label">{{ t("settings.顶部避让距离") }}</div>
+            <div class="cell-desc">{{ t("settings.顶部避让距离描述") }}</div>
+          </div>
+          <template #extra>
+            <var-input
+              :model-value="String(settingsStore.settings.appearance.safeTopDistance)"
+              @update:model-value="(v) => handleSafeTopChange(v)"
+              type="number"
+              variant="standard"
+              :hint="false"
+              :line="false"
+              placeholder="0"
+              class="distance-input"
+            />
+          </template>
+        </var-cell>
+
+        <var-cell ripple>
+          <template #icon>
+            <div class="group-icon">
+              <Keyboard :size="20" />
+            </div>
+          </template>
+          <div class="cell-content">
+            <div class="cell-label">{{ t("settings.键盘避让距离") }}</div>
+            <div class="cell-desc">{{ t("settings.键盘避让距离描述") }}</div>
+          </div>
+          <template #extra>
+            <var-input
+              :model-value="String(settingsStore.settings.appearance.keyboardAvoidanceDistance)"
+              @update:model-value="(v) => handleKeyboardAvoidanceChange(v)"
+              type="number"
+              variant="standard"
+              :hint="false"
+              :line="false"
+              placeholder="0"
+              class="distance-input"
+            />
+          </template>
+        </var-cell>
       </var-paper>
 
       <!-- 通用设置 -->
       <var-paper :elevation="1" class="settings-group">
-        <div class="group-title">{{ t('settings.通用') }}</div>
+        <div class="group-title">{{ t("settings.通用") }}</div>
 
         <var-cell ripple>
           <template #icon>
@@ -164,7 +226,7 @@ const handleRefresh = async () => {
             </div>
           </template>
           <div class="cell-content">
-            <div class="cell-label">{{ t('settings.语言') }}</div>
+            <div class="cell-label">{{ t("settings.语言") }}</div>
           </div>
           <template #extra>
             <var-select
@@ -191,8 +253,8 @@ const handleRefresh = async () => {
             </div>
           </template>
           <div class="cell-content">
-            <div class="cell-label">{{ t('settings.调试模式') }}</div>
-            <div class="cell-desc">{{ t('settings.调试模式描述') }}</div>
+            <div class="cell-label">{{ t("settings.调试模式") }}</div>
+            <div class="cell-desc">{{ t("settings.调试模式描述") }}</div>
           </div>
           <template #extra>
             <var-switch v-model="settingsStore.settings.debugMode" @change="handleDebugChange" />
@@ -202,7 +264,7 @@ const handleRefresh = async () => {
 
       <!-- 关于 -->
       <var-paper :elevation="1" class="settings-group">
-        <div class="group-title">{{ t('settings.关于') }}</div>
+        <div class="group-title">{{ t("settings.关于") }}</div>
 
         <var-cell ripple @click="showVersionInfo">
           <template #icon>
@@ -211,8 +273,8 @@ const handleRefresh = async () => {
             </div>
           </template>
           <div class="cell-content">
-            <div class="cell-label">{{ t('settings.版本信息') }}</div>
-            <div class="cell-desc">{{ t('settings.当前版本', { version: '0.1.0' }) }}</div>
+            <div class="cell-label">{{ t("settings.版本信息") }}</div>
+            <div class="cell-desc">{{ t("settings.当前版本", { version: "0.1.0" }) }}</div>
           </div>
           <template #extra>
             <ChevronRight :size="20" class="text-hint" />
@@ -226,8 +288,8 @@ const handleRefresh = async () => {
             </div>
           </template>
           <div class="cell-content">
-            <div class="cell-label">{{ t('settings.强制刷新') }}</div>
-            <div class="cell-desc">{{ t('settings.强制刷新描述') }}</div>
+            <div class="cell-label">{{ t("settings.强制刷新") }}</div>
+            <div class="cell-desc">{{ t("settings.强制刷新描述") }}</div>
           </div>
           <template #extra>
             <ChevronRight :size="20" class="text-hint" />
@@ -333,5 +395,16 @@ const handleRefresh = async () => {
 :deep(.var-select) {
   width: auto;
   min-width: 140px;
+}
+
+.distance-input {
+  width: 80px;
+  --input-placeholder-size: 14px;
+}
+
+:deep(.distance-input .var-input__input) {
+  text-align: right;
+  color: var(--primary-color);
+  font-weight: 600;
 }
 </style>

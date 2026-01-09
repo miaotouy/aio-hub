@@ -33,21 +33,10 @@ function hexToVarletHsl(hex: string): string {
   return `${Math.round(h * 360)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%`;
 }
 
-interface CustomColors {
-  success?: string;
-  warning?: string;
-  danger?: string;
-  info?: string;
-}
-
 /**
  * 将 MD3 主题转换为 Varlet 兼容的 CSS 变量对象
  */
-export function generateMd3Theme(
-  sourceColorHex: string,
-  isDark: boolean,
-  customColors: CustomColors = {}
-) {
+export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
   const theme = themeFromSourceColor(argbFromHex(sourceColorHex));
   const scheme = isDark ? theme.schemes.dark : theme.schemes.light;
 
@@ -104,10 +93,10 @@ export function generateMd3Theme(
   themeConfig["--hsl-text"] = hexToVarletHsl(themeConfig["--color-text"]);
 
   // 映射语义颜色 (MD3 默认没有 info, success, warning)
-  // 优先使用用户自定义颜色，否则根据 MD3 的 secondary 和 tertiary 来模拟
+  // 我们根据 MD3 的 secondary 和 tertiary 来自动模拟
 
-  // Info
-  const infoHex = customColors.info || hexFromArgb(scheme.secondary);
+  // Info (使用 Secondary)
+  const infoHex = hexFromArgb(scheme.secondary);
   themeConfig["--color-info"] = infoHex;
   themeConfig["--hsl-info"] = hexToVarletHsl(infoHex);
 
@@ -116,24 +105,23 @@ export function generateMd3Theme(
   themeConfig["--hsl-info-container"] = hexToVarletHsl(infoContainerHex);
   themeConfig["--color-on-info-container"] = hexFromArgb(scheme.onSecondaryContainer);
 
-  // Success
-  const successHex = customColors.success || hexFromArgb(scheme.tertiary);
+  // Success (使用 Tertiary)
+  const successHex = hexFromArgb(scheme.tertiary);
   themeConfig["--color-success"] = successHex;
   themeConfig["--hsl-success"] = hexToVarletHsl(successHex);
   themeConfig["--color-success-container"] = hexFromArgb(scheme.tertiaryContainer);
 
-  // Warning
-  const warningHex = customColors.warning || hexFromArgb(scheme.tertiary);
+  // Warning (使用 Tertiary 的变体或原始色)
+  const warningHex = hexFromArgb(scheme.tertiary);
   themeConfig["--color-warning"] = warningHex;
   themeConfig["--hsl-warning"] = hexToVarletHsl(warningHex);
 
-  // Danger/Error (MD3 默认有 error，但用户可能想自定义)
-  if (customColors.danger) {
-    themeConfig["--color-danger"] = customColors.danger;
-    themeConfig["--hsl-danger"] = hexToVarletHsl(customColors.danger);
-    themeConfig["--color-error"] = customColors.danger;
-    themeConfig["--hsl-error"] = hexToVarletHsl(customColors.danger);
-  }
+  // Danger/Error (MD3 默认有 error)
+  const errorHex = hexFromArgb(scheme.error);
+  themeConfig["--color-danger"] = errorHex;
+  themeConfig["--hsl-danger"] = hexToVarletHsl(errorHex);
+  themeConfig["--color-error"] = errorHex;
+  themeConfig["--hsl-error"] = hexToVarletHsl(errorHex);
 
   // 容器类颜色映射 (MD3 规范)
   themeConfig["--color-surface-container"] = hexFromArgb(scheme.surfaceVariant);

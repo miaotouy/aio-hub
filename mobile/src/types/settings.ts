@@ -9,14 +9,6 @@ export interface AppearanceSettings {
   theme: ThemeMode;
   /** 主题种子颜色 */
   themeColor?: string;
-  /** 成功色 */
-  successColor?: string;
-  /** 警告色 */
-  warningColor?: string;
-  /** 危险色 */
-  dangerColor?: string;
-  /** 信息色 */
-  infoColor?: string;
   /** 是否启用触感反馈 */
   hapticFeedback: boolean;
   /** 字体大小缩放 (1.0 为正常) */
@@ -54,10 +46,6 @@ export const DEFAULT_APP_SETTINGS: MobileAppSettings = {
   appearance: {
     theme: "auto",
     themeColor: "#409EFF",
-    successColor: "#67c23a",
-    warningColor: "#e6a23c",
-    dangerColor: "#f56c6c",
-    infoColor: "#909399",
     hapticFeedback: true,
     fontSizeScale: 1.0,
     safeTopDistance: 16,

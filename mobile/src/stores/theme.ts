@@ -13,10 +13,6 @@ export const useThemeStore = defineStore("theme", () => {
 
   const themeMode = computed(() => settingsStore.settings.appearance.theme);
   const themeColor = computed(() => settingsStore.settings.appearance.themeColor || "#409EFF");
-  const successColor = computed(() => settingsStore.settings.appearance.successColor);
-  const warningColor = computed(() => settingsStore.settings.appearance.warningColor);
-  const dangerColor = computed(() => settingsStore.settings.appearance.dangerColor);
-  const infoColor = computed(() => settingsStore.settings.appearance.infoColor);
 
   const initTheme = () => {
     updateIsDark();
@@ -37,12 +33,7 @@ export const useThemeStore = defineStore("theme", () => {
   };
 
   const themeVars = computed(() => {
-    const md3Theme = generateMd3Theme(themeColor.value, isDark.value, {
-      success: successColor.value,
-      warning: warningColor.value,
-      danger: dangerColor.value,
-      info: infoColor.value,
-    });
+    const md3Theme = generateMd3Theme(themeColor.value, isDark.value);
 
     return {
       ...(isDark.value ? Themes.md3Dark : Themes.md3Light),

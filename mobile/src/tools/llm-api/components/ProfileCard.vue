@@ -4,7 +4,7 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useI18n } from "@/i18n";
 import type { LlmProfile } from "../types";
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 defineProps<{
   profile: LlmProfile;
@@ -22,11 +22,7 @@ defineEmits<{
 </script>
 
 <template>
-  <div
-    class="profile-card"
-    :class="{ 'is-disabled': !profile.enabled }"
-    @click="$emit('click')"
-  >
+  <div class="profile-card" :class="{ 'is-disabled': !profile.enabled }" @click="$emit('click')">
     <div class="card-content">
       <div class="icon-wrapper">
         <DynamicIcon :src="profile.icon || ''" :alt="profile.name" />
@@ -57,13 +53,13 @@ defineEmits<{
     <div class="card-footer">
       <span class="model-count">
         <Layers :size="12" />
-        {{ tRaw("tools.llm-api.ProfileCard.N个可用模型", { count: profile.models.length }) }}
+        {{ t("common.N个", { count: profile.models.length }) }}
       </span>
       <div class="status-wrapper">
         <span v-if="profile.enabled" class="status-enabled">
-          <ShieldCheck :size="12" /> {{ tRaw("tools.llm-api.common.已启用") }}
+          <ShieldCheck :size="12" /> {{ t("common.已启用") }}
         </span>
-        <span v-else class="status-disabled">{{ tRaw("tools.llm-api.common.已禁用") }}</span>
+        <span v-else class="status-disabled">{{ t("common.已禁用") }}</span>
       </div>
     </div>
   </div>
@@ -83,7 +79,6 @@ defineEmits<{
   transform: scale(0.98);
   opacity: 0.9;
 }
-
 
 .profile-card.is-disabled {
   opacity: 0.7;

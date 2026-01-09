@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { Info, ChevronRight } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
+import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import type { LlmProfile } from "../types";
 
 type CustomEndpoints = NonNullable<LlmProfile["customEndpoints"]>;
 
 const { t, tRaw } = useI18n();
+useKeyboardAvoidance();
 
 const props = defineProps<{
   show: boolean;
@@ -30,10 +32,19 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
     style="width: 100%; height: 100%"
   >
     <div class="full-popup">
-      <var-app-bar :title="tRaw('tools.llm-api.CustomEndpointsEditor.高级端点配置')" safe-area>
+      <var-app-bar
+        :title="tRaw('tools.llm-api.CustomEndpointsEditor.高级端点配置')"
+        fixed
+        safe-area
+      >
         <template #left>
           <var-button round text @click="$emit('update:show', false)">
             <ChevronRight :size="24" class="back-btn" />
+          </var-button>
+        </template>
+        <template #right>
+          <var-button text @click="$emit('update:show', false)">
+            {{ t("common.确认") }}
           </var-button>
         </template>
       </var-app-bar>
@@ -84,11 +95,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
           />
         </div>
 
-        <div class="footer-actions">
-          <var-button block type="primary" @click="$emit('update:show', false)">{{
-            t("common.确认")
-          }}</var-button>
-        </div>
+        <div class="footer-actions" />
       </div>
     </div>
   </var-popup>
@@ -109,7 +116,12 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
 .popup-content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  /* 避让 fixed AppBar: 54px (AppBar) */
+  /* 同时考虑顶部安全区域 */
+  padding: calc(54px + var(--safe-area-inset-top, 0px) + 32px) 20px 20px;
+  /* 软键盘避让：在键盘弹出时增加底部内边距，确保最下方的输入框不被遮挡 */
+  padding-bottom: calc(20px + var(--keyboard-height, 0px));
+  transition: padding-bottom 0.3s ease;
 }
 
 .info-card {
@@ -136,6 +148,6 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
 
 .footer-actions {
   margin-top: 48px;
-  padding-bottom: 24px;
+  padding-bottom: calc(24px + var(--safe-area-inset-bottom, 0px));
 }
 </style>

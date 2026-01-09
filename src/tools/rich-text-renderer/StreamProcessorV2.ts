@@ -29,9 +29,34 @@ class MarkdownBoundaryDetector {
     const lines = text.split("\n");
     if (this.isInsideCodeBlock(lines)) return false;
     if (this.isIncompleteTable(lines.slice(-3))) return false;
-    if (this.hasUnclosedHtmlTags(text)) return false;
     if (this.hasUnclosedKatexBlock(text)) return false;
+
+    // HTML 综合检查
+    if (this.hasUnclosedHtmlTags(text)) return false;
+    if (this.hasIncompleteHtmlTag(text)) return false;
+    if (this.isLikelyInsideHtmlAttribute(text)) return false;
+
     return true;
+  }
+
+  /**
+   * 检查是否可能处于 HTML 属性值中间
+   */
+  private isLikelyInsideHtmlAttribute(fullText: string): boolean {
+    // 查找最后一个 <，看它之后是否有未闭合的引号
+    const lastOpenBracket = fullText.lastIndexOf("<");
+    if (lastOpenBracket === -1) return false;
+
+    const textAfterBracket = fullText.slice(lastOpenBracket);
+    // 如果已经闭合了标签，则不属于属性中间
+    if (textAfterBracket.includes(">")) return false;
+
+    // 统计引号数量
+    const doubleQuotes = (textAfterBracket.match(/"/g) || []).length;
+    const singleQuotes = (textAfterBracket.match(/'/g) || []).length;
+
+    // 如果某类引号是奇数个，说明未闭合
+    return doubleQuotes % 2 !== 0 || singleQuotes % 2 !== 0;
   }
 
   /**
@@ -84,10 +109,16 @@ class MarkdownBoundaryDetector {
   /**
    * 检查是否存在未闭合的 HTML 标签
    *
-   * 简化策略：统计开放标签和闭合标签的数量
+   * 检测两种情况：
+   * 1. 已完成的 HTML 标签（有 >）但未闭合（缺少 </tag>）
+   * 2. 未完成的 HTML 标签（缺少 >，如 <div style="...）
+   *
+   * 策略：
+   * - 统计开放标签和闭合标签的数量
    * - 跳过自闭合标签（如 <br />）
    * - 跳过常见的空标签（如 <img>, <hr>）
-   * - 特别处理 LLM 思考标签：如果有未闭合的思考标签，返回 true
+   * - 特别处理 LLM 思考标签
+   * - 检测未完成的 HTML 标签（流式输出中常见）
    */
   private hasUnclosedHtmlTags(text: string): boolean {
     const tagStack: string[] = [];
@@ -135,16 +166,90 @@ class MarkdownBoundaryDetector {
       }
     }
 
-    // 如果有未闭合的思考标签或其他标签，说明不安全
+    // 如果有未闭合的思考标签，说明不安全
     return tagStack.length > 0 || thinkTagStack.length > 0;
   }
 
+  /**
+   * 检测未完成的 HTML 标签（缺少 >）
+   *
+   * 在流式输出中，HTML 标签可能被截断，如：
+   * - <div style="
+   * - <div style="background: red;
+   * - <span class="foo
+   *
+   * 这些都是未完成的标签，需要等待更多内容才能正确解析
+   */
+  private hasIncompleteHtmlTag(text: string): boolean {
+    // 从文本末尾向前搜索，查找最后一个 < 符号
+    const lastOpenBracket = text.lastIndexOf("<");
+    if (lastOpenBracket === -1) {
+      return false;
+    }
+
+    // 获取从 < 开始到文本末尾的内容
+    const potentialTag = text.slice(lastOpenBracket);
+
+    // 如果这部分内容包含 >，说明标签已完成
+    if (potentialTag.includes(">")) {
+      return false;
+    }
+
+    // 检查是否看起来像一个 HTML 标签的开始
+    // 匹配: <tagName 或 </tagName 或 <tagName attr
+    // 排除: < 后面直接跟数字或空格（如 "< 100" 或 "<100"）
+    const incompleteTagRegex = /^<\/?[a-zA-Z][a-zA-Z0-9_-]*(?:\s|$)/;
+    if (incompleteTagRegex.test(potentialTag)) {
+      return true;
+    }
+
+    // 特殊情况：标签名正在输入中，如 "<di" 或 "</di"
+    // 匹配: <字母 或 </字母（后面没有空格或 >）
+    const partialTagRegex = /^<\/?[a-zA-Z][a-zA-Z0-9_-]*$/;
+    if (partialTagRegex.test(potentialTag)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * 获取安全的可解析切分点
+   * 如果末尾存在不完整的 HTML 标签或属性，返回其起始位置以隐藏残缺部分
+   */
+  private getSafeCutPoint(text: string): number {
+    // 如果在代码块内部，不执行 HTML 截断逻辑，防止代码中的 < 导致闪烁
+    if (this.isInsideCodeBlock(text.split("\n"))) {
+      return text.length;
+    }
+
+    // 1. 检查 HTML 标签截断 (如 <div st...)
+    const lastOpenBracket = text.lastIndexOf("<");
+    if (lastOpenBracket !== -1) {
+      const suffix = text.slice(lastOpenBracket);
+      // 如果这个 < 之后没有 >，且看起来像标签开始或属性开始，则回退
+      if (!suffix.includes(">")) {
+        if (this.hasIncompleteHtmlTag(text) || this.isLikelyInsideHtmlAttribute(text)) {
+          return lastOpenBracket;
+        }
+      }
+    }
+
+    return text.length;
+  }
+
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
-    const lines = text.split("\n");
+    // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
+    const safeLen = this.getSafeCutPoint(text);
+    const safeText = text.slice(0, safeLen);
+
+    const lines = safeText.split("\n");
     let stableEndLineIndex = -1;
 
+    // 从后往前找最后一个空行作为稳定边界
     for (let i = lines.length - 1; i >= 0; i--) {
       if (lines[i].trim() === "") {
+        // 找到空行后，还需要确认空行之前的部分是安全的
         const testText = lines.slice(0, i).join("\n");
         if (this.isSafeParsePoint(testText)) {
           stableEndLineIndex = i;
@@ -160,13 +265,10 @@ class MarkdownBoundaryDetector {
         stable: stableLines.join("\n"),
         pending: pendingLines.join("\n"),
       };
-    } else {
-      if (this.isSafeParsePoint(text)) {
-        return { stable: text, pending: "" };
-      } else {
-        return { stable: "", pending: text };
-      }
     }
+
+    // 如果没有空行，则整体作为 pending（前提是已经在 getSafeCutPoint 中过滤了残缺部分）
+    return { stable: "", pending: safeText };
   }
 }
 

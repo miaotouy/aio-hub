@@ -1,0 +1,169 @@
+name: 移动端构建和发布
+
+on:
+  push:
+    tags:
+      - "v*.*.*-m" # 当推送带 -m 后缀的版本标签时触发（如 v0.1.9-m）
+      - "v*.*.*-m-*" # （如 v0.1.9-m-beta.1）
+  workflow_dispatch: # 允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    name: 构建 Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: 设置 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "mobile/src-tauri -> target"
+
+      - name: 安装前端依赖
+        run: |
+          bun install
+          cd mobile && bun install
+
+      - name: 构建 Android 应用
+        run: |
+          cd mobile
+          bun tauri android build --apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 获取版本号
+        id: get-version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # 提取版本号：
+            # v0.1.9-m -> 0.1.9
+            # v0.1.9-m-beta.1 -> 0.1.9-beta.1
+            TAG_NAME="${{ github.ref_name }}"
+            # 去掉开头的 v
+            VERSION_NUM="${TAG_NAME#v}"
+            # 将第一个 -m 替换为空（处理 v0.1.9-m -> 0.1.9 和 v0.1.9-m-beta.1 -> 0.1.9-beta.1）
+            VERSION_NUM=$(echo "$VERSION_NUM" | sed 's/-m//')
+            echo "version=${TAG_NAME}" >> $GITHUB_OUTPUT
+            echo "version_num=${VERSION_NUM}" >> $GITHUB_OUTPUT
+          else
+            # 从 mobile/package.json 读取
+            VERSION=$(cat mobile/package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+            echo "version=v${VERSION}-m" >> $GITHUB_OUTPUT
+            echo "version_num=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 整理并重命名 Android 产物
+        shell: bash
+        run: |
+          mkdir -p dist-artifacts
+          VERSION="${{ steps.get-version.outputs.version_num }}"
+
+          # 查找生成的 APK 并重命名
+          # Tauri 路径通常在 mobile/src-tauri/gen/android/app/build/outputs/apk/release/
+          APK_DIR="mobile/src-tauri/gen/android/app/build/outputs/apk/release"
+
+          if [ -d "$APK_DIR" ]; then
+            # 通用 APK (如果有)
+            find "$APK_DIR" -name "app-release.apk" -exec cp {} "dist-artifacts/AIO-Hub_${VERSION}_universal.apk" \;
+            
+            # 针对不同架构的 APK
+            # arm64-v8a
+            find "$APK_DIR" -name "app-arm64-v8a-release.apk" -exec cp {} "dist-artifacts/AIO-Hub_${VERSION}_arm64-v8a.apk" \;
+            # armeabi-v7a
+            find "$APK_DIR" -name "app-armeabi-v7a-release.apk" -exec cp {} "dist-artifacts/AIO-Hub_${VERSION}_armeabi-v7a.apk" \;
+            # x86_64
+            find "$APK_DIR" -name "app-x86_64-release.apk" -exec cp {} "dist-artifacts/AIO-Hub_${VERSION}_x86_64.apk" \;
+          fi
+
+          echo "准备上传的文件列表："
+          ls -lh dist-artifacts/
+
+      - name: 上传构建产物到 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-hub-mobile-android-${{ steps.get-version.outputs.version }}
+          path: dist-artifacts/*
+
+  release:
+    name: 发布 Release
+    runs-on: ubuntu-latest
+    needs: [build-android]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 获取发布信息
+        id: get-release-info
+        shell: bash
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            RELEASE_NAME="AIO Hub Mobile ${VERSION}"
+            IS_DRAFT="false"
+          else
+            VERSION="mobile-main"
+            RELEASE_NAME="AIO Hub Mobile main 草案 (${SHORT_SHA})"
+            IS_DRAFT="true"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          echo "is_draft=${IS_DRAFT}" >> $GITHUB_OUTPUT
+
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 创建 Release 并上传文件
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get-release-info.outputs.version }}
+          name: ${{ steps.get-release-info.outputs.name }}
+          body: |
+            ## 📱 移动端版本发布
+
+            这是 AIO Hub 的移动端构建版本。
+
+
+
+            ### 下载说明
+            - **Android**:
+              - `_arm64-v8a.apk`: 适用于大多数现代安卓手机。
+              - `_universal.apk`: 通用版本。
+              - `_armeabi-v7a.apk`: 适用于旧款 32 位安卓手机。
+
+            ### 注意事项
+            - 移动端目前处于开发预览阶段。
+            - 推荐优先下载 `arm64-v8a` 版本以获得最佳性能。
+          draft: ${{ steps.get-release-info.outputs.is_draft }}
+          prerelease: ${{ contains(steps.get-release-info.outputs.version, 'beta') || contains(steps.get-release-info.outputs.version, 'alpha') }}
+          files: artifacts/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

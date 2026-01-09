@@ -1,0 +1,73 @@
+name: iOS 测试构建
+
+on:
+  workflow_dispatch: # 允许手动触发
+  push:
+    tags:
+      - "v*.*.*-m-ios" # 专门用于 iOS 测试的标签
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: 构建 iOS
+    runs-on: macos-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim
+
+      - name: 安装前端依赖
+        run: |
+          bun install
+          cd mobile && bun install
+
+      - name: 获取版本号
+        id: get-version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION_NUM="${TAG_NAME#v}"
+            VERSION_NUM=$(echo "$VERSION_NUM" | sed 's/-m-ios//')
+            echo "version=${TAG_NAME}" >> $GITHUB_OUTPUT
+            echo "version_num=${VERSION_NUM}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(cat mobile/package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+            echo "version=v${VERSION}-m-ios" >> $GITHUB_OUTPUT
+            echo "version_num=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "mobile/src-tauri -> target"
+
+      - name: 构建 iOS 应用 (仅编译)
+        run: |
+          cd mobile
+          # 使用 --no-bundle 因为 GitHub Actions 默认没有配置 iOS 证书和描述文件
+          # 这将验证代码是否能在 iOS 平台成功编译
+          bun tauri ios build --no-bundle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 整理构建摘要
+        run: |
+          echo "## ✅ iOS 构建测试完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "- 版本: ${{ steps.get-version.outputs.version_num }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 状态: 编译成功 (未签名)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> 注意：由于未配置 Apple 开发者证书，此流程仅进行代码编译验证。若需生成可安装的 .ipa 文件，请在本地环境配置证书后运行构建。" >> $GITHUB_STEP_SUMMARY

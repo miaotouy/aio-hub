@@ -311,8 +311,7 @@ jobs:
           body: |
             ## 🎉 新版本发布
 
-            ### 变更内容
-            查看完整的 [Changelog](https://github.com/miaotouy/aio-hub/blob/main/CHANGELOG.md)
+
 
             ### 下载说明
             - **Windows**:

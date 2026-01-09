@@ -59,9 +59,38 @@
 
 这些脚本可通过 `bun run <script>` 执行（例如 `bun run dev`）。在开发过程中，最常用的命令是 `bun run tauri:dev`（或 `bun run t:d`）以启动完整的桌面应用开发环境。
 
-## 2. 核心开发规范
+## 2. 版本号管理与发布规范 (Versioning & Release Protocols)
 
-为了保证代码质量和项目可维护性，所有开发活动应遵循以下核心规范。
+项目采用语义化版本 (SemVer)，并根据端侧独立管理版本号。GitHub Actions 会根据特定的 Git Tag 触发自动构建与发布。
+
+### 2.1. 桌面端 (Desktop)
+
+- **核心文件**:
+  - `package.json`
+  - `src-tauri/tauri.conf.json`
+- **同步要求**: 两个文件中的 `version` 字段必须严格一致。
+- **发布触发 (GitHub Actions)**:
+  - **Tag 格式**: `v*.*.*` (例如 `v0.4.6`)。
+  - **逻辑**: 推送此格式的 Tag 将触发桌面端多平台构建并创建 Release。
+
+### 2.2. 移动端 (Mobile)
+
+- **核心文件**:
+  - `mobile/package.json`
+  - `mobile/src-tauri/tauri.conf.json`
+- **同步要求**: 两个文件中的 `version` 字段必须严格一致。
+- **发布触发 (GitHub Actions)**:
+  - **Tag 格式**: `v*.*.*-m` 或 `v*.*.*-m-*` (例如 `v0.1.0-m`)。
+  - **逻辑**: 推送带 `-m` 后缀的 Tag 将触发移动端 (Android) 构建。Action 会自动剥离 `-m` 后缀以获取实际版本号用于应用包命名。
+
+### 2.3. Git 提交规范
+
+- **版本更新提交**: 建议使用 `chore(release): vX.Y.Z` 或 `fix(version): sync version to X.Y.Z`。
+- **双端推送**: 若单次提交涉及双端版本更新，应在提交信息中明确标注，并分别推送对应的 Tag 以触发各自的构建流程。
+
+## 3. 核心开发规范
+
+为了保证代码质量和项目可维护性，桌面端开发活动应遵循以下核心规范。
 
 ### 2.1. 错误处理
 

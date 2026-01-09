@@ -293,12 +293,12 @@ const showDrawer = ref(false);
 }
 
 .cell-label {
-  font-size: 16px;
+  font-size: 1.15rem;
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -339,7 +339,7 @@ const showDrawer = ref(false);
 }
 
 .drawer-title {
-  font-size: 18px;
+  font-size: 1.3rem;
   font-weight: 600;
   color: var(--text-color);
 }
@@ -371,7 +371,7 @@ const showDrawer = ref(false);
   gap: 8px;
   background-color: var(--color-surface-container-high);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--color-on-surface);
 }
 
@@ -396,7 +396,7 @@ const showDrawer = ref(false);
 }
 
 .preview-label {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-on-surface-variant);
 }
 
@@ -407,13 +407,13 @@ const showDrawer = ref(false);
 }
 
 .color-name {
-  font-size: 16px;
+  font-size: 1.15rem;
   font-weight: 600;
   color: var(--color-on-surface);
 }
 
 .color-hex {
-  font-size: 12px;
+  font-size: 0.85rem;
   font-family: monospace;
   color: var(--color-on-surface-variant);
   opacity: 0.8;
@@ -441,13 +441,13 @@ const showDrawer = ref(false);
 }
 
 .group-title {
-  font-size: 15px;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--color-on-surface);
 }
 
 .group-desc {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-on-surface-variant);
   opacity: 0.7;
 }
@@ -468,7 +468,7 @@ const showDrawer = ref(false);
 }
 
 .swatch-name {
-  font-size: 10px;
+  font-size: 0.7rem;
   color: var(--color-on-surface-variant);
   text-align: center;
   width: 100%;

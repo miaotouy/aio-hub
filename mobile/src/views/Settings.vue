@@ -419,7 +419,7 @@ const handleRefresh = async () => {
 }
 
 .title {
-  font-size: 28px;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--text-color);
   margin: 0;
@@ -440,7 +440,7 @@ const handleRefresh = async () => {
 
 .group-title {
   padding: 16px 16px 8px;
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--primary-color);
   text-transform: uppercase;
@@ -496,12 +496,12 @@ const handleRefresh = async () => {
 }
 
 .cell-label {
-  font-size: 16px;
+  font-size: 1.1rem;
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -509,7 +509,7 @@ const handleRefresh = async () => {
 .selected-value {
   display: flex;
   align-items: center;
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--primary-color);
 }
 
@@ -525,7 +525,7 @@ const handleRefresh = async () => {
 .footer-hint {
   margin-top: 24px;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--text-color);
   opacity: 0.4;
 }
@@ -543,7 +543,7 @@ const handleRefresh = async () => {
 
 .distance-input {
   width: 80px;
-  --input-placeholder-size: 14px;
+  --input-placeholder-size: 1rem;
 }
 
 :deep(.distance-input .var-input__input) {

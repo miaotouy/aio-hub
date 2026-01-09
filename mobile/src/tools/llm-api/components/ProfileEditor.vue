@@ -549,7 +549,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .close-icon {
-  font-size: 28px;
+  font-size: 2rem;
   line-height: 1;
 }
 
@@ -563,7 +563,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .section-header {
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--color-primary);
@@ -624,7 +624,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .native-input-label {
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--color-on-surface);
   display: flex;
@@ -645,7 +645,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 .native-select {
   width: 100%;
   padding: 14px 16px;
-  font-size: 16px;
+  font-size: 1.15rem;
   line-height: 1.5;
   color: var(--color-on-surface);
   background: var(--color-surface-container);
@@ -672,7 +672,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .native-input.mono {
   font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
-  font-size: 14px;
+  font-size: 1rem;
 }
 
 .native-select {
@@ -779,13 +779,13 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .avatar-label {
-  font-size: 16px;
+  font-size: 1.15rem;
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .avatar-hint {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-text-secondary);
 }
 
@@ -805,7 +805,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .preview-text {
-  font-size: 10px;
+  font-size: 0.7rem;
   opacity: 0.5;
   font-family: monospace;
   word-break: break-all;
@@ -813,7 +813,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .preview-hint {
-  font-size: 11px;
+  font-size: 0.8rem;
   color: var(--color-primary);
   margin-top: 4px;
 }

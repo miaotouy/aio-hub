@@ -63,14 +63,14 @@ const handleToolClick = (tool: ToolRegistry) => {
 }
 
 .greeting {
-  font-size: 28px;
+  font-size: 2rem;
   font-weight: 600;
   color: var(--text-color);
   margin: 0 0 8px 0;
 }
 
 .subtitle {
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--text-color-light);
   margin: 0;
 }
@@ -100,12 +100,12 @@ const handleToolClick = (tool: ToolRegistry) => {
 }
 
 .tool-icon {
-  font-size: 32px;
+  font-size: 2.3rem;
   color: var(--primary-color);
 }
 
 .tool-name {
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--text-color);
 }
 </style>

@@ -542,10 +542,10 @@ onMounted(() => {
 }
 
 .text-sm {
-  font-size: 14px;
+  font-size: 1rem;
 }
 .text-xs {
-  font-size: 12px;
+  font-size: 0.85rem;
 }
 .text-primary {
   color: var(--primary-color);

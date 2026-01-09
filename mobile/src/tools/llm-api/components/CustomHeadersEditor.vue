@@ -212,7 +212,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
   text-align: center;
   padding: 60px 0;
   opacity: 0.4;
-  font-size: 14px;
+  font-size: 1rem;
 }
 
 .popup-footer {

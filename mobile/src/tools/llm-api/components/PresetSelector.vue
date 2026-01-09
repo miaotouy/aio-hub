@@ -93,7 +93,7 @@ const handleCreateCustom = () => {
 }
 
 .popup-title {
-  font-size: 18px;
+  font-size: 1.3rem;
   font-weight: 600;
 }
 
@@ -102,7 +102,7 @@ const handleCreateCustom = () => {
 }
 
 .close-icon {
-  font-size: 28px;
+  font-size: 2rem;
   line-height: 1;
 }
 
@@ -152,14 +152,14 @@ const handleCreateCustom = () => {
 }
 
 .preset-name {
-  font-size: 15px;
+  font-size: 1.05rem;
   font-weight: 600;
   margin-bottom: 4px;
   color: var(--color-on-surface);
 }
 
 .preset-desc {
-  font-size: 11px;
+  font-size: 0.8rem;
   color: var(--color-text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;

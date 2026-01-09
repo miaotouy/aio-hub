@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { MessageSquare } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const title = ref('AI Chat Placeholder')
 </script>
 
@@ -11,7 +13,7 @@ const title = ref('AI Chat Placeholder')
       <MessageSquare :size="48" class="icon" />
       <h2>{{ title }}</h2>
       <p>AI 对话功能正在开发中...</p>
-      <var-button type="primary" @click="$router.back()">返回首页</var-button>
+      <var-button type="primary" @click="router.back()">返回首页</var-button>
     </div>
   </div>
 </template>
@@ -47,6 +49,6 @@ h2 {
 p {
   margin: 0;
   opacity: 0.6;
-  font-size: 14px;
+  font-size: 1rem;
 }
 </style>

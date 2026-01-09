@@ -28,7 +28,7 @@ const hasBack = computed(() => !!props.title);
 
 <style scoped>
 .back-icon {
-  font-size: 20px;
+  font-size: 1.45rem;
   font-weight: 600;
 }
 </style>

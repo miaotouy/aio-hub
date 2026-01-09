@@ -235,7 +235,7 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
 }
 
 .model-count {
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--color-on-surface);
 }
@@ -261,7 +261,7 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
 }
 
 .list-empty .hint {
-  font-size: 12px;
+  font-size: 0.85rem;
   margin-top: 8px;
   opacity: 0.7;
 }
@@ -291,12 +291,12 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
 
 .group-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--color-on-surface);
 }
 
 .group-count {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-primary);
   padding: 2px 8px;
   background: var(--color-primary-container);
@@ -351,7 +351,7 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
 }
 
 .model-name {
-  font-size: 14px;
+  font-size: 1rem;
   font-weight: 500;
   color: var(--color-on-surface);
   margin-bottom: 2px;
@@ -359,7 +359,7 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
 }
 
 .model-id {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-on-surface-variant);
   font-family: monospace;
   line-height: 1.4;
@@ -390,7 +390,7 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
   padding: 4px 8px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--cap-color, currentColor) 12%, transparent);
-  font-size: 11px;
+  font-size: 0.8rem;
 }
 
 .capability-label {

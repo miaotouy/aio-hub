@@ -405,7 +405,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 1.05rem;
   color: var(--color-on-surface);
   outline: none;
 }
@@ -425,7 +425,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--color-on-surface);
 }
@@ -444,7 +444,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   border-radius: 8px;
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-on-surface);
   cursor: pointer;
   transition: all 0.2s;
@@ -501,12 +501,12 @@ const toggleCapabilityFilter = (capKey: string) => {
 
 .group-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--color-on-surface);
 }
 
 .group-count {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-primary);
   padding: 2px 8px;
   background: var(--color-primary-container);
@@ -568,7 +568,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-name {
-  font-size: 14px;
+  font-size: 1rem;
   font-weight: 500;
   color: var(--color-on-surface);
   margin-bottom: 2px;
@@ -576,7 +576,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-id {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-on-surface-variant);
   font-family: monospace;
   line-height: 1.4;
@@ -601,7 +601,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   padding: 4px 8px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--cap-color, currentColor) 12%, transparent);
-  font-size: 11px;
+  font-size: 0.8rem;
 }
 
 .capability-label {
@@ -615,7 +615,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 .status-tag {
   padding: 4px 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 0.8rem;
   font-weight: 500;
 }
 
@@ -634,7 +634,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .selected-count {
-  font-size: 16px;
+  font-size: 1.15rem;
   font-weight: 500;
   color: var(--color-on-surface);
   padding-bottom: 16px;

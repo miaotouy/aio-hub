@@ -566,7 +566,7 @@ const setTokenLimit = (
 }
 
 .section-header {
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--color-primary);
@@ -597,7 +597,7 @@ const setTokenLimit = (
 }
 
 .native-input-label {
-  font-size: 13px;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--color-on-surface);
 }
@@ -605,7 +605,7 @@ const setTokenLimit = (
 .native-input {
   width: 100%;
   padding: 14px 16px;
-  font-size: 16px;
+  font-size: 1.15rem;
   line-height: 1.5;
   color: var(--color-on-surface);
   background: var(--color-surface-container);
@@ -633,7 +633,7 @@ const setTokenLimit = (
 .custom-var-select {
   --select-border-radius: 12px;
   --select-padding: 14px 16px;
-  --select-font-size: 16px;
+  --select-font-size: 1.15rem;
   --field-decorator-outlined-border-color: var(--color-outline);
   --field-decorator-focus-color: var(--color-primary);
   --field-decorator-text-color: var(--color-on-surface);
@@ -653,7 +653,7 @@ const setTokenLimit = (
 
 .native-input.mono {
   font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
-  font-size: 14px;
+  font-size: 1rem;
 }
 
 .native-input-with-action {
@@ -735,18 +735,18 @@ const setTokenLimit = (
 }
 
 .avatar-label {
-  font-size: 16px;
+  font-size: 1.15rem;
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .avatar-hint {
-  font-size: 12px;
+  font-size: 0.85rem;
   color: var(--color-text-secondary);
 }
 
 .input-hint {
-  font-size: 11px;
+  font-size: 0.8rem;
   color: var(--color-on-surface-variant);
   opacity: 0.6;
   margin-top: 4px;
@@ -792,7 +792,7 @@ const setTokenLimit = (
 }
 
 .capability-toggle span {
-  font-size: 12px;
+  font-size: 0.85rem;
   font-weight: 500;
   text-align: center;
 }

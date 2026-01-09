@@ -59,12 +59,12 @@ const emit = defineEmits<{
 }
 
 .popup-title {
-  font-size: 18px;
+  font-size: 1.3rem;
   font-weight: 600;
 }
 
 .close-icon {
-  font-size: 28px;
+  font-size: 2rem;
   line-height: 1;
 }
 

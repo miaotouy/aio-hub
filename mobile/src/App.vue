@@ -31,11 +31,20 @@ watchEffect(() => {
   );
 
   // 2. 字体缩放
-  // 我们将 fontSizeScale 应用于根元素的 font-size
-  // 默认 16px * scale
-  document.documentElement.style.fontSize = `${16 * fontSizeScale}px`;
-  // 同时提供一个变量供特殊场景使用
+  // 我们将 fontSizeScale 应用于根元素的 font-size (影响 rem)
+  // 默认基础 14px * scale
+  const baseSize = 14 * fontSizeScale;
+  document.documentElement.style.fontSize = `${baseSize}px`;
+  
+  // 同时提供变量供全局使用
+  document.documentElement.style.setProperty("--app-font-size", `${baseSize}px`);
   document.documentElement.style.setProperty("--app-font-scale", fontSizeScale.toString());
+
+  // 同步更新 Varlet 的基础字体大小变量
+  document.documentElement.style.setProperty('--font-size-md', `${baseSize}px`);
+  document.documentElement.style.setProperty('--font-size-sm', `${baseSize - 2}px`);
+  document.documentElement.style.setProperty('--font-size-lg', `${baseSize + 2}px`);
+  document.documentElement.style.setProperty('--font-size-xs', `${baseSize - 4}px`);
 });
 
 onMounted(() => {
@@ -94,7 +103,7 @@ onMounted(() => {
 
 .init-status {
   margin-top: 24px;
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--text-color);
   opacity: 0.8;
 }
@@ -148,11 +157,6 @@ onMounted(() => {
 }
 
 /* 当键盘可见时，调整 popup 等浮层的高度 */
-.keyboard-visible .var-popup__content {
-  max-height: var(--viewport-height) !important;
-}
-
-/* 键盘可见时，仅针对特定的浮层（如 popup）保持高度限制 */
 .keyboard-visible .var-popup__content {
   max-height: var(--viewport-height) !important;
 }

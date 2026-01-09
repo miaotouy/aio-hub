@@ -108,7 +108,7 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
           plain
           @click="emit('clear')"
         >
-          <Trash2 :size="14" /> {{ tRaw("tools.llm-api.ModelList.清空") }}
+          <Trash2 :size="14" /> {{ t("common.清空") }}
         </var-button>
       </div>
     </div>

@@ -16,6 +16,7 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  ShieldCheck,
 } from "lucide-vue-next";
 import { Snackbar, Dialog } from "@varlet/ui";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
@@ -31,6 +32,7 @@ import IconSelector from "./IconSelector.vue";
 import ModelList from "./ModelList.vue";
 import ModelFetcherPopup from "./ModelFetcherPopup.vue";
 import ModelEditorPopup from "./ModelEditorPopup.vue";
+import KeyStatusManagerPopup from "./KeyStatusManagerPopup.vue";
 
 // 密码可见性
 const showApiKey = ref(false);
@@ -54,6 +56,7 @@ const showEndpointsPopup = ref(false);
 const showIconSelectorPopup = ref(false);
 const showModelFetcherPopup = ref(false);
 const showModelEditorPopup = ref(false);
+const showKeyManagerPopup = ref(false);
 const editingModel = ref<LlmModelInfo | null>(null);
 const fetchedModels = ref<LlmModelInfo[]>([]);
 
@@ -101,7 +104,7 @@ const handleFetchModels = async () => {
     fetchedModels.value = models;
     showModelFetcherPopup.value = true;
   } catch (err: any) {
-    Snackbar.error(`${tRaw("tools.llm-api.ProfileEditor.获取失败")}: ${err.message}`);
+    Snackbar.error(`${t("common.获取失败")}: ${err.message}`);
   } finally {
     isFetchingModels.value = false;
   }
@@ -121,7 +124,9 @@ const handleAddModels = (models: LlmModelInfo[]) => {
     innerProfile.value.modelGroupsExpandState = Array.from(currentExpandState);
   }
 
-  Snackbar.success(tRaw("tools.llm-api.ProfileEditor.成功添加N个模型", { count: newModels.length }));
+  Snackbar.success(
+    tRaw("tools.llm-api.ProfileEditor.成功添加N个模型", { count: newModels.length })
+  );
 };
 
 const handleAddSingleModel = () => {
@@ -325,12 +330,16 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             </div>
             <div class="avatar-info">
               <div class="avatar-label">{{ tRaw("tools.llm-api.ProfileEditor.渠道图标") }}</div>
-              <div class="avatar-hint">{{ tRaw("tools.llm-api.ProfileEditor.点击图标选择预设") }}</div>
+              <div class="avatar-hint">
+                {{ tRaw("tools.llm-api.ProfileEditor.点击图标选择预设") }}
+              </div>
             </div>
           </div>
 
           <div class="native-input-group form-item">
-            <label class="native-input-label">{{ tRaw("tools.llm-api.ProfileEditor.渠道名称") }}</label>
+            <label class="native-input-label">{{
+              tRaw("tools.llm-api.ProfileEditor.渠道名称")
+            }}</label>
             <input
               v-model="profileName"
               type="text"
@@ -341,7 +350,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
           </div>
 
           <div class="native-input-group form-item">
-            <label class="native-input-label">{{ tRaw("tools.llm-api.ProfileEditor.提供商类型") }}</label>
+            <label class="native-input-label">{{
+              tRaw("tools.llm-api.ProfileEditor.提供商类型")
+            }}</label>
             <select v-model="profileType" class="native-select">
               <option v-for="t in providerTypes" :key="t.type" :value="t.type">
                 {{ t.name }}
@@ -350,7 +361,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
           </div>
 
           <div class="native-input-group form-item">
-            <label class="native-input-label">{{ tRaw("tools.llm-api.ProfileEditor.图标路径") }}</label>
+            <label class="native-input-label">{{
+              tRaw("tools.llm-api.ProfileEditor.图标路径")
+            }}</label>
             <div class="native-input-with-action">
               <input
                 v-model="profileIcon"
@@ -376,7 +389,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             </label>
 
             <div v-if="apiEndpointPreview" class="url-preview in-group">
-              <div class="preview-text">{{ tRaw("tools.llm-api.ProfileEditor.预览") }}: {{ apiEndpointPreview }}</div>
+              <div class="preview-text">
+                {{ t("common.预览") }}: {{ apiEndpointPreview }}
+              </div>
               <div class="preview-hint">{{ endpointHint }}</div>
             </div>
 
@@ -394,10 +409,23 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
           </div>
 
           <div class="native-input-group form-item">
-            <label class="native-input-label">
-              <Key :size="16" class="label-icon" />
-              {{ tRaw("tools.llm-api.ProfileEditor.API Key") }}
-            </label>
+            <div class="label-row">
+              <label class="native-input-label">
+                <Key :size="16" class="label-icon" />
+                {{ tRaw("tools.llm-api.ProfileEditor.API Key") }}
+              </label>
+              <var-button
+                v-if="innerProfile && innerProfile.apiKeys.length > 0"
+                type="primary"
+                size="mini"
+                text
+                class="manage-keys-btn"
+                @click="showKeyManagerPopup = true"
+              >
+                <ShieldCheck :size="14" class="mr-1" />
+                {{ tRaw("tools.llm-api.ProfileEditor.状态管理") }}
+              </var-button>
+            </div>
             <div class="native-input-with-action">
               <input
                 v-model="apiKeyString"
@@ -423,7 +451,11 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               {{ tRaw("tools.llm-api.ProfileEditor.自定义请求头") }}
               <template #description>
                 {{ tRaw("tools.llm-api.ProfileEditor.已配置") }}
-                {{ tRaw("common.N个", { count: Object.keys(innerProfile.customHeaders || {}).length }) }}
+                {{
+                  tRaw("common.N个", {
+                    count: Object.keys(innerProfile.customHeaders || {}).length,
+                  })
+                }}
               </template>
               <template #extra><ChevronRight :size="18" /></template>
             </var-cell>
@@ -431,7 +463,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             <var-cell ripple class="custom-cell" @click="showEndpointsPopup = true">
               <template #icon><ExternalLink :size="18" class="field-icon" /></template>
               {{ tRaw("tools.llm-api.ProfileEditor.高级端点配置") }}
-              <template #description> {{ tRaw("tools.llm-api.ProfileEditor.针对不同功能的路径微调") }} </template>
+              <template #description>
+                {{ tRaw("tools.llm-api.ProfileEditor.针对不同功能的路径微调") }}
+              </template>
               <template #extra><ChevronRight :size="18" /></template>
             </var-cell>
           </div>
@@ -484,6 +518,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
     <!-- 图标选择 -->
     <IconSelector v-model:show="showIconSelectorPopup" @select="handleIconSelect" />
+
+    <!-- 多 Key 状态管理 -->
+    <KeyStatusManagerPopup v-model:show="showKeyManagerPopup" :profile="innerProfile" />
 
     <!-- 模型获取弹窗 -->
     <ModelFetcherPopup
@@ -579,6 +616,13 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   gap: 8px;
 }
 
+.label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
 .native-input-label {
   font-size: 13px;
   font-weight: 500;
@@ -586,6 +630,11 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.manage-keys-btn {
+  padding: 0 4px;
+  height: 24px;
 }
 
 .label-icon {

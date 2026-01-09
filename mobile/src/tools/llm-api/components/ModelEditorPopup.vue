@@ -312,7 +312,7 @@ const setTokenLimit = (
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.分组") }}</label>
+              <label class="native-input-label">{{ t("common.分组") }}</label>
               <input
                 v-model="innerModel.group"
                 type="text"
@@ -341,7 +341,7 @@ const setTokenLimit = (
 
           <div class="form-item">
             <div class="native-input-group">
-              <label class="native-input-label">{{ tRaw("tools.llm-api.ModelEditorPopup.描述") }}</label>
+              <label class="native-input-label">{{ t("common.描述") }}</label>
               <input
                 v-model="innerModel.description"
                 type="text"

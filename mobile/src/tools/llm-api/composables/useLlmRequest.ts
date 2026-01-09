@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
+import { useLlmKeyManager } from "./useLlmKeyManager";
 import { callOpenAiCompatibleApi } from "../core/adapters/openai-compatible";
 import { callOpenAiResponsesApi } from "../core/adapters/openai-responses";
 import { callClaudeApi } from "../core/adapters/claude";
@@ -12,9 +13,9 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("llm-api/useLlmRequest");
 const errorHandler = createModuleErrorHandler("llm-api/useLlmRequest");
-
 export function useLlmRequest() {
   const store = useLlmProfilesStore();
+  const keyManager = useLlmKeyManager();
   const isSending = ref(false);
 
   /**
@@ -25,18 +26,31 @@ export function useLlmRequest() {
   async function sendRequest(options: LlmRequestOptions, profileId?: string) {
     if (!store.isLoaded) await store.init();
 
-    const profile = profileId
-      ? store.profiles.find(p => p.id === profileId)
+    const originalProfile = profileId
+      ? store.profiles.find((p) => p.id === profileId)
       : store.selectedProfile;
 
-    if (!profile) {
+    if (!originalProfile) {
       const err = new Error("未找到可用的 LLM 配置");
       errorHandler.error(err, "请先在设置中配置 LLM 渠道");
       throw err;
     }
 
+    // 通过 KeyManager 选择一个可用的 Key (轮询 + 熔断过滤)
+    const pickedKey = keyManager.pickKey(originalProfile);
+
+    // 克隆 Profile 并注入选中的单个 Key，以保持适配器接口兼容
+    const profile = {
+      ...originalProfile,
+      apiKeys: pickedKey ? [pickedKey] : [],
+    };
+
     isSending.value = true;
-    logger.info("开始发送 LLM 请求", { modelId: options.modelId, profile: profile.name });
+    logger.info("开始发送 LLM 请求", {
+      modelId: options.modelId,
+      profile: profile.name,
+      keyUsed: pickedKey ? `${pickedKey.substring(0, 8)}...` : "none",
+    });
 
     try {
       let result;
@@ -64,15 +78,26 @@ export function useLlmRequest() {
           result = await callOpenAiCompatibleApi(profile, options);
       }
 
+      // 请求成功，上报状态
+      if (pickedKey) {
+        keyManager.reportSuccess(originalProfile.id, pickedKey);
+      }
+
       logger.debug("LLM 请求完成", { isStream: result.isStream });
       return result;
-    } catch (err) {
+    } catch (err: any) {
+      // 请求失败，上报状态以便触发熔断
+      if (pickedKey) {
+        keyManager.reportFailure(originalProfile.id, pickedKey, err);
+      }
+
       errorHandler.error(err, "LLM 请求失败");
       throw err;
     } finally {
       isSending.value = false;
     }
   }
+
 
   return {
     sendRequest,

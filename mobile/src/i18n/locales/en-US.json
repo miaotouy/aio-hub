@@ -16,7 +16,20 @@
     "个": "items",
     "N个": "{count} items",
     "全选": "Select All",
-    "取消全选": "Deselect All"
+    "取消全选": "Deselect All",
+    "预览": "Preview",
+    "描述": "Description",
+    "清空": "Clear",
+    "分组": "Group",
+    "正常": "Normal",
+    "已启用": "Enabled",
+    "已禁用": "Disabled",
+    "未知错误": "Unknown Error",
+    "错误详情": "Error Details",
+    "重置成功": "Reset Successfully",
+    "全部重置": "Reset All",
+    "获取失败": "Fetch Failed",
+    "删除成功": "Delete Successfully"
   },
   "nav": {
     "首页": "Home",

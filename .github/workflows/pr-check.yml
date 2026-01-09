@@ -41,7 +41,7 @@ jobs:
         run: bun run check:frontend
 
       - name: 类型检查 (移动端)
-        run: bun run check:mobile
+        run: bun run check:mobile:frontend
 
       - name: Cargo 检查 (桌面端)
         working-directory: src-tauri

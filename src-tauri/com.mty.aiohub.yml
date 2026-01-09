@@ -1,7 +1,7 @@
 id: com.mty.aiohub
-runtime: org.freedesktop.Platform
-runtime-version: '23.08'
-sdk: org.freedesktop.Sdk
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
 command: aiohub
 finish-args:
   # 网络访问

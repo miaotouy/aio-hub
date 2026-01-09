@@ -38,10 +38,12 @@
     "mtab": "cd mobile ; bun run tauri android build",
     "mtid": "cd mobile ; bun run tauri ios dev",
     "mtib": "cd mobile ; bun run tauri ios build",
-    "check": "bun run check:frontend; bun run check:mobile; bun run check:backend",
+    "check": "bun run check:frontend ; bun run check:backend ; bun run check:mobile",
     "check:frontend": "vue-tsc --noEmit",
+    "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
     "check:mobile": "cd mobile ; bun run check",
-    "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings ; cargo clippy --manifest-path mobile/src-tauri/Cargo.toml -- -D warnings"
+    "check:mobile:frontend": "cd mobile ; bun run check:frontend",
+    "check:mobile:backend": "cd mobile ; bun run check:backend"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",

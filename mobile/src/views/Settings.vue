@@ -9,7 +9,6 @@ import {
   Palette,
   Languages,
   Zap,
-  Bug,
   Info,
   ChevronRight,
   Moon,
@@ -18,6 +17,9 @@ import {
   RefreshCw,
   ArrowUpToLine,
   Keyboard,
+  Type,
+  Globe,
+  Bug,
 } from "lucide-vue-next";
 const settingsStore = useSettingsStore();
 const { t, locale } = useI18n();
@@ -34,6 +36,13 @@ const languageOptions = [
   { label: "简体中文", value: "zh-CN" },
   { label: "English", value: "en-US" },
 ];
+
+// 代理模式选项
+const proxyOptions = computed(() => [
+  { label: t("common.已禁用"), value: "none" },
+  { label: t("settings.跟随系统"), value: "system" },
+  { label: t("settings.自定义"), value: "custom" },
+]);
 
 const currentThemeIcon = computed(() => {
   const mode = settingsStore.settings.appearance.theme;
@@ -66,6 +75,23 @@ const handleSafeTopChange = async (value: any) => {
 const handleKeyboardAvoidanceChange = async (value: any) => {
   await settingsStore.updateAppearance({ keyboardAvoidanceDistance: Number(value) || 0 });
 };
+
+const handleFontSizeScaleChange = async (value: any) => {
+  await settingsStore.updateAppearance({ fontSizeScale: value });
+};
+
+const handleProxyModeChange = async (value: any) => {
+  await settingsStore.updateSettings({
+    network: { ...settingsStore.settings.network, proxyMode: value },
+  });
+};
+
+const handleProxyUrlChange = async (value: any) => {
+  await settingsStore.updateSettings({
+    network: { ...settingsStore.settings.network, proxyUrl: value },
+  });
+};
+
 const { toggleDebugPanel } = useDebugPanel();
 
 const handleDebugChange = async (value: any) => {
@@ -106,9 +132,11 @@ const handleRefresh = async () => {
     </div>
 
     <div class="settings-content">
-      <!-- 外观设置 -->
+      <!-- 1. 显示与外观 -->
       <var-paper :elevation="1" class="settings-group">
         <div class="group-title">{{ t("settings.外观") }}</div>
+
+        <!-- 主题模式 -->
         <var-cell ripple>
           <template #icon>
             <div class="group-icon">
@@ -146,9 +174,44 @@ const handleRefresh = async () => {
           </template>
         </var-cell>
 
+        <!-- 主题色板 -->
         <ThemeColorSettings />
 
-        <var-cell ripple>
+        <!-- 字体缩放 -->
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Type :size="20" />
+            </div>
+          </template>
+          <div class="cell-content w-full">
+            <div class="flex justify-between items-center mb-2">
+              <div class="cell-label">{{ t("settings.字体大小") }}</div>
+              <div class="text-primary font-bold">
+                {{ settingsStore.settings.appearance.fontSizeScale.toFixed(1) }}
+              </div>
+            </div>
+            <div class="px-2 pb-2">
+              <var-slider
+                v-model="settingsStore.settings.appearance.fontSizeScale"
+                :min="0.8"
+                :max="1.5"
+                :step="0.1"
+                track-height="4"
+                thumb-size="18"
+                @change="handleFontSizeScaleChange"
+              />
+            </div>
+          </div>
+        </var-cell>
+      </var-paper>
+
+      <!-- 2. 交互与偏好 -->
+      <var-paper :elevation="1" class="settings-group">
+        <div class="group-title">{{ t("settings.交互") }}</div>
+
+        <!-- 触感反馈 -->
+        <var-cell ripple disabled>
           <template #icon>
             <div class="group-icon">
               <Zap :size="20" />
@@ -156,16 +219,18 @@ const handleRefresh = async () => {
           </template>
           <div class="cell-content">
             <div class="cell-label">{{ t("settings.触感反馈") }}</div>
-            <div class="cell-desc">{{ t("settings.触感反馈描述") }}</div>
+            <div class="cell-desc">{{ t("settings.触感反馈描述") }} (暂未实现)</div>
           </div>
           <template #extra>
             <var-switch
               v-model="settingsStore.settings.appearance.hapticFeedback"
+              disabled
               @change="handleHapticChange"
             />
           </template>
         </var-cell>
 
+        <!-- 顶部避让 -->
         <var-cell ripple>
           <template #icon>
             <div class="group-icon">
@@ -190,6 +255,7 @@ const handleRefresh = async () => {
           </template>
         </var-cell>
 
+        <!-- 键盘避让 -->
         <var-cell ripple>
           <template #icon>
             <div class="group-icon">
@@ -215,10 +281,11 @@ const handleRefresh = async () => {
         </var-cell>
       </var-paper>
 
-      <!-- 通用设置 -->
+      <!-- 3. 系统与网络 -->
       <var-paper :elevation="1" class="settings-group">
-        <div class="group-title">{{ t("settings.通用") }}</div>
+        <div class="group-title">{{ t("settings.系统") }}</div>
 
+        <!-- 语言 -->
         <var-cell ripple>
           <template #icon>
             <div class="group-icon">
@@ -246,6 +313,46 @@ const handleRefresh = async () => {
           </template>
         </var-cell>
 
+        <!-- 网络/代理 -->
+        <var-cell ripple disabled>
+          <template #icon>
+            <div class="group-icon">
+              <Globe :size="20" />
+            </div>
+          </template>
+          <div class="cell-content">
+            <div class="cell-label">{{ t("settings.网络") }} (暂未实现)</div>
+          </div>
+          <template #extra>
+            <var-select
+              v-model="settingsStore.settings.network.proxyMode"
+              variant="standard"
+              :hint="false"
+              :line="false"
+              disabled
+              @change="handleProxyModeChange"
+            >
+              <var-option
+                v-for="opt in proxyOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </var-select>
+          </template>
+        </var-cell>
+
+        <var-cell v-if="settingsStore.settings.network.proxyMode === 'custom'">
+          <template #icon><div class="group-icon" /></template>
+          <var-input
+            v-model="settingsStore.settings.network.proxyUrl"
+            :placeholder="t('settings.代理地址')"
+            variant="standard"
+            @change="handleProxyUrlChange"
+          />
+        </var-cell>
+
+        <!-- 调试模式 -->
         <var-cell ripple>
           <template #icon>
             <div class="group-icon">
@@ -349,6 +456,43 @@ const handleRefresh = async () => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.flex {
+  display: flex;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
+}
+
+.px-2 {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.pb-2 {
+  padding-bottom: 8px;
+}
+
+.text-primary {
+  color: var(--primary-color);
+}
+
+.font-bold {
+  font-weight: 700;
 }
 
 .cell-label {

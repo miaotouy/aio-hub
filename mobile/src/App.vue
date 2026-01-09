@@ -18,14 +18,24 @@ useKeyboardAvoidance();
 // 同步调试面板状态
 syncWithSettings();
 
-// 同步避让距离设置到 CSS 变量
+// 同步外观设置到 CSS 变量和根元素
 watchEffect(() => {
-  const { safeTopDistance, keyboardAvoidanceDistance } = settingsStore.settings.appearance;
+  const { safeTopDistance, keyboardAvoidanceDistance, fontSizeScale } =
+    settingsStore.settings.appearance;
+
+  // 1. 避让距离
   document.documentElement.style.setProperty("--app-safe-area-top-offset", `${safeTopDistance}px`);
   document.documentElement.style.setProperty(
     "--keyboard-avoidance-distance",
     `${keyboardAvoidanceDistance}px`
   );
+
+  // 2. 字体缩放
+  // 我们将 fontSizeScale 应用于根元素的 font-size
+  // 默认 16px * scale
+  document.documentElement.style.fontSize = `${16 * fontSizeScale}px`;
+  // 同时提供一个变量供特殊场景使用
+  document.documentElement.style.setProperty("--app-font-scale", fontSizeScale.toString());
 });
 
 onMounted(() => {

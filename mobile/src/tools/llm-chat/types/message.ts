@@ -20,6 +20,11 @@ export interface ChatMessageNode {
   childrenIds: string[];
 
   /**
+   * 上次选择的子节点 ID（用于分支记忆）
+   */
+  lastSelectedChildId?: string;
+
+  /**
    * 消息内容
    */
   content: string;

@@ -1,8 +1,8 @@
 import { useLlmChatStore } from '../stores/llmChatStore';
 import { useLlmRequest } from '../../llm-api/composables/useLlmRequest';
 import { useLlmProfilesStore } from '../../llm-api/stores/llmProfiles';
-import { v4 as uuidv4 } from 'uuid';
-import type { ChatMessageNode, ChatSession } from '../types';
+import { useNodeManager } from './useNodeManager';
+import type { ChatSession } from '../types';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('llm-chat/useChatExecutor');
@@ -11,11 +11,12 @@ export function useChatExecutor() {
   const chatStore = useLlmChatStore();
   const llmRequest = useLlmRequest();
   const profilesStore = useLlmProfilesStore();
+  const nodeManager = useNodeManager();
 
   /**
    * 执行对话请求
    */
-  async function execute(session: ChatSession, userContent: string) {
+  async function execute(session: ChatSession, userContent: string, parentNodeId?: string) {
     if (chatStore.isSending) return;
 
     // 解析当前选中的模型
@@ -26,52 +27,52 @@ export function useChatExecutor() {
     }
 
     const profile = profilesStore.profiles.find(p => p.id === profileId);
-    const model = profile?.models.find(m => m.id === modelId);
+    
+    // 校验渠道是否有效且启用
+    if (!profile || !profile.enabled) {
+      logger.warn('Selected profile is not found or disabled', { profileId });
+      return;
+    }
 
-    // 1. 创建用户消息节点
-    const userNodeId = uuidv4();
-    const userNode: ChatMessageNode = {
-      id: userNodeId,
-      parentId: session.activeLeafId,
-      childrenIds: [],
-      content: userContent,
-      role: 'user',
-      status: 'complete',
-      timestamp: new Date().toISOString()
-    };
+    const model = profile.models.find(m => m.id === modelId);
+    if (!model) {
+      logger.warn('Selected model is not found', { modelId });
+      return;
+    }
 
-    // 2. 更新 Session 状态
-    session.nodes[session.activeLeafId].childrenIds.push(userNodeId);
-    session.nodes[userNodeId] = userNode;
-    session.activeLeafId = userNodeId;
+    // 1. 创建用户消息节点 (如果提供了 parentNodeId，说明是重试，不需要再创建用户节点)
+    let currentUserNodeId = parentNodeId || '';
+    if (!currentUserNodeId) {
+      const userNode = nodeManager.createNode({
+        role: 'user',
+        content: userContent,
+        parentId: session.activeLeafId,
+      });
+      nodeManager.addNodeToSession(session, userNode);
+      currentUserNodeId = userNode.id;
+    }
 
-    // 3. 创建助手消息节点（初始状态为 generating）
-    const assistantNodeId = uuidv4();
-    const assistantNode: ChatMessageNode = {
-      id: assistantNodeId,
-      parentId: userNodeId,
-      childrenIds: [],
-      content: '',
+    // 2. 创建助手消息节点（初始状态为 generating）
+    const assistantNode = nodeManager.createNode({
       role: 'assistant',
+      content: '',
+      parentId: currentUserNodeId,
       status: 'generating',
-      timestamp: new Date().toISOString(),
       metadata: {
         modelId: modelId,
         modelDisplayName: model?.name || modelId
       }
-    };
-
-    session.nodes[userNodeId].childrenIds.push(assistantNodeId);
-    session.nodes[assistantNodeId] = assistantNode;
-    session.activeLeafId = assistantNodeId;
-    session.updatedAt = new Date().toISOString();
+    });
+    nodeManager.addNodeToSession(session, assistantNode);
+    
+    // 3. 更新活跃节点
+    nodeManager.updateActiveLeaf(session, assistantNode.id);
 
     chatStore.isSending = true;
 
     try {
       // 4. 构造上下文
       const context = chatStore.currentActivePath
-        .filter(n => n.role !== 'system')
         .map(n => ({
           role: n.role as 'user' | 'assistant' | 'system',
           content: n.content
@@ -90,6 +91,11 @@ export function useChatExecutor() {
           session.updatedAt = new Date().toISOString();
         }
       });
+
+      // 如果返回 null，说明请求在底层被拦截或报错了（errorHandler 处理了）
+      if (!result) {
+        throw new Error('Request failed or was cancelled');
+      }
 
       if (!result.isStream) {
         assistantNode.content = result.content || '';

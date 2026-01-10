@@ -1,54 +1,74 @@
 <script setup lang="ts">
 import type { ChatMessageNode } from '../types';
-import { User, Bot, AlertCircle } from 'lucide-vue-next';
+import { User, Bot } from 'lucide-vue-next';
+import { useLlmChatStore } from '../stores/llmChatStore';
+import MessageContent from './MessageContent.vue';
+import MessageMenubar from './MessageMenubar.vue';
 
 defineProps<{
   message: ChatMessageNode;
+  isActive?: boolean;
 }>();
+
+const emit = defineEmits<{
+  (e: 'click'): void;
+  (e: 'close'): void;
+}>();
+
+const chatStore = useLlmChatStore();
 </script>
 
 <template>
-  <div class="message-bubble" :class="[message.role, message.status]">
+  <div
+    class="message-item"
+    :class="[message.role, message.status, { 'is-active': isActive }]"
+  >
     <div class="avatar">
       <User v-if="message.role === 'user'" :size="20" />
       <Bot v-else-if="message.role === 'assistant'" :size="20" />
     </div>
     
-    <div class="content-wrapper">
-      <div class="bubble">
-        <div v-if="message.status === 'generating' && !message.content" class="loading-dots">
-          <span>.</span><span>.</span><span>.</span>
-        </div>
-        <div class="text-content">{{ message.content }}</div>
-        
-        <div v-if="message.status === 'error'" class="error-info">
-          <AlertCircle :size="14" />
-          <span>发送失败</span>
-        </div>
+    <div class="message-container">
+      <div class="bubble" @click="emit('click')">
+        <MessageContent :message="message" />
       </div>
       
-      <div v-if="message.metadata?.modelDisplayName" class="model-info">
-        {{ message.metadata.modelDisplayName }}
+      <div class="message-footer">
+        <div v-if="message.metadata?.modelDisplayName" class="model-info">
+          {{ message.metadata.modelDisplayName }}
+        </div>
       </div>
+
+      <!-- 悬挂操作栏 -->
+      <transition name="fade">
+        <div v-if="isActive" class="menubar-wrapper">
+          <MessageMenubar
+            :session="chatStore.currentSession"
+            :message="message"
+            @close="emit('close')"
+          />
+        </div>
+      </transition>
     </div>
   </div>
 </template>
 
 <style scoped>
-.message-bubble {
+.message-item {
   display: flex;
   gap: 12px;
   padding: 12px;
-  max-width: 90%;
+  max-width: 100%;
+  position: relative;
 }
 
-.message-bubble.user {
+.message-item.user {
   flex-direction: row-reverse;
   align-self: flex-end;
   margin-left: auto;
 }
 
-.message-bubble.assistant {
+.message-item.assistant {
   align-self: flex-start;
 }
 
@@ -69,19 +89,18 @@ defineProps<{
   color: var(--el-color-primary);
 }
 
-.content-wrapper {
+.message-container {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-width: calc(100% - 48px);
 }
 
 .bubble {
   padding: 10px 14px;
   border-radius: 16px;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  word-break: break-word;
   position: relative;
+  transition: all 0.2s ease;
 }
 
 .user .bubble {
@@ -97,44 +116,47 @@ defineProps<{
   border-top-left-radius: 4px;
 }
 
-.text-content {
-  white-space: pre-wrap;
+.message-item.is-active .bubble {
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-5);
+}
+
+.message-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.user .message-footer {
+  justify-content: flex-end;
 }
 
 .model-info {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: var(--el-text-color-placeholder);
   padding: 0 4px;
+  opacity: 0.8;
 }
 
-.user .model-info {
-  text-align: right;
-}
-
-.error-info {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--el-color-danger);
-  font-size: 0.8rem;
+/* 悬挂操作栏布局 */
+.menubar-wrapper {
   margin-top: 4px;
-}
-
-.loading-dots {
   display: flex;
-  gap: 2px;
 }
 
-.loading-dots span {
-  animation: blink 1.4s infinite both;
+.user .menubar-wrapper {
+  justify-content: flex-end;
 }
 
-.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
-.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+/* 动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
 
-@keyframes blink {
-  0% { opacity: 0.2; }
-  20% { opacity: 1; }
-  100% { opacity: 0.2; }
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
 }
 </style>

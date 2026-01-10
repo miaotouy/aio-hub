@@ -27,13 +27,8 @@ onMounted(async () => {
     chatStore.switchSession(sessionId);
   }
 
-  // 确保有选中的模型
-  if (!chatStore.selectedModelValue && profilesStore.selectedProfile) {
-    const profile = profilesStore.selectedProfile;
-    if (profile.models.length > 0) {
-      chatStore.selectedModelValue = `${profile.id}:${profile.models[0].id}`;
-    }
-  }
+  // 确保有选中的模型且模型有效
+  chatStore.syncSelectedModel();
 });
 
 // 监听消息变化，自动滚动到底部

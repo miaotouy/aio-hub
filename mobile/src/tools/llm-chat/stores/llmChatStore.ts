@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ChatSession, ChatMessageNode } from '../types';
+import { useLlmProfilesStore } from '../../llm-api/stores/llmProfiles';
 import { v4 as uuidv4 } from 'uuid';
 import { createModuleLogger } from '@/utils/logger';
 
@@ -90,6 +91,33 @@ export const useLlmChatStore = defineStore('llmChat', () => {
     }
   }
 
+  /**
+   * 同步并校验当前选中的模型
+   * 确保选中的模型所属的 Profile 是启用的，且模型确实存在
+   */
+  function syncSelectedModel() {
+    const profilesStore = useLlmProfilesStore();
+    const [profileId, modelId] = selectedModelValue.value.split(':');
+
+    const isAvailable = (pId: string, mId: string) => {
+      const profile = profilesStore.enabledProfiles.find(p => p.id === pId);
+      return !!(profile && profile.models.some(m => m.id === mId));
+    };
+
+    if (!selectedModelValue.value || !isAvailable(profileId, modelId)) {
+      // 尝试寻找第一个可用的模型
+      const firstEnabledProfile = profilesStore.enabledProfiles[0];
+      if (firstEnabledProfile && firstEnabledProfile.models.length > 0) {
+        const newValue = `${firstEnabledProfile.id}:${firstEnabledProfile.models[0].id}`;
+        selectedModelValue.value = newValue;
+        logger.info('Selected model synced to first available', { newValue });
+      } else {
+        selectedModelValue.value = '';
+        logger.warn('No enabled profiles or models available');
+      }
+    }
+  }
+
   return {
     sessions,
     currentSessionId,
@@ -98,6 +126,7 @@ export const useLlmChatStore = defineStore('llmChat', () => {
     currentSession,
     currentActivePath,
     createSession,
-    switchSession
+    switchSession,
+    syncSelectedModel
   };
 });

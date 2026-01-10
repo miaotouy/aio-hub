@@ -14,13 +14,8 @@ onMounted(async () => {
     await profilesStore.init();
   }
   
-  // 如果没有选中模型，尝试设置一个默认值
-  if (!chatStore.selectedModelValue && profilesStore.selectedProfile) {
-    const profile = profilesStore.selectedProfile;
-    if (profile.models.length > 0) {
-      chatStore.selectedModelValue = `${profile.id}:${profile.models[0].id}`;
-    }
-  }
+  // 确保有选中的模型且模型有效
+  chatStore.syncSelectedModel();
 });
 
 const handleNewChat = () => {

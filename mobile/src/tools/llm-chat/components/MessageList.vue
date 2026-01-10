@@ -8,6 +8,19 @@ defineProps<{
 }>();
 
 const scrollContainerRef = ref<HTMLElement | null>(null);
+const activeMessageId = ref<string | null>(null);
+
+const handleMessageClick = (id: string) => {
+  if (activeMessageId.value === id) {
+    activeMessageId.value = null;
+  } else {
+    activeMessageId.value = id;
+  }
+};
+
+const handleListClick = () => {
+  activeMessageId.value = null;
+};
 
 const scrollToBottom = () => {
   if (scrollContainerRef.value) {
@@ -24,12 +37,15 @@ defineExpose({
 </script>
 
 <template>
-  <div ref="scrollContainerRef" class="message-list">
+  <div ref="scrollContainerRef" class="message-list" @click="handleListClick">
     <div class="messages-inner">
       <MessageBubble
         v-for="msg in messages"
         :key="msg.id"
         :message="msg"
+        :is-active="activeMessageId === msg.id"
+        @click.stop="handleMessageClick(msg.id)"
+        @close="activeMessageId = null"
       />
     </div>
   </div>

@@ -92,14 +92,18 @@ const scrollToBottom = () => {
 <style scoped>
 .llm-chat-view {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 1001; /* 确保盖住底部导航栏 (AppBottomNav z-index 通常较低) */
   display: flex;
   flex-direction: column;
   height: var(--viewport-height, 100dvh);
+  /* 显式设置 bottom 以防万一，但在键盘弹出时 height 会收缩 */
+  bottom: auto;
   overflow: hidden;
   background-color: var(--bg-color);
-  transition: height 0.3s ease-out;
+  transition: height 0.15s ease-out; /* 缩短过渡时间，让反馈更及时 */
 }
 
 .nav-bar {

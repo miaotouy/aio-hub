@@ -62,10 +62,12 @@ const handleSend = async () => {
   gap: 8px;
   /* 键盘弹出时，由 useKeyboardAvoidance 调整整体高度，此处不再需要安全区域 padding */
   padding-bottom: calc(12px + var(--safe-bottom-dynamic, env(safe-area-inset-bottom)));
+  transition: padding-bottom 0.2s;
 }
 
-.keyboard-open {
+.chat-input.keyboard-open {
   --safe-bottom-dynamic: 0px;
+  padding-bottom: 8px; /* 键盘打开时稍微收紧 */
 }
 
 .toolbar {

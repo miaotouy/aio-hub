@@ -11,6 +11,7 @@ export enum LogLevel {
 }
 
 export interface LogEntry {
+  id: string;
   timestamp: string;
   level: LogLevel;
   module: string;
@@ -20,11 +21,21 @@ export interface LogEntry {
   collapsed?: boolean;
 }
 
+export type LogListener = (entry: LogEntry) => void;
+
 class Logger {
   private currentLevel: LogLevel = LogLevel.DEBUG;
+  private logs: LogEntry[] = [];
+  private maxLogs = 1000;
+  private listeners: Set<LogListener> = new Set();
 
   setLevel(level: LogLevel) {
     this.currentLevel = level;
+  }
+
+  setMaxLogs(max: number) {
+    this.maxLogs = max;
+    this.trimLogs();
   }
 
   private formatTimestamp(): string {
@@ -32,7 +43,20 @@ class Logger {
     return now.toISOString().replace('T', ' ').substring(0, 23);
   }
 
+  private trimLogs() {
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(this.logs.length - this.maxLogs);
+    }
+  }
+
   private writeLog(entry: LogEntry) {
+    // 存入内存缓冲区
+    this.logs.push(entry);
+    this.trimLogs();
+
+    // 通知监听者
+    this.listeners.forEach(listener => listener(entry));
+
     const levelStr = LogLevel[entry.level];
     const prefix = `[${entry.timestamp}] [${levelStr}] [${entry.module}]`;
 
@@ -57,6 +81,7 @@ class Logger {
 
   private createEntry(level: LogLevel, module: string, message: string, data?: any, error?: Error, collapsed?: boolean): LogEntry {
     return {
+      id: Math.random().toString(36).substring(2, 11),
       timestamp: this.formatTimestamp(),
       level,
       module,
@@ -65,6 +90,33 @@ class Logger {
       stack: error?.stack,
       collapsed,
     };
+  }
+
+  getLogs(): LogEntry[] {
+    return [...this.logs];
+  }
+
+  clearLogs() {
+    this.logs = [];
+  }
+
+  subscribe(listener: LogListener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  exportLogs(): string {
+    return this.logs.map(entry => {
+      const levelStr = LogLevel[entry.level];
+      let line = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
+      if (entry.data) {
+        line += `\nData: ${JSON.stringify(entry.data, null, 2)}`;
+      }
+      if (entry.stack) {
+        line += `\nStack: ${entry.stack}`;
+      }
+      return line;
+    }).join('\n' + '-'.repeat(40) + '\n');
   }
 
   debug(module: string, message: string, data?: any, collapsed?: boolean) {

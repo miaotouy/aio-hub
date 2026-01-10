@@ -1,0 +1,25 @@
+{
+  "common": {
+    "日志管理": "Log Manager",
+    "查看与管理运行日志": "View and manage system logs",
+    "系统日志": "System Logs"
+  },
+  "LogManagerView": {
+    "搜索日志": "Search logs/modules...",
+    "日志级别": "Level",
+    "全部级别": "All Levels",
+    "清空日志": "Clear Logs",
+    "导出日志": "Export Logs",
+    "复制全部": "Copy All",
+    "暂无日志": "No logs found",
+    "确认清空": "Are you sure to clear all logs?",
+    "已复制到剪贴板": "Copied to clipboard",
+    "导出成功": "Logs exported successfully",
+    "自动滚动": "Auto Scroll"
+  },
+  "LogEntryItem": {
+    "复制": "Copy",
+    "复制成功": "Log entry copied",
+    "查看详情": "Details"
+  }
+}

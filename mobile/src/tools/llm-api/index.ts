@@ -13,6 +13,7 @@ export { useLlmKeyManager } from "./composables/useLlmKeyManager";
 
 // 导出组件
 export { default as LlmModelSelector } from "./components/LlmModelSelector.vue";
+export { default as ModelSelectPopup } from "./components/ModelSelectPopup.vue";
 
 // 导出类型
 export * from "./types";

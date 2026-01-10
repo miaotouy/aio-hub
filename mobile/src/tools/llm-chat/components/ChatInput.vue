@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Send, Loader2 } from 'lucide-vue-next';
-import { useLlmChatStore } from '../stores/llmChatStore';
-import { useKeyboardAvoidance } from '@/composables/useKeyboardAvoidance';
-import { useChatExecutor } from '../composables/useChatExecutor';
-import LlmModelSelector from '../../llm-api/components/LlmModelSelector.vue';
+import { ref } from "vue";
+import { Send, Loader2 } from "lucide-vue-next";
+import { useLlmChatStore } from "../stores/llmChatStore";
+import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
+import { useChatExecutor } from "../composables/useChatExecutor";
+import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 
 const chatStore = useLlmChatStore();
 const { execute } = useChatExecutor();
 const { isKeyboardVisible } = useKeyboardAvoidance();
 
-const inputText = ref('');
+const inputText = ref("");
 
 const handleSend = async () => {
   if (!inputText.value.trim() || chatStore.isSending) return;
-  
+
   const content = inputText.value;
-  inputText.value = '';
-  
+  inputText.value = "";
+
   if (chatStore.currentSession) {
     await execute(chatStore.currentSession, content);
   }
@@ -29,7 +29,7 @@ const handleSend = async () => {
     <div class="toolbar">
       <LlmModelSelector v-model="chatStore.selectedModelValue" />
     </div>
-    
+
     <div class="input-container">
       <textarea
         v-model="inputText"
@@ -38,9 +38,9 @@ const handleSend = async () => {
         placeholder="输入消息..."
         @keydown.enter.prevent="handleSend"
       ></textarea>
-      
-      <button 
-        class="send-btn" 
+
+      <button
+        class="send-btn"
         :disabled="!inputText.trim() || chatStore.isSending"
         @click="handleSend"
       >
@@ -71,6 +71,10 @@ const handleSend = async () => {
 .toolbar {
   display: flex;
   align-items: center;
+}
+
+.toolbar :deep(.llm-model-selector) {
+  max-width: 180px;
 }
 
 .input-container {
@@ -117,7 +121,11 @@ const handleSend = async () => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

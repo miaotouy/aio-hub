@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useRouter } from "vue-router";
 import { ChevronDown, Bot } from "lucide-vue-next";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import { useI18n } from "@/i18n";
 import type { LlmProfile, LlmModelInfo } from "../types";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import ModelSelectPopup from "./ModelSelectPopup.vue";
 
 interface Props {
   modelValue: string; // 格式: profileId:modelId
@@ -24,7 +24,6 @@ const emit = defineEmits<{
   (e: "change", value: { profileId: string; modelId: string }): void;
 }>();
 
-const router = useRouter();
 const { tRaw } = useI18n();
 const store = useLlmProfilesStore();
 
@@ -35,7 +34,7 @@ const { getModelIcon } = useModelMetadata();
 
 const showPopup = ref(false);
 
-// 格式化所有可用模型
+// 格式化所有可用模型（仅用于显示当前选中项）
 const availableModels = computed(() => {
   const models: Array<{
     value: string; // profileId:modelId
@@ -58,33 +57,14 @@ const availableModels = computed(() => {
   return models;
 });
 
-// 按 Profile 分组
-const modelGroups = computed(() => {
-  const groups = new Map<string, typeof availableModels.value>();
-
-  availableModels.value.forEach((item) => {
-    const groupName = `${item.profile.name} (${item.profile.type})`;
-    if (!groups.has(groupName)) {
-      groups.set(groupName, []);
-    }
-    groups.get(groupName)!.push(item);
-  });
-
-  return Array.from(groups.entries()).map(([name, items]) => ({
-    name,
-    items,
-  }));
-});
-
 // 当前选中的信息
 const selectedInfo = computed(() => {
   return availableModels.value.find((m) => m.value === props.modelValue);
 });
 
-const handleSelect = (item: (typeof availableModels.value)[0]) => {
+const handleSelect = (item: { value: string; profileId: string; modelId: string }) => {
   emit("update:modelValue", item.value);
-  emit("change", { profileId: item.profile.id, modelId: item.model.id });
-  showPopup.value = false;
+  emit("change", { profileId: item.profileId, modelId: item.modelId });
 };
 
 const togglePopup = () => {
@@ -114,54 +94,11 @@ const togglePopup = () => {
     </div>
 
     <!-- 模型选择弹窗 -->
-    <var-popup position="bottom" v-model:show="showPopup" round>
-      <div class="model-select-popup">
-        <div class="popup-header">
-          <div class="popup-title">{{ tRaw("tools.llm-api.common.选择模型") }}</div>
-        </div>
-
-        <div class="popup-content">
-          <div v-if="modelGroups.length === 0" class="empty-state">
-            <p>{{ tRaw("tools.llm-api.common.未配置模型") }}</p>
-            <var-button type="primary" size="small" @click="router.push('/tools/llm-api')">
-              {{ tRaw("tools.llm-api.common.去配置") }}
-            </var-button>
-          </div>
-
-          <div v-else class="group-list">
-            <div v-for="group in modelGroups" :key="group.name" class="model-group">
-              <div class="group-header">{{ group.name }}</div>
-              <div class="group-items">
-                <div
-                  v-for="item in group.items"
-                  :key="item.value"
-                  class="model-item"
-                  :class="{ active: modelValue === item.value }"
-                  v-ripple
-                  @click="handleSelect(item)"
-                >
-                  <DynamicIcon
-                    :src="getModelIcon(item.model) || ''"
-                    :alt="item.label"
-                    class="item-icon"
-                  />
-                  <div class="item-info">
-                    <div class="item-name">{{ item.label }}</div>
-                    <div class="item-id">{{ item.model.id }}</div>
-                  </div>
-                  <var-radio
-                    v-if="modelValue === item.value"
-                    :model-value="true"
-                    readonly
-                    checked-value="true"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </var-popup>
+    <ModelSelectPopup
+      v-model:show="showPopup"
+      :model-value="modelValue"
+      @select="handleSelect"
+    />
   </div>
 </template>
 
@@ -240,15 +177,28 @@ const togglePopup = () => {
 }
 
 .popup-header {
-  padding: 16px;
-  text-align: center;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .popup-title {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--color-on-surface);
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.search-bar {
+  padding: 0 4px;
+}
+
+.search-bar :deep(.var-input) {
+  --input-placeholder-color: var(--color-on-surface-variant);
 }
 
 .popup-content {
@@ -273,12 +223,40 @@ const togglePopup = () => {
   gap: 20px;
 }
 
-.group-header {
+.profile-header {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-primary);
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   padding-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.profile-group {
+  margin-bottom: 24px;
+}
+
+.profile-group:last-child {
+  margin-bottom: 0;
+}
+
+.model-sub-group {
+  margin-bottom: 16px;
+}
+
+.model-sub-group:last-child {
+  margin-bottom: 0;
+}
+
+.sub-group-header {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 8px;
+  padding-left: 8px;
+  opacity: 0.8;
+  border-left: 2px solid var(--color-outline-variant);
 }
 
 .group-items {

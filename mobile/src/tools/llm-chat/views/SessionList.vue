@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
-import { useLlmChatStore } from '../stores/llmChatStore';
-import { MessageSquare, ChevronRight, Trash2, ChevronLeft } from 'lucide-vue-next';
+import { useRouter } from "vue-router";
+import { useLlmChatStore } from "../stores/llmChatStore";
+import { MessageSquare, ChevronRight, Trash2, ChevronLeft } from "lucide-vue-next";
 
 const router = useRouter();
 const chatStore = useLlmChatStore();
@@ -14,7 +14,7 @@ const goToChat = (id: string) => {
 const deleteSession = (event: Event, id: string) => {
   event.stopPropagation();
   // TODO: 实现删除逻辑
-  console.log('Delete session', id);
+  console.log("Delete session", id);
 };
 </script>
 
@@ -29,21 +29,26 @@ const deleteSession = (event: Event, id: string) => {
       class="nav-bar"
     >
       <template #left>
-        <var-button round text color="transparent" text-color="var(--text-color)" @click="router.back()">
+        <var-button
+          round
+          text
+          color="transparent"
+          text-color="var(--text-color)"
+          @click="router.back()"
+        >
           <ChevronLeft :size="24" />
         </var-button>
       </template>
     </var-app-bar>
-    <div class="nav-bar-placeholder"></div>
-    
+
     <div class="list-container">
       <div v-if="chatStore.sessions.length === 0" class="empty-state">
         <MessageSquare :size="48" />
         <p>暂无历史会话</p>
       </div>
 
-      <div 
-        v-for="session in chatStore.sessions" 
+      <div
+        v-for="session in chatStore.sessions"
         :key="session.id"
         class="session-item"
         @click="goToChat(session.id)"
@@ -71,25 +76,21 @@ const deleteSession = (event: Event, id: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--bg-color);
+  background-color: var(--color-surface);
 }
 
 .nav-bar {
-  background-color: var(--card-bg) !important;
+  background-color: var(--color-surface) !important;
   backdrop-filter: blur(var(--ui-blur));
-  color: var(--text-color) !important;
-}
-
-.nav-bar-placeholder {
-  height: 54px;
-  padding-top: env(safe-area-inset-top);
-  flex-shrink: 0;
+  color: var(--color-on-surface) !important;
 }
 
 .list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  /* 避让 fixed AppBar: 54px (AppBar) + 24px (间距) */
+  padding: 16px;
+  padding-top: calc(78px + env(safe-area-inset-top));
 }
 
 .empty-state {
@@ -98,33 +99,33 @@ const deleteSession = (event: Event, id: string) => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--el-text-color-secondary);
+  color: var(--color-on-surface-variant);
   gap: 12px;
 }
 
 .session-item {
-  background: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 16px;
+  background: var(--color-surface-container);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 16px;
+  padding: 14px 16px;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
   gap: 12px;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .session-item:active {
-  background-color: var(--el-fill-color-light);
+  background-color: var(--color-surface-container-high);
+  transform: scale(0.98);
 }
 
 .session-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -146,20 +147,21 @@ const deleteSession = (event: Event, id: string) => {
 
 .session-time {
   font-size: 0.8rem;
-  color: var(--el-text-color-secondary);
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
 }
 
 .actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--el-text-color-placeholder);
+  color: var(--color-on-surface-variant);
 }
 
 .delete-btn {
   border: none;
   background: none;
-  color: var(--el-color-danger);
+  color: var(--color-error);
   padding: 8px;
   display: flex;
   align-items: center;

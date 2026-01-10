@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { useLlmChatStore } from '../stores/llmChatStore';
-import { useLlmProfilesStore } from '../../llm-api/stores/llmProfiles';
-import { useKeyboardAvoidance } from '@/composables/useKeyboardAvoidance';
-import { ChevronLeft } from 'lucide-vue-next';
-import { useRouter } from 'vue-router';
-import MessageList from '../components/MessageList.vue';
-import ChatInput from '../components/ChatInput.vue';
+import { ref, onMounted, nextTick, watch } from "vue";
+import { useRoute } from "vue-router";
+import { useLlmChatStore } from "../stores/llmChatStore";
+import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
+import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
+import { ChevronLeft } from "lucide-vue-next";
+import { useRouter } from "vue-router";
+import MessageList from "../components/MessageList.vue";
+import ChatInput from "../components/ChatInput.vue";
 const route = useRoute();
 const router = useRouter();
 const chatStore = useLlmChatStore();
@@ -37,9 +37,12 @@ onMounted(async () => {
 });
 
 // 监听消息变化，自动滚动到底部
-watch(() => chatStore.currentActivePath.length, () => {
-  scrollToBottom();
-});
+watch(
+  () => chatStore.currentActivePath.length,
+  () => {
+    scrollToBottom();
+  }
+);
 
 // 监听键盘状态，键盘弹出时也尝试滚动到底部
 watch(isKeyboardVisible, (visible) => {
@@ -66,20 +69,26 @@ const scrollToBottom = () => {
       class="nav-bar"
     >
       <template #left>
-        <var-button round text color="transparent" text-color="var(--text-color)" @click="router.back()">
+        <var-button
+          round
+          text
+          color="transparent"
+          text-color="var(--text-color)"
+          @click="router.back()"
+        >
           <ChevronLeft :size="24" />
         </var-button>
       </template>
     </var-app-bar>
     <div class="nav-bar-placeholder"></div>
-    
+
     <div class="chat-container">
-      <MessageList 
+      <MessageList
         ref="messageListRef"
-        :messages="chatStore.currentActivePath" 
-        class="message-list-area" 
+        :messages="chatStore.currentActivePath"
+        class="message-list-area"
       />
-      
+
       <ChatInput class="chat-input-area" />
     </div>
   </div>
@@ -124,10 +133,5 @@ const scrollToBottom = () => {
 
 .chat-input-area {
   flex-shrink: 0;
-}
-
-/* 键盘弹出时的特殊处理 */
-.keyboard-open .message-list-area {
-  /* 确保在键盘弹出时，列表仍然可以滚动 */
 }
 </style>

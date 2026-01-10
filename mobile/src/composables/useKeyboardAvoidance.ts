@@ -139,16 +139,36 @@ export function useKeyboardAvoidance() {
   const debouncedUpdate = debounce(updateKeyboardState, 150);
 
   const handleFocusIn = (e: FocusEvent) => {
-    logger.debug("FocusIn detected", { target: (e.target as HTMLElement).tagName });
+    const target = e.target as HTMLElement;
+    if (!target) return;
+
+    // 排除掉那些虽然会聚焦但不会触发键盘的元素
+    // 1. readonly 的输入框 (Varlet Select 内部通常是 readonly)
+    if (target instanceof HTMLInputElement && target.readOnly) return;
+    
+    // 2. 明确不是输入类型的元素
+    const isInputish =
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable ||
+      target.closest('.var-input') ||
+      target.classList.contains('var-input__input');
+
+    if (!isInputish) return;
+
+    logger.debug("FocusIn detected", { target: target.tagName });
 
     setTimeout(() => {
       updateKeyboardState();
 
       setTimeout(() => {
         const activeEl = document.activeElement;
-        if (activeEl === e.target && !isKeyboardVisible.value) {
+        // 再次确认是否真的是那个输入框，并且确实没有高度变化（需要模拟）
+        if (activeEl === target && !isKeyboardVisible.value) {
+          // 额外检查：如果是 select 触发的 focus，通常会伴随弹出层，我们不应该模拟键盘
+          if (activeEl.closest('.var-select')) return;
+
           logger.info("Force enabling keyboard state via focus (Viewport height unchange)");
-          // 增加预估高度到 45% 或最小 300px，确保能顶起来
           const estimatedHeight = Math.max(300, Math.floor(initialHeight * 0.45));
           setKeyboardState(true, estimatedHeight, true);
 

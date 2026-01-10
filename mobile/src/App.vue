@@ -35,16 +35,16 @@ watchEffect(() => {
   // 默认基础 14px * scale
   const baseSize = 14 * fontSizeScale;
   document.documentElement.style.fontSize = `${baseSize}px`;
-  
+
   // 同时提供变量供全局使用
   document.documentElement.style.setProperty("--app-font-size", `${baseSize}px`);
   document.documentElement.style.setProperty("--app-font-scale", fontSizeScale.toString());
 
   // 同步更新 Varlet 的基础字体大小变量
-  document.documentElement.style.setProperty('--font-size-md', `${baseSize}px`);
-  document.documentElement.style.setProperty('--font-size-sm', `${baseSize - 2}px`);
-  document.documentElement.style.setProperty('--font-size-lg', `${baseSize + 2}px`);
-  document.documentElement.style.setProperty('--font-size-xs', `${baseSize - 4}px`);
+  document.documentElement.style.setProperty("--font-size-md", `${baseSize}px`);
+  document.documentElement.style.setProperty("--font-size-sm", `${baseSize - 2}px`);
+  document.documentElement.style.setProperty("--font-size-lg", `${baseSize + 2}px`);
+  document.documentElement.style.setProperty("--font-size-xs", `${baseSize - 4}px`);
 });
 
 onMounted(() => {
@@ -81,7 +81,7 @@ onMounted(() => {
 <style>
 /* 全局样式移入 App.vue 或保持在 theme.css */
 :root {
-  --var-bottom-navigation-height: 56px;
+  --var-bottom-navigation-height: 66px;
 }
 
 .app-init-overlay {
@@ -148,6 +148,12 @@ onMounted(() => {
   /* 但为了保证滚动到底部时内容不被遮挡，padding 还是需要的 */
   padding-bottom: calc(var(--var-bottom-navigation-height) + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  transition: padding-bottom 0.3s ease;
+}
+
+/* 键盘弹出时，容器高度已经缩小了，不需要再保留底部导航栏和安全区的 padding */
+.keyboard-visible .main-content {
+  padding-bottom: 0;
 }
 
 /* 全局键盘避让样式 */
@@ -169,8 +175,8 @@ onMounted(() => {
   scroll-margin-bottom: calc(var(--keyboard-height) + 120px);
 }
 
-/* 强制增加底部占位 */
-.keyboard-visible .main-content::after {
+/* 强制增加底部占位 - 只有在模拟模式（容器高度没变）时才需要 */
+.keyboard-simulated .main-content::after {
   content: "";
   display: block;
   height: var(--keyboard-height);

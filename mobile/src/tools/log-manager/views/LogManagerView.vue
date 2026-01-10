@@ -267,6 +267,8 @@ watch([searchQuery, selectedLevel], () => {
 
 .footer-actions {
   padding: 12px 16px;
+  /* 默认包含底部安全区，但在键盘弹出时会被 App.vue 的全局样式抵消 padding */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   background-color: var(--color-surface-container);
   border-top: 1px solid var(--color-outline-variant);
   display: flex;
@@ -274,6 +276,13 @@ watch([searchQuery, selectedLevel], () => {
   align-items: center;
   position: sticky;
   bottom: 0;
+  z-index: 10;
+  transition: padding-bottom 0.3s ease;
+}
+
+/* 键盘可见时，强制取消安全区边距，确保紧贴键盘 */
+:global(.keyboard-visible) .footer-actions {
+  padding-bottom: 12px;
 }
 
 .btn-content {

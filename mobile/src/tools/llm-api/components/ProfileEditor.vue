@@ -548,6 +548,11 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   background: var(--color-surface);
 }
 
+/* 确保 AppBar 层级高于内容区域，避免滚动时被卡片遮挡 */
+:deep(.var-app-bar) {
+  z-index: 1000;
+}
+
 .close-icon {
   font-size: 2rem;
   line-height: 1;

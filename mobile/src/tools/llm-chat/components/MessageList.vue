@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { ChatMessageNode } from '../types';
-import MessageBubble from './MessageBubble.vue';
+import ChatMessage from './ChatMessage.vue';
 
 defineProps<{
   messages: ChatMessageNode[];
@@ -39,7 +39,7 @@ defineExpose({
 <template>
   <div ref="scrollContainerRef" class="message-list" @click="handleListClick">
     <div class="messages-inner">
-      <MessageBubble
+      <ChatMessage
         v-for="msg in messages"
         :key="msg.id"
         :message="msg"
@@ -55,7 +55,7 @@ defineExpose({
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 12px 0;
   display: flex;
   flex-direction: column;
 }

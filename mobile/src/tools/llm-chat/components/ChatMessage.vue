@@ -23,20 +23,20 @@ const chatStore = useLlmChatStore();
     class="message-item"
     :class="[message.role, message.status, { 'is-active': isActive }]"
   >
-    <div class="avatar">
-      <User v-if="message.role === 'user'" :size="20" />
-      <Bot v-else-if="message.role === 'assistant'" :size="20" />
-    </div>
-    
-    <div class="message-container">
-      <div class="bubble" @click="(e) => { e.stopPropagation(); emit('click'); }">
-        <MessageContent :message="message" />
+    <!-- 头部：头像 + 信息 -->
+    <div class="message-header">
+      <div class="avatar">
+        <User v-if="message.role === 'user'" :size="14" />
+        <Bot v-else :size="14" />
       </div>
-      
-      <div class="message-footer">
-        <div v-if="message.metadata?.modelDisplayName" class="model-info">
-          {{ message.metadata.modelDisplayName }}
-        </div>
+      <div v-if="message.role === 'assistant' && message.metadata?.modelDisplayName" class="model-info">
+        {{ message.metadata.modelDisplayName }}
+      </div>
+    </div>
+
+    <div class="message-container">
+      <div class="content-body" @click="(e) => { e.stopPropagation(); emit('click'); }">
+        <MessageContent :message="message" />
       </div>
 
       <!-- 悬挂操作栏 -->
@@ -56,26 +56,33 @@ const chatStore = useLlmChatStore();
 <style scoped>
 .message-item {
   display: flex;
-  gap: 12px;
-  padding: 12px;
+  flex-direction: column;
+  padding: 16px;
   max-width: 100%;
   position: relative;
+  transition: background-color 0.2s;
 }
 
-.message-item.user {
+.message-item.is-active {
+  background-color: var(--el-fill-color-lighter);
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.user .message-header {
   flex-direction: row-reverse;
-  align-self: flex-end;
-  margin-left: auto;
-}
-
-.message-item.assistant {
-  align-self: flex-start;
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   background: var(--el-fill-color-light);
   display: flex;
   align-items: center;
@@ -92,31 +99,35 @@ const chatStore = useLlmChatStore();
 .message-container {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-width: calc(100% - 48px);
+  width: 100%;
 }
 
-.bubble {
-  padding: 10px 14px;
-  border-radius: 16px;
+.content-body {
   position: relative;
   transition: all 0.2s ease;
+  width: 100%;
+  line-height: 1.6;
 }
 
-.user .bubble {
-  background: var(--el-color-primary);
-  color: white;
-  border-top-right-radius: 4px;
-}
-
-.assistant .bubble {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
+.user .content-body {
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
-  border-top-left-radius: 4px;
+  width: auto;
+  align-self: flex-end;
+  max-width: 92%;
 }
 
-.message-item.is-active .bubble {
+.assistant .content-body {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--el-text-color-primary);
+  font-size: 1.05rem; /* AI 消息稍微大一点，方便阅读长文 */
+}
+
+.message-item.is-active .content-body {
   box-shadow: 0 0 0 2px var(--el-color-primary-light-5);
 }
 
@@ -132,10 +143,10 @@ const chatStore = useLlmChatStore();
 }
 
 .model-info {
-  font-size: 0.65rem;
-  color: var(--el-text-color-placeholder);
-  padding: 0 4px;
-  opacity: 0.8;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  opacity: 0.9;
 }
 
 /* 悬挂操作栏布局 */

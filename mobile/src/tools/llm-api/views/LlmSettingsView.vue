@@ -14,7 +14,7 @@ import PresetSelector from "../components/PresetSelector.vue";
 import ProfileEditor from "../components/ProfileEditor.vue";
 
 const router = useRouter();
-const { tRaw } = useI18n();
+const { t, tRaw } = useI18n();
 const store = useLlmProfilesStore();
 const isManagementMode = ref(false);
 const multiSelectedIds = ref<Set<string>>(new Set());
@@ -86,12 +86,12 @@ const handleSave = (profile: LlmProfile) => {
 const handleDelete = (id: string) => {
   store.deleteProfile(id);
   showEditPopup.value = false;
-  Snackbar.success(tRaw("tools.llm-api.common.删除成功"));
+  Snackbar.success(t("common.删除成功"));
 };
 
 const handleToggleEnabled = (profileId: string, enabled: boolean) => {
   store.updateProfile(profileId, { enabled });
-  Snackbar.success(enabled ? tRaw("tools.llm-api.common.已启用") : tRaw("tools.llm-api.common.已禁用"));
+  Snackbar.success(enabled ? t("common.已启用") : t("common.已禁用"));
 };
 
 const handleToggleMultiSelect = (id: string) => {

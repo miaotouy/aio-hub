@@ -2,6 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { useI18n } from "@/i18n";
+import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 
 const logger = createModuleLogger("ProfileEditor");
 
@@ -50,6 +51,7 @@ const emit = defineEmits<{
 }>();
 
 const { t, tRaw } = useI18n();
+const { keyboardHeight } = useKeyboardAvoidance();
 const isFetchingModels = ref(false);
 const showHeadersPopup = ref(false);
 const showEndpointsPopup = ref(false);
@@ -238,65 +240,37 @@ const handleIconSelect = (icon: { path: string }) => {
     Snackbar.success(tRaw("tools.llm-api.ProfileEditor.已选择图标"));
   }
 };
-
 // 处理输入框聚焦时滚动到可见区域
 const scrollIntoViewOnFocus = (event: FocusEvent) => {
   const target = event.target as HTMLElement;
   const group = (target.closest(".native-input-group") || target) as HTMLElement;
 
-  // 找到滚动容器
-  const scrollContainer = target.closest(".editor-content") as HTMLElement;
-  if (!scrollContainer) return;
-
-  // 延迟执行，等待键盘弹出、Padding 撑开以及 CSS 变量更新
-  // 增加重试机制，如果第一次计算时键盘高度还没出来，再试一次
-  const tryScroll = (retryCount = 0) => {
-    const keyboardHeight =
-      parseInt(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-height")) ||
-      0;
-
-    // 如果高度还是0且重试次数少于3次，延迟再试
-    if (keyboardHeight === 0 && retryCount < 3) {
-      setTimeout(() => tryScroll(retryCount + 1), 100);
-      return;
-    }
-
+  // 延迟等待键盘完全弹出和布局更新
+  setTimeout(() => {
+    const rect = group.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    const availableHeight = viewportHeight - keyboardHeight;
 
-    const groupRect = group.getBoundingClientRect();
-    const containerRect = scrollContainer.getBoundingClientRect();
+    // 计算有效可见高度（减去键盘高度和顶部 AppBar 的安全距离）
+    // AppBar 高度约为 54px，再留出一点余量
+    const effectiveViewportHeight = viewportHeight - keyboardHeight.value;
 
-    // 计算输入框组中心点在滚动容器坐标系中的位置
-    const groupCenterInContainer =
-      groupRect.top - containerRect.top + scrollContainer.scrollTop + groupRect.height / 2;
+    // 判定是否被遮挡：
+    // 1. 底部超出了键盘上方边缘 (预留 20px 缓冲)
+    // 2. 顶部被 AppBar 遮挡 ( AppBar 54px + 10px 缓冲)
+    const isObscured = rect.bottom > effectiveViewportHeight - 20 || rect.top < 64;
 
-    // 目标：将输入框组中心滚动到可用视口区域的中部偏上位置 (约 40% 处)
-    // 同时避开顶部 AppBar (54px)
-    const targetScrollTop = groupCenterInContainer - availableHeight * 0.4;
+    if (isObscured) {
+      logger.debug("Element obscured, scrolling into view", {
+        rect: { top: rect.top, bottom: rect.bottom },
+        effectiveViewportHeight,
+      });
 
-    logger.debug("Auto-scrolling calculation", {
-      keyboardHeight,
-      viewportHeight,
-      availableHeight,
-      groupRect: { top: groupRect.top, bottom: groupRect.bottom },
-      targetScrollTop,
-    });
-
-    // 判定是否需要滚动：如果输入框在屏幕下半部或者快被遮挡了
-    // 在模拟模式下，我们需要更积极地滚动
-    const isSimulated = document.documentElement.classList.contains("keyboard-simulated");
-    const threshold = isSimulated ? availableHeight - 20 : availableHeight - 40;
-
-    if (groupRect.bottom > threshold || groupRect.top < 100) {
-      scrollContainer.scrollTo({
-        top: Math.max(0, targetScrollTop),
+      group.scrollIntoView({
         behavior: "smooth",
+        block: "center",
       });
     }
-  };
-
-  setTimeout(() => tryScroll(), 300);
+  }, 300);
 };
 </script>
 
@@ -389,9 +363,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             </label>
 
             <div v-if="apiEndpointPreview" class="url-preview in-group">
-              <div class="preview-text">
-                {{ t("common.预览") }}: {{ apiEndpointPreview }}
-              </div>
+              <div class="preview-text">{{ t("common.预览") }}: {{ apiEndpointPreview }}</div>
               <div class="preview-hint">{{ endpointHint }}</div>
             </div>
 

@@ -452,7 +452,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               <template #description>
                 {{ tRaw("tools.llm-api.ProfileEditor.已配置") }}
                 {{
-                  tRaw("common.N个", {
+                  t("common.N个", {
                     count: Object.keys(innerProfile.customHeaders || {}).length,
                   })
                 }}

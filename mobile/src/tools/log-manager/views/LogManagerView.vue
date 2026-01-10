@@ -75,14 +75,14 @@ onUnmounted(() => {
 // 操作
 const handleClear = async () => {
   const result = await Dialog({
-    title: tRaw('common.提示'),
+    title: t('common.提示'),
     message: t('确认清空'),
   })
   
   if (result === 'confirm') {
     logger.clearLogs()
     logs.value = []
-    Snackbar.success(tRaw('common.成功'))
+    Snackbar.success(t('common.成功'))
   }
 }
 
@@ -104,7 +104,7 @@ const handleCopyAll = async () => {
     await navigator.clipboard.writeText(content)
     Snackbar.success(t('已复制到剪贴板'))
   } catch (err) {
-    Snackbar.error(tRaw('common.失败'))
+    Snackbar.error(t('common.失败'))
   }
 }
 

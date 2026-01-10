@@ -42,7 +42,7 @@ const handleCopy = async (e: Event) => {
     await navigator.clipboard.writeText(text)
     Snackbar.success(t('复制成功'))
   } catch (err) {
-    Snackbar.error(tRaw('common.失败'))
+    Snackbar.error(t('common.失败'))
   }
 }
 

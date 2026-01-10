@@ -133,7 +133,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
         <div class="search-bar">
           <var-input
             v-model="searchQuery"
-            :placeholder="tRaw('common.搜索')"
+            :placeholder="t('common.搜索')"
             variant="standard"
             clearable
           >

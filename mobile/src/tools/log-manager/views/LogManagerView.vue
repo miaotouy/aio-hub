@@ -1,119 +1,117 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { throttle } from 'lodash-es'
-import { logger, LogLevel, type LogEntry } from '@/utils/logger'
-import { useI18n } from '@/i18n'
-import {
-  Trash2,
-  Download,
-  Copy,
-  Search,
-  ArrowDownCircle
-} from 'lucide-vue-next'
-import LogEntryItem from '../components/LogEntryItem.vue'
-import { Snackbar, Dialog } from '@varlet/ui'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { throttle } from "lodash-es";
+import { logger, LogLevel, type LogEntry } from "@/utils/logger";
+import { useI18n } from "@/i18n";
+import { Trash2, Download, Copy, Search, ArrowDownCircle } from "lucide-vue-next";
+import LogEntryItem from "../components/LogEntryItem.vue";
+import { Snackbar, Dialog } from "@varlet/ui";
 
-const { tRaw } = useI18n()
-const t = (key: string) => tRaw(`tools.log-manager.LogManagerView.${key}`)
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.log-manager.LogManagerView.${key}`);
 
 // 状态
-const logs = ref<LogEntry[]>([])
-const searchQuery = ref('')
-const selectedLevel = ref<LogLevel | 'ALL'>('ALL')
-const autoScroll = ref(true)
-const logContainer = ref<HTMLElement | null>(null)
+const logs = ref<LogEntry[]>([]);
+const searchQuery = ref("");
+const selectedLevel = ref<LogLevel | "ALL">("ALL");
+const autoScroll = ref(true);
+const logContainer = ref<HTMLElement | null>(null);
 
 // 级别选项
 const levelOptions = [
-  { label: t('全部级别'), value: 'ALL' },
-  { label: 'DEBUG', value: LogLevel.DEBUG },
-  { label: 'INFO', value: LogLevel.INFO },
-  { label: 'WARN', value: LogLevel.WARN },
-  { label: 'ERROR', value: LogLevel.ERROR }
-]
+  { label: t("全部级别"), value: "ALL" },
+  { label: "DEBUG", value: LogLevel.DEBUG },
+  { label: "INFO", value: LogLevel.INFO },
+  { label: "WARN", value: LogLevel.WARN },
+  { label: "ERROR", value: LogLevel.ERROR },
+];
 
 // 过滤后的日志
 const filteredLogs = computed(() => {
-  return logs.value.filter(log => {
-    const matchesSearch = !searchQuery.value || 
+  return logs.value.filter((log) => {
+    const matchesSearch =
+      !searchQuery.value ||
       log.message.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      log.module.toLowerCase().includes(searchQuery.value.toLowerCase())
-    
-    const matchesLevel = selectedLevel.value === 'ALL' || log.level === selectedLevel.value
-    
-    return matchesSearch && matchesLevel
-  })
-})
+      log.module.toLowerCase().includes(searchQuery.value.toLowerCase());
+
+    const matchesLevel = selectedLevel.value === "ALL" || log.level === selectedLevel.value;
+
+    return matchesSearch && matchesLevel;
+  });
+});
 
 // 初始化与订阅
-let unsubscribe: (() => void) | null = null
-
+let unsubscribe: (() => void) | null = null;
 
 const scrollToBottom = async () => {
-  await nextTick()
+  await nextTick();
   if (logContainer.value) {
-    logContainer.value.scrollTop = logContainer.value.scrollHeight
+    logContainer.value.scrollTop = logContainer.value.scrollHeight;
   }
-}
-const updateLogs = throttle(() => {
-  logs.value = logger.getLogs()
-  if (autoScroll.value) {
-    scrollToBottom()
-  }
-}, 200, { leading: true, trailing: true })
+};
+const updateLogs = throttle(
+  () => {
+    logs.value = logger.getLogs();
+    if (autoScroll.value) {
+      scrollToBottom();
+    }
+  },
+  200,
+  { leading: true, trailing: true }
+);
 
 onMounted(() => {
-  logs.value = logger.getLogs()
-  unsubscribe = logger.subscribe(updateLogs)
-  scrollToBottom()
-})
+  logs.value = logger.getLogs();
+  unsubscribe = logger.subscribe(updateLogs);
+  scrollToBottom();
+});
 
 onUnmounted(() => {
-  if (unsubscribe) unsubscribe()
-})
+  if (unsubscribe) unsubscribe();
+});
 
 // 操作
 const handleClear = async () => {
   const result = await Dialog({
-    title: t('common.提示'),
-    message: t('确认清空'),
-  })
-  
-  if (result === 'confirm') {
-    logger.clearLogs()
-    logs.value = []
-    Snackbar.success(t('common.成功'))
+    title: t("common.提示"),
+    message: t("确认清空"),
+  });
+
+  if (result === "confirm") {
+    logger.clearLogs();
+    logs.value = [];
+    Snackbar.success(t("common.成功"));
   }
-}
+};
 
 const handleExport = () => {
-  const content = logger.exportLogs()
-  const blob = new Blob([content], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`
-  a.click()
-  URL.revokeObjectURL(url)
-  Snackbar.success(t('导出成功'))
-}
+  const content = logger.exportLogs();
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+  Snackbar.success(t("导出成功"));
+};
 
 const handleCopyAll = async () => {
-  const content = logger.exportLogs()
+  const content = logger.exportLogs();
   try {
-    await navigator.clipboard.writeText(content)
-    Snackbar.success(t('已复制到剪贴板'))
+    await navigator.clipboard.writeText(content);
+    Snackbar.success(t("已复制到剪贴板"));
   } catch (err) {
-    Snackbar.error(t('common.失败'))
+    Snackbar.error(t("common.失败"));
   }
-}
+};
 
 // 监听过滤条件变化，如果开启了自动滚动则滚动到底部
 watch([searchQuery, selectedLevel], () => {
   if (autoScroll.value) {
-    scrollToBottom()
+    scrollToBottom();
   }
-})
+});
 </script>
 
 <template>
@@ -151,13 +149,14 @@ watch([searchQuery, selectedLevel], () => {
         <var-chip
           size="small"
           :type="autoScroll ? 'primary' : 'default'"
+          :elevation="0"
           @click="autoScroll = !autoScroll"
           class="auto-scroll-chip"
         >
           <template #left>
             <ArrowDownCircle :size="14" />
           </template>
-          {{ t('自动滚动') }}
+          {{ t("自动滚动") }}
         </var-chip>
       </div>
     </div>
@@ -165,45 +164,40 @@ watch([searchQuery, selectedLevel], () => {
     <!-- 日志列表 -->
     <div class="log-content" ref="logContainer">
       <div v-if="filteredLogs.length === 0" class="empty-state">
-        <var-empty :description="t('暂无日志')" />
+        <Search :size="48" class="empty-icon" />
+        <p class="empty-text">{{ t("暂无日志") }}</p>
       </div>
       <div v-else class="log-list">
-        <LogEntryItem
-          v-for="log in filteredLogs"
-          :key="log.id"
-          :log="log"
-        />
+        <LogEntryItem v-for="log in filteredLogs" :key="log.id" :log="log" />
       </div>
     </div>
 
     <!-- 底部操作栏 -->
     <div class="footer-actions">
-      <var-button-group type="primary" mode="text">
-        <var-button @click="handleClear">
-          <template #default>
-            <div class="btn-content">
-              <Trash2 :size="18" />
-              <span>{{ t('清空日志') }}</span>
-            </div>
-          </template>
-        </var-button>
-        <var-button @click="handleExport">
-          <template #default>
-            <div class="btn-content">
-              <Download :size="18" />
-              <span>{{ t('导出日志') }}</span>
-            </div>
-          </template>
-        </var-button>
-        <var-button @click="handleCopyAll">
-          <template #default>
-            <div class="btn-content">
-              <Copy :size="18" />
-              <span>{{ t('复制全部') }}</span>
-            </div>
-          </template>
-        </var-button>
-      </var-button-group>
+      <var-button type="primary" mode="text" :elevation="0" @click="handleClear">
+        <template #default>
+          <div class="btn-content">
+            <Trash2 :size="18" />
+            <span>{{ t("清空日志") }}</span>
+          </div>
+        </template>
+      </var-button>
+      <var-button type="primary" mode="text" :elevation="0" @click="handleExport">
+        <template #default>
+          <div class="btn-content">
+            <Download :size="18" />
+            <span>{{ t("导出日志") }}</span>
+          </div>
+        </template>
+      </var-button>
+      <var-button type="primary" mode="text" :elevation="0" @click="handleCopyAll">
+        <template #default>
+          <div class="btn-content">
+            <Copy :size="18" />
+            <span>{{ t("复制全部") }}</span>
+          </div>
+        </template>
+      </var-button>
     </div>
   </div>
 </template>
@@ -218,6 +212,7 @@ watch([searchQuery, selectedLevel], () => {
 
 .toolbar {
   padding: 8px 16px;
+  padding-top: calc(8px + var(--app-safe-area-top));
   background-color: var(--color-surface-container);
   border-bottom: 1px solid var(--color-outline-variant);
   display: flex;
@@ -254,15 +249,31 @@ watch([searchQuery, selectedLevel], () => {
 
 .empty-state {
   padding-top: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-placeholder);
+}
+
+.empty-icon {
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 14px;
 }
 
 .footer-actions {
-  padding: 8px 16px;
-  padding-bottom: calc(8px + var(--safe-area-bottom));
+  padding: 12px 16px;
   background-color: var(--color-surface-container);
   border-top: 1px solid var(--color-outline-variant);
   display: flex;
-  justify-content: center;
+  justify-content: space-around;
+  align-items: center;
+  position: sticky;
+  bottom: 0;
 }
 
 .btn-content {

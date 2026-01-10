@@ -30,7 +30,7 @@ class ToolManager {
     try {
       // 扫描所有 tools 目录下的 registry.ts
       const toolModules = import.meta.glob("../tools/*/registry.ts", { eager: true });
-      
+
       Object.entries(toolModules).forEach(([path, mod]: [string, any]) => {
         const registry = mod.default as ToolRegistry;
         if (registry && registry.id) {
@@ -39,7 +39,7 @@ class ToolManager {
           logger.warn(`工具注册失败: 路径 ${path} 未导出有效的 registry 对象`);
         }
       });
-      
+
       logger.info(`已扫描并注册 ${this.tools.size} 个内置工具`);
     } catch (error) {
       logger.error("扫描内置工具时发生错误", error as Error);
@@ -77,6 +77,18 @@ class ToolManager {
    */
   public getToolById(id: string): ToolRegistry | undefined {
     return this.tools.get(id);
+  }
+
+  /**
+   * 根据路径获取匹配的工具
+   */
+  public getToolByPath(path: string): ToolRegistry | undefined {
+    return Array.from(this.tools.values()).find((tool) => {
+      if (!tool.route) return false;
+      // 简单匹配路径开头，例如 /llm-chat/xxxx 匹配 /llm-chat
+      const toolRoutePath = tool.route.path;
+      return path === toolRoutePath || path.startsWith(toolRoutePath + "/");
+    });
   }
 }
 

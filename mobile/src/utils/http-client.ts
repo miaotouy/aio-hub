@@ -17,7 +17,7 @@ export async function httpClient(
   url: string,
   options: HttpClientOptions = {}
 ): Promise<Response> {
-  const { timeout = 30000, ...fetchOptions } = options;
+  const { timeout = 120000, ...fetchOptions } = options;
 
   // 处理超时
   const controller = new AbortController();
@@ -76,8 +76,8 @@ export async function streamFetch(
   try {
     const response = await httpClient(url, {
       ...options,
-      // 流式请求通常不需要默认的 30s 超时，或者设得更长
-      timeout: options.timeout || 60000,
+      // 流式请求通常不需要默认的 30s 超时，或者设得更长（适配长思考模型）
+      timeout: options.timeout || 300000,
     });
 
     if (!response.ok || !response.body) {

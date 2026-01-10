@@ -107,8 +107,10 @@ export function useChatExecutor() {
       assistantNode.status = 'error';
       assistantNode.metadata = {
         ...assistantNode.metadata,
-        error: error.message
+        error: error.message || 'Unknown error'
       };
+      // 确保 session 状态更新以触发 UI
+      session.updatedAt = new Date().toISOString();
     } finally {
       chatStore.isSending = false;
       session.updatedAt = new Date().toISOString();

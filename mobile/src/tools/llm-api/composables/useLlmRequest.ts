@@ -24,6 +24,16 @@ export function useLlmRequest() {
    * @param profileId 可选，指定使用的 Profile ID，不传则使用当前选中的
    */
   async function sendRequest(options: LlmRequestOptions, profileId?: string) {
+    // 默认开启流式，除非显式指定为 false
+    if (options.stream === undefined) {
+      options.stream = true;
+    }
+
+    // 默认超时设为 5 分钟 (适配长思考模型)
+    if (options.timeout === undefined) {
+      options.timeout = 300000;
+    }
+
     if (!store.isLoaded) await store.init();
 
     const originalProfile = profileId
@@ -91,7 +101,11 @@ export function useLlmRequest() {
         keyManager.reportFailure(originalProfile.id, pickedKey, err);
       }
 
-      errorHandler.error(err, "LLM 请求失败");
+      // 静默处理：记录日志并触发熔断，但不弹出全局提示，交给业务层处理
+      errorHandler.handle(err, {
+        showToUser: false,
+        context: { modelId: options.modelId }
+      });
       throw err;
     } finally {
       isSending.value = false;

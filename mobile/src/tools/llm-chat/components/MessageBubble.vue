@@ -29,7 +29,7 @@ const chatStore = useLlmChatStore();
     </div>
     
     <div class="message-container">
-      <div class="bubble" @click="emit('click')">
+      <div class="bubble" @click="(e) => { e.stopPropagation(); emit('click'); }">
         <MessageContent :message="message" />
       </div>
       

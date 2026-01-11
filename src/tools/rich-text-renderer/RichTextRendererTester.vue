@@ -1035,7 +1035,7 @@ onMounted(async () => {
 }
 
 .rich-text-renderer-tester {
-  padding: 20px;
+  padding: 12px;
   height: 100%;
   box-sizing: border-box;
   display: flex;
@@ -1191,10 +1191,6 @@ onMounted(async () => {
 /* 容器查询式响应式调整 */
 .rich-text-renderer-tester.is-narrow .config-sidebar {
   width: 300px;
-}
-
-.rich-text-renderer-tester.is-mobile {
-  padding: 12px;
 }
 
 .rich-text-renderer-tester.is-mobile .tester-layout {

@@ -177,15 +177,21 @@ const handleSend = async () => {
   if (
     (!content && !inputManager.hasAttachments.value) ||
     props.disabled ||
-    isWaitingForTranscription.value
+    isWaitingForTranscription.value ||
+    isCurrentBranchGenerating.value
   ) {
     logger.info("发送被阻止", {
       hasContent: !!content,
       hasAttachments: inputManager.hasAttachments.value,
       disabled: props.disabled,
+      isGenerating: isCurrentBranchGenerating.value,
       isDetached: props.isDetached,
       isWaiting: isWaitingForTranscription.value,
     });
+    // todo:后续可以做个消息等待队列，或直接添加到消息树后面等待上个回复完成后再自动继续
+    if (isCurrentBranchGenerating.value) {
+      customMessage.warning("请等待当前回复完成后再发送新消息");
+    }
     return;
   }
 
@@ -797,7 +803,6 @@ const handleTranslateInput = async () => {
 };
 
 // 处理输入补全
-// 处理输入补全
 const handleCompleteInput = (content: string) => {
   const options = inputManager.continuationModel.value
     ? {
@@ -955,7 +960,9 @@ const getWillUseTranscription = (asset: Asset): boolean => {
           </div>
           <!-- 附件数量浮动显示 -->
           <div class="attachments-info">
-            <span class="attachment-count"> {{ attachmentManager.count.value }} / {{ attachmentManager.maxAttachmentCount }} </span>
+            <span class="attachment-count">
+              {{ attachmentManager.count.value }} / {{ attachmentManager.maxAttachmentCount }}
+            </span>
           </div>
         </div>
 

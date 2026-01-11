@@ -354,6 +354,16 @@ export interface AgentPreset {
   };
 
   /**
+   * 智能体资产分组定义
+   */
+  assetGroups?: AssetGroup[];
+
+  /**
+   * 智能体专属资产
+   */
+  assets?: AgentAsset[];
+
+  /**
    * 关联的世界书 ID 列表
    */
   worldbookIds?: string[];

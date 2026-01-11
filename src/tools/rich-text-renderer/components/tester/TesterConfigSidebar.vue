@@ -28,6 +28,41 @@
         </el-select>
       </div>
 
+      <!-- 测试角色选择 -->
+      <div class="control-section">
+        <label class="control-label">测试角色 (用于资产解析)</label>
+        <div class="profile-selector">
+          <el-radio-group v-model="profileType" size="small" class="profile-type-radio">
+            <el-radio-button label="agent">智能体</el-radio-button>
+            <el-radio-button label="user">用户</el-radio-button>
+          </el-radio-group>
+
+          <el-select
+            v-if="profileType === 'agent'"
+            v-model="selectedProfileId"
+            placeholder="选择智能体档案"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="agent in agentPresets"
+              :key="agent.id"
+              :label="agent.name"
+              :value="agent.id"
+            >
+              <div class="agent-option">
+                <Avatar :src="agent.icon" :alt="agent.name" :size="24" />
+                <span>{{ agent.name }}</span>
+              </div>
+            </el-option>
+          </el-select>
+
+          <div v-else class="user-profile-mock">
+            <el-alert title="用户档案暂未支持资产" type="info" :closable="false" show-icon />
+          </div>
+        </div>
+      </div>
+
       <!-- 预设内容选择 -->
       <div class="control-section">
         <label class="control-label">预设内容</label>
@@ -71,7 +106,10 @@
       <div class="control-section">
         <div class="control-header">
           <label class="control-label">CDN 本地化</label>
-          <el-tooltip content="开启后，HTML 预览将自动拦截 CDN 资源并重定向到本地库" placement="left">
+          <el-tooltip
+            content="开启后，HTML 预览将自动拦截 CDN 资源并重定向到本地库"
+            placement="left"
+          >
             <el-switch v-model="enableCdnLocalizer" />
           </el-tooltip>
         </div>
@@ -81,7 +119,10 @@
       <div class="control-section">
         <div class="control-header">
           <label class="control-label">无边框模式</label>
-          <el-tooltip content="开启后，HTML 渲染将移除外框和头部，直接嵌入消息流中" placement="left">
+          <el-tooltip
+            content="开启后，HTML 渲染将移除外框和头部，直接嵌入消息流中"
+            placement="left"
+          >
             <el-switch v-model="seamlessMode" />
           </el-tooltip>
         </div>
@@ -135,9 +176,12 @@
           </div>
 
           <div class="control-item">
-            <el-tooltip content="控制流式输出的速度，数值越大输出越快" placement="right">
-              <label>输出速度</label>
-            </el-tooltip>
+            <div class="item-header">
+              <el-tooltip content="控制流式输出的速度，数值越大输出越快" placement="right">
+                <label>输出速度</label>
+              </el-tooltip>
+              <span class="unit">token/秒</span>
+            </div>
             <div class="slider-wrapper">
               <el-slider
                 v-model="streamSpeed"
@@ -147,14 +191,16 @@
                 show-input
                 :input-size="'small'"
               />
-              <span class="unit">token/秒</span>
             </div>
           </div>
 
           <div class="control-item">
-            <el-tooltip content="开始渲染前的等待时间，用于模拟真实场景" placement="right">
-              <label>初始延迟</label>
-            </el-tooltip>
+            <div class="item-header">
+              <el-tooltip content="开始渲染前的等待时间，用于模拟真实场景" placement="right">
+                <label>初始延迟</label>
+              </el-tooltip>
+              <span class="unit">毫秒</span>
+            </div>
             <div class="slider-wrapper">
               <el-slider
                 v-model="initialDelay"
@@ -164,17 +210,19 @@
                 show-input
                 :input-size="'small'"
               />
-              <span class="unit">毫秒</span>
             </div>
           </div>
 
           <div class="control-item">
-            <el-tooltip
-              content="控制 AST 更新的节流时间，数值越小越实时，但性能开销越大"
-              placement="right"
-            >
-              <label>AST 节流</label>
-            </el-tooltip>
+            <div class="item-header">
+              <el-tooltip
+                content="控制 AST 更新的节流时间，数值越小越实时，但性能开销越大"
+                placement="right"
+              >
+                <label>AST 节流</label>
+              </el-tooltip>
+              <span class="unit">毫秒</span>
+            </div>
             <div class="slider-wrapper">
               <el-slider
                 v-model="throttleMs"
@@ -184,7 +232,6 @@
                 show-input
                 :input-size="'small'"
               />
-              <span class="unit">毫秒</span>
             </div>
           </div>
 
@@ -203,9 +250,12 @@
 
           <template v-if="fluctuationEnabled">
             <div class="control-item">
-              <el-tooltip content="每次输出的延迟时间范围" placement="right">
-                <label>延迟波动范围</label>
-              </el-tooltip>
+              <div class="item-header">
+                <el-tooltip content="每次输出的延迟时间范围" placement="right">
+                  <label>延迟波动范围</label>
+                </el-tooltip>
+                <span class="unit">毫秒</span>
+              </div>
               <div class="range-inputs">
                 <el-input-number
                   v-model="delayFluctuation.min"
@@ -224,14 +274,16 @@
                   size="small"
                   controls-position="right"
                 />
-                <span class="unit">毫秒</span>
               </div>
             </div>
 
             <div class="control-item">
-              <el-tooltip content="每次输出的 token 数量范围" placement="right">
-                <label>Token 数波动范围</label>
-              </el-tooltip>
+              <div class="item-header">
+                <el-tooltip content="每次输出的 token 数量范围" placement="right">
+                  <label>Token 数波动范围</label>
+                </el-tooltip>
+                <span class="unit">token</span>
+              </div>
               <div class="range-inputs">
                 <el-input-number
                   v-model="charsFluctuation.min"
@@ -250,7 +302,6 @@
                   size="small"
                   controls-position="right"
                 />
-                <span class="unit">token</span>
               </div>
             </div>
           </template>
@@ -289,6 +340,8 @@ import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useRichTextRendererStore, availableVersions } from "../../store";
 import { presets } from "../../presets";
+import { useAgentPresets } from "@/composables/useAgentPresets";
+import Avatar from "@/components/common/Avatar.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import InfoCard from "@/components/common/InfoCard.vue";
 import LlmThinkRulesEditor from "../../components/LlmThinkRulesEditor.vue";
@@ -317,7 +370,12 @@ const {
   enableEnterAnimation,
   llmThinkRules,
   seamlessMode,
+  profileType,
+  selectedProfileId,
 } = storeToRefs(store);
+
+// Agent Presets
+const { presets: agentPresets } = useAgentPresets();
 
 // Computed
 const enabledVersions = computed(() => availableVersions.filter((v) => v.enabled));
@@ -334,7 +392,7 @@ const loadPreset = () => {
 
 <style scoped>
 .config-sidebar {
-  width: 400px;
+  width: 360px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -391,21 +449,31 @@ const loadPreset = () => {
   font-weight: 500;
 }
 
+.item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .slider-wrapper {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .slider-wrapper :deep(.el-slider) {
   flex: 1;
 }
 
+/* 缩窄滑块自带的输入框 */
+.slider-wrapper :deep(.el-input-number--small) {
+  width: 100px;
+}
+
 .unit {
   font-size: 12px;
   color: var(--text-color-light);
   white-space: nowrap;
-  min-width: 60px;
 }
 
 .range-inputs {
@@ -433,5 +501,43 @@ const loadPreset = () => {
 
 .version-option span:first-child {
   flex: 1;
+}
+
+.profile-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background-color: var(--input-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.profile-type-radio {
+  display: flex;
+  width: 100%;
+}
+
+.profile-type-radio :deep(.el-radio-button) {
+  flex: 1;
+}
+
+.profile-type-radio :deep(.el-radio-button__inner) {
+  width: 100%;
+}
+
+.agent-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.user-profile-mock {
+  margin-top: 4px;
+}
+
+.user-profile-mock :deep(.el-alert) {
+  padding: 8px 12px;
 }
 </style>

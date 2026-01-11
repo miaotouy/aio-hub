@@ -112,6 +112,8 @@ const configManager = createConfigManager<TesterConfig>({
     enableEnterAnimation: true,
     simulateMeta: false,
     selectedTokenizer: "gpt4o",
+    profileType: "agent",
+    selectedProfileId: "",
     llmThinkRules: defaultLlmThinkRules,
     richTextStyleOptions: {},
     regexConfig: createDefaultChatRegexConfig(),
@@ -159,6 +161,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const enableEnterAnimation = ref(true);
   const simulateMeta = ref(false);
   const selectedTokenizer = ref("gpt4o");
+  const profileType = ref<"agent" | "user">("agent");
+  const selectedProfileId = ref("");
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
   const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
   const regexConfig = ref<ChatRegexConfig>(createDefaultChatRegexConfig());
@@ -227,6 +231,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       enableEnterAnimation.value = config.enableEnterAnimation ?? true;
       simulateMeta.value = config.simulateMeta ?? false;
       selectedTokenizer.value = config.selectedTokenizer ?? "gpt4o";
+      profileType.value = config.profileType ?? "agent";
+      selectedProfileId.value = config.selectedProfileId ?? "";
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
       richTextStyleOptions.value = config.richTextStyleOptions || {};
       regexConfig.value = config.regexConfig || createDefaultChatRegexConfig();
@@ -286,6 +292,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         enableEnterAnimation: enableEnterAnimation.value,
         simulateMeta: simulateMeta.value,
         selectedTokenizer: selectedTokenizer.value,
+        profileType: profileType.value,
+        selectedProfileId: selectedProfileId.value,
         llmThinkRules: llmThinkRules.value,
         richTextStyleOptions: richTextStyleOptions.value,
         regexConfig: regexConfig.value,
@@ -341,6 +349,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       enableEnterAnimation: enableEnterAnimation.value,
       simulateMeta: simulateMeta.value,
       selectedTokenizer: selectedTokenizer.value,
+      profileType: profileType.value,
+      selectedProfileId: selectedProfileId.value,
       llmThinkRules: llmThinkRules.value,
       richTextStyleOptions: richTextStyleOptions.value,
       regexConfig: regexConfig.value,
@@ -379,6 +389,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     enableEnterAnimation.value = true;
     simulateMeta.value = false;
     selectedTokenizer.value = "gpt4o";
+    profileType.value = "agent";
+    selectedProfileId.value = "";
     llmThinkRules.value = [...defaultLlmThinkRules];
     richTextStyleOptions.value = {};
     regexConfig.value = createDefaultChatRegexConfig();
@@ -468,6 +480,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       enableEnterAnimation,
       simulateMeta,
       selectedTokenizer,
+      profileType,
+      selectedProfileId,
       llmThinkRules,
       richTextStyleOptions,
       regexConfig,
@@ -511,6 +525,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     enableEnterAnimation,
     simulateMeta,
     selectedTokenizer,
+    profileType,
+    selectedProfileId,
     llmThinkRules,
     richTextStyleOptions,
     regexConfig,

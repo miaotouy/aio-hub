@@ -678,6 +678,20 @@ export interface TesterConfig {
   selectedTokenizer?: string;
   /** 正则配置 */
   regexConfig?: ChatRegexConfig;
+  /** 选中的档案类型 */
+  profileType?: "agent" | "user";
+  /** 选中的档案 ID */
+  selectedProfileId?: string;
+}
+
+/**
+ * 测试用的档案信息
+ */
+export interface TesterProfile {
+  id: string;
+  name: string;
+  avatar?: string;
+  type: "agent" | "user";
 }
 
 // ============ 样式配置相关类型 ============

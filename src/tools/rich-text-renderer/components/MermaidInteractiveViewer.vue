@@ -191,7 +191,6 @@ const viewMode = ref<"diagram" | "source" | "split">("diagram");
 // DOM 引用
 const diagramPanelRef = ref<HTMLElement | null>(null);
 const mermaidRef = ref<HTMLElement | null>(null);
-const sourceCodeRef = ref<HTMLElement | null>(null);
 
 // 状态
 const copied = ref(false);

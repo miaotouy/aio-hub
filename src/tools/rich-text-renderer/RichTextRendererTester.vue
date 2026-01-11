@@ -45,12 +45,7 @@
                   @confirm="resetToPresetContent"
                 >
                   <template #reference>
-                    <el-button
-                      size="small"
-                      :disabled="!selectedPreset"
-                    >
-                      重置
-                    </el-button>
+                    <el-button size="small" :disabled="!selectedPreset"> 重置 </el-button>
                   </template>
                 </el-popconfirm>
               </div>
@@ -127,6 +122,7 @@
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
                 :regex-rules="activeRegexRules"
+                :resolve-asset="resolveAsset"
                 :generation-meta="simulateMeta ? generationMeta : undefined"
                 :throttle-ms="throttleMs"
                 :seamless-mode="seamlessMode"
@@ -186,6 +182,12 @@ import type { StreamSource } from "./types";
 import { presets } from "./presets";
 import { useRichTextRendererStore } from "./store";
 import { storeToRefs } from "pinia";
+import { useAgentPresets } from "@/composables/useAgentPresets";
+import {
+  processMessageAssetsSync,
+  initAgentAssetCache,
+} from "@/tools/llm-chat/utils/agentAssetUtils";
+import type { ChatAgent } from "@/tools/llm-chat/types";
 import customMessage from "@/utils/customMessage";
 import MarkdownStyleEditor from "./components/style-editor/MarkdownStyleEditor.vue";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
@@ -245,10 +247,36 @@ const {
   regexConfig: storeRegexConfig,
   copyOptions,
   seamlessMode,
+  profileType,
+  selectedProfileId,
 } = storeToRefs(store);
 
 const activeRegexRules = computed(() => store.getActiveRegexRules());
 
+// Agent Presets 用于资产解析
+const { getPresetById } = useAgentPresets();
+const currentAgent = computed(() => {
+  if (profileType.value === "agent" && selectedProfileId.value) {
+    return getPresetById(selectedProfileId.value);
+  }
+  return null;
+});
+
+/**
+ /**
+  * 资产路径解析钩子
+  * 支持解析 agent-asset:// 协议，指向当前选中的 Agent 资产
+  */
+const resolveAsset = (content: string): string => {
+  if (!content) return content;
+
+  // 兼容 agent:// 前缀（测试器特有，自动转换为标准的 agent-asset://）
+  let processedContent = content.replace(/agent:\/\/([^"'\s<>\)]+)/g, "agent-asset://$1");
+
+  // 使用标准的资产解析逻辑
+  // 注意：processMessageAssetsSync 需要 ChatAgent 类型，这里进行适配
+  return processMessageAssetsSync(processedContent, currentAgent.value as unknown as ChatAgent);
+};
 // 修复 v-model 类型转换导致的构建错误
 const typedRegexConfig = computed({
   get: () => storeRegexConfig.value as ChatRegexConfig,
@@ -928,6 +956,11 @@ watch(
 
 // 组件挂载时加载配置
 onMounted(async () => {
+  // 初始化 Agent 资产缓存，以支持同步路径解析
+  initAgentAssetCache().catch((err) => {
+    console.error("Failed to init agent asset cache:", err);
+  });
+
   if (!store.isConfigLoaded) {
     isStyleLoading.value = true;
     try {
@@ -1157,7 +1190,7 @@ onMounted(async () => {
 
 /* 容器查询式响应式调整 */
 .rich-text-renderer-tester.is-narrow .config-sidebar {
-  width: 350px;
+  width: 300px;
 }
 
 .rich-text-renderer-tester.is-mobile {

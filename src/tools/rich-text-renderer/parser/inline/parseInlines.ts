@@ -364,6 +364,10 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       let tempI = i + 1;
       while (tempI < tokens.length) {
         const t = tokens[tempI];
+        // 删除线不允许跨行
+        if (t.type === "newline") {
+          break;
+        }
         if (t.type === "strikethrough_delimiter") {
           hasClosing = true;
           break;
@@ -409,6 +413,10 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       let tempI = i + 1;
       while (tempI < tokens.length) {
         const t = tokens[tempI];
+        // 下标不允许跨行
+        if (t.type === "newline") {
+          break;
+        }
         if (t.type === "subscript_delimiter") {
           hasClosing = true;
           break;
@@ -454,6 +462,10 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       let tempI = i + 1;
       while (tempI < tokens.length) {
         const t = tokens[tempI];
+        // 上标不允许跨行
+        if (t.type === "newline") {
+          break;
+        }
         if (t.type === "superscript_delimiter") {
           hasClosing = true;
           break;

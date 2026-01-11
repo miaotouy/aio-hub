@@ -1,104 +1,127 @@
-# AIO Hub 架构概览
+# AIO Hub 架构概览 (Architecture Overview)
 
-本文档提供了 AIO Hub 项目的整体架构视图，旨在帮助开发者快速理解项目的核心结构、设计理念和关键系统。
+本文档旨在详尽阐述 AIO Hub 的核心设计理念、全栈技术架构、关键子系统实现及工程化规范，为开发者提供深度的技术蓝图。
 
-## 1. 技术栈 (Tech Stack)
+---
 
-AIO Hub 是一个基于现代 Web 技术构建的高性能桌面应用。
+## 1. 项目愿景与设计理念 (Philosophy)
 
-- **核心框架**: [Tauri 2.0](https://tauri.app/) (Rust + WebView)
-  - 提供轻量级、安全的桌面运行时环境。
-  - 后端逻辑使用 **Rust** 编写，保证高性能和安全性。
-  - 前端界面使用系统原生 WebView 渲染。
-- **前端框架**: [Vue 3](https://vuejs.org/) (Composition API)
-  - 使用 `<script setup>` 语法糖，代码简洁高效。
-  - 状态管理: [Pinia](https://pinia.vuejs.org/)
-  - 路由管理: [Vue Router](https://router.vuejs.org/)
-- **开发语言**:
-  - **TypeScript**: 前端逻辑全覆盖，提供严格的类型安全。
-  - **Rust**: 后端核心服务、系统交互和计算密集型任务。
-- **构建工具**: [Vite](https://vitejs.dev/)
-- **包管理器**: [Bun](https://bun.sh/) (推荐) 或 npm/pnpm
+AIO Hub 不仅仅是一个工具集合，它是一个以开发者为中心、高度模块化且隐私优先的智能助手平台。
 
-## 2. 目录结构 (Directory Structure)
+- **离线优先 (Offline First)**: 核心能力（OCR、正则、文件处理、代码格式化）均提供本地引擎支持，确保在无网环境下依然可用，且数据不离端。
+- **透明化 (Transparency)**: 拒绝“黑盒”操作。通过全链路日志 (`logger`) 和标准化错误处理 (`errorHandler`)，让每一个任务的进度、中间结果和异常都清晰可见。
+- **插件化 (Extensibility)**: 核心功能与 UI 解耦，通过统一的服务注册机制，支持 JS、Native 和 Sidecar 插件扩展。
+- **多端对等 (Multi-Platform)**: 桌面端与移动端共享核心逻辑架构，但在 UI 交互上针对平台特性进行深度重构。
 
-项目遵循清晰的模块化结构，将前端视图、业务逻辑和底层服务分离。
+---
 
+## 2. 全栈技术栈 (Tech Stack)
+
+### 2.1 基础运行时
+
+- **框架**: [Tauri v2](https://tauri.app/) (Rust + WebView)
+  - **后端 (Rust)**: 处理文件系统、系统原生 API（如 Windows OCR）、全局输入监听 (`rdev`)、高性能计算。
+  - **前端 (Vue 3)**: 负责 UI 渲染与业务逻辑编排。
+- **包管理器**: [Bun](https://bun.sh/) (用于快速安装与脚本运行)。
+
+### 2.2 前端架构 (PC 端)
+
+- **UI 框架**: [Element Plus](https://element-plus.org/) + [lucide-vue-next](https://lucide.dev/)。
+- **状态管理**: [Pinia](https://pinia.vuejs.org/) (用于全局配置、工具状态、用户 Profile)。
+- **核心工具库**: `@vueuse/core` (响应式能力), `lodash-es` (工具函数), `markdown-it` (文档渲染)。
+
+### 2.3 前端架构 (移动端)
+
+- **UI 框架**: [@varlet/ui](https://varlet.gitee.io/varlet-ui/) (Material Design 3 风格)。
+- **设计原则**: 逻辑函数化 (Functional Core)，减少对 Vue 生命周期钩子的重度依赖，便于逻辑在多端间复用。
+
+---
+
+## 3. 核心子系统架构 (Core Subsystems)
+
+### 3.1 统一执行器与服务注册 (Unified Executor & Registry)
+
+项目采用高度解耦的服务化架构，通过 `src/services/` 建立了一套标准化的工具间通信机制。
+
+- **统一执行器 (Executor)**: 位于 `src/services/executor.ts`，是 UI 层与业务逻辑层的核心桥梁。通过发送 `ToolCall` 请求并返回 `ServiceResult`，实现调用者与实现者的彻底解耦。支持开发模式下的 `-dev` 实例自动路由。
+- **自动扫描注册**: `src/services/auto-register.ts` 利用 Vite 的 `import.meta.glob` 机制，自动扫描 `src/tools/` 目录下所有 `.registry.ts` 结尾的模块。
+- **工具外观模式 (Registry Pattern)**: 每个复杂工具都通过 Registry 类暴露其编程接口（如 `sendMessage`），实现“工具即服务”。
+
+### 3.2 插件化适配器架构 (Plugin Adapter Architecture)
+
+系统通过三层适配器模式满足不同场景的扩展需求，统一包装为 `PluginProxy`：
+
+- **JS Adapter**: 处理 ESM 动态导入的前端逻辑，支持 `logicHook` 注入。
+- **Native Adapter**: 桥接 Rust 编写的原生插件能力。
+- **Sidecar Adapter**: 管理独立的二进制子进程（如 Python/Go 程序），通过标准 IO 或网络协议通信。
+
+### 3.3 LLM 基础设施 (LLM Infrastructure)
+
+- **多模态协议栈**: 统一的 `LlmMessageContent` 协议，原生支持文本、图像、音频、视频及 PDF 文档的混合输入。针对不同厂商（如 Gemini 视频采样、Claude Files API）进行深度适配。
+- **深度思考与推理 (Reasoning)**:
+  - **双流并行**: 全链路支持 `Content` 与 `Reasoning` (思考流) 独立解析，适配 DeepSeek R1、OpenAI o-series、Gemini Thinking 等推理模型。
+  - **精细化控制**: 针对不同架构提供 `Thinking Budget` (Token 限制) 或 `Reasoning Effort` (强度等级) 的自适应配置。
+- **能力感知参数过滤**: 具备模型能力 (Capabilities) 感知，根据模型是否支持 Vision、Tool Use、FIM 等特性自动过滤/降级请求参数，确保 API 调用稳定性。
+- **增强特性**:
+  - **前缀续写 (Prefill)**: 支持 Claude/DeepSeek 的 Assistant 消息续写，实现引导式生成。
+  - **Responses 有状态 API**: 适配 OpenAI 新一代 Responses 接口，内置联网搜索与文件检索增强。
+- **高可用 Key 调度**: 内置多 Key 轮询与健康状态检测，具备自动熔断与成功率反馈机制。
+
+### 3.4 跨窗口分离架构 (Window Detachment Architecture)
+
+项目通过独立的根容器组件实现窗口分离，避免在 `App.vue` 中进行复杂的环境判断：
+
+- **分离容器 (Views)**:
+  - **工具分离**: 由 `src/views/DetachedWindowContainer.vue` 承载，根据路由参数动态加载工具组件。
+  - **组件分离**: 由 `src/views/DetachedComponentContainer.vue` 承载，实现 UI 片段（如 ChatArea）的透明悬浮。
+- **状态同步与生命周期**:
+  - **预览与固化**: 窗口在拖拽过程中处于 `isPreview` 预览状态，通过 `finalize_detach_session` 固化为最终模式。
+  - **Window Sync Bus**: 提供基于 Tauri Event 的跨窗口同步总线，负责握手、全量状态同步及增量 Patch 更新。
+  - **逻辑挂载**: 通过 `logicHook` 和 `initializeEnvironment` 确保分离窗口拥有与主窗口一致的业务逻辑上下文。
+
+### 3.5 主题与质感系统 (Theme Appearance)
+
+- **多层级视觉引擎**:
+  - **原生融合**: 深度集成 Windows Mica/Acrylic 和 macOS Vibrancy 效果。
+  - **毛玻璃特效 (Glassmorphism)**: 通过 `backdrop-filter` 与动态 CSS 变量 (`--ui-blur`, `--card-opacity`) 实现细腻的通透感。
+- **智能壁纸系统**:
+  - **全场景适配**: 支持静态壁纸、目录轮播及内置精选库。
+  - **色彩算法**: 内置智能取色引擎，根据壁纸主色调自动计算并注入 UI 叠加色（Overlay），确保视觉一致性且不“刺眼”。
+- **高度定制化 (Custom CSS)**:
+  - **运行时覆盖**: 支持用户编写自定义 CSS 片段或使用内置预设（如“赛博朋克”、“复古终端”），实现 UI 的深度重塑。
+
+---
+
+## 4. 目录结构与模块组织 (Directory Structure)
+
+```text
+all-in-one-tools/
+├── src/                    # PC 端前端源码
+│   ├── tools/              # 工具特区：包含工具组件、Store 及 `.registry.ts` 服务定义
+│   ├── services/           # 核心基础设施：执行器、适配器、注册表、插件管理
+│   ├── llm-apis/           # LLM 适配层：统一协议转换与厂商适配
+│   ├── composables/        # 组合式逻辑：跨窗口分离、资产管理、主题系统等
+│   ├── config/             # 全局配置与 Agent 预设 (YAML/JSON)
+│   ├── views/              # 顶层视图容器：主窗口及各类分离窗口容器
+│   ├── components/         # 通用 UI 组件库 (common/icons)
+│   └── stores/             # 全局状态管理 (Pinia)
+├── mobile/                 # 移动端项目 (Vue 3 + Varlet + Tauri)
+│   ├── src/tools/          # 移动端适配工具 (llm-api, llm-chat 等)
+│   └── src/utils/          # 移动端基础设施 (与 PC 端接口对齐)
+├── src-tauri/              # Rust 核心：命令定义 (commands/)、系统集成、插件载体
+├── plugins/                # 外部插件存放目录
+├── docs/                   # 深度文档库
+│   ├── architecture/       # 子系统详细设计 (Sync, Theme, LLM)
+│   ├── design/             # 功能 RFC 与草案
+│   └── guide/              # 开发者上手指南
+└── scripts/                # 自动化脚本：i18n 检查、便携版构建等
 ```
-e:/rc20/allinweb/all-in-one-tools/
-├── src/
-│   ├── tools/              # 工具模块 (核心业务)
-│   │   ├── llm-chat/       # 示例: LLM 对话工具
-│   │   ├── smart-ocr/      # 示例: 智能 OCR 工具
-│   │   └── ...             # 每个工具都是一个独立的模块
-│   ├── services/           # 核心服务层 (插件、执行器、注册表)
-│   ├── llm-apis/           # LLM API 适配层 (OpenAI, Claude, Gemini 等)
-│   ├── composables/        # 组合式函数 (业务逻辑复用)
-│   ├── components/         # 通用 UI 组件
-│   ├── stores/             # Pinia 全局状态
-│   ├── views/              # 应用级页面 (设置、主页等)
-│   ├── router/             # 路由配置
-│   ├── styles/             # 全局样式和主题定义
-│   ├── utils/              # 工具函数
-│   ├── types/              # TypeScript 类型定义
-│   ├── config/             # 静态配置
-│   ├── App.vue             # 根组件
-│   └── main.ts             # 入口文件
-├── src-tauri/              # Tauri 后端 (Rust 代码)
-├── plugins/                # 插件目录 (JS/Native/Sidecar 插件)
-├── docs/                   # 项目文档
-│   ├── architecture/       # 架构文档
-│   ├── design/             # 设计文档
-│   └── guide/              # 开发指南
-└── ...
-```
 
-### 2.1 工具模块化设计 (`src/tools/`)
+---
 
-每个工具（如 `llm-chat`, `smart-ocr`）都被设计为相对独立的模块，通常包含：
-- `ToolName.vue`: 工具入口组件（例如 `LlmChat.vue`, `SmartOcr.vue`），**避免使用 `index.vue`** 以便在编辑器标签页中快速识别。
-- `components/`: 工具私有组件
-- `composables/`: 工具私有逻辑
-- `ARCHITECTURE.md`: 工具特定的架构文档 (强烈推荐)
+## 5. 开发者导航 (Navigation)
 
-这种设计使得工具易于维护、测试和迁移。
-
-## 3. 核心设计理念
-
-### 3.1 工具离线化 (Offline First)
-优先保证核心工具的离线可用性。除了 LLM 对话等必须联网的功能外，文件处理、OCR（本地引擎）、Git 分析等功能应尽量在本地完成，减少对网络的依赖，确保数据安全和响应速度。
-
-### 3.2 透明化与人性化 (Transparent & Human-Centric)
-工具不应是黑盒。我们致力于让工具的运行过程对用户可见（例如显示详细的日志、进度和中间结果），并提供直观的 UI 让用户干预。AI 是增强人类能力的助手，而非替代者。
-
-### 3.3 插件化架构 (Plugin Architecture)
-核心功能通过服务注册表 (`registry.ts`) 暴露，允许通过插件系统扩展应用能力。无论是内部工具还是第三方插件，都通过统一的接口进行交互。
-
-## 4. 关键系统概览
-
-### 4.1 服务与插件系统
-- **服务注册表**: 统一管理应用提供的各种能力（如 OCR、文件处理）。
-- **插件支持**: 支持 JavaScript (UI/逻辑)、Native (Rust DLL) 和 Sidecar (独立进程) 三种类型的插件。
-- **文档**: [服务架构文档](docs/architecture/services-architecture.md)
-
-### 4.2 LLM 多模型集成
-- **统一适配器**: 通过 `llm-apis` 层屏蔽了不同 LLM 供应商（OpenAI, Claude, Gemini 等）的接口差异。
-- **流式响应**: 全链路支持流式输出，提供打字机般的流畅体验。
-- **文档**: [LLM API 架构文档](docs/architecture/llm-apis-architecture.md)
-
-### 4.3 窗口分离与状态同步
-- **自由布局**: 支持将聊天窗口、工具面板拖拽分离为独立窗口。
-- **多源同步**: 采用基于 Bus 的状态同步机制，支持主窗口与分离窗口、分离窗口与分离窗口之间的数据实时同步。
-- **文档**: [窗口同步架构文档](docs/architecture/window-sync-architecture.md)
-
-### 4.4 主题与外观系统
-- **原生融合**: 支持 Windows Mica / macOS Vibrancy 等原生毛玻璃特效。
-- **深度定制**: 提供 CSS 变量级的主题定制能力和动态壁纸系统。
-- **文档**: [主题系统架构文档](docs/architecture/theme-system-architecture.md)
-
-## 5. 开发指南导航
-
-- **添加新工具**: [新工具开发指南](docs/guide/adding-new-tool.md)
-- **开发插件**: [插件开发指南](docs/guide/plugin-development-guide.md)
-- **UI 开发**: [插件 UI 开发指南](docs/guide/plugin-ui-development-guide.md)
-- **状态管理**: [状态管理指南](docs/guide/state-management-guide.md)
+- 想要了解如何开发新工具？请参考 [新工具开发指南](docs/guide/adding-new-tool.md)。
+- 对插件系统感兴趣？阅读 [插件开发深度手册](docs/guide/plugin-development-guide.md)。
+- 需要处理窗口分离？查看 [窗口同步技术内幕](docs/architecture/window-sync-architecture.md)。
+- 关于日志与错误处理的细节？参见 [日志与错误处理规范](docs/guide/logging-error-handling.md)。

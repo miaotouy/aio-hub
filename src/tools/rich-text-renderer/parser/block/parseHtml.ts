@@ -165,6 +165,13 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
   // 预处理所有文本 token 进行反转义
   const processedTokens = tokens.map(t => t.type === 'text' ? { ...t, content: decodeHtmlEntities(t.content) } : t);
 
+  // 检查是否在 SVG 上下文中 (简单启发式：首个标签是 svg)
+  const isSvgContext = processedTokens.some(t => t.type === 'html_open' && t.tagName === 'svg')
+    || processedTokens.some(t => t.type === 'html_close' && t.tagName === 'svg');
+
+  // 检查是否在表格上下文中 (避免在 <td> 内部产生不必要的段落)
+  const isTableContext = processedTokens.some(t => t.type === 'html_open' && (t.tagName === 'td' || t.tagName === 'th'));
+
   const nodes: AstNode[] = [];
   let i = 0;
 
@@ -178,8 +185,12 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
     }
 
     if (token.type === "text" && /^\s+$/.test(token.content)) {
-      i++;
-      continue;
+      // 在 SVG 上下文中，标签间的空白通常是由于格式化产生的，应忽略
+      // 在表格上下文中，某些标签间的空白也可以忽略以保持布局紧凑
+      if (isSvgContext || isTableContext) {
+        i++;
+        continue;
+      }
     }
 
     // 跳过 HTML 注释

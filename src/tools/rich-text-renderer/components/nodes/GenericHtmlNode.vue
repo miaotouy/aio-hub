@@ -1,5 +1,17 @@
 <template>
+  <!-- 如果是 SVG 标签，不使用 div 包装，直接渲染组件以保持 SVG 结构合法性 -->
+  <component
+    v-if="isSvgTag"
+    :is="safeTagName"
+    v-bind="filteredAttributes"
+    :class="computedClass"
+    :data-node-id="nodeId"
+  >
+    <slot />
+  </component>
+
   <div
+    v-else
     class="generic-node-wrapper"
     :class="{ 'has-hidden-audio': isHiddenAudio, 'is-transparent': !isHiddenAudio }"
   >
@@ -112,6 +124,31 @@ const audioDisplayName = computed(() => {
 
 // 判定是否为音频标签
 const isAudio = computed(() => props.tagName.toLowerCase() === "audio");
+
+// 判定是否为 SVG 相关标签
+const isSvgTag = computed(() => {
+  const tag = props.tagName.toLowerCase();
+  return [
+    "svg",
+    "circle",
+    "ellipse",
+    "line",
+    "path",
+    "polygon",
+    "polyline",
+    "rect",
+    "text",
+    "g",
+    "defs",
+    "symbol",
+    "use",
+    "animate",
+    "animateTransform",
+    "animateMotion",
+    "mpath",
+    "set",
+  ].includes(tag);
+});
 
 // 判定是否为“隐形”音频 (导致用户无法控制)
 const isHiddenAudio = computed(() => {

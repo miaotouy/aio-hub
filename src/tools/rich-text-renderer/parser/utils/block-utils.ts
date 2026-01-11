@@ -45,6 +45,25 @@ export const BLOCK_LEVEL_TAGS = new Set([
   "tr",
   "th",
   "td",
+  // SVG 标签 (SVG 内部元素应作为块级处理以保持结构)
+  "svg",
+  "circle",
+  "ellipse",
+  "line",
+  "path",
+  "polygon",
+  "polyline",
+  "rect",
+  "text",
+  "g",
+  "defs",
+  "symbol",
+  "use",
+  "animate",
+  "animateTransform",
+  "animateMotion",
+  "mpath",
+  "set",
 ]);
 
 export function isBlockLevelTag(tagName: string): boolean {

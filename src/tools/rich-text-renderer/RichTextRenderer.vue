@@ -14,6 +14,7 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, watch, ref, computed, provide } from "vue";
+import { throttle } from "lodash-es";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
 import { StreamProcessor } from "./StreamProcessor";
@@ -161,12 +162,30 @@ const extractImages = (nodes: AstNode[]): string[] => {
   return images;
 };
 
+/**
+ * 节流版的图片提取函数
+ * 避免在流式输出过程中频繁深度遍历 AST 导致性能下降
+ */
+const throttledUpdateImageList = throttle(
+  (nodes: AstNode[]) => {
+    imageList.value = extractImages(nodes);
+  },
+  1000,
+  { leading: true, trailing: true }
+);
+
 // 监听 AST 变化，更新图片列表
 watch(
   ast,
   (newAst) => {
     if (useAstRenderer.value) {
-      imageList.value = extractImages(newAst);
+      // 在流式传输中，使用节流更新
+      if (props.isStreaming) {
+        throttledUpdateImageList(newAst);
+      } else {
+        // 非流式状态下，立即更新一次以确保准确性
+        imageList.value = extractImages(newAst);
+      }
     }
   },
   { deep: true }
@@ -418,6 +437,20 @@ defineExpose({
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);
+}
+
+/* 块级节点渲染优化：出视口不渲染 */
+:deep(.rich-text-block) {
+  /*
+     使用 content-visibility: auto 让浏览器跳过不在视口内的节点渲染。
+     这能极大提升长消息列表的滚动性能。
+  */
+  content-visibility: auto;
+  /*
+     配合 contain-intrinsic-size 防止滚动条因高度塌陷而跳动。
+     这里给一个通用的预估高度。
+  */
+  contain-intrinsic-size: auto 40px;
 }
 
 /* 节点进入动画：淡入+轻微下移 */

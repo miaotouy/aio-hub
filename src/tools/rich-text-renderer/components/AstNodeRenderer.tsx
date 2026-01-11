@@ -85,13 +85,33 @@ const componentMap: Record<string, any> = {
  * 这些节点需要在流式输出时立即显示，而不是等内容完成后才显示
  */
 const NO_ANIMATION_NODE_TYPES = new Set([
-  'llm_think',    // 思考节点需要立即显示，内容逐渐填充
-  'code_block',   // 代码块需要立即显示
-  'mermaid',      // Mermaid 图表需要立即显示
-  'vcp_tool',     // VCP 工具请求需要立即显示
+  "llm_think", // 思考节点需要立即显示，内容逐渐填充
+  "code_block", // 代码块需要立即显示
+  "mermaid", // Mermaid 图表需要立即显示
+  "vcp_tool", // VCP 工具请求需要立即显示
   // 'katex_block',  // KaTeX 渲染的数学公式块
-  'html_block',   // 原始 HTML 块，可能包含自己的动画
-  'image',        // 图片有自己的加载效果，不应被干扰
+  "html_block", // 原始 HTML 块，可能包含自己的动画
+  "image", // 图片有自己的加载效果，不应被干扰
+]);
+
+/**
+ * 块级节点类型集合
+ * 这些节点可以应用 content-visibility: auto 优化渲染性能
+ */
+const BLOCK_NODE_TYPES = new Set([
+  "paragraph",
+  "heading",
+  "code_block",
+  "mermaid",
+  "llm_think",
+  "list",
+  "blockquote",
+  "alert",
+  "hr",
+  "html_block",
+  "table",
+  "katex_block",
+  "vcp_tool",
 ]);
 
 /**
@@ -110,8 +130,8 @@ const FallbackNode = defineComponent({
 });
 
 /**
-  * AST 节点渲染器组件
-  */
+ * AST 节点渲染器组件
+ */
 const AstNodeRenderer = defineComponent({
   name: "AstNodeRenderer",
   props: {
@@ -142,31 +162,34 @@ const AstNodeRenderer = defineComponent({
           : undefined;
 
         // 根据节点类型决定是否应用动画
-        const shouldAnimate =
-          props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
+        const shouldAnimate = props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
+
+        // 识别块级节点以应用性能优化
+        const isBlock = BLOCK_NODE_TYPES.has(node.type);
 
         // 为 KaTeX 节点添加 displayMode 属性
         const componentProps: any = {
           key: node.id,
           nodeId: node.id,
-          'data-node-status': node.meta.status,
-          class: shouldAnimate ? 'rich-text-node' : undefined, // 条件添加动画类名
+          "data-node-status": node.meta.status,
+          class: [
+            shouldAnimate ? "rich-text-node" : undefined,
+            isBlock ? "rich-text-block" : undefined,
+          ]
+            .filter(Boolean)
+            .join(" "),
           ...node.props,
           generationMeta: props.generationMeta,
         };
 
         // 根据节点类型设置 displayMode
-        if (node.type === 'katex_block') {
+        if (node.type === "katex_block") {
           componentProps.displayMode = true;
-        } else if (node.type === 'katex_inline') {
+        } else if (node.type === "katex_inline") {
           componentProps.displayMode = false;
         }
 
-        return h(
-          NodeComponent,
-          componentProps,
-          children ? () => children : undefined
-        );
+        return h(NodeComponent, componentProps, children ? () => children : undefined);
       });
     };
   },

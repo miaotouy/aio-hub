@@ -861,7 +861,9 @@ fn generate_image_thumbnail(
         return Ok(None);
     }
 
-    let thumbnail = img.thumbnail(400, 400);
+    // 使用 resize_to_fill 替代 thumbnail
+    // 它会自动按比例缩放并从中间裁剪，确保输出正好是 400x400
+    let thumbnail = img.resize_to_fill(400, 400, image::imageops::FilterType::Lanczos3);
 
     let thumbnail_relative = format!(".thumbnails/{}.jpg", uuid);
     let thumbnail_path = base_dir.join(&thumbnail_relative);
@@ -969,7 +971,13 @@ fn generate_audio_thumbnail(
     };
 
     // 生成缩略图
-    let thumbnail = img.thumbnail(400, 400);
+    // 如果图片已经很小了，没必要生成缩略图
+    if img.width() <= 400 && img.height() <= 400 {
+        return Ok(None);
+    }
+
+    // 使用 resize_to_fill 确保音频封面也是规整的正方形且不模糊
+    let thumbnail = img.resize_to_fill(400, 400, image::imageops::FilterType::Lanczos3);
 
     let thumbnail_relative = format!(".thumbnails/{}.jpg", uuid);
     let thumbnail_path = base_dir.join(&thumbnail_relative);

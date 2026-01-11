@@ -244,7 +244,7 @@ const createProcessor = (version: RendererVersion) => {
 };
 
 // 当前使用的流式处理器（仅 AST 模式）
-const streamProcessor = ref<StreamProcessor | StreamProcessorV2 | null>(null);
+const streamProcessor = ref<any>(null);
 
 let unsubscribe: (() => void) | null = null;
 let unsubscribeComplete: (() => void) | null = null;
@@ -298,13 +298,12 @@ watch(
       if (!streamProcessor.value) {
         streamProcessor.value = createProcessor(props.version);
       }
-      streamProcessor.value.reset();
-      streamProcessor.value.process(newContent);
-
-      // 只有在非流式状态下才 finalize（finalize 会强制结束思考状态）
-      if (!props.isStreaming) {
-        streamProcessor.value.finalize();
-      }
+      streamProcessor.value.setContent(newContent).then(() => {
+        // 只有在非流式状态下才 finalize（finalize 会强制结束思考状态）
+        if (!props.isStreaming) {
+          streamProcessor.value?.finalize();
+        }
+      });
     } else {
       // 纯 markdown-it：直接全量渲染
       htmlContent.value = md.render(newContent);
@@ -333,10 +332,11 @@ watch(
 
     if (useAstRenderer.value) {
       // AST 模式
-      streamProcessor.value = createProcessor(newVersion);
-      streamProcessor.value.reset();
-      streamProcessor.value.process(props.content);
-      streamProcessor.value.finalize();
+      const processor = createProcessor(newVersion);
+      streamProcessor.value = processor;
+      processor.setContent(props.content).then(() => {
+        processor.finalize();
+      });
     } else {
       // 纯渲染模式
       streamProcessor.value = null;
@@ -400,10 +400,9 @@ onMounted(() => {
     }
 
     if (useAstRenderer.value) {
-      // 对于流式数据，每次都重置并处理整个应用了正则的缓冲区
+      // 对于流式数据，每次都处理整个应用了正则的缓冲区
       // StreamProcessor 的 diff 机制和 useMarkdownAst 的节流会处理性能问题
-      streamProcessor.value?.reset();
-      streamProcessor.value?.process(bufferToProcess);
+      streamProcessor.value?.setContent(bufferToProcess);
     } else {
       // 纯 markdown-it：每次全量重渲染
       htmlContent.value = md.render(bufferToProcess);

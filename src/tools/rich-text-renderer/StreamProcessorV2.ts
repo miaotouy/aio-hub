@@ -301,19 +301,32 @@ export class StreamProcessorV2 {
     return `node-v2-${this.nodeIdCounter++}`;
   }
 
+  private isProcessing = false;
+  private pendingBuffer: string | null = null;
+  private resolveProcessing: (() => void) | null = null;
+
   /**
    * 处理新的文本块
    */
-  process(chunk: string): void {
+  async process(chunk: string): Promise<void> {
     this.buffer += chunk;
-    this.processIncremental();
+    await this.processIncremental();
+  }
+
+  /**
+   * 设置完整内容并触发解析。
+   * 适用于流式源订阅中每次都应用正则后的全量更新。
+   */
+  public async setContent(content: string): Promise<void> {
+    this.buffer = content;
+    await this.processIncremental();
   }
 
   /**
    * 结束流式处理
    */
-  finalize(): void {
-    this.processComplete();
+  async finalize(): Promise<void> {
+    await this.processComplete();
   }
 
   /**
@@ -327,44 +340,68 @@ export class StreamProcessorV2 {
    *
    * 这样可以确保节点从待定区转移到稳定区时，ID 能被正确保留
    */
-  private processIncremental(): void {
-    // 1. 划分稳定区和待定区
-    const { stable: stableText, pending: pendingText } = this.boundaryDetector.splitByBlockBoundary(
-      this.buffer
-    );
+  private async processIncremental(): Promise<void> {
+    if (this.isProcessing) {
+      // 如果正在处理中，则记录当前 buffer，等处理完后再运行一次最新的
+      this.pendingBuffer = this.buffer;
+      return;
+    }
 
-    // 2. 解析稳定区
-    this.parser.reset();
-    const newStableAst = this.parser.parse(stableText);
+    try {
+      this.isProcessing = true;
+      while (true) {
+        // 1. 划分稳定区和待定区
+        const { stable: stableText, pending: pendingText } =
+          this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
-    // 3. 解析待定区
-    this.parser.reset();
-    const newPendingAst = this.parser.parse(pendingText);
+        // 2. 解析稳定区 (异步分词)
+        this.parser.reset();
+        const newStableAst = await this.parser.parseAsync(stableText);
 
-    // 4. 合并当前的完整状态树（旧状态）
-    const currentFullAst = [...this.stableAst, ...this.pendingAst];
+        // 3. 解析待定区 (异步分词)
+        this.parser.reset();
+        const newPendingAst = await this.parser.parseAsync(pendingText);
 
-    // 5. 合并新的完整状态树（新状态）
-    const newFullAst = [...newStableAst, ...newPendingAst];
+        // 4. 合并当前的完整状态树（旧状态）
+        const currentFullAst = [...this.stableAst, ...this.pendingAst];
 
-    // 6. 关键：在 diff 之前完成所有 ID 分配
-    // 首先为新节点分配临时 ID（如果没有的话）
-    this.assignIds(newFullAst);
+        // 5. 合并新的完整状态树（新状态）
+        const newFullAst = [...newStableAst, ...newPendingAst];
 
-    // 7. 标记节点状态
-    this.markNodesStatus(newStableAst, "stable");
-    this.markNodesStatus(newPendingAst, "pending");
+        // 6. 关键：在 diff 之前完成所有 ID 分配
+        // 首先为新节点分配临时 ID（如果没有的话）
+        this.assignIds(newFullAst);
 
-    // 8. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
-    const patches = this.diffAst(currentFullAst, newFullAst);
+        // 7. 标记节点状态
+        this.markNodesStatus(newStableAst, "stable");
+        this.markNodesStatus(newPendingAst, "pending");
 
-    // 9. 更新状态
-    this.stableAst = newStableAst;
-    this.pendingAst = newPendingAst;
+        // 8. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
+        const patches = this.diffAst(currentFullAst, newFullAst);
 
-    // 10. 发送变更
-    if (patches.length > 0) {
-      this.onPatch(patches);
+        // 9. 更新状态
+        this.stableAst = newStableAst;
+        this.pendingAst = newPendingAst;
+
+        // 10. 发送变更
+        if (patches.length > 0) {
+          this.onPatch(patches);
+        }
+
+        // 检查是否有新的待处理内容
+        if (this.pendingBuffer !== null) {
+          this.buffer = this.pendingBuffer;
+          this.pendingBuffer = null;
+          continue;
+        }
+        break;
+      }
+    } finally {
+      this.isProcessing = false;
+      if (this.resolveProcessing) {
+        this.resolveProcessing();
+        this.resolveProcessing = null;
+      }
     }
   }
   /**
@@ -373,31 +410,50 @@ export class StreamProcessorV2 {
    * 在流结束时，将整个 buffer 作为最终内容重新解析，
    * 然后与当前的 AST 进行 diff，确保正确处理节点合并等情况
    */
-  private processComplete(): void {
-    // 将整个 buffer 作为最终内容重新解析
-    this.parser.reset();
-    const finalAst = this.parser.parse(this.buffer);
+  private async processComplete(): Promise<void> {
+    if (this.isProcessing) {
+      // 如果正在处理中，创建一个 Promise 等待它结束
+      if (!this.resolveProcessing) {
+        const processingPromise = new Promise<void>((resolve) => {
+          this.resolveProcessing = resolve;
+        });
+        // 增加超时保护，防止死等
+        await Promise.race([
+          processingPromise,
+          new Promise((resolve) => setTimeout(resolve, 1000)),
+        ]);
+      }
+    }
 
-    // 保留现有节点的 ID
-    const currentFullAst = [...this.stableAst, ...this.pendingAst];
+    try {
+      this.isProcessing = true;
+      // 将整个 buffer 作为最终内容重新解析
+      this.parser.reset();
+      const finalAst = await this.parser.parseAsync(this.buffer);
 
-    // 分配 ID（diff 内部会处理 ID 保留）
-    this.assignIds(finalAst);
-    this.markNodesStatus(finalAst, "stable");
+      // 保留现有节点的 ID
+      const currentFullAst = [...this.stableAst, ...this.pendingAst];
 
-    // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
-    this.forceStopThinking(finalAst);
+      // 分配 ID（diff 内部会处理 ID 保留）
+      this.assignIds(finalAst);
+      this.markNodesStatus(finalAst, "stable");
 
-    // 计算 diff
-    const patches = this.diffAst(currentFullAst, finalAst);
+      // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
+      this.forceStopThinking(finalAst);
 
-    // 更新状态
-    this.stableAst = finalAst;
-    this.pendingAst = [];
+      // 计算 diff
+      const patches = this.diffAst(currentFullAst, finalAst);
 
-    // 发送变更
-    if (patches.length > 0) {
-      this.onPatch(patches);
+      // 更新状态
+      this.stableAst = finalAst;
+      this.pendingAst = [];
+
+      // 发送变更
+      if (patches.length > 0) {
+        this.onPatch(patches);
+      }
+    } finally {
+      this.isProcessing = false;
     }
   }
 

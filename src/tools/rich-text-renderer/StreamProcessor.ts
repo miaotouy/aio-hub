@@ -185,6 +185,9 @@ export class StreamProcessor {
   private stableAst: AstNode[] = [];      // 已稳定的节点
   private pendingAst: AstNode[] = [];     // 上次解析的待定区 AST
   private stableTextLength = 0;          // 已稳定文本的长度
+  private isProcessing = false;
+  private pendingBuffer: string | null = null;
+  private resolveProcessing: (() => void) | null = null;
 
   constructor(options: StreamProcessorOptions) {
     this.onPatch = options.onPatch;
@@ -212,77 +215,127 @@ export class StreamProcessor {
     return `node-${this.nodeIdCounter++}`;
   }
 
-  process(chunk: string): void {
+  async process(chunk: string): Promise<void> {
     this.buffer += chunk;
-    this.processIncremental();
+    await this.processIncremental();
+  }
+
+  /**
+   * 设置完整内容并触发解析。
+   * 适用于流式源订阅中每次都应用正则后的全量更新。
+   */
+  public async setContent(content: string): Promise<void> {
+    this.buffer = content;
+    await this.processIncremental();
   }
 
   /**
    * 结束流式处理。
    * 这会处理缓冲区中剩余的任何内容，并确保所有节点都处于稳定状态。
    */
-  finalize(): void {
-    this.processComplete();
+  async finalize(): Promise<void> {
+    await this.processComplete();
   }
 
-  private processComplete(): void {
-    const finalAst = this.parseMarkdown(this.buffer);
-    this.assignIds(finalAst);
-    this.markNodesStatus(finalAst, 'stable');
-
-    // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
-    this.forceStopThinking(finalAst);
-
-    const currentAst = [...this.stableAst, ...this.pendingAst];
-    this.preserveExistingIds(finalAst, currentAst);
-
-    const patches = this.diffAst(currentAst, finalAst);
-
-    if (patches.length > 0) {
-      this.onPatch(patches);
-    } else if (currentAst.length === 0 && finalAst.length > 0) {
-      // 首次解析，直接替换根
-      this.onPatch([{ op: 'replace-root', newRoot: finalAst }]);
+  private async processComplete(): Promise<void> {
+    if (this.isProcessing) {
+      if (!this.resolveProcessing) {
+        const processingPromise = new Promise<void>((resolve) => {
+          this.resolveProcessing = resolve;
+        });
+        await Promise.race([
+          processingPromise,
+          new Promise((resolve) => setTimeout(resolve, 1000)),
+        ]);
+      }
     }
 
-    // 标记所有为稳定
-    this.stableAst = finalAst;
-    this.pendingAst = [];
-    this.stableTextLength = this.buffer.length;
+    this.isProcessing = true;
+    try {
+      const finalAst = this.parseMarkdown(this.buffer);
+      this.assignIds(finalAst);
+      this.markNodesStatus(finalAst, 'stable');
+
+      // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
+      this.forceStopThinking(finalAst);
+
+      const currentAst = [...this.stableAst, ...this.pendingAst];
+      this.preserveExistingIds(finalAst, currentAst);
+
+      const patches = this.diffAst(currentAst, finalAst);
+
+      if (patches.length > 0) {
+        this.onPatch(patches);
+      } else if (currentAst.length === 0 && finalAst.length > 0) {
+        // 首次解析，直接替换根
+        this.onPatch([{ op: 'replace-root', newRoot: finalAst }]);
+      }
+
+      // 标记所有为稳定
+      this.stableAst = finalAst;
+      this.pendingAst = [];
+      this.stableTextLength = this.buffer.length;
+    } finally {
+      this.isProcessing = false;
+    }
   }
 
-  private processIncremental(): void {
-    const allPatches: Patch[] = [];
-
-    // 1. 划分稳定区和待定区
-    const { stable: stableText, pending: pendingText } = this.boundaryDetector.splitByBlockBoundary(this.buffer);
-
-    // 2. 处理稳定区 (如果有新的稳定内容)
-    if (stableText.length > this.stableTextLength) {
-      const newStableAst = this.parseMarkdown(stableText);
-      this.assignIds(newStableAst);
-      this.markNodesStatus(newStableAst, 'stable');
-      this.preserveExistingIds(newStableAst, this.stableAst);
-
-      const stablePatches = this.diffAst(this.stableAst, newStableAst);
-      allPatches.push(...stablePatches);
-
-      this.stableAst = newStableAst;
-      this.stableTextLength = stableText.length;
+  private async processIncremental(): Promise<void> {
+    if (this.isProcessing) {
+      this.pendingBuffer = this.buffer;
+      return;
     }
 
-    // 3. 处理待定区 (全量替换)
-    const newPendingAst = this.parseMarkdown(pendingText);
-    this.assignIds(newPendingAst);
-    this.markNodesStatus(newPendingAst, 'pending');
+    try {
+      this.isProcessing = true;
+      while (true) {
+        const allPatches: Patch[] = [];
 
-    const pendingPatches = this.replacePendingRegion(this.pendingAst, newPendingAst);
-    allPatches.push(...pendingPatches);
-    this.pendingAst = newPendingAst;
+        // 1. 划分稳定区和待定区
+        const { stable: stableText, pending: pendingText } =
+          this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
-    // 4. 统一发送所有变更
-    if (allPatches.length > 0) {
-      this.onPatch(allPatches);
+        // 2. 处理稳定区 (如果有新的稳定内容)
+        if (stableText.length > this.stableTextLength) {
+          const newStableAst = this.parseMarkdown(stableText);
+          this.assignIds(newStableAst);
+          this.markNodesStatus(newStableAst, "stable");
+          this.preserveExistingIds(newStableAst, this.stableAst);
+
+          const stablePatches = this.diffAst(this.stableAst, newStableAst);
+          allPatches.push(...stablePatches);
+
+          this.stableAst = newStableAst;
+          this.stableTextLength = stableText.length;
+        }
+
+        // 3. 处理待定区 (全量替换)
+        const newPendingAst = this.parseMarkdown(pendingText);
+        this.assignIds(newPendingAst);
+        this.markNodesStatus(newPendingAst, "pending");
+
+        const pendingPatches = this.replacePendingRegion(this.pendingAst, newPendingAst);
+        allPatches.push(...pendingPatches);
+        this.pendingAst = newPendingAst;
+
+        // 4. 统一发送所有变更
+        if (allPatches.length > 0) {
+          this.onPatch(allPatches);
+        }
+
+        if (this.pendingBuffer !== null) {
+          this.buffer = this.pendingBuffer;
+          this.pendingBuffer = null;
+          continue;
+        }
+        break;
+      }
+    } finally {
+      this.isProcessing = false;
+      if (this.resolveProcessing) {
+        this.resolveProcessing();
+        this.resolveProcessing = null;
+      }
     }
   }
 

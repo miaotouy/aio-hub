@@ -15,6 +15,7 @@ import type {
   LlmThinkRule,
 } from "./types";
 import { Tokenizer } from "./parser/Tokenizer";
+import { tokenizerService } from "./parser/tokenizerService";
 import { Token, ParserContext, ParserOptions } from "./parser/types";
 import { optimizeBadgeLineBreaks } from "./parser/utils/text-utils";
 import { isTableStart, BLOCK_LEVEL_TAGS } from "./parser/utils/block-utils";
@@ -54,13 +55,27 @@ export class CustomParser implements ParserContext {
   }
 
   /**
-   * 解析完整的 Markdown 文本
+   * 解析完整的 Markdown 文本 (同步版本)
    */
   public parse(text: string): AstNode[] {
     if (!text) return [];
 
     const tokenizer = new Tokenizer();
     const tokens = tokenizer.tokenize(text);
+
+    const blocks = this.parseBlocks(tokens);
+
+    // 优化徽章之间的换行
+    return optimizeBadgeLineBreaks(blocks);
+  }
+
+  /**
+   * 解析完整的 Markdown 文本 (异步版本，使用 Worker 分词)
+   */
+  public async parseAsync(text: string): Promise<AstNode[]> {
+    if (!text) return [];
+
+    const tokens = await tokenizerService.tokenize(text);
 
     const blocks = this.parseBlocks(tokens);
 

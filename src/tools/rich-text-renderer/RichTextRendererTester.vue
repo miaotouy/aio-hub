@@ -177,13 +177,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, shallowRef, onMounted, watch, nextTick, computed } from "vue";
+import { ref, reactive, shallowRef, onMounted, watch, nextTick, computed, provide } from "vue";
 import { useElementSize } from "@vueuse/core";
 import RichTextRenderer from "./RichTextRenderer.vue";
 import type { StreamSource } from "./types";
 import { presets } from "./presets";
 import { useRichTextRendererStore } from "./store";
 import { storeToRefs } from "pinia";
+import { llmChatRegistry } from "@/tools/llm-chat/llmChat.registry";
 import { useAgentPresets } from "@/composables/useAgentPresets";
 import {
   processMessageAssetsSync,
@@ -256,21 +257,34 @@ const {
 } = storeToRefs(store);
 
 const activeRegexRules = computed(() => store.getActiveRegexRules());
-
 // Agent Presets 用于资产解析
 const { getPresetById } = useAgentPresets();
 const currentAgent = computed(() => {
   if (profileType.value === "agent" && selectedProfileId.value) {
+    // 优先从 llmChatRegistry 获取，它包含完整的运行时数据（如 assets）
+    const agents = llmChatRegistry.getAgents();
+    const found = agents.find((a) => a.id === selectedProfileId.value);
+    if (found) return found;
+
+    // 回退到预设
     return getPresetById(selectedProfileId.value);
   }
   return null;
 });
 
+// 提供当前 Agent 给后代组件（用于解析 agent-asset:// URL）
+// 这与 MessageContent.vue 的行为保持一致
+provide("currentAgent", currentAgent);
+
+// 监听当前角色变化，强制重新渲染以刷新资产解析
+watch(currentAgent, () => {
+  renderKey.value++;
+});
+
 /**
- /**
-  * 资产路径解析钩子
-  * 支持解析 agent-asset:// 协议，指向当前选中的 Agent 资产
-  */
+ * 资产路径解析钩子
+ * 支持解析 agent-asset:// 协议，指向当前选中的 Agent 资产
+ */
 const resolveAsset = (content: string): string => {
   if (!content) return content;
 

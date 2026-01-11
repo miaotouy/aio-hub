@@ -8,13 +8,18 @@
 import type { ToolRegistry } from '@/services/types';
 import type { DetachableComponentRegistration } from '@/types/detachable';
 import { useChatInputManager } from './composables/useChatInputManager';
+import { useLlmChatStore } from './store';
+import { useAgentStore } from './agentStore';
+import { useUserProfileStore } from './userProfileStore';
 import { useDetachedChatArea } from './composables/useDetachedChatArea';
 import { useDetachedChatInput } from './composables/useDetachedChatInput';
 import { useLlmChatStateConsumer } from './composables/useLlmChatStateConsumer';
+import { resolveAvatarPath } from './composables/useResolvedAvatar';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import type { Asset } from '@/types/asset-management';
 import { computed, type Ref } from 'vue';
+import type { ChatSession, ChatAgent, UserProfile } from './types';
 
 const logger = createModuleLogger('services/llm-chat');
 const errorHandler = createModuleErrorHandler('services/llm-chat');
@@ -46,6 +51,9 @@ export default class LlmChatRegistry implements ToolRegistry {
   public readonly description = '管理 LLM 聊天输入框的内容和附件，支持跨窗口和工具间协同';
 
   private _inputManager: ReturnType<typeof useChatInputManager> | null = null;
+  private _chatStore: ReturnType<typeof useLlmChatStore> | null = null;
+  private _agentStore: ReturnType<typeof useAgentStore> | null = null;
+  private _userProfileStore: ReturnType<typeof useUserProfileStore> | null = null;
 
   /**
    * 获取输入管理器实例（惰性初始化）
@@ -55,6 +63,36 @@ export default class LlmChatRegistry implements ToolRegistry {
       this._inputManager = useChatInputManager();
     }
     return this._inputManager;
+  }
+
+  /**
+   * 获取聊天 Store（惰性初始化）
+   */
+  private get chatStore() {
+    if (!this._chatStore) {
+      this._chatStore = useLlmChatStore();
+    }
+    return this._chatStore;
+  }
+
+  /**
+   * 获取智能体 Store（惰性初始化）
+   */
+  private get agentStore() {
+    if (!this._agentStore) {
+      this._agentStore = useAgentStore();
+    }
+    return this._agentStore;
+  }
+
+  /**
+   * 获取用户档案 Store（惰性初始化）
+   */
+  private get userProfileStore() {
+    if (!this._userProfileStore) {
+      this._userProfileStore = useUserProfileStore();
+    }
+    return this._userProfileStore;
   }
 
   // ==================== 核心业务方法 ====================
@@ -326,6 +364,82 @@ export default class LlmChatRegistry implements ToolRegistry {
       currentContent: this.getInputContent(),
       currentAttachmentCount: this.inputManager.attachmentCount.value,
     };
+  }
+
+  /**
+   * 确保所有相关的 Store 已初始化并加载数据
+   */
+  public async ensureInitialized(): Promise<void> {
+    const tasks = [];
+    
+    if (this.agentStore.agents.length === 0) {
+      tasks.push(this.agentStore.loadAgents());
+    }
+    
+    if (this.userProfileStore.profiles.length === 0) {
+      tasks.push(this.userProfileStore.loadProfiles());
+    }
+    
+    if (this.chatStore.sessions.length === 0) {
+      tasks.push(this.chatStore.loadSessions());
+    }
+
+    if (tasks.length > 0) {
+      logger.info('正在惰性初始化 LlmChat 数据...');
+      await Promise.all(tasks);
+    }
+  }
+
+  /**
+   * 获取所有会话
+   */
+  public getSessions(): ChatSession[] {
+    if (this.chatStore.sessions.length === 0) {
+      this.chatStore.loadSessions();
+    }
+    return this.chatStore.sessions;
+  }
+
+  /**
+   * 获取当前活跃会话
+   */
+  public getCurrentSession(): ChatSession | null {
+    return this.chatStore.currentSession;
+  }
+
+  /**
+   * 获取所有智能体
+   */
+  public getAgents(): ChatAgent[] {
+    if (this.agentStore.agents.length === 0) {
+      this.agentStore.loadAgents();
+    }
+    return this.agentStore.agents;
+  }
+
+  /**
+   * 获取当前选中的智能体
+   */
+  public getCurrentAgent(): ChatAgent | null {
+    const agentId = this.agentStore.currentAgentId;
+    return agentId ? (this.agentStore.getAgentById(agentId) || null) : null;
+  }
+
+  /**
+   * 获取所有用户档案
+   */
+  public getUserProfiles(): UserProfile[] {
+    if (this.userProfileStore.profiles.length === 0) {
+      this.userProfileStore.loadProfiles();
+    }
+    return this.userProfileStore.profiles;
+  }
+
+  /**
+   * 获取全局选中的用户档案
+   */
+  public getGlobalUserProfile(): UserProfile | null {
+    return this.userProfileStore.globalProfile;
   }
 
   /**
@@ -641,7 +755,31 @@ service.clearAttachments();`,
           example: `
 service.clearInput();`,
         },
+        {
+          name: 'getSessions',
+          description: '获取所有会话列表',
+          parameters: [],
+          returnType: 'ChatSession[]',
+        },
+        {
+          name: 'getAgents',
+          description: '获取所有智能体列表',
+          parameters: [],
+          returnType: 'ChatAgent[]',
+        },
+        {
+          name: 'getUserProfiles',
+          description: '获取所有用户档案列表',
+          parameters: [],
+          returnType: 'UserProfile[]',
+        },
       ],
     };
   }
 }
+
+// 导出单例实例供直接使用
+export const llmChatRegistry = new LlmChatRegistry();
+
+// 重导出工具函数供跨工具使用
+export { resolveAvatarPath };

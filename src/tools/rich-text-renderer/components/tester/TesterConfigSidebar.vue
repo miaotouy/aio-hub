@@ -47,19 +47,43 @@
             <el-option
               v-for="agent in agentPresets"
               :key="agent.id"
-              :label="agent.name"
+              :label="agent.displayName || agent.name"
               :value="agent.id"
             >
               <div class="agent-option">
-                <Avatar :src="agent.icon" :alt="agent.name" :size="24" />
-                <span>{{ agent.name }}</span>
+                <Avatar
+                  :src="resolveAvatarPath(agent, 'agent') || ''"
+                  :alt="agent.displayName || agent.name"
+                  :size="24"
+                />
+                <span>{{ agent.displayName || agent.name }}</span>
               </div>
             </el-option>
           </el-select>
 
-          <div v-else class="user-profile-mock">
-            <el-alert title="用户档案暂未支持资产" type="info" :closable="false" show-icon />
-          </div>
+          <el-select
+            v-else
+            v-model="selectedProfileId"
+            placeholder="选择用户档案"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="profile in userProfiles"
+              :key="profile.id"
+              :label="profile.displayName || profile.name"
+              :value="profile.id"
+            >
+              <div class="agent-option">
+                <Avatar
+                  :src="resolveAvatarPath(profile, 'user-profile') || ''"
+                  :alt="profile.displayName || profile.name"
+                  :size="24"
+                />
+                <span>{{ profile.displayName || profile.name }}</span>
+              </div>
+            </el-option>
+          </el-select>
         </div>
       </div>
 
@@ -359,13 +383,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { onMounted, computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useRichTextRendererStore, availableVersions } from "../../store";
 import { presets } from "../../presets";
-import { useAgentPresets } from "@/composables/useAgentPresets";
+import { llmChatRegistry, resolveAvatarPath } from "@/tools/llm-chat/llmChat.registry";
+import { tokenCalculatorRegistry } from "@/tools/token-calculator/tokenCalculator.registry";
 import Avatar from "@/components/common/Avatar.vue";
-import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import InfoCard from "@/components/common/InfoCard.vue";
 import LlmThinkRulesEditor from "../../components/LlmThinkRulesEditor.vue";
 
@@ -399,14 +423,18 @@ const {
   selectedProfileId,
 } = storeToRefs(store);
 
-// Agent Presets
-const { presets: agentPresets } = useAgentPresets();
-
 // Computed
+const agentPresets = computed(() => llmChatRegistry.getAgents());
+const userProfiles = computed(() => llmChatRegistry.getUserProfiles());
 const enabledVersions = computed(() => availableVersions.filter((v) => v.enabled));
-const availableTokenizers = tokenCalculatorEngine.getAvailableTokenizers();
+const availableTokenizers = tokenCalculatorRegistry.getAvailableTokenizers();
 
 // Methods
+onMounted(async () => {
+  // 确保 LlmChat 的数据已加载，否则 Agent 和 UserProfile 列表会为空
+  await llmChatRegistry.ensureInitialized();
+});
+
 const loadPreset = () => {
   const preset = presets.find((p) => p.id === selectedPreset.value);
   if (preset) {

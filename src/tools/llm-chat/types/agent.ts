@@ -209,6 +209,11 @@ export interface ChatAgent {
      * false/undefined: 追加到当前对话末尾
      */
     sendButtonCreateBranch?: boolean;
+    /**
+     * 默认媒体音量 (0-100)
+     * 用于调节该智能体输出音频的初始音量权重
+     */
+    defaultMediaVolume?: number;
   };
 
   /**

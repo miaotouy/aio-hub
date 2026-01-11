@@ -375,6 +375,20 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui html freezer count keepalive 保持 数量 冻结 消息",
         visible: (settings) => settings.uiPreferences.enableHtmlFreezer,
       },
+      {
+        id: "globalMediaVolume",
+        label: "媒体主音量 ({{ localSettings.uiPreferences.globalMediaVolume }}%)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 100,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}%`,
+        },
+        modelPath: "uiPreferences.globalMediaVolume",
+        hint: "控制聊天消息中嵌入音频（如 BGM）的全局最大音量",
+        keywords: "ui media audio volume 音量 媒体 音乐",
+      },
     ],
   },
   {

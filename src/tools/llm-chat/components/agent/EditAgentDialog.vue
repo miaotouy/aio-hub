@@ -74,6 +74,7 @@ const defaultFormState = {
   },
   interactionConfig: {
     sendButtonCreateBranch: false,
+    defaultMediaVolume: 100,
   },
 };
 

@@ -51,6 +51,20 @@ watch(
         <el-switch v-model="editForm.defaultToolCallCollapsed" />
         <div class="form-hint">开启后，消息中的工具调用组件将默认处于折叠状态。</div>
       </el-form-item>
+
+      <el-form-item :label="`媒体音量 (${editForm.interactionConfig.defaultMediaVolume ?? 100}%)`">
+        <el-slider
+          v-model="editForm.interactionConfig.defaultMediaVolume"
+          :min="0"
+          :max="100"
+          :step="1"
+          style="max-width: 300px"
+        />
+        <div class="form-hint">
+          调节该智能体输出音频（如 BGM）的初始音量百分比。最终音量 = 原始内容音量 * 全局音量 *
+          智能体音量。
+        </div>
+      </el-form-item>
     </div>
 
     <el-divider />

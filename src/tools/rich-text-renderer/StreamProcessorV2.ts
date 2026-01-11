@@ -377,7 +377,7 @@ export class StreamProcessorV2 {
         this.markNodesStatus(newPendingAst, "pending");
 
         // 8. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
-        const patches = this.diffAst(currentFullAst, newFullAst);
+        const patches = this.diffAst(currentFullAst, newFullAst, true);
 
         // 9. 更新状态
         this.stableAst = newStableAst;
@@ -442,7 +442,7 @@ export class StreamProcessorV2 {
       this.forceStopThinking(finalAst);
 
       // 计算 diff
-      const patches = this.diffAst(currentFullAst, finalAst);
+      const patches = this.diffAst(currentFullAst, finalAst, true);
 
       // 更新状态
       this.stableAst = finalAst;
@@ -479,13 +479,31 @@ export class StreamProcessorV2 {
 
   /**
    * 解耦后的 diffAst 方法
+   * @param isRoot 是否是根节点列表（根节点列表为空时允许发送 replace-root）
    */
-  private diffAst(oldNodes: AstNode[], newNodes: AstNode[]): Patch[] {
+  private diffAst(oldNodes: AstNode[], newNodes: AstNode[], isRoot: boolean = false): Patch[] {
     const patches: Patch[] = [];
 
-    // 如果旧节点为空且新节点不为空，直接替换整个根
+    // 如果旧节点为空且新节点不为空
     if (oldNodes.length === 0 && newNodes.length > 0) {
-      return [{ op: "replace-root", newRoot: [...newNodes] }];
+      if (isRoot) {
+        return [{ op: "replace-root", newRoot: [...newNodes] }];
+      } else {
+        // 非根节点（子节点列表）从无到有，由父节点的 replace-node 处理，或者在此处生成 insert 操作
+        // 理论上 diffSingleNode 会处理 contentChanged，但为了保险，这里返回全量 insert
+        let currentAnchor: string | undefined = undefined;
+        for (const newNode of newNodes) {
+          if (!currentAnchor) {
+            // 第一个子节点没有锚点，这种情况通常由父节点的 replace-node 覆盖
+            // 但如果父节点尝试复用并递归到这里，我们需要一种方式处理
+            // 目前 diffSingleNode 在内容变化时会优先使用 replace-node，所以这里通常不会被触发
+          } else {
+            patches.push({ op: "insert-after", id: currentAnchor, newNode });
+            currentAnchor = newNode.id;
+          }
+        }
+        return patches;
+      }
     }
 
     // 如果新旧节点都为空，无需任何操作
@@ -555,7 +573,7 @@ export class StreamProcessorV2 {
         if (oldNode.children && newNode.children) {
           this.syncChildrenIds(oldNode.children, newNode.children);
         }
-        return this.diffAst(oldNode.children || [], newNode.children || []);
+        return this.diffAst(oldNode.children || [], newNode.children || [], false);
       }
 
       return [];

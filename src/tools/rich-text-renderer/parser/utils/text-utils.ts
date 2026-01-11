@@ -124,3 +124,26 @@ export function createTextNode(content: string): AstNode {
     meta: { range: { start: 0, end: 0 }, status: "stable" },
   };
 }
+
+/**
+ * 反转义常见的 HTML 实体
+ * 用于处理 LLM 在 HTML 块中输出的转义内容
+ *
+ * 注意：替换顺序很重要！&amp; 必须最后替换，否则会导致双重转义问题
+ * 例如：&amp;lt; 应该变成 &lt; 然后变成 <
+ * 如果先替换 &amp;，会得到 &lt;，但后续的 &lt; 替换不会再执行
+ */
+export function decodeHtmlEntities(text: string): string {
+  if (!text || !text.includes('&')) return text;
+  
+  // 重要：&amp; 必须最后替换！
+  // 这样 &amp;lt; 会先保持不变，然后 &lt; 被替换为 <
+  // 最后 &amp; 被替换为 &
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}

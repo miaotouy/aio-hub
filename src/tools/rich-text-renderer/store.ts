@@ -107,6 +107,8 @@ const configManager = createConfigManager<TesterConfig>({
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
     defaultRenderHtml: false,
     defaultCodeBlockExpanded: false,
+    defaultToolCallCollapsed: false,
+    allowDangerousHtml: false,
     seamlessMode: false,
     enableCdnLocalizer: true,
     enableEnterAnimation: true,
@@ -156,6 +158,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
   const defaultRenderHtml = ref(false);
   const defaultCodeBlockExpanded = ref(false);
+  const defaultToolCallCollapsed = ref(false);
+  const allowDangerousHtml = ref(false);
   const seamlessMode = ref(false);
   const enableCdnLocalizer = ref(true);
   const enableEnterAnimation = ref(true);
@@ -226,6 +230,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       rendererVersion.value = config.rendererVersion;
       defaultRenderHtml.value = config.defaultRenderHtml ?? false;
       defaultCodeBlockExpanded.value = config.defaultCodeBlockExpanded ?? false;
+      defaultToolCallCollapsed.value = config.defaultToolCallCollapsed ?? false;
+      allowDangerousHtml.value = config.allowDangerousHtml ?? false;
       seamlessMode.value = config.seamlessMode ?? false;
       enableCdnLocalizer.value = config.enableCdnLocalizer ?? true;
       enableEnterAnimation.value = config.enableEnterAnimation ?? true;
@@ -287,6 +293,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         rendererVersion: rendererVersion.value,
         defaultRenderHtml: defaultRenderHtml.value,
         defaultCodeBlockExpanded: defaultCodeBlockExpanded.value,
+        defaultToolCallCollapsed: defaultToolCallCollapsed.value,
+        allowDangerousHtml: allowDangerousHtml.value,
         seamlessMode: seamlessMode.value,
         enableCdnLocalizer: enableCdnLocalizer.value,
         enableEnterAnimation: enableEnterAnimation.value,
@@ -344,6 +352,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       rendererVersion: rendererVersion.value,
       defaultRenderHtml: defaultRenderHtml.value,
       defaultCodeBlockExpanded: defaultCodeBlockExpanded.value,
+      defaultToolCallCollapsed: defaultToolCallCollapsed.value,
+      allowDangerousHtml: allowDangerousHtml.value,
       seamlessMode: seamlessMode.value,
       enableCdnLocalizer: enableCdnLocalizer.value,
       enableEnterAnimation: enableEnterAnimation.value,
@@ -475,6 +485,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       rendererVersion,
       defaultRenderHtml,
       defaultCodeBlockExpanded,
+      defaultToolCallCollapsed,
+      allowDangerousHtml,
       seamlessMode,
       enableCdnLocalizer,
       enableEnterAnimation,
@@ -520,6 +532,8 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     rendererVersion,
     defaultRenderHtml,
     defaultCodeBlockExpanded,
+    defaultToolCallCollapsed,
+    allowDangerousHtml,
     seamlessMode,
     enableCdnLocalizer,
     enableEnterAnimation,

@@ -666,6 +666,8 @@ export interface TesterConfig {
   defaultCodeBlockExpanded?: boolean;
   /** 工具调用默认折叠 */
   defaultToolCallCollapsed?: boolean;
+  /** 是否允许渲染危险的 HTML 标签 */
+  allowDangerousHtml?: boolean;
   /** HTML 预览无边框模式 */
   seamlessMode?: boolean;
   /** 是否启用 CDN 资源本地化 */
@@ -764,6 +766,8 @@ export interface RichTextContext {
   defaultToolCallCollapsed?: Ref<boolean>;
   enableCdnLocalizer?: Ref<boolean>;
   allowExternalScripts?: Ref<boolean>;
+  /** 是否允许渲染危险的 HTML 标签（黑名单中的标签） */
+  allowDangerousHtml?: Ref<boolean>;
   /**
    * 资产路径解析钩子
    * 用于将自定义协议（如 agent-asset://）转换为真实 URL

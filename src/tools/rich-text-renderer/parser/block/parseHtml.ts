@@ -1,5 +1,6 @@
 import { Token, ParserContext } from "../types";
 import { AstNode, GenericHtmlNode, LlmThinkNode } from "../../types";
+import { decodeHtmlEntities } from "../utils/text-utils";
 import { BLOCK_LEVEL_TAGS, hasBlockLevelStructure } from "../utils/block-utils";
 import { parseInlineHtmlTag } from "../inline/parseHtmlInline";
 import { tokensToRawText } from "../utils/text-utils";
@@ -8,7 +9,7 @@ import { tokensToRawText } from "../utils/text-utils";
 const PRE_FORMATTED_TAGS = new Set(["pre", "textarea", "code"]);
 
 /**
- * 处理 HTML 内容的 tokens，移除多余的换行符
+ * 处理 HTML 内容的 tokens，移除多余的换行符并进行反转义
  * 用于在调用 parseInlines 之前预处理 tokens
  */
 function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
@@ -16,7 +17,7 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
 
   // 预格式化标签特殊处理：仅移除首尾换行，保留中间内容原样
   if (isPreFormatted) {
-    const result = [...tokens];
+    const result = tokens.map(t => t.type === 'text' ? { ...t, content: decodeHtmlEntities(t.content) } : t);
 
     // 移除开头的换行 (通常 HTML 会忽略 <pre> 后紧跟的第一个换行)
     if (result.length > 0 && result[0].type === "newline") {
@@ -51,7 +52,15 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
         content: " "
       });
     } else {
-      result.push(token);
+      // 对普通文本进行反转义处理
+      if (token.type === 'text') {
+        result.push({
+          ...token,
+          content: decodeHtmlEntities(token.content)
+        });
+      } else {
+        result.push(token);
+      }
     }
   }
 
@@ -153,11 +162,14 @@ export function parseHtmlBlock(
  * 2. 保持HTML原始结构
  */
 export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[] {
+  // 预处理所有文本 token 进行反转义
+  const processedTokens = tokens.map(t => t.type === 'text' ? { ...t, content: decodeHtmlEntities(t.content) } : t);
+
   const nodes: AstNode[] = [];
   let i = 0;
 
-  while (i < tokens.length) {
-    const token = tokens[i];
+  while (i < processedTokens.length) {
+    const token = processedTokens[i];
 
     // 跳过换行和纯空白
     if (token.type === "newline") {
@@ -216,7 +228,7 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
 
     // 块级HTML标签 → 使用parseHtmlBlock
     if (token.type === "html_open" && BLOCK_LEVEL_TAGS.has(token.tagName)) {
-      const { node, nextIndex } = parseHtmlBlock(ctx, tokens, i);
+      const { node, nextIndex } = parseHtmlBlock(ctx, processedTokens, i);
       if (node) nodes.push(node);
       i = nextIndex;
       continue;
@@ -224,7 +236,7 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
 
     // 内联HTML标签 → 直接处理,不包裹成段落
     if (token.type === "html_open") {
-      const { node, nextIndex } = parseInlineHtmlTag(ctx, tokens, i);
+      const { node, nextIndex } = parseInlineHtmlTag(ctx, processedTokens, i);
       if (node) nodes.push(node);
       i = nextIndex;
       continue;
@@ -232,8 +244,8 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
 
     // 其他内联内容 → 收集后使用parseInlines
     const inlineTokens: Token[] = [];
-    while (i < tokens.length) {
-      const t = tokens[i];
+    while (i < processedTokens.length) {
+      const t = processedTokens[i];
 
       // 遇到块级HTML或换行,停止收集
       if (t.type === "html_open" && BLOCK_LEVEL_TAGS.has(t.tagName)) {
@@ -245,8 +257,8 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
         break;
       }
 
-      if (t.type === "newline" && i + 1 < tokens.length) {
-        const next = tokens[i + 1];
+      if (t.type === "newline" && i + 1 < processedTokens.length) {
+        const next = processedTokens[i + 1];
         if (
           next.type === "newline" ||
           (next.type === "html_open" && BLOCK_LEVEL_TAGS.has(next.tagName))

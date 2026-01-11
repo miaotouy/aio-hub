@@ -117,6 +117,8 @@
                 :version="rendererVersion"
                 :default-render-html="defaultRenderHtml"
                 :default-code-block-expanded="defaultCodeBlockExpanded"
+                :default-tool-call-collapsed="defaultToolCallCollapsed"
+                :allow-dangerous-html="allowDangerousHtml"
                 :enable-cdn-localizer="enableCdnLocalizer"
                 :enable-enter-animation="enableEnterAnimation"
                 :llm-think-rules="llmThinkRules"
@@ -238,6 +240,8 @@ const {
   rendererVersion,
   defaultRenderHtml,
   defaultCodeBlockExpanded,
+  defaultToolCallCollapsed,
+  allowDangerousHtml,
   enableCdnLocalizer,
   enableEnterAnimation,
   simulateMeta,

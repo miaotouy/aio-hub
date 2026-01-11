@@ -102,6 +102,16 @@
         </div>
       </div>
 
+      <!-- 工具调用默认折叠控制 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label">工具调用默认折叠</label>
+          <el-tooltip content="开启后，消息中的工具调用将默认处于折叠状态" placement="left">
+            <el-switch v-model="defaultToolCallCollapsed" />
+          </el-tooltip>
+        </div>
+      </div>
+
       <!-- CDN 本地化控制 -->
       <div class="control-section">
         <div class="control-header">
@@ -124,6 +134,19 @@
             placement="left"
           >
             <el-switch v-model="seamlessMode" />
+          </el-tooltip>
+        </div>
+      </div>
+
+      <!-- 危险 HTML 控制 -->
+      <div class="control-section">
+        <div class="control-header">
+          <label class="control-label" style="color: var(--el-color-danger)">允许危险 HTML</label>
+          <el-tooltip
+            content="允许渲染黑名单中的标签（如 script, iframe 等），开启后可能存在安全风险"
+            placement="left"
+          >
+            <el-switch v-model="allowDangerousHtml" />
           </el-tooltip>
         </div>
       </div>
@@ -366,6 +389,8 @@ const {
   rendererVersion,
   defaultRenderHtml,
   defaultCodeBlockExpanded,
+  defaultToolCallCollapsed,
+  allowDangerousHtml,
   enableCdnLocalizer,
   enableEnterAnimation,
   llmThinkRules,

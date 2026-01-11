@@ -174,6 +174,8 @@ export interface ChatSettings {
     enableCdnLocalizer: boolean;
     /** 是否允许加载外部资源（如 CDN 脚本、样式） */
     allowExternalScripts: boolean;
+    /** 是否允许渲染危险的 HTML 标签（如 script, iframe 等） */
+    allowDangerousHtml: boolean;
     /** 是否启用 HTML 预览冻结功能（冻结旧消息的 HTML 预览以节省性能） */
     enableHtmlFreezer: boolean;
     /** 保持 HTML 预览活跃的最近消息数量（基于消息深度） */
@@ -296,6 +298,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     virtualListOverscan: 20, // 预渲染可视区域外的消息数量
     enableCdnLocalizer: true, // 默认开启 CDN 资源本地化
     allowExternalScripts: false, // 默认禁止外部资源，增强安全性
+    allowDangerousHtml: false, // 默认禁止危险 HTML
     enableHtmlFreezer: true, // 默认启用 HTML 预览冻结
     htmlFreezerKeepAliveCount: 5, // 默认保持最近 5 个预览活动
   },

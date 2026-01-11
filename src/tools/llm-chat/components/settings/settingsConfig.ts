@@ -342,6 +342,15 @@ export const settingsConfig: SettingsSection[] = [
         keywords: "ui html external script cdn csp 安全 脚本 外部",
       },
       {
+        id: "allowDangerousHtml",
+        label: "允许危险 HTML 标签",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.allowDangerousHtml",
+        hint: "允许渲染黑名单中的 HTML 标签（如 script, iframe, form 等）。开启后可能存在安全风险，请仅在信任 AI 输出的情况下使用。",
+        keywords: "ui html dangerous blacklist script iframe 安全 黑名单",
+      },
+      {
         id: "enableHtmlFreezer",
         label: "HTML 预览冻结",
         layout: "inline",

@@ -529,6 +529,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         "
         :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
         :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
+        :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
         :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
       />
@@ -614,6 +615,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :seamless-mode="settings.uiPreferences.seamlessMode"
           :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
           :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
+          :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
           :throttle-ms="settings.uiPreferences.rendererThrottleMs"
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
           :should-freeze="shouldFreezeHtml"
@@ -659,6 +661,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :seamless-mode="settings.uiPreferences.seamlessMode"
             :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
             :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
+            :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"

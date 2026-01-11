@@ -31,9 +31,15 @@
     <div v-show="!isCollapsed" class="vcp-content">
       <div v-if="hasArgs" class="vcp-body">
         <div class="args-list">
-          <div v-for="(value, key) in args" :key="key" class="arg-item">
+          <div v-for="(value, key, index) in args" :key="key" class="arg-item">
             <span class="arg-key">{{ key }}:</span>
-            <span class="arg-value">{{ value }}</span>
+            <span class="arg-value">
+              {{ value
+              }}<span
+                v-if="!closed && index === Object.keys(args).length - 1"
+                class="streaming-cursor"
+              ></span>
+            </span>
           </div>
         </div>
       </div>
@@ -263,6 +269,27 @@ const copyContent = async () => {
   word-break: break-all;
   white-space: pre-wrap;
   flex-grow: 1;
+  position: relative;
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  background: var(--el-color-success);
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: cursor-blink 1s infinite;
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .vcp-footer {

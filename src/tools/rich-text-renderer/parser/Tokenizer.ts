@@ -350,13 +350,15 @@ export class Tokenizer {
           }
 
           // 解析 VCP 内容: key:「始」value「末」
+          // 优化流式解析：支持未闭合的「始」
           const args: Record<string, string> = {};
           let tool_name = "";
           let command = "";
           let maid = "";
 
-          // 使用正则提取所有键值对
+          // 1. 先提取所有完整的键值对
           const vcpRegex = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
+          let lastMatchEnd = 0;
           let match;
           while ((match = vcpRegex.exec(vcpContent)) !== null) {
             const key = match[1];
@@ -365,6 +367,19 @@ export class Tokenizer {
             else if (key === "command") command = value;
             else if (key === "maid") maid = value;
             else args[key] = value;
+            lastMatchEnd = vcpRegex.lastIndex;
+          }
+
+          // 2. 检查末尾是否存在未闭合的键值对 (即时显示正在输入的参数)
+          const remainingVcp = vcpContent.slice(lastMatchEnd).trim();
+          const pendingMatch = remainingVcp.match(/([a-zA-Z0-9_-]+):「始」([\s\S]*)$/);
+          if (pendingMatch) {
+            const key = pendingMatch[1];
+            const value = pendingMatch[2];
+            if (key === "tool_name") tool_name = tool_name || value;
+            else if (key === "command") command = command || value;
+            else if (key === "maid") maid = maid || value;
+            else if (!args[key]) args[key] = value;
           }
 
           tokens.push({

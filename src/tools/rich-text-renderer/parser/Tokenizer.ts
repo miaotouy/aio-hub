@@ -1,14 +1,41 @@
 import { Token } from "./types";
 
-// ============ 分词器 ============
+// ============ 分词器 (性能优化版) ============
+
+/**
+ * 辅助函数：使用 sticky 正则匹配
+ * Sticky 模式允许正则直接从指定位置开始匹配，避免了创建字符串切片的开销。
+ */
+function stickyMatch(
+  regex: RegExp,
+  text: string,
+  pos: number
+): RegExpExecArray | null {
+  regex.lastIndex = pos;
+  return regex.exec(text);
+}
+
+// 预编译正则表达式（带 sticky 标志，提升匹配性能）
+const RE_HTML_TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*([^>]*?)\s*(\/?)\>/y;
+const RE_MATHJAX_INLINE = /\\\((.*?)\\\)/y;
+const RE_ESCAPE_PUNCT = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
+const RE_AUTOLINK = /<((?:https?|ftps?|mailto):[^\s>]+)>/y;
+const RE_HTML_COMMENT = /<!--[\s\S]*?-->/y;
+const RE_INDENT = /( *)/y;
+const RE_CODE_FENCE_OPEN = /```(\w*)/y;
+const RE_HEADING = /(#{1,6})\s/y;
+const RE_HR = /(---+|\*\*\*+|___+)(\s*)(?=\n|$)/y;
+const RE_LIST = /([*+-]|\d+\.)\s/y;
+const RE_BLOCKQUOTE = />[ \t]?/y;
+const RE_KATEX_INLINE = /\$([^\n$]+?)\$/y;
+const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
+const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
+const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
 
 export class Tokenizer {
-  // HTML 标签必须以字母开头，后跟字母、数字、连字符或下划线
-  // 拒绝 <100ms> 这类数字开头的非法标签
-  private htmlTagRegex = /^<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*([^>]*?)\s*(\/?)>/;
-
   // HTML void elements (不需要闭合标签的元素)
-  private voidElements = new Set([
+  private static readonly voidElements = new Set([
     "area",
     "base",
     "br",
@@ -25,618 +52,515 @@ export class Tokenizer {
     "wbr",
   ]);
 
-  constructor() {
-    // 如果需要，初始化 void 元素，但它们是静态的
-  }
-
   /**
    * 将完整文本转换为令牌序列
    */
   public tokenize(text: string): Token[] {
     const tokens: Token[] = [];
+    const len = text.length;
     let i = 0;
-    let atLineStart = true; // 跟踪是否在行首
+    let atLineStart = true;
 
-    while (i < text.length) {
-      const remaining = text.slice(i);
+    while (i < len) {
+      const char = text.charCodeAt(i);
 
-      // 换行符（优先处理，以更新 atLineStart 状态）
-      const newlineMatch = remaining.match(/^(\n+)/);
-      if (newlineMatch) {
-        tokens.push({ type: "newline", count: newlineMatch[1].length });
-        i += newlineMatch[1].length;
+      // 1. 换行符（优先处理，以更新 atLineStart 状态）
+      // charCode 10 = '\n'
+      if (char === 10) {
+        let count = 1;
+        while (i + count < len && text.charCodeAt(i + count) === 10) {
+          count++;
+        }
+        tokens.push({ type: "newline", count });
+        i += count;
         atLineStart = true;
         continue;
       }
 
-      // MathJax 块级公式 \[...\] (优先于转义字符处理)
-      if (remaining.startsWith("\\[")) {
-        i += 2; // 跳过 \[
+      // 2. MathJax 块级公式 \[...\] (优先于转义字符处理)
+      // charCode 92 = '\\', 91 = '['
+      if (char === 92 && i + 1 < len && text.charCodeAt(i + 1) === 91) {
+        const startIdx = i + 2; // 跳过 \[
+        let endIdx = startIdx;
 
-        // 收集公式内容
-        let formulaContent = "";
-
-        while (i < text.length) {
+        while (endIdx < len) {
           // 检查是否遇到闭合的 \]
-          if (text[i] === "\\" && i + 1 < text.length && text[i + 1] === "]") {
-            // 找到闭合标记，跳过它
-            i += 2;
+          if (
+            text.charCodeAt(endIdx) === 92 &&
+            endIdx + 1 < len &&
+            text.charCodeAt(endIdx + 1) === 93
+          ) {
             break;
           }
-          formulaContent += text[i];
-          i++;
+          endIdx++;
         }
 
-        // 添加块级公式 token（复用 katex_block 类型）
-        tokens.push({ type: "katex_block", content: formulaContent.trim() });
+        const formulaContent = text.slice(startIdx, endIdx).trim();
+        i = endIdx < len ? endIdx + 2 : endIdx;
+
+        tokens.push({ type: "katex_block", content: formulaContent });
         atLineStart = false;
         continue;
       }
 
-      // MathJax 行内公式 \(...\) (优先于转义字符处理)
-      // 使用更智能的匹配策略：检测嵌套的 MathJax 分隔符
-      const mathjaxMatch = remaining.match(/^\\\((.*?)\\\)/);
-      if (mathjaxMatch) {
-        const formulaContent = mathjaxMatch[1];
-        // 检查公式内容是否有效：
-        // 1. 不能包含换行符（行内公式）
-        // 2. 不能包含未配对的 \( 或 \)（说明 LLM 输出不规范，公式内嵌套了文本和新公式）
-        const hasNewline = formulaContent.includes("\n");
-        const hasNestedMathJax = /\\\(|\\\[/.test(formulaContent);
+      // 3. MathJax 行内公式 \(...\)
+      // charCode 92 = '\\', 40 = '('
+      if (char === 92 && i + 1 < len && text.charCodeAt(i + 1) === 40) {
+        const mathjaxMatch = stickyMatch(RE_MATHJAX_INLINE, text, i);
+        if (mathjaxMatch) {
+          const formulaContent = mathjaxMatch[1];
+          const hasNewline = formulaContent.includes("\n");
+          const hasNestedMathJax =
+            formulaContent.includes("\\(") || formulaContent.includes("\\[");
 
-        if (!hasNewline && !hasNestedMathJax) {
-          tokens.push({ type: "katex_inline", content: formulaContent });
-          i += mathjaxMatch[0].length;
-          atLineStart = false;
-          continue;
+          if (!hasNewline && !hasNestedMathJax) {
+            tokens.push({ type: "katex_inline", content: formulaContent });
+            i += mathjaxMatch[0].length;
+            atLineStart = false;
+            continue;
+          }
         }
-        // 如果检测到嵌套的 MathJax 分隔符，回退到转义字符处理
-        // 这样 \( 会被当作转义的 ( 处理
       }
 
-      // 转义字符 (高优先级)
-      if (remaining.startsWith("\\")) {
-        if (remaining.length > 1) {
-          const nextChar = remaining[1];
-          // ASCII 标点符号范围
-          if (/^[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(nextChar)) {
+      // 4. 转义字符
+      if (char === 92) {
+        if (i + 1 < len) {
+          const nextChar = text[i + 1];
+          if (RE_ESCAPE_PUNCT.test(nextChar)) {
             tokens.push({ type: "text", content: nextChar });
             i += 2;
             atLineStart = false;
             continue;
           }
         }
-        // 如果不是有效的转义序列，或者只有反斜杠，当作普通文本
         tokens.push({ type: "text", content: "\\" });
         i += 1;
         atLineStart = false;
         continue;
       }
 
-      // Autolink: <url> 或 <email>
-      // 必须在 HTML 标签检查之前，避免 <https://...> 被识别为 HTML 标签
-      const autolinkRegex = /^<((?:https?|ftps?|mailto):[^\s>]+)>/;
-      const autolinkMatch = remaining.match(autolinkRegex);
-      if (autolinkMatch) {
-        tokens.push({
-          type: "autolink",
-          url: autolinkMatch[1],
-          raw: autolinkMatch[0],
-        });
-        i += autolinkMatch[0].length;
-        atLineStart = false;
-        continue;
-      }
-
-      // HTML 注释 (优先于 HTML 标签)
-      const commentMatch = remaining.match(/^<!--[\s\S]*?-->/);
-      if (commentMatch) {
-        tokens.push({
-          type: "html_comment",
-          content: commentMatch[0].slice(4, -3), // 去掉 <!-- 和 -->
-          raw: commentMatch[0],
-        });
-        i += commentMatch[0].length;
-        atLineStart = false;
-        continue;
-      }
-
-      // HTML 标签（无论是否行首都有效，且优先于块级 Markdown 标记）
-      const htmlMatch = remaining.match(this.htmlTagRegex);
-      if (htmlMatch) {
-        const rawTag = htmlMatch[0];
-        const isClosing = !!htmlMatch[1];
-        const tagName = htmlMatch[2].toLowerCase();
-        const attributes = this.parseAttributes(htmlMatch[3]);
-
-        // 判断是否是自闭合标签：显式的 /> 或者是 void element
-        const isSelfClosing = !!htmlMatch[4] || this.voidElements.has(tagName);
-
-        if (isClosing) {
-          tokens.push({ type: "html_close", tagName, raw: rawTag });
-        } else {
+      // 5. 以下是以 '<' 开头的情况 (Autolink, HTML Comment, HTML Tag)
+      if (char === 60) {
+        // Autolink
+        const autolinkMatch = stickyMatch(RE_AUTOLINK, text, i);
+        if (autolinkMatch) {
           tokens.push({
-            type: "html_open",
-            tagName,
-            attributes,
-            selfClosing: isSelfClosing,
-            raw: rawTag,
+            type: "autolink",
+            url: autolinkMatch[1],
+            raw: autolinkMatch[0],
           });
-        }
-        i += rawTag.length;
-        atLineStart = false;
-        continue;
-      }
-
-      // 块级标记（只在行首有效）
-      if (atLineStart) {
-        // 允许前导空格（0-3个）用于块级元素缩进
-        // 这符合 Markdown 标准，列表项可以有 0-3 个空格缩进作为顶级列表
-        // 但是嵌套列表可能有更多缩进，所以我们需要在这里捕获缩进，而不是跳过它
-        // 实际上，我们需要让具体的 block matcher 去处理缩进
-        // 所以这里不再统一跳过前导空格，而是让每个 matcher 自己处理
-
-        // 但是为了保持兼容性，对于非列表的块级元素，我们可能还是需要跳过 0-3 个空格
-        // 让我们看看哪些需要处理：
-        // KaTeX: $$ (0-3个空格)
-        // 代码围栏: ``` (0-3个空格)
-        // 标题: # (0-3个空格)
-        // 水平线: --- (0-3个空格)
-        // 引用: > (0-3个空格)
-        // 列表: * (任何空格? 不，缩进很重要)
-
-        // 策略：
-        // 1. 获取当前行的缩进
-        const indentMatch = remaining.match(/^( *)/);
-        const indent = indentMatch ? indentMatch[1].length : 0;
-
-
-        // KaTeX 块级公式 $$...$$ - 立即处理整个公式块
-        // 允许 0-3 个空格缩进
-        if (indent < 4 && remaining.slice(indent).startsWith("$$")) {
-          i += indent + 2; // 跳过缩进和 $$
-
-          // 收集公式内容
-          let formulaContent = "";
-
-          while (i < text.length) {
-            // 检查是否遇到闭合的 $$
-            if (text[i] === "$" && i + 1 < text.length && text[i + 1] === "$") {
-              // 找到闭合标记，跳过它
-              i += 2;
-              break;
-            }
-            formulaContent += text[i];
-            i++;
-          }
-
-          // 添加 KaTeX 块级 token
-          tokens.push({ type: "katex_block", content: formulaContent.trim() });
-          atLineStart = true;
+          i += autolinkMatch[0].length;
+          atLineStart = false;
           continue;
         }
 
-        // 代码围栏 - 立即处理整个代码块
-        // 允许 0-3 个空格缩进
-        // 修正：为了兼容 AI 输出中可能存在的深层缩进，放宽限制到 20 个空格
-        if (indent < 20 && remaining.slice(indent).startsWith("```")) {
-          const openMatch = remaining.slice(indent).match(/^```(\w*)/);
-          if (openMatch) {
-            const language = openMatch[1] || "";
-            i += indent + openMatch[0].length; // 跳过缩进和开始标记
+        // HTML Comment
+        const commentMatch = stickyMatch(RE_HTML_COMMENT, text, i);
+        if (commentMatch) {
+          tokens.push({
+            type: "html_comment",
+            content: commentMatch[0].slice(4, -3),
+            raw: commentMatch[0],
+          });
+          i += commentMatch[0].length;
+          atLineStart = false;
+          continue;
+        }
 
-            // 跳过开始标记后的第一个换行符（如果有）
-            if (i < text.length && text[i] === "\n") {
-              i++;
+        // HTML Tag
+        const htmlMatch = stickyMatch(RE_HTML_TAG, text, i);
+        if (htmlMatch) {
+          const rawTag = htmlMatch[0];
+          const isClosing = !!htmlMatch[1];
+          const tagName = htmlMatch[2].toLowerCase();
+          const attributes = this.parseAttributes(htmlMatch[3]);
+          const isSelfClosing =
+            !!htmlMatch[4] || Tokenizer.voidElements.has(tagName);
+
+          if (isClosing) {
+            tokens.push({ type: "html_close", tagName, raw: rawTag });
+          } else {
+            tokens.push({
+              type: "html_open",
+              tagName,
+              attributes,
+              selfClosing: isSelfClosing,
+              raw: rawTag,
+            });
+          }
+          i += rawTag.length;
+          atLineStart = false;
+          continue;
+        }
+      }
+
+      // 6. 块级标记（只在行首有效）
+      if (atLineStart) {
+        const indentMatch = stickyMatch(RE_INDENT, text, i);
+        const indent = indentMatch ? indentMatch[1].length : 0;
+        const posAfterIndent = i + indent;
+
+        if (posAfterIndent < len) {
+          const charAfterIndent = text.charCodeAt(posAfterIndent);
+
+          // KaTeX 块级公式 $$
+          if (
+            indent < 4 &&
+            charAfterIndent === 36 &&
+            posAfterIndent + 1 < len &&
+            text.charCodeAt(posAfterIndent + 1) === 36
+          ) {
+            let startIdx = posAfterIndent + 2;
+            let endIdx = startIdx;
+            while (endIdx < len) {
+              if (
+                text.charCodeAt(endIdx) === 36 &&
+                endIdx + 1 < len &&
+                text.charCodeAt(endIdx + 1) === 36
+              ) {
+                break;
+              }
+              endIdx++;
             }
+            const formulaContent = text.slice(startIdx, endIdx).trim();
+            i = endIdx < len ? endIdx + 2 : endIdx;
+            tokens.push({ type: "katex_block", content: formulaContent });
+            atLineStart = true;
+            continue;
+          }
 
-            // 收集代码块内容（原始文本，不做任何解析）
-            let codeContent = "";
-            let closed = false;
+          // 代码围栏 ```
+          if (
+            indent < 20 &&
+            charAfterIndent === 96 &&
+            text.startsWith("```", posAfterIndent)
+          ) {
+            const openMatch = stickyMatch(RE_CODE_FENCE_OPEN, text, posAfterIndent);
+            if (openMatch) {
+              const language = openMatch[1] || "";
+              let currentPos = posAfterIndent + openMatch[0].length;
 
-            while (i < text.length) {
-              // 检查是否遇到闭合的 ```，允许前面有最多 3-4 个空格缩进
-              if (text[i] === "\n") {
-                const nextIndex = i + 1;
-                let k = nextIndex;
-                let spaceCount = 0;
-                // 跳过最多 4 个空格（兼容常见 Markdown 缩进习惯）
-                // 修正：为了兼容 AI 输出中可能存在的深层缩进，放宽限制到 20 个空格
-                while (k < text.length && text[k] === " " && spaceCount < 20) {
-                  k++;
-                  spaceCount++;
-                }
-                if (text.slice(k, k + 3) === "```") {
-                  // 将指针移动到 ``` 之后，结束代码块
-                  i = k + 3;
-                  closed = true;
-                  break;
-                }
+              if (currentPos < len && text[currentPos] === "\n") {
+                currentPos++;
               }
 
-              codeContent += text[i];
-              i++;
+              const contentStart = currentPos;
+              let contentEnd = len;
+              let closed = false;
+
+              while (currentPos < len) {
+                if (text[currentPos] === "\n") {
+                  let k = currentPos + 1;
+                  let spaceCount = 0;
+                  while (k < len && text[k] === " " && spaceCount < 20) {
+                    k++;
+                    spaceCount++;
+                  }
+                  if (text.startsWith("```", k)) {
+                    contentEnd = currentPos;
+                    currentPos = k + 3;
+                    closed = true;
+                    break;
+                  }
+                }
+                currentPos++;
+              }
+
+              let codeContent = text.slice(contentStart, contentEnd);
+              if (indent > 0) {
+                const dedentRegex = new RegExp(`^ {0,${indent}}`, "gm");
+                codeContent = codeContent.replace(dedentRegex, "");
+              }
+
+              tokens.push({
+                type: "code_fence",
+                language,
+                raw: codeContent,
+                closed,
+              });
+              i = currentPos;
+              atLineStart = true;
+              continue;
+            }
+          }
+
+          // 标题 #
+          if (indent < 4 && charAfterIndent === 35) {
+            const headingMatch = stickyMatch(RE_HEADING, text, posAfterIndent);
+            if (headingMatch) {
+              tokens.push({
+                type: "heading_marker",
+                level: headingMatch[1].length,
+                raw: headingMatch[0],
+              });
+              i = posAfterIndent + headingMatch[0].length;
+              atLineStart = false;
+              continue;
+            }
+          }
+
+          // 水平线 ---, ***, ___
+          if (indent < 4 && (charAfterIndent === 45 || charAfterIndent === 42 || charAfterIndent === 95)) {
+            const hrMatch = stickyMatch(RE_HR, text, posAfterIndent);
+            if (hrMatch) {
+              tokens.push({ type: "hr_marker", raw: hrMatch[0] });
+              i = posAfterIndent + hrMatch[0].length;
+              atLineStart = false;
+              continue;
+            }
+          }
+
+          // 列表标记
+          const listMatch = stickyMatch(RE_LIST, text, posAfterIndent);
+          if (listMatch) {
+            tokens.push({
+              type: "list_marker",
+              ordered: /\d+\./.test(listMatch[1]),
+              raw: listMatch[0],
+              indent: indent,
+            });
+            i = posAfterIndent + listMatch[0].length;
+            atLineStart = false;
+            continue;
+          }
+
+          // 引用标记 >
+          if (indent < 4 && charAfterIndent === 62) {
+            const bqMatch = stickyMatch(RE_BLOCKQUOTE, text, posAfterIndent);
+            if (bqMatch) {
+              tokens.push({ type: "blockquote_marker", raw: bqMatch[0] });
+              i = posAfterIndent + bqMatch[0].length;
+              atLineStart = true;
+              continue;
+            }
+          }
+
+          // VCP 工具请求块 <<<[TOOL_REQUEST]>>>
+          if (text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
+            const startMarker = "<<<[TOOL_REQUEST]>>>";
+            const endMarker = "<<<[END_TOOL_REQUEST]>>>";
+            let currentPos = posAfterIndent + startMarker.length;
+
+            const endIdx = text.indexOf(endMarker, currentPos);
+            let vcpContent = "";
+            let closed = false;
+
+            if (endIdx !== -1) {
+              vcpContent = text.slice(currentPos, endIdx);
+              currentPos = endIdx + endMarker.length;
+              closed = true;
+            } else {
+              vcpContent = text.slice(currentPos);
+              currentPos = len;
+              closed = false;
             }
 
-            // 处理缩进：移除代码块内容中每一行开头多余的缩进
-            // 缩进量以代码块围栏（```）前的空格数为准
-            if (indent > 0) {
-              const dedentRegex = new RegExp(`^ {0,${indent}}`);
-              codeContent = codeContent
-                .split("\n")
-                .map((line) => line.replace(dedentRegex, ""))
-                .join("\n");
+            const args: Record<string, string> = {};
+            let tool_name = "";
+            let command = "";
+            let maid = "";
+
+            let match;
+            RE_VCP_ARG.lastIndex = 0;
+            let lastMatchEnd = 0;
+            while ((match = RE_VCP_ARG.exec(vcpContent)) !== null) {
+              const key = match[1];
+              const value = match[2];
+              if (key === "tool_name") tool_name = value;
+              else if (key === "command") command = value;
+              else if (key === "maid") maid = value;
+              else args[key] = value;
+              lastMatchEnd = RE_VCP_ARG.lastIndex;
             }
 
-            // 添加代码块 token（包含完整内容）
-            tokens.push({ type: "code_fence", language, raw: codeContent, closed });
+            const remainingVcp = vcpContent.slice(lastMatchEnd).trim();
+            const pendingMatch = remainingVcp.match(RE_VCP_PENDING);
+            if (pendingMatch) {
+              const key = pendingMatch[1];
+              const value = pendingMatch[2];
+              if (key === "tool_name") tool_name = tool_name || value;
+              else if (key === "command") command = command || value;
+              else if (key === "maid") maid = maid || value;
+              else if (!args[key]) args[key] = value;
+            }
+
+            tokens.push({
+              type: "vcp_tool",
+              raw: startMarker + vcpContent + (closed ? endMarker : ""),
+              closed,
+              tool_name,
+              command,
+              maid,
+              args,
+            });
+            i = currentPos;
             atLineStart = true;
             continue;
           }
-        }
-
-        // 标题标记
-        // 允许 0-3 个空格缩进
-        const headingMatch = remaining.slice(indent).match(/^(#{1,6})\s/);
-        if (indent < 4 && headingMatch) {
-          tokens.push({
-            type: "heading_marker",
-            level: headingMatch[1].length,
-            raw: headingMatch[0],
-          });
-          i += indent + headingMatch[0].length;
-          atLineStart = false;
-          continue;
-        }
-
-        // 水平线 - 必须是独立的一行（只能跟空白字符或换行）
-        // 允许 0-3 个空格缩进
-        const hrMatch = remaining.slice(indent).match(/^(---+|\*\*\*+|___+)(\s*)(?=\n|$)/);
-        if (indent < 4 && hrMatch) {
-          tokens.push({ type: "hr_marker", raw: hrMatch[0] });
-          i += indent + hrMatch[0].length;
-          atLineStart = false;
-          continue;
-        }
-
-        // 列表标记（包含前导空白）
-        // 列表项的缩进非常重要，用于确定嵌套层级
-        const listMatch = remaining.slice(indent).match(/^([*+-]|\d+\.)\s/);
-        if (listMatch) {
-          tokens.push({
-            type: "list_marker",
-            ordered: /\d+\./.test(listMatch[1]),
-            raw: listMatch[0],
-            indent: indent, // 记录缩进量
-          });
-          i += indent + listMatch[0].length;
-          atLineStart = false;
-          continue;
-        }
-
-        // 引用标记
-        // 允许 0-3 个空格缩进
-        if (indent < 4 && (remaining.slice(indent).startsWith("> ") || remaining.slice(indent).startsWith(">"))) {
-          const match = remaining.slice(indent).match(/^>[ \t]?/);
-          if (match) {
-            tokens.push({ type: "blockquote_marker", raw: match[0] });
-            i += indent + match[0].length;
-            // 保持 atLineStart 为 true，以便后续内容（如嵌套引用 > 或标题 #）能被识别为块级标记
-            atLineStart = true;
-            continue;
-          }
-        }
-
-        // VCP 工具请求块
-        // 格式: <<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>
-        if (remaining.slice(indent).startsWith("<<<[TOOL_REQUEST]>>>")) {
-          const startMarker = "<<<[TOOL_REQUEST]>>>";
-          const endMarker = "<<<[END_TOOL_REQUEST]>>>";
-          i += indent + startMarker.length;
-
-          let vcpContent = "";
-          let closed = false;
-          const endIdx = text.indexOf(endMarker, i);
-
-          if (endIdx !== -1) {
-            vcpContent = text.slice(i, endIdx);
-            i = endIdx + endMarker.length;
-            closed = true;
-          } else {
-            // 未闭合，收集剩余所有内容
-            vcpContent = text.slice(i);
-            i = text.length;
-            closed = false;
-          }
-
-          // 解析 VCP 内容: key:「始」value「末」
-          // 优化流式解析：支持未闭合的「始」
-          const args: Record<string, string> = {};
-          let tool_name = "";
-          let command = "";
-          let maid = "";
-
-          // 1. 先提取所有完整的键值对
-          const vcpRegex = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
-          let lastMatchEnd = 0;
-          let match;
-          while ((match = vcpRegex.exec(vcpContent)) !== null) {
-            const key = match[1];
-            const value = match[2];
-            if (key === "tool_name") tool_name = value;
-            else if (key === "command") command = value;
-            else if (key === "maid") maid = value;
-            else args[key] = value;
-            lastMatchEnd = vcpRegex.lastIndex;
-          }
-
-          // 2. 检查末尾是否存在未闭合的键值对 (即时显示正在输入的参数)
-          const remainingVcp = vcpContent.slice(lastMatchEnd).trim();
-          const pendingMatch = remainingVcp.match(/([a-zA-Z0-9_-]+):「始」([\s\S]*)$/);
-          if (pendingMatch) {
-            const key = pendingMatch[1];
-            const value = pendingMatch[2];
-            if (key === "tool_name") tool_name = tool_name || value;
-            else if (key === "command") command = command || value;
-            else if (key === "maid") maid = maid || value;
-            else if (!args[key]) args[key] = value;
-          }
-
-          tokens.push({
-            type: "vcp_tool",
-            raw: startMarker + vcpContent + (closed ? endMarker : ""),
-            closed,
-            tool_name,
-            command,
-            maid,
-            args,
-          });
-
-          atLineStart = true;
-          continue;
         }
       }
 
-      // Markdown 内联定界符
-      if (remaining.startsWith("“")) {
+      // 7. Markdown 内联定界符
+      if (char === 8220) { // “
         tokens.push({ type: "quote_delimiter", marker: "“", raw: "“" });
-        i += 1;
-        atLineStart = false;
-        continue;
+        i += 1; atLineStart = false; continue;
       }
-      if (remaining.startsWith("”")) {
+      if (char === 8221) { // ”
         tokens.push({ type: "quote_delimiter", marker: "”", raw: "”" });
-        i += 1;
-        atLineStart = false;
-        continue;
+        i += 1; atLineStart = false; continue;
       }
-      if (remaining.startsWith("\"")) {
+      if (char === 34) { // "
         tokens.push({ type: "quote_delimiter", marker: "\"", raw: "\"" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
-      if (remaining.startsWith("~~")) {
-        tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
-        i += 2;
-        atLineStart = false;
-        continue;
-      }
-      // 下标 ~
-      if (remaining.startsWith("~")) {
-        tokens.push({ type: "subscript_delimiter", marker: "~", raw: "~" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
-      // 上标 ^
-      if (remaining.startsWith("^")) {
-        tokens.push({ type: "superscript_delimiter", marker: "^", raw: "^" });
-        i += 1;
-        atLineStart = false;
-        continue;
+        i += 1; atLineStart = false; continue;
       }
 
-      // 处理 *** (三重分隔符) 以实现粗斜体
-      if (remaining.startsWith("***")) {
-        tokens.push({ type: "triple_delimiter", marker: "***", raw: "***" });
-        i += 3;
-        atLineStart = false;
-        continue;
-      }
-
-      if (remaining.startsWith("**")) {
-        tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
-        i += 2;
-        atLineStart = false;
-        continue;
-      }
-      if (remaining.startsWith("__")) {
-        tokens.push({ type: "strong_delimiter", marker: "__", raw: "__" });
-        i += 2;
-        atLineStart = false;
-        continue;
-      }
-      if (remaining.startsWith("*") && !remaining.startsWith("**")) {
-        tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
-      if (remaining.startsWith("_") && !remaining.startsWith("__")) {
-        tokens.push({ type: "em_delimiter", marker: "_", raw: "_" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
-      // 行内代码 - 立即处理完整的代码块
-      // 支持任意数量的反引号作为定界符 (e.g. `` ` ``)
-      if (remaining.startsWith("`")) {
-        // 1. 确定起始反引号的数量
-        const startTicksMatch = remaining.match(/^`+/);
-        if (startTicksMatch) {
-          const startTicks = startTicksMatch[0];
-          const tickCount = startTicks.length;
-
-          // 2. 寻找匹配的闭合反引号（数量必须相同）
-          // 注意：内容中可以包含反引号，只要数量不等于 tickCount
-          // 重要：行内代码不应跨越段落边界（连续两个换行符）
-          let contentEndIndex = -1;
-          let searchIndex = tickCount;
-
-          // 计算搜索边界：在遇到连续两个换行符（段落边界）时停止
-          // 这可以防止未闭合的行内代码"吞噬"后续的块级结构
-          let searchBoundary = remaining.length;
-          const paragraphBreakIndex = remaining.indexOf("\n\n", tickCount);
-          if (paragraphBreakIndex !== -1) {
-            searchBoundary = paragraphBreakIndex;
-          }
-
-          while (searchIndex < searchBoundary) {
-            // 查找下一个反引号
-            const nextTickIndex = remaining.indexOf("`", searchIndex);
-            if (nextTickIndex === -1 || nextTickIndex >= searchBoundary) break;
-
-            // 检查这一组反引号的长度
-            let currentTickCount = 0;
-            let k = nextTickIndex;
-            while (k < remaining.length && remaining[k] === "`") {
-              currentTickCount++;
-              k++;
-            }
-
-            if (currentTickCount === tickCount) {
-              // 找到了匹配的闭合标记
-              contentEndIndex = nextTickIndex;
-              break;
-            }
-
-            // 继续搜索
-            searchIndex = k;
-          }
-
-          if (contentEndIndex !== -1) {
-            // 提取内容
-            let content = remaining.slice(tickCount, contentEndIndex);
-
-            // 规范处理：如果代码块首尾都有空格，且内容非纯空格，则剥离首尾的一个空格
-            // e.g. `` ` `` -> `
-            if (content.length >= 2 && content.startsWith(" ") && content.endsWith(" ") && content.trim().length > 0) {
-              content = content.slice(1, -1);
-            }
-
-            tokens.push({ type: "inline_code", content });
-            i += contentEndIndex + tickCount;
-            atLineStart = false;
-            continue;
-          } else {
-            // 没有找到匹配的闭合标记，把起始的第一个反引号当作普通文本
-            // 剩下的反引号会在下一次循环中处理
-            tokens.push({ type: "text", content: "`" });
-            i += 1;
-            atLineStart = false;
-            continue;
-          }
+      if (char === 126) { // ~
+        if (i + 1 < len && text.charCodeAt(i + 1) === 126) {
+          tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
+          i += 2;
+        } else {
+          tokens.push({ type: "subscript_delimiter", marker: "~", raw: "~" });
+          i += 1;
         }
+        atLineStart = false; continue;
       }
 
-      // KaTeX 块级公式 $$...$$ (非行首位置的处理)
-      if (remaining.startsWith("$$")) {
-        i += 2; // 跳过开始的 $$
+      if (char === 94) { // ^
+        tokens.push({ type: "superscript_delimiter", marker: "^", raw: "^" });
+        i += 1; atLineStart = false; continue;
+      }
 
-        // 收集公式内容
-        let formulaContent = "";
+      if (char === 42) { // *
+        if (i + 2 < len && text.charCodeAt(i + 1) === 42 && text.charCodeAt(i + 2) === 42) {
+          tokens.push({ type: "triple_delimiter", marker: "***", raw: "***" });
+          i += 3;
+        } else if (i + 1 < len && text.charCodeAt(i + 1) === 42) {
+          tokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
+          i += 2;
+        } else {
+          tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
+          i += 1;
+        }
+        atLineStart = false; continue;
+      }
 
-        while (i < text.length) {
-          // 检查是否遇到闭合的 $$
-          if (text[i] === "$" && i + 1 < text.length && text[i + 1] === "$") {
-            // 找到闭合标记，跳过它
-            i += 2;
+      if (char === 95) { // _
+        if (i + 1 < len && text.charCodeAt(i + 1) === 95) {
+          tokens.push({ type: "strong_delimiter", marker: "__", raw: "__" });
+          i += 2;
+        } else {
+          tokens.push({ type: "em_delimiter", marker: "_", raw: "_" });
+          i += 1;
+        }
+        atLineStart = false; continue;
+      }
+
+      // 8. 行内代码 `
+      if (char === 96) {
+        let tickCount = 0;
+        while (i + tickCount < len && text.charCodeAt(i + tickCount) === 96) {
+          tickCount++;
+        }
+
+        let contentEndIndex = -1;
+        let searchIndex = i + tickCount;
+        let searchBoundary = len;
+        const paragraphBreakIndex = text.indexOf("\n\n", searchIndex);
+        if (paragraphBreakIndex !== -1) searchBoundary = paragraphBreakIndex;
+
+        while (searchIndex < searchBoundary) {
+          const nextTickIndex = text.indexOf("`", searchIndex);
+          if (nextTickIndex === -1 || nextTickIndex >= searchBoundary) break;
+
+          let currentTickCount = 0;
+          let k = nextTickIndex;
+          while (k < len && text.charCodeAt(k) === 96) {
+            currentTickCount++;
+            k++;
+          }
+
+          if (currentTickCount === tickCount) {
+            contentEndIndex = nextTickIndex;
             break;
           }
-          formulaContent += text[i];
-          i++;
+          searchIndex = k;
         }
 
-        // 添加 KaTeX 块级 token
-        tokens.push({ type: "katex_block", content: formulaContent.trim() });
-        atLineStart = false;
-        continue;
-      }
-
-      // KaTeX 行内公式 $...$ - 立即处理完整的公式
-      if (remaining.startsWith("$")) {
-        // 尝试匹配完整的行内公式 $...$
-        // 使用非贪婪匹配，并且不跨越换行符
-        const formulaMatch = remaining.match(/^\$([^\n$]+?)\$/);
-        if (formulaMatch) {
-          // 找到了完整的行内公式
-          tokens.push({ type: "katex_inline", content: formulaMatch[1] });
-          i += formulaMatch[0].length;
+        if (contentEndIndex !== -1) {
+          let content = text.slice(i + tickCount, contentEndIndex);
+          if (content.length >= 2 && content.startsWith(" ") && content.endsWith(" ") && content.trim().length > 0) {
+            content = content.slice(1, -1);
+          }
+          tokens.push({ type: "inline_code", content });
+          i = contentEndIndex + tickCount;
           atLineStart = false;
           continue;
         } else {
-          // 没有找到匹配的 $，按普通文本处理
-          tokens.push({ type: "text", content: "$" });
+          tokens.push({ type: "text", content: "`" });
           i += 1;
           atLineStart = false;
           continue;
         }
       }
 
-      // 图片标记 ![
-      if (remaining.startsWith("![")) {
+      // 9. KaTeX 公式 $
+      if (char === 36) {
+        // $$
+        if (i + 1 < len && text.charCodeAt(i + 1) === 36) {
+          const startIdx = i + 2;
+          let endIdx = startIdx;
+          while (endIdx < len) {
+            if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
+              break;
+            }
+            endIdx++;
+          }
+          const formulaContent = text.slice(startIdx, endIdx).trim();
+          i = endIdx < len ? endIdx + 2 : endIdx;
+          tokens.push({ type: "katex_block", content: formulaContent });
+          atLineStart = false;
+          continue;
+        }
+        // $
+        const formulaMatch = stickyMatch(RE_KATEX_INLINE, text, i);
+        if (formulaMatch) {
+          tokens.push({ type: "katex_inline", content: formulaMatch[1] });
+          i += formulaMatch[0].length;
+          atLineStart = false;
+          continue;
+        }
+        tokens.push({ type: "text", content: "$" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+
+      // 10. 图片与链接 ![, [, ], (, )
+      if (char === 33 && i + 1 < len && text.charCodeAt(i + 1) === 91) {
         tokens.push({ type: "image_marker", raw: "!" });
-        i += 1;
-        atLineStart = false;
-        continue;
+        i += 1; atLineStart = false; continue;
       }
-      if (remaining.startsWith("[")) {
-        tokens.push({ type: "link_text_open", raw: "[" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
-      if (remaining.startsWith("]")) {
-        tokens.push({ type: "link_text_close", raw: "]" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
-      if (remaining.startsWith("(")) {
-        tokens.push({ type: "link_url_open", raw: "(" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
-      if (remaining.startsWith(")")) {
-        tokens.push({ type: "link_url_close", raw: ")" });
-        i += 1;
-        atLineStart = false;
-        continue;
-      }
+      if (char === 91) { tokens.push({ type: "link_text_open", raw: "[" }); i += 1; atLineStart = false; continue; }
+      if (char === 93) { tokens.push({ type: "link_text_close", raw: "]" }); i += 1; atLineStart = false; continue; }
+      if (char === 40) { tokens.push({ type: "link_url_open", raw: "(" }); i += 1; atLineStart = false; continue; }
+      if (char === 41) { tokens.push({ type: "link_url_close", raw: ")" }); i += 1; atLineStart = false; continue; }
 
-      // 普通文本
-      const specialChars = /<|`|\*|_|~|\^|!|\[|\]|\(|\)|#|>|\n|\$|“|”|"|\\/;
-      const nextSpecialIndex = remaining.search(specialChars);
+      // 11. 普通文本收集
+      RE_SPECIAL_CHARS.lastIndex = i;
+      const match = RE_SPECIAL_CHARS.exec(text);
 
-      const textContent =
-        nextSpecialIndex === -1
-          ? remaining
-          : nextSpecialIndex === 0
-            ? remaining[0]
-            : remaining.substring(0, nextSpecialIndex);
-
-      if (textContent.length > 0) {
-        tokens.push({ type: "text", content: textContent });
-        i += textContent.length;
+      if (!match) {
+        tokens.push({ type: "text", content: text.slice(i) });
+        i = len;
+      } else if (match.index > i) {
+        tokens.push({ type: "text", content: text.slice(i, match.index) });
+        i = match.index;
         atLineStart = false;
-        continue;
+      } else {
+        tokens.push({ type: "text", content: text[i] });
+        i++;
+        atLineStart = false;
       }
-
-      // 安全保护
-      i++;
-      atLineStart = false;
     }
 
     return tokens;
@@ -644,11 +568,9 @@ export class Tokenizer {
 
   private parseAttributes(attrString: string): Record<string, string> {
     const attributes: Record<string, string> = {};
-    // 修复正则：支持属性值中的连字符和其他字符
-    // 匹配: key="value" 或 key='value' 或 key=value (无空格的值)
-    const attrRegex = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+    RE_ATTR.lastIndex = 0;
     let match;
-    while ((match = attrRegex.exec(attrString)) !== null) {
+    while ((match = RE_ATTR.exec(attrString)) !== null) {
       const key = match[1];
       const value = match[2] || match[3] || match[4] || "";
       attributes[key] = value;

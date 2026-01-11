@@ -1434,6 +1434,31 @@ export const settingsConfig: SettingsSection[] = [
         hint: "固定间隔：每次重试等待相同时间<br/>指数退避：每次重试等待时间翻倍（推荐）",
         keywords: "request retry mode strategy 重试 模式 策略",
       },
+      {
+        id: "enableIncrementalSave",
+        label: "生成中自动保存",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "requestSettings.enableIncrementalSave",
+        hint: "消息生成过程中定期保存会话状态，防止崩溃或刷新导致内容丢失",
+        keywords: "request save persistence 自动保存 持久化 崩溃 刷新",
+      },
+      {
+        id: "incrementalSaveInterval",
+        label:
+          "自动保存间隔 ({{ localSettings.requestSettings.incrementalSaveInterval }}ms)",
+        component: "ElSlider",
+        props: {
+          min: 500,
+          max: 10000,
+          step: 500,
+          "format-tooltip": (val: number) => `${val}ms`,
+        },
+        modelPath: "requestSettings.incrementalSaveInterval",
+        hint: "控制生成过程中增量保存的频率",
+        keywords: "request save interval 自动保存 间隔",
+        visible: (settings) => settings.requestSettings.enableIncrementalSave,
+      },
     ],
   },
   {

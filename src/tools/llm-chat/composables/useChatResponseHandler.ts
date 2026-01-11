@@ -9,6 +9,8 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { processInlineData } from "@/composables/useAttachmentProcessor";
+import { useSessionManager } from "./useSessionManager";
+import { useChatSettings } from "./useChatSettings";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
@@ -17,6 +19,33 @@ export function useChatResponseHandler() {
   // 用于节流 reasoning 和 content 更新的 Map
   const reasoningUpdateBuffer = new Map<string, { buffer: string; isScheduled: boolean }>();
   const contentUpdateBuffer = new Map<string, { buffer: string; isScheduled: boolean }>();
+
+  // 用于控制增量保存的频率
+  const lastPersistTimeMap = new Map<string, number>();
+
+  /**
+   * 触发增量保存
+   */
+  const triggerIncrementalSave = (session: ChatSession) => {
+    const { settings } = useChatSettings();
+    const config = settings.value.requestSettings;
+
+    if (!config.enableIncrementalSave) return;
+
+    const now = Date.now();
+    const lastSave = lastPersistTimeMap.get(session.id) || 0;
+
+    if (now - lastSave >= config.incrementalSaveInterval) {
+      const { persistSession } = useSessionManager();
+      // 正在生成中，进行静默保存以防崩溃/刷新丢失
+      persistSession(session, session.id);
+      lastPersistTimeMap.set(session.id, now);
+      logger.debug("💾 已触发生成中的增量保存", {
+        sessionId: session.id,
+        interval: config.incrementalSaveInterval,
+      });
+    }
+  };
 
   /**
    * 处理流式响应更新
@@ -65,6 +94,9 @@ export function useChatResponseHandler() {
           }
           state.buffer = "";
           state.isScheduled = false;
+
+          // 尝试增量保存
+          triggerIncrementalSave(session);
         });
       }
     } else {
@@ -106,6 +138,9 @@ export function useChatResponseHandler() {
           }
           contentState.buffer = "";
           contentState.isScheduled = false;
+
+          // 尝试增量保存
+          triggerIncrementalSave(session);
         });
       }
     }
@@ -337,9 +372,10 @@ export function useChatResponseHandler() {
       });
     }
 
-    // 清理缓冲
+    // 清理缓冲和保存状态
     reasoningUpdateBuffer.delete(nodeId);
     contentUpdateBuffer.delete(nodeId);
+    lastPersistTimeMap.delete(session.id);
 
     // 更新会话中的智能体使用统计
     if (!session.agentUsage) {
@@ -382,9 +418,10 @@ export function useChatResponseHandler() {
       });
     }
 
-    // 清理缓冲
+    // 清理缓冲和保存状态
     reasoningUpdateBuffer.delete(nodeId);
     contentUpdateBuffer.delete(nodeId);
+    lastPersistTimeMap.delete(session.id);
   };
 
   return {

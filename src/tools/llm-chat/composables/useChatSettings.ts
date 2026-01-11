@@ -246,6 +246,10 @@ export interface ChatSettings {
     retryInterval: number;
     /** 重试模式：固定间隔或指数退避 */
     retryMode: "fixed" | "exponential";
+    /** 是否启用生成中的增量保存（防止崩溃/刷新丢失） */
+    enableIncrementalSave: boolean;
+    /** 增量保存间隔（毫秒） */
+    incrementalSaveInterval: number;
   };
   /** 开发者设置 */
   developer: {
@@ -511,6 +515,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxRetries: 3, // 默认重试 3 次
     retryInterval: 1000, // 默认重试间隔 1 秒
     retryMode: "fixed", // 默认固定间隔
+    enableIncrementalSave: true, // 默认启用增量保存
+    incrementalSaveInterval: 2000, // 默认 2 秒
   },
   developer: {
     debugModeEnabled: false,

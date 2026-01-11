@@ -16,7 +16,7 @@ function stickyMatch(
 }
 
 // 预编译正则表达式（带 sticky 标志，提升匹配性能）
-const RE_HTML_TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*([^>]*?)\s*(\/?)\>/y;
+const RE_HTML_TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*([\s\S]*?)\s*(\/?)\>/y;
 const RE_MATHJAX_INLINE = /\\\((.*?)\\\)/y;
 const RE_ESCAPE_PUNCT = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
 const RE_AUTOLINK = /<((?:https?|ftps?|mailto):[^\s>]+)>/y;

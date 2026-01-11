@@ -52,6 +52,13 @@ export class Tokenizer {
     "wbr",
   ]);
 
+  private static readonly rawElements = new Set([
+    "code",
+    "pre",
+    "script",
+    "style",
+  ]);
+
   /**
    * 将完整文本转换为令牌序列
    */
@@ -60,12 +67,75 @@ export class Tokenizer {
     const len = text.length;
     let i = 0;
     let atLineStart = true;
+    let rawTagStack: string[] = [];
 
     while (i < len) {
       const char = text.charCodeAt(i);
 
-      // 1. 换行符（优先处理，以更新 atLineStart 状态）
-      // charCode 10 = '\n'
+      // --- 原始文本模式 (Raw Mode) 处理 ---
+      if (rawTagStack.length > 0) {
+        // 原始模式仅处理换行符、匹配的闭合标签及普通文本
+        if (char === 10) {
+          tokens.push({ type: "newline", count: 1 });
+          i++;
+          atLineStart = true;
+          continue;
+        }
+
+        if (char === 60) { // '<'
+          const htmlMatch = stickyMatch(RE_HTML_TAG, text, i);
+          if (htmlMatch) {
+            const isClosing = !!htmlMatch[1];
+            const tagName = htmlMatch[2].toLowerCase();
+            const targetTagName = rawTagStack[rawTagStack.length - 1];
+
+            // 仅当匹配栈顶标签名时退出原始模式
+            if (isClosing && tagName === targetTagName) {
+              rawTagStack.pop();
+              tokens.push({ type: "html_close", tagName, raw: htmlMatch[0] });
+              i += htmlMatch[0].length;
+              atLineStart = false;
+              continue;
+            }
+          }
+        }
+
+        // 贪婪匹配普通文本，直至遇到 '<' 或 '\n'
+        RE_SPECIAL_CHARS.lastIndex = i;
+        let match = RE_SPECIAL_CHARS.exec(text);
+        let textEnd = len;
+        if (match) {
+          let searchIdx = match.index;
+          while (searchIdx < len) {
+            const c = text.charCodeAt(searchIdx);
+            if (c === 60 || c === 10) {
+              textEnd = searchIdx;
+              break;
+            }
+            RE_SPECIAL_CHARS.lastIndex = searchIdx + 1;
+            match = RE_SPECIAL_CHARS.exec(text);
+            if (!match) {
+              textEnd = len;
+              break;
+            }
+            searchIdx = match.index;
+          }
+        }
+
+        if (textEnd > i) {
+          tokens.push({ type: "text", content: text.slice(i, textEnd) });
+          i = textEnd;
+        } else {
+          tokens.push({ type: "text", content: text[i] });
+          i++;
+        }
+        atLineStart = false;
+        continue;
+      }
+
+      // --- 正常解析模式 ---
+
+      // 1. 换行符
       if (char === 10) {
         let count = 1;
         while (i + count < len && text.charCodeAt(i + count) === 10) {
@@ -77,43 +147,28 @@ export class Tokenizer {
         continue;
       }
 
-      // 2. MathJax 块级公式 \[...\] (优先于转义字符处理)
-      // charCode 92 = '\\', 91 = '['
+      // 2. MathJax 块级公式 \[...\] (优先级高于转义)
       if (char === 92 && i + 1 < len && text.charCodeAt(i + 1) === 91) {
-        const startIdx = i + 2; // 跳过 \[
+        const startIdx = i + 2;
         let endIdx = startIdx;
-
         while (endIdx < len) {
-          // 检查是否遇到闭合的 \]
-          if (
-            text.charCodeAt(endIdx) === 92 &&
-            endIdx + 1 < len &&
-            text.charCodeAt(endIdx + 1) === 93
-          ) {
-            break;
-          }
+          if (text.charCodeAt(endIdx) === 92 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 93) break;
           endIdx++;
         }
 
         const formulaContent = text.slice(startIdx, endIdx).trim();
         i = endIdx < len ? endIdx + 2 : endIdx;
-
         tokens.push({ type: "katex_block", content: formulaContent });
         atLineStart = false;
         continue;
       }
 
       // 3. MathJax 行内公式 \(...\)
-      // charCode 92 = '\\', 40 = '('
       if (char === 92 && i + 1 < len && text.charCodeAt(i + 1) === 40) {
         const mathjaxMatch = stickyMatch(RE_MATHJAX_INLINE, text, i);
         if (mathjaxMatch) {
           const formulaContent = mathjaxMatch[1];
-          const hasNewline = formulaContent.includes("\n");
-          const hasNestedMathJax =
-            formulaContent.includes("\\(") || formulaContent.includes("\\[");
-
-          if (!hasNewline && !hasNestedMathJax) {
+          if (!formulaContent.includes("\n") && !formulaContent.includes("\\(") && !formulaContent.includes("\\[")) {
             tokens.push({ type: "katex_inline", content: formulaContent });
             i += mathjaxMatch[0].length;
             atLineStart = false;
@@ -124,69 +179,50 @@ export class Tokenizer {
 
       // 4. 转义字符
       if (char === 92) {
-        if (i + 1 < len) {
-          const nextChar = text[i + 1];
-          if (RE_ESCAPE_PUNCT.test(nextChar)) {
-            tokens.push({ type: "text", content: nextChar });
-            i += 2;
-            atLineStart = false;
-            continue;
-          }
+        if (i + 1 < len && RE_ESCAPE_PUNCT.test(text[i + 1])) {
+          tokens.push({ type: "text", content: text[i + 1] });
+          i += 2;
+        } else {
+          tokens.push({ type: "text", content: "\\" });
+          i += 1;
         }
-        tokens.push({ type: "text", content: "\\" });
-        i += 1;
         atLineStart = false;
         continue;
       }
 
-      // 5. 以下是以 '<' 开头的情况 (Autolink, HTML Comment, HTML Tag)
+      // 5. Autolink, Comment, HTML Tag
       if (char === 60) {
-        // Autolink
         const autolinkMatch = stickyMatch(RE_AUTOLINK, text, i);
         if (autolinkMatch) {
-          tokens.push({
-            type: "autolink",
-            url: autolinkMatch[1],
-            raw: autolinkMatch[0],
-          });
+          tokens.push({ type: "autolink", url: autolinkMatch[1], raw: autolinkMatch[0] });
           i += autolinkMatch[0].length;
           atLineStart = false;
           continue;
         }
 
-        // HTML Comment
         const commentMatch = stickyMatch(RE_HTML_COMMENT, text, i);
         if (commentMatch) {
-          tokens.push({
-            type: "html_comment",
-            content: commentMatch[0].slice(4, -3),
-            raw: commentMatch[0],
-          });
+          tokens.push({ type: "html_comment", content: commentMatch[0].slice(4, -3), raw: commentMatch[0] });
           i += commentMatch[0].length;
           atLineStart = false;
           continue;
         }
 
-        // HTML Tag
         const htmlMatch = stickyMatch(RE_HTML_TAG, text, i);
         if (htmlMatch) {
           const rawTag = htmlMatch[0];
           const isClosing = !!htmlMatch[1];
           const tagName = htmlMatch[2].toLowerCase();
           const attributes = this.parseAttributes(htmlMatch[3]);
-          const isSelfClosing =
-            !!htmlMatch[4] || Tokenizer.voidElements.has(tagName);
+          const isSelfClosing = !!htmlMatch[4] || Tokenizer.voidElements.has(tagName);
 
           if (isClosing) {
             tokens.push({ type: "html_close", tagName, raw: rawTag });
           } else {
-            tokens.push({
-              type: "html_open",
-              tagName,
-              attributes,
-              selfClosing: isSelfClosing,
-              raw: rawTag,
-            });
+            if (!isSelfClosing && Tokenizer.rawElements.has(tagName)) {
+              rawTagStack.push(tagName);
+            }
+            tokens.push({ type: "html_open", tagName, attributes, selfClosing: isSelfClosing, raw: rawTag });
           }
           i += rawTag.length;
           atLineStart = false;

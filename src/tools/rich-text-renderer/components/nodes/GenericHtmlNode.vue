@@ -1,5 +1,8 @@
 <template>
-  <div class="generic-node-wrapper" :class="{ 'has-hidden-audio': isHiddenAudio }">
+  <div
+    class="generic-node-wrapper"
+    :class="{ 'has-hidden-audio': isHiddenAudio, 'is-transparent': !isHiddenAudio }"
+  >
     <component
       :is="safeTagName"
       v-bind="filteredAttributes"
@@ -336,6 +339,14 @@ const filteredAttributes = computed(() => {
   position: relative;
   display: inline-block;
   max-width: 100%;
+}
+
+.generic-node-wrapper.is-transparent {
+  /*
+     透明模式：让包装层在布局上“消失”，子元素直接参与父级布局。
+     这解决了嵌套 HTML 标签时 absolute 定位参照物偏移的问题。
+  */
+  display: contents;
 }
 
 .generic-node-wrapper.has-hidden-audio {

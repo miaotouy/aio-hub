@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, provide } from "vue";
+import { computed, ref, watch, provide, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, MessageRole, ChatSession } from "../../types";
 import { Database, Edit2, Check, X, User, Bot, Settings, Trash2 } from "lucide-vue-next";
@@ -27,6 +27,7 @@ interface Emits {
   (e: "delete"): void;
   (e: "update-content", content: string): void;
   (e: "update-role", role: MessageRole): void;
+  (e: "resize", el: HTMLElement | null): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -56,6 +57,13 @@ useResizeObserver(messageRef, (entries) => {
   const entry = entries[0];
   const { height } = entry.contentRect;
   messageHeight.value = height;
+});
+
+// 监听编辑状态变化，通知父组件重新测量高度
+watch(isEditing, () => {
+  nextTick(() => {
+    emit("resize", messageRef.value);
+  });
 });
 
 const backgroundBlocks = computed(() => {
@@ -159,6 +167,8 @@ const cancelEdit = () => {
   isEditing.value = false;
 };
 
+const getElement = () => messageRef.value;
+
 const saveEdit = () => {
   if (editedContent.value !== props.message.content) {
     emit("update-content", editedContent.value);
@@ -180,6 +190,11 @@ watch(
     }
   }
 );
+
+defineExpose({
+  startEdit,
+  getElement,
+});
 </script>
 
 <template>
@@ -315,11 +330,9 @@ watch(
   padding: 8px 16px;
   margin: 8px 0;
   border-radius: 8px;
-  transition: all 0.2s ease;
   font-size: 13px;
   color: var(--text-color-secondary);
-  content-visibility: auto;
-  contain-intrinsic-size: 100px;
+  /* 严禁在虚拟滚动的子项上使用高度相关的 transition */
 }
 
 /* 背景层容器 */

@@ -273,6 +273,14 @@ const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: As
   emit("save-to-branch", nodeId, newContent, attachments);
 };
 
+// 处理组件高度调整请求
+// 使用具体元素的测量而非全量 measure，避免滚动条跳动
+const handleResize = (dom: HTMLElement | null) => {
+  if (dom) {
+    virtualizer.value.measureElement(dom);
+  }
+};
+
 // 暴露滚动方法和容器引用供外部调用
 defineExpose({
   scrollToBottom,
@@ -327,11 +335,13 @@ defineExpose({
               @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
               @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
               @update-content="
-                (content: string) => store.editMessage(displayMessages[virtualItem.index].id, content)
+                (content: string) =>
+                  store.editMessage(displayMessages[virtualItem.index].id, content)
               "
               @update-role="
                 (role: any) => store.updateNodeData(displayMessages[virtualItem.index].id, { role })
               "
+              @resize="handleResize"
             />
 
             <!-- 普通消息渲染 -->
@@ -374,6 +384,7 @@ defineExpose({
                 (translation: any) =>
                   store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
               "
+              @resize="handleResize"
             />
           </div>
         </div>

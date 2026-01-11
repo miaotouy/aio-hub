@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, nextTick, watch } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSession } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -38,7 +38,11 @@ interface Emits {
   (e: "create-branch"): void;
   (e: "analyze-context"): void;
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
-  (e: "update-translation", translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined): void;
+  (
+    e: "update-translation",
+    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined
+  ): void;
+  (e: "resize", el: HTMLElement | null): void;
 }
 
 const props = defineProps<Props>();
@@ -66,6 +70,14 @@ useResizeObserver(messageRef, (entries) => {
   const entry = entries[0];
   const { height } = entry.contentRect;
   messageHeight.value = height;
+});
+
+// 监听编辑状态变化，通知父组件重新测量高度
+// 注意：不要在 useResizeObserver 中全量 emit，否则流式输出时会导致虚拟列表频繁重绘导致抽搐
+watch(isEditing, () => {
+  nextTick(() => {
+    emit("resize", messageRef.value);
+  });
 });
 
 // 计算需要多少个背景块
@@ -102,6 +114,9 @@ const cancelEdit = () => {
   isEditing.value = false;
 };
 
+// 暴露给虚拟列表用于精确测量的 ref
+const getElement = () => messageRef.value;
+
 // 复制消息
 const copyMessage = async () => {
   try {
@@ -115,7 +130,7 @@ const copyMessage = async () => {
 // 翻译消息
 const handleTranslate = async (targetLang?: string) => {
   if (isTranslating.value) return;
-  
+
   const content = props.message.content;
   if (!content.trim()) {
     customMessage.warning("消息内容为空，无法翻译");
@@ -147,7 +162,7 @@ const handleTranslate = async (targetLang?: string) => {
       displayMode: "both" as const, // 默认显示双语
       visible: true, // 翻译完成后默认显示
     };
-    
+
     emit("update-translation", translation);
     customMessage.success("翻译完成");
   } catch (error) {
@@ -160,12 +175,12 @@ const handleTranslate = async (targetLang?: string) => {
 // 切换翻译模式
 const handleChangeTranslationMode = (mode: any) => {
   if (!props.message.metadata?.translation) return;
-  
+
   const newTranslation = {
     ...props.message.metadata.translation,
     displayMode: mode,
   };
-  
+
   emit("update-translation", newTranslation);
 };
 
@@ -184,6 +199,7 @@ const handleToggleTranslationVisible = () => {
 // 暴露方法供父组件调用
 defineExpose({
   startEdit,
+  getElement,
 });
 </script>
 
@@ -262,11 +278,7 @@ defineExpose({
   display: flow-root; /* 创建 BFC，确保包含内部所有元素且高度计算准确 */
   padding: 16px;
   /* 移除原有的背景和边框样式，移交给 .message-background */
-  transition: all 0.2s;
-  
-  /* 性能优化：允许浏览器跳过视口外消息的渲染工作 */
-  content-visibility: auto;
-  contain-intrinsic-size: 600px;
+  /* 严禁在虚拟滚动的子项上使用高度相关的 transition，会导致测量偏移 */
 }
 
 /* 背景层容器 */

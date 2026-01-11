@@ -475,6 +475,12 @@ export function useContextCompressor() {
       // 创建节点并更新树
       await compressNodes(session, nodesToCompress, summary, effectiveConfig);
 
+      // 持久化会话状态，防止压缩结果丢失
+      llmChatStore.persistSessions();
+
+      // 压缩完成后，手动触发一次 Store 的上下文统计刷新
+      llmChatStore.refreshContextStats();
+
       return {
         success: true,
         messageCount: nodesToCompress.length,

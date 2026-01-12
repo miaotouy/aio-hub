@@ -41,7 +41,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   tiff: "image/tiff",
   tif: "image/tiff",
   avif: "image/avif",
-  
+
   // 音频
   mp3: "audio/mpeg",
   wav: "audio/wav",
@@ -49,7 +49,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   flac: "audio/flac",
   aac: "audio/aac",
   m4a: "audio/mp4",
-  
+
   // 视频
   mp4: "video/mp4",
   webm: "video/webm",
@@ -57,7 +57,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   mov: "video/quicktime",
   mkv: "video/x-matroska",
   flv: "video/x-flv",
-  
+
   // 文档
   pdf: "application/pdf",
   doc: "application/msword",
@@ -66,11 +66,16 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ppt: "application/vnd.ms-powerpoint",
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  
+
   // 文本和标记语言
   txt: "text/plain",
   text: "text/plain",
   log: "text/plain",
+  ass: "text/x-ass",
+  ssa: "text/x-ssa",
+  srt: "text/x-srt",
+  vtt: "text/vtt",
+  lrc: "text/plain",
   cfg: "text/plain",
   conf: "text/plain",
   ini: "text/plain",
@@ -89,7 +94,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   bib: "text/x-bibtex",
   sty: "text/x-tex",
   cls: "text/x-tex",
-  
+
   // 数据格式
   json: "application/json",
   yaml: "text/yaml",
@@ -97,7 +102,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   toml: "text/toml",
   csv: "text/csv",
   tsv: "text/tab-separated-values",
-  
+
   // 编程语言
   js: "text/javascript",
   jsx: "text/javascript",
@@ -138,7 +143,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   ps1: "text/x-powershell",
   bat: "text/x-batch",
   cmd: "text/x-batch",
-  
+
   // Web
   css: "text/css",
   scss: "text/x-scss",
@@ -148,7 +153,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   vue: "text/x-vue",
   svelte: "text/x-svelte",
   astro: "text/x-astro",
-  
+
   // 配置和脚本
   gitignore: "text/plain",
   dockerignore: "text/plain",
@@ -156,7 +161,7 @@ export const MIME_TYPE_MAP: Record<string, string> = {
   makefile: "text/x-makefile",
   cmake: "text/x-cmake",
   gradle: "text/x-gradle",
-  
+
   // 其他
   sql: "text/x-sql",
   graphql: "text/x-graphql",
@@ -199,6 +204,10 @@ const TEXT_MIME_TYPES = new Set([
   "text/x-less",
   "text/x-vue",
   "text/x-svelte",
+  "text/x-ass",
+  "text/x-ssa",
+  "text/x-srt",
+  "text/vtt",
 ]);
 
 /**
@@ -247,6 +256,34 @@ export function determineAssetType(mimeType: string): Asset["type"] {
 }
 
 /**
+ * 启发式检测 Buffer 是否可能为文本
+ */
+function isBufferLikelyText(buffer: Uint8Array): boolean {
+  if (buffer.length === 0) return true;
+
+  // 检查前 1024 字节
+  const checkLength = Math.min(buffer.length, 1024);
+  let nullCount = 0;
+
+  for (let i = 0; i < checkLength; i++) {
+    const charCode = buffer[i];
+    // 如果包含 NULL 字符，极大概率是二进制文件
+    if (charCode === 0) {
+      nullCount++;
+      if (nullCount > 0) return false;
+    }
+    // 简单的控制字符检查（除了 TAB, LF, CR）
+    if (charCode < 7 || (charCode > 14 && charCode < 32)) {
+      // 允许少量的控制字符，但如果太多则认为是二进制
+      // 在某些编码下可能会有误判，但对于 UTF-8/ASCII 很准
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * 从 Buffer 检测文件的 MIME 类型
  * @param buffer - 文件内容的 Uint8Array
  * @param fileNameHint - 可选的文件名，用于扩展名后备检测
@@ -266,7 +303,20 @@ export async function detectMimeTypeFromBuffer(
     console.warn("file-type from buffer 检测失败，使用后备方案:", error);
   }
 
-  // 2. 后备方案：基于文件名提示的扩展名推断
+  // 2. 启发式文本检测
+  // 如果 file-type 没测出来，且看起来像文本，则默认为 text/plain
+  if (isBufferLikelyText(buffer)) {
+    // 如果有文件名提示，我们还是优先根据扩展名拿更精确的类型（如 .ts -> text/typescript）
+    if (fileNameHint) {
+      const extMime = inferMimeTypeFromExtension(fileNameHint);
+      if (extMime !== "application/octet-stream") {
+        return extMime;
+      }
+    }
+    return "text/plain";
+  }
+
+  // 3. 后备方案：基于文件名提示的扩展名推断
   if (fileNameHint) {
     // 提示可能本身就是一个 MIME 类型
     if (fileNameHint.includes('/')) {

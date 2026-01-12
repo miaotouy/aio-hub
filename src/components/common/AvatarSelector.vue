@@ -157,7 +157,9 @@ const openPresetIconSelector = () => {
 
 // 选择预设图标
 const selectPresetIcon = (icon: any) => {
-  const iconPath = icon.path;
+  // 选取的图标强制添加 /model-icons/ 前缀以保持头像兼容性
+  // 模型图标本身是另一套系统，通过前缀区分
+  const iconPath = icon.path.startsWith("/") ? icon.path : `/model-icons/${icon.path}`;
   emit("update:icon", { value: iconPath, source: "preset" });
   showPresetIconDialog.value = false;
   customMessage.success("已选择预设图标");

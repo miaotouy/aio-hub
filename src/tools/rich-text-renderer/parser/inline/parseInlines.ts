@@ -73,7 +73,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
               i++;
               if (i >= tokens.length) break;
               const t = tokens[i];
-              
+
               if (t.type === "html_open" && t.tagName.toLowerCase() === "button" && !t.selfClosing) {
                 depth++;
               } else if (t.type === "html_close" && t.tagName.toLowerCase() === "button") {
@@ -84,7 +84,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
               }
               innerTokens.push(t);
             }
-            
+
             const childNodes = ctx.parseInlines(innerTokens);
             label = extractTextFromNodes(childNodes);
             if (!content) {
@@ -600,6 +600,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         let src = "";
         let title = "";
         let hasUrl = false;
+        let isClosed = false;
 
         if (i < tokens.length && tokens[i].type === "link_url_open") {
           hasUrl = true;
@@ -608,6 +609,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           while (i < tokens.length) {
             const t = tokens[i];
             if (t.type === "link_url_close") {
+              isClosed = true;
               i++;
               break;
             }
@@ -627,7 +629,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           }
         }
 
-        if (hasUrl) {
+        if (hasUrl && isClosed) {
           nodes.push({
             id: "",
             type: "image",
@@ -681,6 +683,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       let href = "";
       let title = "";
       let hasUrl = false;
+      let isClosed = false;
 
       if (i < tokens.length && tokens[i].type === "link_url_open") {
         hasUrl = true;
@@ -699,6 +702,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           } else if (t.type === "link_url_close") {
             parenDepth--;
             if (parenDepth === 0) {
+              isClosed = true;
               i++; // 跳过最外层的 )
               break;
             }
@@ -719,7 +723,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         }
       }
 
-      if (hasUrl) {
+      if (hasUrl && isClosed) {
         nodes.push({
           id: "",
           type: "link",

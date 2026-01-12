@@ -31,6 +31,9 @@ class MarkdownBoundaryDetector {
     if (this.isIncompleteTable(lines.slice(-3))) return false;
     if (this.hasUnclosedKatexBlock(text)) return false;
 
+    // 内联链接/图片检查
+    if (this.hasUnclosedLinkOrImage(text)) return false;
+
     // HTML 综合检查
     if (this.hasUnclosedHtmlTags(text)) return false;
     if (this.hasIncompleteHtmlTag(text)) return false;
@@ -171,6 +174,43 @@ class MarkdownBoundaryDetector {
   }
 
   /**
+   * 检测未闭合的内联链接或图片 [text](url) 或 ![alt](url)
+   *
+   * 在流式输出中，如果链接或图片未完成（缺少闭合括号），
+   * 提前解析会导致 URL 不完整，从而触发 CSP 拦截或加载错误。
+   */
+  private hasUnclosedLinkOrImage(text: string): boolean {
+    // 查找最后一个可能引起歧义的标记
+    const lastOpenBracket = text.lastIndexOf('[');
+    const lastOpenParen = text.lastIndexOf('(');
+
+    // 如果没有任何括号，肯定安全
+    if (lastOpenBracket === -1 && lastOpenParen === -1) return false;
+
+    // 情况 1: 文本部分未闭合 [text... 或 ![alt...
+    if (lastOpenBracket > -1) {
+      const textAfterBracket = text.slice(lastOpenBracket);
+      if (!textAfterBracket.includes(']')) {
+        return true;
+      }
+    }
+
+    // 情况 2: URL 部分未闭合 [...](url...
+    if (lastOpenParen > -1) {
+      const textAfterParen = text.slice(lastOpenParen);
+      if (!textAfterParen.includes(')')) {
+        // 检查这个 ( 是否紧跟在 ] 后面
+        const textBeforeParen = text.slice(0, lastOpenParen);
+        if (textBeforeParen.endsWith(']')) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * 检测未完成的 HTML 标签（缺少 >）
    *
    * 在流式输出中，HTML 标签可能被截断，如：
@@ -224,14 +264,43 @@ class MarkdownBoundaryDetector {
     }
 
     // 1. 检查 HTML 标签截断 (如 <div st...)
-    const lastOpenBracket = text.lastIndexOf("<");
-    if (lastOpenBracket !== -1) {
-      const suffix = text.slice(lastOpenBracket);
+    const lastHtmlBracket = text.lastIndexOf("<");
+    if (lastHtmlBracket !== -1) {
+      const suffix = text.slice(lastHtmlBracket);
       // 如果这个 < 之后没有 >，且看起来像标签开始或属性开始，则回退
       if (!suffix.includes(">")) {
         if (this.hasIncompleteHtmlTag(text) || this.isLikelyInsideHtmlAttribute(text)) {
-          return lastOpenBracket;
+          return lastHtmlBracket;
         }
+      }
+    }
+
+    // 2. 检查内联链接/图片截断
+    // 优先检查 URL 部分 (url... 因为它最容易触发 CSP 错误
+    const lastParen = text.lastIndexOf('(');
+    if (lastParen !== -1) {
+      const suffix = text.slice(lastParen);
+      if (!suffix.includes(')')) {
+        const textBeforeParen = text.slice(0, lastParen);
+        if (textBeforeParen.endsWith(']')) {
+          // 找到 ![alt]( 或 [text]( 的起始位置
+          // 向前找 [
+          const lastBracket = textBeforeParen.lastIndexOf('[');
+          if (lastBracket !== -1) {
+            // 如果前面有 !，也一起截断
+            return lastBracket > 0 && text[lastBracket - 1] === '!' ? lastBracket - 1 : lastBracket;
+          }
+        }
+      }
+    }
+
+    // 检查文本部分 [text...
+    const lastBracket = text.lastIndexOf('[');
+    if (lastBracket !== -1) {
+      const suffix = text.slice(lastBracket);
+      if (!suffix.includes(']')) {
+        // 如果前面有 !，也一起截断
+        return lastBracket > 0 && text[lastBracket - 1] === '!' ? lastBracket - 1 : lastBracket;
       }
     }
 

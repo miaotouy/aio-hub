@@ -542,6 +542,9 @@ export class StreamProcessorV2 {
     if (node.type === "html_inline" || node.type === "html_block") {
       return node.props.content;
     }
+    if (node.type === "vcp_tool") {
+      return node.props.raw;
+    }
     if (!node.children) return "";
     return node.children.map((child) => this.getNodeTextContent(child)).join("");
   }

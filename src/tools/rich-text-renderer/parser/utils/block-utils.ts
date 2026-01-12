@@ -89,7 +89,8 @@ export function hasBlockLevelStructure(tokens: Token[]): boolean {
       t.type === "code_fence" ||
       t.type === "katex_block" ||
       t.type === "list_marker" ||
-      t.type === "blockquote_marker"
+      t.type === "blockquote_marker" ||
+      t.type === "vcp_tool"
     ) {
       return true;
     }
@@ -134,7 +135,8 @@ export function isBlockStart(token: Token): boolean {
     token.type === "code_fence" ||
     token.type === "katex_block" ||
     token.type === "list_marker" ||
-    token.type === "blockquote_marker"
+    token.type === "blockquote_marker" ||
+    token.type === "vcp_tool"
   ) {
     return true;
   }

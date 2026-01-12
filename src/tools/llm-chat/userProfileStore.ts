@@ -30,9 +30,9 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
      */
     getProfileById:
       (state) =>
-      (id: string): UserProfile | undefined => {
-        return state.profiles.find((profile) => profile.id === id);
-      },
+        (id: string): UserProfile | undefined => {
+          return state.profiles.find((profile) => profile.id === id);
+        },
 
     /**
      * 按最后使用时间排序的档案列表
@@ -90,6 +90,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
         name,
         content,
         createdAt: now,
+        avatarHistory: [],
         // 使用传入的 options 覆盖默认值（如果存在）
         displayName: options?.displayName ?? defaults.displayName,
         icon: options?.icon ?? defaults.icon,

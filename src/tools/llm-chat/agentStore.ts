@@ -133,6 +133,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
           custom: options?.parameters?.custom || undefined,
         },
         createdAt: now,
+        avatarHistory: [],
       };
 
       this.agents.push(agent);

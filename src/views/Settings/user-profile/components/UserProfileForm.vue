@@ -32,7 +32,9 @@
     <el-form-item label="头像">
       <AvatarSelector
         :model-value="formData.icon || ''"
+        :avatar-history="formData.avatarHistory"
         @update:icon="handleIconUpdate"
+        @update:avatar-history="handleHistoryUpdate"
         :entity-id="profileId"
         profile-type="user"
         :name-for-fallback="formData.name"
@@ -158,6 +160,7 @@ interface UserProfileFormData {
   name: string;
   displayName?: string;
   icon?: string;
+  avatarHistory?: string[];
   content: string;
   createdAt?: string;
   lastUsedAt?: string;
@@ -206,6 +209,7 @@ const emit = defineEmits<{
 // 内部表单数据
 const formData = ref<UserProfileFormData>({
   ...props.modelValue,
+  avatarHistory: props.modelValue.avatarHistory || [],
   richTextStyleBehavior: props.modelValue.richTextStyleBehavior || "follow_agent",
   richTextStyleOptions: props.modelValue.richTextStyleOptions || {},
   regexConfig: props.modelValue.regexConfig || { presets: [] },
@@ -249,6 +253,11 @@ const handleBehaviorChange = (val: string | number | boolean | undefined) => {
 
 const handleIconUpdate = (payload: IconUpdatePayload) => {
   formData.value.icon = payload.value;
+  handleInput();
+};
+
+const handleHistoryUpdate = (newHistory: string[]) => {
+  formData.value.avatarHistory = newHistory;
   handleInput();
 };
 

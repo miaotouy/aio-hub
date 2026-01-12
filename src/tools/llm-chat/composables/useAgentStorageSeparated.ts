@@ -49,7 +49,7 @@ interface AgentsIndex {
  */
 function createDefaultIndex(): AgentsIndex {
   return {
-    version: "1.0.0",
+    version: "1.1.0",
     currentAgentId: null,
     agents: [],
   };
@@ -61,7 +61,7 @@ function createDefaultIndex(): AgentsIndex {
 const indexManager = createConfigManager<AgentsIndex>({
   moduleName: MODULE_NAME,
   fileName: "agents-index.json",
-  version: "1.0.0",
+  version: "1.1.0",
   debounceDelay: 500,
   createDefault: createDefaultIndex,
 });
@@ -156,11 +156,65 @@ export function useAgentStorageSeparated() {
       const content = await readTextFile(agentPath);
       const agent: ChatAgent = JSON.parse(content);
 
+      // 迁移逻辑：处理绝对路径
+      let isDirty = false;
+      const icon = agent.icon?.trim();
+      const isAbsolutePath = icon && (icon.includes(":") || icon.startsWith("/") || icon.startsWith("\\") || icon.startsWith("file://"));
+
+      if (isAbsolutePath) {
+        try {
+          const { extname } = await import("@tauri-apps/api/path");
+          const extension = await extname(icon).catch(() => "png");
+          const newAvatarName = `avatar-${Date.now()}.${extension}`;
+
+          await invoke("copy_file_to_app_data", {
+            sourcePath: icon.replace("file://", ""),
+            subdirectory: await join(MODULE_NAME, AGENTS_SUBDIR, agentId),
+            newFilename: newAvatarName,
+          });
+
+          agent.icon = newAvatarName;
+          if (!agent.avatarHistory) agent.avatarHistory = [];
+          if (!agent.avatarHistory.includes(newAvatarName)) {
+            agent.avatarHistory.push(newAvatarName);
+          }
+          isDirty = true;
+          logger.info("智能体头像绝对路径已迁移", { agentId, oldPath: icon, newName: newAvatarName });
+        } catch (e) {
+          logger.warn("智能体头像绝对路径迁移失败", { agentId, icon, error: e });
+        }
+      }
+
+      // 迁移逻辑：初始化历史记录
+      if (!agent.avatarHistory) {
+        try {
+          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const agentDir = await getAgentDirPath(agentId);
+          if (await exists(agentDir)) {
+            const entries = await readDir(agentDir);
+            const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+            agent.avatarHistory = entries
+              .filter(e => e.isFile && imageExts.some(ext => e.name.toLowerCase().endsWith(ext)) && e.name !== 'agent.json')
+              .map(e => e.name);
+            isDirty = true;
+          }
+        } catch (e) {
+          logger.warn("初始化智能体头像历史失败", { agentId, error: e });
+          agent.avatarHistory = [];
+        }
+      }
+
       // 处理分类兼容性
       if (agent.category) {
-        agent.category = migrateAgentCategory(
-          agent.category as unknown as string
-        ) as AgentCategory;
+        const migratedCategory = migrateAgentCategory(agent.category as unknown as string);
+        if (migratedCategory !== agent.category) {
+          agent.category = migratedCategory as AgentCategory;
+          isDirty = true;
+        }
+      }
+
+      if (isDirty) {
+        await saveAgent(agent, true);
       }
 
       // logger.debug('智能体加载成功', { agentId, name: agent.name });
@@ -386,7 +440,7 @@ export function useAgentStorageSeparated() {
 
           if (await exists(assetFullPath)) {
             const extension = await extname(assetFullPath);
-            const newAvatarName = `avatar.${extension}`;
+            const newAvatarName = `avatar-${Date.now()}.${extension}`;
 
             // 复制头像到新目录
             await invoke("copy_file_to_app_data", {
@@ -522,7 +576,7 @@ export function useAgentStorageSeparated() {
       });
     } catch (error) {
       errorHandler.handle(error as Error, {
-       userMessage: "批量保存所有智能体失败",
+        userMessage: "批量保存所有智能体失败",
         context: { agentCount: agents.length },
         showToUser: false,
       });

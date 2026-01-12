@@ -21,6 +21,10 @@ const allTags = computed(() => {
 const handleIconUpdate = (payload: IconUpdatePayload) => {
   editForm.icon = payload.value;
 };
+
+const handleHistoryUpdate = (newHistory: string[]) => {
+  editForm.avatarHistory = newHistory;
+};
 </script>
 
 <template>
@@ -40,7 +44,9 @@ const handleIconUpdate = (payload: IconUpdatePayload) => {
     <el-form-item label="图标" data-setting-id="icon">
       <AvatarSelector
         :model-value="editForm.icon"
+        :avatar-history="editForm.avatarHistory"
         @update:icon="handleIconUpdate"
+        @update:avatar-history="handleHistoryUpdate"
         :entity-id="agent?.id"
         profile-type="agent"
         :name-for-fallback="editForm.name"

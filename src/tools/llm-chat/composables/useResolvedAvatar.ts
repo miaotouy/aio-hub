@@ -10,8 +10,12 @@ type Entity = (ChatAgent | UserProfile | { id: string; icon?: string });
  * @param icon 图标字符串
  */
 function isLikelyFilename(icon: string): boolean {
-  // 一个简单的检查：包含点（用于扩展名）但不包含路径分隔符
-  return icon.includes('.') && !icon.includes('/') && !icon.includes('\\');
+  if (!icon) return false;
+  // 排除 DataURL 和 协议头
+  if (icon.startsWith('data:') || icon.includes('://')) return false;
+  // 一个简单的检查：包含点（用于扩展名）且不包含路径分隔符
+  // 注意：Windows 绝对路径包含 : 和 \，Unix 绝对路径包含 /
+  return icon.includes('.') && !icon.includes('/') && !icon.includes('\\') && !icon.includes(':');
 }
 
 /**

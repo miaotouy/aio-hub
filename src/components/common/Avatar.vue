@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { acquireBlobUrl, releaseBlobUrl, acquireBlobUrlSync } from "@/utils/avatarImageCache";
 import { useIntersectionObserver } from "@vueuse/core";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
@@ -81,9 +80,6 @@ const isImagePath = computed(() => {
       s.startsWith("http://") ||
       s.startsWith("https://") ||
       s.startsWith("data:") ||
-      s.startsWith("file://") ||
-      /^[A-Za-z]:[\/\\]/.test(s) || // Windows 绝对路径（支持正反斜杠）
-      s.startsWith("\\\\") || // UNC 路径
       LOBE_ICONS_MAP[s] !== undefined || // 预设图标库
       LOCAL_ICONS_MAP[s] !== undefined) // 本地图标库
   );
@@ -105,7 +101,11 @@ const processSrc = async () => {
   if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
     const svgContent = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
     // 如果内容已经是 data: 或者是 URL 则直接用，否则视为 SVG 源码转为 Data URL
-    if (svgContent.startsWith("data:") || svgContent.startsWith("http") || svgContent.startsWith("/")) {
+    if (
+      svgContent.startsWith("data:") ||
+      svgContent.startsWith("http") ||
+      svgContent.startsWith("/")
+    ) {
       processedSrc.value = svgContent;
     } else {
       processedSrc.value = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
@@ -123,35 +123,6 @@ const processSrc = async () => {
     currentSrc.startsWith("/")
   ) {
     processedSrc.value = currentSrc;
-    isSrcReady.value = true;
-    imageLoadFailed.value = false;
-    managedSrc.value = null;
-    return;
-  }
-
-  // 2. 本地绝对路径或 file:// 协议 - 使用 convertFileSrc
-  if (
-    currentSrc.startsWith("file://") ||
-    /^[A-Za-z]:[\/\\]/.test(currentSrc) ||
-    currentSrc.startsWith("\\\\")
-  ) {
-    let path = currentSrc;
-    if (path.startsWith("file://")) {
-      try {
-        // 尝试解析 file URL
-        const url = new URL(currentSrc);
-        path = decodeURIComponent(url.pathname);
-        // Windows 上 pathname 开头可能是 /C:/... 需要去掉开头的 /
-        if (/^\/[A-Za-z]:/.test(path)) {
-          path = path.slice(1);
-        }
-      } catch (e) {
-        // 解析失败，简单去掉前缀
-        path = currentSrc.replace(/^file:\/\//, "");
-      }
-    }
-
-    processedSrc.value = convertFileSrc(path);
     isSrcReady.value = true;
     imageLoadFailed.value = false;
     managedSrc.value = null;

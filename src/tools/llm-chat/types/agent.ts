@@ -106,6 +106,12 @@ export interface ChatAgent {
   icon?: string;
 
   /**
+   * 历史头像列表（相对文件名）
+   * 用于在头像选择器中快速显示，由系统自动维护
+   */
+  avatarHistory?: string[];
+
+  /**
    * 使用的 Profile ID
    */
   profileId: string;

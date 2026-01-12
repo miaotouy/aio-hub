@@ -26,6 +26,12 @@ export interface UserProfile {
   icon?: string;
 
   /**
+   * 历史头像列表（相对文件名）
+   * 用于在头像选择器中快速显示，由系统自动维护
+   */
+  avatarHistory?: string[];
+
+  /**
    * 档案内容（描述性文本）
    */
   content: string;
@@ -91,6 +97,7 @@ export const createDefaultUserProfileConfig = (): UserProfileEditData => ({
   name: "",
   displayName: "",
   icon: "",
+  avatarHistory: [],
   content: "",
   enabled: true,
   richTextStyleOptions: {},

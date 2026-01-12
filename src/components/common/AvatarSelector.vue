@@ -7,19 +7,19 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Star, Upload, RefreshLeft, FolderOpened, Clock } from "@element-plus/icons-vue";
+import { Star, Upload, RefreshLeft, Clock } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
-import { extname, join } from "@tauri-apps/api/path";
-import { getAppConfigDir } from "@/utils/appPath";
-import { readDir } from "@tauri-apps/plugin-fs";
+import { extname } from "@tauri-apps/api/path";
 import { resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
 
 interface Props {
   modelValue: string;
   /** 用于上传专属头像，必须提供才能使用上传功能 */
   entityId?: string;
+  /** 历史头像列表（由父组件传入，数据驱动） */
+  avatarHistory?: string[];
   /** 用于确定上传目录 */
   profileType?: "agent" | "user";
   /** 用于 Avatar 的回退文本，建议使用 name 而非 displayName */
@@ -27,6 +27,7 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), {
   entityId: "",
+  avatarHistory: () => [],
   profileType: "agent",
   nameForFallback: "图标",
 });
@@ -41,6 +42,8 @@ export interface IconUpdatePayload {
 interface Emits {
   (e: "update:modelValue", value: string): void;
   (e: "update:icon", payload: IconUpdatePayload): void;
+  /** 当上传新头像导致历史记录变化时触发 */
+  (e: "update:avatarHistory", value: string[]): void;
 }
 const emit = defineEmits<Emits>();
 
@@ -74,73 +77,31 @@ const historyButtonRef = ref();
 const isUploadingImage = ref(false);
 
 // 历史头像列表
-const historyAvatars = ref<string[]>([]);
 const isLoadingHistory = ref(false);
 
-// 加载历史头像
+const historyAvatars = computed(() => {
+  // 过滤并排序历史头像
+  return [...props.avatarHistory].sort((a, b) => {
+    const getTimestamp = (name: string) => {
+      const match = name.match(/avatar-(\d+)/) || name.match(/avatar_migrated_(\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    };
+
+    const timeA = getTimestamp(a);
+    const timeB = getTimestamp(b);
+
+    if (timeA && timeB) return timeB - timeA;
+    return b.localeCompare(a);
+  });
+});
+
+// 加载历史头像 (现在仅用于 UI 反馈，数据已由 props 驱动)
 const loadHistoryAvatars = async () => {
   if (!props.entityId) return;
-
   isLoadingHistory.value = true;
-  historyAvatars.value = [];
-
-  try {
-    const appData = await getAppConfigDir();
-    let subdirectory = "";
-
-    if (props.profileType === "agent") {
-      subdirectory = `llm-chat/agents/${props.entityId}`;
-    } else if (props.profileType === "user") {
-      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
-    } else {
-      return;
-    }
-
-    const fullPath = await join(appData, subdirectory);
-
-    // 读取目录
-    const entries = await readDir(fullPath);
-
-    // 过滤出图片文件 (以 avatar- 开头，或者是图片扩展名)
-    // 我们的上传逻辑生成的是 avatar-{timestamp}.ext
-    const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"];
-
-    const avatars = entries
-      .filter((entry) => {
-        if (!entry.isFile || !entry.name) return false;
-        const lowerName = entry.name.toLowerCase();
-        // 必须是图片扩展名
-        const hasImgExt = imageExtensions.some((ext) => lowerName.endsWith(ext));
-        // 最好是 avatar- 开头，或者是以前上传的图片
-        return hasImgExt;
-      })
-      .map((entry) => entry.name!)
-      .sort((a, b) => {
-        // 尝试按文件名中的时间戳倒序排序
-        // 格式: avatar-1716xxxxxx.png
-        const getTimestamp = (name: string) => {
-          const match = name.match(/avatar-(\d+)/);
-          return match ? parseInt(match[1]) : 0;
-        };
-
-        const timeA = getTimestamp(a);
-        const timeB = getTimestamp(b);
-
-        if (timeA && timeB) {
-          return timeB - timeA;
-        }
-
-        // 如果没有时间戳，按文件名倒序 (通常也能保证较新的在前面)
-        return b.localeCompare(a);
-      });
-
-    historyAvatars.value = avatars;
-  } catch (error) {
-    // 目录可能不存在，忽略错误
-    console.debug("加载历史头像失败 (可能是目录不存在):", error);
-  } finally {
-    isLoadingHistory.value = false;
-  }
+  // 模拟一个微小的延迟以显示加载状态，或者未来可以在这里进行校验
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  isLoadingHistory.value = false;
 };
 
 // 选择历史头像
@@ -157,30 +118,11 @@ const openPresetIconSelector = () => {
 
 // 选择预设图标
 const selectPresetIcon = (icon: any) => {
-  // 选取的图标强制添加 /model-icons/ 前缀以保持头像兼容性
-  // 模型图标本身是另一套系统，通过前缀区分
-  const iconPath = icon.path.startsWith("/") ? icon.path : `/model-icons/${icon.path}`;
-  emit("update:icon", { value: iconPath, source: "preset" });
+  // 使用规范化的 ID，不再强制添加 /model-icons/ 前缀（由 Avatar 组件处理）
+  const iconId = icon.path.replace(/^\/model-icons\//, "");
+  emit("update:icon", { value: iconId, source: "preset" });
   showPresetIconDialog.value = false;
   customMessage.success("已选择预设图标");
-};
-
-// 选择本地图像 (路径模式)
-const selectLocalImage = async () => {
-  try {
-    const selectedPath = await open({
-      multiple: false,
-      filters: [
-        { name: "图像文件", extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"] },
-      ],
-    });
-
-    if (selectedPath && typeof selectedPath === "string") {
-      emit("update:icon", { value: selectedPath, source: "input" });
-    }
-  } catch (error) {
-    errorHandler.error(error, "选择本地图像失败");
-  }
 };
 
 // 上传自定义图像
@@ -226,6 +168,11 @@ const uploadCustomImage = async () => {
 
     // v-model 只存储文件名
     emit("update:icon", { value: newFilename, source: "upload" });
+
+    // 更新历史记录
+    const newHistory = [newFilename, ...props.avatarHistory.filter((h) => h !== newFilename)];
+    emit("update:avatarHistory", newHistory);
+
     customMessage.success("专属头像上传成功");
   } catch (error) {
     errorHandler.error(error, "上传图像失败");
@@ -272,9 +219,7 @@ const isImagePath = computed(() => {
       s.startsWith("appdata://") ||
       s.startsWith("http://") ||
       s.startsWith("https://") ||
-      s.startsWith("data:") ||
-      /^[A-Za-z]:[\\/]/.test(s) || // Windows 绝对路径（支持正反斜杠）
-      s.startsWith("\\\\")) // UNC 路径
+      s.startsWith("data:"))
   );
 });
 
@@ -315,12 +260,6 @@ const handleIconClick = () => {
           <el-tooltip content="选择预设图标" placement="top" :show-after="300">
             <el-button @click="openPresetIconSelector">
               <el-icon><Star /></el-icon>
-            </el-button>
-          </el-tooltip>
-
-          <el-tooltip content="引用本地图像 (绝对路径)" placement="top" :show-after="300">
-            <el-button @click="selectLocalImage">
-              <el-icon><FolderOpened /></el-icon>
             </el-button>
           </el-tooltip>
 

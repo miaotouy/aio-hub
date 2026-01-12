@@ -47,7 +47,7 @@ interface ProfilesIndex {
  */
 function createDefaultIndex(): ProfilesIndex {
   return {
-    version: "1.0.0",
+    version: "1.1.0",
     globalProfileId: null,
     profiles: [],
   };
@@ -59,7 +59,7 @@ function createDefaultIndex(): ProfilesIndex {
 const indexManager = createConfigManager<ProfilesIndex>({
   moduleName: MODULE_NAME,
   fileName: "user-profiles-index.json",
-  version: "1.0.0",
+  version: "1.1.0",
   createDefault: createDefaultIndex,
 });
 
@@ -107,8 +107,8 @@ export function useUserProfileStorage() {
   }
 
   /**
-   * 加载单个用户档案
-   */
+    * 加载单个用户档案
+    */
   async function loadProfile(profileId: string): Promise<UserProfile | null> {
     try {
       const profilePath = await getProfileConfigPath(profileId);
@@ -122,6 +122,58 @@ export function useUserProfileStorage() {
       const content = await readTextFile(profilePath);
       const profile: UserProfile = JSON.parse(content);
 
+      // 迁移逻辑：处理绝对路径
+      let isDirty = false;
+      const icon = profile.icon?.trim();
+      const isAbsolutePath = icon && (icon.includes(":") || icon.startsWith("/") || icon.startsWith("\\") || icon.startsWith("file://"));
+
+      if (isAbsolutePath) {
+        try {
+          const { extname } = await import("@tauri-apps/api/path");
+          const extension = await extname(icon).catch(() => "png");
+          const newAvatarName = `avatar-${Date.now()}.${extension}`;
+
+          await invoke("copy_file_to_app_data", {
+            sourcePath: icon.replace("file://", ""),
+            subdirectory: await join(MODULE_NAME, PROFILES_SUBDIR, profileId),
+            newFilename: newAvatarName,
+          });
+
+          profile.icon = newAvatarName;
+          if (!profile.avatarHistory) profile.avatarHistory = [];
+          if (!profile.avatarHistory.includes(newAvatarName)) {
+            profile.avatarHistory.push(newAvatarName);
+          }
+          isDirty = true;
+          logger.info("用户档案头像绝对路径已迁移", { profileId, oldPath: icon, newName: newAvatarName });
+        } catch (e) {
+          logger.warn("用户档案头像绝对路径迁移失败", { profileId, icon, error: e });
+        }
+      }
+
+      // 迁移逻辑：初始化历史记录
+      if (!profile.avatarHistory) {
+        try {
+          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const profileDir = await getProfileDirPath(profileId);
+          if (await exists(profileDir)) {
+            const entries = await readDir(profileDir);
+            const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+            profile.avatarHistory = entries
+              .filter(e => e.isFile && imageExts.some(ext => e.name.toLowerCase().endsWith(ext)) && e.name !== 'profile.json')
+              .map(e => e.name);
+            isDirty = true;
+          }
+        } catch (e) {
+          logger.warn("初始化用户档案头像历史失败", { profileId, error: e });
+          profile.avatarHistory = [];
+        }
+      }
+
+      if (isDirty) {
+        await saveProfile(profile, true);
+      }
+
       // logger.debug('用户档案加载成功', { profileId, name: profile.name });
       return profile;
     } catch (error) {
@@ -133,7 +185,6 @@ export function useUserProfileStorage() {
       return null;
     }
   }
-
   /**
    * 确保用户档案目录存在
    */
@@ -356,7 +407,7 @@ export function useUserProfileStorage() {
 
           if (await exists(assetFullPath)) {
             const extension = await extname(assetFullPath);
-            const newAvatarName = `avatar.${extension}`;
+            const newAvatarName = `avatar-${Date.now()}.${extension}`;
 
             // 复制头像到新目录
             await invoke("copy_file_to_app_data", {

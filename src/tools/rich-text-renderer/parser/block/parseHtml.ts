@@ -180,14 +180,25 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
 
     // 跳过换行和纯空白
     if (token.type === "newline") {
+      // 在 HTML 块级内容解析中，换行符通常应该被忽略，或者合并为空格
+      // 这里我们选择跳过它，因为如果它后面跟着的是文本，
+      // 文本部分会自带空格（如果有的话），或者在收集内联内容时会被处理。
       i++;
       continue;
     }
 
     if (token.type === "text" && /^\s+$/.test(token.content)) {
-      // 在 SVG 上下文中，标签间的空白通常是由于格式化产生的，应忽略
-      // 在表格上下文中，某些标签间的空白也可以忽略以保持布局紧凑
-      if (isSvgContext || isTableContext) {
+      // 更加激进地忽略块级标签内部的空白符
+      // 1. 在 SVG 或 Table 上下文中，标签间的空白通常是格式化产生的
+      // 2. 如果前后是块级标签，中间的纯空白通常也应该忽略，以避免干扰 Flex/Grid 布局
+      const prev = nodes[nodes.length - 1];
+      const next = processedTokens[i + 1];
+
+      const isBetweenBlocks =
+        (!prev || prev.type === 'generic_html' || prev.type === 'html_block') &&
+        (!next || (next.type === 'html_open' && BLOCK_LEVEL_TAGS.has(next.tagName)) || next.type === 'html_close');
+
+      if (isSvgContext || isTableContext || isBetweenBlocks) {
         i++;
         continue;
       }
@@ -268,15 +279,26 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
         break;
       }
 
-      if (t.type === "newline" && i + 1 < processedTokens.length) {
+      if (t.type === "newline") {
         const next = processedTokens[i + 1];
+        // 如果换行后紧跟块级标签或另一个换行，或者它是最后一个 token，则跳过并结束收集
         if (
+          !next ||
           next.type === "newline" ||
-          (next.type === "html_open" && BLOCK_LEVEL_TAGS.has(next.tagName))
+          (next.type === "html_open" && BLOCK_LEVEL_TAGS.has(next.tagName)) ||
+          next.type === "html_close"
         ) {
-          i++; // 跳过这个换行
+          i++;
           break;
         }
+
+        // 否则，将换行符转为空格文本，避免被 parseInlines 渲染为 <br>
+        inlineTokens.push({
+          type: "text",
+          content: " "
+        });
+        i++;
+        continue;
       }
 
       inlineTokens.push(t);

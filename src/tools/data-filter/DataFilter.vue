@@ -14,6 +14,10 @@
             <el-icon><CopyDocument /></el-icon>
             复制结果
           </el-button>
+          <el-button @click="handleSendToChat" size="small" :disabled="!resultText">
+            <el-icon><Send /></el-icon>
+            发送到聊天
+          </el-button>
         </div>
 
         <div class="toolbar-right">
@@ -124,7 +128,7 @@
             <div class="editor-content">
               <RichCodeEditor
                 :model-value="resultText"
-                language="json"
+                :language="inputType === 'YAML' ? 'yaml' : 'json'"
                 editor-type="monaco"
                 read-only
               />
@@ -139,15 +143,17 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from "vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { Plus, Delete, Filter } from "lucide-vue-next";
+import { Plus, Delete, Filter, Send } from "lucide-vue-next";
 import { DocumentCopy, CopyDocument, Delete as DeleteIcon } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useSendToChat } from "@/composables/useSendToChat";
 import * as logic from "./dataFilter.logic";
 import yaml from "js-yaml";
 
 const errorHandler = createModuleErrorHandler("DataFilter");
+const { sendCodeToChat } = useSendToChat();
 
 const inputText = ref("");
 const resultText = ref("");
@@ -198,6 +204,14 @@ async function handleCopy() {
   }
 }
 
+function handleSendToChat() {
+  if (!resultText.value) return;
+  const lang = inputType.value === "YAML" ? "yaml" : "json";
+  sendCodeToChat(resultText.value, lang, {
+    successMessage: "筛选结果已发送到聊天",
+  });
+}
+
 function handleClear() {
   inputText.value = "";
   resultText.value = "";
@@ -237,7 +251,11 @@ function doExecuteFilter() {
       customMessage.error(res.error);
       resultText.value = "";
     } else {
-      resultText.value = JSON.stringify(res.data, null, 2);
+      if (inputType.value === "JSON") {
+        resultText.value = JSON.stringify(res.data, null, 2);
+      } else {
+        resultText.value = yaml.dump(res.data);
+      }
       if (res.filtered === 0) {
         customMessage.info("筛选完成，没有匹配的项");
       }

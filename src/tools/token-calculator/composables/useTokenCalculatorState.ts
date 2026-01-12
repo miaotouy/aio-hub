@@ -9,6 +9,7 @@ import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { useLlmProfiles } from '@composables/useLlmProfiles';
 import { tokenCalculatorEngine, type TokenCalculationResult } from './useTokenCalculator';
+import { calculatorProxy } from '../worker/calculator.proxy';
 import { getMatchedModelProperties } from '@/config/model-metadata';
 import {
   loadTokenCalculatorConfig,
@@ -116,7 +117,7 @@ export function useTokenCalculator() {
       maxDisplayTokens: maxDisplayTokens.value,
       version: '1.0.0'
     };
-    
+
     // 注意：我们暂不持久化 mediaItems，因为通常这是临时计算
 
     debouncedSaveConfig(config);
@@ -129,7 +130,7 @@ export function useTokenCalculator() {
   const loadConfig = async (): Promise<void> => {
     try {
       const config = await loadTokenCalculatorConfig();
-      
+
       // 恢复配置
       if (config.calculationMode) {
         calculationMode.value = config.calculationMode;
@@ -167,7 +168,7 @@ export function useTokenCalculator() {
     // 如果是分词器模式，返回分词器列表
     if (calculationMode.value === 'tokenizer') {
       const tokenizers = tokenCalculatorEngine.getAvailableTokenizers();
-      return tokenizers.map(t => ({
+      return tokenizers.map((t: { name: string; description: string }) => ({
         id: t.name,
         name: t.description,
         provider: '分词器',
@@ -176,14 +177,14 @@ export function useTokenCalculator() {
 
     // 否则返回模型列表
     const models: AvailableModel[] = [];
-    
+
     profiles.value.forEach(profile => {
       if (profile.enabled && profile.models) {
         profile.models.forEach(model => {
           // 尝试从元数据获取分词器名称作为标识
           const metadata = getMatchedModelProperties(model.id, model.provider);
           const tokenizerName = metadata?.tokenizer;
-          
+
           models.push({
             id: model.id,
             name: model.name,
@@ -205,7 +206,7 @@ export function useTokenCalculator() {
    */
   const generateTokenizedText = async (): Promise<void> => {
     const text = inputText.value;
-    
+
     if (!text) {
       tokenizedText.value = [];
       return;
@@ -214,15 +215,14 @@ export function useTokenCalculator() {
     try {
       // 尝试使用真实的 tokenizer 获取分词结果
       let tokenizerResult;
-      
       if (calculationMode.value === 'tokenizer') {
-        tokenizerResult = await tokenCalculatorEngine.getTokenizedText(
+        tokenizerResult = await calculatorProxy.getTokenizedText(
           text,
           selectedModelId.value,
           true // 使用分词器名称
         );
       } else {
-        tokenizerResult = await tokenCalculatorEngine.getTokenizedText(
+        tokenizerResult = await calculatorProxy.getTokenizedText(
           text,
           selectedModelId.value,
           false // 使用模型 ID
@@ -235,7 +235,7 @@ export function useTokenCalculator() {
           text: tokenText,
           index,
         }));
-        
+
         // 根据用户设置限制显示数量
         if (tokens.length > maxDisplayTokens.value) {
           tokenizedText.value = tokens.slice(0, maxDisplayTokens.value);
@@ -261,17 +261,17 @@ export function useTokenCalculator() {
    */
   const generateSimpleTokenizedText = async (text: string): Promise<void> => {
     const tokens: TokenBlock[] = [];
-    
+
     // 简单按空格和标点分词作为演示
     const words = text.split(/(\s+|[.,!?;:"'()（）。，！？；：""''《》【】])/);
     let index = 0;
-    
+
     for (const word of words) {
       if (word && word.trim()) {
         tokens.push({ text: word, index: index++ });
       }
     }
-    
+
     // 根据用户设置限制显示数量
     if (tokens.length > maxDisplayTokens.value) {
       tokenizedText.value = tokens.slice(0, maxDisplayTokens.value);
@@ -299,17 +299,16 @@ export function useTokenCalculator() {
     await errorHandler.wrapAsync(
       async () => {
         isCalculating.value = true;
-        
+
         let result: TokenCalculationResult;
-        
-        // 根据模式选择不同的计算方法
+        // 根据模式选择不同的计算方法 (使用 Worker 代理)
         if (calculationMode.value === 'tokenizer') {
-          result = await tokenCalculatorEngine.calculateTokensByTokenizer(
+          result = await calculatorProxy.calculateTokensByTokenizer(
             inputText.value,
             selectedModelId.value
           );
         } else {
-          result = await tokenCalculatorEngine.calculateTokens(
+          result = await calculatorProxy.calculateTokens(
             inputText.value,
             selectedModelId.value
           );
@@ -320,7 +319,7 @@ export function useTokenCalculator() {
         let imageTotal = 0;
         let videoTotal = 0;
         let audioTotal = 0;
-        
+
         // 获取模型元数据以确定视觉计算规则
         // 如果是 tokenizer 模式，或者模型未定义视觉规则，我们默认使用 Gemini 2.0 规则作为参考
         // 这样用户添加了媒体至少能看到一个合理的数字，而不是 0
@@ -344,7 +343,7 @@ export function useTokenCalculator() {
             count = tokenCalculatorEngine.calculateAudioTokens(item.params.duration);
             audioTotal += count;
           }
-          
+
           // 更新单个 item 的 token 数（用于 UI 显示）
           item.tokenCount = count;
           mediaTotal += count;
@@ -355,17 +354,17 @@ export function useTokenCalculator() {
 
         // 将媒体 Token 累加到总数
         result.count += mediaTotal;
-        
+
         // 填充详细统计
         result.textTokenCount = textTokenCount;
         result.mediaTokenCount = mediaTotal;
         result.imageTokenCount = imageTotal;
         result.videoTokenCount = videoTotal;
         result.audioTokenCount = audioTotal;
-        
+
         calculationResult.value = result;
         await generateTokenizedText();
-        
+
         logger.info('Token 计算完成', {
           mode: calculationMode.value,
           count: result.count,
@@ -523,7 +522,7 @@ export function useTokenCalculator() {
 
     // 如果配置中有保存的模型ID，先尝试验证它是否仍然可用
     if (selectedModelId.value && availableModels.value.length > 0) {
-      const modelExists = availableModels.value.some(m => m.id === selectedModelId.value);
+      const modelExists = availableModels.value.some((m: { id: string }) => m.id === selectedModelId.value);
       if (modelExists) {
         logger.info('使用配置中保存的模型', { modelId: selectedModelId.value });
         return;
@@ -541,7 +540,7 @@ export function useTokenCalculator() {
       }
     }
   };
-  
+
   /**
    * 监听模型列表变化，自动初始化默认模型
    */
@@ -568,11 +567,11 @@ export function useTokenCalculator() {
     calculationResult,
     tokenizedText,
     maxDisplayTokens,
-    
+
     // 计算属性
     availableModels,
     sanitizedCharacterCount,
-    
+
     // 方法
     calculateTokens,
     handleInputChange,

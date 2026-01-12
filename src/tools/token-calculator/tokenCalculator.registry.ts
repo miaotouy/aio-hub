@@ -5,6 +5,7 @@
 
 import type { ToolRegistry } from '@/services/types';
 import { tokenCalculatorEngine, type TokenCalculationResult } from './composables/useTokenCalculator';
+import { calculatorProxy } from './worker/calculator.proxy';
 import type { Asset } from '@/types/asset-management';
 import { getMatchedModelProperties } from '@/config/model-metadata';
 
@@ -31,7 +32,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
    * @returns Token 计算结果
    */
   async calculateTokens(text: string, modelId: string): Promise<TokenCalculationResult> {
-    return tokenCalculatorEngine.calculateTokens(text, modelId);
+    return calculatorProxy.calculateTokens(text, modelId);
   }
 
   /**
@@ -41,7 +42,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
    * @returns Token 计算结果
    */
   async calculateTokensByTokenizer(text: string, tokenizerName: string): Promise<TokenCalculationResult> {
-    return tokenCalculatorEngine.calculateTokensByTokenizer(text, tokenizerName);
+    return calculatorProxy.calculateTokensByTokenizer(text, tokenizerName);
   }
 
   /**
@@ -64,14 +65,14 @@ class TokenCalculatorRegistry implements ToolRegistry {
     identifier: string,
     useTokenizerName: boolean = false
   ): Promise<{ tokens: string[] } | null> {
-    return tokenCalculatorEngine.getTokenizedText(text, identifier, useTokenizerName);
+    return calculatorProxy.getTokenizedText(text, identifier, useTokenizerName);
   }
 
   /**
    * 清除所有缓存的 tokenizer 实例
    */
   clearCache(): void {
-    tokenCalculatorEngine.clearCache();
+    calculatorProxy.clearCache();
   }
 
   /**
@@ -93,8 +94,8 @@ class TokenCalculatorRegistry implements ToolRegistry {
     modelId: string,
     attachments?: Asset[]
   ): Promise<TokenCalculationResult> {
-    // 1. 计算文本 Token
-    const textResult = await tokenCalculatorEngine.calculateTokens(text, modelId);
+    // 1. 计算文本 Token (通过 Worker 代理)
+    const textResult = await calculatorProxy.calculateTokens(text, modelId);
     let totalTokens = textResult.count;
     const textTokenCount = textResult.count;
     let mediaTokenCount = 0;
@@ -106,20 +107,19 @@ class TokenCalculatorRegistry implements ToolRegistry {
     if (attachments && attachments.length > 0) {
       // 获取模型的视觉 token 计费规则
       const metadata = getMatchedModelProperties(modelId);
-      
+
       // 如果模型未定义视觉规则，默认使用 Gemini 2.0 规则作为参考
       // 这样即使在未配置的模型上也能得到一个估算值
       const defaultVisionCost = { calculationMethod: 'gemini_2_0', parameters: {} } as const;
       const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
 
-      for (const asset of attachments) {
+      const mediaPromises = attachments.map(async (asset) => {
         // 处理图片
         if (asset.type === 'image') {
-          // 检查是否有宽高信息
           const width = asset.metadata?.width || 1024;
           const height = asset.metadata?.height || 1024;
-          
-          const imageTokens = tokenCalculatorEngine.calculateImageTokens(
+
+          const imageTokens = await calculatorProxy.calculateImageTokens(
             width,
             height,
             visionTokenCost
@@ -131,7 +131,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
         // 处理视频
         else if (asset.type === 'video') {
           if (asset.metadata?.duration) {
-            const videoTokens = tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+            const videoTokens = await calculatorProxy.calculateVideoTokens(asset.metadata.duration);
             videoTokenCount += videoTokens;
             mediaTokenCount += videoTokens;
             totalTokens += videoTokens;
@@ -140,13 +140,15 @@ class TokenCalculatorRegistry implements ToolRegistry {
         // 处理音频
         else if (asset.type === 'audio') {
           if (asset.metadata?.duration) {
-            const audioTokens = tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
+            const audioTokens = await calculatorProxy.calculateAudioTokens(asset.metadata.duration);
             audioTokenCount += audioTokens;
             mediaTokenCount += audioTokens;
             totalTokens += audioTokens;
           }
         }
-      }
+      });
+
+      await Promise.all(mediaPromises);
     }
 
     // 判断是否为估算值

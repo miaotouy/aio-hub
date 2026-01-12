@@ -135,9 +135,10 @@ export async function fillMissingTokenMetadata(
 ): Promise<ChatSession[]> {
   let updatedCount = 0;
   const sessionsToSave: ChatSession[] = [];
+  const calculationPromises: Promise<void>[] = [];
+  const updatedSessionIds = new Set<string>();
 
   for (const session of sessions) {
-    let sessionUpdated = false;
     for (const [nodeId, node] of Object.entries(session.nodes)) {
       if (!node.content || node.metadata?.contentTokens !== undefined) continue;
 
@@ -147,8 +148,7 @@ export async function fillMissingTokenMetadata(
       } else if (node.role === "user") {
         let currentId: string | null = session.activeLeafId;
         while (currentId !== null) {
-          const pathNode: ChatMessageNode | undefined =
-            session.nodes[currentId];
+          const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
           if (pathNode?.role === "assistant" && pathNode.metadata?.modelId) {
             modelId = pathNode.metadata.modelId;
             break;
@@ -167,48 +167,63 @@ export async function fillMissingTokenMetadata(
 
       if (!modelId) continue;
 
-      try {
-        let fullContent = node.content;
-        let mediaAttachments = node.attachments;
+      const currentModelId = modelId;
+      calculationPromises.push(
+        (async () => {
+          try {
+            let fullContent = node.content;
+            let mediaAttachments = node.attachments;
 
-        if (
-          node.role === "user" &&
-          node.attachments &&
-          node.attachments.length > 0
-        ) {
-          // 准备用于 Token 计算的消息内容
-          const result = await prepareMessageForTokenCalc(
-            node.content,
-            node.attachments,
-            modelId
-          );
+            if (
+              node.role === "user" &&
+              node.attachments &&
+              node.attachments.length > 0
+            ) {
+              const result = await prepareMessageForTokenCalc(
+                node.content,
+                node.attachments,
+                currentModelId
+              );
+              fullContent = result.combinedText;
+              mediaAttachments = result.mediaAttachments;
+            }
 
-          fullContent = result.combinedText;
-          mediaAttachments = result.mediaAttachments;
-        }
+            const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+              fullContent,
+              currentModelId,
+              mediaAttachments,
+            );
 
-        const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-          fullContent,
-          modelId,
-          mediaAttachments,
-        );
-
-        if (!node.metadata) node.metadata = {};
-        node.metadata.contentTokens = tokenResult.count;
-        updatedCount++;
-        sessionUpdated = true;
-      } catch (error) {
-        logger.warn("计算 token 失败", {
-          sessionId: session.id,
-          nodeId,
-          error,
-        });
-      }
+            if (!node.metadata) node.metadata = {};
+            node.metadata.contentTokens = tokenResult.count;
+            updatedCount++;
+            updatedSessionIds.add(session.id);
+          } catch (error) {
+            logger.warn("计算 token 失败", {
+              sessionId: session.id,
+              nodeId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        })()
+      );
     }
-    if (sessionUpdated) sessionsToSave.push(session);
   }
 
-  if (sessionsToSave.length > 0) {
+  if (calculationPromises.length > 0) {
+    // 分批处理，避免瞬间产生过大并发压力（虽然是 Worker，但 postMessage 也有开销）
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < calculationPromises.length; i += CHUNK_SIZE) {
+      const chunk = calculationPromises.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk);
+    }
+
+    for (const session of sessions) {
+      if (updatedSessionIds.has(session.id)) {
+        sessionsToSave.push(session);
+      }
+    }
+
     logger.info("补充 token 元数据完成", {
       totalUpdated: updatedCount,
       sessionsUpdated: sessionsToSave.length,

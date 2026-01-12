@@ -642,7 +642,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   };
 
-  const debouncedRefreshContextStats = debounce(refreshContextStats, 1000);
+  const debouncedRefreshContextStats = debounce(refreshContextStats, 300);
 
   // 自动监听变化并刷新统计
   watch(

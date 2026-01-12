@@ -151,13 +151,9 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";
 import debounce from "lodash/debounce";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
-import { toolRegistryManager } from "@/services/registry";
-import type JsonFormatterRegistry from "./jsonFormatter.registry";
+import * as jsonLogic from "./jsonFormatter.logic";
 import { useSendToChat } from "@/composables/useSendToChat";
 
-// 获取服务实例
-const jsonFormatterRegistry =
-  toolRegistryManager.getRegistry<JsonFormatterRegistry>("json-formatter");
 const errorHandler = createModuleErrorHandler("JsonFormatter");
 
 // 获取发送到聊天功能
@@ -258,7 +254,7 @@ const outputTitle = computed(() => {
   return "格式化输出";
 });
 
-// 格式化 JSON（调用服务）
+// 格式化 JSON（调用逻辑模块）
 const formatJsonInternal = () => {
   jsonError.value = "";
   if (!rawJsonInput.value.trim()) {
@@ -267,7 +263,7 @@ const formatJsonInternal = () => {
     return;
   }
 
-  const result = jsonFormatterRegistry.formatJson(rawJsonInput.value, {
+  const result = jsonLogic.formatJson(rawJsonInput.value, {
     expandDepth: defaultExpandDepth.value,
   });
 
@@ -406,7 +402,7 @@ const handleDrop = async (event: DragEvent) => {
 
   if (files && files.length > 0) {
     const file = files[0];
-    const result = await jsonFormatterRegistry.readFile(file);
+    const result = await jsonLogic.readFile(file);
 
     if (result.success) {
       rawJsonInput.value = result.content;

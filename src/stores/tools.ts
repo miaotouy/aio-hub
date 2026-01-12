@@ -10,6 +10,7 @@ import {
   ChatDotRound,
   Menu,
   FolderOpened,
+  Filter,
 } from '@element-plus/icons-vue';
 import { Braces, FlaskConical, Pipette, Layers } from 'lucide-vue-next';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
@@ -80,6 +81,14 @@ const initialTools: ToolConfig[] = [
     icon: markRaw(Braces),
     component: () => import('../tools/json-formatter/JsonFormatter.vue'),
     description: '格式化和美化JSON数据',
+    category: '文本处理'
+  },
+  {
+    name: '数据筛选工具',
+    path: '/data-filter',
+    icon: markRaw(Filter),
+    component: () => import('../tools/data-filter/DataFilter.vue'),
+    description: '针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配和自定义脚本',
     category: '文本处理'
   },
   {
@@ -195,7 +204,7 @@ export const useToolsStore = defineStore('tools', () => {
   // lodash-es 的 cloneDeep 会破坏 markRaw
   const tools = ref<ToolConfig[]>(initialTools.map(t => ({ ...t })));
   const isReady = ref(false); // 新增状态，标记工具是否已加载完成
-  
+
   // 响应式的工具顺序配置
   const toolsOrder = ref<string[]>([]);
 

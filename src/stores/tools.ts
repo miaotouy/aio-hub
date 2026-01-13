@@ -207,13 +207,25 @@ export const useToolsStore = defineStore('tools', () => {
 
   // 响应式的工具顺序配置
   const toolsOrder = ref<string[]>([]);
+  // 已打开的工具路径列表（标签页模式）
+  const openedToolPaths = ref<string[]>([]);
 
   /**
-   * 初始化工具顺序（从配置文件加载）
+   * 初始化工具顺序和已打开的工具（从配置文件和缓存加载）
    */
   function initializeOrder() {
     const settings = loadAppSettings();
     toolsOrder.value = settings.toolsOrder || [];
+
+    // 加载已打开的工具标签
+    try {
+      const saved = localStorage.getItem('app-opened-tools');
+      if (saved) {
+        openedToolPaths.value = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load opened tools from cache', e);
+    }
   }
 
   /**
@@ -264,6 +276,38 @@ export const useToolsStore = defineStore('tools', () => {
   }
 
   /**
+   * 打开一个工具标签
+   */
+  function openTool(toolPath: string) {
+    // 如果不是有效的工具路径，不处理
+    const isTool = tools.value.some(t => t.path === toolPath);
+    if (!isTool) return;
+
+    if (!openedToolPaths.value.includes(toolPath)) {
+      openedToolPaths.value.push(toolPath);
+      saveOpenedTools();
+    }
+  }
+
+  /**
+   * 关闭一个工具标签
+   */
+  function closeTool(toolPath: string) {
+    const index = openedToolPaths.value.indexOf(toolPath);
+    if (index !== -1) {
+      openedToolPaths.value.splice(index, 1);
+      saveOpenedTools();
+    }
+  }
+
+  /**
+   * 保存已打开的工具到缓存
+   */
+  function saveOpenedTools() {
+    localStorage.setItem('app-opened-tools', JSON.stringify(openedToolPaths.value));
+  }
+
+  /**
    * Adds a new tool to the store.
    * @param tool The tool configuration to add.
    */
@@ -281,6 +325,8 @@ export const useToolsStore = defineStore('tools', () => {
     const index = tools.value.findIndex(t => t.path === toolPath);
     if (index !== -1) {
       tools.value.splice(index, 1);
+      // 同时从已打开列表中移除
+      closeTool(toolPath);
     }
   }
 
@@ -288,11 +334,14 @@ export const useToolsStore = defineStore('tools', () => {
     tools,
     orderedTools,
     toolsOrder,
+    openedToolPaths,
     isReady,
     setReady,
     initializeOrder,
     updateOrder,
     addTool,
     removeTool,
+    openTool,
+    closeTool,
   };
 });

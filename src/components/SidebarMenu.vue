@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { Promotion } from "@element-plus/icons-vue";
+import { Promotion, Close } from "@element-plus/icons-vue";
 import { Puzzle } from "lucide-vue-next";
 import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
@@ -31,17 +31,13 @@ const getToolIdFromPath = (path: string): string => {
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
-// 计算可见的工具列表
+// 计算可见的工具列表（标签页模式：只显示已打开的且未分离的工具）
 const visibleTools = computed(() => {
-  const baseTools = props.toolsVisible
-    ? toolsStore.orderedTools.filter((tool) => {
-        const toolId = getToolIdFromPath(tool.path);
-        const isVisible = props.toolsVisible[toolId];
-        return isVisible !== false;
-      })
-    : toolsStore.orderedTools;
-
-  return baseTools.filter((tool) => !props.isDetached(getToolIdFromPath(tool.path)));
+  return toolsStore.openedToolPaths
+    .map((path) => toolsStore.tools.find((t) => t.path === path))
+    .filter(
+      (tool): tool is ToolConfig => !!tool && !props.isDetached(getToolIdFromPath(tool.path))
+    );
 });
 
 const handleSelect = (key: string) => {
@@ -79,7 +75,25 @@ const handleDetachByClick = async (tool: ToolConfig) => {
     metadata: { tool },
   });
 
-  if (success && route.path === tool.path) {
+  if (success) {
+    // 分离后，从已打开列表中移除
+    toolsStore.closeTool(tool.path);
+
+    if (route.path === tool.path) {
+      router.push("/");
+      emit("select", "/");
+    }
+  }
+};
+
+const handleCloseTool = (event: MouseEvent, toolPath: string) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  toolsStore.closeTool(toolPath);
+
+  // 如果关闭的是当前正在查看的工具，则跳转回主页
+  if (route.path === toolPath) {
     router.push("/");
     emit("select", "/");
   }
@@ -97,13 +111,17 @@ const handleDetachByClick = async (tool: ToolConfig) => {
       <span class="icon-wrapper">
         <i-ep-home-filled />
       </span>
-      <template #title>主页</template>
+      <template #title>
+        <span class="menu-item-title-text">主页</span>
+      </template>
     </el-menu-item>
     <el-menu-item index="/extensions">
       <span class="icon-wrapper">
         <Puzzle />
       </span>
-      <template #title>扩展</template>
+      <template #title>
+        <span class="menu-item-title-text">扩展</span>
+      </template>
     </el-menu-item>
 
     <el-tooltip
@@ -132,6 +150,9 @@ const handleDetachByClick = async (tool: ToolConfig) => {
             </span>
             <template v-if="!collapsed">
               <span class="menu-item-title-text">{{ tool.name }}</span>
+              <el-icon class="close-tab-btn" @click.stop="handleCloseTool($event, tool.path)">
+                <Close />
+              </el-icon>
             </template>
           </span>
           <template #dropdown>
@@ -139,6 +160,10 @@ const handleDetachByClick = async (tool: ToolConfig) => {
               <el-dropdown-item @click="handleDetachByClick(tool)">
                 <el-icon><Promotion /></el-icon>
                 <span>在新窗口中打开</span>
+              </el-dropdown-item>
+              <el-dropdown-item divided @click="handleCloseTool($event, tool.path)">
+                <el-icon><Close /></el-icon>
+                <span>关闭标签页</span>
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -178,11 +203,34 @@ const handleDetachByClick = async (tool: ToolConfig) => {
 }
 
 .menu-item-title-text {
-  margin-left: 5px;
+  flex: 1;
+  margin-left: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: inherit;
+}
+
+.close-tab-btn {
+  opacity: 0;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  transition: all 0.2s;
+  color: var(--text-color-light);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.draggable-menu-item:hover .close-tab-btn {
+  opacity: 1;
+}
+
+.close-tab-btn:hover {
+  color: var(--el-color-danger);
 }
 
 .icon-wrapper {

@@ -197,7 +197,11 @@ const handleToolClick = async (toolPath: string) => {
   // 如果工具已分离，聚焦其窗口（此时是 div，不会触发导航）
   if (isDetached(toolId)) {
     await focusWindow(toolId);
+    return;
   }
+
+  // 显式打开标签（虽然 App.vue 也有监听，但这里显式调用更安全）
+  toolsStore.openTool(toolPath);
   // 如果工具未分离，让 router-link 正常导航（无需额外处理）
 };
 

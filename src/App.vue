@@ -21,6 +21,7 @@ import GlobalProviders from "./components/GlobalProviders.vue";
 import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
 import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
+import { useToolsStore } from "@/stores/tools";
 
 const logger = createModuleLogger("App");
 const errorHandler = createModuleErrorHandler("App");
@@ -33,6 +34,7 @@ const route = useRoute();
 const router = useRouter();
 const { isDetached, initialize } = useDetachedManager();
 const userProfileStore = useUserProfileStore();
+const toolsStore = useToolsStore();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
 const isDark = useDark(); // 监听主题模式
 
@@ -152,6 +154,9 @@ onMounted(async () => {
     // 初始化统一的分离窗口管理器
     await initialize();
 
+    // 初始化工具顺序和标签
+    toolsStore.initializeOrder();
+
     // 初始加载设置
     await loadSettings();
 
@@ -241,10 +246,20 @@ onMounted(async () => {
   });
 });
 
-// 监听路由变化，仅在离开设置页面时更新一次
+// 监听路由变化
 watch(
   () => route.path,
-  async (_, oldPath) => {
+  async (newPath, oldPath) => {
+    // 自动打开工具标签
+    if (
+      newPath.startsWith("/") &&
+      newPath !== "/" &&
+      newPath !== "/settings" &&
+      newPath !== "/extensions"
+    ) {
+      toolsStore.openTool(newPath);
+    }
+
     if (oldPath === "/settings") {
       // 离开设置页面时从文件系统加载最新设置，确保数据同步
       // 使用 setTimeout 避免与事件处理冲突
@@ -314,7 +329,9 @@ onUnmounted(() => {
       <template v-else>
         <!-- 侧边栏 - 仅在非特殊路由且模式为 sidebar 时显示 -->
         <MainSidebar
-          v-if="!isSpecialRoute && (!appSettings.sidebarMode || appSettings.sidebarMode === 'sidebar')"
+          v-if="
+            !isSpecialRoute && (!appSettings.sidebarMode || appSettings.sidebarMode === 'sidebar')
+          "
           v-model:collapsed="isCollapsed"
           :tools-visible="appSettings.toolsVisible || {}"
           :is-detached="isDetached"

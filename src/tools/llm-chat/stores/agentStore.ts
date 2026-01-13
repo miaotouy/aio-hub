@@ -22,8 +22,9 @@ import {
   preflightImportAgents,
   commitImportAgents,
 } from "../services/agentImportService";
+import { migrateAgents } from "../services/agentMigrationService";
+import { ensurePresetAssetsImported as ensurePresetAssetsImportedService } from "../services/agentAssetService";
 import type { ConfirmImportParams } from "../types/agentImportExport";
-import { useAnchorRegistry } from "../composables/useAnchorRegistry";
 
 const logger = createModuleLogger("llm-chat/agentStore");
 const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
@@ -326,98 +327,12 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
     /**
      * 确保来自内置预设的资产已被正确导入到用户的 Agent 目录
-     *
-     * 该方法会扫描 Agent 的 icon 和 assets 字段，
-     * 如果发现路径以 /agent-presets/ 开头，则说明是内置资源，
-     * 需要通过 fetch 获取其二进制内容并保存到 AppData 中，
-     * 最后更新 Agent 配置为 appdata:// 路径。
      */
     async ensurePresetAssetsImported(agentId: string): Promise<void> {
       const agent = this.getAgentById(agentId);
       if (!agent) return;
 
-      let hasChanges = false;
-
-      // 1. 处理图标
-      // 同时支持新旧内置路径
-      const isPresetIcon = agent.icon && (agent.icon.startsWith("/agent-presets/") || agent.icon.startsWith("/agent-icons/"));
-
-      if (isPresetIcon) {
-        try {
-          // 如果是旧路径，先进行逻辑转换以便 fetch 能拿到新位置的资源
-          let fetchUrl = agent.icon!;
-          if (fetchUrl.startsWith("/agent-icons/")) {
-            const agentIdMatch = fetchUrl.match(/\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/);
-            if (agentIdMatch) {
-              fetchUrl = `/agent-presets/${agentIdMatch[1]}/icon.jpg`;
-            }
-          }
-
-          logger.info("检测到内置预设图标，开始导入", { agentId, icon: agent.icon, fetchUrl });
-          const response = await fetch(fetchUrl);
-          if (response.ok) {
-            const buffer = await response.arrayBuffer();
-            const filename = fetchUrl.split("/").pop() || "icon.jpg";
-
-            const subdirectory = `llm-chat/agents/${agentId}`;
-            const bytes = Array.from(new Uint8Array(buffer));
-
-            await invoke("save_uploaded_file", {
-              fileData: bytes,
-              subdirectory,
-              filename,
-            });
-
-            agent.icon = filename; // 更新为相对路径（持久化层会自动处理前缀）
-            hasChanges = true;
-          }
-        } catch (e) {
-          logger.error("导入预设图标失败", e as Error);
-        }
-      }
-
-      // 2. 处理资产列表
-      if (agent.assets && agent.assets.length > 0) {
-        for (const asset of agent.assets) {
-          const isPresetAsset = asset.path && (asset.path.startsWith("/agent-presets/") || asset.path.startsWith("/agent-icons/"));
-
-          if (isPresetAsset) {
-            try {
-              let fetchUrl = asset.path;
-              if (fetchUrl.startsWith("/agent-icons/")) {
-                const agentIdMatch = fetchUrl.match(/\/agent-icons\/(.+)\.(.+)$/);
-                if (agentIdMatch) {
-                  fetchUrl = `/agent-presets/${agentIdMatch[1]}/${agentIdMatch[2]}`;
-                }
-              }
-
-              logger.info("检测到内置预设资产，开始导入", { agentId, assetPath: asset.path, fetchUrl });
-              const response = await fetch(fetchUrl);
-              if (response.ok) {
-                const buffer = await response.arrayBuffer();
-                const filename = asset.path.split("/").pop() || asset.filename || "file";
-
-                // 确定存储子目录 (保持 assets/ 结构)
-                const relativeSubDir = asset.path.includes("/assets/") ? "assets" : "";
-                const subdirectory = `llm-chat/agents/${agentId}${relativeSubDir ? "/" + relativeSubDir : ""}`;
-
-                const bytes = Array.from(new Uint8Array(buffer));
-
-                await invoke("save_uploaded_file", {
-                  fileData: bytes,
-                  subdirectory,
-                  filename,
-                });
-
-                asset.path = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
-                hasChanges = true;
-              }
-            } catch (e) {
-              logger.error(`导入预设资产失败: ${asset.path}`, e as Error);
-            }
-          }
-        }
-      }
+      const hasChanges = await ensurePresetAssetsImportedService(agent);
 
       if (hasChanges) {
         this.persistAgent(agent);
@@ -560,114 +475,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
         if (agents.length > 0) {
           // 在加载后立即进行数据迁移
-          for (const agent of agents) {
-            // 1. 迁移旧版 custom 参数格式
-            if (agent.parameters?.custom) {
-              const custom = agent.parameters.custom as any;
-              // 检查是否为旧格式（是对象，但没有 enabled 和 params 属性）
-              if (
-                typeof custom === "object" &&
-                custom !== null &&
-                !("enabled" in custom) &&
-                !("params" in custom)
-              ) {
-                logger.info("迁移旧版 custom 参数格式", { agentId: agent.id });
-                agent.parameters.custom = {
-                  enabled: Object.keys(custom).length > 0, // 如果旧对象有内容，则默认启用
-                  params: custom,
-                };
-              }
-            }
-
-            // 2. 迁移旧版模板锚点格式
-            if (agent.presetMessages && agent.presetMessages.length > 0) {
-              const anchorRegistry = useAnchorRegistry();
-              let migratedCount = 0;
-
-              for (const message of agent.presetMessages) {
-                if (!message.type) continue;
-
-                const anchor = anchorRegistry.getAnchorById(message.type);
-                if (!anchor?.hasTemplate) continue;
-
-                // 检查是否为旧格式的固定文本（需要转换为默认模板）
-                const legacyFixedTexts = ["用户档案", "user_profile", "User Profile"];
-                const isLegacyFixedContent = legacyFixedTexts.some(
-                  (text) => message.content.trim() === text
-                );
-
-                const needsMigration = !message.content || isLegacyFixedContent;
-
-                if (needsMigration && anchor.defaultTemplate) {
-                  message.content = anchor.defaultTemplate;
-                  migratedCount++;
-                }
-              }
-
-              if (migratedCount > 0) {
-                logger.info("迁移旧版模板锚点格式", {
-                  agentId: agent.id,
-                  migratedCount,
-                });
-              }
-            }
-
-            // 3. 迁移旧版 InjectionStrategy 格式（补充 type 字段）
-            if (agent.presetMessages && agent.presetMessages.length > 0) {
-              let injectionMigratedCount = 0;
-
-              for (const message of agent.presetMessages) {
-                const strategy = message.injectionStrategy;
-                // 如果 injectionStrategy 存在但没有 type 字段，则需要迁移
-                if (strategy && !strategy.type) {
-                  // 根据字段存在性推断 type
-                  if (strategy.depthConfig) {
-                    strategy.type = "advanced_depth";
-                  } else if (strategy.depth !== undefined) {
-                    strategy.type = "depth";
-                  } else if (strategy.anchorTarget) {
-                    strategy.type = "anchor";
-                  } else {
-                    strategy.type = "default";
-                  }
-                  injectionMigratedCount++;
-                }
-              }
-
-              if (injectionMigratedCount > 0) {
-                logger.info("迁移旧版 InjectionStrategy 格式", {
-                  agentId: agent.id,
-                  migratedCount: injectionMigratedCount,
-                });
-              }
-            }
-
-            // 4. 迁移内置资产路径 (从 /agent-icons/ 迁移到 /agent-presets/)
-            if (agent.icon && agent.icon.startsWith("/agent-icons/")) {
-              const oldIcon = agent.icon;
-              const agentIdMatch = oldIcon.match(/\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/);
-              if (agentIdMatch) {
-                const presetId = agentIdMatch[1];
-                agent.icon = `/agent-presets/${presetId}/icon.jpg`;
-                logger.info("迁移内置头像路径", { agentId: agent.id, oldIcon, newIcon: agent.icon });
-              }
-            }
-
-            if (agent.assets && agent.assets.length > 0) {
-              for (const asset of agent.assets) {
-                if (asset.path && asset.path.startsWith("/agent-icons/")) {
-                  const oldPath = asset.path;
-                  const agentIdMatch = oldPath.match(/\/agent-icons\/(.+)\.(.+)$/);
-                  if (agentIdMatch) {
-                    const presetId = agentIdMatch[1];
-                    const filename = agentIdMatch[2];
-                    asset.path = `/agent-presets/${presetId}/${filename}`;
-                    logger.info("迁移内置资产路径", { agentId: agent.id, oldPath, newPath: asset.path });
-                  }
-                }
-              }
-            }
-          }
+          migrateAgents(agents);
 
           this.agents = agents;
           logger.info("加载智能体成功", { agentCount: this.agents.length });

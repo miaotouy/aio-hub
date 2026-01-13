@@ -6,8 +6,7 @@
  */
 
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
-import { debounce } from "lodash-es";
+import { computed, ref } from "vue";
 import { useSessionManager } from "../composables/useSessionManager";
 import { useChatHandler } from "../composables/useChatHandler";
 import { useBranchManager } from "../composables/useBranchManager";
@@ -15,6 +14,8 @@ import { BranchNavigator } from "../utils/BranchNavigator";
 import { useAgentStore } from "./agentStore";
 import { useSessionNodeHistory } from "../composables/useSessionNodeHistory";
 import { useGraphActions } from "../composables/useGraphActions";
+import { useChatContextStats } from "../composables/useChatContextStats";
+import { getActivePathWithPresets } from "../utils/chatPathUtils";
 import {
   recalculateNodeTokens as recalculateNodeTokensService,
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
@@ -25,7 +26,6 @@ import type {
   LlmParameters,
   ModelIdentifier,
 } from "../types";
-import type { ContextPreviewData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
@@ -43,10 +43,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const isSending = ref(false);
   const abortControllers = ref(new Map<string, AbortController>());
   const generatingNodes = ref(new Set<string>());
-
-  // 上下文统计（中央状态）
-  const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
-  const isLoadingContextStats = ref(false);
 
   const currentSession = computed((): ChatSession | null => {
     if (!currentSessionId.value) return null;
@@ -78,58 +74,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   });
 
   const currentActivePathWithPresets = computed((): ChatMessageNode[] => {
-    const session = currentSession.value;
-    if (!session) return [];
-
     const agentStore = useAgentStore();
-    if (!agentStore.currentAgentId) {
-      return currentActivePath.value;
-    }
-
-    const agent = agentStore.getAgentById(agentStore.currentAgentId);
-    if (
-      !agent ||
-      !agent.presetMessages ||
-      !agent.displayPresetCount ||
-      agent.displayPresetCount <= 0
-    ) {
-      return currentActivePath.value;
-    }
-
-    const chatHistoryIndex = agent.presetMessages.findIndex(
-      (msg: ChatMessageNode) => msg.type === "chat_history",
-    );
-
-    if (chatHistoryIndex === -1) {
-      return currentActivePath.value;
-    }
-
-    const presetsBeforePlaceholder = agent.presetMessages
-      .slice(0, chatHistoryIndex)
-      .filter(
-        (msg: ChatMessageNode) =>
-          (msg.role === "user" || msg.role === "assistant") &&
-          msg.isEnabled !== false,
-      );
-
-    const displayPresets = presetsBeforePlaceholder.slice(
-      -agent.displayPresetCount,
-    );
-    const markedPresets = displayPresets.map((msg: ChatMessageNode) => ({
-      ...msg,
-      metadata: {
-        ...msg.metadata,
-        isPresetDisplay: true,
-        agentId: agent.id,
-        agentName: agent.name,
-        agentDisplayName: agent.displayName || agent.name,
-        agentIcon: agent.icon,
-        profileId: agent.profileId,
-        modelId: agent.modelId,
-      },
-    }));
-
-    return [...markedPresets, ...currentActivePath.value];
+    const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+    return getActivePathWithPresets(currentActivePath.value, currentSession.value, agent || null);
   });
 
   const llmContext = computed(
@@ -609,86 +556,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     logger.info("更新参数配置", { parameters: newParameters });
   }
 
-  // ==================== 上下文统计管理 ====================
-  const refreshContextStats = async () => {
-    const session = currentSession.value;
-    if (!session || !session.activeLeafId) {
-      contextStats.value = null;
-      return;
-    }
-
-    const agentStore = useAgentStore();
-    isLoadingContextStats.value = true;
-
-    try {
-      // 动态导入以避免潜在的循环依赖
-      const { useChatHandler: useChatHandlerInternal } = await import("../composables/useChatHandler");
-      const { getLlmContextForPreview } = useChatHandlerInternal();
-
-      const previewData = await getLlmContextForPreview(
-        session,
-        session.activeLeafId,
-        agentStore.currentAgentId ?? undefined,
-      );
-
-      if (previewData) {
-        contextStats.value = previewData.statistics;
-      }
-    } catch (error) {
-      logger.warn("获取上下文统计失败", error);
-      // 出错时不清除旧数据，避免闪烁，或者可以根据需求清除
-    } finally {
-      isLoadingContextStats.value = false;
-    }
-  };
-
-  const debouncedRefreshContextStats = debounce(refreshContextStats, 300);
-
-  // 自动监听变化并刷新统计
-  watch(
-    [
-      currentSessionId,
-      () => currentSession.value?.activeLeafId,
-      () => currentSession.value?.updatedAt, // 监听会话更新（如消息内容变化）
-      () => {
-        const agentStore = useAgentStore();
-        return agentStore.currentAgentId;
-      },
-      () => {
-        // 深度监听当前 Agent 的关键配置
-        const agentStore = useAgentStore();
-        if (!agentStore.currentAgentId) return null;
-        const agent = agentStore.getAgentById(agentStore.currentAgentId);
-        // 仅监听影响上下文计算的核心参数
-        // 排除 temperature, topP 等生成参数
-        // contextManagement: 决定截断逻辑
-        // contextPostProcessing: 决定内容过滤/修改逻辑
-        const contextParams = {
-          contextManagement: agent?.parameters?.contextManagement,
-          contextPostProcessing: agent?.parameters?.contextPostProcessing,
-        };
-
-        // 使用 JSON.stringify 进行稳定化比较，避免因对象引用变化（如状态同步时）导致的误触发
-        return JSON.stringify({
-          modelId: agent?.modelId,
-          contextParams,
-          presets: agent?.presetMessages,
-        });
-      },
-    ],
-    () => {
-      debouncedRefreshContextStats();
-    },
-    { deep: true, immediate: true },
+  // 上下文统计管理 (委托给 Composable)
+  const { contextStats, isLoadingContextStats, refreshContextStats } = useChatContextStats(
+    currentSession,
+    currentSessionId
   );
-
-  // ==================== 已弃用方法 (保留兼容性) ====================
-  function editUserMessage(nodeId: string, newContent: string): void {
-    graphActions.editMessage(nodeId, newContent);
-  }
-  function editAssistantMessage(nodeId: string, newContent: string): void {
-    graphActions.editMessage(nodeId, newContent);
-  }
 
   // ==================== 返回 ====================
   return {
@@ -744,8 +616,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     ...graphActions,
 
     // 兼容旧接口
-    editUserMessage,
-    editAssistantMessage,
     updateParameters,
     updateMessageTranslation: graphActions.updateMessageTranslation,
     updateNodeData: graphActions.updateNodeData,

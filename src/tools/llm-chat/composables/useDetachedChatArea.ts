@@ -11,8 +11,8 @@
  */
 import { computed, onUnmounted } from 'vue';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
-import { useLlmChatStore } from '../store';
-import { useAgentStore } from '../agentStore';
+import { useLlmChatStore } from '../stores/llmChatStore';
+import { useAgentStore } from '../stores/agentStore';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('DetachedChatArea');

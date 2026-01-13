@@ -5,7 +5,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { nanoid } from "nanoid";
-import { useAgentStore } from "../agentStore";
+import { useAgentStore } from "../stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "./useChatSettings";
 import { detectFileType, isTextFile as checkIsTextFile } from "@/utils/fileTypeDetector";

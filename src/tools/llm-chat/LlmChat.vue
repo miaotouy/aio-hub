@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, computed, ref, onUnmounted, defineAsyncComponent } from "vue";
-import { useLlmChatStore } from "./store";
-import { useAgentStore } from "./agentStore";
-import { useUserProfileStore } from "./userProfileStore";
+import { useLlmChatStore } from "./stores/llmChatStore";
+import { useAgentStore } from "./stores/agentStore";
+import { useUserProfileStore } from "./stores/userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatUiState } from "./composables/useLlmChatUiState";

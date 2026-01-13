@@ -4,8 +4,8 @@ import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, MessageRole, ChatSession } from "../../types";
 import { Database, Edit2, Check, X, User, Bot, Settings, Trash2 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/useChatSettings";
-import { useAgentStore } from "../../agentStore";
-import { useUserProfileStore } from "../../userProfileStore";
+import { useAgentStore } from "../../stores/agentStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import {
   resolveRawRules,
   filterRulesByRole,

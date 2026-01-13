@@ -66,7 +66,7 @@ import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
 import type { ChatSession } from "../../types";
 import { useExportManager } from "../../composables/useExportManager";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { sanitizeFilename } from "@/utils/fileUtils";
 import { save } from "@tauri-apps/plugin-dialog";

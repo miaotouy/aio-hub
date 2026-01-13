@@ -1,8 +1,8 @@
 import { ref, watch, computed, type Ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { useLlmChatStore } from "@/tools/llm-chat/store";
-import { useAgentStore } from "@/tools/llm-chat/agentStore";
+import { useLlmChatStore } from "../stores/llmChatStore";
+import { useAgentStore } from "../stores/agentStore";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../macro-engine/MacroProcessor";
 import { buildMacroContext, processMacros } from "../core/context-utils/macro";

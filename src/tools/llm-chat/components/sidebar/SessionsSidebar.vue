@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import type { ChatSession } from "../../types";
 import { useLlmSearch, type MatchDetail } from "../../composables/useLlmSearch";
 import {

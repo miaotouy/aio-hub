@@ -7,7 +7,7 @@ import BasicInfoSection from "./sections/BasicInfoSection.vue";
 import PersonalitySection from "./sections/PersonalitySection.vue";
 import CapabilitiesSection from "./sections/CapabilitiesSection.vue";
 import OutputDisplaySection from "./sections/OutputDisplaySection.vue";
-import { useUserProfileStore } from "../../../userProfileStore";
+import { useUserProfileStore } from "../../../stores/userProfileStore";
 import AgentAssetsDialog from "../AgentAssetsDialog.vue";
 
 const EditUserProfileDialog = defineAsyncComponent(

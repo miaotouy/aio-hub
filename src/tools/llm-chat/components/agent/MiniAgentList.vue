@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useVirtualList } from "@vueuse/core";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import type { ChatAgent } from "../../types";
 import { Search, Plus } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";

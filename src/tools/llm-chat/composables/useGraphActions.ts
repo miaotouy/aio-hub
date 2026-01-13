@@ -4,7 +4,7 @@ import type { Asset } from '@/types/asset-management';
 import { useBranchManager } from './useBranchManager';
 import { useSessionManager } from './useSessionManager';
 import { useNodeManager } from './useNodeManager';
-import { useAgentStore } from '../agentStore';
+import { useAgentStore } from '../stores/agentStore';
 import {
   extractRelationChange,
   captureRelationChangesForGraft,

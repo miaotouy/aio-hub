@@ -14,7 +14,7 @@ import { ElTooltip, ElPopconfirm } from "element-plus";
 import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAgentStore } from "@/tools/llm-chat/agentStore";
+import { useAgentStore } from "../../../../stores/agentStore";
 
 interface Props {
   isEnabled: boolean;

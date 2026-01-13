@@ -8,7 +8,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAgentStore } from "../agentStore";
+import { useAgentStore } from "../stores/agentStore";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import type { Asset, DerivedDataInfo } from "@/types/asset-management";
 import type { LlmRequestOptions, LlmMessageContent } from "@/llm-apis/common";

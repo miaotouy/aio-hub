@@ -413,7 +413,7 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { useUserProfileStore } from "../../userProfileStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
 import { STWorldbookPosition } from "../../types/worldbook";
 

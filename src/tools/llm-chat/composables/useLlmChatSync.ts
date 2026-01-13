@@ -4,10 +4,10 @@
  * 封装了 LlmChat.vue 与分离窗口之间的所有状态同步和操作代理逻辑
  */
 import { toRef, type Ref, watch, computed, onUnmounted } from 'vue';
-import { useLlmChatStore } from '../store';
-import { useAgentStore } from '../agentStore';
-import { useUserProfileStore } from '../userProfileStore';
-import { useWorldbookStore } from '../worldbookStore';
+import { useLlmChatStore } from '../stores/llmChatStore';
+import { useAgentStore } from '../stores/agentStore';
+import { useUserProfileStore } from '../stores/userProfileStore';
+import { useWorldbookStore } from '../stores/worldbookStore';
 import { useDetachedManager } from '@/composables/useDetachedManager';
 import { useLlmChatUiState } from './useLlmChatUiState';
 import { useChatSettings } from './useChatSettings';

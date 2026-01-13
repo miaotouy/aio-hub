@@ -14,7 +14,7 @@ import type { ExportableAgent, AgentExportFile, BundledWorldbook } from '../type
 import { embedDataIntoPng } from '@/utils/pngMetadataWriter';
 import { convertArrayBufferToBase64 } from '@/utils/base64';
 import { sanitizeFilename } from '@/utils/fileUtils';
-import { useWorldbookStore } from '../worldbookStore';
+import { useWorldbookStore } from '../stores/worldbookStore';
 
 const logger = createModuleLogger('llm-chat/agentExportService');
 const errorHandler = createModuleErrorHandler('llm-chat/agentExportService');

@@ -3,8 +3,8 @@
  */
 
 import { defineStore } from "pinia";
-import { useUserProfileStorage } from "./composables/useUserProfileStorage";
-import { type UserProfile, createDefaultUserProfileConfig } from "./types";
+import { useUserProfileStorage } from "../composables/useUserProfileStorage";
+import { type UserProfile, createDefaultUserProfileConfig } from "../types";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 
@@ -77,7 +77,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
         icon?: string;
         richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
         richTextStyleBehavior?: "follow_agent" | "custom";
-        regexConfig?: import("./types").ChatRegexConfig;
+        regexConfig?: import("../types").ChatRegexConfig;
       },
     ): string {
       const profileId = `user-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

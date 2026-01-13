@@ -32,9 +32,9 @@ import {
   StepForward,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
-import { useLlmChatStore } from "../../store";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/useChatSettings";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useChatInputManager } from "../../composables/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";

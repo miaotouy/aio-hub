@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useAgentStore } from "../../agentStore";
-import { useLlmChatStore } from "../../store";
+import { useAgentStore } from "../../stores/agentStore";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";

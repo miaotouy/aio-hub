@@ -4,7 +4,7 @@
  */
 
 import { STWorldbook, STWorldbookEntry } from "../types/worldbook";
-import { useWorldbookStore } from "../worldbookStore";
+import { useWorldbookStore } from "../stores/worldbookStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";

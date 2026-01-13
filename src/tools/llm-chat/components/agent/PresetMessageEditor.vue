@@ -311,7 +311,7 @@ import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-te
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAnchorRegistry } from "../../composables/useAnchorRegistry";
-import { useLlmChatStore } from "../../store";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import * as monaco from "monaco-editor";
 import {
   MacroProcessor,

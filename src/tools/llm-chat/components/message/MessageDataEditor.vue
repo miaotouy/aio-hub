@@ -38,7 +38,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { useLlmChatStore } from "../../store";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatMessageNode } from "../../types";
 
 const errorHandler = createModuleErrorHandler("LlmChat/MessageDataEditor");

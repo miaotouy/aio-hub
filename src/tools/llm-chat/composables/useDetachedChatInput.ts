@@ -8,7 +8,7 @@ import { computed } from 'vue';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { createModuleLogger } from '@/utils/logger';
 import { useChatSettings } from './useChatSettings';
-import { useLlmChatStore } from '../store';
+import { useLlmChatStore } from '../stores/llmChatStore';
 
 const logger = createModuleLogger('DetachedChatInput');
 

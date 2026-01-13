@@ -5,7 +5,7 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import WorldbookSelector from "../../../worldbook/WorldbookSelector.vue";
 import { MagicStick } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { useUserProfileStore } from "../../../../userProfileStore";
+import { useUserProfileStore } from "../../../../stores/userProfileStore";
 import { resolveAvatarPath } from "../../../../composables/useResolvedAvatar";
 
 const editForm = inject<any>("agent-edit-form");

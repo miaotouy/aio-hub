@@ -5,7 +5,7 @@ import WorldbookOverview from "./WorldbookOverview.vue";
 import WorldbookManagerDialog from "./WorldbookManagerDialog.vue";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { importSTWorldbookFromPath } from "../../services/worldbookImportService";
-import { useWorldbookStore } from "../../worldbookStore";
+import { useWorldbookStore } from "../../stores/worldbookStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 

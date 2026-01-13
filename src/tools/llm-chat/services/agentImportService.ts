@@ -15,9 +15,9 @@ import { STWorldbook } from '../types/worldbook';
 import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from './sillyTavernParser';
 import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
 import { normalizeWorldbook } from './worldbookImportService';
-import { useWorldbookStore } from '../worldbookStore';
+import { useWorldbookStore } from '../stores/worldbookStore';
 import { invoke } from '@tauri-apps/api/core';
-import { useAgentStore } from '../agentStore';
+import { useAgentStore } from '../stores/agentStore';
 import { useChatSettings } from '../composables/useChatSettings';
 
 const logger = createModuleLogger('llm-chat/agentImportService');

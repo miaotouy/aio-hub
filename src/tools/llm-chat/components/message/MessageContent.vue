@@ -7,9 +7,9 @@ import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/useChatSettings";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
-import { useUserProfileStore } from "../../userProfileStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import { MacroProcessor } from "../../macro-engine";
 import { processMacros, buildMacroContext } from "../../core/context-utils/macro";
 import {

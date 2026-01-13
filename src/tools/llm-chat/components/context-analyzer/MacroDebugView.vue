@@ -190,8 +190,8 @@ import { MacroProcessor, MacroRegistry } from "../../macro-engine";
 import { createMacroContext, extractContextFromSession } from "../../macro-engine/MacroContext";
 import type { MacroProcessResult } from "../../macro-engine";
 import type { ContextPreviewData } from "../../types/context";
-import { useAgentStore } from "../../agentStore";
-import { useUserProfileStore } from "../../userProfileStore";
+import { useAgentStore } from "../../stores/agentStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import { diffLines, diffWordsWithSpace, type Change } from "diff";
 
 const props = defineProps<{

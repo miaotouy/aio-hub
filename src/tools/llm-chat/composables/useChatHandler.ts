@@ -12,8 +12,8 @@
 
 import type { ChatSession, ChatMessageNode } from "../types";
 import type { Asset } from "@/types/asset-management";
-import { useAgentStore } from "../agentStore";
-import { useUserProfileStore } from "../userProfileStore";
+import { useAgentStore } from "../stores/agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useNodeManager } from "./useNodeManager";
 import { useSessionManager } from "./useSessionManager";

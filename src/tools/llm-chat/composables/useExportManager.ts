@@ -5,8 +5,8 @@
 
 import type { ChatSession, ChatMessageNode } from "../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useUserProfileStore } from "../userProfileStore";
-import { useAgentStore } from "../agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
+import { useAgentStore } from "../stores/agentStore";
 import { createModuleLogger } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
 

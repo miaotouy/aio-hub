@@ -2,8 +2,8 @@
 import { computed, ref, onMounted, onBeforeUpdate, nextTick } from "vue";
 import { ElScrollbar } from "element-plus";
 import type { ChatMessageNode } from "../../types";
-import { useAgentStore } from "../../agentStore";
-import { useUserProfileStore } from "../../userProfileStore";
+import { useAgentStore } from "../../stores/agentStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";

@@ -394,8 +394,8 @@ import {
 import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
-import { useLlmChatStore } from "../../../store";
-import { useAgentStore } from "../../../agentStore";
+import { useLlmChatStore } from "../../../stores/llmChatStore";
+import { useAgentStore } from "../../../stores/agentStore";
 import { useChatSettings } from "../../../composables/useChatSettings";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";

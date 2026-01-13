@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { useWorldbookStore } from "../../worldbookStore";
+import { useWorldbookStore } from "../../stores/worldbookStore";
 import type { STWorldbook, STWorldbookEntry } from "../../types/worldbook";
 import { STWorldbookLogic, STWorldbookPosition } from "../../types/worldbook";
 import {

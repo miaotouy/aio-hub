@@ -8,24 +8,24 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { debounce } from "lodash-es";
-import { useSessionManager } from "./composables/useSessionManager";
-import { useChatHandler } from "./composables/useChatHandler";
-import { useBranchManager } from "./composables/useBranchManager";
-import { BranchNavigator } from "./utils/BranchNavigator";
+import { useSessionManager } from "../composables/useSessionManager";
+import { useChatHandler } from "../composables/useChatHandler";
+import { useBranchManager } from "../composables/useBranchManager";
+import { BranchNavigator } from "../utils/BranchNavigator";
 import { useAgentStore } from "./agentStore";
-import { useSessionNodeHistory } from "./composables/useSessionNodeHistory";
-import { useGraphActions } from "./composables/useGraphActions";
+import { useSessionNodeHistory } from "../composables/useSessionNodeHistory";
+import { useGraphActions } from "../composables/useGraphActions";
 import {
   recalculateNodeTokens as recalculateNodeTokensService,
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
-} from "./utils/chatTokenUtils";
+} from "../utils/chatTokenUtils";
 import type {
   ChatSession,
   ChatMessageNode,
   LlmParameters,
   ModelIdentifier,
-} from "./types";
-import type { ContextPreviewData } from "./types/context";
+} from "../types";
+import type { ContextPreviewData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
@@ -505,7 +505,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       if (completion) {
         // 将补全内容追加到输入框
         // 动态导入以避免循环依赖
-        const { useChatInputManager } = await import("./composables/useChatInputManager");
+        const { useChatInputManager } = await import("../composables/useChatInputManager");
         const inputManager = useChatInputManager();
         inputManager.inputText.value += completion;
       }
@@ -622,7 +622,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     try {
       // 动态导入以避免潜在的循环依赖
-      const { useChatHandler: useChatHandlerInternal } = await import("./composables/useChatHandler");
+      const { useChatHandler: useChatHandlerInternal } = await import("../composables/useChatHandler");
       const { getLlmContextForPreview } = useChatHandlerInternal();
 
       const previewData = await getLlmContextForPreview(

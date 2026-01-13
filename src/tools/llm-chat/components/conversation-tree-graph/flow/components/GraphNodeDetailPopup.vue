@@ -6,7 +6,7 @@ import type { ChatMessageNode, ChatSession, MessageRole } from "../../../../type
 import type { Asset } from "@/types/asset-management";
 import ChatMessage from "../../../message/ChatMessage.vue";
 import CompressionMessage from "../../../message/CompressionMessage.vue";
-import { useLlmChatStore } from "../../../../store";
+import { useLlmChatStore } from "../../../../stores/llmChatStore";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {

@@ -14,10 +14,10 @@
 import { ref, watch } from 'vue';
 import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
-import { useLlmChatStore } from '../store';
-import { useAgentStore } from '../agentStore';
-import { useUserProfileStore } from '../userProfileStore';
-import { useWorldbookStore } from '../worldbookStore';
+import { useLlmChatStore } from '../stores/llmChatStore';
+import { useAgentStore } from '../stores/agentStore';
+import { useUserProfileStore } from '../stores/userProfileStore';
+import { useWorldbookStore } from '../stores/worldbookStore';
 import { useLlmChatUiState } from './useLlmChatUiState';
 import { createModuleLogger } from '@/utils/logger';
 import type { ChatAgent, ChatSession, UserProfile } from '../types';

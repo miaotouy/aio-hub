@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ChatMessageNode } from "../../types";
-import { useAgentStore } from "../../agentStore";
-import { useUserProfileStore } from "../../userProfileStore";
+import { useAgentStore } from "../../stores/agentStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useChatSettings } from "../../composables/useChatSettings";

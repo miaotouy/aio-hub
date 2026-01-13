@@ -7,7 +7,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import { Users } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { createDefaultChatRegexConfig } from "../../types";
 import AgentEditor from "./agent-editor/AgentEditor.vue";

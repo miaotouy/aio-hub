@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import WorldbookFullManager from "../llm-chat/components/worldbook/WorldbookFullManager.vue";
-import { useWorldbookStore } from "../llm-chat/worldbookStore";
+import { useWorldbookStore } from "../llm-chat/stores/worldbookStore";
 
 const worldbookStore = useWorldbookStore();
 

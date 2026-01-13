@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useVirtualList } from "@vueuse/core";
-import { useAgentStore } from "../../agentStore";
-import { useLlmChatStore } from "../../store";
+import { useAgentStore } from "../../stores/agentStore";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSession } from "../../types";
 import { useLlmSearch } from "../../composables/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";

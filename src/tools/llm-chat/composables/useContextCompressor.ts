@@ -6,8 +6,8 @@
 import { DEFAULT_CONTEXT_COMPRESSION_CONFIG, DEFAULT_CONTEXT_COMPRESSION_PROMPT, CONTINUE_CONTEXT_COMPRESSION_PROMPT, type ChatSession, type ChatMessageNode, type ContextCompressionConfig, type MessageRole } from '../types';
 import { useNodeManager } from './useNodeManager';
 import { useLlmRequest } from '@/composables/useLlmRequest';
-import { useAgentStore } from '../agentStore';
-import { useLlmChatStore } from '../store';
+import { useAgentStore } from '../stores/agentStore';
+import { useLlmChatStore } from '../stores/llmChatStore';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';

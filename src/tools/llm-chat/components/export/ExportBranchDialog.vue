@@ -83,7 +83,7 @@ import ExportPreviewSection from "./ExportPreviewSection.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import type { ChatSession, ChatMessageNode } from "../../types";
 import { useExportManager } from "../../composables/useExportManager";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 

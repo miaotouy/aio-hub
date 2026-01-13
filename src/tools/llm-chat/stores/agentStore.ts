@@ -5,25 +5,25 @@
 import { defineStore } from "pinia";
 import { invoke } from "@tauri-apps/api/core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useChatSettings } from "./composables/useChatSettings";
-import { useAgentStorageSeparated as useAgentStorage } from "./composables/useAgentStorageSeparated";
-import { useLlmChatUiState } from "./composables/useLlmChatUiState";
+import { useChatSettings } from "../composables/useChatSettings";
+import { useAgentStorageSeparated as useAgentStorage } from "../composables/useAgentStorageSeparated";
+import { useLlmChatUiState } from "../composables/useLlmChatUiState";
 import type {
   ChatAgent,
   ChatMessageNode,
   LlmParameters,
-} from "./types";
+} from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { getLocalISOString } from "@/utils/time";
-import { exportAgents } from "./services/agentExportService";
+import { exportAgents } from "../services/agentExportService";
 import {
   preflightImportAgents,
   commitImportAgents,
-} from "./services/agentImportService";
-import type { ConfirmImportParams } from "./types/agentImportExport";
-import { useAnchorRegistry } from "./composables/useAnchorRegistry";
+} from "../services/agentImportService";
+import type { ConfirmImportParams } from "../types/agentImportExport";
+import { useAnchorRegistry } from "../composables/useAnchorRegistry";
 
 const logger = createModuleLogger("llm-chat/agentStore");
 const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
@@ -35,7 +35,7 @@ export type {
   AgentImportPreflightResult,
   ResolvedAgentToImport,
   ConfirmImportParams,
-} from "./types/agentImportExport";
+} from "../types/agentImportExport";
 
 interface AgentStoreState {
   /** 所有智能体列表 */

@@ -3,7 +3,7 @@ import { inject, computed } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { AgentCategoryLabels } from "../../../../types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
-import { useAgentStore } from "../../../../agentStore";
+import { useAgentStore } from "../../../../stores/agentStore";
 
 const editForm = inject<any>("agent-edit-form");
 const agent = inject<any>("agent-instance");

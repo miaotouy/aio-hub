@@ -20,7 +20,7 @@ import MainSidebar from "./components/MainSidebar.vue";
 import GlobalProviders from "./components/GlobalProviders.vue";
 import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
-import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
+import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import { useToolsStore } from "@/stores/tools";
 
 const logger = createModuleLogger("App");

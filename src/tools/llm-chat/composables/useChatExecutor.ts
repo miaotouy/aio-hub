@@ -12,8 +12,8 @@ import type {
 } from "../types";
 import type { Asset } from "@/types/asset-management";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { useAgentStore } from "../agentStore";
-import { useUserProfileStore } from "../userProfileStore";
+import { useAgentStore } from "../stores/agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
 import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -243,7 +243,7 @@ export function useChatExecutor() {
         settings.value.transcription,
       );
       // 聚合并预加载世界书内容
-      const worldbookStore = import.meta.env.SSR ? null : (await import('../worldbookStore')).useWorldbookStore();
+      const worldbookStore = import.meta.env.SSR ? null : (await import('../stores/worldbookStore')).useWorldbookStore();
       const allWorldbookIds = Array.from(new Set([
         ...(settings.value.worldbookIds || []),
         ...(effectiveUserProfile?.worldbookIds || []),
@@ -841,7 +841,7 @@ export function useChatExecutor() {
       settings.value.transcription,
     );
     // 聚合并预加载世界书内容 (预览模式)
-    const worldbookStore = import.meta.env.SSR ? null : (await import('../worldbookStore')).useWorldbookStore();
+    const worldbookStore = import.meta.env.SSR ? null : (await import('../stores/worldbookStore')).useWorldbookStore();
     const allWorldbookIds = Array.from(new Set([
       ...(settings.value.worldbookIds || []),
       ...(effectiveUserProfile?.worldbookIds || []),

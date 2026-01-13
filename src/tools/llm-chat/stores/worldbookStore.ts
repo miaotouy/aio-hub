@@ -3,14 +3,14 @@
  */
 
 import { defineStore } from "pinia";
-import { useWorldbookStorageSeparated } from "./composables/useWorldbookStorageSeparated";
-import type { STWorldbook, WorldbookMetadata } from "./types/worldbook";
+import { useWorldbookStorageSeparated } from "../composables/useWorldbookStorageSeparated";
+import type { STWorldbook, WorldbookMetadata } from "../types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getLocalISOString } from "@/utils/time";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
-import { CHAT_STATE_KEYS, createChatSyncConfig } from "./types/sync";
+import { CHAT_STATE_KEYS, createChatSyncConfig } from "../types/sync";
 import { toRef, watch } from "vue";
 
 const logger = createModuleLogger("llm-chat/worldbookStore");

@@ -73,8 +73,8 @@ const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const messageListRef = ref<InstanceType<typeof MessageList>>();
 
 // 获取智能体和模型信息
-import { useAgentStore } from "../agentStore";
-import { useUserProfileStore } from "../userProfileStore";
+import { useAgentStore } from "../stores/agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useChatSettings } from "../composables/useChatSettings";
@@ -84,7 +84,7 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useThemeAppearance, getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
 import { useResolvedAvatar } from "../composables/useResolvedAvatar";
 import { useLlmChatUiState } from "../composables/useLlmChatUiState";
-import { useLlmChatStore } from "../store";
+import { useLlmChatStore } from "../stores/llmChatStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
 

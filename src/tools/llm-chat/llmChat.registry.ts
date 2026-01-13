@@ -10,9 +10,9 @@ import type { DetachableComponentRegistration } from '@/types/detachable';
 import { markRaw } from 'vue';
 import { ChatDotRound } from '@element-plus/icons-vue';
 import { useChatInputManager } from './composables/useChatInputManager';
-import { useLlmChatStore } from './store';
-import { useAgentStore } from './agentStore';
-import { useUserProfileStore } from './userProfileStore';
+import { useLlmChatStore } from './stores/llmChatStore';
+import { useAgentStore } from './stores/agentStore';
+import { useUserProfileStore } from './stores/userProfileStore';
 import { useDetachedChatArea } from './composables/useDetachedChatArea';
 import { useDetachedChatInput } from './composables/useDetachedChatInput';
 import { useLlmChatStateConsumer } from './composables/useLlmChatStateConsumer';
@@ -459,7 +459,7 @@ export default class LlmChatRegistry implements ToolRegistry {
       async () => {
         logger.info('通过 Registry 发送消息', { contentLength: content.length });
         // 直接触发发送，不修改输入框状态，避免覆盖用户草稿或残留内容
-        const { useLlmChatStore } = await import('./store');
+        const { useLlmChatStore } = await import('./stores/llmChatStore');
         const store = useLlmChatStore();
 
         // 如果没有当前会话，尝试自动选择或创建
@@ -477,7 +477,7 @@ export default class LlmChatRegistry implements ToolRegistry {
             store.switchSession(targetSession.id);
           } else {
             // 情况2：完全没有会话 -> 尝试自动创建新会话
-            const { useAgentStore } = await import('./agentStore');
+            const { useAgentStore } = await import('./stores/agentStore');
             const agentStore = useAgentStore();
 
             if (agentStore.currentAgentId) {

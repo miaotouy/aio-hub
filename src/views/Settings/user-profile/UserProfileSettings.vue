@@ -92,7 +92,7 @@ import { ElMessageBox } from "element-plus";
 import { RefreshLeft, FolderOpened } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
-import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
+import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import type { UserProfile } from "@/tools/llm-chat/types";
 import Avatar from "@/components/common/Avatar.vue";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";

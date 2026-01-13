@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from "vue";
-import { useAgentStore } from "../../agentStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";

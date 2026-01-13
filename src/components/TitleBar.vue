@@ -25,7 +25,7 @@ import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
-import { useUserProfileStore } from "@/tools/llm-chat/userProfileStore";
+import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import SidebarMenu from "@/components/SidebarMenu.vue";
 import { debounce } from "lodash-es";

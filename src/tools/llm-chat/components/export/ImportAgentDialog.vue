@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import type { AgentImportPreflightResult, ResolvedAgentToImport } from "../../agentStore";
+import type { AgentImportPreflightResult, ResolvedAgentToImport } from "../../stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";

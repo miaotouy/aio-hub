@@ -325,6 +325,85 @@ export const useAgentStore = defineStore("llmChatAgent", {
     },
 
     /**
+     * 确保来自内置预设的资产已被正确导入到用户的 Agent 目录
+     *
+     * 该方法会扫描 Agent 的 icon 和 assets 字段，
+     * 如果发现路径以 /agent-presets/ 开头，则说明是内置资源，
+     * 需要通过 fetch 获取其二进制内容并保存到 AppData 中，
+     * 最后更新 Agent 配置为 appdata:// 路径。
+     */
+    async ensurePresetAssetsImported(agentId: string): Promise<void> {
+      const agent = this.getAgentById(agentId);
+      if (!agent) return;
+
+      let hasChanges = false;
+
+      // 1. 处理图标
+      if (agent.icon && agent.icon.startsWith("/agent-presets/")) {
+        try {
+          logger.info("检测到内置预设图标，开始导入", { agentId, icon: agent.icon });
+          const response = await fetch(agent.icon);
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            const filename = agent.icon.split("/").pop() || "icon.jpg";
+            
+            const subdirectory = `llm-chat/agents/${agentId}`;
+            const bytes = Array.from(new Uint8Array(buffer));
+
+            await invoke("save_uploaded_file", {
+              fileData: bytes,
+              subdirectory,
+              filename,
+            });
+
+            agent.icon = filename; // 更新为相对路径（持久化层会自动处理前缀）
+            hasChanges = true;
+          }
+        } catch (e) {
+          logger.error("导入预设图标失败", e as Error);
+        }
+      }
+
+      // 2. 处理资产列表
+      if (agent.assets && agent.assets.length > 0) {
+        for (const asset of agent.assets) {
+          if (asset.path && asset.path.startsWith("/agent-presets/")) {
+            try {
+              logger.info("检测到内置预设资产，开始导入", { agentId, assetPath: asset.path });
+              const response = await fetch(asset.path);
+              if (response.ok) {
+                const buffer = await response.arrayBuffer();
+                const filename = asset.path.split("/").pop() || asset.filename || "file";
+                
+                // 确定存储子目录 (保持 assets/ 结构)
+                const relativeSubDir = asset.path.includes("/assets/") ? "assets" : "";
+                const subdirectory = `llm-chat/agents/${agentId}${relativeSubDir ? "/" + relativeSubDir : ""}`;
+                
+                const bytes = Array.from(new Uint8Array(buffer));
+
+                await invoke("save_uploaded_file", {
+                  fileData: bytes,
+                  subdirectory,
+                  filename,
+                });
+
+                asset.path = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
+                hasChanges = true;
+              }
+            } catch (e) {
+              logger.error(`导入预设资产失败: ${asset.path}`, e as Error);
+            }
+          }
+        }
+      }
+
+      if (hasChanges) {
+        this.persistAgent(agent);
+        logger.info("Agent 预设资产导入完成", { agentId });
+      }
+    },
+
+    /**
      * 更新智能体的最后使用时间
      */
     updateLastUsed(agentId: string): void {

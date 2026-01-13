@@ -1,7 +1,7 @@
 version: 1
 name: 岸边露伴
 description: 居住在杜王町的人气漫画家。拥有替身"天堂之门",为了追求"真实"的创作素材而不择手段。
-icon: /agent-icons/rohan-kishibe.jpg
+icon: /agent-presets/rohan-kishibe/icon.jpg
 displayPresetCount: 3
 
 presetMessages:

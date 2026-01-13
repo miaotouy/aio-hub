@@ -10,80 +10,75 @@ import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import yaml from 'js-yaml';
 import agentConfigWizard from '@/config/agent-presets/agent-config-wizard';
+import { builtinPresets } from '@/config/agent-presets';
 
 const logger = createModuleLogger('AgentPresets');
 const errorHandler = createModuleErrorHandler('AgentPresets');
 
-// 加载 JSON 预设
-const jsonModules = import.meta.glob<{ default: Omit<AgentPreset, 'id'> }>(
-  '@/config/agent-presets/*.json',
-  { eager: true }
-);
-
-// 加载 YAML 预设 (作为纯文本加载，然后运行时解析)
-const yamlModules = import.meta.glob<string>(
-  '@/config/agent-presets/*.{yaml,yml}',
-  { eager: true, query: '?raw', import: 'default' }
-);
-
 // 全局状态
 const presets = ref<AgentPreset[]>([]);
 const isLoaded = ref(false);
+const isLoading = ref(false);
 
 export function useAgentPresets() {
   /**
-   * 从文件路径中提取预设 ID（使用文件名作为 ID）
-   * 例如: '/src/config/agent-presets/translator.json' -> 'translator'
-   */
-  const extractIdFromPath = (path: string): string => {
-    // 匹配 .json, .yaml, .yml
-    const match = path.match(/\/([^/]+)\.(json|yaml|yml)$/);
-    return match ? match[1] : '';
-  };
-
-  /**
    * 加载所有预设配置
+   * 现在改为从 public 目录异步加载完整配置
    */
-  const loadPresets = () => {
+  const loadPresets = async () => {
+    if (isLoading.value) return;
+    
     try {
+      isLoading.value = true;
       logger.info('开始加载智能体预设');
 
       const loadedPresets: AgentPreset[] = [];
 
-      // 1. 处理 JSON 模块
-      for (const [path, module] of Object.entries(jsonModules)) {
-        const id = extractIdFromPath(path);
-        if (id && module.default) {
-          loadedPresets.push({
-            id,
-            ...module.default,
-          });
-        }
-      }
+      // 1. 并行加载所有内置预设的完整配置
+      const loadTasks = builtinPresets.map(async (metadata) => {
+        try {
+          const response = await fetch(metadata.configUrl);
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          
+          const content = await response.text();
+          let parsed: Omit<AgentPreset, 'id'>;
 
-      // 2. 处理 YAML 模块
-      for (const [path, content] of Object.entries(yamlModules)) {
-        const id = extractIdFromPath(path);
-        if (id && content) {
-          try {
-            const parsed = yaml.load(content) as Omit<AgentPreset, 'id'>;
-            if (parsed) {
-              loadedPresets.push({
-                id,
-                ...parsed,
-              });
-            }
-          } catch (e) {
-            logger.error(`解析 YAML 预设失败: ${path}`, e as Error);
+          if (metadata.configUrl.endsWith('.yaml') || metadata.configUrl.endsWith('.yml')) {
+            parsed = yaml.load(content) as Omit<AgentPreset, 'id'>;
+          } else {
+            parsed = JSON.parse(content);
           }
-        }
-      }
 
-      // 3. 添加动态生成的预设
+          if (parsed) {
+            return {
+              id: metadata.id,
+              ...parsed,
+              // 确保元数据中的 icon 覆盖配置中的（如果有冲突，以索引为准）
+              icon: metadata.icon || parsed.icon,
+            } as AgentPreset;
+          }
+        } catch (e) {
+          logger.error(`加载预设配置失败: ${metadata.id} (${metadata.configUrl})`, e as Error);
+          // 如果加载失败，至少保留元数据信息（用于 UI 展示占位）
+          return {
+            ...metadata,
+            presetMessages: [],
+            parameters: { temperature: 0.7, maxTokens: 4096 }
+          } as AgentPreset;
+        }
+        return null;
+      });
+
+      const results = await Promise.all(loadTasks);
+      results.forEach(p => {
+        if (p) loadedPresets.push(p);
+      });
+
+      // 2. 添加动态生成的预设
       loadedPresets.push({
         id: 'agent-config-wizard',
         ...agentConfigWizard,
-      });
+      } as AgentPreset);
 
       presets.value = loadedPresets;
       isLoaded.value = true;
@@ -98,6 +93,8 @@ export function useAgentPresets() {
       errorHandler.error(error, '加载智能体预设失败');
       presets.value = [];
       isLoaded.value = true;
+    } finally {
+      isLoading.value = false;
     }
   };
 
@@ -162,6 +159,8 @@ export function useAgentPresets() {
     presets: computed(() => presets.value),
     /** 是否已加载完成 */
     isLoaded: computed(() => isLoaded.value),
+    /** 是否正在加载中 */
+    isLoading: computed(() => isLoading.value),
     /** 重新加载预设 */
     loadPresets,
     /** 根据 ID 获取预设 */

@@ -1,16 +1,25 @@
 # 智能体预设配置说明
 
-该目录用于存放所有"LLM 对话"工具中智能体（Agent）的预设模板。每个文件代表一个独立的预设，方便用户快速创建具有特定功能的智能体。
+该目录用于存放内置智能体（Agent）的预设元数据索引。
+
+## 架构说明
+
+为了支持更灵活的资产管理和异步加载，智能体预设系统进行了重构：
+
+1.  **元数据索引**: 存放在 `src/config/agent-presets/index.ts` 中，记录所有内置预设的 ID、名称、描述和配置 URL。
+2.  **完整配置与资产**: 存放在 `public/agent-presets/{id}/` 目录下。
+    - `config.json` 或 `config.yaml`: 智能体的完整配置。
+    - `icon.jpg`: 智能体的图标。
+    - `assets/`: (可选) 智能体自带的附件。
+      - `{filename}.{ext}`: 原始资产文件。
+      - `.thumbnails/`: (可选) 资产的缩略图，通常为 `.jpg` 格式。
 
 ## 文件格式
 
-支持以下三种格式：
+支持以下格式：
 
-- **JSON** (`.json`): 适合简单的静态预设
-- **YAML** (`.yaml`, `.yml`): 适合复杂的角色扮演预设，支持多行字符串
-- **TypeScript** (`.ts`): 适合需要动态生成内容的预设，如包含类型定义文档的向导
-
-文件名将作为预设的唯一标识符（ID），建议使用有意义的英文命名（例如 `code-assistant.json`）。
+- **JSON** (`config.json`): 适合简单的静态预设。
+- **YAML** (`config.yaml`): 适合复杂的角色扮演预设，支持多行字符串。
 
 ## 字段规范
 
@@ -30,17 +39,17 @@ interface AgentPreset {
 
   // 预设的简短描述
   description: string;
-  
+
   // 预设的图标 (推荐使用 Emoji)
-  icon: string; 
-  
+  icon: string;
+
   // 预设的消息列表 (例如，用于设置 System Prompt)
   // 类型为 ChatMessageNode[]
   presetMessages: Array<{
-    role: 'system' | 'user' | 'assistant';
+    role: "system" | "user" | "assistant";
     content: string;
   }>;
-  
+
   // 默认的模型参数
   parameters: {
     temperature: number;
@@ -49,8 +58,36 @@ interface AgentPreset {
 
   // 分类标签 (可选)，用于在UI中进行分组
   tags?: string[];
+
+  // 资产分组定义 (可选)
+  assetGroups?: Array<{
+    id: string;
+    displayName: string;
+    icon?: string;
+    sortOrder?: number;
+  }>;
+
+  // 智能体专属资产列表 (可选)
+  assets?: Array<{
+    id: string;
+    path: string;
+    type: "image" | "audio" | "video" | "file";
+    group?: string;
+    usage?: "inline" | "background";
+    description?: string;
+  }>;
 }
 ```
+
+## 资产引用规范
+
+预设资产存放在智能体目录的 `assets/` 文件夹中。在 `presetMessages` 或回复内容中，可以使用特有的协议进行引用：
+
+- **基本格式**: `agent-asset://{group}/{id}.{ext}`
+- **图片引用**: `![描述](agent-asset://biaoqingbao/smile.png)` 或 `<img src="agent-asset://biaoqingbao/smile.png" />`
+- **音视频引用**: `<audio src="agent-asset://bgm/theme.mp3" controls />`
+
+> **注意**: 渲染引擎会自动根据 `group` 和 `id` 寻址到正确的物理文件。
 
 ## 示例 (`translator.json`)
 
@@ -73,18 +110,18 @@ interface AgentPreset {
 }
 ```
 
-## 如何添加新预设
+## 如何添加新内置预设
 
-1.  在此目录下创建一个新的 `.json`、`.yaml` 或 `.ts` 文件。
-2.  遵循上述字段规范填写内容。
-3.  系统将自动发现并加载新的预设，无需修改任何代码。
+1.  在 `public/agent-presets/` 下为新预设创建一个子目录。
+2.  在子目录下创建 `config.yaml` (或 `.json`) 和 `icon.jpg`。
+3.  在 `src/config/agent-presets/index.ts` 中注册该预设的元数据。
 
 ## TypeScript 预设示例
 
 TypeScript 预设适合需要动态生成内容的场景，例如包含项目类型定义的向导：
 
 ```typescript
-import type { AgentPreset } from '@/tools/llm-chat/types';
+import type { AgentPreset } from "@/tools/llm-chat/types";
 
 // 动态生成的文档内容
 const TYPE_DOCS = `
@@ -92,37 +129,37 @@ const TYPE_DOCS = `
 ...
 `;
 
-const preset: Omit<AgentPreset, 'id'> = {
+const preset: Omit<AgentPreset, "id"> = {
   version: 1,
-  name: '配置向导',
-  description: '帮助用户配置智能体',
-  icon: '🧙',
+  name: "配置向导",
+  description: "帮助用户配置智能体",
+  icon: "🧙",
   presetMessages: [
     {
-      id: 'system',
+      id: "system",
       parentId: null,
-      childrenIds: ['chat-history'],
+      childrenIds: ["chat-history"],
       content: `你是配置向导...\n${TYPE_DOCS}`,
-      role: 'system',
-      status: 'complete',
+      role: "system",
+      status: "complete",
       isEnabled: true,
     },
     {
-      id: 'chat-history',
-      parentId: 'system',
+      id: "chat-history",
+      parentId: "system",
       childrenIds: [],
-      content: '聊天历史',
-      role: 'system',
-      type: 'chat_history',
-      status: 'complete',
+      content: "聊天历史",
+      role: "system",
+      type: "chat_history",
+      status: "complete",
       isEnabled: true,
     },
   ],
   parameters: {
     temperature: 0.5,
   },
-  category: 'workflow',
-  tags: ['向导'],
+  category: "workflow",
+  tags: ["向导"],
 };
 
 export default preset;
@@ -136,7 +173,7 @@ YAML 格式适合复杂的角色扮演预设，支持多行字符串和更好的
 version: 1
 name: 角色名称
 description: 角色描述
-icon: /agent-icons/character.jpg
+icon: /agent-presets/character-id/icon.jpg
 displayPresetCount: 2
 
 presetMessages:
@@ -188,4 +225,24 @@ category: character
 tags:
   - 动漫
   - 角色扮演
+
+# 资产配置示例
+assetGroups:
+  - id: biaoqingbao
+    displayName: 表情包
+    icon: 😊
+  - id: audio-bgm
+    displayName: 背景音乐
+    icon: 🎵
+
+assets:
+  - id: 喝茶
+    path: assets/tea.png
+    type: image
+    group: biaoqingbao
+    usage: inline
+  - id: 战斗BGM
+    path: assets/battle.mp3
+    type: audio
+    group: audio-bgm
 ```

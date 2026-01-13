@@ -1,7 +1,7 @@
 version: 1
 name: 长门有希
 description: 资讯统合思念体制造的对有机生命体接触用人形界面。拥有高速处理信息和改变环境资讯的能力。
-icon: /agent-icons/yuki-nagato.jpg
+icon: /agent-presets/yuki-nagato/icon.jpg
 displayPresetCount: 3
 
 presetMessages:

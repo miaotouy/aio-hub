@@ -494,6 +494,12 @@ const handleSaveAgent = (
     // 创建模式
     const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, data);
     customMessage.success(`智能体 "${data.name}" 创建成功`);
+
+    // 异步处理预设资产导入
+    agentStore.ensurePresetAssetsImported(newAgentId).catch((err) => {
+      console.error("处理预设资产导入失败", err);
+    });
+
     // 自动选中新创建的智能体
     selectAgent(newAgentId);
   }

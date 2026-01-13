@@ -101,10 +101,13 @@
     <!-- 容器本身负责滚动，而不是 Monaco 编辑器 -->
     <div
       class="code-editor-container"
-      :class="{ expanded: isExpanded }"
+      :class="{ expanded: isExpanded, 'editor-ready': isEditorReady }"
       v-show="viewMode === 'code'"
+      ref="containerRef"
     >
-      <div ref="editorEl"></div>
+      <!-- Monaco 准备好之前显示 PreCodeNode -->
+      <PreCodeNode v-if="!isEditorReady" :content="content" :line-numbers="true" />
+      <div ref="editorEl" class="monaco-wrapper" :class="{ visible: isEditorReady }"></div>
     </div>
 
     <!-- HTML 预览区域 (内嵌) -->
@@ -134,6 +137,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, inject } from "vue";
+import { useIntersectionObserver } from "@vueuse/core";
 import {
   Copy,
   Check,
@@ -153,6 +157,7 @@ import { getMonacoLanguageId } from "@/utils/codeLanguages";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import HtmlInteractiveViewer from "../HtmlInteractiveViewer.vue";
+import PreCodeNode from "./PreCodeNode.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 
@@ -178,6 +183,7 @@ const props = withDefaults(
   }
 );
 
+const containerRef = ref<HTMLElement | null>(null);
 const editorEl = ref<HTMLElement | null>(null);
 const { isDark } = useTheme();
 const logger = createModuleLogger("tools/rich-text-renderer/components/nodes/CodeBlockNode.vue");
@@ -308,13 +314,16 @@ let getEditorView: () => any = () => ({ updateOptions: () => {} });
 // 追踪内容以支持流式追加
 const lastContent = ref("");
 
+// 编辑器状态
+const isIntersected = ref(false);
+const isEditorReady = ref(false);
+const isInitializing = ref(false);
+
 // ResizeObserver 清理函数
 let cleanupResizeObserver: (() => void) | null = null;
 
 // 展开状态
-const isExpanded = ref(
-  props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false
-);
+const isExpanded = ref(props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false);
 
 // 复制代码
 const copyCode = async () => {
@@ -496,13 +505,10 @@ const adjustLayout = () => {
   }, 100);
 };
 
-onMounted(async () => {
-  // 初始化视图模式
-  if (isHtml.value && (defaultRenderHtml?.value || seamless.value)) {
-    viewMode.value = "preview";
-  }
-
-  if (!editorEl.value) return;
+// 初始化编辑器核心逻辑
+const initEditor = async () => {
+  if (isInitializing.value || isEditorReady.value || !editorEl.value) return;
+  isInitializing.value = true;
 
   try {
     const [sm, themeLight, themeDark] = await Promise.all([
@@ -514,7 +520,6 @@ onMounted(async () => {
     if (!editorEl.value) return;
 
     const useMonaco = sm.useMonaco;
-
     if (typeof useMonaco !== "function") {
       logger.warn("stream-monaco 未安装或 useMonaco 未找到");
       return;
@@ -533,7 +538,7 @@ onMounted(async () => {
         horizontal: "auto" as const,
         handleMouseWheel: true,
       },
-      wordWrap: "off" as const,
+      wordWrap: wordWrapEnabled.value ? ("on" as const) : ("off" as const),
       wrappingIndent: "same" as const,
       folding: true,
       automaticLayout: false,
@@ -543,7 +548,9 @@ onMounted(async () => {
     const helpers = useMonaco({
       ...editorOptions,
       themes: [themeLight.default, themeDark.default],
-      updateThrottleMs: 120,
+      updateThrottleMs: 60, // VMR 优化：降低 CPU 占用
+      revealDebounceMs: 100, // VMR 优化：合并滚动，减少抖动
+      minimalEditMaxChars: 200000,
     });
 
     await helpers.createEditor(editorEl.value, "", monacoLanguage.value);
@@ -566,7 +573,10 @@ onMounted(async () => {
       codeFontSize.value = actualFontSize;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // 标记准备就绪
+    isEditorReady.value = true;
+
+    await nextTick();
     adjustLayout();
 
     if (editorEl.value) {
@@ -592,6 +602,30 @@ onMounted(async () => {
     }
   } catch (error) {
     errorHandler.error(error, "初始化代码块失败");
+  } finally {
+    isInitializing.value = false;
+  }
+};
+
+onMounted(() => {
+  // 初始化视图模式
+  if (isHtml.value && (defaultRenderHtml?.value || seamless.value)) {
+    viewMode.value = "preview";
+  }
+
+  // 设置视口观察者
+  if (containerRef.value) {
+    const { stop } = useIntersectionObserver(
+      containerRef,
+      ([{ isIntersecting }]) => {
+        if (isIntersecting && !isIntersected.value) {
+          isIntersected.value = true;
+          initEditor();
+          stop(); // 一旦进入视口并开始初始化，就停止观察
+        }
+      },
+      { rootMargin: "400px" } // 提前 400px 开始加载，参考 VMR 经验
+    );
   }
 });
 
@@ -600,7 +634,9 @@ watch(isDark, async (dark) => {
 });
 
 onUnmounted(() => {
-  cleanupEditor();
+  if (typeof cleanupEditor === "function") {
+    cleanupEditor();
+  }
   if (cleanupResizeObserver) {
     cleanupResizeObserver();
     cleanupResizeObserver = null;
@@ -613,18 +649,20 @@ watch(
   (newContent) => {
     if (newContent === lastContent.value) return;
 
-    // 流式追加优化
-    if (newContent.startsWith(lastContent.value) && lastContent.value !== "") {
-      const addedText = newContent.slice(lastContent.value.length);
-      if (addedText) {
-        appendCode(addedText, monacoLanguage.value);
+    if (isEditorReady.value) {
+      // 流式追加优化
+      if (newContent.startsWith(lastContent.value) && lastContent.value !== "") {
+        const addedText = newContent.slice(lastContent.value.length);
+        if (addedText) {
+          appendCode(addedText, monacoLanguage.value);
+        }
+      } else {
+        updateCode(newContent, monacoLanguage.value);
       }
-    } else {
-      updateCode(newContent, monacoLanguage.value);
+      adjustLayout();
     }
 
     lastContent.value = newContent;
-    adjustLayout();
   }
 );
 
@@ -851,6 +889,18 @@ watch(
 /* Monaco 编辑器容器的 div 高度由 JS 动态设置 */
 .code-editor-container > div {
   width: 100%;
+}
+
+.monaco-wrapper {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  height: 0;
+  overflow: hidden;
+}
+
+.monaco-wrapper.visible {
+  opacity: 1;
+  height: auto;
 }
 
 :deep(.monaco-editor) {

@@ -17,6 +17,7 @@ import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
+import { useWorldbookStore } from '../worldbookStore';
 import { useLlmChatUiState } from './useLlmChatUiState';
 import { createModuleLogger } from '@/utils/logger';
 import type { ChatAgent, ChatSession, UserProfile } from '../types';
@@ -39,6 +40,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
+  const worldbookStore = useWorldbookStore();
   const bus = useWindowSyncBus();
 
   logger.info('初始化 LLM Chat 状态消费者', { syncAllSessions });
@@ -51,6 +53,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   const syncedCurrentSessionId = ref<string | null>(null);
   const syncedUserProfiles = ref<UserProfile[]>([]);
   const syncedGlobalProfileId = ref<string | null>(null);
+  const syncedWorldbooks = ref<any[]>([]);
   const syncedIsSending = ref(false);
   const syncedGeneratingNodes = ref<string[]>([]);
   // const syncedParameters = ref({ isSending: false, disabled: true }); // 已废弃，使用独立的 IS_SENDING 和推导的 disabled
@@ -67,6 +70,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     { state: syncedCurrentSessionId, key: CHAT_STATE_KEYS.CURRENT_SESSION_ID },
     { state: syncedUserProfiles, key: CHAT_STATE_KEYS.USER_PROFILES },
     { state: syncedGlobalProfileId, key: CHAT_STATE_KEYS.GLOBAL_PROFILE_ID },
+    { state: syncedWorldbooks, key: CHAT_STATE_KEYS.WORLDBOOK_INDEX },
     { state: syncedIsSending, key: CHAT_STATE_KEYS.IS_SENDING }, // 关键修复：同步 isSending 状态
     { state: syncedGeneratingNodes, key: CHAT_STATE_KEYS.GENERATING_NODES }, // 关键修复：同步 generatingNodes 状态
     // { state: syncedParameters, key: CHAT_STATE_KEYS.PARAMETERS }, // 已废弃
@@ -151,6 +155,13 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     logger.info('接收到 globalProfileId 同步数据', { profileId: newId });
     userProfileStore.globalProfileId = newId;
   });
+
+  watch(syncedWorldbooks, (newWbs) => {
+    if (newWbs) {
+      logger.info('接收到 worldbooks 同步数据', { count: newWbs.length });
+      worldbookStore.worldbooks = newWbs;
+    }
+  }, { deep: true });
 
   watch(syncedIsSending, (newValue) => {
     // logger.info('接收到 isSending 同步数据', { isSending: newValue });

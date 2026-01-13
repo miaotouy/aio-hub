@@ -12,7 +12,7 @@ import {
   FolderOpened,
   Filter,
 } from '@element-plus/icons-vue';
-import { Braces, FlaskConical, Pipette, Layers } from 'lucide-vue-next';
+import { Braces, FlaskConical, Pipette, Layers, BookMarked } from 'lucide-vue-next';
 import DirectoryTreeIcon from '../components/icons/DirectoryTreeIcon.vue';
 import DirectoryJanitorIcon from '../components/icons/DirectoryJanitorIcon.vue';
 import RichTextRendererIcon from '../components/icons/RichTextRendererIcon.vue';
@@ -32,6 +32,14 @@ const initialTools: ToolConfig[] = [
     icon: markRaw(ChatDotRound),
     component: () => import('../tools/llm-chat/LlmChat.vue'),
     description: '树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析',
+    category: 'AI 工具'
+  },
+  {
+    name: 'ST 世界书编辑器',
+    path: '/st-worldbook-editor',
+    icon: markRaw(BookMarked),
+    component: () => import('../tools/st-worldbook-editor/StWorldbookEditor.vue'),
+    description: 'SillyTavern 格式世界书编辑器',
     category: 'AI 工具'
   },
   {

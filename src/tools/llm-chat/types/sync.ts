@@ -31,6 +31,7 @@ export type LlmChatStateKey =
   | 'chat-global-profile-id' // 全局用户档案ID
   | 'chat-input-state'      // 输入框状态（文本内容）
   | 'chat-settings'         // 聊天设置（UI偏好、快捷键等）
+  | 'chat-worldbook-index'   // 世界书索引列表
   | 'chat-current-session-data'; // 当前会话的完整数据（用于轻量级同步）
 
 /**
@@ -50,6 +51,7 @@ export const CHAT_STATE_KEYS = {
   GLOBAL_PROFILE_ID: 'chat-global-profile-id' as const,
   INPUT_STATE: 'chat-input-state' as const,
   SETTINGS: 'chat-settings' as const,
+  WORLDBOOK_INDEX: 'chat-worldbook-index' as const,
   CURRENT_SESSION_DATA: 'chat-current-session-data' as const,
 } as const;
 

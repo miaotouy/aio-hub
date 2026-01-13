@@ -8,6 +8,10 @@ import type { STWorldbook, WorldbookMetadata } from "./types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getLocalISOString } from "@/utils/time";
+import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { CHAT_STATE_KEYS, createChatSyncConfig } from "./types/sync";
+import { toRef, watch } from "vue";
 
 const logger = createModuleLogger("llm-chat/worldbookStore");
 const errorHandler = createModuleErrorHandler("llm-chat/worldbookStore");
@@ -26,6 +30,47 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
   }),
 
   actions: {
+    /**
+     * 初始化状态同步
+     */
+    initializeSync() {
+      const worldbooksRef = toRef(this, "worldbooks");
+      const bus = useWindowSyncBus();
+      
+      // 使用状态同步引擎同步世界书索引
+      useStateSyncEngine(worldbooksRef, {
+        ...createChatSyncConfig(CHAT_STATE_KEYS.WORLDBOOK_INDEX as any),
+      });
+
+      // 如果是分离窗口，主动请求初始状态
+      if (bus.windowType !== 'main') {
+        logger.info("分离窗口主动请求世界书初始状态");
+        bus.requestInitialState();
+      }
+
+      // 监听索引变化，如果某个世界书的 updatedAt 变了，说明内容可能变了，清除对应缓存
+      // 这确保了跨窗口修改内容后，其他窗口能读取到最新磁盘内容
+      watch(
+        () => this.worldbooks,
+        (newWbs, oldWbs) => {
+          if (!oldWbs || oldWbs.length === 0) return;
+          
+          newWbs.forEach(newWb => {
+            const oldWb = oldWbs.find(w => w.id === newWb.id);
+            if (oldWb && oldWb.updatedAt !== newWb.updatedAt) {
+              if (this.loadedWorldbooks.has(newWb.id)) {
+                logger.info("检测到世界书更新，清除缓存以重新加载", { id: newWb.id, name: newWb.name });
+                this.loadedWorldbooks.delete(newWb.id);
+              }
+            }
+          });
+        },
+        { deep: true }
+      );
+
+      logger.info("世界书 Store 状态同步已初始化");
+    },
+
     /**
      * 加载所有世界书索引
      */

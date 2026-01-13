@@ -7,6 +7,7 @@ import { toRef, type Ref, watch, computed, onUnmounted } from 'vue';
 import { useLlmChatStore } from '../store';
 import { useAgentStore } from '../agentStore';
 import { useUserProfileStore } from '../userProfileStore';
+import { useWorldbookStore } from '../worldbookStore';
 import { useDetachedManager } from '@/composables/useDetachedManager';
 import { useLlmChatUiState } from './useLlmChatUiState';
 import { useChatSettings } from './useChatSettings';
@@ -23,6 +24,7 @@ export function useLlmChatSync() {
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
   const userProfileStore = useUserProfileStore();
+  const worldbookStore = useWorldbookStore();
   const { currentAgentId } = useLlmChatUiState();
   const { settings } = useChatSettings();
   const bus = useWindowSyncBus();
@@ -112,6 +114,9 @@ export function useLlmChatSync() {
     createStateEngine(globalProfileId, CHAT_STATE_KEYS.GLOBAL_PROFILE_ID);
     // 同步聊天设置（UI偏好、快捷键等）
     createStateEngine(settings, CHAT_STATE_KEYS.SETTINGS);
+
+    // 同步世界书索引
+    worldbookStore.initializeSync();
 
     // 【重要】在非主窗口中，监听同步过来的 settings 变化
     // 因为 settings 是单例 ref，同步引擎会更新它的值，我们需要确保UI能响应这个变化

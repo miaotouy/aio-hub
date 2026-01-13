@@ -3,7 +3,7 @@
  * 负责界面设置的持久化、加载和保存
  */
 
-import { createConfigManager, ConfigManager } from '../../utils/configManager';
+import { createConfigManager, type ConfigManager } from '@/utils/configManager';
 
 const APP_CONFIG_VERSION = '1.0.0';
 

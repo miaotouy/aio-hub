@@ -321,12 +321,12 @@ import {
 import { VueDraggableNext } from "vue-draggable-next";
 import { open as openFile, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { usePresetStore } from "./store";
-import type { RegexPreset } from "./types";
+import { usePresetStore } from "../stores/store";
+import type { RegexPreset } from "../types";
 import debounce from "lodash/debounce";
-import { createModuleLogger } from "@utils/logger";
-import { createModuleErrorHandler } from "@utils/errorHandler";
-import { parseRegexPattern } from "./engine";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { parseRegexPattern } from "../core/engine";
 import { invoke } from "@tauri-apps/api/core";
 
 const store = usePresetStore();

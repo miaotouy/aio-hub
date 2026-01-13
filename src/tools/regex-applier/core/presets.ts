@@ -3,9 +3,9 @@
  * 负责预设的持久化、加载、保存和管理
  */
 
-import type { RegexPreset, PresetsConfig, RegexRule } from './types';
+import type { RegexPreset, PresetsConfig, RegexRule } from '../types';
 import { generateId } from './engine';
-import { createConfigManager, ConfigManager } from '../../utils/configManager';
+import { createConfigManager, type ConfigManager } from '@/utils/configManager';
 
 const CONFIG_VERSION = '1.0.0';
 
@@ -49,16 +49,16 @@ function createDefaultConfig(): PresetsConfig {
  */
 function mergePresetsConfig(defaultConfig: PresetsConfig, loadedConfig: Partial<PresetsConfig>): PresetsConfig {
   // 确保预设数组存在且有效
-  const presets = loadedConfig.presets && Array.isArray(loadedConfig.presets) 
+  const presets = loadedConfig.presets && Array.isArray(loadedConfig.presets)
     ? loadedConfig.presets.map(preset => ({
-        ...preset,
-        id: preset.id || generateId('preset'),
-        rules: preset.rules || []
-      }))
+      ...preset,
+      id: preset.id || generateId('preset'),
+      rules: preset.rules || []
+    }))
     : defaultConfig.presets;
 
   // 确保有激活的预设
-  const activePresetId = loadedConfig.activePresetId || 
+  const activePresetId = loadedConfig.activePresetId ||
     (presets.length > 0 ? presets[0].id : defaultConfig.activePresetId);
 
   return {

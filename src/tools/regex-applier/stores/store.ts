@@ -5,8 +5,8 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { RegexPreset, PresetsConfig, RegexRule } from './types';
-import { generateId } from './engine';
+import type { RegexPreset, PresetsConfig, RegexRule } from '../types';
+import { generateId } from '../core/engine';
 import {
   loadPresets,
   savePresets,
@@ -14,8 +14,8 @@ import {
   duplicatePreset as duplicateExistingPreset,
   touchPreset as touchPresetTimestamp,
   presetsConfigManager
-} from './presets';
-import { createModuleErrorHandler } from '@utils/errorHandler';
+} from '../core/presets';
+import { createModuleErrorHandler } from '@/utils/errorHandler';
 
 // 创建模块日志记录器
 const errorHandler = createModuleErrorHandler('regex-applier/store');

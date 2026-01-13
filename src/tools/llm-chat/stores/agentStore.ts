@@ -339,14 +339,26 @@ export const useAgentStore = defineStore("llmChatAgent", {
       let hasChanges = false;
 
       // 1. 处理图标
-      if (agent.icon && agent.icon.startsWith("/agent-presets/")) {
+      // 同时支持新旧内置路径
+      const isPresetIcon = agent.icon && (agent.icon.startsWith("/agent-presets/") || agent.icon.startsWith("/agent-icons/"));
+
+      if (isPresetIcon) {
         try {
-          logger.info("检测到内置预设图标，开始导入", { agentId, icon: agent.icon });
-          const response = await fetch(agent.icon);
+          // 如果是旧路径，先进行逻辑转换以便 fetch 能拿到新位置的资源
+          let fetchUrl = agent.icon!;
+          if (fetchUrl.startsWith("/agent-icons/")) {
+            const agentIdMatch = fetchUrl.match(/\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/);
+            if (agentIdMatch) {
+              fetchUrl = `/agent-presets/${agentIdMatch[1]}/icon.jpg`;
+            }
+          }
+
+          logger.info("检测到内置预设图标，开始导入", { agentId, icon: agent.icon, fetchUrl });
+          const response = await fetch(fetchUrl);
           if (response.ok) {
             const buffer = await response.arrayBuffer();
-            const filename = agent.icon.split("/").pop() || "icon.jpg";
-            
+            const filename = fetchUrl.split("/").pop() || "icon.jpg";
+
             const subdirectory = `llm-chat/agents/${agentId}`;
             const bytes = Array.from(new Uint8Array(buffer));
 
@@ -367,18 +379,28 @@ export const useAgentStore = defineStore("llmChatAgent", {
       // 2. 处理资产列表
       if (agent.assets && agent.assets.length > 0) {
         for (const asset of agent.assets) {
-          if (asset.path && asset.path.startsWith("/agent-presets/")) {
+          const isPresetAsset = asset.path && (asset.path.startsWith("/agent-presets/") || asset.path.startsWith("/agent-icons/"));
+
+          if (isPresetAsset) {
             try {
-              logger.info("检测到内置预设资产，开始导入", { agentId, assetPath: asset.path });
-              const response = await fetch(asset.path);
+              let fetchUrl = asset.path;
+              if (fetchUrl.startsWith("/agent-icons/")) {
+                const agentIdMatch = fetchUrl.match(/\/agent-icons\/(.+)\.(.+)$/);
+                if (agentIdMatch) {
+                  fetchUrl = `/agent-presets/${agentIdMatch[1]}/${agentIdMatch[2]}`;
+                }
+              }
+
+              logger.info("检测到内置预设资产，开始导入", { agentId, assetPath: asset.path, fetchUrl });
+              const response = await fetch(fetchUrl);
               if (response.ok) {
                 const buffer = await response.arrayBuffer();
                 const filename = asset.path.split("/").pop() || asset.filename || "file";
-                
+
                 // 确定存储子目录 (保持 assets/ 结构)
                 const relativeSubDir = asset.path.includes("/assets/") ? "assets" : "";
                 const subdirectory = `llm-chat/agents/${agentId}${relativeSubDir ? "/" + relativeSubDir : ""}`;
-                
+
                 const bytes = Array.from(new Uint8Array(buffer));
 
                 await invoke("save_uploaded_file", {
@@ -617,6 +639,32 @@ export const useAgentStore = defineStore("llmChatAgent", {
                   agentId: agent.id,
                   migratedCount: injectionMigratedCount,
                 });
+              }
+            }
+
+            // 4. 迁移内置资产路径 (从 /agent-icons/ 迁移到 /agent-presets/)
+            if (agent.icon && agent.icon.startsWith("/agent-icons/")) {
+              const oldIcon = agent.icon;
+              const agentIdMatch = oldIcon.match(/\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/);
+              if (agentIdMatch) {
+                const presetId = agentIdMatch[1];
+                agent.icon = `/agent-presets/${presetId}/icon.jpg`;
+                logger.info("迁移内置头像路径", { agentId: agent.id, oldIcon, newIcon: agent.icon });
+              }
+            }
+
+            if (agent.assets && agent.assets.length > 0) {
+              for (const asset of agent.assets) {
+                if (asset.path && asset.path.startsWith("/agent-icons/")) {
+                  const oldPath = asset.path;
+                  const agentIdMatch = oldPath.match(/\/agent-icons\/(.+)\.(.+)$/);
+                  if (agentIdMatch) {
+                    const presetId = agentIdMatch[1];
+                    const filename = agentIdMatch[2];
+                    asset.path = `/agent-presets/${presetId}/${filename}`;
+                    logger.info("迁移内置资产路径", { agentId: agent.id, oldPath, newPath: asset.path });
+                  }
+                }
               }
             }
           }

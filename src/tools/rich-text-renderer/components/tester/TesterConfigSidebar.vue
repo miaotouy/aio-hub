@@ -385,8 +385,8 @@
 <script setup lang="ts">
 import { onMounted, computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useRichTextRendererStore, availableVersions } from "../../store";
-import { presets } from "../../presets";
+import { useRichTextRendererStore, availableVersions } from "../../stores/store";
+import { presets } from "../../config/presets";
 import { llmChatRegistry, resolveAvatarPath } from "@/tools/llm-chat/llmChat.registry";
 import { tokenCalculatorRegistry } from "@/tools/token-calculator/tokenCalculator.registry";
 import Avatar from "@/components/common/Avatar.vue";
@@ -426,7 +426,7 @@ const {
 // Computed
 const agentPresets = computed(() => llmChatRegistry.getAgents());
 const userProfiles = computed(() => llmChatRegistry.getUserProfiles());
-const enabledVersions = computed(() => availableVersions.filter((v) => v.enabled));
+const enabledVersions = computed(() => availableVersions.filter((v: any) => v.enabled));
 const availableTokenizers = tokenCalculatorRegistry.getAvailableTokenizers();
 
 // Methods
@@ -436,7 +436,7 @@ onMounted(async () => {
 });
 
 const loadPreset = () => {
-  const preset = presets.find((p) => p.id === selectedPreset.value);
+  const preset = presets.find((p: any) => p.id === selectedPreset.value);
   if (preset) {
     inputContent.value = preset.content;
   }

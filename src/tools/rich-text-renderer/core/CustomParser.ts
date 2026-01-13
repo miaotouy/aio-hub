@@ -13,22 +13,22 @@
 import type {
   AstNode,
   LlmThinkRule,
-} from "./types";
-import { Tokenizer } from "./parser/Tokenizer";
-import { tokenizerService } from "./parser/tokenizerService";
-import { Token, ParserContext, ParserOptions } from "./parser/types";
-import { optimizeBadgeLineBreaks } from "./parser/utils/text-utils";
-import { isTableStart, BLOCK_LEVEL_TAGS } from "./parser/utils/block-utils";
+} from "../types";
+import { Tokenizer } from "../parser/Tokenizer";
+import { tokenizerService } from "../parser/tokenizerService";
+import { Token, ParserContext, ParserOptions } from "../parser/types";
+import { optimizeBadgeLineBreaks } from "../parser/utils/text-utils";
+import { isTableStart, BLOCK_LEVEL_TAGS } from "../parser/utils/block-utils";
 
 // 导入解析器
-import { parseCodeBlock } from "./parser/block/parseCodeBlock";
-import { parseHeading } from "./parser/block/parseHeading";
-import { parseBlockquote } from "./parser/block/parseBlockquote";
-import { parseList } from "./parser/block/parseList";
-import { parseTable } from "./parser/block/parseTable";
-import { parseHtmlBlock, parseLlmThinkBlock } from "./parser/block/parseHtml";
-import { parseParagraph } from "./parser/block/parseParagraph";
-import { parseInlines } from "./parser/inline/parseInlines";
+import { parseCodeBlock } from "../parser/block/parseCodeBlock";
+import { parseHeading } from "../parser/block/parseHeading";
+import { parseBlockquote } from "../parser/block/parseBlockquote";
+import { parseList } from "../parser/block/parseList";
+import { parseTable } from "../parser/block/parseTable";
+import { parseHtmlBlock, parseLlmThinkBlock } from "../parser/block/parseHtml";
+import { parseParagraph } from "../parser/block/parseParagraph";
+import { parseInlines } from "../parser/inline/parseInlines";
 
 // ============ 解析器 ============
 

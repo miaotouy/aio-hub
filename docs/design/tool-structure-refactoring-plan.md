@@ -44,12 +44,12 @@
 **现状**: 已有 `logic/` 目录，但 `registry` 命名虽符合桌面规范，但内部逻辑可进一步精简。
 - [x] 检查 `types` 是否需要独立。
 
-### 2.8. 富文本渲染器 (`rich-text-renderer`)
+### 2.8. 富文本渲染器 (`rich-text-renderer`) - 完成
 **现状**: 核心工具，但根目录堆积了大量逻辑文件。
-- [ ] 移动 `CustomParser.ts`, `StreamProcessor.ts`, `StreamProcessorV2.ts` -> `core/`
-- [ ] 移动 `presets.ts` -> `config/`
-- [ ] 移动 `store.ts` -> `stores/`
-- [ ] 移动 `RichTextRendererTester.vue` -> `components/` 或 `tests/`
+- [x] 移动 `CustomParser.ts`, `StreamProcessor.ts`, `StreamProcessorV2.ts` -> `core/`
+- [x] 移动 `presets.ts` -> `config/`
+- [x] 移动 `store.ts` -> `stores/`
+- [x] 移动 `RichTextRendererTester.vue` -> `components/`
 
 ### 2.9. 智能 OCR (`smart-ocr`) - 完成
 **现状**: 逻辑和配置混杂在根目录。

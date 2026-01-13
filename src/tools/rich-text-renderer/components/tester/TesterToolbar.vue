@@ -133,7 +133,7 @@ import {
 } from "@element-plus/icons-vue";
 import { Atom } from "lucide-vue-next";
 import { storeToRefs } from "pinia";
-import { useRichTextRendererStore } from "../../store";
+import { useRichTextRendererStore } from "../../stores/store";
 import type { StreamSource } from "../../types";
 
 defineProps<{

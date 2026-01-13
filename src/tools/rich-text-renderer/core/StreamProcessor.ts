@@ -39,7 +39,7 @@ import type {
   StrikethroughNode,
   KatexInlineNode,
   KatexBlockNode,
-} from './types';
+} from '../types';
 
 /**
  * Markdown 语义边界检测器

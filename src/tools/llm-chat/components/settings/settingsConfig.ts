@@ -16,7 +16,7 @@ import {
   Zap,
 } from "lucide-vue-next";
 import type { SettingsSection } from "./settings-types";
-import { availableVersions } from "@/tools/rich-text-renderer/store";
+import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { DEFAULT_SETTINGS } from "../../composables/useChatSettings";
 
@@ -228,8 +228,8 @@ export const settingsConfig: SettingsSection[] = [
           style: { width: "100%" },
         },
         options: availableVersions
-          .filter((v) => v.enabled)
-          .map((v) => ({
+          .filter((v: any) => v.enabled)
+          .map((v: any) => ({
             label: v.name,
             value: v.version,
             tags: v.tags,

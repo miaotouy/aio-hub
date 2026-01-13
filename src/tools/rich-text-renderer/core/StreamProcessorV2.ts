@@ -7,7 +7,7 @@
  * 3. CustomParser 只负责解析完整文本，本类负责流式管理
  */
 
-import type { AstNode, Patch, StreamProcessorOptions, LlmThinkRule } from "./types";
+import type { AstNode, Patch, StreamProcessorOptions, LlmThinkRule } from "../types";
 import { CustomParser } from "./CustomParser";
 
 /**

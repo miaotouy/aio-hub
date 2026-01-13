@@ -179,10 +179,10 @@
 <script setup lang="ts">
 import { ref, reactive, shallowRef, onMounted, watch, nextTick, computed, provide } from "vue";
 import { useElementSize } from "@vueuse/core";
-import RichTextRenderer from "./RichTextRenderer.vue";
-import type { StreamSource } from "./types";
-import { presets } from "./presets";
-import { useRichTextRendererStore } from "./store";
+import RichTextRenderer from "../RichTextRenderer.vue";
+import type { StreamSource } from "../types";
+import { presets } from "../config/presets";
+import { useRichTextRendererStore } from "../stores/store";
 import { storeToRefs } from "pinia";
 import { llmChatRegistry } from "@/tools/llm-chat/llmChat.registry";
 import { useAgentPresets } from "@/composables/useAgentPresets";
@@ -192,13 +192,13 @@ import {
 } from "@/tools/llm-chat/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/llm-chat/types";
 import customMessage from "@/utils/customMessage";
-import MarkdownStyleEditor from "./components/style-editor/MarkdownStyleEditor.vue";
+import MarkdownStyleEditor from "./style-editor/MarkdownStyleEditor.vue";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
 import type { DraggablePanelInstance } from "@/components/common/DraggablePanel.vue";
-import AstViewer from "./components/ast-viewer/AstViewer.vue";
+import AstViewer from "./ast-viewer/AstViewer.vue";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
-import TesterConfigSidebar from "./components/tester/TesterConfigSidebar.vue";
-import TesterToolbar from "./components/tester/TesterToolbar.vue";
+import TesterConfigSidebar from "./tester/TesterConfigSidebar.vue";
+import TesterToolbar from "./tester/TesterToolbar.vue";
 import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
 

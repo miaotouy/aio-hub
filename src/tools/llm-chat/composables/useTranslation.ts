@@ -1,6 +1,6 @@
 import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useRichTextRendererStore } from "@/tools/rich-text-renderer/store";
+import { useRichTextRendererStore } from "@/tools/rich-text-renderer/stores/store";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -63,7 +63,7 @@ export function useTranslation() {
 
     // 获取思考块标签列表
     const thinkTags = richTextRendererStore.llmThinkRules
-      .map(rule => `<${rule.tagName}>...<${rule.tagName}>`)
+      .map((rule: any) => `<${rule.tagName}>...<${rule.tagName}>`)
       .join(", ");
 
     // 处理 {thinkTags} 占位符

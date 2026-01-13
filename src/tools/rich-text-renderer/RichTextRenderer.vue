@@ -17,8 +17,8 @@ import { onMounted, onBeforeUnmount, watch, ref, computed, provide } from "vue";
 import { throttle } from "lodash-es";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
-import { StreamProcessor } from "./StreamProcessor";
-import { StreamProcessorV2 } from "./StreamProcessorV2";
+import { StreamProcessor } from "./core/StreamProcessor";
+import { StreamProcessorV2 } from "./core/StreamProcessorV2";
 import AstNodeRenderer from "./components/AstNodeRenderer.tsx";
 import type {
   StreamSource,

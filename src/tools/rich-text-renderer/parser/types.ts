@@ -43,6 +43,9 @@ export type Token =
       command: string;
       maid?: string;
       args: Record<string, string>;
+      isResult?: boolean;
+      status?: string;
+      resultContent?: string;
     };
 
 // ============ 解析器上下文 ============

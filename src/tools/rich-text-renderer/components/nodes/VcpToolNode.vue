@@ -5,9 +5,22 @@
         <span class="vcp-icon" :class="{ 'is-expanded': !isCollapsed }">
           <ChevronRight :size="16" />
         </span>
-        <component :is="statusIcon" class="status-icon" :class="{ spinning: !closed }" />
+        <component
+          :is="statusIcon"
+          class="status-icon"
+          :class="{ spinning: !closed, 'is-success': isSuccess, 'is-error': isError }"
+        />
         <span class="tool-name">{{ tool_name || "Unknown Tool" }}</span>
-        <el-tag v-if="command" size="small" type="success" effect="light" class="vcp-tag">{{
+        <el-tag
+          v-if="isResult"
+          size="small"
+          :type="isSuccess ? 'success' : 'danger'"
+          effect="plain"
+          class="vcp-tag result-tag"
+        >
+          {{ isSuccess ? "SUCCESS" : "ERROR" }}
+        </el-tag>
+        <el-tag v-else-if="command" size="small" type="success" effect="light" class="vcp-tag">{{
           command
         }}</el-tag>
         <span v-if="maid" class="maid-info">{{ maid }}</span>
@@ -29,6 +42,41 @@
     </div>
 
     <div v-show="!isCollapsed" class="vcp-content">
+      <!-- 结果内容 -->
+      <div v-if="isResult && resultContent" class="vcp-body result-body">
+        <div class="result-label">返回内容:</div>
+        <div v-if="parsedJson" class="result-json">
+          <el-table
+            v-if="isJsonArray"
+            :data="parsedJson"
+            size="small"
+            border
+            stripe
+            style="width: 100%"
+            class="vcp-json-table"
+          >
+            <el-table-column
+              v-for="key in tableColumns"
+              :key="key"
+              :prop="key"
+              :label="key"
+              show-overflow-tooltip
+            />
+          </el-table>
+          <div v-else class="json-object-view">
+            <div v-for="(val, key) in parsedJson" :key="key" class="json-row">
+              <span class="json-key">{{ key }}:</span>
+              <span class="json-val">{{ formatJsonVal(val) }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="result-text">
+          {{ resultContent }}
+          <span v-if="!closed" class="streaming-cursor"></span>
+        </div>
+      </div>
+
+      <!-- 参数列表 -->
       <div v-if="hasArgs" class="vcp-body">
         <div class="args-list">
           <div v-for="(value, key, index) in args" :key="key" class="arg-item">
@@ -56,7 +104,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, inject } from "vue";
-import { Settings, Loader2, ChevronRight, Copy, Check } from "lucide-vue-next";
+import {
+  Settings,
+  Loader2,
+  ChevronRight,
+  Copy,
+  Check,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 
@@ -68,6 +124,9 @@ const props = defineProps<{
   closed: boolean;
   raw: string;
   collapsedByDefault?: boolean;
+  isResult?: boolean;
+  status?: string;
+  resultContent?: string;
 }>();
 
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
@@ -75,20 +134,69 @@ const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const isCollapsed = ref(false);
 const copied = ref(false);
 
+const isSuccess = computed(() => props.status?.includes("SUCCESS"));
+const isError = computed(() => props.status?.includes("ERROR"));
+
 const statusIcon = computed(() => {
   if (!props.closed) return Loader2;
+  if (props.isResult) {
+    return isSuccess.value ? CheckCircle2 : AlertCircle;
+  }
   return Settings;
 });
 
 const hasArgs = computed(() => Object.keys(props.args).length > 0);
+
+const parsedJson = computed(() => {
+  if (!props.resultContent) return null;
+  const trimmed = props.resultContent.trim();
+  if (
+    !(
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    )
+  ) {
+    return null;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch (e) {
+    return null;
+  }
+});
+
+const isJsonArray = computed(() => Array.isArray(parsedJson.value));
+
+const tableColumns = computed(() => {
+  if (!isJsonArray.value || !parsedJson.value.length) return [];
+  // 提取所有对象的键作为列
+  const keys = new Set<string>();
+  parsedJson.value.forEach((item: any) => {
+    if (item && typeof item === "object") {
+      Object.keys(item).forEach((k) => keys.add(k));
+    }
+  });
+  return Array.from(keys);
+});
+
+const formatJsonVal = (val: any) => {
+  if (val === null) return "null";
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+};
 
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value;
 };
 
 onMounted(() => {
-  // 优先级：Props 传入 > 上下文全局设置 > 默认不折叠(false)
-  isCollapsed.value = props.collapsedByDefault ?? context?.defaultToolCallCollapsed?.value ?? false;
+  // 优先级：如果是结果块则默认折叠 > Props 传入 > 上下文全局设置 > 默认不折叠(false)
+  if (props.isResult) {
+    isCollapsed.value = true;
+  } else {
+    isCollapsed.value =
+      props.collapsedByDefault ?? context?.defaultToolCallCollapsed?.value ?? false;
+  }
 });
 
 const copyContent = async () => {
@@ -157,6 +265,16 @@ const copyContent = async () => {
   width: 14px;
   height: 14px;
   opacity: 0.8;
+}
+
+.status-icon.is-success {
+  color: var(--el-color-success);
+  opacity: 1;
+}
+
+.status-icon.is-error {
+  color: var(--el-color-danger);
+  opacity: 1;
 }
 
 .spinning {
@@ -238,6 +356,66 @@ const copyContent = async () => {
 
 .vcp-body {
   padding: 14px;
+}
+
+.result-body {
+  background: rgba(var(--el-color-info-rgb), 0.03);
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
+}
+
+.result-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.result-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-text-color-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.result-json {
+  margin-top: 4px;
+}
+
+.vcp-json-table {
+  --el-table-border-color: var(--border-color);
+  --el-table-header-bg-color: var(--el-fill-color-light);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.json-object-view {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: rgba(var(--el-color-primary-rgb), 0.02);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.json-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.json-key {
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  min-width: 60px;
+}
+
+.json-val {
+  color: var(--el-text-color-primary);
+  word-break: break-all;
 }
 
 .args-list {

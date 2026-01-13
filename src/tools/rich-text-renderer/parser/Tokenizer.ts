@@ -32,6 +32,7 @@ const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
+const RE_VCP_RESULT_FIELD = /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-|\nVCP调用结果结束\]\]|$)/g;
 
 export class Tokenizer {
   // HTML void elements (不需要闭合标签的元素)
@@ -428,6 +429,56 @@ export class Tokenizer {
               command,
               maid,
               args,
+            });
+            i = currentPos;
+            atLineStart = true;
+            continue;
+          }
+
+          // VCP 调用结果信息汇总 [[VCP调用结果信息汇总:
+          if (text.startsWith("[[VCP调用结果信息汇总:", posAfterIndent)) {
+            const startMarker = "[[VCP调用结果信息汇总:";
+            const endMarker = "VCP调用结果结束]]";
+            let currentPos = posAfterIndent + startMarker.length;
+
+            const endIdx = text.indexOf(endMarker, currentPos);
+            let vcpContent = "";
+            let closed = false;
+
+            if (endIdx !== -1) {
+              vcpContent = text.slice(currentPos, endIdx);
+              currentPos = endIdx + endMarker.length;
+              closed = true;
+            } else {
+              vcpContent = text.slice(currentPos);
+              currentPos = len;
+              closed = false;
+            }
+
+            let tool_name = "";
+            let status = "";
+            let resultContent = "";
+
+            let match;
+            RE_VCP_RESULT_FIELD.lastIndex = 0;
+            while ((match = RE_VCP_RESULT_FIELD.exec(vcpContent)) !== null) {
+              const key = match[1] as string;
+              const value = match[2].trim();
+              if (key === "工具名称") tool_name = value;
+              else if (key === "执行状态") status = value;
+              else if (key === "返回内容") resultContent = value;
+            }
+
+            tokens.push({
+              type: "vcp_tool",
+              raw: startMarker + vcpContent + (closed ? endMarker : ""),
+              closed,
+              isResult: true,
+              tool_name,
+              command: "",
+              status,
+              resultContent,
+              args: {},
             });
             i = currentPos;
             atLineStart = true;

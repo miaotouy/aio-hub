@@ -415,6 +415,12 @@ export interface VcpToolNode extends BaseAstNode {
     args: Record<string, string>;
     /** 是否默认折叠 */
     collapsedByDefault?: boolean;
+    /** 是否为调用结果汇总 */
+    isResult?: boolean;
+    /** 执行状态 (SUCCESS/ERROR) */
+    status?: string;
+    /** 返回内容 */
+    resultContent?: string;
   };
   children?: never;
 }

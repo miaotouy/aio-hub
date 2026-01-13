@@ -124,17 +124,34 @@ export function useUserProfileStorage() {
 
       // 迁移逻辑：处理绝对路径
       let isDirty = false;
-      const icon = profile.icon?.trim();
-      const isAbsolutePath = icon && (icon.includes(":") || icon.startsWith("/") || icon.startsWith("\\") || icon.startsWith("file://"));
+      let icon = profile.icon?.trim();
 
-      if (isAbsolutePath) {
+      // 处理被引号包裹的路径
+      if (icon?.startsWith('"') && icon?.endsWith('"')) {
+        icon = icon.substring(1, icon.length - 1);
+      }
+
+      // 判断是否为真正的绝对路径
+      // 1. 排除 appdata:// 和网络路径
+      // 2. 排除以 / 开头的 Web 相对路径 (如 /model-icons/...)
+      // 3. 匹配 Windows 盘符 (C:\) 或 file:// 协议
+      const isWebRelative = icon?.startsWith("/");
+      const isAppData = icon?.startsWith("appdata://");
+      const isNetwork = icon?.startsWith("http");
+      const isWindowsPath = /^[a-zA-Z]:\\/.test(icon || "");
+      const isFileProtocol = icon?.startsWith("file://");
+
+      const shouldMigrate = icon && !isAppData && !isNetwork && !isWebRelative && (isWindowsPath || isFileProtocol);
+
+      if (shouldMigrate) {
         try {
+          const sourcePath = icon!.replace("file://", "");
           const { extname } = await import("@tauri-apps/api/path");
-          const extension = await extname(icon).catch(() => "png");
+          const extension = await extname(sourcePath).catch(() => "png");
           const newAvatarName = `avatar-${Date.now()}.${extension}`;
 
           await invoke("copy_file_to_app_data", {
-            sourcePath: icon.replace("file://", ""),
+            sourcePath,
             subdirectory: await join(MODULE_NAME, PROFILES_SUBDIR, profileId),
             newFilename: newAvatarName,
           });

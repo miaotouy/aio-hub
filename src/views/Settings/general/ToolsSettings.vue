@@ -18,7 +18,7 @@ const errorHandler = createModuleErrorHandler("Settings/ToolsSettings");
 
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
-  // 从 /regex-apply 转换为 regexApply
+  // 从 /regex-applier 转换为 regexApply
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 

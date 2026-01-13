@@ -1,4 +1,6 @@
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import SymlinkMoverIcon from '@/components/icons/SymlinkMoverIcon.vue';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { invoke } from '@tauri-apps/api/core';
@@ -646,3 +648,15 @@ const history = await service.getOperationHistory(10);
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '符号链接搬家工具',
+  path: '/symlink-mover',
+  icon: markRaw(SymlinkMoverIcon),
+  component: () => import('./SymlinkMover.vue'),
+  description: '支持拖拽的文件批量移动和符号链接创建工具',
+  category: '文件管理'
+};

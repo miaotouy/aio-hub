@@ -5,7 +5,7 @@ import type { ToolConfig } from "@/services/types";
 
 /**
  * 将工具路径转换为路由名称
- * 例如：/regex-apply -> RegexApply
+ * 例如：/regex-applier -> RegexApply
  */
 function pathToRouteName(path: string): string {
   return path

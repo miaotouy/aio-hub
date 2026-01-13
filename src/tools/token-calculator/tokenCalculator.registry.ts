@@ -3,11 +3,13 @@
  * 服务层外壳，负责将 tokenCalculatorEngine 的功能注册为可跨模块调用的服务
  */
 
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
 import { tokenCalculatorEngine, type TokenCalculationResult } from './composables/useTokenCalculator';
 import { calculatorProxy } from './worker/calculator.proxy';
 import type { Asset } from '@/types/asset-management';
 import { getMatchedModelProperties } from '@/config/model-metadata';
+import { markRaw } from 'vue';
+import TokenCalculatorIcon from '@/components/icons/TokenCalculatorIcon.vue';
 
 /**
  * Token 计算器服务类
@@ -284,3 +286,15 @@ export const tokenCalculatorService = tokenCalculatorRegistry;
 
 // 重新导出类型，方便外部模块导入
 export type { TokenCalculationResult } from './composables/useTokenCalculator';
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: 'Token 计算器',
+  path: '/token-calculator',
+  icon: markRaw(TokenCalculatorIcon),
+  component: () => import('./TokenCalculator.vue'),
+  description: '计算文本的 Token 数量，支持多种 LLM 分词器',
+  category: '开发工具'
+};

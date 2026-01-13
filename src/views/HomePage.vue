@@ -130,7 +130,7 @@ const selectedCategory = ref("全部");
 
 // 从路径提取工具ID（与设置页面保持一致）
 const getToolIdFromPath = (path: string): string => {
-  // 从 /regex-apply 转换为 regexApply
+  // 从 /regex-applier 转换为 regexApply
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 

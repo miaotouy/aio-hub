@@ -1,4 +1,6 @@
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import { FolderOpened } from '@element-plus/icons-vue';
 import { createModuleLogger } from '@/utils/logger';
 import { assetManagerEngine } from '@/composables/useAssetManager';
 
@@ -63,3 +65,15 @@ export default AssetManagerRegistry;
 export const assetManagerRegistry = new AssetManagerRegistry();
 /** @deprecated 请使用 assetManagerRegistry */
 export const assetManagerService = assetManagerRegistry;
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '资产管理器',
+  path: '/asset-manager',
+  icon: markRaw(FolderOpened),
+  component: () => import('./AssetManager.vue'),
+  description: '可视化管理应用内导入的所有资产，支持搜索、筛选和预览',
+  category: '文件管理'
+};

@@ -2,9 +2,11 @@ import { createModuleLogger } from '@/utils/logger';
 import { useColorExtractor } from './composables/useColorExtractor';
 import { useColorHistory } from './composables/useColorHistory';
 import * as ColorConverter from './composables/useColorConverter';
-import type { ServiceMetadata, ToolRegistry } from '@/services/types';
+import type { ServiceMetadata, ToolRegistry, ToolConfig } from '@/services/types';
 import type { Asset } from '@/types/asset-management';
 import type { ColorAnalysisResult, AnalysisAlgorithm } from './colorPicker.store';
+import { markRaw } from 'vue';
+import { Pipette } from 'lucide-vue-next';
 
 const logger = createModuleLogger('tools/color-picker');
 
@@ -16,7 +18,7 @@ const logger = createModuleLogger('tools/color-picker');
  */
 export default class ColorPickerRegistry implements ToolRegistry {
   public readonly id = 'color-picker';
-  public readonly name = 'Color Picker';
+  public readonly name = '图片色彩分析';
   public readonly description = '从图片中提取和分析颜色方案';
 
   // 使用惰性初始化避免生命周期钩子警告
@@ -173,3 +175,15 @@ export default class ColorPickerRegistry implements ToolRegistry {
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '图片色彩分析',
+  path: '/color-picker',
+  icon: markRaw(Pipette),
+  component: () => import('./ColorPicker.vue'),
+  description: '从图片中提取颜色，支持多种算法分析主色调、调色板和平均色',
+  category: 'AI 工具'
+};

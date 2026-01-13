@@ -1,4 +1,6 @@
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import DirectoryJanitorIcon from '@/components/icons/DirectoryJanitorIcon.vue';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { useDirectoryJanitorRunner, type ScanOptions, type FormattedScanResult } from './composables/useDirectoryJanitorRunner';
@@ -439,3 +441,15 @@ if (result) {
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '目录清洁工具',
+  path: '/directory-janitor',
+  icon: markRaw(DirectoryJanitorIcon),
+  component: () => import('./DirectoryJanitor.vue'),
+  description: '智能清理过时的缓存和存档，支持按规则、日期和大小过滤',
+  category: '文件管理'
+};

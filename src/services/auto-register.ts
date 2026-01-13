@@ -8,9 +8,12 @@ import { useToolsStore } from "@/stores/tools";
 const logger = createModuleLogger("services/auto-register");
 const errorHandler = createModuleErrorHandler("services/auto-register");
 
+import type { ToolConfig } from "./types";
+
 // 定义模块导出的类型，期望是一个可以 new 的类
 type ServiceModule = {
-  default: new () => ToolRegistry;
+  default?: new () => ToolRegistry;
+  toolConfig?: ToolConfig;
 };
 
 /**
@@ -42,30 +45,37 @@ export async function autoRegisterServices(): Promise<void> {
 
     const instances: ToolRegistry[] = [];
     const failedModules: Array<{ path: string; error: any }> = [];
+    const toolsStore = useToolsStore();
 
     // 动态导入并实例化所有工具
     for (const path in serviceModules) {
       try {
         // logger.debug(`正在加载工具模块: ${path}`);
         const module = await serviceModules[path]();
+        
+        // 1. 处理 UI 工具配置 (ToolConfig)
+        if (module.toolConfig) {
+          toolsStore.addTool(module.toolConfig);
+          // logger.debug(`已从模块注册 UI 工具: ${module.toolConfig.name}`);
+        }
+
+        // 2. 处理服务注册 (ToolRegistry)
         const RegistryClass = module.default;
 
-        if (!RegistryClass) {
-          throw new Error("模块未导出默认类");
+        if (RegistryClass) {
+          if (typeof RegistryClass !== "function") {
+            throw new Error("默认导出不是一个可实例化的类");
+          }
+
+          const instance = new RegistryClass();
+
+          // 验证实例是否实现了 ToolRegistry 接口
+          if (!instance.id) {
+            throw new Error("工具实例缺少必需的 id 属性");
+          }
+
+          instances.push(instance);
         }
-
-        if (typeof RegistryClass !== "function") {
-          throw new Error("默认导出不是一个可实例化的类");
-        }
-
-        const instance = new RegistryClass();
-
-        // 验证实例是否实现了 ToolRegistry 接口
-        if (!instance.id) {
-          throw new Error("工具实例缺少必需的 id 属性");
-        }
-
-        instances.push(instance);
       } catch (error) {
         errorHandler.error(error, '加载工具模块失败', { context: { path } });
         failedModules.push({ path, error });
@@ -110,7 +120,6 @@ export async function autoRegisterServices(): Promise<void> {
 
     // 所有工具和服务加载完成后，标记 tools store 为就绪状态
     // 这对于分离窗口正确加载插件至关重要
-    const toolsStore = useToolsStore();
     toolsStore.initializeOrder(); // 初始化工具顺序
     toolsStore.setReady();
     logger.info("Tools store 已标记为就绪状态");

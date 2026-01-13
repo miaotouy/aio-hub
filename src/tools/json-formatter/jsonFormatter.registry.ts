@@ -1,4 +1,6 @@
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import { Braces } from 'lucide-vue-next';
 import * as logic from './jsonFormatter.logic';
 
 /**
@@ -65,3 +67,15 @@ export default class JsonFormatterRegistry implements ToolRegistry {
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: 'JSON 格式化',
+  path: '/json-formatter',
+  icon: markRaw(Braces),
+  component: () => import('./JsonFormatter.vue'),
+  description: '格式化和美化JSON数据',
+  category: '文本处理'
+};

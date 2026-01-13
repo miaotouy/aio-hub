@@ -1,9 +1,6 @@
-/**
- * RegexApplier 服务
- * 封装正则应用的核心业务逻辑，与 Pinia store 配合使用
- */
-
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import { MagicStick } from '@element-plus/icons-vue';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { customMessage } from '@/utils/customMessage';
@@ -95,11 +92,11 @@ export interface OneClickOptions {
 
 export default class RegexApplierRegistry implements ToolRegistry {
   public readonly id = 'regex-applier';
-  public readonly name = 'Regex Applier';
+  public readonly name = '正则批量替换';
   public readonly description = '正则表达式批量应用工具';
 
   private _store: ReturnType<typeof usePresetStore> | null = null;
-  
+
   /**
    * 获取 store 实例（惰性初始化）
    */
@@ -627,3 +624,15 @@ const preset = service.getPresetById('preset-1');
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '正则批量替换',
+  path: '/regex-applier',
+  icon: markRaw(MagicStick),
+  component: () => import('./RegexApplier.vue'),
+  description: '使用正则表达式批量处理文本或文件',
+  category: '文本处理'
+};

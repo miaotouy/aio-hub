@@ -45,7 +45,7 @@ flowchart LR
     end
 
     subgraph Text["📄 文本处理"]
-        RegexApply["🔄 正则批量替换<br/>/regex-apply"]
+        RegexApply["🔄 正则批量替换<br/>/regex-applier"]
         TextDiff["📊 文本差异对比<br/>/text-diff"]
         JsonFormatter["{ } JSON 格式化<br/>/json-formatter"]
         CodeFormatter["⚙️ 代码格式化<br/>/code-formatter"]
@@ -197,7 +197,7 @@ flowchart TB
 | `/smart-ocr` | 智能 OCR | `SmartOcr.vue` |
 | `/media-info-reader` | AI作图信息查看器 | `MediaInfoReader.vue` |
 | `/color-picker` | 图片色彩分析 | `ColorPicker.vue` |
-| `/regex-apply` | 正则批量替换 | `RegexApplier.vue` |
+| `/regex-applier` | 正则批量替换 | `RegexApplier.vue` |
 | `/text-diff` | 文本差异对比 | `TextDiff.vue` |
 | `/json-formatter` | JSON 格式化 | `JsonFormatter.vue` |
 | `/code-formatter` | 代码格式化 | `CodeFormatter.vue` |

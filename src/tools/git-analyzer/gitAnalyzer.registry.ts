@@ -1,10 +1,12 @@
-import type { ToolRegistry } from "@/services/types";
+import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import { fetchBranches, fetchBranchCommits, fetchCommitDetail } from "./composables/useGitLoader";
 import { getContributorStats } from "./composables/useGitProcessor";
 import type { GitCommit, RepoStatistics } from "./types";
+import { markRaw } from 'vue';
+import GitBranchIcon from '@/components/icons/GitBranchIcon.vue';
 
 const logger = createModuleLogger("tools/git-analyzer");
 const errorHandler = createModuleErrorHandler("tools/git-analyzer");
@@ -116,7 +118,7 @@ export interface GetCommitDetailOptions {
  */
 export default class GitAnalyzerRegistry implements ToolRegistry {
   public readonly id = "git-analyzer";
-  public readonly name = "Git 仓库分析";
+  public readonly name = "Git 分析器";
   public readonly description = "分析 Git 仓库的提交历史、贡献者统计和活跃度";
 
   // ==================== 高级封装方法 (Agent 调用接口) ====================
@@ -211,7 +213,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
             }
             case 'timestamp':
               return String(new Date(date).getTime());
-            defaultValue:
+            default:
               return date;
           }
         };
@@ -706,3 +708,15 @@ if (branches) {
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: 'Git 分析器',
+  path: '/git-analyzer',
+  icon: markRaw(GitBranchIcon),
+  component: () => import('./GitAnalyzer.vue'),
+  description: 'Git提交记录分析和可视化处理工具',
+  category: '开发工具'
+};

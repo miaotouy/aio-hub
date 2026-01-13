@@ -1,4 +1,6 @@
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import { Filter } from '@element-plus/icons-vue';
 import * as logic from './dataFilter.logic';
 
 export default class DataFilterRegistry implements ToolRegistry {
@@ -36,3 +38,15 @@ export default class DataFilterRegistry implements ToolRegistry {
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '数据筛选工具',
+  path: '/data-filter',
+  icon: markRaw(Filter),
+  component: () => import('./DataFilter.vue'),
+  description: '针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配和自定义脚本',
+  category: '文本处理'
+};

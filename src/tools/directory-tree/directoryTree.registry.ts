@@ -1,4 +1,6 @@
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import DirectoryTreeIcon from '@/components/icons/DirectoryTreeIcon.vue';
 import { generateTree, type GenerateTreeOptions, type TreeGenerationResult } from './actions';
 
 /**
@@ -107,3 +109,15 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '目录结构浏览器',
+  path: '/directory-tree',
+  icon: markRaw(DirectoryTreeIcon),
+  component: () => import('./DirectoryTree.vue'),
+  description: '生成目录树结构，支持过滤规则和深度限制',
+  category: '文件管理'
+};

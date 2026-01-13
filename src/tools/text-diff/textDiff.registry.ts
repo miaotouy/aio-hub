@@ -1,4 +1,6 @@
-import type { ToolRegistry, ServiceMetadata } from '@/services/types';
+import type { ToolRegistry, ServiceMetadata, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import TextDiffIcon from '@/components/icons/TextDiffIcon.vue';
 import { createModuleLogger } from '@/utils/logger';
 import { loadFile, generatePatch } from './engine';
 import type { FileReadResult, PatchOptions, PatchResult } from './types';
@@ -128,3 +130,15 @@ const result = service.generatePatch(
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '文本差异对比',
+  path: '/text-diff',
+  icon: markRaw(TextDiffIcon),
+  component: () => import('./TextDiff.vue'),
+  description: '对比文本文件的差异',
+  category: '文本处理'
+};

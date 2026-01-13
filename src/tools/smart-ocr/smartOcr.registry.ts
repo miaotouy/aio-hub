@@ -1,4 +1,6 @@
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
+import { markRaw } from 'vue';
+import OcrIcon from '@/components/icons/OcrIcon.vue';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import type { UploadedImage, OcrEngineConfig, SlicerConfig, OcrEngineType, ImageBlock, OcrResult } from './types';
@@ -165,7 +167,7 @@ export default class SmartOcrRegistry implements ToolRegistry {
     imageId: string = 'default'
   ): Promise<{ blocks: ImageBlock[]; lines: any[] }> {
     const { sliceImage } = useImageSlicer();
-    
+
     // 加载默认配置并应用覆盖
     const fullConfig = await loadSmartOcrConfig();
     const mergedSlicerConfig = {
@@ -762,3 +764,15 @@ console.log(slicerDetails.parameters);
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: '智能 OCR',
+  path: '/smart-ocr',
+  icon: markRaw(OcrIcon),
+  component: () => import('./SmartOcr.vue'),
+  description: '智能OCR文字识别工具，支持多引擎和智能切图',
+  category: 'AI 工具'
+};

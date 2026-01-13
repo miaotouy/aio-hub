@@ -1,9 +1,11 @@
-import type { ToolRegistry } from "@/services/types";
+import type { ToolConfig, ToolRegistry } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { readFile } from '@tauri-apps/plugin-fs';
 import { useMediaInfoParser } from './composables/useMediaInfoParser';
 import type { ImageMetadataResult, WebUIInfo } from './composables/useMediaInfoParser';
+import { markRaw } from "vue";
+import { PictureFilled } from '@element-plus/icons-vue';
 
 const logger = createModuleLogger("services/media-info-reader");
 const errorHandler = createModuleErrorHandler("services/media-info-reader");
@@ -34,13 +36,13 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
    */
   public async readImageMetadata(filePath: string): Promise<ImageMetadataResult | null> {
     logger.info(`开始读取图片元数据: ${filePath}`);
-    
+
     return await errorHandler.wrapAsync(
       async () => {
         const buffer = await readFile(filePath);
         const { parseImageBuffer } = useMediaInfoParser();
         const result = await parseImageBuffer(buffer);
-        
+
         logger.info("图片元数据解析完成", { filePath });
         return result;
       },
@@ -59,12 +61,12 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
    */
   public async parseImageBuffer(buffer: Uint8Array): Promise<ImageMetadataResult | null> {
     logger.info("开始解析图片 buffer");
-    
+
     return await errorHandler.wrapAsync(
       async () => {
         const { parseImageBuffer } = useMediaInfoParser();
         const result = await parseImageBuffer(buffer);
-        
+
         logger.info("图片 buffer 解析完成");
         return result;
       },
@@ -120,3 +122,15 @@ if (result) {
     };
   }
 }
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: 'AI作图信息查看器',
+  path: '/media-info-reader',
+  icon: markRaw(PictureFilled),
+  component: () => import('./MediaInfoReader.vue'),
+  description: '读取AI生成图片的元数据(WebUI/ComfyUI)及ST角色卡片信息',
+  category: 'AI 工具'
+};

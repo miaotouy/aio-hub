@@ -5,8 +5,10 @@
  * 不包含核心业务逻辑，仅作为 useChatInputManager 的薄层封装。
  */
 
-import type { ToolRegistry } from '@/services/types';
+import type { ToolRegistry, ToolConfig } from '@/services/types';
 import type { DetachableComponentRegistration } from '@/types/detachable';
+import { markRaw } from 'vue';
+import { ChatDotRound } from '@element-plus/icons-vue';
 import { useChatInputManager } from './composables/useChatInputManager';
 import { useLlmChatStore } from './store';
 import { useAgentStore } from './agentStore';
@@ -780,6 +782,18 @@ service.clearInput();`,
 
 // 导出单例实例供直接使用
 export const llmChatRegistry = new LlmChatRegistry();
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: 'LLM 对话',
+  path: '/llm-chat',
+  icon: markRaw(ChatDotRound),
+  component: () => import('./LlmChat.vue'),
+  description: '树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析',
+  category: 'AI 工具'
+};
 
 // 重导出工具函数供跨工具使用
 export { resolveAvatarPath };

@@ -9,7 +9,7 @@ import ResultPanel from "./components/ResultPanel.vue";
 import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
 import type { UploadedImage } from "./types";
 import { useSmartOcrUiState } from "./composables/useSmartOcrUiState";
-import { useSmartOcrStore } from "./smartOcr.store";
+import { useSmartOcrStore } from "./stores/smartOcr.store";
 import { useSmartOcrRunner } from "./composables/useSmartOcrRunner";
 import { useOcrHistory } from "./composables/useOcrHistory";
 import { useAssetManager } from "@/composables/useAssetManager";

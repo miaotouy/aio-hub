@@ -62,7 +62,6 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
             if (!cond.customScript) return true;
             try {
               // 安全起见，这里可以使用简单的 Function 构造，或者更复杂的沙箱
-              // 姐姐，这里我先用简单的实现
               const fn = new Function('item', 'value', `return ${cond.customScript}`);
               return fn(item, cond.value);
             } catch (e) {

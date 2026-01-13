@@ -151,7 +151,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";
 import debounce from "lodash/debounce";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
-import * as jsonLogic from "./jsonFormatter.logic";
+import * as jsonLogic from "./logic/jsonFormatter.logic";
 import { useSendToChat } from "@/composables/useSendToChat";
 
 const errorHandler = createModuleErrorHandler("JsonFormatter");

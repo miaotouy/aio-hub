@@ -1,6 +1,6 @@
 import { ref, computed, watch } from 'vue';
 import { createModuleLogger } from '@utils/logger';
-import type { StreamUpdate, StreamBuffer } from './types';
+import type { StreamUpdate, StreamBuffer } from '../types';
 import { formatStreamingResponse, extractStreamContent, extractJsonContent, isJson, formatJson } from './utils';
 
 const logger = createModuleLogger('LlmInspector/StreamProcessor');
@@ -144,7 +144,7 @@ export function extractContent(recordId: string, originalBody?: string, isStream
 }
 
 /**
- * 检查是否可以显示正文模式
+ * 检查记录是否可以显示正文模式
  */
 export function canShowTextMode(recordId: string, originalBody?: string): boolean {
   // 如果正在流式传输，始终允许显示正文模式

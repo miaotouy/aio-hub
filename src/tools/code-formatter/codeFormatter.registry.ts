@@ -1,7 +1,8 @@
 import type { ToolRegistry, ToolConfig } from '@/services/types';
 import { markRaw } from 'vue';
 import { Setting } from '@element-plus/icons-vue';
-import { formatterCore, type SupportedLanguage, type FormatOptions, type FormatResult } from './logic/formatter';
+import { formatterCore } from './logic/formatter';
+import type { SupportedLanguage, FormatOptions, FormatResult } from './types';
 
 /**
  * CodeFormatter 注册器

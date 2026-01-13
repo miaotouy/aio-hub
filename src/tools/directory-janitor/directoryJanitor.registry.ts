@@ -4,7 +4,7 @@ import DirectoryJanitorIcon from '@/components/icons/DirectoryJanitorIcon.vue';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import { useDirectoryJanitorRunner, type ScanOptions, type FormattedScanResult } from './composables/useDirectoryJanitorRunner';
-import { formatBytes } from './utils';
+import { formatBytes } from './utils/utils';
 
 const logger = createModuleLogger('tools/directory-janitor');
 const errorHandler = createModuleErrorHandler('tools/directory-janitor');

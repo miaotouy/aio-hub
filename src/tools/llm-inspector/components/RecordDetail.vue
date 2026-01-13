@@ -146,8 +146,8 @@
 </template>
 
 <script setup lang="ts">
-import { useRecordDetail } from '../composables/useRecordDetail';
-import type { CombinedRecord } from '../types';
+import { useRecordDetail } from "../composables/useRecordDetail";
+import type { CombinedRecord } from "../types";
 
 // 属性
 const props = defineProps<{

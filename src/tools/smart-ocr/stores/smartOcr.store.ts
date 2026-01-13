@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
-import type { UploadedImage, CutLine, ImageBlock, OcrResult, OcrEngineConfig, SlicerConfig } from './types';
-import type { SmartOcrConfig } from './config';
-import { defaultSmartOcrConfig, getCurrentEngineConfig } from './config';
+import type { UploadedImage, CutLine, ImageBlock, OcrResult, OcrEngineConfig, SlicerConfig } from '../types';
+import type { SmartOcrConfig } from '../config/config';
+import { defaultSmartOcrConfig, getCurrentEngineConfig } from '../config/config';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('smart-ocr/store');

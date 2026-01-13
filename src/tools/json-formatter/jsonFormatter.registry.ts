@@ -1,7 +1,7 @@
 import type { ToolRegistry, ToolConfig } from '@/services/types';
 import { markRaw } from 'vue';
 import { Braces } from 'lucide-vue-next';
-import * as logic from './jsonFormatter.logic';
+import * as logic from './logic/jsonFormatter.logic';
 
 /**
  * JsonFormatter 注册器

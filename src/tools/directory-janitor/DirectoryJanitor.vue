@@ -46,8 +46,8 @@ import ResultPanel from "./components/ResultPanel.vue";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
-import { formatBytes } from "./utils";
-import { useDirectoryJanitorStore } from "./store";
+import { formatBytes } from "./utils/utils";
+import { useDirectoryJanitorStore } from "./stores/store";
 import { useDirectoryJanitorRunner } from "./composables/useDirectoryJanitorRunner";
 
 const logger = createModuleLogger("tools/directory-janitor");

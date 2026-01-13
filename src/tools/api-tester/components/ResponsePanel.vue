@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from "vue";
 import { ElButton } from "element-plus";
-import { useApiTesterStore } from "../store";
+import { useApiTesterStore } from "../stores/store";
 
 const store = useApiTesterStore();
 const wrapText = ref(false);

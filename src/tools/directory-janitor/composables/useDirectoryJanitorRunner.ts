@@ -2,10 +2,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { formatBytes, resolveEnvPath } from '../utils';
-import { useDirectoryJanitorStore } from '../store';
+import { formatBytes, resolveEnvPath } from '../utils/utils';
+import { useDirectoryJanitorStore } from '../stores/store';
 import type { AnalysisResult, CleanupResult } from '../types';
-import type { CleanupPreset } from '../presets';
+import type { CleanupPreset } from '../config/presets';
 
 const logger = createModuleLogger('directory-janitor/runner');
 const errorHandler = createModuleErrorHandler('directory-janitor/runner');

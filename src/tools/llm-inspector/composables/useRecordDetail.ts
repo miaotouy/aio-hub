@@ -1,6 +1,6 @@
 import { ref, computed, watch, toRefs } from 'vue';
-import { useStreamProcessor } from '../streamProcessor';
-import { copyToClipboard, maskSensitiveData, formatJson, formatSize, getStatusClass } from '../utils';
+import { useStreamProcessor } from '../core/streamProcessor';
+import { copyToClipboard, maskSensitiveData, formatJson, formatSize, getStatusClass } from '../core/utils';
 import type { CombinedRecord, ViewMode } from '../types';
 
 export function useRecordDetail(props: { record: CombinedRecord | null; maskApiKeys?: boolean; }) {

@@ -97,7 +97,7 @@ import ControlPanel from "./components/ControlPanel.vue";
 import CommitListView from "./components/CommitListView.vue";
 import ChartsView from "./components/ChartsView.vue";
 import CommitDetailDialog from "./components/CommitDetailDialog.vue";
-import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config";
+import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config/config";
 import { useGitAnalyzerState } from "./composables/useGitAnalyzerState";
 import { useGitAnalyzerRunner } from "./composables/useGitAnalyzerRunner";
 import { useCharts } from "./composables/useCharts";

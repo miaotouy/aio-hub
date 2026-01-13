@@ -135,7 +135,7 @@ import {
 import { Delete } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { useApiTesterStore } from "../store";
+import { useApiTesterStore } from "../stores/store";
 import { customMessage } from "@utils/customMessage";
 
 const store = useApiTesterStore();

@@ -149,7 +149,7 @@ import { customMessage } from "@/utils/customMessage";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
-import * as logic from "./dataFilter.logic";
+import * as logic from "./logic/dataFilter.logic";
 import yaml from "js-yaml";
 
 const errorHandler = createModuleErrorHandler("DataFilter");

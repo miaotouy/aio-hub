@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { ItemInfo, DirectoryScanProgress, DirectoryCleanupProgress, Statistics } from './types';
+import type { ItemInfo, DirectoryScanProgress, DirectoryCleanupProgress, Statistics } from '../types';
 
 /**
  * 目录清道夫 Pinia Store

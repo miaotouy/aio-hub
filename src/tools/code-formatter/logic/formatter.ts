@@ -7,6 +7,7 @@ import * as parserTypeScript from 'prettier/plugins/typescript';
 import * as parserEstree from 'prettier/plugins/estree';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import type { FormatOptions, FormatResult, SupportedLanguage } from '../types';
 
 const logger = createModuleLogger('tools/code-formatter/logic');
 const errorHandler = createModuleErrorHandler('tools/code-formatter/logic');
@@ -14,46 +15,6 @@ const errorHandler = createModuleErrorHandler('tools/code-formatter/logic');
 // 缓存动态加载的插件
 let prettierPluginPhp: any = null;
 let prettierPluginXml: any = null;
-
-/**
- * 代码格式化选项
- */
-export interface FormatOptions {
-  /** 使用单引号 */
-  singleQuote?: boolean;
-  /** 尾随逗号 */
-  trailingComma?: 'none' | 'es5' | 'all';
-  /** 额外的 Prettier 选项 */
-  [key: string]: any;
-}
-
-/**
- * 代码格式化结果
- */
-export interface FormatResult {
-  /** 格式化后的代码 */
-  formatted: string;
-  /** 是否成功 */
-  success: boolean;
-  /** 错误信息（如果有） */
-  error?: string;
-  /** 警告信息（如果有） */
-  warning?: string;
-}
-
-/**
- * 支持的语言类型
- */
-export type SupportedLanguage =
-  | 'javascript'
-  | 'typescript'
-  | 'json'
-  | 'html'
-  | 'css'
-  | 'markdown'
-  | 'php'
-  | 'xml'
-  | 'yaml';
 
 /**
  * 语言配置接口

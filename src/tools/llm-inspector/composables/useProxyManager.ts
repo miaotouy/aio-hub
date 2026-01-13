@@ -11,15 +11,15 @@ import {
   onResponseEvent,
   onStreamUpdateEvent,
   clearAllEventListeners
-} from '../proxyService';
-import { useRecordManager } from '../recordManager';
-import { useStreamProcessor } from '../streamProcessor';
+} from '../core/proxyService';
+import { useRecordManager } from '../core/recordManager';
+import { useStreamProcessor } from '../core/streamProcessor';
 import {
   loadSettings,
   saveSettings,
   validateInspectorConfig
-} from '../configManager';
-import { maskSensitiveData, copyToClipboard } from '../utils';
+} from '../core/configManager';
+import { maskSensitiveData, copyToClipboard } from '../core/utils';
 import type { InspectorConfig, LlmInspectorSettings } from '../types';
 
 const logger = createModuleLogger('LlmInspector/InspectorManager');

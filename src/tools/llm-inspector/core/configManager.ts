@@ -1,7 +1,7 @@
 import { createConfigManager } from '@utils/configManager';
 import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
-import type { LlmInspectorSettings, InspectorConfig } from './types';
+import type { LlmInspectorSettings, InspectorConfig } from '../types';
 
 const logger = createModuleLogger('LlmInspector/ConfigManager');
 const errorHandler = createModuleErrorHandler('LlmInspector/ConfigManager');

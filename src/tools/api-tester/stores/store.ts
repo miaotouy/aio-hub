@@ -3,8 +3,8 @@
  */
 
 import { defineStore } from "pinia";
-import type { ApiPreset, RequestProfile, ApiResponse, HttpMethod, Variable } from "./types";
-import { presets } from "./presets";
+import type { ApiPreset, RequestProfile, ApiResponse, HttpMethod, Variable } from "../types";
+import { presets } from "../config/presets";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@utils/errorHandler";
 import { customMessage } from "@utils/customMessage";

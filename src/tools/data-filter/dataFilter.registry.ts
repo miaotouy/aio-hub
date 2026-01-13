@@ -1,7 +1,7 @@
 import type { ToolRegistry, ToolConfig } from '@/services/types';
 import { markRaw } from 'vue';
 import { Filter } from '@element-plus/icons-vue';
-import * as logic from './dataFilter.logic';
+import * as logic from './logic/dataFilter.logic';
 
 export default class DataFilterRegistry implements ToolRegistry {
   public readonly id = 'data-filter';

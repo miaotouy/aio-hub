@@ -137,7 +137,7 @@ import { FolderOpened, Search, Filter, CloseBold } from "@element-plus/icons-vue
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
-import { builtInPresets, type CleanupPreset } from "../presets";
+import { builtInPresets, type CleanupPreset } from "../config/presets";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -211,7 +211,7 @@ const handlePresetChange = async (presetId?: string) => {
   if (!presetId) {
     return;
   }
-  const preset = presets.value.find((p) => p.id === presetId);
+  const preset = presets.value.find((p: any) => p.id === presetId);
   if (!preset) {
     logger.warn("未找到预设", { presetId });
     return;

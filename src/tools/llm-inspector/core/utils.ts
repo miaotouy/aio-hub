@@ -1,4 +1,4 @@
-import type { CombinedRecord, FilterOptions } from './types';
+import type { CombinedRecord, FilterOptions } from '../types';
 import { formatDateTime } from '@/utils/time';
 
 /**
@@ -105,19 +105,19 @@ export function maskSensitiveData(text: string): string {
     /(?<=X-API-Key:\s*)[\w-]{20,}/gi,
     /(?<=API-Key:\s*)[\w-]{20,}/gi,
     /(?<=x-api-key:\s*)[\w-]{20,}/gi,
-
+ 
     // OpenAI API 密钥
     /(?<=api[_-]?key["']?\s*[:=]\s*["']?)sk-[\w-]{40,}/gi,
     /\bsk-[\w-]{40,}\b/g,
-
+ 
     // Anthropic API 密钥
     /(?<=x-api-key:\s*)sk-ant-[\w-]{40,}/gi,
     /\bsk-ant-[\w-]{40,}\b/g,
-
+ 
     // Google/Gemini API 密钥
     /(?<=key[\"']?\s*[:=]\s*[\"']?)AIza[\w-]{35}/gi,
     /\bAIza[\w-]{35}\b/g,
-
+ 
     // JSON 中的通用 API 密钥
     /(?<="api[_-]?key"\s*:\s*")[^"]{20,}(?=")/gi,
     /(?<='api[_-]?key'\s*:\s*')[^']{20,}(?=')/gi,

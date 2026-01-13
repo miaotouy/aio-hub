@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import { useApiTesterStore } from "../store";
+import { useApiTesterStore } from "../stores/store";
 import type { Variable } from "../types";
 import { ElButton, ElEmpty, ElInput } from "element-plus";
 import BaseDialog from "@components/common/BaseDialog.vue";
@@ -51,7 +51,7 @@ const store = useApiTesterStore();
 // 将 store 中的变量转换为可编辑的 ref
 const editableVariables = computed({
   get: () =>
-    store.selectedPreset?.variables.map((v) => ({
+    store.selectedPreset?.variables.map((v: any) => ({
       ...v,
       value: store.variables[v.key] ?? v.value,
     })) || [],
@@ -88,9 +88,9 @@ watch(
   editableVariables,
   (newVal, oldVal) => {
     if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
-      newVal.forEach((variable, index) => {
+      newVal.forEach((variable: any, index: number) => {
         // 检查定义或值是否有变化
-        const oldVariable = oldVal.find((v) => v.key === variable.key);
+        const oldVariable = oldVal.find((v: any) => v.key === variable.key);
         if (JSON.stringify(variable) !== JSON.stringify(oldVariable)) {
           updateVariable(index, variable);
         }
@@ -130,7 +130,7 @@ function saveEnumOptions() {
     updatedVariable.value = "";
   }
 
-  const index = editableVariables.value.findIndex((v) => v.key === updatedVariable.key);
+  const index = editableVariables.value.findIndex((v: any) => v.key === updatedVariable.key);
   if (index !== -1) {
     updateVariable(index, updatedVariable);
   }

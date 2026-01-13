@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { useApiTesterStore } from "../store";
+import { useApiTesterStore } from "../stores/store";
 import { customMessage } from "@utils/customMessage";
 import { ElSelect, ElOption, ElInput, ElButton } from "element-plus";
 import { Promotion, DocumentCopy, CloseBold } from "@element-plus/icons-vue";

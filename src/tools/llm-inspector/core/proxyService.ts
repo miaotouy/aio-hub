@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
-import type { InspectorConfig, InspectorStatus, RequestRecord, ResponseRecord, StreamUpdate } from './types';
+import type { InspectorConfig, InspectorStatus, RequestRecord, ResponseRecord, StreamUpdate } from '../types';
 
 const logger = createModuleLogger('LlmInspector/ProxyService');
 const errorHandler = createModuleErrorHandler('LlmInspector/ProxyService');

@@ -2,7 +2,7 @@
  * API 预设数据
  */
 
-import type { ApiPreset } from './types';
+import type { ApiPreset } from '../types';
 
 export const presets: ApiPreset[] = [
   {

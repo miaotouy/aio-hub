@@ -4,11 +4,11 @@ import OcrIcon from '@/components/icons/OcrIcon.vue';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import type { UploadedImage, OcrEngineConfig, SlicerConfig, OcrEngineType, ImageBlock, OcrResult } from './types';
-import { defaultSmartOcrConfig, loadSmartOcrConfig, getCurrentEngineConfig } from './config';
+import { defaultSmartOcrConfig, loadSmartOcrConfig, getCurrentEngineConfig } from './config/config';
 import { invoke } from '@tauri-apps/api/core';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { useOcrProfiles } from '@/composables/useOcrProfiles';
-import { getTesseractLanguageOptions } from './language-packs';
+import { getTesseractLanguageOptions } from './config/language-packs';
 import { useImageSlicer } from './composables/useImageSlicer';
 import { useOcrRunner } from './composables/useOcrRunner';
 

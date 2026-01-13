@@ -6,7 +6,7 @@
 
 import { createConfigManager } from '@/utils/configManager';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
-import type { OcrEngineConfig, OcrEngineType, SlicerConfig, EngineConfigs } from './types';
+import type { OcrEngineConfig, OcrEngineType, SlicerConfig, EngineConfigs } from '../types';
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler('smart-ocr/config');

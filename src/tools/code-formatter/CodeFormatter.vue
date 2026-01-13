@@ -85,7 +85,8 @@ import { WarningFilled } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import debounce from "lodash/debounce";
 import { useSendToChat } from "@/composables/useSendToChat";
-import { formatterCore, type SupportedLanguage } from "./logic/formatter";
+import { formatterCore } from "./logic/formatter";
+import type { SupportedLanguage } from "./types";
 
 // 获取服务实例
 const errorHandler = createModuleErrorHandler("CodeFormatter");

@@ -6,10 +6,10 @@ import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
 import type { UploadedImage, OcrEngineConfig, SlicerConfig } from "../types";
-import type { SmartOcrConfig } from "../config";
+import type { SmartOcrConfig } from "../config/config";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useOcrProfiles } from "@/composables/useOcrProfiles";
-import { getTesseractLanguageOptions } from "../language-packs";
+import { getTesseractLanguageOptions } from "../config/language-packs";
 import { History } from "lucide-vue-next";
 
 // 创建模块错误处理器

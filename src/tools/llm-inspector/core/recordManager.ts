@@ -1,7 +1,7 @@
 import { ref, reactive } from 'vue';
 import { createModuleLogger } from '@utils/logger';
 import { createModuleErrorHandler } from '@utils/errorHandler';
-import type { CombinedRecord, RequestRecord, ResponseRecord, FilterOptions } from './types';
+import type { CombinedRecord, RequestRecord, ResponseRecord, FilterOptions } from '../types';
 import { filterRecords } from './utils';
 
 const logger = createModuleLogger('LlmInspector/RecordManager');

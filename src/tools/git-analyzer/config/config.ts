@@ -1,4 +1,4 @@
-import { createConfigManager } from '../../utils/configManager'
+import { createConfigManager } from '../../../utils/configManager'
 
 /**
  * Git 分析器配置接口

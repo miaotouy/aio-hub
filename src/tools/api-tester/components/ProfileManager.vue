@@ -49,7 +49,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { useApiTesterStore } from "../store";
+import { useApiTesterStore } from "../stores/store";
 import BaseDialog from "@components/common/BaseDialog.vue";
 import { ElInput, ElButton, ElScrollbar, ElEmpty, ElMessageBox } from "element-plus";
 import { DocumentAdd, Download, Delete } from "@element-plus/icons-vue";
@@ -98,7 +98,7 @@ function handleDeleteProfile(profileId: string) {
 }
 
 function getPresetName(presetId: string): string {
-  const preset = store.availablePresets.find((p) => p.id === presetId);
+  const preset = store.availablePresets.find((p: any) => p.id === presetId);
   return preset?.name || presetId;
 }
 </script>

@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { ElSelect, ElOption, ElButton } from "element-plus";
-import { useApiTesterStore } from "./store";
+import { useApiTesterStore } from "./stores/store";
 import { customMessage } from "@utils/customMessage";
 import UrlBuilder from "./components/UrlBuilder.vue";
 import UrlVariableEditor from "./components/UrlVariableEditor.vue";

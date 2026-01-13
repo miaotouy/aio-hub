@@ -1,4 +1,4 @@
-import { useSmartOcrStore } from '../smartOcr.store';
+import { useSmartOcrStore } from '../stores/smartOcr.store';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
 import type {
@@ -8,11 +8,11 @@ import type {
   SlicerConfig,
   UploadedImage,
 } from '../types';
-import type { SmartOcrConfig } from '../config';
+import type { SmartOcrConfig } from '../config/config';
 import {
   loadSmartOcrConfig,
   saveSmartOcrConfig,
-} from '../config';
+} from '../config/config';
 import { useImageSlicer } from './useImageSlicer';
 import { useOcrRunner } from './useOcrRunner';
 import { useOcrHistory } from './useOcrHistory';

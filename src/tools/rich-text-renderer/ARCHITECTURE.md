@@ -22,8 +22,10 @@ graph TD
 
     subgraph ProcessorLayer[处理层 Processor Layer]
         Tokenizer[词法分析器]
+        TokenizerService[分词服务 - Worker 调度]
         CustomParser[自研解析器 V2]
         StreamProcessor[StreamProcessor V1/V2]
+        TokenizerService --> Tokenizer
         Tokenizer --> CustomParser
         CustomParser --> StreamProcessor
     end
@@ -56,7 +58,8 @@ graph TD
       - `StreamProcessor` (V1): 基于 `markdown-it`，利用边界检测实现块级增量更新。
       - `StreamProcessorV2` (V2): 结合自研的 `CustomParser`，支持更复杂的 HTML 嵌套和自定义标签，是当前的核心。
       - `CustomParser`: V2 解析器核心，负责将完整文本块转换为 AST。
-      - `Tokenizer`: V2 解析器的词法分析器，将文本分解为 Token 流。
+      - `Tokenizer`: V2 解析器的词法分析器，采用 **Sticky RegExp** 优化匹配性能，并支持 **Raw Mode** 以处理特殊 HTML 标签。
+      - `TokenizerService`: 封装了 Web Worker 调度逻辑，支持在后台线程进行异步分词，确保超长文本流下的 UI 响应性。
 
 2.  **状态层 (State Layer)**
     - **职责**: 维护当前的 AST 结构、全局配置和动态样式，并应用 Patch 指令更新状态。
@@ -69,8 +72,9 @@ graph TD
     - **核心组件**:
       - `RichTextRenderer`: 统一入口组件，接收文本流和配置。
       - `AstNodeRenderer`: 基于 JSX 的递归渲染组件，根据节点类型分发到具体的 Vue 组件，并注入动态样式。
-      - **节点组件**: `MermaidNode`, `LlmThinkNode` 等负责各自节点的渲染。特别地：
-        - `CodeBlockNode`: 它是一个复合功能的组件。对于普通代码，它是基于 **Monaco Editor** 的微型代码查看器。而对于 HTML，它则化身为一个强大的**嵌入式 Web 应用沙箱**，能够直接渲染和运行**完整的单页应用 (SPA)**，支持源码查看与实时交互预览的无缝切换。
+      - **节点组件**: `MermaidNode`, `LlmThinkNode`, `VcpToolNode` 等负责各自节点的渲染。特别地：
+        - `CodeBlockNode`: 复合功能组件。对于普通代码，基于 **Monaco Editor** 实现高性能渲染，支持流式追加优化、字体缩放和自动换行。对于 HTML，化身为**嵌入式 Web 应用沙箱**，支持 **Seamless (无边框)** 模式和**性能冻结 (Freeze)** 策略。
+        - `VcpToolNode`: 专门用于展示外部 VCP 工具调用格式，提供结构化的参数列表、执行状态动画及原始调用详情复制功能。
       - `MarkdownStyleEditor`: 一个完整的图形化界面，允许用户实时编辑、预览和重置 Markdown 元素的 CSS 样式。
 
 ## 3. 核心机制
@@ -93,9 +97,12 @@ graph TD
 
 V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局限性。
 
-- **两阶段解析 (Two-Stage Parsing)**:
-  1.  **词法分析 (Lexing)**: `Tokenizer` 将原始文本扫描为一系列扁平的 **Token**（如 `heading_marker`, `html_open`）。
-  2.  **语法分析 (Parsing)**: `CustomParser` 消费 Token 流，通过模块化的解析函数（如 `parseBlockquote`, `parseTable`）将其构建成层级化的 **AST**。
+- **多线程词法分析 (Off-main-thread Lexing)**:
+  - `Tokenizer` 被封装在 Web Worker 中运行。通过 `TokenizerService` 进行调度，避免了大规模文本解析对主线程 UI 渲染的干扰。
+  - **性能优化**: 词法分析器广泛使用 `sticky (y)` 标志的正则表达式，直接在原始字符串上进行位置偏移匹配，彻底消除了频繁创建字符串切片（substring/slice）带来的内存和 CPU 开销。
+
+- **原始模式 (Raw Mode)**:
+  - 为了完美兼容 HTML 行为，`Tokenizer` 支持原始模式。当遇到 `<code>`, `<pre>`, `<script>`, `<style>` 等标签时，解析器会进入贪婪匹配状态，直到遇到对应的闭合标签。这确保了这些标签内部的特殊字符不会被错误地识别为 Markdown 标记。
 
 - **HTML 深度支持**: 将 HTML 标签视为一等公民，支持任意深度的 HTML 与 Markdown 混合嵌套，包括 `<details>`, `<article>` 等复杂的语义化标签。
 - **LLM 思考块**: 原生支持 `<think>`、`<guguthink>` 等自定义标签，将其解析为结构化的 `LlmThinkNode`。
@@ -115,6 +122,14 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 
 - **更新节流 (Throttling)**: 为了在处理高速文本流时平衡实时性和性能，`useMarkdownAst` 引入了更新节流机制。它会将短时间内密集的 Patch 指令（如 `text-append`）合并，并通过 `requestAnimationFrame` 与浏览器的渲染周期同步，在单次渲染帧中批量应用。这显著降低了 CPU 负载，避免了因过于频繁的重渲染导致的卡顿。节流时间 `throttleMs` 是可配置的，允许在不同场景下进行性能微调。
 - **批量处理**: Patch 队列会合并连续的、针对同一节点的 `text-append` 操作，将多次小更新合并为一次大更新，进一步提升效率。
+
+### 3.5 智能体资产解析 (Agent Asset Resolution)
+
+为了支持智能体生成的动态资源（如图片、图表、临时文件），引擎引入了资产解析钩子：
+
+- **解析钩子**: `RichTextRenderer` 接受一个可选的 `resolveAsset` 函数。
+- **协议转换**: 该钩子负责将内容中的自定义协议（如 `agent-asset://`）或相对路径转换为当前环境可用的真实 URL。
+- **预处理渲染**: 在 `CodeBlockNode` 的 HTML 预览模式下，内容在注入沙箱前会先经过资产解析，确保预览中的所有外部资源引用都能正确加载。
 
 | 操作 (Op)      | 描述                   | 场景              |
 | :------------- | :--------------------- | :---------------- |
@@ -171,6 +186,11 @@ src/tools/rich-text-renderer/
   - 支持块级、内联及 `<details>`, `<article>` 等语义化 HTML 标签与 Markdown 的深度混合排版。
   - 安全地处理未闭合的 HTML 标签。
   - **嵌入式单页应用 (SPA) 渲染**: `html` 代码块不再仅仅是静态预览，而是作为一个功能完备的沙箱环境，可以直接渲染和运行包含 JavaScript 的复杂单页应用，并支持在独立窗口中进行完整交互。
+  - **性能冻结 (Freeze) 策略**: 当 HTML 预览节点过多或处于非活动状态时，引擎会自动冻结其渲染以节省资源，用户可点击手动恢复。
+- **外部工具调用 (VCP Support)**:
+  - 兼容支持外部 VCP 工具调用格式 `<<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>`。
+  - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析。
+  - 提供专用的 `VcpToolNode` 渲染，支持折叠交互、实时状态反馈和原始报文查看。
 - **LLM 思考过程**:
   - 原生支持可配置的 XML 风格标签（如 `<think>`, `<guguthink>`）。
   - 渲染为可折叠、可交互的思考块，并支持流式动画效果。
@@ -180,7 +200,7 @@ src/tools/rich-text-renderer/
 
 - **流式渲染与更新节流**: 文本以打字机效果流畅输出，无整体刷新和闪烁。引入了可配置的 AST 更新节流机制，在保证低延迟的同时，大幅降低了高速流式输出下的性能开销。
 - **渲染动画**: 新增了节点淡入（fade-in）动画效果，使内容加载过程更自然。对于需要立即显示以填充内容的动态节点（如思考块、代码块、图表等），动画会被自动禁用，以确保最佳用户体验。
-- **代码高亮与应用沙箱**: 使用 **Monaco Editor** 提供专业级语法高亮。对于 `html` 代码块，它超越了简单的预览，提供了一个**嵌入式 Web 应用沙箱**，能够直接运行功能完整的单页应用，并支持源码/交互模式的随时切换。
+- **代码高亮与应用沙箱**: 使用 **Monaco Editor** 提供专业级语法高亮。支持流式输出下的**增量追加 (Incremental Append)**，显著提升长代码块的打字机体验。对于 `html` 代码块，支持 **Seamless (无边框)** 渲染，使其与页面内容无缝融合。
 - **动态样式系统**: 提供图形化界面，允许用户实时自定义所有 Markdown 元素的 CSS 样式。
 - **稳定区/待定区策略**: 智能分离已完成和未完成的语法，确保流式输出的稳定性和正确性。
 

@@ -6,7 +6,13 @@
           <template #header>
             <div class="card-header">
               <span>输入代码</span>
-              <el-select v-model="language" placeholder="选择语言" size="small" style="width: 160px" filterable>
+              <el-select
+                v-model="language"
+                placeholder="选择语言"
+                size="small"
+                style="width: 160px"
+                filterable
+              >
                 <el-option-group label="前端语言">
                   <el-option label="JavaScript" value="javascript"></el-option>
                   <el-option label="TypeScript" value="typescript"></el-option>
@@ -28,8 +34,13 @@
             </div>
           </template>
           <div class="textarea-wrapper">
-            <el-input v-model="rawCodeInput" type="textarea" class="full-height-textarea" placeholder="请输入代码..."
-              @input="formatCode" />
+            <el-input
+              v-model="rawCodeInput"
+              type="textarea"
+              class="full-height-textarea"
+              placeholder="请输入代码..."
+              @input="formatCode"
+            />
           </div>
         </InfoCard>
       </el-col>
@@ -45,8 +56,13 @@
             </div>
           </template>
           <div class="textarea-wrapper">
-            <el-input v-model="formattedCodeOutput" type="textarea" class="full-height-textarea" readonly
-              placeholder="格式化后的代码将显示在这里..." />
+            <el-input
+              v-model="formattedCodeOutput"
+              type="textarea"
+              class="full-height-textarea"
+              readonly
+              placeholder="格式化后的代码将显示在这里..."
+            />
           </div>
           <div v-if="formatError" class="error-message">
             <el-icon>
@@ -61,43 +77,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import InfoCard from '@/components/common/InfoCard.vue';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { WarningFilled } from '@element-plus/icons-vue';
-import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import debounce from 'lodash/debounce';
-import { toolRegistryManager } from '@/services/registry';
-import type CodeFormatterRegistry from './codeFormatter.registry';
-import type { SupportedLanguage } from './codeFormatter.registry';
-import { useSendToChat } from '@/composables/useSendToChat';
+import { ref, watch } from "vue";
+import InfoCard from "@/components/common/InfoCard.vue";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { WarningFilled } from "@element-plus/icons-vue";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import debounce from "lodash/debounce";
+import { useSendToChat } from "@/composables/useSendToChat";
+import { formatterCore, type SupportedLanguage } from "./logic/formatter";
 
 // 获取服务实例
-const codeFormatterRegistry = toolRegistryManager.getRegistry<CodeFormatterRegistry>('code-formatter');
-const errorHandler = createModuleErrorHandler('CodeFormatter');
+const errorHandler = createModuleErrorHandler("CodeFormatter");
 
 // 获取发送到聊天功能
 const { sendCodeToChat } = useSendToChat();
 
 // UI 状态
-const rawCodeInput = ref('');
-const formattedCodeOutput = ref('');
-const formatError = ref('');
-const language = ref<SupportedLanguage>('javascript');
+const rawCodeInput = ref("");
+const formattedCodeOutput = ref("");
+const formatError = ref("");
+const language = ref<SupportedLanguage>("javascript");
 
 // 格式化代码（调用服务）
 const formatCodeInternal = async () => {
-  formatError.value = '';
+  formatError.value = "";
   if (!rawCodeInput.value) {
-    formattedCodeOutput.value = '';
+    formattedCodeOutput.value = "";
     return;
   }
 
-  const result = await codeFormatterRegistry.formatCode(
-    rawCodeInput.value,
-    language.value
-  );
+  const result = await formatterCore.formatCode(rawCodeInput.value, language.value);
 
   if (result.success) {
     formattedCodeOutput.value = result.formatted;
@@ -105,7 +115,7 @@ const formatCodeInternal = async () => {
       formatError.value = result.warning;
     }
   } else {
-    formatError.value = result.error || '格式化失败';
+    formatError.value = result.error || "格式化失败";
     formattedCodeOutput.value = result.formatted; // 显示原始代码
   }
 };
@@ -115,14 +125,14 @@ const formatCode = debounce(formatCodeInternal, 500);
 // 复制格式化后的代码
 const copyFormattedCode = async () => {
   if (!formattedCodeOutput.value) {
-    customMessage.warning('没有可复制的格式化代码');
+    customMessage.warning("没有可复制的格式化代码");
     return;
   }
   try {
     await writeText(formattedCodeOutput.value);
-    customMessage.success('格式化后的代码已复制到剪贴板！');
+    customMessage.success("格式化后的代码已复制到剪贴板！");
   } catch (error: any) {
-    errorHandler.error(error, '复制失败');
+    errorHandler.error(error, "复制失败");
   }
 };
 

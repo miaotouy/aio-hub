@@ -389,11 +389,7 @@ const clearPreview = () => {
         </div>
 
         <div class="preview-content">
-          <div
-            v-if="!currentAsset"
-            class="upload-area"
-            :class="{ highlight: isDraggingOver }"
-          >
+          <div v-if="!currentAsset" class="upload-area" :class="{ highlight: isDraggingOver }">
             <el-icon :size="64"><Upload /></el-icon>
             <p>拖放文件到此处，或粘贴文件</p>
             <p class="hint-text">支持图片、音频、视频或 PDF</p>
@@ -489,7 +485,6 @@ const clearPreview = () => {
   flex-direction: column;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border-radius: 8px;
   overflow: hidden;
 }
 

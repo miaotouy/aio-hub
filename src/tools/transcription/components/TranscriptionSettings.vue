@@ -321,7 +321,6 @@ const selectFFmpegPath = async () => {
   margin-top: 20px;
   padding: 16px;
   background-color: var(--input-bg);
-  border-radius: 8px;
   border: 1px solid var(--border-color);
 }
 

@@ -229,7 +229,6 @@ const stats = computed(() => {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
-  border-radius: 8px;
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -283,7 +282,6 @@ const stats = computed(() => {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
-  border-radius: 8px;
   overflow: hidden;
 }
 

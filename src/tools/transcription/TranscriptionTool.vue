@@ -87,6 +87,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background-color: var(--container-bg);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .main-tabs {

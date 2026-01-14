@@ -78,8 +78,6 @@ export interface TranscriptionConfig {
   maxRetries: number;
   /** 转写等待超时时间 (ms) */
   timeout: number;
-  /** 是否启用分类型精细配置 */
-  enableTypeSpecificConfig: boolean;
   /** 图片特定配置 */
   image: TypeSpecificTranscriptionConfig;
   /** 音频特定配置 */
@@ -343,7 +341,6 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     executionDelay: 300, // 默认延迟
     maxRetries: 2,
     timeout: 120, // 默认 120 秒
-    enableTypeSpecificConfig: false,
     ffmpegPath: "",
     video: {
       maxDirectSizeMB: 10,

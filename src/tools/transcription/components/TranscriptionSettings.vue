@@ -5,7 +5,6 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
   Settings2,
   Zap,
-  MessageSquare,
   Scissors,
   Video,
   Image as ImageIcon,
@@ -47,13 +46,15 @@ const selectFFmpegPath = async () => {
             </div>
           </template>
           <div class="section-content">
-            <el-form-item label="默认转写模型">
+            <el-form-item label="兜底转写模型">
               <LlmModelSelector
                 v-model="store.config.modelIdentifier"
                 :filter-capabilities="['vision', 'audio']"
-                placeholder="选择全局默认多模态模型"
+                placeholder="选择全局兜底多模态模型"
               />
-              <div class="form-help">当工作台未指定模型或未开启分类型配置时，将使用此默认模型</div>
+              <div class="form-help">
+                当具体分类（如图片、视频）未配置独立模型时，将使用此模型作为保底
+              </div>
             </el-form-item>
 
             <div class="form-row">
@@ -65,11 +66,6 @@ const selectFFmpegPath = async () => {
                 <el-switch v-model="store.config.enabled" />
               </el-form-item>
             </div>
-
-            <el-form-item label="启用分类型配置">
-              <el-switch v-model="store.config.enableTypeSpecificConfig" />
-              <div class="form-help">开启后，可分别为图片、音频、视频和文档设置不同的模型和提示词</div>
-            </el-form-item>
           </div>
         </el-collapse-item>
 
@@ -101,36 +97,8 @@ const selectFFmpegPath = async () => {
           </div>
         </el-collapse-item>
 
-        <!-- 通用提示词 (非分类型模式下使用) -->
-        <el-collapse-item v-if="!store.config.enableTypeSpecificConfig" name="prompt">
-          <template #title>
-            <div class="collapse-title">
-              <el-icon><MessageSquare /></el-icon>
-              <span>通用转写配置 (Global)</span>
-            </div>
-          </template>
-          <div class="section-content">
-            <el-form-item label="通用 Prompt">
-              <el-input
-                v-model="store.config.customPrompt"
-                type="textarea"
-                :rows="8"
-                placeholder="输入全局默认转写指令..."
-              />
-            </el-form-item>
-            <div class="form-row">
-              <el-form-item label="温度" class="flex-1">
-                <el-slider v-model="store.config.temperature" :min="0" :max="1" :step="0.1" />
-              </el-form-item>
-              <el-form-item label="最大 Token" class="flex-1">
-                <el-input-number v-model="store.config.maxTokens" :min="256" :step="256" />
-              </el-form-item>
-            </div>
-          </div>
-        </el-collapse-item>
-
         <!-- 分类型配置区域 -->
-        <template v-if="store.config.enableTypeSpecificConfig">
+        <template v-if="true">
           <!-- 图片配置 -->
           <el-collapse-item name="image">
             <template #title>
@@ -141,14 +109,22 @@ const selectFFmpegPath = async () => {
             </template>
             <div class="section-content">
               <el-form-item label="图片模型">
-                <LlmModelSelector v-model="store.config.image.modelIdentifier" :filter-capabilities="['vision']" />
+                <LlmModelSelector
+                  v-model="store.config.image.modelIdentifier"
+                  :filter-capabilities="['vision']"
+                />
               </el-form-item>
               <el-form-item label="图片 Prompt">
                 <el-input v-model="store.config.image.customPrompt" type="textarea" :rows="6" />
               </el-form-item>
               <div class="form-row">
                 <el-form-item label="温度" class="flex-1">
-                  <el-slider v-model="store.config.image.temperature" :min="0" :max="1" :step="0.1" />
+                  <el-slider
+                    v-model="store.config.image.temperature"
+                    :min="0"
+                    :max="1"
+                    :step="0.1"
+                  />
                 </el-form-item>
                 <el-form-item label="最大 Token" class="flex-1">
                   <el-input-number v-model="store.config.image.maxTokens" :min="256" :step="256" />
@@ -166,10 +142,18 @@ const selectFFmpegPath = async () => {
                 </el-form-item>
                 <div v-if="store.config.enableImageSlicer" class="form-row">
                   <el-form-item label="宽高比阈值" class="flex-1">
-                    <el-input-number v-model="store.config.imageSlicerConfig.aspectRatioThreshold" :min="1" :step="0.5" />
+                    <el-input-number
+                      v-model="store.config.imageSlicerConfig.aspectRatioThreshold"
+                      :min="1"
+                      :step="0.5"
+                    />
                   </el-form-item>
                   <el-form-item label="最小切片高度" class="flex-1">
-                    <el-input-number v-model="store.config.imageSlicerConfig.minCutHeight" :min="100" :step="100" />
+                    <el-input-number
+                      v-model="store.config.imageSlicerConfig.minCutHeight"
+                      :min="100"
+                      :step="100"
+                    />
                   </el-form-item>
                 </div>
               </div>
@@ -186,14 +170,22 @@ const selectFFmpegPath = async () => {
             </template>
             <div class="section-content">
               <el-form-item label="音频模型">
-                <LlmModelSelector v-model="store.config.audio.modelIdentifier" :filter-capabilities="['audio']" />
+                <LlmModelSelector
+                  v-model="store.config.audio.modelIdentifier"
+                  :filter-capabilities="['audio']"
+                />
               </el-form-item>
               <el-form-item label="音频 Prompt">
                 <el-input v-model="store.config.audio.customPrompt" type="textarea" :rows="6" />
               </el-form-item>
               <div class="form-row">
                 <el-form-item label="温度" class="flex-1">
-                  <el-slider v-model="store.config.audio.temperature" :min="0" :max="1" :step="0.1" />
+                  <el-slider
+                    v-model="store.config.audio.temperature"
+                    :min="0"
+                    :max="1"
+                    :step="0.1"
+                  />
                 </el-form-item>
                 <el-form-item label="最大 Token" class="flex-1">
                   <el-input-number v-model="store.config.audio.maxTokens" :min="256" :step="256" />
@@ -212,14 +204,22 @@ const selectFFmpegPath = async () => {
             </template>
             <div class="section-content">
               <el-form-item label="视频模型">
-                <LlmModelSelector v-model="store.config.video.modelIdentifier" :filter-capabilities="['video', 'vision']" />
+                <LlmModelSelector
+                  v-model="store.config.video.modelIdentifier"
+                  :filter-capabilities="['video', 'vision']"
+                />
               </el-form-item>
               <el-form-item label="视频 Prompt">
                 <el-input v-model="store.config.video.customPrompt" type="textarea" :rows="6" />
               </el-form-item>
               <div class="form-row">
                 <el-form-item label="温度" class="flex-1">
-                  <el-slider v-model="store.config.video.temperature" :min="0" :max="1" :step="0.1" />
+                  <el-slider
+                    v-model="store.config.video.temperature"
+                    :min="0"
+                    :max="1"
+                    :step="0.1"
+                  />
                 </el-form-item>
                 <el-form-item label="最大 Token" class="flex-1">
                   <el-input-number v-model="store.config.video.maxTokens" :min="256" :step="256" />
@@ -234,7 +234,10 @@ const selectFFmpegPath = async () => {
                 </div>
                 <el-form-item label="FFmpeg 路径">
                   <div class="path-input">
-                    <el-input v-model="store.config.ffmpegPath" placeholder="未配置将尝试直接上传" />
+                    <el-input
+                      v-model="store.config.ffmpegPath"
+                      placeholder="未配置将尝试直接上传"
+                    />
                     <el-button @click="selectFFmpegPath">选择</el-button>
                   </div>
                 </el-form-item>
@@ -243,7 +246,11 @@ const selectFFmpegPath = async () => {
                     <el-switch v-model="store.config.video.enableCompression" />
                   </el-form-item>
                   <el-form-item label="体积限制 (MB)" class="flex-1">
-                    <el-input-number v-model="store.config.video.maxDirectSizeMB" :min="1" :max="100" />
+                    <el-input-number
+                      v-model="store.config.video.maxDirectSizeMB"
+                      :min="1"
+                      :max="100"
+                    />
                   </el-form-item>
                 </div>
                 <div v-if="store.config.video.enableCompression" class="form-row">
@@ -251,7 +258,12 @@ const selectFFmpegPath = async () => {
                     <el-input-number v-model="store.config.video.maxFps" :min="1" :max="60" />
                   </el-form-item>
                   <el-form-item label="最大分辨率 (p)" class="flex-1">
-                    <el-input-number v-model="store.config.video.maxResolution" :min="360" :max="2160" :step="120" />
+                    <el-input-number
+                      v-model="store.config.video.maxResolution"
+                      :min="360"
+                      :max="2160"
+                      :step="120"
+                    />
                   </el-form-item>
                 </div>
               </div>
@@ -268,17 +280,29 @@ const selectFFmpegPath = async () => {
             </template>
             <div class="section-content">
               <el-form-item label="文档模型">
-                <LlmModelSelector v-model="store.config.document.modelIdentifier" :filter-capabilities="['document', 'vision']" />
+                <LlmModelSelector
+                  v-model="store.config.document.modelIdentifier"
+                  :filter-capabilities="['document', 'vision']"
+                />
               </el-form-item>
               <el-form-item label="文档 Prompt">
                 <el-input v-model="store.config.document.customPrompt" type="textarea" :rows="6" />
               </el-form-item>
               <div class="form-row">
                 <el-form-item label="温度" class="flex-1">
-                  <el-slider v-model="store.config.document.temperature" :min="0" :max="1" :step="0.1" />
+                  <el-slider
+                    v-model="store.config.document.temperature"
+                    :min="0"
+                    :max="1"
+                    :step="0.1"
+                  />
                 </el-form-item>
                 <el-form-item label="最大 Token" class="flex-1">
-                  <el-input-number v-model="store.config.document.maxTokens" :min="256" :step="1024" />
+                  <el-input-number
+                    v-model="store.config.document.maxTokens"
+                    :min="256"
+                    :step="1024"
+                  />
                 </el-form-item>
               </div>
             </div>

@@ -30,7 +30,6 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
   executionDelay: 300,
   maxRetries: 2,
   timeout: 120,
-  enableTypeSpecificConfig: false,
   ffmpegPath: "",
   video: {
     maxDirectSizeMB: 10,

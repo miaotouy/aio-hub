@@ -22,14 +22,12 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
   let temperature = config.temperature;
   let maxTokens = config.maxTokens;
 
-  if (config.enableTypeSpecificConfig) {
-    const specific = config[type];
-    if (specific) {
-      modelIdentifier = specific.modelIdentifier || modelIdentifier;
-      prompt = specific.customPrompt || prompt;
-      temperature = specific.temperature ?? temperature;
-      maxTokens = specific.maxTokens ?? maxTokens;
-    }
+  const specific = config[type];
+  if (specific) {
+    modelIdentifier = specific.modelIdentifier || modelIdentifier;
+    prompt = specific.customPrompt || prompt;
+    temperature = specific.temperature ?? temperature;
+    maxTokens = specific.maxTokens ?? maxTokens;
   }
 
   return { modelIdentifier, prompt, temperature, maxTokens };

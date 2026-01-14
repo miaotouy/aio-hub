@@ -68,7 +68,6 @@ export interface TranscriptionConfig {
     minCutHeight: number;
     cutLineOffset: number;
   };
-  enableTypeSpecificConfig: boolean;
   ffmpegPath?: string;
   image: TypeSpecificConfig;
   audio: TypeSpecificConfig;

@@ -42,7 +42,6 @@ export function useTranscriptionManager() {
         timeout: chatConfig.timeout,
         enableImageSlicer: chatConfig.enableImageSlicer,
         imageSlicerConfig: chatConfig.imageSlicerConfig,
-        enableTypeSpecificConfig: chatConfig.enableTypeSpecificConfig,
         ffmpegPath: chatConfig.ffmpegPath,
         image: chatConfig.image,
         audio: chatConfig.audio,

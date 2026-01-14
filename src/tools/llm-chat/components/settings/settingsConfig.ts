@@ -960,73 +960,19 @@ export const settingsConfig: SettingsSection[] = [
         groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
       },
       {
-        id: "transEnableTypeSpecific",
-        label: "启用分类型配置",
-        layout: "inline",
-        component: "ElSwitch",
-        modelPath: "transcription.enableTypeSpecificConfig",
-        hint: "开启后，可分别为图片和音频设置不同的模型和提示词",
-        keywords: "transcription specific type 分类 配置",
-        visible: (settings) => settings.transcription.enabled,
-      },
-
-      // 2. 通用配置 (当 transEnableTypeSpecific 为 false 时显示)
-      {
         id: "transModel",
-        label: "通用转写模型",
+        label: "兜底转写模型",
         component: LlmModelSelector,
         props: {
           capabilities: { vision: true },
         },
         modelPath: "transcription.modelIdentifier",
-        hint: "用于执行转写任务的多模态模型（推荐使用 gemini-flash-latest 或 GPT-4o）",
-        keywords: "transcription model 转写 模型",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          !settings.transcription.enableTypeSpecificConfig,
+        hint: "当具体分类（如图片、视频）未配置独立模型时，将使用此模型作为保底",
+        keywords: "transcription model 转写 模型 兜底",
+        visible: (settings) => settings.transcription.enabled,
         defaultValue: "",
       },
-      {
-        id: "transCustomPrompt",
-        label: "通用 Prompt",
-        component: "PromptEditor",
-        props: {
-          rows: 4,
-          placeholder: "输入自定义转写提示词",
-          defaultValue: DEFAULT_SETTINGS.transcription.customPrompt,
-        },
-        modelPath: "transcription.customPrompt",
-        hint: "用于指导模型如何转写附件内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
-        keywords: "transcription prompt 提示词 filename 文件名",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          !settings.transcription.enableTypeSpecificConfig,
-      },
-      {
-        id: "transTemperature",
-        label: "温度 ({{ localSettings.transcription.temperature }})",
-        component: "SliderWithInput",
-        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
-        modelPath: "transcription.temperature",
-        hint: "较低的温度会产生更确定性的转写结果",
-        keywords: "transcription temperature 转写 温度",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          !settings.transcription.enableTypeSpecificConfig,
-      },
-      {
-        id: "transMaxTokens",
-        label: "输出上限",
-        component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
-        modelPath: "transcription.maxTokens",
-        hint: "转写结果的最大 token 数",
-        keywords: "transcription max tokens 转写 上限",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          !settings.transcription.enableTypeSpecificConfig,
-      },
-      // 3. 图片配置 (当 transEnableTypeSpecific 为 true 时显示)
+      // 3. 图片配置
       {
         id: "transImageModel",
         label: "图片转写模型",
@@ -1035,11 +981,9 @@ export const settingsConfig: SettingsSection[] = [
           capabilities: { vision: true },
         },
         modelPath: "transcription.image.modelIdentifier",
-        hint: "专门用于图片转写的模型",
+        hint: "专门用于图片转写的模型。留空则使用上述兜底模型。",
         keywords: "transcription image model 图片 转写 模型",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
         defaultValue: "",
       },
       {
@@ -1054,9 +998,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.image.customPrompt",
         hint: "用于指导模型如何转写图片内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription image prompt 图片 提示词 filename 文件名",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transImageTemperature",
@@ -1066,9 +1008,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.image.temperature",
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription image temperature 图片 转写 温度",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transImageMaxTokens",
@@ -1078,11 +1018,9 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.image.maxTokens",
         hint: "图片转写结果的最大 token 数",
         keywords: "transcription image max tokens 图片 转写 上限",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
-      // 4. 音频配置 (当 transEnableTypeSpecific 为 true 时显示)
+      // 4. 音频配置
       {
         id: "transAudioModel",
         label: "音频转写模型",
@@ -1091,11 +1029,9 @@ export const settingsConfig: SettingsSection[] = [
           capabilities: { audio: true },
         },
         modelPath: "transcription.audio.modelIdentifier",
-        hint: "专门用于音频转写的模型",
+        hint: "专门用于音频转写的模型。留空则使用上述兜底模型。",
         keywords: "transcription audio model 音频 转写 模型",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
         defaultValue: "",
       },
       {
@@ -1110,9 +1046,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.audio.customPrompt",
         hint: "用于指导模型如何转写音频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription audio prompt 音频 提示词 filename 文件名",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transAudioTemperature",
@@ -1122,9 +1056,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.audio.temperature",
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription audio temperature 音频 转写 温度",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transAudioMaxTokens",
@@ -1134,12 +1066,10 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.audio.maxTokens",
         hint: "音频转写结果的最大 token 数",
         keywords: "transcription audio max tokens 音频 转写 上限",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
 
-      // 5. 视频配置 (当 transEnableTypeSpecific 为 true 时显示)
+      // 5. 视频配置
       {
         id: "transVideoModel",
         label: "视频转写模型",
@@ -1148,11 +1078,9 @@ export const settingsConfig: SettingsSection[] = [
           capabilities: { video: true },
         },
         modelPath: "transcription.video.modelIdentifier",
-        hint: "专门用于视频转写的模型（建议使用支持视频理解的多模态模型，如 gemini-flash-latest）",
+        hint: "专门用于视频转写的模型。留空则使用上述兜底模型。",
         keywords: "transcription video model 视频 转写 模型",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
         defaultValue: "",
       },
       {
@@ -1167,9 +1095,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.video.customPrompt",
         hint: "用于指导模型如何转写视频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription video prompt 视频 提示词 filename 文件名",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transVideoTemperature",
@@ -1179,9 +1105,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.video.temperature",
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription video temperature 视频 转写 温度",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transVideoMaxTokens",
@@ -1191,11 +1115,9 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.video.maxTokens",
         hint: "视频转写结果的最大 token 数",
         keywords: "transcription video max tokens 视频 转写 上限",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
-      // 6. 文档配置 (当 transEnableTypeSpecific 为 true 时显示)
+      // 6. 文档配置
       {
         id: "transDocumentModel",
         label: "文档转写模型",
@@ -1204,11 +1126,9 @@ export const settingsConfig: SettingsSection[] = [
           capabilities: { document: true },
         },
         modelPath: "transcription.document.modelIdentifier",
-        hint: "专门用于文档（PDF/Word等）转写的模型",
+        hint: "专门用于文档（PDF/Word等）转写的模型。留空则使用上述兜底模型。",
         keywords: "transcription document model 文档 转写 模型",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
         defaultValue: "",
       },
       {
@@ -1223,9 +1143,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.document.customPrompt",
         hint: "用于指导模型如何解析和转录文档内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription document prompt 文档 提示词 filename 文件名",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transDocumentTemperature",
@@ -1235,9 +1153,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.document.temperature",
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription document temperature 文档 转写 温度",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
       {
         id: "transDocumentMaxTokens",
@@ -1247,9 +1163,7 @@ export const settingsConfig: SettingsSection[] = [
         modelPath: "transcription.document.maxTokens",
         hint: "文档转写结果的最大 token 数",
         keywords: "transcription document max tokens 文档 转写 上限",
-        visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.enableTypeSpecificConfig,
+        visible: (settings) => settings.transcription.enabled,
       },
     ],
   },

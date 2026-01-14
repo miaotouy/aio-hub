@@ -238,7 +238,7 @@
 - **DetachPreviewHint** - 可分离窗口的预览提示组件。
 - **InfoCard** - 信息卡片组件，el-card的封装，用于展示结构化信息。
 - **DocumentViewer** - 多格式文档预览组件，支持 Markdown 渲染、HTML 页面预览和代码文件预览，提供源码/预览模式切换和双引擎代码编辑器。
-- **ComponentHeader** - (`src/components/`) 标准化的工具头部组件，提供统一的标题、折叠、菜单（置顶/分离）交互，自动适配拖拽模式。
+- **ComponentHeader** - (`src/components/`) 专用于**可分离/悬浮窗口组件**的头部，提供置顶、分离（弹出新窗口）等特定交互逻辑，并自动适配拖拽模式。普通工具页面不应使用。
 
 ## 4. 核心特性与 Composables
 

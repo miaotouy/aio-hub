@@ -45,6 +45,71 @@ const cleanLlmOutput = (text: string): string => {
   return cleaned.trim();
 };
 
+/**
+ * 检测文本是否存在严重的病态复读
+ * 启发式规则：
+ * 1. 存在连续 3 次及以上且长度大于 10 的完全相同片段
+ * 2. 文本末尾存在明显的循环模式
+ */
+const detectRepetition = (text: string): { isRepetitive: boolean; reason?: string } => {
+  if (text.length < 50) return { isRepetitive: false };
+
+  // 1. 检查连续重复的行/句
+  // 增加对 "、" 和 " " 的分割，因为有些模型复读时不带句号
+  const segments = text.split(/[\n。！？、\s]/).map((l) => l.trim()).filter((l) => l.length >= 4);
+  let consecutiveCount = 1;
+  for (let i = 1; i < segments.length; i++) {
+    if (segments[i] === segments[i - 1]) {
+      consecutiveCount++;
+      // 连续重复 4 次短句或 3 次长句
+      const threshold = segments[i].length > 10 ? 3 : 4;
+      if (consecutiveCount >= threshold) {
+        return { isRepetitive: true, reason: `检测到连续重复内容: "${segments[i].substring(0, 20)}..."` };
+      }
+    } else {
+      consecutiveCount = 1;
+    }
+  }
+
+  // 2. 检查末尾循环模式 (针对模型在末尾卡死的情况)
+  // 采样最后 300 个字符
+  const tail = text.slice(-300);
+  // 模式长度从 4 到 100
+  for (let len = 4; len <= 100; len++) {
+    if (tail.length < len * 3) continue;
+    const pattern = tail.slice(-len);
+    const prevPattern = tail.slice(-len * 2, -len);
+    const prevPrevPattern = tail.slice(-len * 3, -len * 2);
+
+    if (pattern === prevPattern && pattern === prevPrevPattern) {
+      // 额外检查：模式本身不能太简单（如全是空格或标点）
+      if (pattern.replace(/[^\w\u4e00-\u9fa5]/g, "").length < 2) continue;
+
+      return { isRepetitive: true, reason: `检测到末尾循环模式: "${pattern.substring(0, 20)}..."` };
+    }
+  }
+
+  // 3. 检查全局片段频率 (针对散落在各处的复读)
+  // 如果某个 10 字符以上的片段在文中出现的次数超过 10 次，且占总长度比例过高
+  if (text.length > 500) {
+    const sampleSize = 20;
+    const step = 50;
+    const counts = new Map<string, number>();
+    for (let i = 0; i < text.length - sampleSize; i += step) {
+      const chunk = text.substring(i, i + sampleSize);
+      counts.set(chunk, (counts.get(chunk) || 0) + 1);
+    }
+    for (const [chunk, count] of counts) {
+      // 如果 20 字符的采样块在稀疏采样中出现了 5 次以上，说明重复率极高
+      if (count >= 5) {
+        return { isRepetitive: true, reason: `检测到高频重复片段: "${chunk.substring(0, 20)}..."` };
+      }
+    }
+  }
+
+  return { isRepetitive: false };
+};
+
 export interface TranscriptionTask {
   id: string;
   assetId: string;
@@ -615,9 +680,10 @@ export function useTranscriptionManager() {
       transcriptionText = response.content;
     }
 
-    // 6. 清理思考链并保存结果
+    // 6. 清理思考链
     const cleanedText = cleanLlmOutput(transcriptionText);
 
+    // 7. 质量检查
     // 检查转写内容是否为空（模型返回 200 但内容为空的情况）
     const isEmptyResult = !cleanedText || cleanedText.trim().length === 0;
     if (isEmptyResult) {
@@ -626,6 +692,24 @@ export function useTranscriptionManager() {
         assetName: task.filename,
         modelId,
       });
+      // 如果重试次数未达上限，抛出错误触发重试逻辑
+      if (task.retryCount < config.maxRetries) {
+        throw new Error("模型返回内容为空，触发自动重试");
+      }
+    }
+
+    // 检查是否存在复读抽风
+    const repetition = detectRepetition(cleanedText);
+    if (repetition.isRepetitive) {
+      logger.warn("检测到模型回复存在严重复读", {
+        assetId: task.assetId,
+        reason: repetition.reason,
+        modelId,
+      });
+      // 同样触发重试
+      if (task.retryCount < config.maxRetries) {
+        throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
+      }
     }
 
     // 再次检查是否被取消

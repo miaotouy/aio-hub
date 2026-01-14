@@ -2,6 +2,7 @@
 import { ref, toRef, computed, onMounted, onUnmounted } from "vue";
 import { useStorage } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useDetachable } from "@/composables/useDetachable";
@@ -117,6 +118,7 @@ const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 // 宏选择器状态
 const macroSelectorVisible = ref(false);
 const isExpanded = ref(false);
+let unlistenAssetImport: UnlistenFn | null = null;
 
 // 使用全局输入管理器（替代本地状态）
 const inputManager = useChatInputManager();
@@ -462,6 +464,9 @@ onUnmounted(() => {
   if (isResizing.value) {
     handleMouseUp();
   }
+  if (unlistenAssetImport) {
+    unlistenAssetImport();
+  }
 });
 // ===== 拖拽与分离功能 =====
 const { startDetaching } = useDetachable();
@@ -519,6 +524,15 @@ const handleResizeWest = createResizeHandler("West");
 onMounted(async () => {
   // 初始化转写管理器
   transcriptionManager.init();
+
+  // 监听资产导入事件，用于自动触发转写
+  unlistenAssetImport = await listen<Asset>("asset-imported", (event) => {
+    const asset = event.payload;
+    // 仅处理本模块导入的资产
+    if (asset.sourceModule === "llm-chat" || asset.sourceModule === "llm-chat-paste") {
+      transcriptionManager.handleAssetImport(asset);
+    }
+  });
 
   // 加载聊天设置（确保 isLoaded 标志被设置）
   if (!settingsLoaded.value) {

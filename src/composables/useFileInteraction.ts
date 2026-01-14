@@ -358,7 +358,12 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
       return document.querySelector(options.element) as HTMLElement
     }
 
-    return options.element.value || null
+    const value = options.element.value
+    if (!value) return null
+
+    // 如果是 Vue 组件实例，尝试获取其根元素 $el
+    // 如果是普通 DOM 元素，直接返回
+    return (value as any).$el || (value as HTMLElement)
   }
 
   // 记录当前监听器绑定的元素（用于清理）
@@ -416,7 +421,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 监听元素变化，重新设置监听器
   if (options.element && typeof options.element !== 'string') {
     watch(
-      () => options.element as Ref<HTMLElement | undefined>,
+      () => (options.element as Ref<HTMLElement | undefined>).value,
       () => {
         cleanupPasteListener()
         setupPasteListener()

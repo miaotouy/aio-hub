@@ -10,6 +10,7 @@ export const DEFAULT_TOOLS_ORDER = [
   '/st-worldbook-editor',
   '/media-info-reader',
   '/smart-ocr',
+  '/transcription',
   '/color-picker',
   
   // 文本处理

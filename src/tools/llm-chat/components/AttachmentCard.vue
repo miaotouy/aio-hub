@@ -205,6 +205,12 @@ const transcriptionStatusText = computed(() => {
 
 const handleTranscriptionClick = async (e: Event) => {
   e.stopPropagation();
+
+  if (isImporting.value) {
+    customMessage.info("请等待文件上传完成后再开始转写");
+    return;
+  }
+
   if (transcriptionStatus.value === "success" || transcriptionStatus.value === "warning") {
     const text = await getTranscriptionText(internalAsset.value);
     transcriptionContent.value = text || "";
@@ -533,7 +539,11 @@ onUnmounted(() => {
                     class="transcription-status-icon bar-mode"
                     :class="[
                       transcriptionStatus,
-                      { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
+                      {
+                        'will-use': willUseTranscription,
+                        'wont-use': !willUseTranscription,
+                        'is-loading': isImporting,
+                      },
                     ]"
                     @click="handleTranscriptionClick"
                   >

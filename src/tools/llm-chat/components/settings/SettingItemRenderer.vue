@@ -156,7 +156,7 @@ import { FolderOpened } from "@element-plus/icons-vue";
 import { get, set } from "lodash-es";
 import PromptEditor from "./PromptEditor.vue";
 import type { SettingItem } from "./settings-types";
-import type { ChatSettings } from "../../composables/useChatSettings";
+import type { ChatSettings } from "../../types/settings";
 
 const props = defineProps<{
   item: SettingItem;

@@ -3,7 +3,7 @@ import type { UserProfile } from "@/tools/llm-chat/types/profile";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import type { ChatAgent } from "@/tools/llm-chat/types/agent";
-import type { ChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import type { ChatSettings } from "@/tools/llm-chat/types/settings";
 
 export interface PipelineContext {
   // --- 核心可变数据 ---

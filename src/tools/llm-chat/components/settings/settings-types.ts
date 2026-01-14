@@ -1,5 +1,5 @@
 import type { Component } from "vue";
-import type { ChatSettings } from "../../composables/useChatSettings";
+import type { ChatSettings } from "../../types/settings";
 
 /**
  * 定义通过字符串映射解析的基础组件类型

@@ -4,7 +4,7 @@ import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { resolveAttachmentContent } from "../../core/context-utils/attachment-resolver";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
-import type { TranscriptionConfig } from "../../composables/useChatSettings";
+import type { TranscriptionConfig } from "../../types/settings";
 
 const logger = createModuleLogger("llm-chat/transcription-processor");
 const errorHandler = createModuleErrorHandler("llm-chat/transcription-processor");

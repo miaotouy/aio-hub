@@ -18,7 +18,7 @@ import {
 import type { SettingsSection } from "./settings-types";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { DEFAULT_SETTINGS } from "../../composables/useChatSettings";
+import { DEFAULT_SETTINGS } from "../../types/settings";
 
 // 异步加载大型业务组件
 const MarkdownStyleEditor = defineAsyncComponent(() =>

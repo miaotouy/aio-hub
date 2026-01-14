@@ -9,3 +9,4 @@ export * from './ui';
 export * from './agentImportExport';
 export * from './sync';
 export * from './chatRegex';
+export * from './settings';

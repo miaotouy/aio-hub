@@ -577,6 +577,7 @@ const clearPreview = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .upload-area {
@@ -592,6 +593,7 @@ const clearPreview = () => {
   color: var(--el-text-color-placeholder);
   background-color: var(--input-bg);
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .upload-area.highlight {

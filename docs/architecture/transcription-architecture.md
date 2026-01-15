@@ -1,112 +1,126 @@
-# 转写功能架构文档
+# 转写功能架构文档 (Transcription Architecture)
 
-> 本文档描述了 AIO Hub 中“转写功能”的当前实现架构，涵盖图片描述、音频转录等场景。
+> 本文档描述了 AIO Hub 中“转写功能”的实现架构。该功能现已作为独立工具模块运行，为全应用提供多模态内容提取能力。
 
 ## 概述
 
-转写功能允许用户将图片或音频资产通过 LLM 转换为文本描述（OCR/ASR），并将结果与原始资产关联，供后续聊天、搜索、Token 计算等场景使用。
+转写功能允许用户将图片、音频、视频或 PDF 资产通过 LLM 转换为文本描述（OCR/ASR/视觉描述），并将结果作为资产的“衍生数据 (Derived Data)”持久化，供后续聊天、搜索、内容分析等场景使用。
 
 **核心特性：**
-- **自动触发**：资产导入时根据设置自动加入转写队列
-- **队列管理**：支持并发控制、重试机制、状态跟踪
-- **元数据关联**：转写结果与资产元数据双向绑定
-- **多格式支持**：图片（视觉描述 + OCR）、音频（语音转文字）、视频（视觉+听觉综合描述）
-- **配置灵活**：支持全局配置及分类型精细配置
-- **外部依赖可选**：支持配置本地 FFmpeg 路径以增强视频处理能力（压缩/转码），未配置时采用直传模式
+
+- **解耦架构**：独立于聊天模块，通过 `TranscriptionRegistry` 提供跨模块服务。
+- **插件化引擎**：针对不同模态（图片、音频、视频、PDF）提供专属转写引擎。
+- **任务队列管理**：支持并发控制、速率限制、自动重试和状态跟踪。
+- **智能视频处理**：集成 FFmpeg 实现大视频自动压缩、抽帧，优化 Token 消耗。
+- **智能图片切分**：支持对超长图片进行自动空白检测与切块，提升模型识别率。
+- **资产系统深度集成**：转写结果与资产元数据双向绑定，支持结果复用。
 
 ## 架构图
 
 ```mermaid
 graph TD
-    subgraph UI [前端 UI 层]
-        ChatUI["Chat Interface<br/>(AttachmentCard)"]
-        Settings["Settings Dialog<br/>(Transcription Config)"]
-        TransDialog["Transcription Dialog<br/>(View/Edit)"]
+    subgraph External [外部接口]
+        Registry["TranscriptionRegistry<br/>(Facade)"]
     end
 
-    subgraph Logic [前端逻辑层]
+    subgraph Logic [核心逻辑层]
         TM[useTranscriptionManager]
-        AM[useAssetManager]
-        LLM_Req[useLlmRequest]
-        Queue["Task Queue<br/>(Reactive State)"]
-        
-        subgraph Consumers [消费者]
-            MsgBuilder[useMessageBuilder]
-            TokenCalc[chatTokenUtils]
+        Store[useTranscriptionStore]
+        Queue["Task Queue<br/>(Reactive)"]
+
+        subgraph Engines [多模态引擎]
+            direction LR
+            IE[ImageEngine]
+            AE[AudioEngine]
+            VE[VideoEngine]
+            PE[PdfEngine]
         end
     end
 
     subgraph Backend [后端 Rust 层]
-        CmdUpdate["cmd: update_asset_derived_data"]
-        CmdRead["cmd: read_text_file"]
-        CmdVideo["cmd: compress_video<br/>(Optional FFmpeg)"]
-        Catalog["Asset Catalog<br/>(Metadata Index)"]
+        CmdAsset["cmd: update_asset_derived_data"]
+        CmdVideo["cmd: compress_video<br/>(FFmpeg)"]
+        CmdCheck["cmd: check_ffmpeg_availability"]
     end
 
     subgraph FS [文件系统]
-        OriginalFiles["原始资产文件<br/>(images/audio/video)"]
-        DerivedFiles["衍生数据文件<br/>(derived/.../transcription.md)"]
-        TempFiles["临时文件<br/>(Compressed Video)"]
+        OriginalFiles["原始资产文件"]
+        DerivedFiles["衍生数据文件<br/>(transcription.md)"]
+        TempFiles["临时文件<br/>(Compressed)"]
     end
 
-    ExtLLM[外部 LLM 服务]
+    subgraph Consumers [调用方示例]
+        Chat["LLM Chat<br/>(Context Pipeline)"]
+        Workbench["Transcription Workbench"]
+    end
 
-    %% 触发流程
-    AM -- "Event: asset-imported" --> TM
-    ChatUI -- "手动触发/重试" --> TM
-    Settings -- "配置参数" --> TM
+    %% 调用关系
+    Chat -- "addTask / getText" --> Registry
+    Workbench -- "管理任务" --> TM
+    Registry -- "调用" --> TM
+    TM -- "调度" --> Queue
+    Queue -- "执行" --> Engines
 
-    %% 核心处理流程
-    TM -- "管理" --> Queue
-    Queue -- "调度任务" --> TM
-    TM -- "1. 获取数据" --> AM
-    AM -- "读取" --> OriginalFiles
-    
-    %% 视频特殊处理分支
-    TM -- "1a. 视频压缩 (可选)" --> CmdVideo
-    CmdVideo -- "FFmpeg 处理" --> TempFiles
-    TempFiles -.-> AM
-    
-    TM -- "2. 请求转写 (Base64)" --> LLM_Req
-    LLM_Req -- "API Call" --> ExtLLM
-    ExtLLM -- "Response" --> LLM_Req
-    
-    %% 结果保存流程
-    TM -- "3. 保存结果 (Markdown)" --> DerivedFiles
-    TM -- "4. 更新元数据" --> CmdUpdate
-    CmdUpdate -- "更新 derived 字段" --> Catalog
+    %% 引擎交互
+    Engines -- "1. 视频预处理" --> CmdCheck
+    CmdCheck -- "2. 压缩" --> CmdVideo
+    CmdVideo -- "生成" --> TempFiles
 
-    %% 消费流程
-    ChatUI -- "查询状态" --> TM
-    TransDialog -- "读取内容" --> TM
-    TM -- "调用" --> CmdRead
-    CmdRead -- "读取" --> DerivedFiles
-    
-    MsgBuilder -- "获取转写内容 (作为 Context)" --> TM
-    TokenCalc -- "计算 Token" --> TM
+    Engines -- "3. 发送请求" --> LLM[外部 LLM 服务]
+
+    %% 结果保存
+    Engines -- "4. 保存 Markdown" --> DerivedFiles
+    Engines -- "5. 更新元数据" --> CmdAsset
 ```
 
 ## 组件说明
 
-### 前端逻辑层
+### 1. 前端架构 (TypeScript/Vue)
 
-| 组件 | 路径 | 职责 |
-|------|------|------|
-| `useTranscriptionManager` | `src/tools/llm-chat/composables/useTranscriptionManager.ts` | 核心管理器，负责任务队列、LLM 调用、结果保存、状态查询 |
-| `useAssetManager` | `src/composables/useAssetManager.ts` | 资产二进制数据读取 |
-| `useLlmRequest` | `src/composables/useLlmRequest.ts` | 统一 LLM 请求发送 |
-| `useMessageBuilder` | `src/tools/llm-chat/composables/useMessageBuilder.ts` | 构建聊天消息时自动包含转写内容 |
-| `chatTokenUtils` | `src/tools/llm-chat/utils/chatTokenUtils.ts` | 计算 Token 时包含转写内容 |
+| 组件                      | 路径                                                             | 职责                                                             |
+| ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `TranscriptionRegistry`   | `src/tools/transcription/transcription.registry.ts`              | **外观服务**。提供单例接口，供其他工具（如聊天、搜索）调用。     |
+| `useTranscriptionManager` | `src/tools/transcription/composables/useTranscriptionManager.ts` | **核心调度器**。负责任务队列管理、并发控制、速率限制和引擎分发。 |
+| `useTranscriptionStore`   | `src/tools/transcription/stores/transcriptionStore.ts`           | **状态中心**。存储任务列表、全局配置及调度状态。                 |
+| `ITranscriptionEngine`    | `src/tools/transcription/types.ts`                               | **引擎接口**。定义了 `canHandle` 和 `execute` 标准接口。         |
+| `engines/*`               | `src/tools/transcription/engines/`                               | **模态引擎实现**。包含 Image, Audio, Video, Pdf 的具体转写逻辑。 |
 
-### 后端 Rust 层
+### 2. 后端架构 (Rust)
 
-| 组件 | 路径 | 职责 |
-|------|------|------|
-| `update_asset_derived_data` | `src-tauri/src/commands/asset_manager.rs` | 更新资产元数据中的 `derived` 字段 |
-| `read_text_file` | `src-tauri/src/commands/asset_manager.rs` | 安全读取文本文件（用于获取转写内容） |
-| Asset Catalog | `.catalog/assets.jsonl` | 资产元数据索引，存储 `derived` 映射 |
+| 命令/模块                   | 路径                                        | 职责                                                   |
+| --------------------------- | ------------------------------------------- | ------------------------------------------------------ |
+| `update_asset_derived_data` | `src-tauri/src/commands/asset_manager.rs`   | 将转写结果的路径及模型信息持久化到资产数据库。         |
+| `compress_video`            | `src-tauri/src/commands/video_processor.rs` | 调用 FFmpeg 对视频进行压缩（降低分辨率、帧率或体积）。 |
+| `check_ffmpeg_availability` | `src-tauri/src/commands/video_processor.rs` | 检查用户配置的 FFmpeg 路径是否有效。                   |
 
-### 文件系统结构
+## 核心流程
+
+### 1. 任务调度流程
+
+1. `addTask` 将任务加入 `pending` 队列。
+2. `processQueue` 根据 `maxConcurrentTasks` 弹出任务，并检查 `executionDelay`（速率限制）。
+3. 根据资产类型匹配对应的引擎实现。
+4. 引擎执行完成后，调用 `saveTranscriptionResult` 保存文件并更新资产元数据。
+
+### 2. 视频转写特化流程 (Video Pipeline)
+
+1. **大小检查**：如果视频体积 > `maxDirectSizeMB` 且配置了 FFmpeg，则触发压缩。
+2. **本地压缩**：调用 Rust 后端执行 FFmpeg 任务（Preset: `auto_size`）。
+3. **临时转换**：使用压缩后的临时文件进行 Base64 编码。
+4. **请求发送**：将视频数据发送给具备视觉理解能力的模型。
+5. **清理**：任务完成后自动删除临时压缩文件。
+
+### 3. 图片切分流程 (Image Slicer)
+
+1. **长宽比检测**：如果图片长宽比超过阈值，触发切分逻辑。
+2. **空白检测**：调用 `SmartOcrRegistry` 寻找图片中的空白行作为切割点。
+3. **分块请求**：将图片切分为多个块，按序发送给 LLM，确保长图内容不被模糊或丢失。
+
+## 数据持久化
+
+转写结果作为资产的**衍生数据**存储：
+
+### 1. 文件系统结构
 
 ```
 AppData/assets/
@@ -119,131 +133,57 @@ AppData/assets/
     └── video/2025-12/{uuid}/transcription.md
 ```
 
-## 数据流
+### 2. 元数据设计
 
-### 1. 触发阶段
-- **自动触发**：资产导入成功 → `asset-imported` 事件 → `useTranscriptionManager.init()` 监听 → 根据设置决定是否加入队列
-- **手动触发**：用户通过 UI（附件卡片、设置对话框）手动添加任务
+资产元数据的 `derived.transcription` 字段包含：
 
-### 2. 处理阶段
-1. **任务入队**：`addTask()` 创建 `TranscriptionTask` 对象，状态 `pending`
-2. **队列调度**：`processQueue()` 根据并发设置取出任务，状态改为 `processing`
-3. **数据准备**：
-   - **图片/音频**：直接通过 `useAssetManager` 读取二进制数据，转换为 Base64。
-   - **视频 (Video)**：
-     - **检查配置**：检查是否配置了有效的 `ffmpegPath`。
-     - **压缩决策**：如果配置了 FFmpeg 且文件大小 > `maxDirectSize` (如 10MB)，则调用后端 `compress_video` 进行本地压缩（降低分辨率/码率），生成临时文件。
-     - **直传模式**：如果未配置 FFmpeg 或文件较小，直接读取原始文件。
-     - **最终转换**：将（原始或压缩后的）视频数据转换为 Base64 字符串。
-4. **LLM 请求**：
-   - 构建 Payload：使用 `image_url` (兼容性做法) 或原生 `video` 字段，填入 Base64 数据。
-   - 调用 `useLlmRequest.sendRequest()`。
-5. **结果保存**：
-   - 写入文件：`derived/{type}/{date}/{uuid}/transcription.md`
-   - 更新元数据：调用 `update_asset_derived_data` 命令，将路径、提供者、时间戳写入 `asset.metadata.derived.transcription`
+- `path`: Markdown 文件的相对路径。
+- `provider`: 执行转写的模型 ID（如 "gpt-4o"）或 "manual"（手动编辑）。
+- `updatedAt`: ISO 8601 格式的完成时间。
+- `warning`: 可选的警告信息（如“模型返回空内容”）。
+- `error`: 可选的错误描述（如果生成失败）。
 
-### 3. 消费阶段
-- **状态查询**：`getTranscriptionStatus()` 结合内存队列和元数据返回状态
-- **内容读取**：`getTranscriptionText()` 调用 `read_text_file` 命令读取文件
-- **消息构建**：`useMessageBuilder` 在构建用户消息时自动获取转写内容并附加
-- **Token 计算**：`chatTokenUtils` 在计算 Token 时包含转写内容
-
-## 关键实现细节
-
-### 任务队列管理
-- **状态机**：`pending` → `processing` → `completed`/`error`
-- **并发控制**：通过 `maxConcurrentTasks` 配置（默认 1）
-- **重试机制**：失败后根据 `maxRetries` 配置自动重试
-- **错误处理**：错误信息写入 `derived.error` 字段，不影响原始资产
-
-### 元数据设计
 ```typescript
-// AssetMetadata 新增字段
-interface AssetMetadata {
-  derived?: Record<string, DerivedDataInfo>;
-}
-
 interface DerivedDataInfo {
-  path?: string;          // 衍生文件相对路径
-  updatedAt: string;      // ISO 8601 时间戳
-  provider?: string;      // 提供者标识，如 "gpt-4o", "manual"
-  error?: string;         // 错误信息（如果生成失败）
+  path?: string;
+  updatedAt: string;
+  provider?: string;
+  warning?: string;
+  error?: string;
 }
 ```
 
-### 配置系统
-配置通过 `ChatSettings` 管理，支持：
-- **全局开关**：启用/禁用转写功能
-- **自动转写**：资产导入时自动触发
-- **模型选择**：`profileId:modelId` 格式的模型标识符
-- **Prompt 定制**：支持全局 Prompt 及分类型（图片/音频）定制
-- **并发与重试**：最大并发任务数、最大重试次数
+## 消费与应用
 
-## 配置项参考
+转写结果通过 `TranscriptionRegistry.getTranscriptionText(asset)` 被以下组件消费：
 
-```typescript
-// src/tools/llm-chat/components/settings/settingsConfig.ts
-transcription: {
-  enabled: boolean;
-  autoTranscribe: boolean;
-  modelIdentifier: string; // "openai:gpt-4o"
-  customPrompt?: string;
-  temperature: number;
-  maxTokens: number;
-  maxConcurrentTasks: number;
-  maxRetries: number;
-  enableTypeSpecificConfig: boolean;
-  ffmpegPath?: string; // 用户配置的本地 FFmpeg 可执行文件路径
-  image: { /* 图片专用配置 */ };
-  audio: { /* 音频专用配置 */ };
-  video: {
-    maxDirectSizeMB: number; // 直传阈值，默认 10MB
-    compressionPreset: string; // "balanced" | "quality" | "speed"
-  };
-}
-```
+- **LLM Chat (上下文管道)**: `transcription-processor` 自动获取转写文本并注入到 Prompt 中，使纯文本模型具备“理解”多模态内容的能力。
+- **Token 计算器**: 在发送请求前，`chatTokenUtils` 预先读取转写内容以进行精确的上下文长度预估。
+- **附件卡片 (AttachmentCard)**: 实时展示转写状态，并允许用户一键查看或手动校对转写文本。
+- **全局搜索**: 转写文本可被索引，支持用户通过自然语言搜索图片、音视频素材。
 
 ## 使用场景
 
-### 1. 聊天附件增强
-用户发送图片/音频/视频附件 → 自动转写 → 转写内容作为上下文附加到消息中 → LLM 获得更丰富的输入信息（包括视频的视觉与听觉内容）。
-
-### 2. 资产库搜索
-转写内容可被全文搜索索引，用户可通过描述文字查找图片/音频/视频素材。
-
-### 3. 无障碍支持
-为视觉/听觉障碍用户提供文字描述
-
-### 4. 内容分析
-批量转写后可用于内容分析、标签生成、摘要提取等
-
-## 相关文件变更
-
-本次实现涉及的主要文件变更：
-
-### 后端 (Rust)
-- `src-tauri/src/commands/asset_manager.rs`：新增 `DerivedDataInfo` 结构体，扩展 `AssetMetadata`，实现 `update_asset_derived_data` 命令
-- `src-tauri/src/lib.rs`：注册新命令
-
-### 前端 (TypeScript/Vue)
-- `src/types/asset-management.ts`：同步类型定义
-- `src/tools/llm-chat/composables/useTranscriptionManager.ts`：核心实现
-- `src/tools/llm-chat/utils/chatTokenUtils.ts`：Token 计算逻辑更新
-- `src/tools/llm-chat/composables/useMessageBuilder.ts`：消息构建逻辑更新
-- `src/tools/llm-chat/components/dialogs/TranscriptionDialog.vue`：转写查看/编辑对话框
-- `src/tools/llm-chat/components/AttachmentCard.vue`：附件卡片集成转写状态
-- `src/tools/llm-chat/components/settings/ChatSettingsDialog.vue`：转写配置界面
-- `src/tools/llm-chat/components/settings/settingsConfig.ts`：配置定义
+1.  **多模态对话增强**: 为不支持视觉/音频输入的模型提供内容描述。
+2.  **长视频/长文档摘要**: 通过 FFmpeg 压缩和分段处理，提取长媒体的核心信息。
+3.  **无障碍辅助**: 为视觉或听觉障碍用户提供文字化的内容替代。
+4.  **资产管理自动化**: 自动为导入的素材生成描述标签，提升管理效率。
 
 ## 未来扩展方向
 
-1. **更多衍生类型**：OCR 文字提取、语音情感分析、视频关键帧描述
-2. **本地模型集成**：集成 Whisper、CLIP 等本地模型，降低 API 成本
-3. **批量操作**：支持批量转写、批量导出
-4. **缓存优化**：转写结果缓存，避免重复处理
-5. **流式输出**：支持流式转写，实时显示进度
+1.  **本地模型集成**: 引入 Whisper (语音)、CLIP (视觉) 等本地模型以降低 API 成本。
+2.  **流式转写**: 支持实时显示转写进度和部分结果。
+3.  **批量操作**: 支持在转写工作台中对大量资产进行一键批量转写。
+4.  **缓存优化**: 优化衍生数据的同步机制，提升大批量任务下的 IO 性能。
+
+## 配置系统
+
+转写配置支持全局默认与按模态精细化覆盖：
+
+- **全局配置**：并发数、重试次数、FFmpeg 路径、保底模型。
+- **分类配置**：可为图片、音频、视频、文档分别设置不同的模型、Prompt、温度和 Token 上限。
 
 ---
 
-*文档最后更新：2025-12-10*
-*对应提交：转写功能实现（commit hash: ...）*
+_文档最后更新：2026-01-15_
+_更新内容：同步解耦后的独立工具架构，增加视频压缩与图片切分说明。_

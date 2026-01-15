@@ -50,7 +50,6 @@ export interface VideoSpecificConfig extends TypeSpecificConfig {
  * 全局转写配置
  */
 export interface TranscriptionConfig {
-  enabled: boolean;
   autoStartOnImport: boolean;
   modelIdentifier: string;
   customPrompt: string;

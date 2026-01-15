@@ -154,18 +154,19 @@ import {
 } from "element-plus";
 import { FolderOpened } from "@element-plus/icons-vue";
 import { get, set } from "lodash-es";
-import PromptEditor from "./PromptEditor.vue";
-import type { SettingItem } from "./settings-types";
-import type { ChatSettings } from "../../types/settings";
+import PromptEditor from "@/components/common/PromptEditor.vue";
+import type { SettingItem } from "@/types/settings-renderer";
+import type { Component } from "vue";
 
 const props = defineProps<{
-  item: SettingItem;
-  settings: ChatSettings;
+  item: SettingItem<any>;
+  settings: any;
   isHighlighted?: boolean;
+  customComponents?: Record<string, Component>;
 }>();
 
 const emit = defineEmits<{
-  (e: "update:settings", value: ChatSettings): void;
+  (e: "update:settings", value: any): void;
   (e: "action", actionName: string): void;
 }>();
 

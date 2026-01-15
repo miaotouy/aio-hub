@@ -15,7 +15,8 @@ import {
   BookMarked,
   Zap,
 } from "lucide-vue-next";
-import type { SettingsSection } from "./settings-types";
+import type { SettingsSection } from "@/types/settings-renderer";
+import type { ChatSettings } from "../../types/settings";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { DEFAULT_SETTINGS } from "../../types/settings";
@@ -39,7 +40,7 @@ const WorldbookSelector = defineAsyncComponent(() =>
   import("../worldbook/WorldbookSelector.vue")
 );
 
-export const settingsConfig: SettingsSection[] = [
+export const settingsConfig: SettingsSection<ChatSettings>[] = [
   {
     title: "模型设置",
     icon: Bot,

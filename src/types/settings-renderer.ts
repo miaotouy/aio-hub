@@ -1,0 +1,153 @@
+import type { Component } from "vue";
+
+/**
+ * 内置组件类型枚举
+ * 大型业务组件应通过 defineAsyncComponent 异步加载后直接作为 Component 对象传入
+ */
+export type BuiltinSettingComponent =
+  | "ElSwitch"
+  | "ElSlider"
+  | "ElRadioGroup"
+  | "ElSelect"
+  | "ElInputNumber"
+  | "ElInput"
+  | "SliderWithInput"
+  | "PromptEditor"
+  | "FileSelector";
+
+/**
+ * 选项定义
+ */
+export interface SettingOption {
+  label: string;
+  value: string | number | boolean;
+  tags?: string[];
+  description?: string;
+}
+
+/**
+ * 设置项定义 - 泛型版本
+ * @template T 设置对象的类型，默认为 Record<string, any>
+ */
+export interface SettingItem<T = any> {
+  /**
+   * 设置项的唯一标识符，用于 data-setting-id 和搜索定位
+   */
+  id: string;
+  /**
+   * 设置项的显示标签，支持模板字符串 {{ localSettings.xxx }}
+   */
+  label: string;
+  /**
+   * 布局类型
+   * 'inline': 控件和提示在同一行 (例如 ElSwitch)
+   * 'block': 控件和提示在不同行 (例如 ElSlider)
+   * @default 'block'
+   */
+  layout?: "inline" | "block";
+  /**
+   * 用于渲染表单组件的类型
+   */
+  component: BuiltinSettingComponent | Component;
+  /**
+   * 传递给组件的 props
+   * 支持静态对象或动态函数
+   */
+  props?: Record<string, any> | ((settings: T) => Record<string, any>);
+  /**
+   * 对于 ElRadioGroup, ElSelect 等组件，定义其选项
+   * 支持静态数组或动态函数
+   */
+  options?: SettingOption[] | ((settings: T) => SettingOption[]);
+  /**
+   * 设置项的描述性提示文字，支持模板字符串和 HTML
+   */
+  hint: string;
+  /**
+   * 在设置对象中，该设置项值的路径
+   * 例如: 'uiPreferences.showTimestamp'
+   */
+  modelPath: string;
+  /**
+   * 用于搜索的关键词，以空格分隔
+   */
+  keywords: string;
+  /**
+   * 当 modelPath 对应的值为 undefined 时的默认值
+   */
+  defaultValue?: any;
+  /**
+   * 控制该设置项是否显示的条件函数
+   * @param settings - 当前的设置对象
+   * @returns boolean - 是否显示
+   */
+  visible?: (settings: T) => boolean;
+  /**
+   * 组件下方的额外内容插槽，例如重置按钮
+   */
+  slots?: {
+    default?: () => Component;
+    append?: () => Component;
+  };
+  /**
+   * 点击 append slot 区域时触发的动作名称
+   */
+  action?: string;
+  /**
+   * 折叠面板配置，用于大型编辑器组件
+   */
+  collapsible?: {
+    /**
+     * 折叠面板的标题
+     */
+    title: string;
+    /**
+     * 折叠面板的唯一标识，用于状态管理
+     */
+    name: string;
+    /**
+     * 内容区域的样式
+     */
+    style?: Record<string, string>;
+    /**
+     * 模型值的默认值（当 modelPath 对应值为空时使用）
+     */
+    defaultValue?: any;
+    /**
+     * 是否显示加载状态
+     */
+    useLoading?: boolean;
+  };
+  /**
+   * 组内折叠配置，用于将多个相关配置项折叠成一组
+   * 具有相同 groupCollapsible.name 的配置项会被渲染在同一个折叠面板中
+   */
+  groupCollapsible?: {
+    /**
+     * 折叠组的唯一标识，相同 name 的配置项会被分到同一组
+     */
+    name: string;
+    /**
+     * 折叠组的标题（只有组内第一个配置项的 title 会被使用）
+     */
+    title: string;
+  };
+}
+
+/**
+ * 定义设置分组的配置结构
+ */
+export interface SettingsSection<T = any> {
+  /**
+   * 分组标题
+   */
+  title: string;
+  /**
+   * 分组图标
+   */
+  icon: Component;
+  /**
+   * 该分组下的所有设置项
+   */
+  items: SettingItem<T>[];
+}

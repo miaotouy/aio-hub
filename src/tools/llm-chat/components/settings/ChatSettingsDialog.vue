@@ -168,13 +168,10 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import SettingItemRenderer from "./SettingItemRenderer.vue";
+import SettingItemRenderer from "@/components/common/SettingItemRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useChatSettings } from "../../composables/useChatSettings";
-import {
-  type ChatSettings,
-  DEFAULT_SETTINGS,
-} from "../../types/settings";
+import { type ChatSettings, DEFAULT_SETTINGS } from "../../types/settings";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

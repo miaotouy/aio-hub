@@ -213,7 +213,7 @@ const TEXT_MIME_TYPES = new Set([
 /**
  * 从文件名获取扩展名
  */
-function getExtension(fileName: string): string {
+export function getExtension(fileName: string): string {
   const lastDot = fileName.lastIndexOf(".");
   if (lastDot === -1) return "";
   return fileName.slice(lastDot + 1).toLowerCase();

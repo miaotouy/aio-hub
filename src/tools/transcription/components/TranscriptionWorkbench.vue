@@ -9,6 +9,8 @@ import { useSendToChat } from "@/composables/useSendToChat";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import { isTextFile, getExtension } from "@/utils/fileTypeDetector";
+import { getLanguageDefinition } from "@/utils/codeLanguages";
 import type { Asset } from "@/types/asset-management";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
@@ -41,7 +43,8 @@ const { show: showImage } = useImageViewer();
 const currentAsset = ref<Asset | null>(null);
 const previewUrl = ref<string>("");
 const posterUrl = ref<string>("");
-const previewType = ref<"image" | "video" | "audio" | "document" | null>(null);
+const previewType = ref<"image" | "video" | "audio" | "document" | "text" | null>(null);
+const editorLanguage = ref("markdown");
 const isProcessing = ref(false);
 const isSaving = ref(false);
 const resultText = ref("");
@@ -130,9 +133,62 @@ const tryLoadExistingResult = async (asset: Asset) => {
 };
 
 // 处理资产选择
+// 处理资产选择
 const handleAssetSelect = async (asset: Asset) => {
+  logger.info("处理资产选择", { id: asset.id, name: asset.name, status: asset.importStatus });
   currentAsset.value = asset;
-  previewType.value = asset.type as any;
+
+  // 识别文本类型
+  const isText = isTextFile(asset.name, asset.mimeType || "");
+  logger.debug("识别文本类型结果", { name: asset.name, isText });
+
+  previewType.value = isText ? "text" : (asset.type as any);
+
+  // 如果是纯文本，尝试直接读取内容展示
+  if (isText) {
+    // 设置编辑器语言
+    const ext = getExtension(asset.name);
+    const langDef = getLanguageDefinition(ext);
+    editorLanguage.value = langDef ? langDef.id : "plaintext";
+    // 判断是否可以直接读取：
+    // 1. importStatus 为 complete
+    // 2. 或者 importStatus 未定义但 path 存在且不是 blob URL（说明是已存在的资产）
+    const isPending = asset.importStatus === "pending" || asset.importStatus === "importing";
+    const hasValidPath = asset.path && !asset.path.startsWith("blob:");
+    const canReadDirectly = asset.importStatus === "complete" || (!isPending && hasValidPath);
+    logger.debug("纯文本处理路径", {
+      importStatus: asset.importStatus,
+      path: asset.path,
+      isPending,
+      hasValidPath,
+      canReadDirectly,
+    });
+
+    if (canReadDirectly) {
+      try {
+        logger.info("尝试读取纯文本资产内容", { path: asset.path });
+        const buffer = await assetManagerEngine.getAssetBinary(asset.path);
+        const text = new TextDecoder("utf-8").decode(buffer);
+        logger.debug("读取到纯文本内容长度", { length: text.length });
+        resultText.value = text;
+        showResult.value = true;
+        isProcessing.value = false;
+
+        if (!basePath.value) {
+          basePath.value = await assetManagerEngine.getAssetBasePath();
+        }
+        previewUrl.value = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+        return;
+      } catch (e) {
+        logger.warn("读取纯文本内容失败", e);
+      }
+    } else {
+      // 还在导入中，先清空结果
+      logger.debug("纯文本资产正在导入中，等待完成");
+      resultText.value = "";
+      showResult.value = false;
+    }
+  }
 
   // 判断是否为 pending/importing 状态
   const isPending = asset.importStatus === "pending" || asset.importStatus === "importing";
@@ -173,14 +229,25 @@ const handleAssetSelect = async (asset: Asset) => {
     // 尝试加载已有结果
     const hasResult = await tryLoadExistingResult(asset);
 
+    // 如果不是纯文本且有结果，或者是转写任务，结果通常是 markdown
+    if (hasResult && !isText) {
+      editorLanguage.value = "markdown";
+    }
+
     if (!hasResult) {
       resultText.value = "";
       showResult.value = false;
 
       // 如果开启了自动转写，且没有正在进行的任务，则自动开始
+      // 注意：只有在导入完成后且非纯文本才触发，如果还在导入中，由 watch 处理
       const existingTask = store.getTaskByAssetId(asset.id);
-      if (store.config.autoStartOnImport && !existingTask) {
-        logger.info("检测到新资产且开启了自动转写，触发任务", { assetId: asset.id });
+      if (
+        asset.importStatus === "complete" &&
+        !isText &&
+        store.config.autoStartOnImport &&
+        !existingTask
+      ) {
+        logger.info("检测到已导入资产且开启了自动转写，触发任务", { assetId: asset.id });
         startTranscription();
       }
     }
@@ -192,16 +259,31 @@ watch(
   () => currentAsset.value?.importStatus,
   async (newStatus, oldStatus) => {
     if (!currentAsset.value) return;
+    logger.debug("资产导入状态变化", { oldStatus, newStatus, assetId: currentAsset.value.id });
 
-    // 当资产从 importing 变为 complete 时，更新预览 URL
-    if ((oldStatus === "pending" || oldStatus === "importing") && newStatus === "complete") {
-      logger.info("资产导入完成，更新预览 URL", {
+    // 当资产变为 complete 时，更新预览 URL（放宽条件，只要变为 complete 就处理）
+    if (newStatus === "complete") {
+      logger.info("资产导入完成，更新状态", {
         assetId: currentAsset.value.id,
         name: currentAsset.value.name,
+        newStatus,
       });
 
+      // 识别文本类型
+      const isText = isTextFile(currentAsset.value.name, currentAsset.value.mimeType || "");
+      logger.debug("导入完成后重新识别文本类型", { isText });
+
       // 更新资产类型（上传后可能识别得更准确）
-      previewType.value = currentAsset.value.type as any;
+      previewType.value = isText ? "text" : (currentAsset.value.type as any);
+
+      // 如果是纯文本，设置语言
+      if (isText) {
+        const ext = getExtension(currentAsset.value.name);
+        const langDef = getLanguageDefinition(ext);
+        editorLanguage.value = langDef ? langDef.id : "plaintext";
+      } else {
+        editorLanguage.value = "markdown";
+      }
 
       // 重新获取资产 URL
       if (!basePath.value) {
@@ -220,10 +302,25 @@ watch(
         );
       }
 
-      // 1. 资产导入完成，首先检查是否命中了已有结果（秒传）
+      // 1. 如果是纯文本，直接读取展示
+      if (isText) {
+        try {
+          logger.info("导入完成，读取纯文本内容", { path: currentAsset.value.path });
+          const buffer = await assetManagerEngine.getAssetBinary(currentAsset.value.path);
+          const text = new TextDecoder("utf-8").decode(buffer);
+          logger.debug("读取到文本内容长度", { length: text.length });
+          resultText.value = text;
+          showResult.value = true;
+          return;
+        } catch (e) {
+          logger.warn("读取纯文本内容失败", e);
+        }
+      }
+
+      // 2. 资产导入完成，首先检查是否命中了已有结果（秒传）
       const hasResult = await tryLoadExistingResult(currentAsset.value);
 
-      // 2. 如果没有结果且启用了自动转写，立即触发
+      // 3. 如果没有结果且启用了自动转写，立即触发
       if (!hasResult && store.config.autoStartOnImport) {
         logger.info("资产后台上传完成，自动触发转写任务", { assetId: currentAsset.value.id });
         startTranscription();
@@ -239,6 +336,18 @@ const startTranscription = async () => {
   // 检查资产是否正在导入
   if (isImporting.value) {
     customMessage.warning("请等待文件上传完成后再开始转写");
+    return;
+  }
+
+  if (previewType.value === "text") {
+    customMessage.info("该文件已经是纯文本，无需转写");
+    return;
+  }
+
+  // 检查是否支持
+  const supportedTypes = ["image", "audio", "video", "document"];
+  if (!supportedTypes.includes(currentAsset.value.type)) {
+    customMessage.error(`不支持转写 ${currentAsset.value.type} 类型的文件`);
     return;
   }
 
@@ -260,6 +369,9 @@ watch(
     isProcessing.value = task.status === "processing" || task.status === "pending";
 
     if (task.status === "completed") {
+      // 转写结果通常是 markdown
+      editorLanguage.value = "markdown";
+
       if (task.resultText) {
         resultText.value = task.resultText;
       } else if (task.resultPath) {
@@ -376,7 +488,7 @@ const clearPreview = () => {
     <!-- 主工作区 -->
     <div class="workbench-main">
       <!-- 左侧：预览区 -->
-      <div class="preview-section">
+      <div class="preview-section" :class="{ 'is-text-preview': previewType === 'text' }">
         <!-- 预览区标题栏：放置核心操作 -->
         <div class="preview-header" v-if="currentAsset">
           <div class="header-left">
@@ -392,7 +504,7 @@ const clearPreview = () => {
           <div v-if="!currentAsset" class="upload-area" :class="{ highlight: isDraggingOver }">
             <el-icon :size="64"><Upload /></el-icon>
             <p>拖放文件到此处，或粘贴文件</p>
-            <p class="hint-text">支持图片、音频、视频或 PDF</p>
+            <p class="hint-text">支持图片、音频、视频、PDF 或纯文本</p>
           </div>
           <div v-else class="asset-preview">
             <!-- 图片预览 -->
@@ -435,13 +547,48 @@ const clearPreview = () => {
             </div>
             <!-- 文档预览 -->
             <div v-else-if="previewType === 'document'" class="document-preview">
-              <FileIcon :file-name="currentAsset.name" :file-type="currentAsset.type" :size="64" />
-              <span class="document-name">{{ currentAsset.name }}</span>
+              <div class="file-icon-wrapper">
+                <FileIcon
+                  :file-name="currentAsset.name"
+                  :file-type="currentAsset.type"
+                  :size="80"
+                />
+              </div>
+              <div class="file-details">
+                <span class="document-name">{{ currentAsset.name }}</span>
+                <div class="file-meta">
+                  <span class="meta-tag">{{ currentAsset.mimeType }}</span>
+                  <span class="meta-tag">{{ (currentAsset.size / 1024).toFixed(1) }} KB</span>
+                </div>
+              </div>
+            </div>
+            <!-- 纯文本预览 -->
+            <div v-else-if="previewType === 'text'" class="document-preview text-file">
+              <div class="file-icon-wrapper">
+                <FileIcon :file-name="currentAsset.name" file-type="document" :size="80" />
+              </div>
+              <div class="file-details">
+                <span class="document-name">{{ currentAsset.name }}</span>
+                <div class="file-meta">
+                  <span class="meta-tag text-type">纯文本</span>
+                  <span class="meta-tag">{{ (currentAsset.size / 1024).toFixed(1) }} KB</span>
+                </div>
+                <p class="hint-text">该文件已是纯文本，已在右侧直接展示内容</p>
+              </div>
             </div>
             <!-- 未知类型 -->
             <div v-else class="unknown-preview">
-              <FileIcon :file-name="currentAsset.name" :file-type="currentAsset.type" :size="64" />
-              <span>不支持预览此文件类型</span>
+              <div class="file-icon-wrapper grayscale">
+                <FileIcon
+                  :file-name="currentAsset.name"
+                  :file-type="currentAsset.type"
+                  :size="80"
+                />
+              </div>
+              <div class="file-details">
+                <span class="document-name">{{ currentAsset.name }}</span>
+                <p class="error-text">不支持转写此文件类型</p>
+              </div>
             </div>
           </div>
         </div>
@@ -462,7 +609,7 @@ const clearPreview = () => {
           <div class="result-editor">
             <RichCodeEditor
               v-model="resultText"
-              language="markdown"
+              :language="editorLanguage"
               :line-numbers="true"
               editor-type="codemirror"
               class="editor-instance"
@@ -541,6 +688,11 @@ const clearPreview = () => {
   position: relative;
   border-right: 1px solid var(--border-color);
   background-color: var(--container-bg);
+  transition: flex 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.preview-section.is-text-preview {
+  flex: 0 0 300px;
 }
 
 .preview-header {

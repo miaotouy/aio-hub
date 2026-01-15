@@ -135,6 +135,15 @@ export function useTranscriptionManager() {
       return null;
     }
 
+    // 检查是否支持该类型
+    const isText = asset.mimeType?.startsWith("text/") || asset.name.endsWith(".txt") || asset.name.endsWith(".md");
+    const isSupported = engines.some(e => e.canHandle(asset)) || isText;
+
+    if (!isSupported) {
+      logger.warn("不支持的资产类型，无法添加转写任务", { type: asset.type, mime: asset.mimeType });
+      return null;
+    }
+
     const task: TranscriptionTask = {
       id: crypto.randomUUID(),
       assetId: asset.id,

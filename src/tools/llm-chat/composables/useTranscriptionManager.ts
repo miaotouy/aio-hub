@@ -1,8 +1,10 @@
-import { watch } from "vue";
+import { watch, onUnmounted } from "vue";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useChatInputManager } from "./useChatInputManager";
 import { useChatSettings } from "./useChatSettings";
 import { transcriptionRegistry } from "@/tools/transcription/transcription.registry";
 import { useTranscriptionStore } from "@/tools/transcription/stores/transcriptionStore";
@@ -12,9 +14,13 @@ import type { Asset } from "@/types/asset-management";
 const logger = createModuleLogger("useTranscriptionManager");
 const errorHandler = createModuleErrorHandler("useTranscriptionManager");
 
+// 使用全局状态来追踪已处理的资产，防止在组件生命周期内重复触发
+const processedAssetIds = new Set<string>();
+
 export function useTranscriptionManager() {
   const { settings } = useChatSettings();
   const transcriptionStore = useTranscriptionStore();
+  let unlistenAssetImport: UnlistenFn | null = null;
 
   /**
    * 初始化管理器，将 llm-chat 的转写配置同步到工具 Store
@@ -23,8 +29,6 @@ export function useTranscriptionManager() {
     logger.info("正在初始化转写管理器 (llm-chat 适配层)...");
 
     // 1. 同步配置
-    // 注意：这里我们选择将 llm-chat 的配置单向同步给 transcriptionStore
-    // 这样 transcriptionStore 就能使用 llm-chat 中定义的模型和 Prompt
     const syncConfig = () => {
       const chatConfig = settings.value.transcription;
       Object.assign(transcriptionStore.config, {
@@ -51,23 +55,111 @@ export function useTranscriptionManager() {
 
     syncConfig();
     watch(() => settings.value.transcription, syncConfig, { deep: true });
+
+    // 2. 监听资产导入事件 (作为事件驱动的补充)
+    if (!unlistenAssetImport) {
+      listen<Asset>("asset-imported", (event) => {
+        const asset = event.payload;
+        // 仅处理本模块导入的资产
+        if (asset.sourceModule === "llm-chat" || asset.sourceModule === "llm-chat-paste") {
+          // 如果已经在 watch 中处理过了，这里就跳过
+          if (processedAssetIds.has(asset.id)) return;
+
+          logger.debug("收到资产导入事件，尝试触发转写", { assetId: asset.id });
+          handleAssetImport(asset);
+        }
+      }).then((unlisten) => {
+        unlistenAssetImport = unlisten;
+      });
+    }
+
+    // 3. 显式监听输入框附件的状态变化 (显式可控的转写触发)
+    const inputManager = useChatInputManager();
+
+    watch(
+      () => inputManager.attachments.value,
+      (newAssets) => {
+        const chatConfig = settings.value.transcription;
+        if (!chatConfig.enabled || !chatConfig.autoStartOnImport) return;
+
+        newAssets.forEach((asset) => {
+          // 核心逻辑：如果资产状态是 'complete' 且我们还没处理过它
+          const isReady = asset.importStatus === "complete" && !processedAssetIds.has(asset.id);
+
+          if (isReady) {
+            logger.debug("检测到资产就绪，触发自动转写", {
+              assetId: asset.id,
+              name: asset.name
+            });
+            handleAssetImport(asset);
+          } else if (asset.importStatus === "importing") {
+            // 如果资产正在导入，确保它不在已处理列表中（以防 ID 复用或其他异常）
+            processedAssetIds.delete(asset.id);
+          }
+        });
+
+        // 定期清理不再存在于附件列表中的 ID（可选，为了防止内存增长）
+        if (newAssets.length === 0 && processedAssetIds.size > 100) {
+          processedAssetIds.clear();
+        }
+      },
+      { deep: true, immediate: true }
+    );
   };
 
   /**
    * 处理资产导入（用于自动触发转写）
    */
-  const handleAssetImport = (asset: Asset) => {
+  const handleAssetImport = async (asset: Asset) => {
     const chatConfig = settings.value.transcription;
     const config = transcriptionStore.config;
     if (!chatConfig.enabled || !config.autoStartOnImport) return;
 
+    // 1. 检查是否已经处理过这个 ID (防重)
+    // 注意：如果是从 localStorage 恢复的，我们可能没处理过它，但它可能已经在后端转写过了
+    if (processedAssetIds.has(asset.id)) {
+      const status = getTranscriptionStatus(asset);
+      if (status !== "none" && status !== "error") {
+        return;
+      }
+    }
+
+    // 先标记为已处理，防止并发触发
+    processedAssetIds.add(asset.id);
+
+    // 2. 检查转写内容是否已经存在 (姐姐要求的检查)
+    // 关键：对于持久化恢复的资产，metadata 可能是旧的，我们需要获取最新资产状态
+    let currentAsset = asset;
+    const hasResultInHand = !!asset.metadata?.derived?.transcription?.path;
+
+    if (!hasResultInHand) {
+      // 尝试获取后端最新状态
+      const latest = await assetManagerEngine.getAssetById(asset.id);
+      if (latest) {
+        currentAsset = latest;
+      }
+    }
+
+    const derived = currentAsset.metadata?.derived?.transcription;
+    if (derived?.path) {
+      logger.debug("资产后端已有转写结果，跳过自动触发", { assetId: asset.id });
+      return;
+    }
+
+    // 3. 检查任务列表是否已经有该资产的任务
+    const existingTask = transcriptionStore.getTaskByAssetId(asset.id);
+    if (existingTask && existingTask.status !== "error") {
+      logger.debug("资产已有正在进行的转写任务，跳过自动触发", { assetId: asset.id, status: existingTask.status });
+      return;
+    }
+
     // 解析配置中的模型
     const [profileId, modelId] = (config.modelIdentifier || "").split(":");
 
-    // 检查必要性
-    if (checkTranscriptionNecessity(asset, modelId, profileId)) {
-      logger.info("触发自动转写", { assetId: asset.id });
-      addTask(asset);
+    // 4. 检查必要性
+    if (checkTranscriptionNecessity(currentAsset, modelId, profileId)) {
+      logger.info("触发自动转写", { assetId: asset.id, name: asset.name });
+      addTask(currentAsset);
     }
   };
   /**
@@ -280,6 +372,13 @@ export function useTranscriptionManager() {
       }, 500);
     });
   };
+
+  onUnmounted(() => {
+    if (unlistenAssetImport) {
+      unlistenAssetImport();
+      unlistenAssetImport = null;
+    }
+  });
 
   return {
     tasks: transcriptionStore.tasks,

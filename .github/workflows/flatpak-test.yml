@@ -30,8 +30,8 @@ jobs:
           sudo apt-get install -y flatpak flatpak-builder
           # 添加 Flathub 仓库
           sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          # 安装 Freedesktop SDK 和 Platform
-          sudo flatpak install -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+          # 安装 GNOME SDK 和 Platform (匹配清单文件中的版本 46)
+          sudo flatpak install -y flathub org.gnome.Platform//46 org.gnome.Sdk//46
 
       - name: 安装 Tauri 构建依赖
         run: |

@@ -694,7 +694,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     title: "附件转写",
     icon: FileText,
     items: [
-      // 1. 全局开关与策略
+      // 1. 基础服务配置
       {
         id: "transEnabled",
         label: "启用转写功能",
@@ -703,6 +703,19 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.enabled",
         hint: "开启后，可对图片/音频/PDF附件进行转写，提取文本内容",
         keywords: "transcription enable 启用 转写 pdf",
+      },
+      {
+        id: "transModel",
+        label: "兜底转写模型",
+        component: LlmModelSelector,
+        props: {
+          capabilities: { vision: true, audio: true },
+        },
+        modelPath: "transcription.modelIdentifier",
+        hint: "当具体分类（如图片、视频）未配置独立模型时，将使用此模型作为保底",
+        keywords: "transcription model 转写 模型 兜底",
+        visible: (settings) => settings.transcription.enabled,
+        defaultValue: "",
       },
       {
         id: "transStrategy",
@@ -777,6 +790,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "transcription send behavior 发送 行为",
         visible: (settings) => settings.transcription.enabled,
       },
+
+      // 2. 性能与并发控制
       {
         id: "transMaxConcurrentTasks",
         label:
@@ -792,6 +807,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "同时进行的转写任务数量，建议不要设置过高以免影响性能",
         keywords: "transcription concurrent task 并发 任务",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
       },
       {
         id: "transExecutionDelay",
@@ -808,6 +824,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "每个任务开始前的等待时间，用于控制请求频率，避免触发 API 速率限制 (429 错误)",
         keywords: "transcription delay rate limit 延迟 速率",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
       },
       {
         id: "transMaxRetries",
@@ -823,6 +840,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "转写失败时的自动重试次数",
         keywords: "transcription retry 重试",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
       },
       {
         id: "transTimeout",
@@ -838,6 +856,60 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "转写任务的最大等待时间。在“等待发送”模式下，超时将直接发送原始附件；在“先发送”模式下，超时将停止后台等待并标记为超时。",
         keywords: "transcription timeout 超时",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
+      },
+
+      // 3. 图片转写配置
+      {
+        id: "transImageModel",
+        label: "图片转写模型",
+        component: LlmModelSelector,
+        props: {
+          capabilities: { vision: true },
+        },
+        modelPath: "transcription.image.modelIdentifier",
+        hint: "专门用于图片转写的模型。留空则使用上述兜底模型。",
+        keywords: "transcription image model 图片 转写 模型",
+        visible: (settings) => settings.transcription.enabled,
+        defaultValue: "",
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImagePrompt",
+        label: "图片 Prompt",
+        component: "PromptEditor",
+        props: {
+          rows: 6,
+          placeholder: "输入图片转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.image.customPrompt,
+        },
+        modelPath: "transcription.image.customPrompt",
+        hint: "用于指导模型如何转写图片内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription image prompt 图片 提示词 filename 文件名",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageTemperature",
+        label: "图片温度 ({{ localSettings.transcription.image.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.image.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription image temperature 图片 转写 温度",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+      {
+        id: "transImageMaxTokens",
+        label: "图片输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 32768, step: 1024 },
+        modelPath: "transcription.image.maxTokens",
+        hint: "图片转写结果的最大 token 数",
+        keywords: "transcription image max tokens 图片 转写 上限",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
         id: "transEnableSlicer",
@@ -848,7 +920,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "开启后，对于长图将自动检测空白区域进行切分，提高识别准确率",
         keywords: "transcription slicer 图片 切图 智能",
         visible: (settings) => settings.transcription.enabled,
-        groupCollapsible: { name: "imageSlicerConfig", title: "图片切图配置" },
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
         id: "transSlicerAspectRatio",
@@ -862,7 +934,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           !!settings.transcription.enableImageSlicer,
-        groupCollapsible: { name: "imageSlicerConfig", title: "图片切图配置" },
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
         id: "transSlicerMinCutHeight",
@@ -876,7 +948,113 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           !!settings.transcription.enableImageSlicer,
-        groupCollapsible: { name: "imageSlicerConfig", title: "图片切图配置" },
+        groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
+      },
+
+      // 4. 音频转写配置
+      {
+        id: "transAudioModel",
+        label: "音频转写模型",
+        component: LlmModelSelector,
+        props: {
+          capabilities: { audio: true },
+        },
+        modelPath: "transcription.audio.modelIdentifier",
+        hint: "专门用于音频转写的模型。留空则使用上述兜底模型。",
+        keywords: "transcription audio model 音频 转写 模型",
+        visible: (settings) => settings.transcription.enabled,
+        defaultValue: "",
+        groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
+      },
+      {
+        id: "transAudioPrompt",
+        label: "音频 Prompt",
+        component: "PromptEditor",
+        props: {
+          rows: 6,
+          placeholder: "输入音频转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.audio.customPrompt,
+        },
+        modelPath: "transcription.audio.customPrompt",
+        hint: "用于指导模型如何转写音频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription audio prompt 音频 提示词 filename 文件名",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
+      },
+      {
+        id: "transAudioTemperature",
+        label: "音频温度 ({{ localSettings.transcription.audio.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.audio.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription audio temperature 音频 转写 温度",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
+      },
+      {
+        id: "transAudioMaxTokens",
+        label: "音频输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 32768, step: 1024 },
+        modelPath: "transcription.audio.maxTokens",
+        hint: "音频转写结果的最大 token 数",
+        keywords: "transcription audio max tokens 音频 转写 上限",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
+      },
+
+      // 5. 视频转写配置
+      {
+        id: "transVideoModel",
+        label: "视频转写模型",
+        component: LlmModelSelector,
+        props: {
+          capabilities: { video: true },
+        },
+        modelPath: "transcription.video.modelIdentifier",
+        hint: "专门用于视频转写的模型。留空则使用上述兜底模型。",
+        keywords: "transcription video model 视频 转写 模型",
+        visible: (settings) => settings.transcription.enabled,
+        defaultValue: "",
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
+      },
+      {
+        id: "transVideoPrompt",
+        label: "视频 Prompt",
+        component: "PromptEditor",
+        props: {
+          rows: 6,
+          placeholder: "输入视频转写提示词",
+          defaultValue: DEFAULT_SETTINGS.transcription.video.customPrompt,
+        },
+        modelPath: "transcription.video.customPrompt",
+        hint: "用于指导模型如何转写视频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
+        keywords: "transcription video prompt 视频 提示词 filename 文件名",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
+      },
+      {
+        id: "transVideoTemperature",
+        label: "视频温度 ({{ localSettings.transcription.video.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
+        modelPath: "transcription.video.temperature",
+        hint: "较低的温度会产生更确定性的转写结果",
+        keywords: "transcription video temperature 视频 转写 温度",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
+      },
+      {
+        id: "transVideoMaxTokens",
+        label: "视频输出上限",
+        component: "SliderWithInput",
+        props: { min: 0, max: 32768, step: 1024 },
+        modelPath: "transcription.video.maxTokens",
+        hint: "视频转写结果的最大 token 数",
+        keywords: "transcription video max tokens 视频 转写 上限",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoEnableCompression",
@@ -887,7 +1065,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "开启后，当视频体积超过限制时，将尝试自动调整码率以满足体积要求（需配置 FFmpeg）。",
         keywords: "transcription video compression enable 启用 压缩",
         visible: (settings) => settings.transcription.enabled,
-        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transFFmpegPath",
@@ -901,7 +1079,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           settings.transcription.video.enableCompression,
         defaultValue: "",
         action: "selectFFmpegPath",
-        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxDirectSize",
@@ -920,7 +1098,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.video.enableCompression,
-        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxFps",
@@ -939,7 +1117,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.video.enableCompression,
-        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxResolution",
@@ -958,167 +1136,10 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         visible: (settings) =>
           settings.transcription.enabled &&
           settings.transcription.video.enableCompression,
-        groupCollapsible: { name: "videoConfig", title: "视频处理配置" },
-      },
-      {
-        id: "transModel",
-        label: "兜底转写模型",
-        component: LlmModelSelector,
-        props: {
-          capabilities: { vision: true },
-        },
-        modelPath: "transcription.modelIdentifier",
-        hint: "当具体分类（如图片、视频）未配置独立模型时，将使用此模型作为保底",
-        keywords: "transcription model 转写 模型 兜底",
-        visible: (settings) => settings.transcription.enabled,
-        defaultValue: "",
-      },
-      // 3. 图片配置
-      {
-        id: "transImageModel",
-        label: "图片转写模型",
-        component: LlmModelSelector,
-        props: {
-          capabilities: { vision: true },
-        },
-        modelPath: "transcription.image.modelIdentifier",
-        hint: "专门用于图片转写的模型。留空则使用上述兜底模型。",
-        keywords: "transcription image model 图片 转写 模型",
-        visible: (settings) => settings.transcription.enabled,
-        defaultValue: "",
-      },
-      {
-        id: "transImagePrompt",
-        label: "图片 Prompt",
-        component: "PromptEditor",
-        props: {
-          rows: 6,
-          placeholder: "输入图片转写提示词",
-          defaultValue: DEFAULT_SETTINGS.transcription.image.customPrompt,
-        },
-        modelPath: "transcription.image.customPrompt",
-        hint: "用于指导模型如何转写图片内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
-        keywords: "transcription image prompt 图片 提示词 filename 文件名",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transImageTemperature",
-        label: "图片温度 ({{ localSettings.transcription.image.temperature }})",
-        component: "SliderWithInput",
-        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
-        modelPath: "transcription.image.temperature",
-        hint: "较低的温度会产生更确定性的转写结果",
-        keywords: "transcription image temperature 图片 转写 温度",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transImageMaxTokens",
-        label: "图片输出上限",
-        component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
-        modelPath: "transcription.image.maxTokens",
-        hint: "图片转写结果的最大 token 数",
-        keywords: "transcription image max tokens 图片 转写 上限",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      // 4. 音频配置
-      {
-        id: "transAudioModel",
-        label: "音频转写模型",
-        component: LlmModelSelector,
-        props: {
-          capabilities: { audio: true },
-        },
-        modelPath: "transcription.audio.modelIdentifier",
-        hint: "专门用于音频转写的模型。留空则使用上述兜底模型。",
-        keywords: "transcription audio model 音频 转写 模型",
-        visible: (settings) => settings.transcription.enabled,
-        defaultValue: "",
-      },
-      {
-        id: "transAudioPrompt",
-        label: "音频 Prompt",
-        component: "PromptEditor",
-        props: {
-          rows: 6,
-          placeholder: "输入音频转写提示词",
-          defaultValue: DEFAULT_SETTINGS.transcription.audio.customPrompt,
-        },
-        modelPath: "transcription.audio.customPrompt",
-        hint: "用于指导模型如何转写音频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
-        keywords: "transcription audio prompt 音频 提示词 filename 文件名",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transAudioTemperature",
-        label: "音频温度 ({{ localSettings.transcription.audio.temperature }})",
-        component: "SliderWithInput",
-        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
-        modelPath: "transcription.audio.temperature",
-        hint: "较低的温度会产生更确定性的转写结果",
-        keywords: "transcription audio temperature 音频 转写 温度",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transAudioMaxTokens",
-        label: "音频输出上限",
-        component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
-        modelPath: "transcription.audio.maxTokens",
-        hint: "音频转写结果的最大 token 数",
-        keywords: "transcription audio max tokens 音频 转写 上限",
-        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
 
-      // 5. 视频配置
-      {
-        id: "transVideoModel",
-        label: "视频转写模型",
-        component: LlmModelSelector,
-        props: {
-          capabilities: { video: true },
-        },
-        modelPath: "transcription.video.modelIdentifier",
-        hint: "专门用于视频转写的模型。留空则使用上述兜底模型。",
-        keywords: "transcription video model 视频 转写 模型",
-        visible: (settings) => settings.transcription.enabled,
-        defaultValue: "",
-      },
-      {
-        id: "transVideoPrompt",
-        label: "视频 Prompt",
-        component: "PromptEditor",
-        props: {
-          rows: 6,
-          placeholder: "输入视频转写提示词",
-          defaultValue: DEFAULT_SETTINGS.transcription.video.customPrompt,
-        },
-        modelPath: "transcription.video.customPrompt",
-        hint: "用于指导模型如何转写视频内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
-        keywords: "transcription video prompt 视频 提示词 filename 文件名",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transVideoTemperature",
-        label: "视频温度 ({{ localSettings.transcription.video.temperature }})",
-        component: "SliderWithInput",
-        props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
-        modelPath: "transcription.video.temperature",
-        hint: "较低的温度会产生更确定性的转写结果",
-        keywords: "transcription video temperature 视频 转写 温度",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      {
-        id: "transVideoMaxTokens",
-        label: "视频输出上限",
-        component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
-        modelPath: "transcription.video.maxTokens",
-        hint: "视频转写结果的最大 token 数",
-        keywords: "transcription video max tokens 视频 转写 上限",
-        visible: (settings) => settings.transcription.enabled,
-      },
-      // 6. 文档配置
+      // 6. 文档转写配置
       {
         id: "transDocumentModel",
         label: "文档转写模型",
@@ -1131,6 +1152,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "transcription document model 文档 转写 模型",
         visible: (settings) => settings.transcription.enabled,
         defaultValue: "",
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
       {
         id: "transDocumentPrompt",
@@ -1145,6 +1167,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "用于指导模型如何解析和转录文档内容。<br />支持占位符：<code>{filename}</code> - 附件的原始文件名。",
         keywords: "transcription document prompt 文档 提示词 filename 文件名",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
       {
         id: "transDocumentTemperature",
@@ -1155,6 +1178,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "较低的温度会产生更确定性的转写结果",
         keywords: "transcription document temperature 文档 转写 温度",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
       {
         id: "transDocumentMaxTokens",
@@ -1165,6 +1189,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "文档转写结果的最大 token 数",
         keywords: "transcription document max tokens 文档 转写 上限",
         visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "documentConfig", title: "文档转写配置" },
       },
     ],
   },

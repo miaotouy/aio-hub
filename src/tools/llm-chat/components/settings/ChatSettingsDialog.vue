@@ -64,55 +64,14 @@
                   <span>{{ section.title }}</span>
                 </div>
 
-                <template v-for="(item, itemIndex) in section.items" :key="item.id">
-                  <!-- 如果是分组折叠项 -->
-                  <template v-if="item.groupCollapsible">
-                    <!-- 只有组内第一个元素负责渲染折叠容器 -->
-                    <template
-                      v-if="
-                        itemIndex === 0 ||
-                        section.items[itemIndex - 1].groupCollapsible?.name !==
-                          item.groupCollapsible.name
-                      "
-                    >
-                      <el-collapse
-                        v-model="activeGroupCollapses"
-                        class="group-collapsible-container"
-                      >
-                        <el-collapse-item
-                          :title="item.groupCollapsible.title"
-                          :name="item.groupCollapsible.name"
-                        >
-                          <template
-                            v-for="subItem in section.items.filter(
-                              (i) => i.groupCollapsible?.name === item.groupCollapsible!.name
-                            )"
-                            :key="subItem.id"
-                          >
-                            <SettingItemRenderer
-                              v-if="!subItem.visible || subItem.visible(localSettings)"
-                              :item="subItem"
-                              :settings="localSettings"
-                              @update:settings="handleSettingsUpdate"
-                              @action="handleAction"
-                              :is-highlighted="highlightedItemId === subItem.id"
-                            />
-                          </template>
-                        </el-collapse-item>
-                      </el-collapse>
-                    </template>
-                  </template>
-
-                  <!-- 普通项 (没有分组折叠) -->
-                  <SettingItemRenderer
-                    v-else-if="!item.visible || item.visible(localSettings)"
-                    :item="item"
-                    :settings="localSettings"
-                    @update:settings="handleSettingsUpdate"
-                    @action="handleAction"
-                    :is-highlighted="highlightedItemId === item.id"
-                  />
-                </template>
+                <SettingListRenderer
+                  :items="section.items"
+                  :settings="localSettings"
+                  v-model:active-groups="activeGroupCollapses"
+                  :highlighted-item-id="highlightedItemId"
+                  @update:settings="handleSettingsUpdate"
+                  @action="handleAction"
+                />
               </div>
               <el-divider v-if="sectionIndex < mergedSettingsConfig.length - 1" />
             </template>
@@ -168,7 +127,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import SettingItemRenderer from "@/components/common/SettingItemRenderer.vue";
+import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { type ChatSettings, DEFAULT_SETTINGS } from "../../types/settings";
@@ -681,30 +640,6 @@ watch(
 
 .tab-label .el-icon {
   font-size: 16px;
-}
-
-.group-collapsible-container {
-  margin-left: 26px;
-  margin-bottom: 20px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.group-collapsible-container :deep(.el-collapse-item__header) {
-  padding-left: 16px;
-  font-weight: 500;
-  background-color: var(--el-fill-color-light);
-  height: 40px;
-  line-height: 40px;
-}
-
-.group-collapsible-container :deep(.el-collapse-item__content) {
-  padding: 16px 0 0 0;
-}
-
-.group-collapsible-container :deep(.el-form-item) {
-  margin-bottom: 16px;
 }
 
 /* Section 高亮动画 */

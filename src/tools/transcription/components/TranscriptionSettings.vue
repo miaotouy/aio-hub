@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
-import SettingItemRenderer from "@/components/common/SettingItemRenderer.vue";
+import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { transcriptionSettingsConfig } from "../config";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -46,10 +46,8 @@ const handleUpdate = (newConfig: any) => {
             </div>
           </template>
           <div class="section-content">
-            <SettingItemRenderer
-              v-for="item in section.items"
-              :key="item.id"
-              :item="item"
+            <SettingListRenderer
+              :items="section.items"
               :settings="store.config"
               @update:settings="handleUpdate"
               @action="handleAction"
@@ -64,14 +62,16 @@ const handleUpdate = (newConfig: any) => {
 <style scoped>
 .transcription-settings {
   height: 100%;
-  padding: 24px;
   overflow-y: auto;
   background-color: transparent;
+  box-sizing: border-box;
 }
 
 .settings-form {
   max-width: 800px;
   margin: 0 auto;
+  padding: 24px;
+  padding-bottom: 48px; /* 增加底部间距确保滚动到底 */
   display: flex;
   flex-direction: column;
   gap: 32px;

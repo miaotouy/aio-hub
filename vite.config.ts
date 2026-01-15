@@ -76,8 +76,19 @@ export default defineConfig({
     ],
   },
 
+  // Worker 配置
+  worker: {
+    format: 'es',
+    plugins: () => [
+      // 可以在这里添加需要的插件
+    ],
+  },
+
   // 构建配置
   build: {
+    // 禁用资产内联，防止 Worker 脚本被转换为错误的 Data URL (如 video/mp2t)
+    assetsInlineLimit: 0,
+
     // 增加 chunk 大小警告阈值到 1000 KiB
     chunkSizeWarningLimit: 1000,
     

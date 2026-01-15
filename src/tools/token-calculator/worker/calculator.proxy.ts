@@ -1,5 +1,6 @@
 import type { VisionTokenCost } from '@/types/llm-profiles';
 import type { TokenCalculationResult } from '../composables/useTokenCalculator';
+import CalculatorWorker from './calculator.worker?worker';
 
 /**
  * Token 计算 Worker 代理
@@ -20,9 +21,9 @@ class TokenCalculatorProxy {
 
   private initWorker() {
     try {
-      // 使用 Vite 的 Worker 加载方式
-      const CalculatorWorker = new URL('./calculator.worker.ts', import.meta.url);
-      this.worker = new Worker(CalculatorWorker, { type: 'module' });
+      // 使用 Vite 推荐的 Worker 导入方式
+      // 这种方式在生产环境下会自动处理路径和 MIME 类型
+      this.worker = new CalculatorWorker();
 
       this.worker.onmessage = (event) => {
         const { id, type, result, error } = event.data;

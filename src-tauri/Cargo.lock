@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "aiohub"
-version = "0.4.9-beta.1"
+version = "0.4.9-beta.2"
 dependencies = [
  "anyhow",
  "async-stream",

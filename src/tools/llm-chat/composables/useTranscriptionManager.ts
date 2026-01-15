@@ -1,4 +1,4 @@
-import { watch, onUnmounted } from "vue";
+import { watch } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -18,10 +18,20 @@ const errorHandler = createModuleErrorHandler("useTranscriptionManager");
 // 使用全局状态来追踪已处理的资产，防止在组件生命周期内重复触发
 const processedAssetIds = new Set<string>();
 
+// 模块级别的单例状态，防止重复注册监听器
+let unlistenAssetImport: UnlistenFn | null = null;
+
+/**
+ * 转写管理器 (llm-chat 适配层)
+ * 采用单例模式，确保在非组件上下文（如工具函数、异步任务）中调用时不会触发 Vue 生命周期警告，
+ * 且不会重复注册监听器。
+ */
+
+// 模块级别的状态引用
+const { settings } = useChatSettings();
+
 export function useTranscriptionManager() {
-  const { settings } = useChatSettings();
   const transcriptionStore = useTranscriptionStore();
-  let unlistenAssetImport: UnlistenFn | null = null;
 
   /**
    * 内部工具：检查资产是否支持转写
@@ -166,6 +176,7 @@ export function useTranscriptionManager() {
 
     // 2. 监听资产导入事件 (作为事件驱动的补充)
     if (!unlistenAssetImport) {
+      logger.debug("注册资产导入监听器");
       listen<Asset>("asset-imported", (event) => {
         const asset = event.payload;
         // 仅处理本模块导入的资产
@@ -445,12 +456,9 @@ export function useTranscriptionManager() {
     });
   };
 
-  onUnmounted(() => {
-    if (unlistenAssetImport) {
-      unlistenAssetImport();
-      unlistenAssetImport = null;
-    }
-  });
+  // 注意：不再在 Composable 顶层直接注册 onUnmounted，
+  // 因为这个 Composable 经常在非组件上下文（如 resolveAttachmentContent）中被调用。
+  // 监听器的清理应该由显式调用 init 的组件负责，或者采用全局单例模式不清理。
 
   return {
     tasks: transcriptionStore.tasks,

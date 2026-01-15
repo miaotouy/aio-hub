@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { InfoFilled } from '@element-plus/icons-vue';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import { customMessage } from '@/utils/customMessage';
-import type { LlmProfile } from '@/types/llm-profiles';
+import { ref, watch } from "vue";
+import { InfoFilled } from "@element-plus/icons-vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import { customMessage } from "@/utils/customMessage";
+import type { LlmProfile } from "@/types/llm-profiles";
 
-type CustomEndpoints = NonNullable<LlmProfile['customEndpoints']>;
+type CustomEndpoints = NonNullable<LlmProfile["customEndpoints"]>;
 
 interface Props {
   visible: boolean;
@@ -13,8 +13,8 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'update:visible', value: boolean): void;
-  (e: 'update:modelValue', value: CustomEndpoints): void;
+  (e: "update:visible", value: boolean): void;
+  (e: "update:modelValue", value: CustomEndpoints): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -33,11 +33,15 @@ function initTempEndpoints() {
 }
 
 // 监听弹窗打开
-watch(() => props.visible, (visible) => {
-  if (visible) {
-    initTempEndpoints();
-  }
-}, { immediate: true });
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      initTempEndpoints();
+    }
+  },
+  { immediate: true }
+);
 
 // 确认保存
 function handleConfirm() {
@@ -50,14 +54,14 @@ function handleConfirm() {
     }
   });
 
-  emit('update:modelValue', result);
-  emit('update:visible', false);
-  customMessage.success('高级端点配置已保存');
+  emit("update:modelValue", result);
+  emit("update:visible", false);
+  customMessage.success("高级端点配置已保存");
 }
 
 // 取消
 function handleCancel() {
-  emit('update:visible', false);
+  emit("update:visible", false);
 }
 
 // 重置
@@ -82,8 +86,13 @@ function handleReset() {
           <div class="alert-content">
             <p>在这里你可以为不同的 API 功能指定自定义路径或完整的 URL。</p>
             <ul>
-              <li>如果填写<strong>相对路径</strong>（如 <code>/v1/chat/completions</code>），将拼接到基础地址。</li>
-              <li>如果填写<strong>完整 URL</strong>（以 <code>http</code> 开头），将直接使用该地址。</li>
+              <li>
+                如果填写<strong>相对路径</strong>（如
+                <code>/v1/chat/completions</code>），将拼接到基础地址。
+              </li>
+              <li>
+                如果填写<strong>完整 URL</strong>（以 <code>http</code> 开头），将直接使用该地址。
+              </li>
               <li>留空则使用系统默认计算的端点。</li>
             </ul>
           </div>
@@ -92,7 +101,11 @@ function handleReset() {
         <el-form :model="tempEndpoints" label-width="160px" label-position="left">
           <el-divider content-position="left">核心功能</el-divider>
           <el-form-item label="聊天补全 (Chat)">
-            <el-input v-model="tempEndpoints.chatCompletions" placeholder="/v1/chat/completions" clearable />
+            <el-input
+              v-model="tempEndpoints.chatCompletions"
+              placeholder="/v1/chat/completions"
+              clearable
+            />
           </el-form-item>
           <el-form-item label="文本补全 (Completions)">
             <el-input v-model="tempEndpoints.completions" placeholder="/v1/completions" clearable />
@@ -104,25 +117,66 @@ function handleReset() {
             <el-input v-model="tempEndpoints.embeddings" placeholder="/v1/embeddings" clearable />
           </el-form-item>
 
-          <el-divider content-position="left">多媒体与高级功能</el-divider>
-          <el-form-item label="图像生成 (Images)">
-            <el-input v-model="tempEndpoints.imagesGenerations" placeholder="/v1/images/generations" clearable />
+          <el-divider content-position="left">图像功能 (Images)</el-divider>
+          <el-form-item label="图像生成">
+            <el-input
+              v-model="tempEndpoints.imagesGenerations"
+              placeholder="/v1/images/generations"
+              clearable
+            />
           </el-form-item>
-          <el-form-item label="重排 (Rerank)">
-            <el-input v-model="tempEndpoints.rerank" placeholder="/v1/rerank" clearable />
+          <el-form-item label="图像编辑">
+            <el-input
+              v-model="tempEndpoints.imagesEdits"
+              placeholder="/v1/images/edits"
+              clearable
+            />
           </el-form-item>
+          <el-form-item label="图像变体">
+            <el-input
+              v-model="tempEndpoints.imagesVariations"
+              placeholder="/v1/images/variations"
+              clearable
+            />
+          </el-form-item>
+
+          <el-divider content-position="left">音频功能 (Audio)</el-divider>
           <el-form-item label="语音合成 (TTS)">
-            <el-input v-model="tempEndpoints.audioSpeech" placeholder="/v1/audio/speech" clearable />
+            <el-input
+              v-model="tempEndpoints.audioSpeech"
+              placeholder="/v1/audio/speech"
+              clearable
+            />
           </el-form-item>
           <el-form-item label="语音转文字 (STT)">
-            <el-input v-model="tempEndpoints.audioTranscriptions" placeholder="/v1/audio/transcriptions" clearable />
+            <el-input
+              v-model="tempEndpoints.audioTranscriptions"
+              placeholder="/v1/audio/transcriptions"
+              clearable
+            />
           </el-form-item>
+          <el-form-item label="语音翻译">
+            <el-input
+              v-model="tempEndpoints.audioTranslations"
+              placeholder="/v1/audio/translations"
+              clearable
+            />
+          </el-form-item>
+
+          <el-divider content-position="left">视频与高级功能</el-divider>
           <el-form-item label="视频生成 (Videos)">
             <el-input v-model="tempEndpoints.videos" placeholder="/v1/videos" clearable />
           </el-form-item>
           <el-form-item label="视频状态查询">
-            <el-input v-model="tempEndpoints.videoStatus" placeholder="/v1/videos/{video_id}" clearable />
+            <el-input
+              v-model="tempEndpoints.videoStatus"
+              placeholder="/v1/videos/{video_id}"
+              clearable
+            />
             <div class="field-hint">支持 <code>{video_id}</code> 占位符替换</div>
+          </el-form-item>
+          <el-form-item label="重排 (Rerank)">
+            <el-input v-model="tempEndpoints.rerank" placeholder="/v1/rerank" clearable />
           </el-form-item>
 
           <el-divider content-position="left">其他</el-divider>

@@ -28,7 +28,6 @@ export function useTranscriptionManager() {
     const syncConfig = () => {
       const chatConfig = settings.value.transcription;
       Object.assign(transcriptionStore.config, {
-        enabled: chatConfig.enabled,
         strategy: chatConfig.strategy,
         forceTranscriptionAfter: chatConfig.forceTranscriptionAfter,
         autoStartOnImport: chatConfig.autoStartOnImport,
@@ -58,8 +57,9 @@ export function useTranscriptionManager() {
    * 处理资产导入（用于自动触发转写）
    */
   const handleAssetImport = (asset: Asset) => {
+    const chatConfig = settings.value.transcription;
     const config = transcriptionStore.config;
-    if (!config.enabled || !config.autoStartOnImport) return;
+    if (!chatConfig.enabled || !config.autoStartOnImport) return;
 
     // 解析配置中的模型
     const [profileId, modelId] = (config.modelIdentifier || "").split(":");

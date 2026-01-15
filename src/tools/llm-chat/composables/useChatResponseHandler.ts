@@ -290,7 +290,19 @@ export function useChatResponseHandler() {
       });
     }
 
-    finalNode.content = processedContent;
+    // 如果是续写模式，确保内容包含原始前缀
+    if (finalNode.metadata?.isContinuation) {
+      const prefix = finalNode.metadata.continuationPrefix || "";
+      // 如果 processedContent 已经包含了前缀（某些模型可能会重复输出），则不重复拼接
+      if (processedContent.startsWith(prefix)) {
+        finalNode.content = processedContent;
+      } else {
+        finalNode.content = prefix + processedContent;
+      }
+    } else {
+      finalNode.content = processedContent;
+    }
+
     finalNode.status = "complete";
 
     // 保留流式更新时设置的推理内容和时间戳

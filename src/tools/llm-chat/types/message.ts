@@ -271,6 +271,10 @@ export interface ChatMessageNode {
     };
     /** 是否为续写的前缀消息 */
     isContinuationPrefix?: boolean;
+    /** 是否为续写模式生成的节点 */
+    isContinuation?: boolean;
+    /** 续写时的原始前缀内容 */
+    continuationPrefix?: string;
     /** 是否为压缩/摘要节点 */
     isCompressionNode?: boolean;
     /** 被此节点压缩/隐藏的节点 ID 列表 */

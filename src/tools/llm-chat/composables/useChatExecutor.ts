@@ -172,6 +172,7 @@ export function useChatExecutor() {
     assistantNode.metadata = {
       ...assistantNode.metadata,
       requestStartTime: Date.now(),
+      isContinuation: isContinuation || undefined, // 记录续写标记
       profileName: profile?.name,
       profileDisplayName: profile?.name,
       providerType: profile?.type,

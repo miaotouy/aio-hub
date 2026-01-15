@@ -273,7 +273,12 @@ export function useNodeManager() {
         content: targetNode.content, // 初始内容等于原内容
         parentId: targetNode.parentId,
         status: 'generating',
-        metadata: targetNode.metadata ? { ...targetNode.metadata } : undefined,
+        metadata: targetNode.metadata ? {
+          ...targetNode.metadata,
+          continuationPrefix: targetNode.content // 记录原始前缀，用于后续拼接校验
+        } : {
+          continuationPrefix: targetNode.content
+        },
       });
 
       addNodeToSession(session, newAssistantNode);

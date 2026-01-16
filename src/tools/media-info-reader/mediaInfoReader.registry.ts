@@ -3,7 +3,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { readFile } from '@tauri-apps/plugin-fs';
 import { useMediaInfoParser } from './composables/useMediaInfoParser';
-import type { ImageMetadataResult, WebUIInfo } from './composables/useMediaInfoParser';
+import type { ImageMetadataResult, WebUIInfo } from './types';
 import { markRaw } from "vue";
 import { PictureFilled } from '@element-plus/icons-vue';
 
@@ -17,15 +17,15 @@ export type { ImageMetadataResult, WebUIInfo };
 // ==================== 服务类 ====================
 
 /**
- * AI 图片元数据读取器服务
- * 
- * 提供从 AI 生成图片中提取元数据的能力
- * 服务层仅作为薄层入口，核心业务逻辑在 useMediaInfoParser composable 中
+ * 媒体信息解析服务
+ *
+ * 提供从 AI 生成图片、SillyTavern 角色卡以及 AioBundle (AIO 角色包) 等文件中提取元数据的能力。
+ * 服务层作为薄层入口，核心业务逻辑由各个 parser 实现。
  */
 export default class MediaInfoReaderRegistry implements ToolRegistry {
   public readonly id = "media-info-reader";
-  public readonly name = "AI 图片元数据读取器";
-  public readonly description = "从 AI 生成的图片（如 Stable Diffusion, ComfyUI）中提取 Prompt 和其他元数据。";
+  public readonly name = "AI 信息解析器";
+  public readonly description = "解析 AI 图片（SD/ComfyUI）、SillyTavern 角色卡及 AioBundle (AIO 角色包) 的元数据与 Prompt。";
 
   // ==================== 高级封装方法 (Agent 调用接口) ====================
 
@@ -127,10 +127,10 @@ if (result) {
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: 'AI作图信息查看器',
+  name: '媒体信息解析',
   path: '/media-info-reader',
   icon: markRaw(PictureFilled),
   component: () => import('./MediaInfoReader.vue'),
-  description: '读取AI生成图片的元数据(WebUI/ComfyUI)及ST角色卡片信息',
+  description: '深度解析 AI 图片元数据、SillyTavern 角色卡及 AioBundle (AIO 角色包) 信息',
   category: 'AI 工具'
 };

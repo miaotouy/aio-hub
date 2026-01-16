@@ -127,7 +127,7 @@ if (result) {
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: '媒体信息解析',
+  name: 'AI 信息解析',
   path: '/media-info-reader',
   icon: markRaw(PictureFilled),
   component: () => import('./MediaInfoReader.vue'),

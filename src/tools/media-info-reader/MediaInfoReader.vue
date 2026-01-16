@@ -47,14 +47,28 @@
         </el-tab-pane>
 
         <!-- AIO Bundle Tab -->
-        <el-tab-pane label="AIO Bundle" name="aio" v-if="state.aioInfo">
-          <div class="editor-container">
-            <RichCodeEditor
-              :model-value="state.aioInfo"
-              :language="state.aioFormat"
-              :read-only="true"
-              :minimap="false"
-            />
+        <el-tab-pane label="AIO 可视化" name="aio" v-if="state.aioInfo">
+          <AioBundleInfoTab
+            :info="state.aioInfo"
+            :format="state.aioFormat"
+            :cover-url="state.previewSrc"
+          />
+        </el-tab-pane>
+
+        <el-tab-pane label="AIO 源码" name="aio_raw" v-if="state.aioInfo">
+          <div class="full-info-wrapper">
+            <div class="section-header full-info-header">
+              <span class="label">AIO Manifest ({{ state.aioFormat?.toUpperCase() }})</span>
+              <CopyButton :text="state.aioInfo" />
+            </div>
+            <div class="editor-container-flex">
+              <RichCodeEditor
+                :model-value="state.aioInfo"
+                :language="state.aioFormat"
+                :read-only="true"
+                :minimap="false"
+              />
+            </div>
           </div>
         </el-tab-pane>
 
@@ -88,6 +102,7 @@ import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import CopyButton from "./components/CopyButton.vue";
 import StCharacterInfo from "./components/StCharacterInfo.vue";
 import WebUIInfoTab from "./components/WebUIInfoTab.vue";
+import AioBundleInfoTab from "./components/AioBundleInfoTab.vue";
 import ImagePreviewPanel from "./components/ImagePreviewPanel.vue";
 
 import { createModuleLogger } from "@utils/logger";

@@ -6,11 +6,7 @@ import type { Asset } from "@/types/asset-management";
 import TranscriptionWorkbench from "./components/TranscriptionWorkbench.vue";
 import TranscriptionQueue from "./components/TranscriptionQueue.vue";
 import TranscriptionSettings from "./components/TranscriptionSettings.vue";
-import {
-  LayoutDashboard,
-  Activity,
-  Settings,
-} from "lucide-vue-next";
+import { LayoutDashboard, Activity, Settings } from "lucide-vue-next";
 
 const store = useTranscriptionStore();
 const activeTab = ref("workbench");
@@ -18,6 +14,9 @@ const activeTab = ref("workbench");
 let unlistenAssetImport: UnlistenFn | null = null;
 
 onMounted(async () => {
+  // 确保 store 已初始化
+  await store.init();
+
   // 监听资产导入事件
   unlistenAssetImport = await listen<Asset>("asset-imported", (event) => {
     const asset = event.payload;

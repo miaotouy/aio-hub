@@ -5,29 +5,24 @@ import { DEFAULT_TRANSCRIPTION_CONFIG } from "../config";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
+import { transcriptionConfigManager, transcriptionTasksManager } from "../utils/persistence";
 
 const logger = createModuleLogger("transcriptionStore");
-
-const STORAGE_KEY = "aio_transcription_config";
-const STORAGE_KEY_TASKS = "aio_transcription_tasks";
 
 export const useTranscriptionStore = defineStore("transcription", () => {
   // 状态
   const tasks = ref<TranscriptionTask[]>([]);
   const processingCount = ref(0);
   const lastTaskStartTime = ref(0);
+  const isInitialized = ref(false);
 
   // 配置
   const config = ref<TranscriptionConfig>({ ...DEFAULT_TRANSCRIPTION_CONFIG });
 
   // 初始化配置
-  const loadConfig = () => {
+  const loadConfig = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        config.value = { ...DEFAULT_TRANSCRIPTION_CONFIG, ...parsed };
-      }
+      config.value = await transcriptionConfigManager.load();
     } catch (e) {
       logger.warn("加载转写配置失败", e);
     }
@@ -35,27 +30,25 @@ export const useTranscriptionStore = defineStore("transcription", () => {
 
   // 保存配置
   const saveConfig = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config.value));
+    transcriptionConfigManager.saveDebounced(config.value);
   };
 
   // 加载任务
-  const loadTasks = () => {
+  const loadTasks = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_TASKS);
-      if (stored) {
-        const parsed = JSON.parse(stored) as TranscriptionTask[];
-        // 处理未完成的任务：刷新后这些任务的执行上下文已丢失，标记为已取消
-        tasks.value = parsed.map(task => {
-          if (task.status === "processing" || task.status === "pending") {
-            return {
-              ...task,
-              status: "cancelled",
-              error: "应用重启，任务已自动取消"
-            };
-          }
-          return task;
-        });
-      }
+      const data = await transcriptionTasksManager.load();
+      const list = data.list || [];
+      // 处理未完成的任务：刷新后这些任务的执行上下文已丢失，标记为已取消
+      tasks.value = list.map((task) => {
+        if (task.status === "processing" || task.status === "pending") {
+          return {
+            ...task,
+            status: "cancelled",
+            error: "应用重启，任务已自动取消",
+          };
+        }
+        return task;
+      });
     } catch (e) {
       logger.warn("加载转写任务失败", e);
     }
@@ -63,16 +56,38 @@ export const useTranscriptionStore = defineStore("transcription", () => {
 
   // 保存任务
   const saveTasks = () => {
-    // 只保存最近的 100 个任务，防止 localStorage 溢出
-    const tasksToSave = tasks.value.slice(-100);
-    localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasksToSave));
+    // 只保存最近的 500 个任务 (文件持久化可以存更多)
+    const tasksToSave = tasks.value.slice(-500);
+    transcriptionTasksManager.saveDebounced({ list: tasksToSave });
   };
 
   // 监听配置变化并保存
-  watch(config, saveConfig, { deep: true });
+  watch(
+    config,
+    () => {
+      if (!isInitialized.value) return;
+      saveConfig();
+    },
+    { deep: true }
+  );
 
   // 监听任务变化并保存
-  watch(tasks, saveTasks, { deep: true });
+  watch(
+    tasks,
+    () => {
+      if (!isInitialized.value) return;
+      saveTasks();
+    },
+    { deep: true }
+  );
+
+  // 初始化方法
+  const init = async () => {
+    if (isInitialized.value) return;
+    await Promise.all([loadConfig(), loadTasks()]);
+    isInitialized.value = true;
+    logger.info("转写 Store 初始化完成");
+  };
 
   // 任务管理
   const addTask = (task: TranscriptionTask) => {
@@ -129,15 +144,16 @@ export const useTranscriptionStore = defineStore("transcription", () => {
     manager.cancelTask(assetId);
   };
 
-  // 初始化
-  loadConfig();
-  loadTasks();
+  // 立即尝试初始化
+  init();
 
   return {
     tasks,
     config,
     processingCount,
     lastTaskStartTime,
+    isInitialized,
+    init,
     addTask,
     updateTask,
     updateTaskByAssetId,
@@ -145,6 +161,6 @@ export const useTranscriptionStore = defineStore("transcription", () => {
     getTaskByAssetId,
     submitTask,
     cancelTask,
-    saveConfig
+    saveConfig,
   };
 });

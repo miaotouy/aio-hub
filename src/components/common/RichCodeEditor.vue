@@ -695,31 +695,112 @@ defineExpose({
 :deep(.cm-gutter) {
   background-color: var(--input-bg);
 }
-
-/* 确保搜索和替换面板适配主题 */
-:deep(.cm-panel) {
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
+/* 搜索面板适配 - 纯配色适配，不干扰布局 */
+:deep(.cm-panels) {
+  border-top: 1px solid var(--border-color);
+  background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+  z-index: 10;
 }
 
-:deep(.cm-panel input) {
+:deep(.cm-panel.cm-search) {
+  padding: 8px 12px;
+  color: var(--text-color);
+  background: transparent;
+  border: none;
+}
+
+/* 输入框适配 */
+:deep(.cm-panel input.cm-textfield) {
   background-color: var(--input-bg);
   border: 1px solid var(--border-color);
   color: var(--text-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  transition: border-color 0.2s;
+  /* 清除原生阴影和渐变 */
+  box-shadow: none;
+  appearance: none;
 }
 
-:deep(.cm-panel button) {
-  background-color: var(--primary-color);
-  color: #fff;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 3px;
+:deep(.cm-panel input.cm-textfield:focus) {
+  border-color: var(--primary-color);
+}
+
+/* 复选框适配 */
+:deep(.cm-panel label) {
+  font-size: 13px;
+  color: var(--text-color-light);
   cursor: pointer;
 }
 
-:deep(.cm-panel button:hover) {
-  background-color: var(--primary-hover-color);
+:deep(.cm-panel label:hover) {
+  color: var(--text-color);
+}
+
+/* 按钮适配 */
+:deep(.cm-panel button.cm-button) {
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(var(--ui-blur));
+  /* 清除按钮默认渐变和阴影 */
+  background-image: none;
+  box-shadow: none;
+}
+
+:deep(.cm-panel button.cm-button:hover) {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--primary-color);
+}
+
+:deep(.cm-panel button[name="next"]:hover),
+:deep(.cm-panel button[name="prev"]:hover),
+:deep(.cm-panel button[name="replace"]:hover),
+:deep(.cm-panel button[name="replaceAll"]:hover),
+:deep(.cm-panel button[name="select"]:hover) {
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+:deep(.cm-panel button[name="next"]:active),
+:deep(.cm-panel button[name="prev"]:active),
+:deep(.cm-panel button[name="replace"]:active),
+:deep(.cm-panel button[name="replaceAll"]:active),
+:deep(.cm-panel button[name="select"]:active) {
+  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
+}
+
+/* 关闭按钮适配 */
+:deep(.cm-panel [name="close"]) {
+  color: var(--text-color-light);
+  cursor: pointer;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  transition: all 0.2s;
+  font-size: 20px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  background-image: none;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+:deep(.cm-panel [name="close"]:hover) {
+  background-color: color-mix(in srgb, var(--error-color) 15%, transparent);
+  color: var(--error-color);
 }
 
 @media (max-width: 600px) {

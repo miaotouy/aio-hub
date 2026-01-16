@@ -65,6 +65,7 @@ const isImporting = computed(() => {
 const { isDraggingOver } = useFileInteraction({
   element: dropAreaRef,
   pasteMode: "asset",
+  sourceModule: "transcription",
   onAssets: (assets) => {
     if (assets.length > 0) {
       handleAssetSelect(assets[0]);
@@ -73,7 +74,13 @@ const { isDraggingOver } = useFileInteraction({
   onPaths: async (paths) => {
     if (paths.length > 0) {
       try {
-        const asset = await assetManagerEngine.importAssetFromPath(paths[0]);
+        const asset = await assetManagerEngine.importAssetFromPath(paths[0], {
+          origin: {
+            type: "local",
+            source: "file",
+            sourceModule: "transcription",
+          },
+        });
         handleAssetSelect(asset);
       } catch (e) {
         // 错误已由 assetManagerEngine 处理
@@ -460,7 +467,13 @@ const selectFile = async () => {
     });
 
     if (selected && typeof selected === "string") {
-      const asset = await assetManagerEngine.importAssetFromPath(selected);
+      const asset = await assetManagerEngine.importAssetFromPath(selected, {
+        origin: {
+          type: "local",
+          source: "file",
+          sourceModule: "transcription",
+        },
+      });
       handleAssetSelect(asset);
     }
   } catch (e) {
@@ -488,6 +501,13 @@ const clearPreview = () => {
 
       <!-- 中间核心控制区 -->
       <div class="toolbar-center">
+        <div class="auto-start-control">
+          <span class="control-label">自动转写</span>
+          <el-switch v-model="store.config.autoStartOnImport" />
+        </div>
+
+        <el-divider direction="vertical" />
+
         <el-button
           type="primary"
           :icon="Play"
@@ -688,7 +708,23 @@ const clearPreview = () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+}
+
+.auto-start-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--input-bg);
+  padding: 2px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.auto-start-control .control-label {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  user-select: none;
 }
 
 .toolbar-right {

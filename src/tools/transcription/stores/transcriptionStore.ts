@@ -144,6 +144,13 @@ export const useTranscriptionStore = defineStore("transcription", () => {
     manager.cancelTask(assetId);
   };
 
+  /**
+   * 重置配置为默认值
+   */
+  const resetConfig = () => {
+    config.value = { ...DEFAULT_TRANSCRIPTION_CONFIG };
+  };
+
   // 立即尝试初始化
   init();
 
@@ -161,6 +168,7 @@ export const useTranscriptionStore = defineStore("transcription", () => {
     getTaskByAssetId,
     submitTask,
     cancelTask,
+    resetConfig,
     saveConfig,
   };
 });

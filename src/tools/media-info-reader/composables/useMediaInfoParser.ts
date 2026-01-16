@@ -1,24 +1,9 @@
 import { createModuleLogger } from '@/utils/logger';
 import * as exifr from 'exifr';
 import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
+import type { WebUIInfo, ImageMetadataResult } from '../types';
 
 const logger = createModuleLogger('composables/media-info-parser');
-
-// ==================== 类型定义 ====================
-
-export interface WebUIInfo {
-  positivePrompt: string;
-  negativePrompt: string;
-  generationInfo: string;
-  civitaiResources?: any[];
-}
-
-export interface ImageMetadataResult {
-  webuiInfo: WebUIInfo;
-  comfyuiWorkflow: string | object;
-  stCharacterInfo: object | null;
-  fullExifInfo: object | null;
-}
 
 // ==================== 可组合函数 ====================
 

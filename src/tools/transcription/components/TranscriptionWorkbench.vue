@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
 import { useFileInteraction } from "@/composables/useFileInteraction";
@@ -445,6 +446,27 @@ const sendResultToChat = () => {
   if (!resultText.value) return;
   sendToChat(resultText.value);
 };
+// 选择文件
+const selectFile = async () => {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "多媒体文件",
+          extensions: ["png", "jpg", "jpeg", "mp3", "wav", "mp4", "mkv", "pdf", "txt", "md"],
+        },
+      ],
+    });
+
+    if (selected && typeof selected === "string") {
+      const asset = await assetManagerEngine.importAssetFromPath(selected);
+      handleAssetSelect(asset);
+    }
+  } catch (e) {
+    logger.error("选择文件失败", e);
+  }
+};
 
 // 清空预览
 const clearPreview = () => {
@@ -503,8 +525,11 @@ const clearPreview = () => {
         <div class="preview-content">
           <div v-if="!currentAsset" class="upload-area" :class="{ highlight: isDraggingOver }">
             <el-icon :size="64"><Upload /></el-icon>
-            <p>拖放文件到此处，或粘贴文件</p>
-            <p class="hint-text">支持图片、音频、视频、PDF 或纯文本</p>
+            <div class="upload-texts">
+              <p>拖放文件到此处，或粘贴文件</p>
+              <p class="hint-text">支持图片、音频、视频、PDF 或纯文本</p>
+            </div>
+            <el-button type="primary" plain @click="selectFile">选择文件</el-button>
           </div>
           <div v-else class="asset-preview">
             <!-- 图片预览 -->
@@ -741,11 +766,19 @@ const clearPreview = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 20px;
   color: var(--el-text-color-placeholder);
   background-color: var(--input-bg);
   transition: all 0.2s;
   box-sizing: border-box;
+  padding: 40px;
+}
+
+.upload-texts {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .upload-area.highlight {

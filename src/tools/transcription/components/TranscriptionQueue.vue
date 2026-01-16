@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ref } from "vue";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
-import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
+import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { format } from "date-fns";
 import {
@@ -78,10 +77,7 @@ const getStatusLabel = (status: string) => {
 };
 
 const { retryTask, cancelTask, getTranscriptionText, addTask } = useTranscriptionManager();
-
-const showDialog = ref(false);
-const selectedAsset = ref<any>(null);
-const dialogContent = ref("");
+const transcriptionViewer = useTranscriptionViewer();
 
 const handleRetry = async (task: any) => {
   const asset = await assetManagerEngine.getAssetById(task.assetId);
@@ -98,37 +94,25 @@ const handleViewResult = async (task: any) => {
   const asset = await assetManagerEngine.getAssetById(task.assetId);
   if (asset) {
     const text = await getTranscriptionText(asset);
-    selectedAsset.value = asset;
-    dialogContent.value = text || "";
-    showDialog.value = true;
-  }
-};
-
-const handleSaveResult = async (content: string) => {
-  if (!selectedAsset.value) return;
-  // 更新本地 store 中的 task 缓存
-  const task = store.tasks.find((t) => t.assetId === selectedAsset.value.id);
-  if (task) {
-    task.resultText = content;
-  }
-  showDialog.value = false;
-};
-
-const handleRegenerate = ({ modelId, prompt }: { modelId: string; prompt: string }) => {
-  if (!selectedAsset.value) return;
-  addTask(selectedAsset.value, {
-    modelIdentifier: modelId ? `custom:${modelId}` : undefined,
-    customPrompt: prompt || undefined,
-  });
-  showDialog.value = false;
-};
-
-// 监听弹窗关闭，清理选中状态，防止双重弹窗或状态残留
-const handleDialogUpdate = (val: boolean) => {
-  showDialog.value = val;
-  if (!val) {
-    // 弹窗关闭时清理资产引用
-    selectedAsset.value = null;
+    transcriptionViewer.show({
+      asset,
+      initialContent: text || "",
+      onSave: (content) => {
+        // 更新本地 store 中的 task 缓存
+        const t = store.tasks.find((it) => it.assetId === asset.id);
+        if (t) {
+          t.resultText = content;
+        }
+        transcriptionViewer.close();
+      },
+      onRegenerate: ({ modelId, prompt }) => {
+        addTask(asset, {
+          modelIdentifier: modelId ? `custom:${modelId}` : undefined,
+          customPrompt: prompt || undefined,
+        });
+        transcriptionViewer.close();
+      },
+    });
   }
 };
 
@@ -198,17 +182,6 @@ const stats = computed(() => {
                 <span class="filename" :title="row.filename">{{ row.filename }}</span>
                 <span class="asset-id">{{ row.assetId }}</span>
               </div>
-          
-              <!-- 结果查看/编辑弹窗 -->
-              <TranscriptionDialog
-                v-if="selectedAsset"
-                :model-value="showDialog"
-                :asset="selectedAsset"
-                :initial-content="dialogContent"
-                @update:model-value="handleDialogUpdate"
-                @save="handleSaveResult"
-                @regenerate="handleRegenerate"
-              />
             </div>
           </template>
         </el-table-column>

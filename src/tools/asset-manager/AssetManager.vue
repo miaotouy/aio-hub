@@ -99,16 +99,6 @@
     </el-container>
 
     <!-- 文档预览弹窗 -->
-    <!-- 转写编辑器对话框 -->
-    <TranscriptionDialog
-      v-if="showTranscriptionDialog && currentTranscriptionAsset"
-      v-model="showTranscriptionDialog"
-      :asset="currentTranscriptionAsset"
-      :initial-content="currentTranscriptionContent"
-      :show-regenerate="false"
-      @save="handleSaveTranscription"
-    />
-
     <BaseDialog
       v-model="isPreviewDialogVisible"
       :title="selectedAssetForPreview?.name"
@@ -139,6 +129,7 @@ import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManag
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
+import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import { customMessage } from "@/utils/customMessage";
 import type {
   Asset,
@@ -156,7 +147,6 @@ import Sidebar from "./components/Sidebar.vue";
 import AssetGroup from "./components/AssetGroup.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
-import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
@@ -181,6 +171,7 @@ const {
 const imageViewer = useImageViewer();
 const videoViewer = useVideoViewer();
 const audioViewer = useAudioViewer();
+const transcriptionViewer = useTranscriptionViewer();
 
 // --- 状态管理 ---
 const config = ref(createDefaultConfig());
@@ -195,11 +186,6 @@ const lastSelectedAssetId = ref<string | null>(null);
 const isSidebarCollapsed = ref(config.value.sidebarCollapsed);
 const isPreviewDialogVisible = ref(false);
 const selectedAssetForPreview = ref<Asset | null>(null);
-
-// 转写对话框状态
-const showTranscriptionDialog = ref(false);
-const currentTranscriptionAsset = ref<Asset | null>(null);
-const currentTranscriptionContent = ref("");
 
 // 分页与筛选请求载荷
 const listPayload = reactive({
@@ -624,7 +610,7 @@ const groupedAssets = computed(() => {
       switch (groupBy.value) {
         case "month":
           const date = new Date(`${key}-01`);
-          label = formatDateTime(date, 'yyyy年MM月');
+          label = formatDateTime(date, "yyyy年MM月");
           break;
         case "type":
           const typeLabels: Record<AssetType, string> = {
@@ -777,45 +763,35 @@ const handleViewTranscription = async (asset: Asset) => {
     const buffer = await assetManagerEngine.getAssetBinary(derived.path);
     const text = new TextDecoder("utf-8").decode(buffer);
 
-    currentTranscriptionAsset.value = asset;
-    currentTranscriptionContent.value = text;
-    showTranscriptionDialog.value = true;
-  } catch (error) {
-    errorHandler.error(error, "读取转写内容失败");
-  }
-};
+    transcriptionViewer.show({
+      asset,
+      initialContent: text,
+      showRegenerate: false,
+      onSave: async (content) => {
+        const d = asset.metadata?.derived?.transcription;
+        if (!d || !d.path) return;
 
-const handleSaveTranscription = async (content: string) => {
-  if (!currentTranscriptionAsset.value) return;
+        const basePath = await assetManagerEngine.getAssetBasePath();
+        const fullPath = await join(basePath, d.path);
 
-  const asset = currentTranscriptionAsset.value;
-  const derived = asset.metadata?.derived?.transcription;
+        await writeTextFile(fullPath, content);
 
-  if (!derived || !derived.path) {
-    errorHandler.error("无法保存：找不到转写文件路径");
-    return;
-  }
+        // 更新元数据中的更新时间
+        await invoke("update_asset_derived_data", {
+          assetId: asset.id,
+          key: "transcription",
+          data: {
+            ...d,
+            updatedAt: new Date().toISOString(),
+          },
+        });
 
-  try {
-    const basePath = await assetManagerEngine.getAssetBasePath();
-    const fullPath = await join(basePath, derived.path);
-
-    await writeTextFile(fullPath, content);
-
-    // 更新元数据中的更新时间
-    await invoke("update_asset_derived_data", {
-      assetId: asset.id,
-      key: "transcription",
-      data: {
-        ...derived,
-        updatedAt: new Date().toISOString(),
+        customMessage.success("转写内容已保存");
+        transcriptionViewer.close();
       },
     });
-
-    customMessage.success("转写内容已保存");
-    showTranscriptionDialog.value = false;
   } catch (error) {
-    errorHandler.error(error, "保存转写内容失败");
+    errorHandler.error(error, "读取转写内容失败");
   }
 };
 </script>

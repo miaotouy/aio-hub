@@ -4,9 +4,11 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
+import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import ImageViewer from "@/components/common/ImageViewer.vue";
 import VideoViewer from "@/components/common/VideoViewer.vue";
 import AudioViewer from "@/components/common/AudioViewer.vue";
+import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
 import ModelSelectDialog from "@/components/common/ModelSelectDialog.vue";
 import SyncServiceProvider from "@/components/SyncServiceProvider.vue";
 
@@ -16,6 +18,8 @@ const imageViewer = useImageViewer();
 const videoViewer = useVideoViewer();
 // 全局音频查看器状态
 const audioViewer = useAudioViewer();
+// 全局转写查看器状态
+const transcriptionViewer = useTranscriptionViewer();
 
 onMounted(() => {
   // 初始化跨窗口通信总线
@@ -61,6 +65,18 @@ onMounted(() => {
     :playlist="audioViewer.playlist.value"
     :initial-index="audioViewer.initialIndex.value"
     @close="audioViewer.close"
+  />
+
+  <!-- 全局转写编辑器 -->
+  <TranscriptionDialog
+    v-if="transcriptionViewer.state.value.visible && transcriptionViewer.state.value.asset"
+    :model-value="transcriptionViewer.state.value.visible"
+    :asset="transcriptionViewer.state.value.asset"
+    :initial-content="transcriptionViewer.state.value.initialContent"
+    :show-regenerate="transcriptionViewer.state.value.showRegenerate"
+    @update:model-value="transcriptionViewer.close()"
+    @save="transcriptionViewer.state.value.onSave"
+    @regenerate="transcriptionViewer.state.value.onRegenerate"
   />
 
   <!-- 插槽，用于渲染应用主体内容 -->

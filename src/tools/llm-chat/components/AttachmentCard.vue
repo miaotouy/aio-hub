@@ -15,6 +15,7 @@ import type { Asset } from "@/types/asset-management";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
+import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
@@ -23,7 +24,6 @@ import { customMessage } from "@/utils/customMessage";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
-import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
 import { generateVideoThumbnail } from "@/utils/mediaThumbnailUtils";
 
 const logger = createModuleLogger("AttachmentCard");
@@ -60,6 +60,7 @@ const emit = defineEmits<Emits>();
 const { show: showImage } = useImageViewer();
 const { previewVideo } = useVideoViewer();
 const { previewPlaylist: previewAudioPlaylist } = useAudioViewer();
+const transcriptionViewer = useTranscriptionViewer();
 const { saveAssetThumbnail } = useAssetManager();
 const {
   tasks,
@@ -133,9 +134,6 @@ const fileExtension = computed(() => {
   if (index === -1) return "";
   return name.slice(index + 1).toUpperCase();
 });
-
-const showTranscriptionDialog = ref(false);
-const transcriptionContent = ref("");
 
 // 强制依赖 tasks.length，确保任何任务变动都能触发重新计算
 const transcriptionStatus = computed(() => {
@@ -213,30 +211,27 @@ const handleTranscriptionClick = async (e: Event) => {
 
   if (transcriptionStatus.value === "success" || transcriptionStatus.value === "warning") {
     const text = await getTranscriptionText(internalAsset.value);
-    transcriptionContent.value = text || "";
-    showTranscriptionDialog.value = true;
+    transcriptionViewer.show({
+      asset: internalAsset.value,
+      initialContent: text || "",
+      onSave: async (content) => {
+        await updateTranscriptionContent(internalAsset.value, content);
+        customMessage.success("转写内容已更新");
+        transcriptionViewer.close();
+      },
+      onRegenerate: (payload) => {
+        retryTranscription(internalAsset.value, {
+          modelId: payload.modelId,
+          additionalPrompt: payload.prompt,
+        });
+        transcriptionViewer.close();
+      },
+    });
   } else if (transcriptionStatus.value === "error") {
     retryTranscription(internalAsset.value);
   } else if (transcriptionStatus.value === "none") {
     addTask(internalAsset.value);
   }
-};
-
-const handleSaveTranscription = async (content: string) => {
-  try {
-    await updateTranscriptionContent(internalAsset.value, content);
-    showTranscriptionDialog.value = false;
-    customMessage.success("转写内容已更新");
-  } catch (error) {
-    // error handled in composable
-  }
-};
-
-const handleRegenerateTranscription = (payload: { modelId: string; prompt: string }) => {
-  retryTranscription(internalAsset.value, {
-    modelId: payload.modelId,
-    additionalPrompt: payload.prompt,
-  });
 };
 
 // 加载资产 URL
@@ -676,16 +671,6 @@ onUnmounted(() => {
           :show-engine-switch="true"
         />
       </BaseDialog>
-
-      <!-- 转写编辑器对话框 -->
-      <TranscriptionDialog
-        v-if="showTranscriptionDialog"
-        v-model="showTranscriptionDialog"
-        :asset="asset"
-        :initial-content="transcriptionContent"
-        @save="handleSaveTranscription"
-        @regenerate="handleRegenerateTranscription"
-      />
     </div>
 
     <template #dropdown>

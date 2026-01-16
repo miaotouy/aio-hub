@@ -517,6 +517,13 @@ const handleResizeWest = createResizeHandler("West");
 
 // 初始加载
 onMounted(async () => {
+  // 在初始化前，先将当前已有的附件标记为已处理，防止刷新页面后重复触发转写
+  if (inputManager.attachments.value.length > 0) {
+    inputManager.attachments.value.forEach((asset) => {
+      transcriptionManager.markAsProcessed(asset.id);
+    });
+  }
+
   // 初始化转写管理器
   transcriptionManager.init();
 

@@ -141,6 +141,13 @@ export function useTranscriptionManager() {
   };
 
   /**
+   * 标记资产为已处理（防止重复触发自动转写）
+   */
+  const markAsProcessed = (assetId: string) => {
+    processedAssetIds.add(assetId);
+  };
+
+  /**
    * 初始化管理器，将 llm-chat 的转写配置同步到工具 Store
    */
   const init = async () => {
@@ -464,6 +471,7 @@ export function useTranscriptionManager() {
     tasks: transcriptionStore.tasks,
     processingCount: transcriptionStore.processingCount,
     init,
+    markAsProcessed,
     handleAssetImport,
     addTask,
     retryTranscription,

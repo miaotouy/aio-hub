@@ -8,6 +8,44 @@ const logger = createModuleLogger('agentAssetUtils');
 /** 智能体资产协议前缀 */
 const AGENT_ASSET_PROTOCOL = 'agent-asset://';
 
+/** 缓存缺失贴图的 Data URL */
+let _missingTextureDataUrl: string | null = null;
+
+/**
+ * 生成 32x32 的紫黑格子贴图 (Missing Texture)
+ */
+function getMissingTextureUrl(): string {
+  if (_missingTextureDataUrl) return _missingTextureDataUrl;
+
+  try {
+    const size = 32;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      const half = size / 2;
+      // 紫色部分
+      ctx.fillStyle = '#FF00FF';
+      ctx.fillRect(0, 0, half, half);
+      ctx.fillRect(half, half, half, half);
+      // 黑色部分
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(half, 0, half, half);
+      ctx.fillRect(0, half, half, half);
+
+      _missingTextureDataUrl = canvas.toDataURL('image/png');
+      return _missingTextureDataUrl;
+    }
+  } catch (e) {
+    logger.error('生成缺失贴图失败', e as Error);
+  }
+
+  // 回退到 2x2 的简单 Base64
+  return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAZSURBVBhXY/zPw/AfEDMw/AfSDEAMYwYGBgZZSAn78AAAAABJRU5ErkJggg==';
+}
+
 // ============================================================================
 // Agent 资产路径缓存引擎
 // ============================================================================
@@ -33,7 +71,7 @@ export async function initAgentAssetCache(): Promise<void> {
   _cacheInitPromise = (async () => {
     try {
       _cachedAppDataDir = await getAppConfigDir();
-      
+
       // 在 Windows 上，保持反斜杠以确保 convertFileSrc 能正确处理盘符
       const isWindows = _cachedAppDataDir.includes('\\') || _cachedAppDataDir.includes(':');
       if (isWindows) {
@@ -46,7 +84,7 @@ export async function initAgentAssetCache(): Promise<void> {
           _cachedAppDataDir = _cachedAppDataDir.slice(0, -1);
         }
       }
-      
+
       logger.info('Agent 资产缓存已初始化', { appDataDir: _cachedAppDataDir, isWindows });
     } catch (error) {
       logger.error('初始化 agent 资产缓存失败', error as Error);
@@ -90,7 +128,7 @@ export function buildAgentAssetPath(agentId: string, assetPath: string): string 
   // 且正斜杠能避免在 Markdown 环境下被误认为转义符
   const normalizedAssetPath = assetPath.replace(/\\/g, '/');
   const normalizedBase = _cachedAppDataDir.replace(/\\/g, '/');
-  
+
   const separator = normalizedBase.endsWith('/') ? '' : '/';
   return `${normalizedBase}${separator}llm-chat/agents/${agentId}/${normalizedAssetPath}`;
 }
@@ -310,11 +348,30 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
   // 改进正则：排除末尾可能存在的标点符号（如 Markdown 链接的闭括号）
   // 匹配规则：以 agent-asset:// 开头，直到遇到引号、空格、尖括号、或者作为结尾的括号
   const assetPattern = /agent-asset:\/\/[^"'\s<>\)]+?(?=[)\]"'\s<>]|$)/g;
-  
-  result = content.replace(assetPattern, (url) => {
-    return resolveAgentAssetUrlSync(url, agent);
+
+  // 1. 优先处理 Markdown 图片语法: ![alt](agent-asset://...)
+  // 这样如果资产缺失，我们可以将其替换为文本占位符，而不是让它进入 <img> 标签触发 CSP 错误
+  const mdImagePattern = /!\[(.*?)\]\((agent-asset:\/\/[^)]+)\)/g;
+  result = result.replace(mdImagePattern, (_match, alt, url) => {
+    const resolved = resolveAgentAssetUrlSync(url, agent);
+    if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
+      // 资产缺失，替换为文本占位符
+      const parsed = parseAssetUrl(url);
+      const filename = parsed ? (parsed.group ? `${parsed.group}/${parsed.id}` : parsed.id) : url;
+      return `[资产缺失: ${filename}]`;
+    }
+    return `![${alt}](${resolved})`;
   });
 
+  // 2. 处理剩下的孤立链接或 HTML src 属性中的链接
+  result = result.replace(assetPattern, (url) => {
+    const resolved = resolveAgentAssetUrlSync(url, agent);
+    // 如果仍然是协议开头，说明没找到，为了防止浏览器报错，返回贴图缺失效果
+    if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
+      return getMissingTextureUrl();
+    }
+    return resolved;
+  });
 
   return result;
 }

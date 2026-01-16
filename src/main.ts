@@ -22,6 +22,8 @@ import { customMessage } from "./utils/customMessage";
 import { autoRegisterServices } from "./services";
 import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
+// 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
+import "@/utils/monaco-i18n/nls";
 
 const logger = createModuleLogger("Main");
 const moduleErrorHandler = createModuleErrorHandler("Main");

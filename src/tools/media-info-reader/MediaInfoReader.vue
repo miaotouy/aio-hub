@@ -12,11 +12,7 @@
             <el-button :icon="Delete" size="small" @click.stop="clearWorkspace"> 清除 </el-button>
           </div>
         </template>
-        <div
-          ref="dropAreaRef"
-          class="image-preview-area"
-          :class="{ highlight: isDraggingOver }"
-        >
+        <div ref="dropAreaRef" class="image-preview-area" :class="{ highlight: isDraggingOver }">
           <div v-if="!previewSrc" class="upload-prompt">
             <el-icon :size="64"><Upload /></el-icon>
             <p>拖放图片到此处，或粘贴图片</p>
@@ -186,7 +182,6 @@
 import { ref, computed } from "vue";
 import { ElButton, ElEmpty, ElIcon, ElTag } from "element-plus";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readFile } from "@tauri-apps/plugin-fs";
 import { Delete, Upload, FolderOpened } from "@element-plus/icons-vue";
 
 import InfoCard from "@components/common/InfoCard.vue";
@@ -197,12 +192,15 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useMediaInfoParser } from "./composables/useMediaInfoParser";
 import { useFileInteraction } from "@/composables/useFileInteraction";
+import { useAssetManager, type Asset } from "@/composables/useAssetManager";
 
 const logger = createModuleLogger("MediaInfoReader");
 const errorHandler = createModuleErrorHandler("MediaInfoReader");
 
 // 使用 composable 获取解析功能
 const { parseImageBuffer } = useMediaInfoParser();
+const { importAssetFromPath, importAssetFromBytes, getAssetUrl, getAssetBinary } =
+  useAssetManager();
 
 const previewSrc = ref("");
 const activeTab = ref("webui");
@@ -225,16 +223,6 @@ const hasData = computed(
     stCharacterInfo.value ||
     fullExifInfo.value
 );
-
-// 辅助函数：将 Uint8Array 转换为 Base64
-const uint8ArrayToBase64 = (bytes: Uint8Array) => {
-  let binary = "";
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return window.btoa(binary);
-};
 
 const clearWorkspace = () => {
   previewSrc.value = "";
@@ -281,18 +269,33 @@ const openFilePicker = async () => {
         path = (result as FileResponse).path;
       }
 
-      const fileArray = await readFile(path);
+      // 接入资产系统：从路径导入
+      const asset = await importAssetFromPath(path, {
+        sourceModule: "media-info-reader",
+        origin: {
+          type: "local",
+          source: path,
+          sourceModule: "media-info-reader",
+        },
+      });
 
-      // 从缓冲区生成预览
-      const extension = path.split(".").pop()?.toLowerCase() || "png";
-      const base64 = uint8ArrayToBase64(fileArray);
-      previewSrc.value = `data:image/${extension};base64,${base64}`;
-
-      // 直接使用 composable 解析图片
-      await parseImageFromBuffer(fileArray, path);
+      await handleAsset(asset);
     }
   } catch (error) {
     errorHandler.error(error, "打开文件失败");
+  }
+};
+
+const handleAsset = async (asset: Asset) => {
+  try {
+    // 获取预览 URL
+    previewSrc.value = await getAssetUrl(asset);
+
+    // 获取二进制数据进行解析
+    const buffer = await getAssetBinary(asset.path);
+    await parseImageFromBuffer(new Uint8Array(buffer), asset.name);
+  } catch (error) {
+    errorHandler.error(error, "处理资产失败");
   }
 };
 
@@ -343,15 +346,17 @@ const handlePaths = async (paths: string[]) => {
   const path = paths[0];
 
   try {
-    const fileArray = await readFile(path);
-
-    const extension = path.split(".").pop()?.toLowerCase() || "png";
-    const base64 = uint8ArrayToBase64(fileArray);
-    previewSrc.value = `data:image/${extension};base64,${base64}`;
-
-    await parseImageFromBuffer(fileArray, path);
+    const asset = await importAssetFromPath(path, {
+      sourceModule: "media-info-reader",
+      origin: {
+        type: "local",
+        source: path,
+        sourceModule: "media-info-reader",
+      },
+    });
+    await handleAsset(asset);
   } catch (error) {
-    errorHandler.error(error, "读取文件失败", { context: { path } });
+    errorHandler.error(error, "导入文件失败", { context: { path } });
   }
 };
 
@@ -360,20 +365,20 @@ const handleFiles = async (files: File[]) => {
   if (files.length === 0) return;
   const file = files[0];
 
-  const previewReader = new FileReader();
-  previewReader.onload = (e) => {
-    previewSrc.value = e.target?.result as string;
-  };
-  previewReader.readAsDataURL(file);
-
-  const parseReader = new FileReader();
-  parseReader.onload = async (e) => {
-    const buffer = e.target?.result as ArrayBuffer;
-    if (buffer) {
-      await parseImageFromBuffer(new Uint8Array(buffer), file.name);
-    }
-  };
-  parseReader.readAsArrayBuffer(file);
+  try {
+    const buffer = await file.arrayBuffer();
+    const asset = await importAssetFromBytes(buffer, file.name, {
+      sourceModule: "media-info-reader",
+      origin: {
+        type: "clipboard",
+        source: "paste",
+        sourceModule: "media-info-reader",
+      },
+    });
+    await handleAsset(asset);
+  } catch (error) {
+    errorHandler.error(error, "导入粘贴文件失败", { context: { fileName: file.name } });
+  }
 };
 
 // 使用文件拖放交互 composable
@@ -394,7 +399,6 @@ const { isDraggingOver } = useFileInteraction({
   gap: 16px;
   width: 100%;
   height: 100%;
-  padding: 16px;
   box-sizing: border-box;
   overflow: hidden;
 }

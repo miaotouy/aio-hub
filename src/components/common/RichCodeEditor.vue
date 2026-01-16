@@ -51,12 +51,7 @@ import {
   highlightActiveLineGutter,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import {
-  highlightSelectionMatches,
-  searchKeymap,
-  search,
-  openSearchPanel,
-} from "@codemirror/search";
+import { highlightSelectionMatches, searchKeymap, search } from "@codemirror/search";
 import {
   autocompletion,
   completionKeymap,
@@ -412,12 +407,12 @@ const initCodeMirror = async () => {
       blur(_event, _view) {
         wrapperRef.value?.classList.remove("is-focused");
       },
-      contextmenu(event, view) {
+      contextmenu(_event, _view) {
         // 如果有选中文本，可以在这里处理
         // 目前为了解决“搜索出不来”的问题，我们允许默认右键，
         // 但如果姐姐希望右键能触发搜索，可以取消注释下面代码
-        // event.preventDefault();
-        // openSearchPanel(view);
+        // _event.preventDefault();
+        // openSearchPanel(_view);
       },
     }),
   ];

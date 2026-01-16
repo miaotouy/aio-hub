@@ -8,6 +8,81 @@ const logger = createModuleLogger('agentAssetUtils');
 /** 智能体资产协议前缀 */
 const AGENT_ASSET_PROTOCOL = 'agent-asset://';
 
+// ============================================================================
+// 字符串相似度算法 (Fuzzy Matching)
+// ============================================================================
+
+/** 模糊匹配的最低分数阈值 */
+const FUZZY_MATCH_THRESHOLD = 0.7;
+
+/**
+ * 计算两个字符串的 Levenshtein 编辑距离
+ * @returns 编辑距离（越小越相似）
+ */
+function levenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,      // deletion
+        matrix[i][j - 1] + 1,      // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+/**
+ * 计算两个字符串的相似度分数 (0.0 - 1.0)
+ *
+ * 策略：
+ * 1. 完全相等: 1.0
+ * 2. A 是 B 的子串，或 B 是 A 的子串: 基于子串长度比例计算高分
+ * 3. 否则: 使用基于 Levenshtein 距离的标准化分数
+ *
+ * @param query 用户查询的字符串 (来自 AI 的输出)
+ * @param target 目标字符串 (资产的 id 或 filename)
+ */
+function calculateSimilarity(query: string, target: string): number {
+  const q = query.toLowerCase();
+  const t = target.toLowerCase();
+
+  if (q === t) return 1.0;
+
+  // 子串匹配策略：对于 "盯" vs "盯着你" 这类情况非常有效
+  if (t.includes(q)) {
+    // 目标包含查询，例如资产名是 "盯"，AI 写的是 "盯着你"
+    // 分数基于查询在目标中的占比，确保较短的精确匹配能得分
+    // 如果查询很短(如单字)，避免误匹配，稍微降低分数
+    return 0.7 + 0.3 * (q.length / t.length);
+  }
+  if (q.includes(t)) {
+    // 查询包含目标，例如资产名是 "盯着你"，AI 写的是 "盯"
+    return 0.7 + 0.3 * (t.length / q.length);
+  }
+
+  // Levenshtein 距离标准化
+  const maxLen = Math.max(q.length, t.length);
+  if (maxLen === 0) return 1.0;
+
+  const distance = levenshteinDistance(q, t);
+  return 1.0 - distance / maxLen;
+}
+
 /** 缓存缺失贴图的 Data URL */
 let _missingTextureDataUrl: string | null = null;
 
@@ -200,9 +275,11 @@ function getFilenameWithoutExt(filename: string): string {
  *
  * 匹配优先级：
  * 1. group + id 精确匹配
- * 2. group + filename（不带扩展名）匹配
- * 3. 仅 id 匹配（向后兼容）
- * 4. 仅 filename（不带扩展名）匹配
+ * 2. group + filename（不带扩展名）精确匹配
+ * 3. 仅 id 精确匹配（向后兼容）
+ * 4. 仅 filename（不带扩展名）精确匹配
+ * 5. (Fuzzy) group + filename 模糊匹配
+ * 6. (Fuzzy) 仅 filename 模糊匹配
  *
  * @param parsed 解析后的 URL 部分
  * @param assets 资产列表
@@ -233,8 +310,49 @@ function findAsset(
   const idMatch = assets.find(a => a.id === parsed.id);
   if (idMatch) return idMatch;
 
-  // 最后尝试：只匹配 filename（不带扩展名）
-  return assets.find(a => getFilenameWithoutExt(a.filename) === parsed.id);
+  // 尝试：只匹配 filename（不带扩展名）
+  const filenameOnlyMatch = assets.find(a => getFilenameWithoutExt(a.filename) === parsed.id);
+  if (filenameOnlyMatch) return filenameOnlyMatch;
+
+  // ============================================================================
+  // 模糊匹配阶段 (Fuzzy Matching)
+  // ============================================================================
+
+  let bestFuzzyMatch: AgentAsset | undefined;
+  let bestScore = FUZZY_MATCH_THRESHOLD;
+
+  // 模糊匹配时，优先限制在同一 group 内
+  const targetGroup = parsed.group || null;
+
+  for (const asset of assets) {
+    const assetGroup = asset.group || 'default';
+
+    // 如果指定了 group，则只在该 group 内进行模糊匹配
+    if (targetGroup && assetGroup !== targetGroup) {
+      continue;
+    }
+
+    // 分别计算与 id 和 filename 的相似度，取较高者
+    const filenameWithoutExt = getFilenameWithoutExt(asset.filename);
+    const scoreById = calculateSimilarity(parsed.id, asset.id);
+    const scoreByFilename = calculateSimilarity(parsed.id, filenameWithoutExt);
+    const score = Math.max(scoreById, scoreByFilename);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestFuzzyMatch = asset;
+    }
+  }
+
+  if (bestFuzzyMatch) {
+    logger.info('通过模糊匹配找到资产', {
+      query: parsed.id,
+      matchedAsset: { id: bestFuzzyMatch.id, filename: bestFuzzyMatch.filename, group: bestFuzzyMatch.group },
+      score: bestScore.toFixed(2)
+    });
+  }
+
+  return bestFuzzyMatch;
 }
 
 /**

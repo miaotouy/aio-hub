@@ -23,6 +23,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
   executionDelay: 500,
   maxRetries: 2,
   timeout: 300,
+  enableRepetitionDetection: true,
   enableImageSlicer: true,
   imageSlicerConfig: {
     aspectRatioThreshold: 2.0,
@@ -86,6 +87,15 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
         modelPath: "autoStartOnImport",
         hint: "文件导入资产库后立即加入转写队列",
         keywords: "auto start 自动 导入",
+      },
+      {
+        id: "enableRepetitionDetection",
+        label: "启用复读处理",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "enableRepetitionDetection",
+        hint: "自动检测并处理模型输出中的循环复读现象",
+        keywords: "repetition loop 复读 循环",
       },
     ],
   },

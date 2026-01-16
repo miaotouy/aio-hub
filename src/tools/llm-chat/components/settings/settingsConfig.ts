@@ -718,6 +718,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         defaultValue: "",
       },
       {
+        id: "transEnableRepetitionDetection",
+        label: "启用复读处理",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.enableRepetitionDetection",
+        hint: "自动检测并处理模型输出中的循环复读现象",
+        keywords: "transcription repetition loop 复读 循环",
+        visible: (settings) => settings.transcription.enabled,
+      },
+      {
         id: "transStrategy",
         label: "转写触发策略",
         component: "ElSelect",

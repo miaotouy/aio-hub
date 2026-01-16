@@ -49,12 +49,17 @@ export function useTranscriptionManager() {
       const engine = engines.find((e) => e.canHandle({ type: pendingTask.assetType } as any));
       if (!engine) throw new Error(`未找到支持 ${pendingTask.assetType} 的引擎`);
 
+      logger.info(`开始执行转写任务: ${pendingTask.id}`, { assetId: pendingTask.assetId, retry: pendingTask.retryCount });
+
       const result = await engine.execute({
         task: pendingTask,
         config: store.config,
       });
 
-      if ((pendingTask.status as string) === "cancelled") return;
+      if ((pendingTask.status as string) === "cancelled") {
+        logger.info(`任务已被取消: ${pendingTask.id}`);
+        return;
+      }
 
       const modelIdentifier = pendingTask.overrideConfig?.modelIdentifier || store.config.modelIdentifier;
       const modelId = modelIdentifier.includes(":") ? modelIdentifier.split(":")[1] : modelIdentifier;
@@ -76,18 +81,37 @@ export function useTranscriptionManager() {
         pendingTask.tempFilePath = undefined;
       }
     } catch (e) {
-      errorHandler.handle(e, {
-        userMessage: "转写任务失败",
-        context: { taskId: pendingTask.id, assetId: pendingTask.assetId },
-        showToUser: false,
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const isRepetitionError = store.config.enableRepetitionDetection && errorMessage.includes("复读");
+
+      logger.error(`转写任务失败: ${pendingTask.id}`, e, {
+        assetId: pendingTask.assetId,
+        retry: pendingTask.retryCount,
+        isRepetitionError
       });
 
-      if (pendingTask.retryCount < store.config.maxRetries) {
+      // 如果是复读错误，重试时可以尝试微调参数（虽然目前引擎层还没支持动态参数微调，但这里先保留逻辑空间）
+      // 这里的策略是：复读错误依然允许重试，但如果重试一次还不行，就直接失败，避免无限循环
+      const canRetry = pendingTask.retryCount < store.config.maxRetries && (!isRepetitionError || pendingTask.retryCount < 1);
+
+      if (canRetry) {
         pendingTask.retryCount++;
         pendingTask.status = "pending";
+        // 延迟重试，避免瞬间刷爆
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
         pendingTask.status = "error";
-        pendingTask.error = e instanceof Error ? e.message : String(e);
+        pendingTask.error = errorMessage;
+
+        // 最终失败时，向用户显示提示（如果不是用户主动取消）
+        if ((pendingTask.status as string) !== "cancelled") {
+          errorHandler.handle(e, {
+            userMessage: `资产 "${pendingTask.filename}" 转写失败: ${errorMessage}`,
+            context: { taskId: pendingTask.id, assetId: pendingTask.assetId },
+            showToUser: true,
+          });
+        }
+
         await updateDerivedStatus(pendingTask.assetId, {
           updatedAt: new Date().toISOString(),
           error: pendingTask.error,

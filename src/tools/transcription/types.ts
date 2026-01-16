@@ -59,6 +59,7 @@ export interface TranscriptionConfig {
   executionDelay: number;
   maxRetries: number;
   timeout: number; // 秒
+  enableRepetitionDetection: boolean;
   enableImageSlicer: boolean;
   imageSlicerConfig: {
     aspectRatioThreshold: number;

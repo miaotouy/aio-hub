@@ -148,40 +148,12 @@ export function useTranscriptionManager() {
   };
 
   /**
-   * 初始化管理器，将 llm-chat 的转写配置同步到工具 Store
+   * 初始化管理器 (llm-chat 适配层)
    */
   const init = async () => {
     logger.info("正在初始化转写管理器 (llm-chat 适配层)...");
 
-    // 1. 同步配置
-    const syncConfig = () => {
-      const chatConfig = settings.value.transcription;
-      Object.assign(transcriptionStore.config, {
-        strategy: chatConfig.strategy,
-        forceTranscriptionAfter: chatConfig.forceTranscriptionAfter,
-        autoStartOnImport: chatConfig.autoStartOnImport,
-        modelIdentifier: chatConfig.modelIdentifier,
-        customPrompt: chatConfig.customPrompt,
-        temperature: chatConfig.temperature,
-        maxTokens: chatConfig.maxTokens,
-        maxConcurrentTasks: chatConfig.maxConcurrentTasks,
-        executionDelay: chatConfig.executionDelay,
-        maxRetries: chatConfig.maxRetries,
-        timeout: chatConfig.timeout,
-        enableImageSlicer: chatConfig.enableImageSlicer,
-        imageSlicerConfig: chatConfig.imageSlicerConfig,
-        ffmpegPath: chatConfig.ffmpegPath,
-        image: chatConfig.image,
-        audio: chatConfig.audio,
-        video: chatConfig.video,
-        document: chatConfig.document,
-      });
-    };
-
-    syncConfig();
-    watch(() => settings.value.transcription, syncConfig, { deep: true });
-
-    // 2. 监听资产导入事件 (作为事件驱动的补充)
+    // 1. 监听资产导入事件 (作为事件驱动的补充)
     if (!unlistenAssetImport) {
       logger.debug("注册资产导入监听器");
       listen<Asset>("asset-imported", (event) => {
@@ -235,17 +207,37 @@ export function useTranscriptionManager() {
 
   /**
    * 添加任务
+   *
+   * 注意：llm-chat 发起的任务应该携带聊天侧的私有配置，
+   * 这样可以避免修改并持久化 transcriptionStore 的全局配置。
    */
   const addTask = (asset: Asset, options?: { modelId?: string; additionalPrompt?: string }) => {
-    const overrideConfig = options ? {
-      modelIdentifier: options.modelId,
-      customPrompt: options.additionalPrompt, // 这里的逻辑需要注意：llm-chat 的 additionalPrompt 是追加，而 Registry 的 override 是覆盖
-    } : undefined;
+    const chatConfig = settings.value.transcription;
 
-    // 如果有 additionalPrompt，我们需要在这里合并一下，因为 Registry 目前只支持覆盖
+    // 构造覆盖配置，优先使用传入的 options，否则使用聊天设置
+    const overrideConfig: any = {
+      modelIdentifier: options?.modelId || chatConfig.modelIdentifier,
+      customPrompt: chatConfig.customPrompt,
+      temperature: chatConfig.temperature,
+      maxTokens: chatConfig.maxTokens,
+      timeout: chatConfig.timeout,
+      // 性能与并发控制也使用聊天侧的设置进行覆盖
+      maxConcurrentTasks: chatConfig.maxConcurrentTasks,
+      executionDelay: chatConfig.executionDelay,
+      maxRetries: chatConfig.maxRetries,
+      // 其他配置
+      enableImageSlicer: chatConfig.enableImageSlicer,
+      imageSlicerConfig: chatConfig.imageSlicerConfig,
+      ffmpegPath: chatConfig.ffmpegPath,
+      image: chatConfig.image,
+      audio: chatConfig.audio,
+      video: chatConfig.video,
+      document: chatConfig.document,
+    };
+
+    // 处理 additionalPrompt 追加逻辑
     if (options?.additionalPrompt) {
-      const basePrompt = transcriptionStore.config.customPrompt;
-      overrideConfig!.customPrompt = `${basePrompt}\n\n${options.additionalPrompt}`;
+      overrideConfig.customPrompt = `${overrideConfig.customPrompt}\n\n${options.additionalPrompt}`;
     }
 
     return transcriptionRegistry.addTask(asset, overrideConfig);

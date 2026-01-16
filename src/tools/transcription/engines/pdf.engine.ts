@@ -19,7 +19,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     const { sendRequest } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
-    const { modelIdentifier, prompt, temperature, maxTokens } = getModelParams(ctx, "document");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout } = getModelParams(ctx, "document");
     const [profileId, modelId] = modelIdentifier.split(":");
 
     const profile = getProfileById(profileId);
@@ -52,6 +52,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
         stream: false,
         temperature,
         maxTokens,
+        timeout: timeout * 1000,
       });
       transcriptionText = response.content;
     }
@@ -76,6 +77,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
           stream: false,
           temperature,
           maxTokens,
+          timeout: timeout * 1000,
         });
         transcriptionText = response.content;
       } else {
@@ -104,6 +106,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
             stream: false,
             temperature,
             maxTokens,
+            timeout: timeout * 1000,
           });
           batchResults.push(`## ${startLabel}-${endLabel}\n\n${response.content}`);
         }

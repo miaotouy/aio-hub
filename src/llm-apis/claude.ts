@@ -12,6 +12,7 @@ import {
   applyCustomParameters,
   cleanPayload,
 } from "./request-builder";
+import { asyncJsonStringify } from "@/utils/serialization";
 
 const logger = createModuleLogger("ClaudeApi");
 const errorHandler = createModuleErrorHandler("ClaudeApi");
@@ -39,7 +40,7 @@ interface ClaudeContentBlock {
   source?: {
     type: "base64";
     media_type: string;
-    data: string;
+    data: string | ArrayBuffer | Uint8Array;
   };
   // 工具使用
   id?: string;
@@ -578,7 +579,7 @@ export const callClaudeApi = async (
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: await asyncJsonStringify(body),
       },
       options.timeout,
       options.signal
@@ -609,7 +610,7 @@ export const callClaudeApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal

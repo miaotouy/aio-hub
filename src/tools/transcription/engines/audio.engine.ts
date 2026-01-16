@@ -16,7 +16,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const { task } = ctx;
     const { sendRequest } = useLlmRequest();
 
-    const { modelIdentifier, prompt, temperature, maxTokens } = getModelParams(ctx, "audio");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout } = getModelParams(ctx, "audio");
     const [profileId, modelId] = modelIdentifier.split(":");
 
     const buffer = await assetManagerEngine.getAssetBinary(task.path);
@@ -43,6 +43,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
       stream: false,
       temperature,
       maxTokens,
+      timeout: timeout * 1000,
     });
 
     const cleanedText = cleanLlmOutput(response.content);

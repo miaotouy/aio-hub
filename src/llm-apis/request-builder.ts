@@ -37,7 +37,7 @@ export interface ParsedMessageContent {
   textParts: Array<{ text: string; cacheControl?: any }>;
   /** 所有图片部分 */
   imageParts: Array<{
-    base64: string;
+    base64: string | ArrayBuffer | Uint8Array;
     mimeType?: string;
     cacheControl?: any;
   }>;
@@ -309,7 +309,7 @@ export function mergeConversationHistory(
  * @param fileExt - 可选的文件扩展名
  * @returns MIME 类型字符串
  */
-export function inferImageMimeType(base64Data?: string, fileExt?: string): string {
+export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Array, fileExt?: string): string {
   // 根据文件扩展名推测
   if (fileExt) {
     const extMap: Record<string, string> = {
@@ -325,13 +325,29 @@ export function inferImageMimeType(base64Data?: string, fileExt?: string): strin
     if (extMap[ext]) return extMap[ext];
   }
 
-  // 根据 base64 数据头推测
+  // 根据数据头推测
   if (base64Data) {
-    const header = base64Data.substring(0, 20);
-    if (header.startsWith("iVBOR")) return "image/png";
-    if (header.startsWith("/9j/")) return "image/jpeg";
-    if (header.startsWith("R0lGO")) return "image/gif";
-    if (header.startsWith("UklGR")) return "image/webp";
+    if (typeof base64Data === "string") {
+      const header = base64Data.substring(0, 20);
+      if (header.startsWith("iVBOR")) return "image/png";
+      if (header.startsWith("/9j/")) return "image/jpeg";
+      if (header.startsWith("R0lGO")) return "image/gif";
+      if (header.startsWith("UklGR")) return "image/webp";
+    } else {
+      // 处理二进制数据头
+      const bytes = base64Data instanceof Uint8Array
+        ? base64Data
+        : new Uint8Array(base64Data instanceof ArrayBuffer ? base64Data : (base64Data as any).buffer);
+      
+      if (bytes.length > 4) {
+        // PNG: 89 50 4E 47
+        if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return "image/png";
+        // JPEG: FF D8 FF
+        if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return "image/jpeg";
+        // GIF: 47 49 46 38
+        if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return "image/gif";
+      }
+    }
   }
 
   return "image/png"; // 默认
@@ -346,7 +362,7 @@ export function inferImageMimeType(base64Data?: string, fileExt?: string): strin
  * @param fileExt - 可选的文件扩展名
  * @returns MIME 类型字符串
  */
-export function inferMediaMimeType(base64Data?: string, fileExt?: string): string {
+export function inferMediaMimeType(base64Data?: string | ArrayBuffer | Uint8Array, fileExt?: string): string {
   // 首先尝试推断图片类型
   const imageMimeType = inferImageMimeType(base64Data, fileExt);
 
@@ -389,9 +405,22 @@ export function inferMediaMimeType(base64Data?: string, fileExt?: string): strin
  * @param mimeType - MIME 类型，如果未提供则自动推断
  * @returns Data URL 字符串，格式为 "data:mimeType;base64,data"
  */
-export function buildBase64DataUrl(base64Data: string, mimeType?: string): string {
-  const finalMimeType = mimeType || inferImageMimeType(base64Data);
-  return `data:${finalMimeType};base64,${base64Data}`;
+export function buildBase64DataUrl(data: string | ArrayBuffer | Uint8Array, mimeType?: string): string {
+  // 如果是二进制数据，我们不在这里处理 Base64 转换（避免阻塞主线程）
+  // 而是返回一个特殊的标记格式，让后端的异步序列化 Worker 处理
+  if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    const finalMimeType = mimeType || "application/octet-stream";
+    // 注意：这里我们不能直接拼接，因为 data 是对象。
+    // 我们返回一个特殊结构，Worker 识别到后会将其转为 Base64 并拼接成 Data URL
+    return {
+      __AIO_ASSET_TYPE__: "data_url",
+      mimeType: finalMimeType,
+      data: data
+    } as any;
+  }
+
+  const finalMimeType = mimeType || inferImageMimeType(data as string);
+  return `data:${finalMimeType};base64,${data}`;
 }
 
 /**

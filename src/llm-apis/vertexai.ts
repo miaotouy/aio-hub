@@ -13,6 +13,7 @@ import {
   applyCustomParameters,
   cleanPayload,
 } from "./request-builder";
+import { asyncJsonStringify } from "@/utils/serialization";
 
 const logger = createModuleLogger("VertexAiApi");
 
@@ -37,7 +38,7 @@ interface VertexAiPart {
   text?: string;
   inlineData?: {
     mimeType: string;
-    data: string;
+    data: string | ArrayBuffer | Uint8Array;
   };
   functionCall?: {
     name: string;
@@ -418,7 +419,7 @@ async function callVertexAiGemini(
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: await asyncJsonStringify(body),
       },
       options.timeout,
       options.signal
@@ -517,7 +518,7 @@ async function callVertexAiGemini(
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal
@@ -668,7 +669,7 @@ async function callVertexAiClaude(
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: await asyncJsonStringify(body),
       },
       options.timeout,
       options.signal
@@ -729,7 +730,7 @@ async function callVertexAiClaude(
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal
@@ -871,7 +872,7 @@ export const callVertexAiEmbeddingApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal

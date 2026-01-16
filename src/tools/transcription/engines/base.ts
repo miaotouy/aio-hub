@@ -30,7 +30,9 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
     maxTokens = specific.maxTokens ?? maxTokens;
   }
 
-  return { modelIdentifier, prompt, temperature, maxTokens };
+  const timeout = config.timeout || 120; // 默认 120s
+
+  return { modelIdentifier, prompt, temperature, maxTokens, timeout };
 }
 
 /**

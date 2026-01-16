@@ -19,7 +19,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
     const { task, config } = ctx;
     const { sendRequest } = useLlmRequest();
 
-    const { modelIdentifier, prompt, temperature, maxTokens } = getModelParams(ctx, "image");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout } = getModelParams(ctx, "image");
     const [profileId, modelId] = modelIdentifier.split(":");
 
     if (!profileId || !modelId) {
@@ -77,6 +77,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
           stream: false,
           temperature,
           maxTokens,
+          timeout: timeout * 1000,
         });
         transcriptionText = response.content;
       } else {
@@ -98,6 +99,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         stream: false,
         temperature,
         maxTokens,
+        timeout: timeout * 1000,
       });
       transcriptionText = response.content;
     }

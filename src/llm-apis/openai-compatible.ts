@@ -10,6 +10,7 @@ import {
   applyCustomParameters,
   cleanPayload,
 } from "./request-builder";
+import { asyncJsonStringify } from "@/utils/serialization";
 
 import { createModuleLogger } from "@/utils/logger";
 
@@ -329,7 +330,7 @@ export const callOpenAiCompatibleApi = async (
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: await asyncJsonStringify(body),
       },
       options.timeout,
       options.signal
@@ -409,12 +410,15 @@ export const callOpenAiCompatibleApi = async (
   }
 
   // 非流式响应
+  // 性能优化：针对包含巨大 Base64 的 body，使用 Worker 进行异步序列化，避免主线程死锁
+  const finalBody = await asyncJsonStringify(body);
+
   const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: finalBody,
     },
     options.timeout,
     options.signal
@@ -561,7 +565,7 @@ export const callOpenAiEmbeddingApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal

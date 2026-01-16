@@ -8,6 +8,7 @@ import {
   buildBase64DataUrl,
   applyCustomParameters,
 } from "./request-builder";
+import { asyncJsonStringify } from "@/utils/serialization";
 
 /**
  * OpenAI Responses 适配器的 URL 处理逻辑
@@ -205,7 +206,7 @@ export const callOpenAiResponsesApi = async (
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: await asyncJsonStringify(body),
       },
       options.timeout,
       options.signal
@@ -324,7 +325,7 @@ export const callOpenAiResponsesApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal // 这里之前漏了 signal，补上

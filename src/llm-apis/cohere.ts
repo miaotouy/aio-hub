@@ -9,6 +9,7 @@ import {
   buildBase64DataUrl,
   applyCustomParameters,
 } from "./request-builder";
+import { asyncJsonStringify } from "@/utils/serialization";
 
 /**
  * Cohere 适配器的 URL 处理逻辑
@@ -186,7 +187,7 @@ export const callCohereApi = async (
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: await asyncJsonStringify(body),
       },
       options.timeout,
       options.signal
@@ -231,7 +232,7 @@ export const callCohereApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal // 补上 signal
@@ -317,7 +318,7 @@ export const callCohereEmbeddingApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal

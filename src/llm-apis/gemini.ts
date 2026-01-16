@@ -12,6 +12,7 @@ import {
   applyCustomParameters,
   cleanPayload,
 } from "./request-builder";
+import { asyncJsonStringify } from "@/utils/serialization";
 
 /**
  * Gemini API 类型定义
@@ -23,7 +24,7 @@ interface GeminiPart {
   text?: string;
   inlineData?: {
     mimeType: string;
-    data: string; // base64 编码
+    data: string | ArrayBuffer | Uint8Array; // base64 编码或待序列化的二进制
   };
   fileData?: {
     mimeType: string;
@@ -673,7 +674,7 @@ export const callGeminiApi = async (
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: await asyncJsonStringify(body),
       },
       options.timeout,
       options.signal
@@ -775,7 +776,7 @@ export const callGeminiApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal // 补上 signal
@@ -997,7 +998,7 @@ export const callGeminiEmbeddingApi = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: await asyncJsonStringify(body),
     },
     options.timeout,
     options.signal

@@ -2,10 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { stat } from "@tauri-apps/plugin-fs";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
-import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
-import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams, getEffectiveConfig } from "./base";
 import { cleanLlmOutput } from "../utils/text";
 import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
@@ -22,7 +20,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     const config = getEffectiveConfig(ctx);
     const { sendRequest } = useLlmRequest();
 
-    const { modelIdentifier, prompt, temperature, maxTokens } = getModelParams(ctx, "video");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout } = getModelParams(ctx, "video");
     const [profileId, modelId] = modelIdentifier.split(":");
 
     // 1. 获取二进制数据 (处理视频压缩逻辑)
@@ -96,30 +94,36 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     }
 
     // 2. 发送请求
+    // 让出主线程执行权，确保 UI 状态（如转圈动画）能优先渲染
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     const buffer = await assetManagerEngine.getAssetBinary(finalPath);
-    const base64Data = await convertArrayBufferToBase64(buffer);
 
     const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
 
-    const content: LlmMessageContent[] = [
-      { type: "text", text: finalPrompt },
-      {
-        type: "video",
-        source: {
-          type: "base64",
-          media_type: task.mimeType || "video/mp4",
-          data: base64Data
-        }
-      }
-    ];
-
+    // 提示：针对视频这种超大请求体，我们在 sendRequest 内部（Provider 层）
+    // 已经实现了基于 Worker 的异步序列化优化，因此这里可以直接传递 ArrayBuffer 而不会阻塞主线程。
     const response = await sendRequest({
       profileId,
       modelId,
-      messages: [{ role: "user", content }],
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: finalPrompt },
+          {
+            type: "video",
+            source: {
+              type: "base64",
+              media_type: task.mimeType || "video/mp4",
+              data: buffer // 直接传递 ArrayBuffer
+            }
+          }
+        ]
+      }],
       stream: false,
       temperature,
       maxTokens,
+      timeout: timeout * 1000, // 转换为毫秒
     });
 
     const cleanedText = cleanLlmOutput(response.content);

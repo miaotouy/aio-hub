@@ -4,7 +4,7 @@ import { loadAppSettings } from '@/utils/appSettings';
 /**
  * 默认配置
  */
-export const DEFAULT_TIMEOUT = 60000; // 60秒
+export const DEFAULT_TIMEOUT = 120000; // 120秒
 
 /**
  * 获取当前代理配置，转换为 Tauri HTTP 插件的格式
@@ -54,10 +54,10 @@ export interface VideoMetadata {
  */
 export type MediaSource =
   | {
-    /** 内联 Base64 数据 */
+    /** 内联数据（Base64 字符串或二进制 Buffer） */
     type: "base64";
     media_type: string;
-    data: string;
+    data: string | ArrayBuffer | Uint8Array;
   }
   | {
     /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
@@ -77,7 +77,8 @@ export interface TextContent {
 
 export interface ImageContent {
   type: "image";
-  imageBase64: string;
+  /** 图片数据（Base64 字符串或二进制 Buffer） */
+  imageBase64: string | ArrayBuffer | Uint8Array;
   // 未来可以扩展 source 以支持 URL
 }
 

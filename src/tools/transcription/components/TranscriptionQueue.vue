@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { ref } from "vue";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
+import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { format } from "date-fns";
 import {
@@ -75,7 +77,11 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-const { retryTask, cancelTask } = useTranscriptionManager();
+const { retryTask, cancelTask, getTranscriptionText, addTask } = useTranscriptionManager();
+
+const showDialog = ref(false);
+const selectedAsset = ref<any>(null);
+const dialogContent = ref("");
 
 const handleRetry = async (task: any) => {
   const asset = await assetManagerEngine.getAssetById(task.assetId);
@@ -86,6 +92,44 @@ const handleRetry = async (task: any) => {
 
 const handleCancel = (assetId: string) => {
   cancelTask(assetId);
+};
+
+const handleViewResult = async (task: any) => {
+  const asset = await assetManagerEngine.getAssetById(task.assetId);
+  if (asset) {
+    const text = await getTranscriptionText(asset);
+    selectedAsset.value = asset;
+    dialogContent.value = text || "";
+    showDialog.value = true;
+  }
+};
+
+const handleSaveResult = async (content: string) => {
+  if (!selectedAsset.value) return;
+  // 更新本地 store 中的 task 缓存
+  const task = store.tasks.find((t) => t.assetId === selectedAsset.value.id);
+  if (task) {
+    task.resultText = content;
+  }
+  showDialog.value = false;
+};
+
+const handleRegenerate = ({ modelId, prompt }: { modelId: string; prompt: string }) => {
+  if (!selectedAsset.value) return;
+  addTask(selectedAsset.value, {
+    modelIdentifier: modelId ? `custom:${modelId}` : undefined,
+    customPrompt: prompt || undefined,
+  });
+  showDialog.value = false;
+};
+
+// 监听弹窗关闭，清理选中状态，防止双重弹窗或状态残留
+const handleDialogUpdate = (val: boolean) => {
+  showDialog.value = val;
+  if (!val) {
+    // 弹窗关闭时清理资产引用
+    selectedAsset.value = null;
+  }
 };
 
 const clearFinishedTasks = () => {
@@ -154,6 +198,17 @@ const stats = computed(() => {
                 <span class="filename" :title="row.filename">{{ row.filename }}</span>
                 <span class="asset-id">{{ row.assetId }}</span>
               </div>
+          
+              <!-- 结果查看/编辑弹窗 -->
+              <TranscriptionDialog
+                v-if="selectedAsset"
+                :model-value="showDialog"
+                :asset="selectedAsset"
+                :initial-content="dialogContent"
+                @update:model-value="handleDialogUpdate"
+                @save="handleSaveResult"
+                @regenerate="handleRegenerate"
+              />
             </div>
           </template>
         </el-table-column>
@@ -199,7 +254,14 @@ const stats = computed(() => {
                 />
               </el-tooltip>
               <el-tooltip v-if="row.status === 'completed'" content="查看结果" placement="top">
-                <el-button :icon="FileText" circle size="small" type="success" plain />
+                <el-button
+                  :icon="FileText"
+                  circle
+                  size="small"
+                  type="success"
+                  plain
+                  @click="handleViewResult(row)"
+                />
               </el-tooltip>
             </div>
           </template>
@@ -217,6 +279,8 @@ const stats = computed(() => {
   gap: 16px;
   padding: 16px;
   background-color: transparent;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .queue-stats {
@@ -229,6 +293,7 @@ const stats = computed(() => {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
+  border-radius: 8px;
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -282,7 +347,11 @@ const stats = computed(() => {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
+  border-radius: 8px;
   overflow: hidden;
+  box-sizing: border-box;
+  /* 使用相对定位，让内部表格可以绝对定位填充，彻底解决 flex 高度计算偏差 */
+  position: relative;
 }
 
 .file-cell {
@@ -352,9 +421,21 @@ const stats = computed(() => {
 }
 
 :deep(.custom-table) {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   --el-table-background-color: transparent;
   --el-table-tr-bg-color: transparent;
   --el-table-header-bg-color: var(--sidebar-bg);
+  box-sizing: border-box;
+  /* 移除 Element Plus 表格默认的外边框，防止在 100% 高度时溢出 */
+  border: none !important;
+}
+
+:deep(.el-table__inner-wrapper::before) {
+  display: none;
 }
 
 :deep(.el-table__row:hover) {

@@ -51,9 +51,15 @@ export function useTranscriptionManager() {
 
       logger.info(`开始执行转写任务: ${pendingTask.id}`, { assetId: pendingTask.assetId, retry: pendingTask.retryCount });
 
+      // 合并覆盖配置
+      const finalConfig = {
+        ...store.config,
+        ...(pendingTask.overrideConfig || {}),
+      };
+
       const result = await engine.execute({
         task: pendingTask,
-        config: store.config,
+        config: finalConfig,
       });
 
       if ((pendingTask.status as string) === "cancelled") {

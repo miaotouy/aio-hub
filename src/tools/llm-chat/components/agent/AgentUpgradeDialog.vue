@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { Upload, Document, Refresh, Warning } from "@element-plus/icons-vue";
+import { Upload, Document, Refresh, Warning, FolderOpened, Files } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
@@ -11,11 +11,14 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import jsYaml from "js-yaml";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import { readFile, readDir } from "@tauri-apps/plugin-fs";
 import { isEqual } from "lodash-es";
 
-const logger = createModuleLogger("llm-chat/AgentOverwriteDialog");
-const errorHandler = createModuleErrorHandler("llm-chat/AgentOverwriteDialog");
+const logger = createModuleLogger("llm-chat/AgentUpgradeDialog");
+const errorHandler = createModuleErrorHandler("llm-chat/AgentUpgradeDialog");
 
+// ========== Props & Emits ==========
 const props = defineProps<{
   visible: boolean;
   agent: ChatAgent;
@@ -26,10 +29,11 @@ const emit = defineEmits<{
   (e: "upgraded"): void;
 }>();
 
+// ========== Stores ==========
 const agentStore = useAgentStore();
 const worldbookStore = useWorldbookStore();
 
-// 状态
+// ========== 响应式状态 ==========
 const importText = ref("");
 const upgradeStrategy = ref<"merge" | "overwrite">("merge");
 const parsedConfig = ref<Partial<ChatAgent> | null>(null);
@@ -40,8 +44,14 @@ const parseError = ref<string | null>(null);
 const isDragging = ref(false);
 const isParsing = ref(false);
 
-// 解析逻辑 (纯文本)
-const parseConfig = (text: string) => {
+// ========== 常量 ==========
+const MAX_DIR_DEPTH = 3;
+const ALLOWED_EXTENSIONS = ["json", "yaml", "yml", "zip", "png", "jpg", "jpeg"];
+
+// ========== 配置解析 ==========
+
+/** 解析文本配置（JSON/YAML） */
+const parseTextConfig = (text: string) => {
   if (!text.trim()) {
     parsedConfig.value = null;
     parseError.value = null;
@@ -49,22 +59,15 @@ const parseConfig = (text: string) => {
   }
 
   try {
-    let data: any;
-    if (text.trim().startsWith("{")) {
-      data = JSON.parse(text);
-    } else {
-      data = jsYaml.load(text);
-    }
+    const data = text.trim().startsWith("{") ? JSON.parse(text) : jsYaml.load(text);
 
-    // 基础校验
     if (!data || typeof data !== "object") {
       throw new Error("无效的配置文件格式");
     }
 
-    // 自动识别导出包格式 (AIO_Agent_Export)
+    // 自动识别 AIO 导出包格式
     if (data.type === "AIO_Agent_Export" && Array.isArray(data.agents) && data.agents.length > 0) {
       parsedConfig.value = data.agents[0];
-      // 如果包里自带资产列表，也同步一下（虽然粘贴文本拿不到二进制，但预览能看到）
       if (data.assets) {
         logger.debug("从导出包中识别到资产定义");
       }
@@ -81,38 +84,38 @@ const parseConfig = (text: string) => {
   }
 };
 
-watch(importText, (val) => {
-  parseConfig(val);
-});
+watch(importText, parseTextConfig);
 
-// 文件上传处理 (支持 ZIP, PNG, JSON, YAML)
-const handleFileUpload = async (file: File) => {
+// ========== 文件处理 ==========
+
+/** 处理文件上传（支持 ZIP, PNG, JSON, YAML） */
+const handleFileUpload = async (file: File | File[]) => {
   isParsing.value = true;
   parseError.value = null;
-  importText.value = file.name; // 显示文件名
+  const fileList = Array.isArray(file) ? file : [file];
+  importText.value = fileList.map((f) => f.name).join(", ");
 
   try {
-    // 复用 agentStore 的预检逻辑
     const result = await agentStore.preflightImportAgents(file);
 
-    if (result.agents.length > 0) {
-      const firstAgent = result.agents[0];
-      parsedConfig.value = firstAgent;
-      // 从按 ID 隔离的资产桶中提取资产
-      const tempId = firstAgent.id || "";
-      parsedAssets.value = result.assets[tempId] || {};
-      parsedBundledWorldbooks.value = result.bundledWorldbooks?.[tempId] || [];
-      parsedEmbeddedWorldbook.value = result.embeddedWorldbooks?.[tempId] || null;
-
-      logger.debug("文件解析成功", {
-        agentName: firstAgent.name,
-        assetCount: Object.keys(parsedAssets.value).length,
-        bundledWbCount: parsedBundledWorldbooks.value.length,
-        hasEmbeddedWb: !!parsedEmbeddedWorldbook.value,
-      });
-    } else {
+    if (result.agents.length === 0) {
       throw new Error("未在文件中找到有效的智能体配置");
     }
+
+    const firstAgent = result.agents[0];
+    const tempId = firstAgent.id || "";
+
+    parsedConfig.value = firstAgent;
+    parsedAssets.value = result.assets[tempId] || {};
+    parsedBundledWorldbooks.value = result.bundledWorldbooks?.[tempId] || [];
+    parsedEmbeddedWorldbook.value = result.embeddedWorldbooks?.[tempId] || null;
+
+    logger.debug("文件解析成功", {
+      agentName: firstAgent.name,
+      assetCount: Object.keys(parsedAssets.value).length,
+      bundledWbCount: parsedBundledWorldbooks.value.length,
+      hasEmbeddedWb: !!parsedEmbeddedWorldbook.value,
+    });
   } catch (error) {
     parsedConfig.value = null;
     parsedAssets.value = {};
@@ -123,22 +126,97 @@ const handleFileUpload = async (file: File) => {
   }
 };
 
-const onFileChange = (e: Event) => {
-  const target = e.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    handleFileUpload(target.files[0]);
-  }
+/** 递归收集目录中的文件 */
+const collectFilesFromDirectory = async (
+  dirPath: string,
+  maxDepth: number,
+  allowedExts: string[]
+): Promise<File[]> => {
+  const files: File[] = [];
+
+  const processDir = async (currentPath: string, depth: number, relativePrefix = "") => {
+    if (depth > maxDepth) return;
+
+    const entries = await readDir(currentPath);
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+
+      const entryPath = `${currentPath}/${entry.name}`;
+      if (entry.isDirectory) {
+        await processDir(entryPath, depth + 1, `${relativePrefix}${entry.name}/`);
+      } else if (entry.isFile) {
+        const ext = entry.name.split(".").pop()?.toLowerCase() || "";
+        if (allowedExts.includes(ext)) {
+          const content = await readFile(entryPath);
+          files.push(new File([content], `${relativePrefix}${entry.name}`));
+        }
+      }
+    }
+  };
+
+  await processDir(dirPath, 0);
+  return files;
 };
+
+// ========== 用户交互处理 ==========
 
 const onDrop = (e: DragEvent) => {
   isDragging.value = false;
-  const file = e.dataTransfer?.files[0];
-  if (file) {
-    handleFileUpload(file);
+  const files = e.dataTransfer?.files;
+  if (files && files.length > 0) {
+    handleFileUpload(Array.from(files));
   }
 };
 
-// 辅助函数：查找内容完全一致的现有世界书 (参考自 agentImportService)
+const handleSelectFile = async () => {
+  try {
+    const selected = await open({
+      multiple: true,
+      filters: [{ name: "智能体配置", extensions: ["json", "yaml", "yml", "zip", "png"] }],
+    });
+
+    if (!selected) return;
+
+    const paths = Array.isArray(selected) ? selected : [selected];
+    const files = await Promise.all(
+      paths.map(async (path) => {
+        const content = await readFile(path);
+        const name = path.split(/[/\\]/).pop() || "unnamed";
+        return new File([content], name);
+      })
+    );
+    handleFileUpload(files);
+  } catch (error) {
+    logger.error("选择文件失败", error as Error);
+  }
+};
+
+const handleSelectDirectory = async () => {
+  try {
+    const selected = await open({ directory: true, multiple: false });
+    if (!selected) return;
+
+    isParsing.value = true;
+    const files = await collectFilesFromDirectory(
+      selected as string,
+      MAX_DIR_DEPTH,
+      ALLOWED_EXTENSIONS
+    );
+
+    if (files.length > 0) {
+      await handleFileUpload(files);
+    } else {
+      customMessage.warning("所选目录中未找到有效的配置文件或资产");
+      isParsing.value = false;
+    }
+  } catch (error) {
+    logger.error("选择目录失败", error as Error);
+    isParsing.value = false;
+  }
+};
+// ========== 世界书处理 ==========
+
+/** 查找内容完全一致的现有世界书 */
 const findDuplicateWorldbook = async (content: any, name: string): Promise<string | null> => {
   const candidates = worldbookStore.worldbooks.filter((wb) => wb.name === name);
   for (const candidate of candidates) {
@@ -150,7 +228,111 @@ const findDuplicateWorldbook = async (content: any, name: string): Promise<strin
   return null;
 };
 
-// 执行升级
+/** 导入单个世界书，返回其 ID（去重或新建） */
+const importSingleWorldbook = async (content: any, name: string): Promise<string> => {
+  const existingId = await findDuplicateWorldbook(content, name);
+  if (existingId) return existingId;
+  return await worldbookStore.importWorldbook(name, content);
+};
+
+/** 处理所有世界书导入，返回导入的 ID 列表 */
+const processWorldbookImports = async (agentName: string): Promise<string[]> => {
+  const importedIds: string[] = [];
+
+  // 处理嵌入的世界书
+  if (parsedEmbeddedWorldbook.value) {
+    const wb = parsedEmbeddedWorldbook.value;
+    const wbName = wb.metadata?.name || `${agentName} 的世界书`;
+    const normalizedWb = normalizeWorldbook(wb);
+    const wbId = await importSingleWorldbook(normalizedWb, wbName);
+    importedIds.push(wbId);
+  }
+
+  // 处理随包打包的世界书
+  for (const bundled of parsedBundledWorldbooks.value) {
+    if (bundled.content) {
+      const wbId = await importSingleWorldbook(bundled.content, bundled.name);
+      importedIds.push(wbId);
+    }
+  }
+
+  return importedIds;
+};
+
+// ========== 配置合并策略 ==========
+
+/** 构建合并模式的更新数据 */
+const buildMergeUpdate = (
+  currentAgent: ChatAgent,
+  newConfig: Partial<ChatAgent>,
+  importedWorldbookIds: string[]
+): Partial<ChatAgent> => ({
+  presetMessages: newConfig.presetMessages ?? currentAgent.presetMessages,
+  parameters: { ...currentAgent.parameters, ...(newConfig.parameters || {}) },
+  llmThinkRules: newConfig.llmThinkRules ?? currentAgent.llmThinkRules,
+  richTextStyleOptions: newConfig.richTextStyleOptions ?? currentAgent.richTextStyleOptions,
+  regexConfig: newConfig.regexConfig ?? currentAgent.regexConfig,
+  interactionConfig: newConfig.interactionConfig ?? currentAgent.interactionConfig,
+  virtualTimeConfig: newConfig.virtualTimeConfig ?? currentAgent.virtualTimeConfig,
+  worldbookIds: [
+    ...new Set([
+      ...(currentAgent.worldbookIds || []),
+      ...(newConfig.worldbookIds || []),
+      ...importedWorldbookIds,
+    ]),
+  ],
+  worldbookSettings: newConfig.worldbookSettings ?? currentAgent.worldbookSettings,
+  assetGroups: newConfig.assetGroups ?? currentAgent.assetGroups,
+  assets: newConfig.assets ?? currentAgent.assets,
+  tags: [...new Set([...(currentAgent.tags || []), ...(newConfig.tags || [])])],
+});
+
+/** 构建替换模式的更新数据 */
+const buildOverwriteUpdate = (
+  newConfig: Partial<ChatAgent>,
+  importedWorldbookIds: string[]
+): Partial<ChatAgent> => {
+  const { id, createdAt, lastUsedAt, ...rest } = newConfig as any;
+  return {
+    ...rest,
+    worldbookIds: [...new Set([...(newConfig.worldbookIds || []), ...importedWorldbookIds])],
+  };
+};
+
+// ========== 资产处理 ==========
+
+/** 处理资产更新 */
+const processAssetUpdates = async (agentId: string) => {
+  const assetEntries = Object.entries(parsedAssets.value);
+  if (assetEntries.length === 0) return;
+
+  logger.info("开始更新智能体资产", { count: assetEntries.length });
+
+  for (const [path, buffer] of assetEntries) {
+    const rawRelativePath = path.replace(/^assets[/\\]/, "");
+    const pathParts = rawRelativePath.split(/[/\\]/);
+    const filename = pathParts.pop() || "file";
+    const relativeSubDir = pathParts.join("/");
+
+    const subdirectory = `llm-chat/agents/${agentId}/${relativeSubDir}`.replace(/\/+$/, "");
+
+    await invoke("save_uploaded_file", {
+      fileData: Array.from(new Uint8Array(buffer)),
+      subdirectory,
+      filename,
+    });
+
+    // 如果是头像，自动同步 icon 字段
+    if (path.includes("avatar_for_") || parsedConfig.value?.icon === path) {
+      const finalIconPath = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
+      agentStore.updateAgent(agentId, { icon: finalIconPath });
+    }
+  }
+};
+
+// ========== 核心执行逻辑 ==========
+
+/** 执行升级/覆盖 */
 const handleConfirm = async () => {
   if (!parsedConfig.value) return;
 
@@ -159,123 +341,20 @@ const handleConfirm = async () => {
     const newConfig = parsedConfig.value;
     const agentName = newConfig.displayName || newConfig.name || currentAgent.name;
 
-    // 1. 处理世界书导入
-    const importedWorldbookIds: string[] = [];
-
-    // 处理嵌入的世界书
-    if (parsedEmbeddedWorldbook.value) {
-      const wb = parsedEmbeddedWorldbook.value;
-      const wbName = wb.metadata?.name || `${agentName} 的世界书`;
-      const normalizedWb = normalizeWorldbook(wb);
-      const existingId = await findDuplicateWorldbook(normalizedWb, wbName);
-      if (existingId) {
-        importedWorldbookIds.push(existingId);
-      } else {
-        const wbId = await worldbookStore.importWorldbook(wbName, normalizedWb);
-        importedWorldbookIds.push(wbId);
-      }
-    }
-
-    // 处理随包打包的世界书
-    if (parsedBundledWorldbooks.value.length > 0) {
-      for (const bundled of parsedBundledWorldbooks.value) {
-        if (bundled.content) {
-          const existingId = await findDuplicateWorldbook(bundled.content, bundled.name);
-          if (existingId) {
-            importedWorldbookIds.push(existingId);
-          } else {
-            const wbId = await worldbookStore.importWorldbook(bundled.name, bundled.content);
-            importedWorldbookIds.push(wbId);
-          }
-        }
-      }
-    }
+    // 1. 处理世界书
+    const importedWorldbookIds = await processWorldbookImports(agentName);
 
     // 2. 准备更新数据
-    let updatedData: Partial<ChatAgent> = {};
+    const updatedData =
+      upgradeStrategy.value === "merge"
+        ? buildMergeUpdate(currentAgent, newConfig, importedWorldbookIds)
+        : buildOverwriteUpdate(newConfig, importedWorldbookIds);
 
-    if (upgradeStrategy.value === "merge") {
-      // 深度合并策略：保留身份，更新逻辑
-      updatedData = {
-        presetMessages: newConfig.presetMessages ?? currentAgent.presetMessages,
-        parameters: {
-          ...currentAgent.parameters,
-          ...(newConfig.parameters || {}),
-        },
-        llmThinkRules: newConfig.llmThinkRules ?? currentAgent.llmThinkRules,
-        richTextStyleOptions: newConfig.richTextStyleOptions ?? currentAgent.richTextStyleOptions,
-        regexConfig: newConfig.regexConfig ?? currentAgent.regexConfig,
-        interactionConfig: newConfig.interactionConfig ?? currentAgent.interactionConfig,
-        virtualTimeConfig: newConfig.virtualTimeConfig ?? currentAgent.virtualTimeConfig,
-        // 世界书引用处理：合并导入的 ID 和配置中的 ID
-        worldbookIds: Array.from(
-          new Set([
-            ...(currentAgent.worldbookIds || []),
-            ...(newConfig.worldbookIds || []),
-            ...importedWorldbookIds,
-          ])
-        ),
-        // 世界书设置处理
-        worldbookSettings: newConfig.worldbookSettings ?? currentAgent.worldbookSettings,
-        // 资产分组定义处理
-        assetGroups: newConfig.assetGroups ?? currentAgent.assetGroups,
-        // 资产列表定义处理
-        assets: newConfig.assets ?? currentAgent.assets,
-        // 合并标签
-        tags: Array.from(new Set([...(currentAgent.tags || []), ...(newConfig.tags || [])])),
-      };
-    } else {
-      // 完全替换策略：除了 ID 和创建时间，全部覆盖
-      // 过滤掉不可覆盖的系统字段
-      const { id, createdAt, lastUsedAt, ...rest } = newConfig as any;
-      updatedData = {
-        ...rest,
-        // 替换模式下，世界书也以导入的为准
-        worldbookIds: Array.from(
-          new Set([...(newConfig.worldbookIds || []), ...importedWorldbookIds])
-        ),
-      };
-    }
-
-    // 执行更新
+    // 3. 执行更新
     agentStore.updateAgent(currentAgent.id, updatedData);
 
-    // 处理资产更新 (如果有新资产)
-    const assetEntries = Object.entries(parsedAssets.value);
-    if (assetEntries.length > 0) {
-      logger.info("开始更新智能体资产", { count: assetEntries.length });
-      for (const [path, buffer] of assetEntries) {
-        // 提取路径结构
-        const rawRelativePath = path.replace(/^assets[/\\]/, "");
-        const pathParts = rawRelativePath.split(/[/\\]/);
-        const filename = pathParts.pop() || "file";
-        const relativeSubDir = pathParts.join("/");
-
-        // 保持子目录结构存储
-        // 注意：parsedAssets 仅包含 assets/ 路径下的文件，不含 worldbooks/
-        // 世界书的持久化已由 worldbookStore.importWorldbook 处理
-        const subdirectory = `llm-chat/agents/${currentAgent.id}/${relativeSubDir}`.replace(
-          /\/+$/,
-          ""
-        );
-
-        await invoke("save_uploaded_file", {
-          fileData: Array.from(new Uint8Array(buffer)),
-          subdirectory,
-          filename: filename,
-        });
-
-        // 如果是头像资产，更新 icon 字段
-        if (path.includes("avatar_for_") || parsedConfig.value?.icon === path) {
-          const finalIconPath = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
-          agentStore.updateAgent(currentAgent.id, { icon: finalIconPath });
-        }
-
-        // 如果是世界书资产，确保路径正确（通常在 worldbook/ 目录下）
-        // 这里的逻辑已经由上面的 invoke("save_uploaded_file") 处理了全量保存
-        // 只要 relativeSubDir 包含 worldbook，它就会被存入正确位置
-      }
-    }
+    // 4. 处理资产
+    await processAssetUpdates(currentAgent.id);
 
     customMessage.success("智能体配置覆盖成功");
     emit("upgraded");
@@ -285,28 +364,34 @@ const handleConfirm = async () => {
   }
 };
 
+/** 关闭对话框并重置状态 */
 const handleClose = () => {
   emit("update:visible", false);
   importText.value = "";
   parsedConfig.value = null;
   parsedAssets.value = {};
+  parsedBundledWorldbooks.value = [];
+  parsedEmbeddedWorldbook.value = null;
   parseError.value = null;
   isParsing.value = false;
 };
 
-// 预览信息
+// ========== 计算属性 ==========
+
+/** 预览信息 */
 const previewInfo = computed(() => {
-  if (!parsedConfig.value) return null;
-  const c = parsedConfig.value;
+  const config = parsedConfig.value;
+  if (!config) return null;
+
   return {
-    name: c.displayName || c.name || "未命名配置",
-    presetCount: c.presetMessages?.length || 0,
-    hasParams: !!c.parameters,
-    hasRules: !!c.llmThinkRules?.length,
-    hasRegex: !!c.regexConfig?.presets?.some((p) => p.rules?.length > 0),
-    hasIcon: !!c.icon,
-    worldbookCount: c.worldbookIds?.length || 0,
-    assetCount: c.assets?.length || 0,
+    name: config.displayName || config.name || "未命名配置",
+    presetCount: config.presetMessages?.length || 0,
+    hasParams: !!config.parameters,
+    hasRules: !!config.llmThinkRules?.length,
+    hasRegex: !!config.regexConfig?.presets?.some((p) => (p.rules?.length ?? 0) > 0),
+    hasIcon: !!config.icon,
+    worldbookCount: config.worldbookIds?.length || 0,
+    assetCount: config.assets?.length || 0,
   };
 });
 </script>
@@ -316,7 +401,7 @@ const previewInfo = computed(() => {
     :modelValue="visible"
     @update:modelValue="emit('update:visible', $event)"
     title="覆盖智能体配置"
-    width="600px"
+    width="800px"
   >
     <div class="upgrade-container">
       <div class="agent-target-info">
@@ -343,7 +428,12 @@ const previewInfo = computed(() => {
         <div class="upload-hint" v-if="!importText && !isParsing">
           <el-icon><Upload /></el-icon>
           <span>支持拖拽文件上传</span>
-          <input type="file" class="file-input" @change="onFileChange" accept=".json,.yaml,.yml" />
+        </div>
+        <div class="import-actions">
+          <el-button :icon="Files" @click="handleSelectFile" size="small">选择文件</el-button>
+          <el-button :icon="FolderOpened" @click="handleSelectDirectory" size="small">
+            选择目录
+          </el-button>
         </div>
       </div>
 
@@ -459,6 +549,14 @@ const previewInfo = computed(() => {
 .import-area.is-dragging {
   border-color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
+}
+
+.import-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
 }
 
 .upload-hint {

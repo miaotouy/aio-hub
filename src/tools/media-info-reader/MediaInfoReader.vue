@@ -42,8 +42,25 @@
         </el-tab-pane>
 
         <!-- ST Character Tab -->
-        <el-tab-pane label="ST Character" name="st" v-if="state.stCharacterInfo">
+        <el-tab-pane label="ST 可视化" name="st" v-if="state.stCharacterInfo">
           <StCharacterInfo :st-character-info="state.stCharacterInfo" />
+        </el-tab-pane>
+
+        <el-tab-pane label="ST 源码" name="st_raw" v-if="state.stCharacterInfo">
+          <div class="full-info-wrapper">
+            <div class="section-header full-info-header">
+              <span class="label">ST Character JSON</span>
+              <CopyButton :text="state.stCharacterInfo" />
+            </div>
+            <div class="editor-container-flex">
+              <RichCodeEditor
+                :model-value="state.stCharacterInfo"
+                language="json"
+                :read-only="true"
+                :minimap="false"
+              />
+            </div>
+          </div>
         </el-tab-pane>
 
         <!-- AIO Bundle Tab -->

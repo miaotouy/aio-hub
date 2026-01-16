@@ -3,6 +3,7 @@
     <!-- 左侧：图片预览区 -->
     <ImagePreviewPanel
       :preview-src="state.previewSrc"
+      :is-loading="state.isLoading"
       @open-picker="openFilePicker"
       @clear="clearWorkspace"
       @send-to-chat="sendToChat"
@@ -11,8 +12,17 @@
     />
 
     <!-- 右侧：信息展示区 -->
-    <div class="right-panel">
-      <div v-if="!hasData && !state.previewSrc" class="empty-state">
+    <div
+      class="right-panel"
+      v-loading="state.isLoading"
+      element-loading-text="正在解析元数据..."
+      element-loading-background="transparent"
+    >
+      <div v-if="state.isLoading" class="empty-state">
+        <!-- 正在加载时，即使 previewSrc 有值也不显示“未检测到” -->
+      </div>
+
+      <div v-else-if="!hasData && !state.previewSrc" class="empty-state">
         <el-empty description="请先上传图片以查看信息" />
       </div>
 
@@ -113,8 +123,9 @@
 </template>
 
 <script setup lang="ts">
-import { ElEmpty, ElTabs, ElTabPane } from "element-plus";
+import { ElEmpty, ElTabs, ElTabPane, vLoading } from "element-plus";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import CopyButton from "./components/CopyButton.vue";
@@ -145,18 +156,23 @@ const handleAsset = async (asset: Asset) => {
     // 保存资产引用
     state.value.currentAsset = asset;
 
-    // 获取预览 URL
-    state.value.previewSrc = await getAssetUrl(asset);
+    // 如果还没有预览图，从资产获取
+    if (!state.value.previewSrc) {
+      state.value.previewSrc = await getAssetUrl(asset);
+    }
 
-    // 获取二进制数据进行解析
-    const buffer = await getAssetBinary(asset.path);
-    await parseImageFromBuffer(new Uint8Array(buffer), asset.name);
+    // 如果还没有解析过数据（比如通过 handleAsset 直接触发的），则解析
+    if (!hasData.value) {
+      const buffer = await getAssetBinary(asset.path);
+      await parseImageFromBuffer(new Uint8Array(buffer), asset.name);
+    }
   } catch (error) {
     errorHandler.error(error, "处理资产失败");
   }
 };
 
 const parseImageFromBuffer = async (buffer: Uint8Array, fileName?: string) => {
+  state.value.isLoading = true;
   try {
     logger.debug("开始解析图片", { fileName });
     const result = await parseImageBuffer(buffer);
@@ -169,6 +185,8 @@ const parseImageFromBuffer = async (buffer: Uint8Array, fileName?: string) => {
         ? `无法解析 EXIF 数据: ${error.message}`
         : "无法解析 EXIF 数据，发生未知错误。";
     setError(message);
+  } finally {
+    state.value.isLoading = false;
   }
 };
 
@@ -189,31 +207,60 @@ const openFilePicker = async () => {
         path = (result as any).path;
       }
 
-      const asset = await importAssetFromPath(path, {
+      // 立即预览并重置状态
+      clearWorkspace();
+      const previewUrl = convertFileSrc(path);
+      state.value.previewSrc = previewUrl;
+      state.value.isLoading = true;
+
+      // 1. 并行：立即开始解析（不等待资产导入）
+      fetch(previewUrl)
+        .then((res) => res.arrayBuffer())
+        .then((buffer) => parseImageFromBuffer(new Uint8Array(buffer), path.split(/[/\\]/).pop()))
+        .catch((err) => logger.error("直接解析本地文件失败", err));
+
+      // 2. 并行：异步导入资产
+      importAssetFromPath(path, {
         sourceModule: "media-info-reader",
         origin: { type: "local", source: path, sourceModule: "media-info-reader" },
-      });
-
-      await handleAsset(asset);
+      })
+        .then(handleAsset)
+        .catch((err) => {
+          // 如果解析已经成功了，导入失败就不需要重置 isLoading
+          if (!hasData.value) state.value.isLoading = false;
+          errorHandler.error(err, "导入文件失败");
+        });
     }
   } catch (error) {
     errorHandler.error(error, "打开文件失败");
   }
 };
-
 const handlePaths = async (paths: string[]) => {
   if (paths.length === 0) return;
   const path = paths[0];
 
-  try {
-    const asset = await importAssetFromPath(path, {
-      sourceModule: "media-info-reader",
-      origin: { type: "local", source: path, sourceModule: "media-info-reader" },
+  // 立即预览并重置状态
+  clearWorkspace();
+  const previewUrl = convertFileSrc(path);
+  state.value.previewSrc = previewUrl;
+  state.value.isLoading = true;
+
+  // 1. 并行：立即开始解析
+  fetch(previewUrl)
+    .then((res) => res.arrayBuffer())
+    .then((buffer) => parseImageFromBuffer(new Uint8Array(buffer), path.split(/[/\\]/).pop()))
+    .catch((err) => logger.error("直接解析路径文件失败", err));
+
+  // 2. 并行：异步导入资产
+  importAssetFromPath(path, {
+    sourceModule: "media-info-reader",
+    origin: { type: "local", source: path, sourceModule: "media-info-reader" },
+  })
+    .then(handleAsset)
+    .catch((err) => {
+      if (!hasData.value) state.value.isLoading = false;
+      errorHandler.error(err, "导入文件失败", { context: { path } });
     });
-    await handleAsset(asset);
-  } catch (error) {
-    errorHandler.error(error, "导入文件失败", { context: { path } });
-  }
 };
 
 const handleFiles = async (files: File[]) => {
@@ -221,12 +268,24 @@ const handleFiles = async (files: File[]) => {
   const file = files[0];
 
   try {
+    // 立即显示预览并重置状态
+    clearWorkspace();
+    const objectUrl = URL.createObjectURL(file);
+    state.value.previewSrc = objectUrl;
+    state.value.isLoading = true;
+
+    // 立即开始解析
     const buffer = await file.arrayBuffer();
-    const asset = await importAssetFromBytes(buffer, file.name, {
+    await parseImageFromBuffer(new Uint8Array(buffer), file.name);
+
+    // 异步导入资产
+    importAssetFromBytes(buffer, file.name, {
       sourceModule: "media-info-reader",
       origin: { type: "clipboard", source: "paste", sourceModule: "media-info-reader" },
+    }).then((asset) => {
+      // 此时已经解析过了，只需要保存资产引用，不需要再次调用 handleAsset (handleAsset 会再次解析)
+      state.value.currentAsset = asset;
     });
-    await handleAsset(asset);
   } catch (error) {
     errorHandler.error(error, "导入粘贴文件失败", { context: { fileName: file.name } });
   }

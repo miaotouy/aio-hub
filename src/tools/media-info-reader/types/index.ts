@@ -24,6 +24,7 @@ export interface ImageMetadataResult {
 
 export interface MediaInfoState {
   previewSrc: string;
+  isLoading: boolean;
   currentAsset?: Asset;
   activeTab: string;
   webuiInfo: WebUIInfo;

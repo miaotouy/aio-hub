@@ -3,7 +3,11 @@
     <InfoCard title="图片预览" class="preview-card">
       <template #headerExtra>
         <div v-if="previewSrc" class="preview-actions">
-          <el-text type="info" size="small">拖放或粘贴以替换</el-text>
+          <div v-if="isLoading" class="header-loading">
+            <Loader2 class="spinner-small" />
+            <el-text type="primary" size="small">正在解析...</el-text>
+          </div>
+          <el-text v-else type="info" size="small">拖放或粘贴以替换</el-text>
           <el-button
             :icon="MessageSquare"
             size="small"
@@ -39,12 +43,19 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ElButton, ElIcon, ElText } from "element-plus";
-import { Delete, Upload, FolderOpen as FolderOpened, MessageSquare } from "lucide-vue-next";
+import {
+  Delete,
+  Upload,
+  FolderOpen as FolderOpened,
+  MessageSquare,
+  Loader2,
+} from "lucide-vue-next";
 import InfoCard from "@components/common/InfoCard.vue";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 
 defineProps<{
   previewSrc: string;
+  isLoading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -135,6 +146,29 @@ const { isDraggingOver } = useFileInteraction({
   height: 100%;
   object-fit: contain;
   display: block;
+}
+
+.header-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  color: var(--primary-color);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 1000px) {

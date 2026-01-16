@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.4.9-beta.2",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "miaotouy",
   "description": "一个基于 Tauri + Vue 3 开发的桌面端枢纽应用，提供多种实用的开发和日常工具",
   "repository": {

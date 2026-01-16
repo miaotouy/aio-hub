@@ -8,7 +8,7 @@
 
 一个基于 Tauri + Vue 3 + TypeScript 开发的桌面端枢纽应用，提供多种实用的开发和日常工具。
 
-[![License](https://img.shields.io/badge/license-MIT%20%2F%20Proprietary-blue.svg)](#-许可证)
+[![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20Proprietary-blue.svg)](#-许可证)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
 [![Vue](https://img.shields.io/badge/Vue-3.5-green.svg)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
@@ -257,8 +257,8 @@ bun run tauri build
 本项目采用双重授权协议，请根据使用的模块遵循相应的条款：
 
 ### 🖥️ 桌面端 (Desktop)
-遵循 **[MIT License](LICENSE)** 开源协议。
-这意味着你可以自由地：商业使用、修改源代码、分发副本、私人使用。唯一要求是保留原始版权声明。
+遵循 **[Apache License 2.0](LICENSE)** 开源协议。
+这意味着你可以自由地：商业使用、修改源代码、分发副本、私人使用。唯一要求是保留原始版权声明和免责声明。
 
 ### 📱 移动端 (Mobile)
 遵循 **[Proprietary License](mobile/LICENSE)** (私有许可证)。

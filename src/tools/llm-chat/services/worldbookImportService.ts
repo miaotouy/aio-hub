@@ -7,7 +7,7 @@ import { useWorldbookStore } from "../stores/worldbookStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { readTextFile } from "@tauri-apps/plugin-fs";
-import { parseCharacterDataFromPng } from "@/utils/pngMetadataReader";
+import { parsePngMetadata } from "@/utils/pngMetadataReader";
 import { isCharacterCard, convertMacros } from "./sillyTavernParser";
 
 const logger = createModuleLogger("llm-chat/worldbookImportService");
@@ -20,17 +20,30 @@ export async function importSTWorldbook(file: File): Promise<string | null> {
   try {
     if (file.name.endsWith(".png")) {
       const buffer = await file.arrayBuffer();
-      const jsonData = await parseCharacterDataFromPng(buffer) as any;
-      if (jsonData && isCharacterCard(jsonData)) {
-        const characterBook = jsonData.character_book || jsonData.data?.character_book;
+      const { aioBundle, stCharacter } = await parsePngMetadata(buffer);
+
+      // 1. 优先尝试从 AIO Bundle 提取
+      if (aioBundle && aioBundle.type === 'AIO_Agent_Export' && aioBundle.agents?.[0]) {
+        const agent = aioBundle.agents[0];
+        // 尝试提取内嵌的世界书
+        const characterBook = (agent as any).character_book || (agent as any).data?.character_book;
         if (characterBook && characterBook.entries) {
           const worldbookStore = useWorldbookStore();
-          // SillyTavern 的世界书名称可能在 metadata 中，也可能直接用角色名
-          const name = characterBook.metadata?.name || jsonData.name || file.name.replace(".png", "");
+          const name = characterBook.metadata?.name || agent.displayName || agent.name || file.name.replace(".png", "");
           return await worldbookStore.importWorldbook(name, characterBook as STWorldbook);
         }
       }
-      throw new Error("该 PNG 文件不包含有效的 SillyTavern 角色卡或世界书数据");
+
+      // 2. 尝试从 ST 角色卡提取
+      if (stCharacter && isCharacterCard(stCharacter)) {
+        const characterBook = stCharacter.character_book || stCharacter.data?.character_book;
+        if (characterBook && characterBook.entries) {
+          const worldbookStore = useWorldbookStore();
+          const name = characterBook.metadata?.name || stCharacter.name || file.name.replace(".png", "");
+          return await worldbookStore.importWorldbook(name, characterBook as STWorldbook);
+        }
+      }
+      throw new Error("该 PNG 文件不包含有效的 SillyTavern 角色卡或 AIO Bundle 数据");
     }
 
     const text = await file.text();

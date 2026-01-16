@@ -16,6 +16,7 @@ export interface ImageMetadataResult {
   webuiInfo: WebUIInfo;
   comfyuiWorkflow: string | object;
   stCharacterInfo: object | null;
+  aioInfo: { content: string | object, format: 'json' | 'yaml' } | null;
   fullExifInfo: object | null;
 }
 
@@ -25,5 +26,7 @@ export interface MediaInfoState {
   webuiInfo: WebUIInfo;
   comfyuiWorkflow: string;
   stCharacterInfo: string;
+  aioInfo: string;
+  aioFormat: 'json' | 'yaml';
   fullExifInfo: string;
 }

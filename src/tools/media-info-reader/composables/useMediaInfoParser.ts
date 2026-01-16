@@ -1,7 +1,8 @@
 import { createModuleLogger } from '@/utils/logger';
 import * as exifr from 'exifr';
-import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
+import { parsePngMetadata } from '@/utils/pngMetadataReader';
 import type { WebUIInfo, ImageMetadataResult } from '../types';
+import JSZip from 'jszip';
 
 const logger = createModuleLogger('composables/media-info-parser');
 
@@ -26,6 +27,8 @@ export function useMediaInfoParser() {
     let webuiInfo: WebUIInfo = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
     let comfyuiWorkflow: string | object = '';
     let stCharacterInfo: object | null = null;
+    let aioInfo: { content: string | object, format: 'json' | 'yaml' } | null = null;
+
     // --- 预处理：清洗数据 ---
     // 在进行任何解析之前，先确保 output 中的 UserComment/parameters 是正确解码的字符串
     // 这样不仅 parseWebUIInfo 能用，fullExifInfo 也能显示可读文本
@@ -59,8 +62,46 @@ export function useMediaInfoParser() {
 
     const fullExifInfo: object | null = output ? output : null;
 
-    // --- ST 角色卡解析 ---
-    stCharacterInfo = await parseCharacterDataFromPng(buffer);
+    // --- PNG 特殊元数据解析 (ST 角色卡 / AIO Bundle) ---
+    const { aioBundle, stCharacter } = await parsePngMetadata(buffer);
+
+    // 1. 处理 AIO Bundle
+    if (aioBundle) {
+      if (aioBundle.type === 'AIO_Agent_Bundle' && aioBundle.compressed && aioBundle.data) {
+        // 解压 AIO Bundle
+        try {
+          const zipBinaryString = atob(aioBundle.data);
+          const zipBytes = new Uint8Array(zipBinaryString.length);
+          for (let i = 0; i < zipBinaryString.length; i++) {
+            zipBytes[i] = zipBinaryString.charCodeAt(i);
+          }
+
+          const zip = new JSZip();
+          const zipContent = await zip.loadAsync(zipBytes);
+
+          const agentJsonFile = zipContent.file(/\.agent\.json$/)[0];
+          const agentYamlFile = zipContent.file(/\.agent\.(yaml|yml)$/)[0];
+
+          if (agentJsonFile) {
+            const agentJsonText = await agentJsonFile.async('text');
+            aioInfo = { content: JSON.parse(agentJsonText), format: 'json' };
+          } else if (agentYamlFile) {
+            const agentYamlText = await agentYamlFile.async('text');
+            aioInfo = { content: agentYamlText, format: 'yaml' };
+          } else {
+            aioInfo = { content: aioBundle, format: 'json' }; // 回退
+          }
+        } catch (e) {
+          logger.warn('解压 AIO Bundle 失败', e);
+          aioInfo = { content: aioBundle, format: 'json' };
+        }
+      } else {
+        aioInfo = { content: aioBundle, format: 'json' };
+      }
+    }
+
+    // 2. 处理 ST 角色卡
+    stCharacterInfo = stCharacter;
 
     // --- WebUI 信息解析 ---
     // 现在可以直接从 output 中安全获取已清洗的字符串
@@ -82,6 +123,7 @@ export function useMediaInfoParser() {
       webuiInfo,
       comfyuiWorkflow,
       stCharacterInfo,
+      aioInfo,
       fullExifInfo,
     };
   };

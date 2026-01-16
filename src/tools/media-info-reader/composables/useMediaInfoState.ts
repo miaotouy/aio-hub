@@ -8,6 +8,8 @@ export function useMediaInfoState() {
     webuiInfo: { positivePrompt: "", negativePrompt: "", generationInfo: "" },
     comfyuiWorkflow: "",
     stCharacterInfo: "",
+    aioInfo: "",
+    aioFormat: "json" as "json" | "yaml",
     fullExifInfo: "",
   });
 
@@ -16,6 +18,7 @@ export function useMediaInfoState() {
       state.value.webuiInfo.positivePrompt ||
       state.value.comfyuiWorkflow ||
       state.value.stCharacterInfo ||
+      state.value.aioInfo ||
       state.value.fullExifInfo
   );
 
@@ -26,6 +29,8 @@ export function useMediaInfoState() {
       webuiInfo: { positivePrompt: "", negativePrompt: "", generationInfo: "" },
       comfyuiWorkflow: "",
       stCharacterInfo: "",
+      aioInfo: "",
+      aioFormat: "json",
       fullExifInfo: "",
     };
   };
@@ -39,6 +44,15 @@ export function useMediaInfoState() {
     state.value.stCharacterInfo = result.stCharacterInfo
       ? JSON.stringify(result.stCharacterInfo, null, 2)
       : "";
+    if (result.aioInfo) {
+      state.value.aioFormat = result.aioInfo.format;
+      state.value.aioInfo = typeof result.aioInfo.content === "object"
+        ? JSON.stringify(result.aioInfo.content, null, 2)
+        : result.aioInfo.content;
+    } else {
+      state.value.aioInfo = "";
+      state.value.aioFormat = "json";
+    }
     state.value.fullExifInfo = result.fullExifInfo
       ? JSON.stringify(result.fullExifInfo, null, 2)
       : "";
@@ -47,7 +61,9 @@ export function useMediaInfoState() {
   };
 
   const autoSelectTab = () => {
-    if (state.value.webuiInfo.positivePrompt) {
+    if (state.value.aioInfo) {
+      state.value.activeTab = "aio";
+    } else if (state.value.webuiInfo.positivePrompt) {
       state.value.activeTab = "webui";
     } else if (state.value.comfyuiWorkflow) {
       state.value.activeTab = "comfyui";
@@ -62,6 +78,8 @@ export function useMediaInfoState() {
     state.value.webuiInfo = { positivePrompt: "", negativePrompt: "", generationInfo: "" };
     state.value.comfyuiWorkflow = "";
     state.value.stCharacterInfo = "";
+    state.value.aioInfo = "";
+    state.value.aioFormat = "json";
     state.value.fullExifInfo = message;
     state.value.activeTab = "full";
   };

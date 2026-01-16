@@ -46,6 +46,18 @@
           <StCharacterInfo :st-character-info="state.stCharacterInfo" />
         </el-tab-pane>
 
+        <!-- AIO Bundle Tab -->
+        <el-tab-pane label="AIO Bundle" name="aio" v-if="state.aioInfo">
+          <div class="editor-container">
+            <RichCodeEditor
+              :model-value="state.aioInfo"
+              :language="state.aioFormat"
+              :read-only="true"
+              :minimap="false"
+            />
+          </div>
+        </el-tab-pane>
+
         <!-- Full Info Tab -->
         <el-tab-pane label="完整元数据" name="full">
           <div class="full-info-wrapper">

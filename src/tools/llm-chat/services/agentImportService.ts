@@ -13,7 +13,7 @@ import type {
 import { AgentCategory, AgentCategoryLabels } from '../types';
 import { STWorldbook } from '../types/worldbook';
 import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from './sillyTavernParser';
-import { parseCharacterDataFromPng } from '@/utils/pngMetadataReader';
+import { parsePngMetadata } from '@/utils/pngMetadataReader';
 import { normalizeWorldbook } from './worldbookImportService';
 import { useWorldbookStore } from '../stores/worldbookStore';
 import { invoke } from '@tauri-apps/api/core';
@@ -151,13 +151,10 @@ export async function preflightImportAgents(
         agentExportFile = yaml.load(yamlText) as AgentExportFile;
       } else if (file.name.endsWith('.png')) {
         const buffer = await file.arrayBuffer();
-        const jsonData = await parseCharacterDataFromPng(buffer) as any;
+        const { aioBundle, stCharacter } = await parsePngMetadata(buffer);
 
-        if (!jsonData) {
-          throw new Error(`无法从 PNG 文件 ${file.name} 中解析出有效的角色卡数据。`);
-        }
-
-        if (jsonData.type === 'AIO_Agent_Bundle' && jsonData.compressed && jsonData.data) {
+        if (aioBundle && aioBundle.type === 'AIO_Agent_Bundle' && aioBundle.compressed && aioBundle.data) {
+          const jsonData = aioBundle;
           const zipBase64 = jsonData.data;
           const zipBinaryString = atob(zipBase64);
           const zipBytes = new Uint8Array(zipBinaryString.length);
@@ -204,7 +201,10 @@ export async function preflightImportAgents(
               }
             }
           }
-        } else if (isCharacterCard(jsonData)) {
+        } else if (aioBundle && aioBundle.type === 'AIO_Agent_Export') {
+          agentExportFile = aioBundle;
+        } else if (stCharacter && isCharacterCard(stCharacter)) {
+          const jsonData = stCharacter;
           const { agent: parsedAgent, presetMessages } = parseCharacterCard(jsonData as SillyTavernCharacterCard);
 
           if (!parsedAgent.name) {

@@ -35,7 +35,7 @@ const selectedAgentIds = ref<string[]>([]);
 const includeAssets = ref(true);
 const includeWorldbooks = ref(true);
 const embedWorldbooks = ref(false);
-const exportFormat = ref<"json" | "yaml">("json");
+const exportFormat = ref<"json" | "yaml">("yaml");
 const exportType = ref<"zip" | "folder" | "file" | "png">("zip");
 const separateFolders = ref(false);
 

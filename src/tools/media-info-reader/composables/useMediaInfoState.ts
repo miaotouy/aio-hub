@@ -4,6 +4,7 @@ import type { ImageMetadataResult, MediaInfoState } from "../types";
 export function useMediaInfoState() {
   const state = ref<MediaInfoState>({
     previewSrc: "",
+    currentAsset: undefined,
     activeTab: "webui",
     webuiInfo: { positivePrompt: "", negativePrompt: "", generationInfo: "" },
     comfyuiWorkflow: "",
@@ -25,6 +26,7 @@ export function useMediaInfoState() {
   const clearWorkspace = () => {
     state.value = {
       previewSrc: "",
+      currentAsset: undefined,
       activeTab: "webui",
       webuiInfo: { positivePrompt: "", negativePrompt: "", generationInfo: "" },
       comfyuiWorkflow: "",

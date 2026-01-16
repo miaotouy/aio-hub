@@ -5,6 +5,7 @@
       :preview-src="state.previewSrc"
       @open-picker="openFilePicker"
       @clear="clearWorkspace"
+      @send-to-chat="sendToChat"
       @paths="handlePaths"
       @files="handleFiles"
     />
@@ -127,6 +128,8 @@ import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useMediaInfoParser } from "./composables/useMediaInfoParser";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
 import { useMediaInfoState } from "./composables/useMediaInfoState";
+import { llmChatRegistry } from "@/tools/llm-chat/llmChat.registry";
+import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("MediaInfoReader");
 const errorHandler = createModuleErrorHandler("MediaInfoReader");
@@ -139,6 +142,9 @@ const { state, hasData, clearWorkspace, updateFromResult, setError } = useMediaI
 
 const handleAsset = async (asset: Asset) => {
   try {
+    // 保存资产引用
+    state.value.currentAsset = asset;
+
     // 获取预览 URL
     state.value.previewSrc = await getAssetUrl(asset);
 
@@ -223,6 +229,66 @@ const handleFiles = async (files: File[]) => {
     await handleAsset(asset);
   } catch (error) {
     errorHandler.error(error, "导入粘贴文件失败", { context: { fileName: file.name } });
+  }
+};
+
+const sendToChat = async () => {
+  if (!state.value.previewSrc) {
+    customMessage.warning("请先上传图片");
+    return;
+  }
+
+  try {
+    // 1. 准备附件
+    if (state.value.currentAsset) {
+      llmChatRegistry.addAssets([state.value.currentAsset]);
+    }
+
+    // 2. 准备文本内容与语言标识
+    let content = "";
+    let language = "";
+    const activeTab = state.value.activeTab;
+
+    if (activeTab === "webui") {
+      const info = state.value.webuiInfo;
+      content = `Positive Prompt: ${info.positivePrompt}\n\nNegative Prompt: ${info.negativePrompt}\n\nGeneration Info: ${info.generationInfo}`;
+      language = "text";
+    } else if (activeTab === "comfyui") {
+      content = state.value.comfyuiWorkflow;
+      language = "json";
+    } else if (activeTab === "st" || activeTab === "st_raw") {
+      content = state.value.stCharacterInfo;
+      language = "json";
+    } else if (activeTab === "aio" || activeTab === "aio_raw") {
+      content = state.value.aioInfo;
+      language = state.value.aioFormat || "json";
+    } else if (activeTab === "full") {
+      content = state.value.fullExifInfo;
+      language = "json";
+    }
+
+    // 3. 发送到输入框
+    if (content) {
+      const tabLabelMap: Record<string, string> = {
+        webui: "Stable Diffusion WebUI",
+        comfyui: "ComfyUI Workflow",
+        st: "SillyTavern Character",
+        st_raw: "SillyTavern Character (Raw)",
+        aio: "AIO Bundle Manifest",
+        aio_raw: "AIO Bundle Manifest (Raw)",
+        full: "Full Metadata",
+      };
+
+      const label = tabLabelMap[activeTab] || "Metadata";
+      const header = `来自图片的 ${label} 信息：\n`;
+      const wrappedContent = language ? `\`\`\`${language}\n${content}\n\`\`\`` : content;
+
+      llmChatRegistry.addContentToInput(header + wrappedContent);
+    }
+
+    customMessage.success("已发送到聊天");
+  } catch (error) {
+    errorHandler.error(error, "发送到聊天失败");
   }
 };
 </script>

@@ -1,3 +1,5 @@
+import type { Asset } from "@/types/asset-management";
+
 export interface CivitaiResource {
   type: string;
   modelName: string;
@@ -22,11 +24,12 @@ export interface ImageMetadataResult {
 
 export interface MediaInfoState {
   previewSrc: string;
+  currentAsset?: Asset;
   activeTab: string;
   webuiInfo: WebUIInfo;
   comfyuiWorkflow: string;
   stCharacterInfo: string;
   aioInfo: string;
-  aioFormat: 'json' | 'yaml';
+  aioFormat: "json" | "yaml";
   fullExifInfo: string;
 }

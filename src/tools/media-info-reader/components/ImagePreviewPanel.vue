@@ -4,6 +4,14 @@
       <template #headerExtra>
         <div v-if="previewSrc" class="preview-actions">
           <el-text type="info" size="small">拖放或粘贴以替换</el-text>
+          <el-button
+            :icon="MessageSquare"
+            size="small"
+            type="primary"
+            @click.stop="$emit('sendToChat')"
+          >
+            发送到聊天
+          </el-button>
           <el-button :icon="FolderOpened" size="small" @click.stop="$emit('openPicker')">
             替换
           </el-button>
@@ -31,7 +39,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ElButton, ElIcon, ElText } from "element-plus";
-import { Delete, Upload, FolderOpened } from "@element-plus/icons-vue";
+import { Delete, Upload, FolderOpen as FolderOpened, MessageSquare } from "lucide-vue-next";
 import InfoCard from "@components/common/InfoCard.vue";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 
@@ -42,6 +50,7 @@ defineProps<{
 const emit = defineEmits<{
   (e: "openPicker"): void;
   (e: "clear"): void;
+  (e: "sendToChat"): void;
   (e: "paths", paths: string[]): void;
   (e: "files", files: File[]): void;
 }>();

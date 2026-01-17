@@ -160,6 +160,11 @@ const transcriptionStatusText = computed(() => {
   const status = transcriptionStatus.value;
   const willUse = willUseTranscription.value;
 
+  // 正在导入文件
+  if (isImporting.value) {
+    return "正在上传/处理文件资产...";
+  }
+
   // 如果父组件未提供 willUseTranscription 信息，则显示通用提示
   if (willUse === undefined) {
     switch (status) {
@@ -544,7 +549,9 @@ onUnmounted(() => {
                   >
                     <Loader2
                       v-if="
-                        transcriptionStatus === 'processing' || transcriptionStatus === 'pending'
+                        isImporting ||
+                        transcriptionStatus === 'processing' ||
+                        transcriptionStatus === 'pending'
                       "
                       class="spinner-micro"
                     />
@@ -635,10 +642,19 @@ onUnmounted(() => {
               ]"
               @click="handleTranscriptionClick"
             >
+              <!-- Importing or Processing: 加载图标 -->
+              <Loader2
+                v-if="
+                  isImporting ||
+                  transcriptionStatus === 'processing' ||
+                  transcriptionStatus === 'pending'
+                "
+                class="spinner-micro"
+              />
               <!-- Success: 文档图标 -->
-              <FileText v-if="transcriptionStatus === 'success'" :size="14" />
+              <FileText v-else-if="transcriptionStatus === 'success'" :size="14" />
               <!-- Warning: 警告图标 -->
-              <TriangleAlert v-if="transcriptionStatus === 'warning'" :size="14" />
+              <TriangleAlert v-else-if="transcriptionStatus === 'warning'" :size="14" />
               <!-- Error: 警示图标 -->
               <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="14" />
               <!-- None: 编辑/转写图标 -->
@@ -1435,10 +1451,14 @@ onUnmounted(() => {
   color: var(--el-color-info); /* 不需要时灰显 */
 }
 
-/* Processing 状态下隐藏按钮 */
+/* Processing 或 Importing 状态下，按钮设为常驻显示（显示加载圈） */
 .transcription-action-btn.processing,
-.transcription-action-btn.pending {
-  display: none;
+.transcription-action-btn.pending,
+.attachment-card.is-importing .transcription-action-btn {
+  display: flex;
+  opacity: 1;
+  transform: scale(1);
+  color: var(--el-color-warning);
 }
 
 .transcription-action-btn:hover {

@@ -4,6 +4,7 @@ import { EditorView, keymap, tooltips, placeholder as cmPlaceholder } from "@cod
 import { EditorState, Compartment } from "@codemirror/state";
 import { useTheme } from "@/composables/useTheme";
 import { markdown } from "@codemirror/lang-markdown";
+import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
 import {
   autocompletion,
   CompletionContext,
@@ -95,7 +96,7 @@ const baseTheme = EditorView.theme({
     height: "auto",
     minHeight: "40px",
     fontSize: "14px",
-    backgroundColor: "transparent",
+    backgroundColor: "transparent !important",
     fontFamily: "inherit", // 顶层继承
   },
   "&.cm-editor": {
@@ -104,6 +105,7 @@ const baseTheme = EditorView.theme({
   ".cm-scroller": {
     fontFamily: "inherit",
     overflow: "auto",
+    backgroundColor: "transparent !important",
   },
   ".cm-content": {
     padding: "10px 14px",
@@ -166,7 +168,7 @@ onMounted(() => {
     extensions: [
       history(),
       editableConf.of(EditorView.editable.of(!props.disabled)),
-      themeConf.of(EditorView.theme({}, { dark: isDark.value })),
+      themeConf.of(isDark.value ? vscodeDark : vscodeLight),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       markdown(),
       autocompletion({
@@ -232,7 +234,7 @@ watch(
 watch(isDark, (dark) => {
   if (view.value) {
     view.value.dispatch({
-      effects: themeConf.reconfigure(EditorView.theme({}, { dark })),
+      effects: themeConf.reconfigure(dark ? vscodeDark : vscodeLight),
     });
   }
 });

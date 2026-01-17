@@ -302,12 +302,16 @@ export async function detectMimeTypeFromBuffer(
   } catch (error) {
     console.warn("file-type from buffer 检测失败，使用后备方案:", error);
   }
-
   // 2. 启发式文本检测
   // 如果 file-type 没测出来，且看起来像文本，则默认为 text/plain
   if (isBufferLikelyText(buffer)) {
     // 如果有文件名提示，我们还是优先根据扩展名拿更精确的类型（如 .ts -> text/typescript）
     if (fileNameHint) {
+      // 提示可能本身就是一个 MIME 类型
+      if (fileNameHint.includes("/")) {
+        return fileNameHint;
+      }
+
       const extMime = inferMimeTypeFromExtension(fileNameHint);
       if (extMime !== "application/octet-stream") {
         return extMime;

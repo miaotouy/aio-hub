@@ -60,8 +60,7 @@ import {
   type CompletionSource,
 } from "@codemirror/autocomplete";
 import { foldGutter, foldKeymap } from "@codemirror/language";
-import { githubLight } from "@uiw/codemirror-theme-github";
-import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
+import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
 import { getMonacoLanguageId, getCodeMirrorLanguage } from "@/utils/codeLanguages";
 
 const props = withDefaults(
@@ -234,7 +233,7 @@ const handleMonacoBlur = () => {
 
 // 主题切换
 const { isDark } = useTheme();
-const cmTheme = computed(() => (isDark.value ? tokyoNight : githubLight));
+const cmTheme = computed(() => (isDark.value ? vscodeDark : vscodeLight));
 const monacoTheme = computed(() => (isDark.value ? "vs-dark" : "vs"));
 
 // CodeMirror 初始化和销毁
@@ -251,7 +250,7 @@ const initCodeMirror = async () => {
     EditorView.theme({
       "&": {
         color: "var(--text-color)",
-        backgroundColor: "var(--input-bg)",
+        backgroundColor: "var(--input-bg) !important",
       },
       ".cm-content": {
         padding: "12px",
@@ -265,11 +264,12 @@ const initCodeMirror = async () => {
         fontSize: "14px",
         fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
         color: "var(--text-color)",
-        backgroundColor: "var(--input-bg)",
+        backgroundColor: "var(--input-bg) !important",
       },
       ".cm-scroller": {
         fontFamily: "inherit",
         color: "var(--text-color)",
+        backgroundColor: "transparent !important",
       },
       // 行号样式
       ".cm-lineNumbers": {

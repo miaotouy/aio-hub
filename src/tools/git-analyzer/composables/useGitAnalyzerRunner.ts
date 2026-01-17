@@ -6,6 +6,7 @@ import {
   fetchBranchCommits,
   streamLoadRepository,
   streamIncrementalLoad,
+  updateCommitMessage as apiUpdateCommitMessage,
 } from "./useGitLoader";
 import { filterCommits as processFilter } from "./useGitProcessor";
 import { useGitAnalyzerState } from "./useGitAnalyzerState";
@@ -305,6 +306,43 @@ export function useGitAnalyzerRunner() {
   // ==================== 文件操作 ====================
 
   /**
+   * 修改提交消息
+   */
+  async function updateCommitMessage(hash: string, message: string) {
+    const currentRepoPath = state.repoPath.value;
+    if (!currentRepoPath) {
+      customMessage.warning("请先选择 Git 仓库路径");
+      return false;
+    }
+
+    state.loading.value = true;
+    try {
+      const result = await apiUpdateCommitMessage(currentRepoPath, hash, message);
+      customMessage.success(result);
+
+      // 更新本地状态中的提交记录
+      const commitIndex = state.commits.value.findIndex(c => c.hash === hash);
+      if (commitIndex !== -1) {
+        const commit = state.commits.value[commitIndex];
+        // 更新简短消息和完整消息
+        const lines = message.split('\n');
+        commit.message = lines[0] || "";
+        commit.full_message = message;
+      }
+
+      // 重新应用筛选以更新视图
+      filterCommits();
+
+      return true;
+    } catch (error) {
+      errorHandler.error(error, "修改提交消息失败");
+      return false;
+    } finally {
+      state.loading.value = false;
+    }
+  }
+
+  /**
    * 处理路径拖放
    */
   function handlePathDrop(paths: string[]) {
@@ -333,6 +371,9 @@ export function useGitAnalyzerRunner() {
     // 仓库加载
     loadRepository,
     refreshRepository,
+
+    // 提交操作
+    updateCommitMessage,
 
     // 筛选操作
     filterCommits,

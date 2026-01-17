@@ -477,6 +477,44 @@ pub async fn git_export_commits(commits: Vec<GitCommit>, format: String) -> Resu
 }
 
 #[tauri::command]
+pub async fn git_update_commit_message(path: String, hash: String, message: String) -> Result<String, String> {
+    let repo_path = if path.is_empty() { "." } else { &path };
+    
+    // 检查是否是 HEAD
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("无法打开仓库: {}", e))?;
+    
+    let head = repo.head().map_err(|e| format!("获取 HEAD 失败: {}", e))?;
+    let head_oid = head.target().ok_or("HEAD 没有指向任何提交")?;
+    
+    if head_oid.to_string() == hash {
+        // 是 HEAD，使用 commit --amend
+        let mut cmd = Command::new("git");
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        
+        let output = cmd
+            .arg("-C")
+            .arg(repo_path)
+            .arg("commit")
+            .arg("--amend")
+            .arg("-m")
+            .arg(&message)
+            .output()
+            .map_err(|e| format!("执行 git commit --amend 失败: {}", e))?;
+        
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        }
+        
+        Ok("成功修改最近一次提交的消息".to_string())
+    } else {
+        // 不是 HEAD，目前暂不支持修改历史提交消息
+        Err("目前仅支持修改最近一次提交的消息 (HEAD)。修改历史提交涉及重写历史，风险较高，建议使用命令行进行交互式 rebase。".to_string())
+    }
+}
+
+#[tauri::command]
 pub async fn git_format_log(path: String, template: String, limit: usize) -> Result<String, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
     

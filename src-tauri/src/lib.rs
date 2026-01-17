@@ -53,6 +53,7 @@ use commands::{
     git_load_repository,
     git_load_repository_stream,
     git_revert,
+    git_update_commit_message,
     is_directory,
     list_config_files,
     move_and_link,
@@ -435,6 +436,7 @@ tauri::Builder::default()
             git_revert,
             git_export_commits,
             git_format_log,
+            git_update_commit_message,
             // OCR命令
             native_ocr,
             // 窗口管理命令

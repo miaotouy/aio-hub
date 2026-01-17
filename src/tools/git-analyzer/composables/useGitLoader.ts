@@ -54,7 +54,7 @@ export interface StreamLoadResult {
  */
 export async function fetchBranches(path: string): Promise<GitBranch[]> {
   logger.info("获取分支列表", { path });
-  
+
   try {
     const branches = await invoke<GitBranch[]>("git_get_branches", { path });
     logger.info(`成功获取 ${branches.length} 个分支`);
@@ -74,7 +74,7 @@ export async function fetchBranchCommits(
   limit: number
 ): Promise<GitCommit[]> {
   logger.info("获取分支提交", { path, branch, limit });
-  
+
   try {
     const commits = await invoke<GitCommit[]>("git_get_branch_commits", {
       path,
@@ -97,7 +97,7 @@ export async function fetchCommitDetail(
   hash: string
 ): Promise<GitCommit> {
   logger.info("获取提交详情", { path, hash });
-  
+
   try {
     const commit = await invoke<GitCommit>("git_get_commit_detail", {
       path,
@@ -107,6 +107,30 @@ export async function fetchCommitDetail(
     return commit;
   } catch (error) {
     errorHandler.handle(error as Error, { userMessage: "获取提交详情失败", context: { path, hash }, showToUser: false });
+    throw error;
+  }
+}
+
+/**
+ * 修改提交消息
+ */
+export async function updateCommitMessage(
+  path: string,
+  hash: string,
+  message: string
+): Promise<string> {
+  logger.info("修改提交消息", { path, hash, messageLength: message.length });
+
+  try {
+    const result = await invoke<string>("git_update_commit_message", {
+      path,
+      hash,
+      message,
+    });
+    logger.info(`成功修改提交 ${hash} 的消息`);
+    return result;
+  } catch (error) {
+    errorHandler.handle(error as Error, { userMessage: "修改提交消息失败", context: { path, hash }, showToUser: false });
     throw error;
   }
 }
@@ -129,10 +153,10 @@ export async function streamLoadRepository(
       // 监听进度事件
       unlisten = await listen<GitProgressEvent>("git-progress", (event) => {
         const payload = event.payload;
-        
+
         // 调用进度回调
         onProgress(payload);
-        
+
         // 当接收到 end 或 error 事件时，清理监听器并完成 Promise
         if (payload.type === "end") {
           if (unlisten) {
@@ -183,10 +207,10 @@ export async function streamIncrementalLoad(
       // 监听进度事件
       unlisten = await listen<GitProgressEvent>("git-progress", (event) => {
         const payload = event.payload;
-        
+
         // 调用进度回调
         onProgress(payload);
-        
+
         // 当接收到 end 或 error 事件时，清理监听器并完成 Promise
         if (payload.type === "end") {
           if (unlisten) {

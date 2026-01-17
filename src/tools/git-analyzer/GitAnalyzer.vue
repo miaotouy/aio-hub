@@ -69,7 +69,9 @@
     <CommitDetailDialog
       v-model:visible="showDetail"
       :selected-commit="selectedCommit"
+      :loading="loading"
       @copy-hash="copyCommitHash"
+      @update-message="updateCommitMessage"
     />
 
     <!-- 导出模块 -->
@@ -97,7 +99,11 @@ import ControlPanel from "./components/ControlPanel.vue";
 import CommitListView from "./components/CommitListView.vue";
 import ChartsView from "./components/ChartsView.vue";
 import CommitDetailDialog from "./components/CommitDetailDialog.vue";
-import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config/config";
+import {
+  gitAnalyzerConfigManager,
+  debouncedSaveConfig,
+  type GitAnalyzerConfig,
+} from "./config/config";
 import { useGitAnalyzerState } from "./composables/useGitAnalyzerState";
 import { useGitAnalyzerRunner } from "./composables/useGitAnalyzerRunner";
 import { useCharts } from "./composables/useCharts";
@@ -144,6 +150,7 @@ const {
   onBranchChange: switchBranch,
   filterCommits: doFilter,
   clearFilters,
+  updateCommitMessage,
 } = useGitAnalyzerRunner();
 
 // Charts 视图引用

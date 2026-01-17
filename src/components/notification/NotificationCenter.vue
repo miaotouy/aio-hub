@@ -2,10 +2,24 @@
 import { computed, ref } from "vue";
 import { useNotificationStore } from "@/stores/notification";
 import { useRouter } from "vue-router";
-import { BellOff, CheckCheck, Trash2, X, Clock, Tag } from "lucide-vue-next";
+import {
+  BellOff,
+  CheckCheck,
+  Trash2,
+  X,
+  Clock,
+  Tag,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  Info,
+  Settings,
+} from "lucide-vue-next";
 import NotificationItem from "./NotificationItem.vue";
 import { ElMessageBox } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import type { Notification } from "@/types/notification";
 import { format } from "date-fns";
 
@@ -60,6 +74,34 @@ const handleClearAll = async () => {
 
 const handleClose = () => {
   store.toggleCenter(false);
+};
+
+// 根据类型获取图标
+const getTypeIcon = (type: string) => {
+  switch (type) {
+    case "success":
+      return CheckCircle;
+    case "warning":
+      return AlertTriangle;
+    case "error":
+      return XCircle;
+    case "system":
+      return Settings;
+    default:
+      return Info;
+  }
+};
+
+// 获取类型文本
+const getTypeText = (type: string) => {
+  const map: Record<string, string> = {
+    success: "成功",
+    warning: "警告",
+    error: "错误",
+    system: "系统",
+    info: "信息",
+  };
+  return map[type] || "通知";
 };
 </script>
 
@@ -134,6 +176,10 @@ const handleClose = () => {
   >
     <div v-if="currentNotification" class="detail-container">
       <div class="detail-meta">
+        <div class="meta-item type-tag" :class="`type-${currentNotification.type}`">
+          <component :is="getTypeIcon(currentNotification.type)" :size="14" />
+          <span>{{ getTypeText(currentNotification.type) }}</span>
+        </div>
         <div class="meta-item">
           <Clock :size="14" />
           <span>{{ format(currentNotification.timestamp, "yyyy-MM-dd HH:mm:ss") }}</span>
@@ -144,7 +190,11 @@ const handleClose = () => {
         </div>
       </div>
       <div class="detail-content">
-        {{ currentNotification.content }}
+        <RichTextRenderer
+          :content="currentNotification.content"
+          :version="RendererVersion.V2_CUSTOM_PARSER"
+          :enable-enter-animation="false"
+        />
       </div>
       <div v-if="currentNotification.metadata?.path" class="detail-actions">
         <button class="primary-action-btn" @click="handleItemClick(currentNotification.id)">
@@ -294,18 +344,47 @@ const handleClose = () => {
   gap: 6px;
 }
 
+.type-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.type-tag.type-info {
+  color: var(--el-color-info);
+  background-color: rgba(var(--el-color-info-rgb, 144, 147, 153), 0.1);
+}
+.type-tag.type-success {
+  color: var(--el-color-success);
+  background-color: rgba(var(--el-color-success-rgb, 103, 194, 58), 0.1);
+}
+.type-tag.type-warning {
+  color: var(--el-color-warning);
+  background-color: rgba(var(--el-color-warning-rgb, 230, 162, 60), 0.1);
+}
+.type-tag.type-error {
+  color: var(--el-color-danger);
+  background-color: rgba(var(--el-color-danger-rgb, 245, 108, 108), 0.1);
+}
+.type-tag.type-system {
+  color: var(--el-color-primary);
+  background-color: rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.1);
+}
+
 .detail-content {
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);
-  white-space: pre-wrap;
-  word-break: break-word;
   max-height: 400px;
   overflow-y: auto;
   padding: 16px;
   background-color: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
+}
+
+.detail-content :deep(.rich-text-renderer) {
+  background-color: transparent;
 }
 
 .detail-actions {

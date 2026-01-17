@@ -14,6 +14,7 @@
         <el-button @click="showClosableMessage">可关闭消息</el-button>
         <el-button @click="showCenteredMessage">居中消息</el-button>
         <el-button @click="showGroupedMessage">分组消息</el-button>
+        <el-button @click="showLongMessage">长消息测试</el-button>
       </div>
     </div>
 
@@ -25,6 +26,7 @@
         <el-button @click="showCustomMessage('info')">信息消息</el-button>
         <el-button @click="showCustomMessage('warning')">警告消息</el-button>
         <el-button @click="showCustomMessage('error')">错误消息</el-button>
+        <el-button @click="showLongCustomMessage">长消息测试</el-button>
       </div>
     </div>
 
@@ -60,11 +62,12 @@
         <el-button @click="showCustomIcon">自定义图标</el-button>
         <el-button @click="showHTMLContent">HTML 内容</el-button>
         <el-button @click="showCenterAlign">居中对齐</el-button>
+        <el-button @click="showLongMessageBox">长内容弹窗</el-button>
       </div>
     </div>
 
     <div class="section">
-      <h2 class="section-title">Notification System 消息通知系统 (New)</h2>
+      <h2 class="section-title">Notification System 消息通知系统</h2>
       <p class="note">使用持久化消息通知系统，支持历史记录和通知中心</p>
       <div class="notification-demo">
         <el-button type="primary" @click="testNotification('info')">发送 Info</el-button>
@@ -72,6 +75,7 @@
         <el-button type="warning" @click="testNotification('warning')">发送 Warning</el-button>
         <el-button type="danger" @click="testNotification('error')">发送 Error</el-button>
         <el-button @click="testNotification('system')">发送 System</el-button>
+        <el-button @click="testNotification('long')">发送长消息</el-button>
       </div>
       <div class="notification-demo">
         <el-button @click="toggleCenter()">切换通知中心面板</el-button>
@@ -120,6 +124,9 @@ import { h } from "vue";
 const lastResult = ref("");
 const notification = useNotification();
 const targetLoading = ref(false);
+
+const LONG_TEXT =
+  "这是一段非常长的测试文本，旨在测试消息提示组件在处理大量内容时的表现。通常情况下，消息提示应该能够正确换行，而不会超出屏幕边界或导致 UI 布局崩溃。在 AIO Hub 项目中，我们需要确保所有的反馈机制（包括 ElMessage, ElNotification, ElMessageBox 以及我们自定义的通知系统）都能优雅地展示这些长文本。如果文本过长，可能需要考虑截断或提供滚动条，但在简单的消息提示中，自动换行通常是最佳实践。";
 
 // Message 消息提示
 const showMessage = (type: "success" | "info" | "warning" | "error" | "default") => {
@@ -172,6 +179,15 @@ const showGroupedMessage = () => {
   lastResult.value = "显示了分组消息";
 };
 
+const showLongMessage = () => {
+  ElMessage({
+    message: LONG_TEXT,
+    duration: 5000,
+    showClose: true,
+  });
+  lastResult.value = "显示了长内容消息";
+};
+
 // CustomMessage 自定义消息提示
 const showCustomMessage = (type: "success" | "info" | "warning" | "error") => {
   const messages = {
@@ -183,6 +199,11 @@ const showCustomMessage = (type: "success" | "info" | "warning" | "error") => {
 
   customMessage[type](messages[type]);
   lastResult.value = `显示了自定义 ${type} 消息`;
+};
+
+const showLongCustomMessage = () => {
+  customMessage.info({ message: LONG_TEXT, duration: 5000, showClose: true });
+  lastResult.value = "显示了自定义长内容消息";
 };
 
 // Notification 通知
@@ -319,6 +340,18 @@ const showCenterAlign = async () => {
   }
 };
 
+const showLongMessageBox = async () => {
+  try {
+    await ElMessageBox.alert(LONG_TEXT, "长内容测试", {
+      confirmButtonText: "了解",
+      customStyle: { maxWidth: "500px" },
+    });
+    lastResult.value = "长内容弹窗已关闭";
+  } catch {
+    lastResult.value = "长内容弹窗异常关闭";
+  }
+};
+
 // Loading 加载
 const showFullscreenLoading = () => {
   const loading = ElLoading.service({
@@ -365,7 +398,10 @@ const toggleTargetLoading = () => {
 
 // Notification System (New) 测试方法
 const testNotification = (type: any) => {
-  const content = `这是一条由组件测试工具生成的 ${type} 测试消息。时间：${new Date().toLocaleTimeString()}`;
+  const content =
+    type === "long"
+      ? LONG_TEXT
+      : `这是一条由组件测试工具生成的 ${type} 测试消息。时间：${new Date().toLocaleTimeString()}`;
   const title = `测试通知 - ${type}`;
 
   switch (type) {
@@ -383,6 +419,9 @@ const testNotification = (type: any) => {
       break;
     case "system":
       notification.system(title, content, { source: "System" });
+      break;
+    case "long":
+      notification.info("长通知测试", content, { source: "Tester" });
       break;
   }
   lastResult.value = `已发送 ${type} 通知到系统`;

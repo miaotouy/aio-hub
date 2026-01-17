@@ -1,5 +1,6 @@
 import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
 import { isTextFile } from "@/utils/fileTypeDetector";
+import { smartDecode } from "@/utils/encoding";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -41,16 +42,7 @@ export async function resolveAttachmentContent(
       try {
         // 使用资产管理器获取二进制数据，然后在前端解码
         const buffer = await assetManagerEngine.getAssetBinary(asset.path);
-        let textContent: string;
-        
-        try {
-          // 尝试严格模式解码
-          textContent = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-        } catch (e) {
-          // 失败则回退到宽松模式（用替换字符）
-          logger.warn("UTF-8 解码失败，使用宽松模式重试", { assetId: asset.id });
-          textContent = new TextDecoder("utf-8").decode(buffer);
-        }
+        const textContent = smartDecode(buffer);
         
         // 记录日志：读取成功
         // logger.debug("读取文本附件内容", { assetId: asset.id, assetName: asset.name });

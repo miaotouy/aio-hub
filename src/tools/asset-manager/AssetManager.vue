@@ -150,6 +150,7 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
+import { smartDecode } from "@/utils/encoding";
 
 const errorHandler = createModuleErrorHandler("AssetManager");
 const logger = createModuleLogger("AssetManager");
@@ -761,7 +762,7 @@ const handleViewTranscription = async (asset: Asset) => {
   try {
     logger.debug("正在读取转写内容", { assetId: asset.id, path: derived.path });
     const buffer = await assetManagerEngine.getAssetBinary(derived.path);
-    const text = new TextDecoder("utf-8").decode(buffer);
+    const text = smartDecode(buffer);
 
     transcriptionViewer.show({
       asset,

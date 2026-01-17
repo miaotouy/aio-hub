@@ -11,6 +11,7 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { isTextFile, getExtension } from "@/utils/fileTypeDetector";
+import { smartDecode } from "@/utils/encoding";
 import { getLanguageDefinition } from "@/utils/codeLanguages";
 import type { Asset } from "@/types/asset-management";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
@@ -105,7 +106,7 @@ const tryLoadExistingResult = async (asset: Asset) => {
     if (existingTask.resultPath) {
       try {
         const uint8Array = await readFile(existingTask.resultPath);
-        const text = new TextDecoder().decode(uint8Array);
+        const text = smartDecode(uint8Array);
         resultText.value = text;
         existingTask.resultText = text; // 存入缓存
         showResult.value = true;
@@ -176,7 +177,7 @@ const handleAssetSelect = async (asset: Asset) => {
       try {
         logger.info("尝试读取纯文本资产内容", { path: asset.path });
         const buffer = await assetManagerEngine.getAssetBinary(asset.path);
-        const text = new TextDecoder("utf-8").decode(buffer);
+        const text = smartDecode(buffer);
         logger.debug("读取到纯文本内容长度", { length: text.length });
         resultText.value = text;
         showResult.value = true;
@@ -315,7 +316,7 @@ watch(
         try {
           logger.info("导入完成，读取纯文本内容", { path: currentAsset.value.path });
           const buffer = await assetManagerEngine.getAssetBinary(currentAsset.value.path);
-          const text = new TextDecoder("utf-8").decode(buffer);
+          const text = smartDecode(buffer);
           logger.debug("读取到文本内容长度", { length: text.length });
           resultText.value = text;
           showResult.value = true;
@@ -385,7 +386,7 @@ watch(
       } else if (task.resultPath) {
         try {
           const uint8Array = await readFile(task.resultPath);
-          resultText.value = new TextDecoder().decode(uint8Array);
+          resultText.value = smartDecode(uint8Array);
           // 回填到任务对象中，下次直接用
           task.resultText = resultText.value;
         } catch (e) {

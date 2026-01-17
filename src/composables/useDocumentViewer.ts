@@ -1,6 +1,7 @@
 import { ref, watch, computed } from 'vue';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { detectMimeTypeFromBuffer } from '@/utils/fileTypeDetector';
+import { smartDecode } from '@/utils/encoding';
 import { mapMimeToLanguage } from '@/utils/mimeToLanguage';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
@@ -139,12 +140,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       
       // 只有在 decodedContent 尚未被设置时才解码
       if (decodedContent.value === null && (isTextContent.value || detectedMime === 'application/octet-stream')) {
-        try {
-          decodedContent.value = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
-        } catch (e) {
-          logger.warn('UTF-8 decoding failed, falling back to lenient decoder.');
-          decodedContent.value = new TextDecoder().decode(buffer);
-        }
+        decodedContent.value = smartDecode(buffer);
       }
     } catch (e: any) {
       logger.debug('Error details', {

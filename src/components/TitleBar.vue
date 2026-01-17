@@ -28,6 +28,7 @@ import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import SidebarMenu from "@/components/SidebarMenu.vue";
+import NotificationBell from "@/components/notification/NotificationBell.vue";
 import { debounce } from "lodash-es";
 import {
   useResolvedAvatar,
@@ -494,6 +495,9 @@ const handleDropdownSelect = () => {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+
+          <!-- 消息通知入口（仅主窗口显示） -->
+          <NotificationBell v-if="isMainWindow" />
 
           <!-- 设置按钮（仅主窗口显示） -->
           <template v-if="isMainWindow">

@@ -165,6 +165,7 @@ onMounted(async () => {
 
     // 初始化主题外观
     await initThemeAppearance();
+
   } catch (error) {
     errorHandler.error(error, "App 初始化失败");
   } finally {

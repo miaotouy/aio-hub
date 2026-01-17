@@ -64,6 +64,23 @@
     </div>
 
     <div class="section">
+      <h2 class="section-title">Notification System 消息通知系统 (New)</h2>
+      <p class="note">使用持久化消息通知系统，支持历史记录和通知中心</p>
+      <div class="notification-demo">
+        <el-button type="primary" @click="testNotification('info')">发送 Info</el-button>
+        <el-button type="success" @click="testNotification('success')">发送 Success</el-button>
+        <el-button type="warning" @click="testNotification('warning')">发送 Warning</el-button>
+        <el-button type="danger" @click="testNotification('error')">发送 Error</el-button>
+        <el-button @click="testNotification('system')">发送 System</el-button>
+      </div>
+      <div class="notification-demo">
+        <el-button @click="toggleCenter()">切换通知中心面板</el-button>
+        <el-button @click="markAllRead">全部标记已读</el-button>
+        <el-button @click="clearAll" type="danger" plain>清空所有消息</el-button>
+      </div>
+    </div>
+
+    <div class="section">
       <h2 class="section-title">Loading 加载</h2>
       <div class="loading-demo">
         <el-button @click="showFullscreenLoading">全屏加载</el-button>
@@ -87,26 +104,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ElMessage, ElNotification, ElMessageBox, ElLoading, type MessageOptions } from 'element-plus';
-import { customMessage } from '@/utils/customMessage';
-import { WarningFilled } from '@element-plus/icons-vue';
-import { h } from 'vue';
+import { ref } from "vue";
+import {
+  ElMessage,
+  ElNotification,
+  ElMessageBox,
+  ElLoading,
+  type MessageOptions,
+} from "element-plus";
+import { customMessage } from "@/utils/customMessage";
+import { useNotification } from "@/composables/useNotification";
+import { WarningFilled } from "@element-plus/icons-vue";
+import { h } from "vue";
 
-const lastResult = ref('');
+const lastResult = ref("");
+const notification = useNotification();
 const targetLoading = ref(false);
 
 // Message 消息提示
-const showMessage = (type: 'success' | 'info' | 'warning' | 'error' | 'default') => {
+const showMessage = (type: "success" | "info" | "warning" | "error" | "default") => {
   const messages = {
-    success: '恭喜你，这是一条成功消息',
-    info: '这是一条消息提示',
-    warning: '警告哦，这是一条警告消息',
-    error: '错了哦，这是一条错误消息',
-    default: '这是一条普通消息',
+    success: "恭喜你，这是一条成功消息",
+    info: "这是一条消息提示",
+    warning: "警告哦，这是一条警告消息",
+    error: "错了哦，这是一条错误消息",
+    default: "这是一条普通消息",
   };
 
-  if (type === 'default') {
+  if (type === "default") {
     ElMessage(messages[type]);
   } else {
     ElMessage[type](messages[type]);
@@ -117,43 +142,43 @@ const showMessage = (type: 'success' | 'info' | 'warning' | 'error' | 'default')
 const showHTMLMessage = () => {
   ElMessage({
     dangerouslyUseHTMLString: true,
-    message: '<strong>这是 <i>HTML</i> 片段</strong>',
+    message: "<strong>这是 <i>HTML</i> 片段</strong>",
   });
-  lastResult.value = '显示了 HTML 消息';
+  lastResult.value = "显示了 HTML 消息";
 };
 
 const showClosableMessage = () => {
   ElMessage({
     showClose: true,
-    message: '这是一条可关闭的消息',
+    message: "这是一条可关闭的消息",
     duration: 0,
   });
-  lastResult.value = '显示了可关闭的消息';
+  lastResult.value = "显示了可关闭的消息";
 };
 
 const showCenteredMessage = () => {
   ElMessage({
-    message: '居中的文字',
+    message: "居中的文字",
     center: true,
   } as MessageOptions & { center?: boolean });
-  lastResult.value = '显示了居中消息';
+  lastResult.value = "显示了居中消息";
 };
 
 const showGroupedMessage = () => {
   ElMessage({
-    message: '相同内容的消息会被分组',
+    message: "相同内容的消息会被分组",
     grouping: true,
   });
-  lastResult.value = '显示了分组消息';
+  lastResult.value = "显示了分组消息";
 };
 
 // CustomMessage 自定义消息提示
-const showCustomMessage = (type: 'success' | 'info' | 'warning' | 'error') => {
+const showCustomMessage = (type: "success" | "info" | "warning" | "error") => {
   const messages = {
-    success: '成功！这是自定义消息（带 offset）',
-    info: '提示：这是自定义消息（带 offset）',
-    warning: '警告：这是自定义消息（带 offset）',
-    error: '错误：这是自定义消息（带 offset）',
+    success: "成功！这是自定义消息（带 offset）",
+    info: "提示：这是自定义消息（带 offset）",
+    warning: "警告：这是自定义消息（带 offset）",
+    error: "错误：这是自定义消息（带 offset）",
   };
 
   customMessage[type](messages[type]);
@@ -162,21 +187,21 @@ const showCustomMessage = (type: 'success' | 'info' | 'warning' | 'error') => {
 
 // Notification 通知
 const showNotification = (
-  type: 'success' | 'info' | 'warning' | 'error',
-  position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' = 'top-right'
+  type: "success" | "info" | "warning" | "error",
+  position: "top-right" | "top-left" | "bottom-right" | "bottom-left" = "top-right"
 ) => {
   const titles = {
-    success: '成功',
-    info: '提示',
-    warning: '警告',
-    error: '错误',
+    success: "成功",
+    info: "提示",
+    warning: "警告",
+    error: "错误",
   };
 
   const messages = {
-    success: '这是一条成功的提示消息',
-    info: '这是一条消息的提示消息',
-    warning: '这是一条警告的提示消息',
-    error: '这是一条错误的提示消息',
+    success: "这是一条成功的提示消息",
+    info: "这是一条消息的提示消息",
+    warning: "这是一条警告的提示消息",
+    error: "这是一条错误的提示消息",
   };
 
   ElNotification[type]({
@@ -189,111 +214,108 @@ const showNotification = (
 
 const showHTMLNotification = () => {
   ElNotification({
-    title: 'HTML 片段',
+    title: "HTML 片段",
     dangerouslyUseHTMLString: true,
-    message: '<strong>这是 <i>HTML</i> 片段</strong>',
+    message: "<strong>这是 <i>HTML</i> 片段</strong>",
   });
-  lastResult.value = '显示了 HTML 通知';
+  lastResult.value = "显示了 HTML 通知";
 };
 
 const showLongNotification = () => {
   ElNotification({
-    title: '长内容通知',
+    title: "长内容通知",
     message:
-      '这是一条很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的通知内容，用于测试通知框的文本换行和滚动效果。',
+      "这是一条很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的通知内容，用于测试通知框的文本换行和滚动效果。",
   });
-  lastResult.value = '显示了长内容通知';
+  lastResult.value = "显示了长内容通知";
 };
 
 const showNoAutoCloseNotification = () => {
   ElNotification({
-    title: '不会自动关闭',
-    message: '这条通知不会自动关闭，需要手动点击关闭按钮',
+    title: "不会自动关闭",
+    message: "这条通知不会自动关闭，需要手动点击关闭按钮",
     duration: 0,
   });
-  lastResult.value = '显示了不自动关闭的通知';
+  lastResult.value = "显示了不自动关闭的通知";
 };
 
 // MessageBox 消息弹框
 const showAlert = async () => {
   try {
-    await ElMessageBox.alert('这是一段内容', '标题名称', {
-      confirmButtonText: '确定',
+    await ElMessageBox.alert("这是一段内容", "标题名称", {
+      confirmButtonText: "确定",
     });
-    lastResult.value = 'Alert 已确认';
+    lastResult.value = "Alert 已确认";
   } catch {
-    lastResult.value = 'Alert 已取消';
+    lastResult.value = "Alert 已取消";
   }
 };
 
 const showConfirm = async () => {
   try {
-    await ElMessageBox.confirm('此操作将永久删除该文件, 是否继续?', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
+    await ElMessageBox.confirm("此操作将永久删除该文件, 是否继续?", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
     });
-    lastResult.value = 'Confirm 已确认';
+    lastResult.value = "Confirm 已确认";
   } catch {
-    lastResult.value = 'Confirm 已取消';
+    lastResult.value = "Confirm 已取消";
   }
 };
 
 const showPrompt = async () => {
   try {
-    const { value } = await ElMessageBox.prompt('请输入邮箱', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPattern: /[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?/,
-      inputErrorMessage: '邮箱格式不正确',
+    const { value } = await ElMessageBox.prompt("请输入邮箱", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      inputPattern:
+        /[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?/,
+      inputErrorMessage: "邮箱格式不正确",
     });
     lastResult.value = `Prompt 输入: ${value}`;
   } catch {
-    lastResult.value = 'Prompt 已取消';
+    lastResult.value = "Prompt 已取消";
   }
 };
 
 const showCustomIcon = async () => {
   try {
-    await ElMessageBox.confirm('此操作将永久删除该文件, 是否继续?', '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-      icon: h(WarningFilled, { style: { color: '#f56c6c' } }),
+    await ElMessageBox.confirm("此操作将永久删除该文件, 是否继续?", "警告", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+      icon: h(WarningFilled, { style: { color: "#f56c6c" } }),
     });
-    lastResult.value = '自定义图标已确认';
+    lastResult.value = "自定义图标已确认";
   } catch {
-    lastResult.value = '自定义图标已取消';
+    lastResult.value = "自定义图标已取消";
   }
 };
 
 const showHTMLContent = async () => {
   try {
-    await ElMessageBox.confirm(
-      '<strong>这是 <i>HTML</i> 片段</strong>',
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        dangerouslyUseHTMLString: true,
-      }
-    );
-    lastResult.value = 'HTML 内容已确认';
+    await ElMessageBox.confirm("<strong>这是 <i>HTML</i> 片段</strong>", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      dangerouslyUseHTMLString: true,
+    });
+    lastResult.value = "HTML 内容已确认";
   } catch {
-    lastResult.value = 'HTML 内容已取消';
+    lastResult.value = "HTML 内容已取消";
   }
 };
 
 const showCenterAlign = async () => {
   try {
-    await ElMessageBox.confirm('此操作将永久删除该文件, 是否继续?', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'info',
+    await ElMessageBox.confirm("此操作将永久删除该文件, 是否继续?", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "info",
     });
-    lastResult.value = '对话框已确认';
+    lastResult.value = "对话框已确认";
   } catch {
-    lastResult.value = '对话框已取消';
+    lastResult.value = "对话框已取消";
   }
 };
 
@@ -301,35 +323,35 @@ const showCenterAlign = async () => {
 const showFullscreenLoading = () => {
   const loading = ElLoading.service({
     lock: true,
-    text: '加载中',
-    background: 'rgba(0, 0, 0, 0.7)',
+    text: "加载中",
+    background: "rgba(0, 0, 0, 0.7)",
   });
   setTimeout(() => {
     loading.close();
-    lastResult.value = '全屏加载已关闭';
+    lastResult.value = "全屏加载已关闭";
   }, 2000);
 };
 
 const showCustomLoading = () => {
   const loading = ElLoading.service({
     lock: true,
-    text: '拼命加载中...',
+    text: "拼命加载中...",
   });
   setTimeout(() => {
     loading.close();
-    lastResult.value = '自定义文本加载已关闭';
+    lastResult.value = "自定义文本加载已关闭";
   }, 2000);
 };
 
 const showBackgroundLoading = () => {
   const loading = ElLoading.service({
     lock: true,
-    text: '加载中',
-    background: 'rgba(255, 0, 0, 0.3)',
+    text: "加载中",
+    background: "rgba(255, 0, 0, 0.3)",
   });
   setTimeout(() => {
     loading.close();
-    lastResult.value = '自定义背景加载已关闭';
+    lastResult.value = "自定义背景加载已关闭";
   }, 2000);
 };
 
@@ -337,8 +359,48 @@ const toggleTargetLoading = () => {
   targetLoading.value = true;
   setTimeout(() => {
     targetLoading.value = false;
-    lastResult.value = '容器加载已关闭';
+    lastResult.value = "容器加载已关闭";
   }, 2000);
+};
+
+// Notification System (New) 测试方法
+const testNotification = (type: any) => {
+  const content = `这是一条由组件测试工具生成的 ${type} 测试消息。时间：${new Date().toLocaleTimeString()}`;
+  const title = `测试通知 - ${type}`;
+
+  switch (type) {
+    case "info":
+      notification.info(title, content, { source: "Tester" });
+      break;
+    case "success":
+      notification.success(title, content, { source: "Tester" });
+      break;
+    case "warning":
+      notification.warning(title, content, { source: "Tester" });
+      break;
+    case "error":
+      notification.error(title, content, { source: "Tester" });
+      break;
+    case "system":
+      notification.system(title, content, { source: "System" });
+      break;
+  }
+  lastResult.value = `已发送 ${type} 通知到系统`;
+};
+
+const toggleCenter = () => {
+  notification.toggleCenter();
+  lastResult.value = "切换了通知中心面板";
+};
+
+const markAllRead = () => {
+  notification.markAllRead();
+  lastResult.value = "已将所有通知标记为已读";
+};
+
+const clearAll = () => {
+  notification.clearAll();
+  lastResult.value = "已清空所有通知历史";
 };
 </script>
 
@@ -408,7 +470,7 @@ const toggleTargetLoading = () => {
 .result-display p {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
 }
 
 .result-display .placeholder {

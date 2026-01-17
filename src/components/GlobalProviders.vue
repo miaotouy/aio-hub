@@ -11,6 +11,7 @@ import AudioViewer from "@/components/common/AudioViewer.vue";
 import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
 import ModelSelectDialog from "@/components/common/ModelSelectDialog.vue";
 import SyncServiceProvider from "@/components/SyncServiceProvider.vue";
+import NotificationCenter from "@/components/notification/NotificationCenter.vue";
 
 // 全局图片查看器状态
 const imageViewer = useImageViewer();
@@ -78,6 +79,9 @@ onMounted(() => {
     @save="transcriptionViewer.state.value.onSave"
     @regenerate="transcriptionViewer.state.value.onRegenerate"
   />
+
+  <!-- 全局消息通知中心 -->
+  <NotificationCenter />
 
   <!-- 插槽，用于渲染应用主体内容 -->
   <slot></slot>

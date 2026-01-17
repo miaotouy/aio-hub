@@ -89,6 +89,11 @@ export function useLlmRequest() {
 
       // 根据 Provider 和 Model 能力智能过滤参数
       let filteredOptions = filterParametersByCapabilities(options, effectiveProfile, model) as LlmRequestOptions;
+      
+      // 确保 signal 被透传，filterParametersByCapabilities 可能会漏掉它
+      if (options.signal) {
+        filteredOptions.signal = options.signal;
+      }
 
       // 合并模型的自定义参数
       // customParameters 的优先级低于用户在 options 中明确设置的参数

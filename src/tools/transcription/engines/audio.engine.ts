@@ -44,6 +44,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
       temperature,
       maxTokens,
       timeout: timeout * 1000,
+      signal: ctx.signal,
     });
 
     const cleanedText = cleanLlmOutput(response.content);

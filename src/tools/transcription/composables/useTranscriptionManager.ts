@@ -42,6 +42,7 @@ export function useTranscriptionManager() {
     if (pendingTask.status !== "pending") return;
 
     pendingTask.status = "processing";
+    pendingTask.abortController = new AbortController();
     store.processingCount++;
 
     processQueue(); // 调度下一个
@@ -61,6 +62,7 @@ export function useTranscriptionManager() {
       const result = await engine.execute({
         task: pendingTask,
         config: finalConfig,
+        signal: pendingTask.abortController.signal,
       });
 
       if ((pendingTask.status as string) === "cancelled") {
@@ -221,6 +223,8 @@ export function useTranscriptionManager() {
       store.removeTask(task.id);
     } else if (task.status === "processing") {
       task.status = "cancelled";
+      // 触发真正的人为中断
+      task.abortController?.abort();
     }
   };
 

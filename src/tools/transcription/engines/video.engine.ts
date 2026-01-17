@@ -124,6 +124,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
       temperature,
       maxTokens,
       timeout: timeout * 1000, // 转换为毫秒
+      signal: ctx.signal,
     });
 
     const cleanedText = cleanLlmOutput(response.content);

@@ -53,6 +53,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
         temperature,
         maxTokens,
         timeout: timeout * 1000,
+        signal: ctx.signal,
       });
       transcriptionText = response.content;
     }
@@ -78,6 +79,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
           temperature,
           maxTokens,
           timeout: timeout * 1000,
+          signal: ctx.signal,
         });
         transcriptionText = response.content;
       } else {
@@ -107,6 +109,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
             temperature,
             maxTokens,
             timeout: timeout * 1000,
+            signal: ctx.signal,
           });
           batchResults.push(`## ${startLabel}-${endLabel}\n\n${response.content}`);
         }

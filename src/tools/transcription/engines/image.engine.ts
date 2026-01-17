@@ -78,6 +78,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
           temperature,
           maxTokens,
           timeout: timeout * 1000,
+          signal: ctx.signal,
         });
         transcriptionText = response.content;
       } else {
@@ -100,6 +101,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         temperature,
         maxTokens,
         timeout: timeout * 1000,
+        signal: ctx.signal,
       });
       transcriptionText = response.content;
     }

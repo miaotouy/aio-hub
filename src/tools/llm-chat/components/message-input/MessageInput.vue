@@ -143,7 +143,11 @@ const attachmentManager = {
   isFull: inputManager.isAttachmentsFull,
   addAttachments: inputManager.addAttachments,
   addAsset: inputManager.addAsset,
-  removeAttachment: (asset: Asset) => inputManager.removeAttachment(asset.id),
+  removeAttachment: (asset: Asset) => {
+    inputManager.removeAttachment(asset.id);
+    // 移除附件时主动取消对应的转写任务，避免后台资源浪费
+    transcriptionManager.cancelTranscription(asset.id);
+  },
   clearAttachments: inputManager.clearAttachments,
   maxAttachmentCount: inputManager.maxAttachmentCount,
 };

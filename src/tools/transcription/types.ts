@@ -24,6 +24,8 @@ export interface TranscriptionTask {
   tempFilePath?: string;
   // 覆盖配置
   overrideConfig?: Partial<TranscriptionConfig>;
+  // 中断控制
+  abortController?: AbortController;
 }
 
 /**

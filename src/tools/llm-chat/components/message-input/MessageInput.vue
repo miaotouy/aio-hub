@@ -27,6 +27,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import MessageInputToolbar, { type InputToolbarSettings } from "./MessageInputToolbar.vue";
+import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import type { MacroDefinition } from "../../macro-engine";
 
 const logger = createModuleLogger("MessageInput");
@@ -109,7 +110,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const textareaRef = ref<HTMLTextAreaElement>();
+const textareaRef = ref<InstanceType<typeof ChatCodeMirrorEditor>>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 // const inputAreaRef = ref<HTMLDivElement>();
@@ -291,10 +292,7 @@ const handleSend = async () => {
   inputManager.clear();
   isExpanded.value = false;
 
-  // 重置文本框高度
-  if (textareaRef.value) {
-    textareaRef.value.style.height = "auto";
-  }
+  // 重置文本框高度 (CM6 内部自动处理 doc 变化后的高度)
 };
 
 // 处理中止
@@ -340,18 +338,7 @@ const handleTriggerAttachment = async () => {
 
 const toggleExpand = () => {
   if (props.isDetached) return;
-
   isExpanded.value = !isExpanded.value;
-  if (textareaRef.value) {
-    if (isExpanded.value) {
-      // 展开
-      textareaRef.value.style.height = "70vh";
-    } else {
-      // 收起
-      textareaRef.value.style.removeProperty("height");
-      autoResize();
-    }
-  }
 };
 
 // 处理键盘事件（根据设置动态处理）
@@ -386,22 +373,24 @@ const placeholderText = computed(() => {
   return `输入消息、拖入或粘贴文件... (${sendHint})`;
 });
 
-// 自动调整文本框高度
-const autoResize = () => {
-  if (isExpanded.value) return;
-  if (textareaRef.value) {
-    // 重置高度以获取正确的 scrollHeight
-    textareaRef.value.style.height = "auto";
-    // 设置最小高度为当前内容高度，但不小于最小限制
-    const newHeight = Math.max(40, textareaRef.value.scrollHeight);
-    textareaRef.value.style.height = newHeight + "px";
-  }
-};
-
 // 拖拽调整大小相关状态
 const isResizing = ref(false);
 const startY = ref(0);
 const startHeight = ref(0);
+const customHeight = ref<string | number>("auto");
+const customMaxHeight = ref<string | number>("70vh");
+
+// 计算最终传给编辑器的实际高度
+const editorHeight = computed(() => {
+  if (isExpanded.value) return "70vh";
+  return customHeight.value;
+});
+
+// 计算最终传给编辑器的最大高度
+const editorMaxHeight = computed(() => {
+  if (isExpanded.value) return "70vh";
+  return customMaxHeight.value;
+});
 
 // 拖拽开始处理 - 输入框高度调整
 const handleInputResizeStart = (e: MouseEvent) => {
@@ -410,7 +399,9 @@ const handleInputResizeStart = (e: MouseEvent) => {
   startY.value = e.clientY;
 
   if (textareaRef.value) {
-    startHeight.value = textareaRef.value.offsetHeight;
+    // 获取组件根元素的实际高度
+    const el = (textareaRef.value as any).$el;
+    startHeight.value = el?.offsetHeight || 0;
   }
 
   // 阻止默认行为和文本选择
@@ -436,8 +427,9 @@ const handleMouseMove = (e: MouseEvent) => {
   const maxHeight = props.isDetached ? window.innerHeight * 0.8 : window.innerHeight * 0.8;
   const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
 
-  // 直接设置 DOM 样式以获得最佳性能
-  textareaRef.value.style.height = finalHeight + "px";
+  // 更新自定义高度，从而通过 prop 传给编辑器
+  customHeight.value = finalHeight;
+  customMaxHeight.value = finalHeight;
 };
 
 // 鼠标释放处理
@@ -454,7 +446,8 @@ const handleMouseUp = () => {
 // 双击手柄重置高度
 const handleResizeDoubleClick = () => {
   isExpanded.value = false;
-  autoResize();
+  customHeight.value = "auto";
+  customMaxHeight.value = "70vh"; // 重置为默认值
 };
 
 // 组件卸载时清理事件监听
@@ -563,27 +556,20 @@ function handleInsertMacro(macro: MacroDefinition) {
   if (!textarea) return;
 
   // 获取当前光标位置
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
+  const { start, end } = textarea.getSelectionRange();
 
   // 要插入的文本
   const insertText = macro.example || `{{${macro.name}}}`;
 
-  // 拼接新内容
-  const newContent =
-    inputText.value.substring(0, start) + insertText + inputText.value.substring(end);
-
-  // 更新内容
-  inputText.value = newContent;
+  // 使用组件提供的方法插入文本
+  textarea.insertText(insertText, start, end);
 
   // 关闭弹窗
   macroSelectorVisible.value = false;
 
-  // 设置新的光标位置
+  // 聚焦
   setTimeout(() => {
     textarea.focus();
-    const newCursorPos = start + insertText.length;
-    textarea.setSelectionRange(newCursorPos, newCursorPos);
   }, 0);
 }
 
@@ -667,17 +653,12 @@ const handlePaste = async (event: ClipboardEvent) => {
   // 将处理后的文本插入到光标位置
   const textarea = textareaRef.value;
   if (textarea) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const newContent =
-      inputText.value.substring(0, start) + processedText + inputText.value.substring(end);
-    inputText.value = newContent;
+    const { start, end } = textarea.getSelectionRange();
+    textarea.insertText(processedText, start, end);
 
-    // 移动光标到插入文本的末尾
+    // 聚焦
     setTimeout(() => {
       textarea.focus();
-      const newCursorPos = start + processedText.length;
-      textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   }
 };
@@ -761,8 +742,7 @@ const handleTranslateInput = async () => {
 
   // 保存当前光标位置和选区
   const textarea = textareaRef.value;
-  const start = textarea ? textarea.selectionStart : 0;
-  const end = textarea ? textarea.selectionEnd : 0;
+  const { start, end } = textarea ? textarea.getSelectionRange() : { start: 0, end: 0 };
   const hasSelection = start !== end;
 
   // 如果有选区，只翻译选中的文本；否则翻译全部
@@ -777,8 +757,7 @@ const handleTranslateInput = async () => {
     if (translatedText) {
       if (hasSelection) {
         // 替换选中文本
-        const newText = text.substring(0, start) + translatedText + text.substring(end);
-        inputText.value = newText;
+        textarea?.insertText(translatedText, start, end);
 
         // 恢复光标并选中新翻译的文本
         setTimeout(() => {
@@ -800,7 +779,6 @@ const handleTranslateInput = async () => {
       }
 
       customMessage.success("翻译完成");
-      autoResize(); // 调整高度
     }
   } catch (error) {
     // 错误已在 useTranslation 中处理
@@ -974,15 +952,14 @@ const getWillUseTranscription = (asset: Asset): boolean => {
         </div>
 
         <div class="input-wrapper">
-          <textarea
+          <ChatCodeMirrorEditor
             ref="textareaRef"
-            v-model="inputText"
+            v-model:value="inputText"
             :disabled="disabled"
             :placeholder="placeholderText"
-            class="message-textarea"
-            rows="1"
+            :height="editorHeight"
+            :max-height="editorMaxHeight"
             @keydown="handleKeydown"
-            @input="autoResize"
             @paste="handlePaste"
           />
           <MessageInputToolbar
@@ -1178,26 +1155,8 @@ const getWillUseTranscription = (asset: Asset): boolean => {
 .message-input-container:focus-within {
   border-color: var(--primary-color);
 }
-.message-textarea {
-  box-sizing: border-box; /* 确保 height 属性包含 padding 和 border */
-  padding: 10px 14px;
-  font-size: 14px;
-  line-height: 1.6;
-  border: none;
-  background-color: transparent;
-  color: var(--text-color);
-  resize: none;
-  overflow-y: auto;
-  font-family: inherit;
-  min-height: 54px; /* 最小高度约1-2行 */
-  max-height: 70vh; /* 默认最大高度约8行 */
-}
 
-/* 分离模式下取消最大高度限制 */
-.message-input-container.detached-mode .message-textarea {
-  max-height: 60vh; /* 给予较大的高度限制，但不撑满，留出上方空间给气泡 */
-  flex: none; /* 取消强制填充，让输入框沉底 */
-}
+/* 分离模式下输入框沉底 */
 .message-input-container.detached-mode .input-content {
   justify-content: flex-end; /* 让输入框在分离窗口中沉底 */
 }

@@ -5,41 +5,69 @@ mod tray;
 mod utils;
 
 // 导入所需的依赖
-use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Manager, image::Image};
-use tokio_util::sync::CancellationToken;
-use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
-use log::LevelFilter;
 use dirs_next::data_dir;
+use log::LevelFilter;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use tauri::{image::Image, Emitter, Manager};
+use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
+use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
 use commands::{
+    add_asset_source,
     // 目录清理相关
     analyze_directory_for_cleanup,
-    cleanup_items,
-    stop_directory_scan,
-    stop_directory_cleanup,
+    append_file_force,
+    apply_window_config,
+    // 窗口特效命令
+    apply_window_effect,
+    batch_delete_agent_assets,
+    // 新统一分离系统命令
+    begin_detach_session,
     cancel_move_operation,
+    // 视频处理命令
+    check_ffmpeg_availability,
+    cleanup_items,
+    clear_all_window_configs,
+    close_detached_window, // 新增：统一的关闭命令
+    compress_video,
+    copy_directory_in_app_data,
+    copy_file_to_app_data,
+    create_dir_force,
     create_links_only,
     // 窗口管理相关
     create_tool_window,
-    ensure_window_visible,
-    // 窗口配置管理相关
-    save_window_config,
-    apply_window_config,
+    delete_agent_asset,
+    delete_all_agent_assets,
+    delete_asset,
+    delete_directory_in_app_data,
+    delete_file_to_trash,
     delete_window_config,
-    clear_all_window_configs,
-    get_saved_window_labels,
+    end_drag_session,
+    ensure_window_visible,
+    // Sidecar 插件命令
+    execute_sidecar,
     // 配置管理相关
     export_all_configs_to_zip,
-    import_all_configs_from_zip,
+    finalize_detach_session,
+    find_asset_by_hash,
+    find_duplicate_files,
     focus_window,
     generate_directory_tree,
+    get_agent_asset_path,
+    get_all_detached_windows,
     get_all_operation_logs,
+    // 资产管理命令
+    get_asset_base_path,
+    get_asset_binary,
+    get_asset_by_id,
+    get_asset_stats,
     get_clipboard_content_type,
-    get_latest_operation_log,
+    get_file_metadata,
     get_inspector_status,
+    get_latest_operation_log,
+    get_saved_window_labels,
     git_cherry_pick,
     git_export_commits,
     git_format_log,
@@ -47,110 +75,82 @@ use commands::{
     git_get_branches,
     git_get_commit_detail,
     git_get_incremental_commits,
-    git_load_incremental_stream,
     git_load_commits_with_files,
+    git_load_incremental_stream,
     // Git分析器相关
     git_load_repository,
     git_load_repository_stream,
     git_revert,
     git_update_commit_message,
+    import_all_configs_from_zip,
+    import_asset_from_bytes,
+    import_asset_from_path,
+    install_plugin_from_zip,
     is_directory,
+    list_agent_assets,
+    list_all_assets,
+    // Lazy loading commands
+    list_assets_paginated,
     list_config_files,
+    list_directory_images,
     move_and_link,
     // OCR相关
     native_ocr,
+    // 窗口导航命令
+    navigate_main_window_to_settings,
+    open_file_directory,
+    open_path_force,
+    path_exists,
+    preflight_plugin_zip,
     process_files_with_regex,
-    validate_regex_pattern,
-    read_file_binary,
     read_agent_asset_binary,
     read_app_data_file_binary,
     read_file_as_base64,
-    save_uploaded_file,
-    copy_file_to_app_data,
-    copy_directory_in_app_data,
-    delete_file_to_trash,
-    delete_directory_in_app_data,
-    write_file_force,
-    append_file_force,
-    create_dir_force,
+    read_file_binary,
+    read_text_file,
     read_text_file_force,
-    open_path_force,
-    open_file_directory,
-    path_exists,
-    get_file_metadata,
+    rebuild_catalog_index,
+    rebuild_hash_index,
+    remove_asset_completely,
+    // 资产来源管理命令
+    remove_asset_source,
+    remove_assets_completely,
+    // Agent 资产管理命令
+    save_agent_asset,
+    save_asset_thumbnail,
+    save_uploaded_file,
+    // 窗口配置管理相关
+    save_window_config,
+    // LLM 搜索命令
+    search_llm_data,
     set_window_position,
     start_clipboard_monitor,
     // LLM检查器相关
     start_llm_inspector,
     stop_clipboard_monitor,
+    stop_directory_cleanup,
+    stop_directory_scan,
     stop_llm_inspector,
-    update_inspector_target,
-    validate_file_for_link,
-    // 新统一分离系统命令
-    begin_detach_session,
-    update_detach_session_position,
-    update_detach_session_status,
-    finalize_detach_session,
-    get_all_detached_windows,
-    close_detached_window, // 新增：统一的关闭命令
-    end_drag_session,
-    // 窗口导航命令
-    navigate_main_window_to_settings,
-    // 资产管理命令
-    get_asset_base_path,
-    import_asset_from_path,
-    import_asset_from_bytes,
-    get_asset_binary,
-    read_text_file,
-    list_all_assets,
-    rebuild_hash_index,
-    find_duplicate_files,
-    delete_asset,
-    save_asset_thumbnail,
-    // Lazy loading commands
-    list_assets_paginated,
-    get_asset_stats,
-    rebuild_catalog_index,
-    // 资产来源管理命令
-    remove_asset_source,
-    add_asset_source,
-    remove_asset_completely,
-    remove_assets_completely,
-    find_asset_by_hash,
-    update_asset_derived_data,
-    get_asset_by_id,
-    // Agent 资产管理命令
-    save_agent_asset,
-    delete_agent_asset,
-    batch_delete_agent_assets,
-    list_agent_assets,
-    delete_all_agent_assets,
-    get_agent_asset_path,
     // 插件管理命令
     uninstall_plugin,
-    install_plugin_from_zip,
-    preflight_plugin_zip,
-    // Sidecar 插件命令
-    execute_sidecar,
+    update_asset_derived_data,
+    update_detach_session_position,
+    update_detach_session_status,
+    update_inspector_target,
+    validate_file_for_link,
+    validate_regex_pattern,
+    write_file_force,
     // 状态
     ClipboardMonitorState,
-    // 窗口特效命令
-    apply_window_effect,
-    list_directory_images,
-    // 视频处理命令
-    check_ffmpeg_availability,
-    compress_video,
-    // LLM 搜索命令
-    search_llm_data
 };
 // 导入全局鼠标监听器
 // 条件导入：仅在非 macOS 上导入
 #[cfg(not(target_os = "macos"))]
-use commands::{window_manager::init_global_mouse_listener, start_drag_session};
+use commands::{start_drag_session, window_manager::init_global_mouse_listener};
 
 // 导入事件处理
 use events::handle_window_event;
-use tray::{create_system_tray, build_system_tray, remove_system_tray, should_prevent_close};
+use tray::{build_system_tray, create_system_tray, remove_system_tray, should_prevent_close};
 
 // 应用状态管理
 #[derive(Default)]
@@ -217,7 +217,7 @@ async fn get_app_config_dir(app: tauri::AppHandle) -> Result<String, String> {
 fn print_window_list(app_handle: &tauri::AppHandle) {
     let windows = app_handle.webview_windows();
     let window_labels: Vec<String> = windows.keys().map(|k| k.to_string()).collect();
-    
+
     log::info!("========================================");
     log::info!("当前窗口列表 (总数: {})", window_labels.len());
     log::info!("========================================");
@@ -274,13 +274,23 @@ pub fn run() {
     let (show_tray_icon, minimize_to_tray, timezone_str) = {
         let app_data_dir = get_app_data_dir(context.config());
         let settings_path = app_data_dir.join("settings.json");
-        
+
         if settings_path.exists() {
             if let Ok(contents) = std::fs::read_to_string(&settings_path) {
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
-                    let show = json.get("showTrayIcon").and_then(|v| v.as_bool()).unwrap_or(true);
-                    let minimize = json.get("minimizeToTray").and_then(|v| v.as_bool()).unwrap_or(true);
-                    let tz = json.get("timezone").and_then(|v| v.as_str()).unwrap_or("auto").to_string();
+                    let show = json
+                        .get("showTrayIcon")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    let minimize = json
+                        .get("minimizeToTray")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    let tz = json
+                        .get("timezone")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("auto")
+                        .to_string();
                     (show, minimize, tz)
                 } else {
                     (true, true, "auto".to_string())
@@ -302,20 +312,20 @@ pub fn run() {
                 (
                     TimezoneStrategy::UseLocal,
                     now_tz.format("%Y-%m-%d %H:%M:%S").to_string(),
-                    now_tz.format("%Y-%m-%d").to_string()
+                    now_tz.format("%Y-%m-%d").to_string(),
                 )
             } else {
                 (
                     TimezoneStrategy::UseLocal,
                     Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                    Local::now().format("%Y-%m-%d").to_string()
+                    Local::now().format("%Y-%m-%d").to_string(),
                 )
             }
         } else {
             (
                 TimezoneStrategy::UseLocal,
                 Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                Local::now().format("%Y-%m-%d").to_string()
+                Local::now().format("%Y-%m-%d").to_string(),
             )
         }
     };
@@ -324,20 +334,20 @@ pub fn run() {
     let log_dir = get_app_data_dir(context.config()).join("logs");
 
     let log_filename = format!("backend-{}", date_filename);
-tauri::Builder::default()
-    .plugin(
-        tauri_plugin_log::Builder::new()
-            .clear_targets() // 清除默认目标
-            .targets([
-                Target::new(TargetKind::Stdout),
-                Target::new(TargetKind::Folder {
-                    path: log_dir,
-                    file_name: Some(log_filename),
-                }),
-            ])
-            .timezone_strategy(timezone_strategy)
-            .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
-            .build()
+    tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets() // 清除默认目标
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::Folder {
+                        path: log_dir,
+                        file_name: Some(log_filename),
+                    }),
+                ])
+                .timezone_strategy(timezone_strategy)
+                .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
+                .build(),
         )
         // 插件初始化
         .plugin(tauri_plugin_opener::init())
@@ -533,7 +543,11 @@ tauri::Builder::default()
             log::info!("========================================");
             log::info!("🚀 应用启动: {}", package_info.name);
             log::info!("📦 版本: v{}", package_info.version);
-            log::info!("🖥️  系统: {} ({})", std::env::consts::OS, std::env::consts::ARCH);
+            log::info!(
+                "🖥️  系统: {} ({})",
+                std::env::consts::OS,
+                std::env::consts::ARCH
+            );
             log::info!("⏰ 时间: {}", now_formatted);
             log::info!("========================================");
 
@@ -543,7 +557,7 @@ tauri::Builder::default()
                     *minimize_to_tray_state = minimize_to_tray;
                 }
             }
-            
+
             // 创建主窗口
             let mut win_builder = tauri::WebviewWindowBuilder::new(
                 app,
@@ -573,13 +587,11 @@ tauri::Builder::default()
 
             #[cfg(not(target_os = "macos"))]
             {
-                win_builder = win_builder
-                    .decorations(false)
-                    .transparent(true);
+                win_builder = win_builder.decorations(false).transparent(true);
             }
 
             let main_window = win_builder.build()?;
-            
+
             // 应用保存的窗口配置（如果存在）
             let main_window_clone = main_window.clone();
             tauri::async_runtime::spawn(async move {
@@ -612,9 +624,12 @@ tauri::Builder::default()
             // 处理窗口关闭事件（托盘功能和工具窗口）
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let window_label = window.label().to_string();
-                
+
                 // 在关闭前同步保存窗口配置
-                if let Err(e) = commands::window_config::save_window_config_sync(window.app_handle(), &window_label) {
+                if let Err(e) = commands::window_config::save_window_config_sync(
+                    window.app_handle(),
+                    &window_label,
+                ) {
                     log::error!("[WINDOW_CONFIG] 保存窗口配置失败: {}", e);
                 }
 
@@ -622,7 +637,9 @@ tauri::Builder::default()
                 if window_label != "main" {
                     let app_handle = window.app_handle().clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Err(e) = commands::close_detached_window(app_handle, window_label).await {
+                        if let Err(e) =
+                            commands::close_detached_window(app_handle, window_label).await
+                        {
                             log::error!("Error closing detached window: {}", e);
                         }
                     });

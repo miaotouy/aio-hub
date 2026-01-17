@@ -23,14 +23,15 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadat
         .arg("-i")
         .arg(input_path)
         .output()
-        .await {
-            Ok(o) => o,
-            Err(_) => return metadata,
-        };
+        .await
+    {
+        Ok(o) => o,
+        Err(_) => return metadata,
+    };
 
     // FFmpeg 输出信息在 stderr 中
     let stderr = String::from_utf8_lossy(&output.stderr);
-    
+
     // 1. 查找 "Duration: HH:MM:SS.mm"
     if let Some(pos) = stderr.find("Duration: ") {
         let rest = &stderr[pos + 10..];
@@ -94,10 +95,7 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadat
 /// 验证 FFmpeg 路径是否有效
 #[tauri::command]
 pub async fn check_ffmpeg_availability(path: String) -> bool {
-    let output = Command::new(&path)
-        .arg("-version")
-        .output()
-        .await;
+    let output = Command::new(&path).arg("-version").output().await;
 
     match output {
         Ok(output) => output.status.success(),
@@ -122,7 +120,7 @@ pub async fn compress_video(
     ffmpeg_path: String,
     max_size_mb: Option<f64>,
     max_fps: Option<f64>,
-    max_resolution: Option<u32>
+    max_resolution: Option<u32>,
 ) -> Result<String, String> {
     // 检查输入文件是否存在
     if !Path::new(&input_path).exists() {
@@ -197,7 +195,7 @@ pub async fn compress_video(
         "auto_size" => {
             // 自动大小模式：计算目标比特率
             let mut bitrate_set = false;
-            
+
             if let Some(target_mb) = max_size_mb {
                 if let Some(duration) = metadata.duration {
                     if duration > 0.0 {
@@ -205,11 +203,11 @@ pub async fn compress_video(
                         let target_bits = target_mb * 8.0 * 1024.0 * 1024.0;
                         // 目标总比特率 (bps)
                         let total_bitrate = target_bits / duration;
-                        
+
                         // 预留音频比特率 (假设 128kbps = 128000 bps)
                         // 只有在检测到音频流时才预留
                         let audio_bitrate = if metadata.has_audio { 128_000.0 } else { 0.0 };
-                        
+
                         // 计算视频可用比特率，至少保留 100kbps 以免画面太烂
                         let video_bitrate = (total_bitrate - audio_bitrate).max(100_000.0);
 
@@ -219,11 +217,16 @@ pub async fn compress_video(
                         let buf_size_str = format!("{:.0}", video_bitrate * 2.0); // 缓冲区大小
 
                         args.extend_from_slice(&[
-                            "-c:v".to_string(), "libx264".to_string(),
-                            "-b:v".to_string(), video_bitrate_str,
-                            "-maxrate".to_string(), max_rate_str,
-                            "-bufsize".to_string(), buf_size_str,
-                            "-preset".to_string(), "medium".to_string(),
+                            "-c:v".to_string(),
+                            "libx264".to_string(),
+                            "-b:v".to_string(),
+                            video_bitrate_str,
+                            "-maxrate".to_string(),
+                            max_rate_str,
+                            "-bufsize".to_string(),
+                            buf_size_str,
+                            "-preset".to_string(),
+                            "medium".to_string(),
                         ]);
                         if !scale_filter.is_empty() {
                             args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
@@ -236,40 +239,53 @@ pub async fn compress_video(
             if !bitrate_set {
                 // 如果获取时长失败或未设置大小，回退到 balanced
                 args.extend_from_slice(&[
-                    "-c:v".to_string(), "libx264".to_string(),
-                    "-crf".to_string(), "23".to_string(),
-                    "-preset".to_string(), "medium".to_string(),
+                    "-c:v".to_string(),
+                    "libx264".to_string(),
+                    "-crf".to_string(),
+                    "23".to_string(),
+                    "-preset".to_string(),
+                    "medium".to_string(),
                 ]);
                 if !scale_filter.is_empty() {
                     args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
                 }
             }
-        },
+        }
         "quality" => {
             args.extend_from_slice(&[
-                "-c:v".to_string(), "libx264".to_string(),
-                "-crf".to_string(), "18".to_string(),
-                "-preset".to_string(), "slow".to_string(),
+                "-c:v".to_string(),
+                "libx264".to_string(),
+                "-crf".to_string(),
+                "18".to_string(),
+                "-preset".to_string(),
+                "slow".to_string(),
             ]);
             if !scale_filter.is_empty() {
                 args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
             }
-        },
+        }
         "speed" => {
             args.extend_from_slice(&[
-                "-c:v".to_string(), "libx264".to_string(),
-                "-crf".to_string(), "28".to_string(),
-                "-preset".to_string(), "veryfast".to_string(),
+                "-c:v".to_string(),
+                "libx264".to_string(),
+                "-crf".to_string(),
+                "28".to_string(),
+                "-preset".to_string(),
+                "veryfast".to_string(),
             ]);
             if !scale_filter.is_empty() {
                 args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
             }
-        },
-        _ => { // balanced or default
+        }
+        _ => {
+            // balanced or default
             args.extend_from_slice(&[
-                "-c:v".to_string(), "libx264".to_string(),
-                "-crf".to_string(), "23".to_string(),
-                "-preset".to_string(), "medium".to_string(),
+                "-c:v".to_string(),
+                "libx264".to_string(),
+                "-crf".to_string(),
+                "23".to_string(),
+                "-preset".to_string(),
+                "medium".to_string(),
             ]);
             if !scale_filter.is_empty() {
                 args.extend_from_slice(&["-vf".to_string(), scale_filter]);
@@ -281,8 +297,10 @@ pub async fn compress_video(
     if metadata.has_audio {
         if preset == "auto_size" {
             args.extend_from_slice(&[
-                "-c:a".to_string(), "aac".to_string(),
-                "-b:a".to_string(), "128k".to_string(),
+                "-c:a".to_string(),
+                "aac".to_string(),
+                "-b:a".to_string(),
+                "128k".to_string(),
             ]);
         } else {
             args.extend_from_slice(&["-c:a".to_string(), "copy".to_string()]);
@@ -297,7 +315,7 @@ pub async fn compress_video(
         // 这里选择：如果检测到没有音频，显式 -an，确保输出文件干净
         args.push("-an".to_string());
     }
-    
+
     args.push(output_path.clone());
 
     // 执行命令
@@ -308,7 +326,7 @@ pub async fn compress_video(
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    
+
     // command.stderr(Stdio::inherit());
 
     let status = command
@@ -320,6 +338,9 @@ pub async fn compress_video(
     if status.success() {
         Ok(output_path)
     } else {
-        Err(format!("FFmpeg exited with error code: {:?}", status.code()))
+        Err(format!(
+            "FFmpeg exited with error code: {:?}",
+            status.code()
+        ))
     }
 }

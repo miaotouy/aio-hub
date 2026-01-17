@@ -22,42 +22,41 @@ pub struct WindowConfig {
 /// 获取配置文件路径
 fn get_config_file_path(app: &AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = crate::get_app_data_dir(app.config());
-    
+
     // 确保目录存在
-    fs::create_dir_all(&app_data_dir)
-        .map_err(|e| format!("创建应用数据目录失败: {}", e))?;
-    
+    fs::create_dir_all(&app_data_dir).map_err(|e| format!("创建应用数据目录失败: {}", e))?;
+
     Ok(app_data_dir.join("window-configs.json"))
 }
 
 /// 从文件加载所有窗口配置
 fn load_all_configs(app: &AppHandle) -> Result<HashMap<String, WindowConfig>, String> {
     let config_path = get_config_file_path(app)?;
-    
+
     if !config_path.exists() {
         return Ok(HashMap::new());
     }
-    
-    let mut file = fs::File::open(&config_path)
-        .map_err(|e| format!("打开配置文件失败: {}", e))?;
-    
+
+    let mut file = fs::File::open(&config_path).map_err(|e| format!("打开配置文件失败: {}", e))?;
+
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .map_err(|e| format!("读取配置文件失败: {}", e))?;
-    
-    serde_json::from_str(&contents)
-        .map_err(|e| format!("解析配置文件失败: {}", e))
+
+    serde_json::from_str(&contents).map_err(|e| format!("解析配置文件失败: {}", e))
 }
 
 /// 将所有窗口配置保存到文件
-fn save_all_configs(app: &AppHandle, configs: &HashMap<String, WindowConfig>) -> Result<(), String> {
+fn save_all_configs(
+    app: &AppHandle,
+    configs: &HashMap<String, WindowConfig>,
+) -> Result<(), String> {
     let config_path = get_config_file_path(app)?;
-    
-    let json = serde_json::to_string_pretty(configs)
-        .map_err(|e| format!("序列化配置失败: {}", e))?;
-    
-    fs::write(&config_path, json)
-        .map_err(|e| format!("写入配置文件失败: {}", e))
+
+    let json =
+        serde_json::to_string_pretty(configs).map_err(|e| format!("序列化配置失败: {}", e))?;
+
+    fs::write(&config_path, json).map_err(|e| format!("写入配置文件失败: {}", e))
 }
 
 /// 同步保存窗口配置（用于窗口关闭事件）
@@ -65,49 +64,63 @@ pub fn save_window_config_sync(app: &AppHandle, label: &str) -> Result<(), Strin
     let window = app
         .get_webview_window(label)
         .ok_or_else(|| format!("窗口 '{}' 不存在", label))?;
-    
+
     // 检查窗口是否最小化
-    let is_minimized = window.is_minimized()
+    let is_minimized = window
+        .is_minimized()
         .map_err(|e| format!("获取窗口最小化状态失败: {}", e))?;
-    
+
     // 检查窗口是否可见
-    let is_visible = window.is_visible()
+    let is_visible = window
+        .is_visible()
         .map_err(|e| format!("获取窗口可见性失败: {}", e))?;
-    
+
     // 如果窗口被最小化或隐藏，跳过保存
     if is_minimized || !is_visible {
         log::info!("[WINDOW_CONFIG] 跳过保存窗口配置（窗口处于最小化或隐藏状态）: label={}, minimized={}, visible={}",
             label, is_minimized, is_visible);
         return Ok(());
     }
-    
+
     // 获取当前窗口状态
-    let position = window.outer_position()
+    let position = window
+        .outer_position()
         .map_err(|e| format!("获取窗口位置失败: {}", e))?;
-    let size = window.inner_size()
+    let size = window
+        .inner_size()
         .map_err(|e| format!("获取窗口尺寸失败: {}", e))?;
-    let maximized = window.is_maximized()
+    let maximized = window
+        .is_maximized()
         .map_err(|e| format!("获取窗口最大化状态失败: {}", e))?;
-    let scale_factor = window.scale_factor()
+    let scale_factor = window
+        .scale_factor()
         .map_err(|e| format!("获取缩放因子失败: {}", e))?;
-    
+
     // 验证位置是否合理（检测 Windows 的特殊隐藏坐标）
     // Windows 在隐藏窗口时会使用 -32000 或类似的负数坐标
     if position.x < -10000 || position.y < -10000 {
-        log::info!("[WINDOW_CONFIG] 跳过保存窗口配置（检测到异常位置）: label={}, x={}, y={}",
-            label, position.x, position.y);
+        log::info!(
+            "[WINDOW_CONFIG] 跳过保存窗口配置（检测到异常位置）: label={}, x={}, y={}",
+            label,
+            position.x,
+            position.y
+        );
         return Ok(());
     }
-    
+
     // 验证尺寸是否合理（避免保存异常小的窗口）
     let logical_width = size.width as f64 / scale_factor;
     let logical_height = size.height as f64 / scale_factor;
     if logical_width < 200.0 || logical_height < 100.0 {
-        log::info!("[WINDOW_CONFIG] 跳过保存窗口配置（窗口尺寸过小）: label={}, width={:.0}, height={:.0}",
-            label, logical_width, logical_height);
+        log::info!(
+            "[WINDOW_CONFIG] 跳过保存窗口配置（窗口尺寸过小）: label={}, width={:.0}, height={:.0}",
+            label,
+            logical_width,
+            logical_height
+        );
         return Ok(());
     }
-    
+
     // 创建配置对象
     let config = WindowConfig {
         x: position.x,
@@ -116,19 +129,19 @@ pub fn save_window_config_sync(app: &AppHandle, label: &str) -> Result<(), Strin
         height: logical_height,
         maximized,
     };
-    
+
     // 加载现有配置
     let mut all_configs = load_all_configs(app).unwrap_or_default();
-    
+
     // 更新或插入新配置
     all_configs.insert(label.to_string(), config.clone());
-    
+
     // 保存到文件
     save_all_configs(app, &all_configs)?;
-    
+
     log::info!("[WINDOW_CONFIG] 已保存窗口配置: label={}, x={}, y={}, width={:.0}, height={:.0}, maximized={}",
         label, config.x, config.y, config.width, config.height, config.maximized);
-    
+
     Ok(())
 }
 
@@ -143,41 +156,52 @@ pub async fn save_window_config(app: AppHandle, label: String) -> Result<(), Str
 pub async fn apply_window_config(window: WebviewWindow) -> Result<bool, String> {
     let label = window.label().to_string();
     let app = window.app_handle();
-    
+
     // 加载配置
     let all_configs = load_all_configs(app)?;
-    
+
     if let Some(config) = all_configs.get(&label) {
         log::info!("[WINDOW_CONFIG] 应用窗口配置: label={}, x={}, y={}, width={:.0}, height={:.0}, maximized={}",
             label, config.x, config.y, config.width, config.height, config.maximized);
-        
+
         // 应用尺寸
-        window.set_size(LogicalSize::new(config.width, config.height))
+        window
+            .set_size(LogicalSize::new(config.width, config.height))
             .map_err(|e| format!("设置窗口尺寸失败: {}", e))?;
-        
+
         // 应用位置
-        window.set_position(PhysicalPosition::new(config.x, config.y))
+        window
+            .set_position(PhysicalPosition::new(config.x, config.y))
             .map_err(|e| format!("设置窗口位置失败: {}", e))?;
-        
+
         // 应用最大化状态
         if config.maximized {
-            log::info!("[WINDOW_CONFIG] [自动恢复] 将窗口 '{}' 设置为最大化状态", label);
-            window.maximize()
+            log::info!(
+                "[WINDOW_CONFIG] [自动恢复] 将窗口 '{}' 设置为最大化状态",
+                label
+            );
+            window
+                .maximize()
                 .map_err(|e| format!("最大化窗口失败: {}", e))?;
         } else {
             // 如果保存的配置是非最大化，确保窗口也是非最大化的
-            let current_maximized = window.is_maximized()
+            let current_maximized = window
+                .is_maximized()
                 .map_err(|e| format!("获取窗口最大化状态失败: {}", e))?;
             if current_maximized {
                 log::info!("[WINDOW_CONFIG] [自动恢复] 将窗口 '{}' 取消最大化", label);
-                window.unmaximize()
+                window
+                    .unmaximize()
                     .map_err(|e| format!("取消最大化失败: {}", e))?;
             }
         }
-        
+
         Ok(true)
     } else {
-        log::info!("[WINDOW_CONFIG] 窗口 '{}' 没有保存的配置，使用默认设置", label);
+        log::info!(
+            "[WINDOW_CONFIG] 窗口 '{}' 没有保存的配置，使用默认设置",
+            label
+        );
         Ok(false)
     }
 }
@@ -186,25 +210,24 @@ pub async fn apply_window_config(window: WebviewWindow) -> Result<bool, String> 
 #[tauri::command]
 pub async fn delete_window_config(app: AppHandle, label: String) -> Result<(), String> {
     let mut all_configs = load_all_configs(&app).unwrap_or_default();
-    
+
     if all_configs.remove(&label).is_some() {
         save_all_configs(&app, &all_configs)?;
         log::info!("[WINDOW_CONFIG] 已删除窗口配置: label={}", label);
     }
-    
+
     Ok(())
 }
 
 /// 同步清除所有窗口配置（用于托盘菜单等同步上下文）
 pub fn clear_all_configs_sync(app: &AppHandle) -> Result<(), String> {
     let config_path = get_config_file_path(app)?;
-    
+
     if config_path.exists() {
-        fs::remove_file(&config_path)
-            .map_err(|e| format!("删除配置文件失败: {}", e))?;
+        fs::remove_file(&config_path).map_err(|e| format!("删除配置文件失败: {}", e))?;
         log::info!("[WINDOW_CONFIG] 已清除所有窗口配置");
     }
-    
+
     Ok(())
 }
 

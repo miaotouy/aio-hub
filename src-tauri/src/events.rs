@@ -1,6 +1,6 @@
-use tauri::{Emitter, DragDropEvent, PhysicalPosition, WindowEvent};
-use std::path::PathBuf;
 use serde::Serialize;
+use std::path::PathBuf;
+use tauri::{DragDropEvent, Emitter, PhysicalPosition, WindowEvent};
 
 #[derive(Clone, Serialize)]
 pub struct FileDropPayload {
@@ -29,15 +29,25 @@ pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
             DragDropEvent::Enter { paths, position } => {
                 // 发送拖动进入事件
                 log::debug!("Drag enter: {:?} at position {:?}", paths, position);
-                window.emit("custom-drag-enter", DragPositionPayload {
-                    position: *position,
-                }).unwrap();
+                window
+                    .emit(
+                        "custom-drag-enter",
+                        DragPositionPayload {
+                            position: *position,
+                        },
+                    )
+                    .unwrap();
             }
             DragDropEvent::Over { position } => {
                 // 发送拖动移动事件
-                window.emit("custom-drag-over", DragPositionPayload {
-                    position: *position,
-                }).unwrap();
+                window
+                    .emit(
+                        "custom-drag-over",
+                        DragPositionPayload {
+                            position: *position,
+                        },
+                    )
+                    .unwrap();
             }
             DragDropEvent::Leave => {
                 // 发送拖动离开事件
@@ -47,10 +57,15 @@ pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
             DragDropEvent::Drop { paths, position } => {
                 // 发送文件拖放事件到前端
                 log::info!("File drop captured: {:?} at position {:?}", paths, position);
-                window.emit("custom-file-drop", FileDropPayload {
-                    paths: paths.clone(),
-                    position: *position,
-                }).unwrap();
+                window
+                    .emit(
+                        "custom-file-drop",
+                        FileDropPayload {
+                            paths: paths.clone(),
+                            position: *position,
+                        },
+                    )
+                    .unwrap();
             }
             _ => {}
         }

@@ -35,7 +35,7 @@ pub struct SidecarOutputEvent {
 }
 
 /// 执行 Sidecar 插件
-/// 
+///
 /// 启动外部进程，通过 stdin 发送输入，通过 stdout 接收输出
 /// 实时将输出事件发送到前端
 #[tauri::command]
@@ -45,7 +45,9 @@ pub async fn execute_sidecar(
 ) -> Result<String, String> {
     log::info!(
         "[SIDECAR] 开始执行插件: {}, 可执行文件: {}, 开发模式: {}",
-        request.plugin_id, request.executable_path, request.dev_mode
+        request.plugin_id,
+        request.executable_path,
+        request.dev_mode
     );
 
     // 获取插件目录
@@ -53,14 +55,14 @@ pub async fn execute_sidecar(
         // 开发模式：从项目源码目录查找
         // 去掉插件 ID 的 -dev 后缀
         let original_id = request.plugin_id.trim_end_matches("-dev");
-        let current_dir = std::env::current_dir()
-            .map_err(|e| format!("获取当前目录失败: {}", e))?;
-        
+        let current_dir =
+            std::env::current_dir().map_err(|e| format!("获取当前目录失败: {}", e))?;
+
         // Tauri 开发模式下 current_dir 是 src-tauri/，需要获取父目录（项目根目录）
         let workspace_dir = current_dir
             .parent()
             .ok_or_else(|| "无法获取项目根目录".to_string())?;
-        
+
         workspace_dir.join("plugins").join(original_id)
     } else {
         // 生产模式：从 appDataDir 查找

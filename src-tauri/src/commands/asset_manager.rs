@@ -2280,10 +2280,7 @@ pub async fn update_asset_derived_data(
 
 /// 根据 ID 获取单个资产
 #[tauri::command]
-pub async fn get_asset_by_id(
-    app: AppHandle,
-    asset_id: String,
-) -> Result<Option<Asset>, String> {
+pub async fn get_asset_by_id(app: AppHandle, asset_id: String) -> Result<Option<Asset>, String> {
     use std::io::{BufRead, BufReader};
 
     let base_path = get_asset_base_path(app)?;

@@ -65,12 +65,16 @@ pub async fn load_native_plugin(
 ) -> Result<(), String> {
     log::info!(
         "[NATIVE] 开始加载插件: {}, 库路径: {}",
-        plugin_id, library_path
+        plugin_id,
+        library_path
     );
 
     // 检查插件是否已加载
     {
-        let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
+        let mut plugins = state
+            .plugins
+            .lock()
+            .map_err(|e| format!("获取插件锁失败: {}", e))?;
         if plugins.contains_key(&plugin_id) {
             log::info!("[NATIVE] 插件 {} 已加载，先卸载", plugin_id);
             // 如果已加载，先卸载
@@ -84,21 +88,21 @@ pub async fn load_native_plugin(
     let absolute_path = {
         // 参照 sidecar_plugin.rs 的实现
         // Tauri 开发模式下 current_dir 是 src-tauri，需要获取父目录（项目根目录）
-        let current_dir = std::env::current_dir()
-            .map_err(|e| format!("获取当前目录失败: {}", e))?;
+        let current_dir =
+            std::env::current_dir().map_err(|e| format!("获取当前目录失败: {}", e))?;
         let workspace_dir = current_dir
             .parent()
             .ok_or_else(|| "无法获取项目根目录".to_string())?;
-        
+
         let full_path = workspace_dir.join(&library_path);
         log::debug!("[NATIVE] 开发模式，项目根目录: {:?}", workspace_dir);
         log::debug!("[NATIVE] 拼接后的路径: {:?}", full_path);
-        
+
         // 验证文件是否存在
         if !full_path.exists() {
             return Err(format!("插件文件不存在: {:?}", full_path));
         }
-        
+
         full_path
     };
 
@@ -117,13 +121,15 @@ pub async fn load_native_plugin(
 
     // 加载动态库
     let library = Arc::new(
-        unsafe { Library::new(&absolute_path) }
-            .map_err(|e| format!("加载动态库失败: {}", e))?
+        unsafe { Library::new(&absolute_path) }.map_err(|e| format!("加载动态库失败: {}", e))?,
     );
 
     // 存储插件库
     {
-        let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
+        let mut plugins = state
+            .plugins
+            .lock()
+            .map_err(|e| format!("获取插件锁失败: {}", e))?;
         let metadata = PluginMetadata {
             library,
             reloadable,
@@ -147,7 +153,10 @@ pub async fn unload_native_plugin(
     log::info!("[NATIVE] 请求卸载插件: {}", plugin_id);
 
     let plugin_to_unload = {
-        let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
+        let mut plugins = state
+            .plugins
+            .lock()
+            .map_err(|e| format!("获取插件锁失败: {}", e))?;
         if let Some(metadata) = plugins.get(&plugin_id) {
             if !metadata.reloadable {
                 return Err(format!("插件 {} 不支持运行时卸载，请重启应用", plugin_id));
@@ -163,13 +172,16 @@ pub async fn unload_native_plugin(
         while metadata.ref_count.load(Ordering::SeqCst) > 0 {
             if start.elapsed() > timeout {
                 // 如果超时，需要将插件重新插回，因为它仍在被使用
-                let mut plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
+                let mut plugins = state
+                    .plugins
+                    .lock()
+                    .map_err(|e| format!("获取插件锁失败: {}", e))?;
                 plugins.insert(plugin_id.clone(), metadata);
                 return Err(format!("卸载超时: 插件 {} 仍在使用中", plugin_id));
             }
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
-        
+
         // 引用计数为 0，可以安全 drop (卸载)
         drop(metadata);
         log::info!("[NATIVE] 插件 {} 已安全卸载", plugin_id);
@@ -189,13 +201,20 @@ pub async fn call_native_plugin_method(
 ) -> Result<String, String> {
     log::info!(
         "[NATIVE] 调用插件方法: {}.{}",
-        request.plugin_id, request.method_name
+        request.plugin_id,
+        request.method_name
     );
 
     // 获取插件并增加引用计数
     let metadata = {
-        let plugins = state.plugins.lock().map_err(|e| format!("获取插件锁失败: {}", e))?;
-        plugins.get(&request.plugin_id).cloned().ok_or_else(|| format!("插件 {} 未加载", request.plugin_id))?
+        let plugins = state
+            .plugins
+            .lock()
+            .map_err(|e| format!("获取插件锁失败: {}", e))?;
+        plugins
+            .get(&request.plugin_id)
+            .cloned()
+            .ok_or_else(|| format!("插件 {} 未加载", request.plugin_id))?
     };
 
     metadata.ref_count.fetch_add(1, Ordering::SeqCst);
@@ -207,21 +226,21 @@ pub async fn call_native_plugin_method(
 
     // 获取 call 函数
     let call: Symbol<CallFunction> = unsafe {
-        metadata.library
+        metadata
+            .library
             .get(b"call\0")
             .map_err(|e| format!("获取 call 函数失败: {}", e))?
     };
 
     // 获取 free_string 函数（可选）
-    let free_string: Result<Symbol<FreeStringFunction>, _> = unsafe {
-        metadata.library.get(b"free_string\0")
-    };
+    let free_string: Result<Symbol<FreeStringFunction>, _> =
+        unsafe { metadata.library.get(b"free_string\0") };
 
     // 准备参数
-    let method_name_cstr = CString::new(request.method_name.as_str())
-        .map_err(|e| format!("方法名转换失败: {}", e))?;
-    let payload_cstr = CString::new(request.payload.as_str())
-        .map_err(|e| format!("载荷转换失败: {}", e))?;
+    let method_name_cstr =
+        CString::new(request.method_name.as_str()).map_err(|e| format!("方法名转换失败: {}", e))?;
+    let payload_cstr =
+        CString::new(request.payload.as_str()).map_err(|e| format!("载荷转换失败: {}", e))?;
 
     // 调用插件函数
     let result_ptr = unsafe { call(method_name_cstr.as_ptr(), payload_cstr.as_ptr()) };

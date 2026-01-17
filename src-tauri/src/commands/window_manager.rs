@@ -85,54 +85,55 @@ pub fn init_global_mouse_listener() {
             }
         };
 
-        let handle_mouse_move =
-            |session_arc: Arc<Mutex<Option<DragSessionState>>>, x: f64, y: f64| {
-                let update_data = {
-                    let mut session_opt = session_arc.lock().unwrap();
-                    if let Some(session) = session_opt.as_mut() {
-                        session.current_x = x;
-                        session.current_y = y;
+        let handle_mouse_move = |session_arc: Arc<Mutex<Option<DragSessionState>>>,
+                                 x: f64,
+                                 y: f64| {
+            let update_data = {
+                let mut session_opt = session_arc.lock().unwrap();
+                if let Some(session) = session_opt.as_mut() {
+                    session.current_x = x;
+                    session.current_y = y;
 
-                        let delta_x = x - session.start_x;
-                        let delta_y = y - session.start_y;
-                        let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
-                        session.can_detach = distance >= DETACH_THRESHOLD;
+                    let delta_x = x - session.start_x;
+                    let delta_y = y - session.start_y;
+                    let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
+                    session.can_detach = distance >= DETACH_THRESHOLD;
 
-                        let now = Instant::now();
-                        let should_update = now.duration_since(session.last_update_time).as_millis()
-                            >= UPDATE_THROTTLE_MS as u128;
+                    let now = Instant::now();
+                    let should_update = now.duration_since(session.last_update_time).as_millis()
+                        >= UPDATE_THROTTLE_MS as u128;
 
-                        if should_update {
-                            session.last_update_time = now;
-                            Some((
-                                session.app_handle.clone(),
-                                session.preview_window_label.clone(),
-                                session.can_detach,
-                                session.handle_offset_x,
-                                session.handle_offset_y,
-                            ))
-                        } else {
-                            None
-                        }
+                    if should_update {
+                        session.last_update_time = now;
+                        Some((
+                            session.app_handle.clone(),
+                            session.preview_window_label.clone(),
+                            session.can_detach,
+                            session.handle_offset_x,
+                            session.handle_offset_y,
+                        ))
                     } else {
                         None
                     }
-                };
-
-                if let Some((app_handle, preview_label, can_detach, handle_offset_x, handle_offset_y)) =
-                    update_data
-                {
-                    if let Some(window) = app_handle.get_webview_window(&preview_label) {
-                        let physical_x = (x - handle_offset_x) as i32;
-                        let physical_y = (y - handle_offset_y) as i32;
-                        let _ = window.set_position(PhysicalPosition::new(physical_x, physical_y));
-                        let _ = window.emit(
-                            "detach-status-update",
-                            serde_json::json!({ "canDetach": can_detach }),
-                        );
-                    }
+                } else {
+                    None
                 }
             };
+
+            if let Some((app_handle, preview_label, can_detach, handle_offset_x, handle_offset_y)) =
+                update_data
+            {
+                if let Some(window) = app_handle.get_webview_window(&preview_label) {
+                    let physical_x = (x - handle_offset_x) as i32;
+                    let physical_y = (y - handle_offset_y) as i32;
+                    let _ = window.set_position(PhysicalPosition::new(physical_x, physical_y));
+                    let _ = window.emit(
+                        "detach-status-update",
+                        serde_json::json!({ "canDetach": can_detach }),
+                    );
+                }
+            }
+        };
 
         // 根据操作系统定义不同的回调
         let callback = {
@@ -143,7 +144,9 @@ pub fn init_global_mouse_listener() {
                     // 在 macOS 上，采取最严格的策略，只处理鼠标事件
                     match event.event_type {
                         EventType::ButtonRelease(_) => handle_button_release(session_arc.clone()),
-                        EventType::MouseMove { x, y } => handle_mouse_move(session_arc.clone(), x, y),
+                        EventType::MouseMove { x, y } => {
+                            handle_mouse_move(session_arc.clone(), x, y)
+                        }
                         _ => {
                             // 忽略所有其他事件，特别是键盘事件，以防止崩溃
                         }
@@ -154,7 +157,9 @@ pub fn init_global_mouse_listener() {
                     // 在其他系统上，可以稍微放宽，但仍然忽略键盘事件
                     match event.event_type {
                         EventType::ButtonRelease(_) => handle_button_release(session_arc.clone()),
-                        EventType::MouseMove { x, y } => handle_mouse_move(session_arc.clone(), x, y),
+                        EventType::MouseMove { x, y } => {
+                            handle_mouse_move(session_arc.clone(), x, y)
+                        }
                         EventType::KeyPress(_) | EventType::KeyRelease(_) => {
                             // 显式忽略键盘事件
                         }
@@ -202,7 +207,7 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
     }
 
     log::info!("[DRAG] 开始拖拽会话: {}", config.display_name);
-    
+
     // 动态注册 ESC 快捷键（仅在拖拽会话期间有效）
     let app_clone = app.clone();
     if let Err(e) = app
@@ -269,7 +274,9 @@ pub async fn end_drag_session(app: AppHandle) -> Result<bool, String> {
         let duration = state.created_at.elapsed();
         log::info!(
             "[DRAG] 结束拖拽会话: {}, can_detach: {}, 持续时间: {:?}",
-            state.config.display_name, state.can_detach, duration
+            state.config.display_name,
+            state.can_detach,
+            duration
         );
 
         // 取消注册 ESC 快捷键
@@ -308,7 +315,7 @@ pub fn cancel_drag_on_esc(app: AppHandle) {
         log::info!("[SHORTCUT] ESC 快捷键触发，强制取消拖拽会话");
 
         let preview_label = session.preview_window_label.clone();
-        
+
         // 在异步运行时中执行取消操作
         tauri::async_runtime::spawn(async move {
             // 1. 取消注册 ESC 快捷键
@@ -491,7 +498,9 @@ pub async fn begin_detach_session(
 
     log::info!(
         "[DETACH] 开始按钮分离会话: {}, 类型: {}, ID: {}",
-        session_id, config.r#type, config.id
+        session_id,
+        config.r#type,
+        config.id
     );
 
     // 按钮创建时 is_drag=false，完全依赖插件恢复位置和尺寸
@@ -706,11 +715,12 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         return Ok(());
     }
 
-    let mut builder = WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
-        .title(&config.title)
-        .inner_size(config.width, config.height)
-        .min_inner_size(400.0, 300.0)
-        .decorations(false);
+    let mut builder =
+        WebviewWindowBuilder::new(&app, &config.label, WebviewUrl::App(config.url.into()))
+            .title(&config.title)
+            .inner_size(config.width, config.height)
+            .min_inner_size(400.0, 300.0)
+            .decorations(false);
 
     #[cfg(target_os = "macos")]
     {

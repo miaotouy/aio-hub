@@ -286,7 +286,7 @@ async fn proxy_handler(req: Request, window: WebviewWindow) -> Result<Response<B
 
     // 获取代理配置
     let proxy_settings = super::config_manager::get_proxy_settings(window.app_handle());
-    
+
     // 使用 reqwest 客户端来支持 HTTPS
     // 对于SSE流，我们需要禁用超时和自动解压
     let mut client_builder = reqwest::Client::builder()

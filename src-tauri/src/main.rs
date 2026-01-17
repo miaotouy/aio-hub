@@ -24,10 +24,16 @@ fn main() {
     // 2. Executable filename contains "portable" (case-insensitive)
     // 3. A file named "portable.flag" exists next to the executable
     let exe_path = std::env::current_exe().expect("Failed to get current executable path");
-    let exe_dir = exe_path.parent().expect("Failed to get executable directory");
-    let exe_name = exe_path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+    let exe_dir = exe_path
+        .parent()
+        .expect("Failed to get executable directory");
+    let exe_name = exe_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     let flag_file_exists = exe_dir.join("portable.flag").exists();
-    
+
     let is_portable = args.portable || exe_name.contains("portable") || flag_file_exists;
 
     // Handle portable mode or custom data directory
@@ -37,7 +43,9 @@ fn main() {
         } else {
             // Portable mode: use 'data' folder next to executable
             let exe_path = std::env::current_exe().expect("Failed to get current executable path");
-            let exe_dir = exe_path.parent().expect("Failed to get executable directory");
+            let exe_dir = exe_path
+                .parent()
+                .expect("Failed to get executable directory");
             exe_dir.join("data")
         };
 
@@ -58,13 +66,19 @@ fn main() {
 
         // 设置一个自定义环境变量，记录最终确定的数据目录
         std::env::set_var("AIO_PORTABLE_DATA_DIR", &target_path_str);
-        
+
         #[cfg(not(windows))]
         {
             // On Linux/macOS, we often use HOME or specific XDG vars
             std::env::set_var("HOME", &target_path_str);
-            std::env::set_var("XDG_DATA_HOME", target_dir.join("share").to_string_lossy().to_string());
-            std::env::set_var("XDG_CONFIG_HOME", target_dir.join("config").to_string_lossy().to_string());
+            std::env::set_var(
+                "XDG_DATA_HOME",
+                target_dir.join("share").to_string_lossy().to_string(),
+            );
+            std::env::set_var(
+                "XDG_CONFIG_HOME",
+                target_dir.join("config").to_string_lossy().to_string(),
+            );
         }
 
         // Mark as portable mode for lib.rs to handle (e.g. skip single instance)

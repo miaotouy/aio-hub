@@ -1,20 +1,20 @@
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::collections::HashMap;
-use std::time::Instant;
+use fs_extra;
+use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use fs_extra;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::fs;
+use std::io::{Read, Write};
 #[cfg(windows)]
 use std::path::Component;
-use tokio_util::sync::CancellationToken;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter};
+use std::time::Instant;
 use std::time::SystemTime;
-use lazy_static::lazy_static;
-use std::io::{Read, Write};
+use tauri::{AppHandle, Emitter};
+use tokio_util::sync::CancellationToken;
 use zip::ZipArchive;
-use serde_json::Value;
 
 // ==================== 插件清单类型 ====================
 // 注意：这些结构体是根据 TypeScript 定义手动转换的，用于 manifest.json 的反序列化
@@ -97,7 +97,6 @@ pub struct PluginManifest {
     pub permissions: Option<Vec<String>>,
 }
 
-
 // 进度事件结构体
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -113,16 +112,16 @@ pub struct CopyProgress {
 #[serde(rename_all = "camelCase")]
 pub struct OperationLog {
     pub timestamp: u64,
-    pub operation_type: String,    // "move" 或 "link-only"
-    pub link_type: String,         // "symlink" 或 "link"
+    pub operation_type: String, // "move" 或 "link-only"
+    pub link_type: String,      // "symlink" 或 "link"
     pub source_count: usize,
     pub success_count: usize,
     pub error_count: usize,
     pub errors: Vec<String>,
     pub duration_ms: u128,
-    pub target_directory: String,  // 目标目录
-    pub source_paths: Vec<String>, // 源文件路径列表
-    pub total_size: u64,           // 总文件大小（字节）
+    pub target_directory: String,     // 目标目录
+    pub source_paths: Vec<String>,    // 源文件路径列表
+    pub total_size: u64,              // 总文件大小（字节）
     pub processed_files: Vec<String>, // 成功处理的文件名列表
 }
 
@@ -178,11 +177,11 @@ fn parse_regex_pattern(pattern: &str) -> Result<(String, String), String> {
         if let Some(end_pos) = stripped.rfind('/') {
             let pattern_part = &stripped[..end_pos];
             let flags_part = &pattern[end_pos + 2..];
-            
+
             // 过滤并验证 flags
             let mut valid_flags = String::new();
             let mut has_g_flag = false;
-            
+
             for c in flags_part.chars() {
                 if c == 'g' {
                     // JavaScript 的 g 标志在 Rust 中不需要（replace_all 已是全局替换）
@@ -193,7 +192,7 @@ fn parse_regex_pattern(pattern: &str) -> Result<(String, String), String> {
                     return Err(format!("无效的正则标志: {} - Rust 后端不支持该语法", c));
                 }
             }
-            
+
             // 如果原本有 g 标志但被过滤，返回处理后的标志和提示
             if has_g_flag && !flags_part.chars().all(|c| c == 'g') {
                 // 有其他有效标志，仅过滤 g
@@ -202,11 +201,11 @@ fn parse_regex_pattern(pattern: &str) -> Result<(String, String), String> {
                 // 只有 g 标志，使用默认的 m 标志
                 return Ok((pattern_part.to_string(), "m".to_string()));
             }
-            
+
             return Ok((pattern_part.to_string(), valid_flags));
         }
     }
-    
+
     // 默认使用 m 标志以支持多行匹配
     Ok((pattern.to_string(), "m".to_string()))
 }
@@ -214,19 +213,31 @@ fn parse_regex_pattern(pattern: &str) -> Result<(String, String), String> {
 // 根据标志构建正则表达式
 fn build_regex_with_flags(pattern: &str, flags: &str) -> Result<Regex, regex::Error> {
     let mut builder = regex::RegexBuilder::new(pattern);
-    
+
     for flag in flags.chars() {
         match flag {
-            'i' => { builder.case_insensitive(true); },
-            'm' => { builder.multi_line(true); },
-            's' => { builder.dot_matches_new_line(true); },
-            'u' => { builder.unicode(true); },
-            'x' => { builder.ignore_whitespace(true); },
-            'U' => { builder.swap_greed(true); },
+            'i' => {
+                builder.case_insensitive(true);
+            }
+            'm' => {
+                builder.multi_line(true);
+            }
+            's' => {
+                builder.dot_matches_new_line(true);
+            }
+            'u' => {
+                builder.unicode(true);
+            }
+            'x' => {
+                builder.ignore_whitespace(true);
+            }
+            'U' => {
+                builder.swap_greed(true);
+            }
             _ => {}
         }
     }
-    
+
     builder.build()
 }
 
@@ -255,14 +266,14 @@ pub async fn process_files_with_regex(
     output_dir: String,
     rules: Vec<RegexRule>,
     force_txt: Option<bool>,
-    filename_suffix: Option<String>
+    filename_suffix: Option<String>,
 ) -> Result<ProcessResult, String> {
     let start_time = Instant::now();
     let force_txt = force_txt.unwrap_or(false);
     let filename_suffix = filename_suffix.unwrap_or_default();
     let output_path = PathBuf::from(&output_dir);
     let mut logs = Vec::new();
-    
+
     // 添加日志辅助函数
     let mut add_log = |message: String, level: &str| {
         log::debug!("{}", message);
@@ -271,7 +282,7 @@ pub async fn process_files_with_regex(
             level: level.to_string(),
         });
     };
-    
+
     add_log("========== 正则文件处理开始 ==========".to_string(), "info");
     add_log(format!("输出目录: {}", output_dir), "info");
     add_log(format!("规则数量: {}", rules.len()), "info");
@@ -279,22 +290,21 @@ pub async fn process_files_with_regex(
     if !filename_suffix.is_empty() {
         add_log(format!("文件后缀: {}", filename_suffix), "info");
     }
-    
+
     // 确保输出目录存在
     if !output_path.exists() {
-        fs::create_dir_all(&output_path)
-            .map_err(|e| format!("创建输出目录失败: {}", e))?;
+        fs::create_dir_all(&output_path).map_err(|e| format!("创建输出目录失败: {}", e))?;
     }
-    
+
     if !output_path.is_dir() {
         return Err(format!("输出路径不是目录: {}", output_dir));
     }
-    
+
     // 编译所有正则表达式
     add_log("--- 编译正则表达式 ---".to_string(), "info");
     let mut compiled_rules_vec = Vec::new();
     let mut skipped_count = 0;
-    
+
     for (idx, rule) in rules.iter().enumerate() {
         // 构建规则标识（用于日志和错误消息）
         let rule_label = match (&rule.preset_name, &rule.name) {
@@ -303,37 +313,55 @@ pub async fn process_files_with_regex(
             (None, Some(name)) => name.clone(),
             (None, None) => format!("规则 {}", idx + 1),
         };
-        
+
         let (pattern, flags) = match parse_regex_pattern(&rule.regex) {
             Ok(result) => result,
             Err(e) => {
-                add_log(format!("⚠ {} 跳过: {} - Rust 后端不支持该语法", rule_label, e), "warn");
+                add_log(
+                    format!("⚠ {} 跳过: {} - Rust 后端不支持该语法", rule_label, e),
+                    "warn",
+                );
                 skipped_count += 1;
                 continue;
             }
         };
-        
-        add_log(format!("{}: /{}/{} -> \"{}\"", rule_label, pattern, flags, rule.replacement), "info");
-        
+
+        add_log(
+            format!(
+                "{}: /{}/{} -> \"{}\"",
+                rule_label, pattern, flags, rule.replacement
+            ),
+            "info",
+        );
+
         match build_regex_with_flags(&pattern, &flags) {
             Ok(r) => {
                 compiled_rules_vec.push((r, rule.replacement.clone(), pattern, flags));
             }
             Err(e) => {
-                add_log(format!("⚠ {} 跳过: 无效的正则表达式 '{}' - {} (Rust 后端不支持)", rule_label, rule.regex, e), "warn");
+                add_log(
+                    format!(
+                        "⚠ {} 跳过: 无效的正则表达式 '{}' - {} (Rust 后端不支持)",
+                        rule_label, rule.regex, e
+                    ),
+                    "warn",
+                );
                 skipped_count += 1;
             }
         }
     }
-    
+
     if skipped_count > 0 {
-        add_log(format!("已跳过 {} 条 Rust 后端不支持的规则", skipped_count), "warn");
+        add_log(
+            format!("已跳过 {} 条 Rust 后端不支持的规则", skipped_count),
+            "warn",
+        );
     }
-    
+
     if compiled_rules_vec.is_empty() {
         return Err("所有规则都无法在 Rust 后端编译，请检查规则语法".to_string());
     }
-    
+
     // 收集所有需要处理的文件
     add_log("--- 收集文件 ---".to_string(), "info");
     let mut all_files = Vec::new();
@@ -346,40 +374,67 @@ pub async fn process_files_with_regex(
         }
     }
     add_log(format!("找到 {} 个文件待处理", all_files.len()), "info");
-    
+
     // 处理每个文件
     add_log("--- 处理文件 ---".to_string(), "info");
     let mut success_count = 0;
     let mut error_count = 0;
     let mut errors = HashMap::new();
     let mut total_matches = 0;
-    
+
     for (idx, file_path) in all_files.iter().enumerate() {
         let file_name = file_path.display().to_string();
-        match process_single_file(file_path, &output_path, &compiled_rules_vec, force_txt, &filename_suffix) {
+        match process_single_file(
+            file_path,
+            &output_path,
+            &compiled_rules_vec,
+            force_txt,
+            &filename_suffix,
+        ) {
             Ok(matches) => {
                 success_count += 1;
                 total_matches += matches;
-                add_log(format!("[{}/{}] {}: 成功 (匹配 {} 次)", idx + 1, all_files.len(), file_name, matches), "info");
-            },
+                add_log(
+                    format!(
+                        "[{}/{}] {}: 成功 (匹配 {} 次)",
+                        idx + 1,
+                        all_files.len(),
+                        file_name,
+                        matches
+                    ),
+                    "info",
+                );
+            }
             Err(e) => {
                 error_count += 1;
                 errors.insert(file_name.clone(), e.clone());
-                add_log(format!("[{}/{}] {}: 失败 - {}", idx + 1, all_files.len(), file_name, e), "error");
+                add_log(
+                    format!(
+                        "[{}/{}] {}: 失败 - {}",
+                        idx + 1,
+                        all_files.len(),
+                        file_name,
+                        e
+                    ),
+                    "error",
+                );
             }
         }
     }
-    
+
     let duration = start_time.elapsed();
     let duration_ms = duration.as_secs_f64() * 1000.0;
-    
+
     add_log("========== 处理完成 ==========".to_string(), "info");
     add_log(format!("成功: {} 个文件", success_count), "info");
-    add_log(format!("失败: {} 个文件", error_count), if error_count > 0 { "warn" } else { "info" });
+    add_log(
+        format!("失败: {} 个文件", error_count),
+        if error_count > 0 { "warn" } else { "info" },
+    );
     add_log(format!("总匹配次数: {}", total_matches), "info");
     add_log(format!("总耗时: {:.2}ms", duration_ms), "info");
     add_log("================================".to_string(), "info");
-    
+
     Ok(ProcessResult {
         success_count,
         error_count,
@@ -393,13 +448,13 @@ pub async fn process_files_with_regex(
 // 递归收集目录中的所有文件
 fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
     if dir.is_dir() {
-        let entries = fs::read_dir(dir)
-            .map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;
-        
+        let entries =
+            fs::read_dir(dir).map_err(|e| format!("读取目录失败 {}: {}", dir.display(), e))?;
+
         for entry in entries {
             let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
             let path = entry.path();
-            
+
             if path.is_file() {
                 files.push(path);
             } else if path.is_dir() {
@@ -416,75 +471,82 @@ fn process_single_file(
     output_dir: &Path,
     rules: &[(Regex, String, String, String)], // (regex, replacement, pattern, flags)
     force_txt: bool,
-    filename_suffix: &str
+    filename_suffix: &str,
 ) -> Result<usize, String> {
     // 读取文件内容
-    let content = fs::read_to_string(file_path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
-    
+    let content = fs::read_to_string(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
+
     let original_len = content.len();
-    
+
     // 应用所有正则规则
     let mut processed = content.clone();
     let mut total_matches = 0;
-    
+
     for (regex, replacement, _pattern, _flags) in rules {
         let before = processed.clone();
         let matches = regex.find_iter(&before).count();
         if matches > 0 {
-            processed = regex.replace_all(&processed, replacement.as_str()).to_string();
+            processed = regex
+                .replace_all(&processed, replacement.as_str())
+                .to_string();
             total_matches += matches;
         }
     }
-    
+
     let final_len = processed.len();
     let text_changed = content != processed;
-    
+
     // 构造输出文件路径
-    let original_name = file_path.file_stem()
+    let original_name = file_path
+        .file_stem()
         .ok_or_else(|| "无法获取文件名".to_string())?
         .to_string_lossy();
-    
+
     let extension = if force_txt {
         "txt".to_string()
     } else {
-        file_path.extension()
+        file_path
+            .extension()
             .map(|e| e.to_string_lossy().to_string())
             .unwrap_or_else(|| "txt".to_string())
     };
-    
+
     let final_name = if filename_suffix.is_empty() {
         format!("{}.{}", original_name, extension)
     } else {
         format!("{}{}.{}", original_name, filename_suffix, extension)
     };
-    
+
     let output_file = output_dir.join(final_name);
-    
+
     // 写入处理后的内容
-    fs::write(&output_file, &processed)
-        .map_err(|e| format!("写入文件失败: {}", e))?;
-    
+    fs::write(&output_file, &processed).map_err(|e| format!("写入文件失败: {}", e))?;
+
     // 如果文本发生变化，输出详细统计
     if text_changed {
         let len_diff = final_len as i64 - original_len as i64;
         let sign = if len_diff >= 0 { "+" } else { "" };
-        log::debug!("    原始长度: {} 字符, 处理后: {} 字符 ({}{})",
-                    original_len, final_len, sign, len_diff);
+        log::debug!(
+            "    原始长度: {} 字符, 处理后: {} 字符 ({}{})",
+            original_len,
+            final_len,
+            sign,
+            len_diff
+        );
     }
-    
+
     Ok(total_matches)
 }
 
 // 递归计算目录大小
 fn calculate_dir_size(dir: &Path) -> Result<u64, std::io::Error> {
     let mut total = 0u64;
-    
+
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file() {
                 if let Ok(metadata) = path.metadata() {
                     total += metadata.len();
@@ -494,7 +556,7 @@ fn calculate_dir_size(dir: &Path) -> Result<u64, std::io::Error> {
             }
         }
     }
-    
+
     Ok(total)
 }
 
@@ -510,7 +572,7 @@ fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
                 None
             }
         });
-        
+
         let target_prefix = target_dir.components().find_map(|c| {
             if let Component::Prefix(prefix) = c {
                 Some(prefix.as_os_str().to_owned())
@@ -518,10 +580,10 @@ fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
                 None
             }
         });
-        
+
         source_prefix != target_prefix
     }
-    
+
     #[cfg(unix)]
     {
         // Unix: 比较设备 ID
@@ -532,7 +594,7 @@ fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
             false
         }
     }
-    
+
     #[cfg(not(any(windows, unix)))]
     {
         false
@@ -546,14 +608,14 @@ pub async fn move_and_link(
     source_paths: Vec<String>,
     target_dir: String,
     link_type: String,
-    cancel_token: tauri::State<'_, Arc<CancellationToken>>
+    cancel_token: tauri::State<'_, Arc<CancellationToken>>,
 ) -> Result<String, String> {
     let start_time = Instant::now();
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     let target_path = PathBuf::from(&target_dir);
 
     // 确保目标目录存在
@@ -580,12 +642,14 @@ pub async fn move_and_link(
             continue;
         }
 
-        let file_name = source_path.file_name()
+        let file_name = source_path
+            .file_name()
             .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
-            .to_string_lossy().to_string();
+            .to_string_lossy()
+            .to_string();
 
         let target_file_path = target_path.join(&file_name);
-        
+
         // 计算文件/目录大小
         if let Ok(metadata) = source_path.metadata() {
             total_size += if metadata.is_file() {
@@ -609,18 +673,22 @@ pub async fn move_and_link(
 
         // 检测是否跨盘移动
         let is_cross_dev = is_cross_device(&source_path, &target_path);
-        
+
         // 执行文件移动
         let move_success = if is_cross_dev {
             // 跨盘移动：使用带进度的复制+删除
             let token_clone = cancel_token.inner().clone();
             let app_clone = app.clone();
             let source_name = source_path_str.clone();
-            
+
             let copy_result = if source_path.is_dir() {
                 // 目录复制暂不支持进度（fs_extra 的目录复制进度回调较复杂）
-                fs_extra::dir::copy(&source_path, &target_path, &fs_extra::dir::CopyOptions::new())
-                    .map(|_| ())
+                fs_extra::dir::copy(
+                    &source_path,
+                    &target_path,
+                    &fs_extra::dir::CopyOptions::new(),
+                )
+                .map(|_| ())
             } else {
                 // 文件复制支持进度回调
                 let options = fs_extra::file::CopyOptions::new();
@@ -634,7 +702,7 @@ pub async fn move_and_link(
                             // fs_extra 的进度回调不支持中断，只能记录状态
                             // 实际的取消检查在复制完成后进行
                         }
-                        
+
                         // 发送进度事件
                         let progress = CopyProgress {
                             current_file: source_name.clone(),
@@ -646,27 +714,37 @@ pub async fn move_and_link(
                                 0.0
                             },
                         };
-                        
+
                         let _ = app_clone.emit("copy-progress", progress);
-                    }
-                ).map(|_| ())
+                    },
+                )
+                .map(|_| ())
             };
-            
+
             match copy_result {
                 Ok(_) => {
                     // 复制成功，使用 trash 移入回收站而非直接删除
                     let remove_result = trash::delete(&source_path);
-                    
+
                     match remove_result {
                         Ok(_) => true,
                         Err(e) => {
-                            errors.push(format!("移入回收站失败 {}: {}（文件已复制到目标位置）", source_path.display(), e));
+                            errors.push(format!(
+                                "移入回收站失败 {}: {}（文件已复制到目标位置）",
+                                source_path.display(),
+                                e
+                            ));
                             false
                         }
                     }
                 }
                 Err(e) => {
-                    errors.push(format!("跨盘复制文件失败 {} -> {}: {}", source_path.display(), target_file_path.display(), e));
+                    errors.push(format!(
+                        "跨盘复制文件失败 {} -> {}: {}",
+                        source_path.display(),
+                        target_file_path.display(),
+                        e
+                    ));
                     false
                 }
             }
@@ -675,47 +753,57 @@ pub async fn move_and_link(
             match fs::rename(&source_path, &target_file_path) {
                 Ok(_) => true,
                 Err(e) => {
-                    errors.push(format!("移动文件失败 {} -> {}: {}", source_path.display(), target_file_path.display(), e));
+                    errors.push(format!(
+                        "移动文件失败 {} -> {}: {}",
+                        source_path.display(),
+                        target_file_path.display(),
+                        e
+                    ));
                     false
                 }
             }
         };
 
         if move_success {
-    // 文件移动成功，现在创建链接
-    let link_result = if link_type == "symlink" {
-        // 创建符号链接
-        #[cfg(windows)]
-        {
-            if target_file_path.is_dir() {
-                std::os::windows::fs::symlink_dir(&target_file_path, &source_path)
+            // 文件移动成功，现在创建链接
+            let link_result = if link_type == "symlink" {
+                // 创建符号链接
+                #[cfg(windows)]
+                {
+                    if target_file_path.is_dir() {
+                        std::os::windows::fs::symlink_dir(&target_file_path, &source_path)
+                    } else {
+                        std::os::windows::fs::symlink_file(&target_file_path, &source_path)
+                    }
+                }
+                #[cfg(unix)]
+                {
+                    std::os::unix::fs::symlink(&target_file_path, &source_path)
+                }
             } else {
-                std::os::windows::fs::symlink_file(&target_file_path, &source_path)
+                // 创建硬链接
+                fs::hard_link(&target_file_path, &source_path)
+            };
+
+            match link_result {
+                Ok(_) => {
+                    processed_count += 1;
+                    processed_files.push(file_name);
+                }
+                Err(e) => {
+                    errors.push(format!(
+                        "创建链接失败 {} -> {}: {}",
+                        target_file_path.display(),
+                        source_path.display(),
+                        e
+                    ));
+                }
             }
         }
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&target_file_path, &source_path)
-        }
-    } else {
-        // 创建硬链接
-        fs::hard_link(&target_file_path, &source_path)
-    };
-
-    match link_result {
-        Ok(_) => {
-            processed_count += 1;
-            processed_files.push(file_name);
-        }
-        Err(e) => {
-            errors.push(format!("创建链接失败 {} -> {}: {}", target_file_path.display(), source_path.display(), e));
-        }
-    }
-}
     }
 
     let duration = start_time.elapsed();
-    
+
     // 记录操作日志
     let log = OperationLog {
         timestamp,
@@ -746,13 +834,17 @@ pub async fn move_and_link(
 
 // Tauri 命令：仅创建链接（不移动文件）
 #[tauri::command]
-pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, link_type: String) -> Result<String, String> {
+pub async fn create_links_only(
+    source_paths: Vec<String>,
+    target_dir: String,
+    link_type: String,
+) -> Result<String, String> {
     let start_time = Instant::now();
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     let target_path = PathBuf::from(&target_dir);
 
     // 确保目标目录存在
@@ -779,12 +871,14 @@ pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, li
             continue;
         }
 
-        let file_name = source_path.file_name()
+        let file_name = source_path
+            .file_name()
             .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
-            .to_string_lossy().to_string();
+            .to_string_lossy()
+            .to_string();
 
         let link_path = target_path.join(&file_name);
-        
+
         // 计算文件/目录大小
         if let Ok(metadata) = source_path.metadata() {
             total_size += if metadata.is_file() {
@@ -830,13 +924,18 @@ pub async fn create_links_only(source_paths: Vec<String>, target_dir: String, li
                 processed_files.push(file_name);
             }
             Err(e) => {
-                errors.push(format!("创建链接失败 {} -> {}: {}", source_path.display(), link_path.display(), e));
+                errors.push(format!(
+                    "创建链接失败 {} -> {}: {}",
+                    source_path.display(),
+                    link_path.display(),
+                    e
+                ));
             }
         }
     }
 
     let duration = start_time.elapsed();
-    
+
     // 记录操作日志
     let log = OperationLog {
         timestamp,
@@ -895,24 +994,25 @@ pub struct FileMetadata {
 #[tauri::command]
 pub fn get_file_metadata(path: String) -> Result<FileMetadata, String> {
     let path = Path::new(&path);
-    
+
     if !path.exists() {
         return Err(format!("路径不存在: {}", path.display()));
     }
-    
-    let metadata = fs::metadata(path)
-        .map_err(|e| format!("获取文件元数据失败: {}", e))?;
-    
-    let modified = metadata.modified()
+
+    let metadata = fs::metadata(path).map_err(|e| format!("获取文件元数据失败: {}", e))?;
+
+    let modified = metadata
+        .modified()
         .ok()
         .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
         .map(|d| d.as_secs());
-    
-    let created = metadata.created()
+
+    let created = metadata
+        .created()
         .ok()
         .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
         .map(|d| d.as_secs());
-    
+
     Ok(FileMetadata {
         size: metadata.len(),
         is_file: metadata.is_file(),
@@ -929,26 +1029,24 @@ pub fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
     if !file_path.exists() {
         return Err(format!("文件不存在: {}", path));
     }
-    
-    let bytes = fs::read(file_path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
-    
+
+    let bytes = fs::read(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
+
     Ok(bytes)
 }
 
 // Tauri 命令：读取文件为base64
 #[tauri::command]
 pub fn read_file_as_base64(path: String) -> Result<String, String> {
-    use base64::{Engine as _, engine::general_purpose};
-    
+    use base64::{engine::general_purpose, Engine as _};
+
     let file_path = Path::new(&path);
     if !file_path.exists() {
         return Err(format!("文件不存在: {}", path));
     }
-    
-    let bytes = fs::read(file_path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
-    
+
+    let bytes = fs::read(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
+
     Ok(general_purpose::STANDARD.encode(&bytes))
 }
 
@@ -969,10 +1067,14 @@ pub struct FileValidation {
 
 // Tauri 命令：验证文件属性（用于硬链接检查）
 #[tauri::command]
-pub fn validate_file_for_link(source_path: String, target_dir: String, link_type: String) -> Result<FileValidation, String> {
+pub fn validate_file_for_link(
+    source_path: String,
+    target_dir: String,
+    link_type: String,
+) -> Result<FileValidation, String> {
     let source = PathBuf::from(&source_path);
     let target = PathBuf::from(&target_dir);
-    
+
     if !source.exists() {
         return Ok(FileValidation {
             is_directory: false,
@@ -980,9 +1082,9 @@ pub fn validate_file_for_link(source_path: String, target_dir: String, link_type
             exists: false,
         });
     }
-    
+
     let is_dir = source.is_dir();
-    
+
     // 只有硬链接需要检查跨设备
     let is_cross_dev = if link_type == "link" {
         if target.exists() {
@@ -993,7 +1095,7 @@ pub fn validate_file_for_link(source_path: String, target_dir: String, link_type
     } else {
         false
     };
-    
+
     Ok(FileValidation {
         is_directory: is_dir,
         is_cross_device: is_cross_dev,
@@ -1011,27 +1113,26 @@ pub async fn save_uploaded_file(
 ) -> Result<String, String> {
     // 获取应用数据目录
     let app_data_dir = crate::get_app_data_dir(app.config());
-    
+
     // 创建子目录路径
     let target_dir = app_data_dir.join(&subdirectory);
-    
+
     // 确保目录存在
     if !target_dir.exists() {
-        fs::create_dir_all(&target_dir)
-            .map_err(|e| format!("创建目录失败: {}", e))?;
+        fs::create_dir_all(&target_dir).map_err(|e| format!("创建目录失败: {}", e))?;
     }
-    
+
     // 构建目标文件路径
     let target_file = target_dir.join(&filename);
-    
+
     // 写入文件
-    fs::write(&target_file, &file_data)
-        .map_err(|e| format!("写入文件失败: {}", e))?;
-    
+    fs::write(&target_file, &file_data).map_err(|e| format!("写入文件失败: {}", e))?;
+
     // 返回相对于应用数据目录的路径
-    let relative_path = target_file.strip_prefix(&app_data_dir)
+    let relative_path = target_file
+        .strip_prefix(&app_data_dir)
         .map_err(|e| format!("生成相对路径失败: {}", e))?;
-    
+
     Ok(relative_path.to_string_lossy().to_string())
 }
 
@@ -1039,16 +1140,15 @@ pub async fn save_uploaded_file(
 #[tauri::command]
 pub async fn delete_file_to_trash(file_path: String) -> Result<String, String> {
     let path = PathBuf::from(&file_path);
-    
+
     // 检查文件是否存在
     if !path.exists() {
         return Err(format!("文件不存在: {}", file_path));
     }
-    
+
     // 使用 trash crate 移到回收站
-    trash::delete(&path)
-        .map_err(|e| format!("移入回收站失败: {}", e))?;
-    
+    trash::delete(&path).map_err(|e| format!("移入回收站失败: {}", e))?;
+
     Ok(format!("文件已移入回收站: {}", file_path))
 }
 
@@ -1079,10 +1179,10 @@ pub fn validate_regex_pattern(regex: String) -> RegexValidation {
             };
         }
     };
-    
+
     // 检查是否有被过滤的 g 标志
     let has_g_warning = regex.contains("/g") && !flags.contains('g');
-    
+
     // 尝试编译正则表达式
     match build_regex_with_flags(&pattern, &flags) {
         Ok(_) => {
@@ -1101,14 +1201,20 @@ pub fn validate_regex_pattern(regex: String) -> RegexValidation {
         Err(e) => {
             // 检查是否是常见的不支持特性
             let error_str = e.to_string();
-            let error_message = if error_str.contains("look-around") || error_str.contains("look-ahead") || error_str.contains("look-behind") {
-                format!("Rust 正则引擎不支持前瞻/后瞻断言 (?=...) (?!...) (?<=...) (?<!...)：{}", e)
+            let error_message = if error_str.contains("look-around")
+                || error_str.contains("look-ahead")
+                || error_str.contains("look-behind")
+            {
+                format!(
+                    "Rust 正则引擎不支持前瞻/后瞻断言 (?=...) (?!...) (?<=...) (?<!...)：{}",
+                    e
+                )
             } else if error_str.contains("backreference") {
                 format!("Rust 正则引擎不支持反向引用 \\1 \\2 等：{}", e)
             } else {
                 format!("无效的正则表达式：{}", e)
             };
-            
+
             RegexValidation {
                 is_valid: false,
                 error_message: Some(error_message),
@@ -1184,7 +1290,7 @@ pub fn open_file_directory(file_path: String) -> Result<String, String> {
             return Err("无法获取文件所在目录".to_string());
         }
     }
-    
+
     Ok(format!("已请求在文件管理器中显示: {}", file_path))
 }
 
@@ -1197,82 +1303,78 @@ pub async fn copy_file_to_app_data(
     new_filename: Option<String>,
 ) -> Result<String, String> {
     let source = PathBuf::from(&source_path);
-    
+
     // 检查源文件是否存在
     if !source.exists() {
         return Err(format!("源文件不存在: {}", source_path));
     }
-    
+
     if !source.is_file() {
         return Err(format!("源路径不是文件: {}", source_path));
     }
-    
+
     // 获取应用数据目录
     let app_data_dir = crate::get_app_data_dir(app.config());
-    
+
     // 创建子目录路径
     let target_dir = app_data_dir.join(&subdirectory);
-    
+
     // 确保目录存在
     if !target_dir.exists() {
-        fs::create_dir_all(&target_dir)
-            .map_err(|e| format!("创建目录失败: {}", e))?;
+        fs::create_dir_all(&target_dir).map_err(|e| format!("创建目录失败: {}", e))?;
     }
-    
+
     // 确定目标文件名
     let filename = new_filename.unwrap_or_else(|| {
-        source.file_name()
+        source
+            .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string()
     });
-    
+
     // 构建目标文件路径
     let target_file = target_dir.join(&filename);
-    
+
     // 复制文件
-    fs::copy(&source, &target_file)
-        .map_err(|e| format!("复制文件失败: {}", e))?;
-    
+    fs::copy(&source, &target_file).map_err(|e| format!("复制文件失败: {}", e))?;
+
     // 返回相对于应用数据目录的路径
-    let relative_path = target_file.strip_prefix(&app_data_dir)
+    let relative_path = target_file
+        .strip_prefix(&app_data_dir)
         .map_err(|e| format!("生成相对路径失败: {}", e))?;
-    
+
     Ok(relative_path.to_string_lossy().to_string())
 }
 
 // Tauri 命令：删除插件目录到回收站
 #[tauri::command]
-pub async fn uninstall_plugin(
-    app: AppHandle,
-    plugin_id: String,
-) -> Result<String, String> {
+pub async fn uninstall_plugin(app: AppHandle, plugin_id: String) -> Result<String, String> {
     // 安全性验证：plugin_id 不应包含路径分隔符
     if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
         return Err(format!("非法的插件 ID: {}", plugin_id));
     }
-    
+
     // 获取应用数据目录
     let app_data_dir = crate::get_app_data_dir(app.config());
-    
+
     // 构建插件目录路径
     let plugins_root = app_data_dir.join("plugins");
     let plugin_dir = plugins_root.join(&plugin_id);
-    
+
     // 安全性验证：确保目标路径在 plugins 目录下
     if !plugin_dir.starts_with(&plugins_root) {
         return Err(format!("路径安全检查失败: {}", plugin_id));
     }
-    
+
     // 检查插件目录是否存在
     if !plugin_dir.exists() {
         return Err(format!("插件目录不存在: {}", plugin_id));
     }
-    
+
     // 使用 trash crate 移到回收站
-    trash::delete(&plugin_dir)
-        .map_err(|e| format!("移入回收站失败: {}", e))?;
-    
+    trash::delete(&plugin_dir).map_err(|e| format!("移入回收站失败: {}", e))?;
+
     Ok(format!("插件 {} 已移入回收站", plugin_id))
 }
 
@@ -1305,39 +1407,39 @@ pub async fn install_plugin_from_zip(
     zip_path: String,
 ) -> Result<PluginInstallResult, String> {
     let zip_file_path = PathBuf::from(&zip_path);
-    
+
     // 检查 ZIP 文件是否存在
     if !zip_file_path.exists() {
         return Err(format!("ZIP 文件不存在: {}", zip_path));
     }
-    
+
     if !zip_file_path.is_file() {
         return Err(format!("路径不是文件: {}", zip_path));
     }
-    
+
     // 打开 ZIP 文件
-    let file = fs::File::open(&zip_file_path)
-        .map_err(|e| format!("无法打开 ZIP 文件: {}", e))?;
-    
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| format!("无法读取 ZIP 文件: {}", e))?;
-    
+    let file = fs::File::open(&zip_file_path).map_err(|e| format!("无法打开 ZIP 文件: {}", e))?;
+
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法读取 ZIP 文件: {}", e))?;
+
     // 查找并读取 manifest.json
     let manifest_content = {
         let mut manifest_found = false;
         let mut content = String::new();
-        
+
         for i in 0..archive.len() {
-            let mut file = archive.by_index(i)
+            let mut file = archive
+                .by_index(i)
                 .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
-            
+
             let file_name = file.name().to_string();
-            
+
             // 检查是否是根目录下的 manifest.json
             if file_name == "manifest.json" || file_name.ends_with("/manifest.json") {
                 // 确保不是嵌套目录中的 manifest.json
                 let parts: Vec<&str> = file_name.split('/').collect();
-                if parts.len() <= 2 {  // 允许 "manifest.json" 或 "folder/manifest.json"
+                if parts.len() <= 2 {
+                    // 允许 "manifest.json" 或 "folder/manifest.json"
                     file.read_to_string(&mut content)
                         .map_err(|e| format!("读取 manifest.json 失败: {}", e))?;
                     manifest_found = true;
@@ -1345,137 +1447,139 @@ pub async fn install_plugin_from_zip(
                 }
             }
         }
-        
+
         if !manifest_found {
             return Err("ZIP 文件中未找到 manifest.json".to_string());
         }
-        
+
         content
     };
-    
+
     // 解析 manifest.json
     let manifest: serde_json::Value = serde_json::from_str(&manifest_content)
         .map_err(|e| format!("解析 manifest.json 失败: {}", e))?;
-    
+
     // 验证必需字段
-    let plugin_id = manifest.get("id")
+    let plugin_id = manifest
+        .get("id")
         .and_then(|v| v.as_str())
         .ok_or("manifest.json 缺少 id 字段")?
         .to_string();
-    
-    let plugin_name = manifest.get("name")
+
+    let plugin_name = manifest
+        .get("name")
         .and_then(|v| v.as_str())
         .ok_or("manifest.json 缺少 name 字段")?
         .to_string();
-    
-    let version = manifest.get("version")
+
+    let version = manifest
+        .get("version")
         .and_then(|v| v.as_str())
         .ok_or("manifest.json 缺少 version 字段")?
         .to_string();
-    
+
     // 安全性验证：plugin_id 不应包含路径分隔符
     if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
         return Err(format!("非法的插件 ID: {}", plugin_id));
     }
-    
+
     // 获取应用数据目录
     let app_data_dir = crate::get_app_data_dir(app.config());
-    
+
     // 构建插件安装目录
     let plugins_root = app_data_dir.join("plugins");
     let install_dir = plugins_root.join(&plugin_id);
-    
+
     // 检查插件是否已安装
     if install_dir.exists() {
         return Err(format!("插件 {} 已安装，请先卸载", plugin_id));
     }
     // 创建插件目录
-    fs::create_dir_all(&install_dir)
-        .map_err(|e| format!("创建插件目录失败: {}", e))?;
-    
+    fs::create_dir_all(&install_dir).map_err(|e| format!("创建插件目录失败: {}", e))?;
+
     // 重新打开 ZIP 文件进行解压
-    let file = fs::File::open(&zip_file_path)
-        .map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
-    
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
-    
+    let file =
+        fs::File::open(&zip_file_path).map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
+
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
+
     // 统计总文件数和总字节数（用于进度计算）
     let mut total_files = 0usize;
     let mut total_bytes = 0u64;
     for i in 0..archive.len() {
-        let file = archive.by_index(i)
+        let file = archive
+            .by_index(i)
             .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
         let file_path = file.name().to_string();
-        
+
         // 跳过目录和隐藏文件
         if file_path.ends_with('/') || file_path.starts_with('.') || file_path.contains("/.") {
             continue;
         }
-        
+
         total_files += 1;
         total_bytes += file.size();
     }
-    
+
     // 重新打开 ZIP 进行实际解压
-    let file = fs::File::open(&zip_file_path)
-        .map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
-    
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
-    
+    let file =
+        fs::File::open(&zip_file_path).map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
+
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
+
     // 解压所有文件并发送进度
     let mut processed_files = 0usize;
     let mut processed_bytes = 0u64;
-    
+
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i)
+        let mut file = archive
+            .by_index(i)
             .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
-        
+
         let file_path = file.name().to_string();
-        
+
         // 跳过目录和隐藏文件
         if file_path.ends_with('/') || file_path.starts_with('.') || file_path.contains("/.") {
             continue;
         }
-        
+
         let file_size = file.size();
-        
+
         // 构建目标文件路径
         let target_path = install_dir.join(&file_path);
-        
+
         // 安全性检查：确保解压路径在安装目录下
         if !target_path.starts_with(&install_dir) {
             return Err(format!("ZIP 文件包含非法路径: {}", file_path));
         }
-        
+
         // 创建父目录
         if let Some(parent) = target_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("创建目录失败: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
         }
-        
+
         // 解压文件
-        let mut target_file = fs::File::create(&target_path)
-            .map_err(|e| format!("创建文件失败: {}", e))?;
-        
+        let mut target_file =
+            fs::File::create(&target_path).map_err(|e| format!("创建文件失败: {}", e))?;
+
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)
             .map_err(|e| format!("读取文件内容失败: {}", e))?;
-        
-        target_file.write_all(&buffer)
+
+        target_file
+            .write_all(&buffer)
             .map_err(|e| format!("写入文件失败: {}", e))?;
-        
+
         // 更新进度
         processed_files += 1;
         processed_bytes += file_size;
-        
+
         let progress_percentage = if total_files > 0 {
             (processed_files as f64 / total_files as f64) * 100.0
         } else {
             0.0
         };
-        
+
         // 发送进度事件
         let progress = PluginInstallProgress {
             current_file: file_path.clone(),
@@ -1485,10 +1589,10 @@ pub async fn install_plugin_from_zip(
             current_bytes: processed_bytes,
             total_bytes,
         };
-        
+
         let _ = app.emit("plugin-install-progress", progress);
     }
-    
+
     Ok(PluginInstallResult {
         plugin_id,
         plugin_name,
@@ -1499,43 +1603,41 @@ pub async fn install_plugin_from_zip(
 
 // Tauri 命令：插件安装预检
 #[tauri::command]
-pub async fn preflight_plugin_zip(
-    zip_path: String,
-) -> Result<PluginManifest, String> {
+pub async fn preflight_plugin_zip(zip_path: String) -> Result<PluginManifest, String> {
     let zip_file_path = PathBuf::from(&zip_path);
-    
+
     // 检查 ZIP 文件是否存在
     if !zip_file_path.exists() {
         return Err(format!("ZIP 文件不存在: {}", zip_path));
     }
-    
+
     if !zip_file_path.is_file() {
         return Err(format!("路径不是文件: {}", zip_path));
     }
-    
+
     // 打开 ZIP 文件
-    let file = fs::File::open(&zip_file_path)
-        .map_err(|e| format!("无法打开 ZIP 文件: {}", e))?;
-    
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| format!("无法读取 ZIP 文件: {}", e))?;
-    
+    let file = fs::File::open(&zip_file_path).map_err(|e| format!("无法打开 ZIP 文件: {}", e))?;
+
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法读取 ZIP 文件: {}", e))?;
+
     // 查找并读取 manifest.json
     let manifest_content = {
         let mut manifest_found = false;
         let mut content = String::new();
-        
+
         for i in 0..archive.len() {
-            let mut file = archive.by_index(i)
+            let mut file = archive
+                .by_index(i)
                 .map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
-            
+
             let file_name = file.name().to_string();
-            
+
             // 检查是否是根目录下的 manifest.json
             if file_name == "manifest.json" || file_name.ends_with("/manifest.json") {
                 // 确保不是嵌套目录中的 manifest.json
                 let parts: Vec<&str> = file_name.split('/').collect();
-                if parts.len() <= 2 {  // 允许 "manifest.json" 或 "folder/manifest.json"
+                if parts.len() <= 2 {
+                    // 允许 "manifest.json" 或 "folder/manifest.json"
                     file.read_to_string(&mut content)
                         .map_err(|e| format!("读取 manifest.json 失败: {}", e))?;
                     manifest_found = true;
@@ -1543,14 +1645,14 @@ pub async fn preflight_plugin_zip(
                 }
             }
         }
-        
+
         if !manifest_found {
             return Err("ZIP 文件中未找到 manifest.json".to_string());
         }
-        
+
         content
     };
-    
+
     // 解析 manifest.json
     let manifest_value: serde_json::Value = serde_json::from_str(&manifest_content)
         .map_err(|e| format!("解析 manifest.json 失败: {}", e))?;
@@ -1559,25 +1661,33 @@ pub async fn preflight_plugin_zip(
     if manifest_value.get("id").and_then(|v| v.as_str()).is_none() {
         return Err("manifest.json 缺少 id 字段".to_string());
     }
-    
-    if manifest_value.get("name").and_then(|v| v.as_str()).is_none() {
+
+    if manifest_value
+        .get("name")
+        .and_then(|v| v.as_str())
+        .is_none()
+    {
         return Err("manifest.json 缺少 name 字段".to_string());
     }
-    
-    if manifest_value.get("version").and_then(|v| v.as_str()).is_none() {
+
+    if manifest_value
+        .get("version")
+        .and_then(|v| v.as_str())
+        .is_none()
+    {
         return Err("manifest.json 缺少 version 字段".to_string());
     }
-    
+
     // 安全性验证：plugin_id 不应包含路径分隔符
     let plugin_id = manifest_value.get("id").unwrap().as_str().unwrap();
     if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
         return Err(format!("非法的插件 ID: {}", plugin_id));
     }
-    
+
     // 将 serde_json::Value 转换为 PluginManifest 类型
     let plugin_manifest: PluginManifest = serde_json::from_value(manifest_value)
         .map_err(|e| format!("转换 manifest 类型失败: {}", e))?;
-    
+
     Ok(plugin_manifest)
 }
 
@@ -1598,16 +1708,18 @@ pub fn read_app_data_file_binary(app: AppHandle, relative_path: String) -> Resul
     if !full_path.exists() {
         return Err(format!("文件不存在: {}", full_path.display()));
     }
-    
-    let bytes = fs::read(&full_path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
-    
+
+    let bytes = fs::read(&full_path).map_err(|e| format!("读取文件失败: {}", e))?;
+
     Ok(bytes)
 }
 
 // Tauri 命令：删除应用数据目录下的整个目录（移入回收站）
 #[tauri::command]
-pub async fn delete_directory_in_app_data(app: AppHandle, relative_path: String) -> Result<String, String> {
+pub async fn delete_directory_in_app_data(
+    app: AppHandle,
+    relative_path: String,
+) -> Result<String, String> {
     // 获取应用数据目录
     let app_data_dir = crate::get_app_data_dir(app.config());
 
@@ -1626,9 +1738,8 @@ pub async fn delete_directory_in_app_data(app: AppHandle, relative_path: String)
     }
 
     // 使用 trash crate 移到回收站
-    trash::delete(&full_path)
-        .map_err(|e| format!("移入回收站失败: {}", e))?;
-    
+    trash::delete(&full_path).map_err(|e| format!("移入回收站失败: {}", e))?;
+
     Ok(format!("目录已移入回收站: {}", full_path.display()))
 }
 
@@ -1665,20 +1776,22 @@ pub async fn copy_directory_in_app_data(
 
     // 确保目标目录存在
     if !target_path.exists() {
-        fs::create_dir_all(&target_path)
-            .map_err(|e| format!("创建目标目录失败: {}", e))?;
+        fs::create_dir_all(&target_path).map_err(|e| format!("创建目标目录失败: {}", e))?;
     }
 
     // 使用 fs_extra 进行目录内容复制
     let mut options = fs_extra::dir::CopyOptions::new();
     options.content_only = true; // 只复制目录下的内容
-    options.overwrite = true;    // 允许覆盖（虽然目标目录应该是新的）
+    options.overwrite = true; // 允许覆盖（虽然目标目录应该是新的）
 
     // 执行复制：将 source_path 下的所有内容复制到 target_path 中
     fs_extra::dir::copy(&source_path, &target_path, &options)
         .map_err(|e| format!("复制目录内容失败: {}", e))?;
 
-    Ok(format!("目录已复制: {} -> {}", source_relative_path, target_relative_path))
+    Ok(format!(
+        "目录已复制: {} -> {}",
+        source_relative_path, target_relative_path
+    ))
 }
 
 // Tauri 命令：强制写入文件（绕过前端路径检查，自动创建父目录）
@@ -1686,20 +1799,19 @@ pub async fn copy_directory_in_app_data(
 #[tauri::command]
 pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), String> {
     let file_path = PathBuf::from(&path);
-    
+
     // 1. 扩展名白名单检查
     let allowed_extensions = [
         // 配置文件
-        "json", "yaml", "yml", "toml", "ini", "xml",
-        // 图片资源
+        "json", "yaml", "yml", "toml", "ini", "xml", // 图片资源
         "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "tiff",
         // 文档文本
-        "txt", "md", "markdown", "log",
-        // 压缩包
-        "zip", "7z", "tar", "gz", "rar"
+        "txt", "md", "markdown", "log", // 压缩包
+        "zip", "7z", "tar", "gz", "rar",
     ];
 
-    let ext = file_path.extension()
+    let ext = file_path
+        .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
@@ -1711,15 +1823,13 @@ pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), Stri
     // 2. 确保父目录存在
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("创建父目录失败: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
         }
     }
-    
+
     // 3. 写入文件
-    fs::write(&file_path, &content)
-        .map_err(|e| format!("写入文件失败: {}", e))?;
-        
+    fs::write(&file_path, &content).map_err(|e| format!("写入文件失败: {}", e))?;
+
     Ok(())
 }
 
@@ -1727,23 +1837,23 @@ pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), Stri
 #[tauri::command]
 pub async fn read_text_file_force(path: String) -> Result<String, String> {
     let file_path = PathBuf::from(&path);
-    
+
     if !file_path.exists() {
         return Err(format!("文件不存在: {}", path));
     }
-    
-    fs::read_to_string(file_path)
-        .map_err(|e| format!("读取文件失败: {}", e))
+
+    fs::read_to_string(file_path).map_err(|e| format!("读取文件失败: {}", e))
 }
 
 // Tauri 命令：强制追加内容到文件（绕过前端路径检查，自动创建父目录）
 #[tauri::command]
 pub async fn append_file_force(path: String, content: Vec<u8>) -> Result<(), String> {
     let file_path = PathBuf::from(&path);
-    
+
     // 安全限制：仅允许写入特定扩展名的文件
     let allowed_extensions = ["log", "txt", "json", "jsonl"];
-    let ext = file_path.extension()
+    let ext = file_path
+        .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
@@ -1755,21 +1865,20 @@ pub async fn append_file_force(path: String, content: Vec<u8>) -> Result<(), Str
     // 确保父目录存在
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("创建父目录失败: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
         }
     }
-    
+
     // 以追加模式打开文件
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&file_path)
         .map_err(|e| format!("打开文件失败: {}", e))?;
-        
+
     file.write_all(&content)
         .map_err(|e| format!("写入文件失败: {}", e))?;
-        
+
     Ok(())
 }
 
@@ -1812,11 +1921,10 @@ pub fn open_path_force(path: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn create_dir_force(path: String) -> Result<(), String> {
     let dir_path = PathBuf::from(&path);
-    
+
     if !dir_path.exists() {
-        fs::create_dir_all(&dir_path)
-            .map_err(|e| format!("强制创建目录失败: {}", e))?;
+        fs::create_dir_all(&dir_path).map_err(|e| format!("强制创建目录失败: {}", e))?;
     }
-    
+
     Ok(())
 }

@@ -1,6 +1,6 @@
+use infer;
 use std::fs;
 use std::path::Path;
-use infer;
 
 /// 根据文件内容和扩展名智能推断 MIME 类型
 ///
@@ -26,15 +26,86 @@ pub fn guess_mime_type(path: &Path) -> String {
 
         // 常见的文本文件扩展名
         let text_extensions = [
-            "txt", "text", "log", "cfg", "conf", "ini", "env",
-            "md", "markdown", "rst", "adoc", "asciidoc", "xml", "html", "htm", "xhtml", "svg",
-            "json", "yaml", "yml", "toml", "csv", "tsv",
-            "js", "jsx", "ts", "tsx", "mjs", "cjs", "py", "pyw", "pyi", "rb", "php", "java", "kt", "kts",
-            "c", "cpp", "cc", "cxx", "h", "hpp", "hxx", "cs", "go", "rs", "swift", "m", "mm", "scala",
-            "lua", "perl", "pl", "r", "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
-            "css", "scss", "sass", "less", "styl", "vue", "svelte", "astro",
-            "gitignore", "dockerignore", "editorconfig", "makefile", "cmake", "gradle",
-            "sql", "graphql", "proto", "thrift",
+            "txt",
+            "text",
+            "log",
+            "cfg",
+            "conf",
+            "ini",
+            "env",
+            "md",
+            "markdown",
+            "rst",
+            "adoc",
+            "asciidoc",
+            "xml",
+            "html",
+            "htm",
+            "xhtml",
+            "svg",
+            "json",
+            "yaml",
+            "yml",
+            "toml",
+            "csv",
+            "tsv",
+            "js",
+            "jsx",
+            "ts",
+            "tsx",
+            "mjs",
+            "cjs",
+            "py",
+            "pyw",
+            "pyi",
+            "rb",
+            "php",
+            "java",
+            "kt",
+            "kts",
+            "c",
+            "cpp",
+            "cc",
+            "cxx",
+            "h",
+            "hpp",
+            "hxx",
+            "cs",
+            "go",
+            "rs",
+            "swift",
+            "m",
+            "mm",
+            "scala",
+            "lua",
+            "perl",
+            "pl",
+            "r",
+            "sh",
+            "bash",
+            "zsh",
+            "fish",
+            "ps1",
+            "bat",
+            "cmd",
+            "css",
+            "scss",
+            "sass",
+            "less",
+            "styl",
+            "vue",
+            "svelte",
+            "astro",
+            "gitignore",
+            "dockerignore",
+            "editorconfig",
+            "makefile",
+            "cmake",
+            "gradle",
+            "sql",
+            "graphql",
+            "proto",
+            "thrift",
         ];
 
         if text_extensions.contains(&ext_str.as_str()) {
@@ -92,11 +163,7 @@ pub fn guess_mime_type(path: &Path) -> String {
 /// 仅根据文件名推断 MIME 类型（不读取文件内容）
 #[allow(dead_code)]
 pub fn guess_mime_type_from_filename(filename: &str) -> String {
-    let extension = filename
-        .rsplit('.')
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
+    let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();
 
     match extension.as_str() {
         // 图片

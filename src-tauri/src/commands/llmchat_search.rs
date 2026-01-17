@@ -385,7 +385,7 @@ pub async fn search_llm_data(
 ) -> Result<Vec<SearchResult>, String> {
     let start_time = Instant::now();
     let query = query.trim();
-    
+
     if query.is_empty() {
         return Ok(Vec::new());
     }

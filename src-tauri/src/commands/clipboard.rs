@@ -1,7 +1,7 @@
-use std::sync::{Arc, Mutex, atomic};
+use std::sync::{atomic, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, State, Emitter};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // 定义一个结构体来管理监听状态
@@ -35,7 +35,9 @@ pub fn start_clipboard_monitor(app_handle: AppHandle, state: State<ClipboardMoni
                     last_clipboard_text = current_content.clone();
                     *last_content.lock().unwrap() = current_content.clone();
                     // 发送事件到前端
-                    app_handle.emit("clipboard-changed", current_content).unwrap();
+                    app_handle
+                        .emit("clipboard-changed", current_content)
+                        .unwrap();
                 }
             }
             thread::sleep(Duration::from_millis(500)); // 每500毫秒检查一次

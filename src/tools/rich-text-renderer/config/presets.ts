@@ -22,6 +22,7 @@ import { indentedCodePreset } from '../presets/indented-code';
 import { htmlNewlineTestPreset } from '../presets/html-newline-test';
 import { mathjaxTestPreset } from '../presets/mathjax-test';
 import { actionButtonTestPreset } from '../presets/action-button-test';
+import { advancedMixedTestPreset } from '../presets/advanced-mixed-test';
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -47,4 +48,5 @@ export const presets: RenderPreset[] = [
   indentedCodePreset,
   htmlNewlineTestPreset,
   actionButtonTestPreset,
+  advancedMixedTestPreset,
 ];

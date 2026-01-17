@@ -10,6 +10,12 @@ export function parseTable(
   start: number
 ): { node: AstNode | null; nextIndex: number } {
   let i = start;
+
+  // 跳过前导换行
+  while (i < tokens.length && tokens[i].type === "newline") {
+    i++;
+  }
+
   const rows: AstNode[] = [];
 
   // 先解析分隔符行，提取对齐信息，以便表头也能使用

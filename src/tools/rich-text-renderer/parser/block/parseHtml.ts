@@ -292,11 +292,8 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
           break;
         }
 
-        // 否则，将换行符转为空格文本，避免被 parseInlines 渲染为 <br>
-        inlineTokens.push({
-          type: "text",
-          content: " "
-        });
+        // 暂时保留 newline token，以便后续 hasBlockLevelStructure 能够识别跨行块级结构（如表格）
+        inlineTokens.push(t);
         i++;
         continue;
       }
@@ -313,7 +310,12 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
         const blockNodes = ctx.parseBlocks(inlineTokens);
         nodes.push(...blockNodes);
       } else {
-        const inlineNodes = ctx.parseInlines(inlineTokens);
+        // 如果没有块级结构，为了防止布局偏移（避免 parseInlines 将 newline 渲染为 <br>）
+        // 我们在此将 newline token 统一转换为空格文本 token
+        const sanitizedInlineTokens = inlineTokens.map(t =>
+          t.type === "newline" ? { type: "text" as const, content: " " } : t
+        );
+        const inlineNodes = ctx.parseInlines(sanitizedInlineTokens);
         nodes.push(...inlineNodes);
       }
     }

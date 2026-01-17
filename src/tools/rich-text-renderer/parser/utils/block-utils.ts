@@ -154,6 +154,12 @@ export function isBlockStart(token: Token): boolean {
 export function isTableStart(tokens: Token[], index: number): boolean {
   // 简单检测：查找包含 | 的行，后跟分隔行
   let i = index;
+
+  // 如果起始是换行，跳过它（表格通常在换行后开始）
+  while (i < tokens.length && tokens[i].type === "newline") {
+    i++;
+  }
+
   let hasContent = false;
   let hasPipe = false;
 
@@ -170,6 +176,9 @@ export function isTableStart(tokens: Token[], index: number): boolean {
       if (t.content.includes("|")) {
         hasPipe = true;
       }
+    } else {
+      // 其他内联 token (如加粗、链接) 也算作内容
+      hasContent = true;
     }
 
     i++;

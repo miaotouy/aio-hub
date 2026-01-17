@@ -270,6 +270,19 @@
 - **UI 交互**:
   - `useImageViewer` 提供全局的图片查看功能，支持缩放、旋转等操作。
 
+- **消息通知系统**:
+  - `useNotification` 提供统一的消息推送接口，支持持久化存储、已读管理和路由跳转。
+  - **便捷方法**: `info`, `success`, `warning`, `error`, `system`。
+  - **高级配置**: 支持 `source` (来源标识) 和 `metadata` (如 `path` 用于点击跳转)。
+  - **示例**:
+    ```typescript
+    const notify = useNotification();
+    notify.success("任务完成", "文件已导出", { source: "my-tool" });
+    notify.error("配置错误", "请检查 API Key", {
+      metadata: { path: "/settings" },
+    });
+    ```
+
 ## 5. 主题外观系统 (Theme Appearance)
 
 项目包含一个强大的主题外观系统，允许用户动态调整应用的透明度、模糊等视觉效果。核心逻辑封装在 `src/composables/useThemeAppearance.ts` 中。

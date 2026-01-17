@@ -97,19 +97,19 @@ const baseTheme = EditorView.theme({
     minHeight: "40px",
     fontSize: "14px",
     backgroundColor: "transparent !important",
-    fontFamily: "inherit", // 顶层继承
+    fontFamily: "var(--el-font-family)",
   },
   "&.cm-editor": {
-    fontFamily: "inherit",
+    fontFamily: "var(--el-font-family)",
   },
   ".cm-scroller": {
-    fontFamily: "inherit",
+    fontFamily: "var(--el-font-family)",
     overflow: "auto",
     backgroundColor: "transparent !important",
   },
   ".cm-content": {
     padding: "10px 14px",
-    fontFamily: "inherit",
+    fontFamily: "var(--el-font-family)",
     lineHeight: "1.6",
     color: "var(--text-color)",
     caretColor: "var(--text-color)", // 确保原生光标颜色也跟随文字
@@ -120,6 +120,7 @@ const baseTheme = EditorView.theme({
   ".cm-placeholder": {
     color: "var(--text-color-light)",
     fontStyle: "normal",
+    fontFamily: "var(--el-font-family)",
   },
   "&.cm-focused": {
     outline: "none",

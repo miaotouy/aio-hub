@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, shallowRef } from "vue";
 import { EditorView, keymap, tooltips, placeholder as cmPlaceholder } from "@codemirror/view";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, Compartment, Prec } from "@codemirror/state";
 import { useTheme } from "@/composables/useTheme";
 import { markdown } from "@codemirror/lang-markdown";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
@@ -11,7 +11,7 @@ import {
   CompletionResult,
   Completion,
 } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, insertNewline } from "@codemirror/commands";
 import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
 
 interface Props {
@@ -20,6 +20,7 @@ interface Props {
   disabled?: boolean;
   height?: string | number;
   maxHeight?: string | number;
+  sendKey?: "ctrl+enter" | "enter";
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -28,6 +29,7 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   height: "auto",
   maxHeight: "70vh",
+  sendKey: "ctrl+enter",
 });
 
 const emit = defineEmits<{
@@ -167,6 +169,28 @@ onMounted(() => {
   const state = EditorState.create({
     doc: props.value,
     extensions: [
+      Prec.highest(
+        keymap.of([
+          {
+            key: "Mod-Enter",
+            run: () => {
+              emit("submit");
+              return true;
+            },
+          },
+          {
+            key: "Enter",
+            run: () => {
+              if (props.sendKey === "enter") {
+                emit("submit");
+                return true;
+              }
+              return false; // 继续交给 defaultKeymap 处理换行
+            },
+            shift: insertNewline,
+          },
+        ])
+      ),
       history(),
       editableConf.of(EditorView.editable.of(!props.disabled)),
       themeConf.of(isDark.value ? vscodeDark : vscodeLight),

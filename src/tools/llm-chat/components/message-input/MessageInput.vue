@@ -959,7 +959,9 @@ const getWillUseTranscription = (asset: Asset): boolean => {
             :placeholder="placeholderText"
             :height="editorHeight"
             :max-height="editorMaxHeight"
+            :send-key="settings.shortcuts.send"
             @keydown="handleKeydown"
+            @submit="handleSend"
             @paste="handlePaste"
           />
           <MessageInputToolbar

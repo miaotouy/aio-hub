@@ -1,7 +1,11 @@
 <template>
   <div
     class="markdown-code-block"
-    :class="{ 'seamless-mode': seamless, hovered: isHovered }"
+    :class="{
+      'seamless-mode': seamless,
+      hovered: isHovered,
+      'no-cv': seamless && viewMode === 'preview',
+    }"
     v-bind="$attrs"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
@@ -735,7 +739,9 @@ watch(
 }
 
 .code-header.floating .header-actions {
-  background-color: var(--card-bg);
+  /* 悬浮模式下使用更清晰的背景，并叠加毛玻璃效果 */
+  background-color: var(--el-bg-color);
+  backdrop-filter: blur(var(--ui-blur, 10px));
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 4px;

@@ -439,15 +439,15 @@ defineExpose({
 }
 
 /* 块级节点渲染优化：出视口不渲染 */
-:deep(.rich-text-block) {
+:deep(.rich-text-block:not(.no-cv)) {
   /*
-     使用 content-visibility: auto 让浏览器跳过不在视口内的节点渲染。
-     这能极大提升长消息列表的滚动性能。
+    使用 content-visibility: auto 让浏览器跳过不在视口内的节点渲染。
+    这能极大提升长消息列表的滚动性能。
   */
   content-visibility: auto;
   /*
-     配合 contain-intrinsic-size 防止滚动条因高度塌陷而跳动。
-     这里给一个通用的预估高度。
+    配合 contain-intrinsic-size 防止滚动条因高度塌陷而跳动。
+    这里给一个通用的预估高度。
   */
   contain-intrinsic-size: auto 40px;
 }

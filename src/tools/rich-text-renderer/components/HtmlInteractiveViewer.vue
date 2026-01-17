@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="html-interactive-viewer"
-    :class="{ 'no-border': !isBorderVisible, 'auto-height': autoHeight }"
-  >
+  <div class="html-interactive-viewer" :class="{ 'no-border': !isBorderVisible }">
     <!-- 工具栏 -->
     <div class="viewer-toolbar" v-if="isToolbarVisible">
       <div class="toolbar-left">
@@ -32,28 +29,12 @@
     <!-- 内容区域 -->
     <div
       class="viewer-content"
-      :style="
-        autoHeight
-          ? {
-              height: contentHeight + 'px',
-              // 初始 minHeight 设大一些，防止高度塌陷
-              minHeight: loading
-                ? typeof maxHeight === 'number'
-                  ? maxHeight + 'px'
-                  : maxHeight || '650px'
-                : '400px',
-              maxHeight: maxHeight
-                ? typeof maxHeight === 'number'
-                  ? maxHeight + 'px'
-                  : maxHeight
-                : '65vh',
-              flex: 'none',
-              overflow: 'auto',
-              // 只有在高度已经稳定（loading结束）后才允许平滑过渡
-              transition: loading ? 'none' : 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            }
-          : {}
-      "
+      :style="autoHeight ? {
+        height: contentHeight + 'px',
+        maxHeight: typeof maxHeight === 'number' ? maxHeight + 'px' : maxHeight,
+        flex: 'none',
+        overflow: contentHeight > (parseInt(String(maxHeight)) || Infinity) ? 'auto' : 'hidden'
+      } : {}"
     >
       <div v-if="loading" class="loading-overlay">
         <Loader2 class="animate-spin" :size="24" />
@@ -65,11 +46,7 @@
         class="preview-iframe"
         :srcdoc="srcDoc"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-        :scrolling="
-          autoHeight && (!maxHeight || contentHeight < parseFloat(maxHeight.toString()))
-            ? 'no'
-            : 'auto'
-        "
+        :scrolling="autoHeight ? 'no' : 'auto'"
         @load="onLoad"
       ></iframe>
     </div>
@@ -79,11 +56,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, inject } from "vue";
 import { RotateCw, ExternalLink, Loader2 } from "lucide-vue-next";
-import { useDebounceFn, useThrottleFn } from "@vueuse/core";
+import { useThrottleFn } from "@vueuse/core";
 import { localizeCdnLinks } from "../utils/cdnLocalizer";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { customMessage } from "@/utils/customMessage";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../types";
 import { useIframeTheme } from "@/composables/useIframeTheme";
 
@@ -108,22 +84,18 @@ const props = withDefaults(
     seamless?: boolean;
     /**
      * 是否立即渲染，跳过防抖和稳定性检查。
-     * 适用于非流式加载的场景（如查看本地文件），此时内容被认为是完整且稳定的。
      */
     immediate?: boolean;
     /**
      * 是否自适应高度。
-     * 如果为 true，组件高度将跟随 iframe 内容高度变化。
      */
     autoHeight?: boolean;
     /**
-     * 是否允许加载外部资源（如 CDN 脚本、样式）。
-     * 如果为 false，将应用严格的 CSP 策略。
+     * 是否允许加载外部资源。
      */
     allowExternalScripts?: boolean;
     /**
      * 最大高度限制。
-     * 仅在 autoHeight 为 true 时生效。
      */
     maxHeight?: number | string;
   }>(),
@@ -141,87 +113,37 @@ const isToolbarVisible = computed(() => props.showToolbar && !props.seamless);
 const isBorderVisible = computed(() => props.bordered && !props.seamless);
 
 const loading = ref(true);
-
-/**
- * 获取最大高度的数值
- */
-const getMaxHeightPx = () => {
-  if (typeof props.maxHeight === "number") return props.maxHeight;
-  if (typeof props.maxHeight === "string") {
-    if (props.maxHeight.endsWith("px")) return parseFloat(props.maxHeight);
-    if (props.maxHeight.endsWith("vh")) {
-      return (window.innerHeight * parseFloat(props.maxHeight)) / 100;
-    }
-  }
-  // 默认 65vh 的近似值
-  return (window.innerHeight * 65) / 100;
-};
-
-// 默认高度：如果开启了自适应高度，初始直接设为最大高度，实现“一步到位”
-const contentHeight = ref(props.autoHeight ? getMaxHeightPx() : 300);
+const contentHeight = ref(40);
 const iframeRef = ref<HTMLIFrameElement | null>(null);
-// 用于强制重新挂载 iframe 的 key
 const iframeKey = ref(0);
-// 用于实际渲染的内容，与 props.content 解耦以实现防抖和稳定性检查
 const renderContent = ref("");
 
 // 检查 HTML 内容是否足够稳定以进行渲染
 const isContentStable = (html: string): boolean => {
   if (!html) return false;
   const trimmed = html.trim();
-
-  // 1. 长度检查：太短的内容通常是不完整的
   if (trimmed.length < 5) return false;
-
-  // 2. 脚本完整性检查
-  // 如果包含 script 标签，必须确保所有 script 标签都已闭合
   const scriptStartCount = (trimmed.match(/<script/gi) || []).length;
   const scriptEndCount = (trimmed.match(/<\/script>/gi) || []).length;
-
-  // 如果开始标签比结束标签多，说明有未闭合的脚本
-  if (scriptStartCount > scriptEndCount) {
-    return false;
-  }
-
-  // 其他情况只要不为空且通过长度检查，都视为稳定
+  if (scriptStartCount > scriptEndCount) return false;
   return true;
 };
 
-// 防抖更新渲染内容 (用于非流式但不立即渲染的场景，或者作为节流的补充)
-const debouncedUpdateContent = useDebounceFn((newContent: string) => {
-  if (isContentStable(newContent)) {
-    renderContent.value = newContent;
-  } else if (!renderContent.value && newContent.length > 100) {
-    renderContent.value = newContent;
-  }
-}, 200);
-
-// 节流更新渲染内容 (专门用于流式传输场景)
-// 降低 iframe 更新频率，避免流式输出时频繁重绘
 const throttledUpdateContent = useThrottleFn((newContent: string) => {
-  // 在节流更新中，我们依然要检查内容的稳定性，避免渲染出破碎的 HTML
   if (isContentStable(newContent)) {
     renderContent.value = newContent;
   } else if (!renderContent.value && newContent.length > 100) {
-    // 兜底：如果一直不稳定但内容很长，也尝试渲染
     renderContent.value = newContent;
   }
-}, 1000); // 1秒更新一次，既能看到进度，又不会太卡
+}, 1000);
 
-// 使用 useIframeTheme 自动注入主题样式，依赖 renderContent 而不是 props.content
 const { themedContent } = useIframeTheme(() => renderContent.value);
 
-// 动态构建 CSP 策略
 const cspContent = computed(() => {
-  // 优先使用 props，如果未定义则使用上下文中的全局设置
   const allowExternal = props.allowExternalScripts ?? contextAllowExternalScripts?.value ?? false;
-
   if (allowExternal) {
-    // 宽松模式：允许所有来源，支持 inline 和 eval（为了兼容各种库）
     return "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *;";
   } else {
-    // 严格模式：限制脚本和连接只能是本地或安全协议，禁止外部 CDN
-    // 允许 'unsafe-inline' 是因为注入的脚本和样式需要它，但限制了来源不含 *
     return "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: asset:; style-src 'self' 'unsafe-inline' asset:; img-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; media-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; connect-src 'self' asset: agent-asset: http://asset.localhost https://asset.localhost; frame-src 'self';";
   }
 });
@@ -231,7 +153,7 @@ const title = computed(() => {
   return match && match[1] ? match[1].trim() : "HTML Preview";
 });
 
-// 注入日志捕获和高度监听脚本
+// 仅保留日志捕获和交互感知脚本
 const logCaptureScript = `
 <script>
   (function() {
@@ -254,7 +176,6 @@ const logCaptureScript = `
             args: safeArgs
           }, '*');
         } catch (e) {
-          // ignore serialization errors
         }
       };
     }
@@ -268,101 +189,9 @@ const logCaptureScript = `
       }, '*');
     });
 
-    // 高度监听 - 防止反馈循环的设计：
-    // 1. 不使用 ResizeObserver（它会监听容器高度变化，形成循环）
-    // 2. 只使用 MutationObserver（监听内容变化）
-    // 3. 添加防抖和高度变化阈值
-    let lastSentHeight = 0;
-    let debounceTimer = null;
-    const HEIGHT_THRESHOLD = 10; // 高度变化超过 10px 才更新
-    const DEBOUNCE_DELAY = 500; // 增加到 500ms 防抖
-    
-    const sendHeight = () => {
-      const body = document.body;
-      const html = document.documentElement;
-      if (!body || !html) return;
-      
-      // 计算内容的自然高度
-      // 取 scrollHeight 和 offsetHeight 的较大值，但受限于内容本身
-      // 在 autoHeight 模式下，我们需要的是内容的“真实”边界
-      const height = Math.max(
-        body.scrollHeight,
-        body.offsetHeight,
-        html.scrollHeight,
-        html.offsetHeight
-      );
-      
-      // 只有当高度变化超过阈值时才发送
-      if (height > 0 && Math.abs(height - lastSentHeight) > HEIGHT_THRESHOLD) {
-        // 增加一个简单的环路保护：如果高度短时间内连续大幅增长，可能存在循环
-        if (lastSentHeight > 0 && height > lastSentHeight * 2 && height > 2000) {
-          console.warn('[iframe-height] 检测到疑似高度环路，停止自动增长');
-          return;
-        }
-
-        lastSentHeight = height;
-        window.parent.postMessage({
-          type: 'iframe-resize',
-          height: height
-        }, '*');
-      }
-    };
-    
-    // 防抖版本的 sendHeight
-    const debouncedSendHeight = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(sendHeight, DEBOUNCE_DELAY);
-    };
-
-    // 设置观察器的函数，需要等 DOM 准备好后调用
-    const setupObservers = () => {
-      const body = document.body;
-      
-      if (!body) {
-        document.addEventListener('DOMContentLoaded', setupObservers);
-        return;
-      }
-      
-      // 只使用 MutationObserver 监听 DOM 内容变化
-      // 不使用 ResizeObserver，避免反馈循环
-      const mutationObserver = new MutationObserver(debouncedSendHeight);
-      mutationObserver.observe(body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        characterData: true
-      });
-      
-      // 初始发送一次（延迟一帧，确保布局完成）
-      requestAnimationFrame(() => {
-        sendHeight();
-      });
-    };
-    
-    // 注入 CSP 策略
-    const meta = document.createElement('meta');
-    meta.httpEquiv = "Content-Security-Policy";
-    meta.content = __CSP_CONTENT__;
-    document.head.appendChild(meta);
-
-    // 根据 DOM 状态决定何时设置观察器
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setupObservers);
-    } else {
-      setupObservers();
-    }
-    
-    // load 事件时再发送一次，确保所有资源（如图片）加载完成后高度正确
-    window.addEventListener('load', () => {
-      // 延迟一帧，确保布局完成
-      requestAnimationFrame(sendHeight);
-    });
-
-    // 交互感知：监听鼠标移动，通知父级显示悬浮菜单
-    // 使用节流防止消息轰炸
+    // 交互感知
     let lastMoveTime = 0;
     const MOVE_THROTTLE = 200;
-    
     document.addEventListener('mousemove', () => {
       const now = Date.now();
       if (now - lastMoveTime > MOVE_THROTTLE) {
@@ -370,76 +199,89 @@ const logCaptureScript = `
         window.parent.postMessage({ type: 'iframe-mousemove' }, '*');
       }
     });
-
     document.addEventListener('mouseenter', () => {
       window.parent.postMessage({ type: 'iframe-mouseenter' }, '*');
     });
-
     document.addEventListener('mouseleave', () => {
       window.parent.postMessage({ type: 'iframe-mouseleave' }, '*');
     });
+    
+    // 注入 CSP
+    const meta = document.createElement('meta');
+    meta.httpEquiv = "Content-Security-Policy";
+    meta.content = __CSP_CONTENT__;
+    document.head.appendChild(meta);
+
+    // 高度自适应监测
+    if (__AUTO_HEIGHT__) {
+      let lastHeight = 0;
+      const notifyHeight = () => {
+        const height = document.documentElement.scrollHeight;
+        if (Math.abs(height - lastHeight) > 1) { // 忽略 1px 以内的微小波动
+          lastHeight = height;
+          window.parent.postMessage({
+            type: 'iframe-height',
+            height: height
+          }, '*');
+        }
+      };
+
+      // 1. 监听尺寸变化 (涵盖 3D 容器、图片加载等)
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => {
+          requestAnimationFrame(notifyHeight);
+        });
+        ro.observe(document.documentElement);
+      }
+
+      // 2. 监听 DOM 变化 (涵盖动态增删节点)
+      const mo = new MutationObserver(() => {
+        requestAnimationFrame(notifyHeight);
+      });
+      mo.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true
+      });
+
+      // 3. 初始加载与资源加载
+      window.addEventListener('load', notifyHeight);
+      setTimeout(notifyHeight, 100); // 保险起见，100ms 后再触发一次
+    }
+
   })();
 <\/script>
 `;
 
-// 构建 srcdoc
 const srcDoc = computed(() => {
   let content = themedContent.value;
   if (!content) return "";
 
-  // 处理注入脚本中的 CSP 占位符
-  // 使用 JSON.stringify 确保生成有效的 JavaScript 字符串字面量
-  const processedLogCaptureScript = logCaptureScript.replace(
-    "__CSP_CONTENT__",
-    JSON.stringify(cspContent.value)
-  );
+  const processedLogCaptureScript = logCaptureScript
+    .replace("__CSP_CONTENT__", JSON.stringify(cspContent.value))
+    .replace("__AUTO_HEIGHT__", String(props.autoHeight));
 
-  // 1. CDN 本地化拦截
   if (enableCdnLocalizer?.value !== false) {
     const { html: localizedContent } = localizeCdnLinks(content);
     content = localizedContent;
   }
 
-  // 如果内容已经包含了 html 标签，则不再包裹，而是尝试注入脚本
   const trimmed = content.trim().toLowerCase();
   const isFullHtml = trimmed.includes("<html") || trimmed.includes("<!doctype");
 
   if (isFullHtml) {
-    // 对于完整 HTML，如果是自适应高度模式，我们需要注入一段 CSS 来打破高度循环
-    // 强制让 html/body 不要追随视口高度
-    // 注意：转义结束标签以避免 Vue SFC 编译错误
-    const autoHeightFixStyle = props.autoHeight
-      ? `
-      <style>
-        html.auto-height-fix, html.auto-height-fix body {
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-        }
-      <\/style>
-      <script>document.documentElement.classList.add('auto-height-fix');<\/script>
-    `
+    const autoHeightStyle = props.autoHeight
+      ? "<style>html,body{height:auto!important;overflow:hidden!important;margin:0!important;padding:0!important;} body > * { margin-top: 0 !important; }</style>"
       : "";
-
-    const injection = processedLogCaptureScript + autoHeightFixStyle;
-
-    // 尝试注入脚本到 head 或 body
-    // 使用正则匹配以支持大小写不敏感和流式输出
+    const injection = processedLogCaptureScript + autoHeightStyle;
     if (/<\/head>/i.test(content)) {
       return content.replace(/<\/head>/i, `${injection}</head>`);
     } else if (/<head[^>]*>/i.test(content)) {
       return content.replace(/<head[^>]*>/i, (match) => `${match}${injection}`);
-    } else if (/<body[^>]*>/i.test(content)) {
-      return content.replace(/<body[^>]*>/i, (match) => `${match}${injection}`);
-    } else if (/<html[^>]*>/i.test(content)) {
-      return content.replace(/<html[^>]*>/i, (match) => `${match}${injection}`);
     } else {
-      // 实在找不到位置，就追加到最后
       return content + injection;
     }
   } else {
-    // 片段模式，包裹基本结构
-    // 注意：这里使用 props.content 对应的 themedContent，已经包含了主题变量
     return `
       <!DOCTYPE html>
       <html>
@@ -451,20 +293,13 @@ const srcDoc = computed(() => {
           <style>
             body {
               margin: 0;
-              padding: 16px;
-              padding-bottom: 24px; /* 额外的底部缓冲，避免内容被截断 */
+              padding: ${props.autoHeight ? '0' : '16px'};
+              height: ${props.autoHeight ? 'auto' : '100%'};
+              overflow: ${props.autoHeight ? 'hidden' : 'auto'};
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
               color: var(--text-color, #333);
               background-color: transparent;
-              /* 防止 body 高度跟随 iframe 变化 */
-              height: fit-content !important;
-              min-height: 0 !important;
             }
-            html {
-              height: auto !important;
-              min-height: 0 !important;
-            }
-            /* 滚动条样式 */
             ::-webkit-scrollbar { width: 6px; height: 6px; }
             ::-webkit-scrollbar-track { background: transparent; }
             ::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.4); border-radius: 3px; }
@@ -479,29 +314,10 @@ const srcDoc = computed(() => {
   }
 });
 
-// 处理 iframe 传来的日志和消息
 const handleIframeMessage = (event: MessageEvent) => {
   if (!event.data || !iframeRef.value) return;
-
-  // 严格隔离：只处理来自当前实例 iframe 的消息
   if (event.source !== iframeRef.value.contentWindow) return;
 
-  // 处理高度调整消息
-  if (event.data.type === "iframe-resize" && props.autoHeight) {
-    const newHeight = event.data.height;
-    if (newHeight && newHeight > 0) {
-      // 优化“一步到位”体验：
-      // 如果正在加载或内容刚开始渲染，且新高度比当前预设高度小，则忽略它
-      // 这样可以防止高度从 650px 缩回到 iframe 初始计算的 100px 再慢慢涨回来
-      if (loading.value && newHeight < contentHeight.value) {
-        return;
-      }
-      contentHeight.value = newHeight;
-    }
-    return;
-  }
-
-  // 处理交互事件
   if (event.data.type === "iframe-mousemove" || event.data.type === "iframe-mouseenter") {
     emit("content-hover", true);
     return;
@@ -511,35 +327,19 @@ const handleIframeMessage = (event: MessageEvent) => {
     return;
   }
 
+  if (event.data.type === "iframe-height" && props.autoHeight) {
+    const newHeight = event.data.height;
+    if (newHeight > 0) {
+      contentHeight.value = newHeight;
+    }
+    return;
+  }
+
   if (event.data.type === "iframe-log") {
     const { level, args } = event.data;
+    let message = args?.[0] ? String(args[0]) : "[Empty Log]";
+    let extraData = args?.slice(1);
 
-    // 构造符合 Logger 规范的 message 和 data
-    let message = "";
-    let extraData: any = undefined;
-
-    if (args && args.length > 0) {
-      const first = args[0];
-      if (typeof first === "string") {
-        message = first;
-        if (args.length > 1) {
-          extraData = args.slice(1);
-        }
-      } else {
-        // 第一个参数不是字符串，可能是对象
-        try {
-          const str = JSON.stringify(first);
-          message = str.length > 50 ? str.slice(0, 50) + "..." : str;
-        } catch {
-          message = "[Object]";
-        }
-        extraData = args;
-      }
-    } else {
-      message = "[Empty Log]";
-    }
-
-    // 映射到系统 Logger
     switch (level) {
       case "log":
       case "info":
@@ -549,25 +349,15 @@ const handleIframeMessage = (event: MessageEvent) => {
         logger.warn(message, extraData);
         break;
       case "error":
-        // 尝试从 args 中提取类似 Error 的对象，如果没有则使用 message
-        const errorPayload =
-          args.find((a: any) => a && typeof a === "object" && (a.message || a.stack)) || message;
-
-        // 使用 iframeErrorHandler 处理错误，模块名会显示为 "HtmlInteractiveViewer:Iframe"
-        iframeErrorHandler.handle(errorPayload, {
+        iframeErrorHandler.handle(message, {
           level: ErrorLevel.ERROR,
           showToUser: false,
-          context: {
-            originalArgs: extraData,
-            source: "iframe",
-          },
+          context: { originalArgs: extraData },
         });
         break;
       case "debug":
         logger.debug(message, extraData);
         break;
-      default:
-        logger.info(message, extraData);
     }
   }
 };
@@ -586,8 +376,6 @@ const onLoad = () => {
 
 const refresh = () => {
   loading.value = true;
-  // 通过改变 key 强制 Vue 销毁并重新创建 iframe 组件
-  // 这比手动操作 srcdoc 更彻底，也能触发完整的 onload 生命周期
   iframeKey.value++;
 };
 
@@ -596,42 +384,19 @@ const openInBrowser = () => {
     const blob = new Blob([srcDoc.value], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
-
-    // 清理 URL object (稍微延迟一点，确保新窗口已经加载)
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   } catch (error) {
     errorHandler.error(error, "在浏览器打开失败");
-    customMessage.error("无法在浏览器中打开预览");
   }
 };
 
 watch(
   [() => props.content, () => props.immediate],
   ([newContent, isImmediate]) => {
-    // 只有当显示内容为空时（首次加载），才立即显示 loading
-    // 后续更新尽量静默，避免遮罩层频繁闪烁
-    if (!renderContent.value) {
-      loading.value = true;
-      if (props.autoHeight) {
-        // 切换内容时，重置高度到最大高度，实现“一步到位”
-        contentHeight.value = getMaxHeightPx();
-      }
-    }
-
+    if (!renderContent.value) loading.value = true;
     if (isImmediate) {
-      // 立即模式（已闭合或非流式）：直接更新，不节流，确保最终结果立即显示
       renderContent.value = newContent;
-
-      // 取消可能的待执行的节流/防抖，避免重复更新
-      const debouncedFn = debouncedUpdateContent as any;
-      if (debouncedFn.cancel) debouncedFn.cancel();
-
-      // useThrottleFn 返回的函数没有暴露 cancel 方法，但在 VueUse 中通常不需要手动 cancel，
-      // 因为我们已经覆盖了 renderContent.value
     } else {
-      // 流式模式：使用节流更新
-      // 注意：这里不再因为 isContentStable 为 true 就立即更新，
-      // 而是强制走节流逻辑，以降低 iframe 刷新频率。
       throttledUpdateContent(newContent);
     }
   },
@@ -650,18 +415,11 @@ watch(
   box-sizing: border-box;
 }
 
-/* 自适应高度模式：移除高度限制和 overflow 裁剪 */
-.html-interactive-viewer.auto-height {
-  height: auto;
-  overflow: visible;
-}
-
 .html-interactive-viewer.no-border {
   border: none;
   border-radius: 0;
 }
 
-/* 工具栏 */
 .viewer-toolbar {
   display: flex;
   align-items: center;
@@ -675,7 +433,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 12px;
-  overflow: hidden; /* 防止标题过长溢出 */
+  overflow: hidden;
 }
 
 .title-text {
@@ -713,32 +471,11 @@ watch(
   color: var(--el-text-color-secondary);
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.tool-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 4px;
-  background-color: var(--el-fill-color);
-  opacity: 0;
-  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tool-btn:hover:not(:disabled) {
+  background-color: var(--el-fill-color);
   color: var(--el-text-color-primary);
-  transform: translateY(-1px);
-}
-
-.tool-btn:hover:not(:disabled)::before {
-  opacity: 1;
-}
-
-.tool-btn:active:not(:disabled) {
-  transform: translateY(0);
-  transition-duration: 0.05s;
 }
 
 .tool-btn:disabled {
@@ -746,13 +483,11 @@ watch(
   cursor: not-allowed;
 }
 
-/* 内容区域 */
 .viewer-content {
   flex: 1;
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 300px; /* 最小高度 */
 }
 
 .preview-iframe {
@@ -769,7 +504,6 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 使用主题背景色，避免暗色模式下闪瞎眼 */
   background-color: var(--bg-color);
   z-index: 10;
   color: var(--el-color-primary);

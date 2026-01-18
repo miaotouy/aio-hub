@@ -189,7 +189,8 @@ export function getModelIconPath(
  */
 /**
  * 规范化图标路径（向后兼容）
- * 将旧的带路径配置（如 /model-icons/xxx.png）转换为新的只有文件名的格式
+ * 确保预设图标路径都带有 /model-icons/ 前缀。
+ * 如果输入是纯文件名且在预设列表中，则自动补全前缀。
  * @param iconPath 图标路径
  * @returns 规范化后的路径
  */
@@ -198,10 +199,11 @@ export function normalizeIconPath(iconPath: string): string {
     return iconPath;
   }
 
-  // 如果是以 /model-icons/ 开头的预设图标路径，截取文件名部分
-  const PRESET_PREFIX = "/model-icons/";
-  if (iconPath.startsWith(PRESET_PREFIX)) {
-    return iconPath.substring(PRESET_PREFIX.length);
+  // 如果是纯文件名且在预设列表中，补全前缀
+  if (!iconPath.includes("/") && !iconPath.includes("\\")) {
+    if ((AVAILABLE_ICONS as readonly string[]).includes(iconPath)) {
+      return `/model-icons/${iconPath}`;
+    }
   }
 
   return iconPath;

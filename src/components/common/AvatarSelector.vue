@@ -118,8 +118,8 @@ const openPresetIconSelector = () => {
 
 // 选择预设图标
 const selectPresetIcon = (icon: any) => {
-  // 使用规范化的 ID，不再强制添加 /model-icons/ 前缀（由 Avatar 组件处理）
-  const iconId = icon.path.replace(/^\/model-icons\//, "");
+  // 恢复使用完整路径，保留 /model-icons/ 前缀
+  const iconId = icon.path;
   emit("update:icon", { value: iconId, source: "preset" });
   showPresetIconDialog.value = false;
   customMessage.success("已选择预设图标");

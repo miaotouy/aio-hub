@@ -2,6 +2,7 @@ import { ref, watch, computed, Ref } from "vue";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useTheme } from "./useTheme";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
+import { normalizeIconPath } from "@/config/model-metadata";
 
 const errorHandler = createModuleErrorHandler("ThemeAwareIcon");
 
@@ -150,17 +151,13 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
   const isSvg = computed(() => {
     return iconSrcRef.value && iconSrcRef.value.toLowerCase().endsWith(".svg");
   });
-
   // 如果是 PNG 或其他格式，直接返回原始 src
   const iconUrl = computed(() => {
     if (isSvg.value) return "";
-    
+
     const src = iconSrcRef.value;
-    // 如果是纯文件名，拼接默认路径
-    if (src && !src.includes("/") && !src.includes("\\")) {
-      return `/model-icons/${src}`;
-    }
-    return src;
+    // 使用统一的规范化逻辑，确保前缀正确
+    return normalizeIconPath(src);
   });
 
   // 加载和处理 SVG
@@ -173,6 +170,7 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
     const src = iconSrcRef.value;
 
     // 1. 优先从内存 Map 中获取（已通过 Vite glob 加载）
+    // Map 现在已统一支持带路径 (/model-icons/) 和不带路径的 Key
     if (LOBE_ICONS_MAP[src] || LOCAL_ICONS_MAP[src]) {
       const rawSvg = LOBE_ICONS_MAP[src] || LOCAL_ICONS_MAP[src];
       svgContent.value = processSvgContent(rawSvg);
@@ -184,11 +182,8 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
     error.value = null;
 
     try {
-      // 如果是纯文件名但不在 Map 中，尝试拼接默认路径（向后兼容）
-      let finalUrl = src;
-      if (!src.includes("/") && !src.includes("\\")) {
-        finalUrl = `/model-icons/${src}`;
-      }
+      // 确保使用规范化的路径进行 fetch
+      const finalUrl = normalizeIconPath(src);
       svgContent.value = await fetchAndProcessSvg(finalUrl);
     } catch (err) {
       error.value = err as Error;

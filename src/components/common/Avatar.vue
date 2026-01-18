@@ -98,6 +98,7 @@ const processSrc = async () => {
   }
 
   // 1. 检查是否为预设图标 (Lobe 或 Local)
+  // Map 现在已统一支持带路径 (/model-icons/) 和不带路径的 Key
   if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
     const svgContent = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
     // 如果内容已经是 data: 或者是 URL 则直接用，否则视为 SVG 源码转为 Data URL

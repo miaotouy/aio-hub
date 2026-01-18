@@ -2,7 +2,7 @@ import type { PresetIconInfo } from "../types/model-metadata";
 
 /**
  * 用户手动添加的图标（不存在于 Lobe Theme 图标库中）
- * 这里的路径是相对于 public/model-icons/ 的文件名
+ * 这里的路径通常为文件名，系统会自动补全 /model-icons/ 前缀
  */
 export const USER_ADDED_ICONS: PresetIconInfo[] = [
   {

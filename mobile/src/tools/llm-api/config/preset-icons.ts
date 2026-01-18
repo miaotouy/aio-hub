@@ -16,9 +16,20 @@ export const AVAILABLE_ICONS = [
 ].sort();
 
 /**
+ * 规范化预设图标路径，确保都带有 /model-icons/ 前缀
+ */
+function ensureModelIconPrefix(icons: any[]): PresetIconInfo[] {
+  const PRESET_PREFIX = "/model-icons/";
+  return icons.map((icon) => ({
+    ...icon,
+    path: icon.path.startsWith("/") ? icon.path : `${PRESET_PREFIX}${icon.path}`,
+  })) as unknown as PresetIconInfo[];
+}
+
+/**
  * 最终导出的预设图标列表
  */
-export const PRESET_ICONS: PresetIconInfo[] = [
+export const PRESET_ICONS: PresetIconInfo[] = ensureModelIconPrefix([
   ...MANUAL_PRESET_ICONS,
   ...USER_ADDED_ICONS,
-] as unknown as PresetIconInfo[];
+]);

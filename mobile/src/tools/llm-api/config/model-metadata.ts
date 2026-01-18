@@ -128,14 +128,17 @@ export function getModelIconPath(
 }
 
 /**
- * 规范化图标路径
+ * 规范化图标路径（向后兼容）
+ * 确保预设图标路径都带有 /model-icons/ 前缀。
  */
 export function normalizeIconPath(iconPath: string): string {
   if (!iconPath || typeof iconPath !== "string") return iconPath;
 
-  const PRESET_PREFIX = "/model-icons/";
-  if (iconPath.startsWith(PRESET_PREFIX)) {
-    return iconPath.substring(PRESET_PREFIX.length);
+  // 如果是纯文件名且在预设列表中，补全前缀
+  if (!iconPath.includes("/") && !iconPath.includes("\\")) {
+    if ((AVAILABLE_ICONS as readonly string[]).includes(iconPath)) {
+      return `/model-icons/${iconPath}`;
+    }
   }
 
   return iconPath;

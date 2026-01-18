@@ -1,5 +1,6 @@
 import { ref, watch, computed, Ref } from "vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { normalizeIconPath } from "../tools/llm-api/config/model-metadata";
 
 const errorHandler = createModuleErrorHandler("ThemeAwareIcon");
 
@@ -102,7 +103,7 @@ async function fetchAndProcessSvg(url: string): Promise<string> {
 
     const svgText = await response.text();
     const trimmed = svgText.trim();
-    
+
     if (!trimmed.includes("<svg")) {
       throw new Error(`Invalid SVG content for: ${url}`);
     }
@@ -127,13 +128,12 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string | undefined>) {
     const src = iconSrcRef?.value;
     return src && typeof src === 'string' && src.toLowerCase().endsWith(".svg");
   });
-
   const iconUrl = computed(() => {
     if (isSvg.value) return "";
-    
+
     const src = iconSrcRef?.value;
-    if (src && typeof src === 'string' && !src.includes("/") && !src.includes("\\")) {
-      return `/model-icons/${src}`;
+    if (src && typeof src === 'string') {
+      return normalizeIconPath(src);
     }
     return src;
   });
@@ -149,10 +149,8 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string | undefined>) {
     error.value = null;
 
     try {
-      let finalUrl = src;
-      if (typeof src === 'string' && !src.includes("/") && !src.includes("\\")) {
-        finalUrl = `/model-icons/${src}`;
-      }
+      // 确保使用规范化的路径进行 fetch
+      const finalUrl = normalizeIconPath(src);
       svgContent.value = await fetchAndProcessSvg(finalUrl);
     } catch (err) {
       error.value = err as Error;

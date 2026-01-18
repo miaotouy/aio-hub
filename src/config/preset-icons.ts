@@ -24,14 +24,19 @@ const localIcons = import.meta.glob("../../public/model-icons/*.{svg,png,jpg,web
 
 export const LOBE_ICONS_MAP = Object.entries(lobeIcons).reduce((acc, [path, content]) => {
   const name = path.split("/").pop()!;
-  acc[name] = (content as any).default;
+  const svgContent = (content as any).default;
+  // 同时支持纯文件名和带路径的完整名作为 Key
+  acc[name] = svgContent;
+  acc[`/model-icons/${name}`] = svgContent;
   return acc;
 }, {} as Record<string, string>);
 
 export const LOCAL_ICONS_MAP = Object.entries(localIcons).reduce((acc, [path, _content]) => {
   const name = path.split("/").pop()!;
-  // 对于 public 目录下的本地图标，我们直接映射到其在运行时的公共路径
-  acc[name] = `/model-icons/${name}`;
+  const publicPath = `/model-icons/${name}`;
+  // 同时支持纯文件名和带路径的完整名作为 Key
+  acc[name] = publicPath;
+  acc[publicPath] = publicPath;
   return acc;
 }, {} as Record<string, string>);
 
@@ -79,10 +84,21 @@ const autoIcons: PresetIconInfo[] = AVAILABLE_ICONS.filter(
 });
 
 /**
+ * 规范化预设图标路径，确保都带有 /model-icons/ 前缀
+ */
+function ensureModelIconPrefix(icons: PresetIconInfo[]): PresetIconInfo[] {
+  const PRESET_PREFIX = "/model-icons/";
+  return icons.map((icon) => ({
+    ...icon,
+    path: icon.path.startsWith("/") ? icon.path : `${PRESET_PREFIX}${icon.path}`,
+  }));
+}
+
+/**
  * 最终导出的预设图标列表（包含手动精选、用户自建和自动生成的）
  */
-export const PRESET_ICONS: PresetIconInfo[] = [
+export const PRESET_ICONS: PresetIconInfo[] = ensureModelIconPrefix([
   ...MANUAL_PRESET_ICONS,
   ...USER_ADDED_ICONS,
   ...autoIcons,
-];
+]);

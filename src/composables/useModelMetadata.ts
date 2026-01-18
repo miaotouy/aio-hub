@@ -415,6 +415,7 @@ export function useModelMetadata() {
 
     // 检查是否为绝对路径
     const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
+    // Unix/Linux 绝对路径，但排除 /model-icons/ 这种项目内的相对路径
     const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
 
     if (isWindowsAbsolutePath || isUnixAbsolutePath) {

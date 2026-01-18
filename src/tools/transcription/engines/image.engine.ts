@@ -107,9 +107,9 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
     }
 
     const cleanedText = cleanLlmOutput(transcriptionText);
-    const repetition = detectRepetition(cleanedText);
+    const repetition = detectRepetition(cleanedText, config.repetitionConfig);
 
-    if (repetition.isRepetitive) {
+    if (config.enableRepetitionDetection && repetition.isRepetitive) {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
     }
 

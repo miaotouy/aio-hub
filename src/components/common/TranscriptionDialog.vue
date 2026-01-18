@@ -124,6 +124,10 @@
             placeholder="输入额外的指令来引导重新生成，例如：'请以更正式的语气转写' 或 '着重提取关键技术术语'..."
           />
         </div>
+        <div class="form-item inline-item">
+          <label>启用复读检测</label>
+          <el-switch v-model="enableRepetitionDetection" />
+        </div>
         <div class="form-tip">
           <Info :size="14" />
           <div class="tip-content">
@@ -181,7 +185,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "save", content: string): void;
-  (e: "regenerate", payload: { modelId: string; prompt: string }): void;
+  (e: "regenerate", payload: { modelId: string; prompt: string; enableRepetitionDetection: boolean }): void;
 }>();
 
 const { show: showImage } = useImageViewer();
@@ -194,6 +198,7 @@ const isSaving = ref(false);
 const showRegenerateConfirm = ref(false);
 const selectedModelId = ref("");
 const tempPrompt = ref("");
+const enableRepetitionDetection = ref(true);
 
 const isImage = computed(() => props.asset.type === "image");
 const isVideo = computed(() => props.asset.type === "video");
@@ -280,9 +285,11 @@ const openRegenerateConfirm = () => {
       selectedModelId.value = "";
     }
     tempPrompt.value = props.previousConfig.customPrompt || "";
+    enableRepetitionDetection.value = props.previousConfig.enableRepetitionDetection !== false;
   } else {
     selectedModelId.value = "";
     tempPrompt.value = "";
+    enableRepetitionDetection.value = true;
   }
   showRegenerateConfirm.value = true;
 };
@@ -306,6 +313,7 @@ const handleConfirmRegenerate = () => {
   emit("regenerate", {
     modelId: selectedModelId.value,
     prompt: tempPrompt.value,
+    enableRepetitionDetection: enableRepetitionDetection.value,
   });
   showRegenerateConfirm.value = false;
   handleClose();
@@ -542,6 +550,12 @@ const handleImagePreview = () => {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-color);
+}
+
+.form-item.inline-item {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .form-tip {

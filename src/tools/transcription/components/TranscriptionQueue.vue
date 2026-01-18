@@ -116,6 +116,7 @@ const showRetryConfirm = ref(false);
 const retryingTask = ref<TranscriptionTask | null>(null);
 const retryModelId = ref("");
 const retryPrompt = ref("");
+const retryEnableRepetitionDetection = ref(true);
 
 // 根据任务类型计算需要的模型能力
 const retryRequiredCapabilities = computed(() => {
@@ -148,6 +149,7 @@ const handleRetry = async (task: TranscriptionTask) => {
     retryModelId.value = "";
   }
   retryPrompt.value = oldConfig?.customPrompt || "";
+  retryEnableRepetitionDetection.value = oldConfig?.enableRepetitionDetection !== false;
 
   showRetryConfirm.value = true;
 };
@@ -165,6 +167,7 @@ const handleConfirmRetry = async () => {
     if (retryPrompt.value) {
       overrideConfig.customPrompt = retryPrompt.value;
     }
+    overrideConfig.enableRepetitionDetection = retryEnableRepetitionDetection.value;
 
     // 调用 addTask 并传入覆盖配置
     addTask(asset, Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
@@ -227,10 +230,11 @@ const handleViewResult = async (task: TranscriptionTask) => {
         }
         transcriptionViewer.close();
       },
-      onRegenerate: ({ modelId, prompt }) => {
+      onRegenerate: ({ modelId, prompt, enableRepetitionDetection }) => {
         addTask(asset, {
           modelIdentifier: modelId ? `custom:${modelId}` : undefined,
           customPrompt: prompt || undefined,
+          enableRepetitionDetection,
         });
         transcriptionViewer.close();
       },
@@ -426,6 +430,10 @@ const getTaskDuration = (task: TranscriptionTask) => {
               :rows="6"
               placeholder="输入额外的指令来引导转写，例如：'请以更正式的语气转写' 或 '着重提取关键技术术语'..."
             />
+          </div>
+          <div class="form-item inline-item">
+            <label>启用复读检测</label>
+            <el-switch v-model="retryEnableRepetitionDetection" />
           </div>
           <div class="form-tip">
             <Info :size="14" />
@@ -686,6 +694,12 @@ const getTaskDuration = (task: TranscriptionTask) => {
   font-size: 13px;
   font-weight: 500;
   color: var(--el-text-color-primary);
+}
+
+.form-item.inline-item {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .form-tip {

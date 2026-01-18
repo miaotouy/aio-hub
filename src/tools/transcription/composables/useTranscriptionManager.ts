@@ -102,7 +102,7 @@ export function useTranscriptionManager() {
         isRepetitionError
       });
 
-      // 如果是复读错误，重试时可以尝试微调参数（虽然目前引擎层还没支持动态参数微调，但这里先保留逻辑空间）
+      // 如果是复读错误，重试时依然允许重试，但在 execute 中我们会自动放宽阈值
       // 这里的策略是：复读错误依然允许重试，但如果重试一次还不行，就直接失败，避免无限循环
       const canRetry = pendingTask.retryCount < store.config.maxRetries && (!isRepetitionError || pendingTask.retryCount < 1);
 

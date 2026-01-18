@@ -6,7 +6,7 @@ import { convertPdfToImages } from "@/utils/pdfUtils";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";
-import { cleanLlmOutput } from "../utils/text";
+import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
 
 export class PdfTranscriptionEngine implements ITranscriptionEngine {
@@ -120,6 +120,11 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     }
 
     const cleanedText = cleanLlmOutput(transcriptionText);
+    const repetition = detectRepetition(cleanedText, ctx.config.repetitionConfig);
+
+    if (ctx.config.enableRepetitionDetection && repetition.isRepetitive) {
+      throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
+    }
 
     return {
       text: cleanedText,

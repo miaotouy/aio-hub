@@ -78,6 +78,14 @@ export interface TranscriptionConfig {
   maxRetries: number;
   /** 转写等待超时时间 (ms) */
   timeout: number;
+  /** 是否启用复读检测 */
+  enableRepetitionDetection: boolean;
+  /** 连续重复的行/句阈值 (默认 3) */
+  repetitionThreshold: number;
+  /** 全局片段高频重复阈值 (默认 5) */
+  repetitionCount: number;
+  /** 白名单片段，不触发复读检测 */
+  repetitionWhitelist: string[];
   /** 图片特定配置 */
   image: TypeSpecificTranscriptionConfig;
   /** 音频特定配置 */
@@ -341,6 +349,10 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     executionDelay: 300, // 默认延迟
     maxRetries: 2,
     timeout: 120, // 默认 120 秒
+    enableRepetitionDetection: true,
+    repetitionThreshold: 3,
+    repetitionCount: 5,
+    repetitionWhitelist: [],
     ffmpegPath: "",
     video: {
       maxDirectSizeMB: 10,

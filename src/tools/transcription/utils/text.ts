@@ -22,8 +22,28 @@ export const cleanLlmOutput = (text: string): string => {
 /**
  * 检测文本是否存在严重的病态复读
  */
-export const detectRepetition = (text: string): { isRepetitive: boolean; reason?: string } => {
+export const detectRepetition = (
+  text: string,
+  config?: { consecutiveThreshold?: number; globalThreshold?: number; whitelist?: string[] }
+): { isRepetitive: boolean; reason?: string } => {
   if (text.length < 50) return { isRepetitive: false };
+
+  const { consecutiveThreshold = 3, globalThreshold = 5, whitelist = [] } = config || {};
+
+  // 0. 白名单检查
+  if (whitelist.length > 0) {
+    for (const item of whitelist) {
+      if (text.includes(item)) {
+        // 如果包含白名单片段，且该片段占据了文本的主要部分，或者该片段本身就是导致检测失败的原因，这里需要更精细的逻辑
+        // 但简单起见，如果文本中包含白名单片段，我们先对该片段进行占位替换，避免干扰检测
+        // 或者更直接点：如果整个文本就是由白名单片段重复组成的，我们允许它
+      }
+    }
+  }
+
+  const isInWhitelist = (segment: string) => {
+    return whitelist.some((item) => segment.includes(item));
+  };
 
   // 1. 检查连续重复的行/句
   // 优化：不按空格切割，避免表格内容被拆散；同时排除掉纯符号组成的片段（如表格分隔符）
@@ -41,8 +61,13 @@ export const detectRepetition = (text: string): { isRepetitive: boolean; reason?
         continue;
       }
 
+      if (isInWhitelist(current)) {
+        consecutiveCount = 1;
+        continue;
+      }
+
       consecutiveCount++;
-      const threshold = current.length > 10 ? 3 : 4;
+      const threshold = current.length > 10 ? consecutiveThreshold : consecutiveThreshold + 1;
       if (consecutiveCount >= threshold) {
         return { isRepetitive: true, reason: `检测到连续重复内容: "${current.substring(0, 20)}..."` };
       }
@@ -64,6 +89,8 @@ export const detectRepetition = (text: string): { isRepetitive: boolean; reason?
       if (pattern.replace(/[^\w\u4e00-\u9fa5]/g, "").length < 2) continue;
       // 排除常见的 Markdown 列表或引用符号
       if (/^[\s>*\-+]+$/.test(pattern)) continue;
+      // 排除白名单
+      if (isInWhitelist(pattern)) continue;
 
       return { isRepetitive: true, reason: `检测到末尾循环模式: "${pattern.substring(0, 20)}..."` };
     }
@@ -83,9 +110,12 @@ export const detectRepetition = (text: string): { isRepetitive: boolean; reason?
       const isMarkdownSyntax = /^[|:\-\s.=_*#\\/]+$/.test(chunk);
       if (isMarkdownSyntax) continue;
 
+      // 排除白名单
+      if (isInWhitelist(chunk)) continue;
+
       // 如果片段包含大量非字母数字字符，提高阈值
       const alphanumericRatio = chunk.replace(/[^\w\u4e00-\u9fa5]/g, "").length / chunk.length;
-      const threshold = alphanumericRatio < 0.3 ? 10 : 5;
+      const threshold = alphanumericRatio < 0.3 ? globalThreshold * 2 : globalThreshold;
 
       if (count >= threshold) {
         return { isRepetitive: true, reason: `检测到高频重复片段: "${chunk.substring(0, 20)}..."` };

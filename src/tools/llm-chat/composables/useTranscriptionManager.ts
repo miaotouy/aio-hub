@@ -211,7 +211,14 @@ export function useTranscriptionManager() {
    * 注意：llm-chat 发起的任务应该携带聊天侧的私有配置，
    * 这样可以避免修改并持久化 transcriptionStore 的全局配置。
    */
-  const addTask = (asset: Asset, options?: { modelId?: string; additionalPrompt?: string }) => {
+  const addTask = (
+    asset: Asset,
+    options?: {
+      modelId?: string;
+      additionalPrompt?: string;
+      enableRepetitionDetection?: boolean;
+    }
+  ) => {
     const chatConfig = settings.value.transcription;
 
     // 构造覆盖配置，优先使用传入的 options，否则使用聊天设置
@@ -225,6 +232,11 @@ export function useTranscriptionManager() {
       maxConcurrentTasks: chatConfig.maxConcurrentTasks,
       executionDelay: chatConfig.executionDelay,
       maxRetries: chatConfig.maxRetries,
+      // 复读处理
+      enableRepetitionDetection: options?.enableRepetitionDetection ?? chatConfig.enableRepetitionDetection,
+      repetitionThreshold: chatConfig.repetitionThreshold,
+      repetitionCount: chatConfig.repetitionCount,
+      repetitionWhitelist: chatConfig.repetitionWhitelist,
       // 其他配置
       enableImageSlicer: chatConfig.enableImageSlicer,
       imageSlicerConfig: chatConfig.imageSlicerConfig,
@@ -269,7 +281,14 @@ export function useTranscriptionManager() {
   /**
    * 重试
    */
-  const retryTranscription = (asset: Asset, options?: { modelId?: string; additionalPrompt?: string }) => {
+  const retryTranscription = (
+    asset: Asset,
+    options?: {
+      modelId?: string;
+      additionalPrompt?: string;
+      enableRepetitionDetection?: boolean;
+    }
+  ) => {
     addTask(asset, options);
   };
 

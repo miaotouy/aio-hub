@@ -5,7 +5,7 @@ import { useLlmRequest } from "@/composables/useLlmRequest";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { getModelParams, getEffectiveConfig } from "./base";
-import { cleanLlmOutput } from "../utils/text";
+import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
 
 const logger = createModuleLogger("transcription/engines/video");
@@ -128,6 +128,11 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     });
 
     const cleanedText = cleanLlmOutput(response.content);
+    const repetition = detectRepetition(cleanedText, config.repetitionConfig);
+
+    if (config.enableRepetitionDetection && repetition.isRepetitive) {
+      throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
+    }
 
     return {
       text: cleanedText,

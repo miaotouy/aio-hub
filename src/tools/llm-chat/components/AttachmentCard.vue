@@ -228,6 +228,7 @@ const handleTranscriptionClick = async (e: Event) => {
         retryTranscription(internalAsset.value, {
           modelId: payload.modelId,
           additionalPrompt: payload.prompt,
+          enableRepetitionDetection: payload.enableRepetitionDetection,
         });
         transcriptionViewer.close();
       },

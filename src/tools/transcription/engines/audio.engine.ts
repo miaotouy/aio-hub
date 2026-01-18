@@ -4,7 +4,7 @@ import { convertArrayBufferToBase64 } from "@/utils/base64";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";
-import { cleanLlmOutput } from "../utils/text";
+import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
 
 export class AudioTranscriptionEngine implements ITranscriptionEngine {
@@ -48,6 +48,11 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     });
 
     const cleanedText = cleanLlmOutput(response.content);
+    const repetition = detectRepetition(cleanedText, ctx.config.repetitionConfig);
+
+    if (ctx.config.enableRepetitionDetection && repetition.isRepetitive) {
+      throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
+    }
 
     return {
       text: cleanedText,

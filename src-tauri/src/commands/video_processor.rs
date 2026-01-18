@@ -1,15 +1,23 @@
+use serde::Serialize;
 use std::path::Path;
 use tokio::process::Command;
 
-struct VideoMetadata {
-    duration: Option<f64>,
-    fps: Option<f64>,
-    width: Option<u32>,
-    height: Option<u32>,
-    has_audio: bool,
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoMetadata {
+    pub duration: Option<f64>,
+    pub fps: Option<f64>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub has_audio: bool,
 }
 
 /// 获取视频元数据 (时长、帧率、分辨率、是否有音频)
+#[tauri::command]
+pub async fn get_video_metadata_command(ffmpeg_path: String, input_path: String) -> VideoMetadata {
+    get_video_metadata(&ffmpeg_path, &input_path).await
+}
+
 async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadata {
     let mut metadata = VideoMetadata {
         duration: None,

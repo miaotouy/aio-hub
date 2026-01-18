@@ -58,6 +58,7 @@ use commands::{
     get_agent_asset_path,
     get_all_detached_windows,
     get_all_operation_logs,
+    get_image_dimensions,
     // 资产管理命令
     get_asset_base_path,
     get_asset_binary,
@@ -118,6 +119,7 @@ use commands::{
     // Agent 资产管理命令
     save_agent_asset,
     save_asset_thumbnail,
+    get_video_metadata_command,
     save_uploaded_file,
     // 窗口配置管理相关
     save_window_config,
@@ -402,6 +404,7 @@ pub fn run() {
             cancel_move_operation,
             get_latest_operation_log,
             get_all_operation_logs,
+            get_image_dimensions,
             process_files_with_regex,
             validate_regex_pattern,
             generate_directory_tree,
@@ -521,6 +524,7 @@ pub fn run() {
             // 视频处理命令
             check_ffmpeg_availability,
             compress_video,
+            get_video_metadata_command,
             // LLM 搜索命令
             search_llm_data,
             // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)

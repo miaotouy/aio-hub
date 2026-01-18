@@ -129,7 +129,7 @@ defineEmits<Emits>();
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 16px;
+  padding: 0 12px;
   border-right: 1px solid var(--border-color);
 }
 
@@ -137,5 +137,8 @@ defineEmits<Emits>();
   font-size: 14px;
   color: var(--text-color);
   white-space: nowrap;
+}
+.el-button + .el-button {
+  margin-left: 0px;
 }
 </style>

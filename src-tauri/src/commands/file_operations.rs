@@ -1021,6 +1021,23 @@ pub fn get_file_metadata(path: String) -> Result<FileMetadata, String> {
         created,
     })
 }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageDimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+// Tauri 命令：获取图片尺寸
+#[tauri::command]
+pub fn get_image_dimensions(path: String) -> Result<ImageDimensions, String> {
+    let img = image::image_dimensions(Path::new(&path))
+        .map_err(|e| format!("获取图片尺寸失败: {}", e))?;
+    Ok(ImageDimensions {
+        width: img.0,
+        height: img.1,
+    })
+}
 
 // Tauri 命令：读取文件为二进制数据
 #[tauri::command]

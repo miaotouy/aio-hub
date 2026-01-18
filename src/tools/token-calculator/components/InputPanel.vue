@@ -1,5 +1,11 @@
 <template>
-  <div ref="rootEl" class="input-panel">
+  <div 
+    ref="rootEl" 
+    class="input-panel"
+    :class="{ 'is-dragging': isDraggingOver }"
+    @drop="handleNativeDrop"
+    @dragover.prevent
+  >
     <div class="panel-header">
       <span class="panel-title">输入内容</span>
       <el-tag type="info" size="small" effect="plain">{{ sanitizedCharacterCount }} 字符</el-tag>
@@ -96,7 +102,10 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { Picture, VideoCamera, Microphone, Close } from '@element-plus/icons-vue';
+import { useFileDrop } from '@/composables/useFileDrop';
+import { customMessage } from '@/utils/customMessage';
 import type { MediaItem, MediaType } from '../composables/useTokenCalculatorState';
 
 interface Props {
@@ -111,11 +120,11 @@ interface Emits {
   (e: 'remove-media', id: string): void;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 // 暴露根元素引用
-const rootEl = ref<HTMLElement | null>(null);
+const rootEl = ref<HTMLElement | undefined>(undefined);
 defineExpose({ rootEl });
 
 // === Dialog 逻辑 ===
@@ -172,6 +181,95 @@ const confirmAddMedia = () => {
 const getMediaDescription = (item: MediaItem) => {
   return item.name;
 };
+
+// === 拖放逻辑 ===
+
+// 处理原生文本拖放
+const handleNativeDrop = (e: DragEvent) => {
+  if (!e.dataTransfer) return;
+  const text = e.dataTransfer.getData('text');
+  if (text && (!e.dataTransfer.files || e.dataTransfer.files.length === 0)) {
+    emit('update:inputText', text);
+    customMessage.success('已通过拖放设置文本内容');
+  }
+};
+
+// 处理文件拖放 (Tauri)
+const { isDraggingOver } = useFileDrop({
+  element: rootEl,
+  onDrop: async (paths) => {
+    for (const path of paths) {
+      const lowerPath = path.toLowerCase();
+      
+      // 1. 文本文件处理
+      const textExtensions = ['.txt', '.md', '.json', '.js', '.ts', '.py', '.c', '.cpp', '.h', '.html', '.css', '.vue', '.yml', '.yaml'];
+      if (textExtensions.some(ext => lowerPath.endsWith(ext))) {
+        try {
+          const content = await invoke<string>('read_text_file_force', { path });
+          if (content) {
+            const separator = props.inputText ? '\n\n' : '';
+            emit('update:inputText', props.inputText + separator + content);
+            customMessage.success(`已添加文件内容: ${path.split(/[/\\]/).pop()}`);
+          }
+        } catch (error) {
+          console.error('读取文件失败:', error);
+        }
+        continue;
+      }
+
+      // 2. 媒体文件处理
+      const imgExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'];
+      const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.webm'];
+      const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.flac'];
+
+      let mediaType: MediaType | null = null;
+      if (imgExtensions.some(ext => lowerPath.endsWith(ext))) mediaType = 'image';
+      else if (videoExtensions.some(ext => lowerPath.endsWith(ext))) mediaType = 'video';
+      else if (audioExtensions.some(ext => lowerPath.endsWith(ext))) mediaType = 'audio';
+
+      if (mediaType) {
+        const fileName = path.split(/[/\\]/).pop() || '';
+        const item: Omit<MediaItem, 'id' | 'tokenCount'> = {
+          type: mediaType,
+          name: fileName,
+          params: {}
+        };
+
+        try {
+          if (mediaType === 'image') {
+            const dims = await invoke<{ width: number, height: number }>('get_image_dimensions', { path });
+            item.params = { width: dims.width, height: dims.height };
+            item.name = `${fileName} (${dims.width}x${dims.height})`;
+          } else {
+            // 尝试获取视频/音频元数据
+            try {
+              const metadata = await invoke<any>('get_video_metadata_command', {
+                ffmpegPath: 'ffmpeg',
+                inputPath: path
+              });
+              const duration = Math.round(metadata.duration || 60);
+              item.params = { duration };
+              item.name = `${fileName} (${duration}s)`;
+            } catch (e) {
+              item.params = { duration: 60 };
+              item.name = `${fileName} (60s)`;
+            }
+          }
+        } catch (error) {
+          // 回退到默认值
+          if (mediaType === 'image') {
+            item.params = { width: 1024, height: 1024 };
+          } else {
+            item.params = { duration: 60 };
+          }
+        }
+
+        emit('add-media', item);
+        customMessage.success(`已添加媒体: ${fileName}`);
+      }
+    }
+  }
+});
 </script>
 
 <style scoped>
@@ -182,6 +280,16 @@ const getMediaDescription = (item: MediaItem) => {
   min-width: 100px;
   overflow: hidden;
   box-sizing: border-box;
+  transition: all 0.3s;
+}
+
+.input-panel.is-dragging {
+  outline: 2px dashed var(--el-color-primary);
+  outline-offset: -4px;
+  /* 使用 color-mix 混合透明度，让背景色更自然 */
+  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
 }
 
 .panel-header {

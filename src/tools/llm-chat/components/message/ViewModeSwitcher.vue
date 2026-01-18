@@ -1,31 +1,40 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon } from 'element-plus';
-import { List } from '@element-plus/icons-vue';
-import { Network } from 'lucide-vue-next';
-import { useLlmChatUiState } from '../../composables/useLlmChatUiState';
+import { computed } from "vue";
+import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon } from "element-plus";
+import { List } from "@element-plus/icons-vue";
+import { Network } from "lucide-vue-next";
+import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
 
 /**
  * 视图模式切换器
  * 提供对话视图和树图视图的切换功能
  */
 
+const props = withDefaults(
+  defineProps<{
+    showLabel?: boolean;
+  }>(),
+  {
+    showLabel: true,
+  }
+);
+
 const { viewMode } = useLlmChatUiState();
 
 // 当前视图模式的显示信息
 const currentModeInfo = computed(() => {
   switch (viewMode.value) {
-    case 'linear':
-      return { label: '对话视图', icon: List };
-    case 'force-graph':
-      return { label: '高级树图视图', icon: Network };
+    case "linear":
+      return { label: "对话视图", icon: List };
+    case "force-graph":
+      return { label: "高级树图视图", icon: Network };
     default:
-      return { label: '对话视图', icon: List };
+      return { label: "对话视图", icon: List };
   }
 });
 
 // 切换视图模式
-const handleSelect = (mode: 'linear' | 'force-graph') => {
+const handleSelect = (mode: "linear" | "force-graph") => {
   viewMode.value = mode;
 };
 </script>
@@ -36,23 +45,17 @@ const handleSelect = (mode: 'linear' | 'force-graph') => {
       <ElIcon :size="16">
         <component :is="currentModeInfo.icon" />
       </ElIcon>
-      <span class="mode-label">{{ currentModeInfo.label }}</span>
+      <span v-if="showLabel" class="mode-label">{{ currentModeInfo.label }}</span>
     </div>
     <template #dropdown>
       <ElDropdownMenu>
-        <ElDropdownItem
-          command="linear"
-          :class="{ 'is-active': viewMode === 'linear' }"
-        >
+        <ElDropdownItem command="linear" :class="{ 'is-active': viewMode === 'linear' }">
           <ElIcon :size="16">
             <List />
           </ElIcon>
           <span>对话视图</span>
         </ElDropdownItem>
-        <ElDropdownItem
-          command="force-graph"
-          :class="{ 'is-active': viewMode === 'force-graph' }"
-        >
+        <ElDropdownItem command="force-graph" :class="{ 'is-active': viewMode === 'force-graph' }">
           <ElIcon :size="16">
             <Network />
           </ElIcon>
@@ -68,7 +71,7 @@ const handleSelect = (mode: 'linear' | 'force-graph') => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 4px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;

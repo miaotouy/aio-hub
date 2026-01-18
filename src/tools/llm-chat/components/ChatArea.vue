@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, toRef, onMounted, watch } from "vue";
+import { useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip, ElIcon } from "element-plus";
 import type { ChatMessageNode, UserProfile, AgentEditData } from "../types";
@@ -69,6 +70,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const containerRef = ref<HTMLDivElement>();
+const { width: containerWidth } = useElementSize(containerRef);
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const messageListRef = ref<InstanceType<typeof MessageList>>();
 
@@ -428,14 +430,19 @@ const handleEditMessage = (nodeId: string, newContent: string, attachments?: Ass
 const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
 const handleContinue = (nodeId: string, options?: { modelId?: string; profileId?: string }) =>
   emit("continue", nodeId, options);
-const handleCompleteInput = (
-  content: string,
-  options?: { modelId?: string; profileId?: string }
-) => emit("complete-input", content, options);
+const handleCompleteInput = (content: string, options?: { modelId?: string; profileId?: string }) =>
+  emit("complete-input", content, options);
 const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
 const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: Asset[]) =>
   emit("save-to-branch", nodeId, newContent, attachments);
+
+// ===== 响应式显示控制 =====
+// 阈值设定原则：空间不足时优先去掉文字显示，保住图标和关键操作
+const showViewModeText = computed(() => containerWidth.value > 700);
+const showModelName = computed(() => containerWidth.value > 560);
+const showProfileName = computed(() => containerWidth.value > 300);
+const showAgentName = computed(() => containerWidth.value > 200);
 
 // ===== 头部样式计算 =====
 // 根据聊天设置中的独立配置，动态生成头部的背景色和模糊效果
@@ -599,7 +606,7 @@ onMounted(async () => {
         @detach="handleDetach"
       />
 
-      <!-- 智能体和模型信息 -->
+      <!-- 左侧：智能体和模型信息 (主要展示区) -->
       <div class="agent-model-info">
         <el-tooltip v-if="currentAgent" content="点击编辑智能体" placement="bottom">
           <div class="agent-info clickable" @click="handleEditAgent">
@@ -610,7 +617,9 @@ onMounted(async () => {
               shape="square"
               :radius="6"
             />
-            <span class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
+            <span v-if="showAgentName" class="agent-name">{{
+              currentAgent.displayName || currentAgent.name
+            }}</span>
           </div>
         </el-tooltip>
         <el-tooltip
@@ -624,38 +633,43 @@ onMounted(async () => {
               class="model-icon"
               :alt="currentModel?.name || currentModel?.id || ''"
             />
-            <span class="model-name">{{ currentModel.name || currentModel.id }}</span>
+            <span v-if="showModelName" class="model-name">{{
+              currentModel.name || currentModel.id
+            }}</span>
           </div>
         </el-tooltip>
       </div>
 
-      <!-- 用户档案信息（右对齐） -->
-      <el-tooltip v-if="effectiveUserProfile" content="点击编辑用户档案" placement="bottom">
-        <div class="user-profile-info" @click="handleEditUserProfile">
-          <span class="profile-name">{{
-            effectiveUserProfile.displayName || effectiveUserProfile.name
-          }}</span>
-          <Avatar
-            :src="userProfileAvatarSrc || ''"
-            :alt="effectiveUserProfile.displayName || effectiveUserProfile.name"
-            :size="28"
-            shape="square"
-            :radius="4"
-          />
-        </div>
-      </el-tooltip>
+      <!-- 右侧：功能操作区 (切换器 + 用户档案 + 设置) -->
+      <div class="header-actions">
+        <!-- 用户档案信息 -->
+        <el-tooltip v-if="effectiveUserProfile" content="点击编辑用户档案" placement="bottom">
+          <div class="user-profile-info" @click="handleEditUserProfile">
+            <span v-if="showProfileName" class="profile-name">{{
+              effectiveUserProfile.displayName || effectiveUserProfile.name
+            }}</span>
+            <Avatar
+              :src="userProfileAvatarSrc || ''"
+              :alt="effectiveUserProfile.displayName || effectiveUserProfile.name"
+              :size="28"
+              shape="square"
+              :radius="4"
+            />
+          </div>
+        </el-tooltip>
 
-      <!-- 视图模式切换器 -->
-      <ViewModeSwitcher />
+        <!-- 视图模式切换器 (优先收缩) -->
+        <ViewModeSwitcher :show-label="showViewModeText" />
 
-      <!-- 设置按钮 -->
-      <el-tooltip content="聊天设置" placement="bottom">
-        <div class="settings-button" @click="showChatSettings = true">
-          <el-icon :size="18">
-            <Settings2 />
-          </el-icon>
-        </div>
-      </el-tooltip>
+        <!-- 设置按钮 -->
+        <el-tooltip content="聊天设置" placement="bottom">
+          <div class="settings-button" @click="showChatSettings = true">
+            <el-icon :size="18">
+              <Settings2 />
+            </el-icon>
+          </div>
+        </el-tooltip>
+      </div>
     </div>
 
     <!-- 主内容区 -->
@@ -830,13 +844,30 @@ onMounted(async () => {
   -webkit-app-region: no-drag;
 }
 
-/* 智能体和模型信息 */
+/* 智能体和模型信息 (占据左侧剩余空间) */
 .agent-model-info {
+  flex: 4;
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex: 1;
+  min-width: 120px; /* 保证至少能看清头像和部分文字 */
+  overflow: hidden;
+}
+
+/* 右侧功能操作区 */
+.header-actions {
+  flex: 3; /* 允许右侧区域也占据剩余空间并参与分配 */
+  display: flex;
+  align-items: center;
+  flex-shrink: 1;
   min-width: 0;
+  justify-content: flex-end;
+}
+
+/* 针对视图切换器的压缩优化 */
+.header-actions :deep(.view-mode-switcher) {
+  flex-shrink: 10; /* 赋予极高的收缩优先级，让它最先缩 */
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* 信息展示区域通用样式 */
@@ -845,8 +876,9 @@ onMounted(async () => {
 .user-profile-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  gap: 4px;
+  min-width: 0; /* 允许内部文本压缩到消失 */
+  flex-shrink: 1;
 }
 
 /* 可点击的信息区域样式 */
@@ -857,12 +889,8 @@ onMounted(async () => {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
-  -webkit-app-region: no-drag; /* 允许点击 */
-  border: 1px solid transparent; /* 初始透明边框，让 hover 时有渐入效果 */
-}
-
-.user-profile-info {
-  margin-left: auto; /* 右对齐 */
+  -webkit-app-region: no-drag;
+  border: 1px solid transparent;
 }
 
 .agent-info.clickable:hover,
@@ -908,6 +936,8 @@ onMounted(async () => {
 /* 名称文本通用样式 */
 .agent-name,
 .profile-name {
+  flex: 1; /* 允许文本占据剩余空间并收缩 */
+  min-width: 0;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
@@ -917,6 +947,9 @@ onMounted(async () => {
 }
 
 .model-name {
+  flex: 1;
+  flex-shrink: 5; /* 提高收缩优先级，使其在空间不足时早于智能体和用户名称收缩 */
+  min-width: 0;
   font-size: 13px;
   color: var(--text-color-light);
   white-space: nowrap;
@@ -928,6 +961,12 @@ onMounted(async () => {
   width: 20px;
   height: 20px;
   object-fit: contain;
+  flex-shrink: 0; /* 禁止图标收缩 */
+}
+
+/* 确保头像也不收缩 */
+.agent-info :deep(.avatar-container),
+.user-profile-info :deep(.avatar-container) {
   flex-shrink: 0;
 }
 

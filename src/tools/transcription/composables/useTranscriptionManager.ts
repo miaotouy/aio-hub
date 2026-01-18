@@ -42,6 +42,8 @@ export function useTranscriptionManager() {
     if (pendingTask.status !== "pending") return;
 
     pendingTask.status = "processing";
+    pendingTask.startedAt = Date.now();
+    pendingTask.completedAt = undefined;
     pendingTask.abortController = new AbortController();
     store.processingCount++;
 
@@ -84,6 +86,7 @@ export function useTranscriptionManager() {
       pendingTask.resultPath = resultPath;
       pendingTask.resultText = result.text;
       pendingTask.status = "completed";
+      pendingTask.completedAt = Date.now();
 
       if (pendingTask.tempFilePath) {
         cleanupTempFile(pendingTask.tempFilePath);
@@ -106,11 +109,14 @@ export function useTranscriptionManager() {
       if (canRetry) {
         pendingTask.retryCount++;
         pendingTask.status = "pending";
+        pendingTask.startedAt = undefined;
+        pendingTask.completedAt = undefined;
         // 延迟重试，避免瞬间刷爆
         await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
         pendingTask.status = "error";
         pendingTask.error = errorMessage;
+        pendingTask.completedAt = Date.now();
 
         // 最终失败时，向用户显示提示（如果不是用户主动取消）
         if ((pendingTask.status as string) !== "cancelled") {
@@ -223,6 +229,7 @@ export function useTranscriptionManager() {
       store.removeTask(task.id);
     } else if (task.status === "processing") {
       task.status = "cancelled";
+      task.completedAt = Date.now();
       // 触发真正的人为中断
       task.abortController?.abort();
     }

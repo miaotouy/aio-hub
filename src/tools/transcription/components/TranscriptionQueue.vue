@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
@@ -16,9 +16,24 @@ import {
   FileText,
   Clock,
   ListFilter,
+  Timer,
 } from "lucide-vue-next";
 
 const store = useTranscriptionStore();
+
+// 用于动态刷新正在处理任务的时间显示
+const now = ref(Date.now());
+let timer: any = null;
+
+onMounted(() => {
+  timer = setInterval(() => {
+    now.value = Date.now();
+  }, 1000);
+});
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
+});
 
 // 任务列表排序：正在处理优先，其次是按创建时间倒序
 const tasks = computed(() => {
@@ -132,6 +147,24 @@ const stats = computed(() => {
     error: store.tasks.filter((t) => t.status === "error").length,
   };
 });
+
+/**
+ * 格式化耗时
+ */
+const formatDuration = (ms: number) => {
+  if (ms < 0) return "0s";
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+};
+
+const getTaskDuration = (task: any) => {
+  if (!task.startedAt) return null;
+  const end = task.completedAt || now.value;
+  return end - task.startedAt;
+};
 </script>
 
 <template>
@@ -174,7 +207,7 @@ const stats = computed(() => {
     <!-- 任务表格 -->
     <div class="queue-content">
       <el-table :data="tasks" style="width: 100%" height="100%" class="custom-table">
-        <el-table-column label="文件名称" min-width="240">
+        <el-table-column label="文件名称" min-width="200">
           <template #default="{ row }">
             <div class="file-cell">
               <el-icon class="file-icon"><FileText /></el-icon>
@@ -186,7 +219,7 @@ const stats = computed(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="140">
+        <el-table-column label="状态" width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small" class="status-tag">
               <el-icon :class="{ 'is-loading': row.status === 'processing' }">
@@ -194,6 +227,16 @@ const stats = computed(() => {
               </el-icon>
               <span>{{ getStatusLabel(row.status) }}</span>
             </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="耗时" width="100">
+          <template #default="{ row }">
+            <div v-if="getTaskDuration(row) !== null" class="duration-cell">
+              <el-icon><Timer /></el-icon>
+              <span>{{ formatDuration(getTaskDuration(row)!) }}</span>
+            </div>
+            <span v-else>-</span>
           </template>
         </el-table-column>
 
@@ -366,12 +409,17 @@ const stats = computed(() => {
   height: 24px;
 }
 
-.time-cell {
+.time-cell,
+.duration-cell {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.duration-cell {
+  color: var(--el-color-primary);
 }
 
 .action-cell {

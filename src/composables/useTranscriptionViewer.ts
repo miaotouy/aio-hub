@@ -6,6 +6,7 @@ export interface TranscriptionViewerState {
   asset: Asset | null;
   initialContent: string;
   showRegenerate?: boolean;
+  previousConfig?: any; // 保存上次转写的配置，用于回填
   onSave?: (content: string) => void | Promise<void>;
   onRegenerate?: (payload: { modelId: string; prompt: string }) => void;
 }
@@ -26,6 +27,7 @@ export function useTranscriptionViewer() {
     asset: Asset;
     initialContent: string;
     showRegenerate?: boolean;
+    previousConfig?: any;
     onSave?: (content: string) => void | Promise<void>;
     onRegenerate?: (payload: { modelId: string; prompt: string }) => void;
   }) => {
@@ -34,6 +36,7 @@ export function useTranscriptionViewer() {
       asset: options.asset,
       initialContent: options.initialContent,
       showRegenerate: options.showRegenerate ?? true,
+      previousConfig: options.previousConfig,
       onSave: options.onSave,
       onRegenerate: options.onRegenerate,
     };
@@ -46,6 +49,7 @@ export function useTranscriptionViewer() {
       if (!globalState.value.visible) {
         globalState.value.asset = null;
         globalState.value.initialContent = "";
+        globalState.value.previousConfig = undefined;
         globalState.value.onSave = undefined;
         globalState.value.onRegenerate = undefined;
       }

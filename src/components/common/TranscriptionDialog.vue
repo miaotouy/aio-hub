@@ -78,7 +78,7 @@
           <button
             v-if="showRegenerate"
             class="btn btn-secondary btn-danger-hover"
-            @click.stop="showRegenerateConfirm = true"
+            @click.stop="openRegenerateConfirm"
           >
             <RefreshCw :size="16" class="btn-icon" />
             重新生成
@@ -129,6 +129,9 @@
           <div class="tip-content">
             <p>重新生成将覆盖当前编辑器中的内容。</p>
             <p>附加提示将<b>追加</b>到全局转写提示词之后。</p>
+            <p v-if="previousConfig">
+              <span class="has-config-hint">已从上次转写任务中恢复配置</span>
+            </p>
           </div>
         </div>
       </div>
@@ -168,6 +171,7 @@ const props = withDefaults(
     asset: Asset;
     initialContent: string;
     showRegenerate?: boolean;
+    previousConfig?: any;
   }>(),
   {
     showRegenerate: true,
@@ -265,6 +269,23 @@ watch(
   },
   { immediate: true }
 );
+
+const openRegenerateConfirm = () => {
+  // 回填之前的配置
+  if (props.previousConfig) {
+    const identifier = props.previousConfig.modelIdentifier;
+    if (identifier) {
+      selectedModelId.value = identifier.includes(":") ? identifier.split(":")[1] : identifier;
+    } else {
+      selectedModelId.value = "";
+    }
+    tempPrompt.value = props.previousConfig.customPrompt || "";
+  } else {
+    selectedModelId.value = "";
+    tempPrompt.value = "";
+  }
+  showRegenerateConfirm.value = true;
+};
 
 const handleClose = () => {
   emit("update:modelValue", false);
@@ -541,6 +562,11 @@ const handleImagePreview = () => {
 
 .tip-content b {
   color: var(--primary-color);
+}
+
+.has-config-hint {
+  color: var(--primary-color);
+  font-weight: 600;
 }
 
 .confirm-footer {

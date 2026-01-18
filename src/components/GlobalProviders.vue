@@ -75,6 +75,7 @@ onMounted(() => {
     :asset="transcriptionViewer.state.value.asset"
     :initial-content="transcriptionViewer.state.value.initialContent"
     :show-regenerate="transcriptionViewer.state.value.showRegenerate"
+    :previous-config="transcriptionViewer.state.value.previousConfig"
     @update:model-value="transcriptionViewer.close()"
     @save="transcriptionViewer.state.value.onSave"
     @regenerate="transcriptionViewer.state.value.onRegenerate"

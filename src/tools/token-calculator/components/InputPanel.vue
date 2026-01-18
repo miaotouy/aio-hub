@@ -18,7 +18,7 @@
           :model-value="inputText"
           @update:model-value="$emit('update:inputText', $event)"
           type="textarea"
-          placeholder="请输入或粘贴要计算 Token 的文本..."
+          placeholder="请输入或粘贴要计算 Token 的文本... 支持拖放文件"
           class="input-textarea"
           resize="none"
         />

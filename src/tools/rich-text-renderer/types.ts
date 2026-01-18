@@ -415,6 +415,8 @@ export interface VcpToolNode extends BaseAstNode {
     args: Record<string, string>;
     /** 是否默认折叠 */
     collapsedByDefault?: boolean;
+    /** 是否正在执行中（用于动画显示） */
+    isPending?: boolean;
     /** 是否为调用结果汇总 */
     isResult?: boolean;
     /** 执行状态 (SUCCESS/ERROR) */
@@ -784,4 +786,6 @@ export interface RichTextContext {
    * 当消息深度超过阈值时，用于节流性能开销
    */
   shouldFreeze?: Ref<boolean>;
+  /** 是否处于流式传输中 */
+  isStreaming?: Ref<boolean>;
 }

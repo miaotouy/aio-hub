@@ -708,6 +708,14 @@ export class StreamProcessorV2 {
   private markNodesStatus(nodes: AstNode[], status: "stable" | "pending"): void {
     for (const node of nodes) {
       node.meta.status = status;
+      // 只有在 pending 区的未闭合节点才显示执行/思考中动画
+      if (node.type === "llm_think") {
+        node.props.isThinking = status === "pending";
+      }
+      if (node.type === "vcp_tool") {
+        node.props.isPending = status === "pending" && !node.props.closed;
+      }
+
       if (node.children) {
         this.markNodesStatus(node.children, status);
       }
@@ -722,6 +730,9 @@ export class StreamProcessorV2 {
     for (const node of nodes) {
       if (node.type === "llm_think" && node.props.isThinking) {
         node.props.isThinking = false;
+      }
+      if (node.type === "vcp_tool" && node.props.isPending) {
+        node.props.isPending = false;
       }
       if (node.children) {
         this.forceStopThinking(node.children);

@@ -1,5 +1,5 @@
 <template>
-  <div class="vcp-tool-node" :class="{ 'is-pending': !closed }">
+  <div class="vcp-tool-node" :class="{ 'is-pending': isExecuting }">
     <div class="vcp-header" @click="toggleCollapse">
       <div class="vcp-title">
         <span class="vcp-icon" :class="{ 'is-expanded': !isCollapsed }">
@@ -8,9 +8,12 @@
         <component
           :is="statusIcon"
           class="status-icon"
-          :class="{ spinning: !closed, 'is-success': isSuccess, 'is-error': isError }"
+          :class="{ spinning: isExecuting, 'is-success': isSuccess, 'is-error': isError }"
         />
-        <span class="tool-name">{{ tool_name || "Unknown Tool" }}</span>
+        <span class="tool-name">
+          {{ tool_name || "Unknown Tool" }}
+          <span v-if="!closed && !isExecuting" class="interrupted-text">(内容中断)</span>
+        </span>
         <el-tag
           v-if="isResult"
           size="small"
@@ -92,10 +95,11 @@
         </div>
       </div>
 
-      <div v-if="!closed" class="vcp-footer">
+      <div v-if="!closed" class="vcp-footer" :class="{ 'interrupted-footer': !isExecuting }">
         <div class="loading-status">
-          <Loader2 class="spinning" :size="12" />
-          <span class="pulse-text">正在调度工具资源...</span>
+          <Loader2 v-if="isExecuting" class="spinning" :size="12" />
+          <AlertCircle v-else :size="12" />
+          <span class="pulse-text">{{ isExecuting ? "正在调度工具资源..." : "内容生成中断" }}</span>
         </div>
       </div>
     </div>
@@ -127,6 +131,7 @@ const props = defineProps<{
   isResult?: boolean;
   status?: string;
   resultContent?: string;
+  isPending?: boolean;
 }>();
 
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
@@ -134,11 +139,23 @@ const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 const isCollapsed = ref(false);
 const copied = ref(false);
 
+// 判断是否正在执行中
+const isExecuting = computed(() => {
+  // 如果已经闭合（执行完毕），则肯定不在执行中
+  if (props.closed) return false;
+  // 如果上下文明确说流已经结束了，说明内容生成中断了，不再执行
+  if (context?.isStreaming && !context.isStreaming.value) return false;
+  // 如果还在流式传输中，且未闭合，则认为正在执行
+  return true;
+});
+
 const isSuccess = computed(() => props.status?.includes("SUCCESS"));
 const isError = computed(() => props.status?.includes("ERROR"));
 
 const statusIcon = computed(() => {
-  if (!props.closed) return Loader2;
+  if (isExecuting.value) return Loader2;
+  // 未闭合且不在执行中，说明是内容中断
+  if (!props.closed) return AlertCircle;
   if (props.isResult) {
     return isSuccess.value ? CheckCircle2 : AlertCircle;
   }
@@ -293,6 +310,16 @@ const copyContent = async () => {
 .tool-name {
   font-size: 14px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.interrupted-text {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--el-color-danger);
+  opacity: 0.8;
 }
 
 .vcp-tag {
@@ -474,6 +501,15 @@ const copyContent = async () => {
   padding: 8px 12px;
   background: rgba(var(--el-color-success-rgb), 0.05);
   border-top: 1px dashed var(--border-color);
+}
+
+.interrupted-footer {
+  background: rgba(var(--el-color-danger-rgb), 0.05);
+  color: var(--el-color-danger);
+}
+
+.interrupted-footer .loading-status {
+  color: var(--el-color-danger);
 }
 
 .loading-status {

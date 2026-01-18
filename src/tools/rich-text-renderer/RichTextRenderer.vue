@@ -191,6 +191,9 @@ watch(
   { deep: true }
 );
 
+// 内部流式状态跟踪
+const internalIsStreaming = ref(false);
+
 // 提供上下文给子组件
 provide(RICH_TEXT_CONTEXT_KEY, {
   images: imageList,
@@ -203,6 +206,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   allowDangerousHtml: computed(() => props.allowDangerousHtml),
   resolveAsset: props.resolveAsset,
   shouldFreeze: computed(() => props.shouldFreeze),
+  isStreaming: computed(() => props.isStreaming || internalIsStreaming.value),
 });
 
 // 纯 markdown-it 渲染的 HTML
@@ -377,6 +381,7 @@ onMounted(() => {
   }
 
   // 订阅流式数据
+  internalIsStreaming.value = true;
   unsubscribe = props.streamSource.subscribe((chunk) => {
     buffer.value += chunk;
 
@@ -412,6 +417,7 @@ onMounted(() => {
   // 监听流完成事件
   if (props.streamSource.onComplete) {
     unsubscribeComplete = props.streamSource.onComplete(() => {
+      internalIsStreaming.value = false;
       if (useAstRenderer.value) {
         streamProcessor.value?.finalize();
       }

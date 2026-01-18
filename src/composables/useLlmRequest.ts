@@ -8,7 +8,7 @@ import { useLlmKeyManager } from "./useLlmKeyManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
-import { TimeoutError, isAbortError } from "../llm-apis/common";
+import { TimeoutError, isAbortError, isTimeoutError } from "../llm-apis/common";
 import { callOpenAiCompatibleApi, callOpenAiEmbeddingApi } from "../llm-apis/openai-compatible";
 import { callOpenAiResponsesApi } from "../llm-apis/openai-responses";
 import { callGeminiApi } from "../llm-apis/gemini";
@@ -203,11 +203,26 @@ export function useLlmRequest() {
       }
       // AbortError 是用户主动取消，不应该记录为错误
       // 兼容 Tauri HTTP 插件的 "Request canceled" 错误
-      else if (isAbortError(error)) {
+      else if (isAbortError(error, options.signal)) {
+        // 特殊处理：如果虽然是 AbortError，但原因其实是超时
+        const isTimeout = isTimeoutError(error, options.signal);
+
+        if (isTimeout) {
+          const timeoutErr = error instanceof TimeoutError ? error : new TimeoutError('请求超时');
+          logger.warn("LLM 请求超时 (通过信号识别)", {
+            profileId: options.profileId,
+            modelId: options.modelId,
+            timeout: options.timeout,
+            originalError: (error as any)?.message || String(error)
+          });
+          // 抛出统一的 TimeoutError 让下游处理
+          throw timeoutErr;
+        }
+
         logger.info("LLM 请求已取消", {
           profileId: options.profileId,
           modelId: options.modelId,
-          reason: error instanceof Error ? error.message : String(error),
+          reason: (error as any)?.message || String(error),
           signalReason: options.signal?.reason,
         });
       } else {

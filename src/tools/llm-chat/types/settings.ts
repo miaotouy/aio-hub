@@ -512,8 +512,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   },
   requestSettings: {
     timeout: 60000, // 默认 60 秒
-    maxRetries: 3, // 默认重试 3 次
-    retryInterval: 1000, // 默认重试间隔 1 秒
+    maxRetries: 2, // 默认重试 2 次
+    retryInterval: 3000, // 默认重试间隔 3 秒
     retryMode: "fixed", // 默认固定间隔
     enableIncrementalSave: true, // 默认启用增量保存
     incrementalSaveInterval: 2000, // 默认 2 秒

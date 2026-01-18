@@ -5,7 +5,7 @@
 
 import type { ChatSession } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
-import { isAbortError } from "@/llm-apis/common";
+import { isAbortError, isTimeoutError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -411,7 +411,14 @@ export function useChatResponseHandler() {
     if (!errorNode) return;
 
     // 兼容 Tauri HTTP 插件的 "Request canceled" 错误
-    if (isAbortError(error)) {
+    if (isTimeoutError(error)) {
+      errorNode.status = "error";
+      errorNode.metadata = {
+        ...errorNode.metadata,
+        error: "请求超时（请检查网络或在设置中增加超时时间）",
+      };
+      logger.warn(`${context}超时`, { nodeId, error });
+    } else if (isAbortError(error)) {
       errorNode.status = "error";
       errorNode.metadata = {
         ...errorNode.metadata,
@@ -424,11 +431,11 @@ export function useChatResponseHandler() {
         ...errorNode.metadata,
         error: error instanceof Error ? error.message : String(error),
       };
-      errorHandler.handle(error as Error, {
+      errorHandler.handle(error as Error || new Error(String(error)), {
         level: ErrorLevel.ERROR,
         userMessage: `${context}失败`,
         showToUser: false,
-        context: { nodeId },
+        context: { nodeId, originalError: error },
       });
     }
 

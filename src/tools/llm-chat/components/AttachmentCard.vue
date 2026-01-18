@@ -137,7 +137,7 @@ const fileExtension = computed(() => {
 
 // 强制依赖 tasks.length，确保任何任务变动都能触发重新计算
 const transcriptionStatus = computed(() => {
-  void tasks.length; // 访问属性以建立依赖
+  void tasks.value.length; // 访问属性以建立依赖
   return getTranscriptionStatus(internalAsset.value);
 });
 

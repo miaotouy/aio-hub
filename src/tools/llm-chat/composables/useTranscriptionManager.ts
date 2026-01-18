@@ -1,4 +1,4 @@
-import { watch } from "vue";
+import { watch, computed } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -479,8 +479,8 @@ export function useTranscriptionManager() {
   // 监听器的清理应该由显式调用 init 的组件负责，或者采用全局单例模式不清理。
 
   return {
-    tasks: transcriptionStore.tasks,
-    processingCount: transcriptionStore.processingCount,
+    tasks: computed(() => transcriptionStore.tasks),
+    processingCount: computed(() => transcriptionStore.processingCount),
     init,
     markAsProcessed,
     handleAssetImport,

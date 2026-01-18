@@ -224,8 +224,7 @@ const handleSend = async () => {
     }
 
     // 检查是否有正在进行或待处理的任务
-    // 注意：tasks 是 reactive 对象，直接访问，不需要 .value
-    const hasPendingTasks = transcriptionManager.tasks.some(
+    const hasPendingTasks = transcriptionManager.tasks.value.some(
       (t) =>
         currentAttachments.some((a) => a.id === t.assetId) &&
         t.status !== "completed" &&

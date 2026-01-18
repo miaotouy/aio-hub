@@ -41,7 +41,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
    */
   const hasTranscribingAttachments = computed(() => {
     const attachmentIds = new Set(attachments.value.map((a) => a.id));
-    return transcriptionManager.tasks.some(
+    return transcriptionManager.tasks.value.some(
       (t) =>
         attachmentIds.has(t.assetId) &&
         (t.status === "pending" || t.status === "processing")
@@ -220,7 +220,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     () => {
       // 只关注当前附件相关的任务状态
       const attachmentIds = new Set(attachments.value.map((a) => a.id));
-      const relevantTasks = transcriptionManager.tasks.filter((t) =>
+      const relevantTasks = transcriptionManager.tasks.value.filter((t) =>
         attachmentIds.has(t.assetId)
       );
       // 返回一个状态快照字符串，用于检测变化

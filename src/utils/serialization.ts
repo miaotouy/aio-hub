@@ -3,21 +3,28 @@ import RequestSerializerWorker from "@/workers/request-serializer.worker?worker"
 /**
  * 递归寻找对象中的 Transferable 对象 (ArrayBuffer)
  */
-const findTransferables = (obj: any, transferables: Set<Transferable> = new Set()): Set<Transferable> => {
-  if (!obj || typeof obj !== "object") return transferables;
+/**
+ * 递归寻找对象中的 Transferable 对象 (ArrayBuffer)
+ * 优化：限制深度，避免在主线程进行无限递归导致的性能问题
+ */
+const findTransferables = (obj: any, transferables: Set<Transferable> = new Set(), depth = 0): Set<Transferable> => {
+  if (!obj || typeof obj !== "object" || depth > 10) return transferables;
 
   if (obj instanceof ArrayBuffer) {
     transferables.add(obj);
   } else if (ArrayBuffer.isView(obj)) {
     transferables.add(obj.buffer);
   } else if (Array.isArray(obj)) {
-    for (const item of obj) {
-      findTransferables(item, transferables);
+    // 针对消息数组进行优化，只检查前几层
+    for (let i = 0; i < obj.length; i++) {
+      findTransferables(obj[i], transferables, depth + 1);
     }
   } else {
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        findTransferables(obj[key], transferables);
+        // 忽略某些已知不包含二进制的大字段
+        if (key === 'content' && typeof obj[key] === 'string') continue;
+        findTransferables(obj[key], transferables, depth + 1);
       }
     }
   }

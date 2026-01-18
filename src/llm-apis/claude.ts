@@ -9,6 +9,7 @@ import {
   extractToolDefinitions,
   parseToolChoice,
   extractCommonParameters,
+  buildBase64DataUrl,
   applyCustomParameters,
   cleanPayload,
 } from "./request-builder";
@@ -210,12 +211,13 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
 
   // 转换图片部分
   for (const imagePart of parsed.imageParts) {
+    const data = buildBase64DataUrl(imagePart.base64, imagePart.mimeType, { rawBase64: true });
     blocks.push({
       type: "image",
       source: {
         type: "base64",
-        media_type: imagePart.mimeType || "image/png", // Claude 已经通过 parseMessageContents 自动推断了 mimeType
-        data: imagePart.base64,
+        media_type: imagePart.mimeType || "image/png",
+        data: data as any,
       },
       cache_control: imagePart.cacheControl,
     });
@@ -252,12 +254,17 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
   for (const doc of parsed.documentParts) {
     const source = doc.source;
     if (source.type === "base64" || source.data || (source as any).base64) {
+      const data = buildBase64DataUrl(
+        source.data || (source as any).base64,
+        source.media_type || (source as any).mimeType,
+        { rawBase64: true }
+      );
       blocks.push({
         type: "document",
         source: {
           type: "base64",
           media_type: source.media_type || (source as any).mimeType || "application/pdf",
-          data: source.data || (source as any).base64 || "",
+          data: data as any,
         },
       });
     } else if (source.type === "file") {

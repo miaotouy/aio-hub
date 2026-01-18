@@ -338,7 +338,7 @@ export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
       const bytes = base64Data instanceof Uint8Array
         ? base64Data
         : new Uint8Array(base64Data instanceof ArrayBuffer ? base64Data : (base64Data as any).buffer);
-      
+
       if (bytes.length > 4) {
         // PNG: 89 50 4E 47
         if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return "image/png";
@@ -403,24 +403,43 @@ export function inferMediaMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
  *
  * @param base64Data - base64 编码的数据
  * @param mimeType - MIME 类型，如果未提供则自动推断
- * @returns Data URL 字符串，格式为 "data:mimeType;base64,data"
+ * @param options - 附加选项，如是否只需要原始 Base64
+ * @returns Data URL 字符串或特殊标记对象
  */
-export function buildBase64DataUrl(data: string | ArrayBuffer | Uint8Array, mimeType?: string): string {
+export function buildBase64DataUrl(
+  data: string | ArrayBuffer | Uint8Array,
+  mimeType?: string,
+  options: { rawBase64?: boolean } = {}
+): string {
   // 如果是二进制数据，我们不在这里处理 Base64 转换（避免阻塞主线程）
   // 而是返回一个特殊的标记格式，让后端的异步序列化 Worker 处理
   if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
     const finalMimeType = mimeType || "application/octet-stream";
-    // 注意：这里我们不能直接拼接，因为 data 是对象。
-    // 我们返回一个特殊结构，Worker 识别到后会将其转为 Base64 并拼接成 Data URL
     return {
       __AIO_ASSET_TYPE__: "data_url",
       mimeType: finalMimeType,
-      data: data
+      data: data,
+      rawBase64: options.rawBase64,
     } as any;
   }
 
+  // 如果只需要原始 Base64
+  if (options.rawBase64) {
+    if (typeof data === "string") {
+      return data.startsWith("data:") ? data.split(",")[1] : data;
+    }
+    return data as any;
+  }
+
+  // 如果已经是字符串但没有前缀，且提供了 mimeType，则补全前缀
+  if (typeof data === "string" && !data.startsWith("data:") && mimeType) {
+    return `data:${mimeType};base64,${data}`;
+  }
+
   const finalMimeType = mimeType || inferImageMimeType(data as string);
-  return `data:${finalMimeType};base64,${data}`;
+  return typeof data === "string" && data.startsWith("data:")
+    ? data
+    : `data:${finalMimeType};base64,${data}`;
 }
 
 /**

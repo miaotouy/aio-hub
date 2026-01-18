@@ -41,7 +41,7 @@ export const openAiUrlHandler = {
         'videos': 'videos',
         'videoStatus': 'videoStatus',
       };
-      
+
       const customKey = endpoint ? mapping[endpoint] : 'chatCompletions';
       if (customKey && custom[customKey]) {
         let customEndpoint = custom[customKey]!;
@@ -172,10 +172,14 @@ export const callOpenAiCompatibleApi = async (
       for (const audioPart of parsed.audioParts) {
         if (audioPart.source.type === "base64") {
           // OpenAI 官方支持 input_audio 格式
+          // 优化：使用 buildBase64DataUrl 并剥离前缀，确保转换在 Worker 中进行
+          const data = buildBase64DataUrl(audioPart.source.data, audioPart.source.media_type, {
+            rawBase64: true,
+          });
           contentArray.push({
             type: "input_audio",
             input_audio: {
-              data: audioPart.source.data,
+              data: data as any,
               format: audioPart.source.media_type === "audio/wav" ? "wav" : "mp3", // 粗略适配
             },
           });

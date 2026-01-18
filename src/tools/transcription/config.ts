@@ -455,7 +455,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
         component: "SliderWithInput",
         props: { min: 1, max: 100, step: 1 },
         modelPath: "video.maxDirectSizeMB",
-        hint: "视频体积限制，超过将尝试压缩",
+        hint: "视频体积限制，超过将尝试压缩。<br /><span style='color: var(--el-color-warning)'>注意：Base64 编码会使上传体积增加约 33%，请预留空间。</span>",
         keywords: "video size 体积 限制",
       },
       {

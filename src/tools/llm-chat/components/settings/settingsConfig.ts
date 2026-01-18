@@ -1103,7 +1103,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           "format-tooltip": (val: number) => `${val}MB`,
         },
         modelPath: "transcription.video.maxDirectSizeMB",
-        hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。",
+        hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。<br /><span style='color: var(--el-color-warning)'>注意：Base64 编码会使上传体积增加约 33%，建议设置略低于 API 的实际限制。</span>",
         keywords: "transcription video size limit 视频 大小 阈值 限制",
         visible: (settings) =>
           settings.transcription.enabled &&

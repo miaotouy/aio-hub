@@ -9,6 +9,7 @@ import {
   parseToolChoice,
   extractCommonParameters,
   inferMediaMimeType,
+  buildBase64DataUrl,
   applyCustomParameters,
   cleanPayload,
 } from "./request-builder";
@@ -194,10 +195,11 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
 
   // 转换图片部分
   for (const imagePart of parsed.imageParts) {
+    const data = buildBase64DataUrl(imagePart.base64, imagePart.mimeType, { rawBase64: true });
     parts.push({
       inlineData: {
         mimeType: imagePart.mimeType || inferMediaMimeType(imagePart.base64),
-        data: imagePart.base64,
+        data: data as any,
       },
     });
   }
@@ -206,10 +208,13 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   // 转换音频部分
   for (const audio of parsed.audioParts) {
     if (audio.source.type === "base64") {
+      const data = buildBase64DataUrl(audio.source.data, audio.source.media_type, {
+        rawBase64: true,
+      });
       parts.push({
         inlineData: {
           mimeType: audio.source.media_type,
-          data: audio.source.data,
+          data: data as any,
         },
       });
     } else if (audio.source.type === "uri") {
@@ -226,10 +231,13 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   for (const video of parsed.videoParts) {
     let part: GeminiPart = {};
     if (video.source.type === "base64") {
+      const data = buildBase64DataUrl(video.source.data, video.source.media_type, {
+        rawBase64: true,
+      });
       part = {
         inlineData: {
           mimeType: video.source.media_type,
-          data: video.source.data,
+          data: data as any,
         },
       };
     } else if (video.source.type === "uri") {
@@ -251,10 +259,13 @@ function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   // 转换文档部分（现在只处理纯文档）
   for (const doc of parsed.documentParts) {
     if (doc.source.type === "base64") {
+      const data = buildBase64DataUrl(doc.source.data, doc.source.media_type, {
+        rawBase64: true,
+      });
       parts.push({
         inlineData: {
           mimeType: doc.source.media_type,
-          data: doc.source.data,
+          data: data as any,
         },
       });
     } else if (doc.source.type === "uri") {

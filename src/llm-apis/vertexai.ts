@@ -314,7 +314,7 @@ async function callVertexAiGemini(
   const commonParams = extractCommonParameters(options);
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
+  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
 
   // 构建 generationConfig
   const generationConfig: VertexAiGenerationConfig = {
@@ -363,7 +363,7 @@ async function callVertexAiGemini(
 
   // 构建请求体
   const body: VertexAiGeminiRequest = {
-    contents: buildVertexAiContents(options.messages),
+    contents: buildVertexAiContents(options.messages || []),
     generationConfig,
   };
 
@@ -605,12 +605,12 @@ async function callVertexAiClaude(
   const commonParams = extractCommonParameters(options);
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
+  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
 
   // 构建请求体
   const body: VertexAiClaudeRequest = {
     anthropic_version: "vertex-2023-10-16",
-    messages: buildClaudeMessages(options.messages),
+    messages: buildClaudeMessages(options.messages || []),
     max_tokens: commonParams.maxTokens || 8192,
   };
 

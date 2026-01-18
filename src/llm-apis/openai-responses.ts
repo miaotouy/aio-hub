@@ -49,8 +49,8 @@ export const callOpenAiResponsesApi = async (
   }
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
-  const userAssistantMessages = options.messages.filter(m => m.role !== 'system');
+  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
+  const userAssistantMessages = (options.messages || []).filter(m => m.role !== 'system');
 
   // 构建输入内容 - Responses API 使用多轮对话格式
   const messages: any[] = [];

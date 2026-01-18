@@ -101,7 +101,7 @@ export const callOpenAiCompatibleApi = async (
   const messages: any[] = [];
 
   // 直接转换所有消息（包括 system 角色）
-  for (const msg of options.messages) {
+  for (const msg of options.messages || []) {
     // 如果消息内容是字符串，直接使用
     if (typeof msg.content === "string") {
       const messageObj: any = {

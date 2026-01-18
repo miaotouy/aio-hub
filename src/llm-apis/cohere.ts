@@ -50,7 +50,7 @@ export const callCohereApi = async (
   const messages = [];
 
   // 直接转换所有消息（包括 system 角色）
-  for (const msg of options.messages) {
+  for (const msg of options.messages || []) {
     // 处理角色
     const role = msg.role;
 

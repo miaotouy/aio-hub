@@ -467,8 +467,8 @@ export const callClaudeApi = async (
   const url = claudeUrlHandler.buildUrl(profile.baseUrl, "messages");
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
-  const userAssistantMessages = options.messages.filter(m => m.role !== 'system');
+  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
+  const userAssistantMessages = (options.messages || []).filter(m => m.role !== 'system');
 
   // 构建消息
   const messages = convertToClaudeMessages(userAssistantMessages);

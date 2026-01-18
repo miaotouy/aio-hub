@@ -613,11 +613,11 @@ export const callGeminiApi = async (
   const url = `${baseUrl}?key=${apiKey}${options.stream ? "&alt=sse" : ""}`;
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
+  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
 
   // 构建请求体
   const body: GeminiRequest = {
-    contents: buildGeminiContents(options.messages),
+    contents: buildGeminiContents(options.messages || []),
     generationConfig: buildGeminiGenerationConfig(options),
   };
 

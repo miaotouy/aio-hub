@@ -4,7 +4,7 @@ import { loadAppSettings } from '@/utils/appSettings';
 /**
  * 默认配置
  */
-export const DEFAULT_TIMEOUT = 120000; // 120秒
+export const DEFAULT_TIMEOUT = 145000; // 145秒，不同于常规时间，用于排查是否是这里的超时
 
 /**
  * 获取当前代理配置，转换为 Tauri HTTP 插件的格式

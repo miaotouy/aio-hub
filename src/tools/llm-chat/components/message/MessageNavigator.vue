@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from "vue";
-import { useScroll, useThrottleFn, useResizeObserver } from "@vueuse/core";
+import { computed, ref } from "vue";
+import { useScroll, useThrottleFn } from "@vueuse/core";
 import { ArrowUp, ArrowDown, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
 
 interface Props {
@@ -29,36 +29,13 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-// 使用 useScroll 追踪滚动状态，获取响应式的 y 值
-const { arrivedState, y } = useScroll(
+// 使用 useScroll 追踪滚动状态
+const { arrivedState } = useScroll(
   computed(() => props.scrollElement),
   {
     offset: { top: 50, bottom: 50 },
   }
 );
-
-// 追踪容器尺寸变化（响应式）
-const scrollHeight = ref(0);
-const clientHeight = ref(0);
-
-// 使用 ResizeObserver 监听容器尺寸变化
-useResizeObserver(
-  computed(() => props.scrollElement),
-  () => {
-    if (props.scrollElement) {
-      scrollHeight.value = props.scrollElement.scrollHeight;
-      clientHeight.value = props.scrollElement.clientHeight;
-    }
-  }
-);
-
-// 监听元素变化，初始化和更新尺寸
-watchEffect(() => {
-  if (props.scrollElement) {
-    scrollHeight.value = props.scrollElement.scrollHeight;
-    clientHeight.value = props.scrollElement.clientHeight;
-  }
-});
 
 // 当前可见的消息索引
 const currentMessageIndex = computed(() => {
@@ -70,24 +47,6 @@ const currentMessageIndex = computed(() => {
   if (props.messageCount === 0) return 0;
   // 这里暂时无法准确估算，只能返回 0 或基于像素的粗略值，但在 MessageList 场景下通常都有 currentIndex
   return 1;
-});
-
-// 当前滚动位置的百分比（0-100）
-// 改为基于索引计算，以解决虚拟列表高度动态变化导致的进度条抖动和提前触底问题
-const scrollPercentage = computed(() => {
-  if (props.messageCount === 0) return 0;
-  
-  // 如果有准确的当前索引，优先使用索引计算进度
-  // 这样进度条是均匀线性的，不会受长短消息影响
-  if (props.currentIndex !== undefined) {
-    return Math.min(100, Math.round((props.currentIndex / props.messageCount) * 100));
-  }
-
-  // 降级方案：基于像素滚动（仅当没有 currentIndex 时）
-  if (!props.scrollElement || scrollHeight.value <= clientHeight.value) return 100;
-  const maxScroll = scrollHeight.value - clientHeight.value;
-  if (maxScroll <= 0) return 100;
-  return Math.min(100, Math.max(0, Math.round((y.value / maxScroll) * 100)));
 });
 
 // 是否显示导航器：有消息且不是很少的消息时显示
@@ -168,14 +127,6 @@ watch(
           </el-icon>
         </div>
       </el-tooltip>
-
-      <!-- 刻度指示器 -->
-      <div class="progress-track">
-        <div class="progress-bar" :style="{ height: `${scrollPercentage}%` }" />
-        <div class="progress-indicator" :style="{ top: `${scrollPercentage}%` }">
-          <span class="indicator-dot" :class="{ 'has-new': hasNewMessages && canScrollDown }"></span>
-        </div>
-      </div>
 
       <!-- 消息计数器 -->
       <div class="message-counter">
@@ -337,74 +288,6 @@ watch(
   50% {
     opacity: 0.7;
     transform: scale(1.1);
-  }
-}
-
-/* 进度轨道 */
-.progress-track {
-  position: relative;
-  width: 3px;
-  height: 120px;
-  background: var(--el-fill-color);
-  border-radius: 1.5px;
-  overflow: visible;
-
-  /* 收起状态时向右偏移 */
-  transform: translateX(45px);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* 展开状态时进度条回到正常位置 */
-.message-navigator.is-expanded .progress-track {
-  transform: translateX(0);
-}
-
-.progress-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  background: linear-gradient(
-    to bottom,
-    var(--primary-color),
-    color-mix(in srgb, var(--primary-color) 70%, transparent)
-  );
-  border-radius: 2px;
-  transition: height 0.3s ease;
-}
-
-.progress-indicator {
-  position: absolute;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  transition: top 0.3s ease;
-}
-
-.indicator-dot {
-  display: block;
-  width: 10px;
-  height: 10px;
-  background: var(--primary-color);
-  border: 2px solid var(--el-bg-color);
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  transition: all 0.2s ease;
-}
-
-.indicator-dot.has-new {
-  background: var(--el-color-danger);
-  animation: pulse-indicator 2s infinite;
-}
-
-@keyframes pulse-indicator {
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-  50% {
-    transform: scale(1.2);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 }
 

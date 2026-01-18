@@ -162,7 +162,7 @@ defineExpose({
         <el-autocomplete
           v-model="searchQuery"
           :fetch-suggestions="querySearch"
-          placeholder="搜索配置项 (如: 模型, 资产, 思考块...)"
+          placeholder="搜索配置项 (如: 模型, 版本, 资产, 思考块...)"
           clearable
           class="search-input"
           @select="handleSearchSelect"

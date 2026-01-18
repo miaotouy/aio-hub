@@ -41,6 +41,11 @@ const handleHistoryUpdate = (newHistory: string[]) => {
       <div class="form-hint">在界面上显示的名称。如果不填，则显示上面的 ID/名称。</div>
     </el-form-item>
 
+    <el-form-item label="配置版本" data-setting-id="agentVersion">
+      <el-input v-model="editForm.agentVersion" placeholder="例如 1.0.0" />
+      <div class="form-hint">智能体配置的版本号，用于识别和升级对比。</div>
+    </el-form-item>
+
     <el-form-item label="图标" data-setting-id="icon">
       <AvatarSelector
         :model-value="editForm.icon"

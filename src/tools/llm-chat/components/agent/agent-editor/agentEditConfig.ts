@@ -27,6 +27,7 @@ export const agentEditTabs: AgentEditTab[] = [
     items: [
       { id: "name", label: "ID/名称", keywords: "name id 名称" },
       { id: "displayName", label: "显示名称", keywords: "displayname 显示名称" },
+      { id: "agentVersion", label: "配置版本", keywords: "version agentversion 配置版本 版本" },
       { id: "icon", label: "图标", keywords: "icon avatar 图标 头像" },
       { id: "category", label: "分类", keywords: "category 分类" },
       { id: "tags", label: "标签", keywords: "tags 标签" },

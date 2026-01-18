@@ -117,6 +117,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         // 先展开所有可选配置
         ...options,
         // 然后覆盖必填字段和系统生成字段
+        version: options?.version ?? 2,
         id: agentId,
         name,
         profileId,

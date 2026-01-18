@@ -281,6 +281,7 @@ const buildMergeUpdate = (
       ...importedWorldbookIds,
     ]),
   ],
+  agentVersion: newConfig.agentVersion ?? currentAgent.agentVersion,
   worldbookSettings: newConfig.worldbookSettings ?? currentAgent.worldbookSettings,
   assetGroups: newConfig.assetGroups ?? currentAgent.assetGroups,
   assets: newConfig.assets ?? currentAgent.assets,
@@ -385,6 +386,7 @@ const previewInfo = computed(() => {
 
   return {
     name: config.displayName || config.name || "未命名配置",
+    agentVersion: config.agentVersion,
     presetCount: config.presetMessages?.length || 0,
     hasParams: !!config.parameters,
     hasRules: !!config.llmThinkRules?.length,
@@ -407,6 +409,7 @@ const previewInfo = computed(() => {
       <div class="agent-target-info">
         <span class="label">正在覆盖：</span>
         <span class="name">{{ agent.displayName || agent.name }}</span>
+        <span class="version-tag" v-if="agent.agentVersion">v{{ agent.agentVersion }}</span>
       </div>
 
       <div
@@ -448,6 +451,12 @@ const previewInfo = computed(() => {
           <div class="preview-item">
             <span class="p-label">来源名称:</span>
             <span class="p-value">{{ previewInfo.name }}</span>
+          </div>
+          <div class="preview-item" v-if="previewInfo.agentVersion">
+            <span class="p-label">配置版本:</span>
+            <span class="p-value">
+              <el-tag size="small" type="info">{{ previewInfo.agentVersion }}</el-tag>
+            </span>
           </div>
           <div class="preview-item">
             <span class="p-label">预设消息:</span>
@@ -537,6 +546,16 @@ const previewInfo = computed(() => {
 .agent-target-info .name {
   font-weight: bold;
   color: var(--el-color-primary);
+}
+
+.version-tag {
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--el-color-primary);
+  color: white;
+  border-radius: 10px;
+  vertical-align: middle;
 }
 
 .import-area {

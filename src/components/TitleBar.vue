@@ -649,7 +649,7 @@ const handleDropdownSelect = () => {
 
 .control-btn {
   width: 46px;
-  height: 32px;
+  height: var(--titlebar-height);
   border: none;
   background: transparent;
   color: var(--sidebar-text);

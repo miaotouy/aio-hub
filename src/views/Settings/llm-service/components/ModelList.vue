@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Plus, Delete, Edit, ArrowRight, MoreFilled } from "@element-plus/icons-vue";
+import { Plus, Delete, Edit, ArrowRight, MoreFilled, VideoPlay } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { MODEL_CAPABILITIES, type CapabilityConfig } from "@/config/model-capabilities";
@@ -13,12 +13,14 @@ interface Props {
   editable?: boolean;
   expandState?: Record<string, boolean>;
   loading?: boolean;
+  testLoading?: Record<string, boolean>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   editable: true,
   expandState: () => ({}),
   loading: false,
+  testLoading: () => ({}),
 });
 
 interface Emits {
@@ -28,6 +30,7 @@ interface Emits {
   (e: "delete-group", indices: number[]): void;
   (e: "clear"): void;
   (e: "fetch"): void;
+  (e: "test", model: LlmModelInfo): void;
   (e: "update:expandState", state: Record<string, boolean>): void;
 }
 
@@ -221,6 +224,14 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
 
                 <!-- 操作按钮 -->
                 <div v-if="editable" class="model-actions">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    :icon="VideoPlay"
+                    title="测试模型"
+                    :loading="testLoading[item.model.id]"
+                    @click="emit('test', item.model)"
+                  />
                   <el-button size="small" :icon="Edit" @click="emit('edit', item.index)" />
                   <el-button
                     size="small"
@@ -243,7 +254,7 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
   width: 100%;
   display: flex;
   flex-direction: column;
-  max-height: 600px;
+  max-height: 50vh;
 }
 
 .list-header {
@@ -494,5 +505,9 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
 
 .capability-item .item-icon {
   font-size: 16px;
+}
+
+.el-button + .el-button {
+  margin-left: 4px;
 }
 </style>

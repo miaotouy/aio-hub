@@ -12,11 +12,11 @@ export const DEFAULT_TIMEOUT = 120000; // 120秒
 const getProxyConfig = (): ClientOptions['proxy'] | undefined => {
   const settings = loadAppSettings();
   const proxySettings = settings?.proxy;
-  
+
   if (!proxySettings) {
     return undefined; // 使用默认行为（系统代理）
   }
-  
+
   switch (proxySettings.mode) {
     case 'none':
       // 禁用代理：通过将 noProxy 设置为 '*' 来屏蔽所有主机，强制直连
@@ -146,8 +146,10 @@ export interface LlmMessage {
 export interface LlmRequestOptions {
   profileId: string;
   modelId: string;
+  /** 可选：显式指定 API Key，如果不提供则根据 profileId 自动选取 */
+  apiKey?: string;
   /** 完整的消息列表（包括 role 和 content），现已支持 system 角色 */
-  messages: LlmMessage[];
+  messages?: LlmMessage[];
   maxTokens?: number;
   temperature?: number;
   /** 是否启用流式响应 */
@@ -160,6 +162,14 @@ export interface LlmRequestOptions {
   timeout?: number;
   /** 用于中止请求的 AbortSignal */
   signal?: AbortSignal;
+
+  // --- 特种模型参数 ---
+  /** 嵌入 (Embedding) 输入内容 */
+  embeddingInput?: string | string[];
+  /** 重排 (Rerank) 查询内容 */
+  rerankQuery?: string;
+  /** 重排 (Rerank) 待排序文档列表 */
+  rerankDocuments?: string[] | Array<{ text: string;[key: string]: any }>;
 
   // OpenAI 兼容的高级参数
   /** Top-p 采样参数，介于 0 和 1 之间 */

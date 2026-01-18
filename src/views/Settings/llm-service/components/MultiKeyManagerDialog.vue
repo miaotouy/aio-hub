@@ -6,6 +6,7 @@ import {
   Warning,
   RefreshRight,
   VideoPause,
+  VideoPlay,
   Operation,
   Search,
   Delete,
@@ -22,9 +23,10 @@ import { customMessage } from "@/utils/customMessage";
 const props = defineProps<{
   modelValue: boolean;
   profile: LlmProfile;
+  testLoading?: Record<string, boolean>;
 }>();
 
-const emit = defineEmits(["update:modelValue", "update:profile"]);
+const emit = defineEmits(["update:modelValue", "update:profile", "test-key"]);
 
 const {
   getKeyStatuses,
@@ -41,6 +43,12 @@ const {
 
 const searchQuery = ref("");
 const statusFilter = ref("all");
+const selectedTestModelId = ref("");
+
+// 默认选中第一个模型
+if (props.profile.models.length > 0) {
+  selectedTestModelId.value = props.profile.models[0].id;
+}
 const selectedKeys = ref<any[]>([]);
 const isImporting = ref(false);
 const importText = ref("");
@@ -160,6 +168,19 @@ const handleImport = () => {
   customMessage.success(`成功导入 ${uniqueNewKeys.length} 个新密钥`);
   isImporting.value = false;
   importText.value = "";
+};
+
+const handleBatchTest = async () => {
+  if (selectedKeys.value.length === 0 || !selectedTestModelId.value) return;
+
+  const keysToTest = [...selectedKeys.value];
+  customMessage.success(`已开始批量测试 ${keysToTest.length} 个密钥，请稍候...`);
+
+  for (const item of keysToTest) {
+    emit("test-key", { key: item.key, modelId: selectedTestModelId.value });
+    // 每次测试间隔 500ms，避免并发过高
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 };
 
 const handleBatchDelete = () => {
@@ -362,12 +383,28 @@ const maskKey = (key: string) => {
             clearable
             class="search-input"
           />
+          <el-divider direction="vertical" />
+          <span class="label">测试模型:</span>
+          <el-select v-model="selectedTestModelId" placeholder="选择测试模型" style="width: 150px">
+            <el-option
+              v-for="model in profile.models"
+              :key="model.id"
+              :label="model.name || model.id"
+              :value="model.id"
+            />
+          </el-select>
         </div>
         <div class="right">
           <div class="btn-group">
-            <el-button :icon="Upload" @click="isImporting = true">导入</el-button>
-            <el-button :icon="Download" @click="handleExport">导出</el-button>
-            <el-button :icon="RefreshRight" @click="handleResetAllBroken">重置熔断</el-button>
+            <el-tooltip content="批量导入密钥" placement="top">
+              <el-button :icon="Upload" @click="isImporting = true" />
+            </el-tooltip>
+            <el-tooltip content="导出所有密钥到剪贴板" placement="top">
+              <el-button :icon="Download" @click="handleExport" />
+            </el-tooltip>
+            <el-tooltip content="重置所有自动禁用的密钥状态" placement="top">
+              <el-button :icon="RefreshRight" @click="handleResetAllBroken" />
+            </el-tooltip>
           </div>
           <el-dropdown trigger="click">
             <el-button type="primary" plain class="batch-btn">
@@ -379,6 +416,13 @@ const maskKey = (key: string) => {
                 <el-dropdown-item :icon="Close" @click="handleDisableAll"
                   >禁用全部</el-dropdown-item
                 >
+                <el-dropdown-item
+                  :icon="VideoPlay"
+                  :disabled="selectedKeys.length === 0 || !selectedTestModelId"
+                  @click="handleBatchTest"
+                >
+                  测试选中 ({{ selectedKeys.length }})
+                </el-dropdown-item>
                 <el-dropdown-item
                   :icon="Delete"
                   :disabled="selectedKeys.length === 0"
@@ -461,19 +505,50 @@ const maskKey = (key: string) => {
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <div class="action-btns">
-              <el-button v-if="row.isBroken" link type="primary" @click="resetKey(row)"
-                >重置</el-button
-              >
-              <el-button
-                v-else
-                link
-                :type="row.isEnabled ? 'info' : 'primary'"
-                @click="toggleKeyStatus(row)"
-              >
-                {{ row.isEnabled ? "禁用" : "启用" }}
-              </el-button>
+              <el-tooltip content="测试此密钥" placement="top">
+                <el-button
+                  size="small"
+                  type="primary"
+                  :icon="VideoPlay"
+                  :loading="testLoading?.[row.key]"
+                  :disabled="!selectedTestModelId"
+                  @click="emit('test-key', { key: row.key, modelId: selectedTestModelId })"
+                />
+              </el-tooltip>
+
+              <el-tooltip v-if="row.isBroken" content="重置熔断状态" placement="top">
+                <el-button
+                  size="small"
+                  type="warning"
+                  :icon="RefreshRight"
+                  plain
+                  @click="resetKey(row)"
+                />
+              </el-tooltip>
+
+              <template v-else>
+                <el-tooltip :content="row.isEnabled ? '禁用密钥' : '启用密钥'" placement="top">
+                  <el-button
+                    size="small"
+                    :type="row.isEnabled ? 'info' : 'success'"
+                    :icon="row.isEnabled ? VideoPause : VideoPlay"
+                    plain
+                    @click="toggleKeyStatus(row)"
+                  />
+                </el-tooltip>
+              </template>
+
               <el-divider direction="vertical" />
-              <el-button link type="danger" @click="deleteKey(row)">移除</el-button>
+
+              <el-tooltip content="移除密钥" placement="top">
+                <el-button
+                  size="small"
+                  type="danger"
+                  :icon="Delete"
+                  plain
+                  @click="deleteKey(row)"
+                />
+              </el-tooltip>
             </div>
           </template>
         </el-table-column>
@@ -650,7 +725,7 @@ const maskKey = (key: string) => {
 }
 
 .filter-select {
-  width: 140px;
+  width: 120px;
 }
 
 .search-input {
@@ -760,6 +835,11 @@ const maskKey = (key: string) => {
 .action-btns {
   display: flex;
   align-items: center;
+  gap: 4px;
+}
+
+.action-btns :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .import-container {

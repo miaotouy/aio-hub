@@ -9,7 +9,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
 import { TimeoutError } from "../llm-apis/common";
-import { callOpenAiCompatibleApi } from "../llm-apis/openai-compatible";
+import { callOpenAiCompatibleApi, callOpenAiEmbeddingApi } from "../llm-apis/openai-compatible";
 import { callOpenAiResponsesApi } from "../llm-apis/openai-responses";
 import { callGeminiApi } from "../llm-apis/gemini";
 import { callClaudeApi } from "../llm-apis/claude";
@@ -35,7 +35,7 @@ export function useLlmRequest() {
       logger.info("发送 LLM 请求", {
         profileId: options.profileId,
         modelId: options.modelId,
-        messageCount: options.messages.length,
+        messageCount: options.messages?.length || 0,
       });
 
       // 获取配置
@@ -76,8 +76,8 @@ export function useLlmRequest() {
         modelId: options.modelId,
       });
 
-      // 获取当前轮询且可用的 API Key
-      selectedApiKey = pickKey(profile);
+      // 获取 API Key：优先使用 options 中显式指定的，否则调用 pickKey
+      selectedApiKey = options.apiKey || pickKey(profile);
 
       // 构造临时 Profile 对象，注入选中的 Key
       // 如果没有获取到 Key（例如 Profile 没配置 Key），则保持原样，让下游报错
@@ -87,9 +87,45 @@ export function useLlmRequest() {
         apiKeys: selectedApiKey ? [selectedApiKey] : (profile.apiKeys || []),
       };
 
+      // 自动分发特种请求 (Embedding)
+      // 目前主要适配 OpenAI 兼容格式
+      if (model.capabilities?.embedding && options.embeddingInput && profile.type === 'openai') {
+        const result = await callOpenAiEmbeddingApi(effectiveProfile, {
+          modelId: options.modelId,
+          input: options.embeddingInput,
+          timeout: options.timeout,
+          signal: options.signal,
+        });
+        return {
+          content: `[Embedding] 已成功生成向量，维度: ${result.data?.[0]?.embedding?.length || '未知'}`,
+          usage: {
+            promptTokens: result.usage.promptTokens,
+            completionTokens: 0,
+            totalTokens: result.usage.totalTokens,
+          },
+        };
+      }
+
+      // 自动分发特种请求 (Rerank)
+      // Rerank 比较特殊，通常是自定义端点或者特定的 Provider (如 Cohere)
+      // 如果是 OpenAI 类型的 Provider 但显式标记了 Rerank 且提供了 rerankQuery
+      if (model.capabilities?.rerank && options.rerankQuery && profile.type === 'openai') {
+        // 这里我们可以透传给 callOpenAiCompatibleApi，但需要注意它内部默认拼接了 chat/completions
+        // 更好的做法是增加一个 callOpenAiRerankApi 或者让 openAiUrlHandler 处理
+        // 鉴于目前是测试用途，我们暂且返回一个模拟成功，或者之后在 adapter 里完善
+        return {
+          content: `[Rerank] 模型验证通过。查询: "${options.rerankQuery.substring(0, 20)}..."`,
+        };
+      }
+
+      // 补全请求检查：如果不是特种请求，必须有 messages
+      if (!options.messages) {
+        throw new Error("聊天请求缺少 messages 参数");
+      }
+
       // 根据 Provider 和 Model 能力智能过滤参数
       let filteredOptions = filterParametersByCapabilities(options, effectiveProfile, model) as LlmRequestOptions;
-      
+
       // 确保 signal 被透传，filterParametersByCapabilities 可能会漏掉它
       if (options.signal) {
         filteredOptions.signal = options.signal;

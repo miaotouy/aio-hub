@@ -14,6 +14,8 @@ import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
 import { providerTypes } from "@/config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "@/types/llm-profiles";
 import type { LlmPreset } from "@/config/llm-providers";
@@ -34,6 +36,9 @@ const {
   createFromPreset,
   updateProfilesOrder,
 } = useLlmProfiles();
+
+const { sendRequest } = useLlmRequest();
+const { updateKeyStatus, reportSuccess, reportFailure } = useLlmKeyManager();
 
 // 使用统一的图标获取方法
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
@@ -68,9 +73,15 @@ const showPresetIconDialog = ref(false);
 
 // 容器响应式布局
 const containerRef = ref<HTMLElement | null>(null);
+const editorContainerRef = ref<HTMLElement | null>(null);
 const { width: containerWidth } = useElementSize(containerRef);
-const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 950);
-const formLabelPosition = computed(() => (isNarrow.value ? "top" : "left"));
+const { width: editorWidth } = useElementSize(editorContainerRef);
+
+const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 850);
+// 当右侧编辑器宽度小于 560px 时，也视为窄模式，切换 label 为 top
+const isEditorNarrow = computed(() => editorWidth.value > 0 && editorWidth.value < 760);
+
+const formLabelPosition = computed(() => (isNarrow.value || isEditorNarrow.value ? "top" : "left"));
 
 // 渠道创建对话框
 const showCreateProfileDialog = ref(false);
@@ -249,6 +260,123 @@ const showModelFetcherDialog = ref(false);
 const fetchedModels = ref<LlmModelInfo[]>([]);
 const isFetchingModels = ref(false);
 
+const isTestingConnection = ref(false);
+const modelTestLoading = ref<Record<string, boolean>>({});
+const keyTestLoading = ref<Record<string, boolean>>({});
+
+/**
+ * 构造测试请求参数
+ * 根据模型能力识别“特种模型”
+ */
+const buildTestOptions = (profileId: string, model: LlmModelInfo, apiKey?: string) => {
+  const options: any = {
+    profileId,
+    modelId: model.id,
+    apiKey,
+    maxTokens: 10,
+    stream: false,
+  };
+
+  const caps = model.capabilities || {};
+
+  if (caps.embedding) {
+    options.embeddingInput = "hi";
+  } else if (caps.rerank) {
+    options.rerankQuery = "hi";
+    options.rerankDocuments = ["hello", "world"];
+  } else {
+    // 默认作为对话模型测试
+    options.messages = [{ role: "user", content: "hi" }];
+  }
+
+  return options;
+};
+
+// 渠道连接测试 (验证 API Key 和 Base URL)
+const testConnection = async () => {
+  if (!selectedProfile.value) return;
+
+  isTestingConnection.value = true;
+  const startTime = performance.now();
+  try {
+    const models = await fetchModelsFromApi(editForm.value);
+    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+    if (models.length > 0) {
+      customMessage.success(`连接成功！已检测到 ${models.length} 个模型 (耗时: ${duration}s)`);
+    } else {
+      customMessage.warning(`连接成功，但未返回任何模型 (耗时: ${duration}s)`);
+    }
+  } catch (error: any) {
+    // errorHandler 已在 fetchModelsFromApi 中 handle
+  } finally {
+    isTestingConnection.value = false;
+  }
+};
+
+// 模型可用性测试
+const handleTestModel = async (model: LlmModelInfo) => {
+  if (!selectedProfile.value) return;
+
+  modelTestLoading.value[model.id] = true;
+  const startTime = performance.now();
+  try {
+    const testOptions = buildTestOptions(selectedProfile.value.id, model);
+    const response = await sendRequest(testOptions);
+    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+
+    customMessage.success({
+      message: `模型响应正常 (耗时: ${duration}s): "${response.content.substring(0, 100)}${
+        response.content.length > 100 ? "..." : ""
+      }"`,
+      duration: 5000,
+    });
+  } catch (error: any) {
+    // errorHandler 已处理
+  } finally {
+    modelTestLoading.value[model.id] = false;
+  }
+};
+
+// 多 Key 管理中的特定 Key 测试
+const handleTestKey = async ({ key, modelId }: { key: string; modelId: string }) => {
+  if (!selectedProfile.value) return;
+
+  const model = selectedProfile.value.models.find((m) => m.id === modelId);
+  if (!model) {
+    customMessage.error("未找到测试模型");
+    return;
+  }
+
+  keyTestLoading.value[key] = true;
+  const startTime = performance.now();
+  try {
+    const testOptions = buildTestOptions(selectedProfile.value.id, model, key);
+    const response = await sendRequest(testOptions);
+    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+
+    // 如果成功，显式更新 Key 状态
+    updateKeyStatus(selectedProfile.value.id, key, {
+      isBroken: false,
+      isEnabled: true,
+      lastUsedTime: Date.now(),
+    });
+    reportSuccess(selectedProfile.value.id, key);
+
+    customMessage.success(
+      `Key 验证成功 (耗时: ${duration}s): ${response.content.substring(0, 50)}...`
+    );
+  } catch (error: any) {
+    // 失败则标记为损坏
+    updateKeyStatus(selectedProfile.value.id, key, {
+      isBroken: true,
+      lastErrorMessage: error.message || "测试请求失败",
+    });
+    reportFailure(selectedProfile.value.id, key, error);
+  } finally {
+    keyTestLoading.value[key] = false;
+  }
+};
+
 // 从 API 获取模型列表
 const fetchModels = async () => {
   if (!selectedProfile.value) {
@@ -367,79 +495,116 @@ const resetBaseUrl = () => {
       </ProfileSidebar>
 
       <!-- 右侧：配置编辑 -->
-      <ProfileEditor
-        v-if="selectedProfile"
-        :title="selectedProfile.name"
-        :show-save="false"
-        @delete="handleDelete"
-      >
-        <template #header-actions>
-          <DynamicIcon
-            :src="getProviderIcon(editForm) || ''"
-            class="profile-editor-icon"
-            :alt="editForm.name"
-          />
-        </template>
-        <el-form
-          :model="editForm"
-          :label-width="isNarrow ? 'auto' : '100px'"
-          :label-position="formLabelPosition"
+      <div class="editor-container" ref="editorContainerRef">
+        <ProfileEditor
+          v-if="selectedProfile"
+          :title="selectedProfile.name"
+          :show-save="false"
+          @delete="handleDelete"
         >
-          <el-form-item label="渠道名称">
-            <el-input
-              v-model="editForm.name"
-              placeholder="例如: 我的 OpenAI"
-              maxlength="50"
-              show-word-limit
+          <template #header-actions>
+            <DynamicIcon
+              :src="getProviderIcon(editForm) || ''"
+              class="profile-editor-icon"
+              :alt="editForm.name"
             />
-          </el-form-item>
+          </template>
+          <el-form
+            :model="editForm"
+            :label-width="formLabelPosition === 'top' ? 'auto' : '100px'"
+            :label-position="formLabelPosition"
+          >
+            <el-form-item label="渠道名称">
+              <el-input
+                v-model="editForm.name"
+                placeholder="例如: 我的 OpenAI"
+                maxlength="50"
+                show-word-limit
+              />
+            </el-form-item>
 
-          <el-form-item label="API 格式">
-            <el-select v-model="editForm.type" style="width: 100%">
-              <el-option
-                v-for="provider in providerTypes"
-                :key="provider.type"
-                :label="provider.name"
-                :value="provider.type"
-              >
-                <div>
-                  <div>{{ provider.name }}</div>
-                  <div style="font-size: 12px; color: var(--el-text-color-secondary)">
-                    {{ provider.description }}
-                  </div>
-                </div>
-              </el-option>
-            </el-select>
-            <div class="form-hint">API 请求格式类型（兼容该格式的所有服务商均可使用）</div>
-          </el-form-item>
-
-          <el-form-item label="供应商图标">
-            <el-input v-model="editForm.icon" placeholder="自定义图标路径或URL，或选择预设">
-              <template #append>
-                <el-button @click="openProviderIconSelector">选择预设</el-button>
-              </template>
-            </el-input>
-          </el-form-item>
-
-          <el-form-item label="API 地址">
-            <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com">
-              <template #append>
-                <el-popconfirm
-                  title="确定要重置为默认 API 地址吗？"
-                  confirm-button-text="确定"
-                  cancel-button-text="取消"
-                  @confirm="resetBaseUrl"
+            <el-form-item label="API 格式">
+              <el-select v-model="editForm.type" style="width: 100%">
+                <el-option
+                  v-for="provider in providerTypes"
+                  :key="provider.type"
+                  :label="provider.name"
+                  :value="provider.type"
                 >
-                  <template #reference>
-                    <el-button>重置</el-button>
-                  </template>
-                </el-popconfirm>
-              </template>
-            </el-input>
-            <div v-if="apiEndpointPreview" class="api-preview-container">
-              <div class="api-preview-url">{{ apiEndpointPreview }}</div>
-              <div class="api-preview-hint">
-                {{ endpointHintText }}
+                  <div>
+                    <div>{{ provider.name }}</div>
+                    <div style="font-size: 12px; color: var(--el-text-color-secondary)">
+                      {{ provider.description }}
+                    </div>
+                  </div>
+                </el-option>
+              </el-select>
+              <div class="form-hint">API 请求格式类型（兼容该格式的所有服务商均可使用）</div>
+            </el-form-item>
+
+            <el-form-item label="供应商图标">
+              <el-input v-model="editForm.icon" placeholder="自定义图标路径或URL，或选择预设">
+                <template #append>
+                  <el-button @click="openProviderIconSelector">选择预设</el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+
+            <el-form-item label="API 地址">
+              <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com">
+                <template #append>
+                  <el-popconfirm
+                    title="确定要重置为默认 API 地址吗？"
+                    confirm-button-text="确定"
+                    cancel-button-text="取消"
+                    @confirm="resetBaseUrl"
+                  >
+                    <template #reference>
+                      <el-button>重置</el-button>
+                    </template>
+                  </el-popconfirm>
+                </template>
+              </el-input>
+              <div v-if="apiEndpointPreview" class="api-preview-container">
+                <div class="api-preview-url">{{ apiEndpointPreview }}</div>
+                <div class="api-preview-hint">
+                  {{ endpointHintText }}
+                  <el-divider direction="vertical" />
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="showCustomHeadersDialog = true"
+                  >
+                    自定义请求头
+                    <span
+                      v-if="
+                        editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0
+                      "
+                    >
+                      ({{ Object.keys(editForm.customHeaders).length }})
+                    </span>
+                  </el-button>
+                  <el-divider direction="vertical" />
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="showCustomEndpointsDialog = true"
+                  >
+                    高级端点
+                    <span
+                      v-if="
+                        editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
+                      "
+                    >
+                      ({{ Object.keys(editForm.customEndpoints).length }})
+                    </span>
+                  </el-button>
+                </div>
+              </div>
+              <div v-else class="form-hint">
+                <span>默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}</span>
                 <el-divider direction="vertical" />
                 <el-button link type="primary" size="small" @click="showCustomHeadersDialog = true">
                   自定义请求头
@@ -466,72 +631,62 @@ const resetBaseUrl = () => {
                   </span>
                 </el-button>
               </div>
-            </div>
-            <div v-else class="form-hint">
-              <span>默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}</span>
-              <el-divider direction="vertical" />
-              <el-button link type="primary" size="small" @click="showCustomHeadersDialog = true">
-                自定义请求头
-                <span
-                  v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0"
+            </el-form-item>
+
+            <el-form-item label="API Key">
+              <div style="display: flex; gap: 8px; width: 100%">
+                <el-input
+                  v-model="apiKeyInput"
+                  type="password"
+                  placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
+                  show-password
+                  style="flex: 1"
+                  @blur="updateApiKeys"
+                />
+                <el-button
+                  type="primary"
+                  plain
+                  :loading="isTestingConnection"
+                  @click="testConnection"
                 >
-                  ({{ Object.keys(editForm.customHeaders).length }})
-                </span>
-              </el-button>
-              <el-divider direction="vertical" />
-              <el-button link type="primary" size="small" @click="showCustomEndpointsDialog = true">
-                高级端点
-                <span
-                  v-if="
-                    editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
-                  "
-                >
-                  ({{ Object.keys(editForm.customEndpoints).length }})
-                </span>
-              </el-button>
-            </div>
-          </el-form-item>
+                  测试连接
+                </el-button>
+              </div>
+              <div v-if="editForm.apiKeys.length > 0" class="form-hint multi-key-hint">
+                <span>已配置 {{ editForm.apiKeys.length }} 个密钥</span>
+                <el-button link type="primary" size="small" @click="openMultiKeyManager">
+                  管理密钥状态
+                </el-button>
+              </div>
+            </el-form-item>
 
-          <el-form-item label="API Key">
-            <el-input
-              v-model="apiKeyInput"
-              type="password"
-              placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
-              show-password
-              @blur="updateApiKeys"
-            />
-            <div v-if="editForm.apiKeys.length > 0" class="form-hint multi-key-hint">
-              <span>已配置 {{ editForm.apiKeys.length }} 个密钥</span>
-              <el-button link type="primary" size="small" @click="openMultiKeyManager">
-                管理密钥状态
-              </el-button>
-            </div>
-          </el-form-item>
+            <el-divider />
 
-          <el-divider />
+            <el-form-item label="模型配置">
+              <div class="model-list-container">
+                <ModelList
+                  :models="editForm.models"
+                  :expand-state="editForm.modelGroupsExpandState || {}"
+                  :loading="isFetchingModels"
+                  :test-loading="modelTestLoading"
+                  @add="addModel"
+                  @edit="editModel"
+                  @test="handleTestModel"
+                  @delete="deleteModel"
+                  @delete-group="deleteModelGroup"
+                  @clear="clearAllModels"
+                  @fetch="fetchModels"
+                  @update:expand-state="(state: any) => (editForm.modelGroupsExpandState = state)"
+                />
+              </div>
+            </el-form-item>
+          </el-form>
+        </ProfileEditor>
 
-          <el-form-item label="模型配置">
-            <div class="model-list-container">
-              <ModelList
-                :models="editForm.models"
-                :expand-state="editForm.modelGroupsExpandState || {}"
-                :loading="isFetchingModels"
-                @add="addModel"
-                @edit="editModel"
-                @delete="deleteModel"
-                @delete-group="deleteModelGroup"
-                @clear="clearAllModels"
-                @fetch="fetchModels"
-                @update:expand-state="(state: any) => (editForm.modelGroupsExpandState = state)"
-              />
-            </div>
-          </el-form-item>
-        </el-form>
-      </ProfileEditor>
-
-      <!-- 空状态 -->
-      <div v-else class="empty-state">
-        <p>请选择或创建一个 LLM 服务配置</p>
+        <!-- 空状态 -->
+        <div v-else class="empty-state">
+          <p>请选择或创建一个 LLM 服务配置</p>
+        </div>
       </div>
     </div>
 
@@ -589,7 +744,9 @@ const resetBaseUrl = () => {
       v-if="selectedProfile"
       v-model="showMultiKeyManager"
       :profile="selectedProfile"
+      :test-loading="keyTestLoading"
       @update:profile="saveProfile"
+      @test-key="handleTestKey"
     />
   </div>
 </template>
@@ -600,7 +757,6 @@ const resetBaseUrl = () => {
   display: flex;
   padding: 0;
   box-sizing: border-box;
-  min-height: 0;
 }
 
 .settings-layout {
@@ -611,8 +767,14 @@ const resetBaseUrl = () => {
   min-height: 0;
 }
 
+.editor-container {
+  flex: 1;
+  min-width: 0;
+  max-height: 90vh;
+}
+
 .settings-layout :deep(.profile-sidebar) {
-  max-height: 100vh;
+  max-height: 90vh;
 }
 
 .is-narrow .settings-layout {
@@ -626,7 +788,7 @@ const resetBaseUrl = () => {
 
 .is-narrow :deep(.profile-sidebar) {
   height: auto;
-  max-height: 320px;
+  max-height: 360px;
   min-height: 200px;
   border-bottom: 1px solid var(--border-color);
 }
@@ -690,6 +852,8 @@ const resetBaseUrl = () => {
   height: 24px;
   flex-shrink: 0;
   border-radius: 4px;
+  margin-left: -6px;
+  margin-right: 8px;
 }
 
 /* 表单提示 */

@@ -154,8 +154,8 @@ const scrollToSection = (id: string) => {
     const elementRect = element.getBoundingClientRect();
 
     // 计算相对位置并加上当前滚动量
-    // 适配新的布局间距：桌面端 24px, 移动端 16px
-    const offset = isMobile.value ? 16 : 24;
+    // 适配新的布局间距：桌面端 0px, 移动端 8px
+    const offset = isMobile.value ? 8 : 0;
     const targetTop = container.scrollTop + (elementRect.top - containerRect.top) - offset;
 
     container.scrollTo({

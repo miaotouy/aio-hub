@@ -397,6 +397,25 @@ export class TimeoutError extends Error {
 }
 
 /**
+ * 判断错误是否为取消/中止错误
+ * 兼容多种环境（浏览器 DOMException、Tauri HTTP 插件等）
+ */
+export function isAbortError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  
+  // 标准 AbortError (浏览器 DOMException)
+  if (error.name === 'AbortError') return true;
+  
+  // Tauri HTTP 插件的取消错误
+  const message = error.message.toLowerCase();
+  if (message.includes('canceled') || message.includes('cancelled') || message.includes('aborted')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * LLM API 错误
  */
 export class LlmApiError extends Error {

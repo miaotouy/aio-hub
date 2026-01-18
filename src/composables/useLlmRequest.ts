@@ -8,7 +8,7 @@ import { useLlmKeyManager } from "./useLlmKeyManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
-import { TimeoutError } from "../llm-apis/common";
+import { TimeoutError, isAbortError } from "../llm-apis/common";
 import { callOpenAiCompatibleApi, callOpenAiEmbeddingApi } from "../llm-apis/openai-compatible";
 import { callOpenAiResponsesApi } from "../llm-apis/openai-responses";
 import { callGeminiApi } from "../llm-apis/gemini";
@@ -202,10 +202,13 @@ export function useLlmRequest() {
         });
       }
       // AbortError 是用户主动取消，不应该记录为错误
-      else if (error instanceof Error && error.name === 'AbortError') {
+      // 兼容 Tauri HTTP 插件的 "Request canceled" 错误
+      else if (isAbortError(error)) {
         logger.info("LLM 请求已取消", {
           profileId: options.profileId,
           modelId: options.modelId,
+          reason: error instanceof Error ? error.message : String(error),
+          signalReason: options.signal?.reason,
         });
       } else {
         // 报告失败，累加错误计数

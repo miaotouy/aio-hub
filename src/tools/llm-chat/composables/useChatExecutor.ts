@@ -17,7 +17,7 @@ import { useUserProfileStore } from "../stores/userProfileStore";
 import { useChatSettings } from "./useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { LlmApiError, TimeoutError } from "@/llm-apis/common";
+import { LlmApiError, TimeoutError, isAbortError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -401,7 +401,7 @@ export function useChatExecutor() {
 
           break;
         } catch (error) {
-          const isAbort = error instanceof Error && error.name === "AbortError";
+          const isAbort = isAbortError(error);
           let isRetryable = false;
           if (error instanceof TimeoutError) {
             isRetryable = true;

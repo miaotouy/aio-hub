@@ -5,6 +5,7 @@
 
 import type { ChatSession } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import { isAbortError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -409,7 +410,8 @@ export function useChatResponseHandler() {
     const errorNode = session.nodes[nodeId];
     if (!errorNode) return;
 
-    if (error instanceof Error && error.name === "AbortError") {
+    // 兼容 Tauri HTTP 插件的 "Request canceled" 错误
+    if (isAbortError(error)) {
       errorNode.status = "error";
       errorNode.metadata = {
         ...errorNode.metadata,

@@ -19,7 +19,8 @@ import EditAgentDialog from "./agent/EditAgentDialog.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
-import { Settings2 } from "lucide-vue-next";
+import ChatSearchPanel from "./search/ChatSearchPanel.vue";
+import { Settings2, Search } from "lucide-vue-next";
 // import { Setting } from "@element-plus/icons-vue";
 
 const logger = createModuleLogger("ChatArea");
@@ -216,6 +217,13 @@ const showEditAgentDialog = ref(false);
 
 // ===== 聊天设置 =====
 const showChatSettings = ref(false);
+
+// ===== 搜索功能 =====
+const showSearchPanel = ref(false);
+
+const handleSearchSelect = (messageId: string) => {
+  messageListRef.value?.scrollToMessageId(messageId);
+};
 
 const handleEditAgent = () => {
   if (currentAgent.value) {
@@ -523,6 +531,13 @@ const handleScrollToPrev = () => {
 };
 // ===== 键盘导航 =====
 const handleKeyDown = (e: KeyboardEvent) => {
+  // 处理 Ctrl+F 搜索快捷键 (无论焦点在哪里，只要在 ChatArea 内)
+  if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+    e.preventDefault();
+    showSearchPanel.value = !showSearchPanel.value;
+    return;
+  }
+
   // 检查焦点是否在输入框或其他可编辑元素上
   const target = e.target as HTMLElement;
   const isEditableElement =
@@ -661,9 +676,18 @@ onMounted(async () => {
         <!-- 视图模式切换器 (优先收缩) -->
         <ViewModeSwitcher :show-label="showViewModeText" />
 
+        <!-- 搜索按钮 -->
+        <el-tooltip content="搜索聊天记录 (Ctrl+F)" placement="bottom">
+          <div class="header-action-button" @click="showSearchPanel = !showSearchPanel">
+            <el-icon :size="18">
+              <Search />
+            </el-icon>
+          </div>
+        </el-tooltip>
+
         <!-- 设置按钮 -->
         <el-tooltip content="聊天设置" placement="bottom">
-          <div class="settings-button" @click="showChatSettings = true">
+          <div class="header-action-button" @click="showChatSettings = true">
             <el-icon :size="18">
               <Settings2 />
             </el-icon>
@@ -773,6 +797,14 @@ onMounted(async () => {
 
     <!-- 聊天设置对话框 -->
     <ChatSettingsDialog :visible="showChatSettings" @update:visible="showChatSettings = $event" />
+
+    <!-- 搜索面板 -->
+    <ChatSearchPanel
+      v-if="showSearchPanel"
+      :messages="finalMessages"
+      @select="handleSearchSelect"
+      @close="showSearchPanel = false"
+    />
   </div>
 </template>
 
@@ -885,12 +917,16 @@ onMounted(async () => {
 .agent-info.clickable,
 .model-info.clickable,
 .user-profile-info {
-  padding: 4px 8px;
-  border-radius: 4px;
+  height: 32px; /* 统一高度 */
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-app-region: no-drag;
   border: 1px solid transparent;
+  box-sizing: border-box;
 }
 
 .agent-info.clickable:hover,
@@ -907,28 +943,31 @@ onMounted(async () => {
   transform: translateY(0);
 }
 
-/* 设置按钮 */
-.settings-button {
+/* 头部功能按钮通用样式 */
+.header-action-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin-left: 8px;
-  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  margin-left: 4px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-app-region: no-drag;
   color: var(--text-color-secondary);
+  border: 1px solid transparent;
+  flex-shrink: 0;
 }
 
-.settings-button:hover {
+.header-action-button:hover {
   background-color: var(--el-fill-color-light);
   color: var(--primary-color);
-  transform: translateY(-2px);
+  border-color: var(--primary-color-light, var(--border-color));
+  transform: translateY(-1px);
 }
 
-.settings-button:active {
+.header-action-button:active {
   background-color: var(--el-fill-color);
   transform: translateY(0);
 }

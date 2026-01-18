@@ -10,14 +10,9 @@ import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
  * 提供对话视图和树图视图的切换功能
  */
 
-const props = withDefaults(
-  defineProps<{
-    showLabel?: boolean;
-  }>(),
-  {
-    showLabel: true,
-  }
-);
+defineProps<{
+  showLabel?: boolean;
+}>();
 
 const { viewMode } = useLlmChatUiState();
 

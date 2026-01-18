@@ -238,6 +238,17 @@ const scrollToPrev = () => {
     virtualizer.value.scrollToIndex(prevIndex, { align: "start", behavior: "auto" });
   }
 };
+
+/**
+ * 滚动到指定消息 ID
+ */
+const scrollToMessageId = (id: string) => {
+  const index = displayMessages.value.findIndex((m) => m.id === id);
+  if (index !== -1) {
+    virtualizer.value.scrollToIndex(index, { align: "start", behavior: "auto" });
+  }
+};
+
 // 事件处理函数
 // 注意：将 payload 放在前面，messageId 放在后面，以便在模板中利用 $event 直接传参
 // 从而避免在模板中编写箭头函数，解决 VSCode 隐式 any 报错和 vue-tsc 解析错误
@@ -287,6 +298,7 @@ defineExpose({
   scrollToTop,
   scrollToNext,
   scrollToPrev,
+  scrollToMessageId,
   getScrollElement,
   currentVisibleIndex,
 });

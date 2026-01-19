@@ -13,7 +13,7 @@
         </template>
       </el-progress>
     </div>
-    
+
     <!-- 工具栏 -->
     <div class="toolbar">
       <el-row :gutter="12" align="middle">
@@ -67,7 +67,10 @@
           </el-tooltip>
         </el-col>
         <el-col :span="3">
-          <el-tooltip content="设置流式加载时的批次大小，较大的批次可以减少更新频率" placement="top">
+          <el-tooltip
+            content="设置流式加载时的批次大小，较大的批次可以减少更新频率"
+            placement="top"
+          >
             <el-input-number
               v-model="batchSize"
               :min="5"
@@ -152,9 +155,7 @@
           </el-select>
         </el-col>
         <el-col :span="1">
-          <el-checkbox v-model="reverseOrder" @change="$emit('filter-commits')">
-            倒序
-          </el-checkbox>
+          <el-checkbox v-model="reverseOrder" @change="$emit('filter-commits')"> 倒序 </el-checkbox>
         </el-col>
         <div style="width: 10px"></div>
         <el-col :span="2">
@@ -172,10 +173,32 @@
     <!-- 范围选择器 -->
     <div class="range-selector" v-if="commits.length > 0">
       <el-row :gutter="16" align="middle">
-        <el-col :span="3">
-          <span class="range-label">提交范围:</span>
+        <el-col :span="4">
+          <div class="range-header">
+            <span class="range-label">提交范围:</span>
+            <div class="tag-actions">
+              <el-tooltip content="定位到最近的一个标签（从最新开始）" placement="top">
+                <el-button
+                  size="small"
+                  circle
+                  :icon="CollectionTag"
+                  @click="locateLatestTag"
+                  :disabled="commits.length === 0"
+                />
+              </el-tooltip>
+              <el-tooltip content="定位到最近的两个标签之间" placement="top">
+                <el-button
+                  size="small"
+                  circle
+                  :icon="PriceTag"
+                  @click="locateTagInterval"
+                  :disabled="commits.length === 0"
+                />
+              </el-tooltip>
+            </div>
+          </div>
         </el-col>
-        <el-col :span="16">
+        <el-col :span="15">
           <el-slider
             v-model="commitRange"
             :max="commits.length"
@@ -227,8 +250,16 @@
 </template>
 
 <script setup lang="ts">
-import { Search, Refresh, FolderOpened, InfoFilled } from "@element-plus/icons-vue";
+import {
+  Search,
+  Refresh,
+  FolderOpened,
+  InfoFilled,
+  PriceTag,
+  CollectionTag,
+} from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
+import { customMessage } from "@/utils/customMessage";
 import type { GitCommit, GitBranch } from "../types";
 
 interface Props {
@@ -305,6 +336,50 @@ function handleBranchDropdownVisibleChange(visible: boolean) {
     emit("load-branches");
   }
 }
+
+// 定位到最近的一个标签（从最新开始）
+function locateLatestTag() {
+  if (props.commits.length === 0) return;
+
+  const tagIndex = props.commits.findIndex((c) => c.tags && c.tags.length > 0);
+
+  if (tagIndex === -1) {
+    customMessage.warning("未找到版本标签");
+    return;
+  }
+
+  commitRange.value = [0, tagIndex];
+  emit("filter-commits");
+  const tagName = props.commits[tagIndex].tags?.[0];
+  customMessage.success(`已定位范围: 最新 到 ${tagName}`);
+}
+
+// 定位到最近的两个标签之间
+function locateTagInterval() {
+  if (props.commits.length === 0) return;
+
+  const tagIndices: number[] = [];
+  for (let i = 0; i < props.commits.length; i++) {
+    const commit = props.commits[i];
+    if (commit.tags && commit.tags.length > 0) {
+      tagIndices.push(i);
+      if (tagIndices.length >= 2) break;
+    }
+  }
+
+  if (tagIndices.length < 2) {
+    customMessage.warning(
+      tagIndices.length === 1 ? "仅找到一个标签，无法确定区间范围" : "未找到版本标签"
+    );
+    return;
+  }
+
+  commitRange.value = [tagIndices[0], tagIndices[1]];
+  emit("filter-commits");
+  const startTag = props.commits[tagIndices[0]].tags?.[0];
+  const endTag = props.commits[tagIndices[1]].tags?.[0];
+  customMessage.success(`已定位区间: ${startTag} 到 ${endTag}`);
+}
 </script>
 
 <style scoped>
@@ -377,6 +452,18 @@ function handleBranchDropdownVisibleChange(visible: boolean) {
   background: var(--card-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color-light);
+}
+
+.range-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.tag-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .range-label {

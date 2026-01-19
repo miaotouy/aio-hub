@@ -113,6 +113,12 @@ export function useTranscriptionManager() {
       // 这里的策略是：复读错误依然允许重试，但如果重试一次还不行，就直接失败，避免无限循环
       const canRetry = pendingTask.retryCount < store.config.maxRetries && (!isRepetitionError || pendingTask.retryCount < 1);
 
+      // 如果任务已被标记为取消，则不再处理错误逻辑
+      if ((pendingTask.status as string) === "cancelled") {
+        logger.info(`任务在执行中被取消: ${pendingTask.id}`);
+        return;
+      }
+
       if (canRetry) {
         pendingTask.retryCount++;
         pendingTask.status = "pending";
@@ -125,14 +131,12 @@ export function useTranscriptionManager() {
         pendingTask.error = errorMessage;
         pendingTask.completedAt = Date.now();
 
-        // 最终失败时，向用户显示提示（如果不是用户主动取消）
-        if ((pendingTask.status as string) !== "cancelled") {
-          errorHandler.handle(e, {
-            userMessage: `资产 "${pendingTask.filename}" 转写失败: ${errorMessage}`,
-            context: { taskId: pendingTask.id, assetId: pendingTask.assetId },
-            showToUser: true,
-          });
-        }
+        // 最终失败时，向用户显示提示
+        errorHandler.handle(e, {
+          userMessage: `资产 "${pendingTask.filename}" 转写失败: ${errorMessage}`,
+          context: { taskId: pendingTask.id, assetId: pendingTask.assetId },
+          showToUser: true,
+        });
 
         await updateDerivedStatus(pendingTask.assetId, {
           updatedAt: new Date().toISOString(),
@@ -196,6 +200,7 @@ export function useTranscriptionManager() {
       assetType: asset.type as any,
       path: asset.path,
       status: "pending",
+      progress: 0,
       retryCount: 0,
       createdAt: Date.now(),
       mimeType: asset.mimeType,

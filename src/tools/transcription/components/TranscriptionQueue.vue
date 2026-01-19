@@ -275,8 +275,22 @@ const formatDuration = (ms: number) => {
 
 const getTaskDuration = (task: TranscriptionTask) => {
   if (!task.startedAt) return null;
-  const end = task.completedAt || now.value;
-  return end - task.startedAt;
+
+  // 如果任务已结束（完成、失败、取消），必须有完成时间才显示
+  if (task.status === "completed" || task.status === "error" || task.status === "cancelled") {
+    if (task.completedAt) {
+      return task.completedAt - task.startedAt;
+    }
+    // 如果没有完成时间（可能逻辑异常或尚未同步），不使用 now.value，避免计时器跳动
+    return null;
+  }
+
+  // 只有正在处理中的任务才使用当前时间动态更新
+  if (task.status === "processing") {
+    return now.value - task.startedAt;
+  }
+
+  return null;
 };
 </script>
 
@@ -379,7 +393,11 @@ const getTaskDuration = (task: TranscriptionTask) => {
                   @click="handlePreviewAsset(row.assetId)"
                 />
               </el-tooltip>
-              <el-tooltip v-if="row.status === 'error'" content="重试任务" placement="top">
+              <el-tooltip
+                v-if="row.status === 'error' || row.status === 'cancelled'"
+                content="重试任务"
+                placement="top"
+              >
                 <el-button :icon="RotateCcw" circle size="small" @click="handleRetry(row)" />
               </el-tooltip>
               <el-tooltip

@@ -136,7 +136,13 @@ pub async fn git_load_repository_stream(
 
         // 获取总提交数
         let total = match get_total_commits(&repo_path, None) {
-            Ok(t) => t.min(limit),
+            Ok(t) => {
+                if limit == 0 {
+                    t
+                } else {
+                    t.min(limit)
+                }
+            }
             Err(e) => {
                 let _ = window.emit(
                     "git-progress",
@@ -217,7 +223,7 @@ pub async fn git_load_repository_stream(
             batch_size_val
         });
         for oid_result in revwalk {
-            if loaded >= limit {
+            if limit > 0 && loaded >= limit {
                 break;
             }
 
@@ -778,8 +784,8 @@ fn get_commits_with_skip(
             continue;
         }
 
-        // 如果已经达到 limit，停止
-        if commits.len() >= limit {
+        // 如果已经达到 limit，停止 (limit 为 0 表示不限制)
+        if limit > 0 && commits.len() >= limit {
             break;
         }
 

@@ -17,7 +17,7 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <el-row :gutter="12" align="middle">
-        <el-col :span="10">
+        <el-col :span="9">
           <DropZone
             drop-id="git-analyzer-path"
             variant="input"
@@ -55,15 +55,19 @@
           </el-select>
         </el-col>
         <el-col :span="3">
-          <el-tooltip content="设置要加载的提交记录数量" placement="top">
+          <el-tooltip content="设置要加载的提交记录数量。设置为 0 则加载全部记录" placement="top">
             <el-input-number
               v-model="limitCount"
-              :min="10"
-              :max="15000"
-              :step="10"
+              :min="0"
+              :max="50000"
+              :step="100"
               placeholder="显示条数"
               style="width: 100%"
-            />
+            >
+              <template #prefix v-if="limitCount === 0">
+                <span class="all-tag">全部</span>
+              </template>
+            </el-input-number>
           </el-tooltip>
         </el-col>
         <el-col :span="3">
@@ -85,10 +89,21 @@
             </el-input-number>
           </el-tooltip>
         </el-col>
-        <el-col :span="2">
-          <el-button type="primary" @click="$emit('load-repository')" :loading="loading">
+        <el-col :span="3">
+          <el-dropdown
+            split-button
+            type="primary"
+            @click="$emit('load-repository')"
+            :loading="loading"
+            class="load-btn"
+          >
             加载仓库
-          </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="loadAllCommits">加载全部</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </el-col>
       </el-row>
     </div>
@@ -320,6 +335,11 @@ const emit = defineEmits<{
 const repoPath = defineModel<string>("repoPath", { required: true });
 const selectedBranch = defineModel<string>("selectedBranch", { required: true });
 const limitCount = defineModel<number>("limitCount", { required: true });
+
+function loadAllCommits() {
+  limitCount.value = 0;
+  emit("load-repository");
+}
 const batchSize = defineModel<number>("batchSize", { required: true });
 const commitRange = defineModel<[number, number]>("commitRange", { required: true });
 const searchQuery = defineModel<string>("searchQuery", { required: true });
@@ -506,11 +526,27 @@ function locateTagInterval() {
   line-height: 1;
 }
 
-.non-stream-tag {
-  font-size: 12px;
-  color: var(--el-color-info);
+.non-stream-tag,
+.all-tag {
+  font-size: 11px;
+  color: var(--el-color-warning);
   margin-left: 4px;
   font-weight: bold;
+}
+
+.load-btn {
+  width: 100%;
+  display: flex;
+}
+
+.load-btn :deep(.el-button-group) {
+  display: flex;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.load-btn :deep(.el-button:first-child) {
+  flex: 1;
 }
 
 :deep(.el-date-editor .el-range-separator) {

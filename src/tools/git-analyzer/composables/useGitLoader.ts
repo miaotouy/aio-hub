@@ -26,6 +26,7 @@ export interface GitProgressEvent {
  */
 export interface StreamLoadOptions {
   path: string;
+  /** 加载条数限制。设置为 0 则加载全部记录。 */
   limit: number;
   batchSize: number;
 }

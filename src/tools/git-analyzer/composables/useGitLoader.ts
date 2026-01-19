@@ -13,7 +13,7 @@ const errorHandler = createModuleErrorHandler("GitLoader");
  * Git 进度事件
  */
 export interface GitProgressEvent {
-  type: "start" | "data" | "end" | "error";
+  type: "start" | "data" | "end" | "error" | "cancelled";
   total?: number;
   branches?: GitBranch[];
   commits?: GitCommit[];
@@ -137,6 +137,18 @@ export async function updateCommitMessage(
 }
 
 /**
+ * 终止正在进行的流式加载
+ */
+export async function cancelLoadRepository(): Promise<void> {
+  logger.info("请求终止仓库加载");
+  try {
+    await invoke("git_cancel_load");
+  } catch (error) {
+    errorHandler.handle(error as Error, { userMessage: "终止加载失败", showToUser: false });
+  }
+}
+
+/**
  * 流式加载仓库数据
  * 通过事件监听逐步获取数据
  */
@@ -158,8 +170,8 @@ export async function streamLoadRepository(
         // 调用进度回调
         onProgress(payload);
 
-        // 当接收到 end 或 error 事件时，清理监听器并完成 Promise
-        if (payload.type === "end") {
+        // 当接收到 end、cancelled 或 error 事件时，清理监听器并完成 Promise
+        if (payload.type === "end" || payload.type === "cancelled") {
           if (unlisten) {
             unlisten();
             unlisten = null;
@@ -212,8 +224,8 @@ export async function streamIncrementalLoad(
         // 调用进度回调
         onProgress(payload);
 
-        // 当接收到 end 或 error 事件时，清理监听器并完成 Promise
-        if (payload.type === "end") {
+        // 当接收到 end、cancelled 或 error 事件时，清理监听器并完成 Promise
+        if (payload.type === "end" || payload.type === "cancelled") {
           if (unlisten) {
             unlisten();
             unlisten = null;

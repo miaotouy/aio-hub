@@ -18,10 +18,13 @@
 
 use chrono::TimeZone;
 use git2::{BranchType, Oid, Repository};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Command;
+use std::sync::Mutex;
 use tauri::Emitter;
+use tokio_util::sync::CancellationToken;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -69,6 +72,10 @@ pub struct RepositoryInfo {
     pub commits: Vec<GitCommit>,
 }
 
+lazy_static! {
+    static ref CANCEL_TOKEN: Mutex<CancellationToken> = Mutex::new(CancellationToken::new());
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum GitProgressEvent {
@@ -81,6 +88,7 @@ pub enum GitProgressEvent {
         loaded: usize,
     },
     End,
+    Cancelled,
     Error {
         message: String,
     },
@@ -106,6 +114,14 @@ pub async fn git_load_repository(path: String, limit: usize) -> Result<Repositor
 }
 
 #[tauri::command]
+pub async fn git_cancel_load() -> Result<(), String> {
+    let mut token = CANCEL_TOKEN.lock().map_err(|e| e.to_string())?;
+    token.cancel();
+    *token = CancellationToken::new();
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn git_load_repository_stream(
     window: tauri::Window,
     path: String,
@@ -117,6 +133,8 @@ pub async fn git_load_repository_stream(
     } else {
         path.clone()
     };
+
+    let cancel_token = CANCEL_TOKEN.lock().unwrap().clone();
 
     // 在后台启动加载任务
     tokio::spawn(async move {
@@ -223,6 +241,11 @@ pub async fn git_load_repository_stream(
             batch_size_val
         });
         for oid_result in revwalk {
+            if cancel_token.is_cancelled() {
+                let _ = window.emit("git-progress", GitProgressEvent::Cancelled);
+                return;
+            }
+
             if limit > 0 && loaded >= limit {
                 break;
             }
@@ -303,6 +326,8 @@ pub async fn git_load_incremental_stream(
     } else {
         path.clone()
     };
+
+    let cancel_token = CANCEL_TOKEN.lock().unwrap().clone();
 
     // 在后台启动增量加载任务
     tokio::spawn(async move {
@@ -400,6 +425,11 @@ pub async fn git_load_incremental_stream(
             batch_size_val
         });
         for oid_result in it {
+            if cancel_token.is_cancelled() {
+                let _ = window.emit("git-progress", GitProgressEvent::Cancelled);
+                return;
+            }
+
             if loaded >= skip + limit {
                 break;
             }

@@ -38,6 +38,7 @@
           @branch-change="onBranchChange"
           @filter-commits="filterCommits"
           @clear-filters="clearFilters"
+          @cancel-loading="cancelLoading"
         />
 
         <!-- 主内容区 -->
@@ -150,6 +151,7 @@ const {
   onBranchChange: switchBranch,
   filterCommits: doFilter,
   clearFilters,
+  cancelLoading,
   updateCommitMessage,
 } = useGitAnalyzerRunner();
 

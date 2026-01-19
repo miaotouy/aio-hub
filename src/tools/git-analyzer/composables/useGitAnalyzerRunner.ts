@@ -6,6 +6,7 @@ import {
   fetchBranchCommits,
   streamLoadRepository,
   streamIncrementalLoad,
+  cancelLoadRepository as apiCancelLoadRepository,
   updateCommitMessage as apiUpdateCommitMessage,
 } from "./useGitLoader";
 import { filterCommits as processFilter } from "./useGitProcessor";
@@ -174,6 +175,12 @@ export function useGitAnalyzerRunner() {
         break;
       }
 
+      case "cancelled":
+        state.progress.value.loading = false;
+        state.loading.value = false;
+        customMessage.info("加载已终止");
+        break;
+
       case "error":
         state.progress.value.loading = false;
         state.loading.value = false;
@@ -268,6 +275,14 @@ export function useGitAnalyzerRunner() {
    */
   async function refreshRepository() {
     return await loadRepository();
+  }
+
+  /**
+   * 终止加载
+   */
+  async function cancelLoading() {
+    await apiCancelLoadRepository();
+    // 状态更新将通过事件回调中的 "cancelled" 事件统一处理
   }
 
   // ==================== 筛选操作 ====================
@@ -375,6 +390,7 @@ export function useGitAnalyzerRunner() {
     // 仓库加载
     loadRepository,
     refreshRepository,
+    cancelLoading,
 
     // 提交操作
     updateCommitMessage,

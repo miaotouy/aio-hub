@@ -2,16 +2,24 @@
   <div class="control-panel">
     <!-- 加载进度条 -->
     <div v-if="progress.loading" class="progress-container">
-      <el-progress
-        :percentage="progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : 0"
-        :status="progress.loaded === progress.total ? 'success' : undefined"
-      >
-        <template #default="{ percentage }">
-          <span class="progress-text">
-            正在加载... {{ progress.loaded }} / {{ progress.total }} ({{ percentage }}%)
-          </span>
-        </template>
-      </el-progress>
+      <div class="progress-wrapper">
+        <el-progress
+          :percentage="
+            progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : 0
+          "
+          :status="progress.loaded === progress.total ? 'success' : undefined"
+          class="flex-1"
+        >
+          <template #default="{ percentage }">
+            <span class="progress-text">
+              正在加载... {{ progress.loaded }} / {{ progress.total }} ({{ percentage }}%)
+            </span>
+          </template>
+        </el-progress>
+        <el-button type="danger" size="small" link @click="$emit('cancel-loading')">
+          终止加载
+        </el-button>
+      </div>
     </div>
 
     <!-- 工具栏 -->
@@ -329,6 +337,7 @@ const emit = defineEmits<{
   "branch-change": [branch: string];
   "filter-commits": [];
   "clear-filters": [];
+  "cancel-loading": [];
 }>();
 
 // 由于使用了 v-model，需要定义对应的计算属性
@@ -433,6 +442,21 @@ function locateTagInterval() {
   border-radius: 8px;
   border: 1px solid var(--border-color-light);
   animation: fadeIn 0.3s ease-in;
+}
+
+.progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.progress-wrapper :deep(.el-button) {
+  /* 视觉对齐微调：进度条容器通常比按钮高，且进度中心偏下，按钮需下移一点 */
+  transform: translateY(2px);
+}
+
+.flex-1 {
+  flex: 1;
 }
 
 @keyframes fadeIn {

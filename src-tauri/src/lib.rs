@@ -69,6 +69,7 @@ use commands::{
     get_inspector_status,
     get_latest_operation_log,
     get_saved_window_labels,
+    git_cancel_load,
     git_cherry_pick,
     git_export_commits,
     git_format_log,
@@ -450,6 +451,7 @@ pub fn run() {
             git_export_commits,
             git_format_log,
             git_update_commit_message,
+            git_cancel_load,
             // OCR命令
             native_ocr,
             // 窗口管理命令

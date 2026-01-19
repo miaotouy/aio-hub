@@ -761,8 +761,7 @@ pub async fn close_detached_window(app: AppHandle, label: String) -> Result<(), 
 
         // 2. 发送窗口重新附着事件
         if let Some(info) = info {
-            let payload = serde_json::json!({ "label": info.label });
-            app.emit("window-attached", payload)
+            app.emit("window-attached", info)
                 .map_err(|e| e.to_string())?;
         }
 

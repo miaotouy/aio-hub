@@ -47,14 +47,11 @@ const useDetachedWindowManager = () => {
         detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
       });
 
-      await listen<{ label: string }>("window-attached", (event) => {
-        const { label } = event.payload;
-        const detached = detachedWindows.value.get(label);
-        if (detached) {
-          logger.info(`窗口已重新附着: ${detached.type} '${detached.id}' (label: ${label})`);
-          if (detachedWindows.value.delete(label)) {
-            detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
-          }
+      await listen<DetachedWindow>("window-attached", (event) => {
+        const { label, id, type } = event.payload;
+        logger.info(`窗口已重新附着: ${type} '${id}' (label: ${label})`);
+        if (detachedWindows.value.delete(label)) {
+          detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
         }
       });
 
@@ -91,11 +88,16 @@ const useDetachedWindowManager = () => {
       });
 
       // 监听窗口销毁事件，确保状态被清理
-      await listen<{ label: string }>("tauri://destroyed", (event) => {
+      await listen<{ label: string }>("tauri://destroyed", async (event) => {
         const { label } = event.payload;
         if (detachedWindows.value.has(label)) {
           const detached = detachedWindows.value.get(label)!;
-          logger.info(`窗口已销毁，清理状态: ${detached.type} '${detached.id}' (label: ${label})`);
+          logger.info(`窗口已销毁，清理状态并触发恢复逻辑: ${detached.type} '${detached.id}' (label: ${label})`);
+
+          // 模拟发送 window-attached 事件，以便主窗口能够恢复对应的标签页/状态
+          const { emit } = await import("@tauri-apps/api/event");
+          await emit("window-attached", detached);
+
           if (detachedWindows.value.delete(label)) {
             detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
           }

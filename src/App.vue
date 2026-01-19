@@ -136,6 +136,7 @@ const loadSettings = async () => {
 let handleSettingsChange: ((event: Event) => void) | null = null;
 let unlisten: (() => void) | null = null;
 let unlistenDetached: (() => void) | null = null;
+let unlistenAttached: (() => void) | null = null;
 let unlistenCloseConfirmation: (() => void) | null = null;
 
 onMounted(async () => {
@@ -165,7 +166,6 @@ onMounted(async () => {
 
     // 初始化主题外观
     await initThemeAppearance();
-
   } catch (error) {
     errorHandler.error(error, "App 初始化失败");
   } finally {
@@ -230,6 +230,20 @@ onMounted(async () => {
     }
   );
 
+  // 监听窗口重新附着事件，自动恢复工具标签
+  unlistenAttached = await listen<{ label: string; id: string; type: string }>(
+    "window-attached",
+    (event) => {
+      const { id, type } = event.payload;
+
+      if (type === "tool") {
+        const toolPath = "/" + camelToKebab(id);
+        logger.info("工具已重新附着，恢复标签页", { toolId: id, toolPath });
+        toolsStore.openTool(toolPath);
+      }
+    }
+  );
+
   // 监听关闭确认请求
   unlistenCloseConfirmation = await listen("request-close-confirmation", async () => {
     try {
@@ -287,6 +301,9 @@ onUnmounted(() => {
   }
   if (unlistenDetached) {
     unlistenDetached();
+  }
+  if (unlistenAttached) {
+    unlistenAttached();
   }
   if (unlistenCloseConfirmation) {
     unlistenCloseConfirmation();

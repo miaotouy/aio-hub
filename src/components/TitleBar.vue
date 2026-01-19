@@ -21,6 +21,7 @@ import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from "@util
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { platform } from "@tauri-apps/plugin-os";
+import { CornerDownLeft } from "lucide-vue-next";
 import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useDetachedManager } from "@/composables/useDetachedManager";
@@ -242,6 +243,17 @@ const goToSettings = () => {
   router.push("/settings");
 };
 
+// 重新附着到主窗口（关闭当前分离窗口）
+const handleReattach = async () => {
+  try {
+    logger.info("请求重新附着到主窗口");
+    // 使用统一的关闭命令，它会自动处理重新附着事件
+    await invoke("close_detached_window", { label: appWindow.label });
+  } catch (error) {
+    errorHandler.error(error, "重新附着失败");
+  }
+};
+
 // 获取当前主题图标
 const getThemeIcon = computed(() => {
   if (currentTheme.value === "auto") {
@@ -403,6 +415,13 @@ const handleDropdownSelect = () => {
 
         <!-- 右侧控制区域 -->
         <div class="right-controls">
+          <!-- 返回主窗口按钮（仅在分离窗口显示，所有平台通用） -->
+          <el-tooltip v-if="!isMainWindow" content="回归主窗口" placement="bottom">
+            <button class="control-btn reattach-btn" @click="handleReattach">
+              <el-icon><CornerDownLeft /></el-icon>
+            </button>
+          </el-tooltip>
+
           <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
           <el-dropdown
             v-if="isMainWindow"

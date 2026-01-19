@@ -54,9 +54,7 @@
       </div>
 
       <div class="form-item">
-        <el-checkbox v-model="autoConnect" @change="saveConfig">
-          自动连接
-        </el-checkbox>
+        <el-checkbox v-model="autoConnect" @change="saveConfig"> 自动连接 </el-checkbox>
       </div>
 
       <div class="form-item">
@@ -71,10 +69,7 @@
         </el-button>
       </div>
 
-      <div
-        class="connection-info"
-        v-if="connection.lastPingLatency !== undefined"
-      >
+      <div class="connection-info" v-if="connection.lastPingLatency !== undefined">
         <span class="latency"> 延迟: {{ connection.lastPingLatency }}ms </span>
         <span class="reconnect" v-if="connection.reconnectAttempts > 0">
           重连次数: {{ connection.reconnectAttempts }}
@@ -87,14 +82,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { useVcpStore } from "../../stores/vcpStore";
+import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
 const store = useVcpStore();
-const { connect, disconnect, isConnecting, connectionStatus } =
-  useVcpWebSocket();
+const { connect, disconnect, isConnecting, connectionStatus } = useVcpWebSocket();
 
 const vcpPath = ref(store.config.vcpPath);
 const wsUrl = ref(store.config.wsUrl);
@@ -187,7 +181,7 @@ watch(
   () => store.config.autoConnect,
   (val) => {
     autoConnect.value = val;
-  },
+  }
 );
 
 onMounted(() => {
@@ -205,6 +199,7 @@ onMounted(() => {
 
 .panel-section {
   padding: 16px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--el-border-color);
 }
 

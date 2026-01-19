@@ -38,6 +38,21 @@
             <span class="msg-rate"> {{ stats.messagesPerMinute }} msg/min </span>
           </div>
 
+          <div class="header-center">
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索消息内容..."
+              size="small"
+              clearable
+              class="search-input"
+              @input="handleSearch"
+            >
+              <template #prefix>
+                <el-icon><Search /></el-icon>
+              </template>
+            </el-input>
+          </div>
+
           <div class="header-right">
             <el-button-group>
               <el-button
@@ -64,11 +79,7 @@
             />
           </TransitionGroup>
 
-          <el-empty
-            v-if="filteredMessages.length === 0"
-            description="暂无消息"
-            :image-size="120"
-          />
+          <el-empty v-if="filteredMessages.length === 0" description="暂无消息" :image-size="120" />
         </el-scrollbar>
       </main>
     </div>
@@ -81,16 +92,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { useVcpStore } from "./stores/vcpStore";
+import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpWebSocket } from "./composables/useVcpWebSocket";
 import { customMessage } from "@/utils/customMessage";
-import {
-  Pause,
-  Play,
-  Trash2,
-  Download,
-  PanelLeft,
-} from "lucide-vue-next";
+import { Pause, Play, Trash2, Download, PanelLeft, Search } from "lucide-vue-next";
 import InfoCard from "@/components/common/InfoCard.vue";
 import ConnectionPanel from "./components/monitor/ConnectionPanel.vue";
 import FilterPanel from "./components/monitor/FilterPanel.vue";
@@ -108,6 +113,20 @@ const isConfigCollapsed = ref(false);
 const filteredMessages = computed(() => store.filteredMessages);
 const filter = computed(() => store.filter);
 const stats = computed(() => store.stats);
+
+const searchKeyword = ref(store.filter.keyword);
+
+function handleSearch() {
+  store.setFilter({ keyword: searchKeyword.value });
+}
+
+// 同步 store 中的关键词变化（例如从其他地方重置了过滤条件）
+watch(
+  () => store.filter.keyword,
+  (kw) => {
+    searchKeyword.value = kw;
+  }
+);
 
 const connectionStatusTagType = computed(() => {
   switch (connectionStatus.value) {
@@ -228,6 +247,31 @@ watch(showJsonViewer, (visible: boolean) => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 24px;
+  max-width: 400px;
+}
+
+.search-input {
+  width: 100%;
+}
+
+.search-input :deep(.el-input__wrapper) {
+  background-color: var(--input-bg);
+  box-shadow: none;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+}
+
+.search-input :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--el-color-primary);
+  background-color: var(--card-bg);
 }
 
 .message-count {

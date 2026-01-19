@@ -1,7 +1,7 @@
 import { ref, onUnmounted, watch, computed } from "vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { useVcpStore } from "../stores/vcpStore";
+import { useVcpStore } from "../stores/vcpConnectorStore";
 import type { VcpMessage, VcpMessageType } from "../types/protocol";
 
 const errorHandler = createModuleErrorHandler("vcp-connector/useVcpWebSocket");

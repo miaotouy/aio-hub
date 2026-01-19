@@ -183,7 +183,6 @@ watch(
     autoConnect.value = val;
   }
 );
-
 </script>
 
 <style scoped lang="css">

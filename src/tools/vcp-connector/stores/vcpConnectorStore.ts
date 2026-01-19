@@ -20,6 +20,7 @@ const errorHandler = createModuleErrorHandler("vcp-connector/store");
 const logger = createModuleLogger("vcp-connector/store");
 
 const STORAGE_KEY_CONFIG = "vcp-connector-config";
+const STORAGE_KEY_MESSAGES = "vcp-connector-messages";
 const DEFAULT_MAX_HISTORY = 500;
 const PING_INTERVAL = 30000;
 const INITIAL_RECONNECT_DELAY = 1000;
@@ -57,6 +58,35 @@ function saveConfigToStorage(config: VcpConfig) {
   }
 }
 
+function loadMessagesFromStorage(): VcpMessage[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    logger.warn("Failed to load messages from storage", e);
+  }
+  return [];
+}
+
+function saveMessagesToStorage(messages: VcpMessage[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
+  } catch (e) {
+    // 如果超出配额，尝试只保存最近的 100 条
+    if (e instanceof DOMException && e.name === "QuotaExceededError") {
+      try {
+        localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages.slice(-100)));
+      } catch (e2) {
+        logger.error("Failed to save messages even after truncation", e2);
+      }
+    } else {
+      logger.error("Failed to save messages to storage", e);
+    }
+  }
+}
+
 export const useVcpStore = defineStore("vcp-connector", () => {
   const config = ref<VcpConfig>(loadConfigFromStorage());
 
@@ -65,7 +95,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     reconnectAttempts: 0,
   });
 
-  const messages = ref<VcpMessage[]>([]);
+  const messages = ref<VcpMessage[]>(loadMessagesFromStorage());
 
   // WebSocket 内部状态
   const ws = ref<WebSocket | null>(null);
@@ -100,6 +130,16 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   let statsStartTime = Date.now();
   let statsMessageCountAtMinute = 0;
   let statsInterval: ReturnType<typeof setInterval> | null = null;
+
+  function calculateInitialStats() {
+    const s = stats.value;
+    s.totalCount = messages.value.length;
+    s.ragCount = messages.value.filter((m) => m.type === "RAG_RETRIEVAL_DETAILS").length;
+    s.chainCount = messages.value.filter((m) => m.type === "META_THINKING_CHAIN").length;
+    s.agentCount = messages.value.filter((m) => m.type === "AGENT_PRIVATE_CHAT_PREVIEW").length;
+    s.memoCount = messages.value.filter((m) => m.type === "AI_MEMO_RETRIEVAL").length;
+    s.pluginCount = messages.value.filter((m) => m.type === "PLUGIN_STEP_STATUS").length;
+  }
 
   function startStatsTimer() {
     statsStartTime = Date.now();
@@ -361,6 +401,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (filter.value.paused) return;
 
     messages.value.push(msg);
+    saveMessagesToStorage(messages.value);
     stats.value.totalCount += 1;
 
     switch (msg.type) {
@@ -388,6 +429,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
   function clearMessages() {
     messages.value = [];
+    saveMessagesToStorage([]);
     stats.value = {
       totalCount: 0,
       ragCount: 0,
@@ -414,6 +456,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   }
 
   // 初始化逻辑
+  calculateInitialStats();
   if (config.value.autoConnect) {
     connect();
   }

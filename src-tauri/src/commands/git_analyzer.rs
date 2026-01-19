@@ -19,6 +19,7 @@
 use chrono::TimeZone;
 use git2::{BranchType, Oid, Repository};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::process::Command;
 use tauri::Emitter;
 
@@ -160,33 +161,92 @@ pub async fn git_load_repository_stream(
         let batch_size = batch_size.unwrap_or(200);
         let mut loaded = 0;
 
-        while loaded < limit {
-            let batch_limit = batch_size.min(limit - loaded);
+        let repo = match Repository::open(&repo_path) {
+            Ok(r) => r,
+            Err(e) => {
+                let _ = window.emit(
+                    "git-progress",
+                    GitProgressEvent::Error {
+                        message: format!("无法打开仓库: {}", e),
+                    },
+                );
+                return;
+            }
+        };
 
-            match get_commits_with_skip(&repo_path, None, loaded, batch_limit, false) {
-                Ok(commits) => {
-                    if commits.is_empty() {
-                        break;
+        // 性能优化：预先获取所有 Tags 和 Branch Tips
+        let tags_map = get_all_tags_map(&repo).unwrap_or_default();
+        let branch_tips = get_branch_tips_map(&repo).unwrap_or_default();
+
+        let revwalk = match repo.revwalk() {
+            Ok(mut rw) => {
+                let head_oid = match repo.head().and_then(|h| {
+                    h.target()
+                        .ok_or(git2::Error::from_str("HEAD has no target"))
+                }) {
+                    Ok(oid) => oid,
+                    Err(e) => {
+                        let _ = window.emit(
+                            "git-progress",
+                            GitProgressEvent::Error {
+                                message: format!("获取 HEAD 失败: {}", e),
+                            },
+                        );
+                        return;
                     }
+                };
+                let _ = rw.push(head_oid);
+                let _ = rw.set_sorting(git2::Sort::TIME);
+                rw
+            }
+            Err(e) => {
+                let _ = window.emit(
+                    "git-progress",
+                    GitProgressEvent::Error {
+                        message: format!("创建 revwalk 失败: {}", e),
+                    },
+                );
+                return;
+            }
+        };
 
-                    loaded += commits.len();
+        let mut current_batch = Vec::with_capacity(batch_size);
+        for oid_result in revwalk {
+            if loaded >= limit {
+                break;
+            }
 
-                    let _ = window.emit("git-progress", GitProgressEvent::Data { commits, loaded });
+            let oid = match oid_result {
+                Ok(o) => o,
+                Err(_) => continue,
+            };
 
-                    if loaded >= limit {
-                        break;
-                    }
-                }
-                Err(e) => {
+            if let Ok(commit) = parse_commit_optimized(&repo, oid, false, &tags_map, &branch_tips) {
+                current_batch.push(commit);
+                loaded += 1;
+
+                if current_batch.len() >= batch_size {
                     let _ = window.emit(
                         "git-progress",
-                        GitProgressEvent::Error {
-                            message: format!("加载提交失败: {}", e),
+                        GitProgressEvent::Data {
+                            commits: current_batch.clone(),
+                            loaded,
                         },
                     );
-                    return;
+                    current_batch.clear();
                 }
             }
+        }
+
+        // 发送剩余的 commit
+        if !current_batch.is_empty() {
+            let _ = window.emit(
+                "git-progress",
+                GitProgressEvent::Data {
+                    commits: current_batch,
+                    loaded,
+                },
+            );
         }
 
         // 发送完成事件
@@ -247,40 +307,117 @@ pub async fn git_load_incremental_stream(
         let batch_size = batch_size.unwrap_or(200);
         let mut loaded = skip; // 从已加载的数量开始
 
-        while loaded < skip + limit {
-            let current_skip = loaded;
-            let batch_limit = batch_size.min(skip + limit - loaded);
+        let repo = match Repository::open(&repo_path) {
+            Ok(r) => r,
+            Err(e) => {
+                let _ = window.emit(
+                    "git-progress",
+                    GitProgressEvent::Error {
+                        message: format!("无法打开仓库: {}", e),
+                    },
+                );
+                return;
+            }
+        };
 
-            match get_commits_with_skip(
-                &repo_path,
-                branch.as_deref(),
-                current_skip,
-                batch_limit,
-                false,
-            ) {
-                Ok(commits) => {
-                    if commits.is_empty() {
-                        break;
+        // 性能优化：预先获取所有 Tags 和 Branch Tips
+        let tags_map = get_all_tags_map(&repo).unwrap_or_default();
+        let branch_tips = get_branch_tips_map(&repo).unwrap_or_default();
+
+        let revwalk = match repo.revwalk() {
+            Ok(mut rw) => {
+                let start_oid = if let Some(ref b) = branch {
+                    repo.find_reference(&format!("refs/heads/{}", b))
+                        .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{}", b)))
+                        .or_else(|_| repo.find_reference(b))
+                        .ok()
+                        .and_then(|r| r.target())
+                } else {
+                    repo.head().ok().and_then(|h| h.target())
+                };
+
+                let oid = match start_oid {
+                    Some(o) => o,
+                    None => {
+                        let _ = window.emit(
+                            "git-progress",
+                            GitProgressEvent::Error {
+                                message: "找不到起始提交".to_string(),
+                            },
+                        );
+                        return;
                     }
+                };
 
-                    loaded += commits.len();
-
-                    let _ = window.emit("git-progress", GitProgressEvent::Data { commits, loaded });
-
-                    if loaded >= skip + limit {
-                        break;
-                    }
-                }
-                Err(e) => {
+                if let Err(e) = rw.push(oid) {
                     let _ = window.emit(
                         "git-progress",
                         GitProgressEvent::Error {
-                            message: format!("加载增量提交失败: {}", e),
+                            message: format!("Revwalk push 失败: {}", e),
                         },
                     );
                     return;
                 }
+                let _ = rw.set_sorting(git2::Sort::TIME);
+                rw
             }
+            Err(e) => {
+                let _ = window.emit(
+                    "git-progress",
+                    GitProgressEvent::Error {
+                        message: format!("创建 revwalk 失败: {}", e),
+                    },
+                );
+                return;
+            }
+        };
+
+        // Skip 到起始位置
+        let mut skipped = 0;
+        let mut it = revwalk.into_iter();
+        while skipped < skip {
+            if it.next().is_none() {
+                break;
+            }
+            skipped += 1;
+        }
+
+        let mut current_batch = Vec::with_capacity(batch_size);
+        for oid_result in it {
+            if loaded >= skip + limit {
+                break;
+            }
+
+            if let Ok(oid) = oid_result {
+                if let Ok(commit) =
+                    parse_commit_optimized(&repo, oid, false, &tags_map, &branch_tips)
+                {
+                    current_batch.push(commit);
+                    loaded += 1;
+
+                    if current_batch.len() >= batch_size {
+                        let _ = window.emit(
+                            "git-progress",
+                            GitProgressEvent::Data {
+                                commits: current_batch.clone(),
+                                loaded,
+                            },
+                        );
+                        current_batch.clear();
+                    }
+                }
+            }
+        }
+
+        // 发送剩余数据
+        if !current_batch.is_empty() {
+            let _ = window.emit(
+                "git-progress",
+                GitProgressEvent::Data {
+                    commits: current_batch,
+                    loaded,
+                },
+            );
         }
 
         // 发送完成事件
@@ -309,63 +446,7 @@ pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitComm
 
     let oid = Oid::from_str(&hash).map_err(|e| format!("Invalid commit hash: {}", e))?;
 
-    let commit = repo
-        .find_commit(oid)
-        .map_err(|e| format!("Failed to find commit {}: {}", hash, e))?;
-
-    // 获取作者信息
-    let author = commit.author();
-    let author_name = author.name().unwrap_or("Unknown").to_string();
-    let author_email = author.email().unwrap_or("").to_string();
-
-    // 获取时间（转换为 ISO 8601 格式）
-    let time = commit.time();
-    let offset = chrono::FixedOffset::east_opt(time.offset_minutes() * 60)
-        .ok_or_else(|| "Invalid timezone offset".to_string())?;
-    let datetime_with_tz = offset
-        .timestamp_opt(time.seconds(), 0)
-        .single()
-        .ok_or_else(|| "Invalid timestamp".to_string())?;
-    let date_str = datetime_with_tz.to_rfc3339();
-
-    // 获取提交消息
-    let message = commit.message().unwrap_or("").to_string();
-    let (subject, body) = if let Some(pos) = message.find('\n') {
-        let subject = message[..pos].trim().to_string();
-        let body = message[pos + 1..].trim().to_string();
-        (subject, body)
-    } else {
-        (message.trim().to_string(), String::new())
-    };
-
-    // 获取父提交
-    let parents: Vec<String> = commit.parents().map(|p| p.id().to_string()).collect();
-    // 获取 tags
-    let tags = get_commit_tags_git2(&repo, oid).unwrap_or_default();
-
-    // 获取 branches
-    let branches = get_commit_branches(&repo, oid).unwrap_or_default();
-
-    // 获取 stats 和 files
-    let (stats, files) = get_commit_diff_info(&repo, &commit)?;
-
-    Ok(GitCommit {
-        hash: oid.to_string(),
-        author: author_name,
-        email: author_email,
-        date: date_str,
-        message: subject.clone(),
-        full_message: if body.is_empty() {
-            subject
-        } else {
-            format!("{}\n\n{}", subject, body)
-        },
-        parents,
-        tags,
-        branches,
-        stats: Some(stats),
-        files: Some(files),
-    })
+    parse_commit(&repo, oid, true)
 }
 
 #[tauri::command]
@@ -671,6 +752,10 @@ fn get_commits_with_skip(
         .set_sorting(git2::Sort::TIME)
         .map_err(|e| format!("Failed to set sorting: {}", e))?;
 
+    // 性能优化：预先获取所有 Tags 和 Branch Tips
+    let tags_map = get_all_tags_map(&repo).unwrap_or_default();
+    let branch_tips = get_branch_tips_map(&repo).unwrap_or_default();
+
     let mut commits = Vec::new();
     let mut count = 0;
 
@@ -688,72 +773,11 @@ fn get_commits_with_skip(
             break;
         }
 
-        let commit = repo
-            .find_commit(oid)
-            .map_err(|e| format!("Failed to find commit {}: {}", oid, e))?;
-
-        // 获取作者信息
-        let author = commit.author();
-        let author_name = author.name().unwrap_or("Unknown").to_string();
-        let author_email = author.email().unwrap_or("").to_string();
-
-        // 获取时间（转换为 ISO 8601 格式）
-        let time = commit.time();
-        let offset = chrono::FixedOffset::east_opt(time.offset_minutes() * 60)
-            .ok_or_else(|| "Invalid timezone offset".to_string())?;
-        let datetime_with_tz = offset
-            .timestamp_opt(time.seconds(), 0)
-            .single()
-            .ok_or_else(|| "Invalid timestamp".to_string())?;
-        let date_str = datetime_with_tz.to_rfc3339();
-
-        // 获取提交消息
-        let message = commit.message().unwrap_or("").to_string();
-        let (subject, body) = if let Some(pos) = message.find('\n') {
-            let subject = message[..pos].trim().to_string();
-            let body = message[pos + 1..].trim().to_string();
-            (subject, body)
-        } else {
-            (message.trim().to_string(), String::new())
-        };
-
-        // 获取父提交
-        let parents: Vec<String> = commit.parents().map(|p| p.id().to_string()).collect();
-
-        let hash = oid.to_string();
-
-        // 获取 tags
-        let tags = get_commit_tags_git2(&repo, oid).unwrap_or_default();
-
-        // 获取 branches
-        let branches = get_commit_branches(&repo, oid).unwrap_or_default();
-
-        // 获取 stats 和 files
-        let (stats, files) = if include_files {
-            let (s, f) = get_commit_diff_info(&repo, &commit)?;
-            (Some(s), Some(f))
-        } else {
-            let s = get_commit_stats_git2(&repo, &commit).ok();
-            (s, None)
-        };
-
-        commits.push(GitCommit {
-            hash,
-            author: author_name,
-            email: author_email,
-            date: date_str,
-            message: subject.clone(),
-            full_message: if body.is_empty() {
-                subject
-            } else {
-                format!("{}\n\n{}", subject, body)
-            },
-            parents,
-            tags,
-            branches,
-            stats,
-            files,
-        });
+        if let Ok(commit) =
+            parse_commit_optimized(&repo, oid, include_files, &tags_map, &branch_tips)
+        {
+            commits.push(commit);
+        }
 
         count += 1;
     }
@@ -761,68 +785,184 @@ fn get_commits_with_skip(
     Ok(commits)
 }
 
-// 获取提交最相关的分支
-// 使用启发式规则推断该提交最可能创建于哪个分支
-fn get_commit_branches(repo: &Repository, commit_oid: Oid) -> Result<Vec<String>, String> {
+fn parse_commit(repo: &Repository, oid: Oid, include_files: bool) -> Result<GitCommit, String> {
+    let tags_map = get_all_tags_map(repo).unwrap_or_default();
+    let branch_tips = get_branch_tips_map(repo).unwrap_or_default();
+    parse_commit_optimized(repo, oid, include_files, &tags_map, &branch_tips)
+}
+
+fn parse_commit_optimized(
+    repo: &Repository,
+    oid: Oid,
+    include_files: bool,
+    tags_map: &HashMap<Oid, Vec<String>>,
+    branch_tips: &HashMap<Oid, Vec<String>>,
+) -> Result<GitCommit, String> {
+    let commit = repo
+        .find_commit(oid)
+        .map_err(|e| format!("Failed to find commit {}: {}", oid, e))?;
+
+    // 获取作者信息
+    let author = commit.author();
+    let author_name = author.name().unwrap_or("Unknown").to_string();
+    let author_email = author.email().unwrap_or("").to_string();
+
+    // 获取时间（转换为 ISO 8601 格式）
+    let time = commit.time();
+    let offset = chrono::FixedOffset::east_opt(time.offset_minutes() * 60)
+        .ok_or_else(|| "Invalid timezone offset".to_string())?;
+    let datetime_with_tz = offset
+        .timestamp_opt(time.seconds(), 0)
+        .single()
+        .ok_or_else(|| "Invalid timestamp".to_string())?;
+    let date_str = datetime_with_tz.to_rfc3339();
+
+    // 获取提交消息
+    let message = commit.message().unwrap_or("").to_string();
+    let (subject, body) = if let Some(pos) = message.find('\n') {
+        let subject = message[..pos].trim().to_string();
+        let body = message[pos + 1..].trim().to_string();
+        (subject, body)
+    } else {
+        (message.trim().to_string(), String::new())
+    };
+
+    // 获取父提交
+    let parents: Vec<String> = commit.parents().map(|p| p.id().to_string()).collect();
+
+    let hash = oid.to_string();
+
+    // 获取 tags (从预计算的 Map 中获取，极快)
+    let tags = tags_map.get(&oid).cloned().unwrap_or_default();
+
+    // 获取 branches
+    let branches = if let Some(tips) = branch_tips.get(&oid) {
+        tips.clone()
+    } else {
+        // 如果不是 Tip，则使用启发式规则查找（这里可以根据性能需求决定是否开启）
+        get_commit_branches_optimized(repo, oid, branch_tips).unwrap_or_default()
+    };
+
+    // 获取 stats 和 files
+    let (stats, files) = if include_files {
+        let (s, f) = get_commit_diff_info(repo, &commit)?;
+        (Some(s), Some(f))
+    } else {
+        // 优化：在列表模式下，不获取 stats 以大幅提速
+        (None, None)
+    };
+
+    Ok(GitCommit {
+        hash,
+        author: author_name,
+        email: author_email,
+        date: date_str,
+        message: subject.clone(),
+        full_message: if body.is_empty() {
+            subject
+        } else {
+            format!("{}\n\n{}", subject, body)
+        },
+        parents,
+        tags,
+        branches,
+        stats,
+        files,
+    })
+}
+
+// 预先获取所有 Tags 的 Map
+fn get_all_tags_map(repo: &Repository) -> Result<HashMap<Oid, Vec<String>>, String> {
+    let mut tags_map: HashMap<Oid, Vec<String>> = HashMap::new();
+
+    repo.tag_foreach(|tag_oid, name| {
+        if let Some(tag_name) = std::str::from_utf8(name)
+            .ok()
+            .and_then(|s| s.strip_prefix("refs/tags/"))
+        {
+            if let Ok(obj) = repo.find_object(tag_oid, None) {
+                let target_oid = match obj.kind() {
+                    Some(git2::ObjectType::Commit) => Some(obj.id()),
+                    Some(git2::ObjectType::Tag) => obj.as_tag().map(|t| t.target_id()),
+                    _ => None,
+                };
+
+                if let Some(oid) = target_oid {
+                    tags_map.entry(oid).or_default().push(tag_name.to_string());
+                }
+            }
+        }
+        true
+    })
+    .map_err(|e| format!("Failed to iterate tags: {}", e))?;
+
+    Ok(tags_map)
+}
+
+// 预先获取所有分支 Tip 的 Map
+fn get_branch_tips_map(repo: &Repository) -> Result<HashMap<Oid, Vec<String>>, String> {
+    let mut tips_map: HashMap<Oid, Vec<String>> = HashMap::new();
+
+    // 本地分支
+    if let Ok(branches) = repo.branches(Some(BranchType::Local)) {
+        for (branch, _) in branches.flatten() {
+            if let (Some(name), Ok(commit)) =
+                (branch.name().ok().flatten(), branch.get().peel_to_commit())
+            {
+                tips_map
+                    .entry(commit.id())
+                    .or_default()
+                    .push(name.to_string());
+            }
+        }
+    }
+
+    // 远程分支
+    if let Ok(branches) = repo.branches(Some(BranchType::Remote)) {
+        for (branch, _) in branches.flatten() {
+            if let (Some(name), Ok(commit)) =
+                (branch.name().ok().flatten(), branch.get().peel_to_commit())
+            {
+                let clean_name = name.strip_prefix("origin/").unwrap_or(name);
+                tips_map
+                    .entry(commit.id())
+                    .or_default()
+                    .push(clean_name.to_string());
+            }
+        }
+    }
+
+    Ok(tips_map)
+}
+
+// 优化的分支查找逻辑
+fn get_commit_branches_optimized(
+    repo: &Repository,
+    commit_oid: Oid,
+    branch_tips: &HashMap<Oid, Vec<String>>,
+) -> Result<Vec<String>, String> {
     // 收集所有包含该提交的分支
-    let mut all_branches: Vec<(String, bool)> = Vec::new(); // (分支名, 是否远程)
+    let mut all_branches: Vec<(String, bool)> = Vec::new();
 
-    // 检查本地分支
-    let local_branches = repo
-        .branches(Some(BranchType::Local))
-        .map_err(|e| format!("Failed to get local branches: {}", e))?;
-
-    for branch_result in local_branches {
-        let (branch, _) = branch_result.map_err(|e| format!("Failed to read branch: {}", e))?;
-        if let Some(name) = branch
-            .name()
-            .map_err(|e| format!("Invalid branch name: {}", e))?
+    // 只需要检查那些 Tip 提交是当前提交后代的分支
+    for (tip_oid, names) in branch_tips {
+        if *tip_oid == commit_oid
+            || repo
+                .graph_descendant_of(*tip_oid, commit_oid)
+                .unwrap_or(false)
         {
-            if let Ok(branch_commit) = branch.get().peel_to_commit() {
-                let branch_oid = branch_commit.id();
-                if branch_oid == commit_oid
-                    || repo
-                        .graph_descendant_of(branch_oid, commit_oid)
-                        .unwrap_or(false)
-                {
-                    all_branches.push((name.to_string(), false));
-                }
+            for name in names {
+                let is_remote = name.contains('/'); // 简单的启发式判断
+                all_branches.push((name.clone(), is_remote));
             }
         }
     }
 
-    // 检查远程分支
-    let remote_branches = repo
-        .branches(Some(BranchType::Remote))
-        .map_err(|e| format!("Failed to get remote branches: {}", e))?;
-
-    for branch_result in remote_branches {
-        let (branch, _) = branch_result.map_err(|e| format!("Failed to read branch: {}", e))?;
-        if let Some(name) = branch
-            .name()
-            .map_err(|e| format!("Invalid branch name: {}", e))?
-        {
-            if let Ok(branch_commit) = branch.get().peel_to_commit() {
-                let branch_oid = branch_commit.id();
-                if branch_oid == commit_oid
-                    || repo
-                        .graph_descendant_of(branch_oid, commit_oid)
-                        .unwrap_or(false)
-                {
-                    all_branches.push((name.to_string(), true));
-                }
-            }
-        }
-    }
-
-    // 如果只有 0-2 个分支，直接返回
     if all_branches.len() <= 2 {
         return Ok(all_branches.into_iter().map(|(name, _)| name).collect());
     }
 
-    // 启发式规则：智能筛选最相关的分支
-    let filtered = filter_most_relevant_branches(all_branches);
-    Ok(filtered)
+    Ok(filter_most_relevant_branches(all_branches))
 }
 
 // 启发式规则：筛选最相关的分支

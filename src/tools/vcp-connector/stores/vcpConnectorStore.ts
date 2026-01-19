@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { createConfigManager } from "@/utils/configManager";
 import type {
   VcpMessage,
   VcpMessageType,
@@ -16,86 +16,48 @@ import type {
   PluginStepStatusMessage,
 } from "../types/protocol";
 
-const errorHandler = createModuleErrorHandler("vcp-connector/store");
 const logger = createModuleLogger("vcp-connector/store");
 
-const STORAGE_KEY_CONFIG = "vcp-connector-config";
-const STORAGE_KEY_MESSAGES = "vcp-connector-messages";
 const DEFAULT_MAX_HISTORY = 500;
 const PING_INTERVAL = 30000;
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 
-function loadConfigFromStorage(): VcpConfig {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    errorHandler.handle(e as Error, {
-      userMessage: "Failed to load config from storage",
-      showToUser: false,
-    });
-  }
-  return {
+// 配置管理器：负责基础配置
+const configManager = createConfigManager<VcpConfig>({
+  moduleName: "vcp-connector",
+  fileName: "config.json",
+  createDefault: () => ({
     wsUrl: "",
     vcpKey: "",
     vcpPath: "",
     autoConnect: false,
     maxHistory: DEFAULT_MAX_HISTORY,
-  };
-}
+  }),
+});
 
-function saveConfigToStorage(config: VcpConfig) {
-  try {
-    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
-  } catch (e) {
-    errorHandler.handle(e as Error, {
-      userMessage: "Failed to save config to storage",
-      showToUser: false,
-    });
-  }
-}
-
-function loadMessagesFromStorage(): VcpMessage[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_MESSAGES);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    logger.warn("Failed to load messages from storage", e);
-  }
-  return [];
-}
-
-function saveMessagesToStorage(messages: VcpMessage[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
-  } catch (e) {
-    // 如果超出配额，尝试只保存最近的 100 条
-    if (e instanceof DOMException && e.name === "QuotaExceededError") {
-      try {
-        localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages.slice(-100)));
-      } catch (e2) {
-        logger.error("Failed to save messages even after truncation", e2);
-      }
-    } else {
-      logger.error("Failed to save messages to storage", e);
-    }
-  }
-}
+// 消息管理器：负责历史消息持久化
+const messagesManager = createConfigManager<{ list: VcpMessage[] }>({
+  moduleName: "vcp-connector",
+  fileName: "messages.json",
+  createDefault: () => ({ list: [] }),
+});
 
 export const useVcpStore = defineStore("vcp-connector", () => {
-  const config = ref<VcpConfig>(loadConfigFromStorage());
+  const config = ref<VcpConfig>({
+    wsUrl: "",
+    vcpKey: "",
+    vcpPath: "",
+    autoConnect: false,
+    maxHistory: DEFAULT_MAX_HISTORY,
+  });
 
   const connection = ref<ConnectionState>({
     status: "disconnected",
     reconnectAttempts: 0,
   });
 
-  const messages = ref<VcpMessage[]>(loadMessagesFromStorage());
+  const messages = ref<VcpMessage[]>([]);
 
   // WebSocket 内部状态
   const ws = ref<WebSocket | null>(null);
@@ -226,7 +188,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const oldKey = config.value.vcpKey;
 
     config.value = { ...config.value, ...newConfig };
-    saveConfigToStorage(config.value);
+    configManager.saveDebounced(config.value);
 
     // 如果关键配置变化且当前已连接，则重连
     if (
@@ -401,7 +363,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (filter.value.paused) return;
 
     messages.value.push(msg);
-    saveMessagesToStorage(messages.value);
+    messagesManager.saveDebounced({ list: messages.value });
     stats.value.totalCount += 1;
 
     switch (msg.type) {
@@ -429,7 +391,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
   function clearMessages() {
     messages.value = [];
-    saveMessagesToStorage([]);
+    messagesManager.save({ list: [] });
     stats.value = {
       totalCount: 0,
       ragCount: 0,
@@ -456,10 +418,23 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   }
 
   // 初始化逻辑
-  calculateInitialStats();
-  if (config.value.autoConnect) {
-    connect();
+  async function init() {
+    // 加载配置
+    const loadedConfig = await configManager.load();
+    config.value = loadedConfig;
+
+    // 加载消息
+    const loadedMessages = await messagesManager.load();
+    messages.value = loadedMessages.list || [];
+
+    calculateInitialStats();
+
+    if (config.value.autoConnect) {
+      connect();
+    }
   }
+
+  init();
 
   return {
     config,

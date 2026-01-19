@@ -149,6 +149,8 @@ export function useGitAnalyzerRunner() {
           filterCommits();
 
           state.progress.value.loaded = event.loaded || 0;
+          // 实时更新已加载限制，以便终止后能继续增量加载
+          state.lastLoadedLimit.value = state.progress.value.loaded;
 
           logger.debug(
             `加载进度: ${event.loaded} / ${state.progress.value.total}`
@@ -178,6 +180,10 @@ export function useGitAnalyzerRunner() {
       case "cancelled":
         state.progress.value.loading = false;
         state.loading.value = false;
+        // 确保记录已加载的状态
+        state.lastLoadedRepo.value = state.repoPath.value;
+        state.lastLoadedBranch.value = state.selectedBranch.value;
+        state.lastLoadedLimit.value = state.progress.value.loaded;
         customMessage.info("加载已终止");
         break;
 
@@ -207,20 +213,26 @@ export function useGitAnalyzerRunner() {
     // 检查是否可以进行增量加载
     const isSameRepo = state.lastLoadedRepo.value === currentRepoPath;
     const isSameBranch = state.lastLoadedBranch.value === currentBranch;
+    // 增量加载条件：相同仓库和分支，且 (新限制 > 旧限制 或 新限制为 0 且旧限制 > 0)
     const isIncrementalLoad =
-      isSameRepo && isSameBranch && state.limitCount.value > state.lastLoadedLimit.value;
+      isSameRepo &&
+      isSameBranch &&
+      state.lastLoadedLimit.value > 0 &&
+      (state.limitCount.value > state.lastLoadedLimit.value || state.limitCount.value === 0);
 
     if (isIncrementalLoad) {
       // 增量加载
       const skip = state.lastLoadedLimit.value;
-      const newLimit = state.limitCount.value - state.lastLoadedLimit.value;
+      // 如果 limitCount 为 0，则 newLimit 也设为 0（表示加载剩余全部）
+      const newLimit =
+        state.limitCount.value === 0 ? 0 : state.limitCount.value - state.lastLoadedLimit.value;
       const initialCommitCount = state.commits.value.length;
 
       state.loading.value = true;
       state.progress.value = {
         loading: true,
         loaded: skip,
-        total: state.limitCount.value,
+        total: state.limitCount.value === 0 ? state.progress.value.total : state.limitCount.value,
       };
 
       try {

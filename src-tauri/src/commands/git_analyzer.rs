@@ -331,11 +331,23 @@ pub async fn git_load_incremental_stream(
 
     // 在后台启动增量加载任务
     tokio::spawn(async move {
+        // 获取总提交数（用于进度展示）
+        let total = match get_total_commits(&repo_path, branch.as_deref()) {
+            Ok(t) => {
+                if limit == 0 {
+                    t
+                } else {
+                    t.min(skip + limit)
+                }
+            }
+            Err(_) => skip + limit, // 降级处理
+        };
+
         // 发送开始事件（增量加载不需要获取分支）
         let _ = window.emit(
             "git-progress",
             GitProgressEvent::Start {
-                total: skip + limit,
+                total,
                 branches: vec![],
             },
         );
@@ -430,7 +442,7 @@ pub async fn git_load_incremental_stream(
                 return;
             }
 
-            if loaded >= skip + limit {
+            if limit > 0 && loaded >= skip + limit {
                 break;
             }
 

@@ -68,17 +68,21 @@
         </el-col>
         <el-col :span="3">
           <el-tooltip
-            content="设置流式加载时的批次大小，较大的批次可以减少更新频率"
+            content="设置流式加载时的批次大小。设置为 0 则使用非流式加载（一次性加载所有记录）"
             placement="top"
           >
             <el-input-number
               v-model="batchSize"
-              :min="5"
-              :max="500"
-              :step="5"
+              :min="0"
+              :max="1000"
+              :step="10"
               placeholder="批次大小"
               style="width: 100%"
-            />
+            >
+              <template #prefix v-if="batchSize === 0">
+                <span class="non-stream-tag">非流式</span>
+              </template>
+            </el-input-number>
           </el-tooltip>
         </el-col>
         <el-col :span="2">
@@ -500,6 +504,13 @@ function locateTagInterval() {
   color: var(--text-color-light);
   margin-top: 2px;
   line-height: 1;
+}
+
+.non-stream-tag {
+  font-size: 12px;
+  color: var(--el-color-info);
+  margin-left: 4px;
+  font-weight: bold;
 }
 
 :deep(.el-date-editor .el-range-separator) {

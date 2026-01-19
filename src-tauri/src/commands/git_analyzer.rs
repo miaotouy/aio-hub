@@ -158,7 +158,8 @@ pub async fn git_load_repository_stream(
         );
 
         // 流式加载提交记录 - 使用配置的批次大小或默认值
-        let batch_size = batch_size.unwrap_or(200);
+        // 如果 batch_size 为 0，则视为非流式加载（最后一次性发送）
+        let batch_size_val = batch_size.unwrap_or(200);
         let mut loaded = 0;
 
         let repo = match Repository::open(&repo_path) {
@@ -210,7 +211,11 @@ pub async fn git_load_repository_stream(
             }
         };
 
-        let mut current_batch = Vec::with_capacity(batch_size);
+        let mut current_batch = Vec::with_capacity(if batch_size_val == 0 {
+            total
+        } else {
+            batch_size_val
+        });
         for oid_result in revwalk {
             if loaded >= limit {
                 break;
@@ -225,7 +230,8 @@ pub async fn git_load_repository_stream(
                 current_batch.push(commit);
                 loaded += 1;
 
-                if current_batch.len() >= batch_size {
+                // 只有在 batch_size_val > 0 时才进行流式发送
+                if batch_size_val > 0 && current_batch.len() >= batch_size_val {
                     let _ = window.emit(
                         "git-progress",
                         GitProgressEvent::Data {
@@ -304,7 +310,7 @@ pub async fn git_load_incremental_stream(
         );
 
         // 流式加载增量提交记录
-        let batch_size = batch_size.unwrap_or(200);
+        let batch_size_val = batch_size.unwrap_or(200);
         let mut loaded = skip; // 从已加载的数量开始
 
         let repo = match Repository::open(&repo_path) {
@@ -382,7 +388,11 @@ pub async fn git_load_incremental_stream(
             skipped += 1;
         }
 
-        let mut current_batch = Vec::with_capacity(batch_size);
+        let mut current_batch = Vec::with_capacity(if batch_size_val == 0 {
+            limit
+        } else {
+            batch_size_val
+        });
         for oid_result in it {
             if loaded >= skip + limit {
                 break;
@@ -395,7 +405,7 @@ pub async fn git_load_incremental_stream(
                     current_batch.push(commit);
                     loaded += 1;
 
-                    if current_batch.len() >= batch_size {
+                    if batch_size_val > 0 && current_batch.len() >= batch_size_val {
                         let _ = window.emit(
                             "git-progress",
                             GitProgressEvent::Data {

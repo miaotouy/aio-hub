@@ -117,7 +117,7 @@ export function useGitAnalyzerRunner() {
    */
   function handleProgressEvent(event: GitProgressEvent, isIncremental: boolean, initialCount: number) {
     switch (event.type) {
-      case "start":
+      case "start": {
         state.progress.value.total = event.total || state.limitCount.value;
         if (event.branches) {
           state.branches.value = event.branches;
@@ -126,8 +126,10 @@ export function useGitAnalyzerRunner() {
             state.selectedBranch.value = currentBranchInfo.name;
           }
         }
-        logger.info(`开始${isIncremental ? '增量' : ''}流式加载，目标总数 ${event.total}`);
+        const loadType = state.batchSize.value === 0 ? "" : "流式";
+        logger.info(`开始${isIncremental ? '增量' : ''}${loadType}加载，目标总数 ${event.total}`);
         break;
+      }
 
       case "data":
         if (event.commits) {
@@ -153,22 +155,24 @@ export function useGitAnalyzerRunner() {
         }
         break;
 
-      case "end":
+      case "end": {
         state.progress.value.loading = false;
         state.loading.value = false;
         state.commitRange.value = [0, state.commits.value.length];
 
+        const loadType = state.batchSize.value === 0 ? "" : "流式";
         if (isIncremental) {
           state.lastLoadedLimit.value = state.limitCount.value;
           const newCount = state.commits.value.length - initialCount;
-          customMessage.success(`增量加载了 ${newCount} 条新提交记录，当前共 ${state.commits.value.length} 条`);
+          customMessage.success(`增量${loadType}加载完成，新增 ${newCount} 条记录，共 ${state.commits.value.length} 条`);
         } else {
           state.lastLoadedRepo.value = state.repoPath.value;
           state.lastLoadedBranch.value = state.selectedBranch.value;
           state.lastLoadedLimit.value = state.limitCount.value;
-          customMessage.success(`流式加载完成，共 ${state.commits.value.length} 条提交记录`);
+          customMessage.success(`${loadType}加载完成，共 ${state.commits.value.length} 条提交记录`);
         }
         break;
+      }
 
       case "error":
         state.progress.value.loading = false;

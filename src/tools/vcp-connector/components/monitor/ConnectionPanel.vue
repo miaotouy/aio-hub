@@ -7,20 +7,20 @@
         <label class="form-label">VCP 目录</label>
         <div class="path-input-row">
           <el-input
-            v-model="vcpPath"
+            :model-value="store.config.vcpPath"
             placeholder="选择 VCP 根目录"
             size="small"
             readonly
             @click="selectVcpPath"
           >
             <template #append>
-              <el-button @click="selectVcpPath">浏览</el-button>
+              <el-button size="small" @click="selectVcpPath">浏览</el-button>
             </template>
           </el-input>
           <el-button
             type="primary"
             size="small"
-            :disabled="!vcpPath"
+            :disabled="!store.config.vcpPath"
             @click="detectLocalVcp"
             title="从选择的目录解析配置"
           >
@@ -32,29 +32,34 @@
       <div class="form-item">
         <label class="form-label">WebSocket 地址</label>
         <el-input
-          v-model="wsUrl"
+          :model-value="store.config.wsUrl"
+          @update:model-value="store.updateConfig({ wsUrl: $event })"
           placeholder="ws://127.0.0.1:port/vcpinfo"
           size="small"
           clearable
-          @blur="saveConfig"
         />
       </div>
 
       <div class="form-item">
         <label class="form-label">VCP Key</label>
         <el-input
-          v-model="vcpKey"
+          :model-value="store.config.vcpKey"
+          @update:model-value="store.updateConfig({ vcpKey: $event })"
           type="password"
           placeholder="请输入 VCP Key"
           size="small"
           clearable
           show-password
-          @blur="saveConfig"
         />
       </div>
 
       <div class="form-item">
-        <el-checkbox v-model="autoConnect" @change="saveConfig"> 自动连接 </el-checkbox>
+        <el-checkbox
+          :model-value="store.config.autoConnect"
+          @update:model-value="store.updateConfig({ autoConnect: $event })"
+        >
+          自动连接
+        </el-checkbox>
       </div>
 
       <div class="form-item">
@@ -80,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
@@ -90,29 +95,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 const store = useVcpStore();
 const { connect, disconnect, isConnecting, connectionStatus } = useVcpWebSocket();
 
-const vcpPath = ref(store.config.vcpPath);
-const wsUrl = ref(store.config.wsUrl);
-const vcpKey = ref(store.config.vcpKey);
-const autoConnect = ref(store.config.autoConnect);
-
 const isConnected = computed(() => connectionStatus.value === "connected");
 const connection = computed(() => store.connection);
-
-function saveConfig() {
-  store.updateConfig({
-    vcpPath: vcpPath.value,
-    wsUrl: wsUrl.value,
-    vcpKey: vcpKey.value,
-    autoConnect: autoConnect.value,
-  });
-}
 
 function handleConnect() {
   if (isConnected.value) {
     disconnect();
     customMessage.info("已断开连接");
   } else {
-    saveConfig();
     connect();
     customMessage.info("正在连接...");
   }
@@ -127,8 +117,7 @@ async function selectVcpPath() {
     });
 
     if (selected && typeof selected === "string") {
-      vcpPath.value = selected;
-      saveConfig();
+      store.updateConfig({ vcpPath: selected });
       // 自动尝试解析一次
       await detectLocalVcp();
     }
@@ -138,16 +127,17 @@ async function selectVcpPath() {
 }
 
 async function detectLocalVcp() {
-  if (!vcpPath.value) {
+  const currentPath = store.config.vcpPath;
+  if (!currentPath) {
     customMessage.warning("请先选择 VCP 目录");
     return;
   }
 
   try {
     // 规范化路径，确保包含 config.env
-    const envPath = vcpPath.value.endsWith("config.env")
-      ? vcpPath.value
-      : `${vcpPath.value}${vcpPath.value.endsWith("/") || vcpPath.value.endsWith("\\") ? "" : "/"}config.env`;
+    const envPath = currentPath.endsWith("config.env")
+      ? currentPath
+      : `${currentPath}${currentPath.endsWith("/") || currentPath.endsWith("\\") ? "" : "/"}config.env`;
 
     const envContent = await invoke<string>("read_text_file_force", {
       path: envPath,
@@ -164,9 +154,10 @@ async function detectLocalVcp() {
     if (portMatch && keyMatch) {
       const port = portMatch[1];
       const key = keyMatch[1];
-      wsUrl.value = `ws://127.0.0.1:${port}`;
-      vcpKey.value = key;
-      saveConfig();
+      store.updateConfig({
+        wsUrl: `ws://127.0.0.1:${port}`,
+        vcpKey: key,
+      });
       customMessage.success("成功探测到本地 VCP 配置");
     } else {
       customMessage.warning("在 config.env 中未找到 PORT 或 VCP_Key");
@@ -176,13 +167,6 @@ async function detectLocalVcp() {
     customMessage.error("自动探测失败，请确保目录下包含 config.env 文件");
   }
 }
-
-watch(
-  () => store.config.autoConnect,
-  (val) => {
-    autoConnect.value = val;
-  }
-);
 </script>
 
 <style scoped lang="css">

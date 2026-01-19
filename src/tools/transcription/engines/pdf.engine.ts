@@ -19,7 +19,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     const { sendRequest } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout } = getModelParams(ctx, "document");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "document");
     const [profileId, modelId] = modelIdentifier.split(":");
 
     const profile = getProfileById(profileId);
@@ -122,7 +122,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     const cleanedText = cleanLlmOutput(transcriptionText);
     const repetition = detectRepetition(cleanedText, ctx.config.repetitionConfig);
 
-    if (ctx.config.enableRepetitionDetection && repetition.isRepetitive) {
+    if (enableRepetitionDetection && repetition.isRepetitive) {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
     }
 

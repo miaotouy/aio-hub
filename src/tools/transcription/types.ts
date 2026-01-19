@@ -40,6 +40,7 @@ export interface TypeSpecificConfig {
   additionalPrompt?: string;
   temperature: number;
   maxTokens: number;
+  enableRepetitionDetection?: boolean;
 }
 
 /**

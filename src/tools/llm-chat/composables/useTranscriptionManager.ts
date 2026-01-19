@@ -234,6 +234,7 @@ export function useTranscriptionManager() {
       maxRetries: chatConfig.maxRetries,
       // 复读处理
       enableRepetitionDetection: options?.enableRepetitionDetection ?? chatConfig.enableRepetitionDetection,
+      additionalPrompt: options?.additionalPrompt,
       repetitionThreshold: chatConfig.repetitionThreshold,
       repetitionCount: chatConfig.repetitionCount,
       repetitionWhitelist: chatConfig.repetitionWhitelist,
@@ -246,11 +247,6 @@ export function useTranscriptionManager() {
       video: chatConfig.video,
       document: chatConfig.document,
     };
-
-    // 处理 additionalPrompt 追加逻辑
-    if (options?.additionalPrompt) {
-      overrideConfig.customPrompt = `${overrideConfig.customPrompt}\n\n${options.additionalPrompt}`;
-    }
 
     return transcriptionRegistry.addTask(asset, overrideConfig);
   };

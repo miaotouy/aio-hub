@@ -16,7 +16,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const { task } = ctx;
     const { sendRequest } = useLlmRequest();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout } = getModelParams(ctx, "audio");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "audio");
     const [profileId, modelId] = modelIdentifier.split(":");
 
     const buffer = await assetManagerEngine.getAssetBinary(task.path);
@@ -50,7 +50,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const cleanedText = cleanLlmOutput(response.content);
     const repetition = detectRepetition(cleanedText, ctx.config.repetitionConfig);
 
-    if (ctx.config.enableRepetitionDetection && repetition.isRepetitive) {
+    if (enableRepetitionDetection && repetition.isRepetitive) {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
     }
 

@@ -21,7 +21,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     const config = getEffectiveConfig(ctx);
     const { sendRequest } = useLlmRequest();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout } = getModelParams(ctx, "video");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "video");
     const [profileId, modelId] = modelIdentifier.split(":");
 
     // 1. 获取二进制数据 (处理视频压缩逻辑)
@@ -146,7 +146,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     const cleanedText = cleanLlmOutput(response.content);
     const repetition = detectRepetition(cleanedText, config.repetitionConfig);
 
-    if (config.enableRepetitionDetection && repetition.isRepetitive) {
+    if (enableRepetitionDetection && repetition.isRepetitive) {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
     }
 

@@ -17,22 +17,42 @@ export function getEffectiveConfig(ctx: EngineContext) {
  */
 export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "video" | "document") {
   const config = getEffectiveConfig(ctx);
+  const { task } = ctx;
+
   let modelIdentifier = config.modelIdentifier;
   let prompt = config.customPrompt;
   let temperature = config.temperature;
   let maxTokens = config.maxTokens;
+  let enableRepetitionDetection = config.enableRepetitionDetection;
 
+  // 1. 合并分类型特定配置 (specific)
   const specific = config[type];
   if (specific) {
     modelIdentifier = specific.modelIdentifier || modelIdentifier;
     prompt = specific.customPrompt || prompt;
     temperature = specific.temperature ?? temperature;
     maxTokens = specific.maxTokens ?? maxTokens;
+    enableRepetitionDetection = specific.enableRepetitionDetection ?? enableRepetitionDetection;
+  }
+
+  // 2. 处理 additionalPrompt 追加逻辑 (集中分发)
+  // 优先级: 任务覆盖配置中的 additionalPrompt > 分类型配置中的 additionalPrompt > 全局配置中的 additionalPrompt
+  const additionalPrompt = task.overrideConfig?.additionalPrompt || specific?.additionalPrompt || config.additionalPrompt;
+  if (additionalPrompt) {
+    prompt = `${prompt}\n\n${additionalPrompt}`;
   }
 
   const timeout = config.timeout || 120; // 默认 120s
 
-  return { modelIdentifier, prompt, temperature, maxTokens, timeout };
+  return {
+    modelIdentifier,
+    prompt,
+    temperature,
+    maxTokens,
+    timeout,
+    /** 最终生效的复读检测开关 */
+    enableRepetitionDetection,
+  };
 }
 
 /**

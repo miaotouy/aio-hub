@@ -283,9 +283,11 @@ export function useGitAnalyzerRunner() {
   }
 
   /**
-   * 刷新仓库
+   * 刷新仓库（强制全量重新加载）
    */
   async function refreshRepository() {
+    // 强制重置最后加载的限制，以触发全量加载
+    state.lastLoadedLimit.value = 0;
     return await loadRepository();
   }
 

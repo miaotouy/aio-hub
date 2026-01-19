@@ -336,7 +336,13 @@ const getTaskDuration = (task: TranscriptionTask) => {
               <el-icon :class="{ 'is-loading': row.status === 'processing' }">
                 <component :is="getStatusIcon(row.status)" />
               </el-icon>
-              <span>{{ getStatusLabel(row.status) }}</span>
+              <span>
+                {{
+                  row.status === "processing" && row.progress !== undefined
+                    ? `${Math.round(row.progress)}%`
+                    : getStatusLabel(row.status)
+                }}
+              </span>
             </el-tag>
           </template>
         </el-table-column>
@@ -659,7 +665,6 @@ const getTaskDuration = (task: TranscriptionTask) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 10px 0;
 }
 
 .retry-task-info {
@@ -674,6 +679,7 @@ const getTaskDuration = (task: TranscriptionTask) => {
 
 .info-label {
   color: var(--el-text-color-secondary);
+  min-width: 40px;
 }
 
 .info-value {

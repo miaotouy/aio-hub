@@ -1,6 +1,16 @@
 use serde::Serialize;
 use std::path::Path;
+use std::process::Stdio;
+use tauri::Emitter;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FfmpegProgressPayload {
+    pub task_id: String,
+    pub progress: f64,
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +26,18 @@ pub struct VideoMetadata {
 #[tauri::command]
 pub async fn get_video_metadata_command(ffmpeg_path: String, input_path: String) -> VideoMetadata {
     get_video_metadata(&ffmpeg_path, &input_path).await
+}
+
+fn parse_ffmpeg_time(s: &str) -> Option<f64> {
+    let parts: Vec<&str> = s.split(':').collect();
+    if parts.len() == 3 {
+        let h = parts[0].parse::<f64>().ok()?;
+        let m = parts[1].parse::<f64>().ok()?;
+        let s = parts[2].parse::<f64>().ok()?;
+        Some(h * 3600.0 + m * 60.0 + s)
+    } else {
+        None
+    }
 }
 
 async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadata {
@@ -122,6 +144,8 @@ pub async fn check_ffmpeg_availability(path: String) -> bool {
 /// * `max_fps` - 最大帧率限制 (FPS)，可选
 #[tauri::command]
 pub async fn compress_video(
+    task_id: String,
+    window: tauri::Window,
     input_path: String,
     output_path: String,
     preset: String,
@@ -335,15 +359,54 @@ pub async fn compress_video(
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
-    // command.stderr(Stdio::inherit());
+    command.args(&args);
+    command.stderr(Stdio::piped());
+    command.stdout(Stdio::null());
 
-    let status = command
-        .args(&args)
-        .status()
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Failed to spawn FFmpeg: {}", e))?;
+
+    let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
+    let mut reader = BufReader::new(stderr).lines();
+
+    let duration = metadata.duration.unwrap_or(0.0);
+
+    while let Ok(Some(line)) = reader.next_line().await {
+        // 解析进度信息
+        // ffmpeg 进度通常包含 "time=HH:MM:SS.mm"
+        if duration > 0.0 {
+            if let Some(pos) = line.find("time=") {
+                let rest = &line[pos + 5..];
+                let time_str = rest.split_whitespace().next().unwrap_or("");
+                if let Some(current_time) = parse_ffmpeg_time(time_str) {
+                    let progress = (current_time / duration * 100.0).min(99.9);
+                    let _ = window.emit(
+                        "ffmpeg-progress",
+                        FfmpegProgressPayload {
+                            task_id: task_id.clone(),
+                            progress,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    let status = child
+        .wait()
         .await
-        .map_err(|e| format!("Failed to execute FFmpeg: {}", e))?;
+        .map_err(|e| format!("Failed to wait for FFmpeg: {}", e))?;
 
     if status.success() {
+        // 确保最后发送 100%
+        let _ = window.emit(
+            "ffmpeg-progress",
+            FfmpegProgressPayload {
+                task_id: task_id.clone(),
+                progress: 100.0,
+            },
+        );
         Ok(output_path)
     } else {
         Err(format!(

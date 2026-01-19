@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { stat } from "@tauri-apps/plugin-fs";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
@@ -73,15 +74,30 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
           const maxResolution = config.video?.maxResolution || 720;
           const outputPath = `${fullPath}_compressed.mp4`;
 
-          await invoke("compress_video", {
-            inputPath: fullPath,
-            outputPath: outputPath,
-            preset: preset,
-            ffmpegPath: ffmpegPath,
-            maxSizeMb: maxDirectSizeMB,
-            maxFps: maxFps,
-            maxResolution: maxResolution,
-          });
+          // 监听进度
+          const unlisten = await listen<{ taskId: string; progress: number }>(
+            "ffmpeg-progress",
+            (event) => {
+              if (event.payload.taskId === task.id) {
+                task.progress = event.payload.progress;
+              }
+            }
+          );
+
+          try {
+            await invoke("compress_video", {
+              taskId: task.id,
+              inputPath: fullPath,
+              outputPath: outputPath,
+              preset: preset,
+              ffmpegPath: ffmpegPath,
+              maxSizeMb: maxDirectSizeMB,
+              maxFps: maxFps,
+              maxResolution: maxResolution,
+            });
+          } finally {
+            unlisten();
+          }
 
           finalPath = `${assetPath}_compressed.mp4`;
           task.tempFilePath = finalPath;

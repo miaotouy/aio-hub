@@ -19,6 +19,7 @@ export interface TranscriptionTask {
   createdAt: number;
   startedAt?: number; // 开始处理时间
   completedAt?: number; // 完成/失败时间
+  progress?: number; // 处理进度 (0-100)
   mimeType?: string;
   filename?: string;
   resultPath?: string;

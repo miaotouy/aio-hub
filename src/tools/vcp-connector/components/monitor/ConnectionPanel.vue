@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
@@ -184,11 +184,6 @@ watch(
   }
 );
 
-onMounted(() => {
-  if (autoConnect.value && wsUrl.value && vcpKey.value) {
-    connect();
-  }
-});
 </script>
 
 <style scoped lang="css">

@@ -148,7 +148,8 @@ const handleRetry = async (task: TranscriptionTask) => {
   } else {
     retryModelId.value = "";
   }
-  retryPrompt.value = oldConfig?.customPrompt || "";
+  // 优先恢复附加提示词，如果没有（可能是旧版本任务），则回退到 customPrompt
+  retryPrompt.value = oldConfig?.additionalPrompt || oldConfig?.customPrompt || "";
   retryEnableRepetitionDetection.value = oldConfig?.enableRepetitionDetection !== false;
 
   showRetryConfirm.value = true;
@@ -165,7 +166,8 @@ const handleConfirmRetry = async () => {
       overrideConfig.modelIdentifier = `custom:${retryModelId.value}`;
     }
     if (retryPrompt.value) {
-      overrideConfig.customPrompt = retryPrompt.value;
+      // 存入 additionalPrompt 字段，避免污染全局 customPrompt
+      overrideConfig.additionalPrompt = retryPrompt.value;
     }
     overrideConfig.enableRepetitionDetection = retryEnableRepetitionDetection.value;
 
@@ -233,7 +235,7 @@ const handleViewResult = async (task: TranscriptionTask) => {
       onRegenerate: ({ modelId, prompt, enableRepetitionDetection }) => {
         addTask(asset, {
           modelIdentifier: modelId ? `custom:${modelId}` : undefined,
-          customPrompt: prompt || undefined,
+          additionalPrompt: prompt || undefined,
           enableRepetitionDetection,
         });
         transcriptionViewer.close();

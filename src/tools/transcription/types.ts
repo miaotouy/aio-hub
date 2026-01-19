@@ -37,6 +37,7 @@ export interface TranscriptionTask {
 export interface TypeSpecificConfig {
   modelIdentifier: string;
   customPrompt: string;
+  additionalPrompt?: string;
   temperature: number;
   maxTokens: number;
 }
@@ -58,6 +59,7 @@ export interface TranscriptionConfig {
   autoStartOnImport: boolean;
   modelIdentifier: string;
   customPrompt: string;
+  additionalPrompt?: string;
   temperature: number;
   maxTokens: number;
   maxConcurrentTasks: number;

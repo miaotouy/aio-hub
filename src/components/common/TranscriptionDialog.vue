@@ -284,7 +284,8 @@ const openRegenerateConfirm = () => {
     } else {
       selectedModelId.value = "";
     }
-    tempPrompt.value = props.previousConfig.customPrompt || "";
+    // 优先恢复附加提示词，如果没有（可能是旧版本任务），则回退到 customPrompt
+    tempPrompt.value = props.previousConfig.additionalPrompt || props.previousConfig.customPrompt || "";
     enableRepetitionDetection.value = props.previousConfig.enableRepetitionDetection !== false;
   } else {
     selectedModelId.value = "";

@@ -61,6 +61,13 @@ export function useTranscriptionManager() {
         ...(pendingTask.overrideConfig || {}),
       };
 
+      // 处理提示词合并逻辑：如果存在附加提示词，则追加到主提示词后面
+      if (finalConfig.additionalPrompt) {
+        finalConfig.customPrompt = finalConfig.customPrompt
+          ? `${finalConfig.customPrompt}\n\n${finalConfig.additionalPrompt}`
+          : finalConfig.additionalPrompt;
+      }
+
       const result = await engine.execute({
         task: pendingTask,
         config: finalConfig,

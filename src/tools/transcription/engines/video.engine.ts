@@ -72,6 +72,8 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
           const preset = "auto_size";
           const maxFps = config.video?.maxFps || 12;
           const maxResolution = config.video?.maxResolution || 720;
+          const enableGpu = config.video?.enableGpu || false;
+          const autoAdjustResolution = config.video?.autoAdjustResolution ?? true;
           const outputPath = `${fullPath}_compressed.mp4`;
 
           // 监听进度
@@ -95,6 +97,8 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
                 maxSizeMb: maxDirectSizeMB,
                 maxFps: maxFps,
                 maxResolution: maxResolution,
+                enableGpu: enableGpu,
+                autoAdjustResolution: autoAdjustResolution,
               }
             });
           } finally {

@@ -1187,6 +1187,32 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
+      {
+        id: "transVideoEnableGpu",
+        label: "启用 GPU 加速",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.video.enableGpu",
+        hint: "使用 NVIDIA GPU (h264_nvenc) 加速压缩，需硬件支持。",
+        keywords: "transcription video gpu hardware acceleration 硬件加速",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
+      },
+      {
+        id: "transVideoAutoAdjustResolution",
+        label: "自动调整分辨率",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.video.autoAdjustResolution",
+        hint: "当目标体积过小时，自动降低分辨率以保持画质清晰度。",
+        keywords: "transcription video auto resolution 自动 分辨率",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
+        groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
+      },
 
       // 6. 文档转写配置
       {

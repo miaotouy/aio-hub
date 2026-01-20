@@ -102,6 +102,10 @@ export interface TranscriptionConfig {
     maxFps: number;
     /** 最大分辨率（短边像素，压缩时保持比例缩放） */
     maxResolution: number;
+    /** 是否启用 GPU 加速 */
+    enableGpu?: boolean;
+    /** 是否启用自动调整分辨率 */
+    autoAdjustResolution?: boolean;
   };
 }
 
@@ -359,6 +363,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
       enableCompression: true,
       maxFps: 12,
       maxResolution: 720,
+      enableGpu: false,
+      autoAdjustResolution: true,
       modelIdentifier: "",
       customPrompt: `你是一个专业的视频内容分析器，正在处理视频：{filename}。具备对动态视觉内容和音频信息的综合理解能力。
 

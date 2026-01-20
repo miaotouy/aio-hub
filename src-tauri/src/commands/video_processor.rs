@@ -22,6 +22,8 @@ pub struct CompressOptions {
     pub max_size_mb: Option<f64>,
     pub max_fps: Option<f64>,
     pub max_resolution: Option<u32>,
+    pub enable_gpu: Option<bool>,
+    pub auto_adjust_resolution: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -32,6 +34,49 @@ pub struct VideoMetadata {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub has_audio: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum HardwareEncoder {
+    Nvenc,
+    Qsv,
+    Amf,
+    VideoToolbox,
+    Software,
+}
+
+impl HardwareEncoder {
+    fn to_codec_name(&self) -> &str {
+        match self {
+            HardwareEncoder::Nvenc => "h264_nvenc",
+            HardwareEncoder::Qsv => "h264_qsv",
+            HardwareEncoder::Amf => "h264_amf",
+            HardwareEncoder::VideoToolbox => "h264_videotoolbox",
+            HardwareEncoder::Software => "libx264",
+        }
+    }
+}
+
+async fn detect_best_encoder(ffmpeg_path: &str) -> HardwareEncoder {
+    let output = match Command::new(ffmpeg_path).arg("-encoders").output().await {
+        Ok(o) => o,
+        Err(_) => return HardwareEncoder::Software,
+    };
+
+    let encoders_info = String::from_utf8_lossy(&output.stdout);
+
+    // 优先级排序
+    if encoders_info.contains("h264_nvenc") {
+        HardwareEncoder::Nvenc
+    } else if encoders_info.contains("h264_qsv") {
+        HardwareEncoder::Qsv
+    } else if encoders_info.contains("h264_amf") {
+        HardwareEncoder::Amf
+    } else if encoders_info.contains("h264_videotoolbox") {
+        HardwareEncoder::VideoToolbox
+    } else {
+        HardwareEncoder::Software
+    }
 }
 
 /// 获取视频元数据 (时长、帧率、分辨率、是否有音频)
@@ -159,6 +204,8 @@ pub async fn compress_video(
     let max_size_mb = options.max_size_mb;
     let max_fps = options.max_fps;
     let max_resolution = options.max_resolution;
+    let enable_gpu = options.enable_gpu.unwrap_or(false);
+    let auto_adjust_resolution = options.auto_adjust_resolution.unwrap_or(true);
 
     // 检查输入文件是否存在
     if !Path::new(&input_path).exists() {
@@ -201,13 +248,34 @@ pub async fn compress_video(
     // 计算缩放参数 (vf scale)
     // 逻辑：
     // 1. 确定目标限制值 target_res: 优先使用 max_resolution，否则根据 preset 设定默认值
-    // 2. 根据 metadata.width/height 判断横竖屏
-    // 3. 构建 scale 字符串
-    let target_res = max_resolution.unwrap_or(match preset.as_str() {
+    // 2. 如果开启了 auto_adjust_resolution，且设置了 max_size_mb，则根据码率需求动态降低分辨率
+    let mut target_res = max_resolution.unwrap_or(match preset.as_str() {
         "quality" => 1080,
         "speed" => 480,
+        "auto_size" => 720,
         _ => 720,
     });
+
+    // 动态分辨率调整逻辑
+    if preset == "auto_size" && auto_adjust_resolution {
+        if let (Some(target_mb), Some(duration)) = (max_size_mb, metadata.duration) {
+            if duration > 0.0 {
+                let target_bits = target_mb * 8.0 * 1024.0 * 1024.0;
+                let total_bitrate = target_bits / duration;
+                let video_bitrate = (total_bitrate - 128_000.0).max(100_000.0);
+
+                // 根据码率自动降级分辨率以保证清晰度
+                // 码率 < 600k -> 480p, < 300k -> 360p
+                if video_bitrate < 300_000.0 {
+                    target_res = target_res.min(360);
+                } else if video_bitrate < 600_000.0 {
+                    target_res = target_res.min(480);
+                } else if video_bitrate < 1_200_000.0 {
+                    target_res = target_res.min(720);
+                }
+            }
+        }
+    }
 
     let scale_filter = if let (Some(w), Some(h)) = (metadata.width, metadata.height) {
         let min_dim = std::cmp::min(w, h);
@@ -246,26 +314,57 @@ pub async fn compress_video(
                         // 只有在检测到音频流时才预留
                         let audio_bitrate = if metadata.has_audio { 128_000.0 } else { 0.0 };
 
-                        // 计算视频可用比特率，至少保留 100kbps 以免画面太烂
-                        let video_bitrate = (total_bitrate - audio_bitrate).max(100_000.0);
+                        // 计算视频可用比特率，至少保留 200kbps 以免画面太烂
+                        let video_bitrate = (total_bitrate - audio_bitrate).max(200_000.0);
 
                         // 转换为 k/M 后缀格式或直接用数字
                         let video_bitrate_str = format!("{:.0}", video_bitrate);
-                        let max_rate_str = format!("{:.0}", video_bitrate * 1.5); // 允许峰值波动
-                        let buf_size_str = format!("{:.0}", video_bitrate * 2.0); // 缓冲区大小
+                        let max_rate_str = format!("{:.0}", video_bitrate * 2.0); // 允许更大的峰值波动
+                        let buf_size_str = format!("{:.0}", video_bitrate * 4.0); // 更大的缓冲区
+
+                        let encoder = if enable_gpu {
+                            detect_best_encoder(&ffmpeg_path).await
+                        } else {
+                            HardwareEncoder::Software
+                        };
 
                         args.extend_from_slice(&[
                             "-c:v".to_string(),
-                            "libx264".to_string(),
+                            encoder.to_codec_name().to_string(),
                             "-b:v".to_string(),
                             video_bitrate_str,
                             "-maxrate".to_string(),
                             max_rate_str,
                             "-bufsize".to_string(),
                             buf_size_str,
-                            "-preset".to_string(),
-                            "medium".to_string(),
                         ]);
+
+                        match encoder {
+                            HardwareEncoder::Nvenc => {
+                                args.extend_from_slice(&["-preset".to_string(), "p4".to_string()]);
+                            }
+                            HardwareEncoder::Qsv => {
+                                args.extend_from_slice(&[
+                                    "-preset".to_string(),
+                                    "medium".to_string(),
+                                ]);
+                            }
+                            HardwareEncoder::Amf => {
+                                args.extend_from_slice(&[
+                                    "-quality".to_string(),
+                                    "balanced".to_string(),
+                                ]);
+                            }
+                            HardwareEncoder::VideoToolbox => {
+                                // VideoToolbox usually doesn't use -preset
+                            }
+                            HardwareEncoder::Software => {
+                                args.extend_from_slice(&[
+                                    "-preset".to_string(),
+                                    "medium".to_string(),
+                                ]);
+                            }
+                        }
                         if !scale_filter.is_empty() {
                             args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
                         }
@@ -290,41 +389,79 @@ pub async fn compress_video(
             }
         }
         "quality" => {
-            args.extend_from_slice(&[
-                "-c:v".to_string(),
-                "libx264".to_string(),
-                "-crf".to_string(),
-                "18".to_string(),
-                "-preset".to_string(),
-                "slow".to_string(),
-            ]);
+            let video_codec = if enable_gpu {
+                "h264_nvenc".to_string()
+            } else {
+                "libx264".to_string()
+            };
+            args.extend_from_slice(&["-c:v".to_string(), video_codec]);
+            if enable_gpu {
+                args.extend_from_slice(&[
+                    "-preset".to_string(),
+                    "p7".to_string(),
+                    "-rc".to_string(),
+                    "vbr".to_string(),
+                    "-cq".to_string(),
+                    "18".to_string(),
+                ]);
+            } else {
+                args.extend_from_slice(&[
+                    "-crf".to_string(),
+                    "18".to_string(),
+                    "-preset".to_string(),
+                    "slow".to_string(),
+                ]);
+            }
             if !scale_filter.is_empty() {
                 args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
             }
         }
         "speed" => {
-            args.extend_from_slice(&[
-                "-c:v".to_string(),
-                "libx264".to_string(),
-                "-crf".to_string(),
-                "28".to_string(),
-                "-preset".to_string(),
-                "veryfast".to_string(),
-            ]);
+            let video_codec = if enable_gpu {
+                "h264_nvenc".to_string()
+            } else {
+                "libx264".to_string()
+            };
+            args.extend_from_slice(&["-c:v".to_string(), video_codec]);
+            if enable_gpu {
+                args.extend_from_slice(&["-preset".to_string(), "p1".to_string()]);
+            } else {
+                args.extend_from_slice(&[
+                    "-crf".to_string(),
+                    "28".to_string(),
+                    "-preset".to_string(),
+                    "veryfast".to_string(),
+                ]);
+            }
             if !scale_filter.is_empty() {
                 args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
             }
         }
         _ => {
             // balanced or default
-            args.extend_from_slice(&[
-                "-c:v".to_string(),
-                "libx264".to_string(),
-                "-crf".to_string(),
-                "23".to_string(),
-                "-preset".to_string(),
-                "medium".to_string(),
-            ]);
+            let video_codec = if enable_gpu {
+                "h264_nvenc".to_string()
+            } else {
+                "libx264".to_string()
+            };
+            args.extend_from_slice(&["-c:v".to_string(), video_codec]);
+            if enable_gpu {
+                args.extend_from_slice(&[
+                    "-preset".to_string(),
+                    "p4".to_string(),
+                    "-rc".to_string(),
+                    "vbr".to_string(),
+                    "-cq".to_string(),
+                    "23".to_string(),
+                ]);
+            } else {
+                args.extend_from_slice(&[
+                    "-crf".to_string(),
+                    "23".to_string(),
+                    "-preset".to_string(),
+                    "medium".to_string(),
+                ]);
+            }
             if !scale_filter.is_empty() {
                 args.extend_from_slice(&["-vf".to_string(), scale_filter]);
             }

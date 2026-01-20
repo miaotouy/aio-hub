@@ -51,6 +51,8 @@ export interface VideoSpecificConfig extends TypeSpecificConfig {
   enableCompression: boolean;
   maxFps: number;
   maxResolution: number;
+  enableGpu?: boolean;
+  autoAdjustResolution?: boolean;
 }
 
 /**

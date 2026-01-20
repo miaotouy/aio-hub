@@ -91,6 +91,11 @@ const camelToKebab = (str: string): string => {
     .replace(/^-/, "");
 };
 
+// 从路径提取工具ID（短横线转驼峰）
+const getToolIdFromPath = (path: string): string => {
+  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+};
+
 // 应用日志配置到 logger 实例
 const applyLogConfig = (settings: AppSettings) => {
   // 应用日志级别
@@ -265,6 +270,9 @@ onMounted(async () => {
 watch(
   () => route.path,
   async (newPath, oldPath) => {
+    // 只有路径真正改变时才处理
+    if (newPath === oldPath) return;
+
     // 自动打开工具标签
     if (
       newPath.startsWith("/") &&
@@ -272,7 +280,14 @@ watch(
       newPath !== "/settings" &&
       newPath !== "/extensions"
     ) {
-      toolsStore.openTool(newPath);
+      // 检查路径是否已经是已打开的标签，避免重复触发
+      if (toolsStore.openedToolPaths.includes(newPath)) return;
+
+      // 如果工具已分离，不自动打开侧边栏标签
+      const toolId = getToolIdFromPath(newPath);
+      if (!isDetached(toolId)) {
+        toolsStore.openTool(newPath);
+      }
     }
 
     if (oldPath === "/settings") {

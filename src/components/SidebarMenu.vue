@@ -86,17 +86,18 @@ const handleDetachByClick = async (tool: ToolConfig) => {
   }
 };
 
-const handleCloseTool = (event: MouseEvent, toolPath: string) => {
+const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
   event.preventDefault();
   event.stopPropagation();
 
-  toolsStore.closeTool(toolPath);
-
-  // 如果关闭的是当前正在查看的工具，则跳转回主页
+  // 如果关闭的是当前正在查看的工具，先跳转回主页，再关闭标签
+  // 这样可以避免 App.vue 的路由监听器在跳转过程中又把标签加回来
   if (route.path === toolPath) {
-    router.push("/");
+    await router.push("/");
     emit("select", "/");
   }
+
+  toolsStore.closeTool(toolPath);
 };
 </script>
 
@@ -150,7 +151,12 @@ const handleCloseTool = (event: MouseEvent, toolPath: string) => {
             </span>
             <template v-if="!collapsed">
               <span class="menu-item-title-text">{{ tool.name }}</span>
-              <el-icon class="close-tab-btn" @click.stop="handleCloseTool($event, tool.path)">
+              <!-- 使用 mousedown.stop 阻止 el-menu-item 的选中行为 -->
+              <el-icon
+                class="close-tab-btn"
+                @click.stop="handleCloseTool($event, tool.path)"
+                @mousedown.stop
+              >
                 <Close />
               </el-icon>
             </template>

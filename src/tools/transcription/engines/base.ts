@@ -35,7 +35,16 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
     enableRepetitionDetection = specific.enableRepetitionDetection ?? enableRepetitionDetection;
   }
 
-  // 2. 处理 additionalPrompt 追加逻辑 (集中分发)
+  // 2. 应用任务级别的覆盖配置 (最高优先级)
+  if (task.overrideConfig) {
+    modelIdentifier = task.overrideConfig.modelIdentifier || modelIdentifier;
+    prompt = task.overrideConfig.customPrompt || prompt;
+    temperature = task.overrideConfig.temperature ?? temperature;
+    maxTokens = task.overrideConfig.maxTokens ?? maxTokens;
+    enableRepetitionDetection = task.overrideConfig.enableRepetitionDetection ?? enableRepetitionDetection;
+  }
+
+  // 3. 处理 additionalPrompt 追加逻辑 (集中分发)
   // 优先级: 任务覆盖配置中的 additionalPrompt > 分类型配置中的 additionalPrompt > 全局配置中的 additionalPrompt
   const additionalPrompt = task.overrideConfig?.additionalPrompt || specific?.additionalPrompt || config.additionalPrompt;
   if (additionalPrompt) {

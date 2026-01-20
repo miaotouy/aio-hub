@@ -141,13 +141,8 @@ const handleRetry = async (task: TranscriptionTask) => {
 
   // 从旧任务的 overrideConfig 中提取配置
   const oldConfig = task.overrideConfig;
-  if (oldConfig?.modelIdentifier) {
-    // modelIdentifier 格式可能是 "custom:model-id"，需要提取实际的 modelId
-    const identifier = oldConfig.modelIdentifier;
-    retryModelId.value = identifier.includes(":") ? identifier.split(":")[1] : identifier;
-  } else {
-    retryModelId.value = "";
-  }
+  // LlmModelSelector 需要完整的 profileId:modelId 格式
+  retryModelId.value = oldConfig?.modelIdentifier || "";
   // 只恢复附加提示词，不混入主提示词
   retryPrompt.value = oldConfig?.additionalPrompt || "";
   retryEnableRepetitionDetection.value = oldConfig?.enableRepetitionDetection !== false;
@@ -166,7 +161,7 @@ const handleConfirmRetry = async () => {
     };
 
     if (retryModelId.value) {
-      overrideConfig.modelIdentifier = `custom:${retryModelId.value}`;
+      overrideConfig.modelIdentifier = retryModelId.value;
     } else {
       delete overrideConfig.modelIdentifier;
     }
@@ -238,8 +233,9 @@ const handleViewResult = async (task: TranscriptionTask) => {
       },
       onRegenerate: ({ modelId, prompt, enableRepetitionDetection, overrideConfig }) => {
         // 优先使用传入的完整 overrideConfig，确保保留了 customPrompt 等
+        // 注意：modelId 此时已经是 profileId:modelId 格式（由查看器传回）
         const finalConfig = overrideConfig || {
-          modelIdentifier: modelId ? `custom:${modelId}` : undefined,
+          modelIdentifier: modelId || undefined,
           additionalPrompt: prompt || undefined,
           enableRepetitionDetection,
         };

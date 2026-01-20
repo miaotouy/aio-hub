@@ -1,96 +1,82 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::Stdio;
-use tauri::Emitter;
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
+use tokio::process::{Child, Command};
+
+pub struct FFmpegState {
+    pub active_processes: Arc<Mutex<HashMap<String, Child>>>,
+}
+
+impl Default for FFmpegState {
+    fn default() -> Self {
+        Self {
+            active_processes: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FFmpegProgress {
+    pub percent: f64,
+    pub current_time: f64,
+    pub speed: String,
+    pub bitrate: String,
+}
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct FfmpegProgressPayload {
+pub struct FFmpegProgressPayload {
     pub task_id: String,
-    pub progress: f64,
+    pub progress: FFmpegProgress,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CompressOptions {
+pub struct FFmpegParams {
+    pub mode: String, // "compress" | "extract_audio" | "convert" | "custom"
     pub input_path: String,
     pub output_path: String,
-    pub preset: String,
     pub ffmpeg_path: String,
+    pub hwaccel: bool,
+
+    // 视频参数
+    pub video_encoder: Option<String>,
+    pub preset: Option<String>,
+    pub crf: Option<u32>,
+    pub video_bitrate: Option<String>,
+    pub scale: Option<String>,
+    pub fps: Option<f64>,
+    pub pixel_format: Option<String>,
+
+    // 音频参数
+    pub audio_encoder: Option<String>,
+    pub audio_bitrate: Option<String>,
+    pub sample_rate: Option<String>,
+
+    // 其他
+    pub custom_args: Option<Vec<String>>,
     pub max_size_mb: Option<f64>,
-    pub max_fps: Option<f64>,
-    pub max_resolution: Option<u32>,
-    pub enable_gpu: Option<bool>,
-    pub auto_adjust_resolution: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioCompressOptions {
-    pub input_path: String,
-    pub output_path: String,
-    pub ffmpeg_path: String,
-    pub bitrate: String, // e.g. "64k"
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VideoMetadata {
+pub struct MediaMetadata {
     pub duration: Option<f64>,
     pub fps: Option<f64>,
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub has_audio: bool,
+    pub size: u64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum HardwareEncoder {
-    Nvenc,
-    Qsv,
-    Amf,
-    VideoToolbox,
-    Software,
-}
-
-impl HardwareEncoder {
-    fn to_codec_name(&self) -> &str {
-        match self {
-            HardwareEncoder::Nvenc => "h264_nvenc",
-            HardwareEncoder::Qsv => "h264_qsv",
-            HardwareEncoder::Amf => "h264_amf",
-            HardwareEncoder::VideoToolbox => "h264_videotoolbox",
-            HardwareEncoder::Software => "libx264",
-        }
-    }
-}
-
-async fn detect_best_encoder(ffmpeg_path: &str) -> HardwareEncoder {
-    let output = match Command::new(ffmpeg_path).arg("-encoders").output().await {
-        Ok(o) => o,
-        Err(_) => return HardwareEncoder::Software,
-    };
-
-    let encoders_info = String::from_utf8_lossy(&output.stdout);
-
-    // 优先级排序
-    if encoders_info.contains("h264_nvenc") {
-        HardwareEncoder::Nvenc
-    } else if encoders_info.contains("h264_qsv") {
-        HardwareEncoder::Qsv
-    } else if encoders_info.contains("h264_amf") {
-        HardwareEncoder::Amf
-    } else if encoders_info.contains("h264_videotoolbox") {
-        HardwareEncoder::VideoToolbox
-    } else {
-        HardwareEncoder::Software
-    }
-}
-
-/// 获取视频元数据 (时长、帧率、分辨率、是否有音频)
+/// 获取媒体元数据
 #[tauri::command]
-pub async fn get_video_metadata_command(ffmpeg_path: String, input_path: String) -> VideoMetadata {
+pub async fn get_media_metadata(ffmpeg_path: String, input_path: String) -> MediaMetadata {
     get_video_metadata(&ffmpeg_path, &input_path).await
 }
 
@@ -106,14 +92,19 @@ fn parse_ffmpeg_time(s: &str) -> Option<f64> {
     }
 }
 
-async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadata {
-    let mut metadata = VideoMetadata {
+async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> MediaMetadata {
+    let mut metadata = MediaMetadata {
         duration: None,
         fps: None,
         width: None,
         height: None,
         has_audio: false,
+        size: 0,
     };
+
+    if let Ok(m) = std::fs::metadata(input_path) {
+        metadata.size = m.len();
+    }
 
     let output = match Command::new(ffmpeg_path)
         .arg("-i")
@@ -125,38 +116,22 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadat
         Err(_) => return metadata,
     };
 
-    // FFmpeg 输出信息在 stderr 中
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    // 1. 查找 "Duration: HH:MM:SS.mm"
     if let Some(pos) = stderr.find("Duration: ") {
         let rest = &stderr[pos + 10..];
         if let Some(end) = rest.find(',') {
             let duration_str = &rest[..end];
-            let parts: Vec<&str> = duration_str.split(':').collect();
-            if parts.len() == 3 {
-                if let (Ok(h), Ok(m), Ok(s)) = (
-                    parts[0].parse::<f64>(),
-                    parts[1].parse::<f64>(),
-                    parts[2].parse::<f64>(),
-                ) {
-                    metadata.duration = Some(h * 3600.0 + m * 60.0 + s);
-                }
+            if let Some(d) = parse_ffmpeg_time(duration_str) {
+                metadata.duration = Some(d);
             }
         }
     }
 
-    // 2. 查找分辨率 (e.g., "Video: h264, ..., 1920x1080, ...")
-    // 简单的查找逻辑：查找 "Video:" 后的第一个 "WxH" 格式
     if let Some(pos) = stderr.find("Video: ") {
         let rest = &stderr[pos..];
-        // 查找类似 "1920x1080" 的模式
-        // 由于没有 regex crate，我们手动解析一下
-        // 遍历逗号分隔的部分
         for part in rest.split(',') {
             let part = part.trim();
-            // 尝试分割 'x'，并检查两边是否为数字
-            // 注意：有些格式可能包含 [SAR...] 等后缀，取第一个空格前的部分
             let dim_part = part.split_whitespace().next().unwrap_or(part);
             if let Some((w_str, h_str)) = dim_part.split_once('x') {
                 if let (Ok(w), Ok(h)) = (w_str.parse::<u32>(), h_str.parse::<u32>()) {
@@ -168,19 +143,15 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadat
         }
     }
 
-    // 3. 查找帧率 (e.g., "23.98 fps,")
-    // 遍历所有逗号分隔的字段，查找以 " fps" 结尾的
     for part in stderr.split(',') {
         let part = part.trim();
         if let Some(fps_str) = part.strip_suffix(" fps") {
             if let Ok(fps) = fps_str.parse::<f64>() {
                 metadata.fps = Some(fps);
-                // 不 break，因为有时前面会有 tbr, tbn 等，fps 通常在后面
             }
         }
     }
 
-    // 4. 检查是否有音频流
     if stderr.contains("Audio: ") {
         metadata.has_audio = true;
     }
@@ -192,482 +163,256 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> VideoMetadat
 #[tauri::command]
 pub async fn check_ffmpeg_availability(path: String) -> bool {
     let output = Command::new(&path).arg("-version").output().await;
-
     match output {
         Ok(output) => output.status.success(),
         Err(_) => false,
     }
 }
 
-/// 压缩视频
+/// 终止 FFmpeg 任务
 #[tauri::command]
-pub async fn compress_video(
+pub async fn kill_ffmpeg_process(
+    state: State<'_, FFmpegState>,
+    task_id: String,
+) -> Result<(), String> {
+    let child = {
+        let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
+        processes.remove(&task_id)
+    };
+
+    if let Some(mut c) = child {
+        let _ = c.kill().await;
+    }
+    Ok(())
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FFmpegLogPayload {
+    pub task_id: String,
+    pub message: String,
+}
+
+/// 统一媒体处理入口
+#[tauri::command]
+pub async fn process_media(
+    state: State<'_, FFmpegState>,
     task_id: String,
     window: tauri::Window,
-    options: CompressOptions,
+    params: FFmpegParams,
 ) -> Result<String, String> {
-    let input_path = options.input_path;
-    let output_path = options.output_path;
-    let preset = options.preset;
-    let ffmpeg_path = options.ffmpeg_path;
-    let max_size_mb = options.max_size_mb;
-    let max_fps = options.max_fps;
-    let max_resolution = options.max_resolution;
-    let enable_gpu = options.enable_gpu.unwrap_or(false);
-    let auto_adjust_resolution = options.auto_adjust_resolution.unwrap_or(true);
+    let active_processes = state.active_processes.clone();
+    let ffmpeg_path = params.ffmpeg_path.clone();
+    let input_path = params.input_path.clone();
+    let output_path = params.output_path.clone();
 
-    // 检查输入文件是否存在
     if !Path::new(&input_path).exists() {
         return Err(format!("Input file not found: {}", input_path));
     }
 
-    // 确保输出目录存在
     if let Some(parent) = Path::new(&output_path).parent() {
-        if !parent.exists() {
-            // 尝试创建目录，虽然通常调用者应该保证目录存在
-            let _ = std::fs::create_dir_all(parent);
-        }
+        let _ = std::fs::create_dir_all(parent);
     }
 
-    // 获取元数据 (用于自动大小计算、帧率判断和分辨率缩放)
     let metadata = get_video_metadata(&ffmpeg_path, &input_path).await;
+    let duration = metadata.duration.unwrap_or(0.0);
 
-    // 构建参数
     let mut args = vec![
+        "-hide_banner".to_string(),
         "-i".to_string(),
-        input_path.clone(),
-        "-y".to_string(), // 覆盖输出
+        input_path,
+        "-y".to_string(),
     ];
 
-    // 应用帧率限制 (如果设置)
-    // 逻辑：如果设置了 max_fps，且 (无法获取原帧率 或 原帧率 > max_fps)，则添加 -r
-    if let Some(limit_fps) = max_fps {
-        if limit_fps > 0.0 {
-            let should_limit = match metadata.fps {
-                Some(source_fps) => source_fps > limit_fps,
-                None => true, // 无法获取原帧率时，为了保险起见，应用限制
-            };
-
-            if should_limit {
-                args.extend_from_slice(&["-r".to_string(), format!("{:.2}", limit_fps)]);
-            }
-        }
+    if params.hwaccel {
+        args.insert(0, "-hwaccel".to_string());
+        args.insert(1, "auto".to_string());
     }
 
-    // 计算缩放参数 (vf scale)
-    // 逻辑：
-    // 1. 确定目标限制值 target_res: 优先使用 max_resolution，否则根据 preset 设定默认值
-    // 2. 如果开启了 auto_adjust_resolution，且设置了 max_size_mb，则根据码率需求动态降低分辨率
-    let mut target_res = max_resolution.unwrap_or(match preset.as_str() {
-        "quality" => 1080,
-        "speed" => 480,
-        "auto_size" => 720,
-        _ => 720,
-    });
-
-    // 动态分辨率调整逻辑
-    if preset == "auto_size" && auto_adjust_resolution {
-        if let (Some(target_mb), Some(duration)) = (max_size_mb, metadata.duration) {
-            if duration > 0.0 {
-                let target_bits = target_mb * 8.0 * 1024.0 * 1024.0;
-                let total_bitrate = target_bits / duration;
-                let video_bitrate = (total_bitrate - 128_000.0).max(100_000.0);
-
-                // 根据码率自动降级分辨率以保证清晰度
-                // 码率 < 600k -> 480p, < 300k -> 360p
-                if video_bitrate < 300_000.0 {
-                    target_res = target_res.min(360);
-                } else if video_bitrate < 600_000.0 {
-                    target_res = target_res.min(480);
-                } else if video_bitrate < 1_200_000.0 {
-                    target_res = target_res.min(720);
-                }
-            }
-        }
-    }
-
-    let scale_filter = if let (Some(w), Some(h)) = (metadata.width, metadata.height) {
-        let min_dim = std::cmp::min(w, h);
-        if min_dim > target_res {
-            if w < h {
-                // 竖屏：限制宽度 (短边)
-                format!("scale={}:-2", target_res)
-            } else {
-                // 横屏：限制高度 (短边)
-                format!("scale=-2:{}", target_res)
-            }
-        } else {
-            // 原视频小于限制，不缩放
-            "".to_string()
-        }
-    } else {
-        // 无法获取分辨率，回退到默认的 scale=-2:target_res (假设横屏)
-        format!("scale=-2:{}", target_res)
-    };
-
-    // 根据预设配置参数
-    match preset.as_str() {
-        "auto_size" => {
-            // 自动大小模式：计算目标比特率
-            let mut bitrate_set = false;
-
-            if let Some(target_mb) = max_size_mb {
-                if let Some(duration) = metadata.duration {
-                    if duration > 0.0 {
-                        // 目标总比特数 (bits) = MB * 1024 * 8
-                        let target_bits = target_mb * 8.0 * 1024.0 * 1024.0;
-                        // 目标总比特率 (bps)
-                        let total_bitrate = target_bits / duration;
-
-                        // 预留音频比特率 (假设 128kbps = 128000 bps)
-                        // 只有在检测到音频流时才预留
-                        let audio_bitrate = if metadata.has_audio { 128_000.0 } else { 0.0 };
-
-                        // 计算视频可用比特率，至少保留 200kbps 以免画面太烂
-                        let video_bitrate = (total_bitrate - audio_bitrate).max(200_000.0);
-
-                        // 转换为 k/M 后缀格式或直接用数字
-                        let video_bitrate_str = format!("{:.0}", video_bitrate);
-                        let max_rate_str = format!("{:.0}", video_bitrate * 2.0); // 允许更大的峰值波动
-                        let buf_size_str = format!("{:.0}", video_bitrate * 4.0); // 更大的缓冲区
-
-                        let encoder = if enable_gpu {
-                            detect_best_encoder(&ffmpeg_path).await
-                        } else {
-                            HardwareEncoder::Software
-                        };
-
-                        args.extend_from_slice(&[
-                            "-c:v".to_string(),
-                            encoder.to_codec_name().to_string(),
-                            "-b:v".to_string(),
-                            video_bitrate_str,
-                            "-maxrate".to_string(),
-                            max_rate_str,
-                            "-bufsize".to_string(),
-                            buf_size_str,
-                        ]);
-
-                        match encoder {
-                            HardwareEncoder::Nvenc => {
-                                args.extend_from_slice(&["-preset".to_string(), "p4".to_string()]);
-                            }
-                            HardwareEncoder::Qsv => {
-                                args.extend_from_slice(&[
-                                    "-preset".to_string(),
-                                    "medium".to_string(),
-                                ]);
-                            }
-                            HardwareEncoder::Amf => {
-                                args.extend_from_slice(&[
-                                    "-quality".to_string(),
-                                    "balanced".to_string(),
-                                ]);
-                            }
-                            HardwareEncoder::VideoToolbox => {
-                                // VideoToolbox usually doesn't use -preset
-                            }
-                            HardwareEncoder::Software => {
-                                args.extend_from_slice(&[
-                                    "-preset".to_string(),
-                                    "medium".to_string(),
-                                ]);
-                            }
-                        }
-                        if !scale_filter.is_empty() {
-                            args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
-                        }
-                        bitrate_set = true;
-                    }
-                }
-            }
-
-            if !bitrate_set {
-                // 如果获取时长失败所未设置大小，回退到 balanced
-                args.extend_from_slice(&[
-                    "-c:v".to_string(),
-                    "libx264".to_string(),
-                    "-crf".to_string(),
-                    "23".to_string(),
-                    "-preset".to_string(),
-                    "medium".to_string(),
-                ]);
-                if !scale_filter.is_empty() {
-                    args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
-                }
-            }
-        }
-        "quality" => {
-            let video_codec = if enable_gpu {
-                "h264_nvenc".to_string()
-            } else {
-                "libx264".to_string()
-            };
-            args.extend_from_slice(&["-c:v".to_string(), video_codec]);
-            if enable_gpu {
-                args.extend_from_slice(&[
-                    "-preset".to_string(),
-                    "p7".to_string(),
-                    "-rc".to_string(),
-                    "vbr".to_string(),
-                    "-cq".to_string(),
-                    "18".to_string(),
-                ]);
-            } else {
-                args.extend_from_slice(&[
-                    "-crf".to_string(),
-                    "18".to_string(),
-                    "-preset".to_string(),
-                    "slow".to_string(),
-                ]);
-            }
-            if !scale_filter.is_empty() {
-                args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
-            }
-        }
-        "speed" => {
-            let video_codec = if enable_gpu {
-                "h264_nvenc".to_string()
-            } else {
-                "libx264".to_string()
-            };
-            args.extend_from_slice(&["-c:v".to_string(), video_codec]);
-            if enable_gpu {
-                args.extend_from_slice(&["-preset".to_string(), "p1".to_string()]);
-            } else {
-                args.extend_from_slice(&[
-                    "-crf".to_string(),
-                    "28".to_string(),
-                    "-preset".to_string(),
-                    "veryfast".to_string(),
-                ]);
-            }
-            if !scale_filter.is_empty() {
-                args.extend_from_slice(&["-vf".to_string(), scale_filter.clone()]);
+    match params.mode.as_str() {
+        "custom" => {
+            if let Some(custom) = params.custom_args {
+                args.extend(custom);
             }
         }
         _ => {
-            // balanced or default
-            let video_codec = if enable_gpu {
-                "h264_nvenc".to_string()
+            if params.mode == "extract_audio" {
+                args.push("-vn".to_string());
             } else {
-                "libx264".to_string()
-            };
-            args.extend_from_slice(&["-c:v".to_string(), video_codec]);
-            if enable_gpu {
-                args.extend_from_slice(&[
-                    "-preset".to_string(),
-                    "p4".to_string(),
-                    "-rc".to_string(),
-                    "vbr".to_string(),
-                    "-cq".to_string(),
-                    "23".to_string(),
-                ]);
-            } else {
-                args.extend_from_slice(&[
-                    "-crf".to_string(),
-                    "23".to_string(),
-                    "-preset".to_string(),
-                    "medium".to_string(),
-                ]);
-            }
-            if !scale_filter.is_empty() {
-                args.extend_from_slice(&["-vf".to_string(), scale_filter]);
-            }
-        }
-    }
+                let v_codec = params.video_encoder.unwrap_or_else(|| {
+                    if params.hwaccel {
+                        "h264_nvenc".to_string()
+                    } else {
+                        "libx264".to_string()
+                    }
+                });
+                args.extend_from_slice(&["-c:v".to_string(), v_codec]);
 
-    // 音频处理
-    if metadata.has_audio {
-        if preset == "auto_size" {
-            args.extend_from_slice(&[
-                "-c:a".to_string(),
-                "aac".to_string(),
-                "-b:a".to_string(),
-                "128k".to_string(),
-            ]);
-        } else {
-            args.extend_from_slice(&["-c:a".to_string(), "copy".to_string()]);
+                if let Some(crf) = params.crf {
+                    args.extend_from_slice(&["-crf".to_string(), crf.to_string()]);
+                } else if let Some(v_bitrate) = params.video_bitrate {
+                    args.extend_from_slice(&["-b:v".to_string(), v_bitrate]);
+                } else if let Some(target_mb) = params.max_size_mb {
+                    if duration > 0.0 {
+                        let total_bitrate = (target_mb * 8.0 * 1024.0 * 1024.0) / duration;
+                        let audio_bitrate = if metadata.has_audio { 128_000.0 } else { 0.0 };
+                        let video_bitrate = (total_bitrate - audio_bitrate).max(200_000.0);
+                        args.extend_from_slice(&[
+                            "-b:v".to_string(),
+                            format!("{:.0}", video_bitrate),
+                        ]);
+                    }
+                }
+
+                if let Some(preset) = params.preset {
+                    args.extend_from_slice(&["-preset".to_string(), preset]);
+                }
+
+                let mut v_filters = Vec::new();
+                if let Some(scale) = params.scale {
+                    v_filters.push(scale);
+                }
+                if let Some(pix_fmt) = params.pixel_format {
+                    v_filters.push(format!("format={}", pix_fmt));
+                }
+                if !v_filters.is_empty() {
+                    args.extend_from_slice(&["-vf".to_string(), v_filters.join(",")]);
+                }
+
+                if let Some(fps) = params.fps {
+                    args.extend_from_slice(&["-r".to_string(), format!("{:.2}", fps)]);
+                }
+            }
+
+            if metadata.has_audio || params.mode == "extract_audio" {
+                let a_codec = params.audio_encoder.unwrap_or_else(|| "aac".to_string());
+                args.extend_from_slice(&["-c:a".to_string(), a_codec]);
+
+                if let Some(ab) = params.audio_bitrate {
+                    args.extend_from_slice(&["-b:a".to_string(), ab]);
+                }
+                if let Some(ar) = params.sample_rate {
+                    args.extend_from_slice(&["-ar".to_string(), ar]);
+                }
+            }
         }
-    } else {
-        // 如果没有音频流，或者不需要音频，可以显式禁用音频流输出，防止 FFmpeg 产生空流或报错
-        // 不过对于 copy 模式，如果没有音频流，ffmpeg 通常会自动忽略 -c:a copy
-        // 为了保险起见，如果确实没有检测到音频，可以加 -an
-        // 但考虑到检测可能不完美，这里保守一点：
-        // 如果 auto_size 模式下没检测到音频，就不加音频参数（默认行为通常是处理存在的流）
-        // 或者我们可以显式加 -an
-        // 这里选择：如果检测到没有音频，显式 -an，确保输出文件干净
-        args.push("-an".to_string());
     }
 
     args.push(output_path.clone());
 
-    // 执行命令
     let mut command = Command::new(&ffmpeg_path);
-
     #[cfg(target_os = "windows")]
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
-    command.args(&args);
-    command.stderr(Stdio::piped());
-    command.stdout(Stdio::null());
+    command
+        .args(&args)
+        .stderr(Stdio::piped())
+        .stdout(Stdio::null());
 
     let mut child = command
         .spawn()
         .map_err(|e| format!("Failed to spawn FFmpeg: {}", e))?;
-
     let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
-    let mut reader = BufReader::new(stderr).lines();
 
-    let duration = metadata.duration.unwrap_or(0.0);
+    // 记录进程
+    {
+        let mut processes = active_processes.lock().map_err(|e| e.to_string())?;
+        processes.insert(task_id.clone(), child);
+    }
+
+    let mut reader = BufReader::new(stderr).lines();
+    let task_id_clone = task_id.clone();
+    let window_clone = window.clone();
 
     while let Ok(Some(line)) = reader.next_line().await {
-        // 解析进度信息
-        // ffmpeg 进度通常包含 "time=HH:MM:SS.mm"
-        if duration > 0.0 {
-            if let Some(pos) = line.find("time=") {
-                let rest = &line[pos + 5..];
-                let time_str = rest.split_whitespace().next().unwrap_or("");
-                if let Some(current_time) = parse_ffmpeg_time(time_str) {
-                    let progress = (current_time / duration * 100.0).min(99.9);
-                    let _ = window.emit(
-                        "ffmpeg-progress",
-                        FfmpegProgressPayload {
-                            task_id: task_id.clone(),
-                            progress,
-                        },
-                    );
-                }
-            }
+        let _ = window_clone.emit(
+            "ffmpeg-log",
+            FFmpegLogPayload {
+                task_id: task_id_clone.clone(),
+                message: line.clone(),
+            },
+        );
+
+        if let Some(progress) = parse_progress_line(&line, duration) {
+            let _ = window_clone.emit(
+                "ffmpeg-progress",
+                FFmpegProgressPayload {
+                    task_id: task_id_clone.clone(),
+                    progress,
+                },
+            );
         }
     }
+
+    // 取回进程并等待
+    let mut child = {
+        let mut processes = active_processes.lock().map_err(|e| e.to_string())?;
+        processes.remove(&task_id_clone).ok_or("Process lost")?
+    };
 
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Failed to wait for FFmpeg: {}", e))?;
+        .map_err(|e| format!("Wait failed: {}", e))?;
 
     if status.success() {
-        // 确保最后发送 100%
-        let _ = window.emit(
+        let _ = window_clone.emit(
             "ffmpeg-progress",
-            FfmpegProgressPayload {
-                task_id: task_id.clone(),
-                progress: 100.0,
+            FFmpegProgressPayload {
+                task_id: task_id_clone,
+                progress: FFmpegProgress {
+                    percent: 100.0,
+                    current_time: duration,
+                    speed: "1x".to_string(),
+                    bitrate: "N/A".to_string(),
+                },
             },
         );
         Ok(output_path)
     } else {
-        Err(format!(
-            "FFmpeg exited with error code: {:?}",
-            status.code()
-        ))
+        Err(format!("FFmpeg exited with code: {:?}", status.code()))
     }
 }
 
-/// 压缩音频
-#[tauri::command]
-pub async fn compress_audio(
-    task_id: String,
-    window: tauri::Window,
-    options: AudioCompressOptions,
-) -> Result<String, String> {
-    let input_path = options.input_path;
-    let output_path = options.output_path;
-    let ffmpeg_path = options.ffmpeg_path;
-    let bitrate = options.bitrate;
-
-    // 检查输入文件是否存在
-    if !Path::new(&input_path).exists() {
-        return Err(format!("Input file not found: {}", input_path));
+fn parse_progress_line(line: &str, duration: f64) -> Option<FFmpegProgress> {
+    if !line.contains("time=") {
+        return None;
     }
 
-    // 确保输出目录存在
-    if let Some(parent) = Path::new(&output_path).parent() {
-        if !parent.exists() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-    }
+    let mut progress = FFmpegProgress {
+        percent: 0.0,
+        current_time: 0.0,
+        speed: "0x".to_string(),
+        bitrate: "0kbps".to_string(),
+    };
 
-    // 获取时长用于进度反馈
-    let metadata = get_video_metadata(&ffmpeg_path, &input_path).await;
-    let duration = metadata.duration.unwrap_or(0.0);
-
-    // 构建参数
-    // 我们统一转为 m4a (aac) 或者 mp3。LLM 通常支持这些格式。
-    // 这里采用 aac 编码器，输出 m4a 容器，因为它效率更高。
-    let args = vec![
-        "-i".to_string(),
-        input_path.clone(),
-        "-y".to_string(),
-        "-c:a".to_string(),
-        "aac".to_string(),
-        "-b:a".to_string(),
-        bitrate,
-        "-vn".to_string(), // 禁用视频
-        output_path.clone(),
-    ];
-
-    // 执行命令
-    let mut command = Command::new(&ffmpeg_path);
-
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    command.args(&args);
-    command.stderr(Stdio::piped());
-    command.stdout(Stdio::null());
-
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("Failed to spawn FFmpeg: {}", e))?;
-
-    let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
-    let mut reader = BufReader::new(stderr).lines();
-
-    while let Ok(Some(line)) = reader.next_line().await {
-        if duration > 0.0 {
-            if let Some(pos) = line.find("time=") {
-                let rest = &line[pos + 5..];
-                let time_str = rest.split_whitespace().next().unwrap_or("");
-                if let Some(current_time) = parse_ffmpeg_time(time_str) {
-                    let progress = (current_time / duration * 100.0).min(99.9);
-                    let _ = window.emit(
-                        "ffmpeg-progress",
-                        FfmpegProgressPayload {
-                            task_id: task_id.clone(),
-                            progress,
-                        },
-                    );
-                }
+    if let Some(pos) = line.find("time=") {
+        let rest = &line[pos + 5..];
+        let time_str = rest.split_whitespace().next().unwrap_or("");
+        if let Some(t) = parse_ffmpeg_time(time_str) {
+            progress.current_time = t;
+            if duration > 0.0 {
+                progress.percent = (t / duration * 100.0).min(99.9);
             }
         }
     }
 
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for FFmpeg: {}", e))?;
-
-    if status.success() {
-        let _ = window.emit(
-            "ffmpeg-progress",
-            FfmpegProgressPayload {
-                task_id: task_id.clone(),
-                progress: 100.0,
-            },
-        );
-        Ok(output_path)
-    } else {
-        Err(format!(
-            "FFmpeg exited with error code: {:?}",
-            status.code()
-        ))
+    if let Some(pos) = line.find("speed=") {
+        let rest = &line[pos + 6..];
+        progress.speed = rest.split_whitespace().next().unwrap_or("0x").to_string();
     }
+
+    if let Some(pos) = line.find("bitrate=") {
+        let rest = &line[pos + 8..];
+        progress.bitrate = rest
+            .split_whitespace()
+            .next()
+            .unwrap_or("0kbps")
+            .to_string();
+    }
+
+    Some(progress)
 }

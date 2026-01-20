@@ -28,11 +28,12 @@ use commands::{
     cancel_move_operation,
     // 视频处理命令
     check_ffmpeg_availability,
-    compress_audio,
+    get_media_metadata,
+    process_media,
+    kill_ffmpeg_process,
     cleanup_items,
     clear_all_window_configs,
     close_detached_window, // 新增：统一的关闭命令
-    compress_video,
     copy_directory_in_app_data,
     copy_file_to_app_data,
     create_dir_force,
@@ -122,7 +123,6 @@ use commands::{
     // Agent 资产管理命令
     save_agent_asset,
     save_asset_thumbnail,
-    get_video_metadata_command,
     save_uploaded_file,
     // 窗口配置管理相关
     save_window_config,
@@ -392,6 +392,7 @@ pub fn run() {
         .manage(commands::directory_janitor::ScanCancellation::new())
         .manage(commands::directory_janitor::CleanupCancellation::new())
         .manage(AppState::default())
+        .manage(commands::ffmpeg_processor::FFmpegState::default())
         .manage(Arc::new(CancellationToken::new()))
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
@@ -530,9 +531,9 @@ pub fn run() {
             list_directory_images,
             // 视频处理命令
             check_ffmpeg_availability,
-            compress_video,
-            compress_audio,
-            get_video_metadata_command,
+            process_media,
+            kill_ffmpeg_process,
+            get_media_metadata,
             // LLM 代理命令
             proxy_llm_request,
             // LLM 搜索命令

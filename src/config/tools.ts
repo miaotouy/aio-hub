@@ -11,6 +11,7 @@ export const DEFAULT_TOOLS_ORDER = [
   '/media-info-reader',
   '/smart-ocr',
   '/transcription',
+  '/ffmpeg-tools',
   '/color-picker',
   
   // 文本处理

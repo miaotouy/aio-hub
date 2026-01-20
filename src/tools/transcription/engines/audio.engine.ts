@@ -56,8 +56,8 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
 
       let shouldCompress = false;
       if (config.audio?.enableCompression && ffmpegPath) {
-        const isFfmpegAvailable = await invoke<boolean>("check_ffmpeg_availability", { path: ffmpegPath });
-        if (isFfmpegAvailable) {
+        const isFFmpegAvailable = await invoke<boolean>("check_ffmpeg_availability", { path: ffmpegPath });
+        if (isFFmpegAvailable) {
           try {
             const fileStat = await stat(fullPath);
             const sizeMB = fileStat.size / (1024 * 1024);
@@ -77,23 +77,25 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
           const outputPath = `${fullPath}_compressed.m4a`;
 
           // 监听进度
-          const unlisten = await listen<{ taskId: string; progress: number }>(
+          const unlisten = await listen<{ task_id: string; progress: { percent: number } }>(
             "ffmpeg-progress",
             (event) => {
-              if (event.payload.taskId === task.id) {
-                task.progress = event.payload.progress;
+              if (event.payload.task_id === task.id) {
+                task.progress = event.payload.progress.percent;
               }
             }
           );
 
           try {
-            await invoke("compress_audio", {
+            await invoke("process_media", {
               taskId: task.id,
-              options: {
+              params: {
+                mode: "extract_audio",
                 inputPath: fullPath,
                 outputPath: outputPath,
                 ffmpegPath: ffmpegPath,
-                bitrate: bitrate,
+                hwaccel: false,
+                audioBitrate: bitrate,
               }
             });
           } finally {

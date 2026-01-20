@@ -52,8 +52,8 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
 
       let shouldCompress = false;
       if (config.video?.enableCompression && ffmpegPath) {
-        const isFfmpegAvailable = await invoke<boolean>("check_ffmpeg_availability", { path: ffmpegPath });
-        if (isFfmpegAvailable) {
+        const isFFmpegAvailable = await invoke<boolean>("check_ffmpeg_availability", { path: ffmpegPath });
+        if (isFFmpegAvailable) {
           try {
             const fileStat = await stat(fullPath);
             const sizeMB = fileStat.size / (1024 * 1024);
@@ -69,7 +69,6 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
 
       if (shouldCompress) {
         try {
-          const preset = "auto_size";
           const maxFps = config.video?.maxFps || 12;
           const maxResolution = config.video?.maxResolution || 720;
           const enableGpu = config.video?.enableGpu || false;
@@ -77,28 +76,28 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
           const outputPath = `${fullPath}_compressed.mp4`;
 
           // 监听进度
-          const unlisten = await listen<{ taskId: string; progress: number }>(
+          const unlisten = await listen<{ task_id: string; progress: { percent: number } }>(
             "ffmpeg-progress",
             (event) => {
-              if (event.payload.taskId === task.id) {
-                task.progress = event.payload.progress;
+              if (event.payload.task_id === task.id) {
+                task.progress = event.payload.progress.percent;
               }
             }
           );
 
           try {
-            await invoke("compress_video", {
+            await invoke("process_media", {
               taskId: task.id,
-              options: {
+              params: {
+                mode: "compress",
                 inputPath: fullPath,
                 outputPath: outputPath,
-                preset: preset,
                 ffmpegPath: ffmpegPath,
+                hwaccel: enableGpu,
                 maxSizeMb: maxDirectSizeMB,
-                maxFps: maxFps,
-                maxResolution: maxResolution,
-                enableGpu: enableGpu,
-                autoAdjustResolution: autoAdjustResolution,
+                fps: maxFps,
+                // 注意：后端目前 scale 接受的是字符串，如 "1280:-2"
+                scale: autoAdjustResolution ? `min(${maxResolution},iw):-2` : undefined,
               }
             });
           } finally {

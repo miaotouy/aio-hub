@@ -4,15 +4,20 @@
     :class="[
       'info-card',
       `shadow-${shadow}`,
-      { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare }
+      { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare },
     ]"
   >
     <template v-if="showHeader" #header>
       <slot name="header">
         <!-- 如果有 title prop，显示默认的 header -->
         <div v-if="title" class="card-header">
-          <span>{{ title }}</span>
-          <div>
+          <div class="header-title">
+            <el-icon v-if="icon" class="title-icon">
+              <component :is="icon" />
+            </el-icon>
+            <span>{{ title }}</span>
+          </div>
+          <div class="header-extra">
             <slot name="headerExtra"></slot>
             <el-button
               v-if="content"
@@ -57,6 +62,10 @@ const props = defineProps({
     required: false,
     default: "",
   },
+  icon: {
+    type: [Object, String],
+    required: false,
+  },
   content: {
     type: String,
     required: false,
@@ -71,8 +80,8 @@ const props = defineProps({
     default: false,
   },
   shadow: {
-    type: String as PropType<'never' | 'always' | 'hover'>,
-    default: 'never',
+    type: String as PropType<"never" | "always" | "hover">,
+    default: "never",
   },
 });
 
@@ -150,7 +159,18 @@ const copyContent = async () => {
   color: var(--text-color); /* 确保头部文本颜色与主题一致 */
 }
 
-.card-header > div {
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title-icon {
+  font-size: 16px;
+  color: var(--el-color-primary);
+}
+
+.header-extra {
   display: flex;
   align-items: center;
   gap: 8px;

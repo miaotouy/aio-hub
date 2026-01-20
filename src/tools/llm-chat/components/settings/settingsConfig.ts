@@ -42,7 +42,7 @@ const WorldbookSelector = defineAsyncComponent(() =>
 
 export const settingsConfig: SettingsSection<ChatSettings>[] = [
   {
-    title: "模型设置",
+    title: "通用设置",
     icon: Bot,
     items: [
       {
@@ -1317,6 +1317,31 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     title: "文本处理",
     icon: Regex,
     items: [
+      {
+        id: "convertHtmlToMd",
+        label: "HTML 转 MD",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "contextOptimization.convertHtmlToMd",
+        hint: "开启后，较旧的历史消息如果包含 HTML 标签，将被自动转换为 Markdown 以节约 Token。建议在处理包含大量 HTML 的 Web 搜索结果时开启。",
+        keywords: "optimization html markdown token 优化 转换",
+      },
+      {
+        id: "htmlToMdLastMessages",
+        label:
+          "转换阈值 ({{ localSettings.contextOptimization.htmlToMdLastMessages }}条)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 50,
+          step: 1,
+          "format-tooltip": (val: number) => (val > 0 ? `倒数${val}条后转换` : "全部转换"),
+        },
+        modelPath: "contextOptimization.htmlToMdLastMessages",
+        hint: "设置保持原始 HTML 的最近消息数量。例如设为 5，则最近 5 条消息保持原样，更早的消息如果包含 HTML 将被转换。设为 0 则转换所有包含 HTML 的历史消息。",
+        keywords: "optimization html markdown threshold 优化 转换 阈值",
+        visible: (settings) => settings.contextOptimization.convertHtmlToMd,
+      },
       {
         id: "regexBindingMode",
         label: "正则规则绑定模式",

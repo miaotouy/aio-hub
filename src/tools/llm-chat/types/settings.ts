@@ -150,6 +150,13 @@ export interface ChatSettings {
     /** 嫁接整个子树的修饰键 */
     graftSubtree: "shift" | "alt" | "ctrl" | "none";
   };
+  /** 上下文优化设置 */
+  contextOptimization: {
+    /** 是否启用 HTML 转 Markdown */
+    convertHtmlToMd: boolean;
+    /** 倒数第几条消息开始转换 */
+    htmlToMdLastMessages: number;
+  };
   /** 话题命名设置 */
   topicNaming: {
     /** 是否启用话题命名 */
@@ -275,6 +282,10 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   graphViewShortcuts: {
     dragSubtree: "alt",
     graftSubtree: "alt",
+  },
+  contextOptimization: {
+    convertHtmlToMd: false,
+    htmlToMdLastMessages: 5,
   },
   topicNaming: {
     enabled: false,

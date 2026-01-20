@@ -1,4 +1,5 @@
 import { createModuleLogger } from "@/utils/logger";
+import TurndownService from "turndown";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
@@ -77,9 +78,28 @@ export const sessionLoader: ContextProcessor = {
     }
 
     const historyNodes = getActiveBranchHistory(context.session);
+    const { convertHtmlToMd, htmlToMdLastMessages } =
+      context.settings.contextOptimization || {
+        convertHtmlToMd: false,
+        htmlToMdLastMessages: 5,
+      };
+
+    let turndownService: TurndownService | null = null;
+    if (convertHtmlToMd) {
+      turndownService = new TurndownService({
+        headingStyle: "atx",
+        codeBlockStyle: "fenced",
+        emDelimiter: "*",
+      });
+      // 保持某些可能对模型理解有帮助的标签
+      turndownService.keep(["del", "ins", "sub", "sup"]);
+    }
 
     const messages: ProcessableMessage[] = [];
-    for (const node of historyNodes) {
+    const historyCount = historyNodes.length;
+
+    for (let i = 0; i < historyCount; i++) {
+      const node = historyNodes[i];
       // 忽略空消息且没有附件的消息
       const hasContent = !!node.content.trim();
       const hasAttachments = !!(node.attachments && node.attachments.length > 0);
@@ -87,15 +107,33 @@ export const sessionLoader: ContextProcessor = {
       if (!hasContent && !hasAttachments) {
         continue;
       }
+
+      let finalContent = node.content;
+
+      // 检查是否需要进行 HTML 到 Markdown 的转换
+      // 规则：开启了转换，且当前消息在倒数 N 条之外（即较旧的消息）
+      if (turndownService && historyCount - i > htmlToMdLastMessages) {
+        // 启发式判断是否包含 HTML 标签，且避开可能是简单数学符号的情况
+        if (/<[a-z][\s\S]*>/i.test(finalContent)) {
+          try {
+            // 只有当内容中确实存在 HTML 结构时才转换
+            finalContent = turndownService.turndown(finalContent);
+          } catch (e) {
+            logger.warn("HTML 转 Markdown 失败", { error: e, nodeId: node.id });
+          }
+        }
+      }
+
       const processableMessage: ProcessableMessage = {
         role: node.role,
-        content: node.content,
+        content: finalContent,
         sourceType: "session_history",
         sourceId: node.id,
         _attachments: node.attachments,
       };
       messages.push(processableMessage);
     }
+
 
     context.messages = messages;
     const message = `已加载 ${messages.length} 条历史消息。`;

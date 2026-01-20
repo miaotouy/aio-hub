@@ -411,6 +411,11 @@ export function buildBase64DataUrl(
   mimeType?: string,
   options: { rawBase64?: boolean } = {}
 ): string {
+  // 劫持检测：如果是本地文件协议，直接返回，交给后端的代理处理
+  if (typeof data === "string" && data.startsWith("local-file://")) {
+    return data;
+  }
+
   // 如果是二进制数据，我们不在这里处理 Base64 转换（避免阻塞主线程）
   // 而是返回一个特殊的标记格式，让后端的异步序列化 Worker 处理
   if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {

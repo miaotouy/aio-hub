@@ -609,12 +609,60 @@ export const fetchWithTimeout = async (
 
     // 劫持检测：如果 Body 中包含本地文件协议，则使用 Rust 代理发送请求
     // 这样可以绕过 Tauri HTTP 插件在 JS 侧序列化巨型 Body 导致的 IPC 阻塞（白屏）
-    const bodyStr = typeof options.body === 'string' ? options.body : '';
-    if (bodyStr.includes('local-file://')) {
+    let hasLocalFile = false;
+    let bodyObjForProxy: any = null;
+
+    if (typeof options.body === 'string') {
+      if (options.body.includes('local-file://')) {
+        hasLocalFile = true;
+        try {
+          bodyObjForProxy = JSON.parse(options.body);
+        } catch (e) {
+          // 如果不是 JSON，则无法通过代理处理（代理需要解析 body）
+          hasLocalFile = false;
+        }
+      }
+    } else if (options.body instanceof Uint8Array) {
+      // 优化：针对二进制 Body，只在可能包含 local-file:// 的情况下进行解码检查
+      // 这里的 1024 只是一个估算，通常协议头出现在前面，但为了保险可以检查更多
+      // 考虑到性能，我们查找 "local-file://" 的字节序列
+      // local-file:// 的字节: 108, 111, 99, 97, 108, 45, 102, 105, 108, 101, 58, 47, 47
+      const pattern = [108, 111, 99, 97, 108, 45, 102, 105, 108, 101, 58, 47, 47];
+      let found = false;
+      // 简单查找（实际生产环境建议用更高效的算法，但这里 Body 不会无限大）
+      // 扫描范围扩大到全量，确保 local-file:// 标记出现在任何位置都能被识别
+      for (let i = 0; i <= options.body.length - pattern.length; i++) {
+        if (options.body[i] === pattern[0]) {
+          let match = true;
+          for (let j = 1; j < pattern.length; j++) {
+            if (options.body[i + j] !== pattern[j]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) {
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (found) {
+        hasLocalFile = true;
+        try {
+          const decoder = new TextDecoder();
+          bodyObjForProxy = JSON.parse(decoder.decode(options.body));
+        } catch (e) {
+          hasLocalFile = false;
+        }
+      }
+    }
+
+    if (hasLocalFile) {
       return new Promise((resolve, reject) => {
         let fullContent = '';
         const onEvent = new Channel<any>();
-        
+
         onEvent.onmessage = (event: any) => {
           if (event.type === 'chunk') {
             fullContent += event.data;
@@ -630,20 +678,12 @@ export const fetchWithTimeout = async (
           }
         };
 
-        let parsedBody: any;
-        try {
-          parsedBody = JSON.parse(bodyStr);
-        } catch (e) {
-          reject(new Error('Failed to parse request body as JSON for proxy: ' + bodyStr));
-          return;
-        }
-
         invoke('proxy_llm_request', {
           request: {
             url,
             method: options.method || 'POST',
             headers: options.headers as Record<string, string>,
-            body: parsedBody
+            body: bodyObjForProxy
           },
           onEvent
         }).catch(reject);

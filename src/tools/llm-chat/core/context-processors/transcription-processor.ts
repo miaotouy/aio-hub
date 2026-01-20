@@ -4,7 +4,7 @@ import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { resolveAttachmentContent } from "../../core/context-utils/attachment-resolver";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
-import type { TranscriptionConfig } from "../../types/settings";
+import type { ChatTranscriptionConfig } from "../../types/settings";
 
 const logger = createModuleLogger("llm-chat/transcription-processor");
 const errorHandler = createModuleErrorHandler("llm-chat/transcription-processor");
@@ -19,7 +19,7 @@ export const transcriptionProcessor: ContextProcessor = {
     const agentConfig = context.agentConfig;
     const transcriptionConfig = context.sharedData.get(
       "transcriptionConfig",
-    ) as TranscriptionConfig | undefined;
+    ) as ChatTranscriptionConfig | undefined;
 
     // 获取当前上下文使用的模型信息
     const modelId = agentConfig.modelId;

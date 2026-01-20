@@ -235,9 +235,11 @@ export function useTranscriptionManager() {
       // 复读处理
       enableRepetitionDetection: options?.enableRepetitionDetection ?? chatConfig.enableRepetitionDetection,
       additionalPrompt: options?.additionalPrompt,
-      repetitionThreshold: chatConfig.repetitionThreshold,
-      repetitionCount: chatConfig.repetitionCount,
-      repetitionWhitelist: chatConfig.repetitionWhitelist,
+      repetitionConfig: {
+        consecutiveThreshold: chatConfig.repetitionConfig?.consecutiveThreshold,
+        globalThreshold: chatConfig.repetitionConfig?.globalThreshold,
+        whitelist: chatConfig.repetitionConfig?.whitelist,
+      },
       // 其他配置
       enableImageSlicer: chatConfig.enableImageSlicer,
       imageSlicerConfig: chatConfig.imageSlicerConfig,

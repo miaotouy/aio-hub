@@ -9,12 +9,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
 import { TimeoutError, isAbortError, isTimeoutError } from "../llm-apis/common";
-import { callOpenAiCompatibleApi, callOpenAiEmbeddingApi } from "../llm-apis/openai-compatible";
-import { callOpenAiResponsesApi } from "../llm-apis/openai-responses";
-import { callGeminiApi } from "../llm-apis/gemini";
-import { callClaudeApi } from "../llm-apis/claude";
-import { callCohereApi } from "../llm-apis/cohere";
-import { callVertexAiApi } from "../llm-apis/vertexai";
+import { adapters } from "../llm-apis/adapters";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
 import type { LlmProfile } from "../types/llm-profiles";
 
@@ -88,22 +83,24 @@ export function useLlmRequest() {
       };
 
       // 自动分发特种请求 (Embedding)
-      // 目前主要适配 OpenAI 兼容格式
-      if (model.capabilities?.embedding && options.embeddingInput && profile.type === 'openai') {
-        const result = await callOpenAiEmbeddingApi(effectiveProfile, {
-          modelId: options.modelId,
-          input: options.embeddingInput,
-          timeout: options.timeout,
-          signal: options.signal,
-        });
-        return {
-          content: `[Embedding] 已成功生成向量，维度: ${result.data?.[0]?.embedding?.length || '未知'}`,
-          usage: {
-            promptTokens: result.usage.promptTokens,
-            completionTokens: 0,
-            totalTokens: result.usage.totalTokens,
-          },
-        };
+      if (model.capabilities?.embedding && options.embeddingInput) {
+        const adapter = adapters[effectiveProfile.type];
+        if (adapter && adapter.embedding) {
+          const result = await adapter.embedding(effectiveProfile, {
+            modelId: options.modelId,
+            input: options.embeddingInput,
+            timeout: options.timeout,
+            signal: options.signal,
+          });
+          return {
+            content: `[Embedding] 已成功生成向量，维度: ${result.data?.[0]?.embedding?.length || '未知'}`,
+            usage: {
+              promptTokens: result.usage.promptTokens,
+              completionTokens: 0,
+              totalTokens: result.usage.totalTokens,
+            },
+          };
+        }
       }
 
       // 自动分发特种请求 (Rerank)
@@ -145,32 +142,15 @@ export function useLlmRequest() {
         filteredParams: Object.keys(filteredOptions).length,
       });
 
-      // 根据提供商类型调用对应的 API
-      let response: LlmResponse;
-      switch (effectiveProfile.type) {
-        case "openai":
-          response = await callOpenAiCompatibleApi(effectiveProfile, filteredOptions);
-          break;
-        case "openai-responses":
-          response = await callOpenAiResponsesApi(effectiveProfile, filteredOptions);
-          break;
-        case "gemini":
-          response = await callGeminiApi(effectiveProfile, filteredOptions);
-          break;
-        case "claude":
-          response = await callClaudeApi(effectiveProfile, filteredOptions);
-          break;
-        case "cohere":
-          response = await callCohereApi(effectiveProfile, filteredOptions);
-          break;
-        case "vertexai":
-          response = await callVertexAiApi(effectiveProfile, filteredOptions);
-          break;
-        default:
-          const error = new Error(`不支持的提供商类型: ${effectiveProfile.type}`);
-          errorHandler.error(error, "不支持的提供商类型", { context: { providerType: effectiveProfile.type } });
-          throw error;
+      // 根据提供商类型调用对应的适配器
+      const adapter = adapters[effectiveProfile.type];
+      if (!adapter) {
+        const error = new Error(`不支持的提供商类型: ${effectiveProfile.type}`);
+        errorHandler.error(error, "不支持的提供商类型", { context: { providerType: effectiveProfile.type } });
+        throw error;
       }
+
+      const response = await adapter.chat(effectiveProfile, filteredOptions);
 
       logger.info("LLM 请求成功", {
         profileId: options.profileId,

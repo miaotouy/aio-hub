@@ -4,12 +4,11 @@
  */
 
 import type { ProviderType, LlmProfile } from '../types/llm-profiles';
-import { openAiUrlHandler } from '@/llm-apis/openai-compatible';
-import { openAiResponsesUrlHandler } from '@/llm-apis/openai-responses';
-import { claudeUrlHandler } from '@/llm-apis/claude';
-import { geminiUrlHandler } from '@/llm-apis/gemini';
-import { cohereUrlHandler } from '@/llm-apis/cohere';
-import { vertexAiUrlHandler } from '@/llm-apis/vertexai';
+import { openAiUrlHandler, openAiResponsesUrlHandler } from '@/llm-apis/adapters/openai/utils';
+import { claudeUrlHandler } from '@/llm-apis/adapters/anthropic/utils';
+import { geminiUrlHandler } from '@/llm-apis/adapters/gemini/utils';
+import { cohereUrlHandler } from '@/llm-apis/adapters/cohere/utils';
+import { vertexAiUrlHandler } from '@/llm-apis/adapters/vertexai/utils';
 
 /**
  * 适配器 URL 处理接口

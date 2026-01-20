@@ -87,13 +87,15 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
           try {
             await invoke("compress_video", {
               taskId: task.id,
-              inputPath: fullPath,
-              outputPath: outputPath,
-              preset: preset,
-              ffmpegPath: ffmpegPath,
-              maxSizeMb: maxDirectSizeMB,
-              maxFps: maxFps,
-              maxResolution: maxResolution,
+              options: {
+                inputPath: fullPath,
+                outputPath: outputPath,
+                preset: preset,
+                ffmpegPath: ffmpegPath,
+                maxSizeMb: maxDirectSizeMB,
+                maxFps: maxFps,
+                maxResolution: maxResolution,
+              }
             });
           } finally {
             unlisten();

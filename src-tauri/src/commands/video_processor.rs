@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Stdio;
 use tauri::Emitter;
@@ -10,6 +10,18 @@ use tokio::process::Command;
 pub struct FfmpegProgressPayload {
     pub task_id: String,
     pub progress: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompressOptions {
+    pub input_path: String,
+    pub output_path: String,
+    pub preset: String,
+    pub ffmpeg_path: String,
+    pub max_size_mb: Option<f64>,
+    pub max_fps: Option<f64>,
+    pub max_resolution: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -134,26 +146,20 @@ pub async fn check_ffmpeg_availability(path: String) -> bool {
 }
 
 /// 压缩视频
-///
-/// # Arguments
-/// * `input_path` - 输入视频文件路径
-/// * `output_path` - 输出视频文件路径
-/// * `preset` - 压缩预设: "quality" | "speed" | "balanced" | "auto_size"
-/// * `ffmpeg_path` - FFmpeg 可执行文件路径
-/// * `max_size_mb` - 目标最大大小 (MB)，仅在 preset="auto_size" 时生效
-/// * `max_fps` - 最大帧率限制 (FPS)，可选
 #[tauri::command]
 pub async fn compress_video(
     task_id: String,
     window: tauri::Window,
-    input_path: String,
-    output_path: String,
-    preset: String,
-    ffmpeg_path: String,
-    max_size_mb: Option<f64>,
-    max_fps: Option<f64>,
-    max_resolution: Option<u32>,
+    options: CompressOptions,
 ) -> Result<String, String> {
+    let input_path = options.input_path;
+    let output_path = options.output_path;
+    let preset = options.preset;
+    let ffmpeg_path = options.ffmpeg_path;
+    let max_size_mb = options.max_size_mb;
+    let max_fps = options.max_fps;
+    let max_resolution = options.max_resolution;
+
     // 检查输入文件是否存在
     if !Path::new(&input_path).exists() {
         return Err(format!("Input file not found: {}", input_path));
@@ -269,7 +275,7 @@ pub async fn compress_video(
             }
 
             if !bitrate_set {
-                // 如果获取时长失败或未设置大小，回退到 balanced
+                // 如果获取时长失败所未设置大小，回退到 balanced
                 args.extend_from_slice(&[
                     "-c:v".to_string(),
                     "libx264".to_string(),

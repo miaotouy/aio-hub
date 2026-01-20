@@ -49,8 +49,7 @@ fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
             }
         }
         serde_json::Value::String(s) => {
-            if s.starts_with("local-file://") {
-                let path_str = &s["local-file://".len()..];
+            if let Some(path_str) = s.strip_prefix("local-file://") {
                 // 解码路径（处理空格和特殊字符）
                 let decoded_path = urlencoding::decode(path_str)
                     .map_err(|e| format!("Failed to decode path: {}", e))?;

@@ -41,6 +41,7 @@ const useDetachedWindowManager = () => {
 
     try {
       await listen<DetachedWindow>("window-detached", (event) => {
+        if (!event.payload) return;
         const { label, id, type } = event.payload;
         logger.info(`窗口已分离: ${type} '${id}' (label: ${label})`);
         detachedWindows.value.set(label, { label, id, type });
@@ -48,6 +49,7 @@ const useDetachedWindowManager = () => {
       });
 
       await listen<DetachedWindow>("window-attached", (event) => {
+        if (!event.payload) return;
         const { label, id, type } = event.payload;
         logger.info(`窗口已重新附着: ${type} '${id}' (label: ${label})`);
         if (detachedWindows.value.delete(label)) {
@@ -88,8 +90,16 @@ const useDetachedWindowManager = () => {
       });
 
       // 监听窗口销毁事件，确保状态被清理
-      await listen<{ label: string }>("tauri://destroyed", async (event) => {
-        const { label } = event.payload;
+      await listen<{ label?: string }>("tauri://destroyed", async (event) => {
+        // 优先从 payload 获取，如果 payload 为空（Tauri 系统事件常见情况），则使用 windowLabel
+        // 注意：Tauri 2.0 的 Event 对象可能在运行时包含 windowLabel，但类型定义中没有，所以使用 any 访问
+        const label = event.payload?.label || (event as any).windowLabel;
+
+        if (!label) {
+          logger.debug("收到 tauri://destroyed 事件，但无法确定窗口 label，忽略");
+          return;
+        }
+
         if (detachedWindows.value.has(label)) {
           const detached = detachedWindows.value.get(label)!;
           logger.info(`窗口已销毁，清理状态并触发恢复逻辑: ${detached.type} '${detached.id}' (label: ${label})`);

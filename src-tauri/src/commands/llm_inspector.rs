@@ -134,11 +134,11 @@ pub async fn start_llm_inspector(
             );
 
         // 创建监听器
-        let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))
+        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
             .await
             .expect("Failed to bind port");
 
-        log::info!("LLM代理服务启动在: http://127.0.0.1:{}", port);
+        log::info!("LLM代理服务启动在: http://0.0.0.0:{}", port);
 
         // 使用hyper服务器运行
         let server = axum::serve(listener, app);

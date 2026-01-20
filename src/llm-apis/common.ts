@@ -639,21 +639,60 @@ export const fetchWithTimeout = async (
       }
 
       return new Promise((resolve, reject) => {
-        let fullContent = '';
+        let fullContent: string | Uint8Array[] = '';
+        let status = 200;
+        let respHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        let isBinary = false;
+
         const onEvent = new Channel<any>();
 
         onEvent.onmessage = (event: any) => {
-          if (event.type === 'chunk') {
-            fullContent += event.data;
-          } else if (event.type === 'error') {
-            reject(new Error(event.data));
-          } else if (event.type === 'done') {
-            // 构造一个模拟的 Response 对象
-            resolve(new Response(fullContent, {
-              status: 200,
-              statusText: 'OK',
-              headers: { 'Content-Type': 'application/json' }
-            }));
+          const { type, data } = event;
+          switch (type) {
+            case 'start':
+              status = data.status;
+              respHeaders = data.headers;
+              break;
+            case 'chunk':
+              if (typeof fullContent === 'string') {
+                fullContent += data;
+              }
+              break;
+            case 'binary':
+              isBinary = true;
+              if (typeof fullContent === 'string') {
+                // 切换到二进制模式
+                const encoder = new TextEncoder();
+                fullContent = [encoder.encode(fullContent), new Uint8Array(data)];
+              } else {
+                fullContent.push(new Uint8Array(data));
+              }
+              break;
+            case 'error':
+              reject(new Error(data));
+              break;
+            case 'done':
+              // 构造响应体
+              let body: BodyInit;
+              if (isBinary && Array.isArray(fullContent)) {
+                const totalLength = fullContent.reduce((acc, curr) => acc + curr.length, 0);
+                const merged = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of fullContent) {
+                  merged.set(chunk, offset);
+                  offset += chunk.length;
+                }
+                body = merged;
+              } else {
+                body = fullContent as string;
+              }
+
+              resolve(new Response(body, {
+                status,
+                statusText: status === 200 ? 'OK' : '',
+                headers: respHeaders
+              }));
+              break;
           }
         };
 
@@ -662,7 +701,8 @@ export const fetchWithTimeout = async (
             url,
             method: options.method || 'POST',
             headers: options.headers as Record<string, string>,
-            body: bodyObjForProxy
+            body: bodyObjForProxy,
+            timeout: timeout // 传递超时时间
           },
           onEvent
         }).catch(reject);

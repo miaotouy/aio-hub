@@ -28,6 +28,7 @@ use commands::{
     cancel_move_operation,
     // 视频处理命令
     check_ffmpeg_availability,
+    compress_audio,
     cleanup_items,
     clear_all_window_configs,
     close_detached_window, // 新增：统一的关闭命令
@@ -530,6 +531,7 @@ pub fn run() {
             // 视频处理命令
             check_ffmpeg_availability,
             compress_video,
+            compress_audio,
             get_video_metadata_command,
             // LLM 代理命令
             proxy_llm_request,

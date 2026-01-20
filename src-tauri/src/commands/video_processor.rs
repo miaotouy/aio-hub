@@ -26,6 +26,15 @@ pub struct CompressOptions {
     pub auto_adjust_resolution: Option<bool>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioCompressOptions {
+    pub input_path: String,
+    pub output_path: String,
+    pub ffmpeg_path: String,
+    pub bitrate: String, // e.g. "64k"
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VideoMetadata {
@@ -543,6 +552,110 @@ pub async fn compress_video(
 
     if status.success() {
         // 确保最后发送 100%
+        let _ = window.emit(
+            "ffmpeg-progress",
+            FfmpegProgressPayload {
+                task_id: task_id.clone(),
+                progress: 100.0,
+            },
+        );
+        Ok(output_path)
+    } else {
+        Err(format!(
+            "FFmpeg exited with error code: {:?}",
+            status.code()
+        ))
+    }
+}
+
+/// 压缩音频
+#[tauri::command]
+pub async fn compress_audio(
+    task_id: String,
+    window: tauri::Window,
+    options: AudioCompressOptions,
+) -> Result<String, String> {
+    let input_path = options.input_path;
+    let output_path = options.output_path;
+    let ffmpeg_path = options.ffmpeg_path;
+    let bitrate = options.bitrate;
+
+    // 检查输入文件是否存在
+    if !Path::new(&input_path).exists() {
+        return Err(format!("Input file not found: {}", input_path));
+    }
+
+    // 确保输出目录存在
+    if let Some(parent) = Path::new(&output_path).parent() {
+        if !parent.exists() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+    }
+
+    // 获取时长用于进度反馈
+    let metadata = get_video_metadata(&ffmpeg_path, &input_path).await;
+    let duration = metadata.duration.unwrap_or(0.0);
+
+    // 构建参数
+    // 我们统一转为 m4a (aac) 或者 mp3。LLM 通常支持这些格式。
+    // 这里采用 aac 编码器，输出 m4a 容器，因为它效率更高。
+    let args = vec![
+        "-i".to_string(),
+        input_path.clone(),
+        "-y".to_string(),
+        "-c:a".to_string(),
+        "aac".to_string(),
+        "-b:a".to_string(),
+        bitrate,
+        "-vn".to_string(), // 禁用视频
+        output_path.clone(),
+    ];
+
+    // 执行命令
+    let mut command = Command::new(&ffmpeg_path);
+
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    command.args(&args);
+    command.stderr(Stdio::piped());
+    command.stdout(Stdio::null());
+
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Failed to spawn FFmpeg: {}", e))?;
+
+    let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
+    let mut reader = BufReader::new(stderr).lines();
+
+    while let Ok(Some(line)) = reader.next_line().await {
+        if duration > 0.0 {
+            if let Some(pos) = line.find("time=") {
+                let rest = &line[pos + 5..];
+                let time_str = rest.split_whitespace().next().unwrap_or("");
+                if let Some(current_time) = parse_ffmpeg_time(time_str) {
+                    let progress = (current_time / duration * 100.0).min(99.9);
+                    let _ = window.emit(
+                        "ffmpeg-progress",
+                        FfmpegProgressPayload {
+                            task_id: task_id.clone(),
+                            progress,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for FFmpeg: {}", e))?;
+
+    if status.success() {
         let _ = window.emit(
             "ffmpeg-progress",
             FfmpegProgressPayload {

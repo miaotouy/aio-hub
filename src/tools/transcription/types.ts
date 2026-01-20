@@ -44,6 +44,15 @@ export interface TypeSpecificConfig {
 }
 
 /**
+ * 音频特定配置
+ */
+export interface AudioSpecificConfig extends TypeSpecificConfig {
+  maxDirectSizeMB: number;
+  enableCompression: boolean;
+  bitrate: string; // 如 "64k", "128k"
+}
+
+/**
  * 视频特定配置
  */
 export interface VideoSpecificConfig extends TypeSpecificConfig {
@@ -88,7 +97,7 @@ export interface TranscriptionConfig {
   };
   ffmpegPath?: string;
   image: TypeSpecificConfig;
-  audio: TypeSpecificConfig;
+  audio: AudioSpecificConfig;
   video: VideoSpecificConfig;
   document: TypeSpecificConfig;
 }

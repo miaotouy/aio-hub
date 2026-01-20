@@ -89,7 +89,14 @@ export interface TranscriptionConfig {
   /** 图片特定配置 */
   image: TypeSpecificTranscriptionConfig;
   /** 音频特定配置 */
-  audio: TypeSpecificTranscriptionConfig;
+  audio: TypeSpecificTranscriptionConfig & {
+    /** 音频体积限制，超过将尝试压缩 */
+    maxDirectSizeMB: number;
+    /** 是否启用音频压缩 */
+    enableCompression: boolean;
+    /** 目标比特率，如 "64k", "128k" */
+    bitrate: string;
+  };
   /** 文档特定配置 */
   document: TypeSpecificTranscriptionConfig;
   /** FFmpeg 路径 */
@@ -436,6 +443,9 @@ export const DEFAULT_SETTINGS: ChatSettings = {
       maxTokens: 4096,
     },
     audio: {
+      maxDirectSizeMB: 10,
+      enableCompression: true,
+      bitrate: "128k",
       modelIdentifier: "",
       customPrompt: `你是一个专业的音频内容分析工具，正在处理音频：{filename}。精通语音识别、歌词转录及音乐理论分析。
 

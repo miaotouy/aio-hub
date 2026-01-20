@@ -1052,6 +1052,50 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         visible: (settings) => settings.transcription.enabled,
         groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
       },
+      {
+        id: "transAudioEnableCompression",
+        label: "启用音频压缩",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.audio.enableCompression",
+        hint: "开启后，当音频体积超过限制时，将尝试自动压缩以减少上传体积（需配置 FFmpeg）。",
+        keywords: "transcription audio compression 压缩",
+        visible: (settings) => settings.transcription.enabled,
+        groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
+      },
+      {
+        id: "transAudioMaxDirectSize",
+        label: "音频体积限制 ({{ localSettings.transcription.audio.maxDirectSizeMB }}MB)",
+        component: "SliderWithInput",
+        props: { min: 1, max: 50, step: 1 },
+        modelPath: "transcription.audio.maxDirectSizeMB",
+        hint: "音频体积限制，超过将尝试压缩。",
+        keywords: "transcription audio size 体积 限制",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.audio.enableCompression,
+        groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
+      },
+      {
+        id: "transAudioBitrate",
+        label: "目标比特率",
+        component: "ElSelect",
+        props: {
+          options: [
+            { label: "32 kbps (极低)", value: "32k" },
+            { label: "64 kbps (低)", value: "64k" },
+            { label: "128 kbps (标准)", value: "128k" },
+            { label: "192 kbps (高)", value: "192k" },
+          ],
+        },
+        modelPath: "transcription.audio.bitrate",
+        hint: "压缩后的音频比特率。较低的比特率可以显著减小体积，但会损失音质。",
+        keywords: "transcription audio bitrate 比特率",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.audio.enableCompression,
+        groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
+      },
 
       // 5. 视频转写配置
       {
@@ -1125,7 +1169,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "transcription ffmpeg path video 视频 路径",
         visible: (settings) =>
           settings.transcription.enabled &&
-          settings.transcription.video.enableCompression,
+          (settings.transcription.video.enableCompression ||
+            settings.transcription.audio.enableCompression),
         defaultValue: "",
         action: "selectFFmpegPath",
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },

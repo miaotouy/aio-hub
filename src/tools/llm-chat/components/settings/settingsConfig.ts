@@ -321,7 +321,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         layout: "inline",
         component: "ElSwitch",
         modelPath: "uiPreferences.seamlessMode",
-        hint: "开启后，HTML 预览将移除外框和头部，直接嵌入消息流中",
+        hint: "开启后， HTML 预览将移除外框和头部，直接嵌入消息流中",
         keywords: "ui html seamless preview 无缝 预览",
       },
       {
@@ -729,10 +729,10 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transRepetitionConsecutiveThreshold",
-        label: "连续重复阈值 ({{ localSettings.transcription.repetitionThreshold }}次)",
+        label: "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 10, step: 1 },
-        modelPath: "transcription.repetitionThreshold",
+        modelPath: "transcription.repetitionConfig.consecutiveThreshold",
         hint: "同一行或同一句话连续出现的次数超过此值将视为复读",
         keywords: "transcription repetition threshold consecutive 复读 阈值 连续",
         visible: (s) =>
@@ -740,10 +740,10 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transRepetitionGlobalThreshold",
-        label: "全局片段阈值 ({{ localSettings.transcription.repetitionCount }}次)",
+        label: "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 20, step: 1 },
-        modelPath: "transcription.repetitionCount",
+        modelPath: "transcription.repetitionConfig.globalThreshold",
         hint: "文本中任意片段出现的总次数超过此值将视为复读",
         keywords: "transcription repetition threshold global 复读 阈值 全局",
         visible: (s) =>
@@ -760,7 +760,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           defaultFirstOption: true,
           placeholder: "输入不触发检测的片段并回车",
         },
-        modelPath: "transcription.repetitionWhitelist",
+        modelPath: "transcription.repetitionConfig.whitelist",
         hint: "包含这些片段的内容将不会被判定为复读（常用于固定格式的转写）",
         keywords: "transcription repetition whitelist 复读 白名单",
         visible: (s) =>

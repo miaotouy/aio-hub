@@ -2,8 +2,24 @@ import {
   RendererVersion,
   type RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
+import type { TranscriptionConfig as BaseTranscriptionConfig } from "@/tools/transcription/types";
+import { DEFAULT_TRANSCRIPTION_CONFIG } from "@/tools/transcription/config";
 import { createDefaultChatRegexConfig } from "./chatRegex";
 import type { ChatRegexConfig } from "./chatRegex";
+
+/**
+ * 聊天场景下的转写配置
+ */
+export interface ChatTranscriptionConfig extends BaseTranscriptionConfig {
+  /** 是否启用转写功能 */
+  enabled: boolean;
+  /** 转写触发策略 */
+  strategy: "smart" | "always";
+  /** 在智能模式下，超过N条历史消息后强制转写 */
+  forceTranscriptionAfter: number;
+  /** 发送行为 */
+  sendBehavior: "wait_before_send" | "send_and_wait";
+}
 
 /**
  * 翻译配置接口
@@ -25,95 +41,6 @@ export interface TranslationConfig {
   temperature: number;
   /** 输出上限（token） */
   maxTokens: number;
-}
-
-/**
- * 转写配置接口
- */
-export interface TypeSpecificTranscriptionConfig {
-  /** 模型标识符 */
-  modelIdentifier: string;
-  /** 自定义 Prompt */
-  customPrompt: string;
-  /** 温度参数 */
-  temperature: number;
-  /** 输出上限（token） */
-  maxTokens: number;
-}
-
-export interface TranscriptionConfig {
-  /** 是否启用转写功能 */
-  enabled: boolean;
-  /** 转写触发策略 */
-  strategy: "smart" | "always";
-  /** 在智能模式下，超过N条历史消息后强制转写 */
-  forceTranscriptionAfter: number;
-  /** 是否在附件导入时自动开始转写 (基于策略) */
-  autoStartOnImport: boolean;
-  /** 发送行为 */
-  sendBehavior: "wait_before_send" | "send_and_wait";
-  /** 转写使用的模型 ID (指向 LlmModelSelector) - 通用/默认 */
-  modelIdentifier: string;
-  /** 自定义转写 Prompt (可选) - 通用/默认 */
-  customPrompt: string;
-  /** 温度参数 - 通用/默认 */
-  temperature: number;
-  /** 输出上限（token） - 通用/默认 */
-  maxTokens: number;
-  /** 是否启用智能切图 - 通用/默认 */
-  enableImageSlicer?: boolean;
-  /** 切图配置覆盖 - 通用/默认 */
-  imageSlicerConfig?: {
-    aspectRatioThreshold?: number;
-    blankThreshold?: number;
-    minBlankHeight?: number;
-    minCutHeight?: number;
-    cutLineOffset?: number;
-  };
-  /** 最大并发任务数 */
-  maxConcurrentTasks: number;
-  /** 任务执行延迟 (ms) - 用于控制请求速率，防止 429 */
-  executionDelay: number;
-  /** 最大重试次数 */
-  maxRetries: number;
-  /** 转写等待超时时间 (ms) */
-  timeout: number;
-  /** 是否启用复读检测 */
-  enableRepetitionDetection: boolean;
-  /** 连续重复的行/句阈值 (默认 3) */
-  repetitionThreshold: number;
-  /** 全局片段高频重复阈值 (默认 5) */
-  repetitionCount: number;
-  /** 白名单片段，不触发复读检测 */
-  repetitionWhitelist: string[];
-  /** 图片特定配置 */
-  image: TypeSpecificTranscriptionConfig;
-  /** 音频特定配置 */
-  audio: TypeSpecificTranscriptionConfig & {
-    /** 音频体积限制，超过将尝试压缩 */
-    maxDirectSizeMB: number;
-    /** 是否启用音频压缩 */
-    enableCompression: boolean;
-    /** 目标比特率，如 "64k", "128k" */
-    bitrate: string;
-  };
-  /** 文档特定配置 */
-  document: TypeSpecificTranscriptionConfig;
-  /** FFmpeg 路径 */
-  ffmpegPath?: string;
-  /** 视频特定配置 */
-  video: TypeSpecificTranscriptionConfig & {
-    maxDirectSizeMB: number;
-    /** 是否启用视频压缩 */
-    enableCompression: boolean;
-    maxFps: number;
-    /** 最大分辨率（短边像素，压缩时保持比例缩放） */
-    maxResolution: number;
-    /** 是否启用 GPU 加速 */
-    enableGpu?: boolean;
-    /** 是否启用自动调整分辨率 */
-    autoAdjustResolution?: boolean;
-  };
 }
 
 /**
@@ -195,7 +122,7 @@ export interface ChatSettings {
   /** 翻译设置 */
   translation: TranslationConfig;
   /** 转写设置 */
-  transcription: TranscriptionConfig;
+  transcription: ChatTranscriptionConfig;
   /** 消息管理设置 */
   messageManagement: {
     /** 是否在删除消息前确认 */
@@ -328,178 +255,11 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxTokens: 2000,
   },
   transcription: {
+    ...DEFAULT_TRANSCRIPTION_CONFIG,
     enabled: true,
     strategy: "smart",
     forceTranscriptionAfter: 10,
-    autoStartOnImport: true, // 默认开启，体验更好
     sendBehavior: "send_and_wait",
-    modelIdentifier: "",
-    customPrompt: `你是一个高精度多模态内容分析器。正在处理文件：{filename}。请对输入的媒体内容进行全面、准确的文本化转录。
-
-## 核心原则
-1. **视觉优先**：仅转录和描述视觉/听觉上明确存在的内容，严禁使用外部知识进行推测或“脑补”图中未提及的信息。
-2. **忠实还原**：优先还原内容的原始意图，对于文字内容必须保持原文准确性。
-3. **智能纠错**：仅对明显的口误、谐音错误进行合理修正，但必须确保不改变原意，且不添加图中不存在的内容。
-4. **结构清晰**：输出采用层次分明的 Markdown 格式。
-
-## 输出要求
-- 使用中文输出（除非内容本身是其他语言）。
-- 严禁提及任何基于“常识”或“过时知识”推断出的细节（如：未标明身份的角色名、未出现的品牌背景等）。
-- 对于非文字内容，提供客观、中立的视觉描述。`,
-    temperature: 0.2,
-    maxTokens: 4096,
-    enableImageSlicer: true,
-    imageSlicerConfig: {
-      aspectRatioThreshold: 3,
-      blankThreshold: 0.3,
-      minBlankHeight: 20,
-      minCutHeight: 480,
-      cutLineOffset: 0.2,
-    },
-    maxConcurrentTasks: 2,
-    executionDelay: 300, // 默认延迟
-    maxRetries: 2,
-    timeout: 120, // 默认 120 秒
-    enableRepetitionDetection: true,
-    repetitionThreshold: 3,
-    repetitionCount: 5,
-    repetitionWhitelist: [],
-    ffmpegPath: "",
-    video: {
-      maxDirectSizeMB: 10,
-      enableCompression: true,
-      maxFps: 12,
-      maxResolution: 720,
-      enableGpu: false,
-      autoAdjustResolution: true,
-      modelIdentifier: "",
-      customPrompt: `你是一个专业的视频内容分析器，正在处理视频：{filename}。具备对动态视觉内容和音频信息的综合理解能力。
-
-## 核心准则
-- **视觉实证**：仅描述视频中肉眼可见的画面和耳朵可听的音频。禁止使用外部知识库来填充视频中未明确说明的背景、人物身份或事件。
-- **拒绝猜测**：如果画面中出现新角色、新产品且未通过文字/对白标明身份，请仅描述其外观特征，严禁通过“猜测”冠名，让读者自己根据描述去识别内容对象。
-
-## 分析框架
-请按以下结构对视频进行全面分析：
-
-### 1. 视频概览
-- **主题与类型**：视频的主要内容类型（如新闻、教程、Vlog、监控画面等）
-- **核心事件**：视频中发生的主要事件或行为
-
-### 2. 关键视觉信息
-- **场景变化**：描述主要的场景切换和环境细节
-- **人物与动作**：识别主要人物及其关键动作（如身份不明，请描述特征而非猜测姓名）
-- **文字与标识**：提取视频中出现的关键文字（字幕、标题、招牌等）
-- **演示文稿与文本提取**：如果视频包含 PPT、Keynote、白板或其他演示文档，请务必完整、准确地提取页面上的文本内容、标题、核心要点。
-
-### 3. 音频内容（如适用）
-- **语音摘要**：概括主要的对话或旁白内容
-- **关键声效**：显著的背景音乐或环境音效
-
-### 4. 时间线详情
-- [MM:SS] 关键节点1
-- [MM:SS] 关键节点2
-- [MM:SS] 转折点详情等
-
-## 输出格式
-使用清晰的 Markdown 结构。
-确保内容是可以以文字尽量还原视频内容，给LLM看的，你可以近似理解为给视障或听障对象转写内容。
-`,
-      temperature: 0.2,
-      maxTokens: 4096,
-    },
-    image: {
-      modelIdentifier: "",
-      customPrompt: `你是一个专业的图像内容分析器，正在处理图像：{filename}。具备高精度视觉识别和 OCR 能力。
-
-## 核心准则
-- **视觉实证**：仅描述图像中明确可见的内容。严禁利用你的训练知识去“脑补”或“猜测”图中未明确标注的信息（例如：严禁猜测未注名的角色身份、品牌背景或地理位置）。
-- **客观中立**：保持描述的客观性，不添加主观臆断。
-
-## 分析框架
-请按以下结构对图像进行全面分析：
-
-### 1. 场景概览
-- 图像类型（照片/截图/插图/图表等）
-- 整体场景描述（环境、氛围、主题）
-
-### 2. 核心元素
-- **主体识别**：画面中的主要对象、人物、物品（如身份不明，请仅描述外貌/形态特征）
-- **空间关系**：各元素的位置布局和相互关系
-- **视觉特征**：色彩、光影、构图等显著特点
-
-### 3. 文字内容（OCR）
-- **精确转录**：逐字提取图中所有可见文本
-- **布局保持**：尽量还原文字的原始排版结构
-- **标注来源**：说明文字出现的位置（如标题、按钮、水印等）
-
-### 4. 逻辑关联（仅限视觉可见）
-- **元素关联**：图中各元素间的显性逻辑联系
-- **UI/交互逻辑**：如果是界面截图，描述其功能布局
-
-## 输出格式
-使用清晰的 Markdown 结构，必要时使用表格、列表等元素增强可读性。`,
-      temperature: 0.2,
-      maxTokens: 4096,
-    },
-    audio: {
-      maxDirectSizeMB: 10,
-      enableCompression: true,
-      bitrate: "128k",
-      modelIdentifier: "",
-      customPrompt: `你是一个专业的音频内容分析工具，正在处理音频：{filename}。精通语音识别、歌词转录及音乐理论分析。
-
-## 核心任务
-请对输入的音频内容进行全方位的听感分析与转录，兼顾“语音对话”与“音乐元素”的深度解析。
-
-## 分析维度
-
-### 1. 语音与歌词（文本层）
-- **语音对话**：准确转录对话内容，区分说话者，保留语气情感。
-- **歌词转录**：如果是歌曲，请按行/段落准确转录歌词，保留原语言。
-- **混合场景**：清晰区分“念白/对话”与“歌唱/哼唱”部分。
-
-### 2. 音乐与声学（听感层）
-- **音乐风格**：分析流派（如流行、摇滚、古典、电子等）、节奏快慢及整体氛围。
-- **乐器与编曲**：识别显著的乐器（钢琴、吉他、鼓点、合成器等）及编曲亮点。
-- **结构分析**：标注音乐结构变化，如 [前奏]、[间奏]、[Solo]、[尾奏]、[高潮/副歌]。
-- **情感色彩**：描述音乐或人声传达的情绪（忧伤、激昂、轻松、紧张等）。
-
-### 3. 环境与音效
-- **环境背景**：识别录音环境（录音棚、现场、嘈杂街头等）。
-- **特殊音效**：记录关键的非乐音事件（掌声、脚步声、雨声等）。
-
-## 输出规范
-1. **结构清晰**：使用 Markdown 格式，通过标题分隔不同部分。
-2. **时间轴标注**：在关键节点（如歌曲开始、间奏、对话切入）添加 [MM:SS] 时间戳。
-3. **歌词排版**：歌词部分请使用引用块或诗歌格式排版，保持美观。
-4. **描述生动**：对音乐部分的描述应尽量专业且具有画面感，避免干瘪的“有音乐”描述。
-
-`,
-      temperature: 0.2,
-      maxTokens: 4096,
-    },
-    document: {
-      modelIdentifier: "",
-      customPrompt: `你是一个专业的文档解析专家，正在处理文档：{filename}。具备极高的文档结构理解和文字提取能力。
-
-## 核心任务
-请将输入的文档内容转换为结构清晰、排版优雅的 Markdown 格式。
-
-## 处理准则
-1. **结构映射**：准确识别标题（H1-H6）、列表、表格、引用块等结构，并使用对应的 Markdown 语法。
-2. **内容忠实**：逐字提取所有文本，不遗漏任何细节，不随意更改原文表述。
-3. **表格还原**：对于文档中的表格，请使用 Markdown 表格语法进行完美还原。
-4. **数学公式**：如果文档中包含数学公式，请使用 LaTeX 语法（$ 或 $$）进行转录。
-5. **非文字元素**：对于文档中的图片或图表，提供文字描述。
-
-## 输出规范
-- 使用 Markdown 格式输出。
-- 保持文档的原始阅读顺序。
-- 仅输出解析后的内容，不包含任何个人评论。`,
-      temperature: 0.1,
-      maxTokens: 16384,
-    },
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

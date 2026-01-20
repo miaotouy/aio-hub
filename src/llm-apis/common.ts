@@ -1,4 +1,5 @@
 import { fetch, type ClientOptions } from '@tauri-apps/plugin-http';
+import { invoke, Channel } from '@tauri-apps/api/core';
 import { loadAppSettings } from '@/utils/appSettings';
 
 /**
@@ -605,6 +606,50 @@ export const fetchWithTimeout = async (
 
   try {
     const proxyConfig = getProxyConfig();
+
+    // 劫持检测：如果 Body 中包含本地文件协议，则使用 Rust 代理发送请求
+    // 这样可以绕过 Tauri HTTP 插件在 JS 侧序列化巨型 Body 导致的 IPC 阻塞（白屏）
+    const bodyStr = typeof options.body === 'string' ? options.body : '';
+    if (bodyStr.includes('local-file://')) {
+      return new Promise((resolve, reject) => {
+        let fullContent = '';
+        const onEvent = new Channel<any>();
+        
+        onEvent.onmessage = (event: any) => {
+          if (event.type === 'chunk') {
+            fullContent += event.data;
+          } else if (event.type === 'error') {
+            reject(new Error(event.data));
+          } else if (event.type === 'done') {
+            // 构造一个模拟的 Response 对象
+            resolve(new Response(fullContent, {
+              status: 200,
+              statusText: 'OK',
+              headers: { 'Content-Type': 'application/json' }
+            }));
+          }
+        };
+
+        let parsedBody: any;
+        try {
+          parsedBody = JSON.parse(bodyStr);
+        } catch (e) {
+          reject(new Error('Failed to parse request body as JSON for proxy: ' + bodyStr));
+          return;
+        }
+
+        invoke('proxy_llm_request', {
+          request: {
+            url,
+            method: options.method || 'POST',
+            headers: options.headers as Record<string, string>,
+            body: parsedBody
+          },
+          onEvent
+        }).catch(reject);
+      });
+    }
+
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,

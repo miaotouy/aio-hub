@@ -125,6 +125,8 @@ use commands::{
     save_uploaded_file,
     // 窗口配置管理相关
     save_window_config,
+    // LLM 代理命令
+    proxy_llm_request,
     // LLM 搜索命令
     search_llm_data,
     set_window_position,
@@ -529,6 +531,8 @@ pub fn run() {
             check_ffmpeg_availability,
             compress_video,
             get_video_metadata_command,
+            // LLM 代理命令
+            proxy_llm_request,
             // LLM 搜索命令
             search_llm_data,
             // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)

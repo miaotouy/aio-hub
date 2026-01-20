@@ -114,14 +114,12 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     // 增加延迟到 50ms，确保在大文件处理前，浏览器有足够时间完成 UI 渲染（转圈动画等）
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    const readStart = performance.now();
-    // 优化：使用 getAssetBase64 绕过 Tauri 默认的 Vec<u8> -> JSON Array 的低效序列化
-    const base64Data = await assetManagerEngine.getAssetBase64(finalPath);
-    const readEnd = performance.now();
-    logger.info(`视频数据读取完成 (Base64)`, {
-      size: base64Data.length,
-      duration: `${(readEnd - readStart).toFixed(2)}ms`
-    });
+    const basePath = await assetManagerEngine.getAssetBasePath();
+    const fullPath = `${basePath}/${finalPath}`.replace(/\\/g, "/");
+
+    // 劫持逻辑：不再在前端读取 Base64，而是传递一个本地文件协议标记
+    // 后端会在发送请求前自动读取该文件并转换为 Base64，从而避开 IPC 传输大字符串导致的挂起
+    const localFileUrl = `local-file://${fullPath}`;
 
     const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
 
@@ -137,7 +135,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
             source: {
               type: "base64",
               media_type: task.mimeType || "video/mp4",
-              data: base64Data // 传递 Base64 字符串
+              data: localFileUrl // 传递本地文件协议 URL
             }
           }
         ]

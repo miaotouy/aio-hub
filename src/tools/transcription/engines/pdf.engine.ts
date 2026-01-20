@@ -8,6 +8,9 @@ import { getModelParams } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
 import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
 
+// 文件大小阈值：超过此值使用 Rust 代理，避免 IPC 阻塞（10MB）
+const FILE_SIZE_THRESHOLD = 10 * 1024 * 1024;
+
 export class PdfTranscriptionEngine implements ITranscriptionEngine {
   canHandle(asset: Asset): boolean {
     return asset.type === "document" && asset.mimeType === "application/pdf";
@@ -25,13 +28,29 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     const model = profile?.models.find((m) => m.id === modelId);
     const capabilities = model?.capabilities || {};
 
-    const buffer = await assetManagerEngine.getAssetBinary(task.path);
+    // 获取资产对象以检查文件大小
+    const asset = await assetManagerEngine.getAssetById(task.assetId);
+    const fileSize = asset?.size || 0;
+
     const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
 
     let transcriptionText: string;
 
     // 1. 如果模型原生支持 PDF
     if (capabilities.document) {
+      let pdfData: string;
+      
+      // 智能选择数据传输方式
+      if (fileSize > FILE_SIZE_THRESHOLD) {
+        // 大文件：使用 local-file:// 协议，让 Rust 代理处理
+        const basePath = await assetManagerEngine.getAssetBasePath();
+        const fullPath = `${basePath}/${task.path}`.replace(/\\/g, "/");
+        pdfData = `local-file://${fullPath}`;
+      } else {
+        // 小文件：直接读取 Base64，减少代理开销
+        pdfData = await assetManagerEngine.getAssetBase64(task.path);
+      }
+
       const content: LlmMessageContent[] = [
         { type: "text", text: finalPrompt },
         {
@@ -39,7 +58,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
           source: {
             type: "base64",
             media_type: "application/pdf",
-            data: buffer,
+            data: pdfData,
           },
         }
       ];
@@ -57,7 +76,9 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     }
     // 2. 如果模型不支持 PDF 但支持视觉，则将 PDF 转为图片
     else if (capabilities.vision) {
-      const images = await convertPdfToImages(buffer);
+      // 视觉分支需要二进制数据，直接读取（可能对大文件有 IPC 开销，但视觉分支通常用于小文件）
+      const pdfBuffer = await assetManagerEngine.getAssetBinary(task.path);
+      const images = await convertPdfToImages(pdfBuffer);
       if (images.length === 0) {
         throw new Error("PDF 转图片失败：未生成任何图片");
       }

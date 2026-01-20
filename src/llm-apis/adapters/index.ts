@@ -1,11 +1,13 @@
-import type { LlmProfile } from "../../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "../common";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "../embedding-types";
+import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmRequestOptions, LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
+import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
 import { openAiAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
 import { vertexAiAdapter } from "./vertexai";
 import { cohereAdapter } from "./cohere";
+import { callSiliconFlowImageApi } from "./siliconflow/image";
+import { xAiAdapter } from "./xai";
 
 /**
  * 统一适配器接口
@@ -22,9 +24,19 @@ export interface LlmAdapter {
   embedding?(profile: LlmProfile, options: EmbeddingRequestOptions): Promise<EmbeddingResponse>;
 
   /**
-   * 图片生成 (未来扩展)
+   * 图片生成
    */
-  // generateImage?(profile: LlmProfile, options: any): Promise<any>;
+  image?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
+
+  /**
+   * 音频生成 (TTS)
+   */
+  audio?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
+
+  /**
+   * 视频生成
+   */
+  video?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
 }
 
 /**
@@ -33,7 +45,22 @@ export interface LlmAdapter {
  */
 export const adapters: Record<string, LlmAdapter> = {
   openai: openAiAdapter,
+  "openai-compatible": openAiAdapter,
   "openai-responses": openAiAdapter,
+  groq: openAiAdapter,
+  mistral: openAiAdapter,
+  perplexity: openAiAdapter,
+  deepseek: openAiAdapter,
+  together: openAiAdapter,
+  openrouter: openAiAdapter,
+  ollama: openAiAdapter,
+  lmstudio: openAiAdapter,
+  vllm: openAiAdapter,
+  siliconflow: {
+    ...openAiAdapter,
+    image: callSiliconFlowImageApi,
+  },
+  xai: xAiAdapter,
   gemini: geminiAdapter,
   claude: anthropicAdapter,
   vertexai: vertexAiAdapter,

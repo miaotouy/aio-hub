@@ -276,6 +276,60 @@ export interface LlmRequestOptions {
 }
 
 /**
+ * 媒体生成通用选项
+ */
+export interface MediaGenerationOptions extends Omit<LlmRequestOptions, 'responseFormat'> {
+  /** 单次生成的提示词，若提供则自动包装为 user 消息 */
+  prompt?: string;
+  /** 负面提示词 (Negative Prompt) */
+  negativePrompt?: string;
+  /** 随机种子 (Seed) */
+  seed?: number;
+  /** 生成数量 (OpenAI n) */
+  n?: number;
+  /** 分辨率 (e.g., "1024x1024", "1K", "2K", "720p", "1080p") */
+  size?: string;
+  /** 质量级别 (standard, hd, low, high) */
+  quality?: string;
+  /** 风格控制 (vivid, natural, cinematic, etc.) */
+  style?: string;
+  /** 响应格式 (url, b64_json) */
+  responseFormat?: "url" | "b64_json" | string | Record<string, any>; // 覆盖基类的响应格式，支持更广泛的媒体格式
+  /** 分辨率级别 (Gemini Veo: 720p, 1080p, 4k) */
+  resolution?: string;
+  /** 宽高比 (e.g., "1:1", "16:9", "9:16") */
+  aspectRatio?: string;
+  /** 引导系数 (CFG Scale / Guidance Scale) */
+  guidanceScale?: number;
+  /** 推理步数 (Inference Steps) */
+  numInferenceSteps?: number;
+  /** 提示词增强开关 (Prompt Enhancement) */
+  promptEnhancement?: boolean;
+  /** 安全过滤等级 (Safety Setting: block_none, block_few, etc.) */
+  safetySetting?: string;
+  /** 输入忠实度 (OpenAI input_fidelity: low | high) */
+  inputFidelity?: "low" | "high";
+  /** 视频时长 (秒) */
+  durationSeconds?: number;
+  /** 蒙版图片 (用于局部重绘，Base64 或 URL) */
+  mask?: string;
+  /** 参考附件 (用于以图生图、参考图引导) */
+  inputAttachments?: Array<{
+    url?: string;
+    b64?: string;
+    type: "image" | "video" | "mask";
+    role?: "reference" | "first_frame" | "last_frame";
+  }>;
+  /** 音频控制 */
+  audioConfig?: {
+    voice?: string;
+    speed?: number;
+    pitch?: number;
+    responseFormat?: "mp3" | "wav" | "opus" | "aac";
+  };
+}
+
+/**
  * URL 引用注释（网络搜索工具）
  */
 export interface UrlCitation {
@@ -384,6 +438,38 @@ export interface LlmResponse {
   systemFingerprint?: string;
   /** 使用的服务层级 */
   serviceTier?: string;
+  /** 模型重写后的提示词 */
+  revisedPrompt?: string;
+  /** 实际使用的种子值 */
+  seed?: number;
+  /** 任务进度 (0-100) */
+  progress?: number;
+  /** 模型思维链 (Gemini Thought) */
+  thought?: string;
+  /** 性能指标 (硅基 timings 等) */
+  timings?: Record<string, any>;
+  /** 生成的图片列表 */
+  images?: Array<{
+    url?: string;
+    b64_json?: string;
+    revisedPrompt?: string;
+  }>;
+  /** 生成的视频列表 */
+  videos?: Array<{
+    url?: string;
+    id?: string;
+    status?: "pending" | "processing" | "completed" | "failed";
+    thumbnailUrl?: string;
+  }>;
+  /** 生成的音频列表 */
+  audios?: Array<{
+    url?: string;
+    b64_json?: string;
+    format?: string;
+    duration?: number;
+  }>;
+  /** 降级兼容：生成的音频数据 (Base64 或二进制) */
+  audioData?: string;
 }
 
 /**

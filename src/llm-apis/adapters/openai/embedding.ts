@@ -1,6 +1,6 @@
-import type { LlmProfile } from "../../../types/llm-profiles";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "../../embedding-types";
-import { fetchWithTimeout, ensureResponseOk } from "../../common";
+import type { LlmProfile } from "@/types/llm-profiles";
+import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
+import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 

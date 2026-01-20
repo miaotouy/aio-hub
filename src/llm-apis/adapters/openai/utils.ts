@@ -1,5 +1,5 @@
-import type { LlmProfile, LlmModelInfo } from "../../../types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "../../../config/model-metadata";
+import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
+import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 
 /**
  * OpenAI 适配器的 URL 处理逻辑

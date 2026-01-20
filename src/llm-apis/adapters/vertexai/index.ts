@@ -1,6 +1,6 @@
-import type { LlmProfile } from "../../../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "../../common";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "../../embedding-types";
+import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
+import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
 import { createModuleLogger } from "@utils/logger";
 import type { LlmAdapter } from "../index";
 import { vertexAiUrlHandler, detectPublisher } from "./utils";

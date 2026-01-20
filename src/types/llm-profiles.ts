@@ -144,6 +144,8 @@ export interface ModelCapabilities {
   imageGeneration?: boolean;
   /** 是否支持音频输入/输出 */
   audio?: boolean;
+  /** 是否支持音频生成 (TTS) */
+  audioGeneration?: boolean;
   /** 是否支持视频输入 */
   video?: boolean;
   /** 是否支持视频生成 */

@@ -1,12 +1,12 @@
-import type { LlmRequestOptions, LlmMessageContent, LlmMessage } from "../../common";
-import type { LlmModelInfo } from "../../../types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "../../../config/model-metadata";
+import type { LlmRequestOptions, LlmMessageContent, LlmMessage } from "@/llm-apis/common";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 import {
   parseMessageContents,
   extractToolDefinitions,
   parseToolChoice,
   buildBase64DataUrl,
-} from "../../request-builder";
+} from "@/llm-apis/request-builder";
 
 /**
  * Claude API 消息内容块类型

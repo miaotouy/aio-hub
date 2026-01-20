@@ -1,11 +1,11 @@
-import type { LlmProfile } from "../../../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "../../common";
-import { fetchWithTimeout, ensureResponseOk } from "../../common";
+import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
+import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
   applyCustomParameters,
   cleanPayload,
-} from "../../request-builder";
+} from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import {
   geminiUrlHandler,
@@ -65,22 +65,38 @@ function parseGeminiLogprobs(logprobsResult: any): LlmResponse["logprobs"] {
 /**
  * 解析 Gemini API 响应
  */
-function parseGeminiResponse(data: any): LlmResponse {
+export function parseGeminiResponse(data: any): LlmResponse {
   const candidate = data.candidates?.[0];
   if (!candidate) throw new Error(`Gemini API 响应格式异常: 没有候选回答`);
 
   let content = "";
   let toolCalls: LlmResponse["toolCalls"] = undefined;
   let thoughtsContent = "";
+  const images: LlmResponse["images"] = [];
+  const audios: LlmResponse["audios"] = [];
 
   if (candidate.content?.parts) {
     for (const part of candidate.content.parts) {
-      if (!part.text && !part.functionCall && !part.executableCode && !part.codeExecutionResult) continue;
+      if (!part.text && !part.functionCall && !part.executableCode && !part.codeExecutionResult && !part.inlineData) continue;
       if (part.thought && part.text) {
         thoughtsContent += part.text;
         continue;
       }
       if (part.text) content += part.text;
+      else if (part.inlineData) {
+        const mimeType = part.inlineData.mimeType;
+        const base64Data = part.inlineData.data;
+        if (mimeType.startsWith("image/")) {
+          images.push({
+            b64_json: base64Data,
+          });
+        } else if (mimeType.startsWith("audio/")) {
+          audios.push({
+            b64_json: base64Data,
+            format: mimeType.split("/")[1],
+          });
+        }
+      }
       else if (part.functionCall) {
         if (!toolCalls) toolCalls = [];
         toolCalls.push({
@@ -109,6 +125,9 @@ function parseGeminiResponse(data: any): LlmResponse {
     content,
     finishReason: mapGeminiFinishReason(candidate.finishReason),
   };
+
+  if (images.length > 0) result.images = images;
+  if (audios.length > 0) result.audios = audios;
 
   if (data.usageMetadata) {
     result.usage = {

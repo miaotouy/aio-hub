@@ -1,12 +1,12 @@
-import { 
-  parseMessageContents, 
-  inferImageMimeType, 
-  extractToolDefinitions, 
-  parseToolChoice 
-} from "../../request-builder";
-import type { LlmRequestOptions, LlmMessageContent, LlmMessage } from "../../common";
-import type { LlmModelInfo } from "../../../types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "../../../config/model-metadata";
+import {
+  parseMessageContents,
+  inferImageMimeType,
+  extractToolDefinitions,
+  parseToolChoice
+} from "@/llm-apis/request-builder";
+import type { LlmRequestOptions, LlmMessageContent, LlmMessage } from "@/llm-apis/common";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 
 /**
  * Vertex AI 适配器的 URL 处理逻辑

@@ -1,14 +1,14 @@
-import type { LlmProfile } from "../../../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse, LlmMessage } from "../../common";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "../../embedding-types";
-import { fetchWithTimeout, ensureResponseOk } from "../../common";
+import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmRequestOptions, LlmResponse, LlmMessage } from "@/llm-apis/common";
+import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
+import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { createModuleLogger } from "@utils/logger";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
-import { 
-  extractCommonParameters, 
-  applyCustomParameters, 
-  cleanPayload 
-} from "../../request-builder";
+import {
+  extractCommonParameters,
+  applyCustomParameters,
+  cleanPayload
+} from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { 
   VertexAiGenerationConfig, 

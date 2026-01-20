@@ -1,6 +1,6 @@
-import type { LlmProfile } from "../../../types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse } from "../../common";
-import { fetchWithTimeout, ensureResponseOk } from "../../common";
+import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
+import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
 import {
   parseMessageContents,
@@ -8,7 +8,7 @@ import {
   buildBase64DataUrl,
   applyCustomParameters,
   cleanPayload,
-} from "../../request-builder";
+} from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 // import { createModuleLogger } from "@/utils/logger";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";

@@ -1,4 +1,4 @@
-import type { LlmAdapter } from "../index";
+import type { LlmAdapter } from "@/llm-apis/adapters";
 import { callCohereChatApi } from "./chat";
 import { callCohereEmbeddingApi } from "./embedding";
 

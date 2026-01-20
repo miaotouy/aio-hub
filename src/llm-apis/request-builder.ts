@@ -10,7 +10,7 @@
  * - 不强制统一所有差异，尊重各 API 的独特性
  */
 
-import type { LlmMessageContent, LlmRequestOptions } from "./common";
+import type { LlmMessageContent, LlmRequestOptions, MediaGenerationOptions } from "./common";
 import type { LlmProfile, LlmModelInfo } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
 import { getMatchedModelProperties } from "../config/model-metadata";
@@ -540,19 +540,37 @@ export function isOpenAIModel(modelId: string, provider?: string): boolean {
  * @returns 过滤后的参数对象
  */
 export function filterParametersByCapabilities(
-  options: LlmRequestOptions,
+  options: LlmRequestOptions | MediaGenerationOptions,
   profile: LlmProfile,
   model?: LlmModelInfo
-): Partial<LlmRequestOptions> {
+): Partial<LlmRequestOptions | MediaGenerationOptions> {
   const providerInfo = getProviderTypeInfo(profile.type);
   const supported = providerInfo?.supportedParameters;
   const capabilities = model?.capabilities;
 
-  const filtered: Partial<LlmRequestOptions> = {};
+  const filtered: Partial<LlmRequestOptions | MediaGenerationOptions> = {};
 
   // 核心参数始终保留
   filtered.modelId = options.modelId;
   filtered.messages = options.messages;
+  
+  // 媒体生成参数透传
+  const mediaOptions = options as MediaGenerationOptions;
+  if (mediaOptions.prompt) (filtered as MediaGenerationOptions).prompt = mediaOptions.prompt;
+  if (mediaOptions.negativePrompt) (filtered as MediaGenerationOptions).negativePrompt = mediaOptions.negativePrompt;
+  if (mediaOptions.size) (filtered as MediaGenerationOptions).size = mediaOptions.size;
+  if (mediaOptions.quality) (filtered as MediaGenerationOptions).quality = mediaOptions.quality;
+  if (mediaOptions.style) (filtered as MediaGenerationOptions).style = mediaOptions.style;
+  if (mediaOptions.aspectRatio) (filtered as MediaGenerationOptions).aspectRatio = mediaOptions.aspectRatio;
+  if (mediaOptions.guidanceScale) (filtered as MediaGenerationOptions).guidanceScale = mediaOptions.guidanceScale;
+  if (mediaOptions.numInferenceSteps) (filtered as MediaGenerationOptions).numInferenceSteps = mediaOptions.numInferenceSteps;
+  if (mediaOptions.promptEnhancement !== undefined) (filtered as MediaGenerationOptions).promptEnhancement = mediaOptions.promptEnhancement;
+  if (mediaOptions.audioConfig) (filtered as MediaGenerationOptions).audioConfig = mediaOptions.audioConfig;
+  if (mediaOptions.mask) (filtered as MediaGenerationOptions).mask = mediaOptions.mask;
+  if (mediaOptions.inputAttachments) (filtered as MediaGenerationOptions).inputAttachments = mediaOptions.inputAttachments;
+  if (mediaOptions.durationSeconds) (filtered as MediaGenerationOptions).durationSeconds = mediaOptions.durationSeconds;
+  if (mediaOptions.inputFidelity) (filtered as MediaGenerationOptions).inputFidelity = mediaOptions.inputFidelity;
+
   filtered.stream = options.stream;
   filtered.onStream = options.onStream;
   filtered.onReasoningStream = options.onReasoningStream;
@@ -685,9 +703,9 @@ export function filterParametersByCapabilities(
     profile.type === "gemini" || profile.type === "vertexai" || modelFamily === "gemini";
   if (shouldApplyGeminiParams) {
     // 安全设置
-    const extendedOptions = options as any;
+    const extendedOptions = options as Record<string, any>;
     if (extendedOptions.safetySettings !== undefined) {
-      (filtered as any).safetySettings = extendedOptions.safetySettings;
+      (filtered as Record<string, any>).safetySettings = extendedOptions.safetySettings;
     }
 
     // 其他 Gemini 特有参数
@@ -702,7 +720,7 @@ export function filterParametersByCapabilities(
 
     for (const key of geminiSpecificKeys) {
       if (extendedOptions[key] !== undefined) {
-        (filtered as any)[key] = extendedOptions[key];
+        (filtered as Record<string, any>)[key] = extendedOptions[key];
       }
     }
 
@@ -839,6 +857,24 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "prediction",
   "webSearchOptions",
   "streamOptions",
+
+  // 媒体生成 (Media Generation)
+  "prompt",
+  "negativePrompt",
+  "aspectRatio",
+  "guidanceScale",
+  "numInferenceSteps",
+  "promptEnhancement",
+  "audioConfig",
+  "mask",
+  "inputAttachments",
+  "durationSeconds",
+  "inputFidelity",
+  "background",
+  "partialImages",
+  "outputCompression",
+  "moderation",
+  "instructions",
 
   // Provider 特有参数
   "user", // OpenAI

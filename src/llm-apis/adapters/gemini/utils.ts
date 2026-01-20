@@ -1,6 +1,6 @@
-import type { LlmRequestOptions, LlmMessageContent, LlmMessage } from "../../common";
-import type { LlmModelInfo } from "../../../types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "../../../config/model-metadata";
+import type { LlmRequestOptions, LlmMessageContent, LlmMessage, MediaGenerationOptions } from "@/llm-apis/common";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 import {
   parseMessageContents,
   extractToolDefinitions,
@@ -8,7 +8,7 @@ import {
   extractCommonParameters,
   inferMediaMimeType,
   buildBase64DataUrl,
-} from "../../request-builder";
+} from "@/llm-apis/request-builder";
 
 /**
  * Gemini API 类型定义
@@ -116,6 +116,36 @@ export interface GeminiRequest {
   safetySettings?: GeminiSafetySetting[];
   systemInstruction?: GeminiContent;
   generationConfig?: GeminiGenerationConfig;
+}
+
+/**
+ * 构建 Gemini 请求头
+ */
+export function buildGeminiHeaders(profile: LlmProfile): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  // 也可以通过请求头传递 API Key
+  if (profile.apiKeys && profile.apiKeys.length > 0) {
+    headers["x-goog-api-key"] = profile.apiKeys[0];
+  }
+
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
+  return headers;
+}
+
+/**
+ * 构建 Gemini 完整的 URL
+ */
+export function buildGeminiUrl(baseUrl: string, modelId: string, action: string, profile: LlmProfile): string {
+  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const endpoint = `models/${modelId}:${action}`;
+  const base = geminiUrlHandler.buildUrl(baseUrl, endpoint);
+  return `${base}?key=${apiKey}`;
 }
 
 /**
@@ -354,8 +384,19 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
   }
 
   if (ext.speechConfig) config.speechConfig = ext.speechConfig;
-  if (ext.responseModalities) config.responseModalities = ext.responseModalities;
-  if (ext.mediaResolution) config.mediaResolution = ext.mediaResolution;
+  
+  // 自动设置响应模态
+  if (ext.responseModalities) {
+    config.responseModalities = ext.responseModalities;
+  } else if (options.modelId.includes("imagen") || options.modelId.includes("veo")) {
+    // 针对特定模型自动开启媒体输出
+    config.responseModalities = ["IMAGE"];
+  }
+
+  const mediaOptions = options as MediaGenerationOptions;
+  if (ext.mediaResolution || mediaOptions.size) {
+    config.mediaResolution = ext.mediaResolution || mediaOptions.size;
+  }
   if (ext.enableEnhancedCivicAnswers !== undefined) config.enableEnhancedCivicAnswers = ext.enableEnhancedCivicAnswers;
 
   return config;

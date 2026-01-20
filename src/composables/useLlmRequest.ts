@@ -7,7 +7,7 @@ import { useLlmProfiles } from "./useLlmProfiles";
 import { useLlmKeyManager } from "./useLlmKeyManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { LlmRequestOptions, LlmResponse } from "../llm-apis/common";
+import type { LlmRequestOptions, LlmResponse, MediaGenerationOptions } from "../llm-apis/common";
 import { TimeoutError, isAbortError, isTimeoutError } from "../llm-apis/common";
 import { adapters } from "../llm-apis/adapters";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
@@ -23,8 +23,15 @@ export function useLlmRequest() {
   /**
    * 发送 LLM 请求
    */
-  const sendRequest = async (options: LlmRequestOptions): Promise<LlmResponse> => {
+  const sendRequest = async (options: LlmRequestOptions | MediaGenerationOptions): Promise<LlmResponse> => {
     let selectedApiKey: string | undefined;
+
+    // 自动包装 prompt 为 messages
+    if ((options as MediaGenerationOptions).prompt && !options.messages) {
+      options.messages = [
+        { role: 'user', content: (options as MediaGenerationOptions).prompt! }
+      ];
+    }
 
     try {
       logger.info("发送 LLM 请求", {
@@ -121,7 +128,8 @@ export function useLlmRequest() {
       }
 
       // 根据 Provider 和 Model 能力智能过滤参数
-      let filteredOptions = filterParametersByCapabilities(options, effectiveProfile, model) as LlmRequestOptions;
+      // 使用 any 避开 LlmRequestOptions 和 MediaGenerationOptions 之间 responseFormat 的类型冲突
+      let filteredOptions = filterParametersByCapabilities(options, effectiveProfile, model) as any;
 
       // 确保 signal 被透传，filterParametersByCapabilities 可能会漏掉它
       if (options.signal) {
@@ -150,7 +158,17 @@ export function useLlmRequest() {
         throw error;
       }
 
-      const response = await adapter.chat(effectiveProfile, filteredOptions);
+      // 根据模型能力分发请求
+      let response: LlmResponse;
+      if (model.capabilities?.videoGeneration && adapter.video) {
+        response = await adapter.video(effectiveProfile, filteredOptions as MediaGenerationOptions);
+      } else if (model.capabilities?.imageGeneration && adapter.image) {
+        response = await adapter.image(effectiveProfile, filteredOptions as MediaGenerationOptions);
+      } else if (model.capabilities?.audioGeneration && adapter.audio) {
+        response = await adapter.audio(effectiveProfile, filteredOptions as MediaGenerationOptions);
+      } else {
+        response = await adapter.chat(effectiveProfile, filteredOptions as LlmRequestOptions);
+      }
 
       logger.info("LLM 请求成功", {
         profileId: options.profileId,

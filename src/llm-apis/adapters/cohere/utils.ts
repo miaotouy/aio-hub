@@ -1,5 +1,5 @@
-import type { LlmModelInfo } from "../../../types/llm-profiles";
-import { DEFAULT_METADATA_RULES, testRuleMatch } from "../../../config/model-metadata";
+import type { LlmModelInfo } from "@/types/llm-profiles";
+import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 
 /**
  * Cohere 适配器的 URL 处理逻辑

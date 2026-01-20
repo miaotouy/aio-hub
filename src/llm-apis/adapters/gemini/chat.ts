@@ -247,16 +247,24 @@ export const callGeminiChatApi = async (
     return result;
   }
 
+  const stringifyStart = performance.now();
+  const serializedBody = await asyncJsonStringify(body);
+  const stringifyEnd = performance.now();
+  console.log(`[Gemini] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === 'string' ? 'string' : 'Uint8Array'}`);
+
+  const fetchStart = performance.now();
   const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
-      body: await asyncJsonStringify(body),
+      body: serializedBody,
     },
     options.timeout,
     options.signal
   );
+  const fetchEnd = performance.now();
+  console.log(`[Gemini] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`);
 
   await ensureResponseOk(response);
   const data = await response.json();

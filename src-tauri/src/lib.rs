@@ -61,6 +61,7 @@ use commands::{
     get_image_dimensions,
     // 资产管理命令
     get_asset_base_path,
+    get_asset_base64,
     get_asset_binary,
     get_asset_by_id,
     get_asset_stats,
@@ -483,6 +484,7 @@ pub fn run() {
             get_asset_base_path,
             import_asset_from_path,
             import_asset_from_bytes,
+            get_asset_base64,
             get_asset_binary,
             read_text_file,
             list_all_assets,

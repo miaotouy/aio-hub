@@ -71,12 +71,24 @@ export const assetManagerEngine = {
 
   /**
    * 获取资产的二进制数据
+   * 注意：对于大文件（>10MB），此方法由于 Tauri 的 JSON 序列化限制（Vec<u8> 转数组）会非常慢且阻塞主线程。
+   * 建议优先使用 getAssetBase64。
    */
   getAssetBinary: async (relativePath: string): Promise<ArrayBuffer> => {
     const bytes = await invoke<number[]>("get_asset_binary", {
       relativePath,
     });
     return new Uint8Array(bytes).buffer;
+  },
+
+  /**
+   * 获取资产的 Base64 编码数据
+   * 相比 getAssetBinary，此方法在 Rust 侧直接转换，避免了巨大的 JSON 数字数组传输，效率更高。
+   */
+  getAssetBase64: async (relativePath: string): Promise<string> => {
+    return await invoke<string>("get_asset_base64", {
+      relativePath,
+    });
   },
 
   /**
@@ -707,6 +719,7 @@ export function useAssetManager() {
     getAssetBasePath: assetManagerEngine.getAssetBasePath,
     convertToAssetProtocol: assetManagerEngine.convertToAssetProtocol,
     getAssetBinary: assetManagerEngine.getAssetBinary,
+    getAssetBase64: assetManagerEngine.getAssetBase64,
     getAssetUrl: assetManagerEngine.getAssetUrl,
     getAssetIcon: assetManagerEngine.getAssetIcon,
     formatFileSize: assetManagerEngine.formatFileSize,

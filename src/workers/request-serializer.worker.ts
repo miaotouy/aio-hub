@@ -37,7 +37,8 @@ const processBinaryData = (obj: any): any => {
 
   // 处理 AIO 特殊资产结构 (如 Data URL 标记)
   if (obj.__AIO_ASSET_TYPE__ === "data_url") {
-    const base64 = bufferToBase64(obj.data);
+    // 如果已经是字符串，直接使用；否则转换二进制
+    const base64 = typeof obj.data === "string" ? obj.data : bufferToBase64(obj.data);
     if (obj.rawBase64) {
       return base64;
     }
@@ -72,9 +73,23 @@ self.onmessage = (e: MessageEvent<any>) => {
     const processedBody = processBinaryData(body);
 
     // 2. 在 Worker 线程执行序列化
+    const serializeStart = performance.now();
     const json = JSON.stringify(processedBody);
+    
+    // 3. 进一步优化：在 Worker 侧完成 UTF-8 编码，避免主线程在 fetch 时进行大字符串编码
+    const encoder = new TextEncoder();
+    const uint8Array = encoder.encode(json);
+    const serializeEnd = performance.now();
 
-    self.postMessage({ status: 'success', data: json });
+    // 使用 Transferable Objects 转移内存所有权，主线程接收耗时将降至 0ms
+    (self as any).postMessage({
+      status: 'success',
+      data: uint8Array,
+      workerMetrics: {
+        serializeTime: serializeEnd - serializeStart,
+        jsonSize: json.length
+      }
+    }, [uint8Array.buffer]);
   } catch (error) {
     self.postMessage({ status: 'error', error: String(error) });
   }

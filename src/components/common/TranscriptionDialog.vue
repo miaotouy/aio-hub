@@ -185,7 +185,12 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "save", content: string): void;
-  (e: "regenerate", payload: { modelId: string; prompt: string; enableRepetitionDetection: boolean }): void;
+  (e: "regenerate", payload: {
+    modelId: string;
+    prompt: string;
+    enableRepetitionDetection: boolean;
+    overrideConfig?: any;
+  }): void;
 }>();
 
 const { show: showImage } = useImageViewer();
@@ -284,8 +289,8 @@ const openRegenerateConfirm = () => {
     } else {
       selectedModelId.value = "";
     }
-    // 优先恢复附加提示词，如果没有（可能是旧版本任务），则回退到 customPrompt
-    tempPrompt.value = props.previousConfig.additionalPrompt || props.previousConfig.customPrompt || "";
+    // 只恢复附加提示词，不混入主提示词
+    tempPrompt.value = props.previousConfig.additionalPrompt || "";
     enableRepetitionDetection.value = props.previousConfig.enableRepetitionDetection !== false;
   } else {
     selectedModelId.value = "";
@@ -311,10 +316,20 @@ const handleSave = async () => {
 };
 
 const handleConfirmRegenerate = () => {
+  // 构建新的覆盖配置，保留原有的 customPrompt
+  const newConfig = {
+    ...(props.previousConfig || {}),
+    modelIdentifier: selectedModelId.value ? `custom:${selectedModelId.value}` : undefined,
+    additionalPrompt: tempPrompt.value || undefined,
+    enableRepetitionDetection: enableRepetitionDetection.value,
+  };
+
   emit("regenerate", {
     modelId: selectedModelId.value,
     prompt: tempPrompt.value,
     enableRepetitionDetection: enableRepetitionDetection.value,
+    // 额外传出完整配置以备不时之需，但主要还是靠父组件处理
+    overrideConfig: newConfig,
   });
   showRegenerateConfirm.value = false;
   handleClose();

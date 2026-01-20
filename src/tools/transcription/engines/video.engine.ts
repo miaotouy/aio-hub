@@ -111,14 +111,20 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
 
     // 2. 发送请求
     // 让出主线程执行权，确保 UI 状态（如转圈动画）能优先渲染
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // 增加延迟到 50ms，确保在大文件处理前，浏览器有足够时间完成 UI 渲染（转圈动画等）
+    await new Promise(resolve => setTimeout(resolve, 50));
 
-    const buffer = await assetManagerEngine.getAssetBinary(finalPath);
+    const readStart = performance.now();
+    // 优化：使用 getAssetBase64 绕过 Tauri 默认的 Vec<u8> -> JSON Array 的低效序列化
+    const base64Data = await assetManagerEngine.getAssetBase64(finalPath);
+    const readEnd = performance.now();
+    logger.info(`视频数据读取完成 (Base64)`, {
+      size: base64Data.length,
+      duration: `${(readEnd - readStart).toFixed(2)}ms`
+    });
 
     const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
 
-    // 提示：针对视频这种超大请求体，我们在 sendRequest 内部（Provider 层）
-    // 已经实现了基于 Worker 的异步序列化优化，因此这里可以直接传递 ArrayBuffer 而不会阻塞主线程。
     const response = await sendRequest({
       profileId,
       modelId,
@@ -131,7 +137,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
             source: {
               type: "base64",
               media_type: task.mimeType || "video/mp4",
-              data: buffer // 直接传递 ArrayBuffer
+              data: base64Data // 传递 Base64 字符串
             }
           }
         ]

@@ -148,8 +148,8 @@ const handleRetry = async (task: TranscriptionTask) => {
   } else {
     retryModelId.value = "";
   }
-  // 优先恢复附加提示词，如果没有（可能是旧版本任务），则回退到 customPrompt
-  retryPrompt.value = oldConfig?.additionalPrompt || oldConfig?.customPrompt || "";
+  // 只恢复附加提示词，不混入主提示词
+  retryPrompt.value = oldConfig?.additionalPrompt || "";
   retryEnableRepetitionDetection.value = oldConfig?.enableRepetitionDetection !== false;
 
   showRetryConfirm.value = true;
@@ -160,15 +160,19 @@ const handleConfirmRetry = async () => {
 
   const asset = await assetManagerEngine.getAssetById(retryingTask.value.assetId);
   if (asset) {
-    // 构建覆盖配置
-    const overrideConfig: Record<string, any> = {};
+    // 构建覆盖配置，保留原有的 customPrompt 覆盖（如果有）
+    const overrideConfig: Record<string, any> = {
+      ...(retryingTask.value.overrideConfig || {}),
+    };
+
     if (retryModelId.value) {
       overrideConfig.modelIdentifier = `custom:${retryModelId.value}`;
+    } else {
+      delete overrideConfig.modelIdentifier;
     }
-    if (retryPrompt.value) {
-      // 存入 additionalPrompt 字段，避免污染全局 customPrompt
-      overrideConfig.additionalPrompt = retryPrompt.value;
-    }
+
+    // 更新附加提示词
+    overrideConfig.additionalPrompt = retryPrompt.value || undefined;
     overrideConfig.enableRepetitionDetection = retryEnableRepetitionDetection.value;
 
     // 调用 addTask 并传入覆盖配置
@@ -232,12 +236,14 @@ const handleViewResult = async (task: TranscriptionTask) => {
         }
         transcriptionViewer.close();
       },
-      onRegenerate: ({ modelId, prompt, enableRepetitionDetection }) => {
-        addTask(asset, {
+      onRegenerate: ({ modelId, prompt, enableRepetitionDetection, overrideConfig }) => {
+        // 优先使用传入的完整 overrideConfig，确保保留了 customPrompt 等
+        const finalConfig = overrideConfig || {
           modelIdentifier: modelId ? `custom:${modelId}` : undefined,
           additionalPrompt: prompt || undefined,
           enableRepetitionDetection,
-        });
+        };
+        addTask(asset, finalConfig);
         transcriptionViewer.close();
       },
     });

@@ -8,7 +8,12 @@ export interface TranscriptionViewerState {
   showRegenerate?: boolean;
   previousConfig?: any; // 保存上次转写的配置，用于回填
   onSave?: (content: string) => void | Promise<void>;
-  onRegenerate?: (payload: { modelId: string; prompt: string; enableRepetitionDetection: boolean }) => void;
+  onRegenerate?: (payload: {
+    modelId: string;
+    prompt: string;
+    enableRepetitionDetection: boolean;
+    overrideConfig?: any;
+  }) => void;
 }
 
 const globalState = ref<TranscriptionViewerState>({
@@ -29,7 +34,12 @@ export function useTranscriptionViewer() {
     showRegenerate?: boolean;
     previousConfig?: any;
     onSave?: (content: string) => void | Promise<void>;
-    onRegenerate?: (payload: { modelId: string; prompt: string; enableRepetitionDetection: boolean }) => void;
+    onRegenerate?: (payload: {
+      modelId: string;
+      prompt: string;
+      enableRepetitionDetection: boolean;
+      overrideConfig?: any;
+    }) => void;
   }) => {
     globalState.value = {
       visible: true,

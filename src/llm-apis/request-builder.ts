@@ -432,14 +432,37 @@ export function buildBase64DataUrl(
   }
 
   // 如果已经是字符串但没有前缀，且提供了 mimeType，则补全前缀
+  // 优化：对于超大字符串，避免在主线程进行字符串拼接（产生内存拷贝）
+  // 而是返回标记，让 Worker 处理拼接
   if (typeof data === "string" && !data.startsWith("data:") && mimeType) {
-    return `data:${mimeType};base64,${data}`;
+    // 如果字符串很小（< 1MB），直接拼接即可，没必要走 Worker 标记
+    if (data.length < 1024 * 1024) {
+      return `data:${mimeType};base64,${data}`;
+    }
+    return {
+      __AIO_ASSET_TYPE__: "data_url",
+      mimeType: mimeType,
+      data: data,
+      rawBase64: options.rawBase64,
+    } as any;
   }
 
   const finalMimeType = mimeType || inferImageMimeType(data as string);
-  return typeof data === "string" && data.startsWith("data:")
-    ? data
-    : `data:${finalMimeType};base64,${data}`;
+  if (typeof data === "string" && data.startsWith("data:")) {
+    return data;
+  }
+
+  // 同样对大字符串应用优化
+  if (typeof data === "string" && data.length >= 1024 * 1024) {
+    return {
+      __AIO_ASSET_TYPE__: "data_url",
+      mimeType: finalMimeType,
+      data: data,
+      rawBase64: options.rawBase64,
+    } as any;
+  }
+
+  return `data:${finalMimeType};base64,${data}`;
 }
 
 /**

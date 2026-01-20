@@ -996,6 +996,7 @@ fn generate_audio_thumbnail(
 }
 
 /// 根据相对路径读取资产的二进制数据
+/// 注意：该方法返回 Vec<u8>，在 Tauri IPC 传输中会被序列化为 JSON 数字数组，对于大文件非常低效。
 #[tauri::command]
 pub fn get_asset_binary(app: AppHandle, relative_path: String) -> Result<Vec<u8>, String> {
     let base_path = get_asset_base_path(app)?;
@@ -1011,6 +1012,26 @@ pub fn get_asset_binary(app: AppHandle, relative_path: String) -> Result<Vec<u8>
     }
 
     fs::read(&file_path).map_err(|e| format!("读取文件失败: {}", e))
+}
+
+/// 根据相对路径读取资产并转换为 Base64 字符串
+/// 该方法在 Rust 侧完成 Base64 转换，避免了前端处理大文件时的阻塞。
+#[tauri::command]
+pub fn get_asset_base64(app: AppHandle, relative_path: String) -> Result<String, String> {
+    let base_path = get_asset_base_path(app)?;
+    let base_dir = PathBuf::from(&base_path);
+    let file_path = base_dir.join(&relative_path);
+
+    if !file_path.starts_with(&base_dir) {
+        return Err("非法的文件路径".to_string());
+    }
+
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", relative_path));
+    }
+
+    let bytes = fs::read(&file_path).map_err(|e| format!("读取文件失败: {}", e))?;
+    Ok(general_purpose::STANDARD.encode(bytes))
 }
 
 /// 列出所有已导入的资产

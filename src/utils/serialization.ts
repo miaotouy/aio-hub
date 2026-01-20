@@ -35,14 +35,22 @@ const findTransferables = (obj: any, transferables: Set<Transferable> = new Set(
  * 异步 JSON 序列化
  * 使用 Worker 在后台线程进行序列化，防止大对象阻塞主线程。
  * 支持自动识别并 Transfer 二进制数据 (ArrayBuffer/Uint8Array)，实现零拷贝传输。
+ *
+ * 优化：Worker 侧会直接进行 UTF-8 编码并返回 Uint8Array，
+ * 这样主线程在调用 fetch 时无需再次进行大字符串编码。
  */
-export const asyncJsonStringify = (obj: any): Promise<string> => {
+export const asyncJsonStringify = (obj: any): Promise<string | Uint8Array> => {
   return new Promise((resolve, reject) => {
     const worker = new RequestSerializerWorker();
+    const startTime = performance.now();
 
     worker.onmessage = (e) => {
-      const { status, data, error } = e.data;
+      const receiveTime = performance.now();
+      const { status, data, error, workerMetrics } = e.data;
       if (status === "success") {
+        const resolveTime = performance.now();
+        console.log(`[Serialization] Worker 耗时: ${workerMetrics.serializeTime.toFixed(2)}ms, JSON 大小: ${(workerMetrics.jsonSize / 1024 / 1024).toFixed(2)}MB`);
+        console.log(`[Serialization] 主线程接收耗时: ${(resolveTime - receiveTime).toFixed(2)}ms, 总往返耗时: ${(resolveTime - startTime).toFixed(2)}ms`);
         resolve(data);
       } else {
         reject(new Error(error || "Worker serialization failed"));

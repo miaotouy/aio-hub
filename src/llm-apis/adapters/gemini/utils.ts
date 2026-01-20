@@ -174,22 +174,20 @@ export function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   }
 
   for (const imagePart of parsed.imageParts) {
-    const data = buildBase64DataUrl(imagePart.base64, imagePart.mimeType, { rawBase64: true });
     parts.push({
       inlineData: {
         mimeType: imagePart.mimeType || inferMediaMimeType(imagePart.base64),
-        data: data as any,
+        data: imagePart.base64 as any,
       },
     });
   }
 
   for (const audio of parsed.audioParts) {
     if (audio.source.type === "base64") {
-      const data = buildBase64DataUrl(audio.source.data, audio.source.media_type, { rawBase64: true });
       parts.push({
         inlineData: {
           mimeType: audio.source.media_type,
-          data: data as any,
+          data: audio.source.data as any,
         },
       });
     } else if (audio.source.type === "uri") {
@@ -205,11 +203,10 @@ export function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   for (const video of parsed.videoParts) {
     let part: GeminiPart = {};
     if (video.source.type === "base64") {
-      const data = buildBase64DataUrl(video.source.data, video.source.media_type, { rawBase64: true });
       part = {
         inlineData: {
           mimeType: video.source.media_type,
-          data: data as any,
+          data: video.source.data as any,
         },
       };
     } else if (video.source.type === "uri") {

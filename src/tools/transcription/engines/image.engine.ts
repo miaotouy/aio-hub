@@ -88,10 +88,9 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
     } else {
       // 单图模式
       const buffer = await assetManagerEngine.getAssetBinary(task.path);
-      const base64Data = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ""));
       const content: LlmMessageContent[] = [
         { type: "text", text: finalPrompt },
-        { type: "image", imageBase64: base64Data }
+        { type: "image", imageBase64: buffer }
       ];
       const response = await sendRequest({
         profileId,

@@ -5,8 +5,8 @@ import { parseSSEStream } from "@utils/sse-parser";
 import {
   parseMessageContents,
   extractCommonParameters,
-  buildBase64DataUrl,
   applyCustomParameters,
+  buildBase64DataUrl,
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiResponsesUrlHandler } from "./utils";
@@ -75,7 +75,7 @@ export const callOpenAiResponsesApi = async (
           contentArray.push({
             type: "input_file",
             filename: source.filename || "document.pdf",
-            file_data: source.file_data,
+            file_data: buildBase64DataUrl(source.file_data, source.media_type),
           });
         } else if (source.type === "base64") {
           contentArray.push({

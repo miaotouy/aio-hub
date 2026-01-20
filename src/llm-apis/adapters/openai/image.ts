@@ -5,6 +5,7 @@ import {
   fetchWithTimeout,
   ensureResponseOk,
 } from "@/llm-apis/common";
+import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 
 /**
@@ -56,7 +57,7 @@ export async function callOpenAiImageApi(
     // 删除 Content-Type 让浏览器/插件自动设置 boundary
     delete (finalHeaders as any)["Content-Type"];
   } else {
-    body = JSON.stringify({
+    body = await asyncJsonStringify({
       model: modelId,
       prompt: prompt || "",
       negative_prompt: options.negativePrompt,

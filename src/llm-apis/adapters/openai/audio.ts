@@ -5,6 +5,7 @@ import {
   fetchWithTimeout,
   ensureResponseOk,
 } from "@/llm-apis/common";
+import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 
 /**
@@ -27,7 +28,7 @@ export async function callOpenAiAudioApi(
 
   const headers = buildOpenAiHeaders(profile);
 
-  const body = JSON.stringify({
+  const body = {
     model: modelId,
     input: prompt || "",
     voice: audioConfig?.voice || "alloy",
@@ -35,14 +36,14 @@ export async function callOpenAiAudioApi(
     speed: audioConfig?.speed || 1.0,
     // 新增特性支持
     instructions: (options as any).instructions,
-  });
+  };
 
   const response = await fetchWithTimeout(
     url,
     {
       method: "POST",
       headers,
-      body,
+      body: await asyncJsonStringify(body),
     },
     timeout,
     signal
@@ -52,22 +53,12 @@ export async function callOpenAiAudioApi(
 
   // TTS 返回的是二进制音频流
   const arrayBuffer = await response.arrayBuffer();
-  
-  // 将 ArrayBuffer 转换为 Base64 字符串
-  const uint8Array = new Uint8Array(arrayBuffer);
-  let binary = '';
-  const len = uint8Array.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(uint8Array[i]);
-  }
-  const base64Data = btoa(binary);
-
   return {
     content: "Audio generated successfully.",
-    audioData: base64Data,
+    audioData: arrayBuffer,
     audios: [
       {
-        b64_json: base64Data,
+        b64_json: arrayBuffer,
         format: audioConfig?.responseFormat || "mp3",
       }
     ]

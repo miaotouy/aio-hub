@@ -92,13 +92,10 @@ export const callOpenAiChatApi = async (
       // 处理音频
       for (const audioPart of parsed.audioParts) {
         if (audioPart.source.type === "base64") {
-          const data = buildBase64DataUrl(audioPart.source.data, audioPart.source.media_type, {
-            rawBase64: true,
-          });
           contentArray.push({
             type: "input_audio",
             input_audio: {
-              data: data as any,
+              data: audioPart.source.data as any,
               format: audioPart.source.media_type === "audio/wav" ? "wav" : "mp3",
             },
           });

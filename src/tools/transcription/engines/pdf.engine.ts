@@ -1,7 +1,6 @@
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { convertPdfToImages } from "@/utils/pdfUtils";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
@@ -33,7 +32,6 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
 
     // 1. 如果模型原生支持 PDF
     if (capabilities.document) {
-      const base64Data = await convertArrayBufferToBase64(buffer);
       const content: LlmMessageContent[] = [
         { type: "text", text: finalPrompt },
         {
@@ -41,7 +39,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
           source: {
             type: "base64",
             media_type: "application/pdf",
-            data: base64Data,
+            data: buffer,
           },
         }
       ];

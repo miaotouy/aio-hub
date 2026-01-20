@@ -1,6 +1,5 @@
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
-import { convertArrayBufferToBase64 } from "@/utils/base64";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";
@@ -20,7 +19,6 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const [profileId, modelId] = modelIdentifier.split(":");
 
     const buffer = await assetManagerEngine.getAssetBinary(task.path);
-    const base64Data = await convertArrayBufferToBase64(buffer);
 
     const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
 
@@ -31,7 +29,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
         source: {
           type: "base64",
           media_type: task.mimeType || "audio/mpeg",
-          data: base64Data
+          data: buffer
         }
       }
     ];

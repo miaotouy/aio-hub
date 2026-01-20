@@ -106,7 +106,7 @@ export interface VertexAiClaudeRequest {
       source?: {
         type: "base64";
         media_type: string;
-        data: string;
+        data: string | ArrayBuffer;
       };
     }>;
   }>;

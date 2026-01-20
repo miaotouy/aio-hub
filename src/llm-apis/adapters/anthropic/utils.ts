@@ -5,7 +5,6 @@ import {
   parseMessageContents,
   extractToolDefinitions,
   parseToolChoice,
-  buildBase64DataUrl,
 } from "@/llm-apis/request-builder";
 
 /**
@@ -100,13 +99,12 @@ export const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeConte
   }
 
   for (const imagePart of parsed.imageParts) {
-    const data = buildBase64DataUrl(imagePart.base64, imagePart.mimeType, { rawBase64: true });
     blocks.push({
       type: "image",
       source: {
         type: "base64",
         media_type: imagePart.mimeType || "image/png",
-        data: data as any,
+        data: imagePart.base64 as any,
       },
       cache_control: imagePart.cacheControl,
     });
@@ -130,17 +128,12 @@ export const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeConte
   for (const doc of parsed.documentParts) {
     const source = doc.source;
     if (source.type === "base64" || (source as any).data || (source as any).base64) {
-      const data = buildBase64DataUrl(
-        (source as any).data || (source as any).base64,
-        source.media_type || (source as any).mimeType,
-        { rawBase64: true }
-      );
       blocks.push({
         type: "document",
         source: {
           type: "base64",
           media_type: source.media_type || (source as any).mimeType || "application/pdf",
-          data: data as any,
+          data: ((source as any).data || (source as any).base64) as any,
         },
       });
     } else if (source.type === "file") {

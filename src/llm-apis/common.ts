@@ -430,7 +430,7 @@ export interface LlmResponse {
   /** 音频响应数据 */
   audio?: {
     id: string;
-    data: string;
+    data: string | ArrayBuffer;
     transcript: string;
     expiresAt: number;
   };
@@ -451,7 +451,7 @@ export interface LlmResponse {
   /** 生成的图片列表 */
   images?: Array<{
     url?: string;
-    b64_json?: string;
+    b64_json?: string | ArrayBuffer;
     revisedPrompt?: string;
   }>;
   /** 生成的视频列表 */
@@ -464,12 +464,12 @@ export interface LlmResponse {
   /** 生成的音频列表 */
   audios?: Array<{
     url?: string;
-    b64_json?: string;
+    b64_json?: string | ArrayBuffer;
     format?: string;
     duration?: number;
   }>;
   /** 降级兼容：生成的音频数据 (Base64 或二进制) */
-  audioData?: string;
+  audioData?: string | ArrayBuffer;
 }
 
 /**

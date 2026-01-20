@@ -69,6 +69,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
         stream: false,
         temperature,
         maxTokens,
+        hasLocalFile: fileSize > FILE_SIZE_THRESHOLD,
         timeout: timeout * 1000,
         signal: ctx.signal,
       });

@@ -187,6 +187,7 @@ export const callGeminiChatApi = async (
         method: "POST",
         headers,
         body: await asyncJsonStringify(body),
+        hasLocalFile: options.hasLocalFile,
       },
       options.timeout,
       options.signal
@@ -259,6 +260,7 @@ export const callGeminiChatApi = async (
       method: "POST",
       headers,
       body: serializedBody,
+      hasLocalFile: options.hasLocalFile,
     },
     options.timeout,
     options.signal

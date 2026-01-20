@@ -143,6 +143,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
       stream: false,
       temperature,
       maxTokens,
+      hasLocalFile: true, // 显式标记使用了本地文件协议
       timeout: timeout * 1000, // 转换为毫秒
       signal: ctx.signal,
     });

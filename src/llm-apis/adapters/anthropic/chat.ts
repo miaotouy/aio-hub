@@ -173,7 +173,17 @@ export const callClaudeChatApi = async (
 
   if (options.stream && options.onStream) {
     body.stream = true;
-    const response = await fetchWithTimeout(url, { method: "POST", headers, body: await asyncJsonStringify(body) }, options.timeout, options.signal);
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers,
+        body: await asyncJsonStringify(body),
+        hasLocalFile: options.hasLocalFile
+      },
+      options.timeout,
+      options.signal
+    );
     await ensureResponseOk(response);
     if (!response.body) throw new Error("响应体为空");
     const reader = response.body.getReader();
@@ -188,7 +198,17 @@ export const callClaudeChatApi = async (
     };
   }
 
-  const response = await fetchWithTimeout(url, { method: "POST", headers, body: await asyncJsonStringify(body) }, options.timeout, options.signal);
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers,
+      body: await asyncJsonStringify(body),
+      hasLocalFile: options.hasLocalFile
+    },
+    options.timeout,
+    options.signal
+  );
   await ensureResponseOk(response);
   const data: any = await response.json();
 

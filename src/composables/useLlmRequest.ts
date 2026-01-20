@@ -127,6 +127,28 @@ export function useLlmRequest() {
         throw new Error("聊天请求缺少 messages 参数");
       }
 
+      // 自动检测 local-file:// 协议，如果发现则强制设置 hasLocalFile
+      // 这是为了兼容那些没有显式设置 hasLocalFile 但内容中包含本地文件的场景
+      if (!options.hasLocalFile) {
+        const hasLocalFileProtocol = (content: any): boolean => {
+          if (typeof content === 'string') {
+            return content.includes('local-file://');
+          }
+          if (Array.isArray(content)) {
+            return content.some(item => hasLocalFileProtocol(item));
+          }
+          if (content && typeof content === 'object') {
+            return Object.values(content).some(val => hasLocalFileProtocol(val));
+          }
+          return false;
+        };
+
+        if (options.messages.some(m => hasLocalFileProtocol(m.content))) {
+          options.hasLocalFile = true;
+          logger.debug("自动检测到本地文件协议，已开启 Rust 代理模式");
+        }
+      }
+
       // 根据 Provider 和 Model 能力智能过滤参数
       // 使用 any 避开 LlmRequestOptions 和 MediaGenerationOptions 之间 responseFormat 的类型冲突
       let filteredOptions = filterParametersByCapabilities(options, effectiveProfile, model) as any;

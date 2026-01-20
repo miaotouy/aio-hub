@@ -191,6 +191,7 @@ export const callOpenAiChatApi = async (
         method: "POST",
         headers,
         body: serializedBody,
+        hasLocalFile: options.hasLocalFile,
       },
       options.timeout,
       options.signal
@@ -271,6 +272,7 @@ export const callOpenAiChatApi = async (
       method: "POST",
       headers,
       body: serializedBody,
+      hasLocalFile: options.hasLocalFile,
     },
     options.timeout,
     options.signal

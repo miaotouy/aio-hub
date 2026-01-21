@@ -1,17 +1,5 @@
 <template>
   <div class="workbench-container">
-    <!-- 顶部工具栏 -->
-    <div class="workbench-toolbar" v-if="currentFilePath">
-      <div class="toolbar-right">
-        <el-button link @click="reset">
-          <template #icon
-            ><el-icon><ArrowLeft /></el-icon
-          ></template>
-          重新选择文件
-        </el-button>
-      </div>
-    </div>
-
     <div class="workbench-main">
       <div class="workbench-layout">
         <!-- 左侧：处理配置 -->
@@ -66,32 +54,44 @@
                 @drop="handleFileDrop"
                 @click="handleManualSelect"
                 :accept="['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a']"
-                placeholder="点击或拖入音视频文件"
-                class="full-dropzone clickable-dropzone"
+                placeholder="点击或拖入媒体文件"
+                class="full-dropzone"
               />
-              <div v-else class="selected-file-info">
-                <div class="file-header">
-                  <FileIcon :name="fileName" :size="32" />
-                  <div class="file-meta">
-                    <div class="name" :title="currentFilePath">{{ fileName }}</div>
-                    <div class="path">{{ currentFilePath }}</div>
+              <div v-else class="selected-file-wrapper">
+                <div class="selected-file-info">
+                  <div class="file-header">
+                    <FileIcon :name="fileName" :size="32" />
+                    <div class="file-meta">
+                      <div class="name" :title="currentFilePath">{{ fileName }}</div>
+                      <div class="path">{{ currentFilePath }}</div>
+                    </div>
+                    <div class="file-replace-hint">
+                      <el-button type="primary" link @click="handleManualSelect"> 更换 </el-button>
+                    </div>
+                  </div>
+                  <!-- 媒体元数据展示 -->
+                  <div v-if="metadata" class="metadata-mini-grid">
+                    <div class="mini-item">
+                      <span class="label">时长</span>
+                      <span class="value">{{ formatDuration(metadata.duration) }}</span>
+                    </div>
+                    <div class="mini-item" v-if="metadata.width">
+                      <span class="label">分辨率</span>
+                      <span class="value">{{ metadata.width }}x{{ metadata.height }}</span>
+                    </div>
+                    <div class="mini-item">
+                      <span class="label">大小</span>
+                      <span class="value">{{ formatSize(metadata.size) }}</span>
+                    </div>
                   </div>
                 </div>
-                <!-- 媒体元数据展示 -->
-                <div v-if="metadata" class="metadata-mini-grid">
-                  <div class="mini-item">
-                    <span class="label">时长</span>
-                    <span class="value">{{ formatDuration(metadata.duration) }}</span>
-                  </div>
-                  <div class="mini-item" v-if="metadata.width">
-                    <span class="label">分辨率</span>
-                    <span class="value">{{ metadata.width }}x{{ metadata.height }}</span>
-                  </div>
-                  <div class="mini-item">
-                    <span class="label">大小</span>
-                    <span class="value">{{ formatSize(metadata.size) }}</span>
-                  </div>
-                </div>
+                <!-- 覆盖一个透明的 DropZone 用于接收拖放更换 -->
+                <DropZone
+                  class="overlay-dropzone"
+                  hide-content
+                  @drop="handleFileDrop"
+                  :accept="['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a']"
+                />
               </div>
             </div>
           </InfoCard>
@@ -122,7 +122,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue";
-import { Files, Settings, VideoOff, Play, Delete, ArrowLeft } from "lucide-vue-next";
+import { Files, Settings, VideoOff, Play, Delete } from "lucide-vue-next";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import DropZone from "@/components/common/DropZone.vue";
@@ -170,7 +170,7 @@ const currentTaskLogs = computed(() => {
 const generatedCommand = computed(() => {
   const parts = ["ffmpeg"];
   if (params.hwaccel) parts.push("-hwaccel", "auto");
-  parts.push("-i", fileName.value || "input.mp4");
+  parts.push("-i", currentFilePath.value || "input.mp4");
 
   if (params.mode === "custom" && params.customArgs) {
     parts.push(...params.customArgs);
@@ -220,6 +220,7 @@ const handleManualSelect = async () => {
 const handleFileDrop = async (paths: string[]) => {
   if (paths.length === 0) return;
   const path = paths[0];
+  currentFilePath.value = path;
   currentFileUrl.value = convertFileSrc(path);
   params.inputPath = path;
 
@@ -374,20 +375,93 @@ watch([() => params.mode, () => params.audioEncoder], async () => {
   overflow: hidden;
 }
 
+/* 当有文件时，调整比例 */
+.right-panel:has(.right-bottom-panel) .file-card {
+  flex: 0 0 auto;
+}
+
 .file-card {
-  flex-shrink: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.file-card :deep(.el-card) {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.file-selection-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.full-dropzone {
+  flex: 1;
+}
+
+.selected-file-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  border: 2px dashed transparent;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.overlay-dropzone:deep(.drop-zone) {
+  border: none;
+  background: transparent;
+}
+
+.overlay-dropzone:deep(.drop-zone--dragover) {
+  border: 2px dashed var(--el-color-primary) !important;
+  background-color: rgba(64, 158, 255, 0.1);
 }
 
 .selected-file-info {
-  padding: 8px;
+  padding: 16px;
+  transition: background-color 0.2s;
+  border-radius: 8px;
+  flex: 1;
 }
 
 .file-header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   margin-bottom: 12px;
+  position: relative;
+}
+
+.file-replace-hint {
+  margin-left: auto;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20; /* 确保在透明 DropZone 之上，能够被点击 */
+}
+
+.file-meta {
+  flex: 1;
+  min-width: 0;
 }
 
 .file-meta .name {
@@ -402,7 +476,9 @@ watch([() => params.mode, () => params.audioEncoder], async () => {
 .file-meta .path {
   font-size: 12px;
   color: var(--text-color-light);
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metadata-mini-grid {
@@ -454,10 +530,30 @@ watch([() => params.mode, () => params.audioEncoder], async () => {
   background: #000;
   border-radius: 8px;
   height: 100%;
+  min-height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  border: 1px solid var(--border-color);
+  position: relative;
+}
+
+.no-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #666;
+}
+
+.no-preview span {
+  font-size: 14px;
+}
+
+.preview-player {
+  width: 100%;
+  height: 100%;
 }
 
 .command-preview {
@@ -513,5 +609,31 @@ watch([() => params.mode, () => params.audioEncoder], async () => {
 
 .clickable-dropzone {
   cursor: pointer;
+}
+
+.config-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.config-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.config-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 适配移动端或小屏幕的响应式处理 */
+@media (max-width: 1000px) {
+  .workbench-layout {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .left-panel {
+    height: auto;
+    min-height: 500px;
+  }
 }
 </style>

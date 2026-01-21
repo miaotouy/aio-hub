@@ -25,6 +25,7 @@
             :title="displayTitle"
             :autoplay="true"
             :poster="poster"
+            :global-hotkey="true"
           />
         </div>
       </div>

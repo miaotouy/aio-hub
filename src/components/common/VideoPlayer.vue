@@ -1,241 +1,251 @@
 <template>
-  <div
-    ref="playerContainer"
-    class="video-player"
-    :class="{
-      'is-fullscreen': isFullscreen,
-      'is-web-fullscreen': isWebFullscreen,
-      'controls-visible': isControlsVisible || !isPlaying,
-    }"
-    @mousemove="handleMouseMove"
-    @mouseleave="handleMouseLeave"
-    @click="handleContainerClick"
-    @dblclick="toggleFullscreen"
-  >
-    <!-- 视频元素 -->
-    <video
-      ref="videoRef"
-      class="video-element"
-      crossorigin="anonymous"
-      :src="src"
-      :poster="poster"
-      :loop="isLoop"
-      :muted="isMuted"
-      :autoplay="autoplay"
-      :style="{
-        objectFit: objectFit,
-        transform: isMirrored ? 'scaleX(-1)' : 'none',
-      }"
-      @timeupdate="handleTimeUpdate"
-      @loadedmetadata="handleLoadedMetadata"
-      @ended="handleEnded"
-      @play="onPlay"
-      @pause="onPause"
-      @waiting="isLoading = true"
-      @canplay="isLoading = false"
-      @volumechange="handleVolumeChange"
-      @error="handleError"
-      @enterpictureinpicture="handlePiPChange"
-      @leavepictureinpicture="handlePiPChange"
-    ></video>
-
-    <!-- 加载状态 -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="spinner"></div>
-    </div>
-
-    <!-- 错误提示 -->
-    <div v-if="error" class="error-overlay">
-      <span class="error-icon">⚠️</span>
-      <span class="error-text">无法播放视频</span>
-    </div>
-
-    <!-- 播放按钮覆盖层 (暂停时显示) -->
-    <div v-if="!isPlaying && !isLoading && !error && showPlayIconOnPause" class="play-overlay">
-      <div class="play-icon-circle">
-        <component :is="Play" class="play-icon-large" />
-      </div>
-    </div>
-
-    <!-- 顶部标题栏 -->
-    <div class="top-bar">
-      <span class="video-title">{{ videoName }}</span>
-    </div>
-
-    <!-- 底部控制栏 -->
-    <div class="controls-bar" @click.stop @dblclick.stop>
-      <!-- 进度条 -->
+  <div class="video-player-host" :class="{ 'is-web-fullscreen': isWebFullscreen }">
+    <Teleport to="body" :disabled="!isWebFullscreen">
       <div
-        class="progress-bar-container"
-        ref="progressBarRef"
-        @mousedown="startDragging"
-        @mousemove="handleProgressHover"
-        @mouseleave="showHoverPreview = false"
+        ref="playerContainer"
+        class="video-player"
+        :class="{
+          'is-fullscreen': isFullscreen,
+          'is-web-fullscreen': isWebFullscreen,
+          'controls-visible': isControlsVisible || !isPlaying,
+        }"
+        tabindex="0"
+        @mousemove="handleMouseMove"
+        @mouseleave="handleMouseLeave"
+        @click="handleContainerClick"
+        @dblclick="toggleFullscreen"
+        @keydown="!globalHotkey ? handleKeydown($event) : undefined"
       >
-        <!-- 悬停时间预览 -->
-        <div
-          v-if="showHoverPreview"
-          class="hover-time-tooltip"
-          :style="{ left: hoverPosition + '%' }"
-        >
-          {{ formattedHoverTime }}
+        <!-- 视频元素 -->
+        <video
+          ref="videoRef"
+          class="video-element"
+          crossorigin="anonymous"
+          :src="src"
+          :poster="poster"
+          :loop="isLoop"
+          :muted="isMuted"
+          :autoplay="autoplay"
+          :style="{
+            objectFit: objectFit,
+            transform: isMirrored ? 'scaleX(-1)' : 'none',
+          }"
+          @timeupdate="handleTimeUpdate"
+          @loadedmetadata="handleLoadedMetadata"
+          @ended="handleEnded"
+          @play="onPlay"
+          @pause="onPause"
+          @waiting="isLoading = true"
+          @canplay="isLoading = false"
+          @volumechange="handleVolumeChange"
+          @error="handleError"
+          @enterpictureinpicture="handlePiPChange"
+          @leavepictureinpicture="handlePiPChange"
+        ></video>
+
+        <!-- 加载状态 -->
+        <div v-if="isLoading" class="loading-overlay">
+          <div class="spinner"></div>
         </div>
 
-        <!-- 悬停指示器 (上下三角) -->
-        <div v-if="showHoverPreview" class="hover-indicator" :style="{ left: hoverPosition + '%' }">
-          <div class="indicator-top"></div>
-          <div class="indicator-bottom"></div>
+        <!-- 错误提示 -->
+        <div v-if="error" class="error-overlay">
+          <span class="error-icon">⚠️</span>
+          <span class="error-text">无法播放视频</span>
         </div>
 
-        <div class="progress-background"></div>
-        <div class="progress-buffered" :style="{ width: bufferedPercentage + '%' }"></div>
-        <div class="progress-current" :style="{ width: progressPercentage + '%' }">
-          <div class="progress-handle"></div>
-        </div>
-      </div>
-
-      <div class="controls-row">
-        <!-- 左侧：播放控制与时间 -->
-        <div class="controls-left">
-          <button class="control-btn" @click="togglePlay" title="播放/暂停 (Space)">
-            <component :is="isPlaying ? Pause : Play" />
-          </button>
-
-          <span class="time-display">{{ formattedCurrentTime }} / {{ formattedDuration }}</span>
-        </div>
-
-        <!-- 中间：帧控制与截图 -->
-        <div class="controls-center">
-          <button class="control-btn" @click="captureSnapshot" title="截图">
-            <Camera :size="20" />
-          </button>
-          <div class="divider-vertical"></div>
-          <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
-            <Rewind :size="20" />
-          </button>
-          <button class="control-btn" @click="stepFrame(-1)" title="上一帧">
-            <div class="icon-with-dot left">
-              <ChevronLeft :size="20" />
-              <div class="dot"></div>
-            </div>
-          </button>
-          <button class="control-btn" @click="stepFrame(1)" title="下一帧">
-            <div class="icon-with-dot right">
-              <div class="dot"></div>
-              <ChevronRight :size="20" />
-            </div>
-          </button>
-          <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
-            <FastForward :size="20" />
-          </button>
-        </div>
-
-        <!-- 右侧：高级功能 -->
-        <div class="controls-right">
-          <!-- 倍速控制 -->
-          <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
-            <button
-              class="control-btn text-btn"
-              @click="showPlaybackRateMenu = !showPlaybackRateMenu"
-              @mouseenter="showPlaybackRateMenu = true"
-            >
-              {{ playbackRate }}x
-            </button>
-            <div v-if="showPlaybackRateMenu" class="popup-menu rate-menu">
-              <div
-                v-for="rate in [2.0, 1.5, 1.25, 1.0, 0.75, 0.5]"
-                :key="rate"
-                class="menu-item"
-                :class="{ active: playbackRate === rate }"
-                @click="setPlaybackRate(rate)"
-              >
-                {{ rate }}x
-              </div>
-            </div>
+        <!-- 播放按钮覆盖层 (暂停时显示) -->
+        <div v-if="!isPlaying && !isLoading && !error && showPlayIconOnPause" class="play-overlay">
+          <div class="play-icon-circle">
+            <component :is="Play" class="play-icon-large" />
           </div>
+        </div>
 
-          <!-- 音量控制 -->
+        <!-- 顶部标题栏 -->
+        <div class="top-bar">
+          <span class="video-title">{{ videoName }}</span>
+        </div>
+
+        <!-- 底部控制栏 -->
+        <div class="controls-bar" @click.stop @dblclick.stop>
+          <!-- 进度条 -->
           <div
-            class="volume-control"
-            @mouseenter="showVolumeSlider = true"
-            @mouseleave="showVolumeSlider = false"
+            class="progress-bar-container"
+            ref="progressBarRef"
+            @mousedown="startDragging"
+            @mousemove="handleProgressHover"
+            @mouseleave="showHoverPreview = false"
           >
-            <button class="control-btn" @click="toggleMute">
-              <component :is="volumeIcon" />
-            </button>
-            <div class="volume-slider-container">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                :value="volume"
-                @input="setVolume"
-                class="volume-slider"
-                :style="{ '--volume-percent': volume * 100 + '%' }"
-              />
-            </div>
-          </div>
-
-          <!-- 设置菜单 -->
-          <div class="menu-container" @mouseleave="showSettingsMenu = false">
-            <button
-              class="control-btn"
-              @click="showSettingsMenu = !showSettingsMenu"
-              @mouseenter="showSettingsMenu = true"
+            <!-- 悬停时间预览 -->
+            <div
+              v-if="showHoverPreview"
+              class="hover-time-tooltip"
+              :style="{ left: hoverPosition + '%' }"
             >
-              <Settings :size="20" />
-            </button>
-            <div v-if="showSettingsMenu" class="popup-menu settings-menu">
-              <div class="menu-item" @click="toggleLoop">
-                <Repeat :size="16" />
-                <span>循环播放</span>
-                <Check v-if="isLoop" :size="16" class="check-icon" />
-              </div>
-              <div class="menu-item" @click="toggleMirror">
-                <FlipHorizontal :size="16" />
-                <span>镜像翻转</span>
-                <Check v-if="isMirrored" :size="16" class="check-icon" />
-              </div>
-              <div class="menu-item" @click="cycleObjectFit">
-                <Monitor :size="16" />
-                <span
-                  >画面:
-                  {{
-                    objectFit === "contain" ? "适应" : objectFit === "cover" ? "填充" : "拉伸"
-                  }}</span
-                >
-              </div>
-              <div class="menu-item" @click="toggleShowPlayIconOnPause">
-                <PlayCircle :size="16" />
-                <span>暂停显示图标</span>
-                <Check v-if="showPlayIconOnPause" :size="16" class="check-icon" />
-              </div>
+              {{ formattedHoverTime }}
+            </div>
+
+            <!-- 悬停指示器 (上下三角) -->
+            <div
+              v-if="showHoverPreview"
+              class="hover-indicator"
+              :style="{ left: hoverPosition + '%' }"
+            >
+              <div class="indicator-top"></div>
+              <div class="indicator-bottom"></div>
+            </div>
+
+            <div class="progress-background"></div>
+            <div class="progress-buffered" :style="{ width: bufferedPercentage + '%' }"></div>
+            <div class="progress-current" :style="{ width: progressPercentage + '%' }">
+              <div class="progress-handle"></div>
             </div>
           </div>
 
-          <!-- 网页全屏 -->
-          <button class="control-btn" @click="toggleWebFullscreen" title="网页全屏">
-            <component :is="isWebFullscreen ? Shrink : Expand" :size="20" />
-          </button>
+          <div class="controls-row">
+            <!-- 左侧：播放控制与时间 -->
+            <div class="controls-left">
+              <button class="control-btn" @click="togglePlay" title="播放/暂停 (Space)">
+                <component :is="isPlaying ? Pause : Play" />
+              </button>
 
-          <!-- 画中画模式 -->
-          <button class="control-btn" @click="togglePiP" title="画中画">
-            <PictureInPicture2 :size="20" />
-          </button>
+              <span class="time-display">{{ formattedCurrentTime }} / {{ formattedDuration }}</span>
+            </div>
 
-          <!-- 全屏模式 -->
-          <button class="control-btn" @click="toggleFullscreen" title="全屏 (F)">
-            <component :is="isFullscreen ? Minimize : Maximize" />
-          </button>
+            <!-- 中间：帧控制与截图 -->
+            <div class="controls-center">
+              <button class="control-btn" @click="captureSnapshot" title="截图">
+                <Camera :size="20" />
+              </button>
+              <div class="divider-vertical"></div>
+              <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
+                <Rewind :size="20" />
+              </button>
+              <button class="control-btn" @click="stepFrame(-1)" title="上一帧">
+                <div class="icon-with-dot left">
+                  <ChevronLeft :size="20" />
+                  <div class="dot"></div>
+                </div>
+              </button>
+              <button class="control-btn" @click="stepFrame(1)" title="下一帧">
+                <div class="icon-with-dot right">
+                  <div class="dot"></div>
+                  <ChevronRight :size="20" />
+                </div>
+              </button>
+              <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
+                <FastForward :size="20" />
+              </button>
+            </div>
+
+            <!-- 右侧：高级功能 -->
+            <div class="controls-right">
+              <!-- 倍速控制 -->
+              <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
+                <button
+                  class="control-btn text-btn"
+                  @click="showPlaybackRateMenu = !showPlaybackRateMenu"
+                  @mouseenter="showPlaybackRateMenu = true"
+                >
+                  {{ playbackRate }}x
+                </button>
+                <div v-if="showPlaybackRateMenu" class="popup-menu rate-menu">
+                  <div
+                    v-for="rate in [2.0, 1.5, 1.25, 1.0, 0.75, 0.5]"
+                    :key="rate"
+                    class="menu-item"
+                    :class="{ active: playbackRate === rate }"
+                    @click="setPlaybackRate(rate)"
+                  >
+                    {{ rate }}x
+                  </div>
+                </div>
+              </div>
+
+              <!-- 音量控制 -->
+              <div
+                class="volume-control"
+                @mouseenter="showVolumeSlider = true"
+                @mouseleave="showVolumeSlider = false"
+              >
+                <button class="control-btn" @click="toggleMute">
+                  <component :is="volumeIcon" />
+                </button>
+                <div class="volume-slider-container">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    :value="volume"
+                    @input="setVolume"
+                    class="volume-slider"
+                    :style="{ '--volume-percent': volume * 100 + '%' }"
+                  />
+                </div>
+              </div>
+
+              <!-- 设置菜单 -->
+              <div class="menu-container" @mouseleave="showSettingsMenu = false">
+                <button
+                  class="control-btn"
+                  @click="showSettingsMenu = !showSettingsMenu"
+                  @mouseenter="showSettingsMenu = true"
+                >
+                  <Settings :size="20" />
+                </button>
+                <div v-if="showSettingsMenu" class="popup-menu settings-menu">
+                  <div class="menu-item" @click="toggleLoop">
+                    <Repeat :size="16" />
+                    <span>循环播放</span>
+                    <Check v-if="isLoop" :size="16" class="check-icon" />
+                  </div>
+                  <div class="menu-item" @click="toggleMirror">
+                    <FlipHorizontal :size="16" />
+                    <span>镜像翻转</span>
+                    <Check v-if="isMirrored" :size="16" class="check-icon" />
+                  </div>
+                  <div class="menu-item" @click="cycleObjectFit">
+                    <Monitor :size="16" />
+                    <span
+                      >画面:
+                      {{
+                        objectFit === "contain" ? "适应" : objectFit === "cover" ? "填充" : "拉伸"
+                      }}</span
+                    >
+                  </div>
+                  <div class="menu-item" @click="toggleShowPlayIconOnPause">
+                    <PlayCircle :size="16" />
+                    <span>暂停显示图标</span>
+                    <Check v-if="showPlayIconOnPause" :size="16" class="check-icon" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- 网页全屏 -->
+              <button class="control-btn" @click="toggleWebFullscreen" title="网页全屏">
+                <component :is="isWebFullscreen ? Shrink : Expand" :size="20" />
+              </button>
+
+              <!-- 画中画模式 -->
+              <button class="control-btn" @click="togglePiP" title="画中画">
+                <PictureInPicture2 :size="20" />
+              </button>
+
+              <!-- 全屏模式 -->
+              <button class="control-btn" @click="toggleFullscreen" title="全屏 (F)">
+                <component :is="isFullscreen ? Minimize : Maximize" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, onActivated, onDeactivated } from "vue";
 import {
   Play,
   Pause,
@@ -269,11 +279,13 @@ const props = withDefaults(
     autoplay?: boolean;
     loop?: boolean;
     muted?: boolean;
+    globalHotkey?: boolean;
   }>(),
   {
     autoplay: false,
     loop: false,
     muted: false,
+    globalHotkey: false,
   }
 );
 
@@ -312,6 +324,7 @@ const isPiP = ref(false);
 const isMirrored = ref(false);
 const objectFit = ref<"contain" | "cover" | "fill">("contain");
 const showPlayIconOnPause = ref(savedShowPlayIcon !== null ? savedShowPlayIcon === "true" : true);
+const isActive = ref(true);
 
 // 拖拽状态
 const isDragging = ref(false);
@@ -646,8 +659,20 @@ function resetControlsTimer() {
 
 // 全局键盘快捷键
 function handleKeydown(e: KeyboardEvent) {
+  // 如果组件处于非激活状态（被 keep-alive 缓存），则不响应
+  if (!isActive.value) return;
+
   // 如果用户正在输入，则忽略
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+  // 检查播放器是否可见且在文档中
+  // 如果 offsetParent 为 null，说明元素或其祖先被设置为 display: none (通常是标签页切换)
+  if (!playerContainer.value || playerContainer.value.offsetParent === null) {
+    // 如果是全屏模式，即使 offsetParent 为 null (Teleport 到了 body)，也应该响应
+    if (!isFullscreen.value && !isWebFullscreen.value) {
+      return;
+    }
+  }
 
   switch (e.code) {
     case "Space":
@@ -713,10 +738,34 @@ watch(isPlaying, (val) => {
   }
 });
 
+watch(isWebFullscreen, (val) => {
+  if (val) {
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = "";
+  }
+});
+
 // 生命周期
+onActivated(() => {
+  isActive.value = true;
+  // 重新激活时如果视频在播放，确保控制栏状态同步
+  if (isPlaying.value) {
+    resetControlsTimer();
+  }
+});
+
+onDeactivated(() => {
+  isActive.value = false;
+  // 切换标签页时建议暂停视频，防止后台偷跑流量/性能消耗（可选）
+  // if (isPlaying.value) videoRef.value?.pause();
+});
+
 onMounted(() => {
   document.addEventListener("fullscreenchange", handleFullscreenChange);
-  document.addEventListener("keydown", handleKeydown);
+  if (props.globalHotkey) {
+    document.addEventListener("keydown", handleKeydown);
+  }
 
   if (videoRef.value) {
     // 应用保存的音量
@@ -733,7 +782,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  document.removeEventListener("keydown", handleKeydown);
+  if (props.globalHotkey) {
+    document.removeEventListener("keydown", handleKeydown);
+  }
   if (controlsTimer) clearTimeout(controlsTimer);
   document.removeEventListener("mousemove", handleDrag);
   document.removeEventListener("mouseup", stopDragging);
@@ -741,6 +792,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.video-player-host {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
 .video-player {
   position: relative;
   width: 100%;
@@ -752,6 +809,7 @@ onBeforeUnmount(() => {
   align-items: center;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   user-select: none;
+  outline: none;
 }
 
 .video-element {

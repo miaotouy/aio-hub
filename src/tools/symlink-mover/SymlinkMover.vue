@@ -323,8 +323,8 @@ const executeMoveAndLink = async () => {
           <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
         </div>
         <DropZone
-          drop-id="symlink-source"
-          placeholder="将要搬家的文件或文件夹拖拽至此"
+          clickable
+          placeholder="点击添加或拖拽文件/文件夹至此"
           :icon="FolderAdd"
           :multiple="true"
           @drop="handleSourceDrop"
@@ -401,7 +401,7 @@ const executeMoveAndLink = async () => {
         <div class="setting-group">
           <label>目标目录</label>
           <DropZone
-            drop-id="symlink-target"
+            clickable
             variant="input"
             :directory-only="true"
             :multiple="false"

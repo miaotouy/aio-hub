@@ -3,17 +3,18 @@
     ref="dropZoneRef"
     class="drop-zone"
     :class="{
-      'drop-zone--dragover': isDraggingOver,
-      'drop-zone--compact': compact,
-      [`drop-zone--${variant}`]: variant
+      'drop-zone--dragging': isDraggingOver,
+      'drop-zone--disabled': disabled,
+      'drop-zone--clickable': clickable && !disabled,
+      'drop-zone--bare': bare,
+      'drop-zone--overlay': overlay,
+      [`drop-zone--${variant}`]: !bare && variant,
     }"
-    @dragenter="handleDragEnter"
-    @dragover="handleDragOver"
-    @dragleave="handleDragLeave"
-    @drop="handleDrop"
+    @click="handleClick"
   >
-    <div v-if="!hideContent" class="drop-zone__content">
-      <slot>
+    <!-- 默认内容区域 -->
+    <template v-if="!hideContent">
+      <slot :dragging="isDraggingOver">
         <div class="drop-zone__default">
           <el-icon :size="iconSize" class="drop-zone__icon">
             <component :is="icon" />
@@ -22,425 +23,237 @@
           <p v-if="hint" class="drop-zone__hint">{{ hint }}</p>
         </div>
       </slot>
-    </div>
-    <div v-else class="drop-zone__slot">
-      <slot />
+    </template>
+
+    <!-- 仅插槽区域 -->
+    <template v-else>
+      <slot :dragging="isDraggingOver" />
+    </template>
+
+    <!-- 拖拽时的覆盖层 (可选，如果用户需要简单的视觉反馈) -->
+    <div v-if="isDraggingOver && showOverlayOnDrag" class="drop-zone__drag-overlay">
+      <el-icon :size="48"><Upload /></el-icon>
+      <span>松开以添加</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { FolderAdd } from '@element-plus/icons-vue'
-import { listen } from '@tauri-apps/api/event'
-import { invoke } from '@tauri-apps/api/core'
-import { customMessage } from '@/utils/customMessage'
-import { createModuleErrorHandler } from '@/utils/errorHandler'
+import { ref, computed } from "vue";
+import { FolderAdd, Upload } from "@element-plus/icons-vue";
+import { open } from "@tauri-apps/plugin-dialog";
+import { useFileDrop } from "@/composables/useFileDrop";
 
-// 创建错误处理器
-const errorHandler = createModuleErrorHandler('DropZone')
-
-// Props 定义
 interface Props {
-  // 拖放区域标识，用于区分不同的拖放区域
-  dropId?: string
-  // 占位文本
-  placeholder?: string
-  // 提示文本
-  hint?: string
-  // 图标
-  icon?: any
-  // 图标大小
-  iconSize?: number
-  // 是否只接受目录
-  directoryOnly?: boolean
-  // 是否只接受文件
-  fileOnly?: boolean
-  // 是否接受多个文件
-  multiple?: boolean
-  // 文件类型过滤（例如：['.txt', '.md']）
-  accept?: string[]
-  // 自动执行回调
-  autoExecute?: boolean
-  // 紧凑模式
-  compact?: boolean
-  // 隐藏默认内容，只显示插槽
-  hideContent?: boolean
-  // 样式变体
-  variant?: 'default' | 'border' | 'input'
-  // 是否禁用
-  disabled?: boolean
-  // 自定义验证函数
-  validator?: (paths: string[]) => Promise<boolean> | boolean
+  // 基础配置
+  placeholder?: string;
+  hint?: string;
+  icon?: any;
+  iconSize?: number;
+
+  // 行为控制
+  clickable?: boolean;
+  disabled?: boolean;
+  multiple?: boolean;
+  directoryOnly?: boolean;
+  fileOnly?: boolean;
+  accept?: string[];
+
+  // 验证与反馈
+  validator?: (paths: string[]) => Promise<boolean> | boolean;
+  silent?: boolean; // 是否静默处理错误（不弹窗）
+
+  // 样式控制
+  variant?: "default" | "border" | "input";
+  bare?: boolean; // 纯净模式，无任何样式，仅提供拖拽逻辑
+  overlay?: boolean; // 覆盖模式，absolute 定位铺满父容器
+  hideContent?: boolean; // 隐藏默认内容，仅显示插槽
+  showOverlayOnDrag?: boolean; // 拖拽时是否显示内置的覆盖提示
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  dropId: '',
-  placeholder: '拖放文件或文件夹到此处',
-  hint: '',
+  placeholder: "拖放文件或文件夹到此处",
   icon: FolderAdd,
   iconSize: 48,
+  clickable: false,
+  disabled: false,
+  multiple: true,
   directoryOnly: false,
   fileOnly: false,
-  multiple: true,
   accept: () => [],
-  autoExecute: false,
-  compact: false,
+  silent: false,
+  variant: "default",
+  bare: false,
+  overlay: false,
   hideContent: false,
-  variant: 'default',
-  disabled: false
-})
+  showOverlayOnDrag: false,
+});
 
-// Emits 定义
 const emit = defineEmits<{
-  drop: [paths: string[]]
-  dragenter: []
-  dragleave: []
-  error: [message: string]
-}>()
+  drop: [paths: string[]];
+  dragenter: [];
+  dragleave: [];
+  error: [message: string];
+  click: [event: MouseEvent];
+}>();
 
-// 状态
-const dropZoneRef = ref<HTMLElement>()
-const isDraggingOver = ref(false)
+const dropZoneRef = ref<HTMLElement>();
 
-// Tauri 事件监听器
-let unlistenDrop: (() => void) | null = null
-let unlistenDragEnter: (() => void) | null = null
-let unlistenDragOver: (() => void) | null = null
-let unlistenDragLeave: (() => void) | null = null
+// 使用组合式函数处理逻辑
+const { isDraggingOver } = useFileDrop({
+  element: dropZoneRef,
+  disabled: computed(() => props.disabled),
+  multiple: props.multiple,
+  directoryOnly: props.directoryOnly,
+  fileOnly: props.fileOnly,
+  accept: props.accept,
+  validator: props.validator,
+  silent: props.silent,
+  onDrop: (paths) => {
+    emit("drop", paths);
+  },
+  onDragEnter: () => emit("dragenter"),
+  onDragLeave: () => emit("dragleave"),
+  onError: (msg) => emit("error", msg),
+});
 
-// 辅助函数：判断位置是否在元素内
-const isPositionInRect = (position: { x: number; y: number }, rect: DOMRect) => {
-  const ratio = window.devicePixelRatio || 1
-  return (
-    position.x >= rect.left * ratio &&
-    position.x <= rect.right * ratio &&
-    position.y >= rect.top * ratio &&
-    position.y <= rect.bottom * ratio
-  )
-}
+/**
+ * 处理点击事件
+ */
+const handleClick = async (e: MouseEvent) => {
+  if (props.disabled) return;
+  emit("click", e);
 
-// 获取唯一的选择器
-const getDropZoneSelector = computed(() => {
-  if (props.dropId) {
-    return `[data-drop-id="${props.dropId}"]`
-  }
-  // 如果没有指定 dropId，返回 null，将使用 ref
-  return null
-})
+  if (props.clickable) {
+    try {
+      const selected = await open({
+        multiple: props.multiple,
+        directory: props.directoryOnly,
+        filters:
+          props.accept.length > 0
+            ? [
+                {
+                  name: "Supported Files",
+                  extensions: props.accept.map((ext) => (ext.startsWith(".") ? ext.slice(1) : ext)),
+                },
+              ]
+            : undefined,
+      });
 
-// 设置 Tauri 文件拖放监听器
-const setupFileDropListener = async () => {
-  // 监听拖动进入事件
-  unlistenDragEnter = await listen('custom-drag-enter', (event: any) => {
-    if (props.disabled) return
-    
-    const { position } = event.payload
-    const dropZone = getDropZoneSelector.value 
-      ? document.querySelector(getDropZoneSelector.value) as HTMLElement
-      : dropZoneRef.value
-      
-    if (dropZone) {
-      const rect = dropZone.getBoundingClientRect()
-      if (isPositionInRect(position, rect)) {
-        isDraggingOver.value = true
-        emit('dragenter')
+      if (selected) {
+        const paths = Array.isArray(selected) ? selected : [selected];
+        emit("drop", paths);
       }
+    } catch (err: any) {
+      emit("error", err.toString());
     }
-  })
-
-  // 监听拖动移动事件
-  unlistenDragOver = await listen('custom-drag-over', (event: any) => {
-    if (props.disabled) return
-    
-    const { position } = event.payload
-    const dropZone = getDropZoneSelector.value 
-      ? document.querySelector(getDropZoneSelector.value) as HTMLElement
-      : dropZoneRef.value
-      
-    if (dropZone) {
-      const rect = dropZone.getBoundingClientRect()
-      const isInside = isPositionInRect(position, rect)
-      if (isInside !== isDraggingOver.value) {
-        isDraggingOver.value = isInside
-        if (!isInside) {
-          emit('dragleave')
-        }
-      }
-    }
-  })
-
-  // 监听拖动离开事件
-  unlistenDragLeave = await listen('custom-drag-leave', () => {
-    if (props.disabled) return
-    
-    isDraggingOver.value = false
-    emit('dragleave')
-  })
-
-  // 监听文件放下事件
-  unlistenDrop = await listen('custom-file-drop', async (event: any) => {
-    if (props.disabled) return
-    
-    const { paths, position } = event.payload
-    
-    // 清除高亮状态
-    isDraggingOver.value = false
-    
-    if (!paths || paths.length === 0) {
-      return
-    }
-    
-    const dropZone = getDropZoneSelector.value 
-      ? document.querySelector(getDropZoneSelector.value) as HTMLElement
-      : dropZoneRef.value
-      
-    if (dropZone) {
-      const rect = dropZone.getBoundingClientRect()
-      if (isPositionInRect(position, rect)) {
-        await handleFileDrop(paths)
-      }
-    }
-  })
-}
-
-// 处理文件拖放
-const handleFileDrop = async (paths: string[]) => {
-  // 验证文件类型
-  let validPaths: string[] = []
-  
-  try {
-    // 验证文件数量
-    if (!props.multiple && paths.length > 1) {
-      paths = [paths[0]]
-      customMessage.warning('只能选择一个文件，已自动选择第一个')
-    }
-    
-    for (const path of paths) {
-      let isValid = true
-      
-      // 检查是否为目录
-      if (props.directoryOnly || props.fileOnly) {
-        try {
-          const isDir = await invoke<boolean>('is_directory', { path })
-          
-          if (props.directoryOnly && !isDir) {
-            customMessage.warning(`请拖入文件夹: ${path}`)
-            isValid = false
-          } else if (props.fileOnly && isDir) {
-            customMessage.warning(`请拖入文件: ${path}`)
-            isValid = false
-          }
-        } catch (error) {
-          errorHandler.handle(error, { userMessage: '检查路径类型失败', context: { path }, showToUser: false })
-        }
-      }
-      
-      // 检查文件扩展名
-      if (props.accept.length > 0 && isValid) {
-        const ext = path.substring(path.lastIndexOf('.')).toLowerCase()
-        if (!props.accept.includes(ext)) {
-          customMessage.warning(`不支持的文件类型: ${ext}`)
-          isValid = false
-        }
-      }
-      
-      if (isValid) {
-        validPaths.push(path)
-      }
-    }
-    
-    if (validPaths.length === 0) {
-      return
-    }
-    
-    // 自定义验证
-    if (props.validator) {
-      const isValid = await props.validator(validPaths)
-      if (!isValid) {
-        return
-      }
-    }
-    
-    // 触发事件
-    emit('drop', validPaths)
-    
-    // 显示成功消息
-    if (props.autoExecute) {
-      const message = validPaths.length === 1 
-        ? `已添加: ${validPaths[0].split(/[/\\]/).pop()}`
-        : `已添加 ${validPaths.length} 个项目`
-      customMessage.success(message)
-    }
-    
-  } catch (error: any) {
-    errorHandler.error(error, '处理拖放文件失败', { paths: validPaths })
-    emit('error', error.toString())
   }
-}
+};
 
-// 前端拖放事件处理 - 用于视觉反馈
-const handleDragEnter = (e: DragEvent) => {
-  if (props.disabled) return
-  
-  e.preventDefault()
-  e.stopPropagation()
-  isDraggingOver.value = true
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy'
-  }
-}
-
-const handleDragOver = (e: DragEvent) => {
-  if (props.disabled) return
-  
-  e.preventDefault()
-  e.stopPropagation()
-  if (!isDraggingOver.value) {
-    isDraggingOver.value = true
-  }
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy'
-  }
-}
-
-const handleDragLeave = (e: DragEvent) => {
-  if (props.disabled) return
-  
-  e.preventDefault()
-  e.stopPropagation()
-  
-  const related = e.relatedTarget as HTMLElement
-  const currentTarget = e.currentTarget as HTMLElement
-  
-  if (!currentTarget.contains(related)) {
-    isDraggingOver.value = false
-  }
-}
-
-const handleDrop = (e: DragEvent) => {
-  if (props.disabled) return
-  
-  e.preventDefault()
-  e.stopPropagation()
-  isDraggingOver.value = false
-  // 实际的文件处理由 Tauri 后端的 custom-file-drop 事件处理
-}
-
-// 生命周期
-onMounted(async () => {
-  await setupFileDropListener()
-  
-  // 如果有 dropId，设置 data 属性
-  if (props.dropId && dropZoneRef.value) {
-    dropZoneRef.value.setAttribute('data-drop-id', props.dropId)
-  }
-})
-
-onUnmounted(() => {
-  unlistenDrop?.()
-  unlistenDragEnter?.()
-  unlistenDragOver?.()
-  unlistenDragLeave?.()
-})
-
-// 暴露方法
+// 暴露状态
 defineExpose({
   isDraggingOver,
-  dropZoneRef
-})
+  el: dropZoneRef,
+});
 </script>
 
 <style scoped>
 .drop-zone {
   position: relative;
-  transition: all 0.3s ease;
-  border-radius: 8px;
-  width: 100%;
-  height: 100%;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
 }
 
-/* 默认样式 */
+/* 覆盖模式 */
+.drop-zone--overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+/* 默认样式变体 */
 .drop-zone--default {
   border: 2px dashed var(--el-border-color);
-  background-color: transparent;
-  min-height: 120px;
-}
-
-/* 边框样式变体 */
-.drop-zone--border {
-  border: 2px dashed transparent;
-  padding: 8px;
-  margin: -8px;
-  min-height: auto;
-}
-
-/* 输入框样式变体 - 不设置最小高度，让内容决定高度 */
-.drop-zone--input {
-  border: 2px dashed transparent;
-  padding: 4px;
-  margin: -4px;
-  min-height: auto;
-}
-
-/* 紧凑模式 */
-.drop-zone--compact {
-  min-height: 60px;
-}
-
-.drop-zone--compact .drop-zone__icon {
-  font-size: 24px !important;
-}
-
-.drop-zone--compact .drop-zone__text {
-  font-size: 13px;
-}
-
-/* 拖拽悬停效果 */
-.drop-zone--dragover {
-  border-color: var(--el-color-primary) !important;
-  background-color: rgba(64, 158, 255, 0.05);
-  box-shadow: 0 0 15px rgba(64, 158, 255, 0.3);
-  transform: scale(1.02);
-}
-
-.drop-zone--dragover::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
+  background-color: var(--el-fill-color-blank);
   border-radius: 8px;
-  background: linear-gradient(45deg, transparent, rgba(64, 158, 255, 0.2), transparent);
-  animation: shimmer 2s infinite;
-  pointer-events: none;
-}
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-/* 输入框样式变体的拖拽效果 */
-.drop-zone--input.drop-zone--dragover :deep(.el-input__wrapper) {
-  background-color: rgba(64, 158, 255, 0.08);
-  border-color: var(--el-color-primary);
-}
-
-/* 内容区域 */
-.drop-zone__content {
-  height: 100%;
+  min-height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-sizing: border-box;
 }
 
-.drop-zone__slot {
+.drop-zone--border {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.drop-zone--input {
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  min-height: 32px;
+}
+
+/* 交互状态 */
+.drop-zone--clickable {
+  cursor: pointer;
+}
+
+.drop-zone--clickable:hover:not(.drop-zone--dragging) {
+  border-color: var(--el-color-primary-light-3);
+  background-color: var(--el-color-primary-light-9);
+}
+
+.drop-zone--dragging {
+  border-color: var(--el-color-primary) !important;
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  overflow: hidden;
+}
+
+/* 流光扫光效果 */
+.drop-zone--dragging:not(.drop-zone--bare)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 150%;
   height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--el-color-primary) 20%, transparent),
+    transparent
+  );
+  transform: skewX(-25deg);
+  animation: drop-zone-sweep 1.5s infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes drop-zone-sweep {
+  0% {
+    left: -150%;
+  }
+  100% {
+    left: 150%;
+  }
+}
+
+/* 拖拽时的内置覆盖层 */
+.drop-zone__drag-overlay {
+  position: absolute;
+  inset: 0;
+  color: var(--el-color-primary);
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 100;
+  border-radius: inherit;
+  backdrop-filter: blur(8px);
+  border: 2px dashed var(--el-color-primary);
 }
 
 .drop-zone__default {
@@ -448,13 +261,21 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
   text-align: center;
+  width: 100%;
 }
 
 .drop-zone__icon {
   color: var(--el-text-color-placeholder);
   margin-bottom: 12px;
+  transition: transform 0.3s ease;
+}
+
+.drop-zone--dragging .drop-zone__icon {
+  transform: translateY(-5px) scale(1.1);
+  color: var(--el-color-primary);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--el-color-primary) 50%, transparent));
 }
 
 .drop-zone__text {
@@ -469,10 +290,20 @@ defineExpose({
   color: var(--el-text-color-secondary);
 }
 
-/* 禁用状态 */
-.drop-zone[disabled] {
+.drop-zone--disabled {
   cursor: not-allowed;
-  opacity: 0.5;
-  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* 纯净模式下取消所有内置样式 */
+.drop-zone--bare {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 </style>

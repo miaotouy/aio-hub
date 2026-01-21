@@ -27,11 +27,9 @@
       <el-row :gutter="12" align="middle">
         <el-col :span="9">
           <DropZone
-            drop-id="git-analyzer-path"
             variant="input"
             :directory-only="true"
             :multiple="false"
-            :auto-execute="true"
             hide-content
             @drop="handlePathDrop"
           >

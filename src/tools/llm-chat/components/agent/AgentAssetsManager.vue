@@ -1113,18 +1113,16 @@ const ThumbnailPreview = {
           </div>
         </div>
 
-        <!-- 覆盖层模式的 DropZone 容器 -->
-        <div class="upload-overlay-container">
-          <DropZone
-            class="upload-overlay"
-            placeholder="上传到当前分组"
-            :hint="`支持图片、音频、视频等多种格式${selectedGroup !== 'all' && selectedGroup !== 'default' ? ' (将自动添加到 ' + getGroupDisplayName(selectedGroup) + ' 分组)' : ''}`"
-            :icon="Plus"
-            :disabled="disabled || !agentId"
-            variant="border"
-            @drop="handleFileUpload"
-          />
-        </div>
+        <!-- 覆盖层模式的 DropZone -->
+        <DropZone
+          overlay
+          show-overlay-on-drag
+          placeholder="上传到当前分组"
+          :hint="`支持图片、音频、视频等多种格式${selectedGroup !== 'all' && selectedGroup !== 'default' ? ' (将自动添加到 ' + getGroupDisplayName(selectedGroup) + ' 分组)' : ''}`"
+          :icon="Plus"
+          :disabled="disabled || !agentId"
+          @drop="handleFileUpload"
+        />
       </div>
     </div>
 
@@ -1440,52 +1438,7 @@ const ThumbnailPreview = {
   max-width: 240px;
 }
 
-.upload-overlay-container {
-  position: absolute;
-  inset: 0;
-  z-index: 100;
-  pointer-events: none;
-  /* 关键：隔离内部 DropZone 的负 margin，防止撑开父级滚动条 */
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  box-sizing: border-box;
-}
-
-.upload-overlay {
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  background-color: transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 12px;
-  /* 初始状态：略微缩小且透明 */
-  transform: scale(0.98);
-  opacity: 0;
-}
-
-/* 只有当 DropZone 内部检测到拖拽（isDraggingOver 为真）时才启用交互并显示背景 */
-.upload-overlay.drop-zone--dragover {
-  pointer-events: auto;
-  background-color: var(--el-mask-color-extra-light);
-  backdrop-filter: blur(8px);
-  transform: scale(1);
-  opacity: 1;
-  box-shadow: var(--el-box-shadow-dark);
-  border: 1px solid var(--el-color-primary-light-5);
-}
-
-/* 覆盖 DropZone 内部样式，使其在覆盖层模式下更美观 */
-.upload-overlay :deep(.drop-zone__content) {
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.upload-overlay.drop-zone--dragover :deep(.drop-zone__content) {
-  opacity: 1;
-}
+/* overlay 模式由组件内部处理 */
 
 .assets-grid-container {
   width: 100%;

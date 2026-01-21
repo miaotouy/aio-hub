@@ -28,7 +28,6 @@
       <div class="config-section">
         <label>扫描路径</label>
         <DropZone
-          drop-id="janitor-path"
           variant="input"
           :directory-only="true"
           :multiple="false"

@@ -51,8 +51,8 @@
             <div class="file-selection-area">
               <DropZone
                 v-if="!currentFilePath"
+                clickable
                 @drop="handleFileDrop"
-                @click="handleManualSelect"
                 :accept="['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a']"
                 placeholder="点击或拖入媒体文件"
                 class="full-dropzone"
@@ -85,9 +85,9 @@
                     </div>
                   </div>
                 </div>
-                <!-- 覆盖一个透明的 DropZone 用于接收拖放更换 -->
+                <!-- 覆盖模式，自动处理拖放更换 -->
                 <DropZone
-                  class="overlay-dropzone"
+                  overlay
                   hide-content
                   @drop="handleFileDrop"
                   :accept="['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a']"
@@ -417,25 +417,7 @@ watch([() => params.mode, () => params.audioEncoder], async () => {
   flex-direction: column;
 }
 
-.overlay-dropzone {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  border: 2px dashed transparent;
-  transition:
-    border-color 0.2s,
-    background-color 0.2s;
-}
-
-.overlay-dropzone:deep(.drop-zone) {
-  border: none;
-  background: transparent;
-}
-
-.overlay-dropzone:deep(.drop-zone--dragover) {
-  border: 2px dashed var(--el-color-primary) !important;
-  background-color: rgba(64, 158, 255, 0.1);
-}
+/* overlay 模式由组件内部处理，此处不再需要复杂的 hack 样式 */
 
 .selected-file-info {
   padding: 16px;

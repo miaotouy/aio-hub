@@ -33,6 +33,8 @@ export interface FileDropOptions {
   validator?: (paths: string[]) => Promise<boolean> | boolean
   // 是否禁用
   disabled?: Ref<boolean> | boolean
+  // 是否静默处理错误（不弹窗提示）
+  silent?: boolean
 }
 
 // 拖放状态接口
@@ -93,7 +95,9 @@ export function useFileDrop(options: FileDropOptions = {}) {
     // 验证文件数量
     if (!options.multiple && paths.length > 1) {
       paths = [paths[0]]
-      customMessage.warning('只能选择一个文件，已自动选择第一个')
+      if (!options.silent) {
+        customMessage.warning('只能选择一个文件，已自动选择第一个')
+      }
     }
     
     const validPaths: string[] = []
@@ -107,10 +111,10 @@ export function useFileDrop(options: FileDropOptions = {}) {
           const isDir = await invoke<boolean>('is_directory', { path })
           
           if (options.directoryOnly && !isDir) {
-            customMessage.warning(`请拖入文件夹: ${path}`)
+            if (!options.silent) customMessage.warning(`请拖入文件夹: ${path}`)
             isValid = false
           } else if (options.fileOnly && isDir) {
-            customMessage.warning(`请拖入文件: ${path}`)
+            if (!options.silent) customMessage.warning(`请拖入文件: ${path}`)
             isValid = false
           }
         } catch (error) {
@@ -122,8 +126,13 @@ export function useFileDrop(options: FileDropOptions = {}) {
       // 检查文件扩展名
       if (options.accept && options.accept.length > 0 && isValid) {
         const ext = path.substring(path.lastIndexOf('.')).toLowerCase()
-        if (!options.accept.includes(ext)) {
-          customMessage.warning(`不支持的文件类型: ${ext}`)
+        const isSupported = options.accept.some(acceptedExt => {
+          const normalized = acceptedExt.toLowerCase()
+          return normalized.startsWith('.') ? ext === normalized : ext === `.${normalized}`
+        })
+        
+        if (!isSupported) {
+          if (!options.silent) customMessage.warning(`不支持的文件类型: ${ext}`)
           isValid = false
         }
       }

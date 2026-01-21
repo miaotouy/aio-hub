@@ -7,11 +7,9 @@
           <div class="config-section">
             <label>目标路径</label>
             <DropZone
-              drop-id="directory-tree-path"
               variant="input"
               :directory-only="true"
               :multiple="false"
-              :auto-execute="autoGenerateOnDrop"
               hide-content
               @drop="handlePathDrop"
             >

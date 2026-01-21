@@ -21,7 +21,10 @@ import DropZone from "@/components/common/DropZone.vue";
 import WorldbookDetail from "./WorldbookDetail.vue";
 import { useElementSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
+import { invoke } from "@tauri-apps/api/core";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
+const errorHandler = createModuleErrorHandler("WorldbookFullManager");
 const worldbookStore = useWorldbookStore();
 const selectedWbId = ref<string | null>(null);
 const isSelectionMode = ref(false);
@@ -80,11 +83,19 @@ const handleImport = async () => {
   input.click();
 };
 
-const handleFilesDrop = async (files: File[]) => {
+const handleFilesDrop = async (paths: string[]) => {
   const validExts = [".json", ".lorebook", ".png"];
-  for (const file of files) {
-    if (validExts.some((ext) => file.name.endsWith(ext))) {
-      await processImportFile(file);
+  for (const path of paths) {
+    const ext = path.substring(path.lastIndexOf(".")).toLowerCase();
+    if (validExts.includes(ext)) {
+      try {
+        const data = await invoke<number[]>("read_file_binary", { path });
+        const fileName = path.split(/[/\\]/).pop() || "file";
+        const file = new File([new Uint8Array(data)], fileName);
+        await processImportFile(file);
+      } catch (error) {
+        errorHandler.error(error, "导入文件失败", { path });
+      }
     }
   }
 };
@@ -381,14 +392,15 @@ const handleBatchExport = async () => {
       <main v-if="!isSelectionMode || isWide" class="manager-main">
         <DropZone
           v-if="!selectedWbId"
-          @files-dropped="handleFilesDrop"
+          clickable
+          @drop="handleFilesDrop"
           :accept="['.json', '.lorebook', '.png']"
-          description="拖拽世界书 JSON/Lorebook/PNG 文件至此处导入"
+          placeholder="拖拽或点击导入世界书 JSON/Lorebook/PNG 文件"
           class="empty-drop-zone"
         >
           <el-empty description="请选择或导入一本世界书">
-            <el-button type="primary" :icon="Upload" @click="handleImport">立即导入</el-button>
-            <el-button :icon="Plus" @click="handleCreate">新建世界书</el-button>
+            <el-button type="primary" :icon="Upload">立即导入</el-button>
+            <el-button :icon="Plus" @click.stop="handleCreate">新建世界书</el-button>
           </el-empty>
         </DropZone>
 

@@ -63,7 +63,7 @@ const props = defineProps({
     default: "",
   },
   icon: {
-    type: [Object, String],
+    type: [Object, String, Function],
     required: false,
   },
   content: {

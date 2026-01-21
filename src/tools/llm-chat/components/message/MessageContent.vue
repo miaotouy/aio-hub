@@ -8,6 +8,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { MacroProcessor } from "../../macro-engine";
@@ -65,6 +66,7 @@ provide("chatSettings", settings);
 const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
+const chatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
 
 /**
@@ -162,13 +164,23 @@ const errorCopied = ref(false);
 // 文档预览状态
 const documentPreviewVisible = ref(false);
 const previewingAsset = ref<Asset | null>(null);
-
 // 判断是否正在推理中
 const isReasoning = computed(() => {
   return !!(
     props.message.status === "generating" &&
     props.message.metadata?.reasoningContent &&
-    !props.message.metadata?.reasoningEndTime
+    !props.message.metadata?.reasoningEndTime &&
+    !props.message.metadata?.error && // 如果有错误，停止动画
+    chatStore.isNodeGenerating(props.message.id) // 增加 store 校验，确保 executor 还在运行
+  );
+});
+
+// 判断是否正在生成内容（原文）
+const isGenerating = computed(() => {
+  return (
+    props.message.status === "generating" &&
+    !props.message.metadata?.error &&
+    chatStore.isNodeGenerating(props.message.id) // 增加 store 校验
   );
 });
 
@@ -604,7 +616,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :llm-think-rules="llmThinkRules"
           :style-options="richTextStyleOptions"
           :generation-meta="generationMetaForRenderer"
-          :is-streaming="message.status === 'generating'"
+          :is-streaming="isGenerating"
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
           :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
           :default-tool-call-collapsed="
@@ -619,7 +631,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
           :should-freeze="shouldFreezeHtml"
         />
-        <div v-if="message.status === 'generating'" class="streaming-indicator">
+        <div v-if="isGenerating" class="streaming-indicator">
           <span class="dot"></span>
           <span class="dot"></span>
           <span class="dot"></span>

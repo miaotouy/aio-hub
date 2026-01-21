@@ -6,7 +6,7 @@
  */
 
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useSessionManager } from "../composables/useSessionManager";
 import { useChatHandler } from "../composables/useChatHandler";
 import { useBranchManager } from "../composables/useBranchManager";
@@ -43,6 +43,45 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const isSending = ref(false);
   const abortControllers = ref(new Map<string, AbortController>());
   const generatingNodes = ref(new Set<string>());
+
+  /**
+   * 自动修复僵死节点的生成状态
+   * 如果一个节点在 session 中是 generating 状态，但不在 generatingNodes 集合中，
+   * 说明它已经脱离了执行器的控制，需要强制修复状态。
+   */
+  watch(
+    () => generatingNodes.value.size,
+    (newSize, oldSize) => {
+      // 只有在生成节点减少时（任务结束或中止）才进行检查
+      if (newSize < (oldSize || 0)) {
+        const session = currentSession.value;
+        if (!session) return;
+
+        let hasFixed = false;
+        Object.values(session.nodes).forEach((node) => {
+          if (node.status === "generating" && !generatingNodes.value.has(node.id)) {
+            logger.warn("检测到僵死节点，正在自动修复状态", {
+              nodeId: node.id,
+              contentLength: node.content?.length,
+            });
+            // 如果已经有内容了，标记为 complete，否则标记为 error
+            node.status = node.content?.trim() ? "complete" : "error";
+            if (node.status === "error" && !node.metadata?.error) {
+              if (!node.metadata) node.metadata = {};
+              node.metadata.error = "生成意外中断";
+            }
+            hasFixed = true;
+          }
+        });
+
+        if (hasFixed) {
+          const sessionManager = useSessionManager();
+          sessionManager.persistSession(session, currentSessionId.value);
+        }
+      }
+    },
+    { flush: "post" }
+  );
 
   const currentSession = computed((): ChatSession | null => {
     if (!currentSessionId.value) return null;

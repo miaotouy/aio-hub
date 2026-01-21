@@ -147,8 +147,13 @@ const handleNewSession = () => {
 };
 
 // 获取消息数量（排除系统根节点）
-const getMessageCount = (session: ChatSession) => {
-  return Object.keys(session.nodes).length - 1;
+const getMessageCount = (session: any) => {
+  // 优先使用同步过来的预计算字段，避免访问可能已被剔除的 nodes 属性
+  if (typeof session.messageCount === 'number') {
+    return session.messageCount;
+  }
+  // 回退到实时计算（主窗口或完整数据场景）
+  return session.nodes ? Object.keys(session.nodes).length - 1 : 0;
 };
 </script>
 

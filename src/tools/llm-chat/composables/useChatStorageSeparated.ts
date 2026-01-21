@@ -104,6 +104,11 @@ export function useChatStorageSeparated() {
       const content = await readTextFile(sessionPath);
       const session: ChatSession = JSON.parse(content);
 
+      // 确保加载时计算消息数量快照
+      if (session.nodes) {
+        session.messageCount = Object.keys(session.nodes).length - 1;
+      }
+
       // logger.debug('会话加载成功', { sessionId, nodeCount: Object.keys(session.nodes).length });
       return session;
     } catch (error) {

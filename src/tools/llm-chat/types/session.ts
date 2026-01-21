@@ -48,6 +48,12 @@ export interface ChatSession {
   agentUsage?: Record<string, number>;
 
   /**
+   * 缓存的消息总数（排除根节点）
+   * 用于列表展示性能优化
+   */
+  messageCount?: number;
+
+  /**
    * 会话级别的参数覆盖（可选）
    * 用于临时微调智能体的参数，不影响智能体本身的配置
    */

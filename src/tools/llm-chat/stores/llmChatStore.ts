@@ -58,6 +58,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         if (!session) return;
 
         let hasFixed = false;
+        if (!session.nodes) return;
+
         Object.values(session.nodes).forEach((node) => {
           if (node.status === "generating" && !generatingNodes.value.has(node.id)) {
             logger.warn("检测到僵死节点，正在自动修复状态", {

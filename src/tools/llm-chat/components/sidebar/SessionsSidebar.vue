@@ -286,8 +286,12 @@ const resetFilters = () => {
 };
 
 // 获取消息数量（排除系统根节点）
-const getMessageCount = (session: ChatSession) => {
-  return Object.keys(session.nodes).length - 1;
+const getMessageCount = (session: any) => {
+  // 优先使用预计算的字段，避免访问可能不存在的 nodes 属性
+  if (typeof session.messageCount === 'number') {
+    return session.messageCount;
+  }
+  return session.nodes ? Object.keys(session.nodes).length - 1 : 0;
 };
 
 // 获取会话当前显示的智能体信息

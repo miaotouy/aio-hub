@@ -73,7 +73,23 @@ export function useLlmChatSync() {
     // 这样分离窗口能获得完整的上下文，可以独立工作
     // 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
     const allAgents = toRef(agentStore, 'agents');
-    const allSessions = toRef(store, 'sessions');
+    // 性能优化：同步会话列表时只同步索引信息，不包含巨大的 nodes 树
+    // 这样可以极大地减少全量同步时的 JSON 序列化开销和 IPC 传输负担
+    const allSessionsIndex = computed(() => store.sessions.map(s => {
+      // 如果是当前正在使用的会话，保留完整数据，否则只保留索引信息
+      if (s.id === store.currentSessionId) {
+        return {
+          ...s,
+          messageCount: s.messageCount ?? (Object.keys(s.nodes || {}).length - 1)
+        };
+      }
+
+      const { nodes, history, ...index } = s;
+      return {
+        ...index,
+        messageCount: s.messageCount ?? (Object.keys(nodes || {}).length - 1)
+      };
+    }));
     // 使用 computed 获取当前会话对象，用于单独同步
     // 注意：因为 computed 是只读的，在接收端(子窗口)不能直接绑定到这个 computed
     // 但在发送端(主窗口)，我们可以把它作为源
@@ -96,8 +112,8 @@ export function useLlmChatSync() {
     createStateEngine(allAgents, CHAT_STATE_KEYS.AGENTS);
     // 同步当前选中的智能体ID（全局）
     createStateEngine(currentAgentId, CHAT_STATE_KEYS.CURRENT_AGENT_ID);
-    // 同步完整的会话列表（包含所有消息树）
-    createStateEngine(allSessions, CHAT_STATE_KEYS.SESSIONS);
+    // 同步会话列表索引（不包含消息树）
+    createStateEngine(allSessionsIndex, CHAT_STATE_KEYS.SESSIONS);
     // 同步当前会话的完整数据（作为独立通道，供轻量级消费者使用）
     // 注意：这里我们传递 computed ref，useStateSyncEngine 会将其视为只读源进行发送
     // 使用 Ref<T> 强制转换 computed 属性，因为 useStateSyncEngine 接受只读源

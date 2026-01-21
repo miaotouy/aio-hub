@@ -90,6 +90,7 @@ import { useLlmChatUiState } from "../composables/useLlmChatUiState";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
+import { initAgentAssetCache } from "../utils/agentAssetUtils";
 
 const agentStore = useAgentStore();
 const bus = useWindowSyncBus();
@@ -529,6 +530,9 @@ const handleScrollToNext = () => {
 const handleScrollToPrev = () => {
   messageListRef.value?.scrollToPrev();
 };
+
+const isReady = ref(false);
+
 // ===== 键盘导航 =====
 const handleKeyDown = (e: KeyboardEvent) => {
   // 处理 Ctrl+F 搜索快捷键 (无论焦点在哪里，只要在 ChatArea 内)
@@ -559,9 +563,19 @@ const handleKeyDown = (e: KeyboardEvent) => {
 };
 
 onMounted(async () => {
-  // 加载聊天设置
+  // 1. 初始化智能体资产缓存 (必须在渲染内容前完成，以支持同步解析)
+  try {
+    await initAgentAssetCache();
+    logger.info("智能体资产缓存已初始化");
+  } catch (error) {
+    errorHandler.error(error, "初始化智能体资产缓存失败");
+  }
+
+  // 2. 加载聊天设置
   await loadSettings();
   logger.info("聊天设置已加载");
+
+  isReady.value = true;
 
   logger.info("ChatArea mounted", {
     props: {
@@ -594,6 +608,7 @@ onMounted(async () => {
 
 <template>
   <div
+    v-if="isReady"
     ref="containerRef"
     :class="['chat-area-container', { 'detached-mode': isDetached }]"
     tabindex="0"

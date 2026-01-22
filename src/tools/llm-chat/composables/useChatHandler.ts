@@ -165,6 +165,9 @@ export function useChatHandler() {
       parentId,
     );
 
+    // 立即加入生成集合，确保在后续任何异步操作（如附件处理、转写、Token计算）期间，UI 都能正确显示生成状态
+    generatingNodes.add(assistantNode.id);
+
     // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
@@ -210,7 +213,6 @@ export function useChatHandler() {
 
       // 两种模式都需要中止控制器，因为等待都可能被用户取消
       abortControllers.set(assistantNode.id, transcriptionController);
-      generatingNodes.add(assistantNode.id);
 
       try {
         const behavior = settings.value.transcription.sendBehavior;
@@ -250,9 +252,10 @@ export function useChatHandler() {
         // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
         logger.warn("⚠️ 转写等待期间出错，将使用原始附件发送", error);
       } finally {
-        // 清理，因为后续的 executeRequest 会创建自己的控制器
+        // 注意：这里不立即从 generatingNodes 中删除，
+        // 而是保持状态直到 executeRequest 接管或流程结束，
+        // 以避免在转写结束和请求开始之间的异步空窗期（如 Token 计算）导致 UI 闪烁。
         abortControllers.delete(assistantNode.id);
-        generatingNodes.delete(assistantNode.id);
       }
     }
     // 确定生效的用户档案（智能体绑定 > 全局配置）
@@ -418,6 +421,9 @@ export function useChatHandler() {
 
     const { assistantNode, userNode } = result;
 
+    // 立即加入生成集合
+    generatingNodes.add(assistantNode.id);
+
     // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
@@ -494,6 +500,9 @@ export function useChatHandler() {
     if (!result) return;
 
     const { assistantNode, userNode } = result;
+
+    // 立即加入生成集合
+    generatingNodes.add(assistantNode.id);
 
     // 2. 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);

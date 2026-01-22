@@ -608,8 +608,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           <span class="translation-title">原文</span>
         </div>
         <RichTextRenderer
-          v-if="displayedContent"
-          :content="displayedContent"
+          v-if="displayedContent || isGenerating"
+          :content="displayedContent || ''"
           :regex-rules="processedRules"
           :resolve-asset="resolveAsset"
           :version="settings.uiPreferences.rendererVersion"

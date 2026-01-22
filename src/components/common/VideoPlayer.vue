@@ -8,6 +8,8 @@
           'is-fullscreen': isFullscreen,
           'is-web-fullscreen': isWebFullscreen,
           'controls-visible': isControlsVisible || !isPlaying,
+          'is-narrow': isNarrow,
+          'is-ultra-narrow': isUltraNarrow,
         }"
         tabindex="0"
         @mousemove="handleMouseMove"
@@ -109,11 +111,14 @@
                 <component :is="isPlaying ? Pause : Play" />
               </button>
 
-              <span class="time-display">{{ formattedCurrentTime }} / {{ formattedDuration }}</span>
+              <span v-if="!isUltraNarrow" class="time-display">
+                {{ formattedCurrentTime }} / {{ formattedDuration }}
+              </span>
+              <span v-else class="time-display">{{ formattedCurrentTime }}</span>
             </div>
 
             <!-- 中间：帧控制与截图 -->
-            <div class="controls-center">
+            <div v-if="!isNarrow" class="controls-center">
               <button class="control-btn" @click="captureSnapshot" title="截图">
                 <Camera :size="20" />
               </button>
@@ -226,12 +231,17 @@
               </div>
 
               <!-- 网页全屏 -->
-              <button class="control-btn" @click="toggleWebFullscreen" title="网页全屏">
+              <button
+                v-if="!isUltraNarrow"
+                class="control-btn"
+                @click="toggleWebFullscreen"
+                title="网页全屏"
+              >
                 <component :is="isWebFullscreen ? Shrink : Expand" :size="20" />
               </button>
 
               <!-- 画中画模式 -->
-              <button class="control-btn" @click="togglePiP" title="画中画">
+              <button v-if="!isUltraNarrow" class="control-btn" @click="togglePiP" title="画中画">
                 <PictureInPicture2 :size="20" />
               </button>
 
@@ -249,6 +259,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, onActivated, onDeactivated } from "vue";
+import { useElementSize } from "@vueuse/core";
 import {
   Play,
   Pause,
@@ -297,6 +308,8 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const playerContainer = ref<HTMLElement | null>(null);
 const progressBarRef = ref<HTMLElement | null>(null);
 
+const { width: containerWidth } = useElementSize(playerContainer);
+
 // 状态
 const isPlaying = ref(false);
 const currentTime = ref(0);
@@ -339,6 +352,9 @@ const showHoverPreview = ref(false);
 let controlsTimer: number | null = null;
 
 // 计算属性
+const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 650);
+const isUltraNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 450);
+
 const progressPercentage = computed(() => {
   if (duration.value === 0) return 0;
   return (currentTime.value / duration.value) * 100;

@@ -187,6 +187,105 @@ export async function processRulesWithMacros(
 }
 
 // =====================
+// 脚本执行引擎
+// =====================
+
+/**
+ * 脚本编译缓存
+ */
+const scriptCache = new Map<string, Function>();
+
+/**
+ * 清除脚本缓存
+ */
+export function clearScriptCache() {
+  scriptCache.clear();
+}
+
+/**
+ * 执行自定义替换脚本
+ *
+ * @param scriptContent - 脚本内容
+ * @param context - 注入变量
+ * @returns 替换后的字符串
+ */
+export function executeReplacementScript(
+  scriptContent: string,
+  context: {
+    match: string;
+    groups: string[];
+    index: number;
+    source: string;
+  },
+): string {
+  try {
+    let fn = scriptCache.get(scriptContent);
+
+    if (!fn) {
+      // 创建沙箱环境：屏蔽全局危险对象
+      // 使用 new Function 预编译，提高性能
+      // 增加严格模式和受限上下文
+      fn = new Function(
+        "match",
+        "groups",
+        "index",
+        "source",
+        "window",
+        "document",
+        "globalThis",
+        "eval",
+        "Function",
+        "process",
+        "require",
+        "import",
+        "console",
+        `
+        "use strict";
+        const sandbox = { match, groups, index, source };
+        try {
+          const executor = () => {
+            ${scriptContent.includes("return") ? "" : "return " + scriptContent}
+            ${scriptContent}
+          };
+          return executor.call(null);
+        } catch (e) {
+          throw e;
+        }
+        `,
+      );
+      scriptCache.set(scriptContent, fn);
+    }
+
+    // 执行脚本，传入 context 并将全局对象设为 null
+    // 增加对 console 的有限支持，方便调试，但屏蔽危险操作
+    const result = fn(
+      context.match,
+      context.groups,
+      context.index,
+      context.source,
+      null, // window
+      null, // document
+      null, // globalThis
+      null, // eval
+      null, // Function
+      null, // process
+      null, // require
+      null, // import
+      {
+        log: console.log.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console),
+      },
+    );
+
+    return String(result ?? context.match);
+  } catch (error) {
+    console.warn("[ChatRegex] 脚本执行出错:", error);
+    return context.match; // 出错时回退到原始匹配
+  }
+}
+
+// =====================
 // 规则应用
 // =====================
 
@@ -195,56 +294,81 @@ export async function processRulesWithMacros(
  *
  * @param content - 原始内容
  * @param rules - 要应用的规则列表
+ * @param isStreaming - 是否处于流式输出过程中
  * @returns 处理后的内容
  */
 export function applyRegexRules(
   content: string,
   rules: ChatRegexRule[],
+  isStreaming: boolean = false,
 ): string {
   let result = content;
 
   for (const rule of rules) {
+    // 性能优化：流式分级应用
+    if (isStreaming && rule.applyInStreaming === false) {
+      continue;
+    }
+
     try {
       const flags = rule.flags ?? "gm";
       const regex = new RegExp(rule.regex, flags);
-      const replacement = rule.replacement;
 
-      // 处理 trimStrings (后处理捕获组)
-      if (rule.trimStrings && rule.trimStrings.length > 0) {
-        result = result.replace(regex, (...args) => {
-          // args: [match, p1, p2, ..., offset, string, groups]
-          const match = args[0] as string; // 获取完整的匹配字符串
-          const groups = args.slice(1, -2); // 排除 offset 和 string
+      if (rule.replacementType === "script" && rule.scriptContent) {
+        // 脚本替换模式
+        result = result.replace(regex, (match, ...args) => {
+          const offset = args[args.length - 2] as number;
+          const source = args[args.length - 1] as string;
+          const groups = args.slice(0, -2).filter((g) => typeof g === "string");
 
-          // 对每个捕获组应用 trimStrings
-          let processedReplacement = replacement;
-          groups.forEach((group, index) => {
-            if (typeof group === "string") {
-              let trimmedGroup = group;
-              for (const trimStr of rule.trimStrings!) {
-                trimmedGroup = trimmedGroup.split(trimStr).join("");
-              }
-              // 替换 $1, $2, ... 或 ${1}, ${2}, ...
-              processedReplacement = processedReplacement
-                .replace(
-                  new RegExp(`\\$${index + 1}(?!\\d)`, "g"),
-                  trimmedGroup,
-                )
-                .replace(
-                  new RegExp(`\\$\\{${index + 1}\\}`, "g"),
-                  trimmedGroup,
-                );
-            }
+          return executeReplacementScript(rule.scriptContent!, {
+            match,
+            groups,
+            index: offset,
+            source,
           });
-
-          // 处理 $& (整个匹配)
-          processedReplacement = processedReplacement.replace(/\$&/g, match);
-
-          return processedReplacement;
         });
       } else {
-        // 简单替换
-        result = result.replace(regex, replacement);
+        // 正则替换模式
+        const replacement = rule.replacement || "";
+
+        // 处理 trimStrings (后处理捕获组)
+        if (rule.trimStrings && rule.trimStrings.length > 0) {
+          result = result.replace(regex, (...args) => {
+            // args: [match, p1, p2, ..., offset, string, groups]
+            const match = args[0] as string; // 获取完整的匹配字符串
+            const groups = args.slice(1, -2); // 排除 offset 和 string
+
+            // 对每个捕获组应用 trimStrings
+            let processedReplacement = replacement;
+            groups.forEach((group, index) => {
+              if (typeof group === "string") {
+                let trimmedGroup = group;
+                for (const trimStr of rule.trimStrings!) {
+                  trimmedGroup = trimmedGroup.split(trimStr).join("");
+                }
+                // 替换 $1, $2, ... 或 ${1}, ${2}, ...
+                processedReplacement = processedReplacement
+                  .replace(
+                    new RegExp(`\\$${index + 1}(?!\\d)`, "g"),
+                    trimmedGroup,
+                  )
+                  .replace(
+                    new RegExp(`\\$\\{${index + 1}\\}`, "g"),
+                    trimmedGroup,
+                  );
+              }
+            });
+
+            // 处理 $& (整个匹配)
+            processedReplacement = processedReplacement.replace(/\$&/g, match);
+
+            return processedReplacement;
+          });
+        } else {
+          // 简单替换
+          result = result.replace(regex, replacement);
+        }
       }
     } catch (error) {
       // 规则执行失败，跳过此规则
@@ -496,6 +620,53 @@ function convertPlacementToTargetRoles(
   }
 
   return Array.from(roles);
+}
+
+/**
+ * 扫描脚本内容是否存在安全风险
+ *
+ * @param scriptContent - 脚本内容
+ * @returns 风险等级: 0(安全) | 1(包含脚本) | 2(疑似恶意)
+ */
+export function scanScriptForRisks(scriptContent?: string): 0 | 1 | 2 {
+  if (!scriptContent) return 0;
+
+  // 敏感词库
+  const sensitiveWords = [
+    "fetch",
+    "XMLHttpRequest",
+    "localStorage",
+    "sessionStorage",
+    "cookie",
+    "eval",
+    "Function",
+    "import",
+    "window",
+    "document",
+    "chrome",
+    "tauri",
+    "process",
+    "indexedDB",
+  ];
+
+  const lowerContent = scriptContent.toLowerCase();
+
+  for (const word of sensitiveWords) {
+    if (lowerContent.includes(word.toLowerCase())) {
+      return 2;
+    }
+  }
+
+  return 1;
+}
+
+/**
+ * 检查预设是否包含脚本或潜在的脚本内容
+ */
+export function checkPresetHasScript(preset: ChatRegexPreset): boolean {
+  return preset.rules.some(
+    (rule) => rule.replacementType === "script" || (rule.scriptContent && rule.scriptContent.trim() !== ""),
+  );
 }
 
 /**

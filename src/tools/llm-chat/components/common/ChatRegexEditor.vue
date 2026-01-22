@@ -58,7 +58,7 @@
                     <el-switch
                       :model-value="preset.enabled"
                       size="small"
-                      @update:model-value="updatePresetField(index, 'enabled', $event)"
+                      @update:model-value="updatePresetField(Number(index), 'enabled', $event)"
                       @click.stop
                     />
                     <span class="preset-name">{{ preset.name }}</span>
@@ -68,7 +68,7 @@
                     <el-tooltip content="执行优先级：数值越小越先执行 (默认 100)" placement="top">
                       <el-input-number
                         :model-value="preset.priority ?? 100"
-                        @update:model-value="updatePresetField(index, 'priority', $event)"
+                        @update:model-value="updatePresetField(Number(index), 'priority', $event)"
                         @click.stop
                         size="small"
                         controls-position="right"
@@ -93,7 +93,7 @@
                       />
                       <el-popconfirm
                         title="确定要删除这个预设吗？"
-                        @confirm="deletePreset(index)"
+                        @confirm="deletePreset(Number(index))"
                         width="200"
                       >
                         <template #reference>
@@ -117,7 +117,7 @@
                   <div class="preset-info">
                     <el-input
                       :model-value="preset.name"
-                      @update:model-value="updatePresetField(index, 'name', $event)"
+                      @update:model-value="updatePresetField(Number(index), 'name', $event)"
                       placeholder="预设名称"
                       size="small"
                     >
@@ -125,7 +125,7 @@
                     </el-input>
                     <el-input
                       :model-value="preset.description"
-                      @update:model-value="updatePresetField(index, 'description', $event)"
+                      @update:model-value="updatePresetField(Number(index), 'description', $event)"
                       placeholder="预设描述（可选）"
                       size="small"
                     >
@@ -146,7 +146,7 @@
                           <span class="rules-title">规则列表</span>
                           <div class="rules-header-actions">
                             <el-button
-                              @click="pasteRule(index)"
+                              @click="pasteRule(Number(index))"
                               size="small"
                               :icon="ClipboardPaste"
                               text
@@ -169,7 +169,7 @@
                           <div class="rules-list" v-if="preset.rules.length > 0">
                             <VueDraggableNext
                               :model-value="preset.rules"
-                              @update:model-value="updateRulesOrder(index, $event)"
+                              @update:model-value="updateRulesOrder(Number(index), $event)"
                               item-key="id"
                               handle=".rule-drag-handle"
                               ghost-class="drag-ghost"
@@ -196,7 +196,12 @@
                                       <el-switch
                                         :model-value="rule.enabled"
                                         @update:model-value="
-                                          updateRuleField(index, ruleIndex, 'enabled', $event)
+                                          updateRuleField(
+                                            Number(index),
+                                            Number(ruleIndex),
+                                            'enabled',
+                                            $event
+                                          )
                                         "
                                         size="small"
                                       />
@@ -210,7 +215,7 @@
                                       />
                                       <el-popconfirm
                                         title="确定要删除这条规则吗？"
-                                        @confirm="deleteRule(index, ruleIndex)"
+                                        @confirm="deleteRule(Number(index), Number(ruleIndex))"
                                         width="200"
                                       >
                                         <template #reference>
@@ -253,7 +258,7 @@
                         >
                           <ChatRegexRuleForm
                             :model-value="selectedRule"
-                            @update:model-value="handleRuleUpdate(index, $event)"
+                            @update:model-value="handleRuleUpdate(Number(index), $event)"
                           />
                         </div>
                         <div v-else class="editor-placeholder">
@@ -305,8 +310,11 @@ import {
 import {
   convertFromSillyTavern,
   convertSillyTavernArrayToPreset,
+  scanScriptForRisks,
+  checkPresetHasScript,
 } from "../../utils/chatRegexUtils";
 import { customMessage } from "@/utils/customMessage";
+import { ElMessageBox } from "element-plus";
 import ChatRegexRuleForm from "./ChatRegexRuleForm.vue";
 import ChatRegexHelpDialog from "./ChatRegexHelpDialog.vue";
 
@@ -585,7 +593,7 @@ function handleImportCommand(command: string) {
   openFileDialog();
 }
 
-function executeImport(jsonContent: string) {
+async function executeImport(jsonContent: string) {
   try {
     const data = JSON.parse(jsonContent);
     let importedPresets: ChatRegexPreset[] = [];
@@ -608,6 +616,41 @@ function executeImport(jsonContent: string) {
     }
 
     if (importedPresets.length > 0) {
+      // 安全检查
+      let hasRisk = false;
+      let riskLevel: 0 | 1 | 2 = 0;
+
+      for (const preset of importedPresets) {
+        if (checkPresetHasScript(preset)) {
+          hasRisk = true;
+          for (const rule of preset.rules) {
+            // 扫描所有潜在脚本内容，无论当前是否为 script 模式
+            if (rule.scriptContent) {
+              const level = scanScriptForRisks(rule.scriptContent);
+              if (level > riskLevel) riskLevel = level;
+            }
+          }
+        }
+      }
+
+      if (hasRisk) {
+        try {
+          const message =
+            riskLevel === 2
+              ? "警告：此预设包含疑似恶意的自定义脚本（检测到敏感词），请确保来源绝对可靠！是否继续导入？"
+              : "提示：此预设包含自定义脚本，请确保来源可靠。是否继续导入？";
+
+          await ElMessageBox.confirm(message, riskLevel === 2 ? "安全警告" : "安全提示", {
+            confirmButtonText: "继续导入",
+            cancelButtonText: "取消",
+            type: riskLevel === 2 ? "error" : "warning",
+          });
+        } catch {
+          customMessage.info("已取消导入");
+          return;
+        }
+      }
+
       const newPresets = [...presets.value, ...importedPresets];
       emit("update:modelValue", { ...props.modelValue, presets: newPresets });
       customMessage.success(`成功导入 ${importedPresets.length} 个预设`);

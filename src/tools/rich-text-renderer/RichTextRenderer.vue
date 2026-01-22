@@ -262,7 +262,7 @@ const processedContent = computed(() => {
 
   // 1. 应用正则规则
   if (props.regexRules && props.regexRules.length > 0) {
-    text = applyRegexRules(text, props.regexRules);
+    text = applyRegexRules(text, props.regexRules, props.isStreaming);
   }
 
   // 2. 解析资产路径
@@ -398,7 +398,7 @@ onMounted(() => {
 
     // 1. 应用正则规则
     if (props.regexRules && props.regexRules.length > 0) {
-      bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules);
+      bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
     }
 
     // 2. 解析资产路径

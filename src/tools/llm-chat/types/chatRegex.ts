@@ -46,6 +46,14 @@ export interface ChatRegexRule {
     max?: number;
   };
 
+  // === 替换模式与脚本支持 ===
+  /** 替换模式: 'regex' (默认) | 'script' */
+  replacementType?: "regex" | "script";
+  /** 脚本内容 (当 replacementType 为 'script' 时) */
+  scriptContent?: string;
+  /** 是否在流式输出过程中实时应用 */
+  applyInStreaming?: boolean;
+
   // === 宏替换模式 (兼容 SillyTavern) ===
   /** 默认 'NONE' */
   substitutionMode?: SubstitutionMode;
@@ -144,6 +152,9 @@ export function createChatRegexRule(partial?: Partial<ChatRegexRule>): ChatRegex
     },
     targetRoles: ['system', 'user', 'assistant'],
     substitutionMode: 'NONE',
+    replacementType: 'regex',
+    scriptContent: '',
+    applyInStreaming: false,
     ...partial,
   };
 }

@@ -50,7 +50,14 @@
           />
         </el-form-item>
 
-        <el-form-item label="替换内容">
+        <el-form-item label="替换模式">
+          <el-radio-group v-model="localRule.replacementType">
+            <el-radio-button value="regex">简单替换</el-radio-button>
+            <el-radio-button value="script">脚本处理</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item v-if="localRule.replacementType === 'regex'" label="替换内容">
           <el-input
             v-model="localRule.replacement"
             type="textarea"
@@ -60,9 +67,26 @@
           />
         </el-form-item>
 
+        <el-form-item v-else label="自定义脚本">
+          <div class="script-editor-container">
+            <RichCodeEditor
+              v-model="localRule.scriptContent"
+              language="javascript"
+              height="200px"
+              placeholder="// 脚本必须通过 return 返回一个字符串&#10;// 可用变量: match, groups, index, source&#10;return match.toUpperCase();"
+            />
+            <div class="script-hint">
+              可用变量: <code>match</code> (完整匹配), <code>groups</code> (捕获组数组),
+              <code>index</code> (偏移位置), <code>source</code> (原始输入)
+            </div>
+          </div>
+        </el-form-item>
+
         <el-form-item label="正则标志">
           <el-input v-model="localRule.flags" placeholder="默认 gm" style="width: 100px" />
-          <span class="form-hint">支持: g(全局) i(忽略大小写) m(多行) s(点号通配) u(Unicode) y(粘连)</span>
+          <span class="form-hint"
+            >支持: g(全局) i(忽略大小写) m(多行) s(点号通配) u(Unicode) y(粘连)</span
+          >
         </el-form-item>
       </el-form>
     </div>
@@ -82,10 +106,10 @@
         <div v-show="testExpanded" class="test-content">
           <el-form label-position="top" size="small">
             <el-form-item label="测试输入">
-                  <el-input
-                    v-model="localRule.testInput"
-                    type="textarea"
-                    :rows="3"
+              <el-input
+                v-model="localRule.testInput"
+                type="textarea"
+                :rows="3"
                 placeholder="输入测试文本，观察替换效果"
                 class="mono-input"
               />
@@ -94,7 +118,9 @@
             <el-form-item>
               <template #label>
                 替换结果
-                <span v-if="matchCount !== null" class="match-info"> (匹配 {{ matchCount }} 次) </span>
+                <span v-if="matchCount !== null" class="match-info">
+                  (匹配 {{ matchCount }} 次)
+                </span>
               </template>
               <div class="test-result" :class="{ 'has-error': testError }">
                 <template v-if="testError">
@@ -117,6 +143,11 @@
         <el-form-item label="应用阶段">
           <el-checkbox v-model="applyToRender">渲染层</el-checkbox>
           <el-checkbox v-model="applyToRequest">请求层</el-checkbox>
+        </el-form-item>
+
+        <el-form-item label="流式处理">
+          <el-switch v-model="localRule.applyInStreaming" />
+          <span class="form-hint">是否在流式输出过程中实时应用。复杂脚本建议关闭以提高性能。</span>
         </el-form-item>
 
         <el-form-item label="目标角色">
@@ -176,7 +207,6 @@
         </el-form-item>
       </el-form>
     </div>
-
   </div>
 </template>
 
@@ -184,6 +214,8 @@
 import { computed, ref, reactive } from "vue";
 import { ChevronRight } from "lucide-vue-next";
 import type { ChatRegexRule } from "../../types/chatRegex";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import { executeReplacementScript } from "../../utils/chatRegexUtils";
 
 // 预制规则类型
 interface PresetRule {
@@ -367,6 +399,9 @@ const localRule = reactive({
   regex: createFieldProxy("regex"),
   replacement: createFieldProxy("replacement"),
   flags: createFieldProxy("flags"),
+  replacementType: createFieldProxy("replacementType"),
+  scriptContent: createFieldProxy("scriptContent"),
+  applyInStreaming: createFieldProxy("applyInStreaming"),
   // applyTo 是嵌套对象，需要单独处理
   targetRoles: createFieldProxy("targetRoles"),
   substitutionMode: createFieldProxy("substitutionMode"),
@@ -425,6 +460,7 @@ const applyPreset = (preset: PresetRule) => {
     name: preset.name,
     regex: preset.regex,
     replacement: preset.replacement,
+    replacementType: "regex", // 预制规则目前均为正则模式
     flags: preset.flags || "gm",
   });
 };
@@ -469,8 +505,14 @@ const highlightedOutput = computed(() => {
     const matches = input.match(regex);
     matchCount.value = matches ? matches.length : 0;
 
+    const replacementType = props.modelValue.replacementType || "regex";
+    const scriptContent = props.modelValue.scriptContent;
+
     // 如果有替换内容，显示替换结果并高亮被替换的部分
-    if (replacement !== undefined && replacement !== "") {
+    if (
+      (replacementType === "regex" && replacement !== undefined && replacement !== "") ||
+      (replacementType === "script" && scriptContent)
+    ) {
       // 收集所有替换信息：原始位置、匹配长度、替换后的内容
       interface ReplacementInfo {
         originalStart: number;
@@ -483,8 +525,38 @@ const highlightedOutput = computed(() => {
       let tempRegex = new RegExp(regexStr, flagsStr);
       input.replace(tempRegex, (match, ...args) => {
         const offset = args[args.length - 2] as number;
-        // 计算实际的替换内容（处理 $1, $2 等捕获组引用）
-        const actualReplacement = match.replace(tempRegex, replacement);
+        let actualReplacement = "";
+        if (replacementType === "script") {
+          // 调用统一的脚本执行逻辑
+          const source = args[args.length - 1] as string;
+          const groups = args.slice(0, -2).filter((g) => typeof g === "string");
+
+          try {
+            actualReplacement = executeReplacementScript(scriptContent!, {
+              match,
+              groups,
+              index: offset,
+              source,
+            });
+            // 如果执行出错回退了原始匹配，且脚本内容不为空，说明可能有静默错误
+            // 在测试界面我们希望看到错误，所以这里做一个简单的检查
+            if (actualReplacement === match && scriptContent?.trim()) {
+              // 再次执行以捕获错误（由于 cache 存在，开销较小）
+              try {
+                const fn = new Function("match", "groups", "index", "source", scriptContent!);
+                fn(match, groups, offset, source);
+              } catch (e) {
+                actualReplacement = `[Error: ${e instanceof Error ? e.message : String(e)}]`;
+              }
+            }
+          } catch (e) {
+            actualReplacement = `[Error: ${e instanceof Error ? e.message : String(e)}]`;
+          }
+        } else {
+          // 计算实际的替换内容（处理 $1, $2 等捕获组引用）
+          actualReplacement = match.replace(tempRegex, replacement!);
+        }
+
         replacements.push({
           originalStart: offset,
           originalLength: match.length,
@@ -666,6 +738,25 @@ const highlightedOutput = computed(() => {
   font-size: 12px;
   color: var(--text-color-light);
   margin-left: 8px;
+}
+
+.script-editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.script-hint {
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.script-hint code {
+  background-color: var(--bg-color-soft);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
 }
 
 .depth-range {

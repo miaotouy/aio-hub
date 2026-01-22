@@ -12,14 +12,13 @@ import {
   ElAlert,
   ElButton,
   ElButtonGroup,
-  ElMessage,
   ElTooltip,
   ElRadioGroup,
   ElRadioButton,
 } from "element-plus";
 import { useClipboard } from "@vueuse/core";
 import { Copy, Download, Book, Code } from "lucide-vue-next";
-import { saveAs } from "file-saver";
+import { customMessage } from "@/utils/customMessage";
 
 // --- 属性定义 ---
 interface DocumentViewerProps {
@@ -109,17 +108,24 @@ const { copy } = useClipboard();
 function handleCopy() {
   if (!decodedContent.value) return;
   copy(decodedContent.value);
-  ElMessage.success("已复制到剪贴板");
+  customMessage.success("已复制到剪贴板");
 }
 
 function handleDownload() {
   try {
     if (!decodedContent.value) return;
     const blob = new Blob([decodedContent.value], { type: mimeType.value || "text/plain" });
-    saveAs(blob, props.fileName || "下载文件.txt");
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = props.fileName || "下载文件.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   } catch (error) {
     console.error("下载文件失败:", error);
-    ElMessage.error("下载文件失败");
+    customMessage.error("下载文件失败");
   }
 }
 

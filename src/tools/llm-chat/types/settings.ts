@@ -17,8 +17,6 @@ export interface ChatTranscriptionConfig extends BaseTranscriptionConfig {
   strategy: "smart" | "always";
   /** 在智能模式下，超过N条历史消息后强制转写 */
   forceTranscriptionAfter: number;
-  /** 发送行为 */
-  sendBehavior: "wait_before_send" | "send_and_wait";
 }
 
 /**
@@ -266,7 +264,6 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     enabled: true,
     strategy: "smart",
     forceTranscriptionAfter: 10,
-    sendBehavior: "send_and_wait",
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

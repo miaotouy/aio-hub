@@ -816,30 +816,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "transcription auto import 自动 导入",
         visible: (settings) => settings.transcription.enabled,
       },
-      {
-        id: "transSendBehavior",
-        label: "发送行为",
-        component: "ElSelect",
-        modelPath: "transcription.sendBehavior",
-        options: [
-          {
-            label: "等待转写完成再发送",
-            value: "wait_before_send",
-            description:
-              "点击发送后，等待所有转写任务完成后再构建消息发送（消息在转写期间不进入历史）",
-          },
-          {
-            label: "先发送再等待 (推荐)",
-            value: "send_and_wait",
-            description:
-              "点击发送后立即上屏，转写在后台进行，完成后自动更新消息并请求 AI 回复",
-          },
-        ],
-        hint: "控制发送带有转写任务的消息时的交互行为",
-        keywords: "transcription send behavior 发送 行为",
-        visible: (settings) => settings.transcription.enabled,
-      },
-
       // 2. 性能与并发控制
       {
         id: "transMaxConcurrentTasks",

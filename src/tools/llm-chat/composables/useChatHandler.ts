@@ -29,8 +29,6 @@ import type { ContextPreviewData } from "../types/context";
 import type { ModelIdentifier } from "../types";
 import { useTranscriptionManager } from "./useTranscriptionManager";
 import { useChatSettings } from "./useChatSettings";
-import { invoke } from "@tauri-apps/api/core";
-import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -134,19 +132,6 @@ export function useChatHandler() {
       }
     }
 
-    // 检查附件物理文件是否存在
-    if (options?.attachments && options.attachments.length > 0) {
-      for (const asset of options.attachments) {
-        if (asset.path) {
-          const exists = await invoke<boolean>("path_exists", { path: asset.path });
-          if (!exists) {
-            customMessage.error(`发送失败：附件 "${asset.name}" 的源文件已不存在`);
-            return;
-          }
-        }
-      }
-    }
-
     // 处理用户输入中的宏
     const macroProcessor = new MacroProcessor();
     let processedContent = content;
@@ -212,12 +197,9 @@ export function useChatHandler() {
       userNodeId: userNode.id,
     });
 
-    // 附件转写等待逻辑（在消息保存后执行）
-    // 无论 `wait_before_send` 还是 `send_and_wait`，核心的等待逻辑是相同的。
-    // 区别在于 UI 体验：
-    // - `wait_before_send`: 整个发送过程看起来是阻塞的，直到转写完成。
-    // - `send_and_wait`: 消息先上屏，用户看到附件卡片，然后在后台等待转写。
-    // 此处的实现对两种模式都生效，因为等待是必须的，以确保上下文构建时能拿到转写文本。
+    // 附件转写等待逻辑（在消息上屏并保存后执行）
+    // 无论设置为何种发送行为，此处都采用“先上屏，后等待”的策略以提升响应感。
+    // 等待是必须的，以确保后续 executeRequest 构建上下文时能拿到转写文本。
     if (
       options?.attachments &&
       options.attachments.length > 0 &&
@@ -230,8 +212,7 @@ export function useChatHandler() {
       abortControllers.set(assistantNode.id, transcriptionController);
 
       try {
-        const behavior = settings.value.transcription.sendBehavior;
-        logger.info(`⏳ [${behavior}] 模式，开始等待附件转写...`, {
+        logger.info(`⏳ 开始等待附件转写...`, {
           nodeId: assistantNode.id,
         });
 
@@ -249,7 +230,7 @@ export function useChatHandler() {
           }),
         ]);
 
-        logger.info(`✅ [${behavior}] 转写等待结束，继续发送流程`);
+        logger.info(`✅ 转写等待结束，继续发送流程`);
       } catch (error: any) {
         if (error.message === "User aborted") {
           logger.info("🛑 用户取消了转写等待，保留用户消息，不发送请求");

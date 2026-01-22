@@ -46,9 +46,6 @@ const transcriptionManager = useTranscriptionManager();
 const isTranslatingInput = ref(false);
 // 压缩相关状态
 const isCompressing = ref(false);
-// 转写等待状态
-const isWaitingForTranscription = ref(false);
-const transcriptionAbortController = ref<AbortController | null>(null);
 
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
@@ -182,7 +179,6 @@ const handleSend = async () => {
   if (
     (!content && !inputManager.hasAttachments.value) ||
     props.disabled ||
-    isWaitingForTranscription.value ||
     isCurrentBranchGenerating.value
   ) {
     logger.info("发送被阻止", {
@@ -191,83 +187,12 @@ const handleSend = async () => {
       disabled: props.disabled,
       isGenerating: isCurrentBranchGenerating.value,
       isDetached: props.isDetached,
-      isWaiting: isWaitingForTranscription.value,
     });
     // todo:后续可以做个消息等待队列，或直接添加到消息树后面等待上个回复完成后再自动继续
     if (isCurrentBranchGenerating.value) {
       customMessage.warning("请等待当前回复完成后再发送新消息");
     }
     return;
-  }
-
-  // 检查是否需要等待转写 (wait_before_send 策略)
-  if (
-    settings.value.transcription.enabled &&
-    settings.value.transcription.sendBehavior === "wait_before_send" &&
-    inputManager.hasAttachments.value
-  ) {
-    const currentAttachments = inputManager.attachments.value;
-
-    // 获取当前模型信息以判断是否需要转写
-    let modelId = "";
-    let profileId = "";
-
-    if (inputManager.temporaryModel.value) {
-      modelId = inputManager.temporaryModel.value.modelId;
-      profileId = inputManager.temporaryModel.value.profileId;
-    } else if (agentStore.currentAgentId) {
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
-      if (agent) {
-        modelId = agent.modelId;
-        profileId = agent.profileId;
-      }
-    }
-
-    // 检查是否有正在进行或待处理的任务
-    const hasPendingTasks = transcriptionManager.tasks.value.some(
-      (t) =>
-        currentAttachments.some((a) => a.id === t.assetId) &&
-        t.status !== "completed" &&
-        t.status !== "error"
-    );
-
-    // 如果有挂起的任务，或者根据 Smart 策略需要启动新任务
-    // 简单起见，我们总是调用 ensureTranscriptions，它内部会进行必要性检查
-    // 但为了避免不必要的等待状态，我们可以先做一个预检查
-    const needsTranscription = currentAttachments.some((a) =>
-      transcriptionManager.checkTranscriptionNecessity(a, modelId, profileId)
-    );
-
-    if (hasPendingTasks || needsTranscription) {
-      isWaitingForTranscription.value = true;
-      transcriptionAbortController.value = new AbortController();
-      customMessage.info("正在等待附件转写完成...");
-
-      try {
-        // 使用 Promise.race 实现可取消的等待
-        await Promise.race([
-          transcriptionManager.ensureTranscriptions(currentAttachments, modelId, profileId),
-          new Promise((_, reject) => {
-            if (transcriptionAbortController.value?.signal.aborted) {
-              reject(new Error("User aborted"));
-            }
-            transcriptionAbortController.value?.signal.addEventListener("abort", () => {
-              reject(new Error("User aborted"));
-            });
-          }),
-        ]);
-      } catch (error: any) {
-        if (error.message === "User aborted") {
-          logger.info("用户取消了发送（等待转写阶段）");
-          return; // 直接返回，终止发送流程
-        }
-        logger.error("等待转写失败", error);
-        customMessage.warning("部分附件转写失败，将发送原始文件");
-      } finally {
-        isWaitingForTranscription.value = false;
-        transcriptionAbortController.value = null;
-      }
-    }
   }
 
   logger.info("发送消息", {
@@ -285,27 +210,43 @@ const handleSend = async () => {
 
   const payload = { content, attachments, temporaryModel, disableMacroParsing };
 
+  // 记录发送前的节点数量
+  const initialCount = chatStore.currentMessageCount;
+
   if (props.isDetached) {
     bus.requestAction("send-message", payload);
   } else {
     emit("send", payload);
   }
 
-  // 清空输入框和附件（使用全局管理器）
-  inputManager.clear();
-  isExpanded.value = false;
+  // 轮询检查节点是否已添加（sendMessage 内部会先处理宏，然后创建节点）
+  // 正常情况下这个过程在 100ms 内，但如果有复杂的宏可能稍慢
+  let checkCount = 0;
+  const maxChecks = 20; // 最多等 2 秒 (20 * 100ms)
+  
+  const checkTimer = setInterval(() => {
+    checkCount++;
+    const currentCount = chatStore.currentMessageCount;
+    
+    if (currentCount > initialCount) {
+      // 成功创建了节点，清空输入框
+      inputManager.clear();
+      isExpanded.value = false;
+      clearInterval(checkTimer);
+      logger.info("检测到新节点已创建，已清空输入框");
+    } else if (checkCount >= maxChecks) {
+      // 超时未检测到新节点，说明发送可能被拦截或失败了
+      clearInterval(checkTimer);
+      logger.warn("发送后未检测到新节点创建，保留输入内容");
+      // 此时不需要手动恢复，因为我们根本没调用 clear()
+    }
+  }, 100);
 
   // 重置文本框高度 (CM6 内部自动处理 doc 变化后的高度)
 };
 
 // 处理中止
 const handleAbort = () => {
-  // 如果正在等待转写，优先取消转写等待
-  if (isWaitingForTranscription.value) {
-    transcriptionAbortController.value?.abort();
-    return;
-  }
-
   if (props.isDetached) {
     bus.requestAction("abort-sending", {});
     return;
@@ -993,7 +934,7 @@ const getWillUseTranscription = (asset: Asset): boolean => {
             @paste="handlePaste"
           />
           <MessageInputToolbar
-            :is-sending="isCurrentBranchGenerating || isWaitingForTranscription"
+            :is-sending="isCurrentBranchGenerating"
             :disabled="disabled"
             :is-detached="props.isDetached"
             :is-expanded="isExpanded"

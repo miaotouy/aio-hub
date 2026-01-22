@@ -19,6 +19,15 @@ export function useSessionManager() {
    * 更新会话的 displayAgentId（内部辅助函数）
    * 从当前活动路径中找到最新的助手消息，获取其使用的智能体 ID
    */
+  /**
+   * 更新会话的消息数量统计
+   */
+  const updateMessageCount = (session: ChatSession): void => {
+    if (session.nodes) {
+      session.messageCount = Object.keys(session.nodes).length - 1; // 排除根节点
+    }
+  };
+
   const updateSessionDisplayAgent = (session: ChatSession): void => {
     let currentId: string | null = session.activeLeafId;
     let foundAgentId: string | null = null;
@@ -258,6 +267,7 @@ export function useSessionManager() {
     persistSession, // 新增：单会话保存
     persistSessions, // 批量保存
     updateCurrentSessionId, // 新增：更新当前会话ID
+    updateMessageCount,
     updateSessionDisplayAgent,
     exportSessionAsMarkdown, // 从 useExportManager 重新导出
     exportSessionAsMarkdownTree, // 从 useExportManager 重新导出

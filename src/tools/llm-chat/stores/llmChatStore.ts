@@ -78,6 +78,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
         if (hasFixed) {
           const sessionManager = useSessionManager();
+          sessionManager.updateMessageCount(session);
           sessionManager.persistSession(session, currentSessionId.value);
         }
       }
@@ -179,6 +180,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     BranchNavigator.ensureValidActiveLeaf(session);
 
     const sessionManager = useSessionManager();
+    sessionManager.updateMessageCount(session);
     sessionManager.persistSession(session, currentSessionId.value);
   }
 
@@ -191,6 +193,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     BranchNavigator.ensureValidActiveLeaf(session);
 
     const sessionManager = useSessionManager();
+    sessionManager.updateMessageCount(session);
     sessionManager.persistSession(session, currentSessionId.value);
   }
 
@@ -202,6 +205,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     BranchNavigator.ensureValidActiveLeaf(session);
     const sessionManager = useSessionManager();
+    sessionManager.updateMessageCount(session);
     sessionManager.updateSessionDisplayAgent(session);
     sessionManager.persistSession(session, currentSessionId.value);
     logger.info(`已跳转到历史记录索引 ${index}`);
@@ -225,6 +229,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     sessions.value.push(session);
     currentSessionId.value = sessionId;
+    sessionManager.updateMessageCount(session);
     sessionManager.persistSession(session, currentSessionId.value);
 
     // 新会话需要初始化历史
@@ -426,6 +431,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       );
 
       const sessionManager = useSessionManager();
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
 
@@ -464,6 +470,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       );
 
       const sessionManager = useSessionManager();
+      sessionManager.updateMessageCount(session);
       sessionManager.persistSession(session, currentSessionId.value);
       historyManager.clearHistory();
     } catch (error) {
@@ -524,6 +531,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       );
 
       const sessionManager = useSessionManager();
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
 

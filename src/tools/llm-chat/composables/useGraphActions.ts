@@ -57,7 +57,7 @@ export function useGraphActions(
     const { id: _, parentId: __, childrenIds: ___, ...safeUpdates } = updates;
 
     Object.assign(node, safeUpdates);
-    
+
     // 确保有 updatedAt
     if (!safeUpdates.updatedAt) {
       node.updatedAt = new Date().toISOString();
@@ -76,8 +76,9 @@ export function useGraphActions(
     await recalculateNodeTokens(session, nodeId);
 
     // 5. 持久化
+    sessionManager.updateMessageCount(session);
     sessionManager.persistSession(session, currentSessionId.value);
-    
+
     logger.info('已全量更新节点数据', { nodeId });
   }
 
@@ -110,6 +111,7 @@ export function useGraphActions(
       historyManager.recordHistory('NODE_EDIT', [delta], { targetNodeId: nodeId });
 
       await recalculateNodeTokens(session, nodeId);
+      sessionManager.updateMessageCount(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
   }
@@ -137,6 +139,7 @@ export function useGraphActions(
         affectedNodeCount: deletedNodes.length,
       });
 
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
@@ -167,6 +170,7 @@ export function useGraphActions(
         });
       }
 
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
@@ -182,6 +186,7 @@ export function useGraphActions(
     const newLeafId = branchManager.switchToSiblingBranch(session, nodeId, direction);
 
     if (newLeafId !== session.activeLeafId) {
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
@@ -207,6 +212,7 @@ export function useGraphActions(
         historyManager.recordHistory('BRANCH_CREATE', [delta], { targetNodeId: newNodeId });
       }
 
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
@@ -237,6 +243,7 @@ export function useGraphActions(
       };
       historyManager.recordHistory('NODE_TOGGLE_ENABLED', [delta], { targetNodeId: nodeId });
 
+      sessionManager.updateMessageCount(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
   }
@@ -261,6 +268,7 @@ export function useGraphActions(
         destinationNodeId: newParentId,
       });
 
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
@@ -286,15 +294,12 @@ export function useGraphActions(
         destinationNodeId: newParentId,
       });
 
+      sessionManager.updateMessageCount(session);
       sessionManager.updateSessionDisplayAgent(session);
       sessionManager.persistSession(session, currentSessionId.value);
     }
   }
 
-  /**
-   * 从编辑内容创建新分支（保存编辑到分支）
-   * 本质上是 createBranch + editMessage 的组合
-   */
   /**
    * 更新消息翻译
    */
@@ -314,9 +319,14 @@ export function useGraphActions(
     node.metadata.translation = JSON.parse(JSON.stringify(translation));
 
     // 持久化
+    sessionManager.updateMessageCount(session);
     sessionManager.persistSession(session, currentSessionId.value);
   }
 
+  /**
+   * 从编辑内容创建新分支（保存编辑到分支）
+   * 本质上是 createBranch + editMessage 的组合
+   */
   async function createBranchFromEdit(
     sourceNodeId: string,
     newContent: string,
@@ -357,6 +367,7 @@ export function useGraphActions(
     await recalculateNodeTokens(session, newNode.id);
 
     // 持久化
+    sessionManager.updateMessageCount(session);
     sessionManager.updateSessionDisplayAgent(session);
     sessionManager.persistSession(session, currentSessionId.value);
 

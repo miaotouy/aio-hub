@@ -63,7 +63,7 @@
         </div>
 
         <!-- 内容区域 -->
-        <div class="dialog-content" :class="props.contentClass">
+        <div class="dialog-content" :class="props.contentClass" v-loading="props.loading">
           <slot name="content">
             <slot></slot>
           </slot>
@@ -103,6 +103,7 @@ const props = withDefaults(
     destroyOnClose?: boolean;
     showFooter?: boolean; // Added prop
     enableTransition?: boolean;
+    loading?: boolean;
   }>(),
   {
     showCloseButton: true,
@@ -116,6 +117,7 @@ const props = withDefaults(
     destroyOnClose: true,
     showFooter: true, // Default to true if slot exists
     enableTransition: true,
+    loading: false,
   }
 );
 

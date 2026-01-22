@@ -638,31 +638,56 @@ const handlePaste = async (event: ClipboardEvent) => {
     return; // 不含 Base64 图像，使用默认粘贴行为
   }
 
-  event.preventDefault();
-  logger.info("检测到粘贴内容中可能含有 Base64 图像，开始处理...");
-
-  const { processedText, newAssets } = await processInlineData(text, {
-    sizeThresholdKB: 100, // 大于 100KB 的图像才转换为附件
-    assetImportOptions: {
-      sourceModule: "llm-chat-paste",
-    },
-  });
-
-  if (newAssets.length > 0) {
-    inputManager.addAssets(newAssets);
-    customMessage.success(`已自动转换 ${newAssets.length} 个粘贴的图像为附件`);
+  // 检查是否包含潜在的 Base64 图像数据
+  if (!text.includes("data:image") || !text.includes(";base64,")) {
+    return; // 不含 Base64 图像，使用默认粘贴行为
   }
 
-  // 将处理后的文本插入到光标位置
+  // 提前获取选区，避免异步后选区状态改变或丢失
   const textarea = textareaRef.value;
-  if (textarea) {
-    const { start, end } = textarea.getSelectionRange();
-    textarea.insertText(processedText, start, end);
+  const selection = textarea?.getSelectionRange() || { start: inputText.value.length, end: inputText.value.length };
 
-    // 聚焦
-    setTimeout(() => {
-      textarea.focus();
-    }, 0);
+  try {
+    // 只有确定要处理 Base64 时才阻止默认行为
+    event.preventDefault();
+    logger.info("检测到粘贴内容中可能含有 Base64 图像，开始处理...");
+
+    const { processedText, newAssets } = await processInlineData(text, {
+      sizeThresholdKB: 100, // 大于 100KB 的图像才转换为附件
+      assetImportOptions: {
+        sourceModule: "llm-chat-paste",
+      },
+    });
+
+    if (newAssets.length > 0) {
+      inputManager.addAssets(newAssets);
+      customMessage.success(`已自动转换 ${newAssets.length} 个粘贴的图像为附件`);
+    }
+
+    // 将处理后的文本插入到预先保存的光标位置
+    if (textarea) {
+      textarea.insertText(processedText, selection.start, selection.end);
+      setTimeout(() => textarea.focus(), 0);
+    }
+  } catch (error) {
+    logger.warn("Base64 粘贴提取处理失败，回退到普通文本粘贴", error);
+    
+    // 彻底的回退逻辑：如果组件方法 insertText 报错，直接通过 v-model 修改数据
+    try {
+      if (textarea) {
+        textarea.insertText(text, selection.start, selection.end);
+        setTimeout(() => textarea.focus(), 0);
+      } else {
+        inputText.value += text;
+      }
+    } catch (innerError) {
+      // 最后的保底：直接修改响应式变量
+      const currentText = inputText.value;
+      const before = currentText.substring(0, selection.start);
+      const after = currentText.substring(selection.end);
+      inputText.value = before + text + after;
+      logger.debug("已通过 v-model 强制完成粘贴回退");
+    }
   }
 };
 

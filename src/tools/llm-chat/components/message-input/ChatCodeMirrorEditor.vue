@@ -281,9 +281,18 @@ defineExpose({
   },
   insertText: (text: string, from?: number, to?: number) => {
     if (!view.value) return;
+    const docLength = view.value.state.doc.length;
     const range = view.value.state.selection.main;
-    const insertFrom = from ?? range.from;
-    const insertTo = to ?? range.to;
+
+    // 越界检查与修正
+    let insertFrom = from ?? range.from;
+    let insertTo = to ?? range.to;
+
+    if (insertFrom < 0) insertFrom = 0;
+    if (insertFrom > docLength) insertFrom = docLength;
+    if (insertTo < insertFrom) insertTo = insertFrom;
+    if (insertTo > docLength) insertTo = docLength;
+
     view.value.dispatch({
       changes: { from: insertFrom, to: insertTo, insert: text },
       selection: { anchor: insertFrom + text.length },

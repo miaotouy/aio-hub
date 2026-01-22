@@ -8,19 +8,25 @@
       'drop-zone--clickable': clickable && !disabled,
       'drop-zone--bare': bare,
       'drop-zone--overlay': overlay,
+      'drop-zone--click-zone': clickZone,
       [`drop-zone--${variant}`]: !bare && variant,
     }"
-    @click="handleClick"
+    @click="handleZoneClick"
   >
     <!-- 默认内容区域 -->
     <template v-if="!hideContent">
-      <slot :dragging="isDraggingOver">
+      <slot :dragging="isDraggingOver" :open="openFileDialog">
         <div class="drop-zone__default">
           <el-icon :size="iconSize" class="drop-zone__icon">
             <component :is="icon" />
           </el-icon>
           <p class="drop-zone__text">{{ placeholder }}</p>
           <p v-if="hint" class="drop-zone__hint">{{ hint }}</p>
+          <div v-if="clickable" class="drop-zone__actions">
+            <el-button type="primary" plain size="small" @click.stop="openFileDialog">
+              选择文件
+            </el-button>
+          </div>
         </div>
       </slot>
     </template>
@@ -53,6 +59,7 @@ interface Props {
 
   // 行为控制
   clickable?: boolean;
+  clickZone?: boolean; // 是否允许点击整个区域触发，默认为 false，仅按钮触发
   disabled?: boolean;
   multiple?: boolean;
   directoryOnly?: boolean;
@@ -76,6 +83,7 @@ const props = withDefaults(defineProps<Props>(), {
   icon: FolderAdd,
   iconSize: 48,
   clickable: false,
+  clickZone: false,
   disabled: false,
   multiple: true,
   directoryOnly: false,
@@ -118,35 +126,43 @@ const { isDraggingOver } = useFileDrop({
 });
 
 /**
- * 处理点击事件
+ * 打开文件选择对话框
  */
-const handleClick = async (e: MouseEvent) => {
+const openFileDialog = async () => {
+  if (props.disabled) return;
+  try {
+    const selected = await open({
+      multiple: props.multiple,
+      directory: props.directoryOnly,
+      filters:
+        props.accept.length > 0
+          ? [
+              {
+                name: "Supported Files",
+                extensions: props.accept.map((ext) => (ext.startsWith(".") ? ext.slice(1) : ext)),
+              },
+            ]
+          : undefined,
+    });
+
+    if (selected) {
+      const paths = Array.isArray(selected) ? selected : [selected];
+      emit("drop", paths);
+    }
+  } catch (err: any) {
+    emit("error", err.toString());
+  }
+};
+
+/**
+ * 处理整个区域的点击事件
+ */
+const handleZoneClick = async (e: MouseEvent) => {
   if (props.disabled) return;
   emit("click", e);
 
-  if (props.clickable) {
-    try {
-      const selected = await open({
-        multiple: props.multiple,
-        directory: props.directoryOnly,
-        filters:
-          props.accept.length > 0
-            ? [
-                {
-                  name: "Supported Files",
-                  extensions: props.accept.map((ext) => (ext.startsWith(".") ? ext.slice(1) : ext)),
-                },
-              ]
-            : undefined,
-      });
-
-      if (selected) {
-        const paths = Array.isArray(selected) ? selected : [selected];
-        emit("drop", paths);
-      }
-    } catch (err: any) {
-      emit("error", err.toString());
-    }
+  if (props.clickable && props.clickZone) {
+    await openFileDialog();
   }
 };
 
@@ -169,6 +185,13 @@ defineExpose({
   position: absolute;
   inset: 0;
   z-index: 10;
+  /* 如果隐藏了内容且不在拖拽中，则不阻挡点击 */
+  pointer-events: none;
+}
+
+.drop-zone--overlay.drop-zone--dragging,
+.drop-zone--overlay.drop-zone--clickable.drop-zone--click-zone {
+  pointer-events: auto;
 }
 
 /* 默认样式变体 */
@@ -196,11 +219,11 @@ defineExpose({
 }
 
 /* 交互状态 */
-.drop-zone--clickable {
+.drop-zone--clickable.drop-zone--click-zone {
   cursor: pointer;
 }
 
-.drop-zone--clickable:hover:not(.drop-zone--dragging) {
+.drop-zone--clickable.drop-zone--click-zone:hover:not(.drop-zone--dragging) {
   border-color: color-mix(in srgb, var(--el-color-primary) 40%, transparent);
   background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
 }
@@ -288,6 +311,11 @@ defineExpose({
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.drop-zone__actions {
+  margin-top: 16px;
+  pointer-events: auto; /* 确保按钮可以点击 */
 }
 
 .drop-zone--disabled {

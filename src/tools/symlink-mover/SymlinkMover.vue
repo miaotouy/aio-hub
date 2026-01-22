@@ -322,6 +322,7 @@ const executeMoveAndLink = async () => {
         </div>
         <DropZone
           clickable
+          click-zone
           placeholder="点击添加或拖拽文件/文件夹至此"
           :icon="FolderAdd"
           :multiple="true"

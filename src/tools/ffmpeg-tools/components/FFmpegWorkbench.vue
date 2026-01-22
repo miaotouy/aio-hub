@@ -52,6 +52,7 @@
               <DropZone
                 v-if="!currentFilePath"
                 clickable
+                click-zone
                 @drop="handleFileDrop"
                 :accept="['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a']"
                 placeholder="点击或拖入媒体文件"

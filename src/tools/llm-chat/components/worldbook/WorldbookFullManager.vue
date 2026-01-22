@@ -393,6 +393,7 @@ const handleBatchExport = async () => {
         <DropZone
           v-if="!selectedWbId"
           clickable
+          click-zone
           @drop="handleFilesDrop"
           :accept="['.json', '.lorebook', '.png']"
           placeholder="拖拽或点击导入世界书 JSON/Lorebook/PNG 文件"

@@ -123,6 +123,17 @@
               </el-tooltip>
 
               <template v-if="row.status === 'completed'">
+                <el-tooltip content="媒体详情" placement="top">
+                  <el-button
+                    :icon="Info"
+                    circle
+                    size="small"
+                    type="info"
+                    plain
+                    @click="showMediaInfo(row.outputPath, row.name)"
+                  />
+                </el-tooltip>
+
                 <el-tooltip content="定位文件" placement="top">
                   <el-button
                     :icon="FolderOpen"
@@ -154,11 +165,14 @@
         </el-table-column>
       </el-table>
     </div>
+
+    <!-- 媒体详情弹窗 -->
+    <MediaInfoDialog ref="mediaInfoDialogRef" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import { useFFmpegIntegration } from "../composables/useFFmpegIntegration";
@@ -179,11 +193,15 @@ import {
   Zap,
   Activity,
   Timer,
+  Info,
 } from "lucide-vue-next";
+import MediaInfoDialog from "./MediaInfoDialog.vue";
 
 const store = useFFmpegStore();
 const { killProcess } = useFFmpegCore();
 const { sendToChat, sendToTranscription } = useFFmpegIntegration();
+
+const mediaInfoDialogRef = ref();
 
 // 任务排序：处理中优先，其次按创建时间倒序
 const sortedTasks = computed(() => {
@@ -259,6 +277,10 @@ const formatTime = (seconds: number) => {
 
 const openFolder = async (path: string) => {
   await invoke("open_file_directory", { path });
+};
+
+const showMediaInfo = (path: string, name: string) => {
+  mediaInfoDialogRef.value?.show(path, name);
 };
 
 const handleIntegration = async (command: string, task: any) => {

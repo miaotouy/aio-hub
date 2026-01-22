@@ -73,10 +73,90 @@ pub struct MediaMetadata {
     pub size: u64,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FFProbeOutput {
+    pub streams: Vec<FFProbeStream>,
+    pub format: FFProbeFormat,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FFProbeStream {
+    pub index: u32,
+    pub codec_name: Option<String>,
+    pub codec_long_name: Option<String>,
+    pub profile: Option<String>,
+    pub codec_type: String, // "video", "audio", etc.
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub display_aspect_ratio: Option<String>,
+    pub r_frame_rate: Option<String>,
+    pub avg_frame_rate: Option<String>,
+    pub bit_rate: Option<String>,
+    pub bits_per_raw_sample: Option<String>,
+    pub pix_fmt: Option<String>,
+    pub color_range: Option<String>,
+    pub color_space: Option<String>,
+    pub color_primaries: Option<String>,
+    pub color_transfer: Option<String>,
+    pub sample_rate: Option<String>,
+    pub channels: Option<u32>,
+    pub channel_layout: Option<String>,
+    pub duration: Option<String>,
+    pub nb_frames: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FFProbeFormat {
+    pub filename: String,
+    pub nb_streams: u32,
+    pub format_name: String,
+    pub format_long_name: String,
+    pub duration: String,
+    pub size: String,
+    pub bit_rate: String,
+}
+
 /// 获取媒体元数据
 #[tauri::command]
 pub async fn get_media_metadata(ffmpeg_path: String, input_path: String) -> MediaMetadata {
     get_video_metadata(&ffmpeg_path, &input_path).await
+}
+
+/// 使用 ffprobe 获取详细媒体信息
+#[tauri::command]
+pub async fn get_full_media_info(
+    ffmpeg_path: String,
+    input_path: String,
+) -> Result<FFProbeOutput, String> {
+    // 假设 ffprobe 与 ffmpeg 在同一目录下
+    let ffprobe_path = Path::new(&ffmpeg_path)
+        .parent()
+        .map(|p| p.join("ffprobe"))
+        .unwrap_or_else(|| Path::new("ffprobe").to_path_buf());
+
+    let output = Command::new(ffprobe_path)
+        .arg("-v")
+        .arg("quiet")
+        .arg("-print_format")
+        .arg("json")
+        .arg("-show_format")
+        .arg("-show_streams")
+        .arg(&input_path)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute ffprobe: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "ffprobe failed with status: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let probe_data: FFProbeOutput = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Failed to parse ffprobe output: {}", e))?;
+
+    Ok(probe_data)
 }
 
 fn parse_ffmpeg_time(s: &str) -> Option<f64> {

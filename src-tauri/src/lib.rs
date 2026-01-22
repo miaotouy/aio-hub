@@ -31,6 +31,7 @@ use commands::{
     get_media_metadata,
     process_media,
     kill_ffmpeg_process,
+    get_full_media_info,
     cleanup_items,
     clear_all_window_configs,
     close_detached_window, // 新增：统一的关闭命令
@@ -534,6 +535,7 @@ pub fn run() {
             process_media,
             kill_ffmpeg_process,
             get_media_metadata,
+            get_full_media_info,
             // LLM 代理命令
             proxy_llm_request,
             // LLM 搜索命令

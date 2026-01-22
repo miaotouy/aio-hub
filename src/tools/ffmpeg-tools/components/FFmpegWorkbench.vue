@@ -83,6 +83,11 @@
                       <span class="label">大小</span>
                       <span class="value">{{ formatSize(metadata.size) }}</span>
                     </div>
+                    <div class="mini-item info-btn-item">
+                      <el-button type="primary" link :icon="Info" @click="showFullMediaInfo">
+                        详情
+                      </el-button>
+                    </div>
                   </div>
                 </div>
                 <!-- 覆盖模式，自动处理拖放更换 -->
@@ -117,12 +122,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 媒体详情弹窗 -->
+    <MediaInfoDialog ref="mediaInfoDialogRef" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue";
-import { Files, Settings, VideoOff, Play, Delete } from "lucide-vue-next";
+import { Files, Settings, VideoOff, Play, Delete, Info } from "lucide-vue-next";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import DropZone from "@/components/common/DropZone.vue";
@@ -132,6 +140,7 @@ import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import FFmpegParamsForm from "./FFmpegParamsForm.vue";
 import FFmpegConsole from "./FFmpegConsole.vue";
+import MediaInfoDialog from "./MediaInfoDialog.vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { basename, extname, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -149,6 +158,7 @@ const outputName = ref("");
 const activeRightTab = ref("preview");
 const lastTaskId = ref("");
 const isProfessional = ref(false);
+const mediaInfoDialogRef = ref();
 
 const params = reactive<FFmpegParams>({
   mode: "video",
@@ -255,6 +265,12 @@ const handleFileDrop = async (paths: string[]) => {
   metadata.value = await getMetadata(path);
 };
 
+const showFullMediaInfo = () => {
+  if (currentFilePath.value) {
+    mediaInfoDialogRef.value?.show(currentFilePath.value, fileName.value);
+  }
+};
+
 const reset = () => {
   currentFilePath.value = "";
   fileName.value = "";
@@ -277,10 +293,15 @@ const formatDuration = (seconds?: number) => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
-const formatSize = (bytes?: number) => {
+const formatSize = (bytes?: number | string) => {
   if (!bytes) return "--";
-  const mb = bytes / (1024 * 1024);
-  return `${mb.toFixed(2)} MB`;
+  const b = typeof bytes === "string" ? parseInt(bytes) : bytes;
+  if (isNaN(b)) return bytes.toString();
+  const mb = b / (1024 * 1024);
+  if (mb > 1024) {
+    return `${(mb / 1024).toFixed(2)} GiB`;
+  }
+  return `${mb.toFixed(2)} MiB`;
 };
 
 const submitTask = async () => {
@@ -558,6 +579,11 @@ watch([() => params.mode, () => params.audioEncoder], async () => {
 .preview-player {
   width: 100%;
   height: 100%;
+}
+
+.info-btn-item {
+  justify-content: center;
+  margin-left: 8px;
 }
 
 .command-preview {

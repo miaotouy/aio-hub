@@ -39,6 +39,46 @@ export interface MediaMetadata {
   format?: string;
 }
 
+export interface FFProbeStream {
+  index: number;
+  codec_name?: string;
+  codec_long_name?: string;
+  profile?: string;
+  codec_type: "video" | "audio" | string;
+  width?: number;
+  height?: number;
+  display_aspect_ratio?: string;
+  r_frame_rate?: string;
+  avg_frame_rate?: string;
+  bit_rate?: string;
+  bits_per_raw_sample?: string;
+  pix_fmt?: string;
+  color_range?: string;
+  color_space?: string;
+  color_primaries?: string;
+  color_transfer?: string;
+  sample_rate?: string;
+  channels?: number;
+  channel_layout?: string;
+  duration?: string;
+  nb_frames?: string;
+}
+
+export interface FFProbeFormat {
+  filename: string;
+  nb_streams: number;
+  format_name: string;
+  format_long_name: string;
+  duration: string;
+  size: string;
+  bit_rate: string;
+}
+
+export interface FFProbeOutput {
+  streams: FFProbeStream[];
+  format: FFProbeFormat;
+}
+
 export interface FFmpegParams {
   mode: ProcessingMode;
   inputPath: string;

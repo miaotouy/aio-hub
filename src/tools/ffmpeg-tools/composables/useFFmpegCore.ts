@@ -31,6 +31,18 @@ export function useFFmpegCore() {
   };
 
   /**
+   * 获取详细媒体信息 (ffprobe)
+   */
+  const getFullMediaInfo = async (inputPath: string) => {
+    return await errorHandler.wrapAsync(async () => {
+      return await invoke<any>("get_full_media_info", {
+        ffmpegPath: store.config.ffmpegPath,
+        inputPath,
+      });
+    }, { userMessage: "获取详细媒体信息失败" });
+  };
+
+  /**
    * 启动处理任务
    */
   const startProcess = async (taskId: string, params: FFmpegParams) => {
@@ -101,6 +113,7 @@ export function useFFmpegCore() {
   return {
     checkAvailability,
     getMetadata,
+    getFullMediaInfo,
     startProcess,
     killProcess,
     setupListeners,

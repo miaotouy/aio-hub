@@ -16,13 +16,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import BaseDialog from "@components/common/BaseDialog.vue";
-import { toolRegistryManager } from "@/services/registry";
-import type SymlinkMoverRegistry from "./symlinkMover.registry";
-import type { FileItem, OperationLog } from "./symlinkMover.registry";
+import { useSymlinkMoverLogic } from "./composables/useSymlinkMover";
+import type { FileItem, OperationLog } from "./types";
 
-// 获取服务实例
-const symlinkMoverRegistry =
-  toolRegistryManager.getRegistry<InstanceType<typeof SymlinkMoverRegistry>>("symlink-mover");
+// 初始化逻辑
+const logic = useSymlinkMoverLogic();
 
 // --- UI 状态（仅保留 UI 相关状态）---
 const sourcePathInput = ref(""); // 用于手动输入源文件路径
@@ -47,8 +45,8 @@ const tickerKey = ref(0); // 用于触发动画
 
 // --- 生命周期钩子 ---
 onMounted(async () => {
-  // 通过服务启动进度监听
-  await symlinkMoverRegistry.startProgressListener((progress) => {
+  // 通过逻辑层启动进度监听
+  await logic.startProgressListener((progress) => {
     currentFile.value = progress.currentFile;
     currentProgress.value = progress.progressPercentage;
     copiedBytes.value = progress.copiedBytes;
@@ -68,19 +66,19 @@ onMounted(async () => {
 });
 
 onUnmounted(async () => {
-  // 通过服务停止进度监听
-  await symlinkMoverRegistry.stopProgressListener();
+  // 通过逻辑层停止进度监听
+  await logic.stopProgressListener();
 });
 
 // --- UI 事件处理方法 ---
 const loadLatestLog = async () => {
-  // 服务层已经处理错误，直接获取结果
-  latestLog.value = await symlinkMoverRegistry.getLatestLog();
+  // 逻辑层已经处理错误，直接获取结果
+  latestLog.value = await logic.getLatestLog();
 };
 
 const loadAllLogs = async () => {
-  // 服务层已经处理错误，直接获取结果（失败时返回空数组）
-  allLogs.value = await symlinkMoverRegistry.getAllLogs();
+  // 逻辑层已经处理错误，直接获取结果（失败时返回空数组）
+  allLogs.value = await logic.getAllLogs();
 };
 
 const openLogDialog = async () => {
@@ -106,8 +104,8 @@ const validateFiles = async () => {
     return;
   }
 
-  // 服务层已经处理错误，直接获取结果
-  sourceFiles.value = await symlinkMoverRegistry.validateFiles(
+  // 逻辑层已经处理错误，直接获取结果
+  sourceFiles.value = await logic.validateFiles(
     sourceFiles.value,
     targetDirectory.value,
     linkType.value,
@@ -131,8 +129,8 @@ const addSourcePathFromInput = () => {
 };
 
 const addSourceFiles = (paths: string[]) => {
-  const newFiles = symlinkMoverRegistry.parsePathsToFileItems(paths);
-  const mergedFiles = symlinkMoverRegistry.mergeFileItems(sourceFiles.value, newFiles);
+  const newFiles = logic.parsePathsToFileItems(paths);
+  const mergedFiles = logic.mergeFileItems(sourceFiles.value, newFiles);
   const addedCount = mergedFiles.length - sourceFiles.value.length;
 
   if (addedCount > 0) {
@@ -144,7 +142,7 @@ const addSourceFiles = (paths: string[]) => {
 };
 
 const removeFile = (index: number) => {
-  sourceFiles.value = symlinkMoverRegistry.removeFileByIndex(sourceFiles.value, index);
+  sourceFiles.value = logic.removeFileByIndex(sourceFiles.value, index);
 };
 
 const clearFiles = () => {
@@ -202,8 +200,8 @@ const selectTargetDirectory = async () => {
 
 // --- 取消操作 ---
 const cancelOperation = async () => {
-  // 服务层已经处理错误
-  const success = await symlinkMoverRegistry.cancelOperation();
+  // 逻辑层已经处理错误
+  const success = await logic.cancelOperation();
   if (success) {
     customMessage.info("正在取消操作...");
   }
@@ -235,14 +233,14 @@ const executeMoveAndLink = async () => {
 
   if (operationMode.value === "move") {
     // 搬家模式：移动文件并创建链接
-    result = await symlinkMoverRegistry.moveAndLink({
+    result = await logic.moveAndLink({
       sourcePaths,
       targetDir: targetDirectory.value,
       linkType: linkType.value,
     });
   } else {
     // 仅创建链接模式
-    result = await symlinkMoverRegistry.createLinksOnly({
+    result = await logic.createLinksOnly({
       sourcePaths,
       targetDir: targetDirectory.value,
       linkType: linkType.value,
@@ -471,8 +469,8 @@ const executeMoveAndLink = async () => {
           <div class="progress-info">
             <div class="progress-file">{{ currentFile }}</div>
             <div class="progress-stats">
-              {{ symlinkMoverRegistry.formatBytes(copiedBytes) }} /
-              {{ symlinkMoverRegistry.formatBytes(totalBytes) }}
+              {{ logic.formatBytes(copiedBytes) }} /
+              {{ logic.formatBytes(totalBytes) }}
             </div>
           </div>
           <el-progress
@@ -487,7 +485,7 @@ const executeMoveAndLink = async () => {
           <div v-if="latestLog" class="log-ticker">
             <div class="log-ticker-content">
               <div class="log-ticker-message" :key="tickerKey">
-                {{ symlinkMoverRegistry.formatLogTicker(latestLog) }}
+                {{ logic.formatLogTicker(latestLog) }}
               </div>
             </div>
             <el-button :icon="View" text size="small" @click="openLogDialog" class="log-ticker-btn">
@@ -518,12 +516,7 @@ const executeMoveAndLink = async () => {
     </div>
 
     <!-- 日志详情弹窗 -->
-    <BaseDialog
-      v-model="showLogDialog"
-      title="操作历史记录"
-      width="70%"
-      height="600px"
-    >
+    <BaseDialog v-model="showLogDialog" title="操作历史记录" width="70%" height="600px">
       <template #content>
         <div v-if="allLogs.length === 0" class="empty-logs">
           <el-icon>
@@ -536,22 +529,20 @@ const executeMoveAndLink = async () => {
             <div class="log-item-header">
               <div class="log-item-title">
                 <el-tag :type="log.errorCount > 0 ? 'warning' : 'success'" size="small">
-                  {{ symlinkMoverRegistry.getOperationTypeLabel(log.operationType) }}
+                  {{ logic.getOperationTypeLabel(log.operationType) }}
                 </el-tag>
-                <span class="log-item-time">{{
-                  symlinkMoverRegistry.formatTimestamp(log.timestamp)
-                }}</span>
+                <span class="log-item-time">{{ logic.formatTimestamp(log.timestamp) }}</span>
               </div>
               <div class="log-item-meta">
-                <span>{{ symlinkMoverRegistry.getLinkTypeLabel(log.linkType) }}</span>
-                <span>耗时: {{ symlinkMoverRegistry.formatDuration(log.durationMs) }}</span>
+                <span>{{ logic.getLinkTypeLabel(log.linkType) }}</span>
+                <span>耗时: {{ logic.formatDuration(log.durationMs) }}</span>
               </div>
             </div>
             <div class="log-item-stats">
               <span>处理: {{ log.sourceCount }} 个</span>
               <span class="success-text">成功: {{ log.successCount }}</span>
               <span v-if="log.errorCount > 0" class="error-text">失败: {{ log.errorCount }}</span>
-              <span>大小: {{ symlinkMoverRegistry.formatBytes(log.totalSize) }}</span>
+              <span>大小: {{ logic.formatBytes(log.totalSize) }}</span>
             </div>
             <div class="log-item-details">
               <div class="detail-item">

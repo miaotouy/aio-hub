@@ -53,7 +53,7 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
     aspectRatioThreshold: 3,
     blankThreshold: 0.30,
     minBlankHeight: 20,
-    minCutHeight: 480,
+    minCutHeight: 680,
     cutLineOffset: 0.2
   },
   version: '1.0.0'

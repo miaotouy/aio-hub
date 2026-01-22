@@ -65,11 +65,30 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
     if (imageBatchData && imageBatchData.length > 1) {
       // 批量/切片模式
       const MAX_IMAGE_PER_REQUEST = 15;
-      if (imageBatchData.length <= MAX_IMAGE_PER_REQUEST) {
+      const totalBatches = Math.ceil(imageBatchData.length / MAX_IMAGE_PER_REQUEST);
+      const batchTexts: string[] = new Array(totalBatches).fill("");
+
+      // 针对 Gemini 等模型，顺序处理配合延迟以避免 429
+      const delay = config.executionDelay || 500; // 批次间延迟
+
+      const processBatch = async (i: number) => {
+        // 在请求前增加基于索引的交错延迟，减少 429 概率
+        if (i > 0) {
+          const jitter = Math.random() * 200; // 增加随机抖动
+          await new Promise(resolve => setTimeout(resolve, delay + jitter));
+        }
+
+        const start = i * MAX_IMAGE_PER_REQUEST;
+        const end = Math.min(start + MAX_IMAGE_PER_REQUEST, imageBatchData!.length);
+        const batch = imageBatchData!.slice(start, end);
+
+        logger.info(`正在处理第 ${i + 1}/${totalBatches} 批图片切片 (${batch.length} 张)`, { assetId: task.assetId });
+
         const content: LlmMessageContent[] = [{ type: "text", text: finalPrompt }];
-        for (const img of imageBatchData) {
+        for (const img of batch) {
           content.push({ type: "image", imageBase64: img.base64 });
         }
+
         const response = await sendRequest({
           profileId,
           modelId,
@@ -80,11 +99,18 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
           timeout: timeout * 1000,
           signal: ctx.signal,
         });
-        transcriptionText = response.content;
-      } else {
-        // 太多了，这里暂时抛错或后续实现分批（原逻辑是分批，这里为了简洁先简化）
-        throw new Error(`图片切片过多 (${imageBatchData.length})，暂不支持超长图分批`);
+
+        if (response.content) {
+          batchTexts[i] = response.content;
+        }
+      };
+
+      // 顺序处理每个批次
+      for (let i = 0; i < totalBatches; i++) {
+        await processBatch(i);
       }
+
+      transcriptionText = batchTexts.filter(t => t).join("\n\n");
     } else {
       // 单图模式
       const buffer = await assetManagerEngine.getAssetBinary(task.path);

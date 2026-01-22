@@ -45,7 +45,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
     aspectRatioThreshold: 3,
     blankThreshold: 0.3,
     minBlankHeight: 20,
-    minCutHeight: 480,
+    minCutHeight: 800,
     cutLineOffset: 0.2,
   },
   image: {

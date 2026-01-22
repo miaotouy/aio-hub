@@ -29,6 +29,8 @@ import type { ContextPreviewData } from "../types/context";
 import type { ModelIdentifier } from "../types";
 import { useTranscriptionManager } from "./useTranscriptionManager";
 import { useChatSettings } from "./useChatSettings";
+import { invoke } from "@tauri-apps/api/core";
+import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -129,6 +131,19 @@ export function useChatHandler() {
           modelId: options.temporaryModel.modelId,
           profileId: options.temporaryModel.profileId,
         });
+      }
+    }
+
+    // 检查附件物理文件是否存在
+    if (options?.attachments && options.attachments.length > 0) {
+      for (const asset of options.attachments) {
+        if (asset.path) {
+          const exists = await invoke<boolean>("path_exists", { path: asset.path });
+          if (!exists) {
+            customMessage.error(`发送失败：附件 "${asset.name}" 的源文件已不存在`);
+            return;
+          }
+        }
       }
     }
 

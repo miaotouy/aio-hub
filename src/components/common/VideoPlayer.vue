@@ -1124,10 +1124,10 @@ onBeforeUnmount(() => {
 .volume-slider {
   appearance: none;
   -webkit-appearance: none;
-  width: 100px; /* 旋转后的高度 */
-  height: 4px;
+  width: 4px;
+  height: 100px;
   background: linear-gradient(
-    to right,
+    to top,
     var(--el-color-primary, #409eff) 0%,
     var(--el-color-primary, #409eff) var(--volume-percent),
     rgba(255, 255, 255, 0.2) var(--volume-percent),
@@ -1136,9 +1136,11 @@ onBeforeUnmount(() => {
   border-radius: 2px;
   outline: none;
   cursor: pointer;
-  transform: rotate(-90deg);
-  transform-origin: center;
-  margin: 45px 0; /* 给旋转后的滑块留出空间 */
+  /* 使用标准方式实现垂直滑块 */
+  writing-mode: bt-lr; /* 某些旧版浏览器支持 */
+  writing-mode: vertical-lr;
+  direction: rtl;
+  margin: 10px 0;
 }
 
 .volume-slider::-webkit-slider-thumb {
@@ -1148,6 +1150,16 @@ onBeforeUnmount(() => {
   background: white;
   border-radius: 50%;
   cursor: pointer;
+  border: none;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
 }
 
 /* 全屏样式覆盖 */

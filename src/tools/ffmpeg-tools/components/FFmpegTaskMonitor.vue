@@ -35,7 +35,13 @@
 
     <!-- 任务表格 -->
     <div class="monitor-content">
-      <el-table :data="sortedTasks" style="width: 100%" height="100%" class="custom-table">
+      <el-table
+        :data="sortedTasks"
+        style="width: 100%"
+        height="100%"
+        class="custom-table"
+        row-key="id"
+      >
         <el-table-column label="任务名称" min-width="200">
           <template #default="{ row }">
             <div class="task-cell">
@@ -119,9 +125,7 @@
                   trigger="click"
                   @command="(cmd: string) => handleIntegration(cmd, row)"
                 >
-                  <el-tooltip content="发送至..." placement="top">
-                    <el-button :icon="Send" circle size="small" type="primary" plain />
-                  </el-tooltip>
+                  <el-button :icon="Send" circle size="small" type="primary" plain />
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="chat">LLM Chat</el-dropdown-item>

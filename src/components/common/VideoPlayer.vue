@@ -163,25 +163,28 @@
               </div>
 
               <!-- 音量控制 -->
-              <div
-                class="volume-control"
-                @mouseenter="showVolumeSlider = true"
-                @mouseleave="showVolumeSlider = false"
-              >
-                <button class="control-btn" @click="toggleMute">
+              <div class="menu-container" @mouseleave="showVolumeSlider = false">
+                <button
+                  class="control-btn"
+                  @click="toggleMute"
+                  @mouseenter="showVolumeSlider = true"
+                >
                   <component :is="volumeIcon" />
                 </button>
-                <div class="volume-slider-container">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    :value="volume"
-                    @input="setVolume"
-                    class="volume-slider"
-                    :style="{ '--volume-percent': volume * 100 + '%' }"
-                  />
+                <div v-if="showVolumeSlider" class="popup-menu volume-menu">
+                  <div class="volume-slider-wrapper">
+                    <span class="volume-percentage">{{ Math.round(volume * 100) }}%</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      :value="volume"
+                      @input="setVolume"
+                      class="volume-slider"
+                      :style="{ '--volume-percent': volume * 100 + '%' }"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1078,35 +1081,48 @@ onBeforeUnmount(() => {
 }
 
 /* 音量滑块 */
-.volume-control {
+.volume-menu {
+  min-width: 32px !important; /* 覆盖全局 popup-menu 的 120px */
+  width: 32px;
+  padding: 12px 0;
+}
+
+.volume-slider-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  height: 140px;
+  width: 100%;
   position: relative;
 }
 
-.volume-slider-container {
-  width: 0;
-  overflow: hidden;
-  transition: width 0.2s;
-  display: flex;
-  align-items: center;
-}
-
-.volume-control:hover .volume-slider-container {
-  width: 60px;
-  margin-left: 8px;
+.volume-percentage {
+  color: white;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 10px;
+  font-weight: 600;
 }
 
 .volume-slider {
   appearance: none;
   -webkit-appearance: none;
-  width: 100%;
+  width: 100px; /* 旋转后的高度 */
   height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(
+    to right,
+    var(--el-color-primary, #409eff) 0%,
+    var(--el-color-primary, #409eff) var(--volume-percent),
+    rgba(255, 255, 255, 0.2) var(--volume-percent),
+    rgba(255, 255, 255, 0.2) 100%
+  );
   border-radius: 2px;
   outline: none;
   cursor: pointer;
-  position: relative;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  margin: 45px 0; /* 给旋转后的滑块留出空间 */
 }
 
 .volume-slider::-webkit-slider-thumb {

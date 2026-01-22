@@ -266,10 +266,17 @@ const processedContent = computed(() => {
   }
 
   // 2. 解析资产路径
-  // 注意：在 AST 模式下，我们不再全局替换资产链接，而是交给具体的节点组件（如 ImageNode）处理
-  // 这样可以避免 Markdown 解析器对转换后的本地 URL 进行二次编码导致 Tauri 无法识别路径
-  if (props.resolveAsset && !useAstRenderer.value) {
-    text = props.resolveAsset(text);
+  // 注意：在 AST 模式下，我们不再全局替换智能体资产链接 (agent-asset://)，而是交给具体的节点组件（如 ImageNode）处理
+  // 这样可以避免 Markdown 解析器对转换后的本地 URL 进行二次编码导致 Tauri 无法识别路径。
+  // 但是对于 file:// 协议，由于它是外部复制进来的且如果不转换则完全无法加载，我们在这里强制进行一次预处理。
+  if (props.resolveAsset) {
+    if (!useAstRenderer.value) {
+      // 纯渲染模式：全量处理
+      text = props.resolveAsset(text);
+    } else if (text.includes("file://")) {
+      // AST 模式：仅预处理 file:// 链接，agent-asset:// 留给节点处理
+      text = props.resolveAsset(text);
+    }
   }
 
   // 3. 补全末尾换行：确保处于末尾的块（如思考块、工具调用）能被正确闭合检测
@@ -395,8 +402,12 @@ onMounted(() => {
     }
 
     // 2. 解析资产路径
-    if (props.resolveAsset && !useAstRenderer.value) {
-      bufferToProcess = props.resolveAsset(bufferToProcess);
+    if (props.resolveAsset) {
+      if (!useAstRenderer.value) {
+        bufferToProcess = props.resolveAsset(bufferToProcess);
+      } else if (bufferToProcess.includes("file://")) {
+        bufferToProcess = props.resolveAsset(bufferToProcess);
+      }
     }
 
     // 3. 补全末尾换行：辅助解析器闭合末尾的块节点
@@ -442,6 +453,15 @@ defineExpose({
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);
+}
+
+/* 统一图片样式限制 */
+.rich-text-renderer :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 4px 0;
+  vertical-align: middle;
 }
 
 /* 块级节点渲染优化：出视口不渲染 */

@@ -451,13 +451,15 @@ export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): 
  * @returns 替换后的内容
  */
 export function processMessageAssetsSync(content: string, agent?: ChatAgent): string {
-  if (!content.includes('agent-asset://')) return content;
+  const hasAgentAsset = content.includes('agent-asset://');
+  const hasFileAsset = content.includes('file://');
 
-  if (!agent) {
+  if (!hasAgentAsset && !hasFileAsset) return content;
+
+  if (hasAgentAsset && !agent) {
     logger.warn('processMessageAssetsSync: 发现资产链接但缺失 agent 对象', {
       contentSnippet: content.slice(0, 100)
     });
-    return content;
   }
 
   let result = content;
@@ -469,27 +471,65 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
 
   // 1. 优先处理 Markdown 图片语法: ![alt](agent-asset://...)
   // 这样如果资产缺失，我们可以将其替换为文本占位符，而不是让它进入 <img> 标签触发 CSP 错误
-  const mdImagePattern = /!\[(.*?)\]\((agent-asset:\/\/[^)]+)\)/g;
-  result = result.replace(mdImagePattern, (_match, alt, url) => {
-    const resolved = resolveAgentAssetUrlSync(url, agent);
-    if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
-      // 资产缺失，替换为文本占位符
-      const parsed = parseAssetUrl(url);
-      const filename = parsed ? (parsed.group ? `${parsed.group}/${parsed.id}` : parsed.id) : url;
-      return `[资产缺失: ${filename}]`;
-    }
-    return `![${alt}](${resolved})`;
-  });
+  if (hasAgentAsset && agent) {
+    const mdImagePattern = /!\[(.*?)\]\((agent-asset:\/\/[^)]+)\)/g;
+    result = result.replace(mdImagePattern, (_match, alt, url) => {
+      const resolved = resolveAgentAssetUrlSync(url, agent);
+      if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
+        // 资产缺失，替换为文本占位符
+        const parsed = parseAssetUrl(url);
+        const filename = parsed ? (parsed.group ? `${parsed.group}/${parsed.id}` : parsed.id) : url;
+        return `[资产缺失: ${filename}]`;
+      }
+      return `![${alt}](${resolved})`;
+    });
+  }
 
   // 2. 处理剩下的孤立链接或 HTML src 属性中的链接
-  result = result.replace(assetPattern, (url) => {
-    const resolved = resolveAgentAssetUrlSync(url, agent);
-    // 如果仍然是协议开头，说明没找到，为了防止浏览器报错，返回贴图缺失效果
-    if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
-      return getMissingTextureUrl();
-    }
-    return resolved;
-  });
+  if (hasAgentAsset && agent) {
+    result = result.replace(assetPattern, (url) => {
+      const resolved = resolveAgentAssetUrlSync(url, agent);
+      // 如果仍然是协议开头，说明没找到，为了防止浏览器报错，返回贴图缺失效果
+      if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
+        return getMissingTextureUrl();
+      }
+      return resolved;
+    });
+  }
+
+  // 3. 处理本地文件链接 file:// (常见于从外部软件如 QQ 复制的内容)
+  if (hasFileAsset) {
+    // 3.1 优先处理 HTML src 属性中的 file 链接，因为它们可能包含反斜杠且被引号包裹
+    // 匹配 src="file://..." 或 src='file://...'
+    const htmlFilePattern = /src=["'](file:\/\/[^"']+)["']/g;
+    result = result.replace(htmlFilePattern, (match, url) => {
+      try {
+        // 提取路径部分：去掉 file:// 和可能存在的前缀斜杠
+        let path = url.replace(/^file:\/{2,3}/, '');
+        // 处理 Windows 路径中的反斜杠
+        path = decodeURIComponent(path).replace(/\\/g, '/');
+        const resolved = convertFileSrc(path);
+        const quote = match.includes('"') ? '"' : "'";
+        return `src=${quote}${resolved}${quote}`;
+      } catch (e) {
+        return match;
+      }
+    });
+
+    // 3.2 处理 Markdown 或孤立的 file 链接
+    // 匹配规则：以 file:// 开头，直到遇到引号、空格、尖括号、或者作为结尾的括号
+    const filePattern = /file:\/\/\/[^"'\s<>\)]+?(?=[)\]"'\s<>]|$)/g;
+    result = result.replace(filePattern, (url) => {
+      try {
+        // 提取路径部分：支持 file:// 和 file:///
+        let path = url.replace(/^file:\/{2,3}/, '');
+        path = decodeURIComponent(path).replace(/\\/g, '/');
+        return convertFileSrc(path);
+      } catch (e) {
+        return url;
+      }
+    });
+  }
 
   return result;
 }
@@ -504,43 +544,78 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
  * @deprecated 推荐使用 processMessageAssetsSync
  */
 export async function processMessageAssets(content: string, agent?: ChatAgent): Promise<string> {
-  if (!agent || !content.includes('agent-asset://')) return content;
+  const hasAgentAsset = content.includes('agent-asset://');
+  const hasFileAsset = content.includes('file://');
+
+  if (!hasAgentAsset && !hasFileAsset) return content;
 
   // 优先尝试同步处理
   if (_cachedAppDataDir) {
     return processMessageAssetsSync(content, agent);
   }
 
+  if (hasAgentAsset && !agent) return content;
+
   // 回退到异步处理
   let result = content;
 
   // 1. 处理 HTML src 属性: src="agent-asset://..." 或 src='agent-asset://...'
-  const htmlPattern = /src=["'](agent-asset:\/\/[^"']+)["']/g;
-  const htmlMatches = Array.from(content.matchAll(htmlPattern));
+  if (hasAgentAsset && agent) {
+    const htmlPattern = /src=["'](agent-asset:\/\/[^"']+)["']/g;
+    const htmlMatches = Array.from(content.matchAll(htmlPattern));
 
-  for (const match of htmlMatches) {
-    const fullMatch = match[0];
-    const assetUrl = match[1];
-    const resolvedUrl = await resolveAgentAssetUrl(assetUrl, agent);
+    for (const match of htmlMatches) {
+      const fullMatch = match[0];
+      const assetUrl = match[1];
+      const resolvedUrl = await resolveAgentAssetUrl(assetUrl, agent);
 
-    if (resolvedUrl !== assetUrl) {
-      const quote = fullMatch.includes('"') ? '"' : "'";
-      result = result.replace(fullMatch, `src=${quote}${resolvedUrl}${quote}`);
+      if (resolvedUrl !== assetUrl) {
+        const quote = fullMatch.includes('"') ? '"' : "'";
+        result = result.replace(fullMatch, `src=${quote}${resolvedUrl}${quote}`);
+      }
+    }
+
+    // 2. 处理 Markdown 语法: ![alt](agent-asset://...) 或 [link](agent-asset://...)
+    const mdPattern = /\((agent-asset:\/\/[^)]+)\)/g;
+    const mdMatches = Array.from(result.matchAll(mdPattern));
+
+    for (const match of mdMatches) {
+      const fullMatch = match[0];
+      const assetUrl = match[1];
+      const resolvedUrl = await resolveAgentAssetUrl(assetUrl, agent);
+
+      if (resolvedUrl !== assetUrl) {
+        result = result.replace(fullMatch, `(${resolvedUrl})`);
+      }
     }
   }
 
-  // 2. 处理 Markdown 语法: ![alt](agent-asset://...) 或 [link](agent-asset://...)
-  const mdPattern = /\((agent-asset:\/\/[^)]+)\)/g;
-  const mdMatches = Array.from(result.matchAll(mdPattern));
+  // 3. 处理本地文件链接 file://
+  if (hasFileAsset) {
+    // 逻辑与同步版本保持一致
+    const htmlFilePattern = /src=["'](file:\/\/[^"']+)["']/g;
+    result = result.replace(htmlFilePattern, (match, url) => {
+      try {
+        let path = url.replace(/^file:\/{2,3}/, '');
+        path = decodeURIComponent(path).replace(/\\/g, '/');
+        const resolved = convertFileSrc(path);
+        const quote = match.includes('"') ? '"' : "'";
+        return `src=${quote}${resolved}${quote}`;
+      } catch (e) {
+        return match;
+      }
+    });
 
-  for (const match of mdMatches) {
-    const fullMatch = match[0];
-    const assetUrl = match[1];
-    const resolvedUrl = await resolveAgentAssetUrl(assetUrl, agent);
-
-    if (resolvedUrl !== assetUrl) {
-      result = result.replace(fullMatch, `(${resolvedUrl})`);
-    }
+    const filePattern = /file:\/\/[^"'\s<>\)]+?(?=[)\]"'\s<>]|$)/g;
+    result = result.replace(filePattern, (url) => {
+      try {
+        let path = url.replace(/^file:\/{2,3}/, '');
+        path = decodeURIComponent(path).replace(/\\/g, '/');
+        return convertFileSrc(path);
+      } catch (e) {
+        return url;
+      }
+    });
   }
 
   return result;

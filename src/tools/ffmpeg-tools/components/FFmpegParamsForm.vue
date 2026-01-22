@@ -16,14 +16,23 @@
       <!-- 简单模式：质量预设 -->
       <template v-if="!isProfessional">
         <div class="form-row">
-          <el-form-item label="输出质量" class="flex-1">
-            <el-select v-model="qualityPreset" placeholder="选择质量">
-              <el-option label="高质量 (CRF 18)" value="high" />
-              <el-option label="平衡 (CRF 23 - 默认)" value="medium" />
-              <el-option label="小体积 (CRF 28)" value="low" />
-              <el-option label="极小体积 (CRF 32)" value="lowest" />
+          <el-form-item label="编码格式" class="flex-1">
+            <el-select v-model="params.videoEncoder" placeholder="选择编码器">
+              <el-option label="H.264 (兼容性好)" value="libx264" />
+              <el-option label="H.265 (体积更小)" value="libx265" />
+              <el-option label="流拷贝 (不重编码)" value="copy" />
             </el-select>
           </el-form-item>
+          <el-form-item label="输出质量" class="flex-1" v-if="params.videoEncoder !== 'copy'">
+            <el-select v-model="qualityPreset" placeholder="选择质量">
+              <el-option label="极高 (CRF 18)" value="high" />
+              <el-option label="平衡 (CRF 23)" value="medium" />
+              <el-option label="紧凑 (CRF 26)" value="low" />
+              <el-option label="极小 (CRF 30)" value="lowest" />
+            </el-select>
+          </el-form-item>
+        </div>
+        <div class="form-row">
           <el-form-item label="分辨率缩放" class="flex-1">
             <el-select v-model="params.scale" clearable placeholder="保持原始">
               <el-option label="4K (3840p)" value="scale=3840:-2" />
@@ -214,8 +223,8 @@ const qualityPreset = ref("medium");
 const qualityMap: Record<string, number> = {
   high: 18,
   medium: 23,
-  low: 28,
-  lowest: 32,
+  low: 26,
+  lowest: 30,
 };
 
 // 监听质量预设变化

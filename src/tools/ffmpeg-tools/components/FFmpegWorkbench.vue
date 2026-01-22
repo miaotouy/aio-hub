@@ -168,7 +168,7 @@ const currentTaskLogs = computed(() => {
 });
 
 const generatedCommand = computed(() => {
-  const parts = ["ffmpeg"];
+  const parts = ["ffmpeg", "-y"]; // -y 默认覆盖
   if (params.hwaccel) parts.push("-hwaccel", "auto");
   parts.push("-i", currentFilePath.value || "input.mp4");
 
@@ -178,22 +178,44 @@ const generatedCommand = computed(() => {
     if (params.mode === "extract_audio") {
       parts.push("-vn");
     } else {
-      if (params.videoEncoder) parts.push("-c:v", params.videoEncoder);
-      if (params.crf !== undefined) parts.push("-crf", params.crf.toString());
+      // 视频编码器优化：默认使用 libx264，但如果用户没选且是专业模式，可以考虑 libx265
+      const vEncoder = params.videoEncoder || "libx264";
+      parts.push("-c:v", vEncoder);
+
+      // CRF 逻辑优化
+      if (params.crf !== undefined) {
+        parts.push("-crf", params.crf.toString());
+      } else if (!params.videoBitrate && !params.maxSizeMb) {
+        // 默认 CRF
+        parts.push("-crf", vEncoder.includes("x265") ? "28" : "23");
+      }
+
       if (params.videoBitrate) parts.push("-b:v", params.videoBitrate);
       if (params.preset) parts.push("-preset", params.preset);
       if (params.scale) parts.push("-vf", params.scale);
       if (params.fps) parts.push("-r", params.fps.toString());
+
+      // 强制 yuv420p 以保证大多数播放器兼容性
+      if (vEncoder !== "copy") {
+        parts.push("-pix_fmt", params.pixelFormat || "yuv420p");
+      }
     }
+
+    // 音频处理
     if (params.audioEncoder) parts.push("-c:a", params.audioEncoder);
     if (params.audioEncoder !== "copy") {
       if (params.audioBitrate) parts.push("-b:a", params.audioBitrate);
       if (params.sampleRate) parts.push("-ar", params.sampleRate);
       if (params.audioChannels) parts.push("-ac", params.audioChannels.toString());
     }
+
+    // 优化：添加 faststart 标志，便于网页预加载
+    if (params.mode !== "extract_audio") {
+      parts.push("-movflags", "+faststart");
+    }
   }
 
-  parts.push(outputName.value || "output.mp4");
+  parts.push(`"${outputName.value || "output.mp4"}"`);
   return parts.join(" ");
 });
 

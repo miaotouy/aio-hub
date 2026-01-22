@@ -115,12 +115,18 @@
                 </div>
               </div>
             </template>
-            <el-input
-              v-model="sourceText"
-              :rows="20"
-              type="textarea"
-              placeholder="请输入待处理的文本..."
-            />
+            <div
+              ref="textInputCardRef"
+              class="text-input-drop-zone"
+              :class="{ dragover: isTextInputDraggingOver }"
+            >
+              <el-input
+                v-model="sourceText"
+                :rows="20"
+                type="textarea"
+                placeholder="请输入待处理的文本..."
+              />
+            </div>
           </InfoCard>
         </el-col>
         <el-col :span="12">
@@ -327,6 +333,7 @@ import {
   Close,
 } from "@element-plus/icons-vue";
 import { open as openFile } from "@tauri-apps/plugin-dialog";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
 import debounce from "lodash/debounce";
 import { VueDraggableNext } from "vue-draggable-next";
@@ -341,6 +348,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
 import type RegexApplierRegistry from "./regexApplier.registry";
 import { useSendToChat } from "@/composables/useSendToChat";
+import { useFileInteraction } from "@/composables/useFileInteraction";
 
 // 创建模块日志器
 const logger = createModuleLogger("RegexApplier");
@@ -398,6 +406,7 @@ const appConfig = ref<AppConfig | null>(null);
 // 模板引用
 const fileDropArea = ref<HTMLElement | null>(null);
 const outputDropArea = ref<HTMLElement | null>(null);
+const textInputCardRef = ref<any>(null);
 
 // ===== 计算属性 =====
 const availablePresets = computed(() => store.presets);
@@ -435,6 +444,26 @@ const onDragEnd = () => {
   selectedPresetIds.value = selectedPresets.value.map((p) => p.id);
   addLog("预设顺序已更新", "info");
 };
+
+// ===== 文本模式文件拖放处理 =====
+const { isDraggingOver: isTextInputDraggingOver } = useFileInteraction({
+  element: textInputCardRef,
+  onPaths: async (paths) => {
+    if (processingMode.value !== "text") return;
+    if (paths.length === 0) return;
+
+    try {
+      const path = paths[0];
+      addLog(`读取拖入的文件: ${path}`);
+      const content = await readTextFile(path);
+      sourceText.value = content;
+      customMessage.success("已读取文件内容到输入框");
+    } catch (error) {
+      errorHandler.error(error, "读取文件失败", { context: { paths } });
+    }
+  },
+  disabled: computed(() => processingMode.value !== "text"),
+});
 
 // ===== 初始化 =====
 onMounted(async () => {
@@ -1183,6 +1212,27 @@ const processFiles = async () => {
   background-color: var(--input-bg) !important;
   color: var(--text-color) !important;
   border-color: var(--border-color) !important;
+  transition: border-color 0.3s ease;
+}
+
+.text-input-drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: all 0.3s ease;
+  border-radius: 4px;
+}
+
+.text-input-drop-zone.dragover {
+  background-color: rgba(64, 158, 255, 0.08) !important;
+  box-shadow: 0 0 10px rgba(64, 158, 255, 0.2);
+  transform: scale(1.005);
+}
+
+.text-input-drop-zone.dragover :deep(.el-textarea__inner) {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 1px var(--primary-color);
 }
 
 /* 文件模式样式 */

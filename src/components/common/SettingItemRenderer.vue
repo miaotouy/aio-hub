@@ -383,7 +383,7 @@ if (!props.item.collapsible) {
 
 /* 高亮样式 */
 .setting-item-highlight {
-  background-color: var(--el-color-primary-light-9);
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
   border-radius: 4px;
   transition: background-color 0.3s ease-in-out;
   padding: 4px 8px;

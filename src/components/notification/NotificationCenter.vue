@@ -406,7 +406,7 @@ const getTypeText = (type: string) => {
 }
 
 .primary-action-btn:hover {
-  background-color: var(--el-color-primary-light-3);
+  background-color: color-mix(in srgb, var(--el-color-primary) 80%, white);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(var(--el-color-primary-rgb), 0.3);
 }

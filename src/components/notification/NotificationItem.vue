@@ -121,7 +121,7 @@ const handleViewDetail = (e: Event) => {
 
 .notification-item:hover {
   background-color: var(--input-bg);
-  border-color: var(--el-color-primary-light-5);
+  border-color: color-mix(in srgb, var(--el-color-primary) 30%, transparent);
   transform: translateY(-1px);
   box-shadow: var(--el-box-shadow-lighter);
 }
@@ -302,7 +302,7 @@ const handleViewDetail = (e: Event) => {
 
 .detail-btn:hover {
   background-color: var(--card-bg);
-  border-color: var(--el-color-primary-light-5);
+  border-color: color-mix(in srgb, var(--el-color-primary) 30%, transparent);
   color: var(--el-color-primary);
 }
 

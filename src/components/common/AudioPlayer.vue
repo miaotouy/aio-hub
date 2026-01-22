@@ -1311,7 +1311,7 @@ onBeforeUnmount(() => {
 }
 
 .playlist-item.active {
-  background: color-mix(in srgb, var(--el-color-primary-light-9) 60%, transparent);
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
   color: var(--el-color-primary);
 }
 

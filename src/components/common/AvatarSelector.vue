@@ -471,6 +471,6 @@ const handleIconClick = () => {
 
 .history-avatar-item.active {
   border-color: var(--el-color-primary);
-  background-color: var(--el-color-primary-light-9);
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
 }
 </style>

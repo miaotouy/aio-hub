@@ -201,8 +201,8 @@ defineExpose({
 }
 
 .drop-zone--clickable:hover:not(.drop-zone--dragging) {
-  border-color: var(--el-color-primary-light-3);
-  background-color: var(--el-color-primary-light-9);
+  border-color: color-mix(in srgb, var(--el-color-primary) 40%, transparent);
+  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
 }
 
 .drop-zone--dragging {

@@ -334,6 +334,7 @@ import {
 } from "@element-plus/icons-vue";
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { listen } from "@tauri-apps/api/event";
 import debounce from "lodash/debounce";
 import { VueDraggableNext } from "vue-draggable-next";
@@ -342,20 +343,16 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import PresetManager from "./components/PresetManager.vue";
 import { usePresetStore } from "./stores/store";
 import type { LogEntry, RegexPreset } from "./types";
+import * as engine from "./core/engine";
 import { loadAppConfig, appConfigManager, type AppConfig } from "./config/appConfig";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { toolRegistryManager } from "@/services/registry";
-import type RegexApplierRegistry from "./regexApplier.registry";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 
 // 创建模块日志器
 const logger = createModuleLogger("RegexApplier");
 const errorHandler = createModuleErrorHandler("RegexApplier");
-
-// 获取服务实例
-const regexRegistry = toolRegistryManager.getRegistry<RegexApplierRegistry>("regex-applier")!;
 
 // 获取发送到聊天功能
 const { sendToChat } = useSendToChat();
@@ -610,11 +607,14 @@ const processText = async () => {
     return;
   }
 
-  // 使用服务处理文本
-  const result = await regexRegistry.processText({
-    sourceText: sourceText.value,
-    presetIds: selectedPresetIds.value,
-  });
+  // 直接使用引擎处理文本
+  const result = await engine.processText(
+    {
+      sourceText: sourceText.value,
+      presetIds: selectedPresetIds.value,
+    },
+    (id) => store.presets.find((p) => p.id === id)
+  );
 
   if (result) {
     resultText.value = result.text;
@@ -624,15 +624,23 @@ const processText = async () => {
 };
 
 const pasteToSource = async () => {
-  const text = await regexRegistry.pasteFromClipboard();
+  const text = await errorHandler.wrapAsync(async () => {
+    return await readText();
+  }, { userMessage: "粘贴失败" });
+
   if (text !== null) {
-    sourceText.value = text;
+    sourceText.value = text || "";
     addLog("已从剪贴板粘贴内容到输入框。");
   }
 };
 
 const copyResult = async () => {
-  const success = await regexRegistry.copyToClipboard(resultText.value);
+  const success = await errorHandler.wrapAsync(async () => {
+    await writeText(resultText.value);
+    customMessage.success("已复制到剪贴板！");
+    return true;
+  }, { userMessage: "复制失败" });
+
   if (success) {
     addLog("处理结果已复制到剪贴板。");
   }
@@ -652,9 +660,30 @@ const oneClickProcess = async () => {
   }
   addLog("执行一键处理剪贴板...");
 
-  const result = await regexRegistry.oneClickProcess({
-    presetIds: selectedPresetIds.value,
-  });
+  const result = await errorHandler.wrapAsync(async () => {
+    // 1. 粘贴
+    const text = await readText();
+    if (!text) throw new Error("剪贴板内容为空");
+
+    // 2. 处理
+    const processResult = await engine.processText(
+      {
+        sourceText: text,
+        presetIds: selectedPresetIds.value,
+      },
+      (id) => store.presets.find((p) => p.id === id)
+    );
+
+    if (!processResult) throw new Error("文本处理失败");
+
+    // 3. 复制
+    await writeText(processResult.text);
+    customMessage.success("一键处理完成并已复制到剪贴板！");
+
+    return {
+      summary: `一键处理完成，应用了 ${processResult.totalRulesApplied} 条规则`,
+    };
+  }, { userMessage: "一键处理失败" });
 
   if (result) {
     addLog(result.summary);
@@ -944,14 +973,17 @@ const processFiles = async () => {
     const filePaths = files.value.map((file) => file.path);
     addLog(`开始处理 ${filePaths.length} 个文件...`);
 
-    // 使用服务处理文件
-    const result = await regexRegistry.processFiles({
-      filePaths,
-      outputDir: outputDirectory.value,
-      presetIds: selectedPresetIds.value,
-      forceTxt: forceTxt.value,
-      filenameSuffix: filenameSuffix.value,
-    });
+    // 直接使用引擎处理文件
+    const result = await engine.processFiles(
+      {
+        filePaths,
+        outputDir: outputDirectory.value,
+        presetIds: selectedPresetIds.value,
+        forceTxt: forceTxt.value,
+        filenameSuffix: filenameSuffix.value,
+      },
+      (id) => store.presets.find((p) => p.id === id)
+    );
 
     if (!result) {
       throw new Error("文件处理失败");

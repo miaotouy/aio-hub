@@ -57,17 +57,25 @@
         <el-table-column label="状态" width="150">
           <template #default="{ row }">
             <div class="status-cell">
-              <el-tag :type="statusType(row.status)" size="small" class="status-tag">
-                <el-icon :class="{ 'is-loading': row.status === 'processing' }">
-                  <component :is="statusIcon(row.status)" />
-                </el-icon>
-                <span>{{ statusText(row.status) }}</span>
-              </el-tag>
+              <div class="status-wrapper">
+                <el-tag :type="statusType(row.status)" size="small" class="status-tag">
+                  <el-icon :class="{ 'is-loading': row.status === 'processing' }">
+                    <component :is="statusIcon(row.status)" />
+                  </el-icon>
+                  <span>{{ statusText(row.status) }}</span>
+                  <span
+                    v-if="row.status === 'processing' && row.progress.percent > 0"
+                    class="percent-text"
+                  >
+                    {{ row.progress.percent.toFixed(1) }}%
+                  </span>
+                </el-tag>
+              </div>
               <div v-if="row.status === 'processing'" class="mini-progress">
                 <el-progress
                   :percentage="row.progress.percent"
                   :show-text="false"
-                  :stroke-width="2"
+                  :stroke-width="3"
                 />
               </div>
             </div>
@@ -76,7 +84,10 @@
 
         <el-table-column label="处理详情" min-width="180">
           <template #default="{ row }">
-            <div v-if="row.status === 'processing'" class="progress-details">
+            <div
+              v-if="row.status === 'processing' || row.status === 'completed'"
+              class="progress-details"
+            >
               <div class="detail-item">
                 <el-icon><Zap /></el-icon>
                 <span>{{ row.progress.speed }}</span>
@@ -174,12 +185,15 @@ const store = useFFmpegStore();
 const { killProcess } = useFFmpegCore();
 const { sendToChat, sendToTranscription } = useFFmpegIntegration();
 
-// 任务排序：处理中优先
+// 任务排序：处理中优先，其次按创建时间倒序
 const sortedTasks = computed(() => {
   return [...store.tasks].sort((a, b) => {
+    // 1. 处理中的任务排在最前面
     if (a.status === "processing" && b.status !== "processing") return -1;
     if (a.status !== "processing" && b.status === "processing") return 1;
-    return 0; // FFmpeg 任务目前没有 createdAt，保持原序
+
+    // 2. 其次按创建时间倒序（最新的在上面）
+    return (b.createdAt || 0) - (a.createdAt || 0);
   });
 });
 
@@ -371,6 +385,19 @@ const handleIntegration = async (command: string, task: any) => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.status-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.percent-text {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--el-color-primary);
+  font-weight: bold;
 }
 
 .status-tag {

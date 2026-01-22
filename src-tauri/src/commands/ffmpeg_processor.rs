@@ -4,7 +4,6 @@ use std::path::Path;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
-use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 
 pub struct FFmpegState {
@@ -19,7 +18,7 @@ impl Default for FFmpegState {
     }
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FFmpegProgress {
     pub percent: f64,
@@ -83,12 +82,13 @@ pub async fn get_media_metadata(ffmpeg_path: String, input_path: String) -> Medi
 fn parse_ffmpeg_time(s: &str) -> Option<f64> {
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() == 3 {
-        let h = parts[0].parse::<f64>().ok()?;
-        let m = parts[1].parse::<f64>().ok()?;
-        let s = parts[2].parse::<f64>().ok()?;
+        let h = parts[0].trim().parse::<f64>().ok()?;
+        let m = parts[1].trim().parse::<f64>().ok()?;
+        let s = parts[2].trim().parse::<f64>().ok()?;
         Some(h * 3600.0 + m * 60.0 + s)
     } else {
-        None
+        // 尝试解析秒数格式
+        s.trim().parse::<f64>().ok()
     }
 }
 
@@ -307,14 +307,17 @@ pub async fn process_media(
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
+    log::info!("[FFmpeg] 执行指令: {} {}", ffmpeg_path, args.join(" "));
+
     command
         .args(&args)
         .stderr(Stdio::piped())
-        .stdout(Stdio::null());
+        .stdout(Stdio::null()); // 进度解析改用 stderr，不再需要 stdout
 
     let mut child = command
         .spawn()
         .map_err(|e| format!("Failed to spawn FFmpeg: {}", e))?;
+
     let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
 
     // 记录进程
@@ -323,29 +326,114 @@ pub async fn process_media(
         processes.insert(task_id.clone(), child);
     }
 
-    let mut reader = BufReader::new(stderr).lines();
     let task_id_clone = task_id.clone();
     let window_clone = window.clone();
 
-    while let Ok(Some(line)) = reader.next_line().await {
-        let _ = window_clone.emit(
+    // 使用共享状态记录最后一次进度，以便在结束时发送完整信息
+    let last_progress = Arc::new(Mutex::new(FFmpegProgress {
+        percent: 0.0,
+        current_time: 0.0,
+        speed: "0x".to_string(),
+        bitrate: "0kbps".to_string(),
+    }));
+
+    // 处理 stderr (日志 + 进度解析)
+    let task_id_for_stderr = task_id_clone.clone();
+    let window_for_stderr = window_clone.clone();
+    let last_progress_for_stderr = last_progress.clone();
+    tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut reader = stderr;
+        let mut buffer = [0u8; 4096];
+        let mut line_buffer = Vec::new();
+
+        // 发送初始日志
+        let _ = window_for_stderr.emit(
             "ffmpeg-log",
             FFmpegLogPayload {
-                task_id: task_id_clone.clone(),
-                message: line.clone(),
+                task_id: task_id_for_stderr.clone(),
+                message: "FFmpeg process started...".to_string(),
             },
         );
 
-        if let Some(progress) = parse_progress_line(&line, duration) {
-            let _ = window_clone.emit(
-                "ffmpeg-progress",
-                FFmpegProgressPayload {
-                    task_id: task_id_clone.clone(),
-                    progress,
-                },
-            );
+        while let Ok(n) = reader.read(&mut buffer).await {
+            if n == 0 {
+                break;
+            }
+
+            for &b in &buffer[..n] {
+                if b == b'\n' || b == b'\r' {
+                    if line_buffer.is_empty() {
+                        continue;
+                    }
+                    let line = String::from_utf8_lossy(&line_buffer).to_string();
+                    line_buffer.clear();
+
+                    // 1. 发送原始日志到前端控制台
+                    let _ = window_for_stderr.emit(
+                        "ffmpeg-log",
+                        FFmpegLogPayload {
+                            task_id: task_id_for_stderr.clone(),
+                            message: line.clone(),
+                        },
+                    );
+
+                    // 2. 解析进度
+                    let mut updated = false;
+                    let mut progress = {
+                        let p = last_progress_for_stderr.lock().unwrap();
+                        p.clone()
+                    };
+
+                    if let Some(pos) = line.find("time=") {
+                        let rest = line[pos + 5..].trim_start();
+                        let time_str = rest.split_whitespace().next().unwrap_or("");
+                        if let Some(t) = parse_ffmpeg_time(time_str) {
+                            progress.current_time = t;
+                            if duration > 0.0 {
+                                progress.percent = (t / duration * 100.0).min(99.9);
+                            }
+                            updated = true;
+                        }
+                    }
+
+                    if let Some(pos) = line.find("speed=") {
+                        let rest = line[pos + 6..].trim_start();
+                        progress.speed = rest.split_whitespace().next().unwrap_or("0x").to_string();
+                        updated = true;
+                    }
+
+                    if let Some(pos) = line.find("bitrate=") {
+                        let rest = line[pos + 8..].trim_start();
+                        progress.bitrate = rest
+                            .split_whitespace()
+                            .next()
+                            .unwrap_or("0kbps")
+                            .to_string();
+                        updated = true;
+                    }
+
+                    if updated {
+                        // 更新共享状态
+                        {
+                            let mut p = last_progress_for_stderr.lock().unwrap();
+                            *p = progress.clone();
+                        }
+
+                        let _ = window_for_stderr.emit(
+                            "ffmpeg-progress",
+                            FFmpegProgressPayload {
+                                task_id: task_id_for_stderr.clone(),
+                                progress,
+                            },
+                        );
+                    }
+                } else {
+                    line_buffer.push(b);
+                }
+            }
         }
-    }
+    });
 
     // 取回进程并等待
     let mut child = {
@@ -359,60 +447,23 @@ pub async fn process_media(
         .map_err(|e| format!("Wait failed: {}", e))?;
 
     if status.success() {
+        // 任务成功后，发送 100% 进度，并保留最后一次解析到的速率和比特率
+        let mut final_progress = {
+            let p = last_progress.lock().unwrap();
+            p.clone()
+        };
+        final_progress.percent = 100.0;
+        final_progress.current_time = duration;
+
         let _ = window_clone.emit(
             "ffmpeg-progress",
             FFmpegProgressPayload {
                 task_id: task_id_clone,
-                progress: FFmpegProgress {
-                    percent: 100.0,
-                    current_time: duration,
-                    speed: "1x".to_string(),
-                    bitrate: "N/A".to_string(),
-                },
+                progress: final_progress,
             },
         );
         Ok(output_path)
     } else {
         Err(format!("FFmpeg exited with code: {:?}", status.code()))
     }
-}
-
-fn parse_progress_line(line: &str, duration: f64) -> Option<FFmpegProgress> {
-    if !line.contains("time=") {
-        return None;
-    }
-
-    let mut progress = FFmpegProgress {
-        percent: 0.0,
-        current_time: 0.0,
-        speed: "0x".to_string(),
-        bitrate: "0kbps".to_string(),
-    };
-
-    if let Some(pos) = line.find("time=") {
-        let rest = &line[pos + 5..];
-        let time_str = rest.split_whitespace().next().unwrap_or("");
-        if let Some(t) = parse_ffmpeg_time(time_str) {
-            progress.current_time = t;
-            if duration > 0.0 {
-                progress.percent = (t / duration * 100.0).min(99.9);
-            }
-        }
-    }
-
-    if let Some(pos) = line.find("speed=") {
-        let rest = &line[pos + 6..];
-        progress.speed = rest.split_whitespace().next().unwrap_or("0x").to_string();
-    }
-
-    if let Some(pos) = line.find("bitrate=") {
-        let rest = &line[pos + 8..];
-        progress.bitrate = rest
-            .split_whitespace()
-            .next()
-            .unwrap_or("0kbps")
-            .to_string();
-    }
-
-    Some(progress)
 }

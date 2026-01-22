@@ -35,18 +35,27 @@ export function useFFmpegCore() {
    */
   const startProcess = async (taskId: string, params: FFmpegParams) => {
     try {
+      logger.info("开始 FFmpeg 任务", { taskId, params });
       store.updateTask(taskId, { status: "processing" });
+      store.addTaskLog(taskId, `[System] 正在启动 FFmpeg 任务...`);
+      store.addTaskLog(taskId, `[System] 输入路径: ${params.inputPath}`);
+      store.addTaskLog(taskId, `[System] 处理模式: ${params.mode}`);
 
       const result = await invoke<string>("process_media", {
         taskId,
         params,
       });
 
+      logger.info("FFmpeg 任务执行成功", { taskId, result });
+      store.addTaskLog(taskId, `[System] 任务执行成功!`);
+      store.addTaskLog(taskId, `[System] 输出路径: ${result}`);
       store.updateTask(taskId, { status: "completed", outputPath: result });
       return result;
     } catch (error: any) {
+      const errorMsg = error.toString();
       logger.error("FFmpeg 处理失败", error, { taskId });
-      store.updateTask(taskId, { status: "failed", error: error.toString() });
+      store.addTaskLog(taskId, `[Error] 任务处理失败: ${errorMsg}`);
+      store.updateTask(taskId, { status: "failed", error: errorMsg });
       throw error;
     }
   };
@@ -67,19 +76,19 @@ export function useFFmpegCore() {
    * 监听进度与日志事件
    */
   const setupListeners = async () => {
-    const unlistenProgress = await listen<{ task_id: string; progress: FFmpegProgress }>(
+    const unlistenProgress = await listen<{ taskId: string; progress: FFmpegProgress }>(
       "ffmpeg-progress",
       (event) => {
-        const { task_id, progress } = event.payload;
-        store.updateTaskProgress(task_id, progress);
+        const { taskId, progress } = event.payload;
+        store.updateTaskProgress(taskId, progress);
       }
     );
 
-    const unlistenLog = await listen<{ task_id: string; message: string }>(
+    const unlistenLog = await listen<{ taskId: string; message: string }>(
       "ffmpeg-log",
       (event) => {
-        const { task_id, message } = event.payload;
-        store.addTaskLog(task_id, message);
+        const { taskId, message } = event.payload;
+        store.addTaskLog(taskId, message);
       }
     );
 

@@ -6,13 +6,15 @@
         <span>实时控制台</span>
       </div>
       <div class="header-right">
+        <el-button link @click="copyLogs">
+          <template #icon><el-icon><Copy /></el-icon></template>
+          复制
+        </el-button>
         <el-button link @click="clearLogs">
-          <template #icon
-            ><el-icon><Trash /></el-icon
-          ></template>
+          <template #icon><el-icon><Trash /></el-icon></template>
           清空
         </el-button>
-        <el-button link :icon="autoScroll ? 'Check' : 'Close'" @click="autoScroll = !autoScroll">
+        <el-button link :icon="autoScroll ? Check : X" @click="autoScroll = !autoScroll">
           自动滚动
         </el-button>
       </div>
@@ -29,7 +31,9 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from "vue";
-import { Terminal, Trash } from "lucide-vue-next";
+import { Terminal, Trash, Copy, Check, X } from "lucide-vue-next";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { customMessage } from "@/utils/customMessage";
 
 const props = defineProps<{
   logs: string[];
@@ -42,6 +46,16 @@ const autoScroll = ref(true);
 
 const clearLogs = () => {
   emit("clear");
+};
+
+const copyLogs = async () => {
+  if (!props.logs.length) return;
+  try {
+    await writeText(props.logs.join("\n"));
+    customMessage.success("已复制到剪贴板");
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
 };
 
 const getLogClass = (log: string) => {

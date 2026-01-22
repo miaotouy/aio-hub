@@ -21,6 +21,7 @@
               <el-option label="H.264 (兼容性好)" value="libx264" />
               <el-option label="H.265 (体积更小)" value="libx265" />
               <el-option label="流拷贝 (不重编码)" value="copy" />
+              <el-option label="禁用视频流 (-vn)" value="none" />
             </el-select>
           </el-form-item>
           <el-form-item label="输出质量" class="flex-1" v-if="params.videoEncoder !== 'copy'">
@@ -57,6 +58,7 @@
               <el-option label="NVIDIA H.264 (NVENC)" value="h264_nvenc" />
               <el-option label="Intel H.264 (QSV)" value="h264_qsv" />
               <el-option label="直接流拷贝 (Copy)" value="copy" />
+              <el-option label="禁用视频流 (None)" value="none" />
             </el-select>
           </el-form-item>
           <el-form-item label="编码预设 (Preset)" class="flex-1">
@@ -134,6 +136,7 @@
           <el-select v-model="params.audioEncoder">
             <el-option label="AAC (默认)" value="aac" />
             <el-option label="直接流拷贝 (Copy)" value="copy" />
+            <el-option label="禁用音频流 (-an)" value="none" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频质量" class="flex-1">
@@ -157,6 +160,7 @@
             <el-option label="Opus" value="libopus" />
             <el-option label="FLAC (无损)" value="flac" />
             <el-option label="直接流拷贝 (Copy)" value="copy" />
+            <el-option label="禁用音频流 (None)" value="none" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频比特率" class="flex-1">
@@ -192,6 +196,10 @@
         <div class="switch-row">
           <span>硬件加速 (解码/编码)</span>
           <el-switch v-model="params.hwaccel" />
+        </div>
+        <div class="switch-row">
+          <span>智能命名 (将参数附加到文件名)</span>
+          <el-switch v-model="params.appendParamsToName" />
         </div>
         <el-form-item label="自定义参数 (Custom Arguments)">
           <el-input

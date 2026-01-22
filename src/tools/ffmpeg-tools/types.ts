@@ -104,4 +104,5 @@ export interface FFmpegParams {
   // 其他
   customArgs?: string[];
   maxSizeMb?: number; // 仍然保留用于自动计算
+  appendParamsToName?: boolean; // 是否将参数信息附加到文件名末尾
 }

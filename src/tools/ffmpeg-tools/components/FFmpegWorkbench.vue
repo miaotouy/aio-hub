@@ -170,6 +170,7 @@ const params = reactive<FFmpegParams>({
   crf: 23,
   audioBitrate: "128k",
   audioEncoder: "aac",
+  appendParamsToName: false,
 });
 
 const currentTaskLogs = computed(() => {
@@ -186,7 +187,7 @@ const generatedCommand = computed(() => {
   if (params.mode === "custom" && params.customArgs) {
     parts.push(...params.customArgs);
   } else {
-    if (params.mode === "extract_audio") {
+    if (params.mode === "extract_audio" || params.videoEncoder === "none") {
       parts.push("-vn");
     } else {
       // 视频编码器优化：默认使用 libx264，但如果用户没选且是专业模式，可以考虑 libx265
@@ -213,8 +214,13 @@ const generatedCommand = computed(() => {
     }
 
     // 音频处理
-    if (params.audioEncoder) parts.push("-c:a", params.audioEncoder);
-    if (params.audioEncoder !== "copy") {
+    if (params.audioEncoder === "none") {
+      parts.push("-an");
+    } else if (params.audioEncoder) {
+      parts.push("-c:a", params.audioEncoder);
+    }
+
+    if (params.audioEncoder !== "copy" && params.audioEncoder !== "none") {
       if (params.audioBitrate) parts.push("-b:a", params.audioBitrate);
       if (params.sampleRate) parts.push("-ar", params.sampleRate);
       if (params.audioChannels) parts.push("-ac", params.audioChannels.toString());
@@ -233,6 +239,66 @@ const generatedCommand = computed(() => {
 const isMaybeVideo = computed(() => {
   const videoExts = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
   return videoExts.some((ext) => fileName.value.toLowerCase().endsWith(ext));
+});
+
+const paramsSuffix = computed(() => {
+  if (!params.appendParamsToName) return "";
+
+  const tags: string[] = [];
+
+  if (params.mode === "extract_audio" || params.videoEncoder === "none") {
+    tags.push("audio_only");
+    if (params.audioEncoder && params.audioEncoder !== "none") {
+      tags.push(params.audioEncoder.replace("lib", ""));
+    }
+    if (params.audioBitrate) tags.push(params.audioBitrate);
+  } else if (params.mode === "video" || params.mode === "convert") {
+    // 视频编码器
+    if (params.videoEncoder === "none") {
+      tags.push("no_video");
+    } else if (params.videoEncoder) {
+      tags.push(params.videoEncoder.replace("lib", ""));
+    }
+
+    // 质量/码率
+    if (params.crf !== undefined) {
+      tags.push(`crf${params.crf}`);
+    } else if (params.videoBitrate) {
+      tags.push(params.videoBitrate);
+    }
+
+    // 分辨率
+    if (params.scale) {
+      const scaleMatch = params.scale.match(/scale=(\d+):/);
+      if (scaleMatch) {
+        const width = scaleMatch[1];
+        const heightMap: Record<string, string> = {
+          "3840": "4K",
+          "2560": "2K",
+          "1920": "1080p",
+          "1280": "720p",
+          "854": "480p",
+        };
+        tags.push(heightMap[width] || `${width}w`);
+      }
+    }
+
+    // 帧率
+    if (params.fps) {
+      tags.push(`${params.fps}fps`);
+    }
+
+    // 音频 (如果是视频模式且不是 copy)
+    if (params.mode === "video" || params.mode === "convert") {
+      if (params.audioEncoder === "none") {
+        tags.push("muted");
+      } else if (params.audioEncoder && params.audioEncoder !== "copy") {
+        tags.push(params.audioEncoder.replace("lib", ""));
+      }
+    }
+  }
+
+  return tags.length > 0 ? `_${tags.join("_")}` : "";
 });
 
 const handleManualSelect = async () => {
@@ -339,23 +405,38 @@ onUnmounted(() => {
 });
 
 // 自动更新输出文件名逻辑
-watch([() => params.mode, () => params.audioEncoder], async () => {
-  if (!currentFilePath.value) return;
-  const nameWithoutExt = fileName.value.substring(0, fileName.value.lastIndexOf("."));
-  const originalExt = await extname(currentFilePath.value);
+watch(
+  [
+    () => params.mode,
+    () => params.audioEncoder,
+    () => params.videoEncoder,
+    () => params.crf,
+    () => params.videoBitrate,
+    () => params.scale,
+    () => params.fps,
+    () => params.appendParamsToName,
+  ],
+  async () => {
+    if (!currentFilePath.value) return;
+    const nameWithoutExt = fileName.value.substring(0, fileName.value.lastIndexOf("."));
+    const originalExt = await extname(currentFilePath.value);
 
-  if (params.mode === "extract_audio") {
-    const extMap: Record<string, string> = {
-      aac: "m4a",
-      libmp3lame: "mp3",
-      flac: "flac",
-      libopus: "opus",
-    };
-    outputName.value = `${nameWithoutExt}.${extMap[params.audioEncoder || ""] || "m4a"}`;
-  } else {
-    outputName.value = `${nameWithoutExt}_processed.${originalExt}`;
+    const suffix = paramsSuffix.value;
+
+    if (params.mode === "extract_audio" || params.videoEncoder === "none") {
+      const extMap: Record<string, string> = {
+        aac: "m4a",
+        libmp3lame: "mp3",
+        flac: "flac",
+        libopus: "opus",
+      };
+      outputName.value = `${nameWithoutExt}${suffix}.${extMap[params.audioEncoder || ""] || "m4a"}`;
+    } else {
+      const baseSuffix = suffix || "_processed";
+      outputName.value = `${nameWithoutExt}${baseSuffix}.${originalExt}`;
+    }
   }
-});
+);
 </script>
 
 <style scoped>

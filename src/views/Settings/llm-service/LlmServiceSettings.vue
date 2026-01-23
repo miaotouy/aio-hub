@@ -92,15 +92,34 @@ const selectedProfile = computed(() => {
   return profiles.value.find((p) => p.id === selectedProfileId.value) || null;
 });
 
-// 将逗号分隔的 API Key 字符串转换为数组
+// 将分隔的 API Key 字符串（支持逗号或换行）转换为数组
 const updateApiKeys = () => {
   const keys = apiKeyInput.value
-    .split(",")
+    .split(/[,，\n\r]+/) // 支持英文逗号、中文逗号、换行符
     .map((key) => key.trim())
     .filter((key) => key.length > 0);
   editForm.value.apiKeys = keys;
+  // 更新输入框显示，统一用逗号分隔，方便用户查看
+  apiKeyInput.value = keys.join(", ");
 };
 
+// 监听配置的变化，特别是 apiKeys，以同步输入框
+watch(
+  () => editForm.value.apiKeys,
+  (newKeys) => {
+    if (!newKeys) return;
+    const currentInputKeys = apiKeyInput.value
+      .split(/[,，\n\r]+/)
+      .map((k) => k.trim())
+      .filter((k) => k.length > 0);
+
+    // 如果数组内容不一致，则同步到输入框
+    if (JSON.stringify(newKeys) !== JSON.stringify(currentInputKeys)) {
+      apiKeyInput.value = newKeys.join(", ");
+    }
+  },
+  { deep: true }
+);
 // 选择配置
 const selectProfile = (profileId: string) => {
   selectedProfileId.value = profileId;
@@ -110,7 +129,6 @@ const selectProfile = (profileId: string) => {
     apiKeyInput.value = profile.apiKeys.join(", ");
   }
 };
-
 // 创建新配置 - 从空白开始
 const createNewProfile = () => {
   editForm.value = {

@@ -210,37 +210,16 @@ const handleSend = async () => {
 
   const payload = { content, attachments, temporaryModel, disableMacroParsing };
 
-  // 记录发送前的节点数量
-  const initialCount = chatStore.currentMessageCount;
-
   if (props.isDetached) {
     bus.requestAction("send-message", payload);
   } else {
     emit("send", payload);
   }
 
-  // 轮询检查节点是否已添加（sendMessage 内部会先处理宏，然后创建节点）
-  // 正常情况下这个过程在 100ms 内，但如果有复杂的宏可能稍慢
-  let checkCount = 0;
-  const maxChecks = 20; // 最多等 2 秒 (20 * 100ms)
-  
-  const checkTimer = setInterval(() => {
-    checkCount++;
-    const currentCount = chatStore.currentMessageCount;
-    
-    if (currentCount > initialCount) {
-      // 成功创建了节点，清空输入框
-      inputManager.clear();
-      isExpanded.value = false;
-      clearInterval(checkTimer);
-      logger.info("检测到新节点已创建，已清空输入框");
-    } else if (checkCount >= maxChecks) {
-      // 超时未检测到新节点，说明发送可能被拦截或失败了
-      clearInterval(checkTimer);
-      logger.warn("发送后未检测到新节点创建，保留输入内容");
-      // 此时不需要手动恢复，因为我们根本没调用 clear()
-    }
-  }, 100);
+  // 这里的清空逻辑已移至 llmChatStore.sendMessage 内部“反向驱动”
+  // 以及 detached 模式下的 bus 处理器中。
+  // 这样可以确保只有在消息真正进入 store 后才清空，且支持跨窗口同步。
+  isExpanded.value = false;
 
   // 重置文本框高度 (CM6 内部自动处理 doc 变化后的高度)
 };

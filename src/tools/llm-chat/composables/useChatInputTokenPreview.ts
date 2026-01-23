@@ -3,7 +3,6 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useAgentStore } from "../stores/agentStore";
-import { useChatInputManager } from "./useChatInputManager";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../macro-engine/MacroProcessor";
 import { buildMacroContext, processMacros } from "../core/context-utils/macro";
@@ -154,31 +153,17 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     isCalculatingTokens.value = true;
     try {
       // 1. 获取最新的附件状态（包括可能已完成的转写结果）
+      // 注意：此处仅用于计算，不应同步回 inputManager，否则会引起响应式死循环和性能问题
       const latestAttachments = await Promise.all(
         attachmentValue.map(async (asset) => {
+          // 如果资产已经有转写路径了，直接用，没必要再去查一遍后端
+          if (asset.metadata?.derived?.transcription?.path) {
+            return asset;
+          }
           const latest = await assetManagerEngine.getAssetById(asset.id);
           return latest || asset;
         })
       );
-
-      // 检查是否有资产状态发生了实质性变化（如多了转写信息），如果有，同步回 inputManager
-      // 这可以确保 UI 上的转写图标等状态能随 token 计算自动刷新
-      const inputManager = (options as any).inputManager || useChatInputManager();
-      let hasChange = false;
-      for (let i = 0; i < latestAttachments.length; i++) {
-        const latest = latestAttachments[i];
-        const current = attachmentValue[i];
-        if (latest !== current && JSON.stringify(latest.metadata) !== JSON.stringify(current.metadata)) {
-          hasChange = true;
-          break;
-        }
-      }
-
-      if (hasChange) {
-        logger.debug("检测到附件元数据更新，同步回输入管理器");
-        // 使用 addAssets 覆盖更新现有附件
-        inputManager.addAssets(latestAttachments);
-      }
 
       // 2. 文本预处理（目前主要是宏展开）
       const processedText = await preprocessMacros(inputText.value);
@@ -246,7 +231,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   watch(
     () => {
       // 快速路径：如果没有附件，不需要监听任务状态
-      if (attachments.value.length === 0) return "";
+      if (attachments.value.length === 0) return null;
 
       // 只关注当前附件相关的任务状态
       const attachmentIds = new Set(attachments.value.map((a) => a.id));
@@ -254,13 +239,13 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         attachmentIds.has(t.assetId)
       );
 
-      if (relevantTasks.length === 0) return "";
+      if (relevantTasks.length === 0) return null;
 
       // 返回一个状态快照字符串，用于检测变化
       return relevantTasks.map((t) => `${t.assetId}:${t.status}`).join(",");
     },
     (newVal, oldVal) => {
-      if (newVal !== oldVal) {
+      if (newVal && newVal !== oldVal) {
         logger.debug("转写任务状态变化，触发 token 重新计算", { newVal, oldVal });
         triggerCalculation();
       }

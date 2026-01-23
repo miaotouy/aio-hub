@@ -420,7 +420,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     try {
       const chatHandler = useChatHandler();
-      await chatHandler.sendMessage(
+      
+      // 注意：chatHandler.sendMessage 内部会先同步创建节点并持久化。
+      // 我们需要在节点创建后的“黄金时间”清空输入框。
+      // 由于 chatHandler.sendMessage 内部逻辑较重且包含异步转写等待，
+      // 我们不能直接 await 它（那会等 LLM 回复完）。
+      // 但我们可以通过一个微任务或 nextTick 确保在同步的节点创建完成后清空。
+      const sendPromise = chatHandler.sendMessage(
         session,
         content,
         currentActivePath.value,
@@ -429,6 +435,20 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         options,
         currentSessionId.value,
       );
+
+      // 反向驱动：立即清空输入框
+      // 理由：chatHandler.sendMessage 的第一步就是创建节点。
+      // 只要这一步没抛错，内容就已经安全进入历史记录。
+      try {
+        const { useChatInputManager } = await import("../composables/useChatInputManager");
+        const inputManager = useChatInputManager();
+        inputManager.clear();
+        logger.info("消息已进入发送流程，已反向驱动清空输入框");
+      } catch (e) {
+        logger.warn("反向驱动清空输入框失败", e);
+      }
+
+      await sendPromise;
 
       const sessionManager = useSessionManager();
       sessionManager.updateMessageCount(session);

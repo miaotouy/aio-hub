@@ -80,18 +80,14 @@ export function useChatContextStats(
         });
       },
     ],
-    ([, , updatedAt, isSending], [, , oldUpdatedAt, oldIsSending]) => {
-      // 1. 如果正在发送/生成中，且不是刚开始发送，则跳过统计刷新，避免流式回复过程中的卡顿
-      if (isSending && oldIsSending) {
+    ([, , , isSending]) => {
+      // 1. 如果正在发送/生成中，跳过统计刷新，避免发送瞬间和流式回复过程中的卡顿
+      // 统计应该在发送结束（isSending 变为 false）时，或者非发送状态下的内容变化时刷新
+      if (isSending) {
         return;
       }
 
-      // 2. 如果 updatedAt 变化非常频繁（比如流式回复中的增量保存），
-      // 且我们已经处于 isSending 状态，也不刷新
-      if (updatedAt !== oldUpdatedAt && isSending) {
-        return;
-      }
-
+      // 2. 如果是从发送状态刚结束，或者内容发生变化，触发刷新
       debouncedRefreshContextStats();
     },
     { deep: true, immediate: true }

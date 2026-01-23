@@ -13,13 +13,17 @@ onMounted(async () => {
   if (!profilesStore.isLoaded) {
     await profilesStore.init();
   }
+
+  if (!chatStore.isLoaded) {
+    await chatStore.init();
+  }
   
   // 确保有选中的模型且模型有效
   chatStore.syncSelectedModel();
 });
 
-const handleNewChat = () => {
-  const sessionId = chatStore.createSession();
+const handleNewChat = async () => {
+  const sessionId = await chatStore.createSession();
   router.push(`/tools/llm-chat/chat/${sessionId}`);
 };
 

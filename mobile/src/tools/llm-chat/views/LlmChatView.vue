@@ -22,9 +22,14 @@ onMounted(async () => {
     await profilesStore.init();
   }
 
+  // 初始化聊天 Store (加载索引等)
+  if (!chatStore.isLoaded) {
+    await chatStore.init();
+  }
+
   const sessionId = route.params.id as string;
   if (sessionId) {
-    chatStore.switchSession(sessionId);
+    await chatStore.switchSession(sessionId);
   }
 
   // 确保有选中的模型且模型有效

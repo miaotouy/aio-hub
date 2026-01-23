@@ -6,14 +6,15 @@
 
 **目标**：确保双端数据结构完全一致，为后续功能对齐打桩。
 
-- [ ] **按需提取核心类型 (Types Subset)**：
+- [x] **按需提取核心类型 (Types Subset)**：
   - 仅提取 `Message`, `Session`, `Role` 等对话流必需的基础接口。
   - 暂时屏蔽（或不复制）与 Agent 逻辑、插件系统相关的复杂类型定义。
   - 适配移动端路径，确保不产生对 PC 端专属 Service 的循环引用。
-- [ ] **建立移动端 Store 骨架**：
+- [x] **建立移动端 Store 骨架**：
   - 在 `mobile/src/tools/llm-chat/stores/` 创建 `llmChatStore.ts`。
-  - 定义基础状态：`sessions`, `currentSessionId`, `isSending`。
+  - 定义基础状态：`sessionMetas`, `currentSessionId`, `isSending`。
   - 实现基础 Getter：`currentSession`, `currentActivePath` (计算线性路径)。
+  - 实现分离式持久化存储（对齐 PC 方案）。
 
 ## 2. 交互基建：键盘避让 (UX Foundation)
 
@@ -36,9 +37,9 @@
 - **请求复用**：直接调用 `useLlmRequest` 发起流式对话，确保请求逻辑与 `llm-api` 的测试结果一致。
 - **组件集成**：直接嵌入 `LlmModelSelector` 组件，实现统一的模型切换交互。
 
-- [ ] **实现极简 Executor**：
+- [x] **实现极简 Executor**：
   - 在 `mobile/src/tools/llm-chat/composables/` 创建 `useChatExecutor.ts`。
-  - 前期先剥离 PC 端的管道逻辑，直接使用 `useLlmRequest` 发起请求，后续再加上。
+  - 前期先剥离 PC 端的管道逻辑，直接使用 `useLlmRequest` 发起请求，并集成持久化。
 - [ ] **消息渲染组件**：
   - `MessageBubble.vue`：初期仅支持纯文本显示。
   - `MessageList.vue`：实现线性列表渲染，支持虚拟滚动（可选，视初期消息量而定）。

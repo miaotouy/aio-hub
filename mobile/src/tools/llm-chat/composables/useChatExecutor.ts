@@ -114,6 +114,8 @@ export function useChatExecutor() {
     } finally {
       chatStore.isSending = false;
       session.updatedAt = new Date().toISOString();
+      // 持久化当前会话
+      await chatStore.persistCurrentSession();
     }
   }
 

@@ -2,23 +2,25 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ChatSession, ChatMessageNode } from '../types';
 import { useLlmProfilesStore } from '../../llm-api/stores/llmProfiles';
+import { useSessionManager, type SessionIndexItem } from '../composables/useSessionManager';
 import { v4 as uuidv4 } from 'uuid';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('llm-chat/store');
 
 export const useLlmChatStore = defineStore('llmChat', () => {
+  const sessionManager = useSessionManager();
+
   // ==================== 状态 ====================
-  const sessions = ref<ChatSession[]>([]);
+  const sessionMetas = ref<SessionIndexItem[]>([]);
   const currentSessionId = ref<string | null>(null);
+  const currentSessionDetail = ref<ChatSession | null>(null);
   const isSending = ref(false);
+  const isLoaded = ref(false);
   const selectedModelValue = ref<string>(''); // 格式: profileId:modelId
 
   // ==================== Getters ====================
-  const currentSession = computed(() => {
-    if (!currentSessionId.value) return null;
-    return sessions.value.find(s => s.id === currentSessionId.value) || null;
-  });
+  const currentSession = computed(() => currentSessionDetail.value);
 
   /**
    * 获取当前会话的线性活跃路径（不含根节点）
@@ -37,16 +39,33 @@ export const useLlmChatStore = defineStore('llmChat', () => {
       currentId = node.parentId;
     }
 
-    // 过滤掉 root 节点（如果有的话）
+    // 过滤掉 root 节点
     return path.filter(node => node.id !== session.rootNodeId);
   });
 
   // ==================== Actions ====================
 
   /**
+   * 初始化 Store
+   */
+  async function init() {
+    if (isLoaded.value) return;
+
+    const { sessionMetas: metas, currentSessionId: lastId } = await sessionManager.loadSessions();
+    sessionMetas.value = metas;
+    
+    if (lastId) {
+      await switchSession(lastId);
+    }
+    
+    isLoaded.value = true;
+    logger.info('Store initialized', { sessionCount: metas.length, lastId });
+  }
+
+  /**
    * 创建新会话
    */
-  function createSession(name: string = 'New Chat'): string {
+  async function createSession(name: string = 'New Chat'): Promise<string> {
     const sessionId = uuidv4();
     const rootNodeId = uuidv4();
     
@@ -72,9 +91,16 @@ export const useLlmChatStore = defineStore('llmChat', () => {
       updatedAt: new Date().toISOString()
     };
 
-    sessions.value.push(session);
+    currentSessionDetail.value = session;
     currentSessionId.value = sessionId;
     
+    // 持久化
+    await sessionManager.persistSession(session, sessionId);
+    
+    // 更新元数据列表
+    const { sessionMetas: metas } = await sessionManager.loadSessions();
+    sessionMetas.value = metas;
+
     logger.info('Created new session', { sessionId, name });
     return sessionId;
   }
@@ -82,18 +108,51 @@ export const useLlmChatStore = defineStore('llmChat', () => {
   /**
    * 切换会话
    */
-  function switchSession(sessionId: string) {
-    if (sessions.value.some(s => s.id === sessionId)) {
+  async function switchSession(sessionId: string) {
+    if (currentSessionId.value === sessionId && currentSessionDetail.value) return;
+
+    const session = await sessionManager.loadSession(sessionId);
+    if (session) {
+      currentSessionDetail.value = session;
       currentSessionId.value = sessionId;
+      await sessionManager.updateCurrentSessionId(sessionId);
       logger.info('Switched to session', { sessionId });
     } else {
-      logger.warn('Failed to switch session: not found', { sessionId });
+      logger.warn('Failed to switch session: not found or load failed', { sessionId });
+    }
+  }
+
+  /**
+   * 删除会话
+   */
+  async function deleteSession(sessionId: string) {
+    const newId = await sessionManager.deleteSession(sessionId);
+    
+    // 更新元数据
+    const { sessionMetas: metas } = await sessionManager.loadSessions();
+    sessionMetas.value = metas;
+
+    if (newId) {
+      await switchSession(newId);
+    } else {
+      currentSessionId.value = null;
+      currentSessionDetail.value = null;
+    }
+    
+    logger.info('Deleted session', { sessionId, nextId: newId });
+  }
+
+  /**
+   * 持久化当前会话
+   */
+  async function persistCurrentSession() {
+    if (currentSessionDetail.value) {
+      await sessionManager.persistSession(currentSessionDetail.value, currentSessionId.value);
     }
   }
 
   /**
    * 同步并校验当前选中的模型
-   * 确保选中的模型所属的 Profile 是启用的，且模型确实存在
    */
   function syncSelectedModel() {
     const profilesStore = useLlmProfilesStore();
@@ -105,28 +164,34 @@ export const useLlmChatStore = defineStore('llmChat', () => {
     };
 
     if (!selectedModelValue.value || !isAvailable(profileId, modelId)) {
-      // 尝试寻找第一个可用的模型
       const firstEnabledProfile = profilesStore.enabledProfiles[0];
       if (firstEnabledProfile && firstEnabledProfile.models.length > 0) {
         const newValue = `${firstEnabledProfile.id}:${firstEnabledProfile.models[0].id}`;
         selectedModelValue.value = newValue;
-        logger.info('Selected model synced to first available', { newValue });
       } else {
         selectedModelValue.value = '';
-        logger.warn('No enabled profiles or models available');
       }
     }
   }
 
   return {
-    sessions,
+    // 状态
+    sessionMetas,
     currentSessionId,
     isSending,
+    isLoaded,
     selectedModelValue,
+    
+    // Getters
     currentSession,
     currentActivePath,
+    
+    // Actions
+    init,
     createSession,
     switchSession,
+    deleteSession,
+    persistCurrentSession,
     syncSelectedModel
   };
 });

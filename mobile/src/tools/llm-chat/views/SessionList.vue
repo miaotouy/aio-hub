@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { MessageSquare, ChevronRight, Trash2, ChevronLeft } from "lucide-vue-next";
@@ -6,15 +7,20 @@ import { MessageSquare, ChevronRight, Trash2, ChevronLeft } from "lucide-vue-nex
 const router = useRouter();
 const chatStore = useLlmChatStore();
 
-const goToChat = (id: string) => {
-  chatStore.switchSession(id);
+onMounted(async () => {
+  if (!chatStore.isLoaded) {
+    await chatStore.init();
+  }
+});
+
+const goToChat = async (id: string) => {
+  await chatStore.switchSession(id);
   router.push(`/tools/llm-chat/chat/${id}`);
 };
 
-const deleteSession = (event: Event, id: string) => {
+const deleteSession = async (event: Event, id: string) => {
   event.stopPropagation();
-  // TODO: 实现删除逻辑
-  console.log("Delete session", id);
+  await chatStore.deleteSession(id);
 };
 </script>
 
@@ -42,13 +48,13 @@ const deleteSession = (event: Event, id: string) => {
     </var-app-bar>
 
     <div class="list-container">
-      <div v-if="chatStore.sessions.length === 0" class="empty-state">
+      <div v-if="chatStore.sessionMetas.length === 0" class="empty-state">
         <MessageSquare :size="48" />
         <p>暂无历史会话</p>
       </div>
 
       <div
-        v-for="session in chatStore.sessions"
+        v-for="session in chatStore.sessionMetas"
         :key="session.id"
         class="session-item"
         @click="goToChat(session.id)"

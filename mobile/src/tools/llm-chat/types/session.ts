@@ -30,6 +30,22 @@ export interface ChatSession {
   name: string;
 
   /**
+   * 当前显示的智能体 ID
+   */
+  displayAgentId?: string | null;
+
+  /**
+   * 消息数量快照（不含根节点）
+   */
+  messageCount?: number;
+
+  /**
+   * 撤销/重做 状态快照（运行时专用，不持久化）
+   */
+  history?: any[];
+  historyIndex?: number;
+
+  /**
    * 会话创建和最后更新的时间戳
    */
   createdAt: string;

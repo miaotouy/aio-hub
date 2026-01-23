@@ -2,7 +2,8 @@ import { useLlmChatStore } from '../stores/llmChatStore';
 import { useLlmRequest } from '../../llm-api/composables/useLlmRequest';
 import { useLlmProfilesStore } from '../../llm-api/stores/llmProfiles';
 import { useNodeManager } from './useNodeManager';
-import type { ChatSession } from '../types';
+import { useContextPipelineStore } from '../stores/contextPipelineStore';
+import type { ChatSession, PipelineContext } from '../types';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('llm-chat/useChatExecutor');
@@ -12,6 +13,7 @@ export function useChatExecutor() {
   const llmRequest = useLlmRequest();
   const profilesStore = useLlmProfilesStore();
   const nodeManager = useNodeManager();
+  const pipelineStore = useContextPipelineStore();
 
   /**
    * 执行对话请求
@@ -27,7 +29,7 @@ export function useChatExecutor() {
     }
 
     const profile = profilesStore.profiles.find(p => p.id === profileId);
-    
+
     // 校验渠道是否有效且启用
     if (!profile || !profile.enabled) {
       logger.warn('Selected profile is not found or disabled', { profileId });
@@ -64,27 +66,46 @@ export function useChatExecutor() {
       }
     });
     nodeManager.addNodeToSession(session, assistantNode);
-    
+
     // 3. 更新活跃节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
     chatStore.isSending = true;
 
     try {
-      // 4. 构造上下文
-      const context = chatStore.currentActivePath
-        .map(n => ({
-          role: n.role as 'user' | 'assistant' | 'system',
-          content: n.content
-        }))
-        // 排除掉当前的助手节点（因为它还没内容）
-        .filter(n => n.content || n.role === 'user');
+      // 4. 构造管道上下文并执行
+      const pipelineContext: PipelineContext = {
+        messages: [],
+        session,
+        agentConfig: {}, // 移动端暂未引入完整的 ChatAgent
+        settings: {}, // 移动端暂未引入完整的 ChatSettings
+        capabilities: model.capabilities,
+        timestamp: Date.now(),
+        sharedData: new Map(),
+        logs: []
+      };
+
+      await pipelineStore.executePipeline(pipelineContext);
 
       // 5. 发起请求
+      // 转换为 llmRequest 期望的格式，保留多模态内容能力
+      const requestMessages = pipelineContext.messages
+        .filter(m => {
+          // 过滤掉空内容的消息，除非是 user 角色（有时候 user 发送空内容是为了触发某些特定逻辑，但通常不建议）
+          if (Array.isArray(m.content)) {
+            return m.content.length > 0;
+          }
+          return !!m.content || m.role === 'user';
+        })
+        .map(m => ({
+          role: m.role as any, // 映射到 LlmMessage['role']
+          content: m.content
+        }));
+
       const result = await llmRequest.sendRequest({
         profileId,
         modelId,
-        messages: context,
+        messages: requestMessages,
         stream: true,
         onStream: (chunk) => {
           assistantNode.content += chunk;

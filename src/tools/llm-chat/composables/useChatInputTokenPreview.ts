@@ -98,20 +98,26 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     return undefined;
   };
 
+  // 复用宏处理器实例
+  let macroProcessor: MacroProcessor | null = null;
+
   /**
    * 预处理流程：宏展开
    */
   const preprocessMacros = async (text: string): Promise<string> => {
-    if (!text.includes("{{")) return text;
+    // 快速路径：如果不包含宏语法，直接返回
+    if (!text || !text.includes("{{")) return text;
 
     try {
       const session = chatStore.currentSession;
-      const processor = new MacroProcessor();
+      if (!macroProcessor) {
+        macroProcessor = new MacroProcessor();
+      }
       const agentId = agentStore.currentAgentId || session?.displayAgentId;
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
 
       const context = buildMacroContext({ session: session || undefined, agent });
-      return await processMacros(processor, text, context, { silent: true });
+      return await processMacros(macroProcessor, text, context, { silent: true });
     } catch (e) {
       logger.warn("输入框 Token 预览宏展开失败", e);
       return text;
@@ -239,11 +245,17 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   // 当有任务完成时，触发重新计算（因为转写结果可能影响 token 计算）
   watch(
     () => {
+      // 快速路径：如果没有附件，不需要监听任务状态
+      if (attachments.value.length === 0) return "";
+
       // 只关注当前附件相关的任务状态
       const attachmentIds = new Set(attachments.value.map((a) => a.id));
       const relevantTasks = transcriptionManager.tasks.value.filter((t) =>
         attachmentIds.has(t.assetId)
       );
+
+      if (relevantTasks.length === 0) return "";
+
       // 返回一个状态快照字符串，用于检测变化
       return relevantTasks.map((t) => `${t.assetId}:${t.status}`).join(",");
     },

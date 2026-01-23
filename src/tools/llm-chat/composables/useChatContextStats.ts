@@ -5,6 +5,7 @@
 
 import { ref, watch, type Ref } from "vue";
 import { debounce } from "lodash-es";
+import { useLlmChatStore } from "../stores/llmChatStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useChatHandler } from "./useChatHandler";
 import type { ChatSession } from "../types";
@@ -49,7 +50,7 @@ export function useChatContextStats(
     }
   };
 
-  const debouncedRefreshContextStats = debounce(refreshContextStats, 300);
+  const debouncedRefreshContextStats = debounce(refreshContextStats, 500);
 
   // 监听核心状态变化
   watch(
@@ -57,6 +58,10 @@ export function useChatContextStats(
       currentSessionId,
       () => currentSession.value?.activeLeafId,
       () => currentSession.value?.updatedAt,
+      () => {
+        const chatStore = useLlmChatStore();
+        return chatStore.isSending;
+      },
       () => {
         const agentStore = useAgentStore();
         return agentStore.currentAgentId;
@@ -75,7 +80,18 @@ export function useChatContextStats(
         });
       },
     ],
-    () => {
+    ([, , updatedAt, isSending], [, , oldUpdatedAt, oldIsSending]) => {
+      // 1. 如果正在发送/生成中，且不是刚开始发送，则跳过统计刷新，避免流式回复过程中的卡顿
+      if (isSending && oldIsSending) {
+        return;
+      }
+
+      // 2. 如果 updatedAt 变化非常频繁（比如流式回复中的增量保存），
+      // 且我们已经处于 isSending 状态，也不刷新
+      if (updatedAt !== oldUpdatedAt && isSending) {
+        return;
+      }
+
       debouncedRefreshContextStats();
     },
     { deep: true, immediate: true }

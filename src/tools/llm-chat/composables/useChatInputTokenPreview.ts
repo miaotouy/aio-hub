@@ -3,6 +3,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useAgentStore } from "../stores/agentStore";
+import { useChatInputManager } from "./useChatInputManager";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../macro-engine/MacroProcessor";
 import { buildMacroContext, processMacros } from "../core/context-utils/macro";
@@ -154,6 +155,25 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         })
       );
 
+      // 检查是否有资产状态发生了实质性变化（如多了转写信息），如果有，同步回 inputManager
+      // 这可以确保 UI 上的转写图标等状态能随 token 计算自动刷新
+      const inputManager = (options as any).inputManager || useChatInputManager();
+      let hasChange = false;
+      for (let i = 0; i < latestAttachments.length; i++) {
+        const latest = latestAttachments[i];
+        const current = attachmentValue[i];
+        if (latest !== current && JSON.stringify(latest.metadata) !== JSON.stringify(current.metadata)) {
+          hasChange = true;
+          break;
+        }
+      }
+
+      if (hasChange) {
+        logger.debug("检测到附件元数据更新，同步回输入管理器");
+        // 使用 addAssets 覆盖更新现有附件
+        inputManager.addAssets(latestAttachments);
+      }
+
       // 2. 文本预处理（目前主要是宏展开）
       const processedText = await preprocessMacros(inputText.value);
 
@@ -190,9 +210,10 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   };
 
   // 监听所有可能影响 Token 计算的状态
+  // 注意：attachments 监听引用变化即可，内部元数据变化通过转写任务监听器处理
   watch([inputText, () => attachments.value, temporaryModel], () => {
     triggerCalculation();
-  }, { deep: true });
+  }, { deep: false });
 
   // 监听会话或智能体变更（可能导致模型 ID 变化）
   watch(

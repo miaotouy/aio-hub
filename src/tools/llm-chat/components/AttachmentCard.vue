@@ -75,21 +75,30 @@ const {
 const internalAsset = ref<Asset>(props.asset);
 
 watch(
-  () => props.asset.id,
-  async (newId) => {
-    if (newId) {
-      const latestAsset = await assetManagerEngine.getAssetById(newId);
+  () => props.asset,
+  async (newAsset, oldAsset) => {
+    // 1. 如果 ID 变了，必须去后端取最新的，因为 metadata 肯定不通用
+    if (newAsset.id !== oldAsset?.id) {
+      const latestAsset = await assetManagerEngine.getAssetById(newAsset.id);
       if (latestAsset) {
         internalAsset.value = latestAsset;
       } else {
-        // For new assets, it might take a moment for the engine to be aware of them.
-        // We'll use the prop and log a debug message.
-        logger.debug("无法立即获取资产信息 (可能是新资产)，临时使用 props", { assetId: newId });
-        internalAsset.value = props.asset;
+        logger.debug("无法立即获取资产信息 (可能是新资产)，临时使用 props", { assetId: newAsset.id });
+        internalAsset.value = newAsset;
+      }
+      return;
+    }
+
+    // 2. 如果 ID 没变，但 newAsset 对象引用变了（说明父组件同步了新对象）
+    if (newAsset !== internalAsset.value) {
+      // 只要新对象含有转写路径，或者旧对象没有而新对象有（即状态升级），就同步
+      const newPath = newAsset.metadata?.derived?.transcription?.path;
+      if (newPath || (newAsset.metadata && !internalAsset.value.metadata)) {
+        internalAsset.value = newAsset;
       }
     }
   },
-  { immediate: true }
+  { immediate: true, deep: false }
 );
 
 const assetUrl = ref<string>("");

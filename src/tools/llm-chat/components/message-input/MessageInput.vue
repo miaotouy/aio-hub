@@ -850,11 +850,8 @@ const getWillUseTranscription = (asset: Asset): boolean => {
     }
   }
 
-  if (!modelId || !profileId) {
-    return false; // 无法确定模型，假定不使用转写
-  }
-
   // 使用统一方法计算，输入框不考虑消息深度（传递 undefined）
+  // 注意：即使 modelId/profileId 为空，也交给 computeWillUseTranscription 处理，它内部有更完善的兜底逻辑
   return transcriptionManager.computeWillUseTranscription(asset, modelId, profileId, undefined);
 };
 </script>

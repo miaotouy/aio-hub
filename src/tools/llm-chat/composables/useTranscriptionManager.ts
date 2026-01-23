@@ -257,6 +257,7 @@ export function useTranscriptionManager() {
    * 获取转写状态
    */
   const getTranscriptionStatus = (asset: Asset) => {
+    // 1. 优先检查正在运行的任务（内存状态最实时）
     const task = transcriptionStore.getTaskByAssetId(asset.id);
     if (task) {
       if (task.status === "error") return "error";
@@ -266,6 +267,7 @@ export function useTranscriptionManager() {
       return "processing";
     }
 
+    // 2. 检查传入资产对象的元数据
     const derived = asset.metadata?.derived?.transcription;
     if (derived) {
       if (derived.error) return "error";
@@ -369,6 +371,12 @@ export function useTranscriptionManager() {
     profileId: string,
     messageDepth?: number
   ): boolean => {
+    // 如果已经有转写结果了，为了 UI 状态的一致性（显示为已完成的绿色图标），
+    // 无论当前模型是否支持，都应视为“使用转写状态”。
+    if (getTranscriptionStatus(asset) === "success") {
+      return true;
+    }
+
     const config = settings.value.transcription;
     if (!config.enabled) return false;
 

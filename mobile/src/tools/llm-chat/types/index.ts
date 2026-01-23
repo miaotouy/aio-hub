@@ -3,3 +3,4 @@ export * from './message';
 export * from './session';
 export * from './context';
 export * from './pipeline';
+export * from './settings';

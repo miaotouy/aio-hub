@@ -1,0 +1,36 @@
+{
+  "common": {
+    "AI 对话": "AI Chat",
+    "与 AI 进行即时对话": "Instant chat with AI",
+    "历史会话": "History",
+    "对话详情": "Chat Details",
+    "聊天设置": "Chat Settings"
+  },
+  "ChatHome": {
+    "开始一段新的对话或继续历史会话": "Start a new chat or continue history",
+    "开启新对话": "New Chat",
+    "即刻开始即时交流": "Start instant communication",
+    "查看并继续之前的交流": "View and continue previous chats",
+    "角色大厅": "Character Hub",
+    "敬请期待": "Coming Soon",
+    "用户档案": "User Profile"
+  },
+  "ChatSettingsView": {
+    "界面偏好": "UI Preferences",
+    "模型偏好": "Model Preferences",
+    "消息管理": "Message Management",
+    "请求设置": "Request Settings",
+    "流式输出": "Streaming",
+    "显示时间戳": "Show Timestamp",
+    "显示 Token 统计": "Show Token Count",
+    "显示模型信息": "Show Model Info",
+    "自动滚动": "Auto Scroll",
+    "聊天字体缩放": "Font Scale",
+    "默认模型": "Default Model",
+    "删除消息前确认": "Confirm before deleting message",
+    "删除会话前确认": "Confirm before deleting session",
+    "清空会话前确认": "Confirm before clearing all",
+    "请求超时时间": "Request Timeout",
+    "最大重试次数": "Max Retries"
+  }
+}

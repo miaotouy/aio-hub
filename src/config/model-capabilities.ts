@@ -26,6 +26,8 @@ import {
   Code2,
   MessageSquareMore,
   Braces,
+  PencilLine,
+  RefreshCw,
 } from 'lucide-vue-next';
 
 /**
@@ -122,6 +124,24 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(Music),
     color: "#d946ef", // Fuchsia 500 - 律动的旋律
     className: "music-gen",
+  },
+
+  // --- 交互与迭代能力 ---
+  {
+    key: "mediaEditing",
+    label: "媒体编辑",
+    description: "支持以现有媒体为参考进行编辑、变体生成或局部重绘 (Image-to-Image)",
+    icon: markRaw(PencilLine),
+    color: "#ec4899", // Pink 500
+    className: "media-editing",
+  },
+  {
+    key: "iterativeRefinement",
+    label: "迭代微调",
+    description: "支持通过多轮对话持续优化生成结果 (Conversational Generation)",
+    icon: markRaw(RefreshCw),
+    color: "#22c55e", // Green 500
+    className: "iterative-refinement",
   },
 
   // --- 多模态输入与处理 ---

@@ -182,11 +182,15 @@ export function useLlmRequest() {
 
       // 根据模型能力分发请求
       let response: LlmResponse;
-      if (model.capabilities?.videoGeneration && adapter.video) {
+
+      // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
+      const forceChatMode = (options as any)._forceChatMode === true;
+
+      if (!forceChatMode && model.capabilities?.videoGeneration && adapter.video) {
         response = await adapter.video(effectiveProfile, filteredOptions as MediaGenerationOptions);
-      } else if (model.capabilities?.imageGeneration && adapter.image) {
+      } else if (!forceChatMode && model.capabilities?.imageGeneration && adapter.image) {
         response = await adapter.image(effectiveProfile, filteredOptions as MediaGenerationOptions);
-      } else if (model.capabilities?.audioGeneration && adapter.audio) {
+      } else if (!forceChatMode && model.capabilities?.audioGeneration && adapter.audio) {
         response = await adapter.audio(effectiveProfile, filteredOptions as MediaGenerationOptions);
       } else {
         response = await adapter.chat(effectiveProfile, filteredOptions as LlmRequestOptions);

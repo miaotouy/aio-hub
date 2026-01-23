@@ -51,6 +51,10 @@
      - **存储路径**: 遵循系统衍生数据路径规范，存储于 `{app_data_dir}/assets/derived/{media_type}/{YYYY-MM}/{asset_id}/generation.json`（与转写文件的 `transcription.md` 路径风格保持一致）。
 - **来源追踪**: 统一设置 `AssetOrigin` 为 `{ type: "generated", source: modelId, sourceModule: "media-generator" }`。
 - **资产复用**: 生成的资产可立即通过 `useSendToChat` 发送到对话，或在资产管理器中进行二次编辑。
+- **Sidecar Action 插件化操作**: 媒体生成中心通过 `AssetSidecarAction` 机制向资产管理器注入专用操作：
+  - **查看生成参数 (`view-generation-info`)**: 弹出专用对话框，展示该资产生成时的 Prompt、模型配置、Seed 等原始元数据。
+  - **二次创作 (`remix-generation`)**: 快捷跳转回媒体生成中心，并自动填充该资产的生成参数及参考图，实现“参数复刻”或“风格延续”。
+  - **逻辑解耦**: 资产管理器仅负责渲染菜单项，具体的 UI 查看器逻辑和任务重试逻辑由媒体生成中心（`mediaGenerator.registry.ts`）自行实现。
 - **组件复用**: 结果预览直接集成 `ImageViewer`, `VideoPlayer`, `AudioPlayer` 等系统级通用组件。
 
 ### 3.3. 数据模型 (Data Models)
@@ -131,6 +135,7 @@ export interface MediaTask {
 ### Phase 1: 基础框架 (预计 1-2 天)
 
 - [ ] 创建 `registry.ts`, `types.ts`。
+- [ ] 实现 `getAssetSidecarActions` 注入，支持在资产管理器中查看生成参数。
 - [ ] 创建 `mediaGenStore.ts`，实现任务队列管理。
 - [ ] 实现 `useMediaGenerationManager.ts`，封装对话驱动逻辑。
 
@@ -154,4 +159,4 @@ export interface MediaTask {
 
 ---
 
-_文档版本: 3.3 | 更新日期: 2026-01-24 | 更新者: 咕咕 (Kilo)_
+_文档版本: 3.4 | 更新日期: 2026-01-24 | 更新者: 咕咕 (Kilo)_

@@ -85,7 +85,6 @@
             @select="handleSelectAsset"
             @delete="handleDeleteAsset"
             @show-in-folder="handleShowInFolder"
-            @view-transcription="handleViewTranscription"
             @select-all="handleSelectAll"
             @deselect-all="handleDeselectAll"
           />
@@ -122,14 +121,12 @@
 import { ref, computed, onMounted, watch, reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
-import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import { customMessage } from "@/utils/customMessage";
 import type {
   Asset,
@@ -148,12 +145,9 @@ import AssetGroup from "./components/AssetGroup.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { createModuleLogger } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
-import { smartDecode } from "@/utils/encoding";
 
 const errorHandler = createModuleErrorHandler("AssetManager");
-const logger = createModuleLogger("AssetManager");
 
 // 使用资产管理器
 const {
@@ -172,7 +166,6 @@ const {
 const imageViewer = useImageViewer();
 const videoViewer = useVideoViewer();
 const audioViewer = useAudioViewer();
-const transcriptionViewer = useTranscriptionViewer();
 
 // --- 状态管理 ---
 const config = ref(createDefaultConfig());
@@ -748,52 +741,6 @@ const handleClearDuplicates = () => {
   duplicateHashes.value.clear();
   duplicateResult.value = null;
   customMessage.success("已清除重复文件标记");
-};
-
-// --- 转写相关逻辑 ---
-
-const handleViewTranscription = async (asset: Asset) => {
-  const derived = asset.metadata?.derived?.transcription;
-  if (!derived || !derived.path) {
-    customMessage.warning("该资产没有转写内容");
-    return;
-  }
-
-  try {
-    logger.debug("正在读取转写内容", { assetId: asset.id, path: derived.path });
-    const buffer = await assetManagerEngine.getAssetBinary(derived.path);
-    const text = smartDecode(buffer);
-
-    transcriptionViewer.show({
-      asset,
-      initialContent: text,
-      showRegenerate: false,
-      onSave: async (content) => {
-        const d = asset.metadata?.derived?.transcription;
-        if (!d || !d.path) return;
-
-        const basePath = await assetManagerEngine.getAssetBasePath();
-        const fullPath = await join(basePath, d.path);
-
-        await writeTextFile(fullPath, content);
-
-        // 更新元数据中的更新时间
-        await invoke("update_asset_derived_data", {
-          assetId: asset.id,
-          key: "transcription",
-          data: {
-            ...d,
-            updatedAt: new Date().toISOString(),
-          },
-        });
-
-        customMessage.success("转写内容已保存");
-        transcriptionViewer.close();
-      },
-    });
-  } catch (error) {
-    errorHandler.error(error, "读取转写内容失败");
-  }
 };
 </script>
 

@@ -273,3 +273,24 @@ export interface AssetStats {
   sourceModuleCounts: Record<string, number>;
   originCounts: Record<AssetOriginType, number>;
 }
+
+/**
+ * 资产附属操作接口
+ * 用于在资产管理器等地方为资产提供额外的操作菜单
+ */
+export interface AssetSidecarAction {
+  /** 操作唯一标识 */
+  id: string;
+  /** 显示名称 */
+  label: string;
+  /** 图标 (Element Plus 图标组件名称或 Lucide 图标名称) */
+  icon?: any;
+  /** 执行操作的处理函数 */
+  handler: (asset: Asset) => void | Promise<void>;
+  /** 判断该操作是否对当前资产可见 */
+  isVisible: (asset: Asset) => boolean;
+  /** 是否在上方显示分割线 */
+  divided?: boolean;
+  /** 排序权重，越小越靠前 */
+  order?: number;
+}

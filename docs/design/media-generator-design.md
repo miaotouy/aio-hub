@@ -48,6 +48,7 @@
 - **两步入库法**:
   1. **物理导入**: 调用 `importAssetFromBytes` (处理 Base64 图片/音频) 或 `importAssetFromPath` (处理本地视频文件)。
   2. **元数据补全**: 导入成功后，立即通过 `invoke("update_asset_derived_data")` 将生成时的核心参数（Prompt, Seed, Model Config）存入 `AssetMetadata.derived["generation"]`。
+     - **存储路径**: 遵循系统衍生数据路径规范，存储于 `{app_data_dir}/assets/derived/{media_type}/{YYYY-MM}/{asset_id}/generation.json`（与转写文件的 `transcription.md` 路径风格保持一致）。
 - **来源追踪**: 统一设置 `AssetOrigin` 为 `{ type: "generated", source: modelId, sourceModule: "media-generator" }`。
 - **资产复用**: 生成的资产可立即通过 `useSendToChat` 发送到对话，或在资产管理器中进行二次编辑。
 - **组件复用**: 结果预览直接集成 `ImageViewer`, `VideoPlayer`, `AudioPlayer` 等系统级通用组件。

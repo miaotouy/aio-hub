@@ -30,6 +30,7 @@ export interface ServiceMetadata {
 
 import type { Component } from 'vue';
 import type { DetachableComponentRegistration } from '@/types/detachable';
+import type { AssetSidecarAction } from '@/types/asset-management';
 
 export interface ToolConfig {
   name: string;
@@ -80,4 +81,10 @@ export interface ToolRegistry {
    * Key 为组件的唯一标识符（建议使用 namespaced ID，如 'llm-chat:chat-area'）
    */
   detachableComponents?: Record<string, DetachableComponentRegistration>;
+
+  /**
+   * 工具提供的资产附属操作
+   * 用于在资产管理器中为相关资产提供快捷操作（如查看转写、OCR 结果等）
+   */
+  getAssetSidecarActions?(): AssetSidecarAction[];
 }

@@ -11,10 +11,16 @@ import type {
   ListAssetsPaginatedPayload,
   PaginatedAssetsResponse,
   AssetStats,
+  AssetSidecarAction,
 } from "@/types/asset-management";
+import { toolRegistryManager } from "@/services/registry";
 
 // 缓存资产根目录，避免重复 IPC 调用
 let _cachedBasePath: string | null = null;
+
+// 动态注册的附属操作
+const _registeredSidecarActions = ref<AssetSidecarAction[]>([]);
+let _isActionsInitialized = false;
 
 /**
  * 重置资产根目录的缓存。
@@ -257,6 +263,47 @@ export const assetManagerEngine = {
       assetId,
       base64Data,
     });
+  },
+
+  /**
+   * 初始化并收集所有工具提供的附属操作
+   */
+  initializeSidecarActions: () => {
+    if (_isActionsInitialized) return;
+
+    const tools = toolRegistryManager.getAllTools();
+    for (const tool of tools) {
+      if (tool.getAssetSidecarActions) {
+        const actions = tool.getAssetSidecarActions();
+        actions.forEach((action) => {
+          if (!_registeredSidecarActions.value.some((a) => a.id === action.id)) {
+            _registeredSidecarActions.value.push(action);
+          }
+        });
+      }
+    }
+    _isActionsInitialized = true;
+  },
+
+  /**
+   * 注册一个新的附属操作
+   */
+  registerSidecarAction: (action: AssetSidecarAction) => {
+    if (!_registeredSidecarActions.value.some((a) => a.id === action.id)) {
+      _registeredSidecarActions.value.push(action);
+    }
+  },
+
+  /**
+   * 获取资产的附属操作列表
+   */
+  getSidecarActions: (asset: Asset): AssetSidecarAction[] => {
+    // 确保已从 Registry 收集
+    assetManagerEngine.initializeSidecarActions();
+
+    return _registeredSidecarActions.value
+      .filter((action) => action.isVisible(asset))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
   },
 };
 
@@ -746,6 +793,8 @@ export function useAssetManager() {
     rebuildHashIndex,
     rebuildCatalogIndex,
     saveAssetThumbnail: assetManagerEngine.saveAssetThumbnail,
+    getSidecarActions: assetManagerEngine.getSidecarActions,
+    registerSidecarAction: assetManagerEngine.registerSidecarAction,
   };
 }
 

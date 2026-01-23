@@ -112,14 +112,18 @@
                   <el-icon><FolderOpened /></el-icon>
                   打开所在目录
                 </el-dropdown-item>
-                <el-dropdown-item
-                  v-if="row.metadata?.derived?.transcription?.path"
-                  divided
-                  @click="emit('view-transcription', row)"
-                >
-                  <el-icon><Document /></el-icon>
-                  查看转写
-                </el-dropdown-item>
+                <!-- 动态附属操作 -->
+                <template v-for="action in getSidecarActions(row)" :key="action.id">
+                  <el-dropdown-item
+                    :divided="action.divided"
+                    @click="action.handler(row)"
+                  >
+                    <el-icon v-if="action.icon">
+                      <component :is="action.icon" />
+                    </el-icon>
+                    {{ action.label }}
+                  </el-dropdown-item>
+                </template>
                 <el-dropdown-item divided @click="handleDelete(row.id)">
                   <el-icon><Delete /></el-icon>
                   删除
@@ -134,9 +138,9 @@
 </template>
 
 <script setup lang="ts">
-import { View, Delete, MoreFilled, FolderOpened, Document } from "@element-plus/icons-vue";
+import { View, Delete, MoreFilled, FolderOpened } from "@element-plus/icons-vue";
 import type { Asset } from "@/types/asset-management";
-import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { getTypeLabel, getOriginDisplayText } from "../utils/displayUtils";
 import AssetIcon from "./AssetIcon.vue";
 
@@ -159,8 +163,9 @@ const emit = defineEmits<{
   delete: [assetId: string];
   "selection-change": [asset: Asset, event: MouseEvent];
   "show-in-folder": [path: string];
-  "view-transcription": [asset: Asset];
 }>();
+
+const { getSidecarActions } = useAssetManager();
 
 // 获取资产的 URL
 const getAssetUrl = (asset: Asset): string => {

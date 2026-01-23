@@ -6,12 +6,19 @@
  */
 
 import { markRaw } from "vue";
-import { FileAudio } from "lucide-vue-next";
+import { FileAudio, FileText } from "lucide-vue-next";
+import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { useTranscriptionManager } from "./composables/useTranscriptionManager";
+import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { smartDecode } from "@/utils/encoding";
+import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ToolRegistry, ToolConfig } from "@/services/types";
-import type { Asset } from "@/types/asset-management";
+import type { Asset, AssetSidecarAction } from "@/types/asset-management";
 import type { TranscriptionConfig, TranscriptionTask } from "./types";
 
 const logger = createModuleLogger("transcription/registry");
@@ -103,6 +110,72 @@ export default class TranscriptionRegistry implements ToolRegistry {
         context: { assetId },
       }
     );
+  }
+
+  /**
+   * 打开转写查看器
+   * 封装了从读取文件到保存的完整 UI 逻辑
+   */
+  public async openTranscriptionViewer(asset: Asset): Promise<void> {
+    const derived = asset.metadata?.derived?.transcription;
+    if (!derived || !derived.path) {
+      customMessage.warning("该资产没有转写内容");
+      return;
+    }
+
+    try {
+      logger.debug("正在读取转写内容", { assetId: asset.id, path: derived.path });
+      const buffer = await assetManagerEngine.getAssetBinary(derived.path);
+      const text = smartDecode(buffer);
+
+      const transcriptionViewer = useTranscriptionViewer();
+      transcriptionViewer.show({
+        asset,
+        initialContent: text,
+        showRegenerate: false,
+        onSave: async (content) => {
+          const d = asset.metadata?.derived?.transcription;
+          if (!d || !d.path) return;
+
+          const basePath = await assetManagerEngine.getAssetBasePath();
+          const fullPath = await join(basePath, d.path);
+
+          await writeTextFile(fullPath, content);
+
+          // 更新元数据中的更新时间
+          await invoke("update_asset_derived_data", {
+            assetId: asset.id,
+            key: "transcription",
+            data: {
+              ...d,
+              updatedAt: new Date().toISOString(),
+            },
+          });
+
+          customMessage.success("转写内容已保存");
+          transcriptionViewer.close();
+        },
+      });
+    } catch (error) {
+      errorHandler.error(error, "读取转写内容失败");
+    }
+  }
+
+  /**
+   * 获取资产附属操作
+   */
+  public getAssetSidecarActions(): AssetSidecarAction[] {
+    return [
+      {
+        id: "view-transcription",
+        label: "查看转写",
+        icon: markRaw(FileText),
+        isVisible: (asset) => !!asset.metadata?.derived?.transcription?.path,
+        handler: (asset) => this.openTranscriptionViewer(asset),
+        divided: true,
+        order: 100,
+      },
+    ];
   }
 }
 

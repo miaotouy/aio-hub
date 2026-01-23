@@ -1838,14 +1838,27 @@ pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), Stri
     }
 
     // 2. 确保父目录存在
+    let start = Instant::now();
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
             fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
         }
     }
+    let dir_duration = start.elapsed();
 
     // 3. 写入文件
+    let write_start = Instant::now();
     fs::write(&file_path, &content).map_err(|e| format!("写入文件失败: {}", e))?;
+    let write_duration = write_start.elapsed();
+
+    if dir_duration.as_millis() > 100 || write_duration.as_millis() > 100 {
+        log::warn!(
+            "[Perf] write_file_force 耗时过长 - 目录: {:?}, 写入: {:?}, 路径: {:?}",
+            dir_duration,
+            write_duration,
+            path
+        );
+    }
 
     Ok(())
 }

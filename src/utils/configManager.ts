@@ -71,10 +71,17 @@ export class ConfigManager<T extends Record<string, any>> {
         clearTimeout(timeoutId);
       }
 
-      timeoutId = setTimeout(async () => {
+      timeoutId = setTimeout(() => {
         try {
-          await this.save(config);
-          logger.debug(`防抖保存完成`, { moduleName: this.moduleName, delay });
+          // 彻底异步化：不 await save，防止后端 IO 阻塞导致 IPC 队列堆积
+          this.save(config).catch((error) => {
+            errorHandler.handle(error as Error, {
+              userMessage: `防抖保存执行失败`,
+              context: { moduleName: this.moduleName },
+              showToUser: false,
+            });
+          });
+          logger.debug(`已触发防抖保存`, { moduleName: this.moduleName, delay });
         } catch (error) {
           errorHandler.handle(error as Error, {
             userMessage: `防抖保存失败`,
@@ -224,7 +231,8 @@ export class ConfigManager<T extends Record<string, any>> {
       let content = "";
       switch (this.fileType) {
         case "json":
-          content = JSON.stringify(configWithVersion, null, 2);
+          // 优化：移除 JSON 缩进
+          content = JSON.stringify(configWithVersion);
           break;
         case "yaml":
           content = yaml.dump(configWithVersion);
@@ -239,10 +247,19 @@ export class ConfigManager<T extends Record<string, any>> {
       // 使用 Rust 后端命令强制写入，绕过前端 Scope 限制
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(content);
+      const invokeStart = performance.now();
+      // 优化：直接传递 Uint8Array，避免 Array.from 的巨额开销
       await invoke("write_file_force", {
         path: configPath,
-        content: Array.from(uint8Array)
+        content: uint8Array
       });
+      const invokeEnd = performance.now();
+      if (invokeEnd - invokeStart > 100) {
+        logger.warn(`[Perf] invoke("write_file_force") 耗时过长: ${(invokeEnd - invokeStart).toFixed(2)}ms`, {
+          moduleName: this.moduleName,
+          path: configPath
+        });
+      }
 
       // 保存成功时输出简洁日志
       logger.info(`配置保存成功`, { moduleName: this.moduleName });

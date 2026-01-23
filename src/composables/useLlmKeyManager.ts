@@ -52,13 +52,13 @@ export function useLlmKeyManager() {
   };
 
   /**
-   * 保存状态
+   * 保存状态（优化：使用防抖保存，避免阻塞主流程）
    */
-  const saveKeyStates = async () => {
+  const saveKeyStates = () => {
     try {
-      await configManager.save(keyStates.value);
+      configManager.saveDebounced(keyStates.value);
     } catch (error) {
-      logger.error("保存 Key 状态失败", error);
+      logger.error("防抖保存 Key 状态失败", error);
     }
   };
 
@@ -191,7 +191,12 @@ export function useLlmKeyManager() {
       const state = profileStates[key];
       state.errorCount++;
       state.lastErrorTime = Date.now();
-      state.lastErrorMessage = error?.message || String(error);
+      
+      // 关键修复：截断错误消息，防止配置文件爆炸 (22MB 文件惨案)
+      const rawError = error?.message || String(error);
+      state.lastErrorMessage = rawError.length > 2000
+        ? rawError.substring(0, 2000) + "... [已截断]"
+        : rawError;
 
       // 识别 429 错误 (Too Many Requests)
       const isRateLimit =

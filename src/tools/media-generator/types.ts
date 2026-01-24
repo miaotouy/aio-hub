@@ -1,15 +1,15 @@
-import type { ChatSession } from '@/tools/llm-chat/types/session';
-import type { Asset } from '@/types/asset-management';
+import type { ChatSession } from "@/tools/llm-chat/types/session";
+import type { Asset } from "@/types/asset-management";
 
 /**
  * 媒体生成任务类型
  */
-export type MediaTaskType = 'image' | 'video' | 'audio';
+export type MediaTaskType = "image" | "video" | "audio";
 
 /**
  * 媒体生成任务状态
  */
-export type MediaTaskStatus = 'pending' | 'processing' | 'completed' | 'error' | 'cancelled';
+export type MediaTaskStatus = "pending" | "processing" | "completed" | "error" | "cancelled";
 
 /**
  * 媒体生成任务
@@ -130,13 +130,15 @@ export interface MediaGeneratorSettings {
  * 媒体生成会话
  * 复用 llm-chat 的 Session 结构，但标记为 media-gen 类型并携带生成配置
  */
-export type GenerationSession = Omit<ChatSession, 'type'> & {
+export type GenerationSession = Omit<ChatSession, "type"> & {
   /** 标记会话类型为媒体生成 */
-  type: 'media-gen';
+  type: "media-gen";
   /** 媒体生成专属配置 */
   generationConfig: MediaGenerationConfig;
   /** 任务历史 (在媒体生成器中，任务历史替代了聊天消息) */
   tasks: MediaTask[];
+  /** 输入框内容草稿 */
+  inputPrompt?: string;
 };
 
 /**
@@ -177,7 +179,14 @@ export interface AssetGenerationInfo {
   /** 种子值 */
   seed?: number | string;
   /** 来源模块 */
-  sourceModule: 'media-generator';
+  sourceModule: "media-generator";
   /** 生成时间 */
   timestamp: number;
 }
+
+/**
+ * 媒体生成状态同步键
+ */
+export const MEDIA_GEN_STATE_KEYS = {
+  INPUT_STATE: "media-gen-input-state" as const,
+} as const;

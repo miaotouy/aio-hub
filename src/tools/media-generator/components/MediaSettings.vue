@@ -40,7 +40,9 @@ const handleReset = async () => {
           <h3 class="header-title">媒体生成配置</h3>
           <p class="header-desc">配置媒体生成器的默认行为、并发任务及通知偏好</p>
         </div>
-        <el-button :icon="RotateCcw" @click="handleReset" plain type="danger" size="small"> 一键重置 </el-button>
+        <el-button :icon="RotateCcw" @click="handleReset" plain type="danger" size="small">
+          一键重置
+        </el-button>
       </div>
 
       <el-collapse v-model="activeCollapse">
@@ -64,7 +66,7 @@ const handleReset = async () => {
           </div>
         </el-collapse-item>
       </el-collapse>
-      
+
       <div class="settings-footer">
         <div class="placeholder-text">更多生成预设和全局参数配置正在开发中...</div>
       </div>

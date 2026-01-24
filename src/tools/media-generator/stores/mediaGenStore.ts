@@ -1,15 +1,21 @@
-import { defineStore } from 'pinia';
-import { ref, watch, computed } from 'vue';
-import type { MediaTask, MediaTaskStatus, MediaTaskType, GenerationSession, MediaGeneratorSettings } from '../types';
-import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from '../config';
-import { createModuleLogger } from '@/utils/logger';
-import { useMediaStorage } from '../composables/useMediaStorage';
-import { v4 as uuidv4 } from 'uuid';
-import type { Asset } from '@/types/asset-management';
+import { defineStore } from "pinia";
+import { ref, watch, computed } from "vue";
+import type {
+  MediaTask,
+  MediaTaskStatus,
+  MediaTaskType,
+  GenerationSession,
+  MediaGeneratorSettings,
+} from "../types";
+import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
+import { createModuleLogger } from "@/utils/logger";
+import { useMediaStorage } from "../composables/useMediaStorage";
+import { v4 as uuidv4 } from "uuid";
+import type { Asset } from "@/types/asset-management";
 
-const logger = createModuleLogger('media-generator/store');
+const logger = createModuleLogger("media-generator/store");
 
-export const useMediaGenStore = defineStore('media-generator', () => {
+export const useMediaGenStore = defineStore("media-generator", () => {
   const storage = useMediaStorage();
   const debouncedSave = storage.createDebouncedSave(2000);
 
@@ -18,6 +24,9 @@ export const useMediaGenStore = defineStore('media-generator', () => {
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
   const isInitialized = ref(false);
+
+  // 输入内容管理
+  const inputPrompt = ref("");
 
   // 附件管理
   const attachments = ref<Asset[]>([]);
@@ -32,7 +41,7 @@ export const useMediaGenStore = defineStore('media-generator', () => {
 
   // 默认参数模板
   const createDefaultTypeConfig = () => ({
-    modelCombo: '',
+    modelCombo: "",
     params: {
       size: "1024x1024",
       quality: "standard",
@@ -43,17 +52,17 @@ export const useMediaGenStore = defineStore('media-generator', () => {
       cfgScale: 7.0,
       background: "opaque",
       inputFidelity: "low",
-    }
+    },
   });
 
   // 当前生成配置
   const currentConfig = ref({
-    activeType: 'image' as MediaTaskType,
+    activeType: "image" as MediaTaskType,
     types: {
       image: createDefaultTypeConfig(),
       video: createDefaultTypeConfig(),
       audio: createDefaultTypeConfig(),
-    }
+    },
   });
 
   /**
@@ -67,13 +76,14 @@ export const useMediaGenStore = defineStore('media-generator', () => {
       const loadedSettings = await storage.loadSettings();
       settings.value = { ...DEFAULT_MEDIA_GENERATOR_SETTINGS, ...loadedSettings };
 
-      const { sessions: loadedSessions, currentSessionId: savedSessionId } = await storage.loadSessions();
+      const { sessions: loadedSessions, currentSessionId: savedSessionId } =
+        await storage.loadSessions();
       sessions.value = loadedSessions;
 
       let session: GenerationSession | null = null;
 
       if (savedSessionId) {
-        session = loadedSessions.find(s => s.id === savedSessionId) || null;
+        session = loadedSessions.find((s) => s.id === savedSessionId) || null;
       }
 
       // 如果没有保存的会话，创建一个默认的
@@ -84,22 +94,23 @@ export const useMediaGenStore = defineStore('media-generator', () => {
           const newId = uuidv4();
           session = {
             id: newId,
-            name: '默认生成会话',
-            type: 'media-gen',
+            name: "默认生成会话",
+            type: "media-gen",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             tasks: [],
             generationConfig: {
-              activeType: 'image',
+              activeType: "image",
               types: {
                 image: createDefaultTypeConfig(),
                 video: createDefaultTypeConfig(),
                 audio: createDefaultTypeConfig(),
-              }
+              },
             },
             nodes: {}, // 兼容 ChatSession
-            rootNodeId: '',
-            activeLeafId: ''
+            rootNodeId: "",
+            activeLeafId: "",
+            inputPrompt: "",
           };
           sessions.value = [session];
           await storage.persistSession(session, newId);
@@ -109,20 +120,21 @@ export const useMediaGenStore = defineStore('media-generator', () => {
       // 应用加载的数据
       currentSessionId.value = session.id;
       tasks.value = session.tasks || [];
+      inputPrompt.value = session.inputPrompt || "";
       if (session.generationConfig) {
-        currentConfig.value.activeType = session.generationConfig.activeType || 'image';
+        currentConfig.value.activeType = session.generationConfig.activeType || "image";
         if (session.generationConfig.types) {
           currentConfig.value.types = {
             ...currentConfig.value.types,
-            ...session.generationConfig.types
+            ...session.generationConfig.types,
           };
         }
       }
 
       isInitialized.value = true;
-      logger.info('Store 初始化完成', { sessionId: session.id, taskCount: tasks.value.length });
+      logger.info("Store 初始化完成", { sessionId: session.id, taskCount: tasks.value.length });
     } catch (error) {
-      logger.error('Store 初始化失败', error);
+      logger.error("Store 初始化失败", error);
     }
   };
 
@@ -132,26 +144,27 @@ export const useMediaGenStore = defineStore('media-generator', () => {
   const persist = async () => {
     if (!currentSessionId.value) return;
 
-    const currentSession = sessions.value.find(s => s.id === currentSessionId.value);
+    const currentSession = sessions.value.find((s) => s.id === currentSessionId.value);
 
     const session: GenerationSession = {
       id: currentSessionId.value,
-      name: currentSession?.name || '默认生成会话',
-      type: 'media-gen',
+      name: currentSession?.name || "默认生成会话",
+      type: "media-gen",
       updatedAt: new Date().toISOString(),
       createdAt: currentSession?.createdAt || new Date().toISOString(),
       tasks: tasks.value,
+      inputPrompt: inputPrompt.value,
       generationConfig: {
         activeType: currentConfig.value.activeType,
-        types: JSON.parse(JSON.stringify(currentConfig.value.types))
+        types: JSON.parse(JSON.stringify(currentConfig.value.types)),
       },
       nodes: {},
-      rootNodeId: '',
-      activeLeafId: ''
+      rootNodeId: "",
+      activeLeafId: "",
     };
 
     // 更新 sessions 列表中的元数据
-    const index = sessions.value.findIndex(s => s.id === session.id);
+    const index = sessions.value.findIndex((s) => s.id === session.id);
     if (index !== -1) {
       sessions.value[index] = session;
     } else {
@@ -161,60 +174,73 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     await storage.persistSession(session, currentSessionId.value);
   };
 
-  // 监听配置变化自动保存
-  watch(currentConfig, () => {
-    if (!isInitialized.value || !currentSessionId.value) return;
+  // 监听配置和输入变化自动保存
+  watch(
+    [currentConfig, inputPrompt],
+    () => {
+      if (!isInitialized.value || !currentSessionId.value) return;
 
-    const currentSession = sessions.value.find(s => s.id === currentSessionId.value);
-    const session: GenerationSession = {
-      id: currentSessionId.value,
-      name: currentSession?.name || '默认生成会话',
-      type: 'media-gen',
-      updatedAt: new Date().toISOString(),
-      createdAt: currentSession?.createdAt || new Date().toISOString(),
-      tasks: tasks.value,
-      generationConfig: {
-        activeType: currentConfig.value.activeType,
-        types: JSON.parse(JSON.stringify(currentConfig.value.types))
-      },
-      nodes: {},
-      rootNodeId: '',
-      activeLeafId: ''
-    };
+      const currentSession = sessions.value.find((s) => s.id === currentSessionId.value);
+      const session: GenerationSession = {
+        id: currentSessionId.value,
+        name: currentSession?.name || "默认生成会话",
+        type: "media-gen",
+        updatedAt: new Date().toISOString(),
+        createdAt: currentSession?.createdAt || new Date().toISOString(),
+        tasks: tasks.value,
+        inputPrompt: inputPrompt.value,
+        generationConfig: {
+          activeType: currentConfig.value.activeType,
+          types: JSON.parse(JSON.stringify(currentConfig.value.types)),
+        },
+        nodes: {},
+        rootNodeId: "",
+        activeLeafId: "",
+      };
 
-    debouncedSave(session, currentSessionId.value);
-  }, { deep: true });
+      debouncedSave(session, currentSessionId.value);
+    },
+    { deep: true }
+  );
 
   // 监听全局设置变化自动保存
-  watch(settings, (newSettings) => {
-    if (!isInitialized.value) return;
-    storage.saveSettings(newSettings);
-    logger.debug('全局设置已保存');
-  }, { deep: true });
+  watch(
+    settings,
+    (newSettings) => {
+      if (!isInitialized.value) return;
+      storage.saveSettings(newSettings);
+      logger.debug("全局设置已保存");
+    },
+    { deep: true }
+  );
 
   /**
    * 添加新任务
    */
   const addTask = (task: MediaTask) => {
     tasks.value.unshift(task);
-    logger.info('任务已添加', { taskId: task.id, type: task.type });
+    logger.info("任务已添加", { taskId: task.id, type: task.type });
     persist();
   };
 
   /**
    * 更新任务状态
    */
-  const updateTaskStatus = (taskId: string, status: MediaTaskStatus, updates?: Partial<MediaTask>) => {
-    const task = tasks.value.find(t => t.id === taskId);
+  const updateTaskStatus = (
+    taskId: string,
+    status: MediaTaskStatus,
+    updates?: Partial<MediaTask>
+  ) => {
+    const task = tasks.value.find((t) => t.id === taskId);
     if (task) {
       task.status = status;
       if (updates) {
         Object.assign(task, updates);
       }
-      if (status === 'completed') {
+      if (status === "completed") {
         task.completedAt = Date.now();
       }
-      logger.debug('任务状态已更新', { taskId, status });
+      logger.debug("任务状态已更新", { taskId, status });
       persist();
     }
   };
@@ -223,17 +249,17 @@ export const useMediaGenStore = defineStore('media-generator', () => {
    * 获取任务
    */
   const getTask = (taskId: string) => {
-    return tasks.value.find(t => t.id === taskId);
+    return tasks.value.find((t) => t.id === taskId);
   };
 
   /**
    * 删除任务
    */
   const removeTask = (taskId: string) => {
-    const index = tasks.value.findIndex(t => t.id === taskId);
+    const index = tasks.value.findIndex((t) => t.id === taskId);
     if (index !== -1) {
       tasks.value.splice(index, 1);
-      logger.info('任务已删除', { taskId });
+      logger.info("任务已删除", { taskId });
       persist();
     }
   };
@@ -247,20 +273,21 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     // 先保存当前会话
     await persist();
 
-    const session = sessions.value.find(s => s.id === sessionId);
+    const session = sessions.value.find((s) => s.id === sessionId);
     if (session) {
       currentSessionId.value = session.id;
       tasks.value = session.tasks || [];
+      inputPrompt.value = session.inputPrompt || "";
       if (session.generationConfig) {
-        currentConfig.value.activeType = session.generationConfig.activeType || 'image';
+        currentConfig.value.activeType = session.generationConfig.activeType || "image";
         if (session.generationConfig.types) {
           currentConfig.value.types = {
             ...currentConfig.value.types,
-            ...session.generationConfig.types
+            ...session.generationConfig.types,
           };
         }
       }
-      logger.info('已切换会话', { sessionId });
+      logger.info("已切换会话", { sessionId });
     }
   };
 
@@ -275,30 +302,31 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     const session: GenerationSession = {
       id: newId,
       name: `新生成会话 ${sessions.value.length + 1}`,
-      type: 'media-gen',
+      type: "media-gen",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       tasks: [],
       generationConfig: {
-        activeType: 'image',
+        activeType: "image",
         types: {
           image: createDefaultTypeConfig(),
           video: createDefaultTypeConfig(),
           audio: createDefaultTypeConfig(),
-        }
+        },
       },
       nodes: {},
-      rootNodeId: '',
-      activeLeafId: ''
+      rootNodeId: "",
+      activeLeafId: "",
     };
 
     sessions.value.unshift(session);
     currentSessionId.value = newId;
     tasks.value = [];
-    currentConfig.value.activeType = 'image';
+    inputPrompt.value = "";
+    currentConfig.value.activeType = "image";
 
     await storage.persistSession(session, newId);
-    logger.info('已创建新会话', { sessionId: newId });
+    logger.info("已创建新会话", { sessionId: newId });
   };
 
   /**
@@ -306,7 +334,7 @@ export const useMediaGenStore = defineStore('media-generator', () => {
    */
   const deleteSession = async (sessionId: string) => {
     await storage.deleteSession(sessionId);
-    sessions.value = sessions.value.filter(s => s.id !== sessionId);
+    sessions.value = sessions.value.filter((s) => s.id !== sessionId);
 
     if (currentSessionId.value === sessionId) {
       if (sessions.value.length > 0) {
@@ -315,14 +343,14 @@ export const useMediaGenStore = defineStore('media-generator', () => {
         await createNewSession();
       }
     }
-    logger.info('已删除会话', { sessionId });
+    logger.info("已删除会话", { sessionId });
   };
 
   /**
    * 更新会话名称
    */
   const updateSessionName = async (sessionId: string, name: string) => {
-    const session = sessions.value.find(s => s.id === sessionId);
+    const session = sessions.value.find((s) => s.id === sessionId);
     if (session) {
       session.name = name;
       if (sessionId === currentSessionId.value) {
@@ -338,13 +366,13 @@ export const useMediaGenStore = defineStore('media-generator', () => {
    */
   const addAsset = (asset: Asset) => {
     if (isAttachmentsFull.value) return false;
-    if (attachments.value.some(a => a.id === asset.id)) return false;
+    if (attachments.value.some((a) => a.id === asset.id)) return false;
     attachments.value.push(asset);
     return true;
   };
 
   const removeAttachment = (assetId: string) => {
-    attachments.value = attachments.value.filter(a => a.id !== assetId);
+    attachments.value = attachments.value.filter((a) => a.id !== assetId);
   };
 
   const clearAttachments = () => {
@@ -359,6 +387,7 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     currentConfig,
     currentSessionId,
     isInitialized,
+    inputPrompt,
     attachments,
     isProcessingAttachments,
     maxAttachmentCount,
@@ -377,6 +406,6 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     updateSessionName,
     addAsset,
     removeAttachment,
-    clearAttachments
+    clearAttachments,
   };
 });

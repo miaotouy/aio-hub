@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
-import { Plus, Search, MoreVertical, Edit2, Trash2, History, ArrowUpDown } from "lucide-vue-next";
+import { Plus, Search, MoreVertical, Edit2, Trash2, History, ArrowUpDown, Wand2 } from "lucide-vue-next";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { ElMessageBox } from "element-plus";
@@ -18,6 +18,9 @@ const sortOrder = ref<"asc" | "desc">("desc");
 const renameDialogVisible = ref(false);
 const renamingId = ref<string | null>(null);
 const newName = ref("");
+
+// AI 命名状态
+const namingSessionId = ref<string | null>(null);
 
 const filteredSessions = computed(() => {
   let result = [...store.sessions];
@@ -77,6 +80,21 @@ const handleSwitch = (sessionId: string) => {
 
 const handleNewSession = () => {
   store.createNewSession();
+};
+
+const handleAiNaming = async (sessionId: string) => {
+  if (namingSessionId.value || store.isNaming) return;
+
+  try {
+    namingSessionId.value = sessionId;
+    await store.generateSessionName(sessionId);
+    customMessage.success("AI 命名完成");
+  } catch (error: any) {
+    // 错误处理已在 store 中记录，这里只需提示用户
+    customMessage.error(error.message || "AI 命名失败");
+  } finally {
+    namingSessionId.value = null;
+  }
 };
 
 const formatTime = (timeStr: string) => {
@@ -174,15 +192,23 @@ const toggleSortOrder = () => {
               @command="
                 (cmd: any) => {
                   if (cmd === 'rename') openRenameDialog(session.id, session.name);
+                  if (cmd === 'ai-rename') handleAiNaming(session.id);
                   if (cmd === 'delete') handleDelete(session.id, session.name);
                 }
               "
             >
-              <el-button link size="small" class="more-btn">
-                <el-icon><MoreVertical /></el-icon>
+              <el-button link size="small" class="more-btn" :loading="namingSessionId === session.id">
+                <el-icon v-if="namingSessionId !== session.id"><MoreVertical /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item
+                    command="ai-rename"
+                    :icon="Wand2"
+                    :disabled="!session.tasks || session.tasks.length === 0 || !!namingSessionId || store.isNaming"
+                  >
+                    AI 自动命名
+                  </el-dropdown-item>
                   <el-dropdown-item command="rename" :icon="Edit2">重命名</el-dropdown-item>
                   <el-dropdown-item command="delete" :icon="Trash2" class="delete-item">
                     删除

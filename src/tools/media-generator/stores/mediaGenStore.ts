@@ -17,6 +17,7 @@ import { useBranchManager } from "../composables/useBranchManager";
 import { useSessionManager } from "../composables/useSessionManager";
 import { useAttachmentManager } from "../composables/useAttachmentManager";
 import { useTaskActionManager } from "../composables/useTaskActionManager";
+import { useLlmRequest } from "@/composables/useLlmRequest";
 
 const logger = createModuleLogger("media-generator/store");
 
@@ -26,6 +27,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
   const attachmentManager = useAttachmentManager();
+  const { sendRequest } = useLlmRequest();
   const debouncedSave = storage.createDebouncedSave(2000);
 
   const sessions = ref<GenerationSession[]>([]);
@@ -36,6 +38,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
   const isInitialized = ref(false);
+  const isNaming = ref(false);
 
   // 获取当前会话对象
   const currentSession = computed(() => {
@@ -228,6 +231,22 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const addTask = (task: MediaTask) => {
     taskActionManager.addTaskNode(task, attachmentManager.attachments.value);
 
+    // 自动命名逻辑
+    if (
+      settings.value.enableAutoNaming &&
+      !isNaming.value &&
+      currentSession.value &&
+      currentSession.value.name.startsWith("新生成会话") &&
+      settings.value.topicNaming.modelCombo
+    ) {
+      // 延迟触发，确保任务已经进入列表
+      setTimeout(() => {
+        generateSessionName(currentSessionId.value!).catch((err) => {
+          logger.error("自动命名失败", err);
+        });
+      }, 1500);
+    }
+
     // 清空当前附件（已转入消息上下文）
     attachmentManager.clearAttachments();
     persist();
@@ -403,6 +422,61 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       await sessionManager.persistSession(session);
     }
   };
+
+  /**
+   * AI 自动命名会话
+   */
+  const generateSessionName = async (sessionId: string) => {
+    if (isNaming.value) return;
+
+    const session = sessions.value.find((s) => s.id === sessionId);
+    if (!session) return;
+
+    const namingConfig = settings.value.topicNaming;
+    if (!namingConfig.modelCombo) {
+      throw new Error("请先在设置中配置命名模型");
+    }
+
+    // 提取上下文：使用任务内容
+    const context = (session.tasks || [])
+      .map((t) => t.input?.prompt)
+      .filter(Boolean)
+      .slice(0, 5) // 仅取前5个任务作为上下文，避免上下文过长
+      .join("\n");
+
+    if (!context) return;
+
+    const [profileId, modelId] = namingConfig.modelCombo.split("/");
+
+    try {
+      isNaming.value = true;
+      const prompt = namingConfig.prompt.replace("{context}", context);
+      const response = await sendRequest({
+        profileId,
+        modelId,
+        messages: [{ role: "user", content: prompt }],
+        temperature: namingConfig.temperature,
+        maxTokens: namingConfig.maxTokens,
+      });
+
+      // 提取名称：去掉引号、去掉“标题：”或“Title:”前缀
+      let newName = response.content
+        .trim()
+        .replace(/^["'「『]|["'」』]$/g, "")
+        .replace(/^(标题|名称|Title|Name)[:：]\s*/i, "")
+        .trim();
+
+      if (newName && newName !== session.name) {
+        await updateSessionName(sessionId, newName);
+        logger.info("AI 命名成功", { sessionId, newName });
+      }
+    } catch (error) {
+      logger.error("AI 命名失败", error);
+      throw error;
+    } finally {
+      isNaming.value = false;
+    }
+  };
   /**
    * 分支切换
    */
@@ -465,6 +539,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     createNewSession,
     deleteSession,
     updateSessionName,
+    generateSessionName,
+    isNaming,
     switchToBranch,
     getSiblings,
     isNodeInActivePath,

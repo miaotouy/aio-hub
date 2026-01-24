@@ -141,6 +141,8 @@ export interface LlmTaskConfig {
 export interface MediaGeneratorSettings {
   /** 话题生成配置 */
   topicNaming: LlmTaskConfig;
+  /** 是否启用自动命名 */
+  enableAutoNaming: boolean;
   /** 是否自动清理已完成的任务 */
   autoCleanCompleted: boolean;
   /** 生成成功后是否自动打开资产 */

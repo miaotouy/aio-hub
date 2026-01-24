@@ -45,10 +45,11 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   enableNotifications: true,
   topicNaming: {
     modelCombo: "",
-    prompt: "请根据以下媒体生成任务的内容，生成一个简短的标题（不超过10个字）：\n\n{context}",
+    prompt: "根据以下媒体生成任务的内容，生成一个简短的标题（不超过10个字）：\n\n{context}",
     temperature: 0.4,
     maxTokens: 20,
   },
+  enableAutoNaming: true,
   promptOptimization: {
     modelCombo: "",
     prompt: "你是一个专业的 AI 绘画提示词专家。请将用户输入的简单描述扩展并优化为高质量的提示词。\n\n要求：\n1. 保持用户原意，但增加细节、艺术风格、光效、构图等描述。\n2. 使用英文输出提示词。\n3. 只输出优化后的提示词，不要有任何解释。\n\n用户输入：\n{text}",
@@ -82,6 +83,15 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
     title: "话题命名",
     icon: PenTool,
     items: [
+      {
+        id: "enableAutoNaming",
+        label: "启用自动命名",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "enableAutoNaming",
+        hint: "在首次生成任务后，自动使用 AI 为会话命名",
+        keywords: "auto naming 自动 命名",
+      },
       {
         id: "topicModelCombo",
         label: "命名模型",

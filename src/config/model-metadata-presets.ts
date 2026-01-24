@@ -1,6 +1,6 @@
 /**
  * 模型元数据预设规则 (纯数据)
- * 
+ *
  * 此文件仅包含规则定义，不包含逻辑，以便在桌面端和移动端之间复用。
  */
 import type { ModelMetadataRule } from "../types/model-metadata";
@@ -815,7 +815,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         toolUse: true,
         jsonOutput: true, // GPT-4o 支持 JSON 输出模式
         document: true, // 支持文档（通过 OpenAI Responses API 的 file_data/file_url/file_id）
-        documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
+        documentFormat: "openai_file", // 使用 OpenAI 的文件格式
         visionTokenCost: {
           calculationMethod: "openai_tile",
           parameters: {
@@ -846,7 +846,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         toolUse: true,
         jsonOutput: true,
         document: true,
-        documentFormat: 'openai_file',
+        documentFormat: "openai_file",
         visionTokenCost: {
           calculationMethod: "openai_tile",
           parameters: {
@@ -929,7 +929,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         toolUse: true,
         jsonOutput: true,
         document: true, // 支持文档（通过 OpenAI Responses API）
-        documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
+        documentFormat: "openai_file", // 使用 OpenAI 的文件格式
         visionTokenCost: {
           calculationMethod: "openai_tile",
           parameters: {
@@ -1002,7 +1002,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         thinking: true,
         vision: true, // o1 支持视觉输入
         document: true, // 支持文档（通过 OpenAI Responses API）
-        documentFormat: 'openai_file', // 使用 OpenAI 的文件格式
+        documentFormat: "openai_file", // 使用 OpenAI 的文件格式
         documentTokenCost: {
           calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
         },
@@ -1230,11 +1230,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       capabilities: {
         imageGeneration: true,
+        iterativeRefinement: true,
       },
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 图像生成模型",
+    description: "Gemini 图像生成模型（支持迭代微调）",
   },
   // Gemini 2.5 Live 模型
   {
@@ -1981,6 +1982,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `openai.svg`,
       group: "OpenAI",
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: false, // DALL-E 原生 API 不支持多轮对话上下文
+      },
     },
     priority: 30,
     enabled: true,
@@ -2110,6 +2115,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         videoGeneration: true,
         mediaEditing: true, // Sora 支持以图生视频或重混
+        iterativeRefinement: false,
       },
     },
     priority: 30,
@@ -2128,6 +2134,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         videoGeneration: true,
         mediaEditing: true,
+        iterativeRefinement: false,
       },
     },
     priority: 30,
@@ -2202,11 +2209,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         imageGeneration: true,
         mediaEditing: true,
+        iterativeRefinement: true,
       },
     },
     priority: 35,
     enabled: true,
-    description: "Qwen Image Edit 图像编辑模型",
+    description: "Qwen Image Edit 图像编辑模型（支持迭代修改）",
   },
 
   // Suno 音乐生成
@@ -2238,11 +2246,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         imageGeneration: true,
         mediaEditing: true,
+        iterativeRefinement: true,
       },
     },
     priority: 30,
     enabled: true,
-    description: "Midjourney 系列模型图标",
+    description: "Midjourney 系列模型（支持迭代微调）",
   },
 
   // FLUX 系列 (Black Forest Labs)
@@ -2255,6 +2264,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Black Forest Labs",
       capabilities: {
         imageGeneration: true,
+        iterativeRefinement: false,
       },
     },
     priority: 30,
@@ -2274,11 +2284,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         imageGeneration: true,
         mediaEditing: true,
+        iterativeRefinement: true,
       },
     },
     priority: 30,
     enabled: true,
-    description: "Stable Diffusion 系列图像生成模型",
+    description: "Stable Diffusion 系列图像生成模型（支持迭代修改）",
   },
 
   // Luma Dream Machine

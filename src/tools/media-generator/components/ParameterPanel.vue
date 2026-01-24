@@ -2,11 +2,13 @@
 import { computed, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelMetadata } from "@/composables/useModelMetadata";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { Settings, Image, Video, Music, Sparkles, Info } from "lucide-vue-next";
 
 const store = useMediaGenStore();
 const { getProfileById } = useLlmProfiles();
+const { getMatchedProperties } = useModelMetadata();
 
 // 选中的模型组合值 (profileId:modelId) - 绑定到当前选中的媒体类型配置
 const selectedModelCombo = computed({
@@ -37,6 +39,20 @@ const mediaType = computed({
 
 // 基础参数 - 绑定到当前选中的媒体类型参数
 const params = computed(() => store.currentConfig.types[store.currentConfig.activeType].params);
+
+// 连续对话设置
+const includeContext = computed({
+  get: () => store.currentConfig.includeContext,
+  set: (val) => (store.currentConfig.includeContext = val),
+});
+
+// 判断当前模型是否支持迭代微调
+const supportsIterative = computed(() => {
+  const modelId = selectedModelInfo.value?.modelId;
+  if (!modelId) return false;
+  const props = getMatchedProperties(modelId);
+  return props?.capabilities?.iterativeRefinement === true;
+});
 
 // 动态生成分辨率选项
 const sizeOptions = computed(() => {
@@ -138,6 +154,18 @@ watch(mediaType, () => {
   console.log("切换媒体类型", mediaType.value);
 });
 
+// 监听模型变化，自动适配连续对话开关
+watch(selectedModelCombo, (newCombo) => {
+  if (!newCombo) return;
+  const [_, modelId] = newCombo.split(":");
+  const props = getMatchedProperties(modelId);
+
+  // 如果模型明确定义了迭代能力，则自动同步开关
+  if (props?.capabilities?.iterativeRefinement !== undefined) {
+    includeContext.value = props.capabilities.iterativeRefinement;
+  }
+});
+
 // 监听模型变化，如果当前参数不在新模型的可选范围内，重置为第一个可用项
 watch(sizeOptions, (newOptions) => {
   if (newOptions.length > 0 && !newOptions.find((opt) => opt.value === params.value.size)) {
@@ -185,6 +213,32 @@ watch(sizeOptions, (newOptions) => {
           :capabilities="modelCapabilities"
           placeholder="选择生成引擎"
         />
+      </div>
+
+      <div class="section context-toggle-section">
+        <div class="section-title">
+          <span>连续对话 (Iterative)</span>
+          <el-tooltip
+            content="开启后将包含历史消息作为上下文，支持对生成结果进行迭代修改（需模型支持）"
+          >
+            <el-icon class="info-icon"><Info /></el-icon>
+          </el-tooltip>
+        </div>
+        <div class="toggle-row">
+          <el-switch v-model="includeContext" size="small" />
+          <span class="status-tag" :class="{ active: includeContext }">
+            {{ includeContext ? "已开启" : "已关闭" }}
+          </span>
+          <el-tag
+            v-if="supportsIterative"
+            size="small"
+            type="success"
+            effect="plain"
+            class="capability-tag"
+          >
+            模型原生支持
+          </el-tag>
+        </div>
       </div>
 
       <el-divider />
@@ -353,6 +407,34 @@ watch(sizeOptions, (newOptions) => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.context-toggle-section {
+  background: var(--input-bg);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-tag {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+
+.status-tag.active {
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+
+.capability-tag {
+  margin-left: auto;
+  font-size: 10px;
 }
 
 .type-selector {

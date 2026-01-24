@@ -43,26 +43,26 @@ export function useMediaGenerationManager() {
 
     try {
       mediaStore.updateTaskStatus(taskId, 'processing', { statusText: '正在请求生成...' });
-      
+
       // 调用 LLM 请求
       const response = await sendRequest(options);
-      
-      mediaStore.updateTaskStatus(taskId, 'processing', { 
+
+      mediaStore.updateTaskStatus(taskId, 'processing', {
         statusText: '生成成功，正在入库资产...',
-        progress: 90 
+        progress: 90
       });
 
       // 处理结果并入库
       await handleResponseAssets(taskId, response, type);
 
-      mediaStore.updateTaskStatus(taskId, 'completed', { 
+      mediaStore.updateTaskStatus(taskId, 'completed', {
         statusText: '生成完成',
-        progress: 100 
+        progress: 100
       });
 
     } catch (error: any) {
       logger.error('媒体生成失败', error, { taskId });
-      mediaStore.updateTaskStatus(taskId, 'error', { 
+      mediaStore.updateTaskStatus(taskId, 'error', {
         error: error.message || String(error),
         statusText: '生成失败'
       });
@@ -82,12 +82,20 @@ export function useMediaGenerationManager() {
     if (type === 'image' && response.images?.[0]) {
       const img = response.images[0];
       if (img.b64_json) {
-        // 处理 Base64
-        const base64Data = typeof img.b64_json === 'string' 
-          ? img.b64_json 
-          : Buffer.from(img.b64_json).toString('base64');
-        
-        const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
+        let bytes: ArrayBuffer;
+        if (typeof img.b64_json === 'string') {
+          // 处理 Base64 字符串
+          const binaryString = atob(img.b64_json);
+          const uint8Array = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            uint8Array[i] = binaryString.charCodeAt(i);
+          }
+          bytes = uint8Array.buffer;
+        } else {
+          // 已经是 ArrayBuffer
+          bytes = img.b64_json;
+        }
+
         assetPromise = importAssetFromBytes(bytes, `generated-${taskId}.png`, {
           sourceModule: 'media-generator',
           origin: {
@@ -98,20 +106,34 @@ export function useMediaGenerationManager() {
         });
       } else if (img.url) {
         // 如果是 URL 且是本地文件协议
-        if (img.url.startsWith('file://') || img.url.startsWith('/')) {
-           assetPromise = importAssetFromPath(img.url, { sourceModule: 'media-generator' });
+        if (img.url.startsWith('file://') || img.url.startsWith('/') || img.url.startsWith('appdata://')) {
+          assetPromise = importAssetFromPath(img.url, {
+            sourceModule: 'media-generator',
+            origin: {
+              type: 'generated',
+              source: response.revisedPrompt || taskId,
+              sourceModule: 'media-generator'
+            }
+          });
         }
       }
     } else if (type === 'video' && response.videos?.[0]) {
       const video = response.videos[0];
       if (video.url) {
-        assetPromise = importAssetFromPath(video.url, { sourceModule: 'media-generator' });
+        assetPromise = importAssetFromPath(video.url, {
+          sourceModule: 'media-generator',
+          origin: {
+            type: 'generated',
+            source: response.revisedPrompt || taskId,
+            sourceModule: 'media-generator'
+          }
+        });
       }
     }
 
     if (assetPromise) {
       const asset = await assetPromise;
-      mediaStore.updateTaskStatus(taskId, 'processing', { 
+      mediaStore.updateTaskStatus(taskId, 'processing', {
         resultAssetId: asset.id,
         resultAsset: asset
       });

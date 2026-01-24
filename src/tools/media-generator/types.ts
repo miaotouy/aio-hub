@@ -64,27 +64,84 @@ export interface MediaTask {
 }
 
 /**
+ * 特定媒体类型的配置状态
+ */
+export interface MediaTypeConfig {
+  /** 最近使用的模型组合 (profileId:modelId) */
+  modelCombo: string;
+  /** 最近使用的参数快照 */
+  params: {
+    size: string;
+    quality: string;
+    style: string;
+    negativePrompt: string;
+    seed: number;
+    steps: number;
+    cfgScale: number;
+    background: string;
+    inputFidelity: string;
+    [key: string]: any;
+  };
+}
+
+/**
  * 媒体生成会话配置
  */
 export interface MediaGenerationConfig {
-  /** 最近使用的模型ID */
-  lastUsedModelId: string;
-  /** 最近使用的参数快照 */
-  lastUsedParams: Record<string, any>;
-  /** 默认生成类型 */
-  defaultType: MediaTaskType;
+  /** 当前选中的媒体类型 */
+  activeType: MediaTaskType;
+  /** 各类型的独立配置 */
+  types: Record<MediaTaskType, MediaTypeConfig>;
+}
+
+/**
+ * 媒体生成器全局设置
+ */
+export interface MediaGeneratorSettings {
+  /** 话题生成模型配置 (profileId:modelId) */
+  topicModelCombo: string;
+  /** 是否自动清理已完成的任务 */
+  autoCleanCompleted: boolean;
+  /** 生成成功后是否自动打开资产 */
+  autoOpenAsset: boolean;
+  /** 最大同时进行的任务数 */
+  maxConcurrentTasks: number;
+  /** 是否启用通知 */
+  enableNotifications: boolean;
 }
 
 /**
  * 媒体生成会话
  * 复用 llm-chat 的 Session 结构，但标记为 media-gen 类型并携带生成配置
  */
-export type GenerationSession = ChatSession & {
+export type GenerationSession = Omit<ChatSession, 'type'> & {
   /** 标记会话类型为媒体生成 */
   type: 'media-gen';
   /** 媒体生成专属配置 */
   generationConfig: MediaGenerationConfig;
+  /** 任务历史 (在媒体生成器中，任务历史替代了聊天消息) */
+  tasks: MediaTask[];
 };
+
+/**
+ * 媒体生成会话索引项
+ */
+export interface MediaSessionIndexItem {
+  id: string;
+  name: string;
+  updatedAt: string;
+  createdAt: string;
+  taskCount: number;
+}
+
+/**
+ * 媒体生成会话索引
+ */
+export interface MediaSessionsIndex {
+  version: string;
+  currentSessionId: string | null;
+  sessions: MediaSessionIndexItem[];
+}
 
 /**
  * 资产衍生数据中的生成信息

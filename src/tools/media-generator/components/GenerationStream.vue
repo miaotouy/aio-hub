@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import MediaTaskCard from "./MediaTaskCard.vue";
 import SessionManager from "./SessionManager.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
-import { Wand2, History, ChevronDown, Check, X } from "lucide-vue-next";
+import { Wand2, History, ChevronDown, Check, X, RefreshCw } from "lucide-vue-next";
+import { SUGGESTED_PROMPTS } from "../config";
+import { sampleSize } from "lodash-es";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
@@ -63,8 +65,32 @@ const cancelEdit = () => {
   isEditingName.value = false;
 };
 
+const displayPrompts = ref<string[]>([]);
+const isRefreshing = ref(false);
+
+const refreshPrompts = () => {
+  isRefreshing.value = true;
+  // 随机抽取 3 个
+  displayPrompts.value = sampleSize(SUGGESTED_PROMPTS, 3);
+  setTimeout(() => {
+    isRefreshing.value = false;
+  }, 500);
+};
+
+let refreshTimer: any = null;
+
 onMounted(() => {
   scrollToBottom();
+  refreshPrompts();
+
+  // 每 30 秒自动刷新一次
+  refreshTimer = setInterval(refreshPrompts, 30000);
+});
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+  }
 });
 </script>
 
@@ -121,31 +147,25 @@ onMounted(() => {
           <el-icon :size="64" class="welcome-icon"><Wand2 /></el-icon>
           <h2>开始你的创意之旅</h2>
           <p>在下方输入提示词，让 AI 为你生成精美的媒体内容</p>
-          <div class="quick-tips">
-            <el-tag
-              size="small"
-              effect="plain"
-              class="clickable-tag"
-              @click="inputManager.addContent('一个在霓虹灯下的赛博朋克城市')"
-            >
-              一个在霓虹灯下的赛博朋克城市
-            </el-tag>
-            <el-tag
-              size="small"
-              effect="plain"
-              class="clickable-tag"
-              @click="inputManager.addContent('唯美的二次元少女，樱花飘落')"
-            >
-              唯美的二次元少女，樱花飘落
-            </el-tag>
-            <el-tag
-              size="small"
-              effect="plain"
-              class="clickable-tag"
-              @click="inputManager.addContent('壮阔的雪山日出，电影级光效')"
-            >
-              壮阔的雪山日出，电影级光效
-            </el-tag>
+          <div class="quick-tips-container">
+            <transition name="fade-slide" mode="out-in">
+              <div class="quick-tips" :key="displayPrompts.join('|')">
+                <el-tag
+                  v-for="prompt in displayPrompts"
+                  :key="prompt"
+                  size="small"
+                  effect="plain"
+                  class="clickable-tag"
+                  @click="inputManager.addContent(prompt)"
+                >
+                  {{ prompt }}
+                </el-tag>
+              </div>
+            </transition>
+            <el-button class="refresh-tips-btn" link @click="refreshPrompts">
+              <el-icon :class="{ 'rotating-icon': isRefreshing }"><RefreshCw /></el-icon>
+              <span>换一批</span>
+            </el-button>
           </div>
         </div>
       </div>
@@ -267,7 +287,7 @@ onMounted(() => {
 
 .welcome-content {
   text-align: center;
-  max-width: 400px;
+  max-width: 500px;
 }
 
 .welcome-icon {
@@ -276,12 +296,64 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.quick-tips {
+.quick-tips-container {
   margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.quick-tips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+  min-height: 24px;
+}
+
+/* 容器级平滑切换动画 */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.15s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(5px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+.refresh-tips-btn {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.quick-tips-container:hover .refresh-tips-btn {
+  opacity: 1;
+}
+
+.refresh-tips-btn:hover {
+  color: var(--el-color-primary);
+}
+
+.is-loading {
+  animation: rotating 2s linear infinite;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .clickable-tag {

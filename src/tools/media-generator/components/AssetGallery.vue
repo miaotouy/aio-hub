@@ -1,20 +1,44 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
-import { Image, Film, Music, History, RefreshCw, Eye } from "lucide-vue-next";
+import { History, RefreshCw } from "lucide-vue-next";
 import type { Asset, AssetType } from "@/types/asset-management";
+import AssetIcon from "../../asset-manager/components/AssetIcon.vue";
 
 const { assets, isLoading, loadAssetsPaginated, getAssetUrl } = useAssetManager();
 const { show: showImageViewer } = useImageViewer();
 
 const filterType = ref<string>("all");
+const assetUrls = ref<Map<string, string>>(new Map());
+
+/**
+ * 批量加载资产 URL
+ */
+const loadAssetUrls = async (newAssets: Asset[]) => {
+  for (const asset of newAssets) {
+    if (!assetUrls.value.has(asset.id)) {
+      const url = await getAssetUrl(asset, true);
+      assetUrls.value.set(asset.id, url);
+    }
+  }
+};
+
+// 监听资产列表变化，加载 URL
+watch(
+  assets,
+  (newAssets) => {
+    loadAssetUrls(newAssets);
+  },
+  { deep: true }
+);
 
 const loadGallery = async () => {
   await loadAssetsPaginated({
     page: 1,
     pageSize: 50,
     filterSourceModule: "media-generator",
+    filterOrigin: "generated",
     filterType: (filterType.value === "all" ? undefined : filterType.value) as
       | AssetType
       | undefined,
@@ -71,32 +95,12 @@ onMounted(() => {
           @click="handlePreview(asset)"
         >
           <div class="asset-preview">
-            <template v-if="asset.type === 'image'">
-              <el-image
-                :src="asset.thumbnailPath ? `appdata://assets/thumbnails/${asset.id}.jpg` : ''"
-                fit="cover"
-                loading="lazy"
-              >
-                <template #error>
-                  <div class="image-placeholder">
-                    <el-icon><Image /></el-icon>
-                  </div>
-                </template>
-              </el-image>
-            </template>
-            <template v-else-if="asset.type === 'video'">
-              <div class="video-placeholder">
-                <el-icon><Film /></el-icon>
-                <div class="play-overlay">
-                  <el-icon><Eye /></el-icon>
-                </div>
-              </div>
-            </template>
-            <template v-else>
-              <div class="other-placeholder">
-                <el-icon><Music /></el-icon>
-              </div>
-            </template>
+            <AssetIcon
+              :asset="asset"
+              :asset-url="assetUrls.get(asset.id)"
+              :icon-size="32"
+              :show-loading="true"
+            />
           </div>
           <div class="asset-info">
             <span class="asset-name text-ellipsis">{{ asset.name }}</span>

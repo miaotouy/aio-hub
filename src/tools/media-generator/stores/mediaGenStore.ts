@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import type { MediaTask, MediaTaskStatus, MediaTaskType, GenerationSession, MediaGeneratorSettings } from '../types';
 import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from '../config';
 import { createModuleLogger } from '@/utils/logger';
 import { useMediaStorage } from '../composables/useMediaStorage';
 import { v4 as uuidv4 } from 'uuid';
+import type { Asset } from '@/types/asset-management';
 
 const logger = createModuleLogger('media-generator/store');
 
@@ -17,6 +18,14 @@ export const useMediaGenStore = defineStore('media-generator', () => {
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
   const isInitialized = ref(false);
+
+  // 附件管理
+  const attachments = ref<Asset[]>([]);
+  const isProcessingAttachments = ref(false);
+  const maxAttachmentCount = 5;
+  const attachmentCount = computed(() => attachments.value.length);
+  const hasAttachments = computed(() => attachments.value.length > 0);
+  const isAttachmentsFull = computed(() => attachments.value.length >= maxAttachmentCount);
 
   // 全局设置
   const settings = ref<MediaGeneratorSettings>({ ...DEFAULT_MEDIA_GENERATOR_SETTINGS });
@@ -324,6 +333,24 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     }
   };
 
+  /**
+   * 附件操作
+   */
+  const addAsset = (asset: Asset) => {
+    if (isAttachmentsFull.value) return false;
+    if (attachments.value.some(a => a.id === asset.id)) return false;
+    attachments.value.push(asset);
+    return true;
+  };
+
+  const removeAttachment = (assetId: string) => {
+    attachments.value = attachments.value.filter(a => a.id !== assetId);
+  };
+
+  const clearAttachments = () => {
+    attachments.value = [];
+  };
+
   return {
     sessions,
     tasks,
@@ -332,6 +359,12 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     currentConfig,
     currentSessionId,
     isInitialized,
+    attachments,
+    isProcessingAttachments,
+    maxAttachmentCount,
+    attachmentCount,
+    hasAttachments,
+    isAttachmentsFull,
     init,
     persist,
     addTask,
@@ -341,6 +374,9 @@ export const useMediaGenStore = defineStore('media-generator', () => {
     switchSession,
     createNewSession,
     deleteSession,
-    updateSessionName
+    updateSessionName,
+    addAsset,
+    removeAttachment,
+    clearAttachments
   };
 });

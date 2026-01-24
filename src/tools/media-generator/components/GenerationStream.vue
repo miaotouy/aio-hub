@@ -2,15 +2,24 @@
 import { ref, onMounted, nextTick, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
+import { useFileInteraction } from "@/composables/useFileInteraction";
+import { useAssetManager } from "@/composables/useAssetManager";
 import MediaTaskCard from "./MediaTaskCard.vue";
 import SessionManager from "./SessionManager.vue";
+import AttachmentCard from "../../llm-chat/components/AttachmentCard.vue";
 import { Send, Image as ImageIcon, Wand2, History, ChevronDown, Check, X } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
+import { open } from "@tauri-apps/plugin-dialog";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("media-generator/GenerationStream");
 
 const store = useMediaGenStore();
 const { startGeneration, isGenerating } = useMediaGenerationManager();
+const assetManager = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
+const containerRef = ref<HTMLElement>();
 const prompt = ref("");
 
 // 滚动到底部
@@ -21,7 +30,7 @@ const scrollToBottom = async () => {
   }
 };
 
-// 监听任务列表变化，自动滚动F
+// 监听任务列表变化，自动滚动
 watch(
   () => store.tasks.length,
   () => {
@@ -64,10 +73,91 @@ const cancelEdit = () => {
   isEditingName.value = false;
 };
 
+// 统一的文件交互处理（拖放 + 粘贴）
+const { isDraggingOver } = useFileInteraction({
+  element: containerRef,
+  sourceModule: "media-generator",
+  pasteMode: "asset",
+  onPaths: async (paths) => {
+    logger.info("文件拖拽触发", { paths });
+    let successCount = 0;
+    for (const path of paths) {
+      try {
+        const asset = await assetManager.importAssetFromPath(path, {
+          sourceModule: "media-generator",
+          origin: {
+            type: "local",
+            source: "drag-and-drop",
+            sourceModule: "media-generator",
+          },
+        });
+        if (asset && store.addAsset(asset)) {
+          successCount++;
+        }
+      } catch (err) {
+        logger.error("导入文件失败", err, { path });
+      }
+    }
+    if (successCount > 0) {
+      customMessage.success(`已添加 ${successCount} 个参考图`);
+    }
+  },
+  onAssets: async (assets) => {
+    logger.info("文件粘贴触发", { count: assets.length });
+    let successCount = 0;
+    for (const asset of assets) {
+      if (store.addAsset(asset)) {
+        successCount++;
+      }
+    }
+    if (successCount > 0) {
+      customMessage.success(`已添加 ${successCount} 个参考图`);
+    }
+  },
+  disabled: isGenerating,
+});
+
+const handleTriggerAttachment = async () => {
+  try {
+    const selected = await open({
+      multiple: true,
+      title: "选择参考图",
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
+    });
+
+    if (selected) {
+      const paths = Array.isArray(selected) ? selected : [selected];
+      let successCount = 0;
+      for (const path of paths) {
+        try {
+          const asset = await assetManager.importAssetFromPath(path, {
+            sourceModule: "media-generator",
+            origin: {
+              type: "local",
+              source: "file-picker",
+              sourceModule: "media-generator",
+            },
+          });
+          if (asset && store.addAsset(asset)) {
+            successCount++;
+          }
+        } catch (err) {
+          logger.error("导入文件失败", err, { path });
+        }
+      }
+      if (successCount > 0) {
+        customMessage.success(`已添加 ${successCount} 个参考图`);
+      }
+    }
+  } catch (error) {
+    customMessage.error("选择文件失败");
+  }
+};
+
 const handleSend = async (e?: KeyboardEvent) => {
   if (e && e.shiftKey) return; // Shift + Enter 换行
 
-  if (!prompt.value.trim()) return;
+  if (!prompt.value.trim() && !store.hasAttachments) return;
   if (isGenerating.value) {
     customMessage.warning("正在生成中，请稍候...");
     return;
@@ -83,13 +173,17 @@ const handleSend = async (e?: KeyboardEvent) => {
 
   const [profileId, modelId] = modelCombo.split(":");
   const currentPrompt = prompt.value;
+  const currentAttachments = [...store.attachments];
+
   prompt.value = "";
+  store.clearAttachments();
 
   const options = {
     ...params,
     prompt: currentPrompt,
     modelId,
     profileId,
+    attachments: currentAttachments,
     // 映射 UI 参数到 API 参数
     numInferenceSteps: params.steps,
     guidanceScale: params.cfgScale,
@@ -104,7 +198,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="generation-stream">
+  <div ref="containerRef" :class="['generation-stream', { 'dragging-over': isDraggingOver }]">
     <!-- 顶部导航栏 -->
     <div class="stream-header">
       <div class="header-left">
@@ -171,9 +265,24 @@ onMounted(() => {
 
     <!-- 底部输入区 -->
     <div class="stream-footer">
-      <div class="input-container">
+      <div :class="['input-container', { 'dragging-over': isDraggingOver }]">
+        <!-- 附件展示区 -->
+        <div v-if="store.hasAttachments" class="attachments-area">
+          <div class="attachments-list">
+            <AttachmentCard
+              v-for="asset in store.attachments"
+              :key="asset.id"
+              :asset="asset"
+              :all-assets="store.attachments"
+              :removable="true"
+              size="small"
+              @remove="store.removeAttachment(asset.id)"
+            />
+          </div>
+        </div>
+
         <div class="input-toolbar">
-          <el-button link size="small">
+          <el-button link size="small" @click="handleTriggerAttachment">
             <el-icon><ImageIcon /></el-icon>
             参考图
           </el-button>
@@ -207,6 +316,34 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.input-container.dragging-over {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 15px var(--primary-color-alpha) !important;
+  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1)) !important;
+  position: relative;
+}
+
+.input-container.dragging-over::after {
+  content: "释放以添加参考图";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.05);
+  color: var(--primary-color);
+  font-size: 18px;
+  font-weight: bold;
+  pointer-events: none;
+  z-index: 100;
+  border-radius: inherit;
 }
 
 .generation-stream * {
@@ -333,17 +470,33 @@ onMounted(() => {
 }
 
 .input-container {
-  background-color: var(--input-bg);
+  background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 8px;
-  box-shadow: var(--el-box-shadow-light);
-  transition: all 0.2s;
+  border-radius: 24px;
+  padding: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  box-shadow: var(--el-box-shadow-lighter);
 }
 
 .input-container:focus-within {
   border-color: var(--el-color-primary);
-  box-shadow: var(--el-box-shadow);
+  background-color: var(--card-bg);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.attachments-area {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: rgba(0, 0, 0, 0.02);
+  margin-bottom: 4px;
+}
+
+.attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .input-toolbar {

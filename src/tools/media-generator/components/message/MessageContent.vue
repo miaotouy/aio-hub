@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Loader2, AlertCircle } from "lucide-vue-next";
+import { Loader2, AlertCircle, XCircle } from "lucide-vue-next";
 import type { MediaMessage } from "../../types";
+import { useMediaGenStore } from "../../stores/mediaGenStore";
 import ImageViewer from "@/components/common/ImageViewer.vue";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
@@ -11,8 +12,16 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const store = useMediaGenStore();
 
-const task = computed(() => props.message.metadata?.taskSnapshot);
+const task = computed(() => {
+  const taskId = props.message.metadata?.taskId;
+  if (taskId) {
+    const liveTask = store.getTask(taskId);
+    if (liveTask) return liveTask;
+  }
+  return props.message.metadata?.taskSnapshot;
+});
 </script>
 
 <template>
@@ -34,6 +43,10 @@ const task = computed(() => props.message.metadata?.taskSnapshot);
         <div v-else-if="task.status === 'error'" class="status-error">
           <AlertCircle :size="20" />
           <span>生成失败: {{ task.error }}</span>
+        </div>
+        <div v-else-if="task.status === 'cancelled'" class="status-cancelled">
+          <XCircle :size="20" />
+          <span>任务已取消</span>
         </div>
       </div>
 
@@ -81,11 +94,12 @@ const task = computed(() => props.message.metadata?.taskSnapshot);
 }
 
 .prompt-content {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.6;
   color: var(--text-color);
   white-space: pre-wrap;
   word-break: break-word;
+  opacity: 0.9;
 }
 
 .task-status {
@@ -108,6 +122,10 @@ const task = computed(() => props.message.metadata?.taskSnapshot);
 
 .status-error {
   color: var(--error-color);
+}
+
+.status-cancelled {
+  color: var(--text-color-secondary);
 }
 
 .progress-text {

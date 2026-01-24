@@ -287,6 +287,13 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       if (status === "completed") {
         task.completedAt = Date.now();
       }
+
+      // 同步更新节点中的快照，确保持久化后的数据也是最新的
+      const node = nodes.value[taskId];
+      if (node && node.metadata) {
+        node.metadata.taskSnapshot = { ...task };
+      }
+
       logger.debug("任务状态已更新", { taskId, status });
       persist();
     }

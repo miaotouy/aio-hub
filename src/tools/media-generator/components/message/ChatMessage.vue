@@ -56,10 +56,7 @@ defineExpose({
   <div
     ref="messageRef"
     class="chat-message"
-    :class="[
-      `role-${message.role}`,
-      { 'is-selected': isSelected }
-    ]"
+    :class="[`role-${message.role}`, { 'is-selected': isSelected }]"
     @click="emit('select')"
   >
     <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
@@ -154,7 +151,7 @@ defineExpose({
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
 
 .menubar-wrapper {

@@ -8,7 +8,7 @@ import { useFileInteraction } from "@/composables/useFileInteraction";
 import { useAssetManager } from "@/composables/useAssetManager";
 import AttachmentCard from "../../llm-chat/components/AttachmentCard.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { Send, Image as ImageIcon, Wand2, Check, Info, Sparkles } from "lucide-vue-next";
+import { Send, Image as ImageIcon, Info, Sparkles, Loader2 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
@@ -289,7 +289,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         >
           <template #reference>
             <button class="tool-btn" :disabled="isDisabled" title="提示词优化">
-              <el-icon :class="{ 'is-loading': isOptimizing }"><Wand2 /></el-icon>
+              <el-icon :class="{ 'is-loading': isOptimizing }"><Sparkles /></el-icon>
               <span>提示词优化</span>
             </button>
           </template>
@@ -364,7 +364,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           @click="() => handleSend()"
         >
           <el-icon v-if="!isGenerating"><Send /></el-icon>
-          <el-icon v-else class="is-loading"><Check /></el-icon>
+          <el-icon v-else class="is-loading"><Loader2 /></el-icon>
         </button>
       </div>
     </div>

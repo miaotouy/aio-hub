@@ -1,35 +1,77 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
-import { Plus, MessageSquare, Edit2, Trash2, Check, X } from "lucide-vue-next";
+import { Plus, Search, MoreVertical, Edit2, Trash2, History, ArrowUpDown } from "lucide-vue-next";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 
 const store = useMediaGenStore();
-const editingId = ref<string | null>(null);
-const editName = ref("");
 
-const startEdit = (sessionId: string, name: string) => {
-  editingId.value = sessionId;
-  editName.value = name;
+// 搜索与筛选
+const searchQuery = ref("");
+const sortBy = ref<"updatedAt" | "name" | "taskCount">("updatedAt");
+const sortOrder = ref<"asc" | "desc">("desc");
+
+// 重命名相关
+const renameDialogVisible = ref(false);
+const renamingId = ref<string | null>(null);
+const newName = ref("");
+
+const filteredSessions = computed(() => {
+  let result = [...store.sessions];
+
+  // 1. 搜索
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter((s) => s.name.toLowerCase().includes(query));
+  }
+
+  // 2. 排序
+  result.sort((a, b) => {
+    let cmp = 0;
+    if (sortBy.value === "updatedAt") {
+      cmp = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    } else if (sortBy.value === "name") {
+      cmp = a.name.localeCompare(b.name, "zh-CN");
+    } else if (sortBy.value === "taskCount") {
+      cmp = (b.tasks?.length || 0) - (a.tasks?.length || 0);
+    }
+    return sortOrder.value === "desc" ? cmp : -cmp;
+  });
+
+  return result;
+});
+
+const openRenameDialog = (sessionId: string, currentName: string) => {
+  renamingId.value = sessionId;
+  newName.value = currentName;
+  renameDialogVisible.value = true;
 };
 
-const cancelEdit = () => {
-  editingId.value = null;
-  editName.value = "";
+const handleRename = async () => {
+  if (!renamingId.value || !newName.value.trim()) return;
+  await store.updateSessionName(renamingId.value, newName.value.trim());
+  renameDialogVisible.value = false;
+  renamingId.value = null;
+  newName.value = "";
+  customMessage.success("重命名成功");
 };
 
-const handleRename = async (sessionId: string) => {
-  if (!editName.value.trim()) return;
-  await store.updateSessionName(sessionId, editName.value.trim());
-  cancelEdit();
-};
-
-const handleDelete = (sessionId: string) => {
-  store.deleteSession(sessionId);
+const handleDelete = (sessionId: string, name: string) => {
+  ElMessageBox.confirm(`确定删除会话 "${name}" 吗？`, "删除确认", {
+    confirmButtonText: "删除",
+    cancelButtonText: "取消",
+    type: "warning",
+  }).then(() => {
+    store.deleteSession(sessionId);
+    customMessage.success("会话已删除");
+  });
 };
 
 const handleSwitch = (sessionId: string) => {
+  if (store.currentSessionId === sessionId) return;
   store.switchSession(sessionId);
 };
 
@@ -44,101 +86,187 @@ const formatTime = (timeStr: string) => {
     return timeStr;
   }
 };
+
+const toggleSortOrder = () => {
+  sortOrder.value = sortOrder.value === "asc" ? "desc" : "asc";
+};
 </script>
 
 <template>
   <div class="session-manager">
     <div class="session-header">
-      <span class="title">历史会话</span>
-      <el-button type="primary" size="small" @click="handleNewSession">
-        <el-icon><Plus /></el-icon>
-        新建
-      </el-button>
+      <div class="header-main">
+        <span class="title">历史会话</span>
+        <el-button type="primary" size="small" @click="handleNewSession">
+          <el-icon><Plus /></el-icon>
+          新建
+        </el-button>
+      </div>
+
+      <div class="header-tools">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索会话..."
+          size="small"
+          clearable
+          class="search-input"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+
+        <el-dropdown trigger="click" size="small" @command="(c: any) => (sortBy = c)">
+          <el-button size="small" class="tool-btn">
+            <el-icon><ArrowUpDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="updatedAt" :disabled="sortBy === 'updatedAt'">
+                按更新时间
+              </el-dropdown-item>
+              <el-dropdown-item command="name" :disabled="sortBy === 'name'">
+                按名称
+              </el-dropdown-item>
+              <el-dropdown-item command="taskCount" :disabled="sortBy === 'taskCount'">
+                按任务数
+              </el-dropdown-item>
+              <el-dropdown-item divided @click="toggleSortOrder">
+                {{ sortOrder === "asc" ? "升序" : "降序" }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
-    <el-scrollbar max-height="400px">
-      <div class="session-list">
+    <el-scrollbar class="session-scroll-area">
+      <div v-if="filteredSessions.length === 0" class="empty-state">
+        <el-empty :image-size="60" :description="searchQuery ? '未找到匹配会话' : '暂无历史会话'" />
+      </div>
+
+      <div v-else class="session-list">
         <div
-          v-for="session in store.sessions"
+          v-for="session in filteredSessions"
           :key="session.id"
           class="session-item"
           :class="{ active: store.currentSessionId === session.id }"
           @click="handleSwitch(session.id)"
         >
           <div class="session-icon">
-            <el-icon><MessageSquare /></el-icon>
+            <el-icon><History /></el-icon>
           </div>
 
           <div class="session-info">
-            <template v-if="editingId === session.id">
-              <div class="edit-input-wrapper" @click.stop>
-                <el-input
-                  v-model="editName"
-                  size="small"
-                  @keyup.enter="handleRename(session.id)"
-                  @keyup.esc="cancelEdit"
-                />
-                <div class="edit-actions">
-                  <el-button link size="small" @click="handleRename(session.id)">
-                    <el-icon><Check /></el-icon>
-                  </el-button>
-                  <el-button link size="small" @click="cancelEdit">
-                    <el-icon><X /></el-icon>
-                  </el-button>
-                </div>
-              </div>
-            </template>
-            <template v-else>
-              <div class="session-name-row">
-                <span class="name">{{ session.name }}</span>
-                <span class="task-count">{{ session.tasks?.length || 0 }} 任务</span>
-              </div>
-              <div class="session-meta">
-                {{ formatTime(session.updatedAt) }}
-              </div>
-            </template>
+            <div class="session-name-row">
+              <span class="name" :title="session.name">{{ session.name }}</span>
+            </div>
+            <div class="session-meta">
+              <span class="task-count">{{ session.tasks?.length || 0 }} 任务</span>
+              <span class="dot">·</span>
+              <span class="time">{{ formatTime(session.updatedAt) }}</span>
+            </div>
           </div>
 
-          <div class="session-actions" v-if="editingId !== session.id" @click.stop>
-            <el-button link size="small" @click="startEdit(session.id, session.name)">
-              <el-icon><Edit2 /></el-icon>
-            </el-button>
-            <el-popconfirm title="确定删除此会话吗？" @confirm="handleDelete(session.id)">
-              <template #reference>
-                <el-button link size="small" type="danger">
-                  <el-icon><Trash2 /></el-icon>
-                </el-button>
+          <div class="session-actions" @click.stop>
+            <el-dropdown
+              trigger="click"
+              @command="
+                (cmd: any) => {
+                  if (cmd === 'rename') openRenameDialog(session.id, session.name);
+                  if (cmd === 'delete') handleDelete(session.id, session.name);
+                }
+              "
+            >
+              <el-button link size="small" class="more-btn">
+                <el-icon><MoreVertical /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="rename" :icon="Edit2">重命名</el-dropdown-item>
+                  <el-dropdown-item command="delete" :icon="Trash2" class="delete-item">
+                    删除
+                  </el-dropdown-item>
+                </el-dropdown-menu>
               </template>
-            </el-popconfirm>
+            </el-dropdown>
           </div>
         </div>
       </div>
     </el-scrollbar>
+
+    <!-- 重命名对话框 -->
+    <el-dialog
+      v-model="renameDialogVisible"
+      title="重命名会话"
+      width="340px"
+      append-to-body
+      destroy-on-close
+    >
+      <el-input
+        v-model="newName"
+        placeholder="请输入新名称"
+        @keyup.enter="handleRename"
+        autofocus
+      />
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button size="small" @click="renameDialogVisible = false">取消</el-button>
+          <el-button size="small" type="primary" @click="handleRename">确定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
 .session-manager {
-  width: 280px;
-  padding: 4px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .session-header {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header-main {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 8px;
 }
 
-.session-header .title {
+.header-main .title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--el-text-color-primary);
 }
 
+.header-tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1;
+}
+
+.tool-btn {
+  padding: 0 8px;
+}
+
+.session-scroll-area {
+  flex: 1;
+}
+
 .session-list {
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -152,8 +280,8 @@ const formatTime = (timeStr: string) => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  position: relative;
   border: 1px solid transparent;
+  background-color: transparent;
 }
 
 .session-item:hover {
@@ -161,8 +289,8 @@ const formatTime = (timeStr: string) => {
 }
 
 .session-item.active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
-  border-color: color-mix(in srgb, var(--el-color-primary), transparent 50%);
+  background-color: color-mix(in srgb, var(--el-color-primary), transparent 92%);
+  border-color: color-mix(in srgb, var(--el-color-primary), transparent 60%);
 }
 
 .session-icon {
@@ -175,6 +303,7 @@ const formatTime = (timeStr: string) => {
   justify-content: center;
   color: var(--el-text-color-secondary);
   flex-shrink: 0;
+  transition: all 0.2s;
 }
 
 .active .session-icon {
@@ -187,13 +316,6 @@ const formatTime = (timeStr: string) => {
   min-width: 0;
 }
 
-.session-name-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
 .name {
   font-size: 13px;
   font-weight: 500;
@@ -201,38 +323,51 @@ const formatTime = (timeStr: string) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.task-count {
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-  flex-shrink: 0;
+  display: block;
 }
 
 .session-meta {
   font-size: 11px;
   color: var(--el-text-color-secondary);
-  margin-top: 2px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dot {
+  opacity: 0.5;
 }
 
 .session-actions {
-  display: none;
-  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
 .session-item:hover .session-actions {
-  display: flex;
+  opacity: 1;
 }
 
-.edit-input-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.more-btn {
+  padding: 4px;
+  height: auto;
 }
 
-.edit-actions {
+.delete-item {
+  color: var(--el-color-danger) !important;
+}
+
+.empty-state {
+  padding-top: 40px;
+}
+
+.dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 8px;
+}
+
+:deep(.el-input__wrapper) {
+  background-color: var(--input-bg);
 }
 </style>

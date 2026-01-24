@@ -5,7 +5,7 @@ import { useMediaGenInputManager } from "../composables/useMediaGenInputManager"
 import MediaTaskCard from "./MediaTaskCard.vue";
 import SessionManager from "./SessionManager.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
-import { Wand2, History, ChevronDown, Check, X, RefreshCw } from "lucide-vue-next";
+import { Sparkles, History, Check, X, RefreshCw } from "lucide-vue-next";
 import { SUGGESTED_PROMPTS } from "../config";
 import { sampleSize } from "lodash-es";
 
@@ -99,7 +99,6 @@ onUnmounted(() => {
     <!-- 顶部导航栏 -->
     <div class="stream-header">
       <div class="header-left">
-        <el-icon class="title-icon"><Wand2 /></el-icon>
         <div v-if="isEditingName" class="title-edit-wrapper">
           <el-input
             ref="titleInputRef"
@@ -124,15 +123,14 @@ onUnmounted(() => {
       <div class="header-actions">
         <el-popover
           placement="bottom-end"
-          :width="320"
+          :width="360"
           trigger="click"
           popper-class="session-popover"
         >
           <template #reference>
             <el-button link class="history-btn">
+              <span style="padding-right: 4px;">切换会话</span>
               <el-icon><History /></el-icon>
-              <span>切换会话</span>
-              <el-icon class="el-icon--right"><ChevronDown /></el-icon>
             </el-button>
           </template>
           <SessionManager />
@@ -144,7 +142,7 @@ onUnmounted(() => {
     <div class="stream-body" ref="scrollContainer">
       <div v-if="store.tasks.length === 0" class="empty-placeholder">
         <div class="welcome-content">
-          <el-icon :size="64" class="welcome-icon"><Wand2 /></el-icon>
+          <el-icon :size="64" class="welcome-icon"><Sparkles /></el-icon>
           <h2>开始你的创意之旅</h2>
           <p>在下方输入提示词，让 AI 为你生成精美的媒体内容</p>
           <div class="quick-tips-container">

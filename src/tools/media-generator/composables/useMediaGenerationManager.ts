@@ -1,10 +1,12 @@
 import { ref } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
+import { invoke } from '@tauri-apps/api/core';
 import { useMediaGenStore } from '../stores/mediaGenStore';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAssetManager } from '@/composables/useAssetManager';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { embedMetadata } from '@/utils/mediaMetadataManager';
 import type { MediaTask, MediaTaskType } from '../types';
 import type { MediaGenerationOptions, LlmResponse } from '@/llm-apis/common';
 
@@ -14,7 +16,7 @@ const errorHandler = createModuleErrorHandler('media-generator/manager');
 export function useMediaGenerationManager() {
   const mediaStore = useMediaGenStore();
   const { sendRequest } = useLlmRequest();
-  const { importAssetFromBytes, importAssetFromPath } = useAssetManager();
+  const { importAssetFromBytes, importAssetFromPath, getAssetBasePath } = useAssetManager();
   const isGenerating = ref(false);
 
   /**
@@ -76,27 +78,73 @@ export function useMediaGenerationManager() {
    * 处理响应中的资产并导入系统
    */
   const handleResponseAssets = async (taskId: string, response: LlmResponse, type: MediaTaskType) => {
+    const task = mediaStore.getTask(taskId);
+    if (!task) return;
+
     // 1. 提取资产数据
     let assetPromise: Promise<any> | null = null;
+    let bytes: ArrayBuffer | null = null;
+    let mimeType = 'image/png';
+    let extension = 'png';
 
-    if (type === 'image' && response.images?.[0]) {
-      const img = response.images[0];
-      if (img.b64_json) {
-        let bytes: ArrayBuffer;
-        if (typeof img.b64_json === 'string') {
-          // 处理 Base64 字符串
-          const binaryString = atob(img.b64_json);
-          const uint8Array = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            uint8Array[i] = binaryString.charCodeAt(i);
+    // 确定元数据
+    const metadata = {
+      prompt: task.input.prompt,
+      negativePrompt: task.input.negativePrompt,
+      modelId: task.input.modelId,
+      params: task.input.params,
+      revisedPrompt: response.revisedPrompt,
+      seed: response.seed,
+      genType: type,
+      version: '1.0.0'
+    };
+
+    try {
+      if (type === 'image' && response.images?.[0]) {
+        const img = response.images[0];
+        mimeType = 'image/png';
+        extension = 'png';
+
+        if (img.b64_json) {
+          if (typeof img.b64_json === 'string') {
+            const binaryString = atob(img.b64_json);
+            const uint8Array = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              uint8Array[i] = binaryString.charCodeAt(i);
+            }
+            bytes = uint8Array.buffer;
+          } else {
+            bytes = img.b64_json;
           }
-          bytes = uint8Array.buffer;
-        } else {
-          // 已经是 ArrayBuffer
-          bytes = img.b64_json;
+        } else if (img.url) {
+          bytes = await fetchAsArrayBuffer(img.url);
+        }
+      } else if (type === 'video' && response.videos?.[0]) {
+        const video = response.videos[0];
+        mimeType = 'video/mp4';
+        extension = 'mp4';
+        if (video.url) {
+          bytes = await fetchAsArrayBuffer(video.url);
+        }
+      } else if (type === 'audio' && response.audios?.[0]) {
+        const audio = response.audios[0];
+        mimeType = 'audio/mpeg';
+        extension = 'mp3';
+        if (audio.url) {
+          bytes = await fetchAsArrayBuffer(audio.url);
+        }
+      }
+
+      // 嵌入元数据并导入
+      if (bytes) {
+        try {
+          bytes = await embedMetadata(bytes, mimeType, metadata);
+          logger.info(`已将生成参数嵌入 ${type}`, { taskId });
+        } catch (e) {
+          logger.warn('嵌入元数据失败，继续原始导入', e);
         }
 
-        assetPromise = importAssetFromBytes(bytes, `generated-${taskId}.png`, {
+        assetPromise = importAssetFromBytes(bytes, `generated-${taskId}.${extension}`, {
           sourceModule: 'media-generator',
           origin: {
             type: 'generated',
@@ -104,23 +152,12 @@ export function useMediaGenerationManager() {
             sourceModule: 'media-generator'
           }
         });
-      } else if (img.url) {
-        // 如果是 URL 且是本地文件协议
-        if (img.url.startsWith('file://') || img.url.startsWith('/') || img.url.startsWith('appdata://')) {
-          assetPromise = importAssetFromPath(img.url, {
-            sourceModule: 'media-generator',
-            origin: {
-              type: 'generated',
-              source: response.revisedPrompt || taskId,
-              sourceModule: 'media-generator'
-            }
-          });
-        }
       }
-    } else if (type === 'video' && response.videos?.[0]) {
-      const video = response.videos[0];
-      if (video.url) {
-        assetPromise = importAssetFromPath(video.url, {
+    } catch (error) {
+      logger.error('获取或处理资产数据失败', error);
+      // 如果处理失败，尝试退回到路径导入（如果是本地路径）
+      if (type === 'video' && response.videos?.[0]?.url) {
+        assetPromise = importAssetFromPath(response.videos[0].url, {
           sourceModule: 'media-generator',
           origin: {
             type: 'generated',
@@ -139,10 +176,53 @@ export function useMediaGenerationManager() {
       });
 
       // 2. 补全衍生数据 (Prompt 等)
-      // TODO: 调用后端 update_asset_derived_data
+      try {
+        const basePath = await getAssetBasePath();
+        const derivedRelativePath = `.derived/generation/${asset.id}.json`;
+        const fullDerivedPath = `${basePath}/${derivedRelativePath}`;
+
+        // 写入衍生数据文件
+        await invoke('write_file_force', {
+          path: fullDerivedPath,
+          content: JSON.stringify(metadata, null, 2)
+        });
+
+        // 更新资产元数据
+        await invoke('update_asset_derived_data', {
+          assetId: asset.id,
+          key: 'generation',
+          data: {
+            path: derivedRelativePath,
+            updatedAt: new Date().toISOString(),
+            provider: 'media-generator'
+          }
+        });
+
+        logger.info('衍生数据已持久化', { assetId: asset.id });
+      } catch (e) {
+        logger.warn('持久化衍生数据失败', e);
+      }
+
       logger.info('资产已关联到任务', { taskId, assetId: asset.id });
     }
   };
+
+  /**
+   * 将 URL 转换为 ArrayBuffer
+   */
+  async function fetchAsArrayBuffer(url: string): Promise<ArrayBuffer> {
+    // 处理 tauri 协议或本地路径
+    if (url.startsWith('appdata://') || url.startsWith('file://') || url.startsWith('/')) {
+      // 假设后端有读取文件的命令，或者我们可以通过 fetch(convertFileSrc(url))
+      const { convertFileSrc } = await import('@tauri-apps/api/core');
+      const response = await fetch(convertFileSrc(url));
+      return await response.arrayBuffer();
+    }
+    
+    // 处理远程 URL
+    const response = await fetch(url);
+    return await response.arrayBuffer();
+  }
 
   return {
     isGenerating,

@@ -3,6 +3,9 @@ import { Sparkles } from 'lucide-vue-next';
 import type { ToolRegistry, ServiceMetadata, ToolConfig } from '@/services/types';
 import type { AssetSidecarAction, Asset } from '@/types/asset-management';
 import { createModuleLogger } from '@/utils/logger';
+import { extractMetadata } from '@/utils/mediaMetadataManager';
+import { invoke } from '@tauri-apps/api/core';
+import { useGenerationInfoViewer } from './composables/useGenerationInfoViewer';
 
 const logger = createModuleLogger('media-generator/registry');
 
@@ -25,7 +28,7 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
   readonly id = 'media-generator';
   readonly name = '媒体生成中心';
   readonly description = '一站式媒体生成工作站，支持图片、视频和音频生成。';
-  
+
   // 工具元数据
   getMetadata(): ServiceMetadata {
     return {
@@ -54,29 +57,47 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
         label: '查看生成参数',
         icon: markRaw(Sparkles),
         isVisible: (asset: Asset) => {
-          // 只有来源是媒体生成中心且包含生成元数据的资产才显示
-          return asset.origins.some(o => o.sourceModule === 'media-generator') && 
-                 !!asset.metadata?.derived?.['generation'];
+          // 只要是本模块生成的资产，或者包含衍生数据的资产
+          const hasGenerationData = !!asset.metadata?.derived?.['generation'];
+          const isGenerated = asset.origins.some(o => o.sourceModule === 'media-generator');
+          return hasGenerationData || isGenerated;
         },
         handler: async (asset: Asset) => {
           logger.info('查看生成参数', { assetId: asset.id });
-          // TODO: 弹出查看对话框
+
+          let generationData = asset.metadata?.derived?.['generation'] as any;
+
+          // 如果没有衍生数据，尝试从文件读取
+          if (!generationData) {
+            try {
+              const bytes = await invoke<number[]>('get_asset_binary', { relativePath: asset.path });
+              let mimeType = asset.mimeType;
+              if (!mimeType) {
+                if (asset.type === 'image') mimeType = 'image/png';
+                else if (asset.type === 'video') mimeType = 'video/mp4';
+                else if (asset.type === 'audio') mimeType = 'audio/mpeg';
+              }
+              generationData = await extractMetadata(new Uint8Array(bytes).buffer, mimeType || 'application/octet-stream');
+              if (generationData) {
+                logger.info('从文件内嵌元数据中提取到生成参数');
+              }
+            } catch (e) {
+              logger.warn('从文件提取元数据失败', e);
+            }
+          }
+
+          if (!generationData) {
+            // 如果还是没有，提示用户
+            const { customMessage } = await import('@/utils/customMessage');
+            customMessage.warning('未找到生成参数信息');
+            return;
+          }
+
+          // 弹出全局查看对话框
+          const { show } = useGenerationInfoViewer();
+          show(asset, generationData);
         },
         order: 100
-      },
-      {
-        id: 'media-generator:remix',
-        label: '二次创作 (Remix)',
-        icon: markRaw(Sparkles),
-        isVisible: (asset: Asset) => {
-          // 只要是图片或视频，无论来源，理论上都可以尝试 Remix
-          return asset.type === 'image' || asset.type === 'video';
-        },
-        handler: async (asset: Asset) => {
-          logger.info('开始二次创作', { assetId: asset.id });
-          // TODO: 跳转到媒体生成中心并填充参数
-        },
-        order: 110
       }
     ];
   }

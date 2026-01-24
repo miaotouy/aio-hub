@@ -127,3 +127,66 @@ export const parseCharacterDataFromPng = async (buffer: Uint8Array | ArrayBuffer
   const { stCharacter } = await parsePngMetadata(buffer);
   return stCharacter || null;
 };
+
+
+/**
+ * 从 PNG 文件的 tEXt chunk 中提取数据。
+ *
+ * @param pngBuffer PNG 文件的 ArrayBuffer
+ * @param keyword chunk 的关键字
+ * @returns 提取出的文本数据，如果未找到则返回 null
+ */
+export function extractDataFromPng(
+  pngBuffer: ArrayBuffer,
+  keyword: string
+): string | null {
+  try {
+    const uint8Buffer = new Uint8Array(pngBuffer);
+    const dataView = new DataView(uint8Buffer.buffer);
+
+    // 检查签名
+    if (dataView.getUint32(0) !== 0x89504E47 || dataView.getUint32(4) !== 0x0D0A1A0A) {
+      return null;
+    }
+
+    let currentOffset = 8;
+    while (currentOffset < uint8Buffer.length) {
+      const len = dataView.getUint32(currentOffset, false);
+      const type = new TextDecoder().decode(uint8Buffer.subarray(currentOffset + 4, currentOffset + 8));
+
+      if (type === 'tEXt') {
+        const chunkData = uint8Buffer.subarray(currentOffset + 8, currentOffset + 8 + len);
+        // 查找 null 分隔符
+        let nullPos = -1;
+        for (let i = 0; i < chunkData.length; i++) {
+          if (chunkData[i] === 0) {
+            nullPos = i;
+            break;
+          }
+        }
+
+        if (nullPos !== -1) {
+          const foundKeyword = new TextDecoder().decode(chunkData.subarray(0, nullPos));
+          if (foundKeyword === keyword) {
+            const textBytes = chunkData.subarray(nullPos + 1);
+            const base64Data = new TextDecoder().decode(textBytes);
+            try {
+              return decodeURIComponent(escape(atob(base64Data)));
+            } catch (e) {
+              // 如果不是 Base64 编码，尝试直接返回
+              return base64Data;
+            }
+          }
+        }
+      }
+
+      if (type === 'IEND') break;
+      currentOffset += 4 + 4 + len + 4;
+    }
+
+    return null;
+  } catch (error) {
+    logger.error('从 PNG 提取数据失败', error as Error);
+    return null;
+  }
+}

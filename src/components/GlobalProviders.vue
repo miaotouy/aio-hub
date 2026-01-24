@@ -5,10 +5,12 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
+import { useGenerationInfoViewer } from "@/tools/media-generator/composables/useGenerationInfoViewer";
 import ImageViewer from "@/components/common/ImageViewer.vue";
 import VideoViewer from "@/components/common/VideoViewer.vue";
 import AudioViewer from "@/components/common/AudioViewer.vue";
 import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
+import GenerationInfoDialog from "@/tools/media-generator/components/GenerationInfoDialog.vue";
 import ModelSelectDialog from "@/components/common/ModelSelectDialog.vue";
 import SyncServiceProvider from "@/components/SyncServiceProvider.vue";
 import NotificationCenter from "@/components/notification/NotificationCenter.vue";
@@ -21,6 +23,8 @@ const videoViewer = useVideoViewer();
 const audioViewer = useAudioViewer();
 // 全局转写查看器状态
 const transcriptionViewer = useTranscriptionViewer();
+// 全局媒体生成参数查看器
+const generationInfoViewer = useGenerationInfoViewer();
 
 onMounted(() => {
   // 初始化跨窗口通信总线
@@ -79,6 +83,14 @@ onMounted(() => {
     @update:model-value="transcriptionViewer.close()"
     @save="transcriptionViewer.state.value.onSave"
     @regenerate="transcriptionViewer.state.value.onRegenerate"
+  />
+
+  <!-- 全局媒体生成参数查看器 -->
+  <GenerationInfoDialog
+    v-if="generationInfoViewer.visible.value"
+    v-model="generationInfoViewer.visible.value"
+    :asset="generationInfoViewer.currentAsset.value"
+    :data="generationInfoViewer.generationData.value"
   />
 
   <!-- 全局消息通知中心 -->

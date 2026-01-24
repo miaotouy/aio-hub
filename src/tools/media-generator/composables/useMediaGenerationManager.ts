@@ -4,10 +4,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { useMediaGenStore } from '../stores/mediaGenStore';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAssetManager } from '@/composables/useAssetManager';
+import { useModelMetadata } from '@/composables/useModelMetadata';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import { embedMetadata } from '@/utils/mediaMetadataManager';
-import type { MediaTask, MediaTaskType } from '../types';
+import type { MediaTask, MediaTaskType, MediaMessage } from '../types';
 import type { MediaGenerationOptions, LlmResponse } from '@/llm-apis/common';
 
 const logger = createModuleLogger('media-generator/manager');
@@ -17,13 +18,22 @@ export function useMediaGenerationManager() {
   const mediaStore = useMediaGenStore();
   const { sendRequest } = useLlmRequest();
   const { importAssetFromBytes, importAssetFromPath, getAssetBasePath } = useAssetManager();
+  const { getMatchedProperties } = useModelMetadata();
   const isGenerating = ref(false);
 
   /**
    * 创建并启动媒体生成任务
    */
-  const startGeneration = async (options: MediaGenerationOptions, type: MediaTaskType) => {
+  const startGeneration = async (options: MediaGenerationOptions & { contextMessageIds?: string[], includeContext?: boolean }, type: MediaTaskType) => {
     const taskId = uuidv4();
+    
+    // 1. 能力感知：检查模型是否支持迭代微调
+    const modelProps = getMatchedProperties(options.modelId);
+    const supportsIterative = modelProps?.iterativeRefinement === true;
+    
+    // 决定是否包含上下文 (优先使用传入的，其次基于能力)
+    const shouldIncludeContext = options.includeContext ?? supportsIterative;
+
     const task: MediaTask = {
       id: taskId,
       type,
@@ -35,6 +45,8 @@ export function useMediaGenerationManager() {
         profileId: options.profileId,
         params: { ...options },
         referenceAssetIds: options.inputAttachments?.map(a => a.url).filter(Boolean) as string[],
+        contextMessageIds: options.contextMessageIds,
+        includeContext: shouldIncludeContext,
       },
       progress: 0,
       createdAt: Date.now(),
@@ -46,8 +58,44 @@ export function useMediaGenerationManager() {
     try {
       mediaStore.updateTaskStatus(taskId, 'processing', { statusText: '正在请求生成...' });
 
+      // 构造多轮会话上下文
+      let finalOptions = { ...options };
+      
+      // 如果开启了上下文包含，或者手动选择了上下文消息
+      if (shouldIncludeContext || (options.contextMessageIds && options.contextMessageIds.length > 0)) {
+        let contextMessages: MediaMessage[] = [];
+        
+        if (shouldIncludeContext) {
+          // 自动提取当前路径上的所有消息 (排除当前正在生成的任务节点本身)
+          // mediaStore.messages 已经包含了当前路径，最后一个通常是刚添加的任务节点
+          contextMessages = mediaStore.messages.filter(m => m.id !== taskId && m.role !== 'system');
+        } else if (options.contextMessageIds && options.contextMessageIds.length > 0) {
+          // 仅包含选中的消息
+          contextMessages = mediaStore.messages.filter((m) =>
+            options.contextMessageIds?.includes(m.id)
+          );
+        }
+
+        if (contextMessages.length > 0) {
+          // 映射为 LlmRequest 所需的消息格式
+          const messages = contextMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+            // 如果是助手的生成结果，把生成的资产作为上下文 (VLM 逻辑)
+            attachments: m.attachments || (m.metadata?.taskSnapshot?.resultAsset ? [m.metadata.taskSnapshot.resultAsset] : undefined),
+          }));
+
+          finalOptions = {
+            ...finalOptions,
+            messages: messages as any,
+          };
+          
+          logger.info('构造多轮生成上下文', { messageCount: messages.length });
+        }
+      }
+
       // 调用 LLM 请求
-      const response = await sendRequest(options);
+      const response = await sendRequest(finalOptions);
 
       mediaStore.updateTaskStatus(taskId, 'processing', {
         statusText: '生成成功，正在入库资产...',

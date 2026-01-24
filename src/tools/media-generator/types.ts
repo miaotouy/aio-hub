@@ -1,4 +1,5 @@
 import type { ChatSession } from "@/tools/llm-chat/types/session";
+import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { Asset } from "@/types/asset-management";
 
 /**
@@ -10,12 +11,33 @@ export type MediaTaskType = "image" | "video" | "audio";
  * 媒体生成任务状态
  */
 export type MediaTaskStatus = "pending" | "processing" | "completed" | "error" | "cancelled";
+/**
+ * 媒体生成消息
+ * 继承自聊天消息节点，增强媒体生成相关的元数据
+ */
+export interface MediaMessage extends ChatMessageNode {
+  /**
+   * 附加元数据
+   */
+  metadata: ChatMessageNode["metadata"] & {
+    /** 关联的任务 ID */
+    taskId?: string;
+    /** 标记是否为生成任务节点 */
+    isMediaTask?: boolean;
+    /** 该节点生成时是否携带了上下文 (用于多轮对话) */
+    includeContext?: boolean;
+    /** 媒体任务快照 (用于 UI 快速访问，实际状态应通过 store 获取) */
+    taskSnapshot?: MediaTask;
+  };
+  /** 是否被选中作为下一轮的上下文 (用于多选模式) */
+  isSelected?: boolean;
+}
 
 /**
  * 媒体生成任务
  */
 export interface MediaTask {
-  /** 任务唯一ID */
+  /** 任务唯一ID (通常与关联的 assistant 消息 ID 一致) */
   id: string;
   /** 关联的会话ID */
   sessionId?: string;
@@ -38,7 +60,9 @@ export interface MediaTask {
     params: Record<string, any>;
     /** 参考资产ID列表 (用于图生图、变体等) */
     referenceAssetIds?: string[];
-    /** 是否包含上下文（多轮对话迭代） */
+    /** 选中的上下文消息 ID 列表 */
+    contextMessageIds?: string[];
+    /** 是否包含完整历史上下文 */
     includeContext?: boolean;
   };
 
@@ -80,6 +104,7 @@ export interface MediaTypeConfig {
     cfgScale: number;
     background: string;
     inputFidelity: string;
+    duration: number; // 视频时长 (默认 5)
     [key: string]: any;
   };
 }
@@ -90,6 +115,8 @@ export interface MediaTypeConfig {
 export interface MediaGenerationConfig {
   /** 当前选中的媒体类型 */
   activeType: MediaTaskType;
+  /** 是否包含上下文 (多轮对话) */
+  includeContext?: boolean;
   /** 各类型的独立配置 */
   types: Record<MediaTaskType, MediaTypeConfig>;
 }
@@ -132,18 +159,23 @@ export interface MediaGeneratorSettings {
 
 /**
  * 媒体生成会话
- * 复用 llm-chat 的 Session 结构，但标记为 media-gen 类型并携带生成配置
+ * 全面对齐 ChatSession 的树形结构，但标记为 media-gen 类型并携带生成配置
  */
-export type GenerationSession = Omit<ChatSession, "type"> & {
-  /** 标记会话类型为媒体生成 */
+export interface GenerationSession extends Omit<ChatSession, "nodes"> {
+  /** 标记会话类型 */
   type: "media-gen";
   /** 媒体生成专属配置 */
   generationConfig: MediaGenerationConfig;
-  /** 任务历史 (在媒体生成器中，任务历史替代了聊天消息) */
+  /** 节点池 (MediaMessage 列表) */
+  nodes: Record<string, MediaMessage>;
+  /** 任务池 (保持扁平，方便全局状态追踪) */
   tasks: MediaTask[];
   /** 输入框内容草稿 */
   inputPrompt?: string;
-};
+
+  /** 兼容旧版字段 (可选，迁移后可移除) */
+  messages?: MediaMessage[];
+}
 
 /**
  * 媒体生成会话索引项

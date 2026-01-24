@@ -2,12 +2,16 @@
 import { onMounted, ref, watch } from "vue";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { useVideoViewer } from "@/composables/useVideoViewer";
+import { useAudioViewer } from "@/composables/useAudioViewer";
 import { History, RefreshCw } from "lucide-vue-next";
 import type { Asset, AssetType } from "@/types/asset-management";
 import AssetIcon from "../../asset-manager/components/AssetIcon.vue";
 
 const { assets, isLoading, loadAssetsPaginated, getAssetUrl } = useAssetManager();
 const { show: showImageViewer } = useImageViewer();
+const { previewVideo } = useVideoViewer();
+const { previewAudio } = useAudioViewer();
 
 const filterType = ref<string>("all");
 const assetUrls = ref<Map<string, string>>(new Map());
@@ -51,8 +55,10 @@ const handlePreview = async (asset: Asset) => {
   if (asset.type === "image") {
     const url = await getAssetUrl(asset);
     showImageViewer([url], 0);
-  } else {
-    // TODO: 处理视频和音频的点击预览，或者跳转到资产详情
+  } else if (asset.type === "video") {
+    previewVideo(asset);
+  } else if (asset.type === "audio") {
+    previewAudio(asset);
   }
 };
 

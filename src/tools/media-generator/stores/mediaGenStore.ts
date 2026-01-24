@@ -4,6 +4,7 @@ import type {
   MediaTask,
   MediaTaskStatus,
   MediaTaskType,
+  MediaMessage,
   GenerationSession,
   MediaGeneratorSettings,
 } from "../types";
@@ -12,14 +13,19 @@ import { createModuleLogger } from "@/utils/logger";
 import { useMediaStorage } from "../composables/useMediaStorage";
 import { v4 as uuidv4 } from "uuid";
 import type { Asset } from "@/types/asset-management";
+import { useNodeManager } from "@/tools/llm-chat/composables/useNodeManager";
 
 const logger = createModuleLogger("media-generator/store");
 
 export const useMediaGenStore = defineStore("media-generator", () => {
   const storage = useMediaStorage();
+  const nodeManager = useNodeManager();
   const debouncedSave = storage.createDebouncedSave(2000);
 
   const sessions = ref<GenerationSession[]>([]);
+  const nodes = ref<Record<string, MediaMessage>>({});
+  const rootNodeId = ref("");
+  const activeLeafId = ref("");
   const tasks = ref<MediaTask[]>([]);
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
@@ -27,6 +33,21 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
   // 输入内容管理
   const inputPrompt = ref("");
+
+  // 消息流 (计算属性，基于当前活跃路径)
+  const messages = computed(() => {
+    if (!currentSessionId.value || !activeLeafId.value) return [];
+
+    // 构造一个临时的 session 对象供 nodeManager 使用
+    const tempSession = {
+      id: currentSessionId.value,
+      nodes: nodes.value,
+      rootNodeId: rootNodeId.value,
+      activeLeafId: activeLeafId.value,
+    } as any;
+
+    return nodeManager.getNodePath(tempSession, activeLeafId.value) as MediaMessage[];
+  });
 
   // 附件管理
   const attachments = ref<Asset[]>([]);
@@ -52,12 +73,14 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       cfgScale: 7.0,
       background: "opaque",
       inputFidelity: "low",
+      duration: 5, // 视频时长默认 5s
     },
   });
 
   // 当前生成配置
   const currentConfig = ref({
     activeType: "image" as MediaTaskType,
+    includeContext: false, // 是否包含上下文
     types: {
       image: createDefaultTypeConfig(),
       video: createDefaultTypeConfig(),
@@ -98,16 +121,18 @@ export const useMediaGenStore = defineStore("media-generator", () => {
             type: "media-gen",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            messages: [],
             tasks: [],
             generationConfig: {
               activeType: "image",
+              includeContext: false,
               types: {
                 image: createDefaultTypeConfig(),
                 video: createDefaultTypeConfig(),
                 audio: createDefaultTypeConfig(),
               },
             },
-            nodes: {}, // 兼容 ChatSession
+            nodes: {},
             rootNodeId: "",
             activeLeafId: "",
             inputPrompt: "",
@@ -117,9 +142,121 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         }
       }
 
+      if (!session) return; // 理论上不会发生
+
       // 应用加载的数据
       currentSessionId.value = session.id;
       tasks.value = session.tasks || [];
+
+      // 初始化节点树
+      nodes.value = session.nodes || {};
+      rootNodeId.value = session.rootNodeId || "";
+      activeLeafId.value = session.activeLeafId || "";
+
+      // 数据迁移逻辑
+      const oldMessages = session.messages || [];
+      if (oldMessages.length > 0 && Object.keys(nodes.value).length === 0) {
+        logger.info("执行数据迁移：从扁平消息数组构建节点树");
+
+        // 1. 创建根节点
+        const rootNode = nodeManager.createNode({
+          role: "system",
+          content: "Media Generation Root",
+          parentId: null,
+          name: "Root",
+        }) as MediaMessage;
+
+        nodes.value[rootNode.id] = rootNode;
+        rootNodeId.value = rootNode.id;
+
+        // 2. 按顺序挂载旧消息
+        let lastId = rootNode.id;
+        oldMessages.forEach((msg) => {
+          const newNode = {
+            ...msg,
+            parentId: lastId,
+            childrenIds: [],
+            status: msg.role === "assistant" ? "complete" : "complete",
+            timestamp:
+              typeof msg.timestamp === "number"
+                ? new Date(msg.timestamp).toISOString()
+                : msg.timestamp,
+          } as MediaMessage;
+
+          nodes.value[newNode.id] = newNode;
+          if (nodes.value[lastId]) {
+            nodes.value[lastId].childrenIds.push(newNode.id);
+          }
+          lastId = newNode.id;
+        });
+
+        activeLeafId.value = lastId;
+      } else if (tasks.value.length > 0 && Object.keys(nodes.value).length === 0) {
+        // 数据迁移：如果只有任务没有消息
+        logger.info("执行数据迁移：从任务列表生成消息流并构建节点树");
+
+        const rootNode = nodeManager.createNode({
+          role: "system",
+          content: "Media Generation Root",
+          parentId: null,
+          name: "Root",
+        }) as MediaMessage;
+
+        nodes.value[rootNode.id] = rootNode;
+        rootNodeId.value = rootNode.id;
+
+        let lastId = rootNode.id;
+        [...tasks.value].reverse().forEach((task) => {
+          // 用户消息
+          const userNode = nodeManager.createNode({
+            role: "user",
+            content: task.input.prompt,
+            parentId: lastId,
+          }) as MediaMessage;
+          userNode.timestamp = new Date(task.createdAt).toISOString();
+          nodes.value[userNode.id] = userNode;
+          nodes.value[lastId].childrenIds.push(userNode.id);
+
+          // 助手消息
+          const assistantNode = nodeManager.createNode({
+            role: "assistant",
+            content: "",
+            parentId: userNode.id,
+            status:
+              task.status === "completed"
+                ? "complete"
+                : task.status === "error"
+                  ? "error"
+                  : "generating",
+            metadata: {
+              taskId: task.id,
+              isMediaTask: true,
+            },
+          }) as MediaMessage;
+          assistantNode.timestamp = new Date(task.completedAt || task.createdAt).toISOString();
+          assistantNode.id = task.id; // 保持 ID 一致
+          nodes.value[assistantNode.id] = assistantNode;
+          nodes.value[userNode.id].childrenIds.push(assistantNode.id);
+
+          lastId = assistantNode.id;
+        });
+
+        activeLeafId.value = lastId;
+      }
+
+      // 如果还是没有根节点，创建一个
+      if (!rootNodeId.value) {
+        const rootNode = nodeManager.createNode({
+          role: "system",
+          content: "Media Generation Root",
+          parentId: null,
+          name: "Root",
+        }) as MediaMessage;
+        nodes.value[rootNode.id] = rootNode;
+        rootNodeId.value = rootNode.id;
+        activeLeafId.value = rootNode.id;
+      }
+
       inputPrompt.value = session.inputPrompt || "";
       if (session.generationConfig) {
         currentConfig.value.activeType = session.generationConfig.activeType || "image";
@@ -156,11 +293,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       inputPrompt: inputPrompt.value,
       generationConfig: {
         activeType: currentConfig.value.activeType,
+        includeContext: currentConfig.value.includeContext,
         types: JSON.parse(JSON.stringify(currentConfig.value.types)),
       },
-      nodes: {},
-      rootNodeId: "",
-      activeLeafId: "",
+      nodes: nodes.value,
+      rootNodeId: rootNodeId.value,
+      activeLeafId: activeLeafId.value,
     };
 
     // 更新 sessions 列表中的元数据
@@ -176,7 +314,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
   // 监听配置和输入变化自动保存
   watch(
-    [currentConfig, inputPrompt],
+    [currentConfig, inputPrompt, nodes, activeLeafId],
     () => {
       if (!isInitialized.value || !currentSessionId.value) return;
 
@@ -191,11 +329,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         inputPrompt: inputPrompt.value,
         generationConfig: {
           activeType: currentConfig.value.activeType,
+          includeContext: currentConfig.value.includeContext,
           types: JSON.parse(JSON.stringify(currentConfig.value.types)),
         },
-        nodes: {},
-        rootNodeId: "",
-        activeLeafId: "",
+        nodes: nodes.value,
+        rootNodeId: rootNodeId.value,
+        activeLeafId: activeLeafId.value,
       };
 
       debouncedSave(session, currentSessionId.value);
@@ -215,13 +354,73 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   );
 
   /**
-   * 添加新任务
+   * 添加新任务（同时生成消息流）
    */
   const addTask = (task: MediaTask) => {
+    // 1. 记录任务
     tasks.value.unshift(task);
-    logger.info("任务已添加", { taskId: task.id, type: task.type });
+
+    // 2. 创建用户消息节点
+    const userNode = nodeManager.createNode({
+      role: "user",
+      content: task.input.prompt,
+      parentId: activeLeafId.value || rootNodeId.value,
+      attachments: attachments.value.length > 0 ? [...attachments.value] : undefined,
+    }) as MediaMessage;
+
+    nodes.value[userNode.id] = userNode;
+    if (userNode.parentId && nodes.value[userNode.parentId]) {
+      nodes.value[userNode.parentId].childrenIds.push(userNode.id);
+    }
+
+    // 3. 创建助手消息节点（绑定任务）
+    const assistantNode = nodeManager.createNode({
+      role: "assistant",
+      content: "",
+      parentId: userNode.id,
+      status: "generating",
+      metadata: {
+        taskId: task.id,
+        isMediaTask: true,
+        includeContext: task.input.includeContext,
+      },
+    }) as MediaMessage;
+
+    assistantNode.id = task.id; // 保持 ID 一致，方便追踪
+    nodes.value[assistantNode.id] = assistantNode;
+    userNode.childrenIds.push(assistantNode.id);
+
+    // 更新活跃叶子
+    activeLeafId.value = assistantNode.id;
+
+    logger.info("任务与消息节点已添加", {
+      taskId: task.id,
+      type: task.type,
+      leafId: activeLeafId.value,
+    });
+
+    // 清空当前附件（已转入消息上下文）
+    clearAttachments();
     persist();
   };
+
+  /**
+   * 切换消息选中状态（上下文选取）
+   */
+  const toggleMessageSelection = (messageId: string) => {
+    const msg = nodes.value[messageId];
+    if (msg) {
+      msg.isSelected = !msg.isSelected;
+      logger.debug("消息选中状态变更", { messageId, isSelected: msg.isSelected });
+    }
+  };
+
+  /**
+   * 获取当前选中的上下文
+   */
+  const getSelectedContext = computed(() => {
+    return messages.value.filter((m) => m.isSelected);
+  });
 
   /**
    * 更新任务状态
@@ -256,12 +455,31 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    * 删除任务
    */
   const removeTask = (taskId: string) => {
-    const index = tasks.value.findIndex((t) => t.id === taskId);
-    if (index !== -1) {
-      tasks.value.splice(index, 1);
-      logger.info("任务已删除", { taskId });
-      persist();
+    const taskIndex = tasks.value.findIndex((t) => t.id === taskId);
+    if (taskIndex !== -1) {
+      tasks.value.splice(taskIndex, 1);
     }
+
+    // 同时从节点树中移除关联节点
+    if (nodes.value[taskId]) {
+      // 简单的硬删除逻辑，不处理子树（通常任务节点是叶子或接近叶子）
+      const node = nodes.value[taskId];
+      if (node.parentId && nodes.value[node.parentId]) {
+        nodes.value[node.parentId].childrenIds = nodes.value[node.parentId].childrenIds.filter(
+          (id) => id !== taskId
+        );
+      }
+
+      // 如果删除的是活跃叶子，需要回退
+      if (activeLeafId.value === taskId) {
+        activeLeafId.value = node.parentId || rootNodeId.value;
+      }
+
+      delete nodes.value[taskId];
+    }
+
+    logger.info("任务及其节点已删除", { taskId });
+    persist();
   };
 
   /**
@@ -277,6 +495,11 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     if (session) {
       currentSessionId.value = session.id;
       tasks.value = session.tasks || [];
+
+      nodes.value = session.nodes || {};
+      rootNodeId.value = session.rootNodeId || "";
+      activeLeafId.value = session.activeLeafId || "";
+
       inputPrompt.value = session.inputPrompt || "";
       if (session.generationConfig) {
         currentConfig.value.activeType = session.generationConfig.activeType || "image";
@@ -305,6 +528,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       type: "media-gen",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      messages: [],
       tasks: [],
       generationConfig: {
         activeType: "image",
@@ -317,11 +541,26 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       nodes: {},
       rootNodeId: "",
       activeLeafId: "",
+      inputPrompt: "",
     };
+
+    // 初始化新会话的根节点
+    const rootNode = nodeManager.createNode({
+      role: "system",
+      content: "Media Generation Root",
+      parentId: null,
+      name: "Root",
+    }) as MediaMessage;
+    session.nodes[rootNode.id] = rootNode;
+    session.rootNodeId = rootNode.id;
+    session.activeLeafId = rootNode.id;
 
     sessions.value.unshift(session);
     currentSessionId.value = newId;
     tasks.value = [];
+    nodes.value = session.nodes;
+    rootNodeId.value = session.rootNodeId;
+    activeLeafId.value = session.activeLeafId;
     inputPrompt.value = "";
     currentConfig.value.activeType = "image";
 
@@ -381,6 +620,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
   return {
     sessions,
+    messages,
+    nodes,
+    rootNodeId,
+    activeLeafId,
     tasks,
     settings,
     activeTaskId,
@@ -400,6 +643,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     updateTaskStatus,
     getTask,
     removeTask,
+    toggleMessageSelection,
+    getSelectedContext,
     switchSession,
     createNewSession,
     deleteSession,

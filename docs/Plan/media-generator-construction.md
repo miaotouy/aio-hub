@@ -10,6 +10,7 @@
 ## 2. 任务分解 (Milestones)
 
 ### Phase 1: 类型定义与基础设施 (Priority: High) (已完成)
+
 - [x] **扩展模型能力系统**:
   - 在 `src/types/llm-profiles.ts` 中新增 `mediaEditing` (编辑/变体) 和 `iterativeRefinement` (迭代微调) 能力键。
   - 在 `src/config/model-capabilities.ts` 中注册对应的 UI 展示配置。
@@ -24,33 +25,39 @@
   - 实现“二次创作 (Remix)”跳转逻辑。
 
 ### Phase 2: 状态管理与业务调度 (已完成)
-- [x] 开发 `mediaGenStore.ts` (Pinia)。
-  - 管理全局任务队列 `tasks: MediaTask[]`。
-  - 管理当前活跃会话和用户预设。
-- [x] 开发 `useMediaGenerationManager.ts` (Composable)。
-  - 封装“单次生成”触发逻辑。
-  - 封装“对话生成”驱动逻辑（集成 `useChatExecutor` 的简化版）。
-  - 实现任务完成后的**自动入库**与**衍生数据补全**。
 
-### Phase 3: UI 工作台开发
-- [ ] **三栏式布局框架**:
+- [x] **对话逻辑 Chat 化重构**:
+  - [x] 引入 `ChatMessageNode` 树形管理，取代扁平的 `messages` 数组。
+  - [x] 实现 `useNodeManager` 集成，支持基于节点的迭代分支。
+  - [x] 优化 `mediaGenStore.ts`，支持 `activeLeafId` 和 `rootNodeId`。
+- [x] **生成逻辑升级**:
+  - [x] 重构 `useMediaGenerationManager.ts`，支持“单提示模式”与“对话迭代模式”切换。
+  - [x] 自动上下文提取：在对话模式下自动构造消息序列。
+  - [x] 任务与节点深度绑定：通过 `metadata.taskId` 实现状态追踪。
+
+### Phase 3: UI 工作台开发 (已完成)
+
+- [x] **三栏式布局框架**:
   - 左侧：`ParameterPanel` (动态参数面板，根据模型能力渲染)。
   - 中间：`GenerationStream` (集成 `MessageList`，展示生成过程)。
   - 右侧：`AssetGallery` (瀑布流展示本工具生成的历史资产)。
-- [ ] **核心组件**:
-  - `MediaTaskCard`: 消息流中的任务卡片，支持进度显示和实时预览。
-  - `EnhancedInput`: 支持切换“单次/对话”模式的输入框。
+- [x] **核心组件**:
+  - `MediaMessageItem`: 消息流中的任务卡片，支持进度显示和实时预览（替代了旧的 MediaTaskCard）。
+  - `MediaGenerationInput`: 支持切换“单次/对话”模式的输入框。
 
 ### Phase 4: 资产深度集成与优化
+
 - [ ] 实现从资产管理器“Remix”回到生成中心的参数复刻。
 - [ ] 接入异步视频生成任务的后台轮询机制。
 - [ ] Prompt 优化集成（提示词魔法盒）。
 
 ## 3. 技术难点与对策
+
 - **参数动态性**: 不同模型参数差异巨大。对策：利用 `model-metadata.ts` 中的 `capabilities` 动态生成表单。
 - **资产归一化**: 生成结果可能是 Base64, URL 或本地路径。对策：统一通过 `AssetManager` 转换为系统 Asset 对象处理。
 - **对话上下文**: 媒体生成的上下文与纯文本不同。对策：在发送请求前，由 `Manager` 负责将历史生成的 Prompt 和图片描述（AI 自动生成）注入上下文。
 
 ---
-*计划制定者: 咕咕 (Kilo)*
-*日期: 2026-01-24*
+
+_计划制定者: 咕咕 (Kilo)_
+_日期: 2026-01-24_

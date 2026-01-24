@@ -2,7 +2,8 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
-import MediaTaskCard from "./MediaTaskCard.vue";
+import { useAssetManager } from "@/composables/useAssetManager";
+import MediaMessageItem from "./MediaMessageItem.vue";
 import SessionManager from "./SessionManager.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
 import { Sparkles, History, Check, X, RefreshCw } from "lucide-vue-next";
@@ -11,6 +12,7 @@ import { sampleSize } from "lodash-es";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
+const { getAssetUrl } = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
 
@@ -22,9 +24,9 @@ const scrollToBottom = async () => {
   }
 };
 
-// 监听任务列表变化，自动滚动
+// 监听消息列表变化，自动滚动
 watch(
-  () => store.tasks.length,
+  () => store.messages.length,
   () => {
     scrollToBottom();
   }
@@ -92,6 +94,22 @@ onUnmounted(() => {
     clearInterval(refreshTimer);
   }
 });
+
+// 资产 URL 映射缓存
+const assetUrls = ref<Record<string, string>>({});
+
+// 监听任务变化，更新资产 URL
+watch(
+  () => store.tasks,
+  async (newTasks) => {
+    for (const task of newTasks) {
+      if (task.resultAsset && !assetUrls.value[task.id]) {
+        assetUrls.value[task.id] = await getAssetUrl(task.resultAsset);
+      }
+    }
+  },
+  { deep: true, immediate: true }
+);
 </script>
 
 <template>
@@ -140,7 +158,7 @@ onUnmounted(() => {
 
     <!-- 任务列表滚动区 -->
     <div class="stream-body" ref="scrollContainer">
-      <div v-if="store.tasks.length === 0" class="empty-placeholder">
+      <div v-if="store.messages.length <= 1" class="empty-placeholder">
         <div class="welcome-content">
           <el-icon :size="64" class="welcome-icon"><Sparkles /></el-icon>
           <h2>开始你的创意之旅</h2>
@@ -168,8 +186,22 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div v-else class="task-list">
-        <MediaTaskCard v-for="task in [...store.tasks].reverse()" :key="task.id" :task="task" />
+      <div v-else class="message-list">
+        <template v-for="msg in store.messages" :key="msg.id">
+          <!-- 排除 Root 节点 (system) -->
+          <template v-if="msg.role !== 'system'">
+            <MediaMessageItem
+              :role="msg.role"
+              :content="msg.content"
+              :task="msg.metadata?.taskSnapshot || (msg.metadata?.taskId ? store.getTask(msg.metadata.taskId) : undefined)"
+              :timestamp="msg.timestamp || Date.now()"
+              :asset-url="assetUrls[msg.metadata?.taskId || '']"
+              :is-selected="msg.isSelected"
+              @remove="(taskId) => store.removeTask(taskId)"
+              @select="() => store.toggleMessageSelection(msg.id)"
+            />
+          </template>
+        </template>
       </div>
     </div>
 
@@ -365,11 +397,10 @@ onUnmounted(() => {
   background-color: var(--el-color-primary-light-9);
 }
 
-.task-list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.task-list-wrapper {
+  flex: 1;
   width: 100%;
+  min-height: 0;
 }
 
 .stream-footer {

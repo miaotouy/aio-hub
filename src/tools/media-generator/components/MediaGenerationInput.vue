@@ -6,9 +6,18 @@ import { useMediaGenerationManager } from "../composables/useMediaGenerationMana
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 import { useAssetManager } from "@/composables/useAssetManager";
+import { useModelMetadata } from "@/composables/useModelMetadata";
 import AttachmentCard from "../../llm-chat/components/AttachmentCard.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { Send, Image as ImageIcon, Info, Sparkles, Loader2 } from "lucide-vue-next";
+import {
+  Send,
+  Image as ImageIcon,
+  Info,
+  Sparkles,
+  Loader2,
+  MessageSquare,
+  Target,
+} from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
@@ -24,6 +33,26 @@ const inputManager = useMediaGenInputManager();
 const { startGeneration, isGenerating } = useMediaGenerationManager();
 const { sendRequest } = useLlmRequest();
 const assetManager = useAssetManager();
+const { getMatchedProperties } = useModelMetadata();
+
+// 监听模型切换，自动更新上下文开关
+watch(
+  () => {
+    const mediaType = store.currentConfig.activeType;
+    return store.currentConfig.types[mediaType].modelCombo;
+  },
+  (modelCombo) => {
+    if (modelCombo) {
+      const [_, modelId] = modelCombo.split(":");
+      const props = getMatchedProperties(modelId);
+      // 如果模型支持迭代微调，默认开启上下文
+      if (props?.iterativeRefinement) {
+        store.currentConfig.includeContext = true;
+      }
+    }
+  },
+  { immediate: true }
+);
 
 // 使用 store 中的状态，确保刷新保持
 const prompt = toRef(store, "inputPrompt");
@@ -224,6 +253,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
     modelId,
     profileId,
     attachments: currentAttachments,
+    includeContext: store.currentConfig.includeContext,
     // 映射 UI 参数到 API 参数
     numInferenceSteps: params.steps,
     guidanceScale: params.cfgScale,
@@ -268,8 +298,33 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
       ></textarea>
     </div>
 
+    <!-- 上下文提示区 -->
+    <div
+      v-if="store.currentConfig.includeContext && store.messages.length > 1"
+      class="context-selection-area"
+    >
+      <div class="context-info">
+        <span
+          ><el-icon><History /></el-icon> 正在引用对话上下文</span
+        >
+        <span class="context-count">包含前 {{ store.messages.length - 1 }} 条消息</span>
+      </div>
+    </div>
+
     <div class="input-toolbar">
       <div class="toolbar-left">
+        <el-tooltip content="开启后将携带历史对话上下文，支持多轮迭代生成" placement="top">
+          <button
+            class="tool-btn"
+            :class="{ 'is-active': store.currentConfig.includeContext }"
+            @click="store.currentConfig.includeContext = !store.currentConfig.includeContext"
+          >
+            <el-icon v-if="store.currentConfig.includeContext"><MessageSquare /></el-icon>
+            <el-icon v-else><Target /></el-icon>
+            <span>上下文</span>
+          </button>
+        </el-tooltip>
+        <div class="v-divider" />
         <button
           class="tool-btn"
           :disabled="isDisabled"
@@ -417,6 +472,25 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   border-color: var(--el-color-primary);
   background-color: var(--card-bg);
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
+}
+
+.context-selection-area {
+  padding: 4px 12px;
+  background: var(--el-color-primary-light-9);
+  border-radius: 12px;
+  margin-bottom: 4px;
+}
+
+.context-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--el-color-primary);
+}
+
+.context-count {
+  font-weight: 600;
 }
 
 .attachments-area {

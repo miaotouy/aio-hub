@@ -89,7 +89,10 @@ const supportsQuality = computed(() => {
   const provider = selectedModelInfo.value?.provider;
   const modelId = selectedModelInfo.value?.modelId || "";
   // 目前主要是 OpenAI 的 DALL-E 3 和 GPT Image 支持
-  return provider === "openai" && (modelId.includes("dall-e-3") || modelId.includes("gpt-image") || modelId.includes("dall-e"));
+  return (
+    provider === "openai" &&
+    (modelId.includes("dall-e-3") || modelId.includes("gpt-image") || modelId.includes("dall-e"))
+  );
 });
 
 const supportsStyle = computed(() => {
@@ -137,7 +140,7 @@ watch(mediaType, () => {
 
 // 监听模型变化，如果当前参数不在新模型的可选范围内，重置为第一个可用项
 watch(sizeOptions, (newOptions) => {
-  if (newOptions.length > 0 && !newOptions.find(opt => opt.value === params.value.size)) {
+  if (newOptions.length > 0 && !newOptions.find((opt) => opt.value === params.value.size)) {
     params.value.size = newOptions[0].value;
   }
 });
@@ -241,6 +244,35 @@ watch(sizeOptions, (newOptions) => {
             <el-radio-button value="low">标准</el-radio-button>
             <el-radio-button value="high">高保真 (保留面部/Logo)</el-radio-button>
           </el-radio-group>
+        </div>
+      </template>
+
+      <!-- 视频特定参数 -->
+      <template v-else-if="mediaType === 'video'">
+        <div class="section">
+          <div class="section-title">分辨率</div>
+          <el-select v-model="params.size" size="small" style="width: 100%">
+            <el-option label="720p (1280x720)" value="1280x720" />
+            <el-option label="1080p (1920x1080)" value="1920x1080" />
+          </el-select>
+        </div>
+        <div class="section">
+          <div class="section-title">时长 (秒)</div>
+          <el-radio-group v-model="params.duration" size="small">
+            <el-radio-button :value="5">5s</el-radio-button>
+            <el-radio-button :value="10">10s</el-radio-button>
+          </el-radio-group>
+        </div>
+      </template>
+
+      <!-- 音频特定参数 -->
+      <template v-else-if="mediaType === 'audio'">
+        <div class="section">
+          <div class="section-title">音频质量</div>
+          <el-select v-model="params.quality" size="small" style="width: 100%">
+            <el-option label="标准 (128kbps)" value="standard" />
+            <el-option label="高音质 (320kbps)" value="hd" />
+          </el-select>
         </div>
       </template>
 

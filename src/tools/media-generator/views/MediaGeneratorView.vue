@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
-import { LayoutDashboard, Activity, Settings } from "lucide-vue-next";
+import { LayoutDashboard, Activity, Settings, Image as ImageIcon } from "lucide-vue-next";
 import MediaWorkbench from "../components/MediaWorkbench.vue";
 import MediaTaskList from "../components/MediaTaskList.vue";
 import MediaSettings from "../components/MediaSettings.vue";
+import MediaGallery from "../components/MediaGallery.vue";
 
 const store = useMediaGenStore();
 const activeTab = ref("workbench");
@@ -26,6 +27,17 @@ onMounted(() => {
           </div>
         </template>
         <MediaWorkbench />
+      </el-tab-pane>
+
+      <!-- 生成结果画廊 -->
+      <el-tab-pane name="gallery">
+        <template #label>
+          <div class="tab-label">
+            <el-icon><ImageIcon /></el-icon>
+            <span>画廊</span>
+          </div>
+        </template>
+        <MediaGallery />
       </el-tab-pane>
 
       <!-- 任务列表总览 -->

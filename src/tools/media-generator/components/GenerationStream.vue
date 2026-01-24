@@ -154,8 +154,8 @@ const handleTriggerAttachment = async () => {
   }
 };
 
-const handleSend = async (e?: KeyboardEvent) => {
-  if (e && e.shiftKey) return; // Shift + Enter 换行
+const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
+  if (e instanceof KeyboardEvent && e.shiftKey) return; // Shift + Enter 换行
 
   if (!prompt.value.trim() && !store.hasAttachments) return;
   if (isGenerating.value) {
@@ -281,29 +281,46 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="input-toolbar">
-          <el-button link size="small" @click="handleTriggerAttachment">
-            <el-icon><ImageIcon /></el-icon>
-            参考图
-          </el-button>
-          <el-divider direction="vertical" />
-          <el-button link size="small">
-            <el-icon><Wand2 /></el-icon>
-            提示词优化
-          </el-button>
+        <div class="input-main">
+          <textarea
+            v-model="prompt"
+            class="native-textarea"
+            placeholder="描述你想要生成的画面..."
+            rows="1"
+            @keydown.enter.prevent="handleSend($event)"
+            @input="
+              (e) => {
+                const el = e.target as HTMLTextAreaElement;
+                el.style.height = 'auto';
+                el.style.height = el.scrollHeight + 'px';
+              }
+            "
+          ></textarea>
         </div>
 
-        <div class="input-main">
-          <el-input
-            v-model="prompt"
-            type="textarea"
-            :autosize="{ minRows: 1, maxRows: 6 }"
-            placeholder="描述你想要生成的画面..."
-            @keydown.enter.prevent="handleSend($event)"
-          />
-          <el-button type="primary" class="send-btn" :loading="isGenerating" @click="handleSend">
-            <el-icon v-if="!isGenerating"><Send /></el-icon>
-          </el-button>
+        <div class="input-toolbar">
+          <div class="toolbar-left">
+            <button class="tool-btn" @click="handleTriggerAttachment" title="添加参考图">
+              <el-icon><ImageIcon /></el-icon>
+              <span>参考图</span>
+            </button>
+            <div class="v-divider" />
+            <button class="tool-btn" title="提示词优化">
+              <el-icon><Wand2 /></el-icon>
+              <span>提示词优化</span>
+            </button>
+          </div>
+
+          <div class="toolbar-right">
+            <button
+              class="native-send-btn"
+              :disabled="isGenerating || (!prompt.trim() && !store.hasAttachments)"
+              @click="() => handleSend()"
+            >
+              <el-icon v-if="!isGenerating"><Send /></el-icon>
+              <el-icon v-else class="is-loading"><Check /></el-icon>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -321,9 +338,9 @@ onMounted(() => {
 }
 
 .input-container.dragging-over {
-  border-color: var(--primary-color) !important;
-  box-shadow: 0 0 15px var(--primary-color-alpha) !important;
-  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1)) !important;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 15px var(--primary-color-alpha);
+  background-color: var(--primary-color-alpha, rgba(64, 158, 255, 0.1));
   position: relative;
 }
 
@@ -475,21 +492,26 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   border-radius: 24px;
   padding: 12px;
+  padding-top: 8px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-  box-shadow: var(--el-box-shadow-lighter);
+  overflow: visible;
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .input-container:focus-within {
   border-color: var(--el-color-primary);
   background-color: var(--card-bg);
-  box-shadow: var(--el-box-shadow-light);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
 }
 
 .attachments-area {
   padding: 8px;
-  border-bottom: 1px solid var(--border-color);
-  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  background: var(--container-bg);
+  border: 1px dashed var(--border-color);
   margin-bottom: 4px;
 }
 
@@ -502,32 +524,109 @@ onMounted(() => {
 .input-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 4px 8px;
-  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.tool-btn:hover {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+}
+
+.v-divider {
+  width: 1px;
+  height: 14px;
+  background-color: var(--border-color);
+  margin: 0 2px;
+  opacity: 0.5;
 }
 
 .input-main {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.input-main :deep(.el-textarea__inner) {
-  border: none;
+.native-textarea {
+  width: 100%;
   background: transparent;
-  box-shadow: none;
-  padding: 8px;
+  border: none;
+  outline: none;
+  color: var(--el-text-color-primary);
+  font-family: inherit;
   font-size: 14px;
+  line-height: 1.6;
+  padding: 4px 8px;
   resize: none;
+  min-height: 36px;
+  max-height: 200px;
+  box-shadow: none;
 }
 
-.send-btn {
-  width: 40px;
-  height: 40px;
+.native-send-btn {
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
+  background-color: var(--el-color-primary);
+  color: white;
+  border: none;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
   flex-shrink: 0;
-  margin-bottom: 4px;
-  margin-right: 4px;
+}
+
+.native-send-btn:hover:not(:disabled) {
+  background-color: var(--el-color-primary-light-3);
+  transform: translateY(-1px);
+}
+
+.native-send-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.native-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--el-text-color-disabled);
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.is-loading {
+  animation: spin 1s linear infinite;
 }
 </style>

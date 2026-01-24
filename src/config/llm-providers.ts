@@ -10,13 +10,12 @@ import type { ProviderType, ProviderTypeInfo, LlmModelInfo } from "../types/llm-
 export const providerTypes: ProviderTypeInfo[] = [
   {
     type: "openai",
-    name: "OpenAI-Compatible",
-    description: "OpenAI 官方接口及所有兼容格式的服务（如 Ollama、DeepSeek 等）",
+    name: "OpenAI",
+    description: "OpenAI 官方服务，支持聊天、绘图、语音和视频生成",
     defaultBaseUrl: "https://api.openai.com",
     supportsModelList: true,
     modelListEndpoint: "models",
     supportedParameters: {
-      // 基础参数
       temperature: true,
       maxTokens: true,
       topP: true,
@@ -24,7 +23,6 @@ export const providerTypes: ProviderTypeInfo[] = [
       presencePenalty: true,
       seed: true,
       stop: true,
-      // 高级参数
       maxCompletionTokens: true,
       reasoningEffort: true,
       logprobs: true,
@@ -33,8 +31,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       tools: true,
       toolChoice: true,
       parallelToolCalls: true,
-      // 特殊功能
-      thinking: true, // 思考能力（具体显示哪种控件由 Model 的 thinkingConfigType 决定）
+      thinking: true,
       webSearch: true,
       modalities: true,
       audio: true,
@@ -42,11 +39,50 @@ export const providerTypes: ProviderTypeInfo[] = [
     },
   },
   {
-    type: "openai-responses",
-    name: "OpenAI Responses",
-    description:
-      "OpenAI Responses API - 新一代有状态交互接口，支持工具调用、推理、网络搜索、文件搜索等高级功能",
-    defaultBaseUrl: "https://api.openai.com",
+    type: "openai-compatible",
+    name: "OpenAI-Compatible",
+    description: "通用 OpenAI 兼容格式，适用于大多数第三方中转或自建服务",
+    defaultBaseUrl: "",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      toolChoice: true,
+      parallelToolCalls: true,
+    },
+  },
+  {
+    type: "deepseek",
+    name: "DeepSeek",
+    description: "DeepSeek 官方 API，支持深度思考和联网搜索",
+    defaultBaseUrl: "https://api.deepseek.com",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      thinking: true,
+    },
+  },
+  {
+    type: "claude",
+    name: "Anthropic Claude",
+    description: "Anthropic Claude API",
+    defaultBaseUrl: "https://api.anthropic.com",
     supportsModelList: true,
     modelListEndpoint: "models",
     supportedParameters: {
@@ -54,19 +90,14 @@ export const providerTypes: ProviderTypeInfo[] = [
       temperature: true,
       maxTokens: true,
       topP: true,
+      topK: true,
       stop: true,
       // 高级参数
-      responseFormat: true,
       tools: true,
       toolChoice: true,
       parallelToolCalls: true,
-      maxCompletionTokens: true,
-      reasoningEffort: true,
       // 特殊功能
-      webSearch: true,
-      fileSearch: true,
       thinking: true,
-      modalities: true,
     },
   },
   {
@@ -103,10 +134,79 @@ export const providerTypes: ProviderTypeInfo[] = [
     },
   },
   {
-    type: "claude",
-    name: "Anthropic Claude",
-    description: "Anthropic Claude API",
-    defaultBaseUrl: "https://api.anthropic.com",
+    type: "siliconflow",
+    name: "SiliconFlow",
+    description: "硅基流动 - 极速推理平台，支持聊天、绘图、视频生成",
+    defaultBaseUrl: "https://api.siliconflow.cn/v1",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      topK: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+    },
+  },
+  {
+    type: "groq",
+    name: "Groq",
+    description: "Groq LPU 极速推理服务",
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      seed: true,
+      stop: true,
+      tools: true,
+    },
+  },
+  {
+    type: "ollama",
+    name: "Ollama",
+    description: "本地 Llama 运行环境，支持多种开源模型",
+    defaultBaseUrl: "http://localhost:11434",
+    supportsModelList: true,
+    modelListEndpoint: "api/tags",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      topK: true,
+      seed: true,
+      stop: true,
+    },
+  },
+  {
+    type: "openrouter",
+    name: "OpenRouter",
+    description: "OpenRouter 统一模型网关",
+    defaultBaseUrl: "https://openrouter.ai/api/v1",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      seed: true,
+      stop: true,
+      tools: true,
+    },
+  },
+  {
+    type: "openai-responses",
+    name: "OpenAI Responses",
+    description:
+      "OpenAI Responses API - 新一代有状态交互接口，支持工具调用、推理、网络搜索、文件搜索等高级功能",
+    defaultBaseUrl: "https://api.openai.com",
     supportsModelList: true,
     modelListEndpoint: "models",
     supportedParameters: {
@@ -114,14 +214,19 @@ export const providerTypes: ProviderTypeInfo[] = [
       temperature: true,
       maxTokens: true,
       topP: true,
-      topK: true,
       stop: true,
       // 高级参数
+      responseFormat: true,
       tools: true,
       toolChoice: true,
       parallelToolCalls: true,
+      maxCompletionTokens: true,
+      reasoningEffort: true,
       // 特殊功能
+      webSearch: true,
+      fileSearch: true,
       thinking: true,
+      modalities: true,
     },
   },
   {
@@ -157,7 +262,6 @@ export const providerTypes: ProviderTypeInfo[] = [
     supportsModelList: true,
     modelListEndpoint: "models",
     supportedParameters: {
-      // 基础参数
       temperature: true,
       maxTokens: true,
       topP: true,
@@ -166,20 +270,39 @@ export const providerTypes: ProviderTypeInfo[] = [
       presencePenalty: true,
       seed: true,
       stop: true,
-      // 高级参数
       logprobs: true,
       topLogprobs: true,
       responseFormat: true,
       tools: true,
       toolChoice: true,
-      // 特殊功能
-      thinking: true, // 思考能力（具体显示哪种控件由 Model 的 thinkingConfigType 决定）
+      thinking: true,
       thinkingConfig: true,
       thinkingLevel: true,
       mediaResolution: true,
       codeExecution: true,
       modalities: true,
       safetySettings: true,
+    },
+  },
+  {
+    type: "xai",
+    name: "xAI (Grok)",
+    description: "xAI Grok 官方服务",
+    defaultBaseUrl: "https://api.x.ai/v1",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      toolChoice: true,
+      thinking: true,
     },
   },
 ];
@@ -200,6 +323,32 @@ export interface LlmPreset {
  * 用于快速创建常用服务配置
  */
 export const llmPresets: LlmPreset[] = [
+  // DeepSeek
+  {
+    type: "deepseek",
+    name: "DeepSeek",
+    description: "深度求索 API",
+    defaultBaseUrl: "https://api.deepseek.com",
+    logoUrl: "/model-icons/deepseek-color.svg",
+    defaultModels: [
+      {
+        id: "deepseek-reasoner",
+        name: "DeepSeek Reasoner",
+        group: "DeepSeek",
+        provider: "deepseek",
+        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        description: "推理专用模型",
+      },
+      {
+        id: "deepseek-chat",
+        name: "DeepSeek Chat",
+        group: "DeepSeek",
+        provider: "deepseek",
+        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        description: "通用对话模型",
+      },
+    ],
+  },
   // OpenAI 官方
   {
     type: "openai",
@@ -350,32 +499,6 @@ export const llmPresets: LlmPreset[] = [
       },
     ],
   },
-  // DeepSeek
-  {
-    type: "openai",
-    name: "DeepSeek",
-    description: "深度求索 API",
-    defaultBaseUrl: "https://api.deepseek.com",
-    logoUrl: "/model-icons/deepseek-color.svg",
-    defaultModels: [
-      {
-        id: "deepseek-reasoner",
-        name: "DeepSeek Reasoner",
-        group: "DeepSeek",
-        provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
-        description: "推理专用模型",
-      },
-      {
-        id: "deepseek-chat",
-        name: "DeepSeek Chat",
-        group: "DeepSeek",
-        provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
-        description: "通用对话模型",
-      },
-    ],
-  },
   // Moonshot (月之暗面 Kimi)
   {
     type: "openai",
@@ -463,10 +586,10 @@ export const llmPresets: LlmPreset[] = [
   },
   // Groq
   {
-    type: "openai",
+    type: "groq",
     name: "Groq",
     description: "Groq 高速推理 API",
-    defaultBaseUrl: "https://api.groq.com/openai",
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
     logoUrl: "/model-icons/groq.svg",
     defaultModels: [
       {
@@ -514,7 +637,14 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini Flash Lite Latest",
         group: "Gemini",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "指向 Flash Lite 模型最新版本的别名",
       },
       {
@@ -522,7 +652,14 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini Flash Latest",
         group: "Gemini",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "指向 Flash 模型最新版本的别名",
       },
       {
@@ -530,7 +667,14 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini Pro Latest",
         group: "Gemini",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "指向 PRO 模型最新版本的别名",
       },
       // Gemini 3
@@ -608,7 +752,14 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash Preview",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "Flash 的预览版本 (2025-09)",
       },
       {
@@ -624,7 +775,13 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash Live",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+        },
         description: "实时音频和视频交互模型 (2025-09)",
       },
       {
@@ -640,7 +797,13 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash-Lite",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "超快速模型，优化成本和吞吐量 (2025-07)",
       },
       {
@@ -648,7 +811,13 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash-Lite Preview",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "Flash-Lite 的预览版本 (2025-09)",
       },
       // Gemini 2.0
@@ -657,7 +826,13 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.0 Flash",
         group: "Gemini 2.0",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "第二代主力模型，1M上下文 (2025-02)",
       },
       {
@@ -673,7 +848,13 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.0 Flash Live",
         group: "Gemini 2.0",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, toolUse: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "第二代实时交互模型，将于2025-12-09弃用 (2025-04)",
       },
       {
@@ -858,7 +1039,14 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 3 Pro",
         group: "Gemini 3",
         provider: "google",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "新一代企业级旗舰，高级推理、自主编码、复杂多模态",
       },
       {
@@ -866,7 +1054,14 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Pro",
         group: "Gemini 2.5",
         provider: "google",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "企业级旗舰，复杂任务王者，内置思考/编码工具",
       },
       {
@@ -874,7 +1069,14 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash",
         group: "Gemini 2.5",
         provider: "google",
-        capabilities: { vision: true, audio: true, toolUse: true, fileSearch: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "高效企业版，成本优化，支持工具调用",
       },
       {
@@ -882,7 +1084,13 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash-Lite",
         group: "Gemini 2.5",
         provider: "google",
-        capabilities: { vision: true, audio: true, toolUse: true, webSearch: true, codeExecution: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          webSearch: true,
+          codeExecution: true,
+        },
         description: "轻量企业版，端侧部署友好",
       },
       {
@@ -942,10 +1150,10 @@ export const llmPresets: LlmPreset[] = [
   },
   // xAI (Grok)
   {
-    type: "openai",
+    type: "xai",
     name: "xAI",
     description: "xAI Grok API",
-    defaultBaseUrl: "https://api.x.ai",
+    defaultBaseUrl: "https://api.x.ai/v1",
     logoUrl: "/model-icons/xai.svg",
     defaultModels: [
       {
@@ -1364,10 +1572,10 @@ export const llmPresets: LlmPreset[] = [
   },
   // OpenRouter
   {
-    type: "openai",
+    type: "openrouter",
     name: "OpenRouter",
     description: "OpenRouter - 统一多个 AI 模型的聚合 API",
-    defaultBaseUrl: "https://openrouter.ai/api",
+    defaultBaseUrl: "https://openrouter.ai/api/v1",
     logoUrl: "/model-icons/openrouter.svg",
     defaultModels: [
       {
@@ -1397,10 +1605,10 @@ export const llmPresets: LlmPreset[] = [
   },
   // SiliconFlow
   {
-    type: "openai",
+    type: "siliconflow",
     name: "SiliconFlow",
     description: "硅基流动 - 高性价比 AI 推理服务",
-    defaultBaseUrl: "https://api.siliconflow.cn",
+    defaultBaseUrl: "https://api.siliconflow.cn/v1",
     logoUrl: "/model-icons/siliconcloud-color.svg",
     defaultModels: [
       {
@@ -1724,7 +1932,7 @@ export const llmPresets: LlmPreset[] = [
   },
   // Ollama (本地)
   {
-    type: "openai",
+    type: "ollama",
     name: "Ollama",
     description: "本地 Ollama 服务",
     defaultBaseUrl: "http://localhost:11434",

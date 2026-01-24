@@ -56,6 +56,10 @@ export const adapters: Record<string, LlmAdapter> = {
   ollama: openAiAdapter,
   lmstudio: openAiAdapter,
   vllm: openAiAdapter,
+  volcengine: openAiAdapter,
+  dashscope: openAiAdapter,
+  zhipu: openAiAdapter,
+  moonshot: openAiAdapter,
   siliconflow: {
     ...openAiAdapter,
     image: callSiliconFlowImageApi,

@@ -1,6 +1,6 @@
-import { fetch, type ClientOptions } from '@tauri-apps/plugin-http';
-import { invoke, Channel } from '@tauri-apps/api/core';
-import { loadAppSettings } from '@/utils/appSettings';
+import { fetch, type ClientOptions } from "@tauri-apps/plugin-http";
+import { invoke, Channel } from "@tauri-apps/api/core";
+import { loadAppSettings } from "@/utils/appSettings";
 
 /**
  * 默认配置
@@ -10,7 +10,7 @@ export const DEFAULT_TIMEOUT = 145000; // 145秒，不同于常规时间，用�
 /**
  * 获取当前代理配置，转换为 Tauri HTTP 插件的格式
  */
-const getProxyConfig = (): ClientOptions['proxy'] | undefined => {
+const getProxyConfig = (): ClientOptions["proxy"] | undefined => {
   const settings = loadAppSettings();
   const proxySettings = settings?.proxy;
 
@@ -19,15 +19,15 @@ const getProxyConfig = (): ClientOptions['proxy'] | undefined => {
   }
 
   switch (proxySettings.mode) {
-    case 'none':
+    case "none":
       // 禁用代理：通过将 noProxy 设置为 '*' 来屏蔽所有主机，强制直连
-      return { all: { url: 'http://localhost', noProxy: '*' } };
-    case 'custom':
+      return { all: { url: "http://localhost", noProxy: "*" } };
+    case "custom":
       if (proxySettings.customUrl) {
         return { all: proxySettings.customUrl };
       }
       return undefined;
-    case 'system':
+    case "system":
     default:
       // 系统代理：不传递 proxy 选项，让 Tauri 使用系统默认
       return undefined;
@@ -55,17 +55,17 @@ export interface VideoMetadata {
  */
 export type MediaSource =
   | {
-    /** 内联数据（Base64 字符串或二进制 Buffer） */
-    type: "base64";
-    media_type: string;
-    data: string | ArrayBuffer | Uint8Array;
-  }
+      /** 内联数据（Base64 字符串或二进制 Buffer） */
+      type: "base64";
+      media_type: string;
+      data: string | ArrayBuffer | Uint8Array;
+    }
   | {
-    /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
-    type: "file_uri";
-    file_uri: string;
-    mime_type: string;
-  };
+      /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
+      type: "file_uri";
+      file_uri: string;
+      mime_type: string;
+    };
 
 // =================================================================
 // 定义不同类型的消息内容
@@ -132,7 +132,7 @@ export type LlmMessageContent =
  * LLM 消息结构
  */
 export interface LlmMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string | LlmMessageContent[];
   /**
    * 是否作为续写前缀 (DeepSeek / Claude Prefill)
@@ -142,8 +142,8 @@ export interface LlmMessage {
 }
 
 /**
-  * LLM 请求参数
-  */
+ * LLM 请求参数
+ */
 export interface LlmRequestOptions {
   profileId: string;
   modelId: string;
@@ -170,7 +170,7 @@ export interface LlmRequestOptions {
   /** 重排 (Rerank) 查询内容 */
   rerankQuery?: string;
   /** 重排 (Rerank) 待排序文档列表 */
-  rerankDocuments?: string[] | Array<{ text: string;[key: string]: any }>;
+  rerankDocuments?: string[] | Array<{ text: string; [key: string]: any }>;
 
   // OpenAI 兼容的高级参数
   /** Top-p 采样参数，介于 0 和 1 之间 */
@@ -181,6 +181,8 @@ export interface LlmRequestOptions {
   frequencyPenalty?: number;
   /** 存在惩罚，介于 -2.0 和 2.0 之间 */
   presencePenalty?: number;
+  /** 重复惩罚，介于 0.0 和 2.0 之间 */
+  repetitionPenalty?: number;
   /** 停止序列，最多 4 个 */
   stop?: string | string[];
   /** 生成的响应数量 */
@@ -243,14 +245,26 @@ export interface LlmRequestOptions {
   /** 预测输出配置 */
   prediction?: {
     type: "content";
-    content: string | Array<{
-      type: "text";
-      text: string;
-    }>;
+    content:
+      | string
+      | Array<{
+          type: "text";
+          text: string;
+        }>;
   };
   /** 音频输出参数 */
   audio?: {
-    voice: "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer";
+    voice:
+      | "alloy"
+      | "ash"
+      | "ballad"
+      | "coral"
+      | "echo"
+      | "fable"
+      | "nova"
+      | "onyx"
+      | "sage"
+      | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 服务层级 */
@@ -281,13 +295,15 @@ export interface LlmRequestOptions {
 /**
  * 媒体生成通用选项
  */
-export interface MediaGenerationOptions extends Omit<LlmRequestOptions, 'responseFormat'> {
+export interface MediaGenerationOptions extends Omit<LlmRequestOptions, "responseFormat"> {
   /** 单次生成的提示词，若提供则自动包装为 user 消息 */
   prompt?: string;
   /** 负面提示词 (Negative Prompt) */
   negativePrompt?: string;
   /** 随机种子 (Seed) */
   seed?: number;
+  /** 重复惩罚 */
+  repetitionPenalty?: number;
   /** 生成数量 (OpenAI n) */
   n?: number;
   /** 分辨率 (e.g., "1024x1024", "1K", "2K", "720p", "1080p") */
@@ -390,7 +406,17 @@ export interface LlmResponse {
   /** 模型的拒绝消息（如果模型拒绝响应） */
   refusal?: string | null;
   /** 停止原因 */
-  finishReason?: "stop" | "length" | "content_filter" | "tool_calls" | "function_call" | "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
+  finishReason?:
+    | "stop"
+    | "length"
+    | "content_filter"
+    | "tool_calls"
+    | "function_call"
+    | "end_turn"
+    | "max_tokens"
+    | "stop_sequence"
+    | "tool_use"
+    | null;
   /** 停止序列（Claude） */
   stopSequence?: string | null;
   /** 工具调用结果（函数调用） */
@@ -479,9 +505,9 @@ export interface LlmResponse {
  * 自定义超时错误
  */
 export class TimeoutError extends Error {
-  constructor(message = 'Request timed out') {
+  constructor(message = "Request timed out") {
     super(message);
-    this.name = 'TimeoutError';
+    this.name = "TimeoutError";
   }
 }
 /**
@@ -497,25 +523,29 @@ export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   if (error === null || error === undefined) return false;
 
   // 如果是字符串，直接判断内容
-  if (typeof error === 'string') {
+  if (typeof error === "string") {
     const lower = error.toLowerCase();
-    return lower.includes('canceled') || lower.includes('cancelled') || lower.includes('aborted');
+    return lower.includes("canceled") || lower.includes("cancelled") || lower.includes("aborted");
   }
 
   // 如果是对象/Error实例
   const err = error as any;
 
   // 标准 AbortError (浏览器 DOMException)
-  if (err.name === 'AbortError') return true;
+  if (err.name === "AbortError") return true;
 
   // 检查 message 属性
-  const message = String(err.message || '').toLowerCase();
-  if (message.includes('canceled') || message.includes('cancelled') || message.includes('aborted')) {
+  const message = String(err.message || "").toLowerCase();
+  if (
+    message.includes("canceled") ||
+    message.includes("cancelled") ||
+    message.includes("aborted")
+  ) {
     return true;
   }
 
   // 兜底检查：如果 constructor 名字包含 AbortError
-  if (err.constructor?.name === 'AbortError') return true;
+  if (err.constructor?.name === "AbortError") return true;
 
   return false;
 }
@@ -531,13 +561,13 @@ export function isTimeoutError(error: unknown, signal?: AbortSignal): boolean {
   if (error instanceof TimeoutError) return true;
 
   // 检查错误对象
-  const errMsg = String((error as any)?.message || error || '').toLowerCase();
-  if (errMsg.includes('timeout')) return true;
+  const errMsg = String((error as any)?.message || error || "").toLowerCase();
+  if (errMsg.includes("timeout")) return true;
 
   // 检查信号原因 (AbortSignal.reason)
   // 现代浏览器中，如果通过 AbortSignal.timeout() 触发，reason 会是一个 TimeoutError 或包含 timeout 的对象
-  const signalReason = String(signal?.reason || '').toLowerCase();
-  if (signalReason.includes('timeout')) return true;
+  const signalReason = String(signal?.reason || "").toLowerCase();
+  if (signalReason.includes("timeout")) return true;
 
   return false;
 }
@@ -552,7 +582,7 @@ export class LlmApiError extends Error {
 
   constructor(message: string, status: number, statusText: string, body?: string) {
     super(message);
-    this.name = 'LlmApiError';
+    this.name = "LlmApiError";
     this.status = status;
     this.statusText = statusText;
     this.body = body;
@@ -564,7 +594,7 @@ export class LlmApiError extends Error {
  */
 export const ensureResponseOk = async (response: Response): Promise<void> => {
   if (!response.ok) {
-    let errorText = '';
+    let errorText = "";
     try {
       errorText = await response.text();
     } catch {
@@ -596,7 +626,7 @@ export const fetchWithTimeout = async (
   // 如果外部信号已经中止，立即抛出错误
   if (externalSignal?.aborted) {
     clearTimeout(timeoutId);
-    throw externalSignal.reason || new DOMException('Aborted', 'AbortError');
+    throw externalSignal.reason || new DOMException("Aborted", "AbortError");
   }
 
   // 监听外部中止信号
@@ -604,7 +634,7 @@ export const fetchWithTimeout = async (
     // 传递外部信号的原因
     controller.abort(externalSignal?.reason);
   };
-  externalSignal?.addEventListener('abort', externalAbortHandler);
+  externalSignal?.addEventListener("abort", externalAbortHandler);
 
   try {
     const proxyConfig = getProxyConfig();
@@ -615,7 +645,7 @@ export const fetchWithTimeout = async (
 
     if (hasLocalFile) {
       let bodyObjForProxy: any = null;
-      if (typeof options.body === 'string') {
+      if (typeof options.body === "string") {
         try {
           bodyObjForProxy = JSON.parse(options.body);
         } catch (e) {
@@ -625,8 +655,7 @@ export const fetchWithTimeout = async (
         try {
           const decoder = new TextDecoder();
           bodyObjForProxy = JSON.parse(decoder.decode(options.body));
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       if (!bodyObjForProxy) {
@@ -639,9 +668,9 @@ export const fetchWithTimeout = async (
       }
 
       return new Promise((resolve, reject) => {
-        let fullContent: string | Uint8Array[] = '';
+        let fullContent: string | Uint8Array[] = "";
         let status = 200;
-        let respHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        let respHeaders: Record<string, string> = { "Content-Type": "application/json" };
         let isBinary = false;
 
         const onEvent = new Channel<any>();
@@ -649,18 +678,18 @@ export const fetchWithTimeout = async (
         onEvent.onmessage = (event: any) => {
           const { type, data } = event;
           switch (type) {
-            case 'start':
+            case "start":
               status = data.status;
               respHeaders = data.headers;
               break;
-            case 'chunk':
-              if (typeof fullContent === 'string') {
+            case "chunk":
+              if (typeof fullContent === "string") {
                 fullContent += data;
               }
               break;
-            case 'binary':
+            case "binary":
               isBinary = true;
-              if (typeof fullContent === 'string') {
+              if (typeof fullContent === "string") {
                 // 切换到二进制模式
                 const encoder = new TextEncoder();
                 fullContent = [encoder.encode(fullContent), new Uint8Array(data)];
@@ -668,10 +697,10 @@ export const fetchWithTimeout = async (
                 fullContent.push(new Uint8Array(data));
               }
               break;
-            case 'error':
+            case "error":
               reject(new Error(data));
               break;
-            case 'done':
+            case "done":
               // 构造响应体
               let body: BodyInit;
               if (isBinary && Array.isArray(fullContent)) {
@@ -687,24 +716,26 @@ export const fetchWithTimeout = async (
                 body = fullContent as string;
               }
 
-              resolve(new Response(body, {
-                status,
-                statusText: status === 200 ? 'OK' : '',
-                headers: respHeaders
-              }));
+              resolve(
+                new Response(body, {
+                  status,
+                  statusText: status === 200 ? "OK" : "",
+                  headers: respHeaders,
+                })
+              );
               break;
           }
         };
 
-        invoke('proxy_llm_request', {
+        invoke("proxy_llm_request", {
           request: {
             url,
-            method: options.method || 'POST',
+            method: options.method || "POST",
             headers: options.headers as Record<string, string>,
             body: bodyObjForProxy,
-            timeout: timeout // 传递超时时间
+            timeout: timeout, // 传递超时时间
           },
-          onEvent
+          onEvent,
         }).catch(reject);
       });
     }
@@ -725,6 +756,6 @@ export const fetchWithTimeout = async (
     throw error;
   } finally {
     clearTimeout(timeoutId);
-    externalSignal?.removeEventListener('abort', externalAbortHandler);
+    externalSignal?.removeEventListener("abort", externalAbortHandler);
   }
 };

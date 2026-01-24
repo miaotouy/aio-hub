@@ -26,6 +26,7 @@ export type ModelFamily =
   | "cohere" // Cohere Command 系列
   | "deepseek" // DeepSeek 系列
   | "qwen" // 通义千问系列
+  | "xai" // xAI Grok 系列
   | "unknown"; // 未知/通用
 
 /**
@@ -191,6 +192,7 @@ export interface CommonParameters {
   maxTokens?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
+  repetitionPenalty?: number;
   seed?: number;
   stop?: string | string[];
 }
@@ -309,7 +311,10 @@ export function mergeConversationHistory(
  * @param fileExt - 可选的文件扩展名
  * @returns MIME 类型字符串
  */
-export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Array, fileExt?: string): string {
+export function inferImageMimeType(
+  base64Data?: string | ArrayBuffer | Uint8Array,
+  fileExt?: string
+): string {
   // 根据文件扩展名推测
   if (fileExt) {
     const extMap: Record<string, string> = {
@@ -335,17 +340,22 @@ export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
       if (header.startsWith("UklGR")) return "image/webp";
     } else {
       // 处理二进制数据头
-      const bytes = base64Data instanceof Uint8Array
-        ? base64Data
-        : new Uint8Array(base64Data instanceof ArrayBuffer ? base64Data : (base64Data as any).buffer);
+      const bytes =
+        base64Data instanceof Uint8Array
+          ? base64Data
+          : new Uint8Array(
+              base64Data instanceof ArrayBuffer ? base64Data : (base64Data as any).buffer
+            );
 
       if (bytes.length > 4) {
         // PNG: 89 50 4E 47
-        if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return "image/png";
+        if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47)
+          return "image/png";
         // JPEG: FF D8 FF
-        if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return "image/jpeg";
+        if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
         // GIF: 47 49 46 38
-        if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return "image/gif";
+        if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38)
+          return "image/gif";
       }
     }
   }
@@ -362,7 +372,10 @@ export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
  * @param fileExt - 可选的文件扩展名
  * @returns MIME 类型字符串
  */
-export function inferMediaMimeType(base64Data?: string | ArrayBuffer | Uint8Array, fileExt?: string): string {
+export function inferMediaMimeType(
+  base64Data?: string | ArrayBuffer | Uint8Array,
+  fileExt?: string
+): string {
   // 首先尝试推断图片类型
   const imageMimeType = inferImageMimeType(base64Data, fileExt);
 
@@ -487,15 +500,12 @@ export function getModelFamily(modelId: string, provider?: string): ModelFamily 
     if (provider) {
       const lowerProvider = provider.toLowerCase();
       if (lowerProvider === "anthropic" || lowerProvider === "claude") return "claude";
-      if (
-        lowerProvider === "google" ||
-        lowerProvider === "gemini" ||
-        lowerProvider === "vertexai"
-      )
+      if (lowerProvider === "google" || lowerProvider === "gemini" || lowerProvider === "vertexai")
         return "gemini";
       if (lowerProvider === "cohere") return "cohere";
       if (lowerProvider === "deepseek") return "deepseek";
       if (lowerProvider === "qwen" || lowerProvider === "alibaba") return "qwen";
+      if (lowerProvider === "xai") return "xai";
     }
     return "unknown";
   }
@@ -534,6 +544,11 @@ export function getModelFamily(modelId: string, provider?: string): ModelFamily 
   // Qwen 系列
   if (group === "qwen" || group.startsWith("qwen")) {
     return "qwen";
+  }
+
+  // xAI 系列
+  if (group === "xai" || group.startsWith("grok")) {
+    return "xai";
   }
 
   return "unknown";
@@ -581,23 +596,32 @@ export function filterParametersByCapabilities(
   // 核心参数始终保留
   filtered.modelId = options.modelId;
   filtered.messages = options.messages;
-  
+
   // 媒体生成参数透传
   const mediaOptions = options as MediaGenerationOptions;
   if (mediaOptions.prompt) (filtered as MediaGenerationOptions).prompt = mediaOptions.prompt;
-  if (mediaOptions.negativePrompt) (filtered as MediaGenerationOptions).negativePrompt = mediaOptions.negativePrompt;
+  if (mediaOptions.negativePrompt)
+    (filtered as MediaGenerationOptions).negativePrompt = mediaOptions.negativePrompt;
   if (mediaOptions.size) (filtered as MediaGenerationOptions).size = mediaOptions.size;
   if (mediaOptions.quality) (filtered as MediaGenerationOptions).quality = mediaOptions.quality;
   if (mediaOptions.style) (filtered as MediaGenerationOptions).style = mediaOptions.style;
-  if (mediaOptions.aspectRatio) (filtered as MediaGenerationOptions).aspectRatio = mediaOptions.aspectRatio;
-  if (mediaOptions.guidanceScale) (filtered as MediaGenerationOptions).guidanceScale = mediaOptions.guidanceScale;
-  if (mediaOptions.numInferenceSteps) (filtered as MediaGenerationOptions).numInferenceSteps = mediaOptions.numInferenceSteps;
-  if (mediaOptions.promptEnhancement !== undefined) (filtered as MediaGenerationOptions).promptEnhancement = mediaOptions.promptEnhancement;
-  if (mediaOptions.audioConfig) (filtered as MediaGenerationOptions).audioConfig = mediaOptions.audioConfig;
+  if (mediaOptions.aspectRatio)
+    (filtered as MediaGenerationOptions).aspectRatio = mediaOptions.aspectRatio;
+  if (mediaOptions.guidanceScale)
+    (filtered as MediaGenerationOptions).guidanceScale = mediaOptions.guidanceScale;
+  if (mediaOptions.numInferenceSteps)
+    (filtered as MediaGenerationOptions).numInferenceSteps = mediaOptions.numInferenceSteps;
+  if (mediaOptions.promptEnhancement !== undefined)
+    (filtered as MediaGenerationOptions).promptEnhancement = mediaOptions.promptEnhancement;
+  if (mediaOptions.audioConfig)
+    (filtered as MediaGenerationOptions).audioConfig = mediaOptions.audioConfig;
   if (mediaOptions.mask) (filtered as MediaGenerationOptions).mask = mediaOptions.mask;
-  if (mediaOptions.inputAttachments) (filtered as MediaGenerationOptions).inputAttachments = mediaOptions.inputAttachments;
-  if (mediaOptions.durationSeconds) (filtered as MediaGenerationOptions).durationSeconds = mediaOptions.durationSeconds;
-  if (mediaOptions.inputFidelity) (filtered as MediaGenerationOptions).inputFidelity = mediaOptions.inputFidelity;
+  if (mediaOptions.inputAttachments)
+    (filtered as MediaGenerationOptions).inputAttachments = mediaOptions.inputAttachments;
+  if (mediaOptions.durationSeconds)
+    (filtered as MediaGenerationOptions).durationSeconds = mediaOptions.durationSeconds;
+  if (mediaOptions.inputFidelity)
+    (filtered as MediaGenerationOptions).inputFidelity = mediaOptions.inputFidelity;
 
   filtered.stream = options.stream;
   filtered.onStream = options.onStream;
@@ -628,6 +652,9 @@ export function filterParametersByCapabilities(
   }
   if (supported.presencePenalty && options.presencePenalty !== undefined) {
     filtered.presencePenalty = options.presencePenalty;
+  }
+  if (supported.repetitionPenalty && options.repetitionPenalty !== undefined) {
+    filtered.repetitionPenalty = options.repetitionPenalty;
   }
   if (supported.seed && options.seed !== undefined) {
     filtered.seed = options.seed;
@@ -665,8 +692,7 @@ export function filterParametersByCapabilities(
   // ===== 推理模式（o系列模型） =====
   // 兼容旧的 reasoningEffort 检查，或者新的 thinking 检查
   const supportsReasoning =
-    (supported.reasoningEffort || supported.thinking) &&
-    (!capabilities || capabilities.thinking);
+    (supported.reasoningEffort || supported.thinking) && (!capabilities || capabilities.thinking);
 
   if (supportsReasoning && options.reasoningEffort !== undefined) {
     filtered.reasoningEffort = options.reasoningEffort;
@@ -706,7 +732,8 @@ export function filterParametersByCapabilities(
   // OpenAI 特有参数
   // 条件：profile.type 是 openai 系列，且模型家族也是 openai（排除通过 OpenAI 渠道访问其他厂商的情况）
   const isOpenAIProfile = profile.type === "openai" || profile.type === "openai-responses";
-  const shouldApplyOpenAIParams = isOpenAIProfile && (modelFamily === "openai" || modelFamily === "unknown");
+  const shouldApplyOpenAIParams =
+    isOpenAIProfile && (modelFamily === "openai" || modelFamily === "unknown");
   if (shouldApplyOpenAIParams) {
     if (options.n !== undefined) filtered.n = options.n;
     if (options.logitBias !== undefined) filtered.logitBias = options.logitBias;
@@ -852,6 +879,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "topK",
   "frequencyPenalty",
   "presencePenalty",
+  "repetitionPenalty",
   "seed",
   "stop",
 

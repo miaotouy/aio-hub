@@ -144,8 +144,12 @@ export const callOpenAiChatApi = async (
   }
 
   if (commonParams.topP !== undefined) body.top_p = commonParams.topP;
-  if (commonParams.frequencyPenalty !== undefined) body.frequency_penalty = commonParams.frequencyPenalty;
-  if (commonParams.presencePenalty !== undefined) body.presence_penalty = commonParams.presencePenalty;
+  if (commonParams.frequencyPenalty !== undefined)
+    body.frequency_penalty = commonParams.frequencyPenalty;
+  if (commonParams.presencePenalty !== undefined)
+    body.presence_penalty = commonParams.presencePenalty;
+  if (commonParams.repetitionPenalty !== undefined)
+    body.repetition_penalty = commonParams.repetitionPenalty;
   if (commonParams.stop !== undefined) body.stop = commonParams.stop;
   if (commonParams.seed !== undefined) body.seed = commonParams.seed;
 
@@ -182,7 +186,9 @@ export const callOpenAiChatApi = async (
     const stringifyStart = performance.now();
     const serializedBody = await asyncJsonStringify(body);
     const stringifyEnd = performance.now();
-    console.log(`[OpenAI-Stream] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === 'string' ? 'string' : 'Uint8Array'}`);
+    console.log(
+      `[OpenAI-Stream] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
+    );
 
     const fetchStart = performance.now();
     const response = await fetchWithTimeout(
@@ -232,21 +238,25 @@ export const callOpenAiChatApi = async (
               totalTokens: json.usage.total_tokens,
               promptTokensDetails: json.usage.prompt_tokens_details
                 ? {
-                  cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
-                  audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-                }
+                    cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+                    audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+                  }
                 : undefined,
               completionTokensDetails: json.usage.completion_tokens_details
                 ? {
-                  reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
-                  audioTokens: json.usage.completion_tokens_details.audio_tokens,
-                  acceptedPredictionTokens: json.usage.completion_tokens_details.accepted_prediction_tokens,
-                  rejectedPredictionTokens: json.usage.completion_tokens_details.rejected_prediction_tokens,
-                }
+                    reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
+                    audioTokens: json.usage.completion_tokens_details.audio_tokens,
+                    acceptedPredictionTokens:
+                      json.usage.completion_tokens_details.accepted_prediction_tokens,
+                    rejectedPredictionTokens:
+                      json.usage.completion_tokens_details.rejected_prediction_tokens,
+                  }
                 : undefined,
             };
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       },
       undefined,
       options.signal
@@ -263,7 +273,9 @@ export const callOpenAiChatApi = async (
   const stringifyStart = performance.now();
   const serializedBody = await asyncJsonStringify(body);
   const stringifyEnd = performance.now();
-  console.log(`[OpenAI] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === 'string' ? 'string' : 'Uint8Array'}`);
+  console.log(
+    `[OpenAI] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
+  );
 
   const fetchStart = performance.now();
   const response = await fetchWithTimeout(
@@ -297,28 +309,38 @@ export const callOpenAiChatApi = async (
     },
   }));
 
-  const audio = message?.audio ? {
-    id: message.audio.id,
-    data: message.audio.data,
-    transcript: message.audio.transcript,
-    expiresAt: message.audio.expires_at,
-  } : undefined;
+  const audio = message?.audio
+    ? {
+        id: message.audio.id,
+        data: message.audio.data,
+        transcript: message.audio.transcript,
+        expiresAt: message.audio.expires_at,
+      }
+    : undefined;
 
-  const usage = data.usage ? {
-    promptTokens: data.usage.prompt_tokens,
-    completionTokens: data.usage.completion_tokens,
-    totalTokens: data.usage.total_tokens,
-    promptTokensDetails: data.usage.prompt_tokens_details ? {
-      cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
-      audioTokens: data.usage.prompt_tokens_details.audio_tokens,
-    } : undefined,
-    completionTokensDetails: data.usage.completion_tokens_details ? {
-      reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
-      audioTokens: data.usage.completion_tokens_details.audio_tokens,
-      acceptedPredictionTokens: data.usage.completion_tokens_details.accepted_prediction_tokens,
-      rejectedPredictionTokens: data.usage.completion_tokens_details.rejected_prediction_tokens,
-    } : undefined,
-  } : undefined;
+  const usage = data.usage
+    ? {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+        promptTokensDetails: data.usage.prompt_tokens_details
+          ? {
+              cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
+              audioTokens: data.usage.prompt_tokens_details.audio_tokens,
+            }
+          : undefined,
+        completionTokensDetails: data.usage.completion_tokens_details
+          ? {
+              reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
+              audioTokens: data.usage.completion_tokens_details.audio_tokens,
+              acceptedPredictionTokens:
+                data.usage.completion_tokens_details.accepted_prediction_tokens,
+              rejectedPredictionTokens:
+                data.usage.completion_tokens_details.rejected_prediction_tokens,
+            }
+          : undefined,
+      }
+    : undefined;
 
   if (message?.refusal) {
     return {
@@ -333,11 +355,18 @@ export const callOpenAiChatApi = async (
 
   return {
     content: message?.content || "",
-    reasoningContent: message?.reasoning_content || message?.reasoning || message?.thinking || message?.thought || undefined,
+    reasoningContent:
+      message?.reasoning_content ||
+      message?.reasoning ||
+      message?.thinking ||
+      message?.thought ||
+      undefined,
     refusal: message?.refusal || null,
     finishReason: choice.finish_reason,
     toolCalls: message?.tool_calls,
-    logprobs: choice.logprobs ? { content: choice.logprobs.content, refusal: choice.logprobs.refusal } : undefined,
+    logprobs: choice.logprobs
+      ? { content: choice.logprobs.content, refusal: choice.logprobs.refusal }
+      : undefined,
     annotations,
     audio,
     systemFingerprint: data.system_fingerprint,

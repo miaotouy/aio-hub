@@ -5,29 +5,34 @@ import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
  * OpenAI 适配器的 URL 处理逻辑
  */
 export const openAiUrlHandler = {
-  buildUrl: (baseUrl: string, endpoint?: string, profile?: LlmProfile, pathParams?: Record<string, string>): string => {
+  buildUrl: (
+    baseUrl: string,
+    endpoint?: string,
+    profile?: LlmProfile,
+    pathParams?: Record<string, string>
+  ): string => {
     // 如果提供了 profile 且有对应的自定义端点，则优先使用
     if (profile?.customEndpoints) {
       const custom = profile.customEndpoints as Record<string, string | undefined>;
       // 根据 endpoint 映射到对应的自定义配置键
-      const mapping: Record<string, keyof NonNullable<LlmProfile['customEndpoints']>> = {
-        'chat/completions': 'chatCompletions',
-        'completions': 'completions',
-        'models': 'models',
-        'embeddings': 'embeddings',
-        'rerank': 'rerank',
-        'images/generations': 'imagesGenerations',
-        'images/edits': 'imagesEdits',
-        'images/variations': 'imagesVariations',
-        'audio/speech': 'audioSpeech',
-        'audio/transcriptions': 'audioTranscriptions',
-        'audio/translations': 'audioTranslations',
-        'moderations': 'moderations',
-        'videos': 'videos',
-        'videoStatus': 'videoStatus',
+      const mapping: Record<string, keyof NonNullable<LlmProfile["customEndpoints"]>> = {
+        "chat/completions": "chatCompletions",
+        completions: "completions",
+        models: "models",
+        embeddings: "embeddings",
+        rerank: "rerank",
+        "images/generations": "imagesGenerations",
+        "images/edits": "imagesEdits",
+        "images/variations": "imagesVariations",
+        "audio/speech": "audioSpeech",
+        "audio/transcriptions": "audioTranscriptions",
+        "audio/translations": "audioTranslations",
+        moderations: "moderations",
+        videos: "videos",
+        videoStatus: "videoStatus",
       };
 
-      const customKey = endpoint ? mapping[endpoint] : 'chatCompletions';
+      const customKey = endpoint ? mapping[endpoint] : "chatCompletions";
       if (customKey && custom[customKey]) {
         let customEndpoint = custom[customKey]!;
 
@@ -39,25 +44,33 @@ export const openAiUrlHandler = {
         }
 
         // 如果自定义端点是完整的 URL，直接返回
-        if (customEndpoint.startsWith('http')) return customEndpoint;
+        if (customEndpoint.startsWith("http")) return customEndpoint;
         // 否则将其拼接到 baseUrl
-        const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+        const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
         // 去掉自定义端点开头的 /
-        const cleanEndpoint = customEndpoint.startsWith('/') ? customEndpoint.substring(1) : customEndpoint;
+        const cleanEndpoint = customEndpoint.startsWith("/")
+          ? customEndpoint.substring(1)
+          : customEndpoint;
         return `${host}${cleanEndpoint}`;
       }
     }
 
     // 确保 baseUrl 以 / 结尾
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     // 智能添加 v1 版本路径（如果没加的话）
     // 如果已经包含 /v1, /v2, /v3 或 /api/v3 等，则不再添加
-    const versionedHost = (host.includes('/v1') || host.includes('/v2') || host.includes('/v3') || host.includes('/api/v')) ? host : `${host}v1/`;
+    const versionedHost =
+      host.includes("/v1") ||
+      host.includes("/v2") ||
+      host.includes("/v3") ||
+      host.includes("/api/v")
+        ? host
+        : `${host}v1/`;
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat/completions`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/chat/completions（如需禁用请在URL末尾加#）';
-  }
+    return "将自动补全版本号(如 /v1/)及端点(如 /chat/completions)，如需禁用请在URL末尾加#";
+  },
 };
 
 /**
@@ -65,14 +78,20 @@ export const openAiUrlHandler = {
  */
 export const openAiResponsesUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     // 智能添加 v1 版本路径（如果没加的话），同时兼容 v2, v3 等
-    const versionedHost = (host.includes('/v1') || host.includes('/v2') || host.includes('/v3') || host.includes('/api/v')) ? host : `${host}v1/`;
+    const versionedHost =
+      host.includes("/v1") ||
+      host.includes("/v2") ||
+      host.includes("/v3") ||
+      host.includes("/api/v")
+        ? host
+        : `${host}v1/`;
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}responses`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/responses（支持工具调用和推理的有状态交互）';
-  }
+    return "将自动补全版本号(如 /v1/)及端点(如 /responses)，支持工具调用和推理的有状态交互";
+  },
 };
 
 /**

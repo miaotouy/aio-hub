@@ -17,11 +17,17 @@ export interface ContextPostProcessRule {
  */
 export type ProviderType =
   | "openai"
-  | "openai-responses"
-  | "gemini"
+  | "openai-compatible"
+  | "deepseek"
   | "claude"
+  | "gemini"
+  | "siliconflow"
+  | "groq"
+  | "ollama"
+  | "openrouter"
+  | "openai-responses"
+  | "xai"
   | "cohere"
-  | "huggingface"
   | "vertexai";
 
 /**
@@ -35,6 +41,7 @@ export interface LlmParameterSupport {
   topK?: boolean;
   frequencyPenalty?: boolean;
   presencePenalty?: boolean;
+  repetitionPenalty?: boolean;
   seed?: boolean;
   stop?: boolean;
 
@@ -86,7 +93,7 @@ export interface VisionTokenCost {
    * - 'claude_3': Claude 3 的动态计算（API 会返回实际值，这里作为预估）
    * - 'gemini_2_0': Gemini 2.0 的瓦片计算法
    */
-  calculationMethod: 'fixed' | 'openai_tile' | 'claude_3' | 'gemini_2_0';
+  calculationMethod: "fixed" | "openai_tile" | "claude_3" | "gemini_2_0";
 
   /**
    * 计算参数
@@ -135,7 +142,7 @@ export interface ModelCapabilities {
    * - 'budget': 开关 + Token 预算滑块
    * - 'effort': 推理等级/工作量选择器
    */
-  thinkingConfigType?: 'none' | 'switch' | 'budget' | 'effort';
+  thinkingConfigType?: "none" | "switch" | "budget" | "effort";
   /** 可用的推理等级选项 (当 thinkingConfigType 为 'effort' 时使用) */
   reasoningEffortOptions?: string[];
   /** 是否支持文件搜索 */
@@ -212,7 +219,7 @@ export interface ModelCapabilities {
    * - 'base64': Claude/Gemini 格式，直接在消息中嵌入 base64 编码的文档
    * - 'openai_file': OpenAI Responses 格式，支持 file_url/file_id/file_data 三种方式
    */
-  documentFormat?: 'base64' | 'openai_file';
+  documentFormat?: "base64" | "openai_file";
 
   /**
    * 文档 Token 计费规则（仅当 document 为 true 时有效）
@@ -224,7 +231,7 @@ export interface ModelCapabilities {
      * - 'per_page': 按页计算（如 Gemini: 258 tokens/page）
      * - 'dynamic': 动态计算（API 返回实际值）
      */
-    calculationMethod: 'per_page' | 'dynamic';
+    calculationMethod: "per_page" | "dynamic";
 
     /** 每页的 token 数（仅当 calculationMethod 为 'per_page' 时使用） */
     tokensPerPage?: number;

@@ -3,12 +3,12 @@
  * 用于格式化LLM服务的API地址和生成端点预览
  */
 
-import type { ProviderType, LlmProfile } from '../types/llm-profiles';
-import { openAiUrlHandler, openAiResponsesUrlHandler } from '@/llm-apis/adapters/openai/utils';
-import { claudeUrlHandler } from '@/llm-apis/adapters/anthropic/utils';
-import { geminiUrlHandler } from '@/llm-apis/adapters/gemini/utils';
-import { cohereUrlHandler } from '@/llm-apis/adapters/cohere/utils';
-import { vertexAiUrlHandler } from '@/llm-apis/adapters/vertexai/utils';
+import type { ProviderType, LlmProfile } from "../types/llm-profiles";
+import { openAiUrlHandler, openAiResponsesUrlHandler } from "@/llm-apis/adapters/openai/utils";
+import { claudeUrlHandler } from "@/llm-apis/adapters/anthropic/utils";
+import { geminiUrlHandler } from "@/llm-apis/adapters/gemini/utils";
+import { cohereUrlHandler } from "@/llm-apis/adapters/cohere/utils";
+import { vertexAiUrlHandler } from "@/llm-apis/adapters/vertexai/utils";
 
 /**
  * 适配器 URL 处理接口
@@ -22,20 +22,32 @@ interface AdapterUrlHandler {
  * 适配器 URL 处理映射
  * 注册各个适配器的 URL 处理逻辑
  */
+const ollamaUrlHandler: AdapterUrlHandler = {
+  buildUrl: (baseUrl, endpoint) => {
+    const host = formatLlmApiHost(baseUrl);
+    return endpoint ? `${host}${endpoint}` : `${host}api/chat`;
+  },
+  getHint: () => "将自动补全端点(如 /api/chat)",
+};
+
+/**
+ * 适配器 URL 处理映射
+ * 注册各个适配器的 URL 处理逻辑
+ */
 const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   openai: openAiUrlHandler,
-  'openai-responses': openAiResponsesUrlHandler,
+  "openai-compatible": openAiUrlHandler,
+  deepseek: openAiUrlHandler,
+  siliconflow: openAiUrlHandler,
+  groq: openAiUrlHandler,
+  xai: openAiUrlHandler,
+  openrouter: openAiUrlHandler,
+  "openai-responses": openAiResponsesUrlHandler,
   claude: claudeUrlHandler,
   gemini: geminiUrlHandler,
   cohere: cohereUrlHandler,
   vertexai: vertexAiUrlHandler,
-  huggingface: {
-    buildUrl: (baseUrl, endpoint) => {
-      const host = formatLlmApiHost(baseUrl);
-      return endpoint ? `${host}${endpoint}` : `${host}models/{model}`;
-    },
-    getHint: () => '将自动添加 /models/{model}'
-  }
+  ollama: ollamaUrlHandler,
 };
 
 /**
@@ -49,12 +61,12 @@ export function formatLlmApiHost(host: string): string {
   if (!host) return "";
 
   // 如果以#结尾，表示禁用自动补全，去掉#并返回
-  if (host.endsWith('#')) {
+  if (host.endsWith("#")) {
     return host.slice(0, -1);
   }
 
   // 确保以斜杠结尾
-  let formattedHost = host.endsWith('/') ? host : `${host}/`;
+  let formattedHost = host.endsWith("/") ? host : `${host}/`;
 
   return formattedHost;
 }
@@ -68,7 +80,7 @@ export function hasApiVersionPath(url: string): boolean {
   const versionRegex = /\/(api\/)?v\d+\/?$/i;
   // 同时也匹配路径中间包含版本的情况，如 /v1/chat
   const midVersionRegex = /\/(api\/)?v\d+\//i;
-  
+
   return versionRegex.test(url) || midVersionRegex.test(url);
 }
 
@@ -88,7 +100,7 @@ export function buildLlmApiUrl(
   profile?: LlmProfile
 ): string {
   if (!baseUrl) {
-    return '';
+    return "";
   }
 
   // 如果禁用自动补全（以#结尾）
@@ -112,7 +124,7 @@ export function buildLlmApiUrl(
 
 /**
  * 生成 LLM API 端点预览URL（用于UI显示）
- * 
+ *
  * @param baseUrl - API基础地址
  * @param providerType - 服务提供商类型
  * @returns 完整的端点URL预览
@@ -123,12 +135,12 @@ export function generateLlmApiEndpointPreview(baseUrl: string, providerType: Pro
 
 /**
  * 检查URL是否禁用了自动补全
- * 
+ *
  * @param url - 要检查的URL
  * @returns 是否禁用自动补全（以#结尾）
  */
 export function isLlmUrlAutoCompletionDisabled(url: string): boolean {
-  return url.endsWith('#');
+  return url.endsWith("#");
 }
 
 /**
@@ -142,5 +154,5 @@ export function getLlmEndpointHint(providerType: ProviderType): string {
   if (handler) {
     return handler.getHint();
   }
-  return '';
+  return "";
 }

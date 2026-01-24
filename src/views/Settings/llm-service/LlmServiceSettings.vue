@@ -587,7 +587,8 @@ const resetBaseUrl = () => {
                 <div class="api-preview-url">{{ apiEndpointPreview }}</div>
                 <div class="api-preview-hint">
                   {{ endpointHintText }}
-                  <el-divider direction="vertical" />
+                </div>
+                <div class="api-extra-actions">
                   <el-button
                     link
                     type="primary"
@@ -621,33 +622,43 @@ const resetBaseUrl = () => {
                   </el-button>
                 </div>
               </div>
-              <div v-else class="form-hint">
-                <span>默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}</span>
-                <el-divider direction="vertical" />
-                <el-button link type="primary" size="small" @click="showCustomHeadersDialog = true">
-                  自定义请求头
-                  <span
-                    v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0"
+              <div v-else>
+                <div class="form-hint">
+                  <span>默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}</span>
+                </div>
+                <div class="api-extra-actions">
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="showCustomHeadersDialog = true"
                   >
-                    ({{ Object.keys(editForm.customHeaders).length }})
-                  </span>
-                </el-button>
-                <el-divider direction="vertical" />
-                <el-button
-                  link
-                  type="primary"
-                  size="small"
-                  @click="showCustomEndpointsDialog = true"
-                >
-                  高级端点
-                  <span
-                    v-if="
-                      editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
-                    "
+                    自定义请求头
+                    <span
+                      v-if="
+                        editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0
+                      "
+                    >
+                      ({{ Object.keys(editForm.customHeaders).length }})
+                    </span>
+                  </el-button>
+                  <el-divider direction="vertical" />
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="showCustomEndpointsDialog = true"
                   >
-                    ({{ Object.keys(editForm.customEndpoints).length }})
-                  </span>
-                </el-button>
+                    高级端点
+                    <span
+                      v-if="
+                        editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
+                      "
+                    >
+                      ({{ Object.keys(editForm.customEndpoints).length }})
+                    </span>
+                  </el-button>
+                </div>
               </div>
             </el-form-item>
 
@@ -906,6 +917,12 @@ const resetBaseUrl = () => {
   color: var(--text-color-secondary);
   opacity: 0.7;
   line-height: 1.4;
+}
+
+.api-extra-actions {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
 }
 
 .model-list-container {

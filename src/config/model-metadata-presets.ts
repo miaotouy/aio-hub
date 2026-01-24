@@ -1622,7 +1622,23 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "xAI Imagine 系列模型图标",
   },
-
+  {
+    id: "model-grok-image",
+    matchType: "modelPrefix",
+    matchValue: "grok-.*image",
+    useRegex: true,
+    properties: {
+      icon: `xai.svg`,
+      group: "xAI",
+      capabilities: {
+        imageGeneration: true,
+        mediaEditing: true, // Grok 支持理解和修改图片
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "Grok 图像生成与编辑模型",
+  },
   // Meta 系列模型
   {
     id: "model-prefix-llama3_2",
@@ -1989,10 +2005,28 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `openai.svg`,
       group: "OpenAI",
+      capabilities: {
+        audioGeneration: true,
+      },
     },
     priority: 30,
     enabled: true,
     description: "TTS 文本转语音模型",
+  },
+  {
+    id: "model-openai-tts-mini",
+    matchType: "modelPrefix",
+    matchValue: "gpt-4o-mini-tts",
+    properties: {
+      icon: `openai.svg`,
+      group: "OpenAI",
+      capabilities: {
+        audioGeneration: true,
+      },
+    },
+    priority: 35,
+    enabled: true,
+    description: "GPT-4o mini TTS 语音生成模型",
   },
   {
     id: "model-text-moderation",
@@ -2045,6 +2079,26 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "Davinci 系列模型（已弃用）",
   },
 
+  // OpenAI GPT Image 图像生成
+  {
+    id: "model-gpt-image-specific",
+    matchType: "modelPrefix",
+    matchValue: "gpt-image-|chatgpt-image-",
+    useRegex: true,
+    properties: {
+      icon: `openai.svg`,
+      group: "OpenAI",
+      capabilities: {
+        imageGeneration: true,
+        mediaEditing: true,
+        iterativeRefinement: true,
+      },
+    },
+    priority: 35,
+    enabled: true,
+    description: "GPT Image 系列图像生成模型（支持编辑与迭代）",
+  },
+
   // OpenAI Sora 视频生成
   {
     id: "model-sora",
@@ -2053,6 +2107,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `sora-color.svg`,
       group: "OpenAI",
+      capabilities: {
+        videoGeneration: true,
+        mediaEditing: true, // Sora 支持以图生视频或重混
+      },
     },
     priority: 30,
     enabled: true,
@@ -2067,11 +2125,16 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `kling-color.svg`,
       group: "Kwai",
+      capabilities: {
+        videoGeneration: true,
+        mediaEditing: true,
+      },
     },
     priority: 30,
     enabled: true,
     description: "可灵视频生成模型图标",
   },
+
   // Google Veo 视频生成
   {
     id: "model-veo",
@@ -2082,6 +2145,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Gemini",
       capabilities: {
         videoGeneration: true,
+        mediaEditing: true, // Veo 支持视频扩展和以图导向
       },
     },
     priority: 30,
@@ -2089,6 +2153,61 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "Veo 视频生成模型",
   },
 
+  // Google Nano Banana (Gemini 2.5 Flash Image)
+  {
+    id: "model-gemini-image-nano",
+    matchType: "modelPrefix",
+    matchValue: "gemini-2.5-flash-image",
+    properties: {
+      icon: `gemini-color.svg`,
+      group: "Gemini",
+      capabilities: {
+        imageGeneration: true,
+        mediaEditing: true,
+        iterativeRefinement: true,
+      },
+    },
+    priority: 35,
+    enabled: true,
+    description: "Gemini 2.5 Flash Image (Nano Banana)",
+  },
+
+  // Google Gemini 3 Pro Image
+  {
+    id: "model-gemini-image-pro",
+    matchType: "modelPrefix",
+    matchValue: "gemini-3-pro-image",
+    properties: {
+      icon: `gemini-color.svg`,
+      group: "Gemini",
+      capabilities: {
+        imageGeneration: true,
+        mediaEditing: true,
+        iterativeRefinement: true,
+      },
+    },
+    priority: 35,
+    enabled: true,
+    description: "Gemini 3 Pro Image (Professional Asset Production)",
+  },
+
+  // 硅基流动 Qwen Image Edit
+  {
+    id: "model-qwen-image-edit",
+    matchType: "modelPrefix",
+    matchValue: "Qwen/Qwen-Image-Edit",
+    properties: {
+      icon: `qwen-color.svg`,
+      group: "Qwen",
+      capabilities: {
+        imageGeneration: true,
+        mediaEditing: true,
+      },
+    },
+    priority: 35,
+    enabled: true,
+    description: "Qwen Image Edit 图像编辑模型",
+  },
 
   // Suno 音乐生成
   {
@@ -2098,6 +2217,9 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `suno.svg`,
       group: "Suno",
+      capabilities: {
+        musicGeneration: true,
+      },
     },
     priority: 30,
     enabled: true,
@@ -2113,9 +2235,66 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `midjourney.svg`,
       group: "Midjourney",
+      capabilities: {
+        imageGeneration: true,
+        mediaEditing: true,
+      },
     },
     priority: 30,
     enabled: true,
     description: "Midjourney 系列模型图标",
+  },
+
+  // FLUX 系列 (Black Forest Labs)
+  {
+    id: "model-flux-specific",
+    matchType: "modelPrefix",
+    matchValue: "flux",
+    properties: {
+      icon: `flux.svg`,
+      group: "Black Forest Labs",
+      capabilities: {
+        imageGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "FLUX 系列图像生成模型",
+  },
+
+  // Stable Diffusion 系列
+  {
+    id: "model-stable-diffusion-specific",
+    matchType: "modelPrefix",
+    matchValue: "stable-diffusion|sdxl|sd3",
+    useRegex: true,
+    properties: {
+      icon: `stability-color.svg`,
+      group: "Stability AI",
+      capabilities: {
+        imageGeneration: true,
+        mediaEditing: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "Stable Diffusion 系列图像生成模型",
+  },
+
+  // Luma Dream Machine
+  {
+    id: "model-luma-dream-machine",
+    matchType: "modelPrefix",
+    matchValue: "luma-dream-machine",
+    properties: {
+      icon: `luma.svg`,
+      group: "Luma AI",
+      capabilities: {
+        videoGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "Luma Dream Machine 视频生成模型",
   },
 ];

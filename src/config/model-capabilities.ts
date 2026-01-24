@@ -125,6 +125,14 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     color: "#d946ef", // Fuchsia 500 - 律动的旋律
     className: "music-gen",
   },
+  {
+    key: "audioGeneration",
+    label: "语音生成",
+    description: "支持文本到语音的生成 (TTS)",
+    icon: markRaw(Mic),
+    color: "#06b6d4", // Cyan 500
+    className: "audio-gen",
+  },
 
   // --- 交互与迭代能力 ---
   {

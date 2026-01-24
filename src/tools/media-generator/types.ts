@@ -124,6 +124,10 @@ export interface MediaGeneratorSettings {
   enableNotifications: boolean;
   /** 提示词优化配置 */
   promptOptimization: LlmTaskConfig;
+  /** 左侧面板折叠状态 */
+  leftCollapsed: boolean;
+  /** 右侧面板折叠状态 */
+  rightCollapsed: boolean;
 }
 
 /**

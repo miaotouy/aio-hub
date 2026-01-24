@@ -55,6 +55,8 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
     temperature: 0.8,
     maxTokens: 800,
   },
+  leftCollapsed: false,
+  rightCollapsed: false,
 };
 
 /**

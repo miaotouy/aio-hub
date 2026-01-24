@@ -1,13 +1,43 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { watch } from "vue";
+import { useMediaGenStore } from "../stores/mediaGenStore";
 import ParameterPanel from "./ParameterPanel.vue";
 import GenerationStream from "./GenerationStream.vue";
 import AssetGallery from "./AssetGallery.vue";
 import { ChevronLeft, ChevronRight } from "lucide-vue-next";
+import { useLocalStorage } from "@vueuse/core";
 
-// 侧边栏折叠状态
-const leftCollapsed = ref(false);
-const rightCollapsed = ref(false);
+const store = useMediaGenStore();
+
+// 使用 localStorage 快速同步 UI 状态，避免异步初始化导致的闪烁
+const leftCollapsed = useLocalStorage("media-gen-left-collapsed", false);
+const rightCollapsed = useLocalStorage("media-gen-right-collapsed", false);
+
+// 同步到 store (当 store 初始化完成后)
+watch(
+  () => store.isInitialized,
+  (val) => {
+    if (val) {
+      store.settings.leftCollapsed = leftCollapsed.value;
+      store.settings.rightCollapsed = rightCollapsed.value;
+    }
+  },
+  { immediate: true }
+);
+
+// 监听 store 变化同步回 localStorage (确保设置页面修改也能同步)
+watch(
+  () => store.settings.leftCollapsed,
+  (val) => {
+    leftCollapsed.value = val;
+  }
+);
+watch(
+  () => store.settings.rightCollapsed,
+  (val) => {
+    rightCollapsed.value = val;
+  }
+);
 </script>
 
 <template>
@@ -17,7 +47,13 @@ const rightCollapsed = ref(false);
       <div class="panel-container">
         <ParameterPanel />
       </div>
-      <div class="collapse-trigger" @click="leftCollapsed = !leftCollapsed">
+      <div
+        class="collapse-trigger"
+        @click="
+          leftCollapsed = !leftCollapsed;
+          store.settings.leftCollapsed = leftCollapsed;
+        "
+      >
         <el-icon><ChevronLeft v-if="!leftCollapsed" /><ChevronRight v-else /></el-icon>
       </div>
     </div>
@@ -32,7 +68,13 @@ const rightCollapsed = ref(false);
       <div class="panel-container">
         <AssetGallery />
       </div>
-      <div class="collapse-trigger" @click="rightCollapsed = !rightCollapsed">
+      <div
+        class="collapse-trigger"
+        @click="
+          rightCollapsed = !rightCollapsed;
+          store.settings.rightCollapsed = rightCollapsed;
+        "
+      >
         <el-icon><ChevronRight v-if="!rightCollapsed" /><ChevronLeft v-else /></el-icon>
       </div>
     </div>

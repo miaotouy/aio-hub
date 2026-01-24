@@ -7,7 +7,7 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { Settings, Image, Video, Music, Sparkles, Info } from "lucide-vue-next";
 
 const store = useMediaGenStore();
-const { getProfileById } = useLlmProfiles();
+const { getProfileById, saveProfile } = useLlmProfiles();
 const { getMatchedProperties } = useModelMetadata();
 
 // 选中的模型组合值 (profileId:modelId) - 绑定到当前选中的媒体类型配置
@@ -43,15 +43,19 @@ const params = computed(() => store.currentConfig.types[store.currentConfig.acti
 // 连续对话设置
 const includeContext = computed({
   get: () => store.currentConfig.includeContext,
-  set: (val) => (store.currentConfig.includeContext = val),
-});
+  set: async (val) => {
+    store.currentConfig.includeContext = val;
 
-// 判断当前模型是否支持迭代微调
-const supportsIterative = computed(() => {
-  const modelId = selectedModelInfo.value?.modelId;
-  if (!modelId) return false;
-  const props = getMatchedProperties(modelId);
-  return props?.capabilities?.iterativeRefinement === true;
+    // 同步回模型设置
+    if (selectedModelInfo.value) {
+      const { profile, model } = selectedModelInfo.value;
+      if (profile && model) {
+        if (!model.capabilities) model.capabilities = {};
+        model.capabilities.iterativeRefinement = val;
+        await saveProfile(JSON.parse(JSON.stringify(profile)));
+      }
+    }
+  },
 });
 
 // 动态生成分辨率选项
@@ -155,16 +159,27 @@ watch(mediaType, () => {
 });
 
 // 监听模型变化，自动适配连续对话开关
-watch(selectedModelCombo, (newCombo) => {
-  if (!newCombo) return;
-  const [_, modelId] = newCombo.split(":");
-  const props = getMatchedProperties(modelId);
+watch(
+  selectedModelCombo,
+  (newCombo) => {
+    if (!newCombo) return;
 
-  // 如果模型明确定义了迭代能力，则自动同步开关
-  if (props?.capabilities?.iterativeRefinement !== undefined) {
-    includeContext.value = props.capabilities.iterativeRefinement;
-  }
-});
+    // 优先从模型本身的配置中读取设置
+    if (selectedModelInfo.value?.model?.capabilities?.iterativeRefinement !== undefined) {
+      store.currentConfig.includeContext =
+        selectedModelInfo.value.model.capabilities.iterativeRefinement;
+      return;
+    }
+
+    // 降级从元数据预设中读取
+    const [_, modelId] = newCombo.split(":");
+    const props = getMatchedProperties(modelId);
+    if (props?.capabilities?.iterativeRefinement !== undefined) {
+      store.currentConfig.includeContext = props.capabilities.iterativeRefinement;
+    }
+  },
+  { immediate: true }
+);
 
 // 监听模型变化，如果当前参数不在新模型的可选范围内，重置为第一个可用项
 watch(sizeOptions, (newOptions) => {
@@ -229,15 +244,6 @@ watch(sizeOptions, (newOptions) => {
           <span class="status-tag" :class="{ active: includeContext }">
             {{ includeContext ? "已开启" : "已关闭" }}
           </span>
-          <el-tag
-            v-if="supportsIterative"
-            size="small"
-            type="success"
-            effect="plain"
-            class="capability-tag"
-          >
-            模型原生支持
-          </el-tag>
         </div>
       </div>
 

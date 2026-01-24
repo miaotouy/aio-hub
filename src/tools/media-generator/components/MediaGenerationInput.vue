@@ -17,6 +17,7 @@ import {
   Loader2,
   MessageSquare,
   Target,
+  History,
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";

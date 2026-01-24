@@ -2,6 +2,8 @@ import {
   Zap,
   Bell,
   LayoutDashboard,
+  Wand2,
+  PenTool,
 } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "@/types/settings-renderer";
@@ -15,7 +17,18 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   autoOpenAsset: true,
   maxConcurrentTasks: 3,
   enableNotifications: true,
-  topicModelCombo: "",
+  topicNaming: {
+    modelCombo: "",
+    prompt: "请根据以下媒体生成任务的内容，生成一个简短的标题（不超过10个字）：\n\n{context}",
+    temperature: 0.4,
+    maxTokens: 20,
+  },
+  promptOptimization: {
+    modelCombo: "",
+    prompt: "你是一个专业的 AI 绘画提示词专家。请将用户输入的简单描述扩展并优化为高质量的提示词。\n\n要求：\n1. 保持用户原意，但增加细节、艺术风格、光效、构图等描述。\n2. 使用英文输出提示词。\n3. 只输出优化后的提示词，不要有任何解释。\n\n用户输入：\n{text}",
+    temperature: 0.8,
+    maxTokens: 800,
+  },
 };
 
 /**
@@ -23,17 +36,9 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
  */
 export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSettings>[] = [
   {
-    title: "AI 模型配置",
+    title: "界面与交互",
     icon: LayoutDashboard,
     items: [
-      {
-        id: "topicModelCombo",
-        label: "话题生成模型",
-        component: LlmModelSelector,
-        modelPath: "topicModelCombo",
-        hint: "用于生成媒体话题、描述和优化提示词的语言模型",
-        keywords: "topic model 话题 模型 llm",
-      },
       {
         id: "autoOpenAsset",
         label: "生成后自动打开",
@@ -42,6 +47,87 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
         modelPath: "autoOpenAsset",
         hint: "媒体生成成功后，自动在查看器中打开结果",
         keywords: "auto open 自动 打开",
+      },
+    ],
+  },
+  {
+    title: "话题命名",
+    icon: PenTool,
+    items: [
+      {
+        id: "topicModelCombo",
+        label: "命名模型",
+        component: LlmModelSelector,
+        modelPath: "topicNaming.modelCombo",
+        hint: "用于生成会话标题的语言模型",
+        keywords: "topic model 话题 模型 llm",
+      },
+      {
+        id: "topicPrompt",
+        label: "命名提示词",
+        component: "PromptEditor",
+        props: {
+          rows: 4,
+          placeholder: "输入用于生成标题的提示词",
+          defaultValue: DEFAULT_MEDIA_GENERATOR_SETTINGS.topicNaming.prompt,
+        },
+        modelPath: "topicNaming.prompt",
+        hint: "使用 {context} 占位符指定内容位置",
+        keywords: "topic prompt 提示词",
+      },
+      {
+        id: "topicTemperature",
+        label: "温度 ({{ localSettings.topicNaming.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1 },
+        modelPath: "topicNaming.temperature",
+        hint: "",
+        keywords: "topic temperature 温度",
+      },
+    ],
+  },
+  {
+    title: "提示词优化",
+    icon: Wand2,
+    items: [
+      {
+        id: "optModelCombo",
+        label: "优化模型",
+        component: LlmModelSelector,
+        modelPath: "promptOptimization.modelCombo",
+        hint: "用于对用户输入的提示词进行润色和扩充的语言模型",
+        keywords: "prompt optimization model 提示词 优化 模型",
+      },
+      {
+        id: "optPrompt",
+        label: "优化提示词",
+        component: "PromptEditor",
+        props: {
+          rows: 6,
+          placeholder: "输入用于优化提示词的系统提示词",
+          defaultValue: DEFAULT_MEDIA_GENERATOR_SETTINGS.promptOptimization.prompt,
+        },
+        modelPath: "promptOptimization.prompt",
+        hint: "使用 {text} 占位符代表用户输入的原始提示词",
+        keywords: "prompt optimization prompt 提示词 优化",
+      },
+      {
+        id: "optTemperature",
+        label: "温度 ({{ localSettings.promptOptimization.temperature }})",
+        component: "SliderWithInput",
+        props: { min: 0, max: 2, step: 0.1 },
+        modelPath: "promptOptimization.temperature",
+        hint: "",
+        keywords: "prompt optimization temperature 温度",
+      },
+      {
+        id: "optMaxTokens",
+        label: "输出上限",
+        component: "SliderWithInput",
+        props: { min: 50, max: 2000, step: 50 },
+        modelPath: "promptOptimization.maxTokens",
+        hint: "优化后提示词的最大 token 数",
+        keywords: "prompt optimization max tokens 提示词 优化 上限",
       },
     ],
   },

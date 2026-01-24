@@ -95,11 +95,25 @@ export interface MediaGenerationConfig {
 }
 
 /**
+ * 通用的 LLM 辅助任务配置 (如话题生成、提示词优化)
+ */
+export interface LlmTaskConfig {
+  /** 模型配置 (profileId:modelId) */
+  modelCombo: string;
+  /** 提示词模板 */
+  prompt: string;
+  /** 温度 */
+  temperature: number;
+  /** 最大 token 数 */
+  maxTokens: number;
+}
+
+/**
  * 媒体生成器全局设置
  */
 export interface MediaGeneratorSettings {
-  /** 话题生成模型配置 (profileId:modelId) */
-  topicModelCombo: string;
+  /** 话题生成配置 */
+  topicNaming: LlmTaskConfig;
   /** 是否自动清理已完成的任务 */
   autoCleanCompleted: boolean;
   /** 生成成功后是否自动打开资产 */
@@ -108,6 +122,8 @@ export interface MediaGeneratorSettings {
   maxConcurrentTasks: number;
   /** 是否启用通知 */
   enableNotifications: boolean;
+  /** 提示词优化配置 */
+  promptOptimization: LlmTaskConfig;
 }
 
 /**

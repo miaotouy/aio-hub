@@ -14,6 +14,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "remove-task", taskId: string): void;
   (e: "download-task", task: MediaTask): void;
+  (e: "retry", messageId: string): void;
 }>();
 
 const store = useMediaGenStore();
@@ -66,20 +67,14 @@ const onScroll = () => {
 };
 
 // 监听消息变化，自动滚动
-watch(
-  [
-    () => props.messages.length,
-    totalSize,
-  ],
-  ([newLength], [oldLength]) => {
-    const isNewMessage = newLength !== oldLength;
-    if (isNewMessage && (isNearBottom.value || newLength === 1)) {
-      scrollToBottom();
-    } else if (isNearBottom.value) {
-      scrollToBottom();
-    }
+watch([() => props.messages.length, totalSize], ([newLength], [oldLength]) => {
+  const isNewMessage = newLength !== oldLength;
+  if (isNewMessage && (isNearBottom.value || newLength === 1)) {
+    scrollToBottom();
+  } else if (isNearBottom.value) {
+    scrollToBottom();
   }
-);
+});
 
 const handleResize = (dom: HTMLElement | null) => {
   if (dom) {
@@ -97,6 +92,10 @@ const handleSwitchSibling = (messageId: string, direction: "prev" | "next") => {
 
 const handleSwitchBranch = (nodeId: string) => {
   store.switchToBranch(nodeId);
+};
+
+const handleRemove = (messageId: string) => {
+  store.deleteMessage(messageId);
 };
 
 defineExpose({
@@ -123,7 +122,11 @@ defineExpose({
           v-for="virtualItem in virtualItems"
           :key="messages[virtualItem.index].id"
           :data-index="virtualItem.index"
-          :ref="(el) => { if (el) virtualizer.measureElement(el as HTMLElement); }"
+          :ref="
+            (el) => {
+              if (el) virtualizer.measureElement(el as HTMLElement);
+            }
+          "
           :style="{
             position: 'absolute',
             top: `${virtualItem.start}px`,
@@ -135,10 +138,13 @@ defineExpose({
             <ChatMessage
               :message="messages[virtualItem.index]"
               :siblings="getMessageSiblings(messages[virtualItem.index].id).siblings"
-              :current-sibling-index="getMessageSiblings(messages[virtualItem.index].id).currentIndex"
+              :current-sibling-index="
+                getMessageSiblings(messages[virtualItem.index].id).currentIndex
+              "
               :is-selected="messages[virtualItem.index].isSelected"
-              @remove="emit('remove-task', $event)"
+              @remove="handleRemove"
               @download="emit('download-task', $event)"
+              @retry="emit('retry', messages[virtualItem.index].id)"
               @select="store.toggleMessageSelection(messages[virtualItem.index].id)"
               @switch-sibling="(dir) => handleSwitchSibling(messages[virtualItem.index].id, dir)"
               @switch-branch="handleSwitchBranch"

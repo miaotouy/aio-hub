@@ -17,6 +17,7 @@ defineProps<Props>();
 const emit = defineEmits<{
   (e: "remove", taskId: string): void;
   (e: "download", task: MediaTask): void;
+  (e: "retry"): void;
   (e: "select"): void;
   (e: "switch-sibling", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
@@ -90,6 +91,7 @@ defineExpose({
         :current-sibling-index="currentSiblingIndex"
         @delete="emit('remove', $event)"
         @download="emit('download', $event)"
+        @retry="emit('retry')"
         @switch="onSwitchSibling"
         @switch-branch="onSwitchBranch"
       />

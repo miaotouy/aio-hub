@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
+import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
 import { useAssetManager } from "@/composables/useAssetManager";
 import MessageList from "./message/MessageList.vue";
 import SessionManager from "./SessionManager.vue";
@@ -12,6 +13,7 @@ import { sampleSize } from "lodash-es";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
+const { startGeneration } = useMediaGenerationManager();
 const { getAssetUrl } = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -95,6 +97,20 @@ onUnmounted(() => {
   }
 });
 
+// 处理重试
+const handleRetry = async (messageId: string) => {
+  const params = store.getRetryParams(messageId);
+  if (!params) return;
+
+  if (params.isMediaTask && params.type) {
+    // 触发媒体生成重试
+    await startGeneration(params.options as any, params.type);
+  } else {
+    // TODO: 处理纯对话重试 (目前 MediaGenerator 暂未开放纯对话流)
+    console.log("对话重试:", params);
+  }
+};
+
 // 资产 URL 映射缓存
 const assetUrls = ref<Record<string, string>>({});
 
@@ -147,7 +163,7 @@ watch(
         >
           <template #reference>
             <el-button link class="history-btn">
-              <span style="padding-right: 4px;">切换会话</span>
+              <span style="padding-right: 4px">切换会话</span>
               <el-icon><History /></el-icon>
             </el-button>
           </template>
@@ -188,8 +204,9 @@ watch(
 
       <div v-else class="message-list-wrapper">
         <MessageList
-          :messages="store.messages.filter(m => m.role !== 'system')"
+          :messages="store.messages.filter((m) => m.role !== 'system')"
           @remove-task="(taskId) => store.removeTask(taskId)"
+          @retry="handleRetry"
         />
       </div>
     </div>

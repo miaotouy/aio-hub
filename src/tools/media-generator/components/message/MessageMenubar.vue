@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  RotateCcw,
 } from "lucide-vue-next";
 import type { MediaMessage, MediaTask } from "../../types";
 
@@ -26,6 +27,7 @@ const emit = defineEmits<{
   (e: "copy"): void;
   (e: "delete", taskId: string): void;
   (e: "download", task: MediaTask): void;
+  (e: "retry"): void;
   (e: "switch", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
 }>();
@@ -113,6 +115,13 @@ const handleSwitchToBranch = (nodeId: string) => {
     </div>
     <div v-if="siblings.length > 1" class="separator"></div>
 
+    <!-- 重试 -->
+    <el-tooltip content="重试" placement="top" :show-after="500">
+      <button class="menu-btn" @click="emit('retry')">
+        <RotateCcw :size="16" />
+      </button>
+    </el-tooltip>
+
     <!-- 复制 -->
     <el-tooltip content="复制提示词" placement="top" :show-after="500">
       <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click="copyMessage">
@@ -135,7 +144,7 @@ const handleSwitchToBranch = (nodeId: string) => {
 
     <!-- 删除 -->
     <el-tooltip content="移除" placement="top" :show-after="500">
-      <button class="menu-btn menu-btn-danger" @click.stop="task ? emit('delete', task.id) : null">
+      <button class="menu-btn menu-btn-danger" @click.stop="emit('delete', message.id)">
         <Trash2 :size="16" />
       </button>
     </el-tooltip>

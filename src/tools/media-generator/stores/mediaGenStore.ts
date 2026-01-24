@@ -446,7 +446,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
     if (!context) return;
 
-    const [profileId, modelId] = namingConfig.modelCombo.split("/");
+    // LlmModelSelector 返回的格式通常是 profileId:modelId
+    const [profileId, modelId] = namingConfig.modelCombo.includes(":")
+      ? namingConfig.modelCombo.split(":")
+      : namingConfig.modelCombo.split("/");
 
     try {
       isNaming.value = true;
@@ -459,11 +462,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         maxTokens: namingConfig.maxTokens,
       });
 
-      // 提取名称：去掉引号、去掉“标题：”或“Title:”前缀
+      // 提取名称：去掉引号、去掉“标题：”或“Title:”前缀、去掉 Markdown 粗体等格式
       let newName = response.content
         .trim()
         .replace(/^["'「『]|["'」』]$/g, "")
         .replace(/^(标题|名称|Title|Name)[:：]\s*/i, "")
+        .replace(/[*#_~`>]/g, "") // 移除常见的 MD 符号
         .trim();
 
       if (newName && newName !== session.name) {

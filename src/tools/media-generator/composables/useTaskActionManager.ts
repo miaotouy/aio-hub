@@ -95,23 +95,41 @@ export function useTaskActionManager(context: {
     }
 
     if (task) {
+      // 姐姐，重试时我们直接使用当前界面的全局配置
+      // 这样姐姐只要在侧边栏换了模型，点重试就能立即生效
+      const mediaType = task.type;
+      const configForType = currentConfig.value.types[mediaType];
+      const { modelCombo, params: currentParams } = configForType;
+
+      // 稳健解析当前选中的模型 ID
+      const [profileId, modelId] = (modelCombo || "").includes(":")
+        ? modelCombo.split(":")
+        : (modelCombo || "").split("/");
+
+      if (!profileId || !modelId) {
+        logger.warn("重试失败：当前未选择有效的生成模型");
+        return null;
+      }
+
       return {
         isMediaTask: true,
-        type: task.type,
+        type: mediaType,
         options: {
-          ...task.input.params,
-          seed: -1, // 媒体重试强制随机 Seed
-          prompt: task.input.prompt,
-          negativePrompt: task.input.negativePrompt,
-          modelId: task.input.modelId,
-          profileId: task.input.profileId,
-          // 从节点恢复附件上下文 (映射为生成管理器期望的 inputAttachments)
-          inputAttachments: node.role === 'assistant'
-            ? (node.parentId ? (nodes.value[node.parentId]?.attachments || []) : [])
-            : (node.attachments || []),
-          includeContext: task.input.includeContext,
-          numInferenceSteps: task.input.params.steps,
-          guidanceScale: task.input.params.cfgScale,
+          ...currentParams,
+          seed: -1,
+          prompt: task.input.prompt, // 仅保留原始提示词
+          modelId,
+          profileId,
+          // 从节点恢复附件上下文
+          inputAttachments:
+            node.role === "assistant"
+              ? node.parentId
+                ? nodes.value[node.parentId]?.attachments || []
+                : []
+              : node.attachments || [],
+          includeContext: currentConfig.value.includeContext,
+          numInferenceSteps: currentParams.steps,
+          guidanceScale: currentParams.cfgScale,
         },
       };
     }

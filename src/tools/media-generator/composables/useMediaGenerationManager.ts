@@ -230,9 +230,12 @@ export function useMediaGenerationManager() {
         const fullDerivedPath = `${basePath}/${derivedRelativePath}`;
 
         // 写入衍生数据文件
+        const encoder = new TextEncoder();
+        const contentBytes = encoder.encode(JSON.stringify(metadata, null, 2));
+        
         await invoke('write_file_force', {
           path: fullDerivedPath,
-          content: JSON.stringify(metadata, null, 2)
+          content: Array.from(contentBytes) // 转换为普通数组以确保 Tauri 序列化兼容性
         });
 
         // 更新资产元数据

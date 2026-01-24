@@ -34,7 +34,12 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
     endpoint: providerInfo.modelListEndpoint,
   });
 
-  const url = buildLlmApiUrl(profile.baseUrl, profile.type, providerInfo.modelListEndpoint, profile);
+  const url = buildLlmApiUrl(
+    profile.baseUrl,
+    profile.type,
+    providerInfo.modelListEndpoint,
+    profile
+  );
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 根据不同提供商构建请求头
@@ -79,6 +84,12 @@ function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record
 
   switch (providerType) {
     case "openai":
+    case "openai-compatible":
+    case "deepseek":
+    case "siliconflow":
+    case "groq":
+    case "xai":
+    case "openrouter":
     case "openai-responses":
       if (apiKey) {
         headers["Authorization"] = `Bearer ${apiKey}`;
@@ -120,6 +131,12 @@ function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record
 function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInfo[] {
   switch (providerType) {
     case "openai":
+    case "openai-compatible":
+    case "deepseek":
+    case "siliconflow":
+    case "groq":
+    case "xai":
+    case "openrouter":
     case "openai-responses":
       return parseOpenAiModelsResponse(data);
     case "claude":
@@ -130,7 +147,32 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
       return parseVertexAiModelsResponse(data);
     case "cohere":
       return parseCohereModelsResponse(data);
+    case "ollama":
+      return parseOllamaModelsResponse(data);
     default:
       return [];
   }
+}
+
+/**
+ * 解析 Ollama 模型列表响应 (api/tags)
+ */
+function parseOllamaModelsResponse(data: any): LlmModelInfo[] {
+  const models: LlmModelInfo[] = [];
+
+  if (data.models && Array.isArray(data.models)) {
+    for (const model of data.models) {
+      models.push({
+        id: model.name,
+        name: model.name,
+        group: "Ollama",
+        provider: "ollama",
+        description: model.size
+          ? `Size: ${(model.size / 1024 / 1024 / 1024).toFixed(2)} GB`
+          : undefined,
+      });
+    }
+  }
+
+  return models;
 }

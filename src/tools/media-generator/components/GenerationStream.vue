@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useAssetManager } from "@/composables/useAssetManager";
-import MediaMessageItem from "./MediaMessageItem.vue";
+import MessageList from "./message/MessageList.vue";
 import SessionManager from "./SessionManager.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
 import { Sparkles, History, Check, X, RefreshCw } from "lucide-vue-next";
@@ -186,22 +186,11 @@ watch(
         </div>
       </div>
 
-      <div v-else class="message-list">
-        <template v-for="msg in store.messages" :key="msg.id">
-          <!-- 排除 Root 节点 (system) -->
-          <template v-if="msg.role !== 'system'">
-            <MediaMessageItem
-              :role="msg.role"
-              :content="msg.content"
-              :task="msg.metadata?.taskSnapshot || (msg.metadata?.taskId ? store.getTask(msg.metadata.taskId) : undefined)"
-              :timestamp="msg.timestamp || Date.now()"
-              :asset-url="assetUrls[msg.metadata?.taskId || '']"
-              :is-selected="msg.isSelected"
-              @remove="(taskId) => store.removeTask(taskId)"
-              @select="() => store.toggleMessageSelection(msg.id)"
-            />
-          </template>
-        </template>
+      <div v-else class="message-list-wrapper">
+        <MessageList
+          :messages="store.messages.filter(m => m.role !== 'system')"
+          @remove-task="(taskId) => store.removeTask(taskId)"
+        />
       </div>
     </div>
 

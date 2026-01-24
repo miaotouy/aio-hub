@@ -31,6 +31,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const currentSessionId = ref<string | null>(null);
   const isInitialized = ref(false);
 
+  // 获取当前会话对象
+  const currentSession = computed(() => {
+    if (!currentSessionId.value) return null;
+    return sessions.value.find((s) => s.id === currentSessionId.value) || null;
+  });
+
   // 输入内容管理
   const inputPrompt = ref("");
 
@@ -601,6 +607,36 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   };
 
   /**
+   * 分支切换
+   */
+  const switchToBranch = (nodeId: string) => {
+    if (!nodes.value[nodeId]) return;
+    activeLeafId.value = nodeId;
+    logger.info("切换分支", { nodeId });
+    persist();
+  };
+
+  /**
+   * 获取兄弟节点
+   */
+  const getSiblings = (nodeId: string) => {
+    const node = nodes.value[nodeId];
+    if (!node) return [];
+    const parentId = node.parentId;
+    if (!parentId) return [node];
+    const parentNode = nodes.value[parentId];
+    if (!parentNode) return [node];
+    return parentNode.childrenIds.map((id) => nodes.value[id]).filter(Boolean);
+  };
+
+  /**
+   * 判断节点是否在当前活动路径上
+   */
+  const isNodeInActivePath = (nodeId: string) => {
+    return messages.value.some((m) => m.id === nodeId);
+  };
+
+  /**
    * 附件操作
    */
   const addAsset = (asset: Asset) => {
@@ -649,8 +685,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     createNewSession,
     deleteSession,
     updateSessionName,
+    switchToBranch,
+    getSiblings,
+    isNodeInActivePath,
     addAsset,
     removeAttachment,
     clearAttachments,
+    currentSession,
   };
 });

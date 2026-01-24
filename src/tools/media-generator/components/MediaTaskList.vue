@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { createModuleLogger } from "@/utils/logger";
 import { useAssetManager } from "@/composables/useAssetManager";
-import MediaMessageItem from "./MediaMessageItem.vue";
+import MessageList from "./message/MessageList.vue";
 import type { MediaTask } from "../types";
 
 const store = useMediaGenStore();
@@ -63,18 +63,10 @@ watch(
     </div>
 
     <div v-else class="message-flow">
-      <MediaMessageItem
-        v-for="msg in sortedMessages"
-        :key="msg.id"
-        :role="msg.role"
-        :content="msg.content"
-        :task="msg.metadata?.taskSnapshot || (msg.metadata?.taskId ? store.getTask(msg.metadata.taskId) : undefined)"
-        :timestamp="msg.timestamp || Date.now()"
-        :asset-url="assetUrls[msg.metadata?.taskId || '']"
-        :is-selected="msg.isSelected"
-        @remove="(taskId) => handleRemoveTask(taskId)"
-        @select="store.toggleMessageSelection(msg.id)"
-        @download="(t: MediaTask) => logger.info('触发下载', { taskId: t.id })"
+      <MessageList
+        :messages="sortedMessages.filter(m => m.role !== 'system')"
+        @remove-task="handleRemoveTask"
+        @download-task="(t: MediaTask) => logger.info('触发下载', { taskId: t.id })"
       />
     </div>
   </div>

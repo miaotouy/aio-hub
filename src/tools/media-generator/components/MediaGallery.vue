@@ -28,7 +28,8 @@ const filterType = ref<MediaTaskType | "all">("all");
 
 // 过滤已完成且有资产的任务
 const completedTasks = computed(() => {
-  return store.tasks.filter((task) => task.status === "completed" && task.resultAsset);
+  const list = Array.isArray(store.tasks) ? store.tasks : [];
+  return list.filter((task) => task?.status === "completed" && task?.resultAsset);
 });
 
 // 搜索和筛选后的任务

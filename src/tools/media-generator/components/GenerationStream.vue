@@ -118,8 +118,9 @@ const assetUrls = ref<Record<string, string>>({});
 watch(
   () => store.tasks,
   async (newTasks) => {
+    if (!Array.isArray(newTasks)) return;
     for (const task of newTasks) {
-      if (task.resultAsset && !assetUrls.value[task.id]) {
+      if (task?.resultAsset && !assetUrls.value[task.id]) {
         assetUrls.value[task.id] = await getAssetUrl(task.resultAsset);
       }
     }

@@ -19,9 +19,9 @@ export function useMediaTaskManager() {
     if (isInitialized.value) return;
     try {
       const tasks = await storage.loadTasks();
-      globalTasks.value = tasks;
+      globalTasks.value = Array.isArray(tasks) ? tasks : [];
       isInitialized.value = true;
-      logger.info("全局任务池初始化完成", { count: tasks.length });
+      logger.info("全局任务池初始化完成", { count: globalTasks.value.length });
     } catch (error) {
       logger.error("全局任务池初始化失败", error);
     }
@@ -106,15 +106,16 @@ export function useMediaTaskManager() {
   };
 
   // 统计信息
+  // 统计信息
   const stats = computed(() => {
-    const total = globalTasks.value.length;
-    const processing = globalTasks.value.filter((t) => t.status === "processing").length;
-    const completed = globalTasks.value.filter((t) => t.status === "completed").length;
-    const error = globalTasks.value.filter((t) => t.status === "error").length;
-    const pending = globalTasks.value.filter((t) => t.status === "pending").length;
+    const list = Array.isArray(globalTasks.value) ? globalTasks.value : [];
+    const total = list.length;
+    const processing = list.filter((t) => t?.status === "processing").length;
+    const completed = list.filter((t) => t?.status === "completed").length;
+    const error = list.filter((t) => t?.status === "error").length;
+    const pending = list.filter((t) => t?.status === "pending").length;
     return { total, processing, completed, error, pending };
   });
-
   return {
     tasks: globalTasks,
     stats,

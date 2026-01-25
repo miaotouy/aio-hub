@@ -42,7 +42,7 @@ const stats = taskManager.stats;
 
 // 过滤后的任务列表，按时间倒序排列
 const filteredTasks = computed(() => {
-  let list = [...taskManager.tasks.value];
+  let list = Array.isArray(taskManager.tasks.value) ? [...taskManager.tasks.value] : [];
 
   // 搜索过滤
   if (searchQuery.value) {
@@ -164,8 +164,9 @@ const assetUrls = ref<Record<string, string>>({});
 watch(
   () => store.tasks,
   async (newTasks) => {
+    if (!Array.isArray(newTasks)) return;
     for (const task of newTasks) {
-      if (task.resultAsset && !assetUrls.value[task.id]) {
+      if (task?.resultAsset && !assetUrls.value[task.id]) {
         assetUrls.value[task.id] = await getAssetUrl(task.resultAsset);
       }
     }

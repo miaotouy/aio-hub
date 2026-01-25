@@ -25,6 +25,7 @@
           v-for="icon in filteredIcons"
           :key="icon.path"
           class="preset-item"
+          :title="icon.path"
           @click="handleSelect(icon)"
         >
           <div class="preset-icon">
@@ -109,6 +110,7 @@ const filteredIcons = computed(() => {
     result = result.filter(
       (icon) =>
         icon.name.toLowerCase().includes(search) ||
+        icon.path.toLowerCase().includes(search) ||
         icon.suggestedFor?.some((tag) => tag.toLowerCase().includes(search))
     );
   }

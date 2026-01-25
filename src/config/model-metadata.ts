@@ -19,7 +19,7 @@ export { PRESET_ICONS };
 
 /**
  * 默认元数据规则配置
- * 
+ *
  * 从 model-metadata-presets.ts 导入纯数据定义
  */
 export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = PRESET_RULES;
@@ -167,8 +167,8 @@ export function getModelIconPath(
   for (const candidate of uniqueCandidates) {
     if (candidate.length < 2) continue;
 
-    const colorIcon = `${candidate}-color.svg`;
-    const monoIcon = `${candidate}.svg`;
+    const colorIcon = `/model-icons/${candidate}-color.svg`;
+    const monoIcon = `/model-icons/${candidate}.svg`;
 
     if ((AVAILABLE_ICONS as readonly string[]).includes(colorIcon)) {
       return colorIcon;
@@ -190,7 +190,7 @@ export function getModelIconPath(
 /**
  * 规范化图标路径（向后兼容）
  * 确保预设图标路径都带有 /model-icons/ 前缀。
- * 如果输入是纯文件名且在预设列表中，则自动补全前缀。
+ * 如果输入是纯文件名，尝试补全前缀并检查是否存在。
  * @param iconPath 图标路径
  * @returns 规范化后的路径
  */
@@ -199,16 +199,16 @@ export function normalizeIconPath(iconPath: string): string {
     return iconPath;
   }
 
-  // 如果是纯文件名且在预设列表中，补全前缀
+  // 如果是纯文件名，尝试补全前缀
   if (!iconPath.includes("/") && !iconPath.includes("\\")) {
-    if ((AVAILABLE_ICONS as readonly string[]).includes(iconPath)) {
-      return `/model-icons/${iconPath}`;
+    const fullPath = `/model-icons/${iconPath}`;
+    if ((AVAILABLE_ICONS as readonly string[]).includes(fullPath)) {
+      return fullPath;
     }
   }
 
   return iconPath;
 }
-
 /**
  * 验证图标路径是否有效
  * @param iconPath 图标路径

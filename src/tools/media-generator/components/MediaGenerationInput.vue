@@ -17,7 +17,6 @@ import {
   Loader2,
   MessageSquare,
   Target,
-  History,
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -299,19 +298,6 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
       ></textarea>
     </div>
 
-    <!-- 上下文提示区 -->
-    <div
-      v-if="store.currentConfig.includeContext && store.messages.length > 1"
-      class="context-selection-area"
-    >
-      <div class="context-info">
-        <span
-          ><el-icon><History /></el-icon> 正在引用对话上下文</span
-        >
-        <span class="context-count">包含前 {{ store.messages.length - 1 }} 条消息</span>
-      </div>
-    </div>
-
     <div class="input-toolbar">
       <div class="toolbar-left">
         <el-tooltip content="开启后将携带历史对话上下文，支持多轮迭代生成" placement="top">
@@ -322,7 +308,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           >
             <el-icon v-if="store.currentConfig.includeContext"><MessageSquare /></el-icon>
             <el-icon v-else><Target /></el-icon>
-            <span>上下文</span>
+            <span>多轮</span>
           </button>
         </el-tooltip>
         <div class="v-divider" />
@@ -475,25 +461,6 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
 }
 
-.context-selection-area {
-  padding: 4px 12px;
-  background: var(--el-color-primary-light-9);
-  border-radius: 12px;
-  margin-bottom: 4px;
-}
-
-.context-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--el-color-primary);
-}
-
-.context-count {
-  font-weight: 600;
-}
-
 .attachments-area {
   padding: 8px;
   border-radius: 8px;
@@ -526,6 +493,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 .tool-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   background: transparent;
   border: none;
@@ -535,7 +503,20 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   color: var(--el-text-color-regular);
   cursor: pointer;
   font-size: 13px;
+  line-height: 1;
   transition: all 0.2s;
+}
+
+.tool-btn :deep(.el-icon) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-btn span {
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 .tool-btn:hover:not(:disabled) {

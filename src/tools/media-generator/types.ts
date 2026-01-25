@@ -170,8 +170,6 @@ export interface GenerationSession extends Omit<ChatSession, "nodes"> {
   generationConfig: MediaGenerationConfig;
   /** 节点池 (MediaMessage 列表) */
   nodes: Record<string, MediaMessage>;
-  /** 任务池 (保持扁平，方便全局状态追踪) */
-  tasks: MediaTask[];
   /** 输入框内容草稿 */
   inputPrompt?: string;
 

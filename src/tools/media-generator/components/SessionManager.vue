@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
-import { Plus, Search, MoreVertical, Edit2, Trash2, History, ArrowUpDown, Wand2 } from "lucide-vue-next";
+import {
+  Plus,
+  Search,
+  MoreVertical,
+  Edit2,
+  Trash2,
+  History,
+  ArrowUpDown,
+  Wand2,
+} from "lucide-vue-next";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { ElMessageBox } from "element-plus";
@@ -22,6 +31,14 @@ const newName = ref("");
 // AI 命名状态
 const namingSessionId = ref<string | null>(null);
 
+/**
+ * 获取会话中的任务数（基于节点统计）
+ */
+const getSessionTaskCount = (session: any) => {
+  if (!session.nodes) return 0;
+  return Object.values(session.nodes).filter((n: any) => n.metadata?.isMediaTask).length;
+};
+
 const filteredSessions = computed(() => {
   let result = [...store.sessions];
 
@@ -39,7 +56,7 @@ const filteredSessions = computed(() => {
     } else if (sortBy.value === "name") {
       cmp = a.name.localeCompare(b.name, "zh-CN");
     } else if (sortBy.value === "taskCount") {
-      cmp = (b.tasks?.length || 0) - (a.tasks?.length || 0);
+      cmp = getSessionTaskCount(b) - getSessionTaskCount(a);
     }
     return sortOrder.value === "desc" ? cmp : -cmp;
   });
@@ -180,7 +197,7 @@ const toggleSortOrder = () => {
               <span class="name" :title="session.name">{{ session.name }}</span>
             </div>
             <div class="session-meta">
-              <span class="task-count">{{ session.tasks?.length || 0 }} 任务</span>
+              <span class="task-count">{{ getSessionTaskCount(session) }} 任务</span>
               <span class="dot">·</span>
               <span class="time">{{ formatTime(session.updatedAt) }}</span>
             </div>
@@ -197,7 +214,12 @@ const toggleSortOrder = () => {
                 }
               "
             >
-              <el-button link size="small" class="more-btn" :loading="namingSessionId === session.id">
+              <el-button
+                link
+                size="small"
+                class="more-btn"
+                :loading="namingSessionId === session.id"
+              >
                 <el-icon v-if="namingSessionId !== session.id"><MoreVertical /></el-icon>
               </el-button>
               <template #dropdown>
@@ -205,7 +227,9 @@ const toggleSortOrder = () => {
                   <el-dropdown-item
                     command="ai-rename"
                     :icon="Wand2"
-                    :disabled="!session.tasks || session.tasks.length === 0 || !!namingSessionId || store.isNaming"
+                    :disabled="
+                      getSessionTaskCount(session) === 0 || !!namingSessionId || store.isNaming
+                    "
                   >
                     AI 自动命名
                   </el-dropdown-item>

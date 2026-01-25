@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
+import { debounce } from "lodash-es";
 import type {
   MediaTask,
   MediaTaskStatus,
@@ -17,6 +18,7 @@ import { useBranchManager } from "../composables/useBranchManager";
 import { useSessionManager } from "../composables/useSessionManager";
 import { useAttachmentManager } from "../composables/useAttachmentManager";
 import { useTaskActionManager } from "../composables/useTaskActionManager";
+import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 
 const logger = createModuleLogger("media-generator/store");
@@ -27,14 +29,14 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
   const attachmentManager = useAttachmentManager();
+  const taskManager = useMediaTaskManager();
   const { sendRequest } = useLlmRequest();
-  const debouncedSave = storage.createDebouncedSave(2000);
 
   const sessions = ref<GenerationSession[]>([]);
   const nodes = ref<Record<string, MediaMessage>>({});
   const rootNodeId = ref("");
   const activeLeafId = ref("");
-  const tasks = ref<MediaTask[]>([]);
+  const { tasks } = taskManager; // 使用全局任务池
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
   const isInitialized = ref(false);
@@ -124,7 +126,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
       // 应用加载的数据
       currentSessionId.value = session.id;
-      tasks.value = session.tasks || [];
+
+      // 初始化全局任务管理器
+      await taskManager.init();
 
       // 初始化节点树
       nodes.value = session.nodes || {};
@@ -173,7 +177,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
     // 更新当前会话的状态
     session.updatedAt = new Date().toISOString();
-    session.tasks = tasks.value;
     session.inputPrompt = inputPrompt.value;
     session.generationConfig = {
       activeType: currentConfig.value.activeType,
@@ -184,8 +187,13 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     session.rootNodeId = rootNodeId.value;
     session.activeLeafId = activeLeafId.value;
 
-    await sessionManager.persistSession(session);
+    await storage.persistSession(session, currentSessionId.value);
   };
+
+  // 创建 Store 级防抖保存
+  const debouncedPersist = debounce(async () => {
+    await persist();
+  }, 1000);
 
   // 监听配置和输入变化自动保存
   watch(
@@ -196,9 +204,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       const session = sessions.value.find((s) => s.id === currentSessionId.value);
       if (!session) return;
 
-      // 更新内存中的 session 对象
+      // 更新内存中的 session 对象（用于即时 UI 反馈）
       session.updatedAt = new Date().toISOString();
-      session.tasks = tasks.value;
       session.inputPrompt = inputPrompt.value;
       session.generationConfig = {
         activeType: currentConfig.value.activeType,
@@ -209,7 +216,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       session.rootNodeId = rootNodeId.value;
       session.activeLeafId = activeLeafId.value;
 
-      debouncedSave(session, currentSessionId.value);
+      // 触发防抖持久化
+      debouncedPersist();
     },
     { deep: true }
   );
@@ -219,8 +227,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     settings,
     (newSettings) => {
       if (!isInitialized.value) return;
-      storage.saveSettings(newSettings);
-      logger.debug("全局设置已保存");
+      storage.saveSettingsDebounced(newSettings);
     },
     { deep: true }
   );
@@ -278,24 +285,18 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     status: MediaTaskStatus,
     updates?: Partial<MediaTask>
   ) => {
-    const task = tasks.value.find((t) => t.id === taskId);
-    if (task) {
-      task.status = status;
-      if (updates) {
-        Object.assign(task, updates);
-      }
-      if (status === "completed") {
-        task.completedAt = Date.now();
-      }
+    // 1. 更新全局管理器中的状态
+    taskManager.updateTaskStatus(taskId, status, updates);
 
-      // 同步更新节点中的快照，确保持久化后的数据也是最新的
+    const task = taskManager.getTask(taskId);
+    if (task) {
+      // 2. 同步更新节点中的快照，确保持久化后的数据也是最新的
       const node = nodes.value[taskId];
       if (node && node.metadata) {
         node.metadata.taskSnapshot = { ...task };
       }
 
       logger.debug("任务状态已更新", { taskId, status });
-      persist();
     }
   };
 
@@ -303,7 +304,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    * 获取任务
    */
   const getTask = (taskId: string) => {
-    return tasks.value.find((t) => t.id === taskId);
+    return taskManager.getTask(taskId);
   };
 
   /**
@@ -312,13 +313,14 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const removeTask = (taskId: string) => {
     if (!currentSession.value) return;
 
-    // 使用 branchManager 进行硬删除，它会自动处理任务清理
+    // 1. 从全局管理器移除
+    taskManager.removeTask(taskId);
+
+    // 2. 使用 branchManager 进行硬删除，它会自动处理任务清理
     const result = branchManager.deleteMessage(currentSession.value, taskId);
 
     if (result.success) {
       activeLeafId.value = currentSession.value.activeLeafId;
-      // 同步顶层 tasks ref
-      tasks.value = currentSession.value.tasks;
       persist();
     }
   };
@@ -357,7 +359,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     const session = sessions.value.find((s) => s.id === sessionId);
     if (session) {
       currentSessionId.value = session.id;
-      tasks.value = session.tasks || [];
+
+      // 切换会话时不需要操作任务，因为任务池是全局单例且独立持久化
 
       nodes.value = session.nodes || {};
       rootNodeId.value = session.rootNodeId || "";
@@ -388,7 +391,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
     sessions.value.unshift(session);
     currentSessionId.value = session.id;
-    tasks.value = [];
     nodes.value = session.nodes;
     rootNodeId.value = session.rootNodeId;
     activeLeafId.value = session.activeLeafId;
@@ -444,9 +446,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       throw new Error("请先在设置中配置命名模型");
     }
 
-    // 提取上下文：使用任务内容
-    const context = (session.tasks || [])
-      .map((t) => t.input?.prompt)
+    // 提取上下文：使用当前节点树中的任务内容
+    const context = Object.values(nodes.value)
+      .filter((n) => n.metadata?.isMediaTask)
+      .map((n) => n.metadata?.taskSnapshot?.input?.prompt)
       .filter(Boolean)
       .slice(0, 5) // 仅取前5个任务作为上下文，避免上下文过长
       .join("\n");
@@ -555,6 +558,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     switchToBranch,
     getSiblings,
     isNodeInActivePath,
+    allTasks: tasks, // 兼容性导出
     // 附件方法委托
     addAsset: attachmentManager.addAsset,
     removeAttachment: attachmentManager.removeAttachment,

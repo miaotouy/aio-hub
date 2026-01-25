@@ -52,7 +52,6 @@ export function useSessionManager() {
       type: "media-gen",
       createdAt: now,
       updatedAt: now,
-      tasks: [],
       generationConfig: {
         activeType: "image",
         includeContext: false,

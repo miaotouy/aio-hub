@@ -8,7 +8,13 @@ import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import { debounce } from "lodash-es";
-import type { GenerationSession, MediaSessionsIndex, MediaSessionIndexItem, MediaGeneratorSettings } from "../types";
+import type {
+  GenerationSession,
+  MediaSessionsIndex,
+  MediaSessionIndexItem,
+  MediaGeneratorSettings,
+  MediaTask,
+} from "../types";
 import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -39,6 +45,16 @@ const indexManager = createConfigManager<MediaSessionsIndex>({
   fileName: "sessions-index.json",
   version: INDEX_VERSION,
   createDefault: createDefaultIndex,
+});
+
+/**
+ * 任务列表管理器
+ */
+const tasksManager = createConfigManager<MediaTask[]>({
+  moduleName: MODULE_NAME,
+  fileName: "tasks.json",
+  version: "1.0.0",
+  createDefault: () => [],
 });
 
 /**
@@ -121,20 +137,39 @@ export function useMediaStorage() {
   }
 
   /**
-   * 保存单个会话
+   * 保存单个会话（仅在内容变化时写入）
    */
-  async function saveSession(session: GenerationSession): Promise<void> {
+  async function saveSession(
+    session: GenerationSession,
+    forceWrite: boolean = false
+  ): Promise<void> {
     try {
       await indexManager.ensureModuleDir();
       await ensureSessionsDir();
       const sessionPath = await getSessionPath(session.id);
 
-      const content = JSON.stringify(session, null, 2);
-      await writeTextFile(sessionPath, content);
+      const newContent = JSON.stringify(session, null, 2);
+
+      // 如果不是强制写入，先检查内容是否真的改变了
+      if (!forceWrite) {
+        const fileExists = await exists(sessionPath);
+        if (fileExists) {
+          try {
+            const oldContent = await readTextFile(sessionPath);
+            if (oldContent === newContent) {
+              return;
+            }
+          } catch (readError) {
+            logger.warn("读取现有会话文件失败，继续写入", { sessionId: session.id });
+          }
+        }
+      }
+
+      await writeTextFile(sessionPath, newContent);
 
       logger.debug("生成会话保存成功", {
         sessionId: session.id,
-        taskCount: session.tasks?.length || 0,
+        nodeCount: Object.keys(session.nodes || {}).length,
       });
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -150,13 +185,62 @@ export function useMediaStorage() {
    * 从会话创建索引项
    */
   function createIndexItem(session: GenerationSession): MediaSessionIndexItem {
+    // 统计媒体任务数
+    const taskCount = Object.values(session.nodes || {}).filter(
+      (n) => n.metadata?.isMediaTask
+    ).length;
+
     return {
       id: session.id,
       name: session.name,
       updatedAt: session.updatedAt,
       createdAt: session.createdAt,
-      taskCount: session.tasks?.length || 0,
+      taskCount,
     };
+  }
+
+  /**
+   * 扫描 sessions 目录，获取所有会话文件的 ID
+   */
+  async function scanSessionDirectory(): Promise<string[]> {
+    try {
+      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const appDir = await getAppConfigDir();
+      const moduleDir = await join(appDir, MODULE_NAME);
+      const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
+
+      if (!(await exists(sessionsDir))) return [];
+
+      const entries = await readDir(sessionsDir);
+      return entries
+        .filter((entry) => entry.name?.endsWith(".json"))
+        .map((entry) => entry.name!.replace(".json", ""));
+    } catch (error) {
+      errorHandler.handle(error as Error, { userMessage: "扫描会话目录失败", showToUser: false });
+      return [];
+    }
+  }
+
+  /**
+   * 同步索引：确保物理文件与索引项一致
+   */
+  async function syncIndex(index: MediaSessionsIndex): Promise<MediaSessionIndexItem[]> {
+    const fileIds = await scanSessionDirectory();
+    const fileIdSet = new Set(fileIds);
+    const indexMap = new Map(index.sessions.map((item) => [item.id, item]));
+
+    // 找出新增文件并加载元数据
+    const newItems: MediaSessionIndexItem[] = [];
+    for (const id of fileIds) {
+      if (!indexMap.has(id)) {
+        const session = await loadSession(id);
+        if (session) newItems.push(createIndexItem(session));
+      }
+    }
+
+    // 过滤掉已删除文件
+    const validItems = index.sessions.filter((item) => fileIdSet.has(item.id));
+    return [...validItems, ...newItems];
   }
 
   /**
@@ -167,22 +251,30 @@ export function useMediaStorage() {
     currentSessionId: string | null;
   }> {
     try {
-      const index = await loadIndex();
+      let index = await loadIndex();
 
-      if (index.sessions.length === 0) {
-        return { sessions: [], currentSessionId: null };
-      }
+      // 同步索引
+      const syncedItems = await syncIndex(index);
 
-      const sessionPromises = index.sessions.map((item) => loadSession(item.id));
-      const sessionResults = await Promise.all(sessionPromises);
+      // 加载所有会话完整数据
+      const sessionResults = await Promise.all(syncedItems.map((item) => loadSession(item.id)));
       const sessions = sessionResults.filter((s): s is GenerationSession => s !== null);
+
+      // 如果索引有变动，保存更新
+      if (syncedItems.length !== index.sessions.length) {
+        index.sessions = syncedItems;
+        await saveIndex(index);
+      }
 
       return {
         sessions,
         currentSessionId: index.currentSessionId,
       };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载所有生成会话失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载所有生成会话失败",
+        showToUser: false,
+      });
       return { sessions: [], currentSessionId: null };
     }
   }
@@ -249,17 +341,18 @@ export function useMediaStorage() {
   }
 
   /**
-   * 创建防抖保存函数
+   * 内部防抖保存会话
    */
-  function createDebouncedSave(delay: number = 1000) {
-    return debounce(async (session: GenerationSession, currentSessionId: string | null) => {
+  const debouncedPersist = debounce(
+    async (session: GenerationSession, currentSessionId: string | null) => {
       try {
         await persistSession(session, currentSessionId);
       } catch (error) {
-        logger.error("防抖保存失败", error);
+        logger.error("防抖保存会话失败", error);
       }
-    }, delay);
-  }
+    },
+    2000
+  );
 
   /**
    * 加载全局设置
@@ -275,14 +368,33 @@ export function useMediaStorage() {
     await settingsManager.save(settings);
   }
 
+  /**
+   * 加载全局任务列表
+   */
+  async function loadTasks(): Promise<MediaTask[]> {
+    return await tasksManager.load();
+  }
+
+  /**
+   * 保存全局任务列表
+   */
+  async function saveTasks(tasks: MediaTask[]): Promise<void> {
+    await tasksManager.save(tasks);
+  }
+
   return {
     loadSessions,
     persistSession,
+    persistSessionDebounced: debouncedPersist,
+    saveSessionDebounced: indexManager.saveDebounced.bind(indexManager),
     deleteSession,
-    createDebouncedSave,
     loadSession,
     saveSession,
     loadSettings,
     saveSettings,
+    saveSettingsDebounced: settingsManager.saveDebounced.bind(settingsManager),
+    loadTasks,
+    saveTasks,
+    saveTasksDebounced: tasksManager.saveDebounced.bind(tasksManager),
   };
 }

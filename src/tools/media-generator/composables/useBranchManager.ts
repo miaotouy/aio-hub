@@ -23,18 +23,6 @@ export function useBranchManager() {
     const result = nodeManager.hardDeleteNode(session, nodeId);
 
     if (result.success) {
-      // 如果被删除的节点中有任务节点，需要同步清理 session.tasks
-      const deletedTaskIds = new Set(
-        result.deletedNodes
-          .filter((n) => n.metadata?.isMediaTask && n.metadata?.taskId)
-          .map((n) => n.metadata!.taskId!)
-      );
-
-      if (deletedTaskIds.size > 0) {
-        session.tasks = session.tasks.filter((t) => !deletedTaskIds.has(t.id));
-        logger.info("关联任务已同步删除", { count: deletedTaskIds.size });
-      }
-
       logger.info("消息已删除", {
         sessionId: session.id,
         nodeId,

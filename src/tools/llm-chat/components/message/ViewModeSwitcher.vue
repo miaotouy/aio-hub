@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon } from "element-plus";
 import { List } from "@element-plus/icons-vue";
 import { Network } from "lucide-vue-next";
-import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 
 /**
  * 视图模式切换器

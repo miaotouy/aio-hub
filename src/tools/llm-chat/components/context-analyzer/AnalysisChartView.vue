@@ -159,7 +159,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
-import { useContextChart, type ChartMode } from "../../composables/useContextChart";
+import { useContextChart, type ChartMode } from "../../composables/visualization/useContextChart";
 import type { ContextPreviewData } from "../../types/context";
 
 const props = defineProps<{

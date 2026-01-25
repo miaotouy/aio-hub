@@ -4,7 +4,7 @@ import { ElScrollbar } from "element-plus";
 import type { ChatMessageNode } from "../../types";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
+import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import Avatar from "@/components/common/Avatar.vue";

@@ -11,7 +11,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { type ConnectionLineProps, getBezierPath } from '@vue-flow/core';
-import type { ConnectionPreviewState } from '../../../../composables/useFlowTreeGraph';
+import type { ConnectionPreviewState } from '../../../../composables/visualization/useFlowTreeGraph';
 
 interface CustomConnectionLineProps extends ConnectionLineProps {
   connectionState: ConnectionPreviewState;

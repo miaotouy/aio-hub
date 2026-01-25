@@ -513,7 +513,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
 import { MacroProcessor, createMacroContext, extractContextFromSession } from "../../macro-engine";
 import { isPromptFile, parsePromptFile, convertMacros } from "../../services/sillyTavernParser";
-import { useAnchorRegistry, type AnchorDefinition } from "../../composables/useAnchorRegistry";
+import { useAnchorRegistry, type AnchorDefinition } from "../../composables/ui/useAnchorRegistry";
 import {
   QuestionFilled,
   Download,

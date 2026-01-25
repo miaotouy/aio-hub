@@ -2,7 +2,7 @@
 import { onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
-import { useLlmChatSync } from '@/tools/llm-chat/composables/useLlmChatSync';
+import { useLlmChatSync } from '@/tools/llm-chat/composables/chat/useLlmChatSync';
 import { createModuleLogger } from '@/utils/logger';
 
 const logger = createModuleLogger('SyncServiceProvider');

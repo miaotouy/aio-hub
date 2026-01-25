@@ -52,7 +52,7 @@ import StructuredView from "./StructuredView.vue";
 import RawRequestView from "./RawRequestView.vue";
 import AnalysisChartView from "./AnalysisChartView.vue";
 import MacroDebugView from "./MacroDebugView.vue";
-import { useChatHandler, type ContextPreviewData } from "../../composables/useChatHandler";
+import { useChatHandler, type ContextPreviewData } from "../../composables/chat/useChatHandler";
 import type { ChatSession } from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

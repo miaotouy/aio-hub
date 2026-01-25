@@ -129,13 +129,13 @@ import { invoke } from "@tauri-apps/api/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { type ChatSettings, DEFAULT_SETTINGS } from "../../types/settings";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { settingsConfig } from "./settingsConfig";
-import { getPluginSettingsSections } from "../../composables/usePluginSettings";
+import { getPluginSettingsSections } from "../../composables/settings/usePluginSettings";
 import type { SettingsSection } from "./settings-types";
 
 const logger = createModuleLogger("ChatSettingsDialog");

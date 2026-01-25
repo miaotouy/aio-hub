@@ -91,7 +91,7 @@
 import { computed } from "vue";
 import { Grid, Share, View, ArrowLeft, ArrowRight, Timer } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { useChatSettings } from "../../../../composables/useChatSettings";
+import { useChatSettings } from "../../../../composables/settings/useChatSettings";
 
 const { settings } = useChatSettings();
 

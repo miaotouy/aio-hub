@@ -1,0 +1,263 @@
+import { ref, watch, computed, type Ref } from "vue";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useLlmChatStore } from "../../stores/llmChatStore";
+import { useAgentStore } from "../../stores/agentStore";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { MacroProcessor } from "../../macro-engine/MacroProcessor";
+import { buildMacroContext, processMacros } from "../../core/context-utils/macro";
+import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
+import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { useTranscriptionManager } from "../features/useTranscriptionManager";
+import type { Asset } from "@/types/asset-management";
+import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
+
+const logger = createModuleLogger("ChatInputTokenPreview");
+const errorHandler = createModuleErrorHandler("ChatInputTokenPreview");
+
+export interface TokenPreviewOptions {
+  inputText: Ref<string>;
+  attachments: Ref<Asset[]>;
+  temporaryModel: Ref<ModelIdentifier | null>;
+  debounceMs?: number;
+}
+
+/**
+ * 专门管理输入框内容到 tokens 预览计算的逻辑
+ */
+export function useChatInputTokenPreview(options: TokenPreviewOptions) {
+  const { inputText, attachments, temporaryModel, debounceMs = 800 } = options;
+
+  const chatStore = useLlmChatStore();
+  const agentStore = useAgentStore();
+  const transcriptionManager = useTranscriptionManager();
+
+  const tokenCount = ref<number>(0);
+  const isCalculatingTokens = ref(false);
+  const tokenEstimated = ref(false);
+
+  /**
+   * 检查当前附件中是否有正在转写的任务
+   */
+  const hasTranscribingAttachments = computed(() => {
+    const attachmentIds = new Set(attachments.value.map((a) => a.id));
+    return transcriptionManager.tasks.value.some(
+      (t) =>
+        attachmentIds.has(t.assetId) &&
+        (t.status === "pending" || t.status === "processing")
+    );
+  });
+
+  /**
+   * 确定当前应使用的模型 ID
+   */
+  const resolveModelId = (): string | undefined => {
+    // 1. 优先使用临时选中的模型
+    if (temporaryModel.value) {
+      return temporaryModel.value.modelId;
+    }
+
+    const session = chatStore.currentSession;
+    if (!session) return undefined;
+
+    // 2. 尝试从活动路径的助手消息中获取模型 ID
+    let currentId: string | null = session.activeLeafId;
+    while (currentId !== null) {
+      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      if (node?.role === "assistant" && node.metadata?.modelId) {
+        return node.metadata.modelId;
+      }
+      currentId = node?.parentId ?? null;
+    }
+
+    // 3. 如果活动路径上没有，查找整个会话中的任意助手消息
+    for (const n of Object.values(session.nodes)) {
+      const node = n as ChatMessageNode;
+      if (node.role === "assistant" && node.metadata?.modelId) {
+        return node.metadata.modelId;
+      }
+    }
+
+    // 4. 尝试使用会话的 displayAgentId
+    if (session.displayAgentId) {
+      const agent = agentStore.getAgentById(session.displayAgentId);
+      if (agent?.modelId) {
+        return agent.modelId;
+      }
+    }
+
+    // 5. 最后尝试使用当前选中的智能体
+    if (agentStore.currentAgentId) {
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      if (agent?.modelId) {
+        return agent.modelId;
+      }
+    }
+
+    return undefined;
+  };
+
+  // 复用宏处理器实例
+  let macroProcessor: MacroProcessor | null = null;
+
+  /**
+   * 预处理流程：宏展开
+   */
+  const preprocessMacros = async (text: string): Promise<string> => {
+    // 快速路径：如果不包含宏语法，直接返回
+    if (!text || !text.includes("{{")) return text;
+
+    try {
+      const session = chatStore.currentSession;
+      if (!macroProcessor) {
+        macroProcessor = new MacroProcessor();
+      }
+      const agentId = agentStore.currentAgentId || session?.displayAgentId;
+      const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+
+      const context = buildMacroContext({ session: session || undefined, agent });
+      return await processMacros(macroProcessor, text, context, { silent: true });
+    } catch (e) {
+      logger.warn("输入框 Token 预览宏展开失败", e);
+      return text;
+    }
+  };
+
+  /**
+   * 计算 Token 的核心逻辑
+   */
+  const calculateTokens = async () => {
+    const textValue = inputText.value.trim();
+    const attachmentValue = attachments.value;
+
+    // 如果没有文本且没有附件，重置 token 计数
+    if (!textValue && attachmentValue.length === 0) {
+      tokenCount.value = 0;
+      tokenEstimated.value = false;
+      return;
+    }
+
+    // 如果有附件正在转写中，跳过本次计算，等待转写完成后再计算
+    if (hasTranscribingAttachments.value) {
+      logger.debug("有附件正在转写中，跳过本次 token 计算");
+      return;
+    }
+
+    const modelId = resolveModelId();
+    if (!modelId) {
+      logger.warn("无法确定模型 ID，停止计算 token");
+      tokenCount.value = 0;
+      return;
+    }
+
+    isCalculatingTokens.value = true;
+    try {
+      // 1. 获取最新的附件状态（包括可能已完成的转写结果）
+      // 注意：此处仅用于计算，不应同步回 inputManager，否则会引起响应式死循环和性能问题
+      const latestAttachments = await Promise.all(
+        attachmentValue.map(async (asset) => {
+          // 如果资产已经有转写路径了，直接用，没必要再去查一遍后端
+          if (asset.metadata?.derived?.transcription?.path) {
+            return asset;
+          }
+          const latest = await assetManagerEngine.getAssetById(asset.id);
+          return latest || asset;
+        })
+      );
+
+      // 2. 文本预处理（目前主要是宏展开）
+      const processedText = await preprocessMacros(inputText.value);
+
+      // 3. 准备 Token 计算所需的消息格式
+      const { combinedText, mediaAttachments } = await prepareMessageForTokenCalc(
+        processedText,
+        latestAttachments,
+        modelId
+      );
+
+      // 4. 调用底层服务计算
+      const result = await tokenCalculatorService.calculateMessageTokens(
+        combinedText,
+        modelId,
+        mediaAttachments.length > 0 ? mediaAttachments : undefined
+      );
+
+      tokenCount.value = result.count;
+      tokenEstimated.value = result.isEstimated ?? false;
+    } catch (error) {
+      errorHandler.error(error, "计算 token 失败");
+      tokenCount.value = 0;
+      tokenEstimated.value = false;
+    } finally {
+      isCalculatingTokens.value = false;
+    }
+  };
+
+  // 防抖处理
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const triggerCalculation = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(calculateTokens, debounceMs);
+  };
+
+  // 监听所有可能影响 Token 计算的状态
+  // 注意：attachments 监听引用变化即可，内部元数据变化通过转写任务监听器处理
+  watch([inputText, () => attachments.value, temporaryModel], () => {
+    triggerCalculation();
+  }, { deep: false });
+
+  // 监听会话或智能体变更（可能导致模型 ID 变化）
+  watch(
+    [() => chatStore.currentSessionId, () => agentStore.currentAgentId],
+    () => {
+      triggerCalculation();
+    }
+  );
+
+  // 监听智能体内部模型变化
+  watch(
+    () => {
+      if (!agentStore.currentAgentId) return null;
+      const agent = agentStore.getAgentById(agentStore.currentAgentId);
+      return agent?.modelId;
+    },
+    () => {
+      triggerCalculation();
+    }
+  );
+
+  // 监听转写任务状态变化
+  // 当有任务完成时，触发重新计算（因为转写结果可能影响 token 计算）
+  watch(
+    () => {
+      // 快速路径：如果没有附件，不需要监听任务状态
+      if (attachments.value.length === 0) return null;
+
+      // 只关注当前附件相关的任务状态
+      const attachmentIds = new Set(attachments.value.map((a) => a.id));
+      const relevantTasks = transcriptionManager.tasks.value.filter((t) =>
+        attachmentIds.has(t.assetId)
+      );
+
+      if (relevantTasks.length === 0) return null;
+
+      // 返回一个状态快照字符串，用于检测变化
+      return relevantTasks.map((t) => `${t.assetId}:${t.status}`).join(",");
+    },
+    (newVal, oldVal) => {
+      if (newVal && newVal !== oldVal) {
+        logger.debug("转写任务状态变化，触发 token 重新计算", { newVal, oldVal });
+        triggerCalculation();
+      }
+    }
+  );
+
+  return {
+    tokenCount,
+    isCalculatingTokens,
+    tokenEstimated,
+    calculateTokens, // 手动触发
+    triggerCalculation, // 防抖触发
+  };
+}
+

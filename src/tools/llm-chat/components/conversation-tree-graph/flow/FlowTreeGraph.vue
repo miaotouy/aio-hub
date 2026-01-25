@@ -393,10 +393,10 @@ import {
 } from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
 import type { ChatSession, ChatMessageNode } from "../../../types";
-import { useFlowTreeGraph } from "../../../composables/useFlowTreeGraph";
+import { useFlowTreeGraph } from "../../../composables/visualization/useFlowTreeGraph";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import { useAgentStore } from "../../../stores/agentStore";
-import { useChatSettings } from "../../../composables/useChatSettings";
+import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import GraphNode from "./components/GraphNode.vue";
 import GraphNodeDetailPopup from "./components/GraphNodeDetailPopup.vue";
 import CustomConnectionLine from "./components/CustomConnectionLine.vue";

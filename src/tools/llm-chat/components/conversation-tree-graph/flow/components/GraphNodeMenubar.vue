@@ -11,7 +11,7 @@ import {
   AtSign,
 } from "lucide-vue-next";
 import { ElTooltip, ElPopconfirm } from "element-plus";
-import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
+import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAgentStore } from "../../../../stores/agentStore";

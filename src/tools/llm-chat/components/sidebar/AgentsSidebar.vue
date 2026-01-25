@@ -5,8 +5,8 @@ import { invoke } from "@tauri-apps/api/core";
 import yaml from "js-yaml";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
-import { useLlmSearch, type MatchDetail } from "../../composables/useLlmSearch";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
+import { useLlmSearch, type MatchDetail } from "../../composables/chat/useLlmSearch";
 import { useFileDrop } from "@/composables/useFileDrop";
 import {
   Plus,

@@ -5,7 +5,7 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 import type { ChatMessageNode, ChatSession } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 import ChatMessage from "./ChatMessage.vue";
 import CompressionMessage from "./CompressionMessage.vue";
 

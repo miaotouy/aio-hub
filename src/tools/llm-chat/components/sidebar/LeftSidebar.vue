@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineAsyncComponent, h } from "vue";
-import { useLlmChatUiState } from "../../composables/useLlmChatUiState";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import { ElSkeleton } from "element-plus";
 import { createModuleLogger } from "@/utils/logger";
 

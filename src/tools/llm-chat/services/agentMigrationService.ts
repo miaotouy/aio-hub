@@ -5,7 +5,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import type { ChatAgent } from "../types";
-import { useAnchorRegistry } from "../composables/useAnchorRegistry";
+import { useAnchorRegistry } from "../composables/ui/useAnchorRegistry";
 
 const logger = createModuleLogger("llm-chat/agentMigrationService");
 

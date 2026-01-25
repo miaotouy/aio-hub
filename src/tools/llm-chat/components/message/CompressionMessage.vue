@@ -3,7 +3,7 @@ import { computed, ref, watch, provide, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, MessageRole, ChatSession } from "../../types";
 import { Database, Edit2, Check, X, User, Bot, Settings, Trash2 } from "lucide-vue-next";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import {

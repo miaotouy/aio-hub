@@ -101,8 +101,8 @@ import CreateUserProfileDialog from "./components/CreateUserProfileDialog.vue";
 import UserProfileForm from "./components/UserProfileForm.vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
-import { useUserProfileStorage } from "@/tools/llm-chat/composables/useUserProfileStorage";
+import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+import { useUserProfileStorage } from "@/tools/llm-chat/composables/storage/useUserProfileStorage";
 
 const logger = createModuleLogger("UserProfileSettings");
 const errorHandler = createModuleErrorHandler("UserProfileSettings");

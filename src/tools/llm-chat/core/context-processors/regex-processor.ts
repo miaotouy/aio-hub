@@ -5,7 +5,7 @@ import type {
   ChatRegexRule,
   MessageRole,
 } from "../../types/chatRegex";
-import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
 
 const logger = createModuleLogger("primary:regex-processor");
 

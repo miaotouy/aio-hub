@@ -12,7 +12,7 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { extname } from "@tauri-apps/api/path";
-import { resolveAvatarPath } from "@/tools/llm-chat/composables/useResolvedAvatar";
+import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
 
 interface Props {
   modelValue: string;

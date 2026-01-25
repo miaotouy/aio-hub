@@ -33,12 +33,12 @@ import {
 } from "lucide-vue-next";
 import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
-import { useChatInputManager } from "../../composables/useChatInputManager";
+import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useSessionManager } from "../../composables/useSessionManager";
+import { useSessionManager } from "../../composables/session/useSessionManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";

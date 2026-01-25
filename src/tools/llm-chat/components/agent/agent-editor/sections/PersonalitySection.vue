@@ -6,7 +6,7 @@ import WorldbookSelector from "../../../worldbook/WorldbookSelector.vue";
 import { MagicStick } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { useUserProfileStore } from "../../../../stores/userProfileStore";
-import { resolveAvatarPath } from "../../../../composables/useResolvedAvatar";
+import { resolveAvatarPath } from "../../../../composables/ui/useResolvedAvatar";
 
 const editForm = inject<any>("agent-edit-form");
 const userProfileStore = useUserProfileStore();

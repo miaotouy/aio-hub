@@ -1,4 +1,4 @@
-import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
+import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
 import { createModuleLogger } from "@/utils/logger";

@@ -12,11 +12,11 @@ import {
 } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
-import { useAgentStorageSeparated } from "../../composables/useAgentStorageSeparated";
+import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { useAgentStorageSeparated } from "../../composables/storage/useAgentStorageSeparated";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
-import type { MatchDetail } from "../../composables/useLlmSearch";
+import type { MatchDetail } from "../../composables/chat/useLlmSearch";
 import AgentUpgradeDialog from "../agent/AgentUpgradeDialog.vue";
 
 const props = defineProps<{

@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useAgentStore } from "../../stores/agentStore";
 import type { ChatSession } from "../../types";
-import { useLlmSearch, type MatchDetail } from "../../composables/useLlmSearch";
+import { useLlmSearch, type MatchDetail } from "../../composables/chat/useLlmSearch";
 import {
   Plus,
   Delete,
@@ -17,11 +17,11 @@ import {
 } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
-import { useTopicNamer } from "../../composables/useTopicNamer";
-import { useSessionManager } from "../../composables/useSessionManager";
-import { useChatSettings } from "../../composables/useChatSettings";
-import { useChatStorageSeparated } from "../../composables/useChatStorageSeparated";
-import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
+import { useTopicNamer } from "../../composables/chat/useTopicNamer";
+import { useSessionManager } from "../../composables/session/useSessionManager";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { useChatStorageSeparated } from "../../composables/storage/useChatStorageSeparated";
+import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
 import ExportSessionDialog from "../export/ExportSessionDialog.vue";

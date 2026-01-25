@@ -17,7 +17,7 @@ import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
-import { useTranscriptionManager } from "../composables/useTranscriptionManager";
+import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";

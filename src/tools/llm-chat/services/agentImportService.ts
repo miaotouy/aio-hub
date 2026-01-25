@@ -18,7 +18,7 @@ import { normalizeWorldbook } from './worldbookImportService';
 import { useWorldbookStore } from '../stores/worldbookStore';
 import { invoke } from '@tauri-apps/api/core';
 import { useAgentStore } from '../stores/agentStore';
-import { useChatSettings } from '../composables/useChatSettings';
+import { useChatSettings } from '../composables/settings/useChatSettings';
 
 const logger = createModuleLogger('llm-chat/agentImportService');
 const errorHandler = createModuleErrorHandler('llm-chat/agentImportService');

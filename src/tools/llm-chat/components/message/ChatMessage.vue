@@ -8,8 +8,8 @@ import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 
 import type { ButtonVisibility } from "../../types";
-import { useTranslation } from "../../composables/useTranslation";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useTranslation } from "../../composables/chat/useTranslation";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
 
 interface Props {

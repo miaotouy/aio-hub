@@ -6,15 +6,15 @@ import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
-import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
+import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
+import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
-import { useChatInputTokenPreview } from "@/tools/llm-chat/composables/useChatInputTokenPreview";
+import { useChatInputTokenPreview } from "@/tools/llm-chat/composables/input/useChatInputTokenPreview";
 import type { Asset } from "@/types/asset-management";
 import type { ModelIdentifier } from "@/tools/llm-chat/types";
 import { customMessage } from "@/utils/customMessage";
-import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
+import { useTranscriptionManager } from "@/tools/llm-chat/composables/features/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
@@ -23,8 +23,8 @@ import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
 
 // Composables
-import { useMessageInputResize } from "../../composables/message-input/useMessageInputResize";
-import { useMessageInputActions } from "../../composables/message-input/useMessageInputActions";
+import { useMessageInputResize } from "../../composables/input/useMessageInputResize";
+import { useMessageInputActions } from "../../composables/input/useMessageInputActions";
 
 const logger = createModuleLogger("MessageInput");
 const errorHandler = createModuleErrorHandler("MessageInput");

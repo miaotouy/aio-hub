@@ -127,8 +127,8 @@ import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import type { Asset } from "@/types/asset-management";
-import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
-import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
+import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
+import { useTranscriptionManager } from "@/tools/llm-chat/composables/features/useTranscriptionManager";
 import { customMessage } from "@/utils/customMessage";
 import { formatRelativeTime } from "@/utils/time";
 

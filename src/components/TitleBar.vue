@@ -34,7 +34,7 @@ import { debounce } from "lodash-es";
 import {
   useResolvedAvatar,
   resolveAvatarPath,
-} from "@/tools/llm-chat/composables/useResolvedAvatar";
+} from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
 import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）

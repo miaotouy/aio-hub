@@ -3,7 +3,7 @@
  */
 
 import { defineStore } from "pinia";
-import { useUserProfileStorage } from "../composables/useUserProfileStorage";
+import { useUserProfileStorage } from "../composables/storage/useUserProfileStorage";
 import { type UserProfile, createDefaultUserProfileConfig } from "../types";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";

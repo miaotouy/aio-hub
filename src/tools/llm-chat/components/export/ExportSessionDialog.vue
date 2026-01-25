@@ -65,7 +65,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
 import type { ChatSession } from "../../types";
-import { useExportManager } from "../../composables/useExportManager";
+import { useExportManager } from "../../composables/features/useExportManager";
 import { useAgentStore } from "../../stores/agentStore";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { sanitizeFilename } from "@/utils/fileUtils";

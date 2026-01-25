@@ -5,9 +5,9 @@
 import { defineStore } from "pinia";
 import { invoke } from "@tauri-apps/api/core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useChatSettings } from "../composables/useChatSettings";
-import { useAgentStorageSeparated as useAgentStorage } from "../composables/useAgentStorageSeparated";
-import { useLlmChatUiState } from "../composables/useLlmChatUiState";
+import { useChatSettings } from "../composables/settings/useChatSettings";
+import { useAgentStorageSeparated as useAgentStorage } from "../composables/storage/useAgentStorageSeparated";
+import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import type {
   ChatAgent,
   ChatMessageNode,

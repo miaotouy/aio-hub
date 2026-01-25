@@ -408,13 +408,13 @@ import Avatar from "@/components/common/Avatar.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import type { ContextPreviewData } from "../../types/context";
 import type { Asset } from "@/types/asset-management";
-import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
+import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useTranscriptionManager } from "../../composables/useTranscriptionManager";
+import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { STWorldbookPosition } from "../../types/worldbook";
 
 const props = defineProps<{

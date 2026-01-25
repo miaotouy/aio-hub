@@ -9,7 +9,7 @@ interface Props {
   getWillUseTranscription: (asset: Asset) => boolean;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 
 const emit = defineEmits<{
   (e: "remove", asset: Asset): void;

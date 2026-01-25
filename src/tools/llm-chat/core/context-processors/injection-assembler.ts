@@ -7,7 +7,7 @@ import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { ANCHOR_IDS } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode } from "../../types/message";
 import type { InjectionMessage } from "../../types/context";
-import { type AnchorDefinition } from "@/tools/llm-chat/composables/useAnchorRegistry";
+import { type AnchorDefinition } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 
 const logger = createModuleLogger("primary:injection-assembler");
 

@@ -5,10 +5,10 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { useResolvedAvatar } from "../../composables/useResolvedAvatar";
+import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
 import { formatRelativeTime } from "@/utils/time";
 
 interface Props {

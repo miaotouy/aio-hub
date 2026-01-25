@@ -4,12 +4,12 @@ import { useVirtualList } from "@vueuse/core";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSession } from "../../types";
-import { useLlmSearch } from "../../composables/useLlmSearch";
+import { useLlmSearch } from "../../composables/chat/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
+import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { formatRelativeTime } from "@/utils/time";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 
 interface Emits {
   (e: "switch", sessionId: string): void;

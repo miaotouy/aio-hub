@@ -308,9 +308,9 @@ import MacroSelector from "./MacroSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
-import { useChatSettings } from "../../composables/useChatSettings";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAnchorRegistry } from "../../composables/useAnchorRegistry";
+import { useAnchorRegistry } from "../../composables/ui/useAnchorRegistry";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import * as monaco from "monaco-editor";
 import {

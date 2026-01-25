@@ -5,7 +5,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import type { ChatAgent } from "../../types";
 import { Search, Plus } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
+import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 
 interface Emits {
   (e: "switch", agent: ChatAgent): void;

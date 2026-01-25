@@ -82,9 +82,9 @@ import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import type { ChatSession, ChatMessageNode } from "../../types";
-import { useExportManager } from "../../composables/useExportManager";
+import { useExportManager } from "../../composables/features/useExportManager";
 import { useAgentStore } from "../../stores/agentStore";
-import { resolveAvatarPath } from "../../composables/useResolvedAvatar";
+import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 
 interface Props {

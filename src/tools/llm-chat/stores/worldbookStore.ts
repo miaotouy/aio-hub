@@ -3,7 +3,7 @@
  */
 
 import { defineStore } from "pinia";
-import { useWorldbookStorageSeparated } from "../composables/useWorldbookStorageSeparated";
+import { useWorldbookStorageSeparated } from "../composables/storage/useWorldbookStorageSeparated";
 import type { STWorldbook, WorldbookMetadata } from "../types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

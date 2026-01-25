@@ -7,14 +7,14 @@
 
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import { useSessionManager } from "../composables/useSessionManager";
-import { useChatHandler } from "../composables/useChatHandler";
-import { useBranchManager } from "../composables/useBranchManager";
+import { useSessionManager } from "../composables/session/useSessionManager";
+import { useChatHandler } from "../composables/chat/useChatHandler";
+import { useBranchManager } from "../composables/session/useBranchManager";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { useAgentStore } from "./agentStore";
-import { useSessionNodeHistory } from "../composables/useSessionNodeHistory";
-import { useGraphActions } from "../composables/useGraphActions";
-import { useChatContextStats } from "../composables/useChatContextStats";
+import { useSessionNodeHistory } from "../composables/session/useSessionNodeHistory";
+import { useGraphActions } from "../composables/visualization/useGraphActions";
+import { useChatContextStats } from "../composables/features/useChatContextStats";
 import { getActivePathWithPresets } from "../utils/chatPathUtils";
 import {
   recalculateNodeTokens as recalculateNodeTokensService,
@@ -440,7 +440,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       // 理由：chatHandler.sendMessage 的第一步就是创建节点。
       // 只要这一步没抛错，内容就已经安全进入历史记录。
       try {
-        const { useChatInputManager } = await import("../composables/useChatInputManager");
+        const { useChatInputManager } = await import("../composables/input/useChatInputManager");
         const inputManager = useChatInputManager();
         inputManager.clear();
         logger.info("消息已进入发送流程，已反向驱动清空输入框");
@@ -520,7 +520,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       if (completion) {
         // 将补全内容追加到输入框
         // 动态导入以避免循环依赖
-        const { useChatInputManager } = await import("../composables/useChatInputManager");
+        const { useChatInputManager } = await import("../composables/input/useChatInputManager");
         const inputManager = useChatInputManager();
         inputManager.inputText.value += completion;
       }

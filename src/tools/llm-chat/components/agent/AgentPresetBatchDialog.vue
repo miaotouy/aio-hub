@@ -173,7 +173,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import { Top, Bottom, Sort, Delete } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatMessageNode, MessageRole } from "../../types";
-import { useAnchorRegistry } from "../../composables/useAnchorRegistry";
+import { useAnchorRegistry } from "../../composables/ui/useAnchorRegistry";
 
 interface Props {
   visible: boolean;

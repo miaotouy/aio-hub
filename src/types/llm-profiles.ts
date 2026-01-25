@@ -171,6 +171,12 @@ export interface ModelCapabilities {
   computerUse?: boolean;
 
   /**
+   * 是否偏好使用对话接口 (Chat) 来实现其他功能 (如生图、语音)
+   * 适用于原生多模态模型 (如 Gemini 3 Pro, GPT-4o-audio) 或某些特定渠道的补丁
+   */
+  preferChat?: boolean;
+
+  /**
    * 是否支持 FIM (Fill In the Middle) 补全
    * 用于代码补全等场景，提供前缀和后缀让模型补全中间内容
    *

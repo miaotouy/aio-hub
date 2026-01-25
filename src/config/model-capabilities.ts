@@ -7,7 +7,7 @@
  * - 图标颜色和样式
  */
 
-import { markRaw, type Component } from 'vue';
+import { markRaw, type Component } from "vue";
 import {
   Eye,
   BrainCircuit,
@@ -24,18 +24,19 @@ import {
   Monitor,
   FileText,
   Code2,
+  MessageSquare,
   MessageSquareMore,
   Braces,
   PencilLine,
   RefreshCw,
-} from 'lucide-vue-next';
+} from "lucide-vue-next";
 
 /**
  * 能力配置项
  */
 export interface CapabilityConfig {
   /** 能力键名（对应 LlmModelInfo.capabilities 中的字段） */
-  key: keyof NonNullable<import('../types/llm-profiles').LlmModelInfo['capabilities']>;
+  key: keyof NonNullable<import("../types/llm-profiles").LlmModelInfo["capabilities"]>;
   /** 显示标签 */
   label: string;
   /** 能力描述 */
@@ -146,10 +147,20 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
   {
     key: "iterativeRefinement",
     label: "迭代微调",
-    description: "支持通过多轮对话持续优化生成结果 (Conversational Generation)",
+    description:
+      "支持通过多轮对话持续优化生成结果 (Conversational Generation)，该选项不影响请求端点",
     icon: markRaw(RefreshCw),
     color: "#22c55e", // Green 500
     className: "iterative-refinement",
+  },
+  {
+    key: "preferChat",
+    label: "对话接口",
+    description:
+      "是否使用对话接口 (Chat) 来实现生成功能 (如生图)。适用于原生多模态模型或特定渠道补丁",
+    icon: markRaw(MessageSquare),
+    color: "#8b5cf6", // Violet 500
+    className: "prefer-chat",
   },
 
   // --- 多模态输入与处理 ---
@@ -246,9 +257,7 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
  * @param key 能力键
  * @returns 能力配置或 undefined
  */
-export function getCapabilityConfig(
-  key: string
-): CapabilityConfig | undefined {
+export function getCapabilityConfig(key: string): CapabilityConfig | undefined {
   return MODEL_CAPABILITIES.find((c) => c.key === key);
 }
 

@@ -701,7 +701,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 3 Pro Image",
         group: "Gemini 3",
         provider: "gemini",
-        capabilities: { vision: true, imageGeneration: true },
+        capabilities: { vision: true, imageGeneration: true, preferChat: true },
         description: "图像生成和理解模型 (2025-11)",
       },
       // Gemini 2.5
@@ -767,7 +767,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash Image",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, imageGeneration: true, fileSearch: true },
+        capabilities: { vision: true, imageGeneration: true, fileSearch: true, preferChat: true },
         description: "Flash 系列的图像生成模型 (2025-10)",
       },
       {
@@ -840,7 +840,7 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.0 Flash Image",
         group: "Gemini 2.0",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, imageGeneration: true },
+        capabilities: { vision: true, audio: true, imageGeneration: true, preferChat: true },
         description: "第二代图像生成模型 (2025-05)",
       },
       {

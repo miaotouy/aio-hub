@@ -184,7 +184,8 @@ export function useLlmRequest() {
       let response: LlmResponse;
 
       // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
-      const forceChatMode = (options as any)._forceChatMode === true;
+      // 或者模型能力中显式指定了偏好 Chat 接口 (如原生多模态生图模型)
+      const forceChatMode = (options as any)._forceChatMode === true || model.capabilities?.preferChat === true;
 
       if (!forceChatMode && model.capabilities?.videoGeneration && adapter.video) {
         response = await adapter.video(effectiveProfile, filteredOptions as MediaGenerationOptions);

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useMediaGenStore } from "../stores/mediaGenStore";
+import { ref, onMounted, watch } from "vue";
 import {
   Search,
   Info,
@@ -8,16 +7,18 @@ import {
   Trash2,
   Video as VideoIcon,
   Music as AudioIcon,
+  RefreshCw,
 } from "lucide-vue-next";
-import { useAssetManager } from "@/composables/useAssetManager";
+import { useAssetManager, type Asset } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer";
-import type { MediaTask, MediaTaskType } from "../types";
+import type { MediaTaskType } from "../types";
+import { useInfiniteScroll } from "@vueuse/core";
 
-const store = useMediaGenStore();
-const { getAssetUrl } = useAssetManager();
+const { assets, isLoading, hasMore, loadAssetsPaginated, getAssetUrl, removeSourceFromAsset } =
+  useAssetManager();
 const { show: showImageViewer } = useImageViewer();
 const { previewVideo } = useVideoViewer();
 const { previewAudio } = useAudioViewer();
@@ -25,78 +26,104 @@ const { show: showInfoViewer } = useGenerationInfoViewer();
 
 const searchQuery = ref("");
 const filterType = ref<MediaTaskType | "all">("all");
+const currentPage = ref(1);
+const pageSize = ref(20);
 
-// 过滤已完成且有资产的任务
-const completedTasks = computed(() => {
-  const list = Array.isArray(store.tasks) ? store.tasks : [];
-  return list.filter((task) => task?.status === "completed" && task?.resultAsset);
-});
-
-// 搜索和筛选后的任务
-const filteredTasks = computed(() => {
-  return completedTasks.value.filter((task) => {
-    const matchesSearch = task.input.prompt.toLowerCase().includes(searchQuery.value.toLowerCase());
-    const matchesType = filterType.value === "all" || task.type === filterType.value;
-    return matchesSearch && matchesType;
-  });
-});
+const galleryContainer = ref<HTMLElement | null>(null);
 
 // 资产 URL 缓存
 const assetUrls = ref<Record<string, string>>({});
 
-// 加载资产 URL
-const loadAssetUrls = async () => {
-  for (const task of completedTasks.value) {
-    if (task.resultAsset && !assetUrls.value[task.id]) {
-      assetUrls.value[task.id] = await getAssetUrl(task.resultAsset);
+// 加载数据
+const loadData = async (append = false) => {
+  if (!append) {
+    currentPage.value = 1;
+  }
+
+  await loadAssetsPaginated(
+    {
+      page: currentPage.value,
+      pageSize: pageSize.value,
+      searchQuery: searchQuery.value,
+      filterType: filterType.value === "all" ? undefined : filterType.value,
+      filterSourceModule: "media-generator",
+      sortBy: "date",
+      sortOrder: "desc",
+    },
+    append
+  );
+
+  // 加载可见资产的 URL
+  for (const asset of assets.value) {
+    if (!assetUrls.value[asset.id]) {
+      assetUrls.value[asset.id] = await getAssetUrl(asset);
     }
   }
 };
 
-// 监听任务变化加载 URL
-watch(
-  completedTasks,
+// 初始加载
+onMounted(() => {
+  loadData();
+});
+
+// 监听搜索和筛选
+watch([searchQuery, filterType], () => {
+  loadData();
+});
+
+// 无限滚动
+useInfiniteScroll(
+  galleryContainer,
   () => {
-    loadAssetUrls();
+    if (hasMore.value && !isLoading.value) {
+      currentPage.value++;
+      loadData(true);
+    }
   },
-  { immediate: true, deep: true }
+  { distance: 10 }
 );
 
-const handlePreview = (task: MediaTask) => {
-  const url = assetUrls.value[task.id];
-  if (!url || !task.resultAsset) return;
+const handlePreview = (asset: Asset) => {
+  const url = assetUrls.value[asset.id];
+  if (!url) return;
 
-  if (task.type === "image") {
+  if (asset.type === "image") {
     showImageViewer(url);
-  } else if (task.type === "video") {
-    previewVideo(task.resultAsset);
-  } else if (task.type === "audio") {
-    previewAudio(task.resultAsset);
+  } else if (asset.type === "video") {
+    previewVideo(asset);
+  } else if (asset.type === "audio") {
+    previewAudio(asset);
   }
 };
 
-const handleViewInfo = (task: MediaTask) => {
-  if (task.resultAsset) {
-    showInfoViewer(task.resultAsset, {
-      prompt: task.input.prompt,
-      negativePrompt: task.input.negativePrompt,
-      modelId: task.input.modelId,
-      params: task.input.params,
-      genType: task.type,
-    });
-  }
+const handleViewInfo = (asset: Asset) => {
+  // 从资产元数据中提取生成信息
+  const metadata = asset.metadata as any;
+  const genInfo = metadata?.generation || metadata;
+  showInfoViewer(asset, {
+    prompt: genInfo?.prompt || asset.name,
+    negativePrompt: genInfo?.negativePrompt,
+    modelId: genInfo?.modelId,
+    params: genInfo?.params,
+    genType: (genInfo?.genType as any) || asset.type,
+  });
 };
 
-const handleDownload = (task: MediaTask) => {
-  if (!assetUrls.value[task.id]) return;
+const handleDownload = (asset: Asset) => {
+  const url = assetUrls.value[asset.id];
+  if (!url) return;
   const link = document.createElement("a");
-  link.href = assetUrls.value[task.id];
-  link.download = `generated-${task.id}.${task.type === "image" ? "png" : task.type === "video" ? "mp4" : "mp3"}`;
+  link.href = url;
+  link.download = asset.name;
   link.click();
 };
 
-const handleRemove = (task: MediaTask) => {
-  store.removeTask(task.id);
+const handleRemove = async (asset: Asset) => {
+  await removeSourceFromAsset(asset.id, "media-generator");
+};
+
+const handleRefresh = () => {
+  loadData();
 };
 </script>
 
@@ -110,6 +137,7 @@ const handleRemove = (task: MediaTask) => {
           placeholder="搜索提示词..."
           clearable
           :prefix-icon="Search"
+          @keyup.enter="handleRefresh"
         />
       </div>
 
@@ -122,27 +150,34 @@ const handleRemove = (task: MediaTask) => {
         </el-radio-group>
 
         <div class="stats">
-          <el-tag type="info" effect="plain"> 共 {{ filteredTasks.length }} 个结果 </el-tag>
+          <el-tag type="info" effect="plain"> 共 {{ assets.length }} 个结果 </el-tag>
+          <el-button
+            :icon="RefreshCw"
+            circle
+            size="small"
+            @click="handleRefresh"
+            :loading="isLoading"
+          />
         </div>
       </div>
     </div>
 
     <!-- 瀑布流/网格内容 -->
-    <div v-if="filteredTasks.length > 0" class="gallery-grid">
+    <div v-if="assets.length > 0" ref="galleryContainer" class="gallery-grid">
       <div
-        v-for="task in filteredTasks"
-        :key="task.id"
+        v-for="asset in assets"
+        :key="asset.id"
         class="gallery-item"
-        @click="handlePreview(task)"
+        @click="handlePreview(asset)"
       >
         <!-- 预览图 -->
         <div class="item-preview">
-          <template v-if="task.type === 'image'">
-            <img :src="assetUrls[task.id]" loading="lazy" />
+          <template v-if="asset.type === 'image'">
+            <img :src="assetUrls[asset.id]" loading="lazy" />
           </template>
-          <template v-else-if="task.type === 'video'">
+          <template v-else-if="asset.type === 'video'">
             <video
-              :src="assetUrls[task.id]"
+              :src="assetUrls[asset.id]"
               muted
               loop
               onmouseover="this.play()"
@@ -152,7 +187,7 @@ const handleRemove = (task: MediaTask) => {
               <VideoIcon :size="14" />
             </div>
           </template>
-          <template v-else-if="task.type === 'audio'">
+          <template v-else-if="asset.type === 'audio'">
             <div class="audio-placeholder">
               <AudioIcon :size="48" />
               <span>音频结果</span>
@@ -165,22 +200,28 @@ const handleRemove = (task: MediaTask) => {
           <!-- 悬浮层 -->
           <div class="item-overlay">
             <div class="overlay-top">
-              <p class="prompt-hint">{{ task.input.prompt }}</p>
+              <p class="prompt-hint">
+                {{
+                  (asset.metadata as any)?.generation?.prompt ||
+                  (asset.metadata as any)?.prompt ||
+                  asset.name
+                }}
+              </p>
             </div>
             <div class="overlay-bottom">
               <div class="action-buttons">
                 <el-tooltip content="查看参数" placement="top">
-                  <el-button circle size="small" @click.stop="handleViewInfo(task)">
+                  <el-button circle size="small" @click.stop="handleViewInfo(asset)">
                     <el-icon><Info /></el-icon>
                   </el-button>
                 </el-tooltip>
                 <el-tooltip content="下载" placement="top">
-                  <el-button circle size="small" @click.stop="handleDownload(task)">
+                  <el-button circle size="small" @click.stop="handleDownload(asset)">
                     <el-icon><Download /></el-icon>
                   </el-button>
                 </el-tooltip>
                 <el-tooltip content="删除" placement="top">
-                  <el-button circle size="small" type="danger" @click.stop="handleRemove(task)">
+                  <el-button circle size="small" type="danger" @click.stop="handleRemove(asset)">
                     <el-icon><Trash2 /></el-icon>
                   </el-button>
                 </el-tooltip>
@@ -189,10 +230,16 @@ const handleRemove = (task: MediaTask) => {
           </div>
         </div>
       </div>
+
+      <!-- 加载中状态 -->
+      <div v-if="isLoading" class="loading-indicator">
+        <el-icon class="is-loading"><RefreshCw /></el-icon>
+        <span>加载中...</span>
+      </div>
     </div>
 
     <!-- 空状态 -->
-    <div v-else class="empty-state">
+    <div v-else-if="!isLoading" class="empty-state">
       <el-empty :description="searchQuery ? '未找到匹配的结果' : '暂无生成结果'">
         <template v-if="!searchQuery" #extra>
           <p>去工作台创作一些作品吧！</p>
@@ -346,6 +393,17 @@ const handleRemove = (task: MediaTask) => {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.loading-indicator {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
 }
 
 /* 滚动条美化 */

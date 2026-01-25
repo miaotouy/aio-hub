@@ -92,6 +92,7 @@ const props = withDefaults(
     title?: string;
     width?: string;
     maxWidth?: string;
+    maxHeight?: string;
     height?: string;
     top?: string;
     showCloseButton?: boolean;

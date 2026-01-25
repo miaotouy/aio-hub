@@ -9,6 +9,7 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 const props = defineProps<{
   models: LlmModelInfo[];
+  rawResponse?: any;
   existingModels: LlmModelInfo[];
   visible: boolean;
 }>();
@@ -156,16 +157,31 @@ const toggleSelectAll = () => {
     }
   }
 };
-
-// 复制原始模型数据为 JSON
+// 复制适配后的模型数据为 JSON
 const copyModelsJson = async () => {
   try {
     const jsonString = JSON.stringify(props.models, null, 2);
     await navigator.clipboard.writeText(jsonString);
-    customMessage.success("模型 JSON 已复制到剪贴板");
+    customMessage.success("适配后的模型 JSON 已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");
     console.error("Failed to copy models JSON:", error);
+  }
+};
+
+// 复制 API 原始返回体
+const copyRawResponse = async () => {
+  if (!props.rawResponse) {
+    customMessage.warning("暂无原始响应数据");
+    return;
+  }
+  try {
+    const jsonString = JSON.stringify(props.rawResponse, null, 2);
+    await navigator.clipboard.writeText(jsonString);
+    customMessage.success("原始响应 JSON 已复制到剪贴板");
+  } catch (error) {
+    customMessage.error("复制失败");
+    console.error("Failed to copy raw response:", error);
   }
 };
 
@@ -273,10 +289,19 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
             </el-option>
           </el-select>
           <el-button @click="toggleSelectAll">{{ isAllSelected ? "取消全选" : "全选" }}</el-button>
-          <el-button @click="copyModelsJson">
-            <el-icon class="el-icon--left"><i-ep-copy-document /></el-icon>
-            复制 JSON
-          </el-button>
+          <el-dropdown trigger="click">
+            <el-button>
+              <el-icon class="el-icon--left"><i-ep-copy-document /></el-icon>
+              复制数据
+              <el-icon class="el-icon--right"><i-ep-arrow-down /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="copyModelsJson">复制适配后 JSON</el-dropdown-item>
+                <el-dropdown-item @click="copyRawResponse">复制原始响应</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
 
         <div class="model-list-container">

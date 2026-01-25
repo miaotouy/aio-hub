@@ -276,6 +276,7 @@ const clearAllModels = () => {
 
 const showModelFetcherDialog = ref(false);
 const fetchedModels = ref<LlmModelInfo[]>([]);
+const fetchedRawResponse = ref<any>(null);
 const isFetchingModels = ref(false);
 
 const isTestingConnection = ref(false);
@@ -317,7 +318,7 @@ const testConnection = async () => {
   isTestingConnection.value = true;
   const startTime = performance.now();
   try {
-    const models = await fetchModelsFromApi(editForm.value);
+    const { models } = await fetchModelsFromApi(editForm.value);
     const duration = ((performance.now() - startTime) / 1000).toFixed(2);
     if (models.length > 0) {
       customMessage.success(`连接成功！已检测到 ${models.length} 个模型 (耗时: ${duration}s)`);
@@ -405,7 +406,7 @@ const fetchModels = async () => {
   isFetchingModels.value = true;
 
   try {
-    const models = await fetchModelsFromApi(selectedProfile.value);
+    const { models, rawResponse } = await fetchModelsFromApi(selectedProfile.value);
 
     if (models.length === 0) {
       customMessage.warning("未获取到任何模型");
@@ -413,6 +414,7 @@ const fetchModels = async () => {
     }
 
     fetchedModels.value = models;
+    fetchedRawResponse.value = rawResponse;
     showModelFetcherDialog.value = true;
   } catch (error: any) {
     errorHandler.error(error, "获取模型列表失败");
@@ -752,6 +754,7 @@ const resetBaseUrl = () => {
       v-if="showModelFetcherDialog"
       v-model:visible="showModelFetcherDialog"
       :models="fetchedModels"
+      :raw-response="fetchedRawResponse"
       :existing-models="editForm.models"
       @add-models="handleAddModels"
     />

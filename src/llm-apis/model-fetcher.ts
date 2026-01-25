@@ -19,9 +19,17 @@ const logger = createModuleLogger("ModelFetcher");
 const errorHandler = createModuleErrorHandler("ModelFetcher");
 
 /**
+ * 模型获取结果接口
+ */
+export interface ModelFetchResult {
+  models: LlmModelInfo[];
+  rawResponse: any;
+}
+
+/**
  * 从 API 获取模型列表
  */
-export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelInfo[]> {
+export async function fetchModelsFromApi(profile: LlmProfile): Promise<ModelFetchResult> {
   const providerInfo = getProviderTypeInfo(profile.type);
 
   if (!providerInfo?.supportsModelList || !providerInfo.modelListEndpoint) {
@@ -62,7 +70,10 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
       modelCount: models.length,
     });
 
-    return models;
+    return {
+      models,
+      rawResponse: data,
+    };
   } catch (error) {
     errorHandler.error(error, "获取模型列表失败", {
       context: {

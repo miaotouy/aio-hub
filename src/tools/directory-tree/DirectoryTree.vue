@@ -27,9 +27,9 @@
           <div class="config-section">
             <label>显示选项</label>
             <div class="checkbox-group">
-              <el-checkbox v-model="showFiles" label="显示文件" />
-              <el-checkbox v-model="showHidden" label="显示隐藏文件" />
-              <el-checkbox v-model="autoGenerateOnDrop" label="拖拽后自动生成" />
+              <el-checkbox v-model="showFiles">显示文件</el-checkbox>
+              <el-checkbox v-model="showHidden">显示隐藏文件</el-checkbox>
+              <el-checkbox v-model="autoGenerateOnDrop">拖拽后自动生成</el-checkbox>
             </div>
           </div>
 
@@ -160,10 +160,10 @@
               <div class="control-row">
                 <span class="control-label">显示选项:</span>
                 <div class="checkbox-group-inline">
-                  <el-checkbox v-model="viewShowFiles" label="显示文件" size="small" />
-                  <el-checkbox v-model="includeMetadata" label="统计信息" size="small" />
-                  <el-checkbox v-model="showSize" label="文件大小" size="small" />
-                  <el-checkbox v-model="showDirSize" label="目录大小" size="small" />
+                  <el-checkbox v-model="viewShowFiles" size="small">显示文件</el-checkbox>
+                  <el-checkbox v-model="includeMetadata" size="small">统计信息</el-checkbox>
+                  <el-checkbox v-model="showSize" size="small">文件大小</el-checkbox>
+                  <el-checkbox v-model="showDirSize" size="small">目录大小</el-checkbox>
                 </div>
               </div>
             </div>
@@ -482,7 +482,7 @@ const debouncedSaveConfig = debounce(async () => {
     await saveConfig(config);
   } catch (error) {
     errorHandler.handle(error, {
-     userMessage: "保存配置失败",
+      userMessage: "保存配置失败",
       context: {
         customPatterns: customPattern.value,
         lastFilterMode: filterMode.value,

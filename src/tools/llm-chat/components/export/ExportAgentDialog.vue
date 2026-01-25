@@ -295,11 +295,9 @@ const canExport = computed(() => {
           </div>
 
           <div class="option-item">
-            <el-checkbox
-              v-model="includeAssets"
-              label="包含头像、表情、背景等私有资产文件"
-              :disabled="exportType === 'file'"
-            />
+            <el-checkbox v-model="includeAssets" :disabled="exportType === 'file'">
+              包含头像、表情、背景等私有资产文件
+            </el-checkbox>
           </div>
 
           <div class="option-item">
@@ -313,14 +311,13 @@ const canExport = computed(() => {
           </div>
 
           <div class="option-item sub-option" v-if="includeWorldbooks && exportType !== 'file'">
-            <el-checkbox
-              v-model="embedWorldbooks"
-              label="将世界书内嵌到配置文件中 (默认打包为独立文件)"
-            />
+            <el-checkbox v-model="embedWorldbooks">
+              将世界书内嵌到配置文件中 (默认打包为独立文件)
+            </el-checkbox>
           </div>
 
           <div class="option-item" v-if="!isSingleMode">
-            <el-checkbox v-model="separateFolders" label="为每个智能体创建独立文件夹" />
+            <el-checkbox v-model="separateFolders">为每个智能体创建独立文件夹</el-checkbox>
           </div>
 
           <div class="option-item format-select">

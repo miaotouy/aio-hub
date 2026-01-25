@@ -252,12 +252,12 @@
             </div>
 
             <div class="setting-group">
-              <el-checkbox v-model="forceTxt" label="强制保存为 .txt 格式" />
+              <el-checkbox v-model="forceTxt">强制保存为 .txt 格式</el-checkbox>
               <div class="setting-hint">忽略原始文件扩展名，统一保存为 .txt</div>
             </div>
 
             <div class="setting-group">
-              <el-checkbox v-model="clearProcessedFiles" label="处理后清除成功的文件" />
+              <el-checkbox v-model="clearProcessedFiles">处理后清除成功的文件</el-checkbox>
               <div class="setting-hint">处理成功的文件将自动从列表中移除</div>
             </div>
 
@@ -624,9 +624,12 @@ const processText = async () => {
 };
 
 const pasteToSource = async () => {
-  const text = await errorHandler.wrapAsync(async () => {
-    return await readText();
-  }, { userMessage: "粘贴失败" });
+  const text = await errorHandler.wrapAsync(
+    async () => {
+      return await readText();
+    },
+    { userMessage: "粘贴失败" }
+  );
 
   if (text !== null) {
     sourceText.value = text || "";
@@ -635,11 +638,14 @@ const pasteToSource = async () => {
 };
 
 const copyResult = async () => {
-  const success = await errorHandler.wrapAsync(async () => {
-    await writeText(resultText.value);
-    customMessage.success("已复制到剪贴板！");
-    return true;
-  }, { userMessage: "复制失败" });
+  const success = await errorHandler.wrapAsync(
+    async () => {
+      await writeText(resultText.value);
+      customMessage.success("已复制到剪贴板！");
+      return true;
+    },
+    { userMessage: "复制失败" }
+  );
 
   if (success) {
     addLog("处理结果已复制到剪贴板。");
@@ -660,30 +666,33 @@ const oneClickProcess = async () => {
   }
   addLog("执行一键处理剪贴板...");
 
-  const result = await errorHandler.wrapAsync(async () => {
-    // 1. 粘贴
-    const text = await readText();
-    if (!text) throw new Error("剪贴板内容为空");
+  const result = await errorHandler.wrapAsync(
+    async () => {
+      // 1. 粘贴
+      const text = await readText();
+      if (!text) throw new Error("剪贴板内容为空");
 
-    // 2. 处理
-    const processResult = await engine.processText(
-      {
-        sourceText: text,
-        presetIds: selectedPresetIds.value,
-      },
-      (id) => store.presets.find((p) => p.id === id)
-    );
+      // 2. 处理
+      const processResult = await engine.processText(
+        {
+          sourceText: text,
+          presetIds: selectedPresetIds.value,
+        },
+        (id) => store.presets.find((p) => p.id === id)
+      );
 
-    if (!processResult) throw new Error("文本处理失败");
+      if (!processResult) throw new Error("文本处理失败");
 
-    // 3. 复制
-    await writeText(processResult.text);
-    customMessage.success("一键处理完成并已复制到剪贴板！");
+      // 3. 复制
+      await writeText(processResult.text);
+      customMessage.success("一键处理完成并已复制到剪贴板！");
 
-    return {
-      summary: `一键处理完成，应用了 ${processResult.totalRulesApplied} 条规则`,
-    };
-  }, { userMessage: "一键处理失败" });
+      return {
+        summary: `一键处理完成，应用了 ${processResult.totalRulesApplied} 条规则`,
+      };
+    },
+    { userMessage: "一键处理失败" }
+  );
 
   if (result) {
     addLog(result.summary);

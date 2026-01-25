@@ -334,16 +334,16 @@
     >
       <div class="view-settings-list">
         <div class="view-setting-item">
-          <el-checkbox v-model="viewSettings.showBackground" label="显示背景网格" />
+          <el-checkbox v-model="viewSettings.showBackground">显示背景网格</el-checkbox>
         </div>
         <div class="view-setting-item">
-          <el-checkbox v-model="viewSettings.showMiniMap" label="显示小地图" />
+          <el-checkbox v-model="viewSettings.showMiniMap">显示小地图</el-checkbox>
         </div>
         <div class="view-setting-item">
-          <el-checkbox v-model="viewSettings.showControls" label="显示控制器" />
+          <el-checkbox v-model="viewSettings.showControls">显示控制器</el-checkbox>
         </div>
         <div class="view-setting-item">
-          <el-checkbox v-model="viewSettings.showHud" label="显示信息面板" />
+          <el-checkbox v-model="viewSettings.showHud">显示信息面板</el-checkbox>
         </div>
       </div>
     </el-popover>

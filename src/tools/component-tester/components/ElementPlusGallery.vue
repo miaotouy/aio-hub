@@ -110,14 +110,14 @@
       <div class="checkbox-demo">
         <el-checkbox v-model="checkboxValue">单个复选框</el-checkbox>
         <el-checkbox-group v-model="checkboxGroupValue">
-          <el-checkbox label="选项1" />
-          <el-checkbox label="选项2" />
-          <el-checkbox label="选项3" />
+          <el-checkbox value="选项1">选项1</el-checkbox>
+          <el-checkbox value="选项2">选项2</el-checkbox>
+          <el-checkbox value="选项3">选项3</el-checkbox>
         </el-checkbox-group>
         <el-checkbox-group v-model="checkboxGroupValue">
-          <el-checkbox-button label="选项1" />
-          <el-checkbox-button label="选项2" />
-          <el-checkbox-button label="选项3" />
+          <el-checkbox-button value="选项1">选项1</el-checkbox-button>
+          <el-checkbox-button value="选项2">选项2</el-checkbox-button>
+          <el-checkbox-button value="选项3">选项3</el-checkbox-button>
         </el-checkbox-group>
       </div>
     </div>
@@ -127,8 +127,13 @@
       <div class="date-demo">
         <el-date-picker v-model="dateValue" type="date" placeholder="选择日期" />
         <el-date-picker v-model="dateValue" type="datetime" placeholder="选择日期时间" />
-        <el-date-picker v-model="dateRangeValue" type="daterange" range-separator="至" start-placeholder="开始日期"
-          end-placeholder="结束日期" />
+        <el-date-picker
+          v-model="dateRangeValue"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+        />
       </div>
     </div>
 
@@ -245,8 +250,16 @@
     <div class="section">
       <h2 class="section-title">时间线 Timeline</h2>
       <el-timeline>
-        <el-timeline-item v-for="event in timelineEvents" :key="event.id" :timestamp="event.timestamp"
-          :type="event.type" :color="event.color" :size="event.size" :hollow="event.hollow" placement="top">
+        <el-timeline-item
+          v-for="event in timelineEvents"
+          :key="event.id"
+          :timestamp="event.timestamp"
+          :type="event.type"
+          :color="event.color"
+          :size="event.size"
+          :hollow="event.hollow"
+          placement="top"
+        >
           <InfoCard :class="['timeline-card', { clickable: event.clickable }]">
             <div class="timeline-header">
               <span class="timeline-sequence">#{{ event.id }}</span>
@@ -282,8 +295,13 @@
     <div class="section">
       <h2 class="section-title">分页 Pagination</h2>
       <div class="pagination-demo">
-        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 30, 40]"
-          layout="total, sizes, prev, pager, next, jumper" :total="100" />
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 30, 40]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="100"
+        />
       </div>
     </div>
 
@@ -302,7 +320,7 @@
 
     <div class="section">
       <h2 class="section-title">对话框 Dialog</h2>
-      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      <div style="display: flex; gap: 12px; flex-wrap: wrap">
         <div>
           <h3 class="subsection-title">自定义 BaseDialog 组件</h3>
           <el-button @click="dialogVisible = true">打开 BaseDialog</el-button>
@@ -374,7 +392,13 @@
           <el-button>鼠标悬浮</el-button>
         </template>
       </el-popover>
-      <el-popover placement="bottom" title="标题" :width="200" trigger="click" content="这是一段内容">
+      <el-popover
+        placement="bottom"
+        title="标题"
+        :width="200"
+        trigger="click"
+        content="这是一段内容"
+      >
         <template #reference>
           <el-button>点击激活</el-button>
         </template>
@@ -383,13 +407,17 @@
 
     <div class="section">
       <h2 class="section-title">树形控件 Tree</h2>
-      <el-tree :data="treeData" :props="{ children: 'children', label: 'label' }" default-expand-all />
+      <el-tree
+        :data="treeData"
+        :props="{ children: 'children', label: 'label' }"
+        default-expand-all
+      />
     </div>
 
     <div class="section">
       <h2 class="section-title">加载 Loading</h2>
       <el-button :loading="loadingState" @click="loadingState = !loadingState">
-        {{ loadingState ? '加载中' : '点击加载' }}
+        {{ loadingState ? "加载中" : "点击加载" }}
       </el-button>
     </div>
 
@@ -417,31 +445,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import InfoCard from '@/components/common/InfoCard.vue';
-import {
-  Search,
-  Edit,
-  Check,
-  Message,
-  Star,
-  Delete,
-  Calendar,
-} from '@element-plus/icons-vue';
+import { ref } from "vue";
+import InfoCard from "@/components/common/InfoCard.vue";
+import { Search, Edit, Check, Message, Star, Delete, Calendar } from "@element-plus/icons-vue";
 
 // 表单数据
-const inputValue = ref('');
-const selectValue = ref('');
+const inputValue = ref("");
+const selectValue = ref("");
 const multiSelectValue = ref([]);
 const switchValue = ref(true);
-const radioValue = ref('1');
+const radioValue = ref("1");
 const checkboxValue = ref(false);
-const checkboxGroupValue = ref(['选项1']);
-const dateValue = ref('');
+const checkboxGroupValue = ref(["选项1"]);
+const dateValue = ref("");
 const dateRangeValue = ref([]);
 const sliderValue = ref(50);
 const sliderRangeValue = ref([20, 50]);
-const collapseValue = ref(['1']);
+const collapseValue = ref(["1"]);
 
 // 对话框和抽屉
 const dialogVisible = ref(false);
@@ -461,56 +481,56 @@ const loadingState = ref(false);
 // 表格数据
 const tableData = ref([
   {
-    date: '2024-01-01',
-    name: '张三',
-    address: '上海市普陀区金沙江路 1518 弄',
+    date: "2024-01-01",
+    name: "张三",
+    address: "上海市普陀区金沙江路 1518 弄",
   },
   {
-    date: '2024-01-02',
-    name: '李四',
-    address: '上海市普陀区金沙江路 1517 弄',
+    date: "2024-01-02",
+    name: "李四",
+    address: "上海市普陀区金沙江路 1517 弄",
   },
   {
-    date: '2024-01-03',
-    name: '王五',
-    address: '上海市普陀区金沙江路 1519 弄',
+    date: "2024-01-03",
+    name: "王五",
+    address: "上海市普陀区金沙江路 1519 弄",
   },
 ]);
 
 // 树形数据
 const treeData = ref([
   {
-    label: '一级 1',
+    label: "一级 1",
     children: [
       {
-        label: '二级 1-1',
+        label: "二级 1-1",
         children: [
           {
-            label: '三级 1-1-1',
+            label: "三级 1-1-1",
           },
         ],
       },
     ],
   },
   {
-    label: '一级 2',
+    label: "一级 2",
     children: [
       {
-        label: '二级 2-1',
+        label: "二级 2-1",
       },
       {
-        label: '二级 2-2',
+        label: "二级 2-2",
       },
     ],
   },
   {
-    label: '一级 3',
+    label: "一级 3",
     children: [
       {
-        label: '二级 3-1',
+        label: "二级 3-1",
       },
       {
-        label: '二级 3-2',
+        label: "二级 3-2",
       },
     ],
   },
@@ -520,17 +540,17 @@ const treeData = ref([
 const timelineEvents = ref([
   {
     id: 1,
-    timestamp: '2024-01-15 10:30',
-    type: 'primary',
-    color: '#409eff',
-    size: 'large',
+    timestamp: "2024-01-15 10:30",
+    type: "primary",
+    color: "#409eff",
+    size: "large",
     hollow: false,
-    category: 'Feature',
-    tagType: 'success',
-    branch: 'main',
-    author: '张三',
-    title: '添加新功能模块',
-    description: '实现了用户管理系统的核心功能',
+    category: "Feature",
+    tagType: "success",
+    branch: "main",
+    author: "张三",
+    title: "添加新功能模块",
+    description: "实现了用户管理系统的核心功能",
     clickable: true,
     stats: {
       additions: 156,
@@ -540,17 +560,17 @@ const timelineEvents = ref([
   },
   {
     id: 2,
-    timestamp: '2024-01-14 16:45',
-    type: 'success',
-    color: '#67c23a',
-    size: 'normal',
+    timestamp: "2024-01-14 16:45",
+    type: "success",
+    color: "#67c23a",
+    size: "normal",
     hollow: false,
-    category: 'Fix',
-    tagType: 'warning',
-    branch: 'develop',
-    author: '李四',
-    title: '修复登录Bug',
-    description: '解决了登录页面在某些情况下无法正常跳转的问题',
+    category: "Fix",
+    tagType: "warning",
+    branch: "develop",
+    author: "李四",
+    title: "修复登录Bug",
+    description: "解决了登录页面在某些情况下无法正常跳转的问题",
     clickable: true,
     stats: {
       additions: 12,
@@ -560,17 +580,17 @@ const timelineEvents = ref([
   },
   {
     id: 3,
-    timestamp: '2024-01-13 14:20',
-    type: 'warning',
-    color: '#e6a23c',
-    size: 'normal',
+    timestamp: "2024-01-13 14:20",
+    type: "warning",
+    color: "#e6a23c",
+    size: "normal",
     hollow: false,
-    category: 'Docs',
-    tagType: 'info',
-    branch: 'main',
-    author: '王五',
-    title: '更新文档',
-    description: '完善了 API 接口文档和使用说明',
+    category: "Docs",
+    tagType: "info",
+    branch: "main",
+    author: "王五",
+    title: "更新文档",
+    description: "完善了 API 接口文档和使用说明",
     clickable: true,
     stats: {
       additions: 45,
@@ -580,17 +600,17 @@ const timelineEvents = ref([
   },
   {
     id: 4,
-    timestamp: '2024-01-12 09:15',
-    type: 'danger',
-    color: '#f56c6c',
-    size: 'normal',
+    timestamp: "2024-01-12 09:15",
+    type: "danger",
+    color: "#f56c6c",
+    size: "normal",
     hollow: true,
-    category: 'Refactor',
-    tagType: 'danger',
-    branch: 'refactor',
-    author: '赵六',
-    title: '代码重构',
-    description: '优化了数据处理层的代码结构',
+    category: "Refactor",
+    tagType: "danger",
+    branch: "refactor",
+    author: "赵六",
+    title: "代码重构",
+    description: "优化了数据处理层的代码结构",
     clickable: true,
     stats: {
       additions: 89,
@@ -600,17 +620,17 @@ const timelineEvents = ref([
   },
   {
     id: 5,
-    timestamp: '2024-01-11 11:30',
-    type: 'info',
-    color: '#909399',
-    size: 'normal',
+    timestamp: "2024-01-11 11:30",
+    type: "info",
+    color: "#909399",
+    size: "normal",
     hollow: false,
-    category: 'Test',
-    tagType: 'info',
-    branch: 'test',
-    author: '孙七',
-    title: '添加单元测试',
-    description: '为核心模块添加了完整的单元测试覆盖',
+    category: "Test",
+    tagType: "info",
+    branch: "test",
+    author: "孙七",
+    title: "添加单元测试",
+    description: "为核心模块添加了完整的单元测试覆盖",
     clickable: false,
     stats: {
       additions: 234,
@@ -778,7 +798,7 @@ const timelineEvents = ref([
   border-radius: 4px;
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-light);
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-weight: 500;
 }
 

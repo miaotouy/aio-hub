@@ -46,6 +46,7 @@ const loadData = async (append = false) => {
       pageSize: pageSize.value,
       searchQuery: searchQuery.value,
       filterType: filterType.value === "all" ? undefined : filterType.value,
+      filterOrigin: "generated",
       filterSourceModule: "media-generator",
       sortBy: "date",
       sortOrder: "desc",

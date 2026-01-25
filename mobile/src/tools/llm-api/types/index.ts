@@ -5,15 +5,9 @@
 export * from "./common";
 export * from "./model-metadata";
 import type { LlmModelInfo } from "./common";
+import type { ProviderType as SharedProviderType } from "@/../../src/types/llm-profiles";
 
-export type ProviderType =
-  | "openai"
-  | "openai-responses"
-  | "gemini"
-  | "claude"
-  | "cohere"
-  | "huggingface"
-  | "vertexai";
+export type ProviderType = SharedProviderType;
 
 export interface LlmParameterSupport {
   temperature?: boolean;
@@ -39,34 +33,9 @@ export interface LlmParameterSupport {
 }
 
 
-export interface LlmProfile {
-  id: string;
-  name: string;
-  type: ProviderType;
-  baseUrl: string;
-  apiKeys: string[];
-  enabled: boolean;
+import type { LlmProfile as SharedLlmProfile } from "@/../../src/types/llm-profiles";
+
+export interface LlmProfile extends Omit<SharedLlmProfile, 'models' | 'modelGroupsExpandState'> {
   models: LlmModelInfo[];
-  icon?: string;
-  customHeaders?: Record<string, string>;
   modelGroupsExpandState?: string[];
-  /**
-   * 自定义 API 端点（可选）
-   */
-  customEndpoints?: {
-    chatCompletions?: string;
-    completions?: string;
-    models?: string;
-    embeddings?: string;
-    rerank?: string;
-    imagesGenerations?: string;
-    imagesEdits?: string;
-    imagesVariations?: string;
-    audioSpeech?: string;
-    audioTranscriptions?: string;
-    audioTranslations?: string;
-    moderations?: string;
-    videos?: string;
-    videoStatus?: string;
-  };
 }

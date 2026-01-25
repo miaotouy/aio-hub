@@ -30,7 +30,18 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
 
   // 构建 URL
   let url = "";
-  if (profile.type === "openai" || profile.type === "openai-responses") {
+  const isOpenAiCompatible = [
+    "openai",
+    "openai-responses",
+    "openai-compatible",
+    "deepseek",
+    "siliconflow",
+    "groq",
+    "openrouter",
+    "xai",
+  ].includes(profile.type);
+
+  if (isOpenAiCompatible) {
     url = openAiUrlHandler.buildUrl(profile.baseUrl, providerInfo.modelListEndpoint, profile);
   } else {
     url = profile.baseUrl;
@@ -82,6 +93,12 @@ function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record
   switch (providerType) {
     case "openai":
     case "openai-responses":
+    case "openai-compatible":
+    case "deepseek":
+    case "siliconflow":
+    case "groq":
+    case "openrouter":
+    case "xai":
       if (apiKey) {
         headers["Authorization"] = `Bearer ${apiKey}`;
       }
@@ -120,15 +137,24 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
   switch (providerType) {
     case "openai":
     case "openai-responses":
+    case "openai-compatible":
+    case "deepseek":
+    case "siliconflow":
+    case "groq":
+    case "openrouter":
+    case "xai":
       if (data.data && Array.isArray(data.data)) {
         for (const model of data.data) {
+          // 检测是否为增强格式（有更多字段，如 OpenRouter）
+          const isEnhancedFormat = model.context_length || model.architecture || model.pricing;
+
           const modelId = model.id;
-          const provider = model.owned_by || "openai";
-          
+          const provider = model.owned_by || (providerType === "openai" ? "openai" : providerType);
+
           // 获取匹配的元数据
           const metadata = getMatchedModelProperties(modelId, provider);
 
-          models.push({
+          const modelInfo: LlmModelInfo = {
             id: modelId,
             name: model.name || modelId,
             group: metadata?.group || "Other",
@@ -136,9 +162,57 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
             description: model.description,
             capabilities: {
               ...(metadata?.capabilities || {}),
-              // OpenRouter 等增强格式可能会返回更多信息，这里可以扩展
             },
-          });
+          };
+
+          // 解析增强字段
+          if (isEnhancedFormat) {
+            if (model.context_length) {
+              modelInfo.tokenLimits = { contextLength: model.context_length };
+              if (model.top_provider?.max_completion_tokens) {
+                modelInfo.tokenLimits.output = model.top_provider.max_completion_tokens;
+              }
+            }
+
+            if (model.architecture) {
+              modelInfo.architecture = {
+                modality: model.architecture.modality,
+                inputModalities: model.architecture.input_modalities,
+                outputModalities: model.architecture.output_modalities,
+              };
+
+              const inputMods = model.architecture.input_modalities || [];
+              modelInfo.capabilities = {
+                ...modelInfo.capabilities,
+                vision: inputMods.includes("image"),
+                thinking:
+                  model.supported_parameters?.includes("reasoning") ||
+                  model.supported_parameters?.includes("include_reasoning"),
+              };
+            }
+
+            if (model.pricing) {
+              modelInfo.pricing = {
+                prompt: model.pricing.prompt,
+                completion: model.pricing.completion,
+                request: model.pricing.request,
+                image: model.pricing.image,
+              };
+            }
+
+            if (model.supported_parameters) {
+              modelInfo.supportedFeatures = { parameters: model.supported_parameters };
+            }
+
+            if (model.default_parameters) {
+              modelInfo.defaultParameters = {
+                temperature: model.default_parameters.temperature,
+                topP: model.default_parameters.top_p,
+              };
+            }
+          }
+
+          models.push(modelInfo);
         }
       }
       break;
@@ -166,7 +240,7 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
         for (const model of data.models) {
           const modelId = model.name.replace("models/", "");
           const metadata = getMatchedModelProperties(modelId, "gemini");
-          
+
           models.push({
             id: modelId,
             name: model.displayName || modelId,
@@ -191,6 +265,22 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
             group: metadata?.group || "Cohere",
             provider: "cohere",
             description: model.description,
+            capabilities: metadata?.capabilities || { vision: false },
+          });
+        }
+      }
+      break;
+
+    case "ollama":
+      if (Array.isArray(data.models)) {
+        for (const model of data.models) {
+          const modelId = model.name;
+          const metadata = getMatchedModelProperties(modelId, "ollama");
+          models.push({
+            id: modelId,
+            name: modelId,
+            group: metadata?.group || "Ollama",
+            provider: "ollama",
             capabilities: metadata?.capabilities || { vision: false },
           });
         }

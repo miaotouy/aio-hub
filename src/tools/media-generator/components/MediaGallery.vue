@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-vue-next";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
+import { invoke } from "@tauri-apps/api/core";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
@@ -38,6 +39,60 @@ const assetUrls = ref<Record<string, string>>({});
 const loadData = async (append = false) => {
   if (!append) {
     currentPage.value = 1;
+  }
+
+  // 如果有搜索词，且不是追加模式，我们尝试使用专门的后端搜索
+  // 注意：目前的后端搜索不支持分页，所以我们仅在第一页且有搜索词时尝试
+  if (searchQuery.value && !append) {
+    try {
+      isLoading.value = true;
+      const searchResults = await invoke<any[]>("search_media_generator_data", {
+        query: searchQuery.value,
+        limit: 100,
+      });
+
+      // 提取所有关联的资产 ID
+      const assetIds = searchResults
+        .map((r) => r.asset_id)
+        .filter((id): id is string => !!id);
+
+      if (assetIds.length > 0) {
+        // 去重
+        const uniqueAssetIds = [...new Set(assetIds)];
+        
+        // 根据 ID 获取资产对象
+        const matchedAssets: Asset[] = [];
+        for (const id of uniqueAssetIds) {
+          try {
+            const asset = await invoke<Asset>("get_asset_by_id", { assetId: id });
+            if (asset) {
+              // 检查类型过滤
+              if (filterType.value !== "all" && asset.type !== filterType.value) {
+                continue;
+              }
+              matchedAssets.push(asset);
+            }
+          } catch (e) {
+            // 忽略找不到的资产
+          }
+        }
+
+        assets.value = matchedAssets;
+        hasMore.value = false; // 搜索模式暂不支持分页
+        
+        // 加载可见资产的 URL
+        for (const asset of assets.value) {
+          if (!assetUrls.value[asset.id]) {
+            assetUrls.value[asset.id] = await getAssetUrl(asset);
+          }
+        }
+        return;
+      }
+    } catch (e) {
+      console.error("后端搜索失败，退回到普通搜索", e);
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   await loadAssetsPaginated(
@@ -135,7 +190,7 @@ const handleRefresh = () => {
       <div class="search-box">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索提示词..."
+          placeholder="搜索提示词、模型..."
           clearable
           :prefix-icon="Search"
           @keyup.enter="handleRefresh"

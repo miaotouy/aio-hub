@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { invoke } from '@tauri-apps/api/core';
+import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { useMediaGenStore } from '../stores/mediaGenStore';
 import { useLlmRequest } from '@/composables/useLlmRequest';
 import { useAssetManager } from '@/composables/useAssetManager';
@@ -226,30 +227,32 @@ export function useMediaGenerationManager() {
       // 2. 补全衍生数据 (Prompt 等)
       try {
         const basePath = await getAssetBasePath();
-        const derivedRelativePath = `.derived/generation/${asset.id}.json`;
-        const fullDerivedPath = `${basePath}/${derivedRelativePath}`;
-
-        // 写入衍生数据文件
-        const encoder = new TextEncoder();
-        const contentBytes = encoder.encode(JSON.stringify(metadata, null, 2));
         
-        await invoke('write_file_force', {
-          path: fullDerivedPath,
-          content: Array.from(contentBytes) // 转换为普通数组以确保 Tauri 序列化兼容性
-        });
+        // 构建保存路径: derived/media-generator/{date}/{assetId}.json
+        // 参考转写模块的结构，但使用 media-generator 作为二级目录
+        const dateStr = new Date().toISOString().split('T')[0];
+        const derivedRelPath = `derived/media-generator/${dateStr}/${asset.id}.json`;
+        
+        const fullPath = `${basePath}/${derivedRelPath}`.replace(/\\/g, "/");
+        const dirPath = fullPath.substring(0, fullPath.lastIndexOf("/"));
+
+        // 确保目录存在
+        await mkdir(dirPath, { recursive: true });
+        // 写入衍生数据文件
+        await writeTextFile(fullPath, JSON.stringify(metadata, null, 2));
 
         // 更新资产元数据
         await invoke('update_asset_derived_data', {
           assetId: asset.id,
           key: 'generation',
           data: {
-            path: derivedRelativePath,
+            path: derivedRelPath,
             updatedAt: new Date().toISOString(),
             provider: 'media-generator'
           }
         });
 
-        logger.info('衍生数据已持久化', { assetId: asset.id });
+        logger.info('衍生数据已持久化', { assetId: asset.id, path: derivedRelPath });
       } catch (e) {
         logger.warn('持久化衍生数据失败', e);
       }

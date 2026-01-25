@@ -131,6 +131,7 @@ use commands::{
     proxy_llm_request,
     // LLM 搜索命令
     search_llm_data,
+    search_media_generator_data,
     set_window_position,
     start_clipboard_monitor,
     // LLM检查器相关
@@ -540,6 +541,7 @@ pub fn run() {
             proxy_llm_request,
             // LLM 搜索命令
             search_llm_data,
+            search_media_generator_data,
             // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)
             #[cfg(not(target_os = "macos"))]
             start_drag_session

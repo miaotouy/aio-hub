@@ -47,7 +47,10 @@ const filteredTasks = computed(() => {
   // 搜索过滤
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
-    list = list.filter((t) => t.input.prompt.toLowerCase().includes(q));
+    list = list.filter(
+      (t) =>
+        t.input.prompt.toLowerCase().includes(q) || t.input.modelId.toLowerCase().includes(q)
+    );
   }
 
   // 类型过滤
@@ -206,7 +209,7 @@ watch(
       <div class="toolbar-left">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索提示词..."
+          placeholder="搜索提示词、模型..."
           clearable
           :prefix-icon="Search"
           class="search-input"

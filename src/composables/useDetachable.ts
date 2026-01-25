@@ -165,8 +165,14 @@ export function useDetachable() {
         .then((created) => {
           console.log(`[DETACH] 拖拽会话结束，窗口${created ? '已' : '未'}创建`);
         })
-        .catch(error => {
-          console.error('[DETACH] 结束拖拽会话失败:', error);
+        .catch((error) => {
+          const errorStr = error.toString();
+          // 如果后端已经结束了会话（例如已经触发了分离），则忽略此错误
+          if (errorStr.includes('没有活动的拖拽会话')) {
+            console.log('[DETACH] 拖拽会话已由后端正常结束');
+          } else {
+            console.error('[DETACH] 结束拖拽会话失败:', error);
+          }
         })
         .finally(() => {
           isDragging.value = false;

@@ -2,6 +2,7 @@ import { reactive, onMounted } from "vue";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@/utils/logger";
+import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("SyncDemoState");
 
@@ -43,8 +44,24 @@ export function useSyncDemoState() {
       logger.info("收到测试 Action 请求", { action, params });
       if (action === "test-notify") {
         syncData.remoteActionCount++;
+        // 在主窗口弹出通知
+        customMessage.success(`收到远程指令: ${params.msg}`);
         return { success: true, message: `来自分离窗口的消息: ${params.msg}` };
       }
+
+      // 处理状态更新请求
+      if (action === "update-sync-data") {
+        const { key, value } = params;
+        logger.info("收到状态更新请求", { key, value });
+
+        // 支持简单的路径更新 (例如 "counter", "text", "nested.b.c")
+        if (key === "counter") syncData.counter = value;
+        else if (key === "text") syncData.text = value;
+        else if (key === "nested.b.c") syncData.nested.b.c = value;
+
+        return { success: true };
+      }
+
       return null;
     });
   }
@@ -67,10 +84,21 @@ export function useSyncDemoState() {
     return null;
   };
 
+  /**
+   * 请求更新同步数据 (从分离窗口调用)
+   */
+  const requestUpdateSyncData = async (key: string, value: any) => {
+    if (bus.windowType === "detached-component") {
+      return await bus.requestAction("update-sync-data", { key, value });
+    }
+    return null;
+  };
+
   return {
     syncData,
     manualPush,
     triggerRemoteNotify,
+    requestUpdateSyncData,
     windowType: bus.windowType,
   };
 }

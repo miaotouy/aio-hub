@@ -4,18 +4,18 @@
       <div class="info-text">
         <h3>窗口分离与同步体系测试</h3>
         <p>
-          本模块用于展示 <code>useDetachable</code> 和 <code>useDetachedManager</code> 
+          本模块用于展示 <code>useDetachable</code> 和 <code>useDetachedManager</code>
           如何协同工作，实现组件从主窗口分离到独立窗口，并保持状态同步。
         </p>
       </div>
-      
+
       <div class="status-cards">
         <el-card shadow="never" :class="{ 'is-active': isSyncDemoDetached }">
           <template #header>
             <div class="card-header">
               <span>同步数据预览 (主窗口)</span>
               <el-tag :type="isSyncDemoDetached ? 'success' : 'info'" size="small">
-                {{ isSyncDemoDetached ? '已分离' : '内嵌中' }}
+                {{ isSyncDemoDetached ? "已分离" : "内嵌中" }}
               </el-tag>
             </div>
           </template>
@@ -42,25 +42,11 @@
     </div>
 
     <div class="action-bar">
-      <el-button 
-        type="primary" 
-        :disabled="isSyncDemoDetached"
-        @click="handleDetach"
-      >
+      <el-button type="primary" :disabled="isSyncDemoDetached" @click="handleDetach">
         分离组件到新窗口
       </el-button>
-      <el-button 
-        v-if="isSyncDemoDetached" 
-        @click="handleFocus"
-      >
-        聚焦分离窗口
-      </el-button>
-      <el-button 
-        v-if="isSyncDemoDetached" 
-        type="danger" 
-        plain
-        @click="handleReattach"
-      >
+      <el-button v-if="isSyncDemoDetached" @click="handleFocus"> 聚焦分离窗口 </el-button>
+      <el-button v-if="isSyncDemoDetached" type="danger" plain @click="handleReattach">
         强制收回 (Reattach)
       </el-button>
     </div>
@@ -71,13 +57,13 @@
           <h4>1. 体系演示区域 (System Demo)</h4>
           <span class="desc">此区域根据分离状态动态切换显示内容</span>
         </div>
-        
+
         <div class="demo-container">
           <!-- 当未分离时，在主窗口显示内容 -->
           <div v-if="!isSyncDemoDetached" class="embedded-wrapper">
             <DetachedWindowContent title="同步测试组件 (主窗口内嵌)" />
           </div>
-          
+
           <!-- 当已分离时，显示占位符 -->
           <div v-else class="detached-placeholder">
             <el-result icon="info" title="组件已分离">
@@ -98,12 +84,13 @@
         <div class="header-grid">
           <div v-for="pos in ['top', 'bottom', 'left', 'right']" :key="pos" class="header-item">
             <div class="header-box" :class="pos">
-              <ComponentHeader 
-                :title="`位置: ${pos}`" 
+              <ComponentHeader
+                :title="`位置: ${pos}`"
                 :position="pos as any"
-                drag-mode="window"
+                drag-mode="detach"
                 :collapsible="true"
                 show-actions
+                @mousedown="handleDemoHeaderDrag($event, pos)"
               />
               <div class="box-content">内容区域</div>
             </div>
@@ -127,7 +114,7 @@ import { customMessage } from "@/utils/customMessage";
 const { syncData } = useSyncDemoState();
 
 // 2. 分离状态管理
-const { detachByClick } = useDetachable();
+const { detachByClick, startDetaching } = useDetachable();
 const detachedManager = useDetachedManager();
 
 // 通过管理器查询是否已分离
@@ -138,7 +125,7 @@ const isSyncDemoDetached = computed(() => {
 // 3. 交互逻辑
 const handleDetach = async () => {
   customMessage.info("正在分离窗口...");
-  
+
   const success = await detachByClick({
     id: SYNC_DEMO_COMPONENT_ID,
     displayName: "同步测试组件",
@@ -146,7 +133,7 @@ const handleDetach = async () => {
     width: 500,
     height: 400,
   });
-  
+
   if (success) {
     customMessage.success("分离成功");
   } else {
@@ -168,13 +155,43 @@ const handleReattach = async () => {
   await detachedManager.closeWindow(SYNC_DEMO_COMPONENT_ID);
   customMessage.info("已触发重附着");
 };
+
+/**
+ * 处理演示区域的拖拽分离
+ */
+const handleDemoHeaderDrag = (e: MouseEvent, pos: string) => {
+  const target = e.currentTarget as HTMLElement;
+  const box = target.closest(".header-box") as HTMLElement;
+  if (!box) return;
+
+  const rect = box.getBoundingClientRect();
+  const headerRect = target.getBoundingClientRect();
+
+  // 计算手柄相对于容器的偏移量，确保分离时不跳变
+  const handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+  const handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+
+  startDetaching({
+    id: `component-tester:layout-demo-${pos}`,
+    displayName: `布局预览 (${pos})`,
+    type: "component",
+    width: rect.width,
+    height: rect.height,
+    mouseX: e.screenX,
+    mouseY: e.screenY,
+    handleOffsetX,
+    handleOffsetY,
+  });
+};
 </script>
 
 <style scoped>
 .window-detach-tester {
   display: flex;
+  padding: 16px;
   flex-direction: column;
   gap: 24px;
+  box-sizing: border-box;
 }
 
 .tester-info {
@@ -302,9 +319,18 @@ const handleReattach = async () => {
   overflow: hidden;
 }
 
-.header-box.bottom { flex-direction: column-reverse; }
-.header-box.left { flex-direction: row; }
-.header-box.right { flex-direction: row-reverse; }
+.header-box.top {
+  flex-direction: column;
+}
+.header-box.bottom {
+  flex-direction: column-reverse;
+}
+.header-box.left {
+  flex-direction: row;
+}
+.header-box.right {
+  flex-direction: row-reverse;
+}
 
 .box-content {
   flex: 1;

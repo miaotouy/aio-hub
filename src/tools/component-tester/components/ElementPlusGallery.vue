@@ -586,7 +586,7 @@ const timelineEvents = ref([
     size: 'normal',
     hollow: true,
     category: 'Refactor',
-    tagType: '',
+    tagType: 'danger',
     branch: 'refactor',
     author: '赵六',
     title: '代码重构',

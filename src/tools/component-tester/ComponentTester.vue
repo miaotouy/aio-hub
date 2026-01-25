@@ -61,6 +61,7 @@ const activeTab = ref("window-detach");
   background-color: var(--container-bg);
   border-radius: 12px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .tool-header {
@@ -106,10 +107,11 @@ const activeTab = ref("window-detach");
 .tester-content :deep(.el-tabs__content) {
   flex: 1;
   overflow: auto;
-  padding: 20px;
+  box-sizing: border-box;
 }
 
 .tester-content :deep(.el-tab-pane) {
   height: 100%;
+  box-sizing: border-box;
 }
 </style>

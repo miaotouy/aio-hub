@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="containerRef"
     class="detached-window-content"
     :class="{
       'is-detached': isDetached,
@@ -11,13 +12,13 @@
 
     <!-- 顶部拖拽手柄 (模拟 MessageInput 的高度调整) -->
     <div class="resize-handle-top" title="模拟高度调整"></div>
-
     <!-- 分离窗口必须包含 ComponentHeader 才能被拖拽和重附着 -->
     <ComponentHeader
       :title="title"
       :drag-mode="isDetached ? 'window' : 'detach'"
       :collapsible="false"
       show-actions
+      @mousedown="handleDragStart"
       @reattach="handleReattach"
     />
 
@@ -33,7 +34,12 @@
         <div class="sync-demo">
           <div class="demo-item">
             <span class="label">同步计数器</span>
-            <el-input-number v-model="syncData.counter" :min="0" :max="100" />
+            <el-input-number
+              v-model="syncData.counter"
+              :min="0"
+              :max="100"
+              @change="(val: number | null) => handleManualUpdate('counter', val)"
+            />
           </div>
           <div class="demo-item vertical">
             <span class="label">实时文本同步</span>
@@ -42,11 +48,17 @@
               type="textarea"
               :rows="2"
               placeholder="输入内容实时同步..."
+              @input="(val: string) => handleManualUpdate('text', val)"
             />
           </div>
           <div class="demo-item">
             <span class="label">深度对象测试 (nested.b.c)</span>
-            <el-input v-model="syncData.nested.b.c" size="small" style="width: 150px" />
+            <el-input
+              v-model="syncData.nested.b.c"
+              size="small"
+              style="width: 150px"
+              @input="(val: string) => handleManualUpdate('nested.b.c', val)"
+            />
           </div>
         </div>
       </div>
@@ -58,9 +70,7 @@
           <el-button type="primary" size="small" @click="handleRemoteNotify">
             触发主窗口通知
           </el-button>
-          <div v-if="lastActionResult" class="action-result">
-            结果: {{ lastActionResult }}
-          </div>
+          <div v-if="lastActionResult" class="action-result">结果: {{ lastActionResult }}</div>
         </div>
       </div>
 
@@ -87,10 +97,13 @@
 import { ref, onMounted } from "vue";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
 import ComponentHeader from "@/components/ComponentHeader.vue";
+import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useSyncDemoState, SYNC_DEMO_COMPONENT_ID } from "../composables/useSyncDemoState";
 import { customMessage } from "@/utils/customMessage";
+
+const containerRef = ref<HTMLElement>();
 
 interface Props {
   isDetached?: boolean;
@@ -103,10 +116,11 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const detachedManager = useDetachedManager();
+const { startDetaching } = useDetachable();
 const { createResizeHandler } = useWindowResize();
 
 // 1. 状态同步
-const { syncData, triggerRemoteNotify } = useSyncDemoState();
+const { syncData, triggerRemoteNotify, requestUpdateSyncData } = useSyncDemoState();
 
 // 2. 模拟 UI 状态
 const showWallpaper = ref(true);
@@ -139,6 +153,42 @@ const handleRemoteNotify = async () => {
     lastActionResult.value = result.message;
     customMessage.success("远程 Action 执行成功");
   }
+};
+
+/**
+ * 处理手动更新 (仅在分离窗口时需要通过 Action 同步回主窗口)
+ */
+const handleManualUpdate = (key: string, value: any) => {
+  if (props.isDetached) {
+    requestUpdateSyncData(key, value);
+  }
+};
+
+const handleDragStart = (e: MouseEvent) => {
+  if (props.isDetached) return;
+
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (!rect) return;
+
+  // 获取拖拽手柄的位置（ComponentHeader 内部）
+  const headerEl = e.currentTarget as HTMLElement;
+  const headerRect = headerEl.getBoundingClientRect();
+
+  // 计算偏移量
+  const handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+  const handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+
+  startDetaching({
+    id: SYNC_DEMO_COMPONENT_ID,
+    displayName: "同步测试组件",
+    type: "component",
+    width: rect.width,
+    height: rect.height,
+    mouseX: e.screenX,
+    mouseY: e.screenY,
+    handleOffsetX,
+    handleOffsetY,
+  });
 };
 
 const isFocused = ref(true);

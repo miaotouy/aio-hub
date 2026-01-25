@@ -232,7 +232,11 @@ const handleDragInteraction = (event: MouseEvent) => {
                 :offset="10"
                 :enterable="false"
               >
-                <button @click="togglePin" class="action-btn menu-action-btn" :class="{ 'pinned': isPinned }">
+                <button
+                  @click="togglePin"
+                  class="action-btn menu-action-btn"
+                  :class="{ pinned: isPinned }"
+                >
                   <Pin :size="16" :fill="isPinned ? 'currentColor' : 'none'" />
                 </button>
               </el-tooltip>
@@ -279,15 +283,13 @@ const handleDragInteraction = (event: MouseEvent) => {
   align-items: center;
   padding: 2px 8px;
   gap: 4px;
-  border-bottom: 1px solid var(--border-color);
 }
 .position-top {
+  border-bottom: 1px solid var(--border-color);
   border-radius: 8px 8px 0 0;
 }
 .position-bottom {
-  order: 999;
   border-top: 1px solid var(--border-color);
-  border-bottom: none;
   border-radius: 0 0 8px 8px;
 }
 
@@ -297,15 +299,13 @@ const handleDragInteraction = (event: MouseEvent) => {
   justify-content: flex-start;
   align-items: center;
   padding: 8px 4px;
-  border-right: 1px solid var(--border-color);
 }
 .position-left {
+  border-right: 1px solid var(--border-color);
   border-radius: 8px 0 0 8px;
 }
 .position-right {
-  order: 999;
   border-left: 1px solid var(--border-color);
-  border-right: none;
   border-radius: 0 8px 8px 0;
 }
 

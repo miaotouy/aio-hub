@@ -25,6 +25,23 @@ export default class ComponentTesterRegistry implements ToolRegistry {
         listeners: {},
       }),
     },
+    // 布局预览演示组件
+    ...["top", "bottom", "left", "right"].reduce(
+      (acc, pos) => {
+        acc[`component-tester:layout-demo-${pos}`] = {
+          component: () => import("./components/DetachedWindowContent.vue"),
+          logicHook: () => ({
+            props: ref({
+              isDetached: true,
+              title: `布局预览 (${pos})`,
+            }),
+            listeners: {},
+          }),
+        };
+        return acc;
+      },
+      {} as Record<string, DetachableComponentRegistration>
+    ),
   };
 }
 

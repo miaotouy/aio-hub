@@ -149,8 +149,6 @@ export interface ModelCapabilities {
   fileSearch?: boolean;
   /** 是否支持图像生成 */
   imageGeneration?: boolean;
-  /** 是否支持媒体编辑 (如图生图、局部重绘、变体生成) */
-  mediaEditing?: boolean;
   /** 是否支持迭代微调 (基于上下文的多轮对话式生成) */
   iterativeRefinement?: boolean;
   /** 是否支持音频输入/输出 */

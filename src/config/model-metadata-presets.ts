@@ -1633,7 +1633,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "xAI",
       capabilities: {
         imageGeneration: true,
-        mediaEditing: true, // Grok 支持理解和修改图片
       },
     },
     priority: 30,
@@ -2095,7 +2094,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       capabilities: {
         imageGeneration: true,
-        mediaEditing: true,
         iterativeRefinement: true,
       },
     },
@@ -2114,7 +2112,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       capabilities: {
         videoGeneration: true,
-        mediaEditing: true, // Sora 支持以图生视频或重混
         iterativeRefinement: false,
       },
     },
@@ -2133,7 +2130,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Kwai",
       capabilities: {
         videoGeneration: true,
-        mediaEditing: true,
         iterativeRefinement: false,
       },
     },
@@ -2152,7 +2148,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Gemini",
       capabilities: {
         videoGeneration: true,
-        mediaEditing: true, // Veo 支持视频扩展和以图导向
       },
     },
     priority: 30,
@@ -2170,7 +2165,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Gemini",
       capabilities: {
         imageGeneration: true,
-        mediaEditing: true,
         iterativeRefinement: true,
       },
     },
@@ -2189,7 +2183,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Gemini",
       capabilities: {
         imageGeneration: true,
-        mediaEditing: true,
         iterativeRefinement: true,
       },
     },
@@ -2208,7 +2201,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Qwen",
       capabilities: {
         imageGeneration: true,
-        mediaEditing: true,
         iterativeRefinement: true,
       },
     },
@@ -2245,7 +2237,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Midjourney",
       capabilities: {
         imageGeneration: true,
-        mediaEditing: true,
         iterativeRefinement: true,
       },
     },
@@ -2283,7 +2274,6 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Stability AI",
       capabilities: {
         imageGeneration: true,
-        mediaEditing: true,
         iterativeRefinement: true,
       },
     },

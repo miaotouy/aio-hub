@@ -568,12 +568,23 @@ export const useMediaGenStore = defineStore("media-generator", () => {
      * 重试生成
      * 返回重试所需的任务参数，由 UI 层调用生成管理器
      */
+    /**
+     * 获取重试所需的任务参数
+     * 姐姐，这里我优化了逻辑：
+     * 1. 如果重试的是助手节点，我们切到它的父节点（User），这样 addTaskNode 就能识别出是重试。
+     * 2. 如果重试的是用户节点，直接切过去。
+     */
     getRetryParams(messageId: string) {
       const node = nodes.value[messageId];
       if (!node) return null;
 
-      // 切换到该节点所在的分支，确保后续操作在正确的上下文中
-      switchToBranch(node.id);
+      // 切换到该节点所在的分支
+      // 如果是 assistant，切到它的父节点（User），这样分支感更强
+      if (node.role === "assistant" && node.parentId) {
+        switchToBranch(node.parentId);
+      } else {
+        switchToBranch(node.id);
+      }
 
       return taskActionManager.getRetryParams(messageId);
     },

@@ -25,6 +25,7 @@ export function useTaskActionManager(context: {
 
   /**
    * 添加新任务（同时生成消息流节点）
+   * 姐姐，这里我重写了逻辑，它现在会自动识别是“追加新对话”还是“在现有节点上创建分支”
    */
   const addTaskNode = (task: MediaTask, attachments: Asset[]) => {
     const { nodes, tasks, activeLeafId, rootNodeId } = context;
@@ -32,24 +33,47 @@ export function useTaskActionManager(context: {
     // 1. 记录任务
     tasks.value.unshift(task);
 
-    // 2. 创建用户消息节点
-    const userNode = nodeManager.createNode({
-      role: "user",
-      content: task.input.prompt,
-      parentId: activeLeafId.value || rootNodeId.value,
-      attachments: attachments.length > 0 ? [...attachments] : undefined,
-    }) as MediaMessage;
+    let parentUserNodeId: string;
+    const currentNode = nodes.value[activeLeafId.value];
 
-    nodes.value[userNode.id] = userNode;
-    if (userNode.parentId && nodes.value[userNode.parentId]) {
-      nodes.value[userNode.parentId].childrenIds.push(userNode.id);
+    // 2. 智能判断挂载点
+    // 如果当前活跃节点就是 user 节点，且内容一致，说明是在这个 prompt 下重试
+    if (currentNode?.role === "user" && currentNode.content === task.input.prompt) {
+      parentUserNodeId = currentNode.id;
+      logger.debug("在现有 User 节点下创建新生成分支", { parentUserNodeId });
+    }
+    // 如果当前活跃节点是 assistant 且其父节点是内容一致的 user
+    else if (
+      currentNode?.role === "assistant" &&
+      currentNode.parentId &&
+      nodes.value[currentNode.parentId]?.content === task.input.prompt
+    ) {
+      parentUserNodeId = currentNode.parentId;
+      logger.debug("在 Assistant 的父级 User 节点下创建新生成分支", { parentUserNodeId });
+    }
+    // 否则，说明是全新的输入或者修改了 Prompt，需要创建新的 User 节点
+    else {
+      const userNode = nodeManager.createNode({
+        role: "user",
+        content: task.input.prompt,
+        // 如果是在中间节点发起的，就挂在中间节点后面；如果是末尾，就接在末尾
+        parentId: activeLeafId.value || rootNodeId.value,
+        attachments: attachments.length > 0 ? [...attachments] : undefined,
+      }) as MediaMessage;
+
+      nodes.value[userNode.id] = userNode;
+      if (userNode.parentId && nodes.value[userNode.parentId]) {
+        nodes.value[userNode.parentId].childrenIds.push(userNode.id);
+      }
+      parentUserNodeId = userNode.id;
+      logger.debug("创建了新的 User 节点对", { userNodeId: userNode.id });
     }
 
     // 3. 创建助手消息节点（绑定任务）
     const assistantNode = nodeManager.createNode({
       role: "assistant",
       content: "",
-      parentId: userNode.id,
+      parentId: parentUserNodeId,
       status: "generating",
       metadata: {
         taskId: task.id,
@@ -59,11 +83,15 @@ export function useTaskActionManager(context: {
       },
     }) as MediaMessage;
 
-    assistantNode.id = task.id; // 保持 ID 一致，方便追踪
+    assistantNode.id = task.id; // 保持 ID 一致
     nodes.value[assistantNode.id] = assistantNode;
-    userNode.childrenIds.push(assistantNode.id);
 
-    // 更新活跃叶子
+    const parentUserNode = nodes.value[parentUserNodeId];
+    if (parentUserNode && !parentUserNode.childrenIds.includes(assistantNode.id)) {
+      parentUserNode.childrenIds.push(assistantNode.id);
+    }
+
+    // 更新活跃叶子为最新的生成结果
     activeLeafId.value = assistantNode.id;
 
     logger.info("任务与消息节点已添加", {
@@ -72,9 +100,8 @@ export function useTaskActionManager(context: {
       leafId: activeLeafId.value,
     });
 
-    return { userNode, assistantNode };
+    return { userNode: nodes.value[parentUserNodeId], assistantNode };
   };
-
   /**
    * 获取重试所需的任务参数
    */

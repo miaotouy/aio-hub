@@ -63,10 +63,15 @@ export function useMediaTaskManager() {
 
   /**
    * 添加任务
+   * 姐姐，注意：现在推荐使用 useTaskActionManager 中的 addTaskNode
+   * 它会处理树形结构的关联。这里的全局任务池仅负责存储和状态同步。
    */
   const addTask = (task: MediaTask) => {
-    globalTasks.value.unshift(task);
-    logger.debug("已添加全局任务", { taskId: task.id });
+    // 检查是否已经存在
+    if (!globalTasks.value.find((t) => t.id === task.id)) {
+      globalTasks.value.unshift(task);
+      logger.debug("已添加全局任务到任务池", { taskId: task.id });
+    }
   };
 
   /**

@@ -42,6 +42,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const isInitialized = ref(false);
   const isNaming = ref(false);
 
+  // 批量操作状态
+  const isBatchMode = ref(false);
+
   // 获取当前会话对象
   const currentSession = computed(() => {
     if (!currentSessionId.value) return null;
@@ -260,9 +263,32 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   };
 
   /**
-   * 切换消息选中状态（上下文选取）
+   * 进入批量模式
+   */
+  const enterBatchMode = () => {
+    isBatchMode.value = true;
+  };
+
+  /**
+   * 退出批量模式
+   */
+  const exitBatchMode = () => {
+    isBatchMode.value = false;
+    // 清除所有选中状态
+    Object.values(nodes.value).forEach((node) => {
+      if (node.isSelected) {
+        node.isSelected = false;
+      }
+    });
+  };
+
+  /**
+   * 切换消息选中状态
    */
   const toggleMessageSelection = (messageId: string) => {
+    // 只有在批量模式下才允许切换选中
+    if (!isBatchMode.value) return;
+
     const msg = nodes.value[messageId];
     if (msg) {
       msg.isSelected = !msg.isSelected;
@@ -271,10 +297,17 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   };
 
   /**
-   * 获取当前选中的上下文
+   * 获取当前选中的消息
+   */
+  const selectedMessages = computed(() => {
+    return messages.value.filter((m) => m.isSelected);
+  });
+
+  /**
+   * 获取当前选中的上下文 (保留兼容性)
    */
   const getSelectedContext = computed(() => {
-    return messages.value.filter((m) => m.isSelected);
+    return selectedMessages.value;
   });
 
   /**
@@ -568,6 +601,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     updateSessionName,
     generateSessionName,
     isNaming,
+    isBatchMode,
+    enterBatchMode,
+    exitBatchMode,
+    selectedMessages,
     switchToBranch,
     getSiblings,
     isNodeInActivePath,

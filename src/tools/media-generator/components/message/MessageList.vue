@@ -8,6 +8,7 @@ import ChatMessage from "./ChatMessage.vue";
 
 interface Props {
   messages: MediaMessage[];
+  isBatchMode?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -142,6 +143,7 @@ defineExpose({
                 getMessageSiblings(messages[virtualItem.index].id).currentIndex
               "
               :is-selected="messages[virtualItem.index].isSelected"
+              :is-batch-mode="isBatchMode"
               @remove="handleRemove"
               @download="emit('download-task', $event)"
               @retry="emit('retry', messages[virtualItem.index].id)"

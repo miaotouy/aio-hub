@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ElMessageBox as elMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
@@ -7,7 +9,17 @@ import { useAssetManager } from "@/composables/useAssetManager";
 import MessageList from "./message/MessageList.vue";
 import SessionManager from "./SessionManager.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
-import { Sparkles, History, Check, X, RefreshCw, MessageSquarePlus } from "lucide-vue-next";
+import {
+  Sparkles,
+  History,
+  Check,
+  X,
+  RefreshCw,
+  MessageSquarePlus,
+  Layers,
+  Download,
+  Trash2,
+} from "lucide-vue-next";
 import { SUGGESTED_PROMPTS } from "../config";
 import { sampleSize } from "lodash-es";
 
@@ -111,6 +123,31 @@ const handleRetry = async (messageId: string) => {
   }
 };
 
+const handleBatchDelete = async () => {
+  const selectedCount = store.selectedMessages.length;
+  if (selectedCount === 0) return;
+
+  try {
+    await elMessageBox.confirm(`确定要删除选中的 ${selectedCount} 条消息吗？`, "批量删除", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+
+    for (const msg of store.selectedMessages) {
+      store.deleteMessage(msg.id);
+    }
+    store.exitBatchMode();
+  } catch {
+    // 用户取消
+  }
+};
+
+const handleBatchDownload = async () => {
+  // TODO: 实现批量下载逻辑
+  customMessage.info("批量下载功能开发中...");
+};
+
 // 资产 URL 映射缓存
 const assetUrls = ref<Record<string, string>>({});
 
@@ -132,8 +169,38 @@ watch(
 <template>
   <div class="generation-stream">
     <!-- 顶部导航栏 -->
-    <div class="stream-header">
-      <div class="header-left">
+    <div class="stream-header" :class="{ 'batch-mode-active': store.isBatchMode }">
+      <div v-if="store.isBatchMode" class="batch-header-content">
+        <div class="batch-info">
+          <span class="selected-count">已选中 {{ store.selectedMessages.length }} 项</span>
+        </div>
+        <div class="batch-actions">
+          <el-button
+            type="primary"
+            plain
+            size="small"
+            :disabled="store.selectedMessages.length === 0"
+            @click="handleBatchDownload"
+          >
+            <el-icon><Download /></el-icon>
+            <span>下载</span>
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            size="small"
+            :disabled="store.selectedMessages.length === 0"
+            @click="handleBatchDelete"
+          >
+            <el-icon><Trash2 /></el-icon>
+            <span>删除</span>
+          </el-button>
+          <el-divider direction="vertical" />
+          <el-button size="small" @click="store.exitBatchMode">取消</el-button>
+        </div>
+      </div>
+
+      <div v-else class="header-left">
         <div v-if="isEditingName" class="title-edit-wrapper">
           <el-input
             ref="titleInputRef"
@@ -155,7 +222,13 @@ watch(
         <span v-else class="session-display-name" @click="startEdit">{{ currentSessionName }}</span>
       </div>
 
-      <div class="header-actions">
+      <div v-if="!store.isBatchMode" class="header-actions">
+        <el-tooltip content="批量操作" placement="bottom">
+          <el-button link class="action-btn" @click="store.enterBatchMode">
+            <el-icon><Layers /></el-icon>
+          </el-button>
+        </el-tooltip>
+
         <el-tooltip content="开启新会话" placement="bottom">
           <el-button link class="action-btn" @click="store.createNewSession()">
             <el-icon><MessageSquarePlus /></el-icon>
@@ -212,6 +285,7 @@ watch(
       <div v-else class="message-list-wrapper">
         <MessageList
           :messages="store.messages.filter((m) => m.role !== 'system')"
+          :is-batch-mode="store.isBatchMode"
           @remove-task="(taskId) => store.removeTask(taskId)"
           @retry="handleRetry"
         />
@@ -245,6 +319,38 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-bottom: 1px solid transparent;
+}
+
+.stream-header.batch-mode-active {
+  background-color: color-mix(in srgb, var(--el-color-primary), transparent 92%);
+  border-bottom: 1px solid color-mix(in srgb, var(--el-color-primary), transparent 80%);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.batch-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.batch-info {
+  display: flex;
+  align-items: center;
+}
+
+.selected-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .header-left {

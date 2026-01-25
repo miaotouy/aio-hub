@@ -50,11 +50,16 @@ const indexManager = createConfigManager<MediaSessionsIndex>({
 /**
  * 任务列表管理器
  */
-const tasksManager = createConfigManager<MediaTask[]>({
+interface TasksData {
+  tasks: MediaTask[];
+  version?: string;
+}
+
+const tasksManager = createConfigManager<TasksData>({
   moduleName: MODULE_NAME,
   fileName: "tasks.json",
   version: "1.0.0",
-  createDefault: () => [],
+  createDefault: () => ({ tasks: [] }),
 });
 
 /**
@@ -372,15 +377,23 @@ export function useMediaStorage() {
    * 加载全局任务列表
    */
   async function loadTasks(): Promise<MediaTask[]> {
-    return await tasksManager.load();
+    const data = await tasksManager.load();
+    return data.tasks || [];
   }
 
   /**
    * 保存全局任务列表
    */
   async function saveTasks(tasks: MediaTask[]): Promise<void> {
-    await tasksManager.save(tasks);
+    await tasksManager.save({ tasks });
   }
+
+  /**
+   * 防抖保存任务列表
+   */
+  const saveTasksDebounced = (tasks: MediaTask[]) => {
+    tasksManager.saveDebounced({ tasks });
+  };
 
   return {
     loadSessions,
@@ -395,6 +408,6 @@ export function useMediaStorage() {
     saveSettingsDebounced: settingsManager.saveDebounced.bind(settingsManager),
     loadTasks,
     saveTasks,
-    saveTasksDebounced: tasksManager.saveDebounced.bind(tasksManager),
+    saveTasksDebounced,
   };
 }

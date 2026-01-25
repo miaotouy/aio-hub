@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { Loader2, AlertCircle, XCircle } from "lucide-vue-next";
 import type { MediaMessage } from "../../types";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
-import ImageViewer from "@/components/common/ImageViewer.vue";
+import { useAssetManager } from "@/composables/useAssetManager";
+import { createModuleLogger } from "@/utils/logger";
+import { useImageViewer } from "@/composables/useImageViewer";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
 
@@ -13,6 +15,9 @@ interface Props {
 
 const props = defineProps<Props>();
 const store = useMediaGenStore();
+const { getAssetUrl } = useAssetManager();
+const imageViewer = useImageViewer();
+const logger = createModuleLogger("media-generator/message-content");
 
 const task = computed(() => {
   const taskId = props.message.metadata?.taskId;
@@ -22,6 +27,47 @@ const task = computed(() => {
   }
   return props.message.metadata?.taskSnapshot;
 });
+
+// 资产 URL 处理
+const resultUrl = ref<string>("");
+
+const updateResultUrl = async () => {
+  const currentTask = task.value;
+  if (currentTask?.resultAsset) {
+    try {
+      const url = await getAssetUrl(currentTask.resultAsset);
+      resultUrl.value = url;
+      logger.debug("Result URL updated", { taskId: currentTask.id, url: !!url });
+    } catch (error) {
+      logger.error("Failed to get asset URL", error, { taskId: currentTask.id });
+      resultUrl.value = "";
+    }
+  } else {
+    resultUrl.value = "";
+  }
+};
+
+const handleImageClick = () => {
+  if (resultUrl.value) {
+    imageViewer.show(resultUrl.value);
+  }
+};
+
+// 监听整个 task 的变化，确保状态切换（生成中 -> 已完成）时能及时触发 URL 更新
+watch(
+  task,
+  (newTask) => {
+    if (newTask) {
+      logger.debug("Task state updated in message", {
+        id: newTask.id,
+        status: newTask.status,
+        hasAsset: !!newTask.resultAsset,
+      });
+      updateResultUrl();
+    }
+  },
+  { immediate: true, deep: true }
+);
 </script>
 
 <template>
@@ -54,11 +100,12 @@ const task = computed(() => {
       <div v-if="task?.status === 'completed'" class="media-result">
         <!-- 图像 -->
         <div v-if="task.type === 'image'" class="image-result">
-          <ImageViewer
-            v-if="task.resultAsset"
-            :src="task.resultAsset.path"
+          <img
+            v-if="resultUrl"
+            :src="resultUrl"
             :alt="task.input.prompt"
-            class="media-preview"
+            class="media-preview clickable"
+            @click="handleImageClick"
           />
           <div v-else-if="task.previewUrl" class="preview-placeholder">
             <img :src="task.previewUrl" class="media-preview opacity-50" />
@@ -68,8 +115,8 @@ const task = computed(() => {
         <!-- 视频 -->
         <div v-else-if="task.type === 'video'" class="video-result">
           <VideoPlayer
-            v-if="task.resultAsset"
-            :src="task.resultAsset.path"
+            v-if="resultUrl"
+            :src="resultUrl"
             class="media-preview"
           />
         </div>
@@ -77,8 +124,8 @@ const task = computed(() => {
         <!-- 音频 -->
         <div v-else-if="task.type === 'audio'" class="audio-result">
           <AudioPlayer
-            v-if="task.resultAsset"
-            :src="task.resultAsset.path"
+            v-if="resultUrl"
+            :src="resultUrl"
             class="media-preview"
           />
         </div>
@@ -141,6 +188,16 @@ const task = computed(() => {
   max-width: 100%;
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
+  display: block;
+}
+
+.media-preview.clickable {
+  cursor: zoom-in;
+  transition: transform 0.2s;
+}
+
+.media-preview.clickable:hover {
+  transform: scale(1.01);
 }
 
 .preview-placeholder {

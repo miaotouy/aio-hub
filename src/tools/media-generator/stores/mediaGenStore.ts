@@ -197,7 +197,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
   // 监听配置和输入变化自动保存
   watch(
-    [currentConfig, inputPrompt, nodes, activeLeafId],
+    [currentConfig, inputPrompt, nodes, activeLeafId, tasks],
     () => {
       if (!isInitialized.value || !currentSessionId.value) return;
 
@@ -292,8 +292,21 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     if (task) {
       // 2. 同步更新节点中的快照，确保持久化后的数据也是最新的
       const node = nodes.value[taskId];
-      if (node && node.metadata) {
-        node.metadata.taskSnapshot = { ...task };
+      if (node) {
+        if (node.metadata) {
+          node.metadata.taskSnapshot = { ...task };
+        }
+
+        // 同步更新节点状态，确保 UI 能够正确切换从“生成中”到“已完成”
+        if (status === "completed") {
+          node.status = "complete";
+        } else if (status === "error") {
+          node.status = "error";
+        }
+
+        // 姐姐，这里是关键：强制替换节点对象以触发 Vue 的响应式刷新
+        // 这样 MessageContent 里的 computed 才会重新计算，从而发现 resultAsset 的变化
+        nodes.value[taskId] = { ...node };
       }
 
       logger.debug("任务状态已更新", { taskId, status });

@@ -7,7 +7,7 @@ import { useAssetManager } from "@/composables/useAssetManager";
 import MessageList from "./message/MessageList.vue";
 import SessionManager from "./SessionManager.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
-import { Sparkles, History, Check, X, RefreshCw } from "lucide-vue-next";
+import { Sparkles, History, Check, X, RefreshCw, MessageSquarePlus } from "lucide-vue-next";
 import { SUGGESTED_PROMPTS } from "../config";
 import { sampleSize } from "lodash-es";
 
@@ -156,6 +156,12 @@ watch(
       </div>
 
       <div class="header-actions">
+        <el-tooltip content="开启新会话" placement="bottom">
+          <el-button link class="action-btn" @click="store.createNewSession()">
+            <el-icon><MessageSquarePlus /></el-icon>
+          </el-button>
+        </el-tooltip>
+
         <el-popover
           placement="bottom-end"
           :width="360"
@@ -291,19 +297,23 @@ watch(
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
+.action-btn,
 .history-btn {
   height: 32px;
   padding: 0 8px;
   color: var(--el-text-color-regular);
   font-size: 13px;
+  transition: all 0.2s;
 }
 
+.action-btn:hover,
 .history-btn:hover {
   color: var(--el-color-primary);
+  background-color: var(--el-fill-color-light);
 }
 
 .stream-body {

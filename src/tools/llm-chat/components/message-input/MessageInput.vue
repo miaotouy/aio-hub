@@ -1,34 +1,30 @@
 <script setup lang="ts">
-import { ref, toRef, computed, onMounted, onUnmounted } from "vue";
+import { ref, toRef, computed, onMounted } from "vue";
 import { useStorage } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
-import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useChatInputManager } from "@/tools/llm-chat/composables/useChatInputManager";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/useChatSettings";
-import { useTranslation } from "@/tools/llm-chat/composables/useTranslation";
-import { useContextCompressor } from "@/tools/llm-chat/composables/useContextCompressor";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useChatInputTokenPreview } from "@/tools/llm-chat/composables/useChatInputTokenPreview";
 import type { Asset } from "@/types/asset-management";
 import type { ModelIdentifier } from "@/tools/llm-chat/types";
 import { customMessage } from "@/utils/customMessage";
-import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useTranscriptionManager } from "@/tools/llm-chat/composables/useTranscriptionManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
-import AttachmentCard from "../AttachmentCard.vue";
 import MessageInputToolbar, { type InputToolbarSettings } from "./MessageInputToolbar.vue";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
-import type { MacroDefinition } from "../../macro-engine";
+import MessageInputAttachments from "./MessageInputAttachments.vue";
+
+// Composables
+import { useMessageInputResize } from "../../composables/message-input/useMessageInputResize";
+import { useMessageInputActions } from "../../composables/message-input/useMessageInputActions";
 
 const logger = createModuleLogger("MessageInput");
 const errorHandler = createModuleErrorHandler("MessageInput");
@@ -36,16 +32,8 @@ const bus = useWindowSyncBus();
 
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
-const agentStore = useAgentStore();
 const { settings, updateSettings, isLoaded: settingsLoaded, loadSettings } = useChatSettings();
-const { translateText } = useTranslation();
-const { manualCompress } = useContextCompressor();
 const transcriptionManager = useTranscriptionManager();
-
-// 翻译相关状态
-const isTranslatingInput = ref(false);
-// 压缩相关状态
-const isCompressing = ref(false);
 
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
@@ -110,15 +98,14 @@ const emit = defineEmits<Emits>();
 const textareaRef = ref<InstanceType<typeof ChatCodeMirrorEditor>>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
-// const inputAreaRef = ref<HTMLDivElement>();
 
-// 宏选择器状态
+// 状态
 const macroSelectorVisible = ref(false);
 const isExpanded = ref(false);
 
-// 使用全局输入管理器（替代本地状态）
+// 使用全局输入管理器
 const inputManager = useChatInputManager();
-const inputText = inputManager.inputText; // 全局响应式状态
+const inputText = inputManager.inputText;
 
 // Token 预览逻辑
 const {
@@ -132,6 +119,7 @@ const {
   temporaryModel: inputManager.temporaryModel,
 });
 
+// 附件管理
 const attachmentManager = {
   attachments: inputManager.attachments,
   isProcessing: inputManager.isProcessingAttachments,
@@ -142,14 +130,57 @@ const attachmentManager = {
   addAsset: inputManager.addAsset,
   removeAttachment: (asset: Asset) => {
     inputManager.removeAttachment(asset.id);
-    // 移除附件时主动取消对应的转写任务，避免后台资源浪费
     transcriptionManager.cancelTranscription(asset.id);
   },
   clearAttachments: inputManager.clearAttachments,
   maxAttachmentCount: inputManager.maxAttachmentCount,
 };
 
-// 统一的文件交互处理（拖放 + 粘贴）
+// 1. 高度调整逻辑
+const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick } =
+  useMessageInputResize({
+    isDetached: props.isDetached || false,
+    textareaRef,
+    onResizeStart: () => {
+      isExpanded.value = false;
+    },
+  });
+
+// 2. 交互动作逻辑
+const {
+  isTranslatingInput,
+  isCompressing,
+  handleSend,
+  handleAbort,
+  handleInsertMacro,
+  handleTranslateInput,
+  handleCompressContext,
+  handleSelectTemporaryModel,
+  handleSelectContinuationModel,
+  handleTriggerAttachment,
+  handleKeydown,
+  handlePaste,
+  handleCompleteInput,
+  handleSwitchSession,
+  handleNewSession,
+  getWillUseTranscription,
+} = useMessageInputActions({
+  props,
+  emit,
+  inputManager,
+  inputText,
+  inputSettings,
+  settings,
+  bus,
+  textareaRef,
+  isCurrentBranchGenerating,
+  debouncedCalculateTokens,
+  onBeforeSend: () => {
+    isExpanded.value = false;
+  },
+});
+
+// 统一的文件交互处理
 const { isDraggingOver } = useChatFileInteraction({
   element: containerRef,
   onPaths: async (paths) => {
@@ -173,297 +204,38 @@ const { isDraggingOver } = useChatFileInteraction({
   disabled: toRef(props, "disabled"),
 });
 
-// 处理发送
-const handleSend = async () => {
-  const content = inputText.value.trim();
-  if (
-    (!content && !inputManager.hasAttachments.value) ||
-    props.disabled ||
-    isCurrentBranchGenerating.value
-  ) {
-    logger.info("发送被阻止", {
-      hasContent: !!content,
-      hasAttachments: inputManager.hasAttachments.value,
-      disabled: props.disabled,
-      isGenerating: isCurrentBranchGenerating.value,
-      isDetached: props.isDetached,
-    });
-    // todo:后续可以做个消息等待队列，或直接添加到消息树后面等待上个回复完成后再自动继续
-    if (isCurrentBranchGenerating.value) {
-      customMessage.warning("请等待当前回复完成后再发送新消息");
-    }
-    return;
-  }
-
-  logger.info("发送消息", {
-    contentLength: content.length,
-    attachmentCount: inputManager.attachmentCount.value,
-    temporaryModel: inputManager.temporaryModel.value,
-    isDetached: props.isDetached,
-  });
-
-  // 发送消息和附件
-  const attachments =
-    inputManager.attachmentCount.value > 0 ? [...inputManager.attachments.value] : undefined;
-  const temporaryModel = inputManager.temporaryModel.value;
-  const disableMacroParsing = !inputSettings.value.enableMacroParsing;
-
-  const payload = { content, attachments, temporaryModel, disableMacroParsing };
-
-  if (props.isDetached) {
-    bus.requestAction("send-message", payload);
-  } else {
-    emit("send", payload);
-  }
-
-  // 这里的清空逻辑已移至 llmChatStore.sendMessage 内部“反向驱动”
-  // 以及 detached 模式下的 bus 处理器中。
-  // 这样可以确保只有在消息真正进入 store 后才清空，且支持跨窗口同步。
-  isExpanded.value = false;
-
-  // 重置文本框高度 (CM6 内部自动处理 doc 变化后的高度)
-};
-
-// 处理中止
-const handleAbort = () => {
-  if (props.isDetached) {
-    bus.requestAction("abort-sending", {});
-    return;
-  }
-
-  const session = chatStore.currentSession;
-  if (session && session.activeLeafId && isCurrentBranchGenerating.value) {
-    chatStore.abortNodeGeneration(session.activeLeafId);
-  } else {
-    // 回退：如果没有明确的活动节点，尝试中止所有（虽然这种情况很少见）
-    emit("abort");
-  }
-};
-
-const handleTriggerAttachment = async () => {
-  if (props.disabled) return;
-
-  try {
-    const selected = await open({
-      multiple: true,
-      title: "选择附件",
-    });
-
-    if (selected) {
-      const paths = Array.isArray(selected) ? selected : [selected];
-      await inputManager.addAttachments(paths);
-    }
-  } catch (error) {
-    errorHandler.error(error, "打开文件选择对话框失败"); // <-- 替换
-    customMessage.error("选择文件失败");
-  }
-};
-
 const toggleExpand = () => {
   if (props.isDetached) return;
   isExpanded.value = !isExpanded.value;
 };
 
-// 处理键盘事件（根据设置动态处理）
-const handleKeydown = (e: KeyboardEvent) => {
-  const sendKey = settings.value.shortcuts.send;
-
-  // 检查是否按下发送快捷键
-  if (sendKey === "ctrl+enter") {
-    // Ctrl/Cmd + Enter 发送
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleSend();
-    }
-  } else if (sendKey === "enter") {
-    // 单独 Enter 发送，Shift + Enter 换行
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }
-};
-
-// 计算 placeholder 文本（根据快捷键设置动态显示）
+// 计算 placeholder 文本
 const placeholderText = computed(() => {
-  if (props.disabled) {
-    return "请先创建或选择一个对话";
-  }
-
+  if (props.disabled) return "请先创建或选择一个对话";
   const sendKey = settings.value.shortcuts.send;
   const sendHint =
     sendKey === "ctrl+enter" ? "Ctrl/Cmd + Enter 发送" : "Enter 发送, Shift + Enter 换行";
   return `输入消息、拖入或粘贴文件... (${sendHint})`;
 });
 
-// 拖拽调整大小相关状态
-const isResizing = ref(false);
-const startY = ref(0);
-const startHeight = ref(0);
-const customHeight = ref<string | number>("auto");
-const customMaxHeight = ref<string | number>("70vh");
-
-// 计算最终传给编辑器的实际高度
-const editorHeight = computed(() => {
-  if (isExpanded.value) return "70vh";
-  return customHeight.value;
-});
-
-// 计算最终传给编辑器的最大高度
-const editorMaxHeight = computed(() => {
-  if (isExpanded.value) return "70vh";
-  return customMaxHeight.value;
-});
-
-// 拖拽开始处理 - 输入框高度调整
-const handleInputResizeStart = (e: MouseEvent) => {
-  isExpanded.value = false;
-  isResizing.value = true;
-  startY.value = e.clientY;
-
-  if (textareaRef.value) {
-    // 获取组件根元素的实际高度
-    const el = (textareaRef.value as any).$el;
-    startHeight.value = el?.offsetHeight || 0;
-  }
-
-  // 阻止默认行为和文本选择
-  e.preventDefault();
-  document.body.style.cursor = "row-resize";
-  document.body.style.userSelect = "none";
-
-  // 添加全局事件监听
-  document.addEventListener("mousemove", handleMouseMove);
-  document.addEventListener("mouseup", handleMouseUp);
-};
-
-// 鼠标移动处理
-const handleMouseMove = (e: MouseEvent) => {
-  if (!isResizing.value || !textareaRef.value) return;
-
-  // 计算高度差值
-  const deltaY = startY.value - e.clientY;
-  const newHeight = startHeight.value + deltaY;
-
-  // 限制最小和最大高度
-  const minHeight = 40;
-  const maxHeight = props.isDetached ? window.innerHeight * 0.8 : window.innerHeight * 0.8;
-  const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
-
-  // 更新自定义高度，从而通过 prop 传给编辑器
-  customHeight.value = finalHeight;
-  customMaxHeight.value = finalHeight;
-};
-
-// 鼠标释放处理
-const handleMouseUp = () => {
-  isResizing.value = false;
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-
-  // 移除全局事件监听
-  document.removeEventListener("mousemove", handleMouseMove);
-  document.removeEventListener("mouseup", handleMouseUp);
-};
-
-// 双击手柄重置高度
-const handleResizeDoubleClick = () => {
-  isExpanded.value = false;
-  customHeight.value = "auto";
-  customMaxHeight.value = "70vh"; // 重置为默认值
-};
-
-// 组件卸载时清理事件监听
-onUnmounted(() => {
-  if (isResizing.value) {
-    handleMouseUp();
-  }
-});
-// ===== 拖拽与分离功能 =====
-const { startDetaching } = useDetachable();
-const handleDragStart = (e: MouseEvent) => {
-  if (props.isDetached) return;
-
-  const rect = containerRef.value?.getBoundingClientRect();
-  if (!rect) {
-    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸，无法开始拖拽"); // <-- 替换
-    return;
-  }
-
-  // 获取拖拽手柄的位置
-  const headerEl = headerRef.value?.$el as HTMLElement;
-  const headerRect = headerEl?.getBoundingClientRect();
-
-  // 计算手柄相对于容器的偏移量
-  let handleOffsetX = 0;
-  let handleOffsetY = 0;
-
-  if (headerRect) {
-    // 手柄中心相对于容器左上角的偏移量
-    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
-    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
-
-    logger.info("拖拽手柄偏移量计算", {
-      mouseX: e.screenX,
-      mouseY: e.screenY,
-      handleOffsetX,
-      handleOffsetY,
-      headerWidth: headerRect.width,
-      headerHeight: headerRect.height,
-    });
-  }
-
-  startDetaching({
-    id: "llm-chat:chat-input",
-    displayName: "聊天输入框",
-    type: "component",
-    width: rect.width + 80,
-    height: Math.max(rect.height + 80, 900), // 增加高度以容纳弹出气泡
-    mouseX: e.screenX,
-    mouseY: e.screenY,
-    handleOffsetX,
-    handleOffsetY,
-  });
-};
-
-// 窗口大小调整功能 =====
-const { createResizeHandler } = useWindowResize();
-const handleResizeEast = createResizeHandler("East");
-const handleResizeWest = createResizeHandler("West");
-
 // 初始加载
 onMounted(async () => {
-  // 在初始化前，先将当前已有的附件标记为已处理，防止刷新页面后重复触发转写
   if (inputManager.attachments.value.length > 0) {
     inputManager.attachments.value.forEach((asset) => {
       transcriptionManager.markAsProcessed(asset.id);
     });
   }
-
-  // 初始化转写管理器
   transcriptionManager.init();
-
-  // 加载聊天设置（确保 isLoaded 标志被设置）
   if (!settingsLoaded.value) {
     await loadSettings();
-    logger.info("MessageInput 聊天设置已加载", {
-      isStreaming: settings.value.uiPreferences.isStreaming,
-    });
   }
-
-  // 如果是分离模式，强制调整窗口高度以容纳弹出气泡
   if (props.isDetached) {
     setTimeout(async () => {
       try {
         const win = getCurrentWindow();
         const size = await win.innerSize();
-        // 如果高度不足 900，强制调整为 900，保持宽度不变
         if (size.height < 900) {
           await win.setSize(new PhysicalSize(size.width, 900));
-          logger.info("已强制调整分离窗口高度", {
-            originalHeight: size.height,
-            newHeight: 900,
-          });
         }
       } catch (e) {
         logger.warn("调整分离窗口大小失败", e);
@@ -471,40 +243,14 @@ onMounted(async () => {
     }, 100);
   }
 });
+
 /**
- * 插入宏到光标位置
+ * 获取分离窗口的配置
  */
-function handleInsertMacro(macro: MacroDefinition) {
-  const textarea = textareaRef.value;
-  if (!textarea) return;
-
-  // 获取当前光标位置
-  const { start, end } = textarea.getSelectionRange();
-
-  // 要插入的文本
-  const insertText = macro.example || `{{${macro.name}}}`;
-
-  // 使用组件提供的方法插入文本
-  textarea.insertText(insertText, start, end);
-
-  // 关闭弹窗
-  macroSelectorVisible.value = false;
-
-  // 聚焦
-  setTimeout(() => {
-    textarea.focus();
-  }, 0);
-}
-
-// 处理从菜单打开独立窗口
-const handleDetach = async () => {
+const getDetachConfig = (mouseX?: number, mouseY?: number) => {
   const rect = containerRef.value?.getBoundingClientRect();
-  if (!rect) {
-    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸"); // <-- 替换
-    return;
-  }
+  if (!rect) return null;
 
-  // 获取手柄位置用于计算偏移量
   const headerEl = headerRef.value?.$el as HTMLElement;
   const headerRect = headerEl?.getBoundingClientRect();
 
@@ -516,324 +262,57 @@ const handleDetach = async () => {
     handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
   }
 
-  const config = {
+  return {
     id: "llm-chat:chat-input",
     displayName: "聊天输入框",
     type: "component" as const,
     width: rect.width + 80,
-    height: Math.max(rect.height + 80, 900), // 增加高度以容纳弹出气泡
-    mouseX: window.screenX + rect.left + rect.width / 2,
-    mouseY: window.screenY + rect.top + rect.height / 2,
+    height: Math.max(rect.height + 80, 900),
+    mouseX: mouseX ?? window.screenX + rect.left + rect.width / 2,
+    mouseY: mouseY ?? window.screenY + rect.top + rect.height / 2,
     handleOffsetX,
     handleOffsetY,
   };
+};
 
-  logger.info("通过菜单请求分离窗口", { config });
+// 处理从菜单打开独立窗口
+const handleDetach = async () => {
+  const config = getDetachConfig();
+  if (!config) {
+    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸");
+    return;
+  }
 
   try {
     const sessionId = await invoke<string>("begin_detach_session", { config });
     if (sessionId) {
-      await invoke("finalize_detach_session", {
-        sessionId,
-        shouldDetach: true,
-      });
-      logger.info("通过菜单分离窗口成功", { sessionId });
-    } else {
-      errorHandler.error(new Error("Session ID is null"), "开始分离会话失败，未返回会话 ID"); // <-- 替换
+      await invoke("finalize_detach_session", { sessionId, shouldDetach: true });
     }
   } catch (error) {
-    errorHandler.error(error, "通过菜单分离窗口失败"); // <-- 替换
+    errorHandler.error(error, "通过菜单分离窗口失败");
   }
 };
 
-/**
- * 处理粘贴事件，智能提取 Base64 图像
- */
-const handlePaste = async (event: ClipboardEvent) => {
-  const text = event.clipboardData?.getData("text/plain");
-  if (!text) return;
+// ===== 窗口大小调整功能 =====
+const { createResizeHandler } = useWindowResize();
+const handleResizeEast = createResizeHandler("East");
+const handleResizeWest = createResizeHandler("West");
 
-  // 检查是否包含潜在的 Base64 图像数据
-  if (!text.includes("data:image") || !text.includes(";base64,")) {
-    return; // 不含 Base64 图像，使用默认粘贴行为
-  }
+// ===== 拖拽与分离功能 =====
+const { startDetaching } = useDetachable();
+const handleDragStart = (e: MouseEvent) => {
+  if (props.isDetached) return;
 
-  // 检查是否包含潜在的 Base64 图像数据
-  if (!text.includes("data:image") || !text.includes(";base64,")) {
-    return; // 不含 Base64 图像，使用默认粘贴行为
-  }
-
-  // 提前获取选区，避免异步后选区状态改变或丢失
-  const textarea = textareaRef.value;
-  const selection = textarea?.getSelectionRange() || { start: inputText.value.length, end: inputText.value.length };
-
-  try {
-    // 只有确定要处理 Base64 时才阻止默认行为
-    event.preventDefault();
-    logger.info("检测到粘贴内容中可能含有 Base64 图像，开始处理...");
-
-    const { processedText, newAssets } = await processInlineData(text, {
-      sizeThresholdKB: 100, // 大于 100KB 的图像才转换为附件
-      assetImportOptions: {
-        sourceModule: "llm-chat-paste",
-      },
-    });
-
-    if (newAssets.length > 0) {
-      inputManager.addAssets(newAssets);
-      customMessage.success(`已自动转换 ${newAssets.length} 个粘贴的图像为附件`);
-    }
-
-    // 将处理后的文本插入到预先保存的光标位置
-    if (textarea) {
-      textarea.insertText(processedText, selection.start, selection.end);
-      setTimeout(() => textarea.focus(), 0);
-    }
-  } catch (error) {
-    logger.warn("Base64 粘贴提取处理失败，回退到普通文本粘贴", error);
-    
-    // 彻底的回退逻辑：如果组件方法 insertText 报错，直接通过 v-model 修改数据
-    try {
-      if (textarea) {
-        textarea.insertText(text, selection.start, selection.end);
-        setTimeout(() => textarea.focus(), 0);
-      } else {
-        inputText.value += text;
-      }
-    } catch (innerError) {
-      // 最后的保底：直接修改响应式变量
-      const currentText = inputText.value;
-      const before = currentText.substring(0, selection.start);
-      const after = currentText.substring(selection.end);
-      inputText.value = before + text + after;
-      logger.debug("已通过 v-model 强制完成粘贴回退");
-    }
-  }
-};
-
-// 处理临时模型选择
-const { open: openModelSelectDialog } = useModelSelectDialog();
-const { getProfileById } = useLlmProfiles();
-
-const handleSelectTemporaryModel = async () => {
-  // 尝试定位当前模型，优先使用已选择的临时模型，否则回退到智能体默认模型
-  let currentSelection = null;
-  const temporaryModel = inputManager.temporaryModel.value;
-
-  if (temporaryModel) {
-    const profile = getProfileById(temporaryModel.profileId);
-    if (profile) {
-      const model = profile.models.find((m) => m.id === temporaryModel.modelId);
-      if (model) {
-        currentSelection = { profile, model };
-      }
-    }
-  } else if (agentStore.currentAgentId) {
-    const agent = agentStore.getAgentById(agentStore.currentAgentId);
-    if (agent) {
-      const profile = getProfileById(agent.profileId);
-      if (profile) {
-        const model = profile.models.find((m) => m.id === agent.modelId);
-        if (model) {
-          currentSelection = { profile, model };
-        }
-      }
-    }
-  }
-
-  const result = await openModelSelectDialog({ current: currentSelection });
-  if (result) {
-    inputManager.setTemporaryModel({
-      profileId: result.profile.id,
-      modelId: result.model.id,
-    });
-  }
-};
-
-// 处理续写模型选择
-const handleSelectContinuationModel = async () => {
-  if (props.isDetached) {
-    bus.requestAction("select-continuation-model", {});
+  const config = getDetachConfig(e.screenX, e.screenY);
+  if (!config) {
+    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸，无法开始拖拽");
     return;
   }
 
-  let currentSelection = null;
-  const continuationModel = inputManager.continuationModel.value;
-
-  if (continuationModel) {
-    const profile = getProfileById(continuationModel.profileId);
-    if (profile) {
-      const model = profile.models.find((m) => m.id === continuationModel.modelId);
-      if (model) {
-        currentSelection = { profile, model };
-      }
-    }
-  }
-
-  const result = await openModelSelectDialog({ current: currentSelection });
-  if (result) {
-    inputManager.setContinuationModel({
-      profileId: result.profile.id,
-      modelId: result.model.id,
-    });
-  }
-};
-
-// 处理输入翻译
-const handleTranslateInput = async () => {
-  if (isTranslatingInput.value) return;
-
-  const text = inputText.value.trim();
-  if (!text) return;
-
-  isTranslatingInput.value = true;
-
-  // 保存当前光标位置和选区
-  const textarea = textareaRef.value;
-  const { start, end } = textarea ? textarea.getSelectionRange() : { start: 0, end: 0 };
-  const hasSelection = start !== end;
-
-  // 如果有选区，只翻译选中的文本；否则翻译全部
-  const textToTranslate = hasSelection ? text.substring(start, end) : text;
-
-  // 使用输入框专用的目标语言
-  const targetLang = settings.value.translation.inputTargetLang || "English";
-
-  try {
-    const translatedText = await translateText(textToTranslate, undefined, undefined, targetLang);
-
-    if (translatedText) {
-      if (hasSelection) {
-        // 替换选中文本
-        textarea?.insertText(translatedText, start, end);
-
-        // 恢复光标并选中新翻译的文本
-        setTimeout(() => {
-          if (textarea) {
-            textarea.focus();
-            textarea.setSelectionRange(start, start + translatedText.length);
-          }
-        }, 0);
-      } else {
-        // 替换全部文本
-        inputText.value = translatedText;
-        // 光标移到最后
-        setTimeout(() => {
-          if (textarea) {
-            textarea.focus();
-            textarea.setSelectionRange(translatedText.length, translatedText.length);
-          }
-        }, 0);
-      }
-
-      customMessage.success("翻译完成");
-    }
-  } catch (error) {
-    // 错误已在 useTranslation 中处理
-  } finally {
-    isTranslatingInput.value = false;
-  }
-};
-
-// 处理输入补全
-const handleCompleteInput = (content: string) => {
-  const options = inputManager.continuationModel.value
-    ? {
-        modelId: inputManager.continuationModel.value.modelId,
-        profileId: inputManager.continuationModel.value.profileId,
-      }
-    : undefined;
-
-  if (props.isDetached) {
-    bus.requestAction("complete-input", { content, options });
-  } else {
-    emit("complete-input", content, options);
-  }
-};
-
-// 处理切换会话
-const handleSwitchSession = (sessionId: string) => {
-  if (props.isDetached) {
-    bus.requestAction("switch-session", { sessionId });
-  } else {
-    chatStore.switchSession(sessionId);
-  }
-};
-
-// 处理新建会话
-const handleNewSession = () => {
-  // 使用当前选中的智能体，或使用默认智能体
-  const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
-  if (!agentId) {
-    customMessage.warning("没有可用的智能体来创建新会话");
-    return;
-  }
-
-  if (props.isDetached) {
-    bus.requestAction("create-session", { agentId });
-  } else {
-    chatStore.createSession(agentId);
-  }
-};
-
-// 处理手动压缩上下文
-const handleCompressContext = async () => {
-  if (isCompressing.value) return;
-
-  const session = chatStore.currentSession;
-  if (!session) return;
-
-  // 检查是否在分离模式下，如果是，可能需要通过 bus 请求？
-  // 目前压缩逻辑是在前端执行的，直接操作 store。
-  // 如果在分离窗口中，store 是同步的吗？
-  // useLlmChatStore 应该是同步的，或者至少能操作。
-  // 假设可以直接操作。
-
-  isCompressing.value = true;
-  try {
-    const result = await manualCompress(session);
-    if (result.success) {
-      const msg =
-        `上下文压缩成功：已压缩 ${result.messageCount} 条消息` +
-        (result.savedTokenCount ? `，节省约 ${result.savedTokenCount.toLocaleString()} Token` : "");
-      customMessage.success(msg);
-      // 触发 token 重新计算
-      debouncedCalculateTokens();
-    } else {
-      customMessage.info("没有可压缩的消息，或历史记录不足");
-    }
-  } catch (error) {
-    errorHandler.error(error, "手动压缩失败");
-  } finally {
-    isCompressing.value = false;
-  }
-};
-
-/**
- * 检查附件是否会使用转写。
- * 在输入框中，我们不考虑消息深度，只考虑模型能力。
- */
-const getWillUseTranscription = (asset: Asset): boolean => {
-  let modelId = "";
-  let profileId = "";
-
-  const temporaryModel = inputManager.temporaryModel.value;
-  if (temporaryModel) {
-    modelId = temporaryModel.modelId;
-    profileId = temporaryModel.profileId;
-  } else if (agentStore.currentAgentId) {
-    const agent = agentStore.getAgentById(agentStore.currentAgentId);
-    if (agent) {
-      modelId = agent.modelId;
-      profileId = agent.profileId;
-    }
-  }
-
-  // 使用统一方法计算，输入框不考虑消息深度（传递 undefined）
-  // 注意：即使 modelId/profileId 为空，也交给 computeWillUseTranscription 处理，它内部有更完善的兜底逻辑
-  return transcriptionManager.computeWillUseTranscription(asset, modelId, profileId, undefined);
+  startDetaching(config);
 };
 </script>
+
 <template>
   <div
     ref="containerRef"
@@ -859,7 +338,6 @@ const getWillUseTranscription = (asset: Asset): boolean => {
     <!-- 主内容区 -->
     <div class="main-content">
       <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
-      <!-- 仅在分离模式下总是显示，或在非分离模式且设置允许时显示 -->
       <ComponentHeader
         v-if="isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"
@@ -873,28 +351,16 @@ const getWillUseTranscription = (asset: Asset): boolean => {
       />
 
       <!-- 输入内容区 -->
-      <div ref="inputAreaRef" class="input-content">
+      <div class="input-content">
         <!-- 附件展示区 -->
-        <div v-if="attachmentManager.hasAttachments.value" class="attachments-area">
-          <div class="attachments-list">
-            <AttachmentCard
-              v-for="asset in attachmentManager.attachments.value"
-              :key="asset.id"
-              :asset="asset"
-              :all-assets="attachmentManager.attachments.value"
-              :removable="true"
-              size="small"
-              :will-use-transcription="getWillUseTranscription(asset)"
-              @remove="attachmentManager.removeAttachment"
-            />
-          </div>
-          <!-- 附件数量浮动显示 -->
-          <div class="attachments-info">
-            <span class="attachment-count">
-              {{ attachmentManager.count.value }} / {{ attachmentManager.maxAttachmentCount }}
-            </span>
-          </div>
-        </div>
+        <MessageInputAttachments
+          v-if="attachmentManager.hasAttachments.value"
+          :attachments="attachmentManager.attachments.value"
+          :count="attachmentManager.count.value"
+          :max-count="attachmentManager.maxAttachmentCount"
+          :get-will-use-transcription="getWillUseTranscription"
+          @remove="attachmentManager.removeAttachment"
+        />
 
         <div class="input-wrapper">
           <ChatCodeMirrorEditor
@@ -1055,48 +521,12 @@ const getWillUseTranscription = (asset: Asset): boolean => {
   gap: 12px;
   min-width: 0;
 }
-.attachments-area {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--container-bg);
-  border: 1px dashed var(--border-color);
-}
-
-.attachments-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.attachments-info {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(4px);
-  border-radius: 12px;
-  pointer-events: none;
-  z-index: 1;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.attachment-count {
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
 
 .input-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   border-radius: 8px; /* Slightly smaller radius for nesting */
-  /* overflow: hidden;  <-- 移除此行以允许 popover 在分离模式下溢出显示 */
 }
 
 .message-input-container:focus-within {
@@ -1110,38 +540,6 @@ const getWillUseTranscription = (asset: Asset): boolean => {
 
 .message-input-container.detached-mode .input-wrapper {
   flex: none; /* 让 wrapper 根据内容自适应高度，配合 justify-content: flex-end */
-}
-
-.message-textarea:focus {
-  outline: none;
-}
-
-.message-textarea:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.message-textarea::placeholder {
-  color: var(--text-color-light);
-}
-
-/* 自定义滚动条 */
-.message-textarea::-webkit-scrollbar {
-  width: 6px;
-}
-
-.message-textarea::-webkit-scrollbar-track {
-  background: var(--bg-color);
-  border-radius: 3px;
-}
-
-.message-textarea::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 3px;
-}
-
-.message-textarea::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
 }
 
 /* 拖拽调整大小手柄 - 位于顶部 */

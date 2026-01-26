@@ -26,6 +26,8 @@ const logic = useSymlinkMoverLogic();
 const sourcePathInput = ref(""); // 用于手动输入源文件路径
 const sourceFiles = ref<FileItem[]>([]);
 const targetDirectory = ref("");
+const baseSourceDir = ref(""); // 镜像搬家的基准源目录
+const mirrorMode = ref(false); // 是否开启镜像模式
 const linkType = ref<"symlink" | "link">("symlink");
 const operationMode = ref<"move" | "link-only">("move");
 const isProcessing = ref(false);
@@ -198,6 +200,17 @@ const selectTargetDirectory = async () => {
   }
 };
 
+const selectBaseSourceDir = async () => {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: "选择基准源目录",
+  });
+  if (typeof selected === "string") {
+    baseSourceDir.value = selected;
+  }
+};
+
 // --- 取消操作 ---
 const cancelOperation = async () => {
   // 逻辑层已经处理错误
@@ -231,20 +244,19 @@ const executeMoveAndLink = async () => {
   const sourcePaths = sourceFiles.value.map((file) => file.path);
   let result: string | null;
 
+  const options = {
+    sourcePaths,
+    targetDir: targetDirectory.value,
+    linkType: linkType.value,
+    baseSourceDir: mirrorMode.value ? baseSourceDir.value : undefined,
+  };
+
   if (operationMode.value === "move") {
     // 搬家模式：移动文件并创建链接
-    result = await logic.moveAndLink({
-      sourcePaths,
-      targetDir: targetDirectory.value,
-      linkType: linkType.value,
-    });
+    result = await logic.moveAndLink(options);
   } else {
     // 仅创建链接模式
-    result = await logic.createLinksOnly({
-      sourcePaths,
-      targetDir: targetDirectory.value,
-      linkType: linkType.value,
-    });
+    result = await logic.createLinksOnly(options);
   }
 
   // 如果服务返回 null，表示操作失败（已由 errorHandler 处理）
@@ -397,6 +409,33 @@ const executeMoveAndLink = async () => {
             }}
           </div>
         </div>
+        <div class="setting-group">
+          <div class="setting-header">
+            <label>镜像搬家模式</label>
+            <el-switch v-model="mirrorMode" />
+          </div>
+          <div class="mode-description">
+            开启后，搬家的内容会同时复刻其在基准目录下的层级结构
+          </div>
+        </div>
+
+        <div v-if="mirrorMode" class="setting-group animate-fade-in">
+          <label>基准源目录</label>
+          <DropZone
+            clickable
+            variant="input"
+            :directory-only="true"
+            :multiple="false"
+            hide-content
+            @drop="(paths) => (baseSourceDir = paths[0])"
+          >
+            <div class="target-control">
+              <el-input v-model="baseSourceDir" placeholder="待搬家内容的上层基准目录" />
+              <el-button @click="selectBaseSourceDir" :icon="FolderOpened">选择</el-button>
+            </div>
+          </DropZone>
+        </div>
+
         <div class="setting-group">
           <label>目标目录</label>
           <DropZone
@@ -700,6 +739,28 @@ const executeMoveAndLink = async () => {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
+}
+
+.setting-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .target-control {

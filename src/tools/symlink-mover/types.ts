@@ -69,6 +69,7 @@ export interface MoveAndLinkOptions {
   sourcePaths: string[];
   targetDir: string;
   linkType: LinkType;
+  baseSourceDir?: string; // 镜像搬家模式的基准源目录
 }
 
 /**
@@ -78,6 +79,7 @@ export interface CreateLinksOnlyOptions {
   sourcePaths: string[];
   targetDir: string;
   linkType: LinkType;
+  baseSourceDir?: string; // 镜像搬家模式的基准源目录
 }
 
 /**

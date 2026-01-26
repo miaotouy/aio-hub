@@ -156,6 +156,7 @@ export function useSymlinkMoverLogic() {
           sourcePaths: options.sourcePaths,
           targetDir: options.targetDir,
           linkType: options.linkType,
+          baseSourceDir: options.baseSourceDir,
         });
 
         logger.info('移动和链接操作完成', { result });
@@ -181,6 +182,7 @@ export function useSymlinkMoverLogic() {
           sourcePaths: options.sourcePaths,
           targetDir: options.targetDir,
           linkType: options.linkType,
+          baseSourceDir: options.baseSourceDir,
         });
 
         logger.info('创建链接操作完成', { result });

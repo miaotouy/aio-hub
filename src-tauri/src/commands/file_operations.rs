@@ -608,6 +608,7 @@ pub async fn move_and_link(
     source_paths: Vec<String>,
     target_dir: String,
     link_type: String,
+    base_source_dir: Option<String>,
     cancel_token: tauri::State<'_, Arc<CancellationToken>>,
 ) -> Result<String, String> {
     let start_time = Instant::now();
@@ -642,13 +643,41 @@ pub async fn move_and_link(
             continue;
         }
 
-        let file_name = source_path
+        let target_file_path = if let Some(base_dir) = &base_source_dir {
+            let base_path = PathBuf::from(base_dir);
+            match source_path.strip_prefix(&base_path) {
+                Ok(relative) => {
+                    let final_path = target_path.join(relative);
+                    // 确保目标父目录存在
+                    if let Some(parent) = final_path.parent() {
+                        if !parent.exists() {
+                            fs::create_dir_all(parent).map_err(|e| {
+                                format!("无法创建目标子目录 {}: {}", parent.display(), e)
+                            })?;
+                        }
+                    }
+                    final_path
+                }
+                Err(_) => {
+                    // 如果不是前缀，退回到普通模式
+                    let file_name = source_path
+                        .file_name()
+                        .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?;
+                    target_path.join(file_name)
+                }
+            }
+        } else {
+            let file_name = source_path
+                .file_name()
+                .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?;
+            target_path.join(file_name)
+        };
+
+        let file_name = target_file_path
             .file_name()
-            .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
+            .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-
-        let target_file_path = target_path.join(&file_name);
 
         // 计算文件/目录大小
         if let Ok(metadata) = source_path.metadata() {
@@ -838,6 +867,7 @@ pub async fn create_links_only(
     source_paths: Vec<String>,
     target_dir: String,
     link_type: String,
+    base_source_dir: Option<String>,
 ) -> Result<String, String> {
     let start_time = Instant::now();
     let timestamp = SystemTime::now()
@@ -871,13 +901,40 @@ pub async fn create_links_only(
             continue;
         }
 
-        let file_name = source_path
+        let link_path = if let Some(base_dir) = &base_source_dir {
+            let base_path = PathBuf::from(base_dir);
+            match source_path.strip_prefix(&base_path) {
+                Ok(relative) => {
+                    let final_path = target_path.join(relative);
+                    // 确保目标父目录存在
+                    if let Some(parent) = final_path.parent() {
+                        if !parent.exists() {
+                            fs::create_dir_all(parent).map_err(|e| {
+                                format!("无法创建目标子目录 {}: {}", parent.display(), e)
+                            })?;
+                        }
+                    }
+                    final_path
+                }
+                Err(_) => {
+                    let file_name = source_path
+                        .file_name()
+                        .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?;
+                    target_path.join(file_name)
+                }
+            }
+        } else {
+            let file_name = source_path
+                .file_name()
+                .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?;
+            target_path.join(file_name)
+        };
+
+        let file_name = link_path
             .file_name()
-            .ok_or_else(|| format!("无法获取文件名: {}", source_path_str))?
+            .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-
-        let link_path = target_path.join(&file_name);
 
         // 计算文件/目录大小
         if let Ok(metadata) = source_path.metadata() {

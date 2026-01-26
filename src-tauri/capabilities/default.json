@@ -58,30 +58,22 @@
     "clipboard-manager:default",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
-    "http:default",
     {
       "identifier": "http:default",
       "allow": [
         {
-          "url": "http://*"
+          "url": "http://*/**"
         },
         {
-          "url": "http://localhost:*"
+          "url": "https://*/**"
         },
         {
-          "url": "http://127.0.0.1:*"
+          "url": "ws://*/**"
         },
         {
-          "url": "https://*"
-        },
-        {
-          "url": "ws://*"
-        },
-        {
-          "url": "wss://*"
+          "url": "wss://*/**"
         }
-      ],
-      "deny": []
+      ]
     }
   ]
 }

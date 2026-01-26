@@ -1629,7 +1629,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "grok-.*image",
     useRegex: true,
     properties: {
-      icon: `/model-icons/xai.svg`,
+      icon: `/model-icons/grok.svg`,
       group: "xAI",
       capabilities: {
         imageGeneration: true,

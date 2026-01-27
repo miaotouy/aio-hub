@@ -20,12 +20,7 @@ import {
   recalculateNodeTokens as recalculateNodeTokensService,
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
 } from "../utils/chatTokenUtils";
-import type {
-  ChatSession,
-  ChatMessageNode,
-  LlmParameters,
-  ModelIdentifier,
-} from "../types";
+import type { ChatSession, ChatMessageNode, LlmParameters, ModelIdentifier } from "../types";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
@@ -117,7 +112,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
   const currentActivePathWithPresets = computed((): ChatMessageNode[] => {
     const agentStore = useAgentStore();
-    const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+    const agent = agentStore.currentAgentId
+      ? agentStore.getAgentById(agentStore.currentAgentId)
+      : null;
     return getActivePathWithPresets(currentActivePath.value, currentSession.value, agent || null);
   });
 
@@ -134,7 +131,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           role: node.role as "user" | "assistant",
           content: node.content,
         }));
-    },
+    }
   );
 
   const getSiblings = (nodeId: string): ChatMessageNode[] => {
@@ -159,7 +156,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   };
 
   const isNodeGenerating = (nodeId: string): boolean => {
-    return generatingNodes.value.has(nodeId);
+    // 访问 size 以建立响应式依赖，Set 内部的 add/delete 不会自动触发响应式
+    // 除非替换整个 Set 引用，或者监听 size
+    return generatingNodes.value.size >= 0 && generatingNodes.value.has(nodeId);
   };
 
   const currentMessageCount = computed((): number => {
@@ -212,11 +211,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   // ==================== 图操作 (委托给 useGraphActions) ====================
-  const graphActions = useGraphActions(
-    currentSession,
-    currentSessionId,
-    historyManager,
-  );
+  const graphActions = useGraphActions(currentSession, currentSessionId, historyManager);
 
   // ==================== 会话操作 ====================
 
@@ -270,12 +265,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   async function deleteSession(sessionId: string): Promise<void> {
     const sessionManager = useSessionManager();
-    const { updatedSessions, newCurrentSessionId } =
-      await sessionManager.deleteSession(
-        sessions.value,
-        sessionId,
-        currentSessionId.value,
-      );
+    const { updatedSessions, newCurrentSessionId } = await sessionManager.deleteSession(
+      sessions.value,
+      sessionId,
+      currentSessionId.value
+    );
 
     sessions.value = updatedSessions;
     currentSessionId.value = newCurrentSessionId;
@@ -285,10 +279,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 更新会话信息
    */
-  function updateSession(
-    sessionId: string,
-    updates: Partial<ChatSession>,
-  ): void {
+  function updateSession(sessionId: string, updates: Partial<ChatSession>): void {
     const session = sessions.value.find((s) => s.id === sessionId);
     if (!session) {
       logger.warn("更新会话失败：会话不存在", { sessionId });
@@ -342,10 +333,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       ? sessions.value.find((s) => s.id === sessionId)
       : currentSession.value;
     const sessionManager = useSessionManager();
-    return sessionManager.exportSessionAsMarkdown(
-      session || null,
-      currentActivePath.value,
-    );
+    return sessionManager.exportSessionAsMarkdown(session || null, currentActivePath.value);
   }
 
   /**
@@ -365,10 +353,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 重新计算单个节点的 token
    */
-  async function recalculateNodeTokens(
-    session: ChatSession,
-    nodeId: string,
-  ): Promise<void> {
+  async function recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
     await recalculateNodeTokensService(session, nodeId);
   }
 
@@ -376,9 +361,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 补充会话中缺失的 token 元数据
    */
   async function fillMissingTokenMetadata(): Promise<void> {
-    const sessionsToSave = await fillMissingTokenMetadataService(
-      sessions.value,
-    );
+    const sessionsToSave = await fillMissingTokenMetadataService(sessions.value);
     if (sessionsToSave.length > 0) {
       const sessionManager = useSessionManager();
       for (const session of sessionsToSave) {
@@ -399,16 +382,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       temporaryModel?: ModelIdentifier | null;
       parentId?: string;
       disableMacroParsing?: boolean;
-    },
+    }
   ): Promise<void> {
     const session = currentSession.value;
     if (!session) throw new Error("请先创建或选择一个会话");
 
     // 检查当前活动分支是否正在生成
-    if (
-      session.activeLeafId &&
-      generatingNodes.value.has(session.activeLeafId)
-    ) {
+    if (session.activeLeafId && generatingNodes.value.has(session.activeLeafId)) {
       logger.warn("发送消息失败：当前分支正在生成中", {
         sessionId: session.id,
         nodeId: session.activeLeafId,
@@ -420,7 +400,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     try {
       const chatHandler = useChatHandler();
-      
+
       // 注意：chatHandler.sendMessage 内部会先同步创建节点并持久化。
       // 我们需要在节点创建后的“黄金时间”清空输入框。
       // 由于 chatHandler.sendMessage 内部逻辑较重且包含异步转写等待，
@@ -433,7 +413,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         abortControllers.value,
         generatingNodes.value,
         options,
-        currentSessionId.value,
+        currentSessionId.value
       );
 
       // 反向驱动：立即清空输入框
@@ -534,7 +514,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   async function regenerateFromNode(
     nodeId: string,
-    options?: { modelId?: string; profileId?: string },
+    options?: { modelId?: string; profileId?: string }
   ): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
@@ -547,7 +527,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         currentActivePath.value,
         abortControllers.value,
         generatingNodes.value,
-        options,
+        options
       );
 
       const sessionManager = useSessionManager();
@@ -578,11 +558,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     const branchManager = useBranchManager();
     const result = branchManager.prepareRegenerateLastMessage(session);
 
-    if (
-      !result.shouldRegenerate ||
-      !result.userContent ||
-      !result.newActiveLeafId
-    ) {
+    if (!result.shouldRegenerate || !result.userContent || !result.newActiveLeafId) {
       return;
     }
 

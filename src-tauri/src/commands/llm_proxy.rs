@@ -62,11 +62,15 @@ fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
                 let decoded_path = urlencoding::decode(path_str)
                     .map_err(|e| format!("Failed to decode path: {}", e))?;
 
-                let bytes = std::fs::read(decoded_path.as_ref())
-                    .map_err(|e| format!("Failed to read local file {}: {}", decoded_path, e))?;
-
-                let b64 = STANDARD.encode(bytes);
-                *value = serde_json::Value::String(b64);
+                // 使用 std::fs::read 没问题，因为这个函数是在 handle_proxy_request 中被调用的，
+                // 而 handle_proxy_request 是异步的，但 process_body_recursive 是递归同步的。
+                // 考虑到 LLM 请求通常在单独的线程池中处理，这里暂时保持同步读取。
+                if let Ok(bytes) = std::fs::read(decoded_path.as_ref()) {
+                    let b64 = STANDARD.encode(bytes);
+                    *value = serde_json::Value::String(b64);
+                } else {
+                    error!("Failed to read local file: {}", decoded_path);
+                }
             }
         }
         _ => {}
@@ -200,12 +204,36 @@ async fn handle_proxy_request(
 
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
+
+    // 定义需要过滤的逐跳头部和敏感头部
+    let hop_by_hop = [
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "content-length",
+        "content-encoding",
+        "host",
+        "access-control-allow-origin",
+        "access-control-allow-methods",
+        "access-control-allow-headers",
+        "access-control-allow-credentials",
+    ];
+
     for (name, value) in response.headers().iter() {
-        if let Ok(name) = axum::http::HeaderName::from_bytes(name.as_str().as_bytes()) {
-            resp_headers.insert(
-                name,
-                axum::http::HeaderValue::from_bytes(value.as_bytes()).unwrap(),
-            );
+        let name_str = name.as_str().to_lowercase();
+        if hop_by_hop.contains(&name_str.as_str()) {
+            continue;
+        }
+
+        if let Ok(axum_name) = axum::http::HeaderName::from_bytes(name.as_str().as_bytes()) {
+            if let Ok(axum_value) = axum::http::HeaderValue::from_bytes(value.as_bytes()) {
+                resp_headers.insert(axum_name, axum_value);
+            }
         }
     }
 

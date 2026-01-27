@@ -23,14 +23,14 @@ export function useLlmRequest() {
   /**
    * 发送 LLM 请求
    */
-  const sendRequest = async (options: LlmRequestOptions | MediaGenerationOptions): Promise<LlmResponse> => {
+  const sendRequest = async (
+    options: LlmRequestOptions | MediaGenerationOptions
+  ): Promise<LlmResponse> => {
     let selectedApiKey: string | undefined;
 
     // 自动包装 prompt 为 messages
     if ((options as MediaGenerationOptions).prompt && !options.messages) {
-      options.messages = [
-        { role: 'user', content: (options as MediaGenerationOptions).prompt! }
-      ];
+      options.messages = [{ role: "user", content: (options as MediaGenerationOptions).prompt! }];
     }
 
     try {
@@ -54,7 +54,7 @@ export function useLlmRequest() {
           context: {
             profileId: options.profileId,
             profileName: profile.name,
-          }
+          },
         });
         throw error;
       }
@@ -68,7 +68,7 @@ export function useLlmRequest() {
             profileId: options.profileId,
             modelId: options.modelId,
             availableModels: profile.models.map((m) => m.id),
-          }
+          },
         });
         throw error;
       }
@@ -86,7 +86,7 @@ export function useLlmRequest() {
       const effectiveProfile: LlmProfile = {
         ...profile,
         // 覆盖 apiKeys 为选中的单个 Key，确保下游 Provider 只看到这一个
-        apiKeys: selectedApiKey ? [selectedApiKey] : (profile.apiKeys || []),
+        apiKeys: selectedApiKey ? [selectedApiKey] : profile.apiKeys || [],
       };
 
       // 自动分发特种请求 (Embedding)
@@ -100,7 +100,7 @@ export function useLlmRequest() {
             signal: options.signal,
           });
           return {
-            content: `[Embedding] 已成功生成向量，维度: ${result.data?.[0]?.embedding?.length || '未知'}`,
+            content: `[Embedding] 已成功生成向量，维度: ${result.data?.[0]?.embedding?.length || "未知"}`,
             usage: {
               promptTokens: result.usage.promptTokens,
               completionTokens: 0,
@@ -113,7 +113,7 @@ export function useLlmRequest() {
       // 自动分发特种请求 (Rerank)
       // Rerank 比较特殊，通常是自定义端点或者特定的 Provider (如 Cohere)
       // 如果是 OpenAI 类型的 Provider 但显式标记了 Rerank 且提供了 rerankQuery
-      if (model.capabilities?.rerank && options.rerankQuery && profile.type === 'openai') {
+      if (model.capabilities?.rerank && options.rerankQuery && profile.type === "openai") {
         // 这里我们可以透传给 callOpenAiCompatibleApi，但需要注意它内部默认拼接了 chat/completions
         // 更好的做法是增加一个 callOpenAiRerankApi 或者让 openAiUrlHandler 处理
         // 鉴于目前是测试用途，我们暂且返回一个模拟成功，或者之后在 adapter 里完善
@@ -131,19 +131,19 @@ export function useLlmRequest() {
       // 这是为了兼容那些没有显式设置 hasLocalFile 但内容中包含本地文件的场景
       if (!options.hasLocalFile) {
         const hasLocalFileProtocol = (content: any): boolean => {
-          if (typeof content === 'string') {
-            return content.includes('local-file://');
+          if (typeof content === "string") {
+            return content.includes("local-file://");
           }
           if (Array.isArray(content)) {
-            return content.some(item => hasLocalFileProtocol(item));
+            return content.some((item) => hasLocalFileProtocol(item));
           }
-          if (content && typeof content === 'object') {
-            return Object.values(content).some(val => hasLocalFileProtocol(val));
+          if (content && typeof content === "object") {
+            return Object.values(content).some((val) => hasLocalFileProtocol(val));
           }
           return false;
         };
 
-        if (options.messages.some(m => hasLocalFileProtocol(m.content))) {
+        if (options.messages.some((m) => hasLocalFileProtocol(m.content))) {
           options.hasLocalFile = true;
           logger.debug("自动检测到本地文件协议，已开启 Rust 代理模式");
         }
@@ -167,6 +167,14 @@ export function useLlmRequest() {
         };
       }
 
+      // 注入渠道的代理行为配置
+      if (profile.relaxIdCerts !== undefined) {
+        filteredOptions.relaxIdCerts = profile.relaxIdCerts;
+      }
+      if (profile.http1Only !== undefined) {
+        filteredOptions.http1Only = profile.http1Only;
+      }
+
       logger.debug("参数过滤完成", {
         originalParams: Object.keys(options).length,
         filteredParams: Object.keys(filteredOptions).length,
@@ -176,7 +184,9 @@ export function useLlmRequest() {
       const adapter = adapters[effectiveProfile.type];
       if (!adapter) {
         const error = new Error(`不支持的提供商类型: ${effectiveProfile.type}`);
-        errorHandler.error(error, "不支持的提供商类型", { context: { providerType: effectiveProfile.type } });
+        errorHandler.error(error, "不支持的提供商类型", {
+          context: { providerType: effectiveProfile.type },
+        });
         throw error;
       }
 
@@ -185,7 +195,8 @@ export function useLlmRequest() {
 
       // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
       // 或者模型能力中显式指定了偏好 Chat 接口 (如原生多模态生图模型)
-      const forceChatMode = (options as any)._forceChatMode === true || model.capabilities?.preferChat === true;
+      const forceChatMode =
+        (options as any)._forceChatMode === true || model.capabilities?.preferChat === true;
 
       if (!forceChatMode && model.capabilities?.videoGeneration && adapter.video) {
         response = await adapter.video(effectiveProfile, filteredOptions as MediaGenerationOptions);
@@ -223,7 +234,7 @@ export function useLlmRequest() {
             profileId: options.profileId,
             modelId: options.modelId,
             timeout: options.timeout,
-          }
+          },
         });
       }
       // AbortError 是用户主动取消，不应该记录为错误
@@ -233,12 +244,12 @@ export function useLlmRequest() {
         const isTimeout = isTimeoutError(error, options.signal);
 
         if (isTimeout) {
-          const timeoutErr = error instanceof TimeoutError ? error : new TimeoutError('请求超时');
+          const timeoutErr = error instanceof TimeoutError ? error : new TimeoutError("请求超时");
           logger.warn("LLM 请求超时 (通过信号识别)", {
             profileId: options.profileId,
             modelId: options.modelId,
             timeout: options.timeout,
-            originalError: (error as any)?.message || String(error)
+            originalError: (error as any)?.message || String(error),
           });
           // 抛出统一的 TimeoutError 让下游处理
           throw timeoutErr;
@@ -260,7 +271,7 @@ export function useLlmRequest() {
           context: {
             profileId: options.profileId,
             modelId: options.modelId,
-          }
+          },
         });
       }
       throw error;

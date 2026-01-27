@@ -43,7 +43,10 @@
     "已清空所有模型": "Cleared all models",
     "已选择图标": "Icon selected",
     "请输入基础 URL": "Please enter base URL",
-    "状态管理": "Status Management"
+    "状态管理": "Status Management",
+    "代理行为": "Proxy Behavior",
+    "放宽证书校验": "Relax Certificate Check",
+    "强制 HTTP/1.1": "Force HTTP/1.1"
   },
   "KeyManager": {
     "多Key状态管理": "Multi-Key Status Management",

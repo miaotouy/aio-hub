@@ -614,7 +614,12 @@ export const ensureResponseOk = async (response: Response): Promise<void> => {
  */
 export const fetchWithTimeout = async (
   url: string,
-  options: RequestInit & { hasLocalFile?: boolean },
+  options: RequestInit & {
+    hasLocalFile?: boolean;
+    forceProxy?: boolean;
+    relaxIdCerts?: boolean;
+    http1Only?: boolean;
+  },
   timeout: number = DEFAULT_TIMEOUT,
   externalSignal?: AbortSignal
 ): Promise<Response> => {
@@ -639,32 +644,42 @@ export const fetchWithTimeout = async (
   try {
     const proxyConfig = getProxyConfig();
 
-    // 劫持检测：如果显式指定了 hasLocalFile，则使用 Rust 代理发送请求
-    // 这样可以绕过 Tauri HTTP 插件在 JS 侧序列化巨型 Body 导致的 IPC 阻塞（白屏）
-    const hasLocalFile = options.hasLocalFile;
+    // 劫持检测：如果显式指定了 hasLocalFile 或 forceProxy，则使用 Rust 代理发送请求
+    // hasLocalFile: 绕过 Tauri HTTP 插件在 JS 侧序列化巨型 Body 导致的 IPC 阻塞
+    // forceProxy: 绕过前端 Capabilities/CORS 限制
+    const useProxy = options.hasLocalFile || options.forceProxy;
 
-    if (hasLocalFile) {
-      let bodyObjForProxy: any = null;
-      if (typeof options.body === "string") {
-        try {
-          bodyObjForProxy = JSON.parse(options.body);
-        } catch (e) {
-          // 如果不是 JSON，则无法通过代理处理（代理需要解析 body）
+    if (useProxy) {
+      let bodyObjForProxy: any = {}; // 默认为空对象
+
+      if (options.body) {
+        if (typeof options.body === "string") {
+          try {
+            bodyObjForProxy = JSON.parse(options.body);
+          } catch (e) {
+            // 如果不是 JSON，则无法通过代理处理（除非是 forceProxy 模式，我们尝试强制处理）
+            if (!options.forceProxy) {
+              return await fetch(url, {
+                ...options,
+                signal: controller.signal,
+                ...(proxyConfig && { proxy: proxyConfig }),
+              });
+            }
+          }
+        } else if (options.body instanceof Uint8Array) {
+          try {
+            const decoder = new TextDecoder();
+            bodyObjForProxy = JSON.parse(decoder.decode(options.body));
+          } catch (e) {
+            if (!options.forceProxy) {
+              return await fetch(url, {
+                ...options,
+                signal: controller.signal,
+                ...(proxyConfig && { proxy: proxyConfig }),
+              });
+            }
+          }
         }
-      } else if (options.body instanceof Uint8Array) {
-        try {
-          const decoder = new TextDecoder();
-          bodyObjForProxy = JSON.parse(decoder.decode(options.body));
-        } catch (e) {}
-      }
-
-      if (!bodyObjForProxy) {
-        // 如果无法解析 Body，退回到普通 fetch
-        return await fetch(url, {
-          ...options,
-          signal: controller.signal,
-          ...(proxyConfig && { proxy: proxyConfig }),
-        });
       }
 
       return new Promise((resolve, reject) => {
@@ -734,6 +749,8 @@ export const fetchWithTimeout = async (
             headers: options.headers as Record<string, string>,
             body: bodyObjForProxy,
             timeout: timeout, // 传递超时时间
+            relax_invalid_certs: options.relaxIdCerts,
+            http1_only: options.http1Only,
           },
           onEvent,
         }).catch(reject);

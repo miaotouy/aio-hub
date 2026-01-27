@@ -55,6 +55,14 @@ export function useLlmRequest() {
       apiKeys: pickedKey ? [pickedKey] : [],
     };
 
+    // 注入代理行为配置
+    if (profile.relaxIdCerts !== undefined) {
+      options.relaxIdCerts = profile.relaxIdCerts;
+    }
+    if (profile.http1Only !== undefined) {
+      options.http1Only = profile.http1Only;
+    }
+
     isSending.value = true;
     logger.info("开始发送 LLM 请求", {
       modelId: options.modelId,
@@ -104,14 +112,13 @@ export function useLlmRequest() {
       // 静默处理：记录日志并触发熔断，但不弹出全局提示，交给业务层处理
       errorHandler.handle(err, {
         showToUser: false,
-        context: { modelId: options.modelId }
+        context: { modelId: options.modelId },
       });
       throw err;
     } finally {
       isSending.value = false;
     }
   }
-
 
   return {
     sendRequest,

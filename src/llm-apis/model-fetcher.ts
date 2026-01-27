@@ -55,10 +55,18 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<ModelFetc
 
   try {
     // 模型列表获取通常不需要很长的超时，默认 60s 足够
-    const response = await fetchWithTimeout(url, {
-      method: "GET",
-      headers,
-    });
+    // 强制走后端代理以绕过前端 Capabilities/CORS 限制
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "GET",
+        headers,
+        forceProxy: true,
+        relaxIdCerts: profile.relaxIdCerts,
+        http1Only: profile.http1Only,
+      },
+      60000
+    );
 
     await ensureResponseOk(response);
 

@@ -397,6 +397,16 @@ export interface LlmProfile {
    */
   icon?: string;
   /**
+   * 放宽证书校验 (可选)
+   * 允许自签名证书或不匹配的证书，解决某些私有部署服务的 HTTPS 连接问题
+   */
+  relaxIdCerts?: boolean;
+  /**
+   * 强制使用 HTTP/1.1 (可选)
+   * 提高与某些老旧或自建服务的兼容性
+   */
+  http1Only?: boolean;
+  /**
    * 自定义请求头（可选）
    */
   customHeaders?: Record<string, string>;

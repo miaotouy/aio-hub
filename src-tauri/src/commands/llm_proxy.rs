@@ -1,5 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use futures_util::StreamExt;
+use log::{error, info};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,7 +12,9 @@ pub struct ProxyRequest {
     pub method: String,
     pub headers: HashMap<String, String>,
     pub body: serde_json::Value,
-    pub timeout: Option<u64>, // 超时时间（毫秒）
+    pub timeout: Option<u64>,              // 超时时间（毫秒）
+    pub relax_invalid_certs: Option<bool>, // 是否放宽证书校验
+    pub http1_only: Option<bool>,          // 是否强制 HTTP/1.1
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -72,12 +75,44 @@ pub async fn proxy_llm_request(
     request: ProxyRequest,
     on_event: Channel<ProxyResponseEvent>,
 ) -> Result<(), String> {
+    info!(
+        "LLM Proxy: {} {} (timeout: {:?})",
+        request.method, request.url, request.timeout
+    );
+
+    // 检查是否是 IP 地址，如果是 IP 地址则默认禁用代理，避免被系统代理拦截导致连接失败
+    let is_ip = if let Ok(u) = reqwest::Url::parse(&request.url) {
+        u.host_str()
+            .map(|h| h.parse::<std::net::IpAddr>().is_ok())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
     // 优化：配置超时和连接池
-    let client = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder()
+        .danger_accept_invalid_certs(request.relax_invalid_certs.unwrap_or(true)) // 默认允许自签名证书
+        .user_agent("AIO-Hub/0.5.0") // 设置明确的 User-Agent，避免被某些服务器拒绝
         .connect_timeout(std::time::Duration::from_secs(10))
-        .tcp_keepalive(std::time::Duration::from_secs(60))
+        .tcp_keepalive(std::time::Duration::from_secs(60));
+
+    // 强制使用 HTTP/1.1
+    if request.http1_only.unwrap_or(true) {
+        client_builder = client_builder.http1_only();
+    }
+
+    // 如果是直连 IP，禁用系统代理
+    if is_ip {
+        info!(
+            "LLM Proxy: Detecting IP address, bypassing system proxy for {}",
+            request.url
+        );
+        client_builder = client_builder.no_proxy();
+    }
+
+    let client = client_builder
         .build()
-        .map_err(|e| format!("Failed to create client: {}", e))?;
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let mut headers = HeaderMap::new();
     for (k, v) in request.headers {
@@ -95,23 +130,32 @@ pub async fn proxy_llm_request(
         return Err(e);
     }
 
-    let mut req_builder = match request.method.to_uppercase().as_str() {
+    let req_builder = match request.method.to_uppercase().as_str() {
         "POST" => client.post(&request.url),
         "GET" => client.get(&request.url),
         _ => return Err(format!("Unsupported method: {}", request.method)),
     };
+
+    let mut req_builder = req_builder;
 
     // 应用前端传入的超时时间
     if let Some(timeout_ms) = request.timeout {
         req_builder = req_builder.timeout(std::time::Duration::from_millis(timeout_ms));
     }
 
-    let response = req_builder
-        .headers(headers)
-        .json(&body_json)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+    let mut req = req_builder.headers(headers);
+
+    // 只有非 GET 请求才发送 Body
+    if request.method.to_uppercase() != "GET" {
+        req = req.json(&body_json);
+    }
+
+    let response = req.send().await.map_err(|e| {
+        error!("LLM Proxy Request failed: {}", e);
+        format!("Request failed: {}", e)
+    })?;
+
+    info!("LLM Proxy Response: {}", response.status());
 
     // 发送起始事件，包含状态码和响应头
     let mut resp_headers = HashMap::new();

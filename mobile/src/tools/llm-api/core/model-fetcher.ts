@@ -58,6 +58,10 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
     const response = await httpClient(url, {
       method: "GET",
       headers,
+      // @ts-ignore
+      relaxIdCerts: profile.relaxIdCerts,
+      // @ts-ignore
+      http1Only: profile.http1Only,
     });
 
     if (!response.ok) {

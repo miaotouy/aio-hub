@@ -398,6 +398,21 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 {{ tRaw("tools.llm-api.ProfileEditor.状态管理") }}
               </var-button>
             </div>
+            <div class="native-input-group form-item">
+              <label class="native-input-label">
+                <ShieldCheck :size="16" class="label-icon" />
+                {{ tRaw("tools.llm-api.ProfileEditor.代理行为") }}
+              </label>
+              <div class="checkbox-row">
+                <var-checkbox v-model="innerProfile.relaxIdCerts">
+                  {{ tRaw("tools.llm-api.ProfileEditor.放宽证书校验") }}
+                </var-checkbox>
+                <var-checkbox v-model="innerProfile.http1Only">
+                  {{ tRaw("tools.llm-api.ProfileEditor.强制 HTTP/1.1") }}
+                </var-checkbox>
+              </div>
+            </div>
+
             <div class="native-input-with-action">
               <input
                 v-model="apiKeyString"
@@ -616,6 +631,12 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .label-icon {
   opacity: 0.7;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
 }
 
 .native-input,

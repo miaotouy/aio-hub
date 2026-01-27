@@ -58,6 +58,8 @@ const editForm = ref<LlmProfile>({
   apiKeys: [],
   enabled: true,
   models: [],
+  relaxIdCerts: false,
+  http1Only: true,
 });
 
 // 模型编辑
@@ -139,6 +141,8 @@ const createNewProfile = () => {
     apiKeys: [],
     enabled: true,
     models: [],
+    relaxIdCerts: false,
+    http1Only: true,
   };
   apiKeyInput.value = "";
   selectedProfileId.value = editForm.value.id;
@@ -661,6 +665,16 @@ const resetBaseUrl = () => {
                     </span>
                   </el-button>
                 </div>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="代理行为">
+              <div style="display: flex; gap: 20px">
+                <el-checkbox v-model="editForm.relaxIdCerts" label="放宽证书校验" />
+                <el-checkbox v-model="editForm.http1Only" label="强制 HTTP/1.1" />
+              </div>
+              <div class="form-hint">
+                放宽证书校验允许自签名证书；强制 HTTP/1.1 可提高与某些自建服务的兼容性。
               </div>
             </el-form-item>
 

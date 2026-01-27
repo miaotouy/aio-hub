@@ -40,6 +40,9 @@ export async function callOpenAiVideoApi(
         size,
         seconds: durationSeconds.toString(),
       }),
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     timeout,
     signal
@@ -67,6 +70,9 @@ export async function callOpenAiVideoApi(
       {
         method: "GET",
         headers,
+        forceProxy: options.forceProxy,
+        relaxIdCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
       },
       timeout,
       signal

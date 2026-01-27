@@ -50,6 +50,9 @@ export async function callGeminiVideoApi(
           durationSeconds
         }
       }),
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     timeout,
     signal
@@ -75,6 +78,9 @@ export async function callGeminiVideoApi(
       {
         method: "GET",
         headers,
+        forceProxy: options.forceProxy,
+        relaxIdCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
       },
       timeout,
       signal

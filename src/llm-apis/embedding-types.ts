@@ -63,6 +63,13 @@ export interface EmbeddingRequestOptions {
   
   /** AbortSignal */
   signal?: AbortSignal;
+
+  /** 是否强制走后端代理 */
+  forceProxy?: boolean;
+  /** 放宽证书校验 */
+  relaxIdCerts?: boolean;
+  /** 强制 HTTP/1.1 */
+  http1Only?: boolean;
 }
 
 /**

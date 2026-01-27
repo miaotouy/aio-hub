@@ -85,6 +85,9 @@ export async function callOpenAiImageApi(
       method: "POST",
       headers: finalHeaders,
       body,
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     timeout,
     signal

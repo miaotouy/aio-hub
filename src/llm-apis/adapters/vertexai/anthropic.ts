@@ -88,6 +88,9 @@ export async function callVertexAiClaude(
         method: "POST",
         headers,
         body: await asyncJsonStringify(body),
+        forceProxy: options.forceProxy,
+        relaxIdCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
       },
       options.timeout,
       options.signal
@@ -149,6 +152,9 @@ export async function callVertexAiClaude(
       method: "POST",
       headers,
       body: await asyncJsonStringify(body),
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     options.timeout,
     options.signal

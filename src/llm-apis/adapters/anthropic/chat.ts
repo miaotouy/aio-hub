@@ -179,7 +179,10 @@ export const callClaudeChatApi = async (
         method: "POST",
         headers,
         body: await asyncJsonStringify(body),
-        hasLocalFile: options.hasLocalFile
+        hasLocalFile: options.hasLocalFile,
+        forceProxy: options.forceProxy,
+        relaxIdCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
       },
       options.timeout,
       options.signal
@@ -204,7 +207,10 @@ export const callClaudeChatApi = async (
       method: "POST",
       headers,
       body: await asyncJsonStringify(body),
-      hasLocalFile: options.hasLocalFile
+      hasLocalFile: options.hasLocalFile,
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     options.timeout,
     options.signal

@@ -68,6 +68,9 @@ export async function callGeminiImageApi(
       method: "POST",
       headers,
       body,
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     timeout,
     signal

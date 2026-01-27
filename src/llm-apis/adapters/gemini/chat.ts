@@ -188,6 +188,9 @@ export const callGeminiChatApi = async (
         headers,
         body: await asyncJsonStringify(body),
         hasLocalFile: options.hasLocalFile,
+        forceProxy: options.forceProxy,
+        relaxIdCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
       },
       options.timeout,
       options.signal
@@ -261,6 +264,9 @@ export const callGeminiChatApi = async (
       headers,
       body: serializedBody,
       hasLocalFile: options.hasLocalFile,
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     options.timeout,
     options.signal

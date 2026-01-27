@@ -240,6 +240,12 @@ export interface LlmRequestOptions {
   metadata?: Record<string, string>;
   /** 是否包含本地文件协议 (local-file://)，若为 true 则强制走 Rust 代理以避免 IPC 阻塞 */
   hasLocalFile?: boolean;
+  /** 是否强制走后端代理 */
+  forceProxy?: boolean;
+  /** 放宽证书校验 */
+  relaxIdCerts?: boolean;
+  /** 强制 HTTP/1.1 */
+  http1Only?: boolean;
   /** 输出模态类型 */
   modalities?: Array<"text" | "audio">;
   /** 预测输出配置 */
@@ -644,10 +650,12 @@ export const fetchWithTimeout = async (
   try {
     const proxyConfig = getProxyConfig();
 
-    // 劫持检测：如果显式指定了 hasLocalFile 或 forceProxy，则使用 Rust 代理发送请求
+    // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
     // hasLocalFile: 绕过 Tauri HTTP 插件在 JS 侧序列化巨型 Body 导致的 IPC 阻塞
     // forceProxy: 绕过前端 Capabilities/CORS 限制
-    const useProxy = options.hasLocalFile || options.forceProxy;
+    // relaxIdCerts/http1Only: 前端 fetch 不支持这些底层配置，必须走 Rust 代理
+    const useProxy =
+      options.hasLocalFile || options.forceProxy || options.relaxIdCerts || options.http1Only;
 
     if (useProxy) {
       let bodyObjForProxy: any = {}; // 默认为空对象

@@ -175,6 +175,22 @@ export function useLlmRequest() {
         filteredOptions.http1Only = profile.http1Only;
       }
 
+      // 自动开启代理：如果是本地地址或 IP 地址，强制走 Rust 代理以绕过前端 Capabilities 限制
+      const isLocalOrIp = (url: string): boolean => {
+        const lowerUrl = url.toLowerCase();
+        return (
+          lowerUrl.includes("localhost") ||
+          lowerUrl.includes("127.0.0.1") ||
+          // 匹配 IPv4 正则
+          /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(url)
+        );
+      };
+
+      if (profile.baseUrl && isLocalOrIp(profile.baseUrl)) {
+        filteredOptions.forceProxy = true;
+        logger.debug("检测到本地或 IP 地址，已强制开启 Rust 代理模式");
+      }
+
       logger.debug("参数过滤完成", {
         originalParams: Object.keys(options).length,
         filteredParams: Object.keys(filteredOptions).length,

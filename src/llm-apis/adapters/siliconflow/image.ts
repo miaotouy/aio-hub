@@ -87,6 +87,9 @@ export async function callSiliconFlowImageApi(
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      forceProxy: options.forceProxy,
+      relaxIdCerts: options.relaxIdCerts,
+      http1Only: options.http1Only,
     },
     timeout,
     signal

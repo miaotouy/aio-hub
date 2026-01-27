@@ -1,10 +1,35 @@
+use axum::{
+    body::Body,
+    http::{HeaderMap as AxumHeaderMap, StatusCode},
+    response::IntoResponse,
+    routing::post,
+    Json, Router,
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use futures_util::StreamExt;
 use log::{error, info};
+use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
-use tauri::{ipc::Channel, AppHandle};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+// 全局代理服务状态
+pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
+    Lazy::new(|| Arc::new(Mutex::new(ProxyServiceState::default())));
+
+#[derive(Default)]
+pub struct ProxyServiceState {
+    is_running: bool,
+    port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProxySettings {
+    pub mode: String,
+    pub custom_url: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ProxyRequest {
@@ -12,30 +37,10 @@ pub struct ProxyRequest {
     pub method: String,
     pub headers: HashMap<String, String>,
     pub body: serde_json::Value,
-    pub timeout: Option<u64>,              // 超时时间（毫秒）
-    pub relax_invalid_certs: Option<bool>, // 是否放宽证书校验
-    pub http1_only: Option<bool>,          // 是否强制 HTTP/1.1
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct ProxyResponseStart {
-    pub status: u16,
-    pub headers: HashMap<String, String>,
-}
-
-#[derive(Debug, Serialize, Clone)]
-#[serde(tag = "type", content = "data")]
-pub enum ProxyResponseEvent {
-    #[serde(rename = "start")]
-    Start(ProxyResponseStart),
-    #[serde(rename = "chunk")]
-    Chunk(String),
-    #[serde(rename = "binary")]
-    Binary(Vec<u8>),
-    #[serde(rename = "error")]
-    Error(String),
-    #[serde(rename = "done")]
-    Done,
+    pub timeout: Option<u64>,                  // 超时时间（毫秒）
+    pub relax_invalid_certs: Option<bool>,     // 是否放宽证书校验
+    pub http1_only: Option<bool>,              // 是否强制 HTTP/1.1
+    pub proxy_settings: Option<ProxySettings>, // 代理设置
 }
 
 /// 递归处理 Body，查找并替换以 local-file:// 开头的本地路径
@@ -68,19 +73,40 @@ fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
     }
     Ok(())
 }
-
 #[tauri::command]
-pub async fn proxy_llm_request(
-    _app: AppHandle,
-    request: ProxyRequest,
-    on_event: Channel<ProxyResponseEvent>,
-) -> Result<(), String> {
-    info!(
-        "LLM Proxy: {} {} (timeout: {:?})",
-        request.method, request.url, request.timeout
-    );
+pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
+    let mut state = PROXY_STATE.lock().await;
+    if state.is_running {
+        return Ok(format!(
+            "LLM Proxy Server already running on port {}",
+            state.port
+        ));
+    }
 
-    // 检查是否是 IP 地址，如果是 IP 地址则默认禁用代理，避免被系统代理拦截导致连接失败
+    state.is_running = true;
+    state.port = port;
+
+    tokio::spawn(async move {
+        let app = Router::new()
+            .route("/proxy", post(handle_proxy_request))
+            .layer(tower_http::cors::CorsLayer::permissive());
+
+        let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))
+            .await
+            .unwrap();
+        info!("LLM Proxy Server started on http://127.0.0.1:{}", port);
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    Ok(format!("LLM Proxy Server started on port {}", port))
+}
+
+async fn handle_proxy_request(
+    Json(mut request): Json<ProxyRequest>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    info!("LLM Proxy (HTTP): {} {}", request.method, request.url);
+
+    // 检查是否是 IP 地址
     let is_ip = if let Ok(u) = reqwest::Url::parse(&request.url) {
         u.host_str()
             .map(|h| h.parse::<std::net::IpAddr>().is_ok())
@@ -89,109 +115,104 @@ pub async fn proxy_llm_request(
         false
     };
 
-    // 优化：配置超时和连接池
     let mut client_builder = reqwest::Client::builder()
-        .danger_accept_invalid_certs(request.relax_invalid_certs.unwrap_or(true)) // 默认允许自签名证书
-        .user_agent("AIO-Hub/0.5.0") // 设置明确的 User-Agent，避免被某些服务器拒绝
+        .danger_accept_invalid_certs(request.relax_invalid_certs.unwrap_or(true))
+        .user_agent("AIO-Hub/0.5.0")
         .connect_timeout(std::time::Duration::from_secs(10))
-        .tcp_keepalive(std::time::Duration::from_secs(60));
+        .tcp_keepalive(std::time::Duration::from_secs(60))
+        .no_gzip()
+        .no_brotli()
+        .no_deflate();
 
-    // 强制使用 HTTP/1.1
     if request.http1_only.unwrap_or(true) {
         client_builder = client_builder.http1_only();
     }
 
-    // 如果是直连 IP，禁用系统代理
+    // 处理代理设置
     if is_ip {
-        info!(
-            "LLM Proxy: Detecting IP address, bypassing system proxy for {}",
-            request.url
-        );
         client_builder = client_builder.no_proxy();
+    } else if let Some(proxy_settings) = &request.proxy_settings {
+        match proxy_settings.mode.as_str() {
+            "none" => {
+                client_builder = client_builder.no_proxy();
+            }
+            "custom" => {
+                if let Some(custom_url) = &proxy_settings.custom_url {
+                    if !custom_url.is_empty() {
+                        match reqwest::Proxy::all(custom_url) {
+                            Ok(proxy) => {
+                                client_builder = client_builder.proxy(proxy);
+                            }
+                            Err(e) => {
+                                error!("Invalid custom proxy URL {}: {}", custom_url, e);
+                            }
+                        }
+                    }
+                }
+            }
+            "system" | _ => {
+                // 默认使用系统代理，reqwest 默认已启用
+            }
+        }
     }
 
-    let client = client_builder
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let client = client_builder.build().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create client: {}", e),
+        )
+    })?;
 
     let mut headers = HeaderMap::new();
     for (k, v) in request.headers {
-        let name = HeaderName::from_bytes(k.as_bytes())
-            .map_err(|_| format!("Invalid header name: {}", k))?;
-        let value = HeaderValue::from_str(&v)
-            .map_err(|_| format!("Invalid header value for {}: {}", k, v))?;
-        headers.insert(name, value);
+        if let (Ok(name), Ok(value)) = (
+            HeaderName::from_bytes(k.as_bytes()),
+            HeaderValue::from_str(&v),
+        ) {
+            headers.insert(name, value);
+        }
     }
 
-    let mut body_json = request.body;
-    // 在 Rust 侧处理本地文件读取，避免 JS 侧传输巨型 Base64
-    if let Err(e) = process_body_recursive(&mut body_json) {
-        let _ = on_event.send(ProxyResponseEvent::Error(e.clone()));
-        return Err(e);
+    // 处理本地文件读取
+    if let Err(e) = process_body_recursive(&mut request.body) {
+        return Err((StatusCode::BAD_REQUEST, e));
     }
 
     let req_builder = match request.method.to_uppercase().as_str() {
         "POST" => client.post(&request.url),
         "GET" => client.get(&request.url),
-        _ => return Err(format!("Unsupported method: {}", request.method)),
+        _ => return Err((StatusCode::METHOD_NOT_ALLOWED, "Unsupported method".into())),
     };
 
-    let mut req_builder = req_builder;
-
-    // 应用前端传入的超时时间
+    let mut req = req_builder.headers(headers);
     if let Some(timeout_ms) = request.timeout {
-        req_builder = req_builder.timeout(std::time::Duration::from_millis(timeout_ms));
+        req = req.timeout(std::time::Duration::from_millis(timeout_ms));
     }
 
-    let mut req = req_builder.headers(headers);
-
-    // 只有非 GET 请求才发送 Body
     if request.method.to_uppercase() != "GET" {
-        req = req.json(&body_json);
+        req = req.json(&request.body);
     }
 
     let response = req.send().await.map_err(|e| {
         error!("LLM Proxy Request failed: {}", e);
-        format!("Request failed: {}", e)
+        (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e))
     })?;
 
-    info!("LLM Proxy Response: {}", response.status());
-
-    // 发送起始事件，包含状态码和响应头
-    let mut resp_headers = HashMap::new();
+    let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
+    let mut resp_headers = AxumHeaderMap::new();
     for (name, value) in response.headers().iter() {
-        if let Ok(v) = value.to_str() {
-            resp_headers.insert(name.to_string(), v.to_string());
+        if let Ok(name) = axum::http::HeaderName::from_bytes(name.as_str().as_bytes()) {
+            resp_headers.insert(
+                name,
+                axum::http::HeaderValue::from_bytes(value.as_bytes()).unwrap(),
+            );
         }
     }
 
-    let _ = on_event.send(ProxyResponseEvent::Start(ProxyResponseStart {
-        status: response.status().as_u16(),
-        headers: resp_headers,
-    }));
+    let stream = response
+        .bytes_stream()
+        .map(|item| item.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
 
-    let mut stream = response.bytes_stream();
-
-    while let Some(item) = stream.next().await {
-        match item {
-            Ok(bytes) => {
-                // 尝试作为文本发送，如果失败则作为二进制发送
-                match String::from_utf8(bytes.to_vec()) {
-                    Ok(s) => {
-                        let _ = on_event.send(ProxyResponseEvent::Chunk(s));
-                    }
-                    Err(_) => {
-                        let _ = on_event.send(ProxyResponseEvent::Binary(bytes.to_vec()));
-                    }
-                }
-            }
-            Err(e) => {
-                let _ = on_event.send(ProxyResponseEvent::Error(format!("Stream error: {}", e)));
-                return Err(format!("Stream error: {}", e));
-            }
-        }
-    }
-
-    let _ = on_event.send(ProxyResponseEvent::Done);
-    Ok(())
+    let body = Body::from_stream(stream);
+    Ok((status, resp_headers, body))
 }

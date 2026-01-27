@@ -128,7 +128,7 @@ use commands::{
     // 窗口配置管理相关
     save_window_config,
     // LLM 代理命令
-    proxy_llm_request,
+    start_llm_proxy_server,
     // LLM 搜索命令
     search_llm_data,
     search_media_generator_data,
@@ -538,7 +538,7 @@ pub fn run() {
             get_media_metadata,
             get_full_media_info,
             // LLM 代理命令
-            proxy_llm_request,
+            start_llm_proxy_server,
             // LLM 搜索命令
             search_llm_data,
             search_media_generator_data,

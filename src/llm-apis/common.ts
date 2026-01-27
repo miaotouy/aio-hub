@@ -1,38 +1,10 @@
-import { fetch, type ClientOptions } from "@tauri-apps/plugin-http";
-import { invoke, Channel } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { loadAppSettings } from "@/utils/appSettings";
 
 /**
  * 默认配置
  */
 export const DEFAULT_TIMEOUT = 145000; // 145秒，不同于常规时间，用于排查是否是这里的超时
-
-/**
- * 获取当前代理配置，转换为 Tauri HTTP 插件的格式
- */
-const getProxyConfig = (): ClientOptions["proxy"] | undefined => {
-  const settings = loadAppSettings();
-  const proxySettings = settings?.proxy;
-
-  if (!proxySettings) {
-    return undefined; // 使用默认行为（系统代理）
-  }
-
-  switch (proxySettings.mode) {
-    case "none":
-      // 禁用代理：通过将 noProxy 设置为 '*' 来屏蔽所有主机，强制直连
-      return { all: { url: "http://localhost", noProxy: "*" } };
-    case "custom":
-      if (proxySettings.customUrl) {
-        return { all: proxySettings.customUrl };
-      }
-      return undefined;
-    case "system":
-    default:
-      // 系统代理：不传递 proxy 选项，让 Tauri 使用系统默认
-      return undefined;
-  }
-};
 
 /**
  * 视频元数据（Gemini 特有）
@@ -648,10 +620,8 @@ export const fetchWithTimeout = async (
   externalSignal?.addEventListener("abort", externalAbortHandler);
 
   try {
-    const proxyConfig = getProxyConfig();
-
     // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
-    // hasLocalFile: 绕过 Tauri HTTP 插件在 JS 侧序列化巨型 Body 导致的 IPC 阻塞
+    // hasLocalFile: 绕过浏览器在 JS 侧序列化巨型 Body 导致的 IPC 阻塞
     // forceProxy: 绕过前端 Capabilities/CORS 限制
     // relaxIdCerts/http1Only: 前端 fetch 不支持这些底层配置，必须走 Rust 代理
     const useProxy =
@@ -665,12 +635,11 @@ export const fetchWithTimeout = async (
           try {
             bodyObjForProxy = JSON.parse(options.body);
           } catch (e) {
-            // 如果不是 JSON，则无法通过代理处理（除非是 forceProxy 模式，我们尝试强制处理）
+            // 如果不是 JSON，则无法通过代理处理
             if (!options.forceProxy) {
-              return await fetch(url, {
+              return await window.fetch(url, {
                 ...options,
                 signal: controller.signal,
-                ...(proxyConfig && { proxy: proxyConfig }),
               });
             }
           }
@@ -680,95 +649,55 @@ export const fetchWithTimeout = async (
             bodyObjForProxy = JSON.parse(decoder.decode(options.body));
           } catch (e) {
             if (!options.forceProxy) {
-              return await fetch(url, {
+              return await window.fetch(url, {
                 ...options,
                 signal: controller.signal,
-                ...(proxyConfig && { proxy: proxyConfig }),
               });
             }
           }
         }
       }
 
-      return new Promise((resolve, reject) => {
-        let fullContent: string | Uint8Array[] = "";
-        let status = 200;
-        let respHeaders: Record<string, string> = { "Content-Type": "application/json" };
-        let isBinary = false;
+      // 确保代理服务已启动
+      const PROXY_PORT = 16655;
+      try {
+        await invoke("start_llm_proxy_server", { port: PROXY_PORT });
+      } catch (e) {
+        console.error("Failed to start LLM proxy server:", e);
+      }
 
-        const onEvent = new Channel<any>();
-
-        onEvent.onmessage = (event: any) => {
-          const { type, data } = event;
-          switch (type) {
-            case "start":
-              status = data.status;
-              respHeaders = data.headers;
-              break;
-            case "chunk":
-              if (typeof fullContent === "string") {
-                fullContent += data;
-              }
-              break;
-            case "binary":
-              isBinary = true;
-              if (typeof fullContent === "string") {
-                // 切换到二进制模式
-                const encoder = new TextEncoder();
-                fullContent = [encoder.encode(fullContent), new Uint8Array(data)];
-              } else {
-                fullContent.push(new Uint8Array(data));
-              }
-              break;
-            case "error":
-              reject(new Error(data));
-              break;
-            case "done":
-              // 构造响应体
-              let body: BodyInit;
-              if (isBinary && Array.isArray(fullContent)) {
-                const totalLength = fullContent.reduce((acc, curr) => acc + curr.length, 0);
-                const merged = new Uint8Array(totalLength);
-                let offset = 0;
-                for (const chunk of fullContent) {
-                  merged.set(chunk, offset);
-                  offset += chunk.length;
-                }
-                body = merged;
-              } else {
-                body = fullContent as string;
-              }
-
-              resolve(
-                new Response(body, {
-                  status,
-                  statusText: status === 200 ? "OK" : "",
-                  headers: respHeaders,
-                })
-              );
-              break;
+      // 获取当前代理设置
+      const settings = loadAppSettings();
+      const proxySettings = settings.proxy
+        ? {
+            mode: settings.proxy.mode,
+            custom_url: settings.proxy.customUrl,
           }
-        };
+        : undefined;
 
-        invoke("proxy_llm_request", {
-          request: {
-            url,
-            method: options.method || "POST",
-            headers: options.headers as Record<string, string>,
-            body: bodyObjForProxy,
-            timeout: timeout, // 传递超时时间
-            relax_invalid_certs: options.relaxIdCerts,
-            http1_only: options.http1Only,
-          },
-          onEvent,
-        }).catch(reject);
+      // 使用原生 fetch 请求本地代理
+      return await window.fetch(`http://127.0.0.1:${PROXY_PORT}/proxy`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+          method: options.method || "POST",
+          headers: options.headers as Record<string, string>,
+          body: bodyObjForProxy,
+          timeout: timeout,
+          relax_invalid_certs: options.relaxIdCerts,
+          http1_only: options.http1Only,
+          proxy_settings: proxySettings,
+        }),
+        signal: controller.signal,
       });
     }
 
-    const response = await fetch(url, {
+    const response = await window.fetch(url, {
       ...options,
       signal: controller.signal,
-      ...(proxyConfig && { proxy: proxyConfig }),
     });
     return response;
   } catch (error) {

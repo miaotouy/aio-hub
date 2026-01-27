@@ -150,7 +150,7 @@ async fn handle_proxy_request(
                     }
                 }
             }
-            "system" | _ => {
+            _ => {
                 // 默认使用系统代理，reqwest 默认已启用
             }
         }
@@ -211,7 +211,7 @@ async fn handle_proxy_request(
 
     let stream = response
         .bytes_stream()
-        .map(|item| item.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+        .map(|item| item.map_err(std::io::Error::other));
 
     let body = Body::from_stream(stream);
     Ok((status, resp_headers, body))

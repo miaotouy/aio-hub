@@ -18,7 +18,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
 
   async execute(ctx: EngineContext): Promise<EngineResult> {
     const { task } = ctx;
-    const { sendRequest } = useLlmRequest();
+    const { sendRequest, getNetworkStrategy } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
     const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "document");
@@ -39,15 +39,17 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     // 1. 如果模型原生支持 PDF
     if (capabilities.document) {
       let pdfData: string;
+      const networkStrategy = getNetworkStrategy(profileId);
+      const useLocalFile = networkStrategy !== "native" && fileSize > FILE_SIZE_THRESHOLD;
       
       // 智能选择数据传输方式
-      if (fileSize > FILE_SIZE_THRESHOLD) {
+      if (useLocalFile) {
         // 大文件：使用 local-file:// 协议，让 Rust 代理处理
         const basePath = await assetManagerEngine.getAssetBasePath();
         const fullPath = `${basePath}/${task.path}`.replace(/\\/g, "/");
         pdfData = `local-file://${fullPath}`;
       } else {
-        // 小文件：直接读取 Base64，减少代理开销
+        // 小文件或原生模式：直接读取 Base64
         pdfData = await assetManagerEngine.getAssetBase64(task.path);
       }
 
@@ -69,7 +71,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
         stream: false,
         temperature,
         maxTokens,
-        hasLocalFile: fileSize > FILE_SIZE_THRESHOLD,
+        hasLocalFile: useLocalFile,
         timeout: timeout * 1000,
         signal: ctx.signal,
       });

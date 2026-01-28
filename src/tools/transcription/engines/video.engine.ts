@@ -19,7 +19,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
   async execute(ctx: EngineContext): Promise<EngineResult> {
     const { task } = ctx;
     const config = getEffectiveConfig(ctx);
-    const { sendRequest } = useLlmRequest();
+    const { sendRequest, getNetworkStrategy } = useLlmRequest();
 
     const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "video");
     const [profileId, modelId] = modelIdentifier.split(":");
@@ -121,10 +121,20 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
 
     const basePath = await assetManagerEngine.getAssetBasePath();
     const fullPath = `${basePath}/${finalPath}`.replace(/\\/g, "/");
+    const networkStrategy = getNetworkStrategy(profileId);
 
-    // 劫持逻辑：不再在前端读取 Base64，而是传递一个本地文件协议标记
-    // 后端会在发送请求前自动读取该文件并转换为 Base64，从而避开 IPC 传输大字符串导致的挂起
-    const localFileUrl = `local-file://${fullPath}`;
+    let videoData: string | ArrayBuffer;
+    let hasLocalFile = false;
+
+    if (networkStrategy !== "native") {
+      // 劫持逻辑：不再在前端读取 Base64，而是传递一个本地文件协议标记
+      // 后端会在发送请求前自动读取该文件并转换为 Base64，从而避开 IPC 传输大字符串导致的挂起
+      videoData = `local-file://${fullPath}`;
+      hasLocalFile = true;
+    } else {
+      // 原生模式：直接在前端读取二进制数据
+      videoData = await assetManagerEngine.getAssetBinary(finalPath);
+    }
 
     const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
 
@@ -140,7 +150,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
             source: {
               type: "base64",
               media_type: task.mimeType || "video/mp4",
-              data: localFileUrl // 传递本地文件协议 URL
+              data: videoData
             }
           }
         ]
@@ -148,7 +158,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
       stream: false,
       temperature,
       maxTokens,
-      hasLocalFile: true, // 显式标记使用了本地文件协议
+      hasLocalFile,
       timeout: timeout * 1000, // 转换为毫秒
       signal: ctx.signal,
     });

@@ -15,6 +15,11 @@ export interface ContextPostProcessRule {
  * LLM 服务提供商类型
  * 决定了请求体的格式
  */
+/**
+ * 网络请求策略
+ */
+export type NetworkStrategy = "auto" | "proxy" | "native";
+
 export type ProviderType =
   | "openai"
   | "openai-compatible"
@@ -415,6 +420,13 @@ export interface LlmProfile {
    * key 为分组名称，value 为是否展开
    */
   modelGroupsExpandState?: Record<string, boolean>;
+  /**
+   * 网络请求策略 (可选)
+   * - 'auto': 自动选择 (默认)
+   * - 'proxy': 强制使用后端 Rust 代理 (支持底层网络配置, 绕过 CORS)
+   * - 'native': 强制使用前端原生请求 (由 Tauri 劫持, 性能较好)
+   */
+  networkStrategy?: NetworkStrategy;
   /**
    * 自定义 API 端点（可选）
    * 用于高级配置，直接指定完整的 URL

@@ -23,7 +23,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
   async execute(ctx: EngineContext): Promise<EngineResult> {
     const { task } = ctx;
     const config = getEffectiveConfig(ctx);
-    const { sendRequest } = useLlmRequest();
+    const { sendRequest, getNetworkStrategy } = useLlmRequest();
 
     const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "audio");
     const [profileId, modelId] = modelIdentifier.split(":");
@@ -127,7 +127,9 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     // 检查处理后的文件大小
     try {
       const finalStat = await stat(fullFullPath);
-      if (finalStat.size > FILE_SIZE_THRESHOLD) {
+      const networkStrategy = getNetworkStrategy(profileId);
+
+      if (networkStrategy !== "native" && finalStat.size > FILE_SIZE_THRESHOLD) {
         audioData = `local-file://${fullFullPath}`;
         hasLocalFile = true;
       } else {

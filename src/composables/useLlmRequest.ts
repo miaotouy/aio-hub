@@ -21,6 +21,14 @@ export function useLlmRequest() {
   const { pickKey, reportSuccess, reportFailure } = useLlmKeyManager();
 
   /**
+   * 获取指定配置的网络策略
+   */
+  const getNetworkStrategy = (profileId: string) => {
+    const profile = getProfileById(profileId);
+    return profile?.networkStrategy || "auto";
+  };
+
+  /**
    * 发送 LLM 请求
    */
   const sendRequest = async (
@@ -168,6 +176,15 @@ export function useLlmRequest() {
       }
 
       // 注入渠道的代理行为配置
+      if (profile.networkStrategy !== undefined) {
+        filteredOptions.networkStrategy = profile.networkStrategy;
+
+        // 如果强制原生，则绝对不开启后端代理负载模式
+        if (profile.networkStrategy === "native") {
+          options.hasLocalFile = false;
+          filteredOptions.hasLocalFile = false;
+        }
+      }
       if (profile.relaxIdCerts !== undefined) {
         filteredOptions.relaxIdCerts = profile.relaxIdCerts;
       }
@@ -296,5 +313,6 @@ export function useLlmRequest() {
 
   return {
     sendRequest,
+    getNetworkStrategy,
   };
 }

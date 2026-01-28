@@ -210,6 +210,8 @@ export interface LlmRequestOptions {
   thinkingBudget?: number;
   /** 元数据键值对 */
   metadata?: Record<string, string>;
+  /** 网络请求策略 */
+  networkStrategy?: "auto" | "proxy" | "native";
   /** 是否包含本地文件协议 (local-file://)，若为 true 则强制走 Rust 代理以避免 IPC 阻塞 */
   hasLocalFile?: boolean;
   /** 是否强制走后端代理 */
@@ -597,6 +599,7 @@ export const fetchWithTimeout = async (
     forceProxy?: boolean;
     relaxIdCerts?: boolean;
     http1Only?: boolean;
+    networkStrategy?: "auto" | "proxy" | "native";
   },
   timeout: number = DEFAULT_TIMEOUT,
   externalSignal?: AbortSignal
@@ -624,8 +627,12 @@ export const fetchWithTimeout = async (
     // hasLocalFile: 绕过浏览器在 JS 侧序列化巨型 Body 导致的 IPC 阻塞
     // forceProxy: 绕过前端 Capabilities/CORS 限制
     // relaxIdCerts/http1Only: 前端 fetch 不支持这些底层配置，必须走 Rust 代理
+    // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
+    // networkStrategy === 'native' 具有最高优先级，除非是前端 fetch 无法实现的底层配置
+    const isNative = options.networkStrategy === "native";
     const useProxy =
-      options.hasLocalFile || options.forceProxy || options.relaxIdCerts || options.http1Only;
+      !isNative &&
+      (options.hasLocalFile || options.forceProxy || options.relaxIdCerts || options.http1Only);
 
     if (useProxy) {
       let bodyObjForProxy: any = {}; // 默认为空对象

@@ -141,6 +141,7 @@ const createNewProfile = () => {
     apiKeys: [],
     enabled: true,
     models: [],
+    networkStrategy: "auto",
     relaxIdCerts: false,
     http1Only: true,
   };
@@ -668,7 +669,26 @@ const resetBaseUrl = () => {
               </div>
             </el-form-item>
 
-            <el-form-item label="代理行为">
+            <el-form-item label="网络方案">
+              <el-radio-group v-model="editForm.networkStrategy">
+                <el-radio-button value="auto">自动选择</el-radio-button>
+                <el-radio-button value="proxy">后端代理</el-radio-button>
+                <el-radio-button value="native">原生请求</el-radio-button>
+              </el-radio-group>
+              <div class="form-hint">
+                <span v-if="editForm.networkStrategy === 'auto'">
+                  默认方案。自动根据请求内容（如是否包含本地文件）决定是否通过 Rust 后端转发。
+                </span>
+                <span v-else-if="editForm.networkStrategy === 'proxy'">
+                  强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1 等底层配置，可绕过 CORS。
+                </span>
+                <span v-else-if="editForm.networkStrategy === 'native'">
+                  强制使用前端原生请求。性能较好，但不支持底层网络微调，且受限于浏览器安全策略。
+                </span>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="代理行为" v-if="editForm.networkStrategy !== 'native'">
               <div style="display: flex; gap: 20px">
                 <el-checkbox v-model="editForm.relaxIdCerts" label="放宽证书校验" />
                 <el-checkbox v-model="editForm.http1Only" label="强制 HTTP/1.1" />

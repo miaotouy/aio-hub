@@ -56,6 +56,8 @@ export function useLlmProfiles() {
         }))
         : [],
       customHeaders: rest.customHeaders || undefined,
+      // 3. 补齐网络策略默认值
+      networkStrategy: rest.networkStrategy || "auto",
     };
 
     return migratedProfile;
@@ -244,6 +246,7 @@ export function useLlmProfiles() {
       apiKeys: [],
       enabled: true,
       models: preset.defaultModels ? [...preset.defaultModels] : [],
+      networkStrategy: "auto",
       logoUrl: preset.logoUrl,
       icon: preset.logoUrl, // 同时设置 icon 字段，确保供应商图标正确显示
     };

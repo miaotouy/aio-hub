@@ -1,5 +1,6 @@
 import { ref, computed } from "vue";
 import type { Asset } from "@/types/asset-management";
+import { useAssetManager } from "@/composables/useAssetManager";
 
 /**
  * 附件管理器 (Media Generator 版)
@@ -32,6 +33,25 @@ export function useAttachmentManager() {
   };
 
   /**
+   * 从路径添加附件
+   */
+  const addAttachments = async (paths: string[]) => {
+    const { importAssetFromPath } = useAssetManager();
+    isProcessingAttachments.value = true;
+    try {
+      for (const path of paths) {
+        if (isAttachmentsFull.value) break;
+        const asset = await importAssetFromPath(path, { sourceModule: "media-generator" });
+        if (asset) {
+          addAsset(asset);
+        }
+      }
+    } finally {
+      isProcessingAttachments.value = false;
+    }
+  };
+
+  /**
    * 清空附件
    */
   const clearAttachments = () => {
@@ -46,6 +66,7 @@ export function useAttachmentManager() {
     hasAttachments,
     isAttachmentsFull,
     addAsset,
+    addAttachments,
     removeAttachment,
     clearAttachments,
   };

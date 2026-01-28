@@ -393,6 +393,22 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       persist();
     }
   };
+
+  /**
+   * 保存到新分支
+   */
+  const saveToBranch = (messageId: string, content: string, attachments?: Asset[]) => {
+    if (!currentSession.value) return;
+
+    // 1. 创建新分支
+    const newNodeId = branchManager.createBranch(currentSession.value, messageId);
+    if (newNodeId) {
+      // 2. 更新新分支的内容
+      branchManager.editMessage(currentSession.value, newNodeId, content, attachments);
+      activeLeafId.value = newNodeId;
+      persist();
+    }
+  };
   /**
    * 切换会话
    */
@@ -593,6 +609,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     removeTask,
     deleteMessage,
     editMessage,
+    saveToBranch,
     toggleMessageSelection,
     getSelectedContext,
     switchSession,

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type { MediaMessage, MediaTask } from "../../types";
+import type { Asset } from "@/types/asset-management";
+import { useMediaGenStore } from "../../stores/mediaGenStore";
 import MessageHeader from "./MessageHeader.vue";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
@@ -14,7 +16,7 @@ interface Props {
   isBatchMode?: boolean;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "remove", taskId: string): void;
   (e: "download", task: MediaTask): void;
@@ -24,6 +26,36 @@ const emit = defineEmits<{
   (e: "switch-branch", nodeId: string): void;
   (e: "resize", el: HTMLElement | null): void;
 }>();
+
+const store = useMediaGenStore();
+
+// 编辑状态管理
+const isEditing = ref(false);
+
+const handleEdit = () => {
+  isEditing.value = true;
+};
+
+const handleSaveEdit = (newContent: string, attachments?: Asset[]) => {
+  store.editMessage(props.message.id, newContent, attachments);
+  isEditing.value = false;
+};
+
+const handleSaveToBranch = (newContent: string, attachments?: Asset[]) => {
+  store.saveToBranch(props.message.id, newContent, attachments);
+  isEditing.value = false;
+};
+
+const handleCancelEdit = () => {
+  isEditing.value = false;
+};
+
+// 监听编辑状态变化，通知父组件重新测量高度
+watch(isEditing, () => {
+  nextTick(() => {
+    emit("resize", messageRef.value);
+  });
+});
 
 // ===== 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) =====
 const messageRef = ref<HTMLElement | null>(null);
@@ -78,7 +110,13 @@ defineExpose({
     <div class="message-inner">
       <MessageHeader :message="message" />
 
-      <MessageContent :message="message" />
+      <MessageContent
+        :message="message"
+        :is-editing="isEditing"
+        @save-edit="handleSaveEdit"
+        @save-to-branch="handleSaveToBranch"
+        @cancel-edit="handleCancelEdit"
+      />
     </div>
 
     <!-- 悬浮操作栏 (批量模式下隐藏) -->
@@ -87,6 +125,7 @@ defineExpose({
         :message="message"
         :siblings="siblings"
         :current-sibling-index="currentSiblingIndex"
+        @edit="handleEdit"
         @delete="emit('remove', $event)"
         @download="emit('download', $event)"
         @retry="emit('retry')"

@@ -1,23 +1,101 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { Loader2, AlertCircle, XCircle } from "lucide-vue-next";
+import { ref, computed, watch } from "vue";
+import { Loader2, AlertCircle, XCircle, GitBranch } from "lucide-vue-next";
 import type { MediaMessage } from "../../types";
+import type { Asset } from "@/types/asset-management";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
 import { useAssetManager } from "@/composables/useAssetManager";
-import { createModuleLogger } from "@/utils/logger";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { useAttachmentManager } from "../../composables/useAttachmentManager";
+import { useChatFileInteraction } from "@/composables/useFileInteraction";
+import { createModuleLogger } from "@/utils/logger";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
+import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 
 interface Props {
   message: MediaMessage;
+  isEditing?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  isEditing: false,
+});
+
+const emit = defineEmits<{
+  (e: "save-edit", newContent: string, attachments?: Asset[]): void;
+  (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
+  (e: "cancel-edit"): void;
+}>();
+
 const store = useMediaGenStore();
 const { getAssetUrl } = useAssetManager();
 const imageViewer = useImageViewer();
+const attachmentManager = useAttachmentManager();
 const logger = createModuleLogger("media-generator/message-content");
+
+// 编辑区域引用
+const editAreaRef = ref<HTMLElement | undefined>(undefined);
+
+// 编辑状态
+const editingContent = ref("");
+
+const initEditMode = () => {
+  editingContent.value = props.message.content;
+
+  // 清空附件管理器并加载现有附件
+  attachmentManager.clearAttachments();
+  if (props.message.attachments && props.message.attachments.length > 0) {
+    props.message.attachments.forEach((asset) => {
+      attachmentManager.addAsset(asset);
+    });
+  }
+};
+
+const saveEdit = () => {
+  if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
+    emit("save-edit", editingContent.value, attachmentManager.attachments.value);
+  }
+};
+
+const saveToBranch = () => {
+  if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
+    emit("save-to-branch", editingContent.value, attachmentManager.attachments.value);
+  }
+};
+
+const cancelEdit = () => {
+  editingContent.value = "";
+  attachmentManager.clearAttachments();
+  emit("cancel-edit");
+};
+
+// 统一的文件交互处理（拖放 + 粘贴）
+const { isDraggingOver } = useChatFileInteraction({
+  element: editAreaRef,
+  onPaths: async (paths: string[]) => {
+    if (!props.isEditing) return;
+    await attachmentManager.addAttachments(paths);
+  },
+  onAssets: async (assets: Asset[]) => {
+    if (!props.isEditing) return;
+    for (const asset of assets) {
+      attachmentManager.addAsset(asset);
+    }
+  },
+});
+
+// 监听编辑模式变化
+watch(
+  () => props.isEditing,
+  (newVal) => {
+    if (newVal) {
+      initEditMode();
+    } else {
+      attachmentManager.clearAttachments();
+    }
+  }
+);
 
 const task = computed(() => {
   const taskId = props.message.metadata?.taskId;
@@ -92,8 +170,56 @@ watch(
 
 <template>
   <div class="message-content">
+    <!-- 编辑模式 -->
+    <div
+      v-if="isEditing"
+      ref="editAreaRef"
+      class="edit-mode"
+      :class="{ 'is-dragging': isDraggingOver }"
+    >
+      <!-- 编辑模式的附件展示 -->
+      <div
+        v-if="attachmentManager.hasAttachments.value"
+        class="attachments-section edit-attachments"
+      >
+        <div class="attachments-list">
+          <AttachmentCard
+            v-for="attachment in attachmentManager.attachments.value"
+            :key="attachment.id"
+            :asset="attachment"
+            :all-assets="attachmentManager.attachments.value"
+            :removable="true"
+            size="medium"
+            @remove="attachmentManager.removeAttachment($event.id)"
+          />
+        </div>
+      </div>
+
+      <textarea
+        v-model="editingContent"
+        class="edit-textarea"
+        rows="3"
+        placeholder="编辑提示词、拖入或粘贴图片..."
+        @keydown.ctrl.enter="saveEdit"
+        @keydown.esc="cancelEdit"
+      />
+      <div class="edit-actions">
+        <div class="edit-info">
+          <span v-if="attachmentManager.attachmentCount.value > 0" class="attachment-count">
+            {{ attachmentManager.attachmentCount.value }} 个附件
+          </span>
+          <span class="drag-tip">拖拽文件到此区域添加附件</span>
+        </div>
+        <div class="edit-buttons">
+          <el-button @click="saveEdit" type="primary" size="small">保存 (Ctrl+Enter)</el-button>
+          <el-button @click="saveToBranch" size="small" :icon="GitBranch">保存到新分支</el-button>
+          <el-button @click="cancelEdit" size="small">取消 (Esc)</el-button>
+        </div>
+      </div>
+    </div>
+
     <!-- 用户 Prompt -->
-    <div v-if="message.role === 'user'" class="prompt-content">
+    <div v-else-if="message.role === 'user'" class="prompt-content">
       {{ message.content }}
     </div>
 
@@ -186,6 +312,93 @@ watch(
   white-space: pre-wrap;
   word-break: break-word;
   opacity: 0.9;
+}
+
+/* 编辑模式样式 */
+.edit-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+}
+
+.edit-mode.is-dragging {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color);
+}
+
+.edit-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 120px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.edit-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: var(--input-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.edit-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.attachment-count {
+  padding: 2px 8px;
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-radius: 12px;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.drag-tip {
+  opacity: 0.7;
+}
+
+.edit-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 附件展示区域样式 */
+.attachments-section {
+  margin-bottom: 12px;
+  border-radius: 8px;
+}
+
+.attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 4px 0;
 }
 
 .task-status {

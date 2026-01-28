@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import {
-  ElTooltip,
-  ElPopover,
-} from "element-plus";
+import { ElTooltip, ElPopover } from "element-plus";
 import BranchSelector from "./BranchSelector.vue";
 import {
   Copy,
+  Edit,
   Trash2,
   Check,
   ChevronLeft,
@@ -26,6 +24,7 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "copy"): void;
+  (e: "edit"): void;
   (e: "delete", taskId: string): void;
   (e: "download", task: MediaTask): void;
   (e: "retry"): void;
@@ -128,6 +127,13 @@ const handleSwitchToBranch = (nodeId: string) => {
       <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click="copyMessage">
         <Check v-if="copied" :size="16" />
         <Copy v-else :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 编辑 -->
+    <el-tooltip content="编辑" placement="top" :show-after="500">
+      <button class="menu-btn" @click="emit('edit')">
+        <Edit :size="16" />
       </button>
     </el-tooltip>
 

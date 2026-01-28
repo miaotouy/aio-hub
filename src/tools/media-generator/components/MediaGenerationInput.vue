@@ -7,7 +7,7 @@ import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import AttachmentCard from "../../llm-chat/components/AttachmentCard.vue";
+import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
   Send,
@@ -308,7 +308,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           >
             <el-icon v-if="store.currentConfig.includeContext"><MessageSquare /></el-icon>
             <el-icon v-else><Target /></el-icon>
-            <span>多轮</span>
+            <span>多轮消息</span>
           </button>
         </el-tooltip>
         <div class="v-divider" />

@@ -169,6 +169,12 @@ async fn handle_proxy_request(
 
     let mut headers = HeaderMap::new();
     for (k, v) in request.headers {
+        let name_lower = k.to_lowercase();
+        // 过滤掉 host 和 accept-encoding，由 reqwest 自动处理或禁用
+        if name_lower == "host" || name_lower == "accept-encoding" {
+            continue;
+        }
+
         if let (Ok(name), Ok(value)) = (
             HeaderName::from_bytes(k.as_bytes()),
             HeaderValue::from_str(&v),

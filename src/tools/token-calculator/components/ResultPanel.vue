@@ -36,12 +36,20 @@
               <div class="item-content">
                 <div class="item-header">
                   <span class="item-label">文本</span>
-                  <span class="item-value">{{ calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0)) }}</span>
+                  <span class="item-value">{{
+                    calculationResult.textTokenCount ||
+                    calculationResult.count - (calculationResult.mediaTokenCount || 0)
+                  }}</span>
                 </div>
                 <div class="progress-bg">
-                  <div 
-                    class="progress-bar text-bar" 
-                    :style="{ width: getPercentage(calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0))) }"
+                  <div
+                    class="progress-bar text-bar"
+                    :style="{
+                      width: getPercentage(
+                        calculationResult.textTokenCount ||
+                          calculationResult.count - (calculationResult.mediaTokenCount || 0)
+                      ),
+                    }"
                   ></div>
                 </div>
               </div>
@@ -58,8 +66,8 @@
                   <span class="item-value">{{ calculationResult.imageTokenCount || 0 }}</span>
                 </div>
                 <div class="progress-bg">
-                  <div 
-                    class="progress-bar image-bar" 
+                  <div
+                    class="progress-bar image-bar"
                     :style="{ width: getPercentage(calculationResult.imageTokenCount) }"
                   ></div>
                 </div>
@@ -77,8 +85,8 @@
                   <span class="item-value">{{ calculationResult.videoTokenCount || 0 }}</span>
                 </div>
                 <div class="progress-bg">
-                  <div 
-                    class="progress-bar video-bar" 
+                  <div
+                    class="progress-bar video-bar"
                     :style="{ width: getPercentage(calculationResult.videoTokenCount) }"
                   ></div>
                 </div>
@@ -96,8 +104,8 @@
                   <span class="item-value">{{ calculationResult.audioTokenCount || 0 }}</span>
                 </div>
                 <div class="progress-bg">
-                  <div 
-                    class="progress-bar audio-bar" 
+                  <div
+                    class="progress-bar audio-bar"
                     :style="{ width: getPercentage(calculationResult.audioTokenCount) }"
                   ></div>
                 </div>
@@ -124,7 +132,8 @@
               {{
                 characterCount > 0
                   ? (
-                      (calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0))) /
+                      (calculationResult.textTokenCount ||
+                        calculationResult.count - (calculationResult.mediaTokenCount || 0)) /
                       characterCount
                     ).toFixed(3)
                   : "0"
@@ -137,11 +146,25 @@
       <!-- Token 可视化区域 -->
       <div class="visualization-section">
         <div class="section-header">
-          <div class="section-title">Token 分块可视化</div>
+          <div class="header-left">
+            <div class="section-title">Token 分块可视化</div>
+            <el-button
+              v-if="tokenizedText.length > 0"
+              link
+              type="primary"
+              :icon="CopyDocument"
+              class="copy-btn"
+              title="复制全部 Token 文本"
+              @click="copyAllTokens"
+            >
+              复制
+            </el-button>
+          </div>
           <div
             v-if="
               tokenizedText.length > 0 &&
-              (calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0))) >
+              (calculationResult.textTokenCount ||
+                calculationResult.count - (calculationResult.mediaTokenCount || 0)) >
                 tokenizedText.length
             "
             class="truncation-notice"
@@ -150,7 +173,11 @@
               <WarningFilled />
             </el-icon>
             显示 {{ tokenizedText.length }} /
-            {{ calculationResult.textTokenCount || (calculationResult.count - (calculationResult.mediaTokenCount || 0)) }} 个文本 Token
+            {{
+              calculationResult.textTokenCount ||
+              calculationResult.count - (calculationResult.mediaTokenCount || 0)
+            }}
+            个文本 Token
           </div>
         </div>
         <div v-if="tokenizedText.length > 0" ref="tokenBlocksContainer" class="token-blocks">
@@ -190,9 +217,10 @@
                     getGlobalTokenIndex(virtualItem.index, localIndex)
                   ),
                 }"
-                :title="`Token ${getGlobalTokenIndex(virtualItem.index, localIndex) + 1}: ${token.text}`"
+                :title="`ID: ${token.id}\nIndex: ${getGlobalTokenIndex(virtualItem.index, localIndex)}\nText: ${token.text}`"
               >
-                {{ token.text }}
+                <span class="token-text">{{ token.text }}</span>
+                <span v-if="token.id !== undefined" class="token-id">{{ token.id }}</span>
               </span>
             </div>
           </div>
@@ -207,14 +235,16 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useElementSize } from "@vueuse/core";
-import { 
-  Loading, 
-  WarningFilled, 
-  Document, 
-  Picture, 
-  VideoPlay, 
-  Microphone 
+import {
+  Loading,
+  WarningFilled,
+  Document,
+  Picture,
+  VideoPlay,
+  Microphone,
+  CopyDocument,
 } from "@element-plus/icons-vue";
+import { customMessage } from "@/utils/customMessage";
 import type {
   TokenCalculationResult,
   TokenBlock,
@@ -232,8 +262,8 @@ const props = defineProps<Props>();
 
 // 计算百分比
 const getPercentage = (value: number | undefined) => {
-  if (!value || props.calculationResult.count === 0) return '0%';
-  return `${(value / props.calculationResult.count * 100).toFixed(1)}%`;
+  if (!value || props.calculationResult.count === 0) return "0%";
+  return `${((value / props.calculationResult.count) * 100).toFixed(1)}%`;
 };
 
 // 滚动容器（可视区域）
@@ -419,6 +449,26 @@ const getGlobalTokenIndex = (blockIndex: number, localIndex: number) => {
   return block.start + localIndex;
 };
 
+/**
+ * 复制所有 Token 文本和 ID
+ */
+const copyAllTokens = async () => {
+  if (props.tokenizedText.length === 0) return;
+
+  try {
+    const lines = props.tokenizedText.map((t) => {
+      // 处理文本中的特殊字符，如换行符
+      const escapedText = t.text.replace(/\n/g, "\\n").replace(/\t/g, "\\t");
+      return `[${t.id ?? "?"}] "${escapedText}"`;
+    });
+    const content = lines.join("\n");
+    await navigator.clipboard.writeText(content);
+    customMessage.success("已复制 Token 分块详情 (ID + 文本)");
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
+};
+
 // 暴露根元素引用
 const rootEl = ref<HTMLElement | null>(null);
 defineExpose({ rootEl });
@@ -562,10 +612,22 @@ defineExpose({ rootEl });
   font-size: 18px;
 }
 
-.text-icon { background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-.image-icon { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
-.video-icon { background-color: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
-.audio-icon { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.text-icon {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+.image-icon {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+.video-icon {
+  background-color: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+}
+.audio-icon {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
 
 .item-content {
   flex: 1;
@@ -604,10 +666,18 @@ defineExpose({ rootEl });
   transition: width 0.3s ease;
 }
 
-.text-bar { background-color: #3b82f6; }
-.image-bar { background-color: #10b981; }
-.video-bar { background-color: #8b5cf6; }
-.audio-bar { background-color: #f59e0b; }
+.text-bar {
+  background-color: #3b82f6;
+}
+.image-bar {
+  background-color: #10b981;
+}
+.video-bar {
+  background-color: #8b5cf6;
+}
+.audio-bar {
+  background-color: #f59e0b;
+}
 
 /* 详情网格 */
 .details-grid {
@@ -667,10 +737,26 @@ defineExpose({ rootEl });
   flex-shrink: 0;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .section-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-color);
+}
+
+.copy-btn {
+  padding: 0;
+  height: auto;
+  font-size: 12px;
+}
+
+.copy-btn :deep(.el-icon) {
+  font-size: 14px;
 }
 
 .truncation-notice {
@@ -702,12 +788,31 @@ defineExpose({ rootEl });
 }
 
 .token-block {
-  padding: 3px 6px;
+  padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   cursor: default;
   transition: all 0.2s ease;
   box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 20px;
+  vertical-align: top;
+  margin: 2px 0;
+}
+
+.token-text {
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.token-id {
+  font-size: 10px;
+  opacity: 0.5;
+  line-height: 1;
+  margin-top: 1px;
+  font-family: var(--el-font-family-mono);
 }
 
 .token-block:hover {
@@ -732,7 +837,7 @@ defineExpose({ rootEl });
     flex-direction: column;
     gap: 16px;
   }
-  
+
   .total-section {
     border-right: none;
     border-bottom: 1px solid var(--border-color-light);

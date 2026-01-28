@@ -1,13 +1,13 @@
 /**
  * Token 计算核心引擎
- * 
+ *
  * 纯逻辑实现，不依赖 Vue 响应式、Tauri API 或任何 UI 相关工具。
  * 可以在主线程和 Worker 线程中安全运行。
  */
 
-import { DEFAULT_METADATA_RULES } from '@/config/model-metadata-presets';
-import type { ModelMetadataRule, ModelMetadataProperties } from '@/types/model-metadata';
-import type { VisionTokenCost } from '@/types/llm-profiles';
+import { DEFAULT_METADATA_RULES } from "@/config/model-metadata-presets";
+import type { ModelMetadataRule, ModelMetadataProperties } from "@/types/model-metadata";
+import type { VisionTokenCost } from "@/types/llm-profiles";
 
 // 使用 any 类型暂时绕过类型导出问题
 type PreTrainedTokenizer = any;
@@ -41,7 +41,7 @@ function simpleMerge(target: any, source: any): any {
   if (!source) return target;
   const result = { ...target };
   for (const key in source) {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+    if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
       result[key] = simpleMerge(result[key] || {}, source[key]);
     } else {
       result[key] = source[key];
@@ -55,23 +55,27 @@ function simpleMerge(target: any, source: any): any {
  */
 function testRuleMatch(rule: ModelMetadataRule, modelId: string, provider?: string): boolean {
   switch (rule.matchType) {
-    case 'model':
+    case "model":
       if (rule.useRegex) {
         try {
-          return new RegExp(rule.matchValue, 'i').test(modelId);
-        } catch { return false; }
+          return new RegExp(rule.matchValue, "i").test(modelId);
+        } catch {
+          return false;
+        }
       }
       return modelId === rule.matchValue;
 
-    case 'modelPrefix':
+    case "modelPrefix":
       if (rule.useRegex) {
         try {
-          return new RegExp(rule.matchValue, 'i').test(modelId);
-        } catch { return false; }
+          return new RegExp(rule.matchValue, "i").test(modelId);
+        } catch {
+          return false;
+        }
       }
       return modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
 
-    case 'provider':
+    case "provider":
       return !!(provider && provider.toLowerCase() === rule.matchValue.toLowerCase());
 
     default:
@@ -124,23 +128,39 @@ export class TokenCalculatorEngine {
   private tokenizerCache = new Map<string, PreTrainedTokenizer>();
 
   private tokenizerLoaders: Record<string, TokenizerLoader> = {
-    'gpt4o': () => import('@lenml/tokenizer-gpt4o'),
-    'gpt4': () => import('@lenml/tokenizer-gpt4'),
-    'claude': () => import('@lenml/tokenizer-claude'),
-    'gemini': () => import('@lenml/tokenizer-gemini'),
-    'llama3_2': () => import('@lenml/tokenizer-llama3_2'),
-    'deepseek_v3': () => import('@lenml/tokenizer-deepseek_v3'),
-    'qwen3': () => import('@lenml/tokenizer-qwen3'),
+    gpt4o: () => import("@lenml/tokenizer-gpt4o"),
+    gpt4: () => import("@lenml/tokenizer-gpt4"),
+    claude: () => import("@lenml/tokenizer-claude"),
+    gemini: () => import("@lenml/tokenizer-gemini"),
+    llama3_2: () => import("@lenml/tokenizer-llama3_2"),
+    deepseek_v3: () => import("@lenml/tokenizer-deepseek_v3"),
+    qwen3: () => import("@lenml/tokenizer-qwen3"),
   };
 
   private tokenizerMappings: TokenizerMapping[] = [
-    { pattern: /^(gpt-5|gpt-4o|o[134])/i, loader: () => import('@lenml/tokenizer-gpt4o'), name: 'gpt4o' },
-    { pattern: /^gpt-4(?!o)/i, loader: () => import('@lenml/tokenizer-gpt4'), name: 'gpt4' },
-    { pattern: /^claude-/i, loader: () => import('@lenml/tokenizer-claude'), name: 'claude' },
-    { pattern: /^(gemini-|gemma|veo-)/i, loader: () => import('@lenml/tokenizer-gemini'), name: 'gemini' },
-    { pattern: /^(llama|meta-llama)/i, loader: () => import('@lenml/tokenizer-llama3_2'), name: 'llama3_2' },
-    { pattern: /^deepseek-/i, loader: () => import('@lenml/tokenizer-deepseek_v3'), name: 'deepseek_v3' },
-    { pattern: /^(qwen|qwq-)/i, loader: () => import('@lenml/tokenizer-qwen3'), name: 'qwen3' },
+    {
+      pattern: /^(gpt-5|gpt-4o|o[134])/i,
+      loader: () => import("@lenml/tokenizer-gpt4o"),
+      name: "gpt4o",
+    },
+    { pattern: /^gpt-4(?!o)/i, loader: () => import("@lenml/tokenizer-gpt4"), name: "gpt4" },
+    { pattern: /^claude-/i, loader: () => import("@lenml/tokenizer-claude"), name: "claude" },
+    {
+      pattern: /^(gemini-|gemma|veo-)/i,
+      loader: () => import("@lenml/tokenizer-gemini"),
+      name: "gemini",
+    },
+    {
+      pattern: /^(llama|meta-llama)/i,
+      loader: () => import("@lenml/tokenizer-llama3_2"),
+      name: "llama3_2",
+    },
+    {
+      pattern: /^deepseek-/i,
+      loader: () => import("@lenml/tokenizer-deepseek_v3"),
+      name: "deepseek_v3",
+    },
+    { pattern: /^(qwen|qwq-)/i, loader: () => import("@lenml/tokenizer-qwen3"), name: "qwen3" },
   ];
 
   async getTokenizerByName(tokenizerName: string): Promise<PreTrainedTokenizer | null> {
@@ -184,14 +204,17 @@ export class TokenCalculatorEngine {
   }
 
   async calculateTokens(text: string, modelId: string): Promise<TokenCalculationResult> {
-    if (!text) return { count: 0, isEstimated: false, tokenizerName: 'none' };
+    if (!text) return { count: 0, isEstimated: false, tokenizerName: "none" };
 
     const sanitizedText = this._sanitizeText(text);
     const tokenizer = await this.getTokenizer(modelId);
 
     if (tokenizer) {
       const metadata = getMatchedModelProperties(modelId);
-      let tokenizerName = metadata?.tokenizer || this.tokenizerMappings.find((m) => m.pattern.test(modelId))?.name || 'unknown';
+      let tokenizerName =
+        metadata?.tokenizer ||
+        this.tokenizerMappings.find((m) => m.pattern.test(modelId))?.name ||
+        "unknown";
 
       try {
         const encoded = tokenizer.encode(sanitizedText, undefined, { add_special_tokens: true });
@@ -213,11 +236,14 @@ export class TokenCalculatorEngine {
 
     const estimatedCount = Math.ceil(chineseChars / 1.5 + otherChars / 4 + specialChars);
 
-    return { count: estimatedCount, isEstimated: true, tokenizerName: 'estimator' };
+    return { count: estimatedCount, isEstimated: true, tokenizerName: "estimator" };
   }
 
-  async calculateTokensByTokenizer(text: string, tokenizerName: string): Promise<TokenCalculationResult> {
-    if (!text) return { count: 0, isEstimated: false, tokenizerName: 'none' };
+  async calculateTokensByTokenizer(
+    text: string,
+    tokenizerName: string
+  ): Promise<TokenCalculationResult> {
+    if (!text) return { count: 0, isEstimated: false, tokenizerName: "none" };
 
     const sanitizedText = this._sanitizeText(text);
     const tokenizer = await this.getTokenizerByName(tokenizerName);
@@ -239,7 +265,7 @@ export class TokenCalculatorEngine {
     text: string,
     identifier: string,
     useTokenizerName: boolean = false
-  ): Promise<{ tokens: string[] } | null> {
+  ): Promise<{ tokens: Array<{ text: string; id: number }> } | null> {
     if (!text) return { tokens: [] };
 
     const sanitizedText = this._sanitizeText(text);
@@ -251,17 +277,18 @@ export class TokenCalculatorEngine {
 
     try {
       const encoded = tokenizer.encode(sanitizedText, undefined, { add_special_tokens: true });
-      const tokens: string[] = [];
+      const tokens: Array<{ text: string; id: number }> = [];
       for (const tokenId of encoded) {
         try {
-          tokens.push(tokenizer.decode([tokenId], { skip_special_tokens: false }));
+          const tokenText = tokenizer.decode([tokenId], { skip_special_tokens: false });
+          tokens.push({ text: tokenText, id: tokenId });
         } catch {
-          tokens.push(`[Token ${tokenId}]`);
+          tokens.push({ text: `[Token ${tokenId}]`, id: tokenId });
         }
       }
       return { tokens };
     } catch (error) {
-      console.error('[TokenCalculator] Failed to tokenize text:', error);
+      console.error("[TokenCalculator] Failed to tokenize text:", error);
       return null;
     }
   }
@@ -275,13 +302,13 @@ export class TokenCalculatorEngine {
    */
   getAvailableTokenizers(): Array<{ name: string; description: string }> {
     return [
-      { name: 'gpt4o', description: 'GPT-4o, GPT-5, o1, o3, o4 系列' },
-      { name: 'gpt4', description: 'GPT-4, GPT-3.5 系列' },
-      { name: 'claude', description: 'Claude 全系列' },
-      { name: 'gemini', description: 'Gemini, Gemma 全系列, Veo 系列' },
-      { name: 'llama3_2', description: 'Llama 全系列（3.2 分词器）' },
-      { name: 'deepseek_v3', description: 'DeepSeek 全系列（V3, R1 等）' },
-      { name: 'qwen3', description: 'Qwen 全系列（Qwen3 分词器）' },
+      { name: "gpt4o", description: "GPT-4o, GPT-5, o1, o3, o4 系列" },
+      { name: "gpt4", description: "GPT-4, GPT-3.5 系列" },
+      { name: "claude", description: "Claude 全系列" },
+      { name: "gemini", description: "Gemini, Gemma 全系列, Veo 系列" },
+      { name: "llama3_2", description: "Llama 全系列（3.2 分词器）" },
+      { name: "deepseek_v3", description: "DeepSeek 全系列（V3, R1 等）" },
+      { name: "qwen3", description: "Qwen 全系列（Qwen3 分词器）" },
     ];
   }
 
@@ -295,11 +322,16 @@ export class TokenCalculatorEngine {
   calculateImageTokens(width: number, height: number, visionTokenCost: VisionTokenCost): number {
     const { calculationMethod, parameters } = visionTokenCost;
     switch (calculationMethod) {
-      case 'fixed': return parameters.costPerImage || 0;
-      case 'openai_tile': return this.calculateOpenAITileTokens(width, height, parameters);
-      case 'claude_3': return parameters.costPerImage || 0;
-      case 'gemini_2_0': return this.calculateGemini2ImageTokens(width, height);
-      default: return 0;
+      case "fixed":
+        return parameters.costPerImage || 0;
+      case "openai_tile":
+        return this.calculateOpenAITileTokens(width, height, parameters);
+      case "claude_3":
+        return parameters.costPerImage || 0;
+      case "gemini_2_0":
+        return this.calculateGemini2ImageTokens(width, height);
+      default:
+        return 0;
     }
   }
 
@@ -321,7 +353,8 @@ export class TokenCalculatorEngine {
     const tileCost = parameters.tileCost || 170;
     const tileSize = parameters.tileSize || 512;
 
-    let sw = width, sh = height;
+    let sw = width,
+      sh = height;
     if (width > 2048 || height > 2048) {
       const scale = Math.min(2048 / width, 2048 / height);
       sw = Math.floor(width * scale);
@@ -335,11 +368,11 @@ export class TokenCalculatorEngine {
       sh = Math.floor(sh * scale);
     }
 
-    return baseCost + (Math.ceil(sw / tileSize) * Math.ceil(sh / tileSize) * tileCost);
+    return baseCost + Math.ceil(sw / tileSize) * Math.ceil(sh / tileSize) * tileCost;
   }
 
   private _sanitizeText(text: string): string {
-    return text.replace(/!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g, '[IMAGE]');
+    return text.replace(/!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g, "[IMAGE]");
   }
 }
 

@@ -3,32 +3,33 @@
  * 提供 Token 计算的核心业务逻辑和响应式状态管理
  */
 
-import { ref, computed, watch } from 'vue';
-import debounce from 'lodash-es/debounce';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { useLlmProfiles } from '@composables/useLlmProfiles';
-import { tokenCalculatorEngine, type TokenCalculationResult } from './useTokenCalculator';
-import { calculatorProxy } from '../worker/calculator.proxy';
-import { getMatchedModelProperties } from '@/config/model-metadata';
+import { ref, computed, watch } from "vue";
+import debounce from "lodash-es/debounce";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { useLlmProfiles } from "@composables/useLlmProfiles";
+import { tokenCalculatorEngine, type TokenCalculationResult } from "./useTokenCalculator";
+import { calculatorProxy } from "../worker/calculator.proxy";
+import { getMatchedModelProperties } from "@/config/model-metadata";
 import {
   loadTokenCalculatorConfig,
   debouncedSaveConfig,
-  type TokenCalculatorConfig
-} from '../config';
+  type TokenCalculatorConfig,
+} from "../config";
 
-const logger = createModuleLogger('composables/token-calculator');
-const errorHandler = createModuleErrorHandler('composables/token-calculator');
+const logger = createModuleLogger("composables/token-calculator");
+const errorHandler = createModuleErrorHandler("composables/token-calculator");
 
 // ==================== 类型定义 ====================
 
 /** 计算模式 */
-export type CalculationMode = 'model' | 'tokenizer';
+export type CalculationMode = "model" | "tokenizer";
 
 /** Token 块（用于可视化） */
 export interface TokenBlock {
   text: string;
   index: number;
+  id?: number;
 }
 
 /** 可用的模型或分词器 */
@@ -39,10 +40,10 @@ export interface AvailableModel {
 }
 
 // 重新导出 engine 中的类型，方便统一从 composable 导入
-export type { TokenCalculationResult } from './useTokenCalculator';
+export type { TokenCalculationResult } from "./useTokenCalculator";
 
 /** 媒体类型 */
-export type MediaType = 'image' | 'video' | 'audio';
+export type MediaType = "image" | "video" | "audio";
 
 /** 媒体项 */
 export interface MediaItem {
@@ -59,7 +60,7 @@ export interface MediaItem {
 
 /**
  * Token 计算器 Composable
- * 
+ *
  * 提供 Token 计算的完整功能，包括：
  * - 响应式状态管理
  * - 自动 Token 计算（带防抖）
@@ -70,16 +71,16 @@ export function useTokenCalculator() {
   // ==================== 响应式状态 ====================
 
   /** 输入文本 */
-  const inputText = ref('');
+  const inputText = ref("");
 
   /** 媒体列表 */
   const mediaItems = ref<MediaItem[]>([]);
 
   /** 计算模式 */
-  const calculationMode = ref<CalculationMode>('model');
+  const calculationMode = ref<CalculationMode>("model");
 
   /** 选中的模型 ID 或分词器名称 */
-  const selectedModelId = ref('');
+  const selectedModelId = ref("");
 
   /** 是否正在计算 */
   const isCalculating = ref(false);
@@ -88,7 +89,7 @@ export function useTokenCalculator() {
   const calculationResult = ref<TokenCalculationResult>({
     count: 0,
     isEstimated: false,
-    tokenizerName: 'none',
+    tokenizerName: "none",
   });
 
   /** Token 可视化数据 */
@@ -115,13 +116,13 @@ export function useTokenCalculator() {
       calculationMode: calculationMode.value,
       selectedModelId: selectedModelId.value,
       maxDisplayTokens: maxDisplayTokens.value,
-      version: '1.0.0'
+      version: "1.0.0",
     };
 
     // 注意：我们暂不持久化 mediaItems，因为通常这是临时计算
 
     debouncedSaveConfig(config);
-    logger.info('配置已保存', config);
+    logger.info("配置已保存", config);
   };
 
   /**
@@ -143,9 +144,9 @@ export function useTokenCalculator() {
       }
 
       configLoaded.value = true;
-      logger.info('配置加载成功', config);
+      logger.info("配置加载成功", config);
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: '加载配置失败', showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "加载配置失败", showToUser: false });
       configLoaded.value = true; // 即使失败也标记为已加载，使用默认值
     }
   };
@@ -158,7 +159,7 @@ export function useTokenCalculator() {
     // 正则表达式匹配 Markdown 图片语法中的 data:image/...;base64,...
     const base64ImageRegex = /!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g;
     // 替换为简短占位符后再计算长度
-    const sanitizedText = inputText.value.replace(base64ImageRegex, '[IMAGE]');
+    const sanitizedText = inputText.value.replace(base64ImageRegex, "[IMAGE]");
     return sanitizedText.length;
   });
 
@@ -166,21 +167,21 @@ export function useTokenCalculator() {
   const { profiles } = useLlmProfiles();
   const availableModels = computed(() => {
     // 如果是分词器模式，返回分词器列表
-    if (calculationMode.value === 'tokenizer') {
+    if (calculationMode.value === "tokenizer") {
       const tokenizers = tokenCalculatorEngine.getAvailableTokenizers();
       return tokenizers.map((t: { name: string; description: string }) => ({
         id: t.name,
         name: t.description,
-        provider: '分词器',
+        provider: "分词器",
       }));
     }
 
     // 否则返回模型列表
     const models: AvailableModel[] = [];
 
-    profiles.value.forEach(profile => {
+    profiles.value.forEach((profile) => {
       if (profile.enabled && profile.models) {
-        profile.models.forEach(model => {
+        profile.models.forEach((model) => {
           // 尝试从元数据获取分词器名称作为标识
           const metadata = getMatchedModelProperties(model.id, model.provider);
           const tokenizerName = metadata?.tokenizer;
@@ -215,7 +216,7 @@ export function useTokenCalculator() {
     try {
       // 尝试使用真实的 tokenizer 获取分词结果
       let tokenizerResult;
-      if (calculationMode.value === 'tokenizer') {
+      if (calculationMode.value === "tokenizer") {
         tokenizerResult = await calculatorProxy.getTokenizedText(
           text,
           selectedModelId.value,
@@ -231,10 +232,13 @@ export function useTokenCalculator() {
 
       if (tokenizerResult && tokenizerResult.tokens) {
         // 使用真实的分词结果
-        const tokens: TokenBlock[] = tokenizerResult.tokens.map((tokenText: string, index: number) => ({
-          text: tokenText,
-          index,
-        }));
+        const tokens: TokenBlock[] = tokenizerResult.tokens.map(
+          (token: { text: string; id: number }, index: number) => ({
+            text: token.text,
+            id: token.id,
+            index,
+          })
+        );
 
         // 根据用户设置限制显示数量
         if (tokens.length > maxDisplayTokens.value) {
@@ -245,12 +249,15 @@ export function useTokenCalculator() {
         }
       } else {
         // 如果无法获取真实分词结果，使用简单分词作为回退
-        logger.warn('无法获取真实分词结果，使用简单分词');
+        logger.warn("无法获取真实分词结果，使用简单分词");
         await generateSimpleTokenizedText(text);
       }
     } catch (error) {
       // 出错时使用简单分词作为回退
-      errorHandler.handle(error as Error, { userMessage: '分词可视化失败，使用简单分词', showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "分词可视化失败，使用简单分词",
+        showToUser: false,
+      });
       await generateSimpleTokenizedText(text);
     }
   };
@@ -290,7 +297,7 @@ export function useTokenCalculator() {
       calculationResult.value = {
         count: 0,
         isEstimated: false,
-        tokenizerName: 'none',
+        tokenizerName: "none",
       };
       tokenizedText.value = [];
       return;
@@ -302,16 +309,13 @@ export function useTokenCalculator() {
 
         let result: TokenCalculationResult;
         // 根据模式选择不同的计算方法 (使用 Worker 代理)
-        if (calculationMode.value === 'tokenizer') {
+        if (calculationMode.value === "tokenizer") {
           result = await calculatorProxy.calculateTokensByTokenizer(
             inputText.value,
             selectedModelId.value
           );
         } else {
-          result = await calculatorProxy.calculateTokens(
-            inputText.value,
-            selectedModelId.value
-          );
+          result = await calculatorProxy.calculateTokens(inputText.value, selectedModelId.value);
         }
 
         // === 计算媒体 Token ===
@@ -324,22 +328,22 @@ export function useTokenCalculator() {
         // 如果是 tokenizer 模式，或者模型未定义视觉规则，我们默认使用 Gemini 2.0 规则作为参考
         // 这样用户添加了媒体至少能看到一个合理的数字，而不是 0
         const metadata = getMatchedModelProperties(selectedModelId.value);
-        const defaultVisionCost = { calculationMethod: 'gemini_2_0', parameters: {} } as const;
+        const defaultVisionCost = { calculationMethod: "gemini_2_0", parameters: {} } as const;
         const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
 
-        mediaItems.value.forEach(item => {
+        mediaItems.value.forEach((item) => {
           let count = 0;
-          if (item.type === 'image' && item.params.width && item.params.height) {
+          if (item.type === "image" && item.params.width && item.params.height) {
             count = tokenCalculatorEngine.calculateImageTokens(
               item.params.width,
               item.params.height,
               visionTokenCost
             );
             imageTotal += count;
-          } else if (item.type === 'video' && item.params.duration) {
+          } else if (item.type === "video" && item.params.duration) {
             count = tokenCalculatorEngine.calculateVideoTokens(item.params.duration);
             videoTotal += count;
-          } else if (item.type === 'audio' && item.params.duration) {
+          } else if (item.type === "audio" && item.params.duration) {
             count = tokenCalculatorEngine.calculateAudioTokens(item.params.duration);
             audioTotal += count;
           }
@@ -365,7 +369,7 @@ export function useTokenCalculator() {
         calculationResult.value = result;
         await generateTokenizedText();
 
-        logger.info('Token 计算完成', {
+        logger.info("Token 计算完成", {
           mode: calculationMode.value,
           count: result.count,
           mediaTokenCount: mediaTotal,
@@ -375,7 +379,7 @@ export function useTokenCalculator() {
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: 'Token 计算失败',
+        userMessage: "Token 计算失败",
         context: {
           textLength: inputText.value.length,
           mode: calculationMode.value,
@@ -408,15 +412,15 @@ export function useTokenCalculator() {
    * 清空所有内容
    */
   const clearAll = (): void => {
-    inputText.value = '';
+    inputText.value = "";
     mediaItems.value = [];
     calculationResult.value = {
       count: 0,
       isEstimated: false,
-      tokenizerName: 'none',
+      tokenizerName: "none",
     };
     tokenizedText.value = [];
-    logger.info('清空所有内容');
+    logger.info("清空所有内容");
   };
 
   // ==================== 媒体操作 ====================
@@ -424,11 +428,11 @@ export function useTokenCalculator() {
   /**
    * 添加媒体项
    */
-  const addMediaItem = (item: Omit<MediaItem, 'id' | 'tokenCount'>): void => {
+  const addMediaItem = (item: Omit<MediaItem, "id" | "tokenCount">): void => {
     const newItem: MediaItem = {
       ...item,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      tokenCount: 0
+      tokenCount: 0,
     };
     mediaItems.value.push(newItem);
     calculateTokens();
@@ -438,7 +442,7 @@ export function useTokenCalculator() {
    * 移除媒体项
    */
   const removeMediaItem = (id: string): void => {
-    const index = mediaItems.value.findIndex(item => item.id === id);
+    const index = mediaItems.value.findIndex((item) => item.id === id);
     if (index !== -1) {
       mediaItems.value.splice(index, 1);
       calculateTokens();
@@ -452,12 +456,12 @@ export function useTokenCalculator() {
    */
   const getTokenColor = (index: number): string => {
     const colors = [
-      'rgba(59, 130, 246, 0.15)',   // 蓝色
-      'rgba(16, 185, 129, 0.15)',   // 绿色
-      'rgba(245, 158, 11, 0.15)',   // 橙色
-      'rgba(139, 92, 246, 0.15)',   // 紫色
-      'rgba(236, 72, 153, 0.15)',   // 粉色
-      'rgba(6, 182, 212, 0.15)',    // 青色
+      "rgba(59, 130, 246, 0.15)", // 蓝色
+      "rgba(16, 185, 129, 0.15)", // 绿色
+      "rgba(245, 158, 11, 0.15)", // 橙色
+      "rgba(139, 92, 246, 0.15)", // 紫色
+      "rgba(236, 72, 153, 0.15)", // 粉色
+      "rgba(6, 182, 212, 0.15)", // 青色
     ];
     return colors[index % colors.length];
   };
@@ -479,7 +483,7 @@ export function useTokenCalculator() {
     calculateTokens();
     // 保存配置
     saveCurrentConfig();
-    logger.info('切换计算模式', { mode: newMode });
+    logger.info("切换计算模式", { mode: newMode });
   });
 
   /**
@@ -489,10 +493,10 @@ export function useTokenCalculator() {
     // 只有在真正切换了模型时才重新计算（避免初始化时重复计算）
     if (oldId && newId !== oldId) {
       calculateTokens();
-      logger.info('切换模型/分词器', {
+      logger.info("切换模型/分词器", {
         mode: calculationMode.value,
         from: oldId,
-        to: newId
+        to: newId,
       });
     }
     // 保存配置
@@ -507,7 +511,7 @@ export function useTokenCalculator() {
   watch(maxDisplayTokens, () => {
     if (inputText.value) {
       generateTokenizedText();
-      logger.info('更新最大显示数量', { maxDisplayTokens: maxDisplayTokens.value });
+      logger.info("更新最大显示数量", { maxDisplayTokens: maxDisplayTokens.value });
     }
     // 保存配置
     saveCurrentConfig();
@@ -522,12 +526,16 @@ export function useTokenCalculator() {
 
     // 如果配置中有保存的模型ID，先尝试验证它是否仍然可用
     if (selectedModelId.value && availableModels.value.length > 0) {
-      const modelExists = availableModels.value.some((m: { id: string }) => m.id === selectedModelId.value);
+      const modelExists = availableModels.value.some(
+        (m: { id: string }) => m.id === selectedModelId.value
+      );
       if (modelExists) {
-        logger.info('使用配置中保存的模型', { modelId: selectedModelId.value });
+        logger.info("使用配置中保存的模型", { modelId: selectedModelId.value });
         return;
       } else {
-        logger.warn('配置中的模型不再可用，将选择默认模型', { savedModelId: selectedModelId.value });
+        logger.warn("配置中的模型不再可用，将选择默认模型", {
+          savedModelId: selectedModelId.value,
+        });
       }
     }
 
@@ -536,7 +544,7 @@ export function useTokenCalculator() {
       const firstModel = availableModels.value[0];
       if (firstModel) {
         selectedModelId.value = firstModel.id;
-        logger.info('Token 计算器初始化完成', { defaultModel: firstModel.id });
+        logger.info("Token 计算器初始化完成", { defaultModel: firstModel.id });
       }
     }
   };
@@ -544,16 +552,20 @@ export function useTokenCalculator() {
   /**
    * 监听模型列表变化，自动初始化默认模型
    */
-  watch(availableModels, (models) => {
-    // 当模型列表加载完成且还没有选中模型时，自动选择第一个
-    if (models.length > 0 && !selectedModelId.value) {
-      const firstModel = models[0];
-      if (firstModel) {
-        selectedModelId.value = firstModel.id;
-        logger.info('自动选择默认模型', { modelId: firstModel.id, modelName: firstModel.name });
+  watch(
+    availableModels,
+    (models) => {
+      // 当模型列表加载完成且还没有选中模型时，自动选择第一个
+      if (models.length > 0 && !selectedModelId.value) {
+        const firstModel = models[0];
+        if (firstModel) {
+          selectedModelId.value = firstModel.id;
+          logger.info("自动选择默认模型", { modelId: firstModel.id, modelName: firstModel.name });
+        }
       }
-    }
-  }, { immediate: true });
+    },
+    { immediate: true }
+  );
 
   // ==================== 返回 ====================
 

@@ -1,10 +1,10 @@
-import type { VisionTokenCost } from '@/types/llm-profiles';
-import type { TokenCalculationResult } from '../composables/useTokenCalculator';
-import CalculatorWorker from './calculator.worker?worker';
+import type { VisionTokenCost } from "@/types/llm-profiles";
+import type { TokenCalculationResult } from "../composables/useTokenCalculator";
+import CalculatorWorker from "./calculator.worker?worker";
 
 /**
  * Token 计算 Worker 代理
- * 
+ *
  * 负责与 Worker 线程通信，提供 Promise 风格的 API
  */
 class TokenCalculatorProxy {
@@ -14,7 +14,7 @@ class TokenCalculatorProxy {
 
   constructor() {
     // 只有在浏览器环境下才初始化 Worker
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       this.initWorker();
     }
   }
@@ -30,7 +30,7 @@ class TokenCalculatorProxy {
         const pending = this.pendingRequests.get(id);
 
         if (pending) {
-          if (type === 'response') {
+          if (type === "response") {
             pending.resolve(result);
           } else {
             pending.reject(new Error(error));
@@ -40,18 +40,18 @@ class TokenCalculatorProxy {
       };
 
       this.worker.onerror = (error) => {
-        console.error('TokenCalculator Worker error:', error);
+        console.error("TokenCalculator Worker error:", error);
         this.handleWorkerError();
       };
     } catch (e) {
-      console.error('Failed to initialize TokenCalculator Worker:', e);
+      console.error("Failed to initialize TokenCalculator Worker:", e);
     }
   }
 
   private handleWorkerError() {
     // 出错时通知所有待处理的请求
     this.pendingRequests.forEach((pending) => {
-      pending.reject(new Error('Worker error'));
+      pending.reject(new Error("Worker error"));
     });
     this.pendingRequests.clear();
 
@@ -63,14 +63,14 @@ class TokenCalculatorProxy {
 
     // 延迟重启，避免在严重错误下陷入死循环
     setTimeout(() => {
-      console.log('Attempting to restart TokenCalculator Worker...');
+      console.log("Attempting to restart TokenCalculator Worker...");
       this.initWorker();
     }, 1000);
   }
 
   private request<T>(method: string, params: any): Promise<T> {
     if (!this.worker) {
-      return Promise.reject(new Error('Worker not initialized'));
+      return Promise.reject(new Error("Worker not initialized"));
     }
 
     return new Promise((resolve, reject) => {
@@ -81,36 +81,43 @@ class TokenCalculatorProxy {
   }
 
   async calculateTokens(text: string, modelId: string): Promise<TokenCalculationResult> {
-    return this.request('calculateTokens', { text, modelId });
+    return this.request("calculateTokens", { text, modelId });
   }
 
-  async calculateTokensByTokenizer(text: string, tokenizerName: string): Promise<TokenCalculationResult> {
-    return this.request('calculateTokensByTokenizer', { text, tokenizerName });
+  async calculateTokensByTokenizer(
+    text: string,
+    tokenizerName: string
+  ): Promise<TokenCalculationResult> {
+    return this.request("calculateTokensByTokenizer", { text, tokenizerName });
   }
 
   async getTokenizedText(
     text: string,
     identifier: string,
     useTokenizerName: boolean = false
-  ): Promise<{ tokens: string[] } | null> {
-    return this.request('getTokenizedText', { text, identifier, useTokenizerName });
+  ): Promise<{ tokens: Array<{ text: string; id: number }> } | null> {
+    return this.request("getTokenizedText", { text, identifier, useTokenizerName });
   }
 
-  async calculateImageTokens(width: number, height: number, visionTokenCost: VisionTokenCost): Promise<number> {
-    return this.request('calculateImageTokens', { width, height, visionTokenCost });
+  async calculateImageTokens(
+    width: number,
+    height: number,
+    visionTokenCost: VisionTokenCost
+  ): Promise<number> {
+    return this.request("calculateImageTokens", { width, height, visionTokenCost });
   }
 
   async calculateVideoTokens(durationSeconds: number): Promise<number> {
-    return this.request('calculateVideoTokens', { durationSeconds });
+    return this.request("calculateVideoTokens", { durationSeconds });
   }
 
   async calculateAudioTokens(durationSeconds: number): Promise<number> {
-    return this.request('calculateAudioTokens', { durationSeconds });
+    return this.request("calculateAudioTokens", { durationSeconds });
   }
 
   clearCache(): void {
     if (this.worker) {
-      this.worker.postMessage({ method: 'clearCache' });
+      this.worker.postMessage({ method: "clearCache" });
     }
   }
 }

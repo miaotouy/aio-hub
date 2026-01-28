@@ -32,7 +32,7 @@ const agentProfileInfo = computed(() => {
   // 1. 获取模型信息
   const modelId = metadata?.modelId || taskData?.input?.modelId;
   const modelName =
-    metadata?.modelDisplayName || metadata?.modelName || taskData?.input?.modelId || "生成助手";
+    metadata?.modelDisplayName || metadata?.modelName || taskData?.input?.modelId || "";
 
   let modelIcon: string | null = null;
   if (modelId) {
@@ -62,7 +62,7 @@ const displayName = computed(() => {
   }
 
   // 助手侧直接显示模型名称，不再重复显示
-  return agentProfileInfo.value?.modelName || "生成助手";
+  return agentProfileInfo.value?.modelName || "AI";
 });
 
 const displayTimestamp = computed(() => {

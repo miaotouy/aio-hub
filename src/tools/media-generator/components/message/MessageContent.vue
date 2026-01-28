@@ -28,28 +28,48 @@ const task = computed(() => {
   return props.message.metadata?.taskSnapshot;
 });
 
-// 资产 URL 处理
-const resultUrl = ref<string>("");
-
-const updateResultUrl = async () => {
+// 统一多资产范式：将单数或复数资产统一为列表
+const effectiveAssets = computed(() => {
   const currentTask = task.value;
-  if (currentTask?.resultAsset) {
+  if (!currentTask) return [];
+
+  if (currentTask.resultAssets && currentTask.resultAssets.length > 0) {
+    return currentTask.resultAssets;
+  }
+
+  // 迁移逻辑：如果只有单数资产，封装成列表
+  if (currentTask.resultAsset) {
+    return [currentTask.resultAsset];
+  }
+
+  return [];
+});
+
+// 资产 URL 处理
+const resultUrls = ref<string[]>([]);
+
+const updateResultUrls = async () => {
+  const assets = effectiveAssets.value;
+  if (assets.length > 0) {
     try {
-      const url = await getAssetUrl(currentTask.resultAsset);
-      resultUrl.value = url;
-      logger.debug("Result URL updated", { taskId: currentTask.id, url: !!url });
+      const urls = await Promise.all(assets.map((asset) => getAssetUrl(asset)));
+      resultUrls.value = urls.filter(Boolean) as string[];
+      logger.debug("Result URLs updated", {
+        taskId: task.value?.id,
+        count: resultUrls.value.length,
+      });
     } catch (error) {
-      logger.error("Failed to get asset URL", error, { taskId: currentTask.id });
-      resultUrl.value = "";
+      logger.error("Failed to get asset URLs", error, { taskId: task.value?.id });
+      resultUrls.value = [];
     }
   } else {
-    resultUrl.value = "";
+    resultUrls.value = [];
   }
 };
 
-const handleImageClick = () => {
-  if (resultUrl.value) {
-    imageViewer.show(resultUrl.value);
+const handleImageClick = (url: string) => {
+  if (url) {
+    imageViewer.show(url);
   }
 };
 
@@ -61,9 +81,9 @@ watch(
       logger.debug("Task state updated in message", {
         id: newTask.id,
         status: newTask.status,
-        hasAsset: !!newTask.resultAsset,
+        hasAsset: !!(newTask.resultAssets?.length || newTask.resultAsset),
       });
-      updateResultUrl();
+      updateResultUrls();
     }
   },
   { immediate: true, deep: true }
@@ -81,9 +101,12 @@ watch(
     <div v-else class="generation-content">
       <!-- 任务状态展示 -->
       <div v-if="task && task.status !== 'completed'" class="task-status">
-        <div v-if="task.status === 'processing' || task.status === 'pending'" class="status-loading">
+        <div
+          v-if="task.status === 'processing' || task.status === 'pending'"
+          class="status-loading"
+        >
           <Loader2 class="animate-spin" :size="20" />
-          <span>{{ task.statusText || '正在生成中...' }}</span>
+          <span>{{ task.statusText || "正在生成中..." }}</span>
           <span v-if="task.progress > 0" class="progress-text">{{ task.progress }}%</span>
         </div>
         <div v-else-if="task.status === 'error'" class="status-error">
@@ -97,38 +120,54 @@ watch(
       </div>
 
       <!-- 生成成功后的媒体展示 -->
-      <div v-if="task?.status === 'completed'" class="media-result">
+      <div
+        v-if="task?.status === 'completed'"
+        class="media-result"
+        :class="{
+          'is-multi': resultUrls.length > 1 || (task.previewUrls && task.previewUrls.length > 1),
+        }"
+      >
         <!-- 图像 -->
-        <div v-if="task.type === 'image'" class="image-result">
-          <img
-            v-if="resultUrl"
-            :src="resultUrl"
-            :alt="task.input.prompt"
-            class="media-preview clickable"
-            @click="handleImageClick"
-          />
-          <div v-else-if="task.previewUrl" class="preview-placeholder">
-            <img :src="task.previewUrl" class="media-preview opacity-50" />
+        <template v-if="task.type === 'image'">
+          <div v-if="resultUrls.length > 0" class="image-grid">
+            <div v-for="url in resultUrls" :key="url" class="media-item">
+              <img
+                :src="url"
+                :alt="task.input.prompt"
+                class="media-preview clickable"
+                @click="handleImageClick(url)"
+              />
+            </div>
           </div>
-        </div>
+          <div v-else-if="task.previewUrls?.length" class="image-grid">
+            <div v-for="url in task.previewUrls" :key="url" class="media-item preview-placeholder">
+              <img :src="url" class="media-preview opacity-50" />
+            </div>
+          </div>
+          <div v-else-if="task.previewUrl" class="image-grid">
+            <div class="media-item preview-placeholder">
+              <img :src="task.previewUrl" class="media-preview opacity-50" />
+            </div>
+          </div>
+        </template>
 
         <!-- 视频 -->
-        <div v-else-if="task.type === 'video'" class="video-result">
-          <VideoPlayer
-            v-if="resultUrl"
-            :src="resultUrl"
-            class="media-preview"
-          />
-        </div>
+        <template v-else-if="task.type === 'video'">
+          <div v-if="resultUrls.length > 0" class="video-list">
+            <div v-for="url in resultUrls" :key="url" class="media-item">
+              <VideoPlayer :src="url" class="media-preview" />
+            </div>
+          </div>
+        </template>
 
         <!-- 音频 -->
-        <div v-else-if="task.type === 'audio'" class="audio-result">
-          <AudioPlayer
-            v-if="resultUrl"
-            :src="resultUrl"
-            class="media-preview"
-          />
-        </div>
+        <template v-else-if="task.type === 'audio'">
+          <div v-if="resultUrls.length > 0" class="audio-list">
+            <div v-for="url in resultUrls" :key="url" class="media-item">
+              <AudioPlayer :src="url" class="media-preview" />
+            </div>
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -156,7 +195,8 @@ watch(
   border: 1px solid var(--border-color);
 }
 
-.status-loading, .status-error {
+.status-loading,
+.status-error {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -182,6 +222,24 @@ watch(
 
 .media-result {
   margin-top: 8px;
+}
+
+.media-result.is-multi .image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.media-item {
+  position: relative;
+  width: 100%;
+}
+
+.video-list,
+.audio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .media-preview {
@@ -210,7 +268,11 @@ watch(
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

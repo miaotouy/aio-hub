@@ -18,6 +18,7 @@ import type { MediaMessage, MediaTask } from "../../types";
 
 interface Props {
   message: MediaMessage;
+  isSending?: boolean;
   siblings: MediaMessage[];
   currentSiblingIndex: number;
 }

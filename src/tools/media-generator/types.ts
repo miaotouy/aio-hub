@@ -75,11 +75,19 @@ export interface MediaTask {
   error?: string;
 
   /** 结果关联 */
-  /** 生成成功后的资产ID */
+  /** 生成成功后的资产ID列表 */
+  resultAssetIds?: string[];
+  /** 关联的完整资产对象列表 (可选，用于 UI 渲染) */
+  resultAssets?: Asset[];
+  /** 临时预览地址列表 (Base64 或 Blob URL) */
+  previewUrls?: string[];
+
+  /** 兼容性字段 (保留单数形式作为首个结果的快捷访问) */
+  /** @deprecated 使用 resultAssetIds */
   resultAssetId?: string;
-  /** 关联的完整资产对象 (可选，用于 UI 渲染) */
+  /** @deprecated 使用 resultAssets */
   resultAsset?: Asset;
-  /** 临时预览地址 (Base64 或 Blob URL) */
+  /** @deprecated 使用 previewUrls */
   previewUrl?: string;
 
   /** 时间线 */

@@ -4,6 +4,7 @@
 
 import { ref, computed } from "vue";
 import type { LlmProfile, LlmParameterSupport, ProviderType } from "../types/llm-profiles";
+import { DEFAULT_LLM_PROFILE } from "../types/llm-profiles";
 import type { LlmPreset } from "../config/llm-providers";
 import { providerTypes } from "../config/llm-providers";
 import { createConfigManager } from "@utils/configManager";
@@ -30,9 +31,9 @@ const isLoaded = ref(false);
 
 export function useLlmProfiles() {
   /**
-   * 数据迁移：将旧格式的 apiKey 转换为 apiKeys 数组
+   * 规范化配置：合并默认值并处理旧版本迁移
    */
-  const migrateProfile = (profile: any): LlmProfile => {
+  const normalizeProfile = (profile: any): LlmProfile => {
     // 1. 处理 API Key 迁移 (从 apiKey 到 apiKeys 数组)
     let apiKeys = profile.apiKeys;
     let rest = { ...profile };
@@ -43,24 +44,23 @@ export function useLlmProfiles() {
       rest = otherProps;
     }
 
-    // 2. 总是执行图标路径规范化 (向后兼容带路径的配置)
-    const migratedProfile: LlmProfile = {
+    // 2. 深度合并与规范化
+    const normalized: LlmProfile = {
+      ...DEFAULT_LLM_PROFILE,
       ...rest,
       apiKeys: apiKeys,
       logoUrl: rest.logoUrl || undefined,
       icon: rest.icon ? normalizeIconPath(rest.icon) : undefined,
       models: Array.isArray(rest.models)
         ? rest.models.map((m: any) => ({
-          ...m,
-          icon: m.icon ? normalizeIconPath(m.icon) : undefined,
-        }))
+            ...m,
+            icon: m.icon ? normalizeIconPath(m.icon) : undefined,
+          }))
         : [],
-      customHeaders: rest.customHeaders || undefined,
-      // 3. 补齐网络策略默认值
-      networkStrategy: rest.networkStrategy || "auto",
+      customHeaders: rest.customHeaders || DEFAULT_LLM_PROFILE.customHeaders,
+      networkStrategy: rest.networkStrategy || DEFAULT_LLM_PROFILE.networkStrategy,
     };
-
-    return migratedProfile;
+    return normalized;
   };
 
   /**
@@ -81,7 +81,7 @@ export function useLlmProfiles() {
           logger.info("检测到 localStorage 数据，开始迁移到文件系统");
           try {
             const rawProfiles = JSON.parse(stored);
-            loadedProfiles = rawProfiles.map(migrateProfile);
+            loadedProfiles = rawProfiles.map(normalizeProfile);
 
             // 保存到文件系统
             await configManager.save({ profiles: loadedProfiles });
@@ -90,12 +90,15 @@ export function useLlmProfiles() {
             localStorage.removeItem(STORAGE_KEY);
             logger.info("数据迁移完成", { profileCount: loadedProfiles.length });
           } catch (parseError) {
-            errorHandler.handle(parseError, { userMessage: "解析 localStorage 数据失败", showToUser: false });
+            errorHandler.handle(parseError, {
+              userMessage: "解析 localStorage 数据失败",
+              showToUser: false,
+            });
           }
         }
       } else {
-        // 迁移现有数据到新格式
-        loadedProfiles = loadedProfiles.map(migrateProfile);
+        // 规范化现有数据，确保新字段合并
+        loadedProfiles = loadedProfiles.map(normalizeProfile);
       }
 
       profiles.value = loadedProfiles;
@@ -117,7 +120,9 @@ export function useLlmProfiles() {
       await configManager.save({ profiles: profiles.value });
       logger.info("LLM 配置保存成功");
     } catch (error) {
-      errorHandler.error(error, "保存 LLM 配置失败", { context: { profileCount: profiles.value.length } });
+      errorHandler.error(error, "保存 LLM 配置失败", {
+        context: { profileCount: profiles.value.length },
+      });
       throw error;
     }
   };
@@ -143,7 +148,7 @@ export function useLlmProfiles() {
         context: {
           profileId: profile.id,
           profileName: profile.name,
-        }
+        },
       });
       throw error;
     }

@@ -462,3 +462,18 @@ export interface LlmProfile {
     videoStatus?: string;
   };
 }
+
+/**
+ * LlmProfile 的默认值
+ */
+export const DEFAULT_LLM_PROFILE: Partial<LlmProfile> = {
+  enabled: true,
+  apiKeys: [],
+  models: [],
+  networkStrategy: "auto",
+  relaxIdCerts: false,
+  http1Only: false,
+  customHeaders: {},
+  modelGroupsExpandState: {},
+  customEndpoints: {},
+};

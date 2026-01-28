@@ -46,6 +46,7 @@ const inputSettings = useStorage<InputToolbarSettings>(
   {
     showTokenUsage: true,
     enableMacroParsing: true,
+    extractBase64FromPaste: true,
   },
   localStorage,
   { mergeDefaults: true }

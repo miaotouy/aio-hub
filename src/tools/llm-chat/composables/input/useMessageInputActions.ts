@@ -293,7 +293,13 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   // 处理粘贴事件，智能提取 Base64 图像
   const handlePaste = async (event: ClipboardEvent) => {
     const text = event.clipboardData?.getData("text/plain");
-    if (!text || !text.includes("data:image") || !text.includes(";base64,")) return;
+    if (
+      !text ||
+      !options.inputSettings.value.extractBase64FromPaste ||
+      !text.includes("data:image") ||
+      !text.includes(";base64,")
+    )
+      return;
 
     const textarea = options.textareaRef.value;
     const selection = textarea?.getSelectionRange() || {

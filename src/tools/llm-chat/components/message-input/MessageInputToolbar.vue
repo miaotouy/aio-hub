@@ -2,6 +2,7 @@
 export interface InputToolbarSettings {
   showTokenUsage: boolean;
   enableMacroParsing: boolean;
+  extractBase64FromPaste: boolean;
 }
 </script>
 
@@ -280,7 +281,7 @@ const handleNewSession = () => {
         <div>
           <el-popover
             placement="top"
-            :width="200"
+            :width="240"
             trigger="click"
             popper-class="toolbar-settings-popover"
           >
@@ -310,6 +311,20 @@ const handleNewSession = () => {
                       emit('update:settings', {
                         ...props.settings,
                         enableMacroParsing: val as boolean,
+                      })
+                  "
+                  size="small"
+                />
+              </div>
+              <div class="setting-item">
+                <span class="setting-label">粘贴时提取 Base64 图像</span>
+                <el-switch
+                  :model-value="props.settings.extractBase64FromPaste"
+                  @update:model-value="
+                    (val: boolean | string | number) =>
+                      emit('update:settings', {
+                        ...props.settings,
+                        extractBase64FromPaste: val as boolean,
                       })
                   "
                   size="small"

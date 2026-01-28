@@ -467,7 +467,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       <el-tooltip content="上一个版本" placement="top" :show-after="500">
         <button
           class="menu-btn"
-          :disabled="currentSiblingIndex === 0 || isSending"
+          :disabled="currentSiblingIndex === 0"
           @click="emit('switch', 'prev')"
         >
           <ChevronLeft :size="16" />
@@ -478,7 +478,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       <el-popover
         v-model:visible="showBranchPopover"
         placement="top"
-        :width="320"
+        :width="360"
         trigger="click"
         popper-class="branch-selector-popover"
       >
@@ -504,7 +504,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       <el-tooltip content="下一个版本" placement="top" :show-after="500">
         <button
           class="menu-btn"
-          :disabled="currentSiblingIndex === siblings.length - 1 || isSending"
+          :disabled="currentSiblingIndex === siblings.length - 1"
           @click="emit('switch', 'next')"
         >
           <ChevronRight :size="16" />

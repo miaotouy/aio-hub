@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useTranscriptionManager } from "@/tools/llm-chat/composables/features/useTranscriptionManager";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useTranslation } from "@/tools/llm-chat/composables/chat/useTranslation";
 import { useContextCompressor } from "@/tools/llm-chat/composables/features/useContextCompressor";
 import { processInlineData } from "@/composables/useAttachmentProcessor";
@@ -12,8 +13,10 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { Asset } from "@/types/asset-management";
+import { MacroProcessor, createMacroContext } from "../../macro-engine";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ChatSettings } from "../../types/settings";
+import type { QuickAction } from "../../types/quick-action";
 import type { useChatInputManager } from "./useChatInputManager";
 import type { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import type ChatCodeMirrorEditor from "../../components/message-input/ChatCodeMirrorEditor.vue";
@@ -46,6 +49,7 @@ interface UseMessageInputActionsOptions {
 export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   const chatStore = useLlmChatStore();
   const agentStore = useAgentStore();
+  const profileStore = useUserProfileStore();
   const { translateText } = useTranslation();
   const { manualCompress } = useContextCompressor();
   const { open: openModelSelectDialog } = useModelSelectDialog();
@@ -116,6 +120,64 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       chatStore.abortNodeGeneration(session.activeLeafId);
     } else {
       options.emit("abort");
+    }
+  };
+
+  // 执行快捷操作
+  const handleQuickAction = async (action: QuickAction) => {
+    const textarea = options.textareaRef.value;
+    if (!textarea) return;
+
+    const { start, end } = textarea.getSelectionRange();
+    const fullText = options.inputText.value;
+    const hasSelection = start !== end;
+
+    // 准备宏上下文中的 input 内容
+    const inputText = hasSelection ? fullText.substring(start, end) : fullText;
+
+    try {
+      // 准备完整的宏上下文
+      const session = chatStore.currentSession;
+      const agent = agentStore.currentAgentId
+        ? agentStore.getAgentById(agentStore.currentAgentId)
+        : null;
+      const userProfile = profileStore.globalProfile;
+
+      const context = createMacroContext({
+        userName: userProfile?.name,
+        charName: agent?.name,
+        session: session || undefined,
+        agent: agent || undefined,
+        userProfile: userProfile || undefined,
+      });
+
+      // 注入 input 宏内容
+      context.input = inputText;
+
+      // 使用宏引擎处理模板
+      const processor = new MacroProcessor();
+      const result = await processor.process(action.content, context, { silent: true });
+
+      // 写回编辑器
+      if (hasSelection) {
+        textarea.insertText(result.output, start, end);
+      } else {
+        options.inputText.value = result.output;
+      }
+
+      // 自动发送
+      if (action.autoSend) {
+        // 等待编辑器更新
+        setTimeout(() => {
+          handleSend();
+        }, 50);
+      } else {
+        setTimeout(() => {
+          textarea.focus();
+        }, 0);
+      }
+    } catch (error) {
+      errorHandler.error(error, "执行快捷操作失败");
     }
   };
 
@@ -397,6 +459,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     isCompressing,
     handleSend,
     handleAbort,
+    handleQuickAction,
     handleInsertMacro,
     handleTranslateInput,
     handleCompressContext,

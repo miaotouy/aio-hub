@@ -73,6 +73,19 @@
       </div>
     </el-form-item>
 
+    <el-form-item label="快捷操作">
+      <QuickActionSelector
+        :model-value="formData.quickActionSetIds || []"
+        @update:model-value="
+          (val) => {
+            formData.quickActionSetIds = val;
+            handleInput();
+          }
+        "
+      />
+      <div class="form-hint">关联的快捷操作组将在此 Profile 激活时显示在输入框工具栏。</div>
+    </el-form-item>
+
     <el-divider />
 
     <el-form-item label="消息样式">
@@ -141,6 +154,7 @@
 import { ref, watch, defineAsyncComponent } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
+import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types";
@@ -168,6 +182,7 @@ interface UserProfileFormData {
   richTextStyleBehavior?: "follow_agent" | "custom";
   regexConfig?: ChatRegexConfig;
   worldbookIds?: string[];
+  quickActionSetIds?: string[];
 }
 
 interface Props {
@@ -214,6 +229,7 @@ const formData = ref<UserProfileFormData>({
   richTextStyleOptions: props.modelValue.richTextStyleOptions || {},
   regexConfig: props.modelValue.regexConfig || { presets: [] },
   worldbookIds: props.modelValue.worldbookIds || [],
+  quickActionSetIds: props.modelValue.quickActionSetIds || [],
 });
 
 const styleLoading = ref(false);
@@ -229,6 +245,7 @@ watch(
       richTextStyleOptions: newValue.richTextStyleOptions || {},
       regexConfig: newValue.regexConfig || { presets: [] },
       worldbookIds: newValue.worldbookIds || [],
+      quickActionSetIds: newValue.quickActionSetIds || [],
     };
   },
   { deep: true }

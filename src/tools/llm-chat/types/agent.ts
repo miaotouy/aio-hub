@@ -1,16 +1,16 @@
-import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
-import type { LlmParameters } from './llm';
-import type { ChatMessageNode } from './message';
+import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type { LlmParameters } from "./llm";
+import type { ChatMessageNode } from "./message";
 
 /**
  * 资产类型
  */
-export type AssetType = 'image' | 'audio' | 'video' | 'file';
+export type AssetType = "image" | "audio" | "video" | "file";
 
 /**
  * 资产用途
  */
-export type AssetUsage = 'inline' | 'background';
+export type AssetUsage = "inline" | "background";
 
 /**
  * 资产附加选项
@@ -177,7 +177,7 @@ export interface AgentBaseConfig {
    * 正则管道配置
    * 用于对消息内容进行动态清洗、格式转换等
    */
-  regexConfig?: import('./chatRegex').ChatRegexConfig;
+  regexConfig?: import("./chatRegex").ChatRegexConfig;
 
   /**
    * 交互行为配置
@@ -211,6 +211,11 @@ export interface AgentBaseConfig {
    * 关联的世界书 ID 列表
    */
   worldbookIds?: string[];
+
+  /**
+   * 关联的快捷操作组 ID 列表
+   */
+  quickActionSetIds?: string[];
 
   /**
    * 世界书覆盖设置
@@ -307,22 +312,22 @@ export type AgentEditData = Omit<ChatAgent, "id" | "createdAt" | "lastUsedAt">;
  * 智能体分类枚举
  */
 export enum AgentCategory {
-  Assistant = 'assistant',   // 智能助手
-  Character = 'character',   // 虚拟角色
-  Expert = 'expert',         // 领域专家
-  Creative = 'creative',     // 创意伙伴
-  Workflow = 'workflow',     // 工作流
-  Other = 'other'            // 其他
+  Assistant = "assistant", // 智能助手
+  Character = "character", // 虚拟角色
+  Expert = "expert", // 领域专家
+  Creative = "creative", // 创意伙伴
+  Workflow = "workflow", // 工作流
+  Other = "other", // 其他
 }
 
 /**
  * 智能体分类显示名称映射
  */
 export const AgentCategoryLabels: Record<AgentCategory, string> = {
-  [AgentCategory.Assistant]: '智能助手',
-  [AgentCategory.Character]: '虚拟角色',
-  [AgentCategory.Expert]: '领域专家',
-  [AgentCategory.Creative]: '创意伙伴',
-  [AgentCategory.Workflow]: '工作流',
-  [AgentCategory.Other]: '其他'
+  [AgentCategory.Assistant]: "智能助手",
+  [AgentCategory.Character]: "虚拟角色",
+  [AgentCategory.Expert]: "领域专家",
+  [AgentCategory.Creative]: "创意伙伴",
+  [AgentCategory.Workflow]: "工作流",
+  [AgentCategory.Other]: "其他",
 };

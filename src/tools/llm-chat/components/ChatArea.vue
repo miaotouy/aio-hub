@@ -897,7 +897,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   min-width: 120px; /* 保证至少能看清头像和部分文字 */
-  overflow: hidden;
+  /* 允许溢出以支持头像放大效果，内部文字已通过 .agent-name 等处理了省略 */
 }
 
 /* 右侧功能操作区 */

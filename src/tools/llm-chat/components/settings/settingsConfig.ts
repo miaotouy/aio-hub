@@ -22,22 +22,20 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { DEFAULT_SETTINGS } from "../../types/settings";
 
 // 异步加载大型业务组件
-const MarkdownStyleEditor = defineAsyncComponent(() =>
-  import(
-    "@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue"
-  )
+const MarkdownStyleEditor = defineAsyncComponent(
+  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
 );
-const ChatRegexEditor = defineAsyncComponent(() =>
-  import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
+const ChatRegexEditor = defineAsyncComponent(
+  () => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
 );
-const PipelineConfig = defineAsyncComponent(() =>
-  import("./PipelineConfig.vue")
+const PipelineConfig = defineAsyncComponent(() => import("./PipelineConfig.vue"));
+const WorldbookManager = defineAsyncComponent(() => import("../worldbook/WorldbookManager.vue"));
+const WorldbookSelector = defineAsyncComponent(() => import("../worldbook/WorldbookSelector.vue"));
+const QuickActionFullManager = defineAsyncComponent(
+  () => import("../quick-action/QuickActionFullManager.vue")
 );
-const WorldbookManager = defineAsyncComponent(() =>
-  import("../worldbook/WorldbookManager.vue")
-);
-const WorldbookSelector = defineAsyncComponent(() =>
-  import("../worldbook/WorldbookSelector.vue")
+const QuickActionSelector = defineAsyncComponent(
+  () => import("../quick-action/QuickActionSelector.vue")
 );
 
 export const settingsConfig: SettingsSection<ChatSettings>[] = [
@@ -130,8 +128,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "contentMaxWidth",
-        label:
-          "内容最大宽度 ({{ localSettings.uiPreferences.contentMaxWidth }}px)",
+        label: "内容最大宽度 ({{ localSettings.uiPreferences.contentMaxWidth }}px)",
         component: "ElSlider",
         props: {
           min: 300,
@@ -183,8 +180,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "headerBlurIntensity",
-        label:
-          "头部背景模糊 ({{ localSettings.uiPreferences.headerBlurIntensity }}px)",
+        label: "头部背景模糊 ({{ localSettings.uiPreferences.headerBlurIntensity }}px)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -242,8 +238,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "rendererThrottleMs",
-        label:
-          "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
+        label: "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
         component: "ElSlider",
         props: {
           min: 16,
@@ -257,8 +252,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "virtualListOverscan",
-        label:
-          "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
+        label: "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
         component: "ElSlider",
         props: {
           min: 5,
@@ -362,8 +356,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "htmlFreezerKeepAliveCount",
-        label:
-          "消息保持活动数 ({{ localSettings.uiPreferences.htmlFreezerKeepAliveCount }}条)",
+        label: "消息保持活动数 ({{ localSettings.uiPreferences.htmlFreezerKeepAliveCount }}条)",
         component: "ElSlider",
         props: {
           min: 1,
@@ -729,25 +722,25 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transRepetitionConsecutiveThreshold",
-        label: "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
+        label:
+          "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 10, step: 1 },
         modelPath: "transcription.repetitionConfig.consecutiveThreshold",
         hint: "同一行或同一句话连续出现的次数超过此值将视为复读",
         keywords: "transcription repetition threshold consecutive 复读 阈值 连续",
-        visible: (s) =>
-          s.transcription.enabled && s.transcription.enableRepetitionDetection,
+        visible: (s) => s.transcription.enabled && s.transcription.enableRepetitionDetection,
       },
       {
         id: "transRepetitionGlobalThreshold",
-        label: "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
+        label:
+          "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 20, step: 1 },
         modelPath: "transcription.repetitionConfig.globalThreshold",
         hint: "文本中任意片段出现的总次数超过此值将视为复读",
         keywords: "transcription repetition threshold global 复读 阈值 全局",
-        visible: (s) =>
-          s.transcription.enabled && s.transcription.enableRepetitionDetection,
+        visible: (s) => s.transcription.enabled && s.transcription.enableRepetitionDetection,
       },
       {
         id: "transRepetitionWhitelist",
@@ -763,8 +756,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.repetitionConfig.whitelist",
         hint: "包含这些片段的内容将不会被判定为复读（常用于固定格式的转写）",
         keywords: "transcription repetition whitelist 复读 白名单",
-        visible: (s) =>
-          s.transcription.enabled && s.transcription.enableRepetitionDetection,
+        visible: (s) => s.transcription.enabled && s.transcription.enableRepetitionDetection,
       },
       {
         id: "transStrategy",
@@ -775,8 +767,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           {
             label: "智能判断 (Smart)",
             value: "smart",
-            description:
-              "根据当前模型能力判断：模型支持该附件类型则直接发送，不支持则自动转写",
+            description: "根据当前模型能力判断：模型支持该附件类型则直接发送，不支持则自动转写",
           },
           {
             label: "总是转写 (Always)",
@@ -790,8 +781,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transForceAfter",
-        label:
-          "强制转写阈值 ({{ localSettings.transcription.forceTranscriptionAfter }}条)",
+        label: "强制转写阈值 ({{ localSettings.transcription.forceTranscriptionAfter }}条)",
         component: "SliderWithInput",
         props: {
           min: 0,
@@ -803,8 +793,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "在智能模式下，强制转写早于最新 N 条消息的附件。0 表示不启用。",
         keywords: "transcription force smart 强制 智能",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.strategy === "smart",
+          settings.transcription.enabled && settings.transcription.strategy === "smart",
       },
       {
         id: "transAutoStartOnImport",
@@ -819,8 +808,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       // 2. 性能与并发控制
       {
         id: "transMaxConcurrentTasks",
-        label:
-          "最大并发任务数 ({{ localSettings.transcription.maxConcurrentTasks }})",
+        label: "最大并发任务数 ({{ localSettings.transcription.maxConcurrentTasks }})",
         component: "ElSlider",
         props: {
           min: 1,
@@ -836,8 +824,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transExecutionDelay",
-        label:
-          "任务执行延迟 ({{ localSettings.transcription.executionDelay }}ms)",
+        label: "任务执行延迟 ({{ localSettings.transcription.executionDelay }}ms)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -957,22 +944,19 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "图片的长宽比超过此值时才会触发智能切图",
         keywords: "transcription slicer aspect ratio 长宽比",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          !!settings.transcription.enableImageSlicer,
+          settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
         id: "transSlicerMinCutHeight",
-        label:
-          "最小切片高度 ({{ localSettings.transcription.imageSlicerConfig.minCutHeight }}px)",
+        label: "最小切片高度 ({{ localSettings.transcription.imageSlicerConfig.minCutHeight }}px)",
         component: "SliderWithInput",
         props: { min: 100, max: 2000, step: 20 },
         modelPath: "transcription.imageSlicerConfig.minCutHeight",
         hint: "控制切片的最小高度。设置较大的值可以防止切图太碎，保持上下文连贯。建议 400-800px。",
         keywords: "transcription slicer min height 切片 高度",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          !!settings.transcription.enableImageSlicer,
+          settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
 
@@ -1048,8 +1032,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "音频体积限制，超过将尝试压缩。",
         keywords: "transcription audio size 体积 限制",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.audio.enableCompression,
+          settings.transcription.enabled && settings.transcription.audio.enableCompression,
         groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
       },
       {
@@ -1068,8 +1051,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "压缩后的音频比特率。较低的比特率可以显著减小体积，但会损失音质。",
         keywords: "transcription audio bitrate 比特率",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.audio.enableCompression,
+          settings.transcription.enabled && settings.transcription.audio.enableCompression,
         groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
       },
 
@@ -1153,8 +1135,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transVideoMaxDirectSize",
-        label:
-          "视频体积限制 ({{ localSettings.transcription.video.maxDirectSizeMB }}MB)",
+        label: "视频体积限制 ({{ localSettings.transcription.video.maxDirectSizeMB }}MB)",
         component: "SliderWithInput",
         props: {
           min: 1,
@@ -1166,14 +1147,12 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。<br /><span style='color: var(--el-color-warning)'>注意：Base64 编码会使上传体积增加约 33%，建议设置略低于 API 的实际限制。</span>",
         keywords: "transcription video size limit 视频 大小 阈值 限制",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.video.enableCompression,
+          settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxFps",
-        label:
-          "视频帧率限制 ({{ localSettings.transcription.video.maxFps }} FPS)",
+        label: "视频帧率限制 ({{ localSettings.transcription.video.maxFps }} FPS)",
         component: "SliderWithInput",
         props: {
           min: 1,
@@ -1185,14 +1164,12 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "限制视频的最大帧率。较低的帧率（如 5 FPS）可显著减小体积且通常不影响 AI 理解。",
         keywords: "transcription video fps frame rate 视频 帧率",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.video.enableCompression,
+          settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxResolution",
-        label:
-          "视频尺寸限制 ({{ localSettings.transcription.video.maxResolution }}p)",
+        label: "视频尺寸限制 ({{ localSettings.transcription.video.maxResolution }}p)",
         component: "SliderWithInput",
         props: {
           min: 360,
@@ -1204,8 +1181,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "限制视频的最大短边尺寸（如 720p）。超过此尺寸的视频将被等比缩放。",
         keywords: "transcription video resolution size 视频 分辨率 尺寸",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.video.enableCompression,
+          settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1217,8 +1193,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "使用 NVIDIA GPU (h264_nvenc) 加速压缩，需硬件支持。",
         keywords: "transcription video gpu hardware acceleration 硬件加速",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.video.enableCompression,
+          settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1230,8 +1205,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "当目标体积过小时，自动降低分辨率以保持画质清晰度。",
         keywords: "transcription video auto resolution 自动 分辨率",
         visible: (settings) =>
-          settings.transcription.enabled &&
-          settings.transcription.video.enableCompression,
+          settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
 
@@ -1304,8 +1278,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "htmlToMdLastMessages",
-        label:
-          "转换阈值 ({{ localSettings.contextOptimization.htmlToMdLastMessages }}条)",
+        label: "转换阈值 ({{ localSettings.contextOptimization.htmlToMdLastMessages }}条)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -1392,6 +1365,29 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     ],
   },
   {
+    title: "快捷操作",
+    icon: Zap,
+    items: [
+      {
+        id: "globalQuickActionSetIds",
+        label: "全局关联快捷操作",
+        component: QuickActionSelector,
+        modelPath: "quickActionSetIds",
+        hint: "在这里选择的快捷操作组将全局生效，出现在所有会话的工具栏中。",
+        keywords: "global quick action ids 全局 快捷操作 关联",
+        layout: "block",
+      },
+      {
+        id: "quickActionManager",
+        label: "快捷操作库管理",
+        component: QuickActionFullManager,
+        modelPath: "", // 内部管理自己的状态
+        hint: "管理自定义的快捷操作组。你可以创建宏、包装器或一键发送的常用指令。",
+        keywords: "quick action manager 快捷操作 管理 宏",
+      },
+    ],
+  },
+  {
     title: "样式设置",
     icon: Palette,
     items: [
@@ -1441,8 +1437,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     items: [
       {
         id: "timeout",
-        label:
-          "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
+        label: "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
         component: "ElSlider",
         props: {
           min: 10000,
@@ -1456,8 +1451,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "maxRetries",
-        label:
-          "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
+        label: "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -1506,8 +1500,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "incrementalSaveInterval",
-        label:
-          "自动保存间隔 ({{ localSettings.requestSettings.incrementalSaveInterval }}ms)",
+        label: "自动保存间隔 ({{ localSettings.requestSettings.incrementalSaveInterval }}ms)",
         component: "ElSlider",
         props: {
           min: 500,

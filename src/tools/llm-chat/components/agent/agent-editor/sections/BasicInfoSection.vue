@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, computed } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
+import QuickActionSelector from "../../../quick-action/QuickActionSelector.vue";
 import { AgentCategoryLabels } from "../../../../types";
 import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import { useAgentStore } from "../../../../stores/agentStore";
@@ -98,6 +99,11 @@ const handleHistoryUpdate = (newHistory: string[]) => {
         :rows="4"
         placeholder="智能体的简短描述..."
       />
+    </el-form-item>
+
+    <el-form-item label="快捷操作" data-setting-id="quickActionSetIds">
+      <QuickActionSelector v-model="editForm.quickActionSetIds" />
+      <div class="form-hint">关联的快捷操作组将在此智能体激活时显示在输入框工具栏。</div>
     </el-form-item>
   </div>
 </template>

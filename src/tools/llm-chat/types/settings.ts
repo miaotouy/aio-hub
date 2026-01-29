@@ -198,6 +198,8 @@ export interface ChatSettings {
   plugins: Record<string, any>;
   /** 全局关联的世界书 ID 列表 */
   worldbookIds: string[];
+  /** 全局关联的快捷操作组 ID 列表 */
+  quickActionSetIds: string[];
   /** 世界书全局设置 */
   worldbook: {
     /** 是否禁用递归扫描 */
@@ -253,7 +255,16 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     modelIdentifier: "", // 需要用户配置
     messageTargetLang: "Chinese",
     inputTargetLang: "English",
-    targetLangList: ["Chinese", "English", "Japanese", "Korean", "French", "German", "Spanish", "Russian"],
+    targetLangList: [
+      "Chinese",
+      "English",
+      "Japanese",
+      "Korean",
+      "French",
+      "German",
+      "Spanish",
+      "Russian",
+    ],
     prompt:
       "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\nOnly output the translated content without any explanation or additional text:\n\n{text}",
     temperature: 0.3,
@@ -308,6 +319,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   regexConfig: createDefaultChatRegexConfig(),
   plugins: {},
   worldbookIds: [],
+  quickActionSetIds: [],
   worldbook: {
     disableRecursion: false,
     defaultScanDepth: 2,

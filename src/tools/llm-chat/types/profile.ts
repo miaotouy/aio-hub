@@ -1,4 +1,4 @@
-import type { RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
+import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 /**
  * 用户档案 (User Profile)
@@ -69,12 +69,17 @@ export interface UserProfile {
    * 正则管道配置
    * 用于对消息内容进行动态清洗、格式转换等
    */
-  regexConfig?: import('./chatRegex').ChatRegexConfig;
+  regexConfig?: import("./chatRegex").ChatRegexConfig;
 
   /**
    * 关联的世界书 ID 列表
    */
   worldbookIds?: string[];
+
+  /**
+   * 关联的快捷操作组 ID 列表
+   */
+  quickActionSetIds?: string[];
 }
 
 /**
@@ -104,4 +109,5 @@ export const createDefaultUserProfileConfig = (): UserProfileEditData => ({
   richTextStyleBehavior: "follow_agent",
   regexConfig: { presets: [] },
   worldbookIds: [],
+  quickActionSetIds: [],
 });

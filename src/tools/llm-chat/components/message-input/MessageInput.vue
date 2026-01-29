@@ -153,6 +153,7 @@ const {
   isCompressing,
   handleSend,
   handleAbort,
+  handleQuickAction,
   handleInsertMacro,
   handleTranslateInput,
   handleCompressContext,
@@ -399,6 +400,7 @@ const handleDragStart = (e: MouseEvent) => {
             @toggle-streaming="toggleStreaming"
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
+            @execute-quick-action="handleQuickAction"
             @send="handleSend"
             @abort="handleAbort"
             @trigger-attachment="handleTriggerAttachment"

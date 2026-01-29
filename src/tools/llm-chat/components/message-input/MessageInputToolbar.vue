@@ -26,6 +26,8 @@ import {
   Package,
   MoreHorizontal,
   Sparkles,
+  Zap,
+  ChevronRight,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
@@ -34,7 +36,18 @@ import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ModelIdentifier } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { computed, ref } from "vue";
+import { useQuickActionStore } from "../../stores/quickActionStore";
+import { useAgentStore } from "../../stores/agentStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
+import type { QuickAction, QuickActionSet } from "../../types/quick-action";
+import { computed, ref, onMounted, defineAsyncComponent } from "vue";
+
+const QuickActionManagerDialog = defineAsyncComponent(
+  () => import("../quick-action/QuickActionManagerDialog.vue")
+);
+
+const quickActionManagerVisible = ref(false);
 
 interface Props {
   isSending: boolean;
@@ -82,12 +95,42 @@ const emit = defineEmits<{
   (e: "switch-session", sessionId: string): void;
   (e: "new-session"): void;
   (e: "compress-context"): void;
+  (e: "execute-quick-action", action: QuickAction): void;
   (e: "complete-input", content: string): void;
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
+const quickActionStore = useQuickActionStore();
+const agentStore = useAgentStore();
+const profileStore = useUserProfileStore();
+const { settings: chatSettings } = useChatSettings();
+
+onMounted(() => {
+  quickActionStore.loadQuickActions();
+});
+
+/**
+ * 计算当前上下文激活的快捷操作组
+ */
+const activeActionSets = computed(() => {
+  const globalIds = chatSettings.value.quickActionSetIds || [];
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
+  const agentIds = agent?.quickActionSetIds || [];
+  const profile = profileStore.globalProfile;
+  const profileIds = profile?.quickActionSetIds || [];
+
+  // 合并并去重
+  const allIds = Array.from(new Set([...globalIds, ...agentIds, ...profileIds]));
+
+  // 从 store 中获取已加载的组内容
+  return allIds
+    .map((id) => quickActionStore.loadedSets.get(id))
+    .filter(Boolean) as QuickActionSet[];
+});
 
 const continuationModelInfo = computed(() => {
   if (!props.continuationModel) return null;
@@ -172,6 +215,51 @@ const handleNewSession = () => {
               </button>
             </template>
             <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
+          </el-popover>
+        </div>
+      </el-tooltip>
+
+      <!-- 快捷操作按钮 -->
+      <el-tooltip content="快捷操作" placement="top" :show-after="500">
+        <div>
+          <el-popover
+            placement="top-start"
+            :width="200"
+            trigger="click"
+            popper-class="quick-actions-popover"
+          >
+            <template #reference>
+              <button class="tool-btn zap-btn">
+                <Zap :size="16" />
+              </button>
+            </template>
+            <div class="quick-actions-menu">
+              <template v-if="activeActionSets.length > 0">
+                <div v-for="set in activeActionSets" :key="set.id" class="action-group">
+                  <div class="group-title">{{ set.name }}</div>
+                  <div
+                    v-for="action in set.actions"
+                    :key="action.id"
+                    class="action-item"
+                    @click="emit('execute-quick-action', action)"
+                  >
+                    <component
+                      :is="action.icon"
+                      v-if="action.icon"
+                      :size="14"
+                      class="action-icon"
+                    />
+                    <span class="action-label">{{ action.label }}</span>
+                    <ChevronRight :size="12" class="arrow-icon" />
+                  </div>
+                </div>
+                <div class="dropdown-divider"></div>
+              </template>
+              <div class="action-item manage-item" @click="quickActionManagerVisible = true">
+                <Settings :size="14" class="action-icon" />
+                <span class="action-label">管理快捷操作...</span>
+              </div>
+            </div>
           </el-popover>
         </div>
       </el-tooltip>
@@ -546,6 +634,9 @@ const handleNewSession = () => {
       </button>
     </div>
   </div>
+
+  <!-- 快捷操作管理弹窗 -->
+  <QuickActionManagerDialog v-model:visible="quickActionManagerVisible" />
 </template>
 
 <style scoped>
@@ -927,6 +1018,63 @@ const handleNewSession = () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.quick-actions-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.action-group {
+  margin-bottom: 8px;
+}
+
+.group-title {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+}
+
+.action-item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.action-icon {
+  color: var(--el-text-color-secondary);
+}
+
+.action-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arrow-icon {
+  opacity: 0.5;
+}
+
+.manage-item {
+  color: var(--el-color-primary);
+  margin-top: 4px;
+}
+
+.manage-item:hover {
+  background-color: var(--el-color-primary-light-9);
 }
 
 .setting-item {

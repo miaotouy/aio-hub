@@ -74,10 +74,9 @@ export const useQuickActionStore = defineStore("llmChatQuickAction", {
         if (index.quickActionSets.length === 0) {
           logger.info("快捷操作索引为空，正在初始化默认配置");
           await this.initializeDefaultSets();
-          return;
+        } else {
+          this.quickActionSets = await storage.syncIndex(index);
         }
-
-        this.quickActionSets = await storage.syncIndex(index);
 
         // 自动预加载已启用的组内容
         const enabledIds = this.quickActionSets.filter((s) => s.isEnabled).map((s) => s.id);

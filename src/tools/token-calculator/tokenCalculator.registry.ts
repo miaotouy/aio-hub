@@ -66,7 +66,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
     text: string,
     identifier: string,
     useTokenizerName: boolean = false
-  ): Promise<{ tokens: string[] } | null> {
+  ): Promise<{ tokens: { text: string; id: number }[] } | null> {
     return calculatorProxy.getTokenizedText(text, identifier, useTokenizerName);
   }
 

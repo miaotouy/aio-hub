@@ -3,7 +3,7 @@ import { onMounted } from "vue";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import { Zap } from "lucide-vue-next";
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     modelValue: string[];
     placeholder?: string;

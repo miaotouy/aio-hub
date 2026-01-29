@@ -516,7 +516,7 @@ const createStreamSource = (content: string): StreamSource => {
         const tokenCharPositions: number[] = [0]; // 每个token开始的字符位置
 
         for (let i = 0; i < tokens.length; i++) {
-          charIndex += tokens[i].length;
+          charIndex += tokens[i].text.length;
           tokenCharPositions.push(charIndex);
         }
 

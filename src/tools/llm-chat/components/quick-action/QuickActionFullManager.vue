@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from "vue";
 import { useQuickActionStore } from "../../stores/quickActionStore";
+import { importQuickActionSet } from "../../services/quickActionImportService";
+import {
+  exportQuickActionSet,
+  exportQuickActionSetsBatch,
+} from "../../services/quickActionExportService";
 import { customMessage } from "@/utils/customMessage";
 import {
   Zap,
   Trash2,
+  Download,
+  Upload,
   Plus,
   FileJson,
   ChevronRight,
@@ -13,10 +20,14 @@ import {
   CheckSquare,
   X,
 } from "lucide-vue-next";
+import DropZone from "@/components/common/DropZone.vue";
 import QuickActionDetail from "./QuickActionDetail.vue";
 import { useElementSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
+import { invoke } from "@tauri-apps/api/core";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
+const errorHandler = createModuleErrorHandler("QuickActionFullManager");
 const quickActionStore = useQuickActionStore();
 const selectedSetId = ref<string | null>(null);
 const isSelectionMode = ref(false);
@@ -24,7 +35,7 @@ const selectedIds = ref<Set<string>>(new Set());
 const containerRef = ref<HTMLElement | null>(null);
 const { width } = useElementSize(containerRef);
 
-const isWide = computed(() => width.value > 1000);
+const isWide = computed(() => width.value > 1280);
 
 const allSelected = computed(() => {
   return (
@@ -55,6 +66,42 @@ watch(
     }
   }
 );
+
+const processImportFile = async (file: File) => {
+  const id = await importQuickActionSet(file);
+  if (id) {
+    customMessage.success(`快捷操作组《${file.name.replace(/\.[^/.]+$/, "")}》导入成功`);
+    selectedSetId.value = id;
+  }
+};
+
+const handleImport = async () => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+  input.onchange = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (file) await processImportFile(file);
+  };
+  input.click();
+};
+
+const handleFilesDrop = async (paths: string[]) => {
+  const validExts = [".json"];
+  for (const path of paths) {
+    const ext = path.substring(path.lastIndexOf(".")).toLowerCase();
+    if (validExts.includes(ext)) {
+      try {
+        const data = await invoke<number[]>("read_file_binary", { path });
+        const fileName = path.split(/[/\\]/).pop() || "file";
+        const file = new File([new Uint8Array(data)], fileName);
+        await processImportFile(file);
+      } catch (error) {
+        errorHandler.error(error, "导入文件失败", { path });
+      }
+    }
+  }
+};
 
 const handleCreate = async () => {
   try {
@@ -122,6 +169,11 @@ const handleDelete = async () => {
   }
 };
 
+const handleExport = async () => {
+  if (!selectedSetId.value) return;
+  await exportQuickActionSet(selectedSetId.value);
+};
+
 const toggleSelectionMode = () => {
   isSelectionMode.value = !isSelectionMode.value;
   selectedIds.value.clear();
@@ -177,6 +229,14 @@ const handleBatchDelete = async () => {
     // 取消
   }
 };
+
+const handleBatchExport = async () => {
+  if (selectedIds.value.size === 0) return;
+  const ids = Array.from(selectedIds.value);
+  await exportQuickActionSetsBatch(ids);
+  isSelectionMode.value = false;
+  selectedIds.value.clear();
+};
 </script>
 
 <template>
@@ -210,6 +270,7 @@ const handleBatchDelete = async () => {
           <el-button-group>
             <el-button :icon="CheckSquare" @click="toggleSelectionMode">批量管理</el-button>
             <el-button :icon="Plus" @click="handleCreate">新建组</el-button>
+            <el-button :icon="Upload" @click="handleImport">导入</el-button>
           </el-button-group>
         </div>
       </template>
@@ -227,6 +288,12 @@ const handleBatchDelete = async () => {
             <span class="count">已选 {{ selectedIds.size }} 项</span>
           </div>
           <div class="batch-ops">
+            <el-button
+              :icon="Download"
+              :disabled="selectedIds.size === 0"
+              @click="handleBatchExport"
+              >导出</el-button
+            >
             <el-button
               :icon="Trash2"
               type="danger"
@@ -285,6 +352,7 @@ const handleBatchDelete = async () => {
           <el-button-group class="full-width">
             <el-button :icon="Pencil" @click="handleRename" title="重命名" />
             <el-button :icon="Copy" @click="handleDuplicate" title="克隆" />
+            <el-button :icon="Download" @click="handleExport" title="导出" />
             <el-popconfirm title="确定删除？" @confirm="handleDelete">
               <template #reference>
                 <el-button :icon="Trash2" type="danger" plain title="删除" />
@@ -316,11 +384,20 @@ const handleBatchDelete = async () => {
       </div>
 
       <main v-if="!isSelectionMode || isWide" class="manager-main">
-        <div v-if="!selectedSetId" class="empty-drop-zone">
-          <el-empty description="请选择或创建一个快捷操作组">
-            <el-button type="primary" :icon="Plus" @click.stop="handleCreate">新建组</el-button>
+        <DropZone
+          v-if="!selectedSetId"
+          clickable
+          click-zone
+          @drop="handleFilesDrop"
+          :accept="['.json']"
+          placeholder="拖拽或点击导入快捷操作 JSON 文件"
+          class="empty-drop-zone"
+        >
+          <el-empty description="请选择或导入一个快捷操作组">
+            <el-button type="primary" :icon="Upload">立即导入</el-button>
+            <el-button :icon="Plus" @click.stop="handleCreate">新建组</el-button>
           </el-empty>
-        </div>
+        </DropZone>
         <QuickActionDetail v-else :id="selectedSetId" :key="selectedSetId" class="detail-view" />
       </main>
     </div>
@@ -440,6 +517,10 @@ const handleBatchDelete = async () => {
 
 .qa-item.active {
   background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+}
+
+.qa-item.active .qa-item-icon {
   color: var(--el-color-primary);
 }
 

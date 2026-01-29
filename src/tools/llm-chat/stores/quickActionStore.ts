@@ -31,6 +31,29 @@ export const useQuickActionStore = defineStore("llmChatQuickAction", {
 
   actions: {
     /**
+     * 导入快捷操作组
+     */
+    async importQuickActionSet(
+      name: string,
+      data: { actions: any[]; description?: string; isEnabled?: boolean }
+    ): Promise<string> {
+      const id = `qa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const newSet: QuickActionSet = {
+        id,
+        name,
+        actions: data.actions,
+        description: data.description || "",
+        isEnabled: data.isEnabled ?? true,
+        updatedAt: getLocalISOString(),
+      };
+
+      this.loadedSets.set(id, newSet);
+      await this.saveSet(id);
+      await this.saveIndex();
+      return id;
+    },
+
+    /**
      * 初始化状态同步
      */
     initializeSync() {

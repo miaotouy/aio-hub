@@ -136,6 +136,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         },
         createdAt: now,
         avatarHistory: [],
+        quickActionSetIds: options?.quickActionSetIds ?? [],
       };
 
       this.agents.push(agent);

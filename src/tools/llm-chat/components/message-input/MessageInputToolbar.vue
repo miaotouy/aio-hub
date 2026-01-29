@@ -3,6 +3,7 @@ export interface InputToolbarSettings {
   showTokenUsage: boolean;
   enableMacroParsing: boolean;
   extractBase64FromPaste: boolean;
+  groupQuickActionsBySet: boolean;
 }
 </script>
 
@@ -26,8 +27,7 @@ import {
   Package,
   MoreHorizontal,
   Sparkles,
-  Zap,
-  ChevronRight,
+  Grip,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
@@ -126,6 +126,11 @@ const activeActionSets = computed(() => {
   // 合并并去重
   const allIds = Array.from(new Set([...globalIds, ...agentIds, ...profileIds]));
 
+  // 触发异步加载
+  if (allIds.length > 0) {
+    quickActionStore.ensureSetsLoaded(allIds);
+  }
+
   // 从 store 中获取已加载的组内容
   return allIds
     .map((id) => quickActionStore.loadedSets.get(id))
@@ -174,464 +179,476 @@ const handleNewSession = () => {
 </script>
 
 <template>
-  <div class="input-bottom-bar">
-    <div class="tool-actions">
-      <span v-if="props.isProcessingAttachments" class="processing-hint"> 正在处理文件... </span>
-      <span v-if="props.isCompressing" class="processing-hint compressing">
-        <el-icon class="is-loading"><Package /></el-icon>
-        正在压缩上下文...
-      </span>
-      <el-tooltip
-        :content="
-          props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
-        "
-        placement="top"
-        :show-after="500"
-      >
-        <button
-          class="streaming-icon-button"
-          :class="{ active: props.isStreamingEnabled }"
-          :disabled="props.isSending"
-          @click="emit('toggle-streaming')"
-        >
-          <span class="typewriter-icon">A_</span>
-        </button>
-      </el-tooltip>
+  <div class="input-toolbar-container">
+    <!-- 快捷操作平铺栏 (参考酒馆设计) -->
+    <div
+      v-if="activeActionSets.length > 0"
+      class="quick-actions-bar"
+      :class="{ 'is-grouped': props.settings.groupQuickActionsBySet }"
+    >
+      <template v-for="(set, index) in activeActionSets" :key="set.id">
+        <!-- 非分组模式下的组间分割线 -->
+        <div
+          v-if="!props.settings.groupQuickActionsBySet && index > 0"
+          class="qa-set-divider"
+        ></div>
 
-      <!-- 宏选择器按钮 -->
-      <el-tooltip content="添加宏变量" placement="top" :show-after="1500">
-        <div>
-          <el-popover
-            :visible="props.macroSelectorVisible"
-            @update:visible="onMacroSelectorUpdate"
-            :placement="props.isDetached ? 'top-start' : 'bottom-start'"
-            :width="300"
-            trigger="click"
-            popper-class="macro-selector-popover"
+        <div class="qa-set-group">
+          <button
+            v-for="action in set.actions"
+            :key="action.id"
+            class="qa-action-btn"
+            @click="emit('execute-quick-action', action)"
+            :title="action.description || action.label"
           >
-            <template #reference>
-              <button class="macro-icon-button" :class="{ active: props.macroSelectorVisible }">
-                <el-icon><MagicStick /></el-icon>
-              </button>
-            </template>
-            <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
-          </el-popover>
+            <component :is="action.icon" v-if="action.icon" :size="12" class="qa-btn-icon" />
+            <span class="qa-btn-label">{{ action.label }}</span>
+          </button>
         </div>
-      </el-tooltip>
-
-      <!-- 快捷操作按钮 -->
-      <el-tooltip content="快捷操作" placement="top" :show-after="500">
-        <div>
-          <el-popover
-            placement="top-start"
-            :width="200"
-            trigger="click"
-            popper-class="quick-actions-popover"
-          >
-            <template #reference>
-              <button class="tool-btn zap-btn">
-                <Zap :size="16" />
-              </button>
-            </template>
-            <div class="quick-actions-menu">
-              <template v-if="activeActionSets.length > 0">
-                <div v-for="set in activeActionSets" :key="set.id" class="action-group">
-                  <div class="group-title">{{ set.name }}</div>
-                  <div
-                    v-for="action in set.actions"
-                    :key="action.id"
-                    class="action-item"
-                    @click="emit('execute-quick-action', action)"
-                  >
-                    <component
-                      :is="action.icon"
-                      v-if="action.icon"
-                      :size="14"
-                      class="action-icon"
-                    />
-                    <span class="action-label">{{ action.label }}</span>
-                    <ChevronRight :size="12" class="arrow-icon" />
-                  </div>
-                </div>
-                <div class="dropdown-divider"></div>
-              </template>
-              <div class="action-item manage-item" @click="quickActionManagerVisible = true">
-                <Settings :size="14" class="action-icon" />
-                <span class="action-label">管理快捷操作...</span>
-              </div>
-            </div>
-          </el-popover>
-        </div>
-      </el-tooltip>
-
-      <!-- 添加附件按钮 -->
-      <el-tooltip content="添加附件" placement="top" :show-after="500">
-        <button class="attachment-button" @click="emit('trigger-attachment')">
-          <el-icon><Paperclip /></el-icon>
-        </button>
-      </el-tooltip>
-
-      <!-- 会话列表按钮 -->
-      <el-tooltip content="切换会话" placement="top" :show-after="2500">
-        <div>
-          <el-popover
-            v-model:visible="sessionListVisible"
-            :placement="props.isDetached ? 'top-start' : 'bottom-start'"
-            :width="300"
-            trigger="click"
-            popper-class="session-list-popover"
-          >
-            <template #reference>
-              <button class="tool-btn" :class="{ active: sessionListVisible }">
-                <MessageSquare :size="16" />
-              </button>
-            </template>
-            <MiniSessionList @switch="handleSwitchSession" @new-session="handleNewSession" />
-          </el-popover>
-        </div>
-      </el-tooltip>
-      <!-- 临时模型选择器 -->
-      <el-tooltip content="临时指定模型" placement="top" :show-after="500">
-        <button class="tool-btn" @click="emit('select-temporary-model')">
-          <AtSign :size="16" />
-        </button>
-      </el-tooltip>
-
-      <!-- 更多工具菜单 -->
-      <el-dropdown trigger="click" placement="top">
-        <button class="tool-btn">
-          <MoreHorizontal :size="16" />
-        </button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <!-- 智能补全 -->
-            <el-dropdown-item
-              :disabled="
-                props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
-              "
-              @click="emit('complete-input', props.inputText)"
-            >
-              <div class="dropdown-item-content">
-                <Sparkles :size="16" class="sparkles-icon" />
-                <span>智能补全</span>
-                <span v-if="props.isCompleting" class="loading-dots">...</span>
-              </div>
-            </el-dropdown-item>
-
-            <!-- 补全模型设置 -->
-            <el-dropdown-item
-              :disabled="
-                props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
-              "
-              @click="emit('select-continuation-model')"
-            >
-              <div class="dropdown-item-content">
-                <AtSign :size="16" />
-                <span>指定补全模型</span>
-                <span v-if="continuationModelInfo" class="model-badge">
-                  {{ continuationModelInfo.modelName }}
-                </span>
-              </div>
-            </el-dropdown-item>
-
-            <div class="dropdown-divider"></div>
-
-            <!-- 翻译 -->
-            <el-dropdown-item
-              v-if="props.translationEnabled"
-              :disabled="props.isTranslating || !props.inputText.trim()"
-              @click="emit('translate-input')"
-            >
-              <div class="dropdown-item-content">
-                <Languages :size="16" />
-                <span>翻译输入</span>
-                <span v-if="props.isTranslating" class="loading-dots">...</span>
-              </div>
-            </el-dropdown-item>
-
-            <!-- 压缩 -->
-            <el-dropdown-item
-              :disabled="props.isCompressing || props.disabled"
-              @click="emit('compress-context')"
-            >
-              <div class="dropdown-item-content">
-                <Package :size="16" />
-                <span>压缩上下文</span>
-                <span v-if="props.isCompressing" class="loading-dots">...</span>
-              </div>
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-
-      <!-- 设置菜单 -->
-      <el-tooltip content="工具栏设置" placement="top" :show-after="500">
-        <div>
-          <el-popover
-            placement="top"
-            :width="240"
-            trigger="click"
-            popper-class="toolbar-settings-popover"
-          >
-            <template #reference>
-              <button class="tool-btn settings-btn">
-                <Settings :size="16" />
-              </button>
-            </template>
-            <div class="toolbar-settings-content">
-              <div class="setting-item">
-                <span class="setting-label">显示 Token 统计</span>
-                <el-switch
-                  :model-value="props.settings.showTokenUsage"
-                  @update:model-value="
-                    (val: boolean | string | number) =>
-                      emit('update:settings', { ...props.settings, showTokenUsage: val as boolean })
-                  "
-                  size="small"
-                />
-              </div>
-              <div class="setting-item">
-                <span class="setting-label">启用输入宏解析</span>
-                <el-switch
-                  :model-value="props.settings.enableMacroParsing"
-                  @update:model-value="
-                    (val: boolean | string | number) =>
-                      emit('update:settings', {
-                        ...props.settings,
-                        enableMacroParsing: val as boolean,
-                      })
-                  "
-                  size="small"
-                />
-              </div>
-              <div class="setting-item">
-                <span class="setting-label">粘贴时提取 Base64 图像</span>
-                <el-switch
-                  :model-value="props.settings.extractBase64FromPaste"
-                  @update:model-value="
-                    (val: boolean | string | number) =>
-                      emit('update:settings', {
-                        ...props.settings,
-                        extractBase64FromPaste: val as boolean,
-                      })
-                  "
-                  size="small"
-                />
-              </div>
-            </div>
-          </el-popover>
-        </div>
-      </el-tooltip>
-
-      <el-tooltip
-        v-if="!props.isDetached"
-        :content="props.isExpanded ? '收起输入框' : '展开输入框'"
-        placement="top"
-        :show-after="500"
-      >
-        <button
-          class="expand-toggle-button"
-          :class="{ active: props.isExpanded }"
-          @click="emit('toggle-expand')"
-        >
-          <svg
-            v-if="!props.isExpanded"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-            />
-          </svg>
-          <svg
-            v-else
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
-            />
-          </svg>
-        </button>
-      </el-tooltip>
+      </template>
     </div>
-    <div class="input-actions">
-      <!-- 续写模型显示 -->
-      <el-tooltip
-        v-if="continuationModelInfo"
-        :content="`续写模型: ${continuationModelInfo.profileName} - ${continuationModelInfo.modelName}`"
-        placement="top"
-        :show-after="500"
-      >
-        <div class="temporary-model-indicator continuation-model">
-          <Sparkles :size="14" />
-          <span class="model-name">
-            {{ continuationModelInfo.modelName }}
-          </span>
-          <button class="clear-btn" @click="emit('clear-continuation-model')">
-            <X :size="14" />
+
+    <div class="input-bottom-bar">
+      <div class="tool-actions">
+        <span v-if="props.isProcessingAttachments" class="processing-hint"> 正在处理文件... </span>
+        <span v-if="props.isCompressing" class="processing-hint compressing">
+          <el-icon class="is-loading"><Package /></el-icon>
+          正在压缩上下文...
+        </span>
+        <el-tooltip
+          :content="
+            props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
+          "
+          placement="top"
+          :show-after="500"
+        >
+          <button
+            class="streaming-icon-button"
+            :class="{ active: props.isStreamingEnabled }"
+            :disabled="props.isSending"
+            @click="emit('toggle-streaming')"
+          >
+            <span class="typewriter-icon">A_</span>
           </button>
-        </div>
-      </el-tooltip>
-      <!-- 临时模型显示 -->
-      <el-tooltip
-        v-if="temporaryModelInfo"
-        :content="`临时模型: ${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
-        placement="top"
-        :show-after="500"
-      >
-        <div class="temporary-model-indicator">
-          <AtSign :size="14" />
-          <span class="model-name">
-            {{ temporaryModelInfo.modelName }}
-          </span>
-          <button class="clear-btn" @click="emit('clear-temporary-model')">
-            <X :size="14" />
+        </el-tooltip>
+
+        <!-- 宏选择器按钮 -->
+        <el-tooltip content="添加宏变量" placement="top" :show-after="1500">
+          <div>
+            <el-popover
+              :visible="props.macroSelectorVisible"
+              @update:visible="onMacroSelectorUpdate"
+              :placement="props.isDetached ? 'top-start' : 'bottom-start'"
+              :width="300"
+              trigger="click"
+              popper-class="macro-selector-popover"
+            >
+              <template #reference>
+                <button class="macro-icon-button" :class="{ active: props.macroSelectorVisible }">
+                  <el-icon><MagicStick /></el-icon>
+                </button>
+              </template>
+              <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
+            </el-popover>
+          </div>
+        </el-tooltip>
+
+        <!-- 添加附件按钮 -->
+        <el-tooltip content="添加附件" placement="top" :show-after="500">
+          <button class="attachment-button" @click="emit('trigger-attachment')">
+            <el-icon><Paperclip /></el-icon>
           </button>
-        </div>
-      </el-tooltip>
-      <!-- 历史上下文统计 -->
-      <el-tooltip
-        v-if="
-          props.settings.showTokenUsage &&
-          props.contextStats &&
-          props.contextStats.totalTokenCount !== undefined
-        "
-        placement="top"
-        :show-after="500"
-      >
-        <template #content>
-          <div style="text-align: left; line-height: 1.6">
-            <div style="font-weight: 600; margin-bottom: 4px">历史上下文统计</div>
-            <div style="font-size: 12px">
-              <div>总计: {{ props.contextStats.totalTokenCount.toLocaleString() }} tokens</div>
-              <div v-if="props.contextStats.presetMessagesTokenCount">
-                预设消息: {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
-              </div>
-              <div v-if="props.contextStats.worldbookTokenCount">
-                世界书: {{ props.contextStats.worldbookTokenCount.toLocaleString() }} tokens
-              </div>
-              <div v-if="props.contextStats.chatHistoryTokenCount">
-                会话历史: {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
-              </div>
-              <div v-if="props.contextStats.postProcessingTokenCount">
-                后处理: {{ props.contextStats.postProcessingTokenCount.toLocaleString() }} tokens
-              </div>
-              <div
-                v-if="props.contextStats.truncatedMessageCount"
-                style="color: var(--el-color-warning); margin-top: 2px"
+        </el-tooltip>
+
+        <!-- 会话列表按钮 -->
+        <el-tooltip content="切换会话" placement="top" :show-after="2500">
+          <div>
+            <el-popover
+              v-model:visible="sessionListVisible"
+              :placement="props.isDetached ? 'top-start' : 'bottom-start'"
+              :width="300"
+              trigger="click"
+              popper-class="session-list-popover"
+            >
+              <template #reference>
+                <button class="tool-btn" :class="{ active: sessionListVisible }">
+                  <MessageSquare :size="16" />
+                </button>
+              </template>
+              <MiniSessionList @switch="handleSwitchSession" @new-session="handleNewSession" />
+            </el-popover>
+          </div>
+        </el-tooltip>
+        <!-- 临时模型选择器 -->
+        <el-tooltip content="临时指定模型" placement="top" :show-after="500">
+          <button class="tool-btn" @click="emit('select-temporary-model')">
+            <AtSign :size="16" />
+          </button>
+        </el-tooltip>
+
+        <!-- 快捷操作管理按钮 -->
+        <el-tooltip content="管理快捷操作" placement="top" :show-after="500">
+          <button class="tool-btn" @click="quickActionManagerVisible = true">
+            <Grip :size="16" />
+          </button>
+        </el-tooltip>
+
+        <!-- 更多工具菜单 -->
+        <el-dropdown trigger="click" placement="top">
+          <button class="tool-btn">
+            <MoreHorizontal :size="16" />
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <!-- 智能补全 -->
+              <el-dropdown-item
+                :disabled="
+                  props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
+                "
+                @click="emit('complete-input', props.inputText)"
               >
-                已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
-                <span v-if="props.contextStats.savedTokenCount">
-                  (省 {{ props.contextStats.savedTokenCount.toLocaleString() }} tokens)
-                </span>
+                <div class="dropdown-item-content">
+                  <Sparkles :size="16" class="sparkles-icon" />
+                  <span>智能补全</span>
+                  <span v-if="props.isCompleting" class="loading-dots">...</span>
+                </div>
+              </el-dropdown-item>
+
+              <!-- 补全模型设置 -->
+              <el-dropdown-item
+                :disabled="
+                  props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
+                "
+                @click="emit('select-continuation-model')"
+              >
+                <div class="dropdown-item-content">
+                  <AtSign :size="16" />
+                  <span>指定补全模型</span>
+                  <span v-if="continuationModelInfo" class="model-badge">
+                    {{ continuationModelInfo.modelName }}
+                  </span>
+                </div>
+              </el-dropdown-item>
+
+              <div class="dropdown-divider"></div>
+
+              <!-- 翻译 -->
+              <el-dropdown-item
+                v-if="props.translationEnabled"
+                :disabled="props.isTranslating || !props.inputText.trim()"
+                @click="emit('translate-input')"
+              >
+                <div class="dropdown-item-content">
+                  <Languages :size="16" />
+                  <span>翻译输入</span>
+                  <span v-if="props.isTranslating" class="loading-dots">...</span>
+                </div>
+              </el-dropdown-item>
+
+              <!-- 压缩 -->
+              <el-dropdown-item
+                :disabled="props.isCompressing || props.disabled"
+                @click="emit('compress-context')"
+              >
+                <div class="dropdown-item-content">
+                  <Package :size="16" />
+                  <span>压缩上下文</span>
+                  <span v-if="props.isCompressing" class="loading-dots">...</span>
+                </div>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <!-- 设置菜单 -->
+        <el-tooltip content="工具栏设置" placement="top" :show-after="500">
+          <div>
+            <el-popover
+              placement="top"
+              :width="240"
+              trigger="click"
+              popper-class="toolbar-settings-popover"
+            >
+              <template #reference>
+                <button class="tool-btn settings-btn">
+                  <Settings :size="16" />
+                </button>
+              </template>
+              <div class="toolbar-settings-content">
+                <div class="setting-item">
+                  <span class="setting-label">显示 Token 统计</span>
+                  <el-switch
+                    :model-value="props.settings.showTokenUsage"
+                    @update:model-value="
+                      (val: boolean | string | number) =>
+                        emit('update:settings', {
+                          ...props.settings,
+                          showTokenUsage: val as boolean,
+                        })
+                    "
+                    size="small"
+                  />
+                </div>
+                <div class="setting-item">
+                  <span class="setting-label">启用输入宏解析</span>
+                  <el-switch
+                    :model-value="props.settings.enableMacroParsing"
+                    @update:model-value="
+                      (val: boolean | string | number) =>
+                        emit('update:settings', {
+                          ...props.settings,
+                          enableMacroParsing: val as boolean,
+                        })
+                    "
+                    size="small"
+                  />
+                </div>
+                <div class="setting-item">
+                  <span class="setting-label">粘贴时提取 Base64 图像</span>
+                  <el-switch
+                    :model-value="props.settings.extractBase64FromPaste"
+                    @update:model-value="
+                      (val: boolean | string | number) =>
+                        emit('update:settings', {
+                          ...props.settings,
+                          extractBase64FromPaste: val as boolean,
+                        })
+                    "
+                    size="small"
+                  />
+                </div>
+                <div class="setting-item">
+                  <span class="setting-label">快捷按钮按组分行</span>
+                  <el-switch
+                    :model-value="props.settings.groupQuickActionsBySet"
+                    @update:model-value="
+                      (val: boolean | string | number) =>
+                        emit('update:settings', {
+                          ...props.settings,
+                          groupQuickActionsBySet: val as boolean,
+                        })
+                    "
+                    size="small"
+                  />
+                </div>
               </div>
-              <div v-if="props.contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8">
-                {{ props.contextStats.isEstimated ? "字符估算" : "Token 计算" }} -
-                {{ props.contextStats.tokenizerName }}
+            </el-popover>
+          </div>
+        </el-tooltip>
+
+        <el-tooltip
+          v-if="!props.isDetached"
+          :content="props.isExpanded ? '收起输入框' : '展开输入框'"
+          placement="top"
+          :show-after="500"
+        >
+          <button
+            class="expand-toggle-button"
+            :class="{ active: props.isExpanded }"
+            @click="emit('toggle-expand')"
+          >
+            <svg
+              v-if="!props.isExpanded"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+              />
+            </svg>
+            <svg
+              v-else
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
+              />
+            </svg>
+          </button>
+        </el-tooltip>
+      </div>
+      <div class="input-actions">
+        <!-- 续写模型显示 -->
+        <el-tooltip
+          v-if="continuationModelInfo"
+          :content="`续写模型: ${continuationModelInfo.profileName} - ${continuationModelInfo.modelName}`"
+          placement="top"
+          :show-after="500"
+        >
+          <div class="temporary-model-indicator continuation-model">
+            <Sparkles :size="14" />
+            <span class="model-name">
+              {{ continuationModelInfo.modelName }}
+            </span>
+            <button class="clear-btn" @click="emit('clear-continuation-model')">
+              <X :size="14" />
+            </button>
+          </div>
+        </el-tooltip>
+        <!-- 临时模型显示 -->
+        <el-tooltip
+          v-if="temporaryModelInfo"
+          :content="`临时模型: ${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
+          placement="top"
+          :show-after="500"
+        >
+          <div class="temporary-model-indicator">
+            <AtSign :size="14" />
+            <span class="model-name">
+              {{ temporaryModelInfo.modelName }}
+            </span>
+            <button class="clear-btn" @click="emit('clear-temporary-model')">
+              <X :size="14" />
+            </button>
+          </div>
+        </el-tooltip>
+        <!-- 历史上下文统计 -->
+        <el-tooltip
+          v-if="
+            props.settings.showTokenUsage &&
+            props.contextStats &&
+            props.contextStats.totalTokenCount !== undefined
+          "
+          placement="top"
+          :show-after="500"
+        >
+          <template #content>
+            <div style="text-align: left; line-height: 1.6">
+              <div style="font-weight: 600; margin-bottom: 4px">历史上下文统计</div>
+              <div style="font-size: 12px">
+                <div>总计: {{ props.contextStats.totalTokenCount.toLocaleString() }} tokens</div>
+                <div v-if="props.contextStats.presetMessagesTokenCount">
+                  预设消息:
+                  {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
+                </div>
+                <div v-if="props.contextStats.worldbookTokenCount">
+                  世界书: {{ props.contextStats.worldbookTokenCount.toLocaleString() }} tokens
+                </div>
+                <div v-if="props.contextStats.chatHistoryTokenCount">
+                  会话历史: {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
+                </div>
+                <div v-if="props.contextStats.postProcessingTokenCount">
+                  后处理: {{ props.contextStats.postProcessingTokenCount.toLocaleString() }} tokens
+                </div>
+                <div
+                  v-if="props.contextStats.truncatedMessageCount"
+                  style="color: var(--el-color-warning); margin-top: 2px"
+                >
+                  已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
+                  <span v-if="props.contextStats.savedTokenCount">
+                    (省 {{ props.contextStats.savedTokenCount.toLocaleString() }} tokens)
+                  </span>
+                </div>
+                <div v-if="props.contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8">
+                  {{ props.contextStats.isEstimated ? "字符估算" : "Token 计算" }} -
+                  {{ props.contextStats.tokenizerName }}
+                </div>
               </div>
             </div>
-          </div>
-        </template>
-        <span class="token-count context-total">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            style="margin-right: 4px"
-          >
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-          </svg>
-          <span
-            >{{ props.contextStats.totalTokenCount.toLocaleString()
-            }}{{ props.contextStats.isEstimated ? "~" : "" }}</span
-          >
-        </span>
-      </el-tooltip>
-      <!-- 当前输入 Token 计数显示 -->
-      <el-tooltip
-        v-if="props.settings.showTokenUsage && (props.tokenCount > 0 || props.isCalculatingTokens)"
-        :content="props.tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
-        placement="top"
-        :show-after="500"
-      >
-        <span class="token-count input-tokens">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            style="margin-right: 4px"
-          >
-            <path d="M12 20h9"></path>
-            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-          </svg>
-          <span>
-            {{ props.tokenCount.toLocaleString() }}{{ props.tokenEstimated ? "~" : "" }}
+          </template>
+          <span class="token-count context-total">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              style="margin-right: 4px"
+            >
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+            <span
+              >{{ props.contextStats.totalTokenCount.toLocaleString()
+              }}{{ props.contextStats.isEstimated ? "~" : "" }}</span
+            >
           </span>
-        </span>
-      </el-tooltip>
-      <button
-        v-if="!props.isSending"
-        @click="emit('send')"
-        :disabled="props.disabled || (!props.inputText.trim() && !props.hasAttachments)"
-        class="btn-send"
-        title="发送 (Ctrl/Cmd + Enter)"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+        </el-tooltip>
+        <!-- 当前输入 Token 计数显示 -->
+        <el-tooltip
+          v-if="
+            props.settings.showTokenUsage && (props.tokenCount > 0 || props.isCalculatingTokens)
+          "
+          :content="props.tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
+          placement="top"
+          :show-after="500"
         >
-          <line x1="12" y1="19" x2="12" y2="5"></line>
-          <polyline points="5 12 12 5 19 12"></polyline>
-        </svg>
-      </button>
-      <button v-else @click="emit('abort')" class="btn-abort" title="停止生成">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          <span class="token-count input-tokens">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              style="margin-right: 4px"
+            >
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            <span>
+              {{ props.tokenCount.toLocaleString() }}{{ props.tokenEstimated ? "~" : "" }}
+            </span>
+          </span>
+        </el-tooltip>
+        <button
+          v-if="!props.isSending"
+          @click="emit('send')"
+          :disabled="props.disabled || (!props.inputText.trim() && !props.hasAttachments)"
+          class="btn-send"
+          title="发送 (Ctrl/Cmd + Enter)"
         >
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-        </svg>
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="19" x2="12" y2="5"></line>
+            <polyline points="5 12 12 5 19 12"></polyline>
+          </svg>
+        </button>
+        <button v-else @click="emit('abort')" class="btn-abort" title="停止生成">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -687,6 +704,90 @@ const handleNewSession = () => {
   border: 1px solid color-mix(in srgb, var(--el-color-success) 30%, transparent);
   color: var(--el-color-success);
   font-weight: 500;
+}
+
+.input-toolbar-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* 快捷操作平铺栏样式 */
+.quick-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(var(--el-fill-color-light-rgb), 0.3);
+  min-height: 32px;
+  align-items: center;
+}
+
+.quick-actions-bar.is-grouped {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.qa-set-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.qa-set-divider {
+  width: 1px;
+  height: 14px;
+  background-color: var(--border-color);
+  margin: 0 4px;
+  opacity: 0.6;
+}
+
+.quick-actions-bar.is-grouped .qa-set-group {
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.quick-actions-bar.is-grouped .qa-set-group:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.qa-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  height: 22px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-color-secondary);
+  font-size: 11px;
+}
+
+.qa-action-btn:hover {
+  background: var(--el-fill-color-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.qa-action-btn.manage-btn {
+  padding: 2px 4px;
+  opacity: 0.6;
+}
+
+.qa-action-btn.manage-btn:hover {
+  opacity: 1;
+}
+
+.qa-btn-icon {
+  opacity: 0.8;
 }
 
 .input-bottom-bar {

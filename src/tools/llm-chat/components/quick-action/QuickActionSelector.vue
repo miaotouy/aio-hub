@@ -3,10 +3,15 @@ import { onMounted } from "vue";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import { Zap } from "lucide-vue-next";
 
-const props = defineProps<{
-  modelValue: string[];
-  placeholder?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: string[];
+    placeholder?: string;
+  }>(),
+  {
+    modelValue: () => [],
+  }
+);
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string[]): void;

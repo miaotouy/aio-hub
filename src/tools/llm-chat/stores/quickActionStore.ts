@@ -78,8 +78,26 @@ export const useQuickActionStore = defineStore("llmChatQuickAction", {
         }
 
         this.quickActionSets = await storage.syncIndex(index);
+
+        // 自动预加载已启用的组内容
+        const enabledIds = this.quickActionSets.filter((s) => s.isEnabled).map((s) => s.id);
+        if (enabledIds.length > 0) {
+          await this.ensureSetsLoaded(enabledIds);
+        }
       } catch (error) {
         errorHandler.handle(error as Error, { userMessage: "加载快捷操作索引失败" });
+      }
+    },
+
+    /**
+     * 确保指定的组已加载到内存
+     */
+    async ensureSetsLoaded(ids: string[]) {
+      const tasks = ids
+        .filter((id) => !this.loadedSets.has(id))
+        .map((id) => this.getQuickActionSet(id));
+      if (tasks.length > 0) {
+        await Promise.all(tasks);
       }
     },
 

@@ -3,8 +3,13 @@ import { ref, computed, watch } from "vue";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import type { QuickAction, QuickActionSet } from "../../types/quick-action";
 import { Plus, Trash2, Copy, Settings2, ChevronRight, Zap, Save, Info } from "lucide-vue-next";
+import { MagicStick } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import MacroSelector from "../agent/MacroSelector.vue";
+import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
+import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
+import * as monaco from "monaco-editor";
 import { useDebounceFn } from "@vueuse/core";
 
 const props = defineProps<{
@@ -13,6 +18,122 @@ const props = defineProps<{
 
 const store = useQuickActionStore();
 const loading = ref(false);
+const macroSelectorVisible = ref(false);
+const richEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
+
+// 确保宏引擎已初始化
+watch(
+  () => props.id,
+  () => {
+    const registry = MacroRegistry.getInstance();
+    if (registry.getAllMacros().length === 0) {
+      initializeMacroEngine();
+    }
+  },
+  { immediate: true }
+);
+
+/**
+ * 宏自动补全源
+ */
+const macroCompletionSource = (context: CompletionContext): CompletionResult | null => {
+  const line = context.state.doc.lineAt(context.pos);
+  const textBefore = line.text.slice(0, context.pos - line.from);
+
+  const macroMatch = textBefore.match(/\{\{([a-zA-Z0-9_:]*)$/);
+  if (!macroMatch) return null;
+
+  const prefix = macroMatch[1].toLowerCase();
+  const startPos = context.pos - macroMatch[1].length;
+
+  const registry = MacroRegistry.getInstance();
+  const allMacros = registry.getAllMacros().filter((m) => m.supported !== false);
+
+  const matchedMacros = allMacros.filter(
+    (macro) =>
+      macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix)
+  );
+
+  if (matchedMacros.length === 0) return null;
+
+  const typeOrder: Record<string, number> = { value: 0, variable: 1, function: 2 };
+  matchedMacros.sort((a, b) => {
+    const priorityA = a.priority ?? 0;
+    const priorityB = b.priority ?? 0;
+    if (priorityA !== priorityB) return priorityB - priorityA;
+    const orderA = typeOrder[a.type] ?? 99;
+    const orderB = typeOrder[b.type] ?? 99;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.name.localeCompare(b.name);
+  });
+
+  return {
+    from: startPos,
+    options: matchedMacros.map((macro) => ({
+      label: macro.name,
+      detail: getTypeLabel(macro.type),
+      info: macro.description,
+      apply: (macro.example || macro.name) + "}}",
+      type: "variable",
+    })),
+    filter: false,
+  };
+};
+
+function getTypeLabel(type: string): string {
+  switch (type) {
+    case "value":
+      return "值替换";
+    case "variable":
+      return "变量操作";
+    case "function":
+      return "动态函数";
+    default:
+      return type;
+  }
+}
+
+/**
+ * 插入宏到光标位置
+ */
+const handleInsertMacro = (macro: MacroDefinition) => {
+  const insertText = macro.example || `{{${macro.name}}}`;
+  if (!richEditorRef.value) {
+    if (currentAction.value) currentAction.value.content += insertText;
+    return;
+  }
+
+  const editorView = richEditorRef.value.editorView;
+  const monacoInstance = richEditorRef.value.monacoEditorInstance;
+
+  if (editorView) {
+    const state = editorView.state;
+    const transaction = state.update({
+      changes: { from: state.selection.main.head, insert: insertText },
+      selection: { anchor: state.selection.main.head + insertText.length },
+    });
+    editorView.dispatch(transaction);
+    editorView.focus();
+  } else if (monacoInstance) {
+    const position = monacoInstance.getPosition();
+    if (position) {
+      monacoInstance.executeEdits("", [
+        {
+          range: new monaco.Range(
+            position.lineNumber,
+            position.column,
+            position.lineNumber,
+            position.column
+          ),
+          text: insertText,
+          forceMoveMarkers: true,
+        },
+      ]);
+      monacoInstance.focus();
+    }
+  }
+  macroSelectorVisible.value = false;
+};
 const currentSet = ref<QuickActionSet | null>(null);
 const selectedActionId = ref<string | null>(null);
 
@@ -164,17 +285,42 @@ const handleManualSave = async () => {
       <div class="editor-scroll-content custom-scrollbar">
         <div class="section-core">
           <div class="form-group">
-            <label class="form-label">
-              模板内容 (Template)
-              <el-tooltip content="使用 {{input}} 代表输入框内容或选中内容">
-                <el-icon class="info-icon"><Info /></el-icon>
-              </el-tooltip>
-            </label>
+            <div class="form-label-row">
+              <label class="form-label">
+                模板内容 (Template)
+                <el-tooltip content="使用 {{input}} 代表输入框内容或选中内容">
+                  <el-icon class="info-icon"><Info /></el-icon>
+                </el-tooltip>
+              </label>
+              <div class="label-actions">
+                <el-popover
+                  v-model:visible="macroSelectorVisible"
+                  placement="bottom-end"
+                  :width="400"
+                  trigger="click"
+                  popper-class="macro-selector-popover"
+                >
+                  <template #reference>
+                    <el-button
+                      size="small"
+                      :type="macroSelectorVisible ? 'primary' : 'default'"
+                      plain
+                    >
+                      <el-icon style="margin-right: 4px"><MagicStick /></el-icon>
+                      插入宏
+                    </el-button>
+                  </template>
+                  <MacroSelector @insert="handleInsertMacro" />
+                </el-popover>
+              </div>
+            </div>
             <div class="editor-wrapper">
               <RichCodeEditor
+                ref="richEditorRef"
                 v-model="currentAction.content"
                 language="markdown"
                 :height="'200px'"
+                :completion-source="macroCompletionSource"
               />
             </div>
           </div>
@@ -355,11 +501,17 @@ const handleManualSave = async () => {
   margin-bottom: 16px;
 }
 
+.form-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 .form-label {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
   font-weight: 500;
   font-size: 14px;
 }

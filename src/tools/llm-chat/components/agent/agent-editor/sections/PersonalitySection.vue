@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { inject, computed } from "vue";
+import { inject, computed, ref, defineAsyncComponent } from "vue";
 import AgentPresetEditor from "../../AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import WorldbookSelector from "../../../worldbook/WorldbookSelector.vue";
+import QuickActionSelector from "../../../quick-action/QuickActionSelector.vue";
 import { MagicStick } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { useUserProfileStore } from "../../../../stores/userProfileStore";
 import { resolveAvatarPath } from "../../../../composables/ui/useResolvedAvatar";
 
+const QuickActionManagerDialog = defineAsyncComponent(
+  () => import("../../../quick-action/QuickActionManagerDialog.vue")
+);
+
 const editForm = inject<any>("agent-edit-form");
 const userProfileStore = useUserProfileStore();
+const quickActionManagerVisible = ref(false);
 
 // 通过 inject 获取父组件的状态控制
 const userProfileDialogVisible = inject<any>("user-profile-dialog-visible");
@@ -92,6 +98,17 @@ const handleModelComboChange = (value: string) => {
       </div>
     </el-form-item>
 
+    <!-- 快捷操作绑定 -->
+    <el-form-item label="快捷操作" data-setting-id="quickActionSetIds">
+      <QuickActionSelector v-model="editForm.quickActionSetIds" />
+      <div class="form-hint-with-action">
+        <span>关联的快捷操作组将在此智能体激活时显示在输入框工具栏。</span>
+        <el-button type="primary" link @click="quickActionManagerVisible = true">
+          管理快捷操作
+        </el-button>
+      </div>
+    </el-form-item>
+
     <!-- 世界书绑定 -->
     <el-form-item label="关联世界书" data-setting-id="worldbook">
       <div style="width: 100%">
@@ -170,6 +187,8 @@ const handleModelComboChange = (value: string) => {
         height="300px"
       />
     </el-form-item>
+
+    <QuickActionManagerDialog v-model:visible="quickActionManagerVisible" />
   </div>
 </template>
 

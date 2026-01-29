@@ -26,7 +26,7 @@ onMounted(async () => {
       @update:model-value="(val: string[]) => emit('update:modelValue', val)"
       multiple
       filterable
-      collapse-tags
+      :max-collapse-tags="8"
       collapse-tags-tooltip
       :placeholder="placeholder || '选择关联的快捷操作组...'"
       class="qa-select"

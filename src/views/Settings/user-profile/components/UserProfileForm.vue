@@ -83,7 +83,12 @@
           }
         "
       />
-      <div class="form-hint">关联的快捷操作组将在此 Profile 激活时显示在输入框工具栏。</div>
+      <div class="form-hint-with-action">
+        <span>关联的快捷操作组将在此 Profile 激活时显示在输入框工具栏。</span>
+        <el-button type="primary" link @click="quickActionManagerVisible = true">
+          管理快捷操作
+        </el-button>
+      </div>
     </el-form-item>
 
     <el-divider />
@@ -148,6 +153,9 @@
 
   <!-- 世界书管理弹窗 -->
   <WorldbookManagerDialog v-model:visible="worldbookManagerVisible" />
+
+  <!-- 快捷操作管理弹窗 -->
+  <QuickActionManagerDialog v-model:visible="quickActionManagerVisible" />
 </template>
 
 <script setup lang="ts">
@@ -167,6 +175,9 @@ const ChatRegexEditor = defineAsyncComponent(
 );
 const WorldbookManagerDialog = defineAsyncComponent(
   () => import("@/tools/llm-chat/components/worldbook/WorldbookManagerDialog.vue")
+);
+const QuickActionManagerDialog = defineAsyncComponent(
+  () => import("@/tools/llm-chat/components/quick-action/QuickActionManagerDialog.vue")
 );
 
 interface UserProfileFormData {
@@ -234,6 +245,7 @@ const formData = ref<UserProfileFormData>({
 
 const styleLoading = ref(false);
 const worldbookManagerVisible = ref(false);
+const quickActionManagerVisible = ref(false);
 
 // 监听外部数据变化
 watch(

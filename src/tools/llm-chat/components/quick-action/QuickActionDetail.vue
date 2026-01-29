@@ -272,7 +272,7 @@ const handleManualSave = async () => {
 }
 
 .action-item-row.active {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
   color: var(--el-color-primary);
 }
 

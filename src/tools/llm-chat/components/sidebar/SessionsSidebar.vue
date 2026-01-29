@@ -14,6 +14,7 @@ import {
   Operation,
   Loading,
   FolderOpened,
+  Position,
 } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
@@ -288,7 +289,7 @@ const resetFilters = () => {
 // 获取消息数量（排除系统根节点）
 const getMessageCount = (session: any) => {
   // 优先使用预计算的字段，避免访问可能不存在的 nodes 属性
-  if (typeof session.messageCount === 'number') {
+  if (typeof session.messageCount === "number") {
     return session.messageCount;
   }
   return session.nodes ? Object.keys(session.nodes).length - 1 : 0;
@@ -405,6 +406,18 @@ const handleMenuCommand = (
   }
 };
 
+// 定位到当前激活的会话
+const scrollToCurrentSession = () => {
+  if (!props.currentSessionId) return;
+
+  const index = displaySessions.value.findIndex((s) => s.id === props.currentSessionId);
+  if (index !== -1) {
+    virtualizer.value.scrollToIndex(index, { align: "center" });
+  } else {
+    customMessage.info("当前会话在当前筛选条件下不可见");
+  }
+};
+
 // 处理会话点击
 const handleSessionClick = (session: ChatSession) => {
   // 如果开启了自动切换智能体，且会话有绑定的智能体
@@ -430,95 +443,113 @@ const handleSessionClick = (session: ChatSession) => {
           :prefix-icon="Search"
           :suffix-icon="showLoadingIndicator ? Loading : ''"
           clearable
+          size="default"
+          class="search-input"
         >
           <template #suffix v-if="showLoadingIndicator">
             <el-icon class="is-loading"><Loading /></el-icon>
           </template>
         </el-input>
 
-        <el-popover trigger="click" width="320" popper-class="filter-popover">
-          <template #reference>
-            <div>
-              <el-tooltip content="排序与筛选" placement="bottom" :show-after="500">
-                <el-button
-                  :icon="Operation"
-                  circle
-                  :type="hasActiveFilters ? 'primary' : undefined"
-                />
-              </el-tooltip>
-            </div>
-          </template>
-
-          <div class="filter-panel">
-            <div class="filter-section">
-              <div class="section-header">
-                <span class="section-title">排序方式</span>
-              </div>
-              <el-radio-group v-model="sortBy" size="small">
-                <el-radio-button value="updatedAt">最近更新</el-radio-button>
-                <el-radio-button value="createdAt">创建时间</el-radio-button>
-                <el-radio-button value="messageCount">消息数</el-radio-button>
-                <el-radio-button value="name">名称</el-radio-button>
-              </el-radio-group>
-            </div>
-
-            <div class="filter-section">
-              <div class="section-header">
-                <span class="section-title">时间范围</span>
-              </div>
-              <el-radio-group v-model="filterTime" size="small">
-                <el-radio-button value="all">全部</el-radio-button>
-                <el-radio-button value="today">今天</el-radio-button>
-                <el-radio-button value="week">本周</el-radio-button>
-                <el-radio-button value="month">本月</el-radio-button>
-                <el-radio-button value="older">更早</el-radio-button>
-              </el-radio-group>
-            </div>
-
-            <div class="filter-section" v-if="availableAgents.length > 0">
-              <div class="section-header">
-                <span class="section-title">智能体</span>
-              </div>
-              <div class="agent-list-scroll">
-                <div
-                  class="agent-filter-item"
-                  :class="{ active: filterAgent === 'all' }"
-                  @click="filterAgent = 'all'"
-                >
-                  <span class="agent-name">全部智能体</span>
-                </div>
-                <div
-                  v-for="agent in availableAgents"
-                  :key="agent?.id"
-                  class="agent-filter-item"
-                  :class="{ active: filterAgent === agent?.id }"
-                  @click="agent && (filterAgent = agent.id)"
-                >
-                  <Avatar
-                    :src="resolveAvatarPath(agent, 'agent') || ''"
-                    :alt="agent.displayName || agent.name"
-                    :size="16"
-                    shape="square"
-                    :radius="3"
-                  />
-                  <span class="agent-name">{{ agent.displayName || agent.name }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="filter-footer" v-if="hasActiveFilters">
-              <el-button size="small" link type="primary" @click="resetFilters"
-                >重置所有筛选</el-button
-              >
-            </div>
-          </div>
-        </el-popover>
-
         <el-tooltip content="新建对话" placement="bottom" :show-after="500">
-          <el-button :icon="Plus" @click="handleQuickNewSession" circle />
+          <el-button type="primary" :icon="Plus" @click="handleQuickNewSession" circle />
         </el-tooltip>
       </div>
-      <div class="session-count">{{ displaySessions.length }} / {{ sessions.length }} 个会话</div>
+
+      <div class="header-actions">
+        <div class="action-left">
+          <el-popover trigger="click" width="320" popper-class="filter-popover">
+            <template #reference>
+              <div>
+                <el-tooltip content="排序与筛选" placement="bottom" :show-after="500">
+                  <el-button
+                    :icon="Operation"
+                    circle
+                    size="small"
+                    :type="hasActiveFilters ? 'primary' : undefined"
+                  />
+                </el-tooltip>
+              </div>
+            </template>
+
+            <div class="filter-panel">
+              <div class="filter-section">
+                <div class="section-header">
+                  <span class="section-title">排序方式</span>
+                </div>
+                <el-radio-group v-model="sortBy" size="small">
+                  <el-radio-button value="updatedAt">最近更新</el-radio-button>
+                  <el-radio-button value="createdAt">创建时间</el-radio-button>
+                  <el-radio-button value="messageCount">消息数</el-radio-button>
+                  <el-radio-button value="name">名称</el-radio-button>
+                </el-radio-group>
+              </div>
+
+              <div class="filter-section">
+                <div class="section-header">
+                  <span class="section-title">时间范围</span>
+                </div>
+                <el-radio-group v-model="filterTime" size="small">
+                  <el-radio-button value="all">全部</el-radio-button>
+                  <el-radio-button value="today">今天</el-radio-button>
+                  <el-radio-button value="week">本周</el-radio-button>
+                  <el-radio-button value="month">本月</el-radio-button>
+                  <el-radio-button value="older">更早</el-radio-button>
+                </el-radio-group>
+              </div>
+
+              <div class="filter-section" v-if="availableAgents.length > 0">
+                <div class="section-header">
+                  <span class="section-title">智能体</span>
+                </div>
+                <div class="agent-list-scroll">
+                  <div
+                    class="agent-filter-item"
+                    :class="{ active: filterAgent === 'all' }"
+                    @click="filterAgent = 'all'"
+                  >
+                    <span class="agent-name">全部智能体</span>
+                  </div>
+                  <div
+                    v-for="agent in availableAgents"
+                    :key="agent?.id"
+                    class="agent-filter-item"
+                    :class="{ active: filterAgent === agent?.id }"
+                    @click="agent && (filterAgent = agent.id)"
+                  >
+                    <Avatar
+                      :src="resolveAvatarPath(agent, 'agent') || ''"
+                      :alt="agent.displayName || agent.name"
+                      :size="16"
+                      shape="square"
+                      :radius="3"
+                    />
+                    <span class="agent-name">{{ agent.displayName || agent.name }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="filter-footer" v-if="hasActiveFilters">
+                <el-button size="small" link type="primary" @click="resetFilters"
+                  >重置所有筛选</el-button
+                >
+              </div>
+            </div>
+          </el-popover>
+
+          <el-tooltip content="定位当前会话" placement="bottom" :show-after="500">
+            <el-button
+              :icon="Position"
+              @click="scrollToCurrentSession"
+              circle
+              size="small"
+              :disabled="!currentSessionId"
+            />
+          </el-tooltip>
+        </div>
+
+        <div class="session-count">{{ displaySessions.length }} / {{ sessions.length }}</div>
+      </div>
     </div>
     <div class="sessions-list" ref="parentRef">
       <div v-if="sessions.length === 0" class="empty-state">
@@ -719,12 +750,23 @@ const handleSessionClick = (session: ChatSession) => {
   align-items: center;
 }
 
+.header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.action-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .session-count {
-  margin: 0;
-  padding: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-color-light);
-  text-align: center;
+  opacity: 0.8;
 }
 
 .sessions-list {

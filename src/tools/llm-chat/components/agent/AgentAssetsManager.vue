@@ -1348,7 +1348,7 @@ const ThumbnailPreview = {
 }
 
 .group-item.active {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
   color: var(--el-color-primary);
 }
 
@@ -1373,7 +1373,7 @@ const ThumbnailPreview = {
 }
 
 .group-item.active .count {
-  background-color: var(--el-color-primary-light-8);
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
   color: var(--el-color-primary);
 }
 
@@ -1490,7 +1490,7 @@ const ThumbnailPreview = {
 
 .asset-card.is-selected {
   border-color: var(--el-color-primary);
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
   box-shadow: 0 0 0 1px var(--el-color-primary);
 }
 

@@ -1450,7 +1450,7 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
 
 .ghost-message {
   opacity: 0.5;
-  background: var(--el-color-primary-light-9);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
 }
 
 .drag-message {

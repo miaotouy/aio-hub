@@ -207,8 +207,8 @@ function handleReset() {
   display: flex;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-8);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.2);
   border-radius: 8px;
   margin-bottom: 24px;
   color: var(--el-text-color-primary);

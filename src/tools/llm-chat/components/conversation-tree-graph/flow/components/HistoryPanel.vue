@@ -274,7 +274,7 @@ function handleJumpTo(index: number): void {
 }
 
 .history-item.active {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
 }
 
 .history-item.active::before {

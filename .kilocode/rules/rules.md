@@ -312,6 +312,38 @@
 
 该系统通过在 `<html>` 根元素上动态设置 CSS 自定义属性 (CSS Variables) 来工作。所有组件都应优先使用这些变量来定义背景、边框等样式，以确保与用户设置保持一致。
 
+#### 颜色使用规范
+
+为了保持与主题外观系统的兼容性，避免出现“死沉”的实色背景，请遵循以下颜色使用规范：
+
+- **禁止直接使用 Element Plus 的 `light` 系列颜色作为背景色**（如 `--el-color-primary-light-9`、`--el-color-success-light-9` 等）。这些颜色是**实色**（已经混合了白色/黑色），与透明度系统不兼容，会破坏通透感。
+- **正确做法**：使用主题外观系统提供的背景变量，这些变量已经包含了基于用户设置的透明度、颜色叠加和模糊效果。
+  - 卡片/面板：`background-color: var(--card-bg);`
+  - 输入框：`background-color: var(--input-bg);`
+  - 侧边栏：`background-color: var(--sidebar-bg);`
+  - 对话框/遮罩层：`background-color: var(--container-bg);`
+- **如果需要使用 Element Plus 的基础颜色并附加透明度**（如模拟 `light-9` 效果），应使用其 RGB 变量配合 `rgba()` 函数，并**乘以全局透明度变量**以保持通透感。例如：
+
+  ```css
+  /* 不推荐：实色背景，不通透 */
+  background-color: var(--el-color-primary-light-9);
+
+  /* 不那么推荐：固定透明度，不响应用户设置 */
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+
+  /* 推荐：响应全局透明度设置 */
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  ```
+
+  常见的对应关系：
+  - `light-9` 效果：`calc(var(--card-opacity) * 0.1)`
+  - `light-8` 效果：`calc(var(--card-opacity) * 0.15)`
+  - `light-7` 效果：`calc(var(--card-opacity) * 0.2)`
+  - `light-5` 效果：`calc(var(--card-opacity) * 0.3)`
+  - `light-3` 效果：`calc(var(--card-opacity) * 0.7)`
+
+  注意：`--card-opacity` 在禁用 UI 特效时会自动变为 `1`，确保了样式的鲁棒性。
+
 #### 如何适配新组件
 
 要使你的组件支持动态主题外观，请遵循以下原则：

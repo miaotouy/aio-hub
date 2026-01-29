@@ -845,7 +845,7 @@ watch(
 }
 
 .action-btn-active:hover:not(:disabled) {
-  background-color: var(--el-color-primary-light-3);
+  background-color: rgba(var(--el-color-primary-rgb), 0.7);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 

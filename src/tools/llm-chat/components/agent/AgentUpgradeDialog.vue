@@ -567,7 +567,7 @@ const previewInfo = computed(() => {
 
 .import-area.is-dragging {
   border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
 }
 
 .import-actions {

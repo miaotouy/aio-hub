@@ -431,8 +431,8 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 
 .input-container.dragging-over {
   border-color: var(--el-color-primary);
-  box-shadow: 0 0 15px var(--el-color-primary-light-7);
-  background-color: var(--el-color-primary-light-9);
+  box-shadow: 0 0 15px rgba(var(--el-color-primary-rgb), 0.2);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
   position: relative;
 }
 
@@ -581,7 +581,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 }
 
 .native-send-btn:hover:not(:disabled) {
-  background-color: var(--el-color-primary-light-3);
+  background-color: rgba(var(--el-color-primary-rgb), 0.7);
   transform: translateY(-1px);
 }
 

@@ -29,7 +29,7 @@ export const advancedMixedTestPreset: RenderPreset = {
         <p style="margin: 5px 0 0 0; color: var(--text-color-secondary); font-size: 0.9em;">AIO Rich Text Engine v2.5.0-beta</p>
       </div>
       <div style="text-align: right;">
-        <span style="display: inline-block; padding: 2px 8px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); border-radius: 4px; font-size: 0.75em; border: 1px solid var(--el-color-primary-light-5);">INTERNAL USE ONLY</span>
+        <span style="display: inline-block; padding: 2px 8px; background: rgba(var(--el-color-primary-rgb), 0.1); color: var(--el-color-primary); border-radius: 4px; font-size: 0.75em; border: 1px solid rgba(var(--el-color-primary-rgb), 0.3);">INTERNAL USE ONLY</span>
       </div>
     </div>
 

@@ -431,8 +431,8 @@ const formatInjection = (strategy: any) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-8);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--el-color-primary-rgb), 0.2);
   padding: 4px 12px;
   border-radius: 20px;
   color: var(--el-color-primary);

@@ -436,7 +436,7 @@ li {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
   color: var(--el-color-primary-dark-2);
   padding: 12px 16px;
   border-radius: 8px;

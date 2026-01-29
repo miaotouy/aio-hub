@@ -917,7 +917,7 @@ const handleNewSession = () => {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 12px;
-  background: var(--el-color-primary-light-9);
+  background: rgba(var(--el-color-primary-rgb), 0.1);
   color: var(--el-color-primary);
   font-size: 12px;
   font-weight: 500;
@@ -1074,7 +1074,7 @@ const handleNewSession = () => {
 }
 
 .manage-item:hover {
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
 }
 
 .setting-item {

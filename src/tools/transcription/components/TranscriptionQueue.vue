@@ -791,8 +791,8 @@ const getTaskDuration = (task: TranscriptionTask) => {
 }
 
 .btn-primary:hover {
-  background: var(--el-color-primary-light-3);
-  border-color: var(--el-color-primary-light-3);
+  background: rgba(var(--el-color-primary-rgb), 0.7);
+  border-color: rgba(var(--el-color-primary-rgb), 0.7);
 }
 </style>
 

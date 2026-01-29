@@ -517,7 +517,7 @@ watch(
 .clickable-tag:hover {
   border-color: var(--el-color-primary);
   color: var(--el-color-primary);
-  background-color: var(--el-color-primary-light-9);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
 }
 
 .task-list-wrapper {

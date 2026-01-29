@@ -652,7 +652,7 @@ watch(
     outline: 0px solid transparent;
   }
   30% {
-    background-color: var(--el-color-primary-light-7);
+    background-color: rgba(var(--el-color-primary-rgb), 0.2);
     border-radius: 8px;
     /* 使用 outline 代替 padding/margin 来避免布局抖动 */
     outline: 8px solid var(--el-color-primary-light-7);

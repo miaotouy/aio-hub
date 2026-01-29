@@ -149,8 +149,8 @@ const handleCreate = () => {
 }
 
 .agent-item.active {
-  background-color: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary-light-5);
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  border-color: rgba(var(--el-color-primary-rgb), 0.3);
 }
 
 .agent-info {

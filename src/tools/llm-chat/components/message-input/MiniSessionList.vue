@@ -112,7 +112,7 @@ const getSessionMatches = (sessionId: string) => {
 };
 
 // 虚拟滚动列表
-const { list, containerProps, wrapperProps } = useVirtualList(displaySessions, {
+const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(displaySessions, {
   itemHeight: (index) => {
     const session = displaySessions.value[index];
     if (!session) return 50;
@@ -149,12 +149,36 @@ const handleNewSession = () => {
 // 获取消息数量（排除系统根节点）
 const getMessageCount = (session: any) => {
   // 优先使用同步过来的预计算字段，避免访问可能已被剔除的 nodes 属性
-  if (typeof session.messageCount === 'number') {
+  if (typeof session.messageCount === "number") {
     return session.messageCount;
   }
   // 回退到实时计算（主窗口或完整数据场景）
   return session.nodes ? Object.keys(session.nodes).length - 1 : 0;
 };
+
+// 自动定位到当前会话
+const scrollToCurrentSession = () => {
+  const index = displaySessions.value.findIndex((s) => s.id === chatStore.currentSessionId);
+  if (index !== -1) {
+    // 使用 offset 稍微往上一点，看起来更舒服
+    scrollTo(index);
+  }
+};
+
+watch(
+  () => displaySessions.value,
+  (newSessions) => {
+    if (newSessions.length > 0) {
+      // 延迟一下确保 DOM 已更新
+      setTimeout(scrollToCurrentSession, 0);
+    }
+  },
+  { immediate: true }
+);
+
+defineExpose({
+  scrollToCurrent: scrollToCurrentSession,
+});
 </script>
 
 <template>

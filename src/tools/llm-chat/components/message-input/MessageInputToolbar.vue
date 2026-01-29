@@ -166,6 +166,14 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 };
 
 const sessionListVisible = ref(false);
+const miniSessionListRef = ref<any>(null);
+
+const handleSessionListShow = () => {
+  // 气泡显示后，延迟一点点触发滚动，确保容器高度已计算
+  setTimeout(() => {
+    miniSessionListRef.value?.scrollToCurrent();
+  }, 100);
+};
 
 const handleSwitchSession = (sessionId: string) => {
   emit("switch-session", sessionId);
@@ -269,13 +277,18 @@ const handleNewSession = () => {
               :width="300"
               trigger="click"
               popper-class="session-list-popover"
+              @show="handleSessionListShow"
             >
               <template #reference>
                 <button class="tool-btn" :class="{ active: sessionListVisible }">
                   <MessageSquare :size="16" />
                 </button>
               </template>
-              <MiniSessionList @switch="handleSwitchSession" @new-session="handleNewSession" />
+              <MiniSessionList
+                ref="miniSessionListRef"
+                @switch="handleSwitchSession"
+                @new-session="handleNewSession"
+              />
             </el-popover>
           </div>
         </el-tooltip>

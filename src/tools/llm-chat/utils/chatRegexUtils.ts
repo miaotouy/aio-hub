@@ -311,8 +311,11 @@ export function applyRegexRules(
     }
 
     try {
-      const flags = rule.flags ?? "gm";
-      const regex = new RegExp(rule.regex, flags);
+      // 解析正则字符串，支持 /pattern/flags 格式
+      const parsed = parseRegexString(rule.regex);
+      // 如果解析出了 flags，且规则本身没有指定 flags，则使用解析出的
+      const flags = rule.flags || parsed.flags || "gm";
+      const regex = new RegExp(parsed.pattern, flags);
 
       if (rule.replacementType === "script" && rule.scriptContent) {
         // 脚本替换模式
@@ -330,7 +333,9 @@ export function applyRegexRules(
         });
       } else {
         // 正则替换模式
-        const replacement = rule.replacement || "";
+        let replacement = rule.replacement || "";
+        // 处理常用的转义序列，如 \n, \t
+        replacement = replacement.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
 
         // 处理 trimStrings (后处理捕获组)
         if (rule.trimStrings && rule.trimStrings.length > 0) {
@@ -413,7 +418,7 @@ export interface SillyTavernRegexScript {
  * @param regexString - ST 的 findRegex 字符串
  * @returns 解析后的模式和标志
  */
-function parseRegexString(regexString: string): {
+export function parseRegexString(regexString: string): {
   pattern: string;
   flags: string;
 } {

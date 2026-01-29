@@ -215,7 +215,7 @@ import { computed, ref, reactive } from "vue";
 import { ChevronRight } from "lucide-vue-next";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { executeReplacementScript } from "../../utils/chatRegexUtils";
+import { executeReplacementScript, parseRegexString } from "../../utils/chatRegexUtils";
 
 // 预制规则类型
 interface PresetRule {
@@ -468,9 +468,9 @@ const applyPreset = (preset: PresetRule) => {
 // 工具函数
 function escapeHtml(text: string): string {
   const map: Record<string, string> = {
-    "&": "&",
-    "<": "<",
-    ">": ">",
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
     '"': "&quot;",
     "'": "&#039;",
     "\n": "<br>",
@@ -500,7 +500,9 @@ const highlightedOutput = computed(() => {
 
   try {
     testError.value = null;
-    const regex = new RegExp(regexStr, flagsStr);
+    const parsed = parseRegexString(regexStr);
+    const finalFlags = flagsStr || parsed.flags || "gm";
+    const regex = new RegExp(parsed.pattern, finalFlags);
 
     const matches = input.match(regex);
     matchCount.value = matches ? matches.length : 0;
@@ -522,7 +524,7 @@ const highlightedOutput = computed(() => {
       const replacements: ReplacementInfo[] = [];
 
       // 第一遍：收集所有匹配和替换信息
-      let tempRegex = new RegExp(regexStr, flagsStr);
+      let tempRegex = new RegExp(parsed.pattern, finalFlags);
       input.replace(tempRegex, (match, ...args) => {
         const offset = args[args.length - 2] as number;
         let actualReplacement = "";
@@ -554,7 +556,9 @@ const highlightedOutput = computed(() => {
           }
         } else {
           // 计算实际的替换内容（处理 $1, $2 等捕获组引用）
-          actualReplacement = match.replace(tempRegex, replacement!);
+          // 同时处理常用的转义序列，如 \n, \t
+          const finalReplacement = replacement!.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+          actualReplacement = match.replace(tempRegex, finalReplacement);
         }
 
         replacements.push({

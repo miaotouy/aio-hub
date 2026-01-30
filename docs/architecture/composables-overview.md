@@ -6,67 +6,70 @@
 
 核心的多窗口架构实现。
 
-| Composable | 说明 |
-| :--- | :--- |
-| `useWindowSyncBus` | **核心**。基于事件总线的跨窗口通信机制（握手、心跳、消息广播）。 |
-| `useDetachable` | 实现拖拽分离交互逻辑（拖拽阈值检测、rdev 会话管理）。 |
-| `useDetachedManager` | 管理所有分离窗口的生命周期（创建、关闭、位置调整）。 |
+| Composable           | 说明                                                                                                                                      |
+| :------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| `useWindowSyncBus`   | **核心**。基于事件总线的跨窗口通信机制（握手、心跳、消息广播）。                                                                          |
+| `useDetachable`      | 实现拖拽分离交互逻辑（拖拽阈值检测、rdev 会话管理）。                                                                                     |
+| `useDetachedManager` | 管理所有分离窗口的生命周期（创建、关闭、位置调整）。                                                                                      |
 | `useStateSyncEngine` | **核心状态同步引擎**。封装了自动推送/接收、**增量更新 (Delta Sync)** 和全局状态源注册中心，用于在多窗口间高效同步任意响应式状态 (`Ref`)。 |
-| `useWindowResize` | 监听窗口大小变化，提供响应式尺寸数据。 |
+| `useWindowResize`    | 监听窗口大小变化，提供响应式尺寸数据。                                                                                                    |
 
 ## 2. 主题与 UI
 
 外观定制与响应式主题。
 
-| Composable | 说明 |
-| :--- | :--- |
-| `useTheme` | 管理全局主题模式（Auto/Light/Dark）及切换逻辑。 |
+| Composable           | 说明                                                                            |
+| :------------------- | :------------------------------------------------------------------------------ |
+| `useTheme`           | 管理全局主题模式（Auto/Light/Dark）及切换逻辑。                                 |
 | `useThemeAppearance` | **核心**。管理动态主题外观（窗口特效、UI透明/模糊、壁纸轮播、颜色混合与提取）。 |
-| `useThemeAwareIcon` | 智能处理 SVG 图标，将黑白颜色替换为 `currentColor` 以自适应主题。 |
-| `useIframeTheme` | 向 iframe 注入当前主题 CSS 变量及基础样式适配，确保视觉一致性。 |
-| `useCssOverrides` | 管理用户自定义 CSS 覆盖，支持预设管理、实时预览和动态注入。 |
+| `useThemeAwareIcon`  | 智能处理 SVG 图标，将黑白颜色替换为 `currentColor` 以自适应主题。               |
+| `useIframeTheme`     | 向 iframe 注入当前主题 CSS 变量及基础样式适配，确保视觉一致性。                 |
+| `useCssOverrides`    | 管理用户自定义 CSS 覆盖，支持预设管理、实时预览和动态注入。                     |
 
 ## 3. LLM 与 AI 能力
 
 AI 模型配置与请求处理。
 
-| Composable | 说明 |
-| :--- | :--- |
-| `useLlmProfiles` | 管理 LLM 服务商配置（API Key 数组、Base URL、模型列表），支持 localStorage 迁移、参数能力查询及预设模板创建。 |
-| `useLlmRequest` | **核心请求中间件**。封装多提供商 LLM 请求（OpenAI/Claude/Gemini/Cohere/VertexAI），智能过滤参数（基于 Provider 和 Model 能力），并区分处理 AbortError（用户取消）。 |
-| `useModelMetadata` | **通用元数据系统**。基于规则管理模型元数据（图标、分组、能力、上下文限制），支持模糊/精确/正则匹配，提供三级优先级图标解析（模型自定义 > 规则匹配 > fallback）。 |
-| `useModelSelectDialog` | 全局模型选择对话框，基于 Promise 的异步选择机制，返回 `{ profile, model }` 或 `null`。 |
-| `useAgentPresets` | 从 `config/agent-presets/` 自动加载 Agent 预设（JSON/YAML），支持按标签/分类查询。 |
-| `useOcrProfiles` | 管理 OCR 服务配置，支持 localStorage 迁移、并发控制和延迟参数。 |
+| Composable             | 说明                                                                                                                                                             |
+| :--------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useLlmProfiles`       | 管理 LLM 服务商配置（API Key 数组、Base URL、模型列表），支持 localStorage 迁移、参数能力查询及预设模板创建。                                                    |
+| `useLlmRequest`        | **核心请求中间件**。封装多提供商 LLM 请求，支持多模态输入与双流并行（Content/Reasoning），智能过滤参数（基于 Provider 和 Model 能力），处理 AbortError。         |
+| `useLlmKeyManager`     | **密钥调度中心**。管理多 API Key 的轮询、健康检测、成功率反馈及自动熔断机制。                                                                                    |
+| `useModelMetadata`     | **通用元数据系统**。基于规则管理模型元数据（图标、分组、能力、上下文限制），支持模糊/精确/正则匹配，提供三级优先级图标解析（模型自定义 > 规则匹配 > fallback）。 |
+| `useModelSelectDialog` | 全局模型选择对话框，基于 Promise 的异步选择机制，返回 `{ profile, model }` 或 `null`。                                                                           |
+| `useAgentPresets`      | 从 `config/agent-presets/` 自动加载 Agent 预设（JSON/YAML），支持按标签/分类查询。                                                                               |
+| `useOcrProfiles`       | 管理 OCR 服务配置，支持 localStorage 迁移、并发控制和延迟参数。                                                                                                  |
 
 ## 4. 文件与资源管理
 
 文件操作与预览。
 
-| Composable | 说明 |
-| :--- | :--- |
-| `useAssetManager` | **核心**。提供资产全生命周期管理（导入、查询、删除），并处理与后端存储的交互和路径转换。 |
-| `useFileInteraction` | 统一处理文件拖放和粘贴交互，支持文件、路径或 Asset 多种处理模式。 |
-| `useFileDrop` | 监听 Tauri 拖放事件，捕获文件系统路径并提供验证和状态反馈。 |
-| `useAttachmentProcessor`| 扫描文本，将内联 Base64 数据（如粘贴的图片）智能转换为 Asset 文件。 |
-| `useDocumentViewer` | 提供文档预览核心逻辑，支持 Markdown/HTML/代码预览，源码与渲染模式切换。 |
-| `useImageViewer` | 提供全局图片预览服务，自动处理 `appdata://` 等本地路径为可显示 URL。 |
-| `useVideoViewer` | 提供全局视频预览服务，支持 `Asset` 对象和多种路径格式。 |
+| Composable               | 说明                                                                                     |
+| :----------------------- | :--------------------------------------------------------------------------------------- |
+| `useAssetManager`        | **核心**。提供资产全生命周期管理（导入、查询、删除），并处理与后端存储的交互和路径转换。 |
+| `useFileInteraction`     | 统一处理文件拖放和粘贴交互，支持文件、路径或 Asset 多种处理模式。                        |
+| `useFileDrop`            | 监听 Tauri 拖放事件，捕获文件系统路径并提供验证和状态反馈。                              |
+| `useAttachmentProcessor` | 扫描文本，将内联 Base64 数据（如粘贴的图片）智能转换为 Asset 文件。                      |
+| `useDocumentViewer`      | 提供文档预览核心逻辑，支持 Markdown/HTML/代码预览，源码与渲染模式切换。                  |
+| `useImageViewer`         | 提供全局图片预览服务，自动处理 `appdata://` 等本地路径为可显示 URL。                     |
+| `useVideoViewer`         | 提供全局视频预览服务，支持 `Asset` 对象和多种路径格式。                                  |
+| `useAudioViewer`         | 提供全局音频预览服务，支持可视化频谱显示与 Asset 路径转换。                              |
 
 ## 5. 设置与配置
 
 应用级配置管理。
 
-| Composable | 说明 |
-| :--- | :--- |
-| `useSettingsNavigator` | 跨窗口设置导航（主窗口直接跳转，分离窗口通过 Tauri 命令聚焦主窗口并导航）。 |
-| `useLogConfig` | 管理日志系统配置（级别、文件/控制台输出、缓冲区大小），响应式监听设置变化并自动应用。 |
+| Composable             | 说明                                                                                  |
+| :--------------------- | :------------------------------------------------------------------------------------ |
+| `useSettingsNavigator` | 跨窗口设置导航（主窗口直接跳转，分离窗口通过 Tauri 命令聚焦主窗口并导航）。           |
+| `useLogConfig`         | 管理日志系统配置（级别、文件/控制台输出、缓冲区大小），响应式监听设置变化并自动应用。 |
 
-## 6. 其他工具
+## 6. 消息与通知
 
-| Composable | 说明 |
-| :--- | :--- |
-| `useSendToChat` | 提供统一的"发送到聊天"接口，支持多种格式（纯文本/代码块/引用）、位置控制（追加/前置）、便捷方法（`sendCodeToChat`/`sendQuoteToChat`）。 |
+| Composable        | 说明                                                                                                                                    |
+| :---------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| `useNotification` | **核心通知系统**。提供统一的消息推送接口（success/error/info），支持持久化存储、已读管理、路由跳转及来源追踪。                          |
+| `useSendToChat`   | 提供统一的"发送到聊天"接口，支持多种格式（纯文本/代码块/引用）、位置控制（追加/前置）、便捷方法（`sendCodeToChat`/`sendQuoteToChat`）。 |
 
 ## 开发建议
 

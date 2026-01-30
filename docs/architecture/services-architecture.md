@@ -31,7 +31,7 @@ AIO Hub 的服务系统旨在解决**能力复用**和**外部调用**的问题�
 ```typescript
 export interface ToolCall<TParams = Record<string, any>> {
   service: string; // 服务 ID
-  method: string;  // 方法名
+  method: string; // 方法名
   params: TParams; // 参数
 }
 ```
@@ -65,17 +65,21 @@ export interface ToolCall<TParams = Record<string, any>> {
 在开发新工具时，应根据以下标准判断是否需要注册服务：
 
 ### ✅ 需要注册的情况
+
 - **Agent 能力**: 该工具提供的功能需要被 AI Agent 调用（例如"读取文件"、"执行 OCR"）。
 - **跨插件调用**: 该工具的功能需要暴露给其他动态加载的插件使用。
 - **通用能力**: 该工具提供了项目级的通用能力（如 `asset-manager`）。
 
 ### ❌ 无需注册的情况
+
 - **纯 GUI 工具**: 如 `api-tester`，它只是一个可视化的 API 调试器，其核心逻辑（发送 HTTP 请求）是通用的，不需要作为服务暴露。
 - **内部逻辑**: 仅在工具内部使用的辅助函数或类。
 - **紧耦合组件**: 必须与特定 UI 状态绑定的逻辑。
 
 ### 💡 内部调用建议
+
 对于项目内部的代码复用，**直接导入 (`import`)** 始终是首选：
+
 - **类型安全**: 完整的 TypeScript 类型检查和自动补全。
 - **性能**: 没有查找和反射开销。
 - **可维护性**: 明确的依赖关系，方便重构和查找引用。
@@ -84,22 +88,37 @@ export interface ToolCall<TParams = Record<string, any>> {
 
 ## 4. 示例
 
-### 注册服务
+### 注册服务 (推荐方式)
+
+在工具目录下创建 `*.registry.ts` 文件。系统会自动识别并注册。
 
 ```typescript
-// my-tool/index.ts
-import { toolRegistryManager } from "@/services/registry";
+// src/tools/my-tool/my-tool.registry.ts
+import type { ToolRegistry, ToolConfig } from "@/services/types";
+import { Braces } from "lucide-vue-next";
+import { markRaw } from "vue";
 
-const myService = {
-  id: "my-tool",
-  // ... 实现接口
+// 1. UI 配置 (由 ToolsStore 自动加载)
+export const toolConfig: ToolConfig = {
+  name: "我的工具",
+  path: "/my-tool",
+  icon: markRaw(Braces),
+  component: () => import("./MyTool.vue"),
+  category: "开发工具",
+};
+
+// 2. 服务逻辑实现
+class MyService implements ToolRegistry {
+  public readonly id = "my-tool";
+  public readonly name = "我的工具服务";
+
   async doSomething(params: { text: string }) {
     return params.text.toUpperCase();
   }
-};
+}
 
-// 注册
-toolRegistryManager.register(myService);
+// 必须默认导出类，系统会自动实例化并注册到 ToolRegistryManager
+export default MyService;
 ```
 
 ### 动态调用 (通过执行器)
@@ -110,6 +129,6 @@ import { execute } from "@/services/executor";
 const result = await execute({
   service: "my-tool",
   method: "doSomething",
-  params: { text: "hello" }
+  params: { text: "hello" },
 });
 ```

@@ -41,6 +41,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const currentSessionId = ref<string | null>(null);
   const isInitialized = ref(false);
   const isNaming = ref(false);
+  const isTranslating = ref(false);
 
   // 批量操作状态
   const isBatchMode = ref(false);
@@ -395,6 +396,59 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   };
 
   /**
+   * 切换消息启用状态
+   */
+  const toggleMessageEnabled = (messageId: string) => {
+    if (!currentSession.value) return;
+
+    const node = nodes.value[messageId];
+    if (!node) return;
+
+    const newStatus = !node.isEnabled;
+    node.isEnabled = newStatus;
+
+    persist();
+
+    logger.info("消息启用状态已切换", { messageId, isEnabled: newStatus });
+  };
+
+  /**
+   * 更新节点原始数据 (带结构保护)
+   */
+  const updateNodeData = async (messageId: string, newData: Partial<MediaMessage>) => {
+    if (!currentSession.value) return;
+
+    const node = nodes.value[messageId];
+    if (!node) throw new Error("节点不存在");
+
+    // 结构保护：禁止修改核心树结构字段
+    const protectedFields = ["id", "parentId", "childrenIds"];
+    const sanitizedData = { ...newData };
+    protectedFields.forEach((field) => {
+      delete (sanitizedData as any)[field];
+    });
+
+    // 合并数据
+    nodes.value[messageId] = {
+      ...node,
+      ...sanitizedData,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 同步更新任务快照 (如果存在)
+    if (sanitizedData.metadata?.taskSnapshot && sanitizedData.metadata.taskId) {
+      taskManager.updateTaskStatus(
+        sanitizedData.metadata.taskId,
+        sanitizedData.metadata.taskSnapshot.status,
+        sanitizedData.metadata.taskSnapshot
+      );
+    }
+
+    persist();
+    logger.info("节点数据已通过编辑器更新", { messageId });
+  };
+
+  /**
    * 保存到新分支
    */
   const saveToBranch = (messageId: string, content: string, attachments?: Asset[]) => {
@@ -553,6 +607,48 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       isNaming.value = false;
     }
   };
+
+  /**
+   * 翻译提示词
+   * 姐姐，这里我复用了 Chat 的翻译逻辑，会自动处理占位符
+   */
+  const translatePrompt = async (text: string, targetLang?: string) => {
+    const config = settings.value.translation;
+    if (!config.enabled || !config.modelIdentifier || !text) return text;
+
+    const [profileId, modelId] = config.modelIdentifier.includes(":")
+      ? config.modelIdentifier.split(":")
+      : config.modelIdentifier.split("/");
+
+    try {
+      isTranslating.value = true;
+      const target = targetLang || config.inputTargetLang;
+
+      // 构造翻译提示词
+      const systemPrompt = config.prompt
+        .replace("{targetLang}", target)
+        .replace("{thinkTags}", "<thought>, <style>")
+        .replace("{text}", text);
+
+      const response = await sendRequest({
+        profileId,
+        modelId,
+        messages: [{ role: "user", content: systemPrompt }],
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+      });
+
+      const translated = response.content.trim();
+      logger.info("提示词翻译成功", { original: text, translated, target });
+      return translated;
+    } catch (error) {
+      logger.error("提示词翻译失败", error);
+      return text; // 失败时返回原文，不中断流程
+    } finally {
+      isTranslating.value = false;
+    }
+  };
+
   /**
    * 分支切换
    */
@@ -617,7 +713,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     deleteSession,
     updateSessionName,
     generateSessionName,
+    translatePrompt,
     isNaming,
+    isTranslating,
     isBatchMode,
     enterBatchMode,
     exitBatchMode,
@@ -625,6 +723,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     switchToBranch,
     getSiblings,
     isNodeInActivePath,
+    toggleMessageEnabled,
+    updateNodeData,
     allTasks: tasks, // 兼容性导出
     // 附件方法委托
     addAsset: attachmentManager.addAsset,
@@ -641,10 +741,30 @@ export const useMediaGenStore = defineStore("media-generator", () => {
      * 1. 如果重试的是助手节点，我们切到它的父节点（User），这样 addTaskNode 就能识别出是重试。
      * 2. 如果重试的是用户节点，直接切过去。
      */
-    getRetryParams(messageId: string) {
+    getRetryParams(messageId: string, useNewBranch = false) {
       const node = nodes.value[messageId];
       if (!node) return null;
 
+      if (useNewBranch && currentSession.value) {
+        // 分支化重试逻辑：创建一个新的兄弟分支
+        // 如果是 assistant，基于它的父节点创建分支
+        const baseNodeId =
+          node.role === "assistant" && node.parentId ? node.parentId : node.parentId;
+
+        if (baseNodeId) {
+          const newNodeId = branchManager.createBranch(currentSession.value, baseNodeId);
+          if (newNodeId) {
+            activeLeafId.value = newNodeId;
+            // 复制原消息内容到新节点
+            nodes.value[newNodeId].content = node.content;
+            nodes.value[newNodeId].attachments = node.attachments ? [...node.attachments] : [];
+            persist();
+            return taskActionManager.getRetryParams(newNodeId);
+          }
+        }
+      }
+
+      // 常规重试/切换分支重试
       // 切换到该节点所在的分支
       // 如果是 assistant，切到它的父节点（User），这样分支感更强
       if (node.role === "assistant" && node.parentId) {

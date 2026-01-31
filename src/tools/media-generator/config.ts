@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Wand2,
   PenTool,
+  Languages,
 } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "@/types/settings-renderer";
@@ -58,6 +59,16 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   },
   leftCollapsed: false,
   rightCollapsed: false,
+  translation: {
+    enabled: false,
+    modelIdentifier: "",
+    messageTargetLang: "Chinese",
+    inputTargetLang: "English",
+    targetLangList: ["Chinese", "English", "Japanese", "Korean", "French", "German"],
+    prompt: "You are a professional translator. Translate the following user prompt into {targetLang}. \n\nRequirements:\n1. Keep the original meaning and artistic style.\n2. Protect special tags like {thinkTags} and do not translate them.\n3. Only output the translated text, no explanations.\n\nUser prompt:\n{text}",
+    temperature: 0.3,
+    maxTokens: 2000,
+  },
 };
 
 /**
@@ -190,6 +201,59 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
         modelPath: "autoCleanCompleted",
         hint: "会话结束后或任务完成一段时间后自动从列表中移除",
         keywords: "auto clean 自动 清理",
+      },
+    ],
+  },
+  {
+    title: "发送前翻译 (实验性)",
+    icon: Languages,
+    items: [
+      {
+        id: "enableTranslation",
+        label: "启用自动翻译提示词",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "translation.enabled",
+        hint: "发送前自动将中文提示词翻译为目标语言，UI 保留原文",
+        keywords: "translation 翻译 translate",
+      },
+      {
+        id: "transModelCombo",
+        label: "翻译模型",
+        component: LlmModelSelector,
+        modelPath: "translation.modelIdentifier",
+        hint: "用于执行翻译任务的语言模型",
+        keywords: "translation model 翻译 模型",
+      },
+      {
+        id: "transTargetLang",
+        label: "目标语言",
+        component: "ElSelect",
+        props: {
+          options: [
+            { label: "英语 (English)", value: "English" },
+            { label: "日语 (Japanese)", value: "Japanese" },
+            { label: "韩语 (Korean)", value: "Korean" },
+            { label: "法语 (French)", value: "French" },
+            { label: "德语 (German)", value: "German" },
+          ],
+        },
+        modelPath: "translation.inputTargetLang",
+        hint: "提示词将被翻译成的语言",
+        keywords: "translation language 翻译 语言",
+      },
+      {
+        id: "transPrompt",
+        label: "翻译提示词",
+        component: "PromptEditor",
+        props: {
+          rows: 6,
+          placeholder: "输入用于翻译的系统提示词",
+          defaultValue: DEFAULT_MEDIA_GENERATOR_SETTINGS.translation.prompt,
+        },
+        modelPath: "translation.prompt",
+        hint: "使用 {text} 和 {targetLanguage} 占位符",
+        keywords: "translation prompt 翻译 提示词",
       },
     ],
   },

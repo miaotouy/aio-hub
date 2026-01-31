@@ -10,6 +10,10 @@ import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
 
+// 从环境变量读取端口配置，支持多实例开发
+const PORT = parseInt(process.env.VITE_PORT || "1420");
+const HMR_PORT = parseInt(process.env.VITE_HMR_PORT || (PORT + 1).toString());
+
 // https://vite.dev/config/
 export default defineConfig({
   // 路径别名配置
@@ -187,16 +191,18 @@ export default defineConfig({
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
-    port: 1420,
+    port: PORT,
     strictPort: true,
     host: host || false,
     hmr: host
       ? {
           protocol: "ws",
           host,
-          port: 1421,
+          port: HMR_PORT,
         }
-      : undefined,
+      : {
+          port: HMR_PORT,
+        },
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],

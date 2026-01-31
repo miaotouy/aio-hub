@@ -79,6 +79,7 @@ scopeguard = "1.2.0"
 window-vibrancy = "0.5"
 raw-window-handle = "0.6"
 lofty = "0.22.4"
+dotenvy = "0.15.7"
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

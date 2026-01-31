@@ -4,7 +4,7 @@
   "version": "0.5.0-alpha.2",
   "identifier": "com.mty.aiohub",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "bun run vite",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"

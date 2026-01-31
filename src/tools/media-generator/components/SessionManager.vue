@@ -102,9 +102,12 @@ const handleNewSession = () => {
 const handleAiNaming = async (sessionId: string) => {
   if (namingSessionId.value || store.isNaming) return;
 
+  const session = store.sessions.find((s) => s.id === sessionId);
+  if (!session) return;
+
   try {
     namingSessionId.value = sessionId;
-    await store.generateSessionName(sessionId);
+    await store.generateSessionName(sessionId, session.name);
     customMessage.success("AI 命名完成");
   } catch (error: any) {
     // 错误处理已在 store 中记录，这里只需提示用户

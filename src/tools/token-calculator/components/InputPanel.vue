@@ -101,6 +101,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Picture, VideoCamera, Microphone, Close } from "@element-plus/icons-vue";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { customMessage } from "@/utils/customMessage";
+import { detectFileType } from "@/utils/fileTypeDetector";
 import type { MediaItem, MediaType } from "../composables/useTokenCalculatorState";
 
 interface Props {
@@ -198,32 +199,17 @@ const { isDraggingOver } = useFileDrop({
   element: rootEl,
   onDrop: async (paths) => {
     for (const path of paths) {
-      const lowerPath = path.toLowerCase();
+      const fileName = path.split(/[/\\]/).pop() || "";
+      const fileInfo = await detectFileType(path, fileName);
 
       // 1. 文本文件处理
-      const textExtensions = [
-        ".txt",
-        ".md",
-        ".json",
-        ".js",
-        ".ts",
-        ".py",
-        ".c",
-        ".cpp",
-        ".h",
-        ".html",
-        ".css",
-        ".vue",
-        ".yml",
-        ".yaml",
-      ];
-      if (textExtensions.some((ext) => lowerPath.endsWith(ext))) {
+      if (fileInfo.isText) {
         try {
           const content = await invoke<string>("read_text_file_force", { path });
           if (content) {
             const separator = props.inputText ? "\n\n" : "";
             emit("update:inputText", props.inputText + separator + content);
-            customMessage.success(`已添加文件内容: ${path.split(/[/\\]/).pop()}`);
+            customMessage.success(`已添加文件内容: ${fileName}`);
           }
         } catch (error) {
           console.error("读取文件失败:", error);
@@ -232,6 +218,7 @@ const { isDraggingOver } = useFileDrop({
       }
 
       // 2. 媒体文件处理
+      const lowerPath = path.toLowerCase();
       const imgExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
       const videoExtensions = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
       const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a", ".flac"];
@@ -282,7 +269,11 @@ const { isDraggingOver } = useFileDrop({
 
         emit("add-media", item);
         customMessage.success(`已添加媒体: ${fileName}`);
+        continue;
       }
+
+      // 3. 不支持的文件类型提示
+      customMessage.warning(`不支持的文件类型: ${fileName}`);
     }
   },
 });

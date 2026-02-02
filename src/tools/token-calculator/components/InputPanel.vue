@@ -198,6 +198,9 @@ const handleNativeDrop = (e: DragEvent) => {
 const { isDraggingOver } = useFileDrop({
   element: rootEl,
   onDrop: async (paths) => {
+    let accumulatedText = props.inputText;
+    let hasTextChanges = false;
+
     for (const path of paths) {
       const fileName = path.split(/[/\\]/).pop() || "";
       const fileInfo = await detectFileType(path, fileName);
@@ -207,12 +210,14 @@ const { isDraggingOver } = useFileDrop({
         try {
           const content = await invoke<string>("read_text_file_force", { path });
           if (content) {
-            const separator = props.inputText ? "\n\n" : "";
-            emit("update:inputText", props.inputText + separator + content);
-            customMessage.success(`已添加文件内容: ${fileName}`);
+            const separator = accumulatedText ? "\n\n" : "";
+            accumulatedText += separator + content;
+            hasTextChanges = true;
+            customMessage.success(`已读取文本文件: ${fileName}`);
           }
         } catch (error) {
           console.error("读取文件失败:", error);
+          customMessage.error(`读取文件失败: ${fileName}`);
         }
         continue;
       }
@@ -274,6 +279,11 @@ const { isDraggingOver } = useFileDrop({
 
       // 3. 不支持的文件类型提示
       customMessage.warning(`不支持的文件类型: ${fileName}`);
+    }
+
+    // 循环结束后一次性更新文本，触发分词计算
+    if (hasTextChanges) {
+      emit("update:inputText", accumulatedText);
     }
   },
 });

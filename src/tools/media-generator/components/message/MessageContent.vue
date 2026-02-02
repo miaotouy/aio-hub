@@ -12,10 +12,13 @@ import { createModuleLogger } from "@/utils/logger";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 
 interface Props {
   message: MediaMessage;
   isEditing?: boolean;
+  llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -130,7 +133,7 @@ const updateResultUrls = async () => {
   const assets = effectiveAssets.value;
   if (assets.length > 0) {
     try {
-      const urls = await Promise.all(assets.map((asset) => getAssetUrl(asset)));
+      const urls = await Promise.all(assets.map((asset: Asset) => getAssetUrl(asset)));
       resultUrls.value = urls.filter(Boolean) as string[];
       logger.debug("Result URLs updated", {
         taskId: task.value?.id,
@@ -166,10 +169,53 @@ watch(
   },
   { immediate: true, deep: true }
 );
+
+// 推理状态计算
+const isReasoning = computed(() => {
+  return !!(
+    props.message.status === "generating" &&
+    props.message.metadata?.reasoningContent &&
+    !props.message.metadata?.reasoningEndTime &&
+    !props.message.metadata?.error
+  );
+});
+
+const generationMetaForRenderer = computed(() => {
+  const metadata = props.message.metadata;
+  if (!metadata) return undefined;
+
+  return {
+    requestStartTime: metadata.requestStartTime,
+    requestEndTime: metadata.requestEndTime,
+    reasoningStartTime: metadata.reasoningStartTime,
+    reasoningEndTime: metadata.reasoningEndTime,
+    firstTokenTime: metadata.firstTokenTime,
+    tokensPerSecond: metadata.tokensPerSecond,
+    usage: metadata.usage,
+    modelId: metadata.modelId,
+  };
+});
 </script>
 
 <template>
   <div class="message-content">
+    <!-- 推理内容 (DeepSeek / O1) -->
+    <LlmThinkNode
+      v-if="message.metadata?.reasoningContent"
+      raw-tag-name="reasoning"
+      rule-id="reasoning-metadata"
+      display-name="深度思考"
+      :is-thinking="isReasoning"
+      :collapsed-by-default="true"
+      :raw-content="message.metadata.reasoningContent"
+      :generation-meta="generationMetaForRenderer"
+    />
+    <RichTextRenderer
+      :content="message.content"
+      :generation-meta="generationMetaForRenderer"
+      :llm-think-rules="llmThinkRules"
+    />
+
     <!-- 编辑模式 -->
     <div
       v-if="isEditing"

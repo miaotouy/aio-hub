@@ -11,6 +11,11 @@ import {
   ChevronRight,
   Download,
   RotateCcw,
+  Eye,
+  EyeOff,
+  Code,
+  Settings2,
+  Share,
 } from "lucide-vue-next";
 import type { MediaMessage, MediaTask } from "../../types";
 
@@ -27,7 +32,10 @@ const emit = defineEmits<{
   (e: "edit"): void;
   (e: "delete", taskId: string): void;
   (e: "download", task: MediaTask): void;
-  (e: "retry"): void;
+  (e: "retry", useNewBranch?: boolean, useNewModel?: boolean): void;
+  (e: "toggle-enabled"): void;
+  (e: "edit-raw"): void;
+  (e: "export"): void;
   (e: "switch", direction: "prev" | "next"): void;
   (e: "switch-branch", nodeId: string): void;
 }>();
@@ -116,9 +124,25 @@ const handleSwitchToBranch = (nodeId: string) => {
     <div v-if="siblings.length > 1" class="separator"></div>
 
     <!-- 重试 -->
-    <el-tooltip content="重试" placement="top" :show-after="500">
-      <button class="menu-btn" @click="emit('retry')">
-        <RotateCcw :size="16" />
+    <div class="retry-group">
+      <el-tooltip content="重试" placement="top" :show-after="500">
+        <button class="menu-btn" @click="emit('retry', true, false)">
+          <RotateCcw :size="16" />
+        </button>
+      </el-tooltip>
+
+      <el-tooltip content="切换模型重试" placement="top" :show-after="500">
+        <button class="menu-btn" @click="emit('retry', true, true)">
+          <Settings2 :size="16" />
+        </button>
+      </el-tooltip>
+    </div>
+
+    <!-- 启用/禁用 -->
+    <el-tooltip :content="message.isEnabled !== false ? '禁用 (不参与上下文)' : '启用'" placement="top" :show-after="500">
+      <button class="menu-btn" @click="emit('toggle-enabled')">
+        <Eye v-if="message.isEnabled !== false" :size="16" />
+        <EyeOff v-else :size="16" />
       </button>
     </el-tooltip>
 
@@ -131,11 +155,19 @@ const handleSwitchToBranch = (nodeId: string) => {
     </el-tooltip>
 
     <!-- 编辑 -->
-    <el-tooltip content="编辑" placement="top" :show-after="500">
-      <button class="menu-btn" @click="emit('edit')">
-        <Edit :size="16" />
-      </button>
-    </el-tooltip>
+    <div class="edit-group">
+      <el-tooltip content="编辑" placement="top" :show-after="500">
+        <button class="menu-btn" @click="emit('edit')">
+          <Edit :size="16" />
+        </button>
+      </el-tooltip>
+
+      <el-tooltip content="查看/编辑 Raw 数据" placement="top" :show-after="500">
+        <button class="menu-btn" @click="emit('edit-raw')">
+          <Code :size="16" />
+        </button>
+      </el-tooltip>
+    </div>
 
     <!-- 下载 (仅限生成的媒体) -->
     <el-tooltip
@@ -146,6 +178,13 @@ const handleSwitchToBranch = (nodeId: string) => {
     >
       <button class="menu-btn" @click.stop="task && emit('download', task)">
         <Download :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 导出 -->
+    <el-tooltip content="导出分支" placement="top" :show-after="500">
+      <button class="menu-btn" @click="emit('export')">
+        <Share :size="16" />
       </button>
     </el-tooltip>
 
@@ -171,7 +210,9 @@ const handleSwitchToBranch = (nodeId: string) => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.branch-control {
+.branch-control,
+.retry-group,
+.edit-group {
   display: flex;
   align-items: center;
   gap: 2px;

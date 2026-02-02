@@ -30,6 +30,7 @@ const RE_BLOCKQUOTE = />[ \t]?/y;
 const RE_KATEX_INLINE = /\$([^\n$]+?)\$/y;
 const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
+// VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
 const RE_VCP_RESULT_FIELD = /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-|\nVCP调用结果结束\]\]|$)/g;
@@ -372,7 +373,7 @@ export class Tokenizer {
             }
           }
 
-          // VCP 工具请求块 <<<[TOOL_REQUEST]>>>
+          // VCP 工具请求块 <<<[TOOL_REQUEST]>>> (Protocol: https://github.com/lioensky/VCPToolBox)
           if (text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
             const startMarker = "<<<[TOOL_REQUEST]>>>";
             const endMarker = "<<<[END_TOOL_REQUEST]>>>";

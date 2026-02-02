@@ -20,15 +20,16 @@ AIO Hub 不仅仅是一个工具集合，它是一个以开发者为中心、高
 ### 2.1 基础运行时
 
 - **框架**: [Tauri v2](https://tauri.app/) (Rust + WebView)
-  - **后端 (Rust)**: 处理文件系统、系统原生 API（如 Windows OCR）、全局输入监听 (`rdev`)、高性能计算。
+  - **后端 (Rust)**: 处理文件系统、系统原生 API（如 Windows OCR）、全局输入监听 (`rdev`)、文件回收站 (`trash`)、高性能计算。
   - **前端 (Vue 3)**: 负责 UI 渲染与业务逻辑编排。
 - **包管理器**: [Bun](https://bun.sh/) (用于快速安装与脚本运行)。
 
 ### 2.2 前端架构 (PC 端)
 
 - **UI 框架**: [Element Plus](https://element-plus.org/) + [lucide-vue-next](https://lucide.dev/)。
+- **数据可视化与增强**: [ECharts](https://echarts.apache.org/) (图表), [Mermaid](https://mermaid.js.org/) (流程图), [KaTeX](https://katex.org/) (数学公式), [@vue-flow/core](https://vueflow.dev/) (节点编辑器)。
 - **状态管理**: [Pinia](https://pinia.vuejs.org/) (用于全局配置、工具状态、用户 Profile)。
-- **核心工具库**: `@vueuse/core` (响应式能力), `lodash-es` (工具函数), `markdown-it` (文档渲染)。
+- **核心工具库**: `@vueuse/core` (响应式能力), `lodash-es` (工具函数), `markdown-it` (文档渲染), `dompurify` (安全净化)。
 
 ### 2.3 前端架构 (移动端)
 
@@ -95,7 +96,7 @@ AIO Hub 不仅仅是一个工具集合，它是一个以开发者为中心、高
 ## 4. 目录结构与模块组织 (Directory Structure)
 
 ```text
-all-in-one-tools/
+aio-hub/
 ├── src/                    # PC 端前端源码
 │   ├── tools/              # 工具特区：包含工具组件、Store 及 `.registry.ts` 服务定义
 │   ├── services/           # 核心基础设施：执行器、适配器、注册表、插件管理

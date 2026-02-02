@@ -38,6 +38,18 @@ export function useMediaGenerationManager() {
     // 决定是否包含上下文 (优先使用传入的，其次基于能力)
     const shouldIncludeContext = options.includeContext ?? supportsIterative;
 
+    // 2. 翻译拦截 (实验性)
+    let finalPrompt = options.prompt || "";
+    let translatedPrompt: string | undefined;
+
+    if (mediaStore.settings.translation.enabled && finalPrompt) {
+      mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在翻译提示词..." });
+      translatedPrompt = await mediaStore.translatePrompt(finalPrompt);
+      if (translatedPrompt && translatedPrompt !== finalPrompt) {
+        finalPrompt = translatedPrompt;
+      }
+    }
+
     const task: MediaTask = {
       id: taskId,
       type,
@@ -57,13 +69,22 @@ export function useMediaGenerationManager() {
     };
 
     mediaStore.addTask(task);
+
+    // 记录翻译结果到消息节点
+    if (translatedPrompt) {
+      const node = mediaStore.nodes[taskId];
+      if (node && node.metadata) {
+        node.metadata.translatedContent = translatedPrompt;
+      }
+    }
+
     isGenerating.value = true;
 
     try {
       mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在请求生成..." });
 
       // 构造多轮会话上下文
-      let finalOptions = { ...options };
+      let finalOptions = { ...options, prompt: finalPrompt };
 
       // 如果开启了上下文包含，或者手动选择了上下文消息
       if (
@@ -76,11 +97,11 @@ export function useMediaGenerationManager() {
           // 自动提取当前路径上的所有消息 (排除当前正在生成的任务节点本身)
           // mediaStore.messages 已经包含了当前路径，最后一个通常是刚添加的任务节点
           contextMessages = mediaStore.messages.filter(
-            (m) => m.id !== taskId && m.role !== "system"
+            (m: MediaMessage) => m.id !== taskId && m.role !== "system"
           );
         } else if (options.contextMessageIds && options.contextMessageIds.length > 0) {
           // 仅包含选中的消息
-          contextMessages = mediaStore.messages.filter((m) =>
+          contextMessages = mediaStore.messages.filter((m: MediaMessage) =>
             options.contextMessageIds?.includes(m.id)
           );
         }

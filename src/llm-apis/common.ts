@@ -666,7 +666,8 @@ export const fetchWithTimeout = async (
       }
 
       // 确保代理服务已启动
-      const PROXY_PORT = 16655;
+      // 优先使用环境变量配置的端口，支持多实例开发
+      const PROXY_PORT = parseInt(import.meta.env.VITE_AIO_PROXY_PORT || "16655");
       try {
         await invoke("start_llm_proxy_server", { port: PROXY_PORT });
       } catch (e) {

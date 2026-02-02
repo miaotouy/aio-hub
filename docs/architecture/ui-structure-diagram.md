@@ -33,7 +33,7 @@ flowchart TB
 
 ## 2. 工具模块 (Tools) 结构
 
-根据类别划分的19个工具模块：
+根据类别划分的工具模块：
 
 ```mermaid
 flowchart LR
@@ -42,6 +42,9 @@ flowchart LR
         MediaInfo["🖼️ AI作图信息查看器<br/>/media-info-reader"]
         SmartOcr["📝 智能 OCR<br/>/smart-ocr"]
         ColorPicker["🎨 图片色彩分析<br/>/color-picker"]
+        MediaGen["🎨 媒体生成<br/>/media-generator"]
+        Transcription["🎙️ 多模态转写<br/>/transcription"]
+        Embedding["🧬 向量实验室<br/>/embedding-playground"]
     end
 
     subgraph Text["📄 文本处理"]
@@ -49,6 +52,7 @@ flowchart LR
         TextDiff["📊 文本差异对比<br/>/text-diff"]
         JsonFormatter["{ } JSON 格式化<br/>/json-formatter"]
         CodeFormatter["⚙️ 代码格式化<br/>/code-formatter"]
+        DataFilter["🧹 数据过滤<br/>/data-filter"]
     end
 
     subgraph File["📁 文件管理"]
@@ -56,16 +60,19 @@ flowchart LR
         SymlinkMover["🔗 符号链接搬家<br/>/symlink-mover"]
         DirectoryTree["🌲 目录结构浏览器<br/>/directory-tree"]
         DirectoryJanitor["🧹 目录清洁工具<br/>/directory-janitor"]
+        FfmpegTools["🎬 媒体处理<br/>/ffmpeg-tools"]
     end
 
     subgraph Dev["🛠️ 开发工具"]
         ApiTester["🔌 API 测试工具<br/>/api-tester"]
-        LlmProxy["📡 LLM 代理监听器<br/>/llm-proxy"]
+        LlmInspector["🔍 LLM 检查器<br/>/llm-inspector"]
         GitAnalyzer["🔀 Git 分析器<br/>/git-analyzer"]
-        RichTextTester["📃 富文本渲染测试<br/>/rich-text-renderer-tester"]
+        RichTextTester["📃 富文本渲染<br/>/rich-text-renderer"]
         ServiceMonitor["📋 服务注册表浏览器<br/>/service-monitor"]
         TokenCalculator["🔢 Token 计算器<br/>/token-calculator"]
         ComponentTester["🧪 组件测试器<br/>/component-tester"]
+        VcpConnector["🔌 VCP 连接器<br/>/vcp-connector"]
+        Worldbook["📚 世界书编辑器<br/>/st-worldbook-editor"]
     end
 ```
 
@@ -156,8 +163,15 @@ flowchart LR
         FileIcon["FileIcon 文件图标"]
         ImageViewer["ImageViewer 图片查看器"]
         VideoPlayer["VideoPlayer 视频播放器"]
+        VideoViewer["VideoViewer 视频查看器"]
+        AudioPlayer["AudioPlayer 音频播放器"]
+        AudioViewer["AudioViewer 音频查看器"]
+        PdfViewer["PdfViewer PDF 查看器"]
         LlmModelSelector["LlmModelSelector 模型选择器"]
         RichCodeEditor["RichCodeEditor 代码编辑器"]
+        InfoCard["InfoCard 信息卡片"]
+        TranscriptionDialog["TranscriptionDialog 转写弹窗"]
+        PromptEditor["PromptEditor 提示词编辑器"]
     end
 ```
 
@@ -170,15 +184,15 @@ flowchart LR
 ```mermaid
 flowchart TB
     MainWindow["🖥️ 主窗口"]
-    
+
     MainWindow -->|分离工具| DetachedToolWindow["🔧 分离工具窗口<br/>DetachedWindowContainer.vue"]
     MainWindow -->|分离组件| DetachedCompWindow["📦 分离组件窗口<br/>DetachedComponentContainer.vue"]
-    
+
     subgraph SyncMechanism["🔄 状态同步"]
         Bus["事件总线"]
         Tauri["Tauri IPC"]
     end
-    
+
     MainWindow <-->|状态同步| SyncMechanism
     DetachedToolWindow <-->|状态同步| SyncMechanism
     DetachedCompWindow <-->|状态同步| SyncMechanism
@@ -188,30 +202,37 @@ flowchart TB
 
 ## 7. 导航路径汇总表
 
-| 路径 | 页面名称 | 组件文件 |
-|------|----------|----------|
-| `/` | 主页 | `HomePage.vue` |
-| `/settings` | 设置页 | `Settings.vue` |
-| `/extensions` | 插件管理 | `PluginManager.vue` |
-| `/llm-chat` | LLM 对话 | `LlmChat.vue` |
-| `/smart-ocr` | 智能 OCR | `SmartOcr.vue` |
-| `/media-info-reader` | AI作图信息查看器 | `MediaInfoReader.vue` |
-| `/color-picker` | 图片色彩分析 | `ColorPicker.vue` |
-| `/regex-applier` | 正则批量替换 | `RegexApplier.vue` |
-| `/text-diff` | 文本差异对比 | `TextDiff.vue` |
-| `/json-formatter` | JSON 格式化 | `JsonFormatter.vue` |
-| `/code-formatter` | 代码格式化 | `CodeFormatter.vue` |
-| `/asset-manager` | 资产管理器 | `AssetManager.vue` |
-| `/symlink-mover` | 符号链接搬家 | `SymlinkMover.vue` |
-| `/directory-tree` | 目录结构浏览器 | `DirectoryTree.vue` |
-| `/directory-janitor` | 目录清洁工具 | `DirectoryJanitor.vue` |
-| `/api-tester` | API 测试工具 | `ApiTester.vue` |
-| `/llm-proxy` | LLM 代理监听器 | `LlmProxy.vue` |
-| `/git-analyzer` | Git 分析器 | `GitAnalyzer.vue` |
-| `/rich-text-renderer-tester` | 富文本渲染测试 | `RichTextRendererTester.vue` |
-| `/service-monitor` | 服务注册表浏览器 | `ServiceMonitor.vue` |
-| `/token-calculator` | Token 计算器 | `TokenCalculator.vue` |
-| `/component-tester` | 组件测试器 | `ComponentTester.vue` |
+| 路径                    | 页面名称         | 组件文件                  |
+| ----------------------- | ---------------- | ------------------------- |
+| `/`                     | 主页             | `HomePage.vue`            |
+| `/settings`             | 设置页           | `Settings.vue`            |
+| `/extensions`           | 插件管理         | `PluginManager.vue`       |
+| `/llm-chat`             | LLM 对话         | `LlmChat.vue`             |
+| `/smart-ocr`            | 智能 OCR         | `SmartOcr.vue`            |
+| `/media-info-reader`    | AI作图信息查看器 | `MediaInfoReader.vue`     |
+| `/color-picker`         | 图片色彩分析     | `ColorPicker.vue`         |
+| `/media-generator`      | 媒体生成         | `MediaGenerator.vue`      |
+| `/transcription`        | 多模态转写       | `TranscriptionTool.vue`   |
+| `/embedding-playground` | 向量实验室       | `EmbeddingPlayground.vue` |
+| `/regex-applier`        | 正则批量替换     | `RegexApplier.vue`        |
+| `/text-diff`            | 文本差异对比     | `TextDiff.vue`            |
+| `/json-formatter`       | JSON 格式化      | `JsonFormatter.vue`       |
+| `/code-formatter`       | 代码格式化       | `CodeFormatter.vue`       |
+| `/data-filter`          | 数据过滤         | `DataFilter.vue`          |
+| `/asset-manager`        | 资产管理器       | `AssetManager.vue`        |
+| `/symlink-mover`        | 符号链接搬家     | `SymlinkMover.vue`        |
+| `/directory-tree`       | 目录结构浏览器   | `DirectoryTree.vue`       |
+| `/directory-janitor`    | 目录清洁工具     | `DirectoryJanitor.vue`    |
+| `/ffmpeg-tools`         | 媒体处理         | `FFmpegTool.vue`          |
+| `/api-tester`           | API 测试工具     | `ApiTester.vue`           |
+| `/llm-inspector`        | LLM 检查器       | `LlmInspector.vue`        |
+| `/git-analyzer`         | Git 分析器       | `GitAnalyzer.vue`         |
+| `/rich-text-renderer`   | 富文本渲染       | `RichTextRenderer.vue`    |
+| `/service-monitor`      | 服务注册表浏览器 | `ServiceMonitor.vue`      |
+| `/token-calculator`     | Token 计算器     | `TokenCalculator.vue`     |
+| `/component-tester`     | 组件测试器       | `ComponentTester.vue`     |
+| `/vcp-connector`        | VCP 连接器       | `VcpConnector.vue`        |
+| `/st-worldbook-editor`  | 世界书编辑器     | `StWorldbookEditor.vue`   |
 
 ---
 

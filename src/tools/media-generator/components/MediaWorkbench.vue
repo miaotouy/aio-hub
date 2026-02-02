@@ -4,6 +4,7 @@ import { useMediaGenStore } from "../stores/mediaGenStore";
 import ParameterPanel from "./ParameterPanel.vue";
 import GenerationStream from "./GenerationStream.vue";
 import AssetGallery from "./AssetGallery.vue";
+import ModelSelectDialog from "@/components/common/ModelSelectDialog.vue";
 import { ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { useLocalStorage } from "@vueuse/core";
 
@@ -78,6 +79,9 @@ watch(
         <el-icon><ChevronRight v-if="!rightCollapsed" /><ChevronLeft v-else /></el-icon>
       </div>
     </div>
+
+    <!-- 全局弹窗提供者 -->
+    <ModelSelectDialog />
   </div>
 </template>
 

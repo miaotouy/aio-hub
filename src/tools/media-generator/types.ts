@@ -1,5 +1,6 @@
 import type { ChatSession } from "@/tools/llm-chat/types/session";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
+import type { TranslationConfig } from "@/tools/llm-chat/types/settings";
 import type { Asset } from "@/types/asset-management";
 
 /**
@@ -28,6 +29,8 @@ export interface MediaMessage extends ChatMessageNode {
     includeContext?: boolean;
     /** 媒体任务快照 (用于 UI 快速访问，实际状态应通过 store 获取) */
     taskSnapshot?: MediaTask;
+    /** 翻译后的内容 (用于发送给模型的译文) */
+    translatedContent?: string;
   };
   /** 是否被选中作为下一轮的上下文 (用于多选模式) */
   isSelected?: boolean;
@@ -165,6 +168,8 @@ export interface MediaGeneratorSettings {
   leftCollapsed: boolean;
   /** 右侧面板折叠状态 */
   rightCollapsed: boolean;
+  /** 翻译设置 */
+  translation: TranslationConfig;
 }
 
 /**

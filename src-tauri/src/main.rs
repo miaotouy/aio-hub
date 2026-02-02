@@ -17,7 +17,32 @@ struct Args {
 }
 
 fn main() {
+    // 加载 .env 环境变量 (如果存在)
+    dotenvy::dotenv().ok();
+
     let args = Args::parse();
+
+    // 确定数据目录覆盖逻辑
+    // 优先级: 命令行参数 > 环境变量 AIO_DATA_DIR > 环境变量 AIO_ID_SUFFIX (隔离模式)
+    let mut data_dir_override = args.data_dir.clone();
+
+    if data_dir_override.is_none() {
+        if let Ok(env_data_dir) = std::env::var("AIO_DATA_DIR") {
+            if !env_data_dir.is_empty() {
+                data_dir_override = Some(PathBuf::from(env_data_dir));
+            }
+        }
+    }
+
+    if data_dir_override.is_none() {
+        if let Ok(suffix) = std::env::var("AIO_ID_SUFFIX") {
+            if !suffix.is_empty() {
+                let project_root = std::env::current_dir().unwrap_or_default();
+                let dev_data_dir = project_root.join(".dev-data").join(suffix);
+                data_dir_override = Some(dev_data_dir);
+            }
+        }
+    }
 
     // Auto-detect portable mode:
     // 1. Explicit flag --portable
@@ -37,8 +62,8 @@ fn main() {
     let is_portable = args.portable || exe_name.contains("portable") || flag_file_exists;
 
     // Handle portable mode or custom data directory
-    if is_portable || args.data_dir.is_some() {
-        let target_dir = if let Some(dir) = args.data_dir {
+    if is_portable || data_dir_override.is_some() {
+        let target_dir = if let Some(dir) = data_dir_override {
             dir
         } else {
             // Portable mode: use 'data' folder next to executable

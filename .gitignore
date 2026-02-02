@@ -22,6 +22,10 @@ Cargo.lock
 
 # Editor directories and files
 .vscode/*
+
+# Dev isolation data
+.dev-data/
+src-tauri/tauri.conf.dev.json
 !.vscode/extensions.json
 *.code-workspace
 .idea

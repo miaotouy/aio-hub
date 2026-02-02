@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
+import { Languages } from "lucide-vue-next";
 import type { MediaMessage, MediaTask } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
+import { useMediaGenerationManager } from "../../composables/useMediaGenerationManager";
 import MessageHeader from "./MessageHeader.vue";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
+import MessageDataEditor from "./MessageDataEditor.vue";
+import ExportBranchDialog from "./ExportBranchDialog.vue";
 
 interface Props {
   message: MediaMessage;
@@ -28,12 +33,56 @@ const emit = defineEmits<{
 }>();
 
 const store = useMediaGenStore();
-
-// 编辑状态管理
+const modelSelectDialog = useModelSelectDialog();
+const mediaGenManager = useMediaGenerationManager();
+// 弹窗状态管理
 const isEditing = ref(false);
+const isRawEditing = ref(false);
+const isExporting = ref(false);
 
 const handleEdit = () => {
   isEditing.value = true;
+};
+
+const handleEditRaw = () => {
+  isRawEditing.value = true;
+};
+
+const handleToggleEnabled = () => {
+  store.toggleMessageEnabled(props.message.id);
+};
+
+const handleExport = () => {
+  isExporting.value = true;
+};
+
+const handleRetry = async (useNewBranch = true, useNewModel = false) => {
+  let temporaryModel: { profileId: string; modelId: string } | undefined;
+
+  if (useNewModel) {
+    // 如果需要切换模型重试
+    const result = await modelSelectDialog.open();
+
+    if (!result) return;
+    temporaryModel = {
+      profileId: result.profile.id,
+      modelId: result.model.id,
+    };
+  }
+
+  const params = store.getRetryParams(props.message.id, useNewBranch);
+  if (params) {
+    // 如果有临时模型，覆盖参数
+    const finalParams = { ...params } as any;
+    if (temporaryModel) {
+      finalParams.profileId = temporaryModel.profileId;
+      finalParams.modelId = temporaryModel.modelId;
+    }
+
+    // 确定媒体类型
+    const type = props.message.metadata?.taskSnapshot?.type || store.currentConfig.activeType;
+    mediaGenManager.startGeneration(finalParams, type);
+  }
 };
 
 const handleSaveEdit = (newContent: string, attachments?: Asset[]) => {
@@ -89,7 +138,14 @@ defineExpose({
   <div
     ref="messageRef"
     class="chat-message"
-    :class="[`role-${message.role}`, { 'is-selected': isSelected, 'batch-mode': isBatchMode }]"
+    :class="[
+      `role-${message.role}`,
+      {
+        'is-selected': isSelected,
+        'batch-mode': isBatchMode,
+        'is-disabled': message.isEnabled === false,
+      },
+    ]"
     @click="isBatchMode && emit('select')"
   >
     <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
@@ -110,6 +166,16 @@ defineExpose({
     <div class="message-inner">
       <MessageHeader :message="message" />
 
+      <!-- 翻译提示 (如果启用翻译且有译文) -->
+      <div v-if="message.metadata?.translatedContent" class="translation-hint">
+        <el-tooltip :content="message.metadata.translatedContent" placement="top">
+          <div class="translation-badge">
+            <Languages :size="12" class="mr-1" />
+            <span>已自动翻译提示词</span>
+          </div>
+        </el-tooltip>
+      </div>
+
       <MessageContent
         :message="message"
         :is-editing="isEditing"
@@ -126,13 +192,20 @@ defineExpose({
         :siblings="siblings"
         :current-sibling-index="currentSiblingIndex"
         @edit="handleEdit"
+        @edit-raw="handleEditRaw"
+        @toggle-enabled="handleToggleEnabled"
+        @export="handleExport"
         @delete="emit('remove', $event)"
         @download="emit('download', $event)"
-        @retry="emit('retry')"
+        @retry="handleRetry"
         @switch="onSwitchSibling"
         @switch-branch="onSwitchBranch"
       />
     </div>
+
+    <!-- 弹窗组件 -->
+    <MessageDataEditor v-model="isRawEditing" :message-id="message.id" />
+    <ExportBranchDialog v-model="isExporting" :message-id="message.id" />
   </div>
 </template>
 
@@ -143,7 +216,31 @@ defineExpose({
   margin-bottom: 12px;
   padding: 16px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: default;
+}
+
+.chat-message.is-disabled {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
+
+.translation-hint {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.translation-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--el-color-primary);
+  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  padding: 2px 8px;
+  border-radius: 10px;
+  cursor: help;
+}
+
+.mr-1 {
+  margin-right: 4px;
 }
 
 .chat-message.batch-mode {

@@ -23,7 +23,8 @@
     "mobile"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "bun scripts/dev.ts",
+    "vite": "vite",
     "download:libs": "bun scripts/download-libs.ts",
     "build": "bun run download:libs ; cross-env NODE_OPTIONS=--max-old-space-size=8192 vue-tsc --noEmit ; cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "preview": "vite preview",
@@ -163,6 +164,7 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "@vueuse/components": "^14.0.0",
     "cross-env": "^7.0.3",
+    "dotenv": "^17.2.3",
     "fs-extra": "^11.3.2",
     "monaco-editor-nls": "^3.1.0",
     "sass-embedded": "^1.93.3",

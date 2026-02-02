@@ -2,7 +2,7 @@
 
 本文档详细展示 LLM Chat 工具的完整UI结构，包括内部组件和外部依赖关系。
 
-> **注意**: LLM Chat 是整个应用中最复杂的工具模块，包含 60+ 个组件文件，大量使用了独立的 `rich-text-renderer` 模块和通用组件库。
+> **注意**: LLM Chat 是整个应用中最复杂的工具模块，包含 90+ 个组件文件，大量使用了独立的 `rich-text-renderer` 模块和通用组件库。
 
 ---
 
@@ -25,6 +25,7 @@ flowchart TB
             subgraph MessageView["消息视图"]
                 MessageList["MessageList"]
                 FlowTreeGraph["FlowTreeGraph<br/>对话树图"]
+                ChatSearchPanel["ChatSearchPanel<br/>搜索面板"]
             end
 
             subgraph MessageComponents["消息组件"]
@@ -41,6 +42,7 @@ flowchart TB
                 MessageInput["MessageInput"]
                 MessageInputToolbar["MessageInputToolbar"]
                 MiniSessionList["MiniSessionList"]
+                QuickActionSelector["QuickActionSelector"]
             end
 
             MessageNavigator["MessageNavigator<br/>消息导航"]
@@ -57,12 +59,18 @@ flowchart TB
             EditAgentDialog["EditAgentDialog"]
             ImportAgentDialog["ImportAgentDialog"]
             STPresetImportDialog["STPresetImportDialog"]
+            AgentAssetsDialog["AgentAssetsDialog"]
         end
 
         subgraph SettingsDialogs["设置相关"]
             ChatSettingsDialog["ChatSettingsDialog"]
             EditUserProfileDialog["EditUserProfileDialog"]
             ChatRegexHelpDialog["ChatRegexHelpDialog"]
+        end
+
+        subgraph FeatureDialogs["功能管理"]
+            WorldbookManagerDialog["WorldbookManagerDialog"]
+            QuickActionManagerDialog["QuickActionManagerDialog"]
         end
 
         subgraph ExportDialogs["导入导出"]
@@ -83,18 +91,43 @@ flowchart TB
     end
 
     subgraph AgentEditorComponents["🤖 智能体编辑器"]
-        AgentPresetEditor["AgentPresetEditor"]
-        PresetMessageEditor["PresetMessageEditor"]
-        ModelParametersEditor["ModelParametersEditor"]
-        MacroSelector["MacroSelector"]
+        AgentEditor["AgentEditor<br/>(分段式编辑器)"]
 
-        subgraph ParamPanels["参数面板"]
+        subgraph AgentSections["编辑器分段 (sections/)"]
+            BasicInfoSection["BasicInfoSection"]
+            PersonalitySection["PersonalitySection"]
+            CapabilitiesSection["CapabilitiesSection"]
+            OutputDisplaySection["OutputDisplaySection"]
+        end
+
+        subgraph AgentSubEditors["子编辑器"]
+            AgentPresetEditor["AgentPresetEditor"]
+            ModelParametersEditor["ModelParametersEditor"]
+            WorldbookSelector["WorldbookSelector"]
+            QuickActionSelector2["QuickActionSelector"]
+            AgentAssetsManager2["AgentAssetsManager"]
+        end
+
+        subgraph ParamPanels["参数面板 (parameters/)"]
             ContextCompressionConfigPanel["ContextCompressionConfigPanel"]
             SafetySettingsPanel["SafetySettingsPanel"]
             PostProcessingPanel["PostProcessingPanel"]
             CustomParamsPanel["CustomParamsPanel"]
             ContextStatsCard["ContextStatsCard"]
         end
+    end
+
+    subgraph WorldbookComponents["📖 世界书系统"]
+        WorldbookManager["WorldbookManager"]
+        WorldbookOverview["WorldbookOverview"]
+        WorldbookDetail["WorldbookDetail"]
+        WorldbookSelector2["WorldbookSelector"]
+    end
+
+    subgraph QuickActionComponents["⚡ 快捷动作系统"]
+        QuickActionSelector["QuickActionSelector"]
+        QuickActionManagerDialog["QuickActionManagerDialog"]
+        QuickActionFullManager["QuickActionFullManager"]
     end
 
     subgraph ContextAnalyzerViews["🔍 上下文分析视图"]
@@ -152,18 +185,28 @@ flowchart TB
     ChatArea --> EditUserProfileDialog
     ChatArea --> ChatSettingsDialog
 
-    EditAgentDialog --> AgentPresetEditor
-    EditAgentDialog --> ModelParametersEditor
-    EditAgentDialog --> MacroSelector
-    EditAgentDialog --> EditUserProfileDialog
+    EditAgentDialog --> AgentEditor
+    AgentEditor --> AgentSections
+    AgentEditor --> AgentSubEditors
+    AgentEditor --> AgentAssetsDialog
+    AgentEditor --> WorldbookManagerDialog
+    AgentEditor --> EditUserProfileDialog
+
+    AgentSubEditors --> AgentPresetEditor
+    AgentSubEditors --> ModelParametersEditor
+    AgentSubEditors --> AgentAssetsManager2
     AgentPresetEditor --> PresetMessageEditor
     AgentPresetEditor --> MacroSelector
 
-    ModelParametersEditor --> ContextCompressionConfigPanel
-    ModelParametersEditor --> SafetySettingsPanel
-    ModelParametersEditor --> PostProcessingPanel
-    ModelParametersEditor --> CustomParamsPanel
-    ModelParametersEditor --> ContextStatsCard
+    ModelParametersEditor --> ParamPanels
+    ParamPanels --> ContextCompressionConfigPanel
+    ParamPanels --> SafetySettingsPanel
+    ParamPanels --> PostProcessingPanel
+    ParamPanels --> CustomParamsPanel
+    ParamPanels --> ContextStatsCard
+
+    MessageInput --> QuickActionSelector
+    QuickActionSelector --> QuickActionManagerDialog
 
     ContextAnalyzerDialog --> StructuredView
     ContextAnalyzerDialog --> RawRequestView
@@ -216,8 +259,8 @@ flowchart LR
         LlmRequest["useLlmRequest<br/>LLM请求"]
         UnifiedPipeline["Unified Pipeline<br/>统一上下文管道"]
         RegexProcessor["正则处理器"]
-        TranscriptionProcessor["转写处理器"]
         MacroProcessor["宏处理器"]
+        TranscriptionManager["useTranscriptionManager<br/>(对接转写工具)"]
     end
 
     subgraph Rendering["渲染层"]
@@ -326,21 +369,48 @@ flowchart TB
 
 ## 4. 智能体管理组件 (agent/)
 
-智能体编辑器包含复杂的配置界面：
+智能体管理已重构为高度模块化的分段式编辑器：
 
 ```mermaid
 flowchart TB
-    subgraph AgentComponents["🤖 智能体组件"]
-        CreateAgentDialog["CreateAgentDialog<br/>创建智能体"]
-        EditAgentDialog2["EditAgentDialog<br/>编辑智能体"]
-        STPresetImportDialog["STPresetImportDialog<br/>SillyTavern导入"]
+    subgraph AgentDialogs["🤖 智能体对话框"]
+        CreateAgentDialog["CreateAgentDialog"]
+        EditAgentDialog["EditAgentDialog"]
+        STPresetImportDialog["STPresetImportDialog"]
+        AgentAssetsDialog["AgentAssetsDialog"]
+        AgentUpgradeDialog["AgentUpgradeDialog"]
     end
 
-    EditAgentDialog2 --> AgentPresetEditor["AgentPresetEditor.vue<br/>预设消息编辑器"]
-    EditAgentDialog2 --> ModelParametersEditor["ModelParametersEditor.vue<br/>模型参数编辑器"]
-    EditAgentDialog2 --> MacroSelector["MacroSelector.vue<br/>宏选择器"]
+    EditAgentDialog --> AgentEditor["AgentEditor.vue<br/>(核心容器)"]
 
-    subgraph ParamPanels["参数子面板 (parameters/)"]
+    subgraph AgentEditorInternal["编辑器内部结构"]
+        direction TB
+        SearchConfig["搜索配置项"]
+        SidebarNav["侧边栏导航"]
+
+        subgraph Sections["sections/ (内容分段)"]
+            BasicInfoSection["BasicInfoSection.vue"]
+            PersonalitySection["PersonalitySection.vue"]
+            CapabilitiesSection["CapabilitiesSection.vue"]
+            OutputDisplaySection["OutputDisplaySection.vue"]
+        end
+    end
+
+    AgentEditor --> SearchConfig
+    AgentEditor --> SidebarNav
+    AgentEditor --> Sections
+
+    subgraph SubEditors["子编辑器组件"]
+        AgentPresetEditor["AgentPresetEditor.vue"]
+        ModelParametersEditor["ModelParametersEditor.vue"]
+        WorldbookSelector["WorldbookSelector.vue"]
+        QuickActionSelector["QuickActionSelector.vue"]
+        AgentAssetsManager["AgentAssetsManager.vue"]
+    end
+
+    Sections --> SubEditors
+
+    subgraph ParamPanels["parameters/ (参数面板)"]
         ContextStatsCard["ContextStatsCard.vue"]
         ContextCompressionConfigPanel["ContextCompressionConfigPanel.vue"]
         SafetySettingsPanel["SafetySettingsPanel.vue"]
@@ -349,16 +419,6 @@ flowchart TB
     end
 
     ModelParametersEditor --> ParamPanels
-    ModelParametersEditor --> ParameterItem["ParameterItem.vue"]
-
-    subgraph RichTextEditors["样式编辑器 (引用 rich-text-renderer)"]
-        LlmThinkRulesEditor["LlmThinkRulesEditor.vue<br/>思考规则编辑"]
-        MarkdownStyleEditor["MarkdownStyleEditor.vue<br/>Markdown样式编辑"]
-    end
-
-    EditAgentDialog2 --> RichTextEditors
-    AgentPresetEditor --> PresetMessageEditor["PresetMessageEditor.vue<br/>预设消息编辑"]
-    AgentPresetEditor --> MacroSelector["MacroSelector.vue<br/>宏选择器"]
 ```
 
 ---
@@ -506,13 +566,17 @@ flowchart TB
         useLlmChatStore["useLlmChatStore"]
         useAgentStore["useAgentStore"]
         useUserProfileStore["useUserProfileStore"]
+        useWorldbookStore["useWorldbookStore"]
+        useQuickActionStore["useQuickActionStore"]
         useLlmChatSync["useLlmChatSync"]
         useLlmChatUiState["useLlmChatUiState"]
         useChatSettings["useChatSettings"]
         useAttachmentManager["useAttachmentManager"]
         useContextCompressor["useContextCompressor"]
         useTranslation["useTranslation"]
-        useTranscriptionManager["useTranscriptionManager"]
+        useTranscriptionManager["useTranscriptionManager<br/>(附件转写)"]
+        useLlmSearch["useLlmSearch"]
+        useExportManager["useExportManager"]
     end
 
     subgraph External["外部 Composables (composables/)"]
@@ -535,91 +599,176 @@ flowchart TB
 
 ```
 components/
-├── ChatArea.vue                    # 核心对话区域
-├── AttachmentCard.vue              # 附件卡片
+├── ChatArea.vue # 核心对话区域
+├── AttachmentCard.vue # 附件卡片
 │
-├── agent/                          # 智能体管理
-│   ├── AgentPresetEditor.vue
-│   ├── CreateAgentDialog.vue
-│   ├── EditAgentDialog.vue
-│   ├── MacroSelector.vue
-│   ├── ModelParametersEditor.vue
-│   ├── ParameterItem.vue
-│   ├── PresetMessageEditor.vue
-│   ├── STPresetImportDialog.vue
-│   └── parameters/                 # 参数子面板 (新增)
-│       ├── ContextCompressionConfigPanel.vue
-│       ├── ContextStatsCard.vue
-│       ├── CustomParamsPanel.vue
-│       ├── PostProcessingPanel.vue
-│       └── SafetySettingsPanel.vue
+├── agent/ # 智能体管理
+│ ├── AgentAssetsDialog.vue
+│ ├── AgentAssetsManager.vue # 资产管理器 (新增)
+│ ├── AgentPresetBatchDialog.vue
+│ ├── AgentPresetEditor.vue
+│ ├── AgentUpgradeDialog.vue # 升级对话框 (新增)
+│ ├── CreateAgentDialog.vue
+│ ├── EditAgentDialog.vue
+│ ├── MacroSelector.vue
+│ ├── MiniAgentList.vue
+│ ├── ModelParametersEditor.vue
+│ ├── ParameterItem.vue
+│ ├── PresetMessageEditor.vue
+│ ├── STPresetImportDialog.vue
+│ ├── agent-editor/ # 分段式编辑器 (重构)
+│ │ ├── AgentEditor.vue
+│ │ ├── agentEditConfig.ts
+│ │ └── sections/
+│ │ ├── BasicInfoSection.vue
+│ │ ├── CapabilitiesSection.vue
+│ │ ├── OutputDisplaySection.vue
+│ │ └── PersonalitySection.vue
+│ └── parameters/ # 参数子面板
+│ ├── ContextCompressionConfigPanel.vue
+│ ├── ContextStatsCard.vue
+│ ├── CustomParamsPanel.vue
+│ ├── PostProcessingPanel.vue
+│ └── SafetySettingsPanel.vue
 │
-├── common/                         # 模块内通用 (新增)
-│   ├── ChatRegexEditor.vue
-│   ├── ChatRegexHelpDialog.vue
-│   ├── ChatRegexRuleForm.vue
-│   └── ConfigSection.vue
+├── common/ # 模块内通用
+│ ├── ChatRegexEditor.vue
+│ ├── ChatRegexHelpDialog.vue
+│ ├── ChatRegexRuleForm.vue
+│ └── ConfigSection.vue
 │
-├── context-analyzer/               # 上下文分析
-│   ├── AnalysisChartView.vue
-│   ├── ContextAnalyzerDialog.vue
-│   ├── MacroDebugView.vue
-│   ├── RawRequestView.vue
-│   └── StructuredView.vue
+├── context-analyzer/ # 上下文分析
+│ ├── AnalysisChartView.vue
+│ ├── ContextAnalyzerDialog.vue
+│ ├── MacroDebugView.vue
+│ ├── RawRequestView.vue
+│ └── StructuredView.vue
 │
-├── conversation-tree-graph/        # 对话树图
-│   ├── ContextMenu.vue
-│   └── flow/
-│       ├── FlowTreeGraph.vue
-│       └── components/
-│           ├── CustomConnectionLine.vue
-│           ├── GraphNode.vue
-│           ├── GraphNodeContent.vue
-│           ├── GraphNodeDetailPopup.vue
-│           ├── GraphNodeMenubar.vue
-│           ├── GraphUsageGuideDialog.vue
-│           └── HistoryPanel.vue
+├── conversation-tree-graph/ # 对话树图
+│ ├── ContextMenu.vue
+│ └── flow/
+│ ├── FlowTreeGraph.vue
+│ └── components/
+│ ├── CustomConnectionLine.vue
+│ ├── GraphNode.vue
+│ ├── GraphNodeContent.vue
+│ ├── GraphNodeDetailPopup.vue
+│ ├── GraphNodeMenubar.vue
+│ ├── GraphUsageGuideDialog.vue
+│ └── HistoryPanel.vue
 │
-├── export/                         # 导入导出
-│   ├── ExportAgentDialog.vue
-│   ├── ExportBranchDialog.vue
-│   ├── ExportSessionDialog.vue
-│   └── ImportAgentDialog.vue
+├── export/ # 导入导出
+│ ├── ExportAgentDialog.vue
+│ ├── ExportBranchDialog.vue
+│ ├── ExportOptionsPanel.vue
+│ ├── ExportPreviewSection.vue
+│ ├── ExportSessionDialog.vue
+│ └── ImportAgentDialog.vue
 │
-├── message/                        # 消息组件
-│   ├── BranchSelector.vue
-│   ├── ChatMessage.vue
-│   ├── CompressionMessage.vue      # 压缩节点 (新增)
-│   ├── MessageContent.vue
-│   ├── MessageDataEditor.vue       # 数据编辑器 (新增)
-│   ├── MessageHeader.vue
-│   ├── MessageList.vue
-│   ├── MessageMenubar.vue
-│   ├── MessageNavigator.vue
-│   └── ViewModeSwitcher.vue
+├── message/ # 消息组件
+│ ├── BranchSelector.vue
+│ ├── ChatMessage.vue
+│ ├── CompressionMessage.vue # 压缩节点
+│ ├── MessageContent.vue
+│ ├── MessageDataEditor.vue # 数据编辑器
+│ ├── MessageHeader.vue
+│ ├── MessageList.vue
+│ ├── MessageMenubar.vue
+│ ├── MessageNavigator.vue
+│ └── ViewModeSwitcher.vue
 │
-├── message-input/                  # 消息输入
-│   ├── MessageInput.vue
-│   ├── MessageInputToolbar.vue     # 工具栏 (新增)
-│   └── MiniSessionList.vue         # 迷你列表 (新增)
+├── message-input/ # 消息输入
+│ ├── ChatCodeMirrorEditor.vue # CodeMirror 编辑器 (新增)
+│ ├── MessageInput.vue
+│ ├── MessageInputAttachments.vue # 附件管理 (新增)
+│ ├── MessageInputToolbar.vue # 工具栏
+│ └── MiniSessionList.vue # 迷你列表
 │
-├── settings/                       # 设置
-│   ├── ChatSettingsDialog.vue
-│   ├── PipelineConfig.vue          # 管道配置 (新增)
-│   ├── PromptEditor.vue            # 提示词编辑器 (新增)
-│   ├── SettingItemRenderer.vue     # 配置渲染器 (新增)
-│   ├── settings-types.ts           # 设置类型定义
-│   └── settingsConfig.ts
+├── quick-action/ # 快捷动作系统 (新增)
+│ ├── QuickActionDetail.vue
+│ ├── QuickActionFullManager.vue
+│ ├── QuickActionManagerDialog.vue
+│ └── QuickActionSelector.vue
 │
-├── sidebar/                        # 侧边栏
-│   ├── AgentListItem.vue
-│   ├── AgentsSidebar.vue
-│   ├── LeftSidebar.vue
-│   ├── ParametersSidebar.vue
-│   └── SessionsSidebar.vue
+├── search/ # 聊天搜索 (新增)
+│ └── ChatSearchPanel.vue
 │
-└── user-profile/                   # 用户档案
-    └── EditUserProfileDialog.vue
+├── settings/ # 设置
+│ ├── ChatSettingsDialog.vue
+│ ├── PipelineConfig.vue # 管道配置
+│ ├── settings-types.ts
+│ └── settingsConfig.ts
+│
+├── sidebar/ # 侧边栏
+│ ├── AgentListItem.vue
+│ ├── AgentsSidebar.vue
+│ ├── LeftSidebar.vue
+│ ├── ParametersSidebar.vue
+│ └── SessionsSidebar.vue
+│
+├── user-profile/ # 用户档案
+│ └── EditUserProfileDialog.vue
+│
+└── worldbook/ # 世界书系统 (新增)
+├── WorldbookDetail.vue
+├── WorldbookFullManager.vue
+├── WorldbookManager.vue
+├── WorldbookManagerDialog.vue
+├── WorldbookOverview.vue
+└── WorldbookSelector.vue
+
 ```
 
-**总计: 60+ 个组件文件**
+### llm-chat/composables/ 目录结构
+
+```
+
+composables/
+├── chat/
+│ ├── useChatExecutor.ts
+│ ├── useChatHandler.ts
+│ ├── useChatResponseHandler.ts
+│ ├── useLlmChatSync.ts
+│ ├── useLlmSearch.ts # 聊天搜索逻辑
+│ ├── useTopicNamer.ts
+│ └── useTranslation.ts
+├── features/
+│ ├── useAttachmentManager.ts # 附件管理逻辑
+│ ├── useChatContextStats.ts
+│ ├── useContextCompressor.ts
+│ ├── useExportManager.ts # 导入导出逻辑
+│ └── useTranscriptionManager.ts
+├── input/
+│ ├── useChatInputManager.ts
+│ ├── useChatInputTokenPreview.ts
+│ ├── useMessageInputActions.ts
+│ └── useMessageInputResize.ts
+├── session/
+│ ├── useBranchManager.ts
+│ ├── useNodeManager.ts
+│ ├── useSessionManager.ts
+│ └── useSessionNodeHistory.ts
+├── settings/
+│ ├── useChatSettings.ts
+│ └── usePluginSettings.ts
+├── storage/
+│ ├── useAgentStorageSeparated.ts
+│ ├── useChatStorageSeparated.ts
+│ ├── useQuickActionStorage.ts
+│ ├── useUserProfileStorage.ts
+│ └── useWorldbookStorageSeparated.ts
+├── ui/
+│ ├── useAnchorRegistry.ts
+│ ├── useDetachedChatArea.ts
+│ ├── useDetachedChatInput.ts
+│ ├── useLlmChatStateConsumer.ts
+│ ├── useLlmChatUiState.ts
+│ └── useResolvedAvatar.ts
+└── visualization/
+├── useContextChart.ts
+├── useFlowTreeGraph.ts
+└── useGraphActions.ts
+
+```
+
+**总计: 90+ 个组件文件, 30+ 个 Composables**

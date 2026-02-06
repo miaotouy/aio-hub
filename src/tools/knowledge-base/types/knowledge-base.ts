@@ -19,6 +19,8 @@ export interface VectorizationMeta {
   provider: string;
   /** 向量维度 */
   dimension: number;
+  /** 累计消耗 Token 数 */
+  totalTokens?: number;
 }
 
 /**
@@ -39,6 +41,8 @@ export interface CaiuIndexItem {
   contentHash?: string;
   /** 已向量化的模型列表 */
   vectorizedModels: string[];
+  /** 累计消耗 Token 数 */
+  totalTokens?: number;
 }
 
 /**
@@ -110,6 +114,8 @@ export interface KnowledgeBaseIndex {
   description: string | null;
   entryCount: number;
   updatedAt: number;
+  /** 累计消耗 Token 数 */
+  totalTokens?: number;
   /** 是否已建立索引 */
   isIndexed: boolean;
   /** 存储路径 */

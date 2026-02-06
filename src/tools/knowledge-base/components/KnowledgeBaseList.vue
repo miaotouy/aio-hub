@@ -225,6 +225,12 @@ const handleClone = (id: string) => {
 const handleExport = (id: string) => {
   exportBase(id);
 };
+
+const formatTokens = (num: number) => {
+  if (num < 1000) return num.toString();
+  if (num < 1000000) return (num / 1000).toFixed(1) + "k";
+  return (num / 1000000).toFixed(1) + "m";
+};
 </script>
 
 <template>
@@ -379,7 +385,12 @@ const handleExport = (id: string) => {
             <div class="name">{{ base.name }}</div>
           </div>
           <div class="description" v-if="base.description">{{ base.description }}</div>
-          <div class="meta">{{ base.entryCount }} 条目</div>
+          <div class="meta">
+            {{ base.entryCount }} 条目
+            <template v-if="base.totalTokens">
+              · {{ formatTokens(base.totalTokens) }} Tokens
+            </template>
+          </div>
         </div>
 
         <!-- 条目操作菜单 -->

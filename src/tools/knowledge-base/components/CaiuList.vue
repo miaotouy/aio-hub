@@ -247,6 +247,12 @@ const handleRefresh = async () => {
   }
 };
 
+const formatTokens = (num: number) => {
+  if (num < 1000) return num.toString();
+  if (num < 1000000) return (num / 1000).toFixed(1) + "k";
+  return (num / 1000000).toFixed(1) + "m";
+};
+
 const handleSelect = (id: string) => {
   if (props.isSelectionMode) {
     const newSelected = new Set(props.selectedEntryIds);
@@ -442,10 +448,17 @@ const handleSelect = (id: string) => {
                     class="vector-icon"
                     :class="[
                       getEntryVectorStatus(entryList[virtualItem.index]),
-                      { 'is-spinning': getEntryVectorStatus(entryList[virtualItem.index]) === 'pending' },
+                      {
+                        'is-spinning':
+                          getEntryVectorStatus(entryList[virtualItem.index]) === 'pending',
+                      },
                     ]"
                   />
                 </el-tooltip>
+                <template v-if="entryList[virtualItem.index].totalTokens">
+                  <Coins :size="12" />
+                  <span>{{ formatTokens(entryList[virtualItem.index].totalTokens) }}</span>
+                </template>
                 <Clock :size="12" />
                 <span>{{
                   new Date(entryList[virtualItem.index].updatedAt).toLocaleDateString()

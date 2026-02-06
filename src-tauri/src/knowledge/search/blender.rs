@@ -2,8 +2,8 @@ use crate::knowledge::core::{
     QueryPayload, RetrievalContext, RetrievalEngine, RetrievalEngineInfo, SearchFilters,
     SearchResult,
 };
-use crate::knowledge::tag_pool::ModelTagPool;
 use crate::knowledge::search::vector::cosine_similarity;
+use crate::knowledge::tag_pool::ModelTagPool;
 use crate::knowledge::tag_sea::TagSea;
 use crate::knowledge::utils::{project_onto, projection_coeff, vec_norm_sq, vec_subtract};
 use jieba_rs::Jieba;
@@ -62,10 +62,9 @@ impl BlenderRetrievalEngine {
             let mut layer_residual_reduction = vec![0.0; residual.len()];
 
             for (tag_idx, similarity) in neighbors {
-                if let (Some(tag_vec), Some(tag_name)) = (
-                    tag_pool.get_vector(tag_idx),
-                    tag_pool.get_tag_name(tag_idx),
-                ) {
+                if let (Some(tag_vec), Some(tag_name)) =
+                    (tag_pool.get_vector(tag_idx), tag_pool.get_tag_name(tag_idx))
+                {
                     let coeff = projection_coeff(&residual, tag_vec);
                     let weight = coeff.abs() * similarity * layer_decay.powi(layer as i32);
 
@@ -212,10 +211,11 @@ impl RetrievalEngine for BlenderRetrievalEngine {
 
             // 检查模型并按需加载向量
             if base.vector_store.model_id != *model && !model.is_empty() {
-                if let Ok(Some((vectors, dimension))) =
+                if let Ok(Some((vectors, dimension, total_tokens))) =
                     crate::knowledge::ops::load_vectors_to_vec(&context.app_data_dir, *kb_id, model)
                 {
-                    base.vector_store.rebuild(model.clone(), dimension, vectors);
+                    base.vector_store
+                        .rebuild(model.clone(), dimension, total_tokens, vectors);
                 }
             }
 
@@ -249,7 +249,10 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                 use rayon::prelude::*;
 
                 let avg_doc_len = if !base.entries.is_empty() {
-                    base.entries.values().map(|e| e.content.len()).sum::<usize>() as f32
+                    base.entries
+                        .values()
+                        .map(|e| e.content.len())
+                        .sum::<usize>() as f32
                         / base.entries.len() as f32
                 } else {
                     500.0
@@ -269,7 +272,8 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                         let stored_vec = &base.vector_store.data[start..end];
                         let sim = cosine_similarity(query_vector, stored_vec);
 
-                        let doc_len = base.entries.get(id).map(|e| e.content.len()).unwrap_or(0) as f32;
+                        let doc_len =
+                            base.entries.get(id).map(|e| e.content.len()).unwrap_or(0) as f32;
                         let l_factor = 1.0 - b + b * (doc_len / avg_doc_len);
                         let adjusted_score = (sim * (k1 + 1.0)) / (sim + k1 * l_factor);
 
@@ -286,7 +290,8 @@ impl RetrievalEngine for BlenderRetrievalEngine {
             let mut gravitational_scores: HashMap<Uuid, f32> = HashMap::new();
             if let Some(ref pool) = tag_pool {
                 // Phase 2: 残差挖掘
-                let activated_tags = self.residual_mining(query_vector, pool, max_layers, layer_decay);
+                let activated_tags =
+                    self.residual_mining(query_vector, pool, max_layers, layer_decay);
 
                 // 标签->条目映射 (TagSea)
                 let tag_sea = TagSea::build(&base, pool.clone());
@@ -306,7 +311,8 @@ impl RetrievalEngine for BlenderRetrievalEngine {
             }
 
             // --- Phase 3: 蛛网共振 ---
-            let mut candidates: std::collections::HashSet<Uuid> = literal_scores.keys().cloned().collect();
+            let mut candidates: std::collections::HashSet<Uuid> =
+                literal_scores.keys().cloned().collect();
             candidates.extend(semantic_scores.keys().cloned());
             candidates.extend(gravitational_scores.keys().cloned());
 
@@ -328,9 +334,21 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                 w_gravity = 0.45;
             }
 
-            let max_literal = literal_scores.values().cloned().fold(0.0f32, f32::max).max(1e-10);
-            let max_semantic = semantic_scores.values().cloned().fold(0.0f32, f32::max).max(1e-10);
-            let max_gravity = gravitational_scores.values().cloned().fold(0.0f32, f32::max).max(1e-10);
+            let max_literal = literal_scores
+                .values()
+                .cloned()
+                .fold(0.0f32, f32::max)
+                .max(1e-10);
+            let max_semantic = semantic_scores
+                .values()
+                .cloned()
+                .fold(0.0f32, f32::max)
+                .max(1e-10);
+            let max_gravity = gravitational_scores
+                .values()
+                .cloned()
+                .fold(0.0f32, f32::max)
+                .max(1e-10);
 
             let mut kb_results = Vec::new();
             for id in candidates {
@@ -348,9 +366,15 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                 let g_score = gravitational_scores.get(&id).copied().unwrap_or(0.0);
 
                 let mut activation_count = 0;
-                if l_score > 0.0 { activation_count += 1; }
-                if s_score > 0.3 { activation_count += 1; }
-                if g_score > 0.0 { activation_count += 1; }
+                if l_score > 0.0 {
+                    activation_count += 1;
+                }
+                if s_score > 0.3 {
+                    activation_count += 1;
+                }
+                if g_score > 0.0 {
+                    activation_count += 1;
+                }
 
                 let resonance_boost = match activation_count {
                     3 => 1.3,
@@ -359,7 +383,9 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                     _ => 0.0,
                 };
 
-                if resonance_boost <= 0.0 { continue; }
+                if resonance_boost <= 0.0 {
+                    continue;
+                }
 
                 let norm_literal = l_score / max_literal;
                 let norm_semantic = s_score / max_semantic;
@@ -367,11 +393,11 @@ impl RetrievalEngine for BlenderRetrievalEngine {
 
                 let priority_boost = (caiu.priority as f32 / 100.0).log10().max(0.0) * 0.1;
 
-                let final_score = (
-                    w_literal * norm_literal +
-                    w_semantic * norm_semantic +
-                    w_gravity * norm_gravity
-                ) * resonance_boost * (1.0 + priority_boost);
+                let final_score = (w_literal * norm_literal
+                    + w_semantic * norm_semantic
+                    + w_gravity * norm_gravity)
+                    * resonance_boost
+                    * (1.0 + priority_boost);
 
                 kb_results.push(SearchResult {
                     caiu: caiu.clone(),
@@ -384,8 +410,17 @@ impl RetrievalEngine for BlenderRetrievalEngine {
             }
 
             // 库级别截断
-            kb_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-            let kb_search_top_k = base.meta.config.get("searchTopK").and_then(|v| v.as_u64()).map(|v| v as usize);
+            kb_results.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let kb_search_top_k = base
+                .meta
+                .config
+                .get("searchTopK")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize);
             if let Some(k) = kb_search_top_k {
                 kb_results.truncate(k);
             }
@@ -393,7 +428,11 @@ impl RetrievalEngine for BlenderRetrievalEngine {
         }
 
         // --- Phase 4: 坍缩输出 ---
-        all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        all_results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         if !all_results.is_empty() {
             let max_score = all_results[0].score;
@@ -457,10 +496,10 @@ mod tests {
 
         let resonance_boost = 1.3;
         let score_sum = 0.8; // w*norm 累加值
-        
+
         let priority_boost = (caiu.priority as f32 / 100.0).log10().max(0.0) * 0.1;
         let final_score = score_sum * resonance_boost * (1.0 + priority_boost);
-        
+
         assert!(final_score > score_sum * resonance_boost);
         println!("Final score with priority boost: {}", final_score);
     }

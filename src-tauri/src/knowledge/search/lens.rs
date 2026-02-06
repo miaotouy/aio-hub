@@ -183,16 +183,18 @@ impl RetrievalEngine for LensRetrievalEngine {
                     model
                 );
 
-                if let Ok(Some((vectors, dimension))) =
+                if let Ok(Some((vectors, dimension, total_tokens))) =
                     crate::knowledge::ops::load_vectors_to_vec(&context.app_data_dir, *kb_id, model)
                 {
                     log::info!(
-                        "[LENS_SEARCH] 按需加载条目向量成功: kb={}, count={}, dim={}",
+                        "[LENS_SEARCH] 按需加载条目向量成功: kb={}, count={}, dim={}, tokens={}",
                         kb_id,
                         vectors.len(),
-                        dimension
+                        dimension,
+                        total_tokens
                     );
-                    base.vector_store.rebuild(model.clone(), dimension, vectors);
+                    base.vector_store
+                        .rebuild(model.clone(), dimension, total_tokens, vectors);
                 } else {
                     log::debug!(
                         "[LENS_SEARCH] 磁盘未发现条目匹配向量，但透镜检索将继续使用标签关联: kb={}, target={}",

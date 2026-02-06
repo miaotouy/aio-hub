@@ -15,6 +15,7 @@ pub struct LibraryStats {
     pub total_bases: usize,
     pub total_entries: usize,
     pub vectorized_entries: usize,
+    pub total_tokens: usize,
     pub all_discovered_tags: Vec<String>,
     pub tag_usage_stats: std::collections::HashMap<String, usize>,
     pub bases_stats: std::collections::HashMap<String, BaseVectorStats>,
@@ -32,6 +33,7 @@ pub async fn kb_get_library_stats(
 
     let mut total_entries = 0;
     let mut vectorized_entries = 0;
+    let mut total_tokens = 0;
     let mut all_tags_set = std::collections::HashSet::new();
     let mut tag_usage_stats = std::collections::HashMap::new();
     let mut bases_stats = std::collections::HashMap::new();
@@ -59,6 +61,8 @@ pub async fn kb_get_library_stats(
         }
 
         total_entries += kb_total;
+        total_tokens += base.vector_store.total_tokens;
+
         bases_stats.insert(
             kb_id_str,
             BaseVectorStats {
@@ -72,17 +76,19 @@ pub async fn kb_get_library_stats(
     all_discovered_tags.sort();
 
     log::info!(
-        "[KB_STATS] 统计完成: {} 个知识库, {} 个条目, {} 个已向量化条目, {} 个标签",
+        "[KB_STATS] 统计完成: {} 个知识库, {} 个条目, {} 个已向量化条目, {} 个标签, 总 tokens: {}",
         kb_count,
         total_entries,
         vectorized_entries,
-        all_discovered_tags.len()
+        all_discovered_tags.len(),
+        total_tokens
     );
 
     Ok(LibraryStats {
         total_bases: imdb.bases.len(),
         total_entries,
         vectorized_entries,
+        total_tokens,
         all_discovered_tags,
         tag_usage_stats,
         bases_stats,

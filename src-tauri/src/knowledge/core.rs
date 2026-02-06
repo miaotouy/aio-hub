@@ -48,6 +48,8 @@ pub struct KnowledgeBaseIndex {
     pub entry_count: usize,
     pub last_updated: i64,
     pub path: String, // 相对路径
+    #[serde(default)]
+    pub total_tokens: u64,
 
     // 运行时状态 (不序列化到 JSON)
     #[serde(skip)]
@@ -76,6 +78,8 @@ pub struct VectorizationMeta {
     pub model_used: String,
     #[serde(default)]
     pub dimension: usize,
+    #[serde(default)]
+    pub total_tokens: u64,
 }
 
 /// 知识库元数据
@@ -123,6 +127,8 @@ pub struct CaiuIndexItem {
     /// 已向量化的模型列表
     #[serde(default)]
     pub vectorized_models: Vec<String>,
+    #[serde(default)]
+    pub total_tokens: u32,
 }
 
 /// 带权重的标签
@@ -200,6 +206,7 @@ impl Caiu {
         &self,
         vector_status: String,
         vectorized_models: Vec<String>,
+        total_tokens: u32,
     ) -> CaiuIndexItem {
         CaiuIndexItem {
             id: self.id,
@@ -211,6 +218,7 @@ impl Caiu {
             vector_status,
             content_hash: self.content_hash.clone(),
             vectorized_models,
+            total_tokens,
         }
     }
 }
@@ -398,6 +406,7 @@ mod tests {
                 entry_count: 0,
                 last_updated: 1706600000,
                 path: "bases/test_base.json".to_string(),
+                total_tokens: 0,
                 is_loaded: false,
                 is_vectorized: false,
             }],
@@ -430,6 +439,7 @@ mod tests {
                     last_indexed_at: None,
                     model_used: "".to_string(),
                     dimension: 0,
+                    total_tokens: 0,
                 },
                 models: vec![],
                 tags: vec!["personal".to_string()],

@@ -73,6 +73,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
     globalStats: {
       totalEntries: 0,
       vectorizedEntries: 0,
+      totalTokens: 0,
       totalTags: 0,
       vectorizedTags: 0,
       tagPoolSize: 0,
@@ -282,6 +283,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
       if (idx !== -1) {
         this.workspace.bases[idx].entryCount = this.activeBaseMeta.entries.length;
         this.workspace.bases[idx].updatedAt = now;
+        this.workspace.bases[idx].totalTokens = this.activeBaseMeta.vectorization.totalTokens;
         await kbStorage.saveWorkspace(this.workspace);
       }
     },
@@ -488,6 +490,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
           const stats = libStats.value;
           this.globalStats.totalEntries = stats.totalEntries ?? 0;
           this.globalStats.vectorizedEntries = stats.vectorizedEntries ?? 0;
+          this.globalStats.totalTokens = stats.totalTokens ?? 0;
           this.globalStats.allDiscoveredTags = stats.allDiscoveredTags ?? [];
           this.globalStats.tagUsageStats = stats.tagUsageStats ?? {};
           this.globalStats.basesStats = stats.basesStats ?? {};

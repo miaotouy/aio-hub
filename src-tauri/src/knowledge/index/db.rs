@@ -72,7 +72,7 @@ impl InMemoryBase {
             existing.tags = caiu.tags.iter().map(|t| t.name.clone()).collect();
             existing.priority = caiu.priority;
             existing.updated_at = caiu.updated_at;
-            
+
             // 如果内容哈希变了，说明内容已更新，向量状态失效
             // 注意：只有当两个哈希都存在且不相等时，才视为内容变动
             // 如果新加载的条目没有哈希（可能是旧数据），我们保守地保留索引中的状态
@@ -94,13 +94,18 @@ impl InMemoryBase {
             } else if is_vectorized {
                 // 如果内容没变，且内存中已有向量，确保状态为 ready
                 existing.vector_status = "ready".to_string();
-                if !current_model.is_empty() && !existing.vectorized_models.contains(&current_model) {
+                if !current_model.is_empty() && !existing.vectorized_models.contains(&current_model)
+                {
                     existing.vectorized_models.push(current_model);
                 }
             }
         } else {
             // 新条目
-            let status = if is_vectorized { "ready".to_string() } else { "none".to_string() };
+            let status = if is_vectorized {
+                "ready".to_string()
+            } else {
+                "none".to_string()
+            };
             let vectorized_models = if is_vectorized && !current_model.is_empty() {
                 vec![current_model]
             } else {
@@ -117,6 +122,7 @@ impl InMemoryBase {
                 vector_status: status,
                 content_hash: caiu.content_hash.clone(),
                 vectorized_models,
+                total_tokens: 0,
             };
             self.meta.entries.push(index_item);
         }

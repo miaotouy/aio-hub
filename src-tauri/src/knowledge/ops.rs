@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
-type VectorizedModelsMap = std::collections::HashMap<Uuid, Vec<String>>;
+type VectorizedModelsMap = std::collections::HashMap<Uuid, (Vec<String>, u32)>;
 
 /// 快速加载知识库元数据（仅 meta.json，不加载条目内容）
 pub fn load_knowledge_base_meta_only(
@@ -43,10 +43,12 @@ pub fn warmup_knowledge_base(
     // 2. 加载向量
     let mut vectors = Vec::new();
     let mut dimension = 0;
+    let mut total_tokens = 0;
     if !last_model.is_empty() {
-        if let Ok(Some((v, d))) = load_vectors_to_vec(app_data_dir, kb_id, &last_model) {
+        if let Ok(Some((v, d, t))) = load_vectors_to_vec(app_data_dir, kb_id, &last_model) {
             vectors = v;
             dimension = d;
+            total_tokens = t;
         }
     }
 
@@ -59,7 +61,7 @@ pub fn warmup_knowledge_base(
     // 只有当加载的模型与 meta 中记录的一致时才激活向量库
     if !vectors.is_empty() && !last_model.is_empty() {
         base.vector_store
-            .rebuild(last_model.clone(), dimension, vectors);
+            .rebuild(last_model.clone(), dimension, total_tokens, vectors);
     }
 
     // 将加载的内容同步到内存，并保留索引中的状态
@@ -76,7 +78,7 @@ pub fn warmup_knowledge_base(
         // 更新全局模型列表
         base.meta.models = all_models;
 
-        for (caiu_id, models) in model_map {
+        for (caiu_id, (models, tokens)) in model_map {
             if let Some(pos) = base.meta.entries.iter().position(|e| e.id == caiu_id) {
                 let entry = &mut base.meta.entries[pos];
                 for m in models {
@@ -86,6 +88,7 @@ pub fn warmup_knowledge_base(
                 }
                 if !entry.vectorized_models.is_empty() {
                     entry.vector_status = "ready".to_string();
+                    entry.total_tokens = tokens;
                 }
             }
         }
@@ -117,7 +120,11 @@ pub fn warmup_knowledge_base(
         "[KB_LOAD] 预热扫描完成，准备更新元数据索引: {} (ID: {}), 向量化条目数: {}",
         kb_name,
         kb_id,
-        base.meta.entries.iter().filter(|e| e.vector_status == "ready").count()
+        base.meta
+            .entries
+            .iter()
+            .filter(|e| e.vector_status == "ready")
+            .count()
     );
     let _ = save_kb_meta(app_data_dir, &kb_id.to_string(), &base.meta);
 
@@ -191,7 +198,7 @@ pub fn load_vectors_to_vec(
     app_data_dir: &std::path::Path,
     kb_id: Uuid,
     model_id: &str,
-) -> Result<Option<(Vec<(Uuid, Vec<f32>)>, usize)>, String> {
+) -> Result<Option<(Vec<(Uuid, Vec<f32>)>, usize, usize)>, String> {
     use ignore::WalkBuilder;
 
     let model_dir = get_kb_vector_model_dir(app_data_dir, &kb_id.to_string(), model_id);
@@ -216,7 +223,7 @@ pub fn load_vectors_to_vec(
     }
 
     // 2. 并行解析向量 JSON
-    let vectors: Vec<(Uuid, Vec<f32>)> = vec_file_paths
+    let results: Vec<(Uuid, Vec<f32>, usize)> = vec_file_paths
         .into_par_iter()
         .filter_map(|path| {
             let filename = path.file_name()?.to_str()?;
@@ -232,13 +239,23 @@ pub fn load_vectors_to_vec(
                 .filter_map(|v| v.as_f64().map(|f| f as f32))
                 .collect();
 
-            Some((cid, vec))
+            let tokens = data["tokens"].as_u64().unwrap_or(0) as usize;
+
+            Some((cid, vec, tokens))
         })
         .collect();
 
-    if !vectors.is_empty() {
-        let dimension = vectors[0].1.len();
-        return Ok(Some((vectors, dimension)));
+    if !results.is_empty() {
+        let dimension = results[0].1.len();
+        let mut total_tokens = 0;
+        let mut vectors = Vec::with_capacity(results.len());
+
+        for (id, vec, tokens) in results {
+            total_tokens += tokens;
+            vectors.push((id, vec));
+        }
+
+        return Ok(Some((vectors, dimension, total_tokens)));
     }
 
     Ok(None)
@@ -263,7 +280,8 @@ pub fn scan_all_vectorized_models(
         std::collections::HashMap::new()
     };
 
-    let mut result: std::collections::HashMap<Uuid, Vec<String>> = std::collections::HashMap::new();
+    let mut result: std::collections::HashMap<Uuid, (Vec<String>, u32)> =
+        std::collections::HashMap::new();
     let mut all_models = std::collections::HashSet::new();
 
     // 2. 遍历物理目录
@@ -288,7 +306,23 @@ pub fn scan_all_vectorized_models(
                                 .map(|s| s.trim_end_matches(".vec"))
                             {
                                 if let Ok(cid) = Uuid::parse_str(cid_str) {
-                                    result.entry(cid).or_default().push(model_id.clone());
+                                    let mut tokens = 0;
+                                    // 尝试读取 tokens
+                                    if let Ok(content) = std::fs::read_to_string(file.path()) {
+                                        if let Ok(data) =
+                                            serde_json::from_str::<serde_json::Value>(&content)
+                                        {
+                                            tokens = data["tokens"].as_u64().unwrap_or(0) as u32;
+                                        }
+                                    }
+
+                                    let entry_data = result.entry(cid).or_default();
+                                    entry_data.0.push(model_id.clone());
+                                    // 我们取最大的 token 数（如果有多个模型的话，通常只显示当前模型的，或者累加。
+                                    // 这里为了简单，如果已向量化，就累加或者取非零。
+                                    if tokens > 0 {
+                                        entry_data.1 += tokens;
+                                    }
                                 }
                             }
                         }

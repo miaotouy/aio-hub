@@ -9,6 +9,7 @@ pub struct VectorMatrix {
     /// 展平的向量数据 (维度 * 数量)
     pub data: Vec<f32>,
     pub dimension: usize,
+    pub total_tokens: usize,
 }
 
 impl VectorMatrix {
@@ -18,14 +19,22 @@ impl VectorMatrix {
             ids: Vec::new(),
             data: Vec::new(),
             dimension: 0,
+            total_tokens: 0,
         }
     }
 
     /// 清空并重建矩阵
     #[allow(dead_code)]
-    pub fn rebuild(&mut self, model_id: String, dimension: usize, entries: Vec<(Uuid, Vec<f32>)>) {
+    pub fn rebuild(
+        &mut self,
+        model_id: String,
+        dimension: usize,
+        total_tokens: usize,
+        entries: Vec<(Uuid, Vec<f32>)>,
+    ) {
         self.model_id = model_id;
         self.dimension = dimension;
+        self.total_tokens = total_tokens;
         self.ids.clear();
         self.data.clear();
 

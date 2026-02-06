@@ -7,7 +7,6 @@ import { getPureModelId } from "../utils/kbUtils";
 
 const logger = createModuleLogger("kb-indexer-core");
 
-
 /**
  * 通用带重试的请求执行器
  */
@@ -216,15 +215,17 @@ export async function performIndexEntry(params: {
   const vector = response.data?.[0]?.embedding;
   if (!vector) throw new Error("模型未返回向量数据");
 
-  // 3. 同步给后端
+  // 3. 同步给后端，附带 token 消耗
+  const tokens = response.usage?.promptTokens;
   await invoke("kb_update_entry_vector", {
     kbId,
     caiuId: entry.id,
     vector,
     model: modelId,
+    tokens: tokens ?? undefined,
   });
 
-  logger.info("条目向量化同步完成", { entryId: entry.id });
+  logger.info("条目向量化同步完成", { entryId: entry.id, tokens });
 
   return {
     vectorStatus: "ready" as const,
@@ -321,13 +322,25 @@ export async function syncEntriesVectors(params: {
           );
 
           if (response.data) {
+            const totalTokens = response.usage?.promptTokens ?? 0;
+            const perEntryTokens =
+              totalTokens > 0 ? Math.floor(totalTokens / response.data.length) : 0;
+            const remainder =
+              totalTokens > 0 ? totalTokens - perEntryTokens * response.data.length : 0;
+
             const syncTasks = response.data.map(async (item, index) => {
               const entry = batch[index];
+              // 分配 token，最后一个条目加上余数
+              let tokens = perEntryTokens;
+              if (index === response.data.length - 1) {
+                tokens += remainder;
+              }
               await invoke("kb_update_entry_vector", {
                 kbId,
                 caiuId: entry.id,
                 vector: item.embedding,
                 model: modelId,
+                tokens: tokens > 0 ? tokens : undefined,
               });
             });
             await Promise.all(syncTasks);
@@ -358,7 +371,10 @@ export async function syncEntriesVectors(params: {
               }
             }
           } else {
-            onProgress?.(0, batch.map(e => ({ id: e.id, reason: errorMsg })));
+            onProgress?.(
+              0,
+              batch.map((e) => ({ id: e.id, reason: errorMsg }))
+            );
           }
         }
       }

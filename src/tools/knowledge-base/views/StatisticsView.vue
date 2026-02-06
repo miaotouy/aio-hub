@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Database,
   ChevronRight,
+  Coins,
 } from "lucide-vue-next";
 import { useBreakpoints, breakpointsTailwind } from "@vueuse/core";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
@@ -99,6 +100,10 @@ const vectorizedEntries = computed(() => {
   return store.globalStats.vectorizedEntries;
 });
 
+const totalTokens = computed(() => {
+  return store.globalStats.totalTokens;
+});
+
 const progress = computed(() => {
   if (totalEntries.value === 0) return 0;
   const rate = Math.round((vectorizedEntries.value / totalEntries.value) * 100);
@@ -110,6 +115,12 @@ const tagProgress = computed(() => {
   const rate = Math.round((store.globalStats.vectorizedTags / store.globalStats.totalTags) * 100);
   return Math.min(rate, 100);
 });
+
+function formatTokens(tokens: number) {
+  if (tokens < 1000) return tokens.toString();
+  if (tokens < 1000000) return (tokens / 1000).toFixed(1) + "k";
+  return (tokens / 1000000).toFixed(2) + "m";
+}
 
 function formatSize(bytes: number) {
   if (bytes === 0) return "0 B";
@@ -195,6 +206,13 @@ function getBaseProgress(baseId: string): number {
                 status="warning"
                 class="stat-progress"
               />
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon"><Coins :size="16" /></div>
+              <div class="stat-content">
+                <div class="stat-label">累计消耗 Tokens</div>
+                <div class="stat-value">{{ formatTokens(totalTokens) }}</div>
+              </div>
             </div>
             <div class="stat-item">
               <div class="stat-icon"><HardDrive :size="16" /></div>
@@ -300,6 +318,13 @@ function getBaseProgress(baseId: string): number {
                 <div class="stat-content">
                   <div class="stat-label">向量</div>
                   <div class="stat-value">{{ progress }}%</div>
+                </div>
+              </div>
+              <div class="stat-item-mini">
+                <div class="stat-icon-mini"><Coins :size="14" /></div>
+                <div class="stat-content">
+                  <div class="stat-label">Tokens</div>
+                  <div class="stat-value">{{ formatTokens(totalTokens) }}</div>
                 </div>
               </div>
             </div>

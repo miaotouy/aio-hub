@@ -25,6 +25,7 @@ pub async fn kb_update_entry_vector(
     caiu_id: Uuid,
     vector: Vec<f32>,
     model: String,
+    tokens: Option<u32>,
 ) -> Result<(), String> {
     let start_time = std::time::Instant::now();
     let _guard = state
@@ -43,14 +44,17 @@ pub async fn kb_update_entry_vector(
 
     let vec_file_path =
         get_kb_vector_file_path(&app_data_dir, &kb_id_str, &model, &caiu_id.to_string());
-    let json = serde_json::json!({
+    let mut json_obj = serde_json::json!({
         "caiu_id": caiu_id,
         "vector": vector,
         "model": model,
         "timestamp": get_now()
     });
+    if let Some(t) = tokens {
+        json_obj["tokens"] = t.into();
+    }
 
-    std::fs::write(vec_file_path, json.to_string()).map_err(|e| e.to_string())?;
+    std::fs::write(vec_file_path, json_obj.to_string()).map_err(|e| e.to_string())?;
 
     let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
     if let Some(base_lock) = imdb.bases.get(&kb_id) {
@@ -76,9 +80,17 @@ pub async fn kb_update_entry_vector(
             if !entry.vectorized_models.contains(&model) {
                 entry.vectorized_models.push(model.clone());
             }
+            if let Some(t) = tokens {
+                entry.total_tokens = t;
+            }
         }
 
-        // 3. 持久化元数据，确保冷启动索引同步
+        // 3. 累加 token 消耗
+        if let Some(t) = tokens {
+            base.meta.vectorization.total_tokens += t as u64;
+        }
+
+        // 4. 持久化元数据，确保冷启动索引同步
         log::debug!(
             "[KB_VECTOR] 单个向量更新完成，同步元数据索引: kb={}, caiu={}, model={}",
             kb_id_str,
@@ -263,17 +275,18 @@ pub async fn kb_load_model_vectors(
         let mut base = base_lock.write().map_err(|_| "获取知识库写锁失败")?;
         let kb_name = base.meta.name.clone();
         match load_vectors_to_vec(&app_data_dir, kb_id, &model_id) {
-            Ok(Some((vectors, dimension))) => {
+            Ok(Some((vectors, dimension, total_tokens))) => {
                 log::info!(
-                    "[KB_LOAD] 成功加载向量数据: {} (ID: {}), 模型: {}, 数量: {}, 维度: {}",
+                    "[KB_LOAD] 成功加载向量数据: {} (ID: {}), 模型: {}, 数量: {}, 维度: {}, Tokens: {}",
                     kb_name,
                     kb_id,
                     model_id,
                     vectors.len(),
-                    dimension
+                    dimension,
+                    total_tokens
                 );
                 base.vector_store
-                    .rebuild(model_id.clone(), dimension, vectors);
+                    .rebuild(model_id.clone(), dimension, total_tokens, vectors);
                 // 刷新内存索引中的向量状态，确保前端显示一致
                 if base.refresh_vector_status() {
                     // 如果状态有变化，持久化到磁盘，避免下次启动时显示旧状态

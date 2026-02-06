@@ -170,14 +170,16 @@ impl RetrievalEngine for VectorRetrievalEngine {
                     *kb_id,
                     model,
                 ) {
-                    Ok(Some((vectors, dimension))) => {
+                    Ok(Some((vectors, dimension, total_tokens))) => {
                         log::info!(
-                            "[VECTOR_SEARCH] 按需加载向量成功: kb={}, count={}, dim={}",
+                            "[VECTOR_SEARCH] 按需加载向量成功: kb={}, count={}, dim={}, tokens={}",
                             kb_id,
                             vectors.len(),
-                            dimension
+                            dimension,
+                            total_tokens
                         );
-                        base.vector_store.rebuild(model.clone(), dimension, vectors);
+                        base.vector_store
+                            .rebuild(model.clone(), dimension, total_tokens, vectors);
                     }
                     _ => {
                         log::debug!(

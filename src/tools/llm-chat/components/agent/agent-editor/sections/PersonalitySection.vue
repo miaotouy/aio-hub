@@ -118,7 +118,18 @@ const personalitySettings = computed<SettingItem[]>(() => [
       append: () =>
         h(
           ElButton,
-          { type: "primary", link: true, style: { fontSize: "12px" } },
+          {
+            type: "primary",
+            link: true,
+            style: {
+              fontSize: "12px",
+              whiteSpace: "nowrap",
+              width: "auto",
+              height: "auto",
+              padding: "4px 8px",
+              minWidth: "unset",
+            },
+          },
           () => "管理用户档案"
         ),
     },
@@ -135,7 +146,18 @@ const personalitySettings = computed<SettingItem[]>(() => [
       append: () =>
         h(
           ElButton,
-          { type: "primary", link: true, style: { fontSize: "12px" } },
+          {
+            type: "primary",
+            link: true,
+            style: {
+              fontSize: "12px",
+              whiteSpace: "nowrap",
+              width: "auto",
+              height: "auto",
+              padding: "4px 8px",
+              minWidth: "unset",
+            },
+          },
           () => "管理快捷操作"
         ),
     },
@@ -152,7 +174,18 @@ const personalitySettings = computed<SettingItem[]>(() => [
       append: () =>
         h(
           ElButton,
-          { type: "primary", link: true, style: { fontSize: "12px" } },
+          {
+            type: "primary",
+            link: true,
+            style: {
+              fontSize: "12px",
+              whiteSpace: "nowrap",
+              width: "auto",
+              height: "auto",
+              padding: "4px 8px",
+              minWidth: "unset",
+            },
+          },
           () => "管理世界书"
         ),
     },

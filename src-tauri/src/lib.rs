@@ -1,6 +1,7 @@
 // 模块声明
 mod commands;
 mod events;
+mod knowledge;
 mod tray;
 mod utils;
 
@@ -95,6 +96,7 @@ use commands::{
     is_directory,
     list_agent_assets,
     list_all_assets,
+    list_directory,
     // Lazy loading commands
     list_assets_paginated,
     list_config_files,
@@ -343,7 +345,7 @@ pub fn run() {
     let log_dir = get_app_data_dir(context.config()).join("logs");
 
     let log_filename = format!("backend-{}", date_filename);
-    tauri::Builder::default()
+    tauri::Builder::<tauri::Wry>::default()
         .plugin(
             tauri_plugin_log::Builder::new()
                 .clear_targets() // 清除默认目标
@@ -356,6 +358,7 @@ pub fn run() {
                 ])
                 .timezone_strategy(timezone_strategy)
                 .level_for("hyper", LevelFilter::Warn) // 过滤掉 hyper 的大量 INFO 日志
+                .level_for("hnsw_rs", LevelFilter::Info) // 过滤掉 HNSW 构图时的 TRACE 日志
                 .build(),
         )
         // 插件初始化
@@ -366,27 +369,19 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
-        .plugin({
+        .plugin(match () {
             #[cfg(not(debug_assertions))]
-            {
-                // 如果是便携模式，禁用单实例插件，允许运行多个实例进行测试
-                if std::env::var("AIO_PORTABLE_MODE").is_ok() {
-                    tauri_plugin_opener::init()
-                } else {
-                    tauri_plugin_single_instance::init(|app, _args, _cwd| {
-                        let _ = app.get_webview_window("main").map(|w| {
-                            let _ = w.show();
-                            let _ = w.unminimize();
-                            let _ = w.set_focus();
-                        });
-                    })
-                }
-            }
+            _ if std::env::var("AIO_PORTABLE_MODE").is_ok() => tauri_plugin_opener::init(),
+            #[cfg(not(debug_assertions))]
+            _ => tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                let _ = app.get_webview_window("main").map(|w| {
+                    let _ = w.show();
+                    let _ = w.unminimize();
+                    let _ = w.set_focus();
+                });
+            }),
             #[cfg(debug_assertions)]
-            {
-                // 开发模式下不启用单实例插件，从而允许与正式版共存
-                tauri_plugin_opener::init() // 这里随便返回一个已有的插件初始化即可，或者使用空插件
-            }
+            _ => tauri_plugin_opener::init(),
         })
         // 管理状态
         .manage(ClipboardMonitorState::new())
@@ -396,6 +391,7 @@ pub fn run() {
         .manage(AppState::default())
         .manage(commands::ffmpeg_processor::FFmpegState::default())
         .manage(Arc::new(CancellationToken::new()))
+        .manage(knowledge::KnowledgeState::new())
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -417,6 +413,7 @@ pub fn run() {
             validate_regex_pattern,
             generate_directory_tree,
             is_directory,
+            list_directory,
             read_file_binary,
             read_app_data_file_binary,
             read_file_as_base64,
@@ -544,7 +541,41 @@ pub fn run() {
             search_media_generator_data,
             // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)
             #[cfg(not(target_os = "macos"))]
-            start_drag_session
+            start_drag_session,
+            // 知识库命令
+            knowledge::kb_initialize,
+            knowledge::kb_batch_import_files,
+            knowledge::kb_batch_upsert_entries,
+            knowledge::kb_check_vector_coverage,
+            knowledge::kb_get_library_stats,
+            knowledge::kb_get_tag_pool_stats,
+            knowledge::kb_load_model_vectors,
+            knowledge::kb_update_entry_vector,
+            knowledge::kb_clear_legacy_vectors,
+            knowledge::kb_clear_all_other_vectors,
+            knowledge::kb_search,
+            knowledge::kb_upsert_entry,
+            knowledge::kb_delete_entry,
+            knowledge::kb_batch_delete_entries,
+            knowledge::kb_save_base_meta,
+            knowledge::kb_warmup,
+            knowledge::kb_list_bases,
+            knowledge::kb_load_base_meta,
+            knowledge::kb_load_entry,
+            knowledge::kb_get_entries,
+            knowledge::kb_list_entry_ids,
+            knowledge::kb_list_engines,
+            knowledge::kb_get_missing_tags,
+            knowledge::kb_sync_tag_vectors,
+            knowledge::kb_rebuild_tag_pool_index,
+            knowledge::kb_list_all_tags,
+            knowledge::kb_list_tag_pool_models,
+            knowledge::kb_clear_tag_pool,
+            knowledge::kb_clear_other_tag_pools,
+            knowledge::kb_flush_all_tag_pools,
+            knowledge::kb_clone_base,
+            knowledge::kb_export_base,
+            knowledge::monitor::kb_monitor_heartbeat
         ])
         // 设置应用
         .setup(move |app| {

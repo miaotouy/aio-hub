@@ -47,8 +47,10 @@ const defaultFormState = {
   id: "",
   name: "",
   displayName: "",
+  agentVersion: "",
   description: "",
   icon: "",
+  avatarHistory: [] as string[],
   profileId: "",
   modelId: "",
   modelCombo: "", // 用于 LlmModelSelector 的组合值 (profileId:modelId)
@@ -262,8 +264,10 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
     {
       name: editForm.name,
       displayName: editForm.displayName || undefined,
+      agentVersion: editForm.agentVersion,
       description: editForm.description,
       icon: editForm.icon,
+      avatarHistory: editForm.avatarHistory,
       profileId: editForm.profileId,
       modelId: editForm.modelId,
       userProfileId: editForm.userProfileId,

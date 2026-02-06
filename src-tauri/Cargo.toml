@@ -66,6 +66,7 @@ tokio-util = "0.7" # 取消令牌
 trash = "5.2" # 安全删除到回收站
 lazy_static = "1.4" # 全局静态变量
 nanoid = "0.4.0" # 生成唯一ID
+tempfile = "3" # 临时文件工具
 zip = { version = "2.2", default-features = false, features = ["deflate"] } # ZIP 压缩
 walkdir = "2" # 递归目录遍历
 ignore = "0.4" # 高性能并行目录遍历（ripgrep 核心库）
@@ -78,8 +79,13 @@ scopeguard = "1.2.0"
 # 窗口特效依赖
 window-vibrancy = "0.5"
 raw-window-handle = "0.6"
+# 其他
 lofty = "0.22.4"
 dotenvy = "0.15.7"
+jieba-rs = "0.7" # 中文分词
+rayon = "1.10" # 并行计算
+nalgebra = "0.34.1"
+hnsw_rs = "0.3.3"
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

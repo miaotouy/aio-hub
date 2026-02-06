@@ -25,6 +25,7 @@ interface AgentIndexItem {
   id: string;
   name: string;
   displayName?: string;
+  agentVersion?: string;
   description?: string;
   icon?: string;
   profileId: string;
@@ -362,6 +363,7 @@ export function useAgentStorageSeparated() {
       id: agent.id,
       name: agent.name,
       displayName: agent.displayName,
+      agentVersion: agent.agentVersion,
       description: agent.description,
       icon: agent.icon,
       profileId: agent.profileId,

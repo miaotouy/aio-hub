@@ -109,6 +109,7 @@ const editorView = shallowRef<EditorView | null>(null);
 const editableCompartment = new Compartment();
 const lineNumbersCompartment = new Compartment();
 const foldGutterCompartment = new Compartment();
+const historyCompartment = new Compartment();
 const themeCompartment = new Compartment();
 const languageCompartment = new Compartment();
 const wrapperRef = ref<HTMLDivElement | null>(null);
@@ -365,7 +366,7 @@ const initCodeMirror = async () => {
     foldGutterCompartment.of(foldGutter()),
     highlightActiveLineGutter(),
     highlightSpecialChars(),
-    history(),
+    historyCompartment.of(history()),
     drawSelection(),
     dropCursor(),
     highlightActiveLine(),
@@ -574,7 +575,6 @@ const setContent = (newContent: string): void => {
     }
   }
 };
-
 const focusEditor = (): void => {
   if (props.editorType === "codemirror") {
     editorView.value?.focus();
@@ -583,10 +583,36 @@ const focusEditor = (): void => {
   }
 };
 
+/**
+ * 清除编辑器历史记录（撤销栈）
+ */
+const clearHistory = (): void => {
+  if (props.editorType === "codemirror") {
+    if (editorView.value) {
+      editorView.value.dispatch({
+        effects: historyCompartment.reconfigure([]),
+      });
+      editorView.value.dispatch({
+        effects: historyCompartment.reconfigure(history()),
+      });
+    }
+  } else {
+    if (monacoEditorInstance.value) {
+      const model = monacoEditorInstance.value.getModel();
+      if (model) {
+        // Monaco setValue 默认会重置撤销栈，但为了保险，
+        // 我们通过重新设置一遍值来强制重置
+        model.setValue(model.getValue());
+      }
+    }
+  }
+};
+
 defineExpose({
   getContent,
   setContent,
   focusEditor,
+  clearHistory,
   editorView,
   monacoEditorInstance,
   monacoDiffEditorInstance,

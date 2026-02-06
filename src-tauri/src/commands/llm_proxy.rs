@@ -1,5 +1,6 @@
 use axum::{
     body::Body,
+    extract::DefaultBodyLimit,
     http::{HeaderMap as AxumHeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
@@ -93,6 +94,7 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
     tokio::spawn(async move {
         let app = Router::new()
             .route("/proxy", post(handle_proxy_request))
+            .layer(DefaultBodyLimit::max(500 * 1024 * 1024)) // 500MB
             .layer(tower_http::cors::CorsLayer::permissive());
 
         let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))

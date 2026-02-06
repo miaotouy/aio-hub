@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="!props.appendToBody">
     <div
       v-if="props.destroyOnClose ? props.modelValue : hasOpened"
       v-show="props.modelValue"
@@ -105,6 +105,7 @@ const props = withDefaults(
     showFooter?: boolean; // Added prop
     enableTransition?: boolean;
     loading?: boolean;
+    appendToBody?: boolean; // 原本不需要的，但是AI很爱写这个，就加上迁就一下AI的习惯
   }>(),
   {
     showCloseButton: true,
@@ -119,6 +120,7 @@ const props = withDefaults(
     showFooter: true, // Default to true if slot exists
     enableTransition: true,
     loading: false,
+    appendToBody: true,
   }
 );
 

@@ -2,8 +2,7 @@
   <el-form-item
     :label="resolvedLabel"
     :data-setting-id="item.id"
-    style="padding-left: 26px"
-    :class="{ 'setting-item-highlight': isHighlighted }"
+    :class="['setting-item-renderer-form-item', { 'setting-item-highlight': isHighlighted }]"
   >
     <!-- Block layout (default) -->
     <template v-if="item.layout !== 'inline'">
@@ -53,10 +52,22 @@
         >
           <!-- RadioGroup options -->
           <template v-if="item.component === 'ElRadioGroup' && resolvedOptions">
+            <template v-if="resolvedProps.type === 'button'">
+              <el-radio-button
+                v-for="option in resolvedOptions"
+                :key="option.value.toString()"
+                :value="option.value"
+                :label="option.value"
+              >
+                {{ option.label }}
+              </el-radio-button>
+            </template>
             <el-radio
+              v-else
               v-for="option in resolvedOptions"
               :key="option.value.toString()"
               :value="option.value"
+              :label="option.value"
             >
               {{ option.label }}
             </el-radio>
@@ -142,6 +153,7 @@ import {
   ElSlider,
   ElInputNumber,
   ElRadio,
+  ElRadioButton,
   ElOption,
   ElTag,
   ElFormItem,
@@ -155,12 +167,16 @@ import {
 import { FolderOpened } from "@element-plus/icons-vue";
 import { get, set } from "lodash-es";
 import PromptEditor from "@/components/common/PromptEditor.vue";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingItem } from "@/types/settings-renderer";
 import type { Component } from "vue";
 
 const props = defineProps<{
   item: SettingItem<any>;
+  /** 用于插值和可见性判断的上下文设置对象 */
   settings: any;
+  /** 实际进行双向绑定的设置对象 (如果不提供则使用 settings) */
+  actualSettings?: any;
   isHighlighted?: boolean;
   customComponents?: Record<string, Component>;
 }>();
@@ -175,7 +191,9 @@ const emit = defineEmits<{
 const modelValue = computed({
   get: () => {
     if (!props.item.modelPath) return undefined;
-    const val = get(props.settings, props.item.modelPath);
+    // 优先从实际绑定的设置中取值，如果没有则从上下文 settings 中取值
+    const target = props.actualSettings || props.settings;
+    const val = get(target, props.item.modelPath);
     // 如果值为 undefined，尝试使用配置中的默认值
     if (val === undefined && props.item.defaultValue !== undefined) {
       return props.item.defaultValue;
@@ -184,7 +202,9 @@ const modelValue = computed({
   },
   set: (val) => {
     if (!props.item.modelPath) return;
-    const newSettings = { ...props.settings };
+    // 始终更新实际绑定的设置对象
+    const target = props.actualSettings || props.settings;
+    const newSettings = { ...target };
     set(newSettings, props.item.modelPath, val);
     emit("update:settings", newSettings);
   },
@@ -197,7 +217,8 @@ const handleUpdate = (val: any) => {
 const handleChange = () => {
   // 即使没有具体的 modelPath 修改，也触发一次更新，强制父组件感知
   // 这对于像 PipelineConfig 这样自己管理状态的组件很有用
-  emit("update:settings", { ...props.settings });
+  const target = props.actualSettings || props.settings;
+  emit("update:settings", { ...target });
 };
 
 // 基础组件映射表
@@ -209,6 +230,7 @@ const baseComponentMap: Record<string, any> = {
   ElInput,
   ElSelect,
   PromptEditor,
+  LlmModelSelector,
 };
 
 const resolvedComponent = computed(() => {
@@ -263,7 +285,8 @@ const componentClasses = computed(() => {
     props.item.component === "ElSlider" ||
     (props.item.component === "ElInput" && p?.type === "textarea") ||
     props.item.component === "SliderWithInput" ||
-    props.item.component === "FileSelector"
+    props.item.component === "FileSelector" ||
+    (props.item.component === "ElRadioGroup" && p?.type === "button")
   ) {
     classes.push("full-width");
   }
@@ -311,11 +334,27 @@ if (!props.item.collapsible) {
   flex: 1;
 }
 
+/* 统一处理撑满宽度的组件样式 */
+:deep(.el-radio-group.full-width) {
+  display: flex !important;
+  width: 100%;
+  backdrop-filter: none !important; /* 修复滤镜导致的光晕/背景色异常 */
+  background: transparent !important;
+}
+
+:deep(.el-radio-group.full-width .el-radio-button) {
+  flex: 1;
+}
+
+:deep(.el-radio-group.full-width .el-radio-button__inner) {
+  width: 100%;
+}
+
 .setting-item-content {
   display: flex;
   width: 100%;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .setting-item-content-inline {
@@ -329,8 +368,18 @@ if (!props.item.collapsible) {
 
 .append-slot {
   flex-shrink: 0;
-  margin-top: 2px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
+}
+
+.append-slot :deep(.el-button) {
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .form-hint {
@@ -373,12 +422,26 @@ if (!props.item.collapsible) {
   margin-right: 0;
 }
 
+/* 当有 marks 时，增加底部间距以容纳刻度文字 */
+.slider-with-input .slider-part:deep(.el-slider__marks) {
+  margin-bottom: 12px;
+}
+
+/* 当滑块有 marks 时，整个设置项内容区域（包括旁边的按钮）都增加底部边距 */
+.setting-item-content:has(.slider-with-input .el-slider__marks) {
+  margin-bottom: 20px;
+}
+
 .slider-with-input .input-part {
   width: 140px;
 }
 
 .slider-with-input .input-part :deep(input) {
   text-align: center;
+}
+
+.setting-item-renderer-form-item {
+  padding-left: 26px;
 }
 
 /* 高亮样式 */

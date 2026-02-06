@@ -73,6 +73,53 @@ export interface AgentAsset {
 }
 
 /**
+ * 智能体知识库设置
+ */
+export interface AgentKnowledgeSettings {
+  /** 默认检索引擎 ID (vector | keyword | blender) */
+  defaultEngineId?: string;
+
+  /** 默认召回数量限制 (1-50) */
+  defaultLimit?: number;
+
+  /** 召回总字数上限 (0表示不限制，超出则丢弃) */
+  maxRecallChars?: number;
+
+  /** 默认最低相关度分数 (0.0-1.0) */
+  defaultMinScore?: number;
+
+  /** 默认 Embedding 模型 ID (用于 vector 检索) */
+  embeddingModelId?: string;
+
+  /** 检索结果的格式化模板 (支持变量: {count}, {kbName}, {key}, {content}, {score}, {tags}) */
+  resultTemplate?: string;
+
+  /** 无结果时的占位文本 */
+  emptyText?: string;
+
+  /** 标签门控 (gate) 模式默认扫描消息深度 */
+  gateScanDepth?: number;
+
+  /** 多轮对话聚合与缓存设置 */
+  aggregation?: {
+    /** 用于构建查询的历史用户消息数量 (0-10) */
+    contextWindow?: number;
+    /** 向量加权平均时的衰减因子 (0.1-1.0) */
+    queryDecay?: number;
+    /** 是否启用检索结果缓存 */
+    enableCache?: boolean;
+    /** 缓存相似度阈值 (0.9-1.0) */
+    cacheSimilarityThreshold?: number;
+    /** 是否启用历史结果聚合 */
+    enableResultAggregation?: boolean;
+    /** 结果聚合的时间衰减因子 */
+    resultDecay?: number;
+    /** 聚合时保留的最大历史轮次 */
+    maxHistoryTurns?: number;
+  };
+}
+
+/**
  * 智能体共有配置基础接口
  * 包含模板和实例都会使用的核心字段
  */
@@ -226,6 +273,9 @@ export interface AgentBaseConfig {
     /** 默认扫描深度 */
     defaultScanDepth?: number;
   };
+
+  /** 知识库全局设置 */
+  knowledgeSettings?: AgentKnowledgeSettings;
 }
 
 /**

@@ -405,7 +405,13 @@ const handleDropdownSelect = () => {
         <!-- 中间标题区域 -->
         <div class="title-area">
           <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
-          <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" />
+          <img
+            v-if="useDefaultIcon"
+            :src="logoSrc"
+            alt="Logo"
+            class="app-logo"
+            data-tauri-drag-region
+          />
           <!-- 统一的图标容器 -->
           <span v-else class="icon-wrapper">
             <component :is="currentIcon" />
@@ -604,8 +610,7 @@ const handleDropdownSelect = () => {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  /* 禁止拖动，以便点击logo或标题 */
-  -webkit-app-region: no-drag;
+  /* 移除这里的 no-drag，改由内部元素决定 */
 }
 
 /* 窄屏适配：当窗口较窄时，取消绝对居中，改为靠左显示 */
@@ -623,6 +628,7 @@ const handleDropdownSelect = () => {
   width: 20px;
   height: 20px;
   object-fit: contain;
+  -webkit-app-region: no-drag;
 }
 
 /* 统一的图标容器样式 */
@@ -636,6 +642,7 @@ const handleDropdownSelect = () => {
   color: var(--sidebar-text);
   flex-shrink: 0;
   vertical-align: middle;
+  -webkit-app-region: no-drag;
 }
 
 .icon-wrapper svg,
@@ -643,7 +650,6 @@ const handleDropdownSelect = () => {
   width: 1em;
   height: 1em;
 }
-
 .app-title {
   font-size: 16px;
   color: var(--sidebar-text);
@@ -656,6 +662,7 @@ const handleDropdownSelect = () => {
   display: flex;
   align-items: center;
   padding-top: 2px;
+  -webkit-app-region: no-drag;
 }
 
 .right-controls {

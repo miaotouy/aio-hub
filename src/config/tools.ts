@@ -7,6 +7,7 @@
 export const DEFAULT_TOOLS_ORDER = [
   // AI 工具
   '/llm-chat',
+  '/media-generator',
   '/st-worldbook-editor',
   '/media-info-reader',
   '/smart-ocr',
@@ -23,6 +24,7 @@ export const DEFAULT_TOOLS_ORDER = [
   
   // 文件管理
   '/asset-manager',
+  '/knowledge-base',
   '/symlink-mover',
   '/directory-tree',
   '/directory-janitor',
@@ -32,6 +34,7 @@ export const DEFAULT_TOOLS_ORDER = [
   '/llm-inspector',
   '/git-analyzer',
   '/rich-text-renderer-tester',
+  '/vcp-connector',
   '/service-monitor',
   '/token-calculator',
   '/embedding-playground',

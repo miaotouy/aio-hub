@@ -59,14 +59,21 @@
 
 ### BaseDialog
 
-基础对话框组件，修复了 Element Plus Dialog 的样式问题，支持毛玻璃效果和自定义布局。
+**完全自主实现**的基础对话框组件，旨在提供比 Element Plus Dialog 更干净的样式控制和原生毛玻璃效果支持。
+
+> [!WARNING]
+> **不要将其视为 `el-dialog` 的封装**。它不接收 `el-dialog` 的属性。如果你传递了 `close-on-click-modal` 这样的属性，Vue 会因为无法在多根节点组件上继承属性而报错。
 
 - **Props**:
   - `modelValue` (boolean): v-model 控制显示。
   - `title` (string): 标题。
-  - `width` / `height` (string): 尺寸。
+  - `width` / `height` (string): 尺寸（支持数字或带单位字符串）。
+  - `top` (string): 距离顶部的距离。
   - `bare` (boolean): 是否为无样式模式（透明背景，无边框）。
   - `showCloseButton` (boolean): 是否显示关闭按钮。
+  - `closeOnBackdropClick` (boolean): 点击遮罩层是否关闭。
+  - `destroyOnClose` (boolean): 关闭时是否销毁内容。
+  - `loading` (boolean): 内容区域显示加载状态。
 - **Slots**: `default`, `header`, `footer`
 
 - **使用示例** (来自 [`CreateUserProfileDialog.vue`](../../views/Settings/user-profile/components/CreateUserProfileDialog.vue)):

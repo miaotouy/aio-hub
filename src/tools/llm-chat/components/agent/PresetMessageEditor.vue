@@ -222,6 +222,31 @@
               <MacroSelector @insert="handleInsertMacro" />
             </el-popover>
 
+            <el-popover
+              v-model:visible="kbEditorVisible"
+              placement="bottom-start"
+              :width="420"
+              trigger="click"
+              popper-class="kb-editor-popover"
+            >
+              <template #reference>
+                <el-button
+                  size="small"
+                  :type="kbEditorVisible ? 'primary' : 'default'"
+                  plain
+                  @click="handleKBButtonClick"
+                >
+                  <el-icon style="margin-right: 4px"><Book /></el-icon>
+                  插入知识库
+                </el-button>
+              </template>
+              <KBPlaceholderEditor
+                :value="currentKBSelection"
+                @insert="handleInsertKBPlaceholder"
+                @cancel="kbEditorVisible = false"
+              />
+            </el-popover>
+
             <el-button size="small" @click="handleCopy" plain title="复制内容">
               <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
               复制
@@ -301,10 +326,11 @@ import {
   Document,
   InfoFilled,
 } from "@element-plus/icons-vue";
-import { Bot } from "lucide-vue-next";
+import { Bot, Book } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import MacroSelector from "./MacroSelector.vue";
+import KBPlaceholderEditor from "./kb-placeholder-editor/KBPlaceholderEditor.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
@@ -312,6 +338,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAnchorRegistry } from "../../composables/ui/useAnchorRegistry";
 import { useLlmChatStore } from "../../stores/llmChatStore";
+import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
 import * as monaco from "monaco-editor";
 import {
   MacroProcessor,
@@ -372,6 +399,7 @@ const { settings } = useChatSettings();
 const { getProfileById } = useLlmProfiles();
 const { getAvailableAnchors } = useAnchorRegistry();
 const chatStore = useLlmChatStore();
+const kbStore = useKnowledgeBaseStore();
 
 // 表单数据
 const form = ref<MessageForm>({
@@ -404,6 +432,8 @@ const previewContent = ref("");
 
 // 宏选择器
 const macroSelectorVisible = ref(false);
+const kbEditorVisible = ref(false);
+const currentKBSelection = ref("");
 const richEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 
 // 模拟当前 Agent 对象，用于资产解析
@@ -461,12 +491,41 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
 
   // 检查是否在 {{ 之后   //}}vscode双花括号高亮显示防溢出补丁
   const macroMatch = textBefore.match(/\{\{([a-zA-Z0-9_:]*)$/);
-  if (!macroMatch) {
+  const kbMatch = textBefore.match(/【kb(?:::)?([a-zA-Z0-9_:]*)$/);
+
+  if (!macroMatch && !kbMatch) {
     return null;
   }
 
-  const prefix = macroMatch[1].toLowerCase();
-  const startPos = context.pos - macroMatch[1].length;
+  // 1. 处理知识库补全
+  if (kbMatch) {
+    const prefix = kbMatch[1].toLowerCase();
+    const startPos = context.pos - kbMatch[1].length;
+
+    // 如果还没有加载知识库，尝试初始化
+    if (kbStore.bases.length === 0) {
+      kbStore.init();
+    }
+
+    const matchedBases = kbStore.bases.filter((b) => b.name.toLowerCase().includes(prefix));
+
+    if (matchedBases.length === 0) return null;
+
+    return {
+      from: startPos,
+      options: matchedBases.map((base) => ({
+        label: base.name,
+        detail: "知识库",
+        apply: (kbMatch[0].includes("::") ? "" : "::") + base.name + "】",
+        type: "keyword",
+      })),
+      filter: false,
+    };
+  }
+
+  // 2. 处理宏补全
+  const prefix = macroMatch![1].toLowerCase();
+  const startPos = context.pos - macroMatch![1].length;
 
   // 获取所有支持的宏
   const registry = MacroRegistry.getInstance();
@@ -795,6 +854,40 @@ const insertTextToEditor = (text: string) => {
     form.value.content += text;
   }
 };
+
+/**
+ * 插入知识库占位符
+ */
+function handleInsertKBPlaceholder(placeholder: string) {
+  insertTextToEditor(placeholder);
+  kbEditorVisible.value = false;
+}
+
+/**
+ * 点击知识库按钮处理逻辑
+ */
+function handleKBButtonClick() {
+  if (!richEditorRef.value) return;
+
+  const editorView = richEditorRef.value.editorView;
+  const monacoInstance = richEditorRef.value.monacoEditorInstance;
+  let selectedText = "";
+
+  if (editorView) {
+    const { from, to } = editorView.state.selection.main;
+    selectedText = editorView.state.sliceDoc(from, to);
+  } else if (monacoInstance) {
+    selectedText = monacoInstance.getModel()?.getValueInRange(monacoInstance.getSelection()!) || "";
+  }
+
+  // 检查是否匹配 KB 正则
+  const KB_PLACEHOLDER_REGEX = /【(?:kb|knowledge)(?:::([^【】]*?))?】/;
+  if (selectedText && KB_PLACEHOLDER_REGEX.test(selectedText)) {
+    currentKBSelection.value = selectedText;
+  } else {
+    currentKBSelection.value = "";
+  }
+}
 
 /**
  * 插入宏到光标位置

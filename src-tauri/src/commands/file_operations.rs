@@ -2004,6 +2004,29 @@ pub fn open_path_force(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// Tauri 命令：列出目录下的文件（仅限文件名，不包含完整路径）
+#[tauri::command]
+pub async fn list_directory(path: String) -> Result<Vec<String>, String> {
+    let dir_path = PathBuf::from(&path);
+    if !dir_path.exists() {
+        return Err(format!("目录不存在: {}", path));
+    }
+    if !dir_path.is_dir() {
+        return Err(format!("路径不是目录: {}", path));
+    }
+
+    let entries = fs::read_dir(dir_path).map_err(|e| format!("读取目录失败: {}", e))?;
+    let mut files = Vec::new();
+
+    for entry in entries.flatten() {
+        if let Some(name) = entry.file_name().to_str() {
+            files.push(name.to_string());
+        }
+    }
+
+    Ok(files)
+}
+
 // Tauri 命令：强制创建目录（绕过前端路径检查）
 #[tauri::command]
 pub async fn create_dir_force(path: String) -> Result<(), String> {

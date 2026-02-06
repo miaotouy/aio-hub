@@ -85,9 +85,7 @@ function migrateTemplateAnchors(agent: ChatAgent): boolean {
       if (!anchor?.hasTemplate) continue;
 
       const legacyFixedTexts = ["用户档案", "user_profile", "User Profile"];
-      const isLegacyFixedContent = legacyFixedTexts.some(
-        (text) => message.content.trim() === text
-      );
+      const isLegacyFixedContent = legacyFixedTexts.some((text) => message.content.trim() === text);
 
       const needsMigration = !message.content || isLegacyFixedContent;
 

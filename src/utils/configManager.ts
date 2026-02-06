@@ -231,8 +231,7 @@ export class ConfigManager<T extends Record<string, any>> {
       let content = "";
       switch (this.fileType) {
         case "json":
-          // 优化：移除 JSON 缩进
-          content = JSON.stringify(configWithVersion);
+          content = JSON.stringify(configWithVersion, null, 2);
           break;
         case "yaml":
           content = yaml.dump(configWithVersion);

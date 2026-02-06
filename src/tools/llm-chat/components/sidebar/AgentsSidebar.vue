@@ -378,7 +378,7 @@ const handleCreateFromBlank = () => {
         id: `preset-system-${Date.now()}`,
         parentId: null,
         childrenIds: [],
-        content: "你是一个友好且乐于助人的 AI 助手。",
+        content: "## 核心定位\n友好且乐于助人的 AI 助手。",
         role: "system",
         status: "complete",
         isEnabled: true,

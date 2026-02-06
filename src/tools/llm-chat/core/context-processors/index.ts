@@ -6,3 +6,4 @@ export * from "./worldbook-processor";
 export * from "./token-limiter";
 export * from "./message-format-processors";
 export * from "./asset-resolver";
+export * from "./knowledge-processor";

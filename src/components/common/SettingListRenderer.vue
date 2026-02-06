@@ -10,11 +10,15 @@
               :title="item.groupCollapsible.title"
               :name="item.groupCollapsible.name"
             >
-              <template v-for="subItem in getGroupItems(item.groupCollapsible.name)" :key="subItem.id">
+              <template
+                v-for="subItem in getGroupItems(item.groupCollapsible.name)"
+                :key="subItem.id"
+              >
                 <SettingItemRenderer
-                  v-if="!subItem.visible || subItem.visible(settings)"
+                  v-if="!subItem.visible || subItem.visible(settingsContext || settings)"
                   :item="subItem"
-                  :settings="settings"
+                  :settings="settingsContext || settings"
+                  :actual-settings="settings"
                   @update:settings="handleSettingsUpdate"
                   @action="handleAction"
                   :is-highlighted="highlightedItemId === subItem.id"
@@ -24,12 +28,12 @@
           </el-collapse>
         </template>
       </template>
-
       <!-- 普通项 (没有分组折叠) -->
       <SettingItemRenderer
-        v-else-if="!item.visible || item.visible(settings)"
+        v-else-if="!item.visible || item.visible(settingsContext || settings)"
         :item="item"
-        :settings="settings"
+        :settings="settingsContext || settings"
+        :actual-settings="settings"
         @update:settings="handleSettingsUpdate"
         @action="handleAction"
         :is-highlighted="highlightedItemId === item.id"
@@ -47,6 +51,8 @@ import SettingItemRenderer from "./SettingItemRenderer.vue";
 const props = defineProps<{
   items: SettingItem<any>[];
   settings: any;
+  /** 可选的上下文，用于插值计算，如果不提供则使用 settings */
+  settingsContext?: any;
   highlightedItemId?: string;
   activeGroups?: string[];
 }>();

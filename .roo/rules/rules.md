@@ -88,9 +88,54 @@
 - **版本更新提交**: 建议使用 `chore(release): vX.Y.Z` 或 `fix(version): sync version to X.Y.Z`。
 - **双端推送**: 若单次提交涉及双端版本更新，应在提交信息中明确标注，并分别推送对应的 Tag 以触发各自的构建流程。
 
-## 3. 核心开发规范
+## 3. 文档管理规范 (Documentation Protocols)
 
-为了保证代码质量和项目可维护性，桌面端开发活动应遵循以下核心规范。
+为了保持项目文档的条理清晰，所有技术方案、重构计划和设计文档必须遵循以下存放路径规范：
+
+### 3.1. 存放路径
+
+- **具体模块修改计划**: 针对特定工具（Tool）的修改或重构计划，应存放在该工具目录下的文档目录中。
+  - **路径**: `src/tools/{toolId}/design/Plan/` (桌面端) 或 `mobile/src/tools/{toolId}/design/Plan/` (移动端)。
+- **全局/跨模块计划**: 涉及应用整体架构、多个工具协同或全局基础设施的修改计划。
+  - **路径**: `docs/Plan/`。
+- **架构文档**: 描述已实现的系统架构、核心原理和技术选型。
+  - **路径**: `docs/architecture/`。
+- **设计草案**: 处于早期构思阶段、尚未确定实施的方案。
+  - **路径**: `docs/design/`。
+
+### 3.2. 基本原则
+
+- **禁止乱放**: 严禁将重构计划或临时文档直接丢在 `docs/architecture/` 或根目录下。
+- **区分状态**: 在文件名或文档开头明确标注文档状态（如：`RFC`, `Draft`, `Implementing`, `Archived`）。
+- **同步更新**: 当计划实施完毕且架构发生变更时，应及时更新 `docs/architecture/` 下的相关文档，并将原计划文档移至 `Archived` 或进行标注。
+
+## 4. 工具注册规范 (Tool Registration)
+
+项目采用模块化插件式架构，新工具必须遵循特定的注册流程以接入系统。
+
+### 4.1. 桌面端 (Desktop)
+
+桌面端工具位于 `src/tools/`，采用**自动发现机制**。
+
+- **核心文件**: `src/tools/{toolId}/{toolId}.registry.ts` (必须以 `.registry.ts` 结尾)。
+- **注册逻辑**:
+  - **UI 注册**: 导出 `toolConfig: ToolConfig` 对象，包含名称、路径、图标及动态导入的组件。
+  - **服务注册 (可选)**: 默认导出实现 `ToolRegistry` 接口的类，用于暴露能力给 LLM 或其他模块。
+- **排序控制**: 在 `src/config/tools.ts` 的 `DEFAULT_TOOLS_ORDER` 中添加路径以控制侧边栏顺序。
+
+### 4.2. 移动端 (Mobile)
+
+移动端工具位于 `mobile/src/tools/`，遵循**显式注册机制**。
+
+- **核心文件**: `mobile/src/tools/{toolId}/registry.ts` (固定名称)。
+- **注册逻辑**:
+  - **语言包注册**: 必须在导出前调用 `registerToolLocales`。
+  - **配置导出**: 默认导出包含 `id`、`name` (使用 getter)、`icon` 及 `route` 配置的对象。
+- **自动路由**: 系统会自动扫描所有工具目录下的 `registry.ts` 并注册到路由系统。
+
+## 5. 核心开发规范
+
+为了保证代码质量和项目可维护性，开发活动应遵循以下核心规范。
 
 ### 2.1. 错误处理
 
@@ -207,16 +252,52 @@
 
 - **日志输出**: 日志会同时输出到开发者控制台和本地日志文件 (`appDataDir/logs/app-YYYY-MM-DD.log`)。
 
-## 3. 自定义组件与封装
+## 3. Element Plus 使用规范
 
-### 3.1. `customMessage` (消息提示)
+### 3.1. Dropdown 与 Tooltip 组合使用
+
+当需要在 `el-dropdown` 的触发器上添加 `el-tooltip` 时，**必须**使用一个包裹层（如 `div`）来包裹 `el-tooltip`，而不是直接将 `el-tooltip` 作为 `el-dropdown` 的直接子元素。
+
+**错误示例**:
+
+```vue
+<el-dropdown trigger="click">
+  <el-tooltip content="提示文字">
+    <el-button>按钮</el-button>
+  </el-tooltip>
+  <template #dropdown>
+    <!-- ... -->
+  </template>
+</el-dropdown>
+```
+
+**正确示例**:
+
+```vue
+<el-dropdown trigger="click">
+  <div>
+    <el-tooltip content="提示文字">
+      <el-button>按钮</el-button>
+    </el-tooltip>
+  </div>
+  <template #dropdown>
+    <!-- ... -->
+  </template>
+</el-dropdown>
+```
+
+**原因**: Element Plus 的 `el-dropdown` 组件会尝试直接操作其第一个子元素来绑定事件和引用，如果直接使用 `el-tooltip` 会导致事件绑定失败或触发异常。添加包裹层可以确保 `el-dropdown` 正确识别触发器元素。
+
+## 4. 自定义组件与封装
+
+### 4.1. `customMessage` (消息提示)
 
 - **文件路径**: `src/utils/customMessage.ts`
 - **目的**: 封装 Element Plus 的 `ElMessage` 组件。
 - **核心功能**: 自动为消息提示框添加 `offset`，防止其被自定义的无边框标题栏遮挡。
 - **使用方法**: 调用方式与 `ElMessage` 完全一致，例如 `customMessage.success('操作成功')`。在项目中应优先使用 `customMessage` 而不是直接使用 `ElMessage`。
 
-### 3.2. 通用 UI 组件
+### 4.2. 通用 UI 组件
 
 项目主要在 `src/components/common/` 目录下（部分位于 `src/components/` 或 `src/tools/`）封装了一系列可复用的通用组件，详细使用方法请参考各组件的示例文档：
 
@@ -240,7 +321,7 @@
 - **DocumentViewer** - 多格式文档预览组件，支持 Markdown 渲染、HTML 页面预览和代码文件预览，提供源码/预览模式切换和双引擎代码编辑器。
 - **ComponentHeader** - (`src/components/`) 专用于**可分离/悬浮窗口组件**的头部，提供置顶、分离（弹出新窗口）等特定交互逻辑，并自动适配拖拽模式。普通工具页面不应使用。
 
-## 4. 核心特性与 Composables
+## 5. 核心特性与 Composables
 
 项目通过 Vue Composables 实现了许多核心功能的高度复用。
 
@@ -283,13 +364,45 @@
     });
     ```
 
-## 5. 主题外观系统 (Theme Appearance)
+## 7. 主题外观系统 (Theme Appearance)
 
 项目包含一个强大的主题外观系统，允许用户动态调整应用的透明度、模糊等视觉效果。核心逻辑封装在 `src/composables/useThemeAppearance.ts` 中。
 
 #### 核心机制
 
 该系统通过在 `<html>` 根元素上动态设置 CSS 自定义属性 (CSS Variables) 来工作。所有组件都应优先使用这些变量来定义背景、边框等样式，以确保与用户设置保持一致。
+
+#### 颜色使用规范
+
+为了保持与主题外观系统的兼容性，避免出现“死沉”的实色背景，请遵循以下颜色使用规范：
+
+- **禁止直接使用 Element Plus 的 `light` 系列颜色作为背景色**（如 `--el-color-primary-light-9`、`--el-color-success-light-9` 等）。这些颜色是**实色**（已经混合了白色/黑色），与透明度系统不兼容，会破坏通透感。
+- **正确做法**：使用主题外观系统提供的背景变量，这些变量已经包含了基于用户设置的透明度、颜色叠加和模糊效果。
+  - 卡片/面板：`background-color: var(--card-bg);`
+  - 输入框：`background-color: var(--input-bg);`
+  - 侧边栏：`background-color: var(--sidebar-bg);`
+  - 对话框/遮罩层：`background-color: var(--container-bg);`
+- **如果需要使用 Element Plus 的基础颜色并附加透明度**（如模拟 `light-9` 效果），应使用其 RGB 变量配合 `rgba()` 函数，并**乘以全局透明度变量**以保持通透感。例如：
+
+  ```css
+  /* 不推荐：实色背景，不通透 */
+  background-color: var(--el-color-primary-light-9);
+
+  /* 不那么推荐：固定透明度，不响应用户设置 */
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+
+  /* 推荐：响应全局透明度设置 */
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  ```
+
+  常见的对应关系：
+  - `light-9` 效果：`calc(var(--card-opacity) * 0.1)`
+  - `light-8` 效果：`calc(var(--card-opacity) * 0.15)`
+  - `light-7` 效果：`calc(var(--card-opacity) * 0.2)`
+  - `light-5` 效果：`calc(var(--card-opacity) * 0.3)`
+  - `light-3` 效果：`calc(var(--card-opacity) * 0.7)`
+
+  注意：`--card-opacity` 在禁用 UI 特效时会自动变为 `1`，确保了样式的鲁棒性。
 
 #### 如何适配新组件
 

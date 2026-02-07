@@ -148,6 +148,7 @@ import { ref, computed, reactive, nextTick } from "vue";
 import { Activity, Play, Database, BarChart3, Terminal } from "lucide-vue-next";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
+import { writeTextFile, readTextFile, readFile } from "@tauri-apps/plugin-fs";
 import * as jsonpatch from "fast-json-patch";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
@@ -534,6 +535,88 @@ async function runSchemeE(
   return r;
 }
 
+// 方案 F: 生产环境真实模拟 ✅ (plugin-fs + 数据清洗)
+// 1. 模拟解构 history (数据清洗)
+// 2. 使用 @tauri-apps/plugin-fs (官方插件通道)
+async function runSchemeF(
+  session: Record<string, unknown>,
+  basePath: string
+): Promise<SchemeResult> {
+  const r: SchemeResult = {
+    name: "方案 F: 生产环境模拟 (plugin-fs)",
+    tag: "F",
+    color: "#a855f7",
+    steps: [],
+    summary: null,
+  };
+  const p = await join(basePath, "perf-test-f.json");
+  addLog("[F] 生产环境模拟: 数据清洗 + plugin-fs 写入");
+
+  // 1. 模拟数据清洗 (useChatStorageSeparated.ts 第 150 行)
+  const t0 = performance.now();
+  const { history, historyIndex, ...sessionToSave } = session as any;
+  const js = JSON.stringify(sessionToSave, null, 2); // 生产环境用了美化 JSON
+  const t1 = performance.now();
+  r.steps.push({
+    step: "数据清洗 + Stringify",
+    duration: t1 - t0,
+    details: `清洗后长度: ${js.length}`,
+  });
+
+  // 2. 使用 plugin-fs 写入
+  const t2 = performance.now();
+  await writeTextFile(p, js);
+  const t3 = performance.now();
+  r.steps.push({
+    step: "plugin-fs.writeTextFile",
+    duration: t3 - t2,
+    details: "Tauri 官方标准通道",
+  });
+
+  // 3. 使用 plugin-fs 读取 (文本模式)
+  const t4 = performance.now();
+  const txt = await readTextFile(p);
+  const t5 = performance.now();
+  r.steps.push({
+    step: "plugin-fs.readTextFile",
+    duration: t5 - t4,
+    details: `${txt.length} chars`,
+  });
+
+  // 4. 使用 plugin-fs 读取 (二进制模式 - 潜在优化点)
+  const t4b = performance.now();
+  const bin = await readFile(p);
+  const decoded = new TextDecoder().decode(bin);
+  const t5b = performance.now();
+  r.steps.push({
+    step: "plugin-fs.readFile + Decoder",
+    duration: t5b - t4b,
+    details: `长度: ${decoded.length} (潜在优化路径)`,
+  });
+
+  // 5. 解析
+  const t6 = performance.now();
+  const pd = JSON.parse(txt);
+  const t7 = performance.now();
+  r.steps.push({
+    step: "JSON.parse",
+    duration: t7 - t6,
+    details: `还原对象, 节点数: ${Object.keys(pd.nodes || {}).length}`,
+  });
+
+  const fileSizeBytes = new TextEncoder().encode(js).length;
+  r.summary = {
+    fileSizeMB: fileSizeBytes / 1048576,
+    totalTime: t1 - t0 + (t3 - t2) + (t5 - t4) + (t7 - t6),
+    writeTime: t3 - t2,
+    readTime: t5 - t4,
+    serializeTime: t1 - t0,
+    deserializeTime: t7 - t6,
+  };
+  addLog(`[F] 完成 ${r.summary.totalTime.toFixed(1)} ms`, "success");
+  return r;
+}
+
 async function runAllTests() {
   testing.value = true;
   logs.value = [];
@@ -562,7 +645,10 @@ async function runAllTests() {
     addLog("--- 方案 E (增量更新: JSON Patch) ---");
     await yieldToUI();
     const rE = await runSchemeE(session as unknown as Record<string, unknown>, bp);
-    const results = [rA, rB, rC, rD, rE];
+    addLog("--- 方案 F (生产环境模拟: plugin-fs) ---");
+    await yieldToUI();
+    const rF = await runSchemeF(session as unknown as Record<string, unknown>, bp);
+    const results = [rA, rB, rC, rD, rE, rF];
     allSchemeResults.value = results;
     const base = rA.summary?.totalTime ?? 1;
     comparisonData.value = results.map((x) => ({
@@ -690,6 +776,9 @@ function generateMockSession(count: number, sizeKB: number) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     messageCount: total,
+    // 模拟运行时字段 (生产环境保存时会剔除)
+    history: new Array(100).fill({ type: "undo", data: "..." }),
+    historyIndex: 50,
   };
 }
 </script>

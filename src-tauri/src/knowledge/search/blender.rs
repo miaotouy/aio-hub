@@ -61,12 +61,14 @@ impl BlenderRetrievalEngine {
 
             let mut layer_residual_reduction = vec![0.0; residual.len()];
 
-            for (tag_idx, similarity) in neighbors {
+            for (tag_idx, distance) in neighbors {
                 if let (Some(tag_vec), Some(tag_name)) =
                     (tag_pool.get_vector(tag_idx), tag_pool.get_tag_name(tag_idx))
                 {
                     let coeff = projection_coeff(&residual, tag_vec);
-                    let weight = coeff.abs() * similarity * layer_decay.powi(layer as i32);
+                    // 将余弦距离转换为相似度
+                    let sim = (1.0 - distance).max(0.0);
+                    let weight = coeff.abs() * sim * layer_decay.powi(layer as i32);
 
                     activated_tags.push((tag_name.clone(), weight, layer));
 

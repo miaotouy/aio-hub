@@ -131,6 +131,22 @@ impl RetrievalEngine for VectorRetrievalEngine {
             .ok()
             .and_then(|lock| lock.read().ok().map(|guard| guard.clone()));
 
+        // 计算总条目数，用于自适应策略
+        let total_entries: usize = imdb
+            .bases
+            .values()
+            .filter_map(|lock| lock.read().ok())
+            .map(|base| base.entries.len())
+            .sum();
+
+        // 查询向量增强 (Tag Anchoring)
+        // 在少样本环境下，利用标签池的语义锚点修正查询向量
+        let augmented_query_vector = if let Some(ref pool) = tag_pool {
+            augment_query_vector(query_vector, pool, total_entries)
+        } else {
+            query_vector.to_vec()
+        };
+
         for (kb_id, base_lock) in &imdb.bases {
             // 过滤器：知识库 ID
             if let Some(ref kb_ids) = filters.kb_ids {
@@ -199,7 +215,9 @@ impl RetrievalEngine for VectorRetrievalEngine {
             let mut tag_scores: HashMap<Uuid, f32> = HashMap::new();
             if let Some(ref pool) = tag_pool {
                 let neighbors = pool.search_neighbors(query_vector, 40);
-                for (tag_idx, tag_sim) in neighbors {
+                for (tag_idx, tag_dist) in neighbors {
+                    // 将余弦距离转换为相似度
+                    let tag_sim = (1.0 - tag_dist).max(0.0);
                     if let Some(tag_name) = pool.get_tag_name(tag_idx) {
                         // 寻找拥有此标签的条目
                         for caiu in base.entries.values() {
@@ -253,15 +271,27 @@ impl RetrievalEngine for VectorRetrievalEngine {
 
             use rayon::prelude::*;
 
-            // 计算平均文档长度（字符数），用于长度归一化
-            let avg_doc_len = if !base.entries.is_empty() {
-                base.entries
-                    .values()
-                    .map(|e| e.content.len())
-                    .sum::<usize>() as f32
-                    / base.entries.len() as f32
+            // 使用中位数文档长度（抗异常值）
+            let median_doc_len = if !base.entries.is_empty() {
+                let mut lengths: Vec<usize> =
+                    base.entries.values().map(|e| e.content.len()).collect();
+                lengths.sort_unstable();
+                lengths[lengths.len() / 2] as f32
             } else {
                 500.0
+            };
+
+            // 自适应 b 参数 (少样本时降低长度归一化强度)
+            let effective_b = {
+                let user_b = filters.b.unwrap_or(self.b);
+                let count = base.entries.len();
+                if count < 50 {
+                    user_b * 0.3
+                } else if count < 200 {
+                    user_b * 0.6
+                } else {
+                    user_b
+                }
             };
 
             // 并行计算相似度并应用 BM25 风格的长度奖励/惩罚
@@ -274,7 +304,9 @@ impl RetrievalEngine for VectorRetrievalEngine {
                     let start = i * dimension;
                     let end = start + dimension;
                     let stored_vec = &base.vector_store.data[start..end];
-                    let cos_sim = cosine_similarity(query_vector, stored_vec);
+
+                    // 使用增强后的查询向量
+                    let cos_sim = cosine_similarity(&augmented_query_vector, stored_vec);
 
                     // 基础过滤：优先使用库级别配置，其次是全局过滤器
                     let effective_min_score = kb_min_score.or(filters.min_score);
@@ -288,13 +320,11 @@ impl RetrievalEngine for VectorRetrievalEngine {
 
                     // 优先使用 filters 中的参数，否则回退到引擎默认值
                     let k1 = filters.k1.unwrap_or(self.k1);
-                    let b = filters.b.unwrap_or(self.b);
 
                     // 仿 BM25 长度归一化因子
-                    let l_factor = 1.0 - b + b * (doc_len / avg_doc_len);
+                    let l_factor = 1.0 - effective_b + effective_b * (doc_len / median_doc_len);
 
                     // 调整后的得分：将余弦相似度映射到非线性空间，并结合长度因子
-                    // 这样可以避免长文本仅仅因为包含更多词而在向量空间中获得不公平的优势（或劣势）
                     let adjusted_score = (cos_sim * (k1 + 1.0)) / (cos_sim + k1 * l_factor);
 
                     Some((*id, adjusted_score))
@@ -305,14 +335,18 @@ impl RetrievalEngine for VectorRetrievalEngine {
             let mut matched_ids = std::collections::HashSet::new();
             let mut kb_results = Vec::new();
 
+            // 自适应权重融合 (少样本时提升标签权重)
+            let entry_count_f64 = base.entries.len() as f64;
+            let tag_weight = (0.4 * (-0.003 * entry_count_f64).exp()) as f32 + 0.1;
+            let vector_weight = 1.0 - tag_weight;
+
             for (caiu_id, vector_score) in scores {
                 if let Some(caiu) = base.entries.get(&caiu_id) {
                     if filters.enabled_only.unwrap_or(true) && !caiu.enabled {
                         continue;
                     }
 
-                    // 综合评分：内容向量相似度 (80%) + 标签引力权重 (20%)
-                    // 向量检索应当以内容为主，标签作为微调
+                    // 综合评分：内容向量相似度 + 标签引力权重
                     let tag_score = tag_scores.get(&caiu_id).cloned().unwrap_or(0.0);
 
                     // 引入优先级加权
@@ -329,8 +363,10 @@ impl RetrievalEngine for VectorRetrievalEngine {
                         }
                     }
 
-                    let final_score =
-                        vector_score * 0.8 + tag_score * 0.2 + priority_boost + literal_boost;
+                    let final_score = vector_score * vector_weight
+                        + tag_score * tag_weight
+                        + priority_boost
+                        + literal_boost;
 
                     kb_results.push(SearchResult {
                         caiu: caiu.clone(),
@@ -344,6 +380,23 @@ impl RetrievalEngine for VectorRetrievalEngine {
                 }
             }
 
+            // 自适应标签召回阈值
+            let entry_count = base.entries.len();
+            let tag_recall_threshold = if entry_count < 50 {
+                0.25
+            } else if entry_count < 200 {
+                0.35
+            } else {
+                0.50
+            };
+            let tag_recall_weight = if entry_count < 50 {
+                0.75
+            } else if entry_count < 200 {
+                0.65
+            } else {
+                0.60
+            };
+
             // 兜底逻辑：对于只有标签匹配但没有向量匹配（或向量未生成）的条目
             for (caiu_id, tag_score) in tag_scores {
                 if matched_ids.contains(&caiu_id) {
@@ -355,11 +408,11 @@ impl RetrievalEngine for VectorRetrievalEngine {
                         continue;
                     }
 
-                    // 纯标签召回：阈值 0.5，权重 0.6
-                    if tag_score > 0.5 {
+                    // 纯标签召回：使用自适应阈值和权重
+                    if tag_score > tag_recall_threshold {
                         kb_results.push(SearchResult {
                             caiu: caiu.clone(),
-                            score: tag_score * 0.6,
+                            score: tag_score * tag_recall_weight,
                             match_type: "tag_vector".to_string(),
                             kb_id: *kb_id,
                             kb_name: base.meta.name.clone(),
@@ -387,23 +440,29 @@ impl RetrievalEngine for VectorRetrievalEngine {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        // 改进的归一化策略
+        // 改进的归一化策略 (少样本时避免过度拉伸)
         if !results.is_empty() {
             let max_score = results[0].score;
-            let min_score = results.last().map(|r| r.score).unwrap_or(0.0);
-            let range = max_score - min_score;
+            let result_count = results.len();
 
             for result in results.iter_mut() {
                 // 如果分数超过 1.0 (由于 Boost)，进行平滑压缩
                 if result.score > 1.0 {
                     result.score = 1.0 - (1.0 / (result.score + 0.5));
                 }
+            }
 
-                // 确保分数在合理区间，并保留区分度
+            // 少样本时不做过度拉伸，避免 min-max 放大微小差异
+            if result_count >= 5 {
+                let min_score = results.last().map(|r| r.score).unwrap_or(0.0);
+                let range = max_score - min_score;
+
                 if range > 0.001 {
-                    // 稍微拉开差距，让 Top 1 更显著
-                    let relative_pos = (result.score - min_score) / range;
-                    result.score = result.score * 0.9 + relative_pos * 0.1;
+                    for result in results.iter_mut() {
+                        // 稍微拉开差距，让 Top 1 更显著
+                        let relative_pos = (result.score - min_score) / range;
+                        result.score = result.score * 0.9 + relative_pos * 0.1;
+                    }
                 }
             }
         }
@@ -418,6 +477,51 @@ impl RetrievalEngine for VectorRetrievalEngine {
 
         Ok(final_results)
     }
+}
+
+/// 查询向量增强 (Tag Anchoring)
+/// 利用标签池的语义锚点修正查询向量，弥补少样本下向量空间的稀疏性
+fn augment_query_vector(
+    query_vector: &[f32],
+    tag_pool: &crate::knowledge::tag_pool::ModelTagPool,
+    total_entries: usize,
+) -> Vec<f32> {
+    // 自适应融合强度：少样本时 alpha 更大（最高 0.3），大规模时趋近 0
+    let alpha = (0.3 * (-0.005 * total_entries as f64).exp()) as f32;
+    if alpha < 0.02 {
+        return query_vector.to_vec();
+    }
+
+    let neighbors = tag_pool.search_neighbors(query_vector, 5);
+    if neighbors.is_empty() {
+        return query_vector.to_vec();
+    }
+
+    let dim = query_vector.len();
+    let mut augmented = query_vector.to_vec();
+
+    for (tag_idx, distance) in neighbors {
+        // 将余弦距离转换为相似度
+        let sim = (1.0 - distance).max(0.0);
+        if sim < 0.3 {
+            continue;
+        } // 过滤噪声邻居
+        if let Some(tag_vec) = tag_pool.get_vector(tag_idx) {
+            let w = sim * sim; // 平方衰减，强调高相似度
+            for i in 0..dim {
+                augmented[i] += tag_vec[i] * w * alpha;
+            }
+        }
+    }
+
+    // L2 归一化，保持单位向量
+    let norm: f32 = augmented.iter().map(|x| x * x).sum::<f32>().sqrt();
+    if norm > 0.0 {
+        for v in augmented.iter_mut() {
+            *v /= norm;
+        }
+    }
+    augmented
 }
 
 /// 计算余弦相似度

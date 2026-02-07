@@ -406,8 +406,9 @@ impl LensRetrievalEngine {
 
         let mut initial_energy = DVector::zeros(n);
         for i in 0..n {
-            let (_, sim) = neighbors[i];
-            initial_energy[i] = sim;
+            let (_, dist) = neighbors[i];
+            // 将余弦距离转换为相似度作为初始能量
+            initial_energy[i] = (1.0 - dist).max(0.0);
         }
 
         let propagated_energy = inversion_matrix * initial_energy;

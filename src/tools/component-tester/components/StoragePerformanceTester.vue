@@ -212,21 +212,20 @@ function yieldToUI(): Promise<void> {
   return new Promise((r) => setTimeout(r, 50));
 }
 
-// 方案 A: 旧方案 Vec<u8> 写入 + 美化 JSON (基准 — 反面教材)
-// ⚠ Array.from(Uint8Array) → number[] → IPC JSON 序列化膨胀 3-4x
+// 方案 A: Vec<u8> 写入 + 美化 JSON
 async function runSchemeA(
   session: Record<string, unknown>,
   basePath: string
 ): Promise<SchemeResult> {
   const r: SchemeResult = {
-    name: "方案 A: Vec<u8>写入 + 美化 JSON (旧)",
+    name: "方案 A: Vec<u8>写入 + 美化 JSON",
     tag: "A",
     color: "#409eff",
     steps: [],
     summary: null,
   };
   const p = await join(basePath, "perf-test-a.json");
-  addLog("[A] Vec<u8>写入 + 美化 JSON (Array.from膨胀)");
+  addLog("[A] Vec<u8>写入 + 美化 JSON");
   const t0 = performance.now();
   const js = JSON.stringify(session, null, 2);
   const t1 = performance.now();
@@ -264,7 +263,6 @@ async function runSchemeA(
     deserializeTime: t7 - t6,
   };
   addLog(`[A] 完成 ${r.summary.totalTime.toFixed(1)} ms`, "success");
-  addLog("[A] ⚠ Array.from(Uint8Array) 经 IPC JSON 序列化为 number[]，写入膨胀约 3-4x", "warn");
   return r;
 }
 
@@ -322,21 +320,20 @@ async function runSchemeB(
   return r;
 }
 
-// 方案 C: 伪二进制传输 + 紧凑 JSON (read_file_binary → Vec<u8> → number[])
-// ⚠ 这是一个反面教材：Vec<u8> 经 Tauri IPC JSON 序列化后变成 number[]，传输量膨胀 3-4x
+// 方案 C: 伪二进制传输 + 紧凑 JSON (read_file_binary -> Vec<u8>)
 async function runSchemeC(
   session: Record<string, unknown>,
   basePath: string
 ): Promise<SchemeResult> {
   const r: SchemeResult = {
-    name: "方案 C: 伪二进制 (Vec<u8>→number[])",
+    name: "方案 C: 伪二进制 (Vec<u8>)",
     tag: "C",
     color: "#e6a23c",
     steps: [],
     summary: null,
   };
   const p = await join(basePath, "perf-test-c.json");
-  addLog("[C] 伪二进制传输 (read_file_binary → Vec<u8> → JSON number[])");
+  addLog("[C] 伪二进制传输 (read_file_binary)");
   const t0 = performance.now();
   const js = JSON.stringify(session);
   const t1 = performance.now();
@@ -384,13 +381,10 @@ async function runSchemeC(
     deserializeTime: deTime,
   };
   addLog(`[C] 完成 ${r.summary.totalTime.toFixed(1)} ms`, "success");
-  addLog("[C] ⚠ Vec<u8> 经 IPC JSON 序列化为 number[]，传输量膨胀约 3-4x，这是反面教材", "warn");
   return r;
 }
 
 // 方案 D: 文本直传写入 + 真二进制读取
-// 写入: write_text_file_force (String直传，零膨胀)
-// 读取: read_file_binary_raw (IPC Response → ArrayBuffer，零膨胀)
 async function runSchemeD(
   session: Record<string, unknown>,
   basePath: string
@@ -403,7 +397,7 @@ async function runSchemeD(
     summary: null,
   };
   const p = await join(basePath, "perf-test-d.json");
-  addLog("[D] 文本直传写入 + 真二进制读取 (最优组合)");
+  addLog("[D] 文本直传写入 + 真二进制读取");
   const t0 = performance.now();
   const js = JSON.stringify(session);
   const t1 = performance.now();
@@ -636,10 +630,10 @@ async function runAllTests() {
     addLog("--- 方案 B ---");
     await yieldToUI();
     const rB = await runSchemeB(session as unknown as Record<string, unknown>, bp);
-    addLog("--- 方案 C (反面教材: Vec<u8>→number[]) ---");
+    addLog("--- 方案 C (伪二进制传输) ---");
     await yieldToUI();
     const rC = await runSchemeC(session as unknown as Record<string, unknown>, bp);
-    addLog("--- 方案 D (直传写入 + 二进制读取: 最优组合) ---");
+    addLog("--- 方案 D (直传写入 + 二进制读取) ---");
     await yieldToUI();
     const rD = await runSchemeD(session as unknown as Record<string, unknown>, bp);
     addLog("--- 方案 E (增量更新: JSON Patch) ---");

@@ -123,14 +123,18 @@
           </el-table-column>
         </el-table>
       </div>
-      <div class="log-container">
-        <div class="log-header">
-          <Terminal :size="16" /><span>实时执行日志</span>
+      <div class="log-container" :class="{ collapsed: logCollapsed }">
+        <div class="log-header" @click="logCollapsed = !logCollapsed">
+          <Terminal :size="16" />
+          <span>实时执行日志</span>
           <div class="log-actions">
-            <el-button link size="small" @click="logs = []">清空</el-button>
+            <el-button link size="small" @click.stop="logs = []">清空</el-button>
+            <el-button link size="small" @click.stop="logCollapsed = !logCollapsed">
+              <component :is="logCollapsed ? ChevronDown : ChevronUp" :size="14" />
+            </el-button>
           </div>
         </div>
-        <div class="log-area" ref="logContainer">
+        <div class="log-area" ref="logContainer" v-show="!logCollapsed">
           <div v-if="logs.length === 0" class="empty-log">等待测试开始...</div>
           <div v-for="(log, i) in logs" :key="i" class="log-entry" :class="log.type">
             <span class="log-time">{{ log.time }}</span>
@@ -145,7 +149,15 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick } from "vue";
-import { Activity, Play, Database, BarChart3, Terminal } from "lucide-vue-next";
+import {
+  Activity,
+  Play,
+  Database,
+  BarChart3,
+  Terminal,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-vue-next";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile, readTextFile, readFile } from "@tauri-apps/plugin-fs";
@@ -191,6 +203,7 @@ interface ComparisonRow {
 
 const config = reactive({ messageCount: 1000, contentSizeKB: 10 });
 const testing = ref(false);
+const logCollapsed = ref(false);
 const logs = ref<{ time: string; message: string; type: string }[]>([]);
 const logContainer = ref<HTMLElement | null>(null);
 const allSchemeResults = ref<SchemeResult[]>([]);
@@ -613,6 +626,7 @@ async function runSchemeF(
 
 async function runAllTests() {
   testing.value = true;
+  logCollapsed.value = false; // 开始时展开日志
   logs.value = [];
   allSchemeResults.value = [];
   comparisonData.value = [];
@@ -644,6 +658,7 @@ async function runAllTests() {
     const rF = await runSchemeF(session as unknown as Record<string, unknown>, bp);
     const results = [rA, rB, rC, rD, rE, rF];
     allSchemeResults.value = results;
+    logCollapsed.value = true; // 完成时自动收起日志
     const base = rA.summary?.totalTime ?? 1;
     comparisonData.value = results.map((x) => ({
       scheme: x.name,
@@ -783,7 +798,7 @@ function generateMockSession(count: number, sizeKB: number) {
   flex-direction: column;
   gap: 16px;
   padding: 8px;
-  height: 100%;
+  min-height: 100%;
   box-sizing: border-box;
 }
 .action-bar {
@@ -828,8 +843,6 @@ function generateMockSession(count: number, sizeKB: number) {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  flex: 1;
-  min-height: 0;
 }
 .comparison-card,
 .results-card {
@@ -964,15 +977,18 @@ function generateMockSession(count: number, sizeKB: number) {
   white-space: nowrap;
 }
 .log-container {
-  flex: 1;
   display: flex;
   flex-direction: column;
   background-color: rgba(0, 0, 0, 0.2);
   border-radius: 12px;
   border: 1px solid var(--border-color);
   overflow: hidden;
-  min-height: 180px;
   backdrop-filter: blur(var(--ui-blur));
+  transition: all 0.3s ease;
+}
+.log-container.collapsed {
+  border-color: transparent;
+  background-color: rgba(0, 0, 0, 0.1);
 }
 .log-header {
   display: flex;
@@ -984,12 +1000,16 @@ function generateMockSession(count: number, sizeKB: number) {
   font-size: 13px;
   font-weight: 600;
   color: #ccc;
+  cursor: pointer;
+  user-select: none;
+}
+.log-container.collapsed .log-header {
+  border-bottom-color: transparent;
 }
 .log-actions {
   margin-left: auto;
 }
 .log-area {
-  flex: 1;
   padding: 12px;
   overflow-y: auto;
   font-family: var(--el-font-family-mono);

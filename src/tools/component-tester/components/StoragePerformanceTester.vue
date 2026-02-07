@@ -388,7 +388,7 @@ async function runSchemeC(
   return r;
 }
 
-// 方案 D: 文本直传写入 + 真二进制读取 ✅ 最优组合
+// 方案 D: 文本直传写入 + 真二进制读取
 // 写入: write_text_file_force (String直传，零膨胀)
 // 读取: read_file_binary_raw (IPC Response → ArrayBuffer，零膨胀)
 async function runSchemeD(
@@ -396,7 +396,7 @@ async function runSchemeD(
   basePath: string
 ): Promise<SchemeResult> {
   const r: SchemeResult = {
-    name: "方案 D: 直传写入 + 二进制读取 ✅",
+    name: "方案 D: 直传写入 + 二进制读取",
     tag: "D",
     color: "#f56c6c",
     steps: [],
@@ -459,7 +459,7 @@ async function runSchemeD(
 }
 
 // 方案 E: 增量更新 (JSON Patch)
-// ✅ 模拟实际业务中“只更新一个节点”的场景，极大减少序列化和 I/O 压力
+// 模拟实际业务中“只更新一个节点”的场景，极大减少序列化和 I/O 压力
 async function runSchemeE(
   session: Record<string, unknown>,
   basePath: string
@@ -535,7 +535,7 @@ async function runSchemeE(
   return r;
 }
 
-// 方案 F: 生产环境真实模拟 ✅ (plugin-fs + 数据清洗)
+// 方案 F: 生产环境真实模拟 (plugin-fs + 数据清洗)
 // 1. 模拟解构 history (数据清洗)
 // 2. 使用 @tauri-apps/plugin-fs (官方插件通道)
 async function runSchemeF(

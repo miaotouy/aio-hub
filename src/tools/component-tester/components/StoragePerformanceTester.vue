@@ -211,20 +211,21 @@ function yieldToUI(): Promise<void> {
   return new Promise((r) => setTimeout(r, 50));
 }
 
-// 方案 A: 文本传输 + 美化 JSON (基准)
+// 方案 A: 旧方案 Vec<u8> 写入 + 美化 JSON (基准 — 反面教材)
+// ⚠ Array.from(Uint8Array) → number[] → IPC JSON 序列化膨胀 3-4x
 async function runSchemeA(
   session: Record<string, unknown>,
   basePath: string
 ): Promise<SchemeResult> {
   const r: SchemeResult = {
-    name: "方案 A: 文本传输 + 美化 JSON",
+    name: "方案 A: Vec<u8>写入 + 美化 JSON (旧)",
     tag: "A",
     color: "#409eff",
     steps: [],
     summary: null,
   };
   const p = await join(basePath, "perf-test-a.json");
-  addLog("[A] 文本传输 + 美化 JSON");
+  addLog("[A] Vec<u8>写入 + 美化 JSON (Array.from膨胀)");
   const t0 = performance.now();
   const js = JSON.stringify(session, null, 2);
   const t1 = performance.now();
@@ -234,7 +235,11 @@ async function runSchemeA(
   const t2 = performance.now();
   await invoke("write_file_force", { path: p, content: Array.from(buf) });
   const t3 = performance.now();
-  r.steps.push({ step: "write_file_force", duration: t3 - t2, details: `${buf.length} bytes` });
+  r.steps.push({
+    step: "write_file_force (Vec<u8>)",
+    duration: t3 - t2,
+    details: `${buf.length} bytes (IPC膨胀~3-4x)`,
+  });
   addLog(`[A] 写入 ${(buf.length / 1048576).toFixed(2)} MB`);
   const t4 = performance.now();
   const txt = await invoke<string>("read_text_file_force", { path: p });
@@ -258,34 +263,38 @@ async function runSchemeA(
     deserializeTime: t7 - t6,
   };
   addLog(`[A] 完成 ${r.summary.totalTime.toFixed(1)} ms`, "success");
+  addLog("[A] ⚠ Array.from(Uint8Array) 经 IPC JSON 序列化为 number[]，写入膨胀约 3-4x", "warn");
   return r;
 }
 
-// 方案 B: 文本传输 + 紧凑 JSON
+// 方案 B: 文本直传写入 + 紧凑 JSON
+// 使用 write_text_file_force 直接传 String，零膨胀
 async function runSchemeB(
   session: Record<string, unknown>,
   basePath: string
 ): Promise<SchemeResult> {
   const r: SchemeResult = {
-    name: "方案 B: 文本传输 + 紧凑 JSON",
+    name: "方案 B: 文本直传 + 紧凑 JSON",
     tag: "B",
     color: "#67c23a",
     steps: [],
     summary: null,
   };
   const p = await join(basePath, "perf-test-b.json");
-  addLog("[B] 文本传输 + 紧凑 JSON");
+  addLog("[B] 文本直传写入 (write_text_file_force) + 紧凑 JSON");
   const t0 = performance.now();
   const js = JSON.stringify(session);
   const t1 = performance.now();
   r.steps.push({ step: "JSON.stringify (紧凑)", duration: t1 - t0, details: `长度: ${js.length}` });
-  const enc = new TextEncoder();
-  const buf = enc.encode(js);
   const t2 = performance.now();
-  await invoke("write_file_force", { path: p, content: Array.from(buf) });
+  await invoke("write_text_file_force", { path: p, content: js });
   const t3 = performance.now();
-  r.steps.push({ step: "write_file_force", duration: t3 - t2, details: `${buf.length} bytes` });
-  addLog(`[B] 写入 ${(buf.length / 1048576).toFixed(2)} MB`);
+  r.steps.push({
+    step: "write_text_file_force (String直传)",
+    duration: t3 - t2,
+    details: `${js.length} chars (零膨胀)`,
+  });
+  addLog(`[B] 写入 ${(new TextEncoder().encode(js).length / 1048576).toFixed(2)} MB`);
   const t4 = performance.now();
   const txt = await invoke<string>("read_text_file_force", { path: p });
   const t5 = performance.now();
@@ -299,8 +308,9 @@ async function runSchemeB(
     duration: t7 - t6,
     details: `节点: ${nd ? Object.keys(nd).length : 0}`,
   });
+  const fileSizeBytes = new TextEncoder().encode(js).length;
   r.summary = {
-    fileSizeMB: buf.length / 1048576,
+    fileSizeMB: fileSizeBytes / 1048576,
     totalTime: t1 - t0 + (t3 - t2) + (t5 - t4) + (t7 - t6),
     writeTime: t3 - t2,
     readTime: t5 - t4,
@@ -377,32 +387,37 @@ async function runSchemeC(
   return r;
 }
 
-// 方案 D: 真二进制传输 + 紧凑 JSON (read_file_binary_raw → IPC Response → ArrayBuffer)
-// ✅ 使用 tauri::ipc::Response 绕过 JSON 序列化，前端直接收到 ArrayBuffer
+// 方案 D: 文本直传写入 + 真二进制读取 ✅ 最优组合
+// 写入: write_text_file_force (String直传，零膨胀)
+// 读取: read_file_binary_raw (IPC Response → ArrayBuffer，零膨胀)
 async function runSchemeD(
   session: Record<string, unknown>,
   basePath: string
 ): Promise<SchemeResult> {
   const r: SchemeResult = {
-    name: "方案 D: 真二进制 (IPC Response)",
+    name: "方案 D: 直传写入 + 二进制读取 ✅",
     tag: "D",
     color: "#f56c6c",
     steps: [],
     summary: null,
   };
   const p = await join(basePath, "perf-test-d.json");
-  addLog("[D] 真二进制传输 (read_file_binary_raw → IPC Response → ArrayBuffer)");
+  addLog("[D] 文本直传写入 + 真二进制读取 (最优组合)");
   const t0 = performance.now();
   const js = JSON.stringify(session);
   const t1 = performance.now();
   r.steps.push({ step: "JSON.stringify (紧凑)", duration: t1 - t0, details: `长度: ${js.length}` });
-  const enc = new TextEncoder();
-  const buf = enc.encode(js);
+  // 文本直传写入: 直接传 String，零膨胀
   const t2 = performance.now();
-  await invoke("write_file_force", { path: p, content: Array.from(buf) });
+  await invoke("write_text_file_force", { path: p, content: js });
   const t3 = performance.now();
-  r.steps.push({ step: "write_file_force", duration: t3 - t2, details: `${buf.length} bytes` });
-  addLog(`[D] 写入 ${(buf.length / 1048576).toFixed(2)} MB`);
+  r.steps.push({
+    step: "write_text_file_force (String直传)",
+    duration: t3 - t2,
+    details: `${js.length} chars (零膨胀)`,
+  });
+  const fileSizeBytes = new TextEncoder().encode(js).length;
+  addLog(`[D] 写入 ${(fileSizeBytes / 1048576).toFixed(2)} MB`);
   // 真二进制读取: read_file_binary_raw 返回 tauri::ipc::Response → 前端收到 ArrayBuffer
   const t4 = performance.now();
   const rawBuffer = await invoke<ArrayBuffer>("read_file_binary_raw", { path: p });
@@ -431,7 +446,7 @@ async function runSchemeD(
   });
   const deTime = t5c - t5b + (t7 - t6);
   r.summary = {
-    fileSizeMB: buf.length / 1048576,
+    fileSizeMB: fileSizeBytes / 1048576,
     totalTime: t1 - t0 + (t3 - t2) + (t5 - t4) + (t5c - t5b) + (t7 - t6),
     writeTime: t3 - t2,
     readTime: t5 - t4,
@@ -479,14 +494,17 @@ async function runSchemeE(
     details: `Patch 长度: ${patchStr.length} chars`,
   });
 
-  // 3. 写入 Patch (通常很小)
+  // 3. 写入 Patch (通常很小，使用文本直传)
   const t4 = performance.now();
-  const enc = new TextEncoder();
-  const buf = enc.encode(patchStr);
-  await invoke("write_file_force", { path: p, content: Array.from(buf) });
+  await invoke("write_text_file_force", { path: p, content: patchStr });
   const t5 = performance.now();
-  r.steps.push({ step: "写入 Patch 文件", duration: t5 - t4, details: `${buf.length} bytes` });
-  addLog(`[E] Patch 写入 ${(buf.length / 1024).toFixed(2)} KB`);
+  const patchSizeBytes = new TextEncoder().encode(patchStr).length;
+  r.steps.push({
+    step: "write_text_file_force (Patch)",
+    duration: t5 - t4,
+    details: `${patchSizeBytes} bytes`,
+  });
+  addLog(`[E] Patch 写入 ${(patchSizeBytes / 1024).toFixed(2)} KB`);
 
   // 4. 读取并应用 Patch
   const t6 = performance.now();
@@ -505,7 +523,7 @@ async function runSchemeE(
   });
 
   r.summary = {
-    fileSizeMB: buf.length / 1048576,
+    fileSizeMB: patchSizeBytes / 1048576,
     totalTime: t3 - t2 + (t5 - t4) + (t7 - t6) + (t9 - t8),
     writeTime: t5 - t4,
     readTime: t7 - t6,
@@ -538,7 +556,7 @@ async function runAllTests() {
     addLog("--- 方案 C (反面教材: Vec<u8>→number[]) ---");
     await yieldToUI();
     const rC = await runSchemeC(session as unknown as Record<string, unknown>, bp);
-    addLog("--- 方案 D (真二进制: IPC Response) ---");
+    addLog("--- 方案 D (直传写入 + 二进制读取: 最优组合) ---");
     await yieldToUI();
     const rD = await runSchemeD(session as unknown as Record<string, unknown>, bp);
     addLog("--- 方案 E (增量更新: JSON Patch) ---");

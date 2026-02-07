@@ -152,6 +152,7 @@ use commands::{
     validate_file_for_link,
     validate_regex_pattern,
     write_file_force,
+    write_text_file_force,
     // 状态
     ClipboardMonitorState,
 };
@@ -425,6 +426,7 @@ pub fn run() {
             delete_file_to_trash,
             delete_directory_in_app_data,
             write_file_force,
+            write_text_file_force,
             append_file_force,
             create_dir_force,
             read_text_file_force,

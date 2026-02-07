@@ -1935,6 +1935,58 @@ pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), Stri
     Ok(())
 }
 
+// Tauri 命令：强制写入文本文件（绕过前端路径检查，自动创建父目录）
+// 与 write_file_force 不同，此命令直接接受 String 参数，
+// 避免了前端 Array.from(Uint8Array) → number[] → IPC JSON 序列化膨胀 3-4x 的问题。
+// 适用于写入 JSON、文本等字符串内容的场景。
+#[tauri::command]
+pub async fn write_text_file_force(path: String, content: String) -> Result<(), String> {
+    let file_path = PathBuf::from(&path);
+
+    // 1. 扩展名白名单检查（与 write_file_force 保持一致）
+    let allowed_extensions = [
+        // 配置文件
+        "json", "yaml", "yml", "toml", "ini", "xml", // 文档文本
+        "txt", "md", "markdown", "log",
+    ];
+
+    let ext = file_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    if !allowed_extensions.contains(&ext.as_str()) {
+        return Err(format!(
+            "安全限制：write_text_file_force 不允许写入扩展名为 .{} 的文件",
+            ext
+        ));
+    }
+
+    // 2. 确保父目录存在
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
+        }
+    }
+
+    // 3. 直接写入字符串内容
+    let start = Instant::now();
+    fs::write(&file_path, content.as_bytes()).map_err(|e| format!("写入文件失败: {}", e))?;
+    let write_duration = start.elapsed();
+
+    if write_duration.as_millis() > 100 {
+        log::warn!(
+            "[Perf] write_text_file_force 写入耗时: {:?}, 大小: {} bytes, 路径: {:?}",
+            write_duration,
+            content.len(),
+            path
+        );
+    }
+
+    Ok(())
+}
+
 // Tauri 命令：强制读取文本文件（绕过前端路径检查）
 #[tauri::command]
 pub async fn read_text_file_force(path: String) -> Result<String, String> {

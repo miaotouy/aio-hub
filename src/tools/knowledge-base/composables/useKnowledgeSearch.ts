@@ -4,6 +4,8 @@ import { SearchResult, SearchFilters } from "../types/search";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { debounce } from "lodash-es";
+import { preprocessQuery } from "../utils/queryPreProcessor";
+import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 
 const logger = createModuleLogger("knowledge-base/search");
 const errorHandler = createModuleErrorHandler("knowledge-base/search");
@@ -25,13 +27,32 @@ export function useKnowledgeSearch() {
 
     loading.value = true;
     try {
+      // 查询预处理：清洗、分词、停用词过滤、Tag 匹配
+      const kbStore = useKnowledgeBaseStore();
+      const { cleanedQuery, matchedTags } = preprocessQuery(query.value, {
+        tagPool: kbStore.globalStats.allDiscoveredTags,
+      });
+
+      // 合并预处理提取的标签到过滤器
+      const mergedFilters: SearchFilters = {
+        ...filters.value,
+        tags: matchedTags.length > 0
+          ? [...new Set([...(filters.value.tags || []), ...matchedTags])]
+          : filters.value.tags,
+      };
+
       const searchResults = await invoke<SearchResult[]>("kb_search", {
-        query: query.value,
-        filters: filters.value,
+        query: cleanedQuery,
+        filters: mergedFilters,
         engineId: filters.value.engineId,
       });
       results.value = searchResults;
-      logger.info("搜索完成", { query: query.value, count: results.value.length });
+      logger.info("搜索完成", {
+        originalQuery: query.value,
+        cleanedQuery,
+        matchedTags,
+        count: results.value.length,
+      });
       return searchResults;
     } catch (error) {
       errorHandler.error(error, "知识库检索失败");

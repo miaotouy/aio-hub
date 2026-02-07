@@ -19,6 +19,7 @@ import { kbStorage, type WorkspaceData } from "../utils/kbStorage";
 import { getPureModelId } from "../utils/kbUtils";
 import { performVectorSearch } from "../core/kbIndexer";
 import { vectorCacheManager } from "../utils/vectorCache";
+import { preprocessQuery } from "../utils/queryPreProcessor";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmProfile } from "@/types/llm-profiles";
 
@@ -304,7 +305,6 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
       }
       return entry;
     },
-
     /**
      * 通用搜索
      */
@@ -313,6 +313,11 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       const engineId = this.searchSettings.engineId;
       const isVectorSearch = engineId === "vector" || engineId === "lens";
+
+      // 查询预处理：清洗、分词、停用词过滤、Tag 匹配
+      const { cleanedQuery, matchedTags } = preprocessQuery(query, {
+        tagPool: this.globalStats.allDiscoveredTags,
+      });
 
       if (isVectorSearch) {
         const comboId = this.config.defaultEmbeddingModel;
@@ -331,13 +336,13 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
         try {
           const startTime = Date.now();
-          // 生成或获取缓存的查询向量
+          // 使用预处理后的查询生成或获取缓存的查询向量
           const modelId = getPureModelId(comboId);
-          const vector = await vectorCacheManager.getVector(query, profile, modelId);
+          const vector = await vectorCacheManager.getVector(cleanedQuery, profile, modelId);
 
           const results = await performVectorSearch({
             kbId: this.activeBaseId,
-            query,
+            query: cleanedQuery,
             comboId,
             profile,
             topK: limit,
@@ -346,14 +351,19 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
               engineId,
               texture: this.searchSettings.texture,
               refractionIndex: this.searchSettings.refractionIndex,
-              requiredTags: this.searchSettings.requiredTags,
+              requiredTags: [
+                ...this.searchSettings.requiredTags,
+                ...matchedTags,
+              ],
             },
-            vector_payload: vector, // 传递已生成的向量
+            vector_payload: vector,
           });
 
           const totalDuration = Date.now() - startTime;
           logger.info("向量搜索整体流程完成", {
-            query,
+            originalQuery: query,
+            cleanedQuery,
+            matchedTags,
             count: results.length,
             duration: `${totalDuration}ms`,
           });
@@ -367,9 +377,10 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
         // 关键词搜索
         try {
           return await invoke<any[]>("kb_search", {
-            query,
+            query: cleanedQuery,
             filters: {
               kbIds: [this.activeBaseId],
+              tags: matchedTags.length > 0 ? matchedTags : undefined,
               limit,
               engineId,
             },

@@ -18,6 +18,7 @@ const errorHandler = createModuleErrorHandler("llm-chat/knowledge-service");
 export async function searchKnowledge(params: {
   query: string;
   kbIds?: string[];
+  tags?: string[];
   limit?: number;
   minScore?: number;
   engineId?: string;
@@ -25,12 +26,13 @@ export async function searchKnowledge(params: {
   modelId?: string;
 }): Promise<SearchResult[]> {
   return await errorHandler.wrapAsync(async () => {
-    logger.debug("执行知识库检索", { query: params.query, kbIds: params.kbIds });
+    logger.debug("执行知识库检索", { query: params.query, kbIds: params.kbIds, tags: params.tags });
     
     const results = await invoke<SearchResult[]>("kb_search", {
       query: params.query,
       filters: {
         kbIds: params.kbIds,
+        tags: params.tags,
         limit: params.limit,
         minScore: params.minScore,
         enabledOnly: true,

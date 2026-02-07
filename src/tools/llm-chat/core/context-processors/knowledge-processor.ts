@@ -8,6 +8,8 @@ import { EmbeddingCache, KBSessionCache, TurnRecord } from './knowledge-cache';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
 import { callEmbeddingApi } from '@/llm-apis/embedding';
 import { invoke } from '@tauri-apps/api/core';
+import { preprocessQuery } from '../../../knowledge-base/utils/queryPreProcessor';
+import { useKnowledgeBaseStore } from '../../../knowledge-base/stores/knowledgeBaseStore';
 
 const logger = createModuleLogger('KnowledgeProcessor');
 
@@ -116,7 +118,21 @@ export class KnowledgeProcessor implements ContextProcessor {
         results = await this.handleStaticMode(ph);
       } else {
         // 构建上下文感知查询
-        const queryText = this.buildContextQuery(context);
+        const rawQuery = this.buildContextQuery(context);
+
+        // 查询预处理：清洗、分词、停用词过滤、Tag 匹配
+        const kbStore = useKnowledgeBaseStore();
+        const { cleanedQuery, matchedTags } = preprocessQuery(rawQuery, {
+          tagPool: kbStore.globalStats.allDiscoveredTags,
+        });
+        const queryText = cleanedQuery;
+
+        logger.debug("RAG 查询预处理完成", {
+          rawQuery,
+          cleanedQuery: queryText,
+          matchedTags,
+        });
+
         const vector = await this.buildContextVector(queryText, context, embeddingCache);
 
         // 检查缓存
@@ -127,9 +143,10 @@ export class KnowledgeProcessor implements ContextProcessor {
           logger.debug("命中知识库检索缓存", { query: queryText });
           results = cached.results;
         } else {
-          // 执行检索
+          // 执行检索（传入预处理提取的标签）
           results = await searchKnowledge({
             query: queryText,
+            tags: matchedTags.length > 0 ? matchedTags : undefined,
             vector: vector || undefined,
             limit: ph.limit || agentConfig.knowledgeSettings?.defaultLimit || 5,
             minScore: ph.minScore || agentConfig.knowledgeSettings?.defaultMinScore || 0.3,

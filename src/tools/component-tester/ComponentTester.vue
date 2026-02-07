@@ -35,6 +35,10 @@
         <el-tab-pane label="文档查看器" name="document-viewer">
           <DocumentViewerTester />
         </el-tab-pane>
+
+        <el-tab-pane label="存储性能测试" name="storage-perf">
+          <StoragePerformanceTester />
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -49,8 +53,9 @@ import WindowDetachTester from "./components/WindowDetachTester.vue";
 import MessagingTest from "./components/MessagingTest.vue";
 import ThemeColorPalette from "./components/ThemeColorPalette.vue";
 import DocumentViewerTester from "./components/DocumentViewerTester.vue";
+import StoragePerformanceTester from "./components/StoragePerformanceTester.vue";
 
-const activeTab = ref("window-detach");
+const activeTab = ref("storage-perf");
 </script>
 
 <style scoped>

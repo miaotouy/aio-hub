@@ -447,7 +447,6 @@ watch(isDark, async () => {
 .section {
   margin-bottom: 32px;
   padding: 20px;
-  border: 1px solid var(--el-border-color);
   border-radius: 4px;
   background-color: var(--el-bg-color);
 }

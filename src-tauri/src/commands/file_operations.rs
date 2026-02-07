@@ -1109,6 +1109,21 @@ pub fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+// Tauri 命令：读取文件为原始二进制数据（使用 IPC Response 绕过 JSON 序列化）
+// 与 read_file_binary 不同，此命令返回 tauri::ipc::Response，
+// 前端收到的是 ArrayBuffer 而非 number[]，避免了 3-4x 的传输膨胀
+#[tauri::command]
+pub fn read_file_binary_raw(path: String) -> Result<tauri::ipc::Response, String> {
+    let file_path = Path::new(&path);
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
+
+    let bytes = fs::read(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
+
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 // Tauri 命令：读取文件为base64
 #[tauri::command]
 pub fn read_file_as_base64(path: String) -> Result<String, String> {

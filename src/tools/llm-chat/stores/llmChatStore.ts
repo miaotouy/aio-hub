@@ -24,6 +24,7 @@ import type { ChatSession, ChatMessageNode, LlmParameters, ModelIdentifier } fro
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
+import { clearSessionCache, clearAllCaches } from "../core/context-processors/knowledge-cache";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -273,6 +274,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     sessions.value = updatedSessions;
     currentSessionId.value = newCurrentSessionId;
+    clearSessionCache(sessionId);
     persistSessions();
   }
 
@@ -343,6 +345,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessions.value = [];
     currentSessionId.value = null;
     persistSessions();
+    clearAllCaches();
     const sessionManager = useSessionManager();
     sessionManager.clearAllSessions();
     logger.info("清空所有会话");

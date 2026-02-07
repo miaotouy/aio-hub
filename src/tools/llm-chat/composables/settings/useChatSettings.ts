@@ -98,6 +98,10 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...defaultConfig.worldbook,
         ...(loadedConfig.worldbook || {}),
       },
+      knowledgeBase: {
+        ...defaultConfig.knowledgeBase,
+        ...(loadedConfig.knowledgeBase || {}),
+      },
     };
   },
 });

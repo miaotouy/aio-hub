@@ -4,8 +4,9 @@ import { createModuleLogger } from '@/utils/logger';
 import { searchKnowledge } from '../../services/knowledge-service';
 import type { SearchResult } from '../../../knowledge-base/types/search';
 import type { ChatAgent } from '../../types/agent';
-import { EmbeddingCache, KBSessionCache, TurnRecord } from './knowledge-cache';
+import { EmbeddingCache, TurnRecord, getGlobalEmbeddingCache, getSessionRetrievalCache, getSessionHistory } from './knowledge-cache';
 import { useLlmProfiles } from '@/composables/useLlmProfiles';
+import { useChatSettings } from '../../composables/settings/useChatSettings';
 import { callEmbeddingApi } from '@/llm-apis/embedding';
 import { invoke } from '@tauri-apps/api/core';
 import { preprocessQuery } from '../../../knowledge-base/utils/queryPreProcessor';
@@ -86,7 +87,7 @@ export class KnowledgeProcessor implements ContextProcessor {
   priority = 450;
 
   async execute(context: PipelineContext): Promise<void> {
-    const { agentConfig, messages, sharedData } = context;
+    const { agentConfig, messages } = context;
 
     // 1. 扫描占位符
     const placeholders = scanPlaceholders(messages);
@@ -94,10 +95,12 @@ export class KnowledgeProcessor implements ContextProcessor {
       return;
     }
 
-    // 初始化缓存与历史 (从 sharedData 中持久化会话级状态)
-    const embeddingCache = this.getOrCreateShared(sharedData, 'embeddingCache', () => new EmbeddingCache());
-    const sessionCache = this.getOrCreateShared(sharedData, 'retrievalCache', () => new KBSessionCache());
-    const history = this.getOrCreateShared(sharedData, 'knowledgeHistory', () => [] as TurnRecord[]);
+    // 初始化缓存与历史（模块级持久化，跨请求存活）
+    const { settings } = useChatSettings();
+    const sessionId = context.session.id;
+    const embeddingCache = getGlobalEmbeddingCache(settings.value.knowledgeBase.embeddingCacheMaxItems);
+    const sessionCache = getSessionRetrievalCache(sessionId, settings.value.knowledgeBase.retrievalCacheMaxItems);
+    const history = getSessionHistory(sessionId);
 
     logger.debug("发现知识库占位符", { count: placeholders.length });
 
@@ -119,58 +122,86 @@ export class KnowledgeProcessor implements ContextProcessor {
       } else {
         // 构建上下文感知查询
         const rawQuery = this.buildContextQuery(context);
-
-        // 查询预处理：清洗、分词、停用词过滤、Tag 匹配
-        const kbStore = useKnowledgeBaseStore();
-        const { cleanedQuery, matchedTags } = preprocessQuery(rawQuery, {
-          tagPool: kbStore.globalStats.allDiscoveredTags,
-        });
-        const queryText = cleanedQuery;
-
-        logger.debug("RAG 查询预处理完成", {
-          rawQuery,
-          cleanedQuery: queryText,
-          matchedTags,
-        });
-
-        const vector = await this.buildContextVector(queryText, context, embeddingCache);
-
-        // 检查缓存
         const aggregation = agentConfig.knowledgeSettings?.aggregation;
-        let cached = aggregation?.enableCache ? sessionCache.findSimilar(vector || [], aggregation.cacheSimilarityThreshold || 0.95) : null;
         
+        let queryText = rawQuery;
+        let vector: number[] | null = null;
+
+        // 1. 优先尝试原始文本精确匹配缓存 (在清洗前)
+        let cached = aggregation?.enableCache ? sessionCache.findByText(rawQuery) : null;
+
         if (cached) {
-          logger.debug("命中知识库检索缓存", { query: queryText });
+          logger.debug("命中知识库检索缓存 (原始文本匹配)", { query: rawQuery });
           results = cached.results;
+          vector = cached.vector || null;
         } else {
-          // 执行检索（传入预处理提取的标签）
-          results = await searchKnowledge({
-            query: queryText,
-            tags: matchedTags.length > 0 ? matchedTags : undefined,
-            vector: vector || undefined,
-            limit: ph.limit || agentConfig.knowledgeSettings?.defaultLimit || 5,
-            minScore: ph.minScore || agentConfig.knowledgeSettings?.defaultMinScore || 0.3,
-            engineId: agentConfig.knowledgeSettings?.defaultEngineId,
-            modelId: agentConfig.knowledgeSettings?.embeddingModelId,
+          // 2. 查询预处理：清洗、分词、停用词过滤、Tag 匹配
+          const kbStore = useKnowledgeBaseStore();
+          const { cleanedQuery, matchedTags } = preprocessQuery(rawQuery, {
+            tagPool: kbStore.globalStats.allDiscoveredTags,
+          });
+          queryText = cleanedQuery;
+
+          logger.debug("RAG 查询预处理完成", {
+            rawQuery,
+            cleanedQuery: queryText,
+            matchedTags,
           });
 
-          // 存入缓存
-          if (aggregation?.enableCache) {
-            sessionCache.add({
+          vector = await this.buildContextVector(queryText, context, embeddingCache);
+
+          // 3. 检查向量相似度缓存
+          cached = aggregation?.enableCache ? sessionCache.findSimilar(vector || [], aggregation.cacheSimilarityThreshold || 0.95) : null;
+
+          if (cached) {
+            logger.debug("命中知识库检索缓存 (向量相似度匹配)", { query: queryText });
+            results = cached.results;
+            if (!vector) vector = cached.vector || null;
+          } else {
+            // 执行检索（传入预处理提取的标签）
+            results = await searchKnowledge({
               query: queryText,
+              tags: matchedTags.length > 0 ? matchedTags : undefined,
               vector: vector || undefined,
-              results,
-              timestamp: Date.now()
+              limit: ph.limit || agentConfig.knowledgeSettings?.defaultLimit || 5,
+              minScore: ph.minScore || agentConfig.knowledgeSettings?.defaultMinScore || 0.3,
+              engineId: agentConfig.knowledgeSettings?.defaultEngineId,
+              modelId: agentConfig.knowledgeSettings?.embeddingModelId,
             });
+
+            // 存入缓存 (同时存入清洗前后的查询文本以提高命中率)
+            if (aggregation?.enableCache) {
+              sessionCache.add({
+                query: rawQuery, // 存入原始查询
+                vector: vector || undefined,
+                results,
+                timestamp: Date.now()
+              });
+              if (queryText !== rawQuery) {
+                sessionCache.add({
+                  query: queryText, // 也存入清洗后的查询
+                  vector: vector || undefined,
+                  results,
+                  timestamp: Date.now()
+                });
+              }
+            }
           }
         }
 
-        // 历史结果聚合
+        // 4. 历史结果聚合
         if (aggregation?.enableResultAggregation) {
           results = this.aggregateResults(results, history, aggregation);
         }
 
-        // 字数限制过滤
+        // 5. 过滤结果 (如果指定了 kbName)
+        // 必须在字数截断之前过滤，否则可能因为其他库的结果占位导致指定库结果被截断
+        // 放在聚合之后可以确保过滤掉历史记录中可能存在的其他库结果
+        if (ph.kbName) {
+          results = results.filter(r => r.kbName === ph.kbName);
+        }
+
+        // 6. 字数限制过滤
         const maxChars = agentConfig.knowledgeSettings?.maxRecallChars || 0;
         if (maxChars > 0) {
           let currentTotal = 0;
@@ -185,11 +216,6 @@ export class KnowledgeProcessor implements ContextProcessor {
             }
           }
           results = filtered;
-        }
-
-        // 过滤结果 (如果指定了 kbName)
-        if (ph.kbName) {
-          results = results.filter(r => r.kbName === ph.kbName);
         }
 
         // 保存到历史 (仅限非静态模式)
@@ -417,16 +443,6 @@ export class KnowledgeProcessor implements ContextProcessor {
     return Array.from(allResults.values())
       .sort((a, b) => b.score - a.score)
       .slice(0, current.length + 2); // 稍微多留一点
-  }
-
-  /**
-   * 获取或创建共享数据
-   */
-  private getOrCreateShared<T>(sharedData: Map<string, any>, key: string, creator: () => T): T {
-    if (!sharedData.has(key)) {
-      sharedData.set(key, creator());
-    }
-    return sharedData.get(key);
   }
 
   /**

@@ -14,6 +14,7 @@ import {
   Network,
   BookMarked,
   Zap,
+  Library,
 } from "lucide-vue-next";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type { ChatSettings } from "../../types/settings";
@@ -1512,6 +1513,40 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "控制生成过程中增量保存的频率",
         keywords: "request save interval 自动保存 间隔",
         visible: (settings) => settings.requestSettings.enableIncrementalSave,
+      },
+    ],
+  },
+  {
+    title: "知识库全局设置",
+    icon: Library,
+    items: [
+      {
+        id: "embeddingCacheMaxItems",
+        label: "向量缓存容量 ({{ localSettings.knowledgeBase.embeddingCacheMaxItems }}条)",
+        component: "ElSlider",
+        props: {
+          min: 10,
+          max: 1000,
+          step: 10,
+          "format-tooltip": (val: number) => `${val}条`,
+        },
+        modelPath: "knowledgeBase.embeddingCacheMaxItems",
+        hint: "控制 Embedding 向量缓存的最大数量。较大的缓存可以减少 API 调用次数，但会占用更多内存。",
+        keywords: "knowledge base embedding cache 知识库 向量 缓存",
+      },
+      {
+        id: "retrievalCacheMaxItems",
+        label: "检索结果缓存容量 ({{ localSettings.knowledgeBase.retrievalCacheMaxItems }}条)",
+        component: "ElSlider",
+        props: {
+          min: 5,
+          max: 100,
+          step: 5,
+          "format-tooltip": (val: number) => `${val}条`,
+        },
+        modelPath: "knowledgeBase.retrievalCacheMaxItems",
+        hint: "控制知识库检索结果缓存的最大数量。较大的缓存可以提高重复查询的响应速度。",
+        keywords: "knowledge base retrieval cache 知识库 检索 缓存",
       },
     ],
   },

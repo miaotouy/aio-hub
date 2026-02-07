@@ -207,6 +207,13 @@ export interface ChatSettings {
     /** 默认扫描深度 */
     defaultScanDepth: number;
   };
+  /** 知识库全局设置 */
+  knowledgeBase: {
+    /** Embedding 向量缓存最大条目数 */
+    embeddingCacheMaxItems: number;
+    /** 检索结果缓存最大条目数 */
+    retrievalCacheMaxItems: number;
+  };
 }
 
 /**
@@ -323,5 +330,9 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   worldbook: {
     disableRecursion: false,
     defaultScanDepth: 2,
+  },
+  knowledgeBase: {
+    embeddingCacheMaxItems: 100,
+    retrievalCacheMaxItems: 20,
   },
 };

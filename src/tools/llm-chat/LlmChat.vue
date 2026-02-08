@@ -368,45 +368,44 @@ useStateSyncEngine(parametersToSync, {
           class="sidebar left-sidebar skeleton-sidebar"
           :style="{ width: `${leftSidebarWidth}px` }"
         >
-          <div class="sidebar-content">
-            <el-skeleton :rows="15" animated />
+          <div class="skeleton-tabs">
+            <el-skeleton-item variant="text" style="width: 40%; height: 20px" />
+            <el-skeleton-item variant="text" style="width: 40%; height: 20px" />
+          </div>
+          <div class="sidebar-content" style="padding: 16px">
+            <el-skeleton :rows="12" animated />
           </div>
         </div>
 
         <!-- Main Content Skeleton -->
         <div class="main-content">
-          <div class="chat-area-container-skeleton">
-            <el-skeleton animated>
-              <template #template>
-                <div class="skeleton-header">
-                  <el-skeleton-item
-                    variant="circle"
-                    style="width: 28px; height: 28px; flex-shrink: 0"
-                  />
-                  <el-skeleton-item
-                    variant="text"
-                    style="height: 20px; width: 30%; margin-left: 12px"
-                  />
-                  <el-skeleton-item
-                    variant="text"
-                    style="height: 20px; width: 25%; margin-left: 16px"
-                  />
-                  <el-skeleton-item
-                    variant="circle"
-                    style="width: 28px; height: 28px; margin-left: auto; flex-shrink: 0"
-                  />
+          <div class="chat-area-skeleton">
+            <div class="skeleton-header">
+              <div class="skeleton-header-left">
+                <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
+                <el-skeleton-item variant="text" style="width: 80px; height: 18px" />
+                <el-skeleton-item variant="text" style="width: 100px; height: 16px; margin-left: 12px" />
+              </div>
+              <div class="skeleton-header-right">
+                <el-skeleton-item variant="text" style="width: 60px; height: 18px" />
+                <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
+                <el-skeleton-item variant="rect" style="width: 32px; height: 32px; border-radius: 6px" />
+              </div>
+            </div>
+            <div class="skeleton-body">
+              <div class="skeleton-message-list">
+                <div v-for="i in 3" :key="i" class="skeleton-message-item" :class="{ 'is-user': i % 2 === 0 }">
+                  <el-skeleton-item variant="circle" style="width: 32px; height: 32px" />
+                  <div class="skeleton-message-content">
+                    <el-skeleton-item variant="text" style="width: 30%; height: 14px; margin-bottom: 8px" />
+                    <el-skeleton-item variant="rect" style="width: 80%; height: 40px; border-radius: 8px" />
+                  </div>
                 </div>
-                <div class="skeleton-body">
-                  <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
-                </div>
-                <div class="skeleton-input">
-                  <el-skeleton-item
-                    variant="rect"
-                    style="height: 50px; width: 100%; border-radius: 8px"
-                  />
-                </div>
-              </template>
-            </el-skeleton>
+              </div>
+            </div>
+            <div class="skeleton-input-wrapper">
+              <el-skeleton-item variant="rect" class="skeleton-input-box" />
+            </div>
           </div>
         </div>
 
@@ -416,8 +415,15 @@ useStateSyncEngine(parametersToSync, {
           class="sidebar right-sidebar skeleton-sidebar"
           :style="{ width: `${rightSidebarWidth}px` }"
         >
-          <div class="sidebar-content">
-            <el-skeleton :rows="15" animated />
+          <div class="skeleton-search-bar" style="padding: 12px; display: flex; gap: 8px">
+            <el-skeleton-item variant="rect" style="flex: 1; height: 32px; border-radius: 4px" />
+            <el-skeleton-item variant="circle" style="width: 32px; height: 32px" />
+          </div>
+          <div class="sidebar-content" style="padding: 0 12px">
+            <div v-for="i in 8" :key="i" style="margin-bottom: 12px">
+              <el-skeleton-item variant="text" style="width: 60%; height: 16px; margin-bottom: 8px" />
+              <el-skeleton-item variant="text" style="width: 40%; height: 12px" />
+            </div>
           </div>
         </div>
       </template>
@@ -737,6 +743,80 @@ useStateSyncEngine(parametersToSync, {
   background-color: var(--bg-color);
   min-width: 0;
   position: relative;
+}
+
+/* 骨架屏样式优化 */
+.skeleton-sidebar {
+  flex-direction: column;
+}
+
+.skeleton-tabs {
+  display: flex;
+  padding: 12px;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-color);
+  justify-content: space-around;
+}
+
+.chat-area-skeleton {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--card-bg);
+}
+
+.skeleton-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: rgba(var(--card-bg-rgb), 0.7);
+  backdrop-filter: blur(12px);
+}
+
+.skeleton-header-left,
+.skeleton-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.skeleton-body {
+  flex: 1;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.skeleton-message-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.skeleton-message-item.is-user {
+  flex-direction: row-reverse;
+}
+
+.skeleton-message-item.is-user .skeleton-message-content {
+  align-items: flex-end;
+}
+
+.skeleton-message-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-input-wrapper {
+  padding: 0 20px 20px;
+}
+
+.skeleton-input-box {
+  height: 50px;
+  width: 100%;
+  border-radius: 8px;
 }
 
 /* 分离后的占位样式 */

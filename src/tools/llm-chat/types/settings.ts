@@ -332,7 +332,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     defaultScanDepth: 2,
   },
   knowledgeBase: {
-    embeddingCacheMaxItems: 100,
-    retrievalCacheMaxItems: 20,
+    embeddingCacheMaxItems: 200,
+    retrievalCacheMaxItems: 30,
   },
 };

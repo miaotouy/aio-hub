@@ -1,18 +1,24 @@
-import { ContextProcessor, PipelineContext } from '../../types/pipeline';
-import { ProcessableMessage } from '../../types/context';
-import { createModuleLogger } from '@/utils/logger';
-import { searchKnowledge } from '../../services/knowledge-service';
-import type { SearchResult } from '../../../knowledge-base/types/search';
-import type { ChatAgent } from '../../types/agent';
-import { EmbeddingCache, TurnRecord, getGlobalEmbeddingCache, getSessionRetrievalCache, getSessionHistory } from './knowledge-cache';
-import { useLlmProfiles } from '@/composables/useLlmProfiles';
-import { useChatSettings } from '../../composables/settings/useChatSettings';
-import { callEmbeddingApi } from '@/llm-apis/embedding';
-import { invoke } from '@tauri-apps/api/core';
-import { preprocessQuery } from '../../../knowledge-base/utils/queryPreProcessor';
-import { useKnowledgeBaseStore } from '../../../knowledge-base/stores/knowledgeBaseStore';
+import { ContextProcessor, PipelineContext } from "../../types/pipeline";
+import { ProcessableMessage } from "../../types/context";
+import { createModuleLogger } from "@/utils/logger";
+import { searchKnowledge } from "../../services/knowledge-service";
+import type { SearchResult } from "../../../knowledge-base/types/search";
+import type { ChatAgent } from "../../types/agent";
+import {
+  EmbeddingCache,
+  TurnRecord,
+  getGlobalEmbeddingCache,
+  getSessionRetrievalCache,
+  getSessionHistory,
+} from "./knowledge-cache";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { callEmbeddingApi } from "@/llm-apis/embedding";
+import { invoke } from "@tauri-apps/api/core";
+import { preprocessQuery } from "../../../knowledge-base/utils/queryPreProcessor";
+import { useKnowledgeBaseStore } from "../../../knowledge-base/stores/knowledgeBaseStore";
 
-const logger = createModuleLogger('KnowledgeProcessor');
+const logger = createModuleLogger("KnowledgeProcessor");
 
 /**
  * 知识库占位符解析结果接口
@@ -68,8 +74,8 @@ export function parseKBParams(raw: string, paramStr: string, messageIndex: numbe
 export function scanPlaceholders(messages: ProcessableMessage[]): KBPlaceholder[] {
   const placeholders: KBPlaceholder[] = [];
   messages.forEach((msg, index) => {
-    if (typeof msg.content !== 'string') return;
-    
+    if (typeof msg.content !== "string") return;
+
     let match;
     // 必须重置 lastIndex 因为是全局匹配
     KB_PLACEHOLDER_REGEX.lastIndex = 0;
@@ -98,8 +104,13 @@ export class KnowledgeProcessor implements ContextProcessor {
     // 初始化缓存与历史（模块级持久化，跨请求存活）
     const { settings } = useChatSettings();
     const sessionId = context.session.id;
-    const embeddingCache = getGlobalEmbeddingCache(settings.value.knowledgeBase.embeddingCacheMaxItems);
-    const sessionCache = getSessionRetrievalCache(sessionId, settings.value.knowledgeBase.retrievalCacheMaxItems);
+    const embeddingCache = getGlobalEmbeddingCache(
+      settings.value.knowledgeBase.embeddingCacheMaxItems
+    );
+    const sessionCache = getSessionRetrievalCache(
+      sessionId,
+      settings.value.knowledgeBase.retrievalCacheMaxItems
+    );
     const history = getSessionHistory(sessionId);
 
     logger.debug("发现知识库占位符", { count: placeholders.length });
@@ -109,7 +120,7 @@ export class KnowledgeProcessor implements ContextProcessor {
       // 检查激活模式
       if (!this.shouldActivate(ph, context, history)) {
         const msg = messages[ph.messageIndex];
-        if (typeof msg.content === 'string') {
+        if (typeof msg.content === "string") {
           msg.content = msg.content.replace(ph.raw, ""); // 未激活则移除占位符
         }
         continue;
@@ -117,13 +128,13 @@ export class KnowledgeProcessor implements ContextProcessor {
 
       let results: SearchResult[] = [];
 
-      if (ph.mode === 'static') {
+      if (ph.mode === "static") {
         results = await this.handleStaticMode(ph);
       } else {
         // 构建上下文感知查询
         const rawQuery = this.buildContextQuery(context);
         const aggregation = agentConfig.knowledgeSettings?.aggregation;
-        
+
         let queryText = rawQuery;
         let vector: number[] | null = null;
 
@@ -148,10 +159,12 @@ export class KnowledgeProcessor implements ContextProcessor {
             matchedTags,
           });
 
-          vector = await this.buildContextVector(queryText, context, embeddingCache);
+          vector = await this.buildContextVector(queryText, context, embeddingCache, history);
 
           // 3. 检查向量相似度缓存
-          cached = aggregation?.enableCache ? sessionCache.findSimilar(vector || [], aggregation.cacheSimilarityThreshold || 0.95) : null;
+          cached = aggregation?.enableCache
+            ? sessionCache.findSimilar(vector || [], aggregation.cacheSimilarityThreshold || 0.95)
+            : null;
 
           if (cached) {
             logger.debug("命中知识库检索缓存 (向量相似度匹配)", { query: queryText });
@@ -175,14 +188,14 @@ export class KnowledgeProcessor implements ContextProcessor {
                 query: rawQuery, // 存入原始查询
                 vector: vector || undefined,
                 results,
-                timestamp: Date.now()
+                timestamp: Date.now(),
               });
               if (queryText !== rawQuery) {
                 sessionCache.add({
                   query: queryText, // 也存入清洗后的查询
                   vector: vector || undefined,
                   results,
-                  timestamp: Date.now()
+                  timestamp: Date.now(),
                 });
               }
             }
@@ -198,7 +211,7 @@ export class KnowledgeProcessor implements ContextProcessor {
         // 必须在字数截断之前过滤，否则可能因为其他库的结果占位导致指定库结果被截断
         // 放在聚合之后可以确保过滤掉历史记录中可能存在的其他库结果
         if (ph.kbName) {
-          results = results.filter(r => r.kbName === ph.kbName);
+          results = results.filter((r) => r.kbName === ph.kbName);
         }
 
         // 6. 字数限制过滤
@@ -223,7 +236,7 @@ export class KnowledgeProcessor implements ContextProcessor {
           results,
           timestamp: Date.now(),
           query: queryText,
-          queryVector: vector || undefined
+          queryVector: vector || undefined,
         });
         if (history.length > (aggregation?.maxHistoryTurns || 10)) {
           history.shift();
@@ -233,20 +246,20 @@ export class KnowledgeProcessor implements ContextProcessor {
       // 3. 格式化并替换
       const formatted = this.formatResults(results, agentConfig);
       const msg = messages[ph.messageIndex];
-      if (typeof msg.content === 'string') {
+      if (typeof msg.content === "string") {
         msg.content = msg.content.replace(ph.raw, formatted);
       }
-      
+
       // 记录日志
       context.logs.push({
         processorId: this.id,
-        level: 'info',
+        level: "info",
         message: `知识库占位符替换完成: ${ph.raw}`,
         details: {
           kbName: ph.kbName,
           resultCount: results.length,
-          mode: ph.mode
-        }
+          mode: ph.mode,
+        },
       });
     }
   }
@@ -254,29 +267,34 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 检查占位符是否应该激活
    */
-  private shouldActivate(ph: KBPlaceholder, context: PipelineContext, _history: TurnRecord[]): boolean {
+  private shouldActivate(
+    ph: KBPlaceholder,
+    context: PipelineContext,
+    _history: TurnRecord[]
+  ): boolean {
     const { agentConfig, messages } = context;
     const settings = agentConfig.knowledgeSettings;
 
     switch (ph.mode) {
-      case 'always':
+      case "always":
         return true;
-      case 'static':
+      case "static":
         return true;
-      case 'turn': {
+      case "turn": {
         const interval = parseInt(ph.modeParams?.[0] || "1");
-        const turnCount = messages.filter(m => m.role === 'user').length;
+        const turnCount = messages.filter((m) => m.role === "user").length;
         return turnCount % interval === 0;
       }
-      case 'gate': {
+      case "gate": {
         const keywords = ph.modeParams || [];
         if (keywords.length === 0) return true;
 
         const scanDepth = settings?.gateScanDepth || 3;
         const recentMessages = messages.slice(-scanDepth);
-        return recentMessages.some(msg => 
-          typeof msg.content === 'string' && 
-          keywords.some(kw => (msg.content as string).includes(kw))
+        return recentMessages.some(
+          (msg) =>
+            typeof msg.content === "string" &&
+            keywords.some((kw) => (msg.content as string).includes(kw))
         );
       }
       default:
@@ -294,7 +312,7 @@ export class KnowledgeProcessor implements ContextProcessor {
     try {
       // 调用后端获取指定条目
       const entries = await invoke<any[]>("kb_get_entries", { ids: entryIds });
-      return entries.map(e => ({
+      return entries.map((e) => ({
         score: 1.0,
         kbName: e.kb_name || "未知知识库",
         kbId: e.kb_id || "",
@@ -309,8 +327,8 @@ export class KnowledgeProcessor implements ContextProcessor {
           priority: 100,
           enabled: true,
           createdAt: Date.now(),
-          updatedAt: Date.now()
-        }
+          updatedAt: Date.now(),
+        },
       })) as SearchResult[];
     } catch (err) {
       logger.warn("静态加载知识库条目失败", { entryIds, err });
@@ -324,43 +342,57 @@ export class KnowledgeProcessor implements ContextProcessor {
   private buildContextQuery(context: PipelineContext): string {
     const { messages, agentConfig } = context;
     const windowSize = agentConfig.knowledgeSettings?.aggregation?.contextWindow || 1;
-    
-    const userMessages = messages.filter(m => m.role === 'user' && typeof m.content === 'string');
+
+    const userMessages = messages.filter((m) => m.role === "user" && typeof m.content === "string");
     const recent = userMessages.slice(-windowSize);
-    
-    return recent.map(m => m.content).join("\n");
+
+    return recent.map((m) => m.content).join("\n");
   }
 
   /**
    * 构建上下文感知向量 (加权平均)
    */
-  private async buildContextVector(queryText: string, context: PipelineContext, cache: EmbeddingCache): Promise<number[] | null> {
-    const { agentConfig, sharedData } = context;
+  private async buildContextVector(
+    queryText: string,
+    context: PipelineContext,
+    cache: EmbeddingCache,
+    history: TurnRecord[]
+  ): Promise<number[] | null> {
+    const { agentConfig } = context;
     const modelId = agentConfig.knowledgeSettings?.embeddingModelId;
-    const profileId = agentConfig.profileId; 
+    const profileId = agentConfig.profileId;
 
     if (!modelId) return null;
+
+    // 剥离渠道前缀，避免缓存与渠道耦合
+    const pureModelId = modelId.includes(":") ? modelId.split(":").slice(1).join(":") : modelId;
 
     try {
       const { getProfileById } = useLlmProfiles();
       const profile = getProfileById(profileId);
       if (!profile) return null;
 
-      // 1. 检查缓存
-      const cached = cache.get(queryText);
+      // 1. 检查缓存 (使用剥离渠道后的 pureModelId 以实现跨渠道模型共享)
+      const cached = await cache.get(pureModelId, queryText);
       let currentVector: number[] | undefined;
 
       if (cached) {
         currentVector = cached;
       } else {
-        // 2. 调用 API 获取当前查询的向量
+        // 2. 调用 API 获取当前查询的向量 (调用 API 仍需原始 modelId)
         const res = await callEmbeddingApi(profile, {
           modelId: modelId,
-          input: queryText
+          input: queryText,
         });
         currentVector = res.data[0]?.embedding;
         if (currentVector) {
-          cache.set(queryText, currentVector);
+          const { settings } = useChatSettings();
+          await cache.set(
+            pureModelId,
+            queryText,
+            currentVector,
+            settings.value.knowledgeBase.embeddingCacheMaxItems
+          );
         }
       }
 
@@ -369,7 +401,6 @@ export class KnowledgeProcessor implements ContextProcessor {
       // 3. 向量加权平均 (Context Projection)
       const aggregation = agentConfig.knowledgeSettings?.aggregation;
       if (aggregation?.queryDecay && aggregation.queryDecay < 1.0) {
-        const history = sharedData.get('knowledgeHistory') as TurnRecord[] || [];
         if (history.length > 0) {
           return this.computeWeightedVector(currentVector, history, aggregation.queryDecay);
         }
@@ -411,14 +442,18 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 聚合当前结果与历史结果 (时间衰减加权)
    */
-  private aggregateResults(current: SearchResult[], history: TurnRecord[], config: any): SearchResult[] {
+  private aggregateResults(
+    current: SearchResult[],
+    history: TurnRecord[],
+    config: any
+  ): SearchResult[] {
     const decay = config.resultDecay || 0.8;
     const maxHistory = config.maxHistoryTurns || 3;
 
     const allResults = new Map<string, SearchResult>();
 
     // 添加当前结果 (权重 1.0)
-    current.forEach(r => {
+    current.forEach((r) => {
       const id = r.caiu.id || r.caiu.key;
       allResults.set(id, { ...r });
     });
@@ -427,7 +462,7 @@ export class KnowledgeProcessor implements ContextProcessor {
     const recentHistory = history.slice(-maxHistory).reverse();
     recentHistory.forEach((turn, index) => {
       const weight = Math.pow(decay, index + 1);
-      turn.results.forEach(r => {
+      turn.results.forEach((r) => {
         const id = r.caiu.id || r.caiu.key;
         if (allResults.has(id)) {
           // 如果已存在，取最高分 (或者加权平均)
@@ -454,7 +489,9 @@ export class KnowledgeProcessor implements ContextProcessor {
       return settings?.emptyText || "（未检索到相关知识）";
     }
 
-    const template = settings?.resultTemplate || `---
+    const template =
+      settings?.resultTemplate ||
+      `---
 📚 相关知识 (共 {count} 条)
 
 {items}
@@ -464,22 +501,24 @@ export class KnowledgeProcessor implements ContextProcessor {
 > {content}
 (相关度: {score})`;
 
-    const itemsContent = results.map(r => {
-      let item = itemTemplate
-        .replace(/{kbName}/g, r.kbName || "未知知识库")
-        .replace(/{key}/g, r.caiu.key || "无标题")
-        .replace(/{content}/g, r.caiu.content || "")
-        .replace(/{score}/g, r.score.toFixed(2));
-      
-      // 处理标签
-      if (r.caiu.tags && r.caiu.tags.length > 0) {
-        item = item.replace(/{tags}/g, r.caiu.tags.map(t => t.name).join(", "));
-      } else {
-        item = item.replace(/{tags}/g, "");
-      }
-      
-      return item;
-    }).join("\n\n");
+    const itemsContent = results
+      .map((r) => {
+        let item = itemTemplate
+          .replace(/{kbName}/g, r.kbName || "未知知识库")
+          .replace(/{key}/g, r.caiu.key || "无标题")
+          .replace(/{content}/g, r.caiu.content || "")
+          .replace(/{score}/g, r.score.toFixed(2));
+
+        // 处理标签
+        if (r.caiu.tags && r.caiu.tags.length > 0) {
+          item = item.replace(/{tags}/g, r.caiu.tags.map((t) => t.name).join(", "));
+        } else {
+          item = item.replace(/{tags}/g, "");
+        }
+
+        return item;
+      })
+      .join("\n\n");
 
     return template
       .replace(/{count}/g, results.length.toString())

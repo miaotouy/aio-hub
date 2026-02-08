@@ -6,6 +6,7 @@ use crate::knowledge::monitor::{
 use crate::knowledge::ops::*;
 use crate::knowledge::state::KnowledgeState;
 use crate::knowledge::utils::*;
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
@@ -393,4 +394,84 @@ pub async fn kb_clear_all_other_vectors(
         total_deleted
     );
     Ok(total_deleted)
+}
+
+#[tauri::command]
+pub async fn kb_get_embedding_cache(
+    state: State<'_, KnowledgeState>,
+    model_id: String,
+    text: String,
+) -> Result<Option<Vec<f32>>, String> {
+    let mut hasher = Sha256::new();
+    hasher.update(model_id.as_bytes());
+    hasher.update(b"|"); // 增加分隔符防止碰撞
+    hasher.update(text.as_bytes());
+    let key = format!("{:x}", hasher.finalize());
+
+    // 尝试获取读锁
+    {
+        let cache = state
+            .embedding_cache
+            .read()
+            .map_err(|_| "获取缓存读锁失败".to_string())?;
+        if let Some((vector, _)) = cache.get(&key) {
+            return Ok(Some(vector.clone()));
+        }
+    }
+
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn kb_set_embedding_cache(
+    state: State<'_, KnowledgeState>,
+    model_id: String,
+    text: String,
+    vector: Vec<f32>,
+    max_items: usize,
+) -> Result<(), String> {
+    let mut hasher = Sha256::new();
+    hasher.update(model_id.as_bytes());
+    hasher.update(b"|"); // 增加分隔符防止碰撞
+    hasher.update(text.as_bytes());
+    let key = format!("{:x}", hasher.finalize());
+
+    let mut cache = state
+        .embedding_cache
+        .write()
+        .map_err(|_| "获取缓存写锁失败".to_string())?;
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    // 容量限制：超过设定上限则删除最旧的 20%
+    if cache.len() >= max_items {
+        let mut items: Vec<(String, u64)> = cache
+            .iter()
+            .map(|(k, (_, ts))| (k.clone(), *ts))
+            .collect();
+        // 按时间戳升序排序（最旧的在前）
+        items.sort_by_key(|(_, ts)| *ts);
+        
+        // 计算删除数量 (至少删除 1 个，最多删除 20%)
+        let delete_count = (max_items / 5).max(1);
+        for (k, _) in items.iter().take(delete_count) {
+            cache.remove(k);
+        }
+    }
+
+    cache.insert(key, (vector, now));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn kb_clear_embedding_cache(state: State<'_, KnowledgeState>) -> Result<(), String> {
+    let mut cache = state
+        .embedding_cache
+        .write()
+        .map_err(|_| "获取缓存写锁失败".to_string())?;
+    cache.clear();
+    Ok(())
 }

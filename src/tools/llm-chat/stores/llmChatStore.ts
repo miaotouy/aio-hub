@@ -341,11 +341,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 清空所有会话
    */
-  function clearAllSessions(): void {
+  async function clearAllSessions(): Promise<void> {
     sessions.value = [];
     currentSessionId.value = null;
     persistSessions();
-    clearAllCaches();
+    await clearAllCaches();
     const sessionManager = useSessionManager();
     sessionManager.clearAllSessions();
     logger.info("清空所有会话");

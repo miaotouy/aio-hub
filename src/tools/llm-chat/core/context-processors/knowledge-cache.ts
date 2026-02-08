@@ -1,7 +1,8 @@
 import type { SearchResult } from "../../../knowledge-base/types/search";
-import { createModuleLogger } from '@/utils/logger';
+import { createModuleLogger } from "@/utils/logger";
+import { invoke } from "@tauri-apps/api/core";
 
-const logger = createModuleLogger('KnowledgeCache');
+const logger = createModuleLogger("KnowledgeCache");
 
 /**
  * 向量缓存条目
@@ -12,44 +13,105 @@ interface EmbeddingCacheEntry {
 }
 
 /**
- * Embedding 向量缓存类
+ * Embedding 向量缓存类 (跨窗口共享)
+ * 采用两级缓存机制：
+ * 1. 窗口本地 Map (一级缓存，极速)
+ * 2. Rust 后端全局单例 (二级缓存，跨窗口/WebView 共享，节约 API 成本)
  */
 export class EmbeddingCache {
-  private cache = new Map<string, EmbeddingCacheEntry>();
+  private localCache = new Map<string, EmbeddingCacheEntry>();
   private maxItems: number;
 
   constructor(maxItems = 100) {
     this.maxItems = maxItems;
   }
 
-  get(text: string): number[] | null {
-    const entry = this.cache.get(text);
+  /**
+   * 获取向量
+   * 优先查本地，再查 Rust 后端
+   */
+  async get(modelId: string, text: string): Promise<number[] | null> {
+    const key = `${modelId}:${text}`;
+
+    // 1. 尝试一级缓存 (本地内存)
+    const entry = this.localCache.get(key);
     if (entry) {
+      // 命中缓存，更新顺序 (LRU)
+      this.localCache.delete(key);
+      this.localCache.set(key, { ...entry, timestamp: Date.now() });
       return entry.vector;
     }
+
+    // 2. 尝试二级缓存 (Rust 后端)
+    try {
+      const remoteVector = await invoke<number[] | null>("kb_get_embedding_cache", {
+        modelId,
+        text,
+      });
+
+      if (remoteVector) {
+        // 回填到本地缓存
+        this.setLocal(key, remoteVector, this.maxItems);
+        return remoteVector;
+      }
+    } catch (error) {
+      logger.warn("从 Rust 后端获取 Embedding 缓存失败", error);
+    }
+
     return null;
   }
 
-  set(text: string, vector: number[]): void {
-    if (this.cache.size >= this.maxItems) {
-      // 简单的 LRU: 删除第一个
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey !== undefined) this.cache.delete(firstKey);
+  /**
+   * 设置向量
+   * 同步更新本地和 Rust 后端
+   */
+  async set(modelId: string, text: string, vector: number[], maxItems?: number): Promise<void> {
+    const key = `${modelId}:${text}`;
+    if (maxItems !== undefined) {
+      this.maxItems = maxItems;
     }
-    this.cache.set(text, { vector, timestamp: Date.now() });
+
+    // 1. 更新本地
+    this.setLocal(key, vector, this.maxItems);
+
+    // 2. 更新 Rust 后端
+    try {
+      await invoke("kb_set_embedding_cache", {
+        modelId,
+        text,
+        vector,
+        maxItems: this.maxItems,
+      });
+    } catch (error) {
+      logger.warn("保存 Embedding 缓存到 Rust 后端失败", error);
+    }
   }
 
-  /** 更新最大容量（不会立即淘汰，下次 set 时生效） */
+  private setLocal(key: string, vector: number[], maxItems: number): void {
+    if (this.localCache.size >= maxItems) {
+      // 简单的 LRU: 删除第一个 (Map 保持插入顺序)
+      const firstKey = this.localCache.keys().next().value;
+      if (firstKey !== undefined) this.localCache.delete(firstKey);
+    }
+    this.localCache.set(key, { vector, timestamp: Date.now() });
+  }
+
+  /** 更新最大容量 */
   updateMaxItems(maxItems: number): void {
     this.maxItems = maxItems;
   }
 
   get size(): number {
-    return this.cache.size;
+    return this.localCache.size;
   }
 
-  clear(): void {
-    this.cache.clear();
+  async clear(): Promise<void> {
+    this.localCache.clear();
+    try {
+      await invoke("kb_clear_embedding_cache");
+    } catch (e) {
+      // ignore
+    }
   }
 }
 
@@ -95,7 +157,7 @@ export class KBSessionCache {
    * 按文本查找缓存
    */
   findByText(text: string): RetrievalCacheEntry | null {
-    return this.cache.find(e => e.query === text) || null;
+    return this.cache.find((e) => e.query === text) || null;
   }
 
   add(entry: RetrievalCacheEntry): void {
@@ -224,8 +286,8 @@ export function clearSessionCache(sessionId: string): void {
 /**
  * 清除所有缓存（全局重置）
  */
-export function clearAllCaches(): void {
-  globalEmbeddingCache?.clear();
+export async function clearAllCaches(): Promise<void> {
+  await globalEmbeddingCache?.clear();
   globalEmbeddingCache = null;
   sessionCaches.clear();
   logger.debug("已清除所有知识库缓存");

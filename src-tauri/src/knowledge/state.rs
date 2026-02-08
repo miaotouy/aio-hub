@@ -1,8 +1,13 @@
-use std::sync::{Arc, Mutex, RwLock};
-use crate::knowledge::index::InMemoryDatabase;
 use crate::knowledge::core::RetrievalEngine;
+use crate::knowledge::index::InMemoryDatabase;
+use crate::knowledge::search::{
+    BlenderRetrievalEngine, KeywordRetrievalEngine, LensRetrievalEngine, VectorRetrievalEngine,
+};
 use crate::knowledge::tag_pool::GlobalTagPoolManager;
-use crate::knowledge::search::{KeywordRetrievalEngine, VectorRetrievalEngine, LensRetrievalEngine, BlenderRetrievalEngine};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
+
+pub type EmbeddingCache = HashMap<String, (Vec<f32>, u64)>;
 
 pub struct KnowledgeState {
     // 互斥锁保护，防止并发写入导致冲突
@@ -13,6 +18,8 @@ pub struct KnowledgeState {
     pub engines: Vec<Box<dyn RetrievalEngine>>,
     /// 全局标签向量池
     pub tag_pool: GlobalTagPoolManager,
+    /// 全局 Embedding 缓存 (Key 为 model_id + text 的哈希值，Value 为 (向量, 最后访问时间戳))
+    pub embedding_cache: Arc<RwLock<EmbeddingCache>>,
 }
 
 impl KnowledgeState {
@@ -30,6 +37,7 @@ impl KnowledgeState {
             imdb: Arc::new(RwLock::new(InMemoryDatabase::new())),
             engines,
             tag_pool: GlobalTagPoolManager::new(),
+            embedding_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

@@ -44,6 +44,9 @@ export interface KBPlaceholder {
 
   /** 模式特定参数 (如标签列表、轮次数、条目 ID 列表) */
   modeParams?: string[];
+
+  /** 检索引擎 ID (可选，覆盖默认设置) */
+  engineId?: string;
 }
 
 /**
@@ -65,6 +68,7 @@ export function parseKBParams(raw: string, paramStr: string, messageIndex: numbe
     minScore: parts[2] ? parseFloat(parts[2]) : undefined,
     mode: (parts[3] as any) || "always",
     modeParams: parts[4] ? parts[4].split(",").map((t) => t.trim()) : undefined,
+    engineId: parts[5] || undefined,
   };
 }
 
@@ -138,6 +142,16 @@ export class KnowledgeProcessor implements ContextProcessor {
         let queryText = rawQuery;
         let vector: number[] | null = null;
 
+        // 确定最终使用的引擎 ID (优先级: 宏参数 > Agent 默认 > 全局默认)
+        const engineId =
+          ph.engineId ||
+          agentConfig.knowledgeSettings?.defaultEngineId ||
+          settings.value.knowledgeBase.defaultEngineId ||
+          "vector";
+
+        // 确定是否需要向量化 (vector 和 hybrid 引擎需要)
+        const isVectorNeeded = engineId === "vector" || engineId === "hybrid";
+
         // 1. 优先尝试原始文本精确匹配缓存 (在清洗前)
         let cached = aggregation?.enableCache ? sessionCache.findByText(rawQuery) : null;
 
@@ -157,14 +171,20 @@ export class KnowledgeProcessor implements ContextProcessor {
             rawQuery,
             cleanedQuery: queryText,
             matchedTags,
+            engineId,
+            isVectorNeeded,
           });
 
-          vector = await this.buildContextVector(queryText, context, embeddingCache, history);
+          // 只有需要向量时才生成向量
+          if (isVectorNeeded) {
+            vector = await this.buildContextVector(queryText, context, embeddingCache, history);
+          }
 
-          // 3. 检查向量相似度缓存
-          cached = aggregation?.enableCache
-            ? sessionCache.findSimilar(vector || [], aggregation.cacheSimilarityThreshold || 0.95)
-            : null;
+          // 3. 检查向量相似度缓存 (仅当有向量时)
+          cached =
+            aggregation?.enableCache && vector
+              ? sessionCache.findSimilar(vector, aggregation.cacheSimilarityThreshold || 0.95)
+              : null;
 
           if (cached) {
             logger.debug("命中知识库检索缓存 (向量相似度匹配)", { query: queryText });
@@ -178,8 +198,8 @@ export class KnowledgeProcessor implements ContextProcessor {
               vector: vector || undefined,
               limit: ph.limit || agentConfig.knowledgeSettings?.defaultLimit || 5,
               minScore: ph.minScore || agentConfig.knowledgeSettings?.defaultMinScore || 0.3,
-              engineId: agentConfig.knowledgeSettings?.defaultEngineId,
-              modelId: agentConfig.knowledgeSettings?.embeddingModelId,
+              engineId: engineId,
+              modelId: settings.value.knowledgeBase.embeddingModelId, // 始终使用全局模型
             });
 
             // 存入缓存 (同时存入清洗前后的查询文本以提高命中率)
@@ -359,10 +379,24 @@ export class KnowledgeProcessor implements ContextProcessor {
     history: TurnRecord[]
   ): Promise<number[] | null> {
     const { agentConfig } = context;
-    const modelId = agentConfig.knowledgeSettings?.embeddingModelId;
-    const profileId = agentConfig.profileId;
+    const { useChatSettings } = await import("../../composables/settings/useChatSettings");
+    const { settings } = useChatSettings();
+    const modelIdentifier = settings.value.knowledgeBase.embeddingModelId;
 
-    if (!modelId) return null;
+    if (!modelIdentifier) {
+      logger.warn("未配置全局 Embedding 模型，无法执行向量检索");
+      return null;
+    }
+
+    // 解析格式 profileId:modelId
+    const parts = modelIdentifier.split(":");
+    const profileId = parts[0];
+    const modelId = parts.slice(1).join(":");
+
+    if (!profileId || !modelId) {
+      logger.warn("无效的 Embedding 模型标识符", { modelIdentifier });
+      return null;
+    }
 
     // 剥离渠道前缀，避免缓存与渠道耦合
     const pureModelId = modelId.includes(":") ? modelId.split(":").slice(1).join(":") : modelId;
@@ -370,7 +404,10 @@ export class KnowledgeProcessor implements ContextProcessor {
     try {
       const { getProfileById } = useLlmProfiles();
       const profile = getProfileById(profileId);
-      if (!profile) return null;
+      if (!profile) {
+        logger.warn("找不到指定的 LLM Profile", { profileId });
+        return null;
+      }
 
       // 1. 检查缓存 (使用剥离渠道后的 pureModelId 以实现跨渠道模型共享)
       const cached = await cache.get(pureModelId, queryText);

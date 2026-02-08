@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, toRef, computed, onMounted } from "vue";
-import { useStorage } from "@vueuse/core";
+import { useStorage, useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
 import { useDetachable } from "@/composables/useDetachable";
@@ -100,6 +100,8 @@ const emit = defineEmits<Emits>();
 const textareaRef = ref<InstanceType<typeof ChatCodeMirrorEditor>>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
+const attachmentsContainerRef = ref<HTMLDivElement>();
+const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
 
 // 状态
 const macroSelectorVisible = ref(false);
@@ -143,6 +145,7 @@ const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubl
   useMessageInputResize({
     isDetached: props.isDetached || false,
     textareaRef,
+    extraHeight: attachmentsHeight,
     onResizeStart: () => {
       isExpanded.value = false;
     },
@@ -356,14 +359,15 @@ const handleDragStart = (e: MouseEvent) => {
       <!-- 输入内容区 -->
       <div class="input-content">
         <!-- 附件展示区 -->
-        <MessageInputAttachments
-          v-if="attachmentManager.hasAttachments.value"
-          :attachments="attachmentManager.attachments.value"
-          :count="attachmentManager.count.value"
-          :max-count="attachmentManager.maxAttachmentCount"
-          :get-will-use-transcription="getWillUseTranscription"
-          @remove="attachmentManager.removeAttachment"
-        />
+        <div v-if="attachmentManager.hasAttachments.value" ref="attachmentsContainerRef">
+          <MessageInputAttachments
+            :attachments="attachmentManager.attachments.value"
+            :count="attachmentManager.count.value"
+            :max-count="attachmentManager.maxAttachmentCount"
+            :get-will-use-transcription="getWillUseTranscription"
+            @remove="attachmentManager.removeAttachment"
+          />
+        </div>
 
         <div class="input-wrapper">
           <ChatCodeMirrorEditor

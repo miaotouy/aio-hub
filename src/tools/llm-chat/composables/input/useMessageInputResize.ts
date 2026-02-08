@@ -3,6 +3,7 @@ import { ref, computed, onUnmounted, type Ref } from "vue";
 interface UseMessageInputResizeOptions {
   isDetached: boolean;
   textareaRef: Ref<any>;
+  extraHeight?: Ref<number>; // 附件等额外组件占据的高度
   onResizeStart?: () => void;
 }
 
@@ -20,7 +21,12 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
 
   // 计算最终传给编辑器的最大高度
   const editorMaxHeight = computed(() => {
-    return customMaxHeight.value;
+    if (typeof customMaxHeight.value === "number") {
+      return customMaxHeight.value;
+    }
+    // 如果是默认的 70vh，需要减去 extraHeight 以防溢出
+    const extra = options.extraHeight?.value || 0;
+    return `calc(70vh - ${extra}px)`;
   });
 
   // 鼠标移动处理
@@ -33,7 +39,11 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
 
     // 限制最小和最大高度
     const minHeight = 40;
-    const maxHeight = options.isDetached ? window.innerHeight * 0.9 : window.innerHeight * 0.7;
+    const extra = options.extraHeight?.value || 0;
+    // 总高度限制在视口的 70% 或 90%，所以编辑器最大高度要减去 extra
+    const baseMax = options.isDetached ? window.innerHeight * 0.9 : window.innerHeight * 0.7;
+    const maxHeight = Math.max(minHeight, baseMax - extra - 60); // 60 是给 toolbar 和 padding 留的余量
+
     const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
 
     // 更新自定义高度

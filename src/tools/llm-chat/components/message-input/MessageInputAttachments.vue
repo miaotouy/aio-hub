@@ -45,8 +45,20 @@ const emit = defineEmits<{
   padding: 10px;
   border-radius: 12px;
   background: var(--input-bg, var(--container-bg));
-  border: 1px dashed var(--border-color);
+  border: 1px solid var(--border-color);
   margin-bottom: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* 优化滚动条 */
+.attachments-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.attachments-area::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
 }
 
 .attachments-list {
@@ -56,9 +68,9 @@ const emit = defineEmits<{
 }
 
 .attachments-info {
-  position: absolute;
-  top: 4px;
-  right: 4px;
+  position: sticky;
+  top: 0;
+  align-self: flex-end;
   padding: 2px 8px;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.9);

@@ -110,8 +110,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     statsInterval = setInterval(() => {
       const elapsedMinutes = (Date.now() - statsStartTime) / 60000;
       if (elapsedMinutes >= 1) {
-        stats.value.messagesPerMinute =
-          stats.value.totalCount - statsMessageCountAtMinute;
+        stats.value.messagesPerMinute = stats.value.totalCount - statsMessageCountAtMinute;
         statsStartTime = Date.now();
         statsMessageCountAtMinute = stats.value.totalCount;
       }
@@ -150,10 +149,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           }
           case "META_THINKING_CHAIN": {
             const m = msg as ThinkingChainMessage;
-            return (
-              matchesKeyword(m.query, keyword) ||
-              matchesKeyword(m.chainName, keyword)
-            );
+            return matchesKeyword(m.query, keyword) || matchesKeyword(m.chainName, keyword);
           }
           case "AGENT_PRIVATE_CHAT_PREVIEW": {
             const m = msg as AgentChatPreviewMessage;
@@ -169,10 +165,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           }
           case "PLUGIN_STEP_STATUS": {
             const m = msg as PluginStepStatusMessage;
-            return (
-              matchesKeyword(m.pluginName, keyword) ||
-              matchesKeyword(m.stepName, keyword)
-            );
+            return matchesKeyword(m.pluginName, keyword) || matchesKeyword(m.stepName, keyword);
           }
           default:
             return false;
@@ -292,7 +285,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         isConnecting.value = false;
         stopPingTimer();
         setConnectionStatus("disconnected");
-        if (!event.wasClean) {
+        // 只有在非正常关闭且配置了自动连接的情况下才重连
+        if (!event.wasClean && config.value.autoConnect) {
           scheduleReconnect();
         }
       };
@@ -300,6 +294,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       ws.value.onerror = (err) => {
         logger.error("WebSocket error", err);
         setConnectionStatus("error");
+        // 发生错误时如果开启了自动连接也尝试重连
+        if (config.value.autoConnect) {
+          scheduleReconnect();
+        }
       };
 
       ws.value.onmessage = (event) => {
@@ -320,7 +318,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     } catch (e) {
       isConnecting.value = false;
       setConnectionStatus("error");
-      scheduleReconnect();
+      if (config.value.autoConnect) {
+        scheduleReconnect();
+      }
     }
   }
 

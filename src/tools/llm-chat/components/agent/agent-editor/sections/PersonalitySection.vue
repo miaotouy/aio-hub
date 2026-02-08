@@ -83,6 +83,15 @@ const handleModelComboChange = (value: string) => {
   }
 };
 
+const handleSettingsUpdate = (newSettings: any) => {
+  const oldModelCombo = editForm.modelCombo;
+  Object.assign(editForm, newSettings);
+  // modelCombo 变化时同步解析 profileId 和 modelId
+  if (newSettings.modelCombo && newSettings.modelCombo !== oldModelCombo) {
+    handleModelComboChange(newSettings.modelCombo);
+  }
+};
+
 const personalitySettings = computed<SettingItem[]>(() => [
   {
     id: "model",
@@ -91,9 +100,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
     modelPath: "modelCombo",
     hint: "智能体使用的核心对话模型",
     keywords: "model 模型",
-    props: {
-      onUpdateModelValue: handleModelComboChange,
-    },
+    props: {},
   },
   {
     id: "userProfile",
@@ -496,7 +503,12 @@ onMounted(() => {
 
 <template>
   <div>
-    <SettingListRenderer :items="personalitySettings" :settings="editForm" @action="handleAction" />
+    <SettingListRenderer
+      :items="personalitySettings"
+      :settings="editForm"
+      @update:settings="handleSettingsUpdate"
+      @action="handleAction"
+    />
 
     <QuickActionManagerDialog v-model:visible="quickActionManagerVisible" />
   </div>

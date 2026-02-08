@@ -1,6 +1,7 @@
 import { adapters } from "@/llm-apis/adapters";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
+import { invoke } from "@tauri-apps/api/core";
 
 const logger = createModuleLogger("knowledge-base/vector-cache");
 
@@ -61,12 +62,31 @@ export class VectorCacheManager {
     const cacheKey = await sha256(rawKey);
 
     if (this.cache.has(cacheKey)) {
-      logger.debug("命中向量缓存", {
+      logger.debug("命中向量内存缓存", {
         modelId,
         query: query.substring(0, 20) + "...",
         hash: cacheKey,
       });
       return this.cache.get(cacheKey)!;
+    }
+
+    // 2. 尝试二级缓存 (Rust 后端，跨窗口共享)
+    try {
+      const remoteVector = await invoke<number[] | null>("kb_get_embedding_cache", {
+        modelId,
+        text: query,
+      });
+
+      if (remoteVector) {
+        logger.debug("命中向量后端缓存", {
+          modelId,
+          query: query.substring(0, 20) + "...",
+        });
+        this.cache.set(cacheKey, remoteVector);
+        return remoteVector;
+      }
+    } catch (error) {
+      logger.warn("从 Rust 后端获取 Embedding 缓存失败", error);
     }
 
     const adapter = adapters[profile.type];
@@ -95,6 +115,19 @@ export class VectorCacheManager {
     }
 
     this.cache.set(cacheKey, vector);
+
+    // 同步到后端缓存
+    try {
+      await invoke("kb_set_embedding_cache", {
+        modelId,
+        text: query,
+        vector,
+        maxItems: 500, // 默认后端上限
+      });
+    } catch (error) {
+      logger.warn("保存 Embedding 缓存到后端失败", error);
+    }
+
     return vector;
   }
 

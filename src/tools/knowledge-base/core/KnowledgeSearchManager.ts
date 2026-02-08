@@ -5,6 +5,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { vectorCacheManager } from "../utils/vectorCache";
 import { getPureModelId } from "../utils/kbUtils";
 import { performIndexEntry } from "./kbIndexer";
+import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import type { LlmProfile } from "@/types/llm-profiles";
 
 const logger = createModuleLogger("knowledge-base/search-manager");
@@ -29,9 +30,28 @@ export interface SearchOptions {
   onProgress?: (current: number, total: number) => void;
 }
 
+export interface ExternalSearchOptions {
+  /** 查询文本 */
+  query: string;
+  /** 外部预生成的查询向量（如 Chat 的上下文感知向量） */
+  vector?: number[];
+  /** 目标知识库 ID 列表，为空则检索所有库 */
+  kbIds?: string[];
+  /** 预处理提取的标签 */
+  tags?: string[];
+  /** 结果数量限制 */
+  limit?: number;
+  /** 最低相关度分数 */
+  minScore?: number;
+  /** 检索引擎 ID */
+  engineId?: string;
+  /** 纯模型 ID（已经过 getPureModelId 处理） */
+  modelId?: string;
+}
+
 export class KnowledgeSearchManager {
   /**
-   * 执行统一检索流程
+   * 执行统一检索流程 (面向知识库模块内部)
    */
   async search(query: string, options: SearchOptions): Promise<SearchResult[]> {
     if (!query.trim()) return [];
@@ -111,6 +131,71 @@ export class KnowledgeSearchManager {
       errorHandler.error(error, "知识库检索失败");
       throw error;
     }
+  }
+
+  /**
+   * 面向外部消费者的检索方法 (如 Chat 模块)
+   * 统一环境准备步骤、向量检索路径和后端接口调用
+   */
+  async searchWithVector(options: ExternalSearchOptions): Promise<SearchResult[]> {
+    const {
+      query,
+      vector,
+      kbIds,
+      tags,
+      limit = 20,
+      minScore,
+      engineId = "vector",
+      modelId,
+    } = options;
+
+    if (!query.trim()) return [];
+
+    // 1. 确保后端已初始化
+    try {
+      await invoke("kb_initialize");
+    } catch (e) {
+      logger.warn("初始化知识库后端失败", e);
+    }
+
+    // 2. 确定目标知识库
+    const targetKbIds = kbIds?.length ? kbIds : this.getAllKbIds();
+    if (targetKbIds.length === 0) return [];
+
+    // 3. 向量引擎的环境准备
+    const isVectorEngine = ["vector", "lens", "hybrid"].includes(engineId);
+    if (isVectorEngine && modelId) {
+      // 加载向量到后端内存
+      for (const kbId of targetKbIds) {
+        await invoke("kb_load_model_vectors", { kbId, modelId });
+      }
+      // 重建标签池索引
+      await invoke("kb_rebuild_tag_pool_index", { modelId });
+    }
+
+    // 4. 执行后端检索
+    const results = await invoke<SearchResult[]>("kb_search", {
+      query,
+      filters: {
+        kbIds: targetKbIds,
+        tags,
+        limit,
+        minScore,
+        enabledOnly: true,
+        engineId,
+      },
+      engineId,
+      vectorPayload: vector,
+      model: modelId,
+    });
+
+    return results;
+  }
+
+  /** 获取所有知识库 ID */
+  private getAllKbIds(): string[] {
+    const store = useKnowledgeBaseStore();
+    return store.bases.map((b) => b.id);
   }
 
   /**

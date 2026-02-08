@@ -211,8 +211,6 @@ export interface ChatSettings {
   knowledgeBase: {
     /** 默认检索引擎 ID (vector | fulltext | hybrid) */
     defaultEngineId: string;
-    /** 全局唯一的 Embedding 模型标识符 (profileId:modelId) */
-    embeddingModelId: string;
     /** Embedding 向量缓存最大条目数 */
     embeddingCacheMaxItems: number;
     /** 检索结果缓存最大条目数 */
@@ -337,7 +335,6 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   },
   knowledgeBase: {
     defaultEngineId: "vector",
-    embeddingModelId: "", // 需用户在设置中选择
     embeddingCacheMaxItems: 200,
     retrievalCacheMaxItems: 30,
   },

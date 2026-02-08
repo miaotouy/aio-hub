@@ -5,18 +5,17 @@ import { searchKnowledge } from "../../services/knowledge-service";
 import type { SearchResult } from "../../../knowledge-base/types/search";
 import type { ChatAgent } from "../../types/agent";
 import {
-  EmbeddingCache,
   TurnRecord,
-  getGlobalEmbeddingCache,
   getSessionRetrievalCache,
   getSessionHistory,
 } from "./knowledge-cache";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { callEmbeddingApi } from "@/llm-apis/embedding";
 import { invoke } from "@tauri-apps/api/core";
 import { preprocessQuery } from "../../../knowledge-base/utils/queryPreProcessor";
 import { useKnowledgeBaseStore } from "../../../knowledge-base/stores/knowledgeBaseStore";
+import { getPureModelId, getProfileId } from "../../../knowledge-base/utils/kbUtils";
+import { vectorCacheManager } from "../../../knowledge-base/utils/vectorCache";
 
 const logger = createModuleLogger("KnowledgeProcessor");
 
@@ -108,9 +107,6 @@ export class KnowledgeProcessor implements ContextProcessor {
     // 初始化缓存与历史（模块级持久化，跨请求存活）
     const { settings } = useChatSettings();
     const sessionId = context.session.id;
-    const embeddingCache = getGlobalEmbeddingCache(
-      settings.value.knowledgeBase.embeddingCacheMaxItems
-    );
     const sessionCache = getSessionRetrievalCache(
       sessionId,
       settings.value.knowledgeBase.retrievalCacheMaxItems
@@ -152,6 +148,12 @@ export class KnowledgeProcessor implements ContextProcessor {
         // 确定是否需要向量化 (vector 和 hybrid 引擎需要)
         const isVectorNeeded = engineId === "vector" || engineId === "hybrid";
 
+        // 获取 Embedding 模型 ID (优先级: Agent 配置 > 知识库全局配置)
+        const kbStore = useKnowledgeBaseStore();
+        const comboId = kbStore.config.defaultEmbeddingModel;
+        const effectiveComboId = agentConfig.knowledgeSettings?.embeddingModelId || comboId;
+        const pureModelId = getPureModelId(effectiveComboId);
+
         // 1. 优先尝试原始文本精确匹配缓存 (在清洗前)
         let cached = aggregation?.enableCache ? sessionCache.findByText(rawQuery) : null;
 
@@ -177,7 +179,7 @@ export class KnowledgeProcessor implements ContextProcessor {
 
           // 只有需要向量时才生成向量
           if (isVectorNeeded) {
-            vector = await this.buildContextVector(queryText, context, embeddingCache, history);
+            vector = await this.buildContextVector(queryText, context, effectiveComboId, history);
           }
 
           // 3. 检查向量相似度缓存 (仅当有向量时)
@@ -199,7 +201,7 @@ export class KnowledgeProcessor implements ContextProcessor {
               limit: ph.limit || agentConfig.knowledgeSettings?.defaultLimit || 5,
               minScore: ph.minScore || agentConfig.knowledgeSettings?.defaultMinScore || 0.3,
               engineId: engineId,
-              modelId: settings.value.knowledgeBase.embeddingModelId, // 始终使用全局模型
+              modelId: pureModelId,
             });
 
             // 存入缓存 (同时存入清洗前后的查询文本以提高命中率)
@@ -375,31 +377,24 @@ export class KnowledgeProcessor implements ContextProcessor {
   private async buildContextVector(
     queryText: string,
     context: PipelineContext,
-    cache: EmbeddingCache,
+    effectiveComboId: string | undefined,
     history: TurnRecord[]
   ): Promise<number[] | null> {
     const { agentConfig } = context;
-    const { useChatSettings } = await import("../../composables/settings/useChatSettings");
-    const { settings } = useChatSettings();
-    const modelIdentifier = settings.value.knowledgeBase.embeddingModelId;
 
-    if (!modelIdentifier) {
-      logger.warn("未配置全局 Embedding 模型，无法执行向量检索");
+    if (!effectiveComboId) {
+      logger.warn("未配置 Embedding 模型，无法执行向量检索");
       return null;
     }
 
     // 解析格式 profileId:modelId
-    const parts = modelIdentifier.split(":");
-    const profileId = parts[0];
-    const modelId = parts.slice(1).join(":");
+    const profileId = getProfileId(effectiveComboId);
+    const pureModelId = getPureModelId(effectiveComboId);
 
-    if (!profileId || !modelId) {
-      logger.warn("无效的 Embedding 模型标识符", { modelIdentifier });
+    if (!profileId || !pureModelId) {
+      logger.warn("无效的 Embedding 模型标识符", { effectiveComboId });
       return null;
     }
-
-    // 剥离渠道前缀，避免缓存与渠道耦合
-    const pureModelId = modelId.includes(":") ? modelId.split(":").slice(1).join(":") : modelId;
 
     try {
       const { getProfileById } = useLlmProfiles();
@@ -409,29 +404,8 @@ export class KnowledgeProcessor implements ContextProcessor {
         return null;
       }
 
-      // 1. 检查缓存 (使用剥离渠道后的 pureModelId 以实现跨渠道模型共享)
-      const cached = await cache.get(pureModelId, queryText);
-      let currentVector: number[] | undefined;
-
-      if (cached) {
-        currentVector = cached;
-      } else {
-        // 2. 调用 API 获取当前查询的向量 (调用 API 仍需原始 modelId)
-        const res = await callEmbeddingApi(profile, {
-          modelId: modelId,
-          input: queryText,
-        });
-        currentVector = res.data[0]?.embedding;
-        if (currentVector) {
-          const { settings } = useChatSettings();
-          await cache.set(
-            pureModelId,
-            queryText,
-            currentVector,
-            settings.value.knowledgeBase.embeddingCacheMaxItems
-          );
-        }
-      }
+      // 使用统一的 vectorCacheManager 获取向量 (内部处理了缓存和 API 调用)
+      const currentVector = await vectorCacheManager.getVector(queryText, profile, pureModelId);
 
       if (!currentVector) return null;
 

@@ -130,7 +130,7 @@ onMounted(async () => {
   // 初始化 agent 资产缓存（必须在加载智能体数据之前）
   // 这样后续渲染 agent 资产时可以同步解析路径
   await initAgentAssetCache();
-  
+
   // 加载并启动UI状态的持久化
   await loadUiState();
   startWatching();
@@ -163,7 +163,10 @@ onMounted(async () => {
         handleNewSession({ agentId: agentStore.currentAgentId });
       }
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "主窗口初始化LLM Chat模块失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "主窗口初始化LLM Chat模块失败",
+        showToUser: false,
+      });
     } finally {
       isLoading.value = false;
     }
@@ -189,7 +192,10 @@ onMounted(async () => {
       // 2. 状态同步引擎已由 useLlmChatSync 自动管理
       logger.info("分离窗口：状态同步服务已激活（用于跨窗口同步）");
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "分离窗口初始化LLM Chat模块失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "分离窗口初始化LLM Chat模块失败",
+        showToUser: false,
+      });
     } finally {
       isLoading.value = false;
     }
@@ -265,10 +271,7 @@ const handleCreateBranch = (nodeId: string) => {
 };
 
 // 处理续写
-const handleContinue = (
-  nodeId: string,
-  options?: { modelId?: string; profileId?: string }
-) => {
+const handleContinue = (nodeId: string, options?: { modelId?: string; profileId?: string }) => {
   store.continueGeneration(nodeId, options);
 };
 
@@ -368,10 +371,14 @@ useStateSyncEngine(parametersToSync, {
           class="sidebar left-sidebar skeleton-sidebar"
           :style="{ width: `${leftSidebarWidth}px` }"
         >
-          <div class="skeleton-tabs">
-            <el-skeleton-item variant="text" style="width: 40%; height: 20px" />
-            <el-skeleton-item variant="text" style="width: 40%; height: 20px" />
-          </div>
+          <el-skeleton animated :loading="true" :throttle="0">
+            <template #template>
+              <div class="skeleton-tabs">
+                <el-skeleton-item variant="text" style="width: 40%; height: 20px" />
+                <el-skeleton-item variant="text" style="width: 40%; height: 20px" />
+              </div>
+            </template>
+          </el-skeleton>
           <div class="sidebar-content" style="padding: 16px">
             <el-skeleton :rows="12" animated />
           </div>
@@ -380,32 +387,152 @@ useStateSyncEngine(parametersToSync, {
         <!-- Main Content Skeleton -->
         <div class="main-content">
           <div class="chat-area-skeleton">
-            <div class="skeleton-header">
-              <div class="skeleton-header-left">
-                <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
-                <el-skeleton-item variant="text" style="width: 80px; height: 18px" />
-                <el-skeleton-item variant="text" style="width: 100px; height: 16px; margin-left: 12px" />
-              </div>
-              <div class="skeleton-header-right">
-                <el-skeleton-item variant="text" style="width: 60px; height: 18px" />
-                <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
-                <el-skeleton-item variant="rect" style="width: 32px; height: 32px; border-radius: 6px" />
-              </div>
-            </div>
-            <div class="skeleton-body">
-              <div class="skeleton-message-list">
-                <div v-for="i in 3" :key="i" class="skeleton-message-item" :class="{ 'is-user': i % 2 === 0 }">
-                  <el-skeleton-item variant="circle" style="width: 32px; height: 32px" />
-                  <div class="skeleton-message-content">
-                    <el-skeleton-item variant="text" style="width: 30%; height: 14px; margin-bottom: 8px" />
-                    <el-skeleton-item variant="rect" style="width: 80%; height: 40px; border-radius: 8px" />
+            <el-skeleton animated :loading="true" :throttle="0">
+              <template #template>
+                <!-- 头部：模拟真实 ChatArea header -->
+                <div class="skeleton-header">
+                  <div class="skeleton-header-left">
+                    <!-- 智能体头像 + 名称 -->
+                    <el-skeleton-item
+                      variant="rect"
+                      style="width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0"
+                    />
+                    <el-skeleton-item variant="text" style="width: 72px; height: 16px" />
+                    <!-- 模型图标 + 名称 -->
+                    <div class="skeleton-model-badge">
+                      <el-skeleton-item
+                        variant="circle"
+                        style="width: 20px; height: 20px; flex-shrink: 0"
+                      />
+                      <el-skeleton-item variant="text" style="width: 90px; height: 14px" />
+                    </div>
+                  </div>
+                  <div class="skeleton-header-right">
+                    <!-- 用户名 + 头像 -->
+                    <el-skeleton-item variant="text" style="width: 48px; height: 14px" />
+                    <el-skeleton-item
+                      variant="rect"
+                      style="width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0"
+                    />
+                    <!-- 视图切换器占位 -->
+                    <el-skeleton-item
+                      variant="rect"
+                      style="width: 64px; height: 28px; border-radius: 6px; flex-shrink: 0"
+                    />
+                    <!-- 搜索 + 设置按钮 -->
+                    <el-skeleton-item
+                      variant="rect"
+                      style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                    />
+                    <el-skeleton-item
+                      variant="rect"
+                      style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                    />
                   </div>
                 </div>
-              </div>
-            </div>
-            <div class="skeleton-input-wrapper">
-              <el-skeleton-item variant="rect" class="skeleton-input-box" />
-            </div>
+
+                <!-- 消息区域：模拟真实消息列表（全宽卡片式） -->
+                <div class="skeleton-body">
+                  <!-- 消息卡片1: AI 消息 -->
+                  <div class="skeleton-message-card">
+                    <div class="skeleton-msg-header">
+                      <el-skeleton-item
+                        variant="rect"
+                        style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                      />
+                      <el-skeleton-item variant="text" style="width: 80px; height: 14px" />
+                      <el-skeleton-item
+                        variant="text"
+                        style="width: 120px; height: 12px; margin-left: auto; opacity: 0.4"
+                      />
+                    </div>
+                    <div class="skeleton-msg-body">
+                      <el-skeleton-item variant="text" style="width: 92%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 78%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 85%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 55%; height: 14px" />
+                    </div>
+                  </div>
+
+                  <!-- 消息卡片2: 用户消息 -->
+                  <div class="skeleton-message-card">
+                    <div class="skeleton-msg-header">
+                      <el-skeleton-item
+                        variant="rect"
+                        style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                      />
+                      <el-skeleton-item variant="text" style="width: 48px; height: 14px" />
+                      <el-skeleton-item
+                        variant="text"
+                        style="width: 100px; height: 12px; margin-left: auto; opacity: 0.4"
+                      />
+                    </div>
+                    <div class="skeleton-msg-body">
+                      <el-skeleton-item variant="text" style="width: 70%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 40%; height: 14px" />
+                    </div>
+                  </div>
+
+                  <!-- 消息卡片3: AI 消息（较长） -->
+                  <div class="skeleton-message-card">
+                    <div class="skeleton-msg-header">
+                      <el-skeleton-item
+                        variant="rect"
+                        style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                      />
+                      <el-skeleton-item variant="text" style="width: 80px; height: 14px" />
+                      <el-skeleton-item
+                        variant="text"
+                        style="width: 140px; height: 12px; margin-left: auto; opacity: 0.4"
+                      />
+                    </div>
+                    <div class="skeleton-msg-body">
+                      <el-skeleton-item variant="text" style="width: 95%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 82%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 90%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 76%; height: 14px" />
+                      <el-skeleton-item variant="text" style="width: 60%; height: 14px" />
+                    </div>
+                  </div>
+
+                  <!-- 消息卡片4: 用户消息（短） -->
+                  <div class="skeleton-message-card">
+                    <div class="skeleton-msg-header">
+                      <el-skeleton-item
+                        variant="rect"
+                        style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                      />
+                      <el-skeleton-item variant="text" style="width: 48px; height: 14px" />
+                      <el-skeleton-item
+                        variant="text"
+                        style="width: 100px; height: 12px; margin-left: auto; opacity: 0.4"
+                      />
+                    </div>
+                    <div class="skeleton-msg-body">
+                      <el-skeleton-item variant="text" style="width: 50%; height: 14px" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 输入框区域：模拟真实 MessageInput -->
+                <div class="skeleton-input-wrapper">
+                  <div class="skeleton-input-box">
+                    <el-skeleton-item
+                      variant="text"
+                      style="width: 200px; height: 14px; opacity: 0.4"
+                    />
+                    <div class="skeleton-input-actions">
+                      <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
+                      <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
+                      <el-skeleton-item
+                        variant="rect"
+                        style="width: 56px; height: 32px; border-radius: 8px"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </el-skeleton>
           </div>
         </div>
 
@@ -415,16 +542,26 @@ useStateSyncEngine(parametersToSync, {
           class="sidebar right-sidebar skeleton-sidebar"
           :style="{ width: `${rightSidebarWidth}px` }"
         >
-          <div class="skeleton-search-bar" style="padding: 12px; display: flex; gap: 8px">
-            <el-skeleton-item variant="rect" style="flex: 1; height: 32px; border-radius: 4px" />
-            <el-skeleton-item variant="circle" style="width: 32px; height: 32px" />
-          </div>
-          <div class="sidebar-content" style="padding: 0 12px">
-            <div v-for="i in 8" :key="i" style="margin-bottom: 12px">
-              <el-skeleton-item variant="text" style="width: 60%; height: 16px; margin-bottom: 8px" />
-              <el-skeleton-item variant="text" style="width: 40%; height: 12px" />
-            </div>
-          </div>
+          <el-skeleton animated :loading="true" :throttle="0">
+            <template #template>
+              <div class="skeleton-search-bar" style="padding: 12px; display: flex; gap: 8px">
+                <el-skeleton-item
+                  variant="rect"
+                  style="flex: 1; height: 32px; border-radius: 4px"
+                />
+                <el-skeleton-item variant="circle" style="width: 32px; height: 32px" />
+              </div>
+              <div class="sidebar-content" style="padding: 0 12px">
+                <div v-for="i in 8" :key="i" style="margin-bottom: 12px">
+                  <el-skeleton-item
+                    variant="text"
+                    style="width: 60%; height: 16px; margin-bottom: 8px"
+                  />
+                  <el-skeleton-item variant="text" style="width: 40%; height: 12px" />
+                </div>
+              </div>
+            </template>
+          </el-skeleton>
         </div>
       </template>
 
@@ -745,7 +882,7 @@ useStateSyncEngine(parametersToSync, {
   position: relative;
 }
 
-/* 骨架屏样式优化 */
+/* ===== 骨架屏样式 ===== */
 .skeleton-sidebar {
   flex-direction: column;
 }
@@ -758,65 +895,124 @@ useStateSyncEngine(parametersToSync, {
   justify-content: space-around;
 }
 
+/* 中间区域骨架屏 - 模拟真实 ChatArea */
 .chat-area-skeleton {
   display: flex;
   flex-direction: column;
   height: 100%;
   background-color: var(--card-bg);
-}
-
-.skeleton-header {
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border-color);
-  background-color: rgba(var(--card-bg-rgb), 0.7);
-  backdrop-filter: blur(12px);
-}
-
-.skeleton-header-left,
-.skeleton-header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.skeleton-body {
-  flex: 1;
-  padding: 20px;
+  border: 1px solid var(--border-color);
   overflow: hidden;
 }
 
-.skeleton-message-item {
+/* 让 el-skeleton 容器撑满骨架屏高度，使输入框贴底 */
+.chat-area-skeleton :deep(.el-skeleton) {
+  height: 100%;
   display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+  flex-direction: column;
 }
 
-.skeleton-message-item.is-user {
-  flex-direction: row-reverse;
-}
-
-.skeleton-message-item.is-user .skeleton-message-content {
-  align-items: flex-end;
-}
-
-.skeleton-message-content {
+.chat-area-skeleton :deep(.el-skeleton__template) {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
+/* 头部 - 模拟真实 .chat-header */
+.skeleton-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  min-height: 52px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+}
+
+.skeleton-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 4;
+  min-width: 0;
+}
+
+.skeleton-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 3;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.skeleton-model-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding: 0 8px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+/* 消息区域 - 模拟真实消息列表（全宽卡片式） */
+.skeleton-body {
+  flex: 1;
+  padding: 84px 20px 20px 28px; /* 与真实 MessageList 一致 */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 消息卡片 - 模拟真实 ChatMessage */
+.skeleton-message-card {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.skeleton-msg-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.skeleton-msg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 42px; /* 与头像对齐：32px头像 + 10px gap */
+}
+
+/* 输入框区域 - 模拟真实 MessageInput */
 .skeleton-input-wrapper {
-  padding: 0 20px 20px;
+  padding: 0 20px 16px;
+  flex-shrink: 0;
 }
 
 .skeleton-input-box {
-  height: 50px;
-  width: 100%;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background-color: var(--input-bg, var(--card-bg));
+  box-sizing: border-box;
+}
+
+.skeleton-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* 分离后的占位样式 */

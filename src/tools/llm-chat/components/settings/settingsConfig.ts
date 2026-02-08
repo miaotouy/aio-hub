@@ -1,4 +1,4 @@
-import { defineAsyncComponent, h } from "vue";
+import { defineAsyncComponent } from "vue";
 import {
   Settings2,
   Bot,
@@ -21,9 +21,6 @@ import type { ChatSettings } from "../../types/settings";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { DEFAULT_SETTINGS } from "../../types/settings";
-import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
-import { ElAlert, ElButton } from "element-plus";
-import { useRouter } from "vue-router";
 
 // 异步加载大型业务组件
 const MarkdownStyleEditor = defineAsyncComponent(
@@ -35,6 +32,7 @@ const ChatRegexEditor = defineAsyncComponent(
 const PipelineConfig = defineAsyncComponent(() => import("./PipelineConfig.vue"));
 const WorldbookManager = defineAsyncComponent(() => import("../worldbook/WorldbookManager.vue"));
 const WorldbookSelector = defineAsyncComponent(() => import("../worldbook/WorldbookSelector.vue"));
+const KbEmbeddingInfo = defineAsyncComponent(() => import("./KbEmbeddingInfo.vue"));
 const QuickActionFullManager = defineAsyncComponent(
   () => import("../quick-action/QuickActionFullManager.vue")
 );
@@ -1526,40 +1524,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       {
         id: "kbEmbeddingModelInfo",
         label: "当前 Embedding 模型",
-        component: {
-          setup() {
-            const kbStore = useKnowledgeBaseStore();
-            const router = useRouter();
-            return () =>
-              h("div", { class: "flex flex-col gap-2 w-full" }, [
-                h(
-                  ElAlert,
-                  {
-                    title: kbStore.config.defaultEmbeddingModel || "未配置",
-                    type: kbStore.config.defaultEmbeddingModel ? "info" : "warning",
-                    closable: false,
-                    showIcon: true,
-                  },
-                  {
-                    default: () =>
-                      "知识库检索统一使用知识库模块配置的默认模型。如需更改，请前往知识库设置。",
-                  }
-                ),
-                h(
-                  ElButton,
-                  {
-                    type: "primary",
-                    link: true,
-                    onClick: () => router.push("/knowledge-base"),
-                    style: { alignSelf: "flex-start" },
-                  },
-                  { default: () => "前往知识库配置 ->" }
-                ),
-              ]);
-          },
-        },
+        component: KbEmbeddingInfo,
         modelPath: "",
-        hint: "Chat 模块不再维护独立的 Embedding 模型配置，直接复用知识库模块的设置。",
+        hint: "",
         keywords: "knowledge base embedding model 知识库 向量 模型",
       },
       {

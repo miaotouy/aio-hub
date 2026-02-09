@@ -8,7 +8,7 @@ import {
   TurnRecord,
   getSessionRetrievalCache,
   getSessionHistory,
-} from "./knowledge-cache";
+} from "../context-utils/knowledge-cache";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { invoke } from "@tauri-apps/api/core";

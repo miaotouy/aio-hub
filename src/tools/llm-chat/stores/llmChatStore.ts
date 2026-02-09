@@ -24,7 +24,7 @@ import type { ChatSession, ChatMessageNode, LlmParameters, ModelIdentifier } fro
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
-import { clearSessionCache, clearAllCaches } from "../core/context-processors/knowledge-cache";
+import { clearSessionCache, clearAllCaches } from "../core/context-utils/knowledge-cache";
 
 const logger = createModuleLogger("llm-chat/store");
 

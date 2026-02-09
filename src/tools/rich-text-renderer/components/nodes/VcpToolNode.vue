@@ -368,6 +368,8 @@ const copyContent = async () => {
 .vcp-content {
   border-top: 1px solid var(--border-color, rgba(255, 255, 0.05));
   animation: slideDown 0.2s ease;
+  max-height: 800px;
+  overflow-y: auto;
 }
 
 @keyframes slideDown {

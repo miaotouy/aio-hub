@@ -429,21 +429,54 @@ export function useNodeManager() {
       return { success: false, deletedNodes: [] };
     }
 
+    const isCompressionNode = !!node.metadata?.isCompressionNode;
     const nodesToDeleteIds = new Set<string>([nodeId]);
-    const collectDescendants = (id: string) => {
-      const currentNode = session.nodes[id];
-      if (!currentNode) return;
-      currentNode.childrenIds.forEach((childId) => {
-        nodesToDeleteIds.add(childId);
-        collectDescendants(childId);
-      });
-    };
-    collectDescendants(nodeId);
 
-    logger.info("🗑️ [硬删除] 收集到需要删除的节点", {
-      totalCount: nodesToDeleteIds.size,
-      nodeIds: Array.from(nodesToDeleteIds),
-    });
+    // 如果是压缩节点，特殊处理：只删除自己，将子节点归还给父节点
+    if (isCompressionNode) {
+      logger.info("🗑️ [硬删除] 检测到压缩节点，将执行单点删除并归还子节点");
+
+      const parentNode = node.parentId ? session.nodes[node.parentId] : null;
+      if (parentNode) {
+        // 1. 将压缩节点的子节点交给父节点
+        const childrenToReturn = [...node.childrenIds];
+
+        // 在父节点的 childrenIds 中，用子节点列表替换掉压缩节点
+        const index = parentNode.childrenIds.indexOf(nodeId);
+        if (index !== -1) {
+          parentNode.childrenIds.splice(index, 1, ...childrenToReturn);
+        }
+
+        // 2. 更新子节点的父引用
+        childrenToReturn.forEach((childId) => {
+          const childNode = session.nodes[childId];
+          if (childNode) {
+            childNode.parentId = parentNode.id;
+          }
+        });
+
+        logger.info("🗑️ [硬删除] 已将子节点归还给父节点", {
+          parentId: parentNode.id,
+          returnedCount: childrenToReturn.length,
+        });
+      }
+    } else {
+      // 普通节点：递归收集所有后代
+      const collectDescendants = (id: string) => {
+        const currentNode = session.nodes[id];
+        if (!currentNode) return;
+        currentNode.childrenIds.forEach((childId) => {
+          nodesToDeleteIds.add(childId);
+          collectDescendants(childId);
+        });
+      };
+      collectDescendants(nodeId);
+
+      logger.info("🗑️ [硬删除] 收集到需要删除的节点", {
+        totalCount: nodesToDeleteIds.size,
+        nodeIds: Array.from(nodesToDeleteIds),
+      });
+    }
 
     const oldActiveLeafId = session.activeLeafId;
     if (nodesToDeleteIds.has(session.activeLeafId)) {
@@ -474,7 +507,8 @@ export function useNodeManager() {
       }
     }
 
-    if (node.parentId) {
+    // 如果不是压缩节点（压缩节点已经在上面处理过父子关系了），或者是没有父节点的异常情况
+    if (node.parentId && !isCompressionNode) {
       const parentNode = session.nodes[node.parentId];
       if (parentNode) {
         parentNode.childrenIds = parentNode.childrenIds.filter((id) => id !== nodeId);

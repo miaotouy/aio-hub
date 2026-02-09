@@ -164,6 +164,7 @@
                   <el-checkbox v-model="includeMetadata" size="small">统计信息</el-checkbox>
                   <el-checkbox v-model="showSize" size="small">文件大小</el-checkbox>
                   <el-checkbox v-model="showDirSize" size="small">目录大小</el-checkbox>
+                  <el-checkbox v-model="showDirItemCount" size="small">目录项数</el-checkbox>
                 </div>
               </div>
             </div>
@@ -252,6 +253,7 @@ const secondaryExcludePattern = ref("");
 const viewShowFiles = ref(true); // 视图控制中的文件显示开关
 const showSize = ref(true);
 const showDirSize = ref(true);
+const showDirItemCount = ref(false);
 
 // 编辑器内容（与 processedTreeResult 解耦，允许临时编辑）
 const editorContent = ref("");
@@ -289,6 +291,20 @@ watch(treeData, () => {
   secondaryMaxDepth.value = actualMaxDepth.value;
 });
 
+// 获取目录子项数量描述
+const getDirItemCountStr = (node: TreeNode): string => {
+  if (!node.is_dir || node.children.length === 0) return "";
+
+  const fileCount = node.children.filter((c) => !c.is_dir).length;
+  const dirCount = node.children.filter((c) => c.is_dir).length;
+
+  const parts: string[] = [];
+  if (fileCount > 0) parts.push(`${fileCount} file${fileCount > 1 ? "s" : ""}`);
+  if (dirCount > 0) parts.push(`${dirCount} dir${dirCount > 1 ? "s" : ""}`);
+
+  return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
+};
+
 // 递归渲染树结构
 const renderTreeRecursive = (
   node: TreeNode,
@@ -301,6 +317,7 @@ const renderTreeRecursive = (
     showFiles: boolean;
     showSize: boolean;
     showDirSize: boolean;
+    showDirItemCount: boolean;
   },
   currentDepth: number,
   output: string[]
@@ -318,7 +335,8 @@ const renderTreeRecursive = (
   // 根节点特殊处理
   if (isRoot) {
     const sizeStr = options.showDirSize && node.size > 0 ? ` (${formatSize(node.size)})` : "";
-    output.push(`${node.name}${sizeStr}`);
+    const itemCountStr = options.showDirItemCount ? getDirItemCountStr(node) : "";
+    output.push(`${node.name}${sizeStr}${itemCountStr}`);
   } else {
     // 检查深度限制
     if (currentDepth > options.maxDepth) {
@@ -335,10 +353,11 @@ const renderTreeRecursive = (
       }
     }
 
+    const itemCountStr = node.is_dir && options.showDirItemCount ? getDirItemCountStr(node) : "";
     const errorStr = node.error ? ` ${node.error}` : "";
     const slash = node.is_dir ? "/" : "";
 
-    output.push(`${prefix}${connector}${node.name}${slash}${sizeStr}${errorStr}`);
+    output.push(`${prefix}${connector}${node.name}${slash}${sizeStr}${itemCountStr}${errorStr}`);
   }
 
   // 递归处理子节点
@@ -391,6 +410,7 @@ const processedTreeResult = computed(() => {
       showFiles: viewShowFiles.value,
       showSize: showSize.value,
       showDirSize: showDirSize.value,
+      showDirItemCount: showDirItemCount.value,
     };
 
     renderTreeRecursive(treeData.value, "", true, true, options, 0, result);
@@ -437,6 +457,7 @@ onMounted(async () => {
     showHidden.value = config.showHidden;
     showSize.value = config.showSize ?? true;
     showDirSize.value = config.showDirSize ?? true;
+    showDirItemCount.value = config.showDirItemCount ?? false;
     maxDepth.value = config.maxDepth;
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
@@ -471,6 +492,7 @@ const debouncedSaveConfig = debounce(async () => {
       showHidden: showHidden.value,
       showSize: showSize.value,
       showDirSize: showDirSize.value,
+      showDirItemCount: showDirItemCount.value,
       maxDepth: maxDepth.value,
       autoGenerateOnDrop: autoGenerateOnDrop.value,
       includeMetadata: includeMetadata.value,
@@ -505,6 +527,7 @@ watch(
     showHidden,
     showSize,
     showDirSize,
+    showDirItemCount,
     maxDepth,
     autoGenerateOnDrop,
     includeMetadata,

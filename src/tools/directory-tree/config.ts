@@ -48,6 +48,8 @@ export interface DirectoryTreeConfig {
   /** 视图选项 */
   showSize: boolean;
   showDirSize: boolean;
+  /** 是否显示目录下的文件/子目录数量 */
+  showDirItemCount: boolean;
   /** 上次的深度限制 */
   maxDepth: number;
   /** 拖拽后是否自动生成 */
@@ -76,6 +78,7 @@ function createDefaultConfig(): DirectoryTreeConfig {
     showHidden: false,
     showSize: true,
     showDirSize: true,
+    showDirItemCount: false,
     maxDepth: 5,
     autoGenerateOnDrop: true,  // 默认开启自动生成
     includeMetadata: false,  // 默认不包含元数据

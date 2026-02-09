@@ -4,10 +4,15 @@ import { useWorldbookStore } from "../../stores/worldbookStore";
 import { Book, Plus, Search } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 
-const props = defineProps<{
-  modelValue: string[];
-  placeholder?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue?: string[];
+    placeholder?: string;
+  }>(),
+  {
+    modelValue: () => [],
+  }
+);
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string[]): void;
@@ -51,11 +56,18 @@ const availableWorldbooks = computed(() => {
 });
 
 const removeWb = (id: string) => {
-  selectedIds.value = selectedIds.value.filter((i) => i !== id);
+  const current = props.modelValue || [];
+  emit(
+    "update:modelValue",
+    current.filter((i) => i !== id)
+  );
 };
 
 const addWb = (id: string) => {
-  selectedIds.value = [...selectedIds.value, id];
+  const current = props.modelValue || [];
+  if (!current.includes(id)) {
+    emit("update:modelValue", [...current, id]);
+  }
 };
 </script>
 

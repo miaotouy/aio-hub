@@ -19,6 +19,17 @@ const userProfileStore = useUserProfileStore();
 const kbStore = useKnowledgeBaseStore();
 const quickActionManagerVisible = ref(false);
 
+// 初始化设置
+if (!editForm.worldbookIds) {
+  editForm.worldbookIds = [];
+}
+if (!editForm.worldbookSettings) {
+  editForm.worldbookSettings = {
+    disableRecursion: false,
+    defaultScanDepth: 3,
+  };
+}
+
 // 初始化知识库设置
 if (!editForm.knowledgeSettings) {
   editForm.knowledgeSettings = {

@@ -486,8 +486,8 @@ const personalitySettings = computed<SettingItem[]>(() => [
     hint: "智能体的预设开场白或示例对话",
     keywords: "preset messages 预设消息",
     props: {
-      modelId: computed(() => editForm.modelId),
-      agentName: computed(() => editForm.name),
+      modelId: editForm.modelId,
+      agentName: editForm.name,
       agent: editForm,
       height: "300px",
     },

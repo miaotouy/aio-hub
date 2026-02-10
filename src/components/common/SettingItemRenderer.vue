@@ -129,17 +129,16 @@
         {{ selectedOptionDescription }}
       </div>
     </template>
-<!-- Inline layout -->
-<template v-else>
-  <div class="setting-item-content-inline">
-    <component
-      :is="resolvedComponent"
-      :class="componentClasses"
-      :model-value="modelValue"
-      @update:model-value="handleUpdate"
-      @update:modelValue="handleUpdate"
-      v-bind="resolvedProps"
-    />
+    <!-- Inline layout -->
+    <template v-else>
+      <div class="setting-item-content-inline">
+        <component
+          :is="resolvedComponent"
+          :class="componentClasses"
+          :model-value="modelValue"
+          @update:model-value="handleUpdate"
+          @update:modelValue="handleUpdate"
+          v-bind="resolvedProps"
         />
         <div v-if="item.hint" class="form-hint-inline" v-html="resolvedHint"></div>
       </div>

@@ -1,11 +1,8 @@
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
-import type {
-  ChatRegexConfig,
-  ChatRegexRule,
-  MessageRole,
-} from "../../types/chatRegex";
+import type { ChatRegexConfig, ChatRegexRule, MessageRole } from "../../types/chatRegex";
 import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
+import { parseRegexString } from "../../utils/chatRegexUtils";
 
 const logger = createModuleLogger("primary:regex-processor");
 
@@ -33,9 +30,7 @@ function resolveRawRules(
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     for (const preset of enabledPresets) {
-      const applicableRules = preset.rules.filter(
-        (rule) => rule.enabled && rule.applyTo[stage],
-      );
+      const applicableRules = preset.rules.filter((rule) => rule.enabled && rule.applyTo[stage]);
 
       for (const rule of applicableRules) {
         weightedRules.push({
@@ -59,20 +54,14 @@ function resolveRawRules(
 /**
  * 根据消息角色过滤规则
  */
-function filterRulesByRole(
-  rules: ChatRegexRule[],
-  role: MessageRole,
-): ChatRegexRule[] {
+function filterRulesByRole(rules: ChatRegexRule[], role: MessageRole): ChatRegexRule[] {
   return rules.filter((rule) => rule.targetRoles.includes(role));
 }
 
 /**
  * 根据消息深度过滤规则
  */
-function filterRulesByDepth(
-  rules: ChatRegexRule[],
-  depth: number,
-): ChatRegexRule[] {
+function filterRulesByDepth(rules: ChatRegexRule[], depth: number): ChatRegexRule[] {
   return rules.filter((rule) => {
     if (!rule.depthRange) return true;
     const { min, max } = rule.depthRange;
@@ -101,7 +90,7 @@ export const regexProcessor: ContextProcessor = {
       "request",
       globalConfig,
       agentConfig.regexConfig,
-      userProfile?.regexConfig,
+      userProfile?.regexConfig
     );
 
     if (rawRules.length === 0) {
@@ -123,10 +112,7 @@ export const regexProcessor: ContextProcessor = {
       const depth = totalMessages - 1 - i; // 0 = 最新消息
 
       // 3. 根据角色和深度过滤规则
-      const roleFilteredRules = filterRulesByRole(
-        rawRules,
-        message.role as MessageRole,
-      );
+      const roleFilteredRules = filterRulesByRole(rawRules, message.role as MessageRole);
       const finalRules = filterRulesByDepth(roleFilteredRules, depth);
 
       if (finalRules.length === 0) {
@@ -150,8 +136,13 @@ export const regexProcessor: ContextProcessor = {
       let newContent = originalContent;
       for (const rule of finalRules) {
         try {
-          const regex = new RegExp(rule.regex, rule.flags || "g");
+          // 使用与 UI 测试一致的解析逻辑
+          const parsed = parseRegexString(rule.regex);
+          const flags = rule.flags || parsed.flags || "gm";
+          const regex = new RegExp(parsed.pattern, flags);
+
           const tempContent = newContent.replace(regex, rule.replacement);
+
           if (tempContent !== newContent) {
             replacementsCount++;
             newContent = tempContent;

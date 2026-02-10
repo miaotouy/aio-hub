@@ -132,6 +132,10 @@ export async function preflightImportAgents(
             parameters: parsedAgent.parameters || {},
             presetMessages,
           };
+          
+          // 初始化 avatarHistory（通过 as any 绕过类型检查）
+          (exportableAgent as any).avatarHistory = finalIcon ? [finalIcon] : [];
+          
           agentExportFile = {
             version: 1,
             type: 'AIO_Agent_Export',
@@ -210,10 +214,9 @@ export async function preflightImportAgents(
           if (!parsedAgent.name) {
             throw new Error(`角色卡文件 ${file.name} 缺少 'name' 字段。`);
           }
-          
           const assetPath = `assets/avatar-${Date.now()}.png`;
           fileAssets[assetPath] = buffer;
-
+          
           const exportableAgent: ExportableAgent = {
             ...parsedAgent,
             name: parsedAgent.name,
@@ -222,6 +225,10 @@ export async function preflightImportAgents(
             parameters: parsedAgent.parameters || {},
             presetMessages,
           };
+
+          // 初始化 avatarHistory（通过 as any 绕过类型检查）
+          (exportableAgent as any).avatarHistory = [assetPath];
+
           agentExportFile = {
             version: 1,
             type: 'AIO_Agent_Export',

@@ -150,7 +150,7 @@ export function useAgentStorageSeparated() {
       const agentExists = await exists(agentPath);
 
       if (!agentExists) {
-        logger.warn("智能体配置文件不存在", { agentId, path: agentPath });
+        logger.warn("智能体配置文件不存在，可能是导入不完整", { agentId, path: agentPath });
         return null;
       }
 
@@ -215,10 +215,15 @@ export function useAgentStorageSeparated() {
               .filter(e => e.isFile && imageExts.some(ext => e.name.toLowerCase().endsWith(ext)) && e.name !== 'agent.json')
               .map(e => e.name);
             isDirty = true;
+          } else {
+            // 目录不存在，初始化为空数组
+            agent.avatarHistory = [];
+            isDirty = true;
           }
         } catch (e) {
           logger.warn("初始化智能体头像历史失败", { agentId, error: e });
           agent.avatarHistory = [];
+          isDirty = true;
         }
       }
 

@@ -7,11 +7,12 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Star, Upload, RefreshLeft, Clock } from "@element-plus/icons-vue";
+import { Star, Upload, RefreshLeft, Clock, Close } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { extname } from "@tauri-apps/api/path";
+import { readDir, remove, BaseDirectory } from "@tauri-apps/plugin-fs";
 import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
 
 interface Props {
@@ -70,8 +71,8 @@ const [DefineActionButtons, ReuseActionButtons] = createReusableTemplate();
 // 预设图标对话框
 const showPresetIconDialog = ref(false);
 
-// 历史头像按钮引用
-const historyButtonRef = ref();
+// 历史头像对话框
+const showHistoryDialog = ref(false);
 
 // 图像上传中状态
 const isUploadingImage = ref(false);
@@ -94,20 +95,100 @@ const historyAvatars = computed(() => {
     return b.localeCompare(a);
   });
 });
-
-// 加载历史头像 (现在仅用于 UI 反馈，数据已由 props 驱动)
+// 加载历史头像，自动同步目录下的文件
 const loadHistoryAvatars = async () => {
   if (!props.entityId) return;
   isLoadingHistory.value = true;
-  // 模拟一个微小的延迟以显示加载状态，或者未来可以在这里进行校验
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  isLoadingHistory.value = false;
+
+  try {
+    // 构造目录路径
+    let subdirectory = "";
+    if (props.profileType === "agent") {
+      subdirectory = `llm-chat/agents/${props.entityId}`;
+    } else {
+      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
+    }
+
+    // 读取目录内容
+    const entries = await readDir(subdirectory, { baseDir: BaseDirectory.AppData });
+
+    // 过滤出图片文件
+    const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"];
+    const foundAvatars: string[] = [];
+
+    for (const entry of entries) {
+      if (entry.isFile) {
+        const name = entry.name.toLowerCase();
+        if (imageExtensions.some((ext) => name.endsWith(ext))) {
+          foundAvatars.push(entry.name);
+        }
+      }
+    }
+
+    // 与现有历史合并并去重
+    const mergedHistory = Array.from(new Set([...foundAvatars, ...props.avatarHistory]));
+
+    // 如果有变化，通知父组件更新
+    if (JSON.stringify(mergedHistory) !== JSON.stringify(props.avatarHistory)) {
+      emit("update:avatarHistory", mergedHistory);
+    }
+  } catch (error) {
+    // 如果目录不存在或其他错误，静默处理
+    console.warn("Failed to sync history avatars:", error);
+  } finally {
+    isLoadingHistory.value = false;
+  }
 };
 
 // 选择历史头像
 const selectHistoryAvatar = (filename: string) => {
   emitIconChange(filename);
   customMessage.success("已切换为历史头像");
+};
+
+// 删除中的文件名集合（防止重复点击）
+const deletingAvatars = ref<Set<string>>(new Set());
+
+// 删除历史头像
+const deleteHistoryAvatar = async (filename: string, event: Event) => {
+  event.stopPropagation(); // 阻止冒泡到选择事件
+
+  if (deletingAvatars.value.has(filename)) return;
+  deletingAvatars.value.add(filename);
+
+  try {
+    // 构造文件路径
+    let subdirectory = "";
+    if (props.profileType === "agent") {
+      subdirectory = `llm-chat/agents/${props.entityId}`;
+    } else {
+      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
+    }
+
+    // 删除物理文件
+    await remove(`${subdirectory}/${filename}`, { baseDir: BaseDirectory.AppData });
+
+    // 从历史记录中移除
+    const newHistory = props.avatarHistory.filter((h) => h !== filename);
+    emit("update:avatarHistory", newHistory);
+
+    // 如果当前选中的就是被删除的头像，清空
+    if (props.modelValue === filename) {
+      emitIconChange("");
+    }
+
+    customMessage.success("已删除历史头像");
+  } catch (error) {
+    errorHandler.error(error, "删除头像失败");
+  } finally {
+    deletingAvatars.value.delete(filename);
+  }
+};
+
+// 打开历史头像对话框
+const openHistoryDialog = () => {
+  showHistoryDialog.value = true;
+  loadHistoryAvatars();
 };
 
 // 打开预设图标选择器
@@ -275,45 +356,10 @@ const handleIconClick = () => {
 
             <!-- 历史头像选择按钮 -->
             <el-tooltip v-if="entityId" content="历史头像" placement="top" :show-after="300">
-              <el-button ref="historyButtonRef">
+              <el-button @click="openHistoryDialog">
                 <el-icon><Clock /></el-icon>
               </el-button>
             </el-tooltip>
-
-            <el-popover
-              v-if="entityId"
-              :virtual-ref="historyButtonRef"
-              virtual-triggering
-              placement="bottom"
-              :width="320"
-              trigger="click"
-              @show="loadHistoryAvatars"
-            >
-              <div class="history-avatars-panel">
-                <div class="panel-header">历史头像</div>
-
-                <div v-if="isLoadingHistory" class="loading-state">加载中...</div>
-
-                <div v-else-if="historyAvatars.length === 0" class="empty-state">暂无上传记录</div>
-
-                <div v-else class="avatar-grid">
-                  <div
-                    v-for="filename in historyAvatars"
-                    :key="filename"
-                    class="history-avatar-item"
-                    :class="{ active: modelValue === filename }"
-                    @click="selectHistoryAvatar(filename)"
-                  >
-                    <Avatar
-                      :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
-                      :size="48"
-                      shape="square"
-                      :radius="6"
-                    />
-                  </div>
-                </div>
-              </div>
-            </el-popover>
 
             <el-tooltip content="重置为默认" placement="top" :show-after="300">
               <el-button @click="clearIcon">
@@ -345,6 +391,45 @@ const handleIconClick = () => {
         </div>
       </div>
     </div>
+
+    <!-- 历史头像对话框 -->
+    <BaseDialog v-model="showHistoryDialog" title="历史头像" width="520px" height="auto">
+      <template #content>
+        <div class="history-dialog-content">
+          <div v-if="isLoadingHistory" class="loading-state">
+            <span>加载中...</span>
+          </div>
+
+          <div v-else-if="historyAvatars.length === 0" class="empty-state">
+            <el-icon :size="48" color="var(--el-text-color-placeholder)"><Clock /></el-icon>
+            <p>暂无上传记录</p>
+          </div>
+
+          <div v-else class="history-avatar-grid">
+            <div
+              v-for="filename in historyAvatars"
+              :key="filename"
+              class="history-avatar-item"
+              :class="{ active: modelValue === filename }"
+              @click="selectHistoryAvatar(filename)"
+            >
+              <Avatar
+                :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
+                :size="64"
+                shape="square"
+                :radius="8"
+              />
+              <div class="delete-overlay" @click="deleteHistoryAvatar(filename, $event)">
+                <el-icon :size="14"><Close /></el-icon>
+              </div>
+              <div v-if="modelValue === filename" class="active-badge">当前</div>
+            </div>
+          </div>
+
+          <div class="history-hint">点击选择头像，悬停显示删除按钮。删除操作不可恢复。</div>
+        </div>
+      </template>
+    </BaseDialog>
 
     <!-- 预设图标选择对话框 -->
     <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" height="70vh">
@@ -429,52 +514,104 @@ const handleIconClick = () => {
   opacity: 0.8;
 }
 
-/* 历史头像面板样式 */
-.history-avatars-panel {
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-.panel-header {
-  font-size: 14px;
-  font-weight: bold;
-  margin-bottom: 12px;
-  color: var(--text-color-primary);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
+/* 历史头像对话框样式 */
+.history-dialog-content {
+  padding: 4px 0;
 }
 
 .loading-state,
 .empty-state {
-  padding: 20px;
+  padding: 40px 20px;
   text-align: center;
-  color: var(--text-color-secondary);
+  color: var(--el-text-color-secondary);
   font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
-.avatar-grid {
+.history-avatar-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 12px;
 }
 
 .history-avatar-item {
+  position: relative;
   cursor: pointer;
   border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: all 0.2s;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2px;
+  padding: 4px;
+  aspect-ratio: 1;
 }
 
 .history-avatar-item:hover {
-  background-color: var(--bg-color-hover);
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.08));
+  border-color: var(--el-border-color-lighter);
 }
 
 .history-avatar-item.active {
   border-color: var(--el-color-primary);
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.1));
+}
+
+/* 删除按钮覆盖层 */
+.delete-overlay {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--el-color-danger);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.history-avatar-item:hover .delete-overlay {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.delete-overlay:hover {
+  background-color: var(--el-color-danger-dark-2);
+  transform: scale(1.1);
+}
+
+/* 当前使用标记 */
+.active-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--el-color-primary);
+  color: #fff;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.history-hint {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  text-align: center;
 }
 </style>

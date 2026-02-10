@@ -34,21 +34,18 @@ const props = withDefaults(defineProps<Props>(), {
 
 const errorHandler = createModuleErrorHandler("AvatarSelector");
 
-export interface IconUpdatePayload {
-  value: string;
-  source: "input" | "upload" | "preset" | "clear";
-}
-
 interface Emits {
+  /** v-model 标准接口，传递纯 string 值 */
   (e: "update:modelValue", value: string): void;
-  (e: "update:icon", payload: IconUpdatePayload): void;
   /** 当上传新头像导致历史记录变化时触发 */
   (e: "update:avatarHistory", value: string[]): void;
-  // 兼容驼峰命名（用于 props 传递）
-  (e: "updateIcon", payload: IconUpdatePayload): void;
-  (e: "updateAvatarHistory", value: string[]): void;
 }
 const emit = defineEmits<Emits>();
+
+/** 统一的图标变更 emit 辅助函数 */
+const emitIconChange = (value: string) => {
+  emit("update:modelValue", value);
+};
 
 // 图片查看器
 const imageViewer = useImageViewer();
@@ -109,9 +106,7 @@ const loadHistoryAvatars = async () => {
 
 // 选择历史头像
 const selectHistoryAvatar = (filename: string) => {
-  const payload = { value: filename, source: "input" as const };
-  emit("update:icon", payload);
-  emit("updateIcon", payload);
+  emitIconChange(filename);
   customMessage.success("已切换为历史头像");
 };
 
@@ -123,10 +118,7 @@ const openPresetIconSelector = () => {
 // 选择预设图标
 const selectPresetIcon = (icon: any) => {
   // 恢复使用完整路径,保留 /model-icons/ 前缀
-  const iconId = icon.path;
-  const payload = { value: iconId, source: "preset" as const };
-  emit("update:icon", payload);
-  emit("updateIcon", payload);
+  emitIconChange(icon.path);
   showPresetIconDialog.value = false;
   customMessage.success("已选择预设图标");
 };
@@ -173,14 +165,11 @@ const uploadCustomImage = async () => {
     });
 
     // v-model 只存储文件名
-    const iconPayload = { value: newFilename, source: "upload" as const };
-    emit("update:icon", iconPayload);
-    emit("updateIcon", iconPayload);
+    emitIconChange(newFilename);
 
     // 更新历史记录
     const newHistory = [newFilename, ...props.avatarHistory.filter((h) => h !== newFilename)];
     emit("update:avatarHistory", newHistory);
-    emit("updateAvatarHistory", newHistory);
 
     customMessage.success("专属头像上传成功");
   } catch (error) {
@@ -193,9 +182,7 @@ const uploadCustomImage = async () => {
 // 清除图标
 const clearIcon = () => {
   // 清空图标，让 Avatar 组件自动显示回退文本
-  const payload = { value: "", source: "clear" as const };
-  emit("update:icon", payload);
-  emit("updateIcon", payload);
+  emitIconChange("");
   customMessage.info("已重置为默认图标");
 };
 
@@ -338,13 +325,7 @@ const handleIconClick = () => {
 
         <el-input
           :model-value="modelValue"
-          @update:model-value="
-            (val: string) => {
-              const payload = { value: val, source: 'input' as const };
-              $emit('update:icon', payload);
-              $emit('updateIcon', payload);
-            }
-          "
+          @update:model-value="(val: string) => emitIconChange(val)"
           placeholder="输入 Emoji / 路径 / 上传头像"
           class="icon-input"
         >

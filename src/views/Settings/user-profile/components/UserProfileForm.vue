@@ -33,11 +33,11 @@
       <AvatarSelector
         :model-value="formData.icon || ''"
         :avatar-history="formData.avatarHistory"
-        @update:icon="handleIconUpdate"
-        @update:avatar-history="handleHistoryUpdate"
         :entity-id="profileId"
         profile-type="user"
         :name-for-fallback="formData.name"
+        @update:model-value="handleIconUpdate"
+        @update:avatar-history="handleHistoryUpdate"
       />
       <div class="form-hint">上传的头像将与该档案绑定存储，删除档案时会一并清除。</div>
     </el-form-item>
@@ -164,7 +164,6 @@ import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
-import type { IconUpdatePayload } from "@/components/common/AvatarSelector.vue";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types";
 
 const MarkdownStyleEditor = defineAsyncComponent(
@@ -280,8 +279,8 @@ const handleBehaviorChange = (val: string | number | boolean | undefined) => {
   handleInput();
 };
 
-const handleIconUpdate = (payload: IconUpdatePayload) => {
-  formData.value.icon = payload.value;
+const handleIconUpdate = (value: string) => {
+  formData.value.icon = value;
   handleInput();
 };
 

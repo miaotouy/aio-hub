@@ -115,7 +115,7 @@ export async function preflightImportAgents(
             try {
               const base64Data = finalIcon.split(',')[1];
               const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
-              const assetPath = `assets/avatar_for_${parsedAgent.name}.png`;
+              const assetPath = `assets/avatar-${Date.now()}.png`;
               fileAssets[assetPath] = buffer;
               finalIcon = assetPath; // 更新 icon 路径为临时资产路径
             } catch(e) {
@@ -211,7 +211,7 @@ export async function preflightImportAgents(
             throw new Error(`角色卡文件 ${file.name} 缺少 'name' 字段。`);
           }
           
-          const assetPath = `assets/avatar_for_${parsedAgent.name}.png`;
+          const assetPath = `assets/avatar-${Date.now()}.png`;
           fileAssets[assetPath] = buffer;
 
           const exportableAgent: ExportableAgent = {
@@ -527,6 +527,9 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
       // 处理资产持久化
       if (pendingAssets.length > 0) {
         try {
+          // 用于存储处理后的资产路径映射
+          const assetPathMapping: Record<string, string> = {};
+          
           for (const assetInfo of pendingAssets) {
             const rawRelativePath = assetInfo.originalPath.replace(/^assets[/\\]/, '');
             const pathParts = rawRelativePath.split(/[/\\]/);
@@ -543,6 +546,8 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
             });
 
             const finalRefPath = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
+            assetPathMapping[assetInfo.originalPath] = finalRefPath;
+            
             if (assetInfo.objectRef && assetInfo.keyRef) {
               assetInfo.objectRef[assetInfo.keyRef] = finalRefPath;
             }
@@ -550,12 +555,17 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
 
           // 最终更新 Agent 配置，确保包含已处理的资产路径
           // 排除导入过程中的临时控制字段
-          const excludeKeys = ['finalProfileId', 'finalModelId', 'overwriteExisting', 'newName'];
+          const excludeKeys = ['finalProfileId', 'finalModelId', 'overwriteExisting', 'newName', 'id'];
           const finalUpdate: any = {};
           
           Object.keys(resolvedAgent).forEach(key => {
             if (!excludeKeys.includes(key)) {
-              finalUpdate[key] = (resolvedAgent as any)[key];
+              let value = (resolvedAgent as any)[key];
+              // 如果是 icon 字段且以 assets/ 开头，替换为处理后的路径
+              if (key === 'icon' && typeof value === 'string' && value.startsWith('assets/')) {
+                value = assetPathMapping[value] || value;
+              }
+              finalUpdate[key] = value;
             }
           });
 

@@ -244,141 +244,147 @@ const handleIconClick = () => {
 </script>
 
 <template>
-  <div class="avatar-selector-layout" ref="containerRef" :class="{ 'is-compact': isCompact }">
-    <div class="avatar-preview-container">
-      <el-tooltip
-        :content="isImagePath ? '点击放大查看' : ''"
-        :disabled="!isImagePath"
-        placement="top"
-        :show-after="300"
-      >
-        <Avatar
-          :src="resolvedAvatarSrc"
-          :alt="nameForFallback"
-          :size="avatarSize"
-          shape="square"
-          :radius="8"
-          :border="false"
-          :class="{ 'clickable-avatar': isImagePath }"
-          @click="handleIconClick"
-        />
-      </el-tooltip>
-    </div>
-    <div class="icon-controls-container" ref="controlsContainerRef">
-      <!-- 定义按钮组模板 -->
-      <DefineActionButtons>
-        <el-button-group :class="{ 'compact-button-group': shouldWrapButtons }">
-          <el-tooltip content="选择预设图标" placement="top" :show-after="300">
-            <el-button @click="openPresetIconSelector">
-              <el-icon><Star /></el-icon>
-            </el-button>
-          </el-tooltip>
+  <div class="avatar-selector-root">
+    <div class="avatar-selector-layout" ref="containerRef" :class="{ 'is-compact': isCompact }">
+      <div class="avatar-preview-container">
+        <el-tooltip
+          :content="isImagePath ? '点击放大查看' : ''"
+          :disabled="!isImagePath"
+          placement="top"
+          :show-after="300"
+        >
+          <Avatar
+            :src="resolvedAvatarSrc"
+            :alt="nameForFallback"
+            :size="avatarSize"
+            shape="square"
+            :radius="8"
+            :border="false"
+            :class="{ 'clickable-avatar': isImagePath }"
+            @click="handleIconClick"
+          />
+        </el-tooltip>
+      </div>
+      <div class="icon-controls-container" ref="controlsContainerRef">
+        <!-- 定义按钮组模板 -->
+        <DefineActionButtons>
+          <el-button-group :class="{ 'compact-button-group': shouldWrapButtons }">
+            <el-tooltip content="选择预设图标" placement="top" :show-after="300">
+              <el-button @click="openPresetIconSelector">
+                <el-icon><Star /></el-icon>
+              </el-button>
+            </el-tooltip>
 
-          <el-tooltip
-            v-if="entityId"
-            content="上传专属头像 (存入 AppData)"
-            placement="top"
-            :show-after="300"
-          >
-            <el-button @click="uploadCustomImage" :loading="isUploadingImage">
-              <el-icon><Upload /></el-icon>
-            </el-button>
-          </el-tooltip>
+            <el-tooltip
+              v-if="entityId"
+              content="上传专属头像 (存入 AppData)"
+              placement="top"
+              :show-after="300"
+            >
+              <el-button @click="uploadCustomImage" :loading="isUploadingImage">
+                <el-icon><Upload /></el-icon>
+              </el-button>
+            </el-tooltip>
 
-          <!-- 历史头像选择按钮 -->
-          <el-tooltip v-if="entityId" content="历史头像" placement="top" :show-after="300">
-            <el-button ref="historyButtonRef">
-              <el-icon><Clock /></el-icon>
-            </el-button>
-          </el-tooltip>
+            <!-- 历史头像选择按钮 -->
+            <el-tooltip v-if="entityId" content="历史头像" placement="top" :show-after="300">
+              <el-button ref="historyButtonRef">
+                <el-icon><Clock /></el-icon>
+              </el-button>
+            </el-tooltip>
 
-          <el-popover
-            v-if="entityId"
-            :virtual-ref="historyButtonRef"
-            virtual-triggering
-            placement="bottom"
-            :width="320"
-            trigger="click"
-            @show="loadHistoryAvatars"
-          >
-            <div class="history-avatars-panel">
-              <div class="panel-header">历史头像</div>
+            <el-popover
+              v-if="entityId"
+              :virtual-ref="historyButtonRef"
+              virtual-triggering
+              placement="bottom"
+              :width="320"
+              trigger="click"
+              @show="loadHistoryAvatars"
+            >
+              <div class="history-avatars-panel">
+                <div class="panel-header">历史头像</div>
 
-              <div v-if="isLoadingHistory" class="loading-state">加载中...</div>
+                <div v-if="isLoadingHistory" class="loading-state">加载中...</div>
 
-              <div v-else-if="historyAvatars.length === 0" class="empty-state">暂无上传记录</div>
+                <div v-else-if="historyAvatars.length === 0" class="empty-state">暂无上传记录</div>
 
-              <div v-else class="avatar-grid">
-                <div
-                  v-for="filename in historyAvatars"
-                  :key="filename"
-                  class="history-avatar-item"
-                  :class="{ active: modelValue === filename }"
-                  @click="selectHistoryAvatar(filename)"
-                >
-                  <Avatar
-                    :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
-                    :size="48"
-                    shape="square"
-                    :radius="6"
-                  />
+                <div v-else class="avatar-grid">
+                  <div
+                    v-for="filename in historyAvatars"
+                    :key="filename"
+                    class="history-avatar-item"
+                    :class="{ active: modelValue === filename }"
+                    @click="selectHistoryAvatar(filename)"
+                  >
+                    <Avatar
+                      :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
+                      :size="48"
+                      shape="square"
+                      :radius="6"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </el-popover>
+            </el-popover>
 
-          <el-tooltip content="重置为默认" placement="top" :show-after="300">
-            <el-button @click="clearIcon">
-              <el-icon><RefreshLeft /></el-icon>
-            </el-button>
-          </el-tooltip>
-        </el-button-group>
-      </DefineActionButtons>
+            <el-tooltip content="重置为默认" placement="top" :show-after="300">
+              <el-button @click="clearIcon">
+                <el-icon><RefreshLeft /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </el-button-group>
+        </DefineActionButtons>
 
-      <el-input
-        :model-value="modelValue"
-        @update:model-value="
-          (val: string) => {
-            const payload = { value: val, source: 'input' as const };
-            $emit('update:icon', payload);
-            $emit('updateIcon', payload);
-          }
-        "
-        placeholder="输入 Emoji / 路径 / 上传头像"
-        class="icon-input"
-      >
-        <!-- 宽屏模式：显示在 Input 内部 -->
-        <template #append v-if="!shouldWrapButtons">
+        <el-input
+          :model-value="modelValue"
+          @update:model-value="
+            (val: string) => {
+              const payload = { value: val, source: 'input' as const };
+              $emit('update:icon', payload);
+              $emit('updateIcon', payload);
+            }
+          "
+          placeholder="输入 Emoji / 路径 / 上传头像"
+          class="icon-input"
+        >
+          <!-- 宽屏模式：显示在 Input 内部 -->
+          <template #append v-if="!shouldWrapButtons">
+            <ReuseActionButtons />
+          </template>
+        </el-input>
+
+        <!-- 紧凑模式：显示在 Input 下方 -->
+        <div v-if="shouldWrapButtons" class="compact-actions-wrapper">
           <ReuseActionButtons />
-        </template>
-      </el-input>
+        </div>
 
-      <!-- 紧凑模式：显示在 Input 下方 -->
-      <div v-if="shouldWrapButtons" class="compact-actions-wrapper">
-        <ReuseActionButtons />
-      </div>
-
-      <div class="form-hint">
-        支持 Emoji、预设图标、本地路径引用{{ entityId ? "或上传专属头像" : "" }}。
+        <div class="form-hint">
+          支持 Emoji、预设图标、本地路径引用{{ entityId ? "或上传专属头像" : "" }}。
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- 预设图标选择对话框 -->
-  <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" height="70vh">
-    <template #content>
-      <IconPresetSelector
-        :icons="PRESET_ICONS"
-        :get-icon-path="(path: string) => path"
-        show-search
-        show-categories
-        @select="selectPresetIcon"
-      />
-    </template>
-  </BaseDialog>
+    <!-- 预设图标选择对话框 -->
+    <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" height="70vh">
+      <template #content>
+        <IconPresetSelector
+          :icons="PRESET_ICONS"
+          :get-icon-path="(path: string) => path"
+          show-search
+          show-categories
+          @select="selectPresetIcon"
+        />
+      </template>
+    </BaseDialog>
+  </div>
 </template>
 
 <style scoped>
+.avatar-selector-root {
+  width: 100%;
+}
+
 .avatar-selector-layout {
   display: flex;
   flex-direction: row;

@@ -9,12 +9,13 @@
     <template #content>
       <UserProfileForm
         v-model="form"
+        :profile-id="profile?.id"
         :required="true"
         :description-rows="8"
         :show-metadata="true"
         :showUpload="true"
         icon-placeholder="输入 emoji、路径或选择图像（可选）"
-        icon-hint="可以输入 emoji、从预设选择或输入绝对路径"
+        icon-hint="可以输入 emoji、从预设选择、上传头像或输入绝对路径"
       />
     </template>
 

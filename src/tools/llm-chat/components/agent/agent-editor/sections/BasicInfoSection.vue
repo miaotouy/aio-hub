@@ -43,7 +43,7 @@ const allTags = computed(() => {
         v-model="editForm.icon"
         v-model:avatar-history="editForm.avatarHistory"
         :entity-id="agent?.id"
-        profile-type="agent"
+        :storage-subdirectory="agent?.id ? `llm-chat/agents/${agent.id}` : ''"
         :name-for-fallback="editForm.name"
       />
     </el-form-item>

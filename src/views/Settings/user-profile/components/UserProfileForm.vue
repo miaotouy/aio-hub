@@ -34,7 +34,7 @@
         :model-value="formData.icon || ''"
         :avatar-history="formData.avatarHistory"
         :entity-id="profileId"
-        profile-type="user"
+        :storage-subdirectory="profileId ? `llm-chat/user-profiles/${profileId}` : ''"
         :name-for-fallback="formData.name"
         @update:model-value="handleIconUpdate"
         @update:avatar-history="handleHistoryUpdate"

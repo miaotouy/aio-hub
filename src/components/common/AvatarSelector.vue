@@ -13,7 +13,15 @@ import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { extname } from "@tauri-apps/api/path";
 import { readDir, remove, BaseDirectory } from "@tauri-apps/plugin-fs";
-import { resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+
+/**
+ * 判断一个图标字符串是否像一个内置的文件名（无路径分隔符，有扩展名）
+ */
+function isLikelyFilename(icon: string): boolean {
+  if (!icon) return false;
+  if (icon.startsWith("data:") || icon.includes("://")) return false;
+  return icon.includes(".") && !icon.includes("/") && !icon.includes("\\") && !icon.includes(":");
+}
 
 interface Props {
   modelValue: string;
@@ -21,15 +29,25 @@ interface Props {
   entityId?: string;
   /** 历史头像列表（由父组件传入，数据驱动） */
   avatarHistory?: string[];
-  /** 用于确定上传目录 */
-  profileType?: "agent" | "user";
+  /**
+   * AppData 下的存储子目录路径，由调用方传入。
+   * 例如 `llm-chat/agents/{id}` 或 `llm-chat/user-profiles/{id}`。
+   * 用于上传、读取历史和删除头像文件。
+   */
+  storageSubdirectory?: string;
+  /**
+   * 自定义头像解析函数。接收原始 icon 字符串，返回最终可用于显示的路径。
+   * 如果不传，组件会基于 storageSubdirectory 自动拼接 appdata:// 路径。
+   */
+  resolveAvatarSrc?: (icon: string) => string;
   /** 用于 Avatar 的回退文本，建议使用 name 而非 displayName */
   nameForFallback?: string;
 }
 const props = withDefaults(defineProps<Props>(), {
   entityId: "",
   avatarHistory: () => [],
-  profileType: "agent",
+  storageSubdirectory: "",
+  resolveAvatarSrc: undefined,
   nameForFallback: "图标",
 });
 
@@ -97,20 +115,12 @@ const historyAvatars = computed(() => {
 });
 // 加载历史头像，自动同步目录下的文件
 const loadHistoryAvatars = async () => {
-  if (!props.entityId) return;
+  if (!props.entityId || !props.storageSubdirectory) return;
   isLoadingHistory.value = true;
 
   try {
-    // 构造目录路径
-    let subdirectory = "";
-    if (props.profileType === "agent") {
-      subdirectory = `llm-chat/agents/${props.entityId}`;
-    } else {
-      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
-    }
-
     // 读取目录内容
-    const entries = await readDir(subdirectory, { baseDir: BaseDirectory.AppData });
+    const entries = await readDir(props.storageSubdirectory, { baseDir: BaseDirectory.AppData });
 
     // 过滤出图片文件
     const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"];
@@ -157,16 +167,13 @@ const deleteHistoryAvatar = async (filename: string, event: Event) => {
   deletingAvatars.value.add(filename);
 
   try {
-    // 构造文件路径
-    let subdirectory = "";
-    if (props.profileType === "agent") {
-      subdirectory = `llm-chat/agents/${props.entityId}`;
-    } else {
-      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
+    if (!props.storageSubdirectory) {
+      errorHandler.error("缺少 storageSubdirectory", "删除失败");
+      return;
     }
 
     // 删除物理文件
-    await remove(`${subdirectory}/${filename}`, { baseDir: BaseDirectory.AppData });
+    await remove(`${props.storageSubdirectory}/${filename}`, { baseDir: BaseDirectory.AppData });
 
     // 从历史记录中移除
     const newHistory = props.avatarHistory.filter((h) => h !== filename);
@@ -216,9 +223,8 @@ const uploadCustomImage = async () => {
 
     if (!selectedPath) return;
 
-    // **上传逻辑：与 assets 解耦**
-    if (!props.entityId) {
-      errorHandler.error("缺少 entityId", "上传失败");
+    if (!props.entityId || !props.storageSubdirectory) {
+      errorHandler.error("缺少 entityId 或 storageSubdirectory", "上传失败");
       return;
     }
 
@@ -229,19 +235,9 @@ const uploadCustomImage = async () => {
     const timestamp = Date.now();
     const newFilename = `avatar-${timestamp}${extension ? `.${extension}` : ""}`;
 
-    let subdirectory = "";
-    if (props.profileType === "agent") {
-      subdirectory = `llm-chat/agents/${props.entityId}`;
-    } else if (props.profileType === "user") {
-      subdirectory = `llm-chat/user-profiles/${props.entityId}`;
-    } else {
-      errorHandler.error(`未知的 profileType '${props.profileType}'`, "上传失败");
-      return;
-    }
-
     await invoke("copy_file_to_app_data", {
       sourcePath: selectedPath,
-      subdirectory,
+      subdirectory: props.storageSubdirectory,
       newFilename,
     });
 
@@ -272,16 +268,16 @@ const resolvedAvatarSrc = computed(() => {
   const icon = props.modelValue?.trim();
   if (!icon) return "";
 
-  // 构造一个临时对象来复用 resolveAvatarPath 的逻辑
-  // 如果有 entityId，resolveAvatarPath 会自动处理 appdata:// 路径
-  if (props.entityId) {
-    const type = props.profileType === "agent" ? "agent" : "user-profile";
-    const resolved = resolveAvatarPath({ id: props.entityId, icon }, type);
-    if (resolved) return resolved;
+  // 优先使用调用方提供的自定义解析函数
+  if (props.resolveAvatarSrc) {
+    return props.resolveAvatarSrc(icon);
   }
 
-  // 如果没有 entityId 或者解析结果为空（理论上 resolveAvatarPath 会返回 icon 本身如果不是文件名），
-  // 但为了保险，我们直接返回原值
+  // 默认逻辑：如果看起来像文件名且有 storageSubdirectory，自动拼接 appdata:// 路径
+  if (props.storageSubdirectory && isLikelyFilename(icon)) {
+    return `appdata://${props.storageSubdirectory}/${icon}`;
+  }
+
   return icon;
 });
 
@@ -344,7 +340,7 @@ const handleIconClick = () => {
             </el-tooltip>
 
             <el-tooltip
-              v-if="entityId"
+              v-if="entityId && storageSubdirectory"
               content="上传专属头像 (存入 AppData)"
               placement="top"
               :show-after="300"
@@ -355,7 +351,12 @@ const handleIconClick = () => {
             </el-tooltip>
 
             <!-- 历史头像选择按钮 -->
-            <el-tooltip v-if="entityId" content="历史头像" placement="top" :show-after="300">
+            <el-tooltip
+              v-if="entityId && storageSubdirectory"
+              content="历史头像"
+              placement="top"
+              :show-after="300"
+            >
               <el-button @click="openHistoryDialog">
                 <el-icon><Clock /></el-icon>
               </el-button>
@@ -387,7 +388,9 @@ const handleIconClick = () => {
         </div>
 
         <div class="form-hint">
-          支持 Emoji、预设图标、本地路径引用{{ entityId ? "或上传专属头像" : "" }}。
+          支持 Emoji、预设图标、本地路径引用{{
+            entityId && storageSubdirectory ? "或上传专属头像" : ""
+          }}。
         </div>
       </div>
     </div>
@@ -414,7 +417,7 @@ const handleIconClick = () => {
               @click="selectHistoryAvatar(filename)"
             >
               <Avatar
-                :src="`appdata://llm-chat/${profileType === 'agent' ? 'agents' : 'user-profiles'}/${entityId}/${filename}`"
+                :src="`appdata://${storageSubdirectory}/${filename}`"
                 :size="64"
                 shape="square"
                 :radius="8"

@@ -6,7 +6,6 @@
 
 import { fetchWithTimeout, ensureResponseOk, type LlmResponse } from "@/llm-apis/common";
 import type { SunoClientConfig, SunoClipInfo } from "./types";
-import { formatLlmApiHost } from "@/utils/llm-api-url";
 
 /** Suno API 默认路径 */
 export const SUNO_PATHS = {
@@ -163,7 +162,12 @@ export function isTaskPending(status: string): boolean {
  */
 export const sunoUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string) => {
-    const host = formatLlmApiHost(baseUrl);
+    if (!baseUrl) return "";
+    const host = baseUrl.endsWith("#")
+      ? baseUrl.slice(0, -1)
+      : baseUrl.endsWith("/")
+        ? baseUrl
+        : `${baseUrl}/`;
     return endpoint ? `${host}${endpoint}` : host;
   },
   getHint: () => "Suno API 地址 (如 https://api.suno.ai)",

@@ -144,6 +144,10 @@ const supportsCfg = computed(() => {
   return provider === "openai" && baseUrl.includes("siliconflow");
 });
 
+const isSuno = computed(() => {
+  return selectedModelInfo.value?.provider === "suno";
+});
+
 // 根据媒体类型筛选模型能力
 const modelCapabilities = computed(() => {
   if (mediaType.value === "image") return { imageGeneration: true };
@@ -327,13 +331,54 @@ watch(sizeOptions, (newOptions) => {
 
       <!-- 音频特定参数 -->
       <template v-else-if="mediaType === 'audio'">
-        <div class="section">
-          <div class="section-title">音频质量</div>
-          <el-select v-model="params.quality" size="small" style="width: 100%">
-            <el-option label="标准 (128kbps)" value="standard" />
-            <el-option label="高音质 (320kbps)" value="hd" />
-          </el-select>
-        </div>
+        <template v-if="isSuno">
+          <div class="section">
+            <div class="section-title">生成模式</div>
+            <el-radio-group v-model="params.suno_mode" size="small">
+              <el-radio-button value="simple">灵感模式</el-radio-button>
+              <el-radio-button value="custom">自定义模式</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div class="section">
+            <div class="section-title">模型版本</div>
+            <el-select v-model="params.mv" size="small" style="width: 100%">
+              <el-option label="Chirp v4 (最新)" value="chirp-v4" />
+              <el-option label="Chirp v3.5" value="chirp-v3-5" />
+              <el-option label="Chirp v3.0" value="chirp-auk" />
+            </el-select>
+          </div>
+
+          <div v-if="params.suno_mode === 'custom'" class="section">
+            <div class="section-title">风格标签 (Tags)</div>
+            <el-input
+              v-model="params.tags"
+              type="textarea"
+              :rows="2"
+              placeholder="例如: heavy metal, male vocals..."
+              size="small"
+            />
+          </div>
+
+          <div v-if="params.suno_mode === 'custom'" class="section">
+            <div class="section-title">歌曲标题</div>
+            <el-input v-model="params.title" placeholder="可选标题" size="small" />
+          </div>
+
+          <div class="section">
+            <div class="section-title">纯音乐</div>
+            <el-switch v-model="params.make_instrumental" size="small" />
+          </div>
+        </template>
+        <template v-else>
+          <div class="section">
+            <div class="section-title">音频质量</div>
+            <el-select v-model="params.quality" size="small" style="width: 100%">
+              <el-option label="标准 (128kbps)" value="standard" />
+              <el-option label="高音质 (320kbps)" value="hd" />
+            </el-select>
+          </div>
+        </template>
       </template>
 
       <!-- 公共高级参数 -->

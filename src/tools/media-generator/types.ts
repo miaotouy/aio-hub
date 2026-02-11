@@ -116,6 +116,12 @@ export interface MediaTypeConfig {
     background: string;
     inputFidelity: string;
     duration: number; // 视频时长 (默认 5)
+    // Suno 专属
+    suno_mode?: "simple" | "custom";
+    mv?: string;
+    tags?: string;
+    title?: string;
+    make_instrumental?: boolean;
     [key: string]: any;
   };
 }

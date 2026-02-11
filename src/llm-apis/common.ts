@@ -326,6 +326,8 @@ export interface MediaGenerationOptions extends Omit<LlmRequestOptions, "respons
     pitch?: number;
     responseFormat?: "mp3" | "wav" | "opus" | "aac";
   };
+  /** 扩展透传参数 */
+  params?: Record<string, any>;
 }
 
 /**

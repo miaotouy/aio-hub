@@ -28,6 +28,12 @@ export function useSessionManager() {
       background: "opaque",
       inputFidelity: "low",
       duration: 5,
+      // Suno 专属
+      suno_mode: "simple",
+      mv: "chirp-v4",
+      tags: "",
+      title: "",
+      make_instrumental: false,
     },
   });
 

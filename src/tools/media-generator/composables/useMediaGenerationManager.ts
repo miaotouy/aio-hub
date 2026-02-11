@@ -59,7 +59,10 @@ export function useMediaGenerationManager() {
         negativePrompt: options.negativePrompt,
         modelId: options.modelId,
         profileId: options.profileId,
-        params: { ...options },
+        params: {
+          ...options,
+          ...options.params, // 透传参数优先级更高，覆盖顶层同名字段
+        },
         referenceAssetIds: options.inputAttachments?.map((a) => a.url).filter(Boolean) as string[],
         contextMessageIds: options.contextMessageIds,
         includeContext: shouldIncludeContext,

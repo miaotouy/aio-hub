@@ -33,7 +33,8 @@ export type ProviderType =
   | "openai-responses"
   | "xai"
   | "cohere"
-  | "vertexai";
+  | "vertexai"
+  | "suno";
 
 /**
  * LLM 参数支持定义

@@ -6,6 +6,7 @@
 
 import { fetchWithTimeout, ensureResponseOk, type LlmResponse } from "@/llm-apis/common";
 import type { SunoClientConfig, SunoClipInfo } from "./types";
+import { formatLlmApiHost } from "@/utils/llm-api-url";
 
 /** Suno API 默认路径 */
 export const SUNO_PATHS = {
@@ -156,6 +157,17 @@ export function isTaskPending(status: string): boolean {
   const pendingStatuses = ["SUBMITTED", "QUEUED", "IN_PROGRESS"];
   return pendingStatuses.includes(status.toUpperCase());
 }
+
+/**
+ * Suno URL 处理逻辑
+ */
+export const sunoUrlHandler = {
+  buildUrl: (baseUrl: string, endpoint?: string) => {
+    const host = formatLlmApiHost(baseUrl);
+    return endpoint ? `${host}${endpoint}` : host;
+  },
+  getHint: () => "Suno API 地址 (如 https://api.suno.ai)",
+};
 
 /**
  * 将 SunoClipInfo 列表转换为 LlmResponse 格式

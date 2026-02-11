@@ -483,24 +483,39 @@ export function useNodeManager() {
       logger.info("🗑️ [硬删除] 当前活动叶节点将被删除，需要调整", { oldActiveLeafId });
 
       const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
-      const siblingNodes = siblings
-        .filter((id) => id !== nodeId)
-        .map((id) => session.nodes[id])
-        .filter((n): n is ChatMessageNode => !!n);
 
-      if (siblingNodes.length > 0) {
+      // 找到被删除节点在兄弟列表中的索引
+      const deletedIndex = siblings.indexOf(nodeId);
+      let targetSiblingId: string | null = null;
+
+      // 尝试选择相邻的兄弟节点（优先下一个，然后上一个）
+      if (deletedIndex !== -1) {
+        // 尝试下一个兄弟
+        if (deletedIndex + 1 < siblings.length) {
+          targetSiblingId = siblings[deletedIndex + 1];
+        }
+        // 如果下一个不存在，尝试上一个兄弟
+        else if (deletedIndex - 1 >= 0) {
+          targetSiblingId = siblings[deletedIndex - 1];
+        }
+      }
+
+      // 如果找到了相邻兄弟节点
+      if (targetSiblingId && session.nodes[targetSiblingId]) {
         const findDeepestLeaf = (n: ChatMessageNode): string => {
           if (n.childrenIds.length === 0) return n.id;
           const lastChildId = n.childrenIds[n.childrenIds.length - 1];
           const lastChild = session.nodes[lastChildId];
           return lastChild ? findDeepestLeaf(lastChild) : n.id;
         };
-        session.activeLeafId = findDeepestLeaf(siblingNodes[0]);
+        session.activeLeafId = findDeepestLeaf(session.nodes[targetSiblingId]);
         BranchNavigator.updateSelectionMemory(session, session.activeLeafId);
-        logger.info("🗑️ [硬删除] 切换到兄弟节点的最深叶子", {
+        logger.info("🗑️ [硬删除] 切换到相邻兄弟节点的最深叶子", {
+          targetSiblingId,
           newActiveLeafId: session.activeLeafId,
         });
       } else {
+        // 没有相邻兄弟节点，回退到父节点
         session.activeLeafId = node.parentId || session.rootNodeId;
         BranchNavigator.updateSelectionMemory(session, session.activeLeafId);
         logger.info("🗑️ [硬删除] 回退到父节点", { newActiveLeafId: session.activeLeafId });

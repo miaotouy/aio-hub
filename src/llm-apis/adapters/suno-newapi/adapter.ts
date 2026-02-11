@@ -9,10 +9,10 @@ import { clipsToLlmResponse } from "./utils";
 import type { SunoMusicRequest, SunoModelVersion } from "./types";
 
 /**
- * Suno 音乐生成适配器
+ * Suno 音乐生成适配器 (NewAPI 体系)
  * 将 SunoClient 包装为系统统一的 LlmAdapter 接口
  */
-export const sunoAdapter: LlmAdapter = {
+export const sunoNewApiAdapter: LlmAdapter = {
   /**
    * Suno 不支持文本对话，返回提示
    */

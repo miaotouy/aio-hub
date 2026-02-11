@@ -376,6 +376,14 @@ export const providerTypes: ProviderTypeInfo[] = [
       thinking: true,
     },
   },
+  {
+    type: "suno-newapi",
+    name: "Suno (NewAPI)",
+    description: "Suno 音乐生成服务 (基于 NewAPI/Suno-API 自创协议)",
+    defaultBaseUrl: "",
+    supportsModelList: false,
+    supportedParameters: {},
+  },
 ];
 
 /**

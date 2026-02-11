@@ -680,7 +680,7 @@ export const MANUAL_PRESET_ICONS: PresetIconInfo[] = [
   {
     name: "Suno",
     path: "suno.svg",
-    suggestedFor: ["suno", "chirp"],
+    suggestedFor: ["suno-newapi", "suno", "chirp"],
     category: "多媒体/创意",
   },
   {

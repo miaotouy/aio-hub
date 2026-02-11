@@ -145,7 +145,7 @@ const supportsCfg = computed(() => {
 });
 
 const isSuno = computed(() => {
-  return selectedModelInfo.value?.provider === "suno";
+  return selectedModelInfo.value?.provider === "suno-newapi";
 });
 
 // 根据媒体类型筛选模型能力

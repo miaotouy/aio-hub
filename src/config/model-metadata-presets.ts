@@ -2216,7 +2216,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "suno",
     properties: {
       icon: `/model-icons/suno.svg`,
-      group: "Suno",
+      group: "Suno (NewAPI)",
       capabilities: {
         musicGeneration: true,
       },

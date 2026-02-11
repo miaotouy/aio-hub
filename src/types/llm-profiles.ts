@@ -36,7 +36,7 @@ export type ProviderType =
   | "xai"
   | "cohere"
   | "vertexai"
-  | "suno";
+  | "suno-newapi";
 
 /**
  * LLM 参数支持定义

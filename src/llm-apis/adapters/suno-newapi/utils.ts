@@ -160,7 +160,7 @@ export function isTaskPending(status: string): boolean {
 /**
  * Suno URL 处理逻辑
  */
-export const sunoUrlHandler = {
+export const sunoNewApiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string) => {
     if (!baseUrl) return "";
     const host = baseUrl.endsWith("#")

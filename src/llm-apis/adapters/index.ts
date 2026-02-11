@@ -8,7 +8,7 @@ import { vertexAiAdapter } from "./vertexai";
 import { cohereAdapter } from "./cohere";
 import { callSiliconFlowImageApi } from "./siliconflow/image";
 import { xAiAdapter } from "./xai";
-import { sunoAdapter } from "./suno";
+import { sunoNewApiAdapter } from "./suno-newapi";
 
 /**
  * 统一适配器接口
@@ -70,7 +70,7 @@ export const adapters: Record<string, LlmAdapter> = {
   claude: anthropicAdapter,
   vertexai: vertexAiAdapter,
   cohere: cohereAdapter,
-  suno: sunoAdapter,
+  "suno-newapi": sunoNewApiAdapter,
 };
 
 export type ProviderType = keyof typeof adapters;

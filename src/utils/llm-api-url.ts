@@ -9,7 +9,7 @@ import { claudeUrlHandler } from "@/llm-apis/adapters/anthropic/utils";
 import { geminiUrlHandler } from "@/llm-apis/adapters/gemini/utils";
 import { cohereUrlHandler } from "@/llm-apis/adapters/cohere/utils";
 import { vertexAiUrlHandler } from "@/llm-apis/adapters/vertexai/utils";
-import { sunoUrlHandler } from "@/llm-apis/adapters/suno/utils";
+import { sunoNewApiUrlHandler } from "@/llm-apis/adapters/suno-newapi/utils";
 
 /**
  * 适配器 URL 处理接口
@@ -65,7 +65,7 @@ const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   cohere: cohereUrlHandler,
   vertexai: vertexAiUrlHandler,
   ollama: ollamaUrlHandler,
-  suno: sunoUrlHandler,
+  "suno-newapi": sunoNewApiUrlHandler,
 };
 
 /**

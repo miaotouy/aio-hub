@@ -28,7 +28,7 @@ export function useSessionManager() {
       background: "opaque",
       inputFidelity: "low",
       duration: 5,
-      // Suno 专属
+      // Suno (NewAPI) 专属
       suno_mode: "simple",
       mv: "chirp-v4",
       tags: "",

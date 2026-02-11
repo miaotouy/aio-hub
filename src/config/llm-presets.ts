@@ -1636,6 +1636,87 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: "http://localhost:11434",
     logoUrl: "/model-icons/ollama.svg",
   },
+  // NewAPI / One API 聚合
+  {
+    type: "openai",
+    name: "NewAPI",
+    description: "NewAPI / One API 兼容的聚合服务",
+    defaultBaseUrl: "https://api.example.com",
+    logoUrl: "/model-icons/newapi.svg",
+  },
+  // Suno (NewAPI)
+  {
+    type: "openai",
+    name: "Suno (NewAPI)",
+    description: "通过 NewAPI 访问的 Suno 音乐生成服务",
+    defaultBaseUrl: "https://api.example.com",
+    logoUrl: "/model-icons/suno.svg",
+    defaultModels: [
+      {
+        id: "suno_music",
+        name: "Suno Music",
+        group: "Suno",
+        provider: "suno",
+        description: "音乐生成 (支持自定义/灵感模式)",
+      },
+      {
+        id: "suno_lyrics",
+        name: "Suno Lyrics",
+        group: "Suno",
+        provider: "suno",
+        description: "歌词生成",
+      },
+      {
+        id: "suno_uploads",
+        name: "Suno Uploads",
+        group: "Suno",
+        provider: "suno",
+        description: "音频上传",
+      },
+      {
+        id: "suno_concat",
+        name: "Suno Concat",
+        group: "Suno",
+        provider: "suno",
+        description: "歌曲合并",
+      },
+      {
+        id: "suno_act_mp4",
+        name: "Suno MP4",
+        group: "Suno Action",
+        provider: "suno",
+        description: "生成视频",
+      },
+      {
+        id: "suno_act_stems",
+        name: "Suno Stems",
+        group: "Suno Action",
+        provider: "suno",
+        description: "分离音轨",
+      },
+      {
+        id: "suno_act_timing",
+        name: "Suno Timing",
+        group: "Suno Action",
+        provider: "suno",
+        description: "歌词时间戳",
+      },
+      {
+        id: "suno_act_wav",
+        name: "Suno WAV",
+        group: "Suno Action",
+        provider: "suno",
+        description: "无损音频",
+      },
+      {
+        id: "suno_persona_create",
+        name: "Suno Persona",
+        group: "Suno Persona",
+        provider: "suno",
+        description: "创建角色",
+      },
+    ],
+  },
 ];
 
 /**

@@ -34,7 +34,7 @@ interface Emits {
   (e: "edit", newContent: string, attachments?: Asset[]): void;
   (e: "copy"): void;
   (e: "abort"): void;
-  (e: "continue"): void;
+  (e: "continue", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
   (e: "analyze-context"): void;
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
@@ -106,6 +106,8 @@ const onSaveToBranch = (newContent: string, attachments?: Asset[]) => {
 // 事件处理函数（避免模板中的隐式 any）
 const onRegenerate = (options?: { modelId?: string; profileId?: string }) =>
   emit("regenerate", options);
+const onContinue = (options?: { modelId?: string; profileId?: string }) =>
+  emit("continue", options);
 const onSwitchSibling = (direction: "prev" | "next") => emit("switch-sibling", direction);
 const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
 
@@ -261,7 +263,7 @@ defineExpose({
         @switch="onSwitchSibling"
         @switch-branch="onSwitchBranch"
         @abort="emit('abort')"
-        @continue="emit('continue')"
+        @continue="onContinue"
         @create-branch="emit('create-branch')"
         @analyze-context="emit('analyze-context')"
         @translate="handleTranslate"

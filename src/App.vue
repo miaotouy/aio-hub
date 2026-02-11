@@ -20,6 +20,7 @@ import MainSidebar from "./components/MainSidebar.vue";
 import GlobalProviders from "./components/GlobalProviders.vue";
 import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
+import { useDeepLinkHandler } from "./composables/useDeepLinkHandler";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import { useToolsStore } from "@/stores/tools";
 
@@ -29,6 +30,9 @@ const isLoading = ref(true); // 控制骨架屏显示
 
 // 初始化主题，必须在其他操作之前
 useTheme();
+
+// 初始化 Deep Link 处理器
+useDeepLinkHandler();
 
 const route = useRoute();
 const router = useRouter();

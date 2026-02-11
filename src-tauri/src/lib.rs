@@ -365,6 +365,7 @@ pub fn run() {
         )
         // 插件初始化
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
@@ -375,7 +376,17 @@ pub fn run() {
             #[cfg(not(debug_assertions))]
             _ if std::env::var("AIO_PORTABLE_MODE").is_ok() => tauri_plugin_opener::init(),
             #[cfg(not(debug_assertions))]
-            _ => tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            _ => tauri_plugin_single_instance::init(|app, args, _cwd| {
+                // 处理 Windows/Linux 上的 Deep Link
+                #[cfg(desktop)]
+                {
+                    for arg in &args {
+                        if arg.starts_with("aiohub://") {
+                            let _ = app.emit("deep-link://opened", vec![arg.clone()]);
+                        }
+                    }
+                }
+
                 let _ = app.get_webview_window("main").map(|w| {
                     let _ = w.show();
                     let _ = w.unminimize();

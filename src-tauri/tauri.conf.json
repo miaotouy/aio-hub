@@ -32,6 +32,11 @@
     },
     "fs": {
       "requireLiteralLeadingDot": false
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["aiohub"]
+      }
     }
   },
   "bundle": {

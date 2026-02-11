@@ -255,6 +255,58 @@ export const providerTypes: ProviderTypeInfo[] = [
     },
   },
   {
+    type: "azure",
+    name: "Azure OpenAI",
+    description: "微软 Azure OpenAI 服务",
+    defaultBaseUrl: "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+    supportsModelList: false,
+    supportedParameters: {
+      temperature: true,
+      maxTokens: true,
+      topP: true,
+      frequencyPenalty: true,
+      presencePenalty: true,
+      seed: true,
+      stop: true,
+      responseFormat: true,
+      tools: true,
+      toolChoice: true,
+    },
+    configFields: [
+      {
+        id: "azure-resource",
+        label: "资源名称",
+        component: "ElInput",
+        modelPath: "resource",
+        props: {
+          placeholder: "your-resource-name",
+        },
+        hint: "Azure OpenAI 资源名称",
+        keywords: "resource",
+      },
+      {
+        id: "azure-deployment",
+        label: "部署名称",
+        component: "ElInput",
+        modelPath: "deployment",
+        props: {
+          placeholder: "gpt-4o",
+        },
+        hint: "部署的 Deployment ID",
+        keywords: "deployment",
+      },
+      {
+        id: "azure-api-version",
+        label: "API 版本",
+        component: "ElInput",
+        modelPath: "apiVersion",
+        defaultValue: "2024-12-01-preview",
+        hint: "Azure OpenAI 的 API 版本 (api-version 参数)，例如 2024-12-01-preview",
+        keywords: "azure api version",
+      },
+    ],
+  },
+  {
     type: "vertexai",
     name: "Vertex AI",
     description: "Google Cloud Vertex AI API（基于 Gemini）",
@@ -283,6 +335,25 @@ export const providerTypes: ProviderTypeInfo[] = [
       modalities: true,
       safetySettings: true,
     },
+    configFields: [
+      {
+        id: "vertex-project-id",
+        label: "Project ID",
+        component: "ElInput",
+        modelPath: "projectId",
+        hint: "Google Cloud 项目 ID",
+        keywords: "project id",
+      },
+      {
+        id: "vertex-location",
+        label: "Location",
+        component: "ElInput",
+        modelPath: "location",
+        defaultValue: "us-central1",
+        hint: "服务所在区域，例如 us-central1",
+        keywords: "location region",
+      },
+    ],
   },
   {
     type: "xai",
@@ -1743,10 +1814,10 @@ export const llmPresets: LlmPreset[] = [
   },
   // Azure OpenAI
   {
-    type: "openai",
+    type: "azure",
     name: "Azure OpenAI",
     description: "微软 Azure OpenAI 服务",
-    defaultBaseUrl: "https://<your-resource>.openai.azure.com",
+    defaultBaseUrl: "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
     logoUrl: "/model-icons/azure-color.svg",
     defaultModels: [
       {

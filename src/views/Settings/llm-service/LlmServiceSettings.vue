@@ -13,6 +13,7 @@ import CreateProfileDialog from "./components/CreateProfileDialog.vue";
 import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
+import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
@@ -60,6 +61,7 @@ const editForm = ref<LlmProfile>({
   models: [],
   relaxIdCerts: false,
   http1Only: true,
+  options: {},
 });
 
 // 模型编辑
@@ -93,6 +95,31 @@ const selectedProfile = computed(() => {
   if (!selectedProfileId.value) return null;
   return profiles.value.find((p) => p.id === selectedProfileId.value) || null;
 });
+
+// 当前渠道特有的配置字段
+const currentConfigFields = computed(() => {
+  const typeInfo = getProviderTypeInfo(editForm.value.type);
+  return typeInfo?.configFields || [];
+});
+
+// 监听 type 变化，初始化 options
+watch(
+  () => editForm.value.type,
+  (newType) => {
+    const typeInfo = getProviderTypeInfo(newType);
+    if (typeInfo?.configFields) {
+      if (!editForm.value.options) {
+        editForm.value.options = {};
+      }
+      // 为缺失的字段设置默认值
+      typeInfo.configFields.forEach((field) => {
+        if (field.modelPath && editForm.value.options![field.modelPath] === undefined) {
+          editForm.value.options![field.modelPath] = field.defaultValue;
+        }
+      });
+    }
+  }
+);
 
 // 将分隔的 API Key 字符串（支持逗号或换行）转换为数组
 const updateApiKeys = () => {
@@ -144,6 +171,7 @@ const createNewProfile = () => {
     networkStrategy: "auto",
     relaxIdCerts: false,
     http1Only: true,
+    options: {},
   };
   apiKeyInput.value = "";
   selectedProfileId.value = editForm.value.id;
@@ -668,6 +696,17 @@ const resetBaseUrl = () => {
                 </div>
               </div>
             </el-form-item>
+
+            <!-- 动态渠道特有配置 -->
+            <template v-if="currentConfigFields.length > 0">
+              <el-divider border-style="dashed">渠道特有配置</el-divider>
+              <SettingListRenderer
+                :items="currentConfigFields"
+                :settings="editForm.options || {}"
+                @update:settings="(val) => (editForm.options = val)"
+              />
+              <el-divider border-style="dashed" />
+            </template>
 
             <el-form-item label="网络方案">
               <el-radio-group v-model="editForm.networkStrategy">

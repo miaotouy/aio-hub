@@ -1,6 +1,7 @@
 /**
  * LLM 服务配置相关的类型定义
  */
+import type { SettingItem } from "./settings-renderer";
 
 /**
  * 上下文后处理规则 (简易定义，避免循环依赖和跨端导入问题)
@@ -23,6 +24,7 @@ export type NetworkStrategy = "auto" | "proxy" | "native";
 export type ProviderType =
   | "openai"
   | "openai-compatible"
+  | "azure"
   | "deepseek"
   | "claude"
   | "gemini"
@@ -86,6 +88,12 @@ export interface ProviderTypeInfo {
   supportsModelList: boolean; // 是否支持从 API 自动获取模型列表
   modelListEndpoint?: string; // 模型列表端点（相对路径）
   supportedParameters?: LlmParameterSupport; // 支持的参数类型
+  /**
+   * 该渠道类型特有的配置项定义（可选）
+   * 使用声明式 SettingItem 描述，由 SettingListRenderer 动态渲染
+   * 配置值存储在 LlmProfile.options 中
+   */
+  configFields?: SettingItem[];
 }
 
 /**
@@ -428,6 +436,12 @@ export interface LlmProfile {
    * - 'native': 强制使用前端原生请求 (由 Tauri 劫持, 性能较好)
    */
   networkStrategy?: NetworkStrategy;
+  /**
+   * 渠道类型特有的扩展配置（可选）
+   * 由 ProviderTypeInfo.configFields 定义的配置项，值存储在此
+   * 例如 Azure 的 apiVersion、deploymentId 等
+   */
+  options?: Record<string, any>;
   /**
    * 自定义 API 端点（可选）
    * 用于高级配置，直接指定完整的 URL

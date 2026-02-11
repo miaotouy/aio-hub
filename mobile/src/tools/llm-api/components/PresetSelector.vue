@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Zap, Plus } from "lucide-vue-next";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { llmPresets } from "../config/llm-providers";
+import { llmPresets } from "../config/llm-presets";
 import { useI18n } from "@/i18n";
 
 const { tRaw } = useI18n();

@@ -498,6 +498,38 @@ const openProviderIconSelector = () => {
   showPresetIconDialog.value = true;
 };
 
+// 网络设置折叠面板
+const networkCollapseActive = ref<string[]>([]);
+
+// 网络设置摘要
+const networkSettingSummary = computed(() => {
+  const parts: string[] = [];
+  const strategy = editForm.value.networkStrategy || "auto";
+  const strategyMap: Record<string, string> = {
+    auto: "自动",
+    proxy: "后端代理",
+    native: "原生请求",
+  };
+  parts.push(strategyMap[strategy] || strategy);
+
+  if (strategy !== "native") {
+    if (editForm.value.relaxIdCerts) parts.push("放宽证书");
+    if (editForm.value.http1Only) parts.push("HTTP/1.1");
+  }
+
+  const headersCount = editForm.value.customHeaders
+    ? Object.keys(editForm.value.customHeaders).length
+    : 0;
+  if (headersCount > 0) parts.push(`${headersCount} 个请求头`);
+
+  const endpointsCount = editForm.value.customEndpoints
+    ? Object.keys(editForm.value.customEndpoints).length
+    : 0;
+  if (endpointsCount > 0) parts.push(`${endpointsCount} 个自定义端点`);
+
+  return parts.join(" · ");
+});
+
 // 自定义请求头弹窗
 const showCustomHeadersDialog = ref(false);
 
@@ -623,76 +655,10 @@ const resetBaseUrl = () => {
                 <div class="api-preview-hint">
                   {{ endpointHintText }}
                 </div>
-                <div class="api-extra-actions">
-                  <el-button
-                    link
-                    type="primary"
-                    size="small"
-                    @click="showCustomHeadersDialog = true"
-                  >
-                    自定义请求头
-                    <span
-                      v-if="
-                        editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0
-                      "
-                    >
-                      ({{ Object.keys(editForm.customHeaders).length }})
-                    </span>
-                  </el-button>
-                  <el-divider direction="vertical" />
-                  <el-button
-                    link
-                    type="primary"
-                    size="small"
-                    @click="showCustomEndpointsDialog = true"
-                  >
-                    高级端点
-                    <span
-                      v-if="
-                        editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
-                      "
-                    >
-                      ({{ Object.keys(editForm.customEndpoints).length }})
-                    </span>
-                  </el-button>
-                </div>
               </div>
               <div v-else>
                 <div class="form-hint">
                   <span>默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}</span>
-                </div>
-                <div class="api-extra-actions">
-                  <el-button
-                    link
-                    type="primary"
-                    size="small"
-                    @click="showCustomHeadersDialog = true"
-                  >
-                    自定义请求头
-                    <span
-                      v-if="
-                        editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0
-                      "
-                    >
-                      ({{ Object.keys(editForm.customHeaders).length }})
-                    </span>
-                  </el-button>
-                  <el-divider direction="vertical" />
-                  <el-button
-                    link
-                    type="primary"
-                    size="small"
-                    @click="showCustomEndpointsDialog = true"
-                  >
-                    高级端点
-                    <span
-                      v-if="
-                        editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
-                      "
-                    >
-                      ({{ Object.keys(editForm.customEndpoints).length }})
-                    </span>
-                  </el-button>
                 </div>
               </div>
             </el-form-item>
@@ -708,34 +674,85 @@ const resetBaseUrl = () => {
               <el-divider border-style="dashed" />
             </template>
 
-            <el-form-item label="网络方案">
-              <el-radio-group v-model="editForm.networkStrategy">
-                <el-radio-button value="auto">自动选择</el-radio-button>
-                <el-radio-button value="proxy">后端代理</el-radio-button>
-                <el-radio-button value="native">原生请求</el-radio-button>
-              </el-radio-group>
-              <div class="form-hint">
-                <span v-if="editForm.networkStrategy === 'auto'">
-                  默认方案。自动根据请求内容（如是否包含本地文件）决定是否通过 Rust 后端转发。
-                </span>
-                <span v-else-if="editForm.networkStrategy === 'proxy'">
-                  强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1 等底层配置，可绕过 CORS。
-                </span>
-                <span v-else-if="editForm.networkStrategy === 'native'">
-                  强制使用前端原生请求。性能较好，但不支持底层网络微调，且受限于浏览器安全策略。
-                </span>
-              </div>
-            </el-form-item>
+            <!-- 网络设置折叠区域 -->
+            <el-collapse v-model="networkCollapseActive" class="network-collapse">
+              <el-collapse-item name="network">
+                <template #title>
+                  <div class="network-collapse-title">
+                    <span class="network-collapse-label">网络设置</span>
+                    <span class="network-collapse-summary">{{ networkSettingSummary }}</span>
+                  </div>
+                </template>
 
-            <el-form-item label="代理行为" v-if="editForm.networkStrategy !== 'native'">
-              <div style="display: flex; gap: 20px">
-                <el-checkbox v-model="editForm.relaxIdCerts" label="放宽证书校验" />
-                <el-checkbox v-model="editForm.http1Only" label="强制 HTTP/1.1" />
-              </div>
-              <div class="form-hint">
-                放宽证书校验允许自签名证书；强制 HTTP/1.1 可提高与某些自建服务的兼容性。
-              </div>
-            </el-form-item>
+                <el-form-item label="网络方案">
+                  <el-radio-group v-model="editForm.networkStrategy">
+                    <el-radio-button value="auto">自动选择</el-radio-button>
+                    <el-radio-button value="proxy">后端代理</el-radio-button>
+                    <el-radio-button value="native">原生请求</el-radio-button>
+                  </el-radio-group>
+                  <div class="form-hint">
+                    <span v-if="editForm.networkStrategy === 'auto'">
+                      默认方案。自动根据请求内容（如是否包含本地文件）决定是否通过 Rust 后端转发。
+                    </span>
+                    <span v-else-if="editForm.networkStrategy === 'proxy'">
+                      强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1 等底层配置，可绕过
+                      CORS。
+                    </span>
+                    <span v-else-if="editForm.networkStrategy === 'native'">
+                      强制使用前端原生请求。性能较好，但不支持底层网络微调，且受限于浏览器安全策略。
+                    </span>
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="代理行为" v-if="editForm.networkStrategy !== 'native'">
+                  <div style="display: flex; gap: 20px">
+                    <el-checkbox v-model="editForm.relaxIdCerts" label="放宽证书校验" />
+                    <el-checkbox v-model="editForm.http1Only" label="强制 HTTP/1.1" />
+                  </div>
+                  <div class="form-hint">
+                    放宽证书校验允许自签名证书；强制 HTTP/1.1 可提高与某些自建服务的兼容性。
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="自定义请求头">
+                  <el-button
+                    type="primary"
+                    plain
+                    size="small"
+                    @click="showCustomHeadersDialog = true"
+                  >
+                    编辑请求头
+                    <span
+                      v-if="
+                        editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0
+                      "
+                    >
+                      ({{ Object.keys(editForm.customHeaders).length }})
+                    </span>
+                  </el-button>
+                  <div class="form-hint">为该渠道的所有请求附加自定义 HTTP 请求头。</div>
+                </el-form-item>
+
+                <el-form-item label="高级端点">
+                  <el-button
+                    type="primary"
+                    plain
+                    size="small"
+                    @click="showCustomEndpointsDialog = true"
+                  >
+                    编辑端点
+                    <span
+                      v-if="
+                        editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
+                      "
+                    >
+                      ({{ Object.keys(editForm.customEndpoints).length }})
+                    </span>
+                  </el-button>
+                  <div class="form-hint">自定义特定操作（如聊天、嵌入）的 API 端点路径。</div>
+                </el-form-item>
+              </el-collapse-item>
+            </el-collapse>
 
             <el-form-item label="API Key">
               <div style="display: flex; gap: 8px; width: 100%">
@@ -995,10 +1012,54 @@ const resetBaseUrl = () => {
   line-height: 1.4;
 }
 
-.api-extra-actions {
-  margin-top: 4px;
+/* 网络设置折叠面板 */
+.network-collapse {
+  width: 100%;
+  margin: 4px 0 16px;
+  box-sizing: border-box;
+  --el-collapse-border-color: var(--border-color);
+  --el-collapse-header-height: 40px;
+  --el-collapse-header-bg-color: transparent;
+  --el-collapse-header-font-size: 13px;
+  --el-collapse-content-bg-color: transparent;
+  --el-collapse-content-font-size: 13px;
+}
+
+.network-collapse :deep(.el-collapse-item__header) {
+  padding: 0 12px;
+  transition: background-color 0.3s;
+}
+
+.network-collapse :deep(.el-collapse-item__header:hover) {
+  background-color: rgba(var(--el-color-primary-rgb), 0.05);
+}
+
+.network-collapse :deep(.el-collapse-item__content) {
+  padding: 12px 12px 4px;
+}
+
+.network-collapse-title {
   display: flex;
   align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.network-collapse-label {
+  font-weight: 500;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.network-collapse-summary {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
 .model-list-container {

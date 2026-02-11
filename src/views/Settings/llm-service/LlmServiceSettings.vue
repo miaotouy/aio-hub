@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import { useElementSize } from "@vueuse/core";
-import { ElMessageBox } from "element-plus";
-import { customMessage } from "@/utils/customMessage";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
 import ModelList from "./components/ModelList.vue";
@@ -14,494 +11,120 @@ import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
+import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { providerTypes } from "@/config/llm-providers";
-import type { LlmProfile, LlmModelInfo, ProviderType } from "@/types/llm-profiles";
-import type { LlmPreset } from "@/config/llm-presets";
+import { PRESET_ICONS } from "@/config/preset-icons";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@/utils/llm-api-url";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import { PRESET_ICONS } from "@/config/preset-icons";
-import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
-import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { useProfileEditor } from "./composables/useProfileEditor";
+import { useModelEditor } from "./composables/useModelEditor";
+import { useConnectionTest } from "./composables/useConnectionTest";
+import type { LlmProfile } from "@/types/llm-profiles";
 
-const errorHandler = createModuleErrorHandler("LlmServiceSettings");
-
+// ─── Composables ───
 const {
   profiles,
-  saveProfile,
-  deleteProfile,
-  toggleProfileEnabled,
-  generateId,
-  createFromPreset,
+  selectedProfileId,
+  selectedProfile,
+  editForm,
+  apiKeyInput,
+  currentConfigFields,
   updateProfilesOrder,
-} = useLlmProfiles();
+  saveProfile,
+  getProviderTypeInfo,
+  updateApiKeys,
+  selectProfile,
+  createNewProfile,
+  createFromPresetTemplate,
+  handleDelete,
+  handleToggle,
+  resetBaseUrl,
+} = useProfileEditor();
 
-const { sendRequest } = useLlmRequest();
-const { updateKeyStatus, reportSuccess, reportFailure } = useLlmKeyManager();
+const {
+  showModelDialog,
+  editingModel,
+  isEditingModel,
+  showModelFetcherDialog,
+  fetchedModels,
+  fetchedRawResponse,
+  isFetchingModels,
+  addModel,
+  editModel,
+  handleSaveModel,
+  deleteModel,
+  deleteModelGroup,
+  clearAllModels,
+  fetchModels,
+  handleAddModels,
+} = useModelEditor(editForm, selectedProfile);
 
-// 使用统一的图标获取方法
+const {
+  isTestingConnection,
+  modelTestLoading,
+  keyTestLoading,
+  testConnection,
+  handleTestModel,
+  handleTestKey,
+} = useConnectionTest(editForm, selectedProfile);
+
+// ─── 图标 ───
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
 
-// 防抖保存的计时器
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
+const getProviderIcon = (profile: LlmProfile) => {
+  if (profile.icon) {
+    return getDisplayIconPath(profile.icon);
+  }
+  const iconPath = getIconPath("", profile.type);
+  return iconPath ? getDisplayIconPath(iconPath) : null;
+};
 
-// 当前选中的配置
-const selectedProfileId = ref<string | null>(null);
-
-// 编辑表单
-const editForm = ref<LlmProfile>({
-  id: "",
-  name: "",
-  type: "openai",
-  baseUrl: "",
-  apiKeys: [],
-  enabled: true,
-  models: [],
-  relaxIdCerts: false,
-  http1Only: true,
-  options: {},
-});
-
-// 模型编辑
-const showModelDialog = ref(false);
-const editingModel = ref<LlmModelInfo | null>(null);
-const isEditingModel = ref(false);
-
-// API Key 输入处理
-const apiKeyInput = ref("");
-
-// 预设图标选择对话框
 const showPresetIconDialog = ref(false);
 
-// 容器响应式布局
+const selectPresetIcon = (icon: any) => {
+  editForm.value.icon = icon.path;
+  showPresetIconDialog.value = false;
+};
+
+const openProviderIconSelector = () => {
+  showPresetIconDialog.value = true;
+};
+
+// ─── 响应式布局 ───
 const containerRef = ref<HTMLElement | null>(null);
 const editorContainerRef = ref<HTMLElement | null>(null);
 const { width: containerWidth } = useElementSize(containerRef);
 const { width: editorWidth } = useElementSize(editorContainerRef);
 
 const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 850);
-// 当右侧编辑器宽度小于 560px 时，也视为窄模式，切换 label 为 top
 const isEditorNarrow = computed(() => editorWidth.value > 0 && editorWidth.value < 760);
-
 const formLabelPosition = computed(() => (isNarrow.value || isEditorNarrow.value ? "top" : "left"));
 
-// 渠道创建对话框
+// ─── 对话框状态 ───
 const showCreateProfileDialog = ref(false);
+const showCustomHeadersDialog = ref(false);
+const showCustomEndpointsDialog = ref(false);
+const showMultiKeyManager = ref(false);
 
-// 计算当前选中的配置
-const selectedProfile = computed(() => {
-  if (!selectedProfileId.value) return null;
-  return profiles.value.find((p) => p.id === selectedProfileId.value) || null;
-});
-
-// 当前渠道特有的配置字段
-const currentConfigFields = computed(() => {
-  const typeInfo = getProviderTypeInfo(editForm.value.type);
-  return typeInfo?.configFields || [];
-});
-
-// 监听 type 变化，初始化 options
-watch(
-  () => editForm.value.type,
-  (newType) => {
-    const typeInfo = getProviderTypeInfo(newType);
-    if (typeInfo?.configFields) {
-      if (!editForm.value.options) {
-        editForm.value.options = {};
-      }
-      // 为缺失的字段设置默认值
-      typeInfo.configFields.forEach((field) => {
-        if (field.modelPath && editForm.value.options![field.modelPath] === undefined) {
-          editForm.value.options![field.modelPath] = field.defaultValue;
-        }
-      });
-    }
-  }
-);
-
-// 将分隔的 API Key 字符串（支持逗号或换行）转换为数组
-const updateApiKeys = () => {
-  const keys = apiKeyInput.value
-    .split(/[,，\n\r]+/) // 支持英文逗号、中文逗号、换行符
-    .map((key) => key.trim())
-    .filter((key) => key.length > 0);
-  editForm.value.apiKeys = keys;
-  // 更新输入框显示，统一用逗号分隔，方便用户查看
-  apiKeyInput.value = keys.join(", ");
-};
-
-// 监听配置的变化，特别是 apiKeys，以同步输入框
-watch(
-  () => editForm.value.apiKeys,
-  (newKeys) => {
-    if (!newKeys) return;
-    const currentInputKeys = apiKeyInput.value
-      .split(/[,，\n\r]+/)
-      .map((k) => k.trim())
-      .filter((k) => k.length > 0);
-
-    // 如果数组内容不一致，则同步到输入框
-    if (JSON.stringify(newKeys) !== JSON.stringify(currentInputKeys)) {
-      apiKeyInput.value = newKeys.join(", ");
-    }
-  },
-  { deep: true }
-);
-// 选择配置
-const selectProfile = (profileId: string) => {
-  selectedProfileId.value = profileId;
-  const profile = profiles.value.find((p) => p.id === profileId);
-  if (profile) {
-    editForm.value = JSON.parse(JSON.stringify(profile));
-    apiKeyInput.value = profile.apiKeys.join(", ");
-  }
-};
-// 创建新配置 - 从空白开始
-const createNewProfile = () => {
-  editForm.value = {
-    id: generateId(),
-    name: "",
-    type: "openai",
-    baseUrl: "https://api.openai.com",
-    apiKeys: [],
-    enabled: true,
-    models: [],
-    networkStrategy: "auto",
-    relaxIdCerts: false,
-    http1Only: true,
-    options: {},
-  };
-  apiKeyInput.value = "";
-  selectedProfileId.value = editForm.value.id;
-};
-
-// 从预设创建配置
-const createFromPresetTemplate = (preset: LlmPreset) => {
-  editForm.value = createFromPreset(preset);
-  apiKeyInput.value = "";
-  selectedProfileId.value = editForm.value.id;
-};
-
-// 显示创建选项
 const handleAddClick = () => {
   showCreateProfileDialog.value = true;
 };
 
-// 保存配置（验证并保存）
-const saveCurrentProfile = () => {
-  if (!editForm.value.name.trim()) {
-    customMessage.error("请输入渠道名称");
-    return false;
-  }
-  if (!editForm.value.baseUrl.trim()) {
-    customMessage.error("请输入 API 地址");
-    return false;
-  }
-
-  saveProfile(editForm.value);
-  return true;
+const openMultiKeyManager = () => {
+  showMultiKeyManager.value = true;
 };
 
-// 防抖自动保存
-const autoSave = () => {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-  }
-  saveTimer = setTimeout(() => {
-    if (saveCurrentProfile()) {
-      // 静默保存，不显示成功提示
-    }
-  }, 1000); // 1秒防抖
-};
-
-// 监听表单变化，自动保存
-watch(
-  () => editForm.value,
-  () => {
-    // 只有在选中了配置时才自动保存
-    if (selectedProfileId.value) {
-      autoSave();
-    }
-  },
-  { deep: true }
-);
-
-// 删除配置
-const handleDelete = async () => {
-  if (!selectedProfile.value) return;
-
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除渠道 "${selectedProfile.value.name}" 吗？此操作不可撤销。`,
-      "删除确认",
-      {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      }
-    );
-    deleteProfile(selectedProfile.value.id);
-    selectedProfileId.value = profiles.value[0]?.id || null;
-    if (selectedProfileId.value) {
-      selectProfile(selectedProfileId.value);
-    }
-    customMessage.success("删除成功");
-  } catch {
-    // 用户取消
-  }
-};
-
-// 切换启用状态
-const handleToggle = (profile: LlmProfile) => {
-  toggleProfileEnabled(profile.id);
-};
-
-// 获取提供商类型信息
-const getProviderTypeInfo = (type: ProviderType) => {
-  return providerTypes.find((p) => p.type === type);
-};
-
-// 模型管理
-const addModel = () => {
-  editingModel.value = null;
-  isEditingModel.value = false;
-  showModelDialog.value = true;
-};
-
-const editModel = (index: number) => {
-  editingModel.value = editForm.value.models[index];
-  isEditingModel.value = true;
-  showModelDialog.value = true;
-};
-
-const handleSaveModel = (model: LlmModelInfo) => {
-  if (isEditingModel.value && editingModel.value) {
-    // 编辑模式：找到原模型并替换
-    const index = editForm.value.models.findIndex((m) => m.id === editingModel.value!.id);
-    if (index !== -1) {
-      editForm.value.models[index] = model;
-    }
-  } else {
-    // 新增模式
-    editForm.value.models.push(model);
-  }
-};
-
-const deleteModel = (index: number) => {
-  editForm.value.models.splice(index, 1);
-};
-
-const deleteModelGroup = (indices: number[]) => {
-  // 从大到小排序索引，避免 splice 时的索引错乱
-  const sortedIndices = indices.sort((a, b) => b - a);
-  sortedIndices.forEach((index) => {
-    editForm.value.models.splice(index, 1);
-  });
-  customMessage.success(`成功删除分组下的 ${indices.length} 个模型`);
-};
-
-const clearAllModels = () => {
-  editForm.value.models = [];
-  customMessage.success("已清空所有模型");
-};
-
-const showModelFetcherDialog = ref(false);
-const fetchedModels = ref<LlmModelInfo[]>([]);
-const fetchedRawResponse = ref<any>(null);
-const isFetchingModels = ref(false);
-
-const isTestingConnection = ref(false);
-const modelTestLoading = ref<Record<string, boolean>>({});
-const keyTestLoading = ref<Record<string, boolean>>({});
-
-/**
- * 构造测试请求参数
- * 根据模型能力识别“特种模型”
- */
-const buildTestOptions = (profileId: string, model: LlmModelInfo, apiKey?: string) => {
-  const options: any = {
-    profileId,
-    modelId: model.id,
-    apiKey,
-    maxTokens: 10,
-    stream: false,
-  };
-
-  const caps = model.capabilities || {};
-
-  if (caps.embedding) {
-    options.embeddingInput = "hi";
-  } else if (caps.rerank) {
-    options.rerankQuery = "hi";
-    options.rerankDocuments = ["hello", "world"];
-  } else {
-    // 默认作为对话模型测试
-    options.messages = [{ role: "user", content: "hi" }];
-  }
-
-  return options;
-};
-
-// 渠道连接测试 (验证 API Key 和 Base URL)
-const testConnection = async () => {
-  if (!selectedProfile.value) return;
-
-  isTestingConnection.value = true;
-  const startTime = performance.now();
-  try {
-    const { models } = await fetchModelsFromApi(editForm.value);
-    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
-    if (models.length > 0) {
-      customMessage.success(`连接成功！已检测到 ${models.length} 个模型 (耗时: ${duration}s)`);
-    } else {
-      customMessage.warning(`连接成功，但未返回任何模型 (耗时: ${duration}s)`);
-    }
-  } catch (error: any) {
-    // errorHandler 已在 fetchModelsFromApi 中 handle
-  } finally {
-    isTestingConnection.value = false;
-  }
-};
-
-// 模型可用性测试
-const handleTestModel = async (model: LlmModelInfo) => {
-  if (!selectedProfile.value) return;
-
-  modelTestLoading.value[model.id] = true;
-  const startTime = performance.now();
-  try {
-    const testOptions = buildTestOptions(selectedProfile.value.id, model);
-    const response = await sendRequest(testOptions);
-    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
-
-    customMessage.success({
-      message: `模型响应正常 (耗时: ${duration}s): "${response.content.substring(0, 100)}${
-        response.content.length > 100 ? "..." : ""
-      }"`,
-      duration: 5000,
-    });
-  } catch (error: any) {
-    // errorHandler 已处理
-  } finally {
-    modelTestLoading.value[model.id] = false;
-  }
-};
-
-// 多 Key 管理中的特定 Key 测试
-const handleTestKey = async ({ key, modelId }: { key: string; modelId: string }) => {
-  if (!selectedProfile.value) return;
-
-  const model = selectedProfile.value.models.find((m) => m.id === modelId);
-  if (!model) {
-    customMessage.error("未找到测试模型");
-    return;
-  }
-
-  keyTestLoading.value[key] = true;
-  const startTime = performance.now();
-  try {
-    const testOptions = buildTestOptions(selectedProfile.value.id, model, key);
-    const response = await sendRequest(testOptions);
-    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
-
-    // 如果成功，显式更新 Key 状态
-    updateKeyStatus(selectedProfile.value.id, key, {
-      isBroken: false,
-      isEnabled: true,
-      lastUsedTime: Date.now(),
-    });
-    reportSuccess(selectedProfile.value.id, key);
-
-    customMessage.success(
-      `Key 验证成功 (耗时: ${duration}s): ${response.content.substring(0, 50)}...`
-    );
-  } catch (error: any) {
-    // 失败则标记为损坏
-    updateKeyStatus(selectedProfile.value.id, key, {
-      isBroken: true,
-      lastErrorMessage: error.message || "测试请求失败",
-    });
-    reportFailure(selectedProfile.value.id, key, error);
-  } finally {
-    keyTestLoading.value[key] = false;
-  }
-};
-
-// 从 API 获取模型列表
-const fetchModels = async () => {
-  if (!selectedProfile.value) {
-    customMessage.error("请先选择一个配置");
-    return;
-  }
-
-  isFetchingModels.value = true;
-
-  try {
-    const { models, rawResponse } = await fetchModelsFromApi(selectedProfile.value);
-
-    if (models.length === 0) {
-      customMessage.warning("未获取到任何模型");
-      return;
-    }
-
-    fetchedModels.value = models;
-    fetchedRawResponse.value = rawResponse;
-    showModelFetcherDialog.value = true;
-  } catch (error: any) {
-    errorHandler.error(error, "获取模型列表失败");
-  } finally {
-    isFetchingModels.value = false;
-  }
-};
-
-// 添加从弹窗选择的模型
-const handleAddModels = (modelsToAdd: LlmModelInfo[]) => {
-  const newModels = modelsToAdd.filter((m) => !editForm.value.models.some((em) => em.id === m.id));
-  editForm.value.models.push(...newModels);
-  customMessage.success(`成功添加 ${newModels.length} 个模型`);
-};
-
-// API 端点预览
+// ─── API 端点预览 ───
 const apiEndpointPreview = computed(() => {
-  if (!editForm.value.baseUrl) {
-    return "";
-  }
+  if (!editForm.value.baseUrl) return "";
   return generateLlmApiEndpointPreview(editForm.value.baseUrl, editForm.value.type);
 });
 
-// 端点提示文本
-const endpointHintText = computed(() => {
-  return getLlmEndpointHint(editForm.value.type);
-});
+const endpointHintText = computed(() => getLlmEndpointHint(editForm.value.type));
 
-const getProviderIcon = (profile: LlmProfile) => {
-  if (profile.icon) {
-    return getDisplayIconPath(profile.icon);
-  }
-  // 使用空字符串作为 modelId，provider 作为匹配条件
-  const iconPath = getIconPath("", profile.type);
-  return iconPath ? getDisplayIconPath(iconPath) : null;
-};
-
-const selectPresetIcon = (icon: any) => {
-  const iconPath = icon.path;
-  if (editForm.value) {
-    editForm.value.icon = iconPath;
-  }
-  showPresetIconDialog.value = false;
-};
-
-// 打开供应商图标选择器
-const openProviderIconSelector = () => {
-  showPresetIconDialog.value = true;
-};
-
-// 网络设置折叠面板
+// ─── 网络设置 ───
 const networkCollapseActive = ref<string[]>([]);
 
-// 网络设置摘要
 const networkSettingSummary = computed(() => {
   const parts: string[] = [];
   const strategy = editForm.value.networkStrategy || "auto";
@@ -529,27 +152,6 @@ const networkSettingSummary = computed(() => {
 
   return parts.join(" · ");
 });
-
-// 自定义请求头弹窗
-const showCustomHeadersDialog = ref(false);
-
-// 高级端点配置弹窗
-const showCustomEndpointsDialog = ref(false);
-
-// 多密钥管理弹窗
-const showMultiKeyManager = ref(false);
-const openMultiKeyManager = () => {
-  showMultiKeyManager.value = true;
-};
-
-// 重置 API 地址到默认值
-const resetBaseUrl = () => {
-  const defaultUrl = getProviderTypeInfo(editForm.value.type)?.defaultBaseUrl;
-  if (defaultUrl) {
-    editForm.value.baseUrl = defaultUrl;
-    customMessage.success("已重置为默认地址");
-  }
-};
 </script>
 
 <template>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { llmPresets, providerTypes } from "@/config/llm-providers";
-import type { LlmPreset } from "@/config/llm-providers";
+import { providerTypes } from "@/config/llm-providers";
+import { llmPresets } from "@/config/llm-presets";
+import type { LlmPreset } from "@/config/llm-presets";
 import type { ProviderType } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
@@ -82,53 +83,53 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   >
     <template #content>
       <div class="preset-options">
-      <div class="preset-section">
-        <h4>从预设模板创建</h4>
-        <p class="preset-section-desc">选择常用服务商快速创建配置</p>
+        <div class="preset-section">
+          <h4>从预设模板创建</h4>
+          <p class="preset-section-desc">选择常用服务商快速创建配置</p>
 
-        <!-- 分类标签 -->
-        <div class="category-tabs">
-          <button
-            v-for="category in providerCategories"
-            :key="category"
-            @click="selectedProviderType = category"
-            :class="{ active: selectedProviderType === category }"
-            class="category-tab"
-          >
-            {{ getCategoryLabel(category) }}
-          </button>
-        </div>
-
-        <!-- 预设网格 -->
-        <div class="presets-scroll-area">
-          <div class="preset-grid">
-            <div
-              v-for="preset in filteredPresets"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
+          <!-- 分类标签 -->
+          <div class="category-tabs">
+            <button
+              v-for="category in providerCategories"
+              :key="category"
+              @click="selectedProviderType = category"
+              :class="{ active: selectedProviderType === category }"
+              class="category-tab"
             >
-              <DynamicIcon
-                class="preset-icon"
-                :src="preset.logoUrl || getProviderIconForPreset(preset.type) || ''"
-                :alt="preset.name"
-              />
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <el-tooltip :content="preset.description" placement="top" :show-after="500">
-                  <div class="preset-desc">{{ preset.description }}</div>
-                </el-tooltip>
+              {{ getCategoryLabel(category) }}
+            </button>
+          </div>
+
+          <!-- 预设网格 -->
+          <div class="presets-scroll-area">
+            <div class="preset-grid">
+              <div
+                v-for="preset in filteredPresets"
+                :key="preset.name"
+                class="preset-card"
+                @click="createFromPresetTemplate(preset)"
+              >
+                <DynamicIcon
+                  class="preset-icon"
+                  :src="preset.logoUrl || getProviderIconForPreset(preset.type) || ''"
+                  :alt="preset.name"
+                />
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <el-tooltip :content="preset.description" placement="top" :show-after="500">
+                    <div class="preset-desc">{{ preset.description }}</div>
+                  </el-tooltip>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <el-divider />
+        <el-divider />
 
-      <div class="preset-section">
-        <h4>自定义配置</h4>
-        <el-button style="width: 100%" @click="createFromBlank"> 从空白创建 </el-button>
+        <div class="preset-section">
+          <h4>自定义配置</h4>
+          <el-button style="width: 100%" @click="createFromBlank"> 从空白创建 </el-button>
         </div>
       </div>
     </template>
@@ -244,7 +245,6 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   border-radius: 6px;
   overflow: hidden;
 }
-
 
 .preset-info {
   flex: 1;

@@ -19,7 +19,7 @@ import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
 import { providerTypes } from "@/config/llm-providers";
 import type { LlmProfile, LlmModelInfo, ProviderType } from "@/types/llm-profiles";
-import type { LlmPreset } from "@/config/llm-providers";
+import type { LlmPreset } from "@/config/llm-presets";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@/utils/llm-api-url";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { PRESET_ICONS } from "@/config/preset-icons";

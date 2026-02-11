@@ -5,7 +5,7 @@
 import { ref, computed } from "vue";
 import type { LlmProfile, LlmParameterSupport, ProviderType } from "../types/llm-profiles";
 import { DEFAULT_LLM_PROFILE } from "../types/llm-profiles";
-import type { LlmPreset } from "../config/llm-providers";
+import type { LlmPreset } from "../config/llm-presets";
 import { providerTypes } from "../config/llm-providers";
 import { createConfigManager } from "@utils/configManager";
 import { createModuleLogger } from "@utils/logger";

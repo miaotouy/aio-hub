@@ -714,7 +714,6 @@ function truncateRegex(regex: string, maxLength = 30): string {
   box-sizing: border-box;
   width: 100%;
   min-height: 400px;
-  max-height: 70vh;
   display: flex;
   flex-direction: column;
   gap: 16px;

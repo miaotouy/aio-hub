@@ -16,6 +16,9 @@ export const useTranscriptionStore = defineStore("transcription", () => {
   const lastTaskStartTime = ref(0);
   const isInitialized = ref(false);
 
+  /** 外部请求工作台加载的资产 ID，消费后自动清空 */
+  const pendingWorkbenchAssetId = ref<string | null>(null);
+
   // 配置
   const config = ref<TranscriptionConfig>({ ...DEFAULT_TRANSCRIPTION_CONFIG });
 
@@ -160,6 +163,7 @@ export const useTranscriptionStore = defineStore("transcription", () => {
     processingCount,
     lastTaskStartTime,
     isInitialized,
+    pendingWorkbenchAssetId,
     init,
     addTask,
     updateTask,

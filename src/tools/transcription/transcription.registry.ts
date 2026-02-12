@@ -11,6 +11,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { useTranscriptionManager } from "./composables/useTranscriptionManager";
+import { useTranscriptionStore } from "./stores/transcriptionStore";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { smartDecode } from "@/utils/encoding";
@@ -47,12 +48,26 @@ export default class TranscriptionRegistry implements ToolRegistry {
    * 添加转写任务
    * @param asset 资产对象
    * @param overrideConfig 覆盖配置
+   * @param options 额外选项
+   * @param options.activateWorkbench 是否请求工作台加载该资产（用于外部模块发送场景）
    */
-  public addTask(asset: Asset, overrideConfig?: Partial<TranscriptionConfig>): TranscriptionTask | null {
+  public addTask(
+    asset: Asset,
+    overrideConfig?: Partial<TranscriptionConfig>,
+    options?: { activateWorkbench?: boolean }
+  ): TranscriptionTask | null {
     return errorHandler.wrapSync(
       () => {
-        logger.info("添加转写任务", { assetId: asset.id, assetName: asset.name });
-        return this.manager.addTask(asset, overrideConfig);
+        logger.info("添加转写任务", { assetId: asset.id, assetName: asset.name, activateWorkbench: options?.activateWorkbench });
+        const task = this.manager.addTask(asset, overrideConfig);
+
+        // 如果请求激活工作台，设置 pending 标记
+        if (options?.activateWorkbench) {
+          const store = useTranscriptionStore();
+          store.pendingWorkbenchAssetId = asset.id;
+        }
+
+        return task;
       },
       {
         userMessage: "添加转写任务失败",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
@@ -53,6 +53,41 @@ const resultText = ref("");
 const basePath = ref<string>("");
 
 const showResult = ref(false);
+
+// 消费外部请求加载到工作台的资产
+onMounted(async () => {
+  const pendingId = store.pendingWorkbenchAssetId;
+  if (pendingId) {
+    store.pendingWorkbenchAssetId = null;
+    try {
+      const asset = await assetManagerEngine.getAssetById(pendingId);
+      if (asset) {
+        logger.info("从外部请求加载资产到工作台", { assetId: pendingId });
+        handleAssetSelect(asset);
+      }
+    } catch (e) {
+      logger.warn("加载外部请求的资产失败", e);
+    }
+  }
+});
+
+// 监听 pendingWorkbenchAssetId 变化（处理已挂载后外部再次发送的情况）
+watch(
+  () => store.pendingWorkbenchAssetId,
+  async (newId) => {
+    if (!newId) return;
+    store.pendingWorkbenchAssetId = null;
+    try {
+      const asset = await assetManagerEngine.getAssetById(newId);
+      if (asset) {
+        logger.info("从外部请求加载资产到工作台（watch）", { assetId: newId });
+        handleAssetSelect(asset);
+      }
+    } catch (e) {
+      logger.warn("加载外部请求的资产失败", e);
+    }
+  }
+);
 
 // 判断当前资产是否正在导入中
 const isImporting = computed(() => {

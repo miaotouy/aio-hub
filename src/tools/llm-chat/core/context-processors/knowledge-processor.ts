@@ -326,12 +326,21 @@ export class KnowledgeProcessor implements ContextProcessor {
 
   /**
    * 处理静态加载模式
+   * 支持两种模式：
+   * - modeParams 包含 "all" → 加载指定知识库（或所有库）的全部已启用条目
+   * - modeParams 为具体 ID 列表 → 加载指定条目
    */
   private async handleStaticMode(ph: KBPlaceholder): Promise<SearchResult[]> {
     const entryIds = ph.modeParams || [];
     if (entryIds.length === 0) return [];
 
+    const isAll = entryIds.length === 1 && entryIds[0].toLowerCase() === "all";
+
     try {
+      if (isAll) {
+        return await this.handleStaticAll(ph);
+      }
+
       // 调用后端获取指定条目
       const entries = await invoke<any[]>("kb_get_entries", { ids: entryIds });
       return entries.map((e) => ({
@@ -356,6 +365,71 @@ export class KnowledgeProcessor implements ContextProcessor {
       logger.warn("静态加载知识库条目失败", { entryIds, err });
       return [];
     }
+  }
+
+  /**
+   * 处理 static::all 模式 — 加载指定知识库（或所有库）的全部已启用条目
+   */
+  private async handleStaticAll(ph: KBPlaceholder): Promise<SearchResult[]> {
+    const kbStore = useKnowledgeBaseStore();
+    const results: SearchResult[] = [];
+
+    // 确定要加载的知识库列表
+    let targetBases = kbStore.bases;
+    if (ph.kbName) {
+      targetBases = kbStore.bases.filter((b) => b.name === ph.kbName);
+      if (targetBases.length === 0) {
+        logger.warn("static::all 未找到指定知识库", { kbName: ph.kbName });
+        return [];
+      }
+    }
+
+    for (const base of targetBases) {
+      try {
+        const meta = await invoke<any | null>("kb_load_base_meta", {
+          kbId: base.id,
+        });
+        if (!meta?.entries) continue;
+
+        // 收集所有已启用条目的 ID
+        const enabledIds = meta.entries
+          .filter((e: any) => e.vectorStatus !== "error")
+          .map((e: any) => e.id);
+
+        if (enabledIds.length === 0) continue;
+
+        const entries = await invoke<any[]>("kb_get_entries", { ids: enabledIds });
+        for (const e of entries) {
+          results.push({
+            score: 1.0,
+            kbName: base.name || "未知知识库",
+            kbId: base.id,
+            matchType: "key",
+            highlight: null,
+            caiu: {
+              id: e.id,
+              key: e.key,
+              content: e.content,
+              tags: e.tags || [],
+              assets: [],
+              priority: e.priority ?? 100,
+              enabled: true,
+              createdAt: e.created_at || Date.now(),
+              updatedAt: e.updated_at || Date.now(),
+            },
+          } as SearchResult);
+        }
+      } catch (err) {
+        logger.warn("static::all 加载知识库条目失败", { kbId: base.id, err });
+      }
+    }
+
+    logger.debug("static::all 加载完成", {
+      kbName: ph.kbName || "(全部)",
+      totalEntries: results.length,
+    });
+
+    return results;
   }
 
   /**

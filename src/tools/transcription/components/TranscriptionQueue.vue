@@ -111,6 +111,15 @@ const audioViewer = useAudioViewer();
 const isPreviewDialogVisible = ref(false);
 const selectedAssetForPreview = ref<any>(null);
 
+// 错误信息查看状态
+const showErrorDialog = ref(false);
+const errorDialogTask = ref<TranscriptionTask | null>(null);
+
+const handleViewError = (task: TranscriptionTask) => {
+  errorDialogTask.value = task;
+  showErrorDialog.value = true;
+};
+
 // 重试确认弹窗状态
 const showRetryConfirm = ref(false);
 const retryingTask = ref<TranscriptionTask | null>(null);
@@ -350,18 +359,25 @@ const getTaskDuration = (task: TranscriptionTask) => {
 
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small" class="status-tag">
-              <el-icon :class="{ 'is-loading': row.status === 'processing' }">
-                <component :is="getStatusIcon(row.status)" />
-              </el-icon>
-              <span>
-                {{
-                  row.status === "processing" && row.progress !== undefined
-                    ? `${Math.round(row.progress)}%`
-                    : getStatusLabel(row.status)
-                }}
-              </span>
-            </el-tag>
+            <el-tooltip
+              :disabled="row.status !== 'error' || !row.error"
+              :content="row.error"
+              placement="top"
+              :show-after="300"
+            >
+              <el-tag :type="getStatusType(row.status)" size="small" class="status-tag">
+                <el-icon :class="{ 'is-loading': row.status === 'processing' }">
+                  <component :is="getStatusIcon(row.status)" />
+                </el-icon>
+                <span>
+                  {{
+                    row.status === "processing" && row.progress !== undefined
+                      ? `${Math.round(row.progress)}%`
+                      : getStatusLabel(row.status)
+                  }}
+                </span>
+              </el-tag>
+            </el-tooltip>
           </template>
         </el-table-column>
 
@@ -393,6 +409,20 @@ const getTaskDuration = (task: TranscriptionTask) => {
                   circle
                   size="small"
                   @click="handlePreviewAsset(row.assetId)"
+                />
+              </el-tooltip>
+              <el-tooltip
+                v-if="row.status === 'error' && row.error"
+                content="查看错误"
+                placement="top"
+              >
+                <el-button
+                  :icon="AlertCircle"
+                  circle
+                  size="small"
+                  type="danger"
+                  plain
+                  @click="handleViewError(row)"
                 />
               </el-tooltip>
               <el-tooltip
@@ -479,6 +509,35 @@ const getTaskDuration = (task: TranscriptionTask) => {
         <div class="confirm-footer">
           <button class="btn btn-secondary" @click="handleCancelRetryConfirm">取消</button>
           <button class="btn btn-primary" @click="handleConfirmRetry">确认重试</button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <!-- 错误信息查看弹窗 -->
+    <BaseDialog v-model="showErrorDialog" title="任务错误详情" width="560px" height="auto">
+      <template #content>
+        <div class="error-detail" v-if="errorDialogTask">
+          <div class="error-task-info">
+            <span class="info-label">文件：</span>
+            <span class="info-value">{{ errorDialogTask.filename }}</span>
+          </div>
+          <div class="error-message-box">
+            <pre class="error-text">{{ errorDialogTask.error }}</pre>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <div class="confirm-footer">
+          <button class="btn btn-secondary" @click="showErrorDialog = false">关闭</button>
+          <button
+            class="btn btn-primary"
+            @click="
+              handleRetry(errorDialogTask!);
+              showErrorDialog = false;
+            "
+          >
+            重试任务
+          </button>
         </div>
       </template>
     </BaseDialog>
@@ -645,6 +704,42 @@ const getTaskDuration = (task: TranscriptionTask) => {
   display: flex;
   justify-content: center;
   gap: 8px;
+}
+
+/* 错误详情弹窗样式 */
+.error-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.error-task-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--hover-bg);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.error-message-box {
+  background: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.06));
+  border: 1px solid rgba(var(--el-color-danger-rgb), 0.2);
+  border-radius: 6px;
+  padding: 16px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.error-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-color-danger);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "Cascadia Code", "Fira Code", monospace;
 }
 
 .is-loading {

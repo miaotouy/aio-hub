@@ -222,30 +222,35 @@
               <MacroSelector @insert="handleInsertMacro" />
             </el-popover>
 
-            <el-popover
-              v-model:visible="kbEditorVisible"
-              placement="bottom-start"
-              :width="420"
-              trigger="click"
-              popper-class="kb-editor-popover"
+            <el-button
+              size="small"
+              :type="kbEditorVisible ? 'primary' : 'default'"
+              plain
+              @click="
+                handleKBButtonClick();
+                kbEditorVisible = true;
+              "
             >
-              <template #reference>
-                <el-button
-                  size="small"
-                  :type="kbEditorVisible ? 'primary' : 'default'"
-                  plain
-                  @click="handleKBButtonClick"
-                >
-                  <el-icon style="margin-right: 4px"><Book /></el-icon>
-                  插入知识库
-                </el-button>
+              <el-icon style="margin-right: 4px"><Book /></el-icon>
+              插入知识库
+            </el-button>
+
+            <BaseDialog
+              :modelValue="kbEditorVisible"
+              @update:modelValue="kbEditorVisible = $event"
+              title="插入知识库占位符"
+              width="480px"
+              height="auto"
+              :closeOnBackdropClick="true"
+            >
+              <template #content>
+                <KBPlaceholderEditor
+                  :value="currentKBSelection"
+                  @insert="handleInsertKBPlaceholder"
+                  @cancel="kbEditorVisible = false"
+                />
               </template>
-              <KBPlaceholderEditor
-                :value="currentKBSelection"
-                @insert="handleInsertKBPlaceholder"
-                @cancel="kbEditorVisible = false"
-              />
-            </el-popover>
+            </BaseDialog>
 
             <el-button size="small" @click="handleCopy" plain title="复制内容">
               <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
@@ -439,7 +444,7 @@ const richEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 // 模拟当前 Agent 对象，用于资产解析
 const currentAgent = computed(() => {
   if (!props.agent) return undefined;
-  
+
   // 确保有 ID，用于构建路径
   let agentId = props.agent?.id || props.agent?.agentId;
   if (!agentId && props.agentName) {
@@ -451,7 +456,7 @@ const currentAgent = computed(() => {
 
   return {
     ...props.agent,
-    id: agentId
+    id: agentId,
   };
 });
 
@@ -461,12 +466,12 @@ provide("currentAgent", currentAgent);
 // 资产转换钩子
 const resolveAsset = (content: string) => {
   if (!content) return content;
-  
+
   // 如果输入看起来就是一个纯粹的 agent-asset:// 链接（常见于 AST 模式下的节点属性）
-  if (content.startsWith('agent-asset://') && !content.includes(' ')) {
+  if (content.startsWith("agent-asset://") && !content.includes(" ")) {
     return resolveAgentAssetUrlSync(content, currentAgent.value as any);
   }
-  
+
   // 否则作为全文处理
   return processMessageAssetsSync(content, currentAgent.value as any);
 };

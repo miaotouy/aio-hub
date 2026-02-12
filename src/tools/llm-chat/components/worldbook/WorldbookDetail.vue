@@ -1042,7 +1042,6 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   flex-direction: row;
   height: 100%;
   width: 100%;
-  background-color: var(--card-bg);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -1085,7 +1084,6 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   flex-direction: column;
   gap: 8px;
   border: 1px solid var(--border-color);
-  background-color: var(--card-bg);
 }
 
 .header-top-row {
@@ -1310,7 +1308,6 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: var(--card-bg);
 }
 
 .header-left {

@@ -27,51 +27,144 @@ Git Analyzer 是一个高性能的 Git 仓库分析工具，其核心能力由 R
 
 ## 2. 架构概览
 
-- **View (`GitAnalyzer.vue`)**: 负责 UI 渲染和用户交互，调用 Tauri 命令并监听后端的进度事件。
-- **Engine (Rust Backend)**: 封装在 `git_analyzer.rs` 中，提供一系列 Tauri 命令，负责执行所有 Git 操作并返回结构化数据。
-- **Library (`git2-rs`)**: 底层的原生 Git 功能实现。
+### 2.1. 整体分层
 
-## 3. 数据流：流式分析一个仓库
+```
+┌─────────────────────────────────────────────────────────┐
+│  View 层                                                 │
+│  GitAnalyzer.vue + 子组件                                │
+│  (ControlPanel, CommitListView, ChartsView,              │
+│   CommitDetailDialog, ExportModule, ...)                  │
+├─────────────────────────────────────────────────────────┤
+│  Composable 层                                           │
+│  ┌──────────────────┐  ┌──────────────────┐             │
+│  │ useGitAnalyzer   │  │ useGitAnalyzer   │             │
+│  │ State (单例状态) │←─│ Runner (业务编排)│             │
+│  └──────────────────┘  └────────┬─────────┘             │
+│                                 │                        │
+│  ┌──────────────┐  ┌───────────┴──────────┐             │
+│  │ useGitLoader │  │ useGitProcessor      │             │
+│  │ (数据获取)   │  │ (筛选/过滤)          │             │
+│  └──────┬───────┘  └─────────────────────-┘             │
+│         │                                                │
+│  ┌──────┴───────┐  ┌──────────────────────┐             │
+│  │ useCommit    │  │ useReportGenerator   │             │
+│  │ Cache (缓存) │  │ (报告生成)           │             │
+│  └──────────────┘  └──────────────────────┘             │
+├─────────────────────────────────────────────────────────┤
+│  Tauri IPC (invoke + event listener)                     │
+├─────────────────────────────────────────────────────────┤
+│  Rust Backend (git_analyzer.rs)                          │
+│  git2-rs / libgit2                                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 2.2. 前端模块职责
+
+| 模块                | 文件                      | 职责                                                                          |
+| ------------------- | ------------------------- | ----------------------------------------------------------------------------- |
+| **State**           | `useGitAnalyzerState.ts`  | 单例状态管理，所有共享状态（commits、filters、progress 等）定义在模块级别     |
+| **Runner**          | `useGitAnalyzerRunner.ts` | 业务编排器，协调目录选择、分支加载、仓库加载（全量/增量）、筛选、文件信息获取 |
+| **Loader**          | `useGitLoader.ts`         | 数据获取层，封装 Tauri invoke 调用和 `git-progress` 事件监听                  |
+| **Processor**       | `useGitProcessor.ts`      | 纯函数，负责提交记录的筛选和过滤（关键词、作者、日期、类型）                  |
+| **CommitCache**     | `useCommitCache.ts`       | 提交缓存服务，缓存带文件变更信息的提交数据，避免重复请求                      |
+| **CommitDetail**    | `useCommitDetail.ts`      | 提交详情查看逻辑                                                              |
+| **Charts**          | `useCharts.ts`            | 图表数据计算与配置                                                            |
+| **ReportGenerator** | `useReportGenerator.ts`   | 导出报告生成（Markdown/JSON/CSV/HTML/Text）                                   |
+
+### 2.3. 后端命令
+
+| 命令                          | 实现方式  | 说明                                    |
+| ----------------------------- | --------- | --------------------------------------- |
+| `git_load_repository_stream`  | git2-rs   | 流式全量加载，支持 `include_files` 参数 |
+| `git_load_incremental_stream` | git2-rs   | 流式增量加载，支持 skip/limit           |
+| `git_get_branches`            | git2-rs   | 获取分支列表                            |
+| `git_get_branch_commits`      | git2-rs   | 获取指定分支的提交                      |
+| `git_get_commit_detail`       | git2-rs   | 获取单个提交详情（含文件变更）          |
+| `git_load_commits_with_files` | git2-rs   | 批量加载带文件变更信息的提交            |
+| `git_cancel_load`             | -         | 通过 CancellationToken 终止流式加载     |
+| `git_update_commit_message`   | git (CLI) | 修改最近一次提交消息（amend）           |
+| `git_cherry_pick`             | git (CLI) | Cherry-pick 操作                        |
+| `git_revert`                  | git (CLI) | Revert 操作                             |
+| `git_format_log`              | git (CLI) | 自定义格式化日志输出                    |
+
+## 3. 数据流
+
+### 3.1. 流式加载仓库
 
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant UI (GitAnalyzer.vue)
-    participant Rust as Rust Backend (git_analyzer.rs)
-    participant Lib (git2-rs)
-    participant FS as .git 目录
+    participant View as GitAnalyzer.vue
+    participant Runner as useGitAnalyzerRunner
+    participant Loader as useGitLoader
+    participant Rust as Rust Backend
+    participant git2 as git2-rs
 
-    User->>UI: 选择仓库路径
-    UI->>Rust: invoke('git_load_repository_stream')
+    User->>View: 选择仓库路径
+    View->>Runner: loadRepository()
+    Runner->>Runner: 判断全量/增量加载
+    Runner->>Loader: streamLoadRepository(options)
+    Loader->>Loader: listen("git-progress")
+    Loader->>Rust: invoke("git_load_repository_stream")
 
-    Rust->>Lib: get_branches()
-    Rust->>Lib: get_total_commits()
-    Lib->>FS: 读取 refs 和 objects
-    FS-->>Lib: 返回原始数据
-    Lib-->>Rust: 返回分支列表和提交总数
-
-    Rust->>UI: (事件) emit('git-progress', Start)
+    Rust->>git2: get_branches()
+    Rust->>git2: get_total_commits()
+    Rust-->>Loader: emit("git-progress", Start)
+    Loader-->>Runner: onProgress(Start)
 
     loop 分批加载
-        Rust->>Lib: get_commits_with_skip(skip, batch_size)
-        Lib->>FS: 遍历 commit objects
-        FS-->>Lib: 返回原始数据
-        Lib-->>Rust: 解析为 commits[] 数组
-        Rust->>UI: (事件) emit('git-progress', Data)
+        Rust->>git2: revwalk + parse_commit
+        Rust-->>Loader: emit("git-progress", Data)
+        Loader-->>Runner: onProgress(Data)
+        Runner->>Runner: 累积 commits, 实时筛选
     end
 
-    Rust->>UI: (事件) emit('git-progress', End)
-    UI->>User: (实时) 显示分支和提交列表
+    Rust-->>Loader: emit("git-progress", End)
+    Loader-->>Runner: onProgress(End)
+    Runner->>Runner: 后台加载文件变更信息
 ```
+
+### 3.2. 文件变更信息加载策略
+
+文件变更信息的获取有两条路径，由 `includeFiles` 状态控制：
+
+1. **流式携带（`includeFiles = true`）**: 在流式加载时，后端直接为每个 commit 解析文件变更信息（`parse_commit_optimized` 的 `include_files` 参数）。数据随 `git-progress` 事件一并到达前端，Runner 在 `data` 事件中直接存入 `commitCache`。加载完成后无需额外请求。
+2. **后台补充（`includeFiles = false`，默认）**: 流式加载不携带文件信息以保证速度。加载完成后，Runner 自动调用 `loadCommitsWithFiles()` 通过 `git_load_commits_with_files` 命令一次性获取所有提交的文件变更，存入 `commitCache`。
+
+导出模块（`ExportModule`）通过 `commitCache` 读取文件数据，并监听 `loadingFiles` 状态来自动刷新预览。
+
+### 3.3. 增量加载判断
+
+Runner 在 `loadRepository()` 中自动判断是否可以增量加载：
+
+- **条件**: 同一仓库 + 同一分支 + 新 limit > 已加载数量（或新 limit 为 0 表示全部加载）
+- **行为**: 使用 `streamIncrementalLoad` 从已加载位置（skip）开始继续加载，新数据追加到现有列表
+- **否则**: 执行全量加载，清空现有数据重新开始
 
 ## 4. 核心逻辑
 
-- **多维度分析**: 后端服务提供了多种查询命令：
-  - **仓库概览 (`git_load_repository_stream`)**: 流式获取分支和提交记录。
-  - **提交详情 (`git_get_commit_detail`)**: 获取单个提交的完整信息，包括文件变更和统计。
-  - **增量加载 (`git_load_incremental_stream`)**: 支持无限滚动，按需加载更多提交。
-- **启发式分支推断**: 通过 `get_commit_branches` 函数中的启发式规则，智能推断一个提交最可能隶属于哪个功能分支。
-- **原生差异统计**: 直接使用 `git2-rs` 的 `diff_tree_to_tree` API 计算每次提交的文件和代码行数变更，性能远高于解析命令行输出。
+### 4.1. 多维度分析
+
+- **仓库概览 (`git_load_repository_stream`)**: 流式获取分支和提交记录。
+- **提交详情 (`git_get_commit_detail`)**: 获取单个提交的完整信息，包括文件变更和统计。
+- **增量加载 (`git_load_incremental_stream`)**: 支持按需加载更多提交。
+
+### 4.2. 启发式分支推断
+
+通过 `get_commit_branches_optimized` 函数中的启发式规则，智能推断一个提交最可能隶属于哪个功能分支。优先级：功能分支 > 本地分支 > 远程分支 > 主干分支。
+
+### 4.3. 原生差异统计
+
+直接使用 `git2-rs` 的 `diff_tree_to_tree` API 计算每次提交的文件和代码行数变更，性能远高于解析命令行输出。
+
+### 4.4. 筛选与过滤
+
+`useGitProcessor` 提供纯函数式的筛选能力，支持：关键词搜索、作者过滤、日期范围、提交类型（feat/fix/chore 等）、正序/倒序。筛选在前端实时执行，不需要重新请求后端。
+
+### 4.5. 导出报告
+
+`useReportGenerator` 支持生成 Markdown / JSON / CSV / HTML / Text 格式的分析报告，可包含统计摘要、提交列表、贡献者信息、文件变更详情等。
 
 ## 5. 未来展望
 

@@ -77,7 +77,6 @@ async function handleDelete() {
   display: grid;
   grid-template-columns: 340px 1fr;
   gap: 16px;
-  padding: 16px;
   box-sizing: border-box;
   overflow: hidden;
 }

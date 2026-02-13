@@ -217,6 +217,7 @@ async function selectDirectory() {
   height: 100%;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .config-card :deep(.el-card__body) {

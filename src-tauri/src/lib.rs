@@ -84,6 +84,11 @@ use commands::{
     git_get_incremental_commits,
     git_load_commits_with_files,
     git_load_incremental_stream,
+    // 内容查重相关
+    delete_duplicate_files,
+    read_file_content_for_diff,
+    scan_content_duplicates,
+    stop_dedup_scan,
     // Git分析器相关
     git_load_repository,
     git_load_repository_stream,
@@ -401,6 +406,7 @@ pub fn run() {
         .manage(commands::native_plugin::NativePluginState::default())
         .manage(commands::directory_janitor::ScanCancellation::new())
         .manage(commands::directory_janitor::CleanupCancellation::new())
+        .manage(commands::content_deduplicator::DedupScanCancellation::new())
         .manage(AppState::default())
         .manage(commands::ffmpeg_processor::FFmpegState::default())
         .manage(Arc::new(CancellationToken::new()))
@@ -451,6 +457,11 @@ pub fn run() {
             cleanup_items,
             stop_directory_scan,
             stop_directory_cleanup,
+            // 内容查重命令
+            scan_content_duplicates,
+            stop_dedup_scan,
+            read_file_content_for_diff,
+            delete_duplicate_files,
             // LLM检查器命令
             start_llm_inspector,
             stop_llm_inspector,

@@ -28,6 +28,7 @@ export const DEFAULT_TOOLS_ORDER = [
   '/symlink-mover',
   '/directory-tree',
   '/directory-janitor',
+  '/content-deduplicator',
   
   // 开发工具
   '/api-tester',

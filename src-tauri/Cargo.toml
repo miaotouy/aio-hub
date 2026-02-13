@@ -87,6 +87,7 @@ jieba-rs = "0.7" # 中文分词
 rayon = "1.10" # 并行计算
 nalgebra = "0.34.1"
 hnsw_rs = "0.3.3"
+blake3 = "1.8.3"
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

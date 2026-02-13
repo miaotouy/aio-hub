@@ -40,7 +40,6 @@ import { ref, watch, computed, toRef } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
 import type { GitCommit, ExportConfig, RepoStatistics } from "../types";
 import { useGitAnalyzerState } from "../composables/useGitAnalyzerState";
 import { useReportGenerator } from "../composables/useReportGenerator";
@@ -48,11 +47,8 @@ import { useSendToChat } from "@/composables/useSendToChat";
 import { commitCache } from "../composables/useCommitCache";
 import ExportConfiguration from "./ExportConfiguration.vue";
 import ExportPreview from "./ExportPreview.vue";
-import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-// 创建模块日志记录器
-const logger = createModuleLogger("ExportModule");
 const errorHandler = createModuleErrorHandler("ExportModule");
 const { sendToChat } = useSendToChat();
 
@@ -74,7 +70,6 @@ const visible = defineModel<boolean>("visible", { required: true });
 const generating = ref(false);
 const exporting = ref(false);
 const previewContent = ref("");
-const loadingFiles = ref(false);
 
 // 获取当前缓存的文件数据（从统一缓存服务）
 const commitsWithFiles = computed(() => {
@@ -146,48 +141,8 @@ function getCommitsToExport(): GitCommit[] {
   return getMergedCommits(base);
 }
 
-// 加载带文件信息的提交列表
-async function loadCommitsWithFiles() {
-  if (!exportConfig.value.includeFiles || loadingFiles.value) {
-    return;
-  }
-
-  // 检查统一缓存
-  const cached = commitCache.getBatchCommits(props.repoPath, props.branch);
-  if (cached && cached.length > 0) {
-    logger.debug("使用缓存的文件信息", {
-      repoPath: props.repoPath,
-      branch: props.branch,
-      cachedCount: cached.length,
-    });
-    return;
-  }
-
-  loadingFiles.value = true;
-  try {
-    // 使用后端接口一次性加载所有提交的文件信息
-    const commits = await invoke<GitCommit[]>("git_load_commits_with_files", {
-      path: props.repoPath || ".",
-      branch: null,
-      limit: props.commits.length,
-    });
-
-    // 保存到统一缓存（会同时更新单个提交详情缓存）
-    commitCache.setBatchCommits(props.repoPath, props.branch, commits);
-    customMessage.success("已加载文件变更信息");
-  } catch (error) {
-    errorHandler.error(error, "加载文件变更信息失败", {
-      context: {
-        repoPath: props.repoPath,
-        branch: props.branch,
-        totalCommits: props.commits.length,
-        includeFiles: exportConfig.value.includeFiles,
-      },
-    });
-  } finally {
-    loadingFiles.value = false;
-  }
-}
+// 从 state 获取共享状态（文件变更信息在仓库加载完成后自动加载）
+const { loadingFiles, filterSummary, hasActiveFilters } = useGitAnalyzerState();
 
 // 获取合并后的提交数据（优先使用带文件信息的版本）
 function getMergedCommits(commits: GitCommit[]): GitCommit[] {
@@ -209,9 +164,6 @@ function getMergedCommits(commits: GitCommit[]): GitCommit[] {
     return commit;
   });
 }
-// 从 state 中获取筛选信息
-const { filterSummary, hasActiveFilters } = useGitAnalyzerState();
-
 // 初始化报告生成器
 const reportGenerator = useReportGenerator({
   config: exportConfig,
@@ -354,38 +306,32 @@ watch(
 // 监听对话框打开时更新预览
 watch(
   () => visible.value,
-  async (val) => {
+  (val) => {
     if (val) {
       // 如果有初始配置，重新应用
       if (props.initialConfig) {
         exportConfig.value = { ...exportConfig.value, ...props.initialConfig };
       }
-
-      // 如果勾选了包含文件变更列表，则尝试加载文件信息（会自动检查缓存）
-      if (exportConfig.value.includeFiles) {
-        await loadCommitsWithFiles();
-      }
-
       updatePreview();
     }
   }
 );
 
-// 监听 includeFiles 选项变化
+// 监听 includeFiles 选项变化，更新预览
 watch(
   () => exportConfig.value.includeFiles,
-  async (includeFiles) => {
+  () => {
     if (!visible.value) return;
-
-    // 仅在勾选时加载数据
-    if (includeFiles) {
-      await loadCommitsWithFiles();
-    }
-
-    // 无论勾选还是取消，都更新预览
     updatePreview();
   }
 );
+
+// 监听 loadingFiles 变化，加载完成后自动刷新预览
+watch(loadingFiles, (loading) => {
+  if (!loading && visible.value && exportConfig.value.includeFiles) {
+    updatePreview();
+  }
+});
 
 // 监听仓库路径和分支变化，清空对应缓存
 watch([() => props.repoPath, () => props.branch], ([newPath, newBranch], [oldPath, oldBranch]) => {

@@ -29,6 +29,7 @@ export interface StreamLoadOptions {
   /** 加载条数限制。设置为 0 则加载全部记录。 */
   limit: number;
   batchSize: number;
+  includeFiles?: boolean;
 }
 
 /**
@@ -191,6 +192,7 @@ export async function streamLoadRepository(
         path,
         limit,
         batchSize,
+        includeFiles: options.includeFiles,
       });
     } catch (error) {
       // 清理监听器
@@ -247,6 +249,7 @@ export async function streamIncrementalLoad(
         skip,
         limit,
         batchSize,
+        includeFiles: options.includeFiles,
       });
     } catch (error) {
       // 清理监听器

@@ -1,5 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import type { GitCommit } from "../types";
 import type { GitProgressEvent } from "./useGitLoader";
 import {
   fetchBranches,
@@ -11,6 +13,7 @@ import {
 } from "./useGitLoader";
 import { filterCommits as processFilter } from "./useGitProcessor";
 import { useGitAnalyzerState } from "./useGitAnalyzerState";
+import { commitCache } from "./useCommitCache";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -135,11 +138,17 @@ export function useGitAnalyzerRunner() {
       case "data":
         if (event.commits) {
           if (isIncremental) {
-            // 增量加载：累积新提交
             state.commits.value = [...state.commits.value, ...event.commits];
           } else {
-            // 全量加载：直接累积
             state.commits.value = [...state.commits.value, ...event.commits];
+          }
+
+          // 如果 commit 自带 files，直接存入缓存
+          if (state.includeFiles.value && event.commits.some(c => c.files)) {
+            const repoPath = state.repoPath.value;
+            const branch = state.selectedBranch.value;
+            const existing = commitCache.getBatchCommits(repoPath, branch) || [];
+            commitCache.setBatchCommits(repoPath, branch, [...existing, ...event.commits]);
           }
 
           // 实时更新 commitRange 以反映当前已加载的数据
@@ -173,6 +182,14 @@ export function useGitAnalyzerRunner() {
           state.lastLoadedBranch.value = state.selectedBranch.value;
           state.lastLoadedLimit.value = state.limitCount.value;
           customMessage.success(`${loadType}加载完成，共 ${state.commits.value.length} 条提交记录`);
+        }
+
+        // 如果流式加载已包含文件信息，则标记完成；否则后台补充加载
+        if (state.includeFiles.value) {
+          state.loadingFiles.value = false;
+          logger.info("文件变更信息已随流式加载一并获取");
+        } else {
+          loadCommitsWithFiles();
         }
         break;
       }
@@ -243,6 +260,7 @@ export function useGitAnalyzerRunner() {
             skip,
             limit: newLimit,
             batchSize: state.batchSize.value,
+            includeFiles: state.includeFiles.value,
           },
           (event) => handleProgressEvent(event, true, initialCommitCount)
         );
@@ -270,6 +288,7 @@ export function useGitAnalyzerRunner() {
           path: currentRepoPath,
           limit: state.limitCount.value,
           batchSize: state.batchSize.value,
+          includeFiles: state.includeFiles.value,
         },
         (event) => handleProgressEvent(event, false, 0)
       );
@@ -297,6 +316,54 @@ export function useGitAnalyzerRunner() {
   async function cancelLoading() {
     await apiCancelLoadRepository();
     // 状态更新将通过事件回调中的 "cancelled" 事件统一处理
+  }
+
+  // ==================== 文件变更信息加载 ====================
+
+  /**
+   * 后台加载所有提交的文件变更信息
+   * 在仓库加载完成后自动调用，数据存入 commitCache
+   */
+  async function loadCommitsWithFiles() {
+    const currentRepoPath = state.repoPath.value;
+    const currentBranch = state.selectedBranch.value;
+
+    if (!currentRepoPath || state.commits.value.length === 0) return;
+
+    // 检查缓存是否已存在
+    const cached = commitCache.getBatchCommits(currentRepoPath, currentBranch);
+    if (cached && cached.length > 0) {
+      logger.debug("文件变更信息已有缓存，跳过加载", {
+        repoPath: currentRepoPath,
+        branch: currentBranch,
+        cachedCount: cached.length,
+      });
+      return;
+    }
+
+    state.loadingFiles.value = true;
+    try {
+      const commits = await invoke<GitCommit[]>("git_load_commits_with_files", {
+        path: currentRepoPath,
+        branch: currentBranch,
+        limit: state.commits.value.length,
+      });
+
+      commitCache.setBatchCommits(currentRepoPath, currentBranch, commits);
+      logger.info("文件变更信息加载完成", { count: commits.length });
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "加载文件变更信息失败",
+        showToUser: false,
+        context: {
+          repoPath: currentRepoPath,
+          branch: currentBranch,
+          totalCommits: state.commits.value.length,
+        },
+      });
+    } finally {
+      state.loadingFiles.value = false;
+    }
   }
 
   // ==================== 筛选操作 ====================

@@ -14,6 +14,7 @@ const filteredCommits = ref<GitCommit[]>([]);
 
 const limitCount = ref(100);
 const batchSize = ref(20);
+const includeFiles = ref(false);
 const commitRange = ref<[number, number]>([0, 0]);
 
 const searchQuery = ref('');
@@ -28,6 +29,8 @@ const pageSize = ref(20);
 const lastLoadedRepo = ref('');
 const lastLoadedBranch = ref('');
 const lastLoadedLimit = ref(0);
+
+const loadingFiles = ref(false);
 
 const progress = ref({
   loading: false,
@@ -136,6 +139,7 @@ export function useGitAnalyzerState() {
   return {
     // 状态
     loading,
+    loadingFiles,
     repoPath,
     selectedBranch,
     branches,
@@ -143,6 +147,7 @@ export function useGitAnalyzerState() {
     filteredCommits,
     limitCount,
     batchSize,
+    includeFiles,
     commitRange,
     searchQuery,
     dateRange,

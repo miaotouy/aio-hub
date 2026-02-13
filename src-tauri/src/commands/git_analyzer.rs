@@ -127,6 +127,7 @@ pub async fn git_load_repository_stream(
     path: String,
     limit: usize,
     batch_size: Option<usize>,
+    include_files: Option<bool>,
 ) -> Result<(), String> {
     let repo_path = if path.is_empty() {
         ".".to_string()
@@ -235,6 +236,7 @@ pub async fn git_load_repository_stream(
             }
         };
 
+        let include_files_val = include_files.unwrap_or(false);
         let mut current_batch = Vec::with_capacity(if batch_size_val == 0 {
             total
         } else {
@@ -255,7 +257,7 @@ pub async fn git_load_repository_stream(
                 Err(_) => continue,
             };
 
-            if let Ok(commit) = parse_commit_optimized(&repo, oid, false, &tags_map, &branch_tips) {
+            if let Ok(commit) = parse_commit_optimized(&repo, oid, include_files_val, &tags_map, &branch_tips) {
                 current_batch.push(commit);
                 loaded += 1;
 
@@ -320,6 +322,7 @@ pub async fn git_load_incremental_stream(
     skip: usize,
     limit: usize,
     batch_size: Option<usize>,
+    include_files: Option<bool>,
 ) -> Result<(), String> {
     let repo_path = if path.is_empty() {
         ".".to_string()
@@ -431,6 +434,7 @@ pub async fn git_load_incremental_stream(
             skipped += 1;
         }
 
+        let include_files_val = include_files.unwrap_or(false);
         let mut current_batch = Vec::with_capacity(if batch_size_val == 0 {
             limit
         } else {
@@ -448,7 +452,7 @@ pub async fn git_load_incremental_stream(
 
             if let Ok(oid) = oid_result {
                 if let Ok(commit) =
-                    parse_commit_optimized(&repo, oid, false, &tags_map, &branch_tips)
+                    parse_commit_optimized(&repo, oid, include_files_val, &tags_map, &branch_tips)
                 {
                     current_batch.push(commit);
                     loaded += 1;

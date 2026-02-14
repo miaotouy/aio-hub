@@ -788,4 +788,6 @@ export interface RichTextContext {
   shouldFreeze?: Ref<boolean>;
   /** 是否处于流式传输中 */
   isStreaming?: Ref<boolean>;
+  /** 是否显示 Token 计数 */
+  showTokenCount?: Ref<boolean>;
 }

@@ -80,12 +80,21 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "showTokenCount",
-        label: "显示 Token 统计",
+        label: "显示消息 Token 统计",
         layout: "inline",
         component: "ElSwitch",
         modelPath: "uiPreferences.showTokenCount",
-        hint: "显示消息的 Token 使用情况",
+        hint: "显示消息总体的 Token 使用情况",
         keywords: "ui token usage 统计",
+      },
+      {
+        id: "showTokenCountForBlocks",
+        label: "显示块级 Token 统计",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showTokenCountForBlocks",
+        hint: "在代码块和工具调用标题栏显示字数和 Token 估算",
+        keywords: "ui token usage block code tool 统计 块",
       },
       {
         id: "showModelInfo",

@@ -53,6 +53,8 @@ export interface ChatSettings {
     showTimestamp: boolean;
     /** 是否显示 Token 统计 */
     showTokenCount: boolean;
+    /** 是否显示块级元素的 Token 计数（代码块、工具调用） */
+    showTokenCountForBlocks: boolean;
     /** 是否显示模型信息 */
     showModelInfo: boolean;
     /** 是否显示性能指标 */
@@ -226,6 +228,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     isStreaming: true, // 默认开启流式输出
     showTimestamp: false,
     showTokenCount: true,
+    showTokenCountForBlocks: true,
     showModelInfo: true,
     showPerformanceMetrics: true,
     showModelSelector: true,

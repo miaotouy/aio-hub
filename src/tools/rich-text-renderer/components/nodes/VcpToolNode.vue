@@ -27,6 +27,10 @@
           command
         }}</el-tag>
         <span v-if="maid" class="maid-info">{{ maid }}</span>
+        <!-- Token 计数 -->
+        <span v-if="context?.showTokenCount?.value" class="token-info">
+          {{ raw.length }} 字 / ~{{ tokenCount }} tokens
+        </span>
       </div>
 
       <div class="header-actions">
@@ -107,7 +111,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from "vue";
+import { ref, computed, onMounted, inject, watch } from "vue";
+import { throttle } from "lodash-es";
 import {
   Settings,
   Loader2,
@@ -119,6 +124,7 @@ import {
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
+import { calculatorProxy } from "@/tools/token-calculator/worker/calculator.proxy";
 
 const props = defineProps<{
   tool_name: string;
@@ -132,12 +138,17 @@ const props = defineProps<{
   status?: string;
   resultContent?: string;
   isPending?: boolean;
+  generationMeta?: {
+    modelId?: string;
+    [key: string]: any;
+  };
 }>();
 
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 
 const isCollapsed = ref(false);
 const copied = ref(false);
+const tokenCount = ref<number>(0);
 
 // 判断是否正在执行中
 const isExecuting = computed(() => {
@@ -205,6 +216,44 @@ const formatJsonVal = (val: any) => {
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value;
 };
+
+/**
+ * 计算 Token 数
+ */
+const updateTokenCount = throttle(async () => {
+  if (!context?.showTokenCount?.value || !props.raw) {
+    return;
+  }
+
+  try {
+    const modelId = props.generationMeta?.modelId || "gpt-4o";
+    const result = await calculatorProxy.calculateTokens(props.raw, modelId);
+    tokenCount.value = result.count;
+  } catch (error) {
+    console.warn("[VcpToolNode] Token calculation failed", error);
+  }
+}, 1000);
+
+// 监听 raw 变化更新 token
+watch(
+  () => props.raw,
+  () => {
+    if (context?.showTokenCount?.value) {
+      updateTokenCount();
+    }
+  },
+  { immediate: true }
+);
+
+// 监听开关变化
+watch(
+  () => context?.showTokenCount?.value,
+  (show) => {
+    if (show) {
+      updateTokenCount();
+    }
+  }
+);
 
 onMounted(() => {
   // 优先级：如果是结果块则默认折叠 > Props 传入 > 上下文全局设置 > 默认不折叠(false)
@@ -331,6 +380,14 @@ const copyContent = async () => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   opacity: 0.7;
+}
+
+.token-info {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  opacity: 0.6;
+  font-family: var(--el-font-family-mono);
+  margin-left: 8px;
 }
 
 .header-actions {

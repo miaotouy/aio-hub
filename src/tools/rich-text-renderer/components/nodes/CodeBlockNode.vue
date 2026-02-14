@@ -15,6 +15,10 @@
         <span class="language-tag">{{ language || "文本" }}</span>
         <!-- 预览模式指示器 -->
         <span v-if="isHtml && viewMode === 'preview'" class="mode-tag">预览模式</span>
+        <!-- Token 计数 -->
+        <span v-if="context?.showTokenCount?.value" class="token-info">
+          {{ content.length }} 字 / ~{{ tokenCount }} tokens
+        </span>
       </div>
       <div class="header-actions">
         <!-- HTML 预览切换按钮 -->
@@ -141,6 +145,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, inject } from "vue";
+import { throttle } from "lodash-es";
 import { useIntersectionObserver } from "@vueuse/core";
 import {
   Copy,
@@ -164,6 +169,7 @@ import HtmlInteractiveViewer from "../HtmlInteractiveViewer.vue";
 import PreCodeNode from "./PreCodeNode.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
+import { calculatorProxy } from "@/tools/token-calculator/worker/calculator.proxy";
 
 // 动态导入，避免类型检查时就报错
 type StreamMonacoModule = typeof import("stream-monaco");
@@ -180,6 +186,10 @@ const props = withDefaults(
     closed?: boolean;
     seamless?: boolean;
     defaultExpanded?: boolean;
+    generationMeta?: {
+      modelId?: string;
+      [key: string]: any;
+    };
   }>(),
   {
     seamless: undefined,
@@ -328,6 +338,46 @@ let cleanupResizeObserver: (() => void) | null = null;
 
 // 展开状态
 const isExpanded = ref(props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false);
+
+const tokenCount = ref<number>(0);
+
+/**
+ * 计算 Token 数
+ */
+const updateTokenCount = throttle(async () => {
+  if (!context?.showTokenCount?.value || !props.content) {
+    return;
+  }
+
+  try {
+    const modelId = props.generationMeta?.modelId || "gpt-4o";
+    const result = await calculatorProxy.calculateTokens(props.content, modelId);
+    tokenCount.value = result.count;
+  } catch (error) {
+    console.warn("[CodeBlockNode] Token calculation failed", error);
+  }
+}, 1000);
+
+// 监听 content 变化更新 token
+watch(
+  () => props.content,
+  () => {
+    if (context?.showTokenCount?.value) {
+      updateTokenCount();
+    }
+  },
+  { immediate: true }
+);
+
+// 监听开关变化
+watch(
+  () => context?.showTokenCount?.value,
+  (show) => {
+    if (show) {
+      updateTokenCount();
+    }
+  }
+);
 
 // 复制代码
 const copyCode = async () => {
@@ -776,6 +826,14 @@ watch(
   font-weight: 500;
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
+}
+
+.token-info {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  opacity: 0.6;
+  font-family: var(--el-font-family-mono);
+  margin-left: 8px;
 }
 
 .header-actions {

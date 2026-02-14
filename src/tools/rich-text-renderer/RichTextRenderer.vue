@@ -52,6 +52,7 @@ const props = withDefaults(
     resolveAsset?: (content: string) => string; // 资产路径解析钩子
     shouldFreeze?: boolean; // 是否冻结 HTML 预览
     allowDangerousHtml?: boolean; // 是否允许渲染危险的 HTML 标签
+    showTokenCount?: boolean; // 是否显示 Token 计数
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
@@ -65,6 +66,7 @@ const props = withDefaults(
     enableEnterAnimation: true,
     shouldFreeze: false,
     allowDangerousHtml: false,
+    showTokenCount: false,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
@@ -207,6 +209,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   resolveAsset: props.resolveAsset,
   shouldFreeze: computed(() => props.shouldFreeze),
   isStreaming: computed(() => props.isStreaming || internalIsStreaming.value),
+  showTokenCount: computed(() => props.showTokenCount),
 });
 
 // 纯 markdown-it 渲染的 HTML

@@ -315,6 +315,28 @@ const handleDetach = async () => {
   }
 };
 
+// ===== 路径转附件 =====
+const handleConvertPaths = async () => {
+  try {
+    const result = await inputManager.convertPathsToAttachments();
+    if (result.totalCount === 0) {
+      customMessage.info("未在输入内容中检测到本地文件路径");
+      return;
+    }
+    if (result.successCount > 0) {
+      const msg =
+        result.failedCount > 0
+          ? `已转换 ${result.successCount} 个路径，${result.failedCount} 个失败`
+          : `已转换 ${result.successCount} 个路径为附件`;
+      customMessage.success(msg);
+    } else {
+      customMessage.warning(`${result.failedCount} 个路径转换失败，请检查文件是否存在`);
+    }
+  } catch (error) {
+    errorHandler.error(error, "路径转换失败");
+  }
+};
+
 // ===== 窗口大小调整功能 =====
 const { createResizeHandler } = useWindowResize();
 const handleResizeEast = createResizeHandler("East");
@@ -434,6 +456,7 @@ const handleDragStart = (e: MouseEvent) => {
             @complete-input="handleCompleteInput"
             @select-continuation-model="handleSelectContinuationModel"
             @clear-continuation-model="inputManager.clearContinuationModel"
+            @convert-paths="handleConvertPaths"
           />
         </div>
       </div>

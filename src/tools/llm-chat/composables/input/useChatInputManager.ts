@@ -532,6 +532,98 @@ class ChatInputManager {
   }
 
   /**
+   * 扫描输入框中的本地路径并转换为附件占位符
+   */
+  async convertPathsToAttachments(): Promise<{
+    successCount: number;
+    failedCount: number;
+    totalCount: number;
+  }> {
+    const text = this.inputText.value;
+    if (!text) return { successCount: 0, failedCount: 0, totalCount: 0 };
+
+    // 匹配 file:// 协议或 Windows 路径 (如 D:\path\to\file 或 C:/path/to/file)
+    // 排除掉已经是占位符的内容 【file::...】
+    const pathRegex =
+      /(?:file:\/\/\/?|[a-zA-Z]:[\\\/])(?:[^\s"<>|?*【】]+(?:\s[^\s"<>|?*【】]+)*)/g;
+
+    const matches = Array.from(text.matchAll(pathRegex));
+    if (matches.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
+
+    let currentText = text;
+    let successCount = 0;
+    let failedCount = 0;
+
+    // 为了避免替换冲突，我们先收集所有路径，然后统一处理
+    // 注意：路径可能包含空格，正则已经尽量处理了，但仍需小心
+    const uniquePaths = Array.from(new Set(matches.map((m) => m[0].trim())));
+
+    for (const rawPath of uniquePaths) {
+      try {
+        // 清理路径：去除 file:// 前缀
+        let cleanPath = rawPath;
+        if (cleanPath.startsWith("file://")) {
+          cleanPath = cleanPath.replace(/^file:\/\/\/?/, "");
+          // Windows 下 file:///C:/... 替换后可能是 C:/...
+          // 这里简单处理，如果路径以 / 开头且第二个字符是 :，去掉开头的 /
+          if (cleanPath.startsWith("/") && cleanPath.charAt(2) === ":") {
+            cleanPath = cleanPath.substring(1);
+          }
+        }
+
+        // 规范化路径分隔符
+        cleanPath = cleanPath.replace(/\//g, "\\");
+
+        // 尝试导入资产
+        // 我们需要一个能返回 Asset 对象的导入方法，或者直接使用 addAttachments
+        // 这里我们利用 attachmentManager.addAttachments 返回的是 Promise<void>
+        // 为了拿到 ID，我们可能需要稍微改造下 attachmentManager 或者观察变化
+        // 这里假设我们能通过路径匹配到新加入的资产
+        const beforeIds = new Set(this.attachmentManager.attachments.value.map((a) => a.id));
+        await this.attachmentManager.addAttachments([cleanPath]);
+        const afterAssets = this.attachmentManager.attachments.value;
+        const newAsset = afterAssets.find(
+          (a) =>
+            !beforeIds.has(a.id) && (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
+        );
+
+        if (newAsset) {
+          const placeholder = generateAssetPlaceholder(newAsset.id);
+          // 全量替换该路径文本
+          // 转义正则特殊字符
+          const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          currentText = currentText.replace(new RegExp(escapedPath, "g"), placeholder);
+          successCount++;
+        } else {
+          // 检查是否已经是已存在的资产（重复路径）
+          const existingAsset = afterAssets.find((a) => a.path === cleanPath);
+          if (existingAsset) {
+            const placeholder = generateAssetPlaceholder(existingAsset.id);
+            const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            currentText = currentText.replace(new RegExp(escapedPath, "g"), placeholder);
+            successCount++;
+          } else {
+            failedCount++;
+          }
+        }
+      } catch (error) {
+        logger.error("转换路径失败", error, { path: rawPath });
+        failedCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      this.inputText.value = currentText;
+    }
+
+    return {
+      successCount,
+      failedCount,
+      totalCount: uniquePaths.length,
+    };
+  }
+
+  /**
    * 移除附件
    * @returns 是否成功移除
    */
@@ -616,6 +708,8 @@ export function useChatInputManager() {
     clear: manager.clear.bind(manager),
     /** 在当前光标位置插入资产占位符 */
     insertAssetPlaceholders: manager.insertAssetPlaceholders.bind(manager),
+    /** 转换文本中的路径为附件 */
+    convertPathsToAttachments: manager.convertPathsToAttachments.bind(manager),
 
     // ========== 附件操作方法 ==========
     /** 添加附件（从文件路径） */

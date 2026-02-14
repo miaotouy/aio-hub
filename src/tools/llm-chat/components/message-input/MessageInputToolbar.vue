@@ -28,6 +28,7 @@ import {
   MoreHorizontal,
   Sparkles,
   Grip,
+  FileUp,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
@@ -99,6 +100,7 @@ const emit = defineEmits<{
   (e: "complete-input", content: string): void;
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
+  (e: "convert-paths"): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
@@ -367,6 +369,19 @@ const handleNewSession = () => {
                   <Package :size="16" />
                   <span>压缩上下文</span>
                   <span v-if="props.isCompressing" class="loading-dots">...</span>
+                </div>
+              </el-dropdown-item>
+
+              <div class="dropdown-divider"></div>
+
+              <!-- 路径转附件 -->
+              <el-dropdown-item
+                :disabled="props.disabled || !props.inputText.trim()"
+                @click="emit('convert-paths')"
+              >
+                <div class="dropdown-item-content">
+                  <FileUp :size="16" />
+                  <span>路径转附件</span>
                 </div>
               </el-dropdown-item>
             </el-dropdown-menu>

@@ -18,6 +18,8 @@ import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
 import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
+import { useChatInputManager } from "../composables/input/useChatInputManager";
+import { generateAssetPlaceholder } from "../core/context-processors/transcription-processor";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -72,6 +74,8 @@ const {
   addTask,
 } = useTranscriptionManager();
 
+const chatInputManager = useChatInputManager();
+
 const internalAsset = ref<Asset>(props.asset);
 
 watch(
@@ -83,7 +87,9 @@ watch(
       if (latestAsset) {
         internalAsset.value = latestAsset;
       } else {
-        logger.debug("无法立即获取资产信息 (可能是新资产)，临时使用 props", { assetId: newAsset.id });
+        logger.debug("无法立即获取资产信息 (可能是新资产)，临时使用 props", {
+          assetId: newAsset.id,
+        });
         internalAsset.value = newAsset;
       }
       return;
@@ -435,6 +441,23 @@ const handleCancelTranscription = (e?: Event) => {
   cancelTranscription(props.asset.id);
 };
 
+// 插入占位符到输入框
+const handleInsertPlaceholder = () => {
+  chatInputManager.insertAssetPlaceholders([props.asset]);
+  customMessage.success("已插入占位符");
+};
+
+// 复制占位符到剪贴板
+const handleCopyPlaceholder = async () => {
+  const placeholder = generateAssetPlaceholder(props.asset.id);
+  try {
+    await navigator.clipboard.writeText(placeholder);
+    customMessage.success("占位符已复制到剪贴板");
+  } catch {
+    customMessage.error("复制失败");
+  }
+};
+
 // 监听 asset 变化，重新加载 URL
 watch(
   () => props.asset,
@@ -732,6 +755,13 @@ onUnmounted(() => {
             取消转写
           </el-dropdown-item>
         </template>
+
+        <el-dropdown-item v-if="removable" divided @click="handleInsertPlaceholder">
+          插入占位符
+        </el-dropdown-item>
+        <el-dropdown-item v-if="removable" @click="handleCopyPlaceholder">
+          复制占位符
+        </el-dropdown-item>
 
         <el-dropdown-item divided class="remove-item" @click="handleRemove">
           移除附件

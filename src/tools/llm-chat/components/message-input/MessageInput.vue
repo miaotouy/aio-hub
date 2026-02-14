@@ -191,20 +191,36 @@ const { isDraggingOver } = useChatFileInteraction({
   element: containerRef,
   onPaths: async (paths) => {
     logger.info("文件拖拽触发", { paths, disabled: props.disabled });
+    const beforeIds = new Set(inputManager.attachments.value.map((a) => a.id));
     await inputManager.addAttachments(paths);
+    // 自动插入占位符
+    if (settings.value.transcription.autoInsertPlaceholder) {
+      const newAssets = inputManager.attachments.value.filter((a) => !beforeIds.has(a.id));
+      if (newAssets.length > 0) {
+        const cursorPos = textareaRef.value?.getSelectionRange()?.start;
+        inputManager.insertAssetPlaceholders([...newAssets], cursorPos);
+      }
+    }
   },
   onAssets: async (assets) => {
     logger.info("文件粘贴触发", { count: assets.length });
-    let successCount = 0;
+    const addedAssets: Asset[] = [];
     for (const asset of assets) {
       if (inputManager.addAsset(asset)) {
-        successCount++;
+        addedAssets.push(asset);
       }
     }
-    if (successCount > 0) {
+    if (addedAssets.length > 0) {
       const message =
-        successCount === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${successCount} 个文件`;
+        addedAssets.length === 1
+          ? `已粘贴文件: ${assets[0].name}`
+          : `已粘贴 ${addedAssets.length} 个文件`;
       customMessage.success(message);
+      // 自动插入占位符
+      if (settings.value.transcription.autoInsertPlaceholder) {
+        const cursorPos = textareaRef.value?.getSelectionRange()?.start;
+        inputManager.insertAssetPlaceholders(addedAssets, cursorPos);
+      }
     }
   },
   disabled: toRef(props, "disabled"),

@@ -15,7 +15,10 @@
 
 import { ref, watch, type Ref } from "vue";
 import { getOrCreateInstance } from "@/utils/singleton";
-import { useAttachmentManager, type UseAttachmentManagerReturn } from "../features/useAttachmentManager";
+import {
+  useAttachmentManager,
+  type UseAttachmentManagerReturn,
+} from "../features/useAttachmentManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { registerSyncSource } from "@/composables/useStateSyncEngine";
 import {
@@ -30,6 +33,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { Asset } from "@/types/asset-management";
 import type { StateSyncPayload, JsonPatchOperation } from "@/types/window-sync";
 import type { ModelIdentifier } from "../../types";
+import { generateAssetPlaceholder } from "../../core/context-processors/transcription-processor";
 
 const logger = createModuleLogger("ChatInputManager");
 const errorHandler = createModuleErrorHandler("ChatInputManager");
@@ -202,7 +206,10 @@ class ChatInputManager {
         }
 
         // 同步续写模型
-        if (JSON.stringify(newState.continuationModel) !== JSON.stringify(this.continuationModel.value)) {
+        if (
+          JSON.stringify(newState.continuationModel) !==
+          JSON.stringify(this.continuationModel.value)
+        ) {
           this.continuationModel.value = newState.continuationModel;
           logger.debug("从同步状态更新续写模型", { model: newState.continuationModel });
         }
@@ -246,7 +253,10 @@ class ChatInputManager {
         this.stateVersion = payload.version;
         this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
       } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: "应用输入状态更新失败", showToUser: false });
+        errorHandler.handle(error as Error, {
+          userMessage: "应用输入状态更新失败",
+          showToUser: false,
+        });
       } finally {
         this.isApplyingSyncState = false;
       }
@@ -254,12 +264,12 @@ class ChatInputManager {
 
     // 注册到全局同步源（仅主窗口和工具窗口）
     // 这样当有新窗口请求初始状态时，InputManager 也能自动响应
-    if (this.bus.windowType === 'main' || this.bus.windowType === 'detached-tool') {
+    if (this.bus.windowType === "main" || this.bus.windowType === "detached-tool") {
       this.unregisterSyncSource = registerSyncSource({
         pushState: async (isFullSync, targetWindowLabel, silent) => {
           this.pushState(isFullSync, targetWindowLabel, silent);
         },
-        stateKey: CHAT_STATE_KEYS.INPUT_STATE
+        stateKey: CHAT_STATE_KEYS.INPUT_STATE,
       });
     }
 
@@ -291,16 +301,37 @@ class ChatInputManager {
     const shouldForceFullSync = isFullSync || !shouldUseDelta([], newValue, 0.5);
 
     if (shouldForceFullSync) {
-      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, newValue, newVersion, true, targetWindowLabel);
-      if (!silent) logger.debug("执行全量输入状态同步", { version: newVersion, targetWindow: targetWindowLabel });
+      this.bus.syncState(
+        CHAT_STATE_KEYS.INPUT_STATE,
+        newValue,
+        newVersion,
+        true,
+        targetWindowLabel
+      );
+      if (!silent)
+        logger.debug("执行全量输入状态同步", {
+          version: newVersion,
+          targetWindow: targetWindowLabel,
+        });
     } else {
       const patches = calculateDiff(this.lastSyncedValue, newValue);
       if (patches.length === 0) {
         if (!silent) logger.debug("输入状态无变化，跳过同步");
         return;
       }
-      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, patches, newVersion, false, targetWindowLabel);
-      if (!silent) logger.debug("执行增量输入状态同步", { version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
+      this.bus.syncState(
+        CHAT_STATE_KEYS.INPUT_STATE,
+        patches,
+        newVersion,
+        false,
+        targetWindowLabel
+      );
+      if (!silent)
+        logger.debug("执行增量输入状态同步", {
+          version: newVersion,
+          patchesCount: patches.length,
+          targetWindow: targetWindowLabel,
+        });
     }
 
     this.stateVersion = newVersion;
@@ -448,6 +479,38 @@ class ChatInputManager {
   }
 
   /**
+   * 在当前光标位置插入资产占位符
+   * @param assets 附件列表
+   * @param cursorPosition 当前光标位置（默认为文本末尾）
+   */
+  insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): void {
+    if (assets.length === 0) return;
+
+    // 生成占位符列表
+    const placeholders = assets.map((asset) => generateAssetPlaceholder(asset.id));
+    const placeholderText = placeholders.join("\n");
+
+    const currentText = this.inputText.value;
+    const pos = cursorPosition ?? currentText.length;
+
+    // 在光标位置插入占位符
+    const before = currentText.substring(0, pos);
+    const after = currentText.substring(pos);
+
+    // 如果前面没有空格或换行，添加一个换行
+    const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+    // 如果后面没有换行，添加一个换行
+    const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
+
+    this.inputText.value = before + insertPrefix + placeholderText + insertSuffix + after;
+
+    logger.info("插入资产占位符", {
+      count: assets.length,
+      cursorPosition: pos,
+    });
+  }
+
+  /**
    * 添加附件
    */
   async addAttachments(paths: string[]): Promise<void> {
@@ -551,6 +614,8 @@ export function useChatInputManager() {
     getContent: manager.getContent.bind(manager),
     /** 清空输入框和附件 */
     clear: manager.clear.bind(manager),
+    /** 在当前光标位置插入资产占位符 */
+    insertAssetPlaceholders: manager.insertAssetPlaceholders.bind(manager),
 
     // ========== 附件操作方法 ==========
     /** 添加附件（从文件路径） */

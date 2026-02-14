@@ -816,6 +816,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "transcription auto import 自动 导入",
         visible: (settings) => settings.transcription.enabled,
       },
+      {
+        id: "transAutoInsertPlaceholder",
+        label: "自动插入资产占位符",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.autoInsertPlaceholder",
+        hint: "导入附件时自动在输入内容插入【file::...】占位符，转写将优先注入占位位置。",
+        keywords: "transcription placeholder asset 占位符 资产 自动 插入",
+        visible: (settings) => settings.transcription.enabled,
+      },
       // 2. 性能与并发控制
       {
         id: "transMaxConcurrentTasks",

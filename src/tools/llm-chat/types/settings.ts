@@ -17,6 +17,8 @@ export interface ChatTranscriptionConfig extends BaseTranscriptionConfig {
   strategy: "smart" | "always";
   /** 在智能模式下，超过N条历史消息后强制转写 */
   forceTranscriptionAfter: number;
+  /** 是否自动插入资产占位符 */
+  autoInsertPlaceholder: boolean;
 }
 
 /**
@@ -287,6 +289,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     enabled: true,
     strategy: "smart",
     forceTranscriptionAfter: 10,
+    autoInsertPlaceholder: false,
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

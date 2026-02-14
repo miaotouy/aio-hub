@@ -37,6 +37,7 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
     isSearching,
     showLoadingIndicator,
     sessionResults,
+    matchMode,
     search,
     clearSearch,
     getFieldLabel,
@@ -224,13 +225,13 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
       emit("session-updated");
     }
   };
-
   return {
     searchQuery,
     isSearching,
     showLoadingIndicator,
     displaySessions,
     isInSearchMode,
+    matchMode,
     sortBy,
     sortOrder,
     filterAgent,
@@ -242,6 +243,7 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
     hasActiveFilters,
     searchMatchesMap,
     isGenerating,
+    search,
     handleQuickNewSession,
     resetFilters,
     confirmDelete,

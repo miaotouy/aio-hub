@@ -6,7 +6,7 @@ import yaml from "js-yaml";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
-import { useLlmSearch, type MatchDetail } from "../../composables/chat/useLlmSearch";
+import { useLlmSearch, type MatchDetail, type SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { useFileDrop } from "@/composables/useFileDrop";
 import {
   Plus,
@@ -45,10 +45,28 @@ const agentStore = useAgentStore();
 const { agentSortBy } = useLlmChatUiState();
 
 // 后端搜索功能
-const { isSearching, showLoadingIndicator, agentResults, search, clearSearch } = useLlmSearch({
+const { isSearching, showLoadingIndicator, agentResults, matchMode, search, clearSearch } = useLlmSearch({
   debounceMs: 300,
   scope: "agent",
 });
+
+// 搜索模式配置
+const matchModeOptions: { value: SearchMatchMode; label: string; desc: string }[] = [
+  { value: "exact", label: "精确", desc: "完整短语匹配" },
+  { value: "and", label: "全部", desc: "所有关键词都须出现" },
+  { value: "or", label: "任一", desc: "任一关键词出现即可" },
+];
+
+const currentModeLabel = computed(() => matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确");
+
+// 切换搜索模式
+const handleMatchModeChange = (mode: SearchMatchMode) => {
+  matchMode.value = mode;
+  // 如果当前有搜索词，重新触发搜索
+  if (searchQuery.value.trim().length >= 2) {
+    search(searchQuery.value.trim());
+  }
+};
 
 // 搜索和筛选状态
 const searchQuery = ref("");
@@ -644,7 +662,6 @@ const handleImportFromTavernCard = async () => {
         <el-input
           v-model="searchQuery"
           :prefix-icon="Search"
-          :suffix-icon="showLoadingIndicator ? Loading : ''"
           placeholder="搜索名称、描述或标签..."
           clearable
           size="small"
@@ -653,6 +670,28 @@ const handleImportFromTavernCard = async () => {
             <el-icon class="is-loading"><Loading /></el-icon>
           </template>
         </el-input>
+        <el-dropdown trigger="click" @command="handleMatchModeChange" placement="bottom-end">
+          <div>
+            <el-tooltip :content="`搜索模式: ${matchModeOptions.find(o => o.value === matchMode)?.desc}`" placement="top" :show-after="400">
+              <el-button size="small" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
+                {{ currentModeLabel }}
+              </el-button>
+            </el-tooltip>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="opt in matchModeOptions"
+                :key="opt.value"
+                :command="opt.value"
+                :class="{ 'is-active': matchMode === opt.value }"
+              >
+                <span>{{ opt.label }}</span>
+                <span class="mode-desc">{{ opt.desc }}</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       <div class="toolbar-row">
         <el-select
@@ -858,6 +897,18 @@ const handleImportFromTavernCard = async () => {
   display: flex;
   gap: 8px;
   width: 100%;
+}
+
+.match-mode-btn {
+  min-width: 40px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.mode-desc {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-color-light);
 }
 
 .hint {

@@ -40,12 +40,17 @@ export interface SearchResult {
   path: string;
 }
 
+/** 搜索匹配模式 */
+export type SearchMatchMode = "exact" | "and" | "or";
+
 /** 搜索选项 */
 export interface SearchOptions {
   /** 最大结果数量，默认 50 */
   limit?: number;
   /** 搜索范围：'agent' | 'session' | 'all' (默认) */
   scope?: "agent" | "session" | "all";
+  /** 匹配模式：'exact' 整体匹配 | 'and' 全部包含 | 'or' 任一包含，默认 'exact' */
+  matchMode?: SearchMatchMode;
   /** 防抖延迟（毫秒），默认 300 */
   debounceMs?: number;
   /** loading 显示延迟（毫秒）。用于避免短时间搜索时的闪烁 */
@@ -61,7 +66,10 @@ export interface SearchOptions {
  * @returns 搜索状态和方法
  */
 export function useLlmSearch(options: SearchOptions = {}) {
-  const { limit = 50, scope = "all", debounceMs = 300, loadingDelayMs = 300 } = options;
+  const { limit = 50, scope = "all", matchMode: initialMatchMode = "exact", debounceMs = 300, loadingDelayMs = 300 } = options;
+
+  // 搜索匹配模式（响应式，可由 UI 动态切换）
+  const matchMode = ref<SearchMatchMode>(initialMatchMode);
 
   // 搜索状态
   const isSearching = ref(false); // 内部状态：是否正在搜索
@@ -91,6 +99,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
         query: trimmedQuery,
         limit,
         scope,
+        matchMode: matchMode.value,
       });
 
       logger.debug("搜索完成", { query: trimmedQuery, scope, resultCount: results.length });
@@ -258,6 +267,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
     searchResults,
     searchError,
     lastQuery,
+    matchMode, // 搜索匹配模式（可读写）
     agentResults,
     sessionResults,
 

@@ -4,7 +4,7 @@ import { useVirtualList } from "@vueuse/core";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSession } from "../../types";
-import { useLlmSearch } from "../../composables/chat/useLlmSearch";
+import { useLlmSearch, type SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
@@ -28,11 +28,28 @@ const {
   isSearching,
   showLoadingIndicator,
   sessionResults,
+  matchMode,
   search,
   clearSearch,
   getFieldLabel,
   getRoleLabel,
 } = useLlmSearch({ debounceMs: 300, scope: "session" });
+
+// 搜索模式配置
+const matchModeOptions: { value: SearchMatchMode; label: string; desc: string }[] = [
+  { value: "exact", label: "精确", desc: "完整短语匹配" },
+  { value: "and", label: "全部", desc: "所有关键词都须出现" },
+  { value: "or", label: "任一", desc: "任一关键词出现即可" },
+];
+
+const currentModeLabel = computed(() => matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确");
+
+const handleMatchModeChange = (mode: SearchMatchMode) => {
+  matchMode.value = mode;
+  if (searchQuery.value.trim().length >= 2) {
+    search(searchQuery.value.trim());
+  }
+};
 
 // 是否处于搜索模式（有搜索词且长度>=2）
 const isInSearchMode = computed(() => searchQuery.value.trim().length >= 2);
@@ -259,6 +276,28 @@ defineExpose({
           <el-icon class="is-loading"><Loading /></el-icon>
         </template>
       </el-input>
+      <el-dropdown trigger="click" @command="handleMatchModeChange" placement="top-end">
+        <div>
+          <el-tooltip :content="`搜索模式: ${matchModeOptions.find(o => o.value === matchMode)?.desc}`" placement="top" :show-after="400">
+            <el-button size="small" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
+              {{ currentModeLabel }}
+            </el-button>
+          </el-tooltip>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              v-for="opt in matchModeOptions"
+              :key="opt.value"
+              :command="opt.value"
+              :class="{ 'is-active': matchMode === opt.value }"
+            >
+              <span>{{ opt.label }}</span>
+              <span class="mode-desc">{{ opt.desc }}</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
   </div>
 </template>
@@ -281,6 +320,18 @@ defineExpose({
 
 .search-input {
   flex: 1;
+}
+
+.match-mode-btn {
+  min-width: 36px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.mode-desc {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-color-light);
 }
 
 .list-container {

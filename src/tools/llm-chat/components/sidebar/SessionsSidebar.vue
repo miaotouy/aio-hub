@@ -2,6 +2,7 @@
 import { ref, computed } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { Plus, Search, Operation, Loading, Position } from "@element-plus/icons-vue";
+import type { SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { invoke } from "@tauri-apps/api/core";
 import { useChatStorageSeparated } from "../../composables/storage/useChatStorageSeparated";
 import { customMessage } from "@/utils/customMessage";
@@ -34,6 +35,7 @@ const {
   showLoadingIndicator,
   displaySessions,
   isInSearchMode,
+  matchMode,
   sortBy,
   sortOrder,
   filterAgent,
@@ -45,6 +47,7 @@ const {
   hasActiveFilters,
   searchMatchesMap,
   isGenerating,
+  search,
   handleQuickNewSession,
   resetFilters,
   confirmDelete,
@@ -55,6 +58,22 @@ const {
   settings,
   agentStore,
 } = useSessionsSidebarLogic({ props, emit });
+
+// 搜索模式配置
+const matchModeOptions: { value: SearchMatchMode; label: string; desc: string }[] = [
+  { value: "exact", label: "精确", desc: "完整短语匹配" },
+  { value: "and", label: "全部", desc: "所有关键词都须出现" },
+  { value: "or", label: "任一", desc: "任一关键词出现即可" },
+];
+
+const currentModeLabel = computed(() => matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确");
+
+const handleMatchModeChange = (mode: SearchMatchMode) => {
+  matchMode.value = mode;
+  if (searchQuery.value.trim().length >= 2) {
+    search(searchQuery.value.trim());
+  }
+};
 
 // 导出会话相关状态
 const exportSessionDialogVisible = ref(false);
@@ -158,6 +177,29 @@ const handleSessionClick = (session: ChatSession) => {
             <el-icon class="is-loading"><Loading /></el-icon>
           </template>
         </el-input>
+
+        <el-dropdown trigger="click" @command="handleMatchModeChange" placement="bottom-end">
+          <div>
+            <el-tooltip :content="`搜索模式: ${matchModeOptions.find(o => o.value === matchMode)?.desc}`" placement="bottom" :show-after="400">
+              <el-button size="default" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
+                {{ currentModeLabel }}
+              </el-button>
+            </el-tooltip>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="opt in matchModeOptions"
+                :key="opt.value"
+                :command="opt.value"
+                :class="{ 'is-active': matchMode === opt.value }"
+              >
+                <span>{{ opt.label }}</span>
+                <span class="mode-desc">{{ opt.desc }}</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
         <el-tooltip content="新建对话" placement="bottom" :show-after="500">
           <el-button type="primary" :icon="Plus" @click="handleQuickNewSession" circle />
@@ -283,6 +325,18 @@ const handleSessionClick = (session: ChatSession) => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.match-mode-btn {
+  min-width: 40px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.mode-desc {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-color-light);
 }
 
 .header-actions {

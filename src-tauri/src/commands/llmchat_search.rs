@@ -86,6 +86,108 @@ struct PartialMetadata<'a> {
     reasoning_content: Option<Cow<'a, str>>,
 }
 
+// --- 搜索匹配器 ---
+
+/// 搜索匹配器，封装三种匹配模式的逻辑
+enum SearchMatcher {
+    /// 单正则匹配（exact 整体匹配 / or 任一关键词匹配）
+    Single(Regex),
+    /// 多正则全部匹配（and 模式，所有关键词都必须出现）
+    All(Vec<Regex>),
+}
+
+impl SearchMatcher {
+    /// 构建搜索匹配器
+    /// query: 原始查询字符串
+    /// match_mode: "exact" | "and" | "or"
+    fn build(query: &str, match_mode: &str) -> Result<Self, String> {
+        match match_mode {
+            "and" => {
+                let keywords: Vec<&str> = query.split_whitespace().collect();
+                if keywords.is_empty() {
+                    return Err("查询关键词为空".to_string());
+                }
+                // 单个关键词退化为 exact 模式
+                if keywords.len() == 1 {
+                    let re = RegexBuilder::new(&regex::escape(keywords[0]))
+                        .case_insensitive(true)
+                        .build()
+                        .map_err(|e| format!("Invalid regex: {}", e))?;
+                    return Ok(SearchMatcher::Single(re));
+                }
+                let regexes: Result<Vec<Regex>, String> = keywords
+                    .iter()
+                    .map(|kw| {
+                        RegexBuilder::new(&regex::escape(kw))
+                            .case_insensitive(true)
+                            .build()
+                            .map_err(|e| format!("Invalid regex: {}", e))
+                    })
+                    .collect();
+                Ok(SearchMatcher::All(regexes?))
+            }
+            "or" => {
+                let keywords: Vec<&str> = query.split_whitespace().collect();
+                if keywords.is_empty() {
+                    return Err("查询关键词为空".to_string());
+                }
+                // 单个关键词退化为 exact 模式
+                if keywords.len() == 1 {
+                    let re = RegexBuilder::new(&regex::escape(keywords[0]))
+                        .case_insensitive(true)
+                        .build()
+                        .map_err(|e| format!("Invalid regex: {}", e))?;
+                    return Ok(SearchMatcher::Single(re));
+                }
+                // 构建 keyword1|keyword2|keyword3 的正则
+                let pattern = keywords
+                    .iter()
+                    .map(|kw| regex::escape(kw))
+                    .collect::<Vec<_>>()
+                    .join("|");
+                let re = RegexBuilder::new(&pattern)
+                    .case_insensitive(true)
+                    .build()
+                    .map_err(|e| format!("Invalid regex: {}", e))?;
+                Ok(SearchMatcher::Single(re))
+            }
+            // "exact" 或其他值，默认整体匹配
+            _ => {
+                let re = RegexBuilder::new(&regex::escape(query))
+                    .case_insensitive(true)
+                    .build()
+                    .map_err(|e| format!("Invalid regex: {}", e))?;
+                Ok(SearchMatcher::Single(re))
+            }
+        }
+    }
+
+    /// 检查文本是否匹配
+    fn is_match(&self, text: &str) -> bool {
+        match self {
+            SearchMatcher::Single(re) => re.is_match(text),
+            SearchMatcher::All(regexes) => regexes.iter().all(|re| re.is_match(text)),
+        }
+    }
+
+    /// 提取匹配上下文
+    /// 对于 Single 模式，直接使用该正则提取
+    /// 对于 All 模式，使用第一个匹配到的正则提取上下文
+    fn extract_context(&self, text: &str, context_len: usize) -> Option<String> {
+        match self {
+            SearchMatcher::Single(re) => extract_context_with_regex(text, re, context_len),
+            SearchMatcher::All(regexes) => {
+                // 先确认所有关键词都存在
+                if !regexes.iter().all(|re| re.is_match(text)) {
+                    return None;
+                }
+                // 取第一个关键词的上下文作为展示
+                extract_context_with_regex(text, &regexes[0], context_len)
+            }
+        }
+    }
+}
+
 // --- 辅助函数 ---
 
 /// 使用 Regex 提取匹配上下文
@@ -94,7 +196,7 @@ struct PartialMetadata<'a> {
 /// context_len: 上下文长度（前后保留的字符数）
 ///
 /// 优化版本：不再收集整个文本的 char_indices，而是从匹配点向前/向后迭代
-fn extract_context(text: &str, re: &Regex, context_len: usize) -> Option<String> {
+fn extract_context_with_regex(text: &str, re: &Regex, context_len: usize) -> Option<String> {
     // 查找第一个匹配项
     let mat = re.find(text)?;
     let match_start_byte = mat.start();
@@ -153,7 +255,7 @@ fn extract_context(text: &str, re: &Regex, context_len: usize) -> Option<String>
     Some(result)
 }
 
-async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
+async fn search_agents(base_dir: &Path, matcher: &SearchMatcher) -> Vec<SearchResult> {
     let agents_dir = base_dir.join("agents");
     if !agents_dir.exists() {
         return Vec::new();
@@ -175,7 +277,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
             let content = fs::read_to_string(&path).await.ok()?;
 
             // 预过滤：如果全文都不包含关键词，直接跳过昂贵的 JSON 解析
-            if !re.is_match(&content) {
+            if !matcher.is_match(&content) {
                 return None;
             }
 
@@ -183,7 +285,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
             let mut matches = Vec::new();
 
             // 检查名称
-            if re.is_match(&agent.name) {
+            if matcher.is_match(&agent.name) {
                 matches.push(MatchDetail {
                     field: "name".to_string(),
                     context: agent.name.to_string(),
@@ -193,7 +295,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
 
             // 检查显示名称
             if let Some(display_name) = &agent.display_name {
-                if re.is_match(display_name) {
+                if matcher.is_match(display_name) {
                     matches.push(MatchDetail {
                         field: "displayName".to_string(),
                         context: display_name.to_string(),
@@ -204,7 +306,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
 
             // 检查描述
             if let Some(desc) = &agent.description {
-                if let Some(ctx) = extract_context(desc, re, 30) {
+                if let Some(ctx) = matcher.extract_context(desc, 30) {
                     matches.push(MatchDetail {
                         field: "description".to_string(),
                         context: ctx,
@@ -223,7 +325,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
 
                     // 检查预设消息的名称
                     if let Some(name) = &msg.name {
-                        if re.is_match(name) {
+                        if matcher.is_match(name) {
                             matches.push(MatchDetail {
                                 field: "presetMessageName".to_string(),
                                 context: name.to_string(),
@@ -236,7 +338,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
 
                     // 检查消息内容
                     if let Some(content) = &msg.content {
-                        if let Some(ctx) = extract_context(content, re, 40) {
+                        if let Some(ctx) = matcher.extract_context(content, 40) {
                             matches.push(MatchDetail {
                                 field: "presetMessage".to_string(),
                                 context: ctx,
@@ -276,7 +378,7 @@ async fn search_agents(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
         .await
 }
 
-async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
+async fn search_sessions(base_dir: &Path, matcher: &SearchMatcher) -> Vec<SearchResult> {
     let sessions_dir = base_dir.join("sessions");
     if !sessions_dir.exists() {
         return Vec::new();
@@ -300,7 +402,7 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
             let content = fs::read_to_string(&path).await.ok()?;
 
             // 预过滤：如果全文都不包含关键词，直接跳过昂贵的 JSON 解析
-            if !re.is_match(&content) {
+            if !matcher.is_match(&content) {
                 return None;
             }
 
@@ -308,7 +410,7 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
             let mut matches = Vec::new();
 
             // 检查会话名称
-            if re.is_match(&session.name) {
+            if matcher.is_match(&session.name) {
                 matches.push(MatchDetail {
                     field: "name".to_string(),
                     context: session.name.to_string(),
@@ -327,7 +429,7 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
 
                 // 检查消息内容
                 if let Some(content) = &node.content {
-                    if let Some(ctx) = extract_context(content, re, 40) {
+                    if let Some(ctx) = matcher.extract_context(content, 40) {
                         matches.push(MatchDetail {
                             field: "content".to_string(),
                             context: ctx,
@@ -340,7 +442,7 @@ async fn search_sessions(base_dir: &Path, re: &Regex) -> Vec<SearchResult> {
                 // 检查推理内容
                 if let Some(metadata) = &node.metadata {
                     if let Some(reasoning) = &metadata.reasoning_content {
-                        if let Some(ctx) = extract_context(reasoning, re, 40) {
+                        if let Some(ctx) = matcher.extract_context(reasoning, 40) {
                             matches.push(MatchDetail {
                                 field: "reasoningContent".to_string(),
                                 context: ctx,
@@ -382,6 +484,7 @@ pub async fn search_llm_data(
     query: String,
     limit: Option<usize>,
     scope: Option<String>,
+    match_mode: Option<String>,
 ) -> Result<Vec<SearchResult>, String> {
     let start_time = Instant::now();
     let query = query.trim();
@@ -391,15 +494,18 @@ pub async fn search_llm_data(
     }
 
     let scope = scope.unwrap_or_else(|| "all".to_string());
-    log::info!("[LLM_SEARCH] 开始搜索: '{}' (scope: {})", query, scope);
+    let match_mode = match_mode.unwrap_or_else(|| "exact".to_string());
+    log::info!(
+        "[LLM_SEARCH] 开始搜索: '{}' (scope: {}, mode: {})",
+        query,
+        scope,
+        match_mode
+    );
 
     let max_results = limit.unwrap_or(50);
 
-    // 编译正则表达式，不区分大小写
-    let re = RegexBuilder::new(&regex::escape(query))
-        .case_insensitive(true)
-        .build()
-        .map_err(|e| format!("Invalid regex: {}", e))?;
+    // 构建搜索匹配器
+    let matcher = SearchMatcher::build(query, &match_mode)?;
 
     // 获取 AppData 目录
     let app_data_dir = crate::get_app_data_dir(app.config());
@@ -408,20 +514,20 @@ pub async fn search_llm_data(
 
     let (mut results, agent_count, session_count) = match scope.as_str() {
         "agent" => {
-            let agents = search_agents(&llm_chat_dir, &re).await;
+            let agents = search_agents(&llm_chat_dir, &matcher).await;
             let count = agents.len();
             (agents, count, 0)
         }
         "session" => {
-            let sessions = search_sessions(&llm_chat_dir, &re).await;
+            let sessions = search_sessions(&llm_chat_dir, &matcher).await;
             let count = sessions.len();
             (sessions, 0, count)
         }
         _ => {
             // 并行执行 Agent 和 Session 搜索
             let (agents, mut sessions) = tokio::join!(
-                search_agents(&llm_chat_dir, &re),
-                search_sessions(&llm_chat_dir, &re)
+                search_agents(&llm_chat_dir, &matcher),
+                search_sessions(&llm_chat_dir, &matcher)
             );
             let a_count = agents.len();
             let s_count = sessions.len();

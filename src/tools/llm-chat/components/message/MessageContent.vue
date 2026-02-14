@@ -187,7 +187,20 @@ const isGenerating = computed(() => {
 // 提取生成元数据用于渲染器计时
 const generationMetaForRenderer = computed(() => {
   const metadata = props.message.metadata;
-  if (!metadata) return undefined;
+
+  // 尝试获取模型 ID
+  // 1. 优先使用消息元数据中的 modelId (助手消息)
+  // 2. 其次尝试从当前 Agent 配置中获取 (用户消息)
+  let modelId = metadata?.modelId;
+  if (!modelId) {
+    const currentAgentId = agentStore.currentAgentId;
+    if (currentAgentId) {
+      const agentConfig = agentStore.getAgentConfig(currentAgentId);
+      modelId = agentConfig?.modelId;
+    }
+  }
+
+  if (!metadata) return { modelId };
 
   return {
     requestStartTime: metadata.requestStartTime,
@@ -197,7 +210,7 @@ const generationMetaForRenderer = computed(() => {
     firstTokenTime: metadata.firstTokenTime,
     tokensPerSecond: metadata.tokensPerSecond,
     usage: metadata.usage,
-    modelId: metadata.modelId, // 传递模型 ID
+    modelId, // 传递确定的模型 ID
   };
 });
 

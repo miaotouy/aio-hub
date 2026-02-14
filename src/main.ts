@@ -3,7 +3,7 @@ import App from "./App.vue";
 import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
 import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
 import ElementPlus from "element-plus";
-import zhCn from 'element-plus/es/locale/lang/zh-cn';
+import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
 import router, { initDynamicRoutes } from "./router"; // 从 ./router/index.ts 导入
@@ -24,6 +24,7 @@ import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
 import "@/utils/monaco-i18n/nls";
+import { initMonacoShikiThemes } from "@/utils/monacoShikiSetup";
 
 const logger = createModuleLogger("Main");
 const moduleErrorHandler = createModuleErrorHandler("Main");
@@ -187,6 +188,9 @@ const initializeApp = async () => {
     await initTheme();
     logger.info("主题初始化完成");
 
+    // 3.5 预注册 Monaco Shiki 主题（异步，不阻塞启动）
+    initMonacoShikiThemes().catch(() => {});
+
     // 4. 自动注册所有工具服务
     await autoRegisterServices();
     logger.info("工具服务注册完成");
@@ -276,4 +280,3 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
-

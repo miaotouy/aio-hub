@@ -515,11 +515,7 @@ const initEditor = async () => {
   isInitializing.value = true;
 
   try {
-    const [sm, themeLight, themeDark] = await Promise.all([
-      import("stream-monaco") as Promise<StreamMonacoModule>,
-      import("shiki/themes/github-light.mjs"),
-      import("shiki/themes/github-dark.mjs"),
-    ]);
+    const [sm] = await Promise.all([import("stream-monaco") as Promise<StreamMonacoModule>]);
 
     if (!editorEl.value) return;
 
@@ -546,12 +542,11 @@ const initEditor = async () => {
       wrappingIndent: "same" as const,
       folding: true,
       automaticLayout: false,
-      theme: isDark.value ? "github-dark" : "github-light",
+      theme: isDark.value ? "vs-dark" : "vs",
     };
 
     const helpers = useMonaco({
       ...editorOptions,
-      themes: [themeLight.default, themeDark.default],
       updateThrottleMs: 60, // VMR 优化：降低 CPU 占用
       revealDebounceMs: 100, // VMR 优化：合并滚动，减少抖动
       minimalEditMaxChars: 200000,
@@ -634,7 +629,7 @@ onMounted(() => {
 });
 
 watch(isDark, async (dark) => {
-  await setTheme(dark ? "github-dark" : "github-light");
+  await setTheme(dark ? "vs-dark" : "vs");
 });
 
 onUnmounted(() => {
@@ -913,28 +908,12 @@ watch(
   height: 100% !important;
 }
 
-/* 适配主题外观：使 Monaco 编辑器背景透明，使用经过颜色混合处理的背景变量 */
-:deep(.monaco-editor) {
-  /*
-    Monaco 的主题会注入一个 .monaco-editor 选择器来覆盖 --vscode-editor-background 变量。
-    我们需要用 Vue 的 scoped style 生成的更高优先级的选择器 ([data-v-xxxx]) 来覆盖回去。
-    这里我们不能直接使用 var(--vscode-editor-background)，因为它已经被污染了。
-    我们根据 useThemeAppearance 的逻辑重新构建正确的背景色，并使用 --code-block-bg 变量来同步设置。
-  */
-  --vscode-editor-background: var(--code-block-bg, var(--container-bg)) !important;
-  --vscode-editorGutter-background: var(--code-block-bg, var(--container-bg)) !important;
-  --vscode-editorStickyScrollGutter-background: var(--code-block-bg, var(--card-bg)) !important;
-  --vscode-editorStickyScroll-background: var(--code-block-bg, var(--card-bg)) !important;
-  --vscode-editorStickyScroll-shadow: var(--code-block-bg, var(--card-bg)) !important;
-}
-
+/* Monaco Editor 样式覆盖以适配主题 */
+:deep(.monaco-editor),
+:deep(.monaco-editor .margin),
 :deep(.monaco-editor .monaco-editor-background),
 :deep(.monaco-editor .overflow-guard),
 :deep(.monaco-editor .lines-content) {
-  background-color: var(--vscode-editor-background) !important;
-}
-
-:deep(.monaco-editor .margin) {
-  background-color: var(--vscode-editorGutter-background) !important;
+  background-color: var(--code-block-bg, var(--container-bg)) !important;
 }
 </style>

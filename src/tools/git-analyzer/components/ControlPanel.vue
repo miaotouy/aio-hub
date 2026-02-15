@@ -142,7 +142,6 @@
             style="width: 100%"
             size="default"
             format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
           />
         </el-col>
         <div style="width: 20px"></div>

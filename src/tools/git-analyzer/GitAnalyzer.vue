@@ -269,7 +269,10 @@ function saveCurrentConfig() {
     pageSize: pageSize.value,
     searchQuery: searchQuery.value,
     dateRange: dateRange.value
-      ? [dateRange.value[0].toISOString(), dateRange.value[1].toISOString()]
+      ? [
+          new Date(dateRange.value[0]).toISOString(),
+          new Date(dateRange.value[1]).toISOString(),
+        ]
       : null,
     authorFilter: authorFilter.value,
     commitRange: commitRange.value,

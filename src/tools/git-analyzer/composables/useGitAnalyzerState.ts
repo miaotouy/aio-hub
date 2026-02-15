@@ -60,7 +60,10 @@ const filterSummary = computed(() => {
   if (dateRange.value) {
     const [start, end] = dateRange.value;
     // 格式化日期为 YYYY-MM-DD
-    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    const formatDate = (d: Date | string) => {
+      const date = typeof d === "string" ? new Date(d) : d;
+      return date.toISOString().split("T")[0];
+    };
     parts.push(`日期: ${formatDate(start)} 至 ${formatDate(end)}`);
   }
   if (commitTypeFilter.value.length > 0) {

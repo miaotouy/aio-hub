@@ -58,7 +58,9 @@ fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
             }
         }
         serde_json::Value::String(s) => {
-            if let Some(path_str) = s.strip_prefix("local-file://") {
+            if let Some(pos) = s.find("local-file://") {
+                let path_str = &s[pos + "local-file://".len()..];
+
                 // 解码路径（处理空格和特殊字符）
                 let decoded_path = urlencoding::decode(path_str)
                     .map_err(|e| format!("Failed to decode path: {}", e))?;
@@ -68,7 +70,9 @@ fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
                 // 考虑到 LLM 请求通常在单独的线程池中处理，这里暂时保持同步读取。
                 if let Ok(bytes) = std::fs::read(decoded_path.as_ref()) {
                     let b64 = STANDARD.encode(bytes);
-                    *value = serde_json::Value::String(b64);
+                    // 保留 local-file:// 之前的前缀（如 "data:video/mp4;base64,"）
+                    let prefix = &s[..pos];
+                    *value = serde_json::Value::String(format!("{}{}", prefix, b64));
                 } else {
                     error!("Failed to read local file: {}", decoded_path);
                 }

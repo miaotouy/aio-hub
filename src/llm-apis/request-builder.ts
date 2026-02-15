@@ -424,8 +424,13 @@ export function buildBase64DataUrl(
   mimeType?: string,
   options: { rawBase64?: boolean } = {}
 ): string {
-  // 劫持检测：如果是本地文件协议，直接返回，交给后端的代理处理
+  // 劫持检测：如果是本地文件协议，构建带 data URL 前缀的格式
+  // 后端代理会在字符串中查找 local-file:// 并替换为实际的 base64 数据
+  // 这样 OpenAI 的 image_url.url 会得到完整的 data URL 格式
   if (typeof data === "string" && data.startsWith("local-file://")) {
+    if (mimeType) {
+      return `data:${mimeType};base64,${data}`;
+    }
     return data;
   }
 

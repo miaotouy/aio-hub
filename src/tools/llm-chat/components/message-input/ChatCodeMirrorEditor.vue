@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, shallowRef } from "vue";
+import { ref, watch, onMounted, shallowRef, nextTick } from "vue";
 import { EditorView, keymap, tooltips, placeholder as cmPlaceholder } from "@codemirror/view";
 import { EditorState, Compartment, Prec } from "@codemirror/state";
 import { useTheme } from "@/composables/useTheme";
@@ -13,6 +13,9 @@ import {
 } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, insertNewline } from "@codemirror/commands";
 import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("ChatCodeMirrorEditor");
 
 interface Props {
   value: string;
@@ -41,6 +44,11 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLElement>();
 const view = shallowRef<EditorView>();
+
+// 标记是否正在执行从外部 props 到内部 doc 的同步
+// 用于防止“回音”效应：外部修改 -> watch 触发 -> dispatch -> updateListener 触发 -> emit -> 覆盖外部修改
+let isSyncingFromProps = false;
+
 const editableConf = new Compartment();
 const themeConf = new Compartment();
 const { isDark } = useTheme();
@@ -208,7 +216,16 @@ onMounted(() => {
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
-          emit("update:value", update.state.doc.toString());
+          if (isSyncingFromProps) {
+            logger.debug("正在从 props 同步，忽略本次 docChanged emit");
+            return;
+          }
+          const newDoc = update.state.doc.toString();
+          logger.debug("updateListener docChanged, emit update:value", {
+            docLength: newDoc.length,
+            hasUploading: newDoc.includes("uploading:"),
+          });
+          emit("update:value", newDoc);
         }
       }),
       // 监听原始键盘事件
@@ -235,10 +252,26 @@ onMounted(() => {
 watch(
   () => props.value,
   (newVal) => {
-    if (view.value && newVal !== view.value.state.doc.toString()) {
-      view.value.dispatch({
-        changes: { from: 0, to: view.value.state.doc.length, insert: newVal },
-      });
+    if (view.value) {
+      const currentDoc = view.value.state.doc.toString();
+      if (newVal !== currentDoc) {
+        logger.debug("外部值变化，执行 dispatch 同步", {
+          newValLength: newVal.length,
+          currentDocLength: currentDoc.length,
+        });
+        isSyncingFromProps = true;
+        try {
+          view.value.dispatch({
+            changes: { from: 0, to: currentDoc.length, insert: newVal },
+          });
+        } finally {
+          // 使用 nextTick 确保在当前事件循环结束后再重置，
+          // 因为 dispatch 可能会同步触发 updateListener
+          nextTick(() => {
+            isSyncingFromProps = false;
+          });
+        }
+      }
     }
   }
 );

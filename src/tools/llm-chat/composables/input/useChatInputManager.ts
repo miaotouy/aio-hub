@@ -33,7 +33,10 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { Asset } from "@/types/asset-management";
 import type { StateSyncPayload, JsonPatchOperation } from "@/types/window-sync";
 import type { ModelIdentifier } from "../../types";
-import { generateAssetPlaceholder } from "../../core/context-processors/transcription-processor";
+import {
+  generateAssetPlaceholder,
+  generateUploadingPlaceholder,
+} from "../../core/context-processors/transcription-processor";
 
 const logger = createModuleLogger("ChatInputManager");
 const errorHandler = createModuleErrorHandler("ChatInputManager");
@@ -188,12 +191,28 @@ class ChatInputManager {
     watch(
       this.syncState,
       (newState) => {
+        // 如果是本地修改导致的 syncState 变化（isApplyingSyncState 为 false 时触发的本地 push），
+        // 我们不需要再同步回 inputText，否则会产生竞态
+        if (!this.isApplyingSyncState && newState.text === this.inputText.value) {
+          return;
+        }
+
         this.isApplyingSyncState = true;
 
         // 同步文本
+        // 只有当文本真的不同，且我们不是在处理本地修改时才同步
         if (newState.text !== this.inputText.value) {
-          this.inputText.value = newState.text;
-          logger.debug("从同步状态更新输入框", { textLength: newState.text.length });
+          // 额外的保护：如果新值比旧值“旧”（比如包含 uploading 而当前已经替换了），且不是来自全量同步，则拒绝
+          if (
+            this.inputText.value.includes("file::") &&
+            !this.inputText.value.includes("uploading:") &&
+            newState.text.includes("uploading:")
+          ) {
+            logger.warn("[syncState watch] 拒绝将已完成的占位符回滚为上传中状态");
+          } else {
+            this.inputText.value = newState.text;
+            logger.debug("从同步状态更新输入框", { textLength: newState.text.length });
+          }
         }
 
         // 同步附件（使用智能合并，保留正在导入的资产引用）
@@ -624,16 +643,65 @@ class ChatInputManager {
   }
 
   /**
+   * 在当前光标位置插入上传中的资产占位符
+   * 占位符带 uploading: 前缀，上传完成后通过 updatePlaceholderId 替换为正常格式
+   * @param assets 附件列表
+   * @param cursorPosition 当前光标位置（默认为文本末尾）
+   */
+  insertUploadingPlaceholders(assets: Asset[], cursorPosition?: number): void {
+    if (assets.length === 0) return;
+
+    const placeholders = assets.map((asset) => generateUploadingPlaceholder(asset.id));
+    const placeholderText = placeholders.join("\n");
+
+    const currentText = this.inputText.value;
+    const pos = cursorPosition ?? currentText.length;
+
+    const before = currentText.substring(0, pos);
+    const after = currentText.substring(pos);
+
+    const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+    const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
+
+    this.inputText.value = before + insertPrefix + placeholderText + insertSuffix + after;
+
+    logger.info("插入上传中占位符", {
+      count: assets.length,
+      cursorPosition: pos,
+    });
+  }
+
+  /**
    * 更新输入框中占位符的 asset ID
+   * 优先匹配 uploading 格式的占位符，回退到普通格式
    * 用于 asset 导入完成后，临时 ID 变为真实 ID 时同步更新占位符
    */
   updatePlaceholderId(oldId: string, newId: string): void {
     if (oldId === newId) return;
-    const oldPlaceholder = generateAssetPlaceholder(oldId);
     const newPlaceholder = generateAssetPlaceholder(newId);
-    if (this.inputText.value.includes(oldPlaceholder)) {
-      this.inputText.value = this.inputText.value.split(oldPlaceholder).join(newPlaceholder);
+
+    const beforeValue = this.inputText.value;
+
+    // 优先匹配 uploading 格式：【file::uploading:tempId】 -> 【file::realId】
+    const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
+    if (beforeValue.includes(uploadingPlaceholder)) {
+      const afterValue = beforeValue.split(uploadingPlaceholder).join(newPlaceholder);
+      this.inputText.value = afterValue;
+      logger.info("更新占位符 ID (uploading -> real)", { oldId, newId });
+      return;
+    }
+
+    // 回退：匹配普通格式（兼容非粘贴场景）
+    const oldPlaceholder = generateAssetPlaceholder(oldId);
+    if (beforeValue.includes(oldPlaceholder)) {
+      this.inputText.value = beforeValue.split(oldPlaceholder).join(newPlaceholder);
       logger.info("更新占位符 ID", { oldId, newId });
+    } else {
+      logger.warn("[updatePlaceholderId] 未找到任何匹配的占位符", {
+        uploadingPlaceholder,
+        oldPlaceholder,
+        inputTextContent: beforeValue.substring(0, 300),
+      });
     }
   }
 
@@ -724,6 +792,8 @@ export function useChatInputManager() {
     insertAssetPlaceholders: manager.insertAssetPlaceholders.bind(manager),
     /** 转换文本中的路径为附件 */
     convertPathsToAttachments: manager.convertPathsToAttachments.bind(manager),
+    /** 插入上传中的资产占位符（带 uploading: 前缀） */
+    insertUploadingPlaceholders: manager.insertUploadingPlaceholders.bind(manager),
     /** 更新占位符中的 asset ID（临时 ID -> 真实 ID） */
     updatePlaceholderId: manager.updatePlaceholderId.bind(manager),
 

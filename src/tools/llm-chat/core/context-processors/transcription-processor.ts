@@ -350,3 +350,13 @@ export const transcriptionProcessor: ContextProcessor = {
 export function generateAssetPlaceholder(assetId: string): string {
   return `【file::${assetId}】`;
 }
+
+/**
+ * 生成上传中的资产占位符（带 uploading: 前缀）
+ * 用于粘贴场景下 asset 还在后台上传时的临时标记
+ * @param tempId 临时 ID
+ * @returns 上传中占位符字符串，格式：【file::uploading:tempId】
+ */
+export function generateUploadingPlaceholder(tempId: string): string {
+  return `【file::uploading:${tempId}】`;
+}

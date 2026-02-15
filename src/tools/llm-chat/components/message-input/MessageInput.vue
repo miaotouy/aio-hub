@@ -219,18 +219,33 @@ const { isDraggingOver } = useChatFileInteraction({
       // 自动插入占位符
       if (settings.value.transcription.autoInsertPlaceholder) {
         const cursorPos = textareaRef.value?.getSelectionRange()?.start;
-        // 记录插入时的临时 id（粘贴场景下 asset 可能还在后台上传，id 是临时的 nanoid）
-        const tempIds = addedAssets.map((a) => a.id);
-        inputManager.insertAssetPlaceholders(addedAssets, cursorPos);
 
-        // 对正在导入的 asset，watch id 变化，导入完成后自动更新占位符中的 id
-        for (let i = 0; i < addedAssets.length; i++) {
-          const asset = addedAssets[i];
-          const tempId = tempIds[i];
-          if (asset.importStatus !== "complete") {
+        // 区分已完成和上传中的 asset
+        const completedAssets = addedAssets.filter((a) => a.importStatus === "complete");
+        const uploadingAssets = addedAssets.filter((a) => a.importStatus !== "complete");
+
+        // 已完成的直接插入正常占位符
+        if (completedAssets.length > 0) {
+          inputManager.insertAssetPlaceholders(completedAssets, cursorPos);
+        }
+
+        // 上传中的插入带 uploading: 前缀的占位符
+        if (uploadingAssets.length > 0) {
+          const uploadingCursorPos = completedAssets.length > 0 ? undefined : cursorPos;
+          inputManager.insertUploadingPlaceholders(uploadingAssets, uploadingCursorPos);
+
+          // watch id 变化，导入完成后将 uploading 占位符替换为正常占位符
+          for (const asset of uploadingAssets) {
+            const tempId = asset.id;
+            logger.info("[占位符同步] 创建 watch 监听器", {
+              tempId,
+              importStatus: asset.importStatus,
+              isReactive: !!(asset as any).__v_isReactive,
+            });
             const stop = watch(
               () => asset.id,
-              (newId) => {
+              (newId, oldId) => {
+                logger.info("[占位符同步] watch 触发", { oldId, newId, tempId });
                 if (newId && newId !== tempId) {
                   inputManager.updatePlaceholderId(tempId, newId);
                   stop();

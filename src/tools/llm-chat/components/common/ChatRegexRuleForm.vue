@@ -394,12 +394,20 @@ const createFieldProxy = <K extends keyof ChatRegexRule>(key: K) => {
   });
 };
 
+// replacementType 需要单独处理默认值，旧规则数据可能缺失该字段
+const replacementTypeProxy = computed({
+  get: () => props.modelValue.replacementType ?? "regex",
+  set: (value) => {
+    emit("update:modelValue", { ...props.modelValue, replacementType: value });
+  },
+});
+
 const localRule = reactive({
   name: createFieldProxy("name"),
   regex: createFieldProxy("regex"),
   replacement: createFieldProxy("replacement"),
   flags: createFieldProxy("flags"),
-  replacementType: createFieldProxy("replacementType"),
+  replacementType: replacementTypeProxy,
   scriptContent: createFieldProxy("scriptContent"),
   applyInStreaming: createFieldProxy("applyInStreaming"),
   // applyTo 是嵌套对象，需要单独处理

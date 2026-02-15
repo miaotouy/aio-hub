@@ -460,8 +460,10 @@ defineExpose({
 
 /* 统一图片样式限制 */
 .rich-text-renderer :deep(img) {
-  max-width: 100%;
+  width: auto;
+  max-width: 1200px;
   height: auto;
+  max-height: 720px;
   border-radius: 4px;
   margin: 4px 0;
   vertical-align: middle;

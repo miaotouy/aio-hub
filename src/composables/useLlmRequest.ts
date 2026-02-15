@@ -176,6 +176,12 @@ export function useLlmRequest() {
       }
 
       // 注入渠道的代理行为配置
+      // 强制同步网络控制字段，确保适配器和 fetchWithTimeout 能接收到这些标志
+      filteredOptions.hasLocalFile = options.hasLocalFile;
+      filteredOptions.forceProxy = options.forceProxy;
+      filteredOptions.relaxIdCerts = options.relaxIdCerts;
+      filteredOptions.http1Only = options.http1Only;
+
       if (profile.networkStrategy !== undefined) {
         filteredOptions.networkStrategy = profile.networkStrategy;
 

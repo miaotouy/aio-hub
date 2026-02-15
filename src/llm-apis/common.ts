@@ -632,9 +632,17 @@ export const fetchWithTimeout = async (
     // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
     // networkStrategy === 'native' 具有最高优先级，除非是前端 fetch 无法实现的底层配置
     const isNative = options.networkStrategy === "native";
+    // 劫持检测逻辑：
+    // 1. 如果包含本地文件 (hasLocalFile)，则无论何种策略都必须走代理，因为原生 fetch 无法处理 local-file:// 协议
+    // 2. 深度检测：如果 body 是字符串且包含 local-file://，也强制走代理（兜底逻辑）
+    // 3. 否则，遵循非原生策略下的代理/强制代理/底层配置要求
+    const bodyString = typeof options.body === 'string' ? options.body : '';
+    const hasLocalFileInBody = bodyString.includes('local-file://');
+
     const useProxy =
-      !isNative &&
-      (options.hasLocalFile || options.forceProxy || options.relaxIdCerts || options.http1Only);
+      options.hasLocalFile ||
+      hasLocalFileInBody ||
+      (!isNative && (options.forceProxy || options.relaxIdCerts || options.http1Only));
 
     if (useProxy) {
       let bodyObjForProxy: any = {}; // 默认为空对象

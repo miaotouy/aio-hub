@@ -952,6 +952,19 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "contextPostProcessing",
   "enabledParameters",
   "custom", // 旧版参数容器
+
+  // 网络与代理配置 (这些字段由 common.ts 处理，不应透传到 API 请求体)
+  "networkStrategy",
+  "hasLocalFile",
+  "forceProxy",
+  "relaxIdCerts",
+  "http1Only",
+  "apiKey",
+
+  // 其他任务特有参数
+  "embeddingInput",
+  "rerankQuery",
+  "rerankDocuments",
 ]);
 
 /**
@@ -1025,6 +1038,12 @@ export function cleanPayload(body: any): any {
     "thinkingLevel",
     "reasoningEffort",
     "includeThoughts",
+    "networkStrategy",
+    "hasLocalFile",
+    "forceProxy",
+    "relaxIdCerts",
+    "http1Only",
+    "apiKey",
   ];
 
   for (const key of forbiddenKeys) {

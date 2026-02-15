@@ -3,6 +3,7 @@ import { ref, watch } from "vue";
 import type { TranscriptionTask, TranscriptionConfig } from "../types";
 import { DEFAULT_TRANSCRIPTION_CONFIG } from "../config";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
+import { sanitizeErrorMessage } from "../utils/text";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { transcriptionConfigManager, transcriptionTasksManager } from "../utils/persistence";
@@ -41,7 +42,9 @@ export const useTranscriptionStore = defineStore("transcription", () => {
     try {
       const data = await transcriptionTasksManager.load();
       const list = data.list || [];
+      let sanitizedCount = 0;
       // 处理未完成的任务：刷新后这些任务的执行上下文已丢失，标记为已取消
+      // 同时清理已有记录中过长的 error 字段（历史遗留脏数据）
       tasks.value = list.map((task) => {
         if (task.status === "processing" || task.status === "pending") {
           return {
@@ -50,8 +53,15 @@ export const useTranscriptionStore = defineStore("transcription", () => {
             error: "应用重启，任务已自动取消",
           };
         }
+        if (task.error && task.error.length > 500) {
+          sanitizedCount++;
+          return { ...task, error: sanitizeErrorMessage(task.error) };
+        }
         return task;
       });
+      if (sanitizedCount > 0) {
+        logger.info(`已清理 ${sanitizedCount} 条历史任务的过长错误信息`);
+      }
     } catch (e) {
       logger.warn("加载转写任务失败", e);
     }
@@ -94,7 +104,7 @@ export const useTranscriptionStore = defineStore("transcription", () => {
 
   // 任务管理
   const addTask = (task: TranscriptionTask) => {
-    const existingIndex = tasks.value.findIndex(t => t.assetId === task.assetId);
+    const existingIndex = tasks.value.findIndex((t) => t.assetId === task.assetId);
     if (existingIndex !== -1) {
       const existing = tasks.value[existingIndex];
       if (existing.status === "processing" || existing.status === "pending") {
@@ -107,28 +117,28 @@ export const useTranscriptionStore = defineStore("transcription", () => {
   };
 
   const updateTask = (id: string, updates: Partial<TranscriptionTask>) => {
-    const task = tasks.value.find(t => t.id === id);
+    const task = tasks.value.find((t) => t.id === id);
     if (task) {
       Object.assign(task, updates);
     }
   };
 
   const updateTaskByAssetId = (assetId: string, updates: Partial<TranscriptionTask>) => {
-    const task = tasks.value.find(t => t.assetId === assetId);
+    const task = tasks.value.find((t) => t.assetId === assetId);
     if (task) {
       Object.assign(task, updates);
     }
   };
 
   const removeTask = (id: string) => {
-    const index = tasks.value.findIndex(t => t.id === id);
+    const index = tasks.value.findIndex((t) => t.id === id);
     if (index !== -1) {
       tasks.value.splice(index, 1);
     }
   };
 
   const getTaskByAssetId = (assetId: string) => {
-    return tasks.value.find(t => t.assetId === assetId);
+    return tasks.value.find((t) => t.assetId === assetId);
   };
 
   /**

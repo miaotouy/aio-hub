@@ -433,6 +433,9 @@ defineExpose({
   width: 100%;
   min-height: 40px;
   cursor: text;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .chat-cm-editor.disabled {
@@ -441,12 +444,13 @@ defineExpose({
 }
 
 :deep(.cm-editor) {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 :deep(.cm-scroller) {
-  height: 100% !important;
-  max-height: inherit !important;
+  overflow: auto !important;
 }
 
 /* 搜索面板适配 */

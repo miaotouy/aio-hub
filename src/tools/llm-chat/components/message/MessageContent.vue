@@ -27,6 +27,7 @@ import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
+import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
 import { useAttachmentManager } from "../../composables/features/useAttachmentManager";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -618,13 +619,19 @@ const errorMessage = computed(() => messageMetadata.value?.error);
       </div>
 
       <!-- 文本编辑区域 -->
-      <textarea
-        v-model="editingContent"
-        class="edit-textarea"
-        rows="3"
+      <ChatCodeMirrorEditor
+        :value="editingContent"
         placeholder="编辑消息内容、拖入或粘贴文件..."
-        @keydown.ctrl.enter="saveEdit"
-        @keydown.esc="cancelEdit"
+        height="auto"
+        max-height="600px"
+        send-key="ctrl+enter"
+        @update:value="editingContent = $event"
+        @submit="saveEdit"
+        @keydown="
+          (e: KeyboardEvent) => {
+            if (e.key === 'Escape') cancelEdit();
+          }
+        "
       />
 
       <!-- 操作按钮 -->
@@ -892,24 +899,14 @@ const errorMessage = computed(() => messageMetadata.value?.error);
   border-color: var(--primary-color);
 }
 
-.edit-textarea {
-  width: 100%;
-  padding: 8px;
+.edit-mode :deep(.chat-cm-editor) {
+  min-height: 200px;
   border: 1px solid var(--primary-color);
   border-radius: 4px;
   background-color: var(--container-bg);
-  color: var(--text-color);
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.6;
-  resize: vertical;
-  min-height: 300px;
-  box-sizing: border-box;
 }
 
-.edit-textarea:focus {
-  outline: none;
-  border-color: var(--primary-color);
+.edit-mode :deep(.chat-cm-editor:focus-within) {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 

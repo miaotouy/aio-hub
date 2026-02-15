@@ -1,4 +1,29 @@
 /**
+ * 清理错误信息，移除 base64 数据和过长内容，防止撑爆持久化文件和 UI
+ */
+export const sanitizeErrorMessage = (message: string, maxLength: number = 2000): string => {
+  if (!message) return message;
+
+  let cleaned = message;
+
+  // 1. 移除 base64 编码数据 (data:xxx;base64,... 格式)
+  cleaned = cleaned.replace(/data:[a-zA-Z0-9/+.-]+;base64,[A-Za-z0-9+/=\s]{100,}/g, "[base64 数据已省略]");
+
+  // 2. 移除 local-file:// 协议路径后可能跟随的大段数据
+  cleaned = cleaned.replace(/local-file:\/\/[^\s"'}\]]{200,}/g, "[文件路径已省略]");
+
+  // 3. 移除疑似内联 base64 的超长连续字符串 (无空格、长度 > 200 的纯 ASCII 块)
+  cleaned = cleaned.replace(/[A-Za-z0-9+/=]{200,}/g, "[长编码数据已省略]");
+
+  // 4. 最终长度截断
+  if (cleaned.length > maxLength) {
+    cleaned = cleaned.substring(0, maxLength) + `\n...[消息过长，已截断至 ${maxLength} 字符]`;
+  }
+
+  return cleaned;
+};
+
+/**
  * 清理 LLM 输出，移除思考链部分
  */
 export const cleanLlmOutput = (text: string): string => {

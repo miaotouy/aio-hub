@@ -361,7 +361,7 @@ const getTaskDuration = (task: TranscriptionTask) => {
           <template #default="{ row }">
             <el-tooltip
               :disabled="row.status !== 'error' || !row.error"
-              :content="row.error"
+              :content="row.error?.length > 200 ? row.error.substring(0, 200) + '...' : row.error"
               placement="top"
               :show-after="300"
             >

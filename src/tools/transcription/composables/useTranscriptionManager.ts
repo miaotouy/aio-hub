@@ -4,6 +4,7 @@ import { AudioTranscriptionEngine } from "../engines/audio.engine";
 import { VideoTranscriptionEngine } from "../engines/video.engine";
 import { PdfTranscriptionEngine } from "../engines/pdf.engine";
 import { saveTranscriptionResult, updateDerivedStatus } from "../engines/base";
+import { sanitizeErrorMessage } from "../utils/text";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -100,7 +101,8 @@ export function useTranscriptionManager() {
         pendingTask.tempFilePath = undefined;
       }
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
+      const rawErrorMessage = e instanceof Error ? e.message : String(e);
+      const errorMessage = sanitizeErrorMessage(rawErrorMessage);
       const isRepetitionError = store.config.enableRepetitionDetection && errorMessage.includes("复读");
 
       logger.error(`转写任务失败: ${pendingTask.id}`, e, {

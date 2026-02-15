@@ -624,6 +624,20 @@ class ChatInputManager {
   }
 
   /**
+   * 更新输入框中占位符的 asset ID
+   * 用于 asset 导入完成后，临时 ID 变为真实 ID 时同步更新占位符
+   */
+  updatePlaceholderId(oldId: string, newId: string): void {
+    if (oldId === newId) return;
+    const oldPlaceholder = generateAssetPlaceholder(oldId);
+    const newPlaceholder = generateAssetPlaceholder(newId);
+    if (this.inputText.value.includes(oldPlaceholder)) {
+      this.inputText.value = this.inputText.value.split(oldPlaceholder).join(newPlaceholder);
+      logger.info("更新占位符 ID", { oldId, newId });
+    }
+  }
+
+  /**
    * 移除附件
    * @returns 是否成功移除
    */
@@ -710,6 +724,8 @@ export function useChatInputManager() {
     insertAssetPlaceholders: manager.insertAssetPlaceholders.bind(manager),
     /** 转换文本中的路径为附件 */
     convertPathsToAttachments: manager.convertPathsToAttachments.bind(manager),
+    /** 更新占位符中的 asset ID（临时 ID -> 真实 ID） */
+    updatePlaceholderId: manager.updatePlaceholderId.bind(manager),
 
     // ========== 附件操作方法 ==========
     /** 添加附件（从文件路径） */

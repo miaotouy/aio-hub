@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef, computed, onMounted } from "vue";
+import { ref, toRef, computed, onMounted, watch } from "vue";
 import { useStorage, useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
@@ -219,7 +219,26 @@ const { isDraggingOver } = useChatFileInteraction({
       // 自动插入占位符
       if (settings.value.transcription.autoInsertPlaceholder) {
         const cursorPos = textareaRef.value?.getSelectionRange()?.start;
+        // 记录插入时的临时 id（粘贴场景下 asset 可能还在后台上传，id 是临时的 nanoid）
+        const tempIds = addedAssets.map((a) => a.id);
         inputManager.insertAssetPlaceholders(addedAssets, cursorPos);
+
+        // 对正在导入的 asset，watch id 变化，导入完成后自动更新占位符中的 id
+        for (let i = 0; i < addedAssets.length; i++) {
+          const asset = addedAssets[i];
+          const tempId = tempIds[i];
+          if (asset.importStatus !== "complete") {
+            const stop = watch(
+              () => asset.id,
+              (newId) => {
+                if (newId && newId !== tempId) {
+                  inputManager.updatePlaceholderId(tempId, newId);
+                  stop();
+                }
+              }
+            );
+          }
+        }
       }
     }
   },

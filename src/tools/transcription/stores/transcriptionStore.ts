@@ -53,7 +53,7 @@ export const useTranscriptionStore = defineStore("transcription", () => {
             error: "应用重启，任务已自动取消",
           };
         }
-        if (task.error && task.error.length > 500) {
+        if (task.error && task.error.length > 1500) {
           sanitizedCount++;
           return { ...task, error: sanitizeErrorMessage(task.error) };
         }

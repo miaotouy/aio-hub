@@ -65,9 +65,8 @@ function replacePlaceholders(
       // 检查是否有转写结果
       const transcription = transcriptionResults.get(assetId);
       if (transcription) {
-        // 有转写结果，替换为格式化文本
-        const replacement = `[转写: ${attachment.name}]\n${transcription}`;
-        replacements.push({ start, end, assetId, replacement });
+        // 有转写结果，直接使用已格式化的内容（resolveAttachmentContent 已包含标记）
+        replacements.push({ start, end, assetId, replacement: transcription });
       } else {
         // 无转写结果但有附件，替换为附件标注（增强多模态指向性）
         const index = assets.findIndex((a) => a.id === assetId);
@@ -115,10 +114,10 @@ function buildAttachmentContent(
   for (const asset of unclaimedAssets) {
     const transcription = transcriptionResults.get(asset.id);
     if (transcription) {
-      // 有转写结果，追加格式化文本
+      // 有转写结果，直接使用已格式化的内容（resolveAttachmentContent 已包含标记）
       contents.push({
         type: "text",
-        text: `[转写: ${asset.name}]\n${transcription}`,
+        text: transcription,
       });
     }
     // 注意：没有转写结果的附件（如纯图片）不会追加任何内容

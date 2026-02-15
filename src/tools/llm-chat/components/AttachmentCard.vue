@@ -756,10 +756,10 @@ onUnmounted(() => {
           </el-dropdown-item>
         </template>
 
-        <el-dropdown-item v-if="removable" divided @click="handleInsertPlaceholder">
+        <el-dropdown-item divided @click="handleInsertPlaceholder">
           插入占位符
         </el-dropdown-item>
-        <el-dropdown-item v-if="removable" @click="handleCopyPlaceholder">
+        <el-dropdown-item @click="handleCopyPlaceholder">
           复制占位符
         </el-dropdown-item>
 

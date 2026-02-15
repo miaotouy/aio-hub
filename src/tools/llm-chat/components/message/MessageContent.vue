@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide } from "vue";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSession, TranslationDisplayMode } from "../../types";
@@ -11,6 +12,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { useUserProfileStore } from "../../stores/userProfileStore";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../../macro-engine";
 import { processMacros, buildMacroContext } from "../../core/context-utils/macro";
 import {
@@ -459,9 +461,37 @@ const showTranslation = computed(() => {
   );
 });
 
+// 缓存资产根目录，用于同步解析 【file::...】 占位符
+const assetBasePath = ref("");
+assetManagerEngine.getAssetBasePath().then((path) => {
+  assetBasePath.value = path;
+});
+
 // 资产转换钩子
 const resolveAsset = (content: string) => {
-  return processMessageAssetsSync(content, currentAgent.value);
+  // 1. 处理 agent-asset:// 和 file://
+  let processed = processMessageAssetsSync(content, currentAgent.value);
+
+  // 2. 处理 【file::assetId】 占位符
+  if (processed.includes("【file::")) {
+    processed = processed.replace(/【file::([^】]+)】/g, (match, assetId) => {
+      // 在当前消息的附件中查找
+      const asset = props.message.attachments?.find((a) => a.id === assetId);
+      if (asset && assetBasePath.value) {
+        // 如果是导入完成的资产，使用资产协议 URL
+        if (asset.path && !asset.path.startsWith("http") && !asset.path.includes(":")) {
+          return assetManagerEngine.convertToAssetProtocol(asset.path, assetBasePath.value);
+        }
+        // 如果是待导入的资产（存储的是原始路径），直接转换
+        if (asset.originalPath || asset.path) {
+          return convertFileSrc(asset.originalPath || asset.path);
+        }
+      }
+      return match;
+    });
+  }
+
+  return processed;
 };
 
 // 响应式布局

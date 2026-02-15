@@ -536,9 +536,16 @@ const isReady = ref(false);
 // ===== 键盘导航 =====
 const handleKeyDown = (e: KeyboardEvent) => {
   // 处理 Ctrl+F 搜索快捷键 (无论焦点在哪里，只要在 ChatArea 内)
+  // 但如果焦点在 CodeMirror 编辑器内，则让编辑器自己处理搜索
   if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-    e.preventDefault();
-    showSearchPanel.value = !showSearchPanel.value;
+    const target = e.target as HTMLElement;
+    const isInCodeMirror = target.closest(".cm-editor");
+    if (!isInCodeMirror) {
+      e.preventDefault();
+      showSearchPanel.value = !showSearchPanel.value;
+      return;
+    }
+    // 焦点在 CodeMirror 内，不拦截，让编辑器自己的搜索面板处理
     return;
   }
 

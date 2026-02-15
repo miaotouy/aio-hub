@@ -12,6 +12,7 @@ import {
   Completion,
 } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, insertNewline } from "@codemirror/commands";
+import { highlightSelectionMatches, searchKeymap, search } from "@codemirror/search";
 import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -52,6 +53,38 @@ let isSyncingFromProps = false;
 const editableConf = new Compartment();
 const themeConf = new Compartment();
 const { isDark } = useTheme();
+
+// CodeMirror 搜索面板汉化
+const zhCnPhrases: Record<string, string> = {
+  Find: "查找",
+  find: "查找",
+  Replace: "替换",
+  replace: "替换",
+  next: "下一个",
+  Next: "下一个",
+  previous: "上一个",
+  Previous: "上一个",
+  all: "全部",
+  All: "全部",
+  "match case": "区分大小写",
+  "Match case": "区分大小写",
+  "by word": "全字匹配",
+  "By word": "全字匹配",
+  regexp: "正则表达式",
+  Regexp: "正则表达式",
+  "regular expression": "正则表达式",
+  "Regular expression": "正则表达式",
+  "replace all": "全部替换",
+  "Replace all": "全部替换",
+  "replace with": "替换为",
+  "Replace with": "替换为",
+  close: "关闭",
+  Close: "关闭",
+  "next match": "下一个匹配",
+  "Next match": "下一个匹配",
+  "previous match": "上一个匹配",
+  "Previous match": "上一个匹配",
+};
 
 // 宏补全源
 const macroCompletionSource = (context: CompletionContext): CompletionResult | null => {
@@ -177,6 +210,7 @@ onMounted(() => {
   const state = EditorState.create({
     doc: props.value,
     extensions: [
+      EditorState.phrases.of(zhCnPhrases),
       Prec.highest(
         keymap.of([
           {
@@ -202,7 +236,9 @@ onMounted(() => {
       history(),
       editableConf.of(EditorView.editable.of(!props.disabled)),
       themeConf.of(isDark.value ? vscodeDark : vscodeLight),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      highlightSelectionMatches(),
+      search({ top: true }),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       markdown(),
       autocompletion({
         override: [macroCompletionSource],
@@ -231,6 +267,10 @@ onMounted(() => {
       // 监听原始键盘事件
       EditorView.domEventHandlers({
         keydown: (event) => {
+          // 阻止搜索快捷键冒泡到外层 chat 搜索
+          if ((event.ctrlKey || event.metaKey) && (event.key === "f" || event.key === "h")) {
+            event.stopPropagation();
+          }
           emit("keydown", event);
           return false;
         },
@@ -407,5 +447,76 @@ defineExpose({
 :deep(.cm-scroller) {
   height: 100% !important;
   max-height: inherit !important;
+}
+
+/* 搜索面板适配 */
+:deep(.cm-panels) {
+  border-top: 1px solid var(--border-color);
+  background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  -webkit-backdrop-filter: blur(var(--ui-blur));
+  z-index: 10;
+}
+
+:deep(.cm-panel.cm-search) {
+  padding: 6px 10px;
+  color: var(--text-color);
+  background: transparent;
+  border: none;
+}
+
+:deep(.cm-panel input.cm-textfield) {
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  box-shadow: none;
+  appearance: none;
+  transition: border-color 0.2s;
+}
+
+:deep(.cm-panel input.cm-textfield:focus) {
+  border-color: var(--primary-color);
+}
+
+:deep(.cm-panel label) {
+  font-size: 12px;
+  color: var(--text-color-light);
+  cursor: pointer;
+}
+
+:deep(.cm-panel button.cm-button) {
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  background-image: none;
+  box-shadow: none;
+  transition: all 0.2s;
+}
+
+:deep(.cm-panel button.cm-button:hover) {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--primary-color);
+}
+
+:deep(.cm-panel [name="close"]) {
+  color: var(--text-color-light);
+  cursor: pointer;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  background-image: none;
+  transition: all 0.2s;
+}
+
+:deep(.cm-panel [name="close"]:hover) {
+  background-color: color-mix(in srgb, var(--error-color) 15%, transparent);
+  color: var(--error-color);
 }
 </style>

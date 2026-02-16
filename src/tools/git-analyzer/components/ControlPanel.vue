@@ -120,7 +120,7 @@
         <el-col :span="5">
           <el-input
             v-model="searchQuery"
-            placeholder="搜索提交信息..."
+            placeholder="搜索 Hash / 提交消息..."
             clearable
             @input="$emit('filter-commits')"
           >

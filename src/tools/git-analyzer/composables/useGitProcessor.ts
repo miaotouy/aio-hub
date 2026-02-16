@@ -153,11 +153,14 @@ export interface FilterOptions {
 export function filterCommits(commits: GitCommit[], options: FilterOptions): GitCommit[] {
   let filtered = [...commits];
 
-  // 搜索筛选
+  // 搜索筛选（支持 hash、首行摘要、完整提交消息）
   if (options.searchQuery) {
     const query = options.searchQuery.toLowerCase();
     filtered = filtered.filter(
-      (c) => c.message.toLowerCase().includes(query) || c.hash.toLowerCase().includes(query)
+      (c) =>
+        c.message.toLowerCase().includes(query) ||
+        c.hash.toLowerCase().includes(query) ||
+        (c.full_message && c.full_message.toLowerCase().includes(query))
     );
   }
 

@@ -3,7 +3,7 @@ import type { Asset } from "@/types/asset-management";
 
 /**
  * 文件类型检测工具
- * 
+ *
  * 使用 file-type 库读取文件魔数进行精确检测，
  * 并使用扩展名映射作为后备方案
  */
@@ -13,12 +13,28 @@ import type { Asset } from "@/types/asset-management";
  * 只读取前 4100 字节（file-type 推荐的最小值）
  */
 async function readFileHeader(filePath: string): Promise<Uint8Array | null> {
+  // 只检测资产库内部文件或临时文件，避免对外部受限路径调用引发 forbidden path 错误
+  // 外部路径通常以 D:\ C:\ 等开头，而资产库路径通常是相对路径或 appdata 协议
+  const isExternalPath =
+    /^[a-zA-Z]:\\|^[a-zA-Z]:\/|^\//.test(filePath) &&
+    !filePath.includes("com.mty.aiohub") &&
+    !filePath.includes("AppData");
+
+  if (isExternalPath) {
+    return null;
+  }
+
   try {
     const { readFile } = await import("@tauri-apps/plugin-fs");
     // 读取文件的前 4100 字节用于类型检测
     const bytes = await readFile(filePath);
     return bytes.slice(0, 4100);
   } catch (error) {
+    // 捕获特定权限错误，静默处理
+    const errorStr = String(error);
+    if (errorStr.includes("forbidden path")) {
+      return null;
+    }
     console.error("读取文件头部失败:", error);
     return null;
   }
@@ -323,7 +339,7 @@ export async function detectMimeTypeFromBuffer(
   // 3. 后备方案：基于文件名提示的扩展名推断
   if (fileNameHint) {
     // 提示可能本身就是一个 MIME 类型
-    if (fileNameHint.includes('/')) {
+    if (fileNameHint.includes("/")) {
       return fileNameHint;
     }
     // 否则，将其视为文件名并从扩展名推断
@@ -341,7 +357,7 @@ export function inferMimeTypeFromHint(hint: string): string | null {
   if (!hint) return null;
   // 检查是否已经是有效的 MIME 类型
   const normalizedHint = hint.trim().toLowerCase();
-  if (normalizedHint.includes('/')) {
+  if (normalizedHint.includes("/")) {
     return normalizedHint;
   }
   // 否则，尝试从扩展名推断
@@ -355,10 +371,7 @@ export function inferMimeTypeFromHint(hint: string): string | null {
  * @param fileName - 文件名（用于扩展名后备检测）
  * @returns MIME 类型字符串
  */
-export async function detectMimeType(
-  filePath: string,
-  fileName: string
-): Promise<string> {
+export async function detectMimeType(filePath: string, fileName: string): Promise<string> {
   const fileHeader = await readFileHeader(filePath);
   if (fileHeader) {
     // 复用 buffer 检测逻辑
@@ -370,7 +383,7 @@ export async function detectMimeType(
 
 /**
  * 检测文件是否为文本文件
- * 
+ *
  * 基于 MIME 类型和扩展名的组合判断
  */
 export function isTextFile(fileName: string, mimeType: string): boolean {
@@ -391,7 +404,7 @@ export function isTextFile(fileName: string, mimeType: string): boolean {
 
 /**
  * 完整的文件类型检测
- * 
+ *
  * @param filePath - 文件路径
  * @param fileName - 文件名
  * @returns 包含 MIME 类型、资产类型和是否为文本文件的对象

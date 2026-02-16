@@ -350,16 +350,12 @@ const filteredAttributes = computed(() => {
     // 处理特殊属性
     if (lowerKey === "style") {
       attrs.style = value;
-    } else if (
-      lowerKey === "src" &&
-      typeof value === "string" &&
-      value.startsWith("agent-asset://")
-    ) {
-      // 解析智能体资产链接
+    } else if (isUrlAttr && typeof value === "string") {
+      // 解析资产链接（包括 agent-asset:// 和 【file::assetId】等占位符）
       if (context?.resolveAsset) {
-        attrs.src = context.resolveAsset(value);
+        attrs[key] = context.resolveAsset(value);
       } else {
-        attrs.src = value;
+        attrs[key] = value;
       }
     } else {
       // 其他属性直接传递

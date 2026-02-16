@@ -9,8 +9,165 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
+
+// --- 资产目录内存状态管理 ---
+
+/// 资产目录状态，在内存中维护所有资产索引
+pub struct AssetCatalog {
+    /// 资产 ID 到条目的映射
+    pub entries: Arc<RwLock<HashMap<String, CatalogEntry>>>,
+    /// 资产存储根目录
+    pub base_dir: Arc<RwLock<Option<PathBuf>>>,
+    /// 是否有未保存的更改
+    pub is_dirty: Arc<RwLock<bool>>,
+}
+
+impl AssetCatalog {
+    pub fn new() -> Self {
+        Self {
+            entries: Arc::new(RwLock::new(HashMap::new())),
+            base_dir: Arc::new(RwLock::new(None)),
+            is_dirty: Arc::new(RwLock::new(false)),
+        }
+    }
+
+    /// 初始化目录，从磁盘加载数据
+    pub fn initialize(&self, app: &AppHandle) -> Result<(), String> {
+        let base_path_str = get_asset_base_path(app.clone())?;
+        let base_dir = PathBuf::from(&base_path_str);
+
+        // 设置 base_dir
+        {
+            let mut base_dir_lock = self.base_dir.write().map_err(|e| e.to_string())?;
+            *base_dir_lock = Some(base_dir.clone());
+        }
+
+        let catalog_path = get_catalog_path(&base_dir)?;
+        if !catalog_path.exists() {
+            return Ok(());
+        }
+
+        use std::io::{BufRead, BufReader};
+        let file =
+            fs::File::open(&catalog_path).map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
+        let reader = BufReader::new(file);
+
+        let mut entries = HashMap::new();
+        for line in reader.lines() {
+            let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
+            if line_content.trim().is_empty() {
+                continue;
+            }
+            if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
+                entry.migrate_if_needed();
+                entries.insert(entry.id.clone(), entry);
+            }
+        }
+
+        {
+            let mut entries_lock = self.entries.write().map_err(|e| e.to_string())?;
+            *entries_lock = entries;
+        }
+
+        log::info!(
+            "[AssetCatalog] 内存索引初始化完成，共加载 {} 条资产",
+            self.get_count()
+        );
+        Ok(())
+    }
+
+    pub fn get_count(&self) -> usize {
+        self.entries.read().map(|e| e.len()).unwrap_or(0)
+    }
+
+    /// 标记为脏并调度保存
+    pub fn mark_dirty(&self, _app: &AppHandle) {
+        {
+            if let Ok(mut dirty) = self.is_dirty.write() {
+                if *dirty {
+                    return; // 已经标记为脏，等待调度
+                }
+                *dirty = true;
+            }
+        }
+
+        // 调度异步保存 (Debounced)
+        let entries_arc = self.entries.clone();
+        let base_dir_arc = self.base_dir.clone();
+        let dirty_arc = self.is_dirty.clone();
+
+        tauri::async_runtime::spawn(async move {
+            // 等待 2 秒防抖
+            tokio::time::sleep(Duration::from_secs(2)).await;
+
+            // 执行保存
+            let result = Self::save_internal(entries_arc, base_dir_arc, dirty_arc);
+            if let Err(e) = result {
+                log::error!("[AssetCatalog] 异步保存失败: {}", e);
+            }
+        });
+    }
+
+    fn save_internal(
+        entries_arc: Arc<RwLock<HashMap<String, CatalogEntry>>>,
+        base_dir_arc: Arc<RwLock<Option<PathBuf>>>,
+        dirty_arc: Arc<RwLock<bool>>,
+    ) -> Result<(), String> {
+        // 重置脏标记
+        {
+            let mut dirty = dirty_arc.write().map_err(|e| e.to_string())?;
+            if !*dirty {
+                return Ok(());
+            }
+            *dirty = false;
+        }
+
+        let base_dir = {
+            let base_dir_lock = base_dir_arc.read().map_err(|e| e.to_string())?;
+            base_dir_lock.clone().ok_or("未设置资产根目录")?
+        };
+
+        let catalog_path = get_catalog_path(&base_dir)?;
+        let temp_catalog_path = catalog_path.with_extension("jsonl.tmp");
+
+        use std::io::{BufWriter, Write};
+        let file = fs::File::create(&temp_catalog_path)
+            .map_err(|e| format!("无法创建临时 Catalog 文件: {}", e))?;
+        let mut writer = BufWriter::new(file);
+
+        let entries = entries_arc.read().map_err(|e| e.to_string())?;
+
+        // 为了保持 jsonl 的稳定性，我们按创建时间排序后写回，或者直接遍历
+        // 这里直接遍历，jsonl 本身不保证顺序
+        for entry in entries.values() {
+            let line = serde_json::to_string(entry)
+                .map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
+            writeln!(writer, "{}", line)
+                .map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
+        }
+
+        writer
+            .flush()
+            .map_err(|e| format!("刷新临时 Catalog 文件缓冲区失败: {}", e))?;
+        drop(writer); // 显式关闭文件以释放句柄
+
+        fs::rename(&temp_catalog_path, &catalog_path)
+            .map_err(|e| format!("重命名临时 Catalog 文件失败: {}", e))?;
+
+        log::debug!("[AssetCatalog] 目录索引已同步到磁盘");
+        Ok(())
+    }
+}
+
+impl Default for AssetCatalog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // --- 新增的分页、排序和统计相关结构体 ---
 
@@ -357,6 +514,7 @@ pub fn get_asset_base_path(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn import_asset_from_path(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     original_path: String,
     options: Option<AssetImportOptions>,
 ) -> Result<Asset, String> {
@@ -386,18 +544,19 @@ pub async fn import_asset_from_path(
     let file_hash = if opts.enable_deduplication {
         let hash = calculate_file_hash(&source_path)?;
 
-        // 检查当月目录中是否已存在相同哈希的文件（使用索引）
-        if let Some(mut existing_asset) =
-            check_duplicate_in_current_month(&base_dir, &asset_type, &hash)?
-        {
-            // 找到重复文件，为其添加新来源并返回更新后的 Asset
+        // 从内存 Catalog 检查重复
+        let duplicate = {
+            let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+            check_duplicate_in_current_month(&base_dir, &asset_type, &hash, &entries)?
+        };
+
+        if let Some(mut existing_asset) = duplicate {
             let new_origin = opts.origin.unwrap_or_else(|| AssetOrigin {
                 origin_type: AssetOriginType::Local,
                 source: original_path.clone(),
                 source_module: opts.source_module.unwrap_or_else(|| "unknown".to_string()),
             });
 
-            // 避免重复添加完全相同的来源
             if !existing_asset
                 .origins
                 .iter()
@@ -405,16 +564,16 @@ pub async fn import_asset_from_path(
             {
                 existing_asset.origins.push(new_origin.clone());
 
-                // 立即更新 Catalog 以持久化新来源
-                let asset_id = existing_asset.id.clone();
-                update_catalog_in_place(&base_dir, |entries| {
-                    if let Some(entry) = entries.iter_mut().find(|e| e.id == asset_id) {
-                        entry.origins.push(new_origin.clone());
+                // 更新内存 Catalog
+                {
+                    let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+                    if let Some(entry) = entries.get_mut(&existing_asset.id) {
+                        entry.origins.push(new_origin);
                     }
-                })?;
+                }
+                catalog.mark_dirty(&app);
             }
 
-            // 即使是重复资产，也需要发出事件（用于触发自动转写等功能）
             if let Err(e) = app.emit("asset-imported", &existing_asset) {
                 log::error!("发出 asset-imported 事件失败 (重复资产): {}", e);
             }
@@ -466,7 +625,6 @@ pub async fn import_asset_from_path(
         None
     };
 
-    // 确定 source_module
     let source_module = opts
         .source_module
         .clone()
@@ -492,7 +650,7 @@ pub async fn import_asset_from_path(
         metadata: Some(asset_metadata),
     };
 
-    // 更新月度索引（如果启用去重且有哈希值）
+    // 更新月度索引
     if let Some(hash) = file_hash {
         let filename = target_path
             .file_name()
@@ -501,18 +659,18 @@ pub async fn import_asset_from_path(
             .to_string();
 
         if let Err(e) = update_month_index(&base_dir, &asset_type, &hash, &filename) {
-            // 索引更新失败不影响导入结果，只记录错误
             log::error!("更新月度索引失败: {}", e);
         }
     }
 
-    // 更新 Catalog 索引
+    // 更新内存 Catalog
     let catalog_entry = convert_asset_to_catalog_entry(&asset);
-    if let Err(e) = append_to_catalog(&base_dir, &catalog_entry) {
-        log::error!("更新 Catalog 索引失败: {}", e);
+    {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        entries.insert(catalog_entry.id.clone(), catalog_entry);
     }
+    catalog.mark_dirty(&app);
 
-    // 发出 asset-imported 事件，通知前端（用于自动转写等功能）
     if let Err(e) = app.emit("asset-imported", &asset) {
         log::error!("发出 asset-imported 事件失败: {}", e);
     }
@@ -524,6 +682,7 @@ pub async fn import_asset_from_path(
 #[tauri::command]
 pub async fn import_asset_from_bytes(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     bytes: Vec<u8>,
     original_name: String,
     options: Option<AssetImportOptions>,
@@ -543,11 +702,12 @@ pub async fn import_asset_from_bytes(
         hasher.update(&bytes);
         let hash = format!("{:x}", hasher.finalize());
 
-        // 检查当月目录中是否已存在相同哈希的文件（使用索引）
-        if let Some(mut existing_asset) =
-            check_duplicate_in_current_month(&base_dir, &asset_type, &hash)?
-        {
-            // 找到重复文件，为其添加新来源并返回更新后的 Asset
+        let duplicate = {
+            let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+            check_duplicate_in_current_month(&base_dir, &asset_type, &hash, &entries)?
+        };
+
+        if let Some(mut existing_asset) = duplicate {
             let new_origin = opts.origin.unwrap_or_else(|| AssetOrigin {
                 origin_type: AssetOriginType::Clipboard,
                 source: "clipboard".to_string(),
@@ -561,16 +721,15 @@ pub async fn import_asset_from_bytes(
             {
                 existing_asset.origins.push(new_origin.clone());
 
-                // 立即更新 Catalog 以持久化新来源
-                let asset_id = existing_asset.id.clone();
-                update_catalog_in_place(&base_dir, |entries| {
-                    if let Some(entry) = entries.iter_mut().find(|e| e.id == asset_id) {
-                        entry.origins.push(new_origin.clone());
+                {
+                    let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+                    if let Some(entry) = entries.get_mut(&existing_asset.id) {
+                        entry.origins.push(new_origin);
                     }
-                })?;
+                }
+                catalog.mark_dirty(&app);
             }
 
-            // 即使是重复资产，也需要发出事件（用于触发自动转写等功能）
             if let Err(e) = app.emit("asset-imported", &existing_asset) {
                 log::error!("发出 asset-imported 事件失败 (重复资产): {}", e);
             }
@@ -618,7 +777,6 @@ pub async fn import_asset_from_bytes(
         None
     };
 
-    // 确定 source_module
     let source_module = opts
         .source_module
         .clone()
@@ -644,7 +802,6 @@ pub async fn import_asset_from_bytes(
         metadata: Some(asset_metadata),
     };
 
-    // 更新月度索引（如果启用去重且有哈希值）
     if let Some(hash) = file_hash {
         let filename = target_path
             .file_name()
@@ -653,18 +810,18 @@ pub async fn import_asset_from_bytes(
             .to_string();
 
         if let Err(e) = update_month_index(&base_dir, &asset_type, &hash, &filename) {
-            // 索引更新失败不影响导入结果，只记录错误
             log::error!("更新月度索引失败: {}", e);
         }
     }
 
-    // 更新 Catalog 索引
+    // 更新内存 Catalog
     let catalog_entry = convert_asset_to_catalog_entry(&asset);
-    if let Err(e) = append_to_catalog(&base_dir, &catalog_entry) {
-        log::error!("更新 Catalog 索引失败: {}", e);
+    {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        entries.insert(catalog_entry.id.clone(), catalog_entry);
     }
+    catalog.mark_dirty(&app);
 
-    // 发出 asset-imported 事件，通知前端（用于自动转写等功能）
     if let Err(e) = app.emit("asset-imported", &asset) {
         log::error!("发出 asset-imported 事件失败: {}", e);
     }
@@ -720,13 +877,13 @@ impl MonthHashIndex {
 
 /// 检查当月目录中是否已存在相同哈希的文件（使用索引优化）
 /// 返回已存在的 Asset 信息（如果找到）
+/// `catalog_entries` 为内存中的 Catalog 条目映射，避免文件 IO
 fn check_duplicate_in_current_month(
     base_dir: &Path,
     asset_type: &AssetType,
     file_hash: &str,
+    catalog_entries: &HashMap<String, CatalogEntry>,
 ) -> Result<Option<Asset>, String> {
-    use std::io::{BufRead, BufReader};
-
     let now = Utc::now();
     let year_month = now.format("%Y-%m").to_string();
 
@@ -740,56 +897,33 @@ fn check_duplicate_in_current_month(
 
     let month_dir = base_dir.join(type_dir).join(&year_month);
 
-    // 如果目录不存在，说明没有重复
     if !month_dir.exists() {
         return Ok(None);
     }
 
-    // 读取索引文件
     let index_path = month_dir.join(".index.json");
     let index = MonthHashIndex::from_file(&index_path)?;
 
-    // 查询索引
     if let Some(filenames) = index.get(file_hash) {
         if let Some(filename) = filenames.first() {
             let file_path = month_dir.join(filename);
 
-            // 验证文件是否仍然存在
             if !file_path.exists() {
                 return Ok(None);
             }
 
-            // 从文件名提取 UUID（去除扩展名）
             let asset_id = file_path
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .ok_or("无法解析文件名")?;
 
-            // 尝试从 Catalog 中读取完整的资产信息（包括 origins）
-            let catalog_path = get_catalog_path(base_dir)?;
-            if catalog_path.exists() {
-                let catalog_file = fs::File::open(&catalog_path)
-                    .map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
-                let reader = BufReader::new(catalog_file);
-
-                // 在 Catalog 中查找对应的条目
-                for line_content in reader.lines().map_while(Result::ok) {
-                    if line_content.trim().is_empty() {
-                        continue;
-                    }
-                    if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
-                        if entry.id == asset_id {
-                            // 找到了！迁移旧数据并返回完整的 Asset
-                            entry.migrate_if_needed();
-                            return Ok(Some(convert_entry_to_asset(entry, base_dir)));
-                        }
-                    }
-                }
+            // 从内存 Catalog 中查找
+            if let Some(entry) = catalog_entries.get(asset_id) {
+                return Ok(Some(convert_entry_to_asset(entry.clone(), base_dir)));
             }
 
-            // 如果 Catalog 中没有找到，回退到从文件系统构建（但会丢失 origins）
             log::warn!(
-                "在 Catalog 中未找到资产 {}，使用文件系统信息重建（将丢失来源信息）",
+                "在内存 Catalog 中未找到资产 {}，使用文件系统信息重建",
                 asset_id
             );
             return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
@@ -885,14 +1019,13 @@ fn generate_image_thumbnail(
 #[tauri::command]
 pub async fn save_asset_thumbnail(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     asset_id: String,
     base64_data: String,
 ) -> Result<Asset, String> {
-    let base_path = get_asset_base_path(app)?;
+    let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
 
-    // 1. 解码 Base64 数据
-    // 前端传来的通常带有 "data:image/jpeg;base64," 前缀，需要去掉
     let base64_str = if let Some(index) = base64_data.find(',') {
         &base64_data[index + 1..]
     } else {
@@ -903,7 +1036,6 @@ pub async fn save_asset_thumbnail(
         .decode(base64_str)
         .map_err(|e| format!("Base64 解码失败: {}", e))?;
 
-    // 2. 保存缩略图文件
     let thumbnail_relative = format!(".thumbnails/{}.jpg", asset_id);
     let thumbnail_path = base_dir.join(&thumbnail_relative);
 
@@ -913,21 +1045,12 @@ pub async fn save_asset_thumbnail(
 
     fs::write(&thumbnail_path, &image_data).map_err(|e| format!("写入缩略图文件失败: {}", e))?;
 
-    // 3. 更新 Asset 信息
-    let mut updated_asset: Option<Asset> = None;
-
-    update_catalog_in_place(&base_dir, |entries| {
-        for entry in entries.iter_mut() {
-            if entry.id == asset_id {
-                // 实际上 convert_entry_to_asset 会自动检查文件是否存在来设置 thumbnail_path
-                // 这里我们不需要修改 entry 的字段，只需要触发一次保存和重新读取即可
-                updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
-                break;
-            }
-        }
-    })?;
-
-    updated_asset.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
+    // 从内存 Catalog 读取并返回（convert_entry_to_asset 会自动检测缩略图文件）
+    let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+    let entry = entries
+        .get(&asset_id)
+        .ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))?;
+    Ok(convert_entry_to_asset(entry.clone(), &base_dir))
 }
 
 /// 生成音频封面缩略图
@@ -1323,18 +1446,14 @@ pub struct DuplicateFilesResult {
 /// 1. 将文件移动到系统回收站
 /// 2. 删除缩略图（如果存在）
 /// 3. 从哈希索引中移除该文件
-#[tauri::command]
-pub async fn delete_asset(
-    app: AppHandle,
-    asset_id: String,
-    relative_path: String,
-) -> Result<(), String> {
-    let base_path = get_asset_base_path(app)?;
-    let base_dir = PathBuf::from(&base_path);
-    let file_path = base_dir.join(&relative_path);
+/// 4. 从内存 Catalog 中移除
+///
+/// 注意：此函数也被其他命令内部调用，因此物理删除逻辑独立于 Catalog 操作。
+/// 调用方负责在调用前从内存 Catalog 中移除条目。
+fn delete_asset_files(base_dir: &Path, asset_id: &str, relative_path: &str) -> Result<(), String> {
+    let file_path = base_dir.join(relative_path);
 
-    // 安全检查
-    if !file_path.starts_with(&base_dir) {
+    if !file_path.starts_with(base_dir) {
         return Err("非法的文件路径".to_string());
     }
 
@@ -1348,47 +1467,54 @@ pub async fn delete_asset(
     // 2. 删除缩略图（如果存在）
     let thumbnail_path = base_dir.join(format!(".thumbnails/{}.jpg", asset_id));
     if thumbnail_path.exists() {
-        let _ = trash::delete(&thumbnail_path); // 缩略图删除失败不影响主流程
+        let _ = trash::delete(&thumbnail_path);
     }
 
-    // 3. 从索引中移除该文件
+    // 3. 从月度哈希索引中移除该文件
     if let Some(parent_dir) = file_path.parent() {
         let index_path = parent_dir.join(".index.json");
-
         if index_path.exists() {
-            // 读取索引
             if let Ok(mut index) = MonthHashIndex::from_file(&index_path) {
-                // 获取文件名
                 if let Some(filename) = file_path.file_name() {
                     let filename_str = filename.to_string_lossy().to_string();
-
-                    // 遍历索引，移除该文件
                     let mut entries_to_remove = Vec::new();
                     for (hash, filenames) in index.entries.iter_mut() {
                         filenames.retain(|f| f != &filename_str);
-
-                        // 如果该哈希下没有文件了，标记删除
                         if filenames.is_empty() {
                             entries_to_remove.push(hash.clone());
                         }
                     }
-
-                    // 移除空的哈希条目
                     for hash in entries_to_remove {
                         index.entries.remove(&hash);
                     }
-
-                    // 保存更新后的索引
-                    let _ = index.save(&index_path); // 索引保存失败不影响主流程
+                    let _ = index.save(&index_path);
                 }
             }
         }
     }
 
-    // 4. 从 Catalog 索引中移除
-    if let Err(e) = remove_from_catalog(&base_dir, &asset_id) {
-        log::error!("从 Catalog 索引中移除失败: {}", e);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_asset(
+    app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
+    asset_id: String,
+    relative_path: String,
+) -> Result<(), String> {
+    let base_path = get_asset_base_path(app.clone())?;
+    let base_dir = PathBuf::from(&base_path);
+
+    // 物理删除文件
+    delete_asset_files(&base_dir, &asset_id, &relative_path)?;
+
+    // 从内存 Catalog 中移除
+    {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        entries.remove(&asset_id);
     }
+    catalog.mark_dirty(&app);
 
     Ok(())
 }
@@ -1503,7 +1629,7 @@ pub async fn find_duplicate_files(app: AppHandle) -> Result<DuplicateFilesResult
 /// Catalog 索引中的单个条目结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CatalogEntry {
+pub(crate) struct CatalogEntry {
     id: String,
     path: String,
     name: String,
@@ -1617,114 +1743,19 @@ fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
     }
 }
 
-/// 追加条目到 Catalog 文件
-fn append_to_catalog(base_dir: &Path, entry: &CatalogEntry) -> Result<(), String> {
-    use std::fs::OpenOptions;
-    use std::io::{BufWriter, Write};
-
-    let catalog_path = get_catalog_path(base_dir)?;
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(catalog_path)
-        .map_err(|e| format!("无法打开 Catalog 文件进行追加: {}", e))?;
-
-    let mut writer = BufWriter::new(file);
-    let line =
-        serde_json::to_string(entry).map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
-    writeln!(writer, "{}", line).map_err(|e| format!("写入 Catalog 文件失败: {}", e))?;
-
-    Ok(())
-}
-
-/// 从 Catalog 文件中移除条目
-fn remove_from_catalog(base_dir: &Path, asset_id_to_delete: &str) -> Result<(), String> {
-    use std::io::{BufRead, BufReader, BufWriter, Write};
-
-    let catalog_path = get_catalog_path(base_dir)?;
-    if !catalog_path.exists() {
-        return Ok(());
-    }
-
-    let temp_catalog_path = catalog_path.with_extension("jsonl.tmp");
-
-    let input_file = fs::File::open(&catalog_path)
-        .map_err(|e| format!("无法打开 Catalog 文件进行读取: {}", e))?;
-    let reader = BufReader::new(input_file);
-
-    let output_file = fs::File::create(&temp_catalog_path)
-        .map_err(|e| format!("无法创建临时 Catalog 文件: {}", e))?;
-    let mut writer = BufWriter::new(output_file);
-
-    for line in reader.lines() {
-        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
-        if line_content.trim().is_empty() {
-            continue;
-        }
-
-        if let Ok(entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
-            if entry.id != asset_id_to_delete {
-                writeln!(writer, "{}", line_content)
-                    .map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
-            }
-        } else {
-            writeln!(writer, "{}", line_content)
-                .map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
-        }
-    }
-
-    writer
-        .flush()
-        .map_err(|e| format!("刷新临时 Catalog 文件缓冲区失败: {}", e))?;
-
-    fs::rename(&temp_catalog_path, &catalog_path)
-        .map_err(|e| format!("重命名临时 Catalog 文件失败: {}", e))?;
-
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn list_assets_paginated(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     payload: ListAssetsPaginatedPayload,
 ) -> Result<PaginatedAssetsResponse, String> {
-    use std::io::{BufRead, BufReader};
-
     let base_path = get_asset_base_path(app)?;
     let base_dir = PathBuf::from(&base_path);
-    let catalog_path = get_catalog_path(&base_dir)?;
 
-    if !catalog_path.exists() {
-        return Ok(PaginatedAssetsResponse {
-            items: vec![],
-            total_items: 0,
-            total_pages: 0,
-            has_more: false,
-            page: payload.page,
-        });
-    }
-
-    let file =
-        fs::File::open(&catalog_path).map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
-    let reader = BufReader::new(file);
-
-    let mut all_entries = Vec::new();
-    for line in reader.lines() {
-        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
-        if line_content.trim().is_empty() {
-            continue;
-        }
-        let mut entry: CatalogEntry = serde_json::from_str(&line_content)
-            .map_err(|e| format!("解析 Catalog 条目失败: {}", e))?;
-
-        // 迁移旧格式数据
-        entry.migrate_if_needed();
-
-        all_entries.push(entry);
-    }
+    let entries_lock = catalog.entries.read().map_err(|e| e.to_string())?;
+    let all_entries: Vec<&CatalogEntry> = entries_lock.values().collect();
 
     // --- 筛选 ---
-    // 如果需要筛选重复项，首先计算所有哈希值的出现次数
     let duplicate_hashes: HashSet<String> = if payload.show_duplicates_only {
         let mut hash_counts = HashMap::new();
         for entry in &all_entries {
@@ -1743,7 +1774,7 @@ pub async fn list_assets_paginated(
         HashSet::new()
     };
 
-    let filtered_entries: Vec<CatalogEntry> = all_entries
+    let filtered_entries: Vec<&CatalogEntry> = all_entries
         .into_iter()
         .filter(|entry| {
             let type_match = payload
@@ -1793,9 +1824,9 @@ pub async fn list_assets_paginated(
     let mut sorted_entries = filtered_entries;
     sorted_entries.sort_by(|a, b| {
         let ordering = match payload.sort_by {
-            AssetSortBy::Date => b.created_at.cmp(&a.created_at), // 默认降序
+            AssetSortBy::Date => b.created_at.cmp(&a.created_at),
             AssetSortBy::Name => a.name.cmp(&b.name),
-            AssetSortBy::Size => b.size.cmp(&a.size), // 默认降序
+            AssetSortBy::Size => b.size.cmp(&a.size),
         };
 
         if matches!(payload.sort_order, SortOrder::Asc) {
@@ -1821,7 +1852,7 @@ pub async fn list_assets_paginated(
     let items_for_page = if start < total_items {
         sorted_entries[start as usize..end as usize]
             .iter()
-            .map(|entry| convert_entry_to_asset(entry.clone(), &base_dir))
+            .map(|entry| convert_entry_to_asset((*entry).clone(), &base_dir))
             .collect()
     } else {
         vec![]
@@ -1837,39 +1868,19 @@ pub async fn list_assets_paginated(
 }
 
 #[tauri::command]
-pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
-    use std::io::{BufRead, BufReader};
-
-    let base_path = get_asset_base_path(app)?;
-    let base_dir = PathBuf::from(&base_path);
-    let catalog_path = get_catalog_path(&base_dir)?;
-
-    if !catalog_path.exists() {
-        return Ok(AssetStats::default());
-    }
-
-    let file =
-        fs::File::open(&catalog_path).map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
-    let reader = BufReader::new(file);
-
+pub async fn get_asset_stats(
+    catalog: tauri::State<'_, AssetCatalog>,
+) -> Result<AssetStats, String> {
+    let entries = catalog.entries.read().map_err(|e| e.to_string())?;
     let mut stats = AssetStats::default();
 
-    for line in reader.lines() {
-        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
-        if line_content.trim().is_empty() {
-            continue;
-        }
-
-        let mut entry: CatalogEntry = serde_json::from_str(&line_content)
-            .map_err(|e| format!("解析 Catalog 条目失败: {}", e))?;
-
-        // 迁移旧格式数据
-        entry.migrate_if_needed();
-
+    for entry in entries.values() {
         stats.total_assets += 1;
         stats.total_size += entry.size;
-        *stats.type_counts.entry(entry.asset_type).or_insert(0) += 1;
-        // 统计来源模块和来源方式
+        *stats
+            .type_counts
+            .entry(entry.asset_type.clone())
+            .or_insert(0) += 1;
         for origin in &entry.origins {
             *stats
                 .source_module_counts
@@ -1886,29 +1897,21 @@ pub async fn get_asset_stats(app: AppHandle) -> Result<AssetStats, String> {
 }
 
 #[tauri::command]
-pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
-    use std::io::{BufRead, BufReader, BufWriter, Write};
+pub async fn rebuild_catalog_index(
+    app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
+) -> Result<String, String> {
+    use std::io::{BufWriter, Write};
 
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
     let catalog_path = get_catalog_path(&base_dir)?;
 
-    // 第一步：读取现有的 Catalog 以保留元数据（如 origins, source_module）
-    let mut existing_metadata: HashMap<String, CatalogEntry> = HashMap::new();
-    if catalog_path.exists() {
-        if let Ok(file) = fs::File::open(&catalog_path) {
-            let reader = BufReader::new(file);
-            for line in reader.lines().map_while(Result::ok) {
-                if line.trim().is_empty() {
-                    continue;
-                }
-                if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line) {
-                    entry.migrate_if_needed();
-                    existing_metadata.insert(entry.id.clone(), entry);
-                }
-            }
-        }
-    }
+    // 第一步：从内存中获取现有元数据以保留 origins 等信息
+    let existing_metadata: HashMap<String, CatalogEntry> = {
+        let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+        entries.clone()
+    };
 
     let asset_type_dirs = ["images", "audio", "videos", "documents", "other"];
     let mut all_file_paths: Vec<(PathBuf, String)> = Vec::new();
@@ -1943,10 +1946,11 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
 
     let total_files = all_file_paths.len();
 
-    // 第三步：处理文件并写入 Catalog，同时报告进度
+    // 第三步：处理文件并构建新的内存索引，同时写入磁盘和报告进度
     let file =
         fs::File::create(&catalog_path).map_err(|e| format!("无法创建 Catalog 文件: {}", e))?;
     let mut writer = BufWriter::new(file);
+    let mut new_entries: HashMap<String, CatalogEntry> = HashMap::new();
 
     for (current_processed, (file_path, asset_type_str)) in all_file_paths.iter().enumerate() {
         let current_processed = current_processed + 1;
@@ -1955,7 +1959,6 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
             // 尝试从旧数据中恢复元数据
             if let Some(old_entry) = existing_metadata.get(&asset.id) {
                 asset.origins = old_entry.origins.clone();
-                // 保持 source_module 兼容性
                 if let Some(first_origin) = asset.origins.first() {
                     asset.source_module = first_origin.source_module.clone();
                 }
@@ -1967,6 +1970,7 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
             if let Err(e) = writeln!(writer, "{}", line) {
                 log::error!("写入 Catalog 文件失败 for {}: {}", file_path.display(), e);
             }
+            new_entries.insert(entry.id.clone(), entry);
         }
 
         // 发送进度事件
@@ -1985,59 +1989,18 @@ pub async fn rebuild_catalog_index(app: AppHandle) -> Result<String, String> {
         .flush()
         .map_err(|e| format!("刷新 Catalog 文件缓冲区失败: {}", e))?;
 
+    // 第四步：将重建结果同步到内存（替换整个内存索引）
+    {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        *entries = new_entries;
+    }
+    // 磁盘已经直接写入，无需 mark_dirty
+
+    log::info!(
+        "[AssetCatalog] 目录索引重建完成，内存已同步，共 {} 条资产",
+        total_files
+    );
     Ok(format!("目录索引重建完成，共处理 {} 个资产。", total_files))
-}
-/// 读取所有 catalog 条目，应用修改，然后将其写回。
-fn update_catalog_in_place<F>(base_dir: &Path, mut modifier: F) -> Result<(), String>
-where
-    F: FnMut(&mut Vec<CatalogEntry>),
-{
-    use std::io::{BufRead, BufReader, BufWriter, Write};
-
-    let catalog_path = get_catalog_path(base_dir)?;
-    let mut entries = Vec::new();
-
-    // 如果文件存在，读取所有条目
-    if catalog_path.exists() {
-        let file = fs::File::open(&catalog_path)
-            .map_err(|e| format!("无法打开 Catalog 文件进行读取: {}", e))?;
-        let reader = BufReader::new(file);
-
-        for line in reader.lines() {
-            let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
-            if !line_content.trim().is_empty() {
-                if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
-                    // 迁移旧格式数据
-                    entry.migrate_if_needed();
-                    entries.push(entry);
-                }
-            }
-        }
-    }
-
-    // 应用修改
-    modifier(&mut entries);
-
-    // 将修改后的条目写回
-    let temp_catalog_path = catalog_path.with_extension("jsonl.tmp");
-    let output_file = fs::File::create(&temp_catalog_path)
-        .map_err(|e| format!("无法创建临时 Catalog 文件: {}", e))?;
-    let mut writer = BufWriter::new(output_file);
-
-    for entry in entries {
-        let line =
-            serde_json::to_string(&entry).map_err(|e| format!("序列化 Catalog 条目失败: {}", e))?;
-        writeln!(writer, "{}", line).map_err(|e| format!("写入临时 Catalog 文件失败: {}", e))?;
-    }
-
-    writer
-        .flush()
-        .map_err(|e| format!("刷新临时 Catalog 文件缓冲区失败: {}", e))?;
-
-    fs::rename(&temp_catalog_path, &catalog_path)
-        .map_err(|e| format!("重命名临时 Catalog 文件失败: {}", e))?;
-
-    Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -2051,114 +2014,101 @@ pub struct RemoveSourceResult {
 #[tauri::command]
 pub async fn remove_asset_source(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     asset_id: String,
     source_module: String,
 ) -> Result<RemoveSourceResult, String> {
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
 
-    let mut result: Option<RemoveSourceResult> = None;
     let mut asset_to_delete: Option<(String, String)> = None;
+    let result: RemoveSourceResult;
 
-    update_catalog_in_place(&base_dir, |entries| {
-        let mut updated_asset: Option<Asset> = None;
+    {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        let entry = entries
+            .get_mut(&asset_id)
+            .ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))?;
 
-        entries.retain_mut(|entry| {
-            if entry.id == asset_id {
-                // 找到资产，移除来源
-                entry.origins.retain(|o| o.source_module != source_module);
+        entry.origins.retain(|o| o.source_module != source_module);
 
-                if entry.origins.is_empty() {
-                    // 没有来源了，标记为待删除
-                    asset_to_delete = Some((entry.id.clone(), entry.path.clone()));
-                    result = Some(RemoveSourceResult {
-                        deleted: true,
-                        asset: None,
-                    });
-                    return false; // 从条目列表中移除
-                } else {
-                    // 仍然有来源，准备返回更新后的资产
-                    updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
-                    result = Some(RemoveSourceResult {
-                        deleted: false,
-                        asset: updated_asset.clone(),
-                    });
-                    return true; // 保留在条目列表中
-                }
-            }
-            true // 保留其他条目
-        });
-    })?;
+        if entry.origins.is_empty() {
+            asset_to_delete = Some((entry.id.clone(), entry.path.clone()));
+            entries.remove(&asset_id);
+            result = RemoveSourceResult {
+                deleted: true,
+                asset: None,
+            };
+        } else {
+            let updated = convert_entry_to_asset(entry.clone(), &base_dir);
+            result = RemoveSourceResult {
+                deleted: false,
+                asset: Some(updated),
+            };
+        }
+    }
+    catalog.mark_dirty(&app);
 
-    // 在迭代之后执行物理删除
     if let Some((id, path)) = asset_to_delete {
-        // 同步等待物理删除完成，确保数据一致性
-        if let Err(e) = delete_asset(app.clone(), id, path).await {
+        if let Err(e) = delete_asset_files(&base_dir, &id, &path) {
             log::error!("在移除来源期间删除资产文件失败: {}", e);
-            // 即使物理删除失败，Catalog 中的条目已被移除，记录错误但继续
         }
     }
 
-    result.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
+    Ok(result)
 }
 
 /// 为现有资产添加一个新来源
 #[tauri::command]
 pub async fn add_asset_source(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     asset_id: String,
     origin: AssetOrigin,
 ) -> Result<Asset, String> {
-    let base_path = get_asset_base_path(app)?;
+    let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
-    let mut updated_asset: Option<Asset> = None;
 
-    update_catalog_in_place(&base_dir, |entries| {
-        for entry in entries.iter_mut() {
-            if entry.id == asset_id {
-                // 如果来源不存在，则添加新来源
-                if !entry
-                    .origins
-                    .iter()
-                    .any(|o| o.source_module == origin.source_module)
-                {
-                    entry.origins.push(origin.clone());
-                }
-                updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
-                break;
-            }
-        }
-    })?;
+    let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+    let entry = entries
+        .get_mut(&asset_id)
+        .ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))?;
 
-    updated_asset.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
+    if !entry
+        .origins
+        .iter()
+        .any(|o| o.source_module == origin.source_module)
+    {
+        entry.origins.push(origin);
+    }
+
+    let updated = convert_entry_to_asset(entry.clone(), &base_dir);
+    drop(entries);
+    catalog.mark_dirty(&app);
+
+    Ok(updated)
 }
 
 /// 完全删除资产（移除所有来源并删除文件）
 #[tauri::command]
-pub async fn remove_asset_completely(app: AppHandle, asset_id: String) -> Result<(), String> {
+pub async fn remove_asset_completely(
+    app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
+    asset_id: String,
+) -> Result<(), String> {
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
 
-    let mut asset_to_delete: Option<(String, String)> = None;
+    let asset_path = {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        let entry = entries
+            .remove(&asset_id)
+            .ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))?;
+        entry.path
+    };
+    catalog.mark_dirty(&app);
 
-    // 从 Catalog 中移除并获取资产信息
-    update_catalog_in_place(&base_dir, |entries| {
-        entries.retain(|entry| {
-            if entry.id == asset_id {
-                asset_to_delete = Some((entry.id.clone(), entry.path.clone()));
-                false // 从列表中移除
-            } else {
-                true // 保留其他条目
-            }
-        });
-    })?;
-
-    // 执行物理删除
-    if let Some((id, path)) = asset_to_delete {
-        delete_asset(app.clone(), id, path).await?;
-    } else {
-        return Err(format!("找不到 ID 为 '{}' 的资产", asset_id));
-    }
+    delete_asset_files(&base_dir, &asset_id, &asset_path)?;
 
     Ok(())
 }
@@ -2167,43 +2117,36 @@ pub async fn remove_asset_completely(app: AppHandle, asset_id: String) -> Result
 #[tauri::command]
 pub async fn remove_assets_completely(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     asset_ids: Vec<String>,
 ) -> Result<Vec<String>, String> {
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
 
-    let mut assets_to_delete: Vec<(String, String)> = Vec::new();
     let asset_ids_set: HashSet<String> = asset_ids.into_iter().collect();
+    let mut assets_to_delete: Vec<(String, String)> = Vec::new();
 
-    // 批量从 Catalog 中移除并收集需要删除的资产信息
-    update_catalog_in_place(&base_dir, |entries| {
-        entries.retain(|entry| {
-            if asset_ids_set.contains(&entry.id) {
+    {
+        let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+        for id in &asset_ids_set {
+            if let Some(entry) = entries.remove(id) {
                 assets_to_delete.push((entry.id.clone(), entry.path.clone()));
-                false // 从列表中移除
-            } else {
-                true // 保留其他条目
             }
-        });
-    })?;
+        }
+    }
+    catalog.mark_dirty(&app);
 
-    // 批量执行物理删除
     let mut failed_ids = Vec::new();
     for (id, path) in assets_to_delete {
-        if let Err(e) = delete_asset(app.clone(), id.clone(), path).await {
+        if let Err(e) = delete_asset_files(&base_dir, &id, &path) {
             log::error!("删除资产 {} 失败: {}", id, e);
             failed_ids.push(id);
         }
     }
 
-    if failed_ids.is_empty() {
-        Ok(vec![])
-    } else {
-        Ok(failed_ids)
-    }
+    Ok(failed_ids)
 }
 
-/// 根据哈希值查找资产
 /// 根据哈希值在当月索引中查找资产
 ///
 /// 仅在当前月份的目录中查找，以支持按月滚动的清理策略。
@@ -2211,14 +2154,13 @@ pub async fn remove_assets_completely(
 #[tauri::command]
 pub async fn find_asset_by_hash(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     hash: String,
     source_to_add: Option<AssetOrigin>,
 ) -> Result<Option<Asset>, String> {
-    let base_path = get_asset_base_path(app)?;
+    let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
 
-    // 遍历所有资产类型，只检查当月索引
-    // 这样可以避免全量扫描 Catalog，且符合按月管理的策略
     let asset_types = [
         AssetType::Image,
         AssetType::Audio,
@@ -2228,37 +2170,29 @@ pub async fn find_asset_by_hash(
     ];
 
     for asset_type in &asset_types {
-        // check_duplicate_in_current_month 已经封装了读取当月索引、验证文件存在、读取 Catalog 信息的逻辑
-        if let Ok(Some(asset)) = check_duplicate_in_current_month(&base_dir, asset_type, &hash) {
-            // 找到了！
-            let asset_id = asset.id.clone();
+        let found = {
+            let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+            check_duplicate_in_current_month(&base_dir, asset_type, &hash, &entries)?
+        };
 
-            // 如果需要添加来源，则更新 Catalog
+        if let Some(asset) = found {
             if let Some(origin) = source_to_add {
-                let mut updated_asset: Option<Asset> = None;
-
-                update_catalog_in_place(&base_dir, |entries| {
-                    for entry in entries.iter_mut() {
-                        if entry.id == asset_id {
-                            // 如果来源不存在，则添加新来源
-                            if !entry
-                                .origins
-                                .iter()
-                                .any(|o| o.source_module == origin.source_module)
-                            {
-                                entry.origins.push(origin.clone());
-                            }
-                            updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
-                            break;
-                        }
+                let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+                if let Some(entry) = entries.get_mut(&asset.id) {
+                    if !entry
+                        .origins
+                        .iter()
+                        .any(|o| o.source_module == origin.source_module)
+                    {
+                        entry.origins.push(origin);
                     }
-                })?;
-
-                return Ok(updated_asset);
-            } else {
-                // 不需要添加来源，直接返回找到的 Asset
-                return Ok(Some(asset));
+                    let updated = convert_entry_to_asset(entry.clone(), &base_dir);
+                    drop(entries);
+                    catalog.mark_dirty(&app);
+                    return Ok(Some(updated));
+                }
             }
+            return Ok(Some(asset));
         }
     }
 
@@ -2269,66 +2203,46 @@ pub async fn find_asset_by_hash(
 #[tauri::command]
 pub async fn update_asset_derived_data(
     app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
     asset_id: String,
     key: String,
     data: DerivedDataInfo,
 ) -> Result<Asset, String> {
-    let base_path = get_asset_base_path(app)?;
+    let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
-    let mut updated_asset: Option<Asset> = None;
 
-    update_catalog_in_place(&base_dir, |entries| {
-        for entry in entries.iter_mut() {
-            if entry.id == asset_id {
-                // 初始化 derived map 如果不存在
-                if entry.derived.is_none() {
-                    entry.derived = Some(HashMap::new());
-                }
+    let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+    let entry = entries
+        .get_mut(&asset_id)
+        .ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))?;
 
-                // 更新数据
-                if let Some(derived_map) = &mut entry.derived {
-                    derived_map.insert(key.clone(), data.clone());
-                }
+    if entry.derived.is_none() {
+        entry.derived = Some(HashMap::new());
+    }
+    if let Some(derived_map) = &mut entry.derived {
+        derived_map.insert(key, data);
+    }
 
-                updated_asset = Some(convert_entry_to_asset(entry.clone(), &base_dir));
-                break;
-            }
-        }
-    })?;
+    let updated = convert_entry_to_asset(entry.clone(), &base_dir);
+    drop(entries);
+    catalog.mark_dirty(&app);
 
-    updated_asset.ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))
+    Ok(updated)
 }
 
 /// 根据 ID 获取单个资产
 #[tauri::command]
-pub async fn get_asset_by_id(app: AppHandle, asset_id: String) -> Result<Option<Asset>, String> {
-    use std::io::{BufRead, BufReader};
-
+pub async fn get_asset_by_id(
+    app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
+    asset_id: String,
+) -> Result<Option<Asset>, String> {
     let base_path = get_asset_base_path(app)?;
     let base_dir = PathBuf::from(&base_path);
-    let catalog_path = get_catalog_path(&base_dir)?;
 
-    if !catalog_path.exists() {
-        return Ok(None);
+    let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+    match entries.get(&asset_id) {
+        Some(entry) => Ok(Some(convert_entry_to_asset(entry.clone(), &base_dir))),
+        None => Ok(None),
     }
-
-    let file =
-        fs::File::open(&catalog_path).map_err(|e| format!("无法打开 Catalog 文件: {}", e))?;
-    let reader = BufReader::new(file);
-
-    for line in reader.lines() {
-        let line_content = line.map_err(|e| format!("读取 Catalog 文件行失败: {}", e))?;
-        if line_content.trim().is_empty() {
-            continue;
-        }
-        if let Ok(mut entry) = serde_json::from_str::<CatalogEntry>(&line_content) {
-            if entry.id == asset_id {
-                entry.migrate_if_needed();
-                let asset = convert_entry_to_asset(entry, &base_dir);
-                return Ok(Some(asset));
-            }
-        }
-    }
-
-    Ok(None)
 }

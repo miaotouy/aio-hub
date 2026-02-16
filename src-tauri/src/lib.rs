@@ -16,6 +16,8 @@ use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
 use commands::{
+    // 资产目录内存状态
+    AssetCatalog,
     add_asset_source,
     // 目录清理相关
     analyze_directory_for_cleanup,
@@ -409,6 +411,7 @@ pub fn run() {
         .manage(commands::content_deduplicator::DedupScanCancellation::new())
         .manage(AppState::default())
         .manage(commands::ffmpeg_processor::FFmpegState::default())
+        .manage(AssetCatalog::new())
         .manage(Arc::new(CancellationToken::new()))
         .manage(knowledge::KnowledgeState::new())
         // 注册命令处理器
@@ -629,6 +632,13 @@ pub fn run() {
             );
             log::info!("⏰ 时间: {}", now_formatted);
             log::info!("========================================");
+
+            // 初始化资产目录内存索引
+            if let Some(catalog) = app.try_state::<AssetCatalog>() {
+                if let Err(e) = catalog.initialize(&app.app_handle()) {
+                    log::error!("[AssetCatalog] 初始化失败: {}", e);
+                }
+            }
 
             // 更新应用状态
             if let Some(state) = app.try_state::<AppState>() {

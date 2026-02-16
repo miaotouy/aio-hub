@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, provide } from "vue";
+import { ref, computed, watch, provide, nextTick } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
@@ -283,10 +283,20 @@ watch(
 
 // 编辑区域引用
 const editAreaRef = ref<HTMLElement | undefined>(undefined);
+const editorRef = ref<any>(null);
 
 // 当进入编辑模式时，初始化编辑内容和附件
 const initEditMode = () => {
   editingContent.value = props.message.content;
+
+  // 自动聚焦并移动光标到末尾
+  nextTick(() => {
+    if (editorRef.value) {
+      editorRef.value.focus();
+      const len = editingContent.value.length;
+      editorRef.value.setSelectionRange(len, len);
+    }
+  });
 
   // 清空附件管理器
   attachmentManager.clearAttachments();
@@ -620,6 +630,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 
       <!-- 文本编辑区域 -->
       <ChatCodeMirrorEditor
+        ref="editorRef"
         :value="editingContent"
         placeholder="编辑消息内容、拖入或粘贴文件..."
         height="auto"

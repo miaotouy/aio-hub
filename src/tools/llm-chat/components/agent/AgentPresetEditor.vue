@@ -893,6 +893,7 @@ function getRoleTagType(role: MessageRole): "success" | "primary" | "info" {
     system: "info",
     user: "primary",
     assistant: "success",
+    tool: "info",
   };
   return typeMap[role];
 }
@@ -902,6 +903,7 @@ function getRoleIcon(role: MessageRole) {
     system: markRaw(ChatDotRound),
     user: markRaw(User),
     assistant: markRaw(Service),
+    tool: markRaw(Service),
   };
   return iconMap[role];
 }
@@ -911,6 +913,7 @@ function getRoleLabel(role: MessageRole): string {
     system: "System",
     user: "User",
     assistant: "Assistant",
+    tool: "Tool",
   };
   return labelMap[role];
 }
@@ -920,6 +923,7 @@ function getRoleColor(role: MessageRole): string {
     system: "var(--el-color-info)",
     user: "var(--el-color-primary)",
     assistant: "var(--el-color-success)",
+    tool: "var(--el-color-info)",
   };
   return colorMap[role];
 }

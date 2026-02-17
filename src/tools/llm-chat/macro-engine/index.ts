@@ -22,6 +22,7 @@ import { registerVariableMacros } from './macros/variables';
 import { registerFunctionMacros } from './macros/functions';
 import { registerSystemMacros } from './macros/system';
 import { registerAssetMacros } from './macros/assets';
+import { registerToolMacros } from './macros/tools';
 
 /**
  * 初始化宏引擎（注册所有内置宏）
@@ -39,4 +40,5 @@ export function initializeMacroEngine(): void {
   registerFunctionMacros(registry);
   registerSystemMacros(registry);
   registerAssetMacros(registry);
+  registerToolMacros(registry);
 }

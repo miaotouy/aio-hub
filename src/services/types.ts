@@ -22,6 +22,13 @@ export interface MethodMetadata {
   returnType: string; // 例如: 'Promise<string>', 'void'
   /** 方法调用示例 */
   example?: string;
+  /** 是否允许 Agent/LLM 调用此方法，默认 false */
+  agentCallable?: boolean;
+  /** 协议特定配置 */
+  protocolConfig?: {
+    /** VCP 协议的命令名称映射 */
+    vcpCommand?: string;
+  };
 }
 
 export interface ServiceMetadata {

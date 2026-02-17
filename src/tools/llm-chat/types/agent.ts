@@ -75,6 +75,33 @@ export interface AgentAsset {
 /**
  * 智能体知识库设置
  */
+export interface ToolCallConfig {
+  enabled: boolean;
+  mode: "auto" | "manual";
+  toolToggles: Record<string, boolean>;
+  defaultToolEnabled: boolean;
+  maxIterations: number;
+  timeout: number;
+  requireConfirmation: boolean;
+  parallelExecution: boolean;
+  protocol?: "vcp";
+}
+
+export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
+  enabled: false,
+  mode: "auto",
+  toolToggles: {},
+  defaultToolEnabled: true,
+  maxIterations: 5,
+  timeout: 30000,
+  requireConfirmation: false,
+  parallelExecution: false,
+  protocol: "vcp",
+};
+
+/**
+ * 智能体知识库设置
+ */
 export interface AgentKnowledgeSettings {
   /** 默认检索引擎 ID (vector | keyword | blender) */
   defaultEngineId?: string;
@@ -276,6 +303,9 @@ export interface AgentBaseConfig {
 
   /** 知识库全局设置 */
   knowledgeSettings?: AgentKnowledgeSettings;
+
+  /** 工具调用配置 */
+  toolCallConfig?: ToolCallConfig;
 }
 
 /**

@@ -1,7 +1,12 @@
 /**
  * 消息角色
  */
-export type MessageRole = "user" | "assistant" | "system";
+export type MessageRole = "user" | "assistant" | "system" | "tool";
+
+/**
+ * 发送到 LLM API 的消息角色（不包含工具消息）
+ */
+export type ApiMessageRole = Exclude<MessageRole, "tool">;
 
 /**
  * 消息生成状态

@@ -124,7 +124,7 @@ export async function buildPreviewDataFromContext(
       }
 
       presetMessages.push({
-        role: msg.role,
+        role: msg.role === "tool" ? "assistant" : msg.role,
         content: contentText,
         originalContent: msg._originalContent,
         charCount: charCount,
@@ -486,7 +486,10 @@ export async function buildPreviewDataFromContext(
   return {
     presetMessages,
     chatHistory,
-    finalMessages: messages,
+    finalMessages: messages.filter(
+      (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } =>
+        msg.role !== "tool",
+    ),
     worldbookEntries: worldbookEntries.length > 0 ? worldbookEntries : undefined,
     statistics: {
       totalCharCount,

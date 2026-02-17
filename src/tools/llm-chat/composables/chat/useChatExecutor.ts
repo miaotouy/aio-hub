@@ -17,7 +17,7 @@ import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { LlmApiError, TimeoutError, isAbortError } from "@/llm-apis/common";
+import { isAbortError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
@@ -34,6 +34,7 @@ import { resolveAttachmentContent } from "../../core/context-utils/attachment-re
 import { useContextCompressor } from "../features/useContextCompressor";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
+import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -80,6 +81,7 @@ export function useChatExecutor() {
   } = useChatResponseHandler();
 
   const { checkAndCompress } = useContextCompressor();
+  const { processCycle, formatCycleResults } = useToolCalling();
 
   /**
    * 执行 LLM 请求的核心逻辑
@@ -182,6 +184,12 @@ export function useChatExecutor() {
     try {
       const { sendRequest } = useLlmRequest();
 
+      // 工具调用迭代计数
+      let iterationCount = 0;
+      const maxIterations = executionAgent.toolCallConfig?.maxIterations ?? 5;
+      let currentAssistantNode = assistantNode;
+      let currentPathToUserNode = [...pathToUserNode];
+
       // 动态构建生效的参数对象
       const effectiveParams: Record<string, any> = {};
       const configParams = agentConfigSnippet.parameters;
@@ -205,277 +213,246 @@ export function useChatExecutor() {
         Object.assign(effectiveParams, configParams.custom);
       }
 
-      // 保存参数快照到节点元数据
-      assistantNode.metadata = {
-        ...assistantNode.metadata,
-        requestParameters: effectiveParams,
-      };
-      if (session.nodes[assistantNode.id]) {
-        session.nodes[assistantNode.id].metadata = assistantNode.metadata;
-      }
+      while (iterationCount < maxIterations) {
+        iterationCount++;
+        if (iterationCount > 1) {
+          logger.info(`🔄 开始第 ${iterationCount} 轮工具调用迭代...`);
+        }
 
-      // Phase 5: 使用上下文管道重构
-      logger.info("开始执行上下文构建管道...");
+        // 保存参数快照到节点元数据
+        currentAssistantNode.metadata = {
+          ...currentAssistantNode.metadata,
+          requestParameters: effectiveParams,
+        };
+        if (session.nodes[currentAssistantNode.id]) {
+          session.nodes[currentAssistantNode.id].metadata = currentAssistantNode.metadata;
+        }
 
-      const contextPipelineStore = useContextPipelineStore();
+        // Phase 5: 使用上下文管道重构
+        logger.info("开始执行上下文构建管道...");
 
-      // 1. 创建管道上下文
-      const pipelineContext: PipelineContext = {
-        messages: [],
-        session,
-        userProfile: effectiveUserProfile || undefined,
-        agentConfig: executionAgent,
-        settings: settings.value,
-        capabilities: capabilities || {},
-        timestamp: Date.now(),
-        sharedData: new Map<string, any>(),
-        logs: [],
-      };
-      // 将额外信息放入 sharedData
-      pipelineContext.sharedData.set("userMessageContent", userNode.content);
-      if (model) {
-        pipelineContext.sharedData.set("model", model);
-      }
-      if (profile) {
-        pipelineContext.sharedData.set("profile", profile);
-      }
-      pipelineContext.sharedData.set(
-        "transcriptionConfig",
-        settings.value.transcription,
-      );
-      // 聚合并预加载世界书内容
-      const worldbookStore = import.meta.env.SSR ? null : (await import('../../stores/worldbookStore')).useWorldbookStore();
-      const allWorldbookIds = Array.from(new Set([
-        ...(settings.value.worldbookIds || []),
-        ...(effectiveUserProfile?.worldbookIds || []),
-        ...(executionAgent.worldbookIds || [])
-      ]));
+        const contextPipelineStore = useContextPipelineStore();
 
-      if (worldbookStore && allWorldbookIds.length > 0) {
-        const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
-        pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
-      }
+        // 1. 创建管道上下文
+        const pipelineContext: PipelineContext = {
+          messages: [],
+          session,
+          userProfile: effectiveUserProfile || undefined,
+          agentConfig: executionAgent,
+          settings: settings.value,
+          capabilities: capabilities || {},
+          timestamp: Date.now(),
+          sharedData: new Map<string, any>(),
+          logs: [],
+        };
+        // 将额外信息放入 sharedData
+        pipelineContext.sharedData.set("userMessageContent", userNode.content);
+        if (model) {
+          pipelineContext.sharedData.set("model", model);
+        }
+        if (profile) {
+          pipelineContext.sharedData.set("profile", profile);
+        }
+        pipelineContext.sharedData.set(
+          "transcriptionConfig",
+          settings.value.transcription,
+        );
+        // 聚合并预加载世界书内容
+        const worldbookStore = import.meta.env.SSR ? null : (await import('../../stores/worldbookStore')).useWorldbookStore();
+        const allWorldbookIds = Array.from(new Set([
+          ...(settings.value.worldbookIds || []),
+          ...(effectiveUserProfile?.worldbookIds || []),
+          ...(executionAgent.worldbookIds || [])
+        ]));
 
-      pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
-      // 提供锚点定义给注入处理器
-      const anchorRegistry = useAnchorRegistry();
-      pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());
+        if (worldbookStore && allWorldbookIds.length > 0) {
+          const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
+          pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
+        }
 
-      // 2. 预处理：确保所有附件的转写任务完成
-      // 这一步在管道执行之前完成，确保处理器只需消费数据
-      const transcriptionManager = useTranscriptionManager();
-      const allAttachments = pathToUserNode.flatMap((node) => node.attachments || []);
+        pipelineContext.sharedData.set("pathToUserNode", currentPathToUserNode);
+        // 提供锚点定义给注入处理器
+        const anchorRegistry = useAnchorRegistry();
+        pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());
 
-      if (allAttachments.length > 0) {
-        try {
-          // 计算需要强制转写的附件（基于消息深度）
-          const forceAssetIds = new Set<string>();
-          const config = settings.value.transcription;
+        // 2. 预处理：确保所有附件的转写任务完成
+        const transcriptionManager = useTranscriptionManager();
+        const allAttachments = currentPathToUserNode.flatMap((node) => node.attachments || []);
 
-          // 只有在智能模式下且设置了强制转写阈值时才计算
-          if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
-            // 计算每个附件在路径中的深度
-            // pathToUserNode 的最后一个元素是当前用户消息（深度 0）
-            // 倒数第二个是前一条消息（深度 1），以此类推
-            for (let i = 0; i < pathToUserNode.length; i++) {
-              const node = pathToUserNode[i];
-              const nodeDepth = pathToUserNode.length - 1 - i; // 当前节点距离最新消息的深度
+        if (allAttachments.length > 0) {
+          try {
+            const forceAssetIds = new Set<string>();
+            const config = settings.value.transcription;
 
-              if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
-                for (const asset of node.attachments) {
-                  // 只对支持的媒体类型强制转写
-                  if (asset.type === "image" || asset.type === "audio" || asset.type === "video") {
-                    forceAssetIds.add(asset.id);
-                    logger.debug("识别到需要强制转写的附件", {
-                      assetId: asset.id,
-                      assetName: asset.name,
-                      nodeDepth,
-                      forceThreshold: config.forceTranscriptionAfter
-                    });
+            if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
+              for (let i = 0; i < currentPathToUserNode.length; i++) {
+                const node = currentPathToUserNode[i];
+                const nodeDepth = currentPathToUserNode.length - 1 - i;
+
+                if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
+                  for (const asset of node.attachments) {
+                    if (asset.type === "image" || asset.type === "audio" || asset.type === "video") {
+                      forceAssetIds.add(asset.id);
+                    }
                   }
                 }
               }
             }
+
+            const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
+              allAttachments,
+              agentConfigSnippet.modelId,
+              agentConfigSnippet.profileId,
+              forceAssetIds.size > 0 ? forceAssetIds : undefined
+            );
+            pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
+          } catch (error) {
+            logger.warn("等待转写任务完成时出错或超时", error);
+            const fallbackMap = new Map<string, Asset>();
+            for (const asset of allAttachments) {
+              fallbackMap.set(asset.id, asset);
+            }
+            pipelineContext.sharedData.set("updatedAssetsMap", fallbackMap);
           }
-
-          const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
-            allAttachments,
-            agentConfigSnippet.modelId,
-            agentConfigSnippet.profileId,
-            forceAssetIds.size > 0 ? forceAssetIds : undefined
-          );
-          pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
-          logger.debug("转写预处理完成", {
-            assetCount: updatedAssetsMap.size,
-            forcedCount: forceAssetIds.size
-          });
-        } catch (error) {
-          logger.warn("等待转写任务完成时出错或超时", error);
-          // 即使超时，也要初始化映射
-          const fallbackMap = new Map<string, Asset>();
-          for (const asset of allAttachments) {
-            fallbackMap.set(asset.id, asset);
-          }
-          pipelineContext.sharedData.set("updatedAssetsMap", fallbackMap);
-        }
-      }
-
-      // 3. 执行上下文管道 (一次性执行到底)
-      await contextPipelineStore.executePipeline(pipelineContext);
-      logger.info("上下文管道执行完毕", {
-        messageCount: pipelineContext.messages.length,
-        logCount: pipelineContext.logs.length,
-      });
-
-      // 4. 从管道获取最终的消息
-      const messages = pipelineContext.messages;
-
-      logger.info("📤 发送 LLM 请求", {
-        sessionId: session.id,
-        agentId: agentStore.currentAgentId,
-        profileId: agentConfigSnippet.profileId,
-        modelId: agentConfigSnippet.modelId,
-        totalMessageCount: messages.length,
-        systemMessageCount: messages.filter((m) => m.role === "system").length,
-        isStreaming: settings.value.uiPreferences.isStreaming,
-      });
-
-      logger.debug("📋 发送的完整消息列表", {
-        messages: messages.map((msg, index) => ({
-          index,
-          role: msg.role,
-          contentPreview:
-            typeof msg.content === "string"
-              ? msg.content.substring(0, 200)
-              : JSON.stringify(msg.content).substring(0, 200),
-        })),
-      });
-
-      const messagesForRequest = messages.map((msg, index) => {
-        const isLast = index === messages.length - 1;
-        return {
-          role: msg.role,
-          content: msg.content,
-          // 如果是续写模式且是最后一条消息，标记为 prefix
-          prefix: isContinuation && isLast ? true : undefined,
-        };
-      });
-
-      const maxRetries = settings.value.requestSettings.maxRetries;
-      const retryInterval = settings.value.requestSettings.retryInterval;
-      const retryMode = settings.value.requestSettings.retryMode;
-
-      let hasReceivedStreamData = false;
-      let response: any = null;
-
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-          if (attempt > 0) {
-            logger.info(`开始第 ${attempt}/${maxRetries} 次重试`, {
-              sessionId: session.id,
-              nodeId: assistantNode.id,
-            });
-          }
-
-          response = await sendRequest({
-            profileId: agentConfigSnippet.profileId,
-            modelId: agentConfigSnippet.modelId,
-            messages: messagesForRequest,
-            ...effectiveParams,
-            stream: settings.value.uiPreferences.isStreaming,
-            signal: abortController.signal,
-            timeout: settings.value.requestSettings.timeout,
-            onStream: settings.value.uiPreferences.isStreaming
-              ? (chunk: string) => {
-                hasReceivedStreamData = true;
-                handleStreamUpdate(session, assistantNode.id, chunk, false);
-              }
-              : undefined,
-            onReasoningStream: settings.value.uiPreferences.isStreaming
-              ? (chunk: string) => {
-                hasReceivedStreamData = true;
-                handleStreamUpdate(session, assistantNode.id, chunk, true);
-              }
-              : undefined,
-          });
-
-          break;
-        } catch (error) {
-          const isAbort = isAbortError(error);
-          let isRetryable = false;
-          if (error instanceof TimeoutError) {
-            isRetryable = true;
-          } else if (error instanceof LlmApiError) {
-            isRetryable = error.status === 429 || error.status >= 500;
-          } else if (error instanceof Error && !isAbort) {
-            isRetryable = true;
-          }
-
-          const shouldRetry =
-            !isAbort &&
-            !hasReceivedStreamData &&
-            isRetryable &&
-            attempt < maxRetries;
-
-          if (shouldRetry) {
-            const delayTime =
-              retryMode === "exponential"
-                ? retryInterval * Math.pow(2, attempt)
-                : retryInterval;
-
-            logger.warn(`请求失败，准备重试 (${attempt + 1}/${maxRetries})`, {
-              delay: delayTime,
-              error: error instanceof Error ? error.message : String(error),
-            });
-
-            await new Promise<void>((resolve, reject) => {
-              const timer = setTimeout(resolve, delayTime);
-              const abortHandler = () => {
-                clearTimeout(timer);
-                reject(new DOMException("Aborted", "AbortError"));
-              };
-              abortController.signal.addEventListener("abort", abortHandler, {
-                once: true,
-              });
-            });
-
-            continue;
-          }
-          throw error;
-        }
-      }
-
-      if (response) {
-        await validateAndFixUsage(
-          response,
-          agentConfigSnippet.modelId,
-          messagesForRequest,
-        );
-        await finalizeNode(
-          session,
-          assistantNode.id,
-          response,
-          agentStore.currentAgentId || "",
-        );
-
-        // 尝试触发上下文压缩
-        // 注意：这不会阻塞 UI，但会等待压缩完成（如果触发的话）
-        // 放在 finalizeNode 之后，确保当前对话已完成且状态已保存
-        try {
-          await checkAndCompress(session);
-        } catch (error) {
-          logger.warn("自动上下文压缩执行失败（不影响主流程）", {
-            error: error instanceof Error ? error.message : String(error),
-          });
         }
 
-        logger.info("请求执行成功", {
-          sessionId: session.id,
-          assistantNodeId: assistantNode.id,
-          messageLength: response.content.length,
-          usage: response.usage,
+        // 3. 执行上下文管道
+        await contextPipelineStore.executePipeline(pipelineContext);
+        const messages = pipelineContext.messages;
+
+        // 4. 发送请求
+        const messagesForRequest = messages.map((msg, index, filteredMessages) => {
+          const isLast = index === filteredMessages.length - 1;
+          return {
+            role: msg.role as any,
+            content: msg.content,
+            prefix: isContinuation && isLast ? true : undefined,
+          };
         });
-      }
+
+        const maxRetries = settings.value.requestSettings.maxRetries;
+        const retryInterval = settings.value.requestSettings.retryInterval;
+        const retryMode = settings.value.requestSettings.retryMode;
+
+        let hasReceivedStreamData = false;
+        let response: any = null;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            response = await sendRequest({
+              profileId: agentConfigSnippet.profileId,
+              modelId: agentConfigSnippet.modelId,
+              messages: messagesForRequest,
+              ...effectiveParams,
+              stream: settings.value.uiPreferences.isStreaming,
+              signal: abortController.signal,
+              timeout: settings.value.requestSettings.timeout,
+              onStream: settings.value.uiPreferences.isStreaming
+                ? (chunk: string) => {
+                  hasReceivedStreamData = true;
+                  handleStreamUpdate(session, currentAssistantNode.id, chunk, false);
+                }
+                : undefined,
+              onReasoningStream: settings.value.uiPreferences.isStreaming
+                ? (chunk: string) => {
+                  hasReceivedStreamData = true;
+                  handleStreamUpdate(session, currentAssistantNode.id, chunk, true);
+                }
+                : undefined,
+            });
+            break;
+          } catch (error) {
+            const isAbort = isAbortError(error);
+            const shouldRetry = !isAbort && !hasReceivedStreamData && attempt < maxRetries;
+            if (shouldRetry) {
+              const delayTime = retryMode === "exponential" ? retryInterval * Math.pow(2, attempt) : retryInterval;
+              await new Promise(resolve => setTimeout(resolve, delayTime));
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        if (response) {
+          await validateAndFixUsage(response, agentConfigSnippet.modelId, messagesForRequest as any);
+          await finalizeNode(session, currentAssistantNode.id, response, agentStore.currentAgentId || "");
+
+          try {
+            await checkAndCompress(session);
+          } catch (error) {
+            logger.warn("自动上下文压缩执行失败", error);
+          }
+
+          // --- 工具调用处理逻辑 ---
+          if (executionAgent.toolCallConfig?.enabled) {
+            const cycleResult = await processCycle(response.content, executionAgent.toolCallConfig);
+
+            if (cycleResult.hasToolRequests) {
+              logger.info(`🛠️ 检测到 ${cycleResult.parsedRequests.length} 个工具请求，开始执行...`);
+
+              // 如果需要确认，目前先直接抛出提示（Phase 1 暂不支持 UI 拦截等待）
+              if (executionAgent.toolCallConfig.requireConfirmation) {
+                logger.warn("检测到工具请求，但由于开启了 '需要确认'，Phase 1 暂不支持在此流程中拦截。将按自动模式继续。");
+              }
+
+              currentAssistantNode.metadata = {
+                ...currentAssistantNode.metadata,
+                toolCallsRequested: cycleResult.parsedRequests.map(req => ({
+                  requestId: req.requestId,
+                  toolName: req.toolName,
+                  args: req.args,
+                  status: "completed" // 目前 Phase 1 都是自动完成
+                }))
+              };
+
+              const toolResultText = formatCycleResults(
+                cycleResult.executionResults,
+                executionAgent.toolCallConfig.protocol
+              );
+
+              const toolNode: ChatMessageNode = {
+                id: `tool-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                parentId: currentAssistantNode.id,
+                childrenIds: [],
+                role: "tool",
+                content: toolResultText,
+                status: "complete",
+                timestamp: new Date().toISOString(),
+                metadata: {
+                  agentId: executionAgent.id,
+                  toolCall: cycleResult.executionResults.length > 0 ? {
+                    requestId: cycleResult.executionResults[0].requestId,
+                    toolName: cycleResult.executionResults[0].toolName,
+                    status: cycleResult.executionResults[0].status,
+                    durationMs: cycleResult.executionResults[0].durationMs,
+                    rawArgs: cycleResult.parsedRequests[0]?.args
+                  } : undefined
+                }
+              };
+
+              session.nodes[toolNode.id] = toolNode;
+              currentAssistantNode.childrenIds.push(toolNode.id);
+              currentPathToUserNode = [...currentPathToUserNode, currentAssistantNode, toolNode];
+
+              const nextAssistantNode: ChatMessageNode = {
+                id: `assistant-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                parentId: toolNode.id,
+                childrenIds: [],
+                role: "assistant",
+                content: "",
+                status: "generating",
+                timestamp: new Date().toISOString(),
+                metadata: { agentId: executionAgent.id }
+              };
+              session.nodes[nextAssistantNode.id] = nextAssistantNode;
+              toolNode.childrenIds.push(nextAssistantNode.id);
+              currentAssistantNode = nextAssistantNode;
+              continue;
+            }
+          }
+          break;
+        }
+      } // end while
 
       const { shouldAutoName, generateTopicName } = useTopicNamer();
       if (shouldAutoName(session)) {
@@ -949,7 +926,10 @@ export function useChatExecutor() {
     // 6. 更新预览数据中的统计信息
     const previewData: ContextPreviewData = {
       ...basePreviewData,
-      finalMessages: pipelineContext.messages,
+      finalMessages: pipelineContext.messages.filter(
+        (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } =>
+          msg.role !== "tool",
+      ),
       statistics: {
         ...basePreviewData.statistics,
         totalTokenCount: finalTotalTokenCount,

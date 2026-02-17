@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { Wrench, CheckCircle2, XCircle, Clock } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
@@ -108,6 +109,8 @@ const displayName = computed(() => {
       agent.value?.name ||
       "助手"
     );
+  } else if (props.message.role === "tool") {
+    return props.message.metadata?.toolCall?.toolName || "工具执行";
   } else {
     return "系统";
   }
@@ -144,12 +147,15 @@ const userAvatarSrc = useResolvedAvatar(userAvatarTarget, "user-profile");
 const assistantAvatarSrc = useResolvedAvatar(assistantAvatarTarget, "agent");
 
 // 根据角色选择最终要显示的图标
-const displayIcon = computed(() => {
+const displayIcon = computed<any>(() => {
   if (props.message.role === "user") {
     return userAvatarSrc.value;
   }
   if (props.message.role === "assistant") {
     return assistantAvatarSrc.value;
+  }
+  if (props.message.role === "tool") {
+    return Wrench; // 使用图标组件
   }
   return "⚙️"; // 系统消息
 });
@@ -174,6 +180,8 @@ const nameForAlt = computed(() => {
   } else if (props.message.role === "assistant") {
     // 从 agent 中获取原始 name，这通常比 displayName 更干净
     return agent.value?.name;
+  } else if (props.message.role === "tool") {
+    return "Tool";
   }
   return "System";
 });
@@ -190,7 +198,17 @@ const formatLatency = (ms: number) => {
 <template>
   <div class="message-header">
     <div class="header-left">
-      <Avatar :src="displayIcon || ''" :alt="nameForAlt" :size="40" shape="square" :radius="6" />
+      <div v-if="message.role === 'tool'" class="tool-avatar">
+        <component :is="displayIcon" :size="20" />
+      </div>
+      <Avatar
+        v-else
+        :src="typeof displayIcon === 'string' ? displayIcon : ''"
+        :alt="nameForAlt"
+        :size="40"
+        shape="square"
+        :radius="6"
+      />
       <div class="message-info">
         <span class="message-name">{{ displayName }}</span>
         <div v-if="shouldShowSubtitle && agentProfileInfo" class="message-subtitle">
@@ -219,6 +237,21 @@ const formatLatency = (ms: number) => {
     </div>
 
     <div class="header-right">
+      <!-- 工具执行状态 -->
+      <div v-if="message.role === 'tool' && message.metadata?.toolCall" class="tool-status-tag">
+        <div class="status-item" :class="message.metadata.toolCall.status">
+          <component
+            :is="message.metadata.toolCall.status === 'success' ? CheckCircle2 : XCircle"
+            :size="12"
+          />
+          <span>{{ message.metadata.toolCall.status === "success" ? "已完成" : "失败" }}</span>
+        </div>
+        <div class="status-item duration">
+          <Clock :size="12" />
+          <span>{{ formatLatency(message.metadata.toolCall.durationMs) }}</span>
+        </div>
+      </div>
+
       <!-- 性能指标 -->
       <div
         v-if="
@@ -278,6 +311,18 @@ const formatLatency = (ms: number) => {
   gap: 8px;
 }
 
+.tool-avatar {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color-soft);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--primary-color);
+}
+
 .message-info {
   display: flex;
   flex-direction: column;
@@ -329,7 +374,8 @@ const formatLatency = (ms: number) => {
   margin-left: auto;
 }
 
-.performance-stats {
+.performance-stats,
+.tool-status-tag {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -338,6 +384,28 @@ const formatLatency = (ms: number) => {
   background-color: var(--bg-color-soft);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+.tool-status-tag {
+  gap: 12px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-item.success {
+  color: var(--success-color);
+}
+
+.status-item.error {
+  color: var(--error-color);
+}
+
+.status-item.duration {
+  opacity: 0.8;
 }
 
 .stat-item {

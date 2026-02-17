@@ -364,6 +364,7 @@ function getRoleTagType(role: MessageRole): "success" | "primary" | "info" {
     system: "info",
     user: "primary",
     assistant: "success",
+    tool: "info",
   };
   return typeMap[role];
 }
@@ -373,6 +374,7 @@ function getRoleLabel(role: MessageRole): string {
     system: "System",
     user: "User",
     assistant: "Assistant",
+    tool: "Tool",
   };
   return labelMap[role];
 }

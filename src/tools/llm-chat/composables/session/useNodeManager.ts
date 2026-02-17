@@ -4,7 +4,7 @@
  */
 
 import { toRaw } from "vue";
-import type { ChatSession, ChatMessageNode } from "../../types";
+import type { ChatSession, ChatMessageNode, MessageRole } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { BranchNavigator } from "../../utils/BranchNavigator";
 import { createModuleLogger } from "@/utils/logger";
@@ -18,7 +18,7 @@ const errorHandler = createModuleErrorHandler("llm-chat/node-manager");
  * 创建节点的配置
  */
 export interface CreateNodeConfig {
-  role: "user" | "assistant" | "system";
+  role: MessageRole;
   content: string;
   parentId: string | null;
   status?: "complete" | "generating" | "error";

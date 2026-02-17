@@ -269,6 +269,22 @@ export interface ChatMessageNode {
       /** 显示模式：translation=仅译文, both=双语对照 */
       displayMode?: TranslationDisplayMode;
     };
+    /** 工具调用结果（用于 role: "tool" 的节点） */
+    toolCall?: {
+      requestId: string;
+      toolName: string;
+      status: "success" | "error" | "denied";
+      durationMs: number;
+      rawArgs?: Record<string, string>;
+    };
+    /** AI 请求的工具调用列表（用于 role: "assistant" 的节点） */
+    toolCallsRequested?: Array<{
+      requestId: string;
+      toolName: string;
+      args: Record<string, string>;
+      status: "pending" | "awaiting_approval" | "executing" | "completed" | "denied";
+      error?: string;
+    }>;
     /** 是否为续写的前缀消息 */
     isContinuationPrefix?: boolean;
     /** 是否为续写模式生成的节点 */

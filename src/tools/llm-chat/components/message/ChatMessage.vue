@@ -316,6 +316,16 @@ defineExpose({
   /* 移除子元素的边框和圆角，由容器统一管理 */
 }
 
+/* 工具消息特殊背景 */
+.message-tool .message-background-slice {
+  background-color: color-mix(in srgb, var(--bg-color-soft) 80%, transparent);
+}
+
+.message-tool::after {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
+}
+
 /* 内容层样式 */
 .message-inner {
   position: relative;

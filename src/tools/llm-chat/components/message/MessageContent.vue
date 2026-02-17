@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide, nextTick } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
+import {
+  Copy,
+  Check,
+  GitBranch,
+  Languages,
+  MessageSquareText,
+  Terminal,
+  Hash,
+} from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSession, TranslationDisplayMode } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -663,6 +671,32 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 
     <!-- 内容显示区域 (Grid Layout) -->
     <div v-else class="content-display-grid">
+      <!-- 工具调用结果专用展示区 -->
+      <div v-if="message.role === 'tool' && message.metadata?.toolCall" class="tool-result-container">
+        <div class="tool-call-info">
+          <div class="info-item">
+            <Terminal :size="14" />
+            <span class="label">工具:</span>
+            <span class="value">{{ message.metadata.toolCall.toolName }}</span>
+          </div>
+          <div class="info-item">
+            <Hash :size="14" />
+            <span class="label">ID:</span>
+            <span class="value">{{ message.metadata.toolCall.requestId }}</span>
+          </div>
+        </div>
+
+        <!-- 如果有参数，显示参数摘要 -->
+        <div v-if="message.metadata.toolCall.rawArgs" class="tool-args-preview">
+          <div class="args-title">输入参数:</div>
+          <pre class="args-content">{{
+            JSON.stringify(message.metadata.toolCall.rawArgs, null, 2)
+          }}</pre>
+        </div>
+
+        <div class="result-label">执行结果:</div>
+      </div>
+
       <!-- 原文区域 -->
       <div v-if="showOriginal" class="original-column">
         <div class="translation-header" v-if="displayMode === 'both' && showTranslation">
@@ -973,6 +1007,70 @@ const errorMessage = computed(() => messageMetadata.value?.error);
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* 工具结果样式 */
+.tool-result-container {
+  padding: 12px;
+  background-color: var(--bg-color-soft);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: -8px; /* 减少与下方结果的间距 */
+}
+
+.tool-call-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-color-secondary);
+}
+
+.info-item .label {
+  opacity: 0.7;
+}
+
+.info-item .value {
+  font-family: var(--font-family-mono);
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.tool-args-preview {
+  margin-bottom: 12px;
+  padding: 8px;
+  background-color: var(--container-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.args-title {
+  font-size: 11px;
+  color: var(--text-color-tertiary);
+  margin-bottom: 4px;
+}
+
+.args-content {
+  margin: 0;
+  font-size: 12px;
+  font-family: var(--font-family-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-color-secondary);
+}
+
+.result-label {
+  font-size: 11px;
+  color: var(--text-color-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* 宽屏并排布局 */

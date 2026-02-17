@@ -21,7 +21,7 @@ export const ANCHOR_IDS = {
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
   /** 消息来源类型 */
   sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";

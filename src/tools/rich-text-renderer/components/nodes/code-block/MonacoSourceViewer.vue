@@ -76,7 +76,8 @@ const computeContentHeight = (): number | null => {
       height = lineCount * lineHeight;
     }
 
-    return Math.ceil(height) + 12;
+    // 增加余量避免亚像素差异导致滚动条闪烁（水平滚动条高度 + 安全边距）
+    return Math.ceil(height) + 20;
   } catch {
     return null;
   }
@@ -138,7 +139,10 @@ const initEditor = async () => {
         vertical: "auto" as const,
         horizontal: "auto" as const,
         handleMouseWheel: !props.isExpanded,
+        useShadows: false,
       },
+      overviewRulerLanes: 0,
+      overviewRulerBorder: false,
       wordWrap: props.wordWrapEnabled ? ("on" as const) : ("off" as const),
       wrappingIndent: "same" as const,
       folding: true,
@@ -189,6 +193,8 @@ const initEditor = async () => {
         if (editor && typeof editor.layout === "function") {
           requestAnimationFrame(() => {
             editor.layout();
+            // 同步更新容器高度，避免窗口宽度变化时滚动条闪烁
+            adjustLayout();
           });
         }
       });

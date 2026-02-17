@@ -1,8 +1,9 @@
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 
-const logger = createModuleLogger('tools/json-formatter/logic');
-const errorHandler = createModuleErrorHandler('tools/json-formatter/logic');
+const logger = createModuleLogger("tools/json-formatter/logic");
+const errorHandler = createModuleErrorHandler("tools/json-formatter/logic");
 
 /**
  * JSON 格式化选项
@@ -60,26 +61,26 @@ export interface FileReadResult {
  * @returns 解析结果
  */
 export function parseJson(text: string): ParseResult {
-  logger.debug('开始解析 JSON', { textLength: text.length });
+  logger.debug("开始解析 JSON", { textLength: text.length });
 
   if (!text.trim()) {
     return {
       data: null,
       success: false,
-      error: 'JSON 字符串为空',
+      error: "JSON 字符串为空",
     };
   }
 
   try {
     const parsed = JSON.parse(text);
-    logger.info('JSON 解析成功', { type: typeof parsed });
+    logger.info("JSON 解析成功", { type: typeof parsed });
     return {
       data: parsed,
       success: true,
     };
   } catch (error: any) {
     const errorMessage = `JSON 解析错误: ${error.message}`;
-    errorHandler.error(error, 'JSON 解析失败');
+    errorHandler.error(error, "JSON 解析失败");
     return {
       data: null,
       success: false,
@@ -97,52 +98,46 @@ export function customJsonStringify(
   indentSize: number = 2,
   currentDepth: number = 0
 ): string {
-  if (obj === null) return 'null';
-  if (typeof obj === 'undefined') return 'undefined';
-  if (typeof obj === 'string') return JSON.stringify(obj);
-  if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
+  if (obj === null) return "null";
+  if (typeof obj === "undefined") return "undefined";
+  if (typeof obj === "string") return JSON.stringify(obj);
+  if (typeof obj === "number" || typeof obj === "boolean") return String(obj);
 
-  const indent = ' '.repeat(indentSize).repeat(currentDepth);
-  const nextIndent = ' '.repeat(indentSize).repeat(currentDepth + 1);
+  const indent = " ".repeat(indentSize).repeat(currentDepth);
+  const nextIndent = " ".repeat(indentSize).repeat(currentDepth + 1);
 
   if (Array.isArray(obj)) {
-    if (obj.length === 0) return '[]';
+    if (obj.length === 0) return "[]";
 
     if (currentDepth >= expandDepth) {
       const compactItems = obj.map((item) => {
-        if (typeof item === 'object' && item !== null) {
+        if (typeof item === "object" && item !== null) {
           return JSON.stringify(item);
         }
         return customJsonStringify(item, expandDepth, indentSize, currentDepth + 1);
       });
-      return `[${compactItems.join(', ')}]`;
+      return `[${compactItems.join(", ")}]`;
     }
 
-    const items = obj.map((item) =>
-      nextIndent +
-      customJsonStringify(item, expandDepth, indentSize, currentDepth + 1)
+    const items = obj.map(
+      (item) => nextIndent + customJsonStringify(item, expandDepth, indentSize, currentDepth + 1)
     );
-    return `[\n${items.join(',\n')}\n${indent}]`;
+    return `[\n${items.join(",\n")}\n${indent}]`;
   }
 
-  if (typeof obj === 'object') {
+  if (typeof obj === "object") {
     const keys = Object.keys(obj);
-    if (keys.length === 0) return '{}';
+    if (keys.length === 0) return "{}";
 
     if (currentDepth >= expandDepth) {
       return JSON.stringify(obj);
     }
 
     const items = keys.map((key) => {
-      const value = customJsonStringify(
-        obj[key],
-        expandDepth,
-        indentSize,
-        currentDepth + 1
-      );
+      const value = customJsonStringify(obj[key], expandDepth, indentSize, currentDepth + 1);
       return `${nextIndent}${JSON.stringify(key)}: ${value}`;
     });
-    return `{\n${items.join(',\n')}\n${indent}}`;
+    return `{\n${items.join(",\n")}\n${indent}}`;
   }
 
   return String(obj);
@@ -157,7 +152,7 @@ export function customJsonStringify(
 export function formatJson(text: string, options: FormatOptions = {}): FormatResult {
   const { expandDepth = 3, indentSize = 2 } = options;
 
-  logger.debug('开始格式化 JSON', {
+  logger.debug("开始格式化 JSON", {
     textLength: text.length,
     expandDepth,
     indentSize,
@@ -166,7 +161,7 @@ export function formatJson(text: string, options: FormatOptions = {}): FormatRes
   const parseResult = parseJson(text);
   if (!parseResult.success) {
     return {
-      formatted: '',
+      formatted: "",
       parsed: null,
       success: false,
       error: parseResult.error,
@@ -174,14 +169,9 @@ export function formatJson(text: string, options: FormatOptions = {}): FormatRes
   }
 
   try {
-    const formatted = customJsonStringify(
-      parseResult.data,
-      expandDepth,
-      indentSize,
-      0
-    );
+    const formatted = customJsonStringify(parseResult.data, expandDepth, indentSize, 0);
 
-    logger.info('JSON 格式化成功', {
+    logger.info("JSON 格式化成功", {
       inputLength: text.length,
       outputLength: formatted.length,
     });
@@ -193,9 +183,9 @@ export function formatJson(text: string, options: FormatOptions = {}): FormatRes
     };
   } catch (error: any) {
     const errorMessage = `格式化失败: ${error.message}`;
-    errorHandler.error(error, 'JSON 格式化失败');
+    errorHandler.error(error, "JSON 格式化失败");
     return {
-      formatted: '',
+      formatted: "",
       parsed: parseResult.data,
       success: false,
       error: errorMessage,
@@ -209,21 +199,21 @@ export function formatJson(text: string, options: FormatOptions = {}): FormatRes
  * @returns 文件读取结果的 Promise
  */
 export async function readFile(file: File): Promise<FileReadResult> {
-  logger.debug('开始读取文件', {
+  logger.debug("开始读取文件", {
     fileName: file.name,
     fileType: file.type,
     fileSize: file.size,
   });
 
   if (
-    file.type !== 'application/json' &&
-    !file.name.endsWith('.json') &&
-    !file.name.endsWith('.txt')
+    file.type !== "application/json" &&
+    !file.name.endsWith(".json") &&
+    !file.name.endsWith(".txt")
   ) {
-    const error = '仅支持 JSON 或文本文件';
-    logger.warn('文件类型不支持', { fileName: file.name, fileType: file.type });
+    const error = "仅支持 JSON 或文本文件";
+    logger.warn("文件类型不支持", { fileName: file.name, fileType: file.type });
     return {
-      content: '',
+      content: "",
       fileName: file.name,
       success: false,
       error,
@@ -235,7 +225,7 @@ export async function readFile(file: File): Promise<FileReadResult> {
 
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      logger.info('文件读取成功', {
+      logger.info("文件读取成功", {
         fileName: file.name,
         contentLength: content.length,
       });
@@ -247,12 +237,12 @@ export async function readFile(file: File): Promise<FileReadResult> {
     };
 
     reader.onerror = (e) => {
-      const error = `读取文件失败: ${e.target?.error?.message || '未知错误'}`;
-      errorHandler.error(e.target?.error || new Error('Unknown error'), '文件读取失败', {
+      const error = `读取文件失败: ${e.target?.error?.message || "未知错误"}`;
+      errorHandler.error(e.target?.error || new Error("Unknown error"), "文件读取失败", {
         context: { fileName: file.name },
       });
       resolve({
-        content: '',
+        content: "",
         fileName: file.name,
         success: false,
         error,
@@ -261,4 +251,50 @@ export async function readFile(file: File): Promise<FileReadResult> {
 
     reader.readAsText(file);
   });
+}
+
+/**
+ * Agent 专用：从文件或文本格式化 JSON
+ *
+ * 支持通过 text 直接传入 JSON 文本，或通过 filePath 指定文件路径自动读取。
+ * 两者至少提供一个，优先使用 filePath。
+ *
+ * @param args 扁平化参数对象
+ * @returns 格式化结果
+ */
+export async function formatJsonAgent(args: Record<string, string>): Promise<FormatResult> {
+  const { text, filePath } = args;
+  const expandDepth = args.expandDepth ? Number(args.expandDepth) : 3;
+  const indentSize = args.indentSize ? Number(args.indentSize) : 2;
+
+  let jsonText = text;
+
+  // 如果提供了文件路径，优先从文件读取
+  if (filePath) {
+    logger.info("从文件路径读取 JSON", { filePath });
+    const content = await errorHandler.wrapAsync(
+      () => readTextFile(filePath),
+      { userMessage: `读取文件失败: ${filePath}`, showToUser: false },
+    );
+    if (content === null) {
+      return {
+        formatted: "",
+        parsed: null,
+        success: false,
+        error: `无法读取文件: ${filePath}`,
+      };
+    }
+    jsonText = content;
+  }
+
+  if (!jsonText) {
+    return {
+      formatted: "",
+      parsed: null,
+      success: false,
+      error: "必须提供 text 或 filePath 参数",
+    };
+  }
+
+  return formatJson(jsonText, { expandDepth, indentSize });
 }

@@ -1,6 +1,6 @@
 # AIO Tool Calling System Design (Phase 1)
 
-> **状态**: Implementing
+> **状态**: Completed
 > **作者**: 咕咕
 > **日期**: 2026-02-16
 > **关联**: [vcp-tool-integration-RFC.md](./vcp-tool-integration-RFC.md)

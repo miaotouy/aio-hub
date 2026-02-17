@@ -169,7 +169,33 @@ graph TD
 
 - **动态能力适配**: 参数编辑器 (`ModelParametersEditor`) 会根据当前选中的模型 ID 和渠道类型，自动查询 `capabilities` 元数据，动态显示或隐藏不支持的参数组，通过数据驱动的方式解决了 UI 臃肿问题。
 
-### 1.12. 翻译系统 (Translation System)
+### 1.12. 知识库系统 (Knowledge Base / RAG)
+
+系统集成了强大的 RAG (Retrieval-Augmented Generation) 能力，允许智能体访问外部知识库。
+
+- **触发机制**: 通过在预设消息或用户输入中使用 `【kb::kbName::limit::minScore::mode::params】` 占位符触发。
+- **激活模式**:
+  - **Always**: 始终触发检索。
+  - **Gate**: 关键词触发，仅当最近对话中出现指定关键词时激活。
+  - **Turn**: 轮次触发，每隔 N 轮对话执行一次检索。
+  - **Static**: 静态加载，直接注入指定的条目 ID 或整个库的内容。
+- **智能检索策略**:
+  - **上下文感知查询**: 自动提取最近 N 轮对话构建检索 Query。
+  - **双引擎检索**: 支持向量检索 (Vector) 和关键词检索 (Keyword/Fulltext)，以及混合检索 (Hybrid)。
+  - **语义缓存**: 实现会话级检索缓存，支持原始文本精确匹配和向量相似度匹配，显著降低 API 开销。
+- **结果聚合与衰减**:
+  - **向量投影**: 支持对历史查询向量进行加权平均，使检索更具上下文连贯性。
+  - **时间衰减**: 对历史检索结果进行分值衰减并与当前结果聚合，确保持久记忆。
+
+### 1.13. 搜索系统 (Search System)
+
+为海量对话和智能体提供了毫秒级的全文检索能力。
+
+- **多维搜索**: 支持对智能体（名称、预设消息等）和会话（标题、消息、推理内容）进行深度搜索。
+- **匹配模式**: 提供 `Exact` (整体匹配)、`And` (包含全部词)、`Or` (包含任一词) 三种模式。
+- **性能优化**: 采用 rust 后端模块索引驱动，前端配合防抖 (Debounce) 和 Loading 延迟策略，确保搜索体验极其流畅。
+
+### 1.14. 翻译系统 (Translation System)
 
 为了打破语言障碍，系统集成了原生的多语言翻译能力，支持消息内容和用户输入的一键翻译。
 
@@ -183,7 +209,7 @@ graph TD
   - **双语 (Both)**: 并排或上下对照显示原文和译文，方便校对。
 - **独立配置**: 翻译功能拥有独立的模型配置、提示词模板和目标语言设置。
 
-### 1.13. 上下文压缩 (Context Compression)
+### 1.15. 上下文压缩 (Context Compression)
 
 随着对话长度的增加，上下文窗口限制和 Token 成本成为主要瓶颈。上下文压缩系统通过智能摘要技术解决这一问题。
 
@@ -196,7 +222,7 @@ graph TD
 - **保护区**: 支持设置“最近 N 条消息不压缩”，确保最新的对话上下文保持完整细节。
 - **可逆性**: 虽然压缩节点在构建 LLM 上下文时会替代原始消息，但原始消息节点并未被删除，用户可以随时展开查看或回滚。
 
-### 1.14. 消息数据编辑器 (Message Data Editor)
+### 1.16. 消息数据编辑器 (Message Data Editor)
 
 为高级用户和开发者提供了一个强大的调试工具，允许直接查看和修改任意消息节点的底层 JSON 数据结构。
 
@@ -204,7 +230,7 @@ graph TD
 - **安全更新**: 保存时会进行数据校验，确保不会破坏核心结构。
 - **撤销支持**: 所有通过数据编辑器进行的修改都会被记录到撤销/重做历史中，操作可回滚。
 
-### 1.15. 智能体资产 (Agent Assets)
+### 1.17. 智能体资产 (Agent Assets)
 
 为了增强智能体的表现力和沉浸感，系统支持智能体携带专属的私有媒体资产。
 
@@ -216,13 +242,44 @@ graph TD
 - **宏集成**: 通过 `{{assets}}` 宏向 LLM 注入可用资产列表及引用格式说明，使模型能够主动在回复中使用这些资产。
 - **跨平台适配**: 渲染管线会自动将私有协议转换为 Tauri 的安全资源 URL，确保在不同操作系统下的正常显示。
 
-### 1.16. 快捷操作 (Quick Actions)
+### 1.18. 快捷操作 (Quick Actions)
 
 快捷操作允许用户在输入框中通过点击按钮快速执行预定义的文本包装或指令发送。
 
 - **类世界书管理**: 采用多级关联机制（全局、智能体、用户档案），支持按组管理。
 - **模板化注入**: 支持 `{{input}}` 占位符，可将输入框选中的内容（或全文）包装进特定的 HTML 标签或指令中。
 - **自动发送**: 支持配置点击后立即发送，提升操作效率。
+
+### 1.19. 续写与补全功能 (Continue & Completion)
+
+利用 LLM 的预测能力，系统提供了多场景的内容延续功能。
+
+- **助手续写 (Assistant Continue)**: 当模型回复中断或需要深入时，利用 DeepSeek 的 `prefix` 或 Claude/Gemini 的 `prefill` 特性，让模型从现有文本末尾继续生成。
+- **输入框补全 (Input Copilot)**: 在输入框内一键触发 AI 协助补全后续句子，支持流式回填。
+- **灵感接力**: 允许 AI 站在用户视角继续书写 User 消息的内容，实现角色换位式的接话。
+
+### 1.20. 导入、导出与迁移系统 (Import/Export & Migration)
+
+确保用户数据的可流动性和系统的可维护性。
+
+- **多格式支持**: 支持将会话、智能体、世界书、快捷操作导出为 JSON、Markdown 或 Zip 压缩包。
+- **智能迁移**: `agentMigrationService` 负责处理不同版本间的配置结构差异，确保旧版 Agent 能够平滑升级到新架构。
+- **资产打包**: 导出智能体时，会自动扫描并包含其引用的所有私有资产（头像、表情包等）。
+
+### 1.21. 插件化设置系统 (Plugin Settings System)
+
+为了保持核心逻辑的简洁并支持功能扩展，系统实现了一套声明式的设置注入机制。
+
+- **动态注册**: 外部模块（如转写工具、搜索增强）可以通过 `usePluginSettings` 动态向聊天设置对话框中注入新的配置分区或配置项。
+- **解耦交互**: 核心设置 UI 不需要预知所有可能的配置项，而是通过遍历注册中心自动渲染，实现了 UI 与业务插件的解耦。
+
+### 1.22. 世界书系统 (Worldbook System)
+
+世界书是一个基于关键词触发的动态背景知识库，专门用于增强角色扮演的连贯性。
+
+- **多级关联**: 支持全局世界书和智能体私有世界书，满足通用设定与特定剧本的需求。
+- **精准触发**: 采用高性能的关键词扫描算法，在构建上下文时实时匹配消息内容并注入关联条目。
+- **管理界面**: 提供独立的世界书管理器，支持条目的分类、批量编辑和多格式导入。
 
 ## 2. 统一上下文管道系统 (Unified Context Pipeline System)
 
@@ -580,14 +637,17 @@ graph TD
   - `id`, `parentId`, `childrenIds`: 定义树结构。
   - `role`, `content`, `status`: 消息基本信息。
   - `attachments`: `Asset[]`，支持多模态对话。
-  - `metadata`: 存储额外信息，包括：
-    - `agentId`, `modelId`: 生成该消息的配置。
-    - `usage`, `contentTokens`: Token 消耗统计。
-    - `reasoningContent`: DeepSeek 等模型的推理过程内容。
-    - `reasoningStartTime`, `reasoningEndTime`: 推理耗时统计。
-    - `translation`: 翻译数据（内容、目标语言、显示模式）。
-    - `isCompressionNode`: 标记是否为压缩/摘要节点。
-    - `compressedNodeIds`: 被此节点隐藏的原始消息 ID 列表。
+  - `isEnabled`: 核心状态，标记节点内容是否参与上下文构建。
+  - `modelMatch`: 按模型 ID 或渠道名称正则表达式过滤消息的生效范围。
+  - `metadata`: 存储丰富元数据，包括：
+    - `agentId`, `modelId`: 生成该消息的配置快照。
+    - `usage`, `tokenCount`: 详细的 Token 消耗统计。
+    - `reasoningContent`: 模型的推理链内容。
+    - `performance`: 包含 `firstTokenTime` (TTFT)、`tokensPerSecond` (生成速度) 等性能指标。
+    - `toolCallsRequested` / `toolCall`: 记录工具调用的请求列表与执行结果。
+    - `translation`: 翻译缓存（内容、目标语言、双语显示模式）。
+    - `continuation`: 续写相关的元数据（是否为续写生成、原始前缀等）。
+    - `compression`: 压缩节点的详细统计（原始 Token 数、原始消息数、压缩配置快照）。
 
 - **`ChatSession`**: 对话的容器。
   - `nodes`: 消息节点字典。
@@ -601,20 +661,22 @@ graph TD
 - **`ChatAgent`**: 可复用的配置模板。
   - `presetMessages`: 预设消息序列。
   - `displayPresetCount`: 在聊天界面显示的预设消息数量。
-  - `parameters`: (`LlmParameters`) 强大的 LLM 参数配置中心，其核心能力包括：
-    - **基础参数**: 支持 `temperature`, `topP`, `maxTokens` 等标准采样参数。
-    - **模型思考能力**: 通过 `thinkingEnabled` 和 `thinkingBudget` 等字段，标准化控制 Claude、Gemini 等新模型的原生思考/推理能力。
-    - **上下文压缩**: `contextCompression` 字段，允许按 Agent 独立配置压缩策略。
-    - **厂商专属配置**: 支持 `safetySettings` (Gemini)、`claudeMetadata` (Claude) 等特定于模型提供商的精细化设置。
-    - **自定义参数**: `custom` 字段结构已统一为 `{ enabled: boolean, params: Record<string, any> }`，并提供 UI 开关。
-    - **高级功能**: 内置 `responseFormat` (强制JSON输出)、`tools` (工具调用)、`contextPostProcessing` (上下文后处理管道) 等高级配置。
-  - `category`: 智能体分类（使用 AgentCategory 枚举，如 "assistant", "character"）。
+  - `parameters`: (`LlmParameters`) 强大的 LLM 参数配置中心。
+  - `knowledgeSettings`: RAG 检索配置，包含检索深度、向量加权衰减、语义缓存开关等。
+  - `toolCallConfig`: 工具调用策略（自动/手动模式、最大迭代次数、执行超时）。
+  - `assets` & `assetGroups`: 智能体私有资产管理，支持 `agent-asset://` 协议引用。
+  - `regexConfig`: 绑定的正则管道规则集。
+  - `interactionConfig`: 交互偏好（如发送按钮是否强制创建分支）。
+  - `worldbookIds` & `worldbookSettings`: 关联的世界书条目及扫描策略。
+  - `category`: 智能体分类。
   - `virtualTimeConfig`: 虚拟时间配置（基准时间、流速）。
   - `llmThinkRules`: LLM 思考过程的解析规则。
 
 - **`InjectionStrategy`**: 消息注入策略。
-  - `depth`: 深度注入位置（距离末尾的消息数）。
-  - `anchorTarget`: 锚点注入目标（如 `chat_history`）。
+  - `type`: 策略类型（default, depth, advanced_depth, anchor）。
+  - `depth`: 基础深度注入位置。
+  - `depthConfig`: 高级深度语法，支持单点、多点及循环注入（如 `10~5`）。
+  - `anchorTarget`: 锚点注入目标（如 `chat_history`, `user_profile`）。
   - `anchorPosition`: 相对锚点的位置（`before` / `after`）。
   - `order`: 同位置多消息的排序权重。
 

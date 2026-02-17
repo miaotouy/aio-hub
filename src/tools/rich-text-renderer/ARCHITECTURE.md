@@ -65,7 +65,7 @@ graph TD
     - **职责**: 在文本进入解析器之前，对原始内容进行预处理。
     - **核心功能**:
       - **正则规则处理**: 支持通过 `regexRules` prop 传入聊天正则规则，在解析前对内容进行替换和转换，流式和静态模式均支持。
-      - **资产路径解析**: 通过 `resolveAsset` 钩子将自定义协议（如 `agent-asset://`、`file://`）转换为当前环境可用的真实 URL。AST 模式下仅预处理 `file://` 链接，`agent-asset://` 留给节点组件处理以避免二次编码。
+      - **资产路径解析 (Eager Resolution)**: 在 AST 解析前处理那些必须立即转换的路径。对于 `file://` 协议，由于其包含特殊字符且如果不转换则无法加载，引擎会在预处理阶段强制调用 `resolveAsset` 进行转换。
 
 2.  **处理层 (Processor Layer)**
     - **职责**: 接收预处理后的文本流，将其解析为 AST，计算变更并生成 Patch 指令。
@@ -172,7 +172,10 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 
 - **解析钩子**: `RichTextRenderer` 接受一个可选的 `resolveAsset` 函数。
 - **协议转换**: 该钩子负责将内容中的自定义协议（如 `agent-asset://`）或相对路径转换为当前环境可用的真实 URL。
-- **分层处理**: AST 模式下，仅在预处理阶段处理 `file://` 协议；`agent-asset://` 协议留给具体节点组件（如 `ImageNode`、`GenericHtmlNode`）在渲染时处理，避免 Markdown 解析器对转换后的本地 URL 进行二次编码。
+- **分层处理 (Lazy Resolution)**:
+  - **预处理阶段**: 仅处理 `file://` 等可能干扰解析或必须全局替换的协议。
+  - **节点渲染阶段**: `agent-asset://` 等协议留给具体节点组件（如 `ImageNode`、`GenericHtmlNode`）处理。这些组件通过注入的 `resolveAsset` 钩子或 `currentAgent` 上下文，在运行时动态解析真实 URL。
+  - **优势**: 避免了 Markdown 解析器对转换后的长本地路径（包含 `%` 等字符）进行二次编码，导致 Tauri 无法识别。
 - **HTML 预览**: 在 `HtmlInteractiveViewer` 的沙箱中，内容在注入前会经过资产解析，确保预览中的所有外部资源引用都能正确加载。
 
 ### 3.6 CDN 资源本地化
@@ -185,10 +188,30 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 
 ### 3.7 渲染性能优化
 
-- **`content-visibility: auto`**: 块级节点（段落、标题、代码块、表格等）自动应用 `content-visibility: auto`，让浏览器跳过不在视口内的节点渲染，显著提升长消息列表的滚动性能。配合 `contain-intrinsic-size` 防止滚动条跳动。
-- **节点进入动画**: 新增节点支持淡入（fade-in-up）动画效果。对于需要立即显示的动态节点（思考块、代码块、Mermaid 图表、VCP 工具、HTML 块、图片），动画会被自动禁用。通过 `enableEnterAnimation` prop 全局控制。
-- **图片列表节流**: AST 中的图片链接提取使用节流函数（1000ms），避免流式输出过程中频繁深度遍历 AST。
+- **`content-visibility: auto`**: 块级节点（`BLOCK_NODE_TYPES` 集合，包括段落、标题、代码块、表格、Mermaid、思考块等）自动应用 `content-visibility: auto`，让浏览器跳过不在视口内的节点渲染，显著提升长消息列表的滚动性能。配合 `contain-intrinsic-size` 防止滚动条跳动。
+- **节点进入动画**: 新增节点支持淡入（fade-in-up）动画效果。
+  - **立即显示策略**: 在 `AstNodeRenderer.tsx` 中定义了 `NO_ANIMATION_NODE_TYPES` 集合。对于思考块、代码块、Mermaid、VCP 工具、HTML 块和图片，动画会被自动禁用。这是因为这些节点通常具有动态填充内容或复杂的初始化逻辑，立即显示能提供更好的实时反馈。
+- **图片列表提取节流**: `RichTextRenderer` 会递归提取 AST 中的所有图片链接（`extractImages`），并使用 1000ms 的节流函数更新 `imageList`。该列表通过上下文共享给所有 `ImageNode`，使其能支持全局图片预览（Viewer）的幻灯片切换。
 - **HTML 预览冻结**: 通过 `shouldFreeze` prop 控制，当消息深度超过阈值时冻结 HTML 预览以节省资源。
+
+### 3.8 交互式测试与调试工具 (Tester)
+
+引擎内置了一个功能强大的测试工具 `RichTextRendererTester.vue`，用于开发调试和性能验证。
+
+- **流式模拟系统**:
+  - **Token 级模拟**: 基于 `Tokenizer` 实现真实的 Token 流式输出模拟。
+  - **节奏控制**: 支持自定义输出速度（Tokens/s）、首包延迟（Initial Delay）。
+  - **波动模式 (Fluctuation)**: 模拟真实网络环境下的发包抖动，支持延迟波动和单次 Token 数量波动。
+- **可视化状态监控**:
+  - **稳定区/待定区染色**: 可视化显示 AST 节点的 `stable` 和 `pending` 状态。
+  - **实时统计**: 显示已渲染 Token 数、实时速度、总字符数和渲染耗时。
+  - **元数据模拟**: 模拟 LLM 响应元数据（如 `firstTokenTime`, `tokensPerSecond`），验证 UI 计时逻辑。
+- **对比与回归测试**:
+  - **多维度对比**: 支持 Markdown 原文、渲染后的 HTML、规范化后的纯文本之间的对比。
+  - **一键复制**: 提供详细的测试报告复制功能，包含测试配置、样式配置、原文与结果对比，便于问题复现。
+- **调试辅助**:
+  - **实时 AST 查看器**: 集成 `AstViewer`，以树状结构实时展示当前的 AST 状态。
+  - **正则实时预览**: 支持实时编辑和应用 `ChatRegexRule`，观察其对渲染结果的影响。
 
 ## 4. 目录结构说明
 
@@ -288,7 +311,9 @@ src/tools/rich-text-renderer/
   - 支持块级、内联及 `<details>`, `<article>` 等语义化 HTML 标签与 Markdown 的深度混合排版。
   - 通过 `GenericHtmlNode` 实现结构化 HTML 标签的 AST 表示，支持任意深度嵌套。
   - **SVG 原生渲染**: SVG 相关标签（`<svg>`, `<circle>`, `<path>` 等）直接渲染为原生 SVG 元素，保持结构合法性。
-  - **音频兜底控制**: 对于隐形音频元素（无 controls、display:none 等），自动生成可视化的播放控制器，支持播放/暂停/进度条/音量联动。
+  - **音频增强控制**:
+    - **隐形音频兜底**: 对于“隐形”音频元素（无 `controls` 属性或 `display: none`），自动生成一套精美的可视化播放控制器。支持播放/暂停、停止、进度条拖拽、实时时长显示。
+    - **音量联动**: 音频音量会自动根据全局设置（`globalMediaVolume`）和智能体私有设置（`defaultMediaVolume`）进行加权计算，确保多媒体体验的一致性。
   - **危险标签黑名单**: `script`, `iframe`, `object` 等危险标签默认被拦截并降级为 `<span>`，可通过 `allowDangerousHtml` 配置绕过。
   - 安全地处理未闭合的 HTML 标签。
   - **嵌入式单页应用 (SPA) 渲染**: `html` 代码块不再仅仅是静态预览，而是作为一个功能完备的沙箱环境（`HtmlInteractiveViewer`），可以直接渲染和运行包含 JavaScript 的复杂单页应用，并支持在独立窗口中进行完整交互。
@@ -387,7 +412,17 @@ src/tools/rich-text-renderer/
 3.  在 `components/AstNodeRenderer.tsx` 的 `componentMap` 中注册新的节点类型与 Vue 组件的映射。如需控制动画或渲染优化行为，同步更新 `NO_ANIMATION_NODE_TYPES` 和 `BLOCK_NODE_TYPES` 集合。
 4.  在 `components/nodes/` 下实现具体的 Vue 组件。
 
-### 7.2 自定义样式
+### 7.2 依赖注入与上下文 (Dependency Injection)
+
+引擎广泛使用 Vue 的 `provide/inject` 机制进行跨组件状态共享，核心 Context 定义在 `RICH_TEXT_CONTEXT_KEY` 中：
+
+- **`images`**: 响应式的全局图片 URL 列表，用于 `ImageNode` 唤起全局预览。
+- **`resolveAsset`**: 资产解析钩子函数。
+- **`currentAgent`**: 当前智能体实例，用于解析 `agent-asset://` 协议。
+- **`isStreaming`**: 全局流式状态，影响思考块的闭合行为和动画。
+- **`config`**: 包含 `seamlessMode`, `defaultRenderHtml`, `allowDangerousHtml` 等开关。
+
+### 7.3 自定义样式
 
 默认情况下，所有基础 Markdown 节点都已接入动态样式系统。如果新增的节点也需要支持自定义样式，只需：
 
@@ -395,3 +430,26 @@ src/tools/rich-text-renderer/
 2.  在 `RichTextRenderer.vue` 的 `cssVariables` computed 中添加对应的 `addVars` 调用。
 3.  在 `components/style-editor/MarkdownStyleEditor.vue` 中添加对应的 `StyleItemEditor` 编辑器实例。
 4.  确保新的节点组件通过 CSS 变量引用样式（如 `color: var(--md-xxx-color)`）。
+
+## 8. 附录：集成与调用场景 (Integration & Usage)
+
+渲染器在 `llm-chat` 模块中作为核心显示组件，其调用场景体现了高度的解耦和协作。
+
+### 8.1 消息内容渲染 (MessageContent.vue)
+
+这是渲染器最主要的调用点，具有以下集成特性：
+
+- **宏处理 (Macro Processing)**: 内容在传入渲染器前，会先经过 `MacroProcessor` 处理。这包括替换用户/智能体姓名变量、处理环境相关的动态文本。
+- **资产解析集成**:
+  - 通过 `provide("currentAgent", currentAgent)` 注入当前智能体上下文。
+  - 遵循“分层处理”策略：`MessageContent` 仅负责宏替换，将 `agent-asset://` 协议透传给渲染器，由渲染器内部的 `ImageNode` 等组件在渲染时动态解析。
+  - 支持 `【file::assetId】` 占位符解析：`resolveAsset` 钩子会查询消息附件列表，将占位符转换为真实的本地资源 URL。
+- **性能冻结策略**: 传入 `messageDepth` 属性。当消息处于较深的历史记录中时，渲染器会自动冻结其 HTML 预览沙箱，以释放内存和 CPU 资源。
+- **样式合并**: 渲染器接收来自 `ChatSettings` 的全局样式，并根据当前智能体（Agent）的配置进行合并覆盖。
+
+### 8.2 智能体预设编辑器 (PresetMessageEditor.vue)
+
+用于智能体（Agent）开发阶段的实时预览：
+
+- **实时反馈**: 当开发者修改智能体的“预设消息串”时，渲染器提供即时的 Markdown 预览。
+- **上下文模拟**: 即使在编辑阶段，也会通过 `provide` 模拟 `currentAgent` 上下文，确保预设中的资产链接（图片等）能够被正确解析和预览。

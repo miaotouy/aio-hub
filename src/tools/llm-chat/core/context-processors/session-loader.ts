@@ -7,6 +7,29 @@ import type { ChatMessageNode } from "@/tools/llm-chat/types";
 const logger = createModuleLogger("primary:session-loader");
 
 /**
+ * 对 turndown 输出的 Markdown 进行后处理，清理结构问题以节约 token。
+ * - 合并连续空行为单个空行
+ * - 移除 HTML 注释
+ * - 清理行尾多余空白
+ * - 移除残留的空链接/空图片标签
+ */
+function postProcessMarkdown(md: string): string {
+  return (
+    md
+      // 移除 HTML 注释 <!-- ... -->
+      .replace(/<!--[\s\S]*?-->/g, "")
+      // 移除残留的空链接 []() 和空图片 ![]()
+      .replace(/!?\[]\(\s*\)/g, "")
+      // 清理行尾空白（保留换行本身）
+      .replace(/[ \t]+$/gm, "")
+      // 合并 3 个及以上连续换行为 2 个（即一个空行）
+      .replace(/\n{3,}/g, "\n\n")
+      // 去除首尾多余空白
+      .trim()
+  );
+}
+
+/**
  * 从会话的树状结构中提取当前活动分支的线性历史记录。
  * @param session - 聊天会话对象
  * @returns 线性消息节点数组
@@ -93,6 +116,11 @@ export const sessionLoader: ContextProcessor = {
       });
       // 保持某些可能对模型理解有帮助的标签
       turndownService.keep(["del", "ins", "sub", "sup"]);
+
+      // 完全禁用 Markdown 转义：这些内容是给 AI 消费的上下文，不需要防止 Markdown 误解析
+      // turndown 默认会把 * _ [ ] 等字符都加反斜杠（如 **text** → \*\*text\*\*），
+      // 这在 AI 场景下纯粹浪费 token，直接返回原字符串即可
+      turndownService.escape = (str: string) => str;
     }
 
     const messages: ProcessableMessage[] = [];
@@ -118,6 +146,8 @@ export const sessionLoader: ContextProcessor = {
           try {
             // 只有当内容中确实存在 HTML 结构时才转换
             finalContent = turndownService.turndown(finalContent);
+            // 后处理：清理 turndown 输出中的结构问题
+            finalContent = postProcessMarkdown(finalContent);
           } catch (e) {
             logger.warn("HTML 转 Markdown 失败", { error: e, nodeId: node.id });
           }

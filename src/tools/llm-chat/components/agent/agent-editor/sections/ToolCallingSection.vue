@@ -8,7 +8,10 @@ const editForm = inject<any>("agent-edit-form");
 
 // 工具调用相关
 const { getDiscoveredMethods } = useToolCalling();
-const discoveredTools = computed(() => getDiscoveredMethods(editForm.toolCallConfig));
+const discoveredTools = computed(() => {
+  if (!editForm.toolCallConfig?.enabled) return [];
+  return getDiscoveredMethods();
+});
 const toggleTool = (toolId: string) => {
   if (!editForm.toolCallConfig) {
     editForm.toolCallConfig = { ...DEFAULT_TOOL_CALL_CONFIG };

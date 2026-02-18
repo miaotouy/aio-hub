@@ -63,25 +63,17 @@ function stableStringifyConfig(config: ToolCallConfig): string {
 
 export function createToolDiscoveryService(): {
   generatePrompt(options: GeneratePromptOptions): string;
-  getDiscoveredMethods(config: ToolCallConfig): DiscoveredToolMethods[];
+  getDiscoveredMethods(): DiscoveredToolMethods[];
   invalidateCache(): void;
 } {
   const promptCache = new Map<string, string>();
 
-  function getDiscoveredMethods(config: ToolCallConfig): DiscoveredToolMethods[] {
-    if (!config.enabled) {
-      return [];
-    }
-
+  function getDiscoveredMethods(): DiscoveredToolMethods[] {
     const allTools = toolRegistryManager.getAllTools();
     const discovered: DiscoveredToolMethods[] = [];
 
     for (const tool of allTools) {
       if (!hasMetadataProvider(tool)) {
-        continue;
-      }
-
-      if (!resolveToolEnabled(tool.id, config)) {
         continue;
       }
 
@@ -117,13 +109,20 @@ export function createToolDiscoveryService(): {
       return cached;
     }
 
-    const discovered = getDiscoveredMethods(options.config);
-    if (discovered.length === 0) {
+    if (!options.config.enabled) {
       promptCache.set(cacheKey, "");
       return "";
     }
 
-    const protocolInput: ToolDefinitionInput[] = discovered.map((tool) => ({
+    const allDiscovered = getDiscoveredMethods();
+    const enabledTools = allDiscovered.filter((tool) => resolveToolEnabled(tool.toolId, options.config));
+
+    if (enabledTools.length === 0) {
+      promptCache.set(cacheKey, "");
+      return "";
+    }
+
+    const protocolInput: ToolDefinitionInput[] = enabledTools.map((tool) => ({
       toolId: tool.toolId,
       toolName: tool.toolName,
       methods: tool.methods,

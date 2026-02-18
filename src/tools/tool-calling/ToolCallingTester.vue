@@ -18,12 +18,7 @@ const discoveredGroups = ref<any[]>([]);
 const executorRef = ref<InstanceType<typeof ExecutorPane> | null>(null);
 
 const refreshDiscovery = async () => {
-  const mockConfig = {
-    enabled: true,
-    defaultToolEnabled: true,
-    toolToggles: {},
-  } as any;
-  discoveredGroups.value = discoveryService.getDiscoveredMethods(mockConfig);
+  discoveredGroups.value = discoveryService.getDiscoveredMethods();
 };
 
 /**

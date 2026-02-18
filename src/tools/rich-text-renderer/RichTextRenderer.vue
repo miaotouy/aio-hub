@@ -458,15 +458,19 @@ defineExpose({
   color: var(--text-color);
 }
 
-/* 统一图片样式限制 */
+/* 图片基础样式：仅设置不影响尺寸的属性，避免覆盖自带样式 */
 .rich-text-renderer :deep(img) {
-  width: auto;
-  max-width: 1200px;
-  height: auto;
-  max-height: 720px;
   border-radius: 4px;
   margin: 4px 0;
   vertical-align: middle;
+}
+
+/* 无自定义尺寸的图片：添加安全约束，防止超大图撑爆容器 */
+.rich-text-renderer
+  :deep(img:not([width]):not([height]):not([style*="width"]):not([style*="height"])) {
+  max-width: 100%;
+  max-height: 720px;
+  height: auto;
 }
 
 /* 块级节点渲染优化：出视口不渲染 */

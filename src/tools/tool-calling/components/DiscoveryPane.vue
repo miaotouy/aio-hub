@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Search, Info, ChevronRight, Package, Box } from "lucide-vue-next";
+import {
+  Search,
+  ChevronRight,
+  Package,
+  Box,
+  RefreshCw,
+  ArrowDownAZ,
+  Hash,
+} from "lucide-vue-next";
 
 const props = defineProps<{
   groups: any[];
@@ -12,6 +20,35 @@ const emit = defineEmits<{
 }>();
 
 const selectedToolId = ref<string | null>(null);
+const searchQuery = ref("");
+const sortBy = ref<"name" | "count">("name");
+
+const filteredGroups = computed(() => {
+  let result = [...props.groups];
+
+  // 搜索过滤
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(
+      (g) =>
+        g.toolName.toLowerCase().includes(query) ||
+        g.toolId.toLowerCase().includes(query) ||
+        g.methods.some((m: any) => m.name.toLowerCase().includes(query))
+    );
+  }
+
+  // 排序
+  result.sort((a, b) => {
+    if (sortBy.value === "name") {
+      return a.toolName.localeCompare(b.toolName);
+    } else if (sortBy.value === "count") {
+      return b.methods.length - a.methods.length;
+    }
+    return 0;
+  });
+
+  return result;
+});
 
 const selectedGroup = computed(() => {
   if (!selectedToolId.value) return null;
@@ -25,24 +62,59 @@ const selectTool = (toolId: string) => {
     selectedToolId.value = toolId;
   }
 };
+
+const toggleSort = () => {
+  sortBy.value = sortBy.value === "name" ? "count" : "name";
+};
 </script>
 
 <template>
   <div class="pane discovery-pane">
     <div class="pane-header">
-      <div class="header-info">
-        <Info :size="16" />
-        <span>展示 AIO Hub 中所有可供 agent 调用的方法。</span>
+      <div class="header-left">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索工具或方法..."
+          clearable
+          class="search-input"
+        >
+          <template #prefix>
+            <Search :size="14" />
+          </template>
+        </el-input>
       </div>
-      <el-button :icon="Search" size="small" @click="emit('refresh')">刷新库</el-button>
+
+      <div class="header-actions">
+        <el-tooltip
+          :content="sortBy === 'name' ? '当前按名称排序' : '当前按方法数量排序'"
+          placement="top"
+        >
+          <el-button @click="toggleSort">
+            <template #icon>
+              <ArrowDownAZ v-if="sortBy === 'name'" :size="16" />
+              <Hash v-else :size="16" />
+            </template>
+            {{ sortBy === "name" ? "名称" : "数量" }}
+          </el-button>
+        </el-tooltip>
+        <el-button :icon="RefreshCw" @click="emit('refresh')">刷新库</el-button>
+      </div>
     </div>
 
     <div class="pane-content">
       <!-- 左侧网格区域 -->
       <div class="grid-area scrollbar-styled">
-        <div class="tool-grid">
+        <div v-if="filteredGroups.length === 0" class="empty-state">
+          <Search :size="48" class="empty-icon" />
+          <p>未找到匹配的工具</p>
+          <el-button v-if="searchQuery" link type="primary" @click="searchQuery = ''">
+            清空搜索条件
+          </el-button>
+        </div>
+
+        <div v-else class="tool-grid">
           <div
-            v-for="group in groups"
+            v-for="group in filteredGroups"
             :key="group.toolId"
             class="tool-card"
             :class="{ active: selectedToolId === group.toolId }"
@@ -86,7 +158,7 @@ const selectTool = (toolId: string) => {
                   link
                   @click="emit('load', selectedGroup, method)"
                 >
-                  加载执行
+                  加载至执行沙盒
                   <ChevronRight :size="14" />
                 </el-button>
               </div>
@@ -119,13 +191,25 @@ const selectTool = (toolId: string) => {
 }
 
 .pane-header {
-  padding: 12px 20px;
+  padding: 10px 20px;
   background-color: rgba(var(--text-color-rgb), 0.02);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  gap: 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.search-input {
+  max-width: 360px;
 }
 
 .header-info {
@@ -134,6 +218,13 @@ const selectTool = (toolId: string) => {
   gap: 8px;
   font-size: 13px;
   color: var(--text-color-secondary);
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .pane-content {
@@ -350,5 +441,26 @@ const selectTool = (toolId: string) => {
 .scrollbar-styled::-webkit-scrollbar-thumb {
   background: rgba(var(--el-color-info-rgb), 0.2);
   border-radius: 10px;
+}
+
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color-secondary);
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-icon {
+  opacity: 0.2;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  margin-bottom: 12px;
 }
 </style>

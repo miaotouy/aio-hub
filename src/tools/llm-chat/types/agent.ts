@@ -91,7 +91,7 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   enabled: false,
   mode: "auto",
   toolToggles: {},
-  defaultToolEnabled: true,
+  defaultToolEnabled: false,
   maxIterations: 5,
   timeout: 30000,
   requireConfirmation: false,

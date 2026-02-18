@@ -2,25 +2,16 @@
 import { inject, computed } from "vue";
 import { Cpu } from "@element-plus/icons-vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
+import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
 
 const editForm = inject<any>("agent-edit-form");
 
 // 工具调用相关
 const { getDiscoveredMethods } = useToolCalling();
 const discoveredTools = computed(() => getDiscoveredMethods(editForm.toolCallConfig));
-
 const toggleTool = (toolId: string) => {
   if (!editForm.toolCallConfig) {
-    editForm.toolCallConfig = {
-      enabled: true,
-      mode: "auto",
-      maxIterations: 5,
-      timeout: 30000,
-      requireConfirmation: true,
-      parallelExecution: true,
-      defaultToolEnabled: true,
-      toolToggles: {},
-    };
+    editForm.toolCallConfig = { ...DEFAULT_TOOL_CALL_CONFIG };
   }
   if (!editForm.toolCallConfig.toolToggles) {
     editForm.toolCallConfig.toolToggles = {};
@@ -39,16 +30,7 @@ const isToolEnabled = (toolId: string) => {
 
 const ensureConfig = () => {
   if (!editForm.toolCallConfig) {
-    editForm.toolCallConfig = {
-      enabled: false,
-      mode: "auto",
-      maxIterations: 5,
-      timeout: 30000,
-      requireConfirmation: true,
-      parallelExecution: true,
-      defaultToolEnabled: true,
-      toolToggles: {},
-    };
+    editForm.toolCallConfig = { ...DEFAULT_TOOL_CALL_CONFIG };
   }
 };
 </script>

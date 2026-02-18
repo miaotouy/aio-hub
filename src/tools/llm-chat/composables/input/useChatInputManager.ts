@@ -498,39 +498,55 @@ class ChatInputManager {
   }
 
   /**
-   * 在当前光标位置插入资产占位符
-   * @param assets 附件列表
-   * @param cursorPosition 当前光标位置（默认为文本末尾）
-   */
-  insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): void {
-    if (assets.length === 0) return;
+   /**
+    * 准备要插入的占位符文本（含前缀后缀换行逻辑）
+    * @param assets 附件列表
+    * @param cursorPosition 当前光标位置
+    * @param isUploading 是否是上传中占位符
+    */
+   preparePlaceholderInsert(
+     assets: Asset[],
+     cursorPosition: number,
+     isUploading = false
+   ): { text: string; from: number; to: number } {
+     if (assets.length === 0) return { text: "", from: cursorPosition, to: cursorPosition };
+ 
+     const placeholders = assets.map((asset) =>
+       isUploading ? generateUploadingPlaceholder(asset.id) : generateAssetPlaceholder(asset.id)
+     );
+     const placeholderText = placeholders.join("\n");
+ 
+     const currentText = this.inputText.value;
+     const pos = cursorPosition;
+ 
+     const before = currentText.substring(0, pos);
+     const after = currentText.substring(pos);
+ 
+     const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+     const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
+ return {
+   text: insertPrefix + placeholderText + insertSuffix,
+   from: pos,
+   to: pos,
+ };
+}
 
-    // 生成占位符列表
-    const placeholders = assets.map((asset) => generateAssetPlaceholder(asset.id));
-    const placeholderText = placeholders.join("\n");
+/**
+* 在当前光标位置插入资产占位符（直接修改 inputText）
+* 注意：在 UI 组件中建议优先使用 preparePlaceholderInsert + editor.insertText 以获得更好的光标体验
+*/
+insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): number {
+ const pos = cursorPosition ?? this.inputText.value.length;
+ const { text, from, to } = this.preparePlaceholderInsert(assets, pos);
+ if (!text) return pos;
 
-    const currentText = this.inputText.value;
-    const pos = cursorPosition ?? currentText.length;
+ const currentText = this.inputText.value;
+ this.inputText.value = currentText.substring(0, from) + text + currentText.substring(to);
+ return from + text.length;
+}
 
-    // 在光标位置插入占位符
-    const before = currentText.substring(0, pos);
-    const after = currentText.substring(pos);
-
-    // 如果前面没有空格或换行，添加一个换行
-    const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
-    // 如果后面没有换行，添加一个换行
-    const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
-
-    this.inputText.value = before + insertPrefix + placeholderText + insertSuffix + after;
-
-    logger.info("插入资产占位符", {
-      count: assets.length,
-      cursorPosition: pos,
-    });
-  }
-
-  /**
-   * 添加附件
+/**
+* 添加附件
    */
   async addAttachments(paths: string[]): Promise<void> {
     await this.attachmentManager.addAttachments(paths);
@@ -642,34 +658,6 @@ class ChatInputManager {
     };
   }
 
-  /**
-   * 在当前光标位置插入上传中的资产占位符
-   * 占位符带 uploading: 前缀，上传完成后通过 updatePlaceholderId 替换为正常格式
-   * @param assets 附件列表
-   * @param cursorPosition 当前光标位置（默认为文本末尾）
-   */
-  insertUploadingPlaceholders(assets: Asset[], cursorPosition?: number): void {
-    if (assets.length === 0) return;
-
-    const placeholders = assets.map((asset) => generateUploadingPlaceholder(asset.id));
-    const placeholderText = placeholders.join("\n");
-
-    const currentText = this.inputText.value;
-    const pos = cursorPosition ?? currentText.length;
-
-    const before = currentText.substring(0, pos);
-    const after = currentText.substring(pos);
-
-    const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
-    const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
-
-    this.inputText.value = before + insertPrefix + placeholderText + insertSuffix + after;
-
-    logger.info("插入上传中占位符", {
-      count: assets.length,
-      cursorPosition: pos,
-    });
-  }
 
   /**
    * 更新输入框中占位符的 asset ID
@@ -788,12 +776,12 @@ export function useChatInputManager() {
     getContent: manager.getContent.bind(manager),
     /** 清空输入框和附件 */
     clear: manager.clear.bind(manager),
-    /** 在当前光标位置插入资产占位符 */
+    /** 准备要插入的占位符信息 */
+    preparePlaceholderInsert: manager.preparePlaceholderInsert.bind(manager),
+    /** 直接插入占位符（修改状态） */
     insertAssetPlaceholders: manager.insertAssetPlaceholders.bind(manager),
     /** 转换文本中的路径为附件 */
     convertPathsToAttachments: manager.convertPathsToAttachments.bind(manager),
-    /** 插入上传中的资产占位符（带 uploading: 前缀） */
-    insertUploadingPlaceholders: manager.insertUploadingPlaceholders.bind(manager),
     /** 更新占位符中的 asset ID（临时 ID -> 真实 ID） */
     updatePlaceholderId: manager.updatePlaceholderId.bind(manager),
 

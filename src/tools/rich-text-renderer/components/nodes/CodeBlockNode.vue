@@ -149,7 +149,9 @@ const seamless = computed(() => {
 
 // 监听无边框模式变化，自动切换到预览模式
 watch(seamless, (isSeamless) => {
-  if (isSeamless && isHtml.value) {
+  // 无边框模式通常用于显式预览，但这里我们也遵循“必须是完整 HTML 页面”的原则
+  // 除非是 svg，svg 通常不需要完整的 html 声明
+  if (isSeamless && isHtml.value && (isFullHtmlPage.value || props.language?.toLowerCase() === 'svg')) {
     viewMode.value = "preview";
   }
 });
@@ -162,6 +164,13 @@ const showDialog = ref(false);
 const isHtml = computed(() => {
   const lang = props.language?.toLowerCase();
   return lang === "html" || lang === "xml" || lang === "svg";
+});
+
+// 判断是否为完整的 HTML 页面声明
+const isFullHtmlPage = computed(() => {
+  if (!props.content) return false;
+  const trimmed = props.content.trim().toLowerCase();
+  return trimmed.startsWith("<!doctype") || trimmed.includes("<html");
 });
 
 // 悬停状态管理
@@ -288,7 +297,11 @@ const resetCodeFont = () => {
 
 onMounted(() => {
   // 初始化视图模式
-  if (isHtml.value && (defaultRenderHtml?.value || seamless.value)) {
+  // 仅当开启了自动预览开关或处于无边框模式，且内容是完整的 HTML 页面（或 SVG）时，才自动进入预览
+  const lang = props.language?.toLowerCase();
+  const shouldAutoPreview = isHtml.value && (isFullHtmlPage.value || lang === 'svg');
+  
+  if (shouldAutoPreview && (defaultRenderHtml?.value || seamless.value)) {
     viewMode.value = "preview";
   }
 });

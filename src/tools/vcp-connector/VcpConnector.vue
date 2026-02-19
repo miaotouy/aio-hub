@@ -69,18 +69,30 @@
           </div>
         </div>
 
-        <el-scrollbar class="message-scrollbar">
-          <TransitionGroup name="message-list" tag="div" class="message-list">
-            <BroadcastCard
-              v-for="msg in filteredMessages"
-              :key="`${msg.timestamp}-${msg.type}`"
-              :message="msg"
-              @show-json="selectedMessage = $event"
-            />
-          </TransitionGroup>
+        <el-tabs v-model="activeTab" class="monitor-tabs">
+          <el-tab-pane label="消息监控" name="messages">
+            <el-scrollbar class="message-scrollbar">
+              <TransitionGroup name="message-list" tag="div" class="message-list">
+                <BroadcastCard
+                  v-for="msg in filteredMessages"
+                  :key="`${msg.timestamp}-${msg.type}`"
+                  :message="msg"
+                  @show-json="selectedMessage = $event"
+                />
+              </TransitionGroup>
 
-          <el-empty v-if="filteredMessages.length === 0" description="暂无消息" :image-size="120" />
-        </el-scrollbar>
+              <el-empty v-if="filteredMessages.length === 0" description="暂无消息" :image-size="120" />
+            </el-scrollbar>
+          </el-tab-pane>
+          <el-tab-pane label="分布式节点" name="distributed">
+            <el-scrollbar class="distributed-scrollbar">
+              <div class="distributed-content">
+                <NodeStatusPanel />
+                <ExposedToolsList />
+              </div>
+            </el-scrollbar>
+          </el-tab-pane>
+        </el-tabs>
       </main>
     </div>
 
@@ -94,6 +106,7 @@
 import { ref, computed, watch } from "vue";
 import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpWebSocket } from "./composables/useVcpWebSocket";
+import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
 import { customMessage } from "@/utils/customMessage";
 import { Pause, Play, Trash2, Download, PanelLeft, Search } from "lucide-vue-next";
 import InfoCard from "@/components/common/InfoCard.vue";
@@ -101,14 +114,21 @@ import ConnectionPanel from "./components/monitor/ConnectionPanel.vue";
 import FilterPanel from "./components/monitor/FilterPanel.vue";
 import BroadcastCard from "./components/monitor/BroadcastCard.vue";
 import JsonViewer from "./components/shared/JsonViewer.vue";
+import NodeStatusPanel from "./components/distributed/NodeStatusPanel.vue";
+import ExposedToolsList from "./components/distributed/ExposedToolsList.vue";
 import type { VcpMessage } from "./types/protocol";
 
 const store = useVcpStore();
 const { connectionStatus } = useVcpWebSocket();
+const { startDistributedNode } = useVcpDistributedNode();
 
+const activeTab = ref("messages");
 const selectedMessage = ref<VcpMessage | null>(null);
 const showJsonViewer = ref(false);
 const isConfigCollapsed = ref(false);
+
+// 启动分布式节点逻辑
+startDistributedNode();
 
 const filteredMessages = computed(() => store.filteredMessages);
 const filter = computed(() => store.filter);
@@ -241,6 +261,30 @@ watch(showJsonViewer, (visible: boolean) => {
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
+  z-index: 10;
+}
+
+.monitor-tabs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.monitor-tabs :deep(.el-tabs__header) {
+  margin: 0;
+  padding: 0 16px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.monitor-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+}
+
+.monitor-tabs :deep(.el-tab-pane) {
+  height: 100%;
 }
 
 .header-left {
@@ -294,9 +338,14 @@ watch(showJsonViewer, (visible: boolean) => {
   gap: 8px;
 }
 
-.message-scrollbar {
-  flex: 1;
-  overflow: hidden;
+.message-scrollbar, .distributed-scrollbar {
+  height: 100%;
+}
+
+.distributed-content {
+  padding: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 .message-list {

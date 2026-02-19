@@ -73,6 +73,7 @@ use commands::{
     get_asset_stats,
     get_clipboard_content_type,
     get_file_metadata,
+    get_file_mime_type,
     get_inspector_status,
     get_latest_operation_log,
     get_saved_window_labels,
@@ -455,6 +456,7 @@ pub fn run() {
             validate_file_for_link,
             path_exists,
             get_file_metadata,
+            get_file_mime_type,
             // 目录清理命令
             analyze_directory_for_cleanup,
             cleanup_items,
@@ -632,10 +634,9 @@ pub fn run() {
             );
             log::info!("⏰ 时间: {}", now_formatted);
             log::info!("========================================");
-
             // 初始化资产目录内存索引
             if let Some(catalog) = app.try_state::<AssetCatalog>() {
-                if let Err(e) = catalog.initialize(&app.app_handle()) {
+                if let Err(e) = catalog.initialize(app.app_handle()) {
                     log::error!("[AssetCatalog] 初始化失败: {}", e);
                 }
             }

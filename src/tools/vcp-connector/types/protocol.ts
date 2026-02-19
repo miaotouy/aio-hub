@@ -85,12 +85,15 @@ export type VcpMessage =
   | AiMemoRetrievalMessage
   | PluginStepStatusMessage;
 
+export type VcpConnectionMode = "observer" | "distributed" | "both";
+
 export interface VcpConfig {
   wsUrl: string;
   vcpKey: string;
   vcpPath: string;
   autoConnect: boolean;
   maxHistory: number;
+  mode?: VcpConnectionMode;
 }
 
 export interface ConnectionState {

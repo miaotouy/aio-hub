@@ -1139,6 +1139,17 @@ pub fn read_file_as_base64(path: String) -> Result<String, String> {
     Ok(general_purpose::STANDARD.encode(&bytes))
 }
 
+// Tauri 命令：获取文件的 MIME 类型
+#[tauri::command]
+pub fn get_file_mime_type(path: String) -> Result<String, String> {
+    let file_path = Path::new(&path);
+    if !file_path.exists() {
+        return Err(format!("文件不存在: {}", path));
+    }
+
+    Ok(crate::utils::mime::guess_mime_type(file_path))
+}
+
 // Tauri 命令：取消文件移动操作
 #[tauri::command]
 pub fn cancel_move_operation(cancel_token: tauri::State<'_, Arc<CancellationToken>>) {

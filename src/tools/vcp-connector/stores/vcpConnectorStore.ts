@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, computed, shallowRef } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
-import type {
+import {
   VcpMessage,
   VcpMessageType,
   ConnectionState,
@@ -15,6 +15,8 @@ import type {
   AiMemoRetrievalMessage,
   PluginStepStatusMessage,
 } from "../types/protocol";
+import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
+import { useVcpDistributedStore } from "./vcpDistributedStore";
 
 const logger = createModuleLogger("vcp-connector/store");
 
@@ -59,9 +61,14 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
   const messages = ref<VcpMessage[]>([]);
 
+  // 协议处理器
+  const nodeProtocol = shallowRef<VcpNodeProtocol | null>(null);
+
   // WebSocket 内部状态
   const ws = ref<WebSocket | null>(null);
+  const distributedWs = ref<WebSocket | null>(null);
   const isConnecting = ref(false);
+  const isDistributedConnecting = ref(false);
   const reconnectTimer = ref<ReturnType<typeof setTimeout> | null>(null);
   const pingTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const pendingPingTime = ref<number | null>(null);
@@ -255,13 +262,27 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   }
 
   function attemptConnect() {
-    const { wsUrl, vcpKey } = config.value;
+    const { wsUrl, vcpKey, mode = "observer" } = config.value;
     if (!wsUrl || !vcpKey) {
       setConnectionStatus("disconnected");
       return;
     }
 
-    let fullUrl = wsUrl;
+    // 1. 连接观察者端点 (Observer)
+    if (mode === "observer" || mode === "both") {
+      connectObserver(wsUrl, vcpKey);
+    }
+
+    // 2. 连接分布式节点端点 (Distributed)
+    if (mode === "distributed" || mode === "both") {
+      connectDistributed(wsUrl, vcpKey);
+    }
+  }
+
+  function connectObserver(baseUrl: string, vcpKey: string) {
+    if (ws.value?.readyState === WebSocket.OPEN || isConnecting.value) return;
+
+    let fullUrl = baseUrl;
     if (!fullUrl.includes("VCP_Key=")) {
       if (!fullUrl.includes("/vcpinfo")) {
         fullUrl = `${fullUrl.endsWith("/") ? fullUrl : fullUrl + "/"}vcpinfo`;
@@ -285,16 +306,14 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         isConnecting.value = false;
         stopPingTimer();
         setConnectionStatus("disconnected");
-        // 只有在非正常关闭且配置了自动连接的情况下才重连
         if (!event.wasClean && config.value.autoConnect) {
           scheduleReconnect();
         }
       };
 
       ws.value.onerror = (err) => {
-        logger.error("WebSocket error", err);
+        logger.error("Observer WebSocket error", err);
         setConnectionStatus("error");
-        // 发生错误时如果开启了自动连接也尝试重连
         if (config.value.autoConnect) {
           scheduleReconnect();
         }
@@ -311,7 +330,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
             const message = parseMessage(rawData);
             if (message) addMessage(message);
           } catch (e) {
-            logger.warn("Failed to parse message", e);
+            logger.warn("Failed to parse observer message", e);
           }
         }
       };
@@ -321,6 +340,84 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       if (config.value.autoConnect) {
         scheduleReconnect();
       }
+    }
+  }
+
+  function connectDistributed(baseUrl: string, vcpKey: string) {
+    if (distributedWs.value?.readyState === WebSocket.OPEN || isDistributedConnecting.value) return;
+
+    let fullUrl = baseUrl;
+    // 分布式节点端点格式: /vcp-distributed-server/VCP_Key=<key>
+    if (!fullUrl.includes("/vcp-distributed-server/")) {
+      fullUrl = `${fullUrl.endsWith("/") ? fullUrl : fullUrl + "/"}vcp-distributed-server/VCP_Key=${vcpKey}`;
+    } else if (!fullUrl.includes("VCP_Key=")) {
+      fullUrl = `${fullUrl.endsWith("/") ? fullUrl : fullUrl + "/"}VCP_Key=${vcpKey}`;
+    }
+
+    try {
+      isDistributedConnecting.value = true;
+      distributedWs.value = new WebSocket(fullUrl);
+
+      distributedWs.value.onopen = () => {
+        isDistributedConnecting.value = false;
+        logger.info("Distributed WebSocket connected");
+        
+        // 初始化协议处理器
+        nodeProtocol.value = new VcpNodeProtocol((data) => {
+          if (distributedWs.value?.readyState === WebSocket.OPEN) {
+            distributedWs.value.send(JSON.stringify(data));
+          }
+        });
+
+        const distStore = useVcpDistributedStore();
+        distStore.setStatus("connected");
+      };
+
+      distributedWs.value.onclose = (event) => {
+        isDistributedConnecting.value = false;
+        logger.info("Distributed WebSocket closed", event.code);
+        
+        const distStore = useVcpDistributedStore();
+        distStore.setStatus("disconnected");
+        nodeProtocol.value = null;
+
+        if (!event.wasClean && config.value.autoConnect) {
+          scheduleReconnect();
+        }
+      };
+
+      distributedWs.value.onerror = (err) => {
+        logger.error("Distributed WebSocket error", err);
+        isDistributedConnecting.value = false;
+        
+        const distStore = useVcpDistributedStore();
+        distStore.setStatus("error");
+      };
+
+      distributedWs.value.onmessage = (event) => {
+        try {
+          const rawData = JSON.parse(event.data);
+          handleDistributedMessage(rawData);
+        } catch (e) {
+          logger.warn("Failed to parse distributed message", e);
+        }
+      };
+    } catch (e) {
+      isDistributedConnecting.value = false;
+      logger.error("Failed to connect distributed WebSocket", e);
+    }
+  }
+
+  function handleDistributedMessage(data: any) {
+    logger.debug("Received distributed message", data);
+    
+    if (data.type === "register_tools_ack") {
+      logger.info("Tools registered successfully to VCP");
+    } else if (data.type === "execute_tool") {
+      nodeProtocol.value?.handleExecuteTool(data.data);
+    } else if (data.type === "assign_node_id") {
+      const distStore = useVcpDistributedStore();
+      distStore.setNodeId(data.data.nodeId);
     }
   }
 
@@ -346,10 +443,17 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       reconnectTimer.value = null;
     }
     stopPingTimer();
+
     if (ws.value) {
       ws.value.close(1000, "Client disconnect");
       ws.value = null;
     }
+
+    if (distributedWs.value) {
+      distributedWs.value.close(1000, "Client disconnect");
+      distributedWs.value = null;
+    }
+
     setConnectionStatus("disconnected");
     connection.value.reconnectAttempts = 0;
   }
@@ -448,6 +552,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     disconnect,
     reconnect,
     isConnecting,
+    isDistributedConnecting,
+    distributedWs,
     addMessage,
     clearMessages,
     setFilter,

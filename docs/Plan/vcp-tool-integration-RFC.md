@@ -14,7 +14,7 @@
 1. **AIO llm-chat Text-based Tool Calling** — 让 AI 通过 VCP 纯文本标记协议调用 AIO 本地工具和插件。
 2. **AIO ↔ VCP 分布式协作** — AIO 作为 VCP 的分布式节点，将本地能力暴露给 VCP，同时可选地消费 VCP 远程工具。
 
-### 核心决策：放弃原生 Tool-Call，拥抱 VCP 文本协议
+### 核心决策 1：放弃原生 Tool-Call，拥抱 VCP 文本协议
 
 为了最大化兼容性（支持逆向渠道、中转 API）并降低适配成本，AIO **不会**优先使用 OpenAI/Claude 的原生 `tool_calls` 参数，而是采用 VCP 的**纯文本流标记协议**：
 
@@ -22,6 +22,13 @@
 - **注入方式**：工具的调用说明（Schema）直接作为 System Prompt 的一部分注入。
 - **解析方式**：流式输出完成后，由 ChatHandler 统一解析回复文本中的所有标记，触发本地串行或并行执行。
 - **优势**：模型 API 无关、支持单次回复多工具调用、与 VCP 生态完全对齐。
+
+### 核心决策 2：VCP 渠道感知与执行权转移
+
+当 AIO 检测到当前使用的 LLM 渠道属于 **VCP 转发渠道**时，将触发以下行为控制：
+
+- **执行权转移**：AIO 本地的 `ToolCallExecutor` 将被禁用。LLM 输出的 `<<<[TOOL_REQUEST]>>>` 标记将由 VCP 服务器拦截并执行。AIO 仅负责渲染执行进度。
+- **分布式对齐**：只有在 AIO 成功作为“分布式节点”连接到该 VCP 服务器时，才会向 System Prompt 注入工具描述。这确保了 LLM 请求的工具一定能通过分布式链路路由回 AIO 执行。
 
 ---
 
@@ -189,6 +196,40 @@ src/tools/vcp-connector/
     └── distributed.ts              # 新增：分布式类型
 ```
 
+#### 3.1.6 分布式协议实现 (Layer 0)
+
+**消息路由流程**：
+
+1. **接收 `execute_tool`**：`VcpNodeProtocol` 接收到消息。
+2. **权限校验**：检查请求的 `toolName` 是否在 `exposedToolIds` 列表中，且该方法在元数据中标记为 `distributedExposed: true`。
+3. **本地执行**：调用 `toolRegistryManager.execute(toolName, args)`。
+4. **返回结果**：将执行结果通过 `tool_result` 消息回传。
+
+```typescript
+// src/tools/vcp-connector/services/vcpNodeProtocol.ts
+
+async function handleExecuteTool(requestId: string, toolName: string, args: any) {
+  try {
+    // 1. 查找工具
+    const tool = toolRegistryManager.getTool(toolName);
+    const method = tool?.getMetadata()?.methods.find((m) => m.name === toolName);
+
+    // 2. 校验分布式暴露权限
+    if (!method?.distributedExposed) {
+      throw new Error(`Tool ${toolName} is not exposed for distributed execution`);
+    }
+
+    // 3. 执行
+    const result = await toolRegistryManager.execute(toolName, args);
+
+    // 4. 回传
+    ws.send({ type: "tool_result", data: { requestId, status: "success", result } });
+  } catch (err) {
+    ws.send({ type: "tool_result", data: { requestId, status: "error", error: err.message } });
+  }
+}
+```
+
 ---
 
 ### 3.2 Layer 1: 工具来源
@@ -227,6 +268,8 @@ interface VcpInvocationCommand {
 interface ToolRegistryEnhanced extends ToolRegistry {
   readonly source?: ToolSource;
   readonly llmCallable?: boolean;
+  /** 是否允许通过分布式连接被外部调用 */
+  readonly distributedExposed?: boolean;
 
   /** 获取 VCP 格式的调用指令定义 */
   getVcpInvocationCommands?(): VcpInvocationCommand[];
@@ -724,5 +767,133 @@ AIO → WebSocket → VCP 主服务器 (tool_result: 目录树结构数据)
   ↓
 VCP 继续对话流程，LLM 基于目录树结果生成回复
 ```
+
+### 5.3 VCP 渠道感知：执行权转移流程
+
+**场景**: 用户在 AIO llm-chat 中使用了一个 VCP 转发渠道（即 LLM 请求实际通过 VCP 主服务器中转）。此时 AIO 的工具调用不由本地执行，而是由 VCP 服务器拦截并执行。
+
+**前置条件**:
+
+- AIO 已作为分布式节点连接到该 VCP 服务器（Phase 2 已完成）
+- 当前 Agent 使用的 LLM Profile 被标识为 VCP 渠道
+
+```
+用户: "帮我看看 E:\projects\my-app 这个项目的结构"
+  ↓
+ChatHandler → 检测当前 LLM Profile 是否为 VCP 渠道
+  ↓ (isVcpChannel === true)
+
+=== 与普通流程的关键差异 ===
+
+[1] System Prompt 注入阶段:
+    {{tools}} 宏执行时检测到 VCP 渠道模式
+      ↓
+    检查 AIO 是否已作为分布式节点连接到该 VCP 服务器
+      ↓
+    ✅ 已连接 → 注入工具描述（这些工具将由 VCP 侧路由回 AIO 执行）
+    ❌ 未连接 → 返回空字符串，不注入任何工具描述
+                （避免 LLM 请求了工具但无人能执行的情况）
+
+[2] LLM 请求发送:
+    请求通过 VCP 渠道发送 → VCP 主服务器接收
+      ↓
+    VCP 主服务器转发给 LLM API
+      ↓
+    LLM 返回含 <<<[TOOL_REQUEST]>>> 标记的回复
+
+[3] 工具执行阶段（关键差异）:
+    VCP 主服务器拦截 LLM 回复中的 <<<[TOOL_REQUEST]>>>
+      ↓
+    VCP 主服务器解析工具调用 → 识别目标节点为 AIO
+      ↓
+    VCP → WebSocket → AIO (execute_tool)
+      ↓
+    AIO DistributedNodeProtocol.handleExecuteTool()
+      ↓ (本地执行)
+    AIO → WebSocket → VCP (tool_result)
+      ↓
+    VCP 主服务器将结果拼回对话上下文 → 继续 LLM 对话
+
+[4] AIO 端的渲染:
+    AIO 本地的 ToolCallExecutor 被禁用（不重复执行）
+      ↓
+    AIO 仅渲染 VCP 推送的执行进度和最终结果
+      ↓
+    用户在 AIO llm-chat 中看到完整的对话（含工具调用过程）
+```
+
+**VCP 渠道检测逻辑**:
+
+```typescript
+// src/tools/llm-chat/composables/useVcpChannelDetection.ts
+
+interface VcpChannelState {
+  /** 当前 LLM Profile 是否为 VCP 转发渠道 */
+  isVcpChannel: boolean;
+  /** 对应的 VCP 服务器地址 */
+  vcpServerUrl: string | null;
+  /** AIO 是否已作为分布式节点连接到该服务器 */
+  isDistributedConnected: boolean;
+  /** 最终判定：是否应将执行权交给 VCP */
+  shouldDelegateExecution: boolean;
+}
+
+function useVcpChannelDetection(profileId: Ref<string>): VcpChannelState {
+  // 实现思路:
+  // 1. 从 LlmProfile 的元数据中检测是否为 VCP 渠道
+  //    (可能通过 baseUrl 匹配、或 profile 上的 vcpServerId 标记)
+  // 2. 检查 vcpDistributedStore 中是否有到该服务器的活跃连接
+  // 3. shouldDelegateExecution = isVcpChannel && isDistributedConnected
+}
+```
+
+**与核心决策 2 的对应关系**:
+
+| 核心决策 2 要求       | 实现方式                                                |
+| --------------------- | ------------------------------------------------------- |
+| AIO 检测 VCP 转发渠道 | `useVcpChannelDetection` 检查 LlmProfile 元数据         |
+| 本地 Executor 被禁用  | `shouldDelegateExecution === true` 时跳过本地执行       |
+| VCP 服务器拦截执行    | VCP 主服务器侧逻辑（不在 AIO 实现范围内）               |
+| 分布式对齐前提        | `isDistributedConnected === false` 时不注入 `{{tools}}` |
+
+---
+
+## 6. 风险与待决事项
+
+### 6.1 技术风险
+
+| 风险                       | 影响                                                   | 缓解措施                                               |
+| -------------------------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| VCP 文本协议解析鲁棒性     | `<<<[TOOL_REQUEST]>>>` 可能被 LLM 生成不完整或格式异常 | 实现宽容解析器 + 错误恢复机制；测试多种 LLM 的输出行为 |
+| 工具调用无限循环           | LLM 反复请求工具调用不收敛                             | `maxIterations` 硬限制 + 重复调用检测                  |
+| 分布式连接断开时的工具调用 | VCP 渠道下分布式连接断开，工具调用悬挂                 | WebSocket 心跳检测 + 超时回退 + UI 状态提示            |
+| 大型工具结果超出上下文窗口 | 目录树等工具可能返回超长结果                           | 结果截断策略 + 摘要模式                                |
+
+### 6.2 待决事项
+
+| 编号 | 问题                                                                             | 负责方      | 状态     |
+| ---- | -------------------------------------------------------------------------------- | ----------- | -------- |
+| D-1  | VCP 渠道的识别方式：通过 baseUrl 匹配还是在 LlmProfile 上增加显式标记字段？      | 咕咕        | 待定     |
+| D-2  | `distributedExposed` 字段的默认值：新工具默认暴露还是默认不暴露？                | 咕咕 + 姐姐 | 待定     |
+| D-3  | VCP 文本协议的具体标记格式是否需要与 VCP 侧严格对齐？还是 AIO 可以有自己的变体？ | 咕咕        | 建议对齐 |
+| D-4  | Phase 3（VCP 远程工具消费）的优先级和具体协议设计                                | 咕咕        | 延后     |
+| D-5  | 工具调用结果的持久化：是否需要将工具调用记录保存到对话历史中？                   | 咕咕        | 建议保存 |
+
+---
+
+## 7. 术语表
+
+| 术语                                | 说明                                                                        |
+| ----------------------------------- | --------------------------------------------------------------------------- |
+| **VCP**                             | VCP ToolBox，云端 AI 工具平台，提供分布式协作能力                           |
+| **AIO**                             | All-In-One Hub，本项目，桌面端 AI 工具集合                                  |
+| **分布式节点**                      | 通过 WebSocket 连接到 VCP 主服务器的客户端，可暴露本地工具供远程调用        |
+| **Tool Calling / Function Calling** | AI 通过结构化方式调用外部工具的能力                                         |
+| **VCP 文本协议**                    | 使用 `<<<[TOOL_REQUEST]>>>` 等纯文本标记在 LLM 输出中嵌入工具调用请求的协议 |
+| **执行权转移**                      | 当检测到 VCP 渠道时，AIO 不在本地执行工具调用，而是由 VCP 服务器拦截执行    |
+| **`{{tools}}` 宏**                  | 宏引擎中的内置宏，在 System Prompt 中动态展开为可用工具的描述文本           |
+| **ToolRegistry**                    | AIO 工具注册接口，每个工具模块通过实现此接口向系统注册自己的可调用方法      |
+| **ToolRegistryManager**             | 全局工具注册管理器，聚合所有已注册工具的元数据和执行入口                    |
+| **`distributedExposed`**            | 工具元数据字段，标记该工具/方法是否允许通过分布式连接被外部 VCP 调用        |
 
 ---

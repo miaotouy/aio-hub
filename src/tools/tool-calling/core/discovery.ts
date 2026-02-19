@@ -63,12 +63,12 @@ function stableStringifyConfig(config: ToolCallConfig): string {
 
 export function createToolDiscoveryService(): {
   generatePrompt(options: GeneratePromptOptions): string;
-  getDiscoveredMethods(): DiscoveredToolMethods[];
+  getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[];
   invalidateCache(): void;
 } {
   const promptCache = new Map<string, string>();
 
-  function getDiscoveredMethods(): DiscoveredToolMethods[] {
+  function getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[] {
     const allTools = toolRegistryManager.getAllTools();
     const discovered: DiscoveredToolMethods[] = [];
 
@@ -78,7 +78,11 @@ export function createToolDiscoveryService(): {
       }
 
       const metadata = tool.getMetadata();
-      const callableMethods = (metadata?.methods || []).filter((method) => method.agentCallable === true);
+      const methods = metadata?.methods || [];
+      
+      const callableMethods = filter
+        ? methods.filter(filter)
+        : methods.filter((method) => method.agentCallable === true);
 
       if (callableMethods.length === 0) {
         continue;

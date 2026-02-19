@@ -24,6 +24,8 @@ export interface MethodMetadata {
   example?: string;
   /** 是否允许 Agent/LLM 调用此方法，默认 false */
   agentCallable?: boolean;
+  /** 是否允许通过 VCP 分布式节点暴露此方法，默认 false */
+  distributedExposed?: boolean;
   /** 协议特定配置 */
   protocolConfig?: {
     /** VCP 协议的命令名称映射 */

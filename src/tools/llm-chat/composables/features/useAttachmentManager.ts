@@ -122,7 +122,11 @@ export function useAttachmentManager(
 
       return true;
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "验证文件失败", context: { path }, showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "验证文件失败",
+        context: { path },
+        showToUser: false,
+      });
       customMessage.error("验证文件失败");
       return false;
     }
@@ -185,7 +189,12 @@ export function useAttachmentManager(
 
       // 如果开启了转写，特定类型的附件可以被转写为文本
       if (transcriptionEnabled) {
-        if (assetType === "image" || assetType === "audio" || assetType === "video" || (assetType === "document" && asset.mimeType === "application/pdf")) {
+        if (
+          assetType === "image" ||
+          assetType === "audio" ||
+          assetType === "video" ||
+          (assetType === "document" && asset.mimeType === "application/pdf")
+        ) {
           return null;
         }
       }
@@ -306,7 +315,11 @@ export function useAttachmentManager(
 
       return pendingAsset;
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "创建待导入资产失败", context: { path }, showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "创建待导入资产失败",
+        context: { path },
+        showToUser: false,
+      });
       return null;
     }
   };
@@ -467,11 +480,14 @@ export function useAttachmentManager(
     }
 
     // 第二阶段：异步导入到存储系统（不阻塞 UI）
-    // 并行导入所有资产
-    const importPromises = pendingAssets.map((asset) => importPendingAsset(asset));
-    await Promise.allSettled(importPromises);
+    // 并行导入所有资产，但不等待它们完成，让导入在后台进行
+    pendingAssets.forEach((asset) => {
+      importPendingAsset(asset).catch((err) => {
+        logger.error("后台导入资产失败", err, { assetId: asset.id, name: asset.name });
+      });
+    });
 
-    logger.info("所有附件导入完成", {
+    logger.info("已启动后台附件导入", {
       count: pendingAssets.length,
     });
   };
@@ -584,19 +600,27 @@ export function useAttachmentManager(
     }
 
     for (const newAsset of newAssets) {
-      // 查找本地是否存在同名/同ID资产
-      const localAsset = currentAssets.find(a => a.id === newAsset.id);
+      // 查找本地是否存在同 ID 资产
+      const localAsset = currentAssets.find((a) => a.id === newAsset.id);
 
       // 如果本地存在且正在导入（pending/importing），保留本地引用
-      // 因为本地引用可能绑定了正在进行的后台任务或回调
-      if (localAsset && (localAsset.importStatus === 'pending' || localAsset.importStatus === 'importing')) {
+      // 因为本地引用可能绑定了正在进行的后台任务或回调（如 MessageInput.vue 中的 watch）
+      if (
+        localAsset &&
+        (localAsset.importStatus === "pending" || localAsset.importStatus === "importing")
+      ) {
         mergedAssets.push(localAsset);
-        // 如果新资产状态已经是完成，说明同步源比本地快（罕见），但为了安全保留本地引用
-        // 实际上通常是本地比同步源快（本地已开始上传，同步源还是 pending）
       } else {
         // 否则使用同步过来的新资产
         mergedAssets.push(newAsset);
-        if (!localAsset || JSON.stringify(localAsset) !== JSON.stringify(newAsset)) {
+
+        // 优化对比逻辑，避免全量 JSON.stringify
+        if (
+          !localAsset ||
+          localAsset.importStatus !== newAsset.importStatus ||
+          localAsset.id !== newAsset.id ||
+          localAsset.path !== newAsset.path
+        ) {
           hasChanges = true;
         }
       }
@@ -607,7 +631,9 @@ export function useAttachmentManager(
       attachments.value = mergedAssets;
       logger.debug("已同步附件列表（保留了正在导入的资产）", {
         count: mergedAssets.length,
-        preservedCount: mergedAssets.filter(a => a.importStatus === 'pending' || a.importStatus === 'importing').length
+        preservedCount: mergedAssets.filter(
+          (a) => a.importStatus === "pending" || a.importStatus === "importing"
+        ).length,
       });
     }
   };

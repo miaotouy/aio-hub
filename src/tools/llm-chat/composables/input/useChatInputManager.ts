@@ -13,7 +13,7 @@
  * - 自动同步：内容变化自动同步到其他窗口
  */
 
-import { ref, watch, type Ref } from "vue";
+import { ref, watch, nextTick, type Ref } from "vue";
 import { getOrCreateInstance } from "@/utils/singleton";
 import {
   useAttachmentManager,
@@ -30,6 +30,7 @@ import {
 import { CHAT_STATE_KEYS } from "../../types/sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { deepEqual } from "@/utils/sync-helpers";
 import type { Asset } from "@/types/asset-management";
 import type { StateSyncPayload, JsonPatchOperation } from "@/types/window-sync";
 import type { ModelIdentifier } from "../../types";
@@ -233,7 +234,11 @@ class ChatInputManager {
           logger.debug("从同步状态更新续写模型", { model: newState.continuationModel });
         }
 
-        this.isApplyingSyncState = false;
+        // 使用 nextTick 确保在 Vue 响应式更新循环结束后再重置标志位
+        // 这可以防止由于同步操作触发的 watch 再次产生不必要的 pushState
+        nextTick(() => {
+          this.isApplyingSyncState = false;
+        });
       },
       { deep: true }
     );
@@ -315,6 +320,11 @@ class ChatInputManager {
     if (this.isApplyingSyncState) return;
 
     const newValue = this.syncState.value;
+
+    // 性能优化：如果数据没有变化，跳过同步计算
+    if (!isFullSync && deepEqual(this.lastSyncedValue, newValue)) {
+      return;
+    }
     const newVersion = VersionGenerator.next();
 
     const shouldForceFullSync = isFullSync || !shouldUseDelta([], newValue, 0.5);
@@ -354,7 +364,13 @@ class ChatInputManager {
     }
 
     this.stateVersion = newVersion;
-    this.lastSyncedValue = JSON.parse(JSON.stringify(newValue));
+    // 使用序列化进行深拷贝以断开引用，虽然有开销但能确保后续对比准确
+    // 仅在数据确实变化后执行一次，开销可控
+    try {
+      this.lastSyncedValue = JSON.parse(JSON.stringify(newValue));
+    } catch (e) {
+      logger.error("快照状态失败", e);
+    }
   }
 
   /**
@@ -504,49 +520,49 @@ class ChatInputManager {
     * @param cursorPosition 当前光标位置
     * @param isUploading 是否是上传中占位符
     */
-   preparePlaceholderInsert(
-     assets: Asset[],
-     cursorPosition: number,
-     isUploading = false
-   ): { text: string; from: number; to: number } {
-     if (assets.length === 0) return { text: "", from: cursorPosition, to: cursorPosition };
- 
-     const placeholders = assets.map((asset) =>
-       isUploading ? generateUploadingPlaceholder(asset.id) : generateAssetPlaceholder(asset.id)
-     );
-     const placeholderText = placeholders.join("\n");
- 
-     const currentText = this.inputText.value;
-     const pos = cursorPosition;
- 
-     const before = currentText.substring(0, pos);
-     const after = currentText.substring(pos);
- 
-     const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
-     const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
- return {
-   text: insertPrefix + placeholderText + insertSuffix,
-   from: pos,
-   to: pos,
- };
-}
+  preparePlaceholderInsert(
+    assets: Asset[],
+    cursorPosition: number,
+    isUploading = false
+  ): { text: string; from: number; to: number } {
+    if (assets.length === 0) return { text: "", from: cursorPosition, to: cursorPosition };
 
-/**
-* 在当前光标位置插入资产占位符（直接修改 inputText）
-* 注意：在 UI 组件中建议优先使用 preparePlaceholderInsert + editor.insertText 以获得更好的光标体验
-*/
-insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): number {
- const pos = cursorPosition ?? this.inputText.value.length;
- const { text, from, to } = this.preparePlaceholderInsert(assets, pos);
- if (!text) return pos;
+    const placeholders = assets.map((asset) =>
+      isUploading ? generateUploadingPlaceholder(asset.id) : generateAssetPlaceholder(asset.id)
+    );
+    const placeholderText = placeholders.join("\n");
 
- const currentText = this.inputText.value;
- this.inputText.value = currentText.substring(0, from) + text + currentText.substring(to);
- return from + text.length;
-}
+    const currentText = this.inputText.value;
+    const pos = cursorPosition;
 
-/**
-* 添加附件
+    const before = currentText.substring(0, pos);
+    const after = currentText.substring(pos);
+
+    const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+    const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
+    return {
+      text: insertPrefix + placeholderText + insertSuffix,
+      from: pos,
+      to: pos,
+    };
+  }
+
+  /**
+   * 在当前光标位置插入资产占位符（直接修改 inputText）
+   * 注意：在 UI 组件中建议优先使用 preparePlaceholderInsert + editor.insertText 以获得更好的光标体验
+   */
+  insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): number {
+    const pos = cursorPosition ?? this.inputText.value.length;
+    const { text, from, to } = this.preparePlaceholderInsert(assets, pos);
+    if (!text) return pos;
+
+    const currentText = this.inputText.value;
+    this.inputText.value = currentText.substring(0, from) + text + currentText.substring(to);
+    return from + text.length;
+  }
+
+  /**
+   * 添加附件
    */
   async addAttachments(paths: string[]): Promise<void> {
     await this.attachmentManager.addAttachments(paths);
@@ -658,6 +674,52 @@ insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): number {
     };
   }
 
+  /**
+   * 统一处理资产添加后的占位符插入和 ID 监听
+   * 用于拖拽、粘贴、文件选择等场景
+   *
+   * @param addedAssets 新添加的资产列表
+   * @param textareaRef 编辑器引用，用于插入文本
+   * @param autoInsert 是否自动插入占位符
+   */
+  handleAssetsAddition(addedAssets: Asset[], textareaRef: any, autoInsert: boolean): void {
+    if (!autoInsert || addedAssets.length === 0) return;
+
+    const cursorPos = textareaRef?.getSelectionRange()?.start ?? this.inputText.value.length;
+
+    // 区分已完成和上传中的 asset
+    const completedAssets = addedAssets.filter((a) => a.importStatus === "complete");
+    const uploadingAssets = addedAssets.filter((a) => a.importStatus !== "complete");
+
+    // 1. 已完成的直接插入正常占位符
+    if (completedAssets.length > 0) {
+      const insertInfo = this.preparePlaceholderInsert(completedAssets, cursorPos);
+      textareaRef?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
+    }
+
+    // 2. 上传中的插入带 uploading: 前缀的占位符，并监听 ID 变化
+    if (uploadingAssets.length > 0) {
+      // 重新获取光标，因为可能刚才插入过
+      const currentCursorPos =
+        textareaRef?.getSelectionRange()?.start ?? this.inputText.value.length;
+      const insertInfo = this.preparePlaceholderInsert(uploadingAssets, currentCursorPos, true);
+      textareaRef?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
+
+      // watch id 变化，导入完成后将 uploading 占位符替换为正常占位符
+      for (const asset of uploadingAssets) {
+        const tempId = asset.id;
+        const stop = watch(
+          () => asset.id,
+          (newId) => {
+            if (newId && newId !== tempId) {
+              this.updatePlaceholderId(tempId, newId);
+              stop();
+            }
+          }
+        );
+      }
+    }
+  }
 
   /**
    * 更新输入框中占位符的 asset ID
@@ -784,6 +846,8 @@ export function useChatInputManager() {
     convertPathsToAttachments: manager.convertPathsToAttachments.bind(manager),
     /** 更新占位符中的 asset ID（临时 ID -> 真实 ID） */
     updatePlaceholderId: manager.updatePlaceholderId.bind(manager),
+    /** 统一处理资产添加后的占位符插入和 ID 监听 */
+    handleAssetsAddition: manager.handleAssetsAddition.bind(manager),
 
     // ========== 附件操作方法 ==========
     /** 添加附件（从文件路径） */

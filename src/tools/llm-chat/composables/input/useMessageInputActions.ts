@@ -328,7 +328,18 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       });
       if (selected) {
         const paths = Array.isArray(selected) ? selected : [selected];
+        const beforeIds = new Set(options.inputManager.attachments.value.map((a) => a.id));
+
         await options.inputManager.addAttachments(paths);
+
+        const newAssets = options.inputManager.attachments.value.filter(
+          (a) => !beforeIds.has(a.id)
+        );
+        options.inputManager.handleAssetsAddition(
+          newAssets,
+          options.textareaRef.value,
+          options.settings.value.transcription.autoInsertPlaceholder
+        );
       }
     } catch (error) {
       errorHandler.error(error, "打开文件选择对话框失败");

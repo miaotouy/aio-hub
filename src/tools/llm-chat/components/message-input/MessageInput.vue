@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef, computed, onMounted, watch } from "vue";
+import { ref, toRef, computed, onMounted } from "vue";
 import { useStorage, useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
@@ -193,15 +193,13 @@ const { isDraggingOver } = useChatFileInteraction({
     logger.info("文件拖拽触发", { paths, disabled: props.disabled });
     const beforeIds = new Set(inputManager.attachments.value.map((a) => a.id));
     await inputManager.addAttachments(paths);
-    // 自动插入占位符
-    if (settings.value.transcription.autoInsertPlaceholder) {
-      const newAssets = inputManager.attachments.value.filter((a) => !beforeIds.has(a.id));
-      if (newAssets.length > 0) {
-        const cursorPos = textareaRef.value?.getSelectionRange()?.start ?? inputText.value.length;
-        const insertInfo = inputManager.preparePlaceholderInsert([...newAssets], cursorPos);
-        textareaRef.value?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
-      }
-    }
+
+    const newAssets = inputManager.attachments.value.filter((a) => !beforeIds.has(a.id));
+    inputManager.handleAssetsAddition(
+      newAssets,
+      textareaRef.value,
+      settings.value.transcription.autoInsertPlaceholder
+    );
   },
   onAssets: async (assets) => {
     logger.info("文件粘贴触发", { count: assets.length });
@@ -217,48 +215,12 @@ const { isDraggingOver } = useChatFileInteraction({
           ? `已粘贴文件: ${assets[0].name}`
           : `已粘贴 ${addedAssets.length} 个文件`;
       customMessage.success(message);
-      // 自动插入占位符
-      if (settings.value.transcription.autoInsertPlaceholder) {
-        const cursorPos = textareaRef.value?.getSelectionRange()?.start ?? inputText.value.length;
 
-        // 区分已完成和上传中的 asset
-        const completedAssets = addedAssets.filter((a) => a.importStatus === "complete");
-        const uploadingAssets = addedAssets.filter((a) => a.importStatus !== "complete");
-
-        // 已完成的直接插入正常占位符
-        if (completedAssets.length > 0) {
-          const insertInfo = inputManager.preparePlaceholderInsert(completedAssets, cursorPos);
-          textareaRef.value?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
-        }
-
-        // 上传中的插入带 uploading: 前缀的占位符
-        if (uploadingAssets.length > 0) {
-          // 重新获取光标，因为可能刚才插入过
-          const currentCursorPos = textareaRef.value?.getSelectionRange()?.start ?? inputText.value.length;
-          const insertInfo = inputManager.preparePlaceholderInsert(uploadingAssets, currentCursorPos, true);
-          textareaRef.value?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
-        }
-
-        // watch id 变化，导入完成后将 uploading 占位符替换为正常占位符
-        for (const asset of uploadingAssets) {
-          const tempId = asset.id;
-          logger.info("[占位符同步] 创建 watch 监听器", {
-            tempId,
-            importStatus: asset.importStatus,
-            isReactive: !!(asset as any).__v_isReactive,
-          });
-          const stop = watch(
-            () => asset.id,
-            (newId, oldId) => {
-              logger.info("[占位符同步] watch 触发", { oldId, newId, tempId });
-              if (newId && newId !== tempId) {
-                inputManager.updatePlaceholderId(tempId, newId);
-                stop();
-              }
-            }
-          );
-        }
-      }
+      inputManager.handleAssetsAddition(
+        addedAssets,
+        textareaRef.value,
+        settings.value.transcription.autoInsertPlaceholder
+      );
     }
   },
   disabled: toRef(props, "disabled"),

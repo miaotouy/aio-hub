@@ -17,7 +17,7 @@ import type {
 import { Tokenizer } from "../parser/Tokenizer";
 import { tokenizerService } from "../parser/tokenizerService";
 import { Token, ParserContext, ParserOptions } from "../parser/types";
-import { optimizeBadgeLineBreaks } from "../parser/utils/text-utils";
+import { optimizeBadgeLineBreaks, computeFingerprint } from "../parser/utils/text-utils";
 import { isTableStart, BLOCK_LEVEL_TAGS } from "../parser/utils/block-utils";
 
 // 导入解析器
@@ -120,6 +120,7 @@ export class CustomParser implements ParserContext {
           type: "katex_block",
           props: { content: token.content },
           meta: { range: { start: 0, end: 0 }, status: "stable" },
+          _fp: computeFingerprint(token.content),
         });
         i++;
         continue;
@@ -192,22 +193,24 @@ export class CustomParser implements ParserContext {
 
       // VCP 工具请求
       if (token.type === "vcp_tool") {
+        const vcpToken = token as Extract<typeof token, { type: "vcp_tool" }>;
         blocks.push({
           id: "",
           type: "vcp_tool",
           props: {
-            raw: token.raw,
-            closed: token.closed,
-            tool_name: token.tool_name,
-            command: token.command,
-            maid: token.maid,
-            args: token.args,
-            isResult: token.isResult,
-            status: token.status,
-            resultContent: token.resultContent,
+            raw: vcpToken.raw,
+            closed: vcpToken.closed,
+            tool_name: vcpToken.tool_name,
+            command: vcpToken.command,
+            maid: vcpToken.maid,
+            args: vcpToken.args,
+            isResult: vcpToken.isResult,
+            status: vcpToken.status,
+            resultContent: vcpToken.resultContent,
             collapsedByDefault: this.defaultToolCallCollapsed,
           },
-          meta: { range: { start: 0, end: 0 }, status: token.closed ? "stable" : "pending" },
+          meta: { range: { start: 0, end: 0 }, status: vcpToken.closed ? "stable" : "pending" },
+          _fp: computeFingerprint(vcpToken.raw),
         });
         i++;
         continue;

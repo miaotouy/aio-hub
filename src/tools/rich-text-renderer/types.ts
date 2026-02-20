@@ -25,6 +25,8 @@ export interface BaseAstNode {
   type: string;            // 节点类型标识
   children?: AstNode[];    // 子节点
   meta: NodeMeta;          // 元数据
+  /** 性能优化：快速指纹，用于 Diff 算法跳过无效比较 */
+  _fp?: string;
 }
 
 /**

@@ -70,13 +70,13 @@ class MarkdownBoundaryDetector {
    */
   private hasUnclosedKatexBlock(text: string): boolean {
     // 移除转义的 \$
-    const cleanText = text.replace(/\\\$/g, '');
+    const cleanText = text.replace(/\\\$/g, "");
 
     // 统计 $$ 的出现次数
     let count = 0;
     let i = 0;
     while (i < cleanText.length) {
-      if (cleanText[i] === '$' && i + 1 < cleanText.length && cleanText[i + 1] === '$') {
+      if (cleanText[i] === "$" && i + 1 < cleanText.length && cleanText[i + 1] === "$") {
         count++;
         i += 2; // 跳过这两个 $
       } else {
@@ -181,8 +181,8 @@ class MarkdownBoundaryDetector {
    */
   private hasUnclosedLinkOrImage(text: string): boolean {
     // 查找最后一个可能引起歧义的标记
-    const lastOpenBracket = text.lastIndexOf('[');
-    const lastOpenParen = text.lastIndexOf('(');
+    const lastOpenBracket = text.lastIndexOf("[");
+    const lastOpenParen = text.lastIndexOf("(");
 
     // 如果没有任何括号，肯定安全
     if (lastOpenBracket === -1 && lastOpenParen === -1) return false;
@@ -190,7 +190,7 @@ class MarkdownBoundaryDetector {
     // 情况 1: 文本部分未闭合 [text... 或 ![alt...
     if (lastOpenBracket > -1) {
       const textAfterBracket = text.slice(lastOpenBracket);
-      if (!textAfterBracket.includes(']')) {
+      if (!textAfterBracket.includes("]")) {
         return true;
       }
     }
@@ -198,10 +198,10 @@ class MarkdownBoundaryDetector {
     // 情况 2: URL 部分未闭合 [...](url...
     if (lastOpenParen > -1) {
       const textAfterParen = text.slice(lastOpenParen);
-      if (!textAfterParen.includes(')')) {
+      if (!textAfterParen.includes(")")) {
         // 检查这个 ( 是否紧跟在 ] 后面
         const textBeforeParen = text.slice(0, lastOpenParen);
-        if (textBeforeParen.endsWith(']')) {
+        if (textBeforeParen.endsWith("]")) {
           return true;
         }
       }
@@ -277,30 +277,30 @@ class MarkdownBoundaryDetector {
 
     // 2. 检查内联链接/图片截断
     // 优先检查 URL 部分 (url... 因为它最容易触发 CSP 错误
-    const lastParen = text.lastIndexOf('(');
+    const lastParen = text.lastIndexOf("(");
     if (lastParen !== -1) {
       const suffix = text.slice(lastParen);
-      if (!suffix.includes(')')) {
+      if (!suffix.includes(")")) {
         const textBeforeParen = text.slice(0, lastParen);
-        if (textBeforeParen.endsWith(']')) {
+        if (textBeforeParen.endsWith("]")) {
           // 找到 ![alt]( 或 [text]( 的起始位置
           // 向前找 [
-          const lastBracket = textBeforeParen.lastIndexOf('[');
+          const lastBracket = textBeforeParen.lastIndexOf("[");
           if (lastBracket !== -1) {
             // 如果前面有 !，也一起截断
-            return lastBracket > 0 && text[lastBracket - 1] === '!' ? lastBracket - 1 : lastBracket;
+            return lastBracket > 0 && text[lastBracket - 1] === "!" ? lastBracket - 1 : lastBracket;
           }
         }
       }
     }
 
     // 检查文本部分 [text...
-    const lastBracket = text.lastIndexOf('[');
+    const lastBracket = text.lastIndexOf("[");
     if (lastBracket !== -1) {
       const suffix = text.slice(lastBracket);
-      if (!suffix.includes(']')) {
+      if (!suffix.includes("]")) {
         // 如果前面有 !，也一起截断
-        return lastBracket > 0 && text[lastBracket - 1] === '!' ? lastBracket - 1 : lastBracket;
+        return lastBracket > 0 && text[lastBracket - 1] === "!" ? lastBracket - 1 : lastBracket;
       }
     }
 
@@ -352,6 +352,9 @@ export class StreamProcessorV2 {
   private stableAst: AstNode[] = [];
   private pendingAst: AstNode[] = [];
   private nodeIdCounter = 1;
+
+  // 性能优化：引用冻结 - 记录上次的稳定区文本
+  private lastStableText = "";
 
   constructor(options: StreamProcessorOptions) {
     this.onPatch = options.onPatch;
@@ -408,6 +411,8 @@ export class StreamProcessorV2 {
    * 4. 对整个树进行一次性 diff
    *
    * 这样可以确保节点从待定区转移到稳定区时，ID 能被正确保留
+   *
+   * 性能优化：引用冻结 - 如果 stableText 没有变化，复用已有的 stableAst 引用
    */
   private async processIncremental(): Promise<void> {
     if (this.isProcessing) {
@@ -423,36 +428,49 @@ export class StreamProcessorV2 {
         const { stable: stableText, pending: pendingText } =
           this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
-        // 2. 解析稳定区 (异步分词)
-        this.parser.reset();
-        const newStableAst = await this.parser.parseAsync(stableText);
+        // 性能优化：引用冻结 - 检查稳定区文本是否变化
+        let newStableAst: AstNode[];
+        if (stableText === this.lastStableText && this.stableAst.length > 0) {
+          // 稳定区文本没有变化，复用已有的 stableAst 引用
+          newStableAst = this.stableAst;
+        } else {
+          // 稳定区文本发生变化，重新解析
+          this.parser.reset();
+          newStableAst = await this.parser.parseAsync(stableText);
+          this.lastStableText = stableText;
+        }
 
-        // 3. 解析待定区 (异步分词)
+        // 2. 解析待定区 (异步分词)
         this.parser.reset();
         const newPendingAst = await this.parser.parseAsync(pendingText);
 
-        // 4. 合并当前的完整状态树（旧状态）
+        // 3. 合并当前的完整状态树（旧状态）
+        // 注意：如果 stableAst 被复用，这里需要复制一份用于 diff 计算
         const currentFullAst = [...this.stableAst, ...this.pendingAst];
 
-        // 5. 合并新的完整状态树（新状态）
+        // 4. 合并新的完整状态树（新状态）
         const newFullAst = [...newStableAst, ...newPendingAst];
 
-        // 6. 关键：在 diff 之前完成所有 ID 分配
+        // 5. 关键：在 diff 之前完成所有 ID 分配
         // 首先为新节点分配临时 ID（如果没有的话）
-        this.assignIds(newFullAst);
+        // 只有当 stableAst 不是复用的时候才需要重新分配 ID
+        if (newStableAst !== this.stableAst) {
+          this.assignIds(newStableAst);
+        }
+        this.assignIds(newPendingAst);
 
-        // 7. 标记节点状态
+        // 6. 标记节点状态
         this.markNodesStatus(newStableAst, "stable");
         this.markNodesStatus(newPendingAst, "pending");
 
-        // 8. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
+        // 7. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
         const patches = this.diffAst(currentFullAst, newFullAst, true);
 
-        // 9. 更新状态
+        // 8. 更新状态
         this.stableAst = newStableAst;
         this.pendingAst = newPendingAst;
 
-        // 10. 发送变更
+        // 9. 发送变更
         if (patches.length > 0) {
           this.onPatch(patches);
         }
@@ -628,7 +646,21 @@ export class StreamProcessorV2 {
 
       // 检查是否需要更新
       const statusChanged = oldNode.meta.status !== newNode.meta.status;
-      const contentChanged = this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
+
+      // 性能优化：使用指纹快速判断内容是否变化
+      // 如果两个节点都有指纹，先比较指纹，指纹一致则直接判定内容未变
+      let contentChanged = false;
+      if (oldNode._fp && newNode._fp) {
+        // 指纹不一致才需要进一步检查
+        contentChanged = oldNode._fp !== newNode._fp;
+        // 如果指纹一致但节点有子节点，仍需递归检查子节点
+        if (!contentChanged && (oldNode.children || newNode.children)) {
+          contentChanged = false; // 指纹一致，认为内容相同
+        }
+      } else {
+        // 没有指纹，回退到旧的比较方式
+        contentChanged = this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
+      }
 
       if (statusChanged || contentChanged) {
         // 内容或状态变化，但可以复用 ID，发送 replace-node
@@ -749,6 +781,7 @@ export class StreamProcessorV2 {
     this.stableAst = [];
     this.pendingAst = [];
     this.nodeIdCounter = 1;
+    this.lastStableText = "";
     this.parser.reset();
   }
 }

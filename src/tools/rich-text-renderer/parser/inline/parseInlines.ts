@@ -1,6 +1,6 @@
 import { Token, ParserContext } from "../types";
 import { ActionButtonNode, AstNode, GenericHtmlNode } from "../../types";
-import { createTextNode } from "../utils/text-utils";
+import { createTextNode, computeFingerprint } from "../utils/text-utils";
 
 /**
  * 从 AST 节点数组中提取纯文本内容
@@ -337,6 +337,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         type: "inline_code",
         props: { content: token.content },
         meta: { range: { start: 0, end: 0 }, status: "stable" },
+        _fp: computeFingerprint(token.content),
       });
       i++;
       continue;
@@ -350,6 +351,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         type: "katex_inline",
         props: { content: token.content },
         meta: { range: { start: 0, end: 0 }, status: "stable" },
+        _fp: computeFingerprint(token.content),
       });
       i++;
       continue;

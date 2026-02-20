@@ -19,6 +19,7 @@ import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
 import { StreamProcessor } from "./core/StreamProcessor";
 import { StreamProcessorV2 } from "./core/StreamProcessorV2";
+import { StreamController } from "./core/StreamController";
 import AstNodeRenderer from "./components/AstNodeRenderer.tsx";
 import type {
   StreamSource,
@@ -30,7 +31,6 @@ import type {
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
 import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
 import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
-
 const props = withDefaults(
   defineProps<{
     content?: string;
@@ -53,6 +53,7 @@ const props = withDefaults(
     shouldFreeze?: boolean; // 是否冻结 HTML 预览
     allowDangerousHtml?: boolean; // 是否允许渲染危险的 HTML 标签
     showTokenCount?: boolean; // 是否显示 Token 计数
+    smoothingEnabled?: boolean; // 是否启用流式平滑化（默认 true）
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
@@ -253,6 +254,9 @@ const createProcessor = (version: RendererVersion) => {
 // 当前使用的流式处理器（仅 AST 模式）
 const streamProcessor = ref<any>(null);
 
+// 流式控制器实例（用于平滑化）
+let streamController: StreamController | null = null;
+
 let unsubscribe: (() => void) | null = null;
 let unsubscribeComplete: (() => void) | null = null;
 
@@ -392,46 +396,107 @@ onMounted(() => {
 
   // 订阅流式数据
   internalIsStreaming.value = true;
-  unsubscribe = props.streamSource.subscribe((chunk) => {
-    buffer.value += chunk;
 
-    // 在流式模式下，我们必须手动应用正则规则和资产解析到 buffer
-    // 因为 props.content 通常是空的或静态的，而 buffer 才是包含最新内容的数据源
-    let bufferToProcess = buffer.value;
+  // 判断是否启用平滑化（仅在 AST 模式下且明确启用时使用）
+  const useSmoothing = props.smoothingEnabled !== false && useAstRenderer.value;
 
-    // 1. 应用正则规则
-    if (props.regexRules && props.regexRules.length > 0) {
-      bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
-    }
+  if (useSmoothing) {
+    // 创建流控制器（用于平滑化）
+    streamController = new StreamController({
+      onContent: (smoothedContent: string) => {
+        // 接收平滑化后的增量内容，累积到 buffer
+        buffer.value += smoothedContent;
 
-    // 2. 解析资产路径
-    if (props.resolveAsset) {
-      if (!useAstRenderer.value) {
-        bufferToProcess = props.resolveAsset(bufferToProcess);
-      } else if (bufferToProcess.includes("file://")) {
-        bufferToProcess = props.resolveAsset(bufferToProcess);
+        // 应用正则规则（需要在完整文本上执行）
+        let bufferToProcess = buffer.value;
+        if (props.regexRules && props.regexRules.length > 0) {
+          bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
+        }
+
+        // 解析资产路径
+        if (props.resolveAsset) {
+          if (!useAstRenderer.value) {
+            bufferToProcess = props.resolveAsset(bufferToProcess);
+          } else if (bufferToProcess.includes("file://")) {
+            bufferToProcess = props.resolveAsset(bufferToProcess);
+          }
+        }
+
+        // 补全末尾换行
+        if (bufferToProcess && !bufferToProcess.endsWith("\n")) {
+          bufferToProcess += "\n";
+        }
+
+        if (useAstRenderer.value) {
+          streamProcessor.value?.setContent(bufferToProcess);
+        } else {
+          htmlContent.value = md.render(bufferToProcess);
+        }
+      },
+      smoothingEnabled: true,
+      baseCharsPerFrame: 2,
+      accelerationThreshold: 200,
+      emergencyFlushThreshold: 1000,
+    });
+
+    // 标记已挂载，启动控制器
+    streamController.markMounted();
+    streamController.start();
+
+    // 订阅原始数据，推入控制器
+    unsubscribe = props.streamSource.subscribe((chunk) => {
+      streamController?.push(chunk);
+    });
+  } else {
+    // 不使用平滑化，直接处理
+    unsubscribe = props.streamSource.subscribe((chunk) => {
+      buffer.value += chunk;
+
+      // 在流式模式下，我们必须手动应用正则规则和资产解析到 buffer
+      // 因为 props.content 通常是空的或静态的，而 buffer 才是包含最新内容的数据源
+      let bufferToProcess = buffer.value;
+
+      // 1. 应用正则规则
+      if (props.regexRules && props.regexRules.length > 0) {
+        bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
       }
-    }
 
-    // 3. 补全末尾换行：辅助解析器闭合末尾的块节点
-    if (bufferToProcess && !bufferToProcess.endsWith("\n")) {
-      bufferToProcess += "\n";
-    }
+      // 2. 解析资产路径
+      if (props.resolveAsset) {
+        if (!useAstRenderer.value) {
+          bufferToProcess = props.resolveAsset(bufferToProcess);
+        } else if (bufferToProcess.includes("file://")) {
+          bufferToProcess = props.resolveAsset(bufferToProcess);
+        }
+      }
 
-    if (useAstRenderer.value) {
-      // 对于流式数据，每次都处理整个应用了正则的缓冲区
-      // StreamProcessor 的 diff 机制和 useMarkdownAst 的节流会处理性能问题
-      streamProcessor.value?.setContent(bufferToProcess);
-    } else {
-      // 纯 markdown-it：每次全量重渲染
-      htmlContent.value = md.render(bufferToProcess);
-    }
-  });
+      // 3. 补全末尾换行：辅助解析器闭合末尾的块节点
+      if (bufferToProcess && !bufferToProcess.endsWith("\n")) {
+        bufferToProcess += "\n";
+      }
+
+      if (useAstRenderer.value) {
+        // 对于流式数据，每次都处理整个应用了正则的缓冲区
+        // StreamProcessor 的 diff 机制和 useMarkdownAst 的节流会处理性能问题
+        streamProcessor.value?.setContent(bufferToProcess);
+      } else {
+        // 纯 markdown-it：每次全量重渲染
+        htmlContent.value = md.render(bufferToProcess);
+      }
+    });
+  }
 
   // 监听流完成事件
   if (props.streamSource.onComplete) {
     unsubscribeComplete = props.streamSource.onComplete(() => {
       internalIsStreaming.value = false;
+
+      // 如果使用了平滑化，先冲刷剩余数据
+      if (streamController) {
+        streamController.flushAndStop();
+        streamController = null;
+      }
+
       if (useAstRenderer.value) {
         streamProcessor.value?.finalize();
       }
@@ -442,6 +507,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   unsubscribe?.();
   unsubscribeComplete?.();
+  // 停止 rAF 循环，防止卸载后继续触发 onContent 回调导致内存泄漏
+  streamController?.stop();
+  streamController = null;
   streamProcessor.value?.reset?.();
 });
 

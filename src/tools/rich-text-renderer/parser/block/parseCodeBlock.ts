@@ -1,5 +1,6 @@
 import { Token } from "../types";
 import { AstNode } from "../../types";
+import { computeFingerprint } from "../utils/text-utils";
 
 /**
  * 解析代码块 - 分词器已经处理好了完整内容
@@ -25,6 +26,7 @@ export function parseCodeBlock(
           content: fence.raw,
         },
         meta: { range: { start: 0, end: 0 }, status: "stable" },
+        _fp: computeFingerprint(fence.raw),
       },
       nextIndex: start + 1,
     };
@@ -40,6 +42,7 @@ export function parseCodeBlock(
         closed: fence.closed,
       },
       meta: { range: { start: 0, end: 0 }, status: "stable" },
+      _fp: computeFingerprint(fence.raw),
     },
     nextIndex: start + 1,
   };

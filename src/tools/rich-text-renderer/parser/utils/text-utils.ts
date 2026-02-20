@@ -116,12 +116,26 @@ export function optimizeBadgeLineBreaks(nodes: AstNode[]): AstNode[] {
   });
 }
 
+/**
+ * 计算节点的快速指纹
+ * 公式: length + ":" + firstChar + ":" + lastChar
+ * 用于 Diff 算法快速跳过无变化的节点
+ */
+export function computeFingerprint(content: string): string {
+  if (!content) return "0::";
+  const len = content.length;
+  const first = content[0] || "";
+  const last = content[len - 1] || "";
+  return `${len}:${first}:${last}`;
+}
+
 export function createTextNode(content: string): AstNode {
   return {
     id: "",
     type: "text",
     props: { content },
     meta: { range: { start: 0, end: 0 }, status: "stable" },
+    _fp: computeFingerprint(content),
   };
 }
 

@@ -17,9 +17,6 @@ const INITIAL_RECONNECT_DELAY = 2000;
 
 /**
  * 内置工具列表，所有 VCP 节点强制暴露
- */
-/**
- * 内置工具列表，所有 VCP 节点强制暴露
  * 注意：这些名称遵循 VCP 协议约定，不使用 camelCase 风格
  */
 export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
@@ -33,18 +30,18 @@ export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
       properties: {
         fileUrl: {
           type: "string",
-          description: "文件的 URL (file:// 或 appdata://)"
-        }
+          description: "文件的 URL (file:// 或 appdata://)",
+        },
       },
-      required: ["fileUrl"]
-    }
-  }
+      required: ["fileUrl"],
+    },
+  },
 ];
 
 export function useVcpDistributedNode() {
   const store = useVcpStore();
   const distStore = useVcpDistributedStore();
-  
+
   const heartbeatTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const reconnectDelay = ref(INITIAL_RECONNECT_DELAY);
   const isStarted = ref(false);
@@ -81,22 +78,22 @@ export function useVcpDistributedNode() {
 
     // 2. 处理内置工具 (强制暴露)
     for (const tool of BUILTIN_VCP_TOOLS) {
-      if (!manifest.some(m => m.name === tool.name)) {
+      if (!manifest.some((m) => m.name === tool.name)) {
         manifest.push(tool);
       }
     }
 
     // 3. 处理手动指定的 (exposedToolIds)
     // 避免重复
-    const currentIds = new Set(manifest.map(m => m.name));
+    const currentIds = new Set(manifest.map((m) => m.name));
     for (const fullId of exposedIds) {
       if (currentIds.has(fullId)) continue;
-      
+
       const [toolId, methodName] = fullId.split(":");
       try {
         const registry = toolRegistryManager.getRegistry(toolId);
         const metadata = registry.getMetadata?.();
-        const method = metadata?.methods.find(m => m.name === methodName);
+        const method = metadata?.methods.find((m) => m.name === methodName);
         if (method) {
           manifest.push(convertToManifest(toolId, method));
         }
@@ -116,13 +113,15 @@ export function useVcpDistributedNode() {
         type: "object",
         properties: method.parameters.reduce((acc: any, p: any) => {
           acc[p.name] = {
-            type: p.type === "string" ? "string" : (p.type === "number" ? "number" : "object"),
-            description: p.description || ""
+            type: p.type === "string" ? "string" : p.type === "number" ? "number" : "object",
+            description: p.description || "",
           };
           return acc;
         }, {} as any),
-        required: method.parameters.filter((p: any) => p.required !== false).map((p: any) => p.name)
-      }
+        required: method.parameters
+          .filter((p: any) => p.required !== false)
+          .map((p: any) => p.name),
+      },
     };
   }
 
@@ -149,14 +148,14 @@ export function useVcpDistributedNode() {
 
     try {
       // 获取 IP 信息
-      const localIPs = await errorHandler.wrapAsync(async () => {
+      const localIPs = (await errorHandler.wrapAsync(async () => {
         return await invoke<string[]>("get_local_ips");
-      }) || ["127.0.0.1"];
+      })) || ["127.0.0.1"];
 
       (store as any).nodeProtocol.sendReportIp({
         localIPs,
         publicIP: "",
-        serverName: distStore.config.serverName
+        serverName: distStore.config.serverName,
       });
       distStore.updateHeartbeat();
     } catch (e) {
@@ -183,9 +182,9 @@ export function useVcpDistributedNode() {
   function startDistributedNode() {
     if (isStarted.value) return;
     isStarted.value = true;
-    
+
     logger.info("Starting VCP Distributed Node logic");
-    
+
     // 监听连接状态
     const unwatchStatus = watch(
       () => store.connection.status,
@@ -230,6 +229,6 @@ export function useVcpDistributedNode() {
     startDistributedNode,
     stopDistributedNode,
     reregisterTools,
-    discoverTools
+    discoverTools,
   };
 }

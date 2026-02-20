@@ -11,8 +11,10 @@ export interface VcpDistributedConfig {
 
 export interface VcpToolManifest {
   name: string; // 对应 AIO 的 toolId:methodName
+  displayName?: string; // 用于 UI 显示的友好名称
   description: string;
   parameters: any; // JSON Schema
+  isInternal?: boolean; // 是否为内部工具（基础设施）
 }
 
 export interface VcpNodeStatus {

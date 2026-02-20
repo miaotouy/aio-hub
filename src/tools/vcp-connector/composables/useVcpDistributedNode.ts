@@ -18,9 +18,15 @@ const INITIAL_RECONNECT_DELAY = 2000;
 /**
  * 内置工具列表，所有 VCP 节点强制暴露
  */
+/**
+ * 内置工具列表，所有 VCP 节点强制暴露
+ * 注意：这些名称遵循 VCP 协议约定，不使用 camelCase 风格
+ */
 export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
   {
-    name: "vcp:internal_request_file",
+    name: "internal_request_file",
+    displayName: "内置文件请求器",
+    isInternal: true,
     description: "请求 AIO 节点上的文件内容 (Base64)",
     parameters: {
       type: "object",

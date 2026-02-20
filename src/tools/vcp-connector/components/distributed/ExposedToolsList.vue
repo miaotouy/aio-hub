@@ -53,9 +53,9 @@
             </el-icon>
             <div class="tool-name-wrapper">
               <div class="method-name">
-                {{ tool.name.split(":")[1] || tool.name }}
+                {{ tool.displayName || tool.name.split(":")[1] || tool.name }}
               </div>
-              <div class="tool-id-tag">{{ tool.name.split(":")[0] }}</div>
+              <div class="tool-id-tag">{{ tool.isInternal ? 'VCP Protocol' : tool.name.split(":")[0] }}</div>
             </div>
             <div class="tool-tags">
               <el-tag

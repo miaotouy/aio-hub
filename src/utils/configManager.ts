@@ -5,6 +5,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { getAppConfigDir } from "./appPath";
 import * as yaml from "js-yaml";
 import { createModuleLogger } from "./logger";
@@ -243,20 +244,15 @@ export class ConfigManager<T extends Record<string, any>> {
         default:
           throw new Error(`不支持的文件类型: ${this.fileType}`);
       }
-      // 使用 Rust 后端命令强制写入，绕过前端 Scope 限制
-      const encoder = new TextEncoder();
-      const uint8Array = encoder.encode(content);
+
+      // 使用 plugin-fs.writeTextFile 直传字符串，避免 Uint8Array→IPC JSON 数字数组的膨胀开销
       const invokeStart = performance.now();
-      // 优化：直接传递 Uint8Array，避免 Array.from 的巨额开销
-      await invoke("write_file_force", {
-        path: configPath,
-        content: uint8Array
-      });
+      await writeTextFile(configPath, content);
       const invokeEnd = performance.now();
       if (invokeEnd - invokeStart > 100) {
-        logger.warn(`[Perf] invoke("write_file_force") 耗时过长: ${(invokeEnd - invokeStart).toFixed(2)}ms`, {
+        logger.warn(`[Perf] writeTextFile 耗时过长: ${(invokeEnd - invokeStart).toFixed(2)}ms`, {
           moduleName: this.moduleName,
-          path: configPath
+          path: configPath,
         });
       }
 

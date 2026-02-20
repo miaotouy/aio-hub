@@ -242,7 +242,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       ...data,
       type: type as VcpMessageType,
       timestamp: typeof data.timestamp === "number" ? data.timestamp : Date.now(),
-      raw: rawData,
+      // 不存 raw：...data 已展开所有字段，raw 是完全冗余的副本，会使序列化体积翻倍
+      // JsonViewer 使用 `msg.raw || msg` fallback，不受影响
     } as VcpMessage;
   }
 

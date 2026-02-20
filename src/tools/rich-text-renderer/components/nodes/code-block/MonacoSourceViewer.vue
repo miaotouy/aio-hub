@@ -1,7 +1,11 @@
 <template>
   <div
     class="code-editor-container"
-    :class="{ expanded: isExpanded, 'editor-ready': isEditorReady }"
+    :class="{
+      expanded: isExpanded,
+      'editor-ready': isEditorReady,
+      'is-streaming': !closed,
+    }"
     ref="containerRef"
   >
     <!-- Monaco 准备好之前显示 PreCodeNode -->
@@ -46,6 +50,9 @@ const isInitializing = ref(false);
 const isIntersected = ref(false);
 const lastContent = ref("");
 
+// 用于 adjustLayout 的 rAF 防抖
+let pendingLayoutFrame: number | null = null;
+
 // stream-monaco helpers
 let updateCode: (code: string, lang: string) => void = () => {};
 let appendCode: (code: string, lang: string) => void = () => {};
@@ -76,8 +83,9 @@ const computeContentHeight = (): number | null => {
       height = lineCount * lineHeight;
     }
 
-    // 增加余量避免亚像素差异导致滚动条闪烁（水平滚动条高度 + 安全边距）
-    return Math.ceil(height) + 20;
+    // 增加余量避免亚像素差异导致滚动条闪烁
+    // 水平滚动条高度(~14px) + 行高余量 + 安全边距
+    return Math.ceil(height) + 30;
   } catch {
     return null;
   }
@@ -94,27 +102,39 @@ const setAutomaticLayout = (enabled: boolean) => {
   }
 };
 
-const adjustLayout = () => {
-  nextTick(() => {
-    const editor = getEditorView();
-    const container = containerRef.value;
-    if (!editor || !container || !editorEl.value) return;
+/**
+ * 实际执行布局调整（内部方法，不应直接调用）
+ */
+const doAdjustLayout = () => {
+  const editor = getEditorView();
+  const container = containerRef.value;
+  if (!editor || !container || !editorEl.value) return;
 
-    const contentHeight = computeContentHeight();
-    if (contentHeight && contentHeight > 0) {
-      if (props.isExpanded) {
-        editorEl.value.style.height = `${contentHeight}px`;
-        container.style.maxHeight = `${contentHeight}px`;
-      } else {
-        const maxHeightInCollapsed = 500;
-        const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
-        editorEl.value.style.height = `${editorHeight}px`;
-        container.style.maxHeight = "";
-      }
+  const contentHeight = computeContentHeight();
+  if (contentHeight && contentHeight > 0) {
+    if (props.isExpanded) {
+      editorEl.value.style.height = `${contentHeight}px`;
+      container.style.maxHeight = `${contentHeight}px`;
+    } else {
+      const maxHeightInCollapsed = 500;
+      const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+      editorEl.value.style.height = `${editorHeight}px`;
+      container.style.maxHeight = "";
     }
-    if (typeof editor.layout === "function") {
-      editor.layout();
-    }
+  }
+  if (typeof editor.layout === "function") {
+    editor.layout();
+  }
+};
+
+/**
+ * 请求布局调整（rAF 防抖，避免流式模式下的高频调用和循环触发）
+ */
+const adjustLayout = () => {
+  if (pendingLayoutFrame !== null) return;
+  pendingLayoutFrame = requestAnimationFrame(() => {
+    pendingLayoutFrame = null;
+    doAdjustLayout();
   });
 };
 
@@ -123,7 +143,7 @@ const initEditor = async () => {
   isInitializing.value = true;
 
   try {
-    const sm = await import("stream-monaco") as StreamMonacoModule;
+    const sm = (await import("stream-monaco")) as StreamMonacoModule;
     if (!editorEl.value) return;
 
     const useMonaco = sm.useMonaco;
@@ -189,13 +209,10 @@ const initEditor = async () => {
     const container = containerRef.value;
     if (container) {
       const resizeObserver = new ResizeObserver(() => {
+        // 仅通知 Monaco 重新布局，不调用 adjustLayout 以避免循环
         const editor = getEditorView();
         if (editor && typeof editor.layout === "function") {
-          requestAnimationFrame(() => {
-            editor.layout();
-            // 同步更新容器高度，避免窗口宽度变化时滚动条闪烁
-            adjustLayout();
-          });
+          editor.layout();
         }
       });
       resizeObserver.observe(container);
@@ -229,6 +246,10 @@ watch(isDark, async (dark) => {
 });
 
 onUnmounted(() => {
+  if (pendingLayoutFrame !== null) {
+    cancelAnimationFrame(pendingLayoutFrame);
+    pendingLayoutFrame = null;
+  }
   if (typeof cleanupEditor === "function") cleanupEditor();
   if (cleanupResizeObserver) {
     cleanupResizeObserver();
@@ -236,55 +257,73 @@ onUnmounted(() => {
   }
 });
 
-watch(() => props.content, (newContent) => {
-  if (newContent === lastContent.value) return;
-  if (isEditorReady.value) {
-    if (newContent.startsWith(lastContent.value) && lastContent.value !== "") {
-      const addedText = newContent.slice(lastContent.value.length);
-      if (addedText) appendCode(addedText, monacoLanguage.value);
+watch(
+  () => props.content,
+  (newContent) => {
+    if (newContent === lastContent.value) return;
+    if (isEditorReady.value) {
+      if (newContent.startsWith(lastContent.value) && lastContent.value !== "") {
+        const addedText = newContent.slice(lastContent.value.length);
+        if (addedText) appendCode(addedText, monacoLanguage.value);
+      } else {
+        updateCode(newContent, monacoLanguage.value);
+      }
+      adjustLayout();
+    }
+    lastContent.value = newContent;
+  }
+);
+
+watch(
+  () => props.closed,
+  (isClosed) => {
+    if (!isEditorReady.value) return;
+
+    if (isClosed) {
+      // 流式结束：最终同步内容
+      updateCode(props.content, monacoLanguage.value);
+      lastContent.value = props.content;
+      adjustLayout();
+    }
+  }
+);
+
+watch(
+  () => props.isExpanded,
+  (expanded) => {
+    const editor = getEditorView();
+    if (!editor) return;
+    if (expanded) {
+      setAutomaticLayout(true);
+      editor.updateOptions({ scrollbar: { handleMouseWheel: false } });
     } else {
-      updateCode(newContent, monacoLanguage.value);
+      setAutomaticLayout(false);
+      editor.updateOptions({ scrollbar: { handleMouseWheel: true } });
     }
     adjustLayout();
   }
-  lastContent.value = newContent;
-});
+);
 
-watch(() => props.closed, (isClosed) => {
-  if (isClosed && isEditorReady.value) {
-    updateCode(props.content, monacoLanguage.value);
-    lastContent.value = props.content;
-    adjustLayout();
+watch(
+  () => props.codeFontSize,
+  (size) => {
+    const editor = getEditorView();
+    if (editor && typeof editor.updateOptions === "function") {
+      editor.updateOptions({ fontSize: size });
+    }
   }
-});
+);
 
-watch(() => props.isExpanded, (expanded) => {
-  const editor = getEditorView();
-  if (!editor) return;
-  if (expanded) {
-    setAutomaticLayout(true);
-    editor.updateOptions({ scrollbar: { handleMouseWheel: false } });
-  } else {
-    setAutomaticLayout(false);
-    editor.updateOptions({ scrollbar: { handleMouseWheel: true } });
+watch(
+  () => props.wordWrapEnabled,
+  (enabled) => {
+    const editor = getEditorView();
+    if (editor && typeof editor.updateOptions === "function") {
+      editor.updateOptions({ wordWrap: enabled ? "on" : "off" });
+      adjustLayout();
+    }
   }
-  adjustLayout();
-});
-
-watch(() => props.codeFontSize, (size) => {
-  const editor = getEditorView();
-  if (editor && typeof editor.updateOptions === "function") {
-    editor.updateOptions({ fontSize: size });
-  }
-});
-
-watch(() => props.wordWrapEnabled, (enabled) => {
-  const editor = getEditorView();
-  if (editor && typeof editor.updateOptions === "function") {
-    editor.updateOptions({ wordWrap: enabled ? "on" : "off" });
-    adjustLayout();
-  }
-});
+);
 
 // 暴露 layout 方法
 defineExpose({
@@ -293,7 +332,7 @@ defineExpose({
     if (editor && typeof editor.layout === "function") {
       editor.layout();
     }
-  }
+  },
 });
 </script>
 
@@ -304,7 +343,12 @@ defineExpose({
   min-height: 20px;
   position: relative;
   transition: max-height 0.3s ease-in-out;
-  overflow: hidden;
+  overflow: hidden !important; /* 强制容器级别不出现滚动条 */
+}
+
+/* 流式传输期间禁用过渡动画，防止高度追赶导致的闪烁 */
+.code-editor-container.is-streaming {
+  transition: none !important;
 }
 
 .code-editor-container > div {

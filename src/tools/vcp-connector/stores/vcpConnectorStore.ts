@@ -35,6 +35,7 @@ const configManager = createConfigManager<VcpConfig>({
     vcpPath: "",
     autoConnect: false,
     maxHistory: DEFAULT_MAX_HISTORY,
+    mode: "both",
   }),
 });
 
@@ -52,6 +53,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     vcpPath: "",
     autoConnect: false,
     maxHistory: DEFAULT_MAX_HISTORY,
+    mode: "both",
   });
 
   const connection = ref<ConnectionState>({
@@ -432,8 +434,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   }
 
   function connect() {
-    if (ws.value?.readyState === WebSocket.OPEN || isConnecting.value) return;
-    disconnect();
+    // 移除对 ws.value 的全局守卫，因为 connectObserver 和 connectDistributed 内部有各自的精细守卫
+    // 这样可以实现在 Observer 已连的情况下，单独触发 Distributed 的连接
     attemptConnect();
   }
 
@@ -547,6 +549,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     filteredMessages,
     filter,
     stats,
+    nodeProtocol,
     updateConfig,
     connect,
     disconnect,

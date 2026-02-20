@@ -129,14 +129,14 @@ export function useVcpDistributedNode() {
    * 注册工具到 VCP
    */
   function reregisterTools() {
-    if (store.connection.status !== "connected" || !(store as any).nodeProtocol) {
-      logger.warn("Cannot register tools: VCP not connected");
+    if (distStore.status !== "connected" || !store.nodeProtocol) {
+      logger.warn("Cannot register tools: Distributed WS not connected or nodeProtocol missing");
       return;
     }
 
     const tools = discoverTools();
     distStore.setExposedTools(tools);
-    (store as any).nodeProtocol.sendRegisterTools(tools);
+    store.nodeProtocol.sendRegisterTools(tools);
     logger.info(`Requested registration of ${tools.length} tools`);
   }
 
@@ -144,7 +144,7 @@ export function useVcpDistributedNode() {
    * 发送心跳
    */
   async function sendHeartbeat() {
-    if (!(store as any).nodeProtocol || store.connection.status !== "connected") return;
+    if (!store.nodeProtocol || distStore.status !== "connected") return;
 
     try {
       // 获取 IP 信息
@@ -152,7 +152,7 @@ export function useVcpDistributedNode() {
         return await invoke<string[]>("get_local_ips");
       })) || ["127.0.0.1"];
 
-      (store as any).nodeProtocol.sendReportIp({
+      store.nodeProtocol.sendReportIp({
         localIPs,
         publicIP: "",
         serverName: distStore.config.serverName,
@@ -185,9 +185,9 @@ export function useVcpDistributedNode() {
 
     logger.info("Starting VCP Distributed Node logic");
 
-    // 监听连接状态
+    // 监听分布式连接状态（而非 Observer 状态）
     const unwatchStatus = watch(
-      () => store.connection.status,
+      () => distStore.status,
       (status) => {
         if (status === "connected") {
           reconnectDelay.value = INITIAL_RECONNECT_DELAY;
@@ -204,7 +204,7 @@ export function useVcpDistributedNode() {
     const unwatchConfig = watch(
       [() => distStore.config.exposedToolIds, () => distStore.config.autoRegisterTools],
       () => {
-        if (store.connection.status === "connected") {
+        if (distStore.status === "connected") {
           reregisterTools();
         }
       },

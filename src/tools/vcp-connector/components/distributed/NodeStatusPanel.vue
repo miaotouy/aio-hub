@@ -134,6 +134,7 @@ const lastHeartbeatText = computed(() => {
 });
 
 function toggleConnection() {
+  console.log("[VCP Node] Toggle connection, current isConnected:", isConnected.value);
   if (isConnected.value) {
     disconnect();
   } else {

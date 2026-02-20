@@ -8,9 +8,22 @@
     }"
     ref="containerRef"
   >
-    <!-- Monaco 准备好之前显示 PreCodeNode -->
-    <PreCodeNode v-if="!isEditorReady" :content="content" :line-numbers="true" />
-    <div ref="editorEl" class="monaco-wrapper" :class="{ visible: isEditorReady }"></div>
+    <div class="code-editor-layer">
+      <!-- Monaco 准备好之前（或后台初始化时）显示 PreCodeNode -->
+      <PreCodeNode
+        v-if="!isEditorReady"
+        class="pre-fallback"
+        :content="content"
+        :line-numbers="true"
+        :style="preFallbackStyle"
+      />
+      <!-- Monaco 容器：用 opacity 隐藏而不是 v-if，允许其在后台完成初始化 -->
+      <div
+        ref="editorEl"
+        class="monaco-wrapper"
+        :class="{ visible: isEditorReady, 'is-hidden': !isEditorReady }"
+      ></div>
+    </div>
   </div>
 </template>
 
@@ -49,12 +62,12 @@ const isEditorReady = ref(false);
 const isInitializing = ref(false);
 const isIntersected = ref(false);
 const lastContent = ref(""); // 已经同步给 Monaco 的内容
-const contentBuffer = ref(""); // 待同步的缓冲区内容
+
+// 渲染守卫帧：在内容大幅变化或流式结束时，等待几帧再计算高度
+const resumeGuardFrames = ref(0);
 
 // 用于 adjustLayout 的 rAF 防抖
 let pendingLayoutFrame: number | null = null;
-// 用于平滑消费缓冲区的节流定时器
-let consumeTimer: ReturnType<typeof setInterval> | null = null;
 
 // Chrome 警告修复：Monaco 注册非 passive 的 touchstart 监听器
 const MONACO_TOUCH_PATCH_FLAG = "__guguMonacoPassiveTouch__";
@@ -92,7 +105,6 @@ function ensureMonacoPassiveTouchListeners() {
 
 // stream-monaco helpers
 let updateCode: (code: string, lang: string) => void = () => {};
-let appendCode: (code: string, lang: string) => void = () => {};
 let cleanupEditor: () => void = () => {};
 let setTheme: (theme: any) => Promise<void> = async () => {};
 let getEditorView: () => any = () => ({ updateOptions: () => {} });
@@ -100,6 +112,68 @@ let getEditorView: () => any = () => ({ updateOptions: () => {} });
 let cleanupResizeObserver: (() => void) | null = null;
 
 const monacoLanguage = computed(() => getMonacoLanguageId(props.language));
+
+/**
+ * 精确匹配 Monaco 字体样式的占位样式
+ */
+const preFallbackStyle = computed(() => {
+  const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;
+  const lineHeight = Math.round(fontSize * 1.5);
+  return {
+    "--pre-font-size": `${fontSize}px`,
+    "--pre-line-height": `${lineHeight}px`,
+    fontSize: `${fontSize}px`,
+    lineHeight: `${lineHeight}px`,
+  };
+});
+
+/**
+ * 同步 Monaco 内部的 CSS 变量到容器根元素
+ * 解决主题切换或初始化时的颜色跳变/闪烁问题
+ */
+function syncEditorCssVars() {
+  const editorWrapper = editorEl.value;
+  const rootEl = containerRef.value;
+  if (!editorWrapper || !rootEl) return;
+
+  const editorRoot = (editorWrapper.querySelector(".monaco-editor") ||
+    editorWrapper) as HTMLElement;
+  const bgEl = (editorRoot.querySelector(".monaco-editor-background") || editorRoot) as HTMLElement;
+  const fgEl = (editorRoot.querySelector(".view-lines") || editorRoot) as HTMLElement;
+
+  try {
+    const rootStyles = window.getComputedStyle(editorRoot);
+    const bgStyles = window.getComputedStyle(bgEl);
+    const fgStyles = window.getComputedStyle(fgEl);
+
+    const fgVar = rootStyles.getPropertyValue("--vscode-editor-foreground").trim();
+    const bgVar = rootStyles.getPropertyValue("--vscode-editor-background").trim();
+    const selVar = rootStyles.getPropertyValue("--vscode-editor-selectionBackground").trim();
+
+    const fg = fgVar || fgStyles.color || rootStyles.color;
+    const bg = bgVar || bgStyles.backgroundColor || rootStyles.backgroundColor;
+
+    if (fg) rootEl.style.setProperty("--vscode-editor-foreground", fg);
+    if (bg) rootEl.style.setProperty("--vscode-editor-background", bg);
+    if (selVar) rootEl.style.setProperty("--vscode-editor-selectionBackground", selVar);
+  } catch {}
+}
+
+/**
+ * 从 DOM 实际测量行高，确保高度计算精确
+ */
+function measureLineHeightFromDom(): number | null {
+  try {
+    const root = editorEl.value;
+    if (!root) return null;
+    const lineEl = root.querySelector(".view-line") as HTMLElement | null;
+    if (lineEl) {
+      const h = lineEl.getBoundingClientRect().height;
+      if (h > 0) return h;
+    }
+  } catch {}
+  return null;
+}
 
 // 获取内容高度
 const computeContentHeight = (): number | null => {
@@ -116,13 +190,12 @@ const computeContentHeight = (): number | null => {
     if (height === 0) {
       const model = editor.getModel?.();
       const lineCount = model?.getLineCount?.() || 1;
-      const lineHeight = 18;
+      const lineHeight = measureLineHeightFromDom() || props.codeFontSize * 1.5;
       height = lineCount * lineHeight;
     }
 
-    // 减少魔法数字偏移，流式传输时高度计算要更精准
-    // 增加 4px 的冗余缓冲，防止浮点数舍入误差导致滚动条闪烁
-    return Math.ceil(height) + (props.closed ? 20 : 12) + 4;
+    // 增加 1px 的冗余缓冲（PIXEL_EPSILON），防止浮点数舍入误差导致滚动条闪烁
+    return Math.ceil(height) + (props.closed ? 20 : 12) + 1;
   } catch {
     return null;
   }
@@ -147,6 +220,18 @@ const doAdjustLayout = () => {
   const container = containerRef.value;
   if (!editor || !container || !editorEl.value) return;
 
+  // 渲染守卫：等待 Monaco 完成 Token 染色和初步布局
+  if (resumeGuardFrames.value > 0) {
+    resumeGuardFrames.value--;
+    adjustLayout(); // 继续请求下一帧
+    return;
+  }
+
+  // 记录滚动锚点，用于补偿高度变化导致的视口跳动
+  const containerRect = container.getBoundingClientRect();
+  const scrollAnchor = window.scrollY + containerRect.top;
+  const oldHeight = containerRect.height;
+
   const contentHeight = computeContentHeight();
 
   if (contentHeight && contentHeight > 0) {
@@ -154,29 +239,36 @@ const doAdjustLayout = () => {
     const isSaturated = !props.isExpanded && contentHeight >= maxHeightInCollapsed;
 
     if (props.isExpanded) {
-      // 展开模式：解除所有高度限制，由内容撑开
-      // 注意：这里必须显式设置容器高度，否则 CSS transition 可能无法正确计算目标值
-      editorEl.value.style.height = `${contentHeight}px`;
-      container.style.maxHeight = `${contentHeight}px`;
+      const targetHeight = Math.ceil(contentHeight);
+      editorEl.value.style.height = `${targetHeight}px`;
+      container.style.maxHeight = `${targetHeight}px`;
       container.style.height = "auto";
 
-      // 在下一帧解除 maxHeight 限制，确保 transition 结束后不会被截断
+      // 滚动补偿：如果在视口上方变长了，修正滚动位置
+      const heightDelta = targetHeight - oldHeight;
+      if (heightDelta !== 0 && scrollAnchor < window.scrollY) {
+        window.scrollBy(0, heightDelta);
+      }
+
       nextTick(() => {
         if (props.isExpanded && containerRef.value) {
           containerRef.value.style.maxHeight = "none";
         }
       });
     } else {
-      const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
-
-      // 折叠模式：饱和状态下强制同步物理高度，防止滚动条计算偏差
+      const editorHeight = Math.ceil(Math.min(contentHeight, maxHeightInCollapsed));
       editorEl.value.style.height = `${editorHeight}px`;
       container.style.height = `${editorHeight}px`;
       container.style.maxHeight = `${maxHeightInCollapsed}px`;
+
+      // 滚动补偿
+      const heightDelta = editorHeight - oldHeight;
+      if (heightDelta !== 0 && scrollAnchor < window.scrollY) {
+        window.scrollBy(0, heightDelta);
+      }
     }
 
-    // 饱和状态下（高度达到 500px），显式控制滚动条
-    // 关键优化：在流式传输期间（!props.closed），即使饱和也保持滚动条隐藏，防止频繁计算导致的闪烁
+    // 饱和状态下的滚动条控制
     if (isSaturated) {
       const shouldShowScrollbar = !!props.closed;
       editor.updateOptions({
@@ -184,10 +276,8 @@ const doAdjustLayout = () => {
           vertical: shouldShowScrollbar ? "auto" : "hidden",
           verticalScrollbarSize: shouldShowScrollbar ? 10 : 0,
           alwaysConsumeMouseWheel: isSaturated,
-          // 彻底禁用流式期间的阴影和额外布局计算
           useShadows: shouldShowScrollbar,
         },
-        // 流式期间禁用滚动条装饰
         hideCursorInOverviewRuler: !shouldShowScrollbar,
         scrollBeyondLastLine: shouldShowScrollbar,
       });
@@ -217,43 +307,6 @@ const adjustLayout = () => {
     pendingLayoutFrame = null;
     doAdjustLayout();
   });
-};
-
-/**
- * 节流消费内容缓冲区：以固定频率批量同步内容，减少 Monaco 重绘
- */
-const startConsumingBuffer = () => {
-  if (consumeTimer) return;
-
-  consumeTimer = setInterval(() => {
-    if (!isEditorReady.value || contentBuffer.value.length === 0) {
-      if (props.closed) {
-        stopConsumingBuffer();
-      }
-      return;
-    }
-
-    // 批量取出当前缓冲区的所有内容
-    const toAppend = contentBuffer.value;
-    contentBuffer.value = "";
-
-    const currentTotal = lastContent.value + toAppend;
-    appendCode(toAppend, monacoLanguage.value);
-    lastContent.value = currentTotal;
-
-    adjustLayout();
-
-    if (props.closed && contentBuffer.value.length === 0) {
-      stopConsumingBuffer();
-    }
-  }, 260); // 节流周期，平衡实时性与渲染压力
-};
-
-const stopConsumingBuffer = () => {
-  if (consumeTimer) {
-    clearInterval(consumeTimer);
-    consumeTimer = null;
-  }
 };
 
 const initEditor = async () => {
@@ -291,15 +344,17 @@ const initEditor = async () => {
     logger.debug("Initializing Monaco Source Viewer", { language: monacoLanguage.value });
     const helpers = useMonaco({
       ...editorOptions,
-      updateThrottleMs: 60,
+      updateThrottleMs: 32, // 提高更新频率到约 30fps，让增量解析更细碎平滑
       revealDebounceMs: 100,
-      minimalEditMaxChars: 200000,
+      minimalEditMaxChars: 500000, // 增大增量编辑阈值，尽量避免全量重解析导致的高亮闪烁
+      onThemeChange() {
+        syncEditorCssVars();
+      },
     });
 
     await helpers.createEditor(editorEl.value, "", monacoLanguage.value);
 
     updateCode = helpers.updateCode;
-    appendCode = helpers.appendCode || helpers.updateCode;
     cleanupEditor = helpers.cleanupEditor;
     setTheme = helpers.setTheme;
     getEditorView = helpers.getEditorView || getEditorView;
@@ -316,6 +371,7 @@ const initEditor = async () => {
 
     isEditorReady.value = true;
     await nextTick();
+    syncEditorCssVars();
     adjustLayout();
 
     if (editorEl.value) {
@@ -359,6 +415,7 @@ onMounted(() => {
 
 watch(isDark, async (dark) => {
   await setTheme(dark ? "vs-dark" : "vs");
+  syncEditorCssVars();
 });
 
 onUnmounted(() => {
@@ -366,7 +423,6 @@ onUnmounted(() => {
     cancelAnimationFrame(pendingLayoutFrame);
     pendingLayoutFrame = null;
   }
-  stopConsumingBuffer();
   if (typeof cleanupEditor === "function") cleanupEditor();
   if (cleanupResizeObserver) {
     cleanupResizeObserver();
@@ -377,37 +433,17 @@ onUnmounted(() => {
 watch(
   () => props.content,
   (newContent) => {
-    // 计算当前组件已知的完整内容（已同步 + 缓冲中）
-    const knownContent = lastContent.value + contentBuffer.value;
-    if (newContent === knownContent) return;
+    if (newContent === lastContent.value) return;
 
     if (isEditorReady.value) {
-      if (!props.closed) {
-        // 流式模式：放入缓冲区，通过定时器节流同步
-        if (newContent.startsWith(knownContent)) {
-          const delta = newContent.slice(knownContent.length);
-          contentBuffer.value += delta;
-          startConsumingBuffer();
-        } else {
-          // 发生非增量变化（如重置或大幅跳变），直接更新
-          stopConsumingBuffer();
-          contentBuffer.value = "";
-          updateCode(newContent, monacoLanguage.value);
-          lastContent.value = newContent;
-          adjustLayout();
-        }
-      } else {
-        // 非流式模式：直接更新
-        stopConsumingBuffer();
-        contentBuffer.value = "";
-        updateCode(newContent, monacoLanguage.value);
-        lastContent.value = newContent;
-        adjustLayout();
-      }
+      // 直接信任 stream-monaco 的增量检测机制
+      // 只要 newContent 是以 lastContent 开头的，它内部会自动调用 applyEdits
+      updateCode(newContent, monacoLanguage.value);
+      lastContent.value = newContent;
+      adjustLayout();
     } else {
       // 编辑器未就绪，仅同步状态
       lastContent.value = newContent;
-      contentBuffer.value = "";
     }
   }
 );
@@ -418,13 +454,11 @@ watch(
     if (!isEditorReady.value) return;
 
     if (isClosed) {
-      // 流式结束：停止节流定时器并清空缓冲区，确保同步最终内容
-      stopConsumingBuffer();
-      contentBuffer.value = "";
+      // 流式结束：同步最终内容并触发渲染守卫
       updateCode(props.content, monacoLanguage.value);
       lastContent.value = props.content;
+      resumeGuardFrames.value = 2; // 等待 2 帧，让 Monaco 完成最终染色和高度撑开
 
-      // 强制触发一次布局调整，以显示滚动条
       nextTick(() => {
         adjustLayout();
       });
@@ -495,7 +529,14 @@ defineExpose({
   transition: none !important;
 }
 
-.code-editor-container > div {
+.code-editor-layer {
+  display: grid;
+  width: 100%;
+}
+
+.code-editor-layer > .monaco-wrapper,
+.code-editor-layer > :deep(.pre-fallback) {
+  grid-area: 1 / 1;
   width: 100%;
 }
 
@@ -509,6 +550,11 @@ defineExpose({
 .monaco-wrapper.visible {
   opacity: 1;
   height: auto;
+}
+
+.monaco-wrapper.is-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 :deep(.monaco-editor) {

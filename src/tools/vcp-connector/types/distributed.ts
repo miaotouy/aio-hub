@@ -1,9 +1,11 @@
 export interface VcpDistributedConfig {
   /** 节点友好名称 */
   serverName: string;
-  /** 手动指定的暴露工具 ID 列表，若为空则根据 distributedExposed 自动发现 */
+  /** 手动指定的额外暴露工具 ID 列表 */
   exposedToolIds: string[];
-  /** 是否自动注册所有标记为 distributedExposed 的工具 */
+  /** 被禁用（排除）的工具 ID 列表 */
+  disabledToolIds: string[];
+  /** 是否自动发现并注册所有 AI 工具 (agentCallable) */
   autoRegisterTools: boolean;
 }
 

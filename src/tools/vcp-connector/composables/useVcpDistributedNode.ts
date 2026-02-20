@@ -15,6 +15,26 @@ const errorHandler = createModuleErrorHandler("vcp-connector/useVcpDistributedNo
 const HEARTBEAT_INTERVAL = 30000;
 const INITIAL_RECONNECT_DELAY = 2000;
 
+/**
+ * 内置工具列表，所有 VCP 节点强制暴露
+ */
+export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
+  {
+    name: "vcp:internal_request_file",
+    description: "请求 AIO 节点上的文件内容 (Base64)",
+    parameters: {
+      type: "object",
+      properties: {
+        fileUrl: {
+          type: "string",
+          description: "文件的 URL (file:// 或 appdata://)"
+        }
+      },
+      required: ["fileUrl"]
+    }
+  }
+];
+
 export function useVcpDistributedNode() {
   const store = useVcpStore();
   const distStore = useVcpDistributedStore();
@@ -28,26 +48,39 @@ export function useVcpDistributedNode() {
    */
   function discoverTools(): VcpToolManifest[] {
     const discovery = createToolDiscoveryService();
-    const exposedIds = distStore.config.exposedToolIds;
+    const exposedIds = distStore.config.exposedToolIds || [];
+    const disabledIds = new Set(distStore.config.disabledToolIds || []);
     const autoRegister = distStore.config.autoRegisterTools;
 
     // 使用 Discovery Service 统一过滤逻辑
+    // 自动发现所有标记为 agentCallable 的方法，无需工具显式感知 VCP
     const discovered = discovery.getDiscoveredMethods((method: MethodMetadata) => {
-      return method.distributedExposed === true;
+      return method.agentCallable === true || method.distributedExposed === true;
     });
 
     const manifest: VcpToolManifest[] = [];
 
-    // 1. 处理自动发现的 (distributedExposed)
+    // 1. 处理自动发现的
     if (autoRegister) {
       for (const tool of discovered) {
         for (const method of tool.methods) {
-          manifest.push(convertToManifest(tool.toolId, method));
+          const fullId = `${tool.toolId}:${method.name}`;
+          // 排除掉在黑名单中的工具
+          if (!disabledIds.has(fullId)) {
+            manifest.push(convertToManifest(tool.toolId, method));
+          }
         }
       }
     }
 
-    // 2. 处理手动指定的 (exposedToolIds)
+    // 2. 处理内置工具 (强制暴露)
+    for (const tool of BUILTIN_VCP_TOOLS) {
+      if (!manifest.some(m => m.name === tool.name)) {
+        manifest.push(tool);
+      }
+    }
+
+    // 3. 处理手动指定的 (exposedToolIds)
     // 避免重复
     const currentIds = new Set(manifest.map(m => m.name));
     for (const fullId of exposedIds) {

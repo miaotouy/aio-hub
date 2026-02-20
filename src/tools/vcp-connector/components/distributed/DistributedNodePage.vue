@@ -27,7 +27,6 @@ import ExposedToolsList from "./ExposedToolsList.vue";
 
 .distributed-content {
   padding: 16px;
-  max-width: 1000px;
   margin: 0 auto;
 }
 </style>

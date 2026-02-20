@@ -12,6 +12,7 @@ const configManager = createConfigManager<VcpDistributedConfig>({
   createDefault: () => ({
     serverName: "AIO-Node",
     exposedToolIds: [],
+    disabledToolIds: [],
     autoRegisterTools: true,
   }),
 });
@@ -20,6 +21,7 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
   const config = ref<VcpDistributedConfig>({
     serverName: "AIO-Node",
     exposedToolIds: [],
+    disabledToolIds: [],
     autoRegisterTools: true,
   });
 
@@ -72,6 +74,20 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     configManager.saveDebounced(config.value);
   }
 
+  /**
+   * 禁用/启用某个工具的分布式暴露
+   */
+  function toggleToolDisabled(fullId: string, disabled: boolean) {
+    const current = new Set(config.value.disabledToolIds || []);
+    if (disabled) {
+      current.add(fullId);
+    } else {
+      current.delete(fullId);
+    }
+    config.value.disabledToolIds = Array.from(current);
+    configManager.saveDebounced(config.value);
+  }
+
   // 初始化
   init();
 
@@ -88,5 +104,6 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     updateConfig,
     registerToolToVcp,
     unregisterToolFromVcp,
+    toggleToolDisabled,
   };
 });

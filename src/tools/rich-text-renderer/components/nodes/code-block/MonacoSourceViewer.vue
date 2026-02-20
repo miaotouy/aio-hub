@@ -56,6 +56,40 @@ let pendingLayoutFrame: number | null = null;
 // 用于平滑消费缓冲区的节流定时器
 let consumeTimer: ReturnType<typeof setInterval> | null = null;
 
+// Chrome 警告修复：Monaco 注册非 passive 的 touchstart 监听器
+const MONACO_TOUCH_PATCH_FLAG = "__guguMonacoPassiveTouch__";
+
+function ensureMonacoPassiveTouchListeners() {
+  try {
+    const globalObj = window as any;
+    if (globalObj[MONACO_TOUCH_PATCH_FLAG]) return;
+    const proto = window.Element?.prototype;
+    const nativeAdd = proto?.addEventListener;
+    if (!proto || !nativeAdd) return;
+
+    proto.addEventListener = function patchedMonacoTouchStart(
+      this: Element,
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions
+    ) {
+      const isTouchStart = type === "touchstart";
+      const isMonaco = this.closest?.(".monaco-editor, .monaco-diff-editor");
+      const hasPassive = options && typeof options === "object" && "passive" in options;
+
+      if (isTouchStart && isMonaco && !hasPassive) {
+        const newOptions =
+          typeof options === "object" ? { ...options, passive: true } : { passive: true };
+        return nativeAdd.call(this, type, listener, newOptions);
+      }
+      return nativeAdd.call(this, type, listener, options);
+    };
+    globalObj[MONACO_TOUCH_PATCH_FLAG] = true;
+  } catch (e) {
+    console.warn("[MonacoSourceViewer] Failed to patch touch events", e);
+  }
+}
+
 // stream-monaco helpers
 let updateCode: (code: string, lang: string) => void = () => {};
 let appendCode: (code: string, lang: string) => void = () => {};
@@ -86,9 +120,9 @@ const computeContentHeight = (): number | null => {
       height = lineCount * lineHeight;
     }
 
-    // 增加余量避免亚像素差异导致滚动条闪烁
-    // 水平滚动条高度(~14px) + 行高余量 + 安全边距
-    return Math.ceil(height) + 30;
+    // 减少魔法数字偏移，流式传输时高度计算要更精准
+    // 增加 4px 的冗余缓冲，防止浮点数舍入误差导致滚动条闪烁
+    return Math.ceil(height) + (props.closed ? 20 : 12) + 4;
   } catch {
     return null;
   }
@@ -114,17 +148,61 @@ const doAdjustLayout = () => {
   if (!editor || !container || !editorEl.value) return;
 
   const contentHeight = computeContentHeight();
+
   if (contentHeight && contentHeight > 0) {
+    const maxHeightInCollapsed = 500;
+    const isSaturated = !props.isExpanded && contentHeight >= maxHeightInCollapsed;
+
     if (props.isExpanded) {
+      // 展开模式：解除所有高度限制，由内容撑开
+      // 注意：这里必须显式设置容器高度，否则 CSS transition 可能无法正确计算目标值
       editorEl.value.style.height = `${contentHeight}px`;
       container.style.maxHeight = `${contentHeight}px`;
+      container.style.height = "auto";
+
+      // 在下一帧解除 maxHeight 限制，确保 transition 结束后不会被截断
+      nextTick(() => {
+        if (props.isExpanded && containerRef.value) {
+          containerRef.value.style.maxHeight = "none";
+        }
+      });
     } else {
-      const maxHeightInCollapsed = 500;
       const editorHeight = Math.min(contentHeight, maxHeightInCollapsed);
+
+      // 折叠模式：饱和状态下强制同步物理高度，防止滚动条计算偏差
       editorEl.value.style.height = `${editorHeight}px`;
-      container.style.maxHeight = "";
+      container.style.height = `${editorHeight}px`;
+      container.style.maxHeight = `${maxHeightInCollapsed}px`;
+    }
+
+    // 饱和状态下（高度达到 500px），显式控制滚动条
+    // 关键优化：在流式传输期间（!props.closed），即使饱和也保持滚动条隐藏，防止频繁计算导致的闪烁
+    if (isSaturated) {
+      const shouldShowScrollbar = !!props.closed;
+      editor.updateOptions({
+        scrollbar: {
+          vertical: shouldShowScrollbar ? "auto" : "hidden",
+          verticalScrollbarSize: shouldShowScrollbar ? 10 : 0,
+          alwaysConsumeMouseWheel: isSaturated,
+          // 彻底禁用流式期间的阴影和额外布局计算
+          useShadows: shouldShowScrollbar,
+        },
+        // 流式期间禁用滚动条装饰
+        hideCursorInOverviewRuler: !shouldShowScrollbar,
+        scrollBeyondLastLine: shouldShowScrollbar,
+      });
+    } else {
+      editor.updateOptions({
+        scrollbar: {
+          vertical: "hidden",
+          verticalScrollbarSize: 0,
+          alwaysConsumeMouseWheel: false,
+          useShadows: false,
+        },
+      });
     }
   }
+
   if (typeof editor.layout === "function") {
     editor.layout();
   }
@@ -248,12 +326,10 @@ const initEditor = async () => {
 
     const container = containerRef.value;
     if (container) {
+      ensureMonacoPassiveTouchListeners();
       const resizeObserver = new ResizeObserver(() => {
-        // 仅通知 Monaco 重新布局，不调用 adjustLayout 以避免循环
-        const editor = getEditorView();
-        if (editor && typeof editor.layout === "function") {
-          editor.layout();
-        }
+        // 仅通知 Monaco 重新布局，且使用 rAF 节流，避免同步调用导致的死循环
+        adjustLayout();
       });
       resizeObserver.observe(container);
       cleanupResizeObserver = () => resizeObserver.disconnect();
@@ -347,7 +423,11 @@ watch(
       contentBuffer.value = "";
       updateCode(props.content, monacoLanguage.value);
       lastContent.value = props.content;
-      adjustLayout();
+
+      // 强制触发一次布局调整，以显示滚动条
+      nextTick(() => {
+        adjustLayout();
+      });
     }
   }
 );
@@ -423,7 +503,7 @@ defineExpose({
   opacity: 0;
   transition: opacity 0.3s ease-in-out;
   height: 0;
-  overflow: hidden;
+  overflow: hidden !important; /* 强制 wrapper 不产生任何滚动条 */
 }
 
 .monaco-wrapper.visible {
@@ -433,6 +513,11 @@ defineExpose({
 
 :deep(.monaco-editor) {
   height: 100% !important;
+}
+
+/* 强制 Monaco 内部的溢出保护层不产生滚动条，滚动由 Monaco 内部逻辑控制 */
+:deep(.monaco-editor .overflow-guard) {
+  overflow: hidden !important;
 }
 
 :deep(.monaco-editor),

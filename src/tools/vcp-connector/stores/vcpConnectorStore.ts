@@ -363,7 +363,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       distributedWs.value.onopen = () => {
         isDistributedConnecting.value = false;
         logger.info("Distributed WebSocket connected");
-        
+
         // 初始化协议处理器
         nodeProtocol.value = new VcpNodeProtocol((data) => {
           if (distributedWs.value?.readyState === WebSocket.OPEN) {
@@ -378,9 +378,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       distributedWs.value.onclose = (event) => {
         isDistributedConnecting.value = false;
         logger.info("Distributed WebSocket closed", event.code);
-        
+
         const distStore = useVcpDistributedStore();
         distStore.setStatus("disconnected");
+        distStore.setNodeId(null);
         nodeProtocol.value = null;
 
         if (!event.wasClean && config.value.autoConnect) {
@@ -391,7 +392,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       distributedWs.value.onerror = (err) => {
         logger.error("Distributed WebSocket error", err);
         isDistributedConnecting.value = false;
-        
+
         const distStore = useVcpDistributedStore();
         distStore.setStatus("error");
       };
@@ -409,17 +410,44 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       logger.error("Failed to connect distributed WebSocket", e);
     }
   }
-
   function handleDistributedMessage(data: any) {
     logger.debug("Received distributed message", data);
-    
-    if (data.type === "register_tools_ack") {
+
+    // 统一 ID 提取助手
+    const extractNodeId = (msg: any) => {
+      return (
+        msg.nodeId ||
+        msg.serverId ||
+        msg.clientId ||
+        msg.data?.nodeId ||
+        msg.data?.serverId ||
+        msg.data?.clientId ||
+        msg.data?.id
+      );
+    };
+
+    if (data.type === "connection_ack") {
+      logger.info("Distributed connection acknowledged", data.data || data.message || data);
+      const distStore = useVcpDistributedStore();
+      const nodeId = extractNodeId(data);
+      if (nodeId) {
+        distStore.setNodeId(nodeId);
+      }
+    } else if (data.type === "register_tools_ack") {
       logger.info("Tools registered successfully to VCP");
+      const distStore = useVcpDistributedStore();
+      const nodeId = extractNodeId(data);
+      if (nodeId) {
+        distStore.setNodeId(nodeId);
+      }
     } else if (data.type === "execute_tool") {
       nodeProtocol.value?.handleExecuteTool(data.data);
     } else if (data.type === "assign_node_id") {
       const distStore = useVcpDistributedStore();
-      distStore.setNodeId(data.data.nodeId);
+      const nodeId = extractNodeId(data);
+      if (nodeId) {
+        distStore.setNodeId(nodeId);
+      }
     }
   }
 

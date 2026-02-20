@@ -45,6 +45,8 @@ interface Props {
   tokenError?: string;
   /** 是否将使用转写 */
   willUseTranscription?: boolean;
+  /** 自定义插入占位符处理器，提供时优先于全局 chatInputManager */
+  insertPlaceholderHandler?: (asset: Asset) => void;
 }
 
 interface Emits {
@@ -443,7 +445,11 @@ const handleCancelTranscription = (e?: Event) => {
 
 // 插入占位符到输入框
 const handleInsertPlaceholder = () => {
-  chatInputManager.insertAssetPlaceholders([props.asset]);
+  if (props.insertPlaceholderHandler) {
+    props.insertPlaceholderHandler(props.asset);
+  } else {
+    chatInputManager.insertAssetPlaceholders([props.asset]);
+  }
   customMessage.success("已插入占位符");
 };
 
@@ -757,11 +763,9 @@ onUnmounted(() => {
         </template>
 
         <el-dropdown-item divided @click="handleInsertPlaceholder">
-          插入占位符
+          {{ insertPlaceholderHandler ? "插入占位符到编辑框" : "插入占位符到输入框" }}
         </el-dropdown-item>
-        <el-dropdown-item @click="handleCopyPlaceholder">
-          复制占位符
-        </el-dropdown-item>
+        <el-dropdown-item @click="handleCopyPlaceholder"> 复制占位符 </el-dropdown-item>
 
         <el-dropdown-item divided class="remove-item" @click="handleRemove">
           移除附件

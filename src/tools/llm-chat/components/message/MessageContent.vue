@@ -38,6 +38,7 @@ import AttachmentCard from "../AttachmentCard.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
 import { useAttachmentManager } from "../../composables/features/useAttachmentManager";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
+import { generateAssetPlaceholder } from "../../core/context-processors/transcription-processor";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
@@ -345,6 +346,22 @@ const handleRemoveAttachment = (asset: Asset) => {
   attachmentManager.removeAttachment(asset);
 };
 
+// 编辑模式下插入占位符到编辑器
+const handleInsertPlaceholderInEditor = (asset: Asset) => {
+  const placeholder = generateAssetPlaceholder(asset.id);
+  const cursorPos = editorRef.value?.getSelectionRange()?.start ?? editingContent.value.length;
+  const before = editingContent.value.substring(0, cursorPos);
+  const after = editingContent.value.substring(cursorPos);
+  const prefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+  const suffix = after && !after.startsWith("\n") ? "\n" : "";
+  const insertText = prefix + placeholder + suffix;
+  if (editorRef.value?.insertText) {
+    editorRef.value.insertText(insertText, cursorPos, cursorPos);
+  } else {
+    editingContent.value = before + insertText + after;
+  }
+};
+
 // 处理文档预览
 const handlePreviewDocument = (asset: Asset) => {
   previewingAsset.value = asset;
@@ -632,6 +649,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :all-assets="attachmentManager.attachments.value"
             :removable="true"
             size="medium"
+            :insert-placeholder-handler="handleInsertPlaceholderInEditor"
             @remove="handleRemoveAttachment"
             @preview-document="handlePreviewDocument"
           />

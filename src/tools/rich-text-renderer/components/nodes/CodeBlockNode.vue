@@ -165,6 +165,24 @@ watch(seamless, (isSeamless) => {
 const viewMode = ref<"code" | "preview">("code");
 const showDialog = ref(false);
 
+// 是否满足自动预览的条件
+const isAutoPreviewable = computed(() => {
+  const lang = props.language?.toLowerCase();
+  return isHtml.value && (isFullHtmlPage.value || lang === "svg");
+});
+
+// 监听内容变化，实现流式输出过程中的自动预览切换
+watch(
+  isAutoPreviewable,
+  (canPreview) => {
+    // 仅当开启了自动预览开关，且当前还是代码模式时，才尝试自动切换
+    if (canPreview && defaultRenderHtml?.value && viewMode.value === "code") {
+      viewMode.value = "preview";
+    }
+  },
+  { immediate: true }
+);
+
 // 判断是否为 HTML
 const isHtml = computed(() => {
   const lang = props.language?.toLowerCase();
@@ -174,8 +192,9 @@ const isHtml = computed(() => {
 // 判断是否为完整的 HTML 页面声明
 const isFullHtmlPage = computed(() => {
   if (!props.content) return false;
-  const trimmed = props.content.trim().toLowerCase();
-  return trimmed.startsWith("<!doctype") || trimmed.includes("<html");
+  // 优化：流式场景下只需检测前几行内容（前 200 个字符足以包含 doctype 或 html 标签）
+  const head = props.content.slice(0, 200).trim().toLowerCase();
+  return head.startsWith("<!doctype") || head.includes("<html");
 });
 
 // 悬停状态管理
@@ -301,15 +320,7 @@ const resetCodeFont = () => {
 };
 
 onMounted(() => {
-  // 初始化视图模式
-  // 仅当开启了自动预览开关，且内容是完整的 HTML 页面（或 SVG）时，才自动进入预览
-  // 无论是普通模式还是无边框模式，都应尊重 defaultRenderHtml 开关
-  const lang = props.language?.toLowerCase();
-  const isAutoPreviewable = isHtml.value && (isFullHtmlPage.value || lang === "svg");
-
-  if (isAutoPreviewable && defaultRenderHtml?.value) {
-    viewMode.value = "preview";
-  }
+  // 初始化逻辑（目前 watch 已覆盖自动预览逻辑）
 });
 </script>
 

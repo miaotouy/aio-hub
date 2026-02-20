@@ -21,7 +21,7 @@ import { useTheme } from "@composables/useTheme";
 import { getMonacoLanguageId } from "@/utils/codeLanguages";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import PreCodeNode from "../PreCodeNode.vue";
+import PreCodeNode from "./PreCodeNode.vue";
 
 // 动态导入，避免类型检查时就报错
 type StreamMonacoModule = typeof import("stream-monaco");
@@ -168,7 +168,7 @@ const startConsumingBuffer = () => {
     if (props.closed && contentBuffer.value.length === 0) {
       stopConsumingBuffer();
     }
-  }, 160); // 节流周期，平衡实时性与渲染压力
+  }, 260); // 节流周期，平衡实时性与渲染压力
 };
 
 const stopConsumingBuffer = () => {

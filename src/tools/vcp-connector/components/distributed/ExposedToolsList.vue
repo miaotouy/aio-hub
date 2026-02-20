@@ -28,8 +28,8 @@
           >
             <div class="option-content">
               <span>{{ tool.fullId }}</span>
-              <el-tag v-if="tool.isAgent" size="mini" type="success" effect="plain">AI</el-tag>
-              <el-tag v-if="tool.isExposed" size="mini" type="info" effect="plain">已暴露</el-tag>
+              <el-tag v-if="tool.isAgent" size="small" type="success" effect="plain">AI</el-tag>
+              <el-tag v-if="tool.isExposed" size="small" type="info" effect="plain">已暴露</el-tag>
             </div>
           </el-option>
         </el-select>
@@ -62,7 +62,7 @@
             <div class="tool-tags">
               <el-tag
                 v-if="tool.isBuiltin"
-                size="mini"
+                size="small"
                 type="warning"
                 effect="dark"
                 class="mini-tag"
@@ -70,13 +70,13 @@
               >
               <el-tag
                 v-else-if="tool.isAuto"
-                size="mini"
+                size="small"
                 type="info"
                 effect="plain"
                 class="mini-tag"
                 >自动</el-tag
               >
-              <el-tag v-else size="mini" type="success" effect="plain" class="mini-tag"
+              <el-tag v-else size="small" type="success" effect="plain" class="mini-tag"
                 >手动</el-tag
               >
 

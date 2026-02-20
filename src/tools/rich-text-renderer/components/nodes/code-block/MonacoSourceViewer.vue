@@ -48,10 +48,13 @@ const errorHandler = createModuleErrorHandler("code-block/MonacoSourceViewer.vue
 const isEditorReady = ref(false);
 const isInitializing = ref(false);
 const isIntersected = ref(false);
-const lastContent = ref("");
+const lastContent = ref(""); // 已经同步给 Monaco 的内容
+const contentBuffer = ref(""); // 待同步的缓冲区内容
 
 // 用于 adjustLayout 的 rAF 防抖
 let pendingLayoutFrame: number | null = null;
+// 用于平滑消费缓冲区的节流定时器
+let consumeTimer: ReturnType<typeof setInterval> | null = null;
 
 // stream-monaco helpers
 let updateCode: (code: string, lang: string) => void = () => {};
@@ -136,6 +139,43 @@ const adjustLayout = () => {
     pendingLayoutFrame = null;
     doAdjustLayout();
   });
+};
+
+/**
+ * 节流消费内容缓冲区：以固定频率批量同步内容，减少 Monaco 重绘
+ */
+const startConsumingBuffer = () => {
+  if (consumeTimer) return;
+
+  consumeTimer = setInterval(() => {
+    if (!isEditorReady.value || contentBuffer.value.length === 0) {
+      if (props.closed) {
+        stopConsumingBuffer();
+      }
+      return;
+    }
+
+    // 批量取出当前缓冲区的所有内容
+    const toAppend = contentBuffer.value;
+    contentBuffer.value = "";
+
+    const currentTotal = lastContent.value + toAppend;
+    appendCode(toAppend, monacoLanguage.value);
+    lastContent.value = currentTotal;
+
+    adjustLayout();
+
+    if (props.closed && contentBuffer.value.length === 0) {
+      stopConsumingBuffer();
+    }
+  }, 160); // 节流周期，平衡实时性与渲染压力
+};
+
+const stopConsumingBuffer = () => {
+  if (consumeTimer) {
+    clearInterval(consumeTimer);
+    consumeTimer = null;
+  }
 };
 
 const initEditor = async () => {
@@ -250,6 +290,7 @@ onUnmounted(() => {
     cancelAnimationFrame(pendingLayoutFrame);
     pendingLayoutFrame = null;
   }
+  stopConsumingBuffer();
   if (typeof cleanupEditor === "function") cleanupEditor();
   if (cleanupResizeObserver) {
     cleanupResizeObserver();
@@ -260,17 +301,38 @@ onUnmounted(() => {
 watch(
   () => props.content,
   (newContent) => {
-    if (newContent === lastContent.value) return;
+    // 计算当前组件已知的完整内容（已同步 + 缓冲中）
+    const knownContent = lastContent.value + contentBuffer.value;
+    if (newContent === knownContent) return;
+
     if (isEditorReady.value) {
-      if (newContent.startsWith(lastContent.value) && lastContent.value !== "") {
-        const addedText = newContent.slice(lastContent.value.length);
-        if (addedText) appendCode(addedText, monacoLanguage.value);
+      if (!props.closed) {
+        // 流式模式：放入缓冲区，通过定时器节流同步
+        if (newContent.startsWith(knownContent)) {
+          const delta = newContent.slice(knownContent.length);
+          contentBuffer.value += delta;
+          startConsumingBuffer();
+        } else {
+          // 发生非增量变化（如重置或大幅跳变），直接更新
+          stopConsumingBuffer();
+          contentBuffer.value = "";
+          updateCode(newContent, monacoLanguage.value);
+          lastContent.value = newContent;
+          adjustLayout();
+        }
       } else {
+        // 非流式模式：直接更新
+        stopConsumingBuffer();
+        contentBuffer.value = "";
         updateCode(newContent, monacoLanguage.value);
+        lastContent.value = newContent;
+        adjustLayout();
       }
-      adjustLayout();
+    } else {
+      // 编辑器未就绪，仅同步状态
+      lastContent.value = newContent;
+      contentBuffer.value = "";
     }
-    lastContent.value = newContent;
   }
 );
 
@@ -280,7 +342,9 @@ watch(
     if (!isEditorReady.value) return;
 
     if (isClosed) {
-      // 流式结束：最终同步内容
+      // 流式结束：停止节流定时器并清空缓冲区，确保同步最终内容
+      stopConsumingBuffer();
+      contentBuffer.value = "";
       updateCode(props.content, monacoLanguage.value);
       lastContent.value = props.content;
       adjustLayout();

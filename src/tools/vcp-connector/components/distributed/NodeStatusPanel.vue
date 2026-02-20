@@ -1,52 +1,92 @@
-
 <template>
   <div class="node-status-panel">
-    <div class="status-header">
-      <div class="node-info">
-        <h3 class="node-name">{{ distStore.config.serverName }}</h3>
-        <div class="node-id" v-if="distStore.nodeId">
-          ID: <code>{{ distStore.nodeId }}</code>
+    <div class="panel-section">
+      <div class="section-header">
+        <h4 class="section-title">节点配置与状态</h4>
+        <el-tag :type="statusTagType" size="small" effect="light">{{ statusText }}</el-tag>
+      </div>
+
+      <div class="form-item">
+        <label class="form-label">节点显示名称</label>
+        <el-input
+          :model-value="distStore.config.serverName"
+          @update:model-value="distStore.updateConfig({ serverName: $event })"
+          placeholder="给当前节点起个名字"
+          size="small"
+          clearable
+        />
+      </div>
+
+      <div class="form-item">
+        <label class="form-label">服务器地址</label>
+        <el-input :model-value="store.config.wsUrl" size="small" readonly disabled>
+          <template #prefix>
+            <el-icon><Link /></el-icon>
+          </template>
+        </el-input>
+      </div>
+
+      <div class="config-row">
+        <div class="form-item">
+          <el-checkbox
+            :model-value="store.config.autoConnect"
+            @update:model-value="store.updateConfig({ autoConnect: $event })"
+          >
+            自动连接
+          </el-checkbox>
+        </div>
+        <div class="form-item">
+          <el-checkbox
+            :model-value="distStore.config.autoRegisterTools"
+            @update:model-value="distStore.updateConfig({ autoRegisterTools: $event })"
+          >
+            自动注册工具
+          </el-checkbox>
         </div>
       </div>
-      <el-tag :type="statusTagType" effect="dark">{{ statusText }}</el-tag>
-    </div>
 
-    <div class="status-grid">
-      <div class="status-item">
-        <span class="label">服务器地址</span>
-        <span class="value">{{ store.config.wsUrl || '未配置' }}</span>
+      <div class="form-item">
+        <div class="button-group">
+          <el-button
+            :type="isConnected ? 'danger' : 'primary'"
+            size="small"
+            :loading="isConnecting"
+            @click="toggleConnection"
+            style="flex: 2"
+          >
+            {{ isConnected ? "断连" : "连接" }}
+          </el-button>
+          <el-button size="small" :disabled="!isConnected" @click="reregisterTools" style="flex: 1">
+            同步工具
+          </el-button>
+        </div>
       </div>
-      <div class="status-item">
-        <span class="label">最近心跳</span>
-        <span class="value">{{ lastHeartbeatText }}</span>
-      </div>
-      <div class="status-item">
-        <span class="label">已注册工具</span>
-        <span class="value">{{ distStore.exposedTools.length }}</span>
-      </div>
-    </div>
 
-    <div class="actions">
-      <el-button 
-        :type="isConnected ? 'danger' : 'primary'" 
-        size="small" 
-        @click="toggleConnection"
-      >
-        {{ isConnected ? '断开连接' : '立即连接' }}
-      </el-button>
-      <el-button 
-        size="small" 
-        :disabled="!isConnected" 
-        @click="reregisterTools"
-      >
-        重新注册工具
-      </el-button>
+      <div class="connection-info">
+        <div class="info-row">
+          <span class="label">节点 ID:</span>
+          <span class="value code">{{ distStore.nodeId || "未分配" }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">最近心跳:</span>
+          <span class="value">{{ lastHeartbeatText }}</span>
+        </div>
+        <div class="info-row" v-if="connection.lastPingLatency !== undefined">
+          <span class="label">网络延迟:</span>
+          <span class="value success">{{ connection.lastPingLatency }}ms</span>
+        </div>
+        <div class="info-row" v-if="connection.reconnectAttempts > 0">
+          <span class="label">重连次数:</span>
+          <span class="value warning">{{ connection.reconnectAttempts }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { Link } from "lucide-vue-next";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpDistributedStore } from "../../stores/vcpDistributedStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
@@ -56,26 +96,35 @@ import { zhCN } from "date-fns/locale";
 
 const store = useVcpStore();
 const distStore = useVcpDistributedStore();
-const { connect, disconnect } = useVcpWebSocket();
+const { connect, disconnect, isConnecting } = useVcpWebSocket();
 const { reregisterTools } = useVcpDistributedNode();
 
 const isConnected = computed(() => distStore.status === "connected");
+const connection = computed(() => store.connection);
 
 const statusTagType = computed(() => {
   switch (distStore.status) {
-    case "connected": return "success";
-    case "connecting": return "warning";
-    case "error": return "danger";
-    default: return "info";
+    case "connected":
+      return "success";
+    case "connecting":
+      return "warning";
+    case "error":
+      return "danger";
+    default:
+      return "info";
   }
 });
 
 const statusText = computed(() => {
   switch (distStore.status) {
-    case "connected": return "已连接";
-    case "connecting": return "连接中";
-    case "error": return "错误";
-    default: return "未连接";
+    case "connected":
+      return "已就绪";
+    case "connecting":
+      return "连接中";
+    case "error":
+      return "连接异常";
+    default:
+      return "未连接";
   }
 });
 
@@ -95,57 +144,93 @@ function toggleConnection() {
 
 <style scoped lang="css">
 .node-status-panel {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
   background: var(--card-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color);
   margin-bottom: 16px;
+  overflow: hidden;
 }
 
-.status-header {
+.panel-section {
+  padding: 16px;
+}
+
+.section-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
-.node-name {
-  margin: 0 0 4px 0;
-  font-size: 18px;
+.section-title {
+  margin: 0;
+  font-size: 14px;
   font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
-.node-id {
+.form-item {
+  margin-bottom: 12px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
   font-size: 12px;
-  color: var(--text-color-secondary);
+  color: var(--el-text-color-secondary);
 }
 
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+.config-row {
+  display: flex;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
-.status-item {
+.config-row .form-item {
+  margin-bottom: 0;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+}
+
+.connection-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  font-size: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-color);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
 }
 
 .label {
-  font-size: 12px;
-  color: var(--text-color-secondary);
+  color: var(--el-text-color-tertiary);
 }
 
 .value {
-  font-size: 14px;
+  color: var(--el-text-color-secondary);
   font-weight: 500;
-  word-break: break-all;
 }
 
-.actions {
-  display: flex;
-  gap: 12px;
+.value.code {
+  font-family: var(--el-font-family-mono);
+  font-size: 11px;
+}
+
+.value.success {
+  color: var(--el-color-success);
+}
+
+.value.warning {
+  color: var(--el-color-warning);
 }
 </style>

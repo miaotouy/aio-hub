@@ -21,76 +21,16 @@
 
       <!-- 右侧监控面板 -->
       <main class="monitor-panel">
-        <div class="monitor-header">
-          <div class="header-left">
-            <el-button
-              v-if="isConfigCollapsed"
-              :icon="PanelLeft"
-              text
-              circle
-              @click="isConfigCollapsed = false"
-              title="展开侧边栏"
-            />
-            <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
-              {{ connectionStatusText }}
-            </el-tag>
-            <span class="message-count"> {{ filteredMessages.length }} 条消息 </span>
-            <span class="msg-rate"> {{ stats.messagesPerMinute }} msg/min </span>
-          </div>
-
-          <div class="header-center">
-            <el-input
-              v-model="searchKeyword"
-              placeholder="搜索消息内容..."
-              size="small"
-              clearable
-              class="search-input"
-              @input="handleSearch"
-            >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </div>
-
-          <div class="header-right">
-            <el-button-group>
-              <el-button
-                :type="filter.paused ? 'warning' : ''"
-                size="small"
-                @click="togglePause"
-                :icon="filter.paused ? Play : Pause"
-              >
-                {{ filter.paused ? "继续" : "暂停" }}
-              </el-button>
-              <el-button size="small" :icon="Trash2" @click="clearMessages"> 清空 </el-button>
-              <el-button size="small" :icon="Download" @click="exportMessages"> 导出 </el-button>
-            </el-button-group>
-          </div>
-        </div>
-
         <el-tabs v-model="activeTab" class="monitor-tabs">
           <el-tab-pane label="消息监控" name="messages">
-            <el-scrollbar class="message-scrollbar">
-              <TransitionGroup name="message-list" tag="div" class="message-list">
-                <BroadcastCard
-                  v-for="msg in filteredMessages"
-                  :key="`${msg.timestamp}-${msg.type}`"
-                  :message="msg"
-                  @show-json="selectedMessage = $event"
-                />
-              </TransitionGroup>
-
-              <el-empty v-if="filteredMessages.length === 0" description="暂无消息" :image-size="120" />
-            </el-scrollbar>
+            <MessageMonitorPage
+              :show-expand-button="isConfigCollapsed"
+              @toggle-sidebar="isConfigCollapsed = false"
+              @show-json="selectedMessage = $event"
+            />
           </el-tab-pane>
           <el-tab-pane label="分布式节点" name="distributed">
-            <el-scrollbar class="distributed-scrollbar">
-              <div class="distributed-content">
-                <NodeStatusPanel />
-                <ExposedToolsList />
-              </div>
-            </el-scrollbar>
+            <DistributedNodePage />
           </el-tab-pane>
         </el-tabs>
       </main>
@@ -103,23 +43,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import { useVcpStore } from "./stores/vcpConnectorStore";
-import { useVcpWebSocket } from "./composables/useVcpWebSocket";
+import { ref, watch } from "vue";
 import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
-import { customMessage } from "@/utils/customMessage";
-import { Pause, Play, Trash2, Download, PanelLeft, Search } from "lucide-vue-next";
+import { PanelLeft } from "lucide-vue-next";
 import InfoCard from "@/components/common/InfoCard.vue";
 import ConnectionPanel from "./components/monitor/ConnectionPanel.vue";
 import FilterPanel from "./components/monitor/FilterPanel.vue";
-import BroadcastCard from "./components/monitor/BroadcastCard.vue";
+import MessageMonitorPage from "./components/monitor/MessageMonitorPage.vue";
+import DistributedNodePage from "./components/distributed/DistributedNodePage.vue";
 import JsonViewer from "./components/shared/JsonViewer.vue";
-import NodeStatusPanel from "./components/distributed/NodeStatusPanel.vue";
-import ExposedToolsList from "./components/distributed/ExposedToolsList.vue";
 import type { VcpMessage } from "./types/protocol";
 
-const store = useVcpStore();
-const { connectionStatus } = useVcpWebSocket();
 const { startDistributedNode } = useVcpDistributedNode();
 
 const activeTab = ref("messages");
@@ -129,70 +63,6 @@ const isConfigCollapsed = ref(false);
 
 // 启动分布式节点逻辑
 startDistributedNode();
-
-const filteredMessages = computed(() => store.filteredMessages);
-const filter = computed(() => store.filter);
-const stats = computed(() => store.stats);
-
-const searchKeyword = ref(store.filter.keyword);
-
-function handleSearch() {
-  store.setFilter({ keyword: searchKeyword.value });
-}
-
-// 同步 store 中的关键词变化（例如从其他地方重置了过滤条件）
-watch(
-  () => store.filter.keyword,
-  (kw) => {
-    searchKeyword.value = kw;
-  }
-);
-
-const connectionStatusTagType = computed(() => {
-  switch (connectionStatus.value) {
-    case "connected":
-      return "success";
-    case "connecting":
-      return "warning";
-    case "error":
-      return "danger";
-    default:
-      return "info";
-  }
-});
-
-const connectionStatusText = computed(() => {
-  switch (connectionStatus.value) {
-    case "connected":
-      return "已连接";
-    case "connecting":
-      return "连接中...";
-    case "error":
-      return "连接错误";
-    default:
-      return "未连接";
-  }
-});
-
-function togglePause() {
-  store.togglePause();
-}
-
-function clearMessages() {
-  store.clearMessages();
-}
-
-function exportMessages() {
-  const json = store.exportMessages();
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `vcp-messages-${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  customMessage.success("导出成功");
-}
 
 watch(selectedMessage, (msg: VcpMessage | null) => {
   showJsonViewer.value = !!msg;
@@ -252,18 +122,6 @@ watch(showJsonViewer, (visible: boolean) => {
   backdrop-filter: blur(var(--ui-blur));
 }
 
-.monitor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  flex-shrink: 0;
-  z-index: 10;
-}
-
 .monitor-tabs {
   flex: 1;
   display: flex;
@@ -285,95 +143,16 @@ watch(showJsonViewer, (visible: boolean) => {
 
 .monitor-tabs :deep(.el-tab-pane) {
   height: 100%;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.header-center {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  padding: 0 24px;
-  max-width: 400px;
-}
-
-.search-input {
-  width: 100%;
-}
-
-.search-input :deep(.el-input__wrapper) {
-  background-color: var(--input-bg);
-  box-shadow: none;
-  border: 1px solid var(--border-color);
-  transition: all 0.2s;
-}
-
-.search-input :deep(.el-input__wrapper.is-focus) {
-  border-color: var(--el-color-primary);
-  background-color: var(--card-bg);
-}
-
-.message-count {
-  font-size: 13px;
-  color: var(--text-color-secondary);
-}
-
-.msg-rate {
-  font-size: 12px;
-  color: var(--el-color-primary);
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
-  font-weight: 500;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.message-scrollbar, .distributed-scrollbar {
-  height: 100%;
-}
-
-.distributed-content {
-  padding: 16px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.message-list {
-  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
-.message-list-enter-active {
-  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+:deep(.el-tabs__nav-wrap::after) {
+  display: none;
 }
 
-.message-list-leave-active {
-  transition: all 0.2s ease-out;
-}
-
-.message-list-enter-from {
-  opacity: 0;
-  transform: translateY(-20px) scale(0.95);
-}
-
-.message-list-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
-.message-list-move {
-  transition: transform 0.3s ease;
+:deep(.el-tabs__active-bar) {
+  height: 3px;
+  border-radius: 3px;
 }
 </style>

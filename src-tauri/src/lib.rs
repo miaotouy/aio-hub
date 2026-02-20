@@ -76,6 +76,7 @@ use commands::{
     get_file_mime_type,
     get_inspector_status,
     get_latest_operation_log,
+    get_local_ips,
     get_saved_window_labels,
     git_cancel_load,
     git_cherry_pick,
@@ -418,6 +419,7 @@ pub fn run() {
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             greet,
+            get_local_ips,
             get_app_config_dir,
             update_tray_setting,
             get_tray_setting,

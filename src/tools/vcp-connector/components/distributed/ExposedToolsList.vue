@@ -55,7 +55,9 @@
               <div class="method-name">
                 {{ tool.displayName || tool.name.split(":")[1] || tool.name }}
               </div>
-              <div class="tool-id-tag">{{ tool.isInternal ? 'VCP Protocol' : tool.name.split(":")[0] }}</div>
+              <div class="tool-id-tag">
+                {{ tool.isInternal ? "VCP Protocol" : tool.name.split(":")[0] }}
+              </div>
             </div>
             <div class="tool-tags">
               <el-tag
@@ -114,7 +116,15 @@
             </div>
             <div v-if="tool.parameters" class="detail-row">
               <span class="detail-label">参数定义 (JSON Schema):</span>
-              <pre class="detail-code">{{ JSON.stringify(tool.parameters, null, 2) }}</pre>
+              <div class="parameters-editor-wrapper">
+                <RichCodeEditor
+                  :model-value="JSON.stringify(tool.parameters, null, 2)"
+                  language="json"
+                  read-only
+                  :line-numbers="false"
+                  class="parameters-editor"
+                />
+              </div>
             </div>
           </div>
         </el-collapse-transition>
@@ -131,6 +141,7 @@ import { useVcpDistributedStore } from "../../stores/vcpDistributedStore";
 import { toolRegistryManager } from "@/services/registry";
 import { CheckCircle2, Clock, ChevronRight } from "lucide-vue-next";
 import { BUILTIN_VCP_TOOLS } from "../../composables/useVcpDistributedNode";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 
 const distStore = useVcpDistributedStore();
 const selectedToolId = ref("");
@@ -469,34 +480,15 @@ function addTool() {
   color: var(--el-text-color-primary);
 }
 
-.detail-code {
-  background: var(--vscode-editor-background);
-  padding: 12px;
+.parameters-editor-wrapper {
+  margin-top: 8px;
   border-radius: 6px;
-  margin: 8px 0 0 0;
-  font-family: var(--el-font-family-mono);
-  font-size: 11px;
-  line-height: 1.5;
-  overflow: auto;
-  max-height: 280px;
+  overflow: hidden;
   border: 1px solid var(--border-color);
-  color: var(--el-text-color-primary);
-  display: block;
-  width: 100%;
-  scrollbar-width: thin;
 }
 
-.detail-code::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.detail-code::-webkit-scrollbar-thumb {
-  background: var(--el-border-color);
-  border-radius: 3px;
-}
-
-.detail-code::-webkit-scrollbar-corner {
-  background: transparent;
+.parameters-editor {
+  height: 300px;
+  border: none !important;
 }
 </style>

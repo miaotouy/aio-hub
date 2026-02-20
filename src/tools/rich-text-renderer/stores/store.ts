@@ -102,6 +102,9 @@ const configManager = createConfigManager<TesterConfig>({
       max: 10,
     },
     inputContent: "",
+    smoothingEnabled: true,
+    throttleEnabled: true,
+    verboseLogging: false,
     autoScroll: true,
     visualizeBlockStatus: false,
     rendererVersion: RendererVersion.V1_MARKDOWN_IT,
@@ -139,6 +142,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const layoutMode = ref<"split" | "input-only" | "preview-only">("split");
   const selectedPreset = ref("");
   const inputContent = ref("");
+  const smoothingEnabled = ref(true);
+  const throttleEnabled = ref(true);
+  const verboseLogging = ref(false);
   const streamEnabled = ref(true);
   const syncInputProgress = ref(false);
   const streamSpeed = ref(100);
@@ -206,6 +212,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       layoutMode.value = config.layoutMode ?? "split";
       selectedPreset.value = config.selectedPreset;
       inputContent.value = config.inputContent;
+      smoothingEnabled.value = config.smoothingEnabled ?? true;
+      throttleEnabled.value = config.throttleEnabled ?? true;
+      verboseLogging.value = config.verboseLogging ?? false;
       streamEnabled.value = config.streamEnabled;
       syncInputProgress.value = config.syncInputProgress ?? false;
       streamSpeed.value = config.streamSpeed;
@@ -274,6 +283,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         layoutMode: layoutMode.value,
         selectedPreset: selectedPreset.value,
         inputContent: inputContent.value,
+        smoothingEnabled: smoothingEnabled.value,
+        throttleEnabled: throttleEnabled.value,
+        verboseLogging: verboseLogging.value,
         streamEnabled: streamEnabled.value,
         syncInputProgress: syncInputProgress.value,
         streamSpeed: streamSpeed.value,
@@ -333,6 +345,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       layoutMode: layoutMode.value,
       selectedPreset: selectedPreset.value,
       inputContent: inputContent.value,
+      smoothingEnabled: smoothingEnabled.value,
+      throttleEnabled: throttleEnabled.value,
+      verboseLogging: verboseLogging.value,
       streamEnabled: streamEnabled.value,
       syncInputProgress: syncInputProgress.value,
       streamSpeed: streamSpeed.value,
@@ -379,6 +394,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     layoutMode.value = "split";
     selectedPreset.value = "";
     inputContent.value = "";
+    smoothingEnabled.value = true;
+    throttleEnabled.value = true;
+    verboseLogging.value = false;
     streamEnabled.value = true;
     syncInputProgress.value = false;
     streamSpeed.value = 100;
@@ -470,6 +488,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       layoutMode,
       selectedPreset,
       inputContent,
+      smoothingEnabled,
+      throttleEnabled,
+      verboseLogging,
       streamEnabled,
       syncInputProgress,
       streamSpeed,
@@ -519,6 +540,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     layoutMode,
     selectedPreset,
     inputContent,
+    smoothingEnabled,
+    throttleEnabled,
+    verboseLogging,
     streamEnabled,
     syncInputProgress,
     streamSpeed,

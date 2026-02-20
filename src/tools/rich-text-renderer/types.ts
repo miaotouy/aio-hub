@@ -658,6 +658,12 @@ export interface TesterConfig {
   };
   /** 输入内容 */
   inputContent: string;
+  /** 是否启用流式平滑化 */
+  smoothingEnabled?: boolean;
+  /** 是否启用 AST 更新节流 */
+  throttleEnabled?: boolean;
+  /** 是否启用高级调试日志（刷屏警告） */
+  verboseLogging?: boolean;
   /** 是否自动滚动到底部 */
   autoScroll: boolean;
   /** 是否可视化块状态 */

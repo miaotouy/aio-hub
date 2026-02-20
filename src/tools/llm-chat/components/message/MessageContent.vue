@@ -605,6 +605,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
         :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+        :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
+        :throttle-enabled="settings.uiPreferences.throttleEnabled"
         :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
         :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
       />
@@ -672,7 +674,10 @@ const errorMessage = computed(() => messageMetadata.value?.error);
     <!-- 内容显示区域 (Grid Layout) -->
     <div v-else class="content-display-grid">
       <!-- 工具调用结果专用展示区 -->
-      <div v-if="message.role === 'tool' && message.metadata?.toolCall" class="tool-result-container">
+      <div
+        v-if="message.role === 'tool' && message.metadata?.toolCall"
+        class="tool-result-container"
+      >
         <div class="tool-call-info">
           <div class="info-item">
             <Terminal :size="14" />
@@ -724,6 +729,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
           :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
           :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+          :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
+          :throttle-enabled="settings.uiPreferences.throttleEnabled"
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
           :should-freeze="shouldFreezeHtml"
           :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
@@ -771,6 +778,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
             :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+            :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
+            :throttle-enabled="settings.uiPreferences.throttleEnabled"
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"
             :should-freeze="shouldFreezeHtml"

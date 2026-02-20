@@ -95,6 +95,10 @@ export interface ChatSettings {
     contentMaxWidth: number;
     /** 渲染器更新节流时间 (ms) */
     rendererThrottleMs: number;
+    /** 是否启用流式平滑化 */
+    smoothingEnabled: boolean;
+    /** 是否启用 AST 更新节流 */
+    throttleEnabled: boolean;
     /** 是否启用节点进入动画 */
     enableEnterAnimation: boolean;
     /** 分离模式下是否显示壁纸 */
@@ -249,7 +253,9 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     markdownStyle: undefined, // 默认不设置全局样式
     enableContentWidthLimit: false, // 默认不限制宽度
     contentMaxWidth: 800, // 默认最大宽度 800px
-    rendererThrottleMs: 80, // 默认 80ms
+    rendererThrottleMs: 80, // AST 节流值
+    smoothingEnabled: true, // 流式平滑化
+    throttleEnabled: false, //  AST 节流开关
     enableEnterAnimation: true, // 默认开启
     showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
     enableDetachableHandle: true, // 默认允许组件分离

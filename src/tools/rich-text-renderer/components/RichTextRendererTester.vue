@@ -127,6 +127,9 @@
                 :resolve-asset="resolveAsset"
                 :generation-meta="simulateMeta ? generationMeta : undefined"
                 :throttle-ms="throttleMs"
+                :smoothing-enabled="smoothingEnabled"
+                :throttle-enabled="throttleEnabled"
+                :verbose-logging="verboseLogging"
                 :seamless-mode="seamlessMode"
               />
               <div v-else class="empty-placeholder">
@@ -228,6 +231,9 @@ const {
   layoutMode,
   selectedPreset,
   inputContent,
+  smoothingEnabled,
+  throttleEnabled,
+  verboseLogging,
   streamEnabled,
   syncInputProgress,
   streamSpeed,

@@ -207,6 +207,45 @@
             </div>
           </div>
 
+          <!-- 平滑化控制 -->
+          <div class="control-item">
+            <div class="control-header">
+              <el-tooltip
+                content="开启后，将通过 StreamController 进行语义分块平滑输出"
+                placement="right"
+              >
+                <label>流式平滑化</label>
+              </el-tooltip>
+              <el-switch v-model="smoothingEnabled" size="small" />
+            </div>
+          </div>
+
+          <!-- AST 节流开关 -->
+          <div class="control-item">
+            <div class="control-header">
+              <el-tooltip
+                content="开启后，AST 更新将按设定频率节流；关闭后，将随 rAF 即时更新"
+                placement="right"
+              >
+                <label>启用更新节流</label>
+              </el-tooltip>
+              <el-switch v-model="throttleEnabled" size="small" />
+            </div>
+          </div>
+
+          <!-- 高级日志开关 -->
+          <div class="control-item">
+            <div class="control-header">
+              <el-tooltip
+                content="开启后将打印每帧 emit、每个 chunk 等高频调试日志（⚠️ 会刷屏，仅排查问题时使用）"
+                placement="right"
+              >
+                <label style="color: var(--el-color-warning)">高级日志</label>
+              </el-tooltip>
+              <el-switch v-model="verboseLogging" size="small" />
+            </div>
+          </div>
+
           <!-- 分词器选择 -->
           <div class="control-item">
             <el-tooltip content="选择用于分词的模型，影响 token 分隔的准确性" placement="right">
@@ -402,6 +441,9 @@ const store = useRichTextRendererStore();
 const {
   selectedPreset,
   inputContent,
+  smoothingEnabled,
+  throttleEnabled,
+  verboseLogging,
   streamEnabled,
   syncInputProgress,
   streamSpeed,

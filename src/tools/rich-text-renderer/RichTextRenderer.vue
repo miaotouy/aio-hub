@@ -54,6 +54,8 @@ const props = withDefaults(
     allowDangerousHtml?: boolean; // 是否允许渲染危险的 HTML 标签
     showTokenCount?: boolean; // 是否显示 Token 计数
     smoothingEnabled?: boolean; // 是否启用流式平滑化（默认 true）
+    throttleEnabled?: boolean; // 是否启用 AST 更新节流（默认 true）
+    verboseLogging?: boolean; // 是否启用高级调试日志（默认 false，开启后会刷屏）
   }>(),
   {
     version: RendererVersion.V1_MARKDOWN_IT,
@@ -68,6 +70,8 @@ const props = withDefaults(
     shouldFreeze: false,
     allowDangerousHtml: false,
     showTokenCount: false,
+    smoothingEnabled: true,
+    throttleEnabled: true,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
@@ -141,7 +145,11 @@ const useAstRenderer = computed(
 );
 
 // AST 状态
-const { ast, enqueuePatch } = useMarkdownAst({ throttleMs: props.throttleMs });
+const { ast, enqueuePatch } = useMarkdownAst({
+  throttleMs: props.throttleMs,
+  throttleEnabled: props.throttleEnabled,
+  verboseLogging: props.verboseLogging,
+});
 
 // 图片列表状态
 const imageList = ref<string[]>([]);
@@ -383,6 +391,14 @@ watch(
 onMounted(() => {
   if (!props.streamSource) return;
 
+  if (props.verboseLogging) {
+    console.log(
+      `%c[RichTextRenderer] Streaming Started%c\nVersion: ${props.version}\nSmoothing: ${props.smoothingEnabled}\nThrottle: ${props.throttleEnabled} (${props.throttleMs}ms)`,
+      "color: #409EFF; font-weight: bold; font-size: 12px;",
+      "color: inherit;"
+    );
+  }
+
   // 初始化状态
   buffer.value = "";
   htmlContent.value = "";
@@ -404,6 +420,11 @@ onMounted(() => {
     // 创建流控制器（用于平滑化）
     streamController = new StreamController({
       onContent: (smoothedContent: string) => {
+        if (props.verboseLogging) {
+          const displayStr = smoothedContent.length > 20 ? smoothedContent.slice(0, 20) + "..." : smoothedContent;
+          console.log(`%c[RichTextRenderer] Smooth Emit: "${displayStr.replace(/\n/g, "\\n")}" (len: ${smoothedContent.length})`, "color: #67C23A;");
+        }
+
         // 接收平滑化后的增量内容，累积到 buffer
         buffer.value += smoothedContent;
 
@@ -428,12 +449,16 @@ onMounted(() => {
         }
 
         if (useAstRenderer.value) {
+          if (props.verboseLogging) {
+            console.debug(`[RichTextRenderer] Triggering Parse (total len: ${bufferToProcess.length})`);
+          }
           streamProcessor.value?.setContent(bufferToProcess);
         } else {
           htmlContent.value = md.render(bufferToProcess);
         }
       },
       smoothingEnabled: true,
+      verboseLogging: props.verboseLogging,
       baseCharsPerFrame: 2,
       accelerationThreshold: 200,
       emergencyFlushThreshold: 1000,
@@ -445,6 +470,9 @@ onMounted(() => {
 
     // 订阅原始数据，推入控制器
     unsubscribe = props.streamSource.subscribe((chunk) => {
+      if (props.verboseLogging) {
+        console.debug(`[RichTextRenderer] Raw Chunk received: ${chunk.length} chars`);
+      }
       streamController?.push(chunk);
     });
   } else {

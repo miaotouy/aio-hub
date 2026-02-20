@@ -165,6 +165,20 @@ watch(seamless, (isSeamless) => {
 const viewMode = ref<"code" | "preview">("code");
 const showDialog = ref(false);
 
+// 判断是否为 HTML
+const isHtml = computed(() => {
+  const lang = props.language?.toLowerCase();
+  return lang === "html" || lang === "xml" || lang === "svg";
+});
+
+// 判断是否为完整的 HTML 页面声明
+const isFullHtmlPage = computed(() => {
+  if (!props.content) return false;
+  // 优化：流式场景下只需检测前几行内容（前 200 个字符足以包含 doctype 或 html 标签）
+  const head = props.content.slice(0, 200).trim().toLowerCase();
+  return head.startsWith("<!doctype") || head.includes("<html");
+});
+
 // 是否满足自动预览的条件
 const isAutoPreviewable = computed(() => {
   const lang = props.language?.toLowerCase();
@@ -182,20 +196,6 @@ watch(
   },
   { immediate: true }
 );
-
-// 判断是否为 HTML
-const isHtml = computed(() => {
-  const lang = props.language?.toLowerCase();
-  return lang === "html" || lang === "xml" || lang === "svg";
-});
-
-// 判断是否为完整的 HTML 页面声明
-const isFullHtmlPage = computed(() => {
-  if (!props.content) return false;
-  // 优化：流式场景下只需检测前几行内容（前 200 个字符足以包含 doctype 或 html 标签）
-  const head = props.content.slice(0, 200).trim().toLowerCase();
-  return head.startsWith("<!doctype") || head.includes("<html");
-});
 
 // 悬停状态管理
 const isHovered = ref(false);

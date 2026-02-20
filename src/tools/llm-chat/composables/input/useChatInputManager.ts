@@ -105,6 +105,22 @@ class ChatInputManager {
   // 防抖推送计时器
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /**
+   * 判断是否为临时 ID (NanoID 或包含 pending/importing)
+   */
+  private isTempId(id: string): boolean {
+    return id.length === 21 || id.includes("pending") || id.includes("importing");
+  }
+
+  /**
+   * 根据资产状态获取对应的占位符
+   */
+  private getPlaceholder(asset: Asset): string {
+    return this.isTempId(asset.id)
+      ? generateUploadingPlaceholder(asset.id)
+      : generateAssetPlaceholder(asset.id);
+  }
+
   // 监听器清理函数
   private unlistenStateSync: (() => void) | null = null;
   private unregisterSyncSource: (() => void) | null = null;
@@ -114,6 +130,15 @@ class ChatInputManager {
     this.attachmentManager = useAttachmentManager({
       maxCount: 100,
       maxFileSize: 50 * 1024 * 1024,
+    });
+
+    // 注册导入完成的回调，统一处理所有来源的占位符更新
+    this.attachmentManager.onImportComplete((oldId, newAsset) => {
+      logger.info("[ChatInputManager] 监听到资产导入完成，触发占位符更新", {
+        oldId,
+        newId: newAsset.id,
+      });
+      this.updatePlaceholderId(oldId, newAsset.id);
     });
 
     // 从 localStorage 恢复状态
@@ -518,18 +543,14 @@ class ChatInputManager {
     * 准备要插入的占位符文本（含前缀后缀换行逻辑）
     * @param assets 附件列表
     * @param cursorPosition 当前光标位置
-    * @param isUploading 是否是上传中占位符
     */
   preparePlaceholderInsert(
     assets: Asset[],
-    cursorPosition: number,
-    isUploading = false
+    cursorPosition: number
   ): { text: string; from: number; to: number } {
     if (assets.length === 0) return { text: "", from: cursorPosition, to: cursorPosition };
 
-    const placeholders = assets.map((asset) =>
-      isUploading ? generateUploadingPlaceholder(asset.id) : generateAssetPlaceholder(asset.id)
-    );
+    const placeholders = assets.map((asset) => this.getPlaceholder(asset));
     const placeholderText = placeholders.join("\n");
 
     const currentText = this.inputText.value;
@@ -601,70 +622,56 @@ class ChatInputManager {
     const matches = Array.from(text.matchAll(pathRegex));
     if (matches.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
 
-    let currentText = text;
     let successCount = 0;
     let failedCount = 0;
 
-    // 为了避免替换冲突，我们先收集所有路径，然后统一处理
-    // 注意：路径可能包含空格，正则已经尽量处理了，但仍需小心
     const uniquePaths = Array.from(new Set(matches.map((m) => m[0].trim())));
 
     for (const rawPath of uniquePaths) {
       try {
-        // 清理路径：去除 file:// 前缀
+        logger.info("[convertPaths] 处理路径", { rawPath });
         let cleanPath = rawPath;
         if (cleanPath.startsWith("file://")) {
           cleanPath = cleanPath.replace(/^file:\/\/\/?/, "");
-          // Windows 下 file:///C:/... 替换后可能是 C:/...
-          // 这里简单处理，如果路径以 / 开头且第二个字符是 :，去掉开头的 /
           if (cleanPath.startsWith("/") && cleanPath.charAt(2) === ":") {
             cleanPath = cleanPath.substring(1);
           }
         }
-
-        // 规范化路径分隔符
         cleanPath = cleanPath.replace(/\//g, "\\");
 
-        // 尝试导入资产
-        // 我们需要一个能返回 Asset 对象的导入方法，或者直接使用 addAttachments
-        // 这里我们利用 attachmentManager.addAttachments 返回的是 Promise<void>
-        // 为了拿到 ID，我们可能需要稍微改造下 attachmentManager 或者观察变化
-        // 这里假设我们能通过路径匹配到新加入的资产
         const beforeIds = new Set(this.attachmentManager.attachments.value.map((a) => a.id));
         await this.attachmentManager.addAttachments([cleanPath]);
-        const afterAssets = this.attachmentManager.attachments.value;
-        const newAsset = afterAssets.find(
-          (a) =>
-            !beforeIds.has(a.id) && (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
-        );
 
-        if (newAsset) {
-          const placeholder = generateAssetPlaceholder(newAsset.id);
-          // 全量替换该路径文本
-          // 转义正则特殊字符
+        // 重新获取最新的 attachments 引用
+        const afterAssets = this.attachmentManager.attachments.value;
+        // 优先找新加的，找不到找已存在的
+        const targetAsset =
+          afterAssets.find(
+            (a) =>
+              !beforeIds.has(a.id) &&
+              (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
+          ) || afterAssets.find((a) => a.path === cleanPath);
+
+        if (targetAsset) {
+          logger.info("[convertPaths] 匹配到资产", {
+            id: targetAsset.id,
+            status: targetAsset.importStatus,
+          });
+
+          const placeholder = this.getPlaceholder(targetAsset);
           const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          currentText = currentText.replace(new RegExp(escapedPath, "g"), placeholder);
+          this.inputText.value = this.inputText.value.replace(
+            new RegExp(escapedPath, "g"),
+            placeholder
+          );
           successCount++;
         } else {
-          // 检查是否已经是已存在的资产（重复路径）
-          const existingAsset = afterAssets.find((a) => a.path === cleanPath);
-          if (existingAsset) {
-            const placeholder = generateAssetPlaceholder(existingAsset.id);
-            const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            currentText = currentText.replace(new RegExp(escapedPath, "g"), placeholder);
-            successCount++;
-          } else {
-            failedCount++;
-          }
+          failedCount++;
         }
       } catch (error) {
         logger.error("转换路径失败", error, { path: rawPath });
         failedCount++;
       }
-    }
-
-    if (successCount > 0) {
-      this.inputText.value = currentText;
     }
 
     return {
@@ -687,37 +694,10 @@ class ChatInputManager {
 
     const cursorPos = textareaRef?.getSelectionRange()?.start ?? this.inputText.value.length;
 
-    // 区分已完成和上传中的 asset
-    const completedAssets = addedAssets.filter((a) => a.importStatus === "complete");
-    const uploadingAssets = addedAssets.filter((a) => a.importStatus !== "complete");
-
-    // 1. 已完成的直接插入正常占位符
-    if (completedAssets.length > 0) {
-      const insertInfo = this.preparePlaceholderInsert(completedAssets, cursorPos);
+    // 统一生成插入信息，内部会自动判断是普通占位符还是上传中占位符
+    const insertInfo = this.preparePlaceholderInsert(addedAssets, cursorPos);
+    if (insertInfo.text) {
       textareaRef?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
-    }
-
-    // 2. 上传中的插入带 uploading: 前缀的占位符，并监听 ID 变化
-    if (uploadingAssets.length > 0) {
-      // 重新获取光标，因为可能刚才插入过
-      const currentCursorPos =
-        textareaRef?.getSelectionRange()?.start ?? this.inputText.value.length;
-      const insertInfo = this.preparePlaceholderInsert(uploadingAssets, currentCursorPos, true);
-      textareaRef?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
-
-      // watch id 变化，导入完成后将 uploading 占位符替换为正常占位符
-      for (const asset of uploadingAssets) {
-        const tempId = asset.id;
-        const stop = watch(
-          () => asset.id,
-          (newId) => {
-            if (newId && newId !== tempId) {
-              this.updatePlaceholderId(tempId, newId);
-              stop();
-            }
-          }
-        );
-      }
     }
   }
 

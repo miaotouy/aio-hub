@@ -54,6 +54,8 @@ export interface UseAttachmentManagerReturn {
   isFull: ComputedRef<boolean>;
   /** 最大数量 */
   maxCount: number;
+  /** 注册导入完成的回调 */
+  onImportComplete: (cb: (oldId: string, newAsset: Asset) => void) => () => void;
 }
 
 /**
@@ -72,6 +74,7 @@ export function useAttachmentManager(
 
   const attachments = ref<Asset[]>([]);
   const isProcessing = ref(false);
+  const importCallbacks = new Set<(oldId: string, newAsset: Asset) => void>();
 
   // 在顶层初始化 composables，避免在嵌套函数中调用导致状态获取问题
   const agentStore = useAgentStore();
@@ -362,14 +365,19 @@ export function useAttachmentManager(
       );
 
       if (existingIndex !== -1) {
+        const existingAsset = attachments.value[existingIndex];
         // 发现重复，移除当前的 pending 资产
         const index = attachments.value.findIndex((a) => a.id === pendingAsset.id);
         if (index !== -1) {
           attachments.value.splice(index, 1);
         }
-        logger.info("检测到重复文件，已移除", {
+
+        // 关键修复：即使是重复文件，也要触发 ID 替换回调，否则占位符会永远卡在 uploading 状态
+        importCallbacks.forEach((cb) => cb(pendingAsset.id, existingAsset));
+
+        logger.info("检测到重复文件，已移除，并触发 ID 替换", {
           pendingId: pendingAsset.id,
-          existingId: attachments.value[existingIndex].id,
+          existingId: existingAsset.id,
         });
         return;
       }
@@ -389,6 +397,9 @@ export function useAttachmentManager(
 
         // 使用数组的 splice 方法替换元素，确保触发响应式
         attachments.value.splice(index, 1, updatedAsset);
+
+        // 触发回调
+        importCallbacks.forEach((cb) => cb(pendingAsset.id, updatedAsset));
 
         logger.info("资产导入完成", {
           assetId: importedAsset.id,
@@ -652,5 +663,9 @@ export function useAttachmentManager(
     hasAttachments,
     isFull,
     maxCount,
+    onImportComplete: (cb) => {
+      importCallbacks.add(cb);
+      return () => importCallbacks.delete(cb);
+    },
   };
 }

@@ -313,8 +313,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         }
       };
 
-      ws.value.onerror = (err) => {
-        logger.error("Observer WebSocket error", err);
+      ws.value.onerror = () => {
+        // 连接失败通常是因为后端没开，降级为 warn 且不打印堆栈
+        logger.warn("Observer WebSocket connection failed (VCP backend might be offline)");
         setConnectionStatus("error");
         if (config.value.autoConnect) {
           scheduleReconnect();
@@ -388,9 +389,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           scheduleReconnect();
         }
       };
-
-      distributedWs.value.onerror = (err) => {
-        logger.error("Distributed WebSocket error", err);
+      distributedWs.value.onerror = () => {
+        // 连接失败通常是因为后端没开，降级为 warn 且不打印堆栈
+        logger.warn("Distributed WebSocket connection failed (VCP backend might be offline)");
         isDistributedConnecting.value = false;
 
         const distStore = useVcpDistributedStore();
@@ -454,10 +455,21 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   function scheduleReconnect() {
     if (reconnectTimer.value) return;
     connection.value.reconnectAttempts += 1;
+
+    // 增加一点随机抖动 (Jitter)，避免多个连接同时重连
+    const jitter = Math.random() * 1000;
+    const delay = reconnectDelay + jitter;
+
+    logger.info(
+      `Scheduling reconnect in ${Math.round(delay)}ms (Attempt ${connection.value.reconnectAttempts})`
+    );
+
     reconnectTimer.value = setTimeout(() => {
       reconnectTimer.value = null;
       attemptConnect();
-    }, reconnectDelay);
+    }, delay);
+
+    // 指数退避
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
   }
 

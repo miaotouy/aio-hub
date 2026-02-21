@@ -649,9 +649,14 @@ export const fetchWithTimeout = async (
 
       if (options.body) {
         if (typeof options.body === "string") {
+          const bodySize = options.body.length;
+          console.log(`[Proxy-Debug] body 类型: string, 大小: ${(bodySize / 1024).toFixed(1)}KB`);
+          const t0 = performance.now();
           try {
             bodyObjForProxy = JSON.parse(options.body);
+            console.log(`[Proxy-Debug] JSON.parse(string) 耗时: ${(performance.now() - t0).toFixed(2)}ms`);
           } catch (e) {
+            console.warn(`[Proxy-Debug] JSON.parse(string) 失败:`, e);
             // 如果不是 JSON，则无法通过代理处理
             if (!options.forceProxy) {
               return await window.fetch(url, {
@@ -661,10 +666,18 @@ export const fetchWithTimeout = async (
             }
           }
         } else if (options.body instanceof Uint8Array) {
+          const bodySize = options.body.byteLength;
+          console.log(`[Proxy-Debug] body 类型: Uint8Array, 大小: ${(bodySize / 1024).toFixed(1)}KB`);
+          const t0 = performance.now();
           try {
             const decoder = new TextDecoder();
-            bodyObjForProxy = JSON.parse(decoder.decode(options.body));
+            const decoded = decoder.decode(options.body);
+            const t1 = performance.now();
+            console.log(`[Proxy-Debug] TextDecoder.decode 耗时: ${(t1 - t0).toFixed(2)}ms`);
+            bodyObjForProxy = JSON.parse(decoded);
+            console.log(`[Proxy-Debug] JSON.parse(Uint8Array) 耗时: ${(performance.now() - t1).toFixed(2)}ms`);
           } catch (e) {
+            console.warn(`[Proxy-Debug] Uint8Array decode/parse 失败:`, e);
             if (!options.forceProxy) {
               return await window.fetch(url, {
                 ...options,
@@ -694,21 +707,26 @@ export const fetchWithTimeout = async (
         : undefined;
 
       // 使用原生 fetch 请求本地代理
+      const proxyPayload = {
+        url,
+        method: options.method || "POST",
+        headers: options.headers as Record<string, string>,
+        body: bodyObjForProxy,
+        timeout: timeout,
+        relax_invalid_certs: options.relaxIdCerts,
+        http1_only: options.http1Only,
+        proxy_settings: proxySettings,
+      };
+      const t2 = performance.now();
+      const proxyBodyStr = JSON.stringify(proxyPayload);
+      console.log(`[Proxy-Debug] 代理请求 JSON.stringify 耗时: ${(performance.now() - t2).toFixed(2)}ms, 最终大小: ${(proxyBodyStr.length / 1024).toFixed(1)}KB`);
+
       return await window.fetch(`http://127.0.0.1:${PROXY_PORT}/proxy`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          url,
-          method: options.method || "POST",
-          headers: options.headers as Record<string, string>,
-          body: bodyObjForProxy,
-          timeout: timeout,
-          relax_invalid_certs: options.relaxIdCerts,
-          http1_only: options.http1Only,
-          proxy_settings: proxySettings,
-        }),
+        body: proxyBodyStr,
         signal: controller.signal,
       });
     }

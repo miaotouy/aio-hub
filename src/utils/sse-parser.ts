@@ -28,6 +28,8 @@ export async function parseSSEStream(
 ): Promise<void> {
   const decoder = new TextDecoder();
   let buffer = '';
+  let _chunkCount = 0;
+  let _crlfDetected = false;
 
   try {
     while (true) {
@@ -43,10 +45,22 @@ export async function parseSSEStream(
         break;
       }
 
+      _chunkCount++;
       // 解码新数据并添加到缓冲区
-      buffer += decoder.decode(value, { stream: true });
+      const decoded = decoder.decode(value, { stream: true });
 
-      // 按行分割
+      // 诊断：检测 \r\n 行分隔符（只在前几个 chunk 检测，避免性能影响）
+      if (_chunkCount <= 3 && !_crlfDetected && decoded.includes('\r\n')) {
+        _crlfDetected = true;
+        console.warn('[SSE-Debug] 检测到 \\r\\n 行分隔符！服务器使用 CRLF，可能导致解析异常。chunk #' + _chunkCount);
+      }
+      if (_chunkCount === 1) {
+        console.log(`[SSE-Debug] 首个 chunk 大小: ${decoded.length} chars, 前100字符: ${JSON.stringify(decoded.slice(0, 100))}`);
+      }
+
+      buffer += decoded;
+
+      // 按行分割（同时兼容 \r\n 和 \n）
       const lines = buffer.split('\n');
       
       // 保留最后一个不完整的行
@@ -54,21 +68,17 @@ export async function parseSSEStream(
 
       // 处理完整的行
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
+        // 去除可能的 \r（兼容 CRLF）
+        const trimmedLine = line.endsWith('\r') ? line.slice(0, -1) : line;
+        if (trimmedLine.startsWith('data: ')) {
+          const data = trimmedLine.slice(6);
           
           // 跳过 [DONE] 标记
           if (data === '[DONE]') {
             continue;
           }
 
-          // 尝试解析 JSON
-          try {
-            onChunk(data);
-          } catch (error) {
-            // 如果不是 JSON，直接传递原始数据
-            onChunk(data);
-          }
+          onChunk(data);
         }
       }
     }

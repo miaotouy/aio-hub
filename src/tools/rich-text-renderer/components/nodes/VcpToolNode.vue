@@ -23,9 +23,7 @@
         >
           {{ isSuccess ? "SUCCESS" : "ERROR" }}
         </el-tag>
-        <el-tag v-else-if="command" size="small" type="success" effect="light" class="vcp-tag">{{
-          command
-        }}</el-tag>
+        <el-tag v-else-if="command" size="small" type="success" effect="light" class="vcp-tag">{{ command }}</el-tag>
         <span v-if="maid" class="maid-info">{{ maid }}</span>
         <!-- Token 计数 -->
         <span v-if="context?.showTokenCount?.value" class="token-info">
@@ -36,11 +34,7 @@
       <div class="header-actions">
         <!-- 复制按钮 -->
         <el-tooltip :content="copied ? '已复制' : '复制调用详情'" :show-after="300">
-          <button
-            class="action-btn"
-            :class="{ 'action-btn-active': copied }"
-            @click.stop="copyContent"
-          >
+          <button class="action-btn" :class="{ 'action-btn-active': copied }" @click.stop="copyContent">
             <Check v-if="copied" :size="14" />
             <Copy v-else :size="14" />
           </button>
@@ -62,13 +56,7 @@
             style="width: 100%"
             class="vcp-json-table"
           >
-            <el-table-column
-              v-for="key in tableColumns"
-              :key="key"
-              :prop="key"
-              :label="key"
-              show-overflow-tooltip
-            />
+            <el-table-column v-for="key in tableColumns" :key="key" :prop="key" :label="key" show-overflow-tooltip />
           </el-table>
           <div v-else class="json-object-view">
             <div v-for="(val, key) in parsedJson" :key="key" class="json-row">
@@ -89,22 +77,18 @@
           <div v-for="(value, key, index) in args" :key="key" class="arg-item">
             <span class="arg-key">{{ key }}:</span>
             <span class="arg-value">
-              {{ value
-              }}<span
-                v-if="!closed && index === Object.keys(args).length - 1"
-                class="streaming-cursor"
-              ></span>
+              {{ value }}<span v-if="!closed && index === Object.keys(args).length - 1" class="streaming-cursor"></span>
             </span>
           </div>
         </div>
       </div>
+    </div>
 
-      <div v-if="!closed" class="vcp-footer" :class="{ 'interrupted-footer': !isExecuting }">
-        <div class="loading-status">
-          <Loader2 v-if="isExecuting" class="spinning" :size="12" />
-          <AlertCircle v-else :size="12" />
-          <span class="pulse-text">{{ isExecuting ? "正在调度工具资源..." : "内容生成中断" }}</span>
-        </div>
+    <div v-if="!closed" class="vcp-footer" :class="{ 'interrupted-footer': !isExecuting }">
+      <div class="loading-status">
+        <Loader2 v-if="isExecuting" class="spinning" :size="12" />
+        <AlertCircle v-else :size="12" />
+        <span class="pulse-text">{{ isExecuting ? "正在调度工具资源..." : "内容生成中断" }}</span>
       </div>
     </div>
   </div>
@@ -113,15 +97,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, inject, watch } from "vue";
 import { throttle } from "lodash-es";
-import {
-  Settings,
-  Loader2,
-  ChevronRight,
-  Copy,
-  Check,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-vue-next";
+import { Settings, Loader2, ChevronRight, Copy, Check, CheckCircle2, AlertCircle } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { calculatorProxy } from "@/tools/token-calculator/worker/calculator.proxy";
@@ -178,12 +154,7 @@ const hasArgs = computed(() => Object.keys(props.args).length > 0);
 const parsedJson = computed(() => {
   if (!props.resultContent) return null;
   const trimmed = props.resultContent.trim();
-  if (
-    !(
-      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-      (trimmed.startsWith("[") && trimmed.endsWith("]"))
-    )
-  ) {
+  if (!((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]")))) {
     return null;
   }
   try {
@@ -260,8 +231,7 @@ onMounted(() => {
   if (props.isResult) {
     isCollapsed.value = true;
   } else {
-    isCollapsed.value =
-      props.collapsedByDefault ?? context?.defaultToolCallCollapsed?.value ?? false;
+    isCollapsed.value = props.collapsedByDefault ?? context?.defaultToolCallCollapsed?.value ?? false;
   }
 });
 
@@ -425,7 +395,7 @@ const copyContent = async () => {
 .vcp-content {
   border-top: 1px solid var(--border-color, rgba(255, 255, 0.05));
   animation: slideDown 0.2s ease;
-  max-height: 800px;
+  max-height: 600px;
   overflow-y: auto;
 }
 

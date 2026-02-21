@@ -629,7 +629,8 @@ export function useChatExecutor() {
       // 如果是续写，这个节点的 tokens 应该被视为 prompt tokens 的一部分
       // 但在节点级别，我们记录它自身的内容 token
       const node = session.nodes[userNode.id];
-      if (node && node.metadata) {
+      if (node) {
+        if (!node.metadata) node.metadata = {};
         node.metadata.contentTokens = tokenResult.count;
         node.metadata.isContinuationPrefix = isContinuation || undefined;
       }

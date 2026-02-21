@@ -289,6 +289,10 @@ export function useChatHandler() {
       agentConfig.modelId,
       options?.attachments,
     );
+
+    // 计算完成后立即持久化一次，确保用户消息的 tokens 及时保存并触发 UI 更新
+    sessionManager.persistSession(session, currentSessionId ?? null);
+
     // 获取模型信息用于元数据（提前设置，确保即时显示）
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfig.profileId);

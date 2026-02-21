@@ -83,7 +83,7 @@ export function useNodeManager() {
       status: config.status || "complete",
       isEnabled: config.isEnabled !== false,
       timestamp: now,
-      metadata: config.metadata,
+      metadata: config.metadata || {},
       attachments: config.attachments,
       name: config.name,
     };

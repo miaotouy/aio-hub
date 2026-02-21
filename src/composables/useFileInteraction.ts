@@ -187,7 +187,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
 
                 // 调用后端 API 导入文件
                 realAsset = await invoke<Asset>('import_asset_from_bytes', {
-                  bytes: Array.from(bytes),
+                  bytes: bytes,
                   originalName: filename,
                   options: {
                     ...assetOptions,

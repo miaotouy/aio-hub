@@ -142,7 +142,7 @@ export async function exportAgents(
 
         await invoke('write_file_force', {
           path: filePath,
-          content: Array.from(contentBytes)
+          content: contentBytes
         });
         successCount++;
       }
@@ -261,7 +261,7 @@ export async function exportAgents(
           try {
             await invoke('write_file_force', {
               path: assetPath,
-              content: Array.from(binary)
+              content: binary
             });
           } catch (writeError) {
             logger.error('写入资产文件失败', writeError as Error, { assetPath });
@@ -334,7 +334,7 @@ export async function exportAgents(
                 const encoder = new TextEncoder();
                 await invoke('write_file_force', {
                   path: wbPath,
-                  content: Array.from(encoder.encode(wbContentString))
+                  content: encoder.encode(wbContentString)
                 });
               }
             }
@@ -379,7 +379,7 @@ export async function exportAgents(
 
         await invoke('write_file_force', {
           path: configPath,
-          content: Array.from(contentBytes)
+          content: contentBytes
         });
       }
     }
@@ -459,7 +459,7 @@ export async function exportAgents(
         if (savePath) {
           await invoke('write_file_force', {
             path: savePath,
-            content: Array.from(new Uint8Array(newPngBuffer))
+            content: new Uint8Array(newPngBuffer)
           });
           logger.info('智能体导出成功 (PNG)', { count: agents.length, fileName: savePath });
         } else {

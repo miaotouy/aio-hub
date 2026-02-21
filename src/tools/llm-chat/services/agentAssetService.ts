@@ -45,7 +45,7 @@ export async function ensurePresetAssetsImported(agent: ChatAgent): Promise<bool
         const filename = fetchUrl.split("/").pop() || "icon.jpg";
 
         const subdirectory = `llm-chat/agents/${agent.id}`;
-        const bytes = Array.from(new Uint8Array(buffer));
+        const bytes = new Uint8Array(buffer);
 
         await invoke("save_uploaded_file", {
           fileData: bytes,
@@ -86,7 +86,7 @@ export async function ensurePresetAssetsImported(agent: ChatAgent): Promise<bool
             const relativeSubDir = asset.path.includes("/assets/") ? "assets" : "";
             const subdirectory = `llm-chat/agents/${agent.id}${relativeSubDir ? "/" + relativeSubDir : ""}`;
 
-            const bytes = Array.from(new Uint8Array(buffer));
+            const bytes = new Uint8Array(buffer);
 
             await invoke("save_uploaded_file", {
               fileData: bytes,

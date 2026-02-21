@@ -284,10 +284,22 @@ class Logger {
         // 使用 Rust 后端命令强制追加，绕过前端 Scope 限制
         const encoder = new TextEncoder();
         const uint8Array = encoder.encode(logLine);
+        
+        // 性能监控：记录大数据量的 IPC 调用
+        const isLargeLog = uint8Array.length > 500000;
+        const startTime = isLargeLog ? performance.now() : 0;
+
         await invoke("append_file_force", {
           path: this.logFilePath,
-          content: Array.from(uint8Array)
+          // 关键优化：Tauri v2 支持直接传递 Uint8Array，
+          // 使用 Array.from 会导致数据膨胀数倍且序列化极其缓慢
+          content: uint8Array
         });
+
+        if (isLargeLog) {
+          const duration = performance.now() - startTime;
+          console.debug(`[Logger] 大日志 IPC 写入耗时: ${duration.toFixed(2)}ms, 大小: ${(uint8Array.length / 1024).toFixed(2)}KB`);
+        }
 
         this.currentFileSize += lineSize;
       } catch (error) {
@@ -400,7 +412,7 @@ class Logger {
       const uint8Array = encoder.encode(logs);
       await invoke("write_file_force", {
         path: filePath,
-        content: Array.from(uint8Array)
+        content: uint8Array
       });
     } catch (error) {
       console.error("导出日志失败:", error);

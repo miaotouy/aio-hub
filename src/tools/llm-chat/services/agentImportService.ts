@@ -544,7 +544,7 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
             const relativeSubDir = pathParts.join('/');
 
             const subdirectory = `llm-chat/agents/${finalAgentId}/${relativeSubDir}`.replace(/\/+$/, '');
-            const bytes = Array.from(new Uint8Array(assetInfo.binary));
+            const bytes = new Uint8Array(assetInfo.binary);
 
             await invoke('save_uploaded_file', {
               fileData: bytes,

@@ -69,7 +69,7 @@ export const assetManagerEngine = {
   ): Promise<Asset> => {
     const uint8Array = new Uint8Array(bytes);
     return await invoke<Asset>("import_asset_from_bytes", {
-      bytes: Array.from(uint8Array),
+      bytes: uint8Array,
       originalName,
       options,
     });

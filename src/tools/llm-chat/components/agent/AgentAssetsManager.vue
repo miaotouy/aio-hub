@@ -584,7 +584,7 @@ const handleFileUpload = async (paths: string[]) => {
       const info = await invoke<any>("save_agent_asset", {
         agentId: props.agentId,
         fileName,
-        data: Array.from(new Uint8Array(data)),
+        data: new Uint8Array(data),
         customId,
       });
 

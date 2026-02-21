@@ -318,7 +318,7 @@ const processAssetUpdates = async (agentId: string) => {
     const subdirectory = `llm-chat/agents/${agentId}/${relativeSubDir}`.replace(/\/+$/, "");
 
     await invoke("save_uploaded_file", {
-      fileData: Array.from(new Uint8Array(buffer)),
+      fileData: new Uint8Array(buffer),
       subdirectory,
       filename,
     });

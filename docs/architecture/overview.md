@@ -44,9 +44,9 @@ AIO Hub 不仅仅是一个工具集合，它是一个以开发者为中心、高
 
 项目采用高度解耦的服务化架构，通过 `src/services/` 建立了一套标准化的工具间通信机制。
 
-- **统一执行器 (Executor)**: 位于 `src/services/executor.ts`，是 UI 层与业务逻辑层的核心桥梁。通过发送 `ToolCall` 请求并返回 `ServiceResult`，实现调用者与实现者的彻底解耦。支持开发模式下的 `-dev` 实例自动路由。
-- **自动扫描注册**: `src/services/auto-register.ts` 利用 Vite 的 `import.meta.glob` 机制，自动扫描 `src/tools/` 目录下所有 `.registry.ts` 结尾的模块。
-- **工具外观模式 (Registry Pattern)**: 每个复杂工具都通过 Registry 类暴露其编程接口（如 `sendMessage`），实现“工具即服务”。
+- **统一执行器 (Executor)**: 位于 `src/services/executor.ts`，是 UI 层与业务逻辑层的核心桥梁。程序通过发送 `ToolCall` 请求并返回 `ServiceResult`，实现调用者与实现者的彻底解耦。支持开发模式下的 `-dev` 实例自动路由。
+- **自动扫描注册 (Auto Register)**: `src/services/auto-register.ts` 是应用初始化的核心入口，利用 Vite 的 `import.meta.glob` 机制扫描 `src/tools/` 下所有 `.registry.ts` 模块，并依次完成：① 将 `toolConfig` 注册到 `toolsStore`（UI 工具注册）；② 实例化并注册实现了 `ToolRegistry` 接口的服务类；③ 调用 `pluginManager` 加载所有外部插件；④ 初始化工具排序并标记 store 就绪。
+- **双轨注册约定 (Registry Convention)**: 每个 `.registry.ts` 文件导出两类内容——`toolConfig`（必选，供 UI 发现与渲染）和默认导出的 `ToolRegistry` 实现类（可选，仅需对外暴露编程接口的工具才提供，实现"工具即服务"）。
 
 ### 3.2 插件化适配器架构 (Plugin Adapter Architecture)
 

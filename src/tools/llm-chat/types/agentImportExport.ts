@@ -1,5 +1,5 @@
-import type { ChatMessageNode, LlmParameters, AgentCategory, AgentAsset, AssetGroup } from '../types';
-import type { LlmThinkRule, RichTextRendererStyleOptions } from '@/tools/rich-text-renderer/types';
+import type { ChatMessageNode, LlmParameters, AgentCategory, AgentAsset, AssetGroup } from "../types";
+import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 /**
  * 随包导出的世界书定义
@@ -12,7 +12,7 @@ export interface BundledWorldbook {
   /** 相对路径（如果是独立文件打包） */
   fileName?: string;
   /** 世界书内容（如果是内嵌到配置文件） */
-  content?: import('./worldbook').STWorldbook;
+  content?: import("./worldbook").STWorldbook;
 }
 
 /**
@@ -38,7 +38,7 @@ export interface ExportableAgent {
   };
   tags?: string[];
   category?: AgentCategory;
-  regexConfig?: import('./chatRegex').ChatRegexConfig;
+  regexConfig?: import("./chatRegex").ChatRegexConfig;
   assetGroups?: AssetGroup[];
   assets?: AgentAsset[];
   worldbookIds?: string[];
@@ -51,7 +51,7 @@ export interface ExportableAgent {
  */
 export interface AgentExportFile {
   version: number;
-  type: 'AIO_Agent_Export';
+  type: "AIO_Agent_Export";
   agents: ExportableAgent[];
 }
 
@@ -66,11 +66,19 @@ export interface AgentImportPreflightResult {
   /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
   bundledWorldbooks?: Record<string, BundledWorldbook[]>;
   /** 待导入的世界书内容 { agentId: STWorldbook } (针对角色卡中嵌入的世界书) */
-  embeddedWorldbooks?: Record<string, import('./worldbook').STWorldbook>;
+  embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
   /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
   unmatchedModels: Array<{ agentIndex: number; agentName: string; modelId: string }>;
   /** 名称冲突的 Agent { agentIndex: number, agentName: string } */
   nameConflicts: Array<{ agentIndex: number; agentName: string }>;
+  /** 世界书查重结果 { agentId: { bundled: Array<{ name, isDuplicate, hasNameConflict }>, embedded? } } */
+  worldbookConflicts?: Record<
+    string,
+    {
+      bundled: Array<{ name: string; isDuplicate: boolean; hasNameConflict: boolean }>;
+      embedded?: { isDuplicate: boolean; hasNameConflict: boolean };
+    }
+  >;
 }
 
 /**
@@ -97,5 +105,5 @@ export interface ConfirmImportParams {
   /** 随包导出的世界书内容 { agentId: BundledWorldbook[] } */
   bundledWorldbooks?: Record<string, BundledWorldbook[]>;
   /** 待导入的世界书内容 { agentId: STWorldbook } */
-  embeddedWorldbooks?: Record<string, import('./worldbook').STWorldbook>;
+  embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
 }

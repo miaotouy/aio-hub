@@ -33,7 +33,7 @@ const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
 // VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
-const RE_VCP_RESULT_FIELD = /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-|\nVCP调用结果结束\]\]|$)/g;
+const RE_VCP_RESULT_FIELD = /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
 
 export class Tokenizer {
   // HTML void elements (不需要闭合标签的元素)

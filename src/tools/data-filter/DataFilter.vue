@@ -51,27 +51,71 @@
           <div class="config-panel">
             <div class="panel-header">
               <span class="panel-title">筛选规则</span>
-              <el-button :icon="Plus" circle size="small" @click="addCondition" />
+              <div class="panel-header-actions">
+                <!-- 预设选择器 -->
+                <div class="preset-selector-group">
+                  <el-select
+                    v-model="activePresetId"
+                    placeholder="选择预设..."
+                    size="small"
+                    class="preset-select"
+                    clearable
+                    @change="handlePresetChange"
+                  >
+                    <template #prefix>
+                      <el-icon><BookmarkIcon /></el-icon>
+                    </template>
+                    <el-option v-for="preset in presets" :key="preset.id" :label="preset.name" :value="preset.id">
+                      <div class="preset-option-item">
+                        <span>{{ preset.name }}</span>
+                        <el-icon class="delete-icon" @click.stop="handleDeletePreset(preset.id)">
+                          <CloseIcon />
+                        </el-icon>
+                      </div>
+                    </el-option>
+                  </el-select>
+
+                  <div class="preset-actions" v-if="activePresetId">
+                    <el-tooltip content="更新当前预设" placement="top">
+                      <el-button :icon="SaveIcon" circle size="small" @click="handleUpdatePreset" />
+                    </el-tooltip>
+                    <el-tooltip content="另存为/重命名" placement="top">
+                      <el-dropdown trigger="click" @command="handlePresetMoreCommand">
+                        <el-button :icon="PlusIcon" circle size="small" />
+                        <template #dropdown>
+                          <el-dropdown-menu>
+                            <el-dropdown-item :icon="EditIcon" command="rename">重命名</el-dropdown-item>
+                            <el-dropdown-item :icon="CopyIcon" command="saveAs">另存为新预设</el-dropdown-item>
+                          </el-dropdown-menu>
+                        </template>
+                      </el-dropdown>
+                    </el-tooltip>
+                  </div>
+                  <el-tooltip content="保存为预设" placement="top" v-else>
+                    <el-button :icon="PlusIcon" circle size="small" @click="handleSaveAsPreset" />
+                  </el-tooltip>
+                </div>
+              </div>
             </div>
 
             <el-scrollbar class="config-scroll">
               <div class="config-form">
                 <el-form label-position="top" size="small">
-                  <el-form-item label="数据路径 (可选)">
+                  <div class="config-section-header">
+                    <span class="section-label">数据路径 (可选)</span>
+                  </div>
+                  <el-form-item>
                     <el-input v-model="options.dataPath" placeholder="例如: data.items" clearable />
                   </el-form-item>
 
-                  <div
-                    v-for="(cond, index) in options.conditions"
-                    :key="index"
-                    class="condition-card"
-                  >
+                  <div class="config-section-header">
+                    <span class="section-label">筛选条件</span>
+                    <el-button :icon="Plus" type="primary" link size="small" @click="addCondition">添加条件</el-button>
+                  </div>
+
+                  <div v-for="(cond, index) in options.conditions" :key="index" class="condition-card">
                     <div class="cond-row">
-                      <el-input
-                        v-model="cond.key"
-                        placeholder="键名 (如: status)"
-                        class="key-input"
-                      />
+                      <el-input v-model="cond.key" placeholder="键名 (如: status)" class="key-input" />
                       <el-button
                         :icon="Delete"
                         circle
@@ -111,9 +155,7 @@
             </el-scrollbar>
 
             <div class="config-footer">
-              <el-button type="primary" :icon="Filter" @click="doExecuteFilter" class="execute-btn"
-                >执行筛选</el-button
-              >
+              <el-button type="primary" :icon="Filter" @click="doExecuteFilter" class="execute-btn">执行筛选</el-button>
             </div>
           </div>
 
@@ -137,27 +179,84 @@
         </div>
       </div>
     </div>
+
+    <!-- 保存预设对话框 -->
+    <BaseDialog v-model="savePresetDialogVisible" title="保存筛选规则预设" width="400px">
+      <el-form label-position="top" size="small">
+        <el-form-item label="预设名称">
+          <el-input
+            v-model="saveAsName"
+            placeholder="例如：过滤已启用项"
+            clearable
+            @keyup.enter="confirmSaveAsPreset"
+            ref="saveAsInputRef"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="savePresetDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmSaveAsPreset">保存</el-button>
+      </template>
+    </BaseDialog>
+
+    <!-- 重命名预设对话框 -->
+    <BaseDialog v-model="renamePresetDialogVisible" title="重命名预设" width="400px">
+      <el-form label-position="top" size="small">
+        <el-form-item label="新的预设名称">
+          <el-input
+            v-model="renameName"
+            placeholder="请输入新的名称"
+            clearable
+            @keyup.enter="confirmRenamePreset"
+            ref="renameInputRef"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="renamePresetDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmRenamePreset">确定</el-button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from "vue";
+import { ref, computed, reactive, watch, onMounted, nextTick } from "vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { Plus, Delete, Filter, Send } from "lucide-vue-next";
-import { DocumentCopy, CopyDocument, Delete as DeleteIcon } from "@element-plus/icons-vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import { Plus, Delete, Filter, Send, Bookmark, Save, X, Edit3, Copy } from "lucide-vue-next";
+import { DocumentCopy, CopyDocument, Delete as DeleteIcon, Plus as PlusIcon } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
 import * as logic from "./logic/dataFilter.logic";
 import yaml from "js-yaml";
+import { useDataFilterConfig } from "./composables/useDataFilterConfig";
+
+// 图标别名
+const BookmarkIcon = Bookmark;
+const SaveIcon = Save;
+const CloseIcon = X;
+const EditIcon = Edit3;
+const CopyIcon = Copy;
 
 const errorHandler = createModuleErrorHandler("DataFilter");
 const { sendCodeToChat } = useSendToChat();
+const { presets, loadConfig, saveLastState, savePreset, updatePreset, deletePreset, renamePreset } =
+  useDataFilterConfig();
 
 const inputText = ref("");
 const resultText = ref("");
 const result = ref<logic.FilterResult | null>(null);
+const savePresetDialogVisible = ref(false);
+const renamePresetDialogVisible = ref(false);
+const saveAsName = ref("");
+const renameName = ref("");
+const saveAsInputRef = ref<InstanceType<(typeof import("element-plus"))["ElInput"]> | null>(null);
+const renameInputRef = ref<InstanceType<(typeof import("element-plus"))["ElInput"]> | null>(null);
+const activePresetId = ref<string | null>(null);
+const activePresetName = ref("");
 
 const options = reactive<logic.FilterOptions>({
   dataPath: "",
@@ -171,6 +270,29 @@ const inputType = computed(() => {
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) return "JSON";
   return "YAML";
 });
+
+// 加载持久化配置
+onMounted(async () => {
+  const lastState = await loadConfig();
+  if (lastState.inputText) {
+    inputText.value = lastState.inputText;
+  }
+  if (lastState.options) {
+    options.dataPath = lastState.options.dataPath ?? "";
+    options.conditions = lastState.options.conditions?.length
+      ? lastState.options.conditions
+      : [{ key: "enabled", operator: "eq", value: "true" }];
+  }
+});
+
+// 自动保存当前状态（防抖）
+watch(
+  [inputText, () => JSON.stringify(options)],
+  () => {
+    saveLastState(inputText.value, { ...options, conditions: [...options.conditions] });
+  },
+  { deep: true }
+);
 
 function addCondition() {
   options.conditions.push({ key: "", operator: "eq", value: "" });
@@ -216,6 +338,100 @@ function handleClear() {
   inputText.value = "";
   resultText.value = "";
   result.value = null;
+  activePresetId.value = null;
+  activePresetName.value = "";
+}
+
+// 预设相关
+function handlePresetChange(id: string | null) {
+  if (!id) {
+    activePresetId.value = null;
+    activePresetName.value = "";
+    return;
+  }
+  const preset = presets.value.find((p) => p.id === id);
+  if (preset) {
+    options.dataPath = preset.options.dataPath ?? "";
+    options.conditions = JSON.parse(JSON.stringify(preset.options.conditions));
+    activePresetId.value = preset.id;
+    activePresetName.value = preset.name;
+    customMessage.success(`已加载预设「${preset.name}」`);
+  }
+}
+
+async function handleUpdatePreset() {
+  if (!activePresetId.value) return;
+  await updatePreset(activePresetId.value, {
+    ...options,
+    conditions: JSON.parse(JSON.stringify(options.conditions)),
+  });
+  customMessage.success("预设已更新");
+}
+
+function handleSaveAsPreset() {
+  saveAsName.value = activePresetId.value ? `${activePresetName.value} (副本)` : "";
+  savePresetDialogVisible.value = true;
+  nextTick(() => {
+    saveAsInputRef.value?.focus();
+  });
+}
+
+function handleRenamePreset() {
+  if (!activePresetId.value) return;
+  renameName.value = activePresetName.value;
+  renamePresetDialogVisible.value = true;
+  nextTick(() => {
+    renameInputRef.value?.focus();
+  });
+}
+
+function handlePresetMoreCommand(command: string) {
+  if (command === "rename") {
+    handleRenamePreset();
+  } else if (command === "saveAs") {
+    handleSaveAsPreset();
+  }
+}
+
+async function handleDeletePreset(id: string) {
+  await deletePreset(id);
+  if (activePresetId.value === id) {
+    activePresetId.value = null;
+    activePresetName.value = "";
+  }
+  customMessage.success("预设已删除");
+}
+
+async function confirmSaveAsPreset() {
+  const name = saveAsName.value.trim();
+  if (!name) {
+    customMessage.warning("请输入预设名称");
+    return;
+  }
+
+  const newId = await savePreset(name, {
+    ...options,
+    conditions: JSON.parse(JSON.stringify(options.conditions)),
+  });
+  activePresetId.value = newId;
+  activePresetName.value = name;
+  customMessage.success(`预设「${name}」已保存`);
+  savePresetDialogVisible.value = false;
+}
+
+async function confirmRenamePreset() {
+  const name = renameName.value.trim();
+  if (!name) {
+    customMessage.warning("请输入预设名称");
+    return;
+  }
+
+  if (activePresetId.value) {
+    await renamePreset(activePresetId.value, name);
+    activePresetName.value = name;
+    customMessage.success(`预设已重命名为「${name}」`);
+  }
+  renamePresetDialogVisible.value = false;
 }
 
 function doExecuteFilter() {
@@ -271,7 +487,6 @@ function doExecuteFilter() {
   display: flex;
   height: 100%;
   width: 100%;
-  padding: 20px;
   box-sizing: border-box;
 }
 
@@ -362,6 +577,12 @@ function doExecuteFilter() {
   color: var(--text-color);
 }
 
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .editor-content {
   flex: 1;
   overflow: hidden;
@@ -432,5 +653,54 @@ function doExecuteFilter() {
   font-size: 12px;
   color: var(--text-color-light);
   margin-bottom: 4px;
+}
+
+/* 预设选择器 */
+.preset-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preset-select {
+  width: 140px;
+}
+
+.preset-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.preset-option-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.delete-icon {
+  margin-left: 8px;
+  color: var(--el-text-color-placeholder);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.delete-icon:hover {
+  color: var(--el-color-danger);
+}
+
+.config-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-light);
 }
 </style>

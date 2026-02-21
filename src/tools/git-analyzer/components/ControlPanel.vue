@@ -4,9 +4,7 @@
     <div v-if="progress.loading" class="progress-container">
       <div class="progress-wrapper">
         <el-progress
-          :percentage="
-            progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : 0
-          "
+          :percentage="progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : 0"
           :status="progress.loaded === progress.total ? 'success' : undefined"
           class="flex-1"
         >
@@ -16,9 +14,7 @@
             </span>
           </template>
         </el-progress>
-        <el-button type="danger" size="small" link @click="$emit('cancel-loading')">
-          终止加载
-        </el-button>
+        <el-button type="danger" size="small" link @click="$emit('cancel-loading')"> 终止加载 </el-button>
       </div>
     </div>
 
@@ -26,13 +22,7 @@
     <div class="toolbar">
       <el-row :gutter="12" align="middle">
         <el-col :span="9">
-          <DropZone
-            variant="input"
-            :directory-only="true"
-            :multiple="false"
-            hide-content
-            @drop="handlePathDrop"
-          >
+          <DropZone variant="input" :directory-only="true" :multiple="false" hide-content @drop="handlePathDrop">
             <div class="path-input-group">
               <el-input
                 v-model="repoPath"
@@ -146,12 +136,7 @@
         </el-col>
         <div style="width: 20px"></div>
         <el-col :span="3">
-          <el-input
-            v-model="authorFilter"
-            placeholder="作者筛选"
-            clearable
-            @input="$emit('filter-commits')"
-          />
+          <el-input v-model="authorFilter" placeholder="作者筛选" clearable @input="$emit('filter-commits')" />
         </el-col>
         <el-col :span="4">
           <el-select
@@ -234,8 +219,7 @@
         </el-col>
         <el-col :span="5">
           <span class="range-label"
-            >范围: {{ commitRange[0] }} - {{ commitRange[1] }} (共
-            {{ commitRange[1] - commitRange[0] }} 条)</span
+            >范围: {{ commitRange[0] }} - {{ commitRange[1] }} (共 {{ commitRange[1] - commitRange[0] }} 条)</span
           >
         </el-col>
       </el-row>
@@ -274,14 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Search,
-  Refresh,
-  FolderOpened,
-  InfoFilled,
-  PriceTag,
-  CollectionTag,
-} from "@element-plus/icons-vue";
+import { Search, Refresh, FolderOpened, InfoFilled, PriceTag, CollectionTag } from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { GitCommit, GitBranch } from "../types";
@@ -398,9 +375,7 @@ function locateTagInterval() {
   }
 
   if (tagIndices.length < 2) {
-    customMessage.warning(
-      tagIndices.length === 1 ? "仅找到一个标签，无法确定区间范围" : "未找到版本标签"
-    );
+    customMessage.warning(tagIndices.length === 1 ? "仅找到一个标签，无法确定区间范围" : "未找到版本标签");
     return;
   }
 
@@ -577,5 +552,9 @@ function locateTagInterval() {
 
 :deep(.el-date-editor .el-range-input) {
   font-size: 13px;
+}
+
+:deep(.drop-zone--input) {
+  border: none;
 }
 </style>

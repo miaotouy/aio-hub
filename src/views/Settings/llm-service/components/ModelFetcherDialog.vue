@@ -57,10 +57,7 @@ const filteredGroups = computed(() => {
   for (const group in groupedModels.value) {
     const filtered = groupedModels.value[group].filter((model) => {
       // 1. 搜索词匹配
-      const matchesQuery =
-        !query ||
-        model.id.toLowerCase().includes(query) ||
-        model.name.toLowerCase().includes(query);
+      const matchesQuery = !query || model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query);
       if (!matchesQuery) return false;
 
       // 2. 能力匹配 (AND 逻辑：必须包含所有选中的能力)
@@ -186,11 +183,17 @@ const copyRawResponse = async () => {
 };
 
 const handleConfirm = () => {
-  // 对选中的模型进行处理，使用格式化后的名称
-  const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => ({
-    ...model,
-    name: formatModelName(model.id),
-  }));
+  // 对选中的模型进行处理，使用格式化后的名称，并同步计算出的能力、分组和图标
+  const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => {
+    const matchedProps = getMatchedProperties(model.id, model.provider);
+    return {
+      ...model,
+      name: formatModelName(model.id),
+      group: model.group || matchedProps?.group,
+      icon: model.icon || matchedProps?.icon,
+      capabilities: getModelCapabilities(model),
+    };
+  });
   emit("add-models", modelsToAdd);
   closeDialog();
 };
@@ -259,12 +262,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
     <template #content>
       <div class="model-fetcher-dialog">
         <div class="search-bar-container">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索模型 ID 或名称"
-            clearable
-            class="search-input"
-          />
+          <el-input v-model="searchQuery" placeholder="搜索模型 ID 或名称" clearable class="search-input" />
           <el-select
             v-model="selectedCapabilities"
             multiple
@@ -274,12 +272,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
             style="width: 160px"
             clearable
           >
-            <el-option
-              v-for="cap in MODEL_CAPABILITIES"
-              :key="cap.key"
-              :label="cap.label"
-              :value="cap.key"
-            >
+            <el-option v-for="cap in MODEL_CAPABILITIES" :key="cap.key" :label="cap.label" :value="cap.key">
               <div style="display: flex; align-items: center">
                 <el-icon style="margin-right: 8px" :style="{ color: cap.color }">
                   <component :is="cap.icon" />
@@ -308,12 +301,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
           <div v-if="Object.keys(filteredGroups).length === 0" class="empty-state">
             <p>没有找到匹配的模型</p>
           </div>
-          <div
-            v-else
-            v-for="(groupModels, groupName) in filteredGroups"
-            :key="groupName"
-            class="model-group"
-          >
+          <div v-else v-for="(groupModels, groupName) in filteredGroups" :key="groupName" class="model-group">
             <div class="group-header">
               <div class="group-title" @click="toggleGroupExpand(groupName)">
                 <el-icon class="expand-icon" :class="{ expanded: isGroupExpanded(groupName) }">
@@ -323,11 +311,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                 <span class="group-count">{{ groupModels.length }}</span>
               </div>
               <el-button link size="small" @click.stop="toggleGroupSelection(groupModels)">
-                {{
-                  groupModels.every((m) => isModelSelected(m) || isModelExisting(m.id))
-                    ? "取消全选"
-                    : "全选"
-                }}
+                {{ groupModels.every((m) => isModelSelected(m) || isModelExisting(m.id)) ? "取消全选" : "全选" }}
               </el-button>
             </div>
             <transition name="group-collapse">
@@ -339,18 +323,11 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                   :class="{ selected: isModelSelected(model), disabled: isModelExisting(model.id) }"
                   @click="toggleModelSelection(model)"
                 >
-                  <DynamicIcon
-                    :src="getModelIcon(model) || ''"
-                    :alt="formatModelName(model.id)"
-                    class="model-icon"
-                  />
+                  <DynamicIcon :src="getModelIcon(model) || ''" :alt="formatModelName(model.id)" class="model-icon" />
                   <div class="model-info">
                     <div class="model-name-row">
                       <span class="model-name">{{ formatModelName(model.id) }}</span>
-                      <div
-                        v-if="getActiveCapabilities(model).length > 0"
-                        class="model-capabilities"
-                      >
+                      <div v-if="getActiveCapabilities(model).length > 0" class="model-capabilities">
                         <el-tooltip
                           v-for="cap in getActiveCapabilities(model)"
                           :key="cap.key"
@@ -367,9 +344,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                     <div class="model-id">{{ model.id }}</div>
                   </div>
                   <div class="model-status">
-                    <el-tag v-if="isModelExisting(model.id)" type="info" size="small"
-                      >已存在</el-tag
-                    >
+                    <el-tag v-if="isModelExisting(model.id)" type="info" size="small">已存在</el-tag>
                     <el-icon v-else-if="isModelSelected(model)"><i-ep-check /></el-icon>
                     <el-icon v-else><i-ep-plus /></el-icon>
                   </div>
@@ -384,9 +359,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
     <template #footer>
       <span style="padding-right: 24px">已选择 {{ selectedModels.length }} 个模型</span>
       <el-button @click="closeDialog">取消</el-button>
-      <el-button type="primary" @click="handleConfirm" :disabled="selectedModels.length === 0">
-        添加
-      </el-button>
+      <el-button type="primary" @click="handleConfirm" :disabled="selectedModels.length === 0"> 添加 </el-button>
     </template>
   </BaseDialog>
 </template>

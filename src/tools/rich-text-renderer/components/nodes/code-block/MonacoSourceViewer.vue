@@ -18,11 +18,7 @@
         :style="preFallbackStyle"
       />
       <!-- Monaco 容器：用 opacity 隐藏而不是 v-if，允许其在后台完成初始化 -->
-      <div
-        ref="editorEl"
-        class="monaco-wrapper"
-        :class="{ visible: isEditorReady, 'is-hidden': !isEditorReady }"
-      ></div>
+      <div ref="editorEl" class="monaco-wrapper" :class="{ visible: isEditorReady, 'is-hidden': !isEditorReady }"></div>
     </div>
   </div>
 </template>
@@ -91,8 +87,7 @@ function ensureMonacoPassiveTouchListeners() {
       const hasPassive = options && typeof options === "object" && "passive" in options;
 
       if (isTouchStart && isMonaco && !hasPassive) {
-        const newOptions =
-          typeof options === "object" ? { ...options, passive: true } : { passive: true };
+        const newOptions = typeof options === "object" ? { ...options, passive: true } : { passive: true };
         return nativeAdd.call(this, type, listener, newOptions);
       }
       return nativeAdd.call(this, type, listener, options);
@@ -136,8 +131,7 @@ function syncEditorCssVars() {
   const rootEl = containerRef.value;
   if (!editorWrapper || !rootEl) return;
 
-  const editorRoot = (editorWrapper.querySelector(".monaco-editor") ||
-    editorWrapper) as HTMLElement;
+  const editorRoot = (editorWrapper.querySelector(".monaco-editor") || editorWrapper) as HTMLElement;
   const bgEl = (editorRoot.querySelector(".monaco-editor-background") || editorRoot) as HTMLElement;
   const fgEl = (editorRoot.querySelector(".view-lines") || editorRoot) as HTMLElement;
 
@@ -194,8 +188,8 @@ const computeContentHeight = (): number | null => {
       height = lineCount * lineHeight;
     }
 
-    // 增加 1px 的冗余缓冲（PIXEL_EPSILON），防止浮点数舍入误差导致滚动条闪烁
-    return Math.ceil(height) + (props.closed ? 20 : 12) + 1;
+    // 增加冗余缓冲（PIXEL_EPSILON），防止浮点数舍入误差导致滚动条闪烁
+    return Math.ceil(height) + 8;
   } catch {
     return null;
   }
@@ -241,20 +235,14 @@ const doAdjustLayout = () => {
     if (props.isExpanded) {
       const targetHeight = Math.ceil(contentHeight);
       editorEl.value.style.height = `${targetHeight}px`;
-      container.style.maxHeight = `${targetHeight}px`;
       container.style.height = "auto";
+      container.style.maxHeight = "10000px"; // 给一个足够大但非 infinite 的值
 
       // 滚动补偿：如果在视口上方变长了，修正滚动位置
       const heightDelta = targetHeight - oldHeight;
       if (heightDelta !== 0 && scrollAnchor < window.scrollY) {
         window.scrollBy(0, heightDelta);
       }
-
-      nextTick(() => {
-        if (props.isExpanded && containerRef.value) {
-          containerRef.value.style.maxHeight = "none";
-        }
-      });
     } else {
       const editorHeight = Math.ceil(Math.min(contentHeight, maxHeightInCollapsed));
       editorEl.value.style.height = `${editorHeight}px`;
@@ -279,7 +267,7 @@ const doAdjustLayout = () => {
           useShadows: shouldShowScrollbar,
         },
         hideCursorInOverviewRuler: !shouldShowScrollbar,
-        scrollBeyondLastLine: shouldShowScrollbar,
+        scrollBeyondLastLine: false, // 永远禁用，防止计算高度时计入底部的巨大空白
       });
     } else {
       editor.updateOptions({

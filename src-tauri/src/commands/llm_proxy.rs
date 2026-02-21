@@ -249,9 +249,25 @@ async fn handle_proxy_request(
         }
     }
 
+    let url_clone = request.url.clone();
     let stream = response
         .bytes_stream()
-        .map(|item| item.map_err(std::io::Error::other));
+        .enumerate()
+        .map(move |(i, item)| match item {
+            Ok(bytes) => {
+                if i % 50 == 0 {
+                    info!("[Proxy-Stream] Received chunk {} for {}", i, url_clone);
+                }
+                Ok(bytes)
+            }
+            Err(e) => {
+                error!(
+                    "[Proxy-Stream] Error reading chunk {} from {}: {}",
+                    i, url_clone, e
+                );
+                Err(std::io::Error::other(e))
+            }
+        });
 
     let body = Body::from_stream(stream);
     Ok((status, resp_headers, body))

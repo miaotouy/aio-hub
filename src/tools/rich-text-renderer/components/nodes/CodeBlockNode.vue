@@ -28,6 +28,7 @@
       :content-length="content.length"
       :closed="closed"
       :seamless="seamless"
+      :is-hovered="isHovered"
       @toggle-view-mode="toggleViewMode"
       @open-dialog-preview="openDialogPreview"
       @decrease-font="decreaseCodeFont"

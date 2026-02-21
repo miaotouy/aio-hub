@@ -1,5 +1,11 @@
 <template>
-  <div class="code-header" :class="{ floating: seamless && viewMode === 'preview' }">
+  <div
+    class="code-header"
+    :class="{
+      floating: seamless && viewMode === 'preview',
+      hovered: isHovered,
+    }"
+  >
     <div class="language-info">
       <span class="language-tag">{{ language || "文本" }}</span>
       <!-- 预览模式指示器 -->
@@ -129,6 +135,7 @@ defineProps<{
   contentLength: number;
   closed?: boolean;
   seamless?: boolean;
+  isHovered?: boolean;
 }>();
 
 defineEmits<{
@@ -197,8 +204,8 @@ defineEmits<{
   z-index: -1;
 }
 
-/* 桥接层逻辑需要在父组件中通过 .hovered 类控制 */
-:global(.markdown-code-block.hovered) .code-header.floating .header-actions {
+/* 桥接层逻辑通过 isHovered prop 控制 */
+.code-header.floating.hovered .header-actions {
   opacity: 1;
   transform: translateY(0);
 }

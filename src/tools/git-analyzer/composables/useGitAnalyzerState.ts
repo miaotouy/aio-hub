@@ -1,12 +1,12 @@
-import { ref, computed } from 'vue';
-import type { GitCommit, GitBranch, RepoStatistics } from '../types';
+import { ref, computed } from "vue";
+import type { GitCommit, GitBranch, RepoStatistics, ExportConfig } from "../types";
 
 // ==================== 单例状态（模块级别）====================
 // 将所有状态定义在模块级别，确保所有调用使用同一个实例
 
 const loading = ref(false);
-const repoPath = ref('');
-const selectedBranch = ref('main');
+const repoPath = ref("");
+const selectedBranch = ref("main");
 const branches = ref<GitBranch[]>([]);
 
 const commits = ref<GitCommit[]>([]);
@@ -17,17 +17,35 @@ const batchSize = ref(20);
 const includeFiles = ref(false);
 const commitRange = ref<[number, number]>([0, 0]);
 
-const searchQuery = ref('');
+const searchQuery = ref("");
 const dateRange = ref<[Date, Date] | null>(null);
-const authorFilter = ref('');
+const authorFilter = ref("");
 const reverseOrder = ref(false);
 const commitTypeFilter = ref<string[]>([]);
 
 const currentPage = ref(1);
 const pageSize = ref(20);
 
-const lastLoadedRepo = ref('');
-const lastLoadedBranch = ref('');
+// 导出配置
+const exportConfig = ref<ExportConfig>({
+  format: "markdown",
+  includes: ["statistics", "commits", "contributors"],
+  commitRange: "filtered",
+  customCount: 100,
+  dateFormat: "local",
+  includeAuthor: true,
+  includeEmail: false,
+  includeFullMessage: false,
+  includeFiles: false,
+  includeTags: true,
+  includeBranches: true,
+  includeStats: true,
+  includeFilterInfo: true,
+  htmlTheme: "light",
+});
+
+const lastLoadedRepo = ref("");
+const lastLoadedBranch = ref("");
 const lastLoadedLimit = ref(0);
 
 const loadingFiles = ref(false);
@@ -41,12 +59,7 @@ const progress = ref({
 // ==================== 计算属性 ====================
 
 const hasActiveFilters = computed(() => {
-  return !!(
-    searchQuery.value ||
-    dateRange.value ||
-    authorFilter.value ||
-    commitTypeFilter.value.length > 0
-  );
+  return !!(searchQuery.value || dateRange.value || authorFilter.value || commitTypeFilter.value.length > 0);
 });
 
 const filterSummary = computed(() => {
@@ -67,13 +80,13 @@ const filterSummary = computed(() => {
     parts.push(`日期: ${formatDate(start)} 至 ${formatDate(end)}`);
   }
   if (commitTypeFilter.value.length > 0) {
-    parts.push(`类型: ${commitTypeFilter.value.join(', ')}`);
+    parts.push(`类型: ${commitTypeFilter.value.join(", ")}`);
   }
 
   if (parts.length === 0) {
-    return '当前未应用任何筛选条件。';
+    return "当前未应用任何筛选条件。";
   }
-  return `已应用的筛选条件: ${parts.join('; ')}。`;
+  return `已应用的筛选条件: ${parts.join("; ")}。`;
 });
 
 const statistics = computed<RepoStatistics>(() => {
@@ -118,9 +131,9 @@ function resetProgress() {
 }
 
 function resetFilters() {
-  searchQuery.value = '';
+  searchQuery.value = "";
   dateRange.value = null;
-  authorFilter.value = '';
+  authorFilter.value = "";
   reverseOrder.value = false;
   commitTypeFilter.value = [];
   currentPage.value = 1;
@@ -134,7 +147,7 @@ function resetCommits() {
 
 /**
  * Git 分析器状态管理 Composable
- * 
+ *
  * 采用单例模式，所有状态都定义在模块级别
  * 确保无论在哪里调用，都使用同一个状态实例
  */
@@ -159,17 +172,18 @@ export function useGitAnalyzerState() {
     commitTypeFilter,
     currentPage,
     pageSize,
+    exportConfig,
     lastLoadedRepo,
     lastLoadedBranch,
     lastLoadedLimit,
     progress,
-    
+
     // 计算属性
     statistics,
     paginatedCommits,
     hasActiveFilters,
     filterSummary,
-    
+
     // 方法
     resetProgress,
     resetFilters,

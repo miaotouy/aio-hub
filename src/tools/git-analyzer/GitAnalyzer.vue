@@ -3,12 +3,8 @@
     <InfoCard title="Git 仓库分析" class="analyzer-card">
       <template #headerExtra>
         <el-button-group>
-          <el-button :icon="Refresh" @click="refreshRepository" :loading="loading">
-            刷新
-          </el-button>
-          <el-button :icon="Upload" @click="showExportDialog" :disabled="commits.length === 0">
-            导出
-          </el-button>
+          <el-button :icon="Refresh" @click="refreshRepository" :loading="loading"> 刷新 </el-button>
+          <el-button :icon="Upload" @click="showExportDialog" :disabled="commits.length === 0"> 导出 </el-button>
         </el-button-group>
       </template>
 
@@ -100,11 +96,7 @@ import ControlPanel from "./components/ControlPanel.vue";
 import CommitListView from "./components/CommitListView.vue";
 import ChartsView from "./components/ChartsView.vue";
 import CommitDetailDialog from "./components/CommitDetailDialog.vue";
-import {
-  gitAnalyzerConfigManager,
-  debouncedSaveConfig,
-  type GitAnalyzerConfig,
-} from "./config/config";
+import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config/config";
 import { useGitAnalyzerState } from "./composables/useGitAnalyzerState";
 import { useGitAnalyzerRunner } from "./composables/useGitAnalyzerRunner";
 import { useCharts } from "./composables/useCharts";
@@ -135,6 +127,7 @@ const {
   commitTypeFilter,
   currentPage,
   pageSize,
+  exportConfig,
   progress,
   statistics,
   paginatedCommits,
@@ -179,9 +172,7 @@ const { updateCharts, setupResizeObserver } = useCharts(
   isChartTabActive
 );
 
-const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } = useCommitDetail(
-  () => repoPath.value
-);
+const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } = useCommitDetail(() => repoPath.value);
 
 // 包装 loadRepository
 async function loadRepository() {
@@ -217,14 +208,16 @@ function showExportDialog() {
 
 // 处理导出配置更新
 function handleExportConfigUpdate(newExportConfig: GitAnalyzerConfig["exportConfig"]) {
-  if (!config.value) return;
-
-  config.value.exportConfig = newExportConfig;
-  debouncedSaveConfig(config.value);
+  exportConfig.value = newExportConfig;
+  saveCurrentConfig();
 }
+
+// 标记是否正在加载配置，防止加载过程中的 watch 触发保存
+const isConfigLoading = ref(false);
 
 // 加载配置
 async function loadConfig() {
+  isConfigLoading.value = true;
   try {
     const loadedConfig = await gitAnalyzerConfigManager.load();
     config.value = loadedConfig;
@@ -241,6 +234,11 @@ async function loadConfig() {
     reverseOrder.value = loadedConfig.reverseOrder;
     commitTypeFilter.value = loadedConfig.commitTypeFilter;
 
+    // 恢复导出配置
+    if (loadedConfig.exportConfig) {
+      exportConfig.value = { ...exportConfig.value, ...loadedConfig.exportConfig };
+    }
+
     // 恢复日期范围（需要将字符串转换为 Date 对象）
     if (loadedConfig.dateRange) {
       dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])];
@@ -252,15 +250,22 @@ async function loadConfig() {
       showToUser: false,
       context: { repoPath: repoPath.value },
     });
+  } finally {
+    // 延迟结束加载状态，确保 watch 触发的同步逻辑已经跑完
+    setTimeout(() => {
+      isConfigLoading.value = false;
+    }, 200);
   }
 }
 
 // 保存当前配置
 function saveCurrentConfig() {
-  if (!config.value) return;
+  if (!config.value || isConfigLoading.value) {
+    return;
+  }
 
   const updatedConfig: GitAnalyzerConfig = {
-    ...config.value,
+    version: config.value.version || "1.0.0",
     repoPath: repoPath.value,
     selectedBranch: selectedBranch.value,
     limitCount: limitCount.value,
@@ -269,15 +274,13 @@ function saveCurrentConfig() {
     pageSize: pageSize.value,
     searchQuery: searchQuery.value,
     dateRange: dateRange.value
-      ? [
-          new Date(dateRange.value[0]).toISOString(),
-          new Date(dateRange.value[1]).toISOString(),
-        ]
+      ? [new Date(dateRange.value[0]).toISOString(), new Date(dateRange.value[1]).toISOString()]
       : null,
     authorFilter: authorFilter.value,
     commitRange: commitRange.value,
     reverseOrder: reverseOrder.value,
     commitTypeFilter: commitTypeFilter.value,
+    exportConfig: exportConfig.value,
   };
 
   debouncedSaveConfig(updatedConfig);
@@ -302,6 +305,7 @@ watch(
     commitRange,
     reverseOrder,
     commitTypeFilter,
+    exportConfig,
   ],
   () => {
     saveCurrentConfig();
@@ -336,7 +340,6 @@ onMounted(async () => {
 
 <style scoped>
 .git-analyzer {
-  padding: 20px;
   height: 100%;
   box-sizing: border-box;
   display: flex;

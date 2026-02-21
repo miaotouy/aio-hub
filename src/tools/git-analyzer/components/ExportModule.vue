@@ -76,36 +76,14 @@ const commitsWithFiles = computed(() => {
   return commitCache.getBatchCommits(props.repoPath, props.branch) || [];
 });
 
-const exportConfig = ref<ExportConfig>({
-  format: "markdown",
-  includes: ["statistics", "commits", "contributors"],
-  commitRange: "filtered",
-  customCount: 100,
-  dateFormat: "local",
-  includeAuthor: true,
-  includeEmail: false,
-  includeFullMessage: false,
-  includeFiles: false,
-  includeTags: true,
-  includeBranches: true,
-  includeStats: true,
-  includeFilterInfo: true,
-  htmlTheme: "light",
-});
-
-// 初始化配置
-if (props.initialConfig) {
-  exportConfig.value = { ...exportConfig.value, ...props.initialConfig };
-}
+// 移除本地 exportConfig ref，直接使用来自 state 的 exportConfig
 
 const totalCommits = computed(() => props.commits.length);
 
 // 生成导出文件名
 function generateFileName(extension: string): string {
   // 从仓库路径提取项目名
-  const projectName = props.repoPath
-    ? props.repoPath.split(/[/\\]/).filter(Boolean).pop() || "git-repo"
-    : "git-repo";
+  const projectName = props.repoPath ? props.repoPath.split(/[/\\]/).filter(Boolean).pop() || "git-repo" : "git-repo";
 
   // 格式化日期为 YYYY-MM-DD
   const now = new Date();
@@ -142,7 +120,7 @@ function getCommitsToExport(): GitCommit[] {
 }
 
 // 从 state 获取共享状态（文件变更信息在仓库加载完成后自动加载）
-const { loadingFiles, filterSummary, hasActiveFilters } = useGitAnalyzerState();
+const { loadingFiles, filterSummary, hasActiveFilters, exportConfig } = useGitAnalyzerState();
 
 // 获取合并后的提交数据（优先使用带文件信息的版本）
 function getMergedCommits(commits: GitCommit[]): GitCommit[] {
@@ -308,10 +286,6 @@ watch(
   () => visible.value,
   (val) => {
     if (val) {
-      // 如果有初始配置，重新应用
-      if (props.initialConfig) {
-        exportConfig.value = { ...exportConfig.value, ...props.initialConfig };
-      }
       updatePreview();
     }
   }

@@ -253,7 +253,8 @@ export async function preflightImportAgents(
 
       // 将 agent 加入总列表，并分配资产 (按 Agent ID 物理隔离)
       agentExportFile.agents.forEach(agent => {
-        const tempId = crypto.randomUUID();
+        // 使用标准的 agent ID 格式，而不是 randomUUID
+        const tempId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
         agent.id = tempId;
 
         combinedAssets[tempId] = {};

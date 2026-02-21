@@ -159,6 +159,14 @@ export function useAgentStorageSeparated() {
 
       // 迁移逻辑：处理绝对路径
       let isDirty = false;
+
+      // 强制同步 ID：确保文件内容里的 ID 与目录名一致
+      // 避免从其他地方（如酒馆）导入后，ID 还是原始 UUID 导致存储路径错乱
+      if (agent.id !== agentId) {
+        logger.info("同步智能体 ID 与目录名一致", { oldId: agent.id, newId: agentId });
+        agent.id = agentId;
+        isDirty = true;
+      }
       let icon = agent.icon?.trim();
 
       // 处理被引号包裹的路径

@@ -816,9 +816,9 @@ const errorMessage = computed(() => messageMetadata.value?.error);
     <div v-if="showMeta" class="message-meta">
       <!-- API 返回的完整 Usage 信息（助手消息） -->
       <div v-if="settings.uiPreferences.showTokenCount && usageInfo" class="usage-info">
-        <span>Token: {{ usageInfo.totalTokens }}</span>
+        <span>Token: {{ contentTokensValue !== undefined ? usageInfo.promptTokens + contentTokensValue : usageInfo.totalTokens }}</span>
         <span class="usage-detail">
-          (输入: {{ usageInfo.promptTokens }}, 输出: {{ usageInfo.completionTokens }})
+          (输入: {{ usageInfo.promptTokens }}, 输出: {{ contentTokensValue ?? usageInfo.completionTokens }})
         </span>
       </div>
       <!-- 本地计算的单条消息 Token（用户消息） -->

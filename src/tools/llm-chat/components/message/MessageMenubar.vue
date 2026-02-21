@@ -30,6 +30,7 @@ import {
   Columns,
   Database,
   StepForward,
+  Hash,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -41,6 +42,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useSessionManager } from "../../composables/session/useSessionManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import { formatDateTime } from "@/utils/time";
 import { sanitizeFilename } from "@/utils/fileUtils";
@@ -94,6 +96,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
+const logger = createModuleLogger("MessageMenubar");
 
 // 复制状态
 const copied = ref(false);
@@ -121,7 +124,7 @@ const copyMessage = async () => {
       copied.value = false;
     }, 2000);
   } catch (error) {
-    console.error("复制失败", error);
+    logger.error("复制失败", error);
   }
 };
 // 其他操作
@@ -249,7 +252,7 @@ const handleRegenerateWithModel = async () => {
 };
 const handleToggleEnabled = () => emit("toggle-enabled");
 const handleAbort = () => {
-  console.log("[MessageMenubar] 停止按钮点击", {
+  logger.info("停止按钮点击", {
     nodeId: props.message.id,
     role: props.message.role,
     isGenerating: isGenerating.value,
@@ -291,13 +294,29 @@ const handleTranslationCommand = (command: string) => {
     emit("translate", lang);
   }
 };
-
 const handleAnalyzeContext = () => {
-  console.log("[MessageMenubar] 上下文分析按钮点击", {
+  logger.info("上下文分析按钮点击", {
     nodeId: props.message.id,
     role: props.message.role,
   });
   emit("analyze-context");
+};
+
+// 重新计算 Token 数
+const handleRecalculateTokens = async () => {
+  const session = store.currentSession;
+  if (!session) return;
+
+  logger.info("重新计算 Token", { nodeId: props.message.id });
+
+  try {
+    await store.recalculateNodeTokens(session, props.message.id);
+    customMessage.success("Token 重新计算完成");
+    logger.info("Token 重新计算完成", { nodeId: props.message.id });
+  } catch (error) {
+    logger.error("重新计算 Token 失败", error, { nodeId: props.message.id });
+    customMessage.error("重新计算失败");
+  }
 };
 
 // 定义导出选项接口
@@ -418,7 +437,7 @@ const handleExportBranch = async (options: ExportOptions) => {
       customMessage.success("分支导出成功");
     }
   } catch (error) {
-    console.error("导出分支失败", error);
+    logger.error("导出分支失败", error, { nodeId: props.message.id });
     customMessage.error("导出失败：" + (error instanceof Error ? error.message : String(error)));
   }
 };
@@ -560,6 +579,15 @@ const handleTranslateClick = (e: MouseEvent) => {
               <div class="dropdown-item-content">
                 <Download :size="16" />
                 <span>导出分支</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item
+              v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+              @click="handleRecalculateTokens"
+            >
+              <div class="dropdown-item-content">
+                <Hash :size="16" />
+                <span>重新计算 Token</span>
               </div>
             </el-dropdown-item>
             <el-dropdown-item

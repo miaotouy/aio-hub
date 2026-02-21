@@ -3,6 +3,7 @@ import { ref, watch, onMounted, shallowRef, nextTick } from "vue";
 import { EditorView, keymap, tooltips, placeholder as cmPlaceholder } from "@codemirror/view";
 import { EditorState, Compartment, Prec } from "@codemirror/state";
 import { useTheme } from "@/composables/useTheme";
+import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { markdown } from "@codemirror/lang-markdown";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
 import {
@@ -45,6 +46,7 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLElement>();
 const view = shallowRef<EditorView>();
+const inputManager = useChatInputManager();
 
 // 标记是否正在执行从外部 props 到内部 doc 的同步
 // 用于防止“回音”效应：外部修改 -> watch 触发 -> dispatch -> updateListener 触发 -> emit -> 覆盖外部修改
@@ -251,6 +253,7 @@ onMounted(() => {
       baseTheme,
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
+        // 监听文档变化
         if (update.docChanged) {
           if (isSyncingFromProps) {
             logger.debug("正在从 props 同步，忽略本次 docChanged emit");
@@ -262,6 +265,12 @@ onMounted(() => {
             hasUploading: newDoc.includes("uploading:"),
           });
           emit("update:value", newDoc);
+        }
+
+        // 监听光标/选择变化，同步到全局 manager
+        if (update.selectionSet || update.docChanged) {
+          const { from } = update.state.selection.main;
+          inputManager.updateLastCursorPosition(from);
         }
       }),
       // 监听原始键盘事件

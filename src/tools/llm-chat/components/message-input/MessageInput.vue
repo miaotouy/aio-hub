@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef, computed, onMounted } from "vue";
+import { ref, toRef, computed, onMounted, watch } from "vue";
 import { useStorage, useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
@@ -238,6 +238,11 @@ const placeholderText = computed(() => {
   const sendHint =
     sendKey === "ctrl+enter" ? "Ctrl/Cmd + Enter 发送" : "Enter 发送, Shift + Enter 换行";
   return `输入消息、拖入或粘贴文件... (${sendHint})`;
+});
+
+// 监听聚焦请求
+watch(inputManager.focusRequest, () => {
+  textareaRef.value?.focus();
 });
 
 // 初始加载

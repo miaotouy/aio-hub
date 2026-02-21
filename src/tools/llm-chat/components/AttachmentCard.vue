@@ -450,6 +450,7 @@ const handleInsertPlaceholder = () => {
   } else {
     chatInputManager.insertAssetPlaceholders([props.asset]);
   }
+  chatInputManager.requestEditorFocus();
   customMessage.success("已插入占位符");
 };
 

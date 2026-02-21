@@ -61,6 +61,10 @@ interface ChatInputDraft {
 class ChatInputManager {
   // 输入框文本
   public inputText: Ref<string> = ref("");
+  // 最后已知的光标位置
+  public lastCursorPosition: Ref<number> = ref(0);
+  // 聚焦请求信号
+  public focusRequest: Ref<number> = ref(0);
   // 临时指定的模型
   public temporaryModel: Ref<ModelIdentifier | null> = ref(null);
   // 续写指定的模型
@@ -573,7 +577,7 @@ class ChatInputManager {
    * 注意：在 UI 组件中建议优先使用 preparePlaceholderInsert + editor.insertText 以获得更好的光标体验
    */
   insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): number {
-    const pos = cursorPosition ?? this.inputText.value.length;
+    const pos = cursorPosition ?? this.lastCursorPosition.value ?? this.inputText.value.length;
     const { text, from, to } = this.preparePlaceholderInsert(assets, pos);
     if (!text) return pos;
 
@@ -826,6 +830,12 @@ export function useChatInputManager() {
     convertPathsToAttachments: manager.convertPathsToAttachments.bind(manager),
     /** 更新占位符中的 asset ID（临时 ID -> 真实 ID） */
     updatePlaceholderId: manager.updatePlaceholderId.bind(manager),
+    /** 更新最后已知的光标位置 */
+    updateLastCursorPosition: (pos: number) => (manager.lastCursorPosition.value = pos),
+    /** 请求编辑器聚焦 */
+    requestEditorFocus: () => manager.focusRequest.value++,
+    /** 聚焦请求信号（只读） */
+    focusRequest: manager.focusRequest,
     /** 统一处理资产添加后的占位符插入和 ID 监听 */
     handleAssetsAddition: manager.handleAssetsAddition.bind(manager),
 

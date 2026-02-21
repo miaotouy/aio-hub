@@ -15,18 +15,10 @@
 
 import { ref, watch, nextTick, type Ref } from "vue";
 import { getOrCreateInstance } from "@/utils/singleton";
-import {
-  useAttachmentManager,
-  type UseAttachmentManagerReturn,
-} from "../features/useAttachmentManager";
+import { useAttachmentManager, type UseAttachmentManagerReturn } from "../features/useAttachmentManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { registerSyncSource } from "@/composables/useStateSyncEngine";
-import {
-  calculateDiff,
-  applyPatches,
-  shouldUseDelta,
-  VersionGenerator,
-} from "@/utils/sync-helpers";
+import { calculateDiff, applyPatches, shouldUseDelta, VersionGenerator } from "@/utils/sync-helpers";
 import { CHAT_STATE_KEYS } from "../../types/sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -109,6 +101,12 @@ class ChatInputManager {
   // 防抖推送计时器
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // 扫描修复计时器
+  private scanFixTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 记录所有 oldId -> newId 的历史映射，供二次扫描使用
+  private idUpdateLog: Map<string, string> = new Map();
+
   /**
    * 判断是否为临时 ID (NanoID 或包含 pending/importing)
    */
@@ -120,9 +118,7 @@ class ChatInputManager {
    * 根据资产状态获取对应的占位符
    */
   private getPlaceholder(asset: Asset): string {
-    return this.isTempId(asset.id)
-      ? generateUploadingPlaceholder(asset.id)
-      : generateAssetPlaceholder(asset.id);
+    return this.isTempId(asset.id) ? generateUploadingPlaceholder(asset.id) : generateAssetPlaceholder(asset.id);
   }
 
   // 监听器清理函数
@@ -143,6 +139,16 @@ class ChatInputManager {
         newId: newAsset.id,
       });
       this.updatePlaceholderId(oldId, newAsset.id);
+    });
+
+    // 监听上传状态，当所有上传完成时，进行一次延迟扫描修复
+    watch(this.attachmentManager.isProcessing, (isProcessing) => {
+      if (!isProcessing) {
+        if (this.scanFixTimer) clearTimeout(this.scanFixTimer);
+        this.scanFixTimer = setTimeout(() => {
+          this.scanAndFixPlaceholders();
+        }, 1000); // 上传完成后 1s 进行二次检查
+      }
     });
 
     // 从 localStorage 恢复状态
@@ -255,10 +261,7 @@ class ChatInputManager {
         }
 
         // 同步续写模型
-        if (
-          JSON.stringify(newState.continuationModel) !==
-          JSON.stringify(this.continuationModel.value)
-        ) {
+        if (JSON.stringify(newState.continuationModel) !== JSON.stringify(this.continuationModel.value)) {
           this.continuationModel.value = newState.continuationModel;
           logger.debug("从同步状态更新续写模型", { model: newState.continuationModel });
         }
@@ -293,10 +296,7 @@ class ChatInputManager {
             attachmentCount: this.syncState.value.attachments.length,
           });
         } else {
-          this.syncState.value = applyPatches(
-            this.syncState.value,
-            payload.patches as JsonPatchOperation[]
-          );
+          this.syncState.value = applyPatches(this.syncState.value, payload.patches as JsonPatchOperation[]);
           logger.info("已应用增量输入状态", {
             version: payload.version,
             textLength: this.syncState.value.text.length,
@@ -359,13 +359,7 @@ class ChatInputManager {
     const shouldForceFullSync = isFullSync || !shouldUseDelta([], newValue, 0.5);
 
     if (shouldForceFullSync) {
-      this.bus.syncState(
-        CHAT_STATE_KEYS.INPUT_STATE,
-        newValue,
-        newVersion,
-        true,
-        targetWindowLabel
-      );
+      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, newValue, newVersion, true, targetWindowLabel);
       if (!silent)
         logger.debug("执行全量输入状态同步", {
           version: newVersion,
@@ -377,13 +371,7 @@ class ChatInputManager {
         if (!silent) logger.debug("输入状态无变化，跳过同步");
         return;
       }
-      this.bus.syncState(
-        CHAT_STATE_KEYS.INPUT_STATE,
-        patches,
-        newVersion,
-        false,
-        targetWindowLabel
-      );
+      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, patches, newVersion, false, targetWindowLabel);
       if (!silent)
         logger.debug("执行增量输入状态同步", {
           version: newVersion,
@@ -412,12 +400,16 @@ class ChatInputManager {
     if (this.pushTimer) {
       clearTimeout(this.pushTimer);
     }
+    if (this.scanFixTimer) {
+      clearTimeout(this.scanFixTimer);
+    }
     if (this.unlistenStateSync) {
       this.unlistenStateSync();
     }
     if (this.unregisterSyncSource) {
       this.unregisterSyncSource();
     }
+    this.idUpdateLog.clear();
     logger.info("ChatInputManager 已清理");
   }
 
@@ -536,6 +528,8 @@ class ChatInputManager {
   clear(): void {
     this.inputText.value = "";
     this.attachmentManager.clearAttachments();
+    // 清空 ID 变更历史，避免内存泄漏
+    this.idUpdateLog.clear();
     // 注意：临时模型不在此处清除，保持"粘性"，允许用户连续使用同一模型发送多条消息
     // 立即保存清空状态
     this.saveToStorageImmediate();
@@ -548,10 +542,7 @@ class ChatInputManager {
     * @param assets 附件列表
     * @param cursorPosition 当前光标位置
     */
-  preparePlaceholderInsert(
-    assets: Asset[],
-    cursorPosition: number
-  ): { text: string; from: number; to: number } {
+  preparePlaceholderInsert(assets: Asset[], cursorPosition: number): { text: string; from: number; to: number } {
     if (assets.length === 0) return { text: "", from: cursorPosition, to: cursorPosition };
 
     const placeholders = assets.map((asset) => this.getPlaceholder(asset));
@@ -620,8 +611,7 @@ class ChatInputManager {
 
     // 匹配 file:// 协议或 Windows 路径 (如 D:\path\to\file 或 C:/path/to/file)
     // 排除掉已经是占位符的内容 【file::...】
-    const pathRegex =
-      /(?:file:\/\/\/?|[a-zA-Z]:[\\\/])(?:[^\s"<>|?*【】]+(?:\s[^\s"<>|?*【】]+)*)/g;
+    const pathRegex = /(?:file:\/\/\/?|[a-zA-Z]:[\\\/])(?:[^\s"<>|?*【】]+(?:\s[^\s"<>|?*【】]+)*)/g;
 
     const matches = Array.from(text.matchAll(pathRegex));
     if (matches.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
@@ -651,9 +641,7 @@ class ChatInputManager {
         // 优先找新加的，找不到找已存在的
         const targetAsset =
           afterAssets.find(
-            (a) =>
-              !beforeIds.has(a.id) &&
-              (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
+            (a) => !beforeIds.has(a.id) && (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
           ) || afterAssets.find((a) => a.path === cleanPath);
 
         if (targetAsset) {
@@ -664,10 +652,7 @@ class ChatInputManager {
 
           const placeholder = this.getPlaceholder(targetAsset);
           const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          this.inputText.value = this.inputText.value.replace(
-            new RegExp(escapedPath, "g"),
-            placeholder
-          );
+          this.inputText.value = this.inputText.value.replace(new RegExp(escapedPath, "g"), placeholder);
           successCount++;
         } else {
           failedCount++;
@@ -706,14 +691,54 @@ class ChatInputManager {
   }
 
   /**
+   * 全量扫描并修复输入框中的占位符
+   * 利用 idUpdateLog 中记录的历史映射，对所有残留的 uploading 占位符进行二次替换
+   * 主要用于应对上传完成时用户正在打字导致的 Vue 响应式竞态问题
+   */
+  scanAndFixPlaceholders(): void {
+    const text = this.inputText.value;
+    if (!text.includes("file::uploading:")) return;
+
+    // 匹配 【file::uploading:ID】
+    const uploadingRegex = /【file::uploading:([a-zA-Z0-9_-]+)】/g;
+    const matches = Array.from(text.matchAll(uploadingRegex));
+    if (matches.length === 0) return;
+
+    let newText = text;
+    let fixedCount = 0;
+
+    for (const match of matches) {
+      const tempId = match[1];
+      // 从历史映射中查找对应的正式 ID
+      const realId = this.idUpdateLog.get(tempId);
+      if (!realId) continue;
+
+      const uploadingPlaceholder = generateUploadingPlaceholder(tempId);
+      const realPlaceholder = generateAssetPlaceholder(realId);
+      newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
+      fixedCount++;
+    }
+
+    if (fixedCount > 0) {
+      this.inputText.value = newText;
+      logger.info("[scanAndFixPlaceholders] 二次扫描修复了残留占位符", { fixedCount });
+    } else {
+      logger.debug("[scanAndFixPlaceholders] 扫描完成，无需修复");
+    }
+  }
+
+  /**
    * 更新输入框中占位符的 asset ID
    * 优先匹配 uploading 格式的占位符，回退到普通格式
    * 用于 asset 导入完成后，临时 ID 变为真实 ID 时同步更新占位符
    */
   updatePlaceholderId(oldId: string, newId: string): void {
     if (oldId === newId) return;
-    const newPlaceholder = generateAssetPlaceholder(newId);
 
+    // 始终记录 ID 变更历史，供 scanAndFixPlaceholders 二次扫描使用
+    this.idUpdateLog.set(oldId, newId);
+
+    const newPlaceholder = generateAssetPlaceholder(newId);
     const beforeValue = this.inputText.value;
 
     // 优先匹配 uploading 格式：【file::uploading:tempId】 -> 【file::realId】
@@ -830,6 +855,8 @@ export function useChatInputManager() {
     convertPathsToAttachments: manager.convertPathsToAttachments.bind(manager),
     /** 更新占位符中的 asset ID（临时 ID -> 真实 ID） */
     updatePlaceholderId: manager.updatePlaceholderId.bind(manager),
+    /** 全量扫描并修复残留的 uploading 占位符（发送前兜底） */
+    scanAndFixPlaceholders: manager.scanAndFixPlaceholders.bind(manager),
     /** 更新最后已知的光标位置 */
     updateLastCursorPosition: (pos: number) => (manager.lastCursorPosition.value = pos),
     /** 请求编辑器聚焦 */

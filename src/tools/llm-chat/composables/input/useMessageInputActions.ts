@@ -64,11 +64,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     const content = options.inputText.value.trim();
     const hasAttachments = options.inputManager.hasAttachments.value;
 
-    if (
-      (!content && !hasAttachments) ||
-      options.props.disabled ||
-      options.isCurrentBranchGenerating.value
-    ) {
+    if ((!content && !hasAttachments) || options.props.disabled || options.isCurrentBranchGenerating.value) {
       logger.info("发送被阻止", {
         hasContent: !!content,
         hasAttachments,
@@ -83,6 +79,9 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       return;
     }
 
+    // 发送前兜底：修复可能因竞态遗漏的 uploading 占位符
+    options.inputManager.scanAndFixPlaceholders();
+
     logger.info("发送消息", {
       contentLength: content.length,
       attachmentCount: options.inputManager.attachmentCount.value,
@@ -93,9 +92,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     options.onBeforeSend?.();
 
     const attachments =
-      options.inputManager.attachmentCount.value > 0
-        ? [...options.inputManager.attachments.value]
-        : undefined;
+      options.inputManager.attachmentCount.value > 0 ? [...options.inputManager.attachments.value] : undefined;
     const temporaryModel = options.inputManager.temporaryModel.value;
     const disableMacroParsing = !options.inputSettings.value.enableMacroParsing;
 
@@ -138,9 +135,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     try {
       // 准备完整的宏上下文
       const session = chatStore.currentSession;
-      const agent = agentStore.currentAgentId
-        ? agentStore.getAgentById(agentStore.currentAgentId)
-        : null;
+      const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
       const userProfile = profileStore.globalProfile;
 
       const context = createMacroContext({
@@ -250,9 +245,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       if (result.success) {
         const msg =
           `上下文压缩成功：已压缩 ${result.messageCount} 条消息` +
-          (result.savedTokenCount
-            ? `，节省约 ${result.savedTokenCount.toLocaleString()} Token`
-            : "");
+          (result.savedTokenCount ? `，节省约 ${result.savedTokenCount.toLocaleString()} Token` : "");
         customMessage.success(msg);
         options.debouncedCalculateTokens();
       } else {
@@ -332,9 +325,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
         await options.inputManager.addAttachments(paths);
 
-        const newAssets = options.inputManager.attachments.value.filter(
-          (a) => !beforeIds.has(a.id)
-        );
+        const newAssets = options.inputManager.attachments.value.filter((a) => !beforeIds.has(a.id));
         options.inputManager.handleAssetsAddition(
           newAssets,
           options.textareaRef.value,

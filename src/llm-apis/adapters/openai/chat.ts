@@ -201,6 +201,7 @@ export const callOpenAiChatApi = async (
         forceProxy: options.forceProxy,
         relaxIdCerts: options.relaxIdCerts,
         http1Only: options.http1Only,
+        isStreaming: true,
       },
       options.timeout,
       options.signal
@@ -241,19 +242,19 @@ export const callOpenAiChatApi = async (
               totalTokens: json.usage.total_tokens,
               promptTokensDetails: json.usage.prompt_tokens_details
                 ? {
-                    cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
-                    audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-                  }
+                  cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+                  audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+                }
                 : undefined,
               completionTokensDetails: json.usage.completion_tokens_details
                 ? {
-                    reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
-                    audioTokens: json.usage.completion_tokens_details.audio_tokens,
-                    acceptedPredictionTokens:
-                      json.usage.completion_tokens_details.accepted_prediction_tokens,
-                    rejectedPredictionTokens:
-                      json.usage.completion_tokens_details.rejected_prediction_tokens,
-                  }
+                  reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
+                  audioTokens: json.usage.completion_tokens_details.audio_tokens,
+                  acceptedPredictionTokens:
+                    json.usage.completion_tokens_details.accepted_prediction_tokens,
+                  rejectedPredictionTokens:
+                    json.usage.completion_tokens_details.rejected_prediction_tokens,
+                }
                 : undefined,
             };
           }
@@ -317,35 +318,35 @@ export const callOpenAiChatApi = async (
 
   const audio = message?.audio
     ? {
-        id: message.audio.id,
-        data: message.audio.data,
-        transcript: message.audio.transcript,
-        expiresAt: message.audio.expires_at,
-      }
+      id: message.audio.id,
+      data: message.audio.data,
+      transcript: message.audio.transcript,
+      expiresAt: message.audio.expires_at,
+    }
     : undefined;
 
   const usage = data.usage
     ? {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-        totalTokens: data.usage.total_tokens,
-        promptTokensDetails: data.usage.prompt_tokens_details
-          ? {
-              cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
-              audioTokens: data.usage.prompt_tokens_details.audio_tokens,
-            }
-          : undefined,
-        completionTokensDetails: data.usage.completion_tokens_details
-          ? {
-              reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
-              audioTokens: data.usage.completion_tokens_details.audio_tokens,
-              acceptedPredictionTokens:
-                data.usage.completion_tokens_details.accepted_prediction_tokens,
-              rejectedPredictionTokens:
-                data.usage.completion_tokens_details.rejected_prediction_tokens,
-            }
-          : undefined,
-      }
+      promptTokens: data.usage.prompt_tokens,
+      completionTokens: data.usage.completion_tokens,
+      totalTokens: data.usage.total_tokens,
+      promptTokensDetails: data.usage.prompt_tokens_details
+        ? {
+          cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
+          audioTokens: data.usage.prompt_tokens_details.audio_tokens,
+        }
+        : undefined,
+      completionTokensDetails: data.usage.completion_tokens_details
+        ? {
+          reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
+          audioTokens: data.usage.completion_tokens_details.audio_tokens,
+          acceptedPredictionTokens:
+            data.usage.completion_tokens_details.accepted_prediction_tokens,
+          rejectedPredictionTokens:
+            data.usage.completion_tokens_details.rejected_prediction_tokens,
+        }
+        : undefined,
+    }
     : undefined;
 
   if (message?.refusal) {

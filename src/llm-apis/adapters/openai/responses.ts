@@ -171,6 +171,7 @@ export const callOpenAiResponsesApi = async (
         method: "POST",
         headers,
         body: await asyncJsonStringify(body),
+        isStreaming: true,
       },
       options.timeout,
       options.signal

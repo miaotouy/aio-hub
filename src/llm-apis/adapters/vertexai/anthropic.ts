@@ -9,9 +9,9 @@ import {
   cleanPayload
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
-import { 
-  VertexAiClaudeRequest, 
-  buildClaudeMessages 
+import {
+  VertexAiClaudeRequest,
+  buildClaudeMessages
 } from "./utils";
 
 const logger = createModuleLogger("VertexAiAnthropic");
@@ -91,6 +91,7 @@ export async function callVertexAiClaude(
         forceProxy: options.forceProxy,
         relaxIdCerts: options.relaxIdCerts,
         http1Only: options.http1Only,
+        isStreaming: true,
       },
       options.timeout,
       options.signal

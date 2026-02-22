@@ -30,17 +30,17 @@ export interface VideoMetadata {
  */
 export type MediaSource =
   | {
-      /** 内联数据（Base64 字符串或二进制 Buffer） */
-      type: "base64";
-      media_type: string;
-      data: string | ArrayBuffer | Uint8Array;
-    }
+    /** 内联数据（Base64 字符串或二进制 Buffer） */
+    type: "base64";
+    media_type: string;
+    data: string | ArrayBuffer | Uint8Array;
+  }
   | {
-      /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
-      type: "file_uri";
-      file_uri: string;
-      mime_type: string;
-    };
+    /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
+    type: "file_uri";
+    file_uri: string;
+    mime_type: string;
+  };
 
 // =================================================================
 // 定义不同类型的消息内容
@@ -145,7 +145,7 @@ export interface LlmRequestOptions {
   /** 重排 (Rerank) 查询内容 */
   rerankQuery?: string;
   /** 重排 (Rerank) 待排序文档列表 */
-  rerankDocuments?: string[] | Array<{ text: string; [key: string]: any }>;
+  rerankDocuments?: string[] | Array<{ text: string;[key: string]: any }>;
 
   // OpenAI 兼容的高级参数
   /** Top-p 采样参数，介于 0 和 1 之间 */
@@ -229,25 +229,25 @@ export interface LlmRequestOptions {
   prediction?: {
     type: "content";
     content:
-      | string
-      | Array<{
-          type: "text";
-          text: string;
-        }>;
+    | string
+    | Array<{
+      type: "text";
+      text: string;
+    }>;
   };
   /** 音频输出参数 */
   audio?: {
     voice:
-      | "alloy"
-      | "ash"
-      | "ballad"
-      | "coral"
-      | "echo"
-      | "fable"
-      | "nova"
-      | "onyx"
-      | "sage"
-      | "shimmer";
+    | "alloy"
+    | "ash"
+    | "ballad"
+    | "coral"
+    | "echo"
+    | "fable"
+    | "nova"
+    | "onyx"
+    | "sage"
+    | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 服务层级 */
@@ -392,16 +392,16 @@ export interface LlmResponse {
   refusal?: string | null;
   /** 停止原因 */
   finishReason?:
-    | "stop"
-    | "length"
-    | "content_filter"
-    | "tool_calls"
-    | "function_call"
-    | "end_turn"
-    | "max_tokens"
-    | "stop_sequence"
-    | "tool_use"
-    | null;
+  | "stop"
+  | "length"
+  | "content_filter"
+  | "tool_calls"
+  | "function_call"
+  | "end_turn"
+  | "max_tokens"
+  | "stop_sequence"
+  | "tool_use"
+  | null;
   /** 停止序列（Claude） */
   stopSequence?: string | null;
   /** 工具调用结果（函数调用） */
@@ -605,6 +605,7 @@ export const fetchWithTimeout = async (
     relaxIdCerts?: boolean;
     http1Only?: boolean;
     networkStrategy?: "auto" | "proxy" | "native";
+    isStreaming?: boolean;
   },
   timeout: number = DEFAULT_TIMEOUT,
   externalSignal?: AbortSignal
@@ -654,6 +655,7 @@ export const fetchWithTimeout = async (
         forceProxy: options.forceProxy,
         relaxIdCerts: options.relaxIdCerts,
         http1Only: options.http1Only,
+        isStreaming: options.isStreaming,
         networkStrategy: options.networkStrategy,
       });
 
@@ -712,9 +714,9 @@ export const fetchWithTimeout = async (
       const settings = loadAppSettings();
       const proxySettings = settings.proxy
         ? {
-            mode: settings.proxy.mode,
-            custom_url: settings.proxy.customUrl,
-          }
+          mode: settings.proxy.mode,
+          custom_url: settings.proxy.customUrl,
+        }
         : undefined;
 
       // 使用原生 fetch 请求本地代理
@@ -727,6 +729,7 @@ export const fetchWithTimeout = async (
         relax_invalid_certs: options.relaxIdCerts,
         http1_only: options.http1Only,
         proxy_settings: proxySettings,
+        is_streaming: options.isStreaming || false,
       };
       const t2 = performance.now();
       const proxyBodyStr = JSON.stringify(proxyPayload);

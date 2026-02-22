@@ -42,6 +42,7 @@ pub struct ProxyRequest {
     pub relax_invalid_certs: Option<bool>,     // 是否放宽证书校验
     pub http1_only: Option<bool>,              // 是否强制 HTTP/1.1
     pub proxy_settings: Option<ProxySettings>, // 代理设置
+    pub is_streaming: Option<bool>,            // 是否为流式请求（SSE），若为 true 则不设置整体超时
 }
 
 /// 递归处理 Body，查找并替换以 local-file:// 开头的本地路径
@@ -201,8 +202,20 @@ async fn handle_proxy_request(
     };
 
     let mut req = req_builder.headers(headers);
-    if let Some(timeout_ms) = request.timeout {
-        req = req.timeout(std::time::Duration::from_millis(timeout_ms));
+    // 仅对非流式请求设置整体超时
+    // reqwest 的 timeout 计算的是从发送请求到 **完全接收完响应** 的总时间
+    // 对于 SSE 流式响应，长输出可能持续数分钟，整体超时会中途杀死连接
+    // 流式请求仅依赖 connect_timeout (10s) 保护连接建立阶段
+    let is_streaming = request.is_streaming.unwrap_or(false);
+    if !is_streaming {
+        if let Some(timeout_ms) = request.timeout {
+            req = req.timeout(std::time::Duration::from_millis(timeout_ms));
+        }
+    } else {
+        info!(
+            "[Proxy] Streaming mode: skipping overall timeout for {}",
+            request.url
+        );
     }
 
     if request.method.to_uppercase() != "GET" {
@@ -250,24 +263,39 @@ async fn handle_proxy_request(
     }
 
     let url_clone = request.url.clone();
+    let url_clone2 = url_clone.clone();
+    let mut total_bytes: usize = 0;
     let stream = response
         .bytes_stream()
         .enumerate()
         .map(move |(i, item)| match item {
             Ok(bytes) => {
-                if i % 50 == 0 {
-                    info!("[Proxy-Stream] Received chunk {} for {}", i, url_clone);
+                total_bytes += bytes.len();
+                if i % 100 == 0 {
+                    info!(
+                        "[Proxy-Stream] chunk #{} for {}, total {}KB",
+                        i,
+                        url_clone,
+                        total_bytes / 1024
+                    );
                 }
                 Ok(bytes)
             }
             Err(e) => {
                 error!(
-                    "[Proxy-Stream] Error reading chunk {} from {}: {}",
-                    i, url_clone, e
+                    "[Proxy-Stream] Error at chunk #{} for {} (received {}KB so far): {}",
+                    i,
+                    url_clone,
+                    total_bytes / 1024,
+                    e
                 );
                 Err(std::io::Error::other(e))
             }
         });
+    info!(
+        "[Proxy] Starting stream relay for {} (streaming={})",
+        url_clone2, is_streaming
+    );
 
     let body = Body::from_stream(stream);
     Ok((status, resp_headers, body))

@@ -164,6 +164,7 @@ export const callCohereChatApi = async (
         forceProxy: options.forceProxy,
         relaxIdCerts: options.relaxIdCerts,
         http1Only: options.http1Only,
+        isStreaming: true,
       },
       options.timeout,
       options.signal

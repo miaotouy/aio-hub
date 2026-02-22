@@ -146,6 +146,7 @@ const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubl
     isDetached: props.isDetached || false,
     textareaRef,
     extraHeight: attachmentsHeight,
+    isExpanded,
     onResizeStart: () => {
       isExpanded.value = false;
     },

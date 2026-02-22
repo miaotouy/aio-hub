@@ -4,6 +4,7 @@ interface UseMessageInputResizeOptions {
   isDetached: boolean;
   textareaRef: Ref<any>;
   extraHeight?: Ref<number>; // 附件等额外组件占据的高度
+  isExpanded?: Ref<boolean>; // 展开状态
   onResizeStart?: () => void;
 }
 
@@ -12,7 +13,7 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
   const startY = ref(0);
   const startHeight = ref(0);
   const customHeight = ref<string | number>("auto");
-  const customMaxHeight = ref<string | number>("70vh");
+  const customMaxHeight = ref<string | number | null>(null); // null 表示使用自动模式
 
   // 计算最终传给编辑器的实际高度
   const editorHeight = computed(() => {
@@ -21,12 +22,15 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
 
   // 计算最终传给编辑器的最大高度
   const editorMaxHeight = computed(() => {
+    const extra = options.extraHeight?.value || 0;
+    // 手动拖拽后 customMaxHeight 为数字，优先使用
     if (typeof customMaxHeight.value === "number") {
       return customMaxHeight.value;
     }
-    // 如果是默认的 70vh，需要减去 extraHeight 以防溢出
-    const extra = options.extraHeight?.value || 0;
-    return `calc(70vh - ${extra}px)`;
+    // 根据展开状态决定最大高度
+    const expanded = options.isExpanded?.value ?? false;
+    const maxVh = expanded ? 70 : 40;
+    return `calc(${maxVh}vh - ${extra}px)`;
   });
 
   // 鼠标移动处理
@@ -87,7 +91,7 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
   // 双击手柄重置高度
   const handleResizeDoubleClick = () => {
     customHeight.value = "auto";
-    customMaxHeight.value = "70vh";
+    customMaxHeight.value = null;
   };
 
   // 组件卸载时清理事件监听

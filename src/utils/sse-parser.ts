@@ -3,6 +3,10 @@
  * 用于处理流式响应
  */
 
+import { createModuleLogger } from "./logger";
+
+const logger = createModuleLogger("sse-parser");
+
 /**
  * SSE 事件数据
  */
@@ -52,10 +56,13 @@ export async function parseSSEStream(
       // 诊断：检测 \r\n 行分隔符（只在前几个 chunk 检测，避免性能影响）
       if (_chunkCount <= 3 && !_crlfDetected && decoded.includes('\r\n')) {
         _crlfDetected = true;
-        console.warn('[SSE-Debug] 检测到 \\r\\n 行分隔符！服务器使用 CRLF，可能导致解析异常。chunk #' + _chunkCount);
+        logger.warn("检测到 CRLF 行分隔符，可能导致解析异常", { chunkIndex: _chunkCount });
       }
       if (_chunkCount === 1) {
-        console.log(`[SSE-Debug] 首个 chunk 大小: ${decoded.length} chars, 前100字符: ${JSON.stringify(decoded.slice(0, 100))}`);
+        logger.debug("首个 SSE chunk 接收", {
+          sizeChars: decoded.length,
+          preview: decoded.slice(0, 100),
+        });
       }
 
       buffer += decoded;

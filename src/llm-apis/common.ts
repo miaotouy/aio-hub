@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { loadAppSettings } from "@/utils/appSettings";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("llm-apis/common");
 
 /**
  * 默认配置
@@ -645,18 +648,27 @@ export const fetchWithTimeout = async (
       (!isNative && (options.forceProxy || options.relaxIdCerts || options.http1Only));
 
     if (useProxy) {
+      logger.debug("触发代理模式", {
+        hasLocalFile: options.hasLocalFile,
+        hasLocalFileInBody,
+        forceProxy: options.forceProxy,
+        relaxIdCerts: options.relaxIdCerts,
+        http1Only: options.http1Only,
+        networkStrategy: options.networkStrategy,
+      });
+
       let bodyObjForProxy: any = {}; // 默认为空对象
 
       if (options.body) {
         if (typeof options.body === "string") {
           const bodySize = options.body.length;
-          console.log(`[Proxy-Debug] body 类型: string, 大小: ${(bodySize / 1024).toFixed(1)}KB`);
+          logger.debug("代理 body 解析 (string)", { sizeKB: (bodySize / 1024).toFixed(1) });
           const t0 = performance.now();
           try {
             bodyObjForProxy = JSON.parse(options.body);
-            console.log(`[Proxy-Debug] JSON.parse(string) 耗时: ${(performance.now() - t0).toFixed(2)}ms`);
+            logger.debug("代理 body JSON.parse 完成", { elapsedMs: (performance.now() - t0).toFixed(2) });
           } catch (e) {
-            console.warn(`[Proxy-Debug] JSON.parse(string) 失败:`, e);
+            logger.warn("代理 body JSON.parse 失败", { error: String(e) });
             // 如果不是 JSON，则无法通过代理处理
             if (!options.forceProxy) {
               return await window.fetch(url, {
@@ -667,17 +679,17 @@ export const fetchWithTimeout = async (
           }
         } else if (options.body instanceof Uint8Array) {
           const bodySize = options.body.byteLength;
-          console.log(`[Proxy-Debug] body 类型: Uint8Array, 大小: ${(bodySize / 1024).toFixed(1)}KB`);
+          logger.debug("代理 body 解析 (Uint8Array)", { sizeKB: (bodySize / 1024).toFixed(1) });
           const t0 = performance.now();
           try {
             const decoder = new TextDecoder();
             const decoded = decoder.decode(options.body);
             const t1 = performance.now();
-            console.log(`[Proxy-Debug] TextDecoder.decode 耗时: ${(t1 - t0).toFixed(2)}ms`);
+            logger.debug("代理 body TextDecoder.decode 完成", { decodeMs: (t1 - t0).toFixed(2) });
             bodyObjForProxy = JSON.parse(decoded);
-            console.log(`[Proxy-Debug] JSON.parse(Uint8Array) 耗时: ${(performance.now() - t1).toFixed(2)}ms`);
+            logger.debug("代理 body JSON.parse 完成", { parseMs: (performance.now() - t1).toFixed(2) });
           } catch (e) {
-            console.warn(`[Proxy-Debug] Uint8Array decode/parse 失败:`, e);
+            logger.warn("代理 body Uint8Array decode/parse 失败", { error: String(e) });
             if (!options.forceProxy) {
               return await window.fetch(url, {
                 ...options,
@@ -687,7 +699,6 @@ export const fetchWithTimeout = async (
           }
         }
       }
-
       // 确保代理服务已启动
       // 优先使用环境变量配置的端口，支持多实例开发
       const PROXY_PORT = parseInt(import.meta.env.VITE_AIO_PROXY_PORT || "16655");
@@ -719,7 +730,10 @@ export const fetchWithTimeout = async (
       };
       const t2 = performance.now();
       const proxyBodyStr = JSON.stringify(proxyPayload);
-      console.log(`[Proxy-Debug] 代理请求 JSON.stringify 耗时: ${(performance.now() - t2).toFixed(2)}ms, 最终大小: ${(proxyBodyStr.length / 1024).toFixed(1)}KB`);
+      logger.debug("代理请求 payload 序列化完成", {
+        stringifyMs: (performance.now() - t2).toFixed(2),
+        finalSizeKB: (proxyBodyStr.length / 1024).toFixed(1),
+      });
 
       return await window.fetch(`http://127.0.0.1:${PROXY_PORT}/proxy`, {
         method: "POST",

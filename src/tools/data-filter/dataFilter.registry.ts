@@ -23,6 +23,7 @@ export default class DataFilterRegistry implements ToolRegistry {
       methods: [
         {
           name: "applyFilter",
+          displayName: "数据筛选",
           agentCallable: true,
           description:
             "对文件中的 JSON/YAML 数组数据进行过滤。conditions 参数应为 JSON 字符串格式的数组。",

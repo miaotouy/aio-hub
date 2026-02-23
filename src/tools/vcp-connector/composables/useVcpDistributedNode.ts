@@ -108,6 +108,7 @@ export function useVcpDistributedNode() {
   function convertToManifest(toolId: string, method: any): VcpToolManifest {
     return {
       name: `${toolId}:${method.name}`,
+      displayName: `[AIO] ${method.displayName || method.name}`,
       description: method.description || "",
       parameters: {
         type: "object",

@@ -40,6 +40,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
       methods: [
         {
           name: 'generateTree',
+          displayName: '生成目录树',
           description: '根据配置选项生成目录树结构',
           agentCallable: true,
           parameters: [

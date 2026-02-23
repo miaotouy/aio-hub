@@ -67,6 +67,7 @@ const result = await service.loadFile('/path/to/file.txt');
         },
         {
           name: "generatePatch",
+          displayName: "生成 Diff 补丁",
           agentCallable: true,
           description: "生成统一 diff 补丁",
           parameters: [

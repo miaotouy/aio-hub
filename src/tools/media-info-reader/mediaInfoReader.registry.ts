@@ -91,6 +91,7 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
       methods: [
         {
           name: "readImageMetadata",
+          displayName: "读取图片 AI 元数据",
           agentCallable: true,
           description: "[Agent 调用] 从指定的图片文件路径读取并解析 AI 元数据。",
           parameters: [

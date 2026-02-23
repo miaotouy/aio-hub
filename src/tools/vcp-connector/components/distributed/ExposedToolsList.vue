@@ -23,13 +23,18 @@
           <el-option
             v-for="tool in availableTools"
             :key="tool.fullId"
-            :label="tool.fullId"
+            :label="tool.displayName ? `${tool.displayName} (${tool.fullId})` : tool.fullId"
             :value="tool.fullId"
           >
             <div class="option-content">
-              <span>{{ tool.fullId }}</span>
-              <el-tag v-if="tool.isAgent" size="small" type="success" effect="plain">AI</el-tag>
-              <el-tag v-if="tool.isExposed" size="small" type="info" effect="plain">已暴露</el-tag>
+              <div class="option-name-group">
+                <span class="option-display-name">{{ tool.displayName || tool.fullId.split(':')[1] }}</span>
+                <span class="option-full-id">{{ tool.fullId }}</span>
+              </div>
+              <div class="option-tags">
+                <el-tag v-if="tool.isAgent" size="small" type="success" effect="plain">AI</el-tag>
+                <el-tag v-if="tool.isExposed" size="small" type="info" effect="plain">已暴露</el-tag>
+              </div>
             </div>
           </el-option>
         </el-select>
@@ -191,6 +196,7 @@ const displayTools = computed(() => {
 
           results.push({
             name: fullId,
+            displayName: method.displayName || method.name,
             description: method.description || "",
             parameters: method.parameters,
             isAuto: true,
@@ -210,15 +216,18 @@ const displayTools = computed(() => {
     const [toolId, methodName] = fullId.split(":");
     let description = "";
     let parameters = null;
+    let displayName = methodName;
     try {
       const registry = toolRegistryManager.getRegistry(toolId);
       const method = registry.getMetadata?.()?.methods.find((m) => m.name === methodName);
       description = method?.description || "";
       parameters = method?.parameters || null;
+      displayName = method?.displayName || methodName;
     } catch (e) {}
 
     results.push({
       name: fullId,
+      displayName,
       description,
       parameters,
       isAuto: false,
@@ -245,7 +254,7 @@ function handleToggleEnabled(fullId: string, enabled: any) {
  */
 const availableTools = computed(() => {
   const allTools = toolRegistryManager.getAllTools();
-  const options: { fullId: string; isAgent: boolean; isExposed: boolean }[] = [];
+  const options: { fullId: string; displayName: string; isAgent: boolean; isExposed: boolean }[] = [];
 
   const currentIds = new Set(displayTools.value.map((t) => t.name));
 
@@ -257,6 +266,7 @@ const availableTools = computed(() => {
       const fullId = `${tool.id}:${method.name}`;
       options.push({
         fullId,
+        displayName: method.displayName || "",
         isAgent: !!method.agentCallable,
         isExposed: currentIds.has(fullId),
       });
@@ -323,6 +333,38 @@ function addTool() {
   align-items: center;
   width: 100%;
   gap: 8px;
+}
+
+.option-name-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.option-display-name {
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-full-id {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  font-family: var(--el-font-family-mono);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-tags {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .tools-container {

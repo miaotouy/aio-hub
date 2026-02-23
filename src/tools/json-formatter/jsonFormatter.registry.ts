@@ -29,6 +29,7 @@ export default class JsonFormatterRegistry implements ToolRegistry {
       methods: [
         {
           name: 'formatJson',
+          displayName: 'JSON 格式化',
           agentCallable: true,
           description: '格式化 JSON 字符串或文件。支持通过 text 直接传入 JSON 文本，或通过 filePath 指定文件路径自动读取。两者至少提供一个，优先使用 filePath。',
           parameters: [

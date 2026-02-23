@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, onUnmounted, type Component, watch } from "vue";
-import { Loading } from '@element-plus/icons-vue';
+import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { listen } from "@tauri-apps/api/event";
@@ -10,7 +10,7 @@ import { useTheme } from "../composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "../composables/useThemeAppearance";
 import { createModuleLogger } from "../utils/logger";
 import { getDetachableComponentConfig, loadDetachableComponent } from "../config/detachable-components";
-import { loadAppSettingsAsync } from "../utils/appSettings";
+import { useAppSettingsStore } from "../stores/appSettingsStore";
 import { applyThemeColors } from "../utils/themeColors";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import GlobalProviders from "../components/GlobalProviders.vue";
@@ -18,6 +18,7 @@ import { createModuleErrorHandler, ErrorLevel } from "../utils/errorHandler";
 
 const logger = createModuleLogger("DetachedComponentContainer");
 const errorHandler = createModuleErrorHandler("DetachedComponentContainer");
+const appSettingsStore = useAppSettingsStore();
 
 const route = useRoute();
 const { currentTheme } = useTheme();
@@ -31,7 +32,7 @@ const componentProps = ref<Record<string, any>>({});
 const componentEventListeners = ref<Record<string, any>>({});
 
 // 当前组件 ID
-const currentComponentId = ref<string>('');
+const currentComponentId = ref<string>("");
 
 // 路由变化监听
 watch(
@@ -63,17 +64,16 @@ onMounted(async () => {
   try {
     // 传入 true 标识这是分离窗口，将禁用根元素壁纸防止双重显示
     await initThemeAppearance(true);
-    logger.info('分离组件窗口主题外观系统已初始化');
-    
+    logger.info("分离组件窗口主题外观系统已初始化");
+
     // 组件悬浮窗壁纸显示由组件内部控制（如 ChatArea 的 showWallpaperInDetachedMode）
     // 不再强制禁用全局壁纸变量，以便组件按需使用
   } catch (error) {
-    logger.warn('初始化分离组件窗口主题外观失败', { error });
+    logger.warn("初始化分离组件窗口主题外观失败", { error });
   }
-
   // 加载并应用主题色系统
   try {
-    const settings = await loadAppSettingsAsync();
+    const settings = appSettingsStore.settings;
     applyThemeColors({
       primary: settings.themeColor,
       success: settings.successColor,
@@ -81,7 +81,7 @@ onMounted(async () => {
       danger: settings.dangerColor,
       info: settings.infoColor,
     });
-    logger.info('分离组件窗口主题色已应用', {
+    logger.info("分离组件窗口主题色已应用", {
       themeColor: settings.themeColor,
       successColor: settings.successColor,
       warningColor: settings.warningColor,
@@ -89,7 +89,7 @@ onMounted(async () => {
       infoColor: settings.infoColor,
     });
   } catch (error) {
-    logger.warn('应用分离组件窗口主题色失败', { error });
+    logger.warn("应用分离组件窗口主题色失败", { error });
   }
 
   logger.info("DetachedComponentContainer 挂载", {
@@ -105,8 +105,8 @@ onMounted(async () => {
 
       // 使用新的统一命令检查窗口是否已固定
       const windows = await invoke<Array<{ id: string; label: string }>>("get_all_detached_windows");
-      const isFinalized = windows.some(w => w.label === label);
-      
+      const isFinalized = windows.some((w) => w.label === label);
+
       logger.info("窗口固定状态检查结果", { label, isFinalized });
 
       if (isFinalized) {
@@ -141,7 +141,7 @@ onMounted(async () => {
 
         // 从注册表获取组件配置
         const componentConfig = getDetachableComponentConfig(id);
-        
+
         if (componentConfig) {
           logger.info("正在加载组件", { id });
 
@@ -150,24 +150,28 @@ onMounted(async () => {
             logger.info("执行组件的环境初始化钩子", { id });
             componentConfig.initializeEnvironment();
           }
-          
+
           // 加载组件
           componentToRender.value = loadDetachableComponent(id);
-          
+
           // 执行逻辑钩子获取 props 和 listeners
           const logicResult = componentConfig.logicHook();
           componentProps.value = logicResult.props.value;
           componentEventListeners.value = logicResult.listeners;
-          
+
           // 监听 props 的变化（因为 logicResult.props 是响应式的）
-          watch(logicResult.props, (newProps) => {
-            componentProps.value = newProps;
-          }, { deep: true });
-          
+          watch(
+            logicResult.props,
+            (newProps) => {
+              componentProps.value = newProps;
+            },
+            { deep: true }
+          );
+
           logger.info("组件加载成功", {
             id,
             propsKeys: Object.keys(componentProps.value),
-            listenersKeys: Object.keys(componentEventListeners.value)
+            listenersKeys: Object.keys(componentEventListeners.value),
           });
         } else {
           errorHandler.handle(new Error(`未找到或未注册可分离的组件: ${id}`), {
@@ -220,27 +224,23 @@ onUnmounted(() => {
     <GlobalProviders>
       <!-- 组件渲染区域 -->
       <div class="component-wrapper">
-      <Suspense v-if="componentToRender">
-        <component
-          :is="componentToRender"
-          v-bind="componentProps"
-          v-on="componentEventListeners"
-        />
-        <template #fallback>
-          <div class="loading-message">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <p>组件加载中...</p>
-          </div>
-        </template>
-      </Suspense>
-      <div v-else class="error-message">
-        <h2>组件加载失败</h2>
-        <p v-if="currentComponentId">
-          无法找到ID为 "<strong>{{ currentComponentId }}</strong
-          >" 的组件。
-        </p>
-        <p v-else>未指定要加载的组件ID。</p>
-      </div>
+        <Suspense v-if="componentToRender">
+          <component :is="componentToRender" v-bind="componentProps" v-on="componentEventListeners" />
+          <template #fallback>
+            <div class="loading-message">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <p>组件加载中...</p>
+            </div>
+          </template>
+        </Suspense>
+        <div v-else class="error-message">
+          <h2>组件加载失败</h2>
+          <p v-if="currentComponentId">
+            无法找到ID为 "<strong>{{ currentComponentId }}</strong
+            >" 的组件。
+          </p>
+          <p v-else>未指定要加载的组件ID。</p>
+        </div>
 
         <!-- 预览模式提示 -->
         <DetachPreviewHint :visible="isPreview" />

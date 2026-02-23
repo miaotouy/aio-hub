@@ -5,10 +5,7 @@
       <div class="home-skeleton">
         <!-- Header Skeleton -->
         <div class="header-section">
-          <el-skeleton-item
-            variant="text"
-            style="width: 150px; height: 40px; margin-bottom: 20px"
-          />
+          <el-skeleton-item variant="text" style="width: 150px; height: 40px; margin-bottom: 20px" />
           <el-skeleton-item variant="rect" style="width: 100%; max-width: 600px; height: 40px" />
         </div>
         <!-- Grid Skeleton -->
@@ -54,19 +51,16 @@
         <div class="tool-grid">
           <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
           <component
-            :is="isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
+            :is="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
             v-for="tool in filteredTools"
             :key="tool.path"
-            :to="isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
-            :class="[
-              'tool-card',
-              { 'tool-card-detached': isDetached(getToolIdFromPath(tool.path)) },
-            ]"
+            :to="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
+            :class="['tool-card', { 'tool-card-detached': detachedManager.isDetached(getToolIdFromPath(tool.path)) }]"
             @click="handleToolClick(tool.path)"
           >
             <!-- 已分离徽章（带下拉菜单） -->
             <el-dropdown
-              v-if="isDetached(getToolIdFromPath(tool.path))"
+              v-if="detachedManager.isDetached(getToolIdFromPath(tool.path))"
               class="detached-badge-dropdown"
               trigger="hover"
               @command="(command: string) => handleDropdownCommand(command, tool.path)"
@@ -96,11 +90,7 @@
           <div class="empty-text">
             {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
           </div>
-          <el-button
-            v-if="visibleTools.length === 0"
-            type="primary"
-            @click="router.push('/settings')"
-          >
+          <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
             前往设置页面配置工具
           </el-button>
         </div>
@@ -110,16 +100,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch, nextTick } from "vue";
+import { computed, onMounted, ref, nextTick } from "vue";
 import { useRouter } from "vue-router";
-import { loadAppSettingsAsync, type AppSettings } from "../utils/appSettings";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { customMessage } from "@/utils/customMessage";
 
 const router = useRouter();
 const toolsStore = useToolsStore();
-const { isDetached, focusWindow, closeWindow, initialize } = useDetachedManager();
+const appSettingsStore = useAppSettingsStore();
+const detachedManager = useDetachedManager();
 
 const isLoading = ref(true);
 // 搜索文本
@@ -134,16 +125,8 @@ const getToolIdFromPath = (path: string): string => {
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
-// 当前设置
-const settings = ref<AppSettings>({
-  sidebarCollapsed: false,
-  theme: "auto",
-  showTrayIcon: true,
-  minimizeToTray: true,
-  toolsVisible: {},
-  toolsOrder: [],
-  version: "1.0.0",
-});
+// 使用 store 中的设置
+const settings = computed(() => appSettingsStore.settings);
 // 获取所有分类
 const categories = computed(() => {
   const cats = new Set<string>(["全部"]);
@@ -183,8 +166,7 @@ const filteredTools = computed(() => {
   if (searchText.value.trim()) {
     const search = searchText.value.toLowerCase();
     result = result.filter(
-      (tool) =>
-        tool.name.toLowerCase().includes(search) || tool.description?.toLowerCase().includes(search)
+      (tool) => tool.name.toLowerCase().includes(search) || tool.description?.toLowerCase().includes(search)
     );
   }
 
@@ -195,8 +177,8 @@ const handleToolClick = async (toolPath: string) => {
   const toolId = getToolIdFromPath(toolPath);
 
   // 如果工具已分离，聚焦其窗口（此时是 div，不会触发导航）
-  if (isDetached(toolId)) {
-    await focusWindow(toolId);
+  if (detachedManager.isDetached(toolId)) {
+    await detachedManager.focusWindow(toolId);
     return;
   }
 
@@ -211,7 +193,7 @@ const handleDropdownCommand = async (command: string, toolPath: string) => {
     const toolId = getToolIdFromPath(toolPath);
 
     try {
-      const success = await closeWindow(toolId);
+      const success = await detachedManager.closeWindow(toolId);
       if (success) {
         customMessage.success("已取消分离");
       } else {
@@ -224,51 +206,16 @@ const handleDropdownCommand = async (command: string, toolPath: string) => {
   }
 };
 
-// 监听localStorage变化以实时更新（保留以防万一，但主要依赖路由变化）
-const handleStorageChange = async () => {
-  settings.value = await loadAppSettingsAsync();
-};
-
 onMounted(async () => {
   isLoading.value = true;
   try {
-    // 优先从缓存加载工具可见性，防止闪烁
-    try {
-      const cachedToolsVisible = localStorage.getItem("app-tools-visible");
-      if (cachedToolsVisible) {
-        settings.value.toolsVisible = JSON.parse(cachedToolsVisible);
-      }
-    } catch (error) {
-      // 忽略错误，后续会从文件加载
-    }
-
     // 初始化统一的分离窗口管理器
-    await initialize();
-
-    // 初始化时加载设置
-    settings.value = await loadAppSettingsAsync();
-    // 监听storage事件，以便在设置页面保存后实时更新
-    window.addEventListener("storage", handleStorageChange);
+    await detachedManager.initialize();
   } finally {
     await nextTick();
     isLoading.value = false;
   }
 });
-
-// 组件卸载时清理
-onUnmounted(() => {
-  window.removeEventListener("storage", handleStorageChange);
-});
-
-// 也可以通过路由守卫在从设置页返回时重新加载
-watch(
-  () => router.currentRoute.value.path,
-  async (newPath, oldPath) => {
-    if (oldPath === "/settings" && newPath === "/") {
-      settings.value = await loadAppSettingsAsync();
-    }
-  }
-);
 </script>
 
 <style scoped>

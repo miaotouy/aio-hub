@@ -1,14 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  onMounted,
-  onUnmounted,
-  ref,
-  shallowRef,
-  defineAsyncComponent,
-  type Component,
-  watch,
-} from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
 import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
@@ -18,7 +9,7 @@ import { useTheme } from "../composables/useTheme";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { initThemeAppearance, cleanupThemeAppearance } from "../composables/useThemeAppearance";
 import { createModuleLogger } from "../utils/logger";
-import { loadAppSettingsAsync } from "../utils/appSettings";
+import { useAppSettingsStore } from "../stores/appSettingsStore";
 import { applyThemeColors } from "../utils/themeColors";
 import { useToolsStore } from "../stores/tools";
 import TitleBar from "../components/TitleBar.vue";
@@ -28,6 +19,7 @@ import { createModuleErrorHandler } from "../utils/errorHandler";
 
 const logger = createModuleLogger("DetachedWindowContainer");
 const errorHandler = createModuleErrorHandler("DetachedWindowContainer");
+const appSettingsStore = useAppSettingsStore();
 
 const route = useRoute();
 const { currentTheme } = useTheme();
@@ -64,10 +56,9 @@ onMounted(async () => {
   } catch (error) {
     logger.warn("初始化分离窗口主题外观失败", { error });
   }
-
   // 加载并应用主题色系统
   try {
-    const settings = await loadAppSettingsAsync();
+    const settings = appSettingsStore.settings;
     applyThemeColors({
       primary: settings.themeColor,
       success: settings.successColor,
@@ -106,7 +97,11 @@ onMounted(async () => {
             logger.info("加载工具组件", { toolPath: toolPath.value, toolName: config.name });
             toolComponent.value = defineAsyncComponent(config.component);
           } catch (error) {
-            errorHandler.handle(error, { userMessage: "加载工具组件失败", context: { toolPath: toolPath.value }, showToUser: false });
+            errorHandler.handle(error, {
+              userMessage: "加载工具组件失败",
+              context: { toolPath: toolPath.value },
+              showToUser: false,
+            });
           }
         } else {
           errorHandler.handle(new Error(`未找到工具配置: ${toolPath.value}`), {
@@ -129,9 +124,7 @@ onMounted(async () => {
       const label = currentWindow.label;
       logger.info("检查窗口固定状态", { label });
 
-      const windows = await invoke<Array<{ id: string; label: string }>>(
-        "get_all_detached_windows"
-      );
+      const windows = await invoke<Array<{ id: string; label: string }>>("get_all_detached_windows");
       const isFinalized = windows.some((w) => w.label === label);
 
       logger.info("窗口固定状态检查结果", { label, isFinalized });

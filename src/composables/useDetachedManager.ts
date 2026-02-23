@@ -1,10 +1,10 @@
-import { ref, computed, readonly } from "vue";
+import { ref, computed, readonly, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getOrCreateInstance } from "@/utils/singleton";
-import { type AppSettings, loadAppSettings } from "@/utils/appSettings";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 const logger = createModuleLogger("DetachedManager");
 const errorHandler = createModuleErrorHandler("DetachedManager");
@@ -125,20 +125,22 @@ const useDetachedWindowManager = () => {
       });
 
       // 根据设置启动或停止定期位置检查
-      const settings = loadAppSettings();
-      if (settings.autoAdjustWindowPosition) {
+      const appSettingsStore = useAppSettingsStore();
+      if (appSettingsStore.settings.autoAdjustWindowPosition) {
         startPositionCheck();
       }
 
       // 监听设置变化，动态启停检查器
-      window.addEventListener("app-settings-changed", (event: Event) => {
-        const customEvent = event as CustomEvent<AppSettings>;
-        if (customEvent.detail.autoAdjustWindowPosition) {
-          startPositionCheck();
-        } else {
-          stopPositionCheck();
+      watch(
+        () => appSettingsStore.settings.autoAdjustWindowPosition,
+        (newVal) => {
+          if (newVal) {
+            startPositionCheck();
+          } else {
+            stopPositionCheck();
+          }
         }
-      });
+      );
     } catch (error) {
       errorHandler.error(error, "初始化分离窗口管理器失败");
     }
@@ -150,8 +152,8 @@ const useDetachedWindowManager = () => {
   const startPositionCheck = () => {
     if (positionCheckInterval !== null) return;
 
-    const settings = loadAppSettings();
-    if (!settings.autoAdjustWindowPosition) {
+    const appSettingsStore = useAppSettingsStore();
+    if (!appSettingsStore.settings.autoAdjustWindowPosition) {
       logger.info("自动调整窗口位置功能已禁用，不启动检查器");
       return;
     }
@@ -314,5 +316,4 @@ const useDetachedWindowManager = () => {
   };
 };
 
-export const useDetachedManager = () =>
-  getOrCreateInstance("DetachedManager", useDetachedWindowManager);
+export const useDetachedManager = () => getOrCreateInstance("DetachedManager", useDetachedWindowManager);

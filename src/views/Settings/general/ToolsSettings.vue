@@ -4,7 +4,7 @@ import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
 import { VueDraggableNext } from "vue-draggable-next";
 import { ref, onMounted } from "vue";
-import { updateAppSettings } from "@/utils/appSettings";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -14,6 +14,7 @@ interface ToolsVisible {
 }
 const toolsVisible = defineModel<ToolsVisible>("toolsVisible", { required: true });
 const toolsStore = useToolsStore();
+const appSettingsStore = useAppSettingsStore();
 const errorHandler = createModuleErrorHandler("Settings/ToolsSettings");
 
 // 从路径提取工具ID
@@ -76,7 +77,7 @@ const onDragEnd = () => {
   }
 
   try {
-    updateAppSettings({ toolsOrder: newOrder });
+    appSettingsStore.update({ toolsOrder: newOrder });
     // 同步更新 store 中的顺序状态，使其他组件立即响应
     toolsStore.updateOrder(newOrder);
     customMessage.success("工具顺序已更新");
@@ -89,7 +90,7 @@ const onDragEnd = () => {
 const resetOrder = () => {
   try {
     // 清除保存的顺序设置
-    updateAppSettings({ toolsOrder: [] });
+    appSettingsStore.update({ toolsOrder: [] });
     // 同步更新 store 中的顺序状态
     toolsStore.updateOrder([]);
     // 重置为原始顺序（此时 store 的 orderedTools 会自动返回未排序的列表）
@@ -113,16 +114,10 @@ const resetOrder = () => {
         </el-tooltip>
       </div>
       <div class="batch-actions">
-        <el-button
-          size="small"
-          @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = true))"
-        >
+        <el-button size="small" @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = true))">
           全选
         </el-button>
-        <el-button
-          size="small"
-          @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = false))"
-        >
+        <el-button size="small" @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = false))">
           全不选
         </el-button>
         <el-button size="small" @click="resetOrder"> 重置顺序 </el-button>

@@ -2,21 +2,21 @@
  * CSS 覆盖功能的核心逻辑
  */
 
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { watchDebounced } from '@vueuse/core';
-import { builtInCssPresets, getPresetById } from '@/config/css-presets';
-import type { CssPreset, UserCssSettings } from '@/types/css-override';
-import { loadAppSettings, updateAppSettings } from '@/utils/appSettings';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { customMessage } from '@/utils/customMessage';
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { watchDebounced } from "@vueuse/core";
+import { builtInCssPresets, getPresetById } from "@/config/css-presets";
+import type { CssPreset, UserCssSettings } from "@/types/css-override";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
 
-const moduleLogger = createModuleLogger('css-overrides');
-const errorHandler = createModuleErrorHandler('css-overrides');
+const moduleLogger = createModuleLogger("css-overrides");
+const errorHandler = createModuleErrorHandler("css-overrides");
 
 export function useCssOverrides() {
   // ========== 状态管理 ==========
-  
+
   /**
    * 内置预设列表
    */
@@ -28,8 +28,8 @@ export function useCssOverrides() {
   const userSettings = ref<UserCssSettings>({
     enabled: false,
     basedOnPresetId: null,
-    customContent: '',
-    pureCustomContent: '',
+    customContent: "",
+    pureCustomContent: "",
     userPresets: [],
     selectedPresetId: null,
   });
@@ -37,20 +37,17 @@ export function useCssOverrides() {
   /**
    * 合并后的所有预设列表（内置 + 用户自定义）
    */
-  const allPresets = computed(() => [
-    ...builtInPresets.value,
-    ...userSettings.value.userPresets,
-  ]);
+  const allPresets = computed(() => [...builtInPresets.value, ...userSettings.value.userPresets]);
 
   /**
    * 编辑器当前内容（与编辑器双向绑定）
    */
-  const editorContent = ref<string>('');
+  const editorContent = ref<string>("");
 
   /**
    * 预览内容（选中预设时的预览）
    */
-  const previewContent = ref<string>('');
+  const previewContent = ref<string>("");
 
   /**
    * 是否处于预览模式
@@ -60,13 +57,13 @@ export function useCssOverrides() {
   /**
    * 保存状态
    */
-  const saveStatus = ref<'unsaved' | 'saving' | 'saved'>('saved');
+  const saveStatus = ref<"unsaved" | "saving" | "saved">("saved");
 
   /**
    * 显示的内容（预览模式显示预览内容，否则显示编辑器内容）
    */
   const displayContent = computed({
-    get: () => isPreviewMode.value ? previewContent.value : editorContent.value,
+    get: () => (isPreviewMode.value ? previewContent.value : editorContent.value),
     set: (value: string) => {
       if (!isPreviewMode.value) {
         editorContent.value = value;
@@ -108,34 +105,35 @@ export function useCssOverrides() {
    */
   function loadSettings() {
     try {
-      const appSettings = loadAppSettings();
+      const appSettingsStore = useAppSettingsStore();
+      const appSettings = appSettingsStore.settings;
       if (appSettings.cssOverride) {
         userSettings.value = { ...appSettings.cssOverride };
 
         // 向后兼容：将旧的 customContent 迁移到 pureCustomContent
-        if (typeof userSettings.value.pureCustomContent === 'undefined') {
+        if (typeof userSettings.value.pureCustomContent === "undefined") {
           if (userSettings.value.basedOnPresetId === null) {
             userSettings.value.pureCustomContent = userSettings.value.customContent;
-            userSettings.value.customContent = ''; // Clear old field if it was pure custom
+            userSettings.value.customContent = ""; // Clear old field if it was pure custom
           } else {
-            userSettings.value.pureCustomContent = ''; // Initialize for preset-based users
+            userSettings.value.pureCustomContent = ""; // Initialize for preset-based users
           }
         }
 
         // 将正确的内容加载到编辑器中
         if (userSettings.value.basedOnPresetId === null) {
-          editorContent.value = userSettings.value.pureCustomContent || '';
+          editorContent.value = userSettings.value.pureCustomContent || "";
         } else {
           editorContent.value = userSettings.value.customContent;
         }
-        
-        moduleLogger.info('用户 CSS 配置加载成功', {
+
+        moduleLogger.info("用户 CSS 配置加载成功", {
           enabled: userSettings.value.enabled,
           basedOnPresetId: userSettings.value.basedOnPresetId,
         });
       }
     } catch (error) {
-      errorHandler.error(error, '加载 CSS 配置失败');
+      errorHandler.error(error, "加载 CSS 配置失败");
     }
   }
 
@@ -144,8 +142,8 @@ export function useCssOverrides() {
    */
   function saveSettings() {
     try {
-      saveStatus.value = 'saving';
-      
+      saveStatus.value = "saving";
+
       // 更新 userSettings
       if (userSettings.value.basedOnPresetId === null) {
         // 纯自定义模式
@@ -154,21 +152,22 @@ export function useCssOverrides() {
         // 基于预设模式
         userSettings.value.customContent = editorContent.value;
       }
-      
+
       // 保存到 appSettings（使用防抖）
-      updateAppSettings({
+      const appSettingsStore = useAppSettingsStore();
+      appSettingsStore.update({
         cssOverride: { ...userSettings.value },
       });
 
-      saveStatus.value = 'saved';
-      moduleLogger.info('CSS 配置已保存', {
+      saveStatus.value = "saved";
+      moduleLogger.info("CSS 配置已保存", {
         enabled: userSettings.value.enabled,
         basedOnPresetId: userSettings.value.basedOnPresetId,
         contentLength: editorContent.value.length,
       });
     } catch (error) {
-      saveStatus.value = 'unsaved';
-      errorHandler.error(error, '保存 CSS 配置失败');
+      saveStatus.value = "unsaved";
+      errorHandler.error(error, "保存 CSS 配置失败");
     }
   }
 
@@ -185,16 +184,16 @@ export function useCssOverrides() {
   function selectPreset(presetId: string) {
     const preset = getPreset(presetId);
     if (!preset) {
-      moduleLogger.warn('预设不存在', { presetId });
-      customMessage.warning('预设不存在');
+      moduleLogger.warn("预设不存在", { presetId });
+      customMessage.warning("预设不存在");
       return;
     }
 
     userSettings.value.selectedPresetId = presetId;
     previewContent.value = preset.content;
     isPreviewMode.value = true;
-    
-    moduleLogger.info('已选中预设（预览模式）', {
+
+    moduleLogger.info("已选中预设（预览模式）", {
       presetId,
       presetName: preset.name,
     });
@@ -209,12 +208,12 @@ export function useCssOverrides() {
 
     // 恢复编辑器内容为当前激活的配置
     if (userSettings.value.basedOnPresetId === null) {
-      editorContent.value = userSettings.value.pureCustomContent || '';
+      editorContent.value = userSettings.value.pureCustomContent || "";
     } else {
       editorContent.value = userSettings.value.customContent;
     }
-    
-    moduleLogger.info('已选中纯自定义');
+
+    moduleLogger.info("已选中纯自定义");
   }
 
   /**
@@ -224,17 +223,17 @@ export function useCssOverrides() {
     if (userSettings.value.selectedPresetId === null) {
       // 应用纯自定义
       userSettings.value.basedOnPresetId = null;
-      editorContent.value = userSettings.value.pureCustomContent || '';
+      editorContent.value = userSettings.value.pureCustomContent || "";
       isPreviewMode.value = false;
-      moduleLogger.info('已应用纯自定义');
-      customMessage.success('已切换到纯自定义模式');
+      moduleLogger.info("已应用纯自定义");
+      customMessage.success("已切换到纯自定义模式");
       return;
     }
 
     const preset = getPreset(userSettings.value.selectedPresetId);
     if (!preset) {
-      moduleLogger.warn('预设不存在', { presetId: userSettings.value.selectedPresetId });
-      customMessage.warning('预设不存在');
+      moduleLogger.warn("预设不存在", { presetId: userSettings.value.selectedPresetId });
+      customMessage.warning("预设不存在");
       return;
     }
 
@@ -242,12 +241,12 @@ export function useCssOverrides() {
     editorContent.value = previewContent.value;
     userSettings.value.basedOnPresetId = userSettings.value.selectedPresetId;
     isPreviewMode.value = false;
-    
-    moduleLogger.info('已应用预设', {
+
+    moduleLogger.info("已应用预设", {
       presetId: preset.id,
       presetName: preset.name,
     });
-    
+
     customMessage.success(`已应用预设：${preset.name}`);
   }
 
@@ -259,19 +258,19 @@ export function useCssOverrides() {
     const newPreset: CssPreset = {
       id,
       name,
-      description: '用户自定义预设',
+      description: "用户自定义预设",
       content: editorContent.value,
     };
 
     userSettings.value.userPresets.push(newPreset);
     userSettings.value.basedOnPresetId = id;
     userSettings.value.selectedPresetId = id;
-    
-    moduleLogger.info('已添加用户预设', {
+
+    moduleLogger.info("已添加用户预设", {
       presetId: id,
       presetName: name,
     });
-    
+
     customMessage.success(`已添加预设：${name}`);
   }
 
@@ -281,7 +280,7 @@ export function useCssOverrides() {
   function deleteUserPreset(presetId: string) {
     const index = userSettings.value.userPresets.findIndex((p) => p.id === presetId);
     if (index === -1) {
-      customMessage.warning('预设不存在');
+      customMessage.warning("预设不存在");
       return;
     }
 
@@ -297,12 +296,12 @@ export function useCssOverrides() {
     if (userSettings.value.selectedPresetId === presetId) {
       userSettings.value.selectedPresetId = null;
     }
-    
-    moduleLogger.info('已删除用户预设', {
+
+    moduleLogger.info("已删除用户预设", {
       presetId,
       presetName: preset.name,
     });
-    
+
     customMessage.success(`已删除预设：${preset.name}`);
   }
 
@@ -311,16 +310,16 @@ export function useCssOverrides() {
    */
   function restoreToPreset() {
     if (!currentPreset.value) {
-      customMessage.warning('当前不是基于预设的配置');
+      customMessage.warning("当前不是基于预设的配置");
       return;
     }
 
     editorContent.value = currentPreset.value.content;
-    moduleLogger.info('已还原到预设', {
+    moduleLogger.info("已还原到预设", {
       presetId: currentPreset.value.id,
       presetName: currentPreset.value.name,
     });
-    
+
     customMessage.success(`已还原到预设：${currentPreset.value.name}`);
   }
 
@@ -331,45 +330,45 @@ export function useCssOverrides() {
     userSettings.value.basedOnPresetId = null;
     userSettings.value.selectedPresetId = null;
     isPreviewMode.value = false;
-    moduleLogger.info('已切换到自定义模式');
+    moduleLogger.info("已切换到自定义模式");
   }
 
   /**
    * 清空编辑器内容
    */
   function clearContent() {
-    editorContent.value = '';
+    editorContent.value = "";
     userSettings.value.basedOnPresetId = null;
-    moduleLogger.info('已清空 CSS 内容');
-    customMessage.success('已清空内容');
+    moduleLogger.info("已清空 CSS 内容");
+    customMessage.success("已清空内容");
   }
 
   /**
    * 动态应用 CSS 到页面
    */
   function applyCssToPage() {
-    const styleId = 'custom-css-override';
+    const styleId = "custom-css-override";
     let styleElement = document.getElementById(styleId) as HTMLStyleElement | null;
 
     // 如果未启用或内容为空，移除 style 标签
     if (!userSettings.value.enabled || !editorContent.value.trim()) {
       if (styleElement) {
         styleElement.remove();
-        moduleLogger.info('已移除自定义 CSS');
+        moduleLogger.info("已移除自定义 CSS");
       }
       return;
     }
 
     // 如果 style 标签不存在，创建它
     if (!styleElement) {
-      styleElement = document.createElement('style');
+      styleElement = document.createElement("style");
       styleElement.id = styleId;
       document.head.appendChild(styleElement);
     }
 
     // 更新 CSS 内容
     styleElement.textContent = editorContent.value;
-    moduleLogger.info('已应用自定义 CSS', {
+    moduleLogger.info("已应用自定义 CSS", {
       contentLength: editorContent.value.length,
     });
   }
@@ -382,7 +381,7 @@ export function useCssOverrides() {
   watchDebounced(
     editorContent,
     () => {
-      saveStatus.value = 'unsaved';
+      saveStatus.value = "unsaved";
       saveSettings();
     },
     { debounce: 500 }
@@ -408,7 +407,7 @@ export function useCssOverrides() {
     () => userSettings.value.enabled,
     (enabled) => {
       applyCssToPage();
-      moduleLogger.info(`CSS 覆盖已${enabled ? '启用' : '禁用'}`);
+      moduleLogger.info(`CSS 覆盖已${enabled ? "启用" : "禁用"}`);
     }
   );
 
@@ -417,12 +416,12 @@ export function useCssOverrides() {
   onMounted(() => {
     loadSettings();
     applyCssToPage();
-    moduleLogger.info('CSS 覆盖功能已初始化');
+    moduleLogger.info("CSS 覆盖功能已初始化");
   });
 
   onUnmounted(() => {
     // 在组件卸载时不移除 CSS，因为它应该全局生效
-    moduleLogger.info('CSS 覆盖 Composable 已卸载');
+    moduleLogger.info("CSS 覆盖 Composable 已卸载");
   });
 
   // ========== 导出 ==========

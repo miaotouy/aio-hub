@@ -5,7 +5,8 @@
 
 import { watch } from "vue";
 import { logger, LogLevel } from "@/utils/logger";
-import { loadAppSettings, type AppSettings } from "@/utils/appSettings";
+import { type AppSettings } from "@/utils/appSettings";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -61,8 +62,12 @@ export function useLogConfig() {
    */
   const initializeLogConfig = async () => {
     try {
-      const settings = await loadAppSettings();
-      applyLogConfig(settings);
+      const appSettingsStore = useAppSettingsStore();
+      // 确保已经加载
+      if (!appSettingsStore.isLoaded) {
+        await appSettingsStore.load();
+      }
+      applyLogConfig(appSettingsStore.settings);
     } catch (error) {
       errorHandler.handle(error, { userMessage: "初始化日志配置失败", showToUser: false });
     }

@@ -5,10 +5,11 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { updateAppSettings, loadAppSettings } from "@/utils/appSettings";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { resetAssetBasePathCache } from "@/composables/useAssetManager";
 
 const errorHandler = createModuleErrorHandler("Settings/AssetSettings");
+const appSettingsStore = useAppSettingsStore();
 
 // 资产路径配置
 const customAssetPath = ref<string>("");
@@ -20,8 +21,7 @@ const isLoading = ref(false);
 const loadConfig = async () => {
   try {
     isLoading.value = true;
-    const settings = loadAppSettings();
-    customAssetPath.value = settings.customAssetPath || "";
+    customAssetPath.value = appSettingsStore.settings.customAssetPath || "";
 
     // 获取默认路径
     defaultAssetPath.value = await invoke<string>("get_asset_base_path");
@@ -55,13 +55,12 @@ const selectCustomPath = async () => {
 // 保存配置
 const saveConfig = () => {
   try {
-    const oldSettings = loadAppSettings();
-    if (oldSettings.customAssetPath === customAssetPath.value) {
+    if (appSettingsStore.settings.customAssetPath === customAssetPath.value) {
       customMessage.info("资产路径未发生变化");
       return;
     }
 
-    updateAppSettings({ customAssetPath: customAssetPath.value });
+    appSettingsStore.update({ customAssetPath: customAssetPath.value });
     currentAssetPath.value = customAssetPath.value || defaultAssetPath.value;
 
     // 清除 useAssetManager 中的路径缓存，以便下次能获取到最新路径
@@ -132,13 +131,7 @@ onMounted(() => {
               <el-button :icon="FolderOpened" @click="selectCustomPath"> 选择目录 </el-button>
             </template>
           </el-input>
-          <el-button
-            v-if="customAssetPath"
-            @click="resetToDefault"
-            type="warning"
-            plain
-            style="margin-top: 8px"
-          >
+          <el-button v-if="customAssetPath" @click="resetToDefault" type="warning" plain style="margin-top: 8px">
             重置为默认
           </el-button>
         </div>

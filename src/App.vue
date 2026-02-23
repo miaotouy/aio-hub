@@ -7,11 +7,7 @@ import { ElMessageBox } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
 import { useDark } from "@vueuse/core";
 import { useDetachedManager } from "./composables/useDetachedManager";
-import {
-  loadAppSettingsAsync,
-  updateAppSettingsAsync,
-  type AppSettings,
-} from "./utils/appSettings";
+import { type AppSettings } from "./utils/appSettings";
 import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
 import { createModuleErrorHandler } from "./utils/errorHandler";
 import { applyThemeColors } from "./utils/themeColors";
@@ -23,6 +19,7 @@ import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useTh
 import { useDeepLinkHandler } from "./composables/useDeepLinkHandler";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import { useToolsStore } from "@/stores/tools";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 const logger = createModuleLogger("App");
 const errorHandler = createModuleErrorHandler("App");
@@ -36,9 +33,10 @@ useDeepLinkHandler();
 
 const route = useRoute();
 const router = useRouter();
-const { isDetached, initialize } = useDetachedManager();
+const detachedManager = useDetachedManager();
 const userProfileStore = useUserProfileStore();
 const toolsStore = useToolsStore();
+const appSettingsStore = useAppSettingsStore();
 const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
 const isDark = useDark(); // 监听主题模式
 
@@ -49,29 +47,23 @@ const isSpecialRoute = computed(() => {
   return path.startsWith("/detached-window/") || path.startsWith("/detached-component/");
 });
 
-// 应用设置
-const appSettings = ref<AppSettings>({
-  sidebarCollapsed: false,
-  sidebarMode: "sidebar",
-  theme: "auto",
-  toolsVisible: {},
-});
-
 // 监听 isCollapsed 变化并保存
 watch(isCollapsed, (newVal) => {
-  updateAppSettingsAsync({ sidebarCollapsed: newVal });
+  if (appSettingsStore.isLoaded && appSettingsStore.settings.sidebarCollapsed !== newVal) {
+    appSettingsStore.update({ sidebarCollapsed: newVal });
+  }
 });
 
 // 监听主题模式切换，重新应用颜色变体
 watch(isDark, () => {
   logger.info("主题模式切换，重新应用颜色");
-  if (appSettings.value.themeColor) {
+  if (appSettingsStore.settings.themeColor) {
     applyThemeColors({
-      primary: appSettings.value.themeColor,
-      success: appSettings.value.successColor,
-      warning: appSettings.value.warningColor,
-      danger: appSettings.value.dangerColor,
-      info: appSettings.value.infoColor,
+      primary: appSettingsStore.settings.themeColor,
+      success: appSettingsStore.settings.successColor,
+      warning: appSettingsStore.settings.warningColor,
+      danger: appSettingsStore.settings.dangerColor,
+      info: appSettingsStore.settings.infoColor,
     });
   }
 });
@@ -123,26 +115,7 @@ const applyLogConfig = (settings: AppSettings) => {
   }
 };
 
-// 监听设置变化（用于响应设置页面的更改）
-const loadSettings = async () => {
-  const settings = await loadAppSettingsAsync();
-  appSettings.value = settings;
-  isCollapsed.value = settings.sidebarCollapsed;
-
-  // 应用日志配置
-  applyLogConfig(settings);
-
-  // 主题设置由 useTheme 模块自动加载和应用
-  cacheToolsVisible(settings.toolsVisible);
-
-  // 应用主题色
-  if (settings.themeColor) {
-    applyThemeColors({ primary: settings.themeColor });
-  }
-};
-
 // 存储事件处理函数的引用，用于清理
-let handleSettingsChange: ((event: Event) => void) | null = null;
 let unlisten: (() => void) | null = null;
 let unlistenDetached: (() => void) | null = null;
 let unlistenAttached: (() => void) | null = null;
@@ -151,24 +124,25 @@ let unlistenCloseConfirmation: (() => void) | null = null;
 onMounted(async () => {
   isLoading.value = true;
   try {
-    // 优先从缓存加载工具可见性，防止闪烁
-    try {
-      const cachedToolsVisible = localStorage.getItem("app-tools-visible");
-      if (cachedToolsVisible) {
-        appSettings.value.toolsVisible = JSON.parse(cachedToolsVisible);
-      }
-    } catch (error) {
-      logger.warn("加载工具可见性缓存失败", { error });
-    }
-
     // 初始化统一的分离窗口管理器
-    await initialize();
+    await detachedManager.initialize();
 
     // 初始化工具顺序和标签
     toolsStore.initializeOrder();
 
-    // 初始加载设置
-    await loadSettings();
+    // 初始同步侧边栏折叠状态
+    isCollapsed.value = appSettingsStore.settings.sidebarCollapsed;
+
+    // 应用日志配置
+    applyLogConfig(appSettingsStore.settings);
+
+    // 缓存工具可见性
+    cacheToolsVisible(appSettingsStore.settings.toolsVisible);
+
+    // 应用主题色
+    if (appSettingsStore.settings.themeColor) {
+      applyThemeColors({ primary: appSettingsStore.settings.themeColor });
+    }
 
     // 初始化用户档案
     await userProfileStore.loadProfiles();
@@ -182,28 +156,6 @@ onMounted(async () => {
     isLoading.value = false;
   }
 
-  // 监听设置变化事件（来自设置页面）- 这是主要的同步机制
-  handleSettingsChange = (event: Event) => {
-    const customEvent = event as CustomEvent<AppSettings>;
-    if (customEvent.detail) {
-      appSettings.value = customEvent.detail;
-      isCollapsed.value = customEvent.detail.sidebarCollapsed;
-
-      // 应用日志配置
-      applyLogConfig(customEvent.detail);
-
-      // 主题设置由 useTheme 模块处理
-      cacheToolsVisible(customEvent.detail.toolsVisible);
-
-      // 同步主题色
-      if (customEvent.detail.themeColor) {
-        applyThemeColors({ primary: customEvent.detail.themeColor });
-      }
-    }
-  };
-
-  window.addEventListener("app-settings-changed", handleSettingsChange);
-
   // 监听来自分离窗口的导航请求
   unlisten = await listen<{ sectionId: string }>("navigate-to-settings", (event) => {
     const { sectionId } = event.payload;
@@ -214,44 +166,38 @@ onMounted(async () => {
   });
 
   // 监听窗口分离事件，自动导航回主页
-  unlistenDetached = await listen<{ label: string; id: string; type: string }>(
-    "window-detached",
-    (event) => {
-      const { id, type } = event.payload;
+  unlistenDetached = await listen<{ label: string; id: string; type: string }>("window-detached", (event) => {
+    const { id, type } = event.payload;
 
-      // 只处理工具类型的分离
-      if (type === "tool") {
-        // 将工具ID（驼峰命名）转换为路由路径（短横线命名）
-        const toolPath = "/" + camelToKebab(id);
+    // 只处理工具类型的分离
+    if (type === "tool") {
+      // 将工具ID（驼峰命名）转换为路由路径（短横线命名）
+      const toolPath = "/" + camelToKebab(id);
 
-        logger.info("工具已分离，检查是否需要导航", {
-          toolId: id,
-          toolPath,
-          currentPath: route.path,
-        });
+      logger.info("工具已分离，检查是否需要导航", {
+        toolId: id,
+        toolPath,
+        currentPath: route.path,
+      });
 
-        // 如果当前路由正是被分离的工具页面，自动导航回主页
-        if (route.path === toolPath) {
-          logger.info("当前页面已分离，导航回主页", { from: toolPath });
-          router.push("/");
-        }
+      // 如果当前路由正是被分离的工具页面，自动导航回主页
+      if (route.path === toolPath) {
+        logger.info("当前页面已分离，导航回主页", { from: toolPath });
+        router.push("/");
       }
     }
-  );
+  });
 
   // 监听窗口重新附着事件，自动恢复工具标签
-  unlistenAttached = await listen<{ label: string; id: string; type: string }>(
-    "window-attached",
-    (event) => {
-      const { id, type } = event.payload;
+  unlistenAttached = await listen<{ label: string; id: string; type: string }>("window-attached", (event) => {
+    const { id, type } = event.payload;
 
-      if (type === "tool") {
-        const toolPath = "/" + camelToKebab(id);
-        logger.info("工具已重新附着，恢复标签页", { toolId: id, toolPath });
-        toolsStore.openTool(toolPath);
-      }
+    if (type === "tool") {
+      const toolPath = "/" + camelToKebab(id);
+      logger.info("工具已重新附着，恢复标签页", { toolId: id, toolPath });
+      toolsStore.openTool(toolPath);
     }
-  );
+  });
 
   // 监听关闭确认请求
   unlistenCloseConfirmation = await listen("request-close-confirmation", async () => {
@@ -278,28 +224,15 @@ watch(
     if (newPath === oldPath) return;
 
     // 自动打开工具标签
-    if (
-      newPath.startsWith("/") &&
-      newPath !== "/" &&
-      newPath !== "/settings" &&
-      newPath !== "/extensions"
-    ) {
+    if (newPath.startsWith("/") && newPath !== "/" && newPath !== "/settings" && newPath !== "/extensions") {
       // 检查路径是否已经是已打开的标签，避免重复触发
       if (toolsStore.openedToolPaths.includes(newPath)) return;
 
       // 如果工具已分离，不自动打开侧边栏标签
       const toolId = getToolIdFromPath(newPath);
-      if (!isDetached(toolId)) {
+      if (!detachedManager.isDetached(toolId)) {
         toolsStore.openTool(newPath);
       }
-    }
-
-    if (oldPath === "/settings") {
-      // 离开设置页面时从文件系统加载最新设置，确保数据同步
-      // 使用 setTimeout 避免与事件处理冲突
-      setTimeout(async () => {
-        await loadSettings();
-      }, 100);
     }
   }
 );
@@ -308,11 +241,6 @@ watch(
 onUnmounted(() => {
   // 清理主题外观资源
   cleanupThemeAppearance();
-
-  // 清理事件监听器
-  if (handleSettingsChange) {
-    window.removeEventListener("app-settings-changed", handleSettingsChange);
-  }
 
   // 清理 Tauri 事件监听器
   if (unlisten) {
@@ -366,12 +294,10 @@ onUnmounted(() => {
       <template v-else>
         <!-- 侧边栏 - 仅在非特殊路由且模式为 sidebar 时显示 -->
         <MainSidebar
-          v-if="
-            !isSpecialRoute && (!appSettings.sidebarMode || appSettings.sidebarMode === 'sidebar')
-          "
+          v-if="!isSpecialRoute && (!appSettingsStore.sidebarMode || appSettingsStore.sidebarMode === 'sidebar')"
           v-model:collapsed="isCollapsed"
-          :tools-visible="appSettings.toolsVisible || {}"
-          :is-detached="isDetached"
+          :tools-visible="appSettingsStore.toolsVisible || {}"
+          :is-detached="detachedManager.isDetached"
         />
 
         <el-container>

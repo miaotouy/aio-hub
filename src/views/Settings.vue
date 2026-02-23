@@ -5,12 +5,6 @@ import { ArrowLeft, RefreshRight } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useWindowSize } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
-import {
-  loadAppSettingsAsync,
-  saveAppSettingsDebounced,
-  resetAppSettingsAsync,
-  type AppSettings,
-} from "@utils/appSettings";
 import { applyThemeColors } from "@utils/themeColors";
 import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
@@ -18,6 +12,7 @@ import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useToolsStore } from "@/stores/tools";
 import { useTheme } from "../composables/useTheme";
 import { useLogConfig } from "../composables/useLogConfig";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 const errorHandler = createModuleErrorHandler("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();
@@ -25,6 +20,7 @@ const { applyLogConfig, watchLogConfig } = useLogConfig();
 const toolsStore = useToolsStore();
 const route = useRoute();
 const router = useRouter();
+const appSettingsStore = useAppSettingsStore();
 const isLoading = ref(true);
 
 const { width } = useWindowSize();
@@ -41,32 +37,8 @@ const getToolIdFromPath = (path: string): string => {
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
-// 应用设置
-const settings = ref<AppSettings>({
-  sidebarCollapsed: false,
-  theme: "auto",
-  showTrayIcon: true,
-  minimizeToTray: true,
-  themeColor: "#409eff",
-  successColor: "#67c23a",
-  warningColor: "#e6a23c",
-  dangerColor: "#f56c6c",
-  infoColor: "#909399",
-  proxy: {
-    mode: "system",
-    customUrl: "",
-  },
-  timezone: "auto",
-  toolsVisible: {},
-  toolsOrder: [],
-  // 日志配置
-  logLevel: "INFO",
-  logToFile: true,
-  logToConsole: true,
-  logBufferSize: 1000,
-  maxFileSize: 2 * 1024 * 1024,
-  version: "1.0.0",
-});
+// 使用 store 中的设置
+const settings = computed(() => appSettingsStore.settings);
 
 // 左侧导航状态与滚动容器
 // 左侧导航状态与滚动容器
@@ -206,20 +178,8 @@ const handleReset = async () => {
       type: "warning",
     });
 
-    isLoadingFromFile = true; // 防止触发不必要的事件
-    const defaultSettings = await resetAppSettingsAsync();
-    settings.value = { ...defaultSettings };
+    await appSettingsStore.reset();
     applyThemeFromComposable(settings.value.theme || "auto");
-
-    // 手动触发同步事件
-    setTimeout(() => {
-      isLoadingFromFile = false;
-      window.dispatchEvent(
-        new CustomEvent("app-settings-changed", {
-          detail: settings.value,
-        })
-      );
-    }, 100);
 
     customMessage.success("设置已重置到默认值");
   } catch (error) {
@@ -234,9 +194,7 @@ const handleReset = async () => {
 const onConfigImported = async (resultMessage: string) => {
   try {
     // 重新加载应用设置以反映变化
-    isLoadingFromFile = true;
-    const loadedSettings = await loadAppSettingsAsync();
-    settings.value = loadedSettings;
+    await appSettingsStore.load();
 
     // 应用主题
     applyThemeFromComposable(settings.value.theme || "auto");
@@ -248,36 +206,23 @@ const onConfigImported = async (resultMessage: string) => {
       info: settings.value.infoColor,
     });
 
-    // 手动触发同步事件
-    setTimeout(() => {
-      isLoadingFromFile = false;
-      window.dispatchEvent(
-        new CustomEvent("app-settings-changed", {
-          detail: settings.value,
-        })
-      );
-    }, 100);
-
     customMessage.success(resultMessage);
   } catch (error) {
     errorHandler.error(error, "导入配置后刷新设置失败");
   }
 };
 
-// 标记是否正在从文件加载设置，避免触发不必要的事件
-let isLoadingFromFile = false;
-
 // 监听暗黑模式变化，更新设置中的主题
 watch(isDark, (newValue) => {
-  // 如果正在加载文件或主题是自动模式，不处理
-  if (isLoadingFromFile || settings.value.theme === "auto") {
+  // 如果主题是自动模式，不处理
+  if (settings.value.theme === "auto") {
     return;
   }
 
   // 根据暗黑模式状态更新主题设置
   const newTheme = newValue ? "dark" : "light";
   if (settings.value.theme !== newTheme) {
-    settings.value.theme = newTheme;
+    appSettingsStore.update({ theme: newTheme });
   }
 });
 
@@ -285,8 +230,6 @@ watch(isDark, (newValue) => {
 watch(
   () => settings.value.showTrayIcon,
   async (newValue) => {
-    if (isLoadingFromFile) return;
-
     try {
       // 同步到 Rust 后端，动态创建/移除托盘
       await invoke("set_show_tray_icon", { show: newValue });
@@ -301,8 +244,6 @@ watch(
 watch(
   () => settings.value.minimizeToTray,
   async (newValue) => {
-    if (isLoadingFromFile) return;
-
     try {
       // 同步到 Rust 后端
       await invoke("update_tray_setting", { enabled: newValue });
@@ -362,18 +303,10 @@ watch(
   }
 );
 
-// 监听设置变化，自动保存并应用
+// 监听设置变化，自动应用（Store 内部处理保存）
 watch(
-  settings,
+  () => settings.value,
   (newSettings) => {
-    // 如果是从文件加载的，不触发事件
-    if (isLoadingFromFile) {
-      return;
-    }
-
-    // 保存设置到文件系统（使用防抖）
-    saveAppSettingsDebounced(newSettings);
-
     // 应用主题设置（使用统一的主题管理）
     if (newSettings.theme) {
       applyThemeFromComposable(newSettings.theme);
@@ -387,94 +320,63 @@ watch(
       danger: newSettings.dangerColor,
       info: newSettings.infoColor,
     });
-
-    // 发出事件通知设置已更改（用于实时同步到侧边栏）
-    window.dispatchEvent(
-      new CustomEvent("app-settings-changed", {
-        detail: newSettings,
-      })
-    );
   },
   { deep: true }
 );
 
-// 存储事件处理函数的引用
-let handleSettingsChange: ((event: Event) => void) | null = null;
-
 onMounted(async () => {
   isLoading.value = true;
   try {
-    // 标记正在加载
-    isLoadingFromFile = true;
-
-    // 异步加载设置
-    const loadedSettings = await loadAppSettingsAsync();
-
     // 确保 toolsVisible 包含所有工具（包括动态加载的插件）
-    if (!loadedSettings.toolsVisible) {
-      loadedSettings.toolsVisible = {};
+    if (!appSettingsStore.settings.toolsVisible) {
+      appSettingsStore.update({ toolsVisible: {} });
     }
 
     // 为每个工具设置默认可见状态（使用 toolsStore.orderedTools 包括插件）
+    const updates: Record<string, boolean> = { ...(appSettingsStore.settings.toolsVisible || {}) };
+    let hasUpdates = false;
     toolsStore.orderedTools.forEach((tool) => {
       const toolId = getToolIdFromPath(tool.path);
-      if (loadedSettings.toolsVisible![toolId] === undefined) {
-        loadedSettings.toolsVisible![toolId] = true;
+      if (updates[toolId] === undefined) {
+        updates[toolId] = true;
+        hasUpdates = true;
       }
     });
-
-    settings.value = loadedSettings;
+    if (hasUpdates) {
+      appSettingsStore.update({ toolsVisible: updates });
+    }
 
     // 应用日志配置
-    applyLogConfig(settings.value);
+    applyLogConfig(appSettingsStore.settings);
 
     // 监听日志配置变化
-    watchLogConfig(settings.value);
+    watchLogConfig(appSettingsStore.settings);
 
     // 应用主题（使用统一的主题管理）
-    applyThemeFromComposable(settings.value.theme || "auto");
+    applyThemeFromComposable(appSettingsStore.settings.theme || "auto");
 
     // 应用主题色系统
     applyThemeColors({
-      primary: settings.value.themeColor,
-      success: settings.value.successColor,
-      warning: settings.value.warningColor,
-      danger: settings.value.dangerColor,
-      info: settings.value.infoColor,
+      primary: appSettingsStore.settings.themeColor,
+      success: appSettingsStore.settings.successColor,
+      warning: appSettingsStore.settings.warningColor,
+      danger: appSettingsStore.settings.dangerColor,
+      info: appSettingsStore.settings.infoColor,
     });
 
     // 同步托盘设置到后端
     try {
-      await invoke("update_tray_setting", { enabled: settings.value.minimizeToTray || false });
+      await invoke("update_tray_setting", {
+        enabled: appSettingsStore.settings.minimizeToTray || false,
+      });
     } catch (error) {
       // 初始化时静默处理，只记录日志
       errorHandler.handle(error, {
         userMessage: "初始化系统托盘设置失败",
-        context: { enabled: settings.value.minimizeToTray || false },
+        context: { enabled: appSettingsStore.settings.minimizeToTray || false },
         showToUser: false,
       });
     }
-
-    // 监听来自侧边栏的设置变化事件
-    handleSettingsChange = (event: Event) => {
-      const customEvent = event as CustomEvent<AppSettings>;
-      if (customEvent.detail && customEvent.detail.theme) {
-        // 更新本地设置但不触发保存（因为侧边栏已经保存了）
-        isLoadingFromFile = true;
-        settings.value.theme = customEvent.detail.theme;
-        // 主题已经由 useTheme 统一管理，这里只需要同步本地状态
-        setTimeout(() => {
-          isLoadingFromFile = false;
-        }, 100);
-      }
-    };
-
-    window.addEventListener("app-settings-changed", handleSettingsChange);
-
-    // 加载完成后，允许触发事件
-    setTimeout(() => {
-      isLoadingFromFile = false;
-    }, 100);
 
     // 检查初始路由参数，可能需要跳转到特定区域
     checkRouteAndScroll(route.query);
@@ -488,7 +390,6 @@ onMounted(async () => {
     isLoading.value = false;
   }
 });
-
 // 监听加载状态，完成后初始化观察器
 watch(isLoading, (newVal) => {
   if (!newVal) {
@@ -521,9 +422,6 @@ watch(isMobile, () => {
 
 // 清理事件监听器
 onUnmounted(() => {
-  if (handleSettingsChange) {
-    window.removeEventListener("app-settings-changed", handleSettingsChange);
-  }
   if (contentRef.value) {
     contentRef.value.removeEventListener("scroll", handleScroll);
   }

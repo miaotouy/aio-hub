@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { loadAppSettings } from "@/utils/appSettings";
 import { createModuleLogger } from "@/utils/logger";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 const logger = createModuleLogger("llm-apis/common");
 
@@ -30,17 +30,17 @@ export interface VideoMetadata {
  */
 export type MediaSource =
   | {
-    /** 内联数据（Base64 字符串或二进制 Buffer） */
-    type: "base64";
-    media_type: string;
-    data: string | ArrayBuffer | Uint8Array;
-  }
+      /** 内联数据（Base64 字符串或二进制 Buffer） */
+      type: "base64";
+      media_type: string;
+      data: string | ArrayBuffer | Uint8Array;
+    }
   | {
-    /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
-    type: "file_uri";
-    file_uri: string;
-    mime_type: string;
-  };
+      /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
+      type: "file_uri";
+      file_uri: string;
+      mime_type: string;
+    };
 
 // =================================================================
 // 定义不同类型的消息内容
@@ -145,7 +145,7 @@ export interface LlmRequestOptions {
   /** 重排 (Rerank) 查询内容 */
   rerankQuery?: string;
   /** 重排 (Rerank) 待排序文档列表 */
-  rerankDocuments?: string[] | Array<{ text: string;[key: string]: any }>;
+  rerankDocuments?: string[] | Array<{ text: string; [key: string]: any }>;
 
   // OpenAI 兼容的高级参数
   /** Top-p 采样参数，介于 0 和 1 之间 */
@@ -229,25 +229,15 @@ export interface LlmRequestOptions {
   prediction?: {
     type: "content";
     content:
-    | string
-    | Array<{
-      type: "text";
-      text: string;
-    }>;
+      | string
+      | Array<{
+          type: "text";
+          text: string;
+        }>;
   };
   /** 音频输出参数 */
   audio?: {
-    voice:
-    | "alloy"
-    | "ash"
-    | "ballad"
-    | "coral"
-    | "echo"
-    | "fable"
-    | "nova"
-    | "onyx"
-    | "sage"
-    | "shimmer";
+    voice: "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 服务层级 */
@@ -392,16 +382,16 @@ export interface LlmResponse {
   refusal?: string | null;
   /** 停止原因 */
   finishReason?:
-  | "stop"
-  | "length"
-  | "content_filter"
-  | "tool_calls"
-  | "function_call"
-  | "end_turn"
-  | "max_tokens"
-  | "stop_sequence"
-  | "tool_use"
-  | null;
+    | "stop"
+    | "length"
+    | "content_filter"
+    | "tool_calls"
+    | "function_call"
+    | "end_turn"
+    | "max_tokens"
+    | "stop_sequence"
+    | "tool_use"
+    | null;
   /** 停止序列（Claude） */
   stopSequence?: string | null;
   /** 工具调用结果（函数调用） */
@@ -521,11 +511,7 @@ export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
 
   // 检查 message 属性
   const message = String(err.message || "").toLowerCase();
-  if (
-    message.includes("canceled") ||
-    message.includes("cancelled") ||
-    message.includes("aborted")
-  ) {
+  if (message.includes("canceled") || message.includes("cancelled") || message.includes("aborted")) {
     return true;
   }
 
@@ -640,8 +626,8 @@ export const fetchWithTimeout = async (
     // 1. 如果包含本地文件 (hasLocalFile)，则无论何种策略都必须走代理，因为原生 fetch 无法处理 local-file:// 协议
     // 2. 深度检测：如果 body 是字符串且包含 local-file://，也强制走代理（兜底逻辑）
     // 3. 否则，遵循非原生策略下的代理/强制代理/底层配置要求
-    const bodyString = typeof options.body === 'string' ? options.body : '';
-    const hasLocalFileInBody = bodyString.includes('local-file://');
+    const bodyString = typeof options.body === "string" ? options.body : "";
+    const hasLocalFileInBody = bodyString.includes("local-file://");
 
     const useProxy =
       options.hasLocalFile ||
@@ -711,12 +697,13 @@ export const fetchWithTimeout = async (
       }
 
       // 获取当前代理设置
-      const settings = loadAppSettings();
+      const appSettingsStore = useAppSettingsStore();
+      const settings = appSettingsStore.settings;
       const proxySettings = settings.proxy
         ? {
-          mode: settings.proxy.mode,
-          custom_url: settings.proxy.customUrl,
-        }
+            mode: settings.proxy.mode,
+            custom_url: settings.proxy.customUrl,
+          }
         : undefined;
 
       // 使用原生 fetch 请求本地代理

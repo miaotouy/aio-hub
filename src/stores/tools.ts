@@ -1,17 +1,17 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import type { ToolConfig } from '@/services/types';
-import { loadAppSettings } from '@/utils/appSettings';
-import { DEFAULT_TOOLS_ORDER } from '@/config/tools';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import type { ToolConfig } from "@/services/types";
+import { DEFAULT_TOOLS_ORDER } from "@/config/tools";
+import { useAppSettingsStore } from "./appSettingsStore";
 
 // 内置工具的静态配置（模块私有）
 // 注意：此数组已清空，工具配置将通过 autoRegisterServices 自动扫描注册
 const initialTools: ToolConfig[] = [];
 
-export const useToolsStore = defineStore('tools', () => {
+export const useToolsStore = defineStore("tools", () => {
   // 使用浅拷贝以保留图标的 markRaw 状态
   // lodash-es 的 cloneDeep 会破坏 markRaw
-  const tools = ref<ToolConfig[]>(initialTools.map(t => ({ ...t })));
+  const tools = ref<ToolConfig[]>(initialTools.map((t) => ({ ...t })));
   const isReady = ref(false); // 新增状态，标记工具是否已加载完成
 
   // 响应式的工具顺序配置
@@ -23,17 +23,17 @@ export const useToolsStore = defineStore('tools', () => {
    * 初始化工具顺序和已打开的工具（从配置文件和缓存加载）
    */
   function initializeOrder() {
-    const settings = loadAppSettings();
-    toolsOrder.value = settings.toolsOrder || [];
+    const appSettingsStore = useAppSettingsStore();
+    toolsOrder.value = appSettingsStore.toolsOrder || [];
 
     // 加载已打开的工具标签
     try {
-      const saved = localStorage.getItem('app-opened-tools');
+      const saved = localStorage.getItem("app-opened-tools");
       if (saved) {
         openedToolPaths.value = JSON.parse(saved);
       }
     } catch (e) {
-      console.error('Failed to load opened tools from cache', e);
+      console.error("Failed to load opened tools from cache", e);
     }
   }
 
@@ -42,6 +42,8 @@ export const useToolsStore = defineStore('tools', () => {
    */
   function updateOrder(newOrder: string[]) {
     toolsOrder.value = newOrder;
+    const appSettingsStore = useAppSettingsStore();
+    appSettingsStore.update({ toolsOrder: newOrder });
   }
 
   /**
@@ -53,13 +55,13 @@ export const useToolsStore = defineStore('tools', () => {
 
     // 创建工具路径到配置的映射
     const toolMap = new Map<string, ToolConfig>();
-    tools.value.forEach(tool => {
+    tools.value.forEach((tool) => {
       toolMap.set(tool.path, tool);
     });
 
     // 按照确定的顺序排列工具
     const ordered: ToolConfig[] = [];
-    activeOrder.forEach(path => {
+    activeOrder.forEach((path) => {
       const tool = toolMap.get(path);
       if (tool) {
         ordered.push(tool);
@@ -68,7 +70,7 @@ export const useToolsStore = defineStore('tools', () => {
     });
 
     // 将剩余的（新添加的）工具添加到末尾
-    toolMap.forEach(tool => {
+    toolMap.forEach((tool) => {
       ordered.push(tool);
     });
 
@@ -87,7 +89,7 @@ export const useToolsStore = defineStore('tools', () => {
    */
   function openTool(toolPath: string) {
     // 如果不是有效的工具路径，不处理
-    const isTool = tools.value.some(t => t.path === toolPath);
+    const isTool = tools.value.some((t) => t.path === toolPath);
     if (!isTool) return;
 
     if (!openedToolPaths.value.includes(toolPath)) {
@@ -111,7 +113,7 @@ export const useToolsStore = defineStore('tools', () => {
    * 保存已打开的工具到缓存
    */
   function saveOpenedTools() {
-    localStorage.setItem('app-opened-tools', JSON.stringify(openedToolPaths.value));
+    localStorage.setItem("app-opened-tools", JSON.stringify(openedToolPaths.value));
   }
 
   /**
@@ -119,7 +121,7 @@ export const useToolsStore = defineStore('tools', () => {
    * @param tool The tool configuration to add.
    */
   function addTool(tool: ToolConfig) {
-    if (!tools.value.some(t => t.path === tool.path)) {
+    if (!tools.value.some((t) => t.path === tool.path)) {
       tools.value.push(tool);
     }
   }
@@ -129,7 +131,7 @@ export const useToolsStore = defineStore('tools', () => {
    * @param toolPath The unique path of the tool to remove.
    */
   function removeTool(toolPath: string) {
-    const index = tools.value.findIndex(t => t.path === toolPath);
+    const index = tools.value.findIndex((t) => t.path === toolPath);
     if (index !== -1) {
       tools.value.splice(index, 1);
       // 同时从已打开列表中移除

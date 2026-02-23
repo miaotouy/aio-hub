@@ -1,6 +1,7 @@
 import { ref, readonly } from "vue";
 import { toolRegistryManager } from "./registry";
-import { loadAppSettings, updateAppSettings, type StartupTaskState } from "@/utils/appSettings";
+import { type StartupTaskState } from "@/utils/appSettings";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useNotification } from "@/composables/useNotification";
@@ -40,7 +41,8 @@ class StartupManager {
     const startTime = Date.now();
 
     try {
-      const settings = loadAppSettings();
+      const appSettingsStore = useAppSettingsStore();
+      const settings = appSettingsStore.settings;
       const startupTasks = settings.startupTasks || {};
       const updatedTasks: Record<string, StartupTaskState> = { ...startupTasks };
       let hasChanges = false;
@@ -166,7 +168,7 @@ class StartupManager {
 
       // 如果有状态变更，保存设置
       if (hasChanges) {
-        updateAppSettings({ startupTasks: updatedTasks });
+        appSettingsStore.update({ startupTasks: updatedTasks });
       }
 
       const totalDuration = Date.now() - startTime;

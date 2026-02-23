@@ -1,6 +1,6 @@
-import { loadAppSettings } from './appSettings';
-import { format } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 
 /**
  * 获取当前应用设置的时区
@@ -8,8 +8,9 @@ import { formatInTimeZone } from 'date-fns-tz';
  */
 export function getAppTimezone(): string {
   try {
-    const settings = loadAppSettings();
-    if (settings.timezone && settings.timezone !== 'auto') {
+    const appSettingsStore = useAppSettingsStore();
+    const settings = appSettingsStore.settings;
+    if (settings.timezone && settings.timezone !== "auto") {
       return settings.timezone;
     }
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -26,7 +27,10 @@ export function getAppTimezone(): string {
  * @param timezone 目标时区
  * @returns 用于显示的日期信息
  */
-export function getDateInTimezone(date: Date, timezone?: string): {
+export function getDateInTimezone(
+  date: Date,
+  timezone?: string
+): {
   year: number;
   month: number;
   day: number;
@@ -36,30 +40,30 @@ export function getDateInTimezone(date: Date, timezone?: string): {
   milliseconds: number;
 } {
   const tz = timezone || getAppTimezone();
-  const formatter = new Intl.DateTimeFormat('en-US', {
+  const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: false,
   });
-  
+
   const parts = formatter.formatToParts(date);
   const getValue = (type: string) => {
-    const part = parts.find(p => p.type === type);
+    const part = parts.find((p) => p.type === type);
     return part ? parseInt(part.value, 10) : 0;
   };
-  
+
   return {
-    year: getValue('year'),
-    month: getValue('month'),
-    day: getValue('day'),
-    hours: getValue('hour'),
-    minutes: getValue('minute'),
-    seconds: getValue('second'),
+    year: getValue("year"),
+    month: getValue("month"),
+    day: getValue("day"),
+    hours: getValue("hour"),
+    minutes: getValue("minute"),
+    seconds: getValue("second"),
     milliseconds: date.getMilliseconds(), // 毫秒不受时区影响
   };
 }
@@ -71,13 +75,9 @@ export function getDateInTimezone(date: Date, timezone?: string): {
  * @param timezone 可选的时区覆盖
  * @returns 格式化后的字符串
  */
-export function formatWithTimezone(
-  date: Date,
-  options: Intl.DateTimeFormatOptions = {},
-  timezone?: string
-): string {
+export function formatWithTimezone(date: Date, options: Intl.DateTimeFormatOptions = {}, timezone?: string): string {
   const tz = timezone || getAppTimezone();
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat("zh-CN", {
     ...options,
     timeZone: tz,
   }).format(date);
@@ -125,11 +125,15 @@ export function formatRelativeTime(timestamp: string | Date, now: Date = new Dat
     return `${diffMins} 分钟前`;
   }
 
-  const timeStr = formatWithTimezone(date, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }, tz);
+  const timeStr = formatWithTimezone(
+    date,
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    },
+    tz
+  );
 
   // 今天
   if (nowYear === dateYear && nowMonth === dateMonth && nowDate === dateDate) {
@@ -140,21 +144,17 @@ export function formatRelativeTime(timestamp: string | Date, now: Date = new Dat
   const yesterday = new Date(now);
   yesterday.setDate(nowDate - 1);
   const yesterdayInTz = getDateInTimezone(yesterday, tz);
-  if (
-    yesterdayInTz.year === dateYear &&
-    yesterdayInTz.month === dateMonth &&
-    yesterdayInTz.day === dateDate
-  ) {
+  if (yesterdayInTz.year === dateYear && yesterdayInTz.month === dateMonth && yesterdayInTz.day === dateDate) {
     return `昨天 ${timeStr}`;
   }
 
   // 今年内
   if (nowYear === dateYear) {
-    return `${dateMonth.toString().padStart(2, '0')}-${dateDate.toString().padStart(2, '0')} ${timeStr}`;
+    return `${dateMonth.toString().padStart(2, "0")}-${dateDate.toString().padStart(2, "0")} ${timeStr}`;
   }
 
   // 更早
-  return `${dateYear}-${dateMonth.toString().padStart(2, '0')}-${dateDate.toString().padStart(2, '0')} ${timeStr}`;
+  return `${dateYear}-${dateMonth.toString().padStart(2, "0")}-${dateDate.toString().padStart(2, "0")} ${timeStr}`;
 }
 
 /**
@@ -171,12 +171,12 @@ export function getLocalISOString(date: Date = new Date(), timezone?: string): s
   const tz = timezone || getAppTimezone();
   const dateInTz = getDateInTimezone(date, tz);
   const year = dateInTz.year;
-  const month = dateInTz.month.toString().padStart(2, '0');
-  const day = dateInTz.day.toString().padStart(2, '0');
-  const hours = dateInTz.hours.toString().padStart(2, '0');
-  const minutes = dateInTz.minutes.toString().padStart(2, '0');
-  const seconds = dateInTz.seconds.toString().padStart(2, '0');
-  const milliseconds = dateInTz.milliseconds.toString().padStart(3, '0');
+  const month = dateInTz.month.toString().padStart(2, "0");
+  const day = dateInTz.day.toString().padStart(2, "0");
+  const hours = dateInTz.hours.toString().padStart(2, "0");
+  const minutes = dateInTz.minutes.toString().padStart(2, "0");
+  const seconds = dateInTz.seconds.toString().padStart(2, "0");
+  const milliseconds = dateInTz.milliseconds.toString().padStart(3, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
@@ -190,12 +190,12 @@ export function getLocalISOString(date: Date = new Date(), timezone?: string): s
  */
 export function formatDateTime(
   date: Date | string | number,
-  formatString: string = 'yyyy-MM-dd_HH-mm-ss',
+  formatString: string = "yyyy-MM-dd_HH-mm-ss",
   timezone?: string
 ): string {
-  const dateObj = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+  const dateObj = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
   const tz = timezone || getAppTimezone();
-  
+
   try {
     return formatInTimeZone(dateObj, tz, formatString);
   } catch {
@@ -212,8 +212,8 @@ export function formatDateTime(
  */
 export function formatDateTimeLocal(
   date: Date | string | number,
-  formatString: string = 'yyyy-MM-dd_HH-mm-ss'
+  formatString: string = "yyyy-MM-dd_HH-mm-ss"
 ): string {
-  const dateObj = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+  const dateObj = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
   return format(dateObj, formatString);
 }

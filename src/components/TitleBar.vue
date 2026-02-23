@@ -17,7 +17,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useToolsStore } from "@/stores/tools";
 import iconBlack from "../assets/aio-icon-black.svg";
 import iconWhite from "../assets/aio-icon-white.svg";
-import { loadAppSettingsAsync, type AppSettings, updateAppSettings } from "@utils/appSettings";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { platform } from "@tauri-apps/plugin-os";
@@ -31,10 +31,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import SidebarMenu from "@/components/SidebarMenu.vue";
 import NotificationBell from "@/components/notification/NotificationBell.vue";
 import { debounce } from "lodash-es";
-import {
-  useResolvedAvatar,
-  resolveAvatarPath,
-} from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+import { useResolvedAvatar, resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
 import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
@@ -50,9 +47,10 @@ const errorHandler = createModuleErrorHandler("TitleBar");
 const router = useRouter();
 const toolsStore = useToolsStore();
 const { currentTheme, applyTheme, isDark } = useTheme();
+const appSettingsStore = useAppSettingsStore();
 const { appearanceSettings } = useThemeAppearance();
 const userProfileStore = useUserProfileStore();
-const { isDetached } = useDetachedManager();
+const detachedManager = useDetachedManager();
 
 // 解析当前选中的全局用户档案头像
 const globalProfileAvatarSrc = useResolvedAvatar(
@@ -65,7 +63,7 @@ const isMaximized = ref(false);
 const isMainWindow = ref(false); // 判断是否为主窗口
 const isMacOS = ref(false); // 判断是否为 macOS
 const route = useRoute();
-const settings = ref<AppSettings | null>(null);
+const settings = computed(() => appSettingsStore.settings);
 const showProfileManagerDialog = ref(false);
 const drawerVisible = ref(false);
 const dropdownRef = ref<any>(null);
@@ -193,18 +191,6 @@ onMounted(async () => {
 
   // 将清理函数存储到 ref 中
   cleanupFunctions.value.push(unlistenMoved, unlistenResized);
-
-  // 加载应用设置
-  try {
-    settings.value = await loadAppSettingsAsync();
-  } catch (error) {
-    errorHandler.error(error, "加载应用设置失败");
-  }
-
-  // 监听设置变化事件
-  window.addEventListener("app-settings-changed", (event: any) => {
-    settings.value = event.detail;
-  });
 });
 
 // 在 setup 顶层注册 onUnmounted（必须在同步执行期间调用）
@@ -279,7 +265,7 @@ const getThemeTooltip = computed(() => {
 // 主题切换处理
 const handleThemeChange = (theme: "auto" | "light" | "dark") => {
   applyTheme(theme);
-  updateAppSettings({ theme });
+  appSettingsStore.update({ theme });
 };
 
 // 用户档案选择处理
@@ -345,7 +331,7 @@ const handleDropdownSelect = () => {
         <div class="drawer-menu-container">
           <SidebarMenu
             :tools-visible="settings?.toolsVisible || {}"
-            :is-detached="isDetached"
+            :is-detached="detachedManager.isDetached"
             @select="handleMenuSelect"
           />
         </div>
@@ -364,9 +350,7 @@ const handleDropdownSelect = () => {
         <!-- 左侧控制区域 -->
         <div class="left-controls" :class="{ macos: isMacOS }">
           <!-- 菜单按钮（仅在非 sidebar 模式下显示） -->
-          <template
-            v-if="isMainWindow && settings?.sidebarMode && settings.sidebarMode !== 'sidebar'"
-          >
+          <template v-if="isMainWindow && settings?.sidebarMode && settings.sidebarMode !== 'sidebar'">
             <!-- 下拉菜单模式 -->
             <el-dropdown
               v-if="settings.sidebarMode === 'dropdown'"
@@ -383,7 +367,7 @@ const handleDropdownSelect = () => {
                 <div class="dropdown-menu-container">
                   <SidebarMenu
                     :tools-visible="settings?.toolsVisible || {}"
-                    :is-detached="isDetached"
+                    :is-detached="detachedManager.isDetached"
                     @select="handleDropdownSelect"
                   />
                 </div>
@@ -391,12 +375,7 @@ const handleDropdownSelect = () => {
             </el-dropdown>
 
             <!-- 抽屉模式 -->
-            <button
-              v-else
-              class="control-btn menu-btn"
-              style="padding: 0 16px"
-              @click="drawerVisible = true"
-            >
+            <button v-else class="control-btn menu-btn" style="padding: 0 16px" @click="drawerVisible = true">
               <el-icon><MenuIcon /></el-icon>
             </button>
           </template>
@@ -405,13 +384,7 @@ const handleDropdownSelect = () => {
         <!-- 中间标题区域 -->
         <div class="title-area">
           <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
-          <img
-            v-if="useDefaultIcon"
-            :src="logoSrc"
-            alt="Logo"
-            class="app-logo"
-            data-tauri-drag-region
-          />
+          <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" data-tauri-drag-region />
           <!-- 统一的图标容器 -->
           <span v-else class="icon-wrapper">
             <component :is="currentIcon" />
@@ -429,12 +402,7 @@ const handleDropdownSelect = () => {
           </el-tooltip>
 
           <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
-          <el-dropdown
-            v-if="isMainWindow"
-            trigger="hover"
-            @command="handleProfileSelect"
-            placement="bottom"
-          >
+          <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleProfileSelect" placement="bottom">
             <button
               class="control-btn profile-btn"
               :title="
@@ -447,9 +415,7 @@ const handleDropdownSelect = () => {
               <Avatar
                 v-if="userProfileStore.globalProfile"
                 :src="globalProfileAvatarSrc || ''"
-                :alt="
-                  userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name
-                "
+                :alt="userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name"
                 :size="20"
                 shape="square"
                 :radius="4"
@@ -459,10 +425,7 @@ const handleDropdownSelect = () => {
             </button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item
-                  :command="null"
-                  :class="{ 'is-active': !userProfileStore.globalProfileId }"
-                >
+                <el-dropdown-item :command="null" :class="{ 'is-active': !userProfileStore.globalProfileId }">
                   <span>无（不使用）</span>
                 </el-dropdown-item>
                 <el-dropdown-item
@@ -491,12 +454,7 @@ const handleDropdownSelect = () => {
           </el-dropdown>
 
           <!-- 主题切换下拉菜单（仅主窗口显示） -->
-          <el-dropdown
-            v-if="isMainWindow"
-            trigger="hover"
-            @command="handleThemeChange"
-            placement="bottom"
-          >
+          <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleThemeChange" placement="bottom">
             <button class="control-btn theme-btn" :title="getThemeTooltip">
               <el-icon><component :is="getThemeIcon" /></el-icon>
             </button>
@@ -506,10 +464,7 @@ const handleDropdownSelect = () => {
                   <el-icon><SystemThemeIcon /></el-icon>
                   <span>跟随系统</span>
                 </el-dropdown-item>
-                <el-dropdown-item
-                  command="light"
-                  :class="{ 'is-active': currentTheme === 'light' }"
-                >
+                <el-dropdown-item command="light" :class="{ 'is-active': currentTheme === 'light' }">
                   <el-icon><Sunny /></el-icon>
                   <span>浅色</span>
                 </el-dropdown-item>
@@ -549,10 +504,7 @@ const handleDropdownSelect = () => {
               </button>
             </el-tooltip>
 
-            <el-tooltip
-              :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'"
-              placement="bottom"
-            >
+            <el-tooltip :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'" placement="bottom">
               <button class="control-btn close-btn" @click="closeWindow">
                 <el-icon><Close /></el-icon>
               </button>

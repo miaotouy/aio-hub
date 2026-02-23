@@ -16,7 +16,8 @@ import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获�
 import { createPinia } from "pinia"; // 导入 Pinia
 import { errorHandler, ErrorLevel, createModuleErrorHandler } from "./utils/errorHandler";
 import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
-import { loadAppSettingsAsync, type AppSettings } from "./utils/appSettings";
+import { type AppSettings } from "./utils/appSettings";
+import { useAppSettingsStore } from "./stores/appSettingsStore";
 import { initTheme } from "./composables/useTheme";
 import { customMessage } from "./utils/customMessage";
 import { autoRegisterServices, startupManager } from "./services";
@@ -178,7 +179,8 @@ window.addEventListener("error", (event) => {
 const initializeApp = async () => {
   try {
     // 1. 首先异步加载应用设置
-    const settings = await loadAppSettingsAsync();
+    const appSettingsStore = useAppSettingsStore();
+    const settings = await appSettingsStore.load();
     logger.info("应用设置加载完成");
 
     // 2. 立即应用日志配置（必须在其他初始化步骤之前）

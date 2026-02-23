@@ -2,13 +2,13 @@ import { ref, computed, watch } from "vue";
 import debounce from "lodash-es/debounce";
 import shuffle from "lodash-es/shuffle";
 import {
-  appSettingsManager,
   type AppearanceSettings,
   type WindowEffect,
   type BlendMode,
   defaultAppearanceSettings,
   BUILTIN_WALLPAPERS,
 } from "@/utils/appSettings";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { useTheme } from "@/composables/useTheme";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -34,20 +34,16 @@ export type RGB = { r: number; g: number; b: number };
  * color-thief-ts 可能返回 string (HEX) 或 number[] (RGB)
  */
 function formatToRgbArray(color: string | number[]): number[] {
-  if (typeof color === 'string') {
+  if (typeof color === "string") {
     // HEX 字符串转 RGB 数组
-    const hex = color.startsWith('#') ? color.slice(1) : color;
-    return [
-      parseInt(hex.slice(0, 2), 16),
-      parseInt(hex.slice(2, 4), 16),
-      parseInt(hex.slice(4, 6), 16),
-    ];
+    const hex = color.startsWith("#") ? color.slice(1) : color;
+    return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
   }
   if (Array.isArray(color)) {
     return color;
   }
   // 异常情况，返回黑色
-  logger.warn('ColorThief 返回了未预期的颜色格式', { color });
+  logger.warn("ColorThief 返回了未预期的颜色格式", { color });
   return [0, 0, 0];
 }
 
@@ -69,10 +65,10 @@ export function hexToRgb(hex: string): RGB | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16),
-    }
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
     : null;
 }
 
@@ -106,9 +102,7 @@ export function applyBlendMode(base: RGB, active: RGB, opacity: number, mode: Bl
       case "soft-light":
         return a < 128
           ? b - (1 - 2 * (a / 255)) * b * (1 - b / 255)
-          : b +
-          (2 * (a / 255) - 1) *
-          ((b < 64 ? ((16 * b - 12) * b + 4) * b : Math.sqrt(b * 255)) - b);
+          : b + (2 * (a / 255) - 1) * ((b < 64 ? ((16 * b - 12) * b + 4) * b : Math.sqrt(b * 255)) - b);
       case "difference":
         return Math.abs(b - a);
       case "exclusion":
@@ -158,7 +152,7 @@ export function getBlendedBackgroundColor(baseRgbVar: string, opacity: number): 
     const overlayColorHex =
       settings.autoExtractColorFromWallpaper && settings.wallpaperExtractedColor
         ? settings.wallpaperExtractedColor
-        : settings.backgroundColorOverlayColor ?? "#000000";
+        : (settings.backgroundColorOverlayColor ?? "#000000");
     const overlayOpacity = settings.backgroundColorOverlayOpacity ?? 0;
     const blendMode = settings.backgroundColorOverlayBlendMode ?? "normal";
     const overlayColorRgb = hexToRgb(overlayColorHex);
@@ -199,19 +193,10 @@ let isDetachedWindow = false; // 标记当前是否为分离窗口
 // --- 模块级函数 ---
 
 // 自动保存设置的防抖函数
-const debouncedSave = debounce(async (settingsToSave: AppearanceSettings) => {
-  try {
-    const currentFullSettings = await appSettingsManager.load();
-    await appSettingsManager.save({
-      ...currentFullSettings,
-      appearance: settingsToSave,
-    });
-    logger.info("外观设置已自动保存");
-  } catch (error) {
-    errorHandler.error(error, "自动保存外观设置失败", {
-      operation: "自动保存外观设置",
-    });
-  }
+const debouncedSave = debounce((settingsToSave: AppearanceSettings) => {
+  const appSettingsStore = useAppSettingsStore();
+  appSettingsStore.update({ appearance: { ...settingsToSave } });
+  logger.info("外观设置已自动保存");
 }, 400);
 
 /**
@@ -219,10 +204,7 @@ const debouncedSave = debounce(async (settingsToSave: AppearanceSettings) => {
  * @param updates - 要更新的设置
  * @param options - 包含 debounceUi 标志的选项，用于对 UI 更新进行防抖
  */
-const updateAppearanceSetting = (
-  updates: Partial<AppearanceSettings>,
-  options: { debounceUi?: boolean } = {}
-) => {
+const updateAppearanceSetting = (updates: Partial<AppearanceSettings>, options: { debounceUi?: boolean } = {}) => {
   const newAppearance = {
     ...appearanceSettings.value,
     ...updates,
@@ -269,7 +251,6 @@ function _updateCssVariables(settings: AppearanceSettings) {
       document.body.classList.remove("no-global-wallpaper");
     }
 
-
     // --- 壁纸适应与平铺模式 ---
     const fit = settings.wallpaperFit ?? "cover";
     const tileOptions = {
@@ -292,10 +273,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     const scaleX = tileOptions.flipHorizontal ? -1 : 1;
     const scaleY = tileOptions.flipVertical ? -1 : 1;
     const rotation = tileOptions.rotation ?? 0;
-    root.style.setProperty(
-      "--wallpaper-tile-transform",
-      `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg)`
-    );
+    root.style.setProperty("--wallpaper-tile-transform", `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg)`);
   } else {
     root.style.setProperty("--wallpaper-url", "none");
     root.style.setProperty("--wallpaper-opacity", "0");
@@ -313,8 +291,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     const baseOpacity = settings.uiBaseOpacity;
     const offsets = settings.layerOpacityOffsets || {};
 
-    const calculateOpacity = (offset = 0) =>
-      Math.max(0.1, Math.min(1.0, baseOpacity + offset)).toFixed(2);
+    const calculateOpacity = (offset = 0) => Math.max(0.1, Math.min(1.0, baseOpacity + offset)).toFixed(2);
 
     // --- 背景色叠加逻辑 ---
     const overlayEnabled = settings.backgroundColorOverlayEnabled ?? false;
@@ -322,7 +299,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     const overlayColorHex =
       settings.autoExtractColorFromWallpaper && settings.wallpaperExtractedColor
         ? settings.wallpaperExtractedColor
-        : settings.backgroundColorOverlayColor ?? "#000000";
+        : (settings.backgroundColorOverlayColor ?? "#000000");
     const overlayOpacity = settings.backgroundColorOverlayOpacity ?? 0;
     const blendMode = settings.backgroundColorOverlayBlendMode ?? "normal";
     const overlayColorRgb = hexToRgb(overlayColorHex);
@@ -364,11 +341,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
           finalRgb = applyBlendMode(finalRgb, overlayColorRgb, overlayOpacity, blendMode);
         }
 
-        root.style.setProperty(
-          finalBgVar,
-          `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${opacityValue})`
-        );
-
+        root.style.setProperty(finalBgVar, `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${opacityValue})`);
       }
     };
 
@@ -425,10 +398,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
         finalRgb = applyBlendMode(finalRgb, overlayColorRgb, overlayOpacity, blendMode);
       }
 
-      root.style.setProperty(
-        codeBlockBgVar,
-        `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${codeBlockOpacity})`
-      );
+      root.style.setProperty(codeBlockBgVar, `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${codeBlockOpacity})`);
     }
 
     // --- 滚动条颜色 ---
@@ -529,12 +499,7 @@ async function _switchToWallpaper(index: number, settings: AppearanceSettings) {
 
 async function _startSlideshow(settings: AppearanceSettings) {
   _stopSlideshow();
-  const {
-    wallpaperSlideshowPath,
-    wallpaperSlideshowInterval,
-    wallpaperSlideshowShuffle,
-    wallpaperSource,
-  } = settings;
+  const { wallpaperSlideshowPath, wallpaperSlideshowInterval, wallpaperSlideshowShuffle, wallpaperSource } = settings;
 
   // 确定壁纸来源
   const source = wallpaperSource ?? "builtin";
@@ -569,9 +534,7 @@ async function _startSlideshow(settings: AppearanceSettings) {
 
       const playNext = () => {
         if (isSlideshowPaused.value) return;
-        const list = appearanceSettings.value.wallpaperSlideshowShuffle
-          ? shuffledList.value
-          : wallpaperList.value;
+        const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
         const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
         const nextIndex = (currentIndex + 1) % list.length;
         _switchToWallpaper(nextIndex, appearanceSettings.value);
@@ -651,8 +614,7 @@ async function _extractColorFromWallpaper(wallpaperUrl: string): Promise<string 
           } else {
             // 亮色模式：选择第二亮的颜色，如果只有一个颜色就选最亮的
             selectedColorRgb =
-              sortedPalette[sortedPalette.length - 2]?.color ??
-              sortedPalette[sortedPalette.length - 1].color;
+              sortedPalette[sortedPalette.length - 2]?.color ?? sortedPalette[sortedPalette.length - 1].color;
           }
 
           const hexColor = `#${selectedColorRgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
@@ -694,9 +656,7 @@ async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: Appe
 
   // 检查模式是否从静态切换到幻灯片以防止闪烁
   const modeJustSwitchedToSlideshow =
-    oldSettings &&
-    settings.wallpaperMode === "slideshow" &&
-    oldSettings.wallpaperMode !== "slideshow";
+    oldSettings && settings.wallpaperMode === "slideshow" && oldSettings.wallpaperMode !== "slideshow";
 
   if (settings.wallpaperMode === "static") {
     // 处理静态壁纸（内置或自定义）
@@ -791,18 +751,24 @@ export async function initThemeAppearance(isDetached = false) {
 
   try {
     // 加载设置
-    const settings = await appSettingsManager.load();
+    const appSettingsStore = useAppSettingsStore();
+    // 确保已经加载
+    if (!appSettingsStore.isLoaded) {
+      await appSettingsStore.load();
+    }
+
+    const settings = appSettingsStore.settings;
     if (settings.appearance) {
-      appearanceSettings.value = settings.appearance;
+      appearanceSettings.value = { ...settings.appearance };
       logger.info("外观设置已加载", settings.appearance);
 
       // 初始化设置
-      await _updateWallpaper(settings.appearance);
-      _updateCssVariables(settings.appearance);
+      await _updateWallpaper(appearanceSettings.value);
+      _updateCssVariables(appearanceSettings.value);
       // 总是应用窗口特效设置，即使是 'none'
       await _applyWindowEffect(
-        settings.appearance.windowEffect,
-        settings.appearance.enableWindowEffects ?? true
+        appearanceSettings.value.windowEffect,
+        appearanceSettings.value.enableWindowEffects ?? true
       );
     }
 
@@ -869,10 +835,7 @@ export async function initThemeAppearance(isDetached = false) {
           newSettings.windowEffect !== old.windowEffect ||
           (newSettings.enableWindowEffects ?? true) !== (old.enableWindowEffects ?? true)
         ) {
-          await _applyWindowEffect(
-            newSettings.windowEffect,
-            newSettings.enableWindowEffects ?? true
-          );
+          await _applyWindowEffect(newSettings.windowEffect, newSettings.enableWindowEffects ?? true);
         }
       },
       { deep: true }
@@ -1021,9 +984,7 @@ export function useThemeAppearance() {
 
   // --- 幻灯片控制函数 ---
   const playNextWallpaper = () => {
-    const list = appearanceSettings.value.wallpaperSlideshowShuffle
-      ? shuffledList.value
-      : wallpaperList.value;
+    const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
     if (list.length === 0) return;
     const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
     const nextIndex = (currentIndex + 1) % list.length;
@@ -1031,9 +992,7 @@ export function useThemeAppearance() {
   };
 
   const playPreviousWallpaper = () => {
-    const list = appearanceSettings.value.wallpaperSlideshowShuffle
-      ? shuffledList.value
-      : wallpaperList.value;
+    const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
     if (list.length === 0) return;
     const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
     const prevIndex = (currentIndex - 1 + list.length) % list.length;

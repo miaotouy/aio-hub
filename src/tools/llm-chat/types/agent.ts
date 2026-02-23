@@ -97,7 +97,7 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   mode: "auto",
   toolToggles: {},
   defaultToolEnabled: false,
-  maxIterations: 5,
+  maxIterations: 20,
   timeout: 30000,
   requireConfirmation: false,
   parallelExecution: false,

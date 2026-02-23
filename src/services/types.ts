@@ -1,6 +1,6 @@
 /**
  * 工具服务基础接口定义
- * 
+ *
  * 所有工具服务都应该实现此接口，以确保统一的服务契约。
  */
 
@@ -39,9 +39,18 @@ export interface ServiceMetadata {
   methods: MethodMetadata[];
 }
 
-import type { Component } from 'vue';
-import type { DetachableComponentRegistration } from '@/types/detachable';
-import type { AssetSidecarAction } from '@/types/asset-management';
+import type { Component } from "vue";
+import type { DetachableComponentRegistration } from "@/types/detachable";
+import type { AssetSidecarAction } from "@/types/asset-management";
+
+export interface StartupConfig {
+  /** 启动项的显示名称 */
+  label: string;
+  /** 启动项的详细描述 */
+  description?: string;
+  /** 是否默认启用自启动 */
+  defaultEnabled?: boolean;
+}
 
 export interface ToolConfig {
   name: string;
@@ -98,4 +107,16 @@ export interface ToolRegistry {
    * 用于在资产管理器中为相关资产提供快捷操作（如查看转写、OCR 结果等）
    */
   getAssetSidecarActions?(): AssetSidecarAction[];
+
+  /**
+   * 启动项配置
+   * 如果定义了此配置，工具将支持在应用启动时自动执行任务。
+   */
+  readonly startupConfig?: StartupConfig;
+
+  /**
+   * 启动钩子方法
+   * 当工具被启用自启动时，在此方法中执行具体的启动逻辑。
+   */
+  onStartup?(): Promise<void> | void;
 }

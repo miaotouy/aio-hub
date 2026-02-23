@@ -15,6 +15,12 @@ export const settingsModules: SettingsModule[] = [
     minHeight: "auto",
   },
   {
+    id: "startup",
+    title: "启动项管理",
+    component: defineAsyncComponent(() => import("../views/Settings/general/StartupSettings.vue")),
+    minHeight: "auto",
+  },
+  {
     id: "theme-colors",
     title: "主题色配置",
     component: defineAsyncComponent(() => import("../views/Settings/general/ThemeColorSettings.vue")),

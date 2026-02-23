@@ -47,6 +47,12 @@ const messagesManager = createConfigManager<{ list: VcpMessage[] }>({
 });
 
 export const useVcpStore = defineStore("vcp-connector", () => {
+  // 初始化完成的 Promise，供外部等待配置加载
+  let _initResolve!: () => void;
+  const initPromise = new Promise<void>((resolve) => {
+    _initResolve = resolve;
+  });
+
   const config = ref<VcpConfig>({
     wsUrl: "",
     vcpKey: "",
@@ -461,9 +467,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const jitter = Math.random() * 1000;
     const delay = reconnectDelay + jitter;
 
-    logger.info(
-      `Scheduling reconnect in ${Math.round(delay)}ms (Attempt ${connection.value.reconnectAttempts})`
-    );
+    logger.info(`Scheduling reconnect in ${Math.round(delay)}ms (Attempt ${connection.value.reconnectAttempts})`);
 
     reconnectTimer.value = setTimeout(() => {
       reconnectTimer.value = null;
@@ -579,6 +583,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (config.value.autoConnect) {
       connect();
     }
+
+    // 标记初始化完成
+    _initResolve();
   }
 
   init();
@@ -591,6 +598,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     filter,
     stats,
     nodeProtocol,
+    initPromise,
     updateConfig,
     connect,
     disconnect,

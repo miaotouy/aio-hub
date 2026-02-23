@@ -161,6 +161,9 @@ export interface AppSettings {
   // 网络代理
   proxy?: ProxySettings;
 
+  // 启动项配置
+  startupTasks?: Record<string, StartupTaskState>;
+
   // 时区设置
   timezone?: string;
 }
@@ -227,6 +230,17 @@ export type SidebarMode = "sidebar" | "drawer" | "dropdown";
 
 // 代理模式类型
 export type ProxyMode = "none" | "system" | "custom";
+
+export interface StartupTaskState {
+  /** 用户设置的开启状态 */
+  enabled: boolean;
+  /** 连续失败次数 */
+  consecutiveFailures: number;
+  /** 最近一次错误描述 */
+  lastError?: string;
+  /** 是否被系统自动禁用（熔断） */
+  autoDisabled?: boolean;
+}
 
 // 代理设置接口
 export interface ProxySettings {
@@ -305,19 +319,19 @@ export const appSettingsManager = createConfigManager<AppSettings>({
     // 深度合并 appearance 对象
     let mergedAppearance = loadedConfig.appearance
       ? {
-        ...defaultConfig.appearance,
-        ...loadedConfig.appearance,
-        // 深度合并 layerOpacityOffsets
-        layerOpacityOffsets: {
-          ...defaultConfig.appearance?.layerOpacityOffsets,
-          ...loadedConfig.appearance?.layerOpacityOffsets,
-        },
-        // 深度合并 wallpaperTileOptions
-        wallpaperTileOptions: {
-          ...(defaultConfig.appearance?.wallpaperTileOptions ?? {}),
-          ...(loadedConfig.appearance?.wallpaperTileOptions ?? {}),
-        },
-      }
+          ...defaultConfig.appearance,
+          ...loadedConfig.appearance,
+          // 深度合并 layerOpacityOffsets
+          layerOpacityOffsets: {
+            ...defaultConfig.appearance?.layerOpacityOffsets,
+            ...loadedConfig.appearance?.layerOpacityOffsets,
+          },
+          // 深度合并 wallpaperTileOptions
+          wallpaperTileOptions: {
+            ...(defaultConfig.appearance?.wallpaperTileOptions ?? {}),
+            ...(loadedConfig.appearance?.wallpaperTileOptions ?? {}),
+          },
+        }
       : defaultConfig.appearance;
 
     // --- 迁移逻辑：处理旧配置 ---
@@ -393,9 +407,7 @@ export const saveAppSettingsAsync = async (settings: AppSettings): Promise<void>
 /**
  * 更新部分设置（异步版本）
  */
-export const updateAppSettingsAsync = async (
-  updates: Partial<AppSettings>
-): Promise<AppSettings> => {
+export const updateAppSettingsAsync = async (updates: Partial<AppSettings>): Promise<AppSettings> => {
   try {
     const updatedSettings = await appSettingsManager.update(updates);
     cachedSettings = updatedSettings;

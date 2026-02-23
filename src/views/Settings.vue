@@ -569,12 +569,7 @@ onUnmounted(() => {
               </el-tooltip>
             </div>
             <div class="header-nav">
-              <el-select
-                v-model="activeSection"
-                @change="handleSelect"
-                placeholder="跳转到..."
-                size="default"
-              >
+              <el-select v-model="activeSection" @change="handleSelect" placeholder="跳转到..." size="default">
                 <el-option
                   v-for="module in settingsModules"
                   :key="module.id"
@@ -608,9 +603,7 @@ onUnmounted(() => {
             </div>
 
             <div class="sidebar-footer">
-              <el-button @click="handleReset" type="danger" plain class="reset-btn">
-                重置所有设置
-              </el-button>
+              <el-button @click="handleReset" type="danger" plain class="reset-btn"> 重置所有设置 </el-button>
             </div>
           </aside>
 
@@ -637,6 +630,13 @@ onUnmounted(() => {
                 v-model:proxy="settings.proxy"
                 v-model:timezone="settings.timezone"
                 @config-imported="onConfigImported"
+              />
+
+              <!-- 启动项管理 -->
+              <component
+                v-else-if="module.id === 'startup'"
+                :is="module.component"
+                v-model:startup-tasks="settings.startupTasks"
               />
 
               <!-- 主题色配置 -->

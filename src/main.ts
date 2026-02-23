@@ -19,7 +19,7 @@ import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/lo
 import { loadAppSettingsAsync, type AppSettings } from "./utils/appSettings";
 import { initTheme } from "./composables/useTheme";
 import { customMessage } from "./utils/customMessage";
-import { autoRegisterServices } from "./services";
+import { autoRegisterServices, startupManager } from "./services";
 import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
@@ -194,6 +194,11 @@ const initializeApp = async () => {
     // 4. 自动注册所有工具服务
     await autoRegisterServices();
     logger.info("工具服务注册完成");
+
+    // 4.5 执行启动项任务
+    startupManager.run().catch((err) => {
+      moduleErrorHandler.error(err, "执行启动项任务失败");
+    });
 
     // 5. 初始化动态路由（必须在 Pinia 注册后，且在服务注册后）
     initDynamicRoutes();

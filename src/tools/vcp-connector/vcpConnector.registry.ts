@@ -1,11 +1,26 @@
 import type { ToolConfig, ToolRegistry } from "@/services/types";
 import { markRaw } from "vue";
 import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
+import { useVcpStore } from "./stores/vcpConnectorStore";
 
 export class VcpConnectorRegistry implements ToolRegistry {
   public readonly id = "vcp-connector";
   public readonly name = "VCP 连接器";
   public readonly description = "VCP 分布式连接与监控中心";
+
+  public readonly startupConfig = {
+    label: "VCP 自动连接",
+    description: "应用启动时自动尝试连接到 VCP 服务器",
+    defaultEnabled: false,
+  };
+
+  public async onStartup() {
+    const vcpStore = useVcpStore();
+    // 等待 store 的异步 init() 完成（配置加载），再触发连接
+    // 否则 wsUrl/vcpKey 为空，connect() 会静默失败
+    await vcpStore.initPromise;
+    vcpStore.connect();
+  }
 
   public getMetadata() {
     return {
@@ -13,6 +28,8 @@ export class VcpConnectorRegistry implements ToolRegistry {
     };
   }
 }
+
+export default VcpConnectorRegistry;
 
 // VCP 即 Variable & Command Protocol
 export const toolConfig: ToolConfig = {

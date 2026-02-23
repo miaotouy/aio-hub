@@ -3,13 +3,7 @@
  * 负责核心的 LLM 请求执行逻辑，消除重复代码
  */
 
-import type {
-  ChatSession,
-  ChatMessageNode,
-  LlmParameters,
-  UserProfile,
-  ChatAgent,
-} from "../../types";
+import type { ChatSession, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useAgentStore } from "../../stores/agentStore";
@@ -35,6 +29,7 @@ import { useContextCompressor } from "../features/useContextCompressor";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
+import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -73,12 +68,7 @@ interface ExecuteRequestParams {
 }
 
 export function useChatExecutor() {
-  const {
-    handleStreamUpdate,
-    validateAndFixUsage,
-    finalizeNode,
-    handleNodeError,
-  } = useChatResponseHandler();
+  const { handleStreamUpdate, validateAndFixUsage, finalizeNode, handleNodeError } = useChatResponseHandler();
 
   const { checkAndCompress } = useContextCompressor();
   const { processCycle, formatCycleResults } = useToolCalling();
@@ -100,17 +90,15 @@ export function useChatExecutor() {
     const agentStore = useAgentStore();
     const { settings } = useChatSettings();
 
-    const currentAgent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
-      : null;
+    const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
 
     // 获取当前 Agent 配置片段（包含参数覆盖）
     const agentConfigSnippet =
       providedAgentConfig ||
       (agentStore.currentAgentId
         ? agentStore.getAgentConfig(agentStore.currentAgentId, {
-          parameterOverrides: session.parameterOverrides,
-        })
+            parameterOverrides: session.parameterOverrides,
+          })
         : null);
 
     if (!agentConfigSnippet || !currentAgent) {
@@ -132,9 +120,7 @@ export function useChatExecutor() {
     let effectiveUserProfile: UserProfile | null = null;
 
     if (currentAgent?.userProfileId) {
-      const profile = userProfileStore.getProfileById(
-        currentAgent.userProfileId,
-      );
+      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
       if (profile) {
         effectiveUserProfile = profile;
         logger.debug("使用智能体绑定的用户档案", {
@@ -143,9 +129,7 @@ export function useChatExecutor() {
         });
       }
     } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(
-        userProfileStore.globalProfileId,
-      );
+      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
       if (profile) {
         effectiveUserProfile = profile;
         logger.debug("使用全局用户档案", {
@@ -158,9 +142,7 @@ export function useChatExecutor() {
     // 获取模型信息（用于智能附件处理）
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfigSnippet.profileId);
-    const model: LlmModelInfo | undefined = profile?.models.find(
-      (m) => m.id === agentConfigSnippet.modelId,
-    );
+    const model: LlmModelInfo | undefined = profile?.models.find((m) => m.id === agentConfigSnippet.modelId);
 
     // 提取模型能力（用于智能附件处理）
     const capabilities = model?.capabilities;
@@ -212,6 +194,23 @@ export function useChatExecutor() {
       if (configParams.custom && typeof configParams.custom === "object") {
         Object.assign(effectiveParams, configParams.custom);
       }
+      // 感知 VCP 渠道：如果 API 地址与 VCP 连接器的地址匹配，则认为工具解析由后端完成
+      const vcpStore = useVcpStore();
+      const isVcpChannel = (() => {
+        if (!profile?.baseUrl || !vcpStore.config.wsUrl) return false;
+        try {
+          const apiHost = new URL(profile.baseUrl).host;
+          // wsUrl 可能是 ws://... 或 wss://...
+          const wsHost = new URL(vcpStore.config.wsUrl).host;
+          return apiHost === wsHost;
+        } catch (e) {
+          return false;
+        }
+      })();
+
+      if (isVcpChannel) {
+        logger.info("检测到 VCP 渠道，将禁用内置工具解析，由后端处理工具调用逻辑");
+      }
 
       while (iterationCount < maxIterations) {
         iterationCount++;
@@ -253,17 +252,18 @@ export function useChatExecutor() {
         if (profile) {
           pipelineContext.sharedData.set("profile", profile);
         }
-        pipelineContext.sharedData.set(
-          "transcriptionConfig",
-          settings.value.transcription,
-        );
+        pipelineContext.sharedData.set("transcriptionConfig", settings.value.transcription);
         // 聚合并预加载世界书内容
-        const worldbookStore = import.meta.env.SSR ? null : (await import('../../stores/worldbookStore')).useWorldbookStore();
-        const allWorldbookIds = Array.from(new Set([
-          ...(settings.value.worldbookIds || []),
-          ...(effectiveUserProfile?.worldbookIds || []),
-          ...(executionAgent.worldbookIds || [])
-        ]));
+        const worldbookStore = import.meta.env.SSR
+          ? null
+          : (await import("../../stores/worldbookStore")).useWorldbookStore();
+        const allWorldbookIds = Array.from(
+          new Set([
+            ...(settings.value.worldbookIds || []),
+            ...(effectiveUserProfile?.worldbookIds || []),
+            ...(executionAgent.worldbookIds || []),
+          ])
+        );
 
         if (worldbookStore && allWorldbookIds.length > 0) {
           const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
@@ -349,15 +349,15 @@ export function useChatExecutor() {
               timeout: settings.value.requestSettings.timeout,
               onStream: settings.value.uiPreferences.isStreaming
                 ? (chunk: string) => {
-                  hasReceivedStreamData = true;
-                  handleStreamUpdate(session, currentAssistantNode.id, chunk, false);
-                }
+                    hasReceivedStreamData = true;
+                    handleStreamUpdate(session, currentAssistantNode.id, chunk, false);
+                  }
                 : undefined,
               onReasoningStream: settings.value.uiPreferences.isStreaming
                 ? (chunk: string) => {
-                  hasReceivedStreamData = true;
-                  handleStreamUpdate(session, currentAssistantNode.id, chunk, true);
-                }
+                    hasReceivedStreamData = true;
+                    handleStreamUpdate(session, currentAssistantNode.id, chunk, true);
+                  }
                 : undefined,
             });
             break;
@@ -366,7 +366,7 @@ export function useChatExecutor() {
             const shouldRetry = !isAbort && !hasReceivedStreamData && attempt < maxRetries;
             if (shouldRetry) {
               const delayTime = retryMode === "exponential" ? retryInterval * Math.pow(2, attempt) : retryInterval;
-              await new Promise(resolve => setTimeout(resolve, delayTime));
+              await new Promise((resolve) => setTimeout(resolve, delayTime));
               continue;
             }
             throw error;
@@ -384,7 +384,8 @@ export function useChatExecutor() {
           }
 
           // --- 工具调用处理逻辑 ---
-          if (executionAgent.toolCallConfig?.enabled) {
+          // 如果是 VCP 渠道，禁用内置工具解析，因为 VCP 后端会处理工具调用并返回结果
+          if (executionAgent.toolCallConfig?.enabled && !isVcpChannel) {
             const cycleResult = await processCycle(response.content, executionAgent.toolCallConfig);
 
             if (cycleResult.hasToolRequests) {
@@ -392,17 +393,19 @@ export function useChatExecutor() {
 
               // 如果需要确认，目前先直接抛出提示（Phase 1 暂不支持 UI 拦截等待）
               if (executionAgent.toolCallConfig.requireConfirmation) {
-                logger.warn("检测到工具请求，但由于开启了 '需要确认'，Phase 1 暂不支持在此流程中拦截。将按自动模式继续。");
+                logger.warn(
+                  "检测到工具请求，但由于开启了 '需要确认'，Phase 1 暂不支持在此流程中拦截。将按自动模式继续。"
+                );
               }
 
               currentAssistantNode.metadata = {
                 ...currentAssistantNode.metadata,
-                toolCallsRequested: cycleResult.parsedRequests.map(req => ({
+                toolCallsRequested: cycleResult.parsedRequests.map((req) => ({
                   requestId: req.requestId,
                   toolName: req.toolName,
                   args: req.args,
-                  status: "completed" // 目前 Phase 1 都是自动完成
-                }))
+                  status: "completed", // 目前 Phase 1 都是自动完成
+                })),
               };
 
               const toolResultText = formatCycleResults(
@@ -420,14 +423,17 @@ export function useChatExecutor() {
                 timestamp: new Date().toISOString(),
                 metadata: {
                   agentId: executionAgent.id,
-                  toolCall: cycleResult.executionResults.length > 0 ? {
-                    requestId: cycleResult.executionResults[0].requestId,
-                    toolName: cycleResult.executionResults[0].toolName,
-                    status: cycleResult.executionResults[0].status,
-                    durationMs: cycleResult.executionResults[0].durationMs,
-                    rawArgs: cycleResult.parsedRequests[0]?.args
-                  } : undefined
-                }
+                  toolCall:
+                    cycleResult.executionResults.length > 0
+                      ? {
+                          requestId: cycleResult.executionResults[0].requestId,
+                          toolName: cycleResult.executionResults[0].toolName,
+                          status: cycleResult.executionResults[0].status,
+                          durationMs: cycleResult.executionResults[0].durationMs,
+                          rawArgs: cycleResult.parsedRequests[0]?.args,
+                        }
+                      : undefined,
+                },
               };
 
               session.nodes[toolNode.id] = toolNode;
@@ -442,7 +448,7 @@ export function useChatExecutor() {
                 content: "",
                 status: "generating",
                 timestamp: new Date().toISOString(),
-                metadata: { agentId: executionAgent.id }
+                metadata: { agentId: executionAgent.id },
               };
               session.nodes[nextAssistantNode.id] = nextAssistantNode;
               toolNode.childrenIds.push(nextAssistantNode.id);
@@ -484,14 +490,10 @@ export function useChatExecutor() {
    * @param timeout 超时时间（毫秒），默认 30 秒
    * @returns 是否所有资产都成功导入
    */
-  const waitForAssetsImport = async (
-    assets: Asset[],
-    timeout: number = 30000,
-  ): Promise<boolean> => {
+  const waitForAssetsImport = async (assets: Asset[], timeout: number = 30000): Promise<boolean> => {
     const startTime = Date.now();
     const pendingAssets = assets.filter(
-      (asset) =>
-        asset.importStatus === "pending" || asset.importStatus === "importing",
+      (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
     );
 
     if (pendingAssets.length === 0) {
@@ -506,16 +508,12 @@ export function useChatExecutor() {
     // 轮询检查导入状态
     while (Date.now() - startTime < timeout) {
       const stillPending = assets.filter(
-        (asset) =>
-          asset.importStatus === "pending" ||
-          asset.importStatus === "importing",
+        (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
       );
 
       if (stillPending.length === 0) {
         // 检查是否有导入失败的
-        const failedAssets = assets.filter(
-          (asset) => asset.importStatus === "error",
-        );
+        const failedAssets = assets.filter((asset) => asset.importStatus === "error");
         if (failedAssets.length > 0) {
           logger.warn("部分资产导入失败", {
             failedCount: failedAssets.length,
@@ -543,9 +541,7 @@ export function useChatExecutor() {
       context: {
         timeout,
         stillPendingCount: assets.filter(
-          (asset) =>
-            asset.importStatus === "pending" ||
-            asset.importStatus === "importing",
+          (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
         ).length,
       },
       showToUser: false,
@@ -557,15 +553,13 @@ export function useChatExecutor() {
     userNode: ChatMessageNode,
     session: ChatSession,
     attachments: Asset[] | undefined,
-    pathUserNode?: ChatMessageNode,
+    pathUserNode?: ChatMessageNode
   ): Promise<void> => {
     if (!attachments || attachments.length === 0) return;
 
     logger.info("检查附件导入状态", {
       attachmentCount: attachments.length,
-      pendingCount: attachments.filter(
-        (a) => a.importStatus === "pending" || a.importStatus === "importing",
-      ).length,
+      pendingCount: attachments.filter((a) => a.importStatus === "pending" || a.importStatus === "importing").length,
     });
     const allImported = await waitForAssetsImport(attachments);
     if (!allImported) {
@@ -596,7 +590,7 @@ export function useChatExecutor() {
     content: string,
     modelId: string,
     attachments?: Asset[],
-    isContinuation: boolean = false,
+    isContinuation: boolean = false
   ): Promise<void> => {
     try {
       // 准备用于 Token 计算的消息内容
@@ -620,11 +614,7 @@ export function useChatExecutor() {
         }
       }
 
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-        combinedText,
-        modelId,
-        mediaAttachments,
-      );
+      const tokenResult = await tokenCalculatorService.calculateMessageTokens(combinedText, modelId, mediaAttachments);
 
       // 如果是续写，这个节点的 tokens 应该被视为 prompt tokens 的一部分
       // 但在节点级别，我们记录它自身的内容 token
@@ -659,15 +649,14 @@ export function useChatExecutor() {
       name: string;
       displayName?: string;
       icon?: string;
-    } | null,
+    } | null
   ): void => {
     if (!effectiveUserProfile) return;
     userNode.metadata = {
       ...userNode.metadata,
       userProfileId: effectiveUserProfile.id,
       userProfileName: effectiveUserProfile.name,
-      userProfileDisplayName:
-        effectiveUserProfile.displayName || effectiveUserProfile.name,
+      userProfileDisplayName: effectiveUserProfile.displayName || effectiveUserProfile.name,
       userProfileIcon: effectiveUserProfile.icon,
     };
     const userProfileStore = useUserProfileStore();
@@ -683,7 +672,7 @@ export function useChatExecutor() {
     session: ChatSession,
     targetNodeId: string,
     agentId?: string,
-    parameterOverrides?: LlmParameters,
+    parameterOverrides?: LlmParameters
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -711,12 +700,9 @@ export function useChatExecutor() {
     }
 
     // 获取 Agent 配置片段
-    const agentConfigSnippet = agentStore.getAgentConfig(
-      currentAgentFromStore.id,
-      {
-        parameterOverrides,
-      },
-    );
+    const agentConfigSnippet = agentStore.getAgentConfig(currentAgentFromStore.id, {
+      parameterOverrides,
+    });
 
     if (!agentConfigSnippet) {
       logger.error("无法获取上下文预览：无法生成智能体配置");
@@ -738,22 +724,16 @@ export function useChatExecutor() {
 
     let effectiveUserProfile: UserProfile | null = null;
     if (currentAgentFromStore?.userProfileId) {
-      const profile = userProfileStore.getProfileById(
-        currentAgentFromStore.userProfileId,
-      );
+      const profile = userProfileStore.getProfileById(currentAgentFromStore.userProfileId);
       if (profile) effectiveUserProfile = profile;
     } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(
-        userProfileStore.globalProfileId,
-      );
+      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
       if (profile) effectiveUserProfile = profile;
     }
 
     // 使用历史配置获取 Profile 和 Model
     const profile = getProfileById(effectiveProfileId);
-    const model: LlmModelInfo | undefined = profile?.models.find(
-      (m) => m.id === effectiveModelId,
-    );
+    const model: LlmModelInfo | undefined = profile?.models.find((m) => m.id === effectiveModelId);
     const capabilities = model?.capabilities;
 
     // 尝试从目标节点恢复用户档案快照
@@ -762,8 +742,7 @@ export function useChatExecutor() {
         ...effectiveUserProfile,
         name: targetNode.metadata.userProfileName,
         // 如果有 displayName 则优先使用，否则使用 name
-        displayName:
-          targetNode.metadata.userProfileName || effectiveUserProfile.displayName,
+        displayName: targetNode.metadata.userProfileName || effectiveUserProfile.displayName,
         icon: targetNode.metadata.userProfileIcon || effectiveUserProfile.icon,
       };
     }
@@ -779,9 +758,7 @@ export function useChatExecutor() {
       settings: settings.value,
       capabilities: capabilities || {},
       // 使用目标节点的时间戳，如果不存在则回退到当前时间
-      timestamp: targetNode?.timestamp
-        ? new Date(targetNode.timestamp).getTime()
-        : Date.now(),
+      timestamp: targetNode?.timestamp ? new Date(targetNode.timestamp).getTime() : Date.now(),
       sharedData: new Map<string, any>(),
       logs: [],
     };
@@ -815,17 +792,18 @@ export function useChatExecutor() {
       });
     }
 
-    pipelineContext.sharedData.set(
-      "transcriptionConfig",
-      settings.value.transcription,
-    );
+    pipelineContext.sharedData.set("transcriptionConfig", settings.value.transcription);
     // 聚合并预加载世界书内容 (预览模式)
-    const worldbookStore = import.meta.env.SSR ? null : (await import('../../stores/worldbookStore')).useWorldbookStore();
-    const allWorldbookIds = Array.from(new Set([
-      ...(settings.value.worldbookIds || []),
-      ...(effectiveUserProfile?.worldbookIds || []),
-      ...(executionAgent.worldbookIds || [])
-    ]));
+    const worldbookStore = import.meta.env.SSR
+      ? null
+      : (await import("../../stores/worldbookStore")).useWorldbookStore();
+    const allWorldbookIds = Array.from(
+      new Set([
+        ...(settings.value.worldbookIds || []),
+        ...(effectiveUserProfile?.worldbookIds || []),
+        ...(executionAgent.worldbookIds || []),
+      ])
+    );
 
     if (worldbookStore && allWorldbookIds.length > 0) {
       const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
@@ -874,7 +852,7 @@ export function useChatExecutor() {
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
         logger.debug("预览模式转写预处理完成", {
           assetCount: updatedAssetsMap.size,
-          forcedCount: forceAssetIds.size
+          forcedCount: forceAssetIds.size,
         });
       } catch (error) {
         logger.warn("预览模式等待转写任务完成时出错或超时", error);
@@ -911,7 +889,7 @@ export function useChatExecutor() {
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         contentText,
         effectiveModelId,
-        msg._attachments || [],
+        msg._attachments || []
       );
       return tokenResult.count;
     });
@@ -919,17 +897,14 @@ export function useChatExecutor() {
     const finalTotalTokenCount = finalTokenCounts.reduce((a, b) => a + b, 0);
 
     // 5. 获取后处理差值
-    const postProcessingTokenDelta =
-      (pipelineContext.sharedData.get("postProcessingTokenDelta") as number) || 0;
-    const postProcessingCharDelta =
-      (pipelineContext.sharedData.get("postProcessingCharDelta") as number) || 0;
+    const postProcessingTokenDelta = (pipelineContext.sharedData.get("postProcessingTokenDelta") as number) || 0;
+    const postProcessingCharDelta = (pipelineContext.sharedData.get("postProcessingCharDelta") as number) || 0;
 
     // 6. 更新预览数据中的统计信息
     const previewData: ContextPreviewData = {
       ...basePreviewData,
       finalMessages: pipelineContext.messages.filter(
-        (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } =>
-          msg.role !== "tool",
+        (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } => msg.role !== "tool"
       ),
       statistics: {
         ...basePreviewData.statistics,

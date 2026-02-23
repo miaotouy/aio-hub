@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { inject, computed, ref, markRaw } from "vue";
-import { Cpu, ArrowDown } from "@element-plus/icons-vue";
+import { Cpu, ArrowDown, CopyDocument, Files } from "@element-plus/icons-vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolsStore } from "@/stores/tools";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
 import { toolRegistryManager } from "@/services/registry";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
+import { customMessage } from "@/utils/customMessage";
+import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
 const editForm = inject<any>("agent-edit-form");
 const toolsStore = useToolsStore();
@@ -87,6 +89,59 @@ const getToolIcon = (toolId: string) => {
   const tool = toolsStore.tools.find((t) => t.path === `/${toolId}`);
   return tool?.icon || markRaw(Cpu);
 };
+
+// 复制配置
+const copyToolSettings = async (toolId: string) => {
+  const settings = getToolSettings(toolId);
+  try {
+    await writeText(JSON.stringify(settings, null, 2));
+    customMessage.success("配置已复制到剪贴板");
+  } catch (e) {
+    customMessage.error("复制失败");
+  }
+};
+
+// 粘贴配置
+const pasteToolSettings = async (toolId: string) => {
+  try {
+    const text = await readText();
+    if (!text) return;
+    const settings = JSON.parse(text);
+    if (typeof settings !== "object") throw new Error("无效的配置格式");
+
+    updateToolSettings(toolId, settings);
+    customMessage.success("配置已粘贴");
+  } catch (e) {
+    customMessage.error("粘贴失败：无效的 JSON 格式");
+  }
+};
+
+// 复制所有工具配置
+const copyAllToolSettings = async () => {
+  ensureConfig();
+  try {
+    await writeText(JSON.stringify(editForm.toolCallConfig.toolSettings, null, 2));
+    customMessage.success("所有工具配置已复制");
+  } catch (e) {
+    customMessage.error("复制失败");
+  }
+};
+
+// 粘贴所有工具配置
+const pasteAllToolSettings = async () => {
+  try {
+    const text = await readText();
+    if (!text) return;
+    const settings = JSON.parse(text);
+    if (typeof settings !== "object") throw new Error("无效的配置格式");
+
+    ensureConfig();
+    editForm.toolCallConfig.toolSettings = settings;
+    customMessage.success("所有工具配置已同步");
+  } catch (e) {
+    customMessage.error("粘贴失败：无效的 JSON 格式");
+  }
+};
 </script>
 
 <template>
@@ -140,7 +195,17 @@ const getToolIcon = (toolId: string) => {
         <!-- 工具发现列表 -->
         <div class="discovered-tools-box">
           <div class="box-header">
-            <span class="box-title">可用工具列表</span>
+            <div class="box-title-group">
+              <span class="box-title">可用工具列表</span>
+              <div class="header-actions">
+                <el-tooltip content="复制所有工具配置" placement="top" :show-after="500">
+                  <el-button link :icon="CopyDocument" @click="copyAllToolSettings" />
+                </el-tooltip>
+                <el-tooltip content="粘贴所有工具配置" placement="top" :show-after="500">
+                  <el-button link :icon="Files" @click="pasteAllToolSettings" />
+                </el-tooltip>
+              </div>
+            </div>
             <div class="box-actions">
               <span class="form-hint">默认开启新工具:</span>
               <el-switch v-model="editForm.toolCallConfig.defaultToolEnabled" size="small" />
@@ -180,13 +245,17 @@ const getToolIcon = (toolId: string) => {
                   </div>
                 </div>
                 <div class="tool-action" @click.stop>
-                  <el-icon
-                    v-if="getToolSettingsSchema(tool.toolId).length > 0"
-                    class="expand-icon"
-                    :class="{ 'expand-icon--open': expandedToolId === tool.toolId }"
-                  >
-                    <ArrowDown />
-                  </el-icon>
+                  <template v-if="getToolSettingsSchema(tool.toolId).length > 0">
+                    <el-tooltip content="复制配置" placement="top" :show-after="500">
+                      <el-button link :icon="CopyDocument" @click="copyToolSettings(tool.toolId)" />
+                    </el-tooltip>
+                    <el-tooltip content="粘贴配置" placement="top" :show-after="500">
+                      <el-button link :icon="Files" @click="pasteToolSettings(tool.toolId)" />
+                    </el-tooltip>
+                    <el-icon class="expand-icon" :class="{ 'expand-icon--open': expandedToolId === tool.toolId }">
+                      <ArrowDown />
+                    </el-icon>
+                  </template>
                   <el-switch :model-value="isToolEnabled(tool.toolId)" @change="toggleTool(tool.toolId)" size="small" />
                 </div>
               </div>
@@ -230,14 +299,31 @@ const getToolIcon = (toolId: string) => {
 
 .tool-config-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0 24px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px 24px;
   margin-bottom: 16px;
-  padding: 12px;
+  padding: 16px;
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: 1px solid var(--border-color);
   border-radius: 8px;
+}
+
+.tool-config-grid :deep(.el-form-item) {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.tool-config-grid :deep(.el-form-item__label) {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.tool-config-grid :deep(.el-form-item__content) {
+  margin-left: 0 !important;
+  display: flex;
+  align-items: center;
 }
 
 .discovered-tools-box {
@@ -262,6 +348,18 @@ const getToolIcon = (toolId: string) => {
   font-size: 13px;
   font-weight: bold;
   color: var(--el-text-color-primary);
+}
+
+.box-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .box-actions {

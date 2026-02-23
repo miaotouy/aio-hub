@@ -14,6 +14,7 @@ export class VcpConnectorRegistry implements ToolRegistry {
   }
 }
 
+// VCP 即 Variable & Command Protocol
 export const toolConfig: ToolConfig = {
   name: "VCP 连接器",
   path: "/vcp-connector",

@@ -9,7 +9,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAgentStore } from "../../stores/agentStore";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
-import { createDefaultChatRegexConfig } from "../../types";
+import { createDefaultChatRegexConfig, DEFAULT_TOOL_CALL_CONFIG } from "../../types";
 import AgentEditor from "./agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
@@ -78,6 +78,7 @@ const defaultFormState = {
     sendButtonCreateBranch: false,
     defaultMediaVolume: 100,
   },
+  toolCallConfig: JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG)),
 };
 
 // 内部追踪当前正在编辑的智能体 ID (解耦全局选中)
@@ -107,9 +108,7 @@ const loadFormData = () => {
 
   // 确定数据源：编辑模式用当前编辑的对象，创建模式用 initialData
   const sourceData =
-    props.mode === "edit" && currentEditingAgent.value
-      ? currentEditingAgent.value
-      : props.initialData || {};
+    props.mode === "edit" && currentEditingAgent.value ? currentEditingAgent.value : props.initialData || {};
 
   // 2. 动态合并数据
   for (const key of Object.keys(editForm)) {
@@ -285,6 +284,7 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
       worldbookSettings: editForm.worldbookSettings,
       assets: editForm.assets,
       assetGroups: editForm.assetGroups,
+      toolCallConfig: editForm.toolCallConfig,
     },
     {
       ...options,
@@ -330,11 +330,7 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
               <template #reference>
                 <el-button :icon="Users" circle plain title="切换智能体" />
               </template>
-              <MiniAgentList
-                :currentAgentId="localAgentId"
-                @switch="switchToAgent"
-                @create="handleClose"
-              />
+              <MiniAgentList :currentAgentId="localAgentId" @switch="switchToAgent" @create="handleClose" />
             </el-popover>
             <div v-if="currentEditingAgent" class="current-editing-info">
               <Avatar

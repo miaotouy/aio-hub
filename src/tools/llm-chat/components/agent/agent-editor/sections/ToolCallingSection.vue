@@ -46,7 +46,10 @@ const isToolEnabled = (toolId: string) => {
 
 const ensureConfig = () => {
   if (!editForm.toolCallConfig) {
-    editForm.toolCallConfig = { ...DEFAULT_TOOL_CALL_CONFIG };
+    editForm.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+  }
+  if (!editForm.toolCallConfig.toolToggles) {
+    editForm.toolCallConfig.toolToggles = {};
   }
   if (!editForm.toolCallConfig.toolSettings) {
     editForm.toolCallConfig.toolSettings = {};
@@ -96,9 +99,7 @@ const vcpProtocol = new VcpToolCallingProtocol();
 const getToolPromptPreview = (toolId: string): string => {
   const tool = discoveredTools.value.find((t) => t.toolId === toolId);
   if (!tool) return "";
-  return vcpProtocol.generateToolDefinitions([
-    { toolId: tool.toolId, toolName: tool.toolName, methods: tool.methods },
-  ]);
+  return vcpProtocol.generateToolDefinitions([{ toolId: tool.toolId, toolName: tool.toolName, methods: tool.methods }]);
 };
 
 // 复制配置
@@ -166,15 +167,7 @@ const pasteAllToolSettings = async () => {
       </div>
 
       <el-form-item label="启用工具调用">
-        <el-switch
-          :model-value="editForm.toolCallConfig?.enabled ?? false"
-          @update:model-value="
-            (val: boolean) => {
-              ensureConfig();
-              editForm.toolCallConfig.enabled = val;
-            }
-          "
-        />
+        <el-switch v-model="editForm.toolCallConfig.enabled" @change="ensureConfig" />
       </el-form-item>
 
       <template v-if="editForm.toolCallConfig?.enabled">

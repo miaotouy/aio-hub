@@ -38,7 +38,8 @@
           <div class="view-mode-switch">
             <el-radio-group v-model="viewMode" size="small">
               <el-radio-button value="edit">编辑</el-radio-button>
-              <el-radio-button value="preview">预览</el-radio-button>
+              <el-radio-button value="text">文本预览</el-radio-button>
+              <el-radio-button value="preview">渲染预览</el-radio-button>
             </el-radio-group>
           </div>
         </div>
@@ -127,24 +128,13 @@
 
             <!-- 深度参数 -->
             <div v-if="injectionMode === 'depth'" class="injection-params">
-              <el-input-number
-                v-model="depthValue"
-                :min="0"
-                :max="99"
-                size="small"
-                controls-position="right"
-              />
+              <el-input-number v-model="depthValue" :min="0" :max="99" size="small" controls-position="right" />
               <span class="param-hint">0 = 紧跟最新消息</span>
             </div>
 
             <!-- 高级深度参数 -->
             <div v-if="injectionMode === 'advanced_depth'" class="injection-params">
-              <el-input
-                v-model="depthConfigValue"
-                placeholder="如 3, 10~5"
-                size="small"
-                style="width: 160px"
-              />
+              <el-input v-model="depthConfigValue" placeholder="如 3, 10~5" size="small" style="width: 160px" />
               <el-tooltip placement="top">
                 <template #content>
                   <div style="max-width: 280px; line-height: 1.5">
@@ -153,9 +143,7 @@
                       <li><strong>5</strong> → 仅在深度 5 注入</li>
                       <li><strong>3, 10, 15</strong> → 在多个深度各注入一次</li>
                       <li><strong>10~5</strong> → 从深度 10 开始，每 5 条注入</li>
-                      <li>
-                        <strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10 起每 5 条注入一次
-                      </li>
+                      <li><strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10 起每 5 条注入一次</li>
                     </ul>
                     <p style="margin: 8px 0 0 0; font-size: 12px; color: #909399">
                       注意：历史消息数不足时，对应深度点会被跳过
@@ -262,11 +250,7 @@
               粘贴
             </el-button>
 
-            <el-popconfirm
-              title="确定要用剪贴板内容覆盖当前内容吗？"
-              @confirm="handleOverwrite"
-              width="220"
-            >
+            <el-popconfirm title="确定要用剪贴板内容覆盖当前内容吗？" @confirm="handleOverwrite" width="220">
               <template #reference>
                 <el-button size="small" plain title="用剪贴板内容覆盖" type="warning">
                   <el-icon style="margin-right: 4px"><Document /></el-icon>
@@ -275,8 +259,11 @@
               </template>
             </el-popconfirm>
           </div>
+          <div v-else-if="viewMode === 'text'" class="preview-hint">
+            <span class="hint-text">宏处理后的纯文本</span>
+          </div>
           <div v-else class="preview-hint">
-            <span class="hint-text">Markdown 预览效果</span>
+            <span class="hint-text">Markdown 渲染预览</span>
           </div>
         </div>
 
@@ -294,7 +281,12 @@
             />
           </div>
 
-          <!-- 预览 -->
+          <!-- 文本预览 -->
+          <div v-if="viewMode === 'text'" class="preview-wrapper text-preview-wrapper">
+            <pre class="text-preview-content">{{ previewContent || form.content || "(空)" }}</pre>
+          </div>
+
+          <!-- 渲染预览 -->
           <div v-if="viewMode === 'preview'" class="preview-wrapper">
             <div class="preview-content">
               <RichTextRenderer
@@ -429,8 +421,8 @@ const modelMatchPatternsText = ref("");
 // 可用锚点列表
 const availableAnchors = computed(() => getAvailableAnchors());
 
-// 视图模式：编辑/预览
-const viewMode = ref<"edit" | "preview">("edit");
+// 视图模式：编辑/文本预览/渲染预览
+const viewMode = ref<"edit" | "text" | "preview">("edit");
 
 // 预览内容
 const previewContent = ref("");
@@ -538,8 +530,7 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
 
   // 过滤匹配的宏
   const matchedMacros = allMacros.filter(
-    (macro) =>
-      macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix)
+    (macro) => macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix)
   );
 
   if (matchedMacros.length === 0) {
@@ -641,11 +632,7 @@ const processPreviewMacros = async () => {
   // 2. 从 store 获取当前活跃会话，提取会话相关的动态上下文（如 last_message）
   let sessionContext: Partial<MacroContext> = {};
   if (chatStore.currentSession) {
-    sessionContext = extractContextFromSession(
-      chatStore.currentSession,
-      props.agent,
-      props.userProfile || undefined
-    );
+    sessionContext = extractContextFromSession(chatStore.currentSession, props.agent, props.userProfile || undefined);
   }
 
   // 3. 合并上下文
@@ -681,7 +668,7 @@ const processPreviewMacros = async () => {
 
 // 监听视图模式变化，进入预览模式时处理宏
 watch(viewMode, (newMode) => {
-  if (newMode === "preview") {
+  if (newMode === "preview" || newMode === "text") {
     processPreviewMacros();
   }
 });
@@ -751,11 +738,7 @@ const buildInjectionStrategy = (): InjectionStrategy | undefined => {
 /**
  * 从 modelMatch 恢复 UI 状态
  */
-const restoreModelMatch = (modelMatch?: {
-  enabled: boolean;
-  patterns: string[];
-  matchProfileName?: boolean;
-}) => {
+const restoreModelMatch = (modelMatch?: { enabled: boolean; patterns: string[]; matchProfileName?: boolean }) => {
   if (!modelMatch) {
     modelMatchEnabled.value = false;
     matchProfileName.value = false;
@@ -770,9 +753,7 @@ const restoreModelMatch = (modelMatch?: {
 /**
  * 构建 modelMatch 对象
  */
-const buildModelMatch = ():
-  | { enabled: boolean; patterns: string[]; matchProfileName?: boolean }
-  | undefined => {
+const buildModelMatch = (): { enabled: boolean; patterns: string[]; matchProfileName?: boolean } | undefined => {
   if (!modelMatchEnabled.value) {
     return undefined;
   }
@@ -842,12 +823,7 @@ const insertTextToEditor = (text: string) => {
     if (position) {
       monacoInstance.executeEdits("", [
         {
-          range: new monaco.Range(
-            position.lineNumber,
-            position.column,
-            position.lineNumber,
-            position.column
-          ),
+          range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
           text: text,
           forceMoveMarkers: true,
         },
@@ -1077,6 +1053,18 @@ function handleSave() {
 
 .preview-content {
   line-height: 1.6;
+}
+
+.text-preview-content {
+  background-color: transparent;
+  border: none;
+  margin: 0;
+  font-family: var(--el-font-family);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--el-text-color-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* 模型匹配配置样式 */

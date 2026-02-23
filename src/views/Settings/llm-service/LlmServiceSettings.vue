@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
 import { useElementSize } from "@vueuse/core";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
@@ -89,6 +90,36 @@ const selectPresetIcon = (icon: any) => {
 const openProviderIconSelector = () => {
   showPresetIconDialog.value = true;
 };
+
+// ─── 路由参数处理 ───
+const route = useRoute();
+
+const handleProfileIdParam = () => {
+  const profileId = route.query.profileId as string | undefined;
+  if (profileId && profiles.value.some((p) => p.id === profileId)) {
+    selectProfile(profileId);
+  }
+};
+
+onMounted(() => {
+  handleProfileIdParam();
+});
+
+watch(
+  () => route.query.profileId,
+  () => handleProfileIdParam()
+);
+
+// 监听 profiles 加载，一旦加载完成且有 profileId 参数，则进行选中
+watch(
+  () => profiles.value.length,
+  (newCount) => {
+    if (newCount > 0 && route.query.profileId) {
+      handleProfileIdParam();
+    }
+  },
+  { immediate: true }
+);
 
 // ─── 响应式布局 ───
 const containerRef = ref<HTMLElement | null>(null);

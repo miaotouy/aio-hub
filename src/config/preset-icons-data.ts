@@ -6,6 +6,12 @@ import type { PresetIconInfo } from "../types/model-metadata";
  */
 export const USER_ADDED_ICONS: PresetIconInfo[] = [
   {
+    name: "VCP Chat",
+    path: "vcpchat.png",
+    suggestedFor: ["vcp", "vcpchat", "vcp-chat", "Variable & Command Protocol"],
+    category: "开源/本地",
+  },
+  {
     name: "Inclusion AI (灵)",
     path: "ling.png",
     suggestedFor: ["inclusionai", "ling"],

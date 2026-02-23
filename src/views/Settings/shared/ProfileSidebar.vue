@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends { id: string; name: string; enabled: boolean }">
-import { computed } from "vue";
+import { computed, watch, nextTick } from "vue";
 import { Plus } from "@element-plus/icons-vue";
 import { GripVertical } from "lucide-vue-next";
 import VueDraggable from "vuedraggable";
@@ -23,6 +23,23 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
+
+/** 自动滚动到选中项 */
+const scrollToSelected = () => {
+  if (!props.selectedId) return;
+  nextTick(() => {
+    const activeItem = document.querySelector(".sidebar-item.active");
+    if (activeItem) {
+      activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
+};
+
+watch(() => props.selectedId, (newId) => {
+  if (newId) {
+    scrollToSelected();
+  }
+});
 
 const draggableProfiles = computed({
   get: () => props.profiles,

@@ -21,6 +21,14 @@ export interface LlmPreset {
  * 用于快速创建常用服务配置
  */
 export const llmPresets: LlmPreset[] = [
+  // VCP (Variable & Command Protocol)
+  {
+    type: "openai",
+    name: "VCP",
+    description: "VCP server - VCP 服务 (OpenAI 兼容)",
+    defaultBaseUrl: "http://localhost:6505",
+    logoUrl: "/model-icons/vcpchat.png",
+  },
   // DeepSeek
   {
     type: "deepseek",
@@ -1642,7 +1650,7 @@ export const llmPresets: LlmPreset[] = [
     name: "NewAPI",
     description: "NewAPI / One API 兼容的聚合服务",
     defaultBaseUrl: "https://api.example.com",
-    logoUrl: "/model-icons/newapi.svg",
+    logoUrl: "/model-icons/newapi-color.svg",
   },
   // Suno (NewAPI)
   {

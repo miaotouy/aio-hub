@@ -85,6 +85,11 @@ export interface ToolCallConfig {
   requireConfirmation: boolean;
   parallelExecution: boolean;
   protocol?: "vcp";
+  /**
+   * 每个工具的特定配置快照
+   * key: toolId, value: 该工具的配置对象
+   */
+  toolSettings?: Record<string, any>;
 }
 
 export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
@@ -97,6 +102,7 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   requireConfirmation: false,
   parallelExecution: false,
   protocol: "vcp",
+  toolSettings: {},
 };
 
 /**

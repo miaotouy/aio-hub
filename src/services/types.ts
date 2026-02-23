@@ -42,6 +42,7 @@ export interface ServiceMetadata {
 import type { Component } from "vue";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import type { AssetSidecarAction } from "@/types/asset-management";
+import type { SettingItem } from "@/types/settings-renderer";
 
 export interface StartupConfig {
   /** 启动项的显示名称 */
@@ -119,4 +120,10 @@ export interface ToolRegistry {
    * 当工具被启用自启动时，在此方法中执行具体的启动逻辑。
    */
   onStartup?(): Promise<void> | void;
+
+  /**
+   * 工具的可配置项声明
+   * 直接使用现有的 SettingItem 类型，确保与 SettingListRenderer 完美兼容
+   */
+  readonly settingsSchema?: SettingItem<any>[];
 }

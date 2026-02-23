@@ -21,11 +21,7 @@ function parseToolTarget(toolName: string): { toolId: string; methodName: string
   };
 }
 
-function buildErrorResult(
-  request: ParsedToolRequest,
-  message: string,
-  durationMs = 0,
-): ToolExecutionResult {
+function buildErrorResult(request: ParsedToolRequest, message: string, durationMs = 0): ToolExecutionResult {
   return {
     requestId: request.requestId,
     toolName: request.toolName,
@@ -59,7 +55,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
 
 async function executeSingleRequest(
   request: ParsedToolRequest,
-  options: ExecutorOptions,
+  options: ExecutorOptions
 ): Promise<ToolExecutionResult> {
   const startedAt = Date.now();
 
@@ -75,16 +71,12 @@ async function executeSingleRequest(
     return buildErrorResult(
       request,
       `无效 tool_name 格式：${request.toolName}，期望格式为 toolId_methodName`,
-      Date.now() - startedAt,
+      Date.now() - startedAt
     );
   }
 
   if (!toolRegistryManager.hasTool(target.toolId)) {
-    return buildErrorResult(
-      request,
-      `工具不存在：${target.toolId}`,
-      Date.now() - startedAt,
-    );
+    return buildErrorResult(request, `工具不存在：${target.toolId}`, Date.now() - startedAt);
   }
 
   let toolInstance: Record<string, unknown>;
@@ -97,21 +89,17 @@ async function executeSingleRequest(
 
   const method = toolInstance[target.methodName];
   if (typeof method !== "function") {
-    return buildErrorResult(
-      request,
-      `方法不存在：${target.toolId}.${target.methodName}`,
-      Date.now() - startedAt,
-    );
+    return buildErrorResult(request, `方法不存在：${target.toolId}.${target.methodName}`, Date.now() - startedAt);
   }
 
   const metadata =
     typeof (toolInstance as { getMetadata?: () => { methods?: Array<{ name: string; agentCallable?: boolean }> } })
       .getMetadata === "function"
       ? (
-        toolInstance as {
-          getMetadata: () => { methods?: Array<{ name: string; agentCallable?: boolean }> };
-        }
-      ).getMetadata()
+          toolInstance as {
+            getMetadata: () => { methods?: Array<{ name: string; agentCallable?: boolean }> };
+          }
+        ).getMetadata()
       : undefined;
 
   const methodMeta = metadata?.methods?.find((m) => m.name === target.methodName);
@@ -119,13 +107,27 @@ async function executeSingleRequest(
     return buildErrorResult(
       request,
       `方法不可调用：${target.toolId}.${target.methodName} 未标记为 agentCallable`,
-      Date.now() - startedAt,
+      Date.now() - startedAt
     );
   }
 
+  // 参数合并策略：Default (settingsSchema) < Agent Preset (toolSettings) < LLM Call (request.args)
+  const schemaDefaults: Record<string, unknown> = {};
+  const schema = (toolInstance as { settingsSchema?: Array<{ modelPath: string; defaultValue?: unknown }> })
+    .settingsSchema;
+  if (schema) {
+    for (const item of schema) {
+      if (item.defaultValue !== undefined) {
+        schemaDefaults[item.modelPath] = item.defaultValue;
+      }
+    }
+  }
+  const agentPreset = options.config.toolSettings?.[target.toolId] ?? {};
+  const mergedArgs = { ...schemaDefaults, ...agentPreset, ...request.args };
+
   try {
     const invokePromise = Promise.resolve(
-      (method as (args: Record<string, string>) => unknown).call(toolInstance, request.args),
+      (method as (args: Record<string, unknown>) => unknown).call(toolInstance, mergedArgs)
     );
     const data = await withTimeout(invokePromise, options.config.timeout, request.toolName);
     const durationMs = Date.now() - startedAt;
@@ -155,7 +157,7 @@ async function executeSingleRequest(
  */
 export async function executeToolRequests(
   requests: ParsedToolRequest[],
-  options: ExecutorOptions,
+  options: ExecutorOptions
 ): Promise<ToolExecutionResult[]> {
   if (requests.length === 0) {
     return [];

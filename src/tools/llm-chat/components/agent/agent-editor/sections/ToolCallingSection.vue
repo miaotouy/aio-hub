@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { inject, computed } from "vue";
-import { Cpu } from "@element-plus/icons-vue";
+import { inject, computed, ref } from "vue";
+import { Cpu, ArrowDown } from "@element-plus/icons-vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
+import { toolRegistryManager } from "@/services/registry";
+import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 
 const editForm = inject<any>("agent-edit-form");
 
@@ -12,6 +14,10 @@ const discoveredTools = computed(() => {
   if (!editForm.toolCallConfig?.enabled) return [];
   return getDiscoveredMethods();
 });
+
+// 展开配置的工具ID
+const expandedToolId = ref<string | null>(null);
+
 const toggleTool = (toolId: string) => {
   if (!editForm.toolCallConfig) {
     editForm.toolCallConfig = { ...DEFAULT_TOOL_CALL_CONFIG };
@@ -19,21 +25,58 @@ const toggleTool = (toolId: string) => {
   if (!editForm.toolCallConfig.toolToggles) {
     editForm.toolCallConfig.toolToggles = {};
   }
-  const currentValue =
-    editForm.toolCallConfig.toolToggles[toolId] ?? editForm.toolCallConfig.defaultToolEnabled;
+  const currentValue = editForm.toolCallConfig.toolToggles[toolId] ?? editForm.toolCallConfig.defaultToolEnabled;
   editForm.toolCallConfig.toolToggles[toolId] = !currentValue;
+
+  // 关闭工具时收起配置
+  if (!editForm.toolCallConfig.toolToggles[toolId] && expandedToolId.value === toolId) {
+    expandedToolId.value = null;
+  }
 };
 
 const isToolEnabled = (toolId: string) => {
   if (!editForm.toolCallConfig) return false;
-  return (
-    editForm.toolCallConfig.toolToggles?.[toolId] ?? editForm.toolCallConfig.defaultToolEnabled
-  );
+  return editForm.toolCallConfig.toolToggles?.[toolId] ?? editForm.toolCallConfig.defaultToolEnabled;
 };
 
 const ensureConfig = () => {
   if (!editForm.toolCallConfig) {
     editForm.toolCallConfig = { ...DEFAULT_TOOL_CALL_CONFIG };
+  }
+  if (!editForm.toolCallConfig.toolSettings) {
+    editForm.toolCallConfig.toolSettings = {};
+  }
+};
+
+// 获取工具的 settingsSchema
+const getToolSettingsSchema = (toolId: string) => {
+  try {
+    const registry = toolRegistryManager.getRegistry(toolId);
+    return registry.settingsSchema || [];
+  } catch (e) {
+    return [];
+  }
+};
+
+// 获取工具当前的配置值
+const getToolSettings = (toolId: string) => {
+  ensureConfig();
+  return editForm.toolCallConfig.toolSettings[toolId] || {};
+};
+
+// 更新工具配置
+const updateToolSettings = (toolId: string, newSettings: any) => {
+  ensureConfig();
+  editForm.toolCallConfig.toolSettings[toolId] = newSettings;
+};
+
+// 切换配置展开状态
+const toggleToolSettings = (toolId: string) => {
+  if (expandedToolId.value === toolId) {
+    expandedToolId.value = null;
+  } else {
+    expandedToolId.value = toolId;
+    ensureConfig();
   }
 };
 </script>
@@ -70,21 +113,11 @@ const ensureConfig = () => {
           </el-form-item>
 
           <el-form-item label="最大迭代">
-            <el-input-number
-              v-model="editForm.toolCallConfig.maxIterations"
-              :min="1"
-              :max="10"
-              size="small"
-            />
+            <el-input-number v-model="editForm.toolCallConfig.maxIterations" :min="1" :max="10" size="small" />
           </el-form-item>
 
           <el-form-item label="超时 (ms)">
-            <el-input-number
-              v-model="editForm.toolCallConfig.timeout"
-              :min="1000"
-              :step="5000"
-              size="small"
-            />
+            <el-input-number v-model="editForm.toolCallConfig.timeout" :min="1000" :step="5000" size="small" />
           </el-form-item>
 
           <el-form-item label="需要确认">
@@ -111,34 +144,54 @@ const ensureConfig = () => {
           </div>
 
           <div v-else class="tools-list">
-            <div v-for="tool in discoveredTools" :key="tool.toolId" class="tool-item">
-              <div class="tool-info">
-                <div class="tool-name-row">
-                  <el-icon><Cpu /></el-icon>
-                  <span class="tool-name">{{ tool.toolName }}</span>
-                  <span class="tool-id">({{ tool.toolId }})</span>
+            <template v-for="tool in discoveredTools" :key="tool.toolId">
+              <div
+                class="tool-item"
+                :class="{ 'tool-item--expandable': getToolSettingsSchema(tool.toolId).length > 0 }"
+                @click="getToolSettingsSchema(tool.toolId).length > 0 && toggleToolSettings(tool.toolId)"
+              >
+                <div class="tool-info">
+                  <div class="tool-name-row">
+                    <el-icon><Cpu /></el-icon>
+                    <span class="tool-name">{{ tool.toolName }}</span>
+                    <span class="tool-id">({{ tool.toolId }})</span>
+                  </div>
+                  <div class="tool-methods">
+                    <el-tag
+                      v-for="method in tool.methods"
+                      :key="method.name"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      class="method-tag"
+                    >
+                      {{ method.name }}
+                    </el-tag>
+                  </div>
                 </div>
-                <div class="tool-methods">
-                  <el-tag
-                    v-for="method in tool.methods"
-                    :key="method.name"
-                    size="small"
-                    type="info"
-                    effect="plain"
-                    class="method-tag"
+                <div class="tool-action" @click.stop>
+                  <el-icon
+                    v-if="getToolSettingsSchema(tool.toolId).length > 0"
+                    class="expand-icon"
+                    :class="{ 'expand-icon--open': expandedToolId === tool.toolId }"
                   >
-                    {{ method.name }}
-                  </el-tag>
+                    <ArrowDown />
+                  </el-icon>
+                  <el-switch :model-value="isToolEnabled(tool.toolId)" @change="toggleTool(tool.toolId)" size="small" />
                 </div>
               </div>
-              <div class="tool-action">
-                <el-switch
-                  :model-value="isToolEnabled(tool.toolId)"
-                  @change="toggleTool(tool.toolId)"
-                  size="small"
-                />
-              </div>
-            </div>
+
+              <!-- 工具配置展开区域 -->
+              <el-collapse-transition>
+                <div v-if="expandedToolId === tool.toolId" class="tool-settings-container">
+                  <SettingListRenderer
+                    :items="getToolSettingsSchema(tool.toolId)"
+                    :settings="getToolSettings(tool.toolId)"
+                    @update:settings="(newSettings) => updateToolSettings(tool.toolId, newSettings)"
+                  />
+                </div>
+              </el-collapse-transition>
+            </template>
           </div>
         </div>
       </template>
@@ -213,7 +266,6 @@ const ensureConfig = () => {
 }
 
 .tools-list {
-  max-height: 400px;
   overflow-y: auto;
 }
 
@@ -223,10 +275,19 @@ const ensureConfig = () => {
   align-items: center;
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.15s;
 }
 
 .tool-item:last-child {
   border-bottom: none;
+}
+
+.tool-item--expandable {
+  cursor: pointer;
+}
+
+.tool-item--expandable:hover {
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
 }
 
 .tool-name-row {
@@ -260,5 +321,28 @@ const ensureConfig = () => {
   padding: 32px;
   display: flex;
   justify-content: center;
+}
+
+.tool-settings-container {
+  padding: 12px;
+  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.03));
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tool-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.expand-icon {
+  color: var(--el-text-color-secondary);
+  transition: transform 0.2s;
+  font-size: 12px;
+}
+
+.expand-icon--open {
+  transform: rotate(180deg);
 }
 </style>

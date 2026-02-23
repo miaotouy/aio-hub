@@ -25,6 +25,13 @@ export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
     displayName: "内置文件请求器",
     isInternal: true,
     description: "请求 AIO 节点上的文件内容 (Base64)",
+    pluginType: "hybridservice",
+    entryPoint: {
+      script: "internal_request_file.js",
+    },
+    communication: {
+      protocol: "direct",
+    },
     parameters: {
       type: "object",
       properties: {
@@ -110,6 +117,13 @@ export function useVcpDistributedNode() {
       name: `${toolId}:${method.name}`,
       displayName: `[AIO] ${method.displayName || method.name}`,
       description: method.description || "",
+      pluginType: "hybridservice",
+      entryPoint: {
+        script: `${method.name}.js`,
+      },
+      communication: {
+        protocol: "direct",
+      },
       parameters: {
         type: "object",
         properties: method.parameters.reduce((acc: any, p: any) => {
@@ -119,9 +133,7 @@ export function useVcpDistributedNode() {
           };
           return acc;
         }, {} as any),
-        required: method.parameters
-          .filter((p: any) => p.required !== false)
-          .map((p: any) => p.name),
+        required: method.parameters.filter((p: any) => p.required !== false).map((p: any) => p.name),
       },
     };
   }
@@ -137,7 +149,7 @@ export function useVcpDistributedNode() {
 
     const tools = discoverTools();
     distStore.setExposedTools(tools);
-    store.nodeProtocol.sendRegisterTools(tools);
+    store.nodeProtocol.sendRegisterTools(distStore.config.serverName, tools);
     logger.info(`Requested registration of ${tools.length} tools`);
   }
 

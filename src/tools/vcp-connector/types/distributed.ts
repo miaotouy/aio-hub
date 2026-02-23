@@ -11,9 +11,17 @@ export interface VcpDistributedConfig {
 
 export interface VcpToolManifest {
   name: string; // 对应 AIO 的 toolId:methodName
-  displayName?: string; // 用于 UI 显示的友好名称
+  displayName: string; // 用于 UI 显示的友好名称
   description: string;
   parameters: any; // JSON Schema
+  pluginType: "tool" | "static" | "service" | "hybridservice";
+  entryPoint: {
+    script?: string;
+    command?: string;
+  };
+  communication?: {
+    protocol: "stdio" | "http" | "direct";
+  };
   isInternal?: boolean; // 是否为内部工具（基础设施）
 }
 
@@ -25,7 +33,13 @@ export interface VcpNodeStatus {
 }
 
 export interface VcpDistributedMessage {
-  type: "register_tools" | "register_tools_ack" | "execute_tool" | "tool_result" | "report_ip" | "update_static_placeholders";
+  type:
+    | "register_tools"
+    | "register_tools_ack"
+    | "execute_tool"
+    | "tool_result"
+    | "report_ip"
+    | "update_static_placeholders";
   data: any;
 }
 

@@ -2,12 +2,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
 import { invoke } from "@tauri-apps/api/core";
-import type {
-  VcpToolManifest, 
-  ExecuteToolRequest, 
-  ToolResultResponse, 
-  ReportIpData 
-} from "../types/distributed";
+import type { VcpToolManifest, ExecuteToolRequest, ToolResultResponse, ReportIpData } from "../types/distributed";
 
 const logger = createModuleLogger("vcp-connector/node-protocol");
 const errorHandler = createModuleErrorHandler("vcp-connector/node-protocol");
@@ -18,11 +13,14 @@ export class VcpNodeProtocol {
   /**
    * AIO -> VCP: 工具注册 (register_tools)
    */
-  public sendRegisterTools(tools: VcpToolManifest[]) {
-    logger.info(`Registering ${tools.length} tools to VCP`);
+  public sendRegisterTools(serverName: string, tools: VcpToolManifest[]) {
+    logger.info(`Registering ${tools.length} tools to VCP from ${serverName}`);
     this.sendJson({
       type: "register_tools",
-      data: { tools }
+      data: {
+        serverName,
+        tools,
+      },
     });
   }
 
@@ -32,7 +30,7 @@ export class VcpNodeProtocol {
   public sendReportIp(data: ReportIpData) {
     this.sendJson({
       type: "report_ip",
-      data
+      data,
     });
   }
 
@@ -42,7 +40,7 @@ export class VcpNodeProtocol {
   public sendUpdateStaticPlaceholders(placeholders: Record<string, string>) {
     this.sendJson({
       type: "update_static_placeholders",
-      data: { placeholders }
+      data: { placeholders },
     });
   }
 
@@ -52,7 +50,7 @@ export class VcpNodeProtocol {
   public sendToolResult(response: ToolResultResponse) {
     this.sendJson({
       type: "tool_result",
-      data: response
+      data: response,
     });
   }
 
@@ -71,9 +69,7 @@ export class VcpNodeProtocol {
       }
 
       // 1. 解析 toolName (格式通常是 toolId:methodName)
-      const [toolId, methodName] = toolName.includes(":") 
-        ? toolName.split(":") 
-        : [toolName, ""];
+      const [toolId, methodName] = toolName.includes(":") ? toolName.split(":") : [toolName, ""];
 
       if (!toolId || !methodName) {
         throw new Error(`Invalid tool name format: ${toolName}. Expected toolId:methodName`);
@@ -87,8 +83,8 @@ export class VcpNodeProtocol {
 
       // 3. 校验权限 (distributedExposed)
       const metadata = registry.getMetadata?.();
-      const method = metadata?.methods.find(m => m.name === methodName);
-      
+      const method = metadata?.methods.find((m) => m.name === methodName);
+
       if (!method || !method.distributedExposed) {
         throw new Error(`Method ${methodName} is not exposed for distributed calling in tool ${toolId}`);
       }
@@ -107,16 +103,16 @@ export class VcpNodeProtocol {
       this.sendToolResult({
         requestId,
         status: "success",
-        result
+        result,
       });
     } catch (error: any) {
       errorHandler.error(error, "Tool execution failed", { context: { requestId, toolName } });
-      
+
       // 6. 回传错误
       this.sendToolResult({
         requestId,
         status: "error",
-        error: error.message || String(error)
+        error: error.message || String(error),
       });
     }
   }

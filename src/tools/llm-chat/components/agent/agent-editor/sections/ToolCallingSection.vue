@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { inject, computed, ref } from "vue";
+import { inject, computed, ref, markRaw } from "vue";
 import { Cpu, ArrowDown } from "@element-plus/icons-vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
+import { useToolsStore } from "@/stores/tools";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
 import { toolRegistryManager } from "@/services/registry";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 
 const editForm = inject<any>("agent-edit-form");
+const toolsStore = useToolsStore();
 
 // 工具调用相关
 const { getDiscoveredMethods } = useToolCalling();
@@ -78,6 +80,12 @@ const toggleToolSettings = (toolId: string) => {
     expandedToolId.value = toolId;
     ensureConfig();
   }
+};
+
+// 获取工具图标
+const getToolIcon = (toolId: string) => {
+  const tool = toolsStore.tools.find((t) => t.path === `/${toolId}`);
+  return tool?.icon || markRaw(Cpu);
 };
 </script>
 
@@ -152,7 +160,9 @@ const toggleToolSettings = (toolId: string) => {
               >
                 <div class="tool-info">
                   <div class="tool-name-row">
-                    <el-icon><Cpu /></el-icon>
+                    <el-icon>
+                      <component :is="getToolIcon(tool.toolId)" />
+                    </el-icon>
                     <span class="tool-name">{{ tool.toolName }}</span>
                     <span class="tool-id">({{ tool.toolId }})</span>
                   </div>

@@ -22,6 +22,13 @@ export interface VcpToolManifest {
   communication?: {
     protocol: "stdio" | "http" | "direct";
   };
+  capabilities?: {
+    invocationCommands?: Array<{
+      command: string;
+      description: string;
+      example: string;
+    }>;
+  };
   isInternal?: boolean; // 是否为内部工具（基础设施）
 }
 

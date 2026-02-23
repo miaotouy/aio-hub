@@ -7,8 +7,8 @@ const logger = createModuleLogger("tool-calling/vcp-protocol");
 
 const TOOL_REQUEST_START = "<<<[TOOL_REQUEST]>>>";
 const TOOL_REQUEST_END = "<<<[END_TOOL_REQUEST]>>>";
-const TOOL_DEFINITION_START = "<<<[TOOL_DEFINITION]>>>";
-const TOOL_DEFINITION_END = "<<<[END_TOOL_DEFINITION]>>>";
+export const TOOL_DEFINITION_START = "<<<[TOOL_DEFINITION]>>>";
+export const TOOL_DEFINITION_END = "<<<[END_TOOL_DEFINITION]>>>";
 const TOOL_RESULT_START = "<<<[TOOL_RESULT]>>>";
 const TOOL_RESULT_END = "<<<[END_TOOL_RESULT]>>>";
 
@@ -49,12 +49,10 @@ function buildParamDescription(param: MethodParameter): string {
   return parts.join("，");
 }
 
-function buildMethodDescription(method: MethodMetadata): string {
+export function buildMethodDescription(method: MethodMetadata): string {
   const command = pickCommandName(method);
 
-  const lines = [
-    buildArgBlock("command", command),
-  ];
+  const lines = [buildArgBlock("command", command)];
 
   // 每个参数展开为独立的 VCP 字段行，而非 JSON 序列化
   for (const param of method.parameters) {
@@ -177,7 +175,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
           `工具描述：${description}`,
           TOOL_DEFINITION_START,
           body,
-          TOOL_DEFINITION_END
+          TOOL_DEFINITION_END,
         ].join("\n");
 
         blocks.push(block);

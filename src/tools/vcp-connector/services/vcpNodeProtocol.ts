@@ -68,11 +68,23 @@ export class VcpNodeProtocol {
         return;
       }
 
-      // 1. 解析 toolName (格式通常是 toolId:methodName)
-      const [toolId, methodName] = toolName.includes(":") ? toolName.split(":") : [toolName, ""];
+      // 1. 解析 toolName (支持 toolId:methodName 或 toolId_methodName 格式)
+      let toolId = "";
+      let methodName = "";
+
+      if (toolName.includes(":")) {
+        [toolId, methodName] = toolName.split(":");
+      } else if (toolName.includes("_")) {
+        // 优先支持冒号，如果没有冒号则尝试下划线（兼容 VCP 拼接习惯）
+        const lastUnderscoreIndex = toolName.lastIndexOf("_");
+        toolId = toolName.substring(0, lastUnderscoreIndex);
+        methodName = toolName.substring(lastUnderscoreIndex + 1);
+      } else {
+        toolId = toolName;
+      }
 
       if (!toolId || !methodName) {
-        throw new Error(`Invalid tool name format: ${toolName}. Expected toolId:methodName`);
+        throw new Error(`Invalid tool name format: ${toolName}. Expected toolId:methodName or toolId_methodName`);
       }
 
       // 2. 获取工具注册表

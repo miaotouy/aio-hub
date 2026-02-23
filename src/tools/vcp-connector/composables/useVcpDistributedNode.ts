@@ -6,6 +6,11 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
 import { invoke } from "@tauri-apps/api/core";
 import { createToolDiscoveryService } from "../../tool-calling/core/discovery";
+import {
+  buildMethodDescription,
+  TOOL_DEFINITION_START,
+  TOOL_DEFINITION_END,
+} from "../../tool-calling/core/protocols/vcp-protocol";
 import type { MethodMetadata } from "@/services/types";
 import type { VcpToolManifest } from "../types/distributed";
 
@@ -111,10 +116,30 @@ export function useVcpDistributedNode() {
 
     return manifest;
   }
-
   function convertToManifest(toolId: string, method: any): VcpToolManifest {
+    const fullToolName = `${toolId}:${method.name}`;
+    const commandName = method.protocolConfig?.vcpCommand?.trim() || method.name;
+
+    // 使用 VCP 协议统一的描述生成逻辑
+    const body = buildMethodDescription(method);
+    const description = [method.description || "无描述", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END].join("\n");
+
+    // 构建调用示例
+    const exampleArgs = method.parameters.map((p: any) => {
+      const val = p.defaultValue !== undefined ? String(p.defaultValue) : p.type === "string" ? `[${p.name}]` : "0";
+      return `${p.name}:「始」${val}「末」`;
+    });
+
+    const example = [
+      "<<<[TOOL_REQUEST]>>>",
+      `tool_name:「始」${toolId}「末」,`,
+      `command:「始」${method.name}「末」,`,
+      ...exampleArgs.map((line: string, i: number) => (i === exampleArgs.length - 1 ? line : `${line},`)),
+      "<<<[END_TOOL_REQUEST]>>>",
+    ].join("\n");
+
     return {
-      name: `${toolId}:${method.name}`,
+      name: fullToolName,
       displayName: `[AIO] ${method.displayName || method.name}`,
       description: method.description || "",
       pluginType: "hybridservice",
@@ -123,6 +148,15 @@ export function useVcpDistributedNode() {
       },
       communication: {
         protocol: "direct",
+      },
+      capabilities: {
+        invocationCommands: [
+          {
+            command: commandName,
+            description: description,
+            example: example,
+          },
+        ],
       },
       parameters: {
         type: "object",

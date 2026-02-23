@@ -351,10 +351,8 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
               engineId,
               texture: this.searchSettings.texture,
               refractionIndex: this.searchSettings.refractionIndex,
-              requiredTags: [
-                ...this.searchSettings.requiredTags,
-                ...matchedTags,
-              ],
+              requiredTags: [...this.searchSettings.requiredTags, ...matchedTags],
+              enabledOnly: true,
             },
             vector_payload: vector,
           });
@@ -383,6 +381,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
               tags: matchedTags.length > 0 ? matchedTags : undefined,
               limit,
               engineId,
+              enabledOnly: true,
             },
             engineId,
           });
@@ -462,9 +461,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       logger.info(`[STATS] 开始批量加载所有库的向量数据: model=${modelId}`);
       // 并行加载，提高效率
-      await Promise.allSettled(
-        this.bases.map((base) => invoke("kb_load_model_vectors", { kbId: base.id, modelId }))
-      );
+      await Promise.allSettled(this.bases.map((base) => invoke("kb_load_model_vectors", { kbId: base.id, modelId })));
     },
 
     /**
@@ -482,11 +479,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
       }
 
       // 1秒缓存逻辑
-      if (
-        !force &&
-        this.globalStats.lastModelId === modelId &&
-        Date.now() - this.globalStats.lastUpdated < 1000
-      ) {
+      if (!force && this.globalStats.lastModelId === modelId && Date.now() - this.globalStats.lastUpdated < 1000) {
         return;
       }
 

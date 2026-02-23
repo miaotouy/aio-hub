@@ -9,6 +9,8 @@ import {
   RefreshCw,
   Sparkles,
   CheckSquare,
+  Eye,
+  EyeOff,
   Settings2,
   ShieldCheck,
   ShieldAlert,
@@ -35,7 +37,7 @@ const emit = defineEmits<{
 }>();
 
 const kbStore = useKnowledgeBaseStore();
-const { updateVectors, syncAllBases, deleteEntries, switchBase, batchGenerateTags } =
+const { updateVectors, syncAllBases, deleteEntries, switchBase, batchGenerateTags, batchUpdateEntries } =
   useKnowledgeBase();
 const { getIconPath, getDisplayIconPath, getMatchedProperties } = useModelMetadata();
 
@@ -49,7 +51,7 @@ const vectorStatusInfo = computed(() => {
   const currentModel = kbStore.config.defaultEmbeddingModel;
 
   const modelId = getPureModelId(currentModel);
-  
+
   // 使用 store 中通过后端校验维护的 vectorizedIds 集合，这比 meta 中的静态字段更准确
   const ready = kbStore.vectorizedIds.size;
   const pending = total - ready;
@@ -92,19 +94,9 @@ const isAllSelected = computed(() => {
               <template #prefix>
                 <Search :size="14" />
               </template>
-              <el-option
-                v-for="base in kbStore.bases"
-                :key="base.id"
-                :label="base.name"
-                :value="base.id"
-              />
+              <el-option v-for="base in kbStore.bases" :key="base.id" :label="base.name" :value="base.id" />
             </el-select>
-            <el-button
-              class="kb-list-btn"
-              size="default"
-              @click="emit('toggle-kb-list')"
-              title="管理知识库列表"
-            >
+            <el-button class="kb-list-btn" size="default" @click="emit('toggle-kb-list')" title="管理知识库列表">
               <template #icon><Library :size="16" /></template>
             </el-button>
           </div>
@@ -126,9 +118,7 @@ const isAllSelected = computed(() => {
                 </div>
                 <div class="tooltip-row">
                   <span class="label">已向量化:</span>
-                  <span class="value"
-                    >{{ vectorStatusInfo.ready }} / {{ vectorStatusInfo.total }}</span
-                  >
+                  <span class="value">{{ vectorStatusInfo.ready }} / {{ vectorStatusInfo.total }}</span>
                 </div>
                 <div v-if="!vectorStatusInfo.isAligned" class="tooltip-row warning">
                   <ShieldAlert :size="12" />
@@ -139,9 +129,7 @@ const isAllSelected = computed(() => {
             <div class="status-tag" :class="{ 'is-aligned': vectorStatusInfo.isAligned }">
               <ShieldCheck v-if="vectorStatusInfo.isAligned" :size="14" />
               <ShieldAlert v-else :size="14" />
-              <span>{{
-                vectorStatusInfo.isAligned ? "向量已就绪" : `${vectorStatusInfo.pending} 项待处理`
-              }}</span>
+              <span>{{ vectorStatusInfo.isAligned ? "向量已就绪" : `${vectorStatusInfo.pending} 项待处理` }}</span>
             </div>
           </el-tooltip>
 
@@ -197,9 +185,7 @@ const isAllSelected = computed(() => {
           <el-checkbox
             :model-value="isAllSelected"
             :indeterminate="selectedEntryIds.size > 0 && !isAllSelected"
-            @change="
-              (val: any) => (val ? emit('select-all-entries') : emit('deselect-all-entries'))
-            "
+            @change="(val: any) => (val ? emit('select-all-entries') : emit('deselect-all-entries'))"
             style="margin-right: 12px"
           />
           <span class="count">已选 {{ selectedEntryIds.size }} 个条目</span>
@@ -222,13 +208,38 @@ const isAllSelected = computed(() => {
             更新向量
           </el-button>
 
+          <el-button
+            size="small"
+            :disabled="selectedEntryIds.size === 0"
+            @click="
+              async () => {
+                await batchUpdateEntries(Array.from(selectedEntryIds), { enabled: true });
+                emit('toggle-selection');
+              }
+            "
+          >
+            <template #icon><Eye :size="14" /></template>
+            启用
+          </el-button>
+
+          <el-button
+            size="small"
+            :disabled="selectedEntryIds.size === 0"
+            @click="
+              async () => {
+                await batchUpdateEntries(Array.from(selectedEntryIds), { enabled: false });
+                emit('toggle-selection');
+              }
+            "
+          >
+            <template #icon><EyeOff :size="14" /></template>
+            禁用
+          </el-button>
+
           <el-dropdown
             trigger="click"
             v-if="kbStore.config.tagGeneration?.enabled"
-            @command="
-              (cmd: string) =>
-                batchGenerateTags(Array.from(selectedEntryIds), { force: cmd === 'force' })
-            "
+            @command="(cmd: string) => batchGenerateTags(Array.from(selectedEntryIds), { force: cmd === 'force' })"
           >
             <el-button
               type="primary"
@@ -426,6 +437,12 @@ const isAllSelected = computed(() => {
 
 .batch-ops {
   display: flex;
+  gap: 8px;
+}
+
+.dropdown-item-content {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 </style>

@@ -71,6 +71,7 @@ impl InMemoryBase {
             existing.summary = caiu.summary.clone();
             existing.tags = caiu.tags.iter().map(|t| t.name.clone()).collect();
             existing.priority = caiu.priority;
+            existing.enabled = caiu.enabled;
             existing.updated_at = caiu.updated_at;
 
             // 如果内容哈希变了，说明内容已更新，向量状态失效
@@ -118,6 +119,7 @@ impl InMemoryBase {
                 summary: caiu.summary.clone(),
                 tags: caiu.tags.iter().map(|t| t.name.clone()).collect(),
                 priority: caiu.priority,
+                enabled: caiu.enabled,
                 updated_at: caiu.updated_at,
                 vector_status: status,
                 content_hash: caiu.content_hash.clone(),

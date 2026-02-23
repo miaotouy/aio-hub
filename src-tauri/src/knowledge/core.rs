@@ -120,6 +120,8 @@ pub struct CaiuIndexItem {
     pub summary: String,
     pub tags: Vec<String>,
     pub priority: i32,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
     pub updated_at: i64,
     #[serde(default)]
     pub vector_status: String,
@@ -214,6 +216,7 @@ impl Caiu {
             summary: self.summary.clone(),
             tags: self.tags.iter().map(|t| t.name.clone()).collect(),
             priority: self.priority,
+            enabled: self.enabled,
             updated_at: self.updated_at,
             vector_status,
             content_hash: self.content_hash.clone(),
@@ -235,6 +238,16 @@ pub struct CaiuInput {
     pub assets: Vec<AssetRef>,
     pub priority: Option<i32>,
     pub enabled: Option<bool>,
+}
+
+/// 用于批量 patch 条目的轻量级输入结构（所有字段可选，不需要加载完整内容）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CaiuPatch {
+    pub enabled: Option<bool>,
+    pub priority: Option<i32>,
+    pub key: Option<String>,
+    pub tags: Option<Vec<TagWithWeight>>,
 }
 
 /// 完整知识库结构 (用于全量导入/导出或旧版兼容)

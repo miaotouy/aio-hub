@@ -452,6 +452,97 @@ pub async fn kb_batch_upsert_entries(
 }
 
 #[tauri::command]
+pub async fn kb_batch_patch_entries(
+    app: AppHandle,
+    state: State<'_, KnowledgeState>,
+    kb_id: Uuid,
+    entry_ids: Vec<Uuid>,
+    patch: crate::knowledge::core::CaiuPatch,
+) -> Result<usize, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let kb_id_str = kb_id.to_string();
+    let now = crate::knowledge::utils::get_now();
+
+    let imdb = state.imdb.read().map_err(|_| "获取内存数据库读锁失败")?;
+    let base_lock = imdb
+        .bases
+        .get(&kb_id)
+        .ok_or_else(|| "找不到知识库".to_string())?;
+
+    // 1. 用读锁读取所有需要更新的条目（内存优先，回退到磁盘）
+    let entries_to_update: Vec<Caiu> = {
+        let base = base_lock.read().map_err(|_| "获取知识库读锁失败")?;
+        let entries_dir = crate::knowledge::io::get_kb_entries_dir(&app_data_dir, &kb_id_str);
+        let mut result = Vec::new();
+        for id in &entry_ids {
+            if let Some(entry) = base.entries.get(id) {
+                result.push(entry.clone());
+            } else {
+                // 内存中没有，尝试从磁盘加载
+                let entry_path = entries_dir.join(format!("{}.json", id));
+                if entry_path.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&entry_path) {
+                        if let Ok(entry) = serde_json::from_str::<Caiu>(&content) {
+                            result.push(entry);
+                        }
+                    }
+                }
+            }
+        }
+        result
+    };
+
+    if entries_to_update.is_empty() {
+        return Ok(0);
+    }
+
+    // 2. 应用 patch
+    let updated_entries: Vec<Caiu> = entries_to_update
+        .into_iter()
+        .map(|mut entry| {
+            if let Some(enabled) = patch.enabled {
+                entry.enabled = enabled;
+            }
+            if let Some(priority) = patch.priority {
+                entry.priority = priority;
+            }
+            if let Some(ref key) = patch.key {
+                entry.key = key.clone();
+            }
+            if let Some(ref tags) = patch.tags {
+                entry.tags = tags.clone();
+            }
+            entry.updated_at = now;
+            entry
+        })
+        .collect();
+
+    // 3. 并行写磁盘
+    updated_entries.par_iter().for_each(|entry| {
+        let _ = crate::knowledge::io::save_entry(&app_data_dir, &kb_id_str, entry);
+    });
+
+    let updated_count = updated_entries.len();
+
+    // 4. 批量更新内存 + 一次性保存 meta
+    {
+        let mut base = base_lock.write().map_err(|_| "获取知识库写锁失败")?;
+        for entry in updated_entries {
+            base.sync_entry(entry);
+        }
+        let _ = crate::knowledge::io::save_kb_meta(&app_data_dir, &kb_id_str, &base.meta);
+    }
+
+    log::info!(
+        "[KB_ENTRY] 批量 patch 完成: kb={}, 更新 {} 个条目",
+        kb_id_str,
+        updated_count
+    );
+
+    Ok(updated_count)
+}
+
+#[tauri::command]
 pub async fn kb_batch_delete_entries(
     app: AppHandle,
     state: State<'_, KnowledgeState>,

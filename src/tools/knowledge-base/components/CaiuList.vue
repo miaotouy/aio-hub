@@ -23,7 +23,7 @@ const emit = defineEmits<{
 
 const kbStore = useKnowledgeBaseStore();
 const logger = createModuleLogger("knowledge-base/CaiuList");
-const { switchBase, addEntries, batchImportFiles } = useKnowledgeBase();
+const { switchBase, addEntries, batchImportFiles, batchUpdateEntries } = useKnowledgeBase();
 const listContainerRef = ref<HTMLElement>();
 const fileInputRef = ref<HTMLInputElement>();
 
@@ -79,9 +79,7 @@ watch(debouncedSearchQuery, async (val) => {
         return {
           ...entry,
           // 关键：将后端的对象标签数组转为前端模板需要的字符串数组
-          tags: Array.isArray(entry.tags)
-            ? entry.tags.map((t: any) => (typeof t === "string" ? t : t.name))
-            : [],
+          tags: Array.isArray(entry.tags) ? entry.tags.map((t: any) => (typeof t === "string" ? t : t.name)) : [],
           searchScore: r.score,
         };
       })
@@ -253,6 +251,15 @@ const formatTokens = (num: number) => {
   return (num / 1000000).toFixed(1) + "m";
 };
 
+const handleToggleEnabled = async (entry: any) => {
+  if (!entry) return;
+  try {
+    await batchUpdateEntries([entry.id], { enabled: !entry.enabled });
+  } catch (err) {
+    logger.error("切换条目启用状态失败", err);
+  }
+};
+
 const handleSelect = (id: string) => {
   if (props.isSelectionMode) {
     const newSelected = new Set(props.selectedEntryIds);
@@ -270,11 +277,7 @@ const handleSelect = (id: string) => {
 </script>
 
 <template>
-  <div
-    ref="listContainerRef"
-    class="caiu-list-container"
-    :class="{ 'is-dragging': isDraggingOver }"
-  >
+  <div ref="listContainerRef" class="caiu-list-container" :class="{ 'is-dragging': isDraggingOver }">
     <div class="drag-overlay" v-if="isDraggingOver">
       <div class="drag-hint">
         <FileUp :size="32" />
@@ -285,13 +288,7 @@ const handleSelect = (id: string) => {
     <div class="sidebar-header">
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-input
-          v-model="searchQueryModel"
-          placeholder="搜索条目..."
-          :prefix-icon="Search"
-          clearable
-          size="default"
-        />
+        <el-input v-model="searchQueryModel" placeholder="搜索条目..." :prefix-icon="Search" clearable size="default" />
       </div>
 
       <!-- 工具栏 -->
@@ -302,14 +299,10 @@ const handleSelect = (id: string) => {
               <template v-if="isSearching && remoteSearchResults.length === 0">
                 本地匹配 {{ entryList.length }} 项，正在检索...
               </template>
-              <template v-else-if="isSearching">
-                找到 {{ entryList.length }} 项，正在同步...
-              </template>
+              <template v-else-if="isSearching"> 找到 {{ entryList.length }} 项，正在同步... </template>
               <template v-else> 找到 {{ entryList.length }} 个匹配项 </template>
             </template>
-            <template v-else>
-              {{ entryList.length }} / {{ kbStore.sortedEntries.length }}
-            </template>
+            <template v-else> {{ entryList.length }} / {{ kbStore.sortedEntries.length }} </template>
           </span>
           <el-icon v-if="isSearching" class="is-loading" style="margin-left: 4px">
             <RotateCw :size="12" />
@@ -317,13 +310,7 @@ const handleSelect = (id: string) => {
         </div>
 
         <div class="toolbar-right">
-          <input
-            ref="fileInputRef"
-            type="file"
-            multiple
-            style="display: none"
-            @change="handleFileChange"
-          />
+          <input ref="fileInputRef" type="file" multiple style="display: none" @change="handleFileChange" />
           <div class="toolbar-group">
             <el-dropdown trigger="click" size="small">
               <div>
@@ -416,6 +403,7 @@ const handleSelect = (id: string) => {
             :class="{
               active: !isSelectionMode && kbStore.activeEntryId === entryList[virtualItem.index].id,
               'is-selecting': isSelectionMode,
+              'is-disabled': !entryList[virtualItem.index].enabled,
             }"
             @click="handleSelect(entryList[virtualItem.index].id)"
           >
@@ -428,9 +416,19 @@ const handleSelect = (id: string) => {
                   @change="() => handleSelect(entryList[virtualItem.index].id)"
                   class="entry-checkbox"
                 />
-                <span class="card-title">{{ entryList[virtualItem.index].key }}</span>
+                <span class="card-title">
+                  <span v-if="!entryList[virtualItem.index].enabled" class="disabled-prefix">[已禁用]</span>
+                  {{ entryList[virtualItem.index].key }}
+                </span>
               </div>
               <div class="card-meta">
+                <el-switch
+                  :model-value="entryList[virtualItem.index].enabled"
+                  size="small"
+                  class="enabled-switch"
+                  @click.stop
+                  @change="() => handleToggleEnabled(entryList[virtualItem.index])"
+                />
                 <el-tooltip
                   :content="
                     getEntryVectorStatus(entryList[virtualItem.index]) === 'ready'
@@ -449,8 +447,7 @@ const handleSelect = (id: string) => {
                     :class="[
                       getEntryVectorStatus(entryList[virtualItem.index]),
                       {
-                        'is-spinning':
-                          getEntryVectorStatus(entryList[virtualItem.index]) === 'pending',
+                        'is-spinning': getEntryVectorStatus(entryList[virtualItem.index]) === 'pending',
                       },
                     ]"
                   />
@@ -460,9 +457,7 @@ const handleSelect = (id: string) => {
                   <span>{{ formatTokens(entryList[virtualItem.index].totalTokens) }}</span>
                 </template>
                 <Clock :size="12" />
-                <span>{{
-                  new Date(entryList[virtualItem.index].updatedAt).toLocaleDateString()
-                }}</span>
+                <span>{{ new Date(entryList[virtualItem.index].updatedAt).toLocaleDateString() }}</span>
               </div>
             </div>
             <div class="card-preview">
@@ -686,6 +681,23 @@ const handleSelect = (id: string) => {
 .entry-card.active {
   background-color: rgba(var(--el-color-primary-rgb), 0.1);
   border-color: rgba(var(--el-color-primary-rgb), 0.2);
+}
+
+.entry-card.is-disabled {
+  opacity: 0.6;
+  background-color: var(--el-fill-color-lighter);
+}
+
+.disabled-prefix {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-right: 4px;
+  font-weight: normal;
+}
+
+.enabled-switch {
+  margin-right: 4px;
+  --el-switch-on-color: var(--el-color-success);
 }
 
 .entry-card.is-selecting {

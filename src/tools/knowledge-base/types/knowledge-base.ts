@@ -35,6 +35,8 @@ export interface CaiuIndexItem {
   tags: string[];
   /** 优先级快照 */
   priority: number;
+  /** 是否启用 */
+  enabled: boolean;
   updatedAt: number;
   vectorStatus: "none" | "pending" | "ready" | "error";
   /** 内容哈希快照 */

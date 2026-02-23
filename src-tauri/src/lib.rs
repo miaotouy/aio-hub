@@ -593,6 +593,7 @@ pub fn run() {
             knowledge::kb_upsert_entry,
             knowledge::kb_delete_entry,
             knowledge::kb_batch_delete_entries,
+            knowledge::kb_batch_patch_entries,
             knowledge::kb_save_base_meta,
             knowledge::kb_warmup,
             knowledge::kb_list_bases,

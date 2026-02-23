@@ -1,5 +1,5 @@
 import { createModuleLogger } from "@/utils/logger";
-import type { MethodMetadata } from "@/services/types";
+import type { MethodMetadata, MethodParameter } from "@/services/types";
 import type { ParsedToolRequest, ToolExecutionResult } from "../../types";
 import type { ToolCallingProtocol, ToolDefinitionInput } from "./base";
 
@@ -33,26 +33,35 @@ function pickCommandName(method: MethodMetadata): string {
   return method.protocolConfig?.vcpCommand?.trim() || method.name;
 }
 
-function buildMethodDescription(toolName: string, method: MethodMetadata): string {
-  const command = pickCommandName(method);
-  const description = method.description?.trim() || "无描述";
-  const parameters = method.parameters.map((param) => ({
-    name: param.name,
-    type: param.type,
-    required: param.required ?? true,
-    description: param.description || "",
-    defaultValue: param.defaultValue,
-    properties: param.properties,
-  }));
-  const example = method.example?.trim() || `${toolName}.${command}()`;
+function buildParamDescription(param: MethodParameter): string {
+  const parts: string[] = [`类型：${param.type}`];
+  if (param.required !== false) {
+    parts.push("必填");
+  } else {
+    parts.push("可选");
+    if (param.defaultValue !== undefined) {
+      parts.push(`默认值：${param.defaultValue}`);
+    }
+  }
+  if (param.description) {
+    parts.push(param.description);
+  }
+  return parts.join("，");
+}
 
-  return [
-    buildArgBlock("tool_name", toolName),
+function buildMethodDescription(method: MethodMetadata): string {
+  const command = pickCommandName(method);
+
+  const lines = [
     buildArgBlock("command", command),
-    buildArgBlock("description", description),
-    buildArgBlock("parameters", JSON.stringify(parameters, null, 2)),
-    buildArgBlock("example", example),
-  ].join("\n");
+  ];
+
+  // 每个参数展开为独立的 VCP 字段行，而非 JSON 序列化
+  for (const param of method.parameters) {
+    lines.push(buildArgBlock(param.name, buildParamDescription(param)));
+  }
+
+  return lines.join("\n");
 }
 
 function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedToolRequest[] {
@@ -159,8 +168,19 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
           continue;
         }
 
-        const body = buildMethodDescription(tool.toolName, method);
-        blocks.push(`${TOOL_DEFINITION_START}\n${body}\n${TOOL_DEFINITION_END}`);
+        const toolName = tool.toolName;
+        const description = method.description?.trim() || "无描述";
+        const body = buildMethodDescription(method);
+
+        const block = [
+          `工具名：${toolName}`,
+          `工具描述：${description}`,
+          TOOL_DEFINITION_START,
+          body,
+          TOOL_DEFINITION_END
+        ].join("\n");
+
+        blocks.push(block);
       }
     }
 

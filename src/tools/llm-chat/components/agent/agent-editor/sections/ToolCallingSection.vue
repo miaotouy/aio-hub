@@ -5,6 +5,7 @@ import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling"
 import { useToolsStore } from "@/stores/tools";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
 import { toolRegistryManager } from "@/services/registry";
+import { VcpToolCallingProtocol } from "@/tools/tool-calling/core/protocols/vcp-protocol";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -83,11 +84,21 @@ const toggleToolSettings = (toolId: string) => {
     ensureConfig();
   }
 };
-
 // 获取工具图标
 const getToolIcon = (toolId: string) => {
   const tool = toolsStore.tools.find((t) => t.path === `/${toolId}`);
   return tool?.icon || markRaw(Cpu);
+};
+
+// 提示词预览
+const vcpProtocol = new VcpToolCallingProtocol();
+
+const getToolPromptPreview = (toolId: string): string => {
+  const tool = discoveredTools.value.find((t) => t.toolId === toolId);
+  if (!tool) return "";
+  return vcpProtocol.generateToolDefinitions([
+    { toolId: tool.toolId, toolName: tool.toolName, methods: tool.methods },
+  ]);
 };
 
 // 复制配置
@@ -218,11 +229,7 @@ const pasteAllToolSettings = async () => {
 
           <div v-else class="tools-list">
             <template v-for="tool in discoveredTools" :key="tool.toolId">
-              <div
-                class="tool-item"
-                :class="{ 'tool-item--expandable': getToolSettingsSchema(tool.toolId).length > 0 }"
-                @click="getToolSettingsSchema(tool.toolId).length > 0 && toggleToolSettings(tool.toolId)"
-              >
+              <div class="tool-item tool-item--expandable" @click="toggleToolSettings(tool.toolId)">
                 <div class="tool-info">
                   <div class="tool-name-row">
                     <el-icon>
@@ -252,22 +259,34 @@ const pasteAllToolSettings = async () => {
                     <el-tooltip content="粘贴配置" placement="top" :show-after="500">
                       <el-button link :icon="Files" @click="pasteToolSettings(tool.toolId)" />
                     </el-tooltip>
-                    <el-icon class="expand-icon" :class="{ 'expand-icon--open': expandedToolId === tool.toolId }">
-                      <ArrowDown />
-                    </el-icon>
                   </template>
+                  <el-icon class="expand-icon" :class="{ 'expand-icon--open': expandedToolId === tool.toolId }">
+                    <ArrowDown />
+                  </el-icon>
                   <el-switch :model-value="isToolEnabled(tool.toolId)" @change="toggleTool(tool.toolId)" size="small" />
                 </div>
               </div>
 
-              <!-- 工具配置展开区域 -->
+              <!-- 工具展开区域：提示词预览 + 可选配置 -->
               <el-collapse-transition>
                 <div v-if="expandedToolId === tool.toolId" class="tool-settings-container">
-                  <SettingListRenderer
-                    :items="getToolSettingsSchema(tool.toolId)"
-                    :settings="getToolSettings(tool.toolId)"
-                    @update:settings="(newSettings) => updateToolSettings(tool.toolId, newSettings)"
-                  />
+                  <!-- 提示词注入预览 -->
+                  <div class="prompt-preview-section">
+                    <div class="preview-header">
+                      <span class="preview-label">提示词注入预览</span>
+                      <el-tag size="small" type="info" effect="plain">VCP 纯文本协议</el-tag>
+                    </div>
+                    <pre class="preview-content">{{ getToolPromptPreview(tool.toolId) }}</pre>
+                  </div>
+                  <!-- 工具配置（如有） -->
+                  <template v-if="getToolSettingsSchema(tool.toolId).length > 0">
+                    <el-divider style="margin: 8px 0" />
+                    <SettingListRenderer
+                      :items="getToolSettingsSchema(tool.toolId)"
+                      :settings="getToolSettings(tool.toolId)"
+                      @update:settings="(newSettings) => updateToolSettings(tool.toolId, newSettings)"
+                    />
+                  </template>
                 </div>
               </el-collapse-transition>
             </template>
@@ -435,6 +454,39 @@ const pasteAllToolSettings = async () => {
   padding: 12px;
   background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.03));
   border-bottom: 1px solid var(--border-color);
+}
+
+.prompt-preview-section {
+  margin-bottom: 4px;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.preview-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+}
+
+.preview-content {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: var(--el-font-family-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .tool-action {

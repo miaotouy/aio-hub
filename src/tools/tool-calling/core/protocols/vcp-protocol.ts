@@ -55,11 +55,10 @@ function buildMethodDescription(toolName: string, method: MethodMetadata): strin
   ].join("\n");
 }
 
-function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedToolRequest | null {
+function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedToolRequest[] {
   const content = rawBlock.slice(TOOL_REQUEST_START.length, rawBlock.length - TOOL_REQUEST_END.length);
 
-  const args: Record<string, string> = {};
-  let toolName = "";
+  const allParams: Record<string, string> = {};
 
   RE_VCP_ARG.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -68,11 +67,7 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   while ((match = RE_VCP_ARG.exec(content)) !== null) {
     const key = match[1];
     const value = sanitizeValue(match[2]);
-    if (key === "tool_name") {
-      toolName = value;
-    } else {
-      args[key] = value; // 重复参数后值覆盖前值
-    }
+    allParams[key] = value;
     lastMatchEnd = RE_VCP_ARG.lastIndex;
   }
 
@@ -82,28 +77,74 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
     if (pendingMatch) {
       const key = pendingMatch[1];
       const value = sanitizeValue(pendingMatch[2]);
-      if (key === "tool_name" && !toolName) {
-        toolName = value;
-      } else if (key !== "tool_name" && !(key in args)) {
-        args[key] = value;
+      if (!(key in allParams)) {
+        allParams[key] = value;
       }
     }
   }
 
-  if (!toolName) {
+  const toolId = allParams.tool_name?.trim();
+  if (!toolId) {
     logger.warn("跳过无 tool_name 的 TOOL_REQUEST 块", { requestIndex, rawBlock });
-    return null;
+    return [];
   }
 
-  const requestId = args.request_id?.trim() || `req_${requestIndex + 1}`;
-  delete args.request_id;
+  const baseRequestId = allParams.request_id?.trim() || `req_${requestIndex + 1}`;
 
-  return {
-    requestId,
-    toolName,
-    rawBlock,
-    args,
-  };
+  // 识别分组参数 (keyN)
+  const commonArgs: Record<string, string> = {};
+  const indexedGroups: Record<string, Record<string, string>> = {};
+  const RE_INDEXED_KEY = /^(.+?)(\d+)$/;
+
+  for (const [key, value] of Object.entries(allParams)) {
+    if (key === "tool_name" || key === "request_id") continue;
+
+    const idxMatch = key.match(RE_INDEXED_KEY);
+    if (idxMatch) {
+      const baseKey = idxMatch[1];
+      const index = idxMatch[2];
+      if (!indexedGroups[index]) indexedGroups[index] = {};
+      indexedGroups[index][baseKey] = value;
+    } else {
+      commonArgs[key] = value;
+    }
+  }
+
+  const indices = Object.keys(indexedGroups).sort((a, b) => Number(a) - Number(b));
+
+  // 如果没有索引参数，按单条处理
+  if (indices.length === 0) {
+    const command = commonArgs.command?.trim();
+    const finalToolName = command ? `${toolId}_${command}` : toolId;
+    const args = { ...commonArgs };
+    delete args.command;
+
+    return [
+      {
+        requestId: baseRequestId,
+        toolName: finalToolName,
+        rawBlock,
+        args,
+      },
+    ];
+  }
+
+  // 批量拆分处理
+  return indices.map((index) => {
+    const groupArgs = indexedGroups[index];
+    const command = groupArgs.command?.trim() || commonArgs.command?.trim();
+    const finalToolName = command ? `${toolId}_${command}` : toolId;
+
+    const mergedArgs = { ...commonArgs, ...groupArgs };
+    delete mergedArgs.command;
+
+    return {
+      requestId: `${baseRequestId}_${index}`,
+      toolName: finalToolName,
+      rawBlock,
+      args: mergedArgs,
+    };
+  });
 }
 
 export class VcpToolCallingProtocol implements ToolCallingProtocol {
@@ -154,10 +195,8 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       }
 
       const rawBlock = text.slice(blockStart, blockEnd + TOOL_REQUEST_END.length);
-      const parsed = parseSingleToolRequest(rawBlock, requestIndex);
-      if (parsed) {
-        requests.push(parsed);
-      }
+      const parsedList = parseSingleToolRequest(rawBlock, requestIndex);
+      requests.push(...parsedList);
 
       searchStart = blockEnd + TOOL_REQUEST_END.length;
       requestIndex += 1;

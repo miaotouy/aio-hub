@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, markRaw } from "vue";
 import { ElSwitch, ElEmpty, ElIcon } from "element-plus";
-import { Cpu, Settings2 } from "lucide-vue-next";
+import { Cpu, Settings2, Power, Zap } from "lucide-vue-next";
 import { useAgentStore } from "../../stores/agentStore";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolsStore } from "@/stores/tools";
@@ -55,10 +55,6 @@ const toggleTool = (toolId: string) => {
   const currentValue = isToolEnabled(toolId);
   currentAgent.value.toolCallConfig!.toolToggles[toolId] = !currentValue;
   agentStore.persistAgent(currentAgent.value);
-};
-
-const handleToolSwitch = (toolId: string, _val: boolean | string | number) => {
-  toggleTool(toolId);
 };
 
 const toggleAutoApprove = (toolId: string) => {
@@ -120,20 +116,39 @@ const emit = defineEmits<{
             <span class="tool-name">{{ tool.toolName }}</span>
           </div>
           <div class="tool-switches" @click.stop>
-            <el-tooltip content="自动批准" placement="top" :show-after="800">
-              <el-switch
-                :model-value="isAutoApproveEnabled(tool.toolId)"
-                @update:model-value="() => toggleAutoApprove(tool.toolId)"
-                size="small"
-                :disabled="config.mode !== 'auto'"
-                class="auto-approve-switch"
-              />
+            <el-tooltip
+              :content="isAutoApproveEnabled(tool.toolId) ? '已开启自动批准' : '点击开启自动批准'"
+              placement="top"
+              :show-after="800"
+            >
+              <div
+                class="icon-toggle icon-toggle--auto"
+                :class="{
+                  active: isAutoApproveEnabled(tool.toolId),
+                  'is-ineffective': config.mode !== 'auto',
+                }"
+                @click="toggleAutoApprove(tool.toolId)"
+              >
+                <Zap
+                  :size="14"
+                  class="toggle-icon"
+                  :fill="isAutoApproveEnabled(tool.toolId) ? 'currentColor' : 'none'"
+                />
+              </div>
             </el-tooltip>
-            <el-switch
-              :model-value="isToolEnabled(tool.toolId)"
-              @update:model-value="(val: boolean | string | number) => handleToolSwitch(tool.toolId, val)"
-              size="small"
-            />
+            <el-tooltip
+              :content="isToolEnabled(tool.toolId) ? '工具已启用' : '工具已禁用'"
+              placement="top"
+              :show-after="800"
+            >
+              <div
+                class="icon-toggle icon-toggle--power"
+                :class="{ active: isToolEnabled(tool.toolId) }"
+                @click="toggleTool(tool.toolId)"
+              >
+                <Power :size="14" class="toggle-icon" />
+              </div>
+            </el-tooltip>
           </div>
         </div>
       </div>
@@ -246,11 +261,50 @@ const emit = defineEmits<{
 .tool-switches {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.auto-approve-switch :deep(.el-switch__core) {
-  --el-switch-on-color: var(--el-color-warning);
+.icon-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--el-text-color-placeholder);
+  opacity: 0.5;
+}
+
+.icon-toggle:hover:not(.disabled) {
+  background-color: var(--el-fill-color-light);
+  opacity: 0.8;
+}
+
+.icon-toggle.active {
+  opacity: 1;
+}
+
+.icon-toggle--auto.active {
+  color: var(--el-color-warning);
+}
+
+.icon-toggle--auto.active.is-ineffective {
+  opacity: 0.3;
+}
+
+.icon-toggle--power.active {
+  color: var(--el-color-success);
+}
+
+.icon-toggle.disabled {
+  cursor: not-allowed;
+  opacity: 0.2;
+}
+
+.toggle-icon {
+  transition: all 0.2s;
 }
 
 .empty-hint {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, computed, ref, markRaw } from "vue";
-import { Cpu, ArrowDown, CopyDocument, Files } from "@element-plus/icons-vue";
+import { ArrowDown, CopyDocument, Files } from "@element-plus/icons-vue";
+import { Cpu, Power, Zap } from "lucide-vue-next";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolsStore } from "@/stores/tools";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
@@ -178,24 +179,24 @@ const pasteAllToolSettings = async () => {
 <template>
   <div class="agent-section">
     <div class="section-group" data-setting-id="toolCalling">
-      <div class="section-group-title">工具调用 (Agent)</div>
+      <div class="section-header">
+        <div class="section-group-title">工具调用 (Agent)</div>
+        <el-switch v-model="editForm.toolCallConfig.enabled" @change="ensureConfig" />
+      </div>
       <div class="form-hint">
         允许智能体在对话中使用 AIO 内部工具。启用后，智能体将能够通过
         <code v-pre style="color: var(--el-color-primary)">{{ tools }}</code>
         宏获取工具定义并发出调用请求。
       </div>
 
-      <el-form-item label="启用工具调用">
-        <el-switch v-model="editForm.toolCallConfig.enabled" @change="ensureConfig" />
-      </el-form-item>
-
       <template v-if="editForm.toolCallConfig?.enabled">
         <div class="tool-config-grid">
           <el-form-item label="自动批准">
-            <el-radio-group v-model="editForm.toolCallConfig.mode" size="small">
-              <el-radio-button label="auto">开启</el-radio-button>
-              <el-radio-button label="manual">关闭</el-radio-button>
-            </el-radio-group>
+            <el-switch v-model="editForm.toolCallConfig.mode" active-value="auto" inactive-value="manual" />
+          </el-form-item>
+
+          <el-form-item label="并行执行">
+            <el-switch v-model="editForm.toolCallConfig.parallelExecution" />
           </el-form-item>
 
           <el-form-item label="最大迭代">
@@ -204,10 +205,6 @@ const pasteAllToolSettings = async () => {
 
           <el-form-item label="超时 (ms)">
             <el-input-number v-model="editForm.toolCallConfig.timeout" :min="1000" :step="5000" size="small" />
-          </el-form-item>
-
-          <el-form-item label="并行执行">
-            <el-switch v-model="editForm.toolCallConfig.parallelExecution" />
           </el-form-item>
         </div>
 
@@ -278,20 +275,39 @@ const pasteAllToolSettings = async () => {
                     <ArrowDown />
                   </el-icon>
                   <div class="tool-switch-group">
-                    <el-tooltip content="自动批准" placement="top" :show-after="500">
-                      <el-switch
-                        :model-value="isAutoApproveEnabled(tool.toolId)"
-                        @change="toggleAutoApprove(tool.toolId)"
-                        size="small"
-                        :disabled="editForm.toolCallConfig.mode !== 'auto'"
-                        class="auto-approve-switch"
-                      />
+                    <el-tooltip
+                      :content="isAutoApproveEnabled(tool.toolId) ? '已开启自动批准' : '点击开启自动批准'"
+                      placement="top"
+                      :show-after="500"
+                    >
+                      <div
+                        class="icon-toggle icon-toggle--auto"
+                        :class="{
+                          active: isAutoApproveEnabled(tool.toolId),
+                          'is-ineffective': editForm.toolCallConfig.mode !== 'auto',
+                        }"
+                        @click.stop="toggleAutoApprove(tool.toolId)"
+                      >
+                        <Zap
+                          :size="16"
+                          class="toggle-icon"
+                          :fill="isAutoApproveEnabled(tool.toolId) ? 'currentColor' : 'none'"
+                        />
+                      </div>
                     </el-tooltip>
-                    <el-switch
-                      :model-value="isToolEnabled(tool.toolId)"
-                      @change="toggleTool(tool.toolId)"
-                      size="small"
-                    />
+                    <el-tooltip
+                      :content="isToolEnabled(tool.toolId) ? '工具已启用' : '工具已禁用'"
+                      placement="top"
+                      :show-after="500"
+                    >
+                      <div
+                        class="icon-toggle icon-toggle--power"
+                        :class="{ active: isToolEnabled(tool.toolId) }"
+                        @click.stop="toggleTool(tool.toolId)"
+                      >
+                        <Power :size="16" class="toggle-icon" />
+                      </div>
+                    </el-tooltip>
                   </div>
                 </div>
               </div>
@@ -331,10 +347,16 @@ const pasteAllToolSettings = async () => {
   margin-bottom: 24px;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 .section-group-title {
   font-size: 16px;
   font-weight: bold;
-  margin-bottom: 12px;
 }
 
 .form-hint {
@@ -537,8 +559,50 @@ const pasteAllToolSettings = async () => {
   gap: 8px;
 }
 
-.auto-approve-switch :deep(.el-switch__core) {
-  --el-switch-on-color: var(--el-color-warning);
+.icon-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--el-text-color-placeholder);
+  opacity: 0.4;
+}
+
+.icon-toggle:hover:not(.disabled) {
+  background-color: var(--el-fill-color-light);
+  opacity: 0.8;
+}
+
+.icon-toggle.active {
+  opacity: 1;
+}
+
+.icon-toggle--auto.active {
+  color: var(--el-color-warning);
+  filter: drop-shadow(0 0 3px rgba(var(--el-color-warning-rgb), 0.4));
+}
+
+.icon-toggle--auto.active.is-ineffective {
+  opacity: 0.25;
+  filter: none;
+}
+
+.icon-toggle--power.active {
+  color: var(--el-color-success);
+  filter: drop-shadow(0 0 3px rgba(var(--el-color-success-rgb), 0.4));
+}
+
+.icon-toggle.disabled {
+  cursor: not-allowed;
+  opacity: 0.15;
+}
+
+.toggle-icon {
+  transition: all 0.2s;
 }
 
 .expand-icon {

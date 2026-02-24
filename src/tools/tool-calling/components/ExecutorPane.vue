@@ -44,8 +44,13 @@ const applyMethod = (group: any, method: any) => {
 
   const argsObj: Record<string, any> = {};
   method.parameters.forEach((p: any) => {
+    // 优先从 settingsSchema 中寻找默认值
+    const schemaItem = group.settingsSchema?.find((s: any) => s.modelPath === p.name);
+    
     if (p.defaultValue !== undefined) {
       argsObj[p.name] = p.defaultValue;
+    } else if (schemaItem?.defaultValue !== undefined) {
+      argsObj[p.name] = schemaItem.defaultValue;
     } else {
       switch (p.type?.toLowerCase()) {
         case "number":

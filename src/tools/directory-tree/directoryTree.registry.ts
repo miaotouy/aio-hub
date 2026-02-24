@@ -84,6 +84,8 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
       path: String(args.path || ""),
       showFiles: args.showFiles !== false && args.showFiles !== "false",
       showHidden: args.showHidden === true || args.showHidden === "true",
+      showSize: args.showSize === true || args.showSize === "true",
+      showDirSize: args.showDirSize === true || args.showDirSize === "true",
       maxDepth: args.maxDepth !== undefined ? Number(args.maxDepth) : 5,
       filterMode: (args.filterMode as GenerateTreeOptions["filterMode"]) || "none",
       customPattern: String(args.customPattern || ""),
@@ -92,7 +94,11 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
     const result = await generateTree(options);
     return renderTree(
       result.structure,
-      { showFiles: options.showFiles },
+      {
+        showFiles: options.showFiles,
+        showSize: options.showSize,
+        showDirSize: options.showDirSize,
+      },
       options.includeMetadata ? options : undefined,
       options.includeMetadata ? result.stats : undefined
     );

@@ -11,6 +11,7 @@ type DiscoveredToolMethods = {
   toolId: string;
   toolName: string;
   methods: MethodMetadata[];
+  settingsSchema?: any[];
 };
 
 type GeneratePromptOptions = {

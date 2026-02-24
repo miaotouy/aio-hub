@@ -34,6 +34,10 @@ export interface GenerateTreeOptions {
   customPattern?: string;
   /** 是否在输出中包含元数据 */
   includeMetadata?: boolean;
+  /** 是否显示文件大小 */
+  showSize?: boolean;
+  /** 是否显示目录大小 */
+  showDirSize?: boolean;
 }
 
 /**
@@ -71,6 +75,8 @@ export function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGen
     `- 目标路径: ${options.path}`,
     `- 显示文件: ${options.showFiles ? "是" : "否"}`,
     `- 显示隐藏: ${options.showHidden ? "是" : "否"}`,
+    options.showSize !== undefined ? `- 显示文件大小: ${options.showSize ? "是" : "否"}` : "",
+    options.showDirSize !== undefined ? `- 显示目录大小: ${options.showDirSize ? "是" : "否"}` : "",
     `- 过滤模式: ${
       options.filterMode === "gitignore"
         ? "使用 .gitignore"

@@ -8,6 +8,7 @@ import { customMessage } from "@/utils/customMessage";
 const props = defineProps<{
   method: any;
   modelValue: Record<string, any>;
+  settingsSchema?: any[];
 }>();
 
 const emit = defineEmits<{

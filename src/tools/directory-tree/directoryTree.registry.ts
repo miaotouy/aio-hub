@@ -107,6 +107,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
             {
               name: 'path',
               type: 'string',
+              uiHint: 'directory',
               description: '要分析的目标目录路径',
               required: true,
             },

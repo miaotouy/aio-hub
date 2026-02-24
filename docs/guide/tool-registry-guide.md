@@ -243,6 +243,7 @@ public getMetadata(): ServiceMetadata {
           {
             name: "path",
             type: "string",
+            uiHint: "directory",        // UI 提示：渲染为带目录选择器的输入框
             description: "要分析的目标目录路径（绝对路径）",
             required: true,             // 必填参数
           },
@@ -386,6 +387,7 @@ export default class FileReaderRegistry implements ToolRegistry {
             {
               name: "path",
               type: "string",
+              uiHint: "file",
               description: "文件的绝对路径",
               required: true,
             },

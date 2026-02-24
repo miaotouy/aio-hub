@@ -11,6 +11,8 @@ export interface MethodParameter {
   /** 是否为必填参数，默认为 true */
   required?: boolean;
   defaultValue?: any;
+  /** UI 提示，用于指导前端渲染特定的输入组件 (如 'path', 'model', 'textarea', 'json' 等) */
+  uiHint?: string;
   /** 当 type 为对象类型时，描述对象的属性 */
   properties?: MethodParameter[];
 }

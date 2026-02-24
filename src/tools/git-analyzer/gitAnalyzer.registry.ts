@@ -142,7 +142,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
           description: "获取仓库的格式化分析摘要，包含统计信息、贡献者排行和最近提交",
           agentCallable: true,
           parameters: [
-            { name: "path", type: "string", description: "Git 仓库路径", required: true },
+            { name: "path", type: "string", uiHint: "directory", description: "Git 仓库路径", required: true },
             { name: "branch", type: "string", description: "指定分析的分支，默认为当前分支", required: false },
             { name: "limit", type: "number", description: "限制分析的提交数量", required: false, defaultValue: 100 },
             {
@@ -209,7 +209,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
           description: "获取指定作者的提交记录，支持部分名称匹配",
           agentCallable: true,
           parameters: [
-            { name: "path", type: "string", description: "Git 仓库路径", required: true },
+            { name: "path", type: "string", uiHint: "directory", description: "Git 仓库路径", required: true },
             { name: "author", type: "string", description: "作者名称（支持部分匹配）", required: true },
             { name: "branch", type: "string", description: "指定分支", required: false },
             { name: "limit", type: "number", description: "限制提交数量", required: false, defaultValue: 100 },
@@ -264,7 +264,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
           description: "获取指定提交的详细信息，包含完整消息、文件变更、代码统计和标签",
           agentCallable: true,
           parameters: [
-            { name: "path", type: "string", description: "Git 仓库路径", required: true },
+            { name: "path", type: "string", uiHint: "directory", description: "Git 仓库路径", required: true },
             { name: "hash", type: "string", description: "提交哈希值（完整或短格式均可）", required: true },
           ],
           returnType: "Promise<GitCommit | null>",
@@ -274,7 +274,9 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
           displayName: "获取分支列表",
           description: "获取仓库的所有分支名称",
           agentCallable: true,
-          parameters: [{ name: "path", type: "string", description: "Git 仓库路径", required: true }],
+          parameters: [
+            { name: "path", type: "string", uiHint: "directory", description: "Git 仓库路径", required: true },
+          ],
           returnType: "Promise<string[] | null>",
         },
       ],

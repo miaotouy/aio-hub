@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, reactive } from "vue";
-import { Play, CheckCircle2, XCircle, Clock, Zap, Settings2, FolderOpen, Eye, Code, FileJson } from "lucide-vue-next";
+import { ref, computed } from "vue";
+import { Play, Zap } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
-import { RendererVersion } from "@/tools/rich-text-renderer/types";
-import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { open } from "@tauri-apps/plugin-dialog";
 import { customMessage } from "@/utils/customMessage";
 import { executeToolRequests } from "../core/executor";
+
+// 导入拆分后的子组件
+import ParameterForm from "./executor/ParameterForm.vue";
+import ExecutionResultCard from "./executor/ExecutionResultCard.vue";
 
 const props = defineProps<{
   groups: any[];
@@ -21,173 +21,6 @@ const testArgs = ref("{\n  \n}");
 const useJsonMode = ref(false);
 const executionResults = ref<any[]>([]);
 const isExecuting = ref(false);
-
-// 结果查看模式管理
-const resultViewModes = reactive<Record<string, "markdown" | "json" | "raw">>({});
-const getResultViewMode = (id: string) => resultViewModes[id] || "markdown";
-const setResultViewMode = (id: string, mode: "markdown" | "json" | "raw") => {
-  resultViewModes[id] = mode;
-};
-
-/**
- * 格式化显示结果
- */
-const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => {
-  if (result === undefined || result === null) return "";
-
-  if (mode === "json") {
-    if (typeof result === "string") {
-      try {
-        // 尝试解析并重新美化，如果是 JSON 字符串的话
-        return JSON.stringify(JSON.parse(result), null, 2);
-      } catch (e) {
-        return result;
-      }
-    }
-    return JSON.stringify(result, null, 2);
-  }
-
-  if (typeof result !== "string") {
-    return JSON.stringify(result, null, 2);
-  }
-
-  return result;
-};
-
-/**
- * 解析联合类型字符串，例如 "'none' | 'gitignore' | 'custom' | 'both'"
- * 也支持 "Array<'statistics' | 'commits'>" 格式
- */
-const parseUnionType = (typeStr: string): { options: string[]; isArray: boolean } | null => {
-  if (!typeStr) return null;
-
-  let isArray = false;
-  let targetStr = typeStr.trim();
-
-  // 检查是否是 Array<...> 格式
-  const arrayMatch = targetStr.match(/^Array<(.+)>$/);
-  if (arrayMatch) {
-    isArray = true;
-    targetStr = arrayMatch[1].trim();
-  }
-
-  // 匹配类似 'a' | 'b' | "c" 的格式
-  const parts = targetStr.split("|").map((s) => s.trim());
-  if (parts.length <= 1 && !isArray) return null;
-
-  const options: string[] = [];
-  for (const part of parts) {
-    // 移除引号
-    const match = part.match(/^['"](.+)['"]$/);
-    if (match) {
-      options.push(match[1]);
-    } else {
-      // 如果其中一个不是带引号的字符串字面量，可能不是纯字符串联合类型
-      // 但如果是 Array<string> 这种，我们也暂时不处理成下拉
-      if (!isArray) return null;
-    }
-  }
-
-  return options.length > 0 ? { options, isArray } : null;
-};
-/**
- * 判断是否可能是路径参数
- */
-const isPathParameter = (p: any) => {
-  const hint = p.uiHint?.toLowerCase();
-  if (hint === "path" || hint === "file" || hint === "directory" || hint === "folder") return true;
-
-  if (p.type?.toLowerCase() !== "string") return false;
-  const name = p.name?.toLowerCase() || "";
-  const desc = p.description?.toLowerCase() || "";
-  return (
-    name.includes("path") ||
-    name.includes("dir") ||
-    name.includes("file") ||
-    desc.includes("路径") ||
-    desc.includes("目录") ||
-    desc.includes("文件")
-  );
-};
-
-/**
- * 判断是否可能是模型参数
- */
-const isModelParameter = (p: any) => {
-  const hint = p.uiHint?.toLowerCase();
-  if (hint === "model") return true;
-
-  if (p.type?.toLowerCase() !== "string") return false;
-  const name = p.name?.toLowerCase() || "";
-  return name.includes("modelid") || name === "model";
-};
-
-/**
- * 判断是否可能是长文本参数
- */
-const isLargeTextParameter = (p: any) => {
-  const hint = p.uiHint?.toLowerCase();
-  if (hint === "textarea" || hint === "text") return true;
-
-  if (p.type?.toLowerCase() !== "string") return false;
-  const name = p.name?.toLowerCase() || "";
-  const desc = p.description?.toLowerCase() || "";
-  return (
-    name.includes("text") ||
-    name.includes("content") ||
-    name.includes("prompt") ||
-    name.includes("code") ||
-    name.includes("body") ||
-    desc.includes("内容") ||
-    desc.includes("文本") ||
-    desc.includes("提示词") ||
-    desc.includes("代码")
-  );
-};
-
-/**
- * 判断是否可能是 JSON 参数
- */
-const isJsonParameter = (p: any) => {
-  const hint = p.uiHint?.toLowerCase();
-  if (hint === "json") return true;
-
-  const type = p.type?.toLowerCase();
-  return type === "object" || type === "array";
-};
-
-/**
- * 处理 JSON 更新
- */
-const handleJsonParamUpdate = (paramName: string, value: string) => {
-  try {
-    formArgs.value[paramName] = JSON.parse(value);
-    syncFormToJson();
-  } catch (e) {
-    // 忽略解析过程中的错误
-  }
-};
-
-/**
- * 处理路径选择
- */
-const handlePathSelect = async (paramName: string, description: string) => {
-  try {
-    const isDir = description.includes("目录") || description.includes("folder") || description.includes("dir");
-    const selected = await open({
-      directory: isDir,
-      multiple: false,
-      title: `选择${isDir ? "目录" : "文件"} - ${paramName}`,
-    });
-
-    if (selected && typeof selected === "string") {
-      formArgs.value[paramName] = selected;
-      syncFormToJson();
-    }
-  } catch (e: any) {
-    customMessage.error("选择路径失败: " + e.message);
-  }
-};
 
 // 扁平化所有方法为分组选项
 const methodOptions = computed(() =>
@@ -354,101 +187,7 @@ const clearHistory = () => {
 
           <div class="editor-wrapper">
             <!-- 表单模式 -->
-            <div v-if="!useJsonMode" class="form-container scrollbar-styled">
-              <div v-if="!selectedMethod" class="empty-form">
-                <Settings2 :size="32" />
-                <p>请先选择一个方法</p>
-              </div>
-              <el-form v-else label-position="top" size="default">
-                <el-form-item v-for="p in selectedMethod.parameters" :key="p.name" :label="p.name">
-                  <template #label>
-                    <div class="form-label">
-                      <span class="p-name">{{ p.name }}</span>
-                      <span class="p-type">{{ p.type }}</span>
-                      <span v-if="p.required" class="p-required">*</span>
-                    </div>
-                  </template>
-
-                  <!-- 布尔类型 -->
-                  <el-switch
-                    v-if="p.uiHint === 'switch' || p.type?.toLowerCase() === 'boolean'"
-                    v-model="formArgs[p.name]"
-                    @change="syncFormToJson"
-                  />
-
-                  <!-- 数字类型 -->
-                  <el-input-number
-                    v-else-if="p.uiHint === 'number' || p.type?.toLowerCase() === 'number'"
-                    v-model="formArgs[p.name]"
-                    class="w-full"
-                    :min="p.min !== undefined ? p.min : p.range?.min"
-                    :max="p.max !== undefined ? p.max : p.range?.max"
-                    @change="syncFormToJson"
-                  />
-
-                  <!-- 枚举或联合类型 -->
-                  <el-select
-                    v-else-if="p.uiHint === 'select' || p.enumValues || p.options || parseUnionType(p.type)"
-                    v-model="formArgs[p.name]"
-                    class="w-full"
-                    :multiple="parseUnionType(p.type)?.isArray"
-                    @change="syncFormToJson"
-                  >
-                    <el-option
-                      v-for="val in p.enumValues || p.options || parseUnionType(p.type)?.options || []"
-                      :key="typeof val === 'object' ? val.value : val"
-                      :label="typeof val === 'object' ? val.label : val"
-                      :value="typeof val === 'object' ? val.value : val"
-                    />
-                  </el-select>
-
-                  <!-- 模型选择 -->
-                  <LlmModelSelector
-                    v-else-if="isModelParameter(p)"
-                    v-model="formArgs[p.name]"
-                    class="w-full"
-                    @change="syncFormToJson"
-                  />
-
-                  <!-- 路径选择 -->
-                  <el-input
-                    v-else-if="isPathParameter(p)"
-                    v-model="formArgs[p.name]"
-                    :placeholder="p.description"
-                    @input="syncFormToJson"
-                  >
-                    <template #append>
-                      <el-button :icon="FolderOpen" @click="handlePathSelect(p.name, p.description)" />
-                    </template>
-                  </el-input>
-
-                  <!-- 复杂对象/数组 (内嵌 JSON 编辑器) -->
-                  <div v-else-if="isJsonParameter(p)" class="embedded-editor">
-                    <RichCodeEditor
-                      :value="JSON.stringify(formArgs[p.name], null, 2)"
-                      language="json"
-                      height="120px"
-                      @change="(val: string) => handleJsonParamUpdate(p.name, val)"
-                    />
-                  </div>
-
-                  <!-- 长文本 -->
-                  <el-input
-                    v-else-if="isLargeTextParameter(p)"
-                    v-model="formArgs[p.name]"
-                    type="textarea"
-                    :autosize="{ minRows: 2, maxRows: 6 }"
-                    :placeholder="p.description"
-                    @input="syncFormToJson"
-                  />
-
-                  <!-- 普通输入 -->
-                  <el-input v-else v-model="formArgs[p.name]" :placeholder="p.description" @input="syncFormToJson" />
-
-                  <div v-if="p.description" class="p-desc">{{ p.description }}</div>
-                </el-form-item>
-              </el-form>
-            </div>
+            <ParameterForm v-if="!useJsonMode" v-model="formArgs" :method="selectedMethod" @change="syncFormToJson" />
 
             <!-- JSON 模式 -->
             <RichCodeEditor v-else v-model:value="testArgs" language="json" height="100%" @change="syncJsonToForm" />
@@ -478,58 +217,7 @@ const clearHistory = () => {
             <p>等待指令执行...</p>
           </div>
 
-          <div v-for="res in executionResults" :key="res.requestId" class="res-card">
-            <div class="res-head">
-              <div class="res-status" :class="res.status">
-                <component :is="res.status === 'success' ? CheckCircle2 : XCircle" :size="14" />
-                <span>{{ res.status.toUpperCase() }}</span>
-              </div>
-              <div class="res-id">{{ res.requestId }}</div>
-              <div class="res-meta">
-                <span class="meta-item"><Clock :size="12" /> {{ res.durationMs }}ms</span>
-                <span class="meta-item debug-tag" :title="res.result">Len: {{ res.result?.length || 0 }}</span>
-              </div>
-              <div class="res-view-switch">
-                <el-radio-group
-                  :model-value="getResultViewMode(res.requestId)"
-                  size="small"
-                  @update:model-value="(val: any) => setResultViewMode(res.requestId, val)"
-                >
-                  <el-radio-button value="markdown"
-                    ><el-tooltip content="Markdown 预览"><Eye :size="12" /></el-tooltip
-                  ></el-radio-button>
-                  <el-radio-button value="json"
-                    ><el-tooltip content="JSON 源码"><FileJson :size="12" /></el-tooltip
-                  ></el-radio-button>
-                  <el-radio-button value="raw"
-                    ><el-tooltip content="原始文本"><Code :size="12" /></el-tooltip
-                  ></el-radio-button>
-                </el-radio-group>
-              </div>
-            </div>
-            <div class="res-body">
-              <template v-if="getResultViewMode(res.requestId) === 'markdown'">
-                <div class="markdown-viewer scrollbar-styled">
-                  <RichTextRenderer
-                    :content="typeof res.result === 'string' ? res.result : JSON.stringify(res.result, null, 2)"
-                    :version="RendererVersion.V2_CUSTOM_PARSER"
-                  />
-                </div>
-              </template>
-              <template v-else-if="getResultViewMode(res.requestId) === 'json'">
-                <RichCodeEditor
-                  :value="formatDisplayResult(res.result, 'json')"
-                  language="json"
-                  height="300px"
-                  readonly
-                />
-              </template>
-              <div v-else class="raw-preview scrollbar-styled">
-                <div class="raw-content">{{ formatDisplayResult(res.result, "raw") }}</div>
-                <div v-if="!res.result" class="raw-empty">结果为空字符串</div>
-              </div>
-            </div>
-          </div>
+          <ExecutionResultCard v-for="res in executionResults" :key="res.requestId" :res="res" />
         </div>
       </div>
     </div>
@@ -589,60 +277,6 @@ const clearHistory = () => {
   flex-direction: column;
 }
 
-.form-container {
-  flex: 1;
-  padding: 16px;
-  overflow-y: auto;
-  background-color: var(--card-bg);
-}
-
-.empty-form {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-color-secondary);
-  opacity: 0.5;
-  gap: 12px;
-}
-
-.form-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.p-name {
-  font-weight: 600;
-  font-family: var(--el-font-family-mono);
-}
-
-.p-type {
-  font-size: 10px;
-  color: var(--el-color-info);
-  background: rgba(var(--el-color-info-rgb), 0.1);
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-.p-required {
-  color: var(--el-color-danger);
-}
-
-.p-desc {
-  font-size: 11px;
-  color: var(--text-color-secondary);
-  margin-top: 2px;
-  line-height: 1.4;
-}
-
-.embedded-editor {
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
 .result-panel {
   display: flex;
   flex-direction: column;
@@ -687,96 +321,17 @@ const clearHistory = () => {
   gap: 12px;
 }
 
-.res-card {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background-color: var(--card-bg);
-  overflow: hidden;
-}
-
-.res-head {
-  padding: 6px 12px;
-  background-color: rgba(var(--text-color-rgb), 0.03);
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.res-status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 700;
-  font-size: 11px;
-}
-
-.res-status.success {
-  color: var(--el-color-success);
-}
-.res-status.error {
-  color: var(--el-color-danger);
-}
-
-.res-id {
-  font-family: var(--el-font-family-mono);
-  font-size: 11px;
-  color: var(--text-color-secondary);
-  flex: 1;
-}
-
-.res-meta {
-  font-size: 11px;
-  color: var(--text-color-secondary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.debug-tag {
-  background: rgba(var(--el-color-primary-rgb), 0.1);
-  color: var(--el-color-primary);
-  padding: 0 4px;
-  border-radius: 2px;
-  font-family: var(--el-font-family-mono);
-  cursor: help;
-}
-
-.res-body {
-  padding: 8px;
-  background-color: var(--vscode-editor-background);
-}
-
-.markdown-viewer {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 12px;
-  background-color: var(--card-bg);
-  border-radius: 4px;
-}
-
-.raw-preview {
-  max-height: 300px;
-  overflow-y: auto;
-  padding: 8px;
-  font-family: var(--el-font-family-mono);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
 .opt-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.opt-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .opt-sub {

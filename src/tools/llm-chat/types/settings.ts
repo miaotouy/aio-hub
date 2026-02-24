@@ -69,6 +69,8 @@ export interface ChatSettings {
     fontSize: number;
     /** 消息行高 */
     lineHeight: number;
+    /** 消息字间距 (px) */
+    letterSpacing: number;
     /** 是否显示消息导航器 */
     showMessageNavigator: boolean;
     /** 消息渲染器版本 */
@@ -241,6 +243,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     autoScroll: true,
     fontSize: 14,
     lineHeight: 1.6,
+    letterSpacing: 0,
     showMessageNavigator: true,
     rendererVersion: RendererVersion.V2_CUSTOM_PARSER, // 默认使用 V2 渲染器
     headerBackgroundOpacity: 0.3, // 头部背景不透明度

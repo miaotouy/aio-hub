@@ -866,12 +866,14 @@ const errorMessage = computed(() => messageMetadata.value?.error);
   margin: 8px 0;
   font-size: v-bind('settings.uiPreferences.fontSize + "px"');
   line-height: v-bind("settings.uiPreferences.lineHeight");
+  letter-spacing: v-bind('settings.uiPreferences.letterSpacing + "px"');
 }
 
 /* 使用深度选择器强制 RichTextRenderer 继承字体设置 */
 .message-content :deep(.rich-text-renderer) {
   font-size: inherit;
   line-height: inherit;
+  letter-spacing: inherit;
 }
 
 .message-text {

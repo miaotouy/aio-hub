@@ -26,19 +26,13 @@ import { DEFAULT_SETTINGS } from "../../types/settings";
 const MarkdownStyleEditor = defineAsyncComponent(
   () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
 );
-const ChatRegexEditor = defineAsyncComponent(
-  () => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
-);
+const ChatRegexEditor = defineAsyncComponent(() => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue"));
 const PipelineConfig = defineAsyncComponent(() => import("./PipelineConfig.vue"));
 const WorldbookManager = defineAsyncComponent(() => import("../worldbook/WorldbookManager.vue"));
 const WorldbookSelector = defineAsyncComponent(() => import("../worldbook/WorldbookSelector.vue"));
 const KbEmbeddingInfo = defineAsyncComponent(() => import("./KbEmbeddingInfo.vue"));
-const QuickActionFullManager = defineAsyncComponent(
-  () => import("../quick-action/QuickActionFullManager.vue")
-);
-const QuickActionSelector = defineAsyncComponent(
-  () => import("../quick-action/QuickActionSelector.vue")
-);
+const QuickActionFullManager = defineAsyncComponent(() => import("../quick-action/QuickActionFullManager.vue"));
+const QuickActionSelector = defineAsyncComponent(() => import("../quick-action/QuickActionSelector.vue"));
 
 export const settingsConfig: SettingsSection<ChatSettings>[] = [
   {
@@ -129,6 +123,20 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui line height 行高",
       },
       {
+        id: "letterSpacing",
+        label: "字间距 ({{ localSettings.uiPreferences.letterSpacing }}px)",
+        component: "ElSlider",
+        props: {
+          min: -0.5,
+          max: 5,
+          step: 0.1,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
+        modelPath: "uiPreferences.letterSpacing",
+        hint: "调节文字之间的横向间距，解决文字拥挤问题",
+        keywords: "ui letter spacing 字间距 间距",
+      },
+      {
         id: "enableContentWidthLimit",
         label: "限制内容宽度",
         layout: "inline",
@@ -181,8 +189,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "headerBackgroundOpacity",
-        label:
-          "头部背景不透明度 ({{ (localSettings.uiPreferences.headerBackgroundOpacity * 100).toFixed(0) }}%)",
+        label: "头部背景不透明度 ({{ (localSettings.uiPreferences.headerBackgroundOpacity * 100).toFixed(0) }}%)",
         component: "ElSlider",
         props: { min: 0, max: 1, step: 0.05 },
         modelPath: "uiPreferences.headerBackgroundOpacity",
@@ -751,8 +758,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transRepetitionConsecutiveThreshold",
-        label:
-          "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
+        label: "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 10, step: 1 },
         modelPath: "transcription.repetitionConfig.consecutiveThreshold",
@@ -762,8 +768,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transRepetitionGlobalThreshold",
-        label:
-          "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
+        label: "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 20, step: 1 },
         modelPath: "transcription.repetitionConfig.globalThreshold",
@@ -821,8 +826,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.forceTranscriptionAfter",
         hint: "在智能模式下，强制转写早于最新 N 条消息的附件。0 表示不启用。",
         keywords: "transcription force smart 强制 智能",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.strategy === "smart",
+        visible: (settings) => settings.transcription.enabled && settings.transcription.strategy === "smart",
       },
       {
         id: "transAutoStartOnImport",
@@ -975,15 +979,13 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transSlicerAspectRatio",
-        label:
-          "切图长宽比阈值 ({{ localSettings.transcription.imageSlicerConfig.aspectRatioThreshold }}:1)",
+        label: "切图长宽比阈值 ({{ localSettings.transcription.imageSlicerConfig.aspectRatioThreshold }}:1)",
         component: "SliderWithInput",
         props: { min: 1, max: 10, step: 0.5 },
         modelPath: "transcription.imageSlicerConfig.aspectRatioThreshold",
         hint: "图片的长宽比超过此值时才会触发智能切图",
         keywords: "transcription slicer aspect ratio 长宽比",
-        visible: (settings) =>
-          settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
+        visible: (settings) => settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
@@ -994,8 +996,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.imageSlicerConfig.minCutHeight",
         hint: "控制切片的最小高度。设置较大的值可以防止切图太碎，保持上下文连贯。建议 400-800px。",
         keywords: "transcription slicer min height 切片 高度",
-        visible: (settings) =>
-          settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
+        visible: (settings) => settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
 
@@ -1070,8 +1071,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.audio.maxDirectSizeMB",
         hint: "音频体积限制，超过将尝试压缩。",
         keywords: "transcription audio size 体积 限制",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.audio.enableCompression,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.audio.enableCompression,
         groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
       },
       {
@@ -1089,8 +1089,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.audio.bitrate",
         hint: "压缩后的音频比特率。较低的比特率可以显著减小体积，但会损失音质。",
         keywords: "transcription audio bitrate 比特率",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.audio.enableCompression,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.audio.enableCompression,
         groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
       },
 
@@ -1166,8 +1165,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "transcription ffmpeg path video 视频 路径",
         visible: (settings) =>
           settings.transcription.enabled &&
-          (settings.transcription.video.enableCompression ||
-            settings.transcription.audio.enableCompression),
+          (settings.transcription.video.enableCompression || settings.transcription.audio.enableCompression),
         defaultValue: "",
         action: "selectFFmpegPath",
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
@@ -1185,8 +1183,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.maxDirectSizeMB",
         hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。<br /><span style='color: var(--el-color-warning)'>注意：Base64 编码会使上传体积增加约 33%，建议设置略低于 API 的实际限制。</span>",
         keywords: "transcription video size limit 视频 大小 阈值 限制",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1202,8 +1199,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.maxFps",
         hint: "限制视频的最大帧率。较低的帧率（如 5 FPS）可显著减小体积且通常不影响 AI 理解。",
         keywords: "transcription video fps frame rate 视频 帧率",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1219,8 +1215,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.maxResolution",
         hint: "限制视频的最大短边尺寸（如 720p）。超过此尺寸的视频将被等比缩放。",
         keywords: "transcription video resolution size 视频 分辨率 尺寸",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1231,8 +1226,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.enableGpu",
         hint: "使用 NVIDIA GPU (h264_nvenc) 加速压缩，需硬件支持。",
         keywords: "transcription video gpu hardware acceleration 硬件加速",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1243,8 +1237,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.autoAdjustResolution",
         hint: "当目标体积过小时，自动降低分辨率以保持画质清晰度。",
         keywords: "transcription video auto resolution 自动 分辨率",
-        visible: (settings) =>
-          settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
 

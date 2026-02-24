@@ -175,6 +175,7 @@ const handlePathSelect = async (paramName: string, description: string) => {
         <el-switch
           v-if="p.uiHint === 'switch' || p.type?.toLowerCase() === 'boolean'"
           v-model="modelValue[p.name]"
+          class="p-switch"
           @change="notifyChange"
         />
 
@@ -310,6 +311,10 @@ const handlePathSelect = async (paramName: string, description: string) => {
 
 .w-full {
   width: 100%;
+}
+
+.p-switch {
+  margin-right: 12px;
 }
 
 .scrollbar-styled::-webkit-scrollbar {

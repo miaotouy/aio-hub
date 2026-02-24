@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { Play, CheckCircle2, XCircle, Clock, Zap, Settings2, FolderOpen } from "lucide-vue-next";
+import { ref, computed, reactive } from "vue";
+import { Play, CheckCircle2, XCircle, Clock, Zap, Settings2, FolderOpen, Eye, Code, FileJson } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -19,6 +19,14 @@ const testArgs = ref("{\n  \n}");
 const useJsonMode = ref(false);
 const executionResults = ref<any[]>([]);
 const isExecuting = ref(false);
+
+// 结果查看模式管理
+const resultViewModes = reactive<Record<string, "markdown" | "json" | "raw">>({});
+
+const getResultViewMode = (id: string) => resultViewModes[id] || "markdown";
+const setResultViewMode = (id: string, mode: "markdown" | "json" | "raw") => {
+  resultViewModes[id] = mode;
+};
 
 /**
  * 解析联合类型字符串，例如 "'none' | 'gitignore' | 'custom' | 'both'"
@@ -451,10 +459,39 @@ const clearHistory = () => {
                 <span>{{ res.status.toUpperCase() }}</span>
               </div>
               <div class="res-id">{{ res.requestId }}</div>
-              <div class="res-time"><Clock :size="12" /> {{ res.durationMs }}ms</div>
+              <div class="res-meta">
+                <span class="meta-item"><Clock :size="12" /> {{ res.durationMs }}ms</span>
+                <span class="meta-item debug-tag" :title="res.result">Len: {{ res.result?.length || 0 }}</span>
+              </div>
+              <div class="res-view-switch">
+                <el-radio-group
+                  :model-value="getResultViewMode(res.requestId)"
+                  size="small"
+                  @update:model-value="(val: any) => setResultViewMode(res.requestId, val)"
+                >
+                  <el-radio-button value="markdown"
+                    ><el-tooltip content="Markdown 预览"><Eye :size="12" /></el-tooltip
+                  ></el-radio-button>
+                  <el-radio-button value="json"
+                    ><el-tooltip content="JSON 源码"><FileJson :size="12" /></el-tooltip
+                  ></el-radio-button>
+                  <el-radio-button value="raw"
+                    ><el-tooltip content="原始文本"><Code :size="12" /></el-tooltip
+                  ></el-radio-button>
+                </el-radio-group>
+              </div>
             </div>
             <div class="res-body">
-              <RichCodeEditor :value="res.result" language="markdown" height="150px" readonly />
+              <template v-if="getResultViewMode(res.requestId) === 'markdown'">
+                <RichCodeEditor :value="res.result" language="markdown" height="150px" readonly />
+              </template>
+              <template v-else-if="getResultViewMode(res.requestId) === 'json'">
+                <RichCodeEditor :value="res.result" language="json" height="150px" readonly />
+              </template>
+              <div v-else class="raw-preview scrollbar-styled">
+                <div class="raw-content">{{ res.result }}</div>
+                <div v-if="!res.result" class="raw-empty">结果为空字符串</div>
+              </div>
             </div>
           </div>
         </div>
@@ -652,12 +689,28 @@ const clearHistory = () => {
   flex: 1;
 }
 
-.res-time {
+.res-meta {
   font-size: 11px;
   color: var(--text-color-secondary);
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.debug-tag {
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+  padding: 0 4px;
+  border-radius: 2px;
+  font-family: var(--el-font-family-mono);
+  cursor: help;
 }
 
 .res-body {

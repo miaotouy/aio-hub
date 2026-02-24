@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from "vue";
+import { useStorage } from "@vueuse/core";
 import { Search, FileText, Zap } from "lucide-vue-next";
 import { createToolDiscoveryService } from "./core/discovery";
 import { VcpToolCallingProtocol } from "./core/protocols/vcp-protocol";
@@ -13,7 +14,7 @@ import ParserPane from "./components/ParserPane.vue";
 const discoveryService = createToolDiscoveryService();
 const vcpProtocol = new VcpToolCallingProtocol();
 
-const activeTab = ref("discovery");
+const activeTab = useStorage("tool-calling-tester-active-tab", "discovery");
 const discoveredGroups = ref<any[]>([]);
 const executorRef = ref<InstanceType<typeof ExecutorPane> | null>(null);
 

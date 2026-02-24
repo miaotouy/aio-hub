@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { Play, Zap } from "lucide-vue-next";
+import { ref, computed, onMounted, watch } from "vue";
+import { useStorage } from "@vueuse/core";
+import { Play, Zap, RotateCcw } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 import { executeToolRequests } from "../core/executor";
@@ -14,11 +15,11 @@ const props = defineProps<{
 }>();
 
 const selectedMethod = ref<any>(null);
-const selectedToolKey = ref<string>("");
-const testToolName = ref("");
+const selectedToolKey = useStorage<string>("tool-calling-tester-selected-key", "");
+const testToolName = useStorage<string>("tool-calling-tester-tool-name", "");
 const formArgs = ref<Record<string, any>>({});
-const testArgs = ref("{\n  \n}");
-const useJsonMode = ref(false);
+const testArgs = useStorage<string>("tool-calling-tester-args", "{\n  \n}");
+const useJsonMode = useStorage<boolean>("tool-calling-tester-json-mode", false);
 const executionResults = ref<any[]>([]);
 const isExecuting = ref(false);
 
@@ -69,9 +70,13 @@ const applyMethod = (group: any, method: any) => {
   testArgs.value = JSON.stringify(argsObj, null, 2);
   useJsonMode.value = false;
 };
-
 // 下拉选择时触发
 const onMethodSelect = (key: string) => {
+  if (!key) {
+    selectedMethod.value = null;
+    testToolName.value = "";
+    return;
+  }
   for (const group of props.groups) {
     for (const method of group.methods) {
       if (`${group.toolId}_${method.name}` === key) {
@@ -82,6 +87,46 @@ const onMethodSelect = (key: string) => {
   }
 };
 
+// 页面加载或 groups 变化时，根据持久化的 key 恢复 selectedMethod
+const restoreSelectedMethod = () => {
+  if (selectedToolKey.value) {
+    for (const group of props.groups) {
+      for (const method of group.methods) {
+        if (`${group.toolId}_${method.name}` === selectedToolKey.value) {
+          selectedMethod.value = method;
+          // 如果是 JSON 模式，需要同步回表单
+          if (useJsonMode.value) {
+            syncJsonToForm();
+          } else {
+            // 如果是表单模式，需要同步回 JSON
+            try {
+              formArgs.value = JSON.parse(testArgs.value);
+            } catch (e) {
+              // 忽略
+            }
+          }
+          return;
+        }
+      }
+    }
+  }
+};
+
+onMounted(() => {
+  restoreSelectedMethod();
+});
+
+// 监听 groups 变化，防止异步加载导致恢复失败
+watch(
+  () => props.groups,
+  () => {
+    if (!selectedMethod.value && selectedToolKey.value) {
+      restoreSelectedMethod();
+    }
+  },
+  { deep: true }
+);
+
 // 暴露加载方法（供父组件从 DiscoveryPane 跳转调用）
 const loadMethod = (group: any, method: any) => {
   selectedToolKey.value = `${group.toolId}_${method.name}`;
@@ -89,6 +134,16 @@ const loadMethod = (group: any, method: any) => {
 };
 
 defineExpose({ loadMethod });
+
+const resetConfig = () => {
+  selectedToolKey.value = "";
+  testToolName.value = "";
+  selectedMethod.value = null;
+  testArgs.value = "{\n  \n}";
+  formArgs.value = {};
+  useJsonMode.value = false;
+  customMessage.success("配置已重置");
+};
 
 const syncFormToJson = () => {
   testArgs.value = JSON.stringify(formArgs.value, null, 2);
@@ -154,9 +209,14 @@ const clearHistory = () => {
         <div class="config-section">
           <div class="section-label-row">
             <label>目标工具方法</label>
-            <el-tag v-if="selectedMethod" size="small" type="info">
-              {{ selectedMethod.name }}
-            </el-tag>
+            <div class="label-actions">
+              <el-tag v-if="selectedMethod" size="small" type="info" class="method-tag">
+                {{ selectedMethod.name }}
+              </el-tag>
+              <el-tooltip content="重置配置" placement="top">
+                <el-button link :icon="RotateCcw" class="reset-icon-btn" @click="resetConfig" />
+              </el-tooltip>
+            </div>
           </div>
           <el-select
             v-model="selectedToolKey"
@@ -265,6 +325,33 @@ const clearHistory = () => {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-color-secondary);
+}
+
+.label-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.method-tag {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reset-icon-btn {
+  padding: 4px;
+  height: auto;
+  color: var(--text-color-secondary);
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.reset-icon-btn:hover {
+  color: var(--el-color-danger);
+  opacity: 1;
+  transform: rotate(-90deg);
 }
 
 .editor-wrapper {

@@ -2,6 +2,8 @@
 import { ref, computed, reactive } from "vue";
 import { Play, CheckCircle2, XCircle, Clock, Zap, Settings2, FolderOpen, Eye, Code, FileJson } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { customMessage } from "@/utils/customMessage";
@@ -22,10 +24,34 @@ const isExecuting = ref(false);
 
 // 结果查看模式管理
 const resultViewModes = reactive<Record<string, "markdown" | "json" | "raw">>({});
-
 const getResultViewMode = (id: string) => resultViewModes[id] || "markdown";
 const setResultViewMode = (id: string, mode: "markdown" | "json" | "raw") => {
   resultViewModes[id] = mode;
+};
+
+/**
+ * 格式化显示结果
+ */
+const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => {
+  if (result === undefined || result === null) return "";
+
+  if (mode === "json") {
+    if (typeof result === "string") {
+      try {
+        // 尝试解析并重新美化，如果是 JSON 字符串的话
+        return JSON.stringify(JSON.parse(result), null, 2);
+      } catch (e) {
+        return result;
+      }
+    }
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (typeof result !== "string") {
+    return JSON.stringify(result, null, 2);
+  }
+
+  return result;
 };
 
 /**
@@ -483,13 +509,23 @@ const clearHistory = () => {
             </div>
             <div class="res-body">
               <template v-if="getResultViewMode(res.requestId) === 'markdown'">
-                <RichCodeEditor :value="res.result" language="markdown" height="150px" readonly />
+                <div class="markdown-viewer scrollbar-styled">
+                  <RichTextRenderer
+                    :content="typeof res.result === 'string' ? res.result : JSON.stringify(res.result, null, 2)"
+                    :version="RendererVersion.V2_CUSTOM_PARSER"
+                  />
+                </div>
               </template>
               <template v-else-if="getResultViewMode(res.requestId) === 'json'">
-                <RichCodeEditor :value="res.result" language="json" height="150px" readonly />
+                <RichCodeEditor
+                  :value="formatDisplayResult(res.result, 'json')"
+                  language="json"
+                  height="300px"
+                  readonly
+                />
               </template>
               <div v-else class="raw-preview scrollbar-styled">
-                <div class="raw-content">{{ res.result }}</div>
+                <div class="raw-content">{{ formatDisplayResult(res.result, "raw") }}</div>
                 <div v-if="!res.result" class="raw-empty">结果为空字符串</div>
               </div>
             </div>
@@ -715,6 +751,25 @@ const clearHistory = () => {
 
 .res-body {
   padding: 8px;
+  background-color: var(--vscode-editor-background);
+}
+
+.markdown-viewer {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  background-color: var(--card-bg);
+  border-radius: 4px;
+}
+
+.raw-preview {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 8px;
+  font-family: var(--el-font-family-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .opt-item {

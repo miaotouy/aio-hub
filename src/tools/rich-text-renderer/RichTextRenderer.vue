@@ -58,7 +58,7 @@ const props = withDefaults(
     verboseLogging?: boolean; // 是否启用高级调试日志（默认 false，开启后会刷屏）
   }>(),
   {
-    version: RendererVersion.V1_MARKDOWN_IT,
+    version: RendererVersion.V2_CUSTOM_PARSER,
     isStreaming: false,
     defaultRenderHtml: false,
     seamlessMode: false,

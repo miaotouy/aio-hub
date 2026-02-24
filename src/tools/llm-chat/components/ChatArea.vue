@@ -215,6 +215,8 @@ const showEditProfileDialog = ref(false);
 
 // ===== 智能体编辑 =====
 const showEditAgentDialog = ref(false);
+const initialEditTab = ref<string | undefined>(undefined);
+const initialEditSection = ref<string | undefined>(undefined);
 
 // ===== 聊天设置 =====
 const showChatSettings = ref(false);
@@ -226,9 +228,11 @@ const handleSearchSelect = (messageId: string) => {
   messageListRef.value?.scrollToMessageId(messageId);
 };
 
-const handleEditAgent = () => {
+const handleEditAgent = (tab?: string, section?: string) => {
   if (currentAgent.value) {
-    logger.info("打开智能体编辑对话框", { agentId: currentAgent.value.id });
+    logger.info("打开智能体编辑对话框", { agentId: currentAgent.value.id, tab, section });
+    initialEditTab.value = tab;
+    initialEditSection.value = section;
     showEditAgentDialog.value = true;
   } else {
     logger.warn("无法编辑智能体：未找到当前智能体");
@@ -286,10 +290,7 @@ const handleSelectModel = async () => {
   }
 };
 
-const handleSaveAgent = async (
-  data: AgentEditData,
-  options: { silent?: boolean; agentId?: string } = {}
-) => {
+const handleSaveAgent = async (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
   const targetId = options.agentId || currentAgent.value?.id;
   if (targetId) {
     logger.info("保存智能体", { agentId: targetId, data, silent: options.silent });
@@ -430,8 +431,7 @@ const handleAbort = () => emit("abort");
 const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
 const handleRegenerate = (messageId: string, options?: { modelId?: string; profileId?: string }) =>
   emit("regenerate", messageId, options);
-const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") =>
-  emit("switch-sibling", nodeId, direction);
+const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") => emit("switch-sibling", nodeId, direction);
 const handleSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
 const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) =>
@@ -551,8 +551,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
   // 检查焦点是否在输入框或其他可编辑元素上
   const target = e.target as HTMLElement;
-  const isEditableElement =
-    target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+  const isEditableElement = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
   // 如果焦点在可编辑元素上，不拦截键盘事件
   if (isEditableElement) {
@@ -604,8 +603,7 @@ onMounted(async () => {
       logger.debug("ChatArea props.messages 数量更新", {
         newCount,
         // 只打印第一条消息的内容以避免日志过长
-        firstMessageContent:
-          props.messages && props.messages.length > 0 ? props.messages[0].content : "N/A",
+        firstMessageContent: props.messages && props.messages.length > 0 ? props.messages[0].content : "N/A",
       });
     },
     { immediate: true }
@@ -622,10 +620,7 @@ onMounted(async () => {
     @keydown="handleKeyDown"
   >
     <!-- 分离模式下的壁纸层 -->
-    <div
-      v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode"
-      class="detached-wallpaper"
-    ></div>
+    <div v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode" class="detached-wallpaper"></div>
 
     <!-- 头部区域 -->
     <div class="chat-header" :style="chatHeaderStyle">
@@ -646,7 +641,7 @@ onMounted(async () => {
       <!-- 左侧：智能体和模型信息 (主要展示区) -->
       <div class="agent-model-info">
         <el-tooltip v-if="currentAgent" content="点击编辑智能体" placement="bottom">
-          <div class="agent-info clickable" @click="handleEditAgent">
+          <div class="agent-info clickable" @click="() => handleEditAgent()">
             <Avatar
               :src="agentAvatarSrc || ''"
               :alt="currentAgent.displayName || currentAgent.name"
@@ -654,9 +649,7 @@ onMounted(async () => {
               shape="square"
               :radius="6"
             />
-            <span v-if="showAgentName" class="agent-name">{{
-              currentAgent.displayName || currentAgent.name
-            }}</span>
+            <span v-if="showAgentName" class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
           </div>
         </el-tooltip>
         <el-tooltip
@@ -670,9 +663,7 @@ onMounted(async () => {
               class="model-icon"
               :alt="currentModel?.name || currentModel?.id || ''"
             />
-            <span v-if="showModelName" class="model-name">{{
-              currentModel.name || currentModel.id
-            }}</span>
+            <span v-if="showModelName" class="model-name">{{ currentModel.name || currentModel.id }}</span>
           </div>
         </el-tooltip>
       </div>
@@ -783,6 +774,7 @@ onMounted(async () => {
           @complete-input="handleCompleteInput"
           @select-continuation-model="emit('select-continuation-model')"
           @clear-continuation-model="emit('clear-continuation-model')"
+          @open-agent-settings="handleEditAgent"
           :style="contentWidthStyle"
         />
       </div>
@@ -804,6 +796,8 @@ onMounted(async () => {
       :visible="showEditAgentDialog"
       mode="edit"
       :agent="currentAgent"
+      :initial-tab="initialEditTab"
+      :initial-section="initialEditSection"
       sync-to-chat
       @update:visible="showEditAgentDialog = $event"
       @save="handleSaveAgent"

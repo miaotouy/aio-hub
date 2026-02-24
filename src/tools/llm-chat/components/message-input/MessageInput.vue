@@ -92,6 +92,7 @@ interface Emits {
   (e: "complete-input", content: string, options?: { modelId?: string; profileId?: string }): void;
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
+  (e: "open-agent-settings", tab?: string): void;
 }
 
 const props = defineProps<Props>();
@@ -141,16 +142,15 @@ const attachmentManager = {
 };
 
 // 1. 高度调整逻辑
-const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick } =
-  useMessageInputResize({
-    isDetached: props.isDetached || false,
-    textareaRef,
-    extraHeight: attachmentsHeight,
-    isExpanded,
-    onResizeStart: () => {
-      isExpanded.value = false;
-    },
-  });
+const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick } = useMessageInputResize({
+  isDetached: props.isDetached || false,
+  textareaRef,
+  extraHeight: attachmentsHeight,
+  isExpanded,
+  onResizeStart: () => {
+    isExpanded.value = false;
+  },
+});
 
 // 2. 交互动作逻辑
 const {
@@ -196,11 +196,7 @@ const { isDraggingOver } = useChatFileInteraction({
     await inputManager.addAttachments(paths);
 
     const newAssets = inputManager.attachments.value.filter((a) => !beforeIds.has(a.id));
-    inputManager.handleAssetsAddition(
-      newAssets,
-      textareaRef.value,
-      settings.value.transcription.autoInsertPlaceholder
-    );
+    inputManager.handleAssetsAddition(newAssets, textareaRef.value, settings.value.transcription.autoInsertPlaceholder);
   },
   onAssets: async (assets) => {
     logger.info("文件粘贴触发", { count: assets.length });
@@ -212,9 +208,7 @@ const { isDraggingOver } = useChatFileInteraction({
     }
     if (addedAssets.length > 0) {
       const message =
-        addedAssets.length === 1
-          ? `已粘贴文件: ${assets[0].name}`
-          : `已粘贴 ${addedAssets.length} 个文件`;
+        addedAssets.length === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${addedAssets.length} 个文件`;
       customMessage.success(message);
 
       inputManager.handleAssetsAddition(
@@ -232,12 +226,15 @@ const toggleExpand = () => {
   isExpanded.value = !isExpanded.value;
 };
 
+const handleOpenAgentSettings = (tab?: string) => {
+  emit("open-agent-settings", tab);
+};
+
 // 计算 placeholder 文本
 const placeholderText = computed(() => {
   if (props.disabled) return "请先创建或选择一个对话";
   const sendKey = settings.value.shortcuts.send;
-  const sendHint =
-    sendKey === "ctrl+enter" ? "Ctrl/Cmd + Enter 发送" : "Enter 发送, Shift + Enter 换行";
+  const sendHint = sendKey === "ctrl+enter" ? "Ctrl/Cmd + Enter 发送" : "Enter 发送, Shift + Enter 换行";
   return `输入消息、拖入或粘贴文件... (${sendHint})`;
 });
 
@@ -366,16 +363,10 @@ const handleDragStart = (e: MouseEvent) => {
 <template>
   <div
     ref="containerRef"
-    :class="[
-      'message-input-container',
-      { 'detached-mode': isDetached, 'dragging-over': isDraggingOver },
-    ]"
+    :class="['message-input-container', { 'detached-mode': isDetached, 'dragging-over': isDraggingOver }]"
   >
     <!-- 分离模式下的壁纸层 -->
-    <div
-      v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode"
-      class="detached-wallpaper"
-    ></div>
+    <div v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode" class="detached-wallpaper"></div>
 
     <!-- 拖拽手柄 -->
     <div
@@ -463,24 +454,15 @@ const handleDragStart = (e: MouseEvent) => {
             @select-continuation-model="handleSelectContinuationModel"
             @clear-continuation-model="inputManager.clearContinuationModel"
             @convert-paths="handleConvertPaths"
+            @open-agent-settings="handleOpenAgentSettings"
           />
         </div>
       </div>
     </div>
     <!-- 左侧调整宽度手柄，仅在分离模式下显示 -->
-    <div
-      v-if="props.isDetached"
-      class="resize-handle-left"
-      @mousedown="handleResizeWest"
-      title="拖拽调整宽度"
-    ></div>
+    <div v-if="props.isDetached" class="resize-handle-left" @mousedown="handleResizeWest" title="拖拽调整宽度"></div>
     <!-- 右侧调整宽度手柄，仅在分离模式下显示 -->
-    <div
-      v-if="props.isDetached"
-      class="resize-handle-right"
-      @mousedown="handleResizeEast"
-      title="拖拽调整宽度"
-    ></div>
+    <div v-if="props.isDetached" class="resize-handle-right" @mousedown="handleResizeEast" title="拖拽调整宽度"></div>
   </div>
 </template>
 

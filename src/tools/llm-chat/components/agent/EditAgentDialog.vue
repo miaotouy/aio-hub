@@ -24,6 +24,14 @@ interface Props {
    * @default false
    */
   syncToChat?: boolean;
+  /**
+   * 初始激活的标签页
+   */
+  initialTab?: string;
+  /**
+   * 初始定位的配置项 ID
+   */
+  initialSection?: string;
 }
 interface Emits {
   (e: "update:visible", value: boolean): void;
@@ -310,6 +318,8 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
       :modelValue="editForm"
       @update:modelValue="Object.assign(editForm, $event)"
       v-model:active-tab="activeTab"
+      :initial-tab="initialTab"
+      :initial-section="initialSection"
       :agent="currentEditingAgent"
       :mode="mode"
       :key="localAgentId || 'create'"

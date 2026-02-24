@@ -8,15 +8,7 @@ export interface InputToolbarSettings {
 </script>
 
 <script setup lang="ts">
-import {
-  ElTooltip,
-  ElPopover,
-  ElDropdown,
-  ElDropdownMenu,
-  ElDropdownItem,
-  ElSwitch,
-  ElIcon,
-} from "element-plus";
+import { ElTooltip, ElPopover, ElDropdown, ElDropdownMenu, ElDropdownItem, ElSwitch, ElIcon } from "element-plus";
 import {
   Paperclip,
   AtSign,
@@ -27,12 +19,14 @@ import {
   Package,
   MoreHorizontal,
   Sparkles,
+  Wrench,
   Grip,
   FileUp,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
+import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
 import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ModelIdentifier } from "../../types";
@@ -44,9 +38,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import type { QuickAction, QuickActionSet } from "../../types/quick-action";
 import { computed, ref, onMounted, defineAsyncComponent } from "vue";
 
-const QuickActionManagerDialog = defineAsyncComponent(
-  () => import("../quick-action/QuickActionManagerDialog.vue")
-);
+const QuickActionManagerDialog = defineAsyncComponent(() => import("../quick-action/QuickActionManagerDialog.vue"));
 
 const quickActionManagerVisible = ref(false);
 
@@ -101,6 +93,7 @@ const emit = defineEmits<{
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
   (e: "convert-paths"): void;
+  (e: "open-agent-settings", tab?: string): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
@@ -118,9 +111,7 @@ onMounted(() => {
  */
 const activeActionSets = computed(() => {
   const globalIds = chatSettings.value.quickActionSetIds || [];
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
-    : null;
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
   const agentIds = agent?.quickActionSetIds || [];
   const profile = profileStore.globalProfile;
   const profileIds = profile?.quickActionSetIds || [];
@@ -134,9 +125,7 @@ const activeActionSets = computed(() => {
   }
 
   // 从 store 中获取已加载的组内容
-  return allIds
-    .map((id) => quickActionStore.loadedSets.get(id))
-    .filter(Boolean) as QuickActionSet[];
+  return allIds.map((id) => quickActionStore.loadedSets.get(id)).filter(Boolean) as QuickActionSet[];
 });
 
 const continuationModelInfo = computed(() => {
@@ -168,6 +157,7 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 };
 
 const sessionListVisible = ref(false);
+const toolSettingsVisible = ref(false);
 const miniSessionListRef = ref<any>(null);
 
 const handleSessionListShow = () => {
@@ -186,6 +176,11 @@ const handleNewSession = () => {
   emit("new-session");
   sessionListVisible.value = false;
 };
+
+const handleOpenAdvanced = (tab: string | undefined) => {
+  toolSettingsVisible.value = false;
+  emit("open-agent-settings", tab);
+};
 </script>
 
 <template>
@@ -198,10 +193,7 @@ const handleNewSession = () => {
     >
       <template v-for="(set, index) in activeActionSets" :key="set.id">
         <!-- 非分组模式下的组间分割线 -->
-        <div
-          v-if="!props.settings.groupQuickActionsBySet && index > 0"
-          class="qa-set-divider"
-        ></div>
+        <div v-if="!props.settings.groupQuickActionsBySet && index > 0" class="qa-set-divider"></div>
 
         <div class="qa-set-group">
           <button
@@ -226,9 +218,7 @@ const handleNewSession = () => {
           正在压缩上下文...
         </span>
         <el-tooltip
-          :content="
-            props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'
-          "
+          :content="props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'"
           placement="top"
           :show-after="500"
         >
@@ -286,11 +276,7 @@ const handleNewSession = () => {
                   <MessageSquare :size="16" />
                 </button>
               </template>
-              <MiniSessionList
-                ref="miniSessionListRef"
-                @switch="handleSwitchSession"
-                @new-session="handleNewSession"
-              />
+              <MiniSessionList ref="miniSessionListRef" @switch="handleSwitchSession" @new-session="handleNewSession" />
             </el-popover>
           </div>
         </el-tooltip>
@@ -317,9 +303,7 @@ const handleNewSession = () => {
             <el-dropdown-menu>
               <!-- 智能补全 -->
               <el-dropdown-item
-                :disabled="
-                  props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
-                "
+                :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
                 @click="emit('complete-input', props.inputText)"
               >
                 <div class="dropdown-item-content">
@@ -331,9 +315,7 @@ const handleNewSession = () => {
 
               <!-- 补全模型设置 -->
               <el-dropdown-item
-                :disabled="
-                  props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()
-                "
+                :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
                 @click="emit('select-continuation-model')"
               >
                 <div class="dropdown-item-content">
@@ -361,10 +343,7 @@ const handleNewSession = () => {
               </el-dropdown-item>
 
               <!-- 压缩 -->
-              <el-dropdown-item
-                :disabled="props.isCompressing || props.disabled"
-                @click="emit('compress-context')"
-              >
+              <el-dropdown-item :disabled="props.isCompressing || props.disabled" @click="emit('compress-context')">
                 <div class="dropdown-item-content">
                   <Package :size="16" />
                   <span>压缩上下文</span>
@@ -375,10 +354,7 @@ const handleNewSession = () => {
               <div class="dropdown-divider"></div>
 
               <!-- 路径转附件 -->
-              <el-dropdown-item
-                :disabled="props.disabled || !props.inputText.trim()"
-                @click="emit('convert-paths')"
-              >
+              <el-dropdown-item :disabled="props.disabled || !props.inputText.trim()" @click="emit('convert-paths')">
                 <div class="dropdown-item-content">
                   <FileUp :size="16" />
                   <span>路径转附件</span>
@@ -388,15 +364,30 @@ const handleNewSession = () => {
           </template>
         </el-dropdown>
 
+        <!-- 工具调用设置 -->
+        <el-tooltip content="工具调用设置" placement="top" :show-after="500">
+          <div>
+            <el-popover
+              v-model:visible="toolSettingsVisible"
+              placement="top"
+              :width="360"
+              trigger="click"
+              popper-class="tool-settings-popover"
+            >
+              <template #reference>
+                <button class="tool-btn" :class="{ active: toolSettingsVisible }">
+                  <Wrench :size="16" />
+                </button>
+              </template>
+              <MiniToolCallingSettings @open-advanced="handleOpenAdvanced" />
+            </el-popover>
+          </div>
+        </el-tooltip>
+
         <!-- 设置菜单 -->
         <el-tooltip content="工具栏设置" placement="top" :show-after="500">
           <div>
-            <el-popover
-              placement="top"
-              :width="240"
-              trigger="click"
-              popper-class="toolbar-settings-popover"
-            >
+            <el-popover placement="top" :width="240" trigger="click" popper-class="toolbar-settings-popover">
               <template #reference>
                 <button class="tool-btn settings-btn">
                   <Settings :size="16" />
@@ -470,11 +461,7 @@ const handleNewSession = () => {
           placement="top"
           :show-after="500"
         >
-          <button
-            class="expand-toggle-button"
-            :class="{ active: props.isExpanded }"
-            @click="emit('toggle-expand')"
-          >
+          <button class="expand-toggle-button" :class="{ active: props.isExpanded }" @click="emit('toggle-expand')">
             <svg
               v-if="!props.isExpanded"
               width="16"
@@ -486,9 +473,7 @@ const handleNewSession = () => {
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path
-                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-              />
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
             </svg>
             <svg
               v-else
@@ -501,9 +486,7 @@ const handleNewSession = () => {
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path
-                d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
-              />
+              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
             </svg>
           </button>
         </el-tooltip>
@@ -545,11 +528,7 @@ const handleNewSession = () => {
         </el-tooltip>
         <!-- 历史上下文统计 -->
         <el-tooltip
-          v-if="
-            props.settings.showTokenUsage &&
-            props.contextStats &&
-            props.contextStats.totalTokenCount !== undefined
-          "
+          v-if="props.settings.showTokenUsage && props.contextStats && props.contextStats.totalTokenCount !== undefined"
           placement="top"
           :show-after="500"
         >
@@ -611,9 +590,7 @@ const handleNewSession = () => {
         </el-tooltip>
         <!-- 当前输入 Token 计数显示 -->
         <el-tooltip
-          v-if="
-            props.settings.showTokenUsage && (props.tokenCount > 0 || props.isCalculatingTokens)
-          "
+          v-if="props.settings.showTokenUsage && (props.tokenCount > 0 || props.isCalculatingTokens)"
           :content="props.tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
           placement="top"
           :show-after="500"
@@ -634,9 +611,7 @@ const handleNewSession = () => {
               <path d="M12 20h9"></path>
               <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
             </svg>
-            <span>
-              {{ props.tokenCount.toLocaleString() }}{{ props.tokenEstimated ? "~" : "" }}
-            </span>
+            <span> {{ props.tokenCount.toLocaleString() }}{{ props.tokenEstimated ? "~" : "" }} </span>
           </span>
         </el-tooltip>
         <button
@@ -860,8 +835,8 @@ const handleNewSession = () => {
 /* 打字机图标 "A_" */
 .typewriter-icon {
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans",
-    "Droid Sans", "Helvetica Neue", sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -2px;

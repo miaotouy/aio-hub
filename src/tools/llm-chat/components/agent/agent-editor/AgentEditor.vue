@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, provide, nextTick, watch, defineAsyncComponent } from "vue";
+import { ref, computed, provide, nextTick, watch, onMounted, defineAsyncComponent } from "vue";
 import { Search as SearchIcon } from "@element-plus/icons-vue";
 import { useElementSize } from "@vueuse/core";
 import { agentEditTabs } from "./agentEditConfig";
@@ -11,18 +11,16 @@ import OutputDisplaySection from "./sections/OutputDisplaySection.vue";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
 import AgentAssetsDialog from "../AgentAssetsDialog.vue";
 
-const EditUserProfileDialog = defineAsyncComponent(
-  () => import("../../user-profile/EditUserProfileDialog.vue")
-);
-const WorldbookManagerDialog = defineAsyncComponent(
-  () => import("../../worldbook/WorldbookManagerDialog.vue")
-);
+const EditUserProfileDialog = defineAsyncComponent(() => import("../../user-profile/EditUserProfileDialog.vue"));
+const WorldbookManagerDialog = defineAsyncComponent(() => import("../../worldbook/WorldbookManagerDialog.vue"));
 
 interface Props {
   modelValue: any; // editForm 数据
   agent?: any; // 原始智能体实例
   mode: "create" | "edit";
   activeTab?: string;
+  initialTab?: string;
+  initialSection?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -115,9 +113,7 @@ const querySearch = (queryString: string, cb: any) => {
   const results = queryString
     ? searchIndex.value.filter((item) => {
         const query = queryString.toLowerCase();
-        return (
-          item.label.toLowerCase().includes(query) || item.keywords.toLowerCase().includes(query)
-        );
+        return item.label.toLowerCase().includes(query) || item.keywords.toLowerCase().includes(query);
       })
     : [];
   cb(results);
@@ -140,6 +136,27 @@ const handleSearchSelect = (item: any) => {
   });
   searchQuery.value = "";
 };
+
+// --- 初始定位逻辑 ---
+onMounted(() => {
+  if (props.initialTab) {
+    activeTab.value = props.initialTab;
+  }
+  if (props.initialSection) {
+    nextTick(() => {
+      const target = document.querySelector(`[data-setting-id="${props.initialSection}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        highlightedItemId.value = props.initialSection!;
+        target.classList.add("setting-highlight");
+        setTimeout(() => {
+          highlightedItemId.value = "";
+          target.classList.remove("setting-highlight");
+        }, 2000);
+      }
+    });
+  }
+});
 
 defineExpose({
   userProfileDialogVisible,
@@ -187,12 +204,7 @@ defineExpose({
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
-          <el-tooltip
-            :content="tab.label"
-            placement="right"
-            :disabled="!isSidebarCollapsed"
-            :offset="16"
-          >
+          <el-tooltip :content="tab.label" placement="right" :disabled="!isSidebarCollapsed" :offset="16">
             <el-icon><component :is="tab.icon" /></el-icon>
           </el-tooltip>
           <span v-if="!isSidebarCollapsed">{{ tab.label }}</span>
@@ -200,12 +212,7 @@ defineExpose({
       </div>
 
       <div class="editor-content">
-        <el-form
-          :model="modelValue"
-          :label-width="formLabelWidth"
-          :label-position="formLabelPosition"
-          @submit.prevent
-        >
+        <el-form :model="modelValue" :label-width="formLabelWidth" :label-position="formLabelPosition" @submit.prevent>
           <BasicInfoSection v-show="activeTab === 'basic'" />
           <PersonalitySection v-show="activeTab === 'personality'" />
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />

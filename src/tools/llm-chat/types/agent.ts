@@ -77,12 +77,22 @@ export interface AgentAsset {
  */
 export interface ToolCallConfig {
   enabled: boolean;
+  /**
+   * 执行模式
+   * auto: 开启全局自动批准（具体工具是否自动取决于 autoApproveTools）
+   * manual: 全手动模式，所有工具调用均需批准
+   */
   mode: "auto" | "manual";
+  /** 工具启用状态 */
   toolToggles: Record<string, boolean>;
+  /** 允许自动批准的工具列表 */
+  autoApproveTools: Record<string, boolean>;
+  /** 新发现工具是否默认启用 */
   defaultToolEnabled: boolean;
+  /** 新发现工具是否默认开启自动批准 */
+  defaultAutoApprove: boolean;
   maxIterations: number;
   timeout: number;
-  requireConfirmation: boolean;
   parallelExecution: boolean;
   protocol?: "vcp";
   /**
@@ -96,10 +106,11 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   enabled: false,
   mode: "auto",
   toolToggles: {},
+  autoApproveTools: {},
   defaultToolEnabled: false,
+  defaultAutoApprove: false,
   maxIterations: 20,
   timeout: 30000,
-  requireConfirmation: false,
   parallelExecution: false,
   protocol: "vcp",
   toolSettings: {},

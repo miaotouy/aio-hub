@@ -40,17 +40,18 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 
 工具调用的行为由 [`ToolCallConfig`](../llm-chat/types/agent.ts:78) 控制，该配置挂载在智能体 (ChatAgent) 上，支持以下维度：
 
-| 字段                  | 类型                      | 说明                                    |
-| --------------------- | ------------------------- | --------------------------------------- |
-| `enabled`             | `boolean`                 | 总开关                                  |
-| `mode`                | `"auto" \| "manual"`      | 自动/手动模式                           |
-| `toolToggles`         | `Record<string, boolean>` | 按工具 ID 的独立开关                    |
-| `defaultToolEnabled`  | `boolean`                 | 未在 toolToggles 中指定的工具的默认状态 |
-| `maxIterations`       | `number`                  | 最大迭代轮次（防止无限循环）            |
-| `timeout`             | `number`                  | 单次方法执行超时（ms）                  |
-| `requireConfirmation` | `boolean`                 | 执行前是否需要用户确认                  |
-| `parallelExecution`   | `boolean`                 | 同一轮次多个请求是否并行执行            |
-| `protocol`            | `"vcp"`                   | 使用的通信协议                          |
+| 字段                 | 类型                      | 说明                                    |
+| -------------------- | ------------------------- | --------------------------------------- |
+| `enabled`            | `boolean`                 | 总开关                                  |
+| `mode`               | `"auto" \| "manual"`      | 自动批准总开关（auto=开启，manual=关闭）|
+| `toolToggles`        | `Record<string, boolean>` | 按工具 ID 的独立启用开关                |
+| `autoApproveTools`   | `Record<string, boolean>` | 按工具 ID 的独立自动批准开关            |
+| `defaultToolEnabled` | `boolean`                 | 未在 toolToggles 中指定的工具的默认状态 |
+| `defaultAutoApprove` | `boolean`                 | 未在 autoApproveTools 中指定的工具的默认自动批准状态 |
+| `maxIterations`      | `number`                  | 最大迭代轮次（防止死循环）              |
+| `timeout`            | `number`                  | 单次方法执行超时（ms）                  |
+| `parallelExecution`  | `boolean`                 | 同一轮次多个请求是否并行执行            |
+| `protocol`           | `"vcp"`                   | 使用的通信协议                          |
 
 ## 3. 架构总览
 

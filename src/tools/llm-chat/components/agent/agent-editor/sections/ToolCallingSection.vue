@@ -25,7 +25,7 @@ const expandedToolId = ref<string | null>(null);
 
 const toggleTool = (toolId: string) => {
   if (!editForm.toolCallConfig) {
-    editForm.toolCallConfig = { ...DEFAULT_TOOL_CALL_CONFIG };
+    editForm.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
   }
   if (!editForm.toolCallConfig.toolToggles) {
     editForm.toolCallConfig.toolToggles = {};
@@ -39,9 +39,25 @@ const toggleTool = (toolId: string) => {
   }
 };
 
+const toggleAutoApprove = (toolId: string) => {
+  if (!editForm.toolCallConfig) {
+    editForm.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+  }
+  if (!editForm.toolCallConfig.autoApproveTools) {
+    editForm.toolCallConfig.autoApproveTools = {};
+  }
+  const currentValue = editForm.toolCallConfig.autoApproveTools[toolId] ?? editForm.toolCallConfig.defaultAutoApprove;
+  editForm.toolCallConfig.autoApproveTools[toolId] = !currentValue;
+};
+
 const isToolEnabled = (toolId: string) => {
   if (!editForm.toolCallConfig) return false;
   return editForm.toolCallConfig.toolToggles?.[toolId] ?? editForm.toolCallConfig.defaultToolEnabled;
+};
+
+const isAutoApproveEnabled = (toolId: string) => {
+  if (!editForm.toolCallConfig) return false;
+  return editForm.toolCallConfig.autoApproveTools?.[toolId] ?? editForm.toolCallConfig.defaultAutoApprove;
 };
 
 const ensureConfig = () => {
@@ -50,6 +66,9 @@ const ensureConfig = () => {
   }
   if (!editForm.toolCallConfig.toolToggles) {
     editForm.toolCallConfig.toolToggles = {};
+  }
+  if (!editForm.toolCallConfig.autoApproveTools) {
+    editForm.toolCallConfig.autoApproveTools = {};
   }
   if (!editForm.toolCallConfig.toolSettings) {
     editForm.toolCallConfig.toolSettings = {};
@@ -172,10 +191,10 @@ const pasteAllToolSettings = async () => {
 
       <template v-if="editForm.toolCallConfig?.enabled">
         <div class="tool-config-grid">
-          <el-form-item label="执行模式">
+          <el-form-item label="自动批准">
             <el-radio-group v-model="editForm.toolCallConfig.mode" size="small">
-              <el-radio-button label="auto">自动</el-radio-button>
-              <el-radio-button label="manual">手动</el-radio-button>
+              <el-radio-button label="auto">开启</el-radio-button>
+              <el-radio-button label="manual">关闭</el-radio-button>
             </el-radio-group>
           </el-form-item>
 
@@ -185,10 +204,6 @@ const pasteAllToolSettings = async () => {
 
           <el-form-item label="超时 (ms)">
             <el-input-number v-model="editForm.toolCallConfig.timeout" :min="1000" :step="5000" size="small" />
-          </el-form-item>
-
-          <el-form-item label="需要确认">
-            <el-switch v-model="editForm.toolCallConfig.requireConfirmation" />
           </el-form-item>
 
           <el-form-item label="并行执行">
@@ -211,8 +226,14 @@ const pasteAllToolSettings = async () => {
               </div>
             </div>
             <div class="box-actions">
-              <span class="form-hint">默认开启新工具:</span>
-              <el-switch v-model="editForm.toolCallConfig.defaultToolEnabled" size="small" />
+              <div class="action-item">
+                <span class="form-hint">默认启用:</span>
+                <el-switch v-model="editForm.toolCallConfig.defaultToolEnabled" size="small" />
+              </div>
+              <div class="action-item">
+                <span class="form-hint">默认自动批准:</span>
+                <el-switch v-model="editForm.toolCallConfig.defaultAutoApprove" size="small" />
+              </div>
             </div>
           </div>
 
@@ -256,7 +277,22 @@ const pasteAllToolSettings = async () => {
                   <el-icon class="expand-icon" :class="{ 'expand-icon--open': expandedToolId === tool.toolId }">
                     <ArrowDown />
                   </el-icon>
-                  <el-switch :model-value="isToolEnabled(tool.toolId)" @change="toggleTool(tool.toolId)" size="small" />
+                  <div class="tool-switch-group">
+                    <el-tooltip content="自动批准" placement="top" :show-after="500">
+                      <el-switch
+                        :model-value="isAutoApproveEnabled(tool.toolId)"
+                        @change="toggleAutoApprove(tool.toolId)"
+                        size="small"
+                        :disabled="editForm.toolCallConfig.mode !== 'auto'"
+                        class="auto-approve-switch"
+                      />
+                    </el-tooltip>
+                    <el-switch
+                      :model-value="isToolEnabled(tool.toolId)"
+                      @change="toggleTool(tool.toolId)"
+                      size="small"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -377,7 +413,13 @@ const pasteAllToolSettings = async () => {
 .box-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .box-actions :deep(.form-hint) {
@@ -485,8 +527,18 @@ const pasteAllToolSettings = async () => {
 .tool-action {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-shrink: 0;
+}
+
+.tool-switch-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auto-approve-switch :deep(.el-switch__core) {
+  --el-switch-on-color: var(--el-color-warning);
 }
 
 .expand-icon {

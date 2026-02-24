@@ -391,11 +391,19 @@ export function useChatExecutor() {
             if (cycleResult.hasToolRequests) {
               logger.info(`🛠️ 检测到 ${cycleResult.parsedRequests.length} 个工具请求，开始执行...`);
 
-              // 如果需要确认，目前先直接抛出提示（Phase 1 暂不支持 UI 拦截等待）
-              if (executionAgent.toolCallConfig.requireConfirmation) {
-                logger.warn(
-                  "检测到工具请求，但由于开启了 '需要确认'，Phase 1 暂不支持在此流程中拦截。将按自动模式继续。"
-                );
+              // 检查是否需要确认（Phase 1 暂不支持 UI 拦截等待）
+              const isGlobalAuto = executionAgent.toolCallConfig.mode === "auto";
+              const needsConfirmation = cycleResult.parsedRequests.some((req) => {
+                const sepIdx = req.toolName.lastIndexOf("_");
+                const target = sepIdx > 0 ? req.toolName.slice(0, sepIdx) : req.toolName;
+                const isToolAuto =
+                  executionAgent.toolCallConfig?.autoApproveTools?.[target] ??
+                  executionAgent.toolCallConfig?.defaultAutoApprove;
+                return !isGlobalAuto || !isToolAuto;
+              });
+
+              if (needsConfirmation) {
+                logger.warn("检测到需要手动批准的工具请求，但 Phase 1 暂不支持在此流程中拦截。将按自动模式继续。");
               }
 
               currentAssistantNode.metadata = {

@@ -58,21 +58,26 @@ async function executeSingleRequest(
   options: ExecutorOptions
 ): Promise<ToolExecutionResult> {
   const startedAt = Date.now();
-
-  if (options.config.requireConfirmation) {
-    const approved = await options.onBeforeExecute?.(request);
-    if (!approved) {
-      return buildErrorResult(request, "工具调用被拒绝：用户未授权", Date.now() - startedAt);
-    }
-  }
-
   const target = parseToolTarget(request.toolName);
+
   if (!target) {
     return buildErrorResult(
       request,
       `无效 tool_name 格式：${request.toolName}，期望格式为 toolId_methodName`,
       Date.now() - startedAt
     );
+  }
+
+  // 自动化批准逻辑判断
+  const isGlobalAuto = options.config.mode === "auto";
+  const isToolAutoApprove = options.config.autoApproveTools?.[target.toolId] ?? options.config.defaultAutoApprove;
+  const shouldAutoApprove = isGlobalAuto && isToolAutoApprove;
+
+  if (!shouldAutoApprove) {
+    const approved = await options.onBeforeExecute?.(request);
+    if (!approved) {
+      return buildErrorResult(request, "工具调用被拒绝：用户未授权", Date.now() - startedAt);
+    }
   }
 
   if (!toolRegistryManager.hasTool(target.toolId)) {

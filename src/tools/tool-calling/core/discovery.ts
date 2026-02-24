@@ -49,14 +49,25 @@ function stableStringifyConfig(config: ToolCallConfig): string {
       return acc;
     }, {});
 
+  const sortedAutoApprove = Object.keys(config.autoApproveTools || {})
+    .sort()
+    .reduce<Record<string, boolean>>((acc, key) => {
+      const value = config.autoApproveTools[key];
+      if (typeof value === "boolean") {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
   return JSON.stringify({
     enabled: config.enabled,
     mode: config.mode,
     toolToggles: sortedToggles,
+    autoApproveTools: sortedAutoApprove,
     defaultToolEnabled: config.defaultToolEnabled,
+    defaultAutoApprove: config.defaultAutoApprove,
     maxIterations: config.maxIterations,
     timeout: config.timeout,
-    requireConfirmation: config.requireConfirmation,
     parallelExecution: config.parallelExecution,
     protocol: config.protocol,
   });
@@ -80,7 +91,7 @@ export function createToolDiscoveryService(): {
 
       const metadata = tool.getMetadata();
       const methods = metadata?.methods || [];
-      
+
       const callableMethods = filter
         ? methods.filter(filter)
         : methods.filter((method) => method.agentCallable === true);

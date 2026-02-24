@@ -48,11 +48,7 @@ onMounted(() => {
             <span>工具库浏览</span>
           </div>
         </template>
-        <DiscoveryPane 
-          :groups="discoveredGroups" 
-          @refresh="refreshDiscovery" 
-          @load="handleLoadToExecutor" 
-        />
+        <DiscoveryPane :groups="discoveredGroups" @refresh="refreshDiscovery" @load="handleLoadToExecutor" />
       </el-tab-pane>
 
       <!-- 2. 执行沙盒 -->
@@ -63,7 +59,7 @@ onMounted(() => {
             <span>执行沙盒</span>
           </div>
         </template>
-        <ExecutorPane ref="executorRef" />
+        <ExecutorPane ref="executorRef" :groups="discoveredGroups" />
       </el-tab-pane>
 
       <!-- 3. 解析验证 -->

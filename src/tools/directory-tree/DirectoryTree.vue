@@ -6,13 +6,7 @@
         <div class="config-content">
           <div class="config-section">
             <label>目标路径</label>
-            <DropZone
-              variant="input"
-              :directory-only="true"
-              :multiple="false"
-              hide-content
-              @drop="handlePathDrop"
-            >
+            <DropZone variant="input" :directory-only="true" :multiple="false" hide-content @drop="handlePathDrop">
               <div class="path-input-group">
                 <el-input
                   v-model="targetPath"
@@ -55,13 +49,7 @@
           <div class="config-section">
             <label>深度限制</label>
             <div class="slider-container">
-              <el-slider
-                v-model="maxDepth"
-                :min="1"
-                :max="10"
-                :marks="{ 1: '1', 5: '5', 10: '10' }"
-                show-stops
-              />
+              <el-slider v-model="maxDepth" :min="1" :max="10" :marks="{ 1: '1', 5: '5', 10: '10' }" show-stops />
             </div>
             <div class="depth-info">当前深度: {{ maxDepth === 10 ? "无限制" : maxDepth }}</div>
           </div>
@@ -219,7 +207,10 @@ import {
   buildMetadataHeader,
   loadConfig,
   saveConfig,
+  calculateMaxDepth,
+  renderTreeRecursive,
   type GenerateTreeOptions,
+  type RenderTreeOptions,
 } from "./actions";
 
 // 创建模块日志器
@@ -258,28 +249,6 @@ const showDirItemCount = ref(false);
 // 编辑器内容（与 processedTreeResult 解耦，允许临时编辑）
 const editorContent = ref("");
 
-// 格式化文件大小
-const formatSize = (size: number): string => {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let s = size;
-  let unitIndex = 0;
-  while (s >= 1024 && unitIndex < units.length - 1) {
-    s /= 1024;
-    unitIndex++;
-  }
-  return unitIndex === 0 ? `${s} ${units[unitIndex]}` : `${s.toFixed(2)} ${units[unitIndex]}`;
-};
-
-// 递归计算实际最大深度
-const calculateMaxDepth = (node: TreeNode, currentDepth = 0): number => {
-  let max = currentDepth;
-  for (const child of node.children) {
-    const childDepth = calculateMaxDepth(child, currentDepth + 1);
-    if (childDepth > max) max = childDepth;
-  }
-  return max;
-};
-
 // 计算实际最大深度（用于滑块范围）
 const actualMaxDepth = computed(() => {
   if (!treeData.value) return 10;
@@ -290,102 +259,6 @@ const actualMaxDepth = computed(() => {
 watch(treeData, () => {
   secondaryMaxDepth.value = actualMaxDepth.value;
 });
-
-// 获取目录子项数量描述
-const getDirItemCountStr = (node: TreeNode): string => {
-  if (!node.is_dir || node.children.length === 0) return "";
-
-  const fileCount = node.children.filter((c) => !c.is_dir).length;
-  const dirCount = node.children.filter((c) => c.is_dir).length;
-
-  const parts: string[] = [];
-  if (fileCount > 0) parts.push(`${fileCount} file${fileCount > 1 ? "s" : ""}`);
-  if (dirCount > 0) parts.push(`${dirCount} dir${dirCount > 1 ? "s" : ""}`);
-
-  return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
-};
-
-// 递归渲染树结构
-const renderTreeRecursive = (
-  node: TreeNode,
-  prefix: string,
-  isLast: boolean,
-  isRoot: boolean,
-  options: {
-    maxDepth: number;
-    excludePattern: string;
-    showFiles: boolean;
-    showSize: boolean;
-    showDirSize: boolean;
-    showDirItemCount: boolean;
-  },
-  currentDepth: number,
-  output: string[]
-) => {
-  // 检查是否显示文件
-  if (!node.is_dir && !options.showFiles) {
-    return;
-  }
-
-  // 检查排除模式
-  if (options.excludePattern && node.name.includes(options.excludePattern)) {
-    return;
-  }
-
-  // 根节点特殊处理
-  if (isRoot) {
-    const sizeStr = options.showDirSize && node.size > 0 ? ` (${formatSize(node.size)})` : "";
-    const itemCountStr = options.showDirItemCount ? getDirItemCountStr(node) : "";
-    output.push(`${node.name}${sizeStr}${itemCountStr}`);
-  } else {
-    // 检查深度限制
-    if (currentDepth > options.maxDepth) {
-      return;
-    }
-
-    const connector = isLast ? "└── " : "├── ";
-    let sizeStr = "";
-    if (node.size > 0) {
-      if (node.is_dir && options.showDirSize) {
-        sizeStr = ` (${formatSize(node.size)})`;
-      } else if (!node.is_dir && options.showSize) {
-        sizeStr = ` (${formatSize(node.size)})`;
-      }
-    }
-
-    const itemCountStr = node.is_dir && options.showDirItemCount ? getDirItemCountStr(node) : "";
-    const errorStr = node.error ? ` ${node.error}` : "";
-    const slash = node.is_dir ? "/" : "";
-
-    output.push(`${prefix}${connector}${node.name}${slash}${sizeStr}${itemCountStr}${errorStr}`);
-  }
-
-  // 递归处理子节点
-  if (node.is_dir && node.children.length > 0) {
-    // 如果当前已经是最大深度，不再渲染子节点
-    if (!isRoot && currentDepth >= options.maxDepth) {
-      return;
-    }
-
-    const newPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");
-    // 根据 showFiles 选项过滤子节点，用于正确计算 isLast
-    const filteredChildren = options.showFiles
-      ? node.children
-      : node.children.filter((child) => child.is_dir);
-
-    for (let i = 0; i < filteredChildren.length; i++) {
-      renderTreeRecursive(
-        filteredChildren[i],
-        newPrefix,
-        i === filteredChildren.length - 1,
-        false,
-        options,
-        currentDepth + 1,
-        output
-      );
-    }
-  }
-};
 
 // 处理后的目录树结果
 const processedTreeResult = computed(() => {
@@ -404,7 +277,7 @@ const processedTreeResult = computed(() => {
     const maxDepth = secondaryMaxDepth.value;
     const excludePattern = secondaryExcludePattern.value.trim();
 
-    const options = {
+    const options: Required<RenderTreeOptions> & { excludePattern: string } = {
       maxDepth,
       excludePattern,
       showFiles: viewShowFiles.value,

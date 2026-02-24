@@ -2,7 +2,7 @@ import type { ToolRegistry, ToolConfig } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import DirectoryTreeIcon from "@/components/icons/DirectoryTreeIcon.vue";
-import { generateTree, type GenerateTreeOptions, type TreeGenerationResult } from './actions';
+import { generateTree, renderTree, type GenerateTreeOptions } from "./actions";
 
 /**
  * 目录树工具注册器
@@ -79,7 +79,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
    *
    * 接收扁平化的 Record<string, string> 参数，内部转换为 GenerateTreeOptions。
    */
-  public async generateTree(args: Record<string, unknown>): Promise<TreeGenerationResult> {
+  public async generateTree(args: Record<string, unknown>): Promise<string> {
     const options: GenerateTreeOptions = {
       path: String(args.path || ""),
       showFiles: args.showFiles !== false && args.showFiles !== "false",
@@ -89,7 +89,13 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
       customPattern: String(args.customPattern || ""),
       includeMetadata: args.includeMetadata === true || args.includeMetadata === "true",
     };
-    return await generateTree(options);
+    const result = await generateTree(options);
+    return renderTree(
+      result.structure,
+      { showFiles: options.showFiles },
+      options.includeMetadata ? options : undefined,
+      options.includeMetadata ? result.stats : undefined
+    );
   }
 
   /**
@@ -99,75 +105,75 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
     return {
       methods: [
         {
-          name: 'generateTree',
-          displayName: '生成目录树',
-          description: '根据配置选项生成目录树结构',
+          name: "generateTree",
+          displayName: "生成目录树",
+          description: "根据配置选项生成目录树结构",
           agentCallable: true,
           parameters: [
             {
-              name: 'path',
-              type: 'string',
-              uiHint: 'directory',
-              description: '要分析的目标目录路径',
+              name: "path",
+              type: "string",
+              uiHint: "directory",
+              description: "要分析的目标目录路径",
               required: true,
             },
             {
-              name: 'showFiles',
-              type: 'boolean',
-              description: '是否在树中显示文件（仅显示目录结构则设为 false）',
+              name: "showFiles",
+              type: "boolean",
+              description: "是否在树中显示文件（仅显示目录结构则设为 false）",
               required: false,
               defaultValue: true,
             },
             {
-              name: 'showHidden',
-              type: 'boolean',
-              description: '是否显示隐藏文件和目录',
+              name: "showHidden",
+              type: "boolean",
+              description: "是否显示隐藏文件和目录",
               required: false,
               defaultValue: false,
             },
             {
-              name: 'showSize',
-              type: 'boolean',
-              description: '是否显示文件大小信息',
+              name: "showSize",
+              type: "boolean",
+              description: "是否显示文件大小信息",
               required: false,
               defaultValue: false,
             },
             {
-              name: 'showDirSize',
-              type: 'boolean',
-              description: '是否显示目录大小信息',
+              name: "showDirSize",
+              type: "boolean",
+              description: "是否显示目录大小信息",
               required: false,
               defaultValue: false,
             },
             {
-              name: 'maxDepth',
-              type: 'number',
-              description: '目录树的最大深度（0 表示无限制，10 也表示无限制）',
+              name: "maxDepth",
+              type: "number",
+              description: "目录树的最大深度（0 表示无限制，10 也表示无限制）",
               required: false,
               defaultValue: 5,
             },
             {
-              name: 'filterMode',
+              name: "filterMode",
               type: "'none' | 'gitignore' | 'custom' | 'both'",
-              description: '过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则，both-同时使用两者',
+              description: "过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则，both-同时使用两者",
               required: false,
-              defaultValue: 'none',
+              defaultValue: "none",
             },
             {
-              name: 'customPattern',
-              type: 'string',
-              description: '自定义过滤规则（当 filterMode 为 custom 或 both 时使用，支持 glob 模式）',
+              name: "customPattern",
+              type: "string",
+              description: "自定义过滤规则（当 filterMode 为 custom 或 both 时使用，支持 glob 模式）",
               required: false,
             },
             {
-              name: 'includeMetadata',
-              type: 'boolean',
-              description: '是否在输出中包含统计信息和配置元数据',
+              name: "includeMetadata",
+              type: "boolean",
+              description: "是否在输出中包含统计信息和配置元数据",
               required: false,
               defaultValue: false,
             },
           ],
-          returnType: 'Promise<TreeGenerationResult>',
+          returnType: "Promise<string>",
         },
       ],
     };
@@ -178,10 +184,10 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: '目录结构浏览器',
-  path: '/directory-tree',
+  name: "目录结构浏览器",
+  path: "/directory-tree",
   icon: markRaw(DirectoryTreeIcon),
-  component: () => import('./DirectoryTree.vue'),
-  description: '生成目录树结构，支持过滤规则和深度限制',
-  category: '文件管理'
+  component: () => import("./DirectoryTree.vue"),
+  description: "生成目录树结构，支持过滤规则和深度限制",
+  category: "文件管理",
 };

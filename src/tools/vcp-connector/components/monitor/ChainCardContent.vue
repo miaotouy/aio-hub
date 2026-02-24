@@ -5,31 +5,29 @@
         <el-icon><GitBranch /></el-icon>
         <span>元思考链: {{ message.chainName }}</span>
       </div>
-      <el-button
-        link
-        size="small"
-        class="json-btn"
-        @click.stop="$emit('show-json', message)"
-        title="查看原始 JSON"
-      >
+      <el-button link size="small" class="json-btn" @click.stop="$emit('show-json', message)" title="查看原始 JSON">
         <el-icon><Document /></el-icon>
       </el-button>
     </div>
 
     <div class="query-section" v-if="message.query" @click.stop="toggleExpand">
-      <div class="query-text" :class="{ 'is-truncated': !isExpanded }">
-        {{ message.query }}
+      <div
+        class="query-text"
+        :class="{ 'is-truncated': !isExpanded, 'is-pre': isExpanded, 'is-scrollable': isExpanded }"
+      >
+        <template v-if="isExpanded">
+          <span v-html="formatContent(message.query)"></span>
+        </template>
+        <template v-else>
+          {{ message.query }}
+        </template>
       </div>
     </div>
 
     <div class="stages-list" v-if="message.stages && message.stages.length > 0">
       <!-- 阶段路径预览 -->
       <div class="stage-path" @click.stop="toggleExpand">
-        <div
-          v-for="(stage, index) in message.stages"
-          :key="stage.stage"
-          class="path-node-wrapper"
-        >
+        <div v-for="(stage, index) in message.stages" :key="stage.stage" class="path-node-wrapper">
           <div class="path-node" :title="stage.clusterName">
             <span class="node-index">{{ stage.stage }}</span>
             <span class="node-name">{{ stage.clusterName }}</span>
@@ -42,23 +40,15 @@
 
       <!-- 阶段详情列表 -->
       <div class="stages-container">
-        <div
-          v-for="stage in displayStages"
-          :key="stage.stage"
-          class="stage-item"
-          @click.stop="toggleExpand"
-        >
+        <div v-for="stage in displayStages" :key="stage.stage" class="stage-item" @click.stop="toggleExpand">
           <div class="stage-header">
             <span class="stage-number">#{{ stage.stage }}</span>
             <span class="stage-cluster">{{ stage.clusterName }}</span>
             <span class="stage-count">{{ stage.resultCount }} results</span>
           </div>
-          <div
-            class="stage-results"
-            v-if="stage.results && stage.results.length > 0"
-          >
+          <div class="stage-results" v-if="stage.results && stage.results.length > 0">
             <div
-              v-for="(result, idx) in (isExpanded ? stage.results : stage.results.slice(0, 1))"
+              v-for="(result, idx) in isExpanded ? stage.results : stage.results.slice(0, 1)"
               :key="idx"
               class="mini-result"
             >
@@ -66,14 +56,19 @@
                 <span class="mini-score">{{ result.score.toFixed(3) }}</span>
                 <span class="result-source" v-if="result.source">{{ result.source }}</span>
               </div>
-              <div class="mini-text" :class="{ 'is-truncated': !isExpanded }">
-                {{ isExpanded ? result.text : truncateText(result.text, 100) }}
+              <div class="mini-text" :class="{ 'is-truncated': !isExpanded, 'is-pre': isExpanded }">
+                <template v-if="isExpanded">
+                  <span v-html="formatContent(result.text)"></span>
+                </template>
+                <template v-else>
+                  {{ truncateText(result.text, 100) }}
+                </template>
               </div>
             </div>
           </div>
           <div v-else class="no-results">本阶段无结果</div>
         </div>
-        
+
         <div v-if="!isExpanded && message.stages.length > 3" class="more-stages-hint" @click.stop="toggleExpand">
           ... 还有 {{ message.stages.length - 3 }} 个阶段，点击展开详情
         </div>
@@ -97,7 +92,7 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  'show-json': [message: any];
+  "show-json": [message: any];
 }>();
 
 const isExpanded = ref(false);
@@ -109,6 +104,17 @@ function toggleExpand() {
 const displayStages = computed(() => {
   return isExpanded.value ? props.message.stages : props.message.stages.slice(0, 3);
 });
+
+function formatContent(text: string): string {
+  if (!text) return "";
+
+  // 处理 [AI] 和 [User] 标签
+  let formatted = text
+    .replace(/\[AI\]/g, '<span class="tag-ai">[AI]</span>')
+    .replace(/\[User\]/g, '<span class="tag-user">[User]</span>');
+
+  return formatted;
+}
 
 function truncateText(text: string, maxLength: number): string {
   if (!text) return "";
@@ -122,6 +128,25 @@ function truncateText(text: string, maxLength: number): string {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.query-text.is-scrollable {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.query-text.is-scrollable::-webkit-scrollbar {
+  width: 4px;
+}
+
+.query-text.is-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(155, 89, 182, 0.2);
+  border-radius: 2px;
+}
+
+.query-text.is-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(155, 89, 182, 0.4);
 }
 
 .chain-header {
@@ -160,6 +185,12 @@ function truncateText(text: string, maxLength: number): string {
   background: var(--el-bg-color-page);
   border-radius: 8px;
   border-left: 3px solid rgba(155, 89, 182, 0.4);
+}
+
+.query-text.is-pre,
+.mini-text.is-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .query-text.is-truncated {
@@ -322,6 +353,18 @@ function truncateText(text: string, maxLength: number): string {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+:deep(.tag-ai) {
+  color: #9b59b6;
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+:deep(.tag-user) {
+  color: #3498db;
+  font-weight: bold;
+  margin-right: 4px;
 }
 
 .no-results {

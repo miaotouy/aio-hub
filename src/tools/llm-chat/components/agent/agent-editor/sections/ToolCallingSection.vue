@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, computed, ref, markRaw } from "vue";
+import { inject, computed, ref, markRaw, type Ref } from "vue";
 import { ArrowDown, CopyDocument, Files } from "@element-plus/icons-vue";
 import { Cpu, Power, Zap } from "lucide-vue-next";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
@@ -12,7 +12,22 @@ import { customMessage } from "@/utils/customMessage";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
 const editForm = inject<any>("agent-edit-form");
+const activeTab = inject<Ref<string>>("active-tab");
 const toolsStore = useToolsStore();
+
+// 宏检查
+const isToolsMacroMissing = computed(() => {
+  if (!editForm.toolCallConfig?.enabled) return false;
+  const messages = editForm.presetMessages || [];
+  // 扫描所有启用的消息（如果未定义 enabled 则默认视为启用）
+  return !messages.some((m: any) => m.enabled !== false && m.content?.includes("{{tools}}"));
+});
+
+const switchToPersonality = () => {
+  if (activeTab) {
+    activeTab.value = "personality";
+  }
+};
 
 // 工具调用相关
 const { getDiscoveredMethods } = useToolCalling();
@@ -188,6 +203,25 @@ const pasteAllToolSettings = async () => {
         <code v-pre style="color: var(--el-color-primary)">{{ tools }}</code>
         宏获取工具定义并发出调用请求。
       </div>
+
+      <!-- 宏缺失警告 -->
+      <transition name="el-zoom-in-top">
+        <div v-if="isToolsMacroMissing" class="macro-warning-alert">
+          <el-alert type="warning" :closable="false" show-icon>
+            <template #title>
+              <div class="alert-title-content">
+                <span
+                  >提示词中未发现 <code v-pre>{{ tools }}</code> 宏</span
+                >
+                <el-button link type="primary" size="small" @click="switchToPersonality"> 前往添加 </el-button>
+              </div>
+            </template>
+            <template #default>
+              智能体需要此宏来感知当前启用的工具定义。请在“角色设定”的系统提示词中包含此宏。
+            </template>
+          </el-alert>
+        </div>
+      </transition>
 
       <template v-if="editForm.toolCallConfig?.enabled">
         <div class="tool-config-grid">
@@ -365,6 +399,23 @@ const pasteAllToolSettings = async () => {
   margin-top: 4px;
   line-height: 1.6;
   margin-bottom: 12px;
+}
+
+.macro-warning-alert {
+  margin-bottom: 16px;
+}
+
+.alert-title-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.alert-title-content code {
+  color: var(--el-color-primary);
+  font-weight: bold;
+  margin: 0 4px;
 }
 
 .tool-config-grid {

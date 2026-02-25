@@ -306,7 +306,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         layout: "inline",
         component: "ElSwitch",
         modelPath: "uiPreferences.enableEnterAnimation",
-        hint: "为渲染的消息节点（如代码块、列表）启用淡入动画",
+        hint: "为基础消息节点（如文本、段落）启用淡入动画。",
         keywords: "ui animation effect 动画 特效",
       },
       {

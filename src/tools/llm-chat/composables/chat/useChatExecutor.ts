@@ -446,7 +446,6 @@ export function useChatExecutor() {
 
               session.nodes[toolNode.id] = toolNode;
               currentAssistantNode.childrenIds.push(toolNode.id);
-              currentPathToUserNode = [...currentPathToUserNode, currentAssistantNode, toolNode];
 
               const nextAssistantNode: ChatMessageNode = {
                 id: `assistant-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -456,10 +455,33 @@ export function useChatExecutor() {
                 content: "",
                 status: "generating",
                 timestamp: new Date().toISOString(),
-                metadata: { agentId: executionAgent.id },
+                metadata: {
+                  agentId: executionAgent.id,
+                  // 继承前一个节点的元数据，确保图标、模型信息等一致
+                  ...currentAssistantNode.metadata,
+                  // 重置性能指标
+                  firstTokenTime: undefined,
+                  requestStartTime: Date.now(),
+                  requestEndTime: undefined,
+                  usage: undefined,
+                  contentTokens: undefined,
+                },
               };
               session.nodes[nextAssistantNode.id] = nextAssistantNode;
               toolNode.childrenIds.push(nextAssistantNode.id);
+
+              // 维护状态集合
+              generatingNodes.add(nextAssistantNode.id);
+
+              // 更新活跃叶节点，确保 UI 切换到新分支
+              const nodeManager = useNodeManager();
+              nodeManager.updateActiveLeaf(session, nextAssistantNode.id);
+
+              // 立即持久化，确保状态同步到其他窗口和 UI
+              const sessionManager = useSessionManager();
+              sessionManager.persistSession(session, session.id);
+
+              currentPathToUserNode = [...currentPathToUserNode, currentAssistantNode, toolNode];
               currentAssistantNode = nextAssistantNode;
               continue;
             }

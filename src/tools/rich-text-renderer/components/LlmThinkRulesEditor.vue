@@ -1,8 +1,30 @@
 <template>
   <div class="llm-think-rules-editor">
     <div class="rules-header">
-      <h4>思考块规则配置</h4>
-      <el-button :icon="Plus" size="small" @click="showAddDialog = true">添加规则</el-button>
+      <div class="header-left">
+        <h4>思考块规则配置</h4>
+        <div class="header-actions">
+          <el-dropdown trigger="click" @command="handlePresetCommand">
+            <el-button size="small">
+              添加预设<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="preset in PRESET_RULES"
+                  :key="preset.id"
+                  :command="preset"
+                  :disabled="localRules.some((r) => r.id === preset.id)"
+                >
+                  {{ preset.displayName }} ({{ preset.tagName }})
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button size="small" @click="resetToDefault">重置</el-button>
+        </div>
+      </div>
+      <el-button :icon="Plus" type="primary" size="small" @click="showAddDialog = true">添加规则</el-button>
     </div>
 
     <div class="rules-list">
@@ -42,11 +64,7 @@
     >
       <el-form :model="editingRule" label-width="100px" label-position="left">
         <el-form-item label="规则ID">
-          <el-input
-            v-model="editingRule.id"
-            placeholder="如: gugu-think"
-            :disabled="editingIndex !== -1"
-          />
+          <el-input v-model="editingRule.id" placeholder="如: gugu-think" :disabled="editingIndex !== -1" />
           <div class="form-tip">规则的唯一标识，创建后不可修改</div>
         </el-form-item>
 
@@ -61,11 +79,7 @@
         </el-form-item>
 
         <el-form-item label="默认状态">
-          <el-switch
-            v-model="editingRule.collapsedByDefault"
-            active-text="折叠"
-            inactive-text="展开"
-          />
+          <el-switch v-model="editingRule.collapsedByDefault" active-text="折叠" inactive-text="展开" />
         </el-form-item>
       </el-form>
 
@@ -81,7 +95,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { Plus, Edit, Delete } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, ArrowDown } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import type { LlmThinkRule } from "../types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -96,6 +110,31 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:modelValue": [rules: LlmThinkRule[]];
 }>();
+
+// 预设规则定义
+const PRESET_RULES: LlmThinkRule[] = [
+  {
+    id: "deepseek-think",
+    kind: "xml_tag",
+    tagName: "think",
+    displayName: "思考过程",
+    collapsedByDefault: true,
+  },
+  {
+    id: "claude-think",
+    kind: "xml_tag",
+    tagName: "thinking",
+    displayName: "思考过程",
+    collapsedByDefault: true,
+  },
+  {
+    id: "gugu-think",
+    kind: "xml_tag",
+    tagName: "guguthink",
+    displayName: "咕咕的思考",
+    collapsedByDefault: true,
+  },
+];
 
 // 本地规则列表（使用独立副本，避免直接修改父级数据）
 const localRules = ref<LlmThinkRule[]>([]);
@@ -171,9 +210,7 @@ function saveRule() {
   }
 
   // 检查ID是否重复（除了当前编辑的规则）
-  const isDuplicate = localRules.value.some(
-    (r, idx) => r.id === editingRule.value.id && idx !== editingIndex.value
-  );
+  const isDuplicate = localRules.value.some((r, idx) => r.id === editingRule.value.id && idx !== editingIndex.value);
   if (isDuplicate) {
     customMessage.warning("规则ID已存在，请使用其他ID");
     return;
@@ -195,6 +232,32 @@ function saveRule() {
 
   showAddDialog.value = false;
   resetEditingRule();
+}
+
+// 处理预设命令
+function handlePresetCommand(preset: LlmThinkRule) {
+  if (localRules.value.some((r) => r.id === preset.id)) {
+    customMessage.warning("该预设规则已存在");
+    return;
+  }
+  localRules.value.push({ ...preset });
+  emitRulesUpdate();
+  customMessage.success(`已添加预设: ${preset.displayName}`);
+}
+
+// 重置为默认
+function resetToDefault() {
+  ElMessageBox.confirm("确定要重置所有规则吗？这将清空当前所有自定义配置并恢复预设规则。", "确认重置", {
+    confirmButtonText: "确定重置",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(() => {
+      localRules.value = PRESET_RULES.map((r) => ({ ...r }));
+      emitRulesUpdate();
+      customMessage.success("已重置为默认规则");
+    })
+    .catch(() => {});
 }
 
 // 删除规则
@@ -237,6 +300,17 @@ function deleteRule(index: number) {
   border: 1px solid var(--border-color);
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .rules-header h4 {
   margin: 0;
   font-size: 16px;
@@ -245,6 +319,7 @@ function deleteRule(index: number) {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .rules-list {

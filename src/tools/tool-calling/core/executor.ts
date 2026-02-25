@@ -10,7 +10,10 @@ export interface ExecutorOptions {
 }
 
 function parseToolTarget(toolName: string): { toolId: string; methodName: string } | null {
-  const separatorIndex = toolName.lastIndexOf("_");
+  // 注意：我们使用第一个下划线作为分隔符。
+  // 因为 toolId 统一使用连字符 (kebab-case)，不含下划线。
+  // 而 methodName (command) 可能会包含下划线。
+  const separatorIndex = toolName.indexOf("_");
   if (separatorIndex <= 0 || separatorIndex >= toolName.length - 1) {
     return null;
   }

@@ -14,9 +14,17 @@ const testText = ref(`这里模拟 LLM 的回复文本。
 你可以尝试包含一个 VCP 请求块：
 
 <<<[TOOL_REQUEST]>>>
-tool_name: 「始」directory_tree_list_files「末」
-path: 「始」src「末」
-recursive: 「始」false「末」
+tool_name:「始」directory-tree「末」,
+command:「始」generateTree「末」,
+path:「始」E:\\rc20\\allinweb\\all-in-one-tools\\src\\components「末」,
+showFiles:「始」true「末」,
+showHidden:「始」false「末」,
+showSize:「始」true「末」,
+showDirSize:「始」false「末」,
+maxDepth:「始」5「末」,
+filterMode:「始」none「末」,
+customPattern:「始」「末」,
+includeMetadata:「始」true「末」
 <<<[END_TOOL_REQUEST]>>>
 
 解析器会忽略这些非结构化文字。`);

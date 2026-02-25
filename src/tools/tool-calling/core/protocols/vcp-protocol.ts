@@ -118,10 +118,14 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
     }
   }
 
-  const toolId = allParams.tool_name?.trim();
-  if (!toolId) {
+  const rawToolId = allParams.tool_name?.trim();
+  if (!rawToolId) {
     errors.push("缺少关键字段: tool_name");
   }
+
+  // 逆向转换 toolId: directory_tree -> directory-tree
+  // 因为在提示词生成时我们将连字符转为了下划线以兼容 VCP 协议
+  const toolId = rawToolId?.replace(/_/g, "-");
 
   const baseRequestId = allParams.request_id?.trim() || `req_${requestIndex + 1}`;
 
@@ -312,7 +316,9 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
    */
   public formatToolRequest(toolId: string, command: string, args: Record<string, any>): string {
     const lines = [TOOL_REQUEST_START];
-    lines.push(buildArgBlock("tool_name", toolId) + ",");
+    // 转换 toolId: directory-tree -> directory_tree 以符合协议规范
+    const normalizedToolId = toolId.replace(/-/g, "_");
+    lines.push(buildArgBlock("tool_name", normalizedToolId) + ",");
     lines.push(buildArgBlock("command", command) + ",");
 
     const argKeys = Object.keys(args);

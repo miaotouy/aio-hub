@@ -56,25 +56,6 @@ const invalidIds = computed(() => {
   return selectedIds.value.filter((id) => !validIds.has(id));
 });
 
-/**
- * 自动清理无效引用
- */
-const autoCleanup = () => {
-  if (invalidIds.value.length > 0) {
-    const validIdsOnly = selectedIds.value.filter((id) => !invalidIds.value.includes(id));
-    emit("update:modelValue", validIdsOnly);
-  }
-};
-
-// 监听世界书列表变化，自动清理无效引用
-watch(
-  () => worldbookStore.worldbooks,
-  () => {
-    autoCleanup();
-  },
-  { immediate: true }
-);
-
 const availableWorldbooks = computed(() => {
   const q = searchQuery.value.toLowerCase();
   return worldbookStore.worldbooks.filter(

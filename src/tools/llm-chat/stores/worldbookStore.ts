@@ -36,14 +36,14 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
     initializeSync() {
       const worldbooksRef = toRef(this, "worldbooks");
       const bus = useWindowSyncBus();
-      
+
       // 使用状态同步引擎同步世界书索引
       useStateSyncEngine(worldbooksRef, {
         ...createChatSyncConfig(CHAT_STATE_KEYS.WORLDBOOK_INDEX as any),
       });
 
       // 如果是分离窗口，主动请求初始状态
-      if (bus.windowType !== 'main') {
+      if (bus.windowType !== "main") {
         logger.info("分离窗口主动请求世界书初始状态");
         bus.requestInitialState();
       }
@@ -54,9 +54,9 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
         () => this.worldbooks,
         (newWbs, oldWbs) => {
           if (!oldWbs || oldWbs.length === 0) return;
-          
-          newWbs.forEach(newWb => {
-            const oldWb = oldWbs.find(w => w.id === newWb.id);
+
+          newWbs.forEach((newWb) => {
+            const oldWb = oldWbs.find((w) => w.id === newWb.id);
             if (oldWb && oldWb.updatedAt !== newWb.updatedAt) {
               if (this.loadedWorldbooks.has(newWb.id)) {
                 logger.info("检测到世界书更新，清除缓存以重新加载", { id: newWb.id, name: newWb.name });
@@ -114,17 +114,21 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
 
       const results: STWorldbook[] = [];
       for (const id of worldbookIds) {
+        // 先检查索引中是否存在该世界书，如果不存在则跳过，避免产生文件不存在的警告
+        const metadata = this.worldbooks.find((wb) => wb.id === id);
+        if (!metadata) {
+          logger.debug("跳过不存在于索引中的世界书 ID", { id });
+          continue;
+        }
+
         const content = await this.getWorldbookContent(id);
         if (content) {
           // 从索引中获取世界书名称，确保 metadata.name 被正确设置
-          const metadata = this.worldbooks.find((wb) => wb.id === id);
-          if (metadata) {
-            content.metadata = {
-              ...content.metadata,
-              name: metadata.name,
-              description: metadata.description,
-            };
-          }
+          content.metadata = {
+            ...content.metadata,
+            name: metadata.name,
+            description: metadata.description,
+          };
           results.push(content);
         }
       }
@@ -173,7 +177,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
      * 更新世界书内容
      */
     async updateWorldbook(id: string, content: STWorldbook, updates?: Partial<WorldbookMetadata>) {
-      const index = this.worldbooks.findIndex(wb => wb.id === id);
+      const index = this.worldbooks.findIndex((wb) => wb.id === id);
       if (index === -1) return;
 
       const now = getLocalISOString();
@@ -216,7 +220,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
      * 重命名世界书
      */
     async renameWorldbook(id: string, newName: string) {
-      const index = this.worldbooks.findIndex(wb => wb.id === id);
+      const index = this.worldbooks.findIndex((wb) => wb.id === id);
       if (index === -1) return;
 
       const now = getLocalISOString();
@@ -241,7 +245,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
      * 克隆世界书
      */
     async duplicateWorldbook(id: string): Promise<string | null> {
-      const original = this.worldbooks.find(wb => wb.id === id);
+      const original = this.worldbooks.find((wb) => wb.id === id);
       if (!original) return null;
 
       const content = await this.getWorldbookContent(id);
@@ -259,7 +263,7 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
         const storage = useWorldbookStorageSeparated();
         await storage.deleteWorldbookFile(id);
 
-        this.worldbooks = this.worldbooks.filter(wb => wb.id !== id);
+        this.worldbooks = this.worldbooks.filter((wb) => wb.id !== id);
         this.loadedWorldbooks.delete(id);
 
         const index = await storage.loadIndex();
@@ -280,12 +284,12 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
         const storage = useWorldbookStorageSeparated();
 
         // 1. 并行删除物理文件
-        await Promise.all(ids.map(id => storage.deleteWorldbookFile(id)));
+        await Promise.all(ids.map((id) => storage.deleteWorldbookFile(id)));
 
         // 2. 更新内存状态
         const idSet = new Set(ids);
-        this.worldbooks = this.worldbooks.filter(wb => !idSet.has(wb.id));
-        ids.forEach(id => this.loadedWorldbooks.delete(id));
+        this.worldbooks = this.worldbooks.filter((wb) => !idSet.has(wb.id));
+        ids.forEach((id) => this.loadedWorldbooks.delete(id));
 
         // 3. 更新索引 (只写一次)
         const index = await storage.loadIndex();
@@ -296,6 +300,6 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
       } catch (error) {
         errorHandler.handle(error as Error, { userMessage: "批量删除世界书失败" });
       }
-    }
-  }
+    },
+  },
 });

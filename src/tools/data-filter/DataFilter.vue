@@ -131,6 +131,10 @@
                         <el-option label="等于" value="eq" />
                         <el-option label="不等于" value="ne" />
                         <el-option label="包含" value="contains" />
+                        <el-option label="大于" value="gt" />
+                        <el-option label="大于等于" value="ge" />
+                        <el-option label="小于" value="lt" />
+                        <el-option label="小于等于" value="le" />
                         <el-option label="真值" value="truthy" />
                         <el-option label="假值" value="falsy" />
                         <el-option label="自定义脚本" value="custom" />

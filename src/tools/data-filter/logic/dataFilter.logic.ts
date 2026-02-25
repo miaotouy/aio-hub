@@ -1,15 +1,15 @@
-import { get, filter, isArray, isObject } from 'lodash-es';
-import { readTextFile } from '@tauri-apps/plugin-fs';
-import yaml from 'js-yaml';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { get, filter, isArray, isObject } from "lodash-es";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import yaml from "js-yaml";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('tools/data-filter/logic');
-const errorHandler = createModuleErrorHandler('tools/data-filter/logic');
+const logger = createModuleLogger("tools/data-filter/logic");
+const errorHandler = createModuleErrorHandler("tools/data-filter/logic");
 
 export interface FilterCondition {
   key: string;
-  operator: 'eq' | 'ne' | 'contains' | 'truthy' | 'falsy' | 'custom';
+  operator: "eq" | "ne" | "contains" | "truthy" | "falsy" | "gt" | "ge" | "lt" | "le" | "custom";
   value?: any;
   customScript?: string;
 }
@@ -36,44 +36,52 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
 
     // 1. 定位目标数组
     if (options.dataPath) {
-      logger.debug('使用 dataPath 定位目标数组', { dataPath: options.dataPath });
+      logger.debug("使用 dataPath 定位目标数组", { dataPath: options.dataPath });
       target = get(input, options.dataPath);
     }
 
     if (!isArray(target)) {
       if (isObject(target)) {
         // 如果不是数组但是对象，尝试自动找数组字段（可选增强）
-        return { data: target, total: 0, filtered: 0, error: '目标路径不是一个数组' };
+        return { data: target, total: 0, filtered: 0, error: "目标路径不是一个数组" };
       }
-      return { data: target, total: 0, filtered: 0, error: '输入数据不是数组' };
+      return { data: target, total: 0, filtered: 0, error: "输入数据不是数组" };
     }
 
     const total = target.length;
 
     // 2. 执行过滤
     const filteredData = filter(target, (item) => {
-      return options.conditions.every(cond => {
+      return options.conditions.every((cond) => {
         const itemValue = get(item, cond.key);
 
         switch (cond.operator) {
-          case 'eq':
+          case "eq":
             return itemValue === cond.value;
-          case 'ne':
+          case "ne":
             return itemValue !== cond.value;
-          case 'contains':
+          case "contains":
             return String(itemValue).includes(String(cond.value));
-          case 'truthy':
+          case "truthy":
             return !!itemValue;
-          case 'falsy':
+          case "falsy":
             return !itemValue;
-          case 'custom':
+          case "gt":
+            return Number(itemValue) > Number(cond.value);
+          case "ge":
+            return Number(itemValue) >= Number(cond.value);
+          case "lt":
+            return Number(itemValue) < Number(cond.value);
+          case "le":
+            return Number(itemValue) <= Number(cond.value);
+          case "custom":
             if (!cond.customScript) return true;
             try {
-              const fn = new Function('item', 'value', `return ${cond.customScript}`);
+              const fn = new Function("item", "value", `return ${cond.customScript}`);
               return fn(item, cond.value);
             } catch (e) {
               errorHandler.handle(e, {
-                userMessage: '自定义脚本执行失败',
+                userMessage: "自定义脚本执行失败",
                 showToUser: false,
                 context: { customScript: cond.customScript },
               });
@@ -85,18 +93,18 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
       });
     });
 
-    logger.info('过滤完成', { total, filtered: filteredData.length });
+    logger.info("过滤完成", { total, filtered: filteredData.length });
     return {
       data: filteredData,
       total,
-      filtered: filteredData.length
+      filtered: filteredData.length,
     };
   } catch (err: any) {
     return {
       data: input,
       total: 0,
       filtered: 0,
-      error: err.message || '过滤执行失败'
+      error: err.message || "过滤执行失败",
     };
   }
 }
@@ -143,7 +151,7 @@ export function parseFilterOptions(args: Record<string, string>): {
  */
 export async function loadDataFile(path: string): Promise<{ data: any; error?: string }> {
   try {
-    logger.debug('开始加载数据文件', { path });
+    logger.debug("开始加载数据文件", { path });
     const content = await readTextFile(path);
     let data: any;
 

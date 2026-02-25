@@ -13,8 +13,9 @@ const TOOL_RESULT_START = "<<<[TOOL_RESULT]>>>";
 const TOOL_RESULT_END = "<<<[END_TOOL_RESULT]>>>";
 
 // 复用 Tokenizer 中 VCP 模式的语义，但在此创建非 sticky 的专用实例。
-const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
-const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
+// 允许冒号后有可选空格
+const RE_VCP_ARG = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/g;
+const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*)$/;
 const RE_LINE_BREAKS = /\r\n/g;
 
 function normalizeLineBreaks(text: string): string {
@@ -66,6 +67,7 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   const content = rawBlock.slice(TOOL_REQUEST_START.length, rawBlock.length - TOOL_REQUEST_END.length);
 
   const allParams: Record<string, string> = {};
+  const errors: string[] = [];
 
   RE_VCP_ARG.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -80,20 +82,24 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
 
   const remaining = content.slice(lastMatchEnd).trim();
   if (remaining) {
+    // 检查是否有未闭合的标签
     const pendingMatch = remaining.match(RE_VCP_PENDING);
     if (pendingMatch) {
       const key = pendingMatch[1];
       const value = sanitizeValue(pendingMatch[2]);
       if (!(key in allParams)) {
         allParams[key] = value;
+        errors.push(`参数 "${key}" 未正确闭合（缺少「末」）`);
       }
+    } else if (remaining.length > 0 && !remaining.startsWith(",")) {
+      // 如果剩下的部分既不是合法的参数也不是逗号，可能是格式错误
+      errors.push(`发现无法解析的文本内容: "${remaining.slice(0, 20)}..."`);
     }
   }
 
   const toolId = allParams.tool_name?.trim();
   if (!toolId) {
-    logger.warn("跳过无 tool_name 的 TOOL_REQUEST 块", { requestIndex, rawBlock });
-    return [];
+    errors.push("缺少关键字段: tool_name");
   }
 
   const baseRequestId = allParams.request_id?.trim() || `req_${requestIndex + 1}`;
@@ -122,7 +128,7 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   // 如果没有索引参数，按单条处理
   if (indices.length === 0) {
     const command = commonArgs.command?.trim();
-    const finalToolName = command ? `${toolId}_${command}` : toolId;
+    const finalToolName = toolId ? (command ? `${toolId}_${command}` : toolId) : "unknown_tool";
     const args = { ...commonArgs };
     delete args.command;
 
@@ -132,6 +138,10 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
         toolName: finalToolName,
         rawBlock,
         args,
+        validation: {
+          isValid: errors.length === 0,
+          errors: errors.length > 0 ? errors : undefined,
+        },
       },
     ];
   }
@@ -140,7 +150,7 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   return indices.map((index) => {
     const groupArgs = indexedGroups[index];
     const command = groupArgs.command?.trim() || commonArgs.command?.trim();
-    const finalToolName = command ? `${toolId}_${command}` : toolId;
+    const finalToolName = toolId ? (command ? `${toolId}_${command}` : toolId) : "unknown_tool";
 
     const mergedArgs = { ...commonArgs, ...groupArgs };
     delete mergedArgs.command;
@@ -150,6 +160,10 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
       toolName: finalToolName,
       rawBlock,
       args: mergedArgs,
+      validation: {
+        isValid: errors.length === 0,
+        errors: errors.length > 0 ? errors : undefined,
+      },
     };
   });
 }

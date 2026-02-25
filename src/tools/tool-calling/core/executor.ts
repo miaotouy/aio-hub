@@ -58,6 +58,13 @@ async function executeSingleRequest(
   options: ExecutorOptions
 ): Promise<ToolExecutionResult> {
   const startedAt = Date.now();
+
+  // 检查解析验证错误
+  if (request.validation && !request.validation.isValid) {
+    const errorMessages = request.validation.errors?.join("; ") || "解析格式错误";
+    return buildErrorResult(request, `工具请求解析失败：${errorMessages}`, Date.now() - startedAt);
+  }
+
   const target = parseToolTarget(request.toolName);
 
   if (!target) {

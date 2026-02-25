@@ -110,7 +110,10 @@ const validateTool = (toolName: string) => {
             v-for="(req, idx) in parsedRequests"
             :key="idx"
             class="req-card"
-            :class="{ 'is-invalid': !validateTool(req.toolName).exists }"
+            :class="{
+              'is-invalid': !req.validation?.isValid || !validateTool(req.toolName).exists,
+              'has-format-error': !req.validation?.isValid,
+            }"
           >
             <div class="req-head">
               <div class="req-head-left">
@@ -118,7 +121,20 @@ const validateTool = (toolName: string) => {
                 <code class="req-name">{{ req.toolName }}</code>
               </div>
               <div class="req-status">
-                <template v-if="validateTool(req.toolName).exists">
+                <template v-if="!req.validation?.isValid">
+                  <el-tooltip placement="top">
+                    <template #content>
+                      <div class="error-tooltip-content">
+                        <strong>格式解析错误:</strong>
+                        <ul>
+                          <li v-for="(err, eIdx) in req.validation?.errors" :key="eIdx">{{ err }}</li>
+                        </ul>
+                      </div>
+                    </template>
+                    <el-tag size="small" effect="dark" type="danger">格式错误</el-tag>
+                  </el-tooltip>
+                </template>
+                <template v-else-if="validateTool(req.toolName).exists">
                   <el-tag size="small" effect="plain" type="success">已就绪</el-tag>
                 </template>
                 <template v-else>
@@ -129,7 +145,12 @@ const validateTool = (toolName: string) => {
               </div>
             </div>
             <div class="req-body">
-              <div class="req-args-label">参数</div>
+              <div v-if="req.validation?.errors?.length" class="req-errors">
+                <div class="error-item" v-for="(err, eIdx) in req.validation.errors" :key="eIdx">
+                  <span class="error-bullet">•</span> {{ err }}
+                </div>
+              </div>
+              <div class="req-args-label">提取参数</div>
               <pre class="req-args">{{ JSON.stringify(req.args, null, 2) }}</pre>
             </div>
           </div>
@@ -319,7 +340,11 @@ const validateTool = (toolName: string) => {
 }
 
 .req-card.is-invalid {
-  border-color: rgba(var(--el-color-danger-rgb), 0.3);
+  border-color: rgba(var(--el-color-danger-rgb), 0.2);
+}
+
+.req-card.has-format-error {
+  border-color: rgba(var(--el-color-danger-rgb), 0.4);
 }
 
 .req-card.is-invalid:hover {
@@ -361,6 +386,30 @@ const validateTool = (toolName: string) => {
 
 .req-body {
   padding: 10px 12px;
+}
+
+.req-errors {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background-color: rgba(var(--el-color-danger-rgb), 0.05);
+  border-radius: 6px;
+  border-left: 3px solid var(--el-color-danger);
+}
+
+.error-item {
+  font-size: 12px;
+  color: var(--el-color-danger);
+  line-height: 1.5;
+}
+
+.error-bullet {
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.error-tooltip-content ul {
+  margin: 5px 0 0 0;
+  padding-left: 15px;
 }
 
 .req-args-label {

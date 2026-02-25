@@ -5,6 +5,11 @@ export interface ParsedToolRequest {
   toolName: string;
   rawBlock: string;
   args: Record<string, string>;
+  validation?: {
+    isValid: boolean;
+    reason?: string;
+    errors?: string[];
+  };
 }
 
 export interface ToolExecutionResult {

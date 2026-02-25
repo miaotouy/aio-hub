@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, toRef, onMounted, watch } from "vue";
-import { useElementSize } from "@vueuse/core";
+import { useElementSize, onLongPress } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip, ElIcon } from "element-plus";
 import type { ChatMessageNode, UserProfile, AgentEditData } from "../types";
@@ -17,6 +17,7 @@ import ToolCallingApprovalBar from "./message-input/ToolCallingApprovalBar.vue";
 import MessageNavigator from "./message/MessageNavigator.vue";
 import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/EditAgentDialog.vue";
+import QuickAgentSwitch from "./agent/QuickAgentSwitch.vue";
 import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
@@ -325,6 +326,71 @@ const handleEditUserProfile = () => {
     showEditProfileDialog.value = true;
   } else {
     logger.warn("无法编辑用户档案：未找到有效的用户档案");
+  }
+};
+
+// ===== 快捷切换智能体 =====
+const agentInfoRef = ref<HTMLElement | null>(null);
+const isAgentSwitchVisible = ref(false);
+const agentSwitchPosition = ref({ x: 0, y: 0 });
+const isLongPressConsumed = ref(false); // 标记长按是否已被触发且待拦截点击
+
+onLongPress(
+  agentInfoRef,
+  (e) => {
+    logger.info("长按触发智能体快捷切换菜单");
+    isLongPressConsumed.value = true;
+
+    // 计算弹出位置（在头像下方）
+    const rect = agentInfoRef.value?.getBoundingClientRect();
+    if (rect) {
+      agentSwitchPosition.value = {
+        x: rect.left,
+        y: rect.bottom + 8,
+      };
+    } else if (e instanceof MouseEvent) {
+      agentSwitchPosition.value = { x: e.clientX, y: e.clientY };
+    }
+
+    isAgentSwitchVisible.value = true;
+  },
+  { delay: 500 }
+);
+
+// 每次按下时重置拦截标记
+const handleAgentInfoMouseDown = () => {
+  isLongPressConsumed.value = false;
+};
+
+// 处理点击拦截：在捕获阶段拦截，彻底阻止长按后的松手点击
+const handleAgentInfoClick = (e: MouseEvent) => {
+  if (isLongPressConsumed.value) {
+    logger.info("拦截长按后的松手点击事件");
+    isLongPressConsumed.value = false;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    return;
+  }
+  handleEditAgent();
+};
+
+const handleQuickSwitchAgent = async (agentId: string) => {
+  isAgentSwitchVisible.value = false;
+  if (agentId === currentAgent.value?.id) return;
+
+  logger.info("快捷切换智能体", { agentId });
+
+  if (bus.windowType === "detached-component") {
+    try {
+      // 分离窗口通过 bus 请求
+      await bus.requestAction("select-agent", { agentId });
+    } catch (error) {
+      errorHandler.error(error, "请求切换智能体失败");
+    }
+  } else {
+    // 主窗口直接操作
+    agentStore.selectAgent(agentId);
   }
 };
 
@@ -641,8 +707,14 @@ onMounted(async () => {
 
       <!-- 左侧：智能体和模型信息 (主要展示区) -->
       <div class="agent-model-info">
-        <el-tooltip v-if="currentAgent" content="点击编辑智能体" placement="bottom">
-          <div class="agent-info clickable" @click="() => handleEditAgent()">
+        <el-tooltip v-if="currentAgent" content="点击编辑 / 长按快捷切换" placement="bottom">
+          <div
+            ref="agentInfoRef"
+            class="agent-info clickable"
+            @mousedown="handleAgentInfoMouseDown"
+            @click.capture="handleAgentInfoClick"
+            @contextmenu.prevent
+          >
             <Avatar
               :src="agentAvatarSrc || ''"
               :alt="currentAgent.displayName || currentAgent.name"
@@ -653,6 +725,17 @@ onMounted(async () => {
             <span v-if="showAgentName" class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
           </div>
         </el-tooltip>
+
+        <!-- 快捷切换组件 (Teleport 到 body，不受父级样式影响) -->
+        <QuickAgentSwitch
+          v-if="currentAgent"
+          :visible="isAgentSwitchVisible"
+          :agents="agentStore.sortedAgents"
+          :current-agent-id="currentAgent.id"
+          :position="agentSwitchPosition"
+          @select="handleQuickSwitchAgent"
+          @close="isAgentSwitchVisible = false"
+        />
         <el-tooltip
           v-if="currentModel && settings.uiPreferences.showModelSelector"
           content="点击选择模型"

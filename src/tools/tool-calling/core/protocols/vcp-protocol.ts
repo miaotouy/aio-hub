@@ -9,8 +9,6 @@ const TOOL_REQUEST_START = "<<<[TOOL_REQUEST]>>>";
 const TOOL_REQUEST_END = "<<<[END_TOOL_REQUEST]>>>";
 export const TOOL_DEFINITION_START = "<<<[TOOL_DEFINITION]>>>";
 export const TOOL_DEFINITION_END = "<<<[END_TOOL_DEFINITION]>>>";
-const TOOL_RESULT_START = "<<<[TOOL_RESULT]>>>";
-const TOOL_RESULT_END = "<<<[END_TOOL_RESULT]>>>";
 
 // 复用 Tokenizer 中 VCP 模式的语义，但在此创建非 sticky 的专用实例。
 // 允许冒号后有可选空格
@@ -296,19 +294,24 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
   }
 
   public formatToolResults(results: ToolExecutionResult[]): string {
-    const blocks = results.map((result) => {
-      const body = [
-        buildArgBlock("request_id", result.requestId),
-        buildArgBlock("tool_name", result.toolName),
-        buildArgBlock("status", result.status),
-        buildArgBlock("duration_ms", String(result.durationMs)),
-        buildArgBlock("result", result.result),
-      ].join("\n");
+    if (results.length === 0) return "";
 
-      return `${TOOL_RESULT_START}\n${body}\n${TOOL_RESULT_END}`;
+    const lines = [`[[AIO工具调用结果信息汇总:`];
+
+    results.forEach((result, index) => {
+      const statusIcon = result.status === "success" ? "✅ SUCCESS" : "❌ ERROR";
+      lines.push(`### 结果 ${index + 1}`);
+      lines.push(`- 工具名称: ${result.toolName}`);
+      lines.push(`- 执行状态: ${statusIcon}`);
+      lines.push(`- 返回内容: ${result.result}`);
+      if (index < results.length - 1) {
+        lines.push(""); // 多个结果之间空一行
+      }
     });
 
-    return blocks.join("\n\n");
+    lines.push(`AIO工具调用结果结束]]`);
+
+    return lines.join("\n");
   }
 
   /**

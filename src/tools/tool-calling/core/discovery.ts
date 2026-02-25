@@ -10,6 +10,7 @@ const logger = createModuleLogger("tool-calling/discovery");
 type DiscoveredToolMethods = {
   toolId: string;
   toolName: string;
+  toolDescription?: string;
   methods: MethodMetadata[];
   settingsSchema?: any[];
 };
@@ -103,6 +104,7 @@ export function createToolDiscoveryService(): {
       discovered.push({
         toolId: tool.id,
         toolName: tool.name || tool.id,
+        toolDescription: tool.description,
         methods: callableMethods,
       });
     }
@@ -141,6 +143,7 @@ export function createToolDiscoveryService(): {
     const protocolInput: ToolDefinitionInput[] = enabledTools.map((tool) => ({
       toolId: tool.toolId,
       toolName: tool.toolName,
+      toolDescription: tool.toolDescription,
       methods: tool.methods,
     }));
 

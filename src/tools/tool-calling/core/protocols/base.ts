@@ -4,6 +4,7 @@ import type { ParsedToolRequest, ToolExecutionResult } from "../../types";
 export interface ToolDefinitionInput {
   toolId: string;
   toolName: string;
+  toolDescription?: string;
   methods: MethodMetadata[];
 }
 

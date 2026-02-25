@@ -48,19 +48,20 @@ function pickCommandName(method: MethodMetadata): string {
 }
 
 function buildParamDescription(param: MethodParameter): string {
-  const parts: string[] = [`类型：${param.type}`];
-  if (param.required !== false) {
-    parts.push("必填");
-  } else {
-    parts.push("可选");
-    if (param.defaultValue !== undefined) {
-      parts.push(`默认值：${param.defaultValue}`);
-    }
+  const parts: string[] = [];
+  const typeStr = param.type || "any";
+  const requiredStr = param.required !== false ? "必填" : "可选";
+  
+  parts.push(`(${typeStr}, ${requiredStr})`);
+  
+  if (param.required === false && param.defaultValue !== undefined) {
+    parts.push(`默认值: ${param.defaultValue}`);
   }
+  
   if (param.description) {
     parts.push(param.description);
   }
-  return parts.join("，");
+  return parts.join(" ");
 }
 
 export function buildMethodDescription(method: MethodMetadata, toolId: string): string {
@@ -70,8 +71,8 @@ export function buildMethodDescription(method: MethodMetadata, toolId: string): 
   const normalizedToolId = toolId.replace(/-/g, "_");
 
   const lines = [
-    buildArgBlock("tool_name", `类型：string，固定值：${normalizedToolId}`),
-    buildArgBlock("command", `类型：string，固定值：${command}`),
+    buildArgBlock("tool_name", normalizedToolId),
+    buildArgBlock("command", command),
   ];
 
   // 每个参数展开为独立的 VCP 字段行，而非 JSON 序列化
@@ -195,31 +196,44 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
   public readonly id = "vcp";
 
   public generateToolDefinitions(input: ToolDefinitionInput[]): string {
-    const blocks: string[] = [];
+    const sections: string[] = [];
 
     for (const tool of input) {
-      for (const method of tool.methods) {
-        if (!method.agentCallable) {
-          continue;
-        }
+      const toolName = tool.toolName;
+      const toolDescription = tool.toolDescription?.trim();
+      const toolMethods = tool.methods.filter((m) => m.agentCallable);
 
-        const toolName = tool.toolName;
+      if (toolMethods.length === 0) {
+        continue;
+      }
+
+      const header = [`工具显示名称：${toolName}`];
+      if (toolDescription) {
+        header.push(`工具模块描述：${toolDescription}`);
+      }
+
+      const methodBlocks: string[] = [];
+      for (const method of toolMethods) {
         const description = method.description?.trim() || "无描述";
         const body = buildMethodDescription(method, tool.toolId);
 
         const block = [
-          `工具显示名称：${toolName}`,
-          `工具描述：${description}`,
+          `指令描述：${description}`,
+          "",
           TOOL_DEFINITION_START,
           body,
           TOOL_DEFINITION_END,
         ].join("\n");
 
-        blocks.push(block);
+        methodBlocks.push(block);
       }
+
+      const toolSection = [...header, "", ...methodBlocks].join("\n\n");
+
+      sections.push(toolSection);
     }
 
-    return blocks.join("\n\n");
+    return sections.join("\n\n---\n\n");
   }
 
   public generateUsageInstructions(): string {

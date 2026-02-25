@@ -235,32 +235,36 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
 
     const text = normalizeLineBreaks(finalText);
     const requests: ParsedToolRequest[] = [];
-    let searchStart = 0;
     let requestIndex = 0;
 
-    while (true) {
-      const blockStart = text.indexOf(TOOL_REQUEST_START, searchStart);
-      if (blockStart === -1) {
-        break;
+    // 使用复合正则：匹配代码块、行内代码，或者捕获工具请求标记
+    // 这样可以在一次遍历中自动跳过代码块内容，且不需要创建大字符串副本，内存效率更高
+    const scanner = /(?:^|\n) {0,3}```[\s\S]*?(?:\n {0,3}```|$)|`[^`\n\r]+`|(<<<\[TOOL_REQUEST\]>>>)/g;
+
+    let match: RegExpExecArray | null;
+    while ((match = scanner.exec(text)) !== null) {
+      // 只有当捕获组 1 匹配到时，才说明找到了不在代码块内的工具标记
+      if (match[1]) {
+        const blockStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
+        const contentStart = blockStart + TOOL_REQUEST_START.length;
+        const blockEnd = text.indexOf(TOOL_REQUEST_END, contentStart);
+
+        if (blockEnd === -1) {
+          logger.warn("发现未闭合的 TOOL_REQUEST 块，已丢弃", {
+            blockStart,
+            preview: text.slice(blockStart, Math.min(blockStart + 200, text.length)),
+          });
+          break;
+        }
+
+        const rawBlock = text.slice(blockStart, blockEnd + TOOL_REQUEST_END.length);
+        const parsedList = parseSingleToolRequest(rawBlock, requestIndex);
+        requests.push(...parsedList);
+
+        // 更新正则指针，跳过已处理的工具块
+        scanner.lastIndex = blockEnd + TOOL_REQUEST_END.length;
+        requestIndex += 1;
       }
-
-      const contentStart = blockStart + TOOL_REQUEST_START.length;
-      const blockEnd = text.indexOf(TOOL_REQUEST_END, contentStart);
-
-      if (blockEnd === -1) {
-        logger.warn("发现未闭合的 TOOL_REQUEST 块，已丢弃", {
-          blockStart,
-          preview: text.slice(blockStart, Math.min(blockStart + 200, text.length)),
-        });
-        break;
-      }
-
-      const rawBlock = text.slice(blockStart, blockEnd + TOOL_REQUEST_END.length);
-      const parsedList = parseSingleToolRequest(rawBlock, requestIndex);
-      requests.push(...parsedList);
-
-      searchStart = blockEnd + TOOL_REQUEST_END.length;
-      requestIndex += 1;
     }
 
     return requests;

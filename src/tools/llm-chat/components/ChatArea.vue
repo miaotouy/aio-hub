@@ -13,6 +13,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageList from "./message/MessageList.vue";
 import MessageInput from "./message-input/MessageInput.vue";
+import ToolCallingApprovalBar from "./message-input/ToolCallingApprovalBar.vue";
 import MessageNavigator from "./message/MessageNavigator.vue";
 import EditUserProfileDialog from "./user-profile/EditUserProfileDialog.vue";
 import EditAgentDialog from "./agent/EditAgentDialog.vue";
@@ -762,6 +763,9 @@ onMounted(async () => {
             </div>
           </template>
         </div>
+
+        <!-- 工具调用确认栏 -->
+        <ToolCallingApprovalBar v-if="isInputVisible" :style="contentWidthStyle" />
 
         <!-- 输入框 -->
         <MessageInput

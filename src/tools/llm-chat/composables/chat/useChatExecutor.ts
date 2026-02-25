@@ -30,6 +30,7 @@ import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
+import { useToolCallingStore } from "../../stores/toolCallingStore";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -395,7 +396,10 @@ export function useChatExecutor() {
           // --- 工具调用处理逻辑 ---
           // 如果是 VCP 渠道，禁用内置工具解析，因为 VCP 后端会处理工具调用并返回结果
           if (executionAgent.toolCallConfig?.enabled && !isVcpChannel) {
-            const cycleResult = await processCycle(response.content, executionAgent.toolCallConfig);
+            const toolCallingStore = useToolCallingStore();
+            const cycleResult = await processCycle(response.content, executionAgent.toolCallConfig, async (request) => {
+              return await toolCallingStore.requestApproval(session.id, request);
+            });
 
             if (cycleResult.hasToolRequests) {
               logger.info(`🛠️ 检测到 ${cycleResult.parsedRequests.length} 个工具请求，开始执行...`);

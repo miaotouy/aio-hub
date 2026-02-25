@@ -23,7 +23,22 @@ function normalizeLineBreaks(text: string): string {
 }
 
 function sanitizeValue(value: string): string {
-  return normalizeLineBreaks(value ?? "");
+  let val = normalizeLineBreaks(value ?? "");
+  // 如果值看起来像是被 JSON 转义过的（例如包含 \\），尝试处理它
+  // 常见于 LLM 习惯性地对路径中的反斜杠进行双写
+  if (val.includes("\\\\")) {
+    try {
+      // 简单粗暴但有效：如果它能被 JSON.parse 还原（加上引号），说明确实是转义过的
+      // 否则回退到简单的替换
+      if (val.startsWith('"') && val.endsWith('"')) {
+        return JSON.parse(val);
+      }
+      return val.replace(/\\\\/g, "\\");
+    } catch (e) {
+      return val.replace(/\\\\/g, "\\");
+    }
+  }
+  return val;
 }
 
 function buildArgBlock(key: string, value: string): string {

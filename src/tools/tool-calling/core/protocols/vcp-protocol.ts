@@ -185,6 +185,35 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
     return blocks.join("\n\n");
   }
 
+  public generateUsageInstructions(): string {
+    return [
+      "## 工具调用格式 (VCP 协议)",
+      "当你需要调用工具时，请严格按照以下格式输出。你可以选择单次调用或批量调用格式。",
+      "",
+      "### 1. 单次调用格式",
+      TOOL_REQUEST_START,
+      "tool_name:「始」工具名「末」,",
+      "command:「始」指令名「末」,",
+      "参数名:「始」参数值「末」",
+      TOOL_REQUEST_END,
+      "",
+      "### 2. 相同工具批量调用格式 (支持在同一个块内执行多个指令)",
+      TOOL_REQUEST_START,
+      "tool_name:「始」工具名「末」,",
+      "command1:「始」第一个指令「末」,",
+      "参数A1:「始」值「末」,",
+      "command2:「始」第二个指令「末」,",
+      "参数A2:「始」值「末」",
+      TOOL_REQUEST_END,
+      "",
+      "### 3. 注意事项",
+      "1. **围栏原则**：所有参数值必须被 :「始」和 「末」 完整包裹。",
+      "2. **工具名**：必须提供正确的 tool_name。",
+      "3. **指令名**：如果工具包含多个方法，必须通过 command 参数指定。批量调用时使用 command1, command2...",
+      "4. **转义说明**：如果内容本身包含「始」或「末」，请使用转义格式（如「始exp」和「末exp」）。",
+    ].join("\n");
+  }
+
   public parseToolRequests(finalText: string): ParsedToolRequest[] {
     if (!finalText) {
       return [];

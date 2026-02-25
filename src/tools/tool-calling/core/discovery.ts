@@ -144,7 +144,11 @@ export function createToolDiscoveryService(): {
       methods: tool.methods,
     }));
 
-    const prompt = protocolImpl.generateToolDefinitions(protocolInput);
+    const definitions = protocolImpl.generateToolDefinitions(protocolInput);
+    const instructions = protocolImpl.generateUsageInstructions();
+
+    const prompt = ["## 可用工具列表", definitions, "", instructions].join("\n");
+
     promptCache.set(cacheKey, prompt);
     return prompt;
   }

@@ -19,6 +19,23 @@
           </div>
         </div>
       </div>
+
+      <div class="filter-group">
+        <label class="filter-label">记录限制</label>
+        <div class="limit-setting">
+          <el-input-number
+            v-model="maxHistory"
+            :min="50"
+            :max="600"
+            :step="50"
+            size="small"
+            controls-position="right"
+            @change="updateMaxHistory"
+          />
+          <span class="limit-unit">条</span>
+        </div>
+        <div class="limit-tip">减少数量可缓解高频消息下的 IO 压力</div>
+      </div>
     </div>
 
     <div class="panel-section stats-section">
@@ -57,6 +74,7 @@ import type { VcpMessageType } from "../../types/protocol";
 const store = useVcpStore();
 
 const selectedTypes = ref<VcpMessageType[]>([...store.filter.types]);
+const maxHistory = ref(store.config.maxHistory);
 
 const stats = computed(() => store.stats);
 
@@ -78,10 +96,23 @@ function toggleType(type: VcpMessageType) {
   store.setFilter({ types: [...selectedTypes.value] });
 }
 
+function updateMaxHistory(val: number | undefined) {
+  if (val) {
+    store.updateConfig({ maxHistory: val });
+  }
+}
+
 watch(
   () => store.filter.types,
   (types) => {
     selectedTypes.value = [...types];
+  }
+);
+
+watch(
+  () => store.config.maxHistory,
+  (val) => {
+    maxHistory.value = val;
   }
 );
 </script>

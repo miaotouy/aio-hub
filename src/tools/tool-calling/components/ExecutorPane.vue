@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useStorage } from "@vueuse/core";
-import { Play, Zap, RotateCcw } from "lucide-vue-next";
+import { Play, Zap, RotateCcw, Copy } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 import { executeToolRequests } from "../core/executor";
+import { VcpToolCallingProtocol } from "../core/protocols/vcp-protocol";
 
 // 导入拆分后的子组件
 import ParameterForm from "./executor/ParameterForm.vue";
@@ -205,9 +206,41 @@ const runExecutionTest = async () => {
     isExecuting.value = false;
   }
 };
-
 const clearHistory = () => {
   executionResults.value = [];
+};
+
+const vcpProtocol = new VcpToolCallingProtocol();
+
+const generateVcpCommand = () => {
+  if (!selectedMethod.value || !selectedToolKey.value) {
+    customMessage.warning("请先选择目标方法");
+    return;
+  }
+
+  try {
+    const args = JSON.parse(testArgs.value);
+
+    // 寻找所属的 group
+    let currentGroup = null;
+    for (const group of props.groups) {
+      if (group.methods.some((m: any) => m === selectedMethod.value)) {
+        currentGroup = group;
+        break;
+      }
+    }
+
+    if (!currentGroup) {
+      customMessage.error("未找到对应工具组");
+      return;
+    }
+
+    const vcpText = vcpProtocol.formatToolRequest(currentGroup.toolId, selectedMethod.value.name, args);
+    navigator.clipboard.writeText(vcpText);
+    customMessage.success("VCP 指令已复制到剪贴板");
+  } catch (e: any) {
+    customMessage.error("生成失败: " + e.message);
+  }
 };
 </script>
 
@@ -272,6 +305,9 @@ const clearHistory = () => {
             <el-button type="primary" :loading="isExecuting" :icon="Play" @click="runExecutionTest">
               触发调用
             </el-button>
+            <el-tooltip content="生成 VCP 格式指令并复制，用于解析器测试" placement="top">
+              <el-button :icon="Copy" @click="generateVcpCommand"> 生成 VCP </el-button>
+            </el-tooltip>
           </div>
           <div class="header-right">
             <span class="result-label">执行反馈 ({{ executionResults.length }}/10)</span>

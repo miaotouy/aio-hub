@@ -267,4 +267,24 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
 
     return blocks.join("\n\n");
   }
+
+  /**
+   * 生成单个 VCP 工具请求块
+   */
+  public formatToolRequest(toolId: string, command: string, args: Record<string, any>): string {
+    const lines = [TOOL_REQUEST_START];
+    lines.push(buildArgBlock("tool_name", toolId) + ",");
+    lines.push(buildArgBlock("command", command) + ",");
+
+    const argKeys = Object.keys(args);
+    argKeys.forEach((key, index) => {
+      const value = args[key];
+      const valStr = typeof value === "object" ? JSON.stringify(value) : String(value);
+      const suffix = index === argKeys.length - 1 ? "" : ",";
+      lines.push(buildArgBlock(key, valStr) + suffix);
+    });
+
+    lines.push(TOOL_REQUEST_END);
+    return lines.join("\n");
+  }
 }

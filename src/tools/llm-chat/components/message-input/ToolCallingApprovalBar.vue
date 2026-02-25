@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle } from "lucide-vue-next";
+import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Ban } from "lucide-vue-next";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 
@@ -21,6 +21,10 @@ const handleReject = (id: string) => {
   toolCallingStore.rejectRequest(id);
 };
 
+const handleSilentCancel = (id: string) => {
+  toolCallingStore.silentCancelRequest(id);
+};
+
 const handleApproveAll = () => {
   if (llmChatStore.currentSessionId) {
     toolCallingStore.approveAll(llmChatStore.currentSessionId);
@@ -30,6 +34,12 @@ const handleApproveAll = () => {
 const handleRejectAll = () => {
   if (llmChatStore.currentSessionId) {
     toolCallingStore.rejectAll(llmChatStore.currentSessionId);
+  }
+};
+
+const handleSilentCancelAll = () => {
+  if (llmChatStore.currentSessionId) {
+    toolCallingStore.silentCancelAll(llmChatStore.currentSessionId);
   }
 };
 </script>
@@ -52,6 +62,10 @@ const handleRejectAll = () => {
             <el-button type="danger" plain @click="handleRejectAll">
               <template #icon><X :size="14" /></template>
               全部拒绝
+            </el-button>
+            <el-button type="info" plain @click="handleSilentCancelAll">
+              <template #icon><Ban :size="14" /></template>
+              静默取消
             </el-button>
           </el-button-group>
         </div>
@@ -81,6 +95,15 @@ const handleRejectAll = () => {
             </el-button>
             <el-button size="small" circle @click="handleReject(item.id)" title="拒绝">
               <template #icon><X :size="12" /></template>
+            </el-button>
+            <el-button
+              size="small"
+              circle
+              type="info"
+              @click="handleSilentCancel(item.id)"
+              title="静默取消 (拒绝并不再继续循环)"
+            >
+              <template #icon><Ban :size="12" /></template>
             </el-button>
           </div>
         </div>

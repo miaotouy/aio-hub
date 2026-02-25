@@ -117,26 +117,34 @@ const backgroundBlocks = computed(() => {
 });
 
 // ===== 工具状态与元数据 =====
-const toolCall = computed(() => props.message.metadata?.toolCall);
+const toolCalls = computed(() => {
+  if (props.message.metadata?.toolCalls && props.message.metadata.toolCalls.length > 0) {
+    return props.message.metadata.toolCalls;
+  }
+  if (props.message.metadata?.toolCall) {
+    return [props.message.metadata.toolCall];
+  }
+  return [];
+});
+
+const mainStatus = computed(() => {
+  if (toolCalls.value.length === 0) return "pending";
+  if (toolCalls.value.some((t) => t.status === "error" || t.status === "denied")) return "error";
+  return "success";
+});
 
 const statusIcon = computed(() => {
-  if (!toolCall.value) return Terminal;
-  switch (toolCall.value.status) {
+  switch (mainStatus.value) {
     case "success":
       return Play;
     case "error":
-      return AlertCircle;
-    case "denied":
       return AlertCircle;
     default:
       return Terminal;
   }
 });
 
-const statusClass = computed(() => {
-  if (!toolCall.value) return "status-pending";
-  return `status-${toolCall.value.status}`;
-});
+const statusClass = computed(() => `status-${mainStatus.value}`);
 
 const formattedTime = computed(() => {
   if (!props.message.timestamp) return "";
@@ -283,9 +291,9 @@ const onSaveToBranch = (newContent: string) => {
   isEditing.value = false; // 保存后退出编辑模式
 };
 
-const handleCopyArgs = () => {
-  if (toolCall.value?.rawArgs) {
-    copy(JSON.stringify(toolCall.value.rawArgs, null, 2));
+const handleCopyArgs = (args?: Record<string, any>) => {
+  if (args) {
+    copy(JSON.stringify(args, null, 2));
     customMessage.success("已复制输入参数");
   }
 };
@@ -370,14 +378,15 @@ defineExpose({
             <Terminal :size="12" />
             工具
           </span>
-          <span v-if="toolCall" class="tool-name">{{ toolCall.toolName }}</span>
-          <span v-if="toolCall" class="request-id">
+          <span v-if="toolCalls.length === 1" class="tool-name">{{ toolCalls[0].toolName }}</span>
+          <span v-else-if="toolCalls.length > 1" class="tool-name">调用了 {{ toolCalls.length }} 个工具</span>
+          <span v-if="toolCalls.length === 1" class="request-id">
             <Hash :size="10" />
-            {{ toolCall.requestId.slice(0, 8) }}
+            {{ toolCalls[0].requestId.slice(0, 8) }}
           </span>
-          <span v-if="toolCall?.durationMs" class="duration">
+          <span v-if="toolCalls.length === 1 && toolCalls[0].durationMs" class="duration">
             <Clock :size="10" />
-            {{ toolCall.durationMs }}ms
+            {{ toolCalls[0].durationMs }}ms
           </span>
           <span class="time">{{ formattedTime }}</span>
         </div>
@@ -432,13 +441,37 @@ defineExpose({
       <!-- 内容显示区域 -->
       <transition v-else name="tool-collapse">
         <div v-if="!isCollapsed" class="tool-body-container" :class="{ 'is-wide-layout': isWideLayout }">
-          <!-- 参数预览 (始终在顶部) -->
-          <div v-if="toolCall?.rawArgs" class="tool-args-preview">
+          <!-- 多工具列表 -->
+          <div v-if="toolCalls.length > 1" class="tool-calls-list">
+            <div v-for="tc in toolCalls" :key="tc.requestId" class="tool-call-item">
+              <div class="item-header">
+                <div class="item-title">
+                  <Terminal :size="12" />
+                  <span class="item-name">{{ tc.toolName }}</span>
+                  <span class="item-id">#{{ tc.requestId.slice(0, 6) }}</span>
+                </div>
+                <div class="item-meta">
+                  <span v-if="tc.durationMs" class="item-duration">{{ tc.durationMs }}ms</span>
+                  <div class="item-status" :class="`status-${tc.status}`">{{ tc.status }}</div>
+                </div>
+              </div>
+              <div v-if="tc.rawArgs" class="tool-args-preview mini">
+                <div class="args-header">
+                  <div class="args-title">参数</div>
+                  <button class="copy-small-btn" @click="handleCopyArgs(tc.rawArgs)">复制</button>
+                </div>
+                <pre class="args-content">{{ JSON.stringify(tc.rawArgs, null, 2) }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- 单工具参数预览 (始终在顶部) -->
+          <div v-else-if="toolCalls.length === 1 && toolCalls[0].rawArgs" class="tool-args-preview">
             <div class="args-header">
               <div class="args-title">输入参数</div>
-              <button class="copy-small-btn" @click="handleCopyArgs">复制</button>
+              <button class="copy-small-btn" @click="handleCopyArgs(toolCalls[0].rawArgs)">复制</button>
             </div>
-            <pre class="args-content">{{ JSON.stringify(toolCall.rawArgs, null, 2) }}</pre>
+            <pre class="args-content">{{ JSON.stringify(toolCalls[0].rawArgs, null, 2) }}</pre>
           </div>
 
           <div class="content-display-grid">
@@ -451,8 +484,8 @@ defineExpose({
               <div class="tool-result">
                 <div class="result-header" v-if="!showTranslation">
                   <div class="result-label">执行结果</div>
-                  <div v-if="toolCall?.status" class="status-indicator" :class="statusClass">
-                    {{ toolCall.status.toUpperCase() }}
+                  <div v-if="toolCalls.length === 1" class="status-indicator" :class="`status-${toolCalls[0].status}`">
+                    {{ toolCalls[0].status.toUpperCase() }}
                   </div>
                 </div>
                 <RichTextRenderer
@@ -495,13 +528,15 @@ defineExpose({
       <!-- 折叠时的简短预览 -->
       <div v-if="isCollapsed && !isEditing" class="tool-preview-line" @click="toggleCollapse">
         <div class="preview-content">
-          <span class="preview-tool-name">[{{ toolCall?.toolName || "未知工具" }}]</span>
+          <span class="preview-tool-name" v-if="toolCalls.length === 1">[{{ toolCalls[0].toolName }}]</span>
+          <span class="preview-tool-name" v-else-if="toolCalls.length > 1">[{{ toolCalls.length }} 个工具]</span>
+          <span class="preview-tool-name" v-else>[未知工具]</span>
           <span class="preview-text">
             {{ message.content.trim().slice(0, 120) }}{{ message.content.trim().length > 120 ? "..." : "" }}
           </span>
         </div>
-        <div v-if="toolCall?.status" class="preview-status-tag" :class="statusClass">
-          {{ toolCall.status }}
+        <div v-if="toolCalls.length > 0" class="preview-status-tag" :class="statusClass">
+          {{ mainStatus }}
         </div>
       </div>
 
@@ -728,6 +763,85 @@ defineExpose({
   gap: 24px;
 }
 
+/* 多工具列表 */
+.tool-calls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background-color: var(--input-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.tool-call-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tool-call-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-color-primary);
+}
+
+.item-name {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.item-id {
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  color: var(--text-color-light);
+  opacity: 0.7;
+}
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-duration {
+  font-size: 11px;
+  color: var(--text-color-tertiary);
+}
+
+.item-status {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.item-status.status-success {
+  background: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  color: var(--el-color-success);
+}
+
+.item-status.status-error,
+.item-status.status-denied {
+  background: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  color: var(--el-color-danger);
+}
+
 /* 参数展示 */
 .tool-args-preview {
   padding: 10px;
@@ -736,6 +850,12 @@ defineExpose({
   border-radius: 8px;
   max-height: 250px;
   overflow-y: auto;
+}
+
+.tool-args-preview.mini {
+  padding: 8px;
+  max-height: 150px;
+  background-color: var(--card-bg);
 }
 
 .args-header {

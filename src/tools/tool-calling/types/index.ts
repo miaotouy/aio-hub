@@ -15,7 +15,7 @@ export interface ParsedToolRequest {
 export interface ToolExecutionResult {
   requestId: string;
   toolName: string;
-  status: "success" | "error";
+  status: "success" | "error" | "denied";
   result: string;
   durationMs: number;
 }
@@ -25,5 +25,7 @@ export interface ToolCallCycleResult {
   executionResults: ToolExecutionResult[];
   hasToolRequests: boolean;
 }
+
+export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled";
 
 export type ToolCallConfig = AgentToolCallConfig;

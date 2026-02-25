@@ -4,23 +4,20 @@ import type {
   ToolCallCycleResult,
   ParsedToolRequest,
   ToolExecutionResult,
+  ToolApprovalResult,
 } from "../types";
 import { parseToolRequests } from "./parser";
 import { executeToolRequests } from "./executor";
-
 export interface ToolCallEngineOptions {
   protocol: ToolCallingProtocol;
   config: ToolCallConfig;
-  onBeforeExecute?: (request: ParsedToolRequest) => Promise<boolean>;
+  onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>;
 }
 
 /**
  * 将执行结果格式化为可注入上下文的文本
  */
-export function formatResultsForContext(
-  results: ToolExecutionResult[],
-  protocol: ToolCallingProtocol,
-): string {
+export function formatResultsForContext(results: ToolExecutionResult[], protocol: ToolCallingProtocol): string {
   return protocol.formatToolResults(results);
 }
 
@@ -29,7 +26,7 @@ export function formatResultsForContext(
  */
 export async function processToolCallCycle(
   assistantText: string,
-  options: ToolCallEngineOptions,
+  options: ToolCallEngineOptions
 ): Promise<ToolCallCycleResult> {
   const parsedRequests = parseToolRequests(assistantText, options.protocol);
   if (parsedRequests.length === 0) {

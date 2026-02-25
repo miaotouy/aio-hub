@@ -1,12 +1,12 @@
 import { toolRegistryManager } from "@/services/registry";
-import type { ParsedToolRequest, ToolExecutionResult, ToolCallConfig } from "../types";
+import type { ParsedToolRequest, ToolExecutionResult, ToolCallConfig, ToolApprovalResult } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("tool-calling/executor");
 
 export interface ExecutorOptions {
   config: ToolCallConfig;
-  onBeforeExecute?: (request: ParsedToolRequest) => Promise<boolean>;
+  onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>;
 }
 
 function parseToolTarget(toolName: string): { toolId: string; methodName: string } | null {
@@ -81,9 +81,18 @@ async function executeSingleRequest(
   const shouldAutoApprove = isGlobalAuto && isToolAutoApprove;
 
   if (!shouldAutoApprove) {
-    const approved = await options.onBeforeExecute?.(request);
-    if (!approved) {
+    const approvalResult = await options.onBeforeExecute?.(request);
+    if (approvalResult === false || approvalResult === "rejected") {
       return buildErrorResult(request, "工具调用被拒绝：用户未授权", Date.now() - startedAt);
+    }
+    if (approvalResult === "silent_cancelled") {
+      return {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        status: "denied",
+        result: "SILENT_CANCEL",
+        durationMs: Date.now() - startedAt,
+      };
     }
   }
 

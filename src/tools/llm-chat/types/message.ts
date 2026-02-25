@@ -1,5 +1,5 @@
-import type { Asset } from '@/types/asset-management';
-import type { MessageRole, MessageStatus, MessageType } from './common';
+import type { Asset } from "@/types/asset-management";
+import type { MessageRole, MessageStatus, MessageType } from "./common";
 
 /**
  * 注入策略 - 控制消息在上下文中的位置
@@ -13,7 +13,7 @@ export interface InjectionStrategy {
    * 用于明确指定当前生效的注入模式，解决不同模式参数可能共存时的歧义问题。
    * 如果未定义，系统将根据字段存在性进行推断（兼容旧数据）。
    */
-  type?: 'default' | 'depth' | 'advanced_depth' | 'anchor';
+  type?: "default" | "depth" | "advanced_depth" | "anchor";
 
   /**
    * 深度注入：相对于会话历史末尾的位置
@@ -62,7 +62,7 @@ export interface InjectionStrategy {
    * - 'before': 插入到锚点之前
    * - 'after': 插入到锚点之后
    */
-  anchorPosition?: 'before' | 'after';
+  anchorPosition?: "before" | "after";
 
   /**
    * 插入顺序权重
@@ -277,6 +277,14 @@ export interface ChatMessageNode {
       durationMs: number;
       rawArgs?: Record<string, string>;
     };
+    /** 多个工具调用结果（用于 role: "tool" 的节点） */
+    toolCalls?: Array<{
+      requestId: string;
+      toolName: string;
+      status: "success" | "error" | "denied";
+      durationMs: number;
+      rawArgs?: Record<string, string>;
+    }>;
     /** AI 请求的工具调用列表（用于 role: "assistant" 的节点） */
     toolCallsRequested?: Array<{
       requestId: string;

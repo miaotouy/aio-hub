@@ -429,6 +429,15 @@ export function useChatExecutor() {
                 })),
               };
 
+              // 检查是否包含静默取消
+              const hasSilentCancel = cycleResult.executionResults.some((r) => r.result === "SILENT_CANCEL");
+              if (hasSilentCancel) {
+                logger.info("检测到静默取消，停止工具调用循环");
+                // 移除之前预创的助手节点（如果有的话，但在本逻辑中 currentAssistantNode 已经是上一个生成的节点了）
+                // 我们只需要跳出循环即可
+                break;
+              }
+
               const toolResultText = formatCycleResults(
                 cycleResult.executionResults,
                 executionAgent.toolCallConfig.protocol
@@ -444,6 +453,7 @@ export function useChatExecutor() {
                 timestamp: new Date().toISOString(),
                 metadata: {
                   agentId: executionAgent.id,
+                  // 兼容旧版
                   toolCall:
                     cycleResult.executionResults.length > 0
                       ? {
@@ -454,6 +464,14 @@ export function useChatExecutor() {
                           rawArgs: cycleResult.parsedRequests[0]?.args,
                         }
                       : undefined,
+                  // 支持多工具调用结果
+                  toolCalls: cycleResult.executionResults.map((res, idx) => ({
+                    requestId: res.requestId,
+                    toolName: res.toolName,
+                    status: res.status,
+                    durationMs: res.durationMs,
+                    rawArgs: cycleResult.parsedRequests[idx]?.args,
+                  })),
                 },
               };
 

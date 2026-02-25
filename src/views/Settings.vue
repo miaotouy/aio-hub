@@ -520,13 +520,20 @@ onUnmounted(() => {
               <component
                 v-if="module.id === 'general'"
                 :is="module.component"
-                v-model:show-tray-icon="settings.showTrayIcon"
-                v-model:minimize-to-tray="settings.minimizeToTray"
-                v-model:theme="settings.theme"
-                v-model:auto-adjust-window-position="settings.autoAdjustWindowPosition"
-                v-model:sidebar-mode="settings.sidebarMode"
-                v-model:proxy="settings.proxy"
-                v-model:timezone="settings.timezone"
+                :show-tray-icon="settings.showTrayIcon"
+                :minimize-to-tray="settings.minimizeToTray"
+                :theme="settings.theme"
+                :auto-adjust-window-position="settings.autoAdjustWindowPosition"
+                :sidebar-mode="settings.sidebarMode"
+                :proxy="settings.proxy"
+                :timezone="settings.timezone"
+                @update:show-tray-icon="(val: any) => appSettingsStore.update({ showTrayIcon: val })"
+                @update:minimize-to-tray="(val: any) => appSettingsStore.update({ minimizeToTray: val })"
+                @update:theme="(val: any) => appSettingsStore.update({ theme: val })"
+                @update:auto-adjust-window-position="(val: any) => appSettingsStore.update({ autoAdjustWindowPosition: val })"
+                @update:sidebar-mode="(val: any) => appSettingsStore.update({ sidebarMode: val })"
+                @update:proxy="(val: any) => appSettingsStore.update({ proxy: val })"
+                @update:timezone="(val: any) => appSettingsStore.update({ timezone: val })"
                 @config-imported="onConfigImported"
               />
 
@@ -534,36 +541,48 @@ onUnmounted(() => {
               <component
                 v-else-if="module.id === 'startup'"
                 :is="module.component"
-                v-model:startup-tasks="settings.startupTasks"
+                :startup-tasks="settings.startupTasks"
+                @update:startup-tasks="(val: any) => appSettingsStore.update({ startupTasks: val })"
               />
 
               <!-- 主题色配置 -->
               <component
                 v-else-if="module.id === 'theme-colors'"
                 :is="module.component"
-                v-model:theme-color="settings.themeColor"
-                v-model:success-color="settings.successColor"
-                v-model:warning-color="settings.warningColor"
-                v-model:danger-color="settings.dangerColor"
-                v-model:info-color="settings.infoColor"
+                :theme-color="settings.themeColor"
+                :success-color="settings.successColor"
+                :warning-color="settings.warningColor"
+                :danger-color="settings.dangerColor"
+                :info-color="settings.infoColor"
+                @update:theme-color="(val: any) => appSettingsStore.update({ themeColor: val })"
+                @update:success-color="(val: any) => appSettingsStore.update({ successColor: val })"
+                @update:warning-color="(val: any) => appSettingsStore.update({ warningColor: val })"
+                @update:danger-color="(val: any) => appSettingsStore.update({ dangerColor: val })"
+                @update:info-color="(val: any) => appSettingsStore.update({ infoColor: val })"
               />
 
               <!-- 日志配置 -->
               <component
                 v-else-if="module.id === 'log-settings'"
                 :is="module.component"
-                v-model:log-level="settings.logLevel"
-                v-model:log-to-file="settings.logToFile"
-                v-model:log-to-console="settings.logToConsole"
-                v-model:log-buffer-size="settings.logBufferSize"
-                v-model:max-file-size="settings.maxFileSize"
+                :log-level="settings.logLevel"
+                :log-to-file="settings.logToFile"
+                :log-to-console="settings.logToConsole"
+                :log-buffer-size="settings.logBufferSize"
+                :max-file-size="settings.maxFileSize"
+                @update:log-level="(val: any) => appSettingsStore.update({ logLevel: val })"
+                @update:log-to-file="(val: any) => appSettingsStore.update({ logToFile: val })"
+                @update:log-to-console="(val: any) => appSettingsStore.update({ logToConsole: val })"
+                @update:log-buffer-size="(val: any) => appSettingsStore.update({ logBufferSize: val })"
+                @update:max-file-size="(val: any) => appSettingsStore.update({ maxFileSize: val })"
               />
 
               <!-- 工具模块配置 -->
               <component
                 v-else-if="module.id === 'tools'"
                 :is="module.component"
-                v-model:tools-visible="settings.toolsVisible"
+                :tools-visible="settings.toolsVisible"
+                @update:tools-visible="(val: any) => appSettingsStore.update({ toolsVisible: val })"
               />
 
               <!-- 其他动态组件 -->

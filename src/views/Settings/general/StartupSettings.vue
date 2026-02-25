@@ -44,13 +44,14 @@ const toggleTask = (toolId: string, enabled: boolean) => {
     newTasks[toolId] = {
       enabled,
       consecutiveFailures: 0,
+      autoDisabled: false,
     };
   } else {
     newTasks[toolId] = {
       ...newTasks[toolId],
       enabled,
       // 如果手动启用，重置熔断状态
-      autoDisabled: enabled ? false : newTasks[toolId].autoDisabled,
+      autoDisabled: enabled ? false : (newTasks[toolId].autoDisabled ?? false),
       consecutiveFailures: enabled ? 0 : newTasks[toolId].consecutiveFailures,
     };
   }

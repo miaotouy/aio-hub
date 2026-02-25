@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { inject, computed, ref, markRaw, type Ref } from "vue";
-import { ArrowDown, CopyDocument, Files } from "@element-plus/icons-vue";
+import { ArrowDown, CopyDocument, Files, InfoFilled } from "@element-plus/icons-vue";
 import { Cpu, Power, Zap } from "lucide-vue-next";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolsStore } from "@/stores/tools";

@@ -23,8 +23,7 @@ const allTags = computed(() => {
     <el-form-item label="ID/名称">
       <el-input v-model="editForm.name" placeholder="输入智能体名称（用作 ID 和宏替换）" />
       <div class="setting-hint">
-        此名称将作为宏替换的 ID（如 <code v-pre>{{ char }}</code
-        >），请使用简洁的名称。
+        此名称将作为宏替换的 ID（如 <code>{{"{{char}}"}}</code>），请使用简洁的名称。
       </div>
     </el-form-item>
 
@@ -49,12 +48,7 @@ const allTags = computed(() => {
     </el-form-item>
 
     <el-form-item label="分类">
-      <el-select
-        v-model="editForm.category"
-        placeholder="选择分类（可选）"
-        clearable
-        style="width: 100%"
-      >
+      <el-select v-model="editForm.category" placeholder="选择分类（可选）" clearable style="width: 100%">
         <el-option
           v-for="[value, label] in Object.entries(AgentCategoryLabels)"
           :key="value"
@@ -82,12 +76,7 @@ const allTags = computed(() => {
     </el-form-item>
 
     <el-form-item label="描述">
-      <el-input
-        v-model="editForm.description"
-        type="textarea"
-        :rows="4"
-        placeholder="智能体的简短描述..."
-      />
+      <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="智能体的简短描述..." />
     </el-form-item>
   </div>
 </template>

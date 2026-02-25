@@ -8,6 +8,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import ChatMessage from "./ChatMessage.vue";
 import CompressionMessage from "./CompressionMessage.vue";
+import ToolCallMessage from "./ToolCallMessage.vue";
 
 interface Props {
   session: ChatSession | null;
@@ -252,17 +253,11 @@ const scrollToMessageId = (id: string) => {
 // 事件处理函数
 // 注意：将 payload 放在前面，messageId 放在后面，以便在模板中利用 $event 直接传参
 // 从而避免在模板中编写箭头函数，解决 VSCode 隐式 any 报错和 vue-tsc 解析错误
-const handleRegenerate = (
-  options: { modelId?: string; profileId?: string } | undefined,
-  messageId: string
-) => {
+const handleRegenerate = (options: { modelId?: string; profileId?: string } | undefined, messageId: string) => {
   emit("regenerate", messageId, options);
 };
 
-const handleContinue = (
-  options: { modelId?: string; profileId?: string } | undefined,
-  messageId: string
-) => {
+const handleContinue = (options: { modelId?: string; profileId?: string } | undefined, messageId: string) => {
   emit("continue", messageId, options);
 };
 
@@ -346,13 +341,18 @@ defineExpose({
               :message-depth="displayMessages.length - 1 - virtualItem.index"
               @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
               @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
-              @update-content="
-                (content: string) =>
-                  store.editMessage(displayMessages[virtualItem.index].id, content)
-              "
-              @update-role="
-                (role: any) => store.updateNodeData(displayMessages[virtualItem.index].id, { role })
-              "
+              @update-content="(content: string) => store.editMessage(displayMessages[virtualItem.index].id, content)"
+              @update-role="(role: any) => store.updateNodeData(displayMessages[virtualItem.index].id, { role })"
+              @resize="handleResize"
+            />
+
+            <!-- 工具调用结果渲染 -->
+            <ToolCallMessage
+              v-else-if="displayMessages[virtualItem.index].role === 'tool'"
+              :session="props.session"
+              :message="displayMessages[virtualItem.index]"
+              :message-depth="displayMessages.length - 1 - virtualItem.index"
+              @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
               @resize="handleResize"
             />
 
@@ -365,9 +365,7 @@ defineExpose({
               :message-depth="displayMessages.length - 1 - virtualItem.index"
               :is-sending="isSending"
               :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"
-              :current-sibling-index="
-                getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex
-              "
+              :current-sibling-index="getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex"
               :llm-think-rules="llmThinkRules"
               :rich-text-style-options="
                 displayMessages[virtualItem.index].role === 'user'
@@ -393,8 +391,7 @@ defineExpose({
               @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
               @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
               @update-translation="
-                (translation: any) =>
-                  store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
+                (translation: any) => store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
               "
               @resize="handleResize"
             />

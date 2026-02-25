@@ -111,6 +111,7 @@ const showDataEditor = ref(false);
 const isDisabled = computed(() => props.message.isEnabled === false);
 const isUserMessage = computed(() => props.message.role === "user");
 const isAssistantMessage = computed(() => props.message.role === "assistant");
+const isToolMessage = computed(() => props.message.role === "tool");
 const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
 const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
 
@@ -546,7 +547,7 @@ const handleTranslateClick = (e: MouseEvent) => {
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating"
               @click="handleContinue"
             >
               <div class="dropdown-item-content">
@@ -555,7 +556,7 @@ const handleTranslateClick = (e: MouseEvent) => {
               </div>
             </el-dropdown-item>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating"
               @click="handleContinueWithModel"
             >
               <div class="dropdown-item-content">
@@ -582,7 +583,7 @@ const handleTranslateClick = (e: MouseEvent) => {
               </div>
             </el-dropdown-item>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage) && !isGenerating"
+              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating"
               @click="handleRecalculateTokens"
             >
               <div class="dropdown-item-content">
@@ -591,7 +592,7 @@ const handleTranslateClick = (e: MouseEvent) => {
               </div>
             </el-dropdown-item>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage) && !isPresetDisplay && !isGenerating"
+              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isPresetDisplay && !isGenerating"
               @click="showDataEditor = true"
             >
               <div class="dropdown-item-content">
@@ -717,9 +718,9 @@ const handleTranslateClick = (e: MouseEvent) => {
       </button>
     </el-tooltip>
 
-    <!-- 编辑（用户和助手消息都可以，生成中不可编辑） -->
+    <!-- 编辑（用户、助手和工具消息都可以，生成中不可编辑） -->
     <el-tooltip
-      v-if="(isUserMessage || isAssistantMessage) && !isGenerating && props.buttonVisibility.edit"
+      v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating && props.buttonVisibility.edit"
       content="编辑"
       placement="top"
       :show-after="500"
@@ -729,10 +730,10 @@ const handleTranslateClick = (e: MouseEvent) => {
       </button>
     </el-tooltip>
 
-    <!-- 创建分支（用户和助手消息都可以，生成中不可创建，预设消息不可创建分支） -->
+    <!-- 创建分支（用户、助手和工具消息都可以，生成中不可创建，预设消息不可创建分支） -->
     <el-tooltip
       v-if="
-        (isUserMessage || isAssistantMessage) &&
+        (isUserMessage || isAssistantMessage || isToolMessage) &&
         !isGenerating &&
         !isPresetDisplay &&
         props.buttonVisibility.createBranch
@@ -758,10 +759,10 @@ const handleTranslateClick = (e: MouseEvent) => {
       </button>
     </el-tooltip>
 
-    <!-- 重新生成（用户和助手消息都可以，不禁用以支持并行生成，预设消息不可重新生成） -->
+    <!-- 重新生成（用户、助手和工具消息都可以，不禁用以支持并行生成，预设消息不可重新生成） -->
     <el-tooltip
       v-if="
-        (isUserMessage || isAssistantMessage) &&
+        (isUserMessage || isAssistantMessage || isToolMessage) &&
         !isPresetDisplay &&
         props.buttonVisibility.regenerate
       "
@@ -774,10 +775,10 @@ const handleTranslateClick = (e: MouseEvent) => {
       </button>
     </el-tooltip>
 
-    <!-- 切换模型重新生成（用户和助手消息都可以，预设消息不可） -->
+    <!-- 切换模型重新生成（用户、助手和工具消息都可以，预设消息不可） -->
     <el-tooltip
       v-if="
-        (isUserMessage || isAssistantMessage) &&
+        (isUserMessage || isAssistantMessage || isToolMessage) &&
         !isPresetDisplay &&
         props.buttonVisibility.regenerate
       "

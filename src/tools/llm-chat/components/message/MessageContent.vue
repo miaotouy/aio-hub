@@ -1,15 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide, nextTick } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import {
-  Copy,
-  Check,
-  GitBranch,
-  Languages,
-  MessageSquareText,
-  Terminal,
-  Hash,
-} from "lucide-vue-next";
+import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSession, TranslationDisplayMode } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -233,18 +225,11 @@ const activeRules = computed(() => {
 
   // 获取配置源
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-  const userProfile = userProfileId
-    ? userProfileStore.getProfileById(userProfileId)
-    : userProfileStore.globalProfile;
+  const userProfile = userProfileId ? userProfileStore.getProfileById(userProfileId) : userProfileStore.globalProfile;
   const globalConfig = settings.value.regexConfig;
 
   // 1. 解析原始规则 (全局 -> Agent -> UserProfile)
-  const rawRules = resolveRawRules(
-    "render",
-    globalConfig,
-    agent?.regexConfig,
-    userProfile?.regexConfig
-  );
+  const rawRules = resolveRawRules("render", globalConfig, agent?.regexConfig, userProfile?.regexConfig);
 
   // 2. 按角色过滤
   const roleFiltered = filterRulesByRole(rawRules, props.message.role);
@@ -258,12 +243,7 @@ const processedRules = ref<ChatRegexRule[]>([]);
 
 // 监听 activeRules 变化，进行宏处理
 watch(
-  [
-    activeRules,
-    () => props.session,
-    () => props.message.metadata,
-    () => settings.value.regexConfig.bindingMode,
-  ],
+  [activeRules, () => props.session, () => props.message.metadata, () => settings.value.regexConfig.bindingMode],
   async ([rules, session, metadata, bindingMode]) => {
     if (!rules || rules.length === 0) {
       processedRules.value = [];
@@ -275,9 +255,7 @@ watch(
     const { agentId, userProfileId } = getAgentAndUserProfileIds(metadata, mode);
 
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-    let userProfile = userProfileId
-      ? userProfileStore.getProfileById(userProfileId)
-      : userProfileStore.globalProfile;
+    let userProfile = userProfileId ? userProfileStore.getProfileById(userProfileId) : userProfileStore.globalProfile;
 
     const macroContext = createMacroContext({
       agent,
@@ -391,8 +369,7 @@ const { isDraggingOver } = useChatFileInteraction({
       }
     }
     if (successCount > 0) {
-      const message =
-        successCount === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${successCount} 个文件`;
+      const message = successCount === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${successCount} 个文件`;
       customMessage.success(message);
     }
   },
@@ -468,10 +445,7 @@ const showOriginal = computed(() => {
 
   // 如果没有翻译数据，或者翻译被隐藏了，应该显示原文（兜底，防止消息完全消失）
   const translationHidden = props.message.metadata?.translation?.visible === false;
-  if (
-    (!props.message.metadata?.translation && !props.isTranslating) ||
-    (translationHidden && !props.isTranslating)
-  ) {
+  if ((!props.message.metadata?.translation && !props.isTranslating) || (translationHidden && !props.isTranslating)) {
     return true;
   }
 
@@ -486,15 +460,9 @@ const showTranslation = computed(() => {
   const isVisible = props.isTranslating || props.message.metadata?.translation?.visible !== false;
 
   // 只要有元数据，或者正在翻译，或者有临时的翻译内容（应对流式结束但元数据未更新的间隙），都应该显示
-  const hasContent = !!(
-    props.message.metadata?.translation ||
-    props.isTranslating ||
-    props.translationContent
-  );
+  const hasContent = !!(props.message.metadata?.translation || props.isTranslating || props.translationContent);
 
-  return (
-    isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both")
-  );
+  return isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both");
 });
 
 // 缓存资产根目录，用于同步解析 【file::...】 占位符
@@ -570,9 +538,7 @@ const showMeta = computed(() => {
   if (!metadata) return false;
 
   const showToken = settings.value.uiPreferences.showTokenCount;
-  return (
-    (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) || !!metadata.error
-  );
+  return (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) || !!metadata.error;
 });
 const usageInfo = computed(() => messageMetadata.value?.usage);
 const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
@@ -630,17 +596,9 @@ const errorMessage = computed(() => messageMetadata.value?.error);
     </LlmThinkNode>
 
     <!-- 编辑模式 -->
-    <div
-      v-if="isEditing"
-      ref="editAreaRef"
-      class="edit-mode"
-      :class="{ 'is-dragging': isDraggingOver }"
-    >
+    <div v-if="isEditing" ref="editAreaRef" class="edit-mode" :class="{ 'is-dragging': isDraggingOver }">
       <!-- 编辑模式的附件展示 -->
-      <div
-        v-if="attachmentManager.hasAttachments.value"
-        class="attachments-section edit-attachments"
-      >
+      <div v-if="attachmentManager.hasAttachments.value" class="attachments-section edit-attachments">
         <div class="attachments-list">
           <AttachmentCard
             v-for="attachment in attachmentManager.attachments.value"
@@ -691,35 +649,6 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 
     <!-- 内容显示区域 (Grid Layout) -->
     <div v-else class="content-display-grid">
-      <!-- 工具调用结果专用展示区 -->
-      <div
-        v-if="message.role === 'tool' && message.metadata?.toolCall"
-        class="tool-result-container"
-      >
-        <div class="tool-call-info">
-          <div class="info-item">
-            <Terminal :size="14" />
-            <span class="label">工具:</span>
-            <span class="value">{{ message.metadata.toolCall.toolName }}</span>
-          </div>
-          <div class="info-item">
-            <Hash :size="14" />
-            <span class="label">ID:</span>
-            <span class="value">{{ message.metadata.toolCall.requestId }}</span>
-          </div>
-        </div>
-
-        <!-- 如果有参数，显示参数摘要 -->
-        <div v-if="message.metadata.toolCall.rawArgs" class="tool-args-preview">
-          <div class="args-title">输入参数:</div>
-          <pre class="args-content">{{
-            JSON.stringify(message.metadata.toolCall.rawArgs, null, 2)
-          }}</pre>
-        </div>
-
-        <div class="result-label">执行结果:</div>
-      </div>
-
       <!-- 原文区域 -->
       <div v-if="showOriginal" class="original-column">
         <div class="translation-header" v-if="displayMode === 'both' && showTranslation">
@@ -739,8 +668,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
           :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
           :default-tool-call-collapsed="
-            currentAgent?.defaultToolCallCollapsed ??
-            settings.uiPreferences.defaultToolCallCollapsed
+            currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
           "
           :seamless-mode="settings.uiPreferences.seamlessMode"
           :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
@@ -762,10 +690,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 
       <!-- 译文区域 -->
       <div v-if="showTranslation" class="translation-column">
-        <div
-          class="translation-header"
-          v-if="displayMode === 'both' || displayMode === 'translation'"
-        >
+        <div class="translation-header" v-if="displayMode === 'both' || displayMode === 'translation'">
           <Languages :size="14" class="translation-icon" />
           <span class="translation-title">翻译结果</span>
           <span class="translation-meta" v-if="message.metadata?.translation">
@@ -788,8 +713,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :default-render-html="settings.uiPreferences.defaultRenderHtml"
             :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
             :default-tool-call-collapsed="
-              currentAgent?.defaultToolCallCollapsed ??
-              settings.uiPreferences.defaultToolCallCollapsed
+              currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
             "
             :seamless-mode="settings.uiPreferences.seamlessMode"
             :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
@@ -816,16 +740,18 @@ const errorMessage = computed(() => messageMetadata.value?.error);
     <div v-if="showMeta" class="message-meta">
       <!-- API 返回的完整 Usage 信息（助手消息） -->
       <div v-if="settings.uiPreferences.showTokenCount && usageInfo" class="usage-info">
-        <span>Token: {{ contentTokensValue !== undefined ? usageInfo.promptTokens + contentTokensValue : usageInfo.totalTokens }}</span>
+        <span
+          >Token:
+          {{
+            contentTokensValue !== undefined ? usageInfo.promptTokens + contentTokensValue : usageInfo.totalTokens
+          }}</span
+        >
         <span class="usage-detail">
           (输入: {{ usageInfo.promptTokens }}, 输出: {{ contentTokensValue ?? usageInfo.completionTokens }})
         </span>
       </div>
       <!-- 本地计算的单条消息 Token（用户消息） -->
-      <div
-        v-else-if="settings.uiPreferences.showTokenCount && contentTokensValue !== undefined"
-        class="usage-info"
-      >
+      <div v-else-if="settings.uiPreferences.showTokenCount && contentTokensValue !== undefined" class="usage-info">
         <span>本条消息: {{ contentTokensValue.toLocaleString("en-US") }} tokens</span>
       </div>
       <div v-if="errorMessage" class="error-info">
@@ -1036,70 +962,6 @@ const errorMessage = computed(() => messageMetadata.value?.error);
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-/* 工具结果样式 */
-.tool-result-container {
-  padding: 12px;
-  background-color: var(--bg-color-soft);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  margin-bottom: -8px; /* 减少与下方结果的间距 */
-}
-
-.tool-call-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 12px;
-  font-size: 12px;
-}
-
-.info-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-color-secondary);
-}
-
-.info-item .label {
-  opacity: 0.7;
-}
-
-.info-item .value {
-  font-family: var(--font-family-mono);
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-.tool-args-preview {
-  margin-bottom: 12px;
-  padding: 8px;
-  background-color: var(--container-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-}
-
-.args-title {
-  font-size: 11px;
-  color: var(--text-color-tertiary);
-  margin-bottom: 4px;
-}
-
-.args-content {
-  margin: 0;
-  font-size: 12px;
-  font-family: var(--font-family-mono);
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--text-color-secondary);
-}
-
-.result-label {
-  font-size: 11px;
-  color: var(--text-color-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 /* 宽屏并排布局 */

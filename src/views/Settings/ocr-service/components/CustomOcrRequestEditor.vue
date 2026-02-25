@@ -6,6 +6,12 @@ import type { OcrApiRequest } from "@/types/ocr-profiles";
 import type { Variable } from "@/tools/api-tester/types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
+// 宏示例常量（避免格式化工具添加空格）
+const variableMacro = '{{variable}}';
+const hostMacro = '{{host}}';
+const apiKeyMacro = '{{apiKey}}';
+const imageBase64Macro = '{{imageBase64}}';
+
 interface Props {
   modelValue: OcrApiRequest;
 }
@@ -161,8 +167,8 @@ function getDisplayIconPath(iconPath: string): string {
           placeholder="https://api.example.com/ocr/v1/recognize"
         />
         <div class="form-hint">
-          支持 <code v-pre>{{ variable }}</code> 占位符，例如:
-          <code v-pre>https://{{ host }}/api</code>
+          支持 <code>{{ variableMacro }}</code> 占位符，例如:
+          <code>https://{{ hostMacro }}/api</code>
         </div>
       </el-form-item>
 
@@ -189,7 +195,7 @@ function getDisplayIconPath(iconPath: string): string {
           + 添加变量
         </el-button>
         <div class="form-hint" style="margin-top: 8px">
-          💡 特殊变量 <code v-pre>imageBase64</code> 会自动填充图片数据，无需手动添加
+          💡 特殊变量 <code>{{ imageBase64Macro }}</code> 会自动填充图片数据，无需手动添加
         </div>
       </div>
 
@@ -223,7 +229,7 @@ function getDisplayIconPath(iconPath: string): string {
         </el-button>
         <div class="form-hint" style="margin-top: 8px">
           💡 常用: <code>Content-Type: application/json</code>,
-          <code v-pre>Authorization: Bearer {{ apiKey }}</code>
+          <code>Authorization: Bearer {{ apiKeyMacro }}</code>
         </div>
       </div>
 
@@ -246,7 +252,7 @@ function getDisplayIconPath(iconPath: string): string {
             class="code-editor"
           />
           <div class="form-hint">
-            必须是有效的 JSON。使用 <code v-pre>{{ imageBase64 }}</code> 表示图片数据
+            必须是有效的 JSON。使用 <code>{{ imageBase64Macro }}</code> 表示图片数据
           </div>
         </div>
       </el-form-item>

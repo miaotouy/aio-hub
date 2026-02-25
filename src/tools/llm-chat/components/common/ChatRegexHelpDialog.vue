@@ -217,7 +217,7 @@
 
             <h3>🧩 宏替换 (动态变量)</h3>
             <p>
-              支持在正则表达式和替换内容中使用 <code v-pre>{{ 变量名 }}</code
+              支持在正则表达式和替换内容中使用 <code>{{ variableMacro }}</code
               >，系统会自动填入当前环境的值。
             </p>
 
@@ -232,14 +232,14 @@
               <tbody>
                 <tr>
                   <td>
-                    <code v-pre>{{ user }}</code>
+                    <code>{{ userMacro }}</code>
                   </td>
                   <td>当前用户名</td>
                   <td>"User"</td>
                 </tr>
                 <tr>
                   <td>
-                    <code v-pre>{{ char }}</code>
+                    <code>{{ charMacro }}</code>
                   </td>
                   <td>当前角色名</td>
                   <td>"Alice"</td>
@@ -252,14 +252,13 @@
             <ul>
               <li><strong>None</strong>: 不使用宏。</li>
               <li>
-                <strong>Raw (原样)</strong>: 直接替换。<code v-pre>{{ user }}</code> ->
+                <strong>Raw (原样)</strong>: 直接替换。<code>{{ userMacro }}</code> ->
                 <code>C.C.</code> (点号在正则中会匹配任意字符，可能不安全)。
               </li>
               <li>
                 <strong>Escaped (转义)</strong>:
                 <el-tag size="small" type="success">推荐</el-tag> 自动转义正则特殊字符。<code
-                  v-pre
-                  >{{ user }}</code
+                  >{{ userMacro }}</code
                 >
                 -> <code>C\.C\.</code> (精确匹配)。
               </li>
@@ -295,6 +294,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { Lightbulb } from "lucide-vue-next";
+
+// 宏示例常量（避免格式化工具添加空格）
+const variableMacro = '{{ 变量名 }}';
+const userMacro = '{{user}}';
+const charMacro = '{{char}}';
 
 const props = defineProps<{
   modelValue: boolean;

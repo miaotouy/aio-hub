@@ -11,6 +11,9 @@ import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
+// 宏示例常量（避免格式化工具添加空格）
+const toolsMacro = '{{tools}}';
+
 const editForm = inject<any>("agent-edit-form");
 const activeTab = inject<Ref<string>>("active-tab");
 const toolsStore = useToolsStore();
@@ -200,7 +203,7 @@ const pasteAllToolSettings = async () => {
       </div>
       <div class="form-hint">
         允许智能体在对话中使用 AIO 内部工具。启用后，智能体将能够通过
-        <code style="color: var(--el-color-primary)">{{"{{tools}}"}}</code>
+        <code style="color: var(--el-color-primary)">{{ toolsMacro }}</code>
         宏获取工具定义并发出调用请求。
       </div>
 
@@ -211,7 +214,7 @@ const pasteAllToolSettings = async () => {
             <template #title>
               <div class="alert-title-content">
                 <span
-                  >提示词中未发现 <code>{{"{{tools}}"}}</code> 宏</span
+                  >提示词中未发现 <code>{{ toolsMacro }}</code> 宏</span
                 >
                 <el-button link type="primary" size="small" @click="switchToPersonality"> 前往添加 </el-button>
               </div>

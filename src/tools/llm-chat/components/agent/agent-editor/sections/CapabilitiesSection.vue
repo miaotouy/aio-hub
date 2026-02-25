@@ -6,6 +6,12 @@ import type { MacroDefinition } from "../../../../macro-engine";
 import { MacroProcessor } from "../../../../macro-engine/MacroProcessor";
 import type { ChatAgent } from "../../../../types";
 
+// 宏示例常量（避免格式化工具添加空格）
+const timeMacro = '{{time}}';
+const dateMacro = '{{date}}';
+const datetimeMacro = '{{datetime}}';
+const shichenMacro = '{{shichen}}';
+
 const editForm = inject<any>("agent-edit-form");
 const mode = inject<any>("mode");
 const assetsDialogVisible = inject<any>("assets-dialog-visible");
@@ -183,8 +189,8 @@ const handleInsertMacro = (macro: MacroDefinition) => {
     <!-- 虚拟时间线 -->
     <div class="section-group" data-setting-id="virtualTime">
       <div class="section-group-title">虚拟时间线</div>
-      <div class="form-hint" style="margin-bottom: 12px" v-pre>
-        设定智能体的虚拟时间流逝规则。启用后，{{ time }} 等宏将基于此配置计算时间。
+      <div class="form-hint" style="margin-bottom: 12px">
+        设定智能体的虚拟时间流逝规则。启用后，{{ timeMacro }} 等宏将基于此配置计算时间。
       </div>
       <el-form-item label="启用虚拟时间">
         <el-switch v-model="virtualTimeEnabled" />
@@ -242,8 +248,8 @@ const handleInsertMacro = (macro: MacroDefinition) => {
           <div class="macro-preview-result">
             {{ macroPreviewResult || "（输入宏后显示结果）" }}
           </div>
-          <div class="form-hint" v-pre>
-            支持：{{ time }}, {{ date }}, {{ datetime }}, {{ shichen }} 等
+          <div class="form-hint">
+            支持：{{ timeMacro }}, {{ dateMacro }}, {{ datetimeMacro }}, {{ shichenMacro }} 等
           </div>
         </div>
       </template>

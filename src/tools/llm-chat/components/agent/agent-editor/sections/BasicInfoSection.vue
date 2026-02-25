@@ -4,6 +4,9 @@ import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import { AgentCategoryLabels } from "../../../../types";
 import { useAgentStore } from "../../../../stores/agentStore";
 
+// 宏示例常量（避免格式化工具添加空格）
+const charMacro = '{{char}}';
+
 const editForm = inject<any>("agent-edit-form");
 const agent = inject<any>("agent-instance");
 const agentStore = useAgentStore();
@@ -23,7 +26,7 @@ const allTags = computed(() => {
     <el-form-item label="ID/名称">
       <el-input v-model="editForm.name" placeholder="输入智能体名称（用作 ID 和宏替换）" />
       <div class="setting-hint">
-        此名称将作为宏替换的 ID（如 <code>{{"{{char}}"}}</code>），请使用简洁的名称。
+        此名称将作为宏替换的 ID（如 <code>{{ charMacro }}</code>），请使用简洁的名称。
       </div>
     </el-form-item>
 

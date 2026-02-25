@@ -13,8 +13,8 @@
         show-word-limit
         @input="handleInput"
       />
-      <div class="form-hint" v-pre>
-        此名称将作为宏替换的 ID（如 {{ user }}），请使用简洁的名称。
+      <div class="form-hint">
+        此名称将作为宏替换的 ID（如 <code>{{ userMacro }}</code>），请使用简洁的名称。
       </div>
     </el-form-item>
 
@@ -165,6 +165,9 @@ import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSe
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types";
+
+// 宏示例常量（避免格式化工具添加空格）
+const userMacro = '{{user}}';
 
 const MarkdownStyleEditor = defineAsyncComponent(
   () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")

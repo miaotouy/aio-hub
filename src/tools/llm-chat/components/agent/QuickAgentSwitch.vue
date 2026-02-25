@@ -11,7 +11,7 @@ interface Props {
   position: { x: number; y: number };
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 const emit = defineEmits(["select", "close"]);
 
 const containerRef = ref<HTMLElement | null>(null);

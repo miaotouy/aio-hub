@@ -121,7 +121,7 @@ export function useVcpDistributedNode() {
     const commandName = method.protocolConfig?.vcpCommand?.trim() || method.name;
 
     // 使用 VCP 协议统一的描述生成逻辑
-    const body = buildMethodDescription(method);
+    const body = buildMethodDescription(method, toolId);
     const description = [method.description || "无描述", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END].join("\n");
 
     // 构建调用示例

@@ -107,6 +107,8 @@ export const sessionLoader: ContextProcessor = {
         htmlToMdLastMessages: 5,
       };
 
+    const convertToolRoleToUser = context.agentConfig?.toolCallConfig?.convertToolRoleToUser ?? true;
+
     let turndownService: TurndownService | null = null;
     if (convertHtmlToMd) {
       turndownService = new TurndownService({
@@ -154,8 +156,13 @@ export const sessionLoader: ContextProcessor = {
         }
       }
 
+      let role = node.role;
+      if (role === "tool" && convertToolRoleToUser) {
+        role = "user";
+      }
+
       const processableMessage: ProcessableMessage = {
-        role: node.role,
+        role: role as any,
         content: finalContent,
         sourceType: "session_history",
         sourceId: node.id,

@@ -240,6 +240,18 @@ const pasteAllToolSettings = async () => {
           <el-form-item label="超时 (ms)">
             <el-input-number v-model="editForm.toolCallConfig.timeout" :min="1000" :step="5000" size="small" />
           </el-form-item>
+
+          <el-form-item label="角色转换">
+            <template #label>
+              <div style="display: flex; align-items: center; gap: 4px">
+                <span>角色转换</span>
+                <el-tooltip content="开启后，工具执行结果将以“用户”身份发送给模型。适用于不支持工具角色的纯文本协议（如 VCP）。" placement="top">
+                  <el-icon :size="14"><InfoFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </template>
+            <el-switch v-model="editForm.toolCallConfig.convertToolRoleToUser" />
+          </el-form-item>
         </div>
 
         <!-- 工具发现列表 -->

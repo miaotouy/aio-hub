@@ -96,6 +96,11 @@ export interface ToolCallConfig {
   parallelExecution: boolean;
   protocol?: "vcp";
   /**
+   * 将工具角色转换为用户角色
+   * 开启后，在发送给 LLM 时，tool 角色的消息将被转换为 user 角色
+   */
+  convertToolRoleToUser?: boolean;
+  /**
    * 每个工具的特定配置快照
    * key: toolId, value: 该工具的配置对象
    */
@@ -113,6 +118,7 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   timeout: 30000,
   parallelExecution: false,
   protocol: "vcp",
+  convertToolRoleToUser: true,
   toolSettings: {},
 };
 

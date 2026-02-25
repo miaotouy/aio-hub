@@ -82,12 +82,15 @@ const userProfileStore = useUserProfileStore();
 const { copy } = useClipboard();
 const { translateText } = useTranslation();
 
+// 编辑状态（内部管理）
+const isEditing = ref(false);
+
 const isCollapsed = ref(true);
 const editingContent = ref("");
 const editorRef = ref<any>(null);
 
 const toggleCollapse = () => {
-  if (props.isEditing) return; // 编辑模式不允许折叠
+  if (isEditing.value) return; // 编辑模式不允许折叠
   isCollapsed.value = !isCollapsed.value;
 };
 
@@ -192,7 +195,7 @@ const displayMode = computed<TranslationDisplayMode>(() => {
 });
 
 const showOriginal = computed(() => {
-  if (props.isEditing) return false;
+  if (isEditing.value) return false;
   const translationHidden = props.message.metadata?.translation?.visible === false;
   if ((!props.message.metadata?.translation && !props.isTranslating) || (translationHidden && !props.isTranslating)) {
     return true;
@@ -201,7 +204,7 @@ const showOriginal = computed(() => {
 });
 
 const showTranslation = computed(() => {
-  if (props.isEditing) return false;
+  if (isEditing.value) return false;
   const isVisible = props.isTranslating || props.message.metadata?.translation?.visible !== false;
   const hasContent = !!(props.message.metadata?.translation || props.isTranslating || props.translationContent);
   return isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both");
@@ -247,11 +250,12 @@ const handleTranslate = async (targetLang?: string) => {
     // 错误由 useTranslation 处理
   }
 };
-
 // ===== 编辑逻辑 =====
-const initEditMode = () => {
+// 开始编辑
+const startEdit = () => {
   editingContent.value = props.message.content;
   isCollapsed.value = false; // 进入编辑模式强制展开
+  isEditing.value = true; // 切换到编辑模式
   nextTick(() => {
     if (editorRef.value) {
       editorRef.value.focus();
@@ -261,18 +265,22 @@ const initEditMode = () => {
   });
 };
 
+// 保存编辑
 const saveEdit = () => {
   if (editingContent.value.trim()) {
     emit("edit", editingContent.value, []); // 工具消息暂不支持附件编辑，传空数组对齐接口
   }
+  isEditing.value = false; // 保存后退出编辑模式
 };
 
 const cancelEdit = () => {
+  isEditing.value = false; // 取消编辑
   emit("cancel-edit");
 };
 
 const onSaveToBranch = (newContent: string) => {
   emit("save-to-branch", newContent, []);
+  isEditing.value = false; // 保存后退出编辑模式
 };
 
 const handleCopyArgs = () => {
@@ -281,13 +289,6 @@ const handleCopyArgs = () => {
     customMessage.success("已复制输入参数");
   }
 };
-
-watch(
-  () => props.isEditing,
-  (newVal) => {
-    if (newVal) initEditMode();
-  }
-);
 
 // ===== 菜单栏相关计算 =====
 const siblings = computed(() => {
@@ -323,6 +324,7 @@ const onToggleTranslationVisible = () => {
 const getElement = () => messageRef.value;
 
 defineExpose({
+  startEdit,
   getElement,
 });
 </script>
@@ -390,7 +392,7 @@ defineExpose({
           :current-sibling-index="currentSiblingIndex"
           :button-visibility="buttonVisibility"
           @delete="emit('delete')"
-          @edit="initEditMode"
+          @edit="startEdit"
           @copy="emit('copy')"
           @regenerate="onRegenerate"
           @toggle-enabled="emit('toggle-enabled')"

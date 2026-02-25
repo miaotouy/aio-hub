@@ -352,7 +352,27 @@ defineExpose({
               :session="props.session"
               :message="displayMessages[virtualItem.index]"
               :message-depth="displayMessages.length - 1 - virtualItem.index"
+              :is-sending="isSending"
+              :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"
+              :current-sibling-index="getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex"
               @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
+              @regenerate="handleRegenerate($event, displayMessages[virtualItem.index].id)"
+              @switch-sibling="handleSwitchSibling($event, displayMessages[virtualItem.index].id)"
+              @switch-branch="handleSwitchBranch"
+              @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
+              @edit="
+                (newContent: any, attachments: any) =>
+                  handleEditMessage(displayMessages[virtualItem.index].id, newContent, attachments)
+              "
+              @copy="() => {}"
+              @abort="emit('abort-node', displayMessages[virtualItem.index].id)"
+              @continue="handleContinue($event, displayMessages[virtualItem.index].id)"
+              @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
+              @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
+              @save-to-branch="handleSaveToBranch(displayMessages[virtualItem.index].id, $event)"
+              @update-translation="
+                (translation: any) => store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
+              "
               @resize="handleResize"
             />
 

@@ -71,7 +71,7 @@ onMounted(() => {
             <span>解析器验证</span>
           </div>
         </template>
-        <ParserPane :protocol="vcpProtocol" />
+        <ParserPane :protocol="vcpProtocol" :groups="discoveredGroups" />
       </el-tab-pane>
     </el-tabs>
   </div>

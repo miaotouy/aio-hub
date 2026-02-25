@@ -46,7 +46,7 @@ const applyMethod = (group: any, method: any) => {
   method.parameters.forEach((p: any) => {
     // 优先从 settingsSchema 中寻找默认值
     const schemaItem = group.settingsSchema?.find((s: any) => s.modelPath === p.name);
-    
+
     if (p.defaultValue !== undefined) {
       argsObj[p.name] = p.defaultValue;
     } else if (schemaItem?.defaultValue !== undefined) {
@@ -189,7 +189,12 @@ const runExecutionTest = async () => {
         },
       ],
       {
-        config: { timeout: 60000 } as any,
+        config: {
+          mode: "auto",
+          timeout: 60000,
+          parallelExecution: true,
+          defaultAutoApprove: true,
+        } as any,
       }
     );
     executionResults.value = [...results, ...executionResults.value].slice(0, 10);

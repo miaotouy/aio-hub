@@ -50,10 +50,16 @@ function buildParamDescription(param: MethodParameter): string {
   return parts.join("，");
 }
 
-export function buildMethodDescription(method: MethodMetadata): string {
+export function buildMethodDescription(method: MethodMetadata, toolId: string): string {
   const command = pickCommandName(method);
 
-  const lines = [buildArgBlock("command", command)];
+  // 转换 toolId: directory-tree -> directory_tree
+  const normalizedToolId = toolId.replace(/-/g, "_");
+
+  const lines = [
+    buildArgBlock("tool_name", `类型：string，固定值：${normalizedToolId}`),
+    buildArgBlock("command", `类型：string，固定值：${command}`),
+  ];
 
   // 每个参数展开为独立的 VCP 字段行，而非 JSON 序列化
   for (const param of method.parameters) {
@@ -182,10 +188,10 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
 
         const toolName = tool.toolName;
         const description = method.description?.trim() || "无描述";
-        const body = buildMethodDescription(method);
+        const body = buildMethodDescription(method, tool.toolId);
 
         const block = [
-          `工具名：${toolName}`,
+          `工具显示名称：${toolName}`,
           `工具描述：${description}`,
           TOOL_DEFINITION_START,
           body,

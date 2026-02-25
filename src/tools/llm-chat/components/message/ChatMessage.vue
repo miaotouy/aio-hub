@@ -104,10 +104,8 @@ const onSaveToBranch = (newContent: string, attachments?: Asset[]) => {
 };
 
 // 事件处理函数（避免模板中的隐式 any）
-const onRegenerate = (options?: { modelId?: string; profileId?: string }) =>
-  emit("regenerate", options);
-const onContinue = (options?: { modelId?: string; profileId?: string }) =>
-  emit("continue", options);
+const onRegenerate = (options?: { modelId?: string; profileId?: string }) => emit("regenerate", options);
+const onContinue = (options?: { modelId?: string; profileId?: string }) => emit("continue", options);
 const onSwitchSibling = (direction: "prev" | "next") => emit("switch-sibling", direction);
 const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
 
@@ -314,16 +312,6 @@ defineExpose({
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   /* 移除子元素的边框和圆角，由容器统一管理 */
-}
-
-/* 工具消息特殊背景 */
-.message-tool .message-background-slice {
-  background-color: color-mix(in srgb, var(--bg-color-soft) 80%, transparent);
-}
-
-.message-tool::after {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
 }
 
 /* 内容层样式 */

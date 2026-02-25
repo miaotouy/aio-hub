@@ -392,31 +392,6 @@ defineExpose({
         </div>
       </div>
 
-      <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑) -->
-      <div class="menubar-wrapper" v-if="!isEditing">
-        <MessageMenubar
-          :message="message"
-          :is-sending="isGenerating"
-          :siblings="siblings"
-          :current-sibling-index="currentSiblingIndex"
-          :button-visibility="buttonVisibility"
-          @delete="emit('delete')"
-          @edit="startEdit"
-          @copy="emit('copy')"
-          @regenerate="onRegenerate"
-          @toggle-enabled="emit('toggle-enabled')"
-          @switch="onSwitchSibling"
-          @switch-branch="onSwitchBranch"
-          @abort="emit('abort')"
-          @continue="onContinue"
-          @create-branch="emit('create-branch')"
-          @analyze-context="emit('analyze-context')"
-          @translate="handleTranslate"
-          @toggle-translation-visible="onToggleTranslationVisible"
-          @change-translation-mode="onChangeTranslationMode"
-        />
-      </div>
-
       <!-- 编辑模式 -->
       <div v-if="isEditing" class="edit-mode">
         <ChatCodeMirrorEditor
@@ -540,6 +515,31 @@ defineExpose({
         </div>
       </div>
 
+      <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑) -->
+      <div class="menubar-wrapper" v-if="!isEditing" :class="{ 'is-collapsed': isCollapsed }">
+        <MessageMenubar
+          :message="message"
+          :is-sending="isGenerating"
+          :siblings="siblings"
+          :current-sibling-index="currentSiblingIndex"
+          :button-visibility="buttonVisibility"
+          @delete="emit('delete')"
+          @edit="startEdit"
+          @copy="emit('copy')"
+          @regenerate="onRegenerate"
+          @toggle-enabled="emit('toggle-enabled')"
+          @switch="onSwitchSibling"
+          @switch-branch="onSwitchBranch"
+          @abort="emit('abort')"
+          @continue="onContinue"
+          @create-branch="emit('create-branch')"
+          @analyze-context="emit('analyze-context')"
+          @translate="handleTranslate"
+          @toggle-translation-visible="onToggleTranslationVisible"
+          @change-translation-mode="onChangeTranslationMode"
+        />
+      </div>
+
       <!-- 元数据展示 -->
       <div v-if="message.metadata?.usage || message.metadata?.error" class="message-meta">
         <div v-if="message.metadata.usage" class="usage-info">
@@ -563,16 +563,32 @@ defineExpose({
   position: relative;
   display: flex;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 16px;
   margin: 8px 0;
-  border-radius: 12px;
+  border-radius: 8px;
   font-size: v-bind('settings.uiPreferences.fontSize + "px"');
-  transition: all 0.3s ease;
+  /* 移除原有的背景和边框样式，移交给 .message-background */
 }
 
-.tool-call-message.is-editing {
-  background-color: var(--container-bg);
-  box-shadow: 0 0 0 2px var(--primary-color);
+/* 独立的边框层：对齐 ChatMessage.vue */
+.tool-call-message::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: border-color 0.2s;
+}
+
+.tool-call-message:hover::after {
+  border-color: var(--primary-color);
+}
+
+.tool-call-message.is-editing::after {
+  border-color: var(--primary-color);
+  border-width: 2px;
 }
 
 /* 背景层 */
@@ -581,7 +597,7 @@ defineExpose({
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -589,7 +605,7 @@ defineExpose({
   position: absolute;
   left: 0;
   right: 0;
-  background-color: color-mix(in srgb, var(--bg-color-soft) 80%, transparent);
+  background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
 }
 
@@ -603,6 +619,8 @@ defineExpose({
   width: 20px;
   color: var(--text-color-secondary);
   opacity: 0.6;
+  /* 确保侧边栏高度撑满父容器 */
+  align-self: stretch;
 }
 
 .tool-bar.status-success {
@@ -622,9 +640,13 @@ defineExpose({
 }
 
 .bar-icon {
+  position: sticky;
+  top: 16px; /* 随着消息内容滚动时，图标保持在顶部可见区域 */
   padding: 6px 0;
   cursor: pointer;
   transition: transform 0.2s;
+  background-color: transparent;
+  z-index: 4;
 }
 
 .bar-icon:hover {
@@ -954,13 +976,28 @@ defineExpose({
 }
 
 .menubar-wrapper {
-  position: absolute;
+  position: sticky;
   bottom: 8px;
-  right: 12px;
-  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  /* 通过负margin覆盖在内容上，消除占位 */
+  margin-top: -46px;
+  z-index: 10;
+  padding-right: 12px;
+
   opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  pointer-events: none; /* 避免透明层阻挡点击 */
+}
+
+.menubar-wrapper.is-collapsed {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: auto;
+  margin-top: -8px;
 }
 
 .menubar-wrapper > * {

@@ -163,13 +163,15 @@ export function useChatExecutor() {
       modelName: model?.name || agentConfigSnippet.modelId, // 顺便确保 modelName 也有值
       modelDisplayName: model?.name || agentConfigSnippet.modelId,
     };
+
+    let currentAssistantNode = assistantNode;
+
     try {
       const { sendRequest } = useLlmRequest();
 
       // 工具调用迭代计数
       let iterationCount = 0;
       const maxIterations = executionAgent.toolCallConfig?.maxIterations ?? 5;
-      let currentAssistantNode = assistantNode;
       let currentPathToUserNode = [...pathToUserNode];
 
       // 动态构建生效的参数对象
@@ -221,7 +223,11 @@ export function useChatExecutor() {
         // 保存参数快照到节点元数据
         currentAssistantNode.metadata = {
           ...currentAssistantNode.metadata,
-          requestParameters: effectiveParams,
+          requestParameters: {
+            ...effectiveParams,
+            // 明确记录工具调用开关状态，避免与 parameters 里的 enabled 混淆
+            toolCallingEnabled: executionAgent.toolCallConfig?.enabled ?? false,
+          },
         };
         if (session.nodes[currentAssistantNode.id]) {
           session.nodes[currentAssistantNode.id].metadata = currentAssistantNode.metadata;
@@ -377,6 +383,9 @@ export function useChatExecutor() {
           await validateAndFixUsage(response, agentConfigSnippet.modelId, messagesForRequest as any);
           await finalizeNode(session, currentAssistantNode.id, response, agentStore.currentAgentId || "");
 
+          // 节点完成后立即从生成集合中移除，防止工具迭代导致旧节点状态卡死
+          generatingNodes.delete(currentAssistantNode.id);
+
           try {
             await checkAndCompress(session);
           } catch (error) {
@@ -510,7 +519,11 @@ export function useChatExecutor() {
       handleNodeError(session, assistantNode.id, error, "请求执行");
     } finally {
       abortControllers.delete(assistantNode.id);
+      // 确保清理所有可能的当前节点 ID
       generatingNodes.delete(assistantNode.id);
+      if (currentAssistantNode?.id) {
+        generatingNodes.delete(currentAssistantNode.id);
+      }
     }
   };
 

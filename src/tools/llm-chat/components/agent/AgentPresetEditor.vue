@@ -1,12 +1,7 @@
 <template>
   <div class="agent-preset-editor" :class="{ compact: props.compact }">
     <!-- 头部操作栏 -->
-    <div
-      v-if="!props.compact"
-      ref="headerRef"
-      class="editor-header"
-      :class="{ 'is-narrow': isNarrow }"
-    >
+    <div v-if="!props.compact" ref="headerRef" class="editor-header" :class="{ 'is-narrow': isNarrow }">
       <div class="header-title" @click="isCollapsed = !isCollapsed">
         <el-button link size="small" class="collapse-btn">
           <el-icon :class="{ 'is-collapsed': isCollapsed }">
@@ -85,11 +80,7 @@
     </div>
 
     <!-- 消息列表滚动容器 --><Transition name="collapse">
-      <div
-        v-show="!isCollapsed || props.compact"
-        class="messages-container"
-        :style="{ height: containerHeight }"
-      >
+      <div v-show="!isCollapsed || props.compact" class="messages-container" :style="{ height: containerHeight }">
         <div class="messages-scroll-wrapper">
           <VueDraggableNext
             v-model="currentPageMessages"
@@ -217,8 +208,7 @@
                 <span
                   v-else-if="
                     element.injectionStrategy?.type === 'depth' ||
-                    (!element.injectionStrategy?.type &&
-                      element.injectionStrategy?.depth !== undefined)
+                    (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
                   "
                   class="injection-badge-compact"
                   title="深度注入"
@@ -233,19 +223,12 @@
                   title="锚点注入"
                   >⚓</span
                 >
-                <span
-                  v-if="element.modelMatch?.enabled"
-                  class="model-match-badge-compact"
-                  title="仅特定模型生效"
+                <span v-if="element.modelMatch?.enabled" class="model-match-badge-compact" title="仅特定模型生效"
                   >🎯</span
                 >
 
                 <div class="message-text-compact">
-                  {{
-                    element.name
-                      ? truncateText(element.name, 60)
-                      : truncateText(element.content, 60)
-                  }}
+                  {{ element.name ? truncateText(element.name, 60) : truncateText(element.content, 60) }}
                 </div>
 
                 <div v-if="props.modelId && messageTokens.has(element.id)" class="token-compact">
@@ -307,8 +290,7 @@
                       <el-tag
                         v-if="
                           element.injectionStrategy?.type === 'advanced_depth' ||
-                          (!element.injectionStrategy?.type &&
-                            element.injectionStrategy?.depthConfig)
+                          (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
                         "
                         size="small"
                         type="warning"
@@ -320,8 +302,7 @@
                       <el-tag
                         v-else-if="
                           element.injectionStrategy?.type === 'depth' ||
-                          (!element.injectionStrategy?.type &&
-                            element.injectionStrategy?.depth !== undefined)
+                          (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
                         "
                         size="small"
                         type="warning"
@@ -333,8 +314,7 @@
                       <el-tag
                         v-else-if="
                           element.injectionStrategy?.type === 'anchor' ||
-                          (!element.injectionStrategy?.type &&
-                            element.injectionStrategy?.anchorTarget)
+                          (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
                         "
                         size="small"
                         type="success"
@@ -494,11 +474,7 @@
     />
 
     <!-- 批量管理对话框 -->
-    <AgentPresetBatchDialog
-      v-model:visible="showBatchManager"
-      :messages="localMessages"
-      @save="handleBatchSave"
-    />
+    <AgentPresetBatchDialog v-model:visible="showBatchManager" :messages="localMessages" @save="handleBatchSave" />
   </div>
 </template>
 
@@ -533,6 +509,7 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
+import { calculateShortHash } from "@/utils/hash";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "./PresetMessageEditor.vue";
 import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
@@ -689,10 +666,7 @@ const isCalculatingTokens = ref(false);
  * @param tasks 任务数组（每个任务是一个返回 Promise 的函数）
  * @param concurrency 最大并发数
  */
-async function runWithConcurrency<T>(
-  tasks: (() => Promise<T>)[],
-  concurrency: number
-): Promise<T[]> {
+async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]> {
   const results: T[] = [];
   let index = 0;
 
@@ -768,29 +742,21 @@ const calculateAllTokens = async () => {
           // 缓存键包含：分词器名称、模板内容、宏上下文（简化为关键信息）
           // 注意：macroContext 包含 agent/userProfile 等，这里简化处理，如果追求极致可以做更细粒度的 hash
           const contextKey = `${effectiveUserProfile.value?.id || "default"}:${props.agentName}`;
-          const contentHash = `v2:${tokenizerName}:${template}:${contextKey}`;
+          const rawHashKey = `v3:${tokenizerName}:${template}:${contextKey}`;
+          const contentHash = `v3:${tokenizerName}:${await calculateShortHash(rawHashKey)}`;
 
-          if (
-            message.metadata?.lastCalcHash === contentHash &&
-            message.metadata?.contentTokens !== undefined
-          ) {
+          if (message.metadata?.lastCalcHash === contentHash && message.metadata?.contentTokens !== undefined) {
             newTokens.set(message.id, message.metadata.contentTokens);
             return;
           }
 
           const processed = await macroProcessor.process(template, macroContext);
-          const result = await tokenCalculatorEngine.calculateTokens(
-            processed.output,
-            props.modelId
-          );
+          const result = await tokenCalculatorEngine.calculateTokens(processed.output, props.modelId);
           newTokens.set(message.id, result.count);
 
           // 同步更新到消息的 metadata
           if (!message.metadata) message.metadata = {};
-          if (
-            message.metadata.contentTokens !== result.count ||
-            message.metadata.lastCalcHash !== contentHash
-          ) {
+          if (message.metadata.contentTokens !== result.count || message.metadata.lastCalcHash !== contentHash) {
             message.metadata.contentTokens = result.count;
             message.metadata.lastCalcHash = contentHash;
             hasChanges = true;
@@ -1206,10 +1172,7 @@ async function handleFileSelected(event: Event) {
         ...m,
         content: typeof m.content === "string" ? convertMacros(m.content) : m.content,
       }));
-      localMessages.value = [
-        ...localMessages.value.filter((m) => isAnchorType(m.type)),
-        ...processed,
-      ];
+      localMessages.value = [...localMessages.value.filter((m) => isAnchorType(m.type)), ...processed];
       syncToParent();
       customMessage.success("导入成功");
     } else {

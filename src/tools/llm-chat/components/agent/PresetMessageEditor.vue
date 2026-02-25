@@ -260,6 +260,10 @@
             </el-popconfirm>
           </div>
           <div v-else-if="viewMode === 'text'" class="preview-hint">
+            <el-button size="small" @click="handleCopy" plain style="margin-left: 12px">
+              <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
+              复制预览
+            </el-button>
             <span class="hint-text">宏处理后的纯文本</span>
           </div>
           <div v-else class="preview-hint">
@@ -887,16 +891,19 @@ function handleInsertMacro(macro: MacroDefinition) {
  * 复制内容
  */
 async function handleCopy() {
+  const contentToCopy =
+    viewMode.value === "edit" ? form.value.content : previewContent.value || form.value.content || "";
+
   const result = await errorHandler.wrapAsync(
     async () => {
-      await navigator.clipboard.writeText(form.value.content);
+      await navigator.clipboard.writeText(contentToCopy);
       return true;
     },
     { userMessage: "复制失败" }
   );
 
   if (result) {
-    customMessage.success("已复制到剪贴板");
+    customMessage.success(viewMode.value === "edit" ? "已复制源码" : "已复制预览文本");
   }
 }
 
@@ -1022,7 +1029,8 @@ function handleSave() {
 }
 
 .hint-text {
-  font-size: 12px;
+  padding-left: 8px;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
 }
 

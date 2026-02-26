@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2 } from "lucide-vue-next";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -34,12 +34,22 @@ const localUrl = ref(props.modelValue);
 
 const levelOptions = [
   { label: "L0 快速获取", value: 0, icon: Zap, desc: "静态页面 / API，毫秒级响应" },
-  { label: "L1 智能提取", value: 1, icon: Scan, desc: "SPA / JS 渲染页面，浏览器渲染后提取" },
+  { label: "L1 智能提取", value: 1, icon: Scan, desc: "SPA / JS渲染，支持动态内容" },
+  { label: "L2 交互模式", value: 2, icon: Settings2, desc: "手动操作网页，配置持久化配方" },
 ];
 
-const selectedLevel = ref<0 | 1>(props.activeLevel === 2 ? 0 : (props.activeLevel as 0 | 1));
+const selectedLevel = ref<0 | 1 | 2>(props.activeLevel ?? 0);
 const showLevelMenu = ref(false);
-const currentLevelOption = computed(() => levelOptions[selectedLevel.value]);
+const currentLevelOption = computed(() => levelOptions.find((o) => o.value === selectedLevel.value) || levelOptions[0]);
+
+watch(
+  () => props.activeLevel,
+  (newLevel: 0 | 1 | 2 | undefined) => {
+    if (newLevel !== undefined) {
+      selectedLevel.value = newLevel;
+    }
+  }
+);
 
 function onUrlKeydown(e: KeyboardEvent) {
   if (e.key === "Enter") triggerFetch();
@@ -57,14 +67,23 @@ function triggerFetch() {
   localUrl.value = finalUrl;
   logger.debug("Triggering fetch", { url: finalUrl, level: selectedLevel.value });
   emit("update:modelValue", finalUrl);
-  emit("fetch", selectedLevel.value);
+
+  if (selectedLevel.value === 2) {
+    emit("open-interactive");
+  } else {
+    emit("fetch", selectedLevel.value as 0 | 1);
+  }
+
   urlInputRef.value?.blur();
   showLevelMenu.value = false;
 }
 
-function selectLevel(level: 0 | 1) {
+function selectLevel(level: 0 | 1 | 2) {
   selectedLevel.value = level;
   showLevelMenu.value = false;
+  if (level === 2) {
+    emit("open-interactive");
+  }
 }
 </script>
 

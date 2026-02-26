@@ -1,6 +1,6 @@
 # Web Distillery (网页蒸馏室)
 
-> **当前状态**：P0-P2 阶段已基本完成。Level 0/1 核心提取管道已上线。P3-P4 处于 UI 占位阶段，交互式模式、高级清洗功能及 Cookie 持久化尚在施工中。
+> **当前状态**：P0-P2 阶段已完成。Level 0/1 核心提取管道已上线。P3-P4 核心功能（Site Recipe, API Sniffer, Cookie Lab V1）已实现，正在进行 UI 集成与优化。
 
 ## 1. 设计哲学：AIO 的网页内容获取方案
 
@@ -319,18 +319,22 @@ src/tools/web-distillery/core/
 
 以下是 Level 1 和 Level 2 共用的底层能力。
 
-### 4.1 原生子 Webview 嵌入 (Level 1/2 共用)
+### 4.1 独立窗口 Webview 方案 (Level 1/2 共用)
 
-Tauri 2.0 的 `WebviewBuilder` 支持在同一个窗口中创建多个 Webview。我们在主窗口的左侧区域嵌入一个子 Webview，它加载目标网页。
+> ✅ **技术突破 (方案进化)**：最初通过调用 `main_window.add_child()` (开启 Tauri 的 `unstable` 特性) 将子 Webview 直接挂载到主窗口，导致了主窗口无边框拖拽失效。
+>
+> **当前实现**：已切换为**独立透明无边框子窗口**方案。Rust 端使用 `WebviewWindowBuilder` 创建一个与主窗口占位区域位置完全同步的悬浮窗口。解决了拖拽失效问题，同时通过 IPC 实时同步 Resize 事件，保证了 UI 的整体感。
+
+Tauri 2.0 的 `WebviewWindowBuilder` 被封装在 Rust 端的 `webview.rs` 中。
 
 ```
 主窗口 (Vue UI)
 ├── 顶部工具栏 (地址栏、Cookie Lab、提纯模式开关)
-├── 左侧: 子 Webview (原生浏览器引擎，加载目标网页)
+├── 左侧: 子 Webview (原生浏览器引擎，加载目标网页，目前因 add_child 导致拖拽失效)
 └── 右侧: 蒸馏控制台 (Vue 组件，规则、预览、API 列表)
 ```
 
-子 Webview 的位置和尺寸由 Vue 端通过 IPC 实时同步给 Rust 端，响应布局变化。
+子 Webview 的位置和尺寸由 Vue 端通过 ResizeObserver 监测占位 DOM，通过 IPC `distillery_resize` 实时同步给 Rust 端。
 
 **Level 1 的无头模式**：Agent 调用 `smartExtract` 时，子 Webview 创建在不可见区域（bounds 设为 0x0 或屏幕外），完成提取后自动销毁。用户无感知。
 
@@ -351,9 +355,9 @@ Tauri 2.0 的 `WebviewBuilder` 支持在同一个窗口中创建多个 Webview�
 3. 保存为"身份卡片"（Profile），下次一键注入，无需重新登录
 4. 支持从浏览器 DevTools 粘贴 Cookie 字符串，自动解析并注入
 
-> **v1 现状**：已实现基于注入脚本 `document.cookie` 的读写。同时在 Cookie Lab UI 中支持“手动粘贴”完整 Cookie 字符串并持久化。
->
-> **v2 目标**：通过 `webview2-com` (Win), `cocoa` (mac), `webkit2gtk` (Linux) 实现完整的底层 Cookie API。
+**v1 现状**：已实现基于注入脚本 `document.cookie` 的读写。在 Cookie Lab UI 中支持“身份 Profile”管理。
+
+**v2 目标**：通过 `webview2-com` (Win), `cocoa` (mac), `webkit2gtk` (Linux) 实现完整的底层 Cookie API，以支持 HttpOnly 选项。
 
 ### 4.3 DOM 手术刀（Interactive Inspect，Level 2 专属）
 
@@ -570,22 +574,26 @@ src/tools/web-distillery/
 │       ├── extractor.ts             # Stage 3: 正文提取
 │       ├── converter.ts             # Stage 4: 结构转换
 │       └── postprocessor.ts         # Stage 5: 后处理
+├── recipe/
+│   ├── action-runner.ts             # 动作序列回放引擎
+│   └── recipe-store.ts              # 配方 CRUD 与 glob 匹配 (持久化)
 └── components/
     ├── BrowserToolbar.vue           # 地址栏 + 导航控制
-    ├── CookieLab.vue                # Cookie 实验室弹窗（读取/注入/Profile 管理）
-    ├── ExtractionRules.vue          # 提取规则列表（可视化 CSS Selector）
+    ├── CookieLab.vue                # Cookie 实验室弹窗
+    ├── DistilleryWorkbench.vue      # 核心工作区大组件
+    ├── ExtractionRules.vue          # 提取规则列表
     ├── ApiSniffer.vue               # 发现的 API 列表
+    ├── RecipeEditor.vue             # P3: 动作序列与选择器编辑器
+    ├── RecipeManager.vue            # P3: 配方列表管理面板
     └── PreviewPanel.vue             # Markdown 实时预览 + 导出
 
-src-tauri/src/commands/
-├── web_distillery.rs                # Rust 端命令模块入口（Rust 2018+ 规范，非 mod.rs）
-└── web_distillery/
-    ├── webview.rs                   # 子 Webview 生命周期管理
-    ├── fetcher.rs                   # Level 0: reqwest HTTP 请求
-    └── inject/
-        ├── bridge.js                # 基础通信桥（initialization_script，含 nonce 占位符）
-        ├── selector-picker.js       # 元素选择器（按需 eval 注入）
-        └── api-sniffer.js           # 网络 Hook（initialization_script）
+src-tauri/src/web_distillery/        # Rust 模块遵循 2018+ 规范，作为 commands 下的子模块（在编译配置中按需启用）
+├── fetcher.rs                       # Level 0: reqwest HTTP 请求
+├── webview.rs                       # 子 Webview 生命周期管理 (独立窗口方案)
+└── inject/
+    ├── bridge.js                    # 基础通信桥
+    ├── selector-picker.js           # 元素选择器
+    └── api-sniffer.js               # 网络 Hook
 ```
 
 > 📝 `inject/` 下的 `.js` 文件通过 `include_str!()` 在编译时嵌入 Rust 二进制，不走前端构建管道。
@@ -696,22 +704,54 @@ sequenceDiagram
 
 ---
 
-## 10. 实施优先级
+## 10. Site Recipe (站点配方) 系统 [P3 核心]
 
-| 优先级 | 内容                                                     | 状态 | 说明                                      |
-| ------ | -------------------------------------------------------- | ---- | ----------------------------------------- |
-| **P0** | Level 0: `quickFetch` + 清洗管道基础版                   | ✅   | 最快交付可用的 Agent 工具                 |
-| **P1** | 子 Webview 创建 + bounds 同步 + postMessage 通信链路     | ✅   | Level 1/2 的地基                          |
-| **P2** | Level 1: `smartExtract`（headless Webview + 自动提取）   | ✅   | Agent 的重量级选项                        |
-| **P3** | Level 2 UI：地址栏 + Inspect 模式 + 预览面板             | ⏳   | 目前仅为 UI 占位，交互逻辑未实现          |
-| **P4** | API Sniffer + Cookie Lab（v1: 基础读写）                 | ⏳   | 仅实现基础读写，缺乏持久化与 Profile 管理 |
-| **P5** | 清洗管道高级功能（图片本地化、分页合并） + Cookie Lab v2 | ⏳   | 极致体验                                  |
+Level 2 从"一次性选元素工具"进化为**站点配方编辑器**。用户在交互模式中配置的规则会持久化，反哺 Level 0/1 实现闭环。
+
+### 10.1 闭环架构
+
+```
+Level 2 (编辑配方)
+  ├── 手动编排动作序列 (Action Editor：点击、滚动、等待)
+  ├── 可视化确立提取/排除规则 (Selector Picker)
+  └── 保存 Recipe (按域名 + glob pathPattern 持久化)
+        │
+        ▼ 反哺
+Level 0/1 (自动调用)
+  ├── 拦截目标 URL
+  ├── 查找本地有无命中该域名和路径规则的 Recipe
+  ├── 有配方 → 子 Webview 加载 → 依次回放 ActionStep → 使用专属 Selector 提取
+  └── 无配方 → 降级为默认 Readability 算法智能提取
+```
+
+### 10.2 动作序列机制
+
+配方支持定义提取前的预操作，专门突破“触发后可见”的动态内容（懒加载、深层评论、遮罩拦截）：
+
+- `type: 'scroll'` (向下滚动触发懒加载)
+- `type: 'click'` (点击“展开更多”)
+- `type: 'wait'` (等待特定元素渲染)
+- `type: 'remove'` (切除“请登录查看”等干扰 DOM)
+
+---
+
+## 11. 实施优先级
+
+| 优先级  | 内容                                                     | 状态 | 说明                                 |
+| ------- | -------------------------------------------------------- | ---- | ------------------------------------ |
+| **P0**  | Level 0: `quickFetch` + 清洗管道基础版                   | ✅   | 已交付可用的 Agent 工具              |
+| **P1**  | 子 Webview 方案切换（独立无边框窗口模式）                | ✅   | 成功绕过 `add_child` 的拖拽失效陷阱  |
+| **P2**  | Level 1: `smartExtract`（headless Webview + 自动提取）   | ✅   | 已上线                               |
+| **P3a** | Site Recipe 系统：动作回放、选择器管理与持久化           | ✅   | 核心路径已通，支持自动识别配方并执行 |
+| **P3b** | 交互模式增强：用户行为自动录制转配方                     | ⏳   | 留待后续迭代：让配方构建更傻瓜化     |
+| **P4**  | API Sniffer + Cookie Lab（v1: 基于 JS 注入）             | ✅   | 功能已成形，V1 版本已可用            |
+| **P5**  | 清洗管道高级功能（图片本地化、分页合并） + Cookie Lab v2 | ⏳   | 极致体验项目                         |
 
 P0 优先——让 Agent 先能用上一个高质量的 `quickFetch`，比等待完整的 Webview 方案更有价值。
 
 ---
 
-## 11. 极致体验细节
+## 12. 极致体验细节
 
 - **身份卡片**：Cookie Profile 持久化存储，按域名分组，一键切换账号
 - **DOM 冻结**：提取完成后可"冻结"当前 DOM，防止动态内容变化影响结果

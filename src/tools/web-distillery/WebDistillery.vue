@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { LayoutDashboard, Cookie, Network } from "lucide-vue-next";
+import { LayoutDashboard, Cookie, Network, BookOpen } from "lucide-vue-next";
 
 // 组件导入
 import DistilleryWorkbench from "./components/DistilleryWorkbench.vue";
 import ApiSniffer from "./components/ApiSniffer.vue";
 import CookieLab from "./components/CookieLab.vue";
+import RecipeManager from "./components/RecipeManager.vue";
 
 const activeTab = ref("workbench");
 </script>
@@ -22,6 +23,17 @@ const activeTab = ref("workbench");
           </div>
         </template>
         <DistilleryWorkbench />
+      </el-tab-pane>
+
+      <!-- 站点配方 -->
+      <el-tab-pane name="recipes">
+        <template #label>
+          <div class="tab-label">
+            <el-icon><BookOpen /></el-icon>
+            <span>站点配方</span>
+          </div>
+        </template>
+        <RecipeManager />
       </el-tab-pane>
 
       <!-- Cookie 实验室 -->

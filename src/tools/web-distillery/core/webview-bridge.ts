@@ -18,6 +18,7 @@ export class WebviewBridge {
   private unlisten: (() => void) | null = null;
   private domExtractedCallbacks: DomExtractedCallback[] = [];
   private cookieExtractedCallbacks: ((cookies: string, url: string) => void)[] = [];
+  private elementSelectedCallbacks: ((data: any) => void)[] = [];
 
   private constructor() {}
 
@@ -80,12 +81,34 @@ export class WebviewBridge {
         break;
 
       case "element-selected":
-        console.log("[Distillery Bridge] Element selected:", payload.data);
+        this.elementSelectedCallbacks.forEach((cb) => cb(payload.data));
         break;
 
       default:
         console.log("[Distillery Bridge] Received unknown message:", payload);
     }
+  }
+
+  /** 获取选择器拾取脚本内容 */
+  private async getPickerScript(): Promise<string> {
+    // 简单起见，这里通过 fetch 加载。
+    // 注意：路径相对于 index.html 所在的运行目录
+    const response = await fetch("/src/tools/web-distillery/inject/selector-picker.js");
+    return await response.text();
+  }
+
+  /** 开启元素拾取模式 */
+  public async enablePicker(onSelected: (data: any) => void) {
+    const script = await this.getPickerScript();
+    await this.evalScript(script);
+    await this.evalScript(`window.__distillerySelectorPicker.enable()`);
+    this.elementSelectedCallbacks.push(onSelected);
+  }
+
+  /** 关闭元素拾取模式 */
+  public async disablePicker() {
+    await this.evalScript(`window.__distillerySelectorPicker.disable()`);
+    this.elementSelectedCallbacks = [];
   }
 
   /** 等待并获取 DOM 提取结果（Promise 封装） */

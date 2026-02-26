@@ -31,7 +31,7 @@ pub struct CreateWebviewOptions {
     // pub headless: Option<bool>,
 }
 
-/// 创建子 Webview
+/// 创建子 Webview (独立窗口模式以修复主窗口拖拽失效问题)
 #[tauri::command]
 pub async fn distillery_create_webview(
     app: AppHandle,
@@ -43,7 +43,7 @@ pub async fn distillery_create_webview(
     let _ = distillery_destroy_webview(app.clone()).await;
 
     log::info!(
-        "[Distillery] Creating sub-webview: {} at ({}, {}) {}x{}",
+        "[Distillery] Creating sub-window: {} at ({}, {}) {}x{}",
         options.url,
         options.x,
         options.y,
@@ -61,12 +61,7 @@ pub async fn distillery_create_webview(
         sniffer_inject
     );
 
-    // 3. 通过 get_webview("main") 获取主 webview，然后通过其 .window() 得到 Window<R>
-    //    再在 Window 上调用 add_child（需要 unstable feature）
-    let main_webview = app.get_webview("main").ok_or("Cannot find main webview")?;
-
-    let main_window = main_webview.window();
-
+    // 3. 解析 URL
     let url = WebviewUrl::External(
         options
             .url
@@ -74,24 +69,47 @@ pub async fn distillery_create_webview(
             .map_err(|e| format!("Invalid URL: {}", e))?,
     );
 
-    let builder = WebviewBuilder::new(label, url)
+    // 4. 使用 WebviewWindowBuilder 创建独立无边框窗口
+    // 注意：这里不再使用 main_window.add_child()，而是创建一个完全独立的窗口
+    let mut builder = tauri::WebviewWindowBuilder::new(&app, label, url)
         .initialization_script(&final_inject)
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .decorations(false) // 无边框
+        .shadow(false)      // 无阴影（贴合感）
+        .transparent(true)  // 透明支持
+        .visible(false)     // 初始不可见，等位置调整后再显示
+        .skip_taskbar(true) // 不在任务栏显示
+        .always_on_top(true); // 悬浮在主窗口之上
 
-    // add_child 在 unstable feature 下可用
-    let _webview = main_window
-        .add_child(
-            builder,
-            tauri::LogicalPosition::new(options.x, options.y),
-            tauri::LogicalSize::new(options.width, options.height),
-        )
-        .map_err(|e| format!("Failed to create child webview: {}", e))?;
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
+    }
 
-    // 4. 记录状态
+    let window = builder
+        .build()
+        .map_err(|e| format!("Failed to create sub-window: {}", e))?;
+
+    // 5. 设置初始位置和大小 (逻辑坐标转物理坐标由 Tauri 处理或手动同步)
+    window
+        .set_position(tauri::LogicalPosition::new(options.x, options.y))
+        .map_err(|e| format!("Failed to set position: {}", e))?;
+    window
+        .set_size(tauri::LogicalSize::new(options.width, options.height))
+        .map_err(|e| format!("Failed to set size: {}", e))?;
+
+    // 6. 记录状态
     {
         let mut manager = WEBVIEW_MANAGER.active_labels.lock().unwrap();
         manager.insert(label.to_string(), nonce);
     }
+
+    // 延迟显示以防视觉闪烁
+    let window_clone = window.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        let _ = window_clone.show();
+    });
 
     Ok(())
 }
@@ -100,13 +118,13 @@ pub async fn distillery_create_webview(
 #[tauri::command]
 pub async fn distillery_navigate(app: AppHandle, url: String) -> Result<(), String> {
     let label = "web-distillery-sub";
-    if let Some(webview) = app.get_webview(label) {
-        webview
+    if let Some(window) = app.get_webview_window(label) {
+        window
             .navigate(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
             .map_err(|e| format!("Navigation failed: {}", e))?;
         Ok(())
     } else {
-        Err("Sub-webview not found".into())
+        Err("Sub-window not found".into())
     }
 }
 
@@ -120,9 +138,9 @@ pub async fn distillery_destroy_webview(app: AppHandle) -> Result<(), String> {
         manager.remove(label);
     }
 
-    if let Some(webview) = app.get_webview(label) {
-        let _ = webview.eval("window.location.href = 'about:blank'");
-        log::info!("[Distillery] Sub-webview navigated to blank");
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.close();
+        log::info!("[Distillery] Sub-window closed");
     }
 
     Ok(())
@@ -138,16 +156,16 @@ pub async fn distillery_resize(
     height: f64,
 ) -> Result<(), String> {
     let label = "web-distillery-sub";
-    if let Some(webview) = app.get_webview(label) {
-        webview
+    if let Some(window) = app.get_webview_window(label) {
+        window
             .set_position(tauri::LogicalPosition::new(x, y))
             .map_err(|e| format!("Reposition failed: {}", e))?;
-        webview
+        window
             .set_size(tauri::LogicalSize::new(width, height))
             .map_err(|e| format!("Resize failed: {}", e))?;
         Ok(())
     } else {
-        Err("Sub-webview not found".into())
+        Err("Sub-window not found".into())
     }
 }
 
@@ -155,13 +173,13 @@ pub async fn distillery_resize(
 #[tauri::command]
 pub async fn distillery_eval(app: AppHandle, script: String) -> Result<(), String> {
     let label = "web-distillery-sub";
-    if let Some(webview) = app.get_webview(label) {
-        webview
+    if let Some(window) = app.get_webview_window(label) {
+        window
             .eval(&script)
             .map_err(|e| format!("Eval failed: {}", e))?;
         Ok(())
     } else {
-        Err("Sub-webview not found".into())
+        Err("Sub-window not found".into())
     }
 }
 
@@ -176,9 +194,9 @@ pub async fn distillery_extract_dom(
     let label = "web-distillery-sub";
     let timeout_ms = wait_timeout_ms.unwrap_or(10000);
 
-    let webview = app
-        .get_webview(label)
-        .ok_or_else(|| "Sub-webview not found".to_string())?;
+    let window = app
+        .get_webview_window(label)
+        .ok_or_else(|| "Sub-window not found".to_string())?;
 
     // 等待页面就绪
     let wait_ms = if wait_for.is_some() {
@@ -225,7 +243,7 @@ pub async fn distillery_extract_dom(
         selector_check
     );
 
-    webview
+    window
         .eval(&extract_script)
         .map_err(|e| format!("Eval DOM extraction script failed: {}", e))?;
 
@@ -236,13 +254,10 @@ pub async fn distillery_extract_dom(
 #[tauri::command]
 pub async fn distillery_get_cookies(app: AppHandle) -> Result<String, String> {
     let label = "web-distillery-sub";
-    let webview = app
-        .get_webview(label)
-        .ok_or_else(|| "Sub-webview not found".to_string())?;
+    let window = app
+        .get_webview_window(label)
+        .ok_or_else(|| "Sub-window not found".to_string())?;
 
-    // 注意：eval 无法直接返回结果到 Rust，这里我们通过 bridge 回传事件，或者直接 eval 返回
-    // 在 Tauri v2 中，webview.eval 只是触发执行。
-    // 为了简单且符合当前架构，我们让前端通过 eval 获取结果，或者这里我们用 eval 发送事件。
     let script = r#"
         (function() {
             if (window.__DISTILLERY_BRIDGE__) {
@@ -254,7 +269,7 @@ pub async fn distillery_get_cookies(app: AppHandle) -> Result<String, String> {
         })();
     "#;
 
-    webview
+    window
         .eval(script)
         .map_err(|e| format!("Eval get_cookies failed: {}", e))?;
 
@@ -265,16 +280,16 @@ pub async fn distillery_get_cookies(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn distillery_set_cookie(app: AppHandle, cookie_str: String) -> Result<(), String> {
     let label = "web-distillery-sub";
-    let webview = app
-        .get_webview(label)
-        .ok_or_else(|| "Sub-webview not found".to_string())?;
+    let window = app
+        .get_webview_window(label)
+        .ok_or_else(|| "Sub-window not found".to_string())?;
 
     let script = format!(
         "document.cookie = {};",
         serde_json::to_string(&cookie_str).unwrap()
     );
 
-    webview
+    window
         .eval(&script)
         .map_err(|e| format!("Eval set_cookie failed: {}", e))?;
 

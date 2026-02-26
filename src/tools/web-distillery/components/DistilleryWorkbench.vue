@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onUnmounted, watch } from "vue";
 import { useWebDistilleryStore } from "../stores/store";
 import { quickFetch, smartExtract } from "../actions";
 import { webviewBridge } from "../core/webview-bridge";
@@ -7,10 +7,13 @@ import { customMessage } from "@/utils/customMessage";
 import { useNotification } from "@/composables/useNotification";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { Loading } from "@element-plus/icons-vue";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";
 import PreviewPanel from "./PreviewPanel.vue";
+import RecipeEditor from "./RecipeEditor.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery/workbench");
 const logger = createModuleLogger("web-distillery/workbench");
@@ -21,8 +24,13 @@ const store = useWebDistilleryStore();
 const currentUrl = ref("");
 const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
+const webviewPlaceholder = ref<HTMLElement | null>(null);
+const isInteractive = computed(() => store.isInteractiveMode);
 
-const activeLevel = computed(() => (store.result ? (store.result.level as 0 | 1) : 0));
+const activeLevel = computed(() => {
+  if (store.isInteractiveMode) return 2;
+  return store.result ? (store.result.level as 0 | 1) : 0;
+});
 
 const qualityPercent = computed(() => Math.round((store.result?.quality ?? 0) * 100));
 const qualityStatus = computed(() => {
@@ -32,7 +40,69 @@ const qualityStatus = computed(() => {
   return "exception";
 });
 
-async function handleFetch(level: 0 | 1) {
+// --- Webview 坐标同步逻辑 ---
+let resizeObserver: ResizeObserver | null = null;
+let syncTimer: any = null;
+
+async function syncWebviewBounds() {
+  if (!webviewPlaceholder.value || !store.isInteractiveMode) return;
+
+  const rect = webviewPlaceholder.value.getBoundingClientRect();
+  const mainWindow = getCurrentWebviewWindow();
+  const factor = await mainWindow.scaleFactor();
+
+  // 获取主窗口在屏幕上的绝对位置 (物理单位)
+  const outerPos = await mainWindow.outerPosition();
+
+  // 计算子窗口在屏幕上的绝对位置 (逻辑单位)
+  // rect 是相对于视口的逻辑坐标
+  const x = outerPos.x / factor + rect.left;
+  // 32px 是标题栏的大致高度，Tauri v2 的 outerPosition 包含标题栏
+  const y = outerPos.y / factor + rect.top + 32;
+
+  await webviewBridge.resize(x, y, rect.width, rect.height);
+}
+
+const startSyncing = () => {
+  if (!resizeObserver) {
+    resizeObserver = new ResizeObserver(() => {
+      // 使用 requestAnimationFrame 防抖/节流提高性能
+      if (syncTimer) cancelAnimationFrame(syncTimer);
+      syncTimer = requestAnimationFrame(() => syncWebviewBounds());
+    });
+  }
+  if (webviewPlaceholder.value) {
+    resizeObserver.observe(webviewPlaceholder.value);
+  }
+  syncWebviewBounds();
+};
+
+const stopSyncing = () => {
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+  }
+  webviewBridge.destroy();
+};
+
+watch(
+  () => store.isInteractiveMode,
+  (val) => {
+    if (val) {
+      setTimeout(startSyncing, 100); // 等待 DOM 渲染
+      if (currentUrl.value) {
+        handleFetch(2);
+      }
+    } else {
+      stopSyncing();
+    }
+  }
+);
+
+onUnmounted(() => {
+  stopSyncing();
+});
+
+async function handleFetch(level: 0 | 1 | 2) {
   const url = currentUrl.value.trim();
   if (!url) {
     customMessage.warning("请输入目标 URL");
@@ -55,16 +125,33 @@ async function handleFetch(level: 0 | 1) {
           source: "web-distillery",
         });
       }
-    } else {
+    } else if (level === 1) {
       await webviewBridge.init();
       const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });
       if (!result) return;
 
       store.setResult(result as any);
+    } else if (level === 2) {
+      await webviewBridge.init();
+      // 这里确保 DOM 已渲染以便拿到 rect
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const rect = webviewPlaceholder.value?.getBoundingClientRect() || { left: 0, top: 0, width: 800, height: 600 };
+
+      const mainWindow = getCurrentWebviewWindow();
+      const factor = await mainWindow.scaleFactor();
+      const outerPos = await mainWindow.outerPosition();
+
+      await webviewBridge.createWebview({
+        url,
+        x: outerPos.x / factor + rect.left,
+        y: outerPos.y / factor + rect.top + 32,
+        width: rect.width,
+        height: rect.height,
+      });
     }
-    customMessage.success("蒸馏完成");
+    customMessage.success(level === 2 ? "浏览器已就绪" : "蒸馏完成");
   } catch (err: any) {
-    errorHandler.error(err, "蒸馏失败", { url, level });
+    errorHandler.error(err, "操作失败", { url, level });
     errorMsg.value = err?.message || "未知错误";
     store.setError(errorMsg.value || "未知错误");
   } finally {
@@ -74,11 +161,11 @@ async function handleFetch(level: 0 | 1) {
 }
 
 async function handleRefresh() {
-  if (currentUrl.value) await handleFetch(activeLevel.value);
+  if (currentUrl.value) await handleFetch(activeLevel.value as any);
 }
 
 function openInteractive() {
-  customMessage.info("交互式模式 (Level 2) 即将推出");
+  store.setInteractiveMode(!store.isInteractiveMode);
 }
 </script>
 
@@ -95,53 +182,77 @@ function openInteractive() {
     />
 
     <div class="workbench-main">
-      <!-- 结果预览区 -->
-      <div class="preview-container">
-        <PreviewPanel :result="store.result" :loading="isLoading" :error="errorMsg" @refresh="handleRefresh" />
-      </div>
-
-      <!-- 右侧基础信息侧栏 -->
-      <aside v-if="store.result" class="side-panel">
-        <div class="panel-section">
-          <div class="section-title">提取质量</div>
-          <div class="quality-card">
-            <div class="quality-header">
-              <span class="quality-label">Level {{ store.result.level }}</span>
-              <el-tag size="small" :type="qualityStatus">{{ qualityPercent }}%</el-tag>
+      <!-- Level 2: 交互模式双面板 -->
+      <template v-if="isInteractive">
+        <div class="interactive-container">
+          <!-- 左侧：浏览器占位符 -->
+          <div ref="webviewPlaceholder" class="webview-viewport">
+            <div v-if="isLoading" class="webview-mask">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>正在初始化浏览器...</span>
             </div>
-            <el-progress :percentage="qualityPercent" :status="qualityStatus" :stroke-width="4" :show-text="false" />
-          </div>
-        </div>
-
-        <div class="panel-section">
-          <div class="section-title">页面信息</div>
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">字数</span>
-              <span class="info-value">{{ store.result.contentLength?.toLocaleString() }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">格式</span>
-              <span class="info-value">{{ store.result.format?.toUpperCase() }}</span>
-            </div>
-            <div v-if="store.result.metadata?.language" class="info-item">
-              <span class="info-label">语言</span>
-              <span class="info-value">{{ store.result.metadata.language }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">提取时间</span>
-              <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
+            <div class="webview-tip">
+              <h3>独立的交互窗口已叠加在此区域</h3>
+              <p>您可以在左侧窗口操作网页，右侧配置规则</p>
             </div>
           </div>
-        </div>
 
-        <div v-if="store.result.warnings?.length" class="panel-section">
-          <div class="section-title warning">提取警告</div>
-          <div class="warning-box">
-            <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
+          <!-- 右侧：配方编辑器 -->
+          <div class="recipe-panel">
+            <RecipeEditor />
           </div>
         </div>
-      </aside>
+      </template>
+
+      <!-- Level 0/1: 结果预览区 -->
+      <template v-else>
+        <div class="preview-container">
+          <PreviewPanel :result="store.result" :loading="isLoading" :error="errorMsg" @refresh="handleRefresh" />
+        </div>
+
+        <!-- 右侧基础信息侧栏 -->
+        <aside v-if="store.result" class="side-panel">
+          <div class="panel-section">
+            <div class="section-title">提取质量</div>
+            <div class="quality-card">
+              <div class="quality-header">
+                <span class="quality-label">Level {{ store.result.level }}</span>
+                <el-tag size="small" :type="qualityStatus">{{ qualityPercent }}%</el-tag>
+              </div>
+              <el-progress :percentage="qualityPercent" :status="qualityStatus" :stroke-width="4" :show-text="false" />
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <div class="section-title">页面信息</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">字数</span>
+                <span class="info-value">{{ store.result.contentLength?.toLocaleString() }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">格式</span>
+                <span class="info-value">{{ store.result.format?.toUpperCase() }}</span>
+              </div>
+              <div v-if="store.result.metadata?.language" class="info-item">
+                <span class="info-label">语言</span>
+                <span class="info-value">{{ store.result.metadata.language }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">提取时间</span>
+                <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="store.result.warnings?.length" class="panel-section">
+            <div class="section-title warning">提取警告</div>
+            <div class="warning-box">
+              <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
+            </div>
+          </div>
+        </aside>
+      </template>
     </div>
   </div>
 </template>
@@ -158,6 +269,7 @@ function openInteractive() {
   flex: 1;
   display: flex;
   overflow: hidden;
+  position: relative;
 }
 
 .preview-container {
@@ -165,6 +277,77 @@ function openInteractive() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Level 2 交互模式容器 */
+.interactive-container {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-color-page);
+}
+
+.webview-viewport {
+  flex: 1;
+  min-width: 400px;
+  background-color: #000;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--border-color);
+}
+
+.webview-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.webview-tip {
+  text-align: center;
+  color: #666;
+  pointer-events: none;
+}
+
+.webview-tip h3 {
+  margin-bottom: 8px;
+  color: #888;
+}
+
+.recipe-panel {
+  width: 400px;
+  background-color: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.recipe-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-color-light);
+  gap: 16px;
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  opacity: 0.5;
 }
 
 /* 右侧边栏 */

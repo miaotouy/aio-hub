@@ -4,6 +4,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { transformer } from "./core/transformer";
 import { webviewBridge } from "./core/webview-bridge";
+import { actionRunner } from "./core/action-runner";
+import { recipeStore } from "./core/recipe-store";
 import type { QuickFetchOptions, SmartExtractOptions, FetchResult, ExtractResult, RawFetchPayload } from "./types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -46,34 +48,50 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
       // 1. 初始化 IPC 监听桥
       await webviewBridge.init();
 
-      // 2. 创建 headless 子 Webview 并加载目标页面
-      //    放到一个不可见的区域（0,0 且宽高为 1x1）
+      // 2. 查找是否有匹配的配方
+      const matchedRecipe = await recipeStore.findBestMatch(options.url);
+      if (matchedRecipe) {
+        logger.info("Found matched recipe", { id: matchedRecipe.id, name: matchedRecipe.name });
+      }
+
+      // 3. 创建 headless 子 Webview 并加载目标页面
       await webviewBridge.createWebview({
         url: options.url,
-        x: 0,
-        y: 0,
+        x: -2000, // 确保在屏幕外
+        y: -2000,
         width: 1280,
         height: 900,
         headless: true,
       });
 
-      // 3. 并行等待：DOM 提取触发 + 超时
+      // 4. 如果有配方动作，执行它们
+      if (matchedRecipe?.actions?.length) {
+        logger.info("Executing recipe actions", { count: matchedRecipe.actions.length });
+        await actionRunner.runSequence(matchedRecipe.actions);
+      }
+
+      // 5. 并行等待：DOM 提取触发 + 超时
       const waitTimeout = options.waitTimeout || 15000;
+      const combinedWaitFor = options.waitFor || (matchedRecipe?.extractSelectors?.[0]);
 
-      // 触发带 waitFor 的提取命令
-      await webviewBridge.extractDom(options.waitFor, waitTimeout);
+      // 触发带 selector 的提取命令
+      await webviewBridge.extractDom(combinedWaitFor, waitTimeout);
 
-      // 4. 等待 dom-extracted 事件从子 Webview 回传
+      // 6. 等待 dom-extracted 事件从子 Webview 回传
       const extracted = await webviewBridge.waitForDomExtracted(waitTimeout + 2000);
 
-      // 5. 销毁 headless Webview
+      // 7. 销毁 headless Webview
       await webviewBridge.destroy();
 
-      // 6. 用前端管道清洗 HTML
-      const result = await transformer.transform(extracted.html, {
+      // 8. 用前端管道清洗 HTML
+      // 这里的 include/exclude 优先级：options > recipe
+      const finalOptions = {
         ...options,
-        url: extracted.url || options.url,
-      });
+        includeSelectors: options.extractSelectors || matchedRecipe?.extractSelectors,
+        excludeSelectors: options.excludeSelectors || matchedRecipe?.excludeSelectors,
+      };
+
+      const result = await transformer.transform(extracted.html, finalOptions);
 
       return {
         ...result,

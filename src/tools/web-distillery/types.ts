@@ -82,3 +82,32 @@ export interface RawFetchPayload {
   statusCode: number;
   responseHeaders: Record<string, string>;
 }
+
+/**
+ * P3: 站点配方 (Site Recipe)
+ */
+export interface SiteRecipe {
+  id: string;
+  name: string;
+  domain: string;
+  pathPattern?: string; // glob 通配符
+  actions?: ActionStep[];
+  extractSelectors?: string[];
+  excludeSelectors?: string[];
+  cookieProfile?: string;
+  createdAt: string;
+  updatedAt: string;
+  useCount: number;
+}
+
+/**
+ * 动作步骤
+ */
+export type ActionStep =
+  | { type: "click"; selector: string; description?: string }
+  | { type: "scroll"; selector?: string; distance?: number; toBottom?: boolean }
+  | { type: "wait"; value?: number; selector?: string; timeout?: number }
+  | { type: "wait-idle"; timeout?: number }
+  | { type: "remove"; selector: string }
+  | { type: "input"; selector: string; value: string }
+  | { type: "hover"; selector: string };

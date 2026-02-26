@@ -1,10 +1,12 @@
 import { defineStore } from "pinia";
-import type { FetchResult, ApiInfo } from "../types";
+import type { FetchResult, ApiInfo, SiteRecipe } from "../types";
 
 interface WebDistilleryState {
   url: string;
   result: FetchResult | null;
   isLoading: boolean;
+  isInteractiveMode: boolean; // 是否处于 Level 2 交互模式
+  currentRecipe: Partial<SiteRecipe> | null; // 当前编辑中的配方
   error: string | null;
   cookieProfiles: string[];
   discoveredApis: ApiInfo[];
@@ -19,6 +21,8 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
     url: "",
     result: null,
     isLoading: false,
+    isInteractiveMode: false,
+    currentRecipe: null,
     error: null,
     cookieProfiles: [],
     discoveredApis: [],
@@ -29,6 +33,13 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
   }),
 
   actions: {
+    setInteractiveMode(active: boolean) {
+      this.isInteractiveMode = active;
+    },
+
+    setCurrentRecipe(recipe: Partial<SiteRecipe> | null) {
+      this.currentRecipe = recipe;
+    },
     setUrl(url: string) {
       this.url = url;
     },

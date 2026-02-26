@@ -446,7 +446,11 @@ const getTaskDuration = (task: TranscriptionTask) => {
                   @click="handleCancel(row.assetId)"
                 />
               </el-tooltip>
-              <el-tooltip v-if="row.status === 'completed'" content="查看结果" placement="top">
+              <el-tooltip
+                v-if="row.status === 'completed' || (row.status === 'error' && row.resultPath)"
+                :content="row.status === 'error' ? '查看旧转写结果' : '查看结果'"
+                placement="top"
+              >
                 <el-button
                   :icon="FileText"
                   circle

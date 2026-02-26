@@ -231,8 +231,20 @@ const handleTranscriptionClick = async (e: Event) => {
     return;
   }
 
-  if (transcriptionStatus.value === "success" || transcriptionStatus.value === "warning") {
+  if (
+    transcriptionStatus.value === "success" ||
+    transcriptionStatus.value === "warning" ||
+    transcriptionStatus.value === "error"
+  ) {
     const text = await getTranscriptionText(internalAsset.value);
+
+    // 如果是错误状态且没有旧内容，则直接重试
+    if (transcriptionStatus.value === "error" && !text) {
+      retryTranscription(internalAsset.value);
+      return;
+    }
+
+    // 否则打开查看器（如果有内容，即使是 error 也可以看旧的）
     transcriptionViewer.show({
       asset: internalAsset.value,
       initialContent: text || "",
@@ -250,8 +262,6 @@ const handleTranscriptionClick = async (e: Event) => {
         transcriptionViewer.close();
       },
     });
-  } else if (transcriptionStatus.value === "error") {
-    retryTranscription(internalAsset.value);
   } else if (transcriptionStatus.value === "none") {
     addTask(internalAsset.value);
   }

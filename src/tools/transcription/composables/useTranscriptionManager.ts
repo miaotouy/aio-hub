@@ -219,7 +219,8 @@ export function useTranscriptionManager() {
    * 获取转写文本
    */
   const getTranscriptionText = async (asset: Asset): Promise<string | null> => {
-    const task = store.tasks.find((t) => t.assetId === asset.id && t.status === "completed" && t.resultPath);
+    // 查找该资产的任务，只要有 resultPath 就可以尝试读取（可能是继承自旧任务的）
+    const task = store.tasks.find((t) => t.assetId === asset.id && t.resultPath);
     let path = task?.resultPath || asset.metadata?.derived?.transcription?.path;
 
     if (!path) return null;

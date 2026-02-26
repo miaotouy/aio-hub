@@ -110,6 +110,15 @@ export const useTranscriptionStore = defineStore("transcription", () => {
       if (existing.status === "processing" || existing.status === "pending") {
         return existing;
       }
+
+      // 如果旧任务已经有结果，将其继承给新任务，防止重试期间 UI 状态彻底丢失
+      if (existing.resultPath && !task.resultPath) {
+        task.resultPath = existing.resultPath;
+      }
+      if (existing.resultText && !task.resultText) {
+        task.resultText = existing.resultText;
+      }
+
       tasks.value.splice(existingIndex, 1);
     }
     tasks.value.push(task);

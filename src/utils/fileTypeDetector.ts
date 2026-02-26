@@ -1,11 +1,11 @@
 import { fileTypeFromBuffer } from "file-type";
 import type { Asset } from "@/types/asset-management";
+import { smartDecode } from "./encoding";
 
 /**
  * 文件类型检测工具
  *
- * 使用 file-type 库读取文件魔数进行精确检测，
- * 并使用扩展名映射作为后备方案
+ * 使用特征匹配、魔数检测、尝试解码以及扩展名映射进行全方位检测
  */
 
 /**
@@ -14,7 +14,6 @@ import type { Asset } from "@/types/asset-management";
  */
 async function readFileHeader(filePath: string): Promise<Uint8Array | null> {
   // 只检测资产库内部文件或临时文件，避免对外部受限路径调用引发 forbidden path 错误
-  // 外部路径通常以 D:\ C:\ 等开头，而资产库路径通常是相对路径或 appdata 协议
   const isExternalPath =
     /^[a-zA-Z]:\\|^[a-zA-Z]:\/|^\//.test(filePath) &&
     !filePath.includes("com.mty.aiohub") &&
@@ -227,7 +226,22 @@ const TEXT_MIME_TYPES = new Set([
 ]);
 
 /**
- * 从文件名获取扩展名
+ * 从文件名获取可能的扩展名序列（剥洋葱式）
+ * 例如 "test.md.resolved" -> ["md.resolved", "resolved"]
+ */
+export function getPossibleExtensions(fileName: string): string[] {
+  const parts = fileName.toLowerCase().split(".");
+  if (parts.length <= 1) return [];
+
+  const extensions: string[] = [];
+  for (let i = 1; i < parts.length; i++) {
+    extensions.push(parts.slice(i).join("."));
+  }
+  return extensions;
+}
+
+/**
+ * 从文件名获取最后一个扩展名
  */
 export function getExtension(fileName: string): string {
   const lastDot = fileName.lastIndexOf(".");
@@ -237,12 +251,21 @@ export function getExtension(fileName: string): string {
 
 /**
  * 基于扩展名推断 MIME 类型（后备方案）
+ * 支持多级扩展名匹配
  */
 function inferMimeTypeFromExtension(fileName: string): string {
-  const ext = getExtension(fileName);
-  // 优先使用自定义的扩展映射，因为它可能包含更具体的类型（如 text/x-vue）
-  // 最后是通用二进制流
-  return MIME_TYPE_MAP[ext] || "application/octet-stream";
+  const extensions = getPossibleExtensions(fileName);
+
+  // 从长到短尝试匹配（优先匹配 .tar.gz 而不是 .gz）
+  for (const ext of extensions) {
+    if (MIME_TYPE_MAP[ext]) {
+      return MIME_TYPE_MAP[ext];
+    }
+  }
+
+  // 如果都不匹配，尝试最后一个扩展名（虽然上面已经涵盖了，但这里作为兜底逻辑清晰一点）
+  const lastExt = getExtension(fileName);
+  return MIME_TYPE_MAP[lastExt] || "application/octet-stream";
 }
 
 /**
@@ -272,28 +295,75 @@ export function determineAssetType(mimeType: string): Asset["type"] {
 }
 
 /**
+ * 尝试通过二进制内容特征识别文本类型
+ */
+function matchTextFeatures(buffer: Uint8Array): string | null {
+  if (buffer.length < 2) return null;
+
+  // 转换为字符串进行前缀匹配（只取前 128 字节就够了）
+  // 尝试几种常见的编码，或者直接用 TextDecoder 宽松模式
+  try {
+    const headerText = new TextDecoder("utf-8").decode(buffer.slice(0, 128)).trim().toLowerCase();
+
+    // 1. 脚本 Shebang
+    if (headerText.startsWith("#!")) {
+      if (headerText.includes("python")) return "text/x-python";
+      if (headerText.includes("sh") || headerText.includes("bash")) return "text/x-sh";
+      if (headerText.includes("node")) return "text/javascript";
+      return "text/plain";
+    }
+
+    // 2. XML / HTML
+    if (headerText.startsWith("<?xml")) return "text/xml";
+    if (headerText.startsWith("<!doctype html") || headerText.startsWith("<html")) return "text/html";
+
+    // 3. JSON / Array
+    if (headerText.startsWith("{") && (headerText.includes('"') || headerText.includes(":"))) return "application/json";
+    if (headerText.startsWith("[") && headerText.includes("{")) return "application/json";
+
+    // 4. YAML
+    if (headerText.startsWith("---")) return "text/yaml";
+
+    // 5. Markdown (虽然特征不明显，但常见 # 开头)
+    if (headerText.startsWith("# ")) return "text/markdown";
+  } catch (e) {
+    // 忽略解码失败
+  }
+
+  return null;
+}
+
+/**
  * 启发式检测 Buffer 是否可能为文本
  */
 function isBufferLikelyText(buffer: Uint8Array): boolean {
   if (buffer.length === 0) return true;
 
-  // 检查前 1024 字节
+  // 1. 检查 BOM
+  if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) return true;
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) return true;
+  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) return true;
+
+  // 2. 检查控制字符
   const checkLength = Math.min(buffer.length, 1024);
-  let nullCount = 0;
+  let controlChars = 0;
 
   for (let i = 0; i < checkLength; i++) {
     const charCode = buffer[i];
-    // 如果包含 NULL 字符，极大概率是二进制文件
+    // 如果包含 NULL 字符，大概率是二进制文件
+    // 但注意：UTF-16 编码会包含大量 NULL，所以如果前面没中 BOM，这里需要谨慎
     if (charCode === 0) {
-      nullCount++;
-      if (nullCount > 0) return false;
-    }
-    // 简单的控制字符检查（除了 TAB, LF, CR）
-    if (charCode < 7 || (charCode > 14 && charCode < 32)) {
-      // 允许少量的控制字符，但如果太多则认为是二进制
-      // 在某些编码下可能会有误判，但对于 UTF-8/ASCII 很准
       return false;
     }
+    // 统计非标准控制字符（除了 TAB, LF, CR）
+    if (charCode < 7 || (charCode > 14 && charCode < 32)) {
+      controlChars++;
+    }
+  }
+
+  // 如果控制字符比例过高（> 10%），则认为是二进制
+  if (controlChars > checkLength * 0.1) {
+    return false;
   }
 
   return true;
@@ -305,44 +375,47 @@ function isBufferLikelyText(buffer: Uint8Array): boolean {
  * @param fileNameHint - 可选的文件名，用于扩展名后备检测
  * @returns MIME 类型字符串
  */
-export async function detectMimeTypeFromBuffer(
-  buffer: Uint8Array,
-  fileNameHint?: string
-): Promise<string> {
-  // 1. 尝试使用 file-type 库通过魔数检测
+export async function detectMimeTypeFromBuffer(buffer: Uint8Array, fileNameHint?: string): Promise<string> {
+  // 1. 文本特征识别 (Fast Path)
+  const featureMime = matchTextFeatures(buffer);
+  if (featureMime) {
+    return featureMime;
+  }
+
+  // 2. 尝试使用 file-type 库通过魔数检测 (Binary Path)
   try {
     const fileType = await fileTypeFromBuffer(buffer.slice(0, 4100));
     if (fileType) {
       return fileType.mime;
     }
   } catch (error) {
-    console.warn("file-type from buffer 检测失败，使用后备方案:", error);
+    // 忽略错误
   }
-  // 2. 启发式文本检测
-  // 如果 file-type 没测出来，且看起来像文本，则默认为 text/plain
+
+  // 3. 启发式文本检测 + 尝试解码 (Trial Path)
   if (isBufferLikelyText(buffer)) {
-    // 如果有文件名提示，我们还是优先根据扩展名拿更精确的类型（如 .ts -> text/typescript）
-    if (fileNameHint) {
-      // 提示可能本身就是一个 MIME 类型
-      if (fileNameHint.includes("/")) {
-        return fileNameHint;
+    try {
+      // 尝试解码，如果成功且没有明显的异常，则视为文本
+      const decoded = smartDecode(buffer.slice(0, 8192));
+      if (decoded && decoded.length > 0) {
+        // 既然是文本，我们根据文件名推断更精确的类型
+        if (fileNameHint) {
+          if (fileNameHint.includes("/")) return fileNameHint;
+          const extMime = inferMimeTypeFromExtension(fileNameHint);
+          if (extMime !== "application/octet-stream") {
+            return extMime;
+          }
+        }
+        return "text/plain";
       }
-
-      const extMime = inferMimeTypeFromExtension(fileNameHint);
-      if (extMime !== "application/octet-stream") {
-        return extMime;
-      }
+    } catch (e) {
+      // 解码失败，不视为文本
     }
-    return "text/plain";
   }
 
-  // 3. 后备方案：基于文件名提示的扩展名推断
+  // 4. 后备方案：基于文件名提示的扩展名推断
   if (fileNameHint) {
-    // 提示可能本身就是一个 MIME 类型
-    if (fileNameHint.includes("/")) {
-      return fileNameHint;
-    }
-    // 否则，将其视为文件名并从扩展名推断
+    if (fileNameHint.includes("/")) return fileNameHint;
     return inferMimeTypeFromExtension(fileNameHint);
   }
 
@@ -392,11 +465,13 @@ export function isTextFile(fileName: string, mimeType: string): boolean {
     return true;
   }
 
-  // 检查扩展名（某些文本文件可能没有被正确识别 MIME 类型）
-  const ext = getExtension(fileName);
-  const extMime = MIME_TYPE_MAP[ext];
-  if (extMime && isTextMimeType(extMime)) {
-    return true;
+  // 检查扩展名（支持多级后缀）
+  const extensions = getPossibleExtensions(fileName);
+  for (const ext of extensions) {
+    const extMime = MIME_TYPE_MAP[ext];
+    if (extMime && isTextMimeType(extMime)) {
+      return true;
+    }
   }
 
   return false;

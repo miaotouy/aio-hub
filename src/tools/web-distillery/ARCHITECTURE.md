@@ -1,6 +1,6 @@
 # Web Distillery (网页蒸馏室)
 
-> **当前状态**：P0-P2 阶段已完成。Level 0/1 核心提取管道已上线。P3-P4 核心功能（Site Recipe, API Sniffer, Cookie Lab V1）已实现，正在进行 UI 集成与优化。
+> **当前状态**：P0-P2 阶段已完成并已启用。Level 0/1 核心提取管道已上线。P3-P4 核心功能（Site Recipe, API Sniffer, Cookie Lab V1）已基本实现，已完成后端命令注册与 UI 联调。
 
 ## 1. 设计哲学：AIO 的网页内容获取方案
 

@@ -4,7 +4,7 @@ mod events;
 mod knowledge;
 mod tray;
 mod utils;
-// mod web_distillery;
+mod web_distillery;
 
 // 导入所需的依赖
 use dirs_next::data_dir;
@@ -591,8 +591,7 @@ pub fn run() {
             knowledge::kb_clone_base,
             knowledge::kb_export_base,
             knowledge::monitor::kb_monitor_heartbeat,
-            // 网页蒸馏室命令 (已禁用，需要重新设计unstable相关的部分)
-            /*
+            // 网页蒸馏室命令
             web_distillery::distillery_quick_fetch,
             web_distillery::distillery_create_webview,
             web_distillery::distillery_navigate,
@@ -602,7 +601,6 @@ pub fn run() {
             web_distillery::distillery_extract_dom,
             web_distillery::distillery_get_cookies,
             web_distillery::distillery_set_cookie,
-            */
         ])
         // 设置应用
         .setup(move |app| {

@@ -2,6 +2,7 @@
  * Web Distillery 核心操作 Facade
  */
 import { invoke } from "@tauri-apps/api/core";
+import router from "@/router";
 import { transformer } from "./core/transformer";
 import { webviewBridge } from "./core/webview-bridge";
 import { actionRunner } from "./core/action-runner";
@@ -107,8 +108,18 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
 }
 
 /**
- * Level 2: 打开交互式 UI (P3 阶段实施)
+ * Level 2: 打开交互式 UI
  */
-export async function openDistillery(_url?: string): Promise<void> {
-  console.log("[Distillery] Interactive mode will be implemented in P3");
+export async function openDistillery(url?: string): Promise<void> {
+  logger.info("Opening interactive UI", { url });
+  
+  // 如果提供了 URL，先更新 store 中的当前 URL
+  if (url) {
+    const { useWebDistilleryStore } = await import("./stores/store");
+    const store = useWebDistilleryStore();
+    store.setUrl(url);
+  }
+
+  // 跳转到工具页面
+  await router.push("/web-distillery");
 }

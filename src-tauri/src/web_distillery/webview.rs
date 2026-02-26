@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, WebviewBuilder, WebviewUrl};
+use tauri::{AppHandle, Manager, WebviewUrl};
 
 /// 网页蒸馏室子 Webview 管理器（记录活跃标签）
 pub struct DistilleryWebviewManager {
@@ -71,7 +71,7 @@ pub async fn distillery_create_webview(
 
     // 4. 使用 WebviewWindowBuilder 创建独立无边框窗口
     // 注意：这里不再使用 main_window.add_child()，而是创建一个完全独立的窗口
-    let mut builder = tauri::WebviewWindowBuilder::new(&app, label, url)
+    let builder = tauri::WebviewWindowBuilder::new(&app, label, url)
         .initialization_script(&final_inject)
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .decorations(false) // 无边框

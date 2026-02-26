@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch } from "vue";
+import { ref, computed, onUnmounted, watch, onMounted } from "vue";
 import { useWebDistilleryStore } from "../stores/store";
 import { quickFetch, smartExtract } from "../actions";
 import { webviewBridge } from "../core/webview-bridge";
@@ -9,6 +9,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Loading } from "@element-plus/icons-vue";
+import InfoCard from "@/components/common/InfoCard.vue";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";
@@ -21,7 +22,7 @@ const notify = useNotification();
 const store = useWebDistilleryStore();
 
 // 状态管理
-const currentUrl = ref("");
+const currentUrl = ref(store.url);
 const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
 const webviewPlaceholder = ref<HTMLElement | null>(null);
@@ -55,9 +56,7 @@ async function syncWebviewBounds() {
   const outerPos = await mainWindow.outerPosition();
 
   // 计算子窗口在屏幕上的绝对位置 (逻辑单位)
-  // rect 是相对于视口的逻辑坐标
   const x = outerPos.x / factor + rect.left;
-  // 32px 是标题栏的大致高度，Tauri v2 的 outerPosition 包含标题栏
   const y = outerPos.y / factor + rect.top + 32;
 
   await webviewBridge.resize(x, y, rect.width, rect.height);
@@ -66,7 +65,6 @@ async function syncWebviewBounds() {
 const startSyncing = () => {
   if (!resizeObserver) {
     resizeObserver = new ResizeObserver(() => {
-      // 使用 requestAnimationFrame 防抖/节流提高性能
       if (syncTimer) cancelAnimationFrame(syncTimer);
       syncTimer = requestAnimationFrame(() => syncWebviewBounds());
     });
@@ -97,6 +95,10 @@ watch(
     }
   }
 );
+
+onMounted(() => {
+  currentUrl.value = store.url;
+});
 
 onUnmounted(() => {
   stopSyncing();
@@ -133,7 +135,6 @@ async function handleFetch(level: 0 | 1 | 2) {
       store.setResult(result as any);
     } else if (level === 2) {
       await webviewBridge.init();
-      // 这里确保 DOM 已渲染以便拿到 rect
       await new Promise((resolve) => setTimeout(resolve, 50));
       const rect = webviewPlaceholder.value?.getBoundingClientRect() || { left: 0, top: 0, width: 800, height: 600 };
 
@@ -212,8 +213,10 @@ function openInteractive() {
 
         <!-- 右侧基础信息侧栏 -->
         <aside v-if="store.result" class="side-panel">
-          <div class="panel-section">
-            <div class="section-title">提取质量</div>
+          <InfoCard>
+            <template #header>
+              <div class="section-title">提取质量</div>
+            </template>
             <div class="quality-card">
               <div class="quality-header">
                 <span class="quality-label">Level {{ store.result.level }}</span>
@@ -221,10 +224,12 @@ function openInteractive() {
               </div>
               <el-progress :percentage="qualityPercent" :status="qualityStatus" :stroke-width="4" :show-text="false" />
             </div>
-          </div>
+          </InfoCard>
 
-          <div class="panel-section">
-            <div class="section-title">页面信息</div>
+          <InfoCard>
+            <template #header>
+              <div class="section-title">页面信息</div>
+            </template>
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">字数</span>
@@ -243,14 +248,16 @@ function openInteractive() {
                 <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
               </div>
             </div>
-          </div>
+          </InfoCard>
 
-          <div v-if="store.result.warnings?.length" class="panel-section">
-            <div class="section-title warning">提取警告</div>
+          <InfoCard v-if="store.result.warnings?.length">
+            <template #header>
+              <div class="section-title warning">提取警告</div>
+            </template>
             <div class="warning-box">
               <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
             </div>
-          </div>
+          </InfoCard>
         </aside>
       </template>
     </div>
@@ -333,39 +340,16 @@ function openInteractive() {
   overflow-y: auto;
 }
 
-.recipe-placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  text-align: center;
-  color: var(--text-color-light);
-  gap: 16px;
-}
-
-.placeholder-icon {
-  font-size: 48px;
-  opacity: 0.5;
-}
-
 /* 右侧边栏 */
 .side-panel {
-  width: 240px;
+  width: 260px;
   border-left: 1px solid var(--border-color);
   background-color: var(--sidebar-bg);
-  padding: 16px;
+  padding: 12px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-.panel-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .section-title {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { LayoutDashboard, Cookie, Network, BookOpen } from "lucide-vue-next";
+import { useWebDistilleryStore } from "./stores/store";
 
 // 组件导入
 import DistilleryWorkbench from "./components/DistilleryWorkbench.vue";
@@ -8,7 +9,12 @@ import ApiSniffer from "./components/ApiSniffer.vue";
 import CookieLab from "./components/CookieLab.vue";
 import RecipeManager from "./components/RecipeManager.vue";
 
+const store = useWebDistilleryStore();
 const activeTab = ref("workbench");
+
+onMounted(async () => {
+  await store.init();
+});
 </script>
 
 <template>

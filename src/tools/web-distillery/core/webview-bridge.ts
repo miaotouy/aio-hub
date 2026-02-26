@@ -145,7 +145,10 @@ export class WebviewBridge {
     height: number;
     headless?: boolean;
   }) {
-    return await invoke("distillery_create_webview", { options });
+    const store = useWebDistilleryStore();
+    const result = await invoke("distillery_create_webview", { options });
+    store.setWebviewCreated(true);
+    return result;
   }
 
   public async navigate(url: string) {
@@ -153,7 +156,10 @@ export class WebviewBridge {
   }
 
   public async destroy() {
-    return await invoke("distillery_destroy_webview");
+    const store = useWebDistilleryStore();
+    const result = await invoke("distillery_destroy_webview");
+    store.setWebviewCreated(false);
+    return result;
   }
 
   public async resize(x: number, y: number, width: number, height: number) {

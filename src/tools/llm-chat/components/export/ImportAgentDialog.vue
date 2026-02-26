@@ -2,6 +2,7 @@
 import { ref, watch } from "vue";
 import type { AgentImportPreflightResult, ResolvedAgentToImport } from "../../stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { getPureModelId, parseModelCombo } from "@/utils/modelIdUtils";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { ElAlert, ElDescriptions, ElDescriptionsItem, ElTag, ElCheckbox } from "element-plus";
@@ -45,11 +46,7 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
     let finalModelId = agent.modelId;
 
     // 处理 modelId 可能包含 profileId 前缀的情况
-    let targetModelId = agent.modelId;
-    if (targetModelId && targetModelId.includes(":")) {
-      const firstColonIndex = targetModelId.indexOf(":");
-      targetModelId = targetModelId.substring(firstColonIndex + 1);
-    }
+    const targetModelId = getPureModelId(agent.modelId);
 
     // 查找本地是否有匹配的模型（即使 modelId 相同，profileId 也可能不同，需要重新匹配）
     const matchedProfile = enabledProfiles.value.find((p) => p.models.some((m) => m.id === targetModelId));
@@ -246,9 +243,7 @@ const handleCancel = () => {
                   :model-value="`${resolvedAgents[index].finalProfileId}:${resolvedAgents[index].finalModelId}`"
                   @update:model-value="
                     (val) => {
-                      const firstColonIndex = val.indexOf(':');
-                      const pId = val.substring(0, firstColonIndex);
-                      const mId = val.substring(firstColonIndex + 1);
+                      const [pId, mId] = parseModelCombo(val);
                       resolvedAgents[index].finalProfileId = pId;
                       resolvedAgents[index].finalModelId = mId;
                     }

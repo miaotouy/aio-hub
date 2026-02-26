@@ -62,6 +62,7 @@ import { ref, computed } from "vue";
 import { useEmbeddingPlaygroundStore } from "./store";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { Scale, Search, Wrench } from "lucide-vue-next";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import RawDebugger from "./components/RawDebugger.vue";
 import SimilarityArena from "./components/SimilarityArena.vue";
@@ -98,7 +99,7 @@ const selectedModelCombo = computed({
       store.selectedModelId = "";
       return;
     }
-    const [profileId, modelId] = val.split(":");
+    const [profileId, modelId] = parseModelCombo(val);
     const profile = enabledProfiles.value.find((p) => p.id === profileId);
     if (profile) {
       store.selectedProfile = profile;

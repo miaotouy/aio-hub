@@ -3,6 +3,7 @@ import type { MediaTask, MediaMessage, MediaTaskType } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useNodeManager } from "./useNodeManager";
 import { createModuleLogger } from "@/utils/logger";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 
 const logger = createModuleLogger("media-generator/task-action-manager");
 
@@ -129,9 +130,7 @@ export function useTaskActionManager(context: {
       const { modelCombo, params: currentParams } = configForType;
 
       // 稳健解析当前选中的模型 ID
-      const [profileId, modelId] = (modelCombo || "").includes(":")
-        ? modelCombo.split(":")
-        : (modelCombo || "").split("/");
+      const [profileId, modelId] = parseModelCombo(modelCombo);
 
       if (!profileId || !modelId) {
         logger.warn("重试失败：当前未选择有效的生成模型");
@@ -180,7 +179,7 @@ export function useTaskActionManager(context: {
       const mediaType = currentConfig.value.activeType;
       const configForType = currentConfig.value.types[mediaType];
       const { modelCombo, params } = configForType;
-      const [profileId, modelId] = (modelCombo || "").split(":");
+      const [profileId, modelId] = parseModelCombo(modelCombo);
 
       return {
         isMediaTask: true,

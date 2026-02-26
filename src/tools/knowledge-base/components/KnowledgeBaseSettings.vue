@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, computed } from "vue";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { useKnowledgeBase } from "../composables/useKnowledgeBase";
-import { getPureModelId } from "../utils/kbUtils";
+import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { useKbIndexer } from "../composables/useKbIndexer";
 import { ChevronLeft, BarChart3, Save, RefreshCw, Zap, Bot } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
@@ -74,7 +74,7 @@ const embeddingModelInfo = computed(() => {
   if (!modelId) return null;
 
   // 解析模型 ID (格式通常为 profileId:modelName)
-  const profileId = modelId.split(":")[0];
+  const profileId = getProfileId(modelId);
   const rawModelName = getPureModelId(modelId);
 
   // 1. 获取模型图标

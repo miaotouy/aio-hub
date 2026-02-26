@@ -2,56 +2,25 @@
  * 知识库工具函数
  */
 
-/**
- * 已知的 Profile ID 前缀
- */
-const KNOWN_PROFILE_PREFIXES = ["llm-profile-", "ocr-profile-"];
+import {
+  getPureModelId as globalGetPureModelId,
+  getProfileId as globalGetProfileId
+} from "@/utils/modelIdUtils";
 
 /**
  * 从 comboId (profileId:modelId) 中提取纯模型 ID
- *
- * 逻辑优化:
- * 1. 优先识别已知前缀，找到第一个冒号，后面部分全部视为模型 ID
- * 2. 避免误伤模型 ID 中自带冒号的情况 (如 local:llama3:latest)
+ * @deprecated 请直接从 @/utils/modelIdUtils 导入 getPureModelId
  */
 export function getPureModelId(comboId: string | null | undefined): string {
-  if (!comboId) return "";
-
-  // 检查是否包含已知前缀
-  const hasKnownPrefix = KNOWN_PROFILE_PREFIXES.some((prefix) => comboId.startsWith(prefix));
-
-  if (hasKnownPrefix) {
-    const firstColonIndex = comboId.indexOf(":");
-    if (firstColonIndex !== -1) {
-      // 返回第一个冒号之后的所有内容
-      return comboId.substring(firstColonIndex + 1);
-    }
-  }
-
-  // 如果没有前缀或没有冒号，回退到旧逻辑或返回原值
-  const parts = comboId.split(":");
-  return parts.length > 1 ? parts.slice(1).join(":") : comboId;
+  return globalGetPureModelId(comboId);
 }
 
 /**
  * 提取 Profile ID (冒号前部分)
+ * @deprecated 请直接从 @/utils/modelIdUtils 导入 getProfileId
  */
 export function getProfileId(comboId: string | null | undefined): string {
-  if (!comboId) return "";
-
-  // 检查是否包含已知前缀
-  const hasKnownPrefix = KNOWN_PROFILE_PREFIXES.some((prefix) => comboId.startsWith(prefix));
-
-  if (hasKnownPrefix) {
-    const firstColonIndex = comboId.indexOf(":");
-    if (firstColonIndex !== -1) {
-      return comboId.substring(0, firstColonIndex);
-    }
-  }
-
-  // 回退逻辑
-  const parts = comboId.split(":");
-  return parts[0];
+  return globalGetProfileId(comboId);
 }
 
 /**

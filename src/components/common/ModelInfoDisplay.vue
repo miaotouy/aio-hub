@@ -26,6 +26,7 @@ import { computed } from "vue";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
 
 const props = withDefaults(
@@ -46,7 +47,7 @@ const { getModelIcon } = useModelMetadata();
 
 const resolvedInfo = computed(() => {
   if (!props.modelCombo) return null;
-  const [profileId, modelId] = props.modelCombo.split(":");
+  const [profileId, modelId] = parseModelCombo(props.modelCombo);
   if (!profileId || !modelId) return null;
   const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
   if (!profile) return null;

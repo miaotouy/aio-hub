@@ -9,6 +9,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { smartDecode } from "@/utils/encoding";
+import { getPureModelId } from "@/utils/modelIdUtils";
 import { remove } from "@tauri-apps/plugin-fs";
 import type { Asset } from "@/types/asset-management";
 import type { TranscriptionTask, ITranscriptionEngine, TranscriptionConfig } from "../types";
@@ -81,7 +82,7 @@ export function useTranscriptionManager() {
       }
 
       const modelIdentifier = pendingTask.overrideConfig?.modelIdentifier || store.config.modelIdentifier;
-      const modelId = modelIdentifier.includes(":") ? modelIdentifier.split(":")[1] : modelIdentifier;
+      const modelId = getPureModelId(modelIdentifier);
 
       const resultPath = await saveTranscriptionResult(
         pendingTask.assetId,

@@ -5,7 +5,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { kbStorage } from "../utils/kbStorage";
-import { getPureModelId } from "../utils/kbUtils";
+import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
 import { syncGlobalTags, syncEntriesVectors } from "../core/kbIndexer";
 import { performGenerateTags, mergeTags } from "../core/tagGenerator";
 
@@ -30,8 +30,7 @@ export function useKbVectorSync() {
       return;
     }
 
-    const profileId = comboId.split(":")[0];
-    const pureModelId = getPureModelId(comboId);
+    const [profileId, pureModelId] = parseModelCombo(comboId);
     const { profiles } = useLlmProfiles();
     const profile = profiles.value.find((p) => p.id === profileId);
     if (!profile) {
@@ -246,7 +245,7 @@ export function useKbVectorSync() {
       return;
     }
 
-    const [profileId] = config.modelId.split(":");
+    const profileId = getProfileId(config.modelId);
     const { profiles } = useLlmProfiles();
     const { sendRequest } = useLlmRequest();
     const profile = profiles.value.find((p) => p.id === profileId);

@@ -2,6 +2,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { convertPdfToImages } from "@/utils/pdfUtils";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";
@@ -22,7 +23,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     const { getProfileById } = useLlmProfiles();
 
     const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "document");
-    const [profileId, modelId] = modelIdentifier.split(":");
+    const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     const profile = getProfileById(profileId);
     const model = profile?.models.find((m) => m.id === modelId);

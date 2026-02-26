@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { Settings, Image, Video, Music, Sparkles, Info } from "lucide-vue-next";
 
@@ -19,7 +20,7 @@ const selectedModelCombo = computed({
 // 解析当前选中的模型信息
 const selectedModelInfo = computed(() => {
   if (!selectedModelCombo.value) return null;
-  const [profileId, modelId] = selectedModelCombo.value.split(":");
+  const [profileId, modelId] = parseModelCombo(selectedModelCombo.value);
   const profile = getProfileById(profileId);
   if (!profile) return null;
   const model = profile.models.find((m) => m.id === modelId);
@@ -176,7 +177,7 @@ watch(
     }
 
     // 降级从元数据预设中读取
-    const [_, modelId] = newCombo.split(":");
+    const [_, modelId] = parseModelCombo(newCombo);
     const props = getMatchedProperties(modelId);
     if (props?.capabilities?.iterativeRefinement !== undefined) {
       store.currentConfig.includeContext = props.capabilities.iterativeRefinement;

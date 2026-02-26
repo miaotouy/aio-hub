@@ -164,6 +164,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
+import { getPureModelId } from "@/utils/modelIdUtils";
 import { Copy, RefreshCw, Info } from "lucide-vue-next";
 import type { Asset } from "@/types/asset-management";
 
@@ -285,7 +286,7 @@ const openRegenerateConfirm = () => {
   if (props.previousConfig) {
     const identifier = props.previousConfig.modelIdentifier;
     if (identifier) {
-      selectedModelId.value = identifier.includes(":") ? identifier.split(":")[1] : identifier;
+      selectedModelId.value = getPureModelId(identifier);
     } else {
       selectedModelId.value = "";
     }

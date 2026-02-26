@@ -16,7 +16,7 @@ import type {
 import { DEFAULT_WORKSPACE_CONFIG, getKnowledgeSettingsConfig } from "../config";
 import { cloneDeep } from "lodash-es";
 import { kbStorage, type WorkspaceData } from "../utils/kbStorage";
-import { getPureModelId } from "../utils/kbUtils";
+import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { performVectorSearch } from "../core/kbIndexer";
 import { vectorCacheManager } from "../utils/vectorCache";
 import { preprocessQuery } from "../utils/queryPreProcessor";
@@ -326,7 +326,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
           return [];
         }
 
-        const [profileId] = comboId.split(":");
+        const profileId = getProfileId(comboId);
         const { profiles } = useLlmProfiles();
         const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
         if (!profile) {

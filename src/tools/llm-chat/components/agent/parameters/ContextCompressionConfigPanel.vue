@@ -7,6 +7,7 @@ import {
   DEFAULT_CONTEXT_COMPRESSION_CONFIG,
 } from "../../../types/llm";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 
@@ -66,7 +67,7 @@ const summaryModelValue = computed({
       config.value.summaryModel = undefined;
       return;
     }
-    const [profileId, modelId] = val.split(":");
+    const [profileId, modelId] = parseModelCombo(val);
     if (profileId && modelId) {
       config.value.summaryModel = { profileId, modelId };
     }

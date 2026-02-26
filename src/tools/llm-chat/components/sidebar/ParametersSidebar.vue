@@ -5,6 +5,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import AgentPresetEditor from "../agent/AgentPresetEditor.vue";
@@ -69,9 +70,7 @@ const selectedModelCombo = computed({
   },
   set: (value: string) => {
     if (!value || !currentAgent.value || !agentStore.currentAgentId) return;
-    const firstColonIndex = value.indexOf(":");
-    const profileId = value.substring(0, firstColonIndex);
-    const modelId = value.substring(firstColonIndex + 1);
+    const [profileId, modelId] = parseModelCombo(value);
     // 直接更新 Agent 的模型配置
     agentStore.updateAgent(agentStore.currentAgentId, { profileId, modelId });
     customMessage.success("模型已更新");

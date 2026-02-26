@@ -1,5 +1,6 @@
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
+import { getPureModelId } from "@/utils/modelIdUtils";
 import { buildMacroContext, processMacros } from "../context-utils/macro";
 import { MacroProcessor } from "@/tools/llm-chat/macro-engine";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
@@ -335,11 +336,7 @@ export const injectionAssembler: ContextProcessor = {
             }
 
             // 2. 尝试匹配模型 ID (modelId)
-            let modelIdPart = modelId;
-            const colonIndex = modelId.indexOf(":");
-            if (colonIndex !== -1) {
-              modelIdPart = modelId.substring(colonIndex + 1);
-            }
+            const modelIdPart = getPureModelId(modelId);
             
             if (modelIdPart && regex.test(modelIdPart)) {
               return true;

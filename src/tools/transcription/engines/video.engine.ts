@@ -4,6 +4,7 @@ import { stat } from "@tauri-apps/plugin-fs";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { createModuleLogger } from "@/utils/logger";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 import { getModelParams, getEffectiveConfig } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
@@ -22,7 +23,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     const { sendRequest, getNetworkStrategy } = useLlmRequest();
 
     const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "video");
-    const [profileId, modelId] = modelIdentifier.split(":");
+    const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     // 1. 获取二进制数据 (处理视频压缩逻辑)
     const assetPath = task.path;

@@ -10,6 +10,7 @@ import { useChatSettings } from "../settings/useChatSettings";
 import { transcriptionRegistry } from "@/tools/transcription/transcription.registry";
 import { useTranscriptionStore } from "@/tools/transcription/stores/transcriptionStore";
 import { saveTranscriptionResult } from "@/tools/transcription/engines/base";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("useTranscriptionManager");
@@ -340,7 +341,7 @@ export function useTranscriptionManager() {
       const fullId = getTranscribeModelIdentifier(asset, currentAgent);
 
       if (fullId) {
-        [refProfileId, refModelId] = fullId.split(":");
+        [refProfileId, refModelId] = parseModelCombo(fullId);
       }
     }
 

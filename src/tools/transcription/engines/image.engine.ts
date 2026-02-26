@@ -1,6 +1,7 @@
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { createModuleLogger } from "@/utils/logger";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import SmartOcrRegistry from "@/tools/smart-ocr/smartOcr.registry";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
@@ -20,7 +21,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
     const { sendRequest } = useLlmRequest();
 
     const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "image");
-    const [profileId, modelId] = modelIdentifier.split(":");
+    const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     if (!profileId || !modelId) {
       throw new Error(`无效的模型标识符: ${modelIdentifier}`);

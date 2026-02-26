@@ -9,6 +9,7 @@ import { useAssetManager } from "@/composables/useAssetManager";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import {
   Send,
   Image as ImageIcon,
@@ -43,7 +44,7 @@ watch(
   },
   (modelCombo) => {
     if (modelCombo) {
-      const [_, modelId] = modelCombo.split(":");
+      const [_, modelId] = parseModelCombo(modelCombo);
       const props = getMatchedProperties(modelId);
       // 如果模型支持迭代微调，默认开启上下文
       if (props?.iterativeRefinement) {
@@ -169,7 +170,7 @@ const handleOptimizePrompt = async () => {
     return;
   }
 
-  const [profileId, modelId] = modelCombo.split(":");
+  const [profileId, modelId] = parseModelCombo(modelCombo);
   if (!profileId || !modelId) {
     customMessage.warning("优化模型配置无效");
     return;
@@ -240,7 +241,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
     return;
   }
 
-  const [profileId, modelId] = modelCombo.split(":");
+  const [profileId, modelId] = parseModelCombo(modelCombo);
   const currentPrompt = prompt.value;
   const currentAttachments = [...store.attachments];
 

@@ -2,6 +2,7 @@ import { ref } from "vue";
 import type { MediaMessage, MediaGeneratorSettings } from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 
 const logger = createModuleLogger("media-generator/ai-logic");
 
@@ -38,9 +39,7 @@ export function useMediaGenAILogic(options: {
     if (!context) return;
 
     // LlmModelSelector 返回的格式通常是 profileId:modelId
-    const [profileId, modelId] = namingConfig.modelCombo.includes(":")
-      ? namingConfig.modelCombo.split(":")
-      : namingConfig.modelCombo.split("/");
+    const [profileId, modelId] = parseModelCombo(namingConfig.modelCombo);
 
     try {
       isNaming.value = true;
@@ -80,9 +79,7 @@ export function useMediaGenAILogic(options: {
     const config = settings.value.translation;
     if (!config.enabled || !config.modelIdentifier || !text) return text;
 
-    const [profileId, modelId] = config.modelIdentifier.includes(":")
-      ? config.modelIdentifier.split(":")
-      : config.modelIdentifier.split("/");
+    const [profileId, modelId] = parseModelCombo(config.modelIdentifier);
 
     try {
       isTranslating.value = true;

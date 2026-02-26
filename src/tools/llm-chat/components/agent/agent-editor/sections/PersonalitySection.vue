@@ -2,6 +2,7 @@
 import { inject, computed, ref, defineAsyncComponent, onMounted, markRaw, h } from "vue";
 import AgentPresetEditor from "@/tools/llm-chat/components/agent/AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
@@ -85,9 +86,7 @@ const handleAction = (actionName: string) => {
 
 const handleModelComboChange = (value: string) => {
   if (value) {
-    const firstColonIndex = value.indexOf(":");
-    const profileId = value.substring(0, firstColonIndex);
-    const modelId = value.substring(firstColonIndex + 1);
+    const [profileId, modelId] = parseModelCombo(value);
     editForm.profileId = profileId;
     editForm.modelId = modelId;
     editForm.modelCombo = value;

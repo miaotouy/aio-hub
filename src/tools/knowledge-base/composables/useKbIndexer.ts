@@ -6,7 +6,8 @@ import { createModuleLogger } from "@/utils/logger";
 import { performIndexEntry, performDimensionDetection } from "../core/kbIndexer";
 import { kbStorage } from "../utils/kbStorage";
 import type { LlmProfile } from "@/types/llm-profiles";
-import { calculateHash, getPureModelId } from "../utils/kbUtils";
+import { calculateHash } from "../utils/kbUtils";
+import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
 
 const errorHandler = createModuleErrorHandler("useKbIndexer");
 const logger = createModuleLogger("useKbIndexer");
@@ -27,8 +28,7 @@ export function useKbIndexer() {
 
     store.loading = true;
     try {
-      const profileId = comboId.split(":")[0];
-      const modelId = getPureModelId(comboId);
+      const [profileId, modelId] = parseModelCombo(comboId);
       const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
       if (!profile) throw new Error("未找到对应模型的配置 Profile");
 
@@ -79,7 +79,7 @@ export function useKbIndexer() {
     store.failedIds.delete(caiuId);
 
     try {
-      const [profileId] = comboId.split(":");
+      const profileId = getProfileId(comboId);
       const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
       if (!profile) throw new Error("未找到模型配置 Profile");
 

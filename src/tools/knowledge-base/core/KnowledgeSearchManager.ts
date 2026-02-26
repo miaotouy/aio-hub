@@ -3,7 +3,7 @@ import { SearchResult } from "../types/search";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { vectorCacheManager } from "../utils/vectorCache";
-import { getPureModelId } from "../utils/kbUtils";
+import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { performIndexEntry } from "./kbIndexer";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import type { LlmProfile } from "@/types/llm-profiles";
@@ -68,7 +68,7 @@ export class KnowledgeSearchManager {
       if (isVectorEngine) {
         if (!options.embeddingModel) throw new Error("请先选择 Embedding 模型");
 
-        const profileId = options.embeddingModel.split(":")[0];
+        const profileId = getProfileId(options.embeddingModel);
         modelId = getPureModelId(options.embeddingModel);
         const profile = options.enabledProfiles.find((p) => p.id === profileId);
         if (!profile) throw new Error("未找到模型配置");

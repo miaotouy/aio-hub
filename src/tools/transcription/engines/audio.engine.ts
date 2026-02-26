@@ -4,6 +4,7 @@ import { stat } from "@tauri-apps/plugin-fs";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { createModuleLogger } from "@/utils/logger";
+import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams, getEffectiveConfig } from "./base";
@@ -26,7 +27,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const { sendRequest, getNetworkStrategy } = useLlmRequest();
 
     const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "audio");
-    const [profileId, modelId] = modelIdentifier.split(":");
+    const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     // 1. 获取资产对象以检查文件大小并处理压缩逻辑
     const assetPath = task.path;

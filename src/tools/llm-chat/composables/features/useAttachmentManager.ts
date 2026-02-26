@@ -62,9 +62,7 @@ export interface UseAttachmentManagerReturn {
  * 附件管理 Composable
  * 用于管理消息的附件列表
  */
-export function useAttachmentManager(
-  options: AttachmentManagerOptions = {}
-): UseAttachmentManagerReturn {
+export function useAttachmentManager(options: AttachmentManagerOptions = {}): UseAttachmentManagerReturn {
   const {
     maxCount = 100,
     maxFileSize = 50 * 1024 * 1024, // 默认 50MB
@@ -73,8 +71,12 @@ export function useAttachmentManager(
   } = options;
 
   const attachments = ref<Asset[]>([]);
-  const isProcessing = ref(false);
   const importCallbacks = new Set<(oldId: string, newAsset: Asset) => void>();
+
+  // 计算是否正在处理：只要有一个资产处于 pending 或 importing 状态
+  const isProcessing = computed(() =>
+    attachments.value.some((a) => a.importStatus === "pending" || a.importStatus === "importing")
+  );
 
   // 在顶层初始化 composables，避免在嵌套函数中调用导致状态获取问题
   const agentStore = useAgentStore();
@@ -466,9 +468,7 @@ export function useAttachmentManager(
     attachments.value.push(...pendingAssets);
 
     const message =
-      pendingAssets.length === 1
-        ? `已添加附件: ${pendingAssets[0].name}`
-        : `已添加 ${pendingAssets.length} 个附件`;
+      pendingAssets.length === 1 ? `已添加附件: ${pendingAssets[0].name}` : `已添加 ${pendingAssets.length} 个附件`;
     customMessage.success(message);
 
     logger.info("附件预览已显示", {
@@ -539,9 +539,7 @@ export function useAttachmentManager(
     const isDuplicate = attachments.value.some(
       (existing) =>
         existing.id === asset.id ||
-        (existing.metadata?.sha256 &&
-          asset.metadata?.sha256 &&
-          existing.metadata.sha256 === asset.metadata.sha256)
+        (existing.metadata?.sha256 && asset.metadata?.sha256 && existing.metadata.sha256 === asset.metadata.sha256)
     );
 
     if (isDuplicate) {
@@ -616,10 +614,7 @@ export function useAttachmentManager(
 
       // 如果本地存在且正在导入（pending/importing），保留本地引用
       // 因为本地引用可能绑定了正在进行的后台任务或回调（如 MessageInput.vue 中的 watch）
-      if (
-        localAsset &&
-        (localAsset.importStatus === "pending" || localAsset.importStatus === "importing")
-      ) {
+      if (localAsset && (localAsset.importStatus === "pending" || localAsset.importStatus === "importing")) {
         mergedAssets.push(localAsset);
       } else {
         // 否则使用同步过来的新资产
@@ -642,9 +637,8 @@ export function useAttachmentManager(
       attachments.value = mergedAssets;
       logger.debug("已同步附件列表（保留了正在导入的资产）", {
         count: mergedAssets.length,
-        preservedCount: mergedAssets.filter(
-          (a) => a.importStatus === "pending" || a.importStatus === "importing"
-        ).length,
+        preservedCount: mergedAssets.filter((a) => a.importStatus === "pending" || a.importStatus === "importing")
+          .length,
       });
     }
   };

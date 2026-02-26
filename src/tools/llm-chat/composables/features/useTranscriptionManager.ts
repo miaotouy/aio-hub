@@ -131,7 +131,7 @@ export function useTranscriptionManager() {
         logger.info("触发自动转写", {
           assetId: asset.id,
           name: asset.name,
-          usingModel: transcribeModelIdentifier
+          usingModel: transcribeModelIdentifier,
         });
         addTask(currentAsset, { modelId: transcribeModelIdentifier });
       } else {
@@ -156,8 +156,8 @@ export function useTranscriptionManager() {
     // 1. 监听资产导入事件 (作为事件驱动的补充)
     if (!unlistenAssetImport) {
       logger.debug("注册资产导入监听器");
-      listen<Asset>("asset-imported", (event) => {
-        const asset = event.payload;
+      listen<{ asset: Asset; tempId: string }>("asset-imported", (event) => {
+        const { asset } = event.payload;
         // 仅处理本模块导入的资产
         if (asset.sourceModule === "llm-chat" || asset.sourceModule === "llm-chat-paste") {
           // 如果已经在 watch 中处理过了，这里就跳过
@@ -187,7 +187,7 @@ export function useTranscriptionManager() {
           if (isReady) {
             logger.debug("检测到资产就绪，触发自动转写", {
               assetId: asset.id,
-              name: asset.name
+              name: asset.name,
             });
             handleAssetImport(asset);
           } else if (asset.importStatus === "importing") {

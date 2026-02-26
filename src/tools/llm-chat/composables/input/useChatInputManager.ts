@@ -14,6 +14,7 @@
  */
 
 import { ref, watch, nextTick, type Ref } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import { getOrCreateInstance } from "@/utils/singleton";
 import { useAttachmentManager, type UseAttachmentManagerReturn } from "../features/useAttachmentManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
@@ -123,6 +124,7 @@ class ChatInputManager {
 
   // 监听器清理函数
   private unlistenStateSync: (() => void) | null = null;
+  private unlistenAssetImport: (() => void) | null = null;
   private unregisterSyncSource: (() => void) | null = null;
 
   constructor() {
@@ -275,6 +277,20 @@ class ChatInputManager {
       { deep: true }
     );
 
+    // 监听全局资产导入完成事件（用于粘贴等直接导入场景的占位符替换）
+    listen<{ asset: Asset; tempId: string }>("asset-imported", (event) => {
+      const { asset, tempId } = event.payload;
+      if (tempId && asset.sourceModule === "llm-chat") {
+        logger.info("[ChatInputManager] 收到全局资产导入事件，触发占位符更新", {
+          tempId,
+          newId: asset.id,
+        });
+        this.updatePlaceholderId(tempId, asset.id);
+      }
+    }).then((unlisten) => {
+      this.unlistenAssetImport = unlisten;
+    });
+
     // 监听来自其他窗口的状态同步
     this.unlistenStateSync = this.bus.onMessage<StateSyncPayload>("state-sync", (payload) => {
       if (payload.stateType !== CHAT_STATE_KEYS.INPUT_STATE) return;
@@ -405,6 +421,9 @@ class ChatInputManager {
     }
     if (this.unlistenStateSync) {
       this.unlistenStateSync();
+    }
+    if (this.unlistenAssetImport) {
+      this.unlistenAssetImport();
     }
     if (this.unregisterSyncSource) {
       this.unregisterSyncSource();
@@ -692,7 +711,7 @@ class ChatInputManager {
 
   /**
    * 全量扫描并修复输入框中的占位符
-   * 利用 idUpdateLog 中记录的历史映射，对所有残留的 uploading 占位符进行二次替换
+   * 利用 idUpdateLog 中记录的历史映射，以及当前附件列表，对所有残留的 uploading 占位符进行二次替换
    * 主要用于应对上传完成时用户正在打字导致的 Vue 响应式竞态问题
    */
   scanAndFixPlaceholders(): void {
@@ -707,10 +726,26 @@ class ChatInputManager {
     let newText = text;
     let fixedCount = 0;
 
+    // 获取当前附件列表，建立 ID 映射
+    const currentAttachments = this.attachmentManager.attachments.value;
+
     for (const match of matches) {
       const tempId = match[1];
-      // 从历史映射中查找对应的正式 ID
-      const realId = this.idUpdateLog.get(tempId);
+      let realId = this.idUpdateLog.get(tempId);
+
+      // 如果日志里没找到，尝试从当前附件列表中找已经完成的资产
+      if (!realId) {
+        const completedAsset = currentAttachments.find(
+          (a) => a.importStatus === "complete" && !this.isTempId(a.id)
+          // 注意：这里我们无法 100% 确定哪个正式 ID 对应哪个临时 ID，
+          // 但通常情况下，如果只有一个上传任务，或者是根据文件名/大小匹配
+        );
+        // 如果只有一个附件且已完成，大概率就是它
+        if (currentAttachments.length === 1 && completedAsset) {
+          realId = completedAsset.id;
+        }
+      }
+
       if (!realId) continue;
 
       const uploadingPlaceholder = generateUploadingPlaceholder(tempId);
@@ -733,7 +768,7 @@ class ChatInputManager {
    * 用于 asset 导入完成后，临时 ID 变为真实 ID 时同步更新占位符
    */
   updatePlaceholderId(oldId: string, newId: string): void {
-    if (oldId === newId) return;
+    if (!oldId || !newId || oldId === newId) return;
 
     // 始终记录 ID 变更历史，供 scanAndFixPlaceholders 二次扫描使用
     this.idUpdateLog.set(oldId, newId);
@@ -741,26 +776,40 @@ class ChatInputManager {
     const newPlaceholder = generateAssetPlaceholder(newId);
     const beforeValue = this.inputText.value;
 
-    // 优先匹配 uploading 格式：【file::uploading:tempId】 -> 【file::realId】
+    // 1. 优先匹配标准的 uploading 格式：【file::uploading:tempId】 -> 【file::realId】
     const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
     if (beforeValue.includes(uploadingPlaceholder)) {
-      const afterValue = beforeValue.split(uploadingPlaceholder).join(newPlaceholder);
-      this.inputText.value = afterValue;
+      this.inputText.value = beforeValue.split(uploadingPlaceholder).join(newPlaceholder);
       logger.info("更新占位符 ID (uploading -> real)", { oldId, newId });
       return;
     }
 
-    // 回退：匹配普通格式（兼容非粘贴场景）
+    // 2. 增强匹配：如果用户不小心删掉了部分字符，或者正则匹配
+    // 匹配包含 oldId 的 uploading 占位符
+    const fuzzyUploadingRegex = new RegExp(`【file::uploading:${oldId}】`, "g");
+    if (fuzzyUploadingRegex.test(beforeValue)) {
+      this.inputText.value = beforeValue.replace(fuzzyUploadingRegex, newPlaceholder);
+      logger.info("更新占位符 ID (模糊匹配 uploading)", { oldId, newId });
+      return;
+    }
+
+    // 3. 回退：匹配普通格式（兼容非粘贴场景）
     const oldPlaceholder = generateAssetPlaceholder(oldId);
     if (beforeValue.includes(oldPlaceholder)) {
       this.inputText.value = beforeValue.split(oldPlaceholder).join(newPlaceholder);
-      logger.info("更新占位符 ID", { oldId, newId });
+      logger.info("更新占位符 ID (standard -> real)", { oldId, newId });
     } else {
-      logger.warn("[updatePlaceholderId] 未找到任何匹配的占位符", {
-        uploadingPlaceholder,
-        oldPlaceholder,
-        inputTextContent: beforeValue.substring(0, 300),
-      });
+      // 4. 最后的挣扎：直接替换所有出现的 oldId 占位符（如果它看起来像个占位符）
+      const anyPlaceholderRegex = new RegExp(`【file::(?:uploading:)?${oldId}】`, "g");
+      if (anyPlaceholderRegex.test(beforeValue)) {
+        this.inputText.value = beforeValue.replace(anyPlaceholderRegex, newPlaceholder);
+        logger.info("更新占位符 ID (正则全量替换)", { oldId, newId });
+      } else {
+        logger.warn("[updatePlaceholderId] 未找到任何匹配的占位符，已记录映射供后续扫描", {
+          oldId,
+          newId,
+        });
+      }
     }
   }
 

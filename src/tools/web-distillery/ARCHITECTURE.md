@@ -1,5 +1,7 @@
 # Web Distillery (网页蒸馏室)
 
+> **当前状态**：P0-P2 阶段已基本完成。Level 0/1 核心提取管道已上线。P3-P4 处于 UI 占位阶段，交互式模式、高级清洗功能及 Cookie 持久化尚在施工中。
+
 ## 1. 设计哲学：AIO 的网页内容获取方案
 
 AIO 目前没有 UrlFetch 类工具。Web Distillery 就是 AIO 唯一的网页内容获取入口——不是做一个简单粗暴的 HTTP 请求器，而是一个**分层的、高纯度的**内容提炼方案。
@@ -257,7 +259,7 @@ export const toolConfig: ToolConfig = {
   - 语义标签：`<nav>`, `<header>`, `<footer>`, `<aside>`
   - 常见 class/id 模式：`sidebar`, `nav`, `menu`, `ad`, `banner`, `comment`, `related`, `share`, `social`
   - 隐藏元素：`display:none`, `visibility:hidden`, `aria-hidden="true"`
-- **Readability 算法**：基于 Mozilla Readability 的文本密度分析，计算每个节点的"内容得分"，保留得分最高的主体区域
+- **Readability 算法**：目前为**简化版实现**。基于基础文本长度和节点标签评分（p/article 加分，sidebar 减分），尚未实现完整的 Mozilla 密度分析算法。
 - **用户自定义排除**：通过 `excludeSelectors` 参数手动排除特定元素
 
 **Stage 3: 正文提取**
@@ -283,9 +285,9 @@ HTML → Markdown 转换需要处理的复杂结构：
 
 **Stage 5: 后处理**
 
-- **图片本地化**（可选）：下载图片到 AppData 资产库，替换为 `appdata://` 协议路径
-- **链接修正**：相对路径转绝对路径
-- **空白清理**：合并连续空行、修剪首尾空白
+- **图片本地化**（⏳ 待实现）：计划下载图片到 AppData 资产库，目前尚未编写下载逻辑。
+- **链接修正**（⏳ 待实现）：目前仅保留原始链接，尚未处理相对路径转绝对路径。
+- **空白清理**（✅ 已实现）：合并连续空行、修剪首尾空白。
 - **质量评估**：计算 `quality` 分数（0-1），基于以下指标：
   - 内容长度（过短可能提取不完整）
   - 文本/标签比（过低可能是模板页面）
@@ -349,9 +351,7 @@ Tauri 2.0 的 `WebviewBuilder` 支持在同一个窗口中创建多个 Webview�
 3. 保存为"身份卡片"（Profile），下次一键注入，无需重新登录
 4. 支持从浏览器 DevTools 粘贴 Cookie 字符串，自动解析并注入
 
-> ⚠️ **v1 现实与 Workaround**：WRY 对 Cookie 管理的高层封装目前不完整。v1 先用注入脚本 `document.cookie` 实现，**无法获取 HttpOnly Cookie**——而绝大多数认证 Cookie 都是 HttpOnly 的。这意味着 v1 的自动提取功能对登录态场景基本残废。
->
-> **v1 Workaround**：在 Cookie Lab UI 中提供"手动粘贴"入口，用户从浏览器 DevTools → Application → Cookies 中复制完整 Cookie 字符串（包含 HttpOnly），粘贴后自动解析并保存为身份卡片。Level 0 的 `quickFetch` 可以直接在 HTTP 请求头中携带这些 Cookie。
+> **v1 现状**：已实现基于注入脚本 `document.cookie` 的读写。同时在 Cookie Lab UI 中支持“手动粘贴”完整 Cookie 字符串并持久化。
 >
 > **v2 目标**：通过 `webview2-com` (Win), `cocoa` (mac), `webkit2gtk` (Linux) 实现完整的底层 Cookie API。
 
@@ -698,14 +698,14 @@ sequenceDiagram
 
 ## 10. 实施优先级
 
-| 优先级 | 内容                                                       | 说明                      |
-| ------ | ---------------------------------------------------------- | ------------------------- |
-| **P0** | Level 0: `quickFetch` + 清洗管道基础版                     | 最快交付可用的 Agent 工具 |
-| **P1** | 子 Webview 创建 + bounds 同步 + postMessage 通信链路       | Level 1/2 的地基          |
-| **P2** | Level 1: `smartExtract`（headless Webview + 自动提取）     | Agent 的重量级选项        |
-| **P3** | Level 2 UI：地址栏 + Inspect 模式 + 预览面板               | 人工操作界面              |
-| **P4** | API Sniffer + Cookie Lab（v1: document.cookie + 手动粘贴） | 增强功能                  |
-| **P5** | 清洗管道高级功能（图片本地化、分页合并） + Cookie Lab v2   | 极致体验                  |
+| 优先级 | 内容                                                     | 状态 | 说明                                      |
+| ------ | -------------------------------------------------------- | ---- | ----------------------------------------- |
+| **P0** | Level 0: `quickFetch` + 清洗管道基础版                   | ✅   | 最快交付可用的 Agent 工具                 |
+| **P1** | 子 Webview 创建 + bounds 同步 + postMessage 通信链路     | ✅   | Level 1/2 的地基                          |
+| **P2** | Level 1: `smartExtract`（headless Webview + 自动提取）   | ✅   | Agent 的重量级选项                        |
+| **P3** | Level 2 UI：地址栏 + Inspect 模式 + 预览面板             | ⏳   | 目前仅为 UI 占位，交互逻辑未实现          |
+| **P4** | API Sniffer + Cookie Lab（v1: 基础读写）                 | ⏳   | 仅实现基础读写，缺乏持久化与 Profile 管理 |
+| **P5** | 清洗管道高级功能（图片本地化、分页合并） + Cookie Lab v2 | ⏳   | 极致体验                                  |
 
 P0 优先——让 Agent 先能用上一个高质量的 `quickFetch`，比等待完整的 Webview 方案更有价值。
 

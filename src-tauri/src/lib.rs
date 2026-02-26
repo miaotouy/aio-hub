@@ -4,6 +4,7 @@ mod events;
 mod knowledge;
 mod tray;
 mod utils;
+mod web_distillery;
 
 // 导入所需的依赖
 use dirs_next::data_dir;
@@ -16,8 +17,6 @@ use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
 use commands::{
-    // 资产目录内存状态
-    AssetCatalog,
     add_asset_source,
     // 目录清理相关
     analyze_directory_for_cleanup,
@@ -31,10 +30,6 @@ use commands::{
     cancel_move_operation,
     // 视频处理命令
     check_ffmpeg_availability,
-    get_media_metadata,
-    process_media,
-    kill_ffmpeg_process,
-    get_full_media_info,
     cleanup_items,
     clear_all_window_configs,
     close_detached_window, // 新增：统一的关闭命令
@@ -48,6 +43,8 @@ use commands::{
     delete_all_agent_assets,
     delete_asset,
     delete_directory_in_app_data,
+    // 内容查重相关
+    delete_duplicate_files,
     delete_file_to_trash,
     delete_window_config,
     end_drag_session,
@@ -64,19 +61,21 @@ use commands::{
     get_agent_asset_path,
     get_all_detached_windows,
     get_all_operation_logs,
-    get_image_dimensions,
+    get_asset_base64,
     // 资产管理命令
     get_asset_base_path,
-    get_asset_base64,
     get_asset_binary,
     get_asset_by_id,
     get_asset_stats,
     get_clipboard_content_type,
     get_file_metadata,
     get_file_mime_type,
+    get_full_media_info,
+    get_image_dimensions,
     get_inspector_status,
     get_latest_operation_log,
     get_local_ips,
+    get_media_metadata,
     get_saved_window_labels,
     git_cancel_load,
     git_cherry_pick,
@@ -88,11 +87,6 @@ use commands::{
     git_get_incremental_commits,
     git_load_commits_with_files,
     git_load_incremental_stream,
-    // 内容查重相关
-    delete_duplicate_files,
-    read_file_content_for_diff,
-    scan_content_duplicates,
-    stop_dedup_scan,
     // Git分析器相关
     git_load_repository,
     git_load_repository_stream,
@@ -103,12 +97,13 @@ use commands::{
     import_asset_from_path,
     install_plugin_from_zip,
     is_directory,
+    kill_ffmpeg_process,
     list_agent_assets,
     list_all_assets,
-    list_directory,
     // Lazy loading commands
     list_assets_paginated,
     list_config_files,
+    list_directory,
     list_directory_images,
     move_and_link,
     // OCR相关
@@ -120,11 +115,13 @@ use commands::{
     path_exists,
     preflight_plugin_zip,
     process_files_with_regex,
+    process_media,
     read_agent_asset_binary,
     read_app_data_file_binary,
     read_file_as_base64,
     read_file_binary,
     read_file_binary_raw,
+    read_file_content_for_diff,
     read_text_file,
     read_text_file_force,
     rebuild_catalog_index,
@@ -139,8 +136,7 @@ use commands::{
     save_uploaded_file,
     // 窗口配置管理相关
     save_window_config,
-    // LLM 代理命令
-    start_llm_proxy_server,
+    scan_content_duplicates,
     // LLM 搜索命令
     search_llm_data,
     search_media_generator_data,
@@ -148,7 +144,10 @@ use commands::{
     start_clipboard_monitor,
     // LLM检查器相关
     start_llm_inspector,
+    // LLM 代理命令
+    start_llm_proxy_server,
     stop_clipboard_monitor,
+    stop_dedup_scan,
     stop_directory_cleanup,
     stop_directory_scan,
     stop_llm_inspector,
@@ -162,6 +161,8 @@ use commands::{
     validate_regex_pattern,
     write_file_force,
     write_text_file_force,
+    // 资产目录内存状态
+    AssetCatalog,
     // 状态
     ClipboardMonitorState,
 };
@@ -612,7 +613,17 @@ pub fn run() {
             knowledge::kb_flush_all_tag_pools,
             knowledge::kb_clone_base,
             knowledge::kb_export_base,
-            knowledge::monitor::kb_monitor_heartbeat
+            knowledge::monitor::kb_monitor_heartbeat,
+            // 网页蒸馏室命令
+            web_distillery::distillery_quick_fetch,
+            web_distillery::distillery_create_webview,
+            web_distillery::distillery_navigate,
+            web_distillery::distillery_destroy_webview,
+            web_distillery::distillery_resize,
+            web_distillery::distillery_eval,
+            web_distillery::distillery_extract_dom,
+            web_distillery::distillery_get_cookies,
+            web_distillery::distillery_set_cookie,
         ])
         // 设置应用
         .setup(move |app| {

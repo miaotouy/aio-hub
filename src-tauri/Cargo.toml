@@ -21,7 +21,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [ "protocol-asset", "wry", "tray-icon", "image-png", "devtools"] }
+tauri = { version = "2", features = [ "protocol-asset", "wry", "tray-icon", "image-png", "devtools", "unstable"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-clipboard-manager = { version = "2" } # Use the same version as main tauri plugin

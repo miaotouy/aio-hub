@@ -15,14 +15,16 @@ export const DEFAULT_TOOLS_ORDER = [
   '/transcription',
   '/ffmpeg-tools',
   '/color-picker',
-  
+  '/web-distillery',
+
+
   // 文本处理
   '/regex-applier',
   '/text-diff',
   '/json-formatter',
   '/data-filter',
   '/code-formatter',
-  
+
   // 文件管理
   '/asset-manager',
   '/knowledge-base',
@@ -30,7 +32,7 @@ export const DEFAULT_TOOLS_ORDER = [
   '/directory-tree',
   '/directory-janitor',
   '/content-deduplicator',
-  
+
   // 开发工具
   '/api-tester',
   '/llm-inspector',

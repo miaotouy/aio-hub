@@ -4,7 +4,7 @@ mod events;
 mod knowledge;
 mod tray;
 mod utils;
-mod web_distillery;
+// mod web_distillery;
 
 // 导入所需的依赖
 use dirs_next::data_dir;
@@ -18,40 +18,32 @@ use tokio_util::sync::CancellationToken;
 // 导入命令模块
 use commands::{
     add_asset_source,
-    // 目录清理相关
     analyze_directory_for_cleanup,
     append_file_force,
     apply_window_config,
-    // 窗口特效命令
     apply_window_effect,
     batch_delete_agent_assets,
-    // 新统一分离系统命令
     begin_detach_session,
     cancel_move_operation,
-    // 视频处理命令
     check_ffmpeg_availability,
     cleanup_items,
     clear_all_window_configs,
-    close_detached_window, // 新增：统一的关闭命令
+    close_detached_window,
     copy_directory_in_app_data,
     copy_file_to_app_data,
     create_dir_force,
     create_links_only,
-    // 窗口管理相关
     create_tool_window,
     delete_agent_asset,
     delete_all_agent_assets,
     delete_asset,
     delete_directory_in_app_data,
-    // 内容查重相关
     delete_duplicate_files,
     delete_file_to_trash,
     delete_window_config,
     end_drag_session,
     ensure_window_visible,
-    // Sidecar 插件命令
     execute_sidecar,
-    // 配置管理相关
     export_all_configs_to_zip,
     finalize_detach_session,
     find_asset_by_hash,
@@ -62,7 +54,6 @@ use commands::{
     get_all_detached_windows,
     get_all_operation_logs,
     get_asset_base64,
-    // 资产管理命令
     get_asset_base_path,
     get_asset_binary,
     get_asset_by_id,
@@ -87,7 +78,6 @@ use commands::{
     git_get_incremental_commits,
     git_load_commits_with_files,
     git_load_incremental_stream,
-    // Git分析器相关
     git_load_repository,
     git_load_repository_stream,
     git_revert,
@@ -100,15 +90,12 @@ use commands::{
     kill_ffmpeg_process,
     list_agent_assets,
     list_all_assets,
-    // Lazy loading commands
     list_assets_paginated,
     list_config_files,
     list_directory,
     list_directory_images,
     move_and_link,
-    // OCR相关
     native_ocr,
-    // 窗口导航命令
     navigate_main_window_to_settings,
     open_file_directory,
     open_path_force,
@@ -127,31 +114,24 @@ use commands::{
     rebuild_catalog_index,
     rebuild_hash_index,
     remove_asset_completely,
-    // 资产来源管理命令
     remove_asset_source,
     remove_assets_completely,
-    // Agent 资产管理命令
     save_agent_asset,
     save_asset_thumbnail,
     save_uploaded_file,
-    // 窗口配置管理相关
     save_window_config,
     scan_content_duplicates,
-    // LLM 搜索命令
     search_llm_data,
     search_media_generator_data,
     set_window_position,
     start_clipboard_monitor,
-    // LLM检查器相关
     start_llm_inspector,
-    // LLM 代理命令
     start_llm_proxy_server,
     stop_clipboard_monitor,
     stop_dedup_scan,
     stop_directory_cleanup,
     stop_directory_scan,
     stop_llm_inspector,
-    // 插件管理命令
     uninstall_plugin,
     update_asset_derived_data,
     update_detach_session_position,
@@ -161,9 +141,8 @@ use commands::{
     validate_regex_pattern,
     write_file_force,
     write_text_file_force,
-    // 资产目录内存状态
+    // 状态结构体
     AssetCatalog,
-    // 状态
     ClipboardMonitorState,
 };
 // 导入全局鼠标监听器
@@ -460,12 +439,10 @@ pub fn run() {
             path_exists,
             get_file_metadata,
             get_file_mime_type,
-            // 目录清理命令
             analyze_directory_for_cleanup,
             cleanup_items,
             stop_directory_scan,
             stop_directory_cleanup,
-            // 内容查重命令
             scan_content_duplicates,
             stop_dedup_scan,
             read_file_content_for_diff,
@@ -614,7 +591,8 @@ pub fn run() {
             knowledge::kb_clone_base,
             knowledge::kb_export_base,
             knowledge::monitor::kb_monitor_heartbeat,
-            // 网页蒸馏室命令
+            // 网页蒸馏室命令 (已禁用，需要重新设计unstable相关的部分)
+            /*
             web_distillery::distillery_quick_fetch,
             web_distillery::distillery_create_webview,
             web_distillery::distillery_navigate,
@@ -624,6 +602,7 @@ pub fn run() {
             web_distillery::distillery_extract_dom,
             web_distillery::distillery_get_cookies,
             web_distillery::distillery_set_cookie,
+            */
         ])
         // 设置应用
         .setup(move |app| {

@@ -48,23 +48,47 @@
       </div>
     </div>
 
-    <el-scrollbar class="message-scrollbar">
-      <TransitionGroup name="message-list" tag="div" class="message-list">
-        <BroadcastCard
-          v-for="msg in filteredMessages"
-          :key="`${msg.timestamp}-${msg.type}`"
-          :message="msg"
-          @show-json="emit('show-json', $event)"
-        />
-      </TransitionGroup>
+    <div ref="messagesContainer" class="message-container" @scroll="onScroll">
+      <!-- 虚拟滚动容器 -->
+      <div
+        v-if="filteredMessages.length > 0"
+        :style="{
+          height: `${totalSize}px`,
+          width: '100%',
+          position: 'relative',
+        }"
+      >
+        <!-- 仅渲染可见的虚拟项 -->
+        <div
+          v-for="virtualItem in virtualItems"
+          :key="`${filteredMessages[virtualItem.index].timestamp}-${filteredMessages[virtualItem.index].type}`"
+          :data-index="virtualItem.index"
+          :ref="
+            (el) => {
+              if (el) virtualizer.measureElement(el as HTMLElement);
+            }
+          "
+          :style="{
+            position: 'absolute',
+            top: `${virtualItem.start}px`,
+            left: 0,
+            width: '100%',
+          }"
+          class="message-item"
+        >
+          <BroadcastCard :message="filteredMessages[virtualItem.index]" @show-json="emit('show-json', $event)" />
+        </div>
+      </div>
 
-      <el-empty v-if="filteredMessages.length === 0" description="暂无消息" :image-size="120" />
-    </el-scrollbar>
+      <el-empty v-else description="暂无消息" :image-size="120" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
+import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useThrottleFn } from "@vueuse/core";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
 import { customMessage } from "@/utils/customMessage";
@@ -84,7 +108,7 @@ const emit = defineEmits<{
 const store = useVcpStore();
 const { connectionStatus } = useVcpWebSocket();
 
-const filteredMessages = computed(() => store.filteredMessages);
+const filteredMessages = computed(() => [...store.filteredMessages].reverse());
 const filter = computed(() => store.filter);
 const stats = computed(() => store.stats);
 
@@ -99,6 +123,61 @@ watch(
   () => store.filter.keyword,
   (kw) => {
     searchKeyword.value = kw;
+  }
+);
+
+/**
+ * 虚拟滚动相关
+ */
+const messagesContainer = ref<HTMLElement | null>(null);
+
+// 消息数量
+const messageCount = computed(() => filteredMessages.value.length);
+
+// 创建虚拟化器
+const virtualizer = useVirtualizer({
+  get count() {
+    return messageCount.value;
+  },
+  getScrollElement: () => messagesContainer.value,
+  estimateSize: () => 120, // 预估每条消息的高度
+  overscan: 5, //  overscan 数量
+});
+
+// 虚拟项列表
+const virtualItems = computed(() => virtualizer.value.getVirtualItems());
+
+// 总高度
+const totalSize = computed(() => virtualizer.value.getTotalSize());
+
+// 记录用户是否接近顶部（倒序排列，最新在顶）
+const isNearTop = ref(true);
+
+// 滚动事件处理
+const onScroll = () => {
+  if (!messagesContainer.value) return;
+  const { scrollTop } = messagesContainer.value;
+  // 阈值设为 100px，在这个范围内认为用户想看最新消息
+  isNearTop.value = scrollTop < 100;
+};
+
+// 自动滚动到顶部（倒序）
+const scrollToTop = useThrottleFn(() => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = 0;
+    }
+  });
+}, 100);
+
+// 监听消息数量变化，新消息时自动滚动到顶部
+watch(
+  () => filteredMessages.value.length,
+  (newLength, oldLength) => {
+    // 如果有新消息且用户在顶部附近，则自动滚动
+    if (newLength > oldLength && isNearTop.value) {
+      scrollToTop();
+    }
   }
 );
 
@@ -219,36 +298,13 @@ function exportMessages() {
   gap: 8px;
 }
 
-.message-scrollbar {
-  height: 100%;
-}
-
-.message-list {
+.message-container {
+  flex: 1;
+  overflow-y: auto;
   padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
-.message-list-enter-active {
-  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-}
-
-.message-list-leave-active {
-  transition: all 0.2s ease-out;
-}
-
-.message-list-enter-from {
-  opacity: 0;
-  transform: translateY(-20px) scale(0.95);
-}
-
-.message-list-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
-.message-list-move {
-  transition: transform 0.3s ease;
+.message-item {
+  padding-bottom: 12px;
 }
 </style>

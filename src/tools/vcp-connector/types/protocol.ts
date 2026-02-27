@@ -4,6 +4,7 @@ export type VcpMessageType =
   | "AGENT_PRIVATE_CHAT_PREVIEW"
   | "AI_MEMO_RETRIEVAL"
   | "PLUGIN_STEP_STATUS"
+  | "vcp_log"
   | "UNKNOWN";
 
 export interface VcpBaseMessage {
@@ -78,12 +79,24 @@ export interface PluginStepStatusMessage extends VcpBaseMessage {
   message?: string;
 }
 
+export interface VcpLogMessage extends VcpBaseMessage {
+  type: "vcp_log";
+  data: {
+    source?: string;
+    tool_name?: string;
+    content: string;
+    status?: "success" | "error";
+    level?: "info" | "warn" | "error";
+  };
+}
+
 export type VcpMessage =
   | RagRetrievalMessage
   | ThinkingChainMessage
   | AgentChatPreviewMessage
   | AiMemoRetrievalMessage
-  | PluginStepStatusMessage;
+  | PluginStepStatusMessage
+  | VcpLogMessage;
 
 export type VcpConnectionMode = "observer" | "distributed" | "both";
 
@@ -116,6 +129,7 @@ export interface MessageStats {
   agentCount: number;
   memoCount: number;
   pluginCount: number;
+  logCount: number;
   messagesPerMinute: number;
   startTime?: number;
 }

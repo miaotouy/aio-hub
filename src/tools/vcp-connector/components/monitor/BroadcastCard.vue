@@ -1,18 +1,13 @@
 <template>
-  <div
-    class="broadcast-card"
-    :class="[`type-${message.type.toLowerCase()}`]"
-    @click="$emit('click')"
-  >
+  <div class="broadcast-card" :class="[`type-${message.type.toLowerCase()}`]" @click="$emit('click')">
     <div class="card-header">
       <span class="type-icon">
         <Database v-if="message.type === 'RAG_RETRIEVAL_DETAILS'" />
         <GitBranch v-else-if="message.type === 'META_THINKING_CHAIN'" />
-        <MessageSquare
-          v-else-if="message.type === 'AGENT_PRIVATE_CHAT_PREVIEW'"
-        />
+        <MessageSquare v-else-if="message.type === 'AGENT_PRIVATE_CHAT_PREVIEW'" />
         <StickyNote v-else-if="message.type === 'AI_MEMO_RETRIEVAL'" />
         <Cpu v-else-if="message.type === 'PLUGIN_STEP_STATUS'" />
+        <Terminal v-else-if="message.type === 'vcp_log'" />
         <HelpCircle v-else />
       </span>
       <span class="type-label">{{ typeLabel }}</span>
@@ -21,38 +16,27 @@
 
     <div class="card-body">
       <template v-if="message.type === 'RAG_RETRIEVAL_DETAILS'">
-        <RagCardContent 
-          :message="message as RagRetrievalMessage" 
-          @show-json="onShowJson"
-        />
+        <RagCardContent :message="message as RagRetrievalMessage" @show-json="onShowJson" />
       </template>
 
       <template v-else-if="message.type === 'META_THINKING_CHAIN'">
-        <ChainCardContent 
-          :message="message as ThinkingChainMessage" 
-          @show-json="onShowJson"
-        />
+        <ChainCardContent :message="message as ThinkingChainMessage" @show-json="onShowJson" />
       </template>
 
       <template v-else-if="message.type === 'AGENT_PRIVATE_CHAT_PREVIEW'">
-        <AgentCardContent 
-          :message="message as AgentChatPreviewMessage" 
-          @show-json="onShowJson"
-        />
+        <AgentCardContent :message="message as AgentChatPreviewMessage" @show-json="onShowJson" />
       </template>
 
       <template v-else-if="message.type === 'AI_MEMO_RETRIEVAL'">
-        <MemoCardContent 
-          :message="message as AiMemoRetrievalMessage" 
-          @show-json="onShowJson"
-        />
+        <MemoCardContent :message="message as AiMemoRetrievalMessage" @show-json="onShowJson" />
       </template>
 
       <template v-else-if="message.type === 'PLUGIN_STEP_STATUS'">
-        <PluginCardContent 
-          :message="message as PluginStepStatusMessage" 
-          @show-json="onShowJson"
-        />
+        <PluginCardContent :message="message as PluginStepStatusMessage" @show-json="onShowJson" />
+      </template>
+
+      <template v-else-if="message.type === 'vcp_log'">
+        <LogCardContent :message="message as VcpLogMessage" @show-json="onShowJson" />
       </template>
     </div>
   </div>
@@ -60,14 +44,7 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from "vue";
-import {
-  Database,
-  GitBranch,
-  MessageSquare,
-  StickyNote,
-  Cpu,
-  HelpCircle,
-} from "lucide-vue-next";
+import { Database, GitBranch, MessageSquare, StickyNote, Cpu, Terminal, HelpCircle } from "lucide-vue-next";
 import type {
   VcpMessage,
   RagRetrievalMessage,
@@ -75,23 +52,15 @@ import type {
   AgentChatPreviewMessage,
   AiMemoRetrievalMessage,
   PluginStepStatusMessage,
+  VcpLogMessage,
 } from "../../types/protocol";
 
-const RagCardContent = defineAsyncComponent(
-  () => import("./RagCardContent.vue"),
-);
-const ChainCardContent = defineAsyncComponent(
-  () => import("./ChainCardContent.vue"),
-);
-const AgentCardContent = defineAsyncComponent(
-  () => import("./AgentCardContent.vue"),
-);
-const MemoCardContent = defineAsyncComponent(
-  () => import("./MemoCardContent.vue"),
-);
-const PluginCardContent = defineAsyncComponent(
-  () => import("./PluginCardContent.vue"),
-);
+const RagCardContent = defineAsyncComponent(() => import("./RagCardContent.vue"));
+const ChainCardContent = defineAsyncComponent(() => import("./ChainCardContent.vue"));
+const AgentCardContent = defineAsyncComponent(() => import("./AgentCardContent.vue"));
+const MemoCardContent = defineAsyncComponent(() => import("./MemoCardContent.vue"));
+const PluginCardContent = defineAsyncComponent(() => import("./PluginCardContent.vue"));
+const LogCardContent = defineAsyncComponent(() => import("./LogCardContent.vue"));
 
 const props = defineProps<{
   message: VcpMessage;
@@ -113,6 +82,7 @@ const typeLabel = computed(() => {
     AGENT_PRIVATE_CHAT_PREVIEW: "Agent 私聊",
     AI_MEMO_RETRIEVAL: "记忆回溯",
     PLUGIN_STEP_STATUS: "插件步骤",
+    vcp_log: "VCP 日志",
   };
   return labels[props.message.type] || "未知";
 });
@@ -148,8 +118,14 @@ const formattedTime = computed(() => {
 }
 
 @keyframes jelly-in {
-  0% { opacity: 0; transform: translateY(20px) scale(0.9); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .broadcast-card.type-rag {
@@ -170,6 +146,10 @@ const formattedTime = computed(() => {
 
 .broadcast-card.type-plugin_step_status {
   border-left: 3px solid #34495e;
+}
+
+.broadcast-card.type-vcp_log {
+  border-left: 3px solid #7f8c8d;
 }
 
 .card-header {
@@ -213,6 +193,11 @@ const formattedTime = computed(() => {
 .type-plugin_step_status .type-icon {
   background: rgba(52, 73, 94, 0.15);
   color: #34495e;
+}
+
+.type-vcp_log .type-icon {
+  background: rgba(127, 140, 141, 0.15);
+  color: #7f8c8d;
 }
 
 .type-label {

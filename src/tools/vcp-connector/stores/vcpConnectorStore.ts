@@ -14,9 +14,12 @@ import {
   AgentChatPreviewMessage,
   AiMemoRetrievalMessage,
   PluginStepStatusMessage,
+  VcpLogMessage,
 } from "../types/protocol";
 import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
 import { useVcpDistributedStore } from "./vcpDistributedStore";
+import { useNotification } from "@/composables/useNotification";
+import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("vcp-connector/store");
 
@@ -101,6 +104,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     agentCount: 0,
     memoCount: 0,
     pluginCount: 0,
+    logCount: 0,
     messagesPerMinute: 0,
   });
 
@@ -116,6 +120,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     s.agentCount = messages.value.filter((m) => m.type === "AGENT_PRIVATE_CHAT_PREVIEW").length;
     s.memoCount = messages.value.filter((m) => m.type === "AI_MEMO_RETRIEVAL").length;
     s.pluginCount = messages.value.filter((m) => m.type === "PLUGIN_STEP_STATUS").length;
+    s.logCount = messages.value.filter((m) => m.type === "vcp_log").length;
   }
 
   function startStatsTimer() {
@@ -182,6 +187,14 @@ export const useVcpStore = defineStore("vcp-connector", () => {
             const m = msg as PluginStepStatusMessage;
             return matchesKeyword(m.pluginName, keyword) || matchesKeyword(m.stepName, keyword);
           }
+          case "vcp_log": {
+            const m = msg as VcpLogMessage;
+            return (
+              matchesKeyword(m.data?.content, keyword) ||
+              matchesKeyword(m.data?.tool_name, keyword) ||
+              matchesKeyword(m.data?.source, keyword)
+            );
+          }
           default:
             return false;
         }
@@ -240,6 +253,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       "AGENT_PRIVATE_CHAT_PREVIEW",
       "AI_MEMO_RETRIEVAL",
       "PLUGIN_STEP_STATUS",
+      "vcp_log",
     ];
 
     if (!validTypes.includes(type as VcpMessageType)) return null;
@@ -533,10 +547,54 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       case "PLUGIN_STEP_STATUS":
         stats.value.pluginCount += 1;
         break;
+      case "vcp_log":
+        stats.value.logCount += 1;
+        handleVcpLogNotification(msg as VcpLogMessage);
+        break;
     }
 
     if (messages.value.length > config.value.maxHistory) {
       messages.value.shift();
+    }
+  }
+
+  function handleVcpLogNotification(msg: VcpLogMessage) {
+    const content = msg.data?.content || "";
+    const toolName = msg.data?.tool_name;
+    const status = msg.data?.status;
+
+    // 1. 提取任务 ID (兼容 "task_id: 123" 和 "任务 123")
+    const taskIdMatch = content.match(/(?:task_id|任务)\s*[:：]?\s*(\d+)/i);
+    const taskId = taskIdMatch ? taskIdMatch[1] : null;
+
+    // 2. 智能路由
+    const notify = useNotification();
+
+    // 优先级 1：后端明确报错 (status === 'error')
+    if (status === "error") {
+      notify.error("VCP 执行错误", `${toolName ? toolName + ": " : ""}${content}`, { source: "VCP" });
+      return;
+    }
+
+    // 优先级 2：包含任务 ID
+    if (taskId) {
+      notify.info(`VCP 任务通知`, `任务已启动 (ID: ${taskId})${toolName ? ` - ${toolName}` : ""}`, {
+        source: "VCP",
+      });
+      return;
+    }
+
+    // 优先级 3：内容中包含错误关键字
+    const lowerContent = content.toLowerCase();
+    if (lowerContent.includes("error") || lowerContent.includes("failed")) {
+      notify.error("VCP 执行错误", content, { source: "VCP" });
+      return;
+    }
+
+    // 优先级 4：成功/完成类关键字 -> 即时浮动提示
+    if (content.includes("归档") || content.includes("完成") || content.includes("成功")) {
+      customMessage.success(content);
+      return;
     }
   }
 
@@ -550,6 +608,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       agentCount: 0,
       memoCount: 0,
       pluginCount: 0,
+      logCount: 0,
       messagesPerMinute: 0,
     };
     statsStartTime = Date.now();

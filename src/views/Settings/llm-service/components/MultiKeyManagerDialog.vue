@@ -263,7 +263,6 @@ const maskKey = (key: string) => {
     title="多密钥管理"
     width="90%"
     style="max-width: 1000px"
-    class="multi-key-dialog"
     @close="handleClose"
   >
     <template #header>

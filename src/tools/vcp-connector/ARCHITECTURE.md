@@ -37,15 +37,16 @@ VCP 主服务器在运行时会通过 WebSocket 广播多种运行时事件（�
 
 ### 2.2. 消息类型 (VcpMessageType)
 
-VCP 服务器广播的消息分为五种类型，每种对应不同的 AI 运行时事件：
+VCP 服务器广播的消息分为六种类型，每种对应不同的 AI 运行时事件：
 
-| 类型                         | 标签   | 颜色 | 说明                                             |
-| ---------------------------- | ------ | ---- | ------------------------------------------------ |
-| `RAG_RETRIEVAL_DETAILS`      | RAG    | 蓝色 | RAG 向量检索详情（数据库、查询、评分、标签匹配） |
-| `META_THINKING_CHAIN`        | Chain  | 紫色 | 元思考链的多阶段推理过程                         |
-| `AGENT_PRIVATE_CHAT_PREVIEW` | Agent  | 黄色 | Agent 间私聊的查询与响应预览                     |
-| `AI_MEMO_RETRIEVAL`          | Memo   | 绿色 | AI 记忆/日记回溯的提取结果                       |
-| `PLUGIN_STEP_STATUS`         | Plugin | 灰色 | 插件执行步骤的状态变更                           |
+| 类型                         | 标签   | 颜色 | 说明                                                         |
+| ---------------------------- | ------ | ---- | ------------------------------------------------------------ |
+| `RAG_RETRIEVAL_DETAILS`      | RAG    | 蓝色 | RAG 向量检索详情（数据库、查询、评分、标签匹配）             |
+| `META_THINKING_CHAIN`        | Chain  | 紫色 | 元思考链的多阶段推理过程                                     |
+| `AGENT_PRIVATE_CHAT_PREVIEW` | Agent  | 黄色 | Agent 间私聊的查询与响应预览                                 |
+| `AI_MEMO_RETRIEVAL`          | Memo   | 绿色 | AI 记忆/日记回溯的提取结果                                   |
+| `PLUGIN_STEP_STATUS`         | Plugin | 灰色 | 插件执行步骤的状态变更                                       |
+| `vcp_log`                    | Log    | 灰色 | VCP 运行时日志（工具执行状态、任务通知、错误报告、成功提示） |
 
 ### 2.3. 分布式工具注册
 
@@ -73,7 +74,7 @@ VCP 服务器广播的消息分为五种类型，每种对应不同的 AI 运行
 ```
 vcp-connector/
 ├── types/
-│   ├── protocol.ts              # 消息协议类型（5 种消息、连接/过滤/统计状态）
+│   ├── protocol.ts              # 消息协议类型（6 种消息、连接/过滤/统计状态）
 │   └── distributed.ts           # 分布式节点类型（配置、清单、请求/响应）
 ├── services/
 │   └── vcpNodeProtocol.ts       # 分布式协议处理器（工具注册、执行路由、结果回传）
@@ -87,13 +88,14 @@ vcp-connector/
 │   ├── monitor/                 # 消息监控相关组件
 │   │   ├── ConnectionPanel.vue  # 连接配置面板
 │   │   ├── FilterPanel.vue      # 消息类型过滤与统计
-│   │   ├── MessageMonitorPage.vue # 消息监控主页面
+│   │   ├── MessageMonitorPage.vue # 消息监控主页面（虚拟滚动）
 │   │   ├── BroadcastCard.vue    # 消息卡片容器（路由到具体内容组件）
 │   │   ├── RagCardContent.vue   # RAG 检索详情卡片
 │   │   ├── ChainCardContent.vue # 思考链卡片
 │   │   ├── AgentCardContent.vue # Agent 私聊卡片
 │   │   ├── MemoCardContent.vue  # 记忆回溯卡片
-│   │   └── PluginCardContent.vue # 插件步骤卡片
+│   │   ├── PluginCardContent.vue # 插件步骤卡片
+│   │   └── LogCardContent.vue   # VCP 日志卡片
 │   ├── distributed/             # 分布式节点相关组件
 │   │   ├── DistributedNodePage.vue # 分布式节点主页面
 │   │   ├── NodeStatusPanel.vue  # 节点状态与配置面板
@@ -120,6 +122,7 @@ graph TB
             AC[AgentCardContent]
             MC[MemoCardContent]
             PC[PluginCardContent]
+            LC[LogCardContent]
         end
         subgraph Distributed ["分布式节点"]
             DNP[DistributedNodePage]
@@ -150,7 +153,7 @@ graph TB
     end
 
     VC --> MMP & DNP
-    MMP --> BC --> RC & CC & AC & MC & PC
+    MMP --> BC --> RC & CC & AC & MC & PC & LC
     CP --> UWS
     NSP --> UWS & UDN
     ETL --> VDS & TRM
@@ -241,13 +244,23 @@ filteredMessages (computed) ──→ 类型过滤 → 关键词搜索 → UI �
 
 [`filteredMessages`](stores/vcpConnectorStore.ts:140) 的关键词搜索针对每种消息类型搜索不同字段：
 
-| 消息类型                     | 搜索字段                      |
-| ---------------------------- | ----------------------------- |
-| `RAG_RETRIEVAL_DETAILS`      | query, dbName, results[].text |
-| `META_THINKING_CHAIN`        | query, chainName              |
-| `AGENT_PRIVATE_CHAT_PREVIEW` | agentName, query, response    |
-| `AI_MEMO_RETRIEVAL`          | extractedMemories             |
-| `PLUGIN_STEP_STATUS`         | pluginName, stepName          |
+| 消息类型                     | 搜索字段                                  |
+| ---------------------------- | ----------------------------------------- |
+| `RAG_RETRIEVAL_DETAILS`      | query, dbName, results[].text             |
+| `META_THINKING_CHAIN`        | query, chainName                          |
+| `AGENT_PRIVATE_CHAT_PREVIEW` | agentName, query, response                |
+| `AI_MEMO_RETRIEVAL`          | extractedMemories                         |
+| `PLUGIN_STEP_STATUS`         | pluginName, stepName                      |
+| `vcp_log`                    | data.content, data.tool_name, data.source |
+
+#### 日志通知处理
+
+[`handleVcpLogNotification()`](stores/vcpConnectorStore.ts:561) 实现智能路由逻辑，根据日志内容类型推送不同通知：
+
+1. **错误优先**: `status === 'error'` 直接推送错误通知
+2. **任务 ID 提取**: 从内容中提取 `task_id` 或 `任务 XXX` 格式，推送任务启动通知
+3. **关键字检测**: 包含 "error"/"failed" 推送错误通知
+4. **成功提示**: 包含 "归档"/"完成"/"成功" 使用 `customMessage.success` 浮动提示
 
 ### 4.2. vcpDistributedStore（分布式 Store）
 
@@ -388,7 +401,7 @@ flowchart TD
 
 [`FilterPanel.vue`](components/monitor/FilterPanel.vue) 提供消息过滤和统计：
 
-- **类型过滤器**: 5 种消息类型的可视化切换按钮，每种带独立颜色标识
+- **类型过滤器**: 6 种消息类型的可视化切换按钮，每种带独立颜色标识
 - **统计网格**: 各类型消息计数的实时展示
 
 #### MessageMonitorPage
@@ -396,7 +409,11 @@ flowchart TD
 [`MessageMonitorPage.vue`](components/monitor/MessageMonitorPage.vue) 是消息监控的主页面：
 
 - **顶部工具栏**: 连接状态标签、消息计数、消息速率、搜索框、暂停/清空/导出按钮
-- **消息列表**: 使用 `TransitionGroup` 实现消息卡片的动画入场
+- **虚拟滚动**: 使用 `@tanstack/vue-virtual` 实现高性能虚拟滚动，支持：
+  - 动态估算消息高度（默认 120px）
+  - 仅渲染可见区域 + 5 条预扫描（overscan）
+  - 自动滚动到顶部（倒序排列，最新消息在顶）
+  - 节流滚动检测，用户接近顶部时自动跟随新消息
 - **导出功能**: 将过滤后的消息导出为 JSON 文件
 
 #### BroadcastCard + 内容组件
@@ -407,7 +424,7 @@ flowchart TD
 - 格式化时间戳
 - 通过 `defineAsyncComponent` 懒加载具体内容组件
 
-五种内容组件各自负责渲染特定消息类型的详情：
+六种内容组件各自负责渲染特定消息类型的详情：
 
 | 组件                                                            | 特性                                                                    |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -416,6 +433,7 @@ flowchart TD
 | [`AgentCardContent`](components/monitor/AgentCardContent.vue)   | Agent 名称、Query/Response 气泡对                                       |
 | [`MemoCardContent`](components/monitor/MemoCardContent.vue)     | 记忆模式、记录条数、提取内容预览                                        |
 | [`PluginCardContent`](components/monitor/PluginCardContent.vue) | 插件名、步骤名、状态标签（等待/运行/完成/失败）                         |
+| [`LogCardContent`](components/monitor/LogCardContent.vue)       | 工具名、来源标签、状态标签（success/error）、内容文本（错误红色高亮）   |
 
 ### 7.3. 分布式节点 Tab
 
@@ -632,18 +650,22 @@ Observer 和 Distributed 使用独立的 WebSocket 实例和连接守卫，可�
 
 [`BUILTIN_VCP_TOOLS`](composables/useVcpDistributedNode.ts:22) 中定义的工具（如 `internal_request_file`）始终包含在工具清单中，不受用户配置影响，确保 VCP 协议的基础能力可用。
 
+### 11.6. 虚拟滚动优化
+
+消息列表使用 `@tanstack/vue-virtual` 实现虚拟滚动，而非 `TransitionGroup` 全量渲染。这确保了在数千条消息场景下仍能保持流畅滚动和快速渲染。倒序排列设计（最新消息在顶部）配合自动滚动逻辑，确保用户无需手动滚动即可查看最新事件。
+
 ## 12. 扩展指南
 
 ### 12.1. 添加新的消息类型
 
-1. 在 [`types/protocol.ts`](types/protocol.ts) 中添加新的 `VcpMessageType` 值和对应的消息接口
-2. 将新类型加入 [`VcpMessage`](types/protocol.ts:81) 联合类型
-3. 在 [`parseMessage()`](stores/vcpConnectorStore.ts:224) 的 `validTypes` 数组中注册
-4. 在 [`stats`](stores/vcpConnectorStore.ts:91) 和 [`addMessage()`](stores/vcpConnectorStore.ts:509) 中添加计数逻辑
+1. 在 [`types/protocol.ts`](types/protocol.ts:1) 中添加新的 `VcpMessageType` 值和对应的消息接口
+2. 将新类型加入 [`VcpMessage`](types/protocol.ts:93) 联合类型
+3. 在 [`parseMessage()`](stores/vcpConnectorStore.ts:250) 的 `validTypes` 数组中注册
+4. 在 [`stats`](stores/vcpConnectorStore.ts:100) 和 [`addMessage()`](stores/vcpConnectorStore.ts:534) 中添加计数逻辑
 5. 在 [`filteredMessages`](stores/vcpConnectorStore.ts:140) 的关键词搜索中添加字段匹配
-6. 在 [`FilterPanel.vue`](components/monitor/FilterPanel.vue) 的 `typeOptions` 中添加过滤选项
+6. 在 [`FilterPanel.vue`](components/monitor/FilterPanel.vue:81) 的 `typeOptions` 中添加过滤选项，在统计网格中添加计数显示
 7. 创建新的 `XxxCardContent.vue` 组件
-8. 在 [`BroadcastCard.vue`](components/monitor/BroadcastCard.vue) 中添加对应的图标和内容组件路由
+8. 在 [`BroadcastCard.vue`](components/monitor/BroadcastCard.vue:5) 中添加对应的图标（从 `lucide-vue-next` 选择）和内容组件路由
 
 ### 12.2. 添加新的内置工具
 

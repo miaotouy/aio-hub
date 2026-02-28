@@ -3,7 +3,7 @@ import { InfoFilled, Rank } from "@element-plus/icons-vue";
 import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
 import { VueDraggableNext } from "vue-draggable-next";
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -100,13 +100,24 @@ const resetOrder = () => {
     errorHandler.error(error, "重置工具顺序失败");
   }
 };
+
+// 数量统计
+const totalToolsCount = computed(() => sortedTools.value.length);
+const enabledToolsCount = computed(() => {
+  if (!toolsVisible.value) return 0;
+  return sortedTools.value.filter((tool) => {
+    const toolId = getToolIdFromPath(tool.path);
+    return toolsVisible.value[toolId] === true;
+  }).length;
+});
 </script>
 
 <template>
   <div class="tools-settings">
     <div class="setting-item">
       <div class="setting-label">
-        <span>工具模块显示</span>
+        <span class="label-text">工具模块显示</span>
+        <span class="count-badge">{{ enabledToolsCount }}/{{ totalToolsCount }}</span>
         <el-tooltip content="选择要在主页显示的工具模块" placement="top">
           <el-icon class="info-icon">
             <InfoFilled />
@@ -138,16 +149,22 @@ const resetOrder = () => {
       :fallback-tolerance="3"
       :animation="200"
     >
-      <div v-for="tool in sortedTools" :key="tool.path" class="tool-item">
+      <div
+        v-for="tool in sortedTools"
+        :key="tool.path"
+        class="tool-item"
+        :class="{ 'is-active': toolsVisible && toolsVisible[getToolIdFromPath(tool.path)] }"
+      >
         <el-checkbox v-if="toolsVisible" v-model="toolsVisible[getToolIdFromPath(tool.path)]">
           <div class="tool-checkbox-content">
-            <el-icon class="drag-handle">
-              <Rank />
-            </el-icon>
-            <!-- 统一的图标容器 -->
-            <span class="icon-wrapper">
-              <component :is="tool.icon" />
-            </span>
+            <div class="icon-column">
+              <span class="icon-wrapper">
+                <component :is="tool.icon" />
+              </span>
+              <el-icon class="drag-handle">
+                <Rank />
+              </el-icon>
+            </div>
             <div class="tool-info">
               <span class="tool-name">{{ tool.name }}</span>
               <span v-if="tool.description" class="tool-description">{{ tool.description }}</span>
@@ -185,6 +202,16 @@ const resetOrder = () => {
   color: var(--text-color);
 }
 
+.count-badge {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+  font-weight: 600;
+  font-family: var(--el-font-family-mono, monospace);
+}
+
 .info-icon {
   color: var(--text-color-secondary);
   cursor: help;
@@ -198,11 +225,35 @@ const resetOrder = () => {
 }
 
 .tool-item {
-  padding: 8px;
+  padding: 12px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 12px;
   backdrop-filter: blur(var(--ui-blur));
   user-select: none;
+  border: 2px solid transparent;
+  background-color: var(--card-bg);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.tool-item:hover {
+  background-color: rgba(var(--el-color-primary-rgb), 0.05);
+}
+
+.tool-item.is-active {
+  border-color: var(--el-color-primary);
+  background-color: rgba(var(--el-color-primary-rgb), 0.08);
+}
+
+.icon-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 32px;
+  flex-shrink: 0;
+  padding-top: 4px;
 }
 
 /* 拖拽手柄样式 */
@@ -210,9 +261,13 @@ const resetOrder = () => {
   color: var(--text-color-secondary);
   cursor: grab;
   font-size: 18px;
-  margin-right: 8px;
+  opacity: 0;
+  transition: all 0.2s ease;
   margin-top: 2px;
-  flex-shrink: 0;
+}
+
+.tool-item:hover .drag-handle {
+  opacity: 1;
 }
 
 .drag-handle:active {
@@ -242,12 +297,19 @@ const resetOrder = () => {
 /* 覆盖 element-plus checkbox 样式 */
 .tool-item :deep(.el-checkbox) {
   height: auto;
+  width: 100%;
+  margin-right: 0;
+  display: flex;
   align-items: flex-start;
+}
+
+.tool-item :deep(.el-checkbox__input) {
+  display: none; /* 隐藏原生勾选框 */
 }
 
 .tool-item :deep(.el-checkbox__label) {
   white-space: normal;
-  padding-left: 8px;
+  padding-left: 0;
   width: 100%;
 }
 
@@ -263,13 +325,11 @@ const resetOrder = () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  font-size: 20px;
-  color: var(--primary-color);
-  margin-top: 2px;
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
+  color: var(--el-color-primary);
   flex-shrink: 0;
-  vertical-align: middle;
 }
 
 .tool-info {

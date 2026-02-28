@@ -39,7 +39,6 @@ const levelOptions = [
 ];
 
 const selectedLevel = ref<0 | 1 | 2>(props.activeLevel ?? 0);
-const showLevelMenu = ref(false);
 const currentLevelOption = computed(() => levelOptions.find((o) => o.value === selectedLevel.value) || levelOptions[0]);
 
 watch(
@@ -75,12 +74,10 @@ function triggerFetch() {
   }
 
   urlInputRef.value?.blur();
-  showLevelMenu.value = false;
 }
 
-function selectLevel(level: 0 | 1 | 2) {
+function handleLevelCommand(level: 0 | 1 | 2) {
   selectedLevel.value = level;
-  showLevelMenu.value = false;
   if (level === 2) {
     emit("open-interactive");
   }
@@ -123,50 +120,33 @@ function selectLevel(level: 0 | 1 | 2) {
     </div>
 
     <!-- Level 选择器 -->
-    <div class="level-selector-wrap">
-      <button class="toolbar-btn level-btn" :disabled="loading" @click="showLevelMenu = !showLevelMenu">
-        <component :is="currentLevelOption.icon" :size="14" />
-        <span>{{ currentLevelOption.label }}</span>
-        <i-ep-arrow-down class="level-arrow" :class="{ open: showLevelMenu }" />
-      </button>
-
-      <transition name="pop-menu">
-        <div v-if="showLevelMenu" class="level-dropdown">
-          <div
+    <el-dropdown trigger="click" @command="handleLevelCommand">
+      <div class="level-selector-wrap">
+        <button class="toolbar-btn level-btn" :disabled="loading">
+          <component :is="currentLevelOption.icon" :size="14" />
+          <span>{{ currentLevelOption.label }}</span>
+          <i-ep-arrow-down class="level-arrow" />
+        </button>
+      </div>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item
             v-for="opt in levelOptions"
             :key="opt.value"
-            class="level-item"
-            :class="{ 'is-active': selectedLevel === opt.value }"
-            @click="selectLevel(opt.value as 0 | 1)"
+            :command="opt.value"
+            :class="{ 'level-item-active': selectedLevel === opt.value }"
           >
-            <component :is="opt.icon" :size="15" class="level-item-icon" />
-            <div class="level-item-info">
-              <span class="level-item-name">{{ opt.label }}</span>
-              <span class="level-item-desc">{{ opt.desc }}</span>
+            <div class="level-item" :class="{ 'is-active': selectedLevel === opt.value }">
+              <component :is="opt.icon" :size="15" class="level-item-icon" />
+              <div class="level-item-info">
+                <span class="level-item-name">{{ opt.label }}</span>
+                <span class="level-item-desc">{{ opt.desc }}</span>
+              </div>
             </div>
-          </div>
-          <div class="dropdown-divider" />
-          <div
-            class="level-item"
-            @click="
-              () => {
-                showLevelMenu = false;
-                emit('open-interactive');
-              }
-            "
-          >
-            <Settings2 :size="15" class="level-item-icon" />
-            <div class="level-item-info">
-              <span class="level-item-name">L2 交互式</span>
-              <span class="level-item-desc">手动操作，精确提取</span>
-            </div>
-          </div>
-        </div>
-      </transition>
-
-      <!-- 背板关闭菜单 -->
-      <div v-if="showLevelMenu" class="menu-backdrop" @click="showLevelMenu = false" />
-    </div>
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
 
     <!-- 蒸馏按钮 -->
     <el-button type="primary" :loading="loading" :disabled="!localUrl.trim()" @click="triggerFetch"> 蒸馏 </el-button>
@@ -263,8 +243,8 @@ function selectLevel(level: 0 | 1 | 2) {
 
 /* Level 选择器 */
 .level-selector-wrap {
-  position: relative;
   flex-shrink: 0;
+  outline: none;
 }
 
 .level-btn {
@@ -276,39 +256,19 @@ function selectLevel(level: 0 | 1 | 2) {
   transition: transform 0.2s;
   margin-left: 2px;
 }
-.level-arrow.open {
-  transform: rotate(180deg);
-}
-
-/* 下拉菜单 */
-.level-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  min-width: 220px;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 4px;
-  z-index: var(--z-index-dropdown);
-  box-shadow: var(--el-box-shadow-light);
-}
 
 .level-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
+  min-width: 200px;
 }
-.level-item:hover {
-  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-}
-.level-item.is-active {
+
+:deep(.el-dropdown-menu__item.level-item-active) {
   background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.level-item.is-active {
   color: var(--primary-color);
 }
 
@@ -316,6 +276,7 @@ function selectLevel(level: 0 | 1 | 2) {
   flex-shrink: 0;
   color: var(--text-color-light);
 }
+
 .level-item.is-active .level-item-icon {
   color: var(--primary-color);
 }
@@ -324,43 +285,22 @@ function selectLevel(level: 0 | 1 | 2) {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  line-height: 1.2;
 }
+
 .level-item-name {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-color);
 }
+
 .level-item.is-active .level-item-name {
   color: var(--primary-color);
 }
+
 .level-item-desc {
   font-size: 11px;
   color: var(--text-color-light);
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 4px 0;
-}
-
-/* 背板 */
-.menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: calc(var(--z-index-dropdown) - 1);
-}
-
-/* 下拉动画 */
-.pop-menu-enter-active,
-.pop-menu-leave-active {
-  transition:
-    opacity 0.15s,
-    transform 0.15s;
-}
-.pop-menu-enter-from,
-.pop-menu-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
+  white-space: normal;
 }
 </style>

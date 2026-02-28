@@ -39,10 +39,7 @@ const isFormattingHtml = ref(false);
 async function formatHtml(raw: string): Promise<string> {
   try {
     // 懒加载 prettier standalone，避免影响初始包体积
-    const [prettier, htmlPlugin] = await Promise.all([
-      import("prettier/standalone"),
-      import("prettier/plugins/html"),
-    ]);
+    const [prettier, htmlPlugin] = await Promise.all([import("prettier/standalone"), import("prettier/plugins/html")]);
     return await prettier.format(raw, {
       parser: "html",
       plugins: [htmlPlugin],
@@ -72,7 +69,7 @@ watch(
       logger.info("Starting HTML formatting", { size: snapshot.length });
       const fStart = performance.now();
       isFormattingHtml.value = true;
-      
+
       // 使用 requestIdleCallback 或 setTimeout 确保不立即阻塞
       formattedHtml.value = await new Promise<string>((resolve) => {
         setTimeout(async () => {
@@ -80,7 +77,7 @@ watch(
           resolve(result);
         }, 100);
       });
-      
+
       isFormattingHtml.value = false;
       const fEnd = performance.now();
       logger.info("HTML formatting finished", { duration: `${(fEnd - fStart).toFixed(2)}ms` });
@@ -228,7 +225,7 @@ function downloadContent() {
         <div v-if="viewMode === 'preview'" class="markdown-preview">
           <RichTextRenderer
             :content="result.content || ''"
-            :version="RendererVersion.V2_CUSTOM_PARSER"
+            :version="RendererVersion.V1_MARKDOWN_IT"
             :enable-enter-animation="false"
             :throttle-enabled="true"
             :throttle-ms="150"

@@ -45,8 +45,19 @@ export class Preprocessor {
 
   private basicClean(doc: Document) {
     // 合并选择器以减少查询次数
-    const selectors = "script, style, noscript, svg, canvas, video, audio, iframe, link, object, embed";
+    // 移除了 svg，因为很多现代网页的图标和重要视觉元素是 SVG 格式
+    const selectors = "script, style, noscript, canvas, video, audio, iframe, link, object, embed";
     doc.querySelectorAll(selectors).forEach((el) => el.remove());
+
+    // 针对 SVG 进行精细化处理：移除过大的或隐藏的 SVG，保留图标类的
+    doc.querySelectorAll("svg").forEach((svg) => {
+      const width = parseInt(svg.getAttribute("width") || "0");
+      const height = parseInt(svg.getAttribute("height") || "0");
+      // 如果 SVG 明显是装饰性的背景或者巨大的占位符，则移除
+      if (width > 500 || height > 500) {
+        svg.remove();
+      }
+    });
 
     // 移除 HTML 注释
     const iterator = doc.createNodeIterator(doc.documentElement, NodeFilter.SHOW_COMMENT);

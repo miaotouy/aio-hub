@@ -42,6 +42,12 @@ export class Converter {
       const el = node as HTMLElement;
       const tag = el.tagName.toLowerCase();
 
+      // 性能与质量优化：跳过空元素或无意义的容器
+      if (["a", "span", "div", "p"].includes(tag)) {
+        const hasContent = el.textContent?.trim() || el.querySelector("img, svg, video, canvas");
+        if (!hasContent) return;
+      }
+
       switch (tag) {
         case "h1":
           md += "\n# ";
@@ -79,10 +85,17 @@ export class Converter {
           md += "\n- ";
           break;
         case "a":
-          md += "[";
+          // 只有当有 href 且不是 javascript: 时才作为链接
+          const href = el.getAttribute("href");
+          if (href && !href.startsWith("javascript:")) {
+            md += "[";
+          }
           break;
         case "img":
-          md += "![" + (el.getAttribute("alt") || "image") + "](";
+          const src = el.getAttribute("src") || el.getAttribute("data-src") || el.getAttribute("data-actualsrc");
+          if (src) {
+            md += "![" + (el.getAttribute("alt") || "image") + "](";
+          }
           break;
         case "pre":
           md += "\n```\n";
@@ -112,10 +125,16 @@ export class Converter {
           md += "*";
           break;
         case "a":
-          md += "](" + (el.getAttribute("href") || "#") + ")";
+          const hrefEnd = el.getAttribute("href");
+          if (hrefEnd && !hrefEnd.startsWith("javascript:")) {
+            md += "](" + hrefEnd + ")";
+          }
           break;
         case "img":
-          md += el.getAttribute("src") + ")";
+          const srcEnd = el.getAttribute("src") || el.getAttribute("data-src") || el.getAttribute("data-actualsrc");
+          if (srcEnd) {
+            md += srcEnd + ")";
+          }
           break;
         case "pre":
           md += "\n```\n";

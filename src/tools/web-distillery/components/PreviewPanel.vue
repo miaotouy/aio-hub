@@ -26,7 +26,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{ refresh: [] }>();
 
 type ViewMode = "preview" | "raw" | "source";
-const viewMode = ref<ViewMode>("preview");
+// 默认切换到 raw (Markdown 源码) 模式，以测试渲染性能并对比内容质量
+const viewMode = ref<ViewMode>("raw");
 
 /** 是否有 DOM 快照（Level 0/1 都支持） */
 const hasDomSnapshot = computed(() => !!props.result?.domSnapshot);
@@ -61,17 +62,28 @@ watch(
   async ([mode, snapshot]) => {
     // 只有在 source 模式且 snapshot 存在时才处理
     if (mode === "source" && snapshot) {
-      // 性能优化：如果 HTML 源码过大（超过 1MB），跳过 Prettier 美化，直接显示原文
-      // 否则 Prettier 在主线程处理巨量 HTML 会导致 UI 彻底卡死
-      if (snapshot.length > 1024 * 1024) {
-        logger.info("DOM 快照过大，跳过自动美化以保持响应", { size: snapshot.length });
+      // 性能优化：调低阈值到 200KB，因为 Prettier 在处理复杂 HTML 时非常耗时
+      if (snapshot.length > 200 * 1024) {
+        logger.info("DOM 快照较大，跳过自动美化以保持响应", { size: snapshot.length });
         formattedHtml.value = snapshot;
         return;
       }
 
+      logger.info("Starting HTML formatting", { size: snapshot.length });
+      const fStart = performance.now();
       isFormattingHtml.value = true;
-      formattedHtml.value = await formatHtml(snapshot);
+      
+      // 使用 requestIdleCallback 或 setTimeout 确保不立即阻塞
+      formattedHtml.value = await new Promise<string>((resolve) => {
+        setTimeout(async () => {
+          const result = await formatHtml(snapshot);
+          resolve(result);
+        }, 100);
+      });
+      
       isFormattingHtml.value = false;
+      const fEnd = performance.now();
+      logger.info("HTML formatting finished", { duration: `${(fEnd - fStart).toFixed(2)}ms` });
     } else if (mode !== "source") {
       // 切换走时清空美化后的内容，释放内存
       formattedHtml.value = "";
@@ -213,13 +225,15 @@ function downloadContent() {
       <!-- 内容区 -->
       <div class="content-area">
         <!-- Markdown 富文本预览 -->
-        <RichTextRenderer
-          v-if="viewMode === 'preview'"
-          :content="result.content || ''"
-          :version="RendererVersion.V2_CUSTOM_PARSER"
-          :enable-enter-animation="false"
-          class="markdown-preview"
-        />
+        <div v-if="viewMode === 'preview'" class="markdown-preview">
+          <RichTextRenderer
+            :content="result.content || ''"
+            :version="RendererVersion.V2_CUSTOM_PARSER"
+            :enable-enter-animation="false"
+            :throttle-enabled="true"
+            :throttle-ms="150"
+          />
+        </div>
         <!-- Markdown 原始代码视图 -->
         <RichCodeEditor
           v-else-if="viewMode === 'raw'"
@@ -382,6 +396,8 @@ function downloadContent() {
   overflow-y: auto;
   padding: 20px;
   box-sizing: border-box;
+  contain: content;
+  will-change: transform;
 }
 
 /* HTML 源码视图包装层 */

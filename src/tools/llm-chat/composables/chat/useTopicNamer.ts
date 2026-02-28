@@ -3,18 +3,18 @@
  * 负责自动或手动为会话生成标题
  */
 
-import { ref } from 'vue';
+import { ref } from "vue";
 import type { ChatSession, ChatMessageNode } from "../../types";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useSessionManager } from "../session/useSessionManager";
 import { useNodeManager } from "../session/useNodeManager";
-import { useLlmRequest } from '@/composables/useLlmRequest';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { formatDateTime } from '@/utils/time';
+import { useLlmRequest } from "@/composables/useLlmRequest";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { formatDateTime } from "@/utils/time";
 
-const logger = createModuleLogger('llm-chat/topic-namer');
-const errorHandler = createModuleErrorHandler('llm-chat/topic-namer');
+const logger = createModuleLogger("llm-chat/topic-namer");
+const errorHandler = createModuleErrorHandler("llm-chat/topic-namer");
 
 export function useTopicNamer() {
   // 正在生成标题的会话 ID 集合
@@ -39,7 +39,7 @@ export function useTopicNamer() {
   ): Promise<string | null> => {
     // 防止重复生成
     if (generatingSessionIds.value.has(session.id)) {
-      logger.warn('会话正在生成标题，跳过重复请求', { sessionId: session.id });
+      logger.warn("会话正在生成标题，跳过重复请求", { sessionId: session.id });
       return null;
     }
 
@@ -57,59 +57,65 @@ export function useTopicNamer() {
 
       // 检查是否启用
       if (!namingConfig.enabled) {
-        logger.warn('话题命名功能未启用', { sessionId: session.id });
+        logger.warn("话题命名功能未启用", { sessionId: session.id });
         return null;
       }
 
+      // 确定使用的模型标识符：优先使用话题命名配置，否则回退到全局默认模型
+      let modelIdentifier = namingConfig.modelIdentifier;
+      if (!modelIdentifier) {
+        modelIdentifier = settings.value.modelPreferences.defaultModel;
+      }
+
       // 检查模型配置
-      if (!namingConfig.modelIdentifier) {
-        errorHandler.handle(new Error('Model not configured'), {
-          userMessage: '未配置话题命名模型',
+      if (!modelIdentifier) {
+        errorHandler.handle(new Error("Model not configured"), {
+          userMessage: "未配置话题命名模型且无全局默认模型",
           showToUser: false,
         });
-        throw new Error('请先在设置中配置话题命名模型');
+        throw new Error("请先在设置中配置话题命名模型或全局默认模型");
       }
 
       // 解析模型标识符
-      const firstColonIndex = namingConfig.modelIdentifier.indexOf(':');
-      const profileId = namingConfig.modelIdentifier.substring(0, firstColonIndex);
-      const modelId = namingConfig.modelIdentifier.substring(firstColonIndex + 1);
+      const firstColonIndex = modelIdentifier.indexOf(":");
+      const profileId = modelIdentifier.substring(0, firstColonIndex);
+      const modelId = modelIdentifier.substring(firstColonIndex + 1);
 
       if (!profileId || !modelId) {
-        errorHandler.handle(new Error('Invalid model identifier'), {
-          userMessage: '无效的模型标识符',
+        errorHandler.handle(new Error("Invalid model identifier"), {
+          userMessage: "无效的模型标识符",
           showToUser: false,
           context: { modelIdentifier: namingConfig.modelIdentifier },
         });
-        throw new Error('模型标识符格式错误');
+        throw new Error("模型标识符格式错误");
       }
 
       // 获取会话的最新消息作为上下文
       const nodeManager = useNodeManager();
       const activePath = nodeManager.getNodePath(session, session.activeLeafId);
-      
+
       // 过滤掉系统消息和禁用消息，只保留用户和助手的消息
       const validMessages = activePath
-        .filter((node: ChatMessageNode) => node.role !== 'system' && node.isEnabled !== false)
-        .filter((node: ChatMessageNode) => node.role === 'user' || node.role === 'assistant');
+        .filter((node: ChatMessageNode) => node.role !== "system" && node.isEnabled !== false)
+        .filter((node: ChatMessageNode) => node.role === "user" || node.role === "assistant");
 
       // 取最新的 N 条消息
       const contextMessages = validMessages.slice(-namingConfig.contextMessageCount);
 
       if (contextMessages.length === 0) {
-        logger.warn('会话中没有可用的消息', { sessionId: session.id });
+        logger.warn("会话中没有可用的消息", { sessionId: session.id });
         return null;
       }
 
       // 构建上下文文本
       const contextText = contextMessages
         .map((node: ChatMessageNode) => {
-          const role = node.role === 'user' ? '用户' : '助手';
+          const role = node.role === "user" ? "用户" : "助手";
           return `${role}: ${node.content}`;
         })
-        .join('\n\n');
+        .join("\n\n");
 
-      logger.info('开始生成会话标题', {
+      logger.info("开始生成会话标题", {
         sessionId: session.id,
         sessionName: session.name,
         profileId,
@@ -121,12 +127,12 @@ export function useTopicNamer() {
       // 构建最终的提示词
       // 如果提示词中包含 {context} 占位符，则替换；否则追加到末尾（向后兼容）
       let finalPrompt: string;
-      if (namingConfig.prompt.includes('{context}')) {
-        finalPrompt = namingConfig.prompt.replace('{context}', contextText);
-        logger.debug('使用占位符模式构建提示词');
+      if (namingConfig.prompt.includes("{context}")) {
+        finalPrompt = namingConfig.prompt.replace("{context}", contextText);
+        logger.debug("使用占位符模式构建提示词");
       } else {
         finalPrompt = `${namingConfig.prompt}\n\n${contextText}`;
-        logger.debug('使用追加模式构建提示词（向后兼容）');
+        logger.debug("使用追加模式构建提示词（向后兼容）");
       }
 
       // 发送请求生成标题
@@ -136,7 +142,7 @@ export function useTopicNamer() {
         modelId,
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: finalPrompt,
           },
         ],
@@ -147,30 +153,32 @@ export function useTopicNamer() {
 
       // 清理生成的标题（去除首尾空白、引号等）
       let generatedTitle = response.content.trim();
-      
+
       // 移除可能的引号包裹
-      if ((generatedTitle.startsWith('"') && generatedTitle.endsWith('"')) ||
-          (generatedTitle.startsWith("'") && generatedTitle.endsWith("'"))) {
+      if (
+        (generatedTitle.startsWith('"') && generatedTitle.endsWith('"')) ||
+        (generatedTitle.startsWith("'") && generatedTitle.endsWith("'"))
+      ) {
         generatedTitle = generatedTitle.slice(1, -1).trim();
       }
 
       // 移除可能的标点符号
-      generatedTitle = generatedTitle.replace(/[。！？，、；：""''（）《》【】…—·\.,!?;:\(\)\[\]<>]$/g, '').trim();
+      generatedTitle = generatedTitle.replace(/[。！？，、；：""''（）《》【】…—·\.,!?;:\(\)\[\]<>]$/g, "").trim();
 
       // 限制长度（防止过长）
       const maxTitleLength = 50;
       if (generatedTitle.length > maxTitleLength) {
-        generatedTitle = generatedTitle.substring(0, maxTitleLength) + '...';
+        generatedTitle = generatedTitle.substring(0, maxTitleLength) + "...";
       }
 
       // 确保标题不为空
       if (!generatedTitle) {
-        logger.warn('生成的标题为空，使用默认标题');
+        logger.warn("生成的标题为空，使用默认标题");
         // 使用与 createSession 相同的默认命名格式
-        generatedTitle = `会话 ${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`;
+        generatedTitle = `会话 ${formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss")}`;
       }
 
-      logger.info('会话标题生成成功', {
+      logger.info("会话标题生成成功", {
         sessionId: session.id,
         oldName: session.name,
         newName: generatedTitle,
@@ -189,7 +197,7 @@ export function useTopicNamer() {
       return generatedTitle;
     } catch (error) {
       errorHandler.handle(error, {
-        userMessage: '生成会话标题失败',
+        userMessage: "生成会话标题失败",
         context: {
           sessionId: session.id,
           sessionName: session.name,
@@ -216,14 +224,15 @@ export function useTopicNamer() {
       return false;
     }
 
-    // 检查模型是否配置
-    if (!namingConfig.modelIdentifier) {
+    // 检查模型是否配置：优先使用话题命名配置，否则回退到全局默认模型
+    const modelIdentifier = namingConfig.modelIdentifier || settings.value.modelPreferences.defaultModel;
+    if (!modelIdentifier) {
       return false;
     }
 
     // 检查会话名称是否为默认名称（以"会话"开头的认为是默认名称）
-    if (!session.name.startsWith('会话')) {
-      logger.debug('会话已有自定义名称，跳过自动命名', {
+    if (!session.name.startsWith("会话")) {
+      logger.debug("会话已有自定义名称，跳过自动命名", {
         sessionId: session.id,
         sessionName: session.name,
       });
@@ -234,14 +243,14 @@ export function useTopicNamer() {
     const nodeManager = useNodeManager();
     const activePath = nodeManager.getNodePath(session, session.activeLeafId);
     const userMessageCount = activePath.filter(
-      (node: ChatMessageNode) => node.role === 'user' && node.isEnabled !== false
+      (node: ChatMessageNode) => node.role === "user" && node.isEnabled !== false
     ).length;
 
     // 检查是否达到阈值
     const shouldTrigger = userMessageCount >= namingConfig.autoTriggerThreshold;
 
     if (shouldTrigger) {
-      logger.debug('会话满足自动命名条件', {
+      logger.debug("会话满足自动命名条件", {
         sessionId: session.id,
         userMessageCount,
         threshold: namingConfig.autoTriggerThreshold,

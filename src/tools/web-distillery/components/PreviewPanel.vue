@@ -59,13 +59,25 @@ async function formatHtml(raw: string): Promise<string> {
 watch(
   [viewMode, () => props.result?.domSnapshot],
   async ([mode, snapshot]) => {
+    // 只有在 source 模式且 snapshot 存在时才处理
     if (mode === "source" && snapshot) {
+      // 性能优化：如果 HTML 源码过大（超过 1MB），跳过 Prettier 美化，直接显示原文
+      // 否则 Prettier 在主线程处理巨量 HTML 会导致 UI 彻底卡死
+      if (snapshot.length > 1024 * 1024) {
+        logger.info("DOM 快照过大，跳过自动美化以保持响应", { size: snapshot.length });
+        formattedHtml.value = snapshot;
+        return;
+      }
+
       isFormattingHtml.value = true;
       formattedHtml.value = await formatHtml(snapshot);
       isFormattingHtml.value = false;
+    } else if (mode !== "source") {
+      // 切换走时清空美化后的内容，释放内存
+      formattedHtml.value = "";
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 当 DOM 快照不可用时，自动切换回预览模式

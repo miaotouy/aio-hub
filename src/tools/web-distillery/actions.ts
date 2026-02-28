@@ -32,7 +32,7 @@ export async function quickFetch(options: QuickFetchOptions): Promise<FetchResul
       });
 
       const result = await transformer.transform(payload.html, options);
-      
+
       // 保存原始 HTML 用于源码查看
       return {
         ...result,
@@ -61,13 +61,21 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
         logger.info("Found matched recipe", { id: matchedRecipe.id, name: matchedRecipe.name });
       }
 
-      // 3. 创建 headless 子 Webview 并加载目标页面
+      // 3. 创建前先尝试销毁旧的，确保幂等
+      try {
+        await webviewBridge.destroy();
+      } catch (e) {
+        // ignore
+      }
+
+      // 4. 创建 headless 子 Webview 并加载目标页面
+      // 使用超长高度（5000px）以尽可能多地触发下方内容加载（如评论区）
       await webviewBridge.createWebview({
         url: options.url,
         x: -2000, // 确保在屏幕外
         y: -2000,
-        width: 1280,
-        height: 900,
+        width: 1920,
+        height: 5000,
         headless: true,
       });
 
@@ -79,7 +87,7 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
 
       // 5. 并行等待：DOM 提取触发 + 超时
       const waitTimeout = options.waitTimeout || 15000;
-      const combinedWaitFor = options.waitFor || (matchedRecipe?.extractSelectors?.[0]);
+      const combinedWaitFor = options.waitFor || matchedRecipe?.extractSelectors?.[0];
 
       // 触发带 selector 的提取命令
       await webviewBridge.extractDom(combinedWaitFor, waitTimeout);
@@ -119,7 +127,7 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
  */
 export async function openDistillery(url?: string): Promise<void> {
   logger.info("Opening interactive UI", { url });
-  
+
   // 如果提供了 URL，先更新 store 中的当前 URL
   if (url) {
     const { useWebDistilleryStore } = await import("./stores/store");

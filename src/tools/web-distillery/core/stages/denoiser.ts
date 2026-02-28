@@ -19,11 +19,9 @@ export class Denoiser {
       });
     }
 
-    // 2. 移除常见的干扰语义标签
-    const noisyTags = ["nav", "header", "footer", "aside", "form", "button"];
-    noisyTags.forEach((tag) => {
-      doc.querySelectorAll(tag).forEach((el) => el.remove());
-    });
+    // 2. 移除常见的干扰语义标签（合并选择器以提升性能）
+    const noisyTags = "nav, header, footer, aside, form, button, input, select, textarea";
+    doc.querySelectorAll(noisyTags).forEach((el) => el.remove());
 
     // 3. 基于 ID 和 Class 模式移除
     const noisyPatterns = [
@@ -40,9 +38,12 @@ export class Denoiser {
       "widget",
       "popup",
       "modal",
+      "breadcrumb",
+      "pagination",
     ];
 
-    const elements = doc.querySelectorAll("div, section, aside, span");
+    // 性能优化：不再遍历 span，主要噪声集中在块级容器中
+    const elements = doc.querySelectorAll("div, section, aside, ul, ol");
     elements.forEach((el) => {
       const id = el.id.toLowerCase();
       const className = el.className.toString().toLowerCase();
@@ -50,7 +51,8 @@ export class Denoiser {
       if (noisyPatterns.some((p) => id.includes(p) || className.includes(p))) {
         // 如果文本密度很低，则确认为噪声
         const textLen = el.textContent?.trim().length || 0;
-        if (textLen < 100) {
+        // 噪声容器通常包含很多链接但正文字数较少
+        if (textLen < 200) {
           el.remove();
         }
       }

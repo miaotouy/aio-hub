@@ -44,22 +44,29 @@ const qualityStatus = computed(() => {
 // --- Webview 坐标同步逻辑 ---
 let resizeObserver: ResizeObserver | null = null;
 let syncTimer: any = null;
+let pollTimer: any = null;
 
 async function syncWebviewBounds() {
-  if (!webviewPlaceholder.value || !store.isInteractiveMode) return;
+  if (!webviewPlaceholder.value || !store.isInteractiveMode || !store.isWebviewCreated) return;
 
-  const rect = webviewPlaceholder.value.getBoundingClientRect();
-  const mainWindow = getCurrentWebviewWindow();
-  const factor = await mainWindow.scaleFactor();
+  try {
+    const rect = webviewPlaceholder.value.getBoundingClientRect();
+    const mainWindow = getCurrentWebviewWindow();
+    const factor = await mainWindow.scaleFactor();
 
-  // 获取主窗口在屏幕上的绝对位置 (物理单位)
-  const outerPos = await mainWindow.outerPosition();
+    // 获取主窗口在屏幕上的绝对位置 (物理单位)
+    const outerPos = await mainWindow.outerPosition();
 
-  // 计算子窗口在屏幕上的绝对位置 (逻辑单位)
-  const x = outerPos.x / factor + rect.left;
-  const y = outerPos.y / factor + rect.top + 32;
+    // 计算子窗口在屏幕上的绝对位置 (逻辑单位)
+    // 注意：36 是标题栏的高度 (var(--titlebar-height))
+    const x = outerPos.x / factor + rect.left;
+    const y = outerPos.y / factor + rect.top + 36;
 
-  await webviewBridge.resize(x, y, rect.width, rect.height);
+    await webviewBridge.resize(x, y, rect.width, rect.height);
+  } catch (err) {
+    // 忽略同步过程中的错误（通常是窗口已关闭）
+    logger.debug("Sync bounds failed", err);
+  }
 }
 
 const startSyncing = () => {
@@ -72,14 +79,36 @@ const startSyncing = () => {
   if (webviewPlaceholder.value) {
     resizeObserver.observe(webviewPlaceholder.value);
   }
+
+  // 增加定时轮询，解决主窗口移动时 ResizeObserver 不触发的问题
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    syncWebviewBounds();
+  }, 200);
+
   syncWebviewBounds();
 };
 
-const stopSyncing = () => {
+const stopSyncing = async () => {
   if (resizeObserver) {
     resizeObserver.disconnect();
   }
-  webviewBridge.destroy();
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  if (syncTimer) {
+    cancelAnimationFrame(syncTimer);
+    syncTimer = null;
+  }
+
+  try {
+    await webviewBridge.destroy();
+  } catch (e) {
+    logger.warn("Destroy webview failed on stopSyncing", e);
+  } finally {
+    store.setWebviewCreated(false);
+  }
 };
 
 watch(
@@ -134,10 +163,21 @@ async function handleFetch(level: 0 | 1 | 2) {
 
       store.setResult(result);
     } else if (level === 2) {
-      await webviewBridge.init();
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      const rect = webviewPlaceholder.value?.getBoundingClientRect() || { left: 0, top: 0, width: 800, height: 600 };
+      // 创建前先尝试销毁旧的，确保幂等
+      try {
+        await webviewBridge.destroy();
+      } catch (e) {
+        // ignore
+      }
 
+      await webviewBridge.init();
+      await new Promise((resolve) => setTimeout(resolve, 100)); // 给 DOM 渲染留出时间
+
+      if (!webviewPlaceholder.value) {
+        throw new Error("找不到浏览器挂载点");
+      }
+
+      const rect = webviewPlaceholder.value.getBoundingClientRect();
       const mainWindow = getCurrentWebviewWindow();
       const factor = await mainWindow.scaleFactor();
       const outerPos = await mainWindow.outerPosition();
@@ -145,7 +185,7 @@ async function handleFetch(level: 0 | 1 | 2) {
       await webviewBridge.createWebview({
         url,
         x: outerPos.x / factor + rect.left,
-        y: outerPos.y / factor + rect.top + 32,
+        y: outerPos.y / factor + rect.top + 36,
         width: rect.width,
         height: rect.height,
       });

@@ -146,6 +146,14 @@ export class WebviewBridge {
     headless?: boolean;
   }) {
     const store = useWebDistilleryStore();
+    // 如果已经创建了，先销毁
+    if (store.isWebviewCreated) {
+      try {
+        await this.destroy();
+      } catch (e) {
+        logger.debug("Auto destroy failed before create", e);
+      }
+    }
     const result = await invoke("distillery_create_webview", { options });
     store.setWebviewCreated(true);
     return result;
@@ -157,9 +165,12 @@ export class WebviewBridge {
 
   public async destroy() {
     const store = useWebDistilleryStore();
-    const result = await invoke("distillery_destroy_webview");
-    store.setWebviewCreated(false);
-    return result;
+    try {
+      const result = await invoke("distillery_destroy_webview");
+      return result;
+    } finally {
+      store.setWebviewCreated(false);
+    }
   }
 
   public async resize(x: number, y: number, width: number, height: number) {

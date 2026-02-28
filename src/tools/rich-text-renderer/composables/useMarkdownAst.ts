@@ -14,6 +14,7 @@ import type { AstNode, Patch, NodeMap } from "../types";
 const MAX_QUEUE_SIZE = 200;
 const BATCH_TIMEOUT_MS = 32;
 const MAX_TOTAL_NODES = 25000; // 渲染器硬上限（仅防止极端异常，不作为常规防护）
+const MAX_RAF_RETRIES = 10; // 最多重试次数，防止无限循环
 
 export function useMarkdownAst(
   options: { throttleMs?: number; throttleEnabled?: boolean; verboseLogging?: boolean } = {}
@@ -27,7 +28,9 @@ export function useMarkdownAst(
 
   let patchQueue: Patch[] = [];
   let rafHandle = 0;
-  let timeoutHandle = 0; // 兼容旧代码，虽然现在主要用 rafHandle
+  let timeoutHandle = 0; // 兼容旧代码,虽然现在主要用 rafHandle
+  let rafRetryCount = 0; // 跟踪 rAF 重试次数，防止无限循环
+  let isShutdown = false; // 紧急停止标志
 
   // 性能监控
   let lastFlushTime = 0;
@@ -323,6 +326,12 @@ export function useMarkdownAst(
    * 刷新 Patch 队列
    */
   function flushPatches() {
+    // 紧急停止检查
+    if (isShutdown) {
+      patchQueue = [];
+      return;
+    }
+
     // 清理句柄
     if (rafHandle) {
       cancelAnimationFrame(rafHandle);
@@ -332,6 +341,9 @@ export function useMarkdownAst(
       clearTimeout(timeoutHandle);
       timeoutHandle = 0;
     }
+
+    // 重置重试计数器
+    rafRetryCount = 0;
 
     if (patchQueue.length > 0) {
       const now = performance.now();
@@ -354,8 +366,28 @@ export function useMarkdownAst(
    * 基于 rAF 的硬核节流检查
    */
   const throttleTick = () => {
+    // 紧急停止检查
+    if (isShutdown) {
+      rafHandle = 0;
+      patchQueue = [];
+      return;
+    }
+
     if (patchQueue.length === 0) {
       rafHandle = 0;
+      rafRetryCount = 0;
+      return;
+    }
+
+    // 防止无限循环：如果重试次数过多，强制刷新
+    rafRetryCount++;
+    if (rafRetryCount > MAX_RAF_RETRIES) {
+      if (verboseLogging) {
+        console.warn(
+          `[useMarkdownAst] rAF retry limit reached (${MAX_RAF_RETRIES}), forcing flush with ${patchQueue.length} patches`
+        );
+      }
+      flushPatches();
       return;
     }
 
@@ -375,6 +407,11 @@ export function useMarkdownAst(
    * 将 Patch 加入队列
    */
   function enqueuePatch(patch: Patch | Patch[]) {
+    // 紧急停止检查
+    if (isShutdown) {
+      return;
+    }
+
     const patches = Array.isArray(patch) ? patch : [patch];
 
     if (verboseLogging && patches.length > 0) {
@@ -396,9 +433,27 @@ export function useMarkdownAst(
     }
   }
 
+  /**
+   * 紧急停止所有操作（用于降级模式）
+   */
+  function emergencyShutdown() {
+    isShutdown = true;
+    patchQueue = [];
+    if (rafHandle) {
+      cancelAnimationFrame(rafHandle);
+      rafHandle = 0;
+    }
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = 0;
+    }
+    rafRetryCount = 0;
+  }
+
   return {
     ast,
     enqueuePatch,
     nodeMap,
+    emergencyShutdown,
   };
 }

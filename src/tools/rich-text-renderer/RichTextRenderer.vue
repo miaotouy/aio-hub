@@ -21,13 +21,7 @@ import { StreamProcessor } from "./core/StreamProcessor";
 import { StreamProcessorV2 } from "./core/StreamProcessorV2";
 import { StreamController } from "./core/StreamController";
 import AstNodeRenderer from "./components/AstNodeRenderer.tsx";
-import type {
-  StreamSource,
-  LlmThinkRule,
-  RichTextRendererStyleOptions,
-  MarkdownStyleOption,
-  AstNode,
-} from "./types";
+import type { StreamSource, LlmThinkRule, RichTextRendererStyleOptions, MarkdownStyleOption, AstNode } from "./types";
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
 import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
 import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
@@ -139,13 +133,11 @@ const cssVariables = computed(() => {
 
 // 是否使用 AST 渲染器（V1 / V2 等）
 const useAstRenderer = computed(
-  () =>
-    props.version === RendererVersion.V1_MARKDOWN_IT ||
-    props.version === RendererVersion.V2_CUSTOM_PARSER
+  () => props.version === RendererVersion.V1_MARKDOWN_IT || props.version === RendererVersion.V2_CUSTOM_PARSER
 );
 
 // AST 状态
-const { ast, enqueuePatch } = useMarkdownAst({
+const { ast, enqueuePatch, emergencyShutdown } = useMarkdownAst({
   throttleMs: props.throttleMs,
   throttleEnabled: props.throttleEnabled,
   verboseLogging: props.verboseLogging,
@@ -156,19 +148,32 @@ const imageList = ref<string[]>([]);
 
 /**
  * 递归提取 AST 中的所有图片链接
+ * 性能优化：添加节点数量限制，避免在大型 AST 中卡顿
  */
 const extractImages = (nodes: AstNode[]): string[] => {
   const images: string[] = [];
-  const traverse = (nodeList: AstNode[]) => {
+  const MAX_NODES_TO_TRAVERSE = 5000; // 最多遍历 5000 个节点
+  let nodeCount = 0;
+
+  const traverse = (nodeList: AstNode[]): boolean => {
     for (const nodeListElement of nodeList) {
+      if (++nodeCount > MAX_NODES_TO_TRAVERSE) {
+        console.warn(`[RichTextRenderer] Image extraction stopped: node count exceeded ${MAX_NODES_TO_TRAVERSE}`);
+        return false; // 停止遍历
+      }
+
       if (nodeListElement.type === "image" && "src" in nodeListElement.props) {
         images.push((nodeListElement.props as { src: string }).src);
       }
       if (nodeListElement.children && nodeListElement.children.length > 0) {
-        traverse(nodeListElement.children);
+        if (!traverse(nodeListElement.children)) {
+          return false; // 传播停止信号
+        }
       }
     }
+    return true;
   };
+
   traverse(nodes);
   return images;
 };
@@ -186,10 +191,21 @@ const throttledUpdateImageList = throttle(
 );
 
 // 监听 AST 变化，更新图片列表
+// 性能优化：移除 deep: true，改用 shallowRef 的引用变化检测
 watch(
   ast,
   (newAst) => {
     if (useAstRenderer.value) {
+      // 降级模式检测：如果 AST 只有一个 alert 节点且是警告类型，说明已降级
+      if (newAst.length === 1 && newAst[0].type === "alert" && newAst[0].props.alertType === "warning") {
+        // 触发紧急停止，清理所有异步操作
+        emergencyShutdown();
+        imageList.value = [];
+        // 停止节流函数
+        throttledUpdateImageList.cancel();
+        return;
+      }
+
       // 在流式传输中，使用节流更新
       if (props.isStreaming) {
         throttledUpdateImageList(newAst);
@@ -198,8 +214,8 @@ watch(
         imageList.value = extractImages(newAst);
       }
     }
-  },
-  { deep: true }
+  }
+  // 移除 { deep: true }，因为 ast 是 shallowRef，引用变化即可触发
 );
 
 // 内部流式状态跟踪
@@ -422,7 +438,10 @@ onMounted(() => {
       onContent: (smoothedContent: string) => {
         if (props.verboseLogging) {
           const displayStr = smoothedContent.length > 20 ? smoothedContent.slice(0, 20) + "..." : smoothedContent;
-          console.log(`%c[RichTextRenderer] Smooth Emit: "${displayStr.replace(/\n/g, "\\n")}" (len: ${smoothedContent.length})`, "color: #67C23A;");
+          console.log(
+            `%c[RichTextRenderer] Smooth Emit: "${displayStr.replace(/\n/g, "\\n")}" (len: ${smoothedContent.length})`,
+            "color: #67C23A;"
+          );
         }
 
         // 接收平滑化后的增量内容，累积到 buffer
@@ -562,8 +581,7 @@ defineExpose({
 }
 
 /* 无自定义尺寸的图片：添加安全约束，防止超大图撑爆容器 */
-.rich-text-renderer
-  :deep(img:not([width]):not([height]):not([style*="width"]):not([style*="height"])) {
+.rich-text-renderer :deep(img:not([width]):not([height]):not([style*="width"]):not([style*="height"])) {
   max-width: 100%;
   max-height: 720px;
   height: auto;

@@ -97,6 +97,10 @@ const resolveUrl = async () => {
       }
       const assetPath = props.src.substring("appdata://".length);
       resolvedSrc.value = assetManagerEngine.convertToAssetProtocol(assetPath, basePath);
+    } else if (props.src.startsWith("//")) {
+      // 协议相对 URL (如 //example.com/image.png)
+      // 默认使用 https
+      resolvedSrc.value = `https:${props.src}`;
     } else if (
       // 检查是否为本地绝对路径 (Windows 盘符, UNC 路径, 或 Unix 绝对路径)
       /^[a-zA-Z]:[\\/]/.test(props.src) ||
@@ -116,10 +120,46 @@ const resolveUrl = async () => {
     isLoading.value = false;
   }
 };
+// 性能优化：使用 watchEffect 替代 watch，避免不必要的重复触发
+// 只在 src 真正变化时才重新解析
+let lastSrc = "";
+let isActive = true; // 组件激活状态
 
-// 监听 src 或 Agent 上下文的变化
-// 解决竟态问题：当 Agent 数据加载完成时，重新解析资产路径
-watch([() => props.src, () => currentAgent?.value], resolveUrl, { immediate: true });
+watch(
+  () => props.src,
+  (newSrc) => {
+    if (!isActive) return; // 组件已停用，跳过
+    if (newSrc !== lastSrc) {
+      lastSrc = newSrc;
+      resolveUrl();
+    }
+  },
+  { immediate: true }
+);
+
+// Agent 上下文变化时重新解析（仅针对 agent-asset:// 协议）
+watch(
+  () => currentAgent?.value,
+  () => {
+    if (!isActive) return; // 组件已停用，跳过
+    if (props.src.startsWith("agent-asset://")) {
+      resolveUrl();
+    }
+  }
+);
+
+// 监听降级模式：如果检测到降级，停止所有异步操作
+if (context?.images) {
+  watch(
+    () => context.images.value,
+    (images) => {
+      // 如果图片列表被清空，说明可能进入降级模式
+      if (images.length === 0 && lastSrc) {
+        isActive = false; // 停用组件
+      }
+    }
+  );
+}
 
 // === 功能实现 ===
 
@@ -143,6 +183,8 @@ const convertToPreviewUrl = async (src: string): Promise<string> => {
     }
     const assetPath = src.substring("appdata://".length);
     return assetManagerEngine.convertToAssetProtocol(assetPath, basePath);
+  } else if (src.startsWith("//")) {
+    return `https:${src}`;
   } else if (/^[a-zA-Z]:[\\/]/.test(src) || src.startsWith("\\\\") || src.startsWith("/")) {
     return convertFileSrc(src);
   }
@@ -151,9 +193,10 @@ const convertToPreviewUrl = async (src: string): Promise<string> => {
 
 /**
  * 预览图片
+ * 性能优化：只转换当前图片，避免在大量图片场景下卡顿
  */
 const handlePreview = async () => {
-  // 1. 转换当前图片 URL (用于单张预览或兜底)
+  // 1. 转换当前图片 URL
   const currentUrl = await convertToPreviewUrl(props.src);
 
   if (!context || !context.images.value.length) {
@@ -162,13 +205,20 @@ const handlePreview = async () => {
     return;
   }
 
-  // 2. 转换上下文中的所有图片 URL
-  // 注意：这里需要保持顺序，且为了性能，我们并行处理转换
+  // 2. 性能优化：限制图片数量，避免处理过多图片导致卡顿
   const allImages = context.images.value;
+  const MAX_PREVIEW_IMAGES = 100; // 最多预览图片数量
+
+  if (allImages.length > MAX_PREVIEW_IMAGES) {
+    // 图片过多时，只预览当前图片
+    imageViewer.show(currentUrl);
+    return;
+  }
+
+  // 3. 转换上下文中的所有图片 URL（限制数量后）
   const convertedImages = await Promise.all(allImages.map((src) => convertToPreviewUrl(src)));
 
-  // 3. 查找当前图片在转换后列表中的索引
-  // 我们通过原始 src 来找索引，因为 convertedImages 和 allImages 是一一对应的
+  // 4. 查找当前图片在转换后列表中的索引
   const index = allImages.indexOf(props.src);
 
   if (index !== -1) {

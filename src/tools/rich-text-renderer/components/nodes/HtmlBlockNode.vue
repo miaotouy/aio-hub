@@ -18,7 +18,20 @@ const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>("currentA
 
 // 净化 HTML 内容以防止 XSS 攻击
 // 块级 HTML 允许更多标签，但仍然严格过滤危险内容
+// 性能优化：添加内容长度限制，避免处理超大 HTML 导致卡顿
 const sanitizedContent = computed(() => {
+  const MAX_HTML_LENGTH = 100000; // 最大 100KB HTML
+  
+  if (props.content.length > MAX_HTML_LENGTH) {
+    console.warn(`[HtmlBlockNode] HTML content too large (${props.content.length} chars), truncating to ${MAX_HTML_LENGTH}`);
+    return `<div style="color: var(--el-color-warning); padding: 12px; border: 1px solid var(--el-color-warning); border-radius: 4px;">
+      ⚠️ HTML 内容过大 (${(props.content.length / 1024).toFixed(1)}KB)，已截断显示前 ${(MAX_HTML_LENGTH / 1024).toFixed(1)}KB 以保护性能。
+    </div>` + DOMPurify.sanitize(props.content.slice(0, MAX_HTML_LENGTH), {
+      ALLOWED_TAGS: ['div', 'p', 'span', 'b', 'i', 'u', 'em', 'strong', 'br', 'hr'],
+      ALLOWED_ATTR: ['class', 'style'],
+    });
+  }
+  
   return DOMPurify.sanitize(props.content, {
     ALLOWED_TAGS: [
       // 结构与语义

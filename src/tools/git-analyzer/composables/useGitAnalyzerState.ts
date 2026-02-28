@@ -1,5 +1,7 @@
 import { ref, computed } from "vue";
 import type { GitCommit, GitBranch, RepoStatistics, ExportConfig } from "../types";
+import { commitCache } from "./useCommitCache";
+
 
 // ==================== 单例状态（模块级别）====================
 // 将所有状态定义在模块级别，确保所有调用使用同一个实例
@@ -14,7 +16,7 @@ const filteredCommits = ref<GitCommit[]>([]);
 
 const limitCount = ref(100);
 const batchSize = ref(20);
-const includeFiles = ref(false);
+const includeFiles = ref(true);
 const commitRange = ref<[number, number]>([0, 0]);
 
 const searchQuery = ref("");
@@ -143,7 +145,9 @@ function resetCommits() {
   commits.value = [];
   filteredCommits.value = [];
   commitRange.value = [0, 0];
+  commitCache.clearAll();
 }
+
 
 /**
  * Git 分析器状态管理 Composable

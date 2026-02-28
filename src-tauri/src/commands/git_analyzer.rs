@@ -490,16 +490,6 @@ pub async fn git_load_incremental_stream(
 }
 
 #[tauri::command]
-pub async fn git_load_commits_with_files(
-    path: String,
-    branch: Option<String>,
-    limit: usize,
-) -> Result<Vec<GitCommit>, String> {
-    let repo_path = if path.is_empty() { "." } else { &path };
-    get_commits(repo_path, branch.as_deref(), limit, true)
-}
-
-#[tauri::command]
 pub async fn git_get_commit_detail(path: String, hash: String) -> Result<GitCommit, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
 

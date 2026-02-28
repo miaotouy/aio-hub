@@ -19,8 +19,6 @@ interface ReportGeneratorOptions {
   config: Ref<ExportConfig>;
   repoPath: Ref<string>;
   branch: Ref<string>;
-  statistics: RepoStatistics;
-  commits: GitCommit[];
   getCommitsToExport: () => GitCommit[];
   filterSummary: Ref<string>;
   hasActiveFilters: Ref<boolean>;
@@ -499,7 +497,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       repoPath: repoPath.value,
       branch: branch.value,
       statistics,
-      commits: options.commits,
+      commits: commitsToExport, // Changed from options.commits to commitsToExport
       getCommitsToExport,
       getContributorStats,
       formatDate,

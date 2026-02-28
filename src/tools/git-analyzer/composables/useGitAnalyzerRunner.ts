@@ -1,16 +1,17 @@
-import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import type { GitCommit } from "../types";
-import type { GitProgressEvent } from "./useGitLoader";
 import {
   fetchBranches,
-  fetchBranchCommits,
   streamLoadRepository,
   streamIncrementalLoad,
   cancelLoadRepository as apiCancelLoadRepository,
   updateCommitMessage as apiUpdateCommitMessage,
 } from "./useGitLoader";
+import type { GitProgressEvent } from "./useGitLoader";
+import type { GitCommit } from "../types";
+
+
+
 import { filterCommits as processFilter } from "./useGitProcessor";
 import { useGitAnalyzerState } from "./useGitAnalyzerState";
 import { commitCache } from "./useCommitCache";
@@ -84,35 +85,24 @@ export function useGitAnalyzerRunner() {
   /**
    * 切换分支
    */
+  /**
+   * 切换分支
+   */
   async function onBranchChange(branch: string) {
     const currentRepoPath = state.repoPath.value;
 
     if (!currentRepoPath) {
-      customMessage.warning('请先输入或选择 Git 仓库路径');
+      customMessage.warning("请先输入或选择 Git 仓库路径");
       return false;
     }
 
-    state.loading.value = true;
-    try {
-      const result = await fetchBranchCommits(
-        currentRepoPath,
-        branch,
-        state.limitCount.value
-      );
+    state.selectedBranch.value = branch;
+    customMessage.success(`正在切换到分支: ${branch}...`);
 
-      state.commits.value = result;
-      state.filteredCommits.value = result;
-      state.commitRange.value = [0, result.length];
-
-      customMessage.success(`切换到分支: ${branch}`);
-      return true;
-    } catch (error) {
-      errorHandler.error(error, "切换分支失败");
-      return false;
-    } finally {
-      state.loading.value = false;
-    }
+    // 切换分支需触发完整加载，因为 revwalk 状态已变
+    return await loadRepository();
   }
+
 
   // ==================== 仓库加载 ====================
 
@@ -137,14 +127,11 @@ export function useGitAnalyzerRunner() {
 
       case "data":
         if (event.commits) {
-          if (isIncremental) {
-            state.commits.value = [...state.commits.value, ...event.commits];
-          } else {
-            state.commits.value = [...state.commits.value, ...event.commits];
-          }
+          state.commits.value = [...state.commits.value, ...event.commits];
 
           // 如果 commit 自带 files，直接存入缓存
-          if (state.includeFiles.value && event.commits.some(c => c.files)) {
+          if (state.includeFiles.value && event.commits.some((c: GitCommit) => c.files)) {
+
             const repoPath = state.repoPath.value;
             const branch = state.selectedBranch.value;
             const existing = commitCache.getBatchCommits(repoPath, branch) || [];
@@ -161,9 +148,7 @@ export function useGitAnalyzerRunner() {
           // 实时更新已加载限制，以便终止后能继续增量加载
           state.lastLoadedLimit.value = state.progress.value.loaded;
 
-          logger.debug(
-            `加载进度: ${event.loaded} / ${state.progress.value.total}`
-          );
+          logger.debug(`加载进度: ${event.loaded} / ${state.progress.value.total}`);
         }
         break;
 
@@ -176,7 +161,9 @@ export function useGitAnalyzerRunner() {
         if (isIncremental) {
           state.lastLoadedLimit.value = state.limitCount.value;
           const newCount = state.commits.value.length - initialCount;
-          customMessage.success(`增量${loadType}加载完成，新增 ${newCount} 条记录，共 ${state.commits.value.length} 条`);
+          customMessage.success(
+            `增量${loadType}加载完成，新增 ${newCount} 条记录，共 ${state.commits.value.length} 条`
+          );
         } else {
           state.lastLoadedRepo.value = state.repoPath.value;
           state.lastLoadedBranch.value = state.selectedBranch.value;
@@ -184,13 +171,8 @@ export function useGitAnalyzerRunner() {
           customMessage.success(`${loadType}加载完成，共 ${state.commits.value.length} 条提交记录`);
         }
 
-        // 如果流式加载已包含文件信息，则标记完成；否则后台补充加载
-        if (state.includeFiles.value) {
-          state.loadingFiles.value = false;
-          logger.info("文件变更信息已随流式加载一并获取");
-        } else {
-          loadCommitsWithFiles();
-        }
+        // 现在文件信息已经默认包含或动态获取，不再需要额外的后台补充逻辑
+        state.loadingFiles.value = false;
         break;
       }
 
@@ -204,14 +186,17 @@ export function useGitAnalyzerRunner() {
         customMessage.info("加载已终止");
         break;
 
-      case "error":
+      case "error": {
         state.progress.value.loading = false;
         state.loading.value = false;
         const errorMsg = `${isIncremental ? "增量" : ""}加载失败: ${event.message}`;
         errorHandler.error(new Error(event.message || "Unknown error"), errorMsg);
         break;
+      }
     }
   }
+
+
 
   /**
    * 加载仓库（支持增量加载）
@@ -318,53 +303,6 @@ export function useGitAnalyzerRunner() {
     // 状态更新将通过事件回调中的 "cancelled" 事件统一处理
   }
 
-  // ==================== 文件变更信息加载 ====================
-
-  /**
-   * 后台加载所有提交的文件变更信息
-   * 在仓库加载完成后自动调用，数据存入 commitCache
-   */
-  async function loadCommitsWithFiles() {
-    const currentRepoPath = state.repoPath.value;
-    const currentBranch = state.selectedBranch.value;
-
-    if (!currentRepoPath || state.commits.value.length === 0) return;
-
-    // 检查缓存是否已存在
-    const cached = commitCache.getBatchCommits(currentRepoPath, currentBranch);
-    if (cached && cached.length > 0) {
-      logger.debug("文件变更信息已有缓存，跳过加载", {
-        repoPath: currentRepoPath,
-        branch: currentBranch,
-        cachedCount: cached.length,
-      });
-      return;
-    }
-
-    state.loadingFiles.value = true;
-    try {
-      const commits = await invoke<GitCommit[]>("git_load_commits_with_files", {
-        path: currentRepoPath,
-        branch: currentBranch,
-        limit: state.commits.value.length,
-      });
-
-      commitCache.setBatchCommits(currentRepoPath, currentBranch, commits);
-      logger.info("文件变更信息加载完成", { count: commits.length });
-    } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "加载文件变更信息失败",
-        showToUser: false,
-        context: {
-          repoPath: currentRepoPath,
-          branch: currentBranch,
-          totalCommits: state.commits.value.length,
-        },
-      });
-    } finally {
-      state.loadingFiles.value = false;
-    }
-  }
 
   // ==================== 筛选操作 ====================
 

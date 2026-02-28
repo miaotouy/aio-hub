@@ -31,7 +31,8 @@
           @select-directory="selectDirectory"
           @load-branches="loadBranches"
           @load-repository="loadRepository"
-          @branch-change="onBranchChange"
+          @branch-change="handleBranchChange"
+
           @filter-commits="filterCommits"
           @clear-filters="clearFilters"
           @cancel-loading="cancelLoading"
@@ -139,14 +140,15 @@ const {
 const {
   selectDirectory,
   loadBranches,
-  loadRepository: loadRepo,
-  refreshRepository: refreshRepo,
-  onBranchChange: switchBranch,
-  filterCommits: doFilter,
+  loadRepository,
+  refreshRepository,
+  onBranchChange,
+  filterCommits,
   clearFilters,
   cancelLoading,
   updateCommitMessage,
 } = useGitAnalyzerRunner();
+
 
 // Charts 视图引用
 const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
@@ -174,30 +176,15 @@ const { updateCharts, setupResizeObserver } = useCharts(
 
 const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } = useCommitDetail(() => repoPath.value);
 
-// 包装 loadRepository
-async function loadRepository() {
-  await loadRepo();
-}
-
-// 包装 refreshRepository
-async function refreshRepository() {
-  await refreshRepo();
-}
-
-// 包装 onBranchChange 以清空缓存
-async function onBranchChange(branch: string) {
-  const success = await switchBranch(branch);
+// 处理分支切换，并在成功后清空缓存
+async function handleBranchChange(branch: string) {
+  const success = await onBranchChange(branch);
   if (success) {
     clearCache(); // 切换分支时清空缓存
   }
 }
-
-// 包装 filterCommits
-function filterCommits() {
-  doFilter();
-}
-
 // 显示导出对话框
+
 function showExportDialog() {
   if (commits.value.length === 0) {
     customMessage.warning("请先加载仓库数据");

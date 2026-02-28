@@ -62,10 +62,6 @@ const props = defineProps<{
   reverseOrder?: boolean;
 }>();
 
-const emit = defineEmits<{
-  close: [];
-  "update:exportConfig": [config: ExportConfig];
-}>();
 const visible = defineModel<boolean>("visible", { required: true });
 const generating = ref(false);
 const exporting = ref(false);
@@ -143,23 +139,22 @@ function getMergedCommits(commits: GitCommit[]): GitCommit[] {
   });
 }
 // 初始化报告生成器
-const reportGenerator = useReportGenerator({
+const { generateReport } = useReportGenerator({
   config: exportConfig,
   repoPath: toRef(props, "repoPath"),
   branch: toRef(props, "branch"),
-  statistics: props.statistics,
-  commits: props.commits,
   getCommitsToExport,
   filterSummary,
   hasActiveFilters,
 });
+
 
 // 更新预览
 async function updatePreview() {
   if (generating.value) return;
   generating.value = true;
   try {
-    previewContent.value = reportGenerator.generateReport();
+    previewContent.value = generateReport();
   } catch (error) {
     errorHandler.error(error, "生成报告预览失败", {
       context: {
@@ -272,15 +267,6 @@ async function handleExport() {
   }
 }
 
-// 监听配置变化并通知父组件
-watch(
-  exportConfig,
-  (newConfig) => {
-    emit("update:exportConfig", newConfig);
-  },
-  { deep: true }
-);
-
 // 监听对话框打开时更新预览
 watch(
   () => visible.value,
@@ -307,12 +293,16 @@ watch(loadingFiles, (loading) => {
   }
 });
 
-// 监听仓库路径和分支变化，清空对应缓存
-watch([() => props.repoPath, () => props.branch], ([newPath, newBranch], [oldPath, oldBranch]) => {
-  if (newPath !== oldPath || newBranch !== oldBranch) {
-    commitCache.clearBatchCache(oldPath, oldBranch);
+// 仓库路径或分支变更时，清理预览内容
+watch(
+  () => [props.repoPath, props.branch],
+  ([newPath, newBranch], [oldPath, oldBranch]) => {
+    if (newPath !== oldPath || newBranch !== oldBranch) {
+      previewContent.value = "";
+    }
   }
-});
+);
+
 </script>
 
 <style scoped>

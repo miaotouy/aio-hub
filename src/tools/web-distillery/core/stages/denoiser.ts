@@ -30,16 +30,17 @@ export class Denoiser {
 
     // 2.1 移除 B 站首页常见的导航链接堆叠（通常是文字极少但链接极多的容器）
     // 增加对更多导航类的清理，并降低文字长度阈值，只要是纯导航链接堆叠就移除
-    const biliNavSelectors =
-      ".left-entry, .right-entry, .channel-items__left, .channel-icons, .bili-header__bar, .bili-header__channel";
+    const biliNavSelectors = ".left-entry, .right-entry, .channel-items__left, .channel-icons, .bili-header__bar, .bili-header__channel, .nav-searchform";
     doc.querySelectorAll(biliNavSelectors).forEach((el) => {
       // 如果链接数量很多但正文很少，基本就是导航噪声
       const linkCount = el.querySelectorAll("a").length;
       const textLen = el.textContent?.trim().length || 0;
-      if (linkCount > 5 && textLen < 150) {
+      // 激进清理：只要链接多且文字少，或者是搜索框容器，全部移除
+      if ((linkCount > 3 && textLen < 100) || el.classList.contains("nav-searchform")) {
         el.remove();
       }
     });
+
     // 3. 基于 ID 和 Class 模式移除
     // 性能优化：预先编译正则表达式，避免循环内多次创建和 toLowerCase
     const noisyRegex =

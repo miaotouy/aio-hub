@@ -44,8 +44,19 @@ export class Converter {
 
       // 性能与质量优化：跳过空元素或无意义的容器
       if (["a", "span", "div", "p"].includes(tag)) {
-        const hasContent = el.textContent?.trim() || el.querySelector("img, svg, video, canvas");
-        if (!hasContent) return;
+        // 增加对 SVG 的特殊处理：如果只有 SVG 且没有文字，通常是装饰性图标，直接跳过
+        const hasText = !!el.textContent?.trim();
+        const hasMedia = !!el.querySelector("img, video, canvas");
+        if (!hasText && !hasMedia) return;
+      }
+
+      // 防止链接嵌套链接（Markdown 渲染器的噩梦）
+      if (tag === "a" && el.querySelector("a")) {
+        // 如果内部还有链接，只处理内部内容，不作为链接处理
+        for (let i = 0; i < el.childNodes.length; i++) {
+          walk(el.childNodes[i]);
+        }
+        return;
       }
 
       switch (tag) {

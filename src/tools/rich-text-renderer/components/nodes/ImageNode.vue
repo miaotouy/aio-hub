@@ -205,9 +205,9 @@ const handlePreview = async () => {
     return;
   }
 
-  // 2. 性能优化：限制图片数量，避免处理过多图片导致卡顿
+  // 2. 性能优化：限制图片数量
   const allImages = context.images.value;
-  const MAX_PREVIEW_IMAGES = 100; // 最多预览图片数量
+  const MAX_PREVIEW_IMAGES = 10000; // 最多预览图片数量
 
   if (allImages.length > MAX_PREVIEW_IMAGES) {
     // 图片过多时，只预览当前图片

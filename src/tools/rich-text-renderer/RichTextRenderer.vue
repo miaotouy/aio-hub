@@ -152,7 +152,7 @@ const imageList = ref<string[]>([]);
  */
 const extractImages = (nodes: AstNode[]): string[] => {
   const images: string[] = [];
-  const MAX_NODES_TO_TRAVERSE = 5000; // 最多遍历 5000 个节点
+  const MAX_NODES_TO_TRAVERSE = 100000; // 最多遍历的节点数
   let nodeCount = 0;
 
   const traverse = (nodeList: AstNode[]): boolean => {

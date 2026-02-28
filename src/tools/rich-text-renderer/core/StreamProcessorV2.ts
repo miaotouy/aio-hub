@@ -356,11 +356,11 @@ export class StreamProcessorV2 {
   // 性能优化：引用冻结 - 记录上次的稳定区文本
   private lastStableText = "";
 
-  // 安全护栏配置（流式场景相对宽松，非流式场景需要更严格的保护）
-  private readonly MAX_SINGLE_PARSE_MS = 3000; // 单次解析硬上限（防止 Tokenizer/Parser 卡死）
-  private readonly MAX_ITERATION_TIME_MS = 5000; // 单次迭代总时长上限（包括 diff）
-  private readonly MAX_BUFFER_SIZE = 2 * 1024 * 1024; // 缓冲区大小上限（2MB）
-  private readonly MAX_STALL_ITERATIONS = 10; // 边界停滞最大容忍次数
+  // 安全护栏配置（已大幅放宽限制，防止误杀长文本）
+  private readonly MAX_SINGLE_PARSE_MS = 3000000; // 单次解析硬上限
+  private readonly MAX_ITERATION_TIME_MS = 6000000; // 单次迭代总时长上限
+  private readonly MAX_BUFFER_SIZE = 50 * 1024 * 1024; // 缓冲区大小上限
+  private readonly MAX_STALL_ITERATIONS = 10000; // 边界停滞最大容忍次数
   private isDegraded = false; // 是否已进入降级模式
   private lastStableLength = 0; // 上次稳定区长度（用于检测边界停滞）
   private stallCount = 0; // 边界停滞计数
@@ -404,6 +404,7 @@ export class StreamProcessorV2 {
 
   /**
    * 进入降级模式
+   * 改进：不再替换整个根节点，而是在末尾追加警告并停止后续处理
    */
   private enterDegradedMode(reason: string): void {
     if (this.isDegraded) return;
@@ -419,13 +420,27 @@ export class StreamProcessorV2 {
         {
           id: this.generateNodeId(),
           type: "text",
-          props: { content: `⚠️ ${reason}。为保证界面响应，已自动切换至极简渲染模式。` },
+          props: { content: `⚠️ ${reason}。为保证界面响应，已暂停后续渲染。` },
           meta: { range: { start: 0, end: 0 }, status: "stable" },
         },
       ],
     };
 
-    this.onPatch([{ op: "replace-root", newRoot: [degradedNode] }]);
+    // 获取当前最后一个节点的 ID 作为锚点
+    const lastNode =
+      this.pendingAst.length > 0
+        ? this.pendingAst[this.pendingAst.length - 1]
+        : this.stableAst.length > 0
+          ? this.stableAst[this.stableAst.length - 1]
+          : null;
+
+    if (lastNode) {
+      // 在末尾追加警告
+      this.onPatch([{ op: "insert-after", id: lastNode.id, newNode: degradedNode }]);
+    } else {
+      // 如果之前没有任何内容，则作为根节点显示
+      this.onPatch([{ op: "replace-root", newRoot: [degradedNode] }]);
+    }
   }
 
   /**

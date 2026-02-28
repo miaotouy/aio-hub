@@ -11,10 +11,10 @@
 import { shallowRef, type ShallowRef } from "vue";
 import type { AstNode, Patch, NodeMap } from "../types";
 
-const MAX_QUEUE_SIZE = 200;
+const MAX_QUEUE_SIZE = 1000;
 const BATCH_TIMEOUT_MS = 32;
-const MAX_TOTAL_NODES = 25000; // 渲染器硬上限（仅防止极端异常，不作为常规防护）
-const MAX_RAF_RETRIES = 10; // 最多重试次数，防止无限循环
+const MAX_TOTAL_NODES = 10000000; // 渲染器硬上限
+const MAX_RAF_RETRIES = 1000; // 最多重试次数
 
 export function useMarkdownAst(
   options: { throttleMs?: number; throttleEnabled?: boolean; verboseLogging?: boolean } = {}
@@ -294,31 +294,13 @@ export function useMarkdownAst(
     buildNodeMap(newRoot);
 
     // 5. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
+    // 改进：不再清空整个 AST，而是只在控制台报错并停止后续 patch
     if (nodeMap.size > MAX_TOTAL_NODES) {
       if (verboseLogging) {
         console.error(`[useMarkdownAst] Critical: Node count ${nodeMap.size} exceeds hard limit ${MAX_TOTAL_NODES}!`);
       }
-      // 清空 AST，防止渲染器崩溃
-      ast.value = [
-        {
-          id: "error-node",
-          type: "alert",
-          props: { alertType: "caution" },
-          meta: { range: { start: 0, end: 0 }, status: "stable" },
-          children: [
-            {
-              id: "error-text",
-              type: "text",
-              props: {
-                content: `⚠️ 内容节点数 (${nodeMap.size}) 超过系统硬上限 (${MAX_TOTAL_NODES})，已自动清空以保护系统稳定性。`,
-              },
-              meta: { range: { start: 0, end: 0 }, status: "stable" },
-            },
-          ],
-        },
-      ];
-      nodeMap.clear();
-      buildNodeMap(ast.value);
+      // 触发紧急停止，不再接收后续更新，但保留当前已渲染内容
+      emergencyShutdown();
     }
   }
 

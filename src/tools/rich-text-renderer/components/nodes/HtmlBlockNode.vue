@@ -20,7 +20,7 @@ const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>("currentA
 // 块级 HTML 允许更多标签，但仍然严格过滤危险内容
 // 性能优化：添加内容长度限制，避免处理超大 HTML 导致卡顿
 const sanitizedContent = computed(() => {
-  const MAX_HTML_LENGTH = 100000; // 最大 100KB HTML
+  const MAX_HTML_LENGTH = 1000 * 1000 * 10; // 最大 10MB HTML
   
   if (props.content.length > MAX_HTML_LENGTH) {
     console.warn(`[HtmlBlockNode] HTML content too large (${props.content.length} chars), truncating to ${MAX_HTML_LENGTH}`);

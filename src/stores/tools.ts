@@ -138,6 +138,13 @@ export const useToolsStore = defineStore("tools", () => {
       closeTool(toolPath);
     }
   }
+  /**
+   * 更新已打开工具的顺序
+   */
+  function setOpenedToolPaths(paths: string[]) {
+    openedToolPaths.value = paths;
+    saveOpenedTools();
+  }
 
   return {
     tools,
@@ -152,5 +159,6 @@ export const useToolsStore = defineStore("tools", () => {
     removeTool,
     openTool,
     closeTool,
+    setOpenedToolPaths,
   };
 });

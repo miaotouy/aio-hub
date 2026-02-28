@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Promotion, Close } from "@element-plus/icons-vue";
 import { Puzzle } from "lucide-vue-next";
+import { VueDraggableNext as draggable } from "vue-draggable-next";
 import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
 import { useDetachable } from "../composables/useDetachable";
@@ -26,18 +27,24 @@ const route = useRoute();
 const toolsStore = useToolsStore();
 const { startDetaching, detachByClick } = useDetachable();
 
-// 从路径提取工具ID
+// 从路径提取工具 ID
 const getToolIdFromPath = (path: string): string => {
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
 // 计算可见的工具列表（标签页模式：只显示已打开的且未分离的工具）
-const visibleTools = computed(() => {
-  return toolsStore.openedToolPaths
-    .map((path) => toolsStore.tools.find((t) => t.path === path))
-    .filter(
-      (tool): tool is ToolConfig => !!tool && !props.isDetached(getToolIdFromPath(tool.path))
-    );
+// 使用可写计算属性以支持拖拽排序
+const displayTools = computed({
+  get: () => {
+    return toolsStore.openedToolPaths
+      .map((path) => toolsStore.tools.find((t) => t.path === path))
+      .filter((tool): tool is ToolConfig => !!tool && !props.isDetached(getToolIdFromPath(tool.path)));
+  },
+  set: (newTools: ToolConfig[]) => {
+    // 拖拽排序后，更新 openedToolPaths 的顺序
+    const newPaths = newTools.map((t) => t.path);
+    toolsStore.setOpenedToolPaths(newPaths);
+  },
 });
 
 const handleSelect = (key: string) => {
@@ -45,24 +52,54 @@ const handleSelect = (key: string) => {
   emit("select", key);
 };
 
-const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
-  event.preventDefault();
-  event.stopPropagation();
+const isDragging = ref(false);
 
-  startDetaching({
-    id: getToolIdFromPath(tool.path),
-    displayName: tool.name,
-    type: "tool",
-    width: 900,
-    height: 700,
-    mouseX: event.screenX,
-    mouseY: event.screenY,
-    metadata: { tool },
-    onClickInstead: () => {
-      router.push(tool.path);
-      emit("select", tool.path);
-    },
-  });
+const onDragStart = () => {
+  isDragging.value = true;
+};
+
+const onDragEnd = () => {
+  isDragging.value = false;
+};
+
+const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
+  // 这里保留原有的分离逻辑
+  const startX = event.screenX;
+  const startY = event.screenY;
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    const deltaX = moveEvent.screenX - startX;
+    const deltaY = moveEvent.screenY - startY;
+
+    // 如果水平位移超过阈值且大于垂直位移，触发分离
+    if (deltaX > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+
+      startDetaching({
+        id: getToolIdFromPath(tool.path),
+        displayName: tool.name,
+        type: "tool",
+        width: 900,
+        height: 700,
+        mouseX: moveEvent.screenX,
+        mouseY: moveEvent.screenY,
+        metadata: { tool },
+        onClickInstead: () => {
+          router.push(tool.path);
+          emit("select", tool.path);
+        },
+      });
+    }
+  };
+
+  const onMouseUp = () => {
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+  };
+
+  document.addEventListener("mousemove", onMouseMove);
+  document.addEventListener("mouseup", onMouseUp);
 };
 
 const handleDetachByClick = async (tool: ToolConfig) => {
@@ -102,12 +139,7 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
 </script>
 
 <template>
-  <el-menu
-    :default-active="route.path"
-    class="sidebar-menu-component"
-    :collapse="collapsed"
-    @select="handleSelect"
-  >
+  <el-menu :default-active="route.path" class="sidebar-menu-component" :collapse="collapsed" @select="handleSelect">
     <el-menu-item index="/">
       <span class="icon-wrapper">
         <i-ep-home-filled />
@@ -125,57 +157,61 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
       </template>
     </el-menu-item>
 
-    <el-tooltip
-      v-for="tool in visibleTools"
-      :key="tool.path"
-      effect="dark"
-      :content="tool.name"
-      placement="right"
-      :disabled="!collapsed"
-      :hide-after="0"
+    <draggable
+      v-model="displayTools"
+      :animation="200"
+      :force-fallback="true"
+      ghost-class="ghost-item"
+      chosen-class="chosen-item"
+      drag-class="drag-item"
+      @start="onDragStart"
+      @end="onDragEnd"
+      class="draggable-container"
     >
-      <el-menu-item
-        :index="tool.path"
-        @mousedown.left="handleDragStart($event, tool)"
-        class="draggable-menu-item"
-        style="padding: 0"
-      >
-        <el-dropdown
-          trigger="contextmenu"
-          placement="bottom-start"
-          style="width: 100%; height: 100%"
+      <div v-for="tool in displayTools" :key="tool.path">
+        <el-tooltip
+          :key="tool.path"
+          effect="dark"
+          :content="tool.name"
+          placement="right"
+          :disabled="!collapsed"
+          :hide-after="0"
         >
-          <span class="menu-item-trigger">
-            <span class="icon-wrapper">
-              <component :is="tool.icon" />
-            </span>
-            <template v-if="!collapsed">
-              <span class="menu-item-title-text">{{ tool.name }}</span>
-              <!-- 使用 mousedown.stop 阻止 el-menu-item 的选中行为 -->
-              <el-icon
-                class="close-tab-btn"
-                @click.stop="handleCloseTool($event, tool.path)"
-                @mousedown.stop
-              >
-                <Close />
-              </el-icon>
-            </template>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item @click="handleDetachByClick(tool)">
-                <el-icon><Promotion /></el-icon>
-                <span>在新窗口中打开</span>
-              </el-dropdown-item>
-              <el-dropdown-item divided @click="handleCloseTool($event, tool.path)">
-                <el-icon><Close /></el-icon>
-                <span>关闭标签页</span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </el-menu-item>
-    </el-tooltip>
+          <el-menu-item
+            :index="tool.path"
+            class="draggable-menu-item"
+            style="padding: 0"
+            @mousedown.left="handleDragStart($event, tool)"
+          >
+            <el-dropdown trigger="contextmenu" placement="bottom-start" style="width: 100%; height: 100%">
+              <span class="menu-item-trigger">
+                <span class="icon-wrapper">
+                  <component :is="tool.icon" />
+                </span>
+                <template v-if="!collapsed">
+                  <span class="menu-item-title-text">{{ tool.name }}</span>
+                  <el-icon class="close-tab-btn" @click.stop="handleCloseTool($event, tool.path)" @mousedown.stop>
+                    <Close />
+                  </el-icon>
+                </template>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="handleDetachByClick(tool)">
+                    <el-icon><Promotion /></el-icon>
+                    <span>在新窗口中打开</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item divided @click="handleCloseTool($event, tool.path)">
+                    <el-icon><Close /></el-icon>
+                    <span>关闭标签页</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-menu-item>
+        </el-tooltip>
+      </div>
+    </draggable>
   </el-menu>
 </template>
 
@@ -247,6 +283,21 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
   height: 18px;
   font-size: 18px;
   vertical-align: middle;
+}
+
+/* 拖拽排序样式 */
+.ghost-item {
+  opacity: 0.5;
+  background-color: var(--primary-color-light);
+}
+
+.chosen-item {
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.drag-item {
+  opacity: 0.8;
+  cursor: grabbing;
 }
 </style>
 

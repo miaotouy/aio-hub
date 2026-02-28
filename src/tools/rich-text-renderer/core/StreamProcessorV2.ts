@@ -356,16 +356,21 @@ export class StreamProcessorV2 {
   // 性能优化：引用冻结 - 记录上次的稳定区文本
   private lastStableText = "";
 
+  // 安全护栏配置（流式场景相对宽松，非流式场景需要更严格的保护）
+  private readonly MAX_SINGLE_PARSE_MS = 3000; // 单次解析硬上限（防止 Tokenizer/Parser 卡死）
+  private readonly MAX_ITERATION_TIME_MS = 5000; // 单次迭代总时长上限（包括 diff）
+  private readonly MAX_BUFFER_SIZE = 2 * 1024 * 1024; // 缓冲区大小上限（2MB）
+  private readonly MAX_STALL_ITERATIONS = 10; // 边界停滞最大容忍次数
+  private isDegraded = false; // 是否已进入降级模式
+  private lastStableLength = 0; // 上次稳定区长度（用于检测边界停滞）
+  private stallCount = 0; // 边界停滞计数
+
   constructor(options: StreamProcessorOptions) {
     this.onPatch = options.onPatch;
     this.llmThinkRules = options.llmThinkRules || [];
 
     const llmThinkTagNames = options.llmThinkTagNames || new Set();
-    this.parser = new CustomParser(
-      llmThinkTagNames,
-      this.llmThinkRules,
-      options.defaultToolCallCollapsed
-    );
+    this.parser = new CustomParser(llmThinkTagNames, this.llmThinkRules, options.defaultToolCallCollapsed);
     this.boundaryDetector = new MarkdownBoundaryDetector(llmThinkTagNames);
   }
 
@@ -381,8 +386,46 @@ export class StreamProcessorV2 {
    * 处理新的文本块
    */
   async process(chunk: string): Promise<void> {
+    // 如果已降级，停止接收新数据
+    if (this.isDegraded) {
+      return;
+    }
+
     this.buffer += chunk;
+
+    // 安全护栏：内容过长保护
+    if (this.buffer.length > this.MAX_BUFFER_SIZE) {
+      this.enterDegradedMode("内容过长，为防止卡顿已切换至极简渲染模式");
+      return;
+    }
+
     await this.processIncremental();
+  }
+
+  /**
+   * 进入降级模式
+   */
+  private enterDegradedMode(reason: string): void {
+    if (this.isDegraded) return;
+    this.isDegraded = true;
+    console.warn(`[StreamProcessorV2] Degraded: ${reason}`);
+
+    const degradedNode: AstNode = {
+      id: this.generateNodeId(),
+      type: "alert",
+      props: { alertType: "warning" },
+      meta: { range: { start: 0, end: 0 }, status: "stable" },
+      children: [
+        {
+          id: this.generateNodeId(),
+          type: "text",
+          props: { content: `⚠️ ${reason}。为保证界面响应，已自动切换至极简渲染模式。` },
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+        },
+      ],
+    };
+
+    this.onPatch([{ op: "replace-root", newRoot: [degradedNode] }]);
   }
 
   /**
@@ -424,55 +467,88 @@ export class StreamProcessorV2 {
     try {
       this.isProcessing = true;
       while (true) {
-        // 1. 划分稳定区和待定区
-        const { stable: stableText, pending: pendingText } =
-          this.boundaryDetector.splitByBlockBoundary(this.buffer);
+        const iterationStart = performance.now();
 
-        // 性能优化：引用冻结 - 检查稳定区文本是否变化
+        // 1. 划分稳定区和待定区
+        const { stable: stableText, pending: pendingText } = this.boundaryDetector.splitByBlockBoundary(this.buffer);
+
+        // 安全护栏：边界停滞检测
+        if (stableText.length === this.lastStableLength && stableText.length > 0) {
+          this.stallCount++;
+          if (this.stallCount >= this.MAX_STALL_ITERATIONS) {
+            this.enterDegradedMode("内容边界解析停滞，可能存在病态嵌套结构");
+            break;
+          }
+        } else {
+          this.stallCount = 0;
+          this.lastStableLength = stableText.length;
+        }
+
+        // 2. 解析稳定区（带超时保护）
         let newStableAst: AstNode[];
         if (stableText === this.lastStableText && this.stableAst.length > 0) {
           // 稳定区文本没有变化，复用已有的 stableAst 引用
           newStableAst = this.stableAst;
         } else {
           // 稳定区文本发生变化，重新解析
+          const stableParseStart = performance.now();
           this.parser.reset();
           newStableAst = await this.parser.parseAsync(stableText);
           this.lastStableText = stableText;
+
+          // 安全护栏：单次解析超时检查
+          const stableElapsed = performance.now() - stableParseStart;
+          if (stableElapsed > this.MAX_SINGLE_PARSE_MS) {
+            this.enterDegradedMode(`稳定区解析超时 (${stableElapsed.toFixed(0)}ms)，内容可能包含病态结构`);
+            break;
+          }
         }
 
-        // 2. 解析待定区 (异步分词)
+        // 3. 解析待定区（带超时保护）
+        const pendingParseStart = performance.now();
         this.parser.reset();
         const newPendingAst = await this.parser.parseAsync(pendingText);
 
-        // 3. 合并当前的完整状态树（旧状态）
-        // 注意：如果 stableAst 被复用，这里需要复制一份用于 diff 计算
+        // 安全护栏：单次解析超时检查
+        const pendingElapsed = performance.now() - pendingParseStart;
+        if (pendingElapsed > this.MAX_SINGLE_PARSE_MS) {
+          this.enterDegradedMode(`待定区解析超时 (${pendingElapsed.toFixed(0)}ms)，内容可能包含病态结构`);
+          break;
+        }
+
+        // 4. 合并当前的完整状态树（旧状态）
         const currentFullAst = [...this.stableAst, ...this.pendingAst];
 
-        // 4. 合并新的完整状态树（新状态）
+        // 5. 合并新的完整状态树（新状态）
         const newFullAst = [...newStableAst, ...newPendingAst];
 
-        // 5. 关键：在 diff 之前完成所有 ID 分配
-        // 首先为新节点分配临时 ID（如果没有的话）
-        // 只有当 stableAst 不是复用的时候才需要重新分配 ID
+        // 6. 关键：在 diff 之前完成所有 ID 分配
         if (newStableAst !== this.stableAst) {
           this.assignIds(newStableAst);
         }
         this.assignIds(newPendingAst);
 
-        // 6. 标记节点状态
+        // 7. 标记节点状态
         this.markNodesStatus(newStableAst, "stable");
         this.markNodesStatus(newPendingAst, "pending");
 
-        // 7. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
+        // 8. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
         const patches = this.diffAst(currentFullAst, newFullAst, true);
 
-        // 8. 更新状态
+        // 9. 更新状态
         this.stableAst = newStableAst;
         this.pendingAst = newPendingAst;
 
-        // 9. 发送变更
+        // 10. 发送变更
         if (patches.length > 0) {
           this.onPatch(patches);
+        }
+
+        // 安全护栏：单次迭代总时长检查（包括 diff）
+        const iterationElapsed = performance.now() - iterationStart;
+        if (iterationElapsed > this.MAX_ITERATION_TIME_MS) {
+          this.enterDegradedMode(`单次迭代超时 (${iterationElapsed.toFixed(0)}ms)，内容过于复杂`);
+          break;
         }
 
         // 检查是否有新的待处理内容
@@ -505,10 +581,7 @@ export class StreamProcessorV2 {
           this.resolveProcessing = resolve;
         });
         // 增加超时保护，防止死等
-        await Promise.race([
-          processingPromise,
-          new Promise((resolve) => setTimeout(resolve, 1000)),
-        ]);
+        await Promise.race([processingPromise, new Promise((resolve) => setTimeout(resolve, 1000))]);
       }
     }
 
@@ -782,6 +855,9 @@ export class StreamProcessorV2 {
     this.pendingAst = [];
     this.nodeIdCounter = 1;
     this.lastStableText = "";
+    this.lastStableLength = 0;
+    this.stallCount = 0;
+    this.isDegraded = false;
     this.parser.reset();
   }
 }

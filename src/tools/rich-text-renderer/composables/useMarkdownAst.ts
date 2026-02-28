@@ -13,8 +13,11 @@ import type { AstNode, Patch, NodeMap } from "../types";
 
 const MAX_QUEUE_SIZE = 200;
 const BATCH_TIMEOUT_MS = 32;
+const MAX_TOTAL_NODES = 25000; // 渲染器硬上限（仅防止极端异常，不作为常规防护）
 
-export function useMarkdownAst(options: { throttleMs?: number; throttleEnabled?: boolean; verboseLogging?: boolean } = {}) {
+export function useMarkdownAst(
+  options: { throttleMs?: number; throttleEnabled?: boolean; verboseLogging?: boolean } = {}
+) {
   const ast: ShallowRef<AstNode[]> = shallowRef([]);
   const nodeMap: NodeMap = new Map();
 
@@ -286,6 +289,34 @@ export function useMarkdownAst(options: { throttleMs?: number; throttleEnabled?:
     // 4. 重建 nodeMap
     nodeMap.clear();
     buildNodeMap(newRoot);
+
+    // 5. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
+    if (nodeMap.size > MAX_TOTAL_NODES) {
+      if (verboseLogging) {
+        console.error(`[useMarkdownAst] Critical: Node count ${nodeMap.size} exceeds hard limit ${MAX_TOTAL_NODES}!`);
+      }
+      // 清空 AST，防止渲染器崩溃
+      ast.value = [
+        {
+          id: "error-node",
+          type: "alert",
+          props: { alertType: "caution" },
+          meta: { range: { start: 0, end: 0 }, status: "stable" },
+          children: [
+            {
+              id: "error-text",
+              type: "text",
+              props: {
+                content: `⚠️ 内容节点数 (${nodeMap.size}) 超过系统硬上限 (${MAX_TOTAL_NODES})，已自动清空以保护系统稳定性。`,
+              },
+              meta: { range: { start: 0, end: 0 }, status: "stable" },
+            },
+          ],
+        },
+      ];
+      nodeMap.clear();
+      buildNodeMap(ast.value);
+    }
   }
 
   /**
@@ -347,7 +378,7 @@ export function useMarkdownAst(options: { throttleMs?: number; throttleEnabled?:
     const patches = Array.isArray(patch) ? patch : [patch];
 
     if (verboseLogging && patches.length > 0) {
-      const ops = patches.map(p => p.op).join(', ');
+      const ops = patches.map((p) => p.op).join(", ");
       console.debug(`[useMarkdownAst] enqueuePatch: ${patches.length} patches (${ops})`);
     }
 

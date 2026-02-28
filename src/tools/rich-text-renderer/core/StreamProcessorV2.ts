@@ -357,11 +357,12 @@ export class StreamProcessorV2 {
   private lastStableText = "";
 
   // 安全护栏配置（已大幅放宽限制，防止误杀长文本）
-  private readonly MAX_SINGLE_PARSE_MS = 3000000; // 单次解析硬上限
+  private readonly MAX_SINGLE_PARSE_MS = 1000000; // 单次解析硬上限
   private readonly MAX_ITERATION_TIME_MS = 6000000; // 单次迭代总时长上限
   private readonly MAX_BUFFER_SIZE = 50 * 1024 * 1024; // 缓冲区大小上限
   private readonly MAX_STALL_ITERATIONS = 10000; // 边界停滞最大容忍次数
   private isDegraded = false; // 是否已进入降级模式
+  private safetyGuardEnabled = true; // 是否启用安全护栏
   private lastStableLength = 0; // 上次稳定区长度（用于检测边界停滞）
   private stallCount = 0; // 边界停滞计数
 
@@ -372,6 +373,7 @@ export class StreamProcessorV2 {
     const llmThinkTagNames = options.llmThinkTagNames || new Set();
     this.parser = new CustomParser(llmThinkTagNames, this.llmThinkRules, options.defaultToolCallCollapsed);
     this.boundaryDetector = new MarkdownBoundaryDetector(llmThinkTagNames);
+    this.safetyGuardEnabled = options.safetyGuardEnabled !== false;
   }
 
   private generateNodeId(): string {
@@ -394,7 +396,7 @@ export class StreamProcessorV2 {
     this.buffer += chunk;
 
     // 安全护栏：内容过长保护
-    if (this.buffer.length > this.MAX_BUFFER_SIZE) {
+    if (this.safetyGuardEnabled && this.buffer.length > this.MAX_BUFFER_SIZE) {
       this.enterDegradedMode("内容过长，为防止卡顿已切换至极简渲染模式");
       return;
     }
@@ -407,7 +409,7 @@ export class StreamProcessorV2 {
    * 改进：不再替换整个根节点，而是在末尾追加警告并停止后续处理
    */
   private enterDegradedMode(reason: string): void {
-    if (this.isDegraded) return;
+    if (!this.safetyGuardEnabled || this.isDegraded) return;
     this.isDegraded = true;
     console.warn(`[StreamProcessorV2] Degraded: ${reason}`);
 
@@ -420,7 +422,7 @@ export class StreamProcessorV2 {
         {
           id: this.generateNodeId(),
           type: "text",
-          props: { content: `⚠️ ${reason}。为保证界面响应，已暂停后续渲染。` },
+          props: { content: `⚠️ ${reason}。为保证界面响应，已暂停后续渲染。如果需要强制渲染，请在“设置 -> 渲染设置”中关闭“渲染安全护栏”。` },
           meta: { range: { start: 0, end: 0 }, status: "stable" },
         },
       ],
@@ -488,7 +490,7 @@ export class StreamProcessorV2 {
         const { stable: stableText, pending: pendingText } = this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
         // 安全护栏：边界停滞检测
-        if (stableText.length === this.lastStableLength && stableText.length > 0) {
+        if (this.safetyGuardEnabled && stableText.length === this.lastStableLength && stableText.length > 0) {
           this.stallCount++;
           if (this.stallCount >= this.MAX_STALL_ITERATIONS) {
             this.enterDegradedMode("内容边界解析停滞，可能存在病态嵌套结构");
@@ -513,7 +515,7 @@ export class StreamProcessorV2 {
 
           // 安全护栏：单次解析超时检查
           const stableElapsed = performance.now() - stableParseStart;
-          if (stableElapsed > this.MAX_SINGLE_PARSE_MS) {
+          if (this.safetyGuardEnabled && stableElapsed > this.MAX_SINGLE_PARSE_MS) {
             this.enterDegradedMode(`稳定区解析超时 (${stableElapsed.toFixed(0)}ms)，内容可能包含病态结构`);
             break;
           }
@@ -526,7 +528,7 @@ export class StreamProcessorV2 {
 
         // 安全护栏：单次解析超时检查
         const pendingElapsed = performance.now() - pendingParseStart;
-        if (pendingElapsed > this.MAX_SINGLE_PARSE_MS) {
+        if (this.safetyGuardEnabled && pendingElapsed > this.MAX_SINGLE_PARSE_MS) {
           this.enterDegradedMode(`待定区解析超时 (${pendingElapsed.toFixed(0)}ms)，内容可能包含病态结构`);
           break;
         }
@@ -561,7 +563,7 @@ export class StreamProcessorV2 {
 
         // 安全护栏：单次迭代总时长检查（包括 diff）
         const iterationElapsed = performance.now() - iterationStart;
-        if (iterationElapsed > this.MAX_ITERATION_TIME_MS) {
+        if (this.safetyGuardEnabled && iterationElapsed > this.MAX_ITERATION_TIME_MS) {
           this.enterDegradedMode(`单次迭代超时 (${iterationElapsed.toFixed(0)}ms)，内容过于复杂`);
           break;
         }

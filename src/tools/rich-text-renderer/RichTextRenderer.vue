@@ -50,6 +50,7 @@ const props = withDefaults(
     smoothingEnabled?: boolean; // 是否启用流式平滑化（默认 true）
     throttleEnabled?: boolean; // 是否启用 AST 更新节流（默认 true）
     verboseLogging?: boolean; // 是否启用高级调试日志（默认 false，开启后会刷屏）
+    safetyGuardEnabled?: boolean; // 是否启用渲染安全护栏（默认 true）
   }>(),
   {
     version: RendererVersion.V2_CUSTOM_PARSER,
@@ -66,6 +67,7 @@ const props = withDefaults(
     showTokenCount: false,
     smoothingEnabled: true,
     throttleEnabled: true,
+    safetyGuardEnabled: true,
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
@@ -141,6 +143,7 @@ const { ast, enqueuePatch, emergencyShutdown } = useMarkdownAst({
   throttleMs: props.throttleMs,
   throttleEnabled: props.throttleEnabled,
   verboseLogging: props.verboseLogging,
+  safetyGuardEnabled: props.safetyGuardEnabled,
 });
 
 // 图片列表状态
@@ -264,6 +267,7 @@ const createProcessor = (version: RendererVersion) => {
         llmThinkTagNames: thinkTagNames,
         llmThinkRules: props.llmThinkRules || [],
         defaultToolCallCollapsed: props.defaultToolCallCollapsed,
+        safetyGuardEnabled: props.safetyGuardEnabled,
       });
     }
     case RendererVersion.V1_MARKDOWN_IT:

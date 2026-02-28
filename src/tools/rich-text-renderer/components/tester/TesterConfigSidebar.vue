@@ -183,6 +183,19 @@
             <el-switch v-model="enableEnterAnimation" />
           </el-tooltip>
         </div>
+  
+        <!-- 安全护栏控制 -->
+        <div class="control-section">
+          <div class="control-header">
+            <label class="control-label">渲染安全护栏</label>
+            <el-tooltip
+              content="开启后将启用多项性能和安全限制（如节点数上限、超时检测等），关闭后将放开限制以支持超长内容渲染"
+              placement="left"
+            >
+              <el-switch v-model="safetyGuardEnabled" />
+            </el-tooltip>
+          </div>
+        </div>
       </div>
 
       <!-- 流式输出控制 -->
@@ -459,6 +472,7 @@ const {
   allowDangerousHtml,
   enableCdnLocalizer,
   enableEnterAnimation,
+  safetyGuardEnabled,
   llmThinkRules,
   seamlessMode,
   profileType,

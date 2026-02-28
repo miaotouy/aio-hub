@@ -17,7 +17,12 @@ const MAX_TOTAL_NODES = 10000000; // 渲染器硬上限
 const MAX_RAF_RETRIES = 1000; // 最多重试次数
 
 export function useMarkdownAst(
-  options: { throttleMs?: number; throttleEnabled?: boolean; verboseLogging?: boolean } = {}
+  options: {
+    throttleMs?: number;
+    throttleEnabled?: boolean;
+    verboseLogging?: boolean;
+    safetyGuardEnabled?: boolean;
+  } = {}
 ) {
   const ast: ShallowRef<AstNode[]> = shallowRef([]);
   const nodeMap: NodeMap = new Map();
@@ -25,6 +30,7 @@ export function useMarkdownAst(
   const throttleMs = options.throttleMs ?? BATCH_TIMEOUT_MS;
   const throttleEnabled = options.throttleEnabled !== false;
   const verboseLogging = options.verboseLogging ?? false;
+  const safetyGuardEnabled = options.safetyGuardEnabled !== false;
 
   let patchQueue: Patch[] = [];
   let rafHandle = 0;
@@ -295,7 +301,7 @@ export function useMarkdownAst(
 
     // 5. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
     // 改进：不再清空整个 AST，而是只在控制台报错并停止后续 patch
-    if (nodeMap.size > MAX_TOTAL_NODES) {
+    if (safetyGuardEnabled && nodeMap.size > MAX_TOTAL_NODES) {
       if (verboseLogging) {
         console.error(`[useMarkdownAst] Critical: Node count ${nodeMap.size} exceeds hard limit ${MAX_TOTAL_NODES}!`);
       }

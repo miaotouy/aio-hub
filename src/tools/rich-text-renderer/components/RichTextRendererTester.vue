@@ -130,6 +130,7 @@
                 :smoothing-enabled="smoothingEnabled"
                 :throttle-enabled="throttleEnabled"
                 :verbose-logging="verboseLogging"
+                :safety-guard-enabled="safetyGuardEnabled"
                 :seamless-mode="seamlessMode"
               />
               <div v-else class="empty-placeholder">
@@ -244,6 +245,7 @@ const {
   charsFluctuation,
   autoScroll,
   visualizeBlockStatus,
+  safetyGuardEnabled,
   rendererVersion,
   defaultRenderHtml,
   defaultCodeBlockExpanded,

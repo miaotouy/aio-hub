@@ -545,6 +545,8 @@ export interface StreamProcessorOptions {
   llmThinkRules?: LlmThinkRule[];
   /** 工具调用默认折叠 */
   defaultToolCallCollapsed?: boolean;
+  /** 是否启用安全护栏（默认 true） */
+  safetyGuardEnabled?: boolean;
 }
 
 /**
@@ -644,6 +646,8 @@ export interface TesterConfig {
   initialDelay: number;
   /** AST 更新节流时间（毫秒） */
   throttleMs?: number;
+  /** 是否启用渲染安全护栏 */
+  safetyGuardEnabled?: boolean;
   /** 波动模式是否启用 */
   fluctuationEnabled: boolean;
   /** 延迟波动范围 */

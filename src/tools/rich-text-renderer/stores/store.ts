@@ -92,6 +92,7 @@ const configManager = createConfigManager<TesterConfig>({
     streamSpeed: 100,
     initialDelay: 500,
     throttleMs: 80,
+    safetyGuardEnabled: true,
     fluctuationEnabled: false,
     delayFluctuation: {
       min: 50,
@@ -150,6 +151,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const streamSpeed = ref(100);
   const initialDelay = ref(500);
   const throttleMs = ref(80);
+  const safetyGuardEnabled = ref(true);
   const fluctuationEnabled = ref(false);
   const delayFluctuation = reactive({
     min: 50,
@@ -220,6 +222,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       streamSpeed.value = config.streamSpeed;
       initialDelay.value = config.initialDelay;
       throttleMs.value = config.throttleMs ?? 80;
+      safetyGuardEnabled.value = config.safetyGuardEnabled ?? true;
       fluctuationEnabled.value = config.fluctuationEnabled;
       delayFluctuation.min = config.delayFluctuation.min;
       delayFluctuation.max = config.delayFluctuation.max;
@@ -291,6 +294,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         streamSpeed: streamSpeed.value,
         initialDelay: initialDelay.value,
         throttleMs: throttleMs.value,
+        safetyGuardEnabled: safetyGuardEnabled.value,
         fluctuationEnabled: fluctuationEnabled.value,
         delayFluctuation: {
           min: delayFluctuation.min,
@@ -353,6 +357,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       streamSpeed: streamSpeed.value,
       initialDelay: initialDelay.value,
       throttleMs: throttleMs.value,
+      safetyGuardEnabled: safetyGuardEnabled.value,
       fluctuationEnabled: fluctuationEnabled.value,
       delayFluctuation: {
         min: delayFluctuation.min,
@@ -402,6 +407,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     streamSpeed.value = 100;
     initialDelay.value = 500;
     throttleMs.value = 80;
+    safetyGuardEnabled.value = true;
     fluctuationEnabled.value = false;
     delayFluctuation.min = 50;
     delayFluctuation.max = 200;
@@ -496,6 +502,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       streamSpeed,
       initialDelay,
       throttleMs,
+      safetyGuardEnabled,
       fluctuationEnabled,
       () => delayFluctuation.min,
       () => delayFluctuation.max,
@@ -548,6 +555,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     streamSpeed,
     initialDelay,
     throttleMs,
+    safetyGuardEnabled,
     fluctuationEnabled,
     delayFluctuation,
     charsFluctuation,

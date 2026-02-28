@@ -119,6 +119,8 @@ export interface ChatSettings {
     enableHtmlFreezer: boolean;
     /** 保持 HTML 预览活跃的最近消息数量（基于消息深度） */
     htmlFreezerKeepAliveCount: number;
+    /** 是否启用渲染安全护栏 */
+    safetyGuardEnabled: boolean;
     /** 全局媒体音量 (0-100) */
     globalMediaVolume: number;
   };
@@ -268,6 +270,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     allowDangerousHtml: false, // 默认禁止危险 HTML
     enableHtmlFreezer: true, // 默认启用 HTML 预览冻结
     htmlFreezerKeepAliveCount: 5, // 默认保持最近 5 个预览活动
+    safetyGuardEnabled: true, // 默认启用渲染安全护栏
     globalMediaVolume: 80, // 默认媒体音量 80%
   },
   modelPreferences: {

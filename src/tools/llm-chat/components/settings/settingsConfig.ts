@@ -301,6 +301,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui virtual list overscan 虚拟 消息 列表 预渲染 滚动 性能",
       },
       {
+        id: "safetyGuardEnabled",
+        label: "渲染安全护栏",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.safetyGuardEnabled",
+        hint: "开启后将启用多项性能和安全限制（如节点数上限、解析超时检测等），遇到正常内容被误伤时可以关闭此选项",
+        keywords: "ui renderer safety guard guardrails 渲染 安全 护栏 限制",
+      },
+      {
         id: "enableEnterAnimation",
         label: "节点进入动画",
         layout: "inline",

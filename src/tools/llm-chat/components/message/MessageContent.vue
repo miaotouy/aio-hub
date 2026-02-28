@@ -590,6 +590,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         :throttle-ms="settings.uiPreferences.rendererThrottleMs"
         :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
         :throttle-enabled="settings.uiPreferences.throttleEnabled"
+        :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
         :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
         :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
       />
@@ -677,6 +678,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :throttle-ms="settings.uiPreferences.rendererThrottleMs"
           :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
           :throttle-enabled="settings.uiPreferences.throttleEnabled"
+          :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
           :should-freeze="shouldFreezeHtml"
           :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
@@ -722,6 +724,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
             :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
             :throttle-enabled="settings.uiPreferences.throttleEnabled"
+            :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"
             :should-freeze="shouldFreezeHtml"

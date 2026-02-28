@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends { id: string; name: string; enabled: boolean }">
-import { computed, watch, nextTick } from "vue";
+import { computed, watch, nextTick, ref } from "vue";
 import { Plus } from "@element-plus/icons-vue";
 import { GripVertical } from "lucide-vue-next";
 import VueDraggable from "vuedraggable";
@@ -24,22 +24,42 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
+const sidebarContentRef = ref<HTMLElement | null>(null);
 /** 自动滚动到选中项 */
 const scrollToSelected = () => {
   if (!props.selectedId) return;
   nextTick(() => {
     const activeItem = document.querySelector(".sidebar-item.active");
-    if (activeItem) {
+    const container = sidebarContentRef.value;
+    if (activeItem && container) {
+      // 计算目标元素相对于滚动容器的位置
+      const itemRect = activeItem.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const offsetTop = itemRect.top - containerRect.top + container.scrollTop;
+
+      // 如果目标元素在容器可视区域之外，则滚动到合适位置
+      if (itemRect.top < containerRect.top || itemRect.bottom > containerRect.bottom) {
+        // 使用 smooth 滚动
+        container.scrollTo({
+          top: offsetTop - container.clientHeight * 0.3, // 稍微向上偏移，使元素不在顶部边缘
+          behavior: "smooth",
+        });
+      }
+    } else if (activeItem) {
+      // 回退到原来的 scrollIntoView
       activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   });
 };
 
-watch(() => props.selectedId, (newId) => {
-  if (newId) {
-    scrollToSelected();
+watch(
+  () => props.selectedId,
+  (newId) => {
+    if (newId) {
+      scrollToSelected();
+    }
   }
-});
+);
 
 const draggableProfiles = computed({
   get: () => props.profiles,
@@ -51,12 +71,10 @@ const draggableProfiles = computed({
   <div class="profile-sidebar">
     <div class="sidebar-header">
       <h3>{{ title }}</h3>
-      <el-button type="primary" :icon="Plus" size="small" @click="emit('add')">
-        添加
-      </el-button>
+      <el-button type="primary" :icon="Plus" size="small" @click="emit('add')"> 添加 </el-button>
     </div>
 
-    <div class="sidebar-content">
+    <div class="sidebar-content" ref="sidebarContentRef">
       <VueDraggable
         v-model="draggableProfiles"
         item-key="id"
@@ -68,11 +86,7 @@ const draggableProfiles = computed({
         :fallback-tolerance="3"
       >
         <template #item="{ element: profile }">
-          <div
-            class="sidebar-item"
-            :class="{ active: selectedId === profile.id }"
-            @click="emit('select', profile.id)"
-          >
+          <div class="sidebar-item" :class="{ active: selectedId === profile.id }" @click="emit('select', profile.id)">
             <div v-if="sortable" class="drag-handle" @click.stop>
               <GripVertical :size="14" class="icon" />
             </div>
@@ -85,12 +99,7 @@ const draggableProfiles = computed({
             </slot>
 
             <div class="switch-container">
-              <el-switch
-                :model-value="profile.enabled"
-                size="small"
-                @click.stop
-                @change="emit('toggle', profile)"
-              />
+              <el-switch :model-value="profile.enabled" size="small" @click.stop @change="emit('toggle', profile)" />
             </div>
           </div>
         </template>
@@ -141,6 +150,7 @@ const draggableProfiles = computed({
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  overscroll-behavior: contain;
 }
 
 .sidebar-item {

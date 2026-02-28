@@ -2,14 +2,6 @@
   <div class="message-monitor-page">
     <div class="monitor-header">
       <div class="header-left">
-        <el-button
-          v-if="showExpandButton"
-          :icon="PanelLeft"
-          text
-          circle
-          @click="emit('toggle-sidebar')"
-          title="展开侧边栏"
-        />
         <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
           {{ connectionStatusText }}
         </el-tag>
@@ -92,16 +84,11 @@ import { useThrottleFn } from "@vueuse/core";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
 import { customMessage } from "@/utils/customMessage";
-import { Pause, Play, Trash2, Download, PanelLeft, Search } from "lucide-vue-next";
+import { Pause, Play, Trash2, Download, Search } from "lucide-vue-next";
 import BroadcastCard from "./BroadcastCard.vue";
 import type { VcpMessage } from "../../types/protocol";
 
-defineProps<{
-  showExpandButton: boolean;
-}>();
-
 const emit = defineEmits<{
-  "toggle-sidebar": [];
   "show-json": [message: VcpMessage];
 }>();
 

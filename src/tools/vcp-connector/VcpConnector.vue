@@ -21,13 +21,12 @@
 
       <!-- 右侧监控面板 -->
       <main class="monitor-panel">
+        <div v-if="isConfigCollapsed" class="expand-trigger">
+          <el-button :icon="PanelLeft" text circle size="small" @click="isConfigCollapsed = false" title="展开侧边栏" />
+        </div>
         <el-tabs v-model="activeTab" class="monitor-tabs">
           <el-tab-pane label="消息监控" name="messages">
-            <MessageMonitorPage
-              :show-expand-button="isConfigCollapsed"
-              @toggle-sidebar="isConfigCollapsed = false"
-              @show-json="selectedMessage = $event"
-            />
+            <MessageMonitorPage @show-json="selectedMessage = $event" />
           </el-tab-pane>
           <el-tab-pane label="分布式节点" name="distributed">
             <DistributedNodePage />
@@ -115,6 +114,7 @@ watch(showJsonViewer, (visible: boolean) => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -134,6 +134,17 @@ watch(showJsonViewer, (visible: boolean) => {
   padding: 0 16px;
   background: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
+}
+
+.expand-trigger {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  z-index: 100;
+}
+
+.is-collapsed .monitor-tabs :deep(.el-tabs__nav-scroll) {
+  padding-left: 32px;
 }
 
 .monitor-tabs :deep(.el-tabs__content) {

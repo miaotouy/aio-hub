@@ -31,7 +31,13 @@ export async function quickFetch(options: QuickFetchOptions): Promise<FetchResul
         },
       });
 
-      return await transformer.transform(payload.html, options);
+      const result = await transformer.transform(payload.html, options);
+      
+      // 保存原始 HTML 用于源码查看
+      return {
+        ...result,
+        domSnapshot: payload.html,
+      };
     },
     {
       userMessage: "网页内容获取失败，请重试",
@@ -99,6 +105,7 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
         level: 1,
         url: extracted.url || options.url,
         title: extracted.title || result.title,
+        domSnapshot: extracted.html,
       } as ExtractResult;
     },
     {

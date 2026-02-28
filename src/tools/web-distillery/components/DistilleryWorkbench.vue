@@ -132,7 +132,7 @@ async function handleFetch(level: 0 | 1 | 2) {
       const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });
       if (!result) return;
 
-      store.setResult(result as any);
+      store.setResult(result);
     } else if (level === 2) {
       await webviewBridge.init();
       await new Promise((resolve) => setTimeout(resolve, 50));

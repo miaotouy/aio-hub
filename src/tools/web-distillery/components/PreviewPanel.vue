@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { Copy, Download, RotateCw, FileText, Code2, AlertTriangle, GlassWater } from "lucide-vue-next";
+import { ref, watch, computed } from "vue";
+import { Copy, Download, RotateCw, FileText, Code2, Globe, AlertTriangle, GlassWater } from "lucide-vue-next";
 import type { FetchResult } from "../types";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery/preview");
+const logger = createModuleLogger("web-distillery/preview");
 
 interface Props {
   result: FetchResult | null;
@@ -20,8 +25,55 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{ refresh: [] }>();
 
-type ViewMode = "preview" | "raw";
+type ViewMode = "preview" | "raw" | "source";
 const viewMode = ref<ViewMode>("preview");
+
+/** 是否有 DOM 快照（Level 0/1 都支持） */
+const hasDomSnapshot = computed(() => !!props.result?.domSnapshot);
+
+/** 格式化后的 HTML 源码 */
+const formattedHtml = ref<string>("");
+const isFormattingHtml = ref(false);
+
+async function formatHtml(raw: string): Promise<string> {
+  try {
+    // 懒加载 prettier standalone，避免影响初始包体积
+    const [prettier, htmlPlugin] = await Promise.all([
+      import("prettier/standalone"),
+      import("prettier/plugins/html"),
+    ]);
+    return await prettier.format(raw, {
+      parser: "html",
+      plugins: [htmlPlugin],
+      printWidth: 120,
+      tabWidth: 2,
+      htmlWhitespaceSensitivity: "ignore",
+    });
+  } catch (err) {
+    logger.warn("HTML 格式化失败，将显示原始内容", err instanceof Error ? err : new Error(String(err)));
+    return raw;
+  }
+}
+
+// 当切换到 source 模式或 domSnapshot 变化时，触发格式化
+watch(
+  [viewMode, () => props.result?.domSnapshot],
+  async ([mode, snapshot]) => {
+    if (mode === "source" && snapshot) {
+      isFormattingHtml.value = true;
+      formattedHtml.value = await formatHtml(snapshot);
+      isFormattingHtml.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+// 当 DOM 快照不可用时，自动切换回预览模式
+watch(hasDomSnapshot, (hasSnapshot) => {
+  if (!hasSnapshot && viewMode.value === "source") {
+    viewMode.value = "preview";
+  }
+});
 
 const qualityType = computed(() => {
   const q = props.result?.quality ?? 0;
@@ -30,29 +82,11 @@ const qualityType = computed(() => {
   return "danger";
 });
 
-/** 简易 Markdown → HTML 渲染（用于预览） */
-const formattedContent = computed(() => {
-  if (!props.result?.content) return "";
-  let html = props.result.content
-    .replace(/^#### (.+)$/gm, "<h4>$1</h4>")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-    .replace(/^---$/gm, "<hr>")
-    .replace(/\n\n/g, "</p><p>")
-    .replace(/\n/g, "<br>");
-  return `<div class="md-body"><p>${html}</p></div>`;
-});
-
 async function copyContent() {
-  if (!props.result?.content) return;
+  const text = viewMode.value === "source" ? formattedHtml.value || props.result?.domSnapshot : props.result?.content;
+  if (!text) return;
   try {
-    await navigator.clipboard.writeText(props.result.content);
+    await navigator.clipboard.writeText(text);
     customMessage.success("已复制到剪贴板");
   } catch (err: any) {
     errorHandler.error(err, "复制失败");
@@ -60,16 +94,21 @@ async function copyContent() {
 }
 
 function downloadContent() {
-  if (!props.result?.content) return;
-  const title = (props.result.title || "distilled").replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "_");
-  const blob = new Blob([props.result.content], { type: "text/markdown;charset=utf-8" });
+  const isSource = viewMode.value === "source";
+  const text = isSource ? props.result?.domSnapshot : props.result?.content;
+  if (!text) return;
+
+  const title = (props.result!.title || "distilled").replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "_");
+  const ext = isSource ? "html" : "md";
+  const mimeType = isSource ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8";
+  const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${title}.md`;
+  a.download = `${title}.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
-  customMessage.success("已下载 Markdown 文件");
+  customMessage.success(isSource ? "已下载 HTML 源码" : "已下载 Markdown 文件");
 }
 </script>
 
@@ -118,19 +157,28 @@ function downloadContent() {
         <div class="header-right">
           <!-- 视图切换 -->
           <el-radio-group v-model="viewMode" size="small">
-            <el-radio-button value="preview">
-              <FileText :size="13" />
-            </el-radio-button>
-            <el-radio-button value="raw">
-              <Code2 :size="13" />
-            </el-radio-button>
+            <el-tooltip content="预览" placement="top" :show-after="500">
+              <el-radio-button value="preview">
+                <FileText :size="13" />
+              </el-radio-button>
+            </el-tooltip>
+            <el-tooltip content="Markdown 源码" placement="top" :show-after="500">
+              <el-radio-button value="raw">
+                <Code2 :size="13" />
+              </el-radio-button>
+            </el-tooltip>
+            <el-tooltip content="页面源码" placement="top" :show-after="500">
+              <el-radio-button value="source" :disabled="!hasDomSnapshot">
+                <Globe :size="13" />
+              </el-radio-button>
+            </el-tooltip>
           </el-radio-group>
           <!-- 操作按钮 -->
           <el-button-group>
-            <el-button size="small" title="复制 Markdown" @click="copyContent">
+            <el-button size="small" title="复制内容" @click="copyContent">
               <Copy :size="13" />
             </el-button>
-            <el-button size="small" title="下载 .md 文件" @click="downloadContent">
+            <el-button size="small" title="下载文件" @click="downloadContent">
               <Download :size="13" />
             </el-button>
             <el-button size="small" title="重新蒸馏" :disabled="loading" @click="emit('refresh')">
@@ -152,8 +200,40 @@ function downloadContent() {
 
       <!-- 内容区 -->
       <div class="content-area">
-        <div v-if="viewMode === 'preview'" class="markdown-render" v-html="formattedContent" />
-        <pre v-else class="raw-view">{{ result.content }}</pre>
+        <!-- Markdown 富文本预览 -->
+        <RichTextRenderer
+          v-if="viewMode === 'preview'"
+          :content="result.content || ''"
+          :version="RendererVersion.V2_CUSTOM_PARSER"
+          :enable-enter-animation="false"
+          class="markdown-preview"
+        />
+        <!-- Markdown 原始代码视图 -->
+        <RichCodeEditor
+          v-else-if="viewMode === 'raw'"
+          :model-value="result.content || ''"
+          language="markdown"
+          :read-only="true"
+          :line-numbers="false"
+          editor-type="codemirror"
+          class="code-view"
+        />
+        <!-- HTML 源码视图 -->
+        <div v-else class="source-view-wrapper">
+          <div v-if="isFormattingHtml" class="formatting-indicator">
+            <el-icon class="formatting-spin"><i-ep-loading /></el-icon>
+            <span>正在美化…</span>
+          </div>
+          <RichCodeEditor
+            v-else
+            :model-value="formattedHtml || result.domSnapshot || ''"
+            language="html"
+            :read-only="true"
+            :line-numbers="true"
+            editor-type="codemirror"
+            class="code-view"
+          />
+        </div>
       </div>
 
       <!-- 元数据 -->
@@ -278,81 +358,50 @@ function downloadContent() {
 /* 内容区 */
 .content-area {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Markdown 预览 */
+.markdown-preview {
+  flex: 1;
+  overflow-y: auto;
   padding: 20px;
+  box-sizing: border-box;
 }
 
-/* Markdown 渲染 */
-.markdown-render :deep(.md-body) {
-  font-size: 14px;
-  line-height: 1.75;
-  color: var(--text-color);
-  max-width: 100%;
-  overflow-wrap: break-word;
-}
-.markdown-render :deep(h1) {
-  font-size: 1.6em;
-  margin: 1em 0 0.5em;
-  font-weight: 700;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0.3em;
-  color: var(--text-color);
-}
-.markdown-render :deep(h2) {
-  font-size: 1.35em;
-  margin: 0.9em 0 0.4em;
-  font-weight: 600;
-  color: var(--text-color);
-}
-.markdown-render :deep(h3) {
-  font-size: 1.15em;
-  margin: 0.7em 0 0.3em;
-  font-weight: 600;
-  color: var(--text-color);
-}
-.markdown-render :deep(h4) {
-  font-size: 1em;
-  margin: 0.5em 0 0.25em;
-  font-weight: 600;
-  color: var(--text-color);
-}
-.markdown-render :deep(a) {
-  color: var(--primary-color);
-  text-decoration: none;
-}
-.markdown-render :deep(a:hover) {
-  text-decoration: underline;
-}
-.markdown-render :deep(code) {
-  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-  padding: 2px 5px;
-  border-radius: 3px;
-  font-family: var(--el-font-family-mono, monospace);
-  font-size: 0.88em;
-  color: var(--primary-color);
-}
-.markdown-render :deep(strong) {
-  font-weight: 700;
-  color: var(--text-color);
-}
-.markdown-render :deep(hr) {
-  border: none;
-  border-top: 1px solid var(--border-color);
-  margin: 1.2em 0;
-}
-.markdown-render :deep(p) {
-  margin: 0.7em 0;
+/* HTML 源码视图包装层 */
+.source-view-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 原始视图 */
-.raw-view {
-  font-family: var(--el-font-family-mono, "JetBrains Mono", monospace);
+/* 格式化中提示 */
+.formatting-indicator {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-size: 13px;
-  line-height: 1.65;
-  color: var(--text-color);
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: 0;
+  color: var(--text-color-light);
+}
+
+.formatting-spin {
+  animation: spin 1s linear infinite;
+  color: var(--el-color-primary);
+}
+
+/* 代码编辑器视图 */
+.code-view {
+  flex: 1;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
 }
 
 /* 元数据 */

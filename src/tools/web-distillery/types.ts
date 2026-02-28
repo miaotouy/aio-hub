@@ -30,6 +30,7 @@ export interface FetchResult {
   quality: number;
   level: 0 | 1;
   fetchedAt: string;
+  domSnapshot?: string; // Level 0/1 都可以有原始 HTML
   metadata?: {
     description?: string;
     author?: string;
@@ -43,7 +44,6 @@ export interface FetchResult {
 export interface ExtractResult extends FetchResult {
   images?: AssetRef[];
   discoveredApis?: ApiInfo[];
-  domSnapshot?: string;
 }
 
 export interface AssetRef {

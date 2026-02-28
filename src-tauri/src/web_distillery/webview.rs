@@ -28,7 +28,7 @@ pub struct CreateWebviewOptions {
     pub y: f64,
     pub width: f64,
     pub height: f64,
-    // pub headless: Option<bool>,
+    pub headless: Option<bool>,
 }
 
 /// 创建子 Webview (独立窗口模式以修复主窗口拖拽失效问题)
@@ -70,16 +70,24 @@ pub async fn distillery_create_webview(
     );
 
     // 4. 使用 WebviewWindowBuilder 创建独立无边框窗口
-    // 注意：这里不再使用 main_window.add_child()，而是创建一个完全独立的窗口
-    let builder = tauri::WebviewWindowBuilder::new(&app, label, url)
+    let mut builder = tauri::WebviewWindowBuilder::new(&app, label, url)
         .initialization_script(&final_inject)
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .decorations(false) // 无边框
         .shadow(false)      // 无阴影（贴合感）
         .transparent(true)  // 透明支持
         .visible(false)     // 初始不可见，等位置调整后再显示
-        .skip_taskbar(true) // 不在任务栏显示
-        .always_on_top(true); // 悬浮在主窗口之上
+        .skip_taskbar(true); // 不在任务栏显示
+
+    // P1: 禁用媒体自动播放 (Windows WebView2)
+    builder =
+        builder.additional_browser_args("--autoplay-policy=user-gesture-required --mute-audio");
+
+    let is_headless = options.headless.unwrap_or(false);
+
+    if !is_headless {
+        builder = builder.always_on_top(true); // 悬浮在主窗口之上
+    }
 
     #[cfg(target_os = "macos")]
     {
@@ -104,12 +112,15 @@ pub async fn distillery_create_webview(
         manager.insert(label.to_string(), nonce);
     }
 
-    // 延迟显示以防视觉闪烁
-    let window_clone = window.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
-        let _ = window_clone.show();
-    });
+    // 7. 处理显示逻辑 (仅在非无头模式下显示)
+    if !is_headless {
+        // 延迟显示以防视觉闪烁
+        let window_clone = window.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+            let _ = window_clone.show();
+        });
+    }
 
     Ok(())
 }
@@ -198,49 +209,61 @@ pub async fn distillery_extract_dom(
         .get_webview_window(label)
         .ok_or_else(|| "Sub-window not found".to_string())?;
 
-    // 等待页面就绪
-    let wait_ms = if wait_for.is_some() {
-        std::cmp::min(timeout_ms, 5000)
-    } else {
-        500
-    };
-    tokio::time::sleep(std::time::Duration::from_millis(wait_ms)).await;
+    // P2: 基础等待 300ms 确保基础 JS 和 Bridge 环境初始化
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
-    let selector_check = if let Some(sel) = &wait_for {
-        format!(
-            "const _el = document.querySelector({}); if (!_el) {{ console.warn('[Distillery] Selector not found:', {}); }}",
-            serde_json::to_string(sel).unwrap(),
-            serde_json::to_string(sel).unwrap()
-        )
+    let selector_json = if let Some(sel) = &wait_for {
+        serde_json::to_string(sel).unwrap()
     } else {
-        String::new()
+        "null".to_string()
     };
 
     let extract_script = format!(
         r#"
         (function() {{
-            {}
-            try {{
-                const html = document.documentElement.outerHTML;
-                if (window.__DISTILLERY_BRIDGE__) {{
-                    window.__DISTILLERY_BRIDGE__.send({{
-                        type: 'dom-extracted',
-                        html: html,
-                        url: window.location.href,
-                        title: document.title
-                    }});
-                }}
-            }} catch(e) {{
-                if (window.__DISTILLERY_BRIDGE__) {{
-                    window.__DISTILLERY_BRIDGE__.send({{
-                        type: 'dom-extract-error',
-                        error: e.message
-                    }});
+            const selector = {};
+            const startTime = Date.now();
+            const timeout = {};
+
+            function tryExtract() {{
+                const isReady = document.readyState === 'complete';
+                const elementFound = !selector || !!document.querySelector(selector);
+                
+                if (isReady && elementFound) {{
+                    performExtraction();
+                }} else if (Date.now() - startTime < timeout) {{
+                    setTimeout(tryExtract, 200);
+                }} else {{
+                    console.warn('[Distillery] Extraction timeout, proceeding anyway');
+                    performExtraction();
                 }}
             }}
+
+            function performExtraction() {{
+                try {{
+                    const html = document.documentElement.outerHTML;
+                    if (window.__DISTILLERY_BRIDGE__) {{
+                        window.__DISTILLERY_BRIDGE__.send({{
+                            type: 'dom-extracted',
+                            html: html,
+                            url: window.location.href,
+                            title: document.title
+                        }});
+                    }}
+                }} catch(e) {{
+                    if (window.__DISTILLERY_BRIDGE__) {{
+                        window.__DISTILLERY_BRIDGE__.send({{
+                            type: 'dom-extract-error',
+                            error: e.message
+                        }});
+                    }}
+                }}
+            }}
+
+            tryExtract();
         }})();
         "#,
-        selector_check
+        selector_json, timeout_ms
     );
 
     window

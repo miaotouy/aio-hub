@@ -20,7 +20,7 @@ export class WebviewBridge {
   private cookieExtractedCallbacks: ((cookies: string, url: string) => void)[] = [];
   private elementSelectedCallbacks: ((data: any) => void)[] = [];
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): WebviewBridge {
     if (!WebviewBridge.instance) {
@@ -52,7 +52,11 @@ export class WebviewBridge {
 
     switch (payload.type) {
       case "webview-ready":
-        logger.info("Sub-webview is ready");
+        logger.info("Sub-webview DOM content loaded");
+        break;
+
+      case "page-loaded":
+        logger.info("Sub-webview page fully loaded (including resources)");
         break;
 
       case "dom-extracted":
@@ -133,6 +137,30 @@ export class WebviewBridge {
       this.unlisten();
       this.unlisten = null;
     }
+    this.domExtractedCallbacks = [];
+    this.cookieExtractedCallbacks = [];
+    this.elementSelectedCallbacks = [];
+  }
+
+  /** 终极强制清理：销毁 Webview 并重置所有状态 */
+  public async forceCleanup() {
+    logger.info("Force cleanup triggered");
+
+    // 1. 尝试销毁 Webview
+    try {
+      await this.destroy();
+    } catch (e) {
+      logger.debug("Force cleanup: destroy webview failed (possibly already gone)", e);
+    }
+
+    // 2. 清理所有回调和监听器
+    this.domExtractedCallbacks = [];
+    this.cookieExtractedCallbacks = [];
+    this.elementSelectedCallbacks = [];
+
+    const store = useWebDistilleryStore();
+    store.setLoading(false);
+    store.setWebviewCreated(false);
   }
 
   // --- 命令封装 ---

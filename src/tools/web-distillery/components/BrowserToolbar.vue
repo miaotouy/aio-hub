@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2 } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2, Trash2 } from "lucide-vue-next";
+import { webviewBridge } from "../core/webview-bridge";
+import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("web-distillery/toolbar");
@@ -82,6 +84,16 @@ function handleLevelCommand(level: 0 | 1 | 2) {
     emit("open-interactive");
   }
 }
+
+async function handleForceCleanup() {
+  try {
+    await webviewBridge.forceCleanup();
+    customMessage.success("已强制清理蒸馏环境");
+    emit("refresh"); // 触发父组件刷新状态
+  } catch (e) {
+    logger.error("Force cleanup failed", e);
+  }
+}
 </script>
 
 <template>
@@ -148,6 +160,16 @@ function handleLevelCommand(level: 0 | 1 | 2) {
       </template>
     </el-dropdown>
 
+    <!-- 终极清理 (仅在 L1/L2 模式或加载中显示) -->
+    <el-tooltip content="终极强制清理 (终止并销毁所有后台进程)" placement="top">
+      <button 
+        class="toolbar-btn cleanup-btn" 
+        @click="handleForceCleanup"
+      >
+        <Trash2 :size="15" />
+      </button>
+    </el-tooltip>
+
     <!-- 蒸馏按钮 -->
     <el-button type="primary" :loading="loading" :disabled="!localUrl.trim()" @click="triggerFetch"> 蒸馏 </el-button>
   </div>
@@ -195,6 +217,16 @@ function handleLevelCommand(level: 0 | 1 | 2) {
 .toolbar-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.cleanup-btn {
+  color: var(--danger-color, #f56c6c);
+  border-color: color-mix(in srgb, var(--danger-color, #f56c6c) 30%, transparent);
+}
+.cleanup-btn:hover {
+  background: color-mix(in srgb, var(--danger-color, #f56c6c) 10%, transparent) !important;
+  border-color: var(--danger-color, #f56c6c) !important;
+  color: var(--danger-color, #f56c6c) !important;
 }
 
 /* 旋转动画 */

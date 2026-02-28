@@ -52,10 +52,7 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
   logger.info("Starting smartExtract", { url: options.url, waitFor: options.waitFor });
   return (await errorHandler.wrapAsync(
     async () => {
-      // 1. 初始化 IPC 监听桥
-      await webviewBridge.init();
-
-      // 2. 查找是否有匹配的配方
+      // 1. 查找是否有匹配的配方
       const matchedRecipe = await recipeStore.findBestMatch(options.url);
       if (matchedRecipe) {
         logger.info("Found matched recipe", { id: matchedRecipe.id, name: matchedRecipe.name });

@@ -2,7 +2,7 @@
  * LLM 服务商预设模板配置
  */
 
-import type { ProviderType, LlmModelInfo } from "../types/llm-profiles";
+import type { ProviderType, LlmModelInfo, LlmLink } from "../types/llm-profiles";
 
 /**
  * 预设模板接口
@@ -14,6 +14,7 @@ export interface LlmPreset {
   defaultBaseUrl: string;
   logoUrl?: string;
   defaultModels?: LlmModelInfo[];
+  links?: LlmLink[];
 }
 
 /**
@@ -28,6 +29,7 @@ export const llmPresets: LlmPreset[] = [
     description: "VCP server - VCP 服务 (OpenAI 兼容)",
     defaultBaseUrl: "http://localhost:6505",
     logoUrl: "/model-icons/vcpchat.png",
+    links: [{ label: "GitHub", url: "https://github.com/lioensky/VCPToolBox" }],
   },
   // DeepSeek
   {
@@ -36,6 +38,11 @@ export const llmPresets: LlmPreset[] = [
     description: "深度求索 API",
     defaultBaseUrl: "https://api.deepseek.com",
     logoUrl: "/model-icons/deepseek-color.svg",
+    links: [
+      { label: "官网", url: "https://www.deepseek.com" },
+      { label: "API 文档", url: "https://api-docs.deepseek.com" },
+      { label: "计费说明", url: "https://api-docs.deepseek.com/zh-cn/quick_start/pricing" },
+    ],
     defaultModels: [
       {
         id: "deepseek-reasoner",
@@ -62,6 +69,11 @@ export const llmPresets: LlmPreset[] = [
     description: "OpenAI 官方服务",
     defaultBaseUrl: "https://api.openai.com",
     logoUrl: "/model-icons/openai.svg",
+    links: [
+      { label: "控制台", url: "https://platform.openai.com" },
+      { label: "API 文档", url: "https://platform.openai.com/docs/api-reference" },
+      { label: "价格页", url: "https://openai.com/api/pricing" },
+    ],
     defaultModels: [
       {
         id: "gpt-5",
@@ -130,6 +142,10 @@ export const llmPresets: LlmPreset[] = [
     description: "OpenAI Responses API - 新一代有状态交互接口",
     defaultBaseUrl: "https://api.openai.com",
     logoUrl: "/model-icons/openai.svg",
+    links: [
+      { label: "控制台", url: "https://platform.openai.com" },
+      { label: "API 文档", url: "https://platform.openai.com/docs/api-reference/responses" },
+    ],
     defaultModels: [
       {
         id: "gpt-5.1",
@@ -212,6 +228,12 @@ export const llmPresets: LlmPreset[] = [
     description: "月之暗面 Kimi API",
     defaultBaseUrl: "https://api.moonshot.cn",
     logoUrl: "/model-icons/moonshot.svg",
+    links: [
+      { label: "官网", url: "https://www.moonshot.cn" },
+      { label: "控制台", url: "https://platform.moonshot.cn/console" },
+      { label: "API 文档", url: "https://platform.moonshot.cn/docs" },
+      { label: "计费说明", url: "https://platform.moonshot.cn/pricing" },
+    ],
     defaultModels: [
       {
         id: "kimi-k2-instruct",
@@ -255,6 +277,12 @@ export const llmPresets: LlmPreset[] = [
     description: "智谱 GLM API",
     defaultBaseUrl: "https://open.bigmodel.cn/api/paas/v4",
     logoUrl: "/model-icons/zhipu-color.svg",
+    links: [
+      { label: "官网", url: "https://open.bigmodel.cn/" },
+      { label: "控制台", url: "https://open.bigmodel.cn/usercenter/apikeys" },
+      { label: "API 文档", url: "https://open.bigmodel.cn/dev/api" },
+      { label: "计费说明", url: "https://open.bigmodel.cn/pricing" },
+    ],
     defaultModels: [
       {
         id: "glm-4.6",
@@ -297,6 +325,12 @@ export const llmPresets: LlmPreset[] = [
     description: "Groq 高速推理 API",
     defaultBaseUrl: "https://api.groq.com/openai/v1",
     logoUrl: "/model-icons/groq.svg",
+    links: [
+      { label: "官网", url: "https://groq.com/" },
+      { label: "控制台", url: "https://console.groq.com/" },
+      { label: "API 文档", url: "https://console.groq.com/docs/" },
+      { label: "计费说明", url: "https://wow.groq.com/pricing/" },
+    ],
     defaultModels: [
       {
         id: "llama-3.3-70b-versatile",
@@ -336,6 +370,11 @@ export const llmPresets: LlmPreset[] = [
     description: "Google Gemini API",
     defaultBaseUrl: "https://generativelanguage.googleapis.com",
     logoUrl: "/model-icons/gemini-color.svg",
+    links: [
+      { label: "AI Studio", url: "https://aistudio.google.com" },
+      { label: "API 文档", url: "https://ai.google.dev/gemini-api/docs" },
+      { label: "价格页", url: "https://ai.google.dev/pricing" },
+    ],
     defaultModels: [
       // 别名
       {
@@ -580,6 +619,11 @@ export const llmPresets: LlmPreset[] = [
     description: "Anthropic Claude API",
     defaultBaseUrl: "https://api.anthropic.com",
     logoUrl: "/model-icons/claude-color.svg",
+    links: [
+      { label: "控制台", url: "https://console.anthropic.com" },
+      { label: "API 文档", url: "https://docs.anthropic.com/claude/reference/getting-started-with-the-api" },
+      { label: "价格页", url: "https://www.anthropic.com/pricing" },
+    ],
     defaultModels: [
       {
         id: "claude-haiku-4.5",
@@ -621,6 +665,12 @@ export const llmPresets: LlmPreset[] = [
     description: "Cohere API v2 - 企业级大语言模型服务",
     defaultBaseUrl: "https://api.cohere.com",
     logoUrl: "/model-icons/cohere-color.svg",
+    links: [
+      { label: "官网", url: "https://cohere.com/" },
+      { label: "控制台", url: "https://dashboard.cohere.com/" },
+      { label: "API 文档", url: "https://docs.cohere.com/" },
+      { label: "计费说明", url: "https://cohere.com/pricing" },
+    ],
     defaultModels: [
       {
         id: "command-a-reasoning",
@@ -698,6 +748,11 @@ export const llmPresets: LlmPreset[] = [
     description: "Hugging Face Chat Completion API (OpenAI 兼容)",
     defaultBaseUrl: "https://api-inference.huggingface.co",
     logoUrl: "/model-icons/huggingface-color.svg",
+    links: [
+      { label: "官网", url: "https://huggingface.co/" },
+      { label: "API 文档", url: "https://huggingface.co/docs/inference-providers/index" },
+      { label: "价格页", url: "https://huggingface.co/pricing" },
+    ],
     defaultModels: [
       {
         id: "meta-llama/Llama-3.3-70B-Instruct",
@@ -739,6 +794,11 @@ export const llmPresets: LlmPreset[] = [
     description: "Google Cloud Vertex AI - 企业级 Gemini 模型服务",
     defaultBaseUrl: "https://us-central1-aiplatform.googleapis.com",
     logoUrl: "/model-icons/vertexai-color.svg",
+    links: [
+      { label: "控制台", url: "https://console.cloud.google.com/vertex-ai" },
+      { label: "API 文档", url: "https://cloud.google.com/vertex-ai/docs" },
+      { label: "价格页", url: "https://cloud.google.com/vertex-ai/generative-ai/pricing" },
+    ],
     defaultModels: [
       {
         id: "gemini-3-pro-preview",
@@ -832,6 +892,12 @@ export const llmPresets: LlmPreset[] = [
     description: "字节跳动火山引擎 API",
     defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
     logoUrl: "/model-icons/volcengine-color.svg",
+    links: [
+      { label: "官网", url: "https://www.volcengine.com/product/ark" },
+      { label: "控制台", url: "https://console.volcengine.com/ark" },
+      { label: "API 文档", url: "https://www.volcengine.com/docs/82379/1099420" },
+      { label: "计费说明", url: "https://www.volcengine.com/docs/82379/1099722" },
+    ],
     defaultModels: [
       {
         id: "doubao-1.6",
@@ -861,6 +927,11 @@ export const llmPresets: LlmPreset[] = [
     description: "xAI Grok API",
     defaultBaseUrl: "https://api.x.ai/v1",
     logoUrl: "/model-icons/xai.svg",
+    links: [
+      { label: "官网", url: "https://x.ai" },
+      { label: "控制台", url: "https://console.x.ai" },
+      { label: "API 文档", url: "https://docs.x.ai" },
+    ],
     defaultModels: [
       {
         id: "grok-4",
@@ -909,10 +980,19 @@ export const llmPresets: LlmPreset[] = [
   // 阿里巴巴 Qwen
   {
     type: "openai",
-    name: "阿里巴巴 Qwen",
-    description: "通义千问 Qwen API",
+    name: "阿里云百炼",
+    description: "阿里云百炼，通义千问 Qwen API",
     defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode",
     logoUrl: "/model-icons/qwen-color.svg",
+    links: [
+      { label: "官网", url: "https://bailian.console.aliyun.com" },
+      { label: "控制台", url: "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/model-market" },
+      { label: "API 文档", url: "https://bailian.console.aliyun.com/cn-beijing/doc?tab=doc#/doc" },
+      {
+        label: "计费说明",
+        url: "https://bailian.console.aliyun.com/cn-beijing/doc?tab=doc#/doc/?type=model&url=2987148",
+      },
+    ],
     defaultModels: [
       {
         id: "qwen3-max-preview",
@@ -966,6 +1046,12 @@ export const llmPresets: LlmPreset[] = [
     description: "Mistral AI 官方 API",
     defaultBaseUrl: "https://api.mistral.ai",
     logoUrl: "/model-icons/mistral-color.svg",
+    links: [
+      { label: "官网", url: "https://mistral.ai" },
+      { label: "控制台", url: "https://console.mistral.ai" },
+      { label: "API 文档", url: "https://docs.mistral.ai" },
+      { label: "价格页", url: "https://mistral.ai/technology/#pricing" },
+    ],
     defaultModels: [
       {
         id: "mistral-large-latest",
@@ -1006,6 +1092,12 @@ export const llmPresets: LlmPreset[] = [
     description: "AI21 Labs Jamba API",
     defaultBaseUrl: "https://api.ai21.com/studio",
     logoUrl: "/model-icons/aionlabs-color.svg",
+    links: [
+      { label: "官网", url: "https://www.ai21.com" },
+      { label: "控制台", url: "https://studio.ai21.com" },
+      { label: "API 文档", url: "https://docs.ai21.com" },
+      { label: "价格页", url: "https://www.ai21.com/pricing" },
+    ],
     defaultModels: [
       {
         id: "jamba-reasoning-3b",
@@ -1039,6 +1131,12 @@ export const llmPresets: LlmPreset[] = [
     description: "百度文心一言 ERNIE API",
     defaultBaseUrl: "https://aip.baidubce.com",
     logoUrl: "/model-icons/wenxin-color.svg",
+    links: [
+      { label: "官网", url: "https://cloud.baidu.com/product/wenxinworkshop" },
+      { label: "控制台", url: "https://console.bce.baidu.com/qianfan/ais/console/application/protocols" },
+      { label: "API 文档", url: "https://cloud.baidu.com/doc/WENXINWORKSHOP/index.html" },
+      { label: "计费说明", url: "https://cloud.baidu.com/doc/qianfan/s/wmh4sv6ya" },
+    ],
     defaultModels: [
       {
         id: "ernie-4.5",
@@ -1080,6 +1178,12 @@ export const llmPresets: LlmPreset[] = [
     description: "腾讯混元大模型 API",
     defaultBaseUrl: "https://api.hunyuan.cloud.tencent.com",
     logoUrl: "/model-icons/hunyuan-color.svg",
+    links: [
+      { label: "官网", url: "https://hunyuan.tencent.com" },
+      { label: "控制台", url: "https://console.cloud.tencent.com/hunyuan" },
+      { label: "API 文档", url: "https://cloud.tencent.com/document/product/1729" },
+      { label: "计费说明", url: "https://cloud.tencent.com/document/product/1729/97731" },
+    ],
     defaultModels: [
       {
         id: "hunyuan-3.0",
@@ -1129,6 +1233,12 @@ export const llmPresets: LlmPreset[] = [
     description: "MiniMax ABAB API",
     defaultBaseUrl: "https://api.minimax.chat",
     logoUrl: "/model-icons/minimax-color.svg",
+    links: [
+      { label: "官网", url: "https://www.minimaxi.com" },
+      { label: "控制台", url: "https://platform.minimaxi.com" },
+      { label: "API 文档", url: "https://platform.minimaxi.com/docs/api-reference/api-overview" },
+      { label: "计费说明", url: "https://platform.minimaxi.com/docs/guides/pricing-speech" },
+    ],
     defaultModels: [
       {
         id: "abab6.5s-chat",
@@ -1250,6 +1360,11 @@ export const llmPresets: LlmPreset[] = [
     description: "商汤 SenseNova API",
     defaultBaseUrl: "https://api.sensenova.cn",
     logoUrl: "/model-icons/sensenova-color.svg",
+    links: [
+      { label: "官网", url: "https://www.sensetime.com" },
+      { label: "控制台", url: "https://platform.sensenova.cn" },
+      { label: "API 文档", url: "https://platform.sensenova.cn/product/APIService/document/" },
+    ],
     defaultModels: [
       {
         id: "sensenova-v6.5",
@@ -1283,6 +1398,11 @@ export const llmPresets: LlmPreset[] = [
     description: "OpenRouter - 统一多个 AI 模型的聚合 API",
     defaultBaseUrl: "https://openrouter.ai/api/v1",
     logoUrl: "/model-icons/openrouter.svg",
+    links: [
+      { label: "官网", url: "https://openrouter.ai" },
+      { label: "API 文档", url: "https://openrouter.ai/docs" },
+      { label: "模型列表", url: "https://openrouter.ai/models" },
+    ],
     defaultModels: [
       {
         id: "anthropic/claude-haiku-4.5",
@@ -1316,6 +1436,11 @@ export const llmPresets: LlmPreset[] = [
     description: "硅基流动 - 高性价比 AI 推理服务",
     defaultBaseUrl: "https://api.siliconflow.cn/v1",
     logoUrl: "/model-icons/siliconcloud-color.svg",
+    links: [
+      { label: "控制台", url: "https://cloud.siliconflow.cn" },
+      { label: "API 文档", url: "https://docs.siliconflow.cn" },
+      { label: "价格页", url: "https://siliconflow.cn/zh-cn/pricing" },
+    ],
     defaultModels: [
       {
         id: "deepseek-ai/DeepSeek-V3.2-Exp",
@@ -1355,6 +1480,12 @@ export const llmPresets: LlmPreset[] = [
     description: "Together AI - 开源模型推理平台",
     defaultBaseUrl: "https://api.together.xyz",
     logoUrl: "/model-icons/together-color.svg",
+    links: [
+      { label: "官网", url: "https://www.together.ai" },
+      { label: "控制台", url: "https://api.together.xyz" },
+      { label: "API 文档", url: "https://docs.together.ai" },
+      { label: "价格页", url: "https://www.together.ai/pricing" },
+    ],
     defaultModels: [
       {
         id: "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
@@ -1380,6 +1511,12 @@ export const llmPresets: LlmPreset[] = [
     description: "Fireworks AI - 超快速推理平台",
     defaultBaseUrl: "https://api.fireworks.ai",
     logoUrl: "/model-icons/fireworks-color.svg",
+    links: [
+      { label: "官网", url: "https://fireworks.ai" },
+      { label: "控制台", url: "https://console.fireworks.ai" },
+      { label: "API 文档", url: "https://docs.fireworks.ai" },
+      { label: "价格页", url: "https://fireworks.ai/pricing" },
+    ],
     defaultModels: [
       {
         id: "accounts/fireworks/models/llama-v3p3-70b-instruct",
@@ -1404,6 +1541,12 @@ export const llmPresets: LlmPreset[] = [
     description: "DeepInfra - 开源模型托管服务",
     defaultBaseUrl: "https://api.deepinfra.com",
     logoUrl: "/model-icons/deepinfra-color.svg",
+    links: [
+      { label: "官网", url: "https://deepinfra.com" },
+      { label: "控制台", url: "https://deepinfra.com/dash" },
+      { label: "API 文档", url: "https://deepinfra.com/docs" },
+      { label: "价格页", url: "https://deepinfra.com/pricing" },
+    ],
     defaultModels: [
       {
         id: "meta-llama/Meta-Llama-3.1-70B-Instruct",
@@ -1428,6 +1571,10 @@ export const llmPresets: LlmPreset[] = [
     description: "Perplexity AI - 搜索增强模型",
     defaultBaseUrl: "https://api.perplexity.ai",
     logoUrl: "/model-icons/perplexity-color.svg",
+    links: [
+      { label: "官网", url: "https://www.perplexity.ai" },
+      { label: "API 文档", url: "https://docs.perplexity.ai" },
+    ],
     defaultModels: [
       {
         id: "sonar-pro",
@@ -1454,6 +1601,11 @@ export const llmPresets: LlmPreset[] = [
     description: "微软 Azure OpenAI 服务",
     defaultBaseUrl: "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
     logoUrl: "/model-icons/azure-color.svg",
+    links: [
+      { label: "官网", url: "https://azure.microsoft.com/products/ai-services/openai-service" },
+      { label: "控制台", url: "https://portal.azure.com" },
+      { label: "API 文档", url: "https://learn.microsoft.com/azure/ai-services/openai/" },
+    ],
     defaultModels: [
       {
         id: "gpt-5",
@@ -1503,6 +1655,11 @@ export const llmPresets: LlmPreset[] = [
     description: "魔搭社区 API-Inference 服务（OpenAI兼容）",
     defaultBaseUrl: "https://api-inference.modelscope.cn/v1",
     logoUrl: "/model-icons/modelscope-color.svg",
+    links: [
+      { label: "官网", url: "https://modelscope.cn" },
+      { label: "模型推理", url: "https://modelscope.cn/models" },
+      { label: "API 文档", url: "https://modelscope.cn/docs/model-service/API-Inference/intro" },
+    ],
     defaultModels: [
       {
         id: "Qwen/Qwen3-235B-A22B-Instruct-2507",
@@ -1643,6 +1800,11 @@ export const llmPresets: LlmPreset[] = [
     description: "本地 Ollama 服务",
     defaultBaseUrl: "http://localhost:11434",
     logoUrl: "/model-icons/ollama.svg",
+    links: [
+      { label: "官网", url: "https://ollama.com" },
+      { label: "GitHub", url: "https://github.com/ollama/ollama" },
+      { label: "模型库", url: "https://ollama.com/library" },
+    ],
   },
   // NewAPI / One API 聚合
   {
@@ -1651,6 +1813,11 @@ export const llmPresets: LlmPreset[] = [
     description: "NewAPI / One API 兼容的聚合服务",
     defaultBaseUrl: "https://api.example.com",
     logoUrl: "/model-icons/newapi-color.svg",
+    links: [
+      { label: "GitHub (NewAPI)", url: "https://github.com/Calcium-Ion/new-api" },
+      { label: "API 文档 (NewAPI)", url: "https://docs.newapi.pro/zh/docs" },
+      { label: "GitHub (One API)", url: "https://github.com/songquanpeng/one-api" },
+    ],
   },
   // Suno (NewAPI)
   {
@@ -1659,6 +1826,12 @@ export const llmPresets: LlmPreset[] = [
     description: "通过 NewAPI 访问的 Suno 音乐生成服务",
     defaultBaseUrl: "https://api.example.com",
     logoUrl: "/model-icons/suno.svg",
+    links: [
+      { label: "Suno 官网", url: "https://suno.com" },
+      { label: "API 项目", url: "https://github.com/Suno-API/Suno-API" },
+      { label: "Suno API文档", url: "https://github.com/Suno-API/Suno-API/blob/main/README_ZH.md" },
+      { label: "API 文档 (NewAPI)", url: "https://github.com/Suno-API/Suno-API/blob/main/Suno.md" },
+    ],
     defaultModels: [
       {
         id: "suno_music",

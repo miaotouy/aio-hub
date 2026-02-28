@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
+import { ExternalLink } from "lucide-vue-next";
 import { useElementSize } from "@vueuse/core";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
@@ -60,14 +61,8 @@ const {
   handleAddModels,
 } = useModelEditor(editForm, selectedProfile);
 
-const {
-  isTestingConnection,
-  modelTestLoading,
-  keyTestLoading,
-  testConnection,
-  handleTestModel,
-  handleTestKey,
-} = useConnectionTest(editForm, selectedProfile);
+const { isTestingConnection, modelTestLoading, keyTestLoading, testConnection, handleTestModel, handleTestKey } =
+  useConnectionTest(editForm, selectedProfile);
 
 // ─── 图标 ───
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
@@ -171,14 +166,10 @@ const networkSettingSummary = computed(() => {
     if (editForm.value.http1Only) parts.push("HTTP/1.1");
   }
 
-  const headersCount = editForm.value.customHeaders
-    ? Object.keys(editForm.value.customHeaders).length
-    : 0;
+  const headersCount = editForm.value.customHeaders ? Object.keys(editForm.value.customHeaders).length : 0;
   if (headersCount > 0) parts.push(`${headersCount} 个请求头`);
 
-  const endpointsCount = editForm.value.customEndpoints
-    ? Object.keys(editForm.value.customEndpoints).length
-    : 0;
+  const endpointsCount = editForm.value.customEndpoints ? Object.keys(editForm.value.customEndpoints).length : 0;
   if (endpointsCount > 0) parts.push(`${endpointsCount} 个自定义端点`);
 
   return parts.join(" · ");
@@ -199,11 +190,7 @@ const networkSettingSummary = computed(() => {
         @update:profiles="updateProfilesOrder"
       >
         <template #item="{ profile }">
-          <DynamicIcon
-            :src="getProviderIcon(profile) || ''"
-            class="profile-icon"
-            :alt="profile.name"
-          />
+          <DynamicIcon :src="getProviderIcon(profile) || ''" class="profile-icon" :alt="profile.name" />
           <div class="profile-info">
             <div class="profile-name">{{ profile.name }}</div>
             <div class="profile-type">{{ getProviderTypeInfo(profile.type)?.name }}</div>
@@ -214,18 +201,9 @@ const networkSettingSummary = computed(() => {
 
       <!-- 右侧：配置编辑 -->
       <div class="editor-container" ref="editorContainerRef">
-        <ProfileEditor
-          v-if="selectedProfile"
-          :title="selectedProfile.name"
-          :show-save="false"
-          @delete="handleDelete"
-        >
+        <ProfileEditor v-if="selectedProfile" :title="selectedProfile.name" :show-save="false" @delete="handleDelete">
           <template #header-actions>
-            <DynamicIcon
-              :src="getProviderIcon(editForm) || ''"
-              class="profile-editor-icon"
-              :alt="editForm.name"
-            />
+            <DynamicIcon :src="getProviderIcon(editForm) || ''" class="profile-editor-icon" :alt="editForm.name" />
           </template>
           <el-form
             :model="editForm"
@@ -233,12 +211,7 @@ const networkSettingSummary = computed(() => {
             :label-position="formLabelPosition"
           >
             <el-form-item label="渠道名称">
-              <el-input
-                v-model="editForm.name"
-                placeholder="例如: 我的 OpenAI"
-                maxlength="50"
-                show-word-limit
-              />
+              <el-input v-model="editForm.name" placeholder="例如: 我的 OpenAI" maxlength="50" show-word-limit />
             </el-form-item>
 
             <el-form-item label="API 格式">
@@ -283,6 +256,26 @@ const networkSettingSummary = computed(() => {
                   </el-popconfirm>
                 </template>
               </el-input>
+
+              <!-- 快捷链接 -->
+              <div v-if="editForm.links && editForm.links.length > 0" class="preset-links-bar">
+                <span class="links-title">快捷方式:</span>
+                <div class="links-list">
+                  <el-tooltip
+                    v-for="link in editForm.links"
+                    :key="link.url"
+                    :content="link.url"
+                    placement="top"
+                    :show-after="500"
+                  >
+                    <el-link :href="link.url" target="_blank" type="primary" :underline="false" class="link-item">
+                      <ExternalLink :size="12" class="link-icon" />
+                      {{ link.label }}
+                    </el-link>
+                  </el-tooltip>
+                </div>
+              </div>
+
               <div v-if="apiEndpointPreview" class="api-preview-container">
                 <div class="api-preview-url">{{ apiEndpointPreview }}</div>
                 <div class="api-preview-hint">
@@ -328,8 +321,7 @@ const networkSettingSummary = computed(() => {
                       默认方案。自动根据请求内容（如是否包含本地文件）决定是否通过 Rust 后端转发。
                     </span>
                     <span v-else-if="editForm.networkStrategy === 'proxy'">
-                      强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1 等底层配置，可绕过
-                      CORS。
+                      强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1 等底层配置，可绕过 CORS。
                     </span>
                     <span v-else-if="editForm.networkStrategy === 'native'">
                       强制使用前端原生请求。性能较好，但不支持底层网络微调，且受限于浏览器安全策略。
@@ -342,24 +334,13 @@ const networkSettingSummary = computed(() => {
                     <el-checkbox v-model="editForm.relaxIdCerts" label="放宽证书校验" />
                     <el-checkbox v-model="editForm.http1Only" label="强制 HTTP/1.1" />
                   </div>
-                  <div class="form-hint">
-                    放宽证书校验允许自签名证书；强制 HTTP/1.1 可提高与某些自建服务的兼容性。
-                  </div>
+                  <div class="form-hint">放宽证书校验允许自签名证书；强制 HTTP/1.1 可提高与某些自建服务的兼容性。</div>
                 </el-form-item>
 
                 <el-form-item label="自定义请求头">
-                  <el-button
-                    type="primary"
-                    plain
-                    size="small"
-                    @click="showCustomHeadersDialog = true"
-                  >
+                  <el-button type="primary" plain size="small" @click="showCustomHeadersDialog = true">
                     编辑请求头
-                    <span
-                      v-if="
-                        editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0
-                      "
-                    >
+                    <span v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0">
                       ({{ Object.keys(editForm.customHeaders).length }})
                     </span>
                   </el-button>
@@ -367,18 +348,9 @@ const networkSettingSummary = computed(() => {
                 </el-form-item>
 
                 <el-form-item label="高级端点">
-                  <el-button
-                    type="primary"
-                    plain
-                    size="small"
-                    @click="showCustomEndpointsDialog = true"
-                  >
+                  <el-button type="primary" plain size="small" @click="showCustomEndpointsDialog = true">
                     编辑端点
-                    <span
-                      v-if="
-                        editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0
-                      "
-                    >
+                    <span v-if="editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0">
                       ({{ Object.keys(editForm.customEndpoints).length }})
                     </span>
                   </el-button>
@@ -397,20 +369,13 @@ const networkSettingSummary = computed(() => {
                   style="flex: 1"
                   @blur="updateApiKeys"
                 />
-                <el-button
-                  type="primary"
-                  plain
-                  :loading="isTestingConnection"
-                  @click="testConnection"
-                >
+                <el-button type="primary" plain :loading="isTestingConnection" @click="testConnection">
                   测试连接
                 </el-button>
               </div>
               <div v-if="editForm.apiKeys.length > 0" class="form-hint multi-key-hint">
                 <span>已配置 {{ editForm.apiKeys.length }} 个密钥</span>
-                <el-button link type="primary" size="small" @click="openMultiKeyManager">
-                  管理密钥状态
-                </el-button>
+                <el-button link type="primary" size="small" @click="openMultiKeyManager"> 管理密钥状态 </el-button>
               </div>
             </el-form-item>
 
@@ -483,16 +448,10 @@ const networkSettingSummary = computed(() => {
     />
 
     <!-- 自定义请求头配置弹窗 -->
-    <CustomHeadersEditor
-      v-model:visible="showCustomHeadersDialog"
-      v-model="editForm.customHeaders"
-    />
+    <CustomHeadersEditor v-model:visible="showCustomHeadersDialog" v-model="editForm.customHeaders" />
 
     <!-- 高级端点配置弹窗 -->
-    <CustomEndpointsEditor
-      v-model:visible="showCustomEndpointsDialog"
-      v-model="editForm.customEndpoints"
-    />
+    <CustomEndpointsEditor v-model:visible="showCustomEndpointsDialog" v-model="editForm.customEndpoints" />
 
     <!-- 多密钥管理弹窗 -->
     <MultiKeyManagerDialog
@@ -525,11 +484,11 @@ const networkSettingSummary = computed(() => {
 .editor-container {
   flex: 1;
   min-width: 0;
-  max-height: 90vh;
+  max-height: 80vh;
 }
 
 .settings-layout :deep(.profile-sidebar) {
-  max-height: 90vh;
+  max-height: 80vh;
 }
 
 .is-narrow .settings-layout {
@@ -714,5 +673,42 @@ const networkSettingSummary = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* 快捷链接样式 */
+.preset-links-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.links-title {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  opacity: 0.8;
+}
+
+.links-list {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.link-item {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.link-icon {
+  opacity: 0.7;
+}
+
+.link-item:hover .link-icon {
+  opacity: 1;
 }
 </style>

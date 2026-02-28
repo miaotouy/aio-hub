@@ -254,6 +254,7 @@ export function useLlmProfiles() {
       networkStrategy: "auto",
       logoUrl: preset.logoUrl,
       icon: preset.logoUrl, // 同时设置 icon 字段，确保供应商图标正确显示
+      links: preset.links ? [...preset.links] : [],
     };
   };
 

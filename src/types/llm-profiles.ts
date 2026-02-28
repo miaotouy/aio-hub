@@ -371,6 +371,14 @@ export interface LlmModelInfo {
 }
 
 /**
+ * 快捷链接信息
+ */
+export interface LlmLink {
+  label: string;
+  url: string;
+}
+
+/**
  * 用户创建的单个 LLM 渠道配置
  */
 export interface LlmProfile {
@@ -442,6 +450,11 @@ export interface LlmProfile {
    * 例如 Azure 的 apiVersion、deploymentId 等
    */
   options?: Record<string, any>;
+  /**
+   * 快捷链接（可选）
+   * 用于快速跳转到官网、文档等
+   */
+  links?: LlmLink[];
   /**
    * 自定义 API 端点（可选）
    * 用于高级配置，直接指定完整的 URL

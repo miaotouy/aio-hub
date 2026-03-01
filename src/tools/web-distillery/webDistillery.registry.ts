@@ -2,7 +2,7 @@ import type { ToolRegistry, ToolConfig, ServiceMetadata } from "@/services/types
 import { markRaw } from "vue";
 import { GlassWater } from "lucide-vue-next";
 import { quickFetch, smartExtract } from "./actions";
-import type { FetchResult, ExtractResult } from "./types";
+import { formatFetchResult } from "./formatters";
 
 export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";
@@ -12,19 +12,21 @@ export default class WebDistilleryRegistry implements ToolRegistry {
   /**
    * 快速获取网页内容（Agent Facade）
    */
-  public async quickFetch(args: Record<string, unknown>): Promise<FetchResult> {
-    return await quickFetch({
+  public async quickFetch(args: Record<string, unknown>): Promise<string> {
+    const result = await quickFetch({
       url: String(args.url || ""),
       format: (args.format as any) || "markdown",
     });
+    return formatFetchResult(result);
   }
 
-  public async smartExtract(args: Record<string, unknown>): Promise<ExtractResult> {
-    return await smartExtract({
+  public async smartExtract(args: Record<string, unknown>): Promise<string> {
+    const result = await smartExtract({
       url: String(args.url || ""),
       format: (args.format as any) || "markdown",
       waitFor: args.waitFor ? String(args.waitFor) : undefined,
     });
+    return formatFetchResult(result);
   }
 
   public getMetadata(): ServiceMetadata {
@@ -51,7 +53,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               defaultValue: "markdown",
             },
           ],
-          returnType: "Promise<FetchResult>",
+          returnType: "string",
         },
         {
           name: "smartExtract",
@@ -72,7 +74,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               required: false,
             },
           ],
-          returnType: "Promise<ExtractResult>",
+          returnType: "string",
         },
       ],
     };

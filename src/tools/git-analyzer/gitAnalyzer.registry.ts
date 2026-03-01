@@ -1,4 +1,4 @@
-import type { ToolRegistry, ToolConfig } from "@/services/types";
+import type { ToolRegistry, ToolConfig, ServiceMetadata } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import GitBranchIcon from "@/components/icons/GitBranchIcon.vue";
@@ -10,15 +10,11 @@ import {
   type AnalyzeRepositoryOptions,
   type GetAuthorCommitsOptions,
   type GetCommitDetailOptions,
-  type FormattedRepoAnalysis,
 } from "./actions";
-import type { GitCommit } from "./types";
+import { reportComponents, formatCommitList, formatBranchList, createAgentExportConfig } from "./formatters";
 
 /**
- * Git 仓库分析注册器
- *
- * 仅作为 ToolRegistry 接口的适配器，用于向 LLM 暴露核心功能。
- * 具体的业务逻辑应直接使用 actions.ts 中的函数。
+ * Git 仓库 analysis 注册器
  */
 export default class GitAnalyzerRegistry implements ToolRegistry {
   public readonly id = "git-analyzer";
@@ -75,14 +71,19 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
 
   /**
    * 获取仓库格式化分析摘要（Agent facade）
+   * 通过 reportComponents 积木拼装，与手动导出路径一致
    */
-  public async getFormattedAnalysis(args: Record<string, unknown>): Promise<FormattedRepoAnalysis | null> {
+  public async getFormattedAnalysis(args: Record<string, unknown>): Promise<string> {
     const options: AnalyzeRepositoryOptions = {
       path: String(args.path || ""),
       branch: args.branch ? String(args.branch) : undefined,
       limit: args.limit !== undefined ? Number(args.limit) : 100,
       dateFormat: (args.dateFormat as AnalyzeRepositoryOptions["dateFormat"]) || "iso",
-      includes: Array.isArray(args.includes) ? (args.includes as AnalyzeRepositoryOptions["includes"]) : undefined,
+      includeStatistics: args.includeStatistics !== false && args.includeStatistics !== "false",
+      includeCommits: args.includeCommits !== false && args.includeCommits !== "false",
+      includeContributors: args.includeContributors !== false && args.includeContributors !== "false",
+      includeTimeline: args.includeTimeline === true || args.includeTimeline === "true",
+      includeCharts: args.includeCharts === true || args.includeCharts === "true",
       includeAuthor: args.includeAuthor !== false && args.includeAuthor !== "false",
       includeEmail: args.includeEmail === true || args.includeEmail === "true",
       includeFullMessage: args.includeFullMessage === true || args.includeFullMessage === "true",
@@ -90,13 +91,42 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
       includeTags: args.includeTags === true || args.includeTags === "true",
       includeStats: args.includeStats === true || args.includeStats === "true",
     };
-    return analyzeRepository(options);
+
+    const result = await analyzeRepository(options);
+    if (!result) return "❌ 仓库分析失败";
+
+    // 使用 reportComponents 积木拼装，与手动导出路径统一
+    const lines: string[] = [];
+    lines.push(reportComponents.header("Git 仓库分析摘要", result.details.path, result.details.branch));
+
+    if (result.details.statistics) {
+      lines.push(reportComponents.section("📊 统计概览", reportComponents.statistics(result.details.statistics)));
+    }
+
+    if (result.details.topContributors && result.details.topContributors.length > 0) {
+      const totalCommits = result.details.statistics?.totalCommits || 0;
+      lines.push(
+        reportComponents.section(
+          "👥 主要贡献者",
+          reportComponents.contributors(result.details.topContributors, totalCommits)
+        )
+      );
+    }
+
+    if (result.details.recentCommits && result.details.recentCommits.length > 0) {
+      const recentLines = result.details.recentCommits.map(
+        (c) => `- **${String(c.hash).substring(0, 7)}** [${c.date}] (${c.author}): ${c.message}`
+      );
+      lines.push(reportComponents.section("📝 最近提交", recentLines.join("\n")));
+    }
+
+    return lines.join("\n").trim();
   }
 
   /**
    * 获取指定作者的提交记录（Agent facade）
    */
-  public async getAuthorCommits(args: Record<string, unknown>): Promise<GitCommit[] | null> {
+  public async getAuthorCommits(args: Record<string, unknown>): Promise<string> {
     const options: GetAuthorCommitsOptions = {
       path: String(args.path || ""),
       author: String(args.author || ""),
@@ -109,31 +139,49 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
       includeTags: args.includeTags === true || args.includeTags === "true",
       includeStats: args.includeStats === true || args.includeStats === "true",
     };
-    return getAuthorCommits(options);
+
+    const result = await getAuthorCommits(options);
+    const agentConfig = createAgentExportConfig({
+      dateFormat: options.dateFormat || "iso",
+      includeAuthor: true,
+      includeEmail: options.includeEmail || false,
+      includeFullMessage: options.includeFullMessage || false,
+      includeFiles: options.includeFiles || false,
+      includeTags: options.includeTags || false,
+      includeStats: options.includeStats || false,
+    });
+    return formatCommitList(result || [], agentConfig);
   }
 
   /**
    * 获取指定提交的详细信息（Agent facade）
+   * 使用 reportComponents.commitItem，与导出路径统一
    */
-  public async getCommitDetail(args: Record<string, unknown>): Promise<GitCommit | null> {
+  public async getCommitDetail(args: Record<string, unknown>): Promise<string> {
     const options: GetCommitDetailOptions = {
       path: String(args.path || ""),
       hash: String(args.hash || ""),
     };
-    return getCommitDetail(options);
+
+    const result = await getCommitDetail(options);
+    if (!result) return "❌ 获取提交详情失败";
+    // Agent 场景下全量展示所有字段
+    const agentConfig = createAgentExportConfig();
+    return reportComponents.commitItem(result, agentConfig);
   }
 
   /**
    * 获取仓库分支列表（Agent facade）
    */
-  public async getBranchList(args: Record<string, unknown>): Promise<string[] | null> {
-    return getBranchList(String(args.path || ""));
+  public async getBranchList(args: Record<string, unknown>): Promise<string> {
+    const result = await getBranchList(String(args.path || ""));
+    return formatBranchList(result || []);
   }
 
   /**
    * 获取服务元数据
    */
-  public getMetadata() {
+  public getMetadata(): ServiceMetadata {
     return {
       methods: [
         {
@@ -153,10 +201,39 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
               defaultValue: "iso",
             },
             {
-              name: "includes",
-              type: "Array<'statistics' | 'commits' | 'contributors'>",
-              description: "包含的内容类型",
+              name: "includeStatistics",
+              type: "boolean",
+              description: "是否包含统计信息",
               required: false,
+              defaultValue: true,
+            },
+            {
+              name: "includeCommits",
+              type: "boolean",
+              description: "是否包含提交记录",
+              required: false,
+              defaultValue: true,
+            },
+            {
+              name: "includeContributors",
+              type: "boolean",
+              description: "是否包含贡献者列表",
+              required: false,
+              defaultValue: true,
+            },
+            {
+              name: "includeTimeline",
+              type: "boolean",
+              description: "是否包含时间线数据",
+              required: false,
+              defaultValue: false,
+            },
+            {
+              name: "includeCharts",
+              type: "boolean",
+              description: "是否包含图表数据",
+              required: false,
+              defaultValue: false,
             },
             {
               name: "includeAuthor",
@@ -177,14 +254,14 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
               type: "boolean",
               description: "是否包含完整提交消息",
               required: false,
-              defaultValue: false,
+              defaultValue: true,
             },
             {
               name: "includeFiles",
               type: "boolean",
               description: "是否包含文件变更列表",
               required: false,
-              defaultValue: false,
+              defaultValue: true,
             },
             {
               name: "includeTags",
@@ -201,7 +278,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
               defaultValue: false,
             },
           ],
-          returnType: "Promise<FormattedRepoAnalysis | null>",
+          returnType: "string",
         },
         {
           name: "getAuthorCommits",
@@ -256,7 +333,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
               defaultValue: false,
             },
           ],
-          returnType: "Promise<GitCommit[] | null>",
+          returnType: "string",
         },
         {
           name: "getCommitDetail",
@@ -267,7 +344,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
             { name: "path", type: "string", uiHint: "directory", description: "Git 仓库路径", required: true },
             { name: "hash", type: "string", description: "提交哈希值（完整或短格式均可）", required: true },
           ],
-          returnType: "Promise<GitCommit | null>",
+          returnType: "string",
         },
         {
           name: "getBranchList",
@@ -277,7 +354,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
           parameters: [
             { name: "path", type: "string", uiHint: "directory", description: "Git 仓库路径", required: true },
           ],
-          returnType: "Promise<string[] | null>",
+          returnType: "string",
         },
       ],
     };

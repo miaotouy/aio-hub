@@ -52,39 +52,39 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     // 主题变量定义
     const themeVars = {
       light: {
-        '--bg-primary': '#f5f5f5',
-        '--bg-secondary': '#ffffff',
-        '--bg-card': '#ffffff',
-        '--text-primary': '#333333',
-        '--text-secondary': '#7f8c8d',
-        '--border-color': '#ecf0f1',
-        '--accent-color': '#3498db',
-        '--success-color': '#27ae60',
-        '--danger-color': '#e74c3c',
-        '--hover-bg': '#f8f9fa',
+        "--bg-primary": "#f5f5f5",
+        "--bg-secondary": "#ffffff",
+        "--bg-card": "#ffffff",
+        "--text-primary": "#333333",
+        "--text-secondary": "#7f8c8d",
+        "--border-color": "#ecf0f1",
+        "--accent-color": "#3498db",
+        "--success-color": "#27ae60",
+        "--danger-color": "#e74c3c",
+        "--hover-bg": "#f8f9fa",
       },
       dark: {
-        '--bg-primary': '#1a1a1a',
-        '--bg-secondary': '#2d2d2d',
-        '--bg-card': '#2d2d2d',
-        '--text-primary': '#e0e0e0',
-        '--text-secondary': '#b0b0b0',
-        '--border-color': '#404040',
-        '--accent-color': '#4a9eff',
-        '--success-color': '#4caf50',
-        '--danger-color': '#f44336',
-        '--hover-bg': '#3a3a3a',
-      }
+        "--bg-primary": "#1a1a1a",
+        "--bg-secondary": "#2d2d2d",
+        "--bg-card": "#2d2d2d",
+        "--text-primary": "#e0e0e0",
+        "--text-secondary": "#b0b0b0",
+        "--border-color": "#404040",
+        "--accent-color": "#4a9eff",
+        "--success-color": "#4caf50",
+        "--danger-color": "#f44336",
+        "--hover-bg": "#3a3a3a",
+      },
     };
 
     // 转换为 CSS 字符串
     const lightVarsStr = Object.entries(themeVars.light)
       .map(([key, value]) => `${key}: ${value};`)
-      .join('\n      ');
-    
+      .join("\n      ");
+
     const darkVarsStr = Object.entries(themeVars.dark)
       .map(([key, value]) => `${key}: ${value};`)
-      .join('\n      ');
+      .join("\n      ");
 
     // 基础样式：总是包含浅色和深色两套，让浏览器自动选择
     let styles = `
@@ -105,14 +105,14 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     }`;
 
     // 如果用户强制选择了特定主题，添加覆盖规则
-    if (config.htmlTheme === 'dark') {
+    if (config.htmlTheme === "dark") {
       styles += `
     
     /* 强制深色主题 */
     html[data-theme="dark"] .${cssPrefix}-root {
       ${darkVarsStr}
     }`;
-    } else if (config.htmlTheme === 'light') {
+    } else if (config.htmlTheme === "light") {
       styles += `
     
     /* 强制浅色主题 */
@@ -125,9 +125,8 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
   };
 
   // 根据主题配置决定是否添加 data-theme 属性
-  const htmlThemeAttr = config.htmlTheme === 'dark' || config.htmlTheme === 'light'
-    ? ` data-theme="${config.htmlTheme}"`
-    : '';
+  const htmlThemeAttr =
+    config.htmlTheme === "dark" || config.htmlTheme === "light" ? ` data-theme="${config.htmlTheme}"` : "";
 
   let html = `<!DOCTYPE html>
 <html lang="zh-CN"${htmlThemeAttr}>
@@ -314,7 +313,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     </div>`;
 
   // 统计信息
-  if (config.includes.includes("statistics")) {
+  if (config.includeStatistics) {
     html += `
     <h2 class="${cssPrefix}-h2">📊 统计信息</h2>
     <div class="${cssPrefix}-stats">
@@ -338,7 +337,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
   }
 
   // 贡献者列表
-  if (config.includes.includes("contributors")) {
+  if (config.includeContributors) {
     const commitsToExport = getCommitsToExport();
     const contributors = getContributorStats(commitsToExport);
     html += `
@@ -354,8 +353,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       <tbody>`;
 
     contributors.slice(0, 10).forEach((c) => {
-      const percentage =
-        commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : "0.0";
+      const percentage = commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : "0.0";
       html += `
         <tr>
           <td>${escapeHtml(c.name)}</td>
@@ -370,7 +368,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
   }
 
   // 时间线
-  if (config.includes.includes("timeline") && generateTimelineData) {
+  if (config.includeTimeline && generateTimelineData) {
     const commitsToExport = getCommitsToExport();
     const timelineData = generateTimelineData(commitsToExport);
     html += `
@@ -398,7 +396,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
   }
 
   // 图表数据
-  if (config.includes.includes("charts") && generateChartData) {
+  if (config.includeCharts && generateChartData) {
     const commitsToExport = getCommitsToExport();
     const chartData = generateChartData(commitsToExport);
     const weekDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -480,7 +478,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
   }
 
   // 提交记录
-  if (config.includes.includes("commits")) {
+  if (config.includeCommits) {
     const commits = getCommitsToExport();
     html += `
     <h2 class="${cssPrefix}-h2">📝 提交记录 (${commits.length} 条)</h2>`;

@@ -24,7 +24,11 @@ export interface GitAnalyzerConfig {
   // 导出配置
   exportConfig: {
     format: "markdown" | "json" | "csv" | "html" | "text";
-    includes: string[];
+    includeStatistics: boolean;
+    includeCommits: boolean;
+    includeContributors: boolean;
+    includeTimeline: boolean;
+    includeCharts: boolean;
     commitRange: "all" | "filtered" | "custom";
     customCount: number;
     dateFormat: "iso" | "local" | "relative" | "timestamp";
@@ -65,7 +69,11 @@ function createDefaultConfig(): GitAnalyzerConfig {
     // 导出配置
     exportConfig: {
       format: "markdown",
-      includes: ["statistics", "commits", "contributors"],
+      includeStatistics: true,
+      includeCommits: true,
+      includeContributors: true,
+      includeTimeline: false,
+      includeCharts: false,
       commitRange: "filtered",
       customCount: 100,
       dateFormat: "local",

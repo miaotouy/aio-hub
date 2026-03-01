@@ -148,7 +148,6 @@ const { generateReport } = useReportGenerator({
   hasActiveFilters,
 });
 
-
 // 更新预览
 async function updatePreview() {
   if (generating.value) return;
@@ -160,7 +159,9 @@ async function updatePreview() {
       context: {
         format: exportConfig.value.format,
         commitRange: exportConfig.value.commitRange,
-        includes: exportConfig.value.includes,
+        includeStatistics: exportConfig.value.includeStatistics,
+        includeCommits: exportConfig.value.includeCommits,
+        includeContributors: exportConfig.value.includeContributors,
         includeFiles: exportConfig.value.includeFiles,
       },
     });
@@ -302,7 +303,6 @@ watch(
     }
   }
 );
-
 </script>
 
 <style scoped>

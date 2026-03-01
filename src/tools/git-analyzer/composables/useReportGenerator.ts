@@ -4,8 +4,7 @@
  */
 
 import type { Ref } from "vue";
-import type { GitCommit, ExportConfig, RepoStatistics } from "../types";
-import { formatDateTime } from "@/utils/time";
+import type { GitCommit, ExportConfig } from "../types";
 import {
   formatDate,
   escapeHtml,
@@ -13,6 +12,7 @@ import {
   generateTimelineData,
   generateChartData,
 } from "./useGitProcessor";
+import { calculateStatistics, formatCommitList, reportComponents } from "../formatters";
 import { generateHTML } from "../utils/htmlGenerator";
 
 interface ReportGeneratorOptions {
@@ -27,32 +27,7 @@ interface ReportGeneratorOptions {
 export function useReportGenerator(options: ReportGeneratorOptions) {
   const { config, repoPath, branch, getCommitsToExport, filterSummary, hasActiveFilters } = options;
 
-  /**
-   * 根据实际导出的提交列表计算统计信息
-   */
-  function calculateStatistics(commits: GitCommit[]): RepoStatistics {
-    if (commits.length === 0) {
-      return {
-        totalCommits: 0,
-        contributors: 0,
-        timeSpan: 0,
-        averagePerDay: 0,
-      };
-    }
-
-    const authors = new Set(commits.map((c) => c.author));
-    const dates = commits.map((c) => new Date(c.date).getTime());
-    const minDate = new Date(Math.min(...dates));
-    const maxDate = new Date(Math.max(...dates));
-    const days = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
-
-    return {
-      totalCommits: commits.length,
-      contributors: authors.size,
-      timeSpan: days,
-      averagePerDay: commits.length / Math.max(days, 1),
-    };
-  }
+  // calculateStatistics 已提取到 formatters.ts 中作为公共纯函数
 
   /**
    * 生成 Markdown 格式报告
@@ -63,162 +38,65 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     const commitsToExport = getCommitsToExport();
     const statistics = calculateStatistics(commitsToExport);
 
-    lines.push(`# Git 仓库分析报告`);
-    lines.push("");
-    lines.push(`**仓库路径**: ${repoPath.value || "当前目录"}`);
-    lines.push(`**分支**: ${branch.value}`);
-    lines.push(`**生成时间**: ${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
-    lines.push("");
+    // 1. 头部 (积木1)
+    lines.push(reportComponents.header("Git 仓库分析报告", repoPath.value || "当前目录", branch.value));
 
-    // 筛选信息
+    // 2. 筛选信息 (积木2)
     if (cfg.includeFilterInfo && hasActiveFilters.value) {
-      lines.push("## 🔍 筛选条件");
-      lines.push("");
-      lines.push(filterSummary.value);
-      lines.push("");
+      lines.push(reportComponents.section("🔍 筛选条件", filterSummary.value));
     }
 
-    // 统计信息
-    if (cfg.includes.includes("statistics")) {
-      lines.push("## 📊 统计信息");
-      lines.push("");
-      lines.push(`- **总提交数**: ${statistics.totalCommits}`);
-      lines.push(`- **贡献者数**: ${statistics.contributors}`);
-      lines.push(`- **时间跨度**: ${statistics.timeSpan} 天`);
-      lines.push(`- **平均提交/天**: ${statistics.averagePerDay.toFixed(2)}`);
-      lines.push("");
+    // 3. 统计信息 (积木3)
+    if (cfg.includeStatistics) {
+      lines.push(reportComponents.section("📊 统计信息", reportComponents.statistics(statistics)));
     }
 
-    // 贡献者列表
-    if (cfg.includes.includes("contributors")) {
+    // 4. 贡献者列表 (积木4)
+    if (cfg.includeContributors) {
       const contributors = getContributorStats(commitsToExport);
-      lines.push("## 👥 贡献者统计");
-      lines.push("");
-      lines.push("| 贡献者 | 提交数 | 占比 |");
-      lines.push("|--------|--------|------|");
-      contributors.slice(0, 10).forEach((c) => {
-        const percentage =
-          commitsToExport.length > 0
-            ? ((c.count / commitsToExport.length) * 100).toFixed(1)
-            : "0.0";
-        lines.push(`| ${c.name} | ${c.count} | ${percentage}% |`);
-      });
-      lines.push("");
+      lines.push(
+        reportComponents.section("👥 贡献者统计", reportComponents.contributors(contributors, statistics.totalCommits))
+      );
     }
 
-    // 时间线
-    if (cfg.includes.includes("timeline")) {
+    // 5. 时间线 (积木5)
+    if (cfg.includeTimeline) {
       const timelineData = generateTimelineData(commitsToExport);
-      lines.push("## 📅 提交时间线");
-      lines.push("");
-      lines.push("| 日期 | 提交数 |");
-      lines.push("|------|--------|");
-      timelineData.forEach((item) => {
-        lines.push(`| ${item.date} | ${item.count} |`);
-      });
-      lines.push("");
+      lines.push(reportComponents.section("📅 提交时间线", reportComponents.timeline(timelineData)));
     }
 
-    // 图表数据
-    if (cfg.includes.includes("charts")) {
+    // 6. 图表数据 (积木6)
+    if (cfg.includeCharts) {
       const chartData = generateChartData(commitsToExport);
-
-      lines.push("## 📈 图表数据");
-      lines.push("");
+      let chartContent = "";
 
       // 提交频率趋势
-      lines.push("### 提交频率");
-      lines.push("");
-      lines.push("| 日期 | 提交数 |");
-      lines.push("|------|--------|");
-      chartData.frequency.slice(0, 30).forEach((item) => {
-        lines.push(`| ${item.date} | ${item.count} |`);
-      });
-      lines.push("");
+      chartContent += "### 提交频率\n\n" + reportComponents.timeline(chartData.frequency.slice(0, 30)) + "\n\n";
 
       // 贡献者分布
-      lines.push("### 贡献者分布");
-      lines.push("");
-      lines.push("| 贡献者 | 提交数 |");
-      lines.push("|--------|--------|");
-      chartData.contributors.slice(0, 10).forEach((item) => {
-        lines.push(`| ${item.name} | ${item.count} |`);
-      });
-      lines.push("");
+      chartContent +=
+        "### 贡献者分布\n\n" +
+        reportComponents.contributors(chartData.contributors.slice(0, 10), statistics.totalCommits) +
+        "\n\n";
 
       // 提交热力图
-      lines.push("### 提交热力图（周几×小时）");
-      lines.push("");
       const weekDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-      lines.push("| 星期 | 小时 | 提交数 |");
-      lines.push("|------|------|--------|");
+      const heatmapLines = ["| 星期 | 小时 | 提交数 |", "|------|------|--------|"];
       chartData.heatmap
         .filter((item) => item.count > 0)
         .sort((a, b) => b.count - a.count)
         .slice(0, 20)
         .forEach((item) => {
-          lines.push(`| ${weekDays[item.day]} | ${item.hour}:00 | ${item.count} |`);
+          heatmapLines.push(`| ${weekDays[item.day]} | ${item.hour}:00 | ${item.count} |`);
         });
-      lines.push("");
+      chartContent += "### 提交热力图（周几×小时）\n\n" + heatmapLines.join("\n");
+
+      lines.push(reportComponents.section("📈 图表数据", chartContent));
     }
 
-    // 提交记录
-    if (cfg.includes.includes("commits")) {
-      lines.push("## 📝 提交记录");
-      lines.push("");
-      lines.push(`共 ${commitsToExport.length} 条记录`);
-      lines.push("");
-
-      commitsToExport.forEach((commit) => {
-        lines.push(
-          `### ${commit.hash.substring(0, 7)} - ${formatDate(commit.date, cfg.dateFormat)}`
-        );
-        lines.push("");
-        if (cfg.includeAuthor) {
-          if (cfg.includeEmail) {
-            lines.push(`**作者**: ${commit.author} <${commit.email}>`);
-          } else {
-            lines.push(`**作者**: ${commit.author}`);
-          }
-          lines.push("");
-        }
-        if (cfg.includeFullMessage && commit.full_message) {
-          lines.push(`**提交信息**:`);
-          lines.push("");
-          lines.push(commit.full_message);
-        } else {
-          lines.push(`**提交信息**: ${commit.message}`);
-        }
-
-        if (cfg.includeBranches && commit.branches && commit.branches.length > 0) {
-          lines.push("");
-          lines.push(`**分支**: ${commit.branches.join(", ")}`);
-        }
-
-        if (cfg.includeTags && commit.tags && commit.tags.length > 0) {
-          lines.push("");
-          lines.push(`**标签**: ${commit.tags.join(", ")}`);
-        }
-
-        if (cfg.includeStats && commit.stats) {
-          lines.push("");
-          lines.push(
-            `**统计**: +${commit.stats.additions} -${commit.stats.deletions} (${commit.stats.files} 文件)`
-          );
-        }
-
-        if (cfg.includeFiles && commit.files && commit.files.length > 0) {
-          lines.push("");
-          lines.push("**文件变更**:");
-          commit.files.forEach((file) => {
-            lines.push(`  - ${file.path} (+${file.additions} -${file.deletions})`);
-          });
-        }
-
-        lines.push("");
-        lines.push("---");
-        lines.push("");
-      });
+    // 7. 提交记录 (积木7)
+    if (cfg.includeCommits) {
+      lines.push(reportComponents.section("📝 提交记录", formatCommitList(commitsToExport, cfg)));
     }
 
     return lines.join("\n");
@@ -244,28 +122,26 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
 
     const cfg = config.value;
 
-    if (cfg.includes.includes("contributors")) {
+    if (cfg.includeContributors) {
       data.contributors = getContributorStats(commitsToExport);
     }
 
-    if (cfg.includes.includes("timeline")) {
+    if (cfg.includeTimeline) {
       data.timeline = generateTimelineData(commitsToExport);
     }
 
-    if (cfg.includes.includes("charts")) {
+    if (cfg.includeCharts) {
       data.charts = generateChartData(commitsToExport);
     }
 
-    if (cfg.includes.includes("commits")) {
+    if (cfg.includeCommits) {
       data.commits = commitsToExport.map((commit) => ({
         hash: commit.hash,
         ...(cfg.includeAuthor ? { author: commit.author } : {}),
         ...(cfg.includeAuthor && cfg.includeEmail ? { email: commit.email } : {}),
         date: formatDate(commit.date, cfg.dateFormat),
         message: commit.message,
-        ...(cfg.includeFullMessage && commit.full_message
-          ? { full_message: commit.full_message }
-          : {}),
+        ...(cfg.includeFullMessage && commit.full_message ? { full_message: commit.full_message } : {}),
         ...(cfg.includeBranches && commit.branches && commit.branches.length > 0 ? { branches: commit.branches } : {}),
         ...(cfg.includeTags && commit.tags ? { tags: commit.tags } : {}),
         ...(cfg.includeStats && commit.stats ? { stats: commit.stats } : {}),
@@ -283,7 +159,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     const lines: string[] = [];
     const cfg = config.value;
 
-    if (cfg.includes.includes("commits")) {
+    if (cfg.includeCommits) {
       const commitsToExport = getCommitsToExport();
 
       // 头部
@@ -317,10 +193,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           }
         }
 
-        row.push(
-          formatDate(commit.date, cfg.dateFormat),
-          `"${commit.message.replace(/"/g, '""')}"`
-        );
+        row.push(formatDate(commit.date, cfg.dateFormat), `"${commit.message.replace(/"/g, '""')}"`);
 
         if (cfg.includeStats && commit.stats) {
           row.push(String(commit.stats.additions));
@@ -351,135 +224,76 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
     const cfg = config.value;
     const commitsToExport = getCommitsToExport();
     const statistics = calculateStatistics(commitsToExport);
+    const fmt = "text" as const;
 
-    lines.push("=".repeat(60));
-    lines.push("Git 仓库分析报告");
-    lines.push("=".repeat(60));
-    lines.push("");
-    lines.push(`仓库路径: ${repoPath.value || "当前目录"}`);
-    lines.push(`分支: ${branch.value}`);
-    lines.push(`生成时间: ${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`);
-    lines.push("");
+    // 1. 头部
+    lines.push(reportComponents.header("Git 仓库分析报告", repoPath.value || "当前目录", branch.value, fmt));
 
+    // 2. 筛选信息
     if (cfg.includeFilterInfo && hasActiveFilters.value) {
-      lines.push("-".repeat(40));
-      lines.push("筛选条件");
-      lines.push("-".repeat(40));
-      lines.push(filterSummary.value);
-      lines.push("");
+      lines.push(reportComponents.section("筛选条件", filterSummary.value, fmt));
     }
 
-    if (cfg.includes.includes("statistics")) {
-      lines.push("-".repeat(40));
-      lines.push("统计信息");
-      lines.push("-".repeat(40));
-      lines.push(`总提交数: ${statistics.totalCommits}`);
-      lines.push(`贡献者数: ${statistics.contributors}`);
-      lines.push(`时间跨度: ${statistics.timeSpan} 天`);
-      lines.push(`平均提交/天: ${statistics.averagePerDay.toFixed(2)}`);
-      lines.push("");
+    // 3. 统计信息
+    if (cfg.includeStatistics) {
+      lines.push(reportComponents.section("统计信息", reportComponents.statistics(statistics, fmt), fmt));
     }
 
-    if (cfg.includes.includes("contributors")) {
+    // 4. 贡献者列表
+    if (cfg.includeContributors) {
       const contributors = getContributorStats(commitsToExport);
-      lines.push("-".repeat(40));
-      lines.push("贡献者统计");
-      lines.push("-".repeat(40));
-      contributors.slice(0, 10).forEach((c) => {
-        const percentage =
-          commitsToExport.length > 0
-            ? ((c.count / commitsToExport.length) * 100).toFixed(1)
-            : "0.0";
-        lines.push(`${c.name}: ${c.count} 次提交 (${percentage}%)`);
-      });
-      lines.push("");
+      lines.push(
+        reportComponents.section(
+          "贡献者统计",
+          reportComponents.contributors(contributors, statistics.totalCommits, fmt),
+          fmt
+        )
+      );
     }
 
-    if (cfg.includes.includes("timeline")) {
+    // 5. 时间线
+    if (cfg.includeTimeline) {
       const timelineData = generateTimelineData(commitsToExport);
-      lines.push("-".repeat(40));
-      lines.push("提交时间线");
-      lines.push("-".repeat(40));
-      timelineData.forEach((item) => {
-        lines.push(`${item.date}: ${item.count} 次提交`);
-      });
-      lines.push("");
+      lines.push(reportComponents.section("提交时间线", reportComponents.timeline(timelineData, fmt), fmt));
     }
 
-    if (cfg.includes.includes("charts")) {
+    // 6. 图表数据
+    if (cfg.includeCharts) {
       const chartData = generateChartData(commitsToExport);
+      let chartContent = "";
 
-      lines.push("-".repeat(40));
-      lines.push("图表数据");
-      lines.push("-".repeat(40));
-
-      lines.push("\n提交频率 (最近30天):");
+      chartContent += "提交频率 (最近30天):\n";
       chartData.frequency.slice(0, 30).forEach((item) => {
-        lines.push(`  ${item.date}: ${item.count}`);
+        chartContent += `  ${item.date}: ${item.count}\n`;
       });
 
-      lines.push("\n贡献者分布 (Top 10):");
+      chartContent += "\n贡献者分布 (Top 10):\n";
       chartData.contributors.slice(0, 10).forEach((item) => {
-        lines.push(`  ${item.name}: ${item.count}`);
+        chartContent += `  ${item.name}: ${item.count}\n`;
       });
 
-      lines.push("\n提交热力图 (Top 20):");
+      chartContent += "\n提交热力图 (Top 20):\n";
       const weekDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
       chartData.heatmap
         .filter((item) => item.count > 0)
         .sort((a, b) => b.count - a.count)
         .slice(0, 20)
         .forEach((item) => {
-          lines.push(`  ${weekDays[item.day]} ${item.hour}:00 - ${item.count} 次`);
+          chartContent += `  ${weekDays[item.day]} ${item.hour}:00 - ${item.count} 次\n`;
         });
-      lines.push("");
+
+      lines.push(reportComponents.section("图表数据", chartContent, fmt));
     }
 
-    if (cfg.includes.includes("commits")) {
-      lines.push("-".repeat(40));
-      lines.push(`提交记录 (${commitsToExport.length} 条)`);
-      lines.push("-".repeat(40));
-      lines.push("");
-
-      commitsToExport.forEach((commit) => {
-        lines.push(`[${commit.hash.substring(0, 7)}] ${formatDate(commit.date, cfg.dateFormat)}`);
-        if (cfg.includeAuthor) {
-          if (cfg.includeEmail) {
-            lines.push(`作者: ${commit.author} <${commit.email}>`);
-          } else {
-            lines.push(`作者: ${commit.author}`);
-          }
-        }
-        if (cfg.includeFullMessage && commit.full_message) {
-          lines.push(`提交信息:`);
-          lines.push(commit.full_message);
-        } else {
-          lines.push(`提交信息: ${commit.message}`);
-        }
-
-        if (cfg.includeStats && commit.stats) {
-          lines.push(
-            `变更: +${commit.stats.additions} -${commit.stats.deletions} (${commit.stats.files} 文件)`
-          );
-        }
-
-        if (cfg.includeBranches && commit.branches && commit.branches.length > 0) {
-          lines.push(`分支: ${commit.branches.join(", ")}`);
-        }
-
-        if (cfg.includeTags && commit.tags && commit.tags.length > 0) {
-          lines.push(`标签: ${commit.tags.join(", ")}`);
-        }
-
-        if (cfg.includeFiles && commit.files && commit.files.length > 0) {
-          lines.push(`文件变更 (${commit.files.length}):`);
-          commit.files.forEach((file) => {
-            lines.push(`  - ${file.path} (+${file.additions} -${file.deletions})`);
-          });
-        }
-
-        lines.push("");
-      });
+    // 7. 提交记录
+    if (cfg.includeCommits) {
+      lines.push(
+        reportComponents.section(
+          `提交记录 (${commitsToExport.length} 条)`,
+          formatCommitList(commitsToExport, cfg, fmt),
+          fmt
+        )
+      );
     }
 
     return lines.join("\n");

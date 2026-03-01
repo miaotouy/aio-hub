@@ -33,7 +33,11 @@ export interface GitCommit {
 
 export interface ExportConfig {
   format: 'markdown' | 'json' | 'csv' | 'html' | 'text'
-  includes: string[]
+  includeStatistics: boolean
+  includeCommits: boolean
+  includeContributors: boolean
+  includeTimeline: boolean
+  includeCharts: boolean
   commitRange: 'all' | 'filtered' | 'custom'
   customCount: number
   dateFormat: 'iso' | 'local' | 'relative' | 'timestamp'

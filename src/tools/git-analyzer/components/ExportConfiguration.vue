@@ -11,16 +11,14 @@
     </el-form-item>
 
     <el-form-item label="包含内容">
-      <el-checkbox-group v-model="config.includes">
-        <el-checkbox value="statistics">统计信息</el-checkbox>
-        <el-checkbox value="commits">提交记录</el-checkbox>
-        <el-checkbox value="contributors">贡献者列表</el-checkbox>
-        <el-checkbox value="timeline">时间线</el-checkbox>
-        <el-checkbox value="charts">图表数据</el-checkbox>
-      </el-checkbox-group>
+      <el-checkbox v-model="config.includeStatistics">统计信息</el-checkbox>
+      <el-checkbox v-model="config.includeCommits">提交记录</el-checkbox>
+      <el-checkbox v-model="config.includeContributors">贡献者列表</el-checkbox>
+      <el-checkbox v-model="config.includeTimeline">时间线</el-checkbox>
+      <el-checkbox v-model="config.includeCharts">图表数据</el-checkbox>
     </el-form-item>
 
-    <el-form-item label="提交范围" v-if="config.includes.includes('commits')">
+    <el-form-item label="提交范围" v-if="config.includeCommits">
       <el-radio-group v-model="config.commitRange">
         <el-radio value="all">全部提交</el-radio>
         <el-radio value="filtered">当前筛选结果</el-radio>
@@ -65,9 +63,7 @@
           <QuestionFilled />
         </el-icon>
       </el-tooltip>
-      <el-checkbox v-model="config.includeEmail" :disabled="!config.includeAuthor">
-        显示作者邮箱
-      </el-checkbox>
+      <el-checkbox v-model="config.includeEmail" :disabled="!config.includeAuthor"> 显示作者邮箱 </el-checkbox>
       <el-tooltip content="导出时包含作者的邮箱地址（需要先启用显示作者名称）" placement="top">
         <el-icon style="margin-left: 5px; color: var(--text-color-light)">
           <QuestionFilled />
@@ -87,18 +83,18 @@
 </template>
 
 <script setup lang="ts">
-import { QuestionFilled } from '@element-plus/icons-vue'
-import type { ExportConfig } from '../types'
+import { QuestionFilled } from "@element-plus/icons-vue";
+import type { ExportConfig } from "../types";
 
 defineProps<{
-  totalCommits: number
-}>()
+  totalCommits: number;
+}>();
 
-const config = defineModel<ExportConfig>('config', { required: true })
+const config = defineModel<ExportConfig>("config", { required: true });
 </script>
 
 <style scoped>
-:deep(.el-checkbox-group) {
+.el-form-item :deep(.el-form-item__content) {
   display: flex;
   flex-wrap: wrap;
   gap: 15px;

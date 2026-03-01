@@ -2,7 +2,6 @@ import { ref, computed } from "vue";
 import type { GitCommit, GitBranch, RepoStatistics, ExportConfig } from "../types";
 import { commitCache } from "./useCommitCache";
 
-
 // ==================== 单例状态（模块级别）====================
 // 将所有状态定义在模块级别，确保所有调用使用同一个实例
 
@@ -31,7 +30,11 @@ const pageSize = ref(20);
 // 导出配置
 const exportConfig = ref<ExportConfig>({
   format: "markdown",
-  includes: ["statistics", "commits", "contributors"],
+  includeStatistics: true,
+  includeCommits: true,
+  includeContributors: true,
+  includeTimeline: false,
+  includeCharts: false,
   commitRange: "filtered",
   customCount: 100,
   dateFormat: "local",
@@ -147,7 +150,6 @@ function resetCommits() {
   commitRange.value = [0, 0];
   commitCache.clearAll();
 }
-
 
 /**
  * Git 分析器状态管理 Composable

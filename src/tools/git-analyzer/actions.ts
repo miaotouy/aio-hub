@@ -2,6 +2,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { fetchBranches, fetchBranchCommits, fetchCommitDetail } from "./composables/useGitLoader";
 import { getContributorStats, formatDate } from "./composables/useGitProcessor";
+import { calculateStatistics } from "./formatters";
 import type { GitCommit, RepoStatistics } from "./types";
 
 const logger = createModuleLogger("tools/git-analyzer/actions");
@@ -16,7 +17,11 @@ export interface AnalyzeRepositoryOptions {
   branch?: string;
   limit?: number;
   dateFormat?: DateFormat;
-  includes?: Array<"statistics" | "commits" | "contributors" | "timeline" | "charts">;
+  includeStatistics?: boolean;
+  includeCommits?: boolean;
+  includeContributors?: boolean;
+  includeTimeline?: boolean;
+  includeCharts?: boolean;
   includeAuthor?: boolean;
   includeEmail?: boolean;
   includeFullMessage?: boolean;
@@ -65,7 +70,11 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     branch,
     limit = 100,
     dateFormat = "iso",
-    includes = ["statistics", "commits", "contributors"],
+    includeStatistics = true,
+    includeCommits = true,
+    includeContributors = true,
+    includeTimeline: _includeTimeline = false,
+    includeCharts: _includeCharts = false,
     includeAuthor = true,
     includeEmail = false,
     includeFullMessage = false,
@@ -73,7 +82,7 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     includeTags = false,
     includeStats = false,
   } = options;
-  logger.info("开始分析仓库", { path, branch, limit, includes });
+  logger.info("开始分析仓库", { path, branch, limit, includeStatistics, includeCommits, includeContributors });
 
   return await errorHandler.wrapAsync(
     async () => {
@@ -94,20 +103,11 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
         };
       }
 
-      const authors = new Set(commits.map((c) => c.author));
-      const dates = commits.map((c) => new Date(c.date).getTime());
-      const days = Math.ceil((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24));
+      const statistics = calculateStatistics(commits);
 
-      const statistics: RepoStatistics = {
-        totalCommits: commits.length,
-        contributors: authors.size,
-        timeSpan: days,
-        averagePerDay: commits.length / Math.max(days, 1),
-      };
+      const topContributors = includeContributors ? getContributorStats(commits).slice(0, 5) : [];
 
-      const topContributors = includes.includes("contributors") ? getContributorStats(commits).slice(0, 5) : [];
-
-      const recentCommits = includes.includes("commits")
+      const recentCommits = includeCommits
         ? commits.slice(0, 10).map((c) => {
             const commit: Record<string, unknown> = {
               hash: c.hash,
@@ -133,7 +133,7 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
         details: {
           path,
           branch: targetBranch,
-          statistics: includes.includes("statistics") ? statistics : undefined,
+          statistics: includeStatistics ? statistics : undefined,
           topContributors,
           recentCommits,
         },

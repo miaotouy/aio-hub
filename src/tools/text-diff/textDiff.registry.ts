@@ -2,8 +2,8 @@ import type { ToolRegistry, ServiceMetadata, ToolConfig } from "@/services/types
 import { markRaw } from "vue";
 import TextDiffIcon from "@/components/icons/TextDiffIcon.vue";
 import { createModuleLogger } from "@/utils/logger";
-import { loadFile, generatePatch } from "./engine";
-import type { FileReadResult, PatchOptions, PatchResult } from "./types";
+import { loadFile, generatePatch, formatPatchResult } from "./engine";
+import type { FileReadResult, PatchOptions } from "./types";
 
 const logger = createModuleLogger("services/text-diff");
 
@@ -32,7 +32,7 @@ export default class TextDiffRegistry implements ToolRegistry {
    * @param args 扁平化参数对象
    * @returns 补丁生成结果
    */
-  public generatePatch(args: Record<string, string>): PatchResult {
+  public generatePatch(args: Record<string, string>): string {
     const options: PatchOptions = {
       oldFileName: args.oldFileName || "original",
       newFileName: args.newFileName || "modified",
@@ -40,7 +40,8 @@ export default class TextDiffRegistry implements ToolRegistry {
       context: args.context ? Number(args.context) : 3,
     };
     logger.info("生成补丁", { options });
-    return generatePatch(args.oldText || "", args.newText || "", options);
+    const result = generatePatch(args.oldText || "", args.newText || "", options);
+    return formatPatchResult(result);
   }
 
   /**
@@ -112,7 +113,7 @@ const result = await service.loadFile('/path/to/file.txt');
               defaultValue: 3,
             },
           ],
-          returnType: "PatchResult",
+          returnType: "string",
           example: `
 const result = service.generatePatch(
   'old content',

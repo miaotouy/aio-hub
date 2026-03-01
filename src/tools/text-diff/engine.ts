@@ -1,44 +1,44 @@
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { readTextFile } from '@tauri-apps/plugin-fs';
-import { createTwoFilesPatch } from 'diff';
-import type { FileReadResult, PatchOptions, PatchResult } from './types';
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import { createTwoFilesPatch } from "diff";
+import type { FileReadResult, PatchOptions, PatchResult } from "./types";
 
-const logger = createModuleLogger('tools/text-diff/engine');
-const errorHandler = createModuleErrorHandler('tools/text-diff/engine');
+const logger = createModuleLogger("tools/text-diff/engine");
+const errorHandler = createModuleErrorHandler("tools/text-diff/engine");
 
 /**
  * 支持的语言类型映射
  */
 const LANGUAGE_MAP: Record<string, string> = {
-  '.js': 'javascript',
-  '.jsx': 'javascript',
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.json': 'json',
-  '.html': 'html',
-  '.htm': 'html',
-  '.css': 'css',
-  '.scss': 'css',
-  '.less': 'css',
-  '.py': 'python',
-  '.java': 'java',
-  '.cpp': 'cpp',
-  '.cc': 'cpp',
-  '.cxx': 'cpp',
-  '.c': 'cpp',
-  '.h': 'cpp',
-  '.hpp': 'cpp',
-  '.md': 'markdown',
-  '.txt': 'plaintext',
+  ".js": "javascript",
+  ".jsx": "javascript",
+  ".ts": "typescript",
+  ".tsx": "typescript",
+  ".json": "json",
+  ".html": "html",
+  ".htm": "html",
+  ".css": "css",
+  ".scss": "css",
+  ".less": "css",
+  ".py": "python",
+  ".java": "java",
+  ".cpp": "cpp",
+  ".cc": "cpp",
+  ".cxx": "cpp",
+  ".c": "cpp",
+  ".h": "cpp",
+  ".hpp": "cpp",
+  ".md": "markdown",
+  ".txt": "plaintext",
 };
 
 /**
  * 从文件扩展名推断语言类型
  */
 function inferLanguage(filePath: string): string {
-  const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
-  return LANGUAGE_MAP[ext] || 'plaintext';
+  const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase();
+  return LANGUAGE_MAP[ext] || "plaintext";
 }
 
 /**
@@ -47,31 +47,31 @@ function inferLanguage(filePath: string): string {
  * @returns 文件读取结果
  */
 export async function loadFile(filePath: string): Promise<FileReadResult> {
-  logger.debug('加载文件', { filePath });
+  logger.debug("加载文件", { filePath });
 
   const result = await errorHandler.wrapAsync(
     async () => {
       const content = await readTextFile(filePath);
 
       if (content.length > 10 * 1024 * 1024) {
-        logger.warn('文件较大', { size: content.length });
+        logger.warn("文件较大", { size: content.length });
       }
 
-      if (content.includes('\0')) {
+      if (content.includes("\0")) {
         return {
-          content: '',
+          content: "",
           filePath,
-          fileName: '',
-          language: 'plaintext',
+          fileName: "",
+          language: "plaintext",
           success: false,
-          error: '不支持二进制文件',
+          error: "不支持二进制文件",
         };
       }
 
-      const fileName = filePath.split(/[/\\]/).pop() || '';
+      const fileName = filePath.split(/[/\\]/).pop() || "";
       const languageType = inferLanguage(filePath);
 
-      logger.info('文件加载成功', {
+      logger.info("文件加载成功", {
         filePath,
         fileName,
         size: content.length,
@@ -87,19 +87,19 @@ export async function loadFile(filePath: string): Promise<FileReadResult> {
       };
     },
     {
-      userMessage: '读取文件失败',
+      userMessage: "读取文件失败",
       showToUser: false,
     }
   );
 
   if (result === null) {
     return {
-      content: '',
+      content: "",
       filePath,
-      fileName: '',
-      language: 'plaintext',
+      fileName: "",
+      language: "plaintext",
       success: false,
-      error: '读取文件失败',
+      error: "读取文件失败",
     };
   }
 
@@ -113,25 +113,21 @@ export async function loadFile(filePath: string): Promise<FileReadResult> {
  * @param options 补丁选项
  * @returns 补丁生成结果
  */
-export function generatePatch(
-  oldText: string,
-  newText: string,
-  options: PatchOptions = {}
-): PatchResult {
-  logger.debug('生成补丁', { options });
+export function generatePatch(oldText: string, newText: string, options: PatchOptions = {}): PatchResult {
+  logger.debug("生成补丁", { options });
 
   if (!oldText && !newText) {
     return {
-      patch: '',
+      patch: "",
       success: false,
-      error: '两侧内容均为空',
+      error: "两侧内容均为空",
     };
   }
 
   try {
     const {
-      oldFileName = 'original',
-      newFileName = 'modified',
+      oldFileName = "original",
+      newFileName = "modified",
       ignoreWhitespace: ignoreWS = true,
       context = 3,
     } = options;
@@ -142,34 +138,26 @@ export function generatePatch(
 
     if (ignoreWS) {
       processedOld = oldText
-        .split('\n')
+        .split("\n")
         .map((line) => line.trimEnd())
-        .join('\n');
+        .join("\n");
       processedNew = newText
-        .split('\n')
+        .split("\n")
         .map((line) => line.trimEnd())
-        .join('\n');
+        .join("\n");
     }
 
-    const patch = createTwoFilesPatch(
-      oldFileName,
-      newFileName,
-      processedOld,
-      processedNew,
-      '',
-      '',
-      { context }
-    );
+    const patch = createTwoFilesPatch(oldFileName, newFileName, processedOld, processedNew, "", "", { context });
 
     if (!patch || patch.trim().length === 0) {
       return {
-        patch: '',
+        patch: "",
         success: false,
-        error: '两侧内容相同，无差异',
+        error: "两侧内容相同，无差异",
       };
     }
 
-    logger.info('补丁生成成功', {
+    logger.info("补丁生成成功", {
       patchLength: patch.length,
     });
 
@@ -178,11 +166,21 @@ export function generatePatch(
       success: true,
     };
   } catch (error: any) {
-    errorHandler.handle(error as Error, { userMessage: '生成补丁失败', showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "生成补丁失败", showToUser: false });
     return {
-      patch: '',
+      patch: "",
       success: false,
       error: `生成补丁失败: ${error.message}`,
     };
   }
+}
+
+/**
+ * 格式化补丁生成结果为文本（Agent 专用）
+ */
+export function formatPatchResult(result: PatchResult): string {
+  if (!result.success) {
+    return `❌ Diff 生成失败：${result.error || "未知错误"}`;
+  }
+  return result.patch;
 }

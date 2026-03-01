@@ -1,4 +1,4 @@
-import { ref, watch, onUnmounted } from "vue";
+import { ref, watch } from "vue";
 import { useVcpStore } from "../stores/vcpConnectorStore";
 import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
 import { createModuleLogger } from "@/utils/logger";
@@ -235,7 +235,7 @@ export function useVcpDistributedNode() {
     logger.info("Starting VCP Distributed Node logic");
 
     // 监听分布式连接状态（而非 Observer 状态）
-    const unwatchStatus = watch(
+    watch(
       () => distStore.status,
       (status) => {
         if (status === "connected") {
@@ -250,7 +250,7 @@ export function useVcpDistributedNode() {
     );
 
     // 监听配置变化自动重注册
-    const unwatchConfig = watch(
+    watch(
       [() => distStore.config.exposedToolIds, () => distStore.config.autoRegisterTools],
       () => {
         if (distStore.status === "connected") {
@@ -259,12 +259,6 @@ export function useVcpDistributedNode() {
       },
       { deep: true }
     );
-
-    onUnmounted(() => {
-      unwatchStatus();
-      unwatchConfig();
-      stopDistributedNode();
-    });
   }
 
   function stopDistributedNode() {

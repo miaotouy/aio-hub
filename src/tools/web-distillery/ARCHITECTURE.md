@@ -233,17 +233,26 @@ export const toolConfig: ToolConfig = {
 
 ```
 原始 HTML
-  ↓ Stage 1: 预处理（编码检测、DOM 解析）
-  ↓ Stage 2: 去噪（移除广告/导航/页脚等干扰元素）
-  ↓ Stage 3: 正文提取（Readability 算法 + 选择器匹配）
-  ↓ Stage 4: 结构转换（HTML → 目标格式）
-  ↓ Stage 5: 后处理（图片本地化、链接修正、质量评估）
+  ↓ Stage 1: 格式探针（识别 RSS/Atom 等特殊 XML 结构，如果命中则直接解析并跳过后续常规 HTML 阶段）
+  ↓ Stage 2: 预处理（编码检测、DOM 解析）
+  ↓ Stage 3: 去噪（移除广告/导航/页脚等干扰元素）
+  ↓ Stage 4: 正文提取（Readability 算法 + 选择器匹配）
+  ↓ Stage 5: 结构转换（HTML → 目标格式）
+  ↓ Stage 6: 后处理（图片本地化、链接修正、质量评估）
 清洗后的内容
 ```
 
 ### 3.2 各阶段详细设计
 
-**Stage 1: 预处理**
+**Stage 1: 格式探针 (Format Sniffer)**
+
+| 职责     | 实现                                                                                           |
+| :------- | :--------------------------------------------------------------------------------------------- |
+| 类型检测 | 检查输入内容是否以 `<?xml`、`<rss` 或 `<feed` 格式起始                                         |
+| 专用提取 | 对于 RSS/Atom 订阅源，直接使用 `DOMParser` 解析 XML，提取 `title`, `link`, `pubDate` 及简介    |
+| 内联转化 | 针对 `<description>`/`<summary>` 中的 CDATA/HTML 代码，复用 Converter 进行高纯度 Markdown 输出 |
+
+**Stage 2: 预处理**
 
 | 职责     | 实现                                                                                     |
 | :------- | :--------------------------------------------------------------------------------------- |
@@ -251,7 +260,7 @@ export const toolConfig: ToolConfig = {
 | DOM 解析 | 统一在 TypeScript 端使用 DOMParser (Level 2) 或 linkedom (Level 0/1) 解析                |
 | 基础清理 | 移除 `<script>`、`<style>`、`<noscript>`、HTML 注释                                      |
 
-**Stage 2: 去噪**
+**Stage 3: 去噪**
 
 采用**启发式规则 + Readability 算法**双轨策略：
 
@@ -262,13 +271,13 @@ export const toolConfig: ToolConfig = {
 - **Readability 算法**：目前为**简化版实现**。基于基础文本长度和节点标签评分（p/article 加分，sidebar 减分），尚未实现完整的 Mozilla 密度分析算法。
 - **用户自定义排除**：通过 `excludeSelectors` 参数手动排除特定元素
 
-**Stage 3: 正文提取**
+**Stage 4: 正文提取**
 
 - 如果指定了 `extractSelectors`：直接按选择器提取，跳过自动识别
 - 如果未指定：使用 Readability 算法自动识别正文区域
 - 提取 `<title>` 和 `<meta>` 信息填充 metadata
 
-**Stage 4: 结构转换**
+**Stage 5: 结构转换**
 
 HTML → Markdown 转换需要处理的复杂结构：
 
@@ -283,7 +292,7 @@ HTML → Markdown 转换需要处理的复杂结构：
 | `<svg>`               | 跳过（无法转为 Markdown）         |
 | `<math>` / KaTeX      | 保留 LaTeX 源码                   |
 
-**Stage 5: 后处理**
+**Stage 6: 后处理**
 
 - **图片本地化**（⏳ 待实现）：计划下载图片到 AppData 资产库，目前尚未编写下载逻辑。
 - **链接修正**（⏳ 待实现）：目前仅保留原始链接，尚未处理相对路径转绝对路径。
@@ -304,11 +313,12 @@ HTML → Markdown 转换需要处理的复杂结构：
 src/tools/web-distillery/core/
 ├── transformer.ts               # 管道入口，编排各阶段
 ├── stages/
-│   ├── preprocessor.ts          # Stage 1: 预处理
-│   ├── denoiser.ts              # Stage 2: 去噪
-│   ├── extractor.ts             # Stage 3: 正文提取
-│   ├── converter.ts             # Stage 4: 结构转换（HTML → MD/Text）
-│   └── postprocessor.ts         # Stage 5: 后处理
+│   ├── format-sniffer.ts        # Stage 1: 格式探针
+│   ├── preprocessor.ts          # Stage 2: 预处理
+│   ├── denoiser.ts              # Stage 3: 去噪
+│   ├── extractor.ts             # Stage 4: 正文提取
+│   ├── converter.ts             # Stage 5: 结构转换（HTML → MD/Text）
+│   └── postprocessor.ts         # Stage 6: 后处理
 ├── readability.ts               # Readability 算法实现
 └── linkedom.ts                  # Node/Bun 环境下的 DOM 仿真层
 ```
@@ -569,11 +579,12 @@ src/tools/web-distillery/
 │   ├── readability.ts               # Readability 算法实现
 │   ├── linkedom.ts                  # DOM 仿真层
 │   └── stages/
-│       ├── preprocessor.ts          # Stage 1: 预处理
-│       ├── denoiser.ts              # Stage 2: 去噪
-│       ├── extractor.ts             # Stage 3: 正文提取
-│       ├── converter.ts             # Stage 4: 结构转换
-│       └── postprocessor.ts         # Stage 5: 后处理
+│       ├── format-sniffer.ts        # Stage 1: 格式探针
+│       ├── preprocessor.ts          # Stage 2: 预处理
+│       ├── denoiser.ts              # Stage 3: 去噪
+│       ├── extractor.ts             # Stage 4: 正文提取
+│       ├── converter.ts             # Stage 5: 结构转换
+│       └── postprocessor.ts         # Stage 6: 后处理
 ├── recipe/
 │   ├── action-runner.ts             # 动作序列回放引擎
 │   └── recipe-store.ts              # 配方 CRUD 与 glob 匹配 (持久化)

@@ -117,7 +117,9 @@ export function useVcpDistributedNode() {
     return manifest;
   }
   function convertToManifest(toolId: string, method: any): VcpToolManifest {
-    const fullToolName = `${toolId}:${method.name}`;
+    const normalizedToolId = toolId.replace(/-/g, "_");
+    const normalizedMethodName = method.name.replace(/-/g, "_");
+    const fullToolName = `${normalizedToolId}_${normalizedMethodName}`;
     const commandName = method.protocolConfig?.vcpCommand?.trim() || method.name;
 
     // 使用 VCP 协议统一的描述生成逻辑
@@ -132,7 +134,7 @@ export function useVcpDistributedNode() {
 
     const example = [
       "<<<[TOOL_REQUEST]>>>",
-      `tool_name:「始」${toolId}「末」,`,
+      `tool_name:「始」${fullToolName}「末」,`,
       `command:「始」${method.name}「末」,`,
       ...exampleArgs.map((line: string, i: number) => (i === exampleArgs.length - 1 ? line : `${line},`)),
       "<<<[END_TOOL_REQUEST]>>>",

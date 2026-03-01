@@ -64,16 +64,27 @@ function buildParamDescription(param: MethodParameter): string {
   return parts.join(" ");
 }
 
-export function buildMethodDescription(method: MethodMetadata, toolId: string): string {
+export function buildMethodDescription(
+  method: MethodMetadata,
+  toolId: string,
+  options?: { isVcpChannel?: boolean }
+): string {
   const command = pickCommandName(method);
 
-  // 转换 toolId: directory-tree -> directory_tree
+  // 统一转换：将所有连字符转为下划线，符合 VCP 协议习惯
   const normalizedToolId = toolId.replace(/-/g, "_");
+  const methodName = method.name.replace(/-/g, "_");
 
-  const lines = [
-    buildArgBlock("tool_name", normalizedToolId),
-    buildArgBlock("command", command),
-  ];
+  const lines: string[] = [];
+
+  // 如果是 VCP 渠道（分布式），使用扁平化的 toolId_methodName 格式作为 tool_name
+  if (options?.isVcpChannel) {
+    lines.push(buildArgBlock("tool_name", `${normalizedToolId}_${methodName}`));
+  } else {
+    lines.push(buildArgBlock("tool_name", normalizedToolId));
+  }
+
+  lines.push(buildArgBlock("command", command));
 
   // 每个参数展开为独立的 VCP 字段行，而非 JSON 序列化
   for (const param of method.parameters) {
@@ -195,7 +206,7 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
 export class VcpToolCallingProtocol implements ToolCallingProtocol {
   public readonly id = "vcp";
 
-  public generateToolDefinitions(input: ToolDefinitionInput[]): string {
+  public generateToolDefinitions(input: ToolDefinitionInput[], options?: { isVcpChannel?: boolean }): string {
     const sections: string[] = [];
 
     for (const tool of input) {
@@ -215,7 +226,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       const methodBlocks: string[] = [];
       for (const method of toolMethods) {
         const description = method.description?.trim() || "无描述";
-        const body = buildMethodDescription(method, tool.toolId);
+        const body = buildMethodDescription(method, tool.toolId, options);
 
         const block = [
           `指令描述：${description}`,

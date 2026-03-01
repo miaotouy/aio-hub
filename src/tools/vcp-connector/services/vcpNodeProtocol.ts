@@ -2,6 +2,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
 import { invoke } from "@tauri-apps/api/core";
+import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
 import type { VcpToolManifest, ExecuteToolRequest, ToolResultResponse, ReportIpData } from "../types/distributed";
 
 const logger = createModuleLogger("vcp-connector/node-protocol");
@@ -69,36 +70,79 @@ export class VcpNodeProtocol {
       }
 
       // 1. 解析 toolName (支持 toolId:methodName 或 toolId_methodName 格式)
-      let toolId = "";
-      let methodName = "";
+      let rawToolId = "";
+      let rawMethodName = "";
 
       if (toolName.includes(":")) {
-        [toolId, methodName] = toolName.split(":");
+        [rawToolId, rawMethodName] = toolName.split(":");
       } else if (toolName.includes("_")) {
         // 优先支持冒号，如果没有冒号则尝试下划线（兼容 VCP 拼接习惯）
+        // 在扁平化下划线模式下，格式通常是 plugin_name_method_name
         const lastUnderscoreIndex = toolName.lastIndexOf("_");
-        toolId = toolName.substring(0, lastUnderscoreIndex);
-        methodName = toolName.substring(lastUnderscoreIndex + 1);
+        rawToolId = toolName.substring(0, lastUnderscoreIndex);
+        rawMethodName = toolName.substring(lastUnderscoreIndex + 1);
       } else {
-        toolId = toolName;
+        // 如果 toolName 中没有分隔符，尝试从 toolArgs.command 中提取 methodName（兼容 VCP 的分布式调用格式）
+        rawToolId = toolName;
+        rawMethodName = (toolArgs?.command as string) || "";
+        if (rawMethodName) {
+          logger.debug(`Extracted methodName from toolArgs.command: ${rawMethodName}`);
+        }
       }
 
-      if (!toolId || !methodName) {
-        throw new Error(`Invalid tool name format: ${toolName}. Expected toolId:methodName or toolId_methodName`);
+      if (!rawToolId || !rawMethodName) {
+        throw new Error(
+          `Invalid tool name format: ${toolName}. Expected toolId:methodName or toolId_methodName, or toolArgs.command to be provided`
+        );
       }
 
-      // 2. 获取工具注册表
-      const registry = toolRegistryManager.getRegistry(toolId);
+      // 2. 规范化并获取工具注册表
+      // 分布式协议会将连字符转为下划线，这里需要尝试转回连字符格式
+      let toolId = rawToolId;
+      let registry = null;
+
+      if (toolRegistryManager.hasTool(toolId)) {
+        registry = toolRegistryManager.getRegistry(toolId);
+      } else {
+        // 尝试将下划线还原为连字符 (例如 directory_tree -> directory-tree)
+        const hyphenId = toolId.replace(/_/g, "-");
+        if (toolRegistryManager.hasTool(hyphenId)) {
+          toolId = hyphenId;
+          registry = toolRegistryManager.getRegistry(toolId);
+          logger.debug(`Resolved toolId through hyphen conversion: ${rawToolId} -> ${toolId}`);
+        }
+      }
+
       if (!registry) {
-        throw new Error(`Tool registry not found: ${toolId}`);
+        const availableTools = toolRegistryManager.getAllToolIds().join(", ");
+        throw new Error(`工具 "${rawToolId}" 尚未注册。可用的工具: ${availableTools}`);
       }
 
-      // 3. 校验权限 (distributedExposed)
+      const methodName = rawMethodName;
+
+      // 3. 校验权限 (检查是否在暴露名单中)
+      const distStore = useVcpDistributedStore();
       const metadata = registry.getMetadata?.();
       const method = metadata?.methods.find((m) => m.name === methodName);
 
-      if (!method || !method.distributedExposed) {
-        throw new Error(`Method ${methodName} is not exposed for distributed calling in tool ${toolId}`);
+      if (!method) {
+        throw new Error(`Method ${methodName} not found in tool ${toolId}`);
+      }
+
+      // 校验逻辑必须与 ExposedToolsList.vue 保持一致
+      // 注意：store 中的 fullId 依然使用冒号分隔符，这里需要保持一致
+      const fullId = `${toolId}:${methodName}`;
+      const isAutoRegister = distStore.config.autoRegisterTools;
+      const isDisabled = (distStore.config.disabledToolIds || []).includes(fullId);
+      const isManuallyExposed = (distStore.config.exposedToolIds || []).includes(fullId);
+
+      // 判定是否允许暴露：
+      // A. 是自动发现的 AI 工具且未被禁用
+      // B. 是手动添加的工具
+      const isAllowed = (isAutoRegister && method.agentCallable && !isDisabled) || isManuallyExposed;
+
+      if (!isAllowed) {
+        throw new Error(`Method ${methodName} in tool ${toolId} is not exposed or is disabled for distributed calling`);
       }
 
       // 4. 执行工具

@@ -10,7 +10,7 @@ export interface ToolDefinitionInput {
 
 export interface ToolCallingProtocol {
   readonly id: string;
-  generateToolDefinitions(input: ToolDefinitionInput[]): string;
+  generateToolDefinitions(input: ToolDefinitionInput[], options?: { isVcpChannel?: boolean }): string;
   generateUsageInstructions(): string;
   parseToolRequests(finalText: string): ParsedToolRequest[];
   formatToolResults(results: ToolExecutionResult[]): string;

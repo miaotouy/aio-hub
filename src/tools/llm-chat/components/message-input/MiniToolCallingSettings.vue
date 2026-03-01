@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, markRaw } from "vue";
-import { ElSwitch, ElEmpty, ElIcon } from "element-plus";
-import { Cpu, Settings2, Power, Zap } from "lucide-vue-next";
+import { ElSwitch, ElEmpty, ElIcon, ElTooltip } from "element-plus";
+import { Cpu, Settings2, Power, Zap, Share2 } from "lucide-vue-next";
 import { useAgentStore } from "../../stores/agentStore";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolsStore } from "@/stores/tools";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
+import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
 
 const agentStore = useAgentStore();
 const toolsStore = useToolsStore();
 const { getDiscoveredMethods } = useToolCalling();
+const { isVcpChannel } = useIsVcpChannel();
 
 const currentAgent = computed(() => {
   return agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
@@ -18,6 +20,8 @@ const currentAgent = computed(() => {
 const config = computed(() => {
   return currentAgent.value?.toolCallConfig || DEFAULT_TOOL_CALL_CONFIG;
 });
+
+
 
 const discoveredTools = computed(() => {
   if (!config.value.enabled) return [];
@@ -97,6 +101,25 @@ const emit = defineEmits<{
         <el-switch :model-value="config.enabled" @update:model-value="toggleGlobal" size="small" />
       </div>
     </div>
+
+    <!-- VCP 渠道提示条 -->
+    <el-tooltip
+      v-if="isVcpChannel && config.enabled"
+      placement="bottom"
+      :show-after="400"
+    >
+      <template #content>
+        <div style="max-width: 260px; line-height: 1.5">
+          当前渠道由 <strong>VCP 后端</strong>管理工具调用和工具执行。<br />
+          AIO 内置的工具解析已自动禁用，以避免重复解析。<br />
+          此处工具开关仅影响提示词注入，不影响后端执行。
+        </div>
+      </template>
+      <div class="vcp-channel-banner">
+        <Share2 :size="12" />
+        <span>VCP 后端接管工具调用 &mdash; 本地解析已禁用</span>
+      </div>
+    </el-tooltip>
 
     <div v-if="config.enabled" class="tools-mini-list">
       <div v-if="discoveredTools.length === 0" class="empty-hint">
@@ -351,4 +374,24 @@ const emit = defineEmits<{
 .advanced-btn:hover {
   background: rgba(var(--el-color-primary-rgb), 0.08);
 }
+
+.vcp-channel-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-primary) 12%, transparent),
+    color-mix(in srgb, #8b5cf6 8%, transparent)
+  );
+  border-bottom: 1px solid color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  color: var(--el-color-primary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: help;
+  user-select: none;
+  letter-spacing: 0.1px;
+}
 </style>
+

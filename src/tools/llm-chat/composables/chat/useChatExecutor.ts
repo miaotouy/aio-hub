@@ -31,6 +31,7 @@ import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
+import { isSameHost } from "../useIsVcpChannel";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -197,19 +198,11 @@ export function useChatExecutor() {
       if (configParams.custom && typeof configParams.custom === "object") {
         Object.assign(effectiveParams, configParams.custom);
       }
+
       // 感知 VCP 渠道：如果 API 地址与 VCP 连接器的地址匹配，则认为工具解析由后端完成
       const vcpStore = useVcpStore();
-      const isVcpChannel = (() => {
-        if (!profile?.baseUrl || !vcpStore.config.wsUrl) return false;
-        try {
-          const apiHost = new URL(profile.baseUrl).host;
-          // wsUrl 可能是 ws://... 或 wss://...
-          const wsHost = new URL(vcpStore.config.wsUrl).host;
-          return apiHost === wsHost;
-        } catch (e) {
-          return false;
-        }
-      })();
+      const isVcpChannel =
+        profile?.baseUrl && vcpStore.config.wsUrl ? isSameHost(profile.baseUrl, vcpStore.config.wsUrl) : false;
 
       if (isVcpChannel) {
         logger.info("检测到 VCP 渠道，将禁用内置工具解析，由后端处理工具调用逻辑");
@@ -503,6 +496,8 @@ export function useChatExecutor() {
 
               // 维护状态集合
               generatingNodes.add(nextAssistantNode.id);
+              // 将同一个 abortController 注册到新节点 ID，确保停止按钮可以终止迭代中的请求
+              abortControllers.set(nextAssistantNode.id, abortController);
 
               // 更新活跃叶节点，确保 UI 切换到新分支
               const nodeManager = useNodeManager();
@@ -545,6 +540,10 @@ export function useChatExecutor() {
       generatingNodes.delete(assistantNode.id);
       if (currentAssistantNode?.id) {
         generatingNodes.delete(currentAssistantNode.id);
+        // 清理工具调用迭代中注册的 abortController（初始节点已在上方清理）
+        if (currentAssistantNode.id !== assistantNode.id) {
+          abortControllers.delete(currentAssistantNode.id);
+        }
       }
     }
   };

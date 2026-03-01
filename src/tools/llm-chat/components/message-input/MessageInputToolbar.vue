@@ -35,6 +35,8 @@ import { useQuickActionStore } from "../../stores/quickActionStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
+
 import type { QuickAction, QuickActionSet } from "../../types/quick-action";
 import { computed, ref, onMounted, defineAsyncComponent } from "vue";
 
@@ -101,6 +103,7 @@ const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
 const { settings: chatSettings } = useChatSettings();
+const { isVcpChannel } = useIsVcpChannel();
 
 onMounted(() => {
   quickActionStore.loadQuickActions();
@@ -365,7 +368,11 @@ const handleOpenAdvanced = (tab: string | undefined) => {
         </el-dropdown>
 
         <!-- 工具调用设置 -->
-        <el-tooltip content="工具调用设置" placement="top" :show-after="500">
+        <el-tooltip
+          :content="isVcpChannel ? 'VCP 后端接管工具调用（点击查看详情）' : '工具调用设置'"
+          placement="top"
+          :show-after="500"
+        >
           <div>
             <el-popover
               v-model:visible="toolSettingsVisible"
@@ -375,7 +382,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
               popper-class="tool-settings-popover"
             >
               <template #reference>
-                <button class="tool-btn" :class="{ active: toolSettingsVisible }">
+                <button class="tool-btn" :class="{ active: toolSettingsVisible, 'vcp-active': isVcpChannel }">
                   <Wrench :size="16" />
                 </button>
               </template>
@@ -989,6 +996,25 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 .tool-btn.is-loading {
   cursor: wait;
   opacity: 0.7;
+}
+
+/* VCP 渠道激活时 Wrench 按钮样式 */
+.tool-btn.vcp-active {
+  color: #8b5cf6;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-primary) 10%, transparent),
+    color-mix(in srgb, #8b5cf6 8%, transparent)
+  );
+}
+
+.tool-btn.vcp-active:hover {
+  color: #7c3aed;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-primary) 18%, transparent),
+    color-mix(in srgb, #8b5cf6 15%, transparent)
+  );
 }
 
 .loading-dots {

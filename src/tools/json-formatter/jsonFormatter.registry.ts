@@ -57,8 +57,9 @@ export default class JsonFormatterRegistry implements ToolRegistry {
    * Agent 专用：格式化 JSON 字符串或文件
    * @param args 扁平化参数对象，包含 text, filePath, expandDepth, indentSize
    */
-  public async formatJson(args: Record<string, string>): Promise<logic.FormatResult> {
-    return await logic.formatJsonAgent(args);
+  public async formatJson(args: Record<string, string>): Promise<string> {
+    const result = await logic.formatJsonAgent(args);
+    return logic.formatForAgent(result);
   }
 
   /**
@@ -101,7 +102,7 @@ export default class JsonFormatterRegistry implements ToolRegistry {
               defaultValue: 2,
             },
           ],
-          returnType: "Promise<FormatResult>",
+          returnType: "string",
         },
       ],
     };

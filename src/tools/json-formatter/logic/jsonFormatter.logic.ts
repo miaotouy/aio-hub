@@ -298,3 +298,12 @@ export async function formatJsonAgent(args: Record<string, string>): Promise<For
 
   return formatJson(jsonText, { expandDepth, indentSize });
 }
+/**
+ * 格式化格式化结果为文本（Agent 专用）
+ */
+export function formatForAgent(result: FormatResult): string {
+  if (!result.success) {
+    return `❌ JSON 格式化失败：${result.error || "未知错误"}`;
+  }
+  return result.formatted;
+}

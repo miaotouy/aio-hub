@@ -218,3 +218,31 @@ export async function applyFilterFromFile(args: Record<string, string>): Promise
     keepUnmatched: options.keepUnmatched,
   });
 }
+/**
+ * 格式化过滤结果为文本（Agent 专用）
+ */
+export function formatFilterResult(result: FilterResult): string {
+  if (result.error) {
+    return `❌ 过滤失败：${result.error}`;
+  }
+
+  const lines: string[] = [];
+  lines.push("## 数据筛选结果");
+  lines.push("");
+  lines.push(`- **总条数**: ${result.total}`);
+  lines.push(`- **筛选后条数**: ${result.filtered}`);
+  lines.push(`- **剔除条数**: ${result.total - result.filtered}`);
+  lines.push("");
+
+  if (result.filtered > 0) {
+    lines.push("### 筛选结果数据 (JSON)");
+    lines.push("");
+    lines.push("```json");
+    lines.push(JSON.stringify(result.data, null, 2));
+    lines.push("```");
+  } else {
+    lines.push("*没有匹配的数据。*");
+  }
+
+  return lines.join("\n");
+}

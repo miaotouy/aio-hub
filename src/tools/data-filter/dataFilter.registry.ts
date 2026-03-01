@@ -13,9 +13,10 @@ export default class DataFilterRegistry implements ToolRegistry {
    * Agent 专用：对文件中的 JSON/YAML 数据进行过滤
    * @param args 参数对象，包含 path, dataPath, conditions, keepUnmatched
    */
-  public async applyFilter(args: Record<string, string>): Promise<logic.FilterResult> {
+  public async applyFilter(args: Record<string, string>): Promise<string> {
     // 委托给 logic 层的完整流程函数
-    return await logic.applyFilterFromFile(args);
+    const result = await logic.applyFilterFromFile(args);
+    return logic.formatFilterResult(result);
   }
 
   public getMetadata() {
@@ -54,7 +55,7 @@ export default class DataFilterRegistry implements ToolRegistry {
               required: false,
             },
           ],
-          returnType: "object",
+          returnType: "string",
         },
       ],
     };

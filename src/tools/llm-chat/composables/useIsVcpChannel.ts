@@ -37,7 +37,7 @@ export function isSameHost(urlA: string, urlB: string): boolean {
  * VCP 连接器配置的 wsUrl 是否指向同一主机，以此推断工具调用
  * 由 VCP 后端负责处理。
  */
-export function useIsVcpChannel() {
+export function useIsVcpChannel(overrideProfileId?: string | import("vue").Ref<string | undefined>) {
   const agentStore = useAgentStore();
   const vcpStore = useVcpStore();
   const { getProfileById } = useLlmProfiles();
@@ -50,12 +50,20 @@ export function useIsVcpChannel() {
     const wsUrl = vcpStore.config.wsUrl;
     if (!wsUrl) return false;
 
-    // 获取当前 Agent
-    const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-    if (!agent?.profileId) return false;
+    // 优先使用传入的 profileId
+    const pId = typeof overrideProfileId === "object" ? overrideProfileId.value : overrideProfileId;
+    let targetProfileId = pId;
+
+    if (!targetProfileId) {
+      // 如果没传，则获取当前 Agent 的默认 profileId
+      const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+      targetProfileId = agent?.profileId;
+    }
+
+    if (!targetProfileId) return false;
 
     // 获取 Agent 所用 LLM Profile
-    const profile = getProfileById(agent.profileId);
+    const profile = getProfileById(targetProfileId);
     if (!profile?.baseUrl) return false;
 
     return isSameHost(profile.baseUrl, wsUrl);

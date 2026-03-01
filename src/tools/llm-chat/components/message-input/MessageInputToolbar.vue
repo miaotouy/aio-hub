@@ -103,7 +103,10 @@ const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
 const { settings: chatSettings } = useChatSettings();
-const { isVcpChannel } = useIsVcpChannel();
+
+// 联动临时模型：如果指定了临时模型，则检查该模型所属渠道是否为 VCP
+const effectiveProfileId = computed(() => props.temporaryModel?.profileId);
+const { isVcpChannel } = useIsVcpChannel(effectiveProfileId);
 
 onMounted(() => {
   quickActionStore.loadQuickActions();

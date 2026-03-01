@@ -1,4 +1,4 @@
-# LLM Chat: 架构与开发者指南 (v5)
+# LLM Chat: 架构与开发者指南 (v6)
 
 本文档旨在深入解析 `llm-chat` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
@@ -77,6 +77,9 @@ graph TD
 - **预设消息显示**: 支持配置 `displayPresetCount`，控制在聊天界面中显示多少条预设消息（作为开场白）。
 - **复制增强**: 复制智能体时，系统会自动处理其私有的头像文件（`appdata://` 协议），确保副本拥有独立的头像资产，避免引用冲突。
 - **内置资产绑定**: 智能体可以携带专属的媒体资产（表情包、背景音乐、场景图等），这些资产的生命周期与智能体完全绑定。
+- **思考规则 (Think Rules)**: 支持配置 `llmThinkRules`，允许自定义如何识别和渲染模型输出中的思考过程（如 `<think>` 标签）。
+- **自定义样式**: 允许通过 `richTextStyleOptions` 针对特定智能体定制 Markdown 渲染样式，增强沉浸感。
+- **交互偏好**: 通过 `interactionConfig` 配置 UI 行为，例如发送按钮是否强制创建新分支、默认媒体音量等。
 
 ### 1.4. 用户档案 (UserProfile)
 
@@ -158,6 +161,7 @@ graph TD
     - **统一抽象**: 将不同厂商（Claude, Gemini, DeepSeek 等）的推理参数抽象为统一的 `thinkingEnabled` (开关)、`thinkingBudget` (预算) 和 `reasoningEffort` (等级)。
     - **智能适配**: 根据模型元数据 (`capabilities`) 自动渲染适配的 UI 控件（如滑块或下拉框）。
     - **参数联动**: 实现了 `thinkingBudget` 与 `maxTokens` 的自动联动逻辑，确保总 Token 上限始终能容纳推理预算。
+    - **思考解析**: 配合 `llmThinkRules`，系统可以精准提取并单独展示模型的推理过程，支持折叠和样式定制。
   - **上下文管理 (Context Management)**:
     - **Token 限制**: 允许为特定模型设置独立的上下文长度上限 (`maxContextTokens`)。
     - **智能截断**: 配置截断策略，包括保留字符数 (`retainedCharacters`) 等。
@@ -186,6 +190,7 @@ graph TD
 - **结果聚合与衰减**:
   - **向量投影**: 支持对历史查询向量进行加权平均，使检索更具上下文连贯性。
   - **时间衰减**: 对历史检索结果进行分值衰减并与当前结果聚合，确保持久记忆。
+  - **多轮聚合**: 支持 `aggregation` 配置，可控制检索时的上下文窗口大小。
 
 ### 1.13. 搜索系统 (Search System)
 
@@ -203,6 +208,7 @@ graph TD
   - **输入翻译**: 支持将用户输入框中的文本一键翻译为目标语言。
   - **消息翻译**: 支持对助手或用户的历史消息进行翻译。
 - **智能保护**: 翻译过程中会自动识别并保护 XML 标签（如 `<think>...</think>`），确保模型的思维链或结构化数据不被破坏。
+- **结果缓存**: 翻译结果存储在消息节点的 `metadata.translation` 中，支持持久化。
 - **显示模式**:
   - **原文 (Original)**: 仅显示原文。
   - **译文 (Translation)**: 仅显示译文。
@@ -266,14 +272,34 @@ graph TD
 - **智能迁移**: `agentMigrationService` 负责处理不同版本间的配置结构差异，确保旧版 Agent 能够平滑升级到新架构。
 - **资产打包**: 导出智能体时，会自动扫描并包含其引用的所有私有资产（头像、表情包等）。
 
-### 1.21. 插件化设置系统 (Plugin Settings System)
+### 1.21. 工具调用系统 (Tool Calling System)
+
+为了增强智能体的交互能力，系统实现了一套完整的工具调用流程。
+
+- **分层审批策略**:
+  - **Auto 模式**: 自动执行用户已批准的工具，或根据 Agent 的 `autoApproveTools` 列表静默执行。
+  - **Manual 模式**: 所有工具调用均需用户在 UI 上点击批准。
+- **执行控制**: 支持 `parallelExecution` (并行执行) 和自定义的 `maxIterations` (最大迭代次数)，防止模型陷入无限工具调用循环。
+- **状态追踪**: 消息节点通过 `toolCallsRequested` 和 `toolCall` 元数据记录调用的参数、状态、耗时及结果。
+- **VCP 协议支持**: 支持 `vcp` 协议，纯文本结构适用于所有能输出文本的模型，不挑API支持度。
+- **角色兼容性**: 提供 `convertToolRoleToUser` 选项，将 `tool` 角色消息转换为 `user` 角色，以适配不支持原生工具角色的模型。
+
+### 1.22. 性能监控与指标 (Performance Metrics)
+
+系统实时收集并展示 LLM 请求的关键性能指标，帮助用户评估模型响应质量。
+
+- **TTFT (Time to First Token)**: 记录从请求发送到接收到第一个 Token 的耗时，反映模型首字响应速度。
+- **TPS (Tokens Per Second)**: 计算生成过程中的平均速度，衡量模型吞吐量。
+- **Token 统计**: 区分 `promptTokens` 和 `completionTokens`，并提供本地估算功能 (`contentTokens`)。
+
+### 1.23. 插件化设置系统 (Plugin Settings System)
 
 为了保持核心逻辑的简洁并支持功能扩展，系统实现了一套声明式的设置注入机制。
 
 - **动态注册**: 外部模块（如转写工具、搜索增强）可以通过 `usePluginSettings` 动态向聊天设置对话框中注入新的配置分区或配置项。
 - **解耦交互**: 核心设置 UI 不需要预知所有可能的配置项，而是通过遍历注册中心自动渲染，实现了 UI 与业务插件的解耦。
 
-### 1.22. 世界书系统 (Worldbook System)
+### 1.24. 世界书系统 (Worldbook System)
 
 世界书是一个基于关键词触发的动态背景知识库，专门用于增强角色扮演的连贯性。
 
@@ -281,7 +307,7 @@ graph TD
 - **精准触发**: 采用高性能的关键词扫描算法，在构建上下文时实时匹配消息内容并注入关联条目。
 - **管理界面**: 提供独立的世界书管理器，支持条目的分类、批量编辑和多格式导入。
 
-### 1.23. 文件路径转附件 (File Path to Attachment Conversion)
+### 1.25. 文件路径转附件 (File Path to Attachment Conversion)
 
 为了方便用户处理包含本地资源的外部内容（如从 QQ、微信等聊天软件粘贴的消息记录），系统提供了一套智能的路径转换与渲染映射机制。
 
@@ -320,25 +346,29 @@ graph TD
     - **职责**: 处理复杂的上下文注入逻辑。
     - **操作**: 将预设消息（System Prompt, Character Card）、用户档案等插入到对话历史的指定位置（如深度注入、锚点注入）。
 
-4.  **转写与文本提取器 (`transcription-processor`)**
+4.  **知识库处理器 (`knowledge-processor`)**
+    - **职责**: 处理 RAG 检索逻辑。
+    - **操作**: 根据对话上下文触发向量或关键词检索，将召回的知识条目注入上下文。
+
+5.  **转写与文本提取器 (`transcription-processor`)**
     - **职责**: 处理多模态内容。
     - **操作**:
       - 自动读取文本文件附件的内容并注入消息体。
       - 对图片/音频/视频执行 OCR/ASR 转写（如果已配置且需要），将结果作为文本补充到上下文中。
 
-5.  **世界书处理器 (`worldbook-processor`)**
+6.  **世界书处理器 (`worldbook-processor`)**
     - **职责**: 扫描消息关键词并注入关联的世界书条目。
     - **操作**: 根据当前消息内容触发匹配，将条目内容注入上下文。
 
-6.  **Token 限制器 (`token-limiter`)**
+7.  **Token 限制器 (`token-limiter`)**
     - **职责**: 确保总上下文长度不超过模型限制。
     - **策略**: 智能预算分配。优先保留 System Prompt 和预设消息，然后从最旧的历史消息开始截断。支持保留被截断消息的头部摘要。
 
-7.  **消息格式化器 (`message-format-processors`)**
+8.  **消息格式化器 (`message-format-processors`)**
     - **职责**: 调整消息结构以符合特定厂商的 API 要求。
     - **操作**: 合并连续的同角色消息，确保 System 消息在首位，处理角色交替约束。
 
-8.  **资源解析器 (`asset-resolver`)**
+9.  **资源解析器 (`asset-resolver`)**
     - **职责**: 管道的最后一步。
     - **操作**: 将所有剩余的 `Asset` 对象转换为 API 需要的格式（Base64 字符串或 `http://` 链接）。
 
@@ -520,12 +550,12 @@ graph TD
         D1[1. 会话加载器]
         D2[2. 正则处理器]
         D3[3. 注入组装器]
-        D4[4. 转写与文本提取器]
-        D5[5. 世界书处理器]
-        D6[6. Token 限制器]
-        D7[7. 消息格式化]
-        D8[8. 插件扩展点]
-        D9[9. Base64 资源解析器]
+        D4[4. 知识库处理器]
+        D5[5. 转写与文本提取器]
+        D6[6. 世界书处理器]
+        D7[7. Token 限制器]
+        D8[8. 消息格式化]
+        D9[9. 资源解析器]
 
         D1 --> D2 --> D3 --> D4 --> D5 --> D6 --> D7 --> D8 --> D9
     end
@@ -651,13 +681,14 @@ graph TD
   - `role`, `content`, `status`: 消息基本信息。
   - `attachments`: `Asset[]`，支持多模态对话。
   - `isEnabled`: 核心状态，标记节点内容是否参与上下文构建。
+  - `injectionStrategy`: 注入策略，支持高级深度配置 (`depthConfig`)。
   - `modelMatch`: 按模型 ID 或渠道名称正则表达式过滤消息的生效范围。
   - `metadata`: 存储丰富元数据，包括：
     - `agentId`, `modelId`: 生成该消息的配置快照。
     - `usage`, `tokenCount`: 详细的 Token 消耗统计。
     - `reasoningContent`: 模型的推理链内容。
     - `performance`: 包含 `firstTokenTime` (TTFT)、`tokensPerSecond` (生成速度) 等性能指标。
-    - `toolCallsRequested` / `toolCall`: 记录工具调用的请求列表与执行结果。
+    - `toolCallsRequested` / `toolCall` / `toolCalls`: 记录工具调用的请求列表与执行结果。
     - `translation`: 翻译缓存（内容、目标语言、双语显示模式）。
     - `continuation`: 续写相关的元数据（是否为续写生成、原始前缀等）。
     - `compression`: 压缩节点的详细统计（原始 Token 数、原始消息数、压缩配置快照）。
@@ -676,14 +707,15 @@ graph TD
   - `displayPresetCount`: 在聊天界面显示的预设消息数量。
   - `parameters`: (`LlmParameters`) 强大的 LLM 参数配置中心。
   - `knowledgeSettings`: RAG 检索配置，包含检索深度、向量加权衰减、语义缓存开关等。
-  - `toolCallConfig`: 工具调用策略（自动/手动模式、最大迭代次数、执行超时）。
+  - `toolCallConfig`: 工具调用策略（自动/手动模式、最大迭代次数、并行执行等）。
   - `assets` & `assetGroups`: 智能体私有资产管理，支持 `agent-asset://` 协议引用。
   - `regexConfig`: 绑定的正则管道规则集。
-  - `interactionConfig`: 交互偏好（如发送按钮是否强制创建分支）。
+  - `interactionConfig`: 交互偏好（如发送按钮是否强制创建分支、媒体音量等）。
   - `worldbookIds` & `worldbookSettings`: 关联的世界书条目及扫描策略。
   - `category`: 智能体分类。
   - `virtualTimeConfig`: 虚拟时间配置（基准时间、流速）。
   - `llmThinkRules`: LLM 思考过程的解析规则。
+  - `richTextStyleOptions`: 智能体专属的 Markdown 渲染样式。
 
 - **`InjectionStrategy`**: 消息注入策略。
   - `type`: 策略类型（default, depth, advanced_depth, anchor）。

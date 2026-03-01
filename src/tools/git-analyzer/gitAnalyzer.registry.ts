@@ -119,10 +119,17 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
     }
 
     if (result.details.recentCommits && result.details.recentCommits.length > 0) {
-      const recentLines = result.details.recentCommits.map(
-        (c) => `- **${String(c.hash).substring(0, 7)}** [${c.date}] (${c.author}): ${c.message}`
-      );
-      lines.push(reportComponents.section("📝 最近提交", recentLines.join("\n")));
+      const commitConfig = createAgentExportConfig({
+        dateFormat: options.dateFormat || "iso",
+        includeAuthor: options.includeAuthor !== false,
+        includeEmail: options.includeEmail === true,
+        includeFullMessage: options.includeFullMessage === true,
+        includeFiles: options.includeFiles === true,
+        includeTags: options.includeTags === true,
+        includeStats: options.includeStats === true,
+      });
+      const commitLines = result.details.recentCommits.map((c) => reportComponents.commitItem(c, commitConfig));
+      lines.push(reportComponents.section("📝 最近提交", commitLines.join("\n")));
     }
 
     return lines.join("\n").trim();

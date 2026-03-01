@@ -37,7 +37,7 @@ export interface FormattedRepoAnalysis {
     branch: string;
     statistics?: RepoStatistics;
     topContributors: Array<{ name: string; count: number }>;
-    recentCommits: Array<Record<string, unknown>>;
+    recentCommits: GitCommit[];
   };
 }
 
@@ -69,18 +69,11 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     path,
     branch,
     limit = 100,
-    dateFormat = "iso",
     includeStatistics = true,
     includeCommits = true,
     includeContributors = true,
     includeTimeline: _includeTimeline = false,
     includeCharts: _includeCharts = false,
-    includeAuthor = true,
-    includeEmail = false,
-    includeFullMessage = false,
-    includeFiles = false,
-    includeTags = false,
-    includeStats = false,
   } = options;
   logger.info("开始分析仓库", { path, branch, limit, includeStatistics, includeCommits, includeContributors });
 
@@ -105,24 +98,7 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     const statistics = calculateStatistics(commits);
 
     const topContributors = includeContributors ? getContributorStats(commits).slice(0, 5) : [];
-
-    const recentCommits = includeCommits
-      ? commits.slice(0, 10).map((c) => {
-          const commit: Record<string, unknown> = {
-            hash: c.hash,
-            date: formatDate(c.date, dateFormat),
-            message: includeFullMessage && c.full_message ? c.full_message : c.message,
-          };
-          if (includeAuthor) {
-            commit.author = c.author;
-            if (includeEmail) commit.email = c.email;
-          }
-          if (includeTags && c.tags) commit.tags = c.tags;
-          if (includeStats && c.stats) commit.stats = c.stats;
-          if (includeFiles && c.files) commit.files = c.files;
-          return commit;
-        })
-      : [];
+    const recentCommits = includeCommits ? commits.slice(0, 10) : [];
 
     const summary = `仓库分析完成: ${statistics.totalCommits} 个提交，${statistics.contributors} 位贡献者，跨度 ${statistics.timeSpan} 天`;
     logger.info("仓库分析完成", { summary });

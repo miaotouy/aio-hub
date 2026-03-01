@@ -27,6 +27,7 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 协议定义了 LLM 与工具调用系统之间的**通信格式**。它决定了：
 
 - 工具定义如何呈现给 LLM（Prompt 格式）
+- 协议使用说明（Usage Instructions）
 - LLM 如何表达调用意图（请求格式）
 - 执行结果如何反馈给 LLM（结果格式）
 
@@ -40,18 +41,18 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 
 工具调用的行为由 [`ToolCallConfig`](../llm-chat/types/agent.ts:78) 控制，该配置挂载在智能体 (ChatAgent) 上，支持以下维度：
 
-| 字段                 | 类型                      | 说明                                    |
-| -------------------- | ------------------------- | --------------------------------------- |
-| `enabled`            | `boolean`                 | 总开关                                  |
-| `mode`               | `"auto" \| "manual"`      | 自动批准总开关（auto=开启，manual=关闭）|
-| `toolToggles`        | `Record<string, boolean>` | 按工具 ID 的独立启用开关                |
-| `autoApproveTools`   | `Record<string, boolean>` | 按工具 ID 的独立自动批准开关            |
-| `defaultToolEnabled` | `boolean`                 | 未在 toolToggles 中指定的工具的默认状态 |
+| 字段                 | 类型                      | 说明                                                 |
+| -------------------- | ------------------------- | ---------------------------------------------------- |
+| `enabled`            | `boolean`                 | 总开关                                               |
+| `mode`               | `"auto" \| "manual"`      | 自动批准总开关（auto=开启，manual=关闭）             |
+| `toolToggles`        | `Record<string, boolean>` | 按工具 ID 的独立启用开关                             |
+| `autoApproveTools`   | `Record<string, boolean>` | 按工具 ID 的独立自动批准开关                         |
+| `defaultToolEnabled` | `boolean`                 | 未在 toolToggles 中指定的工具的默认状态              |
 | `defaultAutoApprove` | `boolean`                 | 未在 autoApproveTools 中指定的工具的默认自动批准状态 |
-| `maxIterations`      | `number`                  | 最大迭代轮次（防止死循环）              |
-| `timeout`            | `number`                  | 单次方法执行超时（ms）                  |
-| `parallelExecution`  | `boolean`                 | 同一轮次多个请求是否并行执行            |
-| `protocol`           | `"vcp"`                   | 使用的通信协议                          |
+| `maxIterations`      | `number`                  | 最大迭代轮次（防止死循环）                           |
+| `timeout`            | `number`                  | 单次方法执行超时（ms）                               |
+| `parallelExecution`  | `boolean`                 | 同一轮次多个请求是否并行执行                         |
+| `protocol`           | `"vcp"`                   | 使用的通信协议                                       |
 
 ## 3. 架构总览
 
@@ -71,8 +72,11 @@ tool-calling/
 │   └── useToolCalling.ts           # Vue Composable 封装
 ├── components/
 │   ├── DiscoveryPane.vue           # 工具库浏览面板
-│   ├── ExecutorPane.vue            # 执行沙盒面板
-│   └── ParserPane.vue              # 解析器验证面板
+│   ├── ExecutorPane.vue            # 执行沙盒面板（主容器）
+│   ├── ParserPane.vue              # 解析器验证面板
+│   └── executor/                   # 执行器专用子组件
+│       ├── ExecutionResultCard.vue # 结果展示卡片
+│       └── ParameterForm.vue       # 动态参数表单
 ├── tool-calling.registry.ts        # 工具 UI 注册
 └── ToolCallingTester.vue           # 测试界面主组件
 ```
@@ -140,6 +144,7 @@ graph TB
 interface ToolCallingProtocol {
   readonly id: string;
   generateToolDefinitions(input: ToolDefinitionInput[]): string; // 生成工具定义 Prompt
+  generateUsageInstructions(): string; // 生成协议使用说明（注入 Prompt）
   parseToolRequests(finalText: string): ParsedToolRequest[]; // 从文本解析请求
   formatToolResults(results: ToolExecutionResult[]): string; // 格式化执行结果
 }
@@ -177,23 +182,39 @@ key:「始」value「末」
 
 #### 4.2.3. 请求示例
 
+**单次调用：**
+
 ```
 <<<[TOOL_REQUEST]>>>
-tool_name:「始」directory-tree_listFiles「末」
+tool_name:「始」directory_tree「末」,
+command:「始」listFiles「末」,
 path:「始」src/tools「末」
-recursive:「始」false「末」
+<<<[END_TOOL_REQUEST]>>>
+```
+
+**批量调用（相同工具）：**
+
+```
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」directory_tree「末」,
+command1:「始」listFiles「末」,
+path1:「始」src/tools「末」,
+command2:「始」readFile「末」,
+path2:「始」src/main.ts「末」
 <<<[END_TOOL_REQUEST]>>>
 ```
 
 #### 4.2.4. 解析机制
 
-解析器 ([`parseSingleToolRequest()`](core/protocols/vcp-protocol.ts:58)) 的工作流程：
+解析器 ([`parseToolRequests()`](core/protocols/vcp-protocol.ts:268)) 的工作流程：
 
-1. 定位 `<<<[TOOL_REQUEST]>>>` ... `<<<[END_TOOL_REQUEST]>>>` 块
-2. 使用正则 `([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」` 提取所有完整的键值对
-3. 对剩余文本检测未闭合的 `「始」` 标记（容错处理）
-4. 提取 `tool_name` 作为路由标识，`request_id` 作为请求 ID（缺省则自动生成）
-5. 其余键值对作为方法参数
+1. **代码块隔离**：使用复合正则扫描全文，自动跳过 Markdown 代码块（` ``` `）和行内代码，防止解析到示例代码中的伪请求。
+2. **块提取**：定位非代码块区域的 `<<<[TOOL_REQUEST]>>>` ... `<<<[END_TOOL_REQUEST]>>>` 块。
+3. **参数提取** ([`parseSingleToolRequest()`](core/protocols/vcp-protocol.ts:86))：
+   - 使用正则 `([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」` 提取键值对。
+   - **容错处理**：检测未闭合的 `「始」` 标记并尝试提取。
+   - **ID 转换**：将 `tool_name` 中的下划线 `_` 转回连字符 `-`（如 `directory_tree` -> `directory-tree`）。
+   - **批量拆分**：识别带数字后缀的键（如 `command1`, `path1`），自动拆分为多个独立的 `ParsedToolRequest`。
 
 #### 4.2.5. 工具定义生成
 
@@ -272,9 +293,11 @@ flowchart TD
 
 **关键设计**：
 
-- **toolName 路由规则**: 格式为 `{toolId}_{methodName}`，通过 [`lastIndexOf('_')`](core/executor.ts:13) 分割。这意味着 toolId 中可以包含下划线，但 methodName 中不能。
-- **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:107) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
-- **超时保护**: 通过 [`withTimeout()`](core/executor.ts:38) 包装 Promise，超时后自动 reject。
+- **toolName 路由规则**: 格式为 `{toolId}_{methodName}`，通过 [`indexOf('_')`](core/executor.ts:16) 分割。
+- **参数合并策略**: 执行前会按 `Schema 默认值 < Agent 预设 < LLM 实时参数` 的优先级合并参数。
+- **审批状态**: 支持 `approved`, `rejected` 和 `silent_cancelled`。其中 `silent_cancelled` 用于静默取消执行且不报错。
+- **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
+- **超时保护**: 通过 [`withTimeout()`](core/executor.ts:37) 包装 Promise，超时后自动 reject。
 - **结果序列化**: 返回值如果不是字符串，自动 `JSON.stringify`。
 
 ### 4.6. 引擎 (`core/engine.ts`)
@@ -399,7 +422,7 @@ interface ParsedToolRequest {
 interface ToolExecutionResult {
   requestId: string; // 对应的请求 ID
   toolName: string; // 执行的工具方法
-  status: "success" | "error"; // 执行状态
+  status: "success" | "error" | "denied"; // 执行状态
   result: string; // 结果文本（成功时为返回值，失败时为错误信息）
   durationMs: number; // 执行耗时（ms）
 }

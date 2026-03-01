@@ -397,28 +397,13 @@ export function useChatExecutor() {
             if (cycleResult.hasToolRequests) {
               logger.info(`🛠️ 检测到 ${cycleResult.parsedRequests.length} 个工具请求，开始执行...`);
 
-              // 检查是否需要确认（Phase 1 暂不支持 UI 拦截等待）
-              const isGlobalAuto = executionAgent.toolCallConfig.mode === "auto";
-              const needsConfirmation = cycleResult.parsedRequests.some((req) => {
-                const sepIdx = req.toolName.lastIndexOf("_");
-                const target = sepIdx > 0 ? req.toolName.slice(0, sepIdx) : req.toolName;
-                const isToolAuto =
-                  executionAgent.toolCallConfig?.autoApproveTools?.[target] ??
-                  executionAgent.toolCallConfig?.defaultAutoApprove;
-                return !isGlobalAuto || !isToolAuto;
-              });
-
-              if (needsConfirmation) {
-                logger.warn("检测到需要手动批准的工具请求，但 Phase 1 暂不支持在此流程中拦截。将按自动模式继续。");
-              }
-
               currentAssistantNode.metadata = {
                 ...currentAssistantNode.metadata,
                 toolCallsRequested: cycleResult.parsedRequests.map((req) => ({
                   requestId: req.requestId,
                   toolName: req.toolName,
                   args: req.args,
-                  status: "completed", // 目前 Phase 1 都是自动完成
+                  status: "completed",
                 })),
               };
 
@@ -426,8 +411,7 @@ export function useChatExecutor() {
               const hasSilentCancel = cycleResult.executionResults.some((r) => r.result === "SILENT_CANCEL");
               if (hasSilentCancel) {
                 logger.info("检测到静默取消，停止工具调用循环");
-                // 移除之前预创的助手节点（如果有的话，但在本逻辑中 currentAssistantNode 已经是上一个生成的节点了）
-                // 我们只需要跳出循环即可
+                // 静默取消时，后续的工具节点和助手节点尚未创建，直接跳出循环即可
                 break;
               }
 

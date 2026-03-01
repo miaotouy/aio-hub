@@ -4,6 +4,7 @@ import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { useMediaInfoParser } from "./composables/useMediaInfoParser";
 import type { ImageMetadataResult, WebUIInfo } from "./types";
+import { formatMetadataResult } from "./formatters";
 import { markRaw } from "vue";
 import { PictureFilled } from "@element-plus/icons-vue";
 
@@ -36,11 +37,11 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
    * @param args 扁平化参数对象，包含 filePath
    * @returns 解析后的元数据，如果失败则返回 null
    */
-  public async readImageMetadata(args: Record<string, string>): Promise<ImageMetadataResult | null> {
+  public async readImageMetadata(args: Record<string, string>): Promise<string> {
     const filePath = args.filePath;
     if (!filePath) {
       errorHandler.error(new Error("缺少 filePath 参数"), "读取图片元数据失败");
-      return null;
+      return "❌ 缺少 filePath 参数";
     }
     logger.info("开始读取图片元数据", { filePath });
 
@@ -51,14 +52,14 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
         const result = await parseImageBuffer(buffer);
 
         logger.info("图片元数据解析完成", { filePath });
-        return result;
+        return formatMetadataResult(result);
       },
       {
         level: ErrorLevel.ERROR,
         userMessage: "读取或解析图片元数据失败",
         context: { filePath },
       }
-    );
+    ) || "❌ 读取或解析图片元数据失败";
   }
 
   /**
@@ -101,7 +102,7 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
               description: "图片的完整文件路径。",
             },
           ],
-          returnType: "Promise<ImageMetadataResult | null>",
+          returnType: "string",
         },
         {
           name: "parseImageBuffer",

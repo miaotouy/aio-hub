@@ -162,7 +162,8 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 | `replace-children-range` | 替换子节点范围         | 批量子节点更新    |
 | `replace-root`           | 替换根节点             | 初始化或全量重置  |
 
-- **更新节流 (Throttling)**: `useMarkdownAst` 引入了混合的 `setTimeout` + `requestAnimationFrame` 批处理策略。它会将短时间内密集的 Patch 指令合并，并与浏览器的渲染周期同步，在单次渲染帧中批量应用。节流时间 `throttleMs` 是可配置的（默认 80ms），允许在不同场景下进行性能微调。
+- **更新节流 (Throttling)**: `useMarkdownAst` 引入了混合的 `setTimeout` + `requestAnimationFrame` 批处理策略。它会将短时间内密集的 Patch 指令合并，并与浏览器的渲染周期同步，在单次渲染帧中批量应用。节流时间 `throttleMs` 是可配置的（默认 80ms），允许在不同场景下进行性能微调。可以通过 `throttleEnabled` 开关控制。
+- **流式平滑化 (Stream Smoothing)**: 引入了 `StreamController` 机制。在高速流式输出时，通过内部缓冲区平滑 Token 的发射节奏，避免因网络包大小不一导致的视觉卡顿。支持自动加速（当积压过多时）和紧急冲刷（超过阈值时立即显示）。通过 `smoothingEnabled` 控制。
 - **批量处理**: Patch 队列会合并连续的、针对同一节点的 `text-append` 操作，将多次小更新合并为一次大更新，进一步提升效率。
 - **队列溢出保护**: 当队列长度超过 `MAX_QUEUE_SIZE`（200）时，立即执行刷新以避免单帧过载。
 
@@ -193,6 +194,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
   - **立即显示策略**: 在 `AstNodeRenderer.tsx` 中定义了 `NO_ANIMATION_NODE_TYPES` 集合。对于思考块、代码块、Mermaid、VCP 工具、HTML 块和图片，动画会被自动禁用。这是因为这些节点通常具有动态填充内容或复杂的初始化逻辑，立即显示能提供更好的实时反馈。
 - **图片列表提取节流**: `RichTextRenderer` 会递归提取 AST 中的所有图片链接（`extractImages`），并使用 1000ms 的节流函数更新 `imageList`。该列表通过上下文共享给所有 `ImageNode`，使其能支持全局图片预览（Viewer）的幻灯片切换。
 - **HTML 预览冻结**: 通过 `shouldFreeze` prop 控制，当消息深度超过阈值时冻结 HTML 预览以节省资源。
+- **渲染安全护栏 (Safety Guard)**: 针对极端流式场景（如极高频输出或超大 AST），引擎内置了安全护栏机制。当检测到潜在的无限递归或渲染死循环时，会自动触发紧急降级，停止非必要的异步操作并清理 Patch 队列，确保主线程不被阻塞。通过 `safetyGuardEnabled` 控制。
 
 ### 3.8 交互式测试与调试工具 (Tester)
 
@@ -323,6 +325,7 @@ src/tools/rich-text-renderer/
   - 兼容支持外部 VCP 工具调用格式 `<<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>`。
   - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析。
   - 提供专用的 `VcpToolNode` 渲染，支持折叠交互、实时状态反馈和原始报文查看。
+  - **执行结果集成**: 支持解析和展示工具调用的返回结果（`isResult`），包括执行状态（SUCCESS/ERROR）和结果报文的结构化预览。
 - **LLM 思考过程**:
   - 原生支持可配置的 XML 风格标签（如 `<think>`, `<guguthink>`）。
   - 渲染为可折叠、可交互的思考块，并支持流式动画效果。
@@ -402,6 +405,10 @@ src/tools/rich-text-renderer/
 | `resolveAsset`             | `(content: string) => string`  | —                | 资产路径解析钩子           |
 | `shouldFreeze`             | `boolean`                      | `false`          | 是否冻结 HTML 预览         |
 | `showTokenCount`           | `boolean`                      | `false`          | 是否显示 Token 计数        |
+| `smoothingEnabled`         | `boolean`                      | `true`           | 是否启用流式平滑化         |
+| `throttleEnabled`          | `boolean`                      | `true`           | 是否启用 AST 更新节流      |
+| `verboseLogging`           | `boolean`                      | `false`          | 是否启用高级调试日志       |
+| `safetyGuardEnabled`       | `boolean`                      | `true`           | 是否启用渲染安全护栏       |
 
 ## 7. 扩展性设计
 
@@ -420,6 +427,7 @@ src/tools/rich-text-renderer/
 - **`resolveAsset`**: 资产解析钩子函数。
 - **`currentAgent`**: 当前智能体实例，用于解析 `agent-asset://` 协议。
 - **`isStreaming`**: 全局流式状态，影响思考块的闭合行为和动画。
+- **`showTokenCount`**: 是否在 UI 中显示 Token 统计信息。
 - **`config`**: 包含 `seamlessMode`, `defaultRenderHtml`, `allowDangerousHtml` 等开关。
 
 ### 7.3 自定义样式

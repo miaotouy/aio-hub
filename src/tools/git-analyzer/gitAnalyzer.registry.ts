@@ -92,8 +92,13 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
       includeStats: args.includeStats === true || args.includeStats === "true",
     };
 
-    const result = await analyzeRepository(options);
-    if (!result) return "❌ 仓库分析失败";
+    let result: Awaited<ReturnType<typeof analyzeRepository>>;
+    try {
+      result = await analyzeRepository(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `❌ 仓库分析失败: ${message}`;
+    }
 
     // 使用 reportComponents 积木拼装，与手动导出路径统一
     const lines: string[] = [];
@@ -140,7 +145,13 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
       includeStats: args.includeStats === true || args.includeStats === "true",
     };
 
-    const result = await getAuthorCommits(options);
+    let result: Awaited<ReturnType<typeof getAuthorCommits>>;
+    try {
+      result = await getAuthorCommits(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `❌ 获取作者提交记录失败: ${message}`;
+    }
     const agentConfig = createAgentExportConfig({
       dateFormat: options.dateFormat || "iso",
       includeAuthor: true,
@@ -163,8 +174,13 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
       hash: String(args.hash || ""),
     };
 
-    const result = await getCommitDetail(options);
-    if (!result) return "❌ 获取提交详情失败";
+    let result: Awaited<ReturnType<typeof getCommitDetail>>;
+    try {
+      result = await getCommitDetail(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `❌ 获取提交详情失败: ${message}`;
+    }
     // Agent 场景下全量展示所有字段
     const agentConfig = createAgentExportConfig();
     return reportComponents.commitItem(result, agentConfig);
@@ -174,8 +190,13 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
    * 获取仓库分支列表（Agent facade）
    */
   public async getBranchList(args: Record<string, unknown>): Promise<string> {
-    const result = await getBranchList(String(args.path || ""));
-    return formatBranchList(result || []);
+    try {
+      const result = await getBranchList(String(args.path || ""));
+      return formatBranchList(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `❌ 获取分支列表失败: ${message}`;
+    }
   }
 
   /**

@@ -31,38 +31,45 @@ Git Analyzer 是一个高性能的 Git 仓库分析工具，其核心能力由 R
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  View 层                                                 │
-│  GitAnalyzer.vue + 子组件                                │
-│  (ControlPanel, CommitListView, ChartsView,              │
-│   CommitDetailDialog, ExportModule, ...)                  │
-├─────────────────────────────────────────────────────────┤
-│  Composable 层                                           │
-│  ┌──────────────────┐  ┌──────────────────┐             │
-│  │ useGitAnalyzer   │  │ useGitAnalyzer   │             │
-│  │ State (单例状态) │←─│ Runner (业务编排)│             │
-│  └──────────────────┘  └────────┬─────────┘             │
-│                                 │                        │
-│  ┌──────────────┐  ┌───────────┴──────────┐             │
-│  │ useGitLoader │  │ useGitProcessor      │             │
-│  │ (数据获取)   │  │ (筛选/过滤)          │             │
-│  └──────┬───────┘  └─────────────────────-┘             │
-│         │                                                │
-│  ┌──────┴───────┐  ┌──────────────────────┐             │
-│  │ useCommit    │  │ useReportGenerator   │             │
-│  │ Cache (缓存) │  │ (报告生成)           │             │
-│  └──────────────┘  └──────────────────────┘             │
-├─────────────────────────────────────────────────────────┤
-│  Tauri IPC (invoke + event listener)                     │
-├─────────────────────────────────────────────────────────┤
-│  Rust Backend (git_analyzer.rs)                          │
-│  git2-rs / libgit2                                       │
-└─────────────────────────────────────────────────────────┘
+│  View 层 (UI 展现)                                       │
+│  GitAnalyzer.vue + 子组件 (ControlPanel, ListView, ...)   │
+│ ├─────────────────────────────────────────────────────────┤
+│ │  Action 层 (Agent 接口)                                  │
+│ │  actions.ts (为 LLM 提供原子化查询能力)                   │
+│ ├─────────────────────────────────────────────────────────┤
+│ │  Logic / Composable 层 (业务逻辑)                         │
+│ │  ┌──────────────────┐  ┌──────────────────┐             │
+│ │  │ useGitAnalyzer   │  │ useGitAnalyzer   │             │
+│ │  │ State (单例状态) │←─│ Runner (业务编排)│             │
+│ │  └──────────────────┘  └────────┬─────────┘             │
+│ │                                 │                        │
+│ │  ┌──────────────┐  ┌───────────┴──────────┐             │
+│ │  │ useGitLoader │  │ useGitProcessor      │             │
+│ │  │ (数据获取)   │  │ (筛选/过滤/统计)     │             │
+│ │  └──────┬───────┘  └────────────┬─────────┘             │
+│ │         │                       │                        │
+│ │  ┌──────┴───────┐  ┌────────────┴─────────┐             │
+│ │  │ useCommit    │  │ useReportGenerator   │             │
+│ │  │ Cache (缓存) │  │ (报告生成)           │             │
+│ │  └──────────────┘  └────────────┬─────────┘             │
+│ ├─────────────────────────────────┼───────────────────────┤
+│ │  Formatter / Utils 层 (数据加工) │                       │
+│ │  formatters.ts (积木式格式化)    │                       │
+│ │  htmlGenerator.ts (HTML 渲染)    │                       │
+│ ├─────────────────────────────────┴───────────────────────┤
+│ │  Tauri IPC (invoke + event listener)                     │
+│ ├─────────────────────────────────────────────────────────┤
+│ │  Rust Backend (git_analyzer.rs)                          │
+│ │  git2-rs / libgit2                                       │
+│ └─────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2. 前端模块职责
 
 | 模块                | 文件                      | 职责                                                                          |
 | ------------------- | ------------------------- | ----------------------------------------------------------------------------- |
+| **Actions**         | `actions.ts`              | **Agent 调用入口**，提供原子化的仓库分析、作者查询、详情获取等 API            |
+| **Formatters**      | `formatters.ts`           | **积木式格式化器**，统一 Agent 和手动导出的文本生成逻辑，包含统计计算         |
 | **State**           | `useGitAnalyzerState.ts`  | 单例状态管理，所有共享状态（commits、filters、progress 等）定义在模块级别     |
 | **Runner**          | `useGitAnalyzerRunner.ts` | 业务编排器，协调目录选择、分支加载、仓库加载（全量/增量）、筛选、文件信息获取 |
 | **Loader**          | `useGitLoader.ts`         | 数据获取层，封装 Tauri invoke 调用和 `git-progress` 事件监听                  |
@@ -70,7 +77,7 @@ Git Analyzer 是一个高性能的 Git 仓库分析工具，其核心能力由 R
 | **CommitCache**     | `useCommitCache.ts`       | 提交缓存服务，缓存带文件变更信息的提交数据，避免重复请求                      |
 | **CommitDetail**    | `useCommitDetail.ts`      | 提交详情查看逻辑                                                              |
 | **Charts**          | `useCharts.ts`            | 图表数据计算与配置                                                            |
-| **ReportGenerator** | `useReportGenerator.ts`   | 导出报告生成（Markdown/JSON/CSV/HTML/Text）                                   |
+| **ReportGenerator** | `useReportGenerator.ts`   | 导出报告生成，协调 `formatters` 和 `htmlGenerator`                            |
 
 ### 2.3. 后端命令
 
@@ -162,9 +169,10 @@ Runner 在 `loadRepository()` 中自动判断是否可以增量加载：
 
 `useGitProcessor` 提供纯函数式的筛选能力，支持：关键词搜索、作者过滤、日期范围、提交类型（feat/fix/chore 等）、正序/倒序。筛选在前端实时执行，不需要重新请求后端。
 
-### 4.5. 导出报告
+### 4.5. 导出报告与格式化
 
-`useReportGenerator` 支持生成 Markdown / JSON / CSV / HTML / Text 格式的分析报告，可包含统计摘要、提交列表、贡献者信息、文件变更详情等。
+- **积木式格式化 (`formatters.ts`)**: 报告生成不再是面条代码，而是通过原子化的格式化函数（如 `commitItem`, `statistics`）拼装而成。这保证了 Agent 在对话中输出的内容与用户手动导出的报告在格式上高度一致。
+- **多格式支持**: `useReportGenerator` 协调 `formatters` 生成文本内容，或调用 `htmlGenerator` 生成带样式的 HTML 报告。支持 Markdown / JSON / CSV / HTML / Text。
 
 ## 5. 未来展望
 

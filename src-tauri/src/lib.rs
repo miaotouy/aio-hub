@@ -11,7 +11,9 @@ use dirs_next::data_dir;
 use log::LevelFilter;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{image::Image, Emitter, Manager};
+#[cfg(debug_assertions)]
+use tauri::image::Image;
+use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use tokio_util::sync::CancellationToken;
 

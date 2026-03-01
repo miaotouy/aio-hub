@@ -75,9 +75,13 @@ pub async fn distillery_create_webview(
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .decorations(false) // 无边框
         .shadow(false)      // 无阴影（贴合感）
-        .transparent(true)  // 透明支持
         .visible(false)     // 初始不可见，等位置调整后再显示
         .skip_taskbar(true); // 不在任务栏显示
+
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.transparent(true); // 透明支持仅在 Windows 上通过此方法设置
+    }
 
     // P1: 禁用媒体自动播放 (Windows WebView2)
     builder =

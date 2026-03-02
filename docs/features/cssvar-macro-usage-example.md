@@ -9,6 +9,7 @@
 ### 在视觉化输出指南中使用
 
 **原始指南（静态）**：
+
 ```markdown
 ## 可用的 CSS 变量
 
@@ -18,6 +19,7 @@
 ```
 
 **增强后的指南（动态）**：
+
 ```markdown
 ## 当前主题的 CSS 变量实际值
 
@@ -32,7 +34,7 @@
 
 在预设消息中添加动态警告，根据当前主题提供针对性建议：
 
-```markdown
+````markdown
 ### 🎨 当前主题配色信息
 
 **主题色**: {{cssvar::--primary-color}}
@@ -40,11 +42,13 @@
 **文字颜色**: {{cssvar::--primary-text}}
 
 ⚠️ **重要提示**：
+
 - 主题色（{{cssvar::--primary-color}}）是用于**强调和点缀**的，不适合作为大面积背景色
 - 如果需要容器背景，请使用 `var(--card-bg)` 或 `var(--secondary-bg)`
 - 文字颜色应使用 `var(--primary-text)` 以确保在所有主题下可读
 
 ### ✅ 正确示例
+
 ```css
 .container {
   background: var(--card-bg);
@@ -52,20 +56,23 @@
   border-left: 4px solid var(--primary-color); /* 主题色用于强调 */
 }
 ```
+````
 
 ### ❌ 错误示例
+
 ```css
 .container {
   background: var(--primary-color); /* 错误：主题色不适合做背景 */
   color: white; /* 错误：硬编码颜色，无法适配主题 */
 }
 ```
-```
 
-## 实际效果对比
+## 实际效果对比 （示例值）
 
 ### 浅色主题下
+
 宏展开后：
+
 ```
 主题色: #3b82f6
 卡片背景: rgba(255, 255, 255, 0.8)
@@ -73,7 +80,9 @@
 ```
 
 ### 深色主题下
+
 宏展开后：
+
 ```
 主题色: #60a5fa
 卡片背景: rgba(31, 41, 55, 0.8)
@@ -92,18 +101,18 @@
 
 ## CSS 变量速查表
 
-| 用途 | 变量名 | 当前值 | 说明 |
-|:---|:---|:---|:---|
-| **背景** | `--bg-color` | {{cssvar::--bg-color}} | 主背景 |
-| | `--secondary-bg` | {{cssvar::--secondary-bg}} | 次级背景 |
-| | `--card-bg` | {{cssvar::--card-bg}} | 卡片背景 |
-| **文字** | `--primary-text` | {{cssvar::--primary-text}} | 主文字 |
-| | `--text-color-secondary` | {{cssvar::--text-color-secondary}} | 次要文字 |
-| **语义色** | `--primary-color` | {{cssvar::--primary-color}} | 主题色 |
-| | `--success-color` | {{cssvar::--success-color}} | 成功（绿） |
-| | `--warning-color` | {{cssvar::--warning-color}} | 警告（黄） |
-| | `--danger-color` | {{cssvar::--danger-color}} | 危险（红） |
-| **边框** | `--border-color` | {{cssvar::--border-color}} | 通用边框 |
+| 用途       | 变量名                   | 当前值                             | 说明       |
+| :--------- | :----------------------- | :--------------------------------- | :--------- |
+| **背景**   | `--bg-color`             | {{cssvar::--bg-color}}             | 主背景     |
+|            | `--secondary-bg`         | {{cssvar::--secondary-bg}}         | 次级背景   |
+|            | `--card-bg`              | {{cssvar::--card-bg}}              | 卡片背景   |
+| **文字**   | `--primary-text`         | {{cssvar::--primary-text}}         | 主文字     |
+|            | `--text-color-secondary` | {{cssvar::--text-color-secondary}} | 次要文字   |
+| **语义色** | `--primary-color`        | {{cssvar::--primary-color}}        | 主题色     |
+|            | `--success-color`        | {{cssvar::--success-color}}        | 成功（绿） |
+|            | `--warning-color`        | {{cssvar::--warning-color}}        | 警告（黄） |
+|            | `--danger-color`         | {{cssvar::--danger-color}}         | 危险（红） |
+| **边框**   | `--border-color`         | {{cssvar::--border-color}}         | 通用边框   |
 
 ## 设计原则
 

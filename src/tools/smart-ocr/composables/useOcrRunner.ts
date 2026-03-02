@@ -1,14 +1,14 @@
-import type { ImageBlock, OcrEngineConfig, OcrResult } from '../types';
-import { useTesseractEngine } from './useTesseractEngine';
-import { useNativeEngine } from './useNativeEngine';
-import { useVlmEngine } from './useVlmEngine';
-import { useCloudOcrRunner } from './useCloudOcrRunner';
-import { useOcrProfiles } from '@/composables/useOcrProfiles';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import type { ImageBlock, OcrEngineConfig, OcrResult } from "../types";
+import { useTesseractEngine } from "./useTesseractEngine";
+import { useNativeEngine } from "./useNativeEngine";
+import { useVlmEngine } from "./useVlmEngine";
+import { useCloudOcrRunner } from "./useCloudOcrRunner";
+import { useOcrProfiles } from "@/composables/useOcrProfiles";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('OCR/Runner');
-const errorHandler = createModuleErrorHandler('OCR/Runner');
+const logger = createModuleLogger("OCR/Runner");
+const errorHandler = createModuleErrorHandler("OCR/Runner");
 
 /**
  * OCR 运行器 Composable
@@ -27,8 +27,8 @@ export function useOcrRunner() {
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
       imageId: block.imageId,
-      text: '',
-      status: 'pending' as const,
+      text: "",
+      status: "pending" as const,
     }));
 
     // 通知初始状态
@@ -44,24 +44,24 @@ export function useOcrRunner() {
       let finalResults: OcrResult[];
 
       switch (config.type) {
-        case 'tesseract':
+        case "tesseract":
           finalResults = await runTesseractEngine(blocks, config, onProgress);
           break;
-        case 'native':
+        case "native":
           finalResults = await runNativeEngine(blocks, onProgress);
           break;
-        case 'vlm':
+        case "vlm":
           finalResults = await runVlmEngine(blocks, config, onProgress);
           break;
-        case 'cloud':
+        case "cloud":
           finalResults = await runCloudEngine(blocks, config, onProgress);
           break;
         default:
           throw new Error(`不支持的引擎类型: ${(config as { type: unknown }).type}`);
       }
 
-      const successCount = finalResults.filter((r) => r.status === 'success').length;
-      const errorCount = finalResults.filter((r) => r.status === 'error').length;
+      const successCount = finalResults.filter((r) => r.status === "success").length;
+      const errorCount = finalResults.filter((r) => r.status === "error").length;
 
       logger.info(`OCR 识别完成 [${config.type}]`, {
         totalBlocks: blocks.length,
@@ -88,11 +88,12 @@ export function useOcrRunner() {
    */
   const runTesseractEngine = async (
     blocks: ImageBlock[],
-    config: Extract<OcrEngineConfig, { type: 'tesseract' }>,
+    config: Extract<OcrEngineConfig, { type: "tesseract" }>,
     onProgress?: (results: OcrResult[]) => void
   ): Promise<OcrResult[]> => {
     const { recognizeBatch } = useTesseractEngine();
-    return await recognizeBatch(blocks, config.language, onProgress);
+    const workerCount = config.concurrency ?? 4; // 默认 4 个并发
+    return await recognizeBatch(blocks, config.language, onProgress, workerCount);
   };
 
   /**
@@ -111,7 +112,7 @@ export function useOcrRunner() {
    */
   const runVlmEngine = async (
     blocks: ImageBlock[],
-    config: Extract<OcrEngineConfig, { type: 'vlm' }>,
+    config: Extract<OcrEngineConfig, { type: "vlm" }>,
     onProgress?: (results: OcrResult[]) => void
   ): Promise<OcrResult[]> => {
     const { recognizeBatch } = useVlmEngine();
@@ -123,7 +124,7 @@ export function useOcrRunner() {
    */
   const runCloudEngine = async (
     blocks: ImageBlock[],
-    config: Extract<OcrEngineConfig, { type: 'cloud' }>,
+    config: Extract<OcrEngineConfig, { type: "cloud" }>,
     onProgress?: (results: OcrResult[]) => void
   ): Promise<OcrResult[]> => {
     // 获取选中的 OCR Profile
@@ -131,32 +132,32 @@ export function useOcrRunner() {
     const profile = getProfileById(config.activeProfileId);
 
     if (!profile) {
-      const errorMsg = '请先在设置中配置云端 OCR 服务';
+      const errorMsg = "请先在设置中配置云端 OCR 服务";
       errorHandler.handle(new Error(errorMsg), {
-        userMessage: '云端 OCR 配置缺失',
+        userMessage: "云端 OCR 配置缺失",
         context: { activeProfileId: config.activeProfileId },
         showToUser: false,
       });
       throw new Error(errorMsg);
     }
-if (!profile.enabled) {
-  const errorMsg = `云端 OCR 服务 "${profile.name}" 未启用`;
-  errorHandler.handle(new Error(errorMsg), {
-    userMessage: '云端 OCR 服务未启用',
-    context: {
+    if (!profile.enabled) {
+      const errorMsg = `云端 OCR 服务 "${profile.name}" 未启用`;
+      errorHandler.handle(new Error(errorMsg), {
+        userMessage: "云端 OCR 服务未启用",
+        context: {
+          profileId: profile.id,
+          profileName: profile.name,
+        },
+        showToUser: false,
+      });
+      throw new Error(errorMsg);
+    }
+
+    logger.info(`使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.length} 块)`, {
       profileId: profile.id,
       profileName: profile.name,
-    },
-    showToUser: false,
-  });
-  throw new Error(errorMsg);
-}
-
-logger.info(`使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.length} 块)`, {
-  profileId: profile.id,
-  profileName: profile.name,
-  provider: profile.provider,
-});
+      provider: profile.provider,
+    });
 
     // 使用云端 OCR 运行器
     const { runCloudOcr } = useCloudOcrRunner();
@@ -164,8 +165,8 @@ logger.info(`使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.lengt
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
       imageId: block.imageId,
-      text: '',
-      status: 'pending' as const,
+      text: "",
+      status: "pending" as const,
     }));
 
     const cloudResults = await runCloudOcr(blocks, profile, (updatedResults: OcrResult[]) => {

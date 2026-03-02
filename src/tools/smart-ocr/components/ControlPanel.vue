@@ -64,6 +64,14 @@ const engineLanguage = computed({
   },
 });
 
+// Tesseract 并发数
+const tesseractConcurrency = computed({
+  get: () => (engineConfig.value?.type === "tesseract" ? (engineConfig.value.concurrency ?? 4) : 4),
+  set: (value) => {
+    emit("updateEngineConfig", { concurrency: value });
+  },
+});
+
 // VLM 提示词
 const enginePrompt = computed({
   get: () => (engineConfig.value?.type === "vlm" ? engineConfig.value.prompt : ""),
@@ -175,7 +183,7 @@ const selectedModelCombo = computed({
   },
   set: (value: string) => {
     if (!value) return;
-    const firstColonIndex = value.indexOf(':');
+    const firstColonIndex = value.indexOf(":");
     const profileId = value.substring(0, firstColonIndex);
     const modelId = value.substring(firstColonIndex + 1);
     if (engineConfig.value?.type === "vlm") {
@@ -273,9 +281,7 @@ const handleNavigateToSettings = () => {
             "
             placement="left"
           >
-            <el-button type="primary" text size="small" @click="handleNavigateToSettings">
-              配置
-            </el-button>
+            <el-button type="primary" text size="small" @click="handleNavigateToSettings"> 配置 </el-button>
           </el-tooltip>
         </div>
 
@@ -288,26 +294,14 @@ const handleNavigateToSettings = () => {
               <el-option label="视觉语言模型 (VLM)" value="vlm" />
             </el-select>
             <div v-if="engineType === 'vlm' && visionProfiles.length === 0" class="warning-hint">
-              <el-text size="small" type="warning">
-                请先在设置中配置 LLM 服务并添加视觉模型
-              </el-text>
-              <el-button
-                type="warning"
-                text
-                size="small"
-                @click="navigateToSettings('llm-service')"
-              >
+              <el-text size="small" type="warning"> 请先在设置中配置 LLM 服务并添加视觉模型 </el-text>
+              <el-button type="warning" text size="small" @click="navigateToSettings('llm-service')">
                 前往配置
               </el-button>
             </div>
             <div v-if="engineType === 'cloud' && ocrProfiles.length === 0" class="warning-hint">
               <el-text size="small" type="warning"> 请先在设置中配置云端 OCR 服务 </el-text>
-              <el-button
-                type="warning"
-                text
-                size="small"
-                @click="navigateToSettings('ocr-service')"
-              >
+              <el-button type="warning" text size="small" @click="navigateToSettings('ocr-service')">
                 前往配置
               </el-button>
             </div>
@@ -324,6 +318,25 @@ const handleNavigateToSettings = () => {
             </el-select>
           </el-form-item>
 
+          <el-form-item v-if="engineType === 'tesseract'">
+            <template #label>
+              <el-tooltip content="同时处理的图片块数量。增加并发数可以显著提高识别速度" placement="top">
+                <span
+                  >并发数 <el-icon><i-ep-question-filled /></el-icon
+                ></span>
+              </el-tooltip>
+            </template>
+            <el-slider
+              v-model="tesseractConcurrency"
+              :min="1"
+              :max="24"
+              :step="1"
+              show-input
+              :show-input-controls="false"
+            />
+            <el-text size="small" type="info"> 同时处理 {{ tesseractConcurrency }} 个图片块，提高识别速度 </el-text>
+          </el-form-item>
+
           <el-form-item v-if="engineType === 'cloud'" label="云端服务">
             <el-select
               v-model="cloudActiveProfileId"
@@ -331,21 +344,11 @@ const handleNavigateToSettings = () => {
               placeholder="选择云端 OCR 服务"
               :disabled="ocrProfiles.length === 0"
             >
-              <el-option
-                v-for="profile in ocrProfiles"
-                :key="profile.id"
-                :label="profile.name"
-                :value="profile.id"
-              />
+              <el-option v-for="profile in ocrProfiles" :key="profile.id" :label="profile.name" :value="profile.id" />
             </el-select>
             <div v-if="ocrProfiles.length === 0" class="warning-hint">
               <el-text size="small" type="warning"> 请先在设置中配置云端 OCR 服务 </el-text>
-              <el-button
-                type="warning"
-                text
-                size="small"
-                @click="navigateToSettings('ocr-service')"
-              >
+              <el-button type="warning" text size="small" @click="navigateToSettings('ocr-service')">
                 前往配置
               </el-button>
             </div>
@@ -361,12 +364,7 @@ const handleNavigateToSettings = () => {
             </el-form-item>
 
             <el-form-item label="识别提示词">
-              <el-input
-                v-model="enginePrompt"
-                type="textarea"
-                :rows="3"
-                placeholder="输入 OCR 识别的提示词"
-              />
+              <el-input v-model="enginePrompt" type="textarea" :rows="3" placeholder="输入 OCR 识别的提示词" />
             </el-form-item>
 
             <el-form-item>
@@ -388,9 +386,7 @@ const handleNavigateToSettings = () => {
                 show-input
                 :show-input-controls="false"
               />
-              <el-text size="small" type="info">
-                较低的温度让输出更确定，较高的温度让输出更随机
-              </el-text>
+              <el-text size="small" type="info"> 较低的温度让输出更确定，较高的温度让输出更随机 </el-text>
             </el-form-item>
 
             <el-form-item>
@@ -404,13 +400,7 @@ const handleNavigateToSettings = () => {
                   ></span>
                 </el-tooltip>
               </template>
-              <el-input-number
-                v-model="engineMaxTokens"
-                :min="100"
-                :max="32000"
-                :step="64"
-                style="width: 100%"
-              />
+              <el-input-number v-model="engineMaxTokens" :min="100" :max="32000" :step="64" style="width: 100%" />
               <el-text size="small" type="info"> 限制模型生成的最大 token 数量 </el-text>
             </el-form-item>
 
@@ -433,9 +423,7 @@ const handleNavigateToSettings = () => {
                 show-input
                 :show-input-controls="false"
               />
-              <el-text size="small" type="info">
-                同时处理 {{ engineConcurrency }} 个图片块，提高识别速度
-              </el-text>
+              <el-text size="small" type="info"> 同时处理 {{ engineConcurrency }} 个图片块，提高识别速度 </el-text>
             </el-form-item>
 
             <el-form-item>
@@ -457,9 +445,7 @@ const handleNavigateToSettings = () => {
                 show-input
                 :show-input-controls="false"
               />
-              <el-text size="small" type="info">
-                每个请求之间延迟 {{ engineDelay }}ms，避免触发 API 限流
-              </el-text>
+              <el-text size="small" type="info"> 每个请求之间延迟 {{ engineDelay }}ms，避免触发 API 限流 </el-text>
             </el-form-item>
           </template>
         </el-form>
@@ -506,10 +492,7 @@ const handleNavigateToSettings = () => {
 
             <el-form-item>
               <template #label>
-                <el-tooltip
-                  content="用于检测图片中的空白区域。值越小，检测越严格；值越大，检测越宽松"
-                  placement="top"
-                >
+                <el-tooltip content="用于检测图片中的空白区域。值越小，检测越严格；值越大，检测越宽松" placement="top">
                   <span
                     >空白行阈值 <el-icon><i-ep-question-filled /></el-icon
                   ></span>
@@ -524,8 +507,7 @@ const handleNavigateToSettings = () => {
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}%
-                视为空白行（颜色越单一，方差越小）
+                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}% 视为空白行（颜色越单一，方差越小）
               </el-text>
             </el-form-item>
 
@@ -540,16 +522,8 @@ const handleNavigateToSettings = () => {
                   ></span>
                 </el-tooltip>
               </template>
-              <el-slider
-                v-model="slicerMinBlankHeight"
-                :min="10"
-                :max="50"
-                show-input
-                :show-input-controls="false"
-              />
-              <el-text size="small" type="info">
-                空白区域至少 {{ slicerMinBlankHeight }}px 才切割
-              </el-text>
+              <el-slider v-model="slicerMinBlankHeight" :min="10" :max="50" show-input :show-input-controls="false" />
+              <el-text size="small" type="info"> 空白区域至少 {{ slicerMinBlankHeight }}px 才切割 </el-text>
             </el-form-item>
 
             <el-form-item>
@@ -596,13 +570,7 @@ const handleNavigateToSettings = () => {
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                调整切割位置：{{
-                  slicerCutLineOffset < 0
-                    ? "向上偏移"
-                    : slicerCutLineOffset > 0
-                      ? "向下偏移"
-                      : "居中"
-                }}
+                调整切割位置：{{ slicerCutLineOffset < 0 ? "向上偏移" : slicerCutLineOffset > 0 ? "向下偏移" : "居中" }}
               </el-text>
             </el-form-item>
           </template>

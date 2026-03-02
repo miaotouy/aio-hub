@@ -1,34 +1,35 @@
 /**
  * OCR引擎类型
  */
-export type OcrEngineType = 'tesseract' | 'native' | 'vlm' | 'cloud';
+export type OcrEngineType = "tesseract" | "native" | "vlm" | "cloud";
 
 /**
  * OCR引擎配置
  */
 export type OcrEngineConfig =
   | {
-      type: 'tesseract';
+      type: "tesseract";
       name: string;
       language: string;
+      concurrency?: number; // 并发 Worker 数量
     }
   | {
-      type: 'native';
+      type: "native";
       name: string;
     }
   | {
-      type: 'vlm';
+      type: "vlm";
       name: string;
       profileId: string; // 对应 LlmProfile 的 id
-      modelId: string;   // 对应 LlmModelInfo 的 id
-      prompt: string;    // OCR 提示词
-      temperature?: number;  // 温度参数
-      maxTokens?: number;    // 最大 token 数
-      concurrency?: number;  // 并发数
-      delay?: number;        // 请求延迟（毫秒）
+      modelId: string; // 对应 LlmModelInfo 的 id
+      prompt: string; // OCR 提示词
+      temperature?: number; // 温度参数
+      maxTokens?: number; // 最大 token 数
+      concurrency?: number; // 并发数
+      delay?: number; // 请求延迟（毫秒）
     }
   | {
-      type: 'cloud';
+      type: "cloud";
       name: string;
       activeProfileId: string; // 当前选中的云端 OCR 服务配置 ID
     };
@@ -39,6 +40,7 @@ export type OcrEngineConfig =
 export interface TesseractEngineConfig {
   name: string;
   language: string;
+  concurrency?: number; // 并发 Worker 数量，默认 4
 }
 
 /**
@@ -114,7 +116,7 @@ export interface OcrResult {
   imageId: string; // 所属图片ID
   text: string;
   confidence?: number;
-  status: 'pending' | 'processing' | 'success' | 'error';
+  status: "pending" | "processing" | "success" | "error";
   error?: string;
   ignored?: boolean; // 是否被忽略（复制时跳过）
 }

@@ -4,12 +4,12 @@
  * 为每种引擎类型分别存储配置，切换引擎时不会丢失其他引擎的配置
  */
 
-import { createConfigManager } from '@/utils/configManager';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import type { OcrEngineConfig, OcrEngineType, SlicerConfig, EngineConfigs } from '../types';
+import { createConfigManager } from "@/utils/configManager";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import type { OcrEngineConfig, OcrEngineType, SlicerConfig, EngineConfigs } from "../types";
 
 // 创建模块错误处理器
-const errorHandler = createModuleErrorHandler('smart-ocr/config');
+const errorHandler = createModuleErrorHandler("smart-ocr/config");
 
 export interface SmartOcrConfig {
   // 当前选择的引擎类型
@@ -24,85 +24,86 @@ export interface SmartOcrConfig {
 
 // 默认配置
 export const defaultSmartOcrConfig: SmartOcrConfig = {
-  currentEngineType: 'tesseract',
+  currentEngineType: "tesseract",
   engineConfigs: {
     tesseract: {
-      name: 'Tesseract.js',
-      language: 'chi_sim+eng'
+      name: "Tesseract.js",
+      language: "chi_sim+eng",
+      concurrency: 4,
     },
     native: {
-      name: 'Native OCR'
+      name: "Native OCR",
     },
     vlm: {
-      name: 'Vision Language Model',
-      profileId: '',
-      modelId: '',
-      prompt: '请识别图片中的所有文字内容，直接输出文字，不要添加任何解释。',
+      name: "Vision Language Model",
+      profileId: "",
+      modelId: "",
+      prompt: "请识别图片中的所有文字内容，直接输出文字，不要添加任何解释。",
       temperature: 0.3,
       maxTokens: 8192,
       concurrency: 3,
-      delay: 0
+      delay: 0,
     },
     cloud: {
-      name: 'Cloud OCR',
-      activeProfileId: '' // 默认未选中任何云端服务
-    }
+      name: "Cloud OCR",
+      activeProfileId: "", // 默认未选中任何云端服务
+    },
   },
   slicerConfig: {
     enabled: true,
     aspectRatioThreshold: 3,
-    blankThreshold: 0.30,
+    blankThreshold: 0.3,
     minBlankHeight: 20,
     minCutHeight: 680,
-    cutLineOffset: 0.2
+    cutLineOffset: 0.2,
   },
-  version: '1.0.0'
+  version: "1.0.0",
 };
 
 // 创建配置管理器实例
 const smartOcrConfigManager = createConfigManager<SmartOcrConfig>({
-  moduleName: 'smart-ocr',
-  fileName: 'config.json',
-  version: '1.0.0',
+  moduleName: "smart-ocr",
+  fileName: "config.json",
+  version: "1.0.0",
   debounceDelay: 200,
   createDefault: () => defaultSmartOcrConfig,
   mergeConfig: (defaultConfig, loadedConfig) => {
     // 合并当前引擎类型
     const currentEngineType = loadedConfig.currentEngineType || defaultConfig.currentEngineType;
-    
+
     // 合并各个引擎的配置
     const mergedEngineConfigs: EngineConfigs = {
       tesseract: {
         ...defaultConfig.engineConfigs.tesseract,
-        ...(loadedConfig.engineConfigs?.tesseract || {})
+        ...(loadedConfig.engineConfigs?.tesseract || {}),
       },
       native: {
         ...defaultConfig.engineConfigs.native,
-        ...(loadedConfig.engineConfigs?.native || {})
+        ...(loadedConfig.engineConfigs?.native || {}),
       },
       vlm: {
         ...defaultConfig.engineConfigs.vlm,
-        ...(loadedConfig.engineConfigs?.vlm || {})
+        ...(loadedConfig.engineConfigs?.vlm || {}),
       },
       cloud: {
         ...defaultConfig.engineConfigs.cloud,
-        ...(loadedConfig.engineConfigs?.cloud || {})
-      }
+        ...(loadedConfig.engineConfigs?.cloud || {}),
+      },
     };
-    
+
     // 合并切图配置
     const mergedSlicerConfig = {
       ...defaultConfig.slicerConfig,
-      ...loadedConfig.slicerConfig
+      ...loadedConfig.slicerConfig,
     };
-    
+
     return {
       currentEngineType,
       engineConfigs: mergedEngineConfigs,
       slicerConfig: mergedSlicerConfig,
-      version: '1.0.0'
+      version: "1.0.0",
     };
-  }
+  },
 });
 
 /**
@@ -112,7 +113,7 @@ export const loadSmartOcrConfig = async (): Promise<SmartOcrConfig> => {
   try {
     return await smartOcrConfigManager.load();
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: '加载 SmartOCR 配置失败', showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "加载 SmartOCR 配置失败", showToUser: false });
     return defaultSmartOcrConfig;
   }
 };
@@ -124,7 +125,7 @@ export const saveSmartOcrConfig = async (config: SmartOcrConfig): Promise<void> 
   try {
     await smartOcrConfigManager.save(config);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: '保存 SmartOCR 配置失败', showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "保存 SmartOCR 配置失败", showToUser: false });
     throw error;
   }
 };
@@ -136,7 +137,7 @@ export const updateSmartOcrConfig = async (updates: Partial<SmartOcrConfig>): Pr
   try {
     return await smartOcrConfigManager.update(updates);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: '更新 SmartOCR 配置失败', showToUser: false });
+    errorHandler.handle(error as Error, { userMessage: "更新 SmartOCR 配置失败", showToUser: false });
     throw error;
   }
 };
@@ -151,27 +152,27 @@ export const debouncedSaveConfig = smartOcrConfigManager.saveDebounced;
  */
 export const getCurrentEngineConfig = (config: SmartOcrConfig): OcrEngineConfig => {
   const { currentEngineType, engineConfigs } = config;
-  
+
   switch (currentEngineType) {
-    case 'tesseract':
+    case "tesseract":
       return {
-        type: 'tesseract',
-        ...engineConfigs.tesseract
+        type: "tesseract",
+        ...engineConfigs.tesseract,
       };
-    case 'native':
+    case "native":
       return {
-        type: 'native',
-        ...engineConfigs.native
+        type: "native",
+        ...engineConfigs.native,
       };
-    case 'vlm':
+    case "vlm":
       return {
-        type: 'vlm',
-        ...engineConfigs.vlm
+        type: "vlm",
+        ...engineConfigs.vlm,
       };
-    case 'cloud':
+    case "cloud":
       return {
-        type: 'cloud',
-        ...engineConfigs.cloud
+        type: "cloud",
+        ...engineConfigs.cloud,
       };
   }
 };
@@ -185,36 +186,36 @@ export const updateEngineConfig = (
   engineConfig: Partial<OcrEngineConfig>
 ): SmartOcrConfig => {
   const newEngineConfigs = { ...config.engineConfigs };
-  
+
   switch (engineType) {
-    case 'tesseract':
+    case "tesseract":
       newEngineConfigs.tesseract = {
         ...newEngineConfigs.tesseract,
-        ...(engineConfig as Partial<typeof newEngineConfigs.tesseract>)
+        ...(engineConfig as Partial<typeof newEngineConfigs.tesseract>),
       };
       break;
-    case 'native':
+    case "native":
       newEngineConfigs.native = {
         ...newEngineConfigs.native,
-        ...(engineConfig as Partial<typeof newEngineConfigs.native>)
+        ...(engineConfig as Partial<typeof newEngineConfigs.native>),
       };
       break;
-    case 'vlm':
+    case "vlm":
       newEngineConfigs.vlm = {
         ...newEngineConfigs.vlm,
-        ...(engineConfig as Partial<typeof newEngineConfigs.vlm>)
+        ...(engineConfig as Partial<typeof newEngineConfigs.vlm>),
       };
       break;
-    case 'cloud':
+    case "cloud":
       newEngineConfigs.cloud = {
         ...newEngineConfigs.cloud,
-        ...(engineConfig as Partial<typeof newEngineConfigs.cloud>)
+        ...(engineConfig as Partial<typeof newEngineConfigs.cloud>),
       };
       break;
   }
-  
+
   return {
     ...config,
-    engineConfigs: newEngineConfigs
+    engineConfigs: newEngineConfigs,
   };
 };

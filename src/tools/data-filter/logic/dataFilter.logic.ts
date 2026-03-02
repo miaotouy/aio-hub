@@ -12,6 +12,7 @@ export interface FilterCondition {
   operator: "eq" | "ne" | "contains" | "truthy" | "falsy" | "gt" | "ge" | "lt" | "le" | "custom";
   value?: any;
   customScript?: string;
+  enabled?: boolean; // 是否启用此条件，默认为 true
 }
 
 export interface FilterOptions {
@@ -53,6 +54,11 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
     // 2. 执行过滤
     const filteredData = filter(target, (item) => {
       return options.conditions.every((cond) => {
+        // 跳过未启用的条件
+        if (cond.enabled === false) {
+          return true;
+        }
+
         const itemValue = get(item, cond.key);
 
         switch (cond.operator) {

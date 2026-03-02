@@ -114,8 +114,14 @@
                   </div>
 
                   <div v-for="(cond, index) in options.conditions" :key="index" class="condition-card">
-                    <div class="cond-row">
-                      <el-input v-model="cond.key" placeholder="键名 (如: status)" class="key-input" />
+                    <div class="cond-row cond-header-row">
+                      <el-switch v-model="cond.enabled" size="small" />
+                      <el-input
+                        v-model="cond.key"
+                        placeholder="键名 (如: status)"
+                        class="key-input"
+                        :disabled="!cond.enabled"
+                      />
                       <el-button
                         :icon="Delete"
                         circle
@@ -127,7 +133,12 @@
                     </div>
 
                     <div class="cond-row">
-                      <el-select v-model="cond.operator" placeholder="操作符" class="op-select">
+                      <el-select
+                        v-model="cond.operator"
+                        placeholder="操作符"
+                        class="op-select"
+                        :disabled="!cond.enabled"
+                      >
                         <el-option label="等于" value="eq" />
                         <el-option label="不等于" value="ne" />
                         <el-option label="包含" value="contains" />
@@ -142,7 +153,7 @@
                     </div>
 
                     <div v-if="showValueInput(cond.operator)" class="cond-row">
-                      <el-input v-model="cond.value" placeholder="目标值" />
+                      <el-input v-model="cond.value" placeholder="目标值" :disabled="!cond.enabled" />
                     </div>
 
                     <div v-if="cond.operator === 'custom'" class="cond-row">
@@ -151,6 +162,7 @@
                         type="textarea"
                         :rows="3"
                         placeholder="JS表达式, 如: item.id > 100"
+                        :disabled="!cond.enabled"
                       />
                     </div>
                   </div>
@@ -264,7 +276,7 @@ const activePresetName = ref("");
 
 const options = reactive<logic.FilterOptions>({
   dataPath: "",
-  conditions: [{ key: "enabled", operator: "eq", value: "true" }],
+  conditions: [{ key: "enabled", operator: "eq", value: "true", enabled: true }],
 });
 
 // 自动识别输入类型
@@ -284,8 +296,8 @@ onMounted(async () => {
   if (lastState.options) {
     options.dataPath = lastState.options.dataPath ?? "";
     options.conditions = lastState.options.conditions?.length
-      ? lastState.options.conditions
-      : [{ key: "enabled", operator: "eq", value: "true" }];
+      ? lastState.options.conditions.map((c) => ({ ...c, enabled: c.enabled ?? true }))
+      : [{ key: "enabled", operator: "eq", value: "true", enabled: true }];
   }
 });
 
@@ -299,7 +311,7 @@ watch(
 );
 
 function addCondition() {
-  options.conditions.push({ key: "", operator: "eq", value: "" });
+  options.conditions.push({ key: "", operator: "eq", value: "", enabled: true });
 }
 
 function removeCondition(index: number) {
@@ -356,7 +368,10 @@ function handlePresetChange(id: string | null) {
   const preset = presets.value.find((p) => p.id === id);
   if (preset) {
     options.dataPath = preset.options.dataPath ?? "";
-    options.conditions = JSON.parse(JSON.stringify(preset.options.conditions));
+    options.conditions = JSON.parse(JSON.stringify(preset.options.conditions)).map((c: any) => ({
+      ...c,
+      enabled: c.enabled ?? true,
+    }));
     activePresetId.value = preset.id;
     activePresetName.value = preset.name;
     customMessage.success(`已加载预设「${preset.name}」`);
@@ -618,6 +633,18 @@ function doExecuteFilter() {
 
 .condition-card:hover {
   border-color: var(--primary-color);
+}
+
+.condition-card:has(.el-switch.is-checked) {
+  opacity: 1;
+}
+
+.condition-card:has(.el-switch:not(.is-checked)) {
+  opacity: 0.5;
+}
+
+.cond-header-row {
+  align-items: center;
 }
 
 .cond-row {

@@ -94,7 +94,7 @@
 
 | 用途 | 变量名 | 当前值 | 说明 |
 |:---|:---|:---|:---|
-| **背景** | `--primary-bg` | {{cssvar::--primary-bg}} | 主背景 |
+| **背景** | `--bg-color` | {{cssvar::--bg-color}} | 主背景 |
 | | `--secondary-bg` | {{cssvar::--secondary-bg}} | 次级背景 |
 | | `--card-bg` | {{cssvar::--card-bg}} | 卡片背景 |
 | **文字** | `--primary-text` | {{cssvar::--primary-text}} | 主文字 |

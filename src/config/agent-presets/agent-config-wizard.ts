@@ -67,7 +67,7 @@ const VISUALIZATION_GUIDE = `
 
 #### 🛠️ 环境参数 (CSS Variables)
 这些变量已由主程序的主题系统将用户配置注入运行时，请**按需使用**以实现深/浅色自动适配：
-- **背景**: \`var(--primary-bg)\` (主), \`var(--secondary-bg)\` (次), \`var(--card-bg)\` (卡片)
+- **背景**: \`var(--bg-color)\` (主), \`var(--container-bg)\` (容器), \`var(--card-bg)\` (卡片), \`var(--sidebar-bg)\` (侧边栏), \`var(--input-bg)\` (输入框)
 - **文字**: \`var(--primary-text)\`, \`var(--text-color-secondary)\`, \`var(--highlight-text)\`
 - **语义**: \`var(--primary-color)\` (主调), \`var(--success-color)\`, \`var(--warning-color)\`, \`var(--danger-color)\`, \`var(--info-color)\`
 - **边框**: \`var(--border-color)\`

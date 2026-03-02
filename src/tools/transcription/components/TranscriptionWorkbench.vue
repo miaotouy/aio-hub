@@ -19,6 +19,7 @@ import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
   Play,
   XCircle,
@@ -29,6 +30,7 @@ import {
   MessageSquare,
   Save,
   Loader2,
+  Settings,
 } from "lucide-vue-next";
 
 const logger = createModuleLogger("TranscriptionWorkbench");
@@ -53,6 +55,36 @@ const resultText = ref("");
 const basePath = ref<string>("");
 
 const showResult = ref(false);
+
+// 快捷配置
+const quickModelIdentifier = ref("");
+const quickAdditionalPrompt = ref("");
+const showQuickConfig = ref(false);
+
+// 根据当前资产类型动态计算模型选择器的能力要求
+const modelCapabilities = computed(() => {
+  if (!currentAsset.value) {
+    // 默认状态：筛选视觉能力
+    return { vision: true };
+  }
+
+  const assetType = previewType.value || currentAsset.value.type;
+
+  switch (assetType) {
+    case "image":
+    case "document":
+      return { vision: true };
+    case "audio":
+      return { audio: true };
+    case "video":
+      return { video: true, vision: true };
+    case "text":
+      // 纯文本不需要转写，但为了界面一致性，返回视觉能力
+      return { vision: true };
+    default:
+      return { vision: true };
+  }
+});
 
 // 消费外部请求加载到工作台的资产
 onMounted(async () => {
@@ -92,9 +124,7 @@ watch(
 // 判断当前资产是否正在导入中
 const isImporting = computed(() => {
   if (!currentAsset.value) return false;
-  return (
-    currentAsset.value.importStatus === "pending" || currentAsset.value.importStatus === "importing"
-  );
+  return currentAsset.value.importStatus === "pending" || currentAsset.value.importStatus === "importing";
 });
 
 // 文件交互
@@ -242,9 +272,7 @@ const handleAssetSelect = async (asset: Asset) => {
     const originalPath = (asset as any).originalPath || asset.path;
     if (originalPath) {
       // 如果是 blob URL，直接使用；否则使用 convertFileSrc
-      previewUrl.value = originalPath.startsWith("blob:")
-        ? originalPath
-        : convertFileSrc(originalPath);
+      previewUrl.value = originalPath.startsWith("blob:") ? originalPath : convertFileSrc(originalPath);
     }
     posterUrl.value = "";
     logger.debug("资产正在导入中，使用临时预览", {
@@ -262,10 +290,7 @@ const handleAssetSelect = async (asset: Asset) => {
 
     // 加载缩略图/封面
     if (asset.thumbnailPath) {
-      posterUrl.value = assetManagerEngine.convertToAssetProtocol(
-        asset.thumbnailPath,
-        basePath.value
-      );
+      posterUrl.value = assetManagerEngine.convertToAssetProtocol(asset.thumbnailPath, basePath.value);
     } else {
       posterUrl.value = "";
     }
@@ -285,12 +310,7 @@ const handleAssetSelect = async (asset: Asset) => {
       // 如果开启了自动转写，且没有正在进行的任务，则自动开始
       // 注意：只有在导入完成后且非纯文本才触发，如果还在导入中，由 watch 处理
       const existingTask = store.getTaskByAssetId(asset.id);
-      if (
-        asset.importStatus === "complete" &&
-        !isText &&
-        store.config.autoStartOnImport &&
-        !existingTask
-      ) {
+      if (asset.importStatus === "complete" && !isText && store.config.autoStartOnImport && !existingTask) {
         logger.info("检测到已导入资产且开启了自动转写，触发任务", { assetId: asset.id });
         startTranscription();
       }
@@ -333,17 +353,11 @@ watch(
       if (!basePath.value) {
         basePath.value = await assetManagerEngine.getAssetBasePath();
       }
-      previewUrl.value = assetManagerEngine.convertToAssetProtocol(
-        currentAsset.value.path,
-        basePath.value
-      );
+      previewUrl.value = assetManagerEngine.convertToAssetProtocol(currentAsset.value.path, basePath.value);
 
       // 加载缩略图/封面
       if (currentAsset.value.thumbnailPath) {
-        posterUrl.value = assetManagerEngine.convertToAssetProtocol(
-          currentAsset.value.thumbnailPath,
-          basePath.value
-        );
+        posterUrl.value = assetManagerEngine.convertToAssetProtocol(currentAsset.value.thumbnailPath, basePath.value);
       }
 
       // 1. 如果是纯文本，直接读取展示
@@ -395,9 +409,17 @@ const startTranscription = async () => {
     return;
   }
 
+  // 构建覆盖配置
+  const overrideConfig: any = {};
+  if (quickModelIdentifier.value) {
+    overrideConfig.modelIdentifier = quickModelIdentifier.value;
+  }
+  if (quickAdditionalPrompt.value.trim()) {
+    overrideConfig.additionalPrompt = quickAdditionalPrompt.value.trim();
+  }
+
   // 提交任务到 Store，由 Registry 执行
-  // 使用当前全局配置
-  store.submitTask(currentAsset.value, { ...store.config });
+  store.submitTask(currentAsset.value, overrideConfig);
   showResult.value = true;
 };
 
@@ -525,6 +547,11 @@ const clearPreview = () => {
   resultText.value = "";
   showResult.value = false;
 };
+
+// 切换快捷配置面板
+const toggleQuickConfig = () => {
+  showQuickConfig.value = !showQuickConfig.value;
+};
 </script>
 
 <template>
@@ -553,6 +580,15 @@ const clearPreview = () => {
         >
           {{ isProcessing ? "转写中..." : isImporting ? "上传中..." : "开始转写" }}
         </el-button>
+
+        <el-button
+          :icon="Settings"
+          :type="showQuickConfig ? 'primary' : 'default'"
+          @click="toggleQuickConfig"
+          title="快捷配置"
+        >
+          配置
+        </el-button>
       </div>
 
       <div class="toolbar-right">
@@ -562,6 +598,39 @@ const clearPreview = () => {
         </template>
       </div>
     </div>
+
+    <!-- 快捷配置面板 -->
+    <transition name="slide-down">
+      <div v-if="showQuickConfig" class="quick-config-panel">
+        <div class="config-row">
+          <div class="config-item">
+            <label class="config-label">快速选择模型</label>
+            <LlmModelSelector
+              v-model="quickModelIdentifier"
+              :capabilities="modelCapabilities"
+              placeholder="留空使用全局配置"
+              class="model-selector"
+            />
+          </div>
+        </div>
+        <div class="config-row">
+          <div class="config-item full-width">
+            <label class="config-label">临时追加提示词（仅本次任务）</label>
+            <el-input
+              v-model="quickAdditionalPrompt"
+              type="textarea"
+              :rows="3"
+              placeholder="输入临时追加的提示词，将附加到主提示词之后..."
+              class="prompt-input"
+            />
+          </div>
+        </div>
+        <div class="config-hint">
+          <el-icon><FileText /></el-icon>
+          <span>这些配置仅对本次转写生效，不会保存到全局设置</span>
+        </div>
+      </div>
+    </transition>
 
     <!-- 主工作区 -->
     <div class="workbench-main">
@@ -604,12 +673,7 @@ const clearPreview = () => {
                 <Loader2 class="import-spinner" />
                 <span>上传中...</span>
               </div>
-              <VideoPlayer
-                v-if="previewUrl"
-                :src="previewUrl"
-                :title="currentAsset.name"
-                :autoplay="false"
-              />
+              <VideoPlayer v-if="previewUrl" :src="previewUrl" :title="currentAsset.name" :autoplay="false" />
             </div>
             <!-- 音频预览 -->
             <div v-else-if="previewType === 'audio'" class="audio-preview">
@@ -629,11 +693,7 @@ const clearPreview = () => {
             <!-- 文档预览 -->
             <div v-else-if="previewType === 'document'" class="document-preview">
               <div class="file-icon-wrapper">
-                <FileIcon
-                  :file-name="currentAsset.name"
-                  :file-type="currentAsset.type"
-                  :size="80"
-                />
+                <FileIcon :file-name="currentAsset.name" :file-type="currentAsset.type" :size="80" />
               </div>
               <div class="file-details">
                 <span class="document-name">{{ currentAsset.name }}</span>
@@ -660,11 +720,7 @@ const clearPreview = () => {
             <!-- 未知类型 -->
             <div v-else class="unknown-preview">
               <div class="file-icon-wrapper grayscale">
-                <FileIcon
-                  :file-name="currentAsset.name"
-                  :file-type="currentAsset.type"
-                  :size="80"
-                />
+                <FileIcon :file-name="currentAsset.name" :file-type="currentAsset.type" :size="80" />
               </div>
               <div class="file-details">
                 <span class="document-name">{{ currentAsset.name }}</span>
@@ -681,9 +737,7 @@ const clearPreview = () => {
           <div class="result-header">
             <span class="title">转写结果</span>
             <div class="actions">
-              <el-button :icon="Save" link size="small" :loading="isSaving" @click="saveResult"
-                >保存</el-button
-              >
+              <el-button :icon="Save" link size="small" :loading="isSaving" @click="saveResult">保存</el-button>
               <el-button :icon="Download" link size="small" @click="downloadResult" />
             </div>
           </div>
@@ -769,6 +823,76 @@ const clearPreview = () => {
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
+}
+
+.quick-config-panel {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.config-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.config-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-item.full-width {
+  flex: 1 1 100%;
+}
+
+.config-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.model-selector {
+  width: 100%;
+}
+
+.prompt-input {
+  width: 100%;
+}
+
+.config-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  padding: 8px 12px;
+  background-color: rgba(var(--el-color-info-rgb), 0.1);
+  border-radius: 4px;
+}
+
+.config-hint .el-icon {
+  font-size: 14px;
+}
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .workbench-main {

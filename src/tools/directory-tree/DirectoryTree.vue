@@ -686,6 +686,11 @@ const resetTree = () => {
   padding: 4px;
 }
 
+.config-section :deep(.drop-zone--input) {
+  padding: 0;
+  border: none;
+}
+
 .config-section label {
   display: block;
   margin-bottom: 8px;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2, Trash2 } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2, Trash2, FileUp } from "lucide-vue-next";
 import { webviewBridge } from "../core/webview-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -28,9 +28,11 @@ const emit = defineEmits<{
   navigate: [direction: "back" | "forward"];
   refresh: [];
   "open-interactive": [];
+  upload: [payload: { content: string; fileName: string }];
 }>();
 
 const urlInputRef = ref<HTMLInputElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 const isEditing = ref(false);
 const localUrl = ref(props.modelValue);
 
@@ -94,10 +96,41 @@ async function handleForceCleanup() {
     logger.error("Force cleanup failed", e);
   }
 }
+
+function triggerFileUpload() {
+  fileInputRef.value?.click();
+}
+
+async function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  try {
+    const content = await file.text();
+    logger.info("File loaded", { name: file.name, size: file.size });
+    emit("upload", { content, fileName: file.name });
+
+    // 清空 input，允许重复上传同一文件
+    target.value = "";
+  } catch (err) {
+    logger.error("Failed to read file", err);
+    customMessage.error("文件读取失败");
+  }
+}
 </script>
 
 <template>
   <div class="browser-toolbar" @click.stop>
+    <!-- 隐藏的文件输入 -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept=".html,.htm,.txt,.md,.xml,.rss"
+      style="display: none"
+      @change="handleFileChange"
+    />
+
     <!-- 导航按钮 -->
     <div class="nav-group">
       <button class="toolbar-btn" :disabled="!canGoBack || loading" title="后退" @click="emit('navigate', 'back')">
@@ -113,6 +146,9 @@ async function handleForceCleanup() {
       </button>
       <button class="toolbar-btn" :disabled="loading" title="刷新" @click="emit('refresh')">
         <RotateCw :size="15" :class="{ spin: loading }" />
+      </button>
+      <button class="toolbar-btn" :disabled="loading" title="上传文件" @click="triggerFileUpload">
+        <FileUp :size="15" />
       </button>
     </div>
 
@@ -162,10 +198,7 @@ async function handleForceCleanup() {
 
     <!-- 终极清理 (仅在 L1/L2 模式或加载中显示) -->
     <el-tooltip content="终极强制清理 (终止并销毁所有后台进程)" placement="top">
-      <button 
-        class="toolbar-btn cleanup-btn" 
-        @click="handleForceCleanup"
-      >
+      <button class="toolbar-btn cleanup-btn" @click="handleForceCleanup">
         <Trash2 :size="15" />
       </button>
     </el-tooltip>

@@ -120,6 +120,34 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
 }
 
 /**
+ * Level 0.5: 处理本地内容（手动上传的文件）
+ */
+export async function processLocalContent(
+  content: string,
+  fileName: string,
+  options?: Partial<QuickFetchOptions>
+): Promise<FetchResult> {
+  logger.info("Processing local content", { fileName, contentLength: content.length });
+  return (await errorHandler.wrapAsync(
+    async () => {
+      const result = await transformer.transform(content, {
+        url: `file://${fileName}`,
+        format: options?.format || "markdown",
+        ...options,
+      });
+
+      return {
+        ...result,
+        domSnapshot: content,
+      };
+    },
+    {
+      userMessage: "本地内容处理失败，请检查文件格式",
+    }
+  )) as FetchResult;
+}
+
+/**
  * Level 2: 打开交互式 UI
  */
 export async function openDistillery(url?: string): Promise<void> {

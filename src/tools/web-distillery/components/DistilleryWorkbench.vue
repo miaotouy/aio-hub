@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted, watch, onMounted } from "vue";
 import { useWebDistilleryStore } from "../stores/store";
-import { quickFetch, smartExtract } from "../actions";
+import { quickFetch, smartExtract, processLocalContent } from "../actions";
 import { webviewBridge } from "../core/webview-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { useNotification } from "@/composables/useNotification";
@@ -211,6 +211,30 @@ function openInteractive() {
   store.setInteractiveMode(!store.isInteractiveMode);
 }
 
+async function handleFileUpload(payload: { content: string; fileName: string }) {
+  logger.info("File upload triggered", { fileName: payload.fileName });
+  isLoading.value = true;
+  errorMsg.value = null;
+  store.setLoading(true);
+
+  try {
+    const result = await processLocalContent(payload.content, payload.fileName);
+    if (!result) return;
+
+    store.setResult(result);
+    store.setUrl(`file://${payload.fileName}`);
+    currentUrl.value = `file://${payload.fileName}`;
+    customMessage.success("文件处理完成");
+  } catch (err: any) {
+    errorHandler.error(err, "文件处理失败", { fileName: payload.fileName });
+    errorMsg.value = err?.message || "未知错误";
+    store.setError(errorMsg.value || "未知错误");
+  } finally {
+    isLoading.value = false;
+    store.setLoading(false);
+  }
+}
+
 function handleSendToChat() {
   if (!store.result?.content) {
     customMessage.warning("没有可发送的内容");
@@ -246,6 +270,7 @@ function handleSendToChat() {
       @fetch="handleFetch"
       @refresh="handleRefresh"
       @open-interactive="openInteractive"
+      @upload="handleFileUpload"
     />
 
     <div class="workbench-main">

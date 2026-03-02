@@ -28,8 +28,8 @@ class ToolManager {
    */
   private scanBuiltinTools() {
     try {
-      // 扫描所有 tools 目录下的 registry.ts
-      const toolModules = import.meta.glob("../tools/*/registry.ts", { eager: true });
+      // 扫描所有 tools 目录下的 *.registry.ts
+      const toolModules = import.meta.glob("../tools/*/*.registry.ts", { eager: true });
 
       Object.entries(toolModules).forEach(([path, mod]: [string, any]) => {
         const registry = mod.default as ToolRegistry;

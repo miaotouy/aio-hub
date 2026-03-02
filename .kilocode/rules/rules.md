@@ -23,11 +23,9 @@
   - `markdown-it`: Markdown 解析
   - `dompurify`: HTML 安全净化
   - `viewerjs`: 图片查看器核心
-  - `mermaid`: 流程图与图表渲染
-  - `katex`: 数学公式渲染
   - `@vue-flow/core`: 节点编辑器与图谱引擎
 - **代码编辑**: CodeMirror, Monaco Editor
-- **桌面框架**: Tauri 2.0
+- **桌面框架**: Tauri 2.3
 - **包管理器**: Bun
 
 ### 1.2. 后端 (Rust) 技术栈
@@ -126,11 +124,11 @@
 
 移动端工具位于 `mobile/src/tools/`，遵循**显式注册机制**。
 
-- **核心文件**: `mobile/src/tools/{toolId}/registry.ts` (固定名称)。
+- **核心文件**: `mobile/src/tools/{toolId}/*.registry.ts` (必须以 `.registry.ts` 结尾，与桌面端对齐)。
 - **注册逻辑**:
   - **语言包注册**: 必须在导出前调用 `registerToolLocales`。
   - **配置导出**: 默认导出包含 `id`、`name` (使用 getter)、`icon` 及 `route` 配置的对象。
-- **自动路由**: 系统会自动扫描所有工具目录下的 `registry.ts` 并注册到路由系统。
+- **自动路由**: 系统会自动扫描所有工具目录下的 `*.registry.ts` 文件并注册到路由系统。
 
 ## 5. 核心开发规范
 
@@ -473,8 +471,8 @@
 
 移动端工具位于 `mobile/src/tools/` 下，每个工具都是一个自治单元。
 
-- **注册机制**: 每个工具必须包含 `registry.ts`，定义工具的元数据（ID、名称、图标、路由）。
-- **自动路由**: `mobile/src/router/index.ts` 会自动扫描所有工具的 `registry.ts` 并注册路由。
+- **注册机制**: 每个工具必须包含 `*.registry.ts` 文件（如 `llm-api.registry.ts`），定义工具的元数据（ID、名称、图标、路由）。
+- **自动路由**: `mobile/src/router/index.ts` 会自动扫描所有工具的 `*.registry.ts` 文件并注册路由。
 - **基础设施平替**: 移动端使用 `mobile/src/utils/` 下的平替工具（如 `errorHandler`, `logger`），它们保持与桌面端一致的接口，但内部对接 Varlet UI。
 
 ### 2.3. 响应式与单位规范 (Responsive & Units)
@@ -556,7 +554,7 @@ tRaw("tools.llm-api.渠道名称");
 
 ```
 mobile/src/tools/llm-api/
-├── registry.ts
+├── llm-api.registry.ts
 ├── locales/
 │   ├── zh-CN.json
 │   └── en-US.json
@@ -581,7 +579,7 @@ mobile/src/tools/llm-api/
 }
 ```
 
-**注册方式** (在 `registry.ts` 中):
+**注册方式** (在 `*.registry.ts` 文件中):
 
 ```typescript
 import { registerToolLocales, useI18n } from "@/i18n";

@@ -101,18 +101,15 @@
 
 ## CSS 变量速查表
 
-| 用途       | 变量名                   | 当前值                             | 说明       |
-| :--------- | :----------------------- | :--------------------------------- | :--------- |
-| **背景**   | `--bg-color`             | {{cssvar::--bg-color}}             | 主背景     |
-|            | `--secondary-bg`         | {{cssvar::--secondary-bg}}         | 次级背景   |
-|            | `--card-bg`              | {{cssvar::--card-bg}}              | 卡片背景   |
-| **文字**   | `--primary-text`         | {{cssvar::--primary-text}}         | 主文字     |
-|            | `--text-color-secondary` | {{cssvar::--text-color-secondary}} | 次要文字   |
-| **语义色** | `--primary-color`        | {{cssvar::--primary-color}}        | 主题色     |
-|            | `--success-color`        | {{cssvar::--success-color}}        | 成功（绿） |
-|            | `--warning-color`        | {{cssvar::--warning-color}}        | 警告（黄） |
-|            | `--danger-color`         | {{cssvar::--danger-color}}         | 危险（红） |
-| **边框**   | `--border-color`         | {{cssvar::--border-color}}         | 通用边框   |
+| 用途       | 变量名            | 当前值                      | 说明       |
+| :--------- | :---------------- | :-------------------------- | :--------- |
+| **背景**   | `--bg-color`      | {{cssvar::--bg-color}}      | 主背景     |
+| -          | `--card-bg`       | {{cssvar::--card-bg}}       | 卡片背景   |
+| **语义色** | `--primary-color` | {{cssvar::--primary-color}} | 主题色     |
+| -          | `--success-color` | {{cssvar::--success-color}} | 成功（绿） |
+| -          | `--warning-color` | {{cssvar::--warning-color}} | 警告（黄） |
+| -          | `--danger-color`  | {{cssvar::--danger-color}}  | 危险（红） |
+| **边框**   | `--border-color`  | {{cssvar::--border-color}}  | 通用边框   |
 
 ## 设计原则
 

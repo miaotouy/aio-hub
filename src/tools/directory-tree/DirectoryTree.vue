@@ -5,7 +5,46 @@
       <InfoCard title="配置选项" class="config-card">
         <div class="config-content">
           <div class="config-section">
-            <label>目标路径</label>
+            <div class="label-with-action">
+              <label>目标路径</label>
+              <el-popover v-if="pathHistory.length > 0" placement="bottom-start" :width="400" trigger="click">
+                <template #reference>
+                  <el-button :icon="Clock" title="路径历史" text size="small" />
+                </template>
+                <div class="history-menu">
+                  <div class="history-header">
+                    <span class="history-title">路径历史</span>
+                    <el-button text size="small" @click="clearHistory">清空</el-button>
+                  </div>
+                  <div class="history-list">
+                    <div
+                      v-for="item in sortedPathHistory"
+                      :key="item.path"
+                      class="history-item"
+                      @click="selectHistoryPath(item.path)"
+                    >
+                      <div class="history-item-content">
+                        <el-icon class="history-icon"><FolderOpened /></el-icon>
+                        <div class="history-path">
+                          <div class="path-text" :title="item.path">{{ item.path }}</div>
+                          <div class="path-meta">
+                            <span class="access-count">{{ item.accessCount }} 次</span>
+                            <span class="access-time">{{ formatHistoryTime(item.lastAccessTime) }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <el-button
+                        text
+                        :icon="Delete"
+                        size="small"
+                        class="delete-btn"
+                        @click.stop="removeHistoryPath(item.path)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </el-popover>
+            </div>
             <DropZone variant="input" :directory-only="true" :multiple="false" hide-content @drop="handlePathDrop">
               <div class="path-input-group">
                 <el-input
@@ -190,13 +229,14 @@ import {
   Filter,
   Delete,
   ArrowRight,
+  Clock,
 } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { debounce } from "lodash-es";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
-import type { DirectoryTreeConfig, TreeNode, TreeStats } from "./config";
+import type { DirectoryTreeConfig, TreeNode, TreeStats, PathHistoryItem } from "./config";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
@@ -248,6 +288,14 @@ const showDirItemCount = ref(false);
 
 // 编辑器内容（与 processedTreeResult 解耦，允许临时编辑）
 const editorContent = ref("");
+
+// 路径历史记录
+const pathHistory = ref<PathHistoryItem[]>([]);
+
+// 排序后的历史记录（按访问时间倒序）
+const sortedPathHistory = computed(() => {
+  return [...pathHistory.value].sort((a, b) => b.lastAccessTime - a.lastAccessTime);
+});
 
 // 计算实际最大深度（用于滑块范围）
 const actualMaxDepth = computed(() => {
@@ -334,6 +382,7 @@ onMounted(async () => {
     maxDepth.value = config.maxDepth;
     autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true; // 兼容旧配置
     includeMetadata.value = config.includeMetadata ?? false; // 兼容旧配置
+    pathHistory.value = config.pathHistory ?? [];
 
     // 恢复上次生成的结果
     if (config.lastTreeStructure) {
@@ -372,6 +421,7 @@ const debouncedSaveConfig = debounce(async () => {
       lastTreeStructure: treeData.value,
       lastStatsInfo: statsInfo.value,
       lastGenerationOptions: lastGenerationOptions.value,
+      pathHistory: pathHistory.value,
       version: "1.0.0",
     };
     await saveConfig(config);
@@ -410,6 +460,67 @@ watch(
   }
 );
 
+// 添加路径到历史记录
+const addToHistory = (path: string) => {
+  if (!path) return;
+
+  const existingIndex = pathHistory.value.findIndex((item) => item.path === path);
+  if (existingIndex !== -1) {
+    // 更新已存在的记录
+    pathHistory.value[existingIndex].lastAccessTime = Date.now();
+    pathHistory.value[existingIndex].accessCount++;
+  } else {
+    // 添加新记录
+    pathHistory.value.push({
+      path,
+      lastAccessTime: Date.now(),
+      accessCount: 1,
+    });
+  }
+
+  // 限制历史记录数量为 20 条
+  if (pathHistory.value.length > 20) {
+    pathHistory.value = pathHistory.value.sort((a, b) => b.lastAccessTime - a.lastAccessTime).slice(0, 20);
+  }
+
+  debouncedSaveConfig();
+};
+
+// 选择历史路径
+const selectHistoryPath = (path: string) => {
+  targetPath.value = path;
+  addToHistory(path);
+  customMessage.success(`已选择路径: ${path}`);
+};
+
+// 移除历史路径
+const removeHistoryPath = (path: string) => {
+  pathHistory.value = pathHistory.value.filter((item) => item.path !== path);
+  debouncedSaveConfig();
+};
+
+// 清空历史记录
+const clearHistory = () => {
+  pathHistory.value = [];
+  debouncedSaveConfig();
+  customMessage.success("历史记录已清空");
+};
+
+// 格式化历史时间
+const formatHistoryTime = (timestamp: number) => {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  if (hours < 24) return `${hours} 小时前`;
+  if (days < 7) return `${days} 天前`;
+  return new Date(timestamp).toLocaleDateString();
+};
+
 // 选择目录
 const selectDirectory = async () => {
   try {
@@ -446,6 +557,9 @@ const generateTree = async () => {
     treeData.value = result.structure;
     statsInfo.value = result.stats;
     lastGenerationOptions.value = options;
+
+    // 添加到历史记录
+    addToHistory(targetPath.value);
 
     // 立即触发保存，包含最新的结果
     debouncedSaveConfig();
@@ -578,6 +692,17 @@ const resetTree = () => {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
+}
+
+.label-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.label-with-action label {
+  margin-bottom: 0;
 }
 
 .path-input-group {
@@ -768,5 +893,95 @@ const resetTree = () => {
 
 .filter-input {
   flex: 1;
+}
+
+.history-menu {
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  margin-bottom: 8px;
+}
+
+.history-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.history-list {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  gap: 8px;
+}
+
+.history-item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.history-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.history-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--el-color-primary);
+}
+
+.history-path {
+  flex: 1;
+  min-width: 0;
+}
+
+.path-text {
+  font-size: 13px;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  margin-top: 2px;
+}
+
+.access-count {
+  font-family: monospace;
+}
+
+.delete-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.history-item:hover .delete-btn {
+  opacity: 1;
 }
 </style>

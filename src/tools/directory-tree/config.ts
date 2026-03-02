@@ -3,10 +3,10 @@
  * 负责自定义过滤规则的持久化存储
  */
 
-import { createConfigManager, ConfigManager } from '../../utils/configManager';
-import type { GenerateTreeOptions } from './actions';
+import { createConfigManager, ConfigManager } from "../../utils/configManager";
+import type { GenerateTreeOptions } from "./actions";
 
-const CONFIG_VERSION = '1.0.0';
+const CONFIG_VERSION = "1.0.0";
 
 /**
  * 树节点结构
@@ -33,13 +33,25 @@ export interface TreeStats {
 }
 
 /**
+ * 路径历史记录项
+ */
+export interface PathHistoryItem {
+  /** 路径 */
+  path: string;
+  /** 最后访问时间 */
+  lastAccessTime: number;
+  /** 访问次数 */
+  accessCount: number;
+}
+
+/**
  * 目录树配置接口
  */
 export interface DirectoryTreeConfig {
   /** 自定义过滤规则 */
   customPatterns: string;
   /** 上次使用的过滤模式 */
-  lastFilterMode: 'none' | 'gitignore' | 'custom' | 'both';
+  lastFilterMode: "none" | "gitignore" | "custom" | "both";
   /** 上次使用的目标路径 */
   lastTargetPath: string;
   /** 上次的显示选项 */
@@ -62,30 +74,32 @@ export interface DirectoryTreeConfig {
   lastStatsInfo?: TreeStats | null;
   /** 上次生成的配置选项（用于重建元数据） */
   lastGenerationOptions?: GenerateTreeOptions | null;
+  /** 路径历史记录 */
+  pathHistory?: PathHistoryItem[];
   /** 配置版本 */
   version: string;
 }
-
 /**
  * 创建默认配置
  */
 function createDefaultConfig(): DirectoryTreeConfig {
   return {
-    customPatterns: '# 自定义过滤规则示例\nnode_modules\n.git\ndist\nbuild\n*.log',
-    lastFilterMode: 'none',
-    lastTargetPath: '',
+    customPatterns: "# 自定义过滤规则示例\nnode_modules\n.git\ndist\nbuild\n*.log",
+    lastFilterMode: "none",
+    lastTargetPath: "",
     showFiles: true,
     showHidden: false,
     showSize: true,
     showDirSize: true,
     showDirItemCount: false,
     maxDepth: 5,
-    autoGenerateOnDrop: true,  // 默认开启自动生成
-    includeMetadata: false,  // 默认不包含元数据
+    autoGenerateOnDrop: true, // 默认开启自动生成
+    includeMetadata: false, // 默认不包含元数据
     lastTreeStructure: null,
     lastStatsInfo: null,
     lastGenerationOptions: null,
-    version: CONFIG_VERSION
+    pathHistory: [],
+    version: CONFIG_VERSION,
   };
 }
 
@@ -93,10 +107,10 @@ function createDefaultConfig(): DirectoryTreeConfig {
  * 创建配置管理器实例
  */
 const configManager: ConfigManager<DirectoryTreeConfig> = createConfigManager({
-  moduleName: 'directory_tree',
-  fileName: 'config.json',
+  moduleName: "directory_tree",
+  fileName: "config.json",
   version: CONFIG_VERSION,
-  createDefault: createDefaultConfig
+  createDefault: createDefaultConfig,
   // 使用默认的合并逻辑即可，因为这个配置没有嵌套对象
 });
 

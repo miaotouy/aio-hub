@@ -46,16 +46,13 @@ async function getBaiduAccessToken(apiKey: string, apiSecret: string): Promise<s
     const data = await response.json();
 
     if (data.error) {
-      errorHandler.handle(
-        new Error(data.error_description || data.error),
-        {
-          userMessage: "百度云认证失败",
-          context: {
-            error: data.error,
-            errorDescription: data.error_description,
-          },
-        }
-      );
+      errorHandler.handle(new Error(data.error_description || data.error), {
+        userMessage: "百度云认证失败",
+        context: {
+          error: data.error,
+          errorDescription: data.error_description,
+        },
+      });
       throw new Error(`百度云认证失败: ${data.error_description || data.error}`);
     }
 
@@ -85,11 +82,7 @@ async function getBaiduAccessToken(apiKey: string, apiSecret: string): Promise<s
 /**
  * 调用百度云 OCR API
  */
-async function callBaiduOcr(
-  imageBase64: string,
-  accessToken: string,
-  endpoint: string
-): Promise<string> {
+async function callBaiduOcr(imageBase64: string, accessToken: string, endpoint: string): Promise<string> {
   const url = `${endpoint}?access_token=${accessToken}`;
 
   logger.debug("调用百度云 OCR API", {
@@ -98,27 +91,34 @@ async function callBaiduOcr(
   });
 
   try {
+    // 构建请求参数（参考官方示例）
+    const params = new URLSearchParams({
+      image: imageBase64,
+      detect_direction: "true", // 检测图片方向
+      paragraph: "false", // 不识别段落
+      probability: "false", // 不返回置信度
+      multidirectional_recognize: "false", // 不进行多方向识别
+    });
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
       },
-      body: `image=${encodeURIComponent(imageBase64)}`,
+      body: params.toString(),
     });
 
     const data = await response.json();
 
     if (data.error_code) {
-      errorHandler.handle(
-        new Error(data.error_msg || String(data.error_code)),
-        {
-          userMessage: "百度云 OCR API 返回错误",
-          context: {
-            errorCode: data.error_code,
-            errorMsg: data.error_msg,
-          },
-        }
-      );
+      errorHandler.handle(new Error(data.error_msg || String(data.error_code)), {
+        userMessage: "百度云 OCR API 返回错误",
+        context: {
+          errorCode: data.error_code,
+          errorMsg: data.error_msg,
+        },
+      });
       throw new Error(`百度云 OCR 错误: ${data.error_msg || data.error_code}`);
     }
 
@@ -218,18 +218,15 @@ async function callCustomOcr(imageBase64: string, profile: OcrProfile): Promise<
     // 检查响应状态
     if (!response.ok) {
       const errorText = await response.text();
-      errorHandler.handle(
-        new Error(`HTTP ${response.status}: ${response.statusText}`),
-        {
-          userMessage: "自定义 OCR HTTP 请求失败",
-          context: {
-            profileName: profile.name,
-            status: response.status,
-            statusText: response.statusText,
-            errorText,
-          },
-        }
-      );
+      errorHandler.handle(new Error(`HTTP ${response.status}: ${response.statusText}`), {
+        userMessage: "自定义 OCR HTTP 请求失败",
+        context: {
+          profileName: profile.name,
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+        },
+      });
       throw new Error(`HTTP ${response.status}: ${response.statusText}. ${errorText}`);
     }
 
@@ -240,18 +237,15 @@ async function callCustomOcr(imageBase64: string, profile: OcrProfile): Promise<
     const text = getValueByPath(responseData, resultPath);
 
     if (typeof text !== "string") {
-      errorHandler.handle(
-        new Error(`路径 "${resultPath}" 指向的值类型为 ${typeof text}`),
-        {
-          userMessage: "自定义 OCR 结果提取失败",
-          context: {
-            profileName: profile.name,
-            resultPath,
-            actualType: typeof text,
-            responseData,
-          },
-        }
-      );
+      errorHandler.handle(new Error(`路径 "${resultPath}" 指向的值类型为 ${typeof text}`), {
+        userMessage: "自定义 OCR 结果提取失败",
+        context: {
+          profileName: profile.name,
+          resultPath,
+          actualType: typeof text,
+          responseData,
+        },
+      });
       throw new Error(
         `无法从响应中提取文本。路径 "${resultPath}" 指向的值类型为 ${typeof text}，期望为 string。` +
           `\n响应数据: ${JSON.stringify(responseData, null, 2)}`
@@ -294,10 +288,7 @@ async function recognizeWithCloudOcr(imageBase64: string, profile: OcrProfile): 
         throw new Error("百度云 OCR 需要 API Key 和 API Secret");
       }
 
-      const accessToken = await getBaiduAccessToken(
-        profile.credentials.apiKey,
-        profile.credentials.apiSecret
-      );
+      const accessToken = await getBaiduAccessToken(profile.credentials.apiKey, profile.credentials.apiSecret);
 
       return await callBaiduOcr(imageBase64, accessToken, profile.endpoint);
     }
@@ -312,16 +303,13 @@ async function recognizeWithCloudOcr(imageBase64: string, profile: OcrProfile): 
       return await callCustomOcr(imageBase64, profile);
 
     default:
-      errorHandler.handle(
-        new Error(`不支持的服务商类型: ${profile.provider}`),
-        {
-          userMessage: "不支持的 OCR 服务商",
-          context: {
-            provider: profile.provider,
-            profileName: profile.name,
-          },
-        }
-      );
+      errorHandler.handle(new Error(`不支持的服务商类型: ${profile.provider}`), {
+        userMessage: "不支持的 OCR 服务商",
+        context: {
+          provider: profile.provider,
+          profileName: profile.name,
+        },
+      });
       throw new Error(`不支持的服务商类型: ${profile.provider}`);
   }
 }

@@ -31,7 +31,10 @@ export async function quickFetch(options: QuickFetchOptions): Promise<FetchResul
         },
       });
 
-      const result = await transformer.transform(payload.html, options);
+      const result = await transformer.transform(payload.html, {
+        ...options,
+        cleanMode: options.cleanMode,
+      });
 
       // 保存原始 HTML 用于源码查看
       return {
@@ -103,7 +106,10 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
         excludeSelectors: options.excludeSelectors || matchedRecipe?.excludeSelectors,
       };
 
-      const result = await transformer.transform(extracted.html, finalOptions);
+      const result = await transformer.transform(extracted.html, {
+        ...finalOptions,
+        cleanMode: options.cleanMode,
+      });
 
       return {
         ...result,
@@ -134,6 +140,7 @@ export async function processLocalContent(
         url: `file://${fileName}`,
         format: options?.format || "markdown",
         ...options,
+        cleanMode: options?.cleanMode,
       });
 
       return {

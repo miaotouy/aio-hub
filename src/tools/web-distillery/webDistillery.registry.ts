@@ -16,6 +16,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
     const result = await quickFetch({
       url: String(args.url || ""),
       format: (args.format as any) || "markdown",
+      cleanMode: Boolean(args.cleanMode),
     });
     return formatFetchResult(result);
   }
@@ -25,6 +26,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
       url: String(args.url || ""),
       format: (args.format as any) || "markdown",
       waitFor: args.waitFor ? String(args.waitFor) : undefined,
+      cleanMode: Boolean(args.cleanMode),
     });
     return formatFetchResult(result);
   }
@@ -52,6 +54,13 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               required: false,
               defaultValue: "markdown",
             },
+            {
+              name: "cleanMode",
+              type: "boolean",
+              description: "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
+              required: false,
+              defaultValue: false,
+            },
           ],
           returnType: "string",
         },
@@ -72,6 +81,13 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               type: "string",
               description: "等待该 CSS 选择器匹配的元素出现后再进行提取",
               required: false,
+            },
+            {
+              name: "cleanMode",
+              type: "boolean",
+              description: "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
+              required: false,
+              defaultValue: false,
             },
           ],
           returnType: "string",

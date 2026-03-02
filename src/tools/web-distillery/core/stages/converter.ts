@@ -7,6 +7,7 @@ import TurndownService from "turndown";
 
 export class Converter {
   private turndown: TurndownService;
+  private cleanMode: boolean = false;
 
   constructor() {
     this.turndown = new TurndownService({
@@ -58,6 +59,13 @@ export class Converter {
   }
 
   /**
+   * 设置纯净模式
+   */
+  public setCleanMode(enabled: boolean): void {
+    this.cleanMode = enabled;
+  }
+
+  /**
    * 转换为目标格式
    */
   public process(element: HTMLElement, format: FetchFormat): string {
@@ -81,7 +89,17 @@ export class Converter {
   }
 
   private toMarkdown(element: HTMLElement): string {
-    return this.turndown.turndown(element).trim();
+    let markdown = this.turndown.turndown(element).trim();
+
+    // 纯净模式：移除所有 Markdown 链接，只保留链接文本
+    if (this.cleanMode) {
+      // 移除图片链接: ![alt](url) -> [图片]
+      markdown = markdown.replace(/!\[([^\]]*)\]\([^)]+\)/g, "[图片]");
+      // 移除普通链接: [text](url) -> text
+      markdown = markdown.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    }
+
+    return markdown;
   }
 
   /**

@@ -11,6 +11,7 @@ export interface QuickFetchOptions {
   cookieProfile?: string;
   timeout?: number;
   extractSelectors?: string[];
+  cleanMode?: boolean; // 纯净模式：过滤掉所有链接，只保留纯文本
 }
 
 export interface SmartExtractOptions extends QuickFetchOptions {

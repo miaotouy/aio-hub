@@ -65,6 +65,8 @@ export class Transformer {
 
     // 转换
     const s4Start = performance.now();
+    // 设置纯净模式
+    this.converter.setCleanMode(options.cleanMode || false);
     const convertedContent = this.converter.process(mainElement, format);
     const s4End = performance.now();
     logger.info(`Stage 4 (Converter) finished`, { duration: `${(s4End - s4Start).toFixed(2)}ms` });

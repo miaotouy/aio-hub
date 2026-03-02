@@ -55,7 +55,6 @@
 - **`check`** – 同时运行前端类型检查与后端代码检查（`cargo clippy`）。
 - **`check:frontend`** – 仅运行前端 TypeScript 类型检查。
 - **`check:backend`** – 仅运行 Rust 代码的 Clippy 检查。
-- **`sync:icons`** – 同步图标资源（将预设图标复制到应用数据目录）。
 
 这些脚本可通过 `bun run <script>` 执行（例如 `bun run dev`）。在开发过程中，最常用的命令是 `bun run tauri:dev`（或 `bun run t:d`）以启动完整的桌面应用开发环境。
 
@@ -301,7 +300,9 @@
 
 项目主要在 `src/components/common/` 目录下（部分位于 `src/components/` 或 `src/tools/`）封装了一系列可复用的通用组件，详细使用方法请参考各组件的示例文档：
 
-- **BaseDialog** - 解决 Element Plus Dialog 样式问题的干净对话框组件，支持精确高度控制和 bare 模式。
+- **BaseDialog** - **完全自主实现**的对话框组件，用于替代 Element Plus Dialog 以解决样式和毛玻璃效果问题。
+  - **重要限制**: 它不是 `el-dialog` 的封装，**严禁**向其传递 `el-dialog` 的专有属性（如 `close-on-click-modal`、`show-close` 等），否则会导致 Vue 警告。
+  - **对应关系**: 使用 `close-on-backdrop-click` 替代 `close-on-click-modal`，使用 `show-close-button` 替代 `show-close`。
   - **尺寸准则**: 对于功能性表单或管理界面，应优先使用响应式尺寸（如 `width="90%"` 或 `width="1200px"`），高度建议设为 `height="80vh"` 或以上，确保内容展示充分。
 - **DraggablePanel** - 通用悬浮面板组件，支持拖拽移动、调整大小、最小化、视口自动吸附和状态持久化。
 - **Avatar** - 通用头像组件，自动识别图片/Emoji/文字，支持 `appdata://` 路径，支持名字首字回退。
@@ -636,3 +637,19 @@ tRaw("tools.llm-api.删除确认", { name: profile.name });
 - **`mtab`** – `tauri android build` (Android 构建)。
 - **`mtid`** – `tauri ios dev` (iOS 开发模式)。
 - **`mtib`** – `tauri ios build` (iOS 构建)。
+
+---
+
+项目使用 Bun 作为包管理器，在 `package.json` 的 `scripts` 字段中定义了一系列开发、构建、检查与格式化的命令。以下为桌面常用脚本的说明：
+
+- **`dev`** – 启动 Vite 开发服务器，用于前端开发。
+- **`build`** – 执行类型检查（`vue-tsc`）并构建前端生产包。
+- **`preview`** – 预览生产构建结果。
+- **`tauri`** – 调用 Tauri CLI（需配合子命令使用）。
+- **`tauri:dev`** – 启动 Tauri 开发模式（同时运行前端开发服务器与本地应用）。
+- **`tauri:build`** – 构建 Tauri 桌面应用（生成安装包）。
+- **`t:d`** – `tauri:dev` 的快捷别名。
+- **`t:b`** – `tauri:build` 的快捷别名。
+- **`check`** – 同时运行前端类型检查与后端代码检查（`cargo clippy`）。
+- **`check:frontend`** – 仅运行前端 TypeScript 类型检查。
+- **`check:backend`** – 仅运行 Rust 代码的 Clippy 检查。

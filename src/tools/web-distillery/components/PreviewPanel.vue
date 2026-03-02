@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import { Copy, Download, RotateCw, FileText, Code2, Globe, AlertTriangle, GlassWater } from "lucide-vue-next";
+import {
+  Copy,
+  Download,
+  RotateCw,
+  FileText,
+  Code2,
+  Globe,
+  AlertTriangle,
+  GlassWater,
+  MessageSquare,
+} from "lucide-vue-next";
 import type { FetchResult } from "../types";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -23,7 +33,10 @@ const props = withDefaults(defineProps<Props>(), {
   error: null,
 });
 
-const emit = defineEmits<{ refresh: [] }>();
+const emit = defineEmits<{
+  refresh: [];
+  sendToChat: [];
+}>();
 
 type ViewMode = "preview" | "raw" | "source";
 // 默认切换到 raw (Markdown 源码) 模式，以测试渲染性能并对比内容质量
@@ -201,6 +214,9 @@ function downloadContent() {
             </el-button>
             <el-button size="small" title="下载文件" @click="downloadContent">
               <Download :size="13" />
+            </el-button>
+            <el-button size="small" title="发送到聊天" @click="emit('sendToChat')">
+              <MessageSquare :size="13" />
             </el-button>
             <el-button size="small" title="重新蒸馏" :disabled="loading" @click="emit('refresh')">
               <RotateCw :size="13" :class="{ spin: loading }" />

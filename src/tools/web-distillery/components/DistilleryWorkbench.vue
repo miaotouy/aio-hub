@@ -5,6 +5,7 @@ import { quickFetch, smartExtract } from "../actions";
 import { webviewBridge } from "../core/webview-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { useNotification } from "@/composables/useNotification";
+import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -19,6 +20,7 @@ import RecipeEditor from "./RecipeEditor.vue";
 const errorHandler = createModuleErrorHandler("web-distillery/workbench");
 const logger = createModuleLogger("web-distillery/workbench");
 const notify = useNotification();
+const { sendToChat } = useSendToChat();
 const store = useWebDistilleryStore();
 
 // 状态管理
@@ -208,6 +210,30 @@ async function handleRefresh() {
 function openInteractive() {
   store.setInteractiveMode(!store.isInteractiveMode);
 }
+
+function handleSendToChat() {
+  if (!store.result?.content) {
+    customMessage.warning("没有可发送的内容");
+    return;
+  }
+
+  const result = store.result;
+
+  // 构建发送内容
+  let textToSend = `# 网页内容\n\n`;
+  if (result.title) {
+    textToSend += `**标题**: ${result.title}\n`;
+  }
+  if (store.url) {
+    textToSend += `**来源**: ${store.url}\n`;
+  }
+  textToSend += `\n---\n\n${result.content}`;
+
+  sendToChat(textToSend, {
+    format: "plain",
+    successMessage: "已将网页内容发送到聊天",
+  });
+}
 </script>
 
 <template>
@@ -248,54 +274,80 @@ function openInteractive() {
       <!-- Level 0/1: 结果预览区 -->
       <template v-else>
         <div class="preview-container">
-          <PreviewPanel :result="store.result" :loading="isLoading" :error="errorMsg" @refresh="handleRefresh" />
+          <PreviewPanel
+            :result="store.result"
+            :loading="isLoading"
+            :error="errorMsg"
+            @refresh="handleRefresh"
+            @send-to-chat="handleSendToChat"
+          />
         </div>
 
-        <!-- 右侧基础信息侧栏 -->
-        <aside v-if="store.result" class="side-panel">
-          <InfoCard>
-            <template #header>
+        <!-- 右侧基础信息侧栏 (始终显示) -->
+        <aside class="side-panel">
+          <template v-if="store.result">
+            <div class="quality-section">
               <div class="section-title">提取质量</div>
-            </template>
-            <div class="quality-card">
-              <div class="quality-header">
-                <span class="quality-label">Level {{ store.result.level }}</span>
-                <el-tag size="small" :type="qualityStatus">{{ qualityPercent }}%</el-tag>
-              </div>
-              <el-progress :percentage="qualityPercent" :status="qualityStatus" :stroke-width="4" :show-text="false" />
-            </div>
-          </InfoCard>
-
-          <InfoCard>
-            <template #header>
-              <div class="section-title">页面信息</div>
-            </template>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">字数</span>
-                <span class="info-value">{{ store.result.contentLength?.toLocaleString() }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">格式</span>
-                <span class="info-value">{{ store.result.format?.toUpperCase() }}</span>
-              </div>
-              <div v-if="store.result.metadata?.language" class="info-item">
-                <span class="info-label">语言</span>
-                <span class="info-value">{{ store.result.metadata.language }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">提取时间</span>
-                <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
+              <div class="quality-card">
+                <div class="quality-header">
+                  <span class="quality-label">Level {{ store.result.level }}</span>
+                  <el-tag size="small" :type="qualityStatus">{{ qualityPercent }}%</el-tag>
+                </div>
+                <el-progress
+                  :percentage="qualityPercent"
+                  :status="qualityStatus"
+                  :stroke-width="4"
+                  :show-text="false"
+                />
               </div>
             </div>
-          </InfoCard>
 
-          <InfoCard v-if="store.result.warnings?.length">
+            <InfoCard>
+              <template #header>
+                <div class="section-title">页面信息</div>
+              </template>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">字数</span>
+                  <span class="info-value">{{ store.result.contentLength?.toLocaleString() }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">格式</span>
+                  <span class="info-value">{{ store.result.format?.toUpperCase() }}</span>
+                </div>
+                <div v-if="store.result.metadata?.language" class="info-item">
+                  <span class="info-label">语言</span>
+                  <span class="info-value">{{ store.result.metadata.language }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">提取时间</span>
+                  <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
+                </div>
+              </div>
+            </InfoCard>
+
+            <InfoCard v-if="store.result.warnings?.length">
+              <template #header>
+                <div class="section-title warning">提取警告</div>
+              </template>
+              <div class="warning-box">
+                <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
+              </div>
+            </InfoCard>
+          </template>
+
+          <!-- 空状态提示 -->
+          <InfoCard v-if="!store.result">
             <template #header>
-              <div class="section-title warning">提取警告</div>
+              <div class="section-title">使用提示</div>
             </template>
-            <div class="warning-box">
-              <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
+            <div class="empty-hint">
+              <p>在上方输入 URL 并选择提取级别：</p>
+              <ul>
+                <li><strong>Level 0</strong>: 快速提取</li>
+                <li><strong>Level 1</strong>: 智能提取</li>
+                <li><strong>Level 2</strong>: 交互模式</li>
+              </ul>
             </div>
           </InfoCard>
         </aside>
@@ -398,18 +450,24 @@ function openInteractive() {
   color: var(--text-color-light);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-bottom: 8px;
 }
 
 .section-title.warning {
   color: var(--warning-color);
 }
 
-/* 质量卡片 */
+/* 质量区块 */
+.quality-section {
+  display: flex;
+  flex-direction: column;
+}
+
 .quality-card {
   background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 
 .quality-header {

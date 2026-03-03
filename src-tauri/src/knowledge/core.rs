@@ -503,7 +503,7 @@ mod tests {
 
         let deserialized: Caiu = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.priority, 100);
-        assert_eq!(deserialized.enabled, true);
+        assert!(deserialized.enabled);
         assert!(deserialized.core_tags.is_empty());
         assert!(deserialized.tags.is_empty());
         assert!(deserialized.assets.is_empty());

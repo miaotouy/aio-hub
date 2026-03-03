@@ -15,6 +15,15 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
+
+// 辅助结构体：在被释放时触发取消令牌
+struct AbortOnDrop(CancellationToken);
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
+}
 
 // 全局代理服务状态
 pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
@@ -115,7 +124,12 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
 async fn handle_proxy_request(
     Json(mut request): Json<ProxyRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    info!("LLM Proxy (HTTP): {} {}", request.method, request.url);
+    let request_id = nanoid::nanoid!(8);
+    let url_for_log = request.url.clone();
+    info!(
+        "[Proxy-{}] New request: {} {}",
+        request_id, request.method, url_for_log
+    );
 
     // 检查是否是 IP 地址
     let is_ip = if let Ok(u) = reqwest::Url::parse(&request.url) {
@@ -222,10 +236,22 @@ async fn handle_proxy_request(
         req = req.json(&request.body);
     }
 
-    let response = req.send().await.map_err(|e| {
-        error!("LLM Proxy Request failed: {}", e);
-        (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e))
-    })?;
+    // 创建取消令牌，用于在客户端断开连接时取消上游请求
+    let cancel_token = CancellationToken::new();
+    let _abort_guard = AbortOnDrop(cancel_token.clone());
+
+    let response = tokio::select! {
+        res = req.send() => {
+            res.map_err(|e| {
+                error!("[Proxy-{}] Request failed: {}", request_id, e);
+                (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e))
+            })?
+        }
+        _ = cancel_token.cancelled() => {
+            info!("[Proxy-{}] Request cancelled by client disconnect (pre-response)", request_id);
+            return Err((StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_GATEWAY), "Client Disconnected".into()));
+        }
+    };
 
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
@@ -262,39 +288,57 @@ async fn handle_proxy_request(
         }
     }
 
-    let url_clone = request.url.clone();
-    let url_clone2 = url_clone.clone();
-    let mut total_bytes: usize = 0;
-    let stream = response
-        .bytes_stream()
-        .enumerate()
-        .map(move |(i, item)| match item {
-            Ok(bytes) => {
-                total_bytes += bytes.len();
-                if i % 100 == 0 {
-                    info!(
-                        "[Proxy-Stream] chunk #{} for {}, total {}KB",
-                        i,
-                        url_clone,
-                        total_bytes / 1024
-                    );
+    let mut upstream_stream = response.bytes_stream();
+    let request_id_stream = request_id.clone();
+    let url_stream = url_for_log.clone();
+    let cancel_token_stream = cancel_token.clone();
+
+    let stream = async_stream::stream! {
+        // 保持 _abort_guard 的所有权直到流结束
+        let _guard = _abort_guard;
+        let mut i = 0;
+        let mut total_bytes = 0;
+
+        loop {
+            tokio::select! {
+                item = upstream_stream.next() => {
+                    match item {
+                        Some(Ok(bytes)) => {
+                            total_bytes += bytes.len();
+                            if i % 100 == 0 {
+                                info!(
+                                    "[Proxy-{}] Stream chunk #{} for {}, total {}KB",
+                                    request_id_stream, i, url_stream, total_bytes / 1024
+                                );
+                            }
+                            i += 1;
+                            yield Ok(bytes);
+                        }
+                        Some(Err(e)) => {
+                            error!(
+                                "[Proxy-{}] Stream error at chunk #{} for {} (received {}KB so far): {}",
+                                request_id_stream, i, url_stream, total_bytes / 1024, e
+                            );
+                            yield Err(std::io::Error::other(e));
+                            break;
+                        }
+                        None => {
+                            info!("[Proxy-{}] Stream completed for {}, total {}KB", request_id_stream, url_stream, total_bytes / 1024);
+                            break;
+                        }
+                    }
                 }
-                Ok(bytes)
+                _ = cancel_token_stream.cancelled() => {
+                    info!("[Proxy-{}] Stream cancelled by client disconnect", request_id_stream);
+                    break;
+                }
             }
-            Err(e) => {
-                error!(
-                    "[Proxy-Stream] Error at chunk #{} for {} (received {}KB so far): {}",
-                    i,
-                    url_clone,
-                    total_bytes / 1024,
-                    e
-                );
-                Err(std::io::Error::other(e))
-            }
-        });
+        }
+    };
+
     info!(
-        "[Proxy] Starting stream relay for {} (streaming={})",
-        url_clone2, is_streaming
+        "[Proxy-{}] Starting stream relay for {} (streaming={})",
+        request_id, url_for_log, is_streaming
     );
 
     let body = Body::from_stream(stream);

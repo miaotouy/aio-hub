@@ -3,16 +3,8 @@
     <div class="info-row">
       <span class="db-name">{{ message.dbName }}</span>
       <el-tag size="small" type="info" class="meta-pill"> k={{ message.k }} </el-tag>
-      <el-tag v-if="message.useTime" size="small" type="success" class="meta-pill">
-        时间检索
-      </el-tag>
-      <el-button
-        link
-        size="small"
-        class="json-btn"
-        @click.stop="$emit('show-json', message)"
-        title="查看原始 JSON"
-      >
+      <el-tag v-if="message.useTime" size="small" type="success" class="meta-pill"> 时间检索 </el-tag>
+      <el-button link size="small" class="json-btn" @click.stop="$emit('show-json', message)" title="查看原始 JSON">
         <el-icon><Document /></el-icon>
       </el-button>
     </div>
@@ -23,32 +15,14 @@
       </div>
     </div>
 
-    <div
-      class="tags-row"
-      v-if="message.coreTags && message.coreTags.length > 0"
-    >
-      <el-tag
-        v-for="tag in message.coreTags"
-        :key="tag"
-        size="small"
-        type="warning"
-        effect="dark"
-        class="core-tag"
-      >
+    <div class="tags-row" v-if="message.coreTags && message.coreTags.length > 0">
+      <el-tag v-for="tag in message.coreTags" :key="tag" size="small" type="warning" effect="dark" class="core-tag">
         ✨ {{ tag }}
       </el-tag>
     </div>
 
-    <div
-      class="results-list"
-      v-if="message.results && message.results.length > 0"
-    >
-      <div
-        v-for="(result, index) in displayResults"
-        :key="index"
-        class="result-item"
-        @click.stop="toggleExpand"
-      >
+    <div class="results-list" v-if="message.results && message.results.length > 0">
+      <div v-for="(result, index) in displayResults" :key="index" class="result-item" @click.stop="toggleExpand">
         <div class="result-header">
           <div class="score-wrapper">
             <span class="result-score" :class="[scoreClass(result.score), { 'is-boosted': isBoosted(result) }]">
@@ -57,7 +31,12 @@
             </span>
           </div>
           <div class="result-tags" v-if="result.matchedTags && result.matchedTags.length > 0">
-            <span v-for="tag in result.matchedTags" :key="tag" class="match-tag" :class="{ 'is-core': isCoreMatched(tag, result) }">
+            <span
+              v-for="tag in result.matchedTags"
+              :key="tag"
+              class="match-tag"
+              :class="{ 'is-core': isCoreMatched(tag, result) }"
+            >
               #{{ tag }}
             </span>
           </div>
@@ -67,11 +46,11 @@
         </div>
         <div class="result-text" :class="{ 'is-truncated': !isExpanded }" v-html="renderText(result)"></div>
       </div>
-      
+
       <div v-if="!isExpanded && message.results.length > 3" class="more-results-hint" @click.stop="toggleExpand">
         + 还有 {{ message.results.length - 3 }} 条结果，点击展开详情
       </div>
-      
+
       <div v-if="isExpanded" class="expand-actions">
         <el-button link size="small" @click.stop="toggleExpand">收起详情</el-button>
       </div>
@@ -89,7 +68,7 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  'show-json': [message: any];
+  "show-json": [message: any];
 }>();
 
 const isExpanded = ref(false);
@@ -122,7 +101,7 @@ function renderText(result: RagResult): string {
   if (!isExpanded.value && text.length > 150) {
     text = text.substring(0, 150) + "...";
   }
-  
+
   if (!result.matchedTags || result.matchedTags.length === 0) return text;
 
   let html = text;
@@ -214,9 +193,16 @@ function renderText(result: RagResult): string {
 }
 
 @keyframes shine {
-  0% { filter: brightness(1); }
-  50% { filter: brightness(1.3); box-shadow: 0 0 10px rgba(230, 162, 60, 0.4); }
-  100% { filter: brightness(1); }
+  0% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.3);
+    box-shadow: 0 0 10px rgba(230, 162, 60, 0.4);
+  }
+  100% {
+    filter: brightness(1);
+  }
 }
 
 .results-list {

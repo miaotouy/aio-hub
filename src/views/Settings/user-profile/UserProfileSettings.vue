@@ -20,20 +20,11 @@
         @toggle="handleToggle"
       >
         <template #item="{ profile }">
-          <Avatar
-            :src="getAvatarSrc(profile) || ''"
-            :alt="profile.name"
-            :size="40"
-            class="profile-icon"
-          />
+          <Avatar :src="getAvatarSrc(profile) || ''" :alt="profile.name" :size="40" class="profile-icon" />
           <div class="profile-info">
             <div class="profile-name">{{ profile.displayName || profile.name }}</div>
             <div class="profile-description" v-if="profile.content">
-              {{
-                profile.content.length > 40
-                  ? profile.content.substring(0, 40) + "..."
-                  : profile.content
-              }}
+              {{ profile.content.length > 40 ? profile.content.substring(0, 40) + "..." : profile.content }}
             </div>
             <div class="profile-meta">创建于 {{ formatDate(profile.createdAt) }}</div>
           </div>
@@ -41,16 +32,9 @@
       </ProfileSidebar>
 
       <!-- 右侧：档案编辑 -->
-      <ProfileEditor
-        v-if="selectedProfile"
-        :title="selectedProfile.name"
-        :show-save="false"
-        @delete="handleDelete"
-      >
+      <ProfileEditor v-if="selectedProfile" :title="selectedProfile.name" :show-save="false" @delete="handleDelete">
         <template #extra-actions>
-          <el-button size="small" :icon="FolderOpened" @click="handleOpenDirectory">
-            打开目录
-          </el-button>
+          <el-button size="small" :icon="FolderOpened" @click="handleOpenDirectory"> 打开目录 </el-button>
         </template>
         <template #header-actions>
           <Avatar
@@ -166,12 +150,7 @@ const handleAddClick = () => {
 };
 
 // 处理创建档案
-const handleCreateProfile = (data: {
-  name: string;
-  displayName?: string;
-  content: string;
-  icon?: string;
-}) => {
+const handleCreateProfile = (data: { name: string; displayName?: string; content: string; icon?: string }) => {
   const profileId = userProfileStore.createProfile(data.name, data.content, {
     displayName: data.displayName,
     icon: data.icon,
@@ -324,9 +303,9 @@ onMounted(async () => {
       profileCount: userProfileStore.profiles.length,
     });
 
-    // 如果有档案，自动选中第一个
-    if (userProfileStore.profiles.length > 0 && !selectedProfileId.value) {
-      selectedProfileId.value = userProfileStore.profiles[0].id;
+    // 如果有档案，自动选中第一个（使用排序后的列表，即最近使用的档案）
+    if (userProfileStore.sortedProfiles.length > 0 && !selectedProfileId.value) {
+      selectedProfileId.value = userProfileStore.sortedProfiles[0].id;
       selectProfile(selectedProfileId.value);
     }
   } catch (error) {

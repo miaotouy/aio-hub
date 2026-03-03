@@ -272,7 +272,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     pingTimer.value = setInterval(() => {
       if (ws.value?.readyState === WebSocket.OPEN) {
         pendingPingTime.value = Date.now();
-        ws.value.send("ping");
+        ws.value.send(JSON.stringify({ type: "ping" }));
       }
     }, PING_INTERVAL);
   }
@@ -344,18 +344,19 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       };
 
       ws.value.onmessage = (event) => {
-        if (event.data === "pong") {
-          const latency = pendingPingTime.value ? Date.now() - pendingPingTime.value : 0;
-          setPingLatency(latency);
-          pendingPingTime.value = null;
-        } else {
-          try {
-            const rawData = JSON.parse(event.data);
+        try {
+          const rawData = JSON.parse(event.data);
+          // 处理 pong 响应
+          if (rawData.type === "pong") {
+            const latency = pendingPingTime.value ? Date.now() - pendingPingTime.value : 0;
+            setPingLatency(latency);
+            pendingPingTime.value = null;
+          } else {
             const message = parseMessage(rawData);
             if (message) addMessage(message);
-          } catch (e) {
-            logger.warn("Failed to parse observer message", e);
           }
+        } catch (e) {
+          logger.warn("Failed to parse observer message", e);
         }
       };
     } catch (e) {

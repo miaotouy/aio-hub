@@ -57,6 +57,7 @@ export function useVcpDistributedNode() {
   const heartbeatTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const reconnectDelay = ref(INITIAL_RECONNECT_DELAY);
   const isStarted = ref(false);
+  const lastReportedIPs = ref<string>("");
 
   /**
    * 发现并生成工具清单
@@ -201,11 +202,18 @@ export function useVcpDistributedNode() {
         return await invoke<string[]>("get_local_ips");
       })) || ["127.0.0.1"];
 
-      store.nodeProtocol.sendReportIp({
-        localIPs,
-        publicIP: "",
-        serverName: distStore.config.serverName,
-      });
+      // 去重检测：只在 IP 列表变化时才上报
+      const currentIPsHash = localIPs.sort().join(",");
+      if (currentIPsHash !== lastReportedIPs.value) {
+        store.nodeProtocol.sendReportIp({
+          localIPs,
+          publicIP: "",
+          serverName: distStore.config.serverName,
+        });
+        lastReportedIPs.value = currentIPsHash;
+        logger.debug("IP list changed, reported to VCP", { localIPs });
+      }
+
       distStore.updateHeartbeat();
     } catch (e) {
       logger.error("Failed to send heartbeat", e);
@@ -264,6 +272,7 @@ export function useVcpDistributedNode() {
   function stopDistributedNode() {
     isStarted.value = false;
     stopHeartbeat();
+    lastReportedIPs.value = "";
     logger.info("Stopped VCP Distributed Node logic");
   }
 

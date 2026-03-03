@@ -487,7 +487,7 @@ mod tests {
         assert_eq!(kb.entries.len(), deserialized.entries.len());
         assert_eq!(kb.entries[0].key, "Rust");
         assert_eq!(deserialized.entries[0].priority, 100);
-        assert_eq!(deserialized.entries[0].enabled, true);
+        assert!(deserialized.entries[0].enabled);
     }
 
     #[test]

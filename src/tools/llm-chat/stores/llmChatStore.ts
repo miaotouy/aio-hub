@@ -113,9 +113,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
   const currentActivePathWithPresets = computed((): ChatMessageNode[] => {
     const agentStore = useAgentStore();
-    const agent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
-      : null;
+    const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
     return getActivePathWithPresets(currentActivePath.value, currentSession.value, agent || null);
   });
 
@@ -298,8 +296,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   async function loadSessions(): Promise<void> {
     const sessionManager = useSessionManager();
-    const { sessions: loadedSessions, currentSessionId: loadedId } =
-      await sessionManager.loadSessions();
+    const { sessions: loadedSessions, currentSessionId: loadedId } = await sessionManager.loadSessions();
 
     sessions.value = loadedSessions;
     currentSessionId.value = loadedId;
@@ -307,8 +304,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     // 确保加载后的当前会话有历史记录
     if (
       currentSession.value &&
-      (currentSession.value.history === undefined ||
-        currentSession.value.historyIndex === undefined)
+      (currentSession.value.history === undefined || currentSession.value.historyIndex === undefined)
     ) {
       historyManager.clearHistory();
       logger.info("为加载的当前会话初始化了历史堆栈", {
@@ -331,9 +327,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 导出当前会话为 Markdown
    */
   function exportSessionAsMarkdown(sessionId?: string): string {
-    const session = sessionId
-      ? sessions.value.find((s) => s.id === sessionId)
-      : currentSession.value;
+    const session = sessionId ? sessions.value.find((s) => s.id === sessionId) : currentSession.value;
     const sessionManager = useSessionManager();
     return sessionManager.exportSessionAsMarkdown(session || null, currentActivePath.value);
   }
@@ -454,23 +448,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 续写消息
    */
-  async function continueGeneration(
-    nodeId: string,
-    options?: { modelId?: string; profileId?: string }
-  ): Promise<void> {
+  async function continueGeneration(nodeId: string, options?: { modelId?: string; profileId?: string }): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
     isSending.value = true;
     try {
       const chatHandler = useChatHandler();
-      await chatHandler.continueGeneration(
-        session,
-        nodeId,
-        abortControllers.value,
-        generatingNodes.value,
-        options
-      );
+      await chatHandler.continueGeneration(session, nodeId, abortControllers.value, generatingNodes.value, options);
 
       const sessionManager = useSessionManager();
       sessionManager.updateMessageCount(session);
@@ -490,10 +475,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 输入框补全
    */
-  async function completeInput(
-    content: string,
-    options?: { modelId?: string; profileId?: string }
-  ): Promise<void> {
+  async function completeInput(content: string, options?: { modelId?: string; profileId?: string }): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
@@ -515,10 +497,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 从指定节点重新生成（历史断点）
    */
-  async function regenerateFromNode(
-    nodeId: string,
-    options?: { modelId?: string; profileId?: string }
-  ): Promise<void> {
+  async function regenerateFromNode(nodeId: string, options?: { modelId?: string; profileId?: string }): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
@@ -575,8 +554,23 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   function abortSending(): void {
     if (abortControllers.value.size > 0) {
+      const session = currentSession.value;
+
       abortControllers.value.forEach((controller, nodeId) => {
         controller.abort();
+
+        // 在删除之前，先更新节点状态
+        if (session && session.nodes[nodeId]) {
+          const node = session.nodes[nodeId];
+          if (node.content?.trim()) {
+            node.status = "complete";
+          } else {
+            node.status = "error";
+            if (!node.metadata) node.metadata = {};
+            node.metadata.error = "用户手动停止";
+          }
+        }
+
         logger.info("已中止节点生成", { nodeId });
       });
       abortControllers.value.clear();
@@ -592,6 +586,26 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     const controller = abortControllers.value.get(nodeId);
     if (controller) {
       controller.abort();
+
+      // 在删除之前，先更新节点状态，防止 watch 误判为"僵死节点"
+      const session = currentSession.value;
+      if (session && session.nodes[nodeId]) {
+        const node = session.nodes[nodeId];
+        // 如果节点已经有内容，标记为 complete；否则标记为 error 并设置正确的错误信息
+        if (node.content?.trim()) {
+          node.status = "complete";
+        } else {
+          node.status = "error";
+          if (!node.metadata) node.metadata = {};
+          node.metadata.error = "用户手动停止";
+        }
+        logger.info("已更新手动停止节点的状态", {
+          nodeId,
+          status: node.status,
+          hasContent: !!node.content?.trim(),
+        });
+      }
+
       abortControllers.value.delete(nodeId);
       generatingNodes.value.delete(nodeId);
       logger.info("已中止节点生成", { nodeId });

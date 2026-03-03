@@ -83,15 +83,11 @@ const timezones = Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : 
 // 清除窗口状态
 const handleClearWindowState = async () => {
   try {
-    await ElMessageBox.confirm(
-      "确定要清除所有窗口的位置和大小记忆吗？下次打开窗口时将恢复默认位置。",
-      "清除窗口状态",
-      {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      }
-    );
+    await ElMessageBox.confirm("确定要清除所有窗口的位置和大小记忆吗？下次打开窗口时将恢复默认位置。", "清除窗口状态", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
 
     await invoke("clear_window_state");
     customMessage.success("窗口状态已清除");
@@ -132,7 +128,7 @@ const handleExportConfig = async () => {
   try {
     const filePath = await save({
       title: "导出配置",
-      defaultPath: `AIO-Tools-Backup-${formatDateTime(new Date(), 'yyyy-MM-dd')}.zip`,
+      defaultPath: `AIO-Tools-Backup-${formatDateTime(new Date(), "yyyy-MM-dd")}.zip`,
       filters: [
         {
           name: "ZIP 压缩包",
@@ -229,6 +225,24 @@ const handleImportConfig = async () => {
 </script>
 
 <template>
+  <div class="setting-item">
+    <div class="setting-label">
+      <span>配置管理</span>
+      <el-tooltip content="打开配置文件目录、导出或导入配置文件" placement="top">
+        <el-icon class="info-icon">
+          <InfoFilled />
+        </el-icon>
+      </el-tooltip>
+    </div>
+    <div class="config-actions">
+      <el-button @click="handleOpenConfigDir" size="small"> 打开配置目录 </el-button>
+      <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
+      <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
+    </div>
+  </div>
+
+  <el-divider />
+
   <div class="general-settings">
     <div class="setting-item">
       <div class="setting-label">
@@ -245,10 +259,7 @@ const handleImportConfig = async () => {
     <div class="setting-item">
       <div class="setting-label">
         <span>关闭到托盘</span>
-        <el-tooltip
-          content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序"
-          placement="top"
-        >
+        <el-tooltip content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序" placement="top">
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
@@ -345,31 +356,8 @@ const handleImportConfig = async () => {
           <el-radio-button value="custom">自定义</el-radio-button>
         </el-radio-group>
         <div v-if="proxyMode === 'custom'" class="proxy-input-wrapper">
-          <el-input
-            v-model="proxyUrl"
-            placeholder="例如 http://127.0.0.1:7890"
-            clearable
-            style="width: 100%"
-          />
+          <el-input v-model="proxyUrl" placeholder="例如 http://127.0.0.1:7890" clearable style="width: 100%" />
         </div>
-      </div>
-    </div>
-
-    <el-divider />
-
-    <div class="setting-item">
-      <div class="setting-label">
-        <span>配置管理</span>
-        <el-tooltip content="打开配置文件目录、导出或导入配置文件" placement="top">
-          <el-icon class="info-icon">
-            <InfoFilled />
-          </el-icon>
-        </el-tooltip>
-      </div>
-      <div class="config-actions">
-        <el-button @click="handleOpenConfigDir" size="small"> 打开配置目录 </el-button>
-        <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
-        <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
       </div>
     </div>
   </div>
@@ -388,10 +376,6 @@ const handleImportConfig = async () => {
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
   margin-bottom: 12px;
-}
-
-.setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color);
 }
 
 .setting-label {

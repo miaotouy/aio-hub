@@ -138,6 +138,7 @@ const formatDuration = (ms: number) => {
 .startup-item {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   padding: 16px;
   transition: all 0.3s ease;

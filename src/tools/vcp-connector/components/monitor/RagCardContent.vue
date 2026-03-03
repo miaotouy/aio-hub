@@ -3,7 +3,9 @@
     <div class="info-row">
       <span class="db-name">{{ message.dbName }}</span>
       <el-tag size="small" type="info" class="meta-pill"> k={{ message.k }} </el-tag>
-      <span class="use-time">{{ message.useTime }}</span>
+      <el-tag v-if="message.useTime" size="small" type="success" class="meta-pill">
+        时间检索
+      </el-tag>
       <el-button
         link
         size="small"

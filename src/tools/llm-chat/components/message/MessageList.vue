@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from "vue";
-import { useThrottleFn } from "@vueuse/core";
+import { useThrottleFn, useRafFn } from "@vueuse/core";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import type { ChatMessageNode, ChatSession } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -90,20 +90,28 @@ const getScrollElement = () => messagesContainer.value;
 // 消息数量（响应式）- 使用 displayMessages 的长度，因为虚拟列表渲染的是过滤后的消息
 const messageCount = computed(() => displayMessages.value.length);
 
+// 渐进式加载控制
+const isInitialLoad = ref(true);
+const progressiveOverscan = ref(2); // 初始只预渲染2条
+
 // 创建虚拟化器
 const virtualizer = useVirtualizer({
   get count() {
     return messageCount.value;
   },
   getScrollElement: () => messagesContainer.value,
-  estimateSize: () => 160, // 预估每条消息的高度
+  estimateSize: () => 300, // 提高预估高度以减少重新测量
   get overscan() {
-    return settings.value.uiPreferences.virtualListOverscan;
+    // 渐进式加载：初始加载时使用小 overscan，加载完成后恢复正常
+    return isInitialLoad.value ? progressiveOverscan.value : settings.value.uiPreferences.virtualListOverscan;
   },
 });
 
 // 虚拟项列表
 const virtualItems = computed(() => virtualizer.value.getVirtualItems());
+
+// 已测量的元素集合（避免重复测量）
+let measuredElements = new WeakSet<HTMLElement>();
 
 // 计算当前视口中最主要显示的消息索引
 const currentVisibleIndex = computed(() => {
@@ -155,6 +163,46 @@ const onScroll = () => {
   // 阈值设为 100px，在这个范围内认为用户想看最新消息
   isNearBottom.value = scrollHeight - clientHeight - scrollTop < 100;
 };
+
+// 渐进式加载逻辑：使用 RAF 逐步增加 overscan
+const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
+  () => {
+    if (!isInitialLoad.value) {
+      pauseProgressive();
+      return;
+    }
+
+    // 每帧增加 overscan，直到达到目标值
+    const targetOverscan = settings.value.uiPreferences.virtualListOverscan;
+    if (progressiveOverscan.value < targetOverscan) {
+      progressiveOverscan.value = Math.min(progressiveOverscan.value + 3, targetOverscan);
+    } else {
+      isInitialLoad.value = false;
+      pauseProgressive();
+    }
+  },
+  { immediate: false }
+);
+
+// 监听会话切换，重置渐进式加载状态
+watch(
+  () => props.session?.id,
+  (newId, oldId) => {
+    if (newId !== oldId && newId) {
+      // 会话切换时重置状态
+      isInitialLoad.value = true;
+      progressiveOverscan.value = 2;
+      measuredElements = new WeakSet<HTMLElement>(); // 重新创建 WeakSet 以清空缓存
+
+      // 延迟启动渐进式加载，给初始渲染留出时间
+      nextTick(() => {
+        setTimeout(() => {
+          resumeProgressive();
+        }, 100);
+      });
+    }
+  }
+);
 
 // 监听消息数量、总高度变化以及最后一条消息的内容变化
 watch(
@@ -287,6 +335,14 @@ const handleResize = (dom: HTMLElement | null) => {
   }
 };
 
+// 优化的测量函数：避免重复测量已经测量过的元素
+const measureElementOnce = (el: HTMLElement) => {
+  if (!measuredElements.has(el)) {
+    virtualizer.value.measureElement(el);
+    measuredElements.add(el);
+  }
+};
+
 // 暴露滚动方法和容器引用供外部调用
 defineExpose({
   scrollToBottom,
@@ -322,7 +378,7 @@ defineExpose({
           :data-index="virtualItem.index"
           :ref="
             (el) => {
-              if (el) virtualizer.measureElement(el as HTMLElement);
+              if (el) measureElementOnce(el as HTMLElement);
             }
           "
           :style="{

@@ -136,7 +136,7 @@ interface D3Link extends d3Force.SimulationLinkDatum<D3Node> {
 /**
  * 布局模式类型
  */
-export type LayoutMode = 'tree' | 'physics';
+export type LayoutMode = 'tree' | 'physics' | 'static';
 
 /**
  * 自定义 D3 力：模拟持续的重力加速度
@@ -997,6 +997,30 @@ export function useFlowTreeGraph(
       .strength(link => link._debug?.strength ?? 0.4)
     );
 
+    if (layoutMode.value === 'static') {
+      // === Static 模式：纯静态布局，不启动物理引擎 ===
+      // 直接应用计算结果到 Vue Flow 节点并停止模拟
+      for (const d3Node of d3Nodes.value) {
+        const vueNode = nodes.value.find((n) => n.id === d3Node.id);
+        const pos = calculatedPositions.get(d3Node.id);
+        if (vueNode && pos) {
+          vueNode.position.x = pos.x - d3Node.width / 2;
+          vueNode.position.y = pos.y - d3Node.height / 2;
+          
+          // 同时更新 d3Node 坐标，保持同步
+          d3Node.x = pos.x;
+          d3Node.y = pos.y;
+        }
+      }
+
+      if (simulation) {
+        simulation.stop();
+      }
+      
+      logger.info("静态布局已应用 (Static 模式，无物理引擎)");
+      return; // 静态模式不需要配置力，直接返回
+    }
+
     if (layoutMode.value === 'tree') {
       // === Tree 模式：强定位，无电荷力 ===
       simulation
@@ -1103,8 +1127,8 @@ export function useFlowTreeGraph(
 
     logger.debug("节点拖拽开始 (Physics 模式)", { nodeId, isDragSubtree });
 
-    // 激活模拟
-    if (simulation) {
+    // 激活模拟 (静态模式除外)
+    if (simulation && layoutMode.value !== 'static') {
       simulation.alphaTarget(0.3).restart();
     }
   }
@@ -1113,6 +1137,7 @@ export function useFlowTreeGraph(
    * 处理节点拖拽中事件
    */
   function handleNodeDrag(event: any): void {
+    if (layoutMode.value === 'static') return;
     if (!simulation) return;
 
     const { node } = event;
@@ -1190,6 +1215,7 @@ export function useFlowTreeGraph(
    * 处理拖拽结束事件
    */
   function handleNodeDragStop(event: any): void {
+    if (layoutMode.value === 'static') return;
     if (!simulation) return;
 
     const draggedNodeId = event.node.id;

@@ -68,7 +68,10 @@
       </div>
       <div class="hud-item">
         <span class="hud-label">MODE</span>
-        <span class="hud-value">{{ layoutMode === "tree" ? "TREE" : "PHYSICS" }}</span>
+        <span class="hud-value">{{
+          layoutMode === "tree" ? "TREE" :
+          layoutMode === "physics" ? "PHYSICS" : "STATIC"
+        }}</span>
       </div>
       <div class="hud-item">
         <span class="hud-label">ZOOM</span>
@@ -86,10 +89,19 @@
         >
           <!-- 布局模式切换按钮 -->
           <el-tooltip
-            :content="layoutMode === 'tree' ? '切换到实时力导向图模式' : '切换到树状布局模式'"
+            :content="
+              layoutMode === 'tree'
+                ? '切换到实时力导向图模式'
+                : layoutMode === 'physics'
+                ? '切换到静态布局模式'
+                : '切换到树状布局模式'
+            "
             :placement="isNarrowLayout ? 'left' : 'bottom'"
           >
-            <el-button :icon="layoutMode === 'tree' ? Grid : Share" @click="toggleLayoutMode" />
+            <el-button
+              :icon="layoutMode === 'tree' ? Grid : layoutMode === 'physics' ? Share : Minus"
+              @click="toggleLayoutMode"
+            />
           </el-tooltip>
 
           <!-- 重置布局按钮 -->
@@ -345,6 +357,15 @@
         <div class="view-setting-item">
           <el-checkbox v-model="viewSettings.showHud">显示信息面板</el-checkbox>
         </div>
+        <el-divider style="margin: 8px 0" />
+        <div class="view-setting-item mode-setting">
+          <span class="setting-label">默认布局模式</span>
+          <el-select v-model="viewSettings.defaultLayoutMode" size="small" style="width: 160px">
+            <el-option label="树状" value="tree" />
+            <el-option label="物理" value="physics" />
+            <el-option label="静态" value="static" />
+          </el-select>
+        </div>
       </div>
     </el-popover>
 
@@ -380,6 +401,7 @@ import {
   Aim,
   Grid,
   Share,
+  Minus,
   View,
   CopyDocument,
   Refresh,
@@ -437,6 +459,7 @@ const viewSettings = useStorage("llm-chat-flow-graph-view-settings", {
   showMiniMap: true,
   showControls: true,
   showHud: true,
+  defaultLayoutMode: "tree" as "tree" | "physics" | "static",
 });
 
 // 使用说明弹窗状态
@@ -618,7 +641,9 @@ const agentConfigForDetail = computed(() => {
 
 // 切换布局模式
 const toggleLayoutMode = () => {
-  const newMode = layoutMode.value === "tree" ? "physics" : "tree";
+  const modes: ('tree' | 'physics' | 'static')[] = ['tree', 'physics', 'static'];
+  const currentIndex = modes.indexOf(layoutMode.value);
+  const newMode = modes[(currentIndex + 1) % modes.length];
   switchLayoutMode(newMode);
 };
 
@@ -739,6 +764,10 @@ watch(
 
 // 组件挂载时立即更新一次图表
 onMounted(() => {
+  // 应用默认布局模式
+  if (viewSettings.value.defaultLayoutMode && layoutMode.value !== viewSettings.value.defaultLayoutMode) {
+    switchLayoutMode(viewSettings.value.defaultLayoutMode);
+  }
   updateChart();
 });
 
@@ -1264,5 +1293,16 @@ onUnmounted(() => {
 .view-setting-item :deep(.el-checkbox) {
   margin-right: 0;
   width: 100%;
+}
+
+.mode-setting {
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 4px;
+}
+
+.setting-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

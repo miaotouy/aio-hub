@@ -331,7 +331,7 @@
               <el-divider>
                 <div class="divider-content">
                   <el-switch v-model="enableUiBlur" size="small" />
-                  <span>UI 模糊 (毛玻璃)</span>
+                  <span style="width: 120px;">UI 模糊 (毛玻璃)</span>
                 </div>
               </el-divider>
             </div>

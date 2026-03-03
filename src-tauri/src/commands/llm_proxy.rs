@@ -103,24 +103,24 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
     // 在主线程尝试绑定端口，确保及时反馈错误
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))
         .await
-        .map_err(|e| format!("Failed to bind to port {}: {}", port, e))?;
+        .map_err(|e| {
+            error!("Failed to bind to port {}: {}", port, e);
+            format!("Failed to bind to port {}: {}", port, e)
+        })?;
 
+    info!("LLM Proxy Server starting on http://127.0.0.1:{}", port);
     state.is_running = true;
     state.port = port;
 
+    // 释放锁，然后再启动异步任务，防止死锁
+    drop(state);
+
     let state_clone = PROXY_STATE.clone();
     tokio::spawn(async move {
-        // 显式移动 state 进入闭包并在服务器退出前持有，或者在这里 drop
-        // 实际上 state 是 MutexGuard，它在作用域结束时自动释放
-        // 保持 state 在这里被持有直到 spawn 完成，防止竞态
-        let _s = state;
-
         let app = Router::new()
             .route("/proxy", post(handle_proxy_request))
             .layer(DefaultBodyLimit::max(256 * 1024 * 1024)) // 限制 body 大小为 256MB，更加安全
             .layer(tower_http::cors::CorsLayer::permissive());
-
-        info!("LLM Proxy Server starting on http://127.0.0.1:{}", port);
 
         if let Err(e) = axum::serve(listener, app).await {
             error!("LLM Proxy Server error: {}", e);

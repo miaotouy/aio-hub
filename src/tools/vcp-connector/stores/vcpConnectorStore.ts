@@ -207,9 +207,20 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   function updateConfig(newConfig: Partial<VcpConfig>) {
     const oldUrl = config.value.wsUrl;
     const oldKey = config.value.vcpKey;
+    const oldMaxHistory = config.value.maxHistory;
 
     config.value = { ...config.value, ...newConfig };
     configManager.saveDebounced(config.value);
+
+    // 如果 maxHistory 变小，立即裁剪现有消息
+    if (newConfig.maxHistory !== undefined && newConfig.maxHistory < oldMaxHistory) {
+      if (messages.value.length > newConfig.maxHistory) {
+        const excess = messages.value.length - newConfig.maxHistory;
+        messages.value.splice(0, excess);
+        messagesManager.saveDebounced({ list: messages.value });
+        logger.info(`Trimmed ${excess} messages due to maxHistory change`);
+      }
+    }
 
     // 如果关键配置变化且当前已连接，则重连
     if (
@@ -529,7 +540,6 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (filter.value.paused) return;
 
     messages.value.push(msg);
-    messagesManager.saveDebounced({ list: messages.value });
     stats.value.totalCount += 1;
 
     switch (msg.type) {
@@ -554,9 +564,13 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         break;
     }
 
+    // 批量裁剪到限制大小
     if (messages.value.length > config.value.maxHistory) {
-      messages.value.shift();
+      const excess = messages.value.length - config.value.maxHistory;
+      messages.value.splice(0, excess);
     }
+
+    messagesManager.saveDebounced({ list: messages.value });
   }
 
   function handleVcpLogNotification(msg: VcpLogMessage) {

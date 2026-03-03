@@ -29,10 +29,9 @@
             :max="600"
             :step="50"
             size="small"
-            controls-position="right"
             @change="updateMaxHistory"
           />
-          <span class="limit-unit">条</span>
+          <span style="margin-left: 8px">条</span>
         </div>
         <div class="limit-tip">减少数量可缓解高频消息下的 IO 压力</div>
       </div>

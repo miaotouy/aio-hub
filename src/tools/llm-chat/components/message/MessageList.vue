@@ -90,8 +90,8 @@ const getScrollElement = () => messagesContainer.value;
 // 消息数量（响应式）- 使用 displayMessages 的长度，因为虚拟列表渲染的是过滤后的消息
 const messageCount = computed(() => displayMessages.value.length);
 
-// 渐进式加载控制
-const isInitialLoad = ref(true);
+// 渐进式加载控制（仅用于会话切换）
+const isSessionSwitching = ref(false);
 const progressiveOverscan = ref(2); // 初始只预渲染2条
 
 // 创建虚拟化器
@@ -100,10 +100,10 @@ const virtualizer = useVirtualizer({
     return messageCount.value;
   },
   getScrollElement: () => messagesContainer.value,
-  estimateSize: () => 300, // 提高预估高度以减少重新测量
+  estimateSize: () => 400, // 提高预估高度以更好地处理长消息
   get overscan() {
-    // 渐进式加载：初始加载时使用小 overscan，加载完成后恢复正常
-    return isInitialLoad.value ? progressiveOverscan.value : settings.value.uiPreferences.virtualListOverscan;
+    // 仅在会话切换时使用渐进式加载，正常使用时保持用户设置的 overscan
+    return isSessionSwitching.value ? progressiveOverscan.value : settings.value.uiPreferences.virtualListOverscan;
   },
 });
 
@@ -164,10 +164,10 @@ const onScroll = () => {
   isNearBottom.value = scrollHeight - clientHeight - scrollTop < 100;
 };
 
-// 渐进式加载逻辑：使用 RAF 逐步增加 overscan
+// 渐进式加载逻辑：使用 RAF 逐步增加 overscan（仅用于会话切换）
 const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
   () => {
-    if (!isInitialLoad.value) {
+    if (!isSessionSwitching.value) {
       pauseProgressive();
       return;
     }
@@ -175,30 +175,50 @@ const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
     // 每帧增加 overscan，直到达到目标值
     const targetOverscan = settings.value.uiPreferences.virtualListOverscan;
     if (progressiveOverscan.value < targetOverscan) {
-      progressiveOverscan.value = Math.min(progressiveOverscan.value + 3, targetOverscan);
+      progressiveOverscan.value = Math.min(progressiveOverscan.value + 5, targetOverscan);
     } else {
-      isInitialLoad.value = false;
+      // 渐进加载完成，恢复正常状态
+      isSessionSwitching.value = false;
       pauseProgressive();
+
+      // 渐进加载完成后，如果启用了自动滚动，则滚动到底部
+      // 这样可以处理初始加载多消息会话的场景
+      if (settings.value.uiPreferences.autoScroll && props.messages.length > 0) {
+        nextTick(() => {
+          scrollToBottom();
+        });
+      }
     }
   },
   { immediate: false }
 );
 
-// 监听会话切换，重置渐进式加载状态
+// 监听会话切换，启用渐进式加载
 watch(
   () => props.session?.id,
   (newId, oldId) => {
     if (newId !== oldId && newId) {
-      // 会话切换时重置状态
-      isInitialLoad.value = true;
+      // 会话切换时启用渐进式加载
+      isSessionSwitching.value = true;
       progressiveOverscan.value = 2;
       measuredElements = new WeakSet<HTMLElement>(); // 重新创建 WeakSet 以清空缓存
+
+      // 如果是多消息会话（>5条），先滚动到底部，实现倒序加载效果
+      // 这样可以优先渲染最新的消息，提升用户体验
+      if (props.messages.length > 5) {
+        nextTick(() => {
+          if (messagesContainer.value) {
+            // 立即滚动到底部，让虚拟列表从底部开始渲染
+            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+          }
+        });
+      }
 
       // 延迟启动渐进式加载，给初始渲染留出时间
       nextTick(() => {
         setTimeout(() => {
           resumeProgressive();
-        }, 100);
+        }, 150);
       });
     }
   }
@@ -217,6 +237,10 @@ watch(
   ],
   ([newLength, newTotalSize, newLastContent], [oldLength, oldTotalSize, oldLastContent]) => {
     if (!settings.value.uiPreferences.autoScroll) return;
+
+    // 如果正在进行会话切换的渐进加载，跳过自动滚动逻辑
+    // 避免在渐进加载过程中触发滚动，干扰性能优化
+    if (isSessionSwitching.value) return;
 
     const isNewMessage = newLength !== oldLength;
     const isContentChanged = newLastContent !== oldLastContent;

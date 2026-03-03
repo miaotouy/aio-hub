@@ -1,7 +1,4 @@
-import {
-  RendererVersion,
-  type RichTextRendererStyleOptions,
-} from "@/tools/rich-text-renderer/types";
+import { RendererVersion, type RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { TranscriptionConfig as BaseTranscriptionConfig } from "@/tools/transcription/types";
 import { DEFAULT_TRANSCRIPTION_CONFIG } from "@/tools/transcription/config";
 import { createDefaultChatRegexConfig } from "./chatRegex";
@@ -160,6 +157,21 @@ export interface ChatSettings {
     /** 嫁接整个子树的修饰键 */
     graftSubtree: "shift" | "alt" | "ctrl" | "none";
   };
+  /** 关系图视图设置 */
+  graphView: {
+    /** 是否显示背景网格 */
+    showBackground: boolean;
+    /** 是否显示小地图 */
+    showMiniMap: boolean;
+    /** 是否显示控制器 */
+    showControls: boolean;
+    /** 是否显示信息面板 (HUD) */
+    showHud: boolean;
+    /** 默认布局模式 */
+    defaultLayoutMode: "tree" | "physics" | "static";
+    /** 控制栏是否展开 */
+    isControlsExpanded: boolean;
+  };
   /** 上下文优化设置 */
   contextOptimization: {
     /** 是否启用 HTML 转 Markdown */
@@ -281,16 +293,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     modelIdentifier: "", // 需要用户配置
     messageTargetLang: "Chinese",
     inputTargetLang: "English",
-    targetLangList: [
-      "Chinese",
-      "English",
-      "Japanese",
-      "Korean",
-      "French",
-      "German",
-      "Spanish",
-      "Russian",
-    ],
+    targetLangList: ["Chinese", "English", "Japanese", "Korean", "French", "German", "Spanish", "Russian"],
     prompt:
       "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\nOnly output the translated content without any explanation or additional text:\n\n{text}",
     temperature: 0.3,
@@ -317,6 +320,14 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   graphViewShortcuts: {
     dragSubtree: "alt",
     graftSubtree: "alt",
+  },
+  graphView: {
+    showBackground: true,
+    showMiniMap: true,
+    showControls: true,
+    showHud: true,
+    defaultLayoutMode: "tree",
+    isControlsExpanded: true,
   },
   contextOptimization: {
     convertHtmlToMd: false,

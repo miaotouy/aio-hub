@@ -8,10 +8,7 @@ import { ref } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import {
-  DEFAULT_SETTINGS,
-  type ChatSettings,
-} from "../../types/settings";
+import { DEFAULT_SETTINGS, type ChatSettings } from "../../types/settings";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
@@ -47,6 +44,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       graphViewShortcuts: {
         ...defaultConfig.graphViewShortcuts,
         ...(loadedConfig.graphViewShortcuts || {}),
+      },
+      graphView: {
+        ...defaultConfig.graphView,
+        ...(loadedConfig.graphView || {}),
       },
       topicNaming: {
         ...defaultConfig.topicNaming,
@@ -181,6 +182,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
       graphViewShortcuts: {
         ...settings.value.graphViewShortcuts,
         ...(updates.graphViewShortcuts || {}),
+      },
+      graphView: {
+        ...settings.value.graphView,
+        ...(updates.graphView || {}),
       },
       topicNaming: {
         ...settings.value.topicNaming,

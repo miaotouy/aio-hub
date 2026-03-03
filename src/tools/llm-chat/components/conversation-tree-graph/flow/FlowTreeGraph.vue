@@ -58,9 +58,7 @@
     <div v-if="viewSettings.showHud" class="graph-hud-panel">
       <div class="hud-item">
         <span class="hud-label">FPS</span>
-        <span class="hud-value" :class="{ 'low-fps': graphStats.fps < 30 }">{{
-          graphStats.fps
-        }}</span>
+        <span class="hud-value" :class="{ 'low-fps': graphStats.fps < 30 }">{{ graphStats.fps }}</span>
       </div>
       <div class="hud-item">
         <span class="hud-label">NODES</span>
@@ -69,8 +67,7 @@
       <div class="hud-item">
         <span class="hud-label">MODE</span>
         <span class="hud-value">{{
-          layoutMode === "tree" ? "TREE" :
-          layoutMode === "physics" ? "PHYSICS" : "STATIC"
+          layoutMode === "tree" ? "TREE" : layoutMode === "physics" ? "PHYSICS" : "STATIC"
         }}</span>
       </div>
       <div class="hud-item">
@@ -93,8 +90,8 @@
               layoutMode === 'tree'
                 ? '切换到实时力导向图模式'
                 : layoutMode === 'physics'
-                ? '切换到静态布局模式'
-                : '切换到树状布局模式'
+                  ? '切换到静态布局模式'
+                  : '切换到树状布局模式'
             "
             :placement="isNarrowLayout ? 'left' : 'bottom'"
           >
@@ -144,29 +141,18 @@
               :content="debugMode ? '关闭调试叠加层' : '显示调试叠加层'"
               :placement="isNarrowLayout ? 'left' : 'bottom'"
             >
-              <el-button
-                :icon="View"
-                :type="debugMode ? 'primary' : 'default'"
-                @click="toggleDebugMode"
-              />
+              <el-button :icon="View" :type="debugMode ? 'primary' : 'default'" @click="toggleDebugMode" />
             </el-tooltip>
 
             <!-- 复制调试信息按钮 - 与调试模式按钮一起出现，保持布局稳定 -->
-            <el-tooltip
-              content="复制调试信息到剪贴板"
-              :placement="isNarrowLayout ? 'left' : 'bottom'"
-            >
+            <el-tooltip content="复制调试信息到剪贴板" :placement="isNarrowLayout ? 'left' : 'bottom'">
               <el-button :icon="CopyDocument" :disabled="!debugMode" @click="copyDebugInfo" />
             </el-tooltip>
           </template>
 
           <!-- 收起按钮 -->
           <el-tooltip content="收起工具栏" :placement="isNarrowLayout ? 'left' : 'bottom'">
-            <el-button
-              class="rotate-icon"
-              :icon="DArrowRight"
-              @click="isControlsExpanded = false"
-            />
+            <el-button class="rotate-icon" :icon="DArrowRight" @click="isControlsExpanded = false" />
           </el-tooltip>
         </el-button-group>
 
@@ -203,14 +189,7 @@
       }"
     >
       <defs>
-        <marker
-          id="arrowhead-debug"
-          markerWidth="10"
-          markerHeight="7"
-          refX="9"
-          refY="3.5"
-          orient="auto"
-        >
+        <marker id="arrowhead-debug" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
           <polygon points="0 0, 10 3.5, 0 7" class="debug-link-arrow" />
         </marker>
         <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -226,12 +205,7 @@
       <g class="debug-links">
         <g v-for="link in debugLinkPaths" :key="link?.id">
           <path :d="link?.path" class="debug-link-path" marker-end="url(#arrowhead-debug)" />
-          <text
-            v-if="link?.midpoint"
-            :x="link.midpoint.x"
-            :y="link.midpoint.y"
-            class="debug-text debug-link-text"
-          >
+          <text v-if="link?.midpoint" :x="link.midpoint.x" :y="link.midpoint.y" class="debug-text debug-link-text">
             {{ link.debugText }}
           </text>
         </g>
@@ -240,13 +214,7 @@
       <!-- 绘制节点 -->
       <g class="debug-nodes">
         <g v-for="node in debugNodeRects" :key="node.id">
-          <rect
-            :x="node.x"
-            :y="node.y"
-            :width="node.width"
-            :height="node.height"
-            class="debug-node-rect"
-          />
+          <rect :x="node.x" :y="node.y" :width="node.width" :height="node.height" class="debug-node-rect" />
           <circle :cx="node.cx" :cy="node.cy" r="4" class="debug-node-center" />
           <line
             v-if="Math.abs(node.vx) > 0.01 || Math.abs(node.vy) > 0.01"
@@ -275,12 +243,7 @@
           />
           <!-- 节点信息文本 -->
           <text :x="node.x + 4" :y="node.y + 14" class="debug-text debug-node-text">
-            <tspan
-              v-for="(line, index) in node.textLines"
-              :key="index"
-              :x="node.x + 4"
-              :dy="index === 0 ? 0 : '1.2em'"
-            >
+            <tspan v-for="(line, index) in node.textLines" :key="index" :x="node.x + 4" :dy="index === 0 ? 0 : '1.2em'">
               {{ line }}
             </tspan>
           </text>
@@ -301,14 +264,7 @@
 
       <!-- 速度向量箭头标记 -->
       <defs>
-        <marker
-          id="arrowhead-velocity"
-          markerWidth="8"
-          markerHeight="6"
-          refX="7"
-          refY="3"
-          orient="auto"
-        >
+        <marker id="arrowhead-velocity" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
           <polygon points="0 0, 8 3, 0 6" class="debug-velocity-arrow" />
         </marker>
       </defs>
@@ -361,9 +317,9 @@
         <div class="view-setting-item mode-setting">
           <span class="setting-label">默认布局模式</span>
           <el-select v-model="viewSettings.defaultLayoutMode" size="small" style="width: 160px">
-            <el-option label="树状" value="tree" />
-            <el-option label="物理" value="physics" />
-            <el-option label="静态" value="static" />
+            <el-option label="动态树状" value="tree" />
+            <el-option label="物理引力" value="physics" />
+            <el-option label="静态树状" value="static" />
           </el-select>
         </div>
       </div>
@@ -391,7 +347,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed, reactive } from "vue";
-import { useStorage, useResizeObserver } from "@vueuse/core";
+import { useResizeObserver } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
@@ -453,22 +409,43 @@ useResizeObserver(wrapperRef, (entries) => {
   isNarrowLayout.value = width < 600;
 });
 
-// 视图设置状态 (持久化)
-const viewSettings = useStorage("llm-chat-flow-graph-view-settings", {
-  showBackground: true,
-  showMiniMap: true,
-  showControls: true,
-  showHud: true,
-  defaultLayoutMode: "tree" as "tree" | "physics" | "static",
-});
+// Composable
+const agentStore = useAgentStore();
+const llmChatStore = useLlmChatStore();
+const { settings: chatSettings, updateSettings, loadSettings, saveSettings } = useChatSettings();
+
+// 确保聊天设置已加载
+loadSettings();
+
+// 视图设置状态 (从全局聊天设置中获取)
+const viewSettings = computed(() => chatSettings.value.graphView);
 
 // 使用说明弹窗状态
 const isUsageGuideVisible = ref(false);
 
 // 控制栏展开状态
-const isControlsExpanded = useStorage("llm-chat-flow-graph-controls-expanded", true);
+const isControlsExpanded = computed({
+  get: () => chatSettings.value.graphView.isControlsExpanded,
+  set: (val) => {
+    updateSettings({
+      graphView: {
+        ...chatSettings.value.graphView,
+        isControlsExpanded: val,
+      },
+    });
+  },
+});
 
-// 历史记录面板状态
+// 监听视图设置的深层变化并持久化
+watch(
+  () => chatSettings.value.graphView,
+  () => {
+    saveSettings();
+  },
+  { deep: true }
+);
+
+// 上下文菜单状态
 const historyPanelState = ref({
   visible: false,
   x: 0,
@@ -517,14 +494,6 @@ const {
   resetLayout,
   toggleCompressionExpanded,
 } = useFlowTreeGraph(() => props.session, contextMenu, wrapperRef);
-
-const agentStore = useAgentStore();
-const llmChatStore = useLlmChatStore();
-const { settings: chatSettings } = useChatSettings();
-
-// 确保聊天设置已加载
-const { loadSettings } = useChatSettings();
-loadSettings();
 
 // 从 store 中获取历史记录相关的功能和状态
 // 使用 storeToRefs 来保持 canUndo 和 canRedo 的响应性
@@ -641,7 +610,7 @@ const agentConfigForDetail = computed(() => {
 
 // 切换布局模式
 const toggleLayoutMode = () => {
-  const modes: ('tree' | 'physics' | 'static')[] = ['tree', 'physics', 'static'];
+  const modes: ("tree" | "physics" | "static")[] = ["tree", "physics", "static"];
   const currentIndex = modes.indexOf(layoutMode.value);
   const newMode = modes[(currentIndex + 1) % modes.length];
   switchLayoutMode(newMode);
@@ -678,10 +647,7 @@ const copyDebugInfo = () => {
           height: (d3Node?.height ?? 0).toFixed(0),
         },
         fixed:
-          d3Node?.fx !== undefined &&
-          d3Node?.fx !== null &&
-          d3Node?.fy !== undefined &&
-          d3Node?.fy !== null
+          d3Node?.fx !== undefined && d3Node?.fx !== null && d3Node?.fy !== undefined && d3Node?.fy !== null
             ? { fx: d3Node.fx.toFixed(2), fy: d3Node.fy.toFixed(2) }
             : null,
         state: {
@@ -732,9 +698,7 @@ const copyDebugInfo = () => {
     const jsonString = JSON.stringify(debugInfo, null, 2);
     navigator.clipboard.writeText(jsonString).then(
       () => {
-        customMessage.success(
-          `已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`
-        );
+        customMessage.success(`已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`);
       },
       (err) => {
         console.error("复制失败:", err);
@@ -916,14 +880,8 @@ const debugLinkPaths = computed(() => {
   if (!debugMode.value) return [];
   return d3Links.value
     .map((link, index) => {
-      const source =
-        typeof link.source === "object"
-          ? link.source
-          : d3Nodes.value.find((n) => n.id === link.source);
-      const target =
-        typeof link.target === "object"
-          ? link.target
-          : d3Nodes.value.find((n) => n.id === link.target);
+      const source = typeof link.source === "object" ? link.source : d3Nodes.value.find((n) => n.id === link.source);
+      const target = typeof link.target === "object" ? link.target : d3Nodes.value.find((n) => n.id === link.target);
 
       if (!source || !target) return null;
 

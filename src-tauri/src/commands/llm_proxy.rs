@@ -15,15 +15,6 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
-
-// 辅助结构体：在被释放时触发取消令牌
-struct AbortOnDrop(CancellationToken);
-impl Drop for AbortOnDrop {
-    fn drop(&mut self) {
-        self.0.cancel();
-    }
-}
 
 // 全局代理服务状态
 pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
@@ -47,24 +38,24 @@ pub struct ProxyRequest {
     pub method: String,
     pub headers: HashMap<String, String>,
     pub body: serde_json::Value,
-    pub timeout: Option<u64>,                  // 超时时间（毫秒）
     pub relax_invalid_certs: Option<bool>,     // 是否放宽证书校验
     pub http1_only: Option<bool>,              // 是否强制 HTTP/1.1
     pub proxy_settings: Option<ProxySettings>, // 代理设置
-    pub is_streaming: Option<bool>,            // 是否为流式请求（SSE），若为 true 则不设置整体超时
+    pub is_streaming: Option<bool>,            // 是否为流式请求（SSE）
 }
 
 /// 递归处理 Body，查找并替换以 local-file:// 开头的本地路径
-fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
+async fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
     match value {
         serde_json::Value::Object(map) => {
             for (_, v) in map.iter_mut() {
-                process_body_recursive(v)?;
+                // 使用 Box::pin 处理递归异步
+                Box::pin(process_body_recursive(v)).await?;
             }
         }
         serde_json::Value::Array(arr) => {
             for v in arr.iter_mut() {
-                process_body_recursive(v)?;
+                Box::pin(process_body_recursive(v)).await?;
             }
         }
         serde_json::Value::String(s) => {
@@ -75,16 +66,18 @@ fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
                 let decoded_path = urlencoding::decode(path_str)
                     .map_err(|e| format!("Failed to decode path: {}", e))?;
 
-                // 使用 std::fs::read 没问题，因为这个函数是在 handle_proxy_request 中被调用的，
-                // 而 handle_proxy_request 是异步的，但 process_body_recursive 是递归同步的。
-                // 考虑到 LLM 请求通常在单独的线程池中处理，这里暂时保持同步读取。
-                if let Ok(bytes) = std::fs::read(decoded_path.as_ref()) {
-                    let b64 = STANDARD.encode(bytes);
-                    // 保留 local-file:// 之前的前缀（如 "data:video/mp4;base64,"）
-                    let prefix = &s[..pos];
-                    *value = serde_json::Value::String(format!("{}{}", prefix, b64));
-                } else {
-                    error!("Failed to read local file: {}", decoded_path);
+                // 切换为异步读取，避免阻塞运行时
+                match tokio::fs::read(decoded_path.as_ref()).await {
+                    Ok(bytes) => {
+                        let b64 = STANDARD.encode(bytes);
+                        let prefix = &s[..pos];
+                        *value = serde_json::Value::String(format!("{}{}", prefix, b64));
+                    }
+                    Err(e) => {
+                        let err_msg = format!("Failed to read local file {}: {}", decoded_path, e);
+                        error!("{}", err_msg);
+                        return Err(err_msg);
+                    }
                 }
             }
         }
@@ -92,30 +85,49 @@ fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), String> {
     }
     Ok(())
 }
+
 #[tauri::command]
 pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
     let mut state = PROXY_STATE.lock().await;
     if state.is_running {
-        return Ok(format!(
-            "LLM Proxy Server already running on port {}",
-            state.port
-        ));
+        if state.port == port {
+            return Ok(format!("LLM Proxy Server already running on port {}", port));
+        } else {
+            return Err(format!(
+                "LLM Proxy Server is already running on port {}. Cannot start on port {}.",
+                state.port, port
+            ));
+        }
     }
+
+    // 在主线程尝试绑定端口，确保及时反馈错误
+    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))
+        .await
+        .map_err(|e| format!("Failed to bind to port {}: {}", port, e))?;
 
     state.is_running = true;
     state.port = port;
 
+    let state_clone = PROXY_STATE.clone();
     tokio::spawn(async move {
+        // 显式移动 state 进入闭包并在服务器退出前持有，或者在这里 drop
+        // 实际上 state 是 MutexGuard，它在作用域结束时自动释放
+        // 保持 state 在这里被持有直到 spawn 完成，防止竞态
+        let _s = state;
+
         let app = Router::new()
             .route("/proxy", post(handle_proxy_request))
-            .layer(DefaultBodyLimit::max(500 * 1024 * 1024)) // 500MB
+            .layer(DefaultBodyLimit::max(256 * 1024 * 1024)) // 限制 body 大小为 256MB，更加安全
             .layer(tower_http::cors::CorsLayer::permissive());
 
-        let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))
-            .await
-            .unwrap();
-        info!("LLM Proxy Server started on http://127.0.0.1:{}", port);
-        axum::serve(listener, app).await.unwrap();
+        info!("LLM Proxy Server starting on http://127.0.0.1:{}", port);
+
+        if let Err(e) = axum::serve(listener, app).await {
+            error!("LLM Proxy Server error: {}", e);
+            // 发生错误时重置状态
+            let mut s = state_clone.lock().await;
+            s.is_running = false;
+        }
     });
 
     Ok(format!("LLM Proxy Server started on port {}", port))
@@ -142,8 +154,8 @@ async fn handle_proxy_request(
 
     let mut client_builder = reqwest::Client::builder()
         .danger_accept_invalid_certs(request.relax_invalid_certs.unwrap_or(true))
-        .user_agent("AIO-Hub/0.5.0")
-        .connect_timeout(std::time::Duration::from_secs(10))
+        .user_agent(format!("AIO-Hub/{}", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(std::time::Duration::from_secs(15))
         .tcp_keepalive(std::time::Duration::from_secs(60))
         .no_gzip()
         .no_brotli()
@@ -164,14 +176,12 @@ async fn handle_proxy_request(
             "custom" => {
                 if let Some(custom_url) = &proxy_settings.custom_url {
                     if !custom_url.is_empty() {
-                        match reqwest::Proxy::all(custom_url) {
-                            Ok(proxy) => {
-                                client_builder = client_builder.proxy(proxy);
-                            }
-                            Err(e) => {
-                                error!("Invalid custom proxy URL {}: {}", custom_url, e);
-                            }
-                        }
+                        let proxy = reqwest::Proxy::all(custom_url).map_err(|e| {
+                            let err_msg = format!("Invalid custom proxy URL {}: {}", custom_url, e);
+                            error!("{}", err_msg);
+                            (StatusCode::BAD_REQUEST, err_msg)
+                        })?;
+                        client_builder = client_builder.proxy(proxy);
                     }
                 }
             }
@@ -205,7 +215,7 @@ async fn handle_proxy_request(
     }
 
     // 处理本地文件读取
-    if let Err(e) = process_body_recursive(&mut request.body) {
+    if let Err(e) = process_body_recursive(&mut request.body).await {
         return Err((StatusCode::BAD_REQUEST, e));
     }
 
@@ -216,18 +226,13 @@ async fn handle_proxy_request(
     };
 
     let mut req = req_builder.headers(headers);
-    // 仅对非流式请求设置整体超时
-    // reqwest 的 timeout 计算的是从发送请求到 **完全接收完响应** 的总时间
-    // 对于 SSE 流式响应，长输出可能持续数分钟，整体超时会中途杀死连接
-    // 流式请求仅依赖 connect_timeout (10s) 保护连接建立阶段
+    // 移除后端的整体超时设置，完全交给前端 common.ts 控制。
+    // 前端已经实现了 TTFB (Time to First Byte) 超时检测。
+    // 后端仅保留 connect_timeout 保护连接建立阶段。
     let is_streaming = request.is_streaming.unwrap_or(false);
-    if !is_streaming {
-        if let Some(timeout_ms) = request.timeout {
-            req = req.timeout(std::time::Duration::from_millis(timeout_ms));
-        }
-    } else {
+    if is_streaming {
         info!(
-            "[Proxy] Streaming mode: skipping overall timeout for {}",
+            "[Proxy] Streaming mode: relaying stream for {}",
             request.url
         );
     }
@@ -236,22 +241,13 @@ async fn handle_proxy_request(
         req = req.json(&request.body);
     }
 
-    // 创建取消令牌，用于在客户端断开连接时取消上游请求
-    let cancel_token = CancellationToken::new();
-    let _abort_guard = AbortOnDrop(cancel_token.clone());
-
-    let response = tokio::select! {
-        res = req.send() => {
-            res.map_err(|e| {
-                error!("[Proxy-{}] Request failed: {}", request_id, e);
-                (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e))
-            })?
-        }
-        _ = cancel_token.cancelled() => {
-            info!("[Proxy-{}] Request cancelled by client disconnect (pre-response)", request_id);
-            return Err((StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_GATEWAY), "Client Disconnected".into()));
-        }
-    };
+    // 发送请求。
+    // 注意：Rust 的 Future 机制保证了如果客户端断开连接，Axum 会 drop 这个 handler future，
+    // 从而触发 reqwest 请求的 drop，实现自动取消。不需要额外的 CancellationToken。
+    let response = req.send().await.map_err(|e| {
+        error!("[Proxy-{}] Request failed: {}", request_id, e);
+        (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e))
+    })?;
 
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
@@ -288,59 +284,62 @@ async fn handle_proxy_request(
         }
     }
 
-    let mut upstream_stream = response.bytes_stream();
-    let request_id_stream = request_id.clone();
-    let url_stream = url_for_log.clone();
-    let cancel_token_stream = cancel_token.clone();
+    if is_streaming {
+        let mut upstream_stream = response.bytes_stream();
+        let request_id_stream = request_id.clone();
+        let url_stream = url_for_log.clone();
 
-    let stream = async_stream::stream! {
-        // 保持 _abort_guard 的所有权直到流结束
-        let _guard = _abort_guard;
-        let mut i = 0;
-        let mut total_bytes = 0;
+        // 注意：Axum 的 Body::from_stream 在客户端断开时会自动 drop stream。
+        // 由于 upstream_stream 持有 reqwest 的连接，drop stream 会自动中止上游请求。
+        let stream = async_stream::stream! {
+            let mut total_bytes = 0;
 
-        loop {
-            tokio::select! {
-                item = upstream_stream.next() => {
-                    match item {
-                        Some(Ok(bytes)) => {
-                            total_bytes += bytes.len();
-                            if i % 100 == 0 {
-                                info!(
-                                    "[Proxy-{}] Stream chunk #{} for {}, total {}KB",
-                                    request_id_stream, i, url_stream, total_bytes / 1024
-                                );
-                            }
-                            i += 1;
-                            yield Ok(bytes);
-                        }
-                        Some(Err(e)) => {
-                            error!(
-                                "[Proxy-{}] Stream error at chunk #{} for {} (received {}KB so far): {}",
-                                request_id_stream, i, url_stream, total_bytes / 1024, e
+            while let Some(item) = upstream_stream.next().await {
+                match item {
+                    Ok(bytes) => {
+                        total_bytes += bytes.len();
+                        // 降低日志频率，仅在 1MB 整数倍时记录
+                        if total_bytes > 0 && total_bytes % (1024 * 1024) < bytes.len() {
+                            info!(
+                                "[Proxy-{}] Stream progress for {}: {}KB",
+                                request_id_stream, url_stream, total_bytes / 1024
                             );
-                            yield Err(std::io::Error::other(e));
-                            break;
                         }
-                        None => {
-                            info!("[Proxy-{}] Stream completed for {}, total {}KB", request_id_stream, url_stream, total_bytes / 1024);
-                            break;
-                        }
+                        yield Ok(bytes);
+                    }
+                    Err(e) => {
+                        error!(
+                            "[Proxy-{}] Stream error for {} after {}KB: {}",
+                            request_id_stream, url_stream, total_bytes / 1024, e
+                        );
+                        yield Err(std::io::Error::other(e));
+                        break;
                     }
                 }
-                _ = cancel_token_stream.cancelled() => {
-                    info!("[Proxy-{}] Stream cancelled by client disconnect", request_id_stream);
-                    break;
-                }
             }
-        }
-    };
+            info!("[Proxy-{}] Stream completed for {}, total {}KB", request_id_stream, url_stream, total_bytes / 1024);
+        };
 
-    info!(
-        "[Proxy-{}] Starting stream relay for {} (streaming={})",
-        request_id, url_for_log, is_streaming
-    );
+        info!(
+            "[Proxy-{}] Starting stream relay for {}",
+            request_id, url_for_log
+        );
+        Ok((status, resp_headers, Body::from_stream(stream)))
+    } else {
+        // 非流式请求：直接获取全部字节，避免复杂的流转换逻辑
+        let bytes = response.bytes().await.map_err(|e| {
+            error!("[Proxy-{}] Failed to read full response: {}", request_id, e);
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to read response: {}", e),
+            )
+        })?;
 
-    let body = Body::from_stream(stream);
-    Ok((status, resp_headers, body))
+        info!(
+            "[Proxy-{}] Request completed, total {}KB",
+            request_id,
+            bytes.len() / 1024
+        );
+        Ok((status, resp_headers, Body::from(bytes)))
+    }
 }

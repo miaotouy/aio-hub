@@ -712,7 +712,6 @@ export const fetchWithTimeout = async (
         method: options.method || "POST",
         headers: options.headers as Record<string, string>,
         body: bodyObjForProxy,
-        timeout: timeout,
         relax_invalid_certs: options.relaxIdCerts,
         http1_only: options.http1Only,
         proxy_settings: proxySettings,

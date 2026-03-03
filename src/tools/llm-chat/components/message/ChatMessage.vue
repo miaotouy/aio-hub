@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from "vue";
-import { useResizeObserver } from "@vueuse/core";
+import { useResizeObserver, useThrottleFn } from "@vueuse/core";
 import type { ChatMessageNode, ChatSession } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import MessageHeader from "./MessageHeader.vue";
@@ -64,21 +64,55 @@ const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay =
 // ===== 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) =====
 const messageRef = ref<HTMLElement | null>(null);
 const messageHeight = ref(0);
+const lastEmittedHeight = ref(0); // 记录上次 emit 时的高度
 const BLOCK_SIZE = 2000; // 每个背景块的高度限制在 2000px 以内
+const HEIGHT_CHANGE_THRESHOLD = 100; // 高度变化阈值（px），超过此值才重新测量
+
+// 节流的 resize 通知函数
+const throttledEmitResize = useThrottleFn(() => {
+  emit("resize", messageRef.value);
+  lastEmittedHeight.value = messageHeight.value;
+}, 200); // 200ms 节流，平衡性能和响应速度
 
 useResizeObserver(messageRef, (entries) => {
   const entry = entries[0];
   const { height } = entry.contentRect;
   messageHeight.value = height;
+
+  // 如果正在编辑，不触发 resize（编辑状态变化会单独处理）
+  if (isEditing.value) return;
+
+  // 计算高度变化量
+  const heightDelta = Math.abs(height - lastEmittedHeight.value);
+
+  // 只在高度显著变化时才通知虚拟列表重新测量
+  // 这样可以避免流式输出时的高频重绘，同时确保大幅度变化能被捕获
+  if (heightDelta > HEIGHT_CHANGE_THRESHOLD) {
+    throttledEmitResize();
+  }
 });
 
 // 监听编辑状态变化，通知父组件重新测量高度
-// 注意：不要在 useResizeObserver 中全量 emit，否则流式输出时会导致虚拟列表频繁重绘导致抽搐
 watch(isEditing, () => {
   nextTick(() => {
     emit("resize", messageRef.value);
+    lastEmittedHeight.value = messageHeight.value;
   });
 });
+
+// 监听消息生成状态，在流式输出结束时进行最终测量
+watch(
+  () => props.message.status,
+  (newStatus, oldStatus) => {
+    // 当消息从 generating 变为其他状态时，进行最终测量
+    if (oldStatus === "generating" && newStatus !== "generating") {
+      nextTick(() => {
+        emit("resize", messageRef.value);
+        lastEmittedHeight.value = messageHeight.value;
+      });
+    }
+  }
+);
 
 // 计算需要多少个背景块
 const backgroundBlocks = computed(() => {

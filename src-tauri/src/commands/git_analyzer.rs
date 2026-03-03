@@ -859,15 +859,13 @@ fn parse_commit_optimized(
     let author_name = author.name().unwrap_or("Unknown").to_string();
     let author_email = author.email().unwrap_or("").to_string();
 
-    // 获取时间（转换为 ISO 8601 格式）
+    // 获取时间（统一转换为 UTC 时间的 ISO 8601 格式）
     let time = commit.time();
-    let offset = chrono::FixedOffset::east_opt(time.offset_minutes() * 60)
-        .ok_or_else(|| "Invalid timezone offset".to_string())?;
-    let datetime_with_tz = offset
+    let datetime_utc = chrono::Utc
         .timestamp_opt(time.seconds(), 0)
         .single()
         .ok_or_else(|| "Invalid timestamp".to_string())?;
-    let date_str = datetime_with_tz.to_rfc3339();
+    let date_str = datetime_utc.to_rfc3339();
 
     // 获取提交消息
     let message = commit.message().unwrap_or("").to_string();

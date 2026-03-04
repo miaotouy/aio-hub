@@ -27,7 +27,7 @@ jobs:
       - name: 安装依赖 (Ubuntu)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev libfuse2
 
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
@@ -88,9 +88,9 @@ jobs:
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           
-          # 重新打包 AppImage
+          # 重新打包 AppImage (使用 --appimage-extract-and-run 避免 FUSE 问题)
           echo "重新打包 AppImage..."
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage squashfs-root "$APPIMAGE_PATH"
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run squashfs-root "$APPIMAGE_PATH"
           
           # 移动到输出目录
           mkdir -p appimage-output

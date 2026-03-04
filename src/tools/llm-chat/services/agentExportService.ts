@@ -241,23 +241,30 @@ export async function exportAgents(
         return null;
       };
 
-      const saveAssetToExport = async (binary: Uint8Array, relativePath: string): Promise<string> => {
+      const saveAssetToExport = async (binary: Uint8Array, relativePath: string, isIcon: boolean = false): Promise<string> => {
         const cleanPath = relativePath.replace(/\.\./g, '__').replace(/^[/\\]+/, '');
-        const exportPath = cleanPath.startsWith('assets/') ? cleanPath : `assets/${cleanPath}`;
+        
+        // 头像文件直接放在智能体根目录，其他资产放 assets/ 子目录
+        let exportPath: string;
+        if (isIcon) {
+          // 头像：提取文件名，放在根目录
+          const filename = cleanPath.split(/[/\\]/).pop() || 'avatar.png';
+          exportPath = filename;
+        } else {
+          // 其他资产：确保在 assets/ 目录下
+          exportPath = cleanPath.startsWith('assets/') ? cleanPath : `assets/${cleanPath}`;
+        }
+
+        // 根据智能体数量决定是否需要子文件夹
+        const needSubFolder = agents.length > 1 || separateFolders;
+        const finalPath = needSubFolder ? `${uniqueName}/${exportPath}` : exportPath;
 
         if (exportType === 'zip' || exportType === 'png') {
-          if (separateFolders && zip) {
-            zip.folder(uniqueName)?.file(exportPath, binary);
-          } else if (zip) {
-            zip.file(exportPath, binary);
+          if (zip) {
+            zip.file(finalPath, binary);
           }
         } else if (exportType === 'folder' && targetDir) {
-          let assetPath: string;
-          if (separateFolders) {
-            assetPath = await join(targetDir, uniqueName, exportPath);
-          } else {
-            assetPath = await join(targetDir, exportPath);
-          }
+          const assetPath = await join(targetDir, finalPath);
           try {
             await invoke('write_file_force', {
               path: assetPath,
@@ -271,10 +278,10 @@ export async function exportAgents(
         return exportPath;
       };
 
-      const processAssetsRecursively = async (obj: any): Promise<any> => {
+      const processAssetsRecursively = async (obj: any, parentKey: string = ''): Promise<any> => {
         if (!obj || typeof obj !== 'object') return obj;
         if (Array.isArray(obj)) {
-          return Promise.all(obj.map(item => processAssetsRecursively(item)));
+          return Promise.all(obj.map(item => processAssetsRecursively(item, parentKey)));
         }
         const newObj = { ...obj };
         for (const [key, value] of Object.entries(newObj)) {
@@ -282,13 +289,15 @@ export async function exportAgents(
             try {
               const binary = await readAgentAsset(value);
               if (binary) {
-                newObj[key] = await saveAssetToExport(binary, value);
+                // 判断是否为头像字段
+                const isIcon = key === 'icon' || parentKey === 'avatarHistory';
+                newObj[key] = await saveAssetToExport(binary, value, isIcon);
               }
             } catch (e) {
               logger.warn(`导出资产失败: ${value}`, e as Error);
             }
           } else if (typeof value === 'object') {
-            newObj[key] = await processAssetsRecursively(value);
+            newObj[key] = await processAssetsRecursively(value, key);
           }
         }
         return newObj;

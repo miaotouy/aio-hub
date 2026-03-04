@@ -74,15 +74,50 @@ export async function preflightImportAgents(
           throw new Error(`ZIP 文件 ${file.name} 中未找到 agent.json 或 agent.yaml`);
         }
 
-        const assetFiles = zipContent.file(/^assets\/.*/);
-        for (const assetFile of assetFiles) {
-          if (!assetFile.dir) {
-            const binary = await assetFile.async("arraybuffer");
-            fileAssets[assetFile.name] = binary;
+        // 获取配置文件所在的目录（可能在根目录或子文件夹中）
+        const configFile = agentJsonFile || agentYamlFile;
+        const configPath = configFile.name;
+        const agentSubDir = configPath.includes("/") ? configPath.substring(0, configPath.lastIndexOf("/") + 1) : "";
+
+        // 收集所有资产文件（支持新旧两种结构）
+        // 新结构：[agentSubDir]/avatar.png, [agentSubDir]/assets/xxx
+        // 旧结构：assets/xxx（根目录）
+        const allFiles = Object.keys(zipContent.files);
+        for (const filePath of allFiles) {
+          const zipEntry = zipContent.files[filePath];
+          if (zipEntry.dir) continue;
+
+          // 跳过配置文件和世界书
+          if (filePath.endsWith(".agent.json") || filePath.endsWith(".agent.yaml") || filePath.endsWith(".agent.yml"))
+            continue;
+          if (filePath.includes("worldbooks/")) continue;
+
+          // 判断是否为资产文件
+          let isAsset = false;
+          let normalizedPath = filePath;
+
+          if (agentSubDir && filePath.startsWith(agentSubDir)) {
+            // 新结构：在智能体子目录下
+            const relativePath = filePath.substring(agentSubDir.length);
+            if (relativePath.startsWith("assets/") || !relativePath.includes("/")) {
+              // assets/ 子目录下的文件，或根目录下的文件（如头像）
+              isAsset = true;
+              normalizedPath = relativePath.startsWith("assets/") ? relativePath : `assets/${relativePath}`;
+            }
+          } else if (filePath.startsWith("assets/")) {
+            // 旧结构：根目录的 assets/
+            isAsset = true;
+            normalizedPath = filePath;
+          }
+
+          if (isAsset) {
+            const binary = await zipEntry.async("arraybuffer");
+            fileAssets[normalizedPath] = binary;
           }
         }
 
-        const wbFiles = zipContent.file(/^worldbooks\/.*/);
+        // 处理世界书文件
+        const wbFiles = zipContent.file(/worldbooks\/.*/);
         for (const wbFile of wbFiles) {
           if (!wbFile.dir) {
             const text = await wbFile.async("text");
@@ -182,15 +217,43 @@ export async function preflightImportAgents(
             throw new Error(`PNG 包中的 ZIP 数据未包含 agent.json 或 agent.yaml`);
           }
 
-          const assetFiles = zipContent.file(/^assets\/.*/);
-          for (const assetFile of assetFiles) {
-            if (!assetFile.dir) {
-              const binary = await assetFile.async("arraybuffer");
-              fileAssets[assetFile.name] = binary;
+          // 获取配置文件所在的目录
+          const configFile = agentJsonFile || agentYamlFile;
+          const configPath = configFile.name;
+          const agentSubDir = configPath.includes("/") ? configPath.substring(0, configPath.lastIndexOf("/") + 1) : "";
+
+          // 收集所有资产文件（支持新旧两种结构）
+          const allFiles = Object.keys(zipContent.files);
+          for (const filePath of allFiles) {
+            const zipEntry = zipContent.files[filePath];
+            if (zipEntry.dir) continue;
+
+            if (filePath.endsWith(".agent.json") || filePath.endsWith(".agent.yaml") || filePath.endsWith(".agent.yml"))
+              continue;
+            if (filePath.includes("worldbooks/")) continue;
+
+            let isAsset = false;
+            let normalizedPath = filePath;
+
+            if (agentSubDir && filePath.startsWith(agentSubDir)) {
+              const relativePath = filePath.substring(agentSubDir.length);
+              if (relativePath.startsWith("assets/") || !relativePath.includes("/")) {
+                isAsset = true;
+                normalizedPath = relativePath.startsWith("assets/") ? relativePath : `assets/${relativePath}`;
+              }
+            } else if (filePath.startsWith("assets/")) {
+              isAsset = true;
+              normalizedPath = filePath;
+            }
+
+            if (isAsset) {
+              const binary = await zipEntry.async("arraybuffer");
+              fileAssets[normalizedPath] = binary;
             }
           }
 
-          const wbFiles = zipContent.file(/^worldbooks\/.*/);
+          // 处理世界书文件
+          const wbFiles = zipContent.file(/worldbooks\/.*/);
           for (const wbFile of wbFiles) {
             if (!wbFile.dir) {
               const text = await wbFile.async("text");
@@ -425,24 +488,32 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
         keyRef: string;
       }> = [];
 
-      // 递归扫描所有 assets/ 引用
-      const scanAssets = (obj: any) => {
+      // 递归扫描所有资产引用（支持 assets/ 前缀和无前缀的头像）
+      const scanAssets = (obj: any, parentKey: string = "") => {
         if (!obj || typeof obj !== "object") return;
         for (const key in obj) {
           const value = obj[key];
-          if (typeof value === "string" && value.startsWith("assets/")) {
-            const binary = agentAssets[value];
-            if (binary) {
+          if (typeof value === "string") {
+            // 检查是否为资产路径
+            let assetPath: string | null = null;
+            if (value.startsWith("assets/")) {
+              assetPath = value;
+            } else if ((key === "icon" || parentKey === "avatarHistory") && agentAssets[`assets/${value}`]) {
+              // 头像可能没有 assets/ 前缀，尝试添加前缀查找
+              assetPath = `assets/${value}`;
+            }
+
+            if (assetPath && agentAssets[assetPath]) {
               pendingAssets.push({
                 type: key === "icon" ? "icon" : "asset",
-                binary,
-                originalPath: value,
+                binary: agentAssets[assetPath],
+                originalPath: assetPath,
                 objectRef: obj,
                 keyRef: key,
               });
             }
           } else if (typeof value === "object") {
-            scanAssets(value);
+            scanAssets(value, key);
           }
         }
       };

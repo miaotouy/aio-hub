@@ -4,7 +4,6 @@ import { useWebDistilleryStore } from "../stores/store";
 import { quickFetch, smartExtract, processLocalContent } from "../actions";
 import { webviewBridge } from "../core/webview-bridge";
 import { customMessage } from "@/utils/customMessage";
-import { useNotification } from "@/composables/useNotification";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -19,7 +18,6 @@ import RecipeEditor from "./RecipeEditor.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery/workbench");
 const logger = createModuleLogger("web-distillery/workbench");
-const notify = useNotification();
 const { sendToChat } = useSendToChat();
 const store = useWebDistilleryStore();
 
@@ -153,11 +151,6 @@ async function handleFetch(level: 0 | 1 | 2) {
       if (!result) return;
 
       store.setResult(result);
-      if (result.quality < 0.4) {
-        notify.warning("提取质量偏低", "页面可能需要 JS 渲染，建议切换到 Level 1 智能提取。", {
-          source: "web-distillery",
-        });
-      }
     } else if (level === 1) {
       await webviewBridge.init();
       const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });

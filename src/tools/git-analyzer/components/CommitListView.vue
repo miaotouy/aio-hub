@@ -32,12 +32,7 @@
               >
                 <template #reference>
                   <span style="display: inline-flex; gap: 4px; align-items: center">
-                    <el-tag
-                      v-for="branch in commit.branches.slice(0, 2)"
-                      :key="branch"
-                      type="success"
-                      size="small"
-                    >
+                    <el-tag v-for="branch in commit.branches.slice(0, 2)" :key="branch" type="success" size="small">
                       {{ branch }}
                     </el-tag>
                     <el-tag type="info" size="small">
@@ -68,6 +63,21 @@
                 </div>
               </el-popover>
               <span class="commit-author">{{ commit.author }}</span>
+              <el-dropdown trigger="click" @click.stop class="commit-menu-dropdown">
+                <el-button size="small" circle :icon="MoreFilled" @click.stop class="commit-menu-btn" />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="setAsRangeStart(commit)">
+                      <el-icon><Top /></el-icon>
+                      设为起始位置
+                    </el-dropdown-item>
+                    <el-dropdown-item @click="setAsRangeEnd(commit)">
+                      <el-icon><Bottom /></el-icon>
+                      设为结束位置
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
             <div class="commit-message">{{ commit.message }}</div>
             <div class="commit-stats" v-if="commit.stats">
@@ -95,9 +105,10 @@
 </template>
 
 <script setup lang="ts">
-import { PriceTag } from "@element-plus/icons-vue";
+import { PriceTag, MoreFilled, Top, Bottom } from "@element-plus/icons-vue";
 import { GitBranch } from "lucide-vue-next";
 import InfoCard from "@/components/common/InfoCard.vue";
+import { customMessage } from "@/utils/customMessage";
 import type { GitCommit } from "../types";
 
 interface Props {
@@ -113,8 +124,10 @@ const props = defineProps<Props>();
 
 const currentPage = defineModel<number>("currentPage", { required: true });
 
-defineEmits<{
+const emit = defineEmits<{
   "select-commit": [commit: GitCommit];
+  "set-range-start": [index: number];
+  "set-range-end": [index: number];
 }>();
 
 function formatDate(dateStr: string): string {
@@ -132,6 +145,24 @@ function formatDate(dateStr: string): string {
 function getOriginalIndex(commit: GitCommit): number {
   const index = props.commits.findIndex((c) => c.hash === commit.hash);
   return index !== -1 ? index + 1 : 0;
+}
+
+// 设置为范围起始位置
+function setAsRangeStart(commit: GitCommit) {
+  const index = props.commits.findIndex((c) => c.hash === commit.hash);
+  if (index !== -1) {
+    emit("set-range-start", index);
+    customMessage.success(`已设置 #${index + 1} 为起始位置`);
+  }
+}
+
+// 设置为范围结束位置
+function setAsRangeEnd(commit: GitCommit) {
+  const index = props.commits.findIndex((c) => c.hash === commit.hash);
+  if (index !== -1) {
+    emit("set-range-end", index);
+    customMessage.success(`已设置 #${index + 1} 为结束位置`);
+  }
 }
 </script>
 
@@ -173,6 +204,20 @@ function getOriginalIndex(commit: GitCommit): number {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  position: relative;
+}
+
+.commit-menu-dropdown {
+  margin-left: auto;
+}
+
+.commit-menu-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.commit-card:hover .commit-menu-btn {
+  opacity: 1;
 }
 
 .commit-sequence {
@@ -214,5 +259,4 @@ function getOriginalIndex(commit: GitCommit): number {
 .files {
   color: var(--text-color-light);
 }
-
 </style>

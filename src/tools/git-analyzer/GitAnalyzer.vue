@@ -32,7 +32,6 @@
           @load-branches="loadBranches"
           @load-repository="loadRepository"
           @branch-change="handleBranchChange"
-
           @filter-commits="filterCommits"
           @clear-filters="clearFilters"
           @cancel-loading="cancelLoading"
@@ -51,6 +50,8 @@
                 :paginated-commits="paginatedCommits"
                 :page-size="pageSize"
                 @select-commit="selectCommit"
+                @set-range-start="handleSetRangeStart"
+                @set-range-end="handleSetRangeEnd"
               />
             </el-tab-pane>
 
@@ -149,7 +150,6 @@ const {
   updateCommitMessage,
 } = useGitAnalyzerRunner();
 
-
 // Charts 视图引用
 const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 
@@ -183,6 +183,19 @@ async function handleBranchChange(branch: string) {
     clearCache(); // 切换分支时清空缓存
   }
 }
+
+// 处理设置范围起始位置
+function handleSetRangeStart(index: number) {
+  commitRange.value = [index, commitRange.value[1]];
+  filterCommits();
+}
+
+// 处理设置范围结束位置
+function handleSetRangeEnd(index: number) {
+  commitRange.value = [commitRange.value[0], index];
+  filterCommits();
+}
+
 // 显示导出对话框
 
 function showExportDialog() {

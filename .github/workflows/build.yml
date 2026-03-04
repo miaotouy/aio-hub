@@ -140,35 +140,38 @@ jobs:
               if [ -n "$APPIMAGE_PATH" ]; then
                 echo "正在处理 AppImage: $APPIMAGE_PATH"
                 
-                # 解包 AppImage
+                # 解包 AppImage 到 app-content 目录
                 chmod +x "$APPIMAGE_PATH"
                 "$APPIMAGE_PATH" --appimage-extract
+                mv squashfs-root app-content
                 
                 # 删除底层图形栈库（避免与宿主系统冲突）
                 echo "移除底层图形栈库..."
-                rm -f squashfs-root/usr/lib/libwayland-*.so.* || true
-                rm -f squashfs-root/usr/lib/libepoxy.so.* || true
-                rm -f squashfs-root/usr/lib/libEGL*.so.* || true
-                rm -f squashfs-root/usr/lib/libgbm*.so.* || true
-                rm -f squashfs-root/usr/lib/libdrm*.so.* || true
-                rm -f squashfs-root/usr/lib/libGLESv2*.so.* || true
+                rm -f app-content/usr/lib/libwayland-*.so.* || true
+                rm -f app-content/usr/lib/libepoxy.so.* || true
+                rm -f app-content/usr/lib/libEGL*.so.* || true
+                rm -f app-content/usr/lib/libgbm*.so.* || true
+                rm -f app-content/usr/lib/libdrm*.so.* || true
+                rm -f app-content/usr/lib/libGLESv2*.so.* || true
                 
                 # 添加 Wayland 兼容性环境变量到 AppRun
-                if [ -f squashfs-root/AppRun ]; then
-                  # 在 AppRun 开头添加环境变量设置
-                  sed -i '2i\# Wayland compatibility\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' squashfs-root/AppRun
+                if [ -f app-content/AppRun ]; then
+                  sed -i '2i\# Wayland compatibility\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' app-content/AppRun
                 fi
                 
-                # 重新打包 AppImage (使用 --appimage-extract-and-run 避免 FUSE 问题)
+                # 下载并解包 appimagetool (避免 FUSE 依赖)
                 wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
                 chmod +x appimagetool-x86_64.AppImage
-                ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run squashfs-root "$APPIMAGE_PATH"
+                ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+                
+                # 重新打包 AppImage (直接使用解包后的 appimagetool)
+                ARCH=x86_64 ./squashfs-root/AppRun app-content "$APPIMAGE_PATH"
                 
                 # 复制处理后的 AppImage
                 cp "$APPIMAGE_PATH" dist-artifacts/
                 
                 # 清理临时文件
-                rm -rf squashfs-root appimagetool-x86_64.AppImage
+                rm -rf squashfs-root app-content appimagetool-x86_64.AppImage
                 
                 echo "AppImage 后处理完成"
               else

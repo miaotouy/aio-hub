@@ -314,9 +314,10 @@ export function useGitAnalyzerRunner() {
       logger.info(`应用筛选`, state.filterSummary.value);
     }
     // 首先根据范围选择器从原始列表中切片
+    // slice 的 end 参数不包含该索引，所以需要 +1 来包含结束位置的提交
     const rangedCommits = state.commits.value.slice(
       state.commitRange.value[0],
-      state.commitRange.value[1]
+      state.commitRange.value[1] + 1
     );
 
     // 应用筛选

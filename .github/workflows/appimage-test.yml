@@ -1,0 +1,118 @@
+name: 手动测试 AppImage 构建
+
+on:
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: read
+
+jobs:
+  build-appimage:
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: 安装依赖 (Ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: 安装前端依赖
+        run: bun install
+
+      - name: 构建应用
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --target x86_64-unknown-linux-gnu --bundles appimage
+
+      - name: AppImage 后处理 (移除底层图形栈库)
+        run: |
+          # 查找生成的 AppImage
+          APPIMAGE_PATH=$(find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle -name "*.AppImage" | head -n 1)
+          
+          if [ -z "$APPIMAGE_PATH" ]; then
+            echo "错误: 未找到 AppImage 文件"
+            exit 1
+          fi
+          
+          echo "正在处理 AppImage: $APPIMAGE_PATH"
+          
+          # 解包 AppImage
+          chmod +x "$APPIMAGE_PATH"
+          "$APPIMAGE_PATH" --appimage-extract
+          
+          # 删除底层图形栈库（避免与宿主系统冲突）
+          echo "移除底层图形栈库..."
+          rm -f squashfs-root/usr/lib/libwayland-*.so.* || true
+          rm -f squashfs-root/usr/lib/libepoxy.so.* || true
+          rm -f squashfs-root/usr/lib/libEGL*.so.* || true
+          rm -f squashfs-root/usr/lib/libgbm*.so.* || true
+          rm -f squashfs-root/usr/lib/libdrm*.so.* || true
+          rm -f squashfs-root/usr/lib/libGLESv2*.so.* || true
+          
+          echo "已删除的库："
+          echo "- libwayland-*.so.*"
+          echo "- libepoxy.so.*"
+          echo "- libEGL*.so.*"
+          echo "- libgbm*.so.*"
+          echo "- libdrm*.so.*"
+          echo "- libGLESv2*.so.*"
+          
+          # 添加 Wayland 兼容性环境变量到 AppRun
+          if [ -f squashfs-root/AppRun ]; then
+            echo "添加 Wayland 兼容性环境变量..."
+            sed -i '2i\# Wayland compatibility\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' squashfs-root/AppRun
+          fi
+          
+          # 下载 appimagetool
+          echo "下载 appimagetool..."
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          
+          # 重新打包 AppImage
+          echo "重新打包 AppImage..."
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage squashfs-root "$APPIMAGE_PATH"
+          
+          # 移动到输出目录
+          mkdir -p appimage-output
+          cp "$APPIMAGE_PATH" appimage-output/
+          
+          # 清理临时文件
+          rm -rf squashfs-root appimagetool-x86_64.AppImage
+          
+          echo "AppImage 后处理完成"
+          echo "输出文件："
+          ls -lh appimage-output/
+
+      - name: 获取版本号
+        id: get-version
+        shell: bash
+        run: |
+          VERSION=$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: 上传 AppImage 测试产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-hub-test-${{ steps.get-version.outputs.version }}-linux-x64-appimage
+          path: appimage-output/*.AppImage
+          if-no-files-found: error

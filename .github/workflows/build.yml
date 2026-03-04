@@ -134,7 +134,46 @@ jobs:
             "x86_64-unknown-linux-gnu")
               # Linux: 从各自的子目录中提取 .deb 和 .AppImage
               find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.deb" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
-              find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.AppImage" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+              
+              # AppImage 后处理：移除底层图形栈库以避免与滚动发行版冲突
+              APPIMAGE_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.AppImage" | head -n 1)
+              if [ -n "$APPIMAGE_PATH" ]; then
+                echo "正在处理 AppImage: $APPIMAGE_PATH"
+                
+                # 解包 AppImage
+                chmod +x "$APPIMAGE_PATH"
+                "$APPIMAGE_PATH" --appimage-extract
+                
+                # 删除底层图形栈库（避免与宿主系统冲突）
+                echo "移除底层图形栈库..."
+                rm -f squashfs-root/usr/lib/libwayland-*.so.* || true
+                rm -f squashfs-root/usr/lib/libepoxy.so.* || true
+                rm -f squashfs-root/usr/lib/libEGL*.so.* || true
+                rm -f squashfs-root/usr/lib/libgbm*.so.* || true
+                rm -f squashfs-root/usr/lib/libdrm*.so.* || true
+                rm -f squashfs-root/usr/lib/libGLESv2*.so.* || true
+                
+                # 添加 Wayland 兼容性环境变量到 AppRun
+                if [ -f squashfs-root/AppRun ]; then
+                  # 在 AppRun 开头添加环境变量设置
+                  sed -i '2i\# Wayland compatibility\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' squashfs-root/AppRun
+                fi
+                
+                # 重新打包 AppImage
+                wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+                chmod +x appimagetool-x86_64.AppImage
+                ARCH=x86_64 ./appimagetool-x86_64.AppImage squashfs-root "$APPIMAGE_PATH"
+                
+                # 复制处理后的 AppImage
+                cp "$APPIMAGE_PATH" dist-artifacts/
+                
+                # 清理临时文件
+                rm -rf squashfs-root appimagetool-x86_64.AppImage
+                
+                echo "AppImage 后处理完成"
+              else
+                echo "警告: 未找到 AppImage 文件"
+              fi
               ;;
             *-apple-darwin)
               # macOS: 从 dmg/ 目录中提取 .dmg

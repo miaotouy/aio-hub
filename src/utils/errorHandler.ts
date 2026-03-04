@@ -3,25 +3,25 @@
  * 提供统一的错误捕获、处理和用户提示
  */
 
-import { ElNotification } from 'element-plus';
-import { escape } from 'lodash-es';
-import { createModuleLogger } from './logger';
-import { customMessage } from './customMessage';
+import { ElNotification } from "element-plus";
+import { escape } from "lodash-es";
+import { createModuleLogger } from "./logger";
+import { customMessage } from "./customMessage";
 
-const logger = createModuleLogger('ErrorHandler');
+const logger = createModuleLogger("ErrorHandler");
 
 /**
  * 错误级别
  */
 export enum ErrorLevel {
   /** 信息 - 不中断用户操作 */
-  INFO = 'info',
+  INFO = "info",
   /** 警告 - 可能影响用户体验 */
-  WARNING = 'warning',
+  WARNING = "warning",
   /** 错误 - 影响功能但不崩溃 */
-  ERROR = 'error',
+  ERROR = "error",
   /** 严重 - 可能导致应用崩溃 */
-  CRITICAL = 'critical',
+  CRITICAL = "critical",
 }
 
 /**
@@ -60,31 +60,26 @@ export interface StandardError {
 class GlobalErrorHandler {
   private errorQueue: StandardError[] = [];
   private maxQueueSize = 100;
+  /** 用户提示消息的最大长度 */
+  private maxUserMessageLength = 500;
 
   /**
    * 标准化错误
    */
-  private standardizeError(
-    error: any,
-    options: ErrorHandlerOptions = {}
-  ): StandardError {
-    const {
-      level = ErrorLevel.ERROR,
-      context = {},
-      module = 'Unknown',
-    } = options;
+  private standardizeError(error: any, options: ErrorHandlerOptions = {}): StandardError {
+    const { level = ErrorLevel.ERROR, context = {}, module = "Unknown" } = options;
 
-    let message = '未知错误';
+    let message = "未知错误";
     let stack: string | undefined;
     let code: string | undefined;
 
     if (error instanceof Error) {
-      message = error.message || '未知错误';
+      message = error.message || "未知错误";
       stack = error.stack;
       code = (error as { code?: string }).code;
-    } else if (typeof error === 'string') {
+    } else if (typeof error === "string") {
       message = error;
-    } else if (error && typeof error === 'object') {
+    } else if (error && typeof error === "object") {
       message = error.message || JSON.stringify(error);
       code = error.code;
       stack = error.stack;
@@ -107,15 +102,15 @@ class GlobalErrorHandler {
    */
   handle(error: any, options: ErrorHandlerOptions = {}): StandardError {
     // 特殊处理：AbortError 是用户主动取消操作，不应该作为错误处理
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (error instanceof Error && error.name === "AbortError") {
       const standardError = this.standardizeError(error, {
         ...options,
         level: ErrorLevel.INFO,
       });
 
       // 只记录到日志，不显示给用户
-      logger.info('操作已取消', {
-        module: options.module || 'Unknown',
+      logger.info("操作已取消", {
+        module: options.module || "Unknown",
         context: options.context,
       });
 
@@ -170,45 +165,52 @@ class GlobalErrorHandler {
   }
 
   /**
+   * 截断过长的消息
+   */
+  private truncateMessage(message: string, maxLength: number): string {
+    if (message.length <= maxLength) {
+      return message;
+    }
+    return message.slice(0, maxLength) + "... (详情见日志)";
+  }
+
+  /**
    * 显示错误给用户
    */
   private showToUser(error: StandardError, userMessage?: string): void {
     const friendlyMessage = this.getUserFriendlyMessage(error);
-    const safeFriendlyMessage = escape(friendlyMessage);
+    const truncatedMessage = this.truncateMessage(friendlyMessage, this.maxUserMessageLength);
+    const safeFriendlyMessage = escape(truncatedMessage);
     const safeModule = escape(error.module);
-    const safeUserMessage = userMessage ? escape(userMessage) : '';
+    const safeUserMessage = userMessage ? escape(userMessage) : "";
 
     // 构建 HTML 格式的消息
-    let htmlMessage = '';
-if (safeUserMessage) {
-  // 如果有自定义消息，将其作为主标题，错误详情作为辅助信息
-  // 使用内联样式以确保在 ElMessage 中正确渲染
-  htmlMessage = `
+    let htmlMessage = "";
+    if (safeUserMessage) {
+      // 如果有自定义消息，将其作为主标题，错误详情作为辅助信息
+      // 使用内联样式以确保在 ElMessage 中正确渲染
+      htmlMessage = `
     <div style="display: flex; flex-direction: column; gap: 4px;">
-      ${
-        error.module !== 'Unknown'
-          ? `<span style="font-size: 12px; opacity: 0.6;">[${safeModule}]</span>`
-          : ''
-      }
+      ${error.module !== "Unknown" ? `<span style="font-size: 12px; opacity: 0.6;">[${safeModule}]</span>` : ""}
       <span style="font-weight: bold; font-size: 14px; line-height: 1.4;">${safeUserMessage}</span>
       <span style="font-size: 12px; opacity: 0.8; margin-top: 2px; padding-top: 4px; border-top: 1px solid rgba(128, 128, 128, 0.2); word-break: break-all; user-select: text; line-height: 1.4;">
         ${safeFriendlyMessage}
       </span>
     </div>
   `;
-} else {
-  // 如果没有自定义消息，直接显示错误详情
-  htmlMessage = `
+    } else {
+      // 如果没有自定义消息，直接显示错误详情
+      htmlMessage = `
     <div style="display: flex; flex-direction: column; gap: 4px;">
       ${
-        error.module !== 'Unknown'
+        error.module !== "Unknown"
           ? `<span style="font-weight: bold; font-size: 12px; opacity: 0.8;">[${safeModule}]</span>`
-          : ''
+          : ""
       }
       <span style="font-size: 14px; line-height: 1.4; word-break: break-all; user-select: text;">${safeFriendlyMessage}</span>
     </div>
   `;
-}
+    }
     const options = {
       dangerouslyUseHTMLString: true,
       message: htmlMessage,
@@ -228,7 +230,7 @@ if (safeUserMessage) {
         break;
       case ErrorLevel.CRITICAL:
         ElNotification.error({
-          title: '严重错误',
+          title: "严重错误",
           dangerouslyUseHTMLString: true,
           message: htmlMessage,
           duration: 0, // 不自动关闭
@@ -237,18 +239,17 @@ if (safeUserMessage) {
     }
   }
 
-
   /**
    * 获取用户友好的错误消息
    */
   private getUserFriendlyMessage(error: StandardError): string {
     // 常见错误的用户友好翻译
     const friendlyMessages: Record<string, string> = {
-      'Network request failed': '网络请求失败，请检查网络连接',
-      'Failed to fetch': '无法连接到服务器，请检查网络',
-      'Unauthorized': '未授权，请检查 API Key 配置',
-      'Not Found': '请求的资源不存在',
-      'Internal Server Error': '服务器内部错误',
+      "Network request failed": "网络请求失败，请检查网络连接",
+      "Failed to fetch": "无法连接到服务器，请检查网络",
+      Unauthorized: "未授权，请检查 API Key 配置",
+      "Not Found": "请求的资源不存在",
+      "Internal Server Error": "服务器内部错误",
     };
 
     // 检查是否有匹配的友好消息
@@ -279,10 +280,7 @@ if (safeUserMessage) {
   /**
    * 异步函数错误包装器
    */
-  async wrapAsync<T>(
-    fn: () => Promise<T>,
-    options: ErrorHandlerOptions = {}
-  ): Promise<T | null> {
+  async wrapAsync<T>(fn: () => Promise<T>, options: ErrorHandlerOptions = {}): Promise<T | null> {
     try {
       return await fn();
     } catch (error) {
@@ -294,10 +292,7 @@ if (safeUserMessage) {
   /**
    * 同步函数错误包装器
    */
-  wrapSync<T>(
-    fn: () => T,
-    options: ErrorHandlerOptions = {}
-  ): T | null {
+  wrapSync<T>(fn: () => T, options: ErrorHandlerOptions = {}): T | null {
     try {
       return fn();
     } catch (error) {
@@ -315,18 +310,14 @@ export const errorHandler = new GlobalErrorHandler();
  */
 export function createModuleErrorHandler(moduleName: string) {
   return {
-    handle: (error: any, options: Omit<ErrorHandlerOptions, 'module'> = {}) =>
+    handle: (error: any, options: Omit<ErrorHandlerOptions, "module"> = {}) =>
       errorHandler.handle(error, { ...options, module: moduleName }),
 
-    wrapAsync: <T>(
-      fn: () => Promise<T>,
-      options: Omit<ErrorHandlerOptions, 'module'> = {}
-    ) => errorHandler.wrapAsync(fn, { ...options, module: moduleName }),
+    wrapAsync: <T>(fn: () => Promise<T>, options: Omit<ErrorHandlerOptions, "module"> = {}) =>
+      errorHandler.wrapAsync(fn, { ...options, module: moduleName }),
 
-    wrapSync: <T>(
-      fn: () => T,
-      options: Omit<ErrorHandlerOptions, 'module'> = {}
-    ) => errorHandler.wrapSync(fn, { ...options, module: moduleName }),
+    wrapSync: <T>(fn: () => T, options: Omit<ErrorHandlerOptions, "module"> = {}) =>
+      errorHandler.wrapSync(fn, { ...options, module: moduleName }),
 
     info: (error: any, userMessage?: string, context?: Record<string, any>) =>
       errorHandler.handle(error, {

@@ -207,7 +207,7 @@
             </div>
           </div>
         </el-col>
-        <el-col :span="15">
+        <el-col :span="11">
           <el-slider
             v-model="commitRange"
             :max="commits.length"
@@ -217,10 +217,31 @@
             :marks="{ [0]: '最新', [commits.length]: '最旧' }"
           />
         </el-col>
-        <el-col :span="5">
-          <span class="range-label"
-            >范围: {{ commitRange[0] }} - {{ commitRange[1] }} (共 {{ commitRange[1] - commitRange[0] }} 条)</span
-          >
+        <el-col :span="9">
+          <div class="range-inputs">
+            <el-input-number
+              v-model="rangeStart"
+              :min="0"
+              :max="rangeEnd"
+              :disabled="commits.length === 0"
+              size="small"
+              controls-position="right"
+              @change="handleRangeStartChange"
+              style="width: 120px"
+            />
+            <span class="range-separator">-</span>
+            <el-input-number
+              v-model="rangeEnd"
+              :min="rangeStart"
+              :max="commits.length"
+              :disabled="commits.length === 0"
+              size="small"
+              controls-position="right"
+              @change="handleRangeEndChange"
+              style="width: 120px"
+            />
+            <span class="range-count">(共 {{ rangeEnd - rangeStart }} 条)</span>
+          </div>
         </el-col>
       </el-row>
     </div>
@@ -258,6 +279,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { Search, Refresh, FolderOpened, InfoFilled, PriceTag, CollectionTag } from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
@@ -330,6 +352,30 @@ const dateRange = defineModel<Date[] | null>("dateRange", { required: true });
 const authorFilter = defineModel<string>("authorFilter", { required: true });
 const reverseOrder = defineModel<boolean>("reverseOrder", { required: true });
 const commitTypeFilter = defineModel<string[]>("commitTypeFilter", { required: true });
+
+// 范围输入框的计算属性
+const rangeStart = computed({
+  get: () => commitRange.value[0],
+  set: (val) => {
+    commitRange.value = [val, commitRange.value[1]];
+  },
+});
+
+const rangeEnd = computed({
+  get: () => commitRange.value[1],
+  set: (val) => {
+    commitRange.value = [commitRange.value[0], val];
+  },
+});
+
+// 处理范围输入变化
+function handleRangeStartChange() {
+  emit("filter-commits");
+}
+
+function handleRangeEndChange() {
+  emit("filter-commits");
+}
 
 function handlePathDrop(paths: string[]) {
   emit("update:repoPath", paths[0]);
@@ -490,6 +536,24 @@ function locateTagInterval() {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
+  white-space: nowrap;
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-separator {
+  font-size: 14px;
+  color: var(--text-color-light);
+  font-weight: 500;
+}
+
+.range-count {
+  font-size: 13px;
+  color: var(--text-color-light);
   white-space: nowrap;
 }
 

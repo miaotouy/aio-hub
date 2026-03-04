@@ -38,10 +38,10 @@ pub struct ProxyRequest {
     pub method: String,
     pub headers: HashMap<String, String>,
     pub body: serde_json::Value,
-    pub relax_invalid_certs: Option<bool>,     // 是否放宽证书校验
-    pub http1_only: Option<bool>,              // 是否强制 HTTP/1.1
+    pub relax_invalid_certs: Option<bool>, // 是否放宽证书校验
+    pub http1_only: Option<bool>,          // 是否强制 HTTP/1.1
     pub proxy_settings: Option<ProxySettings>, // 代理设置
-    pub is_streaming: Option<bool>,            // 是否为流式请求（SSE）
+    pub is_streaming: Option<bool>,        // 是否为流式请求（SSE）
 }
 
 /// 递归处理 Body，查找并替换以 local-file:// 开头的本地路径
@@ -59,8 +59,38 @@ async fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), Str
             }
         }
         serde_json::Value::String(s) => {
+            // 严格验证：只处理以 "data:image/" 或 "data:audio/" 等开头，
+            // 且紧跟 "local-file://" 的合法文件协议 URL
+            // 这样可以避免将消息内容中的普通文本误识别为文件路径
             if let Some(pos) = s.find("local-file://") {
+                // 检查是否是合法的文件协议格式
+                // 合法格式：data:image/png;base64,local-file://...
+                //          data:audio/mpeg;base64,local-file://...
+                //          data:application/pdf;base64,local-file://...
+                let prefix = &s[..pos];
+                let is_valid_protocol = prefix.starts_with("data:")
+                    && (prefix.contains("image/")
+                        || prefix.contains("audio/")
+                        || prefix.contains("video/")
+                        || prefix.contains("application/pdf"))
+                    && prefix.ends_with(",");
+
+                if !is_valid_protocol {
+                    // 不是合法的文件协议格式，跳过处理
+                    // 这样可以避免将消息内容中提到的 "local-file://" 文本误识别为文件路径
+                    return Ok(());
+                }
+
                 let path_str = &s[pos + "local-file://".len()..];
+
+                // 额外的安全检查：路径长度限制
+                // Windows 最大路径长度为 260 字符（包括驱动器字母和终止符）
+                // Unix 系统通常为 4096 字节
+                // 这里设置 1024 作为合理的上限，超过此长度的很可能是误识别的文本内容
+                if path_str.len() > 1024 {
+                    // 不是合法的文件路径，跳过处理
+                    return Ok(());
+                }
 
                 // 解码路径（处理空格和特殊字符）
                 let decoded_path = urlencoding::decode(path_str)
@@ -70,7 +100,6 @@ async fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), Str
                 match tokio::fs::read(decoded_path.as_ref()).await {
                     Ok(bytes) => {
                         let b64 = STANDARD.encode(bytes);
-                        let prefix = &s[..pos];
                         *value = serde_json::Value::String(format!("{}{}", prefix, b64));
                     }
                     Err(e) => {

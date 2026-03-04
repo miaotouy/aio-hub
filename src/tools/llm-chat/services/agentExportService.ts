@@ -1,23 +1,23 @@
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { customMessage } from '@/utils/customMessage';
-import JSZip from 'jszip';
-import yaml from 'js-yaml';
-import { open, save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile, writeFile, readFile, exists } from '@tauri-apps/plugin-fs';
-import { join } from '@tauri-apps/api/path';
-import { getAppConfigDir } from '@/utils/appPath';
-import { invoke } from '@tauri-apps/api/core';
-import { formatDateTime } from '@/utils/time';
-import type { ChatAgent, ChatMessageNode } from '../types';
-import type { ExportableAgent, AgentExportFile, BundledWorldbook } from '../types/agentImportExport';
-import { embedDataIntoPng } from '@/utils/pngMetadataWriter';
-import { convertArrayBufferToBase64 } from '@/utils/base64';
-import { sanitizeFilename } from '@/utils/fileUtils';
-import { useWorldbookStore } from '../stores/worldbookStore';
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import JSZip from "jszip";
+import yaml from "js-yaml";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile, writeFile, readFile, exists } from "@tauri-apps/plugin-fs";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
+import { invoke } from "@tauri-apps/api/core";
+import { formatDateTime } from "@/utils/time";
+import type { ChatAgent, ChatMessageNode } from "../types";
+import type { ExportableAgent, AgentExportFile, BundledWorldbook } from "../types/agentImportExport";
+import { embedDataIntoPng } from "@/utils/pngMetadataWriter";
+import { convertArrayBufferToBase64 } from "@/utils/base64";
+import { sanitizeFilename } from "@/utils/fileUtils";
+import { useWorldbookStore } from "../stores/worldbookStore";
 
-const logger = createModuleLogger('llm-chat/agentExportService');
-const errorHandler = createModuleErrorHandler('llm-chat/agentExportService');
+const logger = createModuleLogger("llm-chat/agentExportService");
+const errorHandler = createModuleErrorHandler("llm-chat/agentExportService");
 
 /**
  * 导出选项
@@ -26,8 +26,8 @@ export interface ExportAgentsOptions {
   includeAssets: boolean;
   includeWorldbooks?: boolean;
   embedWorldbooks?: boolean;
-  format?: 'json' | 'yaml';
-  exportType?: 'zip' | 'folder' | 'file' | 'png';
+  format?: "json" | "yaml";
+  exportType?: "zip" | "folder" | "file" | "png";
   separateFolders?: boolean;
   previewImage?: File | string; // PNG 导出时的预览图来源
 }
@@ -56,36 +56,33 @@ function cleanMessageMetadata(messages?: ChatMessageNode[]): ChatMessageNode[] |
  * @param agents 要导出的智能体列表
  * @param options 导出选项
  */
-export async function exportAgents(
-  agents: ChatAgent[],
-  options: ExportAgentsOptions
-): Promise<void> {
+export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOptions): Promise<void> {
   try {
-    const agentIds = agents.map(a => a.id);
-    logger.info('开始导出智能体', { agentIds, options });
+    const agentIds = agents.map((a) => a.id);
+    logger.info("开始导出智能体", { agentIds, options });
 
     if (agents.length === 0) {
-      customMessage.warning('没有选择要导出的智能体');
+      customMessage.warning("没有选择要导出的智能体");
       return;
     }
 
-    const format = options.format || 'json';
-    const exportType = options.exportType || 'zip';
-    const timestamp = formatDateTime(new Date(), 'yyyyMMdd_HHmmss');
+    const format = options.format || "json";
+    const exportType = options.exportType || "zip";
+    const timestamp = formatDateTime(new Date(), "yyyyMMdd_HHmmss");
 
     // 获取智能体的显示名称，优先使用 displayName，回退到 name
     const getAgentDisplayName = (agent: ChatAgent) => agent.displayName || agent.name;
 
     // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
-    if (exportType === 'file' && agents.length > 1) {
+    if (exportType === "file" && agents.length > 1) {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: '选择导出目录',
+        title: "选择导出目录",
       });
 
       if (!selected) {
-        logger.info('用户取消了导出目录选择');
+        logger.info("用户取消了导出目录选择");
         return;
       }
 
@@ -109,7 +106,13 @@ export async function exportAgents(
 
       for (const agent of agents) {
         // 使用黑名单模式：排除本地专属字段，其余全部导出
-        const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgent } = agent;
+        const {
+          id: _id,
+          profileId: _profileId,
+          createdAt: _createdAt,
+          lastUsedAt: _lastUsedAt,
+          ...exportableAgent
+        } = agent;
 
         // 清理预设消息中的运行时元数据
         if (exportableAgent.presetMessages) {
@@ -118,13 +121,11 @@ export async function exportAgents(
 
         const exportData: AgentExportFile = {
           version: 1,
-          type: 'AIO_Agent_Export',
+          type: "AIO_Agent_Export",
           agents: [exportableAgent],
         };
 
-        const contentString = format === 'yaml'
-          ? yaml.dump(exportData)
-          : JSON.stringify(exportData, null, 2);
+        const contentString = format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
 
         const uniqueName = getUniqueName(getAgentDisplayName(agent));
         const fileName = `${uniqueName}.agent.${format}`;
@@ -140,9 +141,9 @@ export async function exportAgents(
         const encoder = new TextEncoder();
         const contentBytes = encoder.encode(contentString);
 
-        await invoke('write_file_force', {
+        await invoke("write_file_force", {
           path: filePath,
-          content: contentBytes
+          content: contentBytes,
         });
         successCount++;
       }
@@ -152,49 +153,52 @@ export async function exportAgents(
     }
 
     // 下面是常规导出逻辑（ZIP, Folder, File 或 PNG）
-    const shouldIncludeAssets = options.includeAssets && exportType !== 'file';
-    const shouldIncludeWorldbooks = options.includeWorldbooks && exportType !== 'file';
+    const shouldIncludeAssets = options.includeAssets && exportType !== "file";
+    const shouldIncludeWorldbooks = options.includeWorldbooks && exportType !== "file";
     const shouldEmbedWorldbooks = options.embedWorldbooks && shouldIncludeWorldbooks;
     const separateFolders = options.separateFolders || false;
 
     // 生成基础名称（用于文件名或文件夹名）
-    let baseName = 'agents_export';
+    let baseName = "agents_export";
     const count = agents.length;
 
     if (count === 1) {
       baseName = sanitizeFilename(getAgentDisplayName(agents[0]));
     } else if (count > 1 && count <= 3) {
-      baseName = agents.map(a => sanitizeFilename(getAgentDisplayName(a))).join(' & ');
+      baseName = agents.map((a) => sanitizeFilename(getAgentDisplayName(a))).join(" & ");
     } else if (count > 3) {
-      baseName = `${agents.slice(0, 2).map(a => sanitizeFilename(getAgentDisplayName(a))).join(' & ')}_等${count}个智能体`;
+      baseName = `${agents
+        .slice(0, 2)
+        .map((a) => sanitizeFilename(getAgentDisplayName(a)))
+        .join(" & ")}_等${count}个智能体`;
     }
 
     // 添加时间戳后缀，方便管理和避免冲突
     baseName = `${baseName}_${timestamp}`;
 
-    const zip = (exportType === 'zip' || exportType === 'png') ? new JSZip() : null;
-    let targetDir = '';
+    const zip = exportType === "zip" || exportType === "png" ? new JSZip() : null;
+    let targetDir = "";
 
-    if (exportType === 'folder') {
+    if (exportType === "folder") {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: '选择导出目录',
+        title: "选择导出目录",
       });
 
       if (!selected) {
-        logger.info('用户取消了导出目录选择');
+        logger.info("用户取消了导出目录选择");
         return;
       }
 
       targetDir = await join(selected as string, baseName);
-    } else if (exportType === 'zip' || exportType === 'png') {
+    } else if (exportType === "zip" || exportType === "png") {
       if (shouldIncludeAssets && !separateFolders) {
-        zip?.folder('assets');
+        zip?.folder("assets");
       }
     }
 
-    let lastContentString = '';
+    let lastContentString = "";
     const usedFileNames = new Set<string>();
     const getUniqueFileName = (name: string) => {
       let fileName = sanitizeFilename(name);
@@ -211,21 +215,29 @@ export async function exportAgents(
 
     for (const agent of agents) {
       const uniqueName = getUniqueFileName(getAgentDisplayName(agent));
-      const { id: _id, profileId: _profileId, createdAt: _createdAt, lastUsedAt: _lastUsedAt, ...exportableAgentBase } = agent;
+      const {
+        id: _id,
+        profileId: _profileId,
+        createdAt: _createdAt,
+        lastUsedAt: _lastUsedAt,
+        ...exportableAgentBase
+      } = agent;
       const exportableAgent: ExportableAgent = { ...exportableAgentBase };
 
       // 清理预设消息中的运行时元数据
       if (exportableAgent.presetMessages) {
-        exportableAgent.presetMessages = cleanMessageMetadata(exportableAgent.presetMessages) as typeof exportableAgent.presetMessages;
+        exportableAgent.presetMessages = cleanMessageMetadata(
+          exportableAgent.presetMessages
+        ) as typeof exportableAgent.presetMessages;
       }
 
-      const agentPrivateDir = await join(await getAppConfigDir(), 'llm-chat', 'agents', agent.id);
+      const agentPrivateDir = await join(await getAppConfigDir(), "llm-chat", "agents", agent.id);
 
       const isAgentPrivateAsset = (path: string): boolean => {
-        if (!path || typeof path !== 'string') return false;
-        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) return false;
-        if (path.startsWith('appdata://')) return false;
-        if (/^[A-Za-z]:[\/\\]/.test(path) || path.startsWith('\\\\') || path.startsWith('/')) return false;
+        if (!path || typeof path !== "string") return false;
+        if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:")) return false;
+        if (path.startsWith("appdata://")) return false;
+        if (/^[A-Za-z]:[\/\\]/.test(path) || path.startsWith("\\\\") || path.startsWith("/")) return false;
         return true;
       };
 
@@ -241,62 +253,66 @@ export async function exportAgents(
         return null;
       };
 
-      const saveAssetToExport = async (binary: Uint8Array, relativePath: string, isIcon: boolean = false): Promise<string> => {
-        const cleanPath = relativePath.replace(/\.\./g, '__').replace(/^[/\\]+/, '');
-        
+      const saveAssetToExport = async (
+        binary: Uint8Array,
+        relativePath: string,
+        isIcon: boolean = false
+      ): Promise<string> => {
+        const cleanPath = relativePath.replace(/\.\./g, "__").replace(/^[/\\]+/, "");
+
         // 头像文件直接放在智能体根目录，其他资产放 assets/ 子目录
         let exportPath: string;
         if (isIcon) {
           // 头像：提取文件名，放在根目录
-          const filename = cleanPath.split(/[/\\]/).pop() || 'avatar.png';
+          const filename = cleanPath.split(/[/\\]/).pop() || "avatar.png";
           exportPath = filename;
         } else {
           // 其他资产：确保在 assets/ 目录下
-          exportPath = cleanPath.startsWith('assets/') ? cleanPath : `assets/${cleanPath}`;
+          exportPath = cleanPath.startsWith("assets/") ? cleanPath : `assets/${cleanPath}`;
         }
 
         // 根据智能体数量决定是否需要子文件夹
         const needSubFolder = agents.length > 1 || separateFolders;
         const finalPath = needSubFolder ? `${uniqueName}/${exportPath}` : exportPath;
 
-        if (exportType === 'zip' || exportType === 'png') {
+        if (exportType === "zip" || exportType === "png") {
           if (zip) {
             zip.file(finalPath, binary);
           }
-        } else if (exportType === 'folder' && targetDir) {
+        } else if (exportType === "folder" && targetDir) {
           const assetPath = await join(targetDir, finalPath);
           try {
-            await invoke('write_file_force', {
+            await invoke("write_file_force", {
               path: assetPath,
-              content: binary
+              content: binary,
             });
           } catch (writeError) {
-            logger.error('写入资产文件失败', writeError as Error, { assetPath });
+            logger.error("写入资产文件失败", writeError as Error, { assetPath });
             throw writeError;
           }
         }
         return exportPath;
       };
 
-      const processAssetsRecursively = async (obj: any, parentKey: string = ''): Promise<any> => {
-        if (!obj || typeof obj !== 'object') return obj;
+      const processAssetsRecursively = async (obj: any, parentKey: string = ""): Promise<any> => {
+        if (!obj || typeof obj !== "object") return obj;
         if (Array.isArray(obj)) {
-          return Promise.all(obj.map(item => processAssetsRecursively(item, parentKey)));
+          return Promise.all(obj.map((item) => processAssetsRecursively(item, parentKey)));
         }
         const newObj = { ...obj };
         for (const [key, value] of Object.entries(newObj)) {
-          if (typeof value === 'string' && isAgentPrivateAsset(value)) {
+          if (typeof value === "string" && isAgentPrivateAsset(value)) {
             try {
               const binary = await readAgentAsset(value);
               if (binary) {
                 // 判断是否为头像字段
-                const isIcon = key === 'icon' || parentKey === 'avatarHistory';
+                const isIcon = key === "icon" || parentKey === "avatarHistory";
                 newObj[key] = await saveAssetToExport(binary, value, isIcon);
               }
             } catch (e) {
               logger.warn(`导出资产失败: ${value}`, e as Error);
             }
-          } else if (typeof value === 'object') {
+          } else if (typeof value === "object") {
             newObj[key] = await processAssetsRecursively(value, key);
           }
         }
@@ -313,7 +329,7 @@ export async function exportAgents(
         const bundledWorldbooks: BundledWorldbook[] = [];
         for (const wbId of agent.worldbookIds) {
           const content = await worldbookStore.getWorldbookContent(wbId);
-          const metadata = worldbookStore.worldbooks.find(w => w.id === wbId);
+          const metadata = worldbookStore.worldbooks.find((w) => w.id === wbId);
           if (content && metadata) {
             const bundled: BundledWorldbook = {
               id: wbId,
@@ -326,24 +342,22 @@ export async function exportAgents(
               const wbFileName = `worldbooks/${sanitizeFilename(metadata.name)}.${format}`;
               bundled.fileName = wbFileName;
 
-              const wbContentString = format === 'yaml'
-                ? yaml.dump(content)
-                : JSON.stringify(content, null, 2);
-              if ((exportType === 'zip' || exportType === 'png') && zip) {
+              const wbContentString = format === "yaml" ? yaml.dump(content) : JSON.stringify(content, null, 2);
+              if ((exportType === "zip" || exportType === "png") && zip) {
                 if (separateFolders) {
                   zip.folder(uniqueName)?.file(wbFileName, wbContentString);
                 } else {
                   zip.file(wbFileName, wbContentString);
                 }
-              } else if (exportType === 'folder' && targetDir) {
+              } else if (exportType === "folder" && targetDir) {
                 const wbPath = separateFolders
                   ? await join(targetDir, uniqueName, wbFileName)
                   : await join(targetDir, wbFileName);
 
                 const encoder = new TextEncoder();
-                await invoke('write_file_force', {
+                await invoke("write_file_force", {
                   path: wbPath,
-                  content: encoder.encode(wbContentString)
+                  content: encoder.encode(wbContentString),
                 });
               }
             }
@@ -357,24 +371,22 @@ export async function exportAgents(
 
       const exportData: AgentExportFile = {
         version: 1,
-        type: 'AIO_Agent_Export',
+        type: "AIO_Agent_Export",
         agents: [exportableAgent],
       };
 
-      const contentString = format === 'yaml'
-        ? yaml.dump(exportData)
-        : JSON.stringify(exportData, null, 2);
+      const contentString = format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
 
       lastContentString = contentString;
       const configFileName = `${uniqueName}.agent.${format}`;
 
-      if ((exportType === 'zip' || exportType === 'png') && zip) {
+      if ((exportType === "zip" || exportType === "png") && zip) {
         if (separateFolders) {
           zip.folder(uniqueName)?.file(configFileName, contentString);
         } else {
           zip.file(configFileName, contentString);
         }
-      } else if (exportType === 'folder' && targetDir) {
+      } else if (exportType === "folder" && targetDir) {
         let configPath: string;
         if (separateFolders) {
           const agentDir = await join(targetDir, uniqueName);
@@ -386,41 +398,43 @@ export async function exportAgents(
         const encoder = new TextEncoder();
         const contentBytes = encoder.encode(contentString);
 
-        await invoke('write_file_force', {
+        await invoke("write_file_force", {
           path: configPath,
-          content: contentBytes
+          content: contentBytes,
         });
       }
     }
 
-    if (exportType === 'zip' && zip) {
-      const content = await zip.generateAsync({ type: 'uint8array' });
+    if (exportType === "zip" && zip) {
+      const content = await zip.generateAsync({ type: "uint8array" });
       const fileName = `${baseName}.agent.zip`;
 
       const savePath = await save({
         defaultPath: fileName,
-        filters: [{
-          name: 'Agent Export Zip',
-          extensions: ['zip']
-        }]
+        filters: [
+          {
+            name: "Agent Export Zip",
+            extensions: ["zip"],
+          },
+        ],
       });
 
       if (savePath) {
         await writeFile(savePath, content);
-        logger.info('智能体导出成功 (ZIP)', { count: agents.length, fileName: savePath });
+        logger.info("智能体导出成功 (ZIP)", { count: agents.length, fileName: savePath });
       } else {
-        logger.info('用户取消了 ZIP 导出');
+        logger.info("用户取消了 ZIP 导出");
         return;
       }
-    } else if (exportType === 'png' && zip) {
+    } else if (exportType === "png" && zip) {
       try {
-        const zipContent = await zip.generateAsync({ type: 'uint8array' });
+        const zipContent = await zip.generateAsync({ type: "uint8array" });
         let pngBuffer: ArrayBuffer;
         if (options.previewImage) {
-          if (typeof options.previewImage === 'string') {
+          if (typeof options.previewImage === "string") {
             const imagePath = options.previewImage;
-            if (imagePath.startsWith('appdata://')) {
-              const relativePath = imagePath.replace('appdata://', '');
+            if (imagePath.startsWith("appdata://")) {
+              const relativePath = imagePath.replace("appdata://", "");
               const appData = await getAppConfigDir();
               const fullPath = await join(appData, relativePath);
               if (!(await exists(fullPath))) {
@@ -428,10 +442,14 @@ export async function exportAgents(
               }
               const binary = await readFile(fullPath);
               pngBuffer = binary.buffer;
-            } else if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('blob:')) {
+            } else if (
+              imagePath.startsWith("http://") ||
+              imagePath.startsWith("https://") ||
+              imagePath.startsWith("blob:")
+            ) {
               const response = await fetch(imagePath);
               pngBuffer = await response.arrayBuffer();
-            } else if (imagePath.startsWith('/')) {
+            } else if (imagePath.startsWith("/")) {
               const response = await fetch(imagePath);
               pngBuffer = await response.arrayBuffer();
             } else {
@@ -442,66 +460,70 @@ export async function exportAgents(
             pngBuffer = await options.previewImage.arrayBuffer();
           }
         } else {
-          throw new Error('导出 PNG 格式必须提供预览图');
+          throw new Error("导出 PNG 格式必须提供预览图");
         }
 
         const zipBase64 = await convertArrayBufferToBase64(zipContent);
         const bundleData = {
           version: 1,
-          type: 'AIO_Agent_Bundle',
+          type: "AIO_Agent_Bundle",
           compressed: true,
-          data: zipBase64
+          data: zipBase64,
         };
 
         const bundleString = JSON.stringify(bundleData);
-        const newPngBuffer = await embedDataIntoPng(pngBuffer, 'aiob', bundleString);
+        const newPngBuffer = await embedDataIntoPng(pngBuffer, "aiob", bundleString);
 
         const fileName = `${baseName}.agent.png`;
         const savePath = await save({
           defaultPath: fileName,
-          filters: [{
-            name: 'Agent Image Bundle',
-            extensions: ['png']
-          }]
+          filters: [
+            {
+              name: "Agent Image Bundle",
+              extensions: ["png"],
+            },
+          ],
         });
 
         if (savePath) {
-          await invoke('write_file_force', {
+          await invoke("write_file_force", {
             path: savePath,
-            content: new Uint8Array(newPngBuffer)
+            content: new Uint8Array(newPngBuffer),
           });
-          logger.info('智能体导出成功 (PNG)', { count: agents.length, fileName: savePath });
+          logger.info("智能体导出成功 (PNG)", { count: agents.length, fileName: savePath });
         } else {
-          logger.info('用户取消了 PNG 导出');
+          logger.info("用户取消了 PNG 导出");
           return;
         }
       } catch (error) {
-        logger.error('PNG 导出失败', error as Error);
+        logger.error("PNG 导出失败", error as Error);
         throw error;
       }
-    } else if (exportType === 'folder' && targetDir) {
-      logger.info('智能体导出成功 (Folder)', { count: agents.length, targetDir });
-    } else if (exportType === 'file') {
+    } else if (exportType === "folder" && targetDir) {
+      logger.info("智能体导出成功 (Folder)", { count: agents.length, targetDir });
+    } else if (exportType === "file") {
       const fileName = `${baseName}.agent.${format}`;
       const savePath = await save({
         defaultPath: fileName,
-        filters: [{
-          name: `Agent Export ${format.toUpperCase()}`,
-          extensions: [format]
-        }]
+        filters: [
+          {
+            name: `Agent Export ${format.toUpperCase()}`,
+            extensions: [format],
+          },
+        ],
       });
 
       if (savePath) {
         await writeTextFile(savePath, lastContentString);
-        logger.info('智能体导出成功 (File)', { count: agents.length, fileName: savePath });
+        logger.info("智能体导出成功 (File)", { count: agents.length, fileName: savePath });
       } else {
-        logger.info('用户取消了文件导出');
+        logger.info("用户取消了文件导出");
         return;
       }
     }
 
     customMessage.success(`成功导出 ${agents.length} 个智能体`);
   } catch (error) {
-    errorHandler.error(error as Error, '导出智能体失败', { context: { agentCount: agents.length } });
+    errorHandler.error(error as Error, "导出智能体失败", { context: { agentCount: agents.length } });
   }
 }

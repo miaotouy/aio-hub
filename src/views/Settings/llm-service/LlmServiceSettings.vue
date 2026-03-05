@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
-import { ExternalLink } from "lucide-vue-next";
+import { ExternalLink, Info } from "lucide-vue-next";
 import { useElementSize } from "@vueuse/core";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
@@ -12,8 +12,10 @@ import CreateProfileDialog from "./components/CreateProfileDialog.vue";
 import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
+import LlmServiceInfoDialog from "./components/LlmServiceInfoDialog.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 import { providerTypes } from "@/config/llm-providers";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@/utils/llm-api-url";
@@ -125,15 +127,19 @@ const { width: editorWidth } = useElementSize(editorContainerRef);
 const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 850);
 const isEditorNarrow = computed(() => editorWidth.value > 0 && editorWidth.value < 760);
 const formLabelPosition = computed(() => (isNarrow.value || isEditorNarrow.value ? "top" : "left"));
-
 // ─── 对话框状态 ───
 const showCreateProfileDialog = ref(false);
 const showCustomHeadersDialog = ref(false);
 const showCustomEndpointsDialog = ref(false);
 const showMultiKeyManager = ref(false);
+const showLlmServiceInfoDialog = ref(false);
 
 const handleAddClick = () => {
   showCreateProfileDialog.value = true;
+};
+
+const openDeepLinkInfo = () => {
+  showLlmServiceInfoDialog.value = true;
 };
 
 const openMultiKeyManager = () => {
@@ -189,6 +195,13 @@ const networkSettingSummary = computed(() => {
         @toggle="handleToggle"
         @update:profiles="updateProfilesOrder"
       >
+        <template #header-actions>
+          <el-tooltip content="查看说明" placement="bottom">
+            <el-button link @click="openDeepLinkInfo" class="info-button">
+              <Info :size="16" />
+            </el-button>
+          </el-tooltip>
+        </template>
         <template #item="{ profile }">
           <DynamicIcon :src="getProviderIcon(profile) || ''" class="profile-icon" :alt="profile.name" />
           <div class="profile-info">
@@ -462,6 +475,9 @@ const networkSettingSummary = computed(() => {
       @update:profile="saveProfile"
       @test-key="handleTestKey"
     />
+
+    <!-- 说明弹窗 -->
+    <LlmServiceInfoDialog v-model="showLlmServiceInfoDialog" />
   </div>
 </template>
 
@@ -710,5 +726,15 @@ const networkSettingSummary = computed(() => {
 
 .link-item:hover .link-icon {
   opacity: 1;
+}
+
+.info-button {
+  padding: 4px;
+  color: var(--text-color-secondary);
+  transition: color 0.3s;
+}
+
+.info-button:hover {
+  color: var(--el-color-primary);
 }
 </style>

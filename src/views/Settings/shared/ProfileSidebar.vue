@@ -71,7 +71,10 @@ const draggableProfiles = computed({
   <div class="profile-sidebar">
     <div class="sidebar-header">
       <h3>{{ title }}</h3>
-      <el-button type="primary" :icon="Plus" size="small" @click="emit('add')"> 添加 </el-button>
+      <div class="header-actions">
+        <slot name="header-actions"></slot>
+        <el-button type="primary" :icon="Plus" size="small" @click="emit('add')"> 添加 </el-button>
+      </div>
     </div>
 
     <div class="sidebar-content" ref="sidebarContentRef">
@@ -144,6 +147,12 @@ const draggableProfiles = computed({
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .sidebar-content {

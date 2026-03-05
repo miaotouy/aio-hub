@@ -14,6 +14,7 @@ import { applyThemeColors } from "./utils/themeColors";
 import TitleBar from "./components/TitleBar.vue";
 import MainSidebar from "./components/MainSidebar.vue";
 import GlobalProviders from "./components/GlobalProviders.vue";
+import LlmDeepLinkConfirmDialog from "./views/Settings/llm-service/components/LlmDeepLinkConfirmDialog.vue";
 import { useTheme } from "@/composables/useTheme";
 import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
 import { useDeepLinkHandler } from "./composables/useDeepLinkHandler";
@@ -262,6 +263,9 @@ onUnmounted(() => {
   <GlobalProviders>
     <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
     <TitleBar v-if="!isSpecialRoute" />
+
+    <!-- Deep Link 确认弹窗 -->
+    <LlmDeepLinkConfirmDialog />
 
     <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
     <el-container :class="['common-layout', { 'no-titlebar': isSpecialRoute }]">

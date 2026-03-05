@@ -2,13 +2,12 @@
  * Deep Link 处理器
  * 负责监听 aiohub:// 协议并处理相关操作
  */
-import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
+import { onOpenUrl, getCurrent as getCurrentDeepLinkUrls } from "@tauri-apps/plugin-deep-link";
 import { listen } from "@tauri-apps/api/event";
 import { onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
-import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useDeepLinkStore } from "@/stores/deepLink";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { llmPresets } from "@/config/llm-presets";
@@ -17,9 +16,14 @@ import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
 const logger = createModuleLogger("DeepLinkHandler");
 const errorHandler = createModuleErrorHandler("DeepLinkHandler");
 
+// 用于防止重复触发
+let lastProcessedUrl = "";
+let lastProcessedTime = 0;
+const DUPLICATE_THRESHOLD = 2000; // 2秒内忽略相同 URL
+
 export function useDeepLinkHandler() {
-  const router = useRouter();
-  const { saveProfile, generateId } = useLlmProfiles();
+  const deepLinkStore = useDeepLinkStore();
+  const { generateId } = useLlmProfiles();
 
   /**
    * 解析 URL 参数
@@ -109,16 +113,6 @@ export function useDeepLinkHandler() {
     const profileName = name || `新渠道 (${new URL(address).hostname})`;
 
     try {
-      await ElMessageBox.confirm(
-        `检测到来自链接的渠道配置：\n\n名称：${profileName}\n类型：${providerType}\n地址：${address}\n\n是否确认添加？`,
-        "添加渠道确认",
-        {
-          confirmButtonText: "确定添加",
-          cancelButtonText: "取消",
-          type: "info",
-        }
-      );
-
       // 查找预设以获取默认模型
       const preset = llmPresets.find(
         (p) => p.type === providerType || p.name.toLowerCase() === providerType.toLowerCase()
@@ -138,16 +132,10 @@ export function useDeepLinkHandler() {
         options: {},
       };
 
-      await saveProfile(newProfile);
-      customMessage.success("渠道添加成功");
-
-      // 导航到设置页面的模型服务板块
-      router.push({ path: "/settings", query: { section: "llm-service" } });
+      // 显示确认弹窗，由弹窗组件负责保存和导航
+      deepLinkStore.showConfirm(newProfile, address);
     } catch (e) {
-      // 用户取消或保存失败
-      if (e !== "cancel") {
-        errorHandler.error(e, "添加渠道失败");
-      }
+      errorHandler.error(e, "准备渠道添加失败");
     }
   };
 
@@ -155,7 +143,16 @@ export function useDeepLinkHandler() {
    * 核心处理逻辑
    */
   const processUrl = async (url: string) => {
-    logger.info("收到 Deep Link", { url });
+    // 防抖去重逻辑
+    const now = Date.now();
+    if (url === lastProcessedUrl && now - lastProcessedTime < DUPLICATE_THRESHOLD) {
+      logger.info("忽略重复的 Deep Link 请求", { url });
+      return;
+    }
+    lastProcessedUrl = url;
+    lastProcessedTime = now;
+
+    logger.info("正在处理 Deep Link", { url });
     const parsed = parseUrlParams(url);
     if (!parsed) return;
 
@@ -172,21 +169,74 @@ export function useDeepLinkHandler() {
   };
   let unlistenDeepLink: (() => void) | null = null;
   let unlistenEvent: (() => void) | null = null;
+  let unlistenSingleInstance: (() => void) | null = null;
 
   onMounted(async () => {
     try {
-      // 1. 监听原生插件提供的 Deep Link 事件
+      // 1. 获取初始 Deep Link (处理冷启动)
+      // 在 Windows 上，冷启动的 URL 也会出现在 getCurrentDeepLinkUrls 中
+      getCurrentDeepLinkUrls()
+        .then((urls) => {
+          if (urls && urls.length > 0) {
+            logger.info("获取到初始 Deep Link", { urls });
+            for (const url of urls) {
+              processUrl(url);
+            }
+          }
+        })
+        .catch((err) => {
+          logger.error("获取初始 Deep Link 失败", err);
+        });
+
+      // 2. 监听原生插件提供的 Deep Link 事件 (主要针对 macOS/iOS/Android)
       unlistenDeepLink = await onOpenUrl((urls) => {
+        logger.info("onOpenUrl 捕获到协议请求", { urls });
         for (const url of urls) {
           processUrl(url);
         }
       });
 
-      // 2. 监听 Rust 端通过 single-instance 转发的自定义事件
+      // 3. 监听 Rust 端转发的自定义事件
       unlistenEvent = await listen<string[]>("deep-link://opened", (event) => {
+        logger.info("收到 Rust 转发的 deep-link://opened 事件", { payload: event.payload });
         const urls = event.payload;
-        for (const url of urls) {
-          processUrl(url);
+        if (Array.isArray(urls)) {
+          for (const url of urls) {
+            processUrl(url);
+          }
+        }
+      });
+
+      // 4. 监听 single-instance 事件 (针对 Windows/Linux 的热启动)
+      unlistenSingleInstance = await listen<any>("single-instance", (event) => {
+        logger.info("收到 single-instance 原始参数", { data: event.payload });
+
+        const payload = event.payload;
+        // 尝试从所有可能的字段中提取参数列表
+        const allPossibleArgs = [
+          ...(Array.isArray(payload) ? payload : []),
+          ...(Array.isArray(payload?.args) ? payload.args : []),
+        ];
+
+        if (allPossibleArgs.length > 0) {
+          // 过滤出所有符合协议格式的字符串，并去重
+          const urls = Array.from(
+            new Set(
+              allPossibleArgs
+                .filter((arg) => typeof arg === "string")
+                .map((arg) => arg.replace(/^["']|["']$/g, "").trim())
+                .filter((arg) => arg.startsWith("aiohub://"))
+            )
+          );
+
+          if (urls.length > 0) {
+            logger.info("从原始参数中提取到有效 URL", { urls });
+            for (const url of urls) {
+              processUrl(url);
+            }
+          } else {
+            logger.warn("所有原始参数中均未找到 aiohub:// 协议", { allPossibleArgs });
+          }
         }
       });
     } catch (e) {
@@ -197,5 +247,6 @@ export function useDeepLinkHandler() {
   onUnmounted(() => {
     if (unlistenDeepLink) unlistenDeepLink();
     if (unlistenEvent) unlistenEvent();
+    if (unlistenSingleInstance) unlistenSingleInstance();
   });
 }

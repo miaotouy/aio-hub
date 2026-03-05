@@ -71,6 +71,9 @@
         "http://:ip(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):port(\\d+)?/**",
         "https://:ip(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):port(\\d+)?/**"
       ]
-    }
+    },
+    "deep-link:default",
+    "deep-link:allow-get-current",
+    "deep-link:allow-register"
   ]
 }

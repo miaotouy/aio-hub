@@ -5,7 +5,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, ignore_errors = true)]
 struct Args {
     /// Enable portable mode (store data in 'data' folder next to executable)
     #[arg(short, long)]

@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(debug_assertions)]
 use tauri::image::Image;
 use tauri::{Emitter, Manager};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use tokio_util::sync::CancellationToken;
 
@@ -366,16 +367,15 @@ pub fn run() {
             #[cfg(not(debug_assertions))]
             _ if std::env::var("AIO_PORTABLE_MODE").is_ok() => tauri_plugin_opener::init(),
             #[cfg(not(debug_assertions))]
-            _ => tauri_plugin_single_instance::init(|app, args, _cwd| {
-                // 处理 Windows/Linux 上的 Deep Link
-                #[cfg(desktop)]
-                {
-                    for arg in &args {
-                        if arg.starts_with("aiohub://") {
-                            let _ = app.emit("deep-link://opened", vec![arg.clone()]);
-                        }
-                    }
+            _ => tauri_plugin_single_instance::init(|app, args, cwd| {
+                log::info!("[SingleInstance] 收到新实例请求, args: {:?}", args);
+
+                #[derive(Clone, serde::Serialize)]
+                struct SingleInstancePayload {
+                    args: Vec<String>,
+                    cwd: String,
                 }
+                let _ = app.emit("single-instance", SingleInstancePayload { args, cwd });
 
                 let _ = app.get_webview_window("main").map(|w| {
                     let _ = w.show();
@@ -604,6 +604,20 @@ pub fn run() {
         ])
         // 设置应用
         .setup(move |app| {
+            // 在 Windows 上注册 Deep Link 协议关联
+            #[cfg(windows)]
+            {
+                let _ = app.deep_link().register("aiohub");
+            }
+
+            // 监听 Deep Link 打开事件 (主要针对 macOS/iOS/Android)
+            let handle = app.app_handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                let urls = event.urls();
+                log::info!("[DeepLink] on_open_url 捕获: {:?}", urls);
+                let _ = handle.emit("deep-link://opened", urls);
+            });
+
             // 动态扩展文件系统权限 (Scope)，确保便携模式下前端插件也能访问数据目录
             let app_data_dir = get_app_data_dir(app.config());
             #[cfg(desktop)]

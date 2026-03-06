@@ -60,11 +60,33 @@ function stableStringifyConfig(config: ToolCallConfig): string {
       return acc;
     }, {});
 
+  const sortedMethodToggles = Object.keys(config.methodToggles || {})
+    .sort()
+    .reduce<Record<string, boolean>>((acc, key) => {
+      const value = config.methodToggles![key];
+      if (typeof value === "boolean") {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
+  const sortedMethodAutoApprove = Object.keys(config.autoApproveMethods || {})
+    .sort()
+    .reduce<Record<string, boolean>>((acc, key) => {
+      const value = config.autoApproveMethods![key];
+      if (typeof value === "boolean") {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
   return JSON.stringify({
     enabled: config.enabled,
     mode: config.mode,
     toolToggles: sortedToggles,
+    methodToggles: sortedMethodToggles,
     autoApproveTools: sortedAutoApprove,
+    autoApproveMethods: sortedMethodAutoApprove,
     defaultToolEnabled: config.defaultToolEnabled,
     defaultAutoApprove: config.defaultAutoApprove,
     maxIterations: config.maxIterations,
@@ -133,14 +155,30 @@ export function createToolDiscoveryService(): {
     }
 
     const allDiscovered = getDiscoveredMethods();
-    const enabledTools = allDiscovered.filter((tool) => resolveToolEnabled(tool.toolId, options.config));
+    const enabledToolsWithMethods = allDiscovered
+      .filter((tool) => resolveToolEnabled(tool.toolId, options.config))
+      .map((tool) => {
+        // 根据 methodToggles 过滤方法
+        const filteredMethods = tool.methods.filter((method) => {
+          const methodKey = `${tool.toolId}_${method.name}`;
+          const toggle = options.config.methodToggles?.[methodKey];
+          // 如果显式设置为 false，则禁用；否则默认启用（因为工具级已经启用了）
+          return toggle !== false;
+        });
 
-    if (enabledTools.length === 0) {
+        return {
+          ...tool,
+          methods: filteredMethods,
+        };
+      })
+      .filter((tool) => tool.methods.length > 0);
+
+    if (enabledToolsWithMethods.length === 0) {
       promptCache.set(cacheKey, "");
       return "";
     }
 
-    const protocolInput: ToolDefinitionInput[] = enabledTools.map((tool) => ({
+    const protocolInput: ToolDefinitionInput[] = enabledToolsWithMethods.map((tool) => ({
       toolId: tool.toolId,
       toolName: tool.toolName,
       toolDescription: tool.toolDescription,

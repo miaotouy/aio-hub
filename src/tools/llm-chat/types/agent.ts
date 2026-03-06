@@ -85,12 +85,18 @@ export interface ToolCallConfig {
   mode: "auto" | "manual";
   /** 工具启用状态 */
   toolToggles: Record<string, boolean>;
+  /** 方法启用状态 (key: toolId_methodName) */
+  methodToggles?: Record<string, boolean>;
   /** 允许自动批准的工具列表 */
   autoApproveTools: Record<string, boolean>;
+  /** 方法自动批准状态 (key: toolId_methodName) */
+  autoApproveMethods?: Record<string, boolean>;
   /** 新发现工具是否默认启用 */
   defaultToolEnabled: boolean;
   /** 新发现工具是否默认开启自动批准 */
   defaultAutoApprove: boolean;
+  /** 是否显示方法统计 */
+  showMethodsCount?: boolean;
   maxIterations: number;
   timeout: number;
   parallelExecution: boolean;
@@ -111,9 +117,12 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   enabled: false,
   mode: "auto",
   toolToggles: {},
+  methodToggles: {},
   autoApproveTools: {},
+  autoApproveMethods: {},
   defaultToolEnabled: false,
   defaultAutoApprove: false,
+  showMethodsCount: true,
   maxIterations: 20,
   timeout: 30000,
   parallelExecution: false,

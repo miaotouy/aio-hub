@@ -12,7 +12,7 @@ import { customMessage } from "@/utils/customMessage";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 
 // 宏示例常量（避免格式化工具添加空格）
-const toolsMacro = '{{tools}}';
+const toolsMacro = "{{tools}}";
 
 const editForm = inject<any>("agent-edit-form");
 const activeTab = inject<Ref<string>>("active-tab");
@@ -92,6 +92,52 @@ const ensureConfig = () => {
   if (!editForm.toolCallConfig.toolSettings) {
     editForm.toolCallConfig.toolSettings = {};
   }
+  if (!editForm.toolCallConfig.methodToggles) {
+    editForm.toolCallConfig.methodToggles = {};
+  }
+  if (!editForm.toolCallConfig.autoApproveMethods) {
+    editForm.toolCallConfig.autoApproveMethods = {};
+  }
+  if (editForm.toolCallConfig.showMethodsCount === undefined) {
+    editForm.toolCallConfig.showMethodsCount = true;
+  }
+};
+
+const toggleMethod = (toolId: string, methodName: string) => {
+  ensureConfig();
+  const key = `${toolId}_${methodName}`;
+  const currentValue = editForm.toolCallConfig.methodToggles[key] !== false;
+  editForm.toolCallConfig.methodToggles[key] = !currentValue;
+};
+
+const toggleMethodAutoApprove = (toolId: string, methodName: string) => {
+  ensureConfig();
+  const key = `${toolId}_${methodName}`;
+  const currentValue = editForm.toolCallConfig.autoApproveMethods[key] === true;
+  editForm.toolCallConfig.autoApproveMethods[key] = !currentValue;
+};
+
+const isMethodEnabled = (toolId: string, methodName: string) => {
+  if (!editForm.toolCallConfig?.methodToggles) return true;
+  const key = `${toolId}_${methodName}`;
+  return editForm.toolCallConfig.methodToggles[key] !== false;
+};
+
+const isMethodAutoApproveEnabled = (toolId: string, methodName: string) => {
+  if (!editForm.toolCallConfig?.autoApproveMethods) return false;
+  const key = `${toolId}_${methodName}`;
+  return editForm.toolCallConfig.autoApproveMethods[key] === true;
+};
+
+// 计算工具的启用方法数量
+const getEnabledMethodsCount = (toolId: string) => {
+  const tool = discoveredTools.value.find((t) => t.toolId === toolId);
+  if (!tool) return { enabled: 0, total: 0 };
+
+  const total = tool.methods.length;
+  const enabled = tool.methods.filter((method) => isMethodEnabled(toolId, method.name)).length;
+
+  return { enabled, total };
 };
 
 // 获取工具的 settingsSchema
@@ -137,7 +183,14 @@ const vcpProtocol = new VcpToolCallingProtocol();
 const getToolPromptPreview = (toolId: string): string => {
   const tool = discoveredTools.value.find((t) => t.toolId === toolId);
   if (!tool) return "";
-  return vcpProtocol.generateToolDefinitions([{ toolId: tool.toolId, toolName: tool.toolName, methods: tool.methods }]);
+  return vcpProtocol.generateToolDefinitions([
+    {
+      toolId: tool.toolId,
+      toolName: tool.toolName,
+      toolDescription: tool.toolDescription,
+      methods: tool.methods,
+    },
+  ]);
 };
 
 // 复制配置
@@ -276,6 +329,10 @@ const pasteAllToolSettings = async () => {
             </div>
             <div class="box-actions">
               <div class="action-item">
+                <span class="form-hint">显示方法统计:</span>
+                <el-switch v-model="editForm.toolCallConfig.showMethodsCount" size="small" />
+              </div>
+              <div class="action-item">
                 <span class="form-hint">默认启用:</span>
                 <el-switch v-model="editForm.toolCallConfig.defaultToolEnabled" size="small" />
               </div>
@@ -300,6 +357,19 @@ const pasteAllToolSettings = async () => {
                     </el-icon>
                     <span class="tool-name">{{ tool.toolName }}</span>
                     <span class="tool-id">({{ tool.toolId }})</span>
+                    <el-tag
+                      v-if="editForm.toolCallConfig.showMethodsCount"
+                      size="small"
+                      :type="
+                        getEnabledMethodsCount(tool.toolId).enabled === getEnabledMethodsCount(tool.toolId).total
+                          ? 'success'
+                          : 'warning'
+                      "
+                      effect="plain"
+                      class="methods-count-tag"
+                    >
+                      {{ getEnabledMethodsCount(tool.toolId).enabled }}/{{ getEnabledMethodsCount(tool.toolId).total }}
+                    </el-tag>
                   </div>
                   <div class="tool-methods">
                     <el-tag
@@ -364,9 +434,63 @@ const pasteAllToolSettings = async () => {
                 </div>
               </div>
 
-              <!-- 工具展开区域：提示词预览 + 可选配置 -->
+              <!-- 工具展开区域：方法列表 + 提示词预览 + 可选配置 -->
               <el-collapse-transition>
                 <div v-if="expandedToolId === tool.toolId" class="tool-settings-container">
+                  <!-- 方法管理列表 -->
+                  <div class="methods-management-section">
+                    <div class="section-label">方法管理</div>
+                    <div class="methods-list">
+                      <div v-for="method in tool.methods" :key="method.name" class="method-item">
+                        <div class="method-info">
+                          <span class="method-name">{{ method.name }}</span>
+                          <span v-if="method.description" class="method-desc">{{ method.description }}</span>
+                        </div>
+                        <div class="method-actions" @click.stop>
+                          <el-tooltip
+                            :content="
+                              isMethodAutoApproveEnabled(tool.toolId, method.name)
+                                ? '已开启自动批准'
+                                : '点击开启自动批准'
+                            "
+                            placement="top"
+                            :show-after="500"
+                          >
+                            <div
+                              class="icon-toggle icon-toggle--auto icon-toggle--small"
+                              :class="{
+                                active: isMethodAutoApproveEnabled(tool.toolId, method.name),
+                                'is-ineffective': editForm.toolCallConfig.mode !== 'auto',
+                              }"
+                              @click="toggleMethodAutoApprove(tool.toolId, method.name)"
+                            >
+                              <Zap
+                                :size="14"
+                                class="toggle-icon"
+                                :fill="isMethodAutoApproveEnabled(tool.toolId, method.name) ? 'currentColor' : 'none'"
+                              />
+                            </div>
+                          </el-tooltip>
+                          <el-tooltip
+                            :content="isMethodEnabled(tool.toolId, method.name) ? '方法已启用' : '方法已禁用'"
+                            placement="top"
+                            :show-after="500"
+                          >
+                            <div
+                              class="icon-toggle icon-toggle--power icon-toggle--small"
+                              :class="{ active: isMethodEnabled(tool.toolId, method.name) }"
+                              @click="toggleMethod(tool.toolId, method.name)"
+                            >
+                              <Power :size="14" class="toggle-icon" />
+                            </div>
+                          </el-tooltip>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <el-divider style="margin: 12px 0" />
+
                   <!-- 提示词注入预览 -->
                   <div class="prompt-preview-section">
                     <div class="preview-header">
@@ -560,6 +684,12 @@ const pasteAllToolSettings = async () => {
   color: var(--el-text-color-secondary);
 }
 
+.methods-count-tag {
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
 .tool-methods {
   display: flex;
   flex-wrap: wrap;
@@ -682,5 +812,84 @@ const pasteAllToolSettings = async () => {
 
 .expand-icon--open {
   transform: rotate(180deg);
+}
+
+.methods-management-section {
+  margin-bottom: 8px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+}
+
+.methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.method-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  padding-left: 24px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.method-item::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--el-text-color-placeholder);
+}
+
+.method-item:hover {
+  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  border-color: var(--el-color-primary-light-7);
+}
+
+.method-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.method-name {
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--el-font-family-mono);
+  color: var(--el-text-color-primary);
+}
+
+.method-desc {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+
+.method-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.icon-toggle--small {
+  width: 24px;
+  height: 24px;
 }
 </style>

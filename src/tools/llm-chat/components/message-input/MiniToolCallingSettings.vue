@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, markRaw } from "vue";
+import { computed, markRaw, ref } from "vue";
 import { ElSwitch, ElEmpty, ElIcon, ElTooltip } from "element-plus";
-import { Cpu, Settings2, Power, Zap, Share2 } from "lucide-vue-next";
+import { Cpu, Settings2, Power, Zap, Share2, ChevronDown } from "lucide-vue-next";
 import { useAgentStore } from "../../stores/agentStore";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolsStore } from "@/stores/tools";
@@ -13,6 +13,9 @@ const toolsStore = useToolsStore();
 const { getDiscoveredMethods } = useToolCalling();
 const { isVcpChannel } = useIsVcpChannel();
 
+// 展开的工具ID
+const expandedToolId = ref<string | null>(null);
+
 const currentAgent = computed(() => {
   return agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
 });
@@ -20,8 +23,6 @@ const currentAgent = computed(() => {
 const config = computed(() => {
   return currentAgent.value?.toolCallConfig || DEFAULT_TOOL_CALL_CONFIG;
 });
-
-
 
 const discoveredTools = computed(() => {
   if (!config.value.enabled) return [];
@@ -32,6 +33,16 @@ const ensureConfig = () => {
   if (!currentAgent.value) return;
   if (!currentAgent.value.toolCallConfig) {
     currentAgent.value.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+    return;
+  }
+  if (!currentAgent.value.toolCallConfig.methodToggles) {
+    currentAgent.value.toolCallConfig.methodToggles = {};
+  }
+  if (!currentAgent.value.toolCallConfig.autoApproveMethods) {
+    currentAgent.value.toolCallConfig.autoApproveMethods = {};
+  }
+  if (currentAgent.value.toolCallConfig.showMethodsCount === undefined) {
+    currentAgent.value.toolCallConfig.showMethodsCount = true;
   }
 };
 
@@ -79,6 +90,56 @@ const toggleAutoMode = (val: boolean | string | number) => {
   agentStore.persistAgent(currentAgent.value);
 };
 
+const toggleShowMethodsCount = (val: boolean | string | number) => {
+  if (!currentAgent.value) return;
+  ensureConfig();
+  currentAgent.value.toolCallConfig!.showMethodsCount = val as boolean;
+  agentStore.persistAgent(currentAgent.value);
+};
+
+const toggleToolExpand = (toolId: string) => {
+  expandedToolId.value = expandedToolId.value === toolId ? null : toolId;
+};
+
+const isMethodEnabled = (toolId: string, methodName: string) => {
+  const key = `${toolId}_${methodName}`;
+  return config.value.methodToggles?.[key] !== false;
+};
+
+const isMethodAutoApproveEnabled = (toolId: string, methodName: string) => {
+  const key = `${toolId}_${methodName}`;
+  return config.value.autoApproveMethods?.[key] === true;
+};
+
+const toggleMethod = (toolId: string, methodName: string) => {
+  if (!currentAgent.value) return;
+  ensureConfig();
+  const key = `${toolId}_${methodName}`;
+  const currentValue = isMethodEnabled(toolId, methodName);
+  currentAgent.value.toolCallConfig!.methodToggles![key] = !currentValue;
+  agentStore.persistAgent(currentAgent.value);
+};
+
+const toggleMethodAutoApprove = (toolId: string, methodName: string) => {
+  if (!currentAgent.value) return;
+  ensureConfig();
+  const key = `${toolId}_${methodName}`;
+  const currentValue = isMethodAutoApproveEnabled(toolId, methodName);
+  currentAgent.value.toolCallConfig!.autoApproveMethods![key] = !currentValue;
+  agentStore.persistAgent(currentAgent.value);
+};
+
+// 计算工具的启用方法数量
+const getEnabledMethodsCount = (toolId: string) => {
+  const tool = discoveredTools.value.find((t) => t.toolId === toolId);
+  if (!tool) return { enabled: 0, total: 0 };
+
+  const total = tool.methods.length;
+  const enabled = tool.methods.filter((method) => isMethodEnabled(toolId, method.name)).length;
+
+  return { enabled, total };
+};
+
 const getToolIcon = (toolId: string) => {
   const tool = toolsStore.tools.find((t) => t.path === `/${toolId}`);
   return tool?.icon || markRaw(Cpu);
@@ -103,11 +164,7 @@ const emit = defineEmits<{
     </div>
 
     <!-- VCP 渠道提示条 -->
-    <el-tooltip
-      v-if="isVcpChannel && config.enabled"
-      placement="bottom"
-      :show-after="400"
-    >
+    <el-tooltip v-if="isVcpChannel && config.enabled" placement="bottom" :show-after="400">
       <template #content>
         <div style="max-width: 260px; line-height: 1.5">
           当前渠道由 <strong>VCP 后端</strong>管理工具调用和工具执行。<br />
@@ -126,54 +183,116 @@ const emit = defineEmits<{
         <el-empty :image-size="30" description="未发现可用工具" />
       </div>
       <div v-else class="tool-items-container">
-        <div
-          v-for="tool in discoveredTools"
-          :key="tool.toolId"
-          class="mini-tool-item"
-          :class="{ disabled: !isToolEnabled(tool.toolId) }"
-        >
-          <div class="tool-main" @click="toggleTool(tool.toolId)">
-            <el-icon class="tool-icon">
-              <component :is="getToolIcon(tool.toolId)" />
-            </el-icon>
-            <span class="tool-name">{{ tool.toolName }}</span>
-          </div>
-          <div class="tool-switches" @click.stop>
-            <el-tooltip
-              :content="isAutoApproveEnabled(tool.toolId) ? '已开启自动批准' : '点击开启自动批准'"
-              placement="top"
-              :show-after="800"
-            >
-              <div
-                class="icon-toggle icon-toggle--auto"
+        <template v-for="tool in discoveredTools" :key="tool.toolId">
+          <div class="mini-tool-item" :class="{ disabled: !isToolEnabled(tool.toolId) }">
+            <div class="tool-main" @click="toggleToolExpand(tool.toolId)">
+              <el-icon class="tool-icon">
+                <component :is="getToolIcon(tool.toolId)" />
+              </el-icon>
+              <span class="tool-name">{{ tool.toolName }}</span>
+              <span
+                v-if="config.showMethodsCount"
+                class="methods-count"
                 :class="{
-                  active: isAutoApproveEnabled(tool.toolId),
-                  'is-ineffective': config.mode !== 'auto',
+                  'methods-count--full':
+                    getEnabledMethodsCount(tool.toolId).enabled === getEnabledMethodsCount(tool.toolId).total,
+                  'methods-count--partial':
+                    getEnabledMethodsCount(tool.toolId).enabled > 0 &&
+                    getEnabledMethodsCount(tool.toolId).enabled < getEnabledMethodsCount(tool.toolId).total,
+                  'methods-count--none': getEnabledMethodsCount(tool.toolId).enabled === 0,
                 }"
-                @click="toggleAutoApprove(tool.toolId)"
               >
-                <Zap
-                  :size="14"
-                  class="toggle-icon"
-                  :fill="isAutoApproveEnabled(tool.toolId) ? 'currentColor' : 'none'"
-                />
-              </div>
-            </el-tooltip>
-            <el-tooltip
-              :content="isToolEnabled(tool.toolId) ? '工具已启用' : '工具已禁用'"
-              placement="top"
-              :show-after="800"
-            >
-              <div
-                class="icon-toggle icon-toggle--power"
-                :class="{ active: isToolEnabled(tool.toolId) }"
-                @click="toggleTool(tool.toolId)"
+                {{ getEnabledMethodsCount(tool.toolId).enabled }}/{{ getEnabledMethodsCount(tool.toolId).total }}
+              </span>
+              <ChevronDown
+                :size="12"
+                class="expand-chevron"
+                :class="{ 'expand-chevron--open': expandedToolId === tool.toolId }"
+              />
+            </div>
+            <div class="tool-switches" @click.stop>
+              <el-tooltip
+                :content="isAutoApproveEnabled(tool.toolId) ? '已开启自动批准' : '点击开启自动批准'"
+                placement="top"
+                :show-after="800"
               >
-                <Power :size="14" class="toggle-icon" />
-              </div>
-            </el-tooltip>
+                <div
+                  class="icon-toggle icon-toggle--auto"
+                  :class="{
+                    active: isAutoApproveEnabled(tool.toolId),
+                    'is-ineffective': config.mode !== 'auto',
+                  }"
+                  @click="toggleAutoApprove(tool.toolId)"
+                >
+                  <Zap
+                    :size="14"
+                    class="toggle-icon"
+                    :fill="isAutoApproveEnabled(tool.toolId) ? 'currentColor' : 'none'"
+                  />
+                </div>
+              </el-tooltip>
+              <el-tooltip
+                :content="isToolEnabled(tool.toolId) ? '工具已启用' : '工具已禁用'"
+                placement="top"
+                :show-after="800"
+              >
+                <div
+                  class="icon-toggle icon-toggle--power"
+                  :class="{ active: isToolEnabled(tool.toolId) }"
+                  @click="toggleTool(tool.toolId)"
+                >
+                  <Power :size="14" class="toggle-icon" />
+                </div>
+              </el-tooltip>
+            </div>
           </div>
-        </div>
+
+          <!-- 方法列表（展开时显示） -->
+          <transition name="el-zoom-in-top">
+            <div v-if="expandedToolId === tool.toolId" class="methods-submenu">
+              <div v-for="method in tool.methods" :key="method.name" class="method-subitem">
+                <span class="method-subname">{{ method.name }}</span>
+                <div class="method-switches" @click.stop>
+                  <el-tooltip
+                    :content="
+                      isMethodAutoApproveEnabled(tool.toolId, method.name) ? '已开启自动批准' : '点击开启自动批准'
+                    "
+                    placement="top"
+                    :show-after="800"
+                  >
+                    <div
+                      class="icon-toggle icon-toggle--auto icon-toggle--small"
+                      :class="{
+                        active: isMethodAutoApproveEnabled(tool.toolId, method.name),
+                        'is-ineffective': config.mode !== 'auto',
+                      }"
+                      @click="toggleMethodAutoApprove(tool.toolId, method.name)"
+                    >
+                      <Zap
+                        :size="12"
+                        class="toggle-icon"
+                        :fill="isMethodAutoApproveEnabled(tool.toolId, method.name) ? 'currentColor' : 'none'"
+                      />
+                    </div>
+                  </el-tooltip>
+                  <el-tooltip
+                    :content="isMethodEnabled(tool.toolId, method.name) ? '方法已启用' : '方法已禁用'"
+                    placement="top"
+                    :show-after="800"
+                  >
+                    <div
+                      class="icon-toggle icon-toggle--power icon-toggle--small"
+                      :class="{ active: isMethodEnabled(tool.toolId, method.name) }"
+                      @click="toggleMethod(tool.toolId, method.name)"
+                    >
+                      <Power :size="12" class="toggle-icon" />
+                    </div>
+                  </el-tooltip>
+                </div>
+              </div>
+            </div>
+          </transition>
+        </template>
       </div>
     </div>
 
@@ -181,6 +300,10 @@ const emit = defineEmits<{
       <div class="footer-left">
         <span class="footer-label">自动批准</span>
         <el-switch :model-value="config.mode === 'auto'" @update:model-value="toggleAutoMode" size="small" />
+      </div>
+      <div class="footer-left">
+        <span class="footer-label">显示统计</span>
+        <el-switch :model-value="config.showMethodsCount" @update:model-value="toggleShowMethodsCount" size="small" />
       </div>
       <button class="advanced-btn" @click="emit('open-advanced', 'tool-calling')">
         <Settings2 :size="12" />
@@ -281,6 +404,31 @@ const emit = defineEmits<{
   font-weight: 400;
 }
 
+.methods-count {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  font-family: var(--el-font-family-mono);
+  transition: all 0.2s;
+}
+
+.methods-count--full {
+  background: rgba(var(--el-color-success-rgb), 0.15);
+  color: var(--el-color-success);
+}
+
+.methods-count--partial {
+  background: rgba(var(--el-color-warning-rgb), 0.15);
+  color: var(--el-color-warning);
+}
+
+.methods-count--none {
+  background: rgba(var(--el-color-danger-rgb), 0.15);
+  color: var(--el-color-danger);
+}
+
 .tool-switches {
   display: flex;
   align-items: center;
@@ -341,6 +489,8 @@ const emit = defineEmits<{
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .footer-left {
@@ -393,5 +543,56 @@ const emit = defineEmits<{
   user-select: none;
   letter-spacing: 0.1px;
 }
-</style>
 
+.expand-chevron {
+  margin-left: auto;
+  color: var(--el-text-color-placeholder);
+  transition: transform 0.2s;
+}
+
+.expand-chevron--open {
+  transform: rotate(180deg);
+}
+
+.methods-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 4px 4px 20px;
+  margin-top: 2px;
+  border-left: 2px solid var(--el-border-color-lighter);
+  margin-left: 12px;
+}
+
+.method-subitem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--el-fill-color-lighter);
+  transition: all 0.2s;
+}
+
+.method-subitem:hover {
+  background: var(--el-fill-color-light);
+}
+
+.method-subname {
+  font-size: 11px;
+  font-family: var(--el-font-family-mono);
+  color: var(--el-text-color-regular);
+  flex: 1;
+}
+
+.method-switches {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-toggle--small {
+  width: 20px;
+  height: 20px;
+}
+</style>

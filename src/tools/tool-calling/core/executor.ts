@@ -78,10 +78,24 @@ async function executeSingleRequest(
     );
   }
 
+  // 检查方法是否启用
+  const methodKey = `${target.toolId}_${target.methodName}`;
+  const isMethodEnabled = options.config.methodToggles?.[methodKey] !== false;
+  if (!isMethodEnabled) {
+    return buildErrorResult(
+      request,
+      `方法已被禁用：${target.toolId}.${target.methodName}，请在智能体设置中开启`,
+      Date.now() - startedAt
+    );
+  }
+
   // 自动化批准逻辑判断
   const isGlobalAuto = options.config.mode === "auto";
   const isToolAutoApprove = options.config.autoApproveTools?.[target.toolId] ?? options.config.defaultAutoApprove;
-  const shouldAutoApprove = isGlobalAuto && isToolAutoApprove;
+  const isMethodAutoApprove = options.config.autoApproveMethods?.[methodKey] ?? false;
+
+  // 方法级自动批准优先级高于工具级
+  const shouldAutoApprove = isGlobalAuto && (isMethodAutoApprove || isToolAutoApprove);
 
   if (!shouldAutoApprove) {
     const approvalResult = await options.onBeforeExecute?.(request);

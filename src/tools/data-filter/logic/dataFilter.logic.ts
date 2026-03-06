@@ -59,43 +59,61 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
           return true;
         }
 
-        const itemValue = get(item, cond.key);
+        // 支持多键 OR 逻辑 (逗号分隔)
+        const keys = cond.key
+          .split(",")
+          .map((k) => k.trim())
+          .filter(Boolean);
 
-        switch (cond.operator) {
-          case "eq":
-            return itemValue === cond.value;
-          case "ne":
-            return itemValue !== cond.value;
-          case "contains":
-            return String(itemValue).includes(String(cond.value));
-          case "truthy":
-            return !!itemValue;
-          case "falsy":
-            return !itemValue;
-          case "gt":
-            return Number(itemValue) > Number(cond.value);
-          case "ge":
-            return Number(itemValue) >= Number(cond.value);
-          case "lt":
-            return Number(itemValue) < Number(cond.value);
-          case "le":
-            return Number(itemValue) <= Number(cond.value);
-          case "custom":
-            if (!cond.customScript) return true;
-            try {
-              const fn = new Function("item", "value", `return ${cond.customScript}`);
-              return fn(item, cond.value);
-            } catch (e) {
-              errorHandler.handle(e, {
-                userMessage: "自定义脚本执行失败",
-                showToUser: false,
-                context: { customScript: cond.customScript },
-              });
-              return true;
-            }
-          default:
-            return true;
+        // 如果没有键且不是自定义脚本，默认通过
+        if (keys.length === 0 && cond.operator !== "custom") {
+          return true;
         }
+
+        // 内部判断函数
+        const checkSingleKey = (key: string) => {
+          const itemValue = get(item, key);
+          switch (cond.operator) {
+            case "eq":
+              return itemValue === cond.value;
+            case "ne":
+              return itemValue !== cond.value;
+            case "contains":
+              return String(itemValue).includes(String(cond.value));
+            case "truthy":
+              return !!itemValue;
+            case "falsy":
+              return !itemValue;
+            case "gt":
+              return Number(itemValue) > Number(cond.value);
+            case "ge":
+              return Number(itemValue) >= Number(cond.value);
+            case "lt":
+              return Number(itemValue) < Number(cond.value);
+            case "le":
+              return Number(itemValue) <= Number(cond.value);
+            default:
+              return true;
+          }
+        };
+
+        if (cond.operator === "custom") {
+          if (!cond.customScript) return true;
+          try {
+            const fn = new Function("item", "value", `return ${cond.customScript}`);
+            return fn(item, cond.value);
+          } catch (e) {
+            errorHandler.handle(e, {
+              userMessage: "自定义脚本执行失败",
+              showToUser: false,
+              context: { customScript: cond.customScript },
+            });
+            return true;
+          }
+        }
+
+        // 只要有一个键满足条件即可 (OR 逻辑)
+        return keys.some((key) => checkSingleKey(key));
       });
     });
 

@@ -118,7 +118,7 @@
                       <el-switch v-model="cond.enabled" size="small" />
                       <el-input
                         v-model="cond.key"
-                        placeholder="键名 (如: status)"
+                        placeholder="键名 (支持英文逗号分隔)"
                         class="key-input"
                         :disabled="!cond.enabled"
                       />

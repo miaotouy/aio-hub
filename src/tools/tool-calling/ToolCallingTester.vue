@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from "vue";
 import { useStorage } from "@vueuse/core";
-import { Search, FileText, Zap } from "lucide-vue-next";
+import { Search, FileText, Zap, ListTodo } from "lucide-vue-next";
 import { createToolDiscoveryService } from "./core/discovery";
 import { VcpToolCallingProtocol } from "./core/protocols/vcp-protocol";
 
@@ -9,6 +9,7 @@ import { VcpToolCallingProtocol } from "./core/protocols/vcp-protocol";
 import DiscoveryPane from "./components/DiscoveryPane.vue";
 import ExecutorPane from "./components/ExecutorPane.vue";
 import ParserPane from "./components/ParserPane.vue";
+import AsyncTaskMonitor from "./components/AsyncTaskMonitor.vue";
 
 // --- 服务初始化 ---
 const discoveryService = createToolDiscoveryService();
@@ -72,6 +73,17 @@ onMounted(() => {
           </div>
         </template>
         <ParserPane :protocol="vcpProtocol" :groups="discoveredGroups" />
+      </el-tab-pane>
+
+      <!-- 4. 异步任务 -->
+      <el-tab-pane name="async-tasks">
+        <template #label>
+          <div class="tab-label">
+            <el-icon><ListTodo /></el-icon>
+            <span>异步任务</span>
+          </div>
+        </template>
+        <AsyncTaskMonitor />
       </el-tab-pane>
     </el-tabs>
   </div>

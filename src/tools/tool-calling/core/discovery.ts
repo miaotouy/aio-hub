@@ -182,7 +182,20 @@ export function createToolDiscoveryService(): {
       toolId: tool.toolId,
       toolName: tool.toolName,
       toolDescription: tool.toolDescription,
-      methods: tool.methods,
+      methods: tool.methods.map((method) => {
+        // 为异步方法添加标注
+        if (method.executionMode === "async") {
+          const asyncNote = "[异步方法] 此方法会立即返回任务ID，需要使用 tool-calling_getTaskStatus 查询结果";
+          const estimatedDuration = method.asyncConfig?.estimatedDuration;
+          const durationNote = estimatedDuration ? ` (预计耗时: ${estimatedDuration}秒)` : "";
+
+          return {
+            ...method,
+            description: `${asyncNote}${durationNote}\n${method.description || ""}`.trim(),
+          };
+        }
+        return method;
+      }),
     }));
 
     const definitions = protocolImpl.generateToolDefinitions(protocolInput, {

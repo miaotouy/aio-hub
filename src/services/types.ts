@@ -35,6 +35,23 @@ export interface MethodMetadata {
     /** VCP 协议的命令名称映射 */
     vcpCommand?: string;
   };
+  /**
+   * 方法执行模式
+   * - 'sync': 同步执行（默认）
+   * - 'async': 异步执行（返回任务 ID）
+   */
+  executionMode?: "sync" | "async";
+  /**
+   * 异步任务配置（仅当 executionMode === 'async' 时有效）
+   */
+  asyncConfig?: {
+    /** 是否支持进度汇报 */
+    hasProgress?: boolean;
+    /** 是否支持中途取消 */
+    cancellable?: boolean;
+    /** 预估执行时间（秒） */
+    estimatedDuration?: number;
+  };
 }
 
 export interface ServiceMetadata {

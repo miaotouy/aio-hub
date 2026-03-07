@@ -1,27 +1,14 @@
 import { toolRegistryManager } from "@/services/registry";
 import type { ParsedToolRequest, ToolExecutionResult, ToolCallConfig, ToolApprovalResult } from "../types";
 import { createModuleLogger } from "@/utils/logger";
+import { taskManager } from "./async-task";
+import { parseToolTarget } from "./utils/tool-parser";
 
 const logger = createModuleLogger("tool-calling/executor");
 
 export interface ExecutorOptions {
   config: ToolCallConfig;
   onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>;
-}
-
-function parseToolTarget(toolName: string): { toolId: string; methodName: string } | null {
-  // 注意：我们使用第一个下划线作为分隔符。
-  // 因为 toolId 统一使用连字符 (kebab-case)，不含下划线。
-  // 而 methodName (command) 可能会包含下划线。
-  const separatorIndex = toolName.indexOf("_");
-  if (separatorIndex <= 0 || separatorIndex >= toolName.length - 1) {
-    return null;
-  }
-
-  return {
-    toolId: toolName.slice(0, separatorIndex),
-    methodName: toolName.slice(separatorIndex + 1),
-  };
 }
 
 function buildErrorResult(request: ParsedToolRequest, message: string, durationMs = 0): ToolExecutionResult {
@@ -131,11 +118,18 @@ async function executeSingleRequest(
   }
 
   const metadata =
-    typeof (toolInstance as { getMetadata?: () => { methods?: Array<{ name: string; agentCallable?: boolean }> } })
-      .getMetadata === "function"
+    typeof (
+      toolInstance as {
+        getMetadata?: () => {
+          methods?: Array<{ name: string; agentCallable?: boolean; executionMode?: "sync" | "async" }>;
+        };
+      }
+    ).getMetadata === "function"
       ? (
           toolInstance as {
-            getMetadata: () => { methods?: Array<{ name: string; agentCallable?: boolean }> };
+            getMetadata: () => {
+              methods?: Array<{ name: string; agentCallable?: boolean; executionMode?: "sync" | "async" }>;
+            };
           }
         ).getMetadata()
       : undefined;
@@ -162,6 +156,36 @@ async function executeSingleRequest(
   }
   const agentPreset = options.config.toolSettings?.[target.toolId] ?? {};
   const mergedArgs = { ...schemaDefaults, ...agentPreset, ...request.args };
+
+  // 检查是否为异步方法
+  if (methodMeta?.executionMode === "async") {
+    try {
+      const taskId = await taskManager.submitTask(request.toolName, mergedArgs, request.requestId);
+      const durationMs = Date.now() - startedAt;
+
+      const asyncResult = {
+        type: "async_task",
+        taskId,
+        message: "任务已提交，请使用 tool-calling_getTaskStatus 查询进度",
+      };
+
+      return {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        status: "success",
+        result: JSON.stringify(asyncResult),
+        durationMs,
+      };
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("异步任务提交失败", error, {
+        requestId: request.requestId,
+        toolName: request.toolName,
+      });
+      return buildErrorResult(request, `异步任务提交失败：${message}`, durationMs);
+    }
+  }
 
   try {
     const invokePromise = Promise.resolve(

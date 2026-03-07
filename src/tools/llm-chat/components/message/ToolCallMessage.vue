@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, provide, watch, nextTick } from "vue";
+import { computed, ref, provide, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useResizeObserver, useClipboard } from "@vueuse/core";
 import type { ChatMessageNode, ChatSession, TranslationDisplayMode, ButtonVisibility } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -13,6 +13,9 @@ import {
   Play,
   Languages,
   MessageSquareText,
+  Loader2,
+  XCircle,
+  RotateCcw,
 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
@@ -32,6 +35,9 @@ import type { ChatRegexRule } from "../../types/chatRegex";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
+import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
+import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor";
+import type { AsyncTaskMetadata } from "@/tools/tool-calling/core/async-task/types";
 
 interface Props {
   session: ChatSession | null;
@@ -81,9 +87,115 @@ const chatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
 const { copy } = useClipboard();
 const { translateText } = useTranslation();
+const asyncTaskStore = useAsyncTaskStore();
 
 // 编辑状态（内部管理）
 const isEditing = ref(false);
+
+// ===== 异步任务状态管理 =====
+const taskId = ref<string | null>(null);
+const asyncTask = ref<AsyncTaskMetadata | null>(null);
+let pollingTimer: ReturnType<typeof setInterval> | null = null;
+
+// 从消息内容中提取 taskId
+onMounted(() => {
+  const extractedTaskId = extractTaskId(props.message.content);
+  if (extractedTaskId) {
+    taskId.value = extractedTaskId;
+
+    // 尝试从 Store 获取任务
+    asyncTask.value = asyncTaskStore.getTask(extractedTaskId) ?? null;
+
+    // 如果任务正在运行,启动轮询
+    if (asyncTask.value && (asyncTask.value.status === "running" || asyncTask.value.status === "pending")) {
+      startPolling();
+    }
+  }
+});
+
+onUnmounted(() => {
+  stopPolling();
+});
+
+// 监听任务状态变化
+watch(
+  () => (taskId.value ? (asyncTaskStore.getTask(taskId.value) ?? null) : null),
+  (newTask) => {
+    asyncTask.value = newTask ?? null;
+
+    // 如果任务完成或失败，停止轮询
+    if (newTask && (newTask.status === "completed" || newTask.status === "failed" || newTask.status === "cancelled")) {
+      stopPolling();
+    }
+  },
+  { deep: true }
+);
+
+// 启动轮询
+const startPolling = () => {
+  if (pollingTimer) return;
+
+  pollingTimer = setInterval(() => {
+    if (taskId.value) {
+      const task = asyncTaskStore.getTask(taskId.value);
+      if (task) {
+        asyncTask.value = task;
+
+        // 如果任务完成，停止轮询
+        if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
+          stopPolling();
+        }
+      }
+    }
+  }, 2000); // 每 2 秒轮询一次
+};
+
+// 停止轮询
+const stopPolling = () => {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
+};
+
+// 取消任务
+const handleCancelTask = async () => {
+  if (!taskId.value) return;
+
+  try {
+    await asyncTaskStore.cancelTask(taskId.value);
+    customMessage.success("任务已取消");
+  } catch (error) {
+    customMessage.error("取消任务失败");
+  }
+};
+
+// 重试任务
+const handleRetryTask = async () => {
+  if (!taskId.value) return;
+
+  try {
+    const newTaskId = await asyncTaskStore.retryTask(taskId.value);
+    customMessage.success(`任务已重新提交，新任务 ID: ${newTaskId.slice(0, 8)}`);
+  } catch (error) {
+    customMessage.error("重试任务失败");
+  }
+};
+
+// 计算异步任务的显示状态
+const asyncTaskStatus = computed(() => {
+  if (!asyncTask.value) return null;
+
+  return {
+    isRunning: asyncTask.value.status === "running" || asyncTask.value.status === "pending",
+    isFailed: asyncTask.value.status === "failed" || asyncTask.value.status === "interrupted",
+    isCompleted: asyncTask.value.status === "completed",
+    isCancelled: asyncTask.value.status === "cancelled",
+    progress: asyncTask.value.progress ?? 0,
+    progressMessage: asyncTask.value.progressMessage,
+    error: asyncTask.value.error,
+  };
+});
 
 const isCollapsed = ref(true);
 const editingContent = ref("");
@@ -447,6 +559,63 @@ defineExpose({
               <button class="copy-small-btn" @click="handleCopyArgs(toolCalls[0].rawArgs)">复制</button>
             </div>
             <pre class="args-content">{{ JSON.stringify(toolCalls[0].rawArgs, null, 2) }}</pre>
+          </div>
+
+          <!-- 异步任务状态块 -->
+          <div v-if="asyncTaskStatus" class="async-task-status-block">
+            <!-- 运行中 -->
+            <div v-if="asyncTaskStatus.isRunning" class="task-running">
+              <div class="task-status-header">
+                <Loader2 :size="16" class="spinning-icon" />
+                <span class="task-status-text">任务执行中...</span>
+              </div>
+              <div v-if="asyncTaskStatus.progress > 0" class="task-progress-bar">
+                <div class="progress-fill" :style="{ width: `${asyncTaskStatus.progress}%` }"></div>
+                <span class="progress-text">{{ asyncTaskStatus.progress }}%</span>
+              </div>
+              <div v-if="asyncTaskStatus.progressMessage" class="task-progress-message">
+                {{ asyncTaskStatus.progressMessage }}
+              </div>
+              <div class="task-actions">
+                <el-button size="small" @click="handleCancelTask">
+                  <XCircle :size="14" />
+                  取消任务
+                </el-button>
+              </div>
+            </div>
+
+            <!-- 失败/中断 -->
+            <div v-else-if="asyncTaskStatus.isFailed" class="task-failed">
+              <div class="task-status-header">
+                <AlertCircle :size="16" class="error-icon" />
+                <span class="task-status-text">任务执行失败</span>
+              </div>
+              <div v-if="asyncTaskStatus.error" class="task-error-message">
+                {{ asyncTaskStatus.error }}
+              </div>
+              <div class="task-actions">
+                <el-button size="small" type="warning" @click="handleRetryTask">
+                  <RotateCcw :size="14" />
+                  重试任务
+                </el-button>
+              </div>
+            </div>
+
+            <!-- 已取消 -->
+            <div v-else-if="asyncTaskStatus.isCancelled" class="task-cancelled">
+              <div class="task-status-header">
+                <XCircle :size="16" class="cancelled-icon" />
+                <span class="task-status-text">任务已取消</span>
+              </div>
+            </div>
+
+            <!-- 已完成 -->
+            <div v-else-if="asyncTaskStatus.isCompleted" class="task-completed">
+              <div class="task-status-header">
+                <Play :size="16" class="success-icon" />
+                <span class="task-status-text">任务已完成</span>
+              </div>
+            </div>
           </div>
 
           <div class="content-display-grid">
@@ -1110,5 +1279,143 @@ defineExpose({
 .is-disabled {
   opacity: 0.5;
   filter: grayscale(0.5);
+}
+
+/* 异步任务状态块 */
+.async-task-status-block {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+}
+
+.task-status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.task-status-text {
+  color: var(--text-color-primary);
+}
+
+/* 运行中状态 */
+.task-running {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spinning-icon {
+  color: var(--el-color-primary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.task-progress-bar {
+  position: relative;
+  height: 24px;
+  background-color: var(--card-bg);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--el-color-primary), var(--el-color-primary-light-3));
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-color-primary);
+  z-index: 1;
+  text-shadow: 0 0 2px var(--card-bg);
+}
+
+.task-progress-message {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  padding: 6px 10px;
+  background-color: var(--card-bg);
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-primary);
+}
+
+/* 失败状态 */
+.task-failed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.error-icon {
+  color: var(--el-color-danger);
+}
+
+.task-error-message {
+  font-size: 12px;
+  color: var(--el-color-danger);
+  padding: 8px 10px;
+  background-color: color-mix(in srgb, var(--el-color-danger) 10%, var(--card-bg));
+  border-radius: 4px;
+  border-left: 3px solid var(--el-color-danger);
+  font-family: var(--font-family-mono);
+}
+
+/* 取消状态 */
+.task-cancelled {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cancelled-icon {
+  color: var(--el-color-warning);
+}
+
+/* 完成状态 */
+.task-completed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.success-icon {
+  color: var(--el-color-success);
+}
+
+/* 任务操作按钮 */
+.task-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.task-actions .el-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

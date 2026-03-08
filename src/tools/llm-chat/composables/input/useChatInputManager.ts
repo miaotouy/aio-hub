@@ -119,6 +119,16 @@ class ChatInputManager {
    * 根据资产状态获取对应的占位符
    */
   private getPlaceholder(asset: Asset): string {
+    // 优先使用 uploadingId 作为占位符标识
+    if (asset.uploadingId) {
+      // 如果资产还在导入中，显示上传中占位符
+      if (asset.importStatus === "pending" || asset.importStatus === "importing") {
+        return generateUploadingPlaceholder(asset.uploadingId);
+      }
+      // 如果已完成导入且 ID 已经变了，使用正式占位符
+      return generateAssetPlaceholder(asset.id);
+    }
+    // 回退逻辑：根据 ID 判定
     return this.isTempId(asset.id) ? generateUploadingPlaceholder(asset.id) : generateAssetPlaceholder(asset.id);
   }
 
@@ -714,6 +724,11 @@ class ChatInputManager {
    * 利用 idUpdateLog 中记录的历史映射，以及当前附件列表，对所有残留的 uploading 占位符进行二次替换
    * 主要用于应对上传完成时用户正在打字导致的 Vue 响应式竞态问题
    */
+  /**
+   * 全量扫描并修复输入框中的占位符
+   * 利用资产对象的 uploadingId 契约，对所有残留的 uploading 占位符进行二次替换
+   * 主要用于应对上传完成时用户正在打字导致的 Vue 响应式竞态问题
+   */
   scanAndFixPlaceholders(): void {
     const text = this.inputText.value;
     if (!text.includes("file::uploading:")) return;
@@ -726,32 +741,33 @@ class ChatInputManager {
     let newText = text;
     let fixedCount = 0;
 
-    // 获取当前附件列表，建立 ID 映射
+    // 获取当前附件列表
     const currentAttachments = this.attachmentManager.attachments.value;
 
-    for (const match of matches) {
-      const tempId = match[1];
-      let realId = this.idUpdateLog.get(tempId);
+    // 策略：基于资产对象的 uploadingId 契约进行替换
+    // 只要资产已经完成导入 (importStatus === 'complete') 且 ID 已转正，我们就执行替换
+    for (const asset of currentAttachments) {
+      if (asset.uploadingId && asset.importStatus === "complete" && asset.id !== asset.uploadingId) {
+        const uploadingPlaceholder = generateUploadingPlaceholder(asset.uploadingId);
+        const realPlaceholder = generateAssetPlaceholder(asset.id);
 
-      // 如果日志里没找到，尝试从当前附件列表中找已经完成的资产
-      if (!realId) {
-        const completedAsset = currentAttachments.find(
-          (a) => a.importStatus === "complete" && !this.isTempId(a.id)
-          // 注意：这里我们无法 100% 确定哪个正式 ID 对应哪个临时 ID，
-          // 但通常情况下，如果只有一个上传任务，或者是根据文件名/大小匹配
-        );
-        // 如果只有一个附件且已完成，大概率就是它
-        if (currentAttachments.length === 1 && completedAsset) {
-          realId = completedAsset.id;
+        if (newText.includes(uploadingPlaceholder)) {
+          newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
+          fixedCount++;
         }
       }
+    }
 
-      if (!realId) continue;
-
-      const uploadingPlaceholder = generateUploadingPlaceholder(tempId);
-      const realPlaceholder = generateAssetPlaceholder(realId);
-      newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
-      fixedCount++;
+    // 兜底策略：使用历史日志 (idUpdateLog) 处理那些可能已经被从 attachments 中移除但文本中仍残留的占位符
+    if (newText.includes("file::uploading:")) {
+      for (const [oldId, newId] of this.idUpdateLog.entries()) {
+        const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
+        if (newText.includes(uploadingPlaceholder)) {
+          const realPlaceholder = generateAssetPlaceholder(newId);
+          newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
+          fixedCount++;
+        }
+      }
     }
 
     if (fixedCount > 0) {

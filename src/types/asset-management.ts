@@ -1,6 +1,6 @@
 /**
  * 全局资产管理系统类型定义
- * 
+ *
  * 本文件定义了应用级资产管理系统的核心数据结构。
  * 这些类型可被所有需要文件处理的模块复用。
  */
@@ -62,7 +62,7 @@ export interface AssetMetadata {
 /**
  * 资产导入状态
  */
-export type AssetImportStatus = 'pending' | 'importing' | 'complete' | 'error';
+export type AssetImportStatus = "pending" | "importing" | "complete" | "error";
 
 /**
  * 代表一个由应用管理的资产文件
@@ -79,6 +79,14 @@ export interface Asset {
    * 资产的唯一标识符 (UUID)
    */
   id: string;
+
+  /**
+   * 临时上传 ID
+   * 用于在资产导入/上传期间作为占位符的唯一标识。
+   * 即使导入完成后 id 发生了变化（例如后端分配了正式 UUID），此 ID 保持不变，
+   * 从而确保输入框中的占位符能够被准确追踪和替换。
+   */
+  uploadingId?: string;
 
   /**
    * 文件的通用类型，用于 UI 快速判断如何展示
@@ -239,21 +247,21 @@ export interface DuplicateFilesResult {
 /**
  * 资产分组方式
  */
-export type AssetGroupBy = 'month' | 'type' | 'origin' | 'source-module' | 'none';
+export type AssetGroupBy = "month" | "type" | "origin" | "source-module" | "none";
 
 // --- 懒加载与分页类型 ---
 
-export type AssetSortBy = 'date' | 'name' | 'size';
-export type SortOrder = 'asc' | 'desc';
+export type AssetSortBy = "date" | "name" | "size";
+export type SortOrder = "asc" | "desc";
 
 export interface ListAssetsPaginatedPayload {
   page: number;
   pageSize: number;
   sortBy: AssetSortBy;
   sortOrder: SortOrder;
-  filterType?: AssetType | 'all';
-  filterOrigin?: AssetOriginType | 'all';
-  filterSourceModule?: string | 'all';
+  filterType?: AssetType | "all";
+  filterOrigin?: AssetOriginType | "all";
+  filterSourceModule?: string | "all";
   searchQuery?: string;
   showDuplicatesOnly?: boolean;
 }

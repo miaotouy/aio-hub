@@ -304,8 +304,10 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
       // 使用新的文件类型检测工具
       const { mimeType, assetType } = await detectFileType(path, fileName);
 
+      const tempId = nanoid();
       const pendingAsset: Asset = {
-        id: nanoid(), // 临时 ID
+        id: tempId, // 初始 ID
+        uploadingId: tempId, // 记录下这个原始的占位符 ID，作为后续替换的唯一凭证
         type: assetType,
         mimeType,
         name: fileName,
@@ -390,6 +392,8 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
         // 创建新对象替换，确保触发响应式更新
         const updatedAsset = {
           ...importedAsset,
+          // 关键：保留原始的 uploadingId，确保输入框中的占位符能够被找到并替换
+          uploadingId: pendingAsset.uploadingId,
           importStatus: "complete" as AssetImportStatus,
         };
         // 删除 originalPath 属性（如果存在）

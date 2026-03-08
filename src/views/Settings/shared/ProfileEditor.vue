@@ -59,6 +59,7 @@ const emit = defineEmits<Emits>();
   flex-direction: column;
   overflow: hidden;
   height: 100%;
+  box-sizing: border-box;
 }
 
 .editor-header {
@@ -89,5 +90,7 @@ const emit = defineEmits<Emits>();
   flex: 1;
   padding: 20px;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 </style>

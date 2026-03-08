@@ -495,12 +495,14 @@ const networkSettingSummary = computed(() => {
   gap: 20px;
   flex: 1;
   min-height: 0;
+  box-sizing: border-box;
 }
 
 .editor-container {
   flex: 1;
   min-width: 0;
   max-height: 80vh;
+  overflow: hidden;
 }
 
 .settings-layout :deep(.profile-sidebar) {

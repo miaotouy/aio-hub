@@ -264,7 +264,12 @@ export function useTranscriptionManager() {
       if (task.status === "error") return "error";
       if (task.status === "pending") return "pending";
       if (task.status === "cancelled") return "none";
-      if (task.status === "completed" && task.resultPath) return "success";
+      if (task.status === "completed" && task.resultPath) {
+        // 任务完成后，需要检查是否有警告（内容为空）
+        const derived = asset.metadata?.derived?.transcription;
+        if (derived?.warning) return "warning";
+        return "success";
+      }
       return "processing";
     }
 

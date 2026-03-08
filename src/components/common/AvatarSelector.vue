@@ -9,6 +9,8 @@ import { PRESET_ICONS } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Star, Upload, RefreshLeft, Clock, Close } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
+import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
+import { acquireBlobUrl } from "@/utils/avatarImageCache";
 import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { extname } from "@tauri-apps/api/path";
@@ -299,10 +301,39 @@ const isImagePath = computed(() => {
 });
 
 // 点击图标放大查看
-const handleIconClick = () => {
+const handleIconClick = async () => {
   // 只有当图标是图片路径时才打开查看器（不是 emoji）
   if (isImagePath.value) {
-    imageViewer.show(sanitizedModelValue.value);
+    const currentSrc = sanitizedModelValue.value;
+
+    // 1. 处理 appdata:// 协议
+    if (currentSrc.startsWith("appdata://")) {
+      const blobUrl = await acquireBlobUrl(currentSrc);
+      if (blobUrl) {
+        imageViewer.show(blobUrl);
+      }
+      return;
+    }
+
+    // 2. 处理预设图标 (Lobe 或 Local)
+    if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
+      const svgContent = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
+      // 如果内容已经是 data: 或者是 URL 则直接用，否则视为 SVG 源码转为 Data URL
+      if (
+        svgContent.startsWith("data:") ||
+        svgContent.startsWith("http") ||
+        svgContent.startsWith("/")
+      ) {
+        imageViewer.show(svgContent);
+      } else {
+        const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
+        imageViewer.show(dataUrl);
+      }
+      return;
+    }
+
+    // 3. 其他情况 (HTTP, Data URL, 相对路径)
+    imageViewer.show(currentSrc);
   }
 };
 </script>

@@ -106,6 +106,19 @@ const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
 const { settings: chatSettings } = useChatSettings();
 
+/**
+ * 计算工具调用是否开启
+ */
+const isToolCallingEnabled = computed(() => {
+  // 优先从当前 Agent 获取配置
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  if (agent?.toolCallConfig) {
+    return agent.toolCallConfig.enabled;
+  }
+  // 回退到默认配置
+  return false;
+});
+
 // 联动临时模型：如果指定了临时模型，则检查该模型所属渠道是否为 VCP
 const effectiveProfileId = computed(() => props.temporaryModel?.profileId);
 const { isVcpChannel } = useIsVcpChannel(effectiveProfileId);
@@ -398,7 +411,14 @@ const handleOpenAdvanced = (tab: string | undefined) => {
               popper-class="tool-settings-popover"
             >
               <template #reference>
-                <button class="tool-btn" :class="{ active: toolSettingsVisible, 'vcp-active': isVcpChannel }">
+                <button
+                  class="tool-btn"
+                  :class="{
+                    active: !isVcpChannel && (toolSettingsVisible || isToolCallingEnabled),
+                    'vcp-active': isVcpChannel && (toolSettingsVisible || isToolCallingEnabled),
+                    'is-vcp': isVcpChannel,
+                  }"
+                >
                   <Wrench :size="16" />
                 </button>
               </template>
@@ -1053,6 +1073,11 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 
 .macro-icon-button.active,
 .expand-toggle-button.active {
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
+  color: var(--primary-color);
+}
+
+.tool-btn.active {
   background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
   color: var(--primary-color);
 }

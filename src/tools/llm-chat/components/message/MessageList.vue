@@ -224,6 +224,19 @@ watch(
   }
 );
 
+// 监听消息列表引用变化（关键：覆盖切换智能体但 session.id 不变的场景）
+watch(
+  () => props.messages,
+  (newMsgs, oldMsgs) => {
+    if (newMsgs !== oldMsgs) {
+      // 消息列表引用变化时重置测量缓存，避免旧高度数据干扰
+      measuredElements = new WeakSet<HTMLElement>();
+      // 通知虚拟列表清空尺寸缓存并重新测量
+      virtualizer.value.measure();
+    }
+  }
+);
+
 // 监听消息数量、总高度变化以及最后一条消息的内容变化
 watch(
   [
@@ -354,8 +367,11 @@ const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: As
 // 处理组件高度调整请求
 // 使用具体元素的测量而非全量 measure，避免滚动条跳动
 const handleResize = (dom: HTMLElement | null) => {
-  if (dom) {
-    virtualizer.value.measureElement(dom);
+  if (!dom) return;
+  // ChatMessage 传来的是内部 messageRef，需要向上查找设置了 data-index 的虚拟列表项渲染容器
+  const wrapper = dom.closest("[data-index]") as HTMLElement | null;
+  if (wrapper) {
+    virtualizer.value.measureElement(wrapper);
   }
 };
 

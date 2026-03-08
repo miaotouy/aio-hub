@@ -896,8 +896,8 @@ const handleOpenAdvanced = (tab: string | undefined) => {
   opacity: 0.5;
 }
 
-.streaming-icon-button:not(.active):hover:not(:disabled) {
-  background-color: var(--el-fill-color-light);
+.streaming-icon-button:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 
 .streaming-icon-button:not(.active):hover:not(:disabled) .typewriter-icon {
@@ -908,10 +908,6 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 .streaming-icon-button.active .typewriter-icon {
   color: var(--primary-color);
   opacity: 1;
-}
-
-.streaming-icon-button.active:hover:not(:disabled) {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
 }
 
 /* 辉光效果 */
@@ -1022,10 +1018,10 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 }
 
 .tool-btn:hover:not(:disabled),
-.macro-icon-button:not(.active):hover:not(:disabled),
+.macro-icon-button:hover:not(:disabled),
 .attachment-button:hover:not(:disabled),
-.expand-toggle-button:not(.active):hover:not(:disabled) {
-  background-color: var(--el-fill-color-light);
+.expand-toggle-button:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
   color: var(--text-color-primary);
 }
 
@@ -1037,20 +1033,11 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 /* VCP 渠道激活时 Wrench 按钮样式 */
 .tool-btn.vcp-active {
   color: #8b5cf6;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-primary) 10%, transparent),
-    color-mix(in srgb, #8b5cf6 8%, transparent)
-  );
 }
 
 .tool-btn.vcp-active:hover {
   color: #7c3aed;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-primary) 18%, transparent),
-    color-mix(in srgb, #8b5cf6 15%, transparent)
-  );
+  background-color: color-mix(in srgb, #8b5cf6 10%, transparent);
 }
 
 .loading-dots {
@@ -1073,12 +1060,10 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 
 .macro-icon-button.active,
 .expand-toggle-button.active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
   color: var(--primary-color);
 }
 
 .tool-btn.active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.15);
   color: var(--primary-color);
 }
 

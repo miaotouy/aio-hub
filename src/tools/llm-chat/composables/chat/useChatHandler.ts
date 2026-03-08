@@ -25,7 +25,7 @@ import { useContextCompressor } from "../features/useContextCompressor";
 import { filterParametersForModel } from "../../config/parameter-config";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
 import { buildMacroContext, processMacros } from "../../core/context-utils/macro";
-import type { ContextPreviewData } from "../../types/context";
+import { type ContextPreviewData, type GetContextPreviewOptions } from "../../types/context";
 import type { ModelIdentifier } from "../../types";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useChatSettings } from "../settings/useChatSettings";
@@ -60,7 +60,7 @@ export function useChatHandler() {
       parentId?: string;
       disableMacroParsing?: boolean;
     },
-    currentSessionId?: string | null,
+    currentSessionId?: string | null
   ): Promise<void> => {
     // 尝试执行自动上下文压缩
     // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
@@ -76,9 +76,7 @@ export function useChatHandler() {
     const userProfileStore = useUserProfileStore();
     const nodeManager = useNodeManager();
     // 获取当前智能体（在函数开头，以便后续宏处理使用）
-    const currentAgent = agentStore.currentAgentId
-      ? agentStore.getAgentById(agentStore.currentAgentId)
-      : null;
+    const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
@@ -104,9 +102,7 @@ export function useChatHandler() {
     if (options?.temporaryModel) {
       const { getProfileById, getSupportedParameters } = useLlmProfiles();
       const targetProfile = getProfileById(options.temporaryModel.profileId);
-      const targetModel = targetProfile?.models.find(
-        (m) => m.id === options.temporaryModel?.modelId,
-      );
+      const targetModel = targetProfile?.models.find((m) => m.id === options.temporaryModel?.modelId);
 
       if (targetProfile && targetModel) {
         agentConfig.modelId = options.temporaryModel.modelId;
@@ -117,7 +113,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities,
+          targetModel.capabilities
         );
         logger.info("使用临时指定的模型（参数已过滤）", {
           modelId: agentConfig.modelId,
@@ -142,11 +138,7 @@ export function useChatHandler() {
         input: content,
         userProfile: userProfileStore.globalProfile ?? undefined, // 传递 userProfile
       });
-      processedContent = await processMacros(
-        macroProcessor,
-        content,
-        macroContext,
-      );
+      processedContent = await processMacros(macroProcessor, content, macroContext);
     }
 
     logger.debug("用户消息宏处理", {
@@ -159,11 +151,7 @@ export function useChatHandler() {
     const parentId = options?.parentId || session.activeLeafId;
 
     // 使用节点管理器创建消息对（使用处理后的内容）
-    const { userNode, assistantNode } = nodeManager.createMessagePair(
-      session,
-      processedContent,
-      parentId,
-    );
+    const { userNode, assistantNode } = nodeManager.createMessagePair(session, processedContent, parentId);
 
     // 立即加入生成集合，确保在后续任何异步操作（如附件处理、转写、Token计算）期间，UI 都能正确显示生成状态
     generatingNodes.add(assistantNode.id);
@@ -180,12 +168,7 @@ export function useChatHandler() {
     // 处理附件（如果有）
     const { settings } = useChatSettings();
     if (options?.attachments && options.attachments.length > 0) {
-      await processUserAttachments(
-        userNode,
-        session,
-        options.attachments,
-        pathUserNode,
-      );
+      await processUserAttachments(userNode, session, options.attachments, pathUserNode);
     }
 
     // 立即保存用户消息，防止等待 LLM 响应或转写期间程序崩溃导致消息丢失
@@ -200,11 +183,7 @@ export function useChatHandler() {
     // 附件转写等待逻辑（在消息上屏并保存后执行）
     // 无论设置为何种发送行为，此处都采用“先上屏，后等待”的策略以提升响应感。
     // 等待是必须的，以确保后续 executeRequest 构建上下文时能拿到转写文本。
-    if (
-      options?.attachments &&
-      options.attachments.length > 0 &&
-      settings.value.transcription.enabled
-    ) {
+    if (options?.attachments && options.attachments.length > 0 && settings.value.transcription.enabled) {
       const transcriptionManager = useTranscriptionManager();
       const transcriptionController = new AbortController();
 
@@ -220,7 +199,7 @@ export function useChatHandler() {
           transcriptionManager.ensureTranscriptions(
             options.attachments,
             agentConfig.modelId,
-            agentConfig.profileId,
+            agentConfig.profileId
             // 当前消息的附件深度为0，不需要强制转写，传 undefined 即可
           ),
           new Promise((_, reject) => {
@@ -263,16 +242,12 @@ export function useChatHandler() {
       content: string;
     } | null = null;
     if (currentAgent?.userProfileId) {
-      const profile = userProfileStore.getProfileById(
-        currentAgent.userProfileId,
-      );
+      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
       if (profile) {
         effectiveUserProfile = profile;
       }
     } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(
-        userProfileStore.globalProfileId,
-      );
+      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
       if (profile) {
         effectiveUserProfile = profile;
       }
@@ -282,13 +257,7 @@ export function useChatHandler() {
     saveUserProfileSnapshot(userNode, effectiveUserProfile);
 
     // 计算用户消息的 token 数（包括文本和附件）
-    await calculateUserMessageTokens(
-      userNode,
-      session,
-      content,
-      agentConfig.modelId,
-      options?.attachments,
-    );
+    await calculateUserMessageTokens(userNode, session, content, agentConfig.modelId, options?.attachments);
 
     // 计算完成后立即持久化一次，确保用户消息的 tokens 及时保存并触发 UI 更新
     sessionManager.persistSession(session, currentSessionId ?? null);
@@ -343,7 +312,7 @@ export function useChatHandler() {
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string },
+    options?: { modelId?: string; profileId?: string }
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -383,9 +352,7 @@ export function useChatHandler() {
     if (options?.modelId && options?.profileId) {
       const { getProfileById, getSupportedParameters } = useLlmProfiles();
       const targetProfile = getProfileById(options.profileId);
-      const targetModel = targetProfile?.models.find(
-        (m) => m.id === options.modelId,
-      );
+      const targetModel = targetProfile?.models.find((m) => m.id === options.modelId);
 
       if (targetProfile && targetModel) {
         agentConfig.modelId = options.modelId;
@@ -396,7 +363,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities,
+          targetModel.capabilities
         );
 
         logger.info("使用指定的模型进行重试（参数已过滤）", {
@@ -490,7 +457,7 @@ export function useChatHandler() {
     nodeId: string,
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string },
+    options?: { modelId?: string; profileId?: string }
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -512,7 +479,7 @@ export function useChatHandler() {
     // 如果是 User 续写，路径包含 User 节点（新节点是空的助手节点，接在后面）
     const pathToUserNode = nodeManager.getNodePath(
       session,
-      session.nodes[nodeId].role === 'assistant' ? assistantNode.id : (userNode?.id || nodeId)
+      session.nodes[nodeId].role === "assistant" ? assistantNode.id : userNode?.id || nodeId
     );
     // 4. 获取配置
     const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId || "", {
@@ -531,9 +498,7 @@ export function useChatHandler() {
     if (options?.modelId && options?.profileId) {
       const { getProfileById, getSupportedParameters } = useLlmProfiles();
       const targetProfile = getProfileById(options.profileId);
-      const targetModel = targetProfile?.models.find(
-        (m) => m.id === options.modelId,
-      );
+      const targetModel = targetProfile?.models.find((m) => m.id === options.modelId);
 
       if (targetProfile && targetModel) {
         agentConfig.modelId = options.modelId;
@@ -544,7 +509,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities,
+          targetModel.capabilities
         );
 
         logger.info("续写使用指定的模型（参数已过滤）", {
@@ -591,7 +556,7 @@ export function useChatHandler() {
   const completeInput = async (
     text: string,
     _session?: ChatSession,
-    options?: { modelId?: string; profileId?: string },
+    options?: { modelId?: string; profileId?: string }
   ): Promise<string> => {
     const { sendRequest } = useLlmRequest();
     const agentStore = useAgentStore();
@@ -610,16 +575,17 @@ export function useChatHandler() {
     const messages: any[] = [
       {
         role: "system",
-        content: "You are a helpful writing assistant. Complete the user's text naturally. Do not repeat the input. Output ONLY the completion part.",
+        content:
+          "You are a helpful writing assistant. Complete the user's text naturally. Do not repeat the input. Output ONLY the completion part.",
       },
       {
         role: "user",
         content: text,
-      }
+      },
     ];
 
     // 如果提供了会话，可以尝试获取上下文（可选增强）
-    
+
     const response = await sendRequest({
       profileId,
       modelId,
@@ -631,11 +597,64 @@ export function useChatHandler() {
     return response.content;
   };
 
+  /**
+   * 获取 LLM 上下文预览数据
+   * 支持可选的 pendingInput 参数，用于在预览中包含待发送消息。
+   * 实现原理：将虚拟节点临时注入 session.nodes，走标准上下文管道，结束后清理。
+   */
+  const getLlmContextForPreview = async (
+    session: ChatSession,
+    nodeId: string,
+    historicalAgentId?: string,
+    options?: GetContextPreviewOptions
+  ): Promise<ContextPreviewData | null> => {
+    const agentStore = useAgentStore();
+    const userProfileStore = useUserProfileStore();
+
+    const pendingInput = options?.pendingInput;
+    const parameterOverrides = options?.parameterOverrides ?? session.parameterOverrides;
+
+    // 处理宏（如果启用且有待发送消息）
+    let processedPendingInput = undefined;
+    if (pendingInput) {
+      const currentAgent = agentStore.getAgentById(historicalAgentId || agentStore.currentAgentId || "");
+      const macroProcessor = new MacroProcessor();
+
+      let processedContent = pendingInput.text;
+      if (pendingInput.enableMacroParsing !== false) {
+        const macroContext = buildMacroContext({
+          session,
+          agent: currentAgent ?? undefined,
+          input: pendingInput.text,
+          userProfile: userProfileStore.globalProfile ?? undefined,
+        });
+        processedContent = await processMacros(macroProcessor, pendingInput.text, macroContext);
+      }
+
+      processedPendingInput = {
+        ...pendingInput,
+        text: processedContent,
+        originalText: pendingInput.text !== processedContent ? pendingInput.text : undefined,
+      };
+    }
+
+    // 调用标准管道，通过 options 传递 pendingInput
+    const result = await getContextForPreview(session, nodeId, historicalAgentId, parameterOverrides, {
+      pendingInput: processedPendingInput,
+    });
+
+    // 标记包含待发送消息预览
+    if (result && processedPendingInput) {
+      result.hasPendingInputPreview = true;
+    }
+    return result;
+  };
+
   return {
     sendMessage,
     regenerateFromNode,
     continueGeneration,
     completeInput,
-    getLlmContextForPreview: getContextForPreview,
+    getLlmContextForPreview,
   };
 }

@@ -13,6 +13,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { Asset } from "@/types/asset-management";
+import type { PendingInputData } from "../../types/context";
 import { MacroProcessor, createMacroContext } from "../../macro-engine";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ChatSettings } from "../../types/settings";
@@ -188,6 +189,25 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     setTimeout(() => {
       textarea.focus();
     }, 0);
+  };
+
+  // 处理分析当前上下文
+  const handleAnalyzeContextWithInput = () => {
+    const session = chatStore.currentSession;
+    if (!session) return;
+
+    // 直接从 inputManager 获取当前状态
+    const pendingInput: PendingInputData = {
+      text: options.inputManager.inputText.value,
+      attachments: options.inputManager.hasAttachments.value ? [...options.inputManager.attachments.value] : undefined,
+      temporaryModel: options.inputManager.temporaryModel.value,
+      enableMacroParsing: options.inputSettings.value.enableMacroParsing,
+    };
+
+    // 通过 store 开启分析器
+    chatStore.contextAnalyzerNodeId = session.activeLeafId;
+    chatStore.contextAnalyzerPendingInput = pendingInput;
+    chatStore.contextAnalyzerVisible = true;
   };
 
   // 翻译输入
@@ -464,6 +484,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     handleQuickAction,
     handleInsertMacro,
     handleTranslateInput,
+    handleAnalyzeContextWithInput,
     handleCompressContext,
     handleSelectTemporaryModel,
     handleSelectContinuationModel,

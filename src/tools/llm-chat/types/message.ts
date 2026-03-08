@@ -252,6 +252,8 @@ export interface ChatMessageNode {
     };
     /** SillyTavern 预设导入时的原始名称 */
     stPromptName?: string;
+    /** 宏展开前的原始输入（虚拟待发送节点临时使用，不持久化） */
+    pendingInputOriginal?: string;
     /** Token 计算缓存哈希（包含模型和内容信息） */
     lastCalcHash?: string;
     /** 消息翻译结果 */

@@ -22,6 +22,7 @@ import {
   Wrench,
   Grip,
   FileUp,
+  ScanSearch,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/MacroSelector.vue";
@@ -96,6 +97,7 @@ const emit = defineEmits<{
   (e: "clear-continuation-model"): void;
   (e: "convert-paths"): void;
   (e: "open-agent-settings", tab?: string): void;
+  (e: "analyze-context-with-input"): void;
 }>();
 
 const { getProfileById } = useLlmProfiles();
@@ -364,6 +366,17 @@ const handleOpenAdvanced = (tab: string | undefined) => {
                 <div class="dropdown-item-content">
                   <FileUp :size="16" />
                   <span>路径转附件</span>
+                </div>
+              </el-dropdown-item>
+
+              <!-- 分析当前上下文 -->
+              <el-dropdown-item
+                :disabled="props.disabled || (!props.inputText.trim() && !props.hasAttachments)"
+                @click="emit('analyze-context-with-input')"
+              >
+                <div class="dropdown-item-content">
+                  <ScanSearch :size="16" />
+                  <span>分析当前上下文</span>
                 </div>
               </el-dropdown-item>
             </el-dropdown-menu>

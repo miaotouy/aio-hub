@@ -53,6 +53,7 @@ import RawRequestView from "./RawRequestView.vue";
 import AnalysisChartView from "./AnalysisChartView.vue";
 import MacroDebugView from "./MacroDebugView.vue";
 import { useChatHandler, type ContextPreviewData } from "../../composables/chat/useChatHandler";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSession } from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -80,12 +81,18 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const contextData = ref<ContextPreviewData | null>(null);
 
-// 当对话框打开时，分析上下文
+// 当对话框打开或分析目标变化时，重新分析
 watch(
-  () => props.visible,
-  async (newVisible) => {
-    if (newVisible && props.nodeId && props.session) {
-      await analyzeContext();
+  [() => props.visible, () => props.nodeId, () => useLlmChatStore().contextAnalyzerPendingInput],
+  async ([newVisible, newNodeId, newPendingInput], [oldVisible, oldNodeId, oldPendingInput]) => {
+    if (newVisible && newNodeId && props.session) {
+      // 只有在 visible 变为 true，或者在 visible 为 true 时 nodeId 或 pendingInput 发生变化才重新分析
+      const isVisibleOpened = newVisible && !oldVisible;
+      const isTargetChanged = newVisible && (newNodeId !== oldNodeId || newPendingInput !== oldPendingInput);
+
+      if (isVisibleOpened || isTargetChanged) {
+        await analyzeContext();
+      }
     } else if (!newVisible) {
       // 关闭时重置状态
       contextData.value = null;
@@ -107,6 +114,7 @@ const analyzeContext = async () => {
   contextData.value = null;
 
   try {
+    const chatStore = useLlmChatStore();
     const { getLlmContextForPreview } = useChatHandler();
     const node = props.session.nodes[props.nodeId];
     const historicalAgentId = node?.metadata?.agentId;
@@ -115,7 +123,10 @@ const analyzeContext = async () => {
       logger.warn("在消息节点元数据中找不到 agentId，将回退到当前智能体", { nodeId: props.nodeId });
     }
 
-    const result = await getLlmContextForPreview(props.session, props.nodeId, historicalAgentId);
+    // 从 store 获取待发送输入
+    const pendingInput = chatStore.contextAnalyzerPendingInput;
+
+    const result = await getLlmContextForPreview(props.session, props.nodeId, historicalAgentId, { pendingInput });
 
     if (!result) {
       error.value = "无法生成上下文预览数据";

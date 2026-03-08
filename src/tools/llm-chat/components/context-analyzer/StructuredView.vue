@@ -286,6 +286,7 @@
       </el-collapse-transition>
     </InfoCard>
 
+
     <!-- 统一消息列表（按实际上下文顺序） -->
     <div v-if="unifiedMessages.length > 0" class="section">
       <div class="section-title">
@@ -302,7 +303,11 @@
         </div>
       </div>
       <div class="messages-list">
-        <InfoCard v-for="(msg, index) in unifiedMessages" :key="msg.key" class="message-card">
+        <InfoCard
+          v-for="(msg, index) in unifiedMessages"
+          :key="msg.key"
+          :class="['message-card', { 'pending-message-card': msg.isPendingInput }]"
+        >
           <template #header>
             <div class="message-card-header">
               <div class="message-title">
@@ -345,6 +350,16 @@
                 >
                   上下文摘要
                 </el-tag>
+                <!-- 待发送节点标识 -->
+                <el-tag
+                  v-if="msg.isPendingInput"
+                  size="small"
+                  type="warning"
+                  effect="dark"
+                  class="pending-tag"
+                >
+                  待发送
+                </el-tag>
                 <!-- 来源标签 -->
                 <el-tag
                   :type="getSourceTagType(msg.source)"
@@ -373,7 +388,24 @@
               </span>
             </div>
           </template>
-          <div class="message-content" :class="{ 'is-summary': msg.isCompressionNode }">
+          <!-- 宏展开对比（待发送消息） -->
+          <div v-if="msg.isPendingInput && msg.pendingInputOriginal" class="macro-diff-section">
+            <el-collapse>
+              <el-collapse-item title="查看宏展开对比" name="macro">
+                <div class="macro-diff-content">
+                  <div class="diff-block">
+                    <div class="diff-label">原始输入：</div>
+                    <div class="diff-text">{{ msg.pendingInputOriginal }}</div>
+                  </div>
+                  <div class="diff-block">
+                    <div class="diff-label">处理后：</div>
+                    <div class="diff-text">{{ getDisplayContent(msg.content) }}</div>
+                  </div>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
+          <div v-else class="message-content" :class="{ 'is-summary': msg.isCompressionNode }">
             {{ getDisplayContent(msg.content) }}
           </div>
           <!-- 附件分析（仅会话历史消息有） -->
@@ -406,7 +438,7 @@ import { Setting, ChatLineRound, MagicStick, Key, ArrowRight } from "@element-pl
 import InfoCard from "@/components/common/InfoCard.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import AttachmentCard from "../AttachmentCard.vue";
-import type { ContextPreviewData } from "../../types/context";
+import { type ContextPreviewData, isVirtualPendingInputNode } from "../../types/context";
 import type { Asset } from "@/types/asset-management";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import type { LlmMessageContent } from "@/llm-apis/common";
@@ -586,6 +618,10 @@ interface UnifiedMessage {
   _mergedSources?: any[];
   // 消息深度（用于判断强制转写）
   messageDepth?: number;
+  // 是否为待发送消息（虚拟节点）
+  isPendingInput?: boolean;
+  // 宏展开前的原始内容（待发送消息使用）
+  pendingInputOriginal?: string;
 }
 
 /**
@@ -733,6 +769,9 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           originalMessageCount: history.originalMessageCount,
           attachments: history.attachments,
           messageDepth: historyDepthMap.get(history.nodeId),
+          // 通过 nodeId 前缀识别虚拟待发送节点
+          isPendingInput: isVirtualPendingInputNode(history.nodeId),
+          pendingInputOriginal: isVirtualPendingInputNode(history.nodeId) ? history.pendingInputOriginal : undefined,
         };
       }
     } else if (
@@ -1076,6 +1115,46 @@ function getPositionLabel(position: STWorldbookPosition, depth?: number): string
   align-items: center;
   font-weight: bold;
   color: var(--el-text-color-primary);
+}
+
+.pending-message-card {
+  border: 2px solid var(--el-color-warning-light-3) !important;
+  background-color: var(--el-color-warning-light-9) !important;
+}
+
+.macro-diff-section {
+  margin-bottom: 12px;
+}
+
+.macro-diff-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px;
+}
+
+.diff-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diff-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--el-text-color-secondary);
+}
+
+.diff-text {
+  font-family: var(--el-font-family-monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 8px;
+  background-color: var(--el-fill-color-light);
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .message-title {

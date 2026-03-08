@@ -314,15 +314,12 @@ const handleAbortNode = (nodeId: string) => {
   store.abortNodeGeneration(nodeId);
 };
 
-// 上下文分析对话框状态
-const showContextAnalyzer = ref(false);
-const analyzingNodeId = ref<string | null>(null);
-
 // 处理打开上下文分析器
 const handleAnalyzeContext = (nodeId: string) => {
   logger.info("打开上下文分析器", { nodeId });
-  analyzingNodeId.value = nodeId;
-  showContextAnalyzer.value = true;
+  store.contextAnalyzerNodeId = nodeId;
+  store.contextAnalyzerPendingInput = undefined; // 历史节点分析不需要 pendingInput
+  store.contextAnalyzerVisible = true;
 };
 
 // 处理新建会话
@@ -527,8 +524,8 @@ useStateSyncEngine(parametersToSync, {
 
     <!-- 上下文分析对话框 -->
     <ContextAnalyzerDialog
-      v-model:visible="showContextAnalyzer"
-      :node-id="analyzingNodeId"
+      v-model:visible="store.contextAnalyzerVisible"
+      :node-id="store.contextAnalyzerNodeId"
       :session="store.currentSession"
     />
   </div>

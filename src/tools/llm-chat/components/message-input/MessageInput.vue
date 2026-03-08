@@ -170,6 +170,7 @@ const {
   handleCompleteInput,
   handleSwitchSession,
   handleNewSession,
+  handleAnalyzeContextWithInput,
   getWillUseTranscription,
 } = useMessageInputActions({
   props,
@@ -455,6 +456,7 @@ const handleDragStart = (e: MouseEvent) => {
             @clear-continuation-model="inputManager.clearContinuationModel"
             @convert-paths="handleConvertPaths"
             @open-agent-settings="handleOpenAgentSettings"
+            @analyze-context-with-input="handleAnalyzeContextWithInput"
           />
         </div>
       </div>

@@ -444,7 +444,9 @@ const loadContextStats = async () => {
       session,
       session.activeLeafId,
       agentStore.currentAgentId ?? undefined,
-      localParams.value
+      {
+        parameterOverrides: localParams.value,
+      }
     );
 
     if (previewData) {

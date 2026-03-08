@@ -21,6 +21,7 @@ import {
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
 } from "../utils/chatTokenUtils";
 import type { ChatSession, ChatMessageNode, LlmParameters, ModelIdentifier } from "../types";
+import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
@@ -37,6 +38,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     maxTokens: 4096,
   });
   const isSending = ref(false);
+
+  // 上下文分析器状态
+  const contextAnalyzerVisible = ref(false);
+  const contextAnalyzerNodeId = ref<string | null>(null);
+  const contextAnalyzerPendingInput = ref<PendingInputData | undefined>(undefined);
   const abortControllers = ref(new Map<string, AbortController>());
   const generatingNodes = ref(new Set<string>());
 
@@ -686,5 +692,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     contextStats,
     isLoadingContextStats,
     refreshContextStats,
+
+    // 上下文分析器
+    contextAnalyzerVisible,
+    contextAnalyzerNodeId,
+    contextAnalyzerPendingInput,
   };
 });

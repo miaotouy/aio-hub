@@ -720,7 +720,8 @@ export function useChatExecutor() {
     session: ChatSession,
     targetNodeId: string,
     agentId?: string,
-    parameterOverrides?: LlmParameters
+    parameterOverrides?: LlmParameters,
+    options?: { pendingInput?: any }
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -859,6 +860,9 @@ export function useChatExecutor() {
     }
 
     pipelineContext.sharedData.set("pathToUserNode", pathToUserNode);
+    if (options?.pendingInput) {
+      pipelineContext.sharedData.set("pendingInput", options.pendingInput);
+    }
     // 提供锚点定义给注入处理器
     const anchorRegistry = useAnchorRegistry();
     pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());

@@ -1,9 +1,22 @@
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { LlmParameters } from "./llm";
+import type { ModelIdentifier } from "./llm";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
-import type { ChatSession } from './session';
-import type { STWorldbookPosition } from './worldbook';
+import type { ChatSession } from "./session";
+import type { STWorldbookPosition } from "./worldbook";
+
+/**
+ * 虚拟节点 ID 前缀
+ */
+export const VIRTUAL_NODE_PREFIX = "virtual-pending-input-";
+
+/**
+ * 判断是否为虚拟待发送节点
+ */
+export function isVirtualPendingInputNode(nodeId: string): boolean {
+  return nodeId.startsWith(VIRTUAL_NODE_PREFIX);
+}
 
 /**
  * 系统内置锚点/消息类型常量
@@ -12,9 +25,9 @@ import type { STWorldbookPosition } from './worldbook';
  */
 export const ANCHOR_IDS = {
   /** 历史消息占位符/锚点 */
-  CHAT_HISTORY: 'chat_history',
+  CHAT_HISTORY: "chat_history",
   /** 用户档案占位符/锚点 */
-  USER_PROFILE: 'user_profile',
+  USER_PROFILE: "user_profile",
 } as const;
 
 /**
@@ -84,6 +97,32 @@ export interface LlmContextData {
 }
 
 /**
+ * 待发送的输入内容（用于上下文预览）
+ */
+export interface PendingInputData {
+  /** 输入文本 */
+  text: string;
+  /** 宏展开前的原始文本 (用于展示 diff) */
+  originalText?: string;
+  /** 附件列表 */
+  attachments?: Asset[];
+  /** 临时指定的模型 */
+  temporaryModel?: ModelIdentifier | null;
+  /** 是否启用宏解析 */
+  enableMacroParsing?: boolean;
+}
+
+/**
+ * 获取上下文预览的选项
+ */
+export interface GetContextPreviewOptions {
+  /** 待发送的输入内容 */
+  pendingInput?: PendingInputData;
+  /** 参数覆盖（用于参数编辑器预览） */
+  parameterOverrides?: LlmParameters;
+}
+
+/**
  * 上下文预览分析结果
  */
 export interface ContextPreviewData {
@@ -132,6 +171,8 @@ export interface ContextPreviewData {
     isCompressionNode?: boolean;
     /** 原始消息数量 */
     originalMessageCount?: number;
+    /** 宏展开前的原始内容（虚拟待发送节点使用） */
+    pendingInputOriginal?: string;
     /** 附件的详细分析 */
     attachments?: Array<{
       id: string;
@@ -222,6 +263,11 @@ export interface ContextPreviewData {
   session?: ChatSession;
   /** 激活的世界书条目 */
   worldbookEntries?: WorldbookEntryPreview[];
+  /**
+   * 是否包含待发送消息预览
+   * 当存在时，chatHistory 中最后一条 nodeId 以 "virtual-pending-input-" 开头的记录即为待发送消息
+   */
+  hasPendingInputPreview?: boolean;
 }
 
 /**

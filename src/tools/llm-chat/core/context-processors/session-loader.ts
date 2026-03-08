@@ -34,9 +34,7 @@ function postProcessMarkdown(md: string): string {
  * @param session - 聊天会话对象
  * @returns 线性消息节点数组
  */
-function getActiveBranchHistory(
-  session: PipelineContext["session"],
-): ChatMessageNode[] {
+function getActiveBranchHistory(session: PipelineContext["session"]): ChatMessageNode[] {
   const history: ChatMessageNode[] = [];
   let currentId: string | null = session.activeLeafId;
 
@@ -101,11 +99,11 @@ export const sessionLoader: ContextProcessor = {
     }
 
     const historyNodes = getActiveBranchHistory(context.session);
-    const { convertHtmlToMd, htmlToMdLastMessages } =
-      context.settings.contextOptimization || {
-        convertHtmlToMd: false,
-        htmlToMdLastMessages: 5,
-      };
+
+    const { convertHtmlToMd, htmlToMdLastMessages } = context.settings.contextOptimization || {
+      convertHtmlToMd: false,
+      htmlToMdLastMessages: 5,
+    };
 
     const convertToolRoleToUser = context.agentConfig?.toolCallConfig?.convertToolRoleToUser ?? true;
 
@@ -171,6 +169,19 @@ export const sessionLoader: ContextProcessor = {
       messages.push(processableMessage);
     }
 
+    // 处理待发送消息预览 (Pending Input)
+    const pendingInput = context.sharedData.get("pendingInput");
+    if (pendingInput) {
+      const { VIRTUAL_NODE_PREFIX } = await import("../../types/context");
+      messages.push({
+        role: "user",
+        content: pendingInput.text,
+        sourceType: "session_history",
+        sourceId: `${VIRTUAL_NODE_PREFIX}${Date.now()}`,
+        _attachments: pendingInput.attachments,
+        _originalContent: pendingInput.originalText, // 用于预览 diff
+      });
+    }
 
     context.messages = messages;
     const message = `已加载 ${messages.length} 条历史消息。`;

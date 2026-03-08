@@ -25,21 +25,14 @@
             <span class="stats-value">
               <template v-if="contextData.statistics.totalTokenCount !== undefined">
                 {{ contextData.statistics.totalTokenCount.toLocaleString() }} tokens
-                <span class="char-total">
-                  {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
-                </span>
+                <span class="char-total"> {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符 </span>
               </template>
-              <template v-else>
-                {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
-              </template>
+              <template v-else> {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符 </template>
             </span>
           </div>
           <div class="stats-row">
             <span class="stats-label">
-              <span
-                class="color-indicator"
-                :style="{ backgroundColor: themeColors.primary }"
-              ></span>
+              <span class="color-indicator" :style="{ backgroundColor: themeColors.primary }"></span>
               预设消息
             </span>
             <span class="stats-value">
@@ -62,16 +55,10 @@
           </div>
           <div
             class="stats-row"
-            v-if="
-              contextData.statistics.worldbookTokenCount ||
-              contextData.statistics.worldbookCharCount
-            "
+            v-if="contextData.statistics.worldbookTokenCount || contextData.statistics.worldbookCharCount"
           >
             <span class="stats-label">
-              <span
-                class="color-indicator"
-                :style="{ backgroundColor: themeColors.warning }"
-              ></span>
+              <span class="color-indicator" :style="{ backgroundColor: themeColors.warning }"></span>
               世界书
             </span>
             <span class="stats-value">
@@ -80,27 +67,19 @@
                 <span class="stats-percent">
                   ({{ getTokenPercentage(contextData.statistics.worldbookTokenCount) }}%)
                 </span>
-                <span
-                  class="char-info"
-                  v-if="contextData.statistics.worldbookCharCount !== undefined"
-                >
+                <span class="char-info" v-if="contextData.statistics.worldbookCharCount !== undefined">
                   {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
                 </span>
               </template>
               <template v-else-if="contextData.statistics.worldbookCharCount !== undefined">
                 {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
-                <span class="stats-percent">
-                  ({{ getPercentage(contextData.statistics.worldbookCharCount) }}%)
-                </span>
+                <span class="stats-percent"> ({{ getPercentage(contextData.statistics.worldbookCharCount) }}%) </span>
               </template>
             </span>
           </div>
           <div class="stats-row">
             <span class="stats-label">
-              <span
-                class="color-indicator"
-                :style="{ backgroundColor: themeColors.success }"
-              ></span>
+              <span class="color-indicator" :style="{ backgroundColor: themeColors.success }"></span>
               会话历史
             </span>
             <span class="stats-value">
@@ -109,24 +88,18 @@
                 <span class="stats-percent">
                   ({{ getTokenPercentage(contextData.statistics.chatHistoryTokenCount) }}%)
                 </span>
-                <span class="char-info">
-                  {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
-                </span>
+                <span class="char-info"> {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符 </span>
               </template>
               <template v-else>
                 {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
-                <span class="stats-percent">
-                  ({{ getPercentage(contextData.statistics.chatHistoryCharCount) }}%)
-                </span>
+                <span class="stats-percent"> ({{ getPercentage(contextData.statistics.chatHistoryCharCount) }}%) </span>
               </template>
             </span>
           </div>
+
           <div
             class="stats-row"
-            v-if="
-              contextData.statistics.postProcessingTokenCount ||
-              contextData.statistics.postProcessingCharCount
-            "
+            v-if="contextData.statistics.postProcessingTokenCount || contextData.statistics.postProcessingCharCount"
           >
             <span class="stats-label">
               <span class="color-indicator" :style="{ backgroundColor: themeColors.danger }"></span>
@@ -170,10 +143,7 @@ const props = defineProps<{
 // 图表模式：token 或 char
 const chartMode = ref<ChartMode>("token");
 
-const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(
-  props.contextData,
-  chartMode
-);
+const { chartRef, drawChart, resizeChart, setupResizeObserver } = useContextChart(props.contextData, chartMode);
 
 // 图表容器的父元素引用（用于 ResizeObserver）
 const chartContainerRef = ref<HTMLDivElement>();

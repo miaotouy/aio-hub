@@ -16,9 +16,7 @@ import type { MatchedWorldbookEntry } from "../../types/worldbook";
  * @param context - 已执行完毕的 PipelineContext。
  * @returns ContextPreviewData 对象。
  */
-export async function buildPreviewDataFromContext(
-  context: PipelineContext,
-): Promise<ContextPreviewData> {
+export async function buildPreviewDataFromContext(context: PipelineContext): Promise<ContextPreviewData> {
   const { messages, session, agentConfig, userProfile, timestamp } = context;
 
   const presetMessages: ContextPreviewData["presetMessages"] = [];
@@ -34,17 +32,15 @@ export async function buildPreviewDataFromContext(
   let tokenizerName: string | undefined = undefined;
 
   // 获取模型元数据，用于视觉 token 计算
-  const modelMetadata = agentConfig.modelId
-    ? getMatchedModelProperties(agentConfig.modelId)
-    : undefined;
+  const modelMetadata = agentConfig.modelId ? getMatchedModelProperties(agentConfig.modelId) : undefined;
 
   // 从 sharedData 获取 Profile 信息（可能是实时对象，也可能是从元数据恢复的临时对象）
   const profile = context.sharedData.get("profile") as
     | {
-      name?: string;
-      type?: string;
-      models?: Array<{ id: string; name?: string }>;
-    }
+        name?: string;
+        type?: string;
+        models?: Array<{ id: string; name?: string }>;
+      }
     | undefined;
 
   // 获取模型显示名称
@@ -72,7 +68,7 @@ export async function buildPreviewDataFromContext(
   const messageDepthMap = new Map<string | number, number>();
 
   // 找出所有会话历史消息，按顺序计算深度
-  const historyMessages = messages.filter(m => m.sourceType === "session_history");
+  const historyMessages = messages.filter((m) => m.sourceType === "session_history");
   const totalHistoryCount = historyMessages.length;
   historyMessages.forEach((msg, idx) => {
     const depth = totalHistoryCount - 1 - idx;
@@ -110,10 +106,7 @@ export async function buildPreviewDataFromContext(
       msg.sourceType === "depth_injection" ||
       msg.sourceType === "anchor_injection"
     ) {
-      const tokenResult = await tokenCalculatorService.calculateTokens(
-        contentText,
-        agentConfig.modelId,
-      );
+      const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);
       const tokenCount = tokenResult.count;
 
       if (tokenResult.isEstimated) {
@@ -145,14 +138,10 @@ export async function buildPreviewDataFromContext(
       const sourceNode = session.nodes[msg.sourceId as string];
       if (!sourceNode) {
         // 回退到简单计算
-        const tokenResult = await tokenCalculatorService.calculateTokens(
-          contentText,
-          agentConfig.modelId,
-        );
+        const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);
         const tokenCount = tokenResult.count;
         if (tokenResult.isEstimated) isEstimated = true;
-        if (!tokenizerName && tokenResult.tokenizerName)
-          tokenizerName = tokenResult.tokenizerName;
+        if (!tokenizerName && tokenResult.tokenizerName) tokenizerName = tokenResult.tokenizerName;
 
         chatHistory.push({
           role: msg.role as "user" | "assistant",
@@ -192,12 +181,9 @@ export async function buildPreviewDataFromContext(
           const latestAsset = await assetManagerEngine.getAssetById(asset.id);
           const assetToProcess = latestAsset || asset;
 
-          const result = await resolveAttachmentContent(
-            assetToProcess,
-            agentConfig.modelId,
-            agentConfig.profileId,
-            { messageDepth: currentMessageDepth }
-          );
+          const result = await resolveAttachmentContent(assetToProcess, agentConfig.modelId, agentConfig.profileId, {
+            messageDepth: currentMessageDepth,
+          });
 
           if (result.type === "text" && result.content) {
             combinedText += result.content;
@@ -212,18 +198,14 @@ export async function buildPreviewDataFromContext(
       let textIsEstimated = false;
       let textTokenizerName: string | undefined;
       if (combinedText) {
-        const tokenResult = await tokenCalculatorService.calculateTokens(
-          combinedText,
-          agentConfig.modelId,
-        );
+        const tokenResult = await tokenCalculatorService.calculateTokens(combinedText, agentConfig.modelId);
         textTokenCount = tokenResult.count;
         if (tokenResult.isEstimated) textIsEstimated = true;
         if (tokenResult.tokenizerName) textTokenizerName = tokenResult.tokenizerName;
       }
 
       // 计算媒体附件 token
-      const attachmentsData: ContextPreviewData["chatHistory"][0]["attachments"] =
-        [];
+      const attachmentsData: ContextPreviewData["chatHistory"][0]["attachments"] = [];
       let attachmentsTokenCount = 0;
       let attachmentsIsEstimated = false;
 
@@ -261,7 +243,7 @@ export async function buildPreviewDataFromContext(
                 tokenCount = tokenCalculatorEngine.calculateImageTokens(
                   asset.metadata.width,
                   asset.metadata.height,
-                  visionTokenCost,
+                  visionTokenCost
                 );
               } catch (e) {
                 error = e instanceof Error ? e.message : "图片 Token 计算异常";
@@ -269,11 +251,7 @@ export async function buildPreviewDataFromContext(
               }
             } else {
               error = "缺少图片尺寸信息，使用默认值估算";
-              tokenCount = tokenCalculatorEngine.calculateImageTokens(
-                1024,
-                1024,
-                visionTokenCost,
-              );
+              tokenCount = tokenCalculatorEngine.calculateImageTokens(1024, 1024, visionTokenCost);
               isAttachmentEstimated = true;
             }
           } else {
@@ -288,9 +266,7 @@ export async function buildPreviewDataFromContext(
         } else if (asset.type === "video") {
           if (asset.metadata?.duration) {
             try {
-              tokenCount = tokenCalculatorEngine.calculateVideoTokens(
-                asset.metadata.duration,
-              );
+              tokenCount = tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
             } catch (e) {
               error = e instanceof Error ? e.message : "视频 Token 计算异常";
               isAttachmentEstimated = true;
@@ -306,9 +282,7 @@ export async function buildPreviewDataFromContext(
         } else if (asset.type === "audio") {
           if (asset.metadata?.duration) {
             try {
-              tokenCount = tokenCalculatorEngine.calculateAudioTokens(
-                asset.metadata.duration,
-              );
+              tokenCount = tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
             } catch (e) {
               error = e instanceof Error ? e.message : "音频 Token 计算异常";
               isAttachmentEstimated = true;
@@ -364,6 +338,8 @@ export async function buildPreviewDataFromContext(
         userIcon: sourceNode.metadata?.userProfileIcon,
         isCompressionNode: sourceNode.metadata?.isCompressionNode,
         originalMessageCount: sourceNode.metadata?.originalMessageCount,
+        // 虚拟待发送节点的宏展开原始内容
+        pendingInputOriginal: sourceNode.metadata?.pendingInputOriginal || msg._originalContent,
         attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
       });
 
@@ -374,10 +350,7 @@ export async function buildPreviewDataFromContext(
     } else {
       // 其他未知来源的消息，安全处理
       // 1. 计算文本 Token
-      const tokenResult = await tokenCalculatorService.calculateTokens(
-        contentText,
-        agentConfig.modelId,
-      );
+      const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);
       let tokenCount = tokenResult.count;
 
       // 2. 计算附件 Token (如果有)
@@ -390,7 +363,7 @@ export async function buildPreviewDataFromContext(
                 tokenCount += tokenCalculatorEngine.calculateImageTokens(
                   asset.metadata.width,
                   asset.metadata.height,
-                  visionTokenCost,
+                  visionTokenCost
                 );
               } else {
                 // 如果没有元数据或不支持视觉Token，使用默认值
@@ -416,8 +389,7 @@ export async function buildPreviewDataFromContext(
       }
 
       if (tokenResult.isEstimated) isEstimated = true;
-      if (!tokenizerName && tokenResult.tokenizerName)
-        tokenizerName = tokenResult.tokenizerName;
+      if (!tokenizerName && tokenResult.tokenizerName) tokenizerName = tokenResult.tokenizerName;
 
       totalCharCount += charCount;
       totalTokenCount += tokenCount;
@@ -434,7 +406,9 @@ export async function buildPreviewDataFromContext(
   const tokenLimiterStats = context.sharedData.get("tokenLimiterStats");
 
   // 从 sharedData 中获取激活的世界书条目
-  const activatedWorldbookEntries = context.sharedData.get("activatedWorldbookEntries") as MatchedWorldbookEntry[] | undefined;
+  const activatedWorldbookEntries = context.sharedData.get("activatedWorldbookEntries") as
+    | MatchedWorldbookEntry[]
+    | undefined;
 
   // 构建世界书预览数据
   const worldbookEntries: WorldbookEntryPreview[] = [];
@@ -447,10 +421,7 @@ export async function buildPreviewDataFromContext(
       const charCount = entry.content.length;
 
       // 计算 Token（简单估算）
-      const tokenResult = await tokenCalculatorService.calculateTokens(
-        entry.content,
-        agentConfig.modelId,
-      );
+      const tokenResult = await tokenCalculatorService.calculateTokens(entry.content, agentConfig.modelId);
       const tokenCount = tokenResult.count;
 
       if (tokenResult.isEstimated) {
@@ -487,8 +458,7 @@ export async function buildPreviewDataFromContext(
     presetMessages,
     chatHistory,
     finalMessages: messages.filter(
-      (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } =>
-        msg.role !== "tool",
+      (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } => msg.role !== "tool"
     ),
     worldbookEntries: worldbookEntries.length > 0 ? worldbookEntries : undefined,
     statistics: {
@@ -525,11 +495,11 @@ export async function buildPreviewDataFromContext(
     targetTimestamp: timestamp,
     userInfo: userProfile
       ? {
-        id: userProfile.id,
-        name: userProfile.name,
-        displayName: userProfile.displayName,
-        icon: userProfile.icon,
-      }
+          id: userProfile.id,
+          name: userProfile.name,
+          displayName: userProfile.displayName,
+          icon: userProfile.icon,
+        }
       : undefined,
   };
 }

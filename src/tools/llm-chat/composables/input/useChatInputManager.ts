@@ -102,8 +102,11 @@ class ChatInputManager {
   // 防抖推送计时器
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // 扫描修复计时器
+  // 扫描修复计时器（用于上传完成后）
   private scanFixTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 输入变化的自愈扫描计时器
+  private scanTimer: ReturnType<typeof setTimeout> | null = null;
 
   // 记录所有 oldId -> newId 的历史映射，供二次扫描使用
   private idUpdateLog: Map<string, string> = new Map();
@@ -189,6 +192,12 @@ class ChatInputManager {
         };
         // 防抖推送到其他窗口
         this.debouncedPushState();
+
+        // 【自愈机制】如果发现包含 uploading 占位符，尝试进行防抖扫描修复
+        // 这样即使在用户打字期间上传完成，也会在输入停顿后自动修复残留占位符
+        if (newText.includes("file::uploading:")) {
+          this.debouncedScanAndFix();
+        }
       }
       this.debouncedSaveToStorage();
     });
@@ -428,6 +437,9 @@ class ChatInputManager {
     }
     if (this.scanFixTimer) {
       clearTimeout(this.scanFixTimer);
+    }
+    if (this.scanTimer) {
+      clearTimeout(this.scanTimer);
     }
     if (this.unlistenStateSync) {
       this.unlistenStateSync();
@@ -724,6 +736,16 @@ class ChatInputManager {
    * 利用 idUpdateLog 中记录的历史映射，以及当前附件列表，对所有残留的 uploading 占位符进行二次替换
    * 主要用于应对上传完成时用户正在打字导致的 Vue 响应式竞态问题
    */
+  /**
+   * 防抖执行全量扫描修复
+   */
+  private debouncedScanAndFix(): void {
+    if (this.scanTimer) clearTimeout(this.scanTimer);
+    this.scanTimer = setTimeout(() => {
+      this.scanAndFixPlaceholders();
+    }, 300); // 300ms 延迟，避开用户连续输入的高频期
+  }
+
   /**
    * 全量扫描并修复输入框中的占位符
    * 利用资产对象的 uploadingId 契约，对所有残留的 uploading 占位符进行二次替换

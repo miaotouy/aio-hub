@@ -36,7 +36,7 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 
 完全掌控发送给模型的每一个 Token，拒绝“黑盒”Prompt。
 
-- **统一上下文管道**: 基于流水线架构，将会话树转换为 LLM 请求。内置 **9 阶段**核心处理器（会话加载、正则清洗、注入组装、RAG 检索、转写提取、世界书、Token 限制、格式化、资源解析），支持**可视化排序**、**插件化扩展**。
+- **统一上下文管道**: 基于AIO自身的流水线架构，将会话树转换为 LLM 请求。内置多阶段核心处理器（会话加载、正则清洗、注入组装、RAG 检索、转写提取、异步工具信息、世界书、Token 限制、格式化、资源解析 等），支持**可视化排序**、**插件化扩展**。
 - **上下文分析器 (Context Analyzer)**: 开发者级调试工具。实时查看最终发送给 LLM 的原始 Prompt、Token 消耗分布、宏解析结果及请求体结构。
 - **上下文压缩 (Context Compression)**: 智能摘要技术。当对话超过阈值时自动触发非破坏性压缩，生成"压缩节点"替代冗余历史，大幅降低长对话的 Token 成本。
 - **宏系统 (Macro System)**: 提供 **60+** 动态宏（如 `{{time}}`, `{{os}}`, `{{last_message}}`），支持复杂的日期时间格式、掷骰子、系统环境获取及局部/全局变量系统。三阶段执行管道（预处理、替换、后处理）实现环境感知与状态管理。
@@ -123,7 +123,7 @@ _双引擎正则处理工具_
 ### 🛠️ 开发者与 AI 协作增强
 
 - **工具调用核心 (Tool Calling)**: 基于 **VCP 协议** 的工具调用基础设施。为 LLM 提供“感知工具 → 生成请求 → 解析执行 → 回注结果”的完整闭环，支持自动/手动审批模式、并行执行及最大迭代限制。内置调试测试界面，支持工具发现、协议解析验证与方法执行沙盒。
-- **VCP 连接器 (VCP Connector)**: 连接到 VCP 后端的实时监控面板。支持监听 RAG 检索细节、元思考链、Agent 私聊预览及插件步骤状态，实现与 [**VCP (Variable & Command Protocol)**](https://github.com/lioensky/VCPToolBox) 的深度联动。同时支持将 AIO Hub 注册为 VCP 分布式网络中的一个节点，向云端 Agent 暴露本地工具能力。
+- **VCP 连接器 (VCP Connector)**: 连接到外部 [**VCP (Variable & Command Protocol)**](https://github.com/lioensky/VCPToolBox) 后端的实时监控面板。支持监听 RAG 检索细节、元思考链、Agent 私聊预览及插件步骤状态，实现与 VCP 生态的深度联动。同时支持将 AIO Hub 注册为 VCP 分布式网络中的一个节点，向云端 Agent 暴露本地工具能力。
 - **ST 世界书编辑器**: 专为 SillyTavern 格式设计的独立编辑器，支持大规模设定集的快速构建与维护。
 - **服务注册表浏览器**: 可视化查看应用内所有已注册的工具服务及其元数据，方便开发者调试与集成。
 
@@ -138,7 +138,7 @@ _专为 LLM 流式输出打造的高性能渲染方案_
 - **丰富的交互组件**:
   - **代码块**: 集成 Monaco Editor，提供专业级的高亮、折叠和字体控制。支持流式输出下的**增量追加 (Incremental Append)** 与 HTML 无边框预览模式。
   - **思维链**: 原生支持 `<think>` 标签，以可折叠的动态组件展示 LLM 的思考过程。
-  - **VCP 协议支持**: 深度集成 [**VCP (Variable & Command Protocol)**](https://github.com/lioensky/VCPToolBox) 协议，支持工具请求块 (`<<<[TOOL_REQUEST]>>>`) 与结果汇总块 (`[[VCP调用结果...]]`) 的可视化渲染。
+  - **VCP 协议支持**: 深度支持 [**VCP (Variable & Command Protocol)**](https://github.com/lioensky/VCPToolBox) 协议，支持工具请求块 (`<<<[TOOL_REQUEST]>>>`) 与结果汇总块 (`[[VCP调用结果...]]`) 的可视化渲染。
   - **可交互按钮**: 支持 LLM 输出 `<button type="send|input|copy" value="内容">标签</button>` 创建交互按钮，可执行发送消息、填充输入框、复制内容等预定义安全操作，支持自定义样式和主题自适应。
   - **图表与公式**: 内置 Mermaid 图表（支持缩放/独立窗口）和 KaTeX 数学公式渲染。
   - **PDF 预览**: 内置 PDF 查看器，支持缩放、旋转、翻页、目录导航。
@@ -256,3 +256,9 @@ bun run tauri build
 <sub>Copyright © 2025-2026 miaotouy. All rights reserved.</sub>
 
 </div>
+
+---
+
+## 🔗 合作伙伴与相关项目
+
+- [**VCPToolBox**](https://github.com/lioensky/VCPToolBox) - **VCP (Variable & Command Protocol)** 核心协议与工具箱。AIO Hub 深度适配 VCP 协议，支持作为其分布式网络节点，并提供可视化的实时监控与工具调用联动。

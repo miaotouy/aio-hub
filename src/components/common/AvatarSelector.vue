@@ -11,6 +11,7 @@ import { Star, Upload, RefreshLeft, Clock, Close } from "@element-plus/icons-vue
 import { useImageViewer } from "@/composables/useImageViewer";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
 import { acquireBlobUrl } from "@/utils/avatarImageCache";
+import { processSvgContent } from "@/composables/useThemeAwareIcon";
 import { useElementSize, createReusableTemplate } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { extname } from "@tauri-apps/api/path";
@@ -218,9 +219,7 @@ const uploadCustomImage = async () => {
   try {
     const selectedPath = await open({
       multiple: false,
-      filters: [
-        { name: "图像文件", extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"] },
-      ],
+      filters: [{ name: "图像文件", extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"] }],
     });
 
     if (!selectedPath) return;
@@ -310,6 +309,21 @@ const handleIconClick = async () => {
     if (currentSrc.startsWith("appdata://")) {
       const blobUrl = await acquireBlobUrl(currentSrc);
       if (blobUrl) {
+        // 如果是 SVG，尝试处理主题适配后再显示
+        if (currentSrc.toLowerCase().endsWith(".svg")) {
+          try {
+            const resp = await fetch(blobUrl);
+            const text = await resp.text();
+            if (text.includes("<svg")) {
+              const processed = processSvgContent(text);
+              const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(processed)}`;
+              imageViewer.show(dataUrl);
+              return;
+            }
+          } catch (e) {
+            // 失败则降级使用原始 blobUrl
+          }
+        }
         imageViewer.show(blobUrl);
       }
       return;
@@ -317,16 +331,13 @@ const handleIconClick = async () => {
 
     // 2. 处理预设图标 (Lobe 或 Local)
     if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
-      const svgContent = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
+      const rawSvg = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
       // 如果内容已经是 data: 或者是 URL 则直接用，否则视为 SVG 源码转为 Data URL
-      if (
-        svgContent.startsWith("data:") ||
-        svgContent.startsWith("http") ||
-        svgContent.startsWith("/")
-      ) {
-        imageViewer.show(svgContent);
+      if (rawSvg.startsWith("data:") || rawSvg.startsWith("http") || rawSvg.startsWith("/")) {
+        imageViewer.show(rawSvg);
       } else {
-        const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
+        const processed = processSvgContent(rawSvg);
+        const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(processed)}`;
         imageViewer.show(dataUrl);
       }
       return;
@@ -382,12 +393,7 @@ const handleIconClick = async () => {
             </el-tooltip>
 
             <!-- 历史头像选择按钮 -->
-            <el-tooltip
-              v-if="entityId && storageSubdirectory"
-              content="历史头像"
-              placement="top"
-              :show-after="300"
-            >
+            <el-tooltip v-if="entityId && storageSubdirectory" content="历史头像" placement="top" :show-after="300">
               <el-button @click="openHistoryDialog">
                 <el-icon><Clock /></el-icon>
               </el-button>
@@ -419,9 +425,7 @@ const handleIconClick = async () => {
         </div>
 
         <div class="form-hint">
-          支持 Emoji、预设图标、本地路径引用{{
-            entityId && storageSubdirectory ? "或上传专属头像" : ""
-          }}。
+          支持 Emoji、预设图标、本地路径引用{{ entityId && storageSubdirectory ? "或上传专属头像" : "" }}。
         </div>
       </div>
     </div>
@@ -447,12 +451,7 @@ const handleIconClick = async () => {
               :class="{ active: modelValue === filename }"
               @click="selectHistoryAvatar(filename)"
             >
-              <Avatar
-                :src="`appdata://${storageSubdirectory}/${filename}`"
-                :size="64"
-                shape="square"
-                :radius="8"
-              />
+              <Avatar :src="`appdata://${storageSubdirectory}/${filename}`" :size="64" shape="square" :radius="8" />
               <div class="delete-overlay" @click="deleteHistoryAvatar(filename, $event)">
                 <el-icon :size="14"><Close /></el-icon>
               </div>

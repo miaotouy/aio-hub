@@ -4,6 +4,7 @@ import { acquireBlobUrl, releaseBlobUrl, acquireBlobUrlSync } from "@/utils/avat
 import { useIntersectionObserver } from "@vueuse/core";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
 import { normalizeIconPath } from "@/config/model-metadata";
+import { processSvgContent } from "@/composables/useThemeAwareIcon";
 
 interface Props {
   /** 头像源：可以是图片 URL、appdata:// 路径、emoji 或其他字符 */
@@ -59,6 +60,8 @@ if (props.lazy) {
 
 const imageLoadFailed = ref(false);
 const processedSrc = ref("");
+const svgContent = ref(""); // 处理后的内联 SVG 内容
+const isSvg = ref(false); // 是否以内联 SVG 模式渲染
 const isSrcReady = ref(false); // 新增状态，控制图片是否准备好渲染
 const managedSrc = ref<string | null>(null); // 追踪被管理的 blob url 的源路径
 
@@ -100,16 +103,16 @@ const processSrc = async () => {
   // 1. 检查是否为预设图标 (Lobe 或 Local)
   // Map 现在已统一支持带路径 (/model-icons/) 和不带路径的 Key
   if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
-    const svgContent = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
-    // 如果内容已经是 data: 或者是 URL 则直接用，否则视为 SVG 源码转为 Data URL
-    if (
-      svgContent.startsWith("data:") ||
-      svgContent.startsWith("http") ||
-      svgContent.startsWith("/")
-    ) {
-      processedSrc.value = svgContent;
+    const rawSvg = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
+    // 如果内容已经是 data: 或者是 URL 则通过 img 渲染，否则视为 SVG 源码以内联模式渲染
+    if (rawSvg.startsWith("data:") || rawSvg.startsWith("http") || rawSvg.startsWith("/")) {
+      processedSrc.value = rawSvg;
+      isSvg.value = false;
+      svgContent.value = "";
     } else {
-      processedSrc.value = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
+      svgContent.value = processSvgContent(rawSvg);
+      isSvg.value = true;
+      processedSrc.value = "";
     }
     isSrcReady.value = true;
     imageLoadFailed.value = false;
@@ -118,12 +121,10 @@ const processSrc = async () => {
   }
 
   // 2. HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
-  if (
-    currentSrc.startsWith("http") ||
-    currentSrc.startsWith("data:") ||
-    currentSrc.startsWith("/")
-  ) {
+  if (currentSrc.startsWith("http") || currentSrc.startsWith("data:") || currentSrc.startsWith("/")) {
     processedSrc.value = currentSrc;
+    isSvg.value = false;
+    svgContent.value = "";
     isSrcReady.value = true;
     imageLoadFailed.value = false;
     managedSrc.value = null;
@@ -151,6 +152,8 @@ const processSrc = async () => {
     isSrcReady.value = false;
     imageLoadFailed.value = false;
     processedSrc.value = "";
+    svgContent.value = "";
+    isSvg.value = false;
     managedSrc.value = null; // 重置管理状态
 
     const blobUrl = await acquireBlobUrl(currentSrc);
@@ -158,7 +161,28 @@ const processSrc = async () => {
     if (sanitizedSrc.value !== _currentProcessingSrc) return;
 
     if (blobUrl) {
-      processedSrc.value = blobUrl;
+      // 如果是 SVG 文件，尝试以内联模式渲染以支持主题适配
+      if (currentSrc.toLowerCase().endsWith(".svg")) {
+        try {
+          // fetch blob url 获取原始内容
+          const resp = await fetch(blobUrl);
+          const text = await resp.text();
+          if (text.includes("<svg")) {
+            svgContent.value = processSvgContent(text);
+            isSvg.value = true;
+            processedSrc.value = "";
+          } else {
+            processedSrc.value = blobUrl;
+            isSvg.value = false;
+          }
+        } catch (e) {
+          processedSrc.value = blobUrl;
+          isSvg.value = false;
+        }
+      } else {
+        processedSrc.value = blobUrl;
+        isSvg.value = false;
+      }
       managedSrc.value = currentSrc; // 标记为已管理
     } else {
       console.error(`[Avatar Debug] FAILED: Could not acquire blob url for src: ${currentSrc}`);
@@ -249,26 +273,27 @@ const fallbackFontSize = computed(() => `${Math.floor(props.size * 0.4)}px`);
 
 // 图片加载成功处理
 const handleImageLoad = () => {
-  console.log(
-    `[Avatar Debug] 5. SUCCESS: Image loaded successfully for src: ${processedSrc.value}`
-  );
+  console.log(`[Avatar Debug] 5. SUCCESS: Image loaded successfully for src: ${processedSrc.value}`);
 };
 
 // 图片加载错误处理
 const handleImageError = (event: Event) => {
-  console.error(
-    `[Avatar Debug] 5. FAILED: Image failed to load for src: ${processedSrc.value}`,
-    event
-  );
+  console.error(`[Avatar Debug] 5. FAILED: Image failed to load for src: ${processedSrc.value}`, event);
   imageLoadFailed.value = true;
 };
 </script>
 
 <template>
   <div class="avatar-container" :style="containerStyle" ref="containerRef">
-    <!-- 图片模式 -->
+    <!-- 图片模式：内联 SVG (支持主题适配) -->
+    <div
+      v-if="isImagePath && !imageLoadFailed && isSrcReady && isSvg && svgContent"
+      class="avatar-svg"
+      v-html="svgContent"
+    ></div>
+    <!-- 图片模式：普通图片 -->
     <img
-      v-if="isImagePath && !imageLoadFailed && isSrcReady && processedSrc"
+      v-else-if="isImagePath && !imageLoadFailed && isSrcReady && processedSrc"
       :src="processedSrc"
       :alt="alt"
       class="avatar-image"
@@ -301,6 +326,21 @@ const handleImageError = (event: Event) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+}
+
+.avatar-svg {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-primary);
+}
+
+.avatar-svg :deep(svg) {
+  width: 100%;
+  height: 100%;
   display: block;
 }
 

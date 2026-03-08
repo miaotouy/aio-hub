@@ -745,9 +745,9 @@ class ChatInputManager {
     const currentAttachments = this.attachmentManager.attachments.value;
 
     // 策略：基于资产对象的 uploadingId 契约进行替换
-    // 只要资产已经完成导入 (importStatus === 'complete') 且 ID 已转正，我们就执行替换
+    // 只要资产已经完成导入 (importStatus === 'complete')，我们就执行替换检查
     for (const asset of currentAttachments) {
-      if (asset.uploadingId && asset.importStatus === "complete" && asset.id !== asset.uploadingId) {
+      if (asset.uploadingId && asset.importStatus === "complete") {
         const uploadingPlaceholder = generateUploadingPlaceholder(asset.uploadingId);
         const realPlaceholder = generateAssetPlaceholder(asset.id);
 
@@ -772,9 +772,16 @@ class ChatInputManager {
 
     if (fixedCount > 0) {
       this.inputText.value = newText;
-      logger.info("[scanAndFixPlaceholders] 二次扫描修复了残留占位符", { fixedCount });
+      logger.info("[scanAndFixPlaceholders] 二次扫描修复了残留占位符", {
+        fixedCount,
+        totalAttachments: currentAttachments.length,
+        logEntries: this.idUpdateLog.size,
+      });
     } else {
-      logger.debug("[scanAndFixPlaceholders] 扫描完成，无需修复");
+      logger.debug("[scanAndFixPlaceholders] 扫描完成，无需修复", {
+        hasUploadingTag: text.includes("file::uploading:"),
+        totalAttachments: currentAttachments.length,
+      });
     }
   }
 
@@ -790,42 +797,57 @@ class ChatInputManager {
     this.idUpdateLog.set(oldId, newId);
 
     const newPlaceholder = generateAssetPlaceholder(newId);
-    const beforeValue = this.inputText.value;
 
-    // 1. 优先匹配标准的 uploading 格式：【file::uploading:tempId】 -> 【file::realId】
-    const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
-    if (beforeValue.includes(uploadingPlaceholder)) {
-      this.inputText.value = beforeValue.split(uploadingPlaceholder).join(newPlaceholder);
-      logger.info("更新占位符 ID (uploading -> real)", { oldId, newId });
-      return;
-    }
+    // 执行替换的核心逻辑
+    const doReplace = () => {
+      const currentText = this.inputText.value;
+      let newText = currentText;
+      let replaced = false;
 
-    // 2. 增强匹配：如果用户不小心删掉了部分字符，或者正则匹配
-    // 匹配包含 oldId 的 uploading 占位符
-    const fuzzyUploadingRegex = new RegExp(`【file::uploading:${oldId}】`, "g");
-    if (fuzzyUploadingRegex.test(beforeValue)) {
-      this.inputText.value = beforeValue.replace(fuzzyUploadingRegex, newPlaceholder);
-      logger.info("更新占位符 ID (模糊匹配 uploading)", { oldId, newId });
-      return;
-    }
-
-    // 3. 回退：匹配普通格式（兼容非粘贴场景）
-    const oldPlaceholder = generateAssetPlaceholder(oldId);
-    if (beforeValue.includes(oldPlaceholder)) {
-      this.inputText.value = beforeValue.split(oldPlaceholder).join(newPlaceholder);
-      logger.info("更新占位符 ID (standard -> real)", { oldId, newId });
-    } else {
-      // 4. 最后的挣扎：直接替换所有出现的 oldId 占位符（如果它看起来像个占位符）
-      const anyPlaceholderRegex = new RegExp(`【file::(?:uploading:)?${oldId}】`, "g");
-      if (anyPlaceholderRegex.test(beforeValue)) {
-        this.inputText.value = beforeValue.replace(anyPlaceholderRegex, newPlaceholder);
-        logger.info("更新占位符 ID (正则全量替换)", { oldId, newId });
-      } else {
-        logger.warn("[updatePlaceholderId] 未找到任何匹配的占位符，已记录映射供后续扫描", {
-          oldId,
-          newId,
-        });
+      // 1. 优先匹配标准的 uploading 格式：【file::uploading:tempId】
+      const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
+      if (newText.includes(uploadingPlaceholder)) {
+        newText = newText.split(uploadingPlaceholder).join(newPlaceholder);
+        replaced = true;
       }
+
+      // 2. 匹配普通格式（兼容非粘贴场景）
+      const oldPlaceholder = generateAssetPlaceholder(oldId);
+      if (newText.includes(oldPlaceholder)) {
+        newText = newText.split(oldPlaceholder).join(newPlaceholder);
+        replaced = true;
+      }
+
+      // 3. 最后的挣扎：直接替换所有可能的组合（不使用正则以避免特殊字符问题）
+      const possibleTags = [`【file::uploading:${oldId}】`, `【file::${oldId}】`];
+      for (const tag of possibleTags) {
+        if (newText.includes(tag)) {
+          newText = newText.split(tag).join(newPlaceholder);
+          replaced = true;
+        }
+      }
+
+      if (replaced) {
+        this.inputText.value = newText;
+        logger.info("[updatePlaceholderId] 成功更新占位符 ID", { oldId, newId });
+        // 成功替换后，立即触发一次状态推送，确保其他窗口同步
+        this.pushState(false, undefined, true);
+      }
+      return replaced;
+    };
+
+    // 立即尝试替换
+    const success = doReplace();
+
+    // 如果失败，可能是因为 Vue 还没更新完 inputText，100ms 后重试一次
+    if (!success) {
+      setTimeout(() => {
+        if (doReplace()) {
+          logger.info("[updatePlaceholderId] 延迟重试替换成功", { oldId, newId });
+        } else {
+          logger.debug("[updatePlaceholderId] 延迟重试仍未找到占位符", { oldId, newId });
+        }
+      }, 100);
     }
   }
 

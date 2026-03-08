@@ -377,10 +377,12 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
         }
 
         // 关键修复：即使是重复文件，也要触发 ID 替换回调，否则占位符会永远卡在 uploading 状态
-        importCallbacks.forEach((cb) => cb(pendingAsset.id, existingAsset));
+        // 使用 uploadingId 确保占位符能被准确找到
+        importCallbacks.forEach((cb) => cb(pendingAsset.uploadingId || pendingAsset.id, existingAsset));
 
         logger.info("检测到重复文件，已移除，并触发 ID 替换", {
           pendingId: pendingAsset.id,
+          uploadingId: pendingAsset.uploadingId,
           existingId: existingAsset.id,
         });
         return;
@@ -405,7 +407,8 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
         attachments.value.splice(index, 1, updatedAsset);
 
         // 触发回调
-        importCallbacks.forEach((cb) => cb(pendingAsset.id, updatedAsset));
+        // 使用 uploadingId 确保占位符能被准确找到
+        importCallbacks.forEach((cb) => cb(pendingAsset.uploadingId || pendingAsset.id, updatedAsset));
 
         logger.info("资产导入完成", {
           assetId: importedAsset.id,

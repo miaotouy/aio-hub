@@ -119,6 +119,14 @@ const isToolCallingEnabled = computed(() => {
   return false;
 });
 
+/**
+ * 计算上下文压缩是否启用
+ */
+const isContextCompressionEnabled = computed(() => {
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  return agent?.parameters?.contextCompression?.enabled ?? false;
+});
+
 // 联动临时模型：如果指定了临时模型，则检查该模型所属渠道是否为 VCP
 const effectiveProfileId = computed(() => props.temporaryModel?.profileId);
 const { isVcpChannel } = useIsVcpChannel(effectiveProfileId);
@@ -373,7 +381,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               </el-dropdown-item>
 
               <!-- 压缩 -->
-              <el-dropdown-item :disabled="props.isCompressing || disabled" @click="emit('compress-context')">
+              <el-dropdown-item
+                :disabled="props.isCompressing || disabled || !isContextCompressionEnabled"
+                @click="emit('compress-context')"
+              >
                 <div class="dropdown-item-content">
                   <Package :size="16" />
                   <span>压缩上下文</span>

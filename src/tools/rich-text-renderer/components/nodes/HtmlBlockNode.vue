@@ -75,7 +75,7 @@ const sanitizedContent = computed(() => {
       // Meter & Progress
       'low', 'high', 'optimum',
       // 其他
-      'datetime', 'cite', 'onclick', 'loading', 'decoding', 'aria-label', 'aria-pressed'
+      'datetime', 'cite', 'loading', 'decoding', 'aria-label', 'aria-pressed'
     ],
     ALLOW_DATA_ATTR: true, // Allow all data-* attributes
     FORBID_TAGS: ['script', 'style', 'object', 'embed', 'applet', 'link', 'meta', 'base'],

@@ -23,7 +23,7 @@ const sanitizedContent = computed(() => {
       'class', 'style', 'title', 'lang',
       'href', 'target', 'rel',
       'src', 'alt', 'width', 'height',
-      'datetime', 'cite', 'onclick', 'aria-label'
+      'datetime', 'cite', 'aria-label'
     ],
     ALLOW_DATA_ATTR: true,
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],

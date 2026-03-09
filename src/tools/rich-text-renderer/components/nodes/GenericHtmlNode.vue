@@ -244,6 +244,7 @@ const isValidTagName = (tag: string): boolean => {
 // 危险标签黑名单：即便语法合法也不允许渲染的标签
 const DANGEROUS_TAGS = new Set([
   "script",
+  "style",
   "iframe",
   "object",
   "embed",
@@ -259,6 +260,24 @@ const DANGEROUS_TAGS = new Set([
   "frameset",
   "applet",
 ]);
+
+// 内联 style 属性安全清理
+// 过滤可能导致布局逃逸或覆盖宿主 UI 的 CSS 属性
+const DANGEROUS_STYLE_PATTERNS = [
+  /position\s*:\s*(fixed|sticky)/gi,        // 脱离正常文档流，覆盖宿主 UI
+  /z-index\s*:\s*\d{4,}/gi,                  // 过大的 z-index（4 位数以上）
+  /\b(top|left|right|bottom)\s*:\s*-?\d/gi,  // 配合 position 的偏移量
+];
+
+const sanitizeInlineStyle = (styleStr: string): string => {
+  if (!styleStr || typeof styleStr !== 'string') return '';
+  let sanitized = styleStr;
+  for (const pattern of DANGEROUS_STYLE_PATTERNS) {
+    pattern.lastIndex = 0; // 重置 regex 状态
+    sanitized = sanitized.replace(pattern, '/* blocked */');
+  }
+  return sanitized;
+};
 
 // 安全的标签名：非法或危险标签名退化为 span
 const safeTagName = computed(() => {
@@ -349,7 +368,7 @@ const filteredAttributes = computed(() => {
 
     // 处理特殊属性
     if (lowerKey === "style") {
-      attrs.style = value;
+      attrs.style = sanitizeInlineStyle(value);
     } else if (isUrlAttr && typeof value === "string") {
       // 解析资产链接（包括 agent-asset:// 和 【file::assetId】等占位符）
       if (context?.resolveAsset) {
@@ -372,6 +391,8 @@ const filteredAttributes = computed(() => {
   position: relative;
   display: inline-block;
   max-width: 100%;
+  /* 防止内联样式逃逸：限制子元素的布局影响范围 */
+  contain: layout style;
 }
 
 .generic-node-wrapper.is-transparent {

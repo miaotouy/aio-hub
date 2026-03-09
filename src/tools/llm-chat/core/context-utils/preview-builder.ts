@@ -3,7 +3,7 @@ import type { ContextPreviewData, WorldbookEntryPreview } from "../../types/cont
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { getMatchedModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
-import { resolveAttachmentContent } from "./attachment-resolver";
+import { resolveAttachmentsBatch } from "./attachment-resolver";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
@@ -176,19 +176,28 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       const currentMessageDepth = messageDepthMap.get(msg.sourceId as string) ?? 0;
 
       if (sourceNode.attachments && sourceNode.attachments.length > 0) {
-        for (const asset of sourceNode.attachments) {
-          // 关键修复：在解析前获取最新的 Asset 对象，确保能拿到转写结果
-          const latestAsset = await assetManagerEngine.getAssetById(asset.id);
-          const assetToProcess = latestAsset || asset;
+        // 关键修复：在解析前获取最新的 Asset 对象，确保能拿到转写结果
+        const latestAssets = await Promise.all(
+          sourceNode.attachments.map(async (asset) => {
+            const latest = await assetManagerEngine.getAssetById(asset.id);
+            return latest || asset;
+          })
+        );
 
-          const result = await resolveAttachmentContent(assetToProcess, agentConfig.modelId, agentConfig.profileId, {
+        const resolvedResults = await resolveAttachmentsBatch(
+          latestAssets,
+          agentConfig.modelId,
+          agentConfig.profileId,
+          {
             messageDepth: currentMessageDepth,
-          });
+          }
+        );
 
+        for (const result of resolvedResults) {
           if (result.type === "text" && result.content) {
             combinedText += result.content;
           } else {
-            mediaAttachments.push(assetToProcess);
+            mediaAttachments.push(result.asset);
           }
         }
       }
@@ -356,7 +365,17 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       // 2. 计算附件 Token (如果有)
       // 优先使用 _attachments 中的元数据进行精确计算
       if (msg._attachments && msg._attachments.length > 0) {
-        for (const asset of msg._attachments) {
+        const resolvedResults = await resolveAttachmentsBatch(
+          msg._attachments,
+          agentConfig.modelId,
+          agentConfig.profileId,
+          {
+            silent: true,
+          }
+        );
+
+        for (const result of resolvedResults) {
+          const asset = result.asset;
           try {
             if (asset.type === "image") {
               if (visionTokenCost && asset.metadata?.width && asset.metadata?.height) {

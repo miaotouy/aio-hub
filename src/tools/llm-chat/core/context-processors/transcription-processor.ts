@@ -1,7 +1,7 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
-import { resolveAttachmentContent } from "../../core/context-utils/attachment-resolver";
+import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import type { ChatTranscriptionConfig } from "../../types/settings";
@@ -136,9 +136,7 @@ export const transcriptionProcessor: ContextProcessor = {
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     const agentConfig = context.agentConfig;
-    const transcriptionConfig = context.sharedData.get("transcriptionConfig") as
-      | ChatTranscriptionConfig
-      | undefined;
+    const transcriptionConfig = context.sharedData.get("transcriptionConfig") as ChatTranscriptionConfig | undefined;
 
     // 获取当前上下文使用的模型信息
     const modelId = agentConfig.modelId;
@@ -151,8 +149,7 @@ export const transcriptionProcessor: ContextProcessor = {
     // 1. 从 sharedData 获取预处理阶段准备好的 Asset 映射
     // 转写等待逻辑已在管道执行前由 useChatExecutor 完成
     const updatedAssetsMap =
-      (context.sharedData.get("updatedAssetsMap") as Map<string, Asset>) ||
-      new Map<string, Asset>();
+      (context.sharedData.get("updatedAssetsMap") as Map<string, Asset>) || new Map<string, Asset>();
 
     const totalMessages = context.messages.length;
     for (let i = 0; i < totalMessages; i++) {
@@ -168,45 +165,42 @@ export const transcriptionProcessor: ContextProcessor = {
       const transcriptionResults = new Map<string, string>();
 
       // 预先处理所有附件，获取转写结果
-      for (const asset of msg._attachments) {
-        // 使用预处理阶段获取的最新 Asset，避免重复异步调用
-        const assetToProcess = updatedAssetsMap.get(asset.id) || asset;
+      // 使用预处理阶段获取的最新 Asset，避免重复异步调用
+      const assetsToProcess = msg._attachments.map((asset) => updatedAssetsMap.get(asset.id) || asset);
 
-        try {
-          // 检查是否需要强制转写
-          let forceTranscription = false;
-          if (
-            transcriptionConfig?.strategy === "smart" &&
-            transcriptionConfig.forceTranscriptionAfter > 0
-          ) {
-            const messageIndexFromEnd = totalMessages - 1 - i;
-            if (messageIndexFromEnd >= transcriptionConfig.forceTranscriptionAfter) {
-              forceTranscription = true;
-            }
-          }
+      // 检查是否需要强制转写
+      let forceTranscription = false;
+      if (transcriptionConfig?.strategy === "smart" && transcriptionConfig.forceTranscriptionAfter > 0) {
+        const messageIndexFromEnd = totalMessages - 1 - i;
+        if (messageIndexFromEnd >= transcriptionConfig.forceTranscriptionAfter) {
+          forceTranscription = true;
+        }
+      }
 
-          const result = await resolveAttachmentContent(assetToProcess, modelId, profileId, {
-            force: forceTranscription,
-          });
+      try {
+        const resolvedResults = await resolveAttachmentsBatch(assetsToProcess, modelId, profileId, {
+          force: forceTranscription,
+        });
 
+        for (const result of resolvedResults) {
           if (result.type === "text" && result.content) {
             // 保存转写结果到映射中
-            transcriptionResults.set(assetToProcess.id, result.content);
+            transcriptionResults.set(result.asset.id, result.content);
             processedCount++;
           } else {
             // 无法产生文本的附件保留在 remainingAttachments 中
-            remainingAttachments.push(assetToProcess);
+            remainingAttachments.push(result.asset);
           }
-        } catch (error) {
-          errorCount++;
-          remainingAttachments.push(assetToProcess);
-
-          errorHandler.handle(error as Error, {
-            userMessage: `处理附件转写 [${assetToProcess.name}] 失败`,
-            context: { assetId: assetToProcess.id },
-            showToUser: false,
-          });
         }
+      } catch (error) {
+        // 批量处理出错时，降级处理
+        errorCount++;
+        assetsToProcess.forEach((asset) => remainingAttachments.push(asset));
+
+        errorHandler.handle(error as Error, {
+          userMessage: "批量处理附件转写失败",
+          showToUser: false,
+        });
       }
 
       // 2. 处理消息内容中的占位符替换
@@ -280,10 +274,7 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 如果有需要追加的内容（回退到末尾追加模式）
       if (unclaimedWithTranscription.length > 0) {
-        const additionalContent = buildAttachmentContent(
-          unclaimedWithTranscription,
-          transcriptionResults
-        );
+        const additionalContent = buildAttachmentContent(unclaimedWithTranscription, transcriptionResults);
 
         // 过滤出文本类型的 content
         const textContent = additionalContent
@@ -296,10 +287,7 @@ export const transcriptionProcessor: ContextProcessor = {
           if (typeof msg.content === "string") {
             msg.content = msg.content + textToAppend;
           } else if (Array.isArray(msg.content)) {
-            msg.content = [
-              ...(Array.isArray(msg.content) ? msg.content : []),
-              ...additionalContent,
-            ];
+            msg.content = [...(Array.isArray(msg.content) ? msg.content : []), ...additionalContent];
           }
           contentModified = true;
         }
@@ -309,10 +297,7 @@ export const transcriptionProcessor: ContextProcessor = {
       // - 保留非文本附件（remainingAttachments 中未被占位符认领的）
       // - 移除所有已被处理的附件（被占位符认领的 + 转写内容已追加的）
       if (contentModified) {
-        const processedAssetIds = new Set([
-          ...allClaimedAssetIds,
-          ...unclaimedWithTranscription.map((a) => a.id),
-        ]);
+        const processedAssetIds = new Set([...allClaimedAssetIds, ...unclaimedWithTranscription.map((a) => a.id)]);
         msg._attachments = remainingAttachments.filter((a) => !processedAssetIds.has(a.id));
       }
     }

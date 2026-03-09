@@ -26,13 +26,14 @@ export interface ResolvedAttachment {
  * @param profileId 当前配置 ID
  * @param options 选项
  * @param options.force 强制使用转写
+ * @param options.silent 静默模式，不输出警告日志（用于 Token 计算等频繁触发场景）
  * @param options.messageDepth 消息深度（用于判断是否触发强制转写）
  */
 export async function resolveAttachmentContent(
   asset: Asset,
   modelId: string,
   profileId: string,
-  options: { force?: boolean; messageDepth?: number } = {}
+  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
 ): Promise<ResolvedAttachment> {
   const transcriptionManager = useTranscriptionManager();
 
@@ -43,7 +44,7 @@ export async function resolveAttachmentContent(
         // 使用资产管理器获取二进制数据，然后在前端解码
         const buffer = await assetManagerEngine.getAssetBinary(asset.path);
         const textContent = smartDecode(buffer);
-        
+
         // 记录日志：读取成功
         // logger.debug("读取文本附件内容", { assetId: asset.id, assetName: asset.name });
 
@@ -95,9 +96,10 @@ export async function resolveAttachmentContent(
       };
     }
 
-    if (shouldTranscribe) {
+    if (shouldTranscribe && !options.silent) {
       logger.warn("需要转写但未找到转写结果 (可能失败或超时)，保留原始附件", {
         assetId: asset.id,
+        assetName: asset.name,
       });
     }
 
@@ -114,4 +116,53 @@ export async function resolveAttachmentContent(
       asset,
     };
   }
+}
+
+/**
+ * 批量解析附件内容
+ * 自动合并警告消息，避免重复输出
+ */
+export async function resolveAttachmentsBatch(
+  assets: Asset[],
+  modelId: string,
+  profileId: string,
+  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
+): Promise<ResolvedAttachment[]> {
+  const results: ResolvedAttachment[] = [];
+  const missingTranscriptions: Asset[] = [];
+
+  for (const asset of assets) {
+    // 调用单个解析函数时开启静默，由批量函数统一处理警告
+    const result = await resolveAttachmentContent(asset, modelId, profileId, {
+      ...options,
+      silent: true,
+    });
+    results.push(result);
+
+    // 检查是否发生了“需要转写但未找到”的情况
+    // 这通过检查 resolveAttachmentContent 的内部逻辑：
+    // 如果 shouldTranscribe 为 true 且返回的是 media 类型，说明没找到转写
+    if (result.type === "media") {
+      const transcriptionManager = (
+        await import("../../composables/features/useTranscriptionManager")
+      ).useTranscriptionManager();
+      const shouldTranscribe =
+        options.force ||
+        transcriptionManager.computeWillUseTranscription(asset, modelId, profileId, options.messageDepth);
+
+      // 排除掉本来就是文本文件但读取失败的情况（虽然那种情况也可能需要转写，但这里主要针对媒体）
+      if (shouldTranscribe && asset.type !== "document") {
+        missingTranscriptions.push(asset);
+      }
+    }
+  }
+
+  // 统一输出警告
+  if (missingTranscriptions.length > 0 && !options.silent) {
+    logger.warn(`有 ${missingTranscriptions.length} 个附件需要转写但未找到结果，将保留原始附件`, {
+      assets: missingTranscriptions.map((a) => ({ id: a.id, name: a.name })),
+    });
+  }
+
+  return results;
 }

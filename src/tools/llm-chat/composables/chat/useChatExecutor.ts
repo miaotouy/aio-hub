@@ -24,7 +24,7 @@ import type { PipelineContext } from "../../types/pipeline";
 import { useNodeManager } from "../session/useNodeManager";
 import type { ContextPreviewData } from "../../types/context";
 import { buildPreviewDataFromContext } from "../../core/context-utils/preview-builder";
-import { resolveAttachmentContent } from "../../core/context-utils/attachment-resolver";
+import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
 import { useContextCompressor } from "../features/useContextCompressor";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
@@ -652,12 +652,12 @@ export function useChatExecutor() {
       const profileId = profile?.id || "";
 
       if (attachments && attachments.length > 0) {
-        for (const asset of attachments) {
-          const result = await resolveAttachmentContent(asset, modelId, profileId);
+        const resolvedResults = await resolveAttachmentsBatch(attachments, modelId, profileId);
+        for (const result of resolvedResults) {
           if (result.type === "text" && result.content) {
             combinedText += result.content;
           } else {
-            mediaAttachments.push(asset);
+            mediaAttachments.push(result.asset);
           }
         }
       }

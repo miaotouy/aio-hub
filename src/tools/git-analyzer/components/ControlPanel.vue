@@ -492,7 +492,7 @@ function locateTagInterval() {
 }
 
 .branch-select {
-  width: 180px;
+  width: 120px;
   flex-shrink: 0;
 }
 
@@ -521,12 +521,12 @@ function locateTagInterval() {
 }
 
 .search-input {
-  width: 240px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 160px;
 }
 
 .date-picker {
-  width: 280px;
+  min-width: 180px;
   flex-shrink: 0;
 }
 
@@ -536,8 +536,8 @@ function locateTagInterval() {
 }
 
 .type-select {
-  flex: 1;
-  min-width: 180px;
+  width: 140px;
+  flex-shrink: 0;
 }
 
 .reverse-checkbox {
@@ -653,6 +653,12 @@ function locateTagInterval() {
   flex: 1;
 }
 
+:deep(.el-date-editor.el-range-editor) {
+  width: 100% !important;
+  box-sizing: border-box;
+  max-width: 320px;
+}
+
 :deep(.el-date-editor .el-range-separator) {
   padding: 0 4px;
   line-height: 32px;
@@ -660,6 +666,7 @@ function locateTagInterval() {
 
 :deep(.el-date-editor .el-range-input) {
   font-size: 13px;
+  flex: 1;
 }
 
 :deep(.drop-zone--input) {

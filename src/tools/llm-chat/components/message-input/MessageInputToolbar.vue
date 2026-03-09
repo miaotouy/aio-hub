@@ -104,7 +104,7 @@ const { getProfileById } = useLlmProfiles();
 const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
-const { settings: chatSettings } = useChatSettings();
+const { settings: chatSettings, updateSettings: updateChatSettings } = useChatSettings();
 
 /**
  * 计算工具调用是否开启
@@ -201,6 +201,15 @@ const handleNewSession = () => {
 const handleOpenAdvanced = (tab: string | undefined) => {
   toolSettingsVisible.value = false;
   emit("open-agent-settings", tab);
+};
+
+const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
+  updateChatSettings({
+    transcription: {
+      ...chatSettings.value.transcription,
+      autoStartOnImport: val as boolean,
+    },
+  });
 };
 </script>
 
@@ -490,6 +499,14 @@ const handleOpenAdvanced = (tab: string | undefined) => {
                           groupQuickActionsBySet: val as boolean,
                         })
                     "
+                    size="small"
+                  />
+                </div>
+                <div class="setting-item">
+                  <span class="setting-label">导入时自动转写</span>
+                  <el-switch
+                    :model-value="chatSettings.transcription.autoStartOnImport"
+                    @update:model-value="handleToggleAutoStartOnImport"
                     size="small"
                   />
                 </div>

@@ -266,7 +266,8 @@ const DANGEROUS_TAGS = new Set([
 const DANGEROUS_STYLE_PATTERNS = [
   /position\s*:\s*(fixed|sticky)/gi,        // 脱离正常文档流，覆盖宿主 UI
   /z-index\s*:\s*\d{4,}/gi,                  // 过大的 z-index（4 位数以上）
-  /\b(top|left|right|bottom)\s*:\s*-?\d/gi,  // 配合 position 的偏移量
+  // 注意：不拦截 top/left/right/bottom，因为 position:absolute 是相对父元素定位（安全）
+  // position:fixed/sticky 已被拦截，contain:layout 兜底防止逃逸
 ];
 
 const sanitizeInlineStyle = (styleStr: string): string => {

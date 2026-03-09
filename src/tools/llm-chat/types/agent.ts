@@ -111,6 +111,11 @@ export interface ToolCallConfig {
    * key: toolId, value: 该工具的配置对象
    */
   toolSettings?: Record<string, any>;
+  /**
+   * 宏缺失时是否允许自动注入到历史记录之前
+   * 开启后，如果预设消息中未找到 {{tools}} 宏，系统会自动将工具定义注入到 chat_history 锚点之前
+   */
+  autoInjectIfMacroMissing?: boolean;
 }
 
 export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
@@ -129,6 +134,7 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   protocol: "vcp",
   convertToolRoleToUser: true,
   toolSettings: {},
+  autoInjectIfMacroMissing: false,
 };
 
 /**

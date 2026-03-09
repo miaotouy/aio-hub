@@ -101,6 +101,9 @@ const ensureConfig = () => {
   if (editForm.toolCallConfig.showMethodsCount === undefined) {
     editForm.toolCallConfig.showMethodsCount = true;
   }
+  if (editForm.toolCallConfig.autoInjectIfMacroMissing === undefined) {
+    editForm.toolCallConfig.autoInjectIfMacroMissing = false;
+  }
 };
 
 const toggleMethod = (toolId: string, methodName: string) => {
@@ -263,17 +266,38 @@ const pasteAllToolSettings = async () => {
       <!-- 宏缺失警告 -->
       <transition name="el-zoom-in-top">
         <div v-if="isToolsMacroMissing" class="macro-warning-alert">
-          <el-alert type="warning" :closable="false" show-icon>
+          <el-alert
+            :type="editForm.toolCallConfig.autoInjectIfMacroMissing ? 'info' : 'warning'"
+            :closable="false"
+            show-icon
+          >
             <template #title>
               <div class="alert-title-content">
-                <span
-                  >提示词中未发现 <code>{{ toolsMacro }}</code> 宏</span
-                >
-                <el-button link type="primary" size="small" @click="switchToPersonality"> 前往添加 </el-button>
+                <span v-if="editForm.toolCallConfig.autoInjectIfMacroMissing"> 自动注入已启用 </span>
+                <span v-else>
+                  提示词中未发现 <code>{{ toolsMacro }}</code> 宏
+                </span>
+                <div class="alert-actions">
+                  <el-button
+                    v-if="!editForm.toolCallConfig.autoInjectIfMacroMissing"
+                    type="primary"
+                    size="small"
+                    @click="editForm.toolCallConfig.autoInjectIfMacroMissing = true"
+                  >
+                    立即开启保底注入
+                  </el-button>
+                  <el-button link type="primary" size="small" @click="switchToPersonality"> 前往编辑提示词 </el-button>
+                </div>
               </div>
             </template>
             <template #default>
-              智能体需要此宏来感知当前启用的工具定义。请在“角色设定”的系统提示词中包含此宏。
+              <span v-if="editForm.toolCallConfig.autoInjectIfMacroMissing">
+                工具定义将自动注入到对话历史之前。你也可以在"角色设定"中手动添加
+                <code>{{ toolsMacro }}</code> 宏以精确控制注入位置。
+              </span>
+              <span v-else>
+                智能体需要此宏来感知当前启用的工具定义。你可以开启"自动注入"，或在"角色设定"中手动添加此宏。
+              </span>
             </template>
           </el-alert>
         </div>
@@ -310,6 +334,21 @@ const pasteAllToolSettings = async () => {
               </el-tooltip>
             </template>
             <el-switch v-model="editForm.toolCallConfig.convertToolRoleToUser" />
+          </el-form-item>
+
+          <el-form-item label="保底注入">
+            <template #label>
+              <el-tooltip
+                content="开启后，如果提示词中未手动添加 {{tools}} 宏，系统会自动将工具定义注入到对话历史之前。"
+                placement="top"
+              >
+                <div style="display: flex; align-items: center; gap: 4px">
+                  <span>保底注入</span>
+                  <el-icon :size="14"><InfoFilled /></el-icon>
+                </div>
+              </el-tooltip>
+            </template>
+            <el-switch v-model="editForm.toolCallConfig.autoInjectIfMacroMissing" />
           </el-form-item>
         </div>
 
@@ -552,12 +591,20 @@ const pasteAllToolSettings = async () => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  gap: 12px;
 }
 
 .alert-title-content code {
   color: var(--el-color-primary);
   font-weight: bold;
   margin: 0 4px;
+}
+
+.alert-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .tool-config-grid {

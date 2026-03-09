@@ -126,13 +126,7 @@ export interface ChatMessageMetadata {
 // 文件: src/tools/llm-chat/types/sessionVariable.ts
 
 /** 变量值类型 (支持嵌套和列表) */
-export type VariableValue =
-  | string
-  | number
-  | boolean
-  | null
-  | VariableValue[]
-  | { [key: string]: VariableValue };
+export type VariableValue = string | number | boolean | null | VariableValue[] | { [key: string]: VariableValue };
 
 /** 变量操作类型 */
 export type VariableOperation =
@@ -449,11 +443,7 @@ function shouldScanMessage(msg: ProcessableMessage, scope: VariableScanScope): b
   return true;
 }
 
-function extractVariableOperations(
-  content: string,
-  messageIndex: number,
-  sourceId?: string
-): VariableChange[] {
+function extractVariableOperations(content: string, messageIndex: number, sourceId?: string): VariableChange[] {
   const changes: VariableChange[] = [];
   // 匹配 <var ... /> 或 <var ...>...</var>
   // 捕获属性字符串
@@ -510,11 +500,7 @@ function parseAttributes(attrString: string): Record<string, string> {
 
 import { get, set, cloneDeep } from "lodash-es"; // 假设引入 lodash 工具
 
-function applyVariableChange(
-  state: VariableState,
-  change: VariableChange,
-  config: VariableConfig
-): void {
+function applyVariableChange(state: VariableState, change: VariableChange, config: VariableConfig): void {
   const { name, op } = change;
   const definitions = config.definitions || {};
   const strictMode = config.strictMode ?? true;

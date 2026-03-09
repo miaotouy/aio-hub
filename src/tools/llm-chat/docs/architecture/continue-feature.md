@@ -1,6 +1,6 @@
 # LLM Chat 续写与补全功能说明文档
 
-本文档描述了 LLM Chat 工具中已实现的“续写 (Continue)”与“输入补全 (Input Completion)”功能的架构与使用方式。
+本文档描述了 LLM Chat 工具中的“续写 (Continue)”与“输入补全 (Input Completion)”功能的架构与使用方式。
 
 ## 1. 功能概述
 

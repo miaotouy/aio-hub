@@ -180,6 +180,21 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         visible: (settings) => settings.uiPreferences.autoScroll,
       },
       {
+        id: "autoScrollThreshold",
+        label: "触底吸附距离 ({{ localSettings.uiPreferences.autoScrollThreshold }}px)",
+        component: "ElSlider",
+        props: {
+          min: 50,
+          max: 500,
+          step: 10,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
+        modelPath: "uiPreferences.autoScrollThreshold",
+        hint: "当滚动位置距离底部小于此值时，认为用户在查看最新消息，会自动跟随滚动",
+        keywords: "ui scroll threshold bottom 滚动 触底 阈值 吸附",
+        visible: (settings) => settings.uiPreferences.autoScroll,
+      },
+      {
         id: "showMessageNavigator",
         label: "显示消息导航器",
         layout: "inline",

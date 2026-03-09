@@ -64,6 +64,8 @@ export interface ChatSettings {
     autoScroll: boolean;
     /** 自动滚动是否使用平滑效果 */
     smoothAutoScroll: boolean;
+    /** 触底吸附距离阈值 (px) */
+    autoScrollThreshold: number;
     /** 消息字体大小 (px) */
     fontSize: number;
     /** 消息行高 */
@@ -258,6 +260,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showModelSelector: true,
     autoScroll: true,
     smoothAutoScroll: true, // 默认启用平滑滚动
+    autoScrollThreshold: 100, // 默认 100px 触底阈值
     fontSize: 14,
     lineHeight: 1.6,
     letterSpacing: 0,

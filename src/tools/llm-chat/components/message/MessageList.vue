@@ -170,8 +170,8 @@ const isNearBottom = ref(true);
 const onScroll = () => {
   if (!messagesContainer.value) return;
   const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
-  // 阈值设为 100px，在这个范围内认为用户想看最新消息
-  isNearBottom.value = scrollHeight - clientHeight - scrollTop < 100;
+  // 使用用户配置的阈值，在这个范围内认为用户想看最新消息
+  isNearBottom.value = scrollHeight - clientHeight - scrollTop < settings.value.uiPreferences.autoScrollThreshold;
 };
 
 // 渐进式加载逻辑：使用 RAF 逐步增加 overscan（仅用于会话切换）

@@ -242,11 +242,17 @@ watch(
       }
 
       // 如果是保存到分支等操作导致引用变化但位置应该保持的情况
-      if (container && !isAtBottom) {
-        nextTick(() => {
-          // 恢复之前的滚动位置
-          container.scrollTop = prevScrollTop;
-        });
+      if (container) {
+        if (isAtBottom) {
+          // 如果之前在底部，确保更新后仍然滚到底部
+          // 解决切换分支时，由于渲染延迟导致的滚动位置偏移问题
+          scrollToBottom();
+        } else {
+          nextTick(() => {
+            // 恢复之前的滚动位置
+            container.scrollTop = prevScrollTop;
+          });
+        }
       }
     }
   }

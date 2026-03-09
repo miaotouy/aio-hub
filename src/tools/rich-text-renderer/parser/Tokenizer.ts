@@ -6,11 +6,7 @@ import { Token } from "./types";
  * 辅助函数：使用 sticky 正则匹配
  * Sticky 模式允许正则直接从指定位置开始匹配，避免了创建字符串切片的开销。
  */
-function stickyMatch(
-  regex: RegExp,
-  text: string,
-  pos: number
-): RegExpExecArray | null {
+function stickyMatch(regex: RegExp, text: string, pos: number): RegExpExecArray | null {
   regex.lastIndex = pos;
   return regex.exec(text);
 }
@@ -20,6 +16,7 @@ const RE_HTML_TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*([\s\S]*?)\s*(\/?)\>/y;
 const RE_MATHJAX_INLINE = /\\\((.*?)\\\)/y;
 const RE_ESCAPE_PUNCT = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
 const RE_AUTOLINK = /<((?:https?|ftps?|mailto):[^\s>]+)>/y;
+const RE_URL = /(https?:\/\/[^\s<"“'”]+)/y;
 const RE_HTML_COMMENT = /<!--[\s\S]*?-->/y;
 const RE_INDENT = /( *)/y;
 const RE_CODE_FENCE_OPEN = /```(\w*)/y;
@@ -33,7 +30,8 @@ const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
 // VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
-const RE_VCP_RESULT_FIELD = /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
+const RE_VCP_RESULT_FIELD =
+  /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
 
 export class Tokenizer {
   // HTML void elements (不需要闭合标签的元素)
@@ -54,12 +52,7 @@ export class Tokenizer {
     "wbr",
   ]);
 
-  private static readonly rawElements = new Set([
-    "code",
-    "pre",
-    "script",
-    "style",
-  ]);
+  private static readonly rawElements = new Set(["code", "pre", "script", "style"]);
 
   /**
    * 将完整文本转换为令牌序列
@@ -84,7 +77,8 @@ export class Tokenizer {
           continue;
         }
 
-        if (char === 60) { // '<'
+        if (char === 60) {
+          // '<'
           const htmlMatch = stickyMatch(RE_HTML_TAG, text, i);
           if (htmlMatch) {
             const isClosing = !!htmlMatch[1];
@@ -192,8 +186,27 @@ export class Tokenizer {
         continue;
       }
 
-      // 5. Autolink, Comment, HTML Tag
+      // 5. URL, Autolink, Comment, HTML Tag
+      if (char === 104) {
+        // 'h'
+        const urlMatch = stickyMatch(RE_URL, text, i);
+        if (urlMatch) {
+          let url = urlMatch[1];
+          // 移除末尾可能被误匹配的标点符号
+          const trailingPunct = /[.,!?;:]+$/;
+          const punctMatch = url.match(trailingPunct);
+          if (punctMatch) {
+            url = url.slice(0, -punctMatch[0].length);
+          }
+          tokens.push({ type: "autolink", url, raw: url });
+          i += url.length;
+          atLineStart = false;
+          continue;
+        }
+      }
+
       if (char === 60) {
+        // '<'
         const autolinkMatch = stickyMatch(RE_AUTOLINK, text, i);
         if (autolinkMatch) {
           tokens.push({ type: "autolink", url: autolinkMatch[1], raw: autolinkMatch[0] });
@@ -251,11 +264,7 @@ export class Tokenizer {
             let startIdx = posAfterIndent + 2;
             let endIdx = startIdx;
             while (endIdx < len) {
-              if (
-                text.charCodeAt(endIdx) === 36 &&
-                endIdx + 1 < len &&
-                text.charCodeAt(endIdx + 1) === 36
-              ) {
+              if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
                 break;
               }
               endIdx++;
@@ -268,11 +277,7 @@ export class Tokenizer {
           }
 
           // 代码围栏 ```
-          if (
-            indent < 20 &&
-            charAfterIndent === 96 &&
-            text.startsWith("```", posAfterIndent)
-          ) {
+          if (indent < 20 && charAfterIndent === 96 && text.startsWith("```", posAfterIndent)) {
             const openMatch = stickyMatch(RE_CODE_FENCE_OPEN, text, posAfterIndent);
             if (openMatch) {
               const language = openMatch[1] || "";
@@ -489,20 +494,30 @@ export class Tokenizer {
       }
 
       // 7. Markdown 内联定界符
-      if (char === 8220) { // “
+      if (char === 8220) {
+        // “
         tokens.push({ type: "quote_delimiter", marker: "“", raw: "“" });
-        i += 1; atLineStart = false; continue;
+        i += 1;
+        atLineStart = false;
+        continue;
       }
-      if (char === 8221) { // ”
+      if (char === 8221) {
+        // ”
         tokens.push({ type: "quote_delimiter", marker: "”", raw: "”" });
-        i += 1; atLineStart = false; continue;
+        i += 1;
+        atLineStart = false;
+        continue;
       }
-      if (char === 34) { // "
-        tokens.push({ type: "quote_delimiter", marker: "\"", raw: "\"" });
-        i += 1; atLineStart = false; continue;
+      if (char === 34) {
+        // "
+        tokens.push({ type: "quote_delimiter", marker: '"', raw: '"' });
+        i += 1;
+        atLineStart = false;
+        continue;
       }
 
-      if (char === 126) { // ~
+      if (char === 126) {
+        // ~
         if (i + 1 < len && text.charCodeAt(i + 1) === 126) {
           tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
           i += 2;
@@ -510,15 +525,20 @@ export class Tokenizer {
           tokens.push({ type: "subscript_delimiter", marker: "~", raw: "~" });
           i += 1;
         }
-        atLineStart = false; continue;
+        atLineStart = false;
+        continue;
       }
 
-      if (char === 94) { // ^
+      if (char === 94) {
+        // ^
         tokens.push({ type: "superscript_delimiter", marker: "^", raw: "^" });
-        i += 1; atLineStart = false; continue;
+        i += 1;
+        atLineStart = false;
+        continue;
       }
 
-      if (char === 42) { // *
+      if (char === 42) {
+        // *
         if (i + 2 < len && text.charCodeAt(i + 1) === 42 && text.charCodeAt(i + 2) === 42) {
           tokens.push({ type: "triple_delimiter", marker: "***", raw: "***" });
           i += 3;
@@ -529,10 +549,12 @@ export class Tokenizer {
           tokens.push({ type: "em_delimiter", marker: "*", raw: "*" });
           i += 1;
         }
-        atLineStart = false; continue;
+        atLineStart = false;
+        continue;
       }
 
-      if (char === 95) { // _
+      if (char === 95) {
+        // _
         if (i + 1 < len && text.charCodeAt(i + 1) === 95) {
           tokens.push({ type: "strong_delimiter", marker: "__", raw: "__" });
           i += 2;
@@ -540,7 +562,8 @@ export class Tokenizer {
           tokens.push({ type: "em_delimiter", marker: "_", raw: "_" });
           i += 1;
         }
-        atLineStart = false; continue;
+        atLineStart = false;
+        continue;
       }
 
       // 8. 行内代码 `
@@ -626,12 +649,34 @@ export class Tokenizer {
       // 10. 图片与链接 ![, [, ], (, )
       if (char === 33 && i + 1 < len && text.charCodeAt(i + 1) === 91) {
         tokens.push({ type: "image_marker", raw: "!" });
-        i += 1; atLineStart = false; continue;
+        i += 1;
+        atLineStart = false;
+        continue;
       }
-      if (char === 91) { tokens.push({ type: "link_text_open", raw: "[" }); i += 1; atLineStart = false; continue; }
-      if (char === 93) { tokens.push({ type: "link_text_close", raw: "]" }); i += 1; atLineStart = false; continue; }
-      if (char === 40) { tokens.push({ type: "link_url_open", raw: "(" }); i += 1; atLineStart = false; continue; }
-      if (char === 41) { tokens.push({ type: "link_url_close", raw: ")" }); i += 1; atLineStart = false; continue; }
+      if (char === 91) {
+        tokens.push({ type: "link_text_open", raw: "[" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+      if (char === 93) {
+        tokens.push({ type: "link_text_close", raw: "]" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+      if (char === 40) {
+        tokens.push({ type: "link_url_open", raw: "(" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
+      if (char === 41) {
+        tokens.push({ type: "link_url_close", raw: ")" });
+        i += 1;
+        atLineStart = false;
+        continue;
+      }
 
       // 11. 普通文本收集
       RE_SPECIAL_CHARS.lastIndex = i;

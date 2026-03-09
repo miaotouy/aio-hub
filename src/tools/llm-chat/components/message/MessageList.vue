@@ -229,10 +229,25 @@ watch(
   () => props.messages,
   (newMsgs, oldMsgs) => {
     if (newMsgs !== oldMsgs) {
-      // 消息列表引用变化时重置测量缓存，避免旧高度数据干扰
-      measuredElements = new WeakSet<HTMLElement>();
-      // 通知虚拟列表清空尺寸缓存并重新测量
-      virtualizer.value.measure();
+      // 记录当前滚动位置，防止 measure 导致的偏移
+      const container = messagesContainer.value;
+      const prevScrollTop = container ? container.scrollTop : 0;
+      const isAtBottom = isNearBottom.value;
+
+      // 只有在消息数量发生变化，或者从无到有时，才强制重置测量缓存
+      // 如果只是保存到分支（数量不变或仅增加），全量重测会导致滚动条大幅跳动
+      if (newMsgs.length !== oldMsgs?.length) {
+        measuredElements = new WeakSet<HTMLElement>();
+        virtualizer.value.measure();
+      }
+
+      // 如果是保存到分支等操作导致引用变化但位置应该保持的情况
+      if (container && !isAtBottom) {
+        nextTick(() => {
+          // 恢复之前的滚动位置
+          container.scrollTop = prevScrollTop;
+        });
+      }
     }
   }
 );

@@ -25,6 +25,7 @@ import MessageInputAttachments from "./MessageInputAttachments.vue";
 // Composables
 import { useMessageInputResize } from "../../composables/input/useMessageInputResize";
 import { useMessageInputActions } from "../../composables/input/useMessageInputActions";
+import { provideChatContext } from "../../composables/chat/useChatContext";
 
 const logger = createModuleLogger("MessageInput");
 const errorHandler = createModuleErrorHandler("MessageInput");
@@ -244,6 +245,22 @@ watch(inputManager.focusRequest, () => {
   textareaRef.value?.focus();
 });
 
+// Provide context for child components (MessageInputToolbar)
+provideChatContext({
+  state: {
+    isSending: toRef(props, "isSending"),
+    disabled: toRef(props, "disabled"),
+  },
+  actions: {
+    // handleSend 内部会从 inputManager 获取所有需要的数据
+    send: async () => {
+      await handleSend();
+    },
+    abort: handleAbort,
+    triggerAttachment: handleTriggerAttachment,
+  },
+});
+
 // 初始加载
 onMounted(async () => {
   if (inputManager.attachments.value.length > 0) {
@@ -419,8 +436,6 @@ const handleDragStart = (e: MouseEvent) => {
             @paste="handlePaste"
           />
           <MessageInputToolbar
-            :is-sending="isCurrentBranchGenerating"
-            :disabled="disabled"
             :is-detached="props.isDetached"
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"
@@ -442,9 +457,6 @@ const handleDragStart = (e: MouseEvent) => {
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
             @execute-quick-action="handleQuickAction"
-            @send="handleSend"
-            @abort="handleAbort"
-            @trigger-attachment="handleTriggerAttachment"
             @select-temporary-model="handleSelectTemporaryModel"
             @clear-temporary-model="inputManager.clearTemporaryModel"
             @translate-input="handleTranslateInput"

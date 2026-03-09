@@ -40,14 +40,13 @@ import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
 
 import type { QuickAction, QuickActionSet } from "../../types/quick-action";
 import { computed, ref, onMounted, defineAsyncComponent } from "vue";
+import { useChatContext } from "../../composables/chat/useChatContext";
 
 const QuickActionManagerDialog = defineAsyncComponent(() => import("../quick-action/QuickActionManagerDialog.vue"));
 
 const quickActionManagerVisible = ref(false);
 
 interface Props {
-  isSending: boolean;
-  disabled: boolean;
   isDetached?: boolean;
   isExpanded: boolean;
   isStreamingEnabled: boolean;
@@ -82,23 +81,24 @@ const emit = defineEmits<{
   (e: "update:settings", value: InputToolbarSettings): void;
   (e: "insert", macro: MacroDefinition): void;
   (e: "toggle-expand"): void;
-  (e: "send"): void;
-  (e: "abort"): void;
-  (e: "trigger-attachment"): void;
   (e: "select-temporary-model"): void;
   (e: "clear-temporary-model"): void;
-  (e: "translate-input"): void;
-  (e: "switch-session", sessionId: string): void;
-  (e: "new-session"): void;
-  (e: "compress-context"): void;
-  (e: "execute-quick-action", action: QuickAction): void;
-  (e: "complete-input", content: string): void;
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
+  (e: "execute-quick-action", action: QuickAction): void;
+  (e: "translate-input"): void;
+  (e: "compress-context"): void;
+  (e: "complete-input", content: string): void;
   (e: "convert-paths"): void;
-  (e: "open-agent-settings", tab?: string): void;
   (e: "analyze-context-with-input"): void;
+  (e: "switch-session", sessionId: string): void;
+  (e: "new-session"): void;
+  (e: "open-agent-settings", tab?: string): void;
 }>();
+
+const context = useChatContext();
+const { isSending, disabled } = context.state;
+const { send, abort, triggerAttachment } = context.actions;
 
 const { getProfileById } = useLlmProfiles();
 const quickActionStore = useQuickActionStore();
@@ -246,7 +246,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
           <button
             class="streaming-icon-button"
             :class="{ active: props.isStreamingEnabled }"
-            :disabled="props.isSending"
+            :disabled="isSending"
             @click="emit('toggle-streaming')"
           >
             <span class="typewriter-icon">A_</span>
@@ -276,7 +276,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 
         <!-- 添加附件按钮 -->
         <el-tooltip content="添加附件" placement="top" :show-after="500">
-          <button class="attachment-button" @click="emit('trigger-attachment')">
+          <button class="attachment-button" @click="triggerAttachment?.()">
             <el-icon><Paperclip /></el-icon>
           </button>
         </el-tooltip>
@@ -324,7 +324,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
             <el-dropdown-menu>
               <!-- 智能补全 -->
               <el-dropdown-item
-                :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
+                :disabled="isSending || props.isCompleting || disabled || !props.inputText.trim()"
                 @click="emit('complete-input', props.inputText)"
               >
                 <div class="dropdown-item-content">
@@ -336,7 +336,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 
               <!-- 补全模型设置 -->
               <el-dropdown-item
-                :disabled="props.isSending || props.isCompleting || props.disabled || !props.inputText.trim()"
+                :disabled="isSending || props.isCompleting || disabled || !props.inputText.trim()"
                 @click="emit('select-continuation-model')"
               >
                 <div class="dropdown-item-content">
@@ -364,7 +364,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
               </el-dropdown-item>
 
               <!-- 压缩 -->
-              <el-dropdown-item :disabled="props.isCompressing || props.disabled" @click="emit('compress-context')">
+              <el-dropdown-item :disabled="props.isCompressing || disabled" @click="emit('compress-context')">
                 <div class="dropdown-item-content">
                   <Package :size="16" />
                   <span>压缩上下文</span>
@@ -375,7 +375,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
               <div class="dropdown-divider"></div>
 
               <!-- 路径转附件 -->
-              <el-dropdown-item :disabled="props.disabled || !props.inputText.trim()" @click="emit('convert-paths')">
+              <el-dropdown-item :disabled="disabled || !props.inputText.trim()" @click="emit('convert-paths')">
                 <div class="dropdown-item-content">
                   <FileUp :size="16" />
                   <span>路径转附件</span>
@@ -384,7 +384,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 
               <!-- 分析当前上下文 -->
               <el-dropdown-item
-                :disabled="props.disabled || (!props.inputText.trim() && !props.hasAttachments)"
+                :disabled="disabled || (!props.inputText.trim() && !props.hasAttachments)"
                 @click="emit('analyze-context-with-input')"
               >
                 <div class="dropdown-item-content">
@@ -658,9 +658,9 @@ const handleOpenAdvanced = (tab: string | undefined) => {
           </span>
         </el-tooltip>
         <button
-          v-if="!props.isSending"
-          @click="emit('send')"
-          :disabled="props.disabled || (!props.inputText.trim() && !props.hasAttachments)"
+          v-if="!isSending"
+          @click="send?.()"
+          :disabled="disabled || (!props.inputText.trim() && !props.hasAttachments)"
           class="btn-send"
           title="发送 (Ctrl/Cmd + Enter)"
         >
@@ -679,7 +679,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
             <polyline points="5 12 12 5 19 12"></polyline>
           </svg>
         </button>
-        <button v-else @click="emit('abort')" class="btn-abort" title="停止生成">
+        <button v-else @click="abort?.()" class="btn-abort" title="停止生成">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="20"

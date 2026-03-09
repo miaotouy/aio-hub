@@ -20,157 +20,140 @@
 
     <!-- 工具栏 -->
     <div class="toolbar">
-      <el-row :gutter="12" align="middle">
-        <el-col :span="9">
-          <DropZone variant="input" :directory-only="true" :multiple="false" hide-content @drop="handlePathDrop">
-            <div class="path-input-group">
-              <el-input
-                v-model="repoPath"
-                placeholder="请输入或选择 Git 仓库路径（支持拖拽）"
-                clearable
-                @keyup.enter="$emit('load-repository')"
-              />
-              <el-button @click="$emit('select-directory')" :icon="FolderOpened">选择</el-button>
-            </div>
-          </DropZone>
-        </el-col>
-        <el-col :span="4">
-          <el-select
-            v-model="selectedBranch"
-            placeholder="选择分支"
-            @change="$emit('branch-change', $event)"
-            @visible-change="handleBranchDropdownVisibleChange"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="branch in branches"
-              :key="branch.name"
-              :label="branch.current ? `${branch.name} (当前)` : branch.name"
-              :value="branch.name"
+      <div class="toolbar-row">
+        <DropZone
+          variant="input"
+          :directory-only="true"
+          :multiple="false"
+          hide-content
+          @drop="handlePathDrop"
+          class="flex-1"
+        >
+          <div class="path-input-group">
+            <el-input
+              v-model="repoPath"
+              placeholder="请输入或选择 Git 仓库路径（支持拖拽）"
+              clearable
+              @keyup.enter="$emit('load-repository')"
             />
-          </el-select>
-        </el-col>
-        <el-col :span="3">
-          <el-tooltip content="设置要加载的提交记录数量。设置为 0 则加载全部记录" placement="top">
-            <el-input-number
-              v-model="limitCount"
-              :min="0"
-              :max="50000"
-              :step="100"
-              placeholder="显示条数"
-              style="width: 100%"
-            >
-              <template #prefix v-if="limitCount === 0">
-                <span class="all-tag">全部</span>
-              </template>
-            </el-input-number>
-          </el-tooltip>
-        </el-col>
-        <el-col :span="3">
-          <el-tooltip
-            content="设置流式加载时的批次大小。设置为 0 则使用非流式加载（一次性加载所有记录）"
-            placement="top"
+            <el-button @click="$emit('select-directory')" :icon="FolderOpened">选择</el-button>
+          </div>
+        </DropZone>
+        <el-select
+          v-model="selectedBranch"
+          placeholder="选择分支"
+          @change="$emit('branch-change', $event)"
+          @visible-change="handleBranchDropdownVisibleChange"
+          class="branch-select"
+        >
+          <el-option
+            v-for="branch in branches"
+            :key="branch.name"
+            :label="branch.current ? `${branch.name} (当前)` : branch.name"
+            :value="branch.name"
+          />
+        </el-select>
+        <el-tooltip content="设置要加载的提交记录数量。设置为 0 则加载全部记录" placement="top">
+          <el-input-number
+            v-model="limitCount"
+            :min="0"
+            :max="50000"
+            :step="100"
+            placeholder="显示条数"
+            class="limit-input"
           >
-            <el-input-number
-              v-model="batchSize"
-              :min="0"
-              :max="1000"
-              :step="10"
-              placeholder="批次大小"
-              style="width: 100%"
-            >
-              <template #prefix v-if="batchSize === 0">
-                <span class="non-stream-tag">非流式</span>
-              </template>
-            </el-input-number>
-          </el-tooltip>
-        </el-col>
-        <el-col :span="3">
-          <el-dropdown
-            split-button
-            type="primary"
-            @click="$emit('load-repository')"
-            :loading="loading"
-            class="load-btn"
-          >
-            加载仓库
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="loadAllCommits">加载全部</el-dropdown-item>
-              </el-dropdown-menu>
+            <template #prefix v-if="limitCount === 0">
+              <span class="all-tag">全部</span>
             </template>
-          </el-dropdown>
-        </el-col>
-      </el-row>
+          </el-input-number>
+        </el-tooltip>
+        <el-tooltip content="设置流式加载时的批次大小。设置为 0 则使用非流式加载（一次性加载所有记录）" placement="top">
+          <el-input-number
+            v-model="batchSize"
+            :min="0"
+            :max="1000"
+            :step="10"
+            placeholder="批次大小"
+            class="batch-input"
+          >
+            <template #prefix v-if="batchSize === 0">
+              <span class="non-stream-tag">非流式</span>
+            </template>
+          </el-input-number>
+        </el-tooltip>
+        <el-dropdown split-button type="primary" @click="$emit('load-repository')" :loading="loading" class="load-btn">
+          加载仓库
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="loadAllCommits">加载全部</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
     <!-- 筛选器 -->
     <div class="filters">
-      <el-row :gutter="12">
-        <el-col :span="5">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索 Hash / 提交消息..."
-            clearable
-            @input="$emit('filter-commits')"
-          >
-            <template #prefix>
-              <el-icon>
-                <Search />
-              </el-icon>
-            </template>
-          </el-input>
-        </el-col>
-        <el-col :span="6">
-          <el-date-picker
-            v-model="dateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            @change="$emit('filter-commits')"
-            style="width: 100%"
-            size="default"
-            format="YYYY-MM-DD"
-          />
-        </el-col>
-        <div style="width: 20px"></div>
-        <el-col :span="3">
-          <el-input v-model="authorFilter" placeholder="作者筛选" clearable @input="$emit('filter-commits')" />
-        </el-col>
-        <el-col :span="4">
-          <el-select
-            v-model="commitTypeFilter"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="提交类型"
-            clearable
-            @change="$emit('filter-commits')"
-            style="width: 100%"
-          >
-            <el-option label="feat (新功能)" value="feat" />
-            <el-option label="fix (修复)" value="fix" />
-            <el-option label="docs (文档)" value="docs" />
-            <el-option label="style (样式)" value="style" />
-            <el-option label="refactor (重构)" value="refactor" />
-            <el-option label="perf (性能)" value="perf" />
-            <el-option label="test (测试)" value="test" />
-            <el-option label="chore (杂项)" value="chore" />
-            <el-option label="build (构建)" value="build" />
-            <el-option label="ci (CI)" value="ci" />
-            <el-option label="revert (回退)" value="revert" />
-            <el-option label="other (其他)" value="other" />
-          </el-select>
-        </el-col>
-        <el-col :span="1">
-          <el-checkbox v-model="reverseOrder" @change="$emit('filter-commits')"> 倒序 </el-checkbox>
-        </el-col>
-        <div style="width: 10px"></div>
-        <el-col :span="2">
-          <el-button @click="$emit('clear-filters')" :icon="Refresh"> 清除 </el-button>
-        </el-col>
-      </el-row>
+      <div class="filters-row">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索 Hash / 提交消息..."
+          clearable
+          @input="$emit('filter-commits')"
+          class="search-input"
+        >
+          <template #prefix>
+            <el-icon>
+              <Search />
+            </el-icon>
+          </template>
+        </el-input>
+        <el-date-picker
+          v-model="dateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          @change="$emit('filter-commits')"
+          size="default"
+          format="YYYY-MM-DD"
+          class="date-picker"
+        />
+        <el-input
+          v-model="authorFilter"
+          placeholder="作者筛选"
+          clearable
+          @input="$emit('filter-commits')"
+          class="author-input"
+        />
+        <el-select
+          v-model="commitTypeFilter"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          placeholder="提交类型"
+          clearable
+          @change="$emit('filter-commits')"
+          class="type-select"
+        >
+          <el-option label="feat (新功能)" value="feat" />
+          <el-option label="fix (修复)" value="fix" />
+          <el-option label="docs (文档)" value="docs" />
+          <el-option label="style (样式)" value="style" />
+          <el-option label="refactor (重构)" value="refactor" />
+          <el-option label="perf (性能)" value="perf" />
+          <el-option label="test (测试)" value="test" />
+          <el-option label="chore (杂项)" value="chore" />
+          <el-option label="build (构建)" value="build" />
+          <el-option label="ci (CI)" value="ci" />
+          <el-option label="revert (回退)" value="revert" />
+          <el-option label="other (其他)" value="other" />
+        </el-select>
+        <el-checkbox v-model="reverseOrder" @change="$emit('filter-commits')" class="reverse-checkbox">
+          倒序
+        </el-checkbox>
+        <el-button @click="$emit('clear-filters')" :icon="Refresh" class="clear-btn"> 清除 </el-button>
+      </div>
     </div>
 
     <!-- 筛选信息提示 -->
@@ -181,33 +164,31 @@
 
     <!-- 范围选择器 -->
     <div class="range-selector" v-if="commits.length > 0">
-      <el-row :gutter="16" align="middle">
-        <el-col :span="4">
-          <div class="range-header">
-            <span class="range-label">提交范围:</span>
-            <div class="tag-actions">
-              <el-tooltip content="定位到最近的一个标签（从最新开始）" placement="top">
-                <el-button
-                  size="small"
-                  circle
-                  :icon="CollectionTag"
-                  @click="locateLatestTag"
-                  :disabled="commits.length === 0"
-                />
-              </el-tooltip>
-              <el-tooltip content="定位到最近的两个标签之间" placement="top">
-                <el-button
-                  size="small"
-                  circle
-                  :icon="PriceTag"
-                  @click="locateTagInterval"
-                  :disabled="commits.length === 0"
-                />
-              </el-tooltip>
-            </div>
+      <div class="range-row">
+        <div class="range-header">
+          <span class="range-label">提交范围:</span>
+          <div class="tag-actions">
+            <el-tooltip content="定位到最近的一个标签（从最新开始）" placement="top">
+              <el-button
+                size="small"
+                circle
+                :icon="CollectionTag"
+                @click="locateLatestTag"
+                :disabled="commits.length === 0"
+              />
+            </el-tooltip>
+            <el-tooltip content="定位到最近的两个标签之间" placement="top">
+              <el-button
+                size="small"
+                circle
+                :icon="PriceTag"
+                @click="locateTagInterval"
+                :disabled="commits.length === 0"
+              />
+            </el-tooltip>
           </div>
-        </el-col>
-        <el-col :span="11">
+        </div>
+        <div class="range-slider">
           <el-slider
             v-model="commitRange"
             :max="commits.length"
@@ -216,34 +197,32 @@
             @change="$emit('filter-commits')"
             :marks="{ [0]: '最新', [commits.length]: '最旧' }"
           />
-        </el-col>
-        <el-col :span="9">
-          <div class="range-inputs">
-            <el-input-number
-              v-model="rangeStart"
-              :min="0"
-              :max="rangeEnd"
-              :disabled="commits.length === 0"
-              size="small"
-              controls-position="right"
-              @change="handleRangeStartChange"
-              style="width: 120px"
-            />
-            <span class="range-separator">-</span>
-            <el-input-number
-              v-model="rangeEnd"
-              :min="rangeStart"
-              :max="commits.length"
-              :disabled="commits.length === 0"
-              size="small"
-              controls-position="right"
-              @change="handleRangeEndChange"
-              style="width: 120px"
-            />
-            <span class="range-count">(共 {{ rangeEnd - rangeStart }} 条)</span>
-          </div>
-        </el-col>
-      </el-row>
+        </div>
+        <div class="range-inputs">
+          <el-input-number
+            v-model="rangeStart"
+            :min="0"
+            :max="rangeEnd"
+            :disabled="commits.length === 0"
+            size="small"
+            controls-position="right"
+            @change="handleRangeStartChange"
+            style="width: 120px"
+          />
+          <span class="range-separator">-</span>
+          <el-input-number
+            v-model="rangeEnd"
+            :min="rangeStart"
+            :max="commits.length"
+            :disabled="commits.length === 0"
+            size="small"
+            controls-position="right"
+            @change="handleRangeEndChange"
+            style="width: 120px"
+          />
+          <span class="range-count">(共 {{ rangeEnd - rangeStart }} 条)</span>
+        </div>
+      </div>
     </div>
 
     <!-- 统计信息 -->
@@ -501,9 +480,31 @@ function locateTagInterval() {
   border: 1px solid var(--border-color-light);
 }
 
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .path-input-group {
   display: flex;
   gap: 10px;
+}
+
+.branch-select {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.limit-input,
+.batch-input {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.load-btn {
+  width: 130px;
+  flex-shrink: 0;
 }
 
 .filters {
@@ -513,6 +514,41 @@ function locateTagInterval() {
   border: 1px solid var(--border-color-light);
 }
 
+.filters-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input {
+  width: 240px;
+  flex-shrink: 0;
+}
+
+.date-picker {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.author-input {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.type-select {
+  flex: 1;
+  min-width: 180px;
+}
+
+.reverse-checkbox {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.clear-btn {
+  flex-shrink: 0;
+}
+
 .range-selector {
   padding: 12px 16px 20px;
   background: var(--card-bg);
@@ -520,10 +556,22 @@ function locateTagInterval() {
   border: 1px solid var(--border-color-light);
 }
 
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .range-header {
   display: flex;
   align-items: center;
   gap: 20px;
+  flex-shrink: 0;
+}
+
+.range-slider {
+  flex: 1;
+  min-width: 200px;
 }
 
 .tag-actions {
@@ -543,6 +591,7 @@ function locateTagInterval() {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .range-separator {
@@ -594,11 +643,6 @@ function locateTagInterval() {
   font-weight: bold;
 }
 
-.load-btn {
-  width: 100%;
-  display: flex;
-}
-
 .load-btn :deep(.el-button-group) {
   display: flex;
   width: 100%;
@@ -620,5 +664,6 @@ function locateTagInterval() {
 
 :deep(.drop-zone--input) {
   border: none;
+  padding: 0;
 }
 </style>

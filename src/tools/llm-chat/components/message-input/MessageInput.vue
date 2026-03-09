@@ -263,6 +263,11 @@ provideChatContext({
 
 // 初始加载
 onMounted(async () => {
+  // 注册编辑器到 inputManager，以便执行精准的文本替换
+  if (textareaRef.value) {
+    inputManager.registerEditor(textareaRef.value);
+  }
+
   if (inputManager.attachments.value.length > 0) {
     inputManager.attachments.value.forEach((asset) => {
       transcriptionManager.markAsProcessed(asset.id);

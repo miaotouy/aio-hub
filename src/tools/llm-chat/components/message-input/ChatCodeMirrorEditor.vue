@@ -6,12 +6,7 @@ import { useTheme } from "@/composables/useTheme";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { markdown } from "@codemirror/lang-markdown";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
-import {
-  autocompletion,
-  CompletionContext,
-  CompletionResult,
-  Completion,
-} from "@codemirror/autocomplete";
+import { autocompletion, CompletionContext, CompletionResult, Completion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, insertNewline } from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap, search } from "@codemirror/search";
 import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
@@ -106,9 +101,7 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
 
   const options: Completion[] = (macros as MacroDefinition[])
     .filter((m) => m.supported !== false)
-    .filter(
-      (m) => m.name.toLowerCase().includes(prefix) || m.description.toLowerCase().includes(prefix)
-    )
+    .filter((m) => m.name.toLowerCase().includes(prefix) || m.description.toLowerCase().includes(prefix))
     .map((m) => ({
       label: m.name,
       type: "variable",
@@ -380,6 +373,13 @@ defineExpose({
       selection: { anchor: insertFrom + text.length },
       scrollIntoView: true,
     });
+
+    // 立即同步到外部，防止竞态
+    const newDoc = view.value.state.doc.toString();
+    emit("update:value", newDoc);
+  },
+  getValue: () => {
+    return view.value?.state.doc.toString() || "";
   },
 });
 </script>

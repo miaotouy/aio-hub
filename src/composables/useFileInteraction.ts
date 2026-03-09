@@ -131,6 +131,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         const tempId = nanoid();
         const tempAsset = reactive<Asset>({
           id: tempId,
+          uploadingId: tempId, // 记录原始临时 ID，作为占位符替换的契约凭证
           type: file.type.startsWith("image/") ? "image" : "other", // 简单判断类型
           mimeType: file.type,
           name: filename,
@@ -207,6 +208,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
             // 复制真实 Asset 的属性到临时对象
             Object.assign(tempAsset, {
               ...realAsset,
+              uploadingId: tempId, // 必须保留原始的 uploadingId，否则输入框占位符替换逻辑会失效
               importStatus: "complete",
             });
 

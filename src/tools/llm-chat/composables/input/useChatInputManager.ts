@@ -58,6 +58,8 @@ class ChatInputManager {
   public lastCursorPosition: Ref<number> = ref(0);
   // 聚焦请求信号
   public focusRequest: Ref<number> = ref(0);
+  // 编辑器引用，用于执行高性能替换
+  private editorRef: any = null;
   // 临时指定的模型
   public temporaryModel: Ref<ModelIdentifier | null> = ref(null);
   // 续写指定的模型
@@ -193,19 +195,55 @@ class ChatInputManager {
         // 防抖推送到其他窗口
         this.debouncedPushState();
 
-        // 【自愈机制】如果发现包含 uploading 占位符，尝试进行防抖扫描修复
+        // 【自愈机制】如果发现包含 uploading 占位符，尝试进行扫描修复
         // 这样即使在用户打字期间上传完成，也会在输入停顿后自动修复残留占位符
         if (newText.includes("file::uploading:")) {
+          // 1. 立即尝试使用已有的日志进行一次同步替换（非正则，高性能）
+          let replaced = false;
+          let currentText = newText;
+          for (const [oldId, newId] of this.idUpdateLog.entries()) {
+            const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
+            const oldPlaceholder = generateAssetPlaceholder(oldId);
+            const tags = [uploadingPlaceholder, oldPlaceholder, `【file::uploading:${oldId}】`, `【file::${oldId}】`];
+
+            for (const tag of tags) {
+              if (currentText.includes(tag)) {
+                const realPlaceholder = generateAssetPlaceholder(newId);
+                currentText = currentText.split(tag).join(realPlaceholder);
+                replaced = true;
+              }
+            }
+          }
+          if (replaced) {
+            this.inputText.value = currentText;
+            logger.info("[inputText watch] 实时修复了残留占位符");
+          }
+
+          // 2. 依然保留防抖的全量扫描，作为兜底
           this.debouncedScanAndFix();
         }
       }
       this.debouncedSaveToStorage();
     });
 
-    // 监听附件变化，同步到 syncState 和 localStorage
+    // 监听附件变化，同步到 syncState 和 localStorage，并处理 ID 替换
     watch(
       () => this.attachmentManager.attachments.value,
       (newAttachments) => {
+        // 自动维护 idUpdateLog 并触发实时替换
+        newAttachments.forEach((asset) => {
+          if (asset.uploadingId && asset.id !== asset.uploadingId && asset.importStatus === "complete") {
+            if (!this.idUpdateLog.has(asset.uploadingId)) {
+              logger.info("[attachments watch] 检测到资产上传完成，准备替换占位符", {
+                oldId: asset.uploadingId,
+                newId: asset.id,
+              });
+              // 关键：主动调用高性能替换方法
+              this.updatePlaceholderId(asset.uploadingId, asset.id);
+            }
+          }
+        });
+
         if (!this.isApplyingSyncState) {
           this.syncState.value = {
             ...this.syncState.value,
@@ -728,6 +766,17 @@ class ChatInputManager {
     const insertInfo = this.preparePlaceholderInsert(addedAssets, cursorPos);
     if (insertInfo.text) {
       textareaRef?.insertText(insertInfo.text, insertInfo.from, insertInfo.to);
+
+      // 关键：插入后立即同步一次 inputText，确保后续的 updatePlaceholderId 能找到内容
+      if (this.editorRef && typeof this.editorRef.getValue === "function") {
+        this.inputText.value = this.editorRef.getValue();
+      }
+
+      // 插入后立即触发一次扫描修复，防止插入的是 uploading 格式但资产其实已经上传完的情况
+      // 使用 nextTick 确保编辑器内容已反映到 DOM/State
+      setTimeout(() => {
+        this.scanAndFixPlaceholders();
+      }, 0);
     }
   }
 
@@ -808,6 +857,13 @@ class ChatInputManager {
   }
 
   /**
+   * 注册编辑器实例，用于执行更精准的文本替换
+   */
+  public registerEditor(editor: any): void {
+    this.editorRef = editor;
+  }
+
+  /**
    * 更新输入框中占位符的 asset ID
    * 优先匹配 uploading 格式的占位符，回退到普通格式
    * 用于 asset 导入完成后，临时 ID 变为真实 ID 时同步更新占位符
@@ -816,32 +872,59 @@ class ChatInputManager {
     if (!oldId || !newId || oldId === newId) return;
 
     // 始终记录 ID 变更历史，供 scanAndFixPlaceholders 二次扫描使用
-    this.idUpdateLog.set(oldId, newId);
+    if (!this.idUpdateLog.has(oldId)) {
+      this.idUpdateLog.set(oldId, newId);
+      logger.debug("[updatePlaceholderId] 记录 ID 映射", { oldId, newId });
+    }
 
     const newPlaceholder = generateAssetPlaceholder(newId);
 
     // 执行替换的核心逻辑
-    const doReplace = () => {
-      const currentText = this.inputText.value;
+    const doReplace = (isRetry = false) => {
+      // 优先从编辑器获取最新文本，防止 Vue 响应式延迟
+      const currentText =
+        this.editorRef && typeof this.editorRef.getValue === "function"
+          ? this.editorRef.getValue()
+          : this.inputText.value;
+
+      const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
+      const oldPlaceholder = generateAssetPlaceholder(oldId);
+      const possibleTags = [uploadingPlaceholder, oldPlaceholder, `【file::uploading:${oldId}】`, `【file::${oldId}】`];
+
+      // 策略：如果编辑器存在，优先使用编辑器的局部替换能力，避免全量修改 inputText 导致的竞态
+      if (this.editorRef && typeof this.editorRef.insertText === "function") {
+        let replacedInEditor = false;
+
+        // 注意：每次替换后文档内容和长度都会变化，所以必须在循环内重新获取最新文本
+        for (const tag of possibleTags) {
+          let loopText = this.editorRef.getValue();
+          let pos = loopText.indexOf(tag);
+
+          while (pos !== -1) {
+            this.editorRef.insertText(newPlaceholder, pos, pos + tag.length);
+            replacedInEditor = true;
+
+            // 替换后，重新获取文本并寻找下一个
+            loopText = this.editorRef.getValue();
+            // 从当前位置之后开始找，避免死循环（虽然 tag 已经被替换掉了，但严谨起见）
+            pos = loopText.indexOf(tag, pos + newPlaceholder.length);
+          }
+        }
+
+        if (replacedInEditor) {
+          logger.info(`[updatePlaceholderId] 通过编辑器执行了局部替换${isRetry ? " (重试成功)" : ""}`, {
+            oldId,
+            newId,
+          });
+          this.pushState(false, undefined, true);
+          return true;
+        }
+      }
+
+      // 兜底方案：直接修改 inputText.value
       let newText = currentText;
       let replaced = false;
 
-      // 1. 优先匹配标准的 uploading 格式：【file::uploading:tempId】
-      const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
-      if (newText.includes(uploadingPlaceholder)) {
-        newText = newText.split(uploadingPlaceholder).join(newPlaceholder);
-        replaced = true;
-      }
-
-      // 2. 匹配普通格式（兼容非粘贴场景）
-      const oldPlaceholder = generateAssetPlaceholder(oldId);
-      if (newText.includes(oldPlaceholder)) {
-        newText = newText.split(oldPlaceholder).join(newPlaceholder);
-        replaced = true;
-      }
-
-      // 3. 最后的挣扎：直接替换所有可能的组合（不使用正则以避免特殊字符问题）
-      const possibleTags = [`【file::uploading:${oldId}】`, `【file::${oldId}】`];
       for (const tag of possibleTags) {
         if (newText.includes(tag)) {
           newText = newText.split(tag).join(newPlaceholder);
@@ -851,8 +934,10 @@ class ChatInputManager {
 
       if (replaced) {
         this.inputText.value = newText;
-        logger.info("[updatePlaceholderId] 成功更新占位符 ID", { oldId, newId });
-        // 成功替换后，立即触发一次状态推送，确保其他窗口同步
+        logger.info(`[updatePlaceholderId] 成功更新占位符 ID (兜底方案${isRetry ? " 重试成功" : ""})`, {
+          oldId,
+          newId,
+        });
         this.pushState(false, undefined, true);
       }
       return replaced;
@@ -861,15 +946,37 @@ class ChatInputManager {
     // 立即尝试替换
     const success = doReplace();
 
-    // 如果失败，可能是因为 Vue 还没更新完 inputText，100ms 后重试一次
+    // 如果失败，可能是因为 Vue 还没更新完 inputText (例如粘贴插入是异步的)，重试多次
     if (!success) {
-      setTimeout(() => {
-        if (doReplace()) {
-          logger.info("[updatePlaceholderId] 延迟重试替换成功", { oldId, newId });
+      let retryCount = 0;
+      const maxRetries = 20; // 进一步增加重试次数，覆盖更长的延迟
+      const retryInterval = 150; // 稍微拉开间隔
+
+      const retry = () => {
+        retryCount++;
+        if (doReplace(true)) {
+          logger.info("[updatePlaceholderId] 延迟重试替换成功", { oldId, newId, retryCount });
+        } else if (retryCount < maxRetries) {
+          // 在重试期间，如果发现 text 已经包含了目标占位符，说明可能已经被其他机制（如 watch）修好了
+          if (this.inputText.value.includes(generateAssetPlaceholder(newId))) {
+            logger.debug("[updatePlaceholderId] 占位符已被其他机制修复，停止重试", { oldId, newId });
+            return;
+          }
+          setTimeout(retry, retryInterval);
         } else {
-          logger.debug("[updatePlaceholderId] 延迟重试仍未找到占位符", { oldId, newId });
+          // 最终失败不报错，因为自愈机制会在用户打字时处理
+          logger.debug(
+            "[updatePlaceholderId] 达到最大重试次数，仍未找到占位符（将由自愈机制在用户输入或二次扫描时修复）",
+            {
+              oldId,
+              newId,
+              currentTextLength: this.inputText.value.length,
+            }
+          );
         }
-      }, 100);
+      };
+
+      setTimeout(retry, retryInterval);
     }
   }
 
@@ -974,6 +1081,8 @@ export function useChatInputManager() {
     focusRequest: manager.focusRequest,
     /** 统一处理资产添加后的占位符插入和 ID 监听 */
     handleAssetsAddition: manager.handleAssetsAddition.bind(manager),
+    /** 注册编辑器实例 */
+    registerEditor: manager.registerEditor.bind(manager),
 
     // ========== 附件操作方法 ==========
     /** 添加附件（从文件路径） */

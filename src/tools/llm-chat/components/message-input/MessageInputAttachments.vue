@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Trash2 } from "lucide-vue-next";
+import { ElMessageBox } from "element-plus";
 import AttachmentCard from "../AttachmentCard.vue";
 import type { Asset } from "@/types/asset-management";
 
@@ -13,7 +15,21 @@ defineProps<Props>();
 
 const emit = defineEmits<{
   (e: "remove", asset: Asset): void;
+  (e: "clear"): void;
 }>();
+
+const handleClear = async () => {
+  try {
+    await ElMessageBox.confirm("确定要清空所有附件吗？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+    emit("clear");
+  } catch {
+    // 用户取消
+  }
+};
 </script>
 
 <template>
@@ -33,6 +49,12 @@ const emit = defineEmits<{
     <!-- 附件数量浮动显示 -->
     <div class="attachments-info">
       <span class="attachment-count"> {{ count }} / {{ maxCount }} </span>
+      <div class="divider"></div>
+      <el-button type="danger" link class="clear-btn" title="清空所有附件" @click="handleClear">
+        <template #icon>
+          <Trash2 :size="12" />
+        </template>
+      </el-button>
     </div>
   </div>
 </template>
@@ -71,13 +93,15 @@ const emit = defineEmits<{
   position: sticky;
   top: 0;
   align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 2px 8px;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.9);
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(4px);
   border-radius: 12px;
-  pointer-events: none;
   z-index: 1;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -85,5 +109,32 @@ const emit = defineEmits<{
 .attachment-count {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+.divider {
+  width: 1px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.clear-btn {
+  padding: 2px;
+  height: auto;
+  margin-left: -2px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.clear-btn:hover {
+  color: var(--el-color-danger);
+  background: rgba(var(--el-color-danger-rgb), 0.1);
+}
+
+.clear-btn:active {
+  transform: scale(0.9);
+}
+
+.clear-btn :deep(.el-icon) {
+  font-size: 12px;
 }
 </style>

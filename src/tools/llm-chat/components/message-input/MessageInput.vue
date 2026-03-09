@@ -424,6 +424,7 @@ const handleDragStart = (e: MouseEvent) => {
             :max-count="attachmentManager.maxAttachmentCount"
             :get-will-use-transcription="getWillUseTranscription"
             @remove="attachmentManager.removeAttachment"
+            @clear="attachmentManager.clearAttachments"
           />
         </div>
 

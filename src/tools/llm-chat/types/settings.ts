@@ -62,6 +62,8 @@ export interface ChatSettings {
     showModelSelector: boolean;
     /** 是否自动滚动到最新消息 */
     autoScroll: boolean;
+    /** 自动滚动是否使用平滑效果 */
+    smoothAutoScroll: boolean;
     /** 消息字体大小 (px) */
     fontSize: number;
     /** 消息行高 */
@@ -255,6 +257,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showPerformanceMetrics: true,
     showModelSelector: true,
     autoScroll: true,
+    smoothAutoScroll: true, // 默认启用平滑滚动
     fontSize: 14,
     lineHeight: 1.6,
     letterSpacing: 0,

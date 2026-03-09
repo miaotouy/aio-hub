@@ -148,7 +148,17 @@ const scrollToBottom = useThrottleFn(() => {
   // 不依赖虚拟列表的高度计算，确保流式输出时能及时跟随
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+      const container = messagesContainer.value;
+      if (settings.value.uiPreferences.smoothAutoScroll) {
+        // 平滑滚动
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: "smooth",
+        });
+      } else {
+        // 瞬时滚动
+        container.scrollTop = container.scrollHeight;
+      }
     }
   });
 }, 100); // 100ms 节流，避免高频 Layout Thrashing

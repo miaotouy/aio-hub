@@ -170,6 +170,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui scroll 滚动",
       },
       {
+        id: "smoothAutoScroll",
+        label: "平滑滚动",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.smoothAutoScroll",
+        hint: "启用后，自动滚动将使用平滑过渡效果",
+        keywords: "ui scroll smooth 滚动 平滑",
+        visible: (settings) => settings.uiPreferences.autoScroll,
+      },
+      {
         id: "showMessageNavigator",
         label: "显示消息导航器",
         layout: "inline",

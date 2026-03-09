@@ -529,6 +529,8 @@ const shouldFreezeHtml = computed(() => {
 const containerClasses = computed(() => ({
   "is-wide-layout": isWideLayout.value,
   "is-translating": props.isTranslating || !!props.message.metadata?.translation,
+  "is-generating": isGenerating.value,
+  "smooth-enabled": settings.value.uiPreferences.smoothAutoScroll,
 }));
 
 // 元数据响应式提取，确保异步更新能被触发
@@ -965,6 +967,17 @@ const errorMessage = computed(() => messageMetadata.value?.error);
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* 平滑高度过渡：仅在启用平滑滚动且正在生成时生效 */
+.message-content.smooth-enabled.is-generating .content-display-grid {
+  transition: height 0.15s ease-out;
+}
+
+/* 为内容列也添加过渡，确保子元素高度变化也平滑 */
+.message-content.smooth-enabled.is-generating .original-column,
+.message-content.smooth-enabled.is-generating .translation-column {
+  transition: height 0.15s ease-out;
 }
 
 /* 宽屏并排布局 */

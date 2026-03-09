@@ -161,7 +161,7 @@ const scrollToBottom = useThrottleFn(() => {
       }
     }
   });
-}, 100); // 100ms 节流，避免高频 Layout Thrashing
+}, 50); // 50ms 节流，配合内容高度过渡（150ms）实现更流畅的追踪
 
 // 记录用户是否接近底部
 const isNearBottom = ref(true);

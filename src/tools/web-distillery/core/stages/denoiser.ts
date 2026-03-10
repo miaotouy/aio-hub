@@ -80,6 +80,12 @@ export class Denoiser {
     const hiddenSelectors = '[style*="display: none"], [style*="visibility: hidden"], [hidden]';
     const hiddenElements = doc.querySelectorAll(hiddenSelectors);
     logger.info(`Removing ${hiddenElements.length} hidden elements`);
-    hiddenElements.forEach((el) => el.remove());
+    hiddenElements.forEach((el) => {
+      // 微信文章的正文容器 js_content 初始状态是 visibility: hidden，绝对不能移除
+      if (el.id === "js_content" || el.closest("#js_content")) {
+        return;
+      }
+      el.remove();
+    });
   }
 }

@@ -94,7 +94,9 @@ export class Readability {
   }
 
   private calculateNodeScore(node: HTMLElement): number {
-    const text = node.innerText || "";
+    // 使用 textContent 替代 innerText，因为 innerText 会被 visibility: hidden 过滤掉
+    // 微信文章的 js_content 初始状态通常是隐藏的
+    const text = node.textContent || "";
     if (text.length < 25) return 0;
 
     // 基础分：基于文本长度
@@ -108,9 +110,11 @@ export class Readability {
     if (tagName === "p") score += 10;
 
     // 基于 class/id 的调整
-    const className = node.className || "";
+    const className = String(node.className || "");
     const id = node.id || "";
-    if (/article|content|main|body/i.test(className + id)) score += 20;
+    if (/article|content|main|body|js_content/i.test(className + id)) score += 20;
+    // 针对微信公众号正文容器给予极高权重
+    if (id === 'js_content') score += 100;
     if (/sidebar|footer|header|nav|menu|comment/i.test(className + id)) score -= 50;
 
     return score;

@@ -39,6 +39,9 @@ class MarkdownBoundaryDetector {
     if (this.hasIncompleteHtmlTag(text)) return false;
     if (this.isLikelyInsideHtmlAttribute(text)) return false;
 
+    // VCP 协议检查
+    if (this.hasUnclosedVcpBlock(text)) return false;
+
     return true;
   }
 
@@ -211,6 +214,31 @@ class MarkdownBoundaryDetector {
   }
 
   /**
+   * 检查是否存在未闭合的 VCP 工具调用块
+   *
+   * VCP 协议定义了两种块：
+   * 1. 工具请求块: <<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>
+   * 2. 调用结果块: [[VCP调用结果信息汇总: ... VCP调用结果结束]]
+   */
+  private hasUnclosedVcpBlock(text: string): boolean {
+    // 检查工具请求块
+    const requestOpenCount = (text.match(/<<<\[TOOL_REQUEST\]>>>/g) || []).length;
+    const requestCloseCount = (text.match(/<<<\[END_TOOL_REQUEST\]>>>/g) || []).length;
+    if (requestOpenCount !== requestCloseCount) {
+      return true;
+    }
+
+    // 检查调用结果块
+    const resultOpenCount = (text.match(/\[\[VCP调用结果信息汇总:/g) || []).length;
+    const resultCloseCount = (text.match(/VCP调用结果结束\]\]/g) || []).length;
+    if (resultOpenCount !== resultCloseCount) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * 检测未完成的 HTML 标签（缺少 >）
    *
    * 在流式输出中，HTML 标签可能被截断，如：
@@ -301,6 +329,37 @@ class MarkdownBoundaryDetector {
       if (!suffix.includes("]")) {
         // 如果前面有 !，也一起截断
         return lastBracket > 0 && text[lastBracket - 1] === "!" ? lastBracket - 1 : lastBracket;
+      }
+    }
+
+    // 3. 检查 VCP 工具调用块截断
+    // 检查是否有不完整的 VCP 开始标记
+    const vcpRequestStart = text.lastIndexOf("<<<[TOOL_REQUEST]>>>");
+    const vcpRequestEnd = text.lastIndexOf("<<<[END_TOOL_REQUEST]>>>");
+    if (vcpRequestStart > vcpRequestEnd) {
+      return vcpRequestStart;
+    }
+
+    const vcpResultStart = text.lastIndexOf("[[VCP调用结果信息汇总:");
+    const vcpResultEnd = text.lastIndexOf("VCP调用结果结束]]");
+    if (vcpResultStart > vcpResultEnd) {
+      return vcpResultStart;
+    }
+
+    // 检查是否有部分 VCP 标记（流式输出中可能被截断）
+    const partialVcpMarkers = ["<<<[TOOL_REQUEST", "<<<[END_TOOL_REQUEST", "[[VCP调用结果信息汇总", "VCP调用结果结束]"];
+
+    for (const marker of partialVcpMarkers) {
+      const lastIndex = text.lastIndexOf(marker);
+      if (lastIndex !== -1) {
+        const suffix = text.slice(lastIndex);
+        // 如果标记不完整（没有闭合符号），回退
+        if (marker.includes("<<<") && !suffix.includes(">>>")) {
+          return lastIndex;
+        }
+        if (marker.includes("[[") && !suffix.includes("]]")) {
+          return lastIndex;
+        }
       }
     }
 
@@ -422,7 +481,9 @@ export class StreamProcessorV2 {
         {
           id: this.generateNodeId(),
           type: "text",
-          props: { content: `⚠️ ${reason}。为保证界面响应，已暂停后续渲染。如果需要强制渲染，请在“设置 -> 渲染设置”中关闭“渲染安全护栏”。` },
+          props: {
+            content: `⚠️ ${reason}。为保证界面响应，已暂停后续渲染。如果需要强制渲染，请在“设置 -> 渲染设置”中关闭“渲染安全护栏”。`,
+          },
           meta: { range: { start: 0, end: 0 }, status: "stable" },
         },
       ],

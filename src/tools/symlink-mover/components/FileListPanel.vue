@@ -140,6 +140,9 @@ const clearFiles = () => {
 }
 
 .file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 8px;
 }
 </style>

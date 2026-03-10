@@ -8,6 +8,15 @@
     @close="handleClose"
   >
     <div class="data-editor-container">
+      <div class="header-actions">
+        <div class="left-info">
+          <el-tag size="small" type="info" effect="plain">JSON</el-tag>
+          <span v-if="messageId" class="id-hint">ID: {{ messageId }}</span>
+        </div>
+        <div class="right-buttons">
+          <el-button :icon="Copy" size="small" @click="handleCopy"> 复制 JSON </el-button>
+        </div>
+      </div>
       <RichCodeEditor
         ref="editorRef"
         v-model="jsonData"
@@ -32,7 +41,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from "vue";
-import { ElButton } from "element-plus";
+import { ElButton, ElTag } from "element-plus";
+import { Copy } from "lucide-vue-next";
+import { useClipboard } from "@vueuse/core";
 import { isEqual } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -53,6 +64,7 @@ const emit = defineEmits<{
 }>();
 
 const store = useLlmChatStore();
+const { copy } = useClipboard();
 const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 
 const jsonData = ref("");
@@ -137,6 +149,15 @@ const handleSave = async () => {
   }
 };
 
+const handleCopy = async () => {
+  try {
+    await copy(jsonData.value);
+    customMessage.success("已复制到剪贴板");
+  } catch (error) {
+    errorHandler.error(error, "复制失败");
+  }
+};
+
 const handleClose = () => {
   emit("update:modelValue", false);
 };
@@ -147,7 +168,26 @@ const handleClose = () => {
   display: flex;
   flex-direction: column;
   height: 100%; /* 让编辑器撑满内容区 */
-  gap: 10px;
+  gap: 8px;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.left-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.id-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-family: var(--el-font-family-mono);
 }
 
 .error-message {

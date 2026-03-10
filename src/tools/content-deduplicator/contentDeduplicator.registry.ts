@@ -49,9 +49,7 @@ export default class ContentDeduplicatorRegistry implements ToolRegistry {
   /**
    * [Agent Friendly] 扫描目录查找重复文件
    */
-  public async scanDuplicates(
-    options: ScanDuplicatesOptions
-  ): Promise<FormattedDedupResult | null> {
+  public async scanDuplicates(options: ScanDuplicatesOptions): Promise<FormattedDedupResult | null> {
     logger.info("开始查重扫描 (Agent 调用)", { path: options.path });
 
     return await errorHandler.wrapAsync(
@@ -121,7 +119,9 @@ export default class ContentDeduplicatorRegistry implements ToolRegistry {
       methods: [
         {
           name: "scanDuplicates",
-          description: "[Agent 调用] 扫描目录查找重复文本文件",
+          displayName: "扫描重复文件",
+          agentCallable: true,
+          description: "扫描目录查找重复文本文件，支持精确匹配和规范化匹配，可指定预设（relaxed/strict/code/document）",
           parameters: [
             {
               name: "options",

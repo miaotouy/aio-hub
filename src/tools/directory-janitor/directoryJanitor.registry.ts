@@ -1,13 +1,17 @@
-import type { ToolRegistry, ToolConfig } from '@/services/types';
-import { markRaw } from 'vue';
-import DirectoryJanitorIcon from '@/components/icons/DirectoryJanitorIcon.vue';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { useDirectoryJanitorRunner, type ScanOptions, type FormattedScanResult } from './composables/useDirectoryJanitorRunner';
-import { formatBytes } from './utils/utils';
+import type { ToolRegistry, ToolConfig } from "@/services/types";
+import { markRaw } from "vue";
+import DirectoryJanitorIcon from "@/components/icons/DirectoryJanitorIcon.vue";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
+import {
+  useDirectoryJanitorRunner,
+  type ScanOptions,
+  type FormattedScanResult,
+} from "./composables/useDirectoryJanitorRunner";
+import { formatBytes } from "./utils/utils";
 
-const logger = createModuleLogger('tools/directory-janitor');
-const errorHandler = createModuleErrorHandler('tools/directory-janitor');
+const logger = createModuleLogger("tools/directory-janitor");
+const errorHandler = createModuleErrorHandler("tools/directory-janitor");
 
 // ==================== Agent 调用接口类型 ====================
 
@@ -53,9 +57,9 @@ export interface FormattedCleanupResult {
  * UI 层通过 useDirectoryJanitorState 和 useDirectoryJanitorRunner composables 管理状态和业务逻辑
  */
 export default class DirectoryJanitorRegistry implements ToolRegistry {
-  public readonly id = 'directory-janitor';
-  public readonly name = '目录清道夫';
-  public readonly description = '扫描和清理目录中的过期文件和大文件';
+  public readonly id = "directory-janitor";
+  public readonly name = "目录清道夫";
+  public readonly description = "扫描和清理目录中的过期文件和大文件";
 
   // ==================== 高级封装方法 (Agent 调用接口) ====================
 
@@ -63,11 +67,9 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
    * [Agent Friendly] 扫描目录并返回格式化结果
    * 一次性调用，返回符合条件的文件和目录列表
    */
-  public async scanDirectory(
-    options: ScanDirectoryOptions
-  ): Promise<FormattedScanResult | null> {
+  public async scanDirectory(options: ScanDirectoryOptions): Promise<FormattedScanResult | null> {
     const { includeDetails = false, ...scanOptions } = options;
-    logger.info('开始扫描目录 (Agent 调用)', scanOptions);
+    logger.info("开始扫描目录 (Agent 调用)", scanOptions);
 
     return await errorHandler.wrapAsync(
       async () => {
@@ -81,8 +83,8 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
 
           // 返回格式化结果
           const result = runner.getFormattedScanResult();
-          
-          logger.info('扫描目录完成', {
+
+          logger.info("扫描目录完成", {
             summary: result.summary,
             totalItems: result.details.totalItems,
           });
@@ -105,7 +107,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '扫描目录失败',
+        userMessage: "扫描目录失败",
         context: options,
       }
     );
@@ -115,11 +117,9 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
    * [Agent Friendly] 清理指定的文件和目录
    * 将项目移动到回收站
    */
-  public async cleanupItems(
-    options: CleanupItemsOptions
-  ): Promise<FormattedCleanupResult | null> {
+  public async cleanupItems(options: CleanupItemsOptions): Promise<FormattedCleanupResult | null> {
     const { paths } = options;
-    logger.info('开始清理项目 (Agent 调用)', {
+    logger.info("开始清理项目 (Agent 调用)", {
       pathsCount: paths.length,
     });
 
@@ -132,17 +132,18 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
         try {
           // 执行清理
           const result = await runner.cleanupItems(paths);
-          
+
           if (!result) {
             return null;
           }
 
           // 格式化结果
-          const summary = result.errorCount > 0
-            ? `清理完成: ${result.successCount} 项成功，${result.errorCount} 项失败，释放 ${formatBytes(result.freedSpace)}`
-            : `清理完成: ${result.successCount} 项成功，释放 ${formatBytes(result.freedSpace)}`;
+          const summary =
+            result.errorCount > 0
+              ? `清理完成: ${result.successCount} 项成功，${result.errorCount} 项失败，释放 ${formatBytes(result.freedSpace)}`
+              : `清理完成: ${result.successCount} 项成功，释放 ${formatBytes(result.freedSpace)}`;
 
-          logger.info('清理项目完成', {
+          logger.info("清理项目完成", {
             summary,
             successCount: result.successCount,
             errorCount: result.errorCount,
@@ -163,7 +164,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '清理项目失败',
+        userMessage: "清理项目失败",
         context: options,
       }
     );
@@ -173,13 +174,11 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
    * [Agent Friendly] 扫描并清理 - 一步到位
    * 先扫描，然后清理所有找到的项目
    */
-  public async scanAndCleanup(
-    scanOptions: ScanDirectoryOptions
-  ): Promise<{
+  public async scanAndCleanup(scanOptions: ScanDirectoryOptions): Promise<{
     scanResult: FormattedScanResult;
     cleanupResult: FormattedCleanupResult;
   } | null> {
-    logger.info('开始扫描并清理 (Agent 调用)', scanOptions);
+    logger.info("开始扫描并清理 (Agent 调用)", scanOptions);
 
     return await errorHandler.wrapAsync(
       async () => {
@@ -199,7 +198,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
             return {
               scanResult,
               cleanupResult: {
-                summary: '没有需要清理的项目',
+                summary: "没有需要清理的项目",
                 details: {
                   successCount: 0,
                   errorCount: 0,
@@ -219,9 +218,10 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
           }
 
           // 格式化清理结果
-          const cleanupSummary = cleanupRawResult.errorCount > 0
-            ? `清理完成: ${cleanupRawResult.successCount} 项成功，${cleanupRawResult.errorCount} 项失败，释放 ${formatBytes(cleanupRawResult.freedSpace)}`
-            : `清理完成: ${cleanupRawResult.successCount} 项成功，释放 ${formatBytes(cleanupRawResult.freedSpace)}`;
+          const cleanupSummary =
+            cleanupRawResult.errorCount > 0
+              ? `清理完成: ${cleanupRawResult.successCount} 项成功，${cleanupRawResult.errorCount} 项失败，释放 ${formatBytes(cleanupRawResult.freedSpace)}`
+              : `清理完成: ${cleanupRawResult.successCount} 项成功，释放 ${formatBytes(cleanupRawResult.freedSpace)}`;
 
           const cleanupResult: FormattedCleanupResult = {
             summary: cleanupSummary,
@@ -233,7 +233,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
             },
           };
 
-          logger.info('扫描并清理完成', {
+          logger.info("扫描并清理完成", {
             scanSummary: scanResult.summary,
             cleanupSummary: cleanupResult.summary,
           });
@@ -248,7 +248,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '扫描并清理失败',
+        userMessage: "扫描并清理失败",
         context: scanOptions,
       }
     );
@@ -263,56 +263,58 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
     return {
       methods: [
         {
-          name: 'scanDirectory',
-          description: '[Agent 调用] 扫描目录并返回符合条件的文件和目录列表',
+          name: "scanDirectory",
+          displayName: "扫描目录",
+          agentCallable: true,
+          description: "扫描目录并返回符合条件的文件和目录列表，支持按名称模式、日期、大小过滤",
           parameters: [
             {
-              name: 'options',
-              type: 'ScanDirectoryOptions',
-              description: '扫描选项',
+              name: "options",
+              type: "ScanDirectoryOptions",
+              description: "扫描选项",
               properties: [
                 {
-                  name: 'path',
-                  type: 'string',
-                  description: '要扫描的目录路径',
+                  name: "path",
+                  type: "string",
+                  description: "要扫描的目录路径",
                   required: true,
                 },
                 {
-                  name: 'namePattern',
-                  type: 'string',
-                  description: '（可选）名称匹配模式（支持通配符）',
+                  name: "namePattern",
+                  type: "string",
+                  description: "（可选）名称匹配模式（支持通配符）",
                   required: false,
                 },
                 {
-                  name: 'minAgeDays',
-                  type: 'number',
-                  description: '（可选）最小年龄（天）',
+                  name: "minAgeDays",
+                  type: "number",
+                  description: "（可选）最小年龄（天）",
                   required: false,
                 },
                 {
-                  name: 'minSizeMB',
-                  type: 'number',
-                  description: '（可选）最小大小（MB）',
+                  name: "minSizeMB",
+                  type: "number",
+                  description: "（可选）最小大小（MB）",
                   required: false,
                 },
                 {
-                  name: 'maxDepth',
-                  type: 'number',
-                  description: '（可选）最大扫描深度（默认 5）',
+                  name: "maxDepth",
+                  type: "number",
+                  description: "（可选）最大扫描深度（默认 5）",
                   required: false,
                   defaultValue: 5,
                 },
                 {
-                  name: 'includeDetails',
-                  type: 'boolean',
-                  description: '（可选）是否返回详细信息（包含完整的项目列表），默认 false',
+                  name: "includeDetails",
+                  type: "boolean",
+                  description: "（可选）是否返回详细信息（包含完整的项目列表），默认 false",
                   required: false,
                   defaultValue: false,
                 },
               ],
             },
           ],
-          returnType: 'Promise<FormattedScanResult | null>',
+          returnType: "Promise<FormattedScanResult | null>",
           example: `
 const result = await service.scanDirectory({
   path: 'C:/Users/Miaomiao/Downloads',
@@ -338,24 +340,26 @@ if (result) {
 }`,
         },
         {
-          name: 'cleanupItems',
-          description: '[Agent 调用] 清理指定的文件和目录（移动到回收站）',
+          name: "cleanupItems",
+          displayName: "清理文件/目录",
+          agentCallable: true,
+          description: "将指定的文件和目录移动到回收站（可恢复），接受路径数组",
           parameters: [
             {
-              name: 'options',
-              type: 'CleanupItemsOptions',
-              description: '清理选项',
+              name: "options",
+              type: "CleanupItemsOptions",
+              description: "清理选项",
               properties: [
                 {
-                  name: 'paths',
-                  type: 'string[]',
-                  description: '要清理的文件/目录路径列表',
+                  name: "paths",
+                  type: "string[]",
+                  description: "要清理的文件/目录路径列表",
                   required: true,
                 },
               ],
             },
           ],
-          returnType: 'Promise<FormattedCleanupResult | null>',
+          returnType: "Promise<FormattedCleanupResult | null>",
           example: `
 const result = await service.cleanupItems({
   paths: [
@@ -378,49 +382,51 @@ if (result) {
 }`,
         },
         {
-          name: 'scanAndCleanup',
-          description: '[Agent 调用] 扫描并清理 - 一步到位。先扫描目录，然后清理所有找到的项目。',
+          name: "scanAndCleanup",
+          displayName: "扫描并清理",
+          agentCallable: true,
+          description: "一步到位：先扫描目录找出符合条件的文件，然后全部移动到回收站",
           parameters: [
             {
-              name: 'options',
-              type: 'ScanDirectoryOptions',
-              description: '扫描选项（同 scanDirectory）',
+              name: "options",
+              type: "ScanDirectoryOptions",
+              description: "扫描选项（同 scanDirectory）",
               properties: [
                 {
-                  name: 'path',
-                  type: 'string',
-                  description: '要扫描的目录路径',
+                  name: "path",
+                  type: "string",
+                  description: "要扫描的目录路径",
                   required: true,
                 },
                 {
-                  name: 'namePattern',
-                  type: 'string',
-                  description: '（可选）名称匹配模式',
+                  name: "namePattern",
+                  type: "string",
+                  description: "（可选）名称匹配模式",
                   required: false,
                 },
                 {
-                  name: 'minAgeDays',
-                  type: 'number',
-                  description: '（可选）最小年龄（天）',
+                  name: "minAgeDays",
+                  type: "number",
+                  description: "（可选）最小年龄（天）",
                   required: false,
                 },
                 {
-                  name: 'minSizeMB',
-                  type: 'number',
-                  description: '（可选）最小大小（MB）',
+                  name: "minSizeMB",
+                  type: "number",
+                  description: "（可选）最小大小（MB）",
                   required: false,
                 },
                 {
-                  name: 'maxDepth',
-                  type: 'number',
-                  description: '（可选）最大扫描深度',
+                  name: "maxDepth",
+                  type: "number",
+                  description: "（可选）最大扫描深度",
                   required: false,
                   defaultValue: 5,
                 },
               ],
             },
           ],
-          returnType: 'Promise<{ scanResult: FormattedScanResult; cleanupResult: FormattedCleanupResult } | null>',
+          returnType: "Promise<{ scanResult: FormattedScanResult; cleanupResult: FormattedCleanupResult } | null>",
           example: `
 const result = await service.scanAndCleanup({
   path: '%AppData%/Code/User/globalStorage/kilocode.kilo-code/tasks',
@@ -446,10 +452,10 @@ if (result) {
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: '目录清洁工具',
-  path: '/directory-janitor',
+  name: "目录清洁工具",
+  path: "/directory-janitor",
   icon: markRaw(DirectoryJanitorIcon),
-  component: () => import('./DirectoryJanitor.vue'),
-  description: '智能清理过时的缓存和存档，支持按规则、日期和大小过滤',
-  category: '文件管理'
+  component: () => import("./DirectoryJanitor.vue"),
+  description: "智能清理过时的缓存和存档，支持按规则、日期和大小过滤",
+  category: "文件管理",
 };

@@ -1,10 +1,10 @@
-import type { ToolRegistry, ToolConfig } from '@/services/types';
-import { markRaw } from 'vue';
-import { FolderOpened } from '@element-plus/icons-vue';
-import { createModuleLogger } from '@/utils/logger';
-import { assetManagerEngine } from '@/composables/useAssetManager';
+import type { ToolRegistry, ToolConfig } from "@/services/types";
+import { markRaw } from "vue";
+import { FolderOpened } from "@element-plus/icons-vue";
+import { createModuleLogger } from "@/utils/logger";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 
-const logger = createModuleLogger('tools/asset-manager');
+const logger = createModuleLogger("tools/asset-manager");
 
 /**
  * AssetManager 注册器
@@ -13,12 +13,12 @@ const logger = createModuleLogger('tools/asset-manager');
  * 工具本身的 UI 应直接使用 useAssetManager composable。
  */
 class AssetManagerRegistry implements ToolRegistry {
-  public readonly id = 'asset-manager';
-  public readonly name = '资产管理器';
-  public readonly description = '管理应用内导入的所有资产，如图片、文档等。';
+  public readonly id = "asset-manager";
+  public readonly name = "资产管理器";
+  public readonly description = "管理应用内导入的所有资产，如图片、文档等。";
 
   constructor() {
-    logger.info('AssetManagerRegistry 实例化');
+    logger.info("AssetManagerRegistry 实例化");
   }
 
   /**
@@ -31,29 +31,7 @@ class AssetManagerRegistry implements ToolRegistry {
    */
   public getMetadata() {
     return {
-      methods: [
-        {
-          name: 'getAssetBasePath',
-          description: '获取资产存储根目录',
-          parameters: [],
-          returnType: 'Promise<string>',
-        },
-        {
-          name: 'importAssetFromPath',
-          description: '从文件路径导入资产',
-          parameters: [
-            { name: 'originalPath', type: 'string', required: true },
-            { name: 'options', type: 'AssetImportOptions', required: false },
-          ],
-          returnType: 'Promise<Asset>',
-        },
-        {
-          name: 'getAssetBinary',
-          description: '获取资产的二进制数据',
-          parameters: [{ name: 'relativePath', type: 'string', required: true }],
-          returnType: 'Promise<ArrayBuffer>',
-        },
-      ],
+      methods: [],
     };
   }
 }
@@ -70,10 +48,10 @@ export const assetManagerService = assetManagerRegistry;
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: '资产管理器',
-  path: '/asset-manager',
+  name: "资产管理器",
+  path: "/asset-manager",
   icon: markRaw(FolderOpened),
-  component: () => import('./AssetManager.vue'),
-  description: '可视化管理应用内导入的所有资产，支持搜索、筛选和预览',
-  category: '文件管理'
+  component: () => import("./AssetManager.vue"),
+  description: "可视化管理应用内导入的所有资产，支持搜索、筛选和预览",
+  category: "文件管理",
 };

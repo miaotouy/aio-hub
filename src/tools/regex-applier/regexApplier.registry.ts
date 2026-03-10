@@ -1,28 +1,28 @@
-import type { ToolRegistry, ToolConfig } from '@/services/types';
-import { markRaw } from 'vue';
-import { MagicStick } from '@element-plus/icons-vue';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { customMessage } from '@/utils/customMessage';
-import * as engine from './core/engine';
-import { usePresetStore } from './stores/store';
+import type { ToolRegistry, ToolConfig } from "@/services/types";
+import { markRaw } from "vue";
+import { MagicStick } from "@element-plus/icons-vue";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import * as engine from "./core/engine";
+import { usePresetStore } from "./stores/store";
 import type {
   TextProcessOptions,
   TextProcessResult,
   FileProcessOptions,
   FileProcessResult,
   FormattedProcessSummary,
-  OneClickOptions
-} from './types';
-import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
+  OneClickOptions,
+} from "./types";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 
-const logger = createModuleLogger('services/regex-applier');
-const errorHandler = createModuleErrorHandler('services/regex-applier');
+const logger = createModuleLogger("services/regex-applier");
+const errorHandler = createModuleErrorHandler("services/regex-applier");
 
 export default class RegexApplierRegistry implements ToolRegistry {
-  public readonly id = 'regex-applier';
-  public readonly name = '正则批量替换';
-  public readonly description = '正则表达式批量应用工具';
+  public readonly id = "regex-applier";
+  public readonly name = "正则批量替换";
+  public readonly description = "正则表达式批量应用工具";
 
   private _store: ReturnType<typeof usePresetStore> | null = null;
 
@@ -42,30 +42,30 @@ export default class RegexApplierRegistry implements ToolRegistry {
    * 处理文本（应用多个预设的规则）
    */
   public async processText(options: TextProcessOptions): Promise<TextProcessResult | null> {
-    return engine.processText(options, (id) => this.store.presets.find(p => p.id === id));
+    return engine.processText(options, (id) => this.store.presets.find((p) => p.id === id));
   }
 
   /**
    * 处理文件（调用 Rust 后端）
    */
   public async processFiles(options: FileProcessOptions): Promise<FileProcessResult | null> {
-    return engine.processFiles(options, (id) => this.store.presets.find(p => p.id === id));
+    return engine.processFiles(options, (id) => this.store.presets.find((p) => p.id === id));
   }
 
   /**
    * 从剪贴板粘贴文本
    */
   public async pasteFromClipboard(): Promise<string | null> {
-    logger.info('从剪贴板粘贴文本');
+    logger.info("从剪贴板粘贴文本");
 
     return await errorHandler.wrapAsync(
       async () => {
         const text = await readText();
-        logger.debug('已从剪贴板读取文本', { length: text?.length });
-        return text || '';
+        logger.debug("已从剪贴板读取文本", { length: text?.length });
+        return text || "";
       },
       {
-        userMessage: '粘贴失败',
+        userMessage: "粘贴失败",
       }
     );
   }
@@ -74,37 +74,39 @@ export default class RegexApplierRegistry implements ToolRegistry {
    * 复制文本到剪贴板
    */
   public async copyToClipboard(text: string): Promise<boolean> {
-    logger.info('复制文本到剪贴板', { length: text.length });
+    logger.info("复制文本到剪贴板", { length: text.length });
 
-    return await errorHandler.wrapAsync(
-      async () => {
-        await writeText(text);
-        customMessage.success('已复制到剪贴板！');
-        logger.debug('文本已复制到剪贴板');
-        return true;
-      },
-      {
-        userMessage: '复制失败',
-      }
-    ).then(result => result ?? false);
+    return await errorHandler
+      .wrapAsync(
+        async () => {
+          await writeText(text);
+          customMessage.success("已复制到剪贴板！");
+          logger.debug("文本已复制到剪贴板");
+          return true;
+        },
+        {
+          userMessage: "复制失败",
+        }
+      )
+      .then((result) => result ?? false);
   }
 
   /**
    * 一键处理：粘贴 -> 处理 -> 复制
    */
   public async oneClickProcess(options: OneClickOptions): Promise<FormattedProcessSummary | null> {
-    logger.info('执行一键处理', { presetCount: options.presetIds.length });
+    logger.info("执行一键处理", { presetCount: options.presetIds.length });
 
     return await errorHandler.wrapAsync(
       async () => {
         if (options.presetIds.length === 0) {
-          throw new Error('请先选择至少一个预设');
+          throw new Error("请先选择至少一个预设");
         }
 
         // 1. 粘贴
         const sourceText = await this.pasteFromClipboard();
         if (!sourceText) {
-          throw new Error('剪贴板内容为空');
+          throw new Error("剪贴板内容为空");
         }
 
         // 2. 处理
@@ -114,13 +116,13 @@ export default class RegexApplierRegistry implements ToolRegistry {
         });
 
         if (!processResult) {
-          throw new Error('文本处理失败');
+          throw new Error("文本处理失败");
         }
 
         // 3. 复制
         await this.copyToClipboard(processResult.text);
 
-        logger.info('一键处理完成', {
+        logger.info("一键处理完成", {
           rulesApplied: processResult.totalRulesApplied,
         });
 
@@ -133,7 +135,7 @@ export default class RegexApplierRegistry implements ToolRegistry {
         };
       },
       {
-        userMessage: '一键处理失败',
+        userMessage: "一键处理失败",
         context: options,
       }
     );
@@ -188,9 +190,7 @@ export default class RegexApplierRegistry implements ToolRegistry {
   /**
    * 获取格式化的文本处理结果（推荐 Agent 使用）
    */
-  public async getFormattedTextResult(
-    options: TextProcessOptions
-  ): Promise<FormattedProcessSummary | null> {
+  public async getFormattedTextResult(options: TextProcessOptions): Promise<FormattedProcessSummary | null> {
     const result = await this.processText(options);
     if (!result) return null;
 
@@ -206,9 +206,7 @@ export default class RegexApplierRegistry implements ToolRegistry {
   /**
    * 获取格式化的文件处理结果（推荐 Agent 使用）
    */
-  public async getFormattedFileResult(
-    options: FileProcessOptions
-  ): Promise<FormattedProcessSummary | null> {
+  public async getFormattedFileResult(options: FileProcessOptions): Promise<FormattedProcessSummary | null> {
     const result = await this.processFiles(options);
     if (!result) return null;
 
@@ -236,98 +234,7 @@ export default class RegexApplierRegistry implements ToolRegistry {
   public getMetadata() {
     return {
       methods: [
-        {
-          name: 'processText',
-          description: '处理文本（应用多个预设的规则）',
-          parameters: [
-            {
-              name: 'options',
-              type: 'TextProcessOptions',
-              description: '文本处理选项',
-            },
-          ],
-          returnType: 'Promise<TextProcessResult | null>',
-        },
-        {
-          name: 'processFiles',
-          description: '批量处理文件（调用 Rust 后端）',
-          parameters: [
-            {
-              name: 'options',
-              type: 'FileProcessOptions',
-              description: '文件处理选项',
-            },
-          ],
-          returnType: 'Promise<FileProcessResult | null>',
-        },
-        {
-          name: 'oneClickProcess',
-          description: '一键处理：粘贴 -> 处理 -> 复制',
-          parameters: [
-            {
-              name: 'options',
-              type: 'OneClickOptions',
-              description: '一键处理选项',
-            },
-          ],
-          returnType: 'Promise<FormattedProcessSummary | null>',
-        },
-        {
-          name: 'getFormattedTextResult',
-          description: '获取格式化的文本处理结果（推荐 Agent 使用）',
-          parameters: [
-            {
-              name: 'options',
-              type: 'TextProcessOptions',
-              description: '文本处理选项',
-            },
-          ],
-          returnType: 'Promise<FormattedProcessSummary | null>',
-        },
-        {
-          name: 'getFormattedFileResult',
-          description: '获取格式化的文件处理结果（推荐 Agent 使用）',
-          parameters: [
-            {
-              name: 'options',
-              type: 'FileProcessOptions',
-              description: '文件处理选项',
-            },
-          ],
-          returnType: 'Promise<FormattedProcessSummary | null>',
-        },
-        {
-          name: 'validateRegex',
-          description: '验证正则表达式是否有效',
-          parameters: [
-            {
-              name: 'pattern',
-              type: 'string',
-              description: '正则表达式字符串',
-              required: true,
-            },
-          ],
-          returnType: '{ valid: boolean; error?: string }',
-        },
-        {
-          name: 'getPresets',
-          description: '获取所有预设列表（简化信息）',
-          parameters: [],
-          returnType: 'Array<{ id, name, description?, ruleCount }>',
-        },
-        {
-          name: 'getPresetById',
-          description: '获取单个预设的详细信息',
-          parameters: [
-            {
-              name: 'presetId',
-              type: 'string',
-              description: '预设ID',
-              required: true,
-            },
-          ],
-          returnType: 'PresetDetail | null',
-        },
+        // TODO: 待重新设计 agent 专用接口
       ],
     };
   }
@@ -337,10 +244,10 @@ export default class RegexApplierRegistry implements ToolRegistry {
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: '正则批量替换',
-  path: '/regex-applier',
+  name: "正则批量替换",
+  path: "/regex-applier",
   icon: markRaw(MagicStick),
-  component: () => import('./RegexApplier.vue'),
-  description: '使用正则表达式批量处理文本或文件',
-  category: '文本处理'
+  component: () => import("./RegexApplier.vue"),
+  description: "使用正则表达式批量处理文本或文件",
+  category: "文本处理",
 };

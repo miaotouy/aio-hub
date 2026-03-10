@@ -230,10 +230,15 @@ pub async fn distillery_extract_dom(
             const timeout = {};
 
             function tryExtract() {{
-                const isReady = document.readyState === 'complete';
+                // 优化：只要进入 interactive 状态（DOM 解析完成）且找到了目标元素，就可以开始提取
+                // 微信文章通常在 complete 之前内容就已经渲染好了
+                const isReady = document.readyState === 'complete' || document.readyState === 'interactive';
                 const elementFound = !selector || !!document.querySelector(selector);
                 
-                if (isReady && elementFound) {{
+                // 微信文章特有的正文容器检测（如果没指定选择器，优先看这个）
+                const wechatContentReady = !selector && !!document.getElementById('js_content');
+
+                if ((isReady && elementFound) || wechatContentReady) {{
                     performExtraction();
                 }} else if (Date.now() - startTime < timeout) {{
                     setTimeout(tryExtract, 200);
@@ -288,7 +293,8 @@ pub async fn distillery_get_cookies(app: AppHandle) -> Result<String, String> {
     let script = r#"
         (function() {
             if (window.__DISTILLERY_BRIDGE__) {
-                window.__DISTILLERY_BRIDGE__.send('cookies-extracted', {
+                window.__DISTILLERY_BRIDGE__.send({
+                    type: 'cookies-extracted',
                     cookies: document.cookie,
                     url: window.location.href
                 });

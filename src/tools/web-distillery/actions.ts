@@ -93,10 +93,17 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
       await webviewBridge.extractDom(combinedWaitFor, waitTimeout);
 
       // 6. 等待 dom-extracted 事件从子 Webview 回传
-      const extracted = await webviewBridge.waitForDomExtracted(waitTimeout + 2000);
+      let extracted;
+      try {
+        extracted = await webviewBridge.waitForDomExtracted(waitTimeout + 2000);
+      } finally {
+        // 7. 无论提取成功与否，都要销毁 headless Webview，释放资源
+        await webviewBridge.destroy().catch(() => {});
+      }
 
-      // 7. 销毁 headless Webview
-      await webviewBridge.destroy();
+      if (!extracted) {
+        throw new Error("未能从页面获取到有效内容");
+      }
 
       // 8. 用前端管道清洗 HTML
       // 这里的 include/exclude 优先级：options > recipe

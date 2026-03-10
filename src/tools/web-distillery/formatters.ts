@@ -4,16 +4,17 @@ import type { FetchResult, ExtractResult } from "./types";
  * 格式化网页提取结果为 Markdown 文本（Agent 专用）
  */
 export function formatFetchResult(result: FetchResult | ExtractResult): string {
+  if (!result) return "错误: 无效的提取结果。";
   const lines: string[] = [];
 
   lines.push("## 网页提取结果");
   lines.push("");
-  lines.push(`- **URL**: ${result.url}`);
-  lines.push(`- **标题**: ${result.title}`);
-  lines.push(`- **提取级别**: L${result.level}`);
-  lines.push(`- **内容长度**: ${result.contentLength} 字符`);
-  lines.push(`- **质量评分**: ${result.quality}`);
-  lines.push(`- **获取时间**: ${result.fetchedAt}`);
+  lines.push(`- **URL**: ${result.url || "未知"}`);
+  lines.push(`- **标题**: ${result.title || "无标题"}`);
+  lines.push(`- **提取级别**: L${result.level ?? 0}`);
+  lines.push(`- **内容长度**: ${result.contentLength ?? 0} 字符`);
+  lines.push(`- **质量评分**: ${result.quality ?? 0}`);
+  lines.push(`- **获取时间**: ${result.fetchedAt || new Date().toISOString()}`);
 
   if (result.metadata) {
     if (result.metadata.author) lines.push(`- **作者**: ${result.metadata.author}`);

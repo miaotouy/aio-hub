@@ -18,6 +18,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
       format: (args.format as any) || "markdown",
       cleanMode: Boolean(args.cleanMode),
     });
+    if (!result) return "错误: 网页内容获取失败。";
     return formatFetchResult(result);
   }
 
@@ -28,6 +29,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
       waitFor: args.waitFor ? String(args.waitFor) : undefined,
       cleanMode: Boolean(args.cleanMode),
     });
+    if (!result) return "错误: 智能提取失败。目标页面可能需要更长加载时间或需要授权。建议尝试打开交互式 UI 处理。";
     return formatFetchResult(result);
   }
 

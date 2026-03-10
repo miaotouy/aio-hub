@@ -183,11 +183,19 @@ defineExpose({
   position: absolute;
   inset: 0;
   z-index: 10;
-  /* 如果隐藏了内容且不在拖拽中，则不阻挡点击 */
+  /* 默认不阻挡点击，让内部元素可以正常交互 */
   pointer-events: none;
 }
 
-.drop-zone--overlay.drop-zone--dragging,
+/* 覆盖模式下，只有拖拽覆盖层和根元素本身需要捕获事件 */
+.drop-zone--overlay > * {
+  pointer-events: auto;
+}
+
+.drop-zone--overlay.drop-zone--dragging {
+  pointer-events: auto;
+}
+
 .drop-zone--overlay.drop-zone--clickable.drop-zone--click-zone {
   pointer-events: auto;
 }
@@ -228,8 +236,8 @@ defineExpose({
   overflow: hidden;
 }
 
-/* 流光扫光效果 */
-.drop-zone--dragging:not(.drop-zone--bare)::after {
+/* 流光扫光效果 - overlay 模式下也显示 */
+.drop-zone--dragging::after {
   content: "";
   position: absolute;
   top: 0;
@@ -246,6 +254,11 @@ defineExpose({
   animation: drop-zone-sweep 1.5s infinite;
   pointer-events: none;
   z-index: 1;
+}
+
+/* bare 模式下禁用流光效果 */
+.drop-zone--bare.drop-zone--dragging::after {
+  display: none;
 }
 
 @keyframes drop-zone-sweep {
@@ -270,7 +283,9 @@ defineExpose({
   z-index: 100;
   border-radius: inherit;
   backdrop-filter: blur(8px);
+  background-color: color-mix(in srgb, var(--el-color-primary) 5%, transparent);
   border: 2px dashed var(--el-color-primary);
+  pointer-events: none;
 }
 
 .drop-zone__default {

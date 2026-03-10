@@ -70,7 +70,7 @@ const clearFiles = () => {
 
     <!-- 拖放区域固定在外层，不跟随列表高度 -->
     <div class="file-list-container">
-      <DropZone bare overlay :multiple="true" @drop="handleDrop">
+      <DropZone overlay :multiple="true" @drop="handleDrop" show-overlay-on-drag>
         <el-scrollbar class="file-list-scrollbar">
           <div v-if="files.length === 0" class="empty-state">
             <el-icon>

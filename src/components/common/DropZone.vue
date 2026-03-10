@@ -23,9 +23,7 @@
           <p class="drop-zone__text">{{ placeholder }}</p>
           <p v-if="hint" class="drop-zone__hint">{{ hint }}</p>
           <div v-if="clickable" class="drop-zone__actions">
-            <el-button type="primary" plain size="small" @click.stop="openFileDialog">
-              选择文件
-            </el-button>
+            <el-button type="primary" plain size="small" @click.stop="openFileDialog"> 选择文件 </el-button>
           </div>
         </div>
       </slot>
@@ -206,12 +204,10 @@ defineExpose({
 }
 
 .drop-zone--border {
-  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 
 .drop-zone--input {
-  border: 1px solid var(--el-border-color);
   border-radius: 4px;
   min-height: 32px;
 }

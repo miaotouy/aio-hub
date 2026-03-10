@@ -62,7 +62,6 @@ sequenceDiagram
 
 - **语言配置系统**: 通过 `getLanguageConfig` 方法集中管理每种语言所需的 Prettier 解析器和插件。
 - **错误处理**: 对插件加载失败、代码格式化失败和语言不支持等情况进行捕获，确保工具在任何情况下都不会中断，而是返回原始代码并提供友好提示。
-- **服务注册**: 通过 `serviceRegistry` 将 `CodeFormatterService` 注册为全局服务，供其他工具（如 LLM Chat）直接调用。
 
 ## 5. 未来展望
 

@@ -70,24 +70,25 @@ const clearFiles = () => {
 
     <!-- 拖放区域固定在外层，不跟随列表高度 -->
     <div class="file-list-container">
-      <DropZone overlay :multiple="true" @drop="handleDrop" show-overlay-on-drag>
-        <el-scrollbar class="file-list-scrollbar">
-          <div v-if="files.length === 0" class="empty-state">
-            <el-icon>
-              <FolderAdd />
-            </el-icon>
-            <p>将要搬家的文件或文件夹拖拽至此</p>
-          </div>
-          <div v-else class="file-list">
-            <FileListItem
-              v-for="(file, index) in files"
-              :key="file.path"
-              :file="file"
-              @remove="emit('remove-file', index)"
-            />
-          </div>
-        </el-scrollbar>
-      </DropZone>
+      <el-scrollbar class="file-list-scrollbar">
+        <div v-if="files.length === 0" class="empty-state">
+          <el-icon>
+            <FolderAdd />
+          </el-icon>
+          <p>将要搬家的文件或文件夹拖拽至此</p>
+        </div>
+        <div v-else class="file-list">
+          <FileListItem
+            v-for="(file, index) in files"
+            :key="file.path"
+            :file="file"
+            @remove="emit('remove-file', index)"
+          />
+        </div>
+      </el-scrollbar>
+
+      <!-- 采用标准的 Sibling Overlay 模式 -->
+      <DropZone overlay :multiple="true" @drop="handleDrop" show-overlay-on-drag hide-content />
     </div>
   </InfoCard>
 </template>

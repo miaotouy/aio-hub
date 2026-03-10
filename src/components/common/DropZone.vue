@@ -43,37 +43,62 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * DropZone 拖放组件
+ *
+ * 提供文件/文件夹拖拽、点击上传功能。支持多种展现模式（默认、输入框风格、覆盖层模式）。
+ *
+ * 使用模式说明：
+ * 1. 默认模式：显示一个虚线框区域，带图标和文字。
+ * 2. 输入框模式 (variant="input")：紧凑布局，适合放在表单中。
+ * 3. 覆盖层模式 (overlay)：absolute 定位铺满父容器。
+ *    - 推荐用法 (Sibling Overlay)：作为内容的兄弟节点，通过 pointer-events: none 实现平时穿透点击，拖拽时捕获。
+ */
 import { ref, computed } from "vue";
 import { FolderAdd, Upload } from "@element-plus/icons-vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useFileDrop } from "@/composables/useFileDrop";
 
 interface Props {
-  // 基础配置
+  /** 提示占位文字 */
   placeholder?: string;
+  /** 辅助说明文字 */
   hint?: string;
+  /** 自定义图标组件 */
   icon?: any;
+  /** 图标大小 */
   iconSize?: number;
 
-  // 行为控制
+  /** 是否允许点击触发上传 */
   clickable?: boolean;
-  clickZone?: boolean; // 是否允许点击整个区域触发，默认为 false，仅按钮触发
+  /** 是否点击整个区域都能触发上传（默认为 false，仅按钮触发） */
+  clickZone?: boolean;
+  /** 是否禁用 */
   disabled?: boolean;
+  /** 是否允许多选 */
   multiple?: boolean;
+  /** 是否只允许选择文件夹 */
   directoryOnly?: boolean;
+  /** 是否只允许选择文件 */
   fileOnly?: boolean;
+  /** 接受的文件后缀列表，如 ['.png', '.jpg'] */
   accept?: string[];
 
-  // 验证与反馈
+  /** 自定义验证函数，返回 false 将阻止 drop 事件 */
   validator?: (paths: string[]) => Promise<boolean> | boolean;
-  silent?: boolean; // 是否静默处理错误（不弹窗）
+  /** 是否静默处理错误（不自动弹出提示） */
+  silent?: boolean;
 
-  // 样式控制
+  /** 样式变体 */
   variant?: "default" | "border" | "input";
-  bare?: boolean; // 纯净模式，无任何样式，仅提供拖拽逻辑
-  overlay?: boolean; // 覆盖模式，absolute 定位铺满父容器
-  hideContent?: boolean; // 隐藏默认内容，仅显示插槽
-  showOverlayOnDrag?: boolean; // 拖拽时是否显示内置的覆盖提示
+  /** 纯净模式：移除所有内置样式，仅保留拖放逻辑 */
+  bare?: boolean;
+  /** 覆盖模式：absolute 定位铺满父容器，推荐作为兄弟节点使用 */
+  overlay?: boolean;
+  /** 是否隐藏默认的 UI 内容，仅显示插槽 */
+  hideContent?: boolean;
+  /** 拖拽悬停时是否显示内置的半透明覆盖提示层 */
+  showOverlayOnDrag?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -187,11 +212,6 @@ defineExpose({
   pointer-events: none;
 }
 
-/* 覆盖模式下，只有拖拽覆盖层和根元素本身需要捕获事件 */
-.drop-zone--overlay > * {
-  pointer-events: auto;
-}
-
 .drop-zone--overlay.drop-zone--dragging {
   pointer-events: auto;
 }
@@ -236,8 +256,8 @@ defineExpose({
   overflow: hidden;
 }
 
-/* 流光扫光效果 - overlay 模式下也显示 */
-.drop-zone--dragging::after {
+/* 流光扫光效果 */
+.drop-zone--dragging:not(.drop-zone--bare)::after {
   content: "";
   position: absolute;
   top: 0;
@@ -254,11 +274,6 @@ defineExpose({
   animation: drop-zone-sweep 1.5s infinite;
   pointer-events: none;
   z-index: 1;
-}
-
-/* bare 模式下禁用流光效果 */
-.drop-zone--bare.drop-zone--dragging::after {
-  display: none;
 }
 
 @keyframes drop-zone-sweep {

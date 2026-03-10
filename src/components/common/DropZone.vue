@@ -208,13 +208,11 @@ defineExpose({
 .drop-zone--border {
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 12px;
 }
 
 .drop-zone--input {
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
-  padding: 4px 8px;
   min-height: 32px;
 }
 

@@ -668,9 +668,4 @@ function locateTagInterval() {
   font-size: 13px;
   flex: 1;
 }
-
-:deep(.drop-zone--input) {
-  border: none;
-  padding: 0;
-}
 </style>

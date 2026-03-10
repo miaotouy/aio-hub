@@ -538,26 +538,35 @@ fn process_single_file(
     Ok(total_matches)
 }
 
-// 递归计算目录大小
-fn calculate_dir_size(dir: &Path) -> Result<u64, std::io::Error> {
-    let mut total = 0u64;
+/// 使用 ignore crate 高性能并行计算目录大小（参照 directory_tree.rs 的实现方式）
+fn calculate_dir_size_fast(dir: &Path) -> u64 {
+    use ignore::WalkBuilder;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
-    if dir.is_dir() {
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
+    let total = Arc::new(AtomicU64::new(0));
+    let total_clone = Arc::clone(&total);
 
-            if path.is_file() {
-                if let Ok(metadata) = path.metadata() {
-                    total += metadata.len();
+    let walker = WalkBuilder::new(dir)
+        .hidden(false) // 包含隐藏文件
+        .git_ignore(false) // 不跳过 .gitignore 里的内容
+        .follow_links(false)
+        .build_parallel();
+
+    walker.run(|| {
+        let total = Arc::clone(&total_clone);
+        Box::new(move |result| {
+            if let Ok(entry) = result {
+                if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                    if let Some(len) = entry.metadata().ok().map(|m| m.len()) {
+                        total.fetch_add(len, Ordering::Relaxed);
+                    }
                 }
-            } else if path.is_dir() {
-                total += calculate_dir_size(&path).unwrap_or(0);
             }
-        }
-    }
+            ignore::WalkState::Continue
+        })
+    });
 
-    Ok(total)
+    total.load(Ordering::Relaxed)
 }
 
 // 检测是否跨盘/跨设备移动
@@ -684,8 +693,8 @@ pub async fn move_and_link(
             total_size += if metadata.is_file() {
                 metadata.len()
             } else {
-                // 目录递归计算大小
-                calculate_dir_size(&source_path).unwrap_or(0)
+                // 目录并行计算大小（使用 ignore crate，性能远超递归 fs::read_dir）
+                calculate_dir_size_fast(&source_path)
             };
         }
 
@@ -941,7 +950,8 @@ pub async fn create_links_only(
             total_size += if metadata.is_file() {
                 metadata.len()
             } else {
-                calculate_dir_size(&source_path).unwrap_or(0)
+                // 目录并行计算大小（使用 ignore crate，性能远超递归 fs::read_dir）
+                calculate_dir_size_fast(&source_path)
             };
         }
 
@@ -1201,6 +1211,45 @@ pub fn validate_file_for_link(
         is_cross_device: is_cross_dev,
         exists: true,
     })
+}
+
+// Tauri 命令：批量验证文件属性（前端一次 IPC 获取全部结果，避免 N+1 问题）
+#[tauri::command]
+pub fn validate_files_for_link(
+    source_paths: Vec<String>,
+    target_dir: String,
+    link_type: String,
+) -> Vec<FileValidation> {
+    let target = PathBuf::from(&target_dir);
+    let target_exists = target.exists();
+
+    source_paths
+        .iter()
+        .map(|source_path_str| {
+            let source = PathBuf::from(source_path_str);
+
+            if !source.exists() {
+                return FileValidation {
+                    is_directory: false,
+                    is_cross_device: false,
+                    exists: false,
+                };
+            }
+
+            let is_dir = source.is_dir();
+            let is_cross_dev = if link_type == "link" && target_exists {
+                is_cross_device(&source, &target)
+            } else {
+                false
+            };
+
+            FileValidation {
+                is_directory: is_dir,
+                is_cross_device: is_cross_dev,
+                exists: true,
+            }
+        })
+        .collect()
 }
 
 // Tauri 命令：保存上传的文件到应用数据目录

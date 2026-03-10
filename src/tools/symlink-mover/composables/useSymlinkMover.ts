@@ -1,7 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import type {
   FileItem,
   FileValidation,
@@ -13,10 +13,10 @@ import type {
   CreateLinksOnlyOptions,
   ValidateFileOptions,
   FormattedLogSummary,
-} from '../types';
+} from "../types";
 
-const logger = createModuleLogger('symlink-mover/logic');
-const errorHandler = createModuleErrorHandler('symlink-mover/logic');
+const logger = createModuleLogger("symlink-mover/logic");
+const errorHandler = createModuleErrorHandler("symlink-mover/logic");
 
 export function useSymlinkMoverLogic() {
   let progressUnlisten: UnlistenFn | null = null;
@@ -27,22 +27,22 @@ export function useSymlinkMoverLogic() {
    * 验证单个文件是否适合创建链接
    */
   const validateFile = async (options: ValidateFileOptions): Promise<FileValidation | null> => {
-    logger.info('验证文件', options);
+    logger.info("验证文件", options);
 
     return await errorHandler.wrapAsync(
       async () => {
-        const validation = await invoke<FileValidation>('validate_file_for_link', {
+        const validation = await invoke<FileValidation>("validate_file_for_link", {
           sourcePath: options.sourcePath,
           targetDir: options.targetDir,
           linkType: options.linkType,
         });
 
-        logger.info('文件验证完成', { path: options.sourcePath, validation });
+        logger.info("文件验证完成", { path: options.sourcePath, validation });
         return validation;
       },
       {
         level: ErrorLevel.WARNING,
-        userMessage: '文件验证失败',
+        userMessage: "文件验证失败",
         context: options,
         showToUser: false,
       }
@@ -50,7 +50,7 @@ export function useSymlinkMoverLogic() {
   };
 
   /**
-   * 批量验证文件列表
+   * 批量验证文件列表（一次 IPC 调用，避免 N+1 问题）
    */
   const validateFiles = async (
     files: FileItem[],
@@ -58,37 +58,57 @@ export function useSymlinkMoverLogic() {
     linkType: LinkType,
     operationMode: OperationMode
   ): Promise<FileItem[]> => {
-    logger.info('批量验证文件', { count: files.length, targetDir, linkType, operationMode });
+    if (files.length === 0) return files;
+    logger.info("批量验证文件", { count: files.length, targetDir, linkType, operationMode });
 
     const validatedFiles = [...files];
 
-    for (const file of validatedFiles) {
-      const validation = await validateFile({
-        sourcePath: file.path,
-        targetDir,
-        linkType,
-      });
+    const validations = await errorHandler.wrapAsync(
+      async () => {
+        const result = await invoke<FileValidation[]>("validate_files_for_link", {
+          sourcePaths: files.map((f) => f.path),
+          targetDir,
+          linkType,
+        });
+        logger.info("批量验证完成", { count: result.length });
+        return result;
+      },
+      {
+        level: ErrorLevel.WARNING,
+        userMessage: "文件验证失败",
+        context: { targetDir, linkType },
+        showToUser: false,
+      }
+    );
 
-      if (validation) {
-        file.isDirectory = validation.isDirectory;
-        file.isCrossDevice = validation.isCrossDevice;
+    if (!validations) {
+      validatedFiles.forEach((file) => (file.warning = "验证失败"));
+      return validatedFiles;
+    }
 
-        // 硬链接的限制检查
-        if (linkType === 'link' && operationMode === 'link-only') {
-          if (validation.isDirectory) {
-            file.warning = '硬链接不支持目录';
-          } else if (validation.isCrossDevice) {
-            file.warning = '硬链接不支持跨分区/跨盘';
-          } else {
-            file.warning = undefined;
-          }
+    validatedFiles.forEach((file, index) => {
+      const validation = validations[index];
+      if (!validation) {
+        file.warning = "验证失败";
+        return;
+      }
+
+      file.isDirectory = validation.isDirectory;
+      file.isCrossDevice = validation.isCrossDevice;
+
+      // 硬链接的限制检查
+      if (linkType === "link" && operationMode === "link-only") {
+        if (validation.isDirectory) {
+          file.warning = "硬链接不支持目录";
+        } else if (validation.isCrossDevice) {
+          file.warning = "硬链接不支持跨分区/跨盘";
         } else {
           file.warning = undefined;
         }
       } else {
-        file.warning = '验证失败';
+        file.warning = undefined;
       }
-    }
+    });
 
     return validatedFiles;
   };
@@ -101,11 +121,11 @@ export function useSymlinkMoverLogic() {
     linkType: LinkType,
     operationMode: OperationMode
   ): string | undefined => {
-    if (linkType === 'link' && operationMode === 'link-only') {
+    if (linkType === "link" && operationMode === "link-only") {
       if (validation.isDirectory) {
-        return '硬链接不支持目录';
+        return "硬链接不支持目录";
       } else if (validation.isCrossDevice) {
-        return '硬链接不支持跨分区/跨盘';
+        return "硬链接不支持跨分区/跨盘";
       }
     }
     return undefined;
@@ -119,7 +139,7 @@ export function useSymlinkMoverLogic() {
   const parsePathsToFileItems = (paths: string[]): FileItem[] => {
     return paths.map((path) => {
       const name = path.split(/[/\\]/).pop() || path;
-      return { path, name, status: 'pending' as const };
+      return { path, name, status: "pending" as const };
     });
   };
 
@@ -127,9 +147,7 @@ export function useSymlinkMoverLogic() {
    * 合并文件列表（去重）
    */
   const mergeFileItems = (existingFiles: FileItem[], newFiles: FileItem[]): FileItem[] => {
-    const uniqueNewFiles = newFiles.filter(
-      (nf) => !existingFiles.some((sf) => sf.path === nf.path)
-    );
+    const uniqueNewFiles = newFiles.filter((nf) => !existingFiles.some((sf) => sf.path === nf.path));
     return [...existingFiles, ...uniqueNewFiles];
   };
 
@@ -148,23 +166,23 @@ export function useSymlinkMoverLogic() {
    * 移动文件并创建链接
    */
   const moveAndLink = async (options: MoveAndLinkOptions): Promise<string | null> => {
-    logger.info('开始移动文件并创建链接', options);
+    logger.info("开始移动文件并创建链接", options);
 
     return await errorHandler.wrapAsync(
       async () => {
-        const result = await invoke<string>('move_and_link', {
+        const result = await invoke<string>("move_and_link", {
           sourcePaths: options.sourcePaths,
           targetDir: options.targetDir,
           linkType: options.linkType,
           baseSourceDir: options.baseSourceDir,
         });
 
-        logger.info('移动和链接操作完成', { result });
+        logger.info("移动和链接操作完成", { result });
         return result;
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '文件移动和链接失败',
+        userMessage: "文件移动和链接失败",
         context: options,
       }
     );
@@ -174,23 +192,23 @@ export function useSymlinkMoverLogic() {
    * 仅创建链接（不移动文件）
    */
   const createLinksOnly = async (options: CreateLinksOnlyOptions): Promise<string | null> => {
-    logger.info('开始创建链接', options);
+    logger.info("开始创建链接", options);
 
     return await errorHandler.wrapAsync(
       async () => {
-        const result = await invoke<string>('create_links_only', {
+        const result = await invoke<string>("create_links_only", {
           sourcePaths: options.sourcePaths,
           targetDir: options.targetDir,
           linkType: options.linkType,
           baseSourceDir: options.baseSourceDir,
         });
 
-        logger.info('创建链接操作完成', { result });
+        logger.info("创建链接操作完成", { result });
         return result;
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '创建链接失败',
+        userMessage: "创建链接失败",
         context: options,
       }
     );
@@ -200,17 +218,17 @@ export function useSymlinkMoverLogic() {
    * 取消当前操作
    */
   const cancelOperation = async (): Promise<boolean> => {
-    logger.info('取消操作');
+    logger.info("取消操作");
 
     const result = await errorHandler.wrapAsync(
       async () => {
-        await invoke('cancel_move_operation');
-        logger.info('取消操作成功');
+        await invoke("cancel_move_operation");
+        logger.info("取消操作成功");
         return true;
       },
       {
         level: ErrorLevel.WARNING,
-        userMessage: '取消操作失败',
+        userMessage: "取消操作失败",
         showToUser: true,
       }
     );
@@ -223,10 +241,8 @@ export function useSymlinkMoverLogic() {
   /**
    * 开始监听进度事件
    */
-  const startProgressListener = async (
-    onProgress: (progress: CopyProgress) => void
-  ): Promise<boolean> => {
-    logger.info('开始监听进度事件');
+  const startProgressListener = async (onProgress: (progress: CopyProgress) => void): Promise<boolean> => {
+    logger.info("开始监听进度事件");
 
     // 如果已有监听器，先清理
     if (progressUnlisten) {
@@ -236,17 +252,17 @@ export function useSymlinkMoverLogic() {
 
     const result = await errorHandler.wrapAsync(
       async () => {
-        progressUnlisten = await listen<CopyProgress>('copy-progress', (event) => {
+        progressUnlisten = await listen<CopyProgress>("copy-progress", (event) => {
           const progress = event.payload;
-          logger.debug('收到进度事件', progress);
+          logger.debug("收到进度事件", progress);
           onProgress(progress);
         });
-        logger.info('进度监听器已启动');
+        logger.info("进度监听器已启动");
         return true;
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '启动进度监听失败',
+        userMessage: "启动进度监听失败",
         showToUser: false,
       }
     );
@@ -259,7 +275,7 @@ export function useSymlinkMoverLogic() {
    */
   const stopProgressListener = async (): Promise<void> => {
     if (progressUnlisten) {
-      logger.info('停止进度监听');
+      logger.info("停止进度监听");
       progressUnlisten();
       progressUnlisten = null;
     }
@@ -271,17 +287,17 @@ export function useSymlinkMoverLogic() {
    * 获取最新的操作日志
    */
   const getLatestLog = async (): Promise<OperationLog | null> => {
-    logger.info('获取最新日志');
+    logger.info("获取最新日志");
 
     return await errorHandler.wrapAsync(
       async () => {
-        const log = await invoke<OperationLog | null>('get_latest_operation_log');
-        logger.info('获取最新日志成功', { hasLog: !!log });
+        const log = await invoke<OperationLog | null>("get_latest_operation_log");
+        logger.info("获取最新日志成功", { hasLog: !!log });
         return log;
       },
       {
         level: ErrorLevel.WARNING,
-        userMessage: '获取操作日志失败',
+        userMessage: "获取操作日志失败",
         showToUser: false,
       }
     );
@@ -291,17 +307,17 @@ export function useSymlinkMoverLogic() {
    * 获取所有操作日志
    */
   const getAllLogs = async (): Promise<OperationLog[]> => {
-    logger.info('获取所有日志');
+    logger.info("获取所有日志");
 
     const result = await errorHandler.wrapAsync(
       async () => {
-        const logs = await invoke<OperationLog[]>('get_all_operation_logs');
-        logger.info('获取所有日志成功', { count: logs.length });
+        const logs = await invoke<OperationLog[]>("get_all_operation_logs");
+        logger.info("获取所有日志成功", { count: logs.length });
         return logs.reverse(); // 最新的在前面
       },
       {
         level: ErrorLevel.ERROR,
-        userMessage: '获取操作日志失败',
+        userMessage: "获取操作日志失败",
       }
     );
 
@@ -315,13 +331,13 @@ export function useSymlinkMoverLogic() {
    */
   const formatTimestamp = (timestamp: number): string => {
     const date = new Date(timestamp * 1000);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+    return date.toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     });
   };
 
@@ -344,25 +360,25 @@ export function useSymlinkMoverLogic() {
    * 格式化字节大小
    */
   const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   /**
    * 获取操作类型标签
    */
   const getOperationTypeLabel = (type: string): string => {
-    return type === 'move' ? '搬家模式' : '仅创建链接';
+    return type === "move" ? "搬家模式" : "仅创建链接";
   };
 
   /**
    * 获取链接类型标签
    */
   const getLinkTypeLabel = (type: string): string => {
-    return type === 'symlink' ? '符号链接' : '硬链接';
+    return type === "symlink" ? "符号链接" : "硬链接";
   };
 
   /**
@@ -371,7 +387,7 @@ export function useSymlinkMoverLogic() {
   const formatLogTicker = (log: OperationLog): string => {
     const opType = getOperationTypeLabel(log.operationType);
     const linkType = getLinkTypeLabel(log.linkType);
-    const status = log.errorCount > 0 ? '部分成功' : '成功';
+    const status = log.errorCount > 0 ? "部分成功" : "成功";
     return `${opType} · ${linkType} · ${status} ${log.successCount}/${log.sourceCount} · ${formatBytes(log.totalSize)} · ${formatDuration(log.durationMs)}`;
   };
 
@@ -388,7 +404,7 @@ export function useSymlinkMoverLogic() {
       time: formatTimestamp(log.timestamp),
       operationType: getOperationTypeLabel(log.operationType),
       linkType: getLinkTypeLabel(log.linkType),
-      status: log.errorCount > 0 ? (log.successCount > 0 ? 'partial' : 'failed') : 'success',
+      status: log.errorCount > 0 ? (log.successCount > 0 ? "partial" : "failed") : "success",
       summary: formatLogTicker(log),
       details: {
         totalFiles: log.sourceCount,
@@ -411,7 +427,10 @@ export function useSymlinkMoverLogic() {
       time: formatTimestamp(log.timestamp),
       operationType: getOperationTypeLabel(log.operationType),
       linkType: getLinkTypeLabel(log.linkType),
-      status: (log.errorCount > 0 ? (log.successCount > 0 ? 'partial' : 'failed') : 'success') as 'success' | 'partial' | 'failed',
+      status: (log.errorCount > 0 ? (log.successCount > 0 ? "partial" : "failed") : "success") as
+        | "success"
+        | "partial"
+        | "failed",
       summary: formatLogTicker(log),
       details: {
         totalFiles: log.sourceCount,

@@ -2,16 +2,7 @@
 import { ref, onMounted, onUnmounted, watch } from "vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
-import {
-  FolderOpened,
-  Document,
-  Delete,
-  FolderAdd,
-  Rank,
-  InfoFilled,
-  Close,
-  View,
-} from "@element-plus/icons-vue";
+import { FolderOpened, Document, Delete, FolderAdd, Rank, InfoFilled, Close, View } from "@element-plus/icons-vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
@@ -310,20 +301,10 @@ const executeMoveAndLink = async () => {
     <div class="column">
       <InfoCard title="待处理文件" class="full-height-card">
         <template #headerExtra>
-          <el-button
-            :icon="Delete"
-            text
-            circle
-            @click="clearFiles"
-            :disabled="sourceFiles.length === 0"
-          />
+          <el-button :icon="Delete" text circle @click="clearFiles" :disabled="sourceFiles.length === 0" />
         </template>
         <div class="source-controls">
-          <el-input
-            v-model="sourcePathInput"
-            placeholder="输入文件/文件夹路径"
-            @keyup.enter="addSourcePathFromInput"
-          />
+          <el-input v-model="sourcePathInput" placeholder="输入文件/文件夹路径" @keyup.enter="addSourcePathFromInput" />
           <el-tooltip content="选择文件" placement="top">
             <el-button @click="selectSourceFiles" :icon="Document" circle />
           </el-tooltip>
@@ -367,14 +348,7 @@ const executeMoveAndLink = async () => {
                     {{ file.warning }}
                   </div>
                 </div>
-                <el-button
-                  @click="removeFile(index)"
-                  :icon="Delete"
-                  text
-                  circle
-                  size="small"
-                  class="remove-btn"
-                />
+                <el-button @click="removeFile(index)" :icon="Delete" text circle size="small" class="remove-btn" />
               </div>
             </div>
           </el-scrollbar>
@@ -414,9 +388,7 @@ const executeMoveAndLink = async () => {
             <label>镜像搬家模式</label>
             <el-switch v-model="mirrorMode" />
           </div>
-          <div class="mode-description">
-            开启后，搬家的内容会同时复刻其在基准目录下的层级结构
-          </div>
+          <div class="mode-description">开启后，搬家的内容会同时复刻其在基准目录下的层级结构</div>
         </div>
 
         <div v-if="mirrorMode" class="setting-group animate-fade-in">
@@ -450,9 +422,7 @@ const executeMoveAndLink = async () => {
               <el-input
                 v-model="targetDirectory"
                 :placeholder="
-                  operationMode === 'move'
-                    ? '输入、拖拽或点击选择目标目录'
-                    : '输入、拖拽或点击选择链接目录'
+                  operationMode === 'move' ? '输入、拖拽或点击选择目标目录' : '输入、拖拽或点击选择链接目录'
                 "
               />
               <el-button @click="selectTargetDirectory" :icon="FolderOpened">选择</el-button>
@@ -493,9 +463,7 @@ const executeMoveAndLink = async () => {
           </label>
           <el-radio-group v-model="linkType">
             <el-radio-button value="symlink">符号链接</el-radio-button>
-            <el-radio-button value="link" :disabled="operationMode === 'link-only'"
-              >硬链接</el-radio-button
-            >
+            <el-radio-button value="link" :disabled="operationMode === 'link-only'">硬链接</el-radio-button>
           </el-radio-group>
           <div v-if="operationMode === 'link-only' && linkType === 'link'" class="warning-text">
             <el-icon>
@@ -505,17 +473,23 @@ const executeMoveAndLink = async () => {
           </div>
         </div>
         <!-- 进度显示 -->
-        <div v-if="showProgress" class="setting-group progress-group">
-          <div class="progress-info">
+        <!-- isProcessing=true 时立即显示；跨盘复制时同时显示文件和字节数 -->
+        <div v-if="isProcessing || showProgress" class="setting-group progress-group">
+          <div v-if="showProgress" class="progress-info">
             <div class="progress-file">{{ currentFile }}</div>
             <div class="progress-stats">
               {{ logic.formatBytes(copiedBytes) }} /
               {{ logic.formatBytes(totalBytes) }}
             </div>
           </div>
+          <div v-else class="progress-info">
+            <div class="progress-file">处理中，请稍候...</div>
+          </div>
           <el-progress
-            :percentage="currentProgress"
-            :status="isProcessing ? undefined : 'success'"
+            :percentage="showProgress ? currentProgress : 100"
+            :status="showProgress ? (isProcessing ? undefined : 'success') : undefined"
+            :striped="!showProgress"
+            :striped-flow="!showProgress"
             :stroke-width="12"
           />
         </div>
@@ -528,9 +502,7 @@ const executeMoveAndLink = async () => {
                 {{ logic.formatLogTicker(latestLog) }}
               </div>
             </div>
-            <el-button :icon="View" text size="small" @click="openLogDialog" class="log-ticker-btn">
-              详情
-            </el-button>
+            <el-button :icon="View" text size="small" @click="openLogDialog" class="log-ticker-btn"> 详情 </el-button>
           </div>
           <el-button
             v-if="!isProcessing"
@@ -587,9 +559,7 @@ const executeMoveAndLink = async () => {
             <div class="log-item-details">
               <div class="detail-item">
                 <span class="detail-label">目标目录:</span>
-                <span class="detail-value" :title="log.targetDirectory">{{
-                  log.targetDirectory
-                }}</span>
+                <span class="detail-value" :title="log.targetDirectory">{{ log.targetDirectory }}</span>
               </div>
               <div v-if="log.processedFiles && log.processedFiles.length > 0" class="detail-item">
                 <span class="detail-label">成功文件:</span>

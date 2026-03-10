@@ -215,7 +215,6 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
@@ -257,12 +256,7 @@ const emit = defineEmits<{
   font-size: 16px;
 }
 
-.operation-mode-group {
-  width: 100%;
-}
-
 .operation-mode-group :deep(.el-radio-button__inner) {
-  width: 100%;
   padding: 10px 15px;
 }
 

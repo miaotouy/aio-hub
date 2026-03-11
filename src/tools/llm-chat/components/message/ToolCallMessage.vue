@@ -523,9 +523,9 @@ defineExpose({
     </div>
 
     <!-- 装饰性侧边栏 -->
-    <div class="tool-bar" :class="statusClass">
+    <div class="tool-bar" :class="statusClass" @click="toggleCollapse">
       <div class="bar-line"></div>
-      <div class="bar-icon" @click="toggleCollapse">
+      <div class="bar-icon">
         <component :is="statusIcon" :size="14" />
       </div>
       <div class="bar-line"></div>
@@ -843,6 +843,12 @@ defineExpose({
   opacity: 0.6;
   /* 确保侧边栏高度撑满父容器 */
   align-self: stretch;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.tool-bar:hover {
+  opacity: 1;
 }
 
 .tool-bar.status-success {
@@ -865,13 +871,12 @@ defineExpose({
   position: sticky;
   top: 16px; /* 随着消息内容滚动时，图标保持在顶部可见区域 */
   padding: 6px 0;
-  cursor: pointer;
   transition: transform 0.2s;
   background-color: transparent;
   z-index: 4;
 }
 
-.bar-icon:hover {
+.tool-bar:hover .bar-icon {
   transform: scale(1.2);
 }
 

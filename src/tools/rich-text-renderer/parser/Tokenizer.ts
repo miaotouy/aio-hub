@@ -559,7 +559,21 @@ export class Tokenizer {
           tokens.push({ type: "strong_delimiter", marker: "__", raw: "__" });
           i += 2;
         } else {
-          tokens.push({ type: "em_delimiter", marker: "_", raw: "_" });
+          // GFM 风格的词内强调限制 (Intra-word emphasis restriction)
+          // 如果下划线两侧都是字母或数字，则不视为强调标记，而是作为普通文本
+          const prevChar = i > 0 ? text.charCodeAt(i - 1) : -1;
+          const nextChar = i + 1 < len ? text.charCodeAt(i + 1) : -1;
+
+          const isAlphanumeric = (code: number) =>
+            (code >= 48 && code <= 57) || // 0-9
+            (code >= 65 && code <= 90) || // A-Z
+            (code >= 97 && code <= 122); // a-z
+
+          if (isAlphanumeric(prevChar) && isAlphanumeric(nextChar)) {
+            tokens.push({ type: "text", content: "_" });
+          } else {
+            tokens.push({ type: "em_delimiter", marker: "_", raw: "_" });
+          }
           i += 1;
         }
         atLineStart = false;

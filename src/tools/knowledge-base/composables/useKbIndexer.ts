@@ -3,11 +3,15 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { performIndexEntry, performDimensionDetection } from "../core/kbIndexer";
+import { detectDimension as coreDetectDimension } from "../core/embedding/vector-generator";
 import { kbStorage } from "../utils/kbStorage";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { calculateHash } from "../utils/kbUtils";
 import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
+import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
+import { IndexingOrchestrator } from "../logic/orchestrators/IndexingOrchestrator";
+
+const adapter = new TauriBackendAdapter();
 
 const errorHandler = createModuleErrorHandler("useKbIndexer");
 const logger = createModuleLogger("useKbIndexer");
@@ -15,6 +19,10 @@ const logger = createModuleLogger("useKbIndexer");
 export function useKbIndexer() {
   const store = useKnowledgeBaseStore();
   const { profiles } = useLlmProfiles();
+
+  const orchestrator = new IndexingOrchestrator(adapter, {
+    requestSettings: store.config.embeddingRequestSettings,
+  });
 
   /**
    * 探测模型维度
@@ -32,7 +40,7 @@ export function useKbIndexer() {
       const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
       if (!profile) throw new Error("未找到对应模型的配置 Profile");
 
-      const dim = await performDimensionDetection({ profile, modelId });
+      const dim = await coreDetectDimension({ profile, modelId });
       store.config.vectorIndex.dimension = dim;
       customMessage.success(`探测成功：模型维度为 ${dim}`);
       await store.saveWorkspace();
@@ -62,7 +70,7 @@ export function useKbIndexer() {
     }
 
     const currentHash = entry.contentHash || (await calculateHash(entry.content));
-    
+
     // 检查内容哈希是否一致（如果后端索引存在，且哈希没变，则跳过）
     // 注意：这里我们假设如果 vectorizedIds 包含该 ID，说明索引文件存在
     // TODO: 后端其实也可以根据 contentHash 决定是否重新生成向量
@@ -83,12 +91,11 @@ export function useKbIndexer() {
       const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
       if (!profile) throw new Error("未找到模型配置 Profile");
 
-      await performIndexEntry({
+      await orchestrator.indexEntry({
         kbId: store.activeBaseId,
         entry,
-        comboId,
+        modelId: getPureModelId(comboId),
         profile,
-        requestSettings: store.config.embeddingRequestSettings,
       });
 
       // 更新条目内容哈希 (这是唯一需要持久化在条目里的状态)
@@ -137,13 +144,13 @@ export function useKbIndexer() {
     const pendingEntries = store.activeBaseMeta.entries.filter((e) => {
       // 1. 如果不在已向量化集合中，说明索引文件不存在
       if (!store.vectorizedIds.has(e.id)) return true;
-      
+
       // 2. 检查 vectorizedModels，如果当前模型不在其中，说明没有当前模型的向量
       if (!e.vectorizedModels?.includes(modelId)) return true;
-      
+
       // 3. 如果内容哈希不存在，说明需要重新计算哈希并可能重新向量化
       if (!e.contentHash) return true;
-      
+
       return false;
     });
 
@@ -161,50 +168,39 @@ export function useKbIndexer() {
       failedDetails: new Map(),
     };
 
-    let successCount = 0;
-    let failCount = 0;
-    const maxConcurrent = store.config.embeddingRequestSettings?.maxConcurrent ?? 5;
-
     try {
-      // 并发控制实现
-      const queue = [...pendingEntries];
-      const workers = Array(Math.min(maxConcurrent, queue.length))
-        .fill(null)
-        .map(async () => {
-          while (queue.length > 0) {
-            // 检查停止标志
-            if (store.indexingProgress.shouldStop) {
-              logger.info("索引任务已由用户手动停止");
-              break;
-            }
+      const profileId = getProfileId(comboId);
+      const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
+      if (!profile) throw new Error("未找到模型配置 Profile");
 
-            const entryIndex = queue.shift();
-            if (!entryIndex) break;
-
-            const success = await indexEntry(entryIndex.id, true);
-            if (success) {
-              successCount++;
-            } else {
-              failCount++;
-            }
-            store.indexingProgress.current++;
+      // 直接调用逻辑层进行批量处理
+      await orchestrator.indexEntries({
+        kbId: store.activeBaseId,
+        entryIds: pendingEntries.map((e) => e.id),
+        modelId,
+        profile,
+        shouldStop: () => store.indexingProgress.shouldStop,
+        onProgress: async (processed, failed) => {
+          store.indexingProgress.current += processed;
+          if (failed) {
+            failed.forEach((f) => store.indexingProgress.failedDetails.set(f.id, f.reason));
           }
-        });
-
-      await Promise.all(workers);
+          // 同步更新 Store 中的索引状态集合
+          await store.updateGlobalStats(true);
+        },
+      });
 
       if (store.indexingProgress.shouldStop) {
-        customMessage.warning(`处理已停止：已完成 ${successCount} 项，剩余 ${queue.length} 项`);
-      } else if (successCount > 0) {
-        customMessage.success(
-          `批量处理完成：成功 ${successCount} 项` + (failCount > 0 ? `，失败 ${failCount} 项` : "")
-        );
-      } else if (failCount > 0) {
-        customMessage.error(`批量处理失败：共 ${failCount} 项处理失败`);
+        customMessage.warning(`处理已停止：当前已完成 ${store.indexingProgress.current} 项`);
+      } else {
+        customMessage.success(`批量处理完成：共处理 ${pendingEntries.length} 项`);
       }
+    } catch (e) {
+      errorHandler.error(e, "批量向量化任务执行异常");
     } finally {
       store.loading = false;
       store.indexingProgress.isIndexing = false;
+      await store.updateGlobalStats(true);
     }
   }
 

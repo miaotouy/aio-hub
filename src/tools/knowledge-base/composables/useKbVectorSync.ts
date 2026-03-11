@@ -3,27 +3,31 @@ import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useNotification } from "@/composables/useNotification";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { kbStorage } from "../utils/kbStorage";
 import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
-import { syncGlobalTags, syncEntriesVectors } from "../core/kbIndexer";
 import { performGenerateTags, mergeTags } from "../core/tagGenerator";
+import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
+import { IndexingOrchestrator } from "../logic/orchestrators/IndexingOrchestrator";
+import { VectorSyncManager } from "../logic/orchestrators/VectorSyncManager";
 
 const errorHandler = createModuleErrorHandler("useKbVectorSync");
+const logger = createModuleLogger("useKbVectorSync");
+const adapter = new TauriBackendAdapter();
 
 export function useKbVectorSync() {
   const store = useKnowledgeBaseStore();
   const notify = useNotification();
+  const orchestrator = new IndexingOrchestrator(adapter, {
+    requestSettings: store.config.embeddingRequestSettings,
+  });
+  const syncManager = new VectorSyncManager(adapter, orchestrator);
 
   /**
    * 批量更新向量
    */
-  async function updateVectors(
-    kbIds?: string[],
-    entryIds?: string[],
-    options: { customComboId?: string } = {}
-  ) {
-    if (!store.activeBaseId || !store.activeBaseMeta) return;
+  async function updateVectors(kbIds?: string[], entryIds?: string[], options: { customComboId?: string } = {}) {
     const comboId = options.customComboId || store.config.defaultEmbeddingModel;
     if (!comboId) {
       customMessage.warning("请先在设置中配置默认 Embedding 模型");
@@ -38,49 +42,24 @@ export function useKbVectorSync() {
       return;
     }
 
-    // 1. 收集任务
-    const allPendingTasks: { kbId: string; entries: any[] }[] = [];
-    let totalPending = 0;
-
-    if (entryIds && store.activeBaseId && store.activeBaseMeta) {
-      const targets = store.activeBaseMeta.entries.filter((e) => entryIds.includes(e.id));
-      if (targets.length > 0) {
-        allPendingTasks.push({ kbId: store.activeBaseId, entries: targets });
-        totalPending = targets.length;
-      }
-    } else if (kbIds) {
-      for (const id of kbIds) {
-        const meta =
-          id === store.activeBaseId
-            ? store.activeBaseMeta
-            : await kbStorage.loadBaseMeta(id, pureModelId);
-        if (!meta) continue;
-        const pending = meta.entries.filter((e) => {
-          return e.vectorStatus !== "ready" || !e.vectorizedModels?.includes(pureModelId);
-        });
-        if (pending.length > 0) {
-          allPendingTasks.push({ kbId: id, entries: pending });
-          totalPending += pending.length;
-        }
-      }
-    } else if (store.activeBaseId && store.activeBaseMeta) {
-      const pending = store.activeBaseMeta.entries.filter((e) => {
-        return e.vectorStatus !== "ready" || !e.vectorizedModels?.includes(pureModelId);
-      });
-      if (pending.length > 0) {
-        allPendingTasks.push({ kbId: store.activeBaseId, entries: pending });
-        totalPending = pending.length;
-      }
+    // 1. 收集任务 (使用 Logic 层能力)
+    let missingMap: [string, string][] = [];
+    if (entryIds && store.activeBaseId) {
+      missingMap = entryIds.map((id) => [store.activeBaseId!, id]);
+    } else {
+      const targetKbIds = kbIds || (store.activeBaseId ? [store.activeBaseId] : []);
+      if (targetKbIds.length === 0) return;
+      const coverage = await syncManager.checkCoverage({ kbIds: targetKbIds, modelId: pureModelId });
+      missingMap = coverage.missingMap;
     }
 
-    if (totalPending === 0) {
-      // 如果是手动触发才提示，自动触发不提示
+    if (missingMap.length === 0) {
       if (!entryIds) customMessage.info("所有条目已是最新向量化状态");
       return;
     }
 
     store.indexingProgress = {
-      total: totalPending,
+      total: missingMap.length,
       current: 0,
       isIndexing: true,
       shouldStop: false,
@@ -88,71 +67,29 @@ export function useKbVectorSync() {
     };
 
     try {
-      for (const task of allPendingTasks) {
-        if (!store.indexingProgress.isIndexing || store.indexingProgress.shouldStop) break;
+      await syncManager.syncMissingVectors({
+        missingMap,
+        modelId: pureModelId,
+        profile,
+        onProgress: (p) => {
+          store.indexingProgress.current = p.current;
+        },
+        shouldStop: () => store.indexingProgress.shouldStop,
+      });
 
-        // 1. 加载所有完整的 Entry 内容
-        const fullEntries: any[] = [];
-        for (const entryMeta of task.entries) {
-          const fullEntry = await kbStorage.loadEntry(task.kbId, entryMeta.id, pureModelId);
-          if (fullEntry) fullEntries.push(fullEntry);
-        }
-
-        if (fullEntries.length === 0) continue;
-
-        // 2. 调用批量同步逻辑
-        await syncEntriesVectors({
-          kbId: task.kbId,
-          entries: fullEntries,
-          comboId,
-          profile,
-          requestSettings: store.config.embeddingRequestSettings,
-          shouldStop: () => store.indexingProgress.shouldStop,
-          onProgress: async (processed, failed) => {
-            if (processed > 0) {
-              store.indexingProgress.current += processed;
-              // 重新加载元数据以同步状态 (因为后端 invoke 已经更新了磁盘)
-              const meta =
-                task.kbId === store.activeBaseId
-                  ? store.activeBaseMeta
-                  : await kbStorage.loadBaseMeta(task.kbId, pureModelId);
-
-              if (meta && task.kbId === store.activeBaseId) {
-                // 更新 UI 状态
-                await store.validateVectorStatus();
-              }
-            }
-
-            if (failed) {
-              failed.forEach((f) => {
-                store.indexingProgress.failedDetails.set(f.id, f.reason);
-                store.failedIds.add(f.id);
-                // 即使失败也算作已处理，推进进度
-                store.indexingProgress.current++;
-              });
-            }
-          },
+      if (store.indexingProgress.shouldStop) {
+        notify.warning("进度已手动停止", `共处理 ${store.indexingProgress.current} 项`);
+      } else {
+        notify.success("向量化任务全部完成", `成功补齐了 ${store.indexingProgress.total} 项索引。`, {
+          source: "knowledge-base",
         });
       }
-
-      if (store.indexingProgress.failedDetails.size > 0) {
-        notify.warning(
-          "向量化任务完成 (含失败项)",
-          `共处理 ${store.indexingProgress.total} 项，其中 ${store.indexingProgress.failedDetails.size} 项失败。请检查条目内容是否超长或 API 配置。`,
-          { source: "knowledge-base" }
-        );
-      } else {
-        notify.success(
-          "向量化任务全部完成",
-          `成功补齐了 ${store.indexingProgress.total} 项索引。`,
-          {
-            source: "knowledge-base",
-          }
-        );
-      }
+    } catch (e) {
+      errorHandler.error(e, "向量同步任务执行异常");
     } finally {
       store.indexingProgress.isIndexing = false;
-      await store.loadBases();
+      await store.validateVectorStatus();
+      await store.updateGlobalStats(true);
     }
   }
 
@@ -163,7 +100,6 @@ export function useKbVectorSync() {
     if (store.indexingProgress.isIndexing) return;
     const kbIds = store.bases.map((b) => b.id);
     await updateVectors(kbIds);
-    customMessage.success("全库向量化任务已提交");
   }
 
   /**
@@ -172,42 +108,27 @@ export function useKbVectorSync() {
   async function batchVectorizeTags(kbIds: string[]) {
     if (kbIds.length === 0) return;
     const comboId = store.config.defaultEmbeddingModel;
-    if (!comboId) {
-      customMessage.warning("请先在设置中配置默认 Embedding 模型");
-      return;
-    }
+    if (!comboId) return;
 
     const [profileId] = comboId.split(":");
     const { profiles } = useLlmProfiles();
     const profile = profiles.value.find((p) => p.id === profileId);
-    if (!profile) {
-      customMessage.error("未找到对应的模型配置 Profile");
-      return;
-    }
+    if (!profile) return;
 
     const allTags = new Set<string>();
     const pureModelId = getPureModelId(comboId);
+
+    // 收集所有标签
     for (const id of kbIds) {
-      const meta =
-        id === store.activeBaseId
-          ? store.activeBaseMeta
-          : await kbStorage.loadBaseMeta(id, pureModelId);
+      const meta = await adapter.loadBaseMeta(id, pureModelId);
       if (!meta) continue;
-      meta.entries.forEach((entry) => {
-        if (entry.tags) {
-          entry.tags.forEach((t) => allTags.add(t));
-        }
-      });
+      meta.entries.forEach((e) => e.tags?.forEach((t) => allTags.add(t)));
     }
 
-    if (allTags.size === 0) {
-      customMessage.info("选定的知识库中没有标签");
-      return;
-    }
+    if (allTags.size === 0) return;
 
-    const tags = Array.from(allTags);
     store.indexingProgress = {
-      total: tags.length,
+      total: allTags.size,
       current: 0,
       isIndexing: true,
       shouldStop: false,
@@ -215,21 +136,19 @@ export function useKbVectorSync() {
     };
 
     try {
-      // syncGlobalTags 内部已经实现了基于 batchSize 的分批和并发处理
-      await syncGlobalTags({
-        tags,
-        comboId,
+      await orchestrator.syncTags({
+        tags: Array.from(allTags),
+        modelId: pureModelId,
         profile,
-        requestSettings: store.config.embeddingRequestSettings,
         shouldStop: () => store.indexingProgress.shouldStop,
         onProgress: (processed) => {
           store.indexingProgress.current += processed;
         },
       });
-      store.indexingProgress.current = tags.length;
-      customMessage.success(`标签向量化完成，共处理 ${tags.length} 个标签`);
+      customMessage.success("标签池向量同步任务已完成");
     } finally {
       store.indexingProgress.isIndexing = false;
+      await store.updateGlobalStats(true);
     }
   }
 
@@ -245,28 +164,17 @@ export function useKbVectorSync() {
       return;
     }
 
-    const profileId = getProfileId(config.modelId);
     const { profiles } = useLlmProfiles();
     const { sendRequest } = useLlmRequest();
-    const profile = profiles.value.find((p) => p.id === profileId);
+    const profile = profiles.value.find((p) => p.id === getProfileId(config.modelId));
+    if (!profile) return;
 
-    if (!profile) {
-      customMessage.error("未找到对应的模型配置 Profile");
-      return;
-    }
+    const tasks = entryIds.filter((id) => {
+      const entry = store.activeBaseMeta!.entries.find((e) => e.id === id);
+      return entry && (options.force || !entry.tags || entry.tags.length === 0);
+    });
 
-    const tasks: string[] = [];
-    for (const id of entryIds) {
-      const entry = store.activeBaseMeta.entries.find((e) => e.id === id);
-      if (!entry) continue;
-      if (!options.force && entry.tags && entry.tags.length > 0) continue;
-      tasks.push(id);
-    }
-
-    if (tasks.length === 0) {
-      customMessage.info("没有需要生成标签的条目");
-      return;
-    }
+    if (tasks.length === 0) return;
 
     store.indexingProgress = {
       total: tasks.length,
@@ -283,22 +191,14 @@ export function useKbVectorSync() {
       const workers = Array(Math.min(maxConcurrent, queue.length))
         .fill(null)
         .map(async () => {
-          while (
-            queue.length > 0 &&
-            store.indexingProgress.isIndexing &&
-            !store.indexingProgress.shouldStop
-          ) {
+          while (queue.length > 0 && !store.indexingProgress.shouldStop) {
             const id = queue.shift();
             if (!id) break;
 
-            const modelId = getPureModelId(store.config.defaultEmbeddingModel);
-            const fullEntry = await kbStorage.loadEntry(store.activeBaseId!, id, modelId);
-            if (!fullEntry || !fullEntry.content) {
-              store.indexingProgress.current++;
-              continue;
-            }
-
             try {
+              const fullEntry = await adapter.loadEntry(store.activeBaseId!, id);
+              if (!fullEntry || !fullEntry.content) continue;
+
               const newTags = await performGenerateTags({
                 content: fullEntry.content,
                 config,
@@ -307,36 +207,30 @@ export function useKbVectorSync() {
               });
 
               const merged = mergeTags(fullEntry.tags || [], newTags);
+              const updated = { ...fullEntry, tags: merged, updatedAt: Date.now() };
 
-              // 这里我们需要一个 updateEntry 的逻辑，为了避免循环依赖，我们直接在这里实现简易版或者通过 store
-              // 考虑到 updateEntry 逻辑较重，我们直接调用后端 invoke
-              const updated: any = { ...fullEntry, tags: merged, updatedAt: Date.now() };
               await kbStorage.saveEntry(store.activeBaseId!, updated);
 
-              // 更新元数据
+              // 同步 UI 状态
               const idx = store.activeBaseMeta!.entries.findIndex((e) => e.id === id);
               if (idx !== -1) {
-                store.activeBaseMeta!.entries[idx].tags = merged.map((t) =>
-                  typeof t === "string" ? t : t.name
-                );
+                store.activeBaseMeta!.entries[idx].tags = merged.map((t) => (typeof t === "string" ? t : t.name));
                 store.activeBaseMeta!.entries[idx].updatedAt = updated.updatedAt;
-                await store.syncBaseMeta();
               }
               store.entriesCache.set(id, updated);
             } catch (e) {
-              errorHandler.handle(e, {
-                userMessage: `条目 [${fullEntry.key}] 标签生成失败`,
-                showToUser: false,
-              });
+              logger.error(`条目[${id}]生成标签失败`, e);
+            } finally {
+              store.indexingProgress.current++;
             }
-            store.indexingProgress.current++;
           }
         });
 
       await Promise.all(workers);
-      customMessage.success(`标签生成完成: ${store.indexingProgress.current}/${tasks.length}`);
+      customMessage.success("标签批量生成任务结束");
     } finally {
       store.indexingProgress.isIndexing = false;
+      await store.syncBaseMeta();
       await store.loadBases();
     }
   }

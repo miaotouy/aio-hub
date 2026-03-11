@@ -17,11 +17,15 @@ import { DEFAULT_WORKSPACE_CONFIG, getKnowledgeSettingsConfig } from "../config"
 import { cloneDeep } from "lodash-es";
 import { kbStorage, type WorkspaceData } from "../utils/kbStorage";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
-import { performVectorSearch } from "../core/kbIndexer";
 import { vectorCacheManager } from "../utils/vectorCache";
 import { preprocessQuery } from "../utils/queryPreProcessor";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmProfile } from "@/types/llm-profiles";
+import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
+import { SearchOrchestrator } from "../logic/orchestrators/SearchOrchestrator";
+
+const adapter = new TauriBackendAdapter();
+const searchOrchestrator = new SearchOrchestrator(adapter);
 
 const errorHandler = createModuleErrorHandler("knowledge-base-store");
 const logger = createModuleLogger("knowledge-base-store");
@@ -210,13 +214,13 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
         await this.loadBases();
 
         // 2. 后端初始化目录结构 (同步，很快)
-        await invoke("kb_initialize");
+        await adapter.initialize();
 
         // 3. 加载引擎列表 (同步，很快)
         await this.loadEngines();
 
         // 4. 后端预热 (异步，不阻塞) - 在后台加载完整数据
-        invoke("kb_warmup").catch((e) => {
+        adapter.warmup().catch((e) => {
           errorHandler.error(e, "后台预热失败", { showToUser: false });
         });
       } catch (e) {
@@ -336,32 +340,31 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
         try {
           const startTime = Date.now();
-          // 使用预处理后的查询生成或获取缓存的查询向量
           const modelId = getPureModelId(comboId);
+          // 使用预处理后的查询生成或获取缓存的查询向量
           const vector = await vectorCacheManager.getVector(cleanedQuery, profile, modelId);
 
-          const results = await performVectorSearch({
-            kbId: this.activeBaseId,
+          // 调用编排器执行搜索流程
+          const results = await searchOrchestrator.search({
+            kbIds: [this.activeBaseId],
             query: cleanedQuery,
-            comboId,
+            engineId,
+            modelId,
             profile,
-            topK: limit,
-            requestSettings: this.config.embeddingRequestSettings,
+            limit,
+            vector_payload: vector || undefined,
             extraFilters: {
-              engineId,
               texture: this.searchSettings.texture,
               refractionIndex: this.searchSettings.refractionIndex,
               requiredTags: [...this.searchSettings.requiredTags, ...matchedTags],
               enabledOnly: true,
             },
-            vector_payload: vector,
+            skipPrep: false, // 自动处理环境准备
           });
 
           const totalDuration = Date.now() - startTime;
-          logger.info("向量搜索整体流程完成", {
+          logger.info("向量搜索流程已通过编排器完成", {
             originalQuery: query,
-            cleanedQuery,
-            matchedTags,
             count: results.length,
             duration: `${totalDuration}ms`,
           });
@@ -374,7 +377,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
       } else {
         // 关键词搜索
         try {
-          return await invoke<any[]>("kb_search", {
+          return await adapter.search({
             query: cleanedQuery,
             filters: {
               kbIds: [this.activeBaseId],
@@ -429,11 +432,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       try {
         // 直接从后端加载带模型匹配的元数据
-        // 这比 kb_check_vector_coverage 更快，因为它利用了 meta.json 中的缓存和动态匹配逻辑
-        const meta = await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", {
-          kbId: this.activeBaseId,
-          modelId: modelId,
-        });
+        const meta = await adapter.loadBaseMeta(this.activeBaseId, modelId);
 
         if (meta) {
           this.activeBaseMeta = meta;
@@ -444,7 +443,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
             }
           });
           this.vectorizedIds = newVectorizedIds;
-          logger.info(`向量状态校验完成: ${this.vectorizedIds.size} 项已就绪 (基于模型列表匹配)`);
+          logger.info(`向量状态校验完成: ${this.vectorizedIds.size} 项已就绪`);
         }
       } catch (e) {
         logger.warn("校验向量状态失败", e);
@@ -461,7 +460,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       logger.info(`[STATS] 开始批量加载所有库的向量数据: model=${modelId}`);
       // 并行加载，提高效率
-      await Promise.allSettled(this.bases.map((base) => invoke("kb_load_model_vectors", { kbId: base.id, modelId })));
+      await Promise.allSettled(this.bases.map((base) => adapter.loadModelVectors(base.id, modelId)));
     },
 
     /**

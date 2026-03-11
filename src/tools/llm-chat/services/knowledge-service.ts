@@ -6,10 +6,14 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { SearchResult } from "../../knowledge-base/types/search";
-import { knowledgeSearchManager } from "../../knowledge-base/core/KnowledgeSearchManager";
+import { TauriBackendAdapter } from "../../knowledge-base/logic/adapters/BackendAdapter";
+import { SearchOrchestrator } from "../../knowledge-base/logic/orchestrators/SearchOrchestrator";
 
 const logger = createModuleLogger("llm-chat/knowledge-service");
 const errorHandler = createModuleErrorHandler("llm-chat/knowledge-service");
+
+const adapter = new TauriBackendAdapter();
+const searchOrchestrator = new SearchOrchestrator(adapter, {});
 
 /**
  * 执行知识库检索
@@ -34,15 +38,18 @@ export async function searchKnowledge(params: {
           tags: params.tags,
         });
 
-        const results = await knowledgeSearchManager.searchWithVector({
+        const results = await searchOrchestrator.search({
           query: params.query,
-          vector: params.vector,
-          kbIds: params.kbIds,
-          tags: params.tags,
-          limit: params.limit,
-          minScore: params.minScore,
-          engineId: params.engineId,
+          kbIds: params.kbIds || [],
+          engineId: params.engineId || "keyword",
           modelId: params.modelId,
+          extraFilters: {
+            requiredTags: params.tags,
+            minScore: params.minScore,
+          },
+          limit: params.limit,
+          vector_payload: params.vector,
+          skipPrep: true, // 外部调用跳过环境准备
         });
 
         logger.debug("知识库检索完成", { count: results.length });

@@ -1,13 +1,29 @@
 import { ref } from "vue";
-import { knowledgeSearchManager } from "../core/KnowledgeSearchManager";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { SearchResult } from "../types/search";
+import { type SearchResult } from "../types/search";
 import { debounce } from "lodash-es";
+import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
+import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
+import { SearchOrchestrator, type CoverageData } from "../logic/orchestrators/SearchOrchestrator";
+import { IndexingOrchestrator } from "../logic/orchestrators/IndexingOrchestrator";
+import { VectorSyncManager } from "../logic/orchestrators/VectorSyncManager";
+
+const adapter = new TauriBackendAdapter();
 
 export function useKnowledgeSearchManager() {
   const kbStore = useKnowledgeBaseStore();
-  const { enabledProfiles } = useLlmProfiles();
+  const { profiles } = useLlmProfiles();
+
+  // 初始化编排器链
+  const indexOrchestrator = new IndexingOrchestrator(adapter, {
+    requestSettings: kbStore.config.embeddingRequestSettings,
+  });
+  const syncManager = new VectorSyncManager(adapter, indexOrchestrator);
+  const searchOrchestrator = new SearchOrchestrator(adapter, {
+    requestSettings: kbStore.config.embeddingRequestSettings,
+    syncManager,
+  });
 
   const results = ref<SearchResult[]>([]);
   const loading = ref(false);
@@ -24,7 +40,7 @@ export function useKnowledgeSearchManager() {
     extraFilters?: Record<string, any>;
     skipCoverageCheck?: boolean;
     // UI 交互回调
-    onCoverageRequired?: (data: any) => Promise<"cancel" | "fill" | "ignore">;
+    onCoverageRequired?: (data: CoverageData) => Promise<"cancel" | "fill" | "ignore">;
     onProgress?: (current: number, total: number) => void;
   }) => {
     const {
@@ -35,7 +51,6 @@ export function useKnowledgeSearchManager() {
       extraFilters,
       skipCoverageCheck = false,
       onCoverageRequired,
-      onProgress,
     } = params;
 
     if (!query.trim()) {
@@ -47,7 +62,11 @@ export function useKnowledgeSearchManager() {
     lastQuery.value = query;
 
     try {
-      // 这里的 extraFilters 优先级：外部传入的参数 > 全局配置
+      const modelId = getPureModelId(embeddingModel);
+      const profileId = getProfileId(embeddingModel);
+      const profile = profiles.value.find((p) => p.id === profileId);
+
+      // 组装动态参数
       const finalExtraFilters = {
         texture: kbStore.config.vectorIndex?.texture,
         refractionIndex: kbStore.config.vectorIndex?.refractionIndex,
@@ -56,21 +75,21 @@ export function useKnowledgeSearchManager() {
         ...(extraFilters || {}),
       };
 
-      const searchResults = await knowledgeSearchManager.search(query, {
+      const searchResults = await searchOrchestrator.search({
+        query,
         engineId,
         kbIds,
-        embeddingModel,
-        enabledProfiles: enabledProfiles.value,
+        modelId,
+        profile,
         extraFilters: finalExtraFilters,
-        skipCoverageCheck,
+        skipPrep: skipCoverageCheck,
         onCoverageRequired,
-        onProgress,
       });
 
       results.value = searchResults;
       return searchResults;
     } catch (error) {
-      // 核心错误已由 KnowledgeSearchManager 处理，这里可以做 UI 层的额外处理
+      console.error("搜索失败", error);
       throw error;
     } finally {
       loading.value = false;

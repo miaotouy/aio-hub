@@ -1,4 +1,4 @@
-import { executeWithRetry } from "./kbIndexer";
+import { executeWithRetry } from "./utils/retry";
 import { getPureModelId, getProfileId } from "../utils/kbUtils";
 import type { TagGenerationConfig, TagWithWeight } from "../types";
 import type { LlmProfile } from "@/types/llm-profiles";
@@ -54,10 +54,7 @@ export async function performGenerateTags(params: {
 /**
  * 合并新生成的标签到现有标签中（去重）
  */
-export function mergeTags(
-  existingTags: TagWithWeight[],
-  newTags: TagWithWeight[]
-): TagWithWeight[] {
+export function mergeTags(existingTags: TagWithWeight[], newTags: TagWithWeight[]): TagWithWeight[] {
   const existingNames = new Set(existingTags.map((t) => t.name));
   const filteredNew = newTags.filter((t) => t.name && !existingNames.has(t.name));
   return [...existingTags, ...filteredNew];

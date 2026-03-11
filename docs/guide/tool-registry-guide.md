@@ -146,7 +146,7 @@ public readonly settingsSchema: SettingItem[] = [
 
 Registry 类中的 Agent 方法是一个**适配层（Facade）**，不包含业务逻辑。业务逻辑应放在 `actions.ts` 或其他模块中，Registry 方法只负责：
 
-1. 接收 `Record<string, unknown>` 类型的扁平参数（来自 LLM 的 JSON）
+1. 接收 `Record<string, unknown>` 类型的扁平参数（来自 LLM 的 JSON 或其他什么工具格式的解析结果）
 2. 将参数转换为强类型的 Options 对象
 3. 调用 `actions.ts` 中的实际函数
 

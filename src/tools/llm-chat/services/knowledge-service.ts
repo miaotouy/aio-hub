@@ -6,14 +6,12 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { SearchResult } from "../../knowledge-base/types/search";
-import { TauriBackendAdapter } from "../../knowledge-base/logic/adapters/BackendAdapter";
-import { SearchOrchestrator } from "../../knowledge-base/logic/orchestrators/SearchOrchestrator";
+import { SearchOrchestrator } from "../../knowledge-base/logic/orchestrator";
 
 const logger = createModuleLogger("llm-chat/knowledge-service");
 const errorHandler = createModuleErrorHandler("llm-chat/knowledge-service");
 
-const adapter = new TauriBackendAdapter();
-const searchOrchestrator = new SearchOrchestrator(adapter, {});
+const searchOrchestrator = new SearchOrchestrator();
 
 /**
  * 执行知识库检索

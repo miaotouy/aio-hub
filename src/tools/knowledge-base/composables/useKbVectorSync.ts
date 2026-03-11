@@ -8,21 +8,20 @@ import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { kbStorage } from "../utils/kbStorage";
 import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
 import { performGenerateTags, mergeTags } from "../core/tagGenerator";
-import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
-import { IndexingOrchestrator } from "../logic/orchestrators/IndexingOrchestrator";
-import { VectorSyncManager } from "../logic/orchestrators/VectorSyncManager";
+import { IndexingOrchestrator, VectorSyncManager } from "../logic/orchestrator";
+import { invoke } from "@tauri-apps/api/core";
+import type { KnowledgeBaseMeta, Caiu } from "../types";
 
 const errorHandler = createModuleErrorHandler("useKbVectorSync");
 const logger = createModuleLogger("useKbVectorSync");
-const adapter = new TauriBackendAdapter();
 
 export function useKbVectorSync() {
   const store = useKnowledgeBaseStore();
   const notify = useNotification();
-  const orchestrator = new IndexingOrchestrator(adapter, {
+  const orchestrator = new IndexingOrchestrator({
     requestSettings: store.config.embeddingRequestSettings,
   });
-  const syncManager = new VectorSyncManager(adapter, orchestrator);
+  const syncManager = new VectorSyncManager(orchestrator);
 
   /**
    * 批量更新向量
@@ -120,7 +119,7 @@ export function useKbVectorSync() {
 
     // 收集所有标签
     for (const id of kbIds) {
-      const meta = await adapter.loadBaseMeta(id, pureModelId);
+      const meta = await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", { kbId: id, modelId: pureModelId });
       if (!meta) continue;
       meta.entries.forEach((e) => e.tags?.forEach((t) => allTags.add(t)));
     }
@@ -196,7 +195,7 @@ export function useKbVectorSync() {
             if (!id) break;
 
             try {
-              const fullEntry = await adapter.loadEntry(store.activeBaseId!, id);
+              const fullEntry = await invoke<Caiu | null>("kb_load_entry", { kbId: store.activeBaseId!, entryId: id });
               if (!fullEntry || !fullEntry.content) continue;
 
               const newTags = await performGenerateTags({

@@ -4,26 +4,23 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { type SearchResult } from "../types/search";
 import { debounce } from "lodash-es";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
-import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
-import { SearchOrchestrator, type CoverageData } from "../logic/orchestrators/SearchOrchestrator";
-import { IndexingOrchestrator } from "../logic/orchestrators/IndexingOrchestrator";
-import { VectorSyncManager } from "../logic/orchestrators/VectorSyncManager";
-
-const adapter = new TauriBackendAdapter();
+import { SearchOrchestrator, IndexingOrchestrator, VectorSyncManager, type CoverageData } from "../logic/orchestrator";
 
 export function useKnowledgeSearchManager() {
   const kbStore = useKnowledgeBaseStore();
   const { profiles } = useLlmProfiles();
 
   // 初始化编排器链
-  const indexOrchestrator = new IndexingOrchestrator(adapter, {
+  const indexOrchestrator = new IndexingOrchestrator({
     requestSettings: kbStore.config.embeddingRequestSettings,
   });
-  const syncManager = new VectorSyncManager(adapter, indexOrchestrator);
-  const searchOrchestrator = new SearchOrchestrator(adapter, {
-    requestSettings: kbStore.config.embeddingRequestSettings,
-    syncManager,
-  });
+  const syncManager = new VectorSyncManager(indexOrchestrator);
+  const searchOrchestrator = new SearchOrchestrator(
+    {
+      requestSettings: kbStore.config.embeddingRequestSettings,
+    },
+    syncManager
+  );
 
   const results = ref<SearchResult[]>([]);
   const loading = ref(false);

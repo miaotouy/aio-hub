@@ -1,6 +1,15 @@
+/**
+ * 知识库检索核心逻辑 (纯函数集合)
+ * 职责: 查询向量准备、搜索预处理
+ */
+
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { KnowledgeRequestSettings } from "../../types";
-import { generateVectors } from "../embedding/vector-generator";
+import type { KnowledgeRequestSettings } from "../types";
+import { generateVectors } from "./embedding";
+
+// ============================================================================
+// 类型定义
+// ============================================================================
 
 export interface SearchVectorPrepperParams {
   query: string;
@@ -10,9 +19,12 @@ export interface SearchVectorPrepperParams {
   requestSettings?: KnowledgeRequestSettings;
 }
 
+// ============================================================================
+// 搜索向量准备
+// ============================================================================
+
 /**
- * 准备搜索向量 (纯逻辑)
- * 用于在执行搜索前，根据查询文本内容生成或提取向量
+ * 准备搜索向量（优先使用缓存，否则生成新向量）
  */
 export async function prepareSearchVector(params: SearchVectorPrepperParams): Promise<number[]> {
   const { query, modelId, profile, vector_payload, requestSettings } = params;
@@ -22,7 +34,7 @@ export async function prepareSearchVector(params: SearchVectorPrepperParams): Pr
     return vector_payload;
   }
 
-  // 2. 生成新向量 (使用重写后的 generateVectors)
+  // 2. 生成新向量
   const response = await generateVectors({
     input: query,
     modelId,

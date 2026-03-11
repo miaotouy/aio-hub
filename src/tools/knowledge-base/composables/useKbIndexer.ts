@@ -3,15 +3,12 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { detectDimension as coreDetectDimension } from "../core/embedding/vector-generator";
+import { detectDimension as coreDetectDimension } from "../core/embedding";
 import { kbStorage } from "../utils/kbStorage";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { calculateHash } from "../utils/kbUtils";
 import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
-import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
-import { IndexingOrchestrator } from "../logic/orchestrators/IndexingOrchestrator";
-
-const adapter = new TauriBackendAdapter();
+import { IndexingOrchestrator } from "../logic/orchestrator";
 
 const errorHandler = createModuleErrorHandler("useKbIndexer");
 const logger = createModuleLogger("useKbIndexer");
@@ -20,7 +17,7 @@ export function useKbIndexer() {
   const store = useKnowledgeBaseStore();
   const { profiles } = useLlmProfiles();
 
-  const orchestrator = new IndexingOrchestrator(adapter, {
+  const orchestrator = new IndexingOrchestrator({
     requestSettings: store.config.embeddingRequestSettings,
   });
 

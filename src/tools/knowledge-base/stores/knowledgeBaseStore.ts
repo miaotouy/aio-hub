@@ -21,11 +21,9 @@ import { vectorCacheManager } from "../utils/vectorCache";
 import { preprocessQuery } from "../utils/queryPreProcessor";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmProfile } from "@/types/llm-profiles";
-import { TauriBackendAdapter } from "../logic/adapters/BackendAdapter";
-import { SearchOrchestrator } from "../logic/orchestrators/SearchOrchestrator";
+import { SearchOrchestrator } from "../logic/orchestrator";
 
-const adapter = new TauriBackendAdapter();
-const searchOrchestrator = new SearchOrchestrator(adapter);
+const searchOrchestrator = new SearchOrchestrator();
 
 const errorHandler = createModuleErrorHandler("knowledge-base-store");
 const logger = createModuleLogger("knowledge-base-store");
@@ -214,13 +212,13 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
         await this.loadBases();
 
         // 2. 后端初始化目录结构 (同步，很快)
-        await adapter.initialize();
+        await invoke("kb_initialize");
 
         // 3. 加载引擎列表 (同步，很快)
         await this.loadEngines();
 
         // 4. 后端预热 (异步，不阻塞) - 在后台加载完整数据
-        adapter.warmup().catch((e) => {
+        invoke("kb_warmup").catch((e) => {
           errorHandler.error(e, "后台预热失败", { showToUser: false });
         });
       } catch (e) {
@@ -377,7 +375,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
       } else {
         // 关键词搜索
         try {
-          return await adapter.search({
+          return await invoke<any[]>("kb_search", {
             query: cleanedQuery,
             filters: {
               kbIds: [this.activeBaseId],
@@ -432,7 +430,10 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       try {
         // 直接从后端加载带模型匹配的元数据
-        const meta = await adapter.loadBaseMeta(this.activeBaseId, modelId);
+        const meta = await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", {
+          kbId: this.activeBaseId,
+          modelId: modelId,
+        });
 
         if (meta) {
           this.activeBaseMeta = meta;
@@ -460,7 +461,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       logger.info(`[STATS] 开始批量加载所有库的向量数据: model=${modelId}`);
       // 并行加载，提高效率
-      await Promise.allSettled(this.bases.map((base) => adapter.loadModelVectors(base.id, modelId)));
+      await Promise.allSettled(this.bases.map((base) => invoke("kb_load_model_vectors", { kbId: base.id, modelId })));
     },
 
     /**

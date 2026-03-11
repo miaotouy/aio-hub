@@ -1,7 +1,42 @@
-import { executeWithRetry } from "./utils/retry";
 import { getPureModelId, getProfileId } from "../utils/kbUtils";
 import type { TagGenerationConfig, TagWithWeight } from "../types";
 import type { LlmProfile } from "@/types/llm-profiles";
+
+/**
+ * 简单的重试执行器（用于 LLM 请求）
+ */
+async function executeWithRetry<T>(
+  task: () => Promise<T>,
+  options: {
+    requestSettings?: TagGenerationConfig["requestSettings"];
+    label?: string;
+  } = {}
+): Promise<T> {
+  const { requestSettings, label = "Task" } = options;
+  const maxRetries = requestSettings?.maxRetries ?? 2;
+  const retryInterval = requestSettings?.retryInterval ?? 3000;
+  const timeout = requestSettings?.timeout ?? 60000;
+
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryInterval));
+      }
+
+      return await Promise.race([
+        task(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${label} 请求超时`)), timeout)),
+      ]);
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxRetries) break;
+    }
+  }
+
+  throw lastError || new Error(`${label} 失败`);
+}
 
 /**
  * 为单个条目生成标签的底层逻辑

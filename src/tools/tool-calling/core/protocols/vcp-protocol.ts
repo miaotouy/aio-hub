@@ -66,24 +66,14 @@ function buildParamDescription(param: MethodParameter): string {
 
 export function buildMethodDescription(
   method: MethodMetadata,
-  toolId: string,
-  options?: { isVcpChannel?: boolean }
+  toolId: string
 ): string {
   const command = pickCommandName(method);
 
-  // 统一转换：将所有连字符转为下划线，符合 VCP 协议习惯
-  const normalizedToolId = toolId.replace(/-/g, "_");
-  const methodName = method.name.replace(/-/g, "_");
-
   const lines: string[] = [];
 
-  // 如果是 VCP 渠道（分布式），使用扁平化的 toolId_methodName 格式作为 tool_name
-  if (options?.isVcpChannel) {
-    lines.push(buildArgBlock("tool_name", `${normalizedToolId}_${methodName}`));
-  } else {
-    lines.push(buildArgBlock("tool_name", normalizedToolId));
-  }
-
+  // VCP 协议支持 tool_name 和 command 分离，无论是本地还是分布式都使用相同格式
+  lines.push(buildArgBlock("tool_name", toolId));
   lines.push(buildArgBlock("command", command));
 
   // 每个参数展开为独立的 VCP 字段行，而非 JSON 序列化
@@ -128,14 +118,10 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
     }
   }
 
-  const rawToolId = allParams.tool_name?.trim();
-  if (!rawToolId) {
+  const toolId = allParams.tool_name?.trim();
+  if (!toolId) {
     errors.push("缺少关键字段: tool_name");
   }
-
-  // 逆向转换 toolId: directory_tree -> directory-tree
-  // 因为在提示词生成时我们将连字符转为了下划线以兼容 VCP 协议
-  const toolId = rawToolId?.replace(/_/g, "-");
 
   const baseRequestId = allParams.request_id?.trim() || `req_${requestIndex + 1}`;
 
@@ -162,10 +148,9 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
 
   // 如果没有索引参数，按单条处理
   if (indices.length === 0) {
-    const command = commonArgs.command?.trim();
-    const finalToolName = toolId ? (command ? `${toolId}_${command}` : toolId) : "unknown_tool";
+    // VCP 协议支持 tool_name 和 command 分离，保留 command 在 args 中传递给执行器
     const args = { ...commonArgs };
-    delete args.command;
+    const finalToolName = toolId || "unknown_tool";
 
     return [
       {
@@ -184,11 +169,10 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   // 批量拆分处理
   return indices.map((index) => {
     const groupArgs = indexedGroups[index];
-    const command = groupArgs.command?.trim() || commonArgs.command?.trim();
-    const finalToolName = toolId ? (command ? `${toolId}_${command}` : toolId) : "unknown_tool";
+    const finalToolName = toolId || "unknown_tool";
 
+    // 保留 command 在 args 中
     const mergedArgs = { ...commonArgs, ...groupArgs };
-    delete mergedArgs.command;
 
     return {
       requestId: `${baseRequestId}_${index}`,
@@ -206,7 +190,7 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
 export class VcpToolCallingProtocol implements ToolCallingProtocol {
   public readonly id = "vcp";
 
-  public generateToolDefinitions(input: ToolDefinitionInput[], options?: { isVcpChannel?: boolean }): string {
+  public generateToolDefinitions(input: ToolDefinitionInput[]): string {
     const sections: string[] = [];
 
     for (const tool of input) {
@@ -226,7 +210,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       const methodBlocks: string[] = [];
       for (const method of toolMethods) {
         const description = method.description?.trim() || "无描述";
-        const body = buildMethodDescription(method, tool.toolId, options);
+        const body = buildMethodDescription(method, tool.toolId);
 
         const block = [
           `指令描述：${description}`,
@@ -344,9 +328,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
    */
   public formatToolRequest(toolId: string, command: string, args: Record<string, any>): string {
     const lines = [TOOL_REQUEST_START];
-    // 转换 toolId: directory-tree -> directory_tree 以符合协议规范
-    const normalizedToolId = toolId.replace(/-/g, "_");
-    lines.push(buildArgBlock("tool_name", normalizedToolId) + ",");
+    lines.push(buildArgBlock("tool_name", toolId) + ",");
     lines.push(buildArgBlock("command", command) + ",");
 
     const argKeys = Object.keys(args);

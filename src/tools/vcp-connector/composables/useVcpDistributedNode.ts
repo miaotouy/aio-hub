@@ -74,7 +74,8 @@ export function useVcpDistributedNode() {
       return method.agentCallable === true || method.distributedExposed === true;
     });
 
-    const manifest: VcpToolManifest[] = [];
+    // 按 toolId 分组收集方法
+    const toolMethodsMap = new Map<string, any[]>();
 
     // 1. 处理自动发现的
     if (autoRegister) {
@@ -83,94 +84,125 @@ export function useVcpDistributedNode() {
           const fullId = `${tool.toolId}:${method.name}`;
           // 排除掉在黑名单中的工具
           if (!disabledIds.has(fullId)) {
-            manifest.push(convertToManifest(tool.toolId, method));
+            if (!toolMethodsMap.has(tool.toolId)) {
+              toolMethodsMap.set(tool.toolId, []);
+            }
+            toolMethodsMap.get(tool.toolId)!.push(method);
           }
         }
       }
     }
 
-    // 2. 处理内置工具 (强制暴露)
-    for (const tool of BUILTIN_VCP_TOOLS) {
-      if (!manifest.some((m) => m.name === tool.name)) {
-        manifest.push(tool);
-      }
-    }
-
-    // 3. 处理手动指定的 (exposedToolIds)
-    // 避免重复
-    const currentIds = new Set(manifest.map((m) => m.name));
+    // 2. 处理手动指定的 (exposedToolIds)
     for (const fullId of exposedIds) {
-      if (currentIds.has(fullId)) continue;
-
       const [toolId, methodName] = fullId.split(":");
       try {
         const registry = toolRegistryManager.getRegistry(toolId);
         const metadata = registry.getMetadata?.();
         const method = metadata?.methods.find((m) => m.name === methodName);
         if (method) {
-          manifest.push(convertToManifest(toolId, method));
+          if (!toolMethodsMap.has(toolId)) {
+            toolMethodsMap.set(toolId, []);
+          }
+          // 避免重复添加
+          const methods = toolMethodsMap.get(toolId)!;
+          if (!methods.some((m) => m.name === method.name)) {
+            methods.push(method);
+          }
         }
       } catch (e) {
         logger.warn(`Failed to resolve manual tool: ${fullId}`);
       }
     }
 
+    // 3. 转换为 VcpToolManifest（每个 toolId 一个 manifest，包含多个 command）
+    const manifest: VcpToolManifest[] = [];
+    for (const [toolId, methods] of toolMethodsMap.entries()) {
+      manifest.push(convertToManifest(toolId, methods));
+    }
+
+    // 4. 处理内置工具 (强制暴露)
+    for (const tool of BUILTIN_VCP_TOOLS) {
+      if (!manifest.some((m) => m.name === tool.name)) {
+        manifest.push(tool);
+      }
+    }
+
     return manifest;
   }
-  function convertToManifest(toolId: string, method: any): VcpToolManifest {
-    const normalizedToolId = toolId.replace(/-/g, "_");
-    const normalizedMethodName = method.name.replace(/-/g, "_");
-    const fullToolName = `${normalizedToolId}_${normalizedMethodName}`;
-    const commandName = method.protocolConfig?.vcpCommand?.trim() || method.name;
 
-    // 使用 VCP 协议统一的描述生成逻辑
-    const body = buildMethodDescription(method, toolId);
-    const description = [method.description || "无描述", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END].join("\n");
+  /**
+   * 将一个工具的多个方法转换为单个 VcpToolManifest
+   */
+  function convertToManifest(toolId: string, methods: any[]): VcpToolManifest {
+    // 构建所有命令的 invocationCommands
+    const invocationCommands = methods.map((method) => {
+      const commandName = method.protocolConfig?.vcpCommand?.trim() || method.name;
 
-    // 构建调用示例
-    const exampleArgs = method.parameters.map((p: any) => {
-      const val = p.defaultValue !== undefined ? String(p.defaultValue) : p.type === "string" ? `[${p.name}]` : "0";
-      return `${p.name}:「始」${val}「末」`;
+      // 使用 VCP 协议统一的描述生成逻辑
+      const body = buildMethodDescription(method, toolId);
+      const description = [method.description || "无描述", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END].join("\n");
+
+      // 构建调用示例（使用标准的 tool_name + command 格式）
+      const exampleArgs = method.parameters.map((p: any) => {
+        const val = p.defaultValue !== undefined ? String(p.defaultValue) : p.type === "string" ? `[${p.name}]` : "0";
+        return `${p.name}:「始」${val}「末」`;
+      });
+
+      const example = [
+        "<<<[TOOL_REQUEST]>>>",
+        `tool_name:「始」${toolId}「末」,`,
+        `command:「始」${commandName}「末」,`,
+        ...exampleArgs.map((line: string, i: number) => (i === exampleArgs.length - 1 ? line : `${line},`)),
+        "<<<[END_TOOL_REQUEST]>>>",
+      ].join("\n");
+
+      return {
+        command: commandName,
+        description: description,
+        example: example,
+      };
     });
 
-    const example = [
-      "<<<[TOOL_REQUEST]>>>",
-      `tool_name:「始」${fullToolName}「末」,`,
-      `command:「始」${method.name}「末」,`,
-      ...exampleArgs.map((line: string, i: number) => (i === exampleArgs.length - 1 ? line : `${line},`)),
-      "<<<[END_TOOL_REQUEST]>>>",
-    ].join("\n");
+    // 合并所有方法的参数定义
+    const allParameters = new Map<string, any>();
+    const allRequired = new Set<string>();
+
+    for (const method of methods) {
+      for (const p of method.parameters) {
+        if (!allParameters.has(p.name)) {
+          allParameters.set(p.name, {
+            type: p.type === "string" ? "string" : p.type === "number" ? "number" : "object",
+            description: p.description || "",
+          });
+        }
+        if (p.required !== false) {
+          allRequired.add(p.name);
+        }
+      }
+    }
+
+    // 使用第一个方法的信息作为工具的主要描述
+    const primaryMethod = methods[0];
 
     return {
-      name: fullToolName,
-      displayName: `[AIO] ${method.displayName || method.name}`,
-      description: method.description || "",
+      name: toolId, // 使用 toolId 作为工具名称
+      displayName: `[AIO] ${toolId}`,
+      description: primaryMethod.description || `AIO 工具: ${toolId}`,
       pluginType: "hybridservice",
       entryPoint: {
-        script: `${method.name}.js`,
+        script: `${toolId}.js`,
       },
       communication: {
         protocol: "direct",
       },
       capabilities: {
-        invocationCommands: [
-          {
-            command: commandName,
-            description: description,
-            example: example,
-          },
-        ],
+        invocationCommands: invocationCommands,
       },
       parameters: {
         type: "object",
-        properties: method.parameters.reduce((acc: any, p: any) => {
-          acc[p.name] = {
-            type: p.type === "string" ? "string" : p.type === "number" ? "number" : "object",
-            description: p.description || "",
-          };
-          return acc;
-        }, {} as any),
-        required: method.parameters.filter((p: any) => p.required !== false).map((p: any) => p.name),
+        properties: Object.fromEntries(allParameters),
+        required: Array.from(allRequired),
       },
     };
   }

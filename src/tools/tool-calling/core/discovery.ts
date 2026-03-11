@@ -198,9 +198,7 @@ export function createToolDiscoveryService(): {
       }),
     }));
 
-    const definitions = protocolImpl.generateToolDefinitions(protocolInput, {
-      isVcpChannel: options.config.protocol === "vcp", // 这里的逻辑可以更精细，但目前先这样
-    });
+    const definitions = protocolImpl.generateToolDefinitions(protocolInput);
     const instructions = protocolImpl.generateUsageInstructions();
 
     const prompt = ["## 可用工具列表", definitions, "", instructions].join("\n");

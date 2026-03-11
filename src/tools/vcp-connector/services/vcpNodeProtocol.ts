@@ -69,32 +69,19 @@ export class VcpNodeProtocol {
         return;
       }
 
-      // 1. 解析 toolName (支持 toolId:methodName 或 toolId_methodName 格式)
-      let rawToolId = "";
-      let rawMethodName = "";
-
-      if (toolName.includes(":")) {
-        [rawToolId, rawMethodName] = toolName.split(":");
-      } else if (toolName.includes("_")) {
-        // 优先支持冒号，如果没有冒号则尝试下划线（兼容 VCP 拼接习惯）
-        // 在扁平化下划线模式下，格式通常是 plugin_name_method_name
-        const lastUnderscoreIndex = toolName.lastIndexOf("_");
-        rawToolId = toolName.substring(0, lastUnderscoreIndex);
-        rawMethodName = toolName.substring(lastUnderscoreIndex + 1);
-      } else {
-        // 如果 toolName 中没有分隔符，尝试从 toolArgs.command 中提取 methodName（兼容 VCP 的分布式调用格式）
-        rawToolId = toolName;
-        rawMethodName = (toolArgs?.command as string) || "";
-        if (rawMethodName) {
-          logger.debug(`Extracted methodName from toolArgs.command: ${rawMethodName}`);
-        }
-      }
+      // 1. 解析 toolName 和 methodName
+      // VCP 协议标准模式：tool_name 为工具 ID，command 在 toolArgs 中传递
+      const rawToolId = toolName;
+      const rawMethodName = (toolArgs?.command as string) || "";
 
       if (!rawToolId || !rawMethodName) {
         throw new Error(
-          `Invalid tool name format: ${toolName}. Expected toolId:methodName or toolId_methodName, or toolArgs.command to be provided`
+          `Invalid tool call: toolName="${toolName}", command="${rawMethodName}". ` +
+          `VCP protocol requires toolArgs.command to be provided.`
         );
       }
+
+      logger.debug(`Executing VCP tool: ${rawToolId}.${rawMethodName}`);
 
       // 2. 规范化并获取工具注册表
       // 分布式协议会将连字符转为下划线，这里需要尝试转回连字符格式

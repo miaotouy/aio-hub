@@ -55,14 +55,26 @@ async function executeSingleRequest(
     return buildErrorResult(request, `工具请求解析失败：${errorMessages}`, Date.now() - startedAt);
   }
 
-  const target = parseToolTarget(request.toolName);
+  // 支持两种格式：
+  // 1. 扁平化格式：toolId_methodName (旧格式，向后兼容)
+  // 2. VCP 标准格式：toolName + args.command (新格式)
+  let target = parseToolTarget(request.toolName);
 
   if (!target) {
-    return buildErrorResult(
-      request,
-      `无效 tool_name 格式：${request.toolName}，期望格式为 toolId_methodName`,
-      Date.now() - startedAt
-    );
+    // 如果不是扁平化格式，尝试从 args.command 中提取方法名
+    const command = request.args?.command as string | undefined;
+    if (command) {
+      target = {
+        toolId: request.toolName,
+        methodName: command,
+      };
+    } else {
+      return buildErrorResult(
+        request,
+        `无效 tool_name 格式：${request.toolName}。期望格式为 toolId_methodName 或提供 command 参数`,
+        Date.now() - startedAt
+      );
+    }
   }
 
   // 检查方法是否启用
@@ -155,7 +167,10 @@ async function executeSingleRequest(
     }
   }
   const agentPreset = options.config.toolSettings?.[target.toolId] ?? {};
-  const mergedArgs = { ...schemaDefaults, ...agentPreset, ...request.args };
+  
+  // 从 request.args 中移除 command 字段（如果存在），因为它已经被用于路由
+  const { command: _, ...cleanArgs } = request.args ?? {};
+  const mergedArgs = { ...schemaDefaults, ...agentPreset, ...cleanArgs };
 
   // 检查是否为异步方法
   if (methodMeta?.executionMode === "async") {

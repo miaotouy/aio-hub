@@ -251,7 +251,7 @@ const emit = defineEmits<{
           <transition name="el-zoom-in-top">
             <div v-if="expandedToolId === tool.toolId" class="methods-submenu">
               <div v-for="method in tool.methods" :key="method.name" class="method-subitem">
-                <span class="method-subname">{{ method.name }}</span>
+                <span class="method-subname">{{ method.displayName || method.name }}</span>
                 <div class="method-switches" @click.stop>
                   <el-tooltip
                     :content="

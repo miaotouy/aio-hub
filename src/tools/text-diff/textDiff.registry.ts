@@ -62,9 +62,6 @@ export default class TextDiffRegistry implements ToolRegistry {
             },
           ],
           returnType: "Promise<FileReadResult>",
-          example: `
-const result = await service.loadFile('/path/to/file.txt');
-// 返回: { content, filePath, fileName, language, success }`,
         },
         {
           name: "generatePatch",
@@ -114,14 +111,6 @@ const result = await service.loadFile('/path/to/file.txt');
             },
           ],
           returnType: "string",
-          example: `
-const result = service.generatePatch(
-  'old content',
-  'new content',
-  'old.txt',
-  'new.txt'
-);
-// 返回: { patch, success, error? }`,
         },
       ],
     };

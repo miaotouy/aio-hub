@@ -44,7 +44,6 @@ export class ToolCallingRegistry implements ToolRegistry {
           ],
           returnType: "Promise<string>",
           agentCallable: true,
-          example: 'getTaskStatus({ taskId: "task_xxx" })',
         },
         {
           name: "cancelTask",
@@ -60,7 +59,6 @@ export class ToolCallingRegistry implements ToolRegistry {
           ],
           returnType: "Promise<string>",
           agentCallable: true,
-          example: 'cancelTask({ taskId: "task_xxx" })',
         },
         {
           name: "retryTask",
@@ -76,7 +74,6 @@ export class ToolCallingRegistry implements ToolRegistry {
           ],
           returnType: "Promise<string>",
           agentCallable: true,
-          example: 'retryTask({ taskId: "task_xxx" })',
         },
         {
           name: "testAsyncTask",
@@ -104,7 +101,6 @@ export class ToolCallingRegistry implements ToolRegistry {
             cancellable: true,
             estimatedDuration: 5,
           },
-          example: "testAsyncTask({ duration: 10, shouldFail: false })",
         },
       ],
     };

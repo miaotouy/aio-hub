@@ -315,29 +315,6 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
             },
           ],
           returnType: "Promise<FormattedScanResult | null>",
-          example: `
-const result = await service.scanDirectory({
-  path: 'C:/Users/Miaomiao/Downloads',
-  namePattern: '*.tmp',
-  minAgeDays: 7,
-  minSizeMB: 10,
-  maxDepth: 2,
-  includeDetails: true
-});
-
-if (result) {
-  console.log(result.summary);
-  // "扫描完成: 找到 15 项（3 个目录，12 个文件），共 256.5 MB"
-  
-  console.log(result.details);
-  // {
-  //   totalItems: 15,
-  //   totalSize: 268931072,
-  //   totalDirs: 3,
-  //   totalFiles: 12,
-  //   items: [...]  // 仅当 includeDetails=true 时返回
-  // }
-}`,
         },
         {
           name: "cleanupItems",
@@ -360,26 +337,6 @@ if (result) {
             },
           ],
           returnType: "Promise<FormattedCleanupResult | null>",
-          example: `
-const result = await service.cleanupItems({
-  paths: [
-    'C:/Users/Miaomiao/Downloads/old-file.tmp',
-    'C:/Users/Miaomiao/Downloads/cache-folder'
-  ]
-});
-
-if (result) {
-  console.log(result.summary);
-  // "清理完成: 2 项成功，释放 50.5 MB"
-  
-  console.log(result.details);
-  // {
-  //   successCount: 2,
-  //   errorCount: 0,
-  //   freedSpace: 52953088,
-  //   errors: []
-  // }
-}`,
         },
         {
           name: "scanAndCleanup",
@@ -427,21 +384,6 @@ if (result) {
             },
           ],
           returnType: "Promise<{ scanResult: FormattedScanResult; cleanupResult: FormattedCleanupResult } | null>",
-          example: `
-const result = await service.scanAndCleanup({
-  path: '%AppData%/Code/User/globalStorage/kilocode.kilo-code/tasks',
-  namePattern: 'checkpoints',
-  minAgeDays: 7,
-  maxDepth: 2
-});
-
-if (result) {
-  console.log(result.scanResult.summary);
-  // "扫描完成: 找到 5 项（5 个目录，0 个文件），共 512 MB"
-  
-  console.log(result.cleanupResult.summary);
-  // "清理完成: 5 项成功，释放 512 MB"
-}`,
         },
       ],
     };

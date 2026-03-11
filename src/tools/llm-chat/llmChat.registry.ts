@@ -245,21 +245,12 @@ export default class LlmChatRegistry implements ToolRegistry {
             },
           ],
           returnType: "InputOperationResult",
-          example: `
-// 追加内容
-service.addContentToInput('这是新的一行');
-
-// 在开头插入内容
-service.addContentToInput('这是开头的内容', { position: 'prepend' });`,
         },
         {
           name: "getInputContent",
           description: "获取当前输入框的完整内容",
           parameters: [],
           returnType: "string",
-          example: `
-const content = service.getInputContent();
-console.log('当前输入框内容:', content);`,
         },
         {
           name: "setInputContent",
@@ -273,18 +264,12 @@ console.log('当前输入框内容:', content);`,
             },
           ],
           returnType: "InputOperationResult",
-          example: `
-service.setInputContent('完全替换为这段内容');`,
         },
         {
           name: "getInputState",
           description: "获取输入框的完整状态（推荐 Agent 使用）",
           parameters: [],
           returnType: "{ content, contentLength, attachments, attachmentCount, hasContent, hasAttachments }",
-          example: `
-const state = service.getInputState();
-console.log('输入框状态:', state);
-// 返回: { content: "...", contentLength: 123, attachments: [...], ... }`,
         },
         {
           name: "processContent",
@@ -298,14 +283,6 @@ console.log('输入框状态:', state);
             },
           ],
           returnType: "Promise<InputOperationResult>",
-          example: `
-// 将输入框内容转换为大写
-await service.processContent(content => content.toUpperCase());
-
-// 使用正则替换
-await service.processContent(content => {
-  return content.replace(/old/g, 'new');
-});`,
         },
         {
           name: "sendMessage",
@@ -325,21 +302,12 @@ await service.processContent(content => {
             },
           ],
           returnType: "Promise<void>",
-          example: `
-// 发送一条消息
-await service.sendMessage('你好，请帮我分析一下这个文件');
-
-// 在指定消息下创建新分支
-await service.sendMessage('这是新分支的内容', { parentId: 'msg-123' });`,
         },
         {
           name: "getAttachments",
           description: "获取当前附件列表",
           parameters: [],
           returnType: "Asset[]",
-          example: `
-const attachments = service.getAttachments();
-console.log('附件数量:', attachments.length);`,
         },
         {
           name: "addAssets",
@@ -353,12 +321,6 @@ console.log('附件数量:', attachments.length);`,
             },
           ],
           returnType: "number",
-          example: `
-// 添加单个
-service.addAssets([assetObject]);
-
-// 添加多个
-service.addAssets([asset1, asset2]);`,
         },
         {
           name: "addAttachmentsFromPaths",
@@ -372,11 +334,6 @@ service.addAssets([asset1, asset2]);`,
             },
           ],
           returnType: "Promise<void>",
-          example: `
-await service.addAttachmentsFromPaths([
-  '/path/to/image1.png',
-  '/path/to/document.pdf'
-]);`,
         },
         {
           name: "removeAttachment",
@@ -390,24 +347,18 @@ await service.addAttachmentsFromPaths([
             },
           ],
           returnType: "boolean",
-          example: `
-service.removeAttachment('asset-id-123');`,
         },
         {
           name: "clearAttachments",
           description: "清空所有附件（不影响文本内容）",
           parameters: [],
           returnType: "void",
-          example: `
-service.clearAttachments();`,
         },
         {
           name: "clearInput",
           description: "清空输入框和所有附件",
           parameters: [],
           returnType: "InputOperationResult",
-          example: `
-service.clearInput();`,
         },
         {
           name: "getSessions",

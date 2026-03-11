@@ -200,14 +200,6 @@ class TokenCalculatorRegistry implements ToolRegistry {
             },
           ],
           returnType: 'Promise<TokenCalculationResult>',
-          example: `
-const result = await tokenCalculatorService.calculateTokens('Hello, world!', 'gpt-4o');
-console.log(result);
-// {
-//   count: 4,
-//   isEstimated: false,
-//   tokenizerName: 'gpt4o'
-// }`,
         },
         {
           name: 'calculateTokensByTokenizer',
@@ -258,18 +250,6 @@ console.log(result);
             },
           ],
           returnType: 'Promise<TokenCalculationResult>',
-          example: `
-const result = await tokenCalculatorService.calculateMessageTokens(
-  'Describe this image',
-  'gpt-4o',
-  [imageAsset]
-);
-console.log(result);
-// {
-//   count: 355, // 文本 token + 图片 token
-//   isEstimated: false,
-//   tokenizerName: 'gpt4o'
-// }`,
         },
       ],
     };

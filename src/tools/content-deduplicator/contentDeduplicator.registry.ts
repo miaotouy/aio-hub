@@ -145,16 +145,6 @@ export default class ContentDeduplicatorRegistry implements ToolRegistry {
             },
           ],
           returnType: "Promise<FormattedDedupResult | null>",
-          example: `
-const result = await service.scanDuplicates({
-  path: 'D:/projects/my-app/src',
-  preset: 'code',
-});
-
-if (result) {
-  console.log(result.summary);
-  // "扫描 1200 个文件，发现 5 组重复（8 个冗余文件），可释放 45.2 KB"
-}`,
         },
       ],
     };

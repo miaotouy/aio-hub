@@ -33,13 +33,6 @@ class KnowledgeBaseRegistry implements ToolRegistry {
             },
           ],
           returnType: "Promise<UpsertEntryResult>",
-          example: `await knowledgeBase.upsertEntry({
-  kbName: "我的笔记",
-  key: "Vue3 基础",
-  content: "# Vue3 基础\\nVue 3 引入了 Composition API...",
-  tags: ["Vue", "前端"],
-  autoVectorize: true
-})`,
         },
         {
           name: "updateEntryContent",
@@ -62,13 +55,6 @@ class KnowledgeBaseRegistry implements ToolRegistry {
             { name: "autoVectorize", type: "boolean", description: "是否自动重新向量化", required: false },
           ],
           returnType: "Promise<UpdateEntryContentResult>",
-          example: `await knowledgeBase.updateEntryContent({
-  kbName: "我的笔记",
-  key: "Vue3 基础",
-  targetContent: "Vue 3 引入了 Composition API",
-  replaceWith: "Vue 3.5 带来了更强大的响应式系统",
-  autoVectorize: true
-})`,
         },
         {
           name: "deleteEntry",
@@ -136,12 +122,6 @@ class KnowledgeBaseRegistry implements ToolRegistry {
             { name: "sortOrder", type: "string", description: "排序顺序 (asc/desc)", required: false },
           ],
           returnType: "Promise<ListEntriesMetadataResult>",
-          example: `await knowledgeBase.listEntriesMetadata({
-  kbName: "技术文档",
-  tags: ["待整理"],
-  enabled: true,
-  limit: 100
-})`,
         },
         {
           name: "listKnowledgeBases",
@@ -159,10 +139,6 @@ class KnowledgeBaseRegistry implements ToolRegistry {
             },
           ],
           returnType: "Promise<ListKnowledgeBasesResult>",
-          example: `await knowledgeBase.listKnowledgeBases({
-  query: "技术",
-  includeStats: true
-})`,
         },
       ],
     };

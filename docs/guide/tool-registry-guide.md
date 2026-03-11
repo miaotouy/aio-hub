@@ -278,12 +278,9 @@ public getMetadata(): ServiceMetadata {
         // ---- 返回类型 ----
         returnType: "Promise<TreeGenerationResult>",
 
-        // ---- 可选：调用示例 ----
-        example: `generateTree({ path: "/home/user/project", maxDepth: 3, filterMode: "gitignore" })`,
-
         // ---- 可选：协议配置 ----
         protocolConfig: {
-          vcpCommand: "directory_tree_generate", // VCP 协议的命令名称映射
+          vcpCommand: "directory_tree_generate", // VCP 协议中的 command 名称映射
         },
       },
     ],
@@ -413,7 +410,6 @@ export default class FileReaderRegistry implements ToolRegistry {
             },
           ],
           returnType: "Promise<ReadFileResult | null>",
-          example: `readFile({ path: "/home/user/notes.txt", maxLines: 100 })`,
         },
       ],
     };

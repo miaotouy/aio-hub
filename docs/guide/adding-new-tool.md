@@ -42,7 +42,7 @@ import type { ToolConfig, ToolRegistry } from "@/services/types";
 
 /**
  * 1. UI 配置注册
- * 系统会自动扫描并调用 toolsStore.addTool 将此配置加入工具列表
+ * 系统会自动扫描并将此配置加入工具列表
  */
 export const toolConfig: ToolConfig = {
   name: "我的新工具",

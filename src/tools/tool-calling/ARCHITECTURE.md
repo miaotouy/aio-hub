@@ -186,7 +186,7 @@ key:「始」value「末」
 
 ```
 <<<[TOOL_REQUEST]>>>
-tool_name:「始」directory_tree「末」,
+tool_name:「始」directory-tree「末」,
 command:「始」listFiles「末」,
 path:「始」src/tools「末」
 <<<[END_TOOL_REQUEST]>>>
@@ -196,7 +196,7 @@ path:「始」src/tools「末」
 
 ```
 <<<[TOOL_REQUEST]>>>
-tool_name:「始」directory_tree「末」,
+tool_name:「始」directory-tree「末」,
 command1:「始」listFiles「末」,
 path1:「始」src/tools「末」,
 command2:「始」readFile「末」,
@@ -293,7 +293,7 @@ flowchart TD
 
 **关键设计**：
 
-- **toolName 路由规则**: 格式为 `{toolId}_{methodName}`，通过 [`indexOf('_')`](core/executor.ts:16) 分割。
+- **路由规则**: 统一使用 `tool_name` (对应 toolId) 和 `command` (对应 methodName) 分离格式。执行器会自动路由到对应的工具实例和方法。
 - **参数合并策略**: 执行前会按 `Schema 默认值 < Agent 预设 < LLM 实时参数` 的优先级合并参数。
 - **审批状态**: 支持 `approved`, `rejected` 和 `silent_cancelled`。其中 `silent_cancelled` 用于静默取消执行且不报错。
 - **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
@@ -413,7 +413,8 @@ sequenceDiagram
 // 解析后的工具调用请求
 interface ParsedToolRequest {
   requestId: string; // 请求唯一 ID
-  toolName: string; // 目标工具方法（格式: toolId_methodName）
+  toolName: string; // 目标工具 ID
+  command?: string; // 目标方法名
   rawBlock: string; // 原始请求块文本
   args: Record<string, string>; // 参数键值对
 }
@@ -421,7 +422,8 @@ interface ParsedToolRequest {
 // 工具执行结果
 interface ToolExecutionResult {
   requestId: string; // 对应的请求 ID
-  toolName: string; // 执行的工具方法
+  toolName: string; // 执行的工具 ID
+  command?: string; // 执行的方法名
   status: "success" | "error" | "denied"; // 执行状态
   result: string; // 结果文本（成功时为返回值，失败时为错误信息）
   durationMs: number; // 执行耗时（ms）
@@ -479,7 +481,6 @@ interface ToolCallingProtocol {
 
 ### 9.3. 注意事项
 
-- **toolName 格式约束**: 由于使用 `lastIndexOf('_')` 分割，methodName 中**不能包含下划线**，但 toolId 中可以
 - **参数类型**: 所有参数以 `Record<string, string>` 传入，方法内部需自行进行类型转换
 - **超时处理**: 长耗时操作应注意 `config.timeout` 的默认值为 30000ms
 - **缓存失效**: 修改工具的 `getMetadata()` 返回值后，需调用 `invalidateDiscoveryCache()` 刷新 Prompt 缓存

@@ -55,9 +55,9 @@ VCP 服务器广播的消息分为六种类型，每种对应不同的 AI 运行
 1. **自动发现**: 扫描所有标记为 `agentCallable` 或 `distributedExposed` 的工具方法
 2. **手动指定**: 通过 `exposedToolIds` 列表额外添加
 3. **黑名单排除**: 通过 `disabledToolIds` 列表禁用特定工具
-4. **内置工具**: `internal_request_file` 等协议级工具强制暴露
+5. **内置工具**: `internal_request_file` 等协议级工具强制暴露
 
-工具名称格式为 `{toolId}:{methodName}`，例如 `knowledge-base:searchKnowledge`。
+工具调用采用 `tool_name` (对应 toolId) 和 `command` (对应 methodName) 分离格式。
 
 ### 2.4. 配置持久化
 
@@ -505,10 +505,10 @@ sequenceDiagram
     VCP-->>Store: register_tools_ack + nodeId
 
     Note over VCP,Tool: 远程调用阶段
-    VCP->>Store: execute_tool (requestId, toolName, args)
+    VCP->>Store: execute_tool (requestId, tool_name, command, args)
     Store->>Proto: handleExecuteTool()
-    Proto->>Proto: 解析 toolId:methodName
-    Proto->>Registry: getRegistry(toolId)
+    Proto->>Proto: 解析 tool_name & command
+    Proto->>Registry: getRegistry(tool_name)
     Registry-->>Proto: ToolRegistry 实例
     Proto->>Proto: 校验 distributedExposed
     Proto->>Tool: 执行方法(args)
@@ -583,7 +583,8 @@ interface VcpDistributedConfig {
 
 // 工具清单（注册到 VCP 的工具描述）
 interface VcpToolManifest {
-  name: string; // toolId:methodName
+  name: string; // methodName (即 command)
+  toolName: string; // toolId
   displayName?: string; // UI 友好名称
   description: string; // 工具描述
   parameters: any; // JSON Schema 格式的参数定义
@@ -593,7 +594,8 @@ interface VcpToolManifest {
 // 远程执行请求
 interface ExecuteToolRequest {
   requestId: string;
-  toolName: string;
+  toolName: string; // toolId
+  command: string; // methodName
   toolArgs: Record<string, any>;
 }
 

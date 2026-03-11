@@ -63,15 +63,22 @@ CAIU 是知识库的最小存储单位。
 
 ### 2.2. 前端架构 (Vue 3 - `src/tools/knowledge-base/`)
 
-前端负责 UI 交互、向量化流程管理和检索策略配置。
+前端遵循 **"适度聚合 + 清晰分层"** 的设计原则，分为 Core、Logic、Composables 三层。
 
-- **`stores/knowledgeBaseStore.ts`**: Pinia 状态中心，管理工作区、知识库元数据及加载状态。
-- **`core/KnowledgeSearchManager.ts`**: 检索调度中心。负责 **坐标对齐**（确保 Embedding 模型一致）、**环境预热**（触发后端加载向量）及检索策略分发。
-- **`core/kbIndexer.ts`**: 向量化流水线。管理 Embedding 任务队列，支持断点续传。
-- **`utils/vectorCache.ts`**: 本地向量缓存，利用内容哈希避免重复调用 LLM API。
-- **Composables**:
-  - `useKbVectorSync`: 处理前端与后端向量状态的实时同步。
-  - `useKbMonitor`: 实时监控 RAG 链路的性能指标（耗时、召回率、错误率）。
+- **Core 层 (纯函数层 - `core/`)**:
+  - **`embedding.ts`**: 聚合向量生成、标签向量化、维度探测等向量相关纯函数。
+  - **`search.ts`**: 包含搜索向量准备、Query 预处理等纯函数。
+  - **`tagGenerator.ts`**: 负责标签自动生成逻辑（内置重试机制）。
+- **Logic 层 (业务编排层 - `logic/`)**:
+  - **`orchestrator.ts`**: 统一编排器。包含 `IndexingOrchestrator` (索引编排)、`VectorSyncManager` (同步管理) 和 `SearchOrchestrator` (检索编排)，负责协调 Core 层函数与后端 IPC 通信。
+- **UI 交互层 (Composables - `composables/`)**:
+  - **`useKbIndexer.ts`**: 暴露索引管理接口。
+  - **`useKbVectorSync.ts`**: 暴露向量同步管理接口。
+  - **`useKnowledgeSearchManager.ts`**: 暴露搜索管理接口。
+  - **`useKbMonitor.ts`**: 实时监控 RAG 链路的性能指标（耗时、召回率、错误率）。
+- **数据层**:
+  - **`stores/knowledgeBaseStore.ts`**: Pinia 状态中心，管理工作区、知识库元数据及加载状态。
+  - **`utils/vectorCache.ts`**: 本地向量缓存，利用内容哈希避免重复调用 LLM API。
 
 ---
 
@@ -93,7 +100,7 @@ CAIU 是知识库的最小存储单位。
 
 执行一次搜索的完整生命周期：
 
-1. **覆盖率检查**: `KnowledgeSearchManager` 检查目标库在当前模型下的向量覆盖情况。
+1. **覆盖率检查**: `SearchOrchestrator` 检查目标库在当前模型下的向量覆盖情况。
 2. **自动补全 (Optional)**: 若覆盖率不足，提示用户或后台自动补齐缺失向量。
 3. **预热 (Warmup)**: 后端将向量索引加载至内存（若尚未加载）。
 4. **向量化查询**: 将用户 Query 转换为向量。

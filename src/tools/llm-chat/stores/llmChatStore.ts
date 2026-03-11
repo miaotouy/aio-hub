@@ -581,6 +581,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       });
       abortControllers.value.clear();
       generatingNodes.value.clear();
+
+      // 重置 isSending 状态，防止停止按钮僵死
+      isSending.value = false;
+
       logger.info("已中止所有消息发送");
     }
   }
@@ -614,6 +618,12 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
       abortControllers.value.delete(nodeId);
       generatingNodes.value.delete(nodeId);
+
+      // 如果所有生成节点都已清空，重置 isSending 状态
+      if (generatingNodes.value.size === 0) {
+        isSending.value = false;
+      }
+
       logger.info("已中止节点生成", { nodeId });
     }
   }

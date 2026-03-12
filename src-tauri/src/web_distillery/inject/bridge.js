@@ -6,7 +6,14 @@
   const NONCE = "__NONCE_PLACEHOLDER__";
 
   // 平台检测 + 统一发送接口
+  // 优先使用 anti-detection.js 保存的原生引用（已隐藏 WebView 特征）
   const postMessage = (function () {
+    // 使用 anti-detection.js 保存的原生 postMessage
+    if (window.__DISTILLERY_NATIVE_POSTMESSAGE__) {
+      return window.__DISTILLERY_NATIVE_POSTMESSAGE__;
+    }
+
+    // 降级方案：直接检测（如果 anti-detection 未生效）
     // Windows (WebView2/Chromium)
     if (window.chrome && window.chrome.webview) {
       return (data) => window.chrome.webview.postMessage(data);

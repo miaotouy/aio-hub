@@ -51,12 +51,14 @@ pub async fn distillery_create_webview(
         options.height
     );
 
-    // 2. 加载注入脚本
+    // 2. 加载注入脚本（顺序很重要：反检测 -> 桥接 -> 嗅探）
+    let anti_detection_inject = include_str!("inject/anti-detection.js");
     let bridge_inject = include_str!("inject/bridge.js");
     let sniffer_inject = include_str!("inject/api-sniffer.js");
     let nonce = nanoid::nanoid!();
     let final_inject = format!(
-        "{}\n{}",
+        "{}\n{}\n{}",
+        anti_detection_inject,
         bridge_inject.replace("__NONCE_PLACEHOLDER__", &nonce),
         sniffer_inject
     );

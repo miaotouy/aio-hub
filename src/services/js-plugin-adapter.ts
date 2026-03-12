@@ -108,41 +108,51 @@ export class JsPluginAdapter implements PluginProxy {
    * 获取服务元数据 (ToolRegistry 接口)
    */
   getMetadata(): ServiceMetadata {
-   // 优先使用 manifest 中定义的 methods，以支持旧版插件
-   if (this.manifest.methods && this.manifest.methods.length > 0) {
-     return {
-       methods: this.manifest.methods,
-     };
-   }
+    // 1. 优先使用插件导出的 getMetadata()
+    if (this.pluginExport && typeof this.pluginExport.getMetadata === "function") {
+      try {
+        return this.pluginExport.getMetadata();
+      } catch (error) {
+        logger.warn(`调用插件 ${this.id} 的 getMetadata 失败，回退到 manifest`, { error });
+      }
+    }
 
-   // 如果 manifest 中没有定义 methods，则从导出对象动态生成
-   if (!this.pluginExport) {
-     return { methods: [] };
-   }
+    // 2. 其次使用 manifest 中定义的 methods
+    if (this.manifest.methods && this.manifest.methods.length > 0) {
+      return {
+        methods: this.manifest.methods,
+      };
+    }
 
-   const dynamicMethods = Object.keys(this.pluginExport)
-     .filter(
-       (key) =>
-         typeof (this.pluginExport as any)[key] === "function" &&
-         key !== "activate" &&
-         key !== "deactivate"
-     )
-     .map((key) => ({
-       name: key,
-       description: `动态发现的方法: ${key}`, // 无法动态获取描述，提供一个默认值
-       parameters: [], // 无法动态获取参数
-       returnType: 'any', // 无法动态获取返回类型
-     }));
+    // 3. 最后从导出对象动态生成（兜底）
+    if (!this.pluginExport) {
+      return { methods: [] };
+    }
 
-   return {
-     methods: dynamicMethods,
-   };
+    const dynamicMethods = Object.keys(this.pluginExport)
+      .filter(
+        (key) =>
+          typeof (this.pluginExport as any)[key] === "function" &&
+          key !== "activate" &&
+          key !== "deactivate" &&
+          key !== "getMetadata"
+      )
+      .map((key) => ({
+        name: key,
+        description: `动态发现的方法: ${key}`,
+        parameters: [],
+        returnType: "any",
+      }));
+
+    return {
+      methods: dynamicMethods,
+    };
   }
 
   /**
    * 动态方法调用代理
    *
-   * 使用 Proxy 来拦截所有方法调用，转发到插件的实际实现
+   * 使用 Proxy 来拦截所有方法调用,转发到插件的实际实现
    * @internal 此方法通过 Proxy 动态调用
    */
   public callPluginMethod(methodName: string, params: any): any {
@@ -162,13 +172,22 @@ export class JsPluginAdapter implements PluginProxy {
     logger.debug(`调用插件方法: ${this.id}.${methodName}`, { params });
 
     try {
+      // 提取异步任务上下文（如果存在）
+      const { __asyncContext, ...restParams } = params || {};
+
       // 创建插件上下文，注入配置 API
       const context = {
         settings: pluginConfigService.createPluginSettingsAPI(this.manifest.id),
       };
 
-      // 将 context 注入到参数中
-      return method({ ...params, context });
+      // 合并参数：保留 __asyncContext（用于异步任务），同时注入 context（用于配置访问）
+      const finalParams = {
+        ...restParams,
+        context,
+        ...(__asyncContext && { __asyncContext }),
+      };
+
+      return method(finalParams);
     } catch (error) {
       errorHandler.error(error, '插件方法调用失败', { context: { pluginId: this.id, methodName } });
       throw error;

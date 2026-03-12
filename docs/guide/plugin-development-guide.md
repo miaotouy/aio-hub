@@ -78,40 +78,76 @@ plugins/
 
 #### 生命周期钩子
 
-- **`activate(context: PluginContext)`**: (可选) 当插件被加载并启用时调用。这是执行初始化、注册监听器或与 AIO Hub 系统功能（如聊天上下文管道）集成的理想位置。
-- **`deactivate()`**: (可选) 当插件被禁用或卸载时调用。用于清理 `activate` 中创建的资源，如注销处理器。
+- **`activate(context: PluginContext)`**: (可选) 当插件被加载并启用时调用。
+- **`deactivate()`**: (可选) 当插件被禁用或卸载时调用。
 
-#### 示例
+#### 暴露方法给 Agent (AI 调用)
 
-这是一个 `index.ts` 示例，它演示了如何定义生命周期钩子和导出方法：
+为了让 Agent (内置 Chat) 能够发现并调用你的插件方法，你需要提供元数据声明。
+
+**JS 插件推荐方式：在 `index.ts` 中导出 `getMetadata()`**
+这种方式最灵活，且能避免在 `manifest.json` 中重复编写元数据。
 
 ```typescript
 import type { PluginContext } from "@/services/plugin-types";
+import type { ServiceMetadata } from "@/services/types";
 
-// 插件的激活钩子
-async function activate(context: PluginContext) {
-  console.log("我的插件已被激活!");
-  // 在这里进行初始化，例如注册服务、监听事件等
-}
+async function activate(context: PluginContext) { ... }
 
-// 插件的停用钩子
-async function deactivate(context: PluginContext) {
-  console.log("我的插件已被停用!");
-  // 在这里清理资源
-}
-
-// 一个普通的、可被外部调用的方法
+// 实际业务逻辑方法
 async function addTimestamp(params: { text: string }): Promise<string> {
   return `[${new Date().toISOString()}] ${params.text}`;
 }
 
-// 默认导出插件的所有能力
+// 暴露元数据给 Agent
+function getMetadata(): ServiceMetadata {
+  return {
+    methods: [
+      {
+        name: "addTimestamp",
+        displayName: "添加时间戳",
+        description: "为输入的文本添加当前 ISO 格式的时间戳前缀",
+        agentCallable: true, // 必须设为 true 才能被 AI 发现
+        parameters: [
+          { name: "text", type: "string", description: "目标文本", required: true },
+        ],
+        returnType: "Promise<string>",
+      },
+    ],
+  };
+}
+
 export default {
   activate,
-  deactivate,
+  getMetadata,
   addTimestamp,
 };
 ```
+
+**Native/Sidecar 插件方式：在 `manifest.json` 中声明**
+由于非 JS 插件没有 TS 代码可供扫描，必须在清单文件中声明：
+
+```json
+{
+  "id": "my-native-tool",
+  "methods": [
+    {
+      "name": "calculate",
+      "description": "执行高性能计算",
+      "agentCallable": true,
+      "parameters": [
+        { "name": "input", "type": "number", "required": true }
+      ]
+    }
+  ]
+}
+```
+
+#### 核心原则
+
+1. **写一遍不写第二遍**：对于 JS 插件，尽量使用 `getMetadata()` 导出，这样逻辑和声明都在同一个文件里。
+2. **Facade 可选**：如果你的导出方法参数本身就是扁平对象，可以直接导出，无需额外封装。
+3. **Agent 友好**：确保 `description` 清晰，`agentCallable` 为 `true`。
 
 ### 4. 特定模块插件开发
 
@@ -362,6 +398,132 @@ async function myMethod({ input }: MyMethodParams): Promise<string> {
   return result;
 }
 ```
+
+## 处理耗时任务与进度汇报
+
+对于可能需要较长时间执行的操作（如文件上传、数据处理、网络请求等），插件可以利用 AIO Hub 的异步任务系统来提供更好的用户体验。
+
+### 异步任务的优势
+
+- **非阻塞执行**: 不会阻塞 UI 线程，用户可以继续使用应用
+- **进度反馈**: 实时向用户展示任务进度
+- **可取消**: 用户可以随时取消正在执行的任务
+- **任务管理**: 统一的任务列表和状态查询
+
+### 声明异步方法
+
+在 `getMetadata()` 中，通过 `executionMode` 和 `asyncConfig` 标记方法为异步：
+
+```typescript
+export function getMetadata(): ServiceMetadata {
+  return {
+    methods: [
+      {
+        name: "processLargeFile",
+        displayName: "处理大文件",
+        description: "处理大型文件，支持进度汇报和取消",
+        agentCallable: true,
+        executionMode: "async", // 标记为异步方法
+        asyncConfig: {
+          hasProgress: true,      // 支持进度汇报
+          cancellable: true,      // 支持取消
+          estimatedDuration: 30000, // 预估耗时 30 秒（毫秒）
+        },
+        parameters: [
+          { name: "filePath", type: "string", description: "文件路径", required: true },
+          { name: "options", type: "object", description: "处理选项", required: false },
+        ],
+        returnType: "Promise<ProcessResult>",
+      },
+    ],
+  };
+}
+```
+
+### 实现异步方法
+
+异步方法会通过 `__asyncContext` 参数接收任务上下文，包含以下能力：
+
+```typescript
+interface AsyncTaskContext {
+  reportProgress: (progress: number, message?: string) => void; // 汇报进度 (0-100)
+  checkCancellation: () => void; // 检查是否被取消（抛出 AbortError）
+  signal: AbortSignal; // 标准的 AbortSignal 对象
+}
+```
+
+**完整示例**：
+
+```typescript
+async function processLargeFile(params: {
+  filePath: string;
+  options?: any;
+  __asyncContext?: any; // 异步任务上下文
+}) {
+  const context = params.__asyncContext;
+  
+  // 如果没有异步上下文，说明不是作为异步任务调用的
+  if (!context) {
+    throw new Error("此方法必须作为异步任务执行");
+  }
+
+  try {
+    // 步骤 1: 读取文件
+    context.reportProgress(0, "正在读取文件...");
+    const fileContent = await readFile(params.filePath);
+    
+    // 检查是否被取消
+    context.checkCancellation();
+    
+    // 步骤 2: 解析数据
+    context.reportProgress(30, "正在解析数据...");
+    const parsedData = await parseData(fileContent);
+    
+    context.checkCancellation();
+    
+    // 步骤 3: 处理数据（模拟耗时操作）
+    context.reportProgress(50, "正在处理数据...");
+    for (let i = 0; i < 100; i++) {
+      // 定期检查取消状态
+      if (i % 10 === 0) {
+        context.checkCancellation();
+        context.reportProgress(50 + i / 2, `处理进度: ${i}%`);
+      }
+      await processChunk(parsedData[i]);
+    }
+    
+    // 步骤 4: 保存结果
+    context.reportProgress(95, "正在保存结果...");
+    const result = await saveResult(parsedData);
+    
+    context.reportProgress(100, "处理完成");
+    return result;
+    
+  } catch (error) {
+    // AbortError 会被系统自动处理，无需特殊处理
+    if (error.name === "AbortError") {
+      throw error;
+    }
+    // 其他错误正常抛出
+    throw new Error(`处理失败: ${error.message}`);
+  }
+}
+```
+
+### 最佳实践
+
+1. **合理的进度粒度**: 不要过于频繁地汇报进度（建议间隔至少 100ms），避免性能开销
+2. **有意义的进度消息**: 提供清晰的状态描述，让用户了解当前在做什么
+3. **定期检查取消**: 在循环或长时间操作中定期调用 `checkCancellation()`
+4. **优雅降级**: 支持无异步上下文时的直接调用（用于测试或内部调用）
+5. **准确的预估时间**: `estimatedDuration` 应尽量接近实际耗时，帮助用户判断是否等待
+
+### 注意事项
+
+- `executionMode: "async"` 的方法会返回任务 ID 而非实际结果，调用方需要通过任务管理器查询结果
+- `checkCancellation()` 会抛出 `AbortError`，系统会自动捕获并标记任务为已取消
+- 进度值范围为 0-100，超出范围会被自动限制
+- 异步任务系统会自动记录日志和错误，插件无需额外处理
 
 ## 最佳实践
 

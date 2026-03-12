@@ -4,7 +4,7 @@
  * 定义了插件清单、插件接口和相关的管理类型
  */
 
-import type { ToolRegistry, MethodMetadata } from './types';
+import type { ToolRegistry, MethodMetadata, ServiceMetadata } from './types';
 import type { SettingItem } from '@/types/settings-renderer';
 
 // ==================== 插件清单类型 ====================
@@ -138,7 +138,10 @@ export interface PluginManifest {
   native?: NativeConfig;
   
   /**
-   * @deprecated 已废弃，插件方法现在通过模块导出自动发现
+   * 插件方法元数据声明
+   *
+   * 对于 Native 和 Sidecar 插件，这是声明可用方法的唯一方式。
+   * 对于 JS 插件，如果 index.ts 没有导出 getMetadata()，则以此处声明为准。
    */
   methods?: MethodMetadata[];
   
@@ -205,6 +208,14 @@ export interface JsPluginExport {
    * 当插件被禁用或卸载时调用。用于清理资源，例如注销监听器或处理器。
    */
   deactivate?: () => Promise<void> | void;
+
+  /**
+   * 【可选】获取服务元数据
+   *
+   * JS 插件可以通过此方法动态返回方法声明，而无需在 manifest.json 中重复定义。
+   * 格式应与内置工具的 getMetadata() 一致。
+   */
+  getMetadata?: () => ServiceMetadata;
 
   [methodName: string]: ((...args: any[]) => any) | undefined;
 }

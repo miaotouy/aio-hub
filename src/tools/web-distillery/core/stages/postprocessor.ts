@@ -3,6 +3,7 @@
  * 职责：质量评估、格式微调、链接修复
  */
 import type { FetchResult } from "../../types";
+import { getLocalISOString } from "@/utils/time";
 
 export class Postprocessor {
   /**
@@ -28,7 +29,7 @@ export class Postprocessor {
       format,
       quality,
       level: 0, // Level 0 结果
-      fetchedAt: new Date().toISOString(),
+      fetchedAt: getLocalISOString(),
       metadata,
       warnings,
     };

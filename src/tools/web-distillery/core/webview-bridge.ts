@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useWebDistilleryStore } from "../stores/store";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { getLocalISOString } from "@/utils/time";
 
 const logger = createModuleLogger("web-distillery/bridge");
 const errorHandler = createModuleErrorHandler("web-distillery/bridge");
@@ -20,7 +21,7 @@ export class WebviewBridge {
   private cookieExtractedCallbacks: ((cookies: string, url: string) => void)[] = [];
   private elementSelectedCallbacks: ((data: any) => void)[] = [];
 
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): WebviewBridge {
     if (!WebviewBridge.instance) {
@@ -75,7 +76,7 @@ export class WebviewBridge {
           contentType: payload.apiType === "json" ? "application/json" : "text/plain",
           bodyPreview: "",
           isJson: payload.apiType === "json",
-          timestamp: new Date().toISOString(),
+          timestamp: getLocalISOString(),
         });
         break;
 

@@ -1,4 +1,5 @@
 import type { FetchResult, ExtractResult } from "./types";
+import { getLocalISOString } from "@/utils/time";
 
 /**
  * 格式化网页提取结果为 Markdown 文本（Agent 专用）
@@ -14,7 +15,7 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
   lines.push(`- **提取级别**: L${result.level ?? 0}`);
   lines.push(`- **内容长度**: ${result.contentLength ?? 0} 字符`);
   lines.push(`- **质量评分**: ${result.quality ?? 0}`);
-  lines.push(`- **获取时间**: ${result.fetchedAt || new Date().toISOString()}`);
+  lines.push(`- **获取时间**: ${result.fetchedAt || getLocalISOString()}`);
 
   if (result.metadata) {
     if (result.metadata.author) lines.push(`- **作者**: ${result.metadata.author}`);

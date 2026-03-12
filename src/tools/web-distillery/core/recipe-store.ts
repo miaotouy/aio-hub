@@ -1,5 +1,6 @@
 import type { SiteRecipe } from "../types";
 import { createModuleLogger } from "@/utils/logger";
+import { getLocalISOString } from "@/utils/time";
 import { createConfigManager } from "@/utils/configManager";
 import { minimatch } from "minimatch";
 
@@ -86,12 +87,12 @@ export class RecipeStore {
     await this.load();
     const index = this.recipes.findIndex((r) => r.id === recipe.id);
     if (index >= 0) {
-      this.recipes[index] = { ...this.recipes[index], ...recipe, updatedAt: new Date().toISOString() };
+      this.recipes[index] = { ...this.recipes[index], ...recipe, updatedAt: getLocalISOString() };
     } else {
       this.recipes.push({
         ...recipe,
-        createdAt: recipe.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: recipe.createdAt || getLocalISOString(),
+        updatedAt: getLocalISOString(),
       });
     }
     await this.save();

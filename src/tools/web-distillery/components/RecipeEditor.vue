@@ -6,6 +6,7 @@ import type { SiteRecipe, ActionStep } from "../types";
 import { actionRunner } from "../core/action-runner";
 import { webviewBridge } from "../core/webview-bridge";
 import { customMessage } from "@/utils/customMessage";
+import { getLocalISOString } from "@/utils/time";
 import {
   Plus,
   Trash,
@@ -31,8 +32,8 @@ const recipe = ref<SiteRecipe>({
   actions: [],
   extractSelectors: [],
   excludeSelectors: [],
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: getLocalISOString(),
+  updatedAt: getLocalISOString(),
   useCount: 0,
 });
 
@@ -122,7 +123,7 @@ async function saveRecipe() {
     customMessage.error("必须填写域名");
     return;
   }
-  recipe.value.updatedAt = new Date().toISOString();
+  recipe.value.updatedAt = getLocalISOString();
   await recipeStore.upsert(recipe.value);
   customMessage.success("配方已保存");
 }

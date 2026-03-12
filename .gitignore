@@ -43,3 +43,4 @@ src-tauri/tauri.conf.dev.json
 # Plugins (单独仓库管理)
 plugins/*
 !plugins/README.md
+.gitnexus

@@ -129,8 +129,12 @@ onMounted(() => {
   currentUrl.value = store.url;
 });
 
-onUnmounted(() => {
-  stopSyncing();
+onUnmounted(async () => {
+  try {
+    await stopSyncing();
+  } catch (err) {
+    logger.debug("Cleanup on unmount failed", err);
+  }
 });
 
 async function handleFetch(level: 0 | 1 | 2) {
@@ -148,13 +152,17 @@ async function handleFetch(level: 0 | 1 | 2) {
   try {
     if (level === 0) {
       const result = await quickFetch({ url, format: "markdown" });
-      if (!result) return;
+      if (!result) {
+        throw new Error("获取内容失败");
+      }
 
       store.setResult(result);
     } else if (level === 1) {
       await webviewBridge.init();
       const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });
-      if (!result) return;
+      if (!result) {
+        throw new Error("智能提取失败");
+      }
 
       store.setResult(result);
     } else if (level === 2) {
@@ -162,7 +170,7 @@ async function handleFetch(level: 0 | 1 | 2) {
       try {
         await webviewBridge.destroy();
       } catch (e) {
-        // ignore
+        logger.debug("Pre-destroy failed", e);
       }
 
       await webviewBridge.init();
@@ -190,6 +198,13 @@ async function handleFetch(level: 0 | 1 | 2) {
     errorHandler.error(err, "操作失败", { url, level });
     errorMsg.value = err?.message || "未知错误";
     store.setError(errorMsg.value || "未知错误");
+
+    // 发生错误时强制清理资源
+    try {
+      await webviewBridge.forceCleanup();
+    } catch (cleanupErr) {
+      logger.debug("Force cleanup after error failed", cleanupErr);
+    }
   } finally {
     isLoading.value = false;
     store.setLoading(false);

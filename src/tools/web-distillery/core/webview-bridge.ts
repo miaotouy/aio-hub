@@ -49,48 +49,70 @@ export class WebviewBridge {
 
   /** 处理来自子 Webview 的消息 */
   private handleMessage(payload: any) {
-    const store = useWebDistilleryStore();
+    try {
+      const store = useWebDistilleryStore();
 
-    switch (payload.type) {
-      case "webview-ready":
-        logger.info("Sub-webview DOM content loaded");
-        break;
+      switch (payload.type) {
+        case "webview-ready":
+          logger.info("Sub-webview DOM content loaded");
+          break;
 
-      case "page-loaded":
-        logger.info("Sub-webview page fully loaded (including resources)");
-        break;
+        case "page-loaded":
+          logger.info("Sub-webview page fully loaded (including resources)");
+          break;
 
-      case "dom-extracted":
-        this.domExtractedCallbacks.forEach((cb) => cb(payload.html, payload.url, payload.title));
-        this.domExtractedCallbacks = [];
-        break;
+        case "dom-extracted":
+          this.domExtractedCallbacks.forEach((cb) => {
+            try {
+              cb(payload.html, payload.url, payload.title);
+            } catch (err) {
+              logger.error("DOM extracted callback error", err);
+            }
+          });
+          this.domExtractedCallbacks = [];
+          break;
 
-      case "dom-extract-error":
-        console.error("[Distillery Bridge] DOM extraction error:", payload.error);
-        break;
+        case "dom-extract-error":
+          logger.error("DOM extraction error from webview", { error: payload.error });
+          break;
 
-      case "api-discovered":
-        store.addDiscoveredApi({
-          url: payload.url,
-          method: payload.method,
-          contentType: payload.apiType === "json" ? "application/json" : "text/plain",
-          bodyPreview: "",
-          isJson: payload.apiType === "json",
-          timestamp: getLocalISOString(),
-        });
-        break;
+        case "api-discovered":
+          store.addDiscoveredApi({
+            url: payload.url,
+            method: payload.method,
+            contentType: payload.apiType === "json" ? "application/json" : "text/plain",
+            bodyPreview: "",
+            isJson: payload.apiType === "json",
+            timestamp: getLocalISOString(),
+          });
+          break;
 
-      case "cookies-extracted":
-        this.cookieExtractedCallbacks.forEach((cb) => cb(payload.cookies, payload.url));
-        this.cookieExtractedCallbacks = [];
-        break;
+        case "cookies-extracted":
+          this.cookieExtractedCallbacks.forEach((cb) => {
+            try {
+              cb(payload.cookies, payload.url);
+            } catch (err) {
+              logger.error("Cookie extracted callback error", err);
+            }
+          });
+          this.cookieExtractedCallbacks = [];
+          break;
 
-      case "element-selected":
-        this.elementSelectedCallbacks.forEach((cb) => cb(payload.data));
-        break;
+        case "element-selected":
+          this.elementSelectedCallbacks.forEach((cb) => {
+            try {
+              cb(payload.data);
+            } catch (err) {
+              logger.error("Element selected callback error", err);
+            }
+          });
+          break;
 
-      default:
-        console.log("[Distillery Bridge] Received unknown message:", payload);
+        default:
+          logger.debug("Received unknown message type", { type: payload.type });
+      }
+    } catch (err) {
+      logger.error("Error handling webview message", err);
     }
   }
 

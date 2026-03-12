@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onErrorCaptured } from "vue";
 import { Network, ExternalLink, Trash2, Code } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../stores/store";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
+const errorHandler = createModuleErrorHandler("web-distillery/api-sniffer");
 const store = useWebDistilleryStore();
 
 const filteredApis = computed(() => {
@@ -16,15 +18,29 @@ const filteredApis = computed(() => {
     .reverse(); // 最新的在上面
 });
 
-function copyUrl(url: string) {
-  navigator.clipboard.writeText(url);
-  customMessage.success("URL 已复制");
+async function copyUrl(url: string) {
+  try {
+    await navigator.clipboard.writeText(url);
+    customMessage.success("URL 已复制");
+  } catch (err) {
+    errorHandler.error(err, "复制失败");
+  }
 }
 
 function clearApis() {
-  store.discoveredApis = [];
-  customMessage.success("列表已清空");
+  try {
+    store.discoveredApis = [];
+    customMessage.success("列表已清空");
+  } catch (err) {
+    errorHandler.error(err, "清空失败");
+  }
 }
+
+// 捕获子组件错误
+onErrorCaptured((err) => {
+  errorHandler.error(err, "组件运行出错");
+  return false;
+});
 </script>
 
 <template>

@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onErrorCaptured, onUnmounted } from "vue";
 import { LayoutDashboard, Cookie, Network, BookOpen } from "lucide-vue-next";
 import { useWebDistilleryStore } from "./stores/store";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+import { webviewBridge } from "./core/webview-bridge";
 
 // 组件导入
 import DistilleryWorkbench from "./components/DistilleryWorkbench.vue";
@@ -9,11 +12,37 @@ import ApiSniffer from "./components/ApiSniffer.vue";
 import CookieLab from "./components/CookieLab.vue";
 import RecipeManager from "./components/RecipeManager.vue";
 
+const errorHandler = createModuleErrorHandler("web-distillery");
+const logger = createModuleLogger("web-distillery");
 const store = useWebDistilleryStore();
 const activeTab = ref("workbench");
 
 onMounted(async () => {
-  await store.init();
+  try {
+    await store.init();
+  } catch (err) {
+    errorHandler.error(err, "初始化失败");
+  }
+});
+
+// 组件卸载时强制清理资源
+onUnmounted(async () => {
+  try {
+    await webviewBridge.forceCleanup();
+  } catch (err) {
+    logger.debug("Cleanup on unmount failed", err);
+  }
+});
+
+// 捕获子组件错误，防止崩溃
+onErrorCaptured((err, instance, info) => {
+  errorHandler.handle(err, {
+    userMessage: "组件运行出错",
+    context: { component: instance?.$options.name, info },
+    showToUser: true,
+  });
+  // 返回 false 阻止错误继续向上传播
+  return false;
 });
 </script>
 

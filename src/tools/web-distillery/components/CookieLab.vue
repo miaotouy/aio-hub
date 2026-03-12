@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onErrorCaptured } from "vue";
 import { Cookie, RefreshCw, Plus, Key, Info } from "lucide-vue-next";
 import { webviewBridge } from "../core/webview-bridge";
 import { useWebDistilleryStore } from "../stores/store";
@@ -52,9 +52,19 @@ async function addCookie() {
 }
 
 onMounted(() => {
-  if (store.isWebviewCreated) {
-    fetchCookies();
+  try {
+    if (store.isWebviewCreated) {
+      fetchCookies();
+    }
+  } catch (err) {
+    errorHandler.error(err, "初始化失败");
   }
+});
+
+// 捕获子组件错误
+onErrorCaptured((err) => {
+  errorHandler.error(err, "组件运行出错");
+  return false;
 });
 </script>
 

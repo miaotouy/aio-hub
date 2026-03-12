@@ -52,7 +52,14 @@ const isFormattingHtml = ref(false);
 async function formatHtml(raw: string): Promise<string> {
   try {
     // 懒加载 prettier standalone，避免影响初始包体积
-    const [prettier, htmlPlugin] = await Promise.all([import("prettier/standalone"), import("prettier/plugins/html")]);
+    const [prettier, htmlPlugin] = await Promise.all([
+      import("prettier/standalone"),
+      import("prettier/plugins/html"),
+    ]).catch((err) => {
+      logger.warn("Prettier 加载失败", err);
+      throw err;
+    });
+
     return await prettier.format(raw, {
       parser: "html",
       plugins: [htmlPlugin],
@@ -61,7 +68,11 @@ async function formatHtml(raw: string): Promise<string> {
       htmlWhitespaceSensitivity: "ignore",
     });
   } catch (err) {
-    logger.warn("HTML 格式化失败，将显示原始内容", err instanceof Error ? err : new Error(String(err)));
+    errorHandler.handle(err, {
+      userMessage: "HTML 格式化失败",
+      showToUser: false,
+      context: { htmlLength: raw.length },
+    });
     return raw;
   }
 }
@@ -83,17 +94,30 @@ watch(
       const fStart = performance.now();
       isFormattingHtml.value = true;
 
-      // 使用 requestIdleCallback 或 setTimeout 确保不立即阻塞
-      formattedHtml.value = await new Promise<string>((resolve) => {
-        setTimeout(async () => {
-          const result = await formatHtml(snapshot);
-          resolve(result);
-        }, 100);
-      });
+      try {
+        // 使用 requestIdleCallback 或 setTimeout 确保不立即阻塞
+        formattedHtml.value = await new Promise<string>((resolve, reject) => {
+          setTimeout(async () => {
+            try {
+              const result = await formatHtml(snapshot);
+              resolve(result);
+            } catch (err) {
+              reject(err);
+            }
+          }, 100);
+        });
 
-      isFormattingHtml.value = false;
-      const fEnd = performance.now();
-      logger.info("HTML formatting finished", { duration: `${(fEnd - fStart).toFixed(2)}ms` });
+        const fEnd = performance.now();
+        logger.info("HTML formatting finished", { duration: `${(fEnd - fStart).toFixed(2)}ms` });
+      } catch (err) {
+        errorHandler.handle(err, {
+          userMessage: "HTML 格式化失败，显示原始内容",
+          showToUser: false,
+        });
+        formattedHtml.value = snapshot;
+      } finally {
+        isFormattingHtml.value = false;
+      }
     } else if (mode !== "source") {
       // 切换走时清空美化后的内容，释放内存
       formattedHtml.value = "";

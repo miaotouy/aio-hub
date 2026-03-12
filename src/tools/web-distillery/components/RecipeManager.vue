@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, onErrorCaptured } from "vue";
 import { recipeStore } from "../core/recipe-store";
 import type { SiteRecipe } from "../types";
 import { Search, Trash, Edit, Globe, Calendar, Activity, ChevronRight } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { useWebDistilleryStore } from "../stores/store";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
+const errorHandler = createModuleErrorHandler("web-distillery/recipe-manager");
 const store = useWebDistilleryStore();
 const recipes = ref<SiteRecipe[]>([]);
 const searchText = ref("");
@@ -13,11 +15,22 @@ const isLoading = ref(false);
 
 async function loadRecipes() {
   isLoading.value = true;
-  recipes.value = await recipeStore.getAll();
-  isLoading.value = false;
+  try {
+    recipes.value = await recipeStore.getAll();
+  } catch (err) {
+    errorHandler.error(err, "加载配方失败");
+  } finally {
+    isLoading.value = false;
+  }
 }
 
-onMounted(loadRecipes);
+onMounted(() => {
+  try {
+    loadRecipes();
+  } catch (err) {
+    errorHandler.error(err, "初始化失败");
+  }
+});
 
 const filteredRecipes = computed(() => {
   if (!searchText.value) return recipes.value;
@@ -44,8 +57,18 @@ function editRecipe(recipe: SiteRecipe) {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString();
+  try {
+    return new Date(dateStr).toLocaleDateString();
+  } catch {
+    return dateStr;
+  }
 }
+
+// 捕获子组件错误
+onErrorCaptured((err) => {
+  errorHandler.error(err, "组件运行出错");
+  return false;
+});
 </script>
 
 <template>

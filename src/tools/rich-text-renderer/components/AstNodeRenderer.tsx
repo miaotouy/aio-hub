@@ -40,6 +40,8 @@ import TableRowNode from "./nodes/TableRowNode.vue";
 import TableCellNode from "./nodes/TableCellNode.vue";
 import LlmThinkNode from "./nodes/LlmThinkNode.vue";
 import VcpToolNode from "./nodes/VcpToolNode.vue";
+import VcpRoleNode from "./nodes/VcpRoleNode.vue";
+import VcpDailyNoteNode from "./nodes/VcpDailyNoteNode.vue";
 import KatexRenderer from "./KatexRenderer.vue";
 
 /**
@@ -78,6 +80,8 @@ const componentMap: Record<string, any> = {
   table_cell: TableCellNode,
   katex_block: KatexRenderer,
   vcp_tool: VcpToolNode,
+  vcp_role: VcpRoleNode,
+  vcp_daily_note: VcpDailyNoteNode,
 };
 
 /**
@@ -89,6 +93,8 @@ const NO_ANIMATION_NODE_TYPES = new Set([
   "code_block", // 代码块需要立即显示
   "mermaid", // Mermaid 图表需要立即显示
   "vcp_tool", // VCP 工具请求需要立即显示
+  "vcp_role", // VCP 角色容器需要立即显示
+  "vcp_daily_note", // VCP 日记容器需要立即显示
   // 'katex_block',  // KaTeX 渲染的数学公式块
   "html_block", // 原始 HTML 块，可能包含自己的动画
   "image", // 图片有自己的加载效果，不应被干扰
@@ -112,6 +118,8 @@ const BLOCK_NODE_TYPES = new Set([
   "table",
   "katex_block",
   "vcp_tool",
+  "vcp_role",
+  "vcp_daily_note",
 ]);
 
 /**
@@ -172,10 +180,7 @@ const AstNodeRenderer = defineComponent({
           key: node.id,
           nodeId: node.id,
           "data-node-status": node.meta.status,
-          class: [
-            shouldAnimate ? "rich-text-node" : undefined,
-            isBlock ? "rich-text-block" : undefined,
-          ]
+          class: [shouldAnimate ? "rich-text-node" : undefined, isBlock ? "rich-text-block" : undefined]
             .filter(Boolean)
             .join(" "),
           ...node.props,

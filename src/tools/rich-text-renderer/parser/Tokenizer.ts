@@ -32,6 +32,8 @@ const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
 const RE_VCP_RESULT_FIELD =
   /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
+const RE_VCP_ROLE_OPEN = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/y;
+const RE_VCP_DAILY_NOTE_OPEN = /<<<DailyNoteStart>>>/y;
 
 export class Tokenizer {
   // HTML void elements (不需要闭合标签的元素)
@@ -378,6 +380,42 @@ export class Tokenizer {
             }
           }
 
+          // VCP 角色分割围栏 <<<[ROLE_DIVIDE_XXX]>>> / <<<[END_ROLE_DIVIDE_XXX]>>>
+          if (charAfterIndent === 60 && text.startsWith("<<<[ROLE_DIVIDE_", posAfterIndent)) {
+            const roleMatch = stickyMatch(RE_VCP_ROLE_OPEN, text, posAfterIndent);
+            if (roleMatch) {
+              const role = roleMatch[1].toLowerCase() as "user" | "assistant" | "system";
+              const startMarker = roleMatch[0];
+              const endMarker = `<<<[END_ROLE_DIVIDE_${roleMatch[1]}]>>>`;
+
+              let currentPos = posAfterIndent + startMarker.length;
+              const endIdx = text.indexOf(endMarker, currentPos);
+              let content = "";
+              let closed = false;
+
+              if (endIdx !== -1) {
+                content = text.slice(currentPos, endIdx);
+                currentPos = endIdx + endMarker.length;
+                closed = true;
+              } else {
+                content = text.slice(currentPos);
+                currentPos = len;
+                closed = false;
+              }
+
+              tokens.push({
+                type: "vcp_role",
+                role,
+                content,
+                closed,
+                raw: startMarker + content + (closed ? endMarker : ""),
+              });
+              i = currentPos;
+              atLineStart = true;
+              continue;
+            }
+          }
+
           // VCP 工具请求块 <<<[TOOL_REQUEST]>>> (Protocol: https://github.com/lioensky/VCPToolBox)
           if (text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
             const startMarker = "<<<[TOOL_REQUEST]>>>";
@@ -435,6 +473,38 @@ export class Tokenizer {
               command,
               maid,
               args,
+            });
+            i = currentPos;
+            atLineStart = true;
+            continue;
+          }
+
+          // 日记围栏 <<<DailyNoteStart>>> / <<<DailyNoteEnd>>>
+          const dailyNoteMatch = stickyMatch(RE_VCP_DAILY_NOTE_OPEN, text, posAfterIndent);
+          if (dailyNoteMatch) {
+            const startMarker = dailyNoteMatch[0];
+            const endMarker = "<<<DailyNoteEnd>>>";
+            let currentPos = posAfterIndent + startMarker.length;
+
+            const endIdx = text.indexOf(endMarker, currentPos);
+            let content = "";
+            let closed = false;
+
+            if (endIdx !== -1) {
+              content = text.slice(currentPos, endIdx);
+              currentPos = endIdx + endMarker.length;
+              closed = true;
+            } else {
+              content = text.slice(currentPos);
+              currentPos = len;
+              closed = false;
+            }
+
+            tokens.push({
+              type: "vcp_daily_note",
+              content,
+              closed,
+              raw: startMarker + content + (closed ? endMarker : ""),
             });
             i = currentPos;
             atLineStart = true;

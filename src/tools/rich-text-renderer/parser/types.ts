@@ -6,12 +6,12 @@ export type Token =
   | { type: "text"; content: string }
   | { type: "newline"; count: number }
   | {
-    type: "html_open";
-    tagName: string;
-    attributes: Record<string, string>;
-    selfClosing: boolean;
-    raw: string;
-  }
+      type: "html_open";
+      tagName: string;
+      attributes: Record<string, string>;
+      selfClosing: boolean;
+      raw: string;
+    }
   | { type: "html_close"; tagName: string; raw: string }
   | { type: "html_comment"; content: string; raw: string }
   | { type: "strong_delimiter"; marker: "**" | "__"; raw: string }
@@ -21,7 +21,7 @@ export type Token =
   | { type: "strikethrough_delimiter"; marker: "~~"; raw: string }
   | { type: "subscript_delimiter"; marker: "~"; raw: string }
   | { type: "superscript_delimiter"; marker: "^"; raw: string }
-  | { type: "quote_delimiter"; marker: "“" | "”" | "\""; raw: string }
+  | { type: "quote_delimiter"; marker: "“" | "”" | '"'; raw: string }
   | { type: "image_marker"; raw: string }
   | { type: "link_text_open"; raw: string }
   | { type: "link_text_close"; raw: string }
@@ -46,6 +46,19 @@ export type Token =
       isResult?: boolean;
       status?: string;
       resultContent?: string;
+    }
+  | {
+      type: "vcp_role";
+      raw: string;
+      role: "user" | "assistant" | "system";
+      content: string;
+      closed: boolean;
+    }
+  | {
+      type: "vcp_daily_note";
+      raw: string;
+      content: string;
+      closed: boolean;
     };
 
 // ============ 解析器上下文 ============

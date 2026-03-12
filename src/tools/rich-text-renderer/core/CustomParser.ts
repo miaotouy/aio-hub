@@ -10,10 +10,7 @@
  * 4. 两级解析：块级 → 内联
  */
 
-import type {
-  AstNode,
-  LlmThinkRule,
-} from "../types";
+import type { AstNode, LlmThinkRule } from "../types";
 import { Tokenizer } from "../parser/Tokenizer";
 import { tokenizerService } from "../parser/tokenizerService";
 import { Token, ParserContext, ParserOptions } from "../parser/types";
@@ -28,6 +25,8 @@ import { parseList } from "../parser/block/parseList";
 import { parseTable } from "../parser/block/parseTable";
 import { parseHtmlBlock, parseLlmThinkBlock } from "../parser/block/parseHtml";
 import { parseParagraph } from "../parser/block/parseParagraph";
+import { parseVcpRole } from "../parser/block/parseVcpRole";
+import { parseVcpDailyNote } from "../parser/block/parseVcpDailyNote";
 import { parseInlines } from "../parser/inline/parseInlines";
 
 // ============ 解析器 ============
@@ -191,6 +190,22 @@ export class CustomParser implements ParserContext {
         continue;
       }
 
+      // VCP 角色容器
+      if (token.type === "vcp_role") {
+        const { node, nextIndex } = parseVcpRole(this, tokens, i);
+        if (node) blocks.push(node);
+        i = nextIndex;
+        continue;
+      }
+
+      // VCP 日记容器
+      if (token.type === "vcp_daily_note") {
+        const { node, nextIndex } = parseVcpDailyNote(this, tokens, i);
+        if (node) blocks.push(node);
+        i = nextIndex;
+        continue;
+      }
+
       // VCP 工具请求
       if (token.type === "vcp_tool") {
         const vcpToken = token as Extract<typeof token, { type: "vcp_tool" }>;
@@ -239,11 +254,7 @@ export class CustomParser implements ParserContext {
 
 // ============ 导出工具函数 ============
 
-export function parseText(
-  text: string,
-  llmThinkTagNames?: Set<string>,
-  llmThinkRules?: LlmThinkRule[]
-): AstNode[] {
+export function parseText(text: string, llmThinkTagNames?: Set<string>, llmThinkRules?: LlmThinkRule[]): AstNode[] {
   const parser = new CustomParser(llmThinkTagNames, llmThinkRules);
   return parser.parse(text);
 }

@@ -368,7 +368,9 @@ export type AstNode =
   | TableCellNode
   | KatexBlockNode // KaTeX 块级公式
   | ActionButtonNode
-  | VcpToolNode;
+  | VcpToolNode
+  | VcpRoleNode
+  | VcpDailyNoteNode;
 
 /**
  * 可交互按钮节点
@@ -387,6 +389,30 @@ export interface ActionButtonNode extends BaseAstNode {
     style?: string;
   };
   children?: never;
+}
+
+/**
+ * VCP 角色节点
+ * 用于包裹角色分割的内容
+ */
+export interface VcpRoleNode extends BaseAstNode {
+  type: 'vcp_role';
+  props: {
+    role: 'user' | 'assistant' | 'system';
+    closed: boolean;
+  };
+  children: AstNode[];
+}
+
+/**
+ * VCP 日记节点
+ */
+export interface VcpDailyNoteNode extends BaseAstNode {
+  type: 'vcp_daily_note';
+  props: {
+    closed: boolean;
+  };
+  children: AstNode[];
 }
 
 /**

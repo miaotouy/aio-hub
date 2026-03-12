@@ -90,7 +90,9 @@ export function hasBlockLevelStructure(tokens: Token[]): boolean {
       t.type === "katex_block" ||
       t.type === "list_marker" ||
       t.type === "blockquote_marker" ||
-      t.type === "vcp_tool"
+      t.type === "vcp_tool" ||
+      t.type === "vcp_role" ||
+      t.type === "vcp_daily_note"
     ) {
       return true;
     }
@@ -136,7 +138,9 @@ export function isBlockStart(token: Token): boolean {
     token.type === "katex_block" ||
     token.type === "list_marker" ||
     token.type === "blockquote_marker" ||
-    token.type === "vcp_tool"
+    token.type === "vcp_tool" ||
+    token.type === "vcp_role" ||
+    token.type === "vcp_daily_note"
   ) {
     return true;
   }

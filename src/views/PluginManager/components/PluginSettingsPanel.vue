@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { ElMessage } from 'element-plus';
 import { pluginConfigService } from '@/services/plugin-config.service';
 import type { PluginProxy, SettingsSchema, SettingsProperty } from '@/services/plugin-types';
+import type { SettingItem } from '@/types/settings-renderer';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { customMessage } from '@/utils/customMessage';
+import SettingListRenderer from '@/components/common/SettingListRenderer.vue';
 
 const logger = createModuleLogger('PluginManager/PluginSettingsPanel');
 const errorHandler = createModuleErrorHandler('PluginManager/PluginSettingsPanel');
@@ -26,14 +28,68 @@ const settingsSchema = computed<SettingsSchema | undefined>(() => {
   return props.plugin?.manifest.settingsSchema;
 });
 
-// 计算属性：配置项列表（转换为数组以便渲染）
-const settingsItems = computed(() => {
+// 计算属性：配置项列表（转换为 SettingItem 数组）
+const settingsItems = computed<SettingItem[]>(() => {
   if (!settingsSchema.value) return [];
   
-  return Object.entries(settingsSchema.value.properties).map(([key, property]) => ({
-    key,
-    ...property,
-  }));
+  return Object.entries(settingsSchema.value.properties).map(([key, property]) => {
+    // 如果已经是完整的 SettingItem，直接使用
+    if ('component' in property && 'modelPath' in property) {
+      return property as SettingItem;
+    }
+    
+    // 否则从旧格式的 SettingsProperty 转换
+    const oldProp = property as SettingsProperty;
+    
+    // 自动推断组件类型
+    let component: string;
+    let layout: 'inline' | 'block' = 'block';
+    
+    if (oldProp.enum && oldProp.enum.length > 0) {
+      component = 'ElSelect';
+    } else if (oldProp.type === 'boolean') {
+      component = 'ElSwitch';
+      layout = 'inline';
+    } else if (oldProp.type === 'number') {
+      component = 'ElInputNumber';
+    } else {
+      component = 'ElInput';
+    }
+    
+    // 构建 props
+    const props: Record<string, any> = {};
+    if (oldProp.secret) {
+      props.type = 'password';
+      props.showPassword = true;
+    }
+    if (component === 'ElInput') {
+      props.placeholder = `请输入${oldProp.label}`;
+    } else if (component === 'ElSelect') {
+      props.placeholder = `请选择${oldProp.label}`;
+    } else if (component === 'ElInputNumber') {
+      props.placeholder = `请输入${oldProp.label}`;
+      props.style = { width: '100%' };
+    }
+    
+    // 构建 options
+    const options = oldProp.enum?.map(value => ({
+      label: String(value),
+      value: value
+    }));
+    
+    return {
+      id: key,
+      label: oldProp.label,
+      component: component as any,
+      modelPath: key,
+      hint: oldProp.description || '',
+      defaultValue: oldProp.default,
+      layout,
+      props,
+      options,
+      keywords: `${key} ${oldProp.label} ${oldProp.description || ''}`
+    } as SettingItem;
+  });
 });
 
 /**
@@ -52,7 +108,14 @@ async function loadConfig() {
       const defaultConfig: Record<string, any> = {};
       if (settingsSchema.value) {
         for (const [key, property] of Object.entries(settingsSchema.value.properties)) {
-          defaultConfig[key] = property.default;
+          // 兼容新旧格式
+          if ('defaultValue' in property) {
+            // SettingItem 格式
+            defaultConfig[key] = property.defaultValue;
+          } else if ('default' in property) {
+            // SettingsProperty 格式
+            defaultConfig[key] = (property as SettingsProperty).default;
+          }
         }
       }
       formData.value = defaultConfig;
@@ -68,6 +131,13 @@ async function loadConfig() {
 }
 
 /**
+ * 处理设置更新
+ */
+function handleSettingsUpdate(newSettings: any) {
+  formData.value = newSettings;
+}
+
+/**
  * 保存配置
  */
 async function saveConfig() {
@@ -80,7 +150,7 @@ async function saveConfig() {
       await pluginConfigService.setValue(props.plugin.id, key, value);
     }
     
-    ElMessage.success('配置已保存');
+    customMessage.success('配置已保存');
     logger.info('配置保存成功', { pluginId: props.plugin.id });
   } catch (error) {
     errorHandler.error(error as Error, '保存配置失败', {
@@ -88,24 +158,6 @@ async function saveConfig() {
     });
   } finally {
     saving.value = false;
-  }
-}
-
-/**
- * 获取表单项的输入组件类型
- */
-function getInputType(property: SettingsProperty): 'input' | 'number' | 'switch' | 'select' {
-  if (property.enum && property.enum.length > 0) {
-    return 'select';
-  }
-  
-  switch (property.type) {
-    case 'boolean':
-      return 'switch';
-    case 'number':
-      return 'number';
-    default:
-      return 'input';
   }
 }
 
@@ -139,71 +191,21 @@ watch(() => props.plugin, (newPlugin) => {
         <h3 class="settings-title">{{ plugin.name }} - 设置</h3>
       </div>
 
-      <el-form :model="formData" label-position="top" class="settings-form">
-        <el-form-item
-          v-for="item in settingsItems"
-          :key="item.key"
-          :label="item.label"
-        >
-          <template #label>
-            <div class="form-label">
-              <span>{{ item.label }}</span>
-              <el-tooltip v-if="item.description" :content="item.description" placement="top">
-                <el-icon class="info-icon"><i-ep-question-filled /></el-icon>
-              </el-tooltip>
-            </div>
-          </template>
-
-          <!-- 字符串输入 -->
-          <el-input
-            v-if="getInputType(item) === 'input'"
-            v-model="formData[item.key]"
-            :type="item.secret ? 'password' : 'text'"
-            :placeholder="`请输入${item.label}`"
-            :show-password="item.secret"
+      <div class="settings-form-wrapper">
+        <el-form :model="formData" label-position="top" class="settings-form">
+          <SettingListRenderer
+            :items="settingsItems"
+            :settings="formData"
+            @update:settings="handleSettingsUpdate"
           />
 
-          <!-- 数字输入 -->
-          <el-input-number
-            v-else-if="getInputType(item) === 'number'"
-            v-model="formData[item.key]"
-            :placeholder="`请输入${item.label}`"
-            style="width: 100%;"
-          />
-
-          <!-- 布尔开关 -->
-          <el-switch
-            v-else-if="getInputType(item) === 'switch'"
-            v-model="formData[item.key]"
-          />
-
-          <!-- 下拉选择 -->
-          <el-select
-            v-else-if="getInputType(item) === 'select'"
-            v-model="formData[item.key]"
-            :placeholder="`请选择${item.label}`"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="option in item.enum"
-              :key="option"
-              :label="option"
-              :value="option"
-            />
-          </el-select>
-
-          <!-- 描述信息 -->
-          <div v-if="item.description" class="field-description">
-            {{ item.description }}
-          </div>
-        </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" :loading="saving" @click="saveConfig">
-            保存配置
-          </el-button>
-        </el-form-item>
-      </el-form>
+          <el-form-item class="form-actions">
+            <el-button type="primary" :loading="saving" @click="saveConfig">
+              保存配置
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </div>
     </div>
   </div>
 </template>
@@ -253,46 +255,41 @@ watch(() => props.plugin, (newPlugin) => {
   margin: 0;
 }
 
-.settings-form {
+.settings-form-wrapper {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
 }
 
-.form-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.settings-form {
+  max-width: 800px;
 }
 
-.info-icon {
-  color: var(--text-color-secondary);
-  cursor: help;
-  font-size: 16px;
+.form-actions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
 }
 
-.field-description {
-  margin-top: 6px;
-  font-size: 13px;
-  color: var(--text-color-secondary);
-  line-height: 1.5;
+.form-actions :deep(.el-form-item__content) {
+  margin-left: 0 !important;
 }
 
 /* 滚动条样式 */
-.settings-form::-webkit-scrollbar {
+.settings-form-wrapper::-webkit-scrollbar {
   width: 6px;
 }
 
-.settings-form::-webkit-scrollbar-track {
+.settings-form-wrapper::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.settings-form::-webkit-scrollbar-thumb {
+.settings-form-wrapper::-webkit-scrollbar-thumb {
   background: var(--border-color);
   border-radius: 3px;
 }
 
-.settings-form::-webkit-scrollbar-thumb:hover {
+.settings-form-wrapper::-webkit-scrollbar-thumb:hover {
   background: var(--text-color-secondary);
 }
 </style>

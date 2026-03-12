@@ -7,7 +7,7 @@
 import { createConfigManager, type ConfigManager } from '@/utils/configManager';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
-import type { PluginManifest, SettingsSchema } from './plugin-types';
+import type { PluginManifest, SettingsSchema, SettingsProperty } from './plugin-types';
 
 const logger = createModuleLogger('PluginConfigService');
 const errorHandler = createModuleErrorHandler('PluginConfigService');
@@ -55,7 +55,14 @@ class PluginConfigService {
 
       // 从 schema 中提取默认值
       for (const [key, property] of Object.entries(settingsSchema.properties)) {
-        config[key] = property.default;
+        // 兼容新旧格式
+        if ('defaultValue' in property) {
+          // SettingItem 格式
+          config[key] = property.defaultValue;
+        } else if ('default' in property) {
+          // SettingsProperty 格式
+          config[key] = (property as SettingsProperty).default;
+        }
       }
 
       return config;
@@ -148,21 +155,26 @@ class PluginConfigService {
       throw err;
     }
 
-    // 验证值类型
+    // 验证值类型（仅对旧格式的 SettingsProperty 进行类型检查）
     const property = schema.properties[key];
-    const valueType = typeof value;
-    if (valueType !== property.type) {
-      const err = new Error(`配置值类型不匹配：期望 ${property.type}，实际 ${valueType}`);
-      errorHandler.error(err, `配置值类型不匹配`, {
-        context: {
-          pluginId,
-          key,
-          expectedType: property.type,
-          actualType: valueType,
-        }
-      });
-      throw err;
+    if ('type' in property) {
+      // SettingsProperty 格式，进行类型检查
+      const oldProp = property as SettingsProperty;
+      const valueType = typeof value;
+      if (valueType !== oldProp.type) {
+        const err = new Error(`配置值类型不匹配：期望 ${oldProp.type}，实际 ${valueType}`);
+        errorHandler.error(err, `配置值类型不匹配`, {
+          context: {
+            pluginId,
+            key,
+            expectedType: oldProp.type,
+            actualType: valueType,
+          }
+        });
+        throw err;
+      }
     }
+    // SettingItem 格式不进行严格的类型检查，因为它更灵活
 
     // 更新配置
     await manager.update({ [key]: value });

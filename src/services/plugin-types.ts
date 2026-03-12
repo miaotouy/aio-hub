@@ -1,10 +1,11 @@
 /**
  * 插件系统核心类型定义
- * 
+ *
  * 定义了插件清单、插件接口和相关的管理类型
  */
 
 import type { ToolRegistry, MethodMetadata } from './types';
+import type { SettingItem } from '@/types/settings-renderer';
 
 // ==================== 插件清单类型 ====================
 
@@ -29,14 +30,15 @@ export interface PluginUiConfig {
  * 插件类型
  */
 export type PluginType = 'javascript' | 'sidecar' | 'native';
-
 /**
- * 配置项类型
+ * 配置项类型（保留用于向后兼容）
+ * @deprecated 请直接使用 SettingItem 类型
  */
 export type SettingsPropertyType = 'string' | 'number' | 'boolean';
 
 /**
- * 配置项定义
+ * 配置项定义（保留用于向后兼容）
+ * @deprecated 请直接使用 SettingItem 类型
  */
 export interface SettingsProperty {
   /** 配置项类型 */
@@ -55,12 +57,14 @@ export interface SettingsProperty {
 
 /**
  * 插件配置模式
+ *
+ * 插件可以直接使用 SettingItem 类型来定义配置项，以获得更丰富的 UI 渲染能力
  */
 export interface SettingsSchema {
   /** 配置模式版本 */
   version: string;
-  /** 配置项定义 */
-  properties: Record<string, SettingsProperty>;
+  /** 配置项定义 - 支持完整的 SettingItem 配置 */
+  properties: Record<string, SettingItem | SettingsProperty>;
 }
 
 /**

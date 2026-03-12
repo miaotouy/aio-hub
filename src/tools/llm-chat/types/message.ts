@@ -1,5 +1,6 @@
 import type { Asset } from "@/types/asset-management";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
+import type { SessionVariableSnapshot } from "./sessionVariable";
 
 /**
  * 注入策略 - 控制消息在上下文中的位置
@@ -317,5 +318,7 @@ export interface ChatMessageNode {
       thresholds: Record<string, number>;
       summaryRole: string;
     };
+    /** 会话变量快照 */
+    sessionVariableSnapshot?: SessionVariableSnapshot;
   };
 }

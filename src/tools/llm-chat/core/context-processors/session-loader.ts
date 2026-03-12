@@ -165,6 +165,7 @@ export const sessionLoader: ContextProcessor = {
         sourceType: "session_history",
         sourceId: node.id,
         _attachments: node.attachments,
+        metadata: node.metadata,
       };
       messages.push(processableMessage);
     }

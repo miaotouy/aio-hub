@@ -34,6 +34,10 @@
           <el-tab-pane label="宏调试" name="macro">
             <MacroDebugView :context-data="contextData" />
           </el-tab-pane>
+
+          <el-tab-pane label="变量状态" name="variables">
+            <VariablesView :context-data="contextData" />
+          </el-tab-pane>
         </el-tabs>
       </div>
     </template>
@@ -52,6 +56,7 @@ import StructuredView from "./StructuredView.vue";
 import RawRequestView from "./RawRequestView.vue";
 import AnalysisChartView from "./AnalysisChartView.vue";
 import MacroDebugView from "./MacroDebugView.vue";
+import VariablesView from "./VariablesView.vue";
 import { useChatHandler, type ContextPreviewData } from "../../composables/chat/useChatHandler";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSession } from "../../types";
@@ -76,7 +81,7 @@ const localVisible = computed({
   set: (value) => emit("update:visible", value),
 });
 
-const activeTab = ref<"structured" | "raw" | "analysis" | "macro">("structured");
+const activeTab = ref<"structured" | "raw" | "analysis" | "macro" | "variables">("structured");
 const loading = ref(false);
 const error = ref<string | null>(null);
 const contextData = ref<ContextPreviewData | null>(null);

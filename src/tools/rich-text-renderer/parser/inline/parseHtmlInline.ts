@@ -1,5 +1,5 @@
 import { Token, ParserContext } from "../types";
-import { ActionButtonNode, AstNode, GenericHtmlNode } from "../../types";
+import { ActionButtonNode, AstNode, GenericHtmlNode, SessionVariableNode } from "../../types";
 
 /**
  * 从 AST 节点数组中提取纯文本内容
@@ -25,7 +25,7 @@ export function parseInlineHtmlTag(
   ctx: ParserContext,
   tokens: Token[],
   start: number
-): { node: GenericHtmlNode | ActionButtonNode | null; nextIndex: number } {
+): { node: GenericHtmlNode | ActionButtonNode | SessionVariableNode | null; nextIndex: number } {
   const openToken = tokens[start];
   if (openToken.type !== "html_open") {
     return { node: null, nextIndex: start + 1 };
@@ -90,6 +90,22 @@ export function parseInlineHtmlTag(
 
       return { node: buttonNode, nextIndex: i };
     }
+  }
+
+  // --- 特殊处理：<svar> 标签 ---
+  if (tagName === "svar") {
+    const name = openToken.attributes.name || openToken.attributes.path || "";
+    const op = openToken.attributes.op || "=";
+    const value = openToken.attributes.value || "";
+
+    const svarNode: SessionVariableNode = {
+      id: "",
+      type: "session_variable",
+      props: { name, op, value },
+      meta: { range: { start: 0, end: 0 }, status: "stable" },
+    };
+
+    return { node: svarNode, nextIndex: start + 1 };
   }
   // --- 结束特殊处理 ---
 

@@ -64,6 +64,8 @@ export interface ProcessableMessage {
   _userIcon?: string;
   /** [元数据] 消息名称（用于 UI 展示） */
   _name?: string;
+  /** 附加元数据（透传自 ChatMessageNode） */
+  metadata?: ChatMessageNode["metadata"];
 }
 
 /**

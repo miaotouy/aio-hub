@@ -1,6 +1,7 @@
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 import type { LlmParameters } from "./llm";
 import type { ChatMessageNode } from "./message";
+import type { VariableConfig } from "./sessionVariable";
 
 /**
  * 资产类型
@@ -344,6 +345,9 @@ export interface AgentBaseConfig {
 
   /** 工具调用配置 */
   toolCallConfig?: ToolCallConfig;
+
+  /** 会话变量配置 */
+  variableConfig?: VariableConfig;
 }
 
 /**

@@ -2,7 +2,7 @@ import type { Ref } from "vue";
 
 /**
  * 富文本渲染引擎 - 核心类型定义
- * 
+ *
  * 基于架构文档的设计，实现 AST 节点和 Patch 指令系统
  */
 
@@ -14,17 +14,17 @@ import type { Ref } from "vue";
  */
 export interface NodeMeta {
   range: { start: number; end: number };
-  status?: 'stable' | 'pending';
+  status?: "stable" | "pending";
 }
 
 /**
  * 基础 AST 节点接口
  */
 export interface BaseAstNode {
-  id: string;              // 稳定ID，使用单调计数器生成
-  type: string;            // 节点类型标识
-  children?: AstNode[];    // 子节点
-  meta: NodeMeta;          // 元数据
+  id: string; // 稳定ID，使用单调计数器生成
+  type: string; // 节点类型标识
+  children?: AstNode[]; // 子节点
+  meta: NodeMeta; // 元数据
   /** 性能优化：快速指纹，用于 Diff 算法跳过无效比较 */
   _fp?: string;
 }
@@ -33,7 +33,7 @@ export interface BaseAstNode {
  * 纯文本节点（内联）
  */
 export interface TextNode extends BaseAstNode {
-  type: 'text';
+  type: "text";
   props: {
     content: string;
   };
@@ -44,7 +44,7 @@ export interface TextNode extends BaseAstNode {
  * 粗体节点（内联）
  */
 export interface StrongNode extends BaseAstNode {
-  type: 'strong';
+  type: "strong";
   props: Record<string, never>;
   children: AstNode[];
 }
@@ -53,7 +53,7 @@ export interface StrongNode extends BaseAstNode {
  * 斜体节点（内联）
  */
 export interface EmNode extends BaseAstNode {
-  type: 'em';
+  type: "em";
   props: Record<string, never>;
   children: AstNode[];
 }
@@ -62,7 +62,7 @@ export interface EmNode extends BaseAstNode {
  * 删除线节点（内联）
  */
 export interface StrikethroughNode extends BaseAstNode {
-  type: 'strikethrough';
+  type: "strikethrough";
   props: Record<string, never>;
   children: AstNode[];
 }
@@ -72,7 +72,7 @@ export interface StrikethroughNode extends BaseAstNode {
  * 用于包裹被引号括起来的内容，如 "Hello" 或 “你好”
  */
 export interface QuoteNode extends BaseAstNode {
-  type: 'quote';
+  type: "quote";
   props: {
     startMarker: string;
     endMarker: string;
@@ -84,27 +84,27 @@ export interface QuoteNode extends BaseAstNode {
  * 段落节点
  */
 export interface ParagraphNode extends BaseAstNode {
-  type: 'paragraph';
+  type: "paragraph";
   props: Record<string, never>;
-  children: AstNode[];  // 包含内联元素
+  children: AstNode[]; // 包含内联元素
 }
 
 /**
  * 标题节点
  */
 export interface HeadingNode extends BaseAstNode {
-  type: 'heading';
+  type: "heading";
   props: {
-    level: number;      // 1-6
+    level: number; // 1-6
   };
-  children: AstNode[];  // 包含内联元素
+  children: AstNode[]; // 包含内联元素
 }
 
 /**
  * 代码块节点
  */
 export interface CodeBlockNode extends BaseAstNode {
-  type: 'code_block';
+  type: "code_block";
   props: {
     language?: string;
     content: string;
@@ -118,7 +118,7 @@ export interface CodeBlockNode extends BaseAstNode {
  * Mermaid 图表节点
  */
 export interface MermaidNode extends BaseAstNode {
-  type: 'mermaid';
+  type: "mermaid";
   props: {
     content: string;
   };
@@ -130,23 +130,23 @@ export interface MermaidNode extends BaseAstNode {
  * 用于包裹 LLM 的 Chain of Thought（CoT）推理过程
  */
 export interface LlmThinkNode extends BaseAstNode {
-  type: 'llm_think';
+  type: "llm_think";
   props: {
-    rawTagName: string;        // 原始标签名，如 'think', 'guguthink'
-    ruleId: string;             // 命中的规则标识
-    displayName: string;        // 用于 UI 显示的名称
+    rawTagName: string; // 原始标签名，如 'think', 'guguthink'
+    ruleId: string; // 命中的规则标识
+    displayName: string; // 用于 UI 显示的名称
     collapsedByDefault: boolean; // 是否默认折叠
-    rawContent?: string;        // 原始文本内容，用于查看未渲染的内容
-    isThinking?: boolean;       // 是否正在思考中（用于显示动画效果）
+    rawContent?: string; // 原始文本内容，用于查看未渲染的内容
+    isThinking?: boolean; // 是否正在思考中（用于显示动画效果）
   };
-  children: AstNode[];          // 内部可以包含任何 AST 节点
+  children: AstNode[]; // 内部可以包含任何 AST 节点
 }
 
 /**
  * 行内代码节点
  */
 export interface InlineCodeNode extends BaseAstNode {
-  type: 'inline_code';
+  type: "inline_code";
   props: {
     content: string;
   };
@@ -157,19 +157,19 @@ export interface InlineCodeNode extends BaseAstNode {
  * 列表节点
  */
 export interface ListNode extends BaseAstNode {
-  type: 'list';
+  type: "list";
   props: {
-    ordered: boolean;    // 是否为有序列表
-    start?: number;      // 起始序号（有序列表）
+    ordered: boolean; // 是否为有序列表
+    start?: number; // 起始序号（有序列表）
   };
-  children: AstNode[];   // 列表项
+  children: AstNode[]; // 列表项
 }
 
 /**
  * 列表项节点
  */
 export interface ListItemNode extends BaseAstNode {
-  type: 'list_item';
+  type: "list_item";
   props: Record<string, never>;
   children: AstNode[];
 }
@@ -178,19 +178,19 @@ export interface ListItemNode extends BaseAstNode {
  * 链接节点（内联）
  */
 export interface LinkNode extends BaseAstNode {
-  type: 'link';
+  type: "link";
   props: {
     href: string;
     title?: string;
   };
-  children: AstNode[];  // 链接文本
+  children: AstNode[]; // 链接文本
 }
 
 /**
  * 图片节点
  */
 export interface ImageNode extends BaseAstNode {
-  type: 'image';
+  type: "image";
   props: {
     src: string;
     alt?: string;
@@ -203,7 +203,7 @@ export interface ImageNode extends BaseAstNode {
  * 引用块节点
  */
 export interface BlockquoteNode extends BaseAstNode {
-  type: 'blockquote';
+  type: "blockquote";
   props: Record<string, never>;
   children: AstNode[];
 }
@@ -214,9 +214,9 @@ export interface BlockquoteNode extends BaseAstNode {
  * > content
  */
 export interface AlertNode extends BaseAstNode {
-  type: 'alert';
+  type: "alert";
   props: {
-    alertType: 'note' | 'tip' | 'important' | 'warning' | 'caution';
+    alertType: "note" | "tip" | "important" | "warning" | "caution";
   };
   children: AstNode[];
 }
@@ -225,7 +225,7 @@ export interface AlertNode extends BaseAstNode {
  * 水平线节点
  */
 export interface HrNode extends BaseAstNode {
-  type: 'hr';
+  type: "hr";
   props: Record<string, never>;
   children?: never;
 }
@@ -234,7 +234,7 @@ export interface HrNode extends BaseAstNode {
  * 硬换行节点 (GFM style)
  */
 export interface HardBreakNode extends BaseAstNode {
-  type: 'hard_break';
+  type: "hard_break";
   props: Record<string, never>;
   children?: never;
 }
@@ -244,9 +244,9 @@ export interface HardBreakNode extends BaseAstNode {
  * 用于渲染 HTML 块级标签（如 <div>, <p>, <section> 等）
  */
 export interface HtmlBlockNode extends BaseAstNode {
-  type: 'html_block';
+  type: "html_block";
   props: {
-    content: string;  // 原始 HTML 内容
+    content: string; // 原始 HTML 内容
   };
   children?: never;
 }
@@ -256,9 +256,9 @@ export interface HtmlBlockNode extends BaseAstNode {
  * 用于渲染 HTML 内联标签（如 <span>, <b>, <i> 等）
  */
 export interface HtmlInlineNode extends BaseAstNode {
-  type: 'html_inline';
+  type: "html_inline";
   props: {
-    content: string;  // 原始 HTML 内容
+    content: string; // 原始 HTML 内容
   };
   children?: never;
 }
@@ -267,9 +267,9 @@ export interface HtmlInlineNode extends BaseAstNode {
  * 用于解析和表示结构化的 HTML 标签，内部可包含混合内容
  */
 export interface GenericHtmlNode extends BaseAstNode {
-  type: 'generic_html';
+  type: "generic_html";
   props: {
-    tagName: string;              // e.g., 'div', 'p', 'span'
+    tagName: string; // e.g., 'div', 'p', 'span'
     attributes: Record<string, string>; // e.g., { style: '...', class: '...' }
   };
   children: AstNode[]; // 内部可以包含任何其他 AST 节点！
@@ -279,34 +279,34 @@ export interface GenericHtmlNode extends BaseAstNode {
  * 表格节点
  */
 export interface TableNode extends BaseAstNode {
-  type: 'table';
+  type: "table";
   props: {
-    align?: ('left' | 'center' | 'right')[];
+    align?: ("left" | "center" | "right")[];
   };
-  children: AstNode[];  // thead 和 tbody
+  children: AstNode[]; // thead 和 tbody
 }
 
 /**
  * 表格行节点
  */
 export interface TableRowNode extends BaseAstNode {
-  type: 'table_row';
+  type: "table_row";
   props: {
     isHeader?: boolean;
   };
-  children: AstNode[];  // td 或 th
+  children: AstNode[]; // td 或 th
 }
 
 /**
  * 表格单元格节点
  */
 export interface TableCellNode extends BaseAstNode {
-  type: 'table_cell';
+  type: "table_cell";
   props: {
-    align?: 'left' | 'center' | 'right';
+    align?: "left" | "center" | "right";
     isHeader?: boolean;
   };
-  children: AstNode[];  // 包含内联元素
+  children: AstNode[]; // 包含内联元素
 }
 
 /**
@@ -314,9 +314,9 @@ export interface TableCellNode extends BaseAstNode {
  * 用于渲染行内数学公式，语法：$...$
  */
 export interface KatexInlineNode extends BaseAstNode {
-  type: 'katex_inline';
+  type: "katex_inline";
   props: {
-    content: string;  // LaTeX 公式内容
+    content: string; // LaTeX 公式内容
   };
   children?: never;
 }
@@ -326,9 +326,9 @@ export interface KatexInlineNode extends BaseAstNode {
  * 用于渲染块级数学公式，语法：$$...$$
  */
 export interface KatexBlockNode extends BaseAstNode {
-  type: 'katex_block';
+  type: "katex_block";
   props: {
-    content: string;  // LaTeX 公式内容
+    content: string; // LaTeX 公式内容
   };
   children?: never;
 }
@@ -355,7 +355,7 @@ export type AstNode =
   | HeadingNode
   | CodeBlockNode
   | MermaidNode
-  | LlmThinkNode    // LLM 思考节点
+  | LlmThinkNode // LLM 思考节点
   | ListNode
   | ListItemNode
   | ImageNode
@@ -368,6 +368,7 @@ export type AstNode =
   | TableCellNode
   | KatexBlockNode // KaTeX 块级公式
   | ActionButtonNode
+  | SessionVariableNode
   | VcpToolNode
   | VcpRoleNode
   | VcpDailyNoteNode;
@@ -377,10 +378,10 @@ export type AstNode =
  * 用于渲染用户可点击的动作按钮
  */
 export interface ActionButtonNode extends BaseAstNode {
-  type: 'action_button';
+  type: "action_button";
   props: {
     /** 动作类型：'send' 直接发送, 'input' 插入到输入框, 'copy' 复制 */
-    action: 'send' | 'input' | 'copy';
+    action: "send" | "input" | "copy";
     /** 按钮显示文本 */
     label: string;
     /** 点击时的实际内容 */
@@ -392,13 +393,27 @@ export interface ActionButtonNode extends BaseAstNode {
 }
 
 /**
+ * 会话变量节点
+ * 用于渲染 <svar> 标签
+ */
+export interface SessionVariableNode extends BaseAstNode {
+  type: "session_variable";
+  props: {
+    name: string;
+    op: string;
+    value: string;
+  };
+  children?: never;
+}
+
+/**
  * VCP 角色节点
  * 用于包裹角色分割的内容
  */
 export interface VcpRoleNode extends BaseAstNode {
-  type: 'vcp_role';
+  type: "vcp_role";
   props: {
-    role: 'user' | 'assistant' | 'system';
+    role: "user" | "assistant" | "system";
     closed: boolean;
   };
   children: AstNode[];
@@ -408,7 +423,7 @@ export interface VcpRoleNode extends BaseAstNode {
  * VCP 日记节点
  */
 export interface VcpDailyNoteNode extends BaseAstNode {
-  type: 'vcp_daily_note';
+  type: "vcp_daily_note";
   props: {
     closed: boolean;
   };
@@ -427,7 +442,7 @@ export interface VcpDailyNoteNode extends BaseAstNode {
  * <<<[END_TOOL_REQUEST]>>>
  */
 export interface VcpToolNode extends BaseAstNode {
-  type: 'vcp_tool';
+  type: "vcp_tool";
   props: {
     /** 原始完整文本，用于调试 */
     raw: string;
@@ -461,7 +476,7 @@ export interface VcpToolNode extends BaseAstNode {
  * 文本追加指令
  */
 export interface TextAppendPatch {
-  op: 'text-append';
+  op: "text-append";
   id: string;
   text: string;
 }
@@ -470,7 +485,7 @@ export interface TextAppendPatch {
  * 属性设置指令
  */
 export interface SetPropPatch {
-  op: 'set-prop';
+  op: "set-prop";
   id: string;
   key: string;
   value: unknown;
@@ -480,7 +495,7 @@ export interface SetPropPatch {
  * 节点替换指令
  */
 export interface ReplaceNodePatch {
-  op: 'replace-node';
+  op: "replace-node";
   id: string;
   newNode: AstNode;
 }
@@ -489,7 +504,7 @@ export interface ReplaceNodePatch {
  * 在指定节点之后插入
  */
 export interface InsertAfterPatch {
-  op: 'insert-after';
+  op: "insert-after";
   id: string;
   newNode: AstNode;
 }
@@ -498,7 +513,7 @@ export interface InsertAfterPatch {
  * 在指定节点之前插入
  */
 export interface InsertBeforePatch {
-  op: 'insert-before';
+  op: "insert-before";
   id: string;
   newNode: AstNode;
 }
@@ -507,7 +522,7 @@ export interface InsertBeforePatch {
  * 删除节点指令
  */
 export interface RemoveNodePatch {
-  op: 'remove-node';
+  op: "remove-node";
   id: string;
 }
 
@@ -515,7 +530,7 @@ export interface RemoveNodePatch {
  * 替换子节点范围
  */
 export interface ReplaceChildrenRangePatch {
-  op: 'replace-children-range';
+  op: "replace-children-range";
   parentId: string;
   start: number;
   deleteCount: number;
@@ -526,7 +541,7 @@ export interface ReplaceChildrenRangePatch {
  * 替换根节点
  */
 export interface ReplaceRootPatch {
-  op: 'replace-root';
+  op: "replace-root";
   newRoot: AstNode[];
 }
 
@@ -593,7 +608,7 @@ export interface LlmThinkRule {
   /** 规则唯一标识，如 'anthropic-cot', 'gugu-think' */
   id: string;
   /** 规则类型，目前只支持 'xml_tag' */
-  kind: 'xml_tag';
+  kind: "xml_tag";
   /** XML 标签名，如 'thinking', 'guguthink' */
   tagName: string;
   /** 用于 UI 显示的名称，如 "Claude 思考过程" */
@@ -612,10 +627,10 @@ import type { ChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
  * 各版本的详细描述和元数据请参考 store.ts 中的 availableVersions
  */
 export enum RendererVersion {
-  V1_MARKDOWN_IT = 'v1-markdown-it',
-  V2_CUSTOM_PARSER = 'v2-custom-parser',
-  PURE_MARKDOWN_IT = 'pure-markdown-it',
-  HYBRID_V3 = 'hybrid-v3',
+  V1_MARKDOWN_IT = "v1-markdown-it",
+  V2_CUSTOM_PARSER = "v2-custom-parser",
+  PURE_MARKDOWN_IT = "pure-markdown-it",
+  HYBRID_V3 = "hybrid-v3",
 }
 
 /**
@@ -757,7 +772,7 @@ export interface MarkdownStyleOption {
   fontStyle?: string;
   textDecoration?: string;
   textShadow?: string; // 用于发光效果
-  boxShadow?: string;  // 用于发光效果
+  boxShadow?: string; // 用于发光效果
   borderRadius?: string;
 }
 

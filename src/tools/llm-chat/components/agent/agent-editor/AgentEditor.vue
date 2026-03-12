@@ -8,6 +8,7 @@ import PersonalitySection from "./sections/PersonalitySection.vue";
 import CapabilitiesSection from "./sections/CapabilitiesSection.vue";
 import ToolCallingSection from "./sections/ToolCallingSection.vue";
 import OutputDisplaySection from "./sections/OutputDisplaySection.vue";
+import SessionVariableSection from "./sections/SessionVariableSection.vue";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
 import AgentAssetsDialog from "../AgentAssetsDialog.vue";
 
@@ -216,6 +217,7 @@ defineExpose({
           <BasicInfoSection v-show="activeTab === 'basic'" />
           <PersonalitySection v-show="activeTab === 'personality'" />
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />
+          <SessionVariableSection v-show="activeTab === 'variables'" />
           <ToolCallingSection v-show="activeTab === 'tool-calling'" />
           <OutputDisplaySection v-show="activeTab === 'output'" />
         </el-form>

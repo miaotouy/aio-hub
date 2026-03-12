@@ -15,6 +15,7 @@ import {
   asyncTaskProcessor,
   messageFormatter,
   assetResolver,
+  variableProcessor,
 } from "../core/context-processors";
 
 const logger = createModuleLogger("contextPipelineStore");
@@ -45,6 +46,7 @@ const getInitialProcessors = (): ContextProcessor[] => {
     worldbookProcessor,
     tokenLimiter,
     asyncTaskProcessor,
+    variableProcessor,
     messageFormatter,
     assetResolver,
   ];

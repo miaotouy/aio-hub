@@ -332,22 +332,17 @@ class MarkdownBoundaryDetector {
       }
     }
 
-    // 3. 检查 VCP 工具调用块截断
-    // 检查是否有不完整的 VCP 开始标记
-    const vcpRequestStart = text.lastIndexOf("<<<[TOOL_REQUEST]>>>");
-    const vcpRequestEnd = text.lastIndexOf("<<<[END_TOOL_REQUEST]>>>");
-    if (vcpRequestStart > vcpRequestEnd) {
-      return vcpRequestStart;
-    }
-
-    const vcpResultStart = text.lastIndexOf("[[VCP调用结果信息汇总:");
-    const vcpResultEnd = text.lastIndexOf("VCP调用结果结束]]");
-    if (vcpResultStart > vcpResultEnd) {
-      return vcpResultStart;
-    }
-
-    // 检查是否有部分 VCP 标记（流式输出中可能被截断）
-    const partialVcpMarkers = ["<<<[TOOL_REQUEST", "<<<[END_TOOL_REQUEST", "[[VCP调用结果信息汇总", "VCP调用结果结束]"];
+    // 3. 检查是否有部分 VCP 标记（流式输出中可能被截断）
+    const partialVcpMarkers = [
+      "<<<[TOOL_REQUEST",
+      "<<<[END_TOOL_REQUEST",
+      "[[VCP调用结果信息汇总",
+      "VCP调用结果结束]",
+      "<<<[ROLE_DIVIDE_",
+      "<<<[END_ROLE_DIVIDE_",
+      "<<<DailyNoteStart",
+      "<<<DailyNoteEnd",
+    ];
 
     for (const marker of partialVcpMarkers) {
       const lastIndex = text.lastIndexOf(marker);

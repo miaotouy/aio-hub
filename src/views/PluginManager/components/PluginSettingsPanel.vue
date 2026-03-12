@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { pluginConfigService } from '@/services/plugin-config.service';
-import type { PluginProxy, SettingsSchema, SettingsProperty } from '@/services/plugin-types';
-import type { SettingItem } from '@/types/settings-renderer';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { customMessage } from '@/utils/customMessage';
-import SettingListRenderer from '@/components/common/SettingListRenderer.vue';
+import { ref, watch, computed } from "vue";
+import { pluginConfigService } from "@/services/plugin-config.service";
+import type { PluginProxy, SettingsSchema, SettingsProperty } from "@/services/plugin-types";
+import type { SettingItem } from "@/types/settings-renderer";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 
-const logger = createModuleLogger('PluginManager/PluginSettingsPanel');
-const errorHandler = createModuleErrorHandler('PluginManager/PluginSettingsPanel');
+const logger = createModuleLogger("PluginManager/PluginSettingsPanel");
+const errorHandler = createModuleErrorHandler("PluginManager/PluginSettingsPanel");
 
 // Props
 interface Props {
@@ -20,6 +20,7 @@ const props = defineProps<Props>();
 
 // 内部配置数据
 const formData = ref<Record<string, any>>({});
+const originalData = ref<Record<string, any>>({});
 const loading = ref(false);
 const saving = ref(false);
 
@@ -31,98 +32,99 @@ const settingsSchema = computed<SettingsSchema | undefined>(() => {
 // 计算属性：配置项列表（转换为 SettingItem 数组）
 const settingsItems = computed<SettingItem[]>(() => {
   if (!settingsSchema.value) return [];
-  
+
   return Object.entries(settingsSchema.value.properties).map(([key, property]) => {
     // 如果已经是完整的 SettingItem，直接使用
-    if ('component' in property && 'modelPath' in property) {
+    if ("component" in property && "modelPath" in property) {
       return property as SettingItem;
     }
-    
+
     // 否则从旧格式的 SettingsProperty 转换
     const oldProp = property as SettingsProperty;
-    
+
     // 自动推断组件类型
     let component: string;
-    let layout: 'inline' | 'block' = 'block';
-    
+    let layout: "inline" | "block" = "block";
+
     if (oldProp.enum && oldProp.enum.length > 0) {
-      component = 'ElSelect';
-    } else if (oldProp.type === 'boolean') {
-      component = 'ElSwitch';
-      layout = 'inline';
-    } else if (oldProp.type === 'number') {
-      component = 'ElInputNumber';
+      component = "ElSelect";
+    } else if (oldProp.type === "boolean") {
+      component = "ElSwitch";
+      layout = "inline";
+    } else if (oldProp.type === "number") {
+      component = "ElInputNumber";
     } else {
-      component = 'ElInput';
+      component = "ElInput";
     }
-    
+
     // 构建 props
     const props: Record<string, any> = {};
     if (oldProp.secret) {
-      props.type = 'password';
+      props.type = "password";
       props.showPassword = true;
     }
-    if (component === 'ElInput') {
+    if (component === "ElInput") {
       props.placeholder = `请输入${oldProp.label}`;
-    } else if (component === 'ElSelect') {
+    } else if (component === "ElSelect") {
       props.placeholder = `请选择${oldProp.label}`;
-    } else if (component === 'ElInputNumber') {
+    } else if (component === "ElInputNumber") {
       props.placeholder = `请输入${oldProp.label}`;
-      props.style = { width: '100%' };
+      props.style = { width: "100%" };
     }
-    
+
     // 构建 options
-    const options = oldProp.enum?.map(value => ({
+    const options = oldProp.enum?.map((value) => ({
       label: String(value),
-      value: value
+      value: value,
     }));
-    
+
     return {
       id: key,
       label: oldProp.label,
       component: component as any,
       modelPath: key,
-      hint: oldProp.description || '',
+      hint: oldProp.description || "",
       defaultValue: oldProp.default,
       layout,
       props,
       options,
-      keywords: `${key} ${oldProp.label} ${oldProp.description || ''}`
+      keywords: `${key} ${oldProp.label} ${oldProp.description || ""}`,
     } as SettingItem;
   });
 });
-
 /**
  * 加载插件配置
  */
 async function loadConfig() {
   if (!props.plugin) return;
-  
+
   loading.value = true;
   try {
     const config = await pluginConfigService.getAll(props.plugin.id);
     if (config) {
       formData.value = { ...config };
+      originalData.value = { ...config };
     } else {
       // 如果没有配置，使用默认值
       const defaultConfig: Record<string, any> = {};
       if (settingsSchema.value) {
         for (const [key, property] of Object.entries(settingsSchema.value.properties)) {
           // 兼容新旧格式
-          if ('defaultValue' in property) {
+          if ("defaultValue" in property) {
             // SettingItem 格式
             defaultConfig[key] = property.defaultValue;
-          } else if ('default' in property) {
+          } else if ("default" in property) {
             // SettingsProperty 格式
             defaultConfig[key] = (property as SettingsProperty).default;
           }
         }
       }
       formData.value = defaultConfig;
+      originalData.value = { ...defaultConfig };
     }
-    logger.debug('配置加载完成', { pluginId: props.plugin.id, config: formData.value });
+    logger.debug("配置加载完成", { pluginId: props.plugin.id, config: formData.value });
   } catch (error) {
-    errorHandler.error(error as Error, '加载配置失败', {
+    errorHandler.error(error as Error, "加载配置失败", {
       context: { pluginId: props.plugin.id },
     });
   } finally {
@@ -138,22 +140,31 @@ function handleSettingsUpdate(newSettings: any) {
 }
 
 /**
+ * 取消修改
+ */
+function cancelChanges() {
+  formData.value = { ...originalData.value };
+  customMessage.info("已取消修改");
+}
+
+/**
  * 保存配置
  */
 async function saveConfig() {
   if (!props.plugin) return;
-  
+
   saving.value = true;
   try {
     // 逐个保存配置项
     for (const [key, value] of Object.entries(formData.value)) {
       await pluginConfigService.setValue(props.plugin.id, key, value);
     }
-    
-    customMessage.success('配置已保存');
-    logger.info('配置保存成功', { pluginId: props.plugin.id });
+
+    originalData.value = { ...formData.value };
+    customMessage.success("配置已保存");
+    logger.info("配置保存成功", { pluginId: props.plugin.id });
   } catch (error) {
-    errorHandler.error(error as Error, '保存配置失败', {
+    errorHandler.error(error as Error, "保存配置失败", {
       context: { pluginId: props.plugin.id },
     });
   } finally {
@@ -162,11 +173,15 @@ async function saveConfig() {
 }
 
 // 监听 plugin 变化，加载配置
-watch(() => props.plugin, (newPlugin) => {
-  if (newPlugin) {
-    loadConfig();
-  }
-}, { immediate: true });
+watch(
+  () => props.plugin,
+  (newPlugin) => {
+    if (newPlugin) {
+      loadConfig();
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -189,21 +204,15 @@ watch(() => props.plugin, (newPlugin) => {
     <div v-else class="settings-content">
       <div class="settings-header">
         <h3 class="settings-title">{{ plugin.name }} - 设置</h3>
+        <div class="header-actions">
+          <el-button @click="cancelChanges"> 取消 </el-button>
+          <el-button type="primary" :loading="saving" @click="saveConfig"> 保存配置 </el-button>
+        </div>
       </div>
 
       <div class="settings-form-wrapper">
         <el-form :model="formData" label-position="top" class="settings-form">
-          <SettingListRenderer
-            :items="settingsItems"
-            :settings="formData"
-            @update:settings="handleSettingsUpdate"
-          />
-
-          <el-form-item class="form-actions">
-            <el-button type="primary" :loading="saving" @click="saveConfig">
-              保存配置
-            </el-button>
-          </el-form-item>
+          <SettingListRenderer :items="settingsItems" :settings="formData" @update:settings="handleSettingsUpdate" />
         </el-form>
       </div>
     </div>
@@ -246,6 +255,10 @@ watch(() => props.plugin, (newPlugin) => {
   flex-shrink: 0;
   padding: 20px;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .settings-title {
@@ -253,6 +266,11 @@ watch(() => props.plugin, (newPlugin) => {
   font-weight: 600;
   color: var(--text-color);
   margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
 .settings-form-wrapper {
@@ -263,16 +281,6 @@ watch(() => props.plugin, (newPlugin) => {
 
 .settings-form {
   max-width: 800px;
-}
-
-.form-actions {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-color);
-}
-
-.form-actions :deep(.el-form-item__content) {
-  margin-left: 0 !important;
 }
 
 /* 滚动条样式 */

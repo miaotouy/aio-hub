@@ -22,6 +22,7 @@ export function useDirectoryTreeState() {
   const maxDepth = ref(5);
   const autoGenerateOnDrop = ref(true);
   const includeMetadata = ref(false);
+  const includeFilterInfo = ref(true);
 
   // 结果状态
   const treeData = ref<TreeNode | null>(null);
@@ -58,6 +59,7 @@ export function useDirectoryTreeState() {
       maxDepth.value = config.maxDepth;
       autoGenerateOnDrop.value = config.autoGenerateOnDrop ?? true;
       includeMetadata.value = config.includeMetadata ?? false;
+      includeFilterInfo.value = config.includeFilterInfo ?? true;
 
       // 恢复上次生成的结果
       if (config.lastTreeStructure) {
@@ -96,6 +98,7 @@ export function useDirectoryTreeState() {
         maxDepth: maxDepth.value,
         autoGenerateOnDrop: autoGenerateOnDrop.value,
         includeMetadata: includeMetadata.value,
+        includeFilterInfo: includeFilterInfo.value,
         lastTreeStructure: treeData.value,
         lastStatsInfo: statsInfo.value,
         lastGenerationOptions: lastGenerationOptions.value,
@@ -180,6 +183,7 @@ export function useDirectoryTreeState() {
     maxDepth,
     autoGenerateOnDrop,
     includeMetadata,
+    includeFilterInfo,
 
     // 结果状态
     treeData,

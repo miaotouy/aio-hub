@@ -102,6 +102,14 @@
               >
                 统计信息
               </el-checkbox>
+              <el-checkbox
+                :model-value="includeFilterInfo"
+                @update:model-value="$emit('update:includeFilterInfo', $event)"
+                size="small"
+                :disabled="!includeMetadata"
+              >
+                筛选信息
+              </el-checkbox>
               <el-checkbox :model-value="showSize" @update:model-value="$emit('update:showSize', $event)" size="small">
                 文件大小
               </el-checkbox>
@@ -166,6 +174,7 @@ interface Props {
   secondaryExcludePattern: string;
   viewShowFiles: boolean;
   includeMetadata: boolean;
+  includeFilterInfo: boolean;
   showSize: boolean;
   showDirSize: boolean;
   showDirItemCount: boolean;
@@ -181,6 +190,7 @@ const emit = defineEmits<{
   "update:secondaryExcludePattern": [value: string];
   "update:viewShowFiles": [value: boolean];
   "update:includeMetadata": [value: boolean];
+  "update:includeFilterInfo": [value: boolean];
   "update:showSize": [value: boolean];
   "update:showDirSize": [value: boolean];
   "update:showDirItemCount": [value: boolean];

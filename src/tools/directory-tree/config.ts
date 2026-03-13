@@ -68,6 +68,8 @@ export interface DirectoryTreeConfig {
   autoGenerateOnDrop: boolean;
   /** 输出时是否包含配置和统计信息 */
   includeMetadata: boolean;
+  /** 元数据中是否包含筛选信息 */
+  includeFilterInfo: boolean;
   /** 上次生成的结构化数据 */
   lastTreeStructure?: TreeNode | null;
   /** 上次生成的统计信息 */
@@ -95,6 +97,7 @@ function createDefaultConfig(): DirectoryTreeConfig {
     maxDepth: 5,
     autoGenerateOnDrop: true, // 默认开启自动生成
     includeMetadata: false, // 默认不包含元数据
+    includeFilterInfo: true, // 默认包含筛选信息
     lastTreeStructure: null,
     lastStatsInfo: null,
     lastGenerationOptions: null,

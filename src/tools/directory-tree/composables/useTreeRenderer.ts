@@ -12,6 +12,7 @@ export function useTreeRenderer(
   lastGenerationOptions: Ref<GenerateTreeOptions | null>,
   statsInfo: Ref<TreeStats | null>,
   includeMetadata: Ref<boolean>,
+  includeFilterInfo: Ref<boolean>,
   secondaryMaxDepth: Ref<number>,
   secondaryIncludePath: Ref<string>,
   secondaryExcludePattern: Ref<string>,
@@ -34,7 +35,13 @@ export function useTreeRenderer(
 
       // 1. 动态生成元数据部分
       if (includeMetadata.value && lastGenerationOptions.value && statsInfo.value) {
-        const metadata = buildMetadataHeader(lastGenerationOptions.value, statsInfo.value);
+        const metadata = buildMetadataHeader(lastGenerationOptions.value, statsInfo.value, {
+          includeFilterInfo: includeFilterInfo.value,
+          secondaryMaxDepth: secondaryMaxDepth.value,
+          secondaryIncludePath: secondaryIncludePath.value,
+          secondaryExcludePattern: secondaryExcludePattern.value,
+          viewShowFiles: viewShowFiles.value,
+        });
         result.push(metadata);
       }
 

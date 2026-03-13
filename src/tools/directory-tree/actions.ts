@@ -61,7 +61,17 @@ export interface TreeGenerationResult {
 /**
  * 构建元数据头部
  */
-export function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGenerationResult["stats"]): string {
+export function buildMetadataHeader(
+  options: GenerateTreeOptions,
+  stats: TreeGenerationResult["stats"],
+  filterInfo?: {
+    includeFilterInfo: boolean;
+    secondaryMaxDepth?: number;
+    secondaryIncludePath?: string;
+    secondaryExcludePattern?: string;
+    viewShowFiles?: boolean;
+  }
+): string {
   return [
     "# 目录树生成信息",
     `- 生成时间: ${stats.generated_at}`,
@@ -95,9 +105,22 @@ export function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGen
           .join("\n")}`
       : "",
     "",
+    // 添加二次筛选信息（如果启用）
+    ...(filterInfo?.includeFilterInfo
+      ? [
+          "## 视图筛选",
+          filterInfo.secondaryMaxDepth !== undefined ? `- 显示深度: ${filterInfo.secondaryMaxDepth}` : "",
+          filterInfo.secondaryIncludePath ? `- 包含路径: ${filterInfo.secondaryIncludePath}` : "",
+          filterInfo.secondaryExcludePattern ? `- 排除内容: ${filterInfo.secondaryExcludePattern}` : "",
+          filterInfo.viewShowFiles !== undefined ? `- 显示文件: ${filterInfo.viewShowFiles ? "是" : "否"}` : "",
+          "",
+        ]
+      : []),
     "## 目录结构",
     "",
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 /**

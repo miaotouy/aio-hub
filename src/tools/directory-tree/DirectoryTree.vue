@@ -33,6 +33,7 @@
         v-model:secondary-exclude-pattern="state.secondaryExcludePattern.value"
         v-model:view-show-files="state.viewShowFiles.value"
         v-model:include-metadata="state.includeMetadata.value"
+        v-model:include-filter-info="state.includeFilterInfo.value"
         v-model:show-size="state.showSize.value"
         v-model:show-dir-size="state.showDirSize.value"
         v-model:show-dir-item-count="state.showDirItemCount.value"
@@ -72,6 +73,7 @@ const renderer = useTreeRenderer(
   state.lastGenerationOptions,
   state.statsInfo,
   state.includeMetadata,
+  state.includeFilterInfo,
   state.secondaryMaxDepth,
   state.secondaryIncludePath,
   state.secondaryExcludePattern,

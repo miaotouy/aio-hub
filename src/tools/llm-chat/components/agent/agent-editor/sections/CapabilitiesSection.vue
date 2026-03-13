@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { inject, ref, computed, watch, onUnmounted } from "vue";
 import { MagicStick, Folder, Collection } from "@element-plus/icons-vue";
-import MacroSelector from "../../MacroSelector.vue";
+import MacroSelector from "../../selectors/MacroSelector.vue";
 import type { MacroDefinition } from "../../../../macro-engine";
 import { MacroProcessor } from "../../../../macro-engine/MacroProcessor";
 import type { ChatAgent } from "../../../../types";
 
 // 宏示例常量（避免格式化工具添加空格）
-const timeMacro = '{{time}}';
-const dateMacro = '{{date}}';
-const datetimeMacro = '{{datetime}}';
-const shichenMacro = '{{shichen}}';
+const timeMacro = "{{time}}";
+const dateMacro = "{{date}}";
+const datetimeMacro = "{{datetime}}";
+const shichenMacro = "{{shichen}}";
 
 const editForm = inject<any>("agent-edit-form");
 const mode = inject<any>("mode");
@@ -98,9 +98,7 @@ const stopPreviewTimer = () => {
   }
 };
 
-const shouldTimerBeRunning = computed(
-  () => virtualTimeEnabled.value && activeTab.value === "capabilities"
-);
+const shouldTimerBeRunning = computed(() => virtualTimeEnabled.value && activeTab.value === "capabilities");
 
 watch(
   () => [
@@ -141,12 +139,7 @@ const handleInsertMacro = (macro: MacroDefinition) => {
         管理该智能体的专属资产（图片、音频等）。上传后可通过宏或 ID 在对话中引用。
       </div>
       <div style="display: flex; align-items: center; gap: 16px">
-        <el-button
-          type="primary"
-          plain
-          @click="assetsDialogVisible = true"
-          :disabled="mode === 'create'"
-        >
+        <el-button type="primary" plain @click="assetsDialogVisible = true" :disabled="mode === 'create'">
           打开资产管理器
         </el-button>
         <span v-if="mode === 'create'" style="font-size: 12px; color: var(--el-color-warning)">
@@ -158,10 +151,7 @@ const handleInsertMacro = (macro: MacroDefinition) => {
       </div>
 
       <!-- 资产分组预览 -->
-      <div
-        class="asset-groups-preview"
-        v-if="editForm.assets.length > 0 || editForm.assetGroups.length > 0"
-      >
+      <div class="asset-groups-preview" v-if="editForm.assets.length > 0 || editForm.assetGroups.length > 0">
         <div v-for="group in sortedAssetGroups" :key="group.id" class="group-preview-item">
           <div class="group-icon">
             <span v-if="group.icon">{{ group.icon }}</span>
@@ -217,28 +207,15 @@ const handleInsertMacro = (macro: MacroDefinition) => {
           </div>
         </el-form-item>
         <el-form-item label="时间流速">
-          <el-input-number
-            v-model="editForm.virtualTimeConfig.timeScale"
-            :step="0.1"
-            :precision="2"
-          />
+          <el-input-number v-model="editForm.virtualTimeConfig.timeScale" :step="0.1" :precision="2" />
         </el-form-item>
 
         <!-- 预览 -->
         <div class="macro-preview-box">
           <div class="preview-title">实时预览</div>
           <div class="macro-input-wrapper">
-            <el-input
-              v-model="macroPreviewInput"
-              placeholder="输入要测试的宏，如 {{time}}"
-              clearable
-            />
-            <el-popover
-              v-model:visible="macroSelectorVisible"
-              placement="bottom-end"
-              :width="400"
-              trigger="click"
-            >
+            <el-input v-model="macroPreviewInput" placeholder="输入要测试的宏，如 {{time}}" clearable />
+            <el-popover v-model:visible="macroSelectorVisible" placement="bottom-end" :width="400" trigger="click">
               <template #reference>
                 <el-button plain :icon="MagicStick">插入宏</el-button>
               </template>

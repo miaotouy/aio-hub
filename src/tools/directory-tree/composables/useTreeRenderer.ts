@@ -5,7 +5,7 @@ import { computed } from "vue";
 import type { Ref } from "vue";
 import type { TreeNode, TreeStats } from "../config";
 import type { GenerateTreeOptions, RenderTreeOptions } from "../actions";
-import { buildMetadataHeader, renderTreeRecursive, calculateMaxDepth, findNodeAndPath } from "../actions";
+import { buildMetadataHeader, renderTreeRecursive, calculateMaxDepth, findAllNodesAndPaths } from "../actions";
 
 export function useTreeRenderer(
   treeData: Ref<TreeNode | null>,
@@ -44,23 +44,23 @@ export function useTreeRenderer(
       const includePath = secondaryIncludePath.value.trim();
       const excludePattern = secondaryExcludePattern.value.trim();
 
-      // 解析包含路径的片段
-      let includePathParts: string[] = [];
+      // 解析包含路径的片段（支持多条路径链）
+      let includePathChains: string[][] = [];
       if (includePath) {
-        const match = findNodeAndPath(treeData.value, includePath);
-        if (match) {
-          // 直接使用获取到的完整路径链
-          includePathParts = match.path;
+        const matches = findAllNodesAndPaths(treeData.value, includePath);
+        if (matches.length > 0) {
+          // 获取所有匹配的完整路径链
+          includePathChains = matches.map((m) => m.path);
         } else {
           return `[未找到路径: ${includePath}]`;
         }
       }
 
-      const options: Required<RenderTreeOptions> & { excludePattern: string; includePathParts?: string[] } = {
+      const options: Required<RenderTreeOptions> & { excludePattern: string; includePathChains?: string[][] } = {
         maxDepth,
         includePath,
         excludePattern,
-        includePathParts,
+        includePathChains,
         showFiles: viewShowFiles.value,
         showSize: showSize.value,
         showDirSize: showDirSize.value,

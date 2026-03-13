@@ -210,6 +210,23 @@
               <MacroSelector @insert="handleInsertMacro" />
             </el-popover>
 
+            <el-popover
+              v-if="agent?.variableConfig?.enabled && agent?.variableConfig?.definitions?.length > 0"
+              v-model:visible="variableSelectorVisible"
+              placement="bottom-start"
+              :width="400"
+              trigger="click"
+              popper-class="variable-selector-popover"
+            >
+              <template #reference>
+                <el-button size="small" :type="variableSelectorVisible ? 'primary' : 'default'" plain>
+                  <el-icon style="margin-right: 4px"><Variable :size="16" /></el-icon>
+                  插入变量
+                </el-button>
+              </template>
+              <VariableSelector :variables="agent?.variableConfig?.definitions || []" @insert="handleInsertVariable" />
+            </el-popover>
+
             <el-button
               size="small"
               :type="kbEditorVisible ? 'primary' : 'default'"
@@ -327,10 +344,11 @@ import {
   Document,
   InfoFilled,
 } from "@element-plus/icons-vue";
-import { Bot, Book } from "lucide-vue-next";
+import { Bot, Book, Variable } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import MacroSelector from "./MacroSelector.vue";
+import VariableSelector from "./VariableSelector.vue";
 import KBPlaceholderEditor from "./kb-placeholder-editor/KBPlaceholderEditor.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
@@ -431,8 +449,9 @@ const viewMode = ref<"edit" | "text" | "preview">("edit");
 // 预览内容
 const previewContent = ref("");
 
-// 宏选择器
+// 宏选择器和变量选择器
 const macroSelectorVisible = ref(false);
+const variableSelectorVisible = ref(false);
 const kbEditorVisible = ref(false);
 const currentKBSelection = ref("");
 const richEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
@@ -885,6 +904,15 @@ function handleInsertMacro(macro: MacroDefinition) {
 
   // 关闭弹窗
   macroSelectorVisible.value = false;
+}
+
+/**
+ * 插入变量到光标位置
+ */
+function handleInsertVariable(variablePath: string) {
+  insertTextToEditor(variablePath);
+  // 关闭弹窗
+  variableSelectorVisible.value = false;
 }
 
 /**

@@ -43,7 +43,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
       defaultValue: 5,
       props: {
         min: 0,
-        max: 10,
+        max: 20,
       },
     },
     {
@@ -154,7 +154,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
             {
               name: "maxDepth",
               type: "number",
-              description: "目录树的最大深度（0 表示无限制，10 也表示无限制）",
+              description: "目录树的最大深度（0 表示无限制）",
               required: false,
               defaultValue: 5,
             },

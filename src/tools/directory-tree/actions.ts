@@ -86,7 +86,7 @@ export function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGen
             ? "同时使用 .gitignore 和自定义规则"
             : "无"
     }`,
-    `- 最大深度: ${options.maxDepth === 10 ? "无限制" : options.maxDepth}`,
+    `- 最大深度: ${options.maxDepth === 0 ? "无限制" : options.maxDepth}`,
     (options.filterMode === "custom" || options.filterMode === "both") && options.customPattern?.trim()
       ? `- 自定义规则:\n${options.customPattern
           .split("\n")
@@ -259,7 +259,7 @@ export async function generateTree(options: GenerateTreeOptions): Promise<TreeGe
       path: options.path,
       showFiles: options.showFiles,
       showHidden: options.showHidden,
-      maxDepth: options.maxDepth === 10 ? 0 : options.maxDepth,
+      maxDepth: options.maxDepth,
       ignorePatterns,
     });
 

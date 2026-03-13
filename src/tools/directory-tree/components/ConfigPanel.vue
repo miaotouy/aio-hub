@@ -99,17 +99,27 @@
 
       <div class="config-section">
         <label>深度限制</label>
-        <div class="slider-container">
-          <el-slider
+        <div class="depth-controls">
+          <div class="slider-container">
+            <el-slider
+              :model-value="maxDepth"
+              @update:model-value="$emit('update:maxDepth', $event)"
+              :min="0"
+              :max="20"
+              :marks="{ 0: '无限', 5: '5', 10: '10', 15: '15', 20: '20' }"
+            />
+          </div>
+          <el-input-number
             :model-value="maxDepth"
             @update:model-value="$emit('update:maxDepth', $event)"
-            :min="1"
-            :max="10"
-            :marks="{ 1: '1', 5: '5', 10: '10' }"
-            show-stops
+            :min="0"
+            :max="20"
+            :step="1"
+            controls-position="right"
+            class="depth-input"
           />
         </div>
-        <div class="depth-info">当前深度: {{ maxDepth === 10 ? "无限制" : maxDepth }}</div>
+        <div class="depth-info">当前深度: {{ maxDepth === 0 ? "无限制" : maxDepth }}</div>
       </div>
     </div>
 
@@ -252,13 +262,25 @@ const onClearHistory = () => {
   margin-top: 10px;
 }
 
+.depth-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .slider-container {
-  margin: 0 12px;
+  flex: 1;
+  margin: 0 6px 0 12px;
+}
+
+.depth-input {
+  width: 100px;
+  flex-shrink: 0;
 }
 
 .depth-info {
   text-align: center;
-  margin-top: 16px;
+  margin-top: 20px;
   font-size: 13px;
   color: var(--text-color-light);
 }

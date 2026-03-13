@@ -189,7 +189,7 @@ const toggleFilter = () => {
   min-height: 0;
 }
 
-:deep(.result-card .el-card__body) {
+:deep(.el-card__body) {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -211,6 +211,8 @@ const toggleFilter = () => {
   margin: 8px;
   border-radius: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .tree-editor-container :deep(.rich-code-editor-wrapper) {

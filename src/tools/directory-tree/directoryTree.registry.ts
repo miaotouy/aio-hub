@@ -54,14 +54,12 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
       hint: "选择过滤规则的应用方式",
       keywords: "过滤 规则 gitignore",
       defaultValue: "none",
-      props: {
-        options: [
-          { label: "不过滤", value: "none" },
-          { label: "使用 .gitignore", value: "gitignore" },
-          { label: "自定义规则", value: "custom" },
-          { label: "两者同时使用", value: "both" },
-        ],
-      },
+      options: [
+        { label: "不过滤", value: "none" },
+        { label: "使用 .gitignore", value: "gitignore" },
+        { label: "自定义规则", value: "custom" },
+        { label: "两者同时使用", value: "both" },
+      ],
     },
     {
       id: "dt-include-metadata",

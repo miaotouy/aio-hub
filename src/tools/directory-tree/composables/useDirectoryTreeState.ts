@@ -33,6 +33,7 @@ export function useDirectoryTreeState() {
   // 二次筛选/视图控制状态
   const showResultFilter = ref(false);
   const secondaryMaxDepth = ref(10);
+  const secondaryIncludePath = ref("");
   const secondaryExcludePattern = ref("");
   const viewShowFiles = ref(true);
   const showSize = ref(true);
@@ -158,6 +159,7 @@ export function useDirectoryTreeState() {
   const resetTree = () => {
     treeData.value = null;
     statsInfo.value = null;
+    secondaryIncludePath.value = "";
     secondaryExcludePattern.value = "";
     editorContent.value = "";
     customMessage.success("结果已清空");
@@ -189,6 +191,7 @@ export function useDirectoryTreeState() {
     // 二次筛选/视图控制
     showResultFilter,
     secondaryMaxDepth,
+    secondaryIncludePath,
     secondaryExcludePattern,
     viewShowFiles,
     showSize,

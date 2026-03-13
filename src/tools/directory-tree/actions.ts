@@ -106,6 +106,8 @@ export function buildMetadataHeader(options: GenerateTreeOptions, stats: TreeGen
 export interface RenderTreeOptions {
   /** 最大显示深度 */
   maxDepth?: number;
+  /** 只显示包含此路径的分支（保留路径结构） */
+  includePath?: string;
   /** 排除包含此关键词的节点 */
   excludePattern?: string;
   /** 是否显示文件 */
@@ -140,6 +142,99 @@ export function calculateMaxDepth(node: TreeNode, currentDepth = 0): number {
   return max;
 }
 
+/**
+ * 根据路径查找节点及其完整路径链
+ * @param root 根节点
+ * @param targetPath 目标路径（支持 / 或 \ 分隔）
+ */
+export function findNodeAndPath(root: TreeNode, targetPath: string): { node: TreeNode; path: string[] } | null {
+  if (!targetPath || targetPath.trim() === "" || targetPath === "." || targetPath === "./") {
+    return { node: root, path: [root.name] };
+  }
+
+  const normalizedPath = targetPath.replace(/\\/g, "/");
+  const parts = normalizedPath.split("/").filter((p) => p && p !== ".");
+
+  if (parts.length === 0) return { node: root, path: [root.name] };
+
+  // 1. 尝试精确路径匹配（从根开始）
+  let startIndex = 0;
+  const path: string[] = [root.name];
+  if (parts[0] === root.name) {
+    startIndex = 1;
+  }
+
+  let current: TreeNode | null = root;
+  let exactMatch = true;
+
+  for (let i = startIndex; i < parts.length; i++) {
+    const part = parts[i];
+    const found: TreeNode | undefined = current!.children.find((child) => child.name === part);
+    if (!found) {
+      exactMatch = false;
+      break;
+    }
+    current = found;
+    path.push(part);
+  }
+
+  if (exactMatch && current) return { node: current, path };
+
+  // 2. 如果精确匹配失败，尝试在树中搜索匹配该路径片段的节点
+  return searchNodeAndPathByFragment(root, parts, [root.name]);
+}
+
+/**
+ * 兼容旧接口
+ */
+export function findNodeByPath(root: TreeNode, targetPath: string): TreeNode | null {
+  const result = findNodeAndPath(root, targetPath);
+  return result ? result.node : null;
+}
+
+/**
+ * 在树中搜索匹配路径片段的节点及其路径
+ */
+function searchNodeAndPathByFragment(
+  node: TreeNode,
+  parts: string[],
+  currentPath: string[]
+): { node: TreeNode; path: string[] } | null {
+  if (parts.length === 0) return null;
+
+  // 检查从起始节点开始是否匹配整个路径序列
+  const matchFromHere = (startNode: TreeNode, pathParts: string[]): { node: TreeNode; path: string[] } | null => {
+    let curr = startNode;
+    const path = [...currentPath];
+    // 路径的第一部分就是 startNode 自己的名字，已经包含在 currentPath 传入前了
+    for (let i = 1; i < pathParts.length; i++) {
+      const part = pathParts[i];
+      const found: TreeNode | undefined = curr.children.find((c) => c.name === part);
+      if (!found) return null;
+      curr = found;
+      path.push(part);
+    }
+    return { node: curr, path };
+  };
+
+  const firstPart = parts[0];
+
+  // 遍历子节点进行搜索
+  for (const child of node.children) {
+    if (child.name === firstPart) {
+      const result =
+        parts.length === 1 ? { node: child, path: [...currentPath, child.name] } : matchFromHere(child, parts);
+      if (result) return result;
+    }
+
+    // 递归向下搜索
+    const found = searchNodeAndPathByFragment(child, parts, [...currentPath, child.name]);
+    if (found) return found;
+  }
+
+  return null;
+}
+
 /** 获取目录子项数量描述字符串 */
 export function getDirItemCountStr(node: TreeNode): string {
   if (!node.is_dir || node.children.length === 0) return "";
@@ -157,12 +252,29 @@ export function renderTreeRecursive(
   prefix: string,
   isLast: boolean,
   isRoot: boolean,
-  options: Required<RenderTreeOptions> & { excludePattern: string },
+  options: Required<RenderTreeOptions> & { excludePattern: string; includePathParts?: string[] },
   currentDepth: number,
   output: string[]
 ): void {
   if (!node.is_dir && !options.showFiles) return;
   if (options.excludePattern && node.name.includes(options.excludePattern)) return;
+
+  // 路径包含过滤逻辑
+  if (options.includePathParts && options.includePathParts.length > 0) {
+    // 检查当前节点是否在包含路径上
+    // 注意：isRoot 节点通常是目标路径的最后一部分或根目录，这里需要特殊处理
+    const targetParts = options.includePathParts;
+
+    // 如果还没达到目标节点，需要检查当前节点是否匹配路径中的某一部分
+    // 这里我们通过深度来判断匹配到哪一部分了
+    // 如果已经过了目标节点（currentDepth > targetParts.length），则全显
+    if (currentDepth < targetParts.length) {
+      if (node.name !== targetParts[currentDepth]) {
+        // 如果不匹配路径，则不渲染此分支
+        return;
+      }
+    }
+  }
 
   if (isRoot) {
     const sizeStr = options.showDirSize && node.size > 0 ? ` (${formatSize(node.size)})` : "";
@@ -209,8 +321,9 @@ export function renderTree(
   generationOptions?: GenerateTreeOptions,
   stats?: TreeGenerationResult["stats"]
 ): string {
-  const opts: Required<RenderTreeOptions> & { excludePattern: string } = {
+  const opts: Required<RenderTreeOptions> & { excludePattern: string; includePathParts?: string[] } = {
     maxDepth: renderOptions?.maxDepth ?? calculateMaxDepth(structure),
+    includePath: renderOptions?.includePath ?? "",
     excludePattern: renderOptions?.excludePattern ?? "",
     showFiles: renderOptions?.showFiles ?? true,
     showSize: renderOptions?.showSize ?? false,

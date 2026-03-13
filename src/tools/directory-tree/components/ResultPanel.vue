@@ -64,6 +64,17 @@
             <span class="depth-value">{{ secondaryMaxDepth }} / {{ actualMaxDepth }}</span>
           </div>
           <div class="control-row">
+            <span class="control-label">包含路径:</span>
+            <el-input
+              :model-value="secondaryIncludePath"
+              @update:model-value="$emit('update:secondaryIncludePath', $event)"
+              placeholder="只展示此子路径下的内容 (如 src/components)"
+              size="small"
+              clearable
+              class="filter-input"
+            />
+          </div>
+          <div class="control-row">
             <span class="control-label">排除内容:</span>
             <el-input
               :model-value="secondaryExcludePattern"
@@ -151,6 +162,7 @@ interface Props {
   showResultFilter: boolean;
   secondaryMaxDepth: number;
   actualMaxDepth: number;
+  secondaryIncludePath: string;
   secondaryExcludePattern: string;
   viewShowFiles: boolean;
   includeMetadata: boolean;
@@ -165,6 +177,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   "update:showResultFilter": [value: boolean];
   "update:secondaryMaxDepth": [value: number];
+  "update:secondaryIncludePath": [value: string];
   "update:secondaryExcludePattern": [value: string];
   "update:viewShowFiles": [value: boolean];
   "update:includeMetadata": [value: boolean];

@@ -334,7 +334,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, provide } from "vue";
-import type { MessageRole, UserProfile, InjectionStrategy } from "../../types";
+import type { MessageRole, UserProfile, InjectionStrategy } from "../../../types";
 import {
   ChatDotRound,
   User,
@@ -347,16 +347,16 @@ import {
 import { Bot, Book, Variable } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import MacroSelector from "./MacroSelector.vue";
-import VariableSelector from "./VariableSelector.vue";
-import KBPlaceholderEditor from "./kb-placeholder-editor/KBPlaceholderEditor.vue";
+import MacroSelector from "../selectors/MacroSelector.vue";
+import VariableSelector from "../selectors/VariableSelector.vue";
+import KBPlaceholderEditor from "./KBPlaceholderEditor.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
-import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAnchorRegistry } from "../../composables/ui/useAnchorRegistry";
-import { useLlmChatStore } from "../../stores/llmChatStore";
+import { useAnchorRegistry } from "../../../composables/ui/useAnchorRegistry";
+import { useLlmChatStore } from "../../../stores/llmChatStore";
 import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
 import * as monaco from "monaco-editor";
 import {
@@ -367,9 +367,9 @@ import {
   type MacroDefinition,
   type MacroContext,
   extractContextFromSession,
-} from "../../macro-engine";
+} from "../../../macro-engine";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { processMessageAssetsSync, resolveAgentAssetUrlSync } from "../../utils/agentAssetUtils";
+import { processMessageAssetsSync, resolveAgentAssetUrlSync } from "../../../utils/agentAssetUtils";
 
 interface MessageForm {
   role: MessageRole;

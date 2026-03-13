@@ -484,12 +484,12 @@ import { useDebounceFn, useElementSize } from "@vueuse/core";
 import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import yaml from "js-yaml";
-import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useLlmChatStore } from "../../stores/llmChatStore";
-import type { ChatMessageNode, MessageRole, UserProfile } from "../../types";
-import { MacroProcessor, createMacroContext, extractContextFromSession } from "../../macro-engine";
-import { isPromptFile, parsePromptFile, convertMacros } from "../../services/sillyTavernParser";
-import { useAnchorRegistry, type AnchorDefinition } from "../../composables/ui/useAnchorRegistry";
+import { useUserProfileStore } from "../../../stores/userProfileStore";
+import { useLlmChatStore } from "../../../stores/llmChatStore";
+import type { ChatMessageNode, MessageRole, UserProfile } from "../../../types";
+import { MacroProcessor, createMacroContext, extractContextFromSession } from "../../../macro-engine";
+import { isPromptFile, parsePromptFile, convertMacros } from "../../../services/sillyTavernParser";
+import { useAnchorRegistry, type AnchorDefinition } from "../../../composables/ui/useAnchorRegistry";
 import {
   QuestionFilled,
   Download,
@@ -516,7 +516,7 @@ import EditUserProfileDialog from "../user-profile/EditUserProfileDialog.vue";
 import STPresetImportDialog from "./STPresetImportDialog.vue";
 import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
-import type { ParsedPromptFile } from "../../services/sillyTavernParser";
+import type { ParsedPromptFile } from "../../../services/sillyTavernParser";
 
 interface Props {
   modelValue?: ChatMessageNode[];
@@ -628,7 +628,7 @@ const currentPageMessages = computed({
 const editDialogVisible = ref(false);
 const isEditMode = ref(false);
 const editingId = ref<string | null>(null);
-import type { InjectionStrategy } from "../../types";
+import type { InjectionStrategy } from "../../../types";
 
 const editForm = ref<{
   role: MessageRole;

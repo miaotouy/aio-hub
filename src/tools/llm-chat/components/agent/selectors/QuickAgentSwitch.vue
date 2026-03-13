@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { useResolvedAvatar } from "../../composables/ui/useResolvedAvatar";
+import { useResolvedAvatar } from "../../../composables/ui/useResolvedAvatar";
 import { computed } from "vue";
 
 interface Props {

@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import BaseDialog from '@/components/common/BaseDialog.vue';
 import AgentAssetsManager from './AgentAssetsManager.vue';
-import type { AgentAsset, AssetGroup } from '../../types';
+import type { AgentAsset, AssetGroup } from '../../../types';
 
 interface Props {
   modelValue: boolean;

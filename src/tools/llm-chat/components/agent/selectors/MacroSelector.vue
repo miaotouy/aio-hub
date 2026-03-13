@@ -86,7 +86,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { Search, Plus } from "@element-plus/icons-vue";
-import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
+import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../../macro-engine";
 
 interface Props {
   /**

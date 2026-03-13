@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RefreshLeft } from "@element-plus/icons-vue";
-import type { ParameterConfig } from "../../config/parameter-config";
+import type { ParameterConfig } from "../../../config/parameter-config";
 
 interface Props {
   config: ParameterConfig;

@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
-import type { LlmParameters } from "../../types";
+import type { LlmParameters } from "../../../types";
 import type { ProviderType, LlmParameterSupport, LlmModelInfo } from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
-import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
-import { useChatHandler } from "../../composables/chat/useChatHandler";
-import type { ContextPreviewData } from "../../types/context";
+import { useLlmChatUiState } from "../../../composables/ui/useLlmChatUiState";
+import { useLlmChatStore } from "../../../stores/llmChatStore";
+import { useAgentStore } from "../../../stores/agentStore";
+import { useChatHandler } from "../../../composables/chat/useChatHandler";
+import type { ContextPreviewData } from "../../../types/context";
 import { getModelFamily } from "@/llm-apis/request-builder";
 import { isEqual } from "lodash-es";
 import ConfigSection from "../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "./parameters/ContextCompressionConfigPanel.vue";
-import { ParameterConfig, parameterConfigs } from "../../config/parameter-config";
-import { DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../types/llm";
+import { ParameterConfig, parameterConfigs } from "../../../config/parameter-config";
+import { DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../../types/llm";
 
 // New Components
 import SafetySettingsPanel from "./parameters/SafetySettingsPanel.vue";
@@ -656,7 +656,7 @@ const hasActivePostProcessingRules = computed(() => {
     >
       <PostProcessingPanel
         :model-value="localParams.contextPostProcessing?.rules"
-        @update:model-value="(rules) => updateParameter('contextPostProcessing', { rules })"
+        @update:model-value="(rules: any) => updateParameter('contextPostProcessing', { rules })"
       />
     </ConfigSection>
 

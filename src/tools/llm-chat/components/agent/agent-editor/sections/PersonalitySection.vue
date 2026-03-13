@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { inject, computed, ref, defineAsyncComponent, onMounted, markRaw, h } from "vue";
-import AgentPresetEditor from "@/tools/llm-chat/components/agent/AgentPresetEditor.vue";
+import AgentPresetEditor from "@/tools/llm-chat/components/agent/assets/AgentPresetEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";

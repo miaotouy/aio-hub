@@ -3,8 +3,8 @@ import { ref, computed } from "vue";
 import { Search } from "lucide-vue-next";
 import { useAgentPresets } from "@/composables/useAgentPresets";
 import Avatar from "@/components/common/Avatar.vue";
-import type { AgentPreset } from "../../types";
-import { AgentCategory, AgentCategoryLabels } from "../../types";
+import type { AgentPreset } from "../../../types";
+import { AgentCategory, AgentCategoryLabels } from "../../../types";
 
 // 事件
 interface Emits {

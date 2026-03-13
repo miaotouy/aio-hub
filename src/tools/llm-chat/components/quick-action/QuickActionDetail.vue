@@ -6,7 +6,7 @@ import { Plus, Trash2, Copy, Settings2, ChevronRight, Zap, Save, Info } from "lu
 import { MagicStick } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import MacroSelector from "../agent/MacroSelector.vue";
+import MacroSelector from "../agent/selectors/MacroSelector.vue";
 import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import * as monaco from "monaco-editor";

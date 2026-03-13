@@ -25,7 +25,7 @@ import {
   ScanSearch,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
-import MacroSelector from "../agent/MacroSelector.vue";
+import MacroSelector from "../agent/selectors/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
 import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
 import type { ContextPreviewData } from "../../types/context";

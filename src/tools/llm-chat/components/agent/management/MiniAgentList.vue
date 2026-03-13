@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useVirtualList } from "@vueuse/core";
-import { useAgentStore } from "../../stores/agentStore";
-import type { ChatAgent } from "../../types";
+import { useAgentStore } from "../../../stores/agentStore";
+import type { ChatAgent } from "../../../types";
 import { Search, Plus } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
+import { resolveAvatarPath } from "../../../composables/ui/useResolvedAvatar";
 
 interface Emits {
   (e: "switch", agent: ChatAgent): void;

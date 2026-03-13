@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { reactive, watch, ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../types";
+import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../../types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { Users } from "lucide-vue-next";
-import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAgentStore } from "../../stores/agentStore";
-import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
-import { createDefaultChatRegexConfig, DEFAULT_TOOL_CALL_CONFIG } from "../../types";
-import AgentEditor from "./agent-editor/AgentEditor.vue";
+import { useAgentStore } from "../../../stores/agentStore";
+import { resolveAvatarPath } from "../../../composables/ui/useResolvedAvatar";
+import { createDefaultChatRegexConfig, DEFAULT_TOOL_CALL_CONFIG } from "../../../types";
+import AgentEditor from "../agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
@@ -75,8 +75,8 @@ const defaultFormState = {
     disableRecursion: false,
     defaultScanDepth: 2,
   },
-  assets: [] as import("../../types").AgentAsset[],
-  assetGroups: [] as import("../../types").AssetGroup[],
+  assets: [] as import("../../../types").AgentAsset[],
+  assetGroups: [] as import("../../../types").AssetGroup[],
   virtualTimeConfig: {
     virtualBaseTime: new Date().toISOString(),
     realBaseTime: new Date().toISOString(),

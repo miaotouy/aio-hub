@@ -66,7 +66,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { Search, Plus } from "@element-plus/icons-vue";
-import type { VariableTreeNode } from "../../types/sessionVariable";
+import type { VariableTreeNode } from "../../../types/sessionVariable";
 
 interface VariableItem {
   path: string;

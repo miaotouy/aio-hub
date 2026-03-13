@@ -26,7 +26,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { useImageViewer } from "@/composables/useImageViewer";
-import type { AgentAsset, AssetType, AssetGroup } from "../../types";
+import type { AgentAsset, AssetType, AssetGroup } from "../../../types";
 import DropZone from "@/components/common/DropZone.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";

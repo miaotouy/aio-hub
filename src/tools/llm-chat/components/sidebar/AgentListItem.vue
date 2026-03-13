@@ -17,7 +17,7 @@ import { useAgentStorageSeparated } from "../../composables/storage/useAgentStor
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
 import type { MatchDetail } from "../../composables/chat/useLlmSearch";
-import AgentUpgradeDialog from "../agent/AgentUpgradeDialog.vue";
+import AgentUpgradeDialog from "../agent/management/AgentUpgradeDialog.vue";
 
 const props = defineProps<{
   agent: ChatAgent;

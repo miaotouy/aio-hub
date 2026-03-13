@@ -195,8 +195,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import type { ChatMessageNode, MessageRole } from "../../types";
-import { type ParsedPromptFile, convertMacros } from "../../services/sillyTavernParser";
+import type { ChatMessageNode, MessageRole } from "../../../types";
+import { type ParsedPromptFile, convertMacros } from "../../../services/sillyTavernParser";
 
 interface SelectableMessage {
   message: ChatMessageNode;

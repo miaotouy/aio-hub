@@ -8,15 +8,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import { useLlmSearch, type MatchDetail, type SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { useFileDrop } from "@/composables/useFileDrop";
-import {
-  Plus,
-  Search,
-  Download,
-  Upload,
-  DocumentAdd,
-  Loading,
-  Notebook,
-} from "@element-plus/icons-vue";
+import { Plus, Search, Download, Upload, DocumentAdd, Loading, Notebook } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -31,13 +23,11 @@ const errorHandler = createModuleErrorHandler("llm-chat/AgentsSidebar");
 
 console.log("[AgentsSidebar] Setup started");
 
-const CreateAgentDialog = defineAsyncComponent(() => import("../agent/CreateAgentDialog.vue"));
-const EditAgentDialog = defineAsyncComponent(() => import("../agent/EditAgentDialog.vue"));
+const CreateAgentDialog = defineAsyncComponent(() => import("../agent/management/CreateAgentDialog.vue"));
+const EditAgentDialog = defineAsyncComponent(() => import("../agent/management/EditAgentDialog.vue"));
 const ExportAgentDialog = defineAsyncComponent(() => import("../export/ExportAgentDialog.vue"));
 const ImportAgentDialog = defineAsyncComponent(() => import("../export/ImportAgentDialog.vue"));
-const WorldbookManagerDialog = defineAsyncComponent(
-  () => import("../worldbook/WorldbookManagerDialog.vue")
-);
+const WorldbookManagerDialog = defineAsyncComponent(() => import("../worldbook/WorldbookManagerDialog.vue"));
 
 const agentStore = useAgentStore();
 
@@ -132,9 +122,7 @@ const filteredAndSortedAgents = computed(() => {
         (agent.icon && agent.icon.toLowerCase().includes(query)) ||
         (agent.category &&
           (agent.category.toLowerCase().includes(query) ||
-            (AgentCategoryLabels[agent.category as AgentCategory] || "")
-              .toLowerCase()
-              .includes(query))) ||
+            (AgentCategoryLabels[agent.category as AgentCategory] || "").toLowerCase().includes(query))) ||
         (agent.tags && agent.tags.some((tag) => tag.toLowerCase().includes(query)))
       );
     });
@@ -441,9 +429,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     // 兼容处理 parameters (扁平化映射到 editDialogInitialData)
     // 注意：EditAgentDialog 内部已经支持处理嵌套的 parameters 对象，
     // 但为了保险和统一，这里我们保留 parameters 对象传递，让 Dialog 内部去解构
-    parameters: parameters
-      ? JSON.parse(JSON.stringify(parameters))
-      : { temperature: 0.7, maxTokens: 8192 },
+    parameters: parameters ? JSON.parse(JSON.stringify(parameters)) : { temperature: 0.7, maxTokens: 8192 },
 
     // 深度复制 presetMessages，并确保它们有唯一的 ID，同时保持引用关系
     presetMessages: (() => {
@@ -495,10 +481,7 @@ const handleEdit = (agent: ChatAgent) => {
 
 // 保存智能体
 // 使用统一的 AgentEditData 类型，确保字段完整传递
-const handleSaveAgent = (
-  data: AgentEditData,
-  options: { silent?: boolean; agentId?: string } = {}
-) => {
+const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
   if (editDialogMode.value === "edit") {
     const targetId = options.agentId || editingAgent.value?.id;
     if (!targetId) return;
@@ -570,8 +553,7 @@ const handleCopyConfig = async (agent: ChatAgent, format: "json" | "yaml") => {
       agents: [exportableAgent],
     };
 
-    const contentString =
-      format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
+    const contentString = format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
 
     await navigator.clipboard.writeText(contentString);
     const name = agent.displayName || agent.name;
@@ -672,7 +654,11 @@ const handleImportFromTavernCard = async () => {
         </el-input>
         <el-dropdown trigger="click" @command="handleMatchModeChange" placement="bottom-end">
           <div>
-            <el-tooltip :content="`搜索模式: ${matchModeOptions.find(o => o.value === matchMode)?.desc}`" placement="top" :show-after="400">
+            <el-tooltip
+              :content="`搜索模式: ${matchModeOptions.find((o) => o.value === matchMode)?.desc}`"
+              placement="top"
+              :show-after="400"
+            >
               <el-button size="small" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
                 {{ currentModeLabel }}
               </el-button>
@@ -702,18 +688,9 @@ const handleImportFromTavernCard = async () => {
           style="flex: 1"
         >
           <el-option label="全部分类" value="all" />
-          <el-option
-            v-for="cat in allCategories"
-            :key="cat.value"
-            :label="cat.label"
-            :value="cat.value"
-          />
+          <el-option v-for="cat in allCategories" :key="cat.value" :label="cat.label" :value="cat.value" />
         </el-select>
-        <el-select
-          v-model="agentSortBy"
-          size="small"
-          :style="{ width: allCategories.length > 0 ? '110px' : '100%' }"
-        >
+        <el-select v-model="agentSortBy" size="small" :style="{ width: allCategories.length > 0 ? '110px' : '100%' }">
           <el-option label="最近使用" value="lastUsed" />
           <el-option label="按名称" value="name" />
           <el-option label="创建时间" value="createdAt" />
@@ -772,9 +749,7 @@ const handleImportFromTavernCard = async () => {
 
     <!-- 底部常驻添加按钮 -->
     <div class="agents-footer">
-      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus">
-        添加智能体
-      </el-button>
+      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus"> 添加智能体 </el-button>
       <!-- 导入导出下拉菜单 -->
       <el-dropdown trigger="click">
         <el-button type="info">更多</el-button>

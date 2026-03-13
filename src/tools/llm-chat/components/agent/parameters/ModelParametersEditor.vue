@@ -10,17 +10,17 @@ import { useChatHandler } from "../../../composables/chat/useChatHandler";
 import type { ContextPreviewData } from "../../../types/context";
 import { getModelFamily } from "@/llm-apis/request-builder";
 import { isEqual } from "lodash-es";
-import ConfigSection from "../common/ConfigSection.vue";
+import ConfigSection from "../../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
-import ContextCompressionConfigPanel from "./parameters/ContextCompressionConfigPanel.vue";
+import ContextCompressionConfigPanel from "./ContextCompressionConfigPanel.vue";
 import { ParameterConfig, parameterConfigs } from "../../../config/parameter-config";
 import { DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../../types/llm";
 
 // New Components
-import SafetySettingsPanel from "./parameters/SafetySettingsPanel.vue";
-import PostProcessingPanel from "./parameters/PostProcessingPanel.vue";
-import CustomParamsPanel from "./parameters/CustomParamsPanel.vue";
-import ContextStatsCard from "./parameters/ContextStatsCard.vue";
+import SafetySettingsPanel from "./SafetySettingsPanel.vue";
+import PostProcessingPanel from "./PostProcessingPanel.vue";
+import CustomParamsPanel from "./CustomParamsPanel.vue";
+import ContextStatsCard from "./ContextStatsCard.vue";
 import {
   Setting,
   Tools,

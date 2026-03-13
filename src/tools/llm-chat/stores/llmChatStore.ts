@@ -93,6 +93,17 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return sessions.value.find((s) => s.id === currentSessionId.value) || null;
   });
 
+  /**
+   * 当前会话是否正在生成
+   * 只检查当前会话的节点，不受其他会话生成状态影响
+   */
+  const isCurrentSessionGenerating = computed(() => {
+    const session = currentSession.value;
+    if (!session || !session.nodes) return false;
+    // 只要当前会话中有任何一个节点在生成中，就认为当前会话正在生成
+    return Object.values(session.nodes).some((node) => generatingNodes.value.has(node.id));
+  });
+
   const currentActivePath = computed((): ChatMessageNode[] => {
     const session = currentSession.value;
     if (!session) return [];
@@ -652,6 +663,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     // Getters
     currentSession,
+    isCurrentSessionGenerating,
     currentActivePath,
     currentActivePathWithPresets,
     llmContext,

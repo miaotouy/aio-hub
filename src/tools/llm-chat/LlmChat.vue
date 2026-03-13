@@ -346,7 +346,7 @@ const handleRenameSession = (data: { sessionId: string; newName: string }) => {
 // ==================== 状态同步到分离窗口 ====================
 // 将关键参数（isSending, disabled）同步到分离的输入框窗口
 const parametersToSync = computed(() => ({
-  isSending: store.isSending,
+  isSending: store.isCurrentSessionGenerating,
   // disabled 状态只取决于有无当前会话
   disabled: !store.currentSession,
 }));
@@ -426,7 +426,7 @@ useStateSyncEngine(parametersToSync, {
           <ChatArea
             v-if="!isChatAreaDetached"
             :messages="store.currentActivePathWithPresets"
-            :is-sending="store.isSending"
+            :is-sending="store.isCurrentSessionGenerating"
             :disabled="!store.currentSession"
             :current-agent-id="currentAgentId"
             :current-model-id="

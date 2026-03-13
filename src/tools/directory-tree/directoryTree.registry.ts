@@ -2,7 +2,7 @@ import type { ToolRegistry, ToolConfig } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import DirectoryTreeIcon from "@/components/icons/DirectoryTreeIcon.vue";
-import { generateTree, renderTree, type GenerateTreeOptions } from "./actions";
+import type { GenerateTreeOptions } from "./actions";
 
 /**
  * 目录树工具注册器
@@ -80,6 +80,8 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
    * 接收扁平化的 Record<string, string> 参数，内部转换为 GenerateTreeOptions。
    */
   public async generateTree(args: Record<string, unknown>): Promise<string> {
+    const { generateTree, renderTree } = await import("./actions");
+
     const options: GenerateTreeOptions = {
       path: String(args.path || ""),
       showFiles: args.showFiles !== false && args.showFiles !== "false",

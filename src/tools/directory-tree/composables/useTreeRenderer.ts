@@ -51,15 +51,26 @@ export function useTreeRenderer(
       const includePath = secondaryIncludePath.value.trim();
       const excludePattern = secondaryExcludePattern.value.trim();
 
-      // 解析包含路径的片段（支持多条路径链）
+      // 解析包含路径的片段（支持多条路径链，支持逗号分隔多个路径）
       let includePathChains: string[][] = [];
       if (includePath) {
-        const matches = findAllNodesAndPaths(treeData.value, includePath);
-        if (matches.length > 0) {
-          // 获取所有匹配的完整路径链
-          includePathChains = matches.map((m) => m.path);
-        } else {
-          return `[未找到路径: ${includePath}]`;
+        const paths = includePath.split(',').map(p => p.trim()).filter(p => p.length > 0);
+        const allMatches: string[][] = [];
+        const missingPaths: string[] = [];
+
+        for (const p of paths) {
+          const matches = findAllNodesAndPaths(treeData.value, p);
+          if (matches.length > 0) {
+            allMatches.push(...matches.map(m => m.path));
+          } else {
+            missingPaths.push(p);
+          }
+        }
+
+        if (allMatches.length > 0) {
+          includePathChains = allMatches;
+        } else if (missingPaths.length > 0) {
+          return `[未找到路径: ${missingPaths.join(', ')}]`;
         }
       }
 

@@ -377,7 +377,18 @@ export function renderTreeRecursive(
   isInsideIncludedPath = false
 ): void {
   if (!node.is_dir && !options.showFiles) return;
-  if (options.excludePattern && node.name.includes(options.excludePattern)) return;
+  
+  // 支持逗号分隔的多个排除条件（OR 逻辑）
+  if (options.excludePattern) {
+    const patterns = options.excludePattern
+      .split(',')
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+    
+    if (patterns.some(pattern => node.name.includes(pattern))) {
+      return;
+    }
+  }
 
   let currentlyInside = isInsideIncludedPath;
 

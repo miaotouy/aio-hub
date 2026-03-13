@@ -68,7 +68,7 @@
             <el-input
               :model-value="secondaryIncludePath"
               @update:model-value="$emit('update:secondaryIncludePath', $event)"
-              placeholder="只展示此子路径下的内容 (如 src/components)"
+              placeholder="只展示此子路径下的内容，支持逗号分隔多个路径"
               size="small"
               clearable
               class="filter-input"
@@ -79,7 +79,7 @@
             <el-input
               :model-value="secondaryExcludePattern"
               @update:model-value="$emit('update:secondaryExcludePattern', $event)"
-              placeholder="输入关键词隐藏行（及子项）"
+              placeholder="输入关键词隐藏行（及子项），支持逗号分隔多个条件"
               size="small"
               clearable
               class="filter-input"

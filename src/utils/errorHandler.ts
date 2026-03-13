@@ -64,6 +64,49 @@ class GlobalErrorHandler {
   private maxUserMessageLength = 500;
 
   /**
+   * 安全地净化对象，防止深层大对象导致的序列化开销
+   */
+  private sanitizeObject(obj: any, depth = 0, maxDepth = 3): any {
+    if (depth >= maxDepth) {
+      return "[Object Max Depth Reached]";
+    }
+
+    if (obj === null || typeof obj !== "object") {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      if (obj.length > 10) {
+        return obj
+          .slice(0, 10)
+          .map((item) => this.sanitizeObject(item, depth + 1, maxDepth))
+          .concat(`[... ${obj.length - 10} more items]`);
+      }
+      return obj.map((item) => this.sanitizeObject(item, depth + 1, maxDepth));
+    }
+
+    // 处理普通对象
+    const sanitized: Record<string, any> = {};
+    const keys = Object.keys(obj);
+    const maxKeys = 100;
+
+    for (let i = 0; i < Math.min(keys.length, maxKeys); i++) {
+      const key = keys[i];
+      try {
+        sanitized[key] = this.sanitizeObject(obj[key], depth + 1, maxDepth);
+      } catch (e) {
+        sanitized[key] = "[Unreadable Property]";
+      }
+    }
+
+    if (keys.length > maxKeys) {
+      sanitized["_moreKeys"] = `[... ${keys.length - maxKeys} more keys]`;
+    }
+
+    return sanitized;
+  }
+
+  /**
    * 标准化错误
    */
   private standardizeError(error: any, options: ErrorHandlerOptions = {}): StandardError {
@@ -80,7 +123,18 @@ class GlobalErrorHandler {
     } else if (typeof error === "string") {
       message = error;
     } else if (error && typeof error === "object") {
-      message = error.message || JSON.stringify(error);
+      // 如果对象太大，JSON.stringify 会卡死，这里做一个保护
+      if (error.message) {
+        message = error.message;
+      } else {
+        try {
+          // 尝试安全序列化
+          const sanitized = this.sanitizeObject(error);
+          message = JSON.stringify(sanitized);
+        } catch (e) {
+          message = "[Object Unserializable]";
+        }
+      }
       code = error.code;
       stack = error.stack;
     }
@@ -91,7 +145,7 @@ class GlobalErrorHandler {
       stack,
       level,
       module,
-      context,
+      context: this.sanitizeObject(context),
       timestamp: new Date().toISOString(),
       originalError: error,
     };
@@ -159,7 +213,13 @@ class GlobalErrorHandler {
         break;
       case ErrorLevel.ERROR:
       case ErrorLevel.CRITICAL:
-        logger.error(messageWithModule, error.originalError, logData);
+        // 如果 originalError 不是 Error 实例且是个对象，为了防止 logger 内部 String(error) 导致的性能开销或信息丢失，
+        // 我们传递一个已经净化过的副本或者直接使用 standardError 的信息
+        let safeError = error.originalError;
+        if (!(safeError instanceof Error) && typeof safeError === "object" && safeError !== null) {
+          safeError = new Error(`[Object Error] ${error.message}`);
+        }
+        logger.error(messageWithModule, safeError, logData);
         break;
     }
   }

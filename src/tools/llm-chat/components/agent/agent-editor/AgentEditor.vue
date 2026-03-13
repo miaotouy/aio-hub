@@ -10,7 +10,7 @@ import ToolCallingSection from "./sections/ToolCallingSection.vue";
 import OutputDisplaySection from "./sections/OutputDisplaySection.vue";
 import SessionVariableSection from "./sections/SessionVariableSection.vue";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
-import AgentAssetsDialog from "../AgentAssetsDialog.vue";
+import AgentAssetsDialog from "../assets/AgentAssetsDialog.vue";
 
 const EditUserProfileDialog = defineAsyncComponent(() => import("../../user-profile/EditUserProfileDialog.vue"));
 const WorldbookManagerDialog = defineAsyncComponent(() => import("../../worldbook/WorldbookManagerDialog.vue"));

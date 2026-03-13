@@ -192,7 +192,7 @@ const handleExportToFile = async () => {
 const handleSendTreeToChat = () => {
   sendToChat(state.editorContent.value, {
     format: "code",
-    language: "text",
+    language: "markdown",
     successMessage: "已将目录树发送到聊天",
   });
 };

@@ -123,10 +123,7 @@ const openEditDialog = () => {
 };
 
 // 保存编辑的智能体
-const handleSaveEdit = (
-  data: AgentEditData,
-  options: { silent?: boolean; agentId?: string } = {}
-) => {
+const handleSaveEdit = (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
   const targetId = options.agentId || agentStore.currentAgentId;
   if (!targetId) return;
 
@@ -167,11 +164,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
   // 创建更新后的 profile
   const updatedProfile = {
     ...profile,
-    models: [
-      ...profile.models.slice(0, modelIndex),
-      updatedModel,
-      ...profile.models.slice(modelIndex + 1),
-    ],
+    models: [...profile.models.slice(0, modelIndex), updatedModel, ...profile.models.slice(modelIndex + 1)],
   };
 
   try {
@@ -244,23 +237,15 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
           v-model="modelParameters"
           :provider-type="currentProviderType"
           :capabilities="currentModel?.capabilities"
+          :token-limits="currentModel?.tokenLimits"
           :context-length-limit="contextLengthLimit"
           :external-stats="chatStore.contextStats"
         />
 
         <!-- 预设消息分组 -->
-        <ConfigSection
-          title="预设消息"
-          :icon="ChatLineRound"
-          v-model:expanded="presetMessagesExpanded"
-        >
+        <ConfigSection title="预设消息" :icon="ChatLineRound" v-model:expanded="presetMessagesExpanded">
           <div class="preset-messages-compact">
-            <AgentPresetEditor
-              v-model="presetMessages"
-              :compact="true"
-              :agent="currentAgent"
-              height="400px"
-            />
+            <AgentPresetEditor v-model="presetMessages" :compact="true" :agent="currentAgent" height="400px" />
           </div>
         </ConfigSection>
       </div>

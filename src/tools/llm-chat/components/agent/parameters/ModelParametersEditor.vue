@@ -21,15 +21,7 @@ import SafetySettingsPanel from "./SafetySettingsPanel.vue";
 import PostProcessingPanel from "./PostProcessingPanel.vue";
 import CustomParamsPanel from "./CustomParamsPanel.vue";
 import ContextStatsCard from "./ContextStatsCard.vue";
-import {
-  Setting,
-  Tools,
-  Document,
-  Files,
-  Connection,
-  MagicStick,
-  CirclePlus,
-} from "@element-plus/icons-vue";
+import { Setting, Tools, Document, Files, Connection, MagicStick, CirclePlus } from "@element-plus/icons-vue";
 import { Shield } from "lucide-vue-next";
 
 /**
@@ -42,6 +34,8 @@ interface Props {
   providerType?: ProviderType;
   modelId?: string;
   capabilities?: LlmModelInfo["capabilities"];
+  /** 模型的 Token 限制信息 */
+  tokenLimits?: LlmModelInfo["tokenLimits"];
   compact?: boolean;
   /** 模型的上下文窗口限制（如果为 undefined 则使用默认最大值） */
   contextLengthLimit?: number;
@@ -138,9 +132,7 @@ const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
       newEnabled = currentEnabled as Array<keyof Omit<LlmParameters, "custom">>;
     }
   } else {
-    newEnabled = currentEnabled.filter((k) => k !== key) as Array<
-      keyof Omit<LlmParameters, "custom">
-    >;
+    newEnabled = currentEnabled.filter((k) => k !== key) as Array<keyof Omit<LlmParameters, "custom">>;
   }
 
   localParams.value = {
@@ -178,21 +170,25 @@ const specialConfigs = computed(() =>
 
 // --- 动态参数处理 ---
 
-// 根据 capabilities 动态处理参数配置，特别是 reasoningEffort 的选项
+// 根据 capabilities 动态处理参数配置，特别是 reasoningEffort 的选项和 maxTokens 的建议值
 const processedConfigs = computed(() => {
-  if (props.capabilities?.thinkingConfigType !== "effort") {
-    return parameterConfigs;
-  }
+  const cap = props.capabilities;
+  const outputLimit = props.tokenLimits?.output;
 
   return parameterConfigs.map((config) => {
-    if (config.key === "reasoningEffort") {
+    // 动态过滤 maxTokens 的建议值，不显示超过模型输出上限的选项
+    if (config.key === "maxTokens" && outputLimit && config.suggestions) {
+      return {
+        ...config,
+        suggestions: config.suggestions.filter((s) => s.value <= outputLimit),
+      };
+    }
+
+    if (config.key === "reasoningEffort" && cap?.thinkingConfigType === "effort") {
       const options = props.capabilities?.reasoningEffortOptions || [];
       return {
         ...config,
-        options: [
-          { label: "默认", value: "" },
-          ...options.map((opt) => ({ label: opt, value: opt })),
-        ],
+        options: [{ label: "默认", value: "" }, ...options.map((opt) => ({ label: opt, value: opt }))],
       };
     }
     return config;
@@ -234,7 +230,8 @@ const shouldShowParameter = (key: keyof LlmParameters): boolean => {
 
 // 计算 maxTokens 滑块的最大值
 const maxTokensLimit = computed(() => {
-  return props.contextLengthLimit || 131072;
+  // 优先级：模型显式定义的输出限制 > 上下文长度限制 > 默认硬上限
+  return props.tokenLimits?.output || props.contextLengthLimit || 131072;
 });
 
 // 覆盖配置对象
@@ -248,11 +245,7 @@ const overrides = computed(() => ({
 watch(
   () => props.contextLengthLimit,
   (newLimit) => {
-    if (
-      newLimit &&
-      localParams.value.maxTokens !== undefined &&
-      localParams.value.maxTokens > newLimit
-    ) {
+    if (newLimit && localParams.value.maxTokens !== undefined && localParams.value.maxTokens > newLimit) {
       // 如果当前值超过了新的限制，自动调整到最大值
       updateParameter("maxTokens", newLimit);
     }
@@ -279,11 +272,7 @@ watch(
   () => localParams.value.thinkingBudget,
   (newBudget) => {
     // 仅当启用了思考模式且是 budget 类型时才处理
-    if (
-      !localParams.value.thinkingEnabled ||
-      props.capabilities?.thinkingConfigType !== "budget" ||
-      !newBudget
-    ) {
+    if (!localParams.value.thinkingEnabled || props.capabilities?.thinkingConfigType !== "budget" || !newBudget) {
       return;
     }
 
@@ -649,11 +638,7 @@ const hasActivePostProcessingRules = computed(() => {
     </ConfigSection>
 
     <!-- 上下文后处理管道分组 -->
-    <ConfigSection
-      title="上下文后处理"
-      :icon="Connection"
-      v-model:expanded="postProcessingExpanded"
-    >
+    <ConfigSection title="上下文后处理" :icon="Connection" v-model:expanded="postProcessingExpanded">
       <PostProcessingPanel
         :model-value="localParams.contextPostProcessing?.rules"
         @update:model-value="(rules: any) => updateParameter('contextPostProcessing', { rules })"
@@ -691,17 +676,12 @@ const hasActivePostProcessingRules = computed(() => {
         :overrides="overrides[config.key as keyof typeof overrides]"
       />
 
-      <div class="param-hint">
-        其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。
-      </div>
+      <div class="param-hint">其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。</div>
     </ConfigSection>
 
     <!-- 自定义参数分组 -->
     <ConfigSection title="自定义参数" :icon="CirclePlus" v-model:expanded="customParamsExpanded">
-      <CustomParamsPanel
-        :model-value="localParams.custom"
-        @update:model-value="updateParameter('custom', $event)"
-      />
+      <CustomParamsPanel :model-value="localParams.custom" @update:model-value="updateParameter('custom', $event)" />
     </ConfigSection>
   </div>
 </template>

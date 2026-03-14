@@ -97,16 +97,9 @@ const showReset = computed(() => {
       <span class="param-label">{{ activeConfig.label }}</span>
       <div class="param-controls">
         <!-- Reset Button -->
-        <el-popconfirm
-          v-if="showReset"
-          title="确定要重置为默认值吗？"
-          @confirm="handleReset"
-          width="200"
-        >
+        <el-popconfirm v-if="showReset" title="确定要重置为默认值吗？" @confirm="handleReset" width="200">
           <template #reference>
-            <el-button link size="small" type="info" class="reset-btn" :icon="RefreshLeft">
-              重置
-            </el-button>
+            <el-button link size="small" type="info" class="reset-btn" :icon="RefreshLeft"> 重置 </el-button>
           </template>
         </el-popconfirm>
 
@@ -136,12 +129,7 @@ const showReset = computed(() => {
           :disabled="disabled"
           size="small"
         >
-          <el-option
-            v-for="item in activeConfig.suggestions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          >
+          <el-option v-for="item in activeConfig.suggestions" :key="item.value" :label="item.label" :value="item.value">
             <div class="suggestion-item">
               <span class="label">{{ item.label }}</span>
               <span class="value">{{ item.value }}</span>
@@ -186,12 +174,7 @@ const showReset = computed(() => {
           :disabled="disabled"
           size="small"
         >
-          <el-option
-            v-for="item in activeConfig.suggestions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          >
+          <el-option v-for="item in activeConfig.suggestions" :key="item.value" :label="item.label" :value="item.value">
             <div class="suggestion-item">
               <span class="label">{{ item.label }}</span>
               <span class="value">{{ item.value }}</span>
@@ -229,12 +212,7 @@ const showReset = computed(() => {
           class="full-width"
           :disabled="disabled"
         >
-          <el-option
-            v-for="opt in activeConfig.options"
-            :key="opt.value"
-            :label="opt.label"
-            :value="opt.value"
-          />
+          <el-option v-for="opt in activeConfig.options" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
       </template>
 
@@ -256,9 +234,7 @@ const showReset = computed(() => {
     </div>
 
     <!-- Disabled State Description Hint -->
-    <div v-else class="param-desc disabled-hint">
-      {{ activeConfig.description }} (使用模型默认值)
-    </div>
+    <div v-else class="param-desc disabled-hint">{{ activeConfig.description }} (使用模型默认值)</div>
   </div>
 </template>
 
@@ -315,7 +291,9 @@ const showReset = computed(() => {
 
 .param-slider {
   margin-bottom: 0; /* Remove default margin */
-  padding: 0 6px;
+  padding: 0 4px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .switch-container {
@@ -353,9 +331,18 @@ const showReset = computed(() => {
 }
 
 /* Element Plus overrides */
+:deep(.el-slider) {
+  --el-slider-main-bg-color: var(--primary-color);
+  --el-slider-runway-bg-color: var(--container-bg);
+  --el-slider-stop-bg-color: var(--border-color);
+  display: flex;
+  align-items: center;
+}
+
 :deep(.el-slider__runway) {
   background-color: var(--container-bg);
   border: 1px solid var(--border-color);
+  flex: 1;
 }
 
 :deep(.el-slider__bar) {

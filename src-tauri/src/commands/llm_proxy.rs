@@ -235,11 +235,11 @@ async fn handle_proxy_request(
             continue;
         }
 
-        if let (Ok(name), Ok(value)) = (
-            HeaderName::from_bytes(k.as_bytes()),
-            HeaderValue::from_str(&v),
-        ) {
-            headers.insert(name, value);
+        if let Ok(name) = HeaderName::from_bytes(k.as_bytes()) {
+            // 使用 from_bytes 允许非 ASCII 字符，增强对不规范渠道的兼容性
+            if let Ok(value) = HeaderValue::from_bytes(v.as_bytes()) {
+                headers.insert(name, value);
+            }
         }
     }
 
@@ -251,6 +251,9 @@ async fn handle_proxy_request(
     let req_builder = match request.method.to_uppercase().as_str() {
         "POST" => client.post(&request.url),
         "GET" => client.get(&request.url),
+        "PUT" => client.put(&request.url),
+        "DELETE" => client.delete(&request.url),
+        "PATCH" => client.patch(&request.url),
         _ => return Err((StatusCode::METHOD_NOT_ALLOWED, "Unsupported method".into())),
     };
 
@@ -282,6 +285,8 @@ async fn handle_proxy_request(
     let mut resp_headers = AxumHeaderMap::new();
 
     // 定义需要过滤的逐跳头部和敏感头部
+    // 移除了 content-encoding，因为我们现在允许 reqwest 处理解压（如果不是流式）
+    // 或者将原始编码透传（如果是流式且前端能处理）
     let hop_by_hop = [
         "connection",
         "keep-alive",
@@ -292,7 +297,6 @@ async fn handle_proxy_request(
         "transfer-encoding",
         "upgrade",
         "content-length",
-        "content-encoding",
         "host",
         "access-control-allow-origin",
         "access-control-allow-methods",
@@ -310,6 +314,21 @@ async fn handle_proxy_request(
             if let Ok(axum_value) = axum::http::HeaderValue::from_bytes(value.as_bytes()) {
                 resp_headers.insert(axum_name, axum_value);
             }
+        }
+    }
+
+    // 为流式请求强制添加必要的 SSE 头部，防止被缓存或压缩
+    if is_streaming {
+        resp_headers.insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache"),
+        );
+        resp_headers.insert(
+            axum::http::header::CONNECTION,
+            axum::http::HeaderValue::from_static("keep-alive"),
+        );
+        if let Ok(x_accel_name) = axum::http::HeaderName::from_bytes(b"x-accel-buffering") {
+            resp_headers.insert(x_accel_name, axum::http::HeaderValue::from_static("no"));
         }
     }
 

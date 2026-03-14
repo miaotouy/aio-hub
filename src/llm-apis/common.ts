@@ -621,18 +621,16 @@ export const fetchWithTimeout = async (
     // relaxIdCerts/http1Only: 前端 fetch 不支持这些底层配置，必须走 Rust 代理
     // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
     // networkStrategy === 'native' 具有最高优先级，除非是前端 fetch 无法实现的底层配置
-    const isNative = options.networkStrategy === "native";
     // 劫持检测逻辑：
-    // 1. 如果包含本地文件 (hasLocalFile)，则无论何种策略都必须走代理，因为原生 fetch 无法处理 local-file:// 协议
-    // 2. 深度检测：如果 body 是字符串且包含 local-file://，也强制走代理（兜底逻辑）
-    // 3. 否则，遵循非原生策略下的代理/强制代理/底层配置要求
+    // 默认全面转向 Rust 代理。
+    // 逃生通道：如果显式指定 networkStrategy 为 'native'，则强制走前端直连。
+    // 即使包含 local-file://，只要指定了 'native' 也会在前端处理（作为兜底）。
+    const isNative = options.networkStrategy === "native";
+    const useProxy = !isNative;
+
+    // 仅用于日志记录
     const bodyString = typeof options.body === "string" ? options.body : "";
     const hasLocalFileInBody = bodyString.includes("local-file://");
-
-    const useProxy =
-      options.hasLocalFile ||
-      hasLocalFileInBody ||
-      (!isNative && (options.forceProxy || options.relaxIdCerts || options.http1Only));
 
     if (useProxy) {
       logger.debug("触发代理模式", {
@@ -710,10 +708,18 @@ export const fetchWithTimeout = async (
       const proxyPayload = {
         url,
         method: options.method || "POST",
-        headers: options.headers as Record<string, string>,
+        headers: (() => {
+          const h = { ...(options.headers as Record<string, string>) };
+          // 确保 Content-Type 被透传，且处理大小写不一致的问题
+          const hasContentType = Object.keys(h).some((k) => k.toLowerCase() === "content-type");
+          if (!hasContentType) {
+            h["Content-Type"] = "application/json";
+          }
+          return h;
+        })(),
         body: bodyObjForProxy,
-        relax_invalid_certs: options.relaxIdCerts,
-        http1_only: options.http1Only,
+        relax_invalid_certs: options.relaxIdCerts ?? true, // 默认开启以获得最大兼容性
+        http1_only: options.http1Only ?? true, // 默认开启以获得最大兼容性
         proxy_settings: proxySettings,
         is_streaming: options.isStreaming || false,
       };

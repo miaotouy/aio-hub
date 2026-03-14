@@ -331,13 +331,13 @@ const networkSettingSummary = computed(() => {
                   </el-radio-group>
                   <div class="form-hint">
                     <span v-if="editForm.networkStrategy === 'auto'">
-                      默认方案。自动根据请求内容（如是否包含本地文件）决定是否通过 Rust 后端转发。
+                      默认使用后端 Rust 代理。支持底层网络微调，可绕过 CORS，并自动处理本地文件协议。
                     </span>
                     <span v-else-if="editForm.networkStrategy === 'proxy'">
                       强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1 等底层配置，可绕过 CORS。
                     </span>
                     <span v-else-if="editForm.networkStrategy === 'native'">
-                      强制使用前端原生请求。性能较好，但不支持底层网络微调，且受限于浏览器安全策略。
+                      强制使用前端原生请求。但不支持底层网络微调，且受限于浏览器安全策略。
                     </span>
                   </div>
                 </el-form-item>

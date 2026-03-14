@@ -137,9 +137,7 @@ export const callOpenAiChatApi = async (
     temperature: commonParams.temperature ?? 0.5,
   };
 
-  if (options.maxCompletionTokens !== undefined) {
-    body.max_completion_tokens = options.maxCompletionTokens;
-  } else if (commonParams.maxTokens !== undefined) {
+  if (commonParams.maxTokens !== undefined) {
     body.max_tokens = commonParams.maxTokens;
   }
 

@@ -15,7 +15,7 @@ import { isAbortError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
-import { ALL_LLM_PARAMETER_KEYS } from "../../config/parameter-config";
+import { buildEffectiveParameters } from "../../config/parameter-config";
 import { useTopicNamer } from "./useTopicNamer";
 import { useSessionManager } from "../session/useSessionManager";
 import { useChatResponseHandler } from "./useChatResponseHandler";
@@ -176,28 +176,8 @@ export function useChatExecutor() {
       const maxIterations = executionAgent.toolCallConfig?.maxIterations ?? 5;
       let currentPathToUserNode = [...pathToUserNode];
 
-      // 动态构建生效的参数对象
-      const effectiveParams: Record<string, any> = {};
-      const configParams = agentConfigSnippet.parameters;
-
-      // 1. 处理标准参数
-      const isStrictFilter = Array.isArray(configParams.enabledParameters);
-      const enabledList = new Set<string>(configParams.enabledParameters || []);
-
-      for (const key of ALL_LLM_PARAMETER_KEYS) {
-        const value = configParams[key as keyof Omit<LlmParameters, "custom">];
-        if (value === undefined) continue;
-
-        const isEnabled = isStrictFilter ? enabledList.has(key) : true;
-        if (isEnabled) {
-          effectiveParams[key] = value;
-        }
-      }
-
-      // 2. 解包并添加自定义参数
-      if (configParams.custom && typeof configParams.custom === "object") {
-        Object.assign(effectiveParams, configParams.custom);
-      }
+      // 动态构建生效的参数对象（包含标准参数过滤和自定义参数合并）
+      const effectiveParams = buildEffectiveParameters(agentConfigSnippet.parameters);
 
       // 感知 VCP 渠道：如果 API 地址与 VCP 连接器的地址匹配，则认为工具解析由后端完成
       const vcpStore = useVcpStore();

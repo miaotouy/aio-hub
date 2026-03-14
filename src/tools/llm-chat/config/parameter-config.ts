@@ -367,3 +367,35 @@ export function filterParametersForModel(
 
   return filteredParams as LlmParameters;
 }
+
+/**
+ * 构建最终发送给 LLM API 的生效参数对象
+ * 包含标准参数过滤和自定义参数合并
+ *
+ * @param params 智能体配置中的原始参数
+ * @returns 扁平化的、可直接传给 API 的参数对象
+ */
+export function buildEffectiveParameters(params: LlmParameters): Record<string, any> {
+  const effectiveParams: Record<string, any> = {};
+
+  // 1. 处理标准参数
+  const isStrictFilter = Array.isArray(params.enabledParameters);
+  const enabledList = new Set<string>(params.enabledParameters || []);
+
+  for (const key of ALL_LLM_PARAMETER_KEYS) {
+    const value = params[key as keyof Omit<LlmParameters, "custom">];
+    if (value === undefined) continue;
+
+    const isEnabled = isStrictFilter ? enabledList.has(key) : true;
+    if (isEnabled) {
+      effectiveParams[key] = value;
+    }
+  }
+
+  // 2. 解包并添加自定义参数
+  if (params.custom && typeof params.custom === "object") {
+    Object.assign(effectiveParams, params.custom);
+  }
+
+  return effectiveParams;
+}

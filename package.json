@@ -39,6 +39,10 @@
     "mtab": "cd mobile ; bun run tauri android build",
     "mtid": "cd mobile ; bun run tauri ios dev",
     "mtib": "cd mobile ; bun run tauri ios build",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest --run",
+    "test:coverage": "vitest --coverage",
     "check": "bun run check:frontend ; bun run check:backend ; bun run check:mobile",
     "check:frontend": "vue-tsc --noEmit",
     "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
@@ -163,10 +167,14 @@
     "@types/node": "^24.7.2",
     "@types/prettier": "^3.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/ui": "^4.1.0",
+    "@vue/test-utils": "^2.4.6",
     "@vueuse/components": "^14.0.0",
     "cross-env": "^7.0.3",
     "dotenv": "^17.2.3",
     "fs-extra": "^11.3.2",
+    "jsdom": "^28.1.0",
     "monaco-editor-nls": "^3.1.0",
     "sass-embedded": "^1.93.3",
     "terser": "^5.31.3",
@@ -175,6 +183,7 @@
     "unplugin-vue-components": "^28.8.0",
     "vite": "^6.0.3",
     "vite-plugin-monaco-editor-nls": "^3.0.1",
+    "vitest": "^4.1.0",
     "vue-tsc": "^2.1.10"
   }
 }

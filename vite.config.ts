@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import Icons from "unplugin-icons/vite";
 import { FileSystemIconLoader } from "unplugin-icons/loaders";
@@ -16,6 +17,32 @@ const HMR_PORT = parseInt(process.env.VITE_HMR_PORT || (PORT + 1).toString());
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Vitest 测试配置
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      exclude: [
+        ...configDefaults.coverage.exclude || [],
+        "src/test/**",
+        "**/*.d.ts",
+        "**/*.config.*",
+        "**/mockData/**",
+        "src-tauri/**",
+      ],
+    },
+    // 排除 Tauri 后端和构建产物
+    exclude: [
+      ...configDefaults.exclude,
+      "src-tauri/**",
+      "dist/**",
+      "mobile/**",
+    ],
+  },
+
   // 路径别名配置
   resolve: {
     alias: {

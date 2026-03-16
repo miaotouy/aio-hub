@@ -180,10 +180,25 @@ const runExecutionTest = async () => {
       return;
     }
 
+    // 寻找所属的 group 和 method
+    let targetToolId = "";
+    let targetMethodName = "";
+    for (const group of props.groups) {
+      for (const method of group.methods) {
+        if (`${group.toolId}_${method.name}` === testToolName.value) {
+          targetToolId = group.toolId;
+          targetMethodName = method.name;
+          break;
+        }
+      }
+    }
+
     const results = await executeToolRequests(
       [
         {
           requestId: "debug-" + Math.random().toString(36).slice(2, 7),
+          toolId: targetToolId,
+          methodName: targetMethodName,
           toolName: testToolName.value,
           args,
           rawBlock: "",

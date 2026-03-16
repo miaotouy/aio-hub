@@ -7,35 +7,32 @@
 import { toolRegistryManager } from "@/services/registry";
 import type { AsyncTaskContext } from "./types";
 import type { ServiceMetadata, ToolContext } from "@/services/types";
-import { parseToolTarget } from "../utils/tool-parser";
-
 export class TaskExecutor {
   /**
    * 执行异步任务
    */
-  async execute(toolName: string, args: Record<string, unknown>, context: AsyncTaskContext): Promise<string> {
-    const target = parseToolTarget(toolName);
-    if (!target) {
-      throw new Error(`无效的工具名称格式: ${toolName}`);
+  async execute(
+    toolId: string,
+    methodName: string,
+    args: Record<string, unknown>,
+    context: AsyncTaskContext
+  ): Promise<string> {
+    if (!toolRegistryManager.hasTool(toolId)) {
+      throw new Error(`工具不存在: ${toolId}`);
     }
 
-    if (!toolRegistryManager.hasTool(target.toolId)) {
-      throw new Error(`工具不存在: ${target.toolId}`);
-    }
-
-    const toolInstance = toolRegistryManager.getRegistry(target.toolId) as unknown as Record<string, unknown>;
-    const method = toolInstance[target.methodName];
+    const toolInstance = toolRegistryManager.getRegistry(toolId) as unknown as Record<string, unknown>;
+    const method = toolInstance[methodName];
 
     if (typeof method !== "function") {
-      throw new Error(`方法不存在: ${target.toolId}.${target.methodName}`);
+      throw new Error(`方法不存在: ${toolId}.${methodName}`);
     }
 
     // 验证方法是否支持异步调用
-    const metadata = this.getMethodMetadata(toolInstance, target.methodName);
+    const metadata = this.getMethodMetadata(toolInstance, methodName);
     if (!metadata?.agentCallable) {
-      throw new Error(`方法不可调用: ${target.toolId}.${target.methodName}`);
+      throw new Error(`方法不可调用: ${toolId}.${methodName}`);
     }
-
     // 构造统一的 ToolContext，通过第二参数传递
     const toolContext: ToolContext = {
       isAsync: true,

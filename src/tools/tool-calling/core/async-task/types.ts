@@ -31,7 +31,7 @@ export interface AsyncTaskMetadata {
   /** 方法名称 */
   methodName: string;
 
-  /** 完整工具名称（toolId_methodName） */
+  /** 完整工具名称（用于显示，例如: tool-calling.testAsyncTask） */
   toolName: string;
 
   /** 任务参数 */

@@ -51,23 +51,20 @@ function buildParamDescription(param: MethodParameter): string {
   const parts: string[] = [];
   const typeStr = param.type || "any";
   const requiredStr = param.required !== false ? "必填" : "可选";
-  
+
   parts.push(`(${typeStr}, ${requiredStr})`);
-  
+
   if (param.required === false && param.defaultValue !== undefined) {
     parts.push(`默认值: ${param.defaultValue}`);
   }
-  
+
   if (param.description) {
     parts.push(param.description);
   }
   return parts.join(" ");
 }
 
-export function buildMethodDescription(
-  method: MethodMetadata,
-  toolId: string
-): string {
+export function buildMethodDescription(method: MethodMetadata, toolId: string): string {
   const command = pickCommandName(method);
 
   const lines: string[] = [];
@@ -119,8 +116,13 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   }
 
   const toolId = allParams.tool_name?.trim();
+  const command = allParams.command?.trim();
+
   if (!toolId) {
     errors.push("缺少关键字段: tool_name");
+  }
+  if (!command) {
+    errors.push("缺少关键字段: command");
   }
 
   const baseRequestId = allParams.request_id?.trim() || `req_${requestIndex + 1}`;
@@ -148,14 +150,18 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
 
   // 如果没有索引参数，按单条处理
   if (indices.length === 0) {
-    // VCP 协议支持 tool_name 和 command 分离，保留 command 在 args 中传递给执行器
+    // VCP 协议支持 tool_name 和 command 分离
     const args = { ...commonArgs };
-    const finalToolName = toolId || "unknown_tool";
+    const finalToolId = toolId || "unknown_tool";
+    const finalMethodName = command || "unknown_command";
+    const flatToolName = `${finalToolId}_${finalMethodName}`;
 
     return [
       {
         requestId: baseRequestId,
-        toolName: finalToolName,
+        toolId: finalToolId,
+        methodName: finalMethodName,
+        toolName: flatToolName,
         rawBlock,
         args,
         validation: {
@@ -169,14 +175,17 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   // 批量拆分处理
   return indices.map((index) => {
     const groupArgs = indexedGroups[index];
-    const finalToolName = toolId || "unknown_tool";
+    const finalToolId = toolId || "unknown_tool";
+    const finalMethodName = groupArgs.command?.trim() || command || "unknown_command";
+    const flatToolName = `${finalToolId}_${finalMethodName}`;
 
-    // 保留 command 在 args 中
     const mergedArgs = { ...commonArgs, ...groupArgs };
 
     return {
       requestId: `${baseRequestId}_${index}`,
-      toolName: finalToolName,
+      toolId: finalToolId,
+      methodName: finalMethodName,
+      toolName: flatToolName,
       rawBlock,
       args: mergedArgs,
       validation: {
@@ -212,13 +221,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
         const description = method.description?.trim() || "无描述";
         const body = buildMethodDescription(method, tool.toolId);
 
-        const block = [
-          `指令描述：${description}`,
-          "",
-          TOOL_DEFINITION_START,
-          body,
-          TOOL_DEFINITION_END,
-        ].join("\n");
+        const block = [`指令描述：${description}`, "", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END].join("\n");
 
         methodBlocks.push(block);
       }

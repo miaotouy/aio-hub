@@ -2,6 +2,11 @@ import type { ToolCallConfig as AgentToolCallConfig } from "@/tools/llm-chat/typ
 
 export interface ParsedToolRequest {
   requestId: string;
+  /** 工具 ID (例如: tool-calling) */
+  toolId: string;
+  /** 方法名稱 (例如: testAsyncTask) */
+  methodName: string;
+  /** 原始工具名稱 (可能為扁平化格式，用於向下兼容) */
   toolName: string;
   rawBlock: string;
   args: Record<string, string>;

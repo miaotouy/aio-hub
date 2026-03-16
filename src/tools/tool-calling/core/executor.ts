@@ -9,7 +9,6 @@ import type {
 import type { ToolContext } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { taskManager } from "./async-task";
-import { parseToolTarget } from "./utils/tool-parser";
 
 const logger = createModuleLogger("tool-calling/executor");
 
@@ -63,27 +62,11 @@ async function executeSingleRequest(
     return buildErrorResult(request, `工具请求解析失败：${errorMessages}`, Date.now() - startedAt);
   }
 
-  // 支持两种格式：
-  // 1. 扁平化格式：toolId_methodName (旧格式，向后兼容)
-  // 2. VCP 标准格式：toolName + args.command (新格式)
-  let target = parseToolTarget(request.toolName);
-
-  if (!target) {
-    // 如果不是扁平化格式，尝试从 args.command 中提取方法名
-    const command = request.args?.command as string | undefined;
-    if (command) {
-      target = {
-        toolId: request.toolName,
-        methodName: command,
-      };
-    } else {
-      return buildErrorResult(
-        request,
-        `无效 tool_name 格式：${request.toolName}。期望格式为 toolId_methodName 或提供 command 参数`,
-        Date.now() - startedAt
-      );
-    }
-  }
+  // 优先使用已解析的 toolId/methodName（由协议层填充）
+  const target = {
+    toolId: request.toolId,
+    methodName: request.methodName,
+  };
 
   // 检查方法是否启用
   const methodKey = `${target.toolId}_${target.methodName}`;
@@ -186,7 +169,7 @@ async function executeSingleRequest(
   // 检查是否为异步方法
   if (methodMeta?.executionMode === "async") {
     try {
-      const taskId = await taskManager.submitTask(request.toolName, mergedArgs, request.requestId);
+      const taskId = await taskManager.submitTask(target.toolId, target.methodName, mergedArgs, request.requestId);
       const durationMs = Date.now() - startedAt;
 
       const asyncResult = {

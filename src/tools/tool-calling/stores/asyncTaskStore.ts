@@ -79,8 +79,13 @@ export const useAsyncTaskStore = defineStore("asyncTask", () => {
   /**
    * 提交新任务
    */
-  async function submitTask(toolName: string, args: Record<string, unknown>, requestId: string): Promise<string> {
-    return await taskManager.submitTask(toolName, args, requestId);
+  async function submitTask(
+    toolId: string,
+    methodName: string,
+    args: Record<string, unknown>,
+    requestId: string
+  ): Promise<string> {
+    return await taskManager.submitTask(toolId, methodName, args, requestId);
   }
 
   /**

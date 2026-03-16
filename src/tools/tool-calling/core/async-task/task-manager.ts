@@ -8,7 +8,6 @@ import { createModuleLogger } from "@/utils/logger";
 import type { AsyncTaskMetadata, AsyncTaskContext } from "./types";
 import { TaskStore } from "./task-store";
 import { TaskExecutor } from "./task-executor";
-import { parseToolTarget } from "../utils/tool-parser";
 
 const logger = createModuleLogger("tool-calling/task-manager");
 
@@ -69,22 +68,23 @@ export class TaskManager {
   /**
    * 提交异步任务
    */
-  async submitTask(toolName: string, args: Record<string, unknown>, requestId: string): Promise<string> {
+  async submitTask(
+    toolId: string,
+    methodName: string,
+    args: Record<string, unknown>,
+    requestId: string
+  ): Promise<string> {
     await this.waitForInitialization();
 
     const taskId = this.generateTaskId();
-    const target = parseToolTarget(toolName);
-
-    if (!target) {
-      throw new Error(`无效的工具名称格式: ${toolName}`);
-    }
+    const displayToolName = `${toolId}.${methodName}`;
 
     const metadata: AsyncTaskMetadata = {
       taskId,
       requestId,
-      toolId: target.toolId,
-      methodName: target.methodName,
-      toolName,
+      toolId,
+      methodName,
+      toolName: displayToolName,
       args,
       createdAt: Date.now(),
       status: "pending",
@@ -98,7 +98,7 @@ export class TaskManager {
     await this.persistImmediately();
     this.notifyUpdate(metadata);
 
-    logger.info("任务已提交", { taskId, toolName });
+    logger.info("任务已提交", { taskId, toolName: displayToolName });
 
     // 异步执行（不等待）
     this.executeTask(taskId).catch((error) => {
@@ -154,7 +154,7 @@ export class TaskManager {
       };
 
       // 执行任务
-      const result = await this.executor.execute(task.toolName, task.args, context);
+      const result = await this.executor.execute(task.toolId, task.methodName, task.args, context);
 
       // 更新状态为 completed
       await this.updateTask(taskId, {
@@ -243,10 +243,14 @@ export class TaskManager {
     }
 
     if (task.status === "pending") {
-      await this.updateTask(taskId, {
-        status: "cancelled",
-        completedAt: Date.now(),
-      }, true);
+      await this.updateTask(
+        taskId,
+        {
+          status: "cancelled",
+          completedAt: Date.now(),
+        },
+        true
+      );
     }
 
     logger.info("任务取消请求已发送", { taskId });
@@ -265,7 +269,7 @@ export class TaskManager {
       throw new Error(`只能重试失败或中断的任务，当前状态: ${task.status}`);
     }
 
-    const newTaskId = await this.submitTask(task.toolName, task.args, task.requestId);
+    const newTaskId = await this.submitTask(task.toolId, task.methodName, task.args, task.requestId);
     await this.updateTask(newTaskId, { retriedFrom: taskId }, true);
 
     logger.info("任务重试已提交", { originalTaskId: taskId, newTaskId });
@@ -368,11 +372,11 @@ export class TaskManager {
 
   // 内部辅助方法
   private notifyUpdate(task: AsyncTaskMetadata) {
-    this.updateListeners.forEach(l => l(task));
+    this.updateListeners.forEach((l) => l(task));
   }
 
   private notifyDelete(taskId: string) {
-    this.deleteListeners.forEach(l => l(taskId));
+    this.deleteListeners.forEach((l) => l(taskId));
   }
 
   private async persistImmediately() {

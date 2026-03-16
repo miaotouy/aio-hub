@@ -313,6 +313,28 @@ watch(
 const scrollToTop = () => {
   if (messagesContainer.value) {
     virtualizer.value.scrollToIndex(0, { align: "start" });
+    // 兜底：确保在虚拟列表重置后真正回到最顶部
+    nextTick(() => {
+      if (messagesContainer.value) {
+        messagesContainer.value.scrollTop = 0;
+      }
+    });
+  }
+};
+
+/**
+ * 精确跳转到最后一条消息（供 Navigator 使用）
+ * 解决虚拟滚动估算高度不准导致直接 scrollTo scrollHeight 到不了底的问题
+ */
+const scrollToEnd = () => {
+  if (messageCount.value > 0) {
+    virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
+    // 兜底：等虚拟列表渲染完成后，再用原生滚动确保到底
+    nextTick(() => {
+      if (messagesContainer.value) {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+      }
+    });
   }
 };
 
@@ -417,6 +439,7 @@ const measureElementOnce = (el: HTMLElement) => {
 // 暴露滚动方法和容器引用供外部调用
 defineExpose({
   scrollToBottom,
+  scrollToEnd,
   scrollToTop,
   scrollToNext,
   scrollToPrev,

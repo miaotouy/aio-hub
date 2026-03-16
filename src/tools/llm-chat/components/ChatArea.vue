@@ -587,7 +587,7 @@ const handleScrollToTop = () => {
 
 const handleScrollToBottom = () => {
   hasNewMessages.value = false;
-  messageListRef.value?.scrollToBottom();
+  messageListRef.value?.scrollToEnd();
 };
 
 const handleScrollToNext = () => {

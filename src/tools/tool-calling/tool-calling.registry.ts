@@ -1,5 +1,5 @@
 import { markRaw } from "vue";
-import type { ToolConfig, ToolRegistry, ServiceMetadata } from "@/services/types";
+import type { ToolConfig, ToolRegistry, ServiceMetadata, ToolContext } from "@/services/types";
 import { Wrench } from "lucide-vue-next";
 import { taskManager } from "./core/async-task";
 import { createModuleLogger } from "@/utils/logger";
@@ -241,12 +241,11 @@ export class ToolCallingRegistry implements ToolRegistry {
     );
   }
 
-  async testAsyncTask(args: { duration?: number; shouldFail?: boolean; __asyncContext?: any }): Promise<string> {
+  async testAsyncTask(args: { duration?: number; shouldFail?: boolean }, context?: ToolContext): Promise<string> {
     const duration = args.duration || 5;
     const shouldFail = args.shouldFail || false;
-    const context = args.__asyncContext;
 
-    if (!context) {
+    if (!context?.isAsync) {
       return JSON.stringify({
         success: false,
         error: "此方法必须作为异步任务执行",
@@ -261,14 +260,18 @@ export class ToolCallingRegistry implements ToolRegistry {
 
       for (let i = 0; i <= totalSteps; i++) {
         // 检查是否被取消
-        context.checkCancellation();
+        if (context.signal?.aborted) {
+          const abortError = new Error("任务已取消");
+          abortError.name = "AbortError";
+          throw abortError;
+        }
 
         // 计算进度
         const progress = Math.floor((i / totalSteps) * 100);
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
         // 报告进度
-        context.reportProgress(progress, `执行中... 已用时 ${elapsed}秒 (${i}/${totalSteps})`);
+        context.reportStatus(`执行中... 已用时 ${elapsed}秒 (${i}/${totalSteps})`, progress);
 
         // 模拟工作
         await new Promise((resolve) => setTimeout(resolve, 100));

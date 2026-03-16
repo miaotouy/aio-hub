@@ -1,5 +1,12 @@
 import { toolRegistryManager } from "@/services/registry";
-import type { ParsedToolRequest, ToolExecutionResult, ToolCallConfig, ToolApprovalResult } from "../types";
+import type {
+  ParsedToolRequest,
+  ToolExecutionResult,
+  ToolCallConfig,
+  ToolApprovalResult,
+  ToolCallStatus,
+} from "../types";
+import type { ToolContext } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { taskManager } from "./async-task";
 import { parseToolTarget } from "./utils/tool-parser";
@@ -9,6 +16,7 @@ const logger = createModuleLogger("tool-calling/executor");
 export interface ExecutorOptions {
   config: ToolCallConfig;
   onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>;
+  onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }
 
 function buildErrorResult(request: ParsedToolRequest, message: string, durationMs = 0): ToolExecutionResult {
@@ -112,6 +120,9 @@ async function executeSingleRequest(
     }
   }
 
+  // 审批通过（或自动批准），开始执行
+  options.onStatusChange?.(request.requestId, "executing");
+
   if (!toolRegistryManager.hasTool(target.toolId)) {
     return buildErrorResult(request, `工具不存在：${target.toolId}`, Date.now() - startedAt);
   }
@@ -167,7 +178,7 @@ async function executeSingleRequest(
     }
   }
   const agentPreset = options.config.toolSettings?.[target.toolId] ?? {};
-  
+
   // 从 request.args 中移除 command 字段（如果存在），因为它已经被用于路由
   const { command: _, ...cleanArgs } = request.args ?? {};
   const mergedArgs = { ...schemaDefaults, ...agentPreset, ...cleanArgs };
@@ -183,6 +194,9 @@ async function executeSingleRequest(
         taskId,
         message: "任务已提交，请使用 tool-calling_getTaskStatus 查询进度",
       };
+
+      // 异步任务提交成功也视为 completed（执行权移交给任务管理器）
+      options.onStatusChange?.(request.requestId, "completed");
 
       return {
         requestId: request.requestId,
@@ -201,14 +215,28 @@ async function executeSingleRequest(
       return buildErrorResult(request, `异步任务提交失败：${message}`, durationMs);
     }
   }
-
   try {
+    // 构造统一的 ToolContext，通过第二参数传递
+    const toolContext: ToolContext = {
+      isAsync: false,
+      reportStatus: (message: string) => {
+        options.onStatusChange?.(request.requestId, "executing");
+        logger.debug(`工具执行进度上报: ${request.toolName}`, { message });
+      },
+    };
+
     const invokePromise = Promise.resolve(
-      (method as (args: Record<string, unknown>) => unknown).call(toolInstance, mergedArgs)
+      (method as (args: Record<string, unknown>, context?: ToolContext) => unknown).call(
+        toolInstance,
+        mergedArgs,
+        toolContext
+      )
     );
     const data = await withTimeout(invokePromise, options.config.timeout, request.toolName);
     const durationMs = Date.now() - startedAt;
     const result = typeof data === "string" ? data : JSON.stringify(data ?? null);
+
+    options.onStatusChange?.(request.requestId, "completed");
 
     return {
       requestId: request.requestId,
@@ -225,6 +253,7 @@ async function executeSingleRequest(
       toolName: request.toolName,
       error: message,
     });
+    options.onStatusChange?.(request.requestId, "error");
     return buildErrorResult(request, message, durationMs);
   }
 }

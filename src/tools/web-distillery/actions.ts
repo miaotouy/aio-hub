@@ -14,11 +14,14 @@ import { createModuleLogger } from "@/utils/logger";
 const errorHandler = createModuleErrorHandler("web-distillery/actions");
 const logger = createModuleLogger("web-distillery/actions");
 
+import type { ToolContext } from "@/services/types";
+
 /**
  * Level 0: 快速获取并蒸馏（基于 HTTP 请求，无浏览器）
  */
-export async function quickFetch(options: QuickFetchOptions): Promise<FetchResult> {
+export async function quickFetch(options: QuickFetchOptions, context?: ToolContext): Promise<FetchResult> {
   logger.info("Starting quickFetch", { url: options.url });
+  context?.reportStatus("正在通过 HTTP 获取网页内容...");
   return (await errorHandler.wrapAsync(
     async () => {
       const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
@@ -31,6 +34,7 @@ export async function quickFetch(options: QuickFetchOptions): Promise<FetchResul
         },
       });
 
+      context?.reportStatus("内容获取成功，正在蒸馏提取...");
       const result = await transformer.transform(payload.html, {
         ...options,
         cleanMode: options.cleanMode,
@@ -51,8 +55,12 @@ export async function quickFetch(options: QuickFetchOptions): Promise<FetchResul
 /**
  * Level 1: 智能提取（使用 headless 子 Webview，处理 JS 渲染页面）
  */
-export async function smartExtract(options: SmartExtractOptions): Promise<ExtractResult> {
+export async function smartExtract(
+  options: SmartExtractOptions,
+  context?: ToolContext
+): Promise<ExtractResult> {
   logger.info("Starting smartExtract", { url: options.url, waitFor: options.waitFor });
+  context?.reportStatus("准备启动浏览器引擎...");
   return (await errorHandler.wrapAsync(
     async () => {
       // 1. 查找是否有匹配的配方
@@ -70,6 +78,7 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
 
       // 4. 创建 headless 子 Webview 并加载目标页面
       // 使用超长高度（5000px）以尽可能多地触发下方内容加载（如评论区）
+      context?.reportStatus("正在加载并渲染目标页面...");
       await webviewBridge.createWebview({
         url: options.url,
         x: -2000, // 确保在屏幕外
@@ -90,11 +99,13 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
       const combinedWaitFor = options.waitFor || matchedRecipe?.extractSelectors?.[0];
 
       // 触发带 selector 的提取命令
+      context?.reportStatus("正在分析页面结构...");
       await webviewBridge.extractDom(combinedWaitFor, waitTimeout);
 
       // 6. 等待 dom-extracted 事件从子 Webview 回传
       let extracted;
       try {
+        context?.reportStatus("正在抓取动态内容...");
         extracted = await webviewBridge.waitForDomExtracted(waitTimeout + 2000);
       } finally {
         // 7. 无论提取成功与否，都要销毁 headless Webview，释放资源
@@ -113,6 +124,7 @@ export async function smartExtract(options: SmartExtractOptions): Promise<Extrac
         excludeSelectors: options.excludeSelectors || matchedRecipe?.excludeSelectors,
       };
 
+      context?.reportStatus("内容抓取成功，正在进行高纯度蒸馏...");
       const result = await transformer.transform(extracted.html, {
         ...finalOptions,
         cleanMode: options.cleanMode,

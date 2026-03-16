@@ -4,7 +4,7 @@
  * 将 JS 插件包装成符合 ToolRegistry 接口的代理对象
  */
 
-import type { ServiceMetadata } from "./types";
+import type { ServiceMetadata, ToolContext } from "./types";
 import type { PluginProxy, PluginManifest, JsPluginExport } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -155,7 +155,7 @@ export class JsPluginAdapter implements PluginProxy {
    * 使用 Proxy 来拦截所有方法调用,转发到插件的实际实现
    * @internal 此方法通过 Proxy 动态调用
    */
-  public callPluginMethod(methodName: string, params: any): any {
+  public callPluginMethod(methodName: string, params: any, toolContext?: ToolContext): any {
     if (!this.enabled) {
       throw new Error(`插件 ${this.id} 未启用`);
     }
@@ -172,22 +172,19 @@ export class JsPluginAdapter implements PluginProxy {
     logger.debug(`调用插件方法: ${this.id}.${methodName}`, { params });
 
     try {
-      // 提取异步任务上下文（如果存在）
-      const { __asyncContext, ...restParams } = params || {};
-
       // 创建插件上下文，注入配置 API
-      const context = {
+      const pluginContext = {
         settings: pluginConfigService.createPluginSettingsAPI(this.manifest.id),
       };
 
-      // 合并参数：保留 __asyncContext（用于异步任务），同时注入 context（用于配置访问）
+      // 第一个参数：业务参数（注入 context 配置访问）
       const finalParams = {
-        ...restParams,
-        context,
-        ...(__asyncContext && { __asyncContext }),
+        ...(params || {}),
+        context: pluginContext,
       };
 
-      return method(finalParams);
+      // 第二个参数：ToolContext（如果存在，传递给插件方法）
+      return method(finalParams, toolContext);
     } catch (error) {
       errorHandler.error(error, '插件方法调用失败', { context: { pluginId: this.id, methodName } });
       throw error;
@@ -236,9 +233,9 @@ export function createJsPluginProxy(
         }
       }
 
-      // 返回一个函数，调用插件的实际方法
-      return (params: any) => {
-        return target.callPluginMethod(propStr, params);
+      // 返回一个函数，调用插件的实际方法（支持第二参数 ToolContext）
+      return (params: any, toolContext?: ToolContext) => {
+        return target.callPluginMethod(propStr, params, toolContext);
       };
     },
   }) as PluginProxy;

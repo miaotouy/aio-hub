@@ -370,58 +370,114 @@ export function useChatExecutor() {
           // 如果是 VCP 渠道，禁用内置工具解析，因为 VCP 后端会处理工具调用并返回结果
           if (executionAgent.toolCallConfig?.enabled && !isVcpChannel) {
             const toolCallingStore = useToolCallingStore();
-            const cycleResult = await processCycle(response.content, executionAgent.toolCallConfig, async (request) => {
-              return await toolCallingStore.requestApproval(session.id, request);
-            });
+            const sessionManager = useSessionManager();
+            const nodeManager = useNodeManager();
 
-            if (cycleResult.hasToolRequests) {
-              logger.info(`🛠️ 检测到 ${cycleResult.parsedRequests.length} 个工具请求，开始执行...`);
+            // 预先创建工具节点（如果尚未创建）
+            // 这样在工具执行过程中 UI 就能立刻显示
+            let toolNode: ChatMessageNode | null = null;
 
+            const ensureNodesCreated = (parsedRequests: Array<{ requestId: string; toolName: string; args: any }>) => {
+              if (toolNode) return;
+
+              logger.info(`🛠️ 检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
+
+              // 更新当前助手节点的工具请求状态
               currentAssistantNode.metadata = {
                 ...currentAssistantNode.metadata,
-                toolCallsRequested: cycleResult.parsedRequests.map((req) => ({
+                toolCallsRequested: parsedRequests.map((req) => ({
                   requestId: req.requestId,
                   toolName: req.toolName,
                   args: req.args,
-                  status: "completed",
+                  status: "awaiting_approval",
                 })),
               };
+
+              toolNode = {
+                id: `tool-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                parentId: currentAssistantNode.id,
+                childrenIds: [],
+                role: "tool",
+                content: "", // 初始内容为空
+                status: "generating", // 标记为正在生成/执行中
+                timestamp: new Date().toISOString(),
+                metadata: {
+                  agentId: executionAgent.id,
+                },
+              };
+
+              session.nodes[toolNode.id] = toolNode;
+              currentAssistantNode.childrenIds.push(toolNode.id);
+
+              // 维护状态集合，确保工具节点显示正在执行
+              generatingNodes.add(toolNode.id);
+
+              // 更新活跃叶节点并持久化，让 UI 立即刷新切换到工具节点
+              nodeManager.updateActiveLeaf(session, toolNode.id);
+              sessionManager.persistSession(session, session.id);
+            };
+
+            const cycleResult = await processCycle(
+              response.content,
+              executionAgent.toolCallConfig,
+              async (request) => {
+                const approval = await toolCallingStore.requestApproval(session.id, request);
+                return approval;
+              },
+              // 状态变更回调：同步任务也会触发
+              (requestId: string, status: string) => {
+                if (status === "executing") {
+                  // 找到对应的请求，更新其状态
+                  const reqs = currentAssistantNode.metadata?.toolCallsRequested;
+                  if (reqs) {
+                    const req = reqs.find((r) => r.requestId === requestId);
+                    if (req) {
+                      req.status = "executing";
+                      // 只要有一个工具开始执行，就确保节点已创建
+                      const parsedRequests = reqs.map((r) => ({
+                        requestId: r.requestId,
+                        toolName: r.toolName,
+                        args: r.args,
+                      }));
+                      ensureNodesCreated(parsedRequests);
+                      sessionManager.persistSession(session, session.id);
+                    }
+                  }
+                }
+              }
+            );
+
+            if (cycleResult.hasToolRequests) {
+              // 确保节点已创建（针对自动批准等没有触发 executing 回调的场景）
+              ensureNodesCreated(cycleResult.parsedRequests);
 
               // 检查是否包含静默取消
               const hasSilentCancel = cycleResult.executionResults.some((r) => r.result === "SILENT_CANCEL");
               if (hasSilentCancel) {
                 logger.info("检测到静默取消，停止工具调用循环");
-                // 静默取消时，后续的工具节点和助手节点尚未创建，直接跳出循环即可
+                // 如果已经创建了节点，可能需要清理或标记为已取消
+                if (toolNode) {
+                  const node = toolNode as ChatMessageNode;
+                  node.status = "complete";
+                  node.content = "已取消执行";
+                  generatingNodes.delete(node.id);
+                  sessionManager.persistSession(session, session.id);
+                }
                 break;
               }
 
+              // 更新工具节点为最终结果
               const toolResultText = formatCycleResults(
                 cycleResult.executionResults,
                 executionAgent.toolCallConfig.protocol
               );
 
-              const toolNode: ChatMessageNode = {
-                id: `tool-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                parentId: currentAssistantNode.id,
-                childrenIds: [],
-                role: "tool",
-                content: toolResultText,
-                status: "complete",
-                timestamp: new Date().toISOString(),
-                metadata: {
-                  agentId: executionAgent.id,
-                  // 兼容旧版
-                  toolCall:
-                    cycleResult.executionResults.length > 0
-                      ? {
-                          requestId: cycleResult.executionResults[0].requestId,
-                          toolName: cycleResult.executionResults[0].toolName,
-                          status: cycleResult.executionResults[0].status,
-                          durationMs: cycleResult.executionResults[0].durationMs,
-                          rawArgs: cycleResult.parsedRequests[0]?.args,
-                        }
-                      : undefined,
-                  // 支持多工具调用结果
+              if (toolNode) {
+                const node = toolNode as ChatMessageNode;
+                node.content = toolResultText;
+                node.status = "complete";
+                node.metadata = {
+                  ...node.metadata,
                   toolCalls: cycleResult.executionResults.map((res, idx) => ({
                     requestId: res.requestId,
                     toolName: res.toolName,
@@ -429,15 +485,21 @@ export function useChatExecutor() {
                     durationMs: res.durationMs,
                     rawArgs: cycleResult.parsedRequests[idx]?.args,
                   })),
-                },
-              };
+                };
+                generatingNodes.delete(node.id);
+              }
 
-              session.nodes[toolNode.id] = toolNode;
-              currentAssistantNode.childrenIds.push(toolNode.id);
+              // 更新助手节点的工具请求快照为已完成
+              if (currentAssistantNode.metadata?.toolCallsRequested) {
+                currentAssistantNode.metadata.toolCallsRequested.forEach((req) => {
+                  req.status = "completed";
+                });
+              }
 
+              // 现在工具执行完了，正式创建下一个助手节点
               const nextAssistantNode: ChatMessageNode = {
                 id: `assistant-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                parentId: toolNode.id,
+                parentId: toolNode!.id,
                 childrenIds: [],
                 role: "assistant",
                 content: "",
@@ -445,33 +507,28 @@ export function useChatExecutor() {
                 timestamp: new Date().toISOString(),
                 metadata: {
                   agentId: executionAgent.id,
-                  // 继承前一个节点的元数据，确保图标、模型信息等一致
                   ...currentAssistantNode.metadata,
-                  // 重置性能指标
                   firstTokenTime: undefined,
                   requestStartTime: Date.now(),
                   requestEndTime: undefined,
                   usage: undefined,
                   contentTokens: undefined,
+                  toolCallsRequested: undefined, // 重置工具请求
                 },
               };
-              session.nodes[nextAssistantNode.id] = nextAssistantNode;
-              toolNode.childrenIds.push(nextAssistantNode.id);
 
-              // 维护状态集合
+              session.nodes[nextAssistantNode.id] = nextAssistantNode;
+              toolNode!.childrenIds.push(nextAssistantNode.id);
+
+              // 维护状态集合和 AbortController
               generatingNodes.add(nextAssistantNode.id);
-              // 将同一个 abortController 注册到新节点 ID，确保停止按钮可以终止迭代中的请求
               abortControllers.set(nextAssistantNode.id, abortController);
 
-              // 更新活跃叶节点，确保 UI 切换到新分支
-              const nodeManager = useNodeManager();
+              // 更新活跃叶节点并持久化
               nodeManager.updateActiveLeaf(session, nextAssistantNode.id);
-
-              // 立即持久化，确保状态同步到其他窗口和 UI
-              const sessionManager = useSessionManager();
               sessionManager.persistSession(session, session.id);
 
-              currentPathToUserNode = [...currentPathToUserNode, currentAssistantNode, toolNode];
+              currentPathToUserNode = [...currentPathToUserNode, currentAssistantNode, toolNode!];
               currentAssistantNode = nextAssistantNode;
               continue;
             }

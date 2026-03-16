@@ -28,4 +28,6 @@ export interface ToolCallCycleResult {
 
 export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled";
 
+export type ToolCallStatus = "executing" | "completed" | "error";
+
 export type ToolCallConfig = AgentToolCallConfig;

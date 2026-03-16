@@ -5,6 +5,7 @@ import type {
   ParsedToolRequest,
   ToolExecutionResult,
   ToolApprovalResult,
+  ToolCallStatus,
 } from "../types";
 import { parseToolRequests } from "./parser";
 import { executeToolRequests } from "./executor";
@@ -12,6 +13,7 @@ export interface ToolCallEngineOptions {
   protocol: ToolCallingProtocol;
   config: ToolCallConfig;
   onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>;
+  onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }
 
 /**
@@ -40,6 +42,7 @@ export async function processToolCallCycle(
   const executionResults = await executeToolRequests(parsedRequests, {
     config: options.config,
     onBeforeExecute: options.onBeforeExecute,
+    onStatusChange: options.onStatusChange,
   });
 
   return {

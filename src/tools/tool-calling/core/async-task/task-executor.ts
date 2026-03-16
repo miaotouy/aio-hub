@@ -1,12 +1,12 @@
 /**
  * 异步任务执行器
  *
- * 负责执行异步任务，注入 AsyncTaskContext
+ * 负责执行异步任务，通过第二参数注入统一的 ToolContext
  */
 
 import { toolRegistryManager } from "@/services/registry";
 import type { AsyncTaskContext } from "./types";
-import type { ServiceMetadata } from "@/services/types";
+import type { ServiceMetadata, ToolContext } from "@/services/types";
 import { parseToolTarget } from "../utils/tool-parser";
 
 export class TaskExecutor {
@@ -36,14 +36,22 @@ export class TaskExecutor {
       throw new Error(`方法不可调用: ${target.toolId}.${target.methodName}`);
     }
 
-    // 注入 AsyncTaskContext 到参数中
-    const argsWithContext = {
-      ...args,
-      __asyncContext: context,
+    // 构造统一的 ToolContext，通过第二参数传递
+    const toolContext: ToolContext = {
+      isAsync: true,
+      taskId: context.taskId,
+      signal: context.signal,
+      reportStatus: (message: string, progress?: number) => {
+        context.reportProgress(progress ?? 0, message);
+      },
     };
 
     try {
-      const result = await (method as Function).call(toolInstance, argsWithContext);
+      const result = await (method as (args: Record<string, unknown>, context?: ToolContext) => unknown).call(
+        toolInstance,
+        args,
+        toolContext
+      );
       return typeof result === "string" ? result : JSON.stringify(result ?? null);
     } catch (error) {
       if (context.signal.aborted) {

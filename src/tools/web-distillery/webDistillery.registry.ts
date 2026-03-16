@@ -1,4 +1,4 @@
-import type { ToolRegistry, ToolConfig, ServiceMetadata } from "@/services/types";
+import type { ToolRegistry, ToolConfig, ServiceMetadata, ToolContext } from "@/services/types";
 import { markRaw } from "vue";
 import { GlassWater } from "lucide-vue-next";
 import { quickFetch, smartExtract } from "./actions";
@@ -12,23 +12,29 @@ export default class WebDistilleryRegistry implements ToolRegistry {
   /**
    * 快速获取网页内容（Agent Facade）
    */
-  public async quickFetch(args: Record<string, unknown>): Promise<string> {
-    const result = await quickFetch({
-      url: String(args.url || ""),
-      format: (args.format as any) || "markdown",
-      cleanMode: Boolean(args.cleanMode),
-    });
+  public async quickFetch(args: Record<string, unknown>, context?: ToolContext): Promise<string> {
+    const result = await quickFetch(
+      {
+        url: String(args.url || ""),
+        format: (args.format as any) || "markdown",
+        cleanMode: Boolean(args.cleanMode),
+      },
+      context
+    );
     if (!result) return "错误: 网页内容获取失败。";
     return formatFetchResult(result);
   }
 
-  public async smartExtract(args: Record<string, unknown>): Promise<string> {
-    const result = await smartExtract({
-      url: String(args.url || ""),
-      format: (args.format as any) || "markdown",
-      waitFor: args.waitFor ? String(args.waitFor) : undefined,
-      cleanMode: Boolean(args.cleanMode),
-    });
+  public async smartExtract(args: Record<string, unknown>, context?: ToolContext): Promise<string> {
+    const result = await smartExtract(
+      {
+        url: String(args.url || ""),
+        format: (args.format as any) || "markdown",
+        waitFor: args.waitFor ? String(args.waitFor) : undefined,
+        cleanMode: Boolean(args.cleanMode),
+      },
+      context
+    );
     if (!result) return "错误: 智能提取失败。目标页面可能需要更长加载时间或需要授权。建议尝试打开交互式 UI 处理。";
     return formatFetchResult(result);
   }

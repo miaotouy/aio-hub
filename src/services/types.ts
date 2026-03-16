@@ -146,3 +146,33 @@ export interface ToolRegistry {
    */
   readonly settingsSchema?: SettingItem<any>[];
 }
+
+/**
+ * 工具调用时的统一上下文环境
+ * 同步工具和异步任务均使用此接口，屏蔽底层执行模式差异
+ */
+export interface ToolContext {
+  /**
+   * 状态/进度上报
+   * @param message 状态描述文字
+   * @param progress 可选的进度百分比（0-100），异步任务模式下会持久化到任务记录
+   */
+  reportStatus: (message: string, progress?: number) => void;
+
+  /**
+   * 取消信号（异步任务模式下由 TaskManager 提供，同步模式下通常为 undefined）
+   */
+  signal?: AbortSignal;
+
+  /**
+   * 任务 ID（仅异步任务模式下有值）
+   */
+  taskId?: string;
+
+  /**
+   * 是否处于异步任务模式
+   * - true：由 TaskManager 管理，支持持久化进度、取消、重试
+   * - false：同步阻塞执行，进度仅用于实时 UI 反馈
+   */
+  isAsync: boolean;
+}

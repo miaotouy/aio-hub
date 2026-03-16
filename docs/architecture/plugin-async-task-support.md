@@ -18,7 +18,7 @@
 
 3. **JsPluginAdapter** (`src/services/js-plugin-adapter.ts`)
    - JS 插件的适配器
-   - 负责透传 `__asyncContext` 参数
+   - 负责透传 `ToolContext` 参数（作为方法的第二个参数）
 
 ### 数据流
 
@@ -31,17 +31,17 @@ TaskManager.submitTask()
     ↓
 TaskExecutor.execute()
     ↓
-注入 __asyncContext 到参数
+构造统一的 ToolContext
     ↓
-JsPluginAdapter.callPluginMethod()
+JsPluginAdapter.callPluginMethod(methodName, params, toolContext)
     ↓
-透传 __asyncContext + 注入 context (settings)
+注入 context (settings) 到 params
     ↓
-插件方法执行
+插件方法执行：method(params, toolContext)
     ↓
-使用 __asyncContext.reportProgress() 汇报进度
+使用 toolContext.reportStatus() 汇报进度
     ↓
-使用 __asyncContext.checkCancellation() 检查取消
+检查 toolContext.signal.aborted 取消状态
     ↓
 返回结果或抛出错误
 ```
@@ -53,26 +53,23 @@ JsPluginAdapter.callPluginMethod()
 `JsPluginAdapter.callPluginMethod` 实现了双重上下文注入：
 
 ```typescript
-// 提取异步任务上下文（如果存在）
-const { __asyncContext, ...restParams } = params || {};
-
 // 创建插件上下文，注入配置 API
-const context = {
+const pluginContext = {
   settings: pluginConfigService.createPluginSettingsAPI(this.manifest.id),
 };
 
-// 合并参数：保留 __asyncContext（用于异步任务），同时注入 context（用于配置访问）
+// 第一个参数：业务参数（注入 context 配置访问）
 const finalParams = {
-  ...restParams,
-  context,
-  ...(__asyncContext && { __asyncContext }),
+  ...(params || {}),
+  context: pluginContext,
 };
 
-return method(finalParams);
+// 第二个参数：ToolContext（由 Executor 或 TaskExecutor 提供）
+return method(finalParams, toolContext);
 ```
 
 **设计要点**：
-- `__asyncContext` 由 `TaskExecutor` 注入，用于异步任务控制
+- `ToolContext` 作为第二个参数注入，用于任务控制和状态汇报
 - `context.settings` 由 `JsPluginAdapter` 注入，用于访问插件配置
 - 两者互不干扰，插件方法可以同时使用
 
@@ -96,20 +93,18 @@ return method(finalParams);
 ### 3. 插件方法实现
 
 ```typescript
-async function myAsyncMethod(params: {
-  // 业务参数
-  input: string;
-  // 异步任务上下文（可选）
-  __asyncContext?: any;
-}) {
-  const context = params.__asyncContext;
+async function myAsyncMethod(
+  params: { input: string },
+  context?: ToolContext
+) {
+  // context 包含 reportStatus, signal, isAsync, taskId
   
-  if (context) {
+  if (context?.isAsync) {
     // 异步模式：使用进度汇报
-    context.reportProgress(0, "开始处理...");
+    context.reportStatus("开始处理...", 0);
     // ... 执行业务逻辑
-    context.checkCancellation(); // 检查取消
-    context.reportProgress(100, "完成");
+    if (context.signal?.aborted) throw new Error("AbortError");
+    context.reportStatus("完成", 100);
   }
   
   // 直接模式：无进度汇报（兼容性）

@@ -89,8 +89,9 @@ export interface TaskStatusChangeCallback {
 }
 
 /**
- * 异步任务执行上下文
- * 注入到工具方法的 args 中，工具可以通过 args.__asyncContext 访问
+ * 异步任务执行上下文（内部使用）
+ * 由 TaskManager 创建，通过 TaskExecutor 转换为统一的 ToolContext 后注入工具方法
+ * 工具方法应使用 ToolContext（src/services/types.ts）而非直接使用此接口
  */
 export interface AsyncTaskContext {
   /** 任务 ID */

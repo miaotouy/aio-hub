@@ -442,61 +442,57 @@ export function getMetadata(): ServiceMetadata {
 
 ### 实现异步方法
 
-异步方法会通过 `__asyncContext` 参数接收任务上下文，包含以下能力：
+异步方法会通过方法的第二个参数 `context` (类型为 `ToolContext`) 接收任务上下文，包含以下能力：
 
 ```typescript
-interface AsyncTaskContext {
-  reportProgress: (progress: number, message?: string) => void; // 汇报进度 (0-100)
-  checkCancellation: () => void; // 检查是否被取消（抛出 AbortError）
-  signal: AbortSignal; // 标准的 AbortSignal 对象
+export interface ToolContext {
+  reportStatus: (message: string, progress?: number) => void; // 汇报状态与进度 (0-100)
+  signal?: AbortSignal; // 标准的 AbortSignal 对象，用于取消监听
+  isAsync: boolean; // 是否处于异步任务模式
+  taskId?: string; // 任务 ID（仅异步模式）
 }
 ```
 
 **完整示例**：
 
 ```typescript
-async function processLargeFile(params: {
-  filePath: string;
-  options?: any;
-  __asyncContext?: any; // 异步任务上下文
-}) {
-  const context = params.__asyncContext;
-  
-  // 如果没有异步上下文，说明不是作为异步任务调用的
-  if (!context) {
-    throw new Error("此方法必须作为异步任务执行");
-  }
+async function processLargeFile(
+  args: { filePath: string; options?: any },
+  context?: ToolContext
+) {
+  // 如果没有上下文，说明是普通同步调用
+  const isAsync = context?.isAsync ?? false;
 
   try {
     // 步骤 1: 读取文件
-    context.reportProgress(0, "正在读取文件...");
+    context?.reportStatus("正在读取文件...", 0);
     const fileContent = await readFile(params.filePath);
     
     // 检查是否被取消
-    context.checkCancellation();
+    if (context?.signal?.aborted) throw new Error("AbortError");
     
     // 步骤 2: 解析数据
-    context.reportProgress(30, "正在解析数据...");
+    context?.reportStatus("正在解析数据...", 30);
     const parsedData = await parseData(fileContent);
     
-    context.checkCancellation();
+    if (context?.signal?.aborted) throw new Error("AbortError");
     
     // 步骤 3: 处理数据（模拟耗时操作）
-    context.reportProgress(50, "正在处理数据...");
+    context?.reportStatus("正在处理数据...", 50);
     for (let i = 0; i < 100; i++) {
       // 定期检查取消状态
       if (i % 10 === 0) {
-        context.checkCancellation();
-        context.reportProgress(50 + i / 2, `处理进度: ${i}%`);
+        if (context?.signal?.aborted) throw new Error("AbortError");
+        context?.reportStatus(`处理进度: ${i}%`, 50 + i / 2);
       }
       await processChunk(parsedData[i]);
     }
     
     // 步骤 4: 保存结果
-    context.reportProgress(95, "正在保存结果...");
+    context?.reportStatus("正在保存结果...", 95);
     const result = await saveResult(parsedData);
     
-    context.reportProgress(100, "处理完成");
+    context?.reportStatus("处理完成", 100);
     return result;
     
   } catch (error) {

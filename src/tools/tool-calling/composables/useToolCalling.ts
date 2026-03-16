@@ -1,5 +1,11 @@
 import { computed } from "vue";
-import type { ParsedToolRequest, ToolCallConfig, ToolCallCycleResult, ToolApprovalResult } from "../types";
+import type {
+  ParsedToolRequest,
+  ToolCallConfig,
+  ToolCallCycleResult,
+  ToolApprovalResult,
+  ToolCallStatus,
+} from "../types";
 import type { ToolCallingProtocol } from "../core/protocols/base";
 import { VcpToolCallingProtocol } from "../core/protocols/vcp-protocol";
 import { createToolDiscoveryService } from "../core/discovery";
@@ -19,13 +25,15 @@ export function useToolCalling() {
   const processCycle = async (
     assistantText: string,
     config: ToolCallConfig,
-    onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>
+    onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>,
+    onStatusChange?: (requestId: string, status: ToolCallStatus) => void
   ): Promise<ToolCallCycleResult> => {
     const protocol = resolveProtocol(config.protocol);
     return await processToolCallCycle(assistantText, {
       protocol,
       config,
       onBeforeExecute,
+      onStatusChange,
     });
   };
 

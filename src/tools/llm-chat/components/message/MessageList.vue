@@ -194,9 +194,23 @@ const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
       // 渐进加载完成后，如果启用了自动滚动，则滚动到底部
       // 这样可以处理初始加载多消息会话的场景
       if (settings.value.uiPreferences.autoScroll && props.messages.length > 0) {
-        nextTick(() => {
-          scrollToBottom();
-        });
+        // 多次重试确保滚到底部，因为虚拟列表在测量完成后可能还会异步调整 totalSize
+        const ensureScrollToBottom = (retries: number) => {
+          if (retries <= 0) return;
+          nextTick(() => {
+            virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
+            nextTick(() => {
+              if (messagesContainer.value) {
+                messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+              }
+              // 如果还没到底，继续重试
+              if (retries > 1) {
+                requestAnimationFrame(() => ensureScrollToBottom(retries - 1));
+              }
+            });
+          });
+        };
+        ensureScrollToBottom(3);
       }
     }
   },
@@ -217,10 +231,8 @@ watch(
       // 这样可以优先渲染最新的消息，提升用户体验
       if (props.messages.length > 5) {
         nextTick(() => {
-          if (messagesContainer.value) {
-            // 立即滚动到底部，让虚拟列表从底部开始渲染
-            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-          }
+          // 使用虚拟列表的 scrollToIndex，比直接设置 scrollTop 更能引导虚拟列表从底部开始渲染
+          virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
         });
       }
 

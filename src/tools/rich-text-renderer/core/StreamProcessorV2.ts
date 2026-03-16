@@ -54,15 +54,25 @@ class MarkdownBoundaryDetector {
     if (lastOpenBracket === -1) return false;
 
     const textAfterBracket = fullText.slice(lastOpenBracket);
-    // 如果已经闭合了标签，则不属于属性中间
-    if (textAfterBracket.includes(">")) return false;
 
-    // 统计引号数量
-    const doubleQuotes = (textAfterBracket.match(/"/g) || []).length;
-    const singleQuotes = (textAfterBracket.match(/'/g) || []).length;
+    // 遍历字符，跟踪引号状态，正确识别引号内的 >
+    // 原来的 includes(">") 检查会被属性值内的 > 误导（如 title="a > b"）
+    let inDoubleQuote = false;
+    let inSingleQuote = false;
 
-    // 如果某类引号是奇数个，说明未闭合
-    return doubleQuotes % 2 !== 0 || singleQuotes % 2 !== 0;
+    for (const c of textAfterBracket) {
+      if (c === '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+      } else if (c === "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+      } else if (c === ">" && !inDoubleQuote && !inSingleQuote) {
+        // 在引号外遇到 >，说明标签已正常闭合
+        return false;
+      }
+    }
+
+    // 如果还在引号内，说明属性值未闭合
+    return inDoubleQuote || inSingleQuote;
   }
 
   /**

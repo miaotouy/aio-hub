@@ -138,6 +138,8 @@ export interface LlmRequestOptions {
   timeout?: number;
   /** 用于中止请求的 AbortSignal */
   signal?: AbortSignal;
+  /** 用于主动停止请求的唯一标识符 */
+  requestId?: string;
 
   // --- 特种模型参数 ---
   /** 嵌入 (Embedding) 输入内容 */
@@ -575,7 +577,7 @@ export const ensureResponseOk = async (response: Response): Promise<void> => {
       `API 请求失败 (${response.status} ${response.statusText}): ${errorText}`,
       response.status,
       response.statusText,
-      errorText
+      errorText,
     );
   }
 };
@@ -594,7 +596,7 @@ export const fetchWithTimeout = async (
     isStreaming?: boolean;
   },
   timeout: number = DEFAULT_TIMEOUT,
-  externalSignal?: AbortSignal
+  externalSignal?: AbortSignal,
 ): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {

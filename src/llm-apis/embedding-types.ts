@@ -64,6 +64,9 @@ export interface EmbeddingRequestOptions {
   /** AbortSignal */
   signal?: AbortSignal;
 
+  /** 用于主动停止请求的唯一标识符 */
+  requestId?: string;
+
   /** 是否强制走后端代理 */
   forceProxy?: boolean;
   /** 放宽证书校验 */

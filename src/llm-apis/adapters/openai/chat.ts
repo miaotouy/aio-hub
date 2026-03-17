@@ -23,7 +23,7 @@ export const callOpenAiChatApi = async (
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
   const url = openAiUrlHandler.buildUrl(profile.baseUrl, "chat/completions", profile);
-  const headers = buildOpenAiHeaders(profile);
+  const headers = buildOpenAiHeaders(profile, options.requestId);
 
   const messages: any[] = [];
 

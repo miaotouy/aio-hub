@@ -32,7 +32,7 @@ export async function callOpenAiImageApi(
   const endpoint = options.mask ? "images/edits" : "images/generations";
   const url = openAiUrlHandler.buildUrl(baseUrl, endpoint, profile);
 
-  const headers = buildOpenAiHeaders(profile);
+  const headers = buildOpenAiHeaders(profile, options.requestId);
   
   // 构建请求体
   let body: any;

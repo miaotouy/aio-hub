@@ -31,7 +31,7 @@ export async function callGeminiImageApi(
 
   const baseUrl = profile.baseUrl || "https://generativelanguage.googleapis.com";
   const url = buildGeminiUrl(baseUrl, modelId, "generateContent", profile);
-  const headers = buildGeminiHeaders(profile);
+  const headers = buildGeminiHeaders(profile, options.requestId);
 
   // 构建 Gemini 特有的图片配置
   const imageConfig: any = {};

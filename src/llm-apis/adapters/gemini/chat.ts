@@ -178,6 +178,9 @@ export const callGeminiChatApi = async (
   cleanPayload(body);
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (options.requestId) {
+    headers["X-Request-ID"] = options.requestId;
+  }
   if (profile.customHeaders) Object.assign(headers, profile.customHeaders);
 
   if (options.stream && options.onStream) {

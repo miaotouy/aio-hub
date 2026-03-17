@@ -167,9 +167,18 @@ async fn handle_proxy_request(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let request_id = nanoid::nanoid!(8);
     let url_for_log = request.url.clone();
+
+    // 尝试获取业务层透传的 X-Request-ID
+    let business_id = request
+        .headers
+        .get("X-Request-ID")
+        .or_else(|| request.headers.get("x-request-id"))
+        .cloned()
+        .unwrap_or_else(|| "none".to_string());
+
     info!(
-        "[Proxy-{}] New request: {} {}",
-        request_id, request.method, url_for_log
+        "[Proxy-{}] New request (BizID: {}): {} {}",
+        request_id, business_id, request.method, url_for_log
     );
 
     // 检查是否是 IP 地址

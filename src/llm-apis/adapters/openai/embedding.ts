@@ -12,7 +12,7 @@ export const callOpenAiEmbeddingApi = async (
   options: EmbeddingRequestOptions
 ): Promise<EmbeddingResponse> => {
   const url = openAiUrlHandler.buildUrl(profile.baseUrl, "embeddings", profile);
-  const headers = buildOpenAiHeaders(profile);
+  const headers = buildOpenAiHeaders(profile, options.requestId);
 
   const body: any = {
     model: options.modelId,

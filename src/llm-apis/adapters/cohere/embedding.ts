@@ -37,6 +37,10 @@ export const callCohereEmbeddingApi = async (
     Authorization: `Bearer ${apiKey}`,
   };
 
+  if (options.requestId) {
+    headers["X-Request-ID"] = options.requestId;
+  }
+
   if (profile.customHeaders) {
     Object.assign(headers, profile.customHeaders);
   }

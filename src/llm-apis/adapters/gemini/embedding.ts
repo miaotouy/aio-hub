@@ -2,7 +2,7 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { asyncJsonStringify } from "@/utils/serialization";
-import { geminiUrlHandler } from "./utils";
+import { geminiUrlHandler, buildGeminiHeaders } from "./utils";
 
 /**
  * 调用 Google Gemini Embedding API
@@ -18,13 +18,7 @@ export const callGeminiEmbeddingApi = async (
   const baseUrl = geminiUrlHandler.buildUrl(profile.baseUrl, endpoint);
   const url = `${baseUrl}?key=${apiKey}`;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
+  const headers = buildGeminiHeaders(profile, options.requestId);
 
   // 映射 TaskType
   const taskType = options.taskType || 'RETRIEVAL_QUERY';

@@ -25,7 +25,7 @@ export async function callOpenAiVideoApi(
   } = options;
 
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
-  const headers = buildOpenAiHeaders(profile);
+  const headers = buildOpenAiHeaders(profile, options.requestId);
   
   // 1. 发起生成请求
   const createUrl = openAiUrlHandler.buildUrl(baseUrl, "videos", profile);

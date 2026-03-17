@@ -26,7 +26,7 @@ export async function callOpenAiAudioApi(
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
   const url = openAiUrlHandler.buildUrl(baseUrl, "audio/speech", profile);
 
-  const headers = buildOpenAiHeaders(profile);
+  const headers = buildOpenAiHeaders(profile, options.requestId);
 
   const body = {
     model: modelId,

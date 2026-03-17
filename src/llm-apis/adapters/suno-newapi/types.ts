@@ -225,6 +225,8 @@ export interface SunoClientConfig {
   maxPollAttempts?: number;
   /** 中止信号 */
   signal?: AbortSignal;
+  /** 用于主动停止请求的唯一标识符 */
+  requestId?: string;
   /** 自定义请求头 */
   customHeaders?: Record<string, string>;
   /** 是否强制走后端代理 */

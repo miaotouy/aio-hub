@@ -97,7 +97,10 @@ export const openAiResponsesUrlHandler = {
 /**
  * 构建 OpenAI 请求头
  */
-export const buildOpenAiHeaders = (profile: LlmProfile): Record<string, string> => {
+export const buildOpenAiHeaders = (
+  profile: LlmProfile,
+  requestId?: string
+): Record<string, string> => {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -105,6 +108,11 @@ export const buildOpenAiHeaders = (profile: LlmProfile): Record<string, string> 
   // 使用第一个可用的 API Key
   if (profile.apiKeys && profile.apiKeys.length > 0) {
     headers["Authorization"] = `Bearer ${profile.apiKeys[0]}`;
+  }
+
+  // 如果提供了 requestId，则注入 X-Request-ID 头部
+  if (requestId) {
+    headers["X-Request-ID"] = requestId;
   }
 
   // 应用自定义请求头

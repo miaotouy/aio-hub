@@ -119,25 +119,33 @@ export interface GeminiRequest {
 }
 
 /**
- * 构建 Gemini 请求头
- */
-export function buildGeminiHeaders(profile: LlmProfile): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  // 也可以通过请求头传递 API Key
-  if (profile.apiKeys && profile.apiKeys.length > 0) {
-    headers["x-goog-api-key"] = profile.apiKeys[0];
-  }
-
-  if (profile.customHeaders) {
-    Object.assign(headers, profile.customHeaders);
-  }
-
-  return headers;
-}
-
+ /**
+  * 构建 Gemini 请求头
+  */
+ export function buildGeminiHeaders(
+   profile: LlmProfile,
+   requestId?: string
+ ): Record<string, string> {
+   const headers: Record<string, string> = {
+     "Content-Type": "application/json",
+   };
+ 
+   // 也可以通过请求头传递 API Key
+   if (profile.apiKeys && profile.apiKeys.length > 0) {
+     headers["x-goog-api-key"] = profile.apiKeys[0];
+   }
+ 
+   // 如果提供了 requestId，则注入 X-Request-ID 头部
+   if (requestId) {
+     headers["X-Request-ID"] = requestId;
+   }
+ 
+   if (profile.customHeaders) {
+     Object.assign(headers, profile.customHeaders);
+   }
+ 
+   return headers;
+ }
 /**
  * 构建 Gemini 完整的 URL
  */

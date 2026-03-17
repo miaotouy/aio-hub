@@ -123,7 +123,7 @@ export function useSingleNodeExecutor() {
         ...(settings.value.worldbookIds || []),
         ...(effectiveUserProfile?.worldbookIds || []),
         ...(executionAgent.worldbookIds || []),
-      ])
+      ]),
     );
 
     if (worldbookStore && allWorldbookIds.length > 0) {
@@ -159,7 +159,7 @@ export function useSingleNodeExecutor() {
           allAttachments,
           agentConfig.modelId,
           agentConfig.profileId,
-          forceAssetIds.size > 0 ? forceAssetIds : undefined
+          forceAssetIds.size > 0 ? forceAssetIds : undefined,
         );
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
       } catch (error) {
@@ -198,6 +198,7 @@ export function useSingleNodeExecutor() {
         response = await sendRequest({
           profileId: agentConfig.profileId,
           modelId: agentConfig.modelId,
+          requestId: assistantNode.id,
           messages: messagesForRequest,
           ...effectiveParams,
           stream: settings.value.uiPreferences.isStreaming,

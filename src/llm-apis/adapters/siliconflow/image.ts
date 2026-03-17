@@ -32,7 +32,7 @@ export async function callSiliconFlowImageApi(
 
   const baseUrl = profile.baseUrl || "https://api.siliconflow.cn/v1";
   const url = openAiUrlHandler.buildUrl(baseUrl, "images/generations", profile);
-  const headers = buildOpenAiHeaders(profile);
+  const headers = buildOpenAiHeaders(profile, options.requestId);
 
   // 构建硅基流动特有的请求体
   const body: any = {

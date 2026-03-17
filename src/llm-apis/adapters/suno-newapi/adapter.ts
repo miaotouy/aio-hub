@@ -41,6 +41,7 @@ export const sunoNewApiAdapter: LlmAdapter = {
       baseUrl: profile.baseUrl,
       apiKey: profile.apiKeys?.[0] || "",
       signal,
+      requestId: options.requestId,
       timeout,
       forceProxy: options.forceProxy,
       relaxIdCerts: options.relaxIdCerts,

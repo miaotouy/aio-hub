@@ -57,6 +57,10 @@ export function buildSunoHeaders(config: SunoClientConfig): Record<string, strin
     Authorization: `Bearer ${config.apiKey}`,
   };
 
+  if (config.requestId) {
+    headers["X-Request-ID"] = config.requestId;
+  }
+
   // 合并自定义请求头
   if (config.customHeaders) {
     Object.assign(headers, config.customHeaders);

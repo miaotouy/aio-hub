@@ -157,6 +157,10 @@ export const callClaudeChatApi = async (
     "anthropic-version": "2023-06-01",
   };
 
+  if (options.requestId) {
+    headers["X-Request-ID"] = options.requestId;
+  }
+
   const betas: string[] = [];
   if (options.thinkingEnabled) betas.push("thinking-2025-12-05");
   betas.push("files-api-2025-04-14");

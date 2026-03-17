@@ -31,7 +31,7 @@ export async function callGeminiVideoApi(
   
   // 1. 发起生成请求 (Long Running Operation)
   const predictUrl = `${baseUrl}/${apiVersion}/models/${modelId}:predictLongRunning?key=${apiKey}`;
-  const headers = buildGeminiHeaders(profile);
+  const headers = buildGeminiHeaders(profile, options.requestId);
 
   const createResponse = await fetchWithTimeout(
     predictUrl,

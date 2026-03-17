@@ -31,9 +31,7 @@ export function useLlmRequest() {
   /**
    * 发送 LLM 请求
    */
-  const sendRequest = async (
-    options: LlmRequestOptions | MediaGenerationOptions
-  ): Promise<LlmResponse> => {
+  const sendRequest = async (options: LlmRequestOptions | MediaGenerationOptions): Promise<LlmResponse> => {
     let selectedApiKey: string | undefined;
 
     // 自动包装 prompt 为 messages
@@ -234,8 +232,7 @@ export function useLlmRequest() {
 
       // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
       // 或者模型能力中显式指定了偏好 Chat 接口 (如原生多模态生图模型)
-      const forceChatMode =
-        (options as any)._forceChatMode === true || model.capabilities?.preferChat === true;
+      const forceChatMode = (options as any)._forceChatMode === true || model.capabilities?.preferChat === true;
 
       if (!forceChatMode && model.capabilities?.videoGeneration && adapter.video) {
         response = await adapter.video(effectiveProfile, filteredOptions as MediaGenerationOptions);
@@ -300,6 +297,37 @@ export function useLlmRequest() {
           reason: (error as any)?.message || String(error),
           signalReason: options.signal?.reason,
         });
+
+        // 如果提供了 requestId 且不是因为超时导致的取消，尝试发送主动停止信号
+        if (options.requestId && !isTimeoutError(error, options.signal)) {
+          const profile = getProfileById(options.profileId);
+          if (profile?.baseUrl) {
+            // 构造停止端点，目前约定为 baseUrl/interrupt
+            // 实际使用时会经过 openAiUrlHandler 处理或直接拼接
+            const interruptUrl = profile.baseUrl.endsWith("/")
+              ? `${profile.baseUrl}interrupt`
+              : `${profile.baseUrl}/interrupt`;
+
+            logger.debug("发送主动停止信号", { requestId: options.requestId, url: interruptUrl });
+
+            // 补发停止请求，不等待结果，不使用原有的 signal
+            window
+              .fetch(interruptUrl, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  // 如果有 API Key 也带上，虽然 interrupt 通常是内部接口
+                  ...(selectedApiKey ? { Authorization: `Bearer ${selectedApiKey}` } : {}),
+                },
+                body: JSON.stringify({
+                  request_id: options.requestId,
+                }),
+              })
+              .catch((e) => {
+                logger.warn("发送主动停止信号失败", { error: String(e), requestId: options.requestId });
+              });
+          }
+        }
       } else {
         // 报告失败，累加错误计数
         if (selectedApiKey) {

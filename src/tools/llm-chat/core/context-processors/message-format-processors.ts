@@ -25,18 +25,12 @@ const contentToString = (content: string | LlmMessageContent[]): string => {
     return content;
   }
   return content
-    .filter(
-      (part): part is { type: "text"; text: string } =>
-        part.type === "text" && !!part.text,
-    )
+    .filter((part): part is { type: "text"; text: string } => part.type === "text" && !!part.text)
     .map((part) => part.text)
     .join("\n");
 };
 
-export const handleMergeSystemToHead = (
-  messages: ProcessableMessage[],
-  separator: string,
-): ProcessableMessage[] => {
+export const handleMergeSystemToHead = (messages: ProcessableMessage[], separator: string): ProcessableMessage[] => {
   const systemMessages: ProcessableMessage[] = [];
   const nonSystemMessages: ProcessableMessage[] = [];
 
@@ -52,16 +46,14 @@ export const handleMergeSystemToHead = (
     return messages;
   }
 
-  const mergedSystemContent = systemMessages
-    .map((msg) => contentToString(msg.content))
-    .join(separator);
+  const mergedSystemContent = systemMessages.map((msg) => contentToString(msg.content)).join(separator);
 
   const mergedSystemMessage: ProcessableMessage = {
     role: "system",
     content: mergedSystemContent,
     sourceType: "merged",
     _mergedSources: systemMessages,
-    _attachments: systemMessages.flatMap(msg => msg._attachments || []),
+    _attachments: systemMessages.flatMap((msg) => msg._attachments || []),
   };
 
   logger.debug("合并 system 消息", {
@@ -89,15 +81,13 @@ export const handleMergeConsecutiveRoles = (
       currentGroup.push(current);
     } else {
       if (currentGroup.length > 1) {
-        const mergedContent = currentGroup
-          .map((msg) => contentToString(msg.content))
-          .join(separator);
+        const mergedContent = currentGroup.map((msg) => contentToString(msg.content)).join(separator);
         result.push({
           role: currentGroup[0].role,
           content: mergedContent,
           sourceType: "merged",
           _mergedSources: currentGroup,
-          _attachments: currentGroup.flatMap(msg => msg._attachments || []),
+          _attachments: currentGroup.flatMap((msg) => msg._attachments || []),
         });
       } else {
         result.push(currentGroup[0]);
@@ -107,15 +97,13 @@ export const handleMergeConsecutiveRoles = (
   }
 
   if (currentGroup.length > 1) {
-    const mergedContent = currentGroup
-      .map((msg) => contentToString(msg.content))
-      .join(separator);
+    const mergedContent = currentGroup.map((msg) => contentToString(msg.content)).join(separator);
     result.push({
       role: currentGroup[0].role,
       content: mergedContent,
       sourceType: "merged",
       _mergedSources: currentGroup,
-      _attachments: currentGroup.flatMap(msg => msg._attachments || []),
+      _attachments: currentGroup.flatMap((msg) => msg._attachments || []),
     });
   } else if (currentGroup.length === 1) {
     result.push(currentGroup[0]);
@@ -148,9 +136,7 @@ export const handleEnsureAlternatingRoles = (
   return result;
 };
 
-export const handleConvertSystemToUser = (
-  messages: ProcessableMessage[],
-): ProcessableMessage[] => {
+export const handleConvertSystemToUser = (messages: ProcessableMessage[]): ProcessableMessage[] => {
   return messages.map((msg) => {
     if (msg.role === "system") {
       return { ...msg, role: "user" as const };
@@ -165,7 +151,7 @@ const mergeSystemToHeadProcessor: ContextProcessor = {
   id: "post:merge-system-to-head",
   name: "合并 System 消息到头部",
   description: "将所有 system 角色的消息合并为一条，并放在消息列表的最开头。",
-  priority: 500,
+  priority: 810,
   isCore: true,
   defaultEnabled: true,
   configFields: [
@@ -177,14 +163,14 @@ const mergeSystemToHeadProcessor: ContextProcessor = {
       default: DEFAULT_SEPARATOR,
     },
   ],
-  execute: async () => { }, // 实际执行由 messageFormatter 统一调度
+  execute: async () => {}, // 实际执行由 messageFormatter 统一调度
 };
 
 const mergeConsecutiveRolesProcessor: ContextProcessor = {
   id: "post:merge-consecutive-roles",
   name: "合并连续相同角色",
   description: "合并连续出现的相同角色消息（如两个 user 消息相邻）。",
-  priority: 600,
+  priority: 820,
   isCore: true,
   defaultEnabled: true,
   configFields: [
@@ -196,25 +182,24 @@ const mergeConsecutiveRolesProcessor: ContextProcessor = {
       default: DEFAULT_SEPARATOR,
     },
   ],
-  execute: async () => { },
+  execute: async () => {},
 };
 
 const convertSystemToUserProcessor: ContextProcessor = {
   id: "post:convert-system-to-user",
   name: "转换 System 为 User",
-  description:
-    "将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）。",
-  priority: 700,
+  description: "将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）。",
+  priority: 830,
   isCore: true,
   defaultEnabled: false,
-  execute: async () => { },
+  execute: async () => {},
 };
 
 const ensureAlternatingRolesProcessor: ContextProcessor = {
   id: "post:ensure-alternating-roles",
   name: "确保角色交替",
   description: "强制实现 user 和 assistant 的严格交替对话模式。",
-  priority: 800,
+  priority: 840,
   isCore: true,
   defaultEnabled: false,
   configFields: [
@@ -233,7 +218,7 @@ const ensureAlternatingRolesProcessor: ContextProcessor = {
       default: DEFAULT_ASSISTANT_PLACEHOLDER,
     },
   ],
-  execute: async () => { },
+  execute: async () => {},
 };
 
 // --- 3. 导出 ---
@@ -256,7 +241,7 @@ export const messageFormatter: ContextProcessor = {
   id: "message-formatter",
   name: "消息格式化",
   description: "应用一系列消息格式化规则（合并 System、合并连续角色等）",
-  priority: 500,
+  priority: 800,
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     // 计算 Token 和字符数辅助函数
@@ -281,45 +266,35 @@ export const messageFormatter: ContextProcessor = {
     let inputChars = 0;
 
     if (isPreview && context.agentConfig.modelId) {
-      const { totalTokens, totalChars } = await calculateTotals(
-        context.messages,
-        context.agentConfig.modelId,
-      );
+      const { totalTokens, totalChars } = await calculateTotals(context.messages, context.agentConfig.modelId);
       inputTokens = totalTokens;
       inputChars = totalChars;
     }
 
     // 1. 获取并合并规则配置 (Agent 优先，模型兜底)
-    const agentRules =
-      context.agentConfig.parameters?.contextPostProcessing?.rules || [];
+    const agentRules = context.agentConfig.parameters?.contextPostProcessing?.rules || [];
 
     const model = context.sharedData.get("model") as LlmModelInfo | undefined;
     let modelRules: ContextPostProcessRule[] = [];
 
     if (model?.defaultPostProcessingRules) {
-      if (
-        model.defaultPostProcessingRules.length > 0 &&
-        typeof model.defaultPostProcessingRules[0] === "string"
-      ) {
-        modelRules = (
-          model.defaultPostProcessingRules as unknown as string[]
-        ).map((id) => ({
+      if (model.defaultPostProcessingRules.length > 0 && typeof model.defaultPostProcessingRules[0] === "string") {
+        modelRules = (model.defaultPostProcessingRules as unknown as string[]).map((id) => ({
           type: id,
           enabled: true,
         }));
       } else {
-        modelRules =
-          model.defaultPostProcessingRules as ContextPostProcessRule[];
+        modelRules = model.defaultPostProcessingRules as ContextPostProcessRule[];
       }
     }
 
     const mergedRulesMap = new Map<string, ContextPostProcessRule>();
 
     // 默认启用状态
-    AvailableFormatters.forEach(p => {
+    AvailableFormatters.forEach((p) => {
       mergedRulesMap.set(p.id, {
         type: p.id,
-        enabled: p.defaultEnabled !== false
+        enabled: p.defaultEnabled !== false,
       });
     });
 
@@ -362,11 +337,7 @@ export const messageFormatter: ContextProcessor = {
       const rule = getRule("post:ensure-alternating-roles");
       const userPlaceholder = rule?.userPlaceholder || DEFAULT_USER_PLACEHOLDER;
       const assistantPlaceholder = rule?.assistantPlaceholder || DEFAULT_ASSISTANT_PLACEHOLDER;
-      context.messages = handleEnsureAlternatingRoles(
-        context.messages,
-        userPlaceholder,
-        assistantPlaceholder
-      );
+      context.messages = handleEnsureAlternatingRoles(context.messages, userPlaceholder, assistantPlaceholder);
     }
 
     if (isPreview && context.agentConfig.modelId) {

@@ -8,7 +8,7 @@ export const tokenLimiter: ContextProcessor = {
   id: "primary:token-limiter",
   name: "Token 限制器",
   description: "根据预算截断历史消息。",
-  priority: 450, // 调整到注入组装器 (400) 之后，消息格式化 (500) 之前
+  priority: 600, // 调整到注入组装器 (400) 之后，消息格式化 (800) 之前
   execute: async (context: PipelineContext) => {
     const { messages, agentConfig } = context;
     const { parameters, modelId } = agentConfig;
@@ -37,10 +37,7 @@ export const tokenLimiter: ContextProcessor = {
         } else if (Array.isArray(msg.content)) {
           // 简单地将所有 text 部分拼接起来计算 token
           contentText = msg.content
-            .filter(
-              (p): p is { type: "text"; text: string } =>
-                p.type === "text" && !!p.text,
-            )
+            .filter((p): p is { type: "text"; text: string } => p.type === "text" && !!p.text)
             .map((p) => p.text)
             .join("\n");
         }
@@ -49,7 +46,7 @@ export const tokenLimiter: ContextProcessor = {
         const { count } = await tokenCalculatorService.calculateMessageTokens(
           contentText,
           modelId,
-          msg._attachments // 传入附件列表
+          msg._attachments, // 传入附件列表
         );
         return { ...msg, tokenCount: count, charCount: contentText.length };
       }),
@@ -71,8 +68,7 @@ export const tokenLimiter: ContextProcessor = {
     }
 
     // 3. 计算历史消息可用预算
-    const availableForHistory =
-      contextManagement.maxContextTokens - presetTokens;
+    const availableForHistory = contextManagement.maxContextTokens - presetTokens;
 
     if (availableForHistory <= 0) {
       const message = `预设消息 (${presetTokens} tokens) 已耗尽所有预算 (${contextManagement.maxContextTokens})，历史消息被完全截断。`;
@@ -83,9 +79,7 @@ export const tokenLimiter: ContextProcessor = {
         message,
       });
       // 只保留预设消息
-      context.messages = messages.filter(
-        (m) => m.sourceType !== "session_history",
-      );
+      context.messages = messages.filter((m) => m.sourceType !== "session_history");
       return;
     }
 
@@ -114,7 +108,7 @@ export const tokenLimiter: ContextProcessor = {
         finalHistoryMessages.unshift({ original: messages[msgIndex], final: msg });
       } else {
         // 预算不足，尝试截断保留开头
-        if (retainedCharacters > 0 && typeof msg.content === 'string') {
+        if (retainedCharacters > 0 && typeof msg.content === "string") {
           const originalContent = msg.content;
           // 截取开头，并添加提示
           const truncatedContent = originalContent.slice(0, retainedCharacters) + "\n...(已截断)";
@@ -123,12 +117,12 @@ export const tokenLimiter: ContextProcessor = {
           const { count: truncatedTokens } = await tokenCalculatorService.calculateMessageTokens(
             truncatedContent,
             modelId,
-            msg._attachments
+            msg._attachments,
           );
 
           // 如果截断后能放得下
           if (currentHistoryTokens + truncatedTokens <= availableForHistory) {
-            totalSavedTokens += (msg.tokenCount - truncatedTokens);
+            totalSavedTokens += msg.tokenCount - truncatedTokens;
             partialTruncatedCount++;
 
             // 创建一个新的消息对象，包含修改后的内容
@@ -137,7 +131,7 @@ export const tokenLimiter: ContextProcessor = {
               content: truncatedContent,
               tokenCount: truncatedTokens,
               charCount: truncatedContent.length,
-              isTruncated: true // 标记已被截断
+              isTruncated: true, // 标记已被截断
             };
 
             currentHistoryTokens += truncatedTokens;
@@ -151,8 +145,12 @@ export const tokenLimiter: ContextProcessor = {
         // 无论是否截断成功，一旦遇到第一条放不下的消息（处理完后），
         // 更早的消息都无法保留，直接结束循环
         // 计算那些被完全丢弃的消息所节省的 Token
-        for (let j = 0; j <= i - (partialTruncatedCount > 0 && finalHistoryMessages[0].final.isTruncated ? 0 : 0); j++) {
-           // 这里逻辑有点绕，直接重算更清晰
+        for (
+          let j = 0;
+          j <= i - (partialTruncatedCount > 0 && finalHistoryMessages[0].final.isTruncated ? 0 : 0);
+          j++
+        ) {
+          // 这里逻辑有点绕，直接重算更清晰
         }
         break;
       }
@@ -162,16 +160,16 @@ export const tokenLimiter: ContextProcessor = {
     const originalHistoryTokens = historyMessages.reduce((sum, m) => sum + m.tokenCount, 0);
     const originalHistoryChars = historyMessages.reduce((sum, m) => sum + m.charCount, 0);
     const originalPresetChars = presetMessages.reduce((sum, m) => sum + m.charCount, 0);
-    
+
     totalSavedTokens = originalHistoryTokens - currentHistoryTokens;
     const totalSavedChars = originalHistoryChars - currentHistoryChars;
 
     // 5. 重组最终消息列表 (保持原有顺序)
     // 建立一个从原始消息到最终消息（可能是截断后的）的映射
     const finalMsgMap = new Map<any, any>();
-    
+
     // 预设消息直接映射
-    presetMessages.forEach(msg => {
+    presetMessages.forEach((msg) => {
       const msgIndex = messagesWithTokens.indexOf(msg);
       if (msgIndex !== -1) {
         finalMsgMap.set(messages[msgIndex], msg);
@@ -179,15 +177,13 @@ export const tokenLimiter: ContextProcessor = {
     });
 
     // 历史消息使用我们计算好的结果
-    finalHistoryMessages.forEach(item => {
+    finalHistoryMessages.forEach((item) => {
       finalMsgMap.set(item.original, item.final);
     });
 
     // 按照原始 messages 的顺序构造最终列表
     // 这样可以保持预设消息和历史消息的相对顺序（虽然通常预设在前，历史在后）
-    const newContextMessages = messages
-      .filter(m => finalMsgMap.has(m))
-      .map(m => finalMsgMap.get(m));
+    const newContextMessages = messages.filter((m) => finalMsgMap.has(m)).map((m) => finalMsgMap.get(m));
 
     const originalHistoryCount = historyMessages.length;
     const finalHistoryCount = keepCount;
@@ -207,7 +203,7 @@ export const tokenLimiter: ContextProcessor = {
       totalTokens: presetTokens + currentHistoryTokens,
       savedTokens: totalSavedTokens,
       savedChars: totalSavedChars,
-      originalTotalChars: originalPresetChars + originalHistoryChars
+      originalTotalChars: originalPresetChars + originalHistoryChars,
     });
 
     const message = `Token 限制处理完成。预设占用 ${presetTokens}，历史可用 ${availableForHistory}。保留历史 ${finalHistoryCount}/${originalHistoryCount} 条。`;
@@ -218,7 +214,7 @@ export const tokenLimiter: ContextProcessor = {
       presetTokens,
       historyTokens: currentHistoryTokens,
       totalTokens: presetTokens + currentHistoryTokens,
-      savedTokens: totalSavedTokens
+      savedTokens: totalSavedTokens,
     });
     context.logs.push({
       processorId: "primary:token-limiter",

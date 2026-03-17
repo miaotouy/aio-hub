@@ -1,11 +1,7 @@
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { get, set, cloneDeep } from "lodash-es";
-import type {
-  VariableChange,
-  VariableOperator,
-  FlatVariableDefinition
-} from "../../types/sessionVariable";
+import type { VariableChange, VariableOperator, FlatVariableDefinition } from "../../types/sessionVariable";
 import { flattenDefinitions } from "../../utils/variableUtils";
 
 const logger = createModuleLogger("primary:variable-processor");
@@ -27,7 +23,7 @@ export const variableProcessor: ContextProcessor = {
   id: "primary:variable-processor",
   name: "会话变量处理器",
   description: "处理消息中的 <svar> 标签并维护变量状态。",
-  priority: 450,
+  priority: 500,
   execute: async (context: PipelineContext) => {
     const { messages, agentConfig } = context;
     if (!messages || messages.length === 0 || !agentConfig.variableConfig?.enabled) {
@@ -42,7 +38,7 @@ export const variableProcessor: ContextProcessor = {
     let currentState: Record<string, any> = {};
 
     // 初始化默认值
-    definitions.forEach(def => {
+    definitions.forEach((def) => {
       let val = def.initialValue;
       // 自动转换数字类型，避免运算错误
       if (typeof val === "string" && val.trim() !== "" && !isNaN(Number(val))) {
@@ -71,7 +67,7 @@ export const variableProcessor: ContextProcessor = {
       if (typeof message.content !== "string") continue;
 
       const changes: VariableChange[] = [];
-      
+
       // 解析 <svar> 标签
       let match;
       while ((match = SVAR_REGEX.exec(message.content)) !== null) {
@@ -125,7 +121,7 @@ export const variableProcessor: ContextProcessor = {
         }
 
         // 边界处理
-        const def = definitions.find(d => d.path === path);
+        const def = definitions.find((d) => d.path === path);
         if (def && typeof newValue === "number") {
           if (def.min !== undefined) newValue = Math.max(def.min, newValue);
           if (def.max !== undefined) newValue = Math.min(def.max, newValue);
@@ -138,7 +134,7 @@ export const variableProcessor: ContextProcessor = {
           op,
           opValue: val,
           oldValue,
-          newValue
+          newValue,
         });
         totalChanges++;
       }
@@ -152,14 +148,14 @@ export const variableProcessor: ContextProcessor = {
         message.metadata.sessionVariableSnapshot = {
           values: cloneDeep(currentState),
           changes,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       } else if (message.metadata?.isCompressionNode) {
         // 对于压缩节点，强制持久化快照，即使没有新变更
         if (!message.metadata) message.metadata = {};
         message.metadata.sessionVariableSnapshot = {
           values: cloneDeep(currentState),
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       }
 
@@ -180,10 +176,10 @@ export const variableProcessor: ContextProcessor = {
       context.logs.push({
         processorId: "primary:variable-processor",
         level: "info",
-        message: logMsg
+        message: logMsg,
       });
     }
-  }
+  },
 };
 
 /**
@@ -191,28 +187,28 @@ export const variableProcessor: ContextProcessor = {
  */
 function formatVariables(state: Record<string, any>, definitions: FlatVariableDefinition[], format: string): string {
   const visibleVars = definitions
-    .filter(d => !d.hidden)
-    .map(d => ({
+    .filter((d) => !d.hidden)
+    .map((d) => ({
       name: d.displayName || d.path,
       path: d.path,
       value: get(state, d.path),
-      description: d.description
+      description: d.description,
     }));
 
   switch (format) {
     case "table":
       let table = "| 变量 | 值 | 描述 |\n| --- | --- | --- |\n";
-      visibleVars.forEach(v => {
+      visibleVars.forEach((v) => {
         table += `| ${v.name} | ${v.value} | ${v.description || "-"} |\n`;
       });
       return table;
     case "list":
-      return visibleVars.map(v => `- ${v.name}: ${v.value}${v.description ? ` (${v.description})` : ""}`).join("\n");
+      return visibleVars.map((v) => `- ${v.name}: ${v.value}${v.description ? ` (${v.description})` : ""}`).join("\n");
     case "json":
     default:
       // 仅导出可见变量的键值对
       const json: Record<string, any> = {};
-      visibleVars.forEach(v => {
+      visibleVars.forEach((v) => {
         json[v.path] = v.value;
       });
       return JSON.stringify(json, null, 2);

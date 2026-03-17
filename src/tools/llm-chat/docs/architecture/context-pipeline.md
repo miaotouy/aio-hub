@@ -25,18 +25,19 @@ graph TD
 
     subgraph Pipeline [统一上下文管道]
         direction TB
-        P1[1. 会话加载器<br/>priority: 100]
-        P2[2. 正则处理器<br/>priority: 200]
-        P3[3. 世界书处理器<br/>priority: 300]
-        P4[4. 注入组装器<br/>priority: 400]
-        P5[5. 知识库处理器<br/>priority: 450]
-        P6[6. Token 限制器<br/>priority: 450]
-        P7[7. 异步任务处理器<br/>priority: 90]
-        P8[8. 转写与文本提取器<br/>priority: 250]
-        P9[9. 消息格式化器<br/>priorities: 500-800]
-        P10[10. Base64 资源解析器<br/>priority: 10000]
+        P0[1. 异步任务处理器<br/>priority: 90]
+        P1[2. 会话加载器<br/>priority: 100]
+        P2[3. 正则处理器<br/>priority: 200]
+        P3[4. 转写与文本提取器<br/>priority: 250]
+        P4[5. 世界书处理器<br/>priority: 300]
+        P5[6. 注入组装器<br/>priority: 400]
+        P6[7. 知识库处理器<br/>priority: 450]
+        P7[8. 会话变量处理器<br/>priority: 500]
+        P8[9. Token 限制器<br/>priority: 600]
+        P9[10. 消息格式化器<br/>priority: 800]
+        P10[11. Base64 资源解析器<br/>priority: 10000]
 
-        P1 --> P2 --> P8 --> P3 --> P4 --> P5 --> P6 --> P7 --> P9 --> P10
+        P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8 --> P9 --> P10
     end
 
     A3 --> Pipeline
@@ -59,41 +60,42 @@ graph TD
 
 ### 3.1. 执行顺序
 
-1.  **加载会话历史** (priority: 100)：加载会话历史，转换为中间格式消息（保留附件引用），支持 HTML 到 Markdown 的转换以节省 Token。
-2.  **正则处理** (priority: 200)：**就地修改**消息内容，应用正则替换规则。
-3.  **转写与文本提取** (priority: 250)：对音频、视频、图片附件进行转写，并直接读取文本附件内容，将其插入消息内容，以便后续 Token 计算。
-4.  **世界书处理** (priority: 300)：执行 SillyTavern 风格的世界书关键词匹配与注入，支持递归、Sticky、Cooldown 等高级特性。
-5.  **注入与组装** (priority: 400)：将 Agent 预设消息分类为骨架、深度注入、锚点注入，然后与历史消息精密组装。支持模型匹配规则、宏处理、高级深度配置和模板锚点。
-6.  **知识库处理** (priority: 450)：执行 RAG 检索并替换【kb】占位符，支持多种激活模式（always/gate/turn/static）和结果聚合。
-7.  **Token 限制** (priority: 450)：对消息进行截断。**此步骤发生在注入之后**，限制器能够看到所有消息（包括预设和历史）。它会优先保留预设消息，计算其 Token 占用，然后将剩余预算分配给历史消息进行截断。支持部分截断保留开头。
-8.  **异步任务处理** (priority: 90)：检测工具调用节点中的异步任务，从 asyncTaskStore 获取最新状态，并动态替换或增强节点内容。
-9.  **消息格式化** (priorities: 500-800)：应用模型特定的格式化规则（合并 System 消息、合并连续角色、转换 System、确保角色交替等）。
-10. **Base64 资源解析** (priority: 10000)：**最后一步**，将剩余的二进制附件引用（如图片、PDF、音视频）转换为最终发送格式（结构化对象或 Base64）。
+1.  **异步任务处理** (priority: 90)：检测工具调用节点中的异步任务，从 `asyncTaskStore` 获取最新状态，并动态替换或增强节点内容。
+2.  **加载会话历史** (priority: 100)：从会话树中提取活动分支，转换为中间格式消息（保留附件引用），支持 HTML 到 Markdown 的转换。
+3.  **正则处理** (priority: 200)：**就地修改**消息内容，应用基于角色和深度的正则替换规则。
+4.  **转写与文本提取** (priority: 250)：对音视频/图片附件进行转写，或直接读取文本附件内容并插入消息，以便后续 Token 计算。
+5.  **世界书处理** (priority: 300)：执行 SillyTavern 风格的世界书关键词匹配与注入。
+6.  **注入与组装** (priority: 400)：处理 Agent 预设消息（骨架、深度注入、锚点注入），执行宏处理，并与历史消息精密组装。
+7.  **知识库处理** (priority: 450)：执行 RAG 检索并替换 `【kb】` 占位符。
+8.  **会话变量处理** (priority: 500)：解析消息中的 `<svar>` 标签，维护变量状态快照，并执行 `$[...]` 变量替换。
+9.  **Token 限制** (priority: 600)：**此步骤发生在注入与变量替换之后**。限制器计算所有消息的 Token 占用，优先保留预设消息，截断多余的历史消息（支持部分截断保留开头）。
+10. **消息格式化** (priority: 800)：应用模型特定的格式化规则（合并 System、合并连续角色、转换 System、确保角色交替等）。
+11. **Base64 资源解析** (priority: 10000)：**最后一步**，将剩余的二进制附件引用转换为 LLM 最终发送格式。
 
 ### 3.2. 内置处理器
 
-以下是系统内置的核心处理器，按优先级排序：
+以下是系统内置的核心处理器，按默认优先级排序：
 
-| ID                            | 名称              | 职责                                                                           | 优先级 |
-| :---------------------------- | :---------------- | :----------------------------------------------------------------------------- | :----- |
-| `primary:session-loader`      | 会话加载器        | 加载会话历史为中间格式消息（保留附件引用），支持 HTML→Markdown 转换            | 100    |
-| `primary:regex-processor`     | 正则处理器        | 对历史消息应用正则规则                                                         | 200    |
-| `transcription-processor`     | 转写与文本提取器  | 对音频/视频/图片转写，及**读取文本附件内容**，插入消息以便 Token 计算          | 250    |
-| `primary:worldbook-processor` | 世界书处理器      | 执行 SillyTavern 风格的世界书关键词匹配与注入                                  | 300    |
-| `primary:injection-assembler` | 注入组装器        | 处理预设、注入、宏，并与历史消息组装                                           | 400    |
-| `primary:knowledge-processor` | 知识库处理器      | 执行 RAG 检索并替换【kb】占位符                                                | 450    |
-| `primary:token-limiter`       | Token 限制器      | 根据预算截断历史消息（优先保留预设消息，剩余预算分给历史）                     | 450    |
-| `async-task-processor`        | 异步任务处理器    | 检测工具调用节点中的异步任务，并注入最新状态到上下文中                         | 90     |
-| `message-formatter`           | 消息格式化器      | 包含一系列子处理器，负责合并System、合并连续角色、转换System、确保角色交替等。 | 500    |
-| `asset-resolver`              | Base64 资源解析器 | 将剩余的二进制附件引用转换为最终发送格式（结构化对象或 Base64）                | 10000  |
+| ID                            | 名称              | 职责                                                                | 优先级 |
+| :---------------------------- | :---------------- | :------------------------------------------------------------------ | :----- |
+| `async-task-processor`        | 异步任务处理器    | 检测工具调用节点中的异步任务，并注入最新状态到上下文中              | 90     |
+| `primary:session-loader`      | 会话加载器        | 加载会话历史为中间格式消息（保留附件引用），支持 HTML→Markdown 转换 | 100    |
+| `primary:regex-processor`     | 正则处理器        | 对历史消息应用正则规则（支持角色过滤和深度限制）                    | 200    |
+| `transcription-processor`     | 转写与文本提取器  | 对音频/视频/图片转写，及读取文本附件内容，插入消息以便 Token 计算   | 250    |
+| `primary:worldbook-processor` | 世界书处理器      | 执行 SillyTavern 风格的世界书关键词匹配与注入                       | 300    |
+| `primary:injection-assembler` | 注入组装器        | 处理预设、注入、宏，并与历史消息组装。支持模型/渠道匹配规则         | 400    |
+| `primary:knowledge-processor` | 知识库处理器      | 执行 RAG 检索并替换 `【kb】` 占位符                                 | 450    |
+| `primary:variable-processor`  | 会话变量处理器    | 处理 `<svar>` 标签并维护变量状态快照，执行 `$[...]` 替换            | 500    |
+| `primary:token-limiter`       | Token 限制器      | 根据预算截断历史消息（优先保留预设消息，支持保留截断消息开头）      | 600    |
+| `message-formatter`           | 消息格式化器      | 负责合并 System、合并连续角色、转换 System、确保角色交替等          | 800    |
+| `asset-resolver`              | Base64 资源解析器 | 将剩余的二进制附件引用转换为最终发送格式（结构化对象或 Base64）     | 10000  |
 
 > **设计要点**：
 >
-> 1. 宏处理 (`macro`) 不是独立的管道处理器，而是被 `regex-processor` 和 `injection-assembler` 按需调用的基础能力。这确保了宏在正确的上下文中被解析。
-> 2. `asset-resolver` 具有最高的优先级（10000），确保它在所有其他处理完成后最后执行，避免 base64 数据干扰其他处理步骤。
-> 3. `transcription-processor` 优先级调整为 250，确保所有文本内容（包括转写和文件读取）在 Token 限制之前完成。
-> 4. **Token 限制器位置**：Token 限制器 (450) 在注入组装器 (400) 之后执行。这确保了限制器能准确计算预设消息的 Token 占用，从而更精准地控制总上下文长度，同时依然只截断历史消息。
-> 5. **异步任务处理器位置**：虽然优先级为 90，但由于它只处理 tool 角色的消息，实际上在消息格式化之前执行，确保任务状态能被正确格式化。
+> 1. **宏处理** (`macro`)：不是独立的管道处理器，而是被 `injection-assembler` 等按需调用的基础能力。
+> 2. **Token 限制器位置**：优先级为 600，在 `injection-assembler` (400) 和 `variable-processor` (500) 之后执行。这确保了限制器能准确计算所有已注入消息（预设、深度注入、变量替换后内容）的 Token 占用，从而精准控制总长度。
+> 3. **变量处理器**：在 Token 限制之前执行，确保被替换进去的变量内容也能被正确计入 Token 预算。
+> 4. **资产解析延迟**：`asset-resolver` 拥有最高优先级（10000），确保 Base64 大数据不会干扰前面的文本处理和 Token 计算逻辑。
 
 ## 4. 核心处理器详解
 
@@ -177,23 +179,38 @@ graph TD
 - **部分截断**：支持保留被截断消息的开头 N 个字符
 - **统计信息**：记录截断前后的 Token 和字符数变化
 
-### 4.6. 消息格式化器 (Message Formatter)
+### 4.6. 会话变量处理器 (Variable Processor)
 
 **职责**：
 
-- 应用模型特定的格式化规则
-- 支持 Agent 和模型的配置合并
+- 解析消息中的 `<svar>` 标签并维护变量状态。
+- 实现变量快照机制，支持在分支切换和压缩后恢复状态。
+- 执行内置替换符 `$[...]` 的动态渲染。
+
+**关键特性**：
+
+- **标签解析**：支持 `<svar name="path" op="+" value="1" />` 语法。
+- **快照回溯**：从后往前寻找最近的消息元数据快照 (`sessionVariableSnapshot`) 作为计算起点。
+- **持久化**：在检测到变更或节点被压缩时，将当前状态快照存入消息元数据。
+- **内置函数**：支持 `$[svars::table]` 等内置格式化函数，将所有可见变量渲染为表格或列表。
+
+### 4.7. 消息格式化器 (Message Formatter)
+
+**职责**：
+
+- 应用模型特定的格式化规则。
+- 支持 Agent 和模型的配置合并。
 
 **子处理器**：
 
-1. **合并 System 消息到头部** (priority: 500)：将所有 system 消息合并为一条
-2. **合并连续相同角色** (priority: 600)：合并连续出现的相同角色消息
-3. **转换 System 为 User** (priority: 700)：将 system 角色转换为 user（适用于不支持 system 的模型）
-4. **确保角色交替** (priority: 800)：强制实现 user 和 assistant 的严格交替
+1.  **合并 System 消息到头部** (`post:merge-system-to-head`, priority: 810)：将所有 system 消息合并为一条。
+2.  **合并连续相同角色** (`post:merge-consecutive-roles`, priority: 820)：合并连续出现的相同角色消息。
+3.  **转换 System 为 User** (`post:convert-system-to-user`, priority: 830)：将 system 角色转换为 user。
+4.  **确保角色交替** (`post:ensure-alternating-roles`, priority: 840)：强制实现 user 和 assistant 的严格交替。
 
-**配置合并策略**：默认启用 → 模型规则覆盖 → Agent 规则覆盖
+**配置合并策略**：默认状态 → 模型规则覆盖 → Agent 规则覆盖。
 
-### 4.7. Base64 资源解析器 (Asset Resolver)
+### 4.8. Base64 资源解析器 (Asset Resolver)
 
 **职责**：
 
@@ -353,82 +370,4 @@ export interface ProcessorConfigField {
   default?: any;
   options?: { label: string; value: any }[];
 }
-```
-
-## 7. 存储与状态管理
-
-使用一个统一的 Pinia Store 管理所有处理器，位于 `src/tools/llm-chat/stores/contextPipelineStore.ts`：
-
-- **`useContextPipelineStore`**：管理所有处理器的注册、排序、启用/禁用和执行调度。
-
-**核心方法**：
-
-- `registerProcessor(processor)`: 注册新处理器
-- `unregisterProcessor(processorId)`: 卸载处理器
-- `setProcessorEnabled(processorId, enabled)`: 启用/禁用处理器
-- `reorderProcessors(orderedIds)`: 重新排序处理器
-- `resetToDefaults()`: 重置为默认配置
-- `executePipeline(context)`: 执行完整管道
-
-**持久化**：
-
-- 启用状态和顺序会自动保存到 `llm-chat/pipeline-settings.json`
-- 应用重启后自动恢复用户配置
-
-## 8. 实现状态
-
-统一管道架构已完全实现并集成到 LLM Chat 中。以下为各阶段的完成情况：
-
-| 阶段                        | 状态      | 说明                                                           |
-| :-------------------------- | :-------- | :------------------------------------------------------------- |
-| **Phase 1: 创建统一存储**   | ✅ 已完成 | 已创建 `contextPipelineStore.ts`，合并了前后处理器的管理逻辑。 |
-| **Phase 2: 统一处理器目录** | ✅ 已完成 | 所有处理器已统一放置在 `core/context-processors/` 目录下。     |
-| **Phase 3: 创建资产解析器** | ✅ 已完成 | `asset-resolver.ts` 已实现，负责二进制附件的 Base64 转换。     |
-| **Phase 4: 重构会话加载器** | ✅ 已完成 | `session-loader.ts` 输出中间格式消息，保留附件引用。           |
-| **Phase 5: 世界书系统**     | ✅ 已完成 | 完整实现 SillyTavern 风格的世界书系统。                        |
-| **Phase 6: 知识库系统**     | ✅ 已完成 | 实现 RAG 检索和多种激活模式。                                  |
-| **Phase 7: 异步任务支持**   | ✅ 已完成 | 实现工具调用异步任务的动态上下文注入。                         |
-| **Phase 8: 消息格式化重构** | ✅ 已完成 | 统一消息格式化逻辑，支持配置合并。                             |
-| **Phase 9: Token 限制优化** | ✅ 已完成 | 支持部分截断和详细统计。                                       |
-
-当前架构已稳定运行，支持所有核心功能：历史加载、正则处理、世界书、知识库、附件转写、Token 限制、预设注入、消息格式化及 Base64 资源解析。
-
-## 9. 文件结构
-
-```
-src/tools/llm-chat/
-├── core/
-│   ├── context-utils/            # 辅助工具层
-│   │   ├── index.ts              # 统一导出
-│   │   ├── attachment-resolver.ts # 附件内容解析 (转写/读取)
-│   │   ├── macro.ts              # 宏解析算法
-│   │   ├── preview-builder.ts    # 预览数据构建器 (UI专用)
-│   │   └── knowledge-cache.ts    # 知识库检索缓存
-│   ├── context-processors/       # 【统一目录 - 核心处理器】
-│   │   ├── index.ts              # 统一导出所有处理器
-│   │   ├── session-loader.ts     # 会话加载器
-│   │   ├── regex-processor.ts    # 正则处理器
-│   │   ├── worldbook-processor.ts # 世界书处理器
-│   │   ├── injection-assembler.ts # 注入组装器
-│   │   ├── knowledge-processor.ts # 知识库处理器
-│   │   ├── token-limiter.ts      # Token 限制器
-│   │   ├── async-task-processor.ts # 异步任务处理器
-│   │   ├── transcription-processor.ts # 转写与文本提取
-│   │   ├── message-format-processors.ts # 消息格式化处理器组
-│   │   └── asset-resolver.ts     # 资产解析器
-├── types/
-│   ├── pipeline.ts               # PipelineContext, ContextProcessor 接口
-│   ├── context.ts                # 上下文相关类型
-│   ├── worldbook.ts              # 世界书类型定义
-│   └── ...                       # 其他类型定义
-├── stores/
-│   └── contextPipelineStore.ts   # 【统一存储】
-├── components/
-│   └── settings/
-│       ├── PipelineConfig.vue    # 【上下文管道配置界面】
-│       └── SettingItemRenderer.vue # 配置项渲染器
-└── macro-engine/                 # 宏引擎 (独立模块)
-    ├── index.ts
-    ├── MacroProcessor.ts
-    └── ...
 ```

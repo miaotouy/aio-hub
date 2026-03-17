@@ -5,12 +5,7 @@
       <div class="agent-info">
         <Avatar
           v-if="contextData.agentInfo.icon"
-          :src="
-            resolveAvatarPath(
-              { id: contextData.agentInfo.id, icon: contextData.agentInfo.icon },
-              'agent'
-            ) || ''
-          "
+          :src="resolveAvatarPath({ id: contextData.agentInfo.id, icon: contextData.agentInfo.icon }, 'agent') || ''"
           :alt="agentDisplayName"
           :size="96"
           shape="square"
@@ -26,26 +21,14 @@
           <div class="info-item">
             <span class="label">模型:</span>
             <span class="value">
-              <DynamicIcon
-                v-if="modelIcon"
-                :src="modelIcon"
-                :size="16"
-                class="value-icon"
-                alt="model icon"
-              />
+              <DynamicIcon v-if="modelIcon" :src="modelIcon" :size="16" class="value-icon" alt="model icon" />
               {{ modelDisplayName }}
             </span>
           </div>
           <div class="info-item">
             <span class="label">配置文件:</span>
             <span class="value">
-              <DynamicIcon
-                v-if="providerIcon"
-                :src="providerIcon"
-                :size="16"
-                class="value-icon"
-                alt="provider icon"
-              />
+              <DynamicIcon v-if="providerIcon" :src="providerIcon" :size="16" class="value-icon" alt="provider icon" />
               {{ contextData.agentInfo.profileName || agentProfile?.name || "未知配置" }}
             </span>
           </div>
@@ -73,9 +56,7 @@
           <div class="stat-label">总 Token 数</div>
           <div class="stat-value">
             {{ contextData.statistics.totalTokenCount.toLocaleString() }}
-            <span class="char-count">
-              {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
-            </span>
+            <span class="char-count"> {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符 </span>
           </div>
         </div>
         <div v-else class="stat-item">
@@ -91,9 +72,7 @@
                 {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
               </span>
             </template>
-            <template v-else>
-              {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
-            </template>
+            <template v-else> {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符 </template>
           </div>
         </div>
         <div class="stat-item">
@@ -101,23 +80,16 @@
           <div class="stat-value">
             <template v-if="contextData.statistics.chatHistoryTokenCount !== undefined">
               {{ contextData.statistics.chatHistoryTokenCount.toLocaleString() }} tokens
-              <span class="char-count">
-                {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
-              </span>
+              <span class="char-count"> {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符 </span>
             </template>
-            <template v-else>
-              {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符
-            </template>
+            <template v-else> {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符 </template>
           </div>
         </div>
         <div v-if="contextData.statistics.postProcessingTokenCount !== undefined" class="stat-item">
           <div class="stat-label">后处理消耗</div>
           <div class="stat-value">
             {{ contextData.statistics.postProcessingTokenCount.toLocaleString() }} tokens
-            <span
-              class="char-count"
-              v-if="contextData.statistics.postProcessingCharCount !== undefined"
-            >
+            <span class="char-count" v-if="contextData.statistics.postProcessingCharCount !== undefined">
               {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
             </span>
           </div>
@@ -138,20 +110,22 @@
                 {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
               </template>
               <template v-if="contextData.statistics.worldbookCharCount !== undefined">
-                {{ (contextData.statistics.worldbookTokenCount !== undefined) ? ' / ' : '' }}
+                {{ contextData.statistics.worldbookTokenCount !== undefined ? " / " : "" }}
                 {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
               </template>
-              <template v-if="contextData.statistics.worldbookTokenCount === undefined && contextData.statistics.worldbookCharCount === undefined">
+              <template
+                v-if="
+                  contextData.statistics.worldbookTokenCount === undefined &&
+                  contextData.statistics.worldbookCharCount === undefined
+                "
+              >
                 0 消耗
               </template>
             </span>
           </div>
         </div>
         <div
-          v-if="
-            contextData.statistics.truncatedMessageCount &&
-            contextData.statistics.truncatedMessageCount > 0
-          "
+          v-if="contextData.statistics.truncatedMessageCount && contextData.statistics.truncatedMessageCount > 0"
           class="stat-item warning"
         >
           <div class="stat-label">截断统计</div>
@@ -180,9 +154,7 @@
             <span>激活的世界书条目</span>
           </div>
           <div class="header-tags">
-            <el-tag size="small" type="warning">
-              {{ contextData.worldbookEntries.length }} 条
-            </el-tag>
+            <el-tag size="small" type="warning"> {{ contextData.worldbookEntries.length }} 条 </el-tag>
             <el-tag v-if="contextData.statistics.worldbookTokenCount" size="small" type="success">
               {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
             </el-tag>
@@ -190,13 +162,7 @@
               {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
             </el-tag>
             <el-divider direction="vertical" />
-            <el-button
-              link
-              type="primary"
-              size="small"
-              class="expand-all-btn"
-              @click.stop="toggleAllEntries"
-            >
+            <el-button link type="primary" size="small" class="expand-all-btn" @click.stop="toggleAllEntries">
               {{ isAllEntriesExpanded ? "一键收起" : "一键展开" }}
             </el-button>
           </div>
@@ -204,25 +170,16 @@
       </template>
       <el-collapse-transition>
         <div v-show="worldbookExpanded" class="worldbook-list">
-          <div
-            v-for="entry in contextData.worldbookEntries"
-            :key="entry.uid"
-            class="worldbook-entry"
-          >
+          <div v-for="entry in contextData.worldbookEntries" :key="entry.uid" class="worldbook-entry">
             <div class="entry-header" @click="toggleEntryExpand(entry.uid)">
               <div class="entry-title">
-                <el-icon
-                  class="expand-icon small"
-                  :class="{ expanded: expandedEntries.has(entry.uid) }"
-                >
+                <el-icon class="expand-icon small" :class="{ expanded: expandedEntries.has(entry.uid) }">
                   <ArrowRight />
                 </el-icon>
                 <span class="entry-name">
                   {{ entry.comment || `条目 #${entry.uid}` }}
                 </span>
-                <el-tag v-if="entry.constant" size="small" type="danger" effect="dark">
-                  常量
-                </el-tag>
+                <el-tag v-if="entry.constant" size="small" type="danger" effect="dark"> 常量 </el-tag>
                 <el-tag size="small" type="info" effect="plain" class="entry-source-tag">
                   {{ entry.worldbookName }}
                 </el-tag>
@@ -254,9 +211,7 @@
                     >
                       {{ key }}
                     </el-tag>
-                    <span v-if="entry.keys.length > 8" class="more-keywords">
-                      +{{ entry.keys.length - 8 }}
-                    </span>
+                    <span v-if="entry.keys.length > 8" class="more-keywords"> +{{ entry.keys.length - 8 }} </span>
                   </div>
                   <div v-if="entry.keysecondary.length > 0" class="keyword-group">
                     <span class="keyword-label">次要:</span>
@@ -286,18 +241,13 @@
       </el-collapse-transition>
     </InfoCard>
 
-
     <!-- 统一消息列表（按实际上下文顺序） -->
     <div v-if="unifiedMessages.length > 0" class="section">
       <div class="section-title">
         <span>上下文消息</span>
         <div class="header-tags">
           <el-tag size="small" type="primary"> {{ unifiedMessages.length }} 条消息 </el-tag>
-          <el-tag
-            v-if="contextData.statistics.totalTokenCount !== undefined"
-            size="small"
-            type="success"
-          >
+          <el-tag v-if="contextData.statistics.totalTokenCount !== undefined" size="small" type="success">
             {{ contextData.statistics.totalTokenCount.toLocaleString() }} tokens
           </el-tag>
         </div>
@@ -323,12 +273,7 @@
                 <Avatar
                   v-else-if="msg.role === 'assistant'"
                   :src="getAssistantAvatarSrc(msg)"
-                  :alt="
-                    msg.agentName ||
-                    contextData.agentInfo.displayName ||
-                    contextData.agentInfo.name ||
-                    '助手'
-                  "
+                  :alt="msg.agentName || contextData.agentInfo.displayName || contextData.agentInfo.name || '助手'"
                   :size="24"
                   shape="square"
                   :radius="4"
@@ -341,32 +286,15 @@
                   #{{ index + 1 }}
                 </span>
                 <!-- 摘要节点标识 -->
-                <el-tag
-                  v-if="msg.isCompressionNode"
-                  size="small"
-                  type="info"
-                  effect="dark"
-                  class="compression-tag"
-                >
+                <el-tag v-if="msg.isCompressionNode" size="small" type="info" effect="dark" class="compression-tag">
                   上下文摘要
                 </el-tag>
                 <!-- 待发送节点标识 -->
-                <el-tag
-                  v-if="msg.isPendingInput"
-                  size="small"
-                  type="warning"
-                  effect="dark"
-                  class="pending-tag"
-                >
+                <el-tag v-if="msg.isPendingInput" size="small" type="warning" effect="dark" class="pending-tag">
                   待发送
                 </el-tag>
                 <!-- 来源标签 -->
-                <el-tag
-                  :type="getSourceTagType(msg.source)"
-                  size="small"
-                  effect="plain"
-                  class="source-tag"
-                >
+                <el-tag :type="getSourceTagType(msg.source)" size="small" effect="plain" class="source-tag">
                   {{ getSourceLabel(msg) }}
                 </el-tag>
               </div>
@@ -505,9 +433,7 @@ const modelDisplayName = computed(() => {
   }
   // 2. 如果快照没有，再尝试从当前配置获取（用于兼容旧数据）
   if (agentModel.value) {
-    return (
-      getModelProperty(agentModel.value, "name") || agentModel.value.name || agentModel.value.id
-    );
+    return getModelProperty(agentModel.value, "name") || agentModel.value.name || agentModel.value.id;
   }
   // 3. 最终回退到使用 modelId
   return props.contextData.agentInfo.modelId;
@@ -657,6 +583,8 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
       charCount: 0, // 稍后计算
       nonTextCount: 0,
       source: "unknown",
+      // 真实反映管道处理后的附件状态
+      attachments: finalMsg._attachments as any,
     };
 
     // 计算字符数和非文本内容数
@@ -666,7 +594,7 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
     } else if (Array.isArray(finalMsg.content)) {
       // 只提取文本部分，避免 Base64 导致字符数虚高
       const textParts = finalMsg.content.filter(
-        (p): p is { type: "text"; text: string } => p.type === "text" && !!p.text
+        (p): p is { type: "text"; text: string } => p.type === "text" && !!p.text,
       );
       contentStr = textParts.map((p) => p.text).join("\n");
       baseMsg.nonTextCount = finalMsg.content.length - textParts.length;
@@ -767,7 +695,8 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           agentIcon: history.agentIcon,
           isCompressionNode: history.isCompressionNode,
           originalMessageCount: history.originalMessageCount,
-          attachments: history.attachments,
+          // 继承 baseMsg 中从管道获取的附件状态，如果管道没提供（如未处理的消息），则回退到历史附件
+          attachments: baseMsg.attachments || history.attachments,
           messageDepth: historyDepthMap.get(history.nodeId),
           // 通过 nodeId 前缀识别虚拟待发送节点
           isPendingInput: isVirtualPendingInputNode(history.nodeId),
@@ -807,19 +736,13 @@ function getAssistantAvatarSrc(msg: UnifiedMessage): string {
     // 检查是否需要解析（可能是文件名格式）
     // 但由于历史消息没有存储 agentId，我们无法正确解析
     // 只能尝试用当前 agent 的 id 来解析（假设是同一个 agent）
-    const resolved = resolveAvatarPath(
-      { id: props.contextData.agentInfo.id, icon: msg.agentIcon },
-      "agent"
-    );
+    const resolved = resolveAvatarPath({ id: props.contextData.agentInfo.id, icon: msg.agentIcon }, "agent");
     if (resolved) return resolved;
   }
 
   // 回退到当前 agent 的头像
   return (
-    resolveAvatarPath(
-      { id: props.contextData.agentInfo.id, icon: props.contextData.agentInfo.icon },
-      "agent"
-    ) || ""
+    resolveAvatarPath({ id: props.contextData.agentInfo.id, icon: props.contextData.agentInfo.icon }, "agent") || ""
   );
 }
 
@@ -834,12 +757,7 @@ function getRoleName(msg: UnifiedMessage): string {
     return msg.userName || "用户";
   }
   if (msg.role === "assistant") {
-    return (
-      msg.agentName ||
-      props.contextData.agentInfo.displayName ||
-      props.contextData.agentInfo.name ||
-      "助手"
-    );
+    return msg.agentName || props.contextData.agentInfo.displayName || props.contextData.agentInfo.name || "助手";
   }
   return msg.role;
 }

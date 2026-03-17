@@ -39,7 +39,7 @@ function generateAttachmentLabel(index: number, name: string): string {
 function replacePlaceholders(
   text: string,
   assets: Asset[],
-  transcriptionResults: Map<string, string>
+  transcriptionResults: Map<string, string>,
 ): { content: string; claimedAssets: Set<string>; unmatchedPlaceholders: string[] } {
   const claimedAssets = new Set<string>();
   const unmatchedPlaceholders: string[] = [];
@@ -107,7 +107,7 @@ function replacePlaceholders(
  */
 function buildAttachmentContent(
   unclaimedAssets: Asset[],
-  transcriptionResults: Map<string, string>
+  transcriptionResults: Map<string, string>,
 ): LlmMessageContent[] {
   const contents: LlmMessageContent[] = [];
 
@@ -137,6 +137,10 @@ export const transcriptionProcessor: ContextProcessor = {
   execute: async (context: PipelineContext) => {
     const agentConfig = context.agentConfig;
     const transcriptionConfig = context.sharedData.get("transcriptionConfig") as ChatTranscriptionConfig | undefined;
+
+    // 如果转写功能未启用，则跳过此处理器的核心逻辑（占位符替换除外，但占位符通常配合转写使用）
+    // 注意：即使关闭转写，我们也可能需要处理已经存在的转写结果或简单的占位符标注，
+    // 但为了符合用户“不开启转写”的预期，我们在这里做更细致的判断。
 
     // 获取当前上下文使用的模型信息
     const modelId = agentConfig.modelId;
@@ -269,7 +273,7 @@ export const transcriptionProcessor: ContextProcessor = {
       // 3. 处理未被占位符认领的转写附件
       // 从原始附件列表中找出"有转写结果但未被占位符认领"的附件
       const unclaimedWithTranscription = currentAttachments.filter(
-        (a) => transcriptionResults.has(a.id) && !allClaimedAssetIds.has(a.id)
+        (a) => transcriptionResults.has(a.id) && !allClaimedAssetIds.has(a.id),
       );
 
       // 如果有需要追加的内容（回退到末尾追加模式）
@@ -294,10 +298,20 @@ export const transcriptionProcessor: ContextProcessor = {
       }
 
       // 更新附件列表：
-      // - 保留非文本附件（remainingAttachments 中未被占位符认领的）
-      // - 移除所有已被处理的附件（被占位符认领的 + 转写内容已追加的）
+      // - 只有真正产生了转写文本（并已通过占位符或追加方式进入消息内容）的附件才从列表中移除。
+      // - 如果占位符只是做了标注（没有转写结果），则必须保留原始附件以供多模态模型使用。
       if (contentModified) {
-        const processedAssetIds = new Set([...allClaimedAssetIds, ...unclaimedWithTranscription.map((a) => a.id)]);
+        // 找出那些“确实被转写为文本”的已认领附件
+        const claimedWithTranscription = new Set([...allClaimedAssetIds].filter((id) => transcriptionResults.has(id)));
+
+        // 最终需要从附件列表中移除的集合：
+        // 1. 被占位符认领且有转写结果的
+        // 2. 未被占位符认领但有转写结果并已追加到末尾的
+        const processedAssetIds = new Set([
+          ...claimedWithTranscription,
+          ...unclaimedWithTranscription.map((a) => a.id),
+        ]);
+
         msg._attachments = remainingAttachments.filter((a) => !processedAssetIds.has(a.id));
       }
     }

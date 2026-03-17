@@ -59,10 +59,10 @@ export function useToolCallOrchestrator() {
 
     // 1. 创建共享的 AbortController
     const abortController = new AbortController();
-    
+
     // 跟踪所有在该次执行中注册过的节点 ID，用于最后统一清理
     const trackedNodeIds = new Set<string>();
-    
+
     const registerNode = (nodeId: string) => {
       trackedNodeIds.add(nodeId);
       generatingNodes.add(nodeId);
@@ -149,33 +149,57 @@ export function useToolCallOrchestrator() {
                   if (req) {
                     req.status = "executing";
                     ensureNodesCreated(
-                      reqs.map((r) => ({ requestId: r.requestId, toolName: r.toolName, args: r.args }))
+                      reqs.map((r) => ({ requestId: r.requestId, toolName: r.toolName, args: r.args })),
                     );
                     sessionManager.persistSession(session, session.id);
                   }
                 }
               }
-            }
+            },
           );
 
           if (cycleResult.hasToolRequests) {
             ensureNodesCreated(cycleResult.parsedRequests);
 
             const hasSilentCancel = cycleResult.executionResults.some((r) => r.result === "SILENT_CANCEL");
-            if (hasSilentCancel) {
+            const hasSilentStop = cycleResult.executionResults.some((r) => r.silentStop);
+
+            if (hasSilentCancel || hasSilentStop) {
+              const toolResultText = formatCycleResults(
+                cycleResult.executionResults,
+                executionAgent.toolCallConfig.protocol,
+              );
+
               if (toolNode) {
                 const node = toolNode as ChatMessageNode;
                 node.status = "complete";
-                node.content = "已取消执行";
+                node.content = hasSilentCancel ? "已取消执行" : toolResultText;
+                node.metadata = {
+                  ...node.metadata,
+                  toolCalls: cycleResult.executionResults.map((res, idx) => ({
+                    requestId: res.requestId,
+                    toolName: res.toolName,
+                    status: res.status,
+                    durationMs: res.durationMs,
+                    rawArgs: cycleResult.parsedRequests[idx]?.args,
+                  })),
+                };
                 generatingNodes.delete(node.id);
                 sessionManager.persistSession(session, session.id);
               }
+
+              if (currentAssistantNode.metadata?.toolCallsRequested) {
+                currentAssistantNode.metadata.toolCallsRequested.forEach((req) => {
+                  req.status = "completed";
+                });
+              }
+
               break;
             }
 
             const toolResultText = formatCycleResults(
               cycleResult.executionResults,
-              executionAgent.toolCallConfig.protocol
+              executionAgent.toolCallConfig.protocol,
             );
 
             if (toolNode) {

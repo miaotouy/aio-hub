@@ -52,7 +52,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
 
 async function executeSingleRequest(
   request: ParsedToolRequest,
-  options: ExecutorOptions
+  options: ExecutorOptions,
 ): Promise<ToolExecutionResult> {
   const startedAt = Date.now();
 
@@ -75,9 +75,11 @@ async function executeSingleRequest(
     return buildErrorResult(
       request,
       `方法已被禁用：${target.toolId}.${target.methodName}，请在智能体设置中开启`,
-      Date.now() - startedAt
+      Date.now() - startedAt,
     );
   }
+
+  let silentStop = false;
 
   // 自动化批准逻辑判断
   const isGlobalAuto = options.config.mode === "auto";
@@ -100,6 +102,9 @@ async function executeSingleRequest(
         result: "SILENT_CANCEL",
         durationMs: Date.now() - startedAt,
       };
+    }
+    if (approvalResult === "silent_approved") {
+      silentStop = true;
     }
   }
 
@@ -145,7 +150,7 @@ async function executeSingleRequest(
     return buildErrorResult(
       request,
       `方法不可调用：${target.toolId}.${target.methodName} 未标记为 agentCallable`,
-      Date.now() - startedAt
+      Date.now() - startedAt,
     );
   }
 
@@ -187,6 +192,7 @@ async function executeSingleRequest(
         status: "success",
         result: JSON.stringify(asyncResult),
         durationMs,
+        silentStop,
       };
     } catch (error) {
       const durationMs = Date.now() - startedAt;
@@ -212,8 +218,8 @@ async function executeSingleRequest(
       (method as (args: Record<string, unknown>, context?: ToolContext) => unknown).call(
         toolInstance,
         mergedArgs,
-        toolContext
-      )
+        toolContext,
+      ),
     );
     const data = await withTimeout(invokePromise, options.config.timeout, request.toolName);
     const durationMs = Date.now() - startedAt;
@@ -227,6 +233,7 @@ async function executeSingleRequest(
       status: "success",
       result,
       durationMs,
+      silentStop,
     };
   } catch (error) {
     const durationMs = Date.now() - startedAt;
@@ -246,7 +253,7 @@ async function executeSingleRequest(
  */
 export async function executeToolRequests(
   requests: ParsedToolRequest[],
-  options: ExecutorOptions
+  options: ExecutorOptions,
 ): Promise<ToolExecutionResult[]> {
   if (requests.length === 0) {
     return [];

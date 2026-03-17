@@ -23,6 +23,8 @@ export interface ToolExecutionResult {
   status: "success" | "error" | "denied";
   result: string;
   durationMs: number;
+  /** 静默停止（执行完后不再继续循环） */
+  silentStop?: boolean;
 }
 
 export interface ToolCallCycleResult {
@@ -31,7 +33,7 @@ export interface ToolCallCycleResult {
   hasToolRequests: boolean;
 }
 
-export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled";
+export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled" | "silent_approved";
 
 export type ToolCallStatus = "executing" | "completed" | "error";
 

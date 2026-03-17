@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { ParsedToolRequest } from "@/tools/tool-calling/types";
 
-export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled";
+export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled" | "silent_approved";
 
 export interface PendingToolRequest {
   id: string;
@@ -65,6 +65,18 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
   }
 
   /**
+   * 静默批准请求（允许并不再继续循环）
+   */
+  function silentApproveRequest(requestId: string) {
+    const index = pendingRequests.value.findIndex((r) => r.id === requestId);
+    if (index !== -1) {
+      const pending = pendingRequests.value[index];
+      pending.resolve("silent_approved");
+      pendingRequests.value.splice(index, 1);
+    }
+  }
+
+  /**
    * 批准所有（针对当前会话）
    */
   function approveAll(sessionId: string) {
@@ -97,14 +109,27 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     pendingRequests.value = pendingRequests.value.filter((r) => r.sessionId !== sessionId);
   }
 
+  /**
+   * 全部静默批准（针对当前会话）
+   */
+  function silentApproveAll(sessionId: string) {
+    const requestsToApprove = pendingRequests.value.filter((r) => r.sessionId === sessionId);
+    requestsToApprove.forEach((r) => {
+      r.resolve("silent_approved");
+    });
+    pendingRequests.value = pendingRequests.value.filter((r) => r.sessionId !== sessionId);
+  }
+
   return {
     pendingRequests,
     requestApproval,
     approveRequest,
     rejectRequest,
     silentCancelRequest,
+    silentApproveRequest,
     approveAll,
     rejectAll,
     silentCancelAll,
+    silentApproveAll,
   };
 });

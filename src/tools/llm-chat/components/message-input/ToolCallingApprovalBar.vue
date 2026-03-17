@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Ban } from "lucide-vue-next";
+import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Ban, FastForward } from "lucide-vue-next";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 
@@ -25,6 +25,10 @@ const handleSilentCancel = (id: string) => {
   toolCallingStore.silentCancelRequest(id);
 };
 
+const handleSilentApprove = (id: string) => {
+  toolCallingStore.silentApproveRequest(id);
+};
+
 const handleApproveAll = () => {
   if (llmChatStore.currentSessionId) {
     toolCallingStore.approveAll(llmChatStore.currentSessionId);
@@ -40,6 +44,12 @@ const handleRejectAll = () => {
 const handleSilentCancelAll = () => {
   if (llmChatStore.currentSessionId) {
     toolCallingStore.silentCancelAll(llmChatStore.currentSessionId);
+  }
+};
+
+const handleSilentApproveAll = () => {
+  if (llmChatStore.currentSessionId) {
+    toolCallingStore.silentApproveAll(llmChatStore.currentSessionId);
   }
 };
 </script>
@@ -58,6 +68,10 @@ const handleSilentCancelAll = () => {
             <el-button type="primary" plain @click="handleApproveAll">
               <template #icon><Play :size="14" /></template>
               全部允许
+            </el-button>
+            <el-button type="success" plain @click="handleSilentApproveAll">
+              <template #icon><FastForward :size="14" /></template>
+              全部静默允许
             </el-button>
             <el-button type="danger" plain @click="handleRejectAll">
               <template #icon><X :size="14" /></template>
@@ -92,6 +106,15 @@ const handleSilentCancelAll = () => {
           <div class="item-actions">
             <el-button size="small" circle type="primary" @click="handleApprove(item.id)" title="允许">
               <template #icon><Play :size="12" /></template>
+            </el-button>
+            <el-button
+              size="small"
+              circle
+              type="success"
+              @click="handleSilentApprove(item.id)"
+              title="静默允许 (执行并不再继续循环)"
+            >
+              <template #icon><FastForward :size="12" /></template>
             </el-button>
             <el-button size="small" circle @click="handleReject(item.id)" title="拒绝">
               <template #icon><X :size="12" /></template>

@@ -88,9 +88,15 @@ const handleSilentApproveAll = () => {
       <div class="request-list">
         <div v-for="item in currentSessionPendingRequests" :key="item.id" class="request-item">
           <div class="item-info">
-            <div class="tool-tag">
-              <Terminal :size="12" />
-              {{ item.request.toolName }}
+            <div class="item-main">
+              <div class="tool-tag" :class="{ 'is-invalid': item.request.validation?.isValid === false }">
+                <Terminal :size="12" />
+                {{ item.request.toolName }}
+                <AlertCircle v-if="item.request.validation?.isValid === false" :size="12" class="error-icon" />
+              </div>
+              <div v-if="item.request.validation?.isValid === false" class="validation-error">
+                {{ item.request.validation.reason || "解析或验证错误" }}
+              </div>
             </div>
             <div class="item-args" v-if="item.request.args">
               <ChevronRight :size="12" />
@@ -104,7 +110,16 @@ const handleSilentApproveAll = () => {
             </div>
           </div>
           <div class="item-actions">
-            <el-button size="small" circle type="primary" @click="handleApprove(item.id)" title="允许">
+            <el-tooltip
+              v-if="item.request.validation?.isValid === false"
+              content="该工具调用可能存在错误，是否仍要尝试执行？"
+              placement="top"
+            >
+              <el-button size="small" circle type="warning" @click="handleApprove(item.id)">
+                <template #icon><Play :size="12" /></template>
+              </el-button>
+            </el-tooltip>
+            <el-button v-else size="small" circle type="primary" @click="handleApprove(item.id)" title="允许">
               <template #icon><Play :size="12" /></template>
             </el-button>
             <el-button
@@ -211,10 +226,17 @@ const handleSilentApproveAll = () => {
 
 .item-info {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.item-main {
+  display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
-  flex: 1;
 }
 
 .tool-tag {
@@ -224,6 +246,29 @@ const handleSilentApproveAll = () => {
   font-size: 12px;
   font-weight: 600;
   color: var(--el-color-primary);
+  white-space: nowrap;
+}
+
+.tool-tag.is-invalid {
+  color: var(--el-color-danger);
+}
+
+.error-icon {
+  color: var(--el-color-danger);
+  margin-left: 2px;
+}
+
+.validation-error {
+  font-size: 10px;
+  color: var(--el-color-danger);
+  background: rgba(var(--el-color-danger-rgb), 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

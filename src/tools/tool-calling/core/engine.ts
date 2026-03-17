@@ -9,6 +9,8 @@ import type {
 } from "../types";
 import { parseToolRequests } from "./parser";
 import { executeToolRequests } from "./executor";
+import { validateToolRequest } from "./validator";
+
 export interface ToolCallEngineOptions {
   protocol: ToolCallingProtocol;
   config: ToolCallConfig;
@@ -28,9 +30,9 @@ export function formatResultsForContext(results: ToolExecutionResult[], protocol
  */
 export async function processToolCallCycle(
   assistantText: string,
-  options: ToolCallEngineOptions
+  options: ToolCallEngineOptions,
 ): Promise<ToolCallCycleResult> {
-  const parsedRequests = parseToolRequests(assistantText, options.protocol);
+  const parsedRequests = parseToolRequests(assistantText, options.protocol).map(validateToolRequest);
   if (parsedRequests.length === 0) {
     return {
       hasToolRequests: false,

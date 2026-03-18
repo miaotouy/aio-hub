@@ -24,7 +24,7 @@ import { DEFAULT_SETTINGS } from "../../types/settings";
 
 // 异步加载大型业务组件
 const MarkdownStyleEditor = defineAsyncComponent(
-  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
+  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue"),
 );
 const ChatRegexEditor = defineAsyncComponent(() => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue"));
 const PipelineConfig = defineAsyncComponent(() => import("./PipelineConfig.vue"));
@@ -860,6 +860,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.forceTranscriptionAfter",
         hint: "在智能模式下，强制转写早于最新 N 条消息的附件。0 表示不启用。",
         keywords: "transcription force smart 强制 智能",
+        visible: (settings) => settings.transcription.enabled && settings.transcription.strategy === "smart",
+      },
+      {
+        id: "transSmartPrioritizeTranscription",
+        label: "智能模式优先使用转写",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "transcription.smartPrioritizeTranscription",
+        hint: "在智能模式下，若附件已有转写结果，是否优先发送转写文本（而非原文件）。关闭后，若模型原生支持该模态，将优先发送原文件。",
+        keywords: "transcription smart prioritize transcription 智能 优先 转写",
         visible: (settings) => settings.transcription.enabled && settings.transcription.strategy === "smart",
       },
       {

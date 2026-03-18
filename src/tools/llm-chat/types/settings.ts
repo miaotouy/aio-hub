@@ -16,6 +16,8 @@ export interface ChatTranscriptionConfig extends BaseTranscriptionConfig {
   forceTranscriptionAfter: number;
   /** 是否自动插入资产占位符 */
   autoInsertPlaceholder: boolean;
+  /** 在智能模式下，若已有转写结果，是否优先使用转写内容（而非原文件） */
+  smartPrioritizeTranscription: boolean;
 }
 
 /**
@@ -311,6 +313,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     strategy: "smart",
     forceTranscriptionAfter: 10,
     autoInsertPlaceholder: false,
+    smartPrioritizeTranscription: true,
   },
   messageManagement: {
     confirmBeforeDeleteMessage: false,

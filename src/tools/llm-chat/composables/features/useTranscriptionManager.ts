@@ -202,7 +202,7 @@ export function useTranscriptionManager() {
           processedAssetIds.clear();
         }
       },
-      { deep: true, immediate: true }
+      { deep: true, immediate: true },
     );
   };
 
@@ -218,7 +218,7 @@ export function useTranscriptionManager() {
       modelId?: string;
       additionalPrompt?: string;
       enableRepetitionDetection?: boolean;
-    }
+    },
   ) => {
     const chatConfig = settings.value.transcription;
 
@@ -293,7 +293,7 @@ export function useTranscriptionManager() {
       modelId?: string;
       additionalPrompt?: string;
       enableRepetitionDetection?: boolean;
-    }
+    },
   ) => {
     addTask(asset, options);
   };
@@ -375,15 +375,20 @@ export function useTranscriptionManager() {
     asset: Asset,
     modelId: string,
     profileId: string,
-    messageDepth?: number
+    messageDepth?: number,
   ): boolean => {
-    // 如果已经有转写结果了，为了 UI 状态的一致性（显示为已完成的绿色图标），
-    // 无论当前模型是否支持，都应视为“使用转写状态”。
+    const config = settings.value.transcription;
+
+    // 如果已经有转写结果了
     if (getTranscriptionStatus(asset) === "success") {
-      return true;
+      // 如果配置为“始终优先转写”，或者当前是“始终转写”策略，则返回 true
+      if (config.smartPrioritizeTranscription || config.strategy === "always") {
+        return true;
+      }
+      // 否则，即使有了转写，我们也需要根据模型能力来决定是否真的要“使用”它
+      // 如果模型支持，我们可能更倾向于发原文件
     }
 
-    const config = settings.value.transcription;
     if (!config.enabled) return false;
 
     if (!isSupportedTranscriptionType(asset)) return false;
@@ -414,7 +419,7 @@ export function useTranscriptionManager() {
     assets: Asset[],
     modelId: string,
     profileId: string,
-    forceAssetIds?: Set<string>
+    forceAssetIds?: Set<string>,
   ): Promise<Map<string, Asset>> => {
     const updatedAssets = new Map<string, Asset>();
     for (const asset of assets) {

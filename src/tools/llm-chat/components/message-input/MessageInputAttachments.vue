@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Trash2 } from "lucide-vue-next";
+import { Trash2, Wand2, FileAudio, Square } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import AttachmentCard from "../AttachmentCard.vue";
 import type { Asset } from "@/types/asset-management";
@@ -16,6 +16,9 @@ defineProps<Props>();
 const emit = defineEmits<{
   (e: "remove", asset: Asset): void;
   (e: "clear"): void;
+  (e: "transcribe-all"): void;
+  (e: "smart-transcribe-all"): void;
+  (e: "stop-all"): void;
 }>();
 
 const handleClear = async () => {
@@ -47,9 +50,35 @@ const handleClear = async () => {
       />
     </div>
     <!-- 附件数量浮动显示 -->
-    <div class="attachments-info">
-      <span class="attachment-count"> {{ count }} / {{ maxCount }} </span>
+    <div class="attachments-info-container">
+      <el-dropdown trigger="click" placement="top-end" class="attachments-dropdown">
+        <div class="attachments-info clickable" title="批量附件操作">
+          <span class="attachment-count"> {{ count }} / {{ maxCount }} </span>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="emit('transcribe-all')">
+              <template #icon><FileAudio :size="14" /></template>
+              一键转写所有
+            </el-dropdown-item>
+            <el-dropdown-item @click="emit('smart-transcribe-all')">
+              <template #icon><Wand2 :size="14" /></template>
+              智能转写所有
+            </el-dropdown-item>
+            <el-dropdown-item @click="emit('stop-all')">
+              <template #icon><Square :size="14" /></template>
+              停止所有任务
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="handleClear" class="danger-item">
+              <template #icon><Trash2 :size="14" /></template>
+              清空所有附件
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
       <div class="divider"></div>
+
       <el-button type="danger" link class="clear-btn" title="清空所有附件" @click="handleClear">
         <template #icon>
           <Trash2 :size="12" />
@@ -89,21 +118,36 @@ const handleClear = async () => {
   gap: 8px;
 }
 
-.attachments-info {
+.attachments-info-container {
   position: sticky;
   top: 0;
   align-self: flex-end;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.9);
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(4px);
   border-radius: 12px;
   z-index: 1;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.attachments-info {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  height: 18px;
+}
+
+.attachments-info.clickable {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.attachments-info.clickable:hover {
+  opacity: 0.8;
 }
 
 .attachment-count {
@@ -114,7 +158,12 @@ const handleClear = async () => {
 .divider {
   width: 1px;
   height: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 2px;
+}
+
+.danger-item {
+  color: var(--el-color-danger);
 }
 
 .clear-btn {

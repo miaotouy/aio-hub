@@ -349,7 +349,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
         options.inputManager.handleAssetsAddition(
           newAssets,
           options.textareaRef.value,
-          options.settings.value.transcription.autoInsertPlaceholder
+          options.settings.value.transcription.autoInsertPlaceholder,
         );
       }
     } catch (error) {
@@ -495,5 +495,31 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     handleSwitchSession,
     handleNewSession,
     getWillUseTranscription,
+    handleTranscribeAll: () => {
+      options.inputManager.attachments.value.forEach((asset) => {
+        const status = transcriptionManager.getTranscriptionStatus(asset);
+        if (status === "none" || status === "error") {
+          transcriptionManager.addTask(asset);
+        }
+      });
+    },
+    handleSmartTranscribeAll: () => {
+      options.inputManager.attachments.value.forEach((asset) => {
+        if (getWillUseTranscription(asset)) {
+          const status = transcriptionManager.getTranscriptionStatus(asset);
+          if (status === "none" || status === "error") {
+            transcriptionManager.addTask(asset);
+          }
+        }
+      });
+    },
+    handleStopAllTranscriptions: () => {
+      options.inputManager.attachments.value.forEach((asset) => {
+        const status = transcriptionManager.getTranscriptionStatus(asset);
+        if (status === "pending" || status === "processing") {
+          transcriptionManager.cancelTranscription(asset.id);
+        }
+      });
+    },
   };
 }

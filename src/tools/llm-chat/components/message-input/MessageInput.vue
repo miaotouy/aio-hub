@@ -51,7 +51,7 @@ const inputSettings = useStorage<InputToolbarSettings>(
     groupQuickActionsBySet: false,
   },
   localStorage,
-  { mergeDefaults: true }
+  { mergeDefaults: true },
 );
 
 // 计算当前分支是否正在生成
@@ -87,7 +87,7 @@ interface Emits {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
       disableMacroParsing?: boolean;
-    }
+    },
   ): void;
   (e: "abort"): void;
   (e: "complete-input", content: string, options?: { modelId?: string; profileId?: string }): void;
@@ -173,6 +173,9 @@ const {
   handleNewSession,
   handleAnalyzeContextWithInput,
   getWillUseTranscription,
+  handleTranscribeAll,
+  handleSmartTranscribeAll,
+  handleStopAllTranscriptions,
 } = useMessageInputActions({
   props,
   emit,
@@ -216,7 +219,7 @@ const { isDraggingOver } = useChatFileInteraction({
       inputManager.handleAssetsAddition(
         addedAssets,
         textareaRef.value,
-        settings.value.transcription.autoInsertPlaceholder
+        settings.value.transcription.autoInsertPlaceholder,
       );
     }
   },
@@ -425,6 +428,9 @@ const handleDragStart = (e: MouseEvent) => {
             :get-will-use-transcription="getWillUseTranscription"
             @remove="attachmentManager.removeAttachment"
             @clear="attachmentManager.clearAttachments"
+            @transcribe-all="handleTranscribeAll"
+            @smart-transcribe-all="handleSmartTranscribeAll"
+            @stop-all="handleStopAllTranscriptions"
           />
         </div>
 

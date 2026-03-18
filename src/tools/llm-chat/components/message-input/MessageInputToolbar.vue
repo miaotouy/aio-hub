@@ -90,6 +90,7 @@ const emit = defineEmits<{
   (e: "compress-context"): void;
   (e: "complete-input", content: string): void;
   (e: "convert-paths"): void;
+  (e: "cleanup-placeholders"): void;
   (e: "analyze-context-with-input"): void;
   (e: "switch-session", sessionId: string): void;
   (e: "new-session"): void;
@@ -399,6 +400,14 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
                 <div class="dropdown-item-content">
                   <FileUp :size="16" />
                   <span>路径转附件</span>
+                </div>
+              </el-dropdown-item>
+
+              <!-- 清理无效占位符 -->
+              <el-dropdown-item :disabled="disabled || !props.inputText.trim()" @click="emit('cleanup-placeholders')">
+                <div class="dropdown-item-content">
+                  <el-icon><X /></el-icon>
+                  <span>清理无效占位符</span>
                 </div>
               </el-dropdown-item>
 

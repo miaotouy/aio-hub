@@ -172,6 +172,7 @@ const {
   handleSwitchSession,
   handleNewSession,
   handleAnalyzeContextWithInput,
+  handleCleanupPlaceholders,
   getWillUseTranscription,
   handleTranscribeAll,
   handleSmartTranscribeAll,
@@ -479,6 +480,7 @@ const handleDragStart = (e: MouseEvent) => {
             @select-continuation-model="handleSelectContinuationModel"
             @clear-continuation-model="inputManager.clearContinuationModel"
             @convert-paths="handleConvertPaths"
+            @cleanup-placeholders="handleCleanupPlaceholders"
             @open-agent-settings="handleOpenAgentSettings"
             @analyze-context-with-input="handleAnalyzeContextWithInput"
           />

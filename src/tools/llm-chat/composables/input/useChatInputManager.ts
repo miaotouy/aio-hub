@@ -255,7 +255,7 @@ class ChatInputManager {
           this.debouncedSaveToStorage();
         }
       },
-      { deep: true }
+      { deep: true },
     );
 
     // 监听临时模型变化
@@ -331,7 +331,7 @@ class ChatInputManager {
           this.isApplyingSyncState = false;
         });
       },
-      { deep: true }
+      { deep: true },
     );
 
     // 监听全局资产导入完成事件（用于粘贴等直接导入场景的占位符替换）
@@ -720,7 +720,7 @@ class ChatInputManager {
         // 优先找新加的，找不到找已存在的
         const targetAsset =
           afterAssets.find(
-            (a) => !beforeIds.has(a.id) && (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
+            (a) => !beforeIds.has(a.id) && (a.path === cleanPath || a.name === cleanPath.split("\\").pop()),
           ) || afterAssets.find((a) => a.path === cleanPath);
 
         if (targetAsset) {
@@ -857,6 +857,52 @@ class ChatInputManager {
   }
 
   /**
+   * 清理输入框中已不存在于附件列表中的占位符
+   */
+  cleanupInvalidPlaceholders(): { removedCount: number } {
+    const text = this.inputText.value;
+    if (!text.includes("file::")) return { removedCount: 0 };
+
+    // 匹配 【file::ID】 或 【file::uploading:ID】
+    const placeholderRegex = /【file::(?:uploading:)?([a-zA-Z0-9_-]+)】/g;
+    const matches = Array.from(text.matchAll(placeholderRegex));
+    if (matches.length === 0) return { removedCount: 0 };
+
+    const currentAttachmentIds = new Set(this.attachmentManager.attachments.value.map((a) => a.id));
+    const currentUploadingIds = new Set(
+      this.attachmentManager.attachments.value.map((a) => a.uploadingId).filter(Boolean) as string[],
+    );
+
+    let newText = text;
+    let removedCount = 0;
+
+    // 找出所有在文本中但不在附件列表中的 ID
+    const uniqueMatches = Array.from(new Set(matches.map((m) => m[0])));
+
+    for (const fullTag of uniqueMatches) {
+      // 提取 ID
+      const idMatch = fullTag.match(/【file::(?:uploading:)?([a-zA-Z0-9_-]+)】/);
+      if (!idMatch) continue;
+      const id = idMatch[1];
+
+      if (!currentAttachmentIds.has(id) && !currentUploadingIds.has(id)) {
+        // 如果 ID 既不是当前资产 ID，也不是正在上传的 ID，则移除
+        newText = newText.split(fullTag).join("");
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      // 清理可能产生的多余换行（连续两个换行转为一个）
+      newText = newText.replace(/\n\n\n+/g, "\n\n");
+      this.inputText.value = newText.trim();
+      logger.info("[cleanupInvalidPlaceholders] 清理了无效占位符", { removedCount });
+    }
+
+    return { removedCount };
+  }
+
+  /**
    * 注册编辑器实例，用于执行更精准的文本替换
    */
   public registerEditor(editor: any): void {
@@ -971,7 +1017,7 @@ class ChatInputManager {
               oldId,
               newId,
               currentTextLength: this.inputText.value.length,
-            }
+            },
           );
         }
       };
@@ -1073,6 +1119,8 @@ export function useChatInputManager() {
     updatePlaceholderId: manager.updatePlaceholderId.bind(manager),
     /** 全量扫描并修复残留的 uploading 占位符（发送前兜底） */
     scanAndFixPlaceholders: manager.scanAndFixPlaceholders.bind(manager),
+    /** 清理无效占位符 */
+    cleanupInvalidPlaceholders: manager.cleanupInvalidPlaceholders.bind(manager),
     /** 更新最后已知的光标位置 */
     updateLastCursorPosition: (pos: number) => (manager.lastCursorPosition.value = pos),
     /** 请求编辑器聚焦 */

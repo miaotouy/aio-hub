@@ -494,6 +494,18 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     handleCompleteInput,
     handleSwitchSession,
     handleNewSession,
+    handleCleanupPlaceholders: () => {
+      try {
+        const { removedCount } = options.inputManager.cleanupInvalidPlaceholders();
+        if (removedCount > 0) {
+          customMessage.success(`已清理 ${removedCount} 个无效占位符`);
+        } else {
+          customMessage.info("未发现无效占位符");
+        }
+      } catch (error) {
+        errorHandler.error(error, "清理占位符失败");
+      }
+    },
     getWillUseTranscription,
     handleTranscribeAll: () => {
       options.inputManager.attachments.value.forEach((asset) => {

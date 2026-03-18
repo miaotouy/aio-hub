@@ -58,26 +58,26 @@
         </div>
 
         <!-- 模型匹配配置行 -->
+        <!-- 模型匹配配置行 -->
         <div class="editor-row model-match-row">
           <span class="field-label">过滤</span>
           <div class="model-match-config">
             <div class="match-switches">
-              <el-switch v-model="modelMatchEnabled" size="small" active-text="启用匹配过滤" />
+              <el-switch v-model="modelMatchEnabled" size="small" active-text="启用过滤" />
               <template v-if="modelMatchEnabled">
                 <el-divider direction="vertical" />
-                <el-checkbox v-model="matchProfileName" size="small">同时匹配渠道名</el-checkbox>
+                <el-radio-group v-model="modelMatchMode" size="small">
+                  <el-radio-button value="any">满足其一 (OR)</el-radio-button>
+                  <el-radio-button value="all">同时满足 (AND)</el-radio-button>
+                </el-radio-group>
 
                 <el-tooltip placement="top">
                   <template #content>
                     <div style="max-width: 300px">
                       <p>输入匹配规则，支持正则表达式。</p>
-                      <p>每行一个规则，满足任意一个即生效。</p>
-                      <p><strong>匹配范围：</strong></p>
-                      <ul style="padding-left: 16px; margin: 4px 0; line-height: 1.6">
-                        <li>模型 ID (如 gpt-4o)</li>
-                        <li>模型显示名称 (如 GPT-4o)</li>
-                        <li v-if="matchProfileName">渠道名称 (如 我的本地 Ollama)</li>
-                      </ul>
+                      <p><strong>满足其一 (OR)：</strong> 只要模型或渠道满足任意一条规则即生效。</p>
+                      <p><strong>同时满足 (AND)：</strong> 必须模型满足规则且渠道满足规则才生效。</p>
+                      <p><i>注：如果某项规则为空，则视为该项已通过匹配。</i></p>
                     </div>
                   </template>
                   <el-icon class="info-icon" style="margin-left: 4px"><InfoFilled /></el-icon>
@@ -87,17 +87,34 @@
 
             <!-- 匹配规则输入框 (换行显示) -->
             <div v-if="modelMatchEnabled" class="model-match-patterns-area">
-              <el-input
-                v-model="modelMatchPatternsText"
-                type="textarea"
-                :rows="2"
-                placeholder="每行一个匹配规则（支持正则）"
-                style="width: 100%; max-width: 600px"
-              />
+              <div class="match-pattern-group">
+                <span class="pattern-label">模型规则:</span>
+                <el-input
+                  v-model="modelMatchPatternsText"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="每行一个模型 ID 或名称的匹配规则（支持正则）"
+                  style="width: 100%; max-width: 600px"
+                />
+              </div>
+              <div class="match-pattern-group">
+                <span class="pattern-label">渠道规则:</span>
+                <el-input
+                  v-model="profileMatchPatternsText"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="每行一个渠道名称的匹配规则（支持正则）"
+                  style="width: 100%; max-width: 600px"
+                />
+              </div>
+              <div v-if="matchProfileName && !profileMatchPatternsText" class="legacy-hint">
+                <el-checkbox v-model="matchProfileName" size="small">
+                  兼容旧版：在模型规则中同时匹配渠道名
+                </el-checkbox>
+              </div>
             </div>
           </div>
         </div>
-
         <!-- 注入策略配置行 -->
         <div class="editor-row injection-row">
           <span class="field-label">注入</span>
@@ -378,7 +395,9 @@ interface MessageForm {
   injectionStrategy?: InjectionStrategy;
   modelMatch?: {
     enabled: boolean;
+    mode?: "any" | "all";
     patterns: string[];
+    profilePatterns?: string[];
     matchProfileName?: boolean;
   };
 }
@@ -437,8 +456,10 @@ const orderValue = ref(100);
 
 // 模型匹配配置
 const modelMatchEnabled = ref(false);
+const modelMatchMode = ref<"any" | "all">("any");
 const matchProfileName = ref(false);
 const modelMatchPatternsText = ref("");
+const profileMatchPatternsText = ref("");
 
 // 可用锚点列表
 const availableAnchors = computed(() => getAvailableAnchors());
@@ -553,7 +574,7 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
 
   // 过滤匹配的宏
   const matchedMacros = allMacros.filter(
-    (macro) => macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix)
+    (macro) => macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix),
   );
 
   if (matchedMacros.length === 0) {
@@ -761,22 +782,40 @@ const buildInjectionStrategy = (): InjectionStrategy | undefined => {
 /**
  * 从 modelMatch 恢复 UI 状态
  */
-const restoreModelMatch = (modelMatch?: { enabled: boolean; patterns: string[]; matchProfileName?: boolean }) => {
+const restoreModelMatch = (modelMatch?: {
+  enabled: boolean;
+  mode?: "any" | "all";
+  patterns: string[];
+  profilePatterns?: string[];
+  matchProfileName?: boolean;
+}) => {
   if (!modelMatch) {
     modelMatchEnabled.value = false;
+    modelMatchMode.value = "any";
     matchProfileName.value = false;
     modelMatchPatternsText.value = "";
+    profileMatchPatternsText.value = "";
     return;
   }
   modelMatchEnabled.value = modelMatch.enabled;
+  modelMatchMode.value = modelMatch.mode || "any";
   matchProfileName.value = modelMatch.matchProfileName || false;
-  modelMatchPatternsText.value = modelMatch.patterns.join("\n");
+  modelMatchPatternsText.value = (modelMatch.patterns || []).join("\n");
+  profileMatchPatternsText.value = (modelMatch.profilePatterns || []).join("\n");
 };
 
 /**
  * 构建 modelMatch 对象
  */
-const buildModelMatch = (): { enabled: boolean; patterns: string[]; matchProfileName?: boolean } | undefined => {
+const buildModelMatch = ():
+  | {
+      enabled: boolean;
+      mode: "any" | "all";
+      patterns: string[];
+      profilePatterns: string[];
+      matchProfileName?: boolean;
+    }
+  | undefined => {
   if (!modelMatchEnabled.value) {
     return undefined;
   }
@@ -784,12 +823,21 @@ const buildModelMatch = (): { enabled: boolean; patterns: string[]; matchProfile
     .split("\n")
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
-  if (patterns.length === 0) {
+
+  const profilePatterns = profileMatchPatternsText.value
+    .split("\n")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  if (patterns.length === 0 && profilePatterns.length === 0) {
     return undefined;
   }
+
   return {
     enabled: true,
+    mode: modelMatchMode.value,
     patterns,
+    profilePatterns,
     matchProfileName: matchProfileName.value,
   };
 };
@@ -804,7 +852,7 @@ watch(
       restoreModelMatch(newForm.modelMatch);
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 );
 
 // 监听对话框打开，重置或设置表单
@@ -819,7 +867,7 @@ watch(
         restoreModelMatch(props.initialForm.modelMatch);
       }
     }
-  }
+  },
 );
 
 /**
@@ -927,7 +975,7 @@ async function handleCopy() {
       await navigator.clipboard.writeText(contentToCopy);
       return true;
     },
-    { userMessage: "复制失败" }
+    { userMessage: "复制失败" },
   );
 
   if (result) {
@@ -943,7 +991,7 @@ async function handlePaste() {
     async () => {
       return await navigator.clipboard.readText();
     },
-    { userMessage: "粘贴失败，请检查剪贴板权限" }
+    { userMessage: "粘贴失败，请检查剪贴板权限" },
   );
 
   if (!text) return;
@@ -960,7 +1008,7 @@ async function handleOverwrite() {
     async () => {
       return await navigator.clipboard.readText();
     },
-    { userMessage: "覆盖失败，请检查剪贴板权限" }
+    { userMessage: "覆盖失败，请检查剪贴板权限" },
   );
 
   if (!text) return;
@@ -1127,6 +1175,25 @@ function handleSave() {
 
 .model-match-patterns-area {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.match-pattern-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pattern-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-weight: 500;
+}
+
+.legacy-hint {
+  opacity: 0.6;
 }
 
 /* 注入策略配置样式 */

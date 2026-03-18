@@ -155,10 +155,14 @@ export interface ChatMessageNode {
   modelMatch?: {
     /** 是否启用匹配 */
     enabled: boolean;
-    /** 是否同时匹配渠道名称 (Profile Name) */
-    matchProfileName?: boolean;
-    /** 匹配规则列表（正则字符串），只要满足其中一个即生效 */
+    /** 匹配模式：'any' (满足任一模型或渠道规则即注入) | 'all' (必须同时满足模型规则和渠道规则才注入) */
+    mode?: "any" | "all";
+    /** 模型匹配规则列表（正则字符串），只要满足其中一个即生效 */
     patterns: string[];
+    /** 渠道匹配规则列表（正则字符串），只要满足其中一个即生效 */
+    profilePatterns?: string[];
+    /** 兼容旧字段：是否在 patterns 中匹配渠道名称 */
+    matchProfileName?: boolean;
   };
 
   /**

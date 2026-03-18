@@ -104,7 +104,7 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   history: T[],
   depthInjections: InjectionMessage[],
   processedContents: Map<string, string>,
-  presetMessages: ChatMessageNode[]
+  presetMessages: ChatMessageNode[],
 ): (
   | T
   | {
@@ -181,7 +181,7 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
 
       if (depths.length === 0) {
         logger.debug(
-          `预设消息 [${injection.message.name || injection.message.id}] 的 depthConfig "${strategy.depthConfig}" 未产生有效深度点（可能历史长度不足）`
+          `预设消息 [${injection.message.name || injection.message.id}] 的 depthConfig "${strategy.depthConfig}" 未产生有效深度点（可能历史长度不足）`,
         );
       }
     }
@@ -249,7 +249,7 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
  * 获取锚点注入消息（按锚点和位置分组）
  */
 const getAnchorInjectionGroups = (
-  anchorInjections: InjectionMessage[]
+  anchorInjections: InjectionMessage[],
 ): Map<string, { before: InjectionMessage[]; after: InjectionMessage[] }> => {
   const groups = new Map<string, { before: InjectionMessage[]; after: InjectionMessage[] }>();
 
@@ -301,45 +301,51 @@ export const injectionAssembler: ContextProcessor = {
       }
 
       // 检查模型/渠道匹配规则
-      if (msg.modelMatch?.enabled && msg.modelMatch.patterns.length > 0) {
-        const isMatch = msg.modelMatch.patterns.some((pattern) => {
-          try {
-            const regex = new RegExp(pattern, "i");
+      if (msg.modelMatch?.enabled) {
+        const { patterns = [], profilePatterns = [], mode = "any", matchProfileName = false } = msg.modelMatch;
 
-            // 1. 尝试匹配模型显示名称 (modelName)
-            if (modelInfo?.name && regex.test(modelInfo.name)) {
-              return true;
-            }
-
-            // 2. 尝试匹配模型 ID (modelId)
-            const modelIdPart = getPureModelId(modelId);
-
-            if (modelIdPart && regex.test(modelIdPart)) {
-              return true;
-            }
-
-            // 3. 尝试匹配模型 ID 的最后一段 (如斜杠后的部分)
-            if (modelIdPart) {
-              const slashIndex = modelIdPart.lastIndexOf("/");
-              if (slashIndex !== -1) {
-                const pureModelNamePart = modelIdPart.substring(slashIndex + 1);
-                if (pureModelNamePart && regex.test(pureModelNamePart)) return true;
+        // 1. 检查模型是否匹配
+        const modelIsMatched =
+          patterns.length === 0 ||
+          patterns.some((pattern) => {
+            try {
+              const regex = new RegExp(pattern, "i");
+              // 匹配模型显示名称
+              if (modelInfo?.name && regex.test(modelInfo.name)) return true;
+              // 匹配模型 ID
+              const modelIdPart = getPureModelId(modelId);
+              if (modelIdPart && regex.test(modelIdPart)) return true;
+              // 匹配模型 ID 的最后一段
+              if (modelIdPart) {
+                const slashIndex = modelIdPart.lastIndexOf("/");
+                if (slashIndex !== -1) {
+                  const pureModelNamePart = modelIdPart.substring(slashIndex + 1);
+                  if (pureModelNamePart && regex.test(pureModelNamePart)) return true;
+                }
               }
+              return false;
+            } catch (e) {
+              logger.warn(`预设消息 [${msg.name || msg.id}] 中的模型匹配正则表达式无效: ${pattern}`, e);
+              return false;
             }
+          });
 
-            // 4. 尝试匹配渠道名称 (Profile Name)
-            if (msg.modelMatch?.matchProfileName && profileInfo?.name) {
-              if (regex.test(profileInfo.name)) {
-                return true;
-              }
+        // 2. 检查渠道是否匹配
+        const profileIsMatched =
+          (profilePatterns.length === 0 && !matchProfileName) ||
+          [...profilePatterns, ...(matchProfileName ? patterns : [])].some((pattern) => {
+            try {
+              const regex = new RegExp(pattern, "i");
+              if (profileInfo?.name && regex.test(profileInfo.name)) return true;
+              return false;
+            } catch (e) {
+              logger.warn(`预设消息 [${msg.name || msg.id}] 中的渠道匹配正则表达式无效: ${pattern}`, e);
+              return false;
             }
+          });
 
-            return false;
-          } catch (e) {
-            logger.warn(`预设消息 [${msg.name || msg.id}] 中的模型匹配正则表达式无效: ${pattern}`, e);
-            return false;
-          }
-        });
+        // 3. 根据模式组合结果
+        const isMatch = mode === "all" ? modelIsMatched && profileIsMatched : modelIsMatched || profileIsMatched;
 
         // 如果不匹配，则返回一个被禁用的副本，而不是过滤掉它
         if (!isMatch) {
@@ -422,7 +428,7 @@ export const injectionAssembler: ContextProcessor = {
       history,
       activeDepthInjections,
       processedContents,
-      presetMessages // 传入完整列表以正确查找 sourceIndex
+      presetMessages, // 传入完整列表以正确查找 sourceIndex
     ) as ProcessableMessage[];
 
     // 4. 组装最终消息列表
@@ -436,7 +442,7 @@ export const injectionAssembler: ContextProcessor = {
 
     const buildAnchorMessages = (
       target: string,
-      position: "before" | "after" | "all" = "all"
+      position: "before" | "after" | "all" = "all",
     ): ProcessableMessage[] => {
       const group = anchorGroups.get(target);
       if (!group) return [];

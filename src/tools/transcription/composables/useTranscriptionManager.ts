@@ -52,7 +52,11 @@ export function useTranscriptionManager() {
     processQueue(); // 调度下一个
 
     try {
-      const engine = engines.find((e) => e.canHandle({ type: pendingTask.assetType } as any));
+      const engine = engines.find((e) => e.canHandle({
+        type: pendingTask.assetType,
+        mimeType: pendingTask.mimeType,
+        name: pendingTask.filename
+      } as any));
       if (!engine) throw new Error(`未找到支持 ${pendingTask.assetType} 的引擎`);
 
       logger.info(`开始执行转写任务: ${pendingTask.id}`, { assetId: pendingTask.assetId, retry: pendingTask.retryCount });

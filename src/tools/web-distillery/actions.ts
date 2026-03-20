@@ -97,8 +97,13 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
       }
 
       // 5. 并行等待：DOM 提取触发 + 超时
-      const waitTimeout = options.waitTimeout || 15000;
-      const combinedWaitFor = options.waitFor || matchedRecipe?.extractSelectors?.[0];
+      // 优先级：options > recipe > 默认值
+      const waitTimeout = options.waitTimeout || matchedRecipe?.waitTimeout || 15000;
+      logger.debug("Extraction parameters", { waitTimeout, waitFor: options.waitFor || matchedRecipe?.waitFor });
+      const combinedWaitFor = options.waitFor || matchedRecipe?.waitFor || matchedRecipe?.extractSelectors?.[0];
+
+      // 预先启动等待事件监听（避免时序竞态条件丢失消息）
+      const extractPromise = webviewBridge.waitForDomExtracted(waitTimeout + 3000);
 
       // 触发带 selector 的提取命令
       context?.reportStatus("正在分析页面结构...");
@@ -108,10 +113,11 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
       let extracted;
       try {
         context?.reportStatus("正在抓取动态内容...");
-        extracted = await webviewBridge.waitForDomExtracted(waitTimeout + 2000);
+        // 前端等待时间略长于脚本内部超时，确保脚本有机会发回超时警告
+        extracted = await extractPromise;
       } finally {
         // 7. 无论提取成功与否，都要销毁 headless Webview，释放资源
-        await webviewBridge.destroy().catch(() => {});
+        await webviewBridge.destroy().catch(() => { });
       }
 
       if (!extracted) {

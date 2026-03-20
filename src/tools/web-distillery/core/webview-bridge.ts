@@ -12,7 +12,7 @@ import { getLocalISOString } from "@/utils/time";
 const logger = createModuleLogger("web-distillery/bridge");
 const errorHandler = createModuleErrorHandler("web-distillery/bridge");
 
-export type DomExtractedCallback = (html: string, url: string, title: string) => void;
+export type DomExtractedCallback = (error: Error | null, html?: string, url?: string, title?: string) => void;
 
 export class WebviewBridge {
   private static instance: WebviewBridge;
@@ -21,7 +21,7 @@ export class WebviewBridge {
   private cookieExtractedCallbacks: ((cookies: string, url: string) => void)[] = [];
   private elementSelectedCallbacks: ((data: any) => void)[] = [];
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): WebviewBridge {
     if (!WebviewBridge.instance) {
@@ -34,8 +34,29 @@ export class WebviewBridge {
   public async init() {
     if (this.unlisten) return;
 
+    // 1. 监听来自 window.opener.postMessage 的跨窗口消息
+    // 这是处理外部 URL 子 Webview 消息的最稳健方式
+    window.addEventListener('message', async (event) => {
+      if (event.data && event.data.source === 'distillery-sub-webview') {
+        const { payload } = event.data;
+        logger.debug("Received postMessage from sub-webview", { type: payload.type });
+        
+        // 转发到 Rust 命令（由主窗口发起，拥有完整权限）
+        try {
+          await invoke('distillery_forward_message', { payload });
+        } catch (e) {
+          logger.error("Failed to forward sub-webview message to Rust", e);
+        }
+      }
+    });
+
+    // 2. 监听来自 Rust 的事件总线
     this.unlisten = await listen<string>("distillery-message", (event) => {
       try {
+        logger.debug("Received distillery-message event", {
+          payload: event.payload,
+          timestamp: new Date().toISOString()
+        });
         const payload = JSON.parse(event.payload);
         this.handleMessage(payload);
       } catch (e) {
@@ -52,19 +73,25 @@ export class WebviewBridge {
     try {
       const store = useWebDistilleryStore();
 
+      logger.debug(`Handling message type: ${payload.type}`);
       switch (payload.type) {
         case "webview-ready":
-          logger.info("Sub-webview DOM content loaded");
+          logger.info("Sub-webview DOM content loaded (webview-ready)");
           break;
 
         case "page-loaded":
-          logger.info("Sub-webview page fully loaded (including resources)");
+          logger.info("Sub-webview page fully loaded (page-loaded)");
           break;
 
         case "dom-extracted":
+          logger.info("DOM extraction successful", {
+            url: payload.url,
+            title: payload.title,
+            htmlLength: payload.html?.length
+          });
           this.domExtractedCallbacks.forEach((cb) => {
             try {
-              cb(payload.html, payload.url, payload.title);
+              cb(null, payload.html, payload.url, payload.title);
             } catch (err) {
               logger.error("DOM extracted callback error", err);
             }
@@ -73,7 +100,15 @@ export class WebviewBridge {
           break;
 
         case "dom-extract-error":
-          logger.error("DOM extraction error from webview", { error: payload.error });
+          logger.error("DOM extraction error reported by webview", { error: payload.error });
+          this.domExtractedCallbacks.forEach((cb) => {
+            try {
+              cb(new Error(payload.error || "DOM extraction error from webview"));
+            } catch (err) {
+              logger.error("DOM extracted callback error handling failed", err);
+            }
+          });
+          this.domExtractedCallbacks = [];
           break;
 
         case "api-discovered":
@@ -105,6 +140,15 @@ export class WebviewBridge {
             } catch (err) {
               logger.error("Element selected callback error", err);
             }
+          });
+          break;
+
+        case "window-error":
+          logger.error("Sub-webview runtime error", {
+            message: payload.message,
+            source: payload.source,
+            line: payload.line,
+            stack: payload.stack,
           });
           break;
 
@@ -140,15 +184,26 @@ export class WebviewBridge {
 
   /** 等待并获取 DOM 提取结果（Promise 封装） */
   public waitForDomExtracted(timeoutMs = 15000): Promise<{ html: string; url: string; title: string }> {
+    logger.debug("Starting to wait for DOM extraction", { timeoutMs });
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.domExtractedCallbacks = this.domExtractedCallbacks.filter((cb) => cb !== callback);
-        reject(new Error(`DOM extraction timed out after ${timeoutMs}ms`));
+        const error = new Error(`DOM extraction timed out after ${timeoutMs}ms (Frontend Promise)`);
+        logger.error(error.message, {
+          timeoutMs,
+          pendingCallbacks: this.domExtractedCallbacks.length
+        });
+        reject(error);
       }, timeoutMs);
 
-      const callback: DomExtractedCallback = (html, url, title) => {
+      const callback: DomExtractedCallback = (error, html, url, title) => {
+        logger.debug("DOM extraction callback received", { success: !error });
         clearTimeout(timer);
-        resolve({ html, url, title });
+        if (error) {
+          reject(error);
+        } else {
+          resolve({ html: html!, url: url!, title: title! });
+        }
       };
       this.domExtractedCallbacks.push(callback);
     });

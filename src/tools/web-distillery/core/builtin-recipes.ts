@@ -15,6 +15,8 @@ export const builtinRecipes: SiteRecipe[] = [
     pathPattern: "/video/**",
     contentPatterns: ["__INITIAL_STATE__", "bilibili\\.com", "哔哩哔哩"],
     protectedSelectors: [".up-info--right", ".video-info-meta", ".video-toolbar-container", ".recommend-list-v1"],
+    waitFor: "h1.video-title",
+    waitTimeout: 10000, // 10s 足够了，不需要 15s 那么久
     metadataScrapers: [
       {
         type: "json-ld",

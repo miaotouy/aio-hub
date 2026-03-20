@@ -4,88 +4,81 @@
  */
 (function () {
   const NONCE = "__NONCE_PLACEHOLDER__";
+  console.log("[Distillery Bridge] Initializing bridge with nonce:", NONCE);
+
+  // 捕获全局错误
+  window.addEventListener('error', (event) => {
+    if (window.__DISTILLERY_BRIDGE__ && typeof window.__DISTILLERY_BRIDGE__.send === 'function') {
+      window.__DISTILLERY_BRIDGE__.send({
+        type: 'window-error',
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        col: event.colno,
+        stack: event.error ? event.error.stack : ''
+      });
+    }
+  });
 
   // 平台检测 + 统一发送接口
-  // 优先使用 anti-detection.js 保存的原生引用（已隐藏 WebView 特征）
-  const postMessage = (function () {
-    // 使用 anti-detection.js 保存的原生 postMessage
+  const nativePost = (function () {
+    if (window.ipc && typeof window.ipc.postMessage === 'function') {
+      return window.ipc.postMessage.bind(window.ipc);
+    }
     if (window.__DISTILLERY_NATIVE_POSTMESSAGE__) {
       return window.__DISTILLERY_NATIVE_POSTMESSAGE__;
     }
-
-    // 降级方案：直接检测（如果 anti-detection 未生效）
-    // Windows (WebView2/Chromium)
-    if (window.chrome && window.chrome.webview) {
-      return (data) => window.chrome.webview.postMessage(data);
+    if (window.chrome?.webview?.postMessage) {
+      return window.chrome.webview.postMessage.bind(window.chrome.webview);
     }
-    // macOS (WKWebView)
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ipc) {
-      return (data) => window.webkit.messageHandlers.ipc.postMessage(data);
+    if (window.webkit?.messageHandlers?.ipc?.postMessage) {
+      return window.webkit.messageHandlers.ipc.postMessage.bind(window.webkit.messageHandlers.ipc);
     }
-    // Linux (WebKitGTK)
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.ipc) {
-      return (data) => window.webkit.messageHandlers.ipc.postMessage(data);
-    }
-    return (data) => console.warn("[Distillery Bridge] No IPC handler found", data);
+    return null;
   })();
 
   window.__DISTILLERY_BRIDGE__ = {
     send(payload) {
-      postMessage(JSON.stringify({ nonce: NONCE, ...payload }));
+      const finalPayload = { nonce: NONCE, ...payload };
+      
+      console.log("[Distillery Bridge] Sending message:", payload.type);
+
+      // 核心策略：通过 window.opener.postMessage 发送给主窗口
+      // 外部 URL 无法直接调用 Tauri invoke，但可以与父窗口通信
+      if (window.opener) {
+        window.opener.postMessage({
+          source: 'distillery-sub-webview',
+          payload: finalPayload
+        }, '*');
+      }
+
+      // 备选：尝试通过 nativePost 发送符合协议的 JSON
+      if (nativePost) {
+        try {
+          nativePost(JSON.stringify({
+            cmd: "distillery_forward_message",
+            payload: finalPayload,
+            callback: 0,
+            error: 0
+          }));
+        } catch(e) {}
+      }
     },
+
+    sendRaw(payload) {
+      if (nativePost) {
+        try {
+          nativePost(JSON.stringify(payload));
+        } catch(e) {}
+      }
+    }
   };
 
-  /**
-   * P1: 媒体控制 (跨平台保险)
-   * 即使 Rust 端设置了 autoplay-policy，JS 侧再加一层保护
-   */
-  function disableMedia() {
-    try {
-      const mediaElements = document.querySelectorAll('video, audio');
-      mediaElements.forEach(el => {
-        el.pause();
-        el.autoplay = false;
-        el.muted = true;
-        el.removeAttribute('autoplay');
-        // 禁止程序化播放
-        el.play = () => Promise.resolve();
-      });
-    } catch (e) { }
-  }
+  // 通知主进程：桥接已就绪
+  window.__DISTILLERY_BRIDGE__.send({ type: 'webview-ready' });
 
-  // 初始化时禁用一次
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', disableMedia);
-  } else {
-    disableMedia();
-  }
-
-  // P1: MutationObserver 监听动态插入的媒体
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      mutation.addedNodes.forEach((node) => {
-        if (node.nodeType === 1) { // Element
-          if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') {
-            node.pause(); node.autoplay = false; node.muted = true;
-            node.play = () => Promise.resolve();
-          }
-          node.querySelectorAll?.('video, audio').forEach(el => {
-            el.pause(); el.autoplay = false; el.muted = true;
-            el.play = () => Promise.resolve();
-          });
-        }
-      });
-    });
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-
-  // 通知已就绪
-  window.addEventListener('DOMContentLoaded', () => {
-    window.__DISTILLERY_BRIDGE__.send({ type: 'webview-ready' });
-  });
-
-  // P3: 增加页面完全加载信号
-  window.addEventListener('load', () => {
+  // 监听 DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', () => {
     window.__DISTILLERY_BRIDGE__.send({ type: 'page-loaded' });
   });
 })();

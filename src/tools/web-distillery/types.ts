@@ -98,6 +98,8 @@ export interface SiteRecipe {
   actions?: ActionStep[];
   extractSelectors?: string[];
   excludeSelectors?: string[];
+  waitFor?: string;
+  waitTimeout?: number;
   cookieProfile?: string;
   createdAt: string;
   updatedAt: string;

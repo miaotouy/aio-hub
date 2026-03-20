@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, WebviewUrl};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// 网页蒸馏室子 Webview 管理器（记录活跃标签）
 pub struct DistilleryWebviewManager {
@@ -71,19 +71,18 @@ pub async fn distillery_create_webview(
             .map_err(|e| format!("Invalid URL: {}", e))?,
     );
 
-    // 4. 使用 WebviewWindowBuilder 创建独立无边框窗口
-    let mut builder = tauri::WebviewWindowBuilder::new(&app, label, url)
+    // 4. 使用 WebviewWindowBuilder 创建独立窗口 (Tauri v2)
+    let mut builder = WebviewWindowBuilder::new(&app, label, url)
         .initialization_script(&final_inject)
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .decorations(false) // 无边框
-        .shadow(false)      // 无阴影（贴合感）
-        .visible(false)     // 初始不可见，等位置调整后再显示
-        .skip_taskbar(true); // 不在任务栏显示
-
-    #[cfg(target_os = "windows")]
-    {
-        builder = builder.transparent(true); // 透明支持仅在 Windows 上通过此方法设置
-    }
+        .on_navigation(|url| {
+            log::debug!("[Distillery] Navigating to: {}", url);
+            true
+        })
+        .decorations(false)
+        .shadow(false)
+        .skip_taskbar(true)
+        .visible(false);
 
     // P1: 禁用媒体自动播放 (Windows WebView2)
     builder =
@@ -91,20 +90,24 @@ pub async fn distillery_create_webview(
 
     let is_headless = options.headless.unwrap_or(false);
 
-    if !is_headless {
-        builder = builder.always_on_top(true); // 悬浮在主窗口之上
-    }
-
-    #[cfg(target_os = "macos")]
+    #[cfg(target_os = "windows")]
     {
-        builder = builder.title_bar_style(tauri::TitleBarStyle::Transparent);
+        builder = builder.transparent(true);
     }
 
+    if !is_headless {
+        builder = builder.always_on_top(true);
+    }
+
+    // 5. 构建窗口
     let window = builder
         .build()
-        .map_err(|e| format!("Failed to create sub-window: {}", e))?;
+        .map_err(|e| format!("Failed to build sub-window: {}", e))?;
 
-    // 5. 设置初始位置和大小 (逻辑坐标转物理坐标由 Tauri 处理或手动同步)
+    // P2: 移除所有不稳定的底层拦截逻辑
+    // 我们将通过 window.opener.postMessage 在前端层面进行跨窗口通信
+
+    // 设置位置和大小
     window
         .set_position(tauri::LogicalPosition::new(options.x, options.y))
         .map_err(|e| format!("Failed to set position: {}", e))?;
@@ -230,43 +233,58 @@ pub async fn distillery_extract_dom(
             const selector = {};
             const startTime = Date.now();
             const timeout = {};
+            console.log('[Distillery] Extraction script started. Waiting for:', selector || 'body content');
 
             function tryExtract() {{
-                // 优化：只要进入 interactive 状态（DOM 解析完成）且找到了目标元素，就可以开始提取
-                // 微信文章通常在 complete 之前内容就已经渲染好了
                 const isReady = document.readyState === 'complete' || document.readyState === 'interactive';
                 const elementFound = !selector || !!document.querySelector(selector);
-                
-                // 微信文章特有的正文容器检测（如果没指定选择器，优先看这个）
+                const hasBodyContent = document.body && document.body.innerText.length > 500;
                 const wechatContentReady = !selector && !!document.getElementById('js_content');
 
-                if ((isReady && elementFound) || wechatContentReady) {{
+                if ((isReady && elementFound) || wechatContentReady || hasBodyContent) {{
+                    console.log('[Distillery] extraction conditions met', {{ isReady, elementFound, wechatContentReady, hasBodyContent }});
                     performExtraction();
                 }} else if (Date.now() - startTime < timeout) {{
-                    setTimeout(tryExtract, 200);
+                    if (Math.random() < 0.1) {{ // 降低日志频率
+                        console.log('[Distillery] still waiting...', {{ elapsed: Date.now() - startTime }});
+                    }}
+                    setTimeout(tryExtract, 250);
                 }} else {{
-                    console.warn('[Distillery] Extraction timeout, proceeding anyway');
+                    console.warn('[Distillery] Extraction timeout, proceeding anyway', {{ elapsed: Date.now() - startTime }});
                     performExtraction();
                 }}
             }}
 
             function performExtraction() {{
                 try {{
+                    console.log('[Distillery] starting performExtraction');
                     const html = document.documentElement.outerHTML;
-                    if (window.__DISTILLERY_BRIDGE__) {{
-                        window.__DISTILLERY_BRIDGE__.send({{
-                            type: 'dom-extracted',
-                            html: html,
-                            url: window.location.href,
-                            title: document.title
-                        }});
+                    const payload = {{
+                        type: 'dom-extracted',
+                        html: html,
+                        url: window.location.href,
+                        title: document.title
+                    }};
+                    
+                    if (window.__DISTILLERY_BRIDGE__ && typeof window.__DISTILLERY_BRIDGE__.send === 'function') {{
+                        console.log('[Distillery] Sending extracted DOM via bridge');
+                        window.__DISTILLERY_BRIDGE__.send(payload);
+                    }} else {{
+                        console.error('[Distillery] Bridge not found during extraction! Attempting raw fallback.');
+                        // 最后的兜底方案
+                        const nativePost = window.ipc?.postMessage 
+                            || window.chrome?.webview?.postMessage 
+                            || (window.webkit?.messageHandlers?.ipc?.postMessage.bind(window.webkit.messageHandlers.ipc));
+                        
+                        if (nativePost) {{
+                            nativePost(JSON.stringify(payload));
+                        }}
                     }}
                 }} catch(e) {{
+                    console.error('[Distillery] Extraction failed:', e);
+                    const errPayload = {{ type: 'dom-extract-error', error: e.message }};
                     if (window.__DISTILLERY_BRIDGE__) {{
-                        window.__DISTILLERY_BRIDGE__.send({{
-                            type: 'dom-extract-error',
-                            error: e.message
-                        }});
+                        window.__DISTILLERY_BRIDGE__.send(errPayload);
                     }}
                 }}
             }}
@@ -275,6 +293,12 @@ pub async fn distillery_extract_dom(
         }})();
         "#,
         selector_json, timeout_ms
+    );
+
+    log::info!(
+        "[Distillery] Triggering DOM extraction. Selector: {:?}, Timeout: {}ms",
+        wait_for,
+        timeout_ms
     );
 
     window
@@ -329,4 +353,22 @@ pub async fn distillery_set_cookie(app: AppHandle, cookie_str: String) -> Result
         .map_err(|e| format!("Eval set_cookie failed: {}", e))?;
 
     Ok(())
+}
+
+/// 转发来自子窗口的消息到主窗口的事件总线
+#[tauri::command]
+pub fn distillery_forward_message(
+    app: AppHandle,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    let msg_type = payload["type"].as_str().unwrap_or("unknown");
+    log::info!("[Distillery] Received IPC message: {}", msg_type);
+
+    // 调试：打印完整 payload 以便排查
+    if msg_type == "unknown" {
+        log::debug!("[Distillery] Full payload: {}", payload);
+    }
+
+    app.emit("distillery-message", payload.to_string())
+        .map_err(|e| format!("Emit failed: {}", e))
 }

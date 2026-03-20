@@ -603,6 +603,7 @@ pub fn run() {
             web_distillery::distillery_extract_dom,
             web_distillery::distillery_get_cookies,
             web_distillery::distillery_set_cookie,
+            web_distillery::distillery_forward_message,
         ])
         // 设置应用
         .setup(move |app| {

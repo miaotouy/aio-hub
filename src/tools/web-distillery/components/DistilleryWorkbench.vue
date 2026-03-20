@@ -161,6 +161,7 @@ async function handleFetch(level: 0 | 1 | 2) {
     }
 
     if (level === 0) {
+      logger.info("Executing quickFetch (Level 0)");
       const result = await quickFetch({ url, format: "markdown" });
       if (!result) {
         throw new Error("获取内容失败");
@@ -168,7 +169,9 @@ async function handleFetch(level: 0 | 1 | 2) {
 
       store.setResult(result);
     } else if (level === 1) {
+      logger.info("Executing smartExtract (Level 1)");
       await webviewBridge.init();
+      logger.debug("Bridge initialized for smartExtract");
       const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });
       if (!result) {
         throw new Error("智能提取失败");

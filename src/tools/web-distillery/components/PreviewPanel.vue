@@ -473,6 +473,7 @@ function downloadContent() {
 .metadata-section {
   flex-shrink: 0;
   border-top: 1px solid var(--border-color);
+  background-color: var(--card-bg);
 }
 .metadata-section summary {
   padding: 8px 16px;

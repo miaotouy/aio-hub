@@ -406,6 +406,7 @@ function handleSendToChat() {
   display: flex;
   overflow: hidden;
   position: relative;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .preview-container {

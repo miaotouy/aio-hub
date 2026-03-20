@@ -31,6 +31,7 @@ import {
   Database,
   StepForward,
   Hash,
+  Variable,
 } from "lucide-vue-next";
 import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -48,6 +49,7 @@ import { formatDateTime } from "@/utils/time";
 import { sanitizeFilename } from "@/utils/fileUtils";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 import MessageDataEditor from "./MessageDataEditor.vue";
+import MessageVariableSnapshot from "./MessageVariableSnapshot.vue";
 
 interface Props {
   message: ChatMessageNode;
@@ -114,6 +116,10 @@ const isAssistantMessage = computed(() => props.message.role === "assistant");
 const isToolMessage = computed(() => props.message.role === "tool");
 const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
 const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
+
+// 变量快照
+const sessionVariableSnapshot = computed(() => props.message.metadata?.sessionVariableSnapshot);
+const hasVariables = computed(() => !!sessionVariableSnapshot.value);
 
 // 复制消息
 const copyMessage = async () => {
@@ -532,6 +538,29 @@ const handleTranslateClick = (e: MouseEvent) => {
       </el-tooltip>
     </div>
     <div v-if="siblings.length > 1" class="separator"></div>
+
+    <!-- 变量快照查看器 -->
+    <el-popover
+      v-if="hasVariables"
+      placement="top"
+      :width="320"
+      trigger="click"
+      popper-class="variable-snapshot-popover"
+    >
+      <template #reference>
+        <div>
+          <el-tooltip content="查看会话变量状态" placement="top" :show-after="500">
+            <button
+              class="menu-btn"
+              :class="{ 'menu-btn-active': !!sessionVariableSnapshot?.changes?.length }"
+            >
+              <Variable :size="16" />
+            </button>
+          </el-tooltip>
+        </div>
+      </template>
+      <MessageVariableSnapshot :snapshot="sessionVariableSnapshot!" />
+    </el-popover>
 
     <!-- 更多菜单 -->
     <el-tooltip

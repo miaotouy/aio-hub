@@ -205,6 +205,13 @@ onMounted(async () => {
 // 当前选中的智能体ID（独立于会话）
 const currentAgentId = computed(() => agentStore.currentAgentId || "");
 
+// 动态注入智能体自定义样式（如会话变量样式）
+const agentCustomStyles = computed(() => {
+  const agent = agentStore.getAgentById(currentAgentId.value);
+  if (!agent) return "";
+  return agent.variableConfig?.customStyles || "";
+});
+
 // 处理发送消息
 const handleSendMessage = async (payload: {
   content: string;
@@ -521,6 +528,11 @@ useStateSyncEngine(parametersToSync, {
         </div>
       </template>
     </div>
+
+    <!-- 智能体自定义样式注入 -->
+    <component is="style" v-if="agentCustomStyles" id="agent-custom-styles" type="text/css">
+      {{ agentCustomStyles }}
+    </component>
 
     <!-- 上下文分析对话框 -->
     <ContextAnalyzerDialog

@@ -13,6 +13,7 @@ export const builtinRecipes: SiteRecipe[] = [
     name: "Bilibili 视频页",
     domain: "www.bilibili.com",
     pathPattern: "/video/**",
+    contentPatterns: ["__INITIAL_STATE__", "bilibili\\.com", "哔哩哔哩"],
     metadataScrapers: [
       {
         type: "json-ld",

@@ -35,7 +35,7 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
       });
 
       context?.reportStatus("内容获取成功，正在蒸馏提取...");
-      const matchedRecipe = await recipeStore.findBestMatch(options.url);
+      const matchedRecipe = await recipeStore.findBestMatch(options.url, payload.html);
       const result = await transformer.transform(
         payload.html,
         {
@@ -162,7 +162,7 @@ export async function processLocalContent(
   return (await errorHandler.wrapAsync(
     async () => {
       const url = `file://${fileName}`;
-      const matchedRecipe = await recipeStore.findBestMatch(url);
+      const matchedRecipe = await recipeStore.findBestMatch(url, content);
       const result = await transformer.transform(
         content,
         {

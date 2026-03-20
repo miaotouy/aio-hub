@@ -51,7 +51,14 @@ watch(
     if (newLevel !== undefined) {
       selectedLevel.value = newLevel;
     }
-  }
+  },
+);
+
+watch(
+  () => props.modelValue,
+  (newUrl) => {
+    localUrl.value = newUrl;
+  },
 );
 
 function onUrlKeydown(e: KeyboardEvent) {
@@ -64,9 +71,21 @@ function onUrlKeydown(e: KeyboardEvent) {
 }
 
 function triggerFetch() {
-  const url = localUrl.value.trim();
+  let url = localUrl.value.trim();
   if (!url) return;
-  const finalUrl = url.startsWith("http") ? url : `https://${url}`;
+
+  // 移除可能存在的引号（拖拽路径有时会带引号）
+  url = url.replace(/^["']|["']$/g, "");
+
+  let finalUrl = url;
+  // 判断是否为本地绝对路径 (Windows: C:\... 或 Unix: /...)
+  const isAbsolutePath = /^[a-zA-Z]:[\\/]/.test(url) || url.startsWith("/");
+  const isFileUrl = url.startsWith("file://");
+
+  if (!isAbsolutePath && !isFileUrl && !url.startsWith("http")) {
+    finalUrl = `https://${url}`;
+  }
+
   localUrl.value = finalUrl;
   logger.debug("Triggering fetch", { url: finalUrl, level: selectedLevel.value });
   emit("update:modelValue", finalUrl);

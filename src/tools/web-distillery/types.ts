@@ -94,6 +94,7 @@ export interface SiteRecipe {
   name: string;
   domain: string;
   pathPattern?: string; // glob 通配符
+  contentPatterns?: string[]; // 正则表达式，用于内容嗅探匹配 (特别是本地文件)
   actions?: ActionStep[];
   extractSelectors?: string[];
   excludeSelectors?: string[];

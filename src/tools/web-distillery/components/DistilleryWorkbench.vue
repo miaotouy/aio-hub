@@ -8,8 +8,10 @@ import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import { Loading } from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
+import DropZone from "@/components/common/DropZone.vue";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";
@@ -150,6 +152,14 @@ async function handleFetch(level: 0 | 1 | 2) {
   store.setLoading(true);
 
   try {
+    // 处理本地路径 (Windows: C:\... 或 Unix: /... 或 file://)
+    const isLocalPath = /^[a-zA-Z]:[\\/]/.test(url) || url.startsWith("/") || url.startsWith("file://");
+    if (isLocalPath) {
+      const path = url.startsWith("file://") ? url.slice(7) : url;
+      await handleFileDrop([path]);
+      return;
+    }
+
     if (level === 0) {
       const result = await quickFetch({ url, format: "markdown" });
       if (!result) {
@@ -243,6 +253,23 @@ async function handleFileUpload(payload: { content: string; fileName: string }) 
   }
 }
 
+async function handleFileDrop(paths: string[]) {
+  if (!paths || paths.length === 0) return;
+
+  const path = paths[0]; // 网页蒸馏通常只处理单个文件
+  const fileName = path.split(/[/\\]/).pop() || "local-file.html";
+
+  try {
+    isLoading.value = true;
+    const content = await readTextFile(path);
+    await handleFileUpload({ content, fileName });
+  } catch (err: any) {
+    errorHandler.error(err, "读取拖入的文件失败", { path });
+  } finally {
+    isLoading.value = false;
+  }
+}
+
 function handleSendToChat() {
   if (!store.result?.content) {
     customMessage.warning("没有可发送的内容");
@@ -282,6 +309,16 @@ function handleSendToChat() {
     />
 
     <div class="workbench-main">
+      <!-- 拖拽上传覆盖层 -->
+      <DropZone
+        overlay
+        hide-content
+        show-overlay-on-drag
+        :accept="['.html', '.htm']"
+        placeholder="拖放 HTML 文件到此处进行蒸馏"
+        @drop="handleFileDrop"
+      />
+
       <!-- Level 2: 交互模式双面板 -->
       <template v-if="isInteractive">
         <div class="interactive-container">

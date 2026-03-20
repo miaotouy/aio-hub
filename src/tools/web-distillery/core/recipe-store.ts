@@ -83,21 +83,30 @@ export class RecipeStore {
   }
 
   /** 根据 URL 匹配最有优势的配方 */
-  public async findBestMatch(url: string): Promise<SiteRecipe | null> {
+  public async findBestMatch(url: string, content?: string): Promise<SiteRecipe | null> {
     await this.load();
     try {
+      const isLocalFile = url.startsWith("file://");
       const target = new URL(url);
       const domain = target.hostname;
       const path = target.pathname;
 
-      // 1. 过滤同域名的，且未禁用的
-      const candidates = this.allRecipes.filter((r) => r.domain === domain && !r.disabled);
-      if (candidates.length === 0) return null;
+      // 1. 基于 URL 寻找候选配方
+      const candidates = this.allRecipes.filter((r) => {
+        if (r.disabled) return false;
+
+        // 如果是本地文件，且配方没有指定 domain 或者 domain 匹配了 path 中的关键字
+        if (isLocalFile) {
+          return !r.domain || path.toLowerCase().includes(r.domain.toLowerCase());
+        }
+
+        return r.domain === domain;
+      });
 
       // 2. 匹配 pathPattern (使用 glob)
       const patternMatches = candidates.filter((r) => {
         if (!r.pathPattern) return false;
-        return minimatch(path, r.pathPattern);
+        return minimatch(path, r.pathPattern, { nocase: true });
       });
 
       if (patternMatches.length > 0) {
@@ -105,7 +114,29 @@ export class RecipeStore {
       }
 
       // 3. 回退到仅域名匹配的（无 pathPattern 的）
-      return candidates.find((r) => !r.pathPattern) || null;
+      const domainMatch = candidates.find((r) => !r.pathPattern);
+      if (domainMatch) return domainMatch;
+
+      // 4. 内容嗅探 (Content Sniffing) - 特别针对本地文件或 URL 匹配失败的情况
+      if (content) {
+        const contentMatch = this.allRecipes.find((r) => {
+          if (r.disabled || !r.contentPatterns?.length) return false;
+          return r.contentPatterns.some((pattern) => {
+            try {
+              const regex = new RegExp(pattern, "i");
+              return regex.test(content);
+            } catch (e) {
+              return content.includes(pattern);
+            }
+          });
+        });
+        if (contentMatch) {
+          logger.info("Matched recipe via content sniffing", { id: contentMatch.id, name: contentMatch.name });
+          return contentMatch;
+        }
+      }
+
+      return null;
     } catch (e) {
       logger.error("Failed to match recipe", e, { url });
       return null;

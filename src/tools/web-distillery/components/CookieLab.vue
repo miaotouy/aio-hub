@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onErrorCaptured } from "vue";
 import { Cookie, RefreshCw, Plus, Key, Info } from "lucide-vue-next";
-import { webviewBridge } from "../core/webview-bridge";
+import { iframeBridge } from "../core/iframe-bridge";
 import { useWebDistilleryStore } from "../stores/store";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -21,9 +21,9 @@ async function fetchCookies() {
   isLoading.value = true;
   try {
     // 触发提取
-    await webviewBridge.getCookies();
+    await iframeBridge.getCookies();
     // 等待事件回传
-    const result = await webviewBridge.waitForCookiesExtracted(3000);
+    const result = await iframeBridge.waitForCookiesExtracted(3000);
     cookies.value = result.cookies;
   } catch (err: any) {
     errorHandler.handle(err, {
@@ -42,7 +42,7 @@ async function addCookie() {
   }
   if (!newCookie.value.trim()) return;
   try {
-    await webviewBridge.setCookie(newCookie.value.trim());
+    await iframeBridge.setCookie(newCookie.value.trim());
     newCookie.value = "";
     customMessage.success("Cookie 已注入");
     await fetchCookies(); // 刷新

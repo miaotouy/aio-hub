@@ -4,7 +4,8 @@
  */
 (function () {
   const NONCE = "__NONCE_PLACEHOLDER__";
-  console.log("[Distillery Bridge] Initializing bridge with nonce:", NONCE);
+  const isIframe = window !== window.parent;
+  console.log("[Distillery Bridge] Initializing bridge with nonce:", NONCE, "isIframe:", isIframe);
 
   // 捕获全局错误
   window.addEventListener('error', (event) => {
@@ -40,16 +41,19 @@
   window.__DISTILLERY_BRIDGE__ = {
     send(payload) {
       const finalPayload = { nonce: NONCE, ...payload };
-      
       console.log("[Distillery Bridge] Sending message:", payload.type);
 
-      // 核心策略：通过 window.opener.postMessage 发送给主窗口
-      // 外部 URL 无法直接调用 Tauri invoke，但可以与父窗口通信
-      if (window.opener) {
+      // 核心策略：通过 postMessage 发送给父窗口或主窗口
+      if (isIframe) {
+        // Iframe 环境：直接 postMessage 给父窗口
+        window.parent.postMessage(finalPayload, '*');
+      } else if (window.opener) {
+        // 独立窗口环境（向后兼容）
         window.opener.postMessage({
           source: 'distillery-sub-webview',
           payload: finalPayload
         }, '*');
+      }
       }
 
       // 备选：尝试通过 nativePost 发送符合协议的 JSON
@@ -76,6 +80,24 @@
 
   // 通知主进程：桥接已就绪
   window.__DISTILLERY_BRIDGE__.send({ type: 'webview-ready' });
+
+  // 监听来自父窗口的命令
+  if (isIframe) {
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === '__distillery_eval') {
+        try {
+          // 安全提示：虽然 eval 有风险，但在受控的本地代理环境下是必要的
+          (0, eval)(event.data.script);
+        } catch (e) {
+          console.error('[Distillery Bridge] Eval error:', e);
+          window.__DISTILLERY_BRIDGE__.send({
+            type: 'eval-error',
+            error: e.message
+          });
+        }
+      }
+    });
+  }
 
   // 监听 DOMContentLoaded
   document.addEventListener('DOMContentLoaded', () => {

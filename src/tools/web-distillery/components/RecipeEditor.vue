@@ -4,7 +4,7 @@ import { useWebDistilleryStore } from "../stores/store";
 import { recipeStore } from "../core/recipe-store";
 import type { SiteRecipe, ActionStep } from "../types";
 import { actionRunner } from "../core/action-runner";
-import { webviewBridge } from "../core/webview-bridge";
+import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { getLocalISOString } from "@/utils/time";
 import {
@@ -87,7 +87,7 @@ async function startPicking(index: number | "include" | "exclude") {
   isPicking.value = true;
   customMessage.info("请在浏览器窗口中点击选择目标元素");
 
-  await webviewBridge.enablePicker((data) => {
+  await iframeBridge.enablePicker((data) => {
     if (typeof index === "number") {
       const step = recipe.value.actions?.[index];
       if (step && "selector" in step) {
@@ -106,7 +106,7 @@ async function startPicking(index: number | "include" | "exclude") {
 }
 
 async function stopPicking() {
-  await webviewBridge.disablePicker();
+  await iframeBridge.disablePicker();
   isPicking.value = false;
 }
 

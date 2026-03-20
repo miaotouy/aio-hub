@@ -595,15 +595,9 @@ pub fn run() {
             knowledge::monitor::kb_monitor_heartbeat,
             // 网页蒸馏室命令
             web_distillery::distillery_quick_fetch,
-            web_distillery::distillery_create_webview,
-            web_distillery::distillery_navigate,
-            web_distillery::distillery_destroy_webview,
-            web_distillery::distillery_resize,
-            web_distillery::distillery_eval,
-            web_distillery::distillery_extract_dom,
-            web_distillery::distillery_get_cookies,
-            web_distillery::distillery_set_cookie,
-            web_distillery::distillery_forward_message,
+            web_distillery::distillery_start_proxy,
+            web_distillery::distillery_stop_proxy,
+            web_distillery::distillery_get_proxy_port,
         ])
         // 设置应用
         .setup(move |app| {

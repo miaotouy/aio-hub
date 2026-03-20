@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2, Trash2, FileUp } from "lucide-vue-next";
-import { webviewBridge } from "../core/webview-bridge";
+import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -37,9 +37,9 @@ const isEditing = ref(false);
 const localUrl = ref(props.modelValue);
 
 const levelOptions = [
-  { label: "L0 快速获取", value: 0, icon: Zap, desc: "静态页面 / API，毫秒级响应" },
-  { label: "L1 智能提取", value: 1, icon: Scan, desc: "SPA / JS渲染，支持动态内容" },
-  { label: "L2 交互模式", value: 2, icon: Settings2, desc: "手动操作网页，配置持久化配方" },
+  { label: "快速模式", value: 0, icon: Zap, desc: "纯 HTTP 请求，毫秒级响应" },
+  { label: "渲染模式", value: 1, icon: Scan, desc: "隐藏 Iframe 渲染 JS，支持动态内容" },
+  { label: "交互模式", value: 2, icon: Settings2, desc: "可见 Iframe + 元素选择，配置持久化配方" },
 ];
 
 const selectedLevel = ref<0 | 1 | 2>(props.activeLevel ?? 0);
@@ -108,7 +108,7 @@ function handleLevelCommand(level: 0 | 1 | 2) {
 
 async function handleForceCleanup() {
   try {
-    await webviewBridge.forceCleanup();
+    await iframeBridge.forceCleanup();
     customMessage.success("已强制清理蒸馏环境");
     emit("refresh"); // 触发父组件刷新状态
   } catch (e) {

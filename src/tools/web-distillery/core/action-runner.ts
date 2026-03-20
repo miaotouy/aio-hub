@@ -1,8 +1,8 @@
 /**
  * core/action-runner.ts - 动作执行引擎
- * 负责解析 SiteRecipe 中的 ActionSteps 并通过 webviewBridge 执行
+ * 负责解析 SiteRecipe 中的 ActionSteps 并通过 iframeBridge 执行
  */
-import { webviewBridge } from "./webview-bridge";
+import { iframeBridge } from "./iframe-bridge";
 import type { ActionStep } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -19,12 +19,12 @@ export class ActionRunner {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
         if (step.selector) {
           // 如果提供了 selector，则等待元素出现
-          await webviewBridge.extractDom(step.selector, step.timeout || 10000);
+          await iframeBridge.extractDom(step.selector, step.timeout || 10000);
         }
         break;
 
       case "click":
-        await webviewBridge.evalScript(`
+        await iframeBridge.evalScript(`
           (function() {
             const el = document.querySelector(${JSON.stringify(step.selector)});
             if (el) {
@@ -38,19 +38,19 @@ export class ActionRunner {
 
       case "scroll":
         if (step.selector) {
-          await webviewBridge.evalScript(`
+          await iframeBridge.evalScript(`
             document.querySelector(${JSON.stringify(step.selector)})?.scrollIntoView({ behavior: 'smooth' });
           `);
         } else {
           const distance = step.distance || 500;
-          await webviewBridge.evalScript(`
+          await iframeBridge.evalScript(`
             window.scrollBy({ top: ${distance}, behavior: 'smooth' });
           `);
         }
         break;
 
       case "input":
-        await webviewBridge.evalScript(`
+        await iframeBridge.evalScript(`
           (function() {
             const el = document.querySelector(${JSON.stringify(step.selector)});
             if (el) {
@@ -65,7 +65,7 @@ export class ActionRunner {
         break;
 
       case "hover":
-        await webviewBridge.evalScript(`
+        await iframeBridge.evalScript(`
           (function() {
             const el = document.querySelector(${JSON.stringify(step.selector)});
             if (el) {
@@ -79,7 +79,7 @@ export class ActionRunner {
         break;
 
       case "remove":
-        await webviewBridge.evalScript(`
+        await iframeBridge.evalScript(`
           document.querySelector(${JSON.stringify(step.selector)})?.remove();
         `);
         break;

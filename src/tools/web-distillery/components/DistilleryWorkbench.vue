@@ -2,12 +2,11 @@
 import { ref, computed, onUnmounted, watch, onMounted } from "vue";
 import { useWebDistilleryStore } from "../stores/store";
 import { quickFetch, smartExtract, processLocalContent } from "../actions";
-import { webviewBridge } from "../core/webview-bridge";
+import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { Loading } from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
@@ -27,7 +26,7 @@ const store = useWebDistilleryStore();
 const currentUrl = ref(store.url);
 const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
-const webviewPlaceholder = ref<HTMLElement | null>(null);
+const iframeContainer = ref<HTMLElement | null>(null);
 const isInteractive = computed(() => store.isInteractiveMode);
 
 const activeLevel = computed(() => {
@@ -44,85 +43,15 @@ const qualityStatus = computed(() => {
 });
 
 // --- Webview 坐标同步逻辑 ---
-let resizeObserver: ResizeObserver | null = null;
-let syncTimer: any = null;
-let pollTimer: any = null;
-
-async function syncWebviewBounds() {
-  if (!webviewPlaceholder.value || !store.isInteractiveMode || !store.isWebviewCreated) return;
-
-  try {
-    const rect = webviewPlaceholder.value.getBoundingClientRect();
-    const mainWindow = getCurrentWebviewWindow();
-    const factor = await mainWindow.scaleFactor();
-
-    // 获取主窗口在屏幕上的绝对位置 (物理单位)
-    const outerPos = await mainWindow.outerPosition();
-
-    // 计算子窗口在屏幕上的绝对位置 (逻辑单位)
-    // 注意：36 是标题栏的高度 (var(--titlebar-height))
-    const x = outerPos.x / factor + rect.left;
-    const y = outerPos.y / factor + rect.top + 36;
-
-    await webviewBridge.resize(x, y, rect.width, rect.height);
-  } catch (err) {
-    // 忽略同步过程中的错误（通常是窗口已关闭）
-    logger.debug("Sync bounds failed", err);
-  }
-}
-
-const startSyncing = () => {
-  if (!resizeObserver) {
-    resizeObserver = new ResizeObserver(() => {
-      if (syncTimer) cancelAnimationFrame(syncTimer);
-      syncTimer = requestAnimationFrame(() => syncWebviewBounds());
-    });
-  }
-  if (webviewPlaceholder.value) {
-    resizeObserver.observe(webviewPlaceholder.value);
-  }
-
-  // 增加定时轮询，解决主窗口移动时 ResizeObserver 不触发的问题
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(() => {
-    syncWebviewBounds();
-  }, 200);
-
-  syncWebviewBounds();
-};
-
-const stopSyncing = async () => {
-  if (resizeObserver) {
-    resizeObserver.disconnect();
-  }
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-  if (syncTimer) {
-    cancelAnimationFrame(syncTimer);
-    syncTimer = null;
-  }
-
-  try {
-    await webviewBridge.destroy();
-  } catch (e) {
-    logger.warn("Destroy webview failed on stopSyncing", e);
-  } finally {
-    store.setWebviewCreated(false);
-  }
-};
-
 watch(
   () => store.isInteractiveMode,
-  (val) => {
+  async (val) => {
     if (val) {
-      setTimeout(startSyncing, 100); // 等待 DOM 渲染
       if (currentUrl.value) {
-        handleFetch(2);
+        await handleFetch(2);
       }
     } else {
-      stopSyncing();
+      await iframeBridge.destroy().catch(() => {});
     }
   },
 );
@@ -133,12 +62,11 @@ onMounted(() => {
 
 onUnmounted(async () => {
   try {
-    await stopSyncing();
+    await iframeBridge.destroy();
   } catch (err) {
     logger.debug("Cleanup on unmount failed", err);
   }
 });
-
 async function handleFetch(level: 0 | 1 | 2) {
   const url = currentUrl.value.trim();
   if (!url) {
@@ -170,7 +98,7 @@ async function handleFetch(level: 0 | 1 | 2) {
       store.setResult(result);
     } else if (level === 1) {
       logger.info("Executing smartExtract (Level 1)");
-      await webviewBridge.init();
+      await iframeBridge.init();
       logger.debug("Bridge initialized for smartExtract");
       const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });
       if (!result) {
@@ -179,31 +107,17 @@ async function handleFetch(level: 0 | 1 | 2) {
 
       store.setResult(result);
     } else if (level === 2) {
-      // 创建前先尝试销毁旧的，确保幂等
-      try {
-        await webviewBridge.destroy();
-      } catch (e) {
-        logger.debug("Pre-destroy failed", e);
-      }
-
-      await webviewBridge.init();
+      await iframeBridge.init();
       await new Promise((resolve) => setTimeout(resolve, 100)); // 给 DOM 渲染留出时间
 
-      if (!webviewPlaceholder.value) {
+      if (!iframeContainer.value) {
         throw new Error("找不到浏览器挂载点");
       }
 
-      const rect = webviewPlaceholder.value.getBoundingClientRect();
-      const mainWindow = getCurrentWebviewWindow();
-      const factor = await mainWindow.scaleFactor();
-      const outerPos = await mainWindow.outerPosition();
-
-      await webviewBridge.createWebview({
+      await iframeBridge.create({
         url,
-        x: outerPos.x / factor + rect.left,
-        y: outerPos.y / factor + rect.top + 36,
-        width: rect.width,
-        height: rect.height,
+        container: iframeContainer.value,
+        hidden: false,
       });
     }
     customMessage.success(level === 2 ? "浏览器已就绪" : "蒸馏完成");
@@ -214,7 +128,7 @@ async function handleFetch(level: 0 | 1 | 2) {
 
     // 发生错误时强制清理资源
     try {
-      await webviewBridge.forceCleanup();
+      await iframeBridge.forceCleanup();
     } catch (cleanupErr) {
       logger.debug("Force cleanup after error failed", cleanupErr);
     }
@@ -326,14 +240,14 @@ function handleSendToChat() {
       <template v-if="isInteractive">
         <div class="interactive-container">
           <!-- 左侧：浏览器占位符 -->
-          <div ref="webviewPlaceholder" class="webview-viewport">
+          <div ref="iframeContainer" class="webview-viewport">
             <div v-if="isLoading" class="webview-mask">
               <el-icon class="is-loading"><Loading /></el-icon>
               <span>正在初始化浏览器...</span>
             </div>
-            <div class="webview-tip">
-              <h3>独立的交互窗口已叠加在此区域</h3>
-              <p>您可以在左侧窗口操作网页，右侧配置规则</p>
+            <div v-if="!store.isWebviewCreated" class="webview-tip">
+              <h3>在上方输入 URL 开始交互式蒸馏</h3>
+              <p>网页将在此区域内加载，右侧可配置提取规则</p>
             </div>
           </div>
 

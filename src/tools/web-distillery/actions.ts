@@ -4,7 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import router from "@/router";
 import { transformer } from "./core/transformer";
-import { webviewBridge } from "./core/webview-bridge";
+import { iframeBridge } from "./core/iframe-bridge";
 import { actionRunner } from "./core/action-runner";
 import { recipeStore } from "./core/recipe-store";
 import type { QuickFetchOptions, SmartExtractOptions, FetchResult, ExtractResult, RawFetchPayload } from "./types";
@@ -58,7 +58,7 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
 }
 
 /**
- * Level 1: 智能提取（使用 headless 子 Webview，处理 JS 渲染页面）
+ * Level 1: 智能提取（使用隐藏 Iframe 渲染 JS，支持动态内容）
  */
 export async function smartExtract(options: SmartExtractOptions, context?: ToolContext): Promise<ExtractResult> {
   logger.info("Starting smartExtract", { url: options.url, waitFor: options.waitFor });
@@ -71,58 +71,51 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
         logger.info("Found matched recipe", { id: matchedRecipe.id, name: matchedRecipe.name });
       }
 
-      // 3. 创建前先尝试销毁旧的，确保幂等
+      // 初始化 bridge（启动代理服务器）
+      await iframeBridge.init();
+
+      // 创建临时隐藏容器
+      const tempContainer = document.createElement("div");
+      tempContainer.style.cssText =
+        "position:fixed;left:-9999px;top:-9999px;width:1920px;height:5000px;visibility:hidden;pointer-events:none;";
+      document.body.appendChild(tempContainer);
+
       try {
-        await webviewBridge.destroy();
-      } catch (e) {
-        // ignore
-      }
+        // 创建隐藏 Iframe
+        context?.reportStatus("正在加载并渲染目标页面...");
+        await iframeBridge.create({
+          url: options.url,
+          hidden: true,
+          container: tempContainer,
+        });
 
-      // 4. 创建 headless 子 Webview 并加载目标页面
-      // 使用超长高度（5000px）以尽可能多地触发下方内容加载（如评论区）
-      context?.reportStatus("正在加载并渲染目标页面...");
-      await webviewBridge.createWebview({
-        url: options.url,
-        x: -2000, // 确保在屏幕外
-        y: -2000,
-        width: 1920,
-        height: 5000,
-        headless: true,
-      });
+        // 执行配方动作（如果有）
+        if (matchedRecipe?.actions?.length) {
+          logger.info("Executing recipe actions", { count: matchedRecipe.actions.length });
+          await actionRunner.runSequence(matchedRecipe.actions);
+        }
 
-      // 4. 如果有配方动作，执行它们
-      if (matchedRecipe?.actions?.length) {
-        logger.info("Executing recipe actions", { count: matchedRecipe.actions.length });
-        await actionRunner.runSequence(matchedRecipe.actions);
-      }
+        // 5. 并行等待：DOM 提取触发 + 超时
+        // 优先级：options > recipe > 默认值
+        const waitTimeout = options.waitTimeout || matchedRecipe?.waitTimeout || 15000;
+        logger.debug("Extraction parameters", { waitTimeout, waitFor: options.waitFor || matchedRecipe?.waitFor });
+        const combinedWaitFor =
+          options.waitFor || matchedRecipe?.waitFor || matchedRecipe?.extractSelectors?.[0];
 
-      // 5. 并行等待：DOM 提取触发 + 超时
-      // 优先级：options > recipe > 默认值
-      const waitTimeout = options.waitTimeout || matchedRecipe?.waitTimeout || 15000;
-      logger.debug("Extraction parameters", { waitTimeout, waitFor: options.waitFor || matchedRecipe?.waitFor });
-      const combinedWaitFor = options.waitFor || matchedRecipe?.waitFor || matchedRecipe?.extractSelectors?.[0];
+        // 预先启动等待事件监听（避免时序竞态条件丢失消息）
+        const extractPromise = iframeBridge.waitForDomExtracted(waitTimeout + 3000);
 
-      // 预先启动等待事件监听（避免时序竞态条件丢失消息）
-      const extractPromise = webviewBridge.waitForDomExtracted(waitTimeout + 3000);
+        // 触发带 selector 的提取命令
+        context?.reportStatus("正在分析页面结构...");
+        await iframeBridge.extractDom(combinedWaitFor, waitTimeout);
 
-      // 触发带 selector 的提取命令
-      context?.reportStatus("正在分析页面结构...");
-      await webviewBridge.extractDom(combinedWaitFor, waitTimeout);
-
-      // 6. 等待 dom-extracted 事件从子 Webview 回传
-      let extracted;
-      try {
+        // 6. 等待结果
         context?.reportStatus("正在抓取动态内容...");
-        // 前端等待时间略长于脚本内部超时，确保脚本有机会发回超时警告
-        extracted = await extractPromise;
-      } finally {
-        // 7. 无论提取成功与否，都要销毁 headless Webview，释放资源
-        await webviewBridge.destroy().catch(() => { });
-      }
+        const extracted = await extractPromise;
 
-      if (!extracted) {
-        throw new Error("未能从页面获取到有效内容");
-      }
+        if (!extracted) {
+          throw new Error("未能从页面获取到有效内容");
+        }
 
       // 8. 用前端管道清洗 HTML
       // 这里的 include/exclude 优先级：options > recipe
@@ -149,6 +142,11 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
         title: extracted.title || result.title,
         domSnapshot: extracted.html,
       } as ExtractResult;
+    } finally {
+      // 无论成功失败，都清理
+      await iframeBridge.destroy().catch(() => {});
+      tempContainer.remove();
+    }
     },
     {
       userMessage: "智能提取失败，目标页面可能需要更长加载时间或需要授权",

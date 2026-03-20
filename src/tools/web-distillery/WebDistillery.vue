@@ -4,7 +4,7 @@ import { LayoutDashboard, Cookie, Network, BookOpen } from "lucide-vue-next";
 import { useWebDistilleryStore } from "./stores/store";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { webviewBridge } from "./core/webview-bridge";
+import { iframeBridge } from "./core/iframe-bridge";
 
 // 组件导入
 import DistilleryWorkbench from "./components/DistilleryWorkbench.vue";
@@ -28,7 +28,7 @@ onMounted(async () => {
 // 组件卸载时强制清理资源
 onUnmounted(async () => {
   try {
-    await webviewBridge.forceCleanup();
+    await iframeBridge.forceCleanup();
   } catch (err) {
     logger.debug("Cleanup on unmount failed", err);
   }

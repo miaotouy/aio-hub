@@ -1,5 +1,5 @@
 pub mod fetcher;
-pub mod webview;
+pub mod proxy;
 
 pub use fetcher::*;
-pub use webview::*;
+pub use proxy::*;

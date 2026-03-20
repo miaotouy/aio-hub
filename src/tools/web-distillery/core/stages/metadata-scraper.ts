@@ -16,7 +16,12 @@ export class MetadataScraper {
    * @param scriptContents 预处理阶段保留的脚本文本内容
    * @param rules 站点配方中定义的提取规则
    */
-  public process(scriptContents: string[], rules?: MetadataScraperRule[]): ScrapedMetadata {
+  public process(
+    scriptContents: string[],
+    rules: MetadataScraperRule[] | undefined,
+    doc: Document,
+    rawHtml: string,
+  ): ScrapedMetadata {
     if (!rules || rules.length === 0) {
       return {};
     }
@@ -26,19 +31,18 @@ export class MetadataScraper {
     };
 
     for (const rule of rules) {
-      errorHandler.handle(
-        () => {
-          const extracted = this.executeRule(scriptContents, rule);
-          if (extracted) {
-            this.applyMapping(metadata, extracted, rule.mapping);
-          }
-        },
-        {
+      try {
+        const extracted = this.executeRule(scriptContents, rule, doc, rawHtml);
+        if (extracted) {
+          this.applyMapping(metadata, extracted, rule.mapping);
+        }
+      } catch (error) {
+        errorHandler.handle(error, {
           userMessage: "执行提取规则失败",
           showToUser: false,
           context: { ruleType: rule.type, target: rule.target },
-        },
-      );
+        });
+      }
     }
 
     return metadata;
@@ -47,14 +51,16 @@ export class MetadataScraper {
   /**
    * 执行单条提取规则
    */
-  private executeRule(scriptContents: string[], rule: MetadataScraperRule): any | null {
+  private executeRule(scriptContents: string[], rule: MetadataScraperRule, doc: Document, rawHtml: string): any | null {
     switch (rule.type) {
       case "json-variable":
         return this.extractJsonVariable(scriptContents, rule.target);
       case "json-ld":
         return this.extractJsonLd(scriptContents);
       case "regex":
-        return this.extractByRegex(scriptContents, rule.target);
+        return this.extractByRegex(scriptContents, rule.target, rawHtml);
+      case "meta":
+        return this.extractFromMeta(doc);
       default:
         return null;
     }
@@ -109,9 +115,21 @@ export class MetadataScraper {
   /**
    * 正则捕获组提取
    */
-  private extractByRegex(scriptContents: string[], target: string): Record<string, string> | null {
+  private extractByRegex(scriptContents: string[], target: string, rawHtml: string): Record<string, string> | null {
     try {
       const regex = new RegExp(target, "m");
+
+      // 优先在原始 HTML 中搜索（因为很多元数据是在 meta 标签里的）
+      const htmlMatch = rawHtml.match(regex);
+      if (htmlMatch) {
+        const result: Record<string, string> = {};
+        htmlMatch.forEach((val, index) => {
+          result[index.toString()] = val;
+        });
+        return result;
+      }
+
+      // 如果 HTML 中没找到，再在脚本内容中搜索
       for (const content of scriptContents) {
         const match = content.match(regex);
         if (match) {
@@ -127,6 +145,30 @@ export class MetadataScraper {
       logger.warn(`无效的正则表达式: ${target}`, { error: e });
     }
     return null;
+  }
+
+  /**
+   * 从 meta 标签中提取
+   */
+  private extractFromMeta(doc: Document): Record<string, string> {
+    const result: Record<string, string> = {};
+    const metaTags = doc.querySelectorAll("meta");
+
+    metaTags.forEach((tag) => {
+      const name = tag.getAttribute("name") || tag.getAttribute("property") || tag.getAttribute("itemprop");
+      const content = tag.getAttribute("content");
+
+      if (name && content) {
+        // 处理可能存在的 URL 编码
+        try {
+          result[name] = content.includes("%") ? decodeURIComponent(content) : content;
+        } catch (e) {
+          result[name] = content;
+        }
+      }
+    });
+
+    return result;
   }
 
   /**
@@ -147,6 +189,23 @@ export class MetadataScraper {
       }
 
       if (value !== null) {
+        if (typeof value === "string") {
+          // 自动解码可能存在的 URL 编码 (针对 B 站等站点的 JSON-LD 数据)
+          if (value.includes("%")) {
+            try {
+              // 简单启发式判断：如果包含 % 且不包含空格，尝试解码
+              if (!value.includes(" ")) {
+                value = decodeURIComponent(value);
+              }
+            } catch (e) {
+              // 解码失败则保持原样
+            }
+          }
+
+          // 清洗字符串中可能残留的 HTML 标签
+          value = value.replace(/<[^>]*>/g, "").trim();
+        }
+
         // 如果是核心字段，直接赋值
         if (["title", "description", "author", "publishDate", "content"].includes(field)) {
           (metadata as any)[field] = value;

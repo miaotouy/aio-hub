@@ -108,9 +108,9 @@ export interface SiteRecipe {
 }
 
 export interface MetadataScraperRule {
-  type: "json-variable" | "json-ld" | "regex";
-  target: string; // 变量名 (如 "__INITIAL_STATE__") 或正则表达式
-  mapping: Record<string, string | string[]>; // 字段 → JSON 路径(支持多值回退)
+  type: "json-variable" | "json-ld" | "regex" | "meta";
+  target: string; // 变量名 (如 "__INITIAL_STATE__")、正则表达式或 meta 标签名
+  mapping: Record<string, string | string[]>; // 字段 → JSON 路径或属性名(支持多值回退)
 }
 
 export interface ScrapedMetadata {
@@ -125,6 +125,7 @@ export interface ScrapedMetadata {
 export interface PreprocessedData {
   doc: Document;
   originalUrl: string;
+  rawHtml: string; // 原始 HTML 内容，用于正则提取元数据
   scriptContents: string[]; // 保留的脚本文本内容
 }
 

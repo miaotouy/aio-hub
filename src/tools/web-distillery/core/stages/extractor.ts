@@ -24,32 +24,42 @@ export class Extractor {
     let mainElement: HTMLElement | null = null;
     let title = doc.title;
 
-    // 1. 如果指定了选择器，优先使用
+    // 1. 如果指定了选择器，收集所有匹配元素并合并到一个容器中
     if (targetSelectors.length > 0) {
+      const container = doc.createElement("div");
+      let foundAny = false;
+
       for (const selector of targetSelectors) {
-        const found = doc.querySelector(selector);
-        if (found) {
-          mainElement = found as HTMLElement;
-          break;
+        try {
+          const elements = doc.querySelectorAll(selector);
+          elements.forEach((el) => {
+            // 克隆节点以避免从原 DOM 中移除
+            container.appendChild(el.cloneNode(true));
+            foundAny = true;
+          });
+        } catch (e) {
+          // 无效选择器，跳过
         }
+      }
+
+      if (foundAny) {
+        mainElement = container;
       }
     }
 
-    // 2. 如果没找到，使用 Readability
+    // 2. 如果选择器没匹配到任何内容，使用 Readability
     if (!mainElement) {
       const readability = new Readability(doc);
       const result = readability.parse();
       if (result) {
         title = result.title;
-        // 重新查询提取出的内容（或者直接使用生成的 HTML）
-        // 这里我们简单处理，直接创建一个临时容器放 result.content
         const container = doc.createElement("div");
         container.innerHTML = result.content;
         mainElement = container;
       }
     }
 
-    // 3.兜底：使用 body
+    // 3. 兜底：使用 body
     if (!mainElement) {
       mainElement = doc.body;
     }
@@ -64,12 +74,23 @@ export class Extractor {
       if (scrapedMetadata.author) metadata.author = scrapedMetadata.author;
       if (scrapedMetadata.publishDate) metadata.publishDate = scrapedMetadata.publishDate;
 
-      // 正文兜底：如果 DOM 提取的正文为空或过短，且脚本中有正文，则使用脚本正文
+      // 正文兜底：如果 DOM 提取的正文为空或过短
       const domContentLen = mainElement.textContent?.trim().length || 0;
-      if (domContentLen < 100 && scrapedMetadata.content) {
-        const container = doc.createElement("div");
-        container.innerHTML = scrapedMetadata.content;
-        mainElement = container;
+      if (domContentLen < 100) {
+        // 1. 优先尝试使用脚本提取的 content
+        if (scrapedMetadata.content) {
+          const container = doc.createElement("div");
+          container.innerHTML = scrapedMetadata.content;
+          mainElement = container;
+        }
+        // 2. 如果脚本没有 content 但有较长的 description，回退到 description
+        else if (scrapedMetadata.description && scrapedMetadata.description.length > domContentLen) {
+          const container = doc.createElement("div");
+          // 清洗 description 中的 HTML 标签后包装成段落
+          const cleanDesc = scrapedMetadata.description.replace(/<[^>]*>/g, "").trim();
+          container.innerHTML = `<p>${cleanDesc}</p>`;
+          mainElement = container;
+        }
       }
     }
 

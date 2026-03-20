@@ -51,6 +51,7 @@ export class Preprocessor {
     return {
       doc,
       originalUrl: url,
+      rawHtml: html,
       scriptContents,
     };
   }

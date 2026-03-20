@@ -40,7 +40,7 @@ export class Transformer {
 
     // 预处理 (Preprocessor)
     const preStart = performance.now();
-    const { doc, scriptContents } = this.preprocessor.process(html, url);
+    const { doc, scriptContents, rawHtml } = this.preprocessor.process(html, url);
     const preEnd = performance.now();
     logger.info(`Preprocessor finished`, { duration: `${(preEnd - preStart).toFixed(2)}ms` });
 
@@ -49,7 +49,7 @@ export class Transformer {
 
     // 元数据提取 (MetadataScraper)
     const metaStart = performance.now();
-    const scrapedMetadata = this.metadataScraper.process(scriptContents, recipe?.metadataScrapers);
+    const scrapedMetadata = this.metadataScraper.process(scriptContents, recipe?.metadataScrapers, doc, rawHtml);
     const metaEnd = performance.now();
     logger.info(`MetadataScraper finished`, { duration: `${(metaEnd - metaStart).toFixed(2)}ms` });
 

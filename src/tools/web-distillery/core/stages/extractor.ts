@@ -1,7 +1,8 @@
 /**
- * Stage 3: 正文提取 (Extractor)
+ * 环节：正文提取 (Extractor)
  * 职责：确定核心正文节点，提取元数据
  */
+import { ScrapedMetadata } from "../../types";
 import { Readability } from "../readability";
 
 export interface ExtractedData {
@@ -19,7 +20,7 @@ export class Extractor {
   /**
    * 提取正文和元数据
    */
-  public process(doc: Document, targetSelectors: string[] = []): ExtractedData {
+  public process(doc: Document, targetSelectors: string[] = [], scrapedMetadata?: ScrapedMetadata): ExtractedData {
     let mainElement: HTMLElement | null = null;
     let title = doc.title;
 
@@ -53,10 +54,29 @@ export class Extractor {
       mainElement = doc.body;
     }
 
+    // 4. 合并元数据
+    const metadata = this.extractMetadata(doc);
+
+    // 数据源优先级：ScrapedMetadata (脚本) > Extractor (DOM/Meta)
+    if (scrapedMetadata) {
+      if (scrapedMetadata.title) title = scrapedMetadata.title;
+      if (scrapedMetadata.description) metadata.description = scrapedMetadata.description;
+      if (scrapedMetadata.author) metadata.author = scrapedMetadata.author;
+      if (scrapedMetadata.publishDate) metadata.publishDate = scrapedMetadata.publishDate;
+
+      // 正文兜底：如果 DOM 提取的正文为空或过短，且脚本中有正文，则使用脚本正文
+      const domContentLen = mainElement.textContent?.trim().length || 0;
+      if (domContentLen < 100 && scrapedMetadata.content) {
+        const container = doc.createElement("div");
+        container.innerHTML = scrapedMetadata.content;
+        mainElement = container;
+      }
+    }
+
     return {
       title,
       mainElement,
-      metadata: this.extractMetadata(doc),
+      metadata,
     };
   }
 

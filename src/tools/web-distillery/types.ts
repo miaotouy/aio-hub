@@ -99,6 +99,29 @@ export interface SiteRecipe {
   createdAt: string;
   updatedAt: string;
   useCount: number;
+  metadataScrapers?: MetadataScraperRule[]; // 从脚本提取元数据的规则
+  protectedSelectors?: string[]; // 去噪阶段必须保留的元素（即使隐藏）
+}
+
+export interface MetadataScraperRule {
+  type: "json-variable" | "json-ld" | "regex";
+  target: string; // 变量名 (如 "__INITIAL_STATE__") 或正则表达式
+  mapping: Record<string, string | string[]>; // 字段 → JSON 路径(支持多值回退)
+}
+
+export interface ScrapedMetadata {
+  title?: string;
+  description?: string;
+  author?: string;
+  publishDate?: string;
+  content?: string;
+  extras?: Record<string, any>;
+}
+
+export interface PreprocessedData {
+  doc: Document;
+  originalUrl: string;
+  scriptContents: string[]; // 保留的脚本文本内容
 }
 
 /**

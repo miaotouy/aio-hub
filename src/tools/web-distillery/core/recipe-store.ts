@@ -3,12 +3,14 @@ import { createModuleLogger } from "@/utils/logger";
 import { getLocalISOString } from "@/utils/time";
 import { createConfigManager } from "@/utils/configManager";
 import { minimatch } from "minimatch";
+import { builtinRecipes } from "./builtin-recipes";
 
 const logger = createModuleLogger("web-distillery/recipe-store");
 
 export class RecipeStore {
   private static instance: RecipeStore;
-  private recipes: SiteRecipe[] = [];
+  private recipes: SiteRecipe[] = []; // 用户自定义配方
+  private allRecipes: SiteRecipe[] = []; // 合并后的所有配方
   private isLoaded = false;
   private configManager = createConfigManager<Record<string, any>>({
     moduleName: "web-distillery",
@@ -29,13 +31,41 @@ export class RecipeStore {
 
   /** 加载所有配方 */
   public async load(): Promise<SiteRecipe[]> {
-    if (this.isLoaded) return this.recipes;
+    if (this.isLoaded) return this.allRecipes;
 
     const config = await this.configManager.load();
     this.recipes = config.recipes || [];
+
+    // 合并内置配方
+    this.mergeRecipes();
+
     this.isLoaded = true;
-    logger.info("Recipes loaded", { count: this.recipes.length });
-    return this.recipes;
+    logger.info("Recipes loaded", {
+      userCount: this.recipes.length,
+      totalCount: this.allRecipes.length,
+    });
+    return this.allRecipes;
+  }
+
+  /** 合并用户配方与内置配方 */
+  private mergeRecipes(): void {
+    // 基础是内置配方
+    const merged = [...builtinRecipes];
+
+    // 用户配方覆盖内置配方 (如果 domain + pathPattern 相同)
+    for (const userRecipe of this.recipes) {
+      const index = merged.findIndex((r) => r.domain === userRecipe.domain && r.pathPattern === userRecipe.pathPattern);
+
+      if (index >= 0) {
+        // 替换内置配方
+        merged[index] = userRecipe;
+      } else {
+        // 新增用户配方
+        merged.push(userRecipe);
+      }
+    }
+
+    this.allRecipes = merged;
   }
 
   /** 保存所有配方 */

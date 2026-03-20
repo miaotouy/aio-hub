@@ -1,5 +1,5 @@
 /**
- * Stage 4: 结构转换 (Converter)
+ * 环节：结构转换 (Converter)
  * 职责：HTML Element -> Markdown
  */
 import type { FetchFormat } from "../../types";
@@ -125,7 +125,7 @@ export class Converter {
       const headerRow = thead ? Array.from(thead.querySelectorAll("tr"))[0] : firstRow;
       if (headerRow) {
         const headers = Array.from(headerRow.querySelectorAll("th, td")).map((cell) =>
-          this.getCellText(cell as HTMLElement)
+          this.getCellText(cell as HTMLElement),
         );
         rows.push(headers);
       }

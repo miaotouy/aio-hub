@@ -35,10 +35,15 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
       });
 
       context?.reportStatus("内容获取成功，正在蒸馏提取...");
-      const result = await transformer.transform(payload.html, {
-        ...options,
-        cleanMode: options.cleanMode,
-      });
+      const matchedRecipe = await recipeStore.findBestMatch(options.url);
+      const result = await transformer.transform(
+        payload.html,
+        {
+          ...options,
+          cleanMode: options.cleanMode,
+        },
+        matchedRecipe || undefined,
+      );
 
       // 保存原始 HTML 用于源码查看
       return {
@@ -48,17 +53,14 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
     },
     {
       userMessage: "网页内容获取失败，请重试",
-    }
+    },
   )) as FetchResult;
 }
 
 /**
  * Level 1: 智能提取（使用 headless 子 Webview，处理 JS 渲染页面）
  */
-export async function smartExtract(
-  options: SmartExtractOptions,
-  context?: ToolContext
-): Promise<ExtractResult> {
+export async function smartExtract(options: SmartExtractOptions, context?: ToolContext): Promise<ExtractResult> {
   logger.info("Starting smartExtract", { url: options.url, waitFor: options.waitFor });
   context?.reportStatus("准备启动浏览器引擎...");
   return (await errorHandler.wrapAsync(
@@ -125,10 +127,14 @@ export async function smartExtract(
       };
 
       context?.reportStatus("内容抓取成功，正在进行高纯度蒸馏...");
-      const result = await transformer.transform(extracted.html, {
-        ...finalOptions,
-        cleanMode: options.cleanMode,
-      });
+      const result = await transformer.transform(
+        extracted.html,
+        {
+          ...finalOptions,
+          cleanMode: options.cleanMode,
+        },
+        matchedRecipe || undefined,
+      );
 
       return {
         ...result,
@@ -140,7 +146,7 @@ export async function smartExtract(
     },
     {
       userMessage: "智能提取失败，目标页面可能需要更长加载时间或需要授权",
-    }
+    },
   )) as ExtractResult;
 }
 
@@ -150,17 +156,23 @@ export async function smartExtract(
 export async function processLocalContent(
   content: string,
   fileName: string,
-  options?: Partial<QuickFetchOptions>
+  options?: Partial<QuickFetchOptions>,
 ): Promise<FetchResult> {
   logger.info("Processing local content", { fileName, contentLength: content.length });
   return (await errorHandler.wrapAsync(
     async () => {
-      const result = await transformer.transform(content, {
-        url: `file://${fileName}`,
-        format: options?.format || "markdown",
-        ...options,
-        cleanMode: options?.cleanMode,
-      });
+      const url = `file://${fileName}`;
+      const matchedRecipe = await recipeStore.findBestMatch(url);
+      const result = await transformer.transform(
+        content,
+        {
+          url,
+          format: options?.format || "markdown",
+          ...options,
+          cleanMode: options?.cleanMode,
+        },
+        matchedRecipe || undefined,
+      );
 
       return {
         ...result,
@@ -169,7 +181,7 @@ export async function processLocalContent(
     },
     {
       userMessage: "本地内容处理失败，请检查文件格式",
-    }
+    },
   )) as FetchResult;
 }
 

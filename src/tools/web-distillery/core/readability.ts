@@ -112,9 +112,7 @@ export class Readability {
     // 基于 class/id 的调整
     const className = String(node.className || "");
     const id = node.id || "";
-    if (/article|content|main|body|js_content/i.test(className + id)) score += 20;
-    // 针对微信公众号正文容器给予极高权重
-    if (id === 'js_content') score += 100;
+    if (/article|content|main|body/i.test(className + id)) score += 20;
     if (/sidebar|footer|header|nav|menu|comment/i.test(className + id)) score -= 50;
 
     return score;

@@ -1,12 +1,8 @@
 /**
- * Stage 1: 预处理 (Preprocessor)
+ * 环节：预处理 (Preprocessor)
  * 职责：DOM 解析、基础清理、编码处理
  */
-
-export interface PreprocessedData {
-  doc: Document;
-  originalUrl: string;
-}
+import { PreprocessedData } from "../../types";
 
 export class Preprocessor {
   private parser: DOMParser;
@@ -19,6 +15,21 @@ export class Preprocessor {
    * 将 HTML 字符串转换为 Document 对象
    */
   public process(html: string, url: string): PreprocessedData {
+    // 提取内联脚本内容
+    const scriptContents: string[] = [];
+    const scriptRegex = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+    let match;
+
+    while ((match = scriptRegex.exec(html)) !== null) {
+      const scriptTag = match[0];
+      const content = match[1].trim();
+
+      // 只保留有实际内容的内联脚本（跳过 src 属性指向外部文件的脚本）
+      if (content && !/\bsrc\s*=\s*["']/i.test(scriptTag)) {
+        scriptContents.push(content);
+      }
+    }
+
     // 性能优化：在解析 DOM 之前，先用正则快速剔除掉最沉重的 script 和 style 块
     // 这样可以极大地减少 DOMParser 的解析负担和内存占用
     const fastCleanedHtml = html
@@ -40,6 +51,7 @@ export class Preprocessor {
     return {
       doc,
       originalUrl: url,
+      scriptContents,
     };
   }
 

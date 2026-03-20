@@ -1,5 +1,5 @@
 /**
- * Stage 5: 后处理 (Postprocessor)
+ * 环节：后处理 (Postprocessor)
  * 职责：质量评估、格式微调、链接修复
  */
 import type { FetchResult } from "../../types";

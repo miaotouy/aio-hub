@@ -1,5 +1,5 @@
 /**
- * Stage 2: 去噪 (Denoiser)
+ * 环节：去噪 (Denoiser)
  * 职责：依据规则和启发式算法移除干扰元素
  */
 
@@ -11,12 +11,31 @@ export class Denoiser {
   /**
    * 去除噪声元素
    */
-  public process(doc: Document, excludeSelectors: string[] = []): void {
+  public process(doc: Document, excludeSelectors: string[] = [], protectedSelectors: string[] = []): void {
+    // 0. 标记受保护的元素
+    if (protectedSelectors.length > 0) {
+      protectedSelectors.forEach((selector) => {
+        try {
+          doc.querySelectorAll(selector).forEach((el) => {
+            (el as HTMLElement).dataset.distilleryProtected = "true";
+          });
+        } catch (e) {
+          console.warn(`Invalid protected selector: ${selector}`, e);
+        }
+      });
+    }
+
+    // 辅助函数：安全移除元素
+    const safeRemove = (el: Element) => {
+      if ((el as HTMLElement).dataset?.distilleryProtected === "true") return;
+      el.remove();
+    };
+
     // 1. 移除指定的选择器
     if (excludeSelectors.length > 0) {
       excludeSelectors.forEach((selector) => {
         try {
-          doc.querySelectorAll(selector).forEach((el) => el.remove());
+          doc.querySelectorAll(selector).forEach(safeRemove);
         } catch (e) {
           console.warn(`Invalid exclude selector: ${selector}`, e);
         }
@@ -26,18 +45,19 @@ export class Denoiser {
     // 2. 移除常见的干扰语义标签（合并选择器以提升性能）
     // 不再默认移除 header 和 nav，因为它们可能包含核心导航
     const noisyTags = "aside, footer, form, button, select, textarea";
-    doc.querySelectorAll(noisyTags).forEach((el) => el.remove());
+    doc.querySelectorAll(noisyTags).forEach(safeRemove);
 
     // 2.1 移除 B 站首页常见的导航链接堆叠（通常是文字极少但链接极多的容器）
     // 增加对更多导航类的清理，并降低文字长度阈值，只要是纯导航链接堆叠就移除
-    const biliNavSelectors = ".left-entry, .right-entry, .channel-items__left, .channel-icons, .bili-header__bar, .bili-header__channel, .nav-searchform";
+    const biliNavSelectors =
+      ".left-entry, .right-entry, .channel-items__left, .channel-icons, .bili-header__bar, .bili-header__channel, .nav-searchform";
     doc.querySelectorAll(biliNavSelectors).forEach((el) => {
       // 如果链接数量很多但正文很少，基本就是导航噪声
       const linkCount = el.querySelectorAll("a").length;
       const textLen = el.textContent?.trim().length || 0;
       // 激进清理：只要链接多且文字少，或者是搜索框容器，全部移除
       if ((linkCount > 3 && textLen < 100) || el.classList.contains("nav-searchform")) {
-        el.remove();
+        safeRemove(el);
       }
     });
 
@@ -67,7 +87,7 @@ export class Denoiser {
           // 检查是否包含图片、SVG 图标或视频/Canvas 等多媒体内容
           const hasVisualContent = el.querySelector("img, svg, picture, video, canvas, iframe");
           if (!hasVisualContent) {
-            el.remove();
+            safeRemove(el);
             removedCount++;
           }
         }
@@ -80,12 +100,6 @@ export class Denoiser {
     const hiddenSelectors = '[style*="display: none"], [style*="visibility: hidden"], [hidden]';
     const hiddenElements = doc.querySelectorAll(hiddenSelectors);
     logger.info(`Removing ${hiddenElements.length} hidden elements`);
-    hiddenElements.forEach((el) => {
-      // 微信文章的正文容器 js_content 初始状态是 visibility: hidden，绝对不能移除
-      if (el.id === "js_content" || el.closest("#js_content")) {
-        return;
-      }
-      el.remove();
-    });
+    hiddenElements.forEach(safeRemove);
   }
 }

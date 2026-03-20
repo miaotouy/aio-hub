@@ -14,6 +14,7 @@ export const builtinRecipes: SiteRecipe[] = [
     domain: "www.bilibili.com",
     pathPattern: "/video/**",
     contentPatterns: ["__INITIAL_STATE__", "bilibili\\.com", "哔哩哔哩"],
+    protectedSelectors: [".up-info--right", ".video-info-meta", ".video-toolbar-container", ".recommend-list-v1"],
     metadataScrapers: [
       {
         type: "json-ld",
@@ -47,11 +48,15 @@ export const builtinRecipes: SiteRecipe[] = [
     ],
     extractSelectors: [
       "h1.video-title",
+      ".up-info--right", // UP主信息
+      ".video-info-meta", // 互动数据栏（播放、弹幕、日期）
+      ".video-toolbar-container", // 点赞、投币、收藏工具栏
       ".video-info-description-text",
       ".desc-info-text",
       ".video-desc-info",
       ".tag-list",
       ".pubdate-ip",
+      ".recommend-list-v1", // 相关视频列表
     ],
     excludeSelectors: [
       ".bili-header",
@@ -59,11 +64,13 @@ export const builtinRecipes: SiteRecipe[] = [
       ".video-page-special-card",
       ".ad-report",
       ".pop-live-small-mode",
-      ".right-container",
+      // ".right-container", // 不再排除整个右侧栏，因为里面有相关视频
       ".bili-footer",
       ".video-pod",
-      ".recommend-list-v1",
+      // ".recommend-list-v1", // 不再排除相关视频
       ".fixed-sidenav-storage",
+      ".reply-header", // 排除评论区头部
+      ".reply-list", // 排除评论列表
     ],
     createdAt: now,
     updatedAt: now,

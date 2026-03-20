@@ -49,8 +49,8 @@ export class Denoiser {
 
     // 3. 基于 ID 和 Class 模式移除
     // 性能优化：预先编译正则表达式，避免循环内多次创建和 toLowerCase
-    const noisyRegex =
-      /(sidebar|nav|menu|ad-|ad_|banner|comment|related|share|social|widget|popup|modal|breadcrumb|pagination)/i;
+    // 移除了 related 和 share，因为它们在视频站点中往往包含核心推荐内容
+    const noisyRegex = /(sidebar|nav|menu|ad-|ad_|banner|comment|social|widget|popup|modal|breadcrumb|pagination)/i;
 
     // 性能优化：不再遍历 span，主要噪声集中在块级容器中
     const elements = doc.querySelectorAll("div, section, aside, ul, ol");

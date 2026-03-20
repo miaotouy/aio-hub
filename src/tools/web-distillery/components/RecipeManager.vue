@@ -39,6 +39,10 @@ const filteredRecipes = computed(() => {
 });
 
 async function deleteRecipe(id: string) {
+  if (id.startsWith("builtin-")) {
+    customMessage.warning("内置配方不可删除，您可以选择禁用它");
+    return;
+  }
   try {
     await recipeStore.delete(id);
     await loadRecipes();
@@ -48,12 +52,28 @@ async function deleteRecipe(id: string) {
   }
 }
 
+async function toggleRecipeStatus(recipe: SiteRecipe) {
+  try {
+    recipe.disabled = !recipe.disabled;
+    await recipeStore.upsert(recipe);
+    customMessage.success(recipe.disabled ? "配方已禁用" : "配方已启用");
+    await loadRecipes();
+  } catch (e) {
+    customMessage.error("操作失败");
+  }
+}
+
 function editRecipe(recipe: SiteRecipe) {
   store.setCurrentRecipe(recipe);
-  store.setInteractiveMode(true);
-  // 这里逻辑上应该切换到 Workbench 视图并开启编辑
-  // 简便起见，先设置 store 状态
-  customMessage.info(`正在加载配方: ${recipe.name}`);
+  // 如果当前已经在 Workbench 页面，且有 URL，可以考虑开启 L2
+  // 但这里我们解绑强制 L2，只做状态同步
+  if (store.url && store.url.includes(recipe.domain)) {
+    store.setInteractiveMode(true);
+  } else {
+    // 仅仅是进入编辑状态，不强制开启浏览器
+    store.setInteractiveMode(true);
+    customMessage.info(`正在加载配方: ${recipe.name}`);
+  }
 }
 
 function formatDate(dateStr: string) {
@@ -95,10 +115,25 @@ onErrorCaptured((err) => {
       </div>
 
       <div v-else class="recipe-grid">
-        <div v-for="recipe in filteredRecipes" :key="recipe.id" class="recipe-card">
+        <div
+          v-for="recipe in filteredRecipes"
+          :key="recipe.id"
+          class="recipe-card"
+          :class="{ disabled: recipe.disabled }"
+        >
           <div class="card-header">
             <div class="recipe-info">
-              <h3 class="recipe-name">{{ recipe.name }}</h3>
+              <div class="name-row">
+                <h3 class="recipe-name">{{ recipe.name }}</h3>
+                <el-tag
+                  v-if="recipe.id.startsWith('builtin-')"
+                  size="small"
+                  type="info"
+                  effect="plain"
+                  class="builtin-tag"
+                  >内置</el-tag
+                >
+              </div>
               <div class="recipe-domain">
                 <Globe :size="12" />
                 <span>{{ recipe.domain }}</span>
@@ -106,10 +141,22 @@ onErrorCaptured((err) => {
               </div>
             </div>
             <div class="card-actions">
+              <el-tooltip :content="recipe.disabled ? '启用配方' : '禁用配方'" placement="top">
+                <el-switch
+                  :model-value="!recipe.disabled"
+                  size="small"
+                  class="status-switch"
+                  @change="toggleRecipeStatus(recipe)"
+                />
+              </el-tooltip>
               <el-button size="small" circle @click="editRecipe(recipe)">
                 <Edit :size="14" />
               </el-button>
-              <el-popconfirm title="确定删除此配方吗？" @confirm="deleteRecipe(recipe.id)">
+              <el-popconfirm
+                v-if="!recipe.id.startsWith('builtin-')"
+                title="确定删除此配方吗？"
+                @confirm="deleteRecipe(recipe.id)"
+              >
                 <template #reference>
                   <el-button size="small" type="danger" circle>
                     <Trash :size="14" />
@@ -205,6 +252,12 @@ onErrorCaptured((err) => {
   display: flex;
   flex-direction: column;
   transition: all 0.2s;
+  position: relative;
+}
+
+.recipe-card.disabled {
+  opacity: 0.6;
+  filter: grayscale(0.5);
 }
 
 .recipe-card:hover {
@@ -221,11 +274,25 @@ onErrorCaptured((err) => {
   border-bottom: 1px solid var(--border-color-light);
 }
 
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 .recipe-name {
-  margin: 0 0 6px 0;
+  margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--text-color);
+}
+
+.builtin-tag {
+  font-size: 10px;
+  padding: 0 4px;
+  height: 18px;
+  line-height: 16px;
 }
 
 .recipe-domain {
@@ -292,6 +359,16 @@ onErrorCaptured((err) => {
   color: var(--primary-color);
   cursor: pointer;
   border-top: 1px solid var(--border-color-light);
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-switch {
+  margin-right: 4px;
 }
 
 .card-footer:hover {

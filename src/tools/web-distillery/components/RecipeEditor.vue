@@ -145,6 +145,14 @@ const actionIcons: Record<string, any> = {
       <div class="header-main">
         <input v-model="recipe.name" class="name-input" placeholder="配方名称" />
         <div class="header-actions">
+          <el-switch
+            v-model="recipe.disabled"
+            size="small"
+            active-text="启用"
+            inactive-text="禁用"
+            inline-prompt
+            class="status-switch"
+          />
           <el-button type="primary" size="small" @click="saveRecipe">
             <template #icon><Save :size="14" /></template>
             保存配方
@@ -295,6 +303,16 @@ const actionIcons: Record<string, any> = {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-switch {
+  margin-right: 4px;
 }
 
 .name-input {

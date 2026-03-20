@@ -122,7 +122,7 @@ watch(
     } else {
       stopSyncing();
     }
-  }
+  },
 );
 
 onMounted(() => {
@@ -351,6 +351,10 @@ function handleSendToChat() {
                 <div v-if="store.result.metadata?.language" class="info-item">
                   <span class="info-label">语言</span>
                   <span class="info-value">{{ store.result.metadata.language }}</span>
+                </div>
+                <div v-if="store.result.recipeName" class="info-item">
+                  <span class="info-label">匹配配方</span>
+                  <el-tag size="small" effect="plain" type="primary">{{ store.result.recipeName }}</el-tag>
                 </div>
                 <div class="info-item">
                   <span class="info-label">提取时间</span>

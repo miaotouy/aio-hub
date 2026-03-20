@@ -39,6 +39,8 @@ export interface FetchResult {
     language?: string;
     ogImage?: string;
   };
+  recipeId?: string; // 匹配到的配方 ID
+  recipeName?: string; // 匹配到的配方名称
   warnings?: string[];
 }
 
@@ -99,6 +101,7 @@ export interface SiteRecipe {
   createdAt: string;
   updatedAt: string;
   useCount: number;
+  disabled?: boolean; // 是否禁用此配方
   metadataScrapers?: MetadataScraperRule[]; // 从脚本提取元数据的规则
   protectedSelectors?: string[]; // 去噪阶段必须保留的元素（即使隐藏）
 }

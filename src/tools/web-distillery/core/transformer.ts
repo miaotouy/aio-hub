@@ -88,6 +88,13 @@ export class Transformer {
     // 后处理 (Postprocessor)
     const postStart = performance.now();
     const result = await this.postprocessor.process(convertedContent, title, url, format, metadata);
+
+    // 注入配方信息
+    if (recipe) {
+      result.recipeId = recipe.id;
+      result.recipeName = recipe.name;
+    }
+
     const postEnd = performance.now();
     logger.info(`Postprocessor finished`, { duration: `${(postEnd - postStart).toFixed(2)}ms` });
 

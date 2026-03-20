@@ -76,10 +76,10 @@ export class RecipeStore {
     logger.info("Recipes saved");
   }
 
-  /** 获取所有配方 */
+  /** 获取所有配方 (包含内置和用户自定义) */
   public async getAll(): Promise<SiteRecipe[]> {
     await this.load();
-    return this.recipes;
+    return this.allRecipes;
   }
 
   /** 根据 URL 匹配最有优势的配方 */
@@ -90,8 +90,8 @@ export class RecipeStore {
       const domain = target.hostname;
       const path = target.pathname;
 
-      // 1. 过滤同域名的
-      const candidates = this.recipes.filter((r) => r.domain === domain);
+      // 1. 过滤同域名的，且未禁用的
+      const candidates = this.allRecipes.filter((r) => r.domain === domain && !r.disabled);
       if (candidates.length === 0) return null;
 
       // 2. 匹配 pathPattern (使用 glob)
@@ -119,12 +119,24 @@ export class RecipeStore {
     if (index >= 0) {
       this.recipes[index] = { ...this.recipes[index], ...recipe, updatedAt: getLocalISOString() };
     } else {
-      this.recipes.push({
-        ...recipe,
-        createdAt: recipe.createdAt || getLocalISOString(),
-        updatedAt: getLocalISOString(),
-      });
+      // 检查是否是内置配方的 ID
+      const isBuiltin = recipe.id.startsWith("builtin-");
+      if (isBuiltin) {
+        // 内置配方通常只更新状态（如 disabled）
+        this.recipes.push({
+          ...recipe,
+          updatedAt: getLocalISOString(),
+        });
+      } else {
+        this.recipes.push({
+          ...recipe,
+          createdAt: recipe.createdAt || getLocalISOString(),
+          updatedAt: getLocalISOString(),
+        });
+      }
     }
+
+    this.mergeRecipes(); // 重新合并
     await this.save();
   }
 

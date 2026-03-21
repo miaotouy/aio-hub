@@ -50,6 +50,11 @@ export class ConfigManager<T extends Record<string, any>> {
   private createDefault: () => T;
   private mergeConfig?: (defaultConfig: T, loadedConfig: Partial<T>) => T;
 
+  /** 缓存：配置文件完整路径（首次计算后不再通过 IPC 获取） */
+  private _cachedConfigPath: string | null = null;
+  /** 缓存：模块目录是否已确认存在（避免每次 save 都 IPC 检查） */
+  private _dirEnsured = false;
+
   /**
    * 防抖保存配置。
    * @param config - 要保存的配置对象。
@@ -95,14 +100,17 @@ export class ConfigManager<T extends Record<string, any>> {
   }
 
   /**
-   * 获取配置文件的完整路径
+   * 获取配置文件的完整路径（带缓存，避免重复 IPC）
    */
   async getConfigPath(): Promise<string> {
+    if (this._cachedConfigPath) {
+      return this._cachedConfigPath;
+    }
     try {
       const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, this.moduleName);
       const configPath = await join(moduleDir, this.fileName);
-      // 只在错误时输出，正常情况不需要日志
+      this._cachedConfigPath = configPath;
       return configPath;
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -113,16 +121,17 @@ export class ConfigManager<T extends Record<string, any>> {
         },
         showToUser: false,
       });
-      throw new Error(
-        `获取配置路径失败: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`获取配置路径失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
-   * 确保模块目录存在
+   * 确保模块目录存在（首次检查后缓存结果，后续跳过）
    */
   async ensureModuleDir(): Promise<void> {
+    if (this._dirEnsured) {
+      return;
+    }
     try {
       const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, this.moduleName);
@@ -132,15 +141,14 @@ export class ConfigManager<T extends Record<string, any>> {
         logger.info(`创建模块目录: ${moduleDir}`, { moduleName: this.moduleName });
         await invoke("create_dir_force", { path: moduleDir });
       }
+      this._dirEnsured = true;
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: `创建模块目录失败`,
         context: { moduleName: this.moduleName },
         showToUser: false,
       });
-      throw new Error(
-        `创建模块目录失败: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`创建模块目录失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -249,10 +257,11 @@ export class ConfigManager<T extends Record<string, any>> {
       const invokeStart = performance.now();
       await writeTextFile(configPath, content);
       const invokeEnd = performance.now();
-      if (invokeEnd - invokeStart > 100) {
+      if (invokeEnd - invokeStart > 300) {
         logger.warn(`[Perf] writeTextFile 耗时过长: ${(invokeEnd - invokeStart).toFixed(2)}ms`, {
           moduleName: this.moduleName,
           path: configPath,
+          contentLength: content.length,
         });
       }
 
@@ -296,8 +305,6 @@ export class ConfigManager<T extends Record<string, any>> {
 /**
  * 创建配置管理器的工厂函数
  */
-export function createConfigManager<T extends Record<string, any>>(
-  options: ConfigManagerOptions<T>
-): ConfigManager<T> {
+export function createConfigManager<T extends Record<string, any>>(options: ConfigManagerOptions<T>): ConfigManager<T> {
   return new ConfigManager(options);
 }

@@ -140,14 +140,14 @@ export function useChatExecutor() {
   const waitForAssetsImport = async (assets: Asset[], timeout: number = 30000): Promise<boolean> => {
     const startTime = Date.now();
     const pendingAssets = assets.filter(
-      (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
+      (asset) => asset.importStatus === "pending" || asset.importStatus === "importing",
     );
 
     if (pendingAssets.length === 0) return true;
 
     while (Date.now() - startTime < timeout) {
       const stillPending = assets.filter(
-        (asset) => asset.importStatus === "pending" || asset.importStatus === "importing"
+        (asset) => asset.importStatus === "pending" || asset.importStatus === "importing",
       );
       if (stillPending.length === 0) return true;
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -161,7 +161,7 @@ export function useChatExecutor() {
     userNode: ChatMessageNode,
     session: ChatSession,
     attachments: Asset[] | undefined,
-    pathUserNode?: ChatMessageNode
+    pathUserNode?: ChatMessageNode,
   ): Promise<void> => {
     if (!attachments || attachments.length === 0) return;
     const allImported = await waitForAssetsImport(attachments);
@@ -176,7 +176,7 @@ export function useChatExecutor() {
     content: string,
     modelId: string,
     attachments?: Asset[],
-    isContinuation: boolean = false
+    isContinuation: boolean = false,
   ): Promise<void> => {
     try {
       let combinedText = content;
@@ -210,7 +210,7 @@ export function useChatExecutor() {
 
   const saveUserProfileSnapshot = (
     userNode: ChatMessageNode,
-    effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string } | null
+    effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string } | null,
   ): void => {
     if (!effectiveUserProfile) return;
     userNode.metadata = {
@@ -229,7 +229,7 @@ export function useChatExecutor() {
     targetNodeId: string,
     agentId?: string,
     parameterOverrides?: LlmParameters,
-    options?: { pendingInput?: any }
+    options?: { pendingInput?: any },
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -257,8 +257,11 @@ export function useChatExecutor() {
 
     if (!agentConfigSnippet) return null;
 
-    const effectiveProfileId = historicalProfileId || agentConfigSnippet.profileId;
-    const effectiveModelId = historicalModelId || agentConfigSnippet.modelId;
+    // 优先使用待发送消息中指定的临时模型，否则使用节点元数据中的历史模型，最后回退到 Agent 默认配置
+    const effectiveProfileId =
+      options?.pendingInput?.temporaryModel?.profileId || historicalProfileId || agentConfigSnippet.profileId;
+    const effectiveModelId =
+      options?.pendingInput?.temporaryModel?.modelId || historicalModelId || agentConfigSnippet.modelId;
 
     const executionAgent: ChatAgent = {
       ...currentAgentFromStore,
@@ -310,7 +313,7 @@ export function useChatExecutor() {
         ...(settings.value.worldbookIds || []),
         ...(effectiveUserProfile?.worldbookIds || []),
         ...(executionAgent.worldbookIds || []),
-      ])
+      ]),
     );
 
     if (worldbookStore && allWorldbookIds.length > 0) {
@@ -350,7 +353,7 @@ export function useChatExecutor() {
           allAttachments,
           effectiveModelId,
           effectiveProfileId,
-          forceAssetIds.size > 0 ? forceAssetIds : undefined
+          forceAssetIds.size > 0 ? forceAssetIds : undefined,
         );
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
       } catch (error) {
@@ -378,7 +381,7 @@ export function useChatExecutor() {
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         contentText,
         effectiveModelId,
-        (msg as any)._attachments || []
+        (msg as any)._attachments || [],
       );
       return tokenResult.count;
     });

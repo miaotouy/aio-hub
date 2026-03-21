@@ -103,7 +103,7 @@ export interface LlmContextData {
  */
 export interface PendingInputData {
   /** 输入文本 */
-  text: string;
+  text?: string;
   /** 宏展开前的原始文本 (用于展示 diff) */
   originalText?: string;
   /** 附件列表 */

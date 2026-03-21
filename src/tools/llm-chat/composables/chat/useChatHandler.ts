@@ -621,7 +621,7 @@ export function useChatHandler() {
       const macroProcessor = new MacroProcessor();
 
       let processedContent = pendingInput.text;
-      if (pendingInput.enableMacroParsing !== false) {
+      if (pendingInput.text && pendingInput.enableMacroParsing !== false) {
         const macroContext = buildMacroContext({
           session,
           agent: currentAgent ?? undefined,

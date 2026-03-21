@@ -19,8 +19,17 @@ export function useChatContextStats(currentSession: Ref<ChatSession | null>, cur
   const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
   const isLoadingContextStats = ref(false);
 
-  const refreshContextStats = async () => {
+  const refreshContextStats = async (reason = "manual") => {
+    // 强制等待一个微任务，确保 Vue 响应式数据和 Store 状态已经同步
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     const session = currentSession.value;
+    logger.debug(`[ContextStats] 准备刷新统计, 原因: ${reason}`, {
+      sessionId: session?.id,
+      activeLeafId: session?.activeLeafId,
+      updatedAt: session?.updatedAt,
+    });
+
     if (!session || !session.activeLeafId) {
       contextStats.value = null;
       return;
@@ -47,7 +56,7 @@ export function useChatContextStats(currentSession: Ref<ChatSession | null>, cur
             // 从而实现纯粹的“历史上下文统计”，避免与输入框自身的 Token 计数重叠。
             temporaryModel,
           },
-        }
+        },
       );
 
       if (previewData) {
@@ -95,21 +104,44 @@ export function useChatContextStats(currentSession: Ref<ChatSession | null>, cur
         });
       },
     ],
-    ([, , , isSending], [, , , oldIsSending]) => {
-      // 1. 如果正在发送/生成中，跳过统计刷新，避免发送瞬间和流式回复过程中的卡顿
-      // 统计应该在发送结束（isSending 变为 false）时，或者非发送状态下的内容变化时刷新
+    (newValues, oldValues) => {
+      const [newSessionId, newLeafId, newUpdatedAt, isSending] = newValues;
+      const [oldSessionId, oldLeafId, oldUpdatedAt, oldIsSending] = oldValues || [];
+
+      logger.debug(`[ContextStats] Watch 触发`, {
+        isSending,
+        oldIsSending,
+        newLeafId,
+        oldLeafId,
+        newUpdatedAt,
+        newUpdatedAtChanged: newUpdatedAt !== oldUpdatedAt,
+        newSessionId,
+      });
+
+      // 1. 如果正在发送/生成中
       if (isSending) {
+        // 特殊情况：如果是 activeLeafId 变了（说明新消息上屏了，或者切换了分支）
+        // 这种情况下即使正在发送（刚开始发送），也应该触发一次刷新，以包含最新的用户消息
+        if (newLeafId !== oldLeafId || newSessionId !== oldSessionId) {
+          logger.debug(`[ContextStats] 发送期间检测到 LeafId 变化，触发防抖刷新`);
+          debouncedRefreshContextStats();
+          return;
+        }
+
+        // 其他情况（如流式输出导致的 updatedAt 变化），在发送期间跳过刷新，避免卡顿
         return;
       }
 
       // 2. 如果是从发送状态刚结束（isSending 从 true 变为 false），立即刷新，不要防抖
       // 这样可以确保在发送完毕后第一时间更新 Token 统计，且此时状态是最新的
       if (oldIsSending === true && isSending === false) {
-        refreshContextStats();
+        logger.debug(`[ContextStats] 检测到发送结束，立即刷新`);
+        refreshContextStats("send_end");
         return;
       }
 
       // 3. 其他非发送状态下的内容变化，使用防抖刷新
+      logger.debug(`[ContextStats] 非发送状态变化，防抖刷新`);
       debouncedRefreshContextStats();
     },
     { deep: true, immediate: true },

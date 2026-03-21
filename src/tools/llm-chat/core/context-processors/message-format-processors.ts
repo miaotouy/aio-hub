@@ -20,14 +20,20 @@ export const DEFAULT_SEPARATOR = "\n\n---\n\n";
 export const DEFAULT_USER_PLACEHOLDER = "继续";
 export const DEFAULT_ASSISTANT_PLACEHOLDER = "好的";
 
-const contentToString = (content: string | LlmMessageContent[]): string => {
+const contentToString = (content: string | LlmMessageContent[] | undefined): string => {
+  if (!content) {
+    return "";
+  }
   if (typeof content === "string") {
     return content;
   }
-  return content
-    .filter((part): part is { type: "text"; text: string } => part.type === "text" && !!part.text)
-    .map((part) => part.text)
-    .join("\n");
+  if (Array.isArray(content)) {
+    return content
+      .filter((part): part is { type: "text"; text: string } => part.type === "text" && !!part.text)
+      .map((part) => part.text)
+      .join("\n");
+  }
+  return "";
 };
 
 export const handleMergeSystemToHead = (messages: ProcessableMessage[], separator: string): ProcessableMessage[] => {

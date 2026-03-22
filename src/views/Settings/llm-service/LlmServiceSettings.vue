@@ -104,7 +104,7 @@ onMounted(() => {
 
 watch(
   () => route.query.profileId,
-  () => handleProfileIdParam()
+  () => handleProfileIdParam(),
 );
 
 // 监听 profiles 加载，一旦加载完成且有 profileId 参数，则进行选中
@@ -115,7 +115,7 @@ watch(
       handleProfileIdParam();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // ─── 响应式布局 ───
@@ -281,7 +281,7 @@ const networkSettingSummary = computed(() => {
                     placement="top"
                     :show-after="500"
                   >
-                    <el-link :href="link.url" target="_blank" type="primary" :underline="false" class="link-item">
+                    <el-link :href="link.url" target="_blank" type="primary" underline="never" class="link-item">
                       <ExternalLink :size="12" class="link-icon" />
                       {{ link.label }}
                     </el-link>

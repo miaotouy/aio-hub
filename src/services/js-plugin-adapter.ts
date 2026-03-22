@@ -27,7 +27,7 @@ export class JsPluginAdapter implements PluginProxy {
   public readonly devMode: boolean;
   public enabled: boolean = false;
 
-  private pluginExport: JsPluginExport | null = null;
+  public pluginExport: JsPluginExport | null = null;
 
   constructor(manifest: PluginManifest, installPath: string, devMode: boolean = false) {
     this.manifest = manifest;
@@ -119,9 +119,35 @@ export class JsPluginAdapter implements PluginProxy {
 
     // 2. 其次使用 manifest 中定义的 methods
     if (this.manifest.methods && this.manifest.methods.length > 0) {
-      return {
-        methods: this.manifest.methods,
+      // 合并 manifest 中定义的方法和导出对象中实际存在的方法
+      const manifestMethods = this.manifest.methods;
+      const metadata: ServiceMetadata = {
+        methods: [...manifestMethods],
       };
+
+      // 如果有导出对象，检查是否还有额外导出的方法未在 manifest 中定义
+      if (this.pluginExport) {
+        const existingMethodNames = new Set(manifestMethods.map((m) => m.name));
+        const extraMethods = Object.keys(this.pluginExport)
+          .filter(
+            (key) =>
+              typeof (this.pluginExport as any)[key] === "function" &&
+              !existingMethodNames.has(key) &&
+              key !== "activate" &&
+              key !== "deactivate" &&
+              key !== "getMetadata"
+          )
+          .map((key) => ({
+            name: key,
+            description: `插件导出的方法: ${key}`,
+            parameters: [],
+            returnType: "any",
+          }));
+
+        metadata.methods.push(...extraMethods);
+      }
+
+      return metadata;
     }
 
     // 3. 最后从导出对象动态生成（兜底）
@@ -211,32 +237,31 @@ export function createJsPluginProxy(
   // 使用 Proxy 拦截所有属性访问
   return new Proxy(adapter, {
     get(target, prop, receiver) {
-      // 如果是适配器自己的属性或方法，直接返回
+      const propStr = String(prop);
+
+      // 1. 如果是适配器自己的属性或方法，直接返回
+      // 注意：由于 pluginExport 也是 public 的，所以会在这里直接返回
       if (prop in target) {
         return Reflect.get(target, prop, receiver);
       }
 
-      // 否则，返回一个函数，该函数会调用插件的对应方法
-      const propStr = String(prop);
-
-      // 如果 manifest 中还定义了 methods，优先作为判断依据
-      if (target.manifest.methods && target.manifest.methods.length > 0) {
-        const hasMethod = target.manifest.methods.some((m) => m.name === propStr);
-        if (!hasMethod) {
-          // 如果 manifest.methods 存在但找不到方法，则认为方法不存在
-          return undefined;
-        }
-      } else {
-        // 如果 manifest.methods 不存在，则只要是导出对象的属性（且不是 activate/deactivate），就认为是可调用方法
-        if (!(propStr in (target as any).pluginExport) || propStr === 'activate' || propStr === 'deactivate') {
-          return undefined;
-        }
+      // 2. 排除生命周期钩子和元数据方法
+      if (propStr === 'activate' || propStr === 'deactivate' || propStr === 'getMetadata') {
+        return undefined;
       }
 
-      // 返回一个函数，调用插件的实际方法（支持第二参数 ToolContext）
-      return (params: any, toolContext?: ToolContext) => {
-        return target.callPluginMethod(propStr, params, toolContext);
-      };
+      // 3. 检查是否为有效方法（manifest 声明 或 动态导出）
+      const hasMethodInManifest = target.manifest.methods?.some((m) => m.name === propStr);
+      const hasMethodInExport = target.pluginExport && typeof (target.pluginExport as any)[propStr] === 'function';
+
+      if (hasMethodInManifest || hasMethodInExport) {
+        // 返回一个函数，调用插件的实际方法
+        return (params: any, toolContext?: ToolContext) => {
+          return target.callPluginMethod(propStr, params, toolContext);
+        };
+      }
+
+      return undefined;
     },
   }) as PluginProxy;
 }

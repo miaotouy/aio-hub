@@ -26,6 +26,7 @@ export class NativePluginAdapter implements PluginProxy {
   public readonly description: string;
   public readonly manifest: PluginManifest;
   public readonly installPath: string;
+  public iconUrl?: string;
   public readonly devMode: boolean;
   public enabled: boolean = false;
 

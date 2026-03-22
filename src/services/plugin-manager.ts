@@ -29,39 +29,29 @@ function isEmoji(str: string): boolean {
 }
 
 /**
- * 为插件创建图标组件
+ * 解析插件图标 URL
  *
- * @param pluginPath 插件安装路径（开发模式为 Vite 虚拟路径，生产模式为文件系统绝对路径）
- * @param iconConfig 图标配置（可以是 Emoji、SVG 路径或图片路径）
+ * @param pluginPath 插件安装路径
+ * @param iconConfig 图标配置
  */
-async function createPluginIcon(pluginPath: string, iconConfig?: string): Promise<Component> {
-  if (!iconConfig) {
-    // 默认插件图标
-    return markRaw({
-      template:
-        '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>',
-    });
-  }
+export async function resolvePluginIconUrl(
+  pluginPath: string,
+  iconConfig?: string
+): Promise<string | undefined> {
+  if (!iconConfig) return undefined;
 
   // 判断是否为 Emoji
-  if (isEmoji(iconConfig)) {
-    return markRaw({
-      setup() {
-        // 移除硬编码的 font-size，让 CSS 来控制
-        return () => h("span", iconConfig);
-      },
-    });
-  }
+  if (isEmoji(iconConfig)) return iconConfig;
 
   // 处理文件路径（SVG 或图片）
-  const isDevMode = pluginPath.startsWith("/plugins/");
+  const isDevMode = pluginPath.startsWith("/plugins/") || pluginPath.startsWith("plugins/");
 
   try {
-    let iconUrl: string;
-
     if (isDevMode) {
       // 开发模式：直接使用 Vite 路径
-      iconUrl = `${pluginPath}/${iconConfig}`;
+      // 确保路径以 / 开头
+      const basePluginPath = pluginPath.startsWith("/") ? pluginPath : `/${pluginPath}`;
+      return `${basePluginPath}/${iconConfig}`;
     } else {
       // 生产模式：使用 convertFileSrc
       const { convertFileSrc } = await import("@tauri-apps/api/core");
@@ -69,11 +59,45 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
 
       const iconPath = await join(pluginPath, iconConfig);
       // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
-      iconUrl = convertFileSrc(iconPath.replace(/\\/g, "/"), "plugin");
+      // 使用默认的 asset 协议，确保资源能被正确加载
+      return convertFileSrc(iconPath.replace(/\\/g, "/"));
+    }
+  } catch (error) {
+    logger.error("解析插件图标 URL 失败", error, { pluginPath, iconConfig });
+    return undefined;
+  }
+}
+
+/**
+ * 为插件创建图标组件
+ *
+ * @param pluginPath 插件安装路径（开发模式为 Vite 虚拟路径，生产模式为文件系统绝对路径）
+ * @param iconConfig 图标配置（可以是 Emoji、SVG 路径或图片路径）
+ */
+async function createPluginIcon(pluginPath: string, iconConfig?: string): Promise<Component> {
+  try {
+    const iconUrl = await resolvePluginIconUrl(pluginPath, iconConfig);
+
+    if (!iconUrl) {
+      // 默认插件图标
+      return markRaw({
+        template:
+          '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>',
+      });
+    }
+
+    // 判断是否为 Emoji
+    if (isEmoji(iconUrl)) {
+      return markRaw({
+        setup() {
+          // 移除硬编码的 font-size，让 CSS 来控制
+          return () => h("span", iconUrl);
+        },
+      });
     }
 
     // 判断是 SVG 还是图片
-    if (iconConfig.toLowerCase().endsWith(".svg")) {
+    if (iconConfig && iconConfig.toLowerCase().endsWith(".svg")) {
       // SVG 图标：直接嵌入
       return markRaw({
         setup() {
@@ -97,7 +121,9 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
       });
     }
   } catch (error) {
-    errorHandler.error(error, "创建插件图标失败", { context: { pluginPath, iconConfig } });
+    errorHandler.error(error, "创建插件图标失败", {
+      context: { pluginPath, iconConfig },
+    });
     // 返回默认图标
     return markRaw({
       template:
@@ -318,6 +344,12 @@ class PluginManager {
       // 注册插件UI（仅为启用的插件注册）
       for (const plugin of result.plugins) {
         try {
+          // 预先解析图标 URL
+          plugin.iconUrl = await resolvePluginIconUrl(
+            plugin.installPath,
+            plugin.manifest.icon
+          );
+
           // 只为启用的插件注册 UI
           if (plugin.enabled) {
             await registerPluginUi(plugin);
@@ -325,7 +357,9 @@ class PluginManager {
             logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
           }
         } catch (error) {
-          errorHandler.error(error, '注册插件UI失败', { context: { pluginId: plugin.manifest.id } });
+          errorHandler.error(error, "注册插件UI失败", {
+            context: { pluginId: plugin.manifest.id },
+          });
         }
       }
     }
@@ -443,6 +477,12 @@ class PluginManager {
           // 注册插件UI（仅为启用的插件注册）
           for (const plugin of loadResult.plugins) {
             try {
+              // 预先解析图标 URL
+              plugin.iconUrl = await resolvePluginIconUrl(
+                plugin.installPath,
+                plugin.manifest.icon
+              );
+
               // 只为启用的插件注册 UI
               if (plugin.enabled) {
                 await registerPluginUi(plugin);
@@ -450,7 +490,9 @@ class PluginManager {
                 logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
               }
             } catch (error) {
-              errorHandler.error(error, '注册插件UI失败', { context: { pluginId: plugin.manifest.id } });
+              errorHandler.error(error, "注册插件UI失败", {
+                context: { pluginId: plugin.manifest.id },
+              });
             }
           }
         }

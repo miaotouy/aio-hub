@@ -39,7 +39,7 @@ const pluginTypeInfo = computed(() => {
     <!-- 左侧：图标 + 开关 -->
     <div class="plugin-left">
       <Avatar
-        :src="plugin.manifest.icon || '📦'"
+        :src="plugin.iconUrl || plugin.manifest.icon || '📦'"
         :size="40"
         :alt="plugin.name"
         shape="square"

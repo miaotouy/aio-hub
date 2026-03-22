@@ -165,7 +165,7 @@ watch(
       <div class="header-section">
         <div class="plugin-header">
           <Avatar
-            :src="plugin.manifest.icon || '📦'"
+            :src="plugin.iconUrl || plugin.manifest.icon || '📦'"
             :size="64"
             :alt="plugin.name"
             shape="square"

@@ -230,6 +230,8 @@ export interface PluginProxy extends ToolRegistry {
   manifest: PluginManifest;
   /** 插件安装路径 */
   installPath: string;
+  /** 插件图标 URL (Emoji 或转换后的图片 URL) */
+  iconUrl?: string;
   /** 插件是否已启用 */
   enabled: boolean;
   /** 是否为开发模式插件 */

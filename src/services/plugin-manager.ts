@@ -13,6 +13,7 @@ import { markRaw, h, ref, type Component } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginStateService } from "./plugin-state.service";
+import { pluginConfigService } from "./plugin-config.service";
 import type { PluginContext } from "./plugin-types";
 import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
 
@@ -307,7 +308,6 @@ export function unregisterPluginUi(pluginId: string): void {
 class PluginManager {
   private loader: PluginLoader | null = null;
   private initialized = false;
-  private pluginContext: PluginContext | null = null;
 
   constructor() {
     // 构造函数中不再创建 context，延迟到使用时
@@ -315,19 +315,21 @@ class PluginManager {
 
   /**
    * 创建注入给插件的上下文对象
+   * @param pluginId 插件 ID
    */
-  private createPluginContext(): PluginContext {
+  public createPluginContext(pluginId: string): PluginContext {
     // 在方法内部获取 store 实例，确保 Pinia 已初始化
     const contextPipelineStore = useContextPipelineStore();
 
     return {
+      settings: pluginConfigService.createPluginSettingsAPI(pluginId),
       chat: {
         registerProcessor: (processor: any) => {
-          logger.info(`插件正在注册上下文处理器: ${processor.id}`);
+          logger.info(`插件正在注册上下文处理器: ${processor.id} (Plugin: ${pluginId})`);
           contextPipelineStore.registerProcessor(processor);
         },
         unregisterProcessor: (processorId: string) => {
-          logger.info(`插件正在注销上下文处理器: ${processorId}`);
+          logger.info(`插件正在注销上下文处理器: ${processorId} (Plugin: ${pluginId})`);
           contextPipelineStore.unregisterProcessor(processorId);
         },
       },
@@ -360,12 +362,7 @@ class PluginManager {
       throw new Error("插件管理器未初始化");
     }
 
-    // 惰性初始化 pluginContext
-    if (!this.pluginContext) {
-      this.pluginContext = this.createPluginContext();
-    }
-
-    const result = await this.loader.loadAll(this.pluginContext);
+    const result = await this.loader.loadAll((id) => this.createPluginContext(id));
 
     // 注册加载成功的插件到工具注册表
     if (result.plugins.length > 0) {
@@ -497,11 +494,7 @@ class PluginManager {
 
       // 重新加载插件
       if (this.loader) {
-        // 惰性初始化 pluginContext
-        if (!this.pluginContext) {
-          this.pluginContext = this.createPluginContext();
-        }
-        const loadResult = await this.loader.loadAll(this.pluginContext);
+        const loadResult = await this.loader.loadAll((id) => this.createPluginContext(id));
 
         // 注册新加载的插件
         if (loadResult.plugins.length > 0) {

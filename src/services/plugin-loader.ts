@@ -56,9 +56,9 @@ export class PluginLoader {
 
   /**
    * 加载所有插件
-   * @param context 插件上下文对象，将注入到插件的 activate 钩子中
+   * @param contextFactory 插件上下文工厂函数，为每个插件创建独立的上下文
    */
-  async loadAll(context: PluginContext): Promise<PluginLoadResult> {
+  async loadAll(contextFactory: (pluginId: string) => PluginContext): Promise<PluginLoadResult> {
     logger.info("开始加载所有插件");
 
     const result: PluginLoadResult = {
@@ -68,9 +68,9 @@ export class PluginLoader {
 
     // 开发模式：同时加载开发和生产插件
     if (this.devMode) {
-      const devResult = await this.loadDevPlugins(context);
+      const devResult = await this.loadDevPlugins(contextFactory);
       // 生产插件也需要上下文
-      const prodResult = await this.loadProdPlugins(context);
+      const prodResult = await this.loadProdPlugins(contextFactory);
 
       result.plugins.push(...devResult.plugins, ...prodResult.plugins);
       result.failed.push(...devResult.failed, ...prodResult.failed);
@@ -83,7 +83,7 @@ export class PluginLoader {
       });
     } else {
       // 生产模式：仅加载生产插件
-      return await this.loadProdPlugins(context);
+      return await this.loadProdPlugins(contextFactory);
     }
 
     return result;
@@ -92,7 +92,7 @@ export class PluginLoader {
   /**
    * 加载开发模式下的插件（从项目源码加载）
    */
-  private async loadDevPlugins(context: PluginContext): Promise<PluginLoadResult> {
+  private async loadDevPlugins(contextFactory: (pluginId: string) => PluginContext): Promise<PluginLoadResult> {
     logger.info("开发模式：从源码目录加载插件", { dir: this.devPluginsDir });
 
     const result: PluginLoadResult = {
@@ -181,7 +181,7 @@ export class PluginLoader {
             if (proxy.enabled && typeof pluginExport.activate === "function") {
               try {
                 logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
-                await pluginExport.activate(context);
+                await pluginExport.activate(contextFactory(proxy.id));
               } catch (e) {
                 errorHandler.error(e, `插件 ${manifest.id} 的 activate 钩子执行失败`);
                 // 钩子失败不应阻止插件加载
@@ -248,7 +248,7 @@ export class PluginLoader {
   /**
    * 加载生产模式下的插件（从安装目录加载）
    */
-  private async loadProdPlugins(context: PluginContext): Promise<PluginLoadResult> {
+  private async loadProdPlugins(contextFactory: (pluginId: string) => PluginContext): Promise<PluginLoadResult> {
     logger.info("从安装目录加载插件", { dir: this.prodPluginsDir });
 
     const result: PluginLoadResult = {
@@ -295,7 +295,7 @@ export class PluginLoader {
           // 根据插件类型加载
           if (manifest.type === "javascript") {
             // 加载 JS 插件
-            const proxy = await this.loadProdJsPlugin(manifest, pluginPath, context);
+            const proxy = await this.loadProdJsPlugin(manifest, pluginPath, contextFactory);
             if (proxy) {
               result.plugins.push(proxy);
             }
@@ -341,7 +341,7 @@ export class PluginLoader {
   private async loadProdJsPlugin(
     manifest: PluginManifest,
     pluginPath: string,
-    context: PluginContext,
+    contextFactory: (pluginId: string) => PluginContext,
   ): Promise<import("./plugin-types").PluginProxy | null> {
     if (!manifest.main) {
       throw new Error("JS 插件缺少 main 字段");
@@ -402,7 +402,7 @@ export class PluginLoader {
       if (proxy.enabled && typeof pluginExport.activate === "function") {
         try {
           logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
-          await pluginExport.activate(context);
+          await pluginExport.activate(contextFactory(proxy.id));
         } catch (e) {
           errorHandler.error(e, `插件 ${manifest.id} 的 activate 钩子执行失败`);
           // 钩子失败不应阻止插件加载

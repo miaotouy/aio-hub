@@ -7,7 +7,7 @@
 import { createConfigManager, type ConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { PluginManifest, SettingsSchema, SettingsProperty } from "./plugin-types";
+import type { PluginManifest, SettingsSchema, SettingsProperty, PluginSettingsAPI } from "./plugin-types";
 
 const logger = createModuleLogger("PluginConfigService");
 const errorHandler = createModuleErrorHandler("PluginConfigService");
@@ -222,7 +222,7 @@ class PluginConfigService {
    * 创建插件上下文中使用的配置 API
    * @param pluginId 插件 ID
    */
-  createPluginSettingsAPI(pluginId: string) {
+  createPluginSettingsAPI(pluginId: string): PluginSettingsAPI {
     // 在开发模式下，如果请求的是原始 ID 且不带 -dev 后缀，优先尝试寻找对应的 -dev 配置
     // 这解决了插件代码内部硬编码 ID 导致开发版与生产版配置冲突的问题
     let targetPluginId = pluginId;

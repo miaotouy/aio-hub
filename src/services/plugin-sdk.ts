@@ -8,8 +8,31 @@
 // 导出执行器
 export * from './executor';
 
+// 导出核心类型定义
+export type {
+  ServiceMetadata,
+  MethodMetadata,
+  MethodParameter,
+  ToolConfig,
+  ToolRegistry,
+  ToolContext,
+  StartupConfig
+} from './types';
+
+export type {
+  PluginContext,
+  PluginProxy,
+  PluginManifest,
+  PluginSettingsAPI
+} from './plugin-types';
+
 // 导出配置服务
 export { pluginConfigService } from './plugin-config.service';
+
+// 导出常用工具
+export { customMessage } from '@/utils/customMessage';
+export { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
+export { createModuleLogger, logger } from '@/utils/logger';
 
 // 导出类型定义
 export * from './plugin-types';

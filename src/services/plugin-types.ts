@@ -167,7 +167,29 @@ export interface PluginManifest {
  *
  * 该对象作为 activate 钩子的参数被注入，为插件提供与宿主应用交互的核心 API
  */
+/**
+ * 插件配置 API 接口
+ */
+export interface PluginSettingsAPI {
+  /**
+   * 获取单个配置值
+   */
+  get: <T = any>(key: string) => Promise<T | undefined>;
+  /**
+   * 获取所有配置
+   */
+  getAll: () => Promise<Record<string, any> | undefined>;
+  /**
+   * 设置单个配置值
+   */
+  set: (key: string, value: any) => Promise<void>;
+}
+
 export interface PluginContext {
+  /**
+   * 插件配置 API
+   */
+  settings: PluginSettingsAPI;
   /**
    * 聊天上下文管道 API
    */

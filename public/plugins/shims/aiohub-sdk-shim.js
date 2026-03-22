@@ -13,6 +13,11 @@ export const {
   execute,
   executeMany,
   pluginConfigService,
+  customMessage,
+  createModuleErrorHandler,
+  ErrorLevel,
+  createModuleLogger,
+  logger,
   // 如果未来有更多导出，可以在这里添加
 } = SDK;
 

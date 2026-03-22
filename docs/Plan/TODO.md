@@ -15,7 +15,14 @@
   - [x] 设计插件配置系统 (`docs/design/plugin-config-system.md`)
   - [x] 实现插件管理器与加载器 (`src/services/plugin-manager.ts`)。
   - [x] 支持第三方插件作为工具动态加载。
-  - [ ] 实现插件钩子系统 (Hook System)，允许插件干预 Chat Pipeline。
+  - [x] 现状记录与文档更新 (`docs/architecture/plugin-system-current-state.md`)。
+  - [ ] **完善钩子系统 (Hook System)**:
+    - [ ] L1: 结构化钩子 (`hooks.tap`)，支持 Waterfall/Bail/Sync。
+    - [ ] L3: Service Patch 代理，允许拦截宿主 Service 方法。
+    - [ ] L4: UI 增强 (`ui.observe`)，支持在特定 DOM 挂载插件组件。
+  - [ ] **加载与依赖优化**:
+    - [ ] 实现插件拓扑排序加载，解决依赖顺序问题。
+    - [ ] 完善 SDK 导出，将更多常用工具 (Composables/Utils) 暴露给插件。
 - [ ] **沙箱与安全性**:
   - [ ] 探索插件运行沙箱，限制文件系统和网络访问。
 

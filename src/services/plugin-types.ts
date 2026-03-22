@@ -314,9 +314,9 @@ export interface PluginProxy extends ToolRegistry {
   /** 是否为开发模式插件 */
   devMode: boolean;
   /** 启用插件 */
-  enable(): Promise<void>;
+  enable(context: PluginContext): Promise<void>;
   /** 禁用插件 */
-  disable(): void;
+  disable(): Promise<void>;
 }
 
 // ==================== 插件加载与管理 ====================

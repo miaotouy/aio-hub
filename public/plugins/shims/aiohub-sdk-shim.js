@@ -15,6 +15,7 @@ export const {
   pluginConfigService,
   pluginStateService,
   startupManager,
+  pluginManager,
   customMessage,
   createModuleErrorHandler,
   ErrorLevel,

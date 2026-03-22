@@ -493,7 +493,7 @@ class PluginManager {
       throw new Error("插件管理器未初始化");
     }
 
-    const result = await this.loader.loadAll((id) => this.createPluginContext(id));
+    const result = await this.loader.loadAll();
 
     // 注册加载成功的插件到工具注册表
     if (result.plugins.length > 0) {
@@ -509,18 +509,27 @@ class PluginManager {
           );
 
           // 初始化响应式状态
+          const isBroken = (plugin as any).isBroken || false;
+          
+          // 根据持久化状态决定是否激活插件
+          const shouldEnable = await pluginStateService.isEnabled(plugin.id);
+          if (shouldEnable && !isBroken) {
+            logger.info(`正在激活插件: ${plugin.id}`);
+            await plugin.enable(this.createPluginContext(plugin.id));
+          }
+
           this.pluginStates[plugin.id] = {
             enabled: plugin.enabled,
-            isBroken: (plugin as any).isBroken || false
+            isBroken
           };
 
           // 只为启用的且未损坏的插件注册 UI
-          if (plugin.enabled && !(plugin as any).isBroken) {
+          if (plugin.enabled && !isBroken) {
             await registerPluginUi(plugin);
           } else {
             logger.info(`跳过禁用或损坏插件的UI注册: ${plugin.id}`, {
               enabled: plugin.enabled,
-              isBroken: (plugin as any).isBroken
+              isBroken
             });
           }
         } catch (error) {
@@ -560,7 +569,7 @@ class PluginManager {
     // 如果是远程更新，或者状态不一致，同步插件实例的启用状态
     if (plugin && plugin.enabled !== enabled) {
       if (enabled) {
-        plugin.enable();
+        plugin.enable(this.createPluginContext(pluginId));
       } else {
         plugin.disable();
       }
@@ -682,7 +691,7 @@ class PluginManager {
 
       // 重新加载插件
       if (this.loader) {
-        const loadResult = await this.loader.loadAll((id) => this.createPluginContext(id));
+        const loadResult = await this.loader.loadAll();
 
         // 注册新加载的插件
         if (loadResult.plugins.length > 0) {
@@ -696,6 +705,12 @@ class PluginManager {
                 plugin.installPath,
                 plugin.manifest.icon
               );
+
+              // 激活插件
+              const shouldEnable = await pluginStateService.isEnabled(plugin.id);
+              if (shouldEnable) {
+                await plugin.enable(this.createPluginContext(plugin.id));
+              }
 
               // 只为启用的插件注册 UI
               if (plugin.enabled) {

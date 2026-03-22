@@ -27,6 +27,7 @@ export type {
 export { pluginConfigService } from './plugin-config.service';
 export { pluginStateService } from './plugin-state.service';
 export { startupManager } from './startup-manager';
+export { pluginManager } from './plugin-manager';
 
 // 导出执行器服务
 import { execute, executeMany } from './executor';

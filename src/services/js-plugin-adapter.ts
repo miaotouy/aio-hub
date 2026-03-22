@@ -44,22 +44,35 @@ export class JsPluginAdapter implements PluginProxy {
   }
 
   /**
-   * 启用插件 - 加载插件模块
+   * 启用插件 - 激活插件并设置状态
    */
-  async enable(): Promise<void> {
+  async enable(context: any): Promise<void> {
     if (this.enabled) {
       logger.warn(`插件 ${this.id} 已经启用`);
       return;
     }
 
     logger.info(`启用 JS 插件: ${this.id}`);
+
+    // 1. 调用 activate 钩子
+    if (this.pluginExport && typeof this.pluginExport.activate === "function") {
+      try {
+        logger.info(`调用插件 ${this.id} 的 activate 钩子`);
+        await this.pluginExport.activate(context);
+      } catch (error) {
+        errorHandler.error(error, `插件 ${this.id} 的 activate 钩子执行失败`);
+        // 如果激活失败，我们依然标记为启用吗？通常不应该。
+        // 但为了容错，目前仅记录错误。
+      }
+    }
+
+    // 2. 更新状态
     this.enabled = true;
     pluginManager.updateRuntimeState(this.id, true);
-    // 注意：activate 钩子在加载时调用，而不是启用时
   }
 
   /**
-   * 禁用插件 - 卸载插件模块
+   * 禁用插件 - 停用插件并清理导出对象
    */
   async disable(): Promise<void> {
     if (!this.enabled) {
@@ -69,7 +82,7 @@ export class JsPluginAdapter implements PluginProxy {
 
     logger.info(`禁用 JS 插件: ${this.id}`);
 
-    // 调用 deactivate 钩子
+    // 1. 调用 deactivate 钩子
     if (this.pluginExport && typeof this.pluginExport.deactivate === "function") {
       try {
         logger.info(`调用插件 ${this.id} 的 deactivate 钩子`);
@@ -79,6 +92,9 @@ export class JsPluginAdapter implements PluginProxy {
       }
     }
 
+    // 2. 清理状态
+    // 注意：如果是开发模式，我们可能保留 pluginExport 以便热更新
+    // 但为了确保“卸载完全”，我们还是清理它，由 loader 重新设置
     this.pluginExport = null;
     this.enabled = false;
     pluginManager.updateRuntimeState(this.id, false);
@@ -201,20 +217,9 @@ export class JsPluginAdapter implements PluginProxy {
     logger.debug(`调用插件方法: ${this.id}.${methodName}`, { params });
 
     try {
-      // 创建插件上下文，注入配置 API
-      // 注意：使用 this.id 而不是 manifest.id
-      const pluginContext = {
-        settings: pluginConfigService.createPluginSettingsAPI(this.id),
-      };
-
-      // 第一个参数：业务参数（注入 context 配置访问）
-      const finalParams = {
-        ...(params || {}),
-        context: pluginContext,
-      };
-
-      // 第二个参数：ToolContext（如果存在，传递给插件方法）
-      return method(finalParams, toolContext);
+      // 这里的 params 应该是纯粹的业务参数
+      // 插件应该在 activate 时保存自己的 context，而不是依赖这里注入
+      return method(params, toolContext);
     } catch (error) {
       errorHandler.error(error, '插件方法调用失败', { context: { pluginId: this.id, methodName } });
       throw error;

@@ -58,9 +58,8 @@ export class PluginLoader {
 
   /**
    * 加载所有插件
-   * @param contextFactory 插件上下文工厂函数，为每个插件创建独立的上下文
    */
-  async loadAll(contextFactory: (pluginId: string) => PluginContext): Promise<PluginLoadResult> {
+  async loadAll(): Promise<PluginLoadResult> {
     logger.info("开始加载所有插件");
 
     const result: PluginLoadResult = {
@@ -70,9 +69,8 @@ export class PluginLoader {
 
     // 开发模式：同时加载开发和生产插件
     if (this.devMode) {
-      const devResult = await this.loadDevPlugins(contextFactory);
-      // 生产插件也需要上下文
-      const prodResult = await this.loadProdPlugins(contextFactory);
+      const devResult = await this.loadDevPlugins();
+      const prodResult = await this.loadProdPlugins();
 
       result.plugins.push(...devResult.plugins, ...prodResult.plugins);
       result.failed.push(...devResult.failed, ...prodResult.failed);
@@ -94,7 +92,7 @@ export class PluginLoader {
   /**
    * 加载开发模式下的插件（从项目源码加载）
    */
-  private async loadDevPlugins(contextFactory: (pluginId: string) => PluginContext): Promise<PluginLoadResult> {
+  private async loadDevPlugins(): Promise<PluginLoadResult> {
     logger.info("开发模式：从源码目录加载插件", { dir: this.devPluginsDir });
 
     const result: PluginLoadResult = {
@@ -178,17 +176,6 @@ export class PluginLoader {
 
             // 设置插件导出对象
             (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
-
-            // 如果插件已启用，则调用 activate 钩子
-            if (proxy.enabled && typeof pluginExport.activate === "function") {
-              try {
-                logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
-                await pluginExport.activate(contextFactory(proxy.id));
-              } catch (e) {
-                errorHandler.error(e, `插件 ${manifest.id} 的 activate 钩子执行失败`);
-                // 钩子失败不应阻止插件加载
-              }
-            }
           } else if (manifest.type === "sidecar") {
             // 加载 Sidecar 插件
             proxy = createSidecarPluginProxy(manifest, devInstallPath, true);
@@ -204,7 +191,9 @@ export class PluginLoader {
           // 注意：使用 proxy.id (可能带 -dev 后缀) 而不是 manifest.id
           const shouldEnable = await pluginStateService.isEnabled(proxy.id);
           if (shouldEnable) {
-            await proxy.enable();
+            // 注意：这里我们不再自动在 loader 中 enable 插件
+            // 而是让管理层 (PluginManager) 统一处理激活逻辑
+            // 这样可以确保 context 的创建时机和注入逻辑一致
           } else {
             logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
           }
@@ -250,7 +239,7 @@ export class PluginLoader {
   /**
    * 加载生产模式下的插件（从安装目录加载）
    */
-  private async loadProdPlugins(contextFactory: (pluginId: string) => PluginContext): Promise<PluginLoadResult> {
+  private async loadProdPlugins(): Promise<PluginLoadResult> {
     logger.info("从安装目录加载插件", { dir: this.prodPluginsDir });
 
     const result: PluginLoadResult = {
@@ -297,7 +286,7 @@ export class PluginLoader {
           // 根据插件类型加载
           if (manifest.type === "javascript") {
             // 加载 JS 插件
-            const proxy = await this.loadProdJsPlugin(manifest, pluginPath, contextFactory);
+            const proxy = await this.loadProdJsPlugin(manifest, pluginPath);
             if (proxy) {
               result.plugins.push(proxy);
             }
@@ -343,7 +332,6 @@ export class PluginLoader {
   private async loadProdJsPlugin(
     manifest: PluginManifest,
     pluginPath: string,
-    contextFactory: (pluginId: string) => PluginContext,
   ): Promise<import("./plugin-types").PluginProxy | null> {
     try {
       if (!manifest.main) {
@@ -401,23 +389,11 @@ export class PluginLoader {
       (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
 
       // 根据持久化状态决定是否启用插件
-      // 注意：使用 proxy.id (可能带 -dev 后缀) 而不是 manifest.id
       const shouldEnable = await pluginStateService.isEnabled(proxy.id);
       if (shouldEnable) {
-        await proxy.enable();
+        // 同样，交给 PluginManager 统一 enable
       } else {
         logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
-      }
-
-      // 如果插件已启用，则调用 activate 钩子
-      if (proxy.enabled && typeof pluginExport.activate === "function") {
-        try {
-          logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
-          await pluginExport.activate(contextFactory(proxy.id));
-        } catch (e) {
-          errorHandler.error(e, `插件 ${manifest.id} 的 activate 钩子执行失败`);
-          // 钩子失败不应阻止插件加载
-        }
       }
 
       // 初始化插件配置

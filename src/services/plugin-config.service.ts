@@ -1,16 +1,16 @@
 /**
  * 插件配置服务
- * 
+ *
  * 统一管理所有插件的配置，提供配置的加载、保存、迁移功能
  */
 
-import { createConfigManager, type ConfigManager } from '@/utils/configManager';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import type { PluginManifest, SettingsSchema, SettingsProperty } from './plugin-types';
+import { createConfigManager, type ConfigManager } from "@/utils/configManager";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import type { PluginManifest, SettingsSchema, SettingsProperty } from "./plugin-types";
 
-const logger = createModuleLogger('PluginConfigService');
-const errorHandler = createModuleErrorHandler('PluginConfigService');
+const logger = createModuleLogger("PluginConfigService");
+const errorHandler = createModuleErrorHandler("PluginConfigService");
 
 /**
  * 插件配置项
@@ -32,9 +32,11 @@ class PluginConfigService {
   /**
    * 初始化插件配置
    * @param manifest 插件清单
+   * @param customId 可选的自定义 ID（例如开发模式下带 -dev 后缀的 ID）
    */
-  async initPluginConfig(manifest: PluginManifest): Promise<void> {
-    const { id, settingsSchema } = manifest;
+  async initPluginConfig(manifest: PluginManifest, customId?: string): Promise<void> {
+    const id = customId || manifest.id;
+    const { settingsSchema } = manifest;
 
     // 如果插件没有配置模式，则跳过
     if (!settingsSchema) {
@@ -56,10 +58,10 @@ class PluginConfigService {
       // 从 schema 中提取默认值
       for (const [key, property] of Object.entries(settingsSchema.properties)) {
         // 兼容新旧格式
-        if ('defaultValue' in property) {
+        if ("defaultValue" in property) {
           // SettingItem 格式
           config[key] = property.defaultValue;
-        } else if ('default' in property) {
+        } else if ("default" in property) {
           // SettingsProperty 格式
           config[key] = (property as SettingsProperty).default;
         }
@@ -71,7 +73,7 @@ class PluginConfigService {
     // 创建配置管理器
     const configManager = createConfigManager<PluginConfig>({
       moduleName: `plugins-config/${id}`,
-      fileName: 'config.json',
+      fileName: "config.json",
       version: settingsSchema.version,
       createDefault,
       mergeConfig: (defaultConfig, loadedConfig) => {
@@ -157,7 +159,7 @@ class PluginConfigService {
 
     // 验证值类型（仅对旧格式的 SettingsProperty 进行类型检查）
     const property = schema.properties[key];
-    if ('type' in property) {
+    if ("type" in property) {
       // SettingsProperty 格式，进行类型检查
       const oldProp = property as SettingsProperty;
       const valueType = typeof value;
@@ -169,7 +171,7 @@ class PluginConfigService {
             key,
             expectedType: oldProp.type,
             actualType: valueType,
-          }
+          },
         });
         throw err;
       }
@@ -221,26 +223,36 @@ class PluginConfigService {
    * @param pluginId 插件 ID
    */
   createPluginSettingsAPI(pluginId: string) {
+    // 在开发模式下，如果请求的是原始 ID 且不带 -dev 后缀，优先尝试寻找对应的 -dev 配置
+    // 这解决了插件代码内部硬编码 ID 导致开发版与生产版配置冲突的问题
+    let targetPluginId = pluginId;
+    if (import.meta.env.DEV && !pluginId.endsWith("-dev")) {
+      const devPluginId = `${pluginId}-dev`;
+      if (this.configManagers.has(devPluginId)) {
+        targetPluginId = devPluginId;
+        logger.debug(`配置 API 重定向: ${pluginId} -> ${devPluginId}`);
+      }
+    }
+
     return {
       /**
        * 获取单个配置值
        */
       get: async <T = any>(key: string): Promise<T | undefined> => {
-        return this.getValue<T>(pluginId, key);
+        return this.getValue<T>(targetPluginId, key);
       },
-
       /**
        * 获取所有配置
        */
       getAll: async (): Promise<Record<string, any> | undefined> => {
-        return this.getAll(pluginId);
+        return this.getAll(targetPluginId);
       },
 
       /**
        * 设置单个配置值
        */
       set: async (key: string, value: any): Promise<void> => {
-        return this.setValue(pluginId, key, value);
+        return this.setValue(targetPluginId, key, value);
       },
     };
   }

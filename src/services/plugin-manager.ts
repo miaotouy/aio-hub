@@ -9,7 +9,7 @@ import { createPluginLoader, PluginLoader } from "./plugin-loader";
 import type { PluginProxy } from "./plugin-types";
 import { useToolsStore } from "@/stores/tools";
 import type { ToolConfig } from "@/services/types";
-import { markRaw, h, type Component } from "vue";
+import { markRaw, h, ref, type Component } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginStateService } from "./plugin-state.service";
@@ -91,8 +91,15 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
     if (!iconUrl) {
       // 默认插件图标
       return markRaw({
-        template:
-          '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>',
+        setup() {
+          return () =>
+            h("svg", { viewBox: "0 0 24 24", style: "width: 1em; height: 1em;" }, [
+              h("path", {
+                fill: "currentColor",
+                d: "M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z",
+              }),
+            ]);
+        },
       });
     }
 
@@ -100,36 +107,47 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
     if (isEmoji(iconUrl)) {
       return markRaw({
         setup() {
-          // 移除硬编码的 font-size，让 CSS 来控制
-          return () => h("span", iconUrl);
+          return () => h("span", { style: "line-height: 1;" }, iconUrl);
         },
       });
     }
 
-    // 判断是 SVG 还是图片
-    if (iconConfig && iconConfig.toLowerCase().endsWith(".svg")) {
-      // SVG 图标：直接嵌入
-      return markRaw({
-        setup() {
-          return () =>
-            h("img", {
-              src: iconUrl,
-              style: "width: 1em; height: 1em; display: block;",
-            });
-        },
-      });
-    } else {
-      // 其他图片格式
-      return markRaw({
-        setup() {
-          return () =>
-            h("img", {
-              src: iconUrl,
-              style: "width: 1.2em; height: 1.2em; border-radius: 2px; display: block;",
-            });
-        },
-      });
-    }
+    // 对于图片（SVG 或普通图片），我们需要处理本地路径加载问题
+    // 生产模式下，iconUrl 可能是 C:\... 绝对路径，直接用 img 标签会报错
+    return markRaw({
+      setup() {
+        const processedSrc = ref("");
+
+        // 异步转换路径
+        const init = async () => {
+          // 判断是否为本地绝对路径 (Windows)
+          const isLocalPath = /^[a-zA-Z]:[\\/]/.test(iconUrl) || iconUrl.startsWith("\\\\");
+          if (isLocalPath) {
+            const { convertFileSrc } = await import("@tauri-apps/api/core");
+            processedSrc.value = convertFileSrc(iconUrl);
+          } else {
+            processedSrc.value = iconUrl;
+          }
+        };
+
+        init();
+
+        return () => {
+          if (!processedSrc.value) return h("div", { style: "width: 1em; height: 1em;" });
+
+          return h("img", {
+            src: processedSrc.value,
+            style: {
+              width: "1em",
+              height: "1em",
+              display: "block",
+              objectFit: "contain",
+              borderRadius: "2px",
+            },
+          });
+        };
+      },
+    });
   } catch (error) {
     errorHandler.error(error, "创建插件图标失败", {
       context: { pluginPath, iconConfig },
@@ -272,7 +290,7 @@ async function registerPluginUi(plugin: PluginProxy): Promise<void> {
 /**
  * 从工具store移除插件UI
  */
-function unregisterPluginUi(pluginId: string): void {
+export function unregisterPluginUi(pluginId: string): void {
   const toolsStore = useToolsStore();
   // 注意：这里的 pluginId 应该是带后缀的（如果是开发版）
   const toolPath = `/plugin-${pluginId}`;

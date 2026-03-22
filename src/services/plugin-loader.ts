@@ -209,13 +209,14 @@ export class PluginLoader {
 
           // 初始化插件配置
           try {
-            await pluginConfigService.initPluginConfig(manifest);
+            // 使用 proxy.id (带 -dev 后缀) 初始化配置，确保开发版配置独立
+            await pluginConfigService.initPluginConfig(manifest, proxy.id);
           } catch (error) {
             logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
             // 配置初始化失败不应阻止插件加载
           }
 
-          logger.info(`成功加载开发插件: ${manifest.id}`, {
+          logger.info(`成功加载开发插件: ${proxy.id}`, {
             name: manifest.name,
             version: manifest.version,
             devMode: true,
@@ -410,13 +411,13 @@ export class PluginLoader {
 
       // 初始化插件配置
       try {
-        await pluginConfigService.initPluginConfig(manifest);
+        await pluginConfigService.initPluginConfig(manifest, proxy.id);
       } catch (error) {
         logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
         // 配置初始化失败不应阻止插件加载
       }
 
-      logger.info(`成功加载生产插件: ${manifest.id}`, {
+      logger.info(`成功加载生产插件: ${proxy.id}`, {
         name: manifest.name,
         version: manifest.version,
         devMode: false,
@@ -455,13 +456,13 @@ export class PluginLoader {
 
       // 初始化插件配置
       try {
-        await pluginConfigService.initPluginConfig(manifest);
+        await pluginConfigService.initPluginConfig(manifest, proxy.id);
       } catch (error) {
         logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
         // 配置初始化失败不应阻止插件加载
       }
 
-      logger.info(`成功加载 Sidecar 插件: ${manifest.id}`, {
+      logger.info(`成功加载 Sidecar 插件: ${proxy.id}`, {
         name: manifest.name,
         version: manifest.version,
         devMode: false,
@@ -495,13 +496,13 @@ export class PluginLoader {
 
       // 初始化插件配置
       try {
-        await pluginConfigService.initPluginConfig(manifest);
+        await pluginConfigService.initPluginConfig(manifest, proxy.id);
       } catch (error) {
         logger.warn(`插件配置初始化失败: ${manifest.id}`, { error });
         // 配置初始化失败不应阻止插件加载
       }
 
-      logger.info(`成功加载原生插件: ${manifest.id}`, {
+      logger.info(`成功加载原生插件: ${proxy.id}`, {
         name: manifest.name,
         version: manifest.version,
         devMode: false,

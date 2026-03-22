@@ -72,7 +72,7 @@ async function loadReadme() {
     if (props.plugin.devMode) {
       // 开发模式：使用 fetch 从 Vite 开发服务器读取
       const readmePath = props.plugin.installPath + '/README.md';
-      logger.debug('开发模式：从 Vite 加载 README', { path: readmePath });
+      logger.debug('开发模式：从 Vite 加载 README', { pluginId: props.plugin.id, path: readmePath });
       
       try {
         const response = await fetch(readmePath);
@@ -93,7 +93,7 @@ async function loadReadme() {
     } else {
       // 生产模式：使用 Tauri fs API 读取
       const readmePath = await path.join(props.plugin.installPath, 'README.md');
-      logger.debug('生产模式：从文件系统加载 README', { path: readmePath });
+      logger.debug('生产模式：从文件系统加载 README', { pluginId: props.plugin.id, path: readmePath });
       
       // 检查文件是否存在
       const fileExists = await exists(readmePath);
@@ -113,7 +113,7 @@ async function loadReadme() {
     // 使用 DOMPurify 净化 HTML
     readmeHtml.value = DOMPurify.sanitize(rendered);
     
-    logger.info('README 加载成功');
+    logger.info('README 加载成功', { pluginId: props.plugin.id });
   } catch (error) {
     errorHandler.handle(error as Error, { userMessage: '加载 README 失败', showToUser: false });
     readmeError.value = error instanceof Error ? error.message : '未知错误';

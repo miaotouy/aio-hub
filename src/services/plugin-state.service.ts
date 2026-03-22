@@ -84,7 +84,8 @@ class PluginStateService {
    * @param enabled 是否启用
    */
   async setEnabled(pluginId: string, enabled: boolean): Promise<void> {
-    logger.info(`设置插件启用状态`, { pluginId, enabled });
+    const configPath = await this.configManager.getConfigPath();
+    logger.info(`设置插件启用状态`, { pluginId, enabled, configPath });
     
     const config = await this.configManager.load();
     config.enabledStates[pluginId] = enabled;

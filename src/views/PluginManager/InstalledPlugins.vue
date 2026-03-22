@@ -124,14 +124,13 @@ async function togglePlugin(plugin: PluginProxy) {
       // 禁用插件
       plugin.disable();
       // 保存禁用状态
-      await pluginStateService.setEnabled(plugin.manifest.id, false);
+      // 注意：使用 plugin.id (带 -dev 后缀) 而不是 manifest.id
+      await pluginStateService.setEnabled(plugin.id, false);
       // 移除插件 UI（如果有）
       if (plugin.manifest.ui) {
-        const { useToolsStore } = await import('@/stores/tools');
-        const toolsStore = useToolsStore();
-        const toolPath = `/plugin-${plugin.manifest.id}`;
-        toolsStore.removeTool(toolPath);
-        logger.info('已移除插件 UI', { pluginId: plugin.id, toolPath });
+        const { unregisterPluginUi } = await import('@/services/plugin-manager');
+        unregisterPluginUi(plugin.id);
+        logger.info('已移除插件 UI', { pluginId: plugin.id });
       }
       customMessage.success(`已禁用插件: ${plugin.name}`);
       logger.info('插件已禁用', { pluginId: plugin.id });
@@ -139,7 +138,8 @@ async function togglePlugin(plugin: PluginProxy) {
       // 启用插件
       await plugin.enable();
       // 保存启用状态
-      await pluginStateService.setEnabled(plugin.manifest.id, true);
+      // 注意：使用 plugin.id (带 -dev 后缀) 而不是 manifest.id
+      await pluginStateService.setEnabled(plugin.id, true);
       // 重新注册插件 UI（如果有）
       if (plugin.manifest.ui) {
         try {

@@ -98,28 +98,28 @@ export function initDynamicRoutes() {
   toolsStore.tools.forEach(addToolRoute);
 
   // 监听工具列表变化，动态更新路由
+  // 注意：Vue 3 监听数组变更时，newTools 和 oldTools 可能指向同一个引用
+  // 我们通过跟踪已添加的路径集合来确保路由同步
   watch(
-    () => toolsStore.tools,
-    (newTools, oldTools) => {
-      // 找出新增的工具
-      const oldPaths = new Set(oldTools?.map(t => t.path) || []);
+    () => [...toolsStore.tools],
+    (newTools) => {
       const newPaths = new Set(newTools.map(t => t.path));
       
-      // 添加新工具的路由
+      // 1. 移除不再需要的路由
+      for (const path of Array.from(addedRoutes)) {
+        if (!newPaths.has(path)) {
+          removeToolRoute(path);
+        }
+      }
+
+      // 2. 添加新增的路由
       newTools.forEach(tool => {
-        if (!oldPaths.has(tool.path)) {
+        if (!addedRoutes.has(tool.path)) {
           addToolRoute(tool);
         }
       });
-      
-      // 移除已删除工具的路由
-      oldTools?.forEach(tool => {
-        if (!newPaths.has(tool.path)) {
-          removeToolRoute(tool.path);
-        }
-      });
     },
-    { deep: true }
+    { immediate: true }
   );
 }
 

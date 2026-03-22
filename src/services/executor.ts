@@ -69,24 +69,35 @@ export async function execute<TData = any>(
 
   try {
     // 1. 查找工具实例
-    // 开发模式下，如果找不到原始 ID 的工具，自动尝试 -dev 后缀
     let toolInstance;
-    try {
-      toolInstance = toolRegistryManager.getRegistry(serviceId);
-    } catch (error) {
-      // 在开发模式下，尝试添加 -dev 后缀
-      if (import.meta.env.DEV) {
-        const devServiceId = `${serviceId}-dev`;
-        logger.debug(`工具 "${serviceId}" 未找到，尝试开发模式 ID: ${devServiceId}`);
-        try {
-          toolInstance = toolRegistryManager.getRegistry(devServiceId);
-          logger.info(`使用开发模式工具: ${devServiceId}`);
-        } catch {
-          // 仍然找不到，抛出原始错误
+
+    // 在开发模式下，如果请求的是原始 ID 且不带 -dev 后缀，优先尝试寻找对应的 -dev 版本
+    // 这样可以确保在同时安装了 dev 和 prod 版本时，开发环境优先使用 dev 版本
+    if (import.meta.env.DEV && !serviceId.endsWith("-dev")) {
+      const devServiceId = `${serviceId}-dev`;
+      if (toolRegistryManager.hasTool(devServiceId)) {
+        logger.info(`开发模式下优先使用开发版工具: ${devServiceId}`);
+        toolInstance = toolRegistryManager.getRegistry(devServiceId);
+      }
+    }
+
+    // 如果没找到 dev 版本，或者不处于开发模式，按正常逻辑查找
+    if (!toolInstance) {
+      try {
+        toolInstance = toolRegistryManager.getRegistry(serviceId);
+      } catch (error) {
+        // 兜底逻辑：如果原始 ID 没找到，但在开发模式下，尝试添加 -dev 后缀（针对那些没在 if 里命中的情况）
+        if (import.meta.env.DEV && !serviceId.endsWith("-dev")) {
+          const devServiceId = `${serviceId}-dev`;
+          try {
+            toolInstance = toolRegistryManager.getRegistry(devServiceId);
+            logger.info(`兜底加载开发模式工具: ${devServiceId}`);
+          } catch {
+            throw error;
+          }
+        } else {
           throw error;
         }
-      } else {
-        throw error;
       }
     }
     

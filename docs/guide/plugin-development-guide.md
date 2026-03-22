@@ -76,23 +76,52 @@ plugins/
 
 `index.ts` 是插件所有逻辑的唯一入口。你必须默认导出一个包含所有方法和生命周期钩子的对象。
 
+#### 模块导入规范
+
+AIO Hub 建立了 ESM 模块共享机制。在插件中，你应该通过标准的 `import` 语句访问主应用提供的核心库，而无需将其打包进插件。
+
+```typescript
+// 导入 Vue 核心 API
+import { ref, onMounted } from "vue";
+
+// 导入 AIO Hub SDK (包含常用工具和 API 定义)
+import { pluginManager, customMessage } from "aiohub-sdk";
+
+// 导入类型定义 (仅用于编译时)
+import type { PluginContext, ServiceMetadata } from "aiohub-sdk";
+```
+
+> **注意**: 在 `vite.config.ts` 中，你需要将这些模块配置为 `external`（详见 UI 开发指南）。
+
 #### 生命周期钩子
 
-- **`activate(context: PluginContext)`**: (可选) 当插件被加载并启用时调用。
-- **`deactivate()`**: (可选) 当插件被禁用或卸载时调用。
+- **`activate(context: PluginContext)`**: (可选) 当插件被加载并启用时调用。这是插件初始化、注册监听器或处理器的理想位置。
+- **`deactivate()`**: (可选) 当插件被禁用或卸载时调用。用于清理资源，例如注销监听器。
+
+#### 插件上下文 (PluginContext)
+
+`activate` 钩子接收的 `context` 对象提供了与宿主应用交互的核心能力：
+
+- **`context.settings`**: 插件配置 API。
+  - `get(key)`: 获取配置项。
+  - `set(key, value)`: 保存配置项。
+- **`context.storage`**: 插件专属文件存储 API。数据存储在用户目录下的 `plugins-data/{pluginId}` 中。
+  - `readText(path)` / `writeText(path, data)`: 读写文本文件。
+  - `readBinary(path)` / `writeBinary(path, data)`: 读写二进制文件。
+  - `exists(path)`: 检查文件是否存在。
+  - `remove(path)`: 删除文件或目录。
+- **`context.chat`**: 聊天扩展 API。
+  - `registerProcessor(processor)`: 注册聊天上下文处理器。
 
 #### 暴露方法给 Agent (AI 调用)
 
 为了让 Agent (内置 Chat) 能够发现并调用你的插件方法，你需要提供元数据声明。
 
 **JS 插件推荐方式：在 `index.ts` 中导出 `getMetadata()`**
-这种方式最灵活，且能避免在 `manifest.json` 中重复编写元数据。
 
 ```typescript
-import type { PluginContext } from "@/services/plugin-types";
-import type { ServiceMetadata } from "@/services/types";
-
-async function activate(context: PluginContext) { ... }
+import { ref } from "vue";
+import type { PluginContext, ServiceMetadata } from "aiohub-sdk";
 
 // 实际业务逻辑方法
 async function addTimestamp(params: { text: string }): Promise<string> {
@@ -107,10 +136,8 @@ function getMetadata(): ServiceMetadata {
         name: "addTimestamp",
         displayName: "添加时间戳",
         description: "为输入的文本添加当前 ISO 格式的时间戳前缀",
-        agentCallable: true, // 必须设为 true 才能被 AI 发现
-        parameters: [
-          { name: "text", type: "string", description: "目标文本", required: true },
-        ],
+        agentCallable: true,
+        parameters: [{ name: "text", type: "string", description: "目标文本", required: true }],
         returnType: "Promise<string>",
       },
     ],
@@ -118,7 +145,9 @@ function getMetadata(): ServiceMetadata {
 }
 
 export default {
-  activate,
+  activate: (context: PluginContext) => {
+    console.log("插件已激活");
+  },
   getMetadata,
   addTimestamp,
 };
@@ -135,9 +164,7 @@ export default {
       "name": "calculate",
       "description": "执行高性能计算",
       "agentCallable": true,
-      "parameters": [
-        { "name": "input", "type": "number", "required": true }
-      ]
+      "parameters": [{ "name": "input", "type": "number", "required": true }]
     }
   ]
 }
@@ -385,17 +412,17 @@ if (result.success) {
 
 - **JavaScript 插件**: 日志会输出到浏览器控制台。
 - **原生/Sidecar 插件**: 日志会输出到 AIO Hub 后端的控制台。
-- 推荐使用 `logger` 模块记录日志：
+- 推荐使用 `aiohub-sdk` 提供的 `logger` 记录日志：
 
 ```typescript
-import { createModuleLogger } from "@/utils/logger";
+import { createModuleLogger } from "aiohub-sdk";
 
 const logger = createModuleLogger("plugins/my-plugin");
 
-async function myMethod({ input }: MyMethodParams): Promise<string> {
+async function myMethod({ input }: any): Promise<string> {
   logger.info("处理输入", { input });
   // ...
-  return result;
+  return "result";
 }
 ```
 
@@ -425,8 +452,8 @@ export function getMetadata(): ServiceMetadata {
         agentCallable: true,
         executionMode: "async", // 标记为异步方法
         asyncConfig: {
-          hasProgress: true,      // 支持进度汇报
-          cancellable: true,      // 支持取消
+          hasProgress: true, // 支持进度汇报
+          cancellable: true, // 支持取消
           estimatedDuration: 30000, // 预估耗时 30 秒（毫秒）
         },
         parameters: [
@@ -456,10 +483,7 @@ export interface ToolContext {
 **完整示例**：
 
 ```typescript
-async function processLargeFile(
-  args: { filePath: string; options?: any },
-  context?: ToolContext
-) {
+async function processLargeFile(args: { filePath: string; options?: any }, context?: ToolContext) {
   // 如果没有上下文，说明是普通同步调用
   const isAsync = context?.isAsync ?? false;
 
@@ -467,16 +491,16 @@ async function processLargeFile(
     // 步骤 1: 读取文件
     context?.reportStatus("正在读取文件...", 0);
     const fileContent = await readFile(params.filePath);
-    
+
     // 检查是否被取消
     if (context?.signal?.aborted) throw new Error("AbortError");
-    
+
     // 步骤 2: 解析数据
     context?.reportStatus("正在解析数据...", 30);
     const parsedData = await parseData(fileContent);
-    
+
     if (context?.signal?.aborted) throw new Error("AbortError");
-    
+
     // 步骤 3: 处理数据（模拟耗时操作）
     context?.reportStatus("正在处理数据...", 50);
     for (let i = 0; i < 100; i++) {
@@ -487,14 +511,13 @@ async function processLargeFile(
       }
       await processChunk(parsedData[i]);
     }
-    
+
     // 步骤 4: 保存结果
     context?.reportStatus("正在保存结果...", 95);
     const result = await saveResult(parsedData);
-    
+
     context?.reportStatus("处理完成", 100);
     return result;
-    
   } catch (error) {
     // AbortError 会被系统自动处理，无需特殊处理
     if (error.name === "AbortError") {
@@ -570,16 +593,18 @@ async function fetchData({ url }: FetchParams): Promise<Data> {
 
 ### 编译与打包
 
-- **JavaScript 插件**: 生产环境下需要将 TypeScript 编译为 JavaScript。
+- **JavaScript 插件**: 生产环境下需要将 TypeScript 编译为 JavaScript (ESM 格式)。推荐使用 Vite 的库模式进行构建。
 - **原生/Sidecar 插件**: 需要提供预编译好的二进制文件。
 
-所有插件最终都应打包为 `.zip` 文件进行分发：
+所有插件最终都应打包为 `.zip` 文件进行分发。一个典型的 JS 插件包结构如下：
 
 ```
 my-plugin.zip
 ├── manifest.json
-├── index.js      (JS 插件)
-├── my_plugin.dll (原生/Sidecar 插件)
+├── index.js      (编译后的插件逻辑)
+├── MyUI.js       (编译后的 UI 组件)
+├── style.css     (可选，UI 样式表)
+├── icon.svg      (可选，插件图标)
 └── README.md
 ```
 

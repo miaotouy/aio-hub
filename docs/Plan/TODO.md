@@ -15,6 +15,9 @@
   - [x] 设计插件配置系统 (`docs/design/plugin-config-system.md`)
   - [x] 实现插件管理器与加载器 (`src/services/plugin-manager.ts`)。
   - [x] 支持第三方插件作为工具动态加载。
+  - [x] ESM 模块共享 (通过 importmap 共享 vue, aiohub-sdk, aiohub-ui)。
+  - [x] 插件专属存储 API (context.storage)。
+  - [x] 插件开发模式增强 (支持 -dev 后缀，配置与数据隔离)。
   - [x] 现状记录与文档更新 (`docs/architecture/plugin-system-current-state.md`)。
   - [ ] **完善钩子系统 (Hook System)**:
     - [ ] L1: 结构化钩子 (`hooks.tap`)，支持 Waterfall/Bail/Sync。

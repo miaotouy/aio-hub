@@ -133,7 +133,7 @@ Vite 会自动处理组件之间的依赖关系，无论你的项目结构如何
   <div class="container">
     <InfoCard title="🎉 Hello World 插件">
       <el-input v-model="name" placeholder="输入你的名字" />
-      <el-button @click="doGreet" :loading="isLoading">打招呼</el-button>
+      <el-button @click="doGreet" :loading="isLoading" type="primary">打招呼</el-button>
       <p v-if="greeting" class="greeting">{{ greeting }}</p>
     </InfoCard>
   </div>
@@ -141,10 +141,12 @@ Vite 会自动处理组件之间的依赖关系，无论你的项目结构如何
 
 <script setup lang="ts">
 import { ref } from "vue";
+// 导入 UI 组件库（插件需自行安装并打包这些依赖）
 import { ElInput, ElButton } from "element-plus";
-import InfoCard from "@/components/common/InfoCard.vue"; // 主应用提供的封装组件
-import { execute } from "@/services/executor";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
+// 从 aiohub-ui 导入主应用封装的通用组件（由主应用通过 importmap 提供，无需打包）
+import { InfoCard } from "aiohub-ui";
+// 从 aiohub-sdk 导入工具函数（由主应用通过 importmap 提供，无需打包）
+import { execute, customMessage, createModuleErrorHandler } from "aiohub-sdk";
 
 const errorHandler = createModuleErrorHandler("HelloWorldPlugin");
 const name = ref("");
@@ -172,11 +174,13 @@ async function doGreet() {
   }
 }
 </script>
+```
 
 <style scoped>
 /* ... 样式 ... */
 </style>
-```
+
+````
 
 #### `manifest.json` 配置
 
@@ -190,7 +194,7 @@ async function doGreet() {
     "icon": "🎉"
   }
 }
-```
+````
 
 ### 发布生产包：编译 UI
 
@@ -201,10 +205,47 @@ async function doGreet() {
 
 #### 独立构建流程
 
-对于需要编译后端（如 Sidecar/Native 插件）或具有复杂前端资源的插件，推荐在插件目录内建立独立的构建流程。这确保了插件可以独立构建和分发。
+对于具有 UI 的插件，推荐在插件目录内建立独立的构建流程。
 
-1.  **添加 `package.json`**: 用于管理 `vite`, `@vitejs/plugin-vue` 等前端构建相关的开发依赖。
-2.  **创建 `vite.config.js`**: 配置 Vite 的库模式 (`lib mode`) 构建。核心是 **外部化 (externalize)** 所有由主应用提供的依赖（如 `vue`, `element-plus`, 以及路径别名 `/@/`），这能极大减小打包体积，避免重复加载。
+1.  **添加 `package.json`**:
+    ```json
+    {
+      "devDependencies": {
+        "@vitejs/plugin-vue": "^5.x",
+        "vite": "^5.x",
+        "vue": "^3.x"
+      }
+    }
+    ```
+2.  **创建 `vite.config.ts`**:
+    配置的核心是 **外部化 (externalize)** 所有由主应用通过 `importmap` 提供的依赖。
+
+    ```typescript
+    import { defineConfig } from "vite";
+    import vue from "@vitejs/plugin-vue";
+    import { resolve } from "path";
+
+    export default defineConfig({
+      plugins: [vue()],
+      build: {
+        lib: {
+          // 入口文件可以是一个或多个
+          entry: {
+            index: resolve(__dirname, "index.ts"),
+            VcpForum: resolve(__dirname, "VcpForum.vue"),
+          },
+          formats: ["es"],
+          fileName: (format, entryName) => `${entryName}.js`,
+        },
+        rollupOptions: {
+          // ⚠️ 必须排除这些由主应用共享的核心模块
+          // 注意：element-plus 和图标库不在共享之列，插件应自行打包以保证兼容性
+          external: ["vue", "aiohub-sdk", "aiohub-ui"],
+        },
+      },
+    });
+    ```
+
 3.  **创建构建脚本 (可选)**: 使用 `build.js` 或 `build.bat` 等脚本，可以一键完成所有构建任务，例如：
     - 编译 Rust 后端 (对于 Sidecar/Native 插件)。
     - 编译 Vue 前端。
@@ -240,14 +281,14 @@ const result = await execute({
 
 #### 使用主应用的 Composables 和工具
 
-插件 UI 可以无缝接入主应用提供的所有前端能力，就像内置工具一样。
+插件 UI 可以通过 `aiohub-sdk` 无缝接入主应用提供的所有前端能力。
 
 ```typescript
-// ✅ 复用主应用的 Composables
-import { useTheme } from "@/composables/useTheme";
-// ✅ 复用主应用的工具函数
-import { customMessage } from "@/utils/customMessage";
-// ✅ 复用主应用的 UI 组件
+// ✅ 从 SDK 导入 Composables 和工具 (主应用共享)
+import { useTheme, customMessage } from "aiohub-sdk";
+// ✅ 从 aiohub-ui 导入组件 (主应用共享)
+import { Avatar } from "aiohub-ui";
+// ✅ 插件自备的依赖 (需自行打包)
 import { ElButton } from "element-plus";
 
 const { currentTheme } = useTheme();

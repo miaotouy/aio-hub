@@ -1,8 +1,12 @@
+import * as Vue from "vue";
 import { createApp } from "vue";
 import App from "./App.vue";
 import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
 import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
-import ElementPlus from "element-plus";
+import * as ElementPlus from "element-plus";
+import * as ElementPlusIconsVue from "@element-plus/icons-vue";
+import * as PluginSDK from "@/services/plugin-sdk";
+import * as PluginUI from "@/services/plugin-ui";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
@@ -26,6 +30,13 @@ import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
 import "@/utils/monaco-i18n/nls";
 import { initMonacoShikiThemes } from "@/utils/monacoShikiSetup";
+
+// 将 Vue 和 ElementPlus 挂载到全局，供插件 ESM Shim 使用
+(window as any).Vue = Vue;
+(window as any).ElementPlus = ElementPlus;
+(window as any).ElementPlusIconsVue = ElementPlusIconsVue;
+(window as any).AiohubSDK = PluginSDK;
+(window as any).AiohubUI = PluginUI;
 
 const logger = createModuleLogger("Main");
 const moduleErrorHandler = createModuleErrorHandler("Main");
@@ -110,6 +121,12 @@ logger.info("选择根组件", {
 });
 
 const app = createApp(rootComponent);
+
+// 注册插件 UI 组件为全局组件
+Object.entries(PluginUI.components).forEach(([name, component]) => {
+  app.component(name, component);
+});
+
 const pinia = createPinia(); // 创建 Pinia 实例
 
 app.use(ElementPlus, { locale: zhCn });

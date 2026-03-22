@@ -44,7 +44,7 @@ export async function resolvePluginIconUrl(
   if (isEmoji(iconConfig)) return iconConfig;
 
   // 处理文件路径（SVG 或图片）
-  const isDevMode = pluginPath.startsWith("/plugins/") || pluginPath.startsWith("plugins/");
+  const isDevMode = pluginPath.startsWith("/plugins") || pluginPath.startsWith("plugins");
 
   try {
     const { join } = await import("@tauri-apps/api/path");
@@ -171,7 +171,7 @@ async function createPluginIcon(pluginPath: string, iconConfig?: string): Promis
  */
 function createPluginComponentLoader(pluginPath: string, componentFile: string) {
   // 判断是否为开发模式插件（路径以 plugins/ 开头）
-  const isDevMode = pluginPath.startsWith("plugins/");
+  const isDevMode = pluginPath.startsWith("/plugins") || pluginPath.startsWith("plugins");
 
   return async () => {
     try {
@@ -222,9 +222,9 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
         });
 
         // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
-        // 'plugin' 作为协议名称，确保与其他资源区分
+        // 使用默认的 'asset' 协议，确保符合 Tauri 标准和 CSP 策略
         // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
-        const componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"), "plugin");
+        const componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
 
         logger.info("插件组件 URL 已生成", { componentUrl });
 

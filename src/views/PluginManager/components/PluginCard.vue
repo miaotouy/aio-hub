@@ -12,6 +12,9 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const isBroken = computed(() => (props.plugin as any).isBroken);
+const brokenError = computed(() => (props.plugin as any).error?.message || '未知错误');
+
 // Emits
 const emit = defineEmits<{
   select: [];
@@ -44,11 +47,15 @@ const pluginTypeInfo = computed(() => {
         :alt="plugin.name"
         shape="square"
         :radius="8"
+        :style="{ filter: isBroken ? 'grayscale(1) opacity(0.6)' : 'none' }"
       />
-      <div class="plugin-toggle" @click.stop>
+      <div v-if="!isBroken" class="plugin-toggle" @click.stop>
         <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="right">
           <el-switch :model-value="plugin.enabled" @change="emit('toggle')" />
         </el-tooltip>
+      </div>
+      <div v-else class="plugin-status-tag" @click.stop>
+        <el-tag type="danger" size="small" effect="dark">损坏</el-tag>
       </div>
     </div>
 
@@ -63,13 +70,14 @@ const pluginTypeInfo = computed(() => {
               {{ pluginTypeInfo.text }}
             </el-tag>
             <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain"> Dev </el-tag>
+            <el-tag v-if="isBroken" type="danger" size="small" effect="plain"> 损坏 </el-tag>
           </div>
         </div>
 
         <!-- 操作按钮 -->
         <div class="plugin-actions" @click.stop>
           <el-button
-            v-if="plugin.manifest.settingsSchema"
+            v-if="!isBroken && plugin.manifest.settingsSchema"
             :icon="Setting"
             size="small"
             text
@@ -120,7 +128,10 @@ const pluginTypeInfo = computed(() => {
       </div>
 
       <!-- 描述 -->
-      <p class="plugin-description" @click.stop>{{ plugin.description }}</p>
+      <p v-if="!isBroken" class="plugin-description" @click.stop>{{ plugin.description }}</p>
+      <p v-else class="plugin-description broken-error" @click.stop>
+        加载失败: {{ brokenError }}
+      </p>
     </div>
   </div>
 </template>
@@ -246,9 +257,15 @@ const pluginTypeInfo = computed(() => {
   overflow: hidden;
 }
 
-.plugin-toggle {
+.plugin-toggle, .plugin-status-tag {
   display: flex;
   justify-content: center;
+}
+
+.broken-error {
+  color: var(--el-color-danger) !important;
+  font-family: monospace;
+  font-size: 12px;
 }
 
 :deep(.el-button) {

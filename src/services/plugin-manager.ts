@@ -350,11 +350,14 @@ class PluginManager {
             plugin.manifest.icon
           );
 
-          // 只为启用的插件注册 UI
-          if (plugin.enabled) {
+          // 只为启用的且未损坏的插件注册 UI
+          if (plugin.enabled && !(plugin as any).isBroken) {
             await registerPluginUi(plugin);
           } else {
-            logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
+            logger.info(`跳过禁用或损坏插件的UI注册: ${plugin.manifest.id}`, {
+              enabled: plugin.enabled,
+              isBroken: (plugin as any).isBroken
+            });
           }
         } catch (error) {
           errorHandler.error(error, "注册插件UI失败", {

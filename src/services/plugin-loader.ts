@@ -337,6 +337,20 @@ export class PluginLoader {
     try {
       // 读取插件 JS 文件内容
       const entryPath = await path.join(pluginPath, manifest.main);
+      
+      // 检查入口文件是否存在
+      if (!await exists(entryPath)) {
+        const err = new Error(`找不到插件入口文件: ${manifest.main}`);
+        logger.error(err.message, { pluginId: manifest.id, entryPath });
+        
+        // 创建一个损坏状态的插件代理，以便在 UI 中显示并允许卸载
+        const proxy = createJsPluginProxy(manifest, pluginPath, false);
+        // 标记为损坏
+        (proxy as any).isBroken = true;
+        (proxy as any).error = err;
+        return proxy;
+      }
+
       const jsContent = await readTextFile(entryPath);
 
       // 创建插件代理（标记为生产模式）

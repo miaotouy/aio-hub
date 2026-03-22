@@ -171,7 +171,16 @@ function handleCancel() {
               </span>
             </ElDescriptionsItem>
             <ElDescriptionsItem label="暴露方法数" :span="2">
-              {{ preflightResult.manifest.methods?.length ?? 0 }} 个
+              <template v-if="preflightResult.manifest.methods?.length">
+                {{ preflightResult.manifest.methods.length }} 个
+              </template>
+              <template v-else-if="preflightResult.manifest.type === 'javascript'">
+                <ElTag type="info" size="small">动态加载</ElTag>
+                <span class="dynamic-info"> (将由插件 index.js 提供)</span>
+              </template>
+              <template v-else>
+                0 个
+              </template>
             </ElDescriptionsItem>
             <ElDescriptionsItem v-if="preflightResult.manifest.settingsSchema" label="配置项" :span="2">
               <ElTag type="info" size="small">
@@ -266,7 +275,8 @@ function handleCancel() {
   margin-bottom: 4px;
 }
 
-.ui-info {
+.ui-info,
+.dynamic-info {
   margin-left: 8px;
   color: var(--el-text-color-secondary);
   font-size: 13px;

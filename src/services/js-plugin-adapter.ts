@@ -52,6 +52,10 @@ export class JsPluginAdapter implements PluginProxy {
       return;
     }
 
+    if (!context) {
+      logger.error(`启用插件 ${this.id} 时未提供 context，这可能会导致插件初始化失败`);
+    }
+
     logger.info(`启用 JS 插件: ${this.id}`);
 
     // 1. 调用 activate 钩子

@@ -136,7 +136,7 @@ async function togglePlugin(plugin: PluginProxy) {
       logger.info('插件已禁用', { pluginId: plugin.id });
     } else {
       // 启用插件
-      await plugin.enable();
+      await plugin.enable(pluginManager.createPluginContext(plugin.id));
       // 保存启用状态
       // 注意：使用 plugin.id (带 -dev 后缀) 而不是 manifest.id
       await pluginStateService.setEnabled(plugin.id, true);

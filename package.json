@@ -30,7 +30,7 @@
     "download:libs": "bun scripts/download-libs.ts",
     "build": "bun run generate:shims ; bun run download:libs ; bun run build:tsc ; bun run build:vite",
     "build:tsc": "vue-tsc --noEmit",
-    "build:vite": "vite build",
+    "build:vite": "cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

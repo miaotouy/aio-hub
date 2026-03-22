@@ -12,11 +12,17 @@ const UI = window.AiohubUI || { components: {} };
 
 // 导出所有组件
 export const {
-  RichTextRenderer,
   Avatar,
   BaseDialog,
   InfoCard,
   FileIcon,
+  RichTextRenderer,
+  AudioPlayer,
+  VideoPlayer,
+  RichCodeEditor,
+  DraggablePanel,
+  DropZone,
+  DynamicIcon,
 } = UI;
 
 export default UI;

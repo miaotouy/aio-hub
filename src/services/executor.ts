@@ -71,28 +71,33 @@ export async function execute<TData = any>(
     // 1. 查找工具实例
     let toolInstance;
 
-    // 在开发模式下，如果请求的是原始 ID 且不带 -dev 后缀，优先尝试寻找对应的 -dev 版本
+    // 1. 优先尝试寻找对应的 -dev 版本 (如果请求的是原始 ID)
     // 这样可以确保在同时安装了 dev 和 prod 版本时，开发环境优先使用 dev 版本
-    if (import.meta.env.DEV && !serviceId.endsWith("-dev")) {
+    // 注意：必须检查 dev 版本是否已启用，否则应回退到生产版
+    if (!serviceId.endsWith("-dev")) {
       const devServiceId = `${serviceId}-dev`;
       if (toolRegistryManager.hasTool(devServiceId)) {
-        logger.info(`开发模式下优先使用开发版工具: ${devServiceId}`);
-        toolInstance = toolRegistryManager.getRegistry(devServiceId);
+        const registry = toolRegistryManager.getRegistry(devServiceId);
+        // 如果插件适配器存在且已启用，则使用它
+        if ((registry as any).enabled !== false) {
+          logger.info(`优先使用已启用的开发版工具: ${devServiceId}`);
+          toolInstance = registry;
+        }
       }
     }
 
-    // 如果没找到 dev 版本，或者不处于开发模式，按正常逻辑查找
+    // 2. 如果没找到 dev 版本，尝试按原始 ID 查找
     if (!toolInstance) {
       try {
         toolInstance = toolRegistryManager.getRegistry(serviceId);
       } catch (error) {
-        // 兜底逻辑：如果原始 ID 没找到，但在开发模式下，尝试添加 -dev 后缀（针对那些没在 if 里命中的情况）
-        if (import.meta.env.DEV && !serviceId.endsWith("-dev")) {
-          const devServiceId = `${serviceId}-dev`;
-          try {
-            toolInstance = toolRegistryManager.getRegistry(devServiceId);
-            logger.info(`兜底加载开发模式工具: ${devServiceId}`);
-          } catch {
+        // 3. 兜底逻辑：如果原始 ID 没找到，尝试去掉 -dev 后缀查找 (针对插件内部写死带 -dev 的情况)
+        if (serviceId.endsWith("-dev")) {
+          const prodServiceId = serviceId.replace(/-dev$/, "");
+          if (toolRegistryManager.hasTool(prodServiceId)) {
+            toolInstance = toolRegistryManager.getRegistry(prodServiceId);
+            logger.info(`回退到生产版工具: ${prodServiceId}`);
+          } else {
             throw error;
           }
         } else {

@@ -43,12 +43,14 @@ export class PluginLoader {
   private prodPluginsDir: string | null = null;
 
   constructor(options: PluginLoadOptions) {
+    // 注意：this.devMode 代表主程序是否处于开发模式
+    // 它决定了是否要去尝试加载源码目录中的插件
     this.devMode = options.devMode;
     this.devPluginsDir = options.devPluginsDir || "/plugins";
     this.prodPluginsDir = options.prodPluginsDir || null;
 
     logger.info("插件加载器初始化", {
-      devMode: this.devMode,
+      isAppDevMode: this.devMode,
       devPluginsDir: this.devPluginsDir,
       prodPluginsDir: this.prodPluginsDir,
     });
@@ -343,44 +345,53 @@ export class PluginLoader {
     pluginPath: string,
     contextFactory: (pluginId: string) => PluginContext,
   ): Promise<import("./plugin-types").PluginProxy | null> {
-    if (!manifest.main) {
-      throw new Error("JS 插件缺少 main 字段");
-    }
-
     try {
-      // 读取插件 JS 文件内容
-      const entryPath = await path.join(pluginPath, manifest.main);
+      if (!manifest.main) {
+        throw new Error("JS 插件缺少 main 字段");
+      }
+
+      // 1. 确定入口文件路径
+      let mainFile = manifest.main;
+      let entryPath = await path.join(pluginPath, mainFile);
+
+      // 自动修正：如果在生产环境下 main 指向 .ts（例如 manifest 没被 build.js 处理过）
+      // 尝试在当前目录下寻找同名的 .js
+      if (mainFile.endsWith(".ts") && !(await exists(entryPath))) {
+        const jsFile = mainFile.replace(/\.ts$/, ".js");
+        const jsPath = await path.join(pluginPath, jsFile);
+        if (await exists(jsPath)) {
+          logger.info(`自动修正入口路径 (.ts -> .js): ${jsFile}`);
+          mainFile = jsFile;
+          entryPath = jsPath;
+        }
+      }
 
       // 检查入口文件是否存在
       if (!(await exists(entryPath))) {
-        const err = new Error(`找不到插件入口文件: ${manifest.main}`);
+        const err = new Error(`找不到插件入口文件: ${mainFile}`);
         logger.error(err.message, { pluginId: manifest.id, entryPath });
 
         // 创建一个损坏状态的插件代理，以便在 UI 中显示并允许卸载
         const proxy = createJsPluginProxy(manifest, pluginPath, false);
-        // 标记为损坏
         (proxy as any).isBroken = true;
         (proxy as any).error = err;
         return proxy;
       }
 
-      const jsContent = await readTextFile(entryPath);
+      // 3. 使用 ESM 动态导入加载插件
+      const { convertFileSrc } = await import("@tauri-apps/api/core");
+      // 转换路径为浏览器可加载的 URL，处理 Windows 分隔符
+      const assetUrl = convertFileSrc(entryPath.replace(/\\/g, "/"));
+
+      logger.info(`开始通过 ESM 加载插件: ${manifest.id}`, { assetUrl });
+
+      // 动态导入模块
+      const module = await import(/* @vite-ignore */ assetUrl);
+      const pluginExport = module.default || module;
 
       // 创建插件代理（标记为生产模式）
+      // 注意：代理对象依然使用原始 pluginPath 记录安装位置
       const proxy = createJsPluginProxy(manifest, pluginPath, false);
-
-      // 在运行插件前，将必要的全局服务注入到 globalThis
-      // 这样插件可以通过 globalThis.__AIO_PLUGIN_CONFIG_SERVICE__ 访问
-      (globalThis as any).__AIO_PLUGIN_CONFIG_SERVICE__ = pluginConfigService;
-
-      // 使用 Function 构造器在隔离作用域中执行插件代码
-      // 注意：这不是完全的沙箱，仅用于简单的插件执行
-      const pluginFactory = new Function("exports", jsContent + "\nreturn exports.default || exports;");
-      const exports = {};
-      const pluginExport = pluginFactory(exports);
-
-      // 清理全局注入（可选，保持环境干净）
-      delete (globalThis as any).__AIO_PLUGIN_CONFIG_SERVICE__;
 
       if (!pluginExport || typeof pluginExport !== "object") {
         throw new Error("插件未正确导出对象");

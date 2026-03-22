@@ -59,6 +59,9 @@ export default defineConfig({
       "@styles": fileURLToPath(new URL("./src/styles", import.meta.url)),
       "@assets": fileURLToPath(new URL("./src/assets", import.meta.url)),
       "@lobe-icons": fileURLToPath(new URL("./node_modules/@lobehub/icons-static-svg/icons", import.meta.url)),
+      // 插件 SDK 别名 - 用于开发模式下 Vite 解析插件源码
+      "aiohub-sdk": fileURLToPath(new URL("./public/plugins/shims/aiohub-sdk-shim.js", import.meta.url)),
+      "aiohub-ui": fileURLToPath(new URL("./public/plugins/shims/aiohub-ui-shim.js", import.meta.url)),
       // Monaco 汉化劫持 - 拦截所有 NLS 相关请求
       "monaco-editor/esm/vs/nls.js": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
       "monaco-editor/esm/vs/nls": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),

@@ -176,6 +176,8 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
 
   return async () => {
     try {
+      const { join } = await import("@tauri-apps/api/path");
+
       if (isDevMode) {
         // 开发模式：从 window.__PLUGIN_COMPONENTS__ 获取组件加载器
         const componentPath = `/${pluginPath}/${componentFile}`;
@@ -209,22 +211,43 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
 
         return module.default;
       } else {
-        // 生产模式：使用 convertFileSrc（保持原有逻辑）
+        // 生产模式：使用 convertFileSrc
         const { convertFileSrc } = await import("@tauri-apps/api/core");
-        const { join } = await import("@tauri-apps/api/path");
 
-        // 构建组件的完整路径
-        const componentPath = await join(pluginPath, componentFile);
+        // 自动修正：如果组件文件名以 .vue 结尾，尝试寻找同名的 .js
+        let finalComponentFile = componentFile;
+        if (componentFile.endsWith(".vue")) {
+          finalComponentFile = componentFile.replace(/\.vue$/, ".js");
+        }
+
+        // 尝试加载配套的 CSS
+        try {
+          const stylePath = await join(pluginPath, "style.css");
+          const { exists } = await import("@tauri-apps/plugin-fs");
+          if (await exists(stylePath)) {
+            const styleUrl = convertFileSrc(stylePath.replace(/\\/g, "/"));
+            if (!document.querySelector(`link[href="${styleUrl}"]`)) {
+              const link = document.createElement("link");
+              link.rel = "stylesheet";
+              link.href = styleUrl;
+              document.head.appendChild(link);
+              logger.info("已加载插件样式表", { styleUrl });
+            }
+          }
+        } catch (e) {
+          logger.warn("尝试加载插件样式表失败", e);
+        }
+
+        // 直接使用插件根目录下的组件文件
+        const componentPath = await join(pluginPath, finalComponentFile);
 
         logger.info("加载生产模式插件组件", {
           pluginPath,
-          componentFile,
+          componentFile: finalComponentFile,
           fullPath: componentPath,
         });
 
         // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
-        // 使用默认的 'asset' 协议，确保符合 Tauri 标准和 CSP 策略
-        // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
         const componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
 
         logger.info("插件组件 URL 已生成", { componentUrl });

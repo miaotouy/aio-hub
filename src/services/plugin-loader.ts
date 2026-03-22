@@ -11,21 +11,28 @@ declare global {
   }
 }
 
-import { path } from '@tauri-apps/api';
-import { getAppConfigDir } from '@/utils/appPath';
-import { readTextFile, readDir, exists } from '@tauri-apps/plugin-fs';
-import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport, PluginProxy, PluginContext } from './plugin-types';
-import { createJsPluginProxy } from './js-plugin-adapter';
-import type { JsPluginAdapter } from './js-plugin-adapter';
-import { createSidecarPluginProxy } from './sidecar-plugin-adapter';
-import { createNativePluginProxy } from './native-plugin-adapter';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { pluginConfigService } from './plugin-config.service';
-import { pluginStateService } from './plugin-state.service';
+import { path } from "@tauri-apps/api";
+import { getAppConfigDir } from "@/utils/appPath";
+import { readTextFile, readDir, exists } from "@tauri-apps/plugin-fs";
+import type {
+  PluginManifest,
+  PluginLoadOptions,
+  PluginLoadResult,
+  JsPluginExport,
+  PluginProxy,
+  PluginContext,
+} from "./plugin-types";
+import { createJsPluginProxy } from "./js-plugin-adapter";
+import type { JsPluginAdapter } from "./js-plugin-adapter";
+import { createSidecarPluginProxy } from "./sidecar-plugin-adapter";
+import { createNativePluginProxy } from "./native-plugin-adapter";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { pluginConfigService } from "./plugin-config.service";
+import { pluginStateService } from "./plugin-state.service";
 
-const logger = createModuleLogger('services/plugin-loader');
-const errorHandler = createModuleErrorHandler('services/plugin-loader');
+const logger = createModuleLogger("services/plugin-loader");
+const errorHandler = createModuleErrorHandler("services/plugin-loader");
 
 /**
  * 插件加载器类
@@ -37,10 +44,10 @@ export class PluginLoader {
 
   constructor(options: PluginLoadOptions) {
     this.devMode = options.devMode;
-    this.devPluginsDir = options.devPluginsDir || '/plugins';
+    this.devPluginsDir = options.devPluginsDir || "/plugins";
     this.prodPluginsDir = options.prodPluginsDir || null;
 
-    logger.info('插件加载器初始化', {
+    logger.info("插件加载器初始化", {
       devMode: this.devMode,
       devPluginsDir: this.devPluginsDir,
       prodPluginsDir: this.prodPluginsDir,
@@ -48,45 +55,45 @@ export class PluginLoader {
   }
 
   /**
-   /**
-    * 加载所有插件
-    * @param context 插件上下文对象，将注入到插件的 activate 钩子中
-    */
-   async loadAll(context: PluginContext): Promise<PluginLoadResult> {
-     logger.info('开始加载所有插件');
- 
-     const result: PluginLoadResult = {
-       plugins: [],
-       failed: [],
-     };
- 
-     // 开发模式：同时加载开发和生产插件
-     if (this.devMode) {
-       const devResult = await this.loadDevPlugins(context);
-       // 生产插件也需要上下文
-       const prodResult = await this.loadProdPlugins(context);
-       
-       result.plugins.push(...devResult.plugins, ...prodResult.plugins);
-       result.failed.push(...devResult.failed, ...prodResult.failed);
-       
-       logger.info('开发模式：同时加载开发和生产插件', {
-         devPlugins: devResult.plugins.length,
-         prodPlugins: prodResult.plugins.length,
-         total: result.plugins.length,
-         failed: result.failed.length,
-       });
-     } else {
-       // 生产模式：仅加载生产插件
-       return await this.loadProdPlugins(context);
-     }
- 
-     return result;
-   }
+   * 加载所有插件
+   * @param context 插件上下文对象，将注入到插件的 activate 钩子中
+   */
+  async loadAll(context: PluginContext): Promise<PluginLoadResult> {
+    logger.info("开始加载所有插件");
+
+    const result: PluginLoadResult = {
+      plugins: [],
+      failed: [],
+    };
+
+    // 开发模式：同时加载开发和生产插件
+    if (this.devMode) {
+      const devResult = await this.loadDevPlugins(context);
+      // 生产插件也需要上下文
+      const prodResult = await this.loadProdPlugins(context);
+
+      result.plugins.push(...devResult.plugins, ...prodResult.plugins);
+      result.failed.push(...devResult.failed, ...prodResult.failed);
+
+      logger.info("开发模式：同时加载开发和生产插件", {
+        devPlugins: devResult.plugins.length,
+        prodPlugins: prodResult.plugins.length,
+        total: result.plugins.length,
+        failed: result.failed.length,
+      });
+    } else {
+      // 生产模式：仅加载生产插件
+      return await this.loadProdPlugins(context);
+    }
+
+    return result;
+  }
+
   /**
    * 加载开发模式下的插件（从项目源码加载）
    */
   private async loadDevPlugins(context: PluginContext): Promise<PluginLoadResult> {
-    logger.info('开发模式：从源码目录加载插件', { dir: this.devPluginsDir });
+    logger.info("开发模式：从源码目录加载插件", { dir: this.devPluginsDir });
 
     const result: PluginLoadResult = {
       plugins: [],
@@ -98,18 +105,18 @@ export class PluginLoader {
       // 基于 manifest.json 来发现所有插件（包括 JS 和 Sidecar）
       const manifestModules = import.meta.glob<{
         default: PluginManifest;
-      }>('/plugins/*/manifest.json', { eager: false });
+      }>("/plugins/*/manifest.json", { eager: false });
 
       // 扫描 JS 插件的入口文件
       const pluginModules = import.meta.glob<{
         default: JsPluginExport;
         manifest: PluginManifest;
-      }>('/plugins/*/index.ts', { eager: false });
+      }>("/plugins/*/index.ts", { eager: false });
 
       // 扫描所有插件的 Vue 组件（支持 .vue 和 .js/.mjs）
       const componentModules = import.meta.glob<{
         default: any;
-      }>('/plugins/*/*.{vue,js,mjs}', { eager: false });
+      }>("/plugins/*/*.{vue,js,mjs}", { eager: false });
 
       // 存储组件加载器，供 plugin-manager 使用
       if (!window.__PLUGIN_COMPONENTS__) {
@@ -119,14 +126,14 @@ export class PluginLoader {
       // 注册所有发现的组件
       for (const [path, loader] of Object.entries(componentModules)) {
         // 排除 index.ts/js 和 manifest.json
-        if (path.includes('/index.') || path.includes('/manifest.json')) {
+        if (path.includes("/index.") || path.includes("/manifest.json")) {
           continue;
         }
         window.__PLUGIN_COMPONENTS__.set(path, loader);
       }
 
       logger.info(`发现 ${window.__PLUGIN_COMPONENTS__.size} 个插件组件`, {
-        components: Array.from(window.__PLUGIN_COMPONENTS__.keys())
+        components: Array.from(window.__PLUGIN_COMPONENTS__.keys()),
       });
 
       // 使用 manifest.json 作为插件发现的基础
@@ -143,21 +150,21 @@ export class PluginLoader {
           const manifest = manifestModule.default;
 
           // 开发模式下的安装路径（去掉 /manifest.json 和开头的 /）
-          const devInstallPath = manifestPath.startsWith('/')
-            ? manifestPath.substring(1).replace('/manifest.json', '')
-            : manifestPath.replace('/manifest.json', '');
+          const devInstallPath = manifestPath.startsWith("/")
+            ? manifestPath.substring(1).replace("/manifest.json", "")
+            : manifestPath.replace("/manifest.json", "");
 
           let proxy: PluginProxy;
 
           // 根据插件类型选择不同的加载方式
-          if (manifest.type === 'javascript') {
+          if (manifest.type === "javascript") {
             // 加载 JS 插件
-            const pluginModulePath = manifestPath.replace('/manifest.json', '/index.ts');
-            
+            const pluginModulePath = manifestPath.replace("/manifest.json", "/index.ts");
+
             // 检查 index.ts 是否存在
             if (!pluginModules[pluginModulePath]) {
               const err = new Error(`JS 插件必须包含 index.ts 文件`);
-              errorHandler.error(err, 'JS 插件缺少 index.ts', { context: { pluginId } });
+              errorHandler.error(err, "JS 插件缺少 index.ts", { context: { pluginId } });
               throw err;
             }
 
@@ -171,7 +178,7 @@ export class PluginLoader {
             (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
 
             // 如果插件已启用，则调用 activate 钩子
-            if (proxy.enabled && typeof pluginExport.activate === 'function') {
+            if (proxy.enabled && typeof pluginExport.activate === "function") {
               try {
                 logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
                 await pluginExport.activate(context);
@@ -180,10 +187,10 @@ export class PluginLoader {
                 // 钩子失败不应阻止插件加载
               }
             }
-          } else if (manifest.type === 'sidecar') {
+          } else if (manifest.type === "sidecar") {
             // 加载 Sidecar 插件
             proxy = createSidecarPluginProxy(manifest, devInstallPath, true);
-          } else if (manifest.type === 'native') {
+          } else if (manifest.type === "native") {
             // 加载原生插件
             proxy = createNativePluginProxy(manifest, devInstallPath, true);
           } else {
@@ -216,7 +223,7 @@ export class PluginLoader {
           // 将插件代理添加到结果列表
           result.plugins.push(proxy);
         } catch (error) {
-          errorHandler.error(error, '加载开发插件失败', { context: { pluginId } });
+          errorHandler.error(error, "加载开发插件失败", { context: { pluginId } });
           result.failed.push({
             id: pluginId,
             path: manifestPath,
@@ -225,10 +232,10 @@ export class PluginLoader {
         }
       }
     } catch (error) {
-      errorHandler.error(error, '加载开发插件过程中发生错误');
+      errorHandler.error(error, "加载开发插件过程中发生错误");
     }
 
-    logger.info('开发插件加载完成', {
+    logger.info("开发插件加载完成", {
       loaded: result.plugins.length,
       failed: result.failed.length,
     });
@@ -240,7 +247,7 @@ export class PluginLoader {
    * 加载生产模式下的插件（从安装目录加载）
    */
   private async loadProdPlugins(context: PluginContext): Promise<PluginLoadResult> {
-    logger.info('从安装目录加载插件', { dir: this.prodPluginsDir });
+    logger.info("从安装目录加载插件", { dir: this.prodPluginsDir });
 
     const result: PluginLoadResult = {
       plugins: [],
@@ -248,7 +255,7 @@ export class PluginLoader {
     };
 
     if (!this.prodPluginsDir) {
-      logger.warn('未配置生产插件目录，跳过加载');
+      logger.warn("未配置生产插件目录，跳过加载");
       return result;
     }
 
@@ -256,7 +263,7 @@ export class PluginLoader {
       // 检查插件目录是否存在
       const dirExists = await exists(this.prodPluginsDir);
       if (!dirExists) {
-        logger.warn('插件目录不存在，跳过加载', { dir: this.prodPluginsDir });
+        logger.warn("插件目录不存在，跳过加载", { dir: this.prodPluginsDir });
         return result;
       }
 
@@ -272,7 +279,7 @@ export class PluginLoader {
 
         try {
           // 读取 manifest.json
-          const manifestPath = await path.join(pluginPath, 'manifest.json');
+          const manifestPath = await path.join(pluginPath, "manifest.json");
           const manifestExists = await exists(manifestPath);
 
           if (!manifestExists) {
@@ -284,19 +291,19 @@ export class PluginLoader {
           const manifest: PluginManifest = JSON.parse(manifestContent);
 
           // 根据插件类型加载
-          if (manifest.type === 'javascript') {
+          if (manifest.type === "javascript") {
             // 加载 JS 插件
             const proxy = await this.loadProdJsPlugin(manifest, pluginPath, context);
             if (proxy) {
               result.plugins.push(proxy);
             }
-          } else if (manifest.type === 'sidecar') {
+          } else if (manifest.type === "sidecar") {
             // 加载 Sidecar 插件
             const proxy = await this.loadProdSidecarPlugin(manifest, pluginPath);
             if (proxy) {
               result.plugins.push(proxy);
             }
-          } else if (manifest.type === 'native') {
+          } else if (manifest.type === "native") {
             // 加载原生插件
             const proxy = await this.loadProdNativePlugin(manifest, pluginPath);
             if (proxy) {
@@ -306,7 +313,7 @@ export class PluginLoader {
             logger.warn(`未知的插件类型: ${manifest.type}`, { pluginId });
           }
         } catch (error) {
-          errorHandler.error(error, '加载生产插件失败', { context: { pluginId } });
+          errorHandler.error(error, "加载生产插件失败", { context: { pluginId } });
           result.failed.push({
             id: pluginId,
             path: pluginPath,
@@ -315,10 +322,10 @@ export class PluginLoader {
         }
       }
     } catch (error) {
-      errorHandler.error(error, '加载生产插件过程中发生错误');
+      errorHandler.error(error, "加载生产插件过程中发生错误");
     }
 
-    logger.info('生产插件加载完成', {
+    logger.info("生产插件加载完成", {
       loaded: result.plugins.length,
       failed: result.failed.length,
     });
@@ -329,20 +336,24 @@ export class PluginLoader {
   /**
    * 加载生产环境下的 JS 插件
    */
-  private async loadProdJsPlugin(manifest: PluginManifest, pluginPath: string, context: PluginContext): Promise<import('./plugin-types').PluginProxy | null> {
+  private async loadProdJsPlugin(
+    manifest: PluginManifest,
+    pluginPath: string,
+    context: PluginContext,
+  ): Promise<import("./plugin-types").PluginProxy | null> {
     if (!manifest.main) {
-      throw new Error('JS 插件缺少 main 字段');
+      throw new Error("JS 插件缺少 main 字段");
     }
 
     try {
       // 读取插件 JS 文件内容
       const entryPath = await path.join(pluginPath, manifest.main);
-      
+
       // 检查入口文件是否存在
-      if (!await exists(entryPath)) {
+      if (!(await exists(entryPath))) {
         const err = new Error(`找不到插件入口文件: ${manifest.main}`);
         logger.error(err.message, { pluginId: manifest.id, entryPath });
-        
+
         // 创建一个损坏状态的插件代理，以便在 UI 中显示并允许卸载
         const proxy = createJsPluginProxy(manifest, pluginPath, false);
         // 标记为损坏
@@ -356,14 +367,21 @@ export class PluginLoader {
       // 创建插件代理（标记为生产模式）
       const proxy = createJsPluginProxy(manifest, pluginPath, false);
 
+      // 在运行插件前，将必要的全局服务注入到 globalThis
+      // 这样插件可以通过 globalThis.__AIO_PLUGIN_CONFIG_SERVICE__ 访问
+      (globalThis as any).__AIO_PLUGIN_CONFIG_SERVICE__ = pluginConfigService;
+
       // 使用 Function 构造器在隔离作用域中执行插件代码
       // 注意：这不是完全的沙箱，仅用于简单的插件执行
-      const pluginFactory = new Function('exports', jsContent + '\nreturn exports.default || exports;');
+      const pluginFactory = new Function("exports", jsContent + "\nreturn exports.default || exports;");
       const exports = {};
       const pluginExport = pluginFactory(exports);
 
-      if (!pluginExport || typeof pluginExport !== 'object') {
-        throw new Error('插件未正确导出对象');
+      // 清理全局注入（可选，保持环境干净）
+      delete (globalThis as any).__AIO_PLUGIN_CONFIG_SERVICE__;
+
+      if (!pluginExport || typeof pluginExport !== "object") {
+        throw new Error("插件未正确导出对象");
       }
 
       // 设置插件导出对象
@@ -378,7 +396,7 @@ export class PluginLoader {
       }
 
       // 如果插件已启用，则调用 activate 钩子
-      if (proxy.enabled && typeof pluginExport.activate === 'function') {
+      if (proxy.enabled && typeof pluginExport.activate === "function") {
         try {
           logger.info(`调用插件 ${manifest.id} 的 activate 钩子`);
           await pluginExport.activate(context);
@@ -404,15 +422,23 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      errorHandler.error(error, '加载生产插件失败', { context: { pluginId: manifest.id } });
-      throw error;
+      errorHandler.error(error, "加载生产插件失败", { context: { pluginId: manifest.id } });
+
+      // 即使执行失败，也返回一个损坏的代理对象，以便在 UI 中卸载
+      const proxy = createJsPluginProxy(manifest, pluginPath, false);
+      (proxy as any).isBroken = true;
+      (proxy as any).error = error instanceof Error ? error : new Error(String(error));
+      return proxy;
     }
   }
 
   /**
    * 加载生产环境下的 Sidecar 插件
    */
-  private async loadProdSidecarPlugin(manifest: PluginManifest, pluginPath: string): Promise<import('./plugin-types').PluginProxy | null> {
+  private async loadProdSidecarPlugin(
+    manifest: PluginManifest,
+    pluginPath: string,
+  ): Promise<import("./plugin-types").PluginProxy | null> {
     try {
       // 创建 Sidecar 插件代理（标记为生产模式）
       const proxy = createSidecarPluginProxy(manifest, pluginPath, false);
@@ -441,7 +467,7 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      errorHandler.error(error, '加载 Sidecar 插件失败', { context: { pluginId: manifest.id } });
+      errorHandler.error(error, "加载 Sidecar 插件失败", { context: { pluginId: manifest.id } });
       throw error;
     }
   }
@@ -449,7 +475,10 @@ export class PluginLoader {
   /**
    * 加载生产环境下的原生插件
    */
-  private async loadProdNativePlugin(manifest: PluginManifest, pluginPath: string): Promise<import('./plugin-types').PluginProxy | null> {
+  private async loadProdNativePlugin(
+    manifest: PluginManifest,
+    pluginPath: string,
+  ): Promise<import("./plugin-types").PluginProxy | null> {
     try {
       // 创建原生插件代理（标记为生产模式）
       const proxy = createNativePluginProxy(manifest, pluginPath, false);
@@ -478,7 +507,7 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      errorHandler.error(error, '加载原生插件失败', { context: { pluginId: manifest.id } });
+      errorHandler.error(error, "加载原生插件失败", { context: { pluginId: manifest.id } });
       throw error;
     }
   }
@@ -489,7 +518,7 @@ export class PluginLoader {
   private extractPluginIdFromPath(pluginPath: string): string {
     // 例如: /plugins/my-plugin/index.ts -> my-plugin
     const match = pluginPath.match(/\/plugins\/([^\/]+)\//);
-    return match ? match[1] : 'unknown';
+    return match ? match[1] : "unknown";
   }
 
   /**
@@ -501,22 +530,22 @@ export class PluginLoader {
     logger.info(`开始卸载插件: ${pluginId}`);
 
     // 如果是开发模式插件（ID 以 -dev 结尾），不允许卸载
-    if (pluginId.endsWith('-dev')) {
-      logger.warn('开发模式插件无法卸载');
-      throw new Error('开发模式插件无法卸载，请手动删除源码目录中的插件文件夹');
+    if (pluginId.endsWith("-dev")) {
+      logger.warn("开发模式插件无法卸载");
+      throw new Error("开发模式插件无法卸载，请手动删除源码目录中的插件文件夹");
     }
 
     try {
       // 导入 Tauri API
-      const { invoke } = await import('@tauri-apps/api/core');
-      
+      const { invoke } = await import("@tauri-apps/api/core");
+
       // 调用后端命令删除插件目录到回收站
-      await invoke('uninstall_plugin', { pluginId });
-      
+      await invoke("uninstall_plugin", { pluginId });
+
       logger.info(`插件 ${pluginId} 已移入回收站`);
       return true;
     } catch (error) {
-      errorHandler.error(error, '卸载插件失败', { context: { pluginId } });
+      errorHandler.error(error, "卸载插件失败", { context: { pluginId } });
       throw error;
     }
   }
@@ -527,15 +556,15 @@ export class PluginLoader {
  */
 export async function createPluginLoader(): Promise<PluginLoader> {
   const devMode = import.meta.env.DEV;
-  
+
   // 无论开发模式还是生产模式，都配置生产插件目录
   // 开发模式下也可能需要测试生产插件的加载
   const appDataDir = await getAppConfigDir();
-  const prodPluginsDir = await path.join(appDataDir, 'plugins');
+  const prodPluginsDir = await path.join(appDataDir, "plugins");
 
   return new PluginLoader({
     devMode,
-    devPluginsDir: '/plugins',
+    devPluginsDir: "/plugins",
     prodPluginsDir,
   });
 }

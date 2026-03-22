@@ -31,7 +31,8 @@ pub struct PluginUiConfig {
 #[serde(rename_all = "camelCase")]
 pub struct SettingsProperty {
     #[serde(rename = "type")]
-    pub property_type: String,
+    pub property_type: Option<String>,
+    #[serde(alias = "defaultValue")]
     pub default: Value,
     pub label: String,
     pub description: Option<String>,
@@ -91,7 +92,7 @@ pub struct PluginManifest {
     pub main: Option<String>,
     pub sidecar: Option<SidecarConfig>,
     pub native: Option<NativeConfig>,
-    pub methods: Vec<MethodMetadata>,
+    pub methods: Option<Vec<MethodMetadata>>,
     pub settings_schema: Option<SettingsSchema>,
     pub ui: Option<PluginUiConfig>,
     pub permissions: Option<Vec<String>>,

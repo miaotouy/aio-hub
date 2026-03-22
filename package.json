@@ -1,7 +1,7 @@
 {
   "name": "aiohub",
   "private": true,
-  "version": "0.5.1-beta.5",
+  "version": "0.5.1-beta.6",
   "type": "module",
   "license": "Apache-2.0",
   "author": "miaotouy",

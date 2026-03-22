@@ -83,6 +83,9 @@ const isImagePath = computed(() => {
       s.startsWith("http://") ||
       s.startsWith("https://") ||
       s.startsWith("data:") ||
+      // 匹配 Windows 绝对路径 (如 C:\ 或 \\)
+      /^[a-zA-Z]:\\/.test(s) ||
+      s.startsWith("\\\\") ||
       LOBE_ICONS_MAP[s] !== undefined || // 预设图标库
       LOCAL_ICONS_MAP[s] !== undefined) // 本地图标库
   );
@@ -131,8 +134,9 @@ const processSrc = async () => {
     return;
   }
 
-  // 3. appdata:// 协议 - 使用缓存获取 Blob URL
-  if (currentSrc.startsWith("appdata://")) {
+  // 3. appdata:// 协议 或 本地绝对路径 - 使用缓存获取 Blob URL
+  const isLocalPath = /^[a-zA-Z]:[\\/]/.test(currentSrc) || currentSrc.startsWith("\\\\");
+  if (currentSrc.startsWith("appdata://") || isLocalPath) {
     // 如果启用了懒加载且尚未进入视口，则暂停加载
     if (props.lazy && !shouldLoad.value) {
       return;
@@ -203,8 +207,8 @@ watch(
   sanitizedSrc,
   (_newSrc, oldSrc) => {
     _currentProcessingSrc = _newSrc;
-    // 如果旧的 src 是我们管理的 appdata:// (注意：现在本地路径不由 blob 管理了)，则释放它
-    if (oldSrc && oldSrc.startsWith("appdata://")) {
+    // 如果旧的 src 是我们管理的路径，则释放它
+    if (oldSrc && (oldSrc.startsWith("appdata://") || /^[a-zA-Z]:[\\/]/.test(oldSrc) || oldSrc.startsWith("\\\\"))) {
       releaseBlobUrl(oldSrc);
     }
     processSrc();

@@ -47,20 +47,30 @@ export async function resolvePluginIconUrl(
   const isDevMode = pluginPath.startsWith("/plugins/") || pluginPath.startsWith("plugins/");
 
   try {
+    const { join } = await import("@tauri-apps/api/path");
+    const { exists } = await import("@tauri-apps/plugin-fs");
+
     if (isDevMode) {
       // 开发模式：直接使用 Vite 路径
       // 确保路径以 / 开头
       const basePluginPath = pluginPath.startsWith("/") ? pluginPath : `/${pluginPath}`;
       return `${basePluginPath}/${iconConfig}`;
     } else {
-      // 生产模式：使用 convertFileSrc
-      const { convertFileSrc } = await import("@tauri-apps/api/core");
-      const { join } = await import("@tauri-apps/api/path");
+      // 生产模式：处理图标路径
+      // 注意：插件在构建后，public 目录下的资源通常会被移动到根目录
+      let iconPath = await join(pluginPath, iconConfig);
 
-      const iconPath = await join(pluginPath, iconConfig);
-      // 在 Windows 上，路径分隔符是 '\'，需要替换为 '/' 才能在 URL 中正常工作
-      // 使用默认的 asset 协议，确保资源能被正确加载
-      return convertFileSrc(iconPath.replace(/\\/g, "/"));
+      // 如果 manifest 中配置了 public/ 前缀，但在安装目录下找不到该文件，尝试去掉 public/ 前缀
+      if (!(await exists(iconPath)) && iconConfig.startsWith("public/")) {
+        const fallbackConfig = iconConfig.replace("public/", "");
+        const fallbackPath = await join(pluginPath, fallbackConfig);
+        if (await exists(fallbackPath)) {
+          iconPath = fallbackPath;
+        }
+      }
+
+      // 返回本地绝对路径，让 Avatar 组件通过 read_file_binary 处理
+      return iconPath;
     }
   } catch (error) {
     logger.error("解析插件图标 URL 失败", error, { pluginPath, iconConfig });

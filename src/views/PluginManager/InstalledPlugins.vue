@@ -56,7 +56,7 @@ const preflightResult = ref<PreflightResult | null>(null);
 const preflightLoading = ref(false);
 
 // 当前主应用的插件 API 版本
-const HOST_PLUGIN_API_VERSION = 1;
+const HOST_PLUGIN_API_VERSION = 2;
 
 // 插件列表容器 ref（用于拖放）
 const pluginsListRef = ref<HTMLElement>();

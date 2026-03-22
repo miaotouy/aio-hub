@@ -199,11 +199,12 @@ export class PluginLoader {
           }
 
           // 根据持久化状态决定是否启用插件
-          const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+          // 注意：使用 proxy.id (可能带 -dev 后缀) 而不是 manifest.id
+          const shouldEnable = await pluginStateService.isEnabled(proxy.id);
           if (shouldEnable) {
             await proxy.enable();
           } else {
-            logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+            logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
           }
 
           // 初始化插件配置
@@ -388,11 +389,12 @@ export class PluginLoader {
       (proxy as unknown as JsPluginAdapter).setPluginExport(pluginExport);
 
       // 根据持久化状态决定是否启用插件
-      const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+      // 注意：使用 proxy.id (可能带 -dev 后缀) 而不是 manifest.id
+      const shouldEnable = await pluginStateService.isEnabled(proxy.id);
       if (shouldEnable) {
         await proxy.enable();
       } else {
-        logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+        logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
       }
 
       // 如果插件已启用，则调用 activate 钩子
@@ -444,11 +446,11 @@ export class PluginLoader {
       const proxy = createSidecarPluginProxy(manifest, pluginPath, false);
 
       // 根据持久化状态决定是否启用插件
-      const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+      const shouldEnable = await pluginStateService.isEnabled(proxy.id);
       if (shouldEnable) {
         await proxy.enable();
       } else {
-        logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+        logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
       }
 
       // 初始化插件配置
@@ -484,11 +486,11 @@ export class PluginLoader {
       const proxy = createNativePluginProxy(manifest, pluginPath, false);
 
       // 根据持久化状态决定是否启用插件
-      const shouldEnable = await pluginStateService.isEnabled(manifest.id);
+      const shouldEnable = await pluginStateService.isEnabled(proxy.id);
       if (shouldEnable) {
         await proxy.enable();
       } else {
-        logger.info(`插件 ${manifest.id} 根据持久化状态保持禁用`);
+        logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
       }
 
       // 初始化插件配置

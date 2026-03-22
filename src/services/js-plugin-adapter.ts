@@ -200,8 +200,9 @@ export class JsPluginAdapter implements PluginProxy {
 
     try {
       // 创建插件上下文，注入配置 API
+      // 注意：使用 this.id 而不是 manifest.id
       const pluginContext = {
-        settings: pluginConfigService.createPluginSettingsAPI(this.manifest.id),
+        settings: pluginConfigService.createPluginSettingsAPI(this.id),
       };
 
       // 第一个参数：业务参数（注入 context 配置访问）

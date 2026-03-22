@@ -239,7 +239,7 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
  * 从插件代理注册UI到工具store
  */
 async function registerPluginUi(plugin: PluginProxy): Promise<void> {
-  const { manifest, installPath } = plugin;
+  const { manifest, installPath, id: pluginId } = plugin;
 
   if (!manifest.ui) {
     return; // 没有UI配置，跳过
@@ -253,7 +253,8 @@ async function registerPluginUi(plugin: PluginProxy): Promise<void> {
   // 构造 ToolConfig 对象
   const toolConfig: ToolConfig = {
     name: manifest.ui.displayName || manifest.name,
-    path: `/plugin-${manifest.id}`,
+    // 使用 pluginId 而不是 manifest.id，以区分开发版和生产版
+    path: `/plugin-${pluginId}`,
     icon,
     component: createPluginComponentLoader(installPath, manifest.ui.component),
     description: manifest.description,
@@ -262,24 +263,25 @@ async function registerPluginUi(plugin: PluginProxy): Promise<void> {
 
   toolsStore.addTool(toolConfig);
 
-  logger.info(`插件UI已注册: ${manifest.id}`, {
+  logger.info(`插件UI已注册: ${pluginId}`, {
     name: toolConfig.name,
     path: toolConfig.path,
     hasCustomIcon: !!manifest.ui.icon,
   });
 }
-
 /**
  * 从工具store移除插件UI
  */
 function unregisterPluginUi(pluginId: string): void {
   const toolsStore = useToolsStore();
+  // 注意：这里的 pluginId 应该是带后缀的（如果是开发版）
   const toolPath = `/plugin-${pluginId}`;
 
   toolsStore.removeTool(toolPath);
 
   logger.info(`插件UI已移除: ${pluginId}`, { path: toolPath });
 }
+
 
 /**
  * 插件管理器类
@@ -364,7 +366,7 @@ class PluginManager {
           if (plugin.enabled && !(plugin as any).isBroken) {
             await registerPluginUi(plugin);
           } else {
-            logger.info(`跳过禁用或损坏插件的UI注册: ${plugin.manifest.id}`, {
+            logger.info(`跳过禁用或损坏插件的UI注册: ${plugin.id}`, {
               enabled: plugin.enabled,
               isBroken: (plugin as any).isBroken
             });
@@ -500,7 +502,7 @@ class PluginManager {
               if (plugin.enabled) {
                 await registerPluginUi(plugin);
               } else {
-                logger.info(`跳过禁用插件的UI注册: ${plugin.manifest.id}`);
+                logger.info(`跳过禁用插件的UI注册: ${plugin.id}`);
               }
             } catch (error) {
               errorHandler.error(error, "注册插件UI失败", {

@@ -170,7 +170,8 @@ export class NativePluginAdapter implements PluginProxy {
 
     try {
       // 获取配置
-      const settings = pluginConfigService.createPluginSettingsAPI(this.manifest.id);
+      // 注意：使用 this.id 而不是 manifest.id
+      const settings = pluginConfigService.createPluginSettingsAPI(this.id);
 
       // 准备输入数据
       const inputData = {

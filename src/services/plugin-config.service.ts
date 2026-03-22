@@ -144,7 +144,7 @@ class PluginConfigService {
     }
 
     const schema = this.schemas.get(pluginId);
-    
+
     // 验证配置键是否存在于模式中
     const property = schema?.properties?.[key];
 
@@ -170,7 +170,7 @@ class PluginConfigService {
 
     // 更新配置
     await manager.update({ [key]: value });
-    
+
     // 如果不在 schema 中，记录为私有状态更新
     if (!property) {
       logger.debug(`插件私有状态已更新`, { pluginId, key });
@@ -204,7 +204,7 @@ class PluginConfigService {
 
     const schema = this.schemas.get(pluginId);
     const config = await manager.load();
-    
+
     // 如果没有 schema，返回空对象（因为没有“公开”配置）
     if (!schema) return {};
 
@@ -212,16 +212,17 @@ class PluginConfigService {
     const publicSettings: Record<string, any> = {};
     for (const key of Object.keys(schema.properties)) {
       const property = schema.properties[key];
-      
+
       // 过滤掉 internal 项
-      const isInternal = ("internal" in property && property.internal) ||
-                        ("layout" in property && property.layout === "hidden");
-      
+      const isInternal =
+        ("internal" in property && (property as any).internal) ||
+        ("layout" in property && (property as any).layout === "hidden");
+
       if (!isInternal && key in config) {
         publicSettings[key] = config[key];
       }
     }
-    
+
     return publicSettings;
   }
 

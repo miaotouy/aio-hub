@@ -36,8 +36,9 @@ const settingsItems = computed<SettingItem[]>(() => {
   return Object.entries(settingsSchema.value.properties)
     .filter(([_, property]) => {
       // 过滤掉隐藏项或内部项
-      if ("layout" in property && property.layout === "hidden") return false;
-      if ("internal" in property && property.internal) return false;
+      const p = property as any;
+      if ("layout" in p && p.layout === "hidden") return false;
+      if ("internal" in p && p.internal) return false;
       return true;
     })
     .map(([key, property]) => {
@@ -46,58 +47,58 @@ const settingsItems = computed<SettingItem[]>(() => {
         return property as SettingItem;
       }
 
-    // 否则从旧格式的 SettingsProperty 转换
-    const oldProp = property as SettingsProperty;
+      // 否则从旧格式的 SettingsProperty 转换
+      const oldProp = property as SettingsProperty;
 
-    // 自动推断组件类型
-    let component: string;
-    let layout: "inline" | "block" = "block";
+      // 自动推断组件类型
+      let component: string;
+      let layout: "inline" | "block" = "block";
 
-    if (oldProp.enum && oldProp.enum.length > 0) {
-      component = "ElSelect";
-    } else if (oldProp.type === "boolean") {
-      component = "ElSwitch";
-      layout = "inline";
-    } else if (oldProp.type === "number") {
-      component = "ElInputNumber";
-    } else {
-      component = "ElInput";
-    }
+      if (oldProp.enum && oldProp.enum.length > 0) {
+        component = "ElSelect";
+      } else if (oldProp.type === "boolean") {
+        component = "ElSwitch";
+        layout = "inline";
+      } else if (oldProp.type === "number") {
+        component = "ElInputNumber";
+      } else {
+        component = "ElInput";
+      }
 
-    // 构建 props
-    const props: Record<string, any> = {};
-    if (oldProp.secret) {
-      props.type = "password";
-      props.showPassword = true;
-    }
-    if (component === "ElInput") {
-      props.placeholder = `请输入${oldProp.label}`;
-    } else if (component === "ElSelect") {
-      props.placeholder = `请选择${oldProp.label}`;
-    } else if (component === "ElInputNumber") {
-      props.placeholder = `请输入${oldProp.label}`;
-      props.style = { width: "100%" };
-    }
+      // 构建 props
+      const props: Record<string, any> = {};
+      if (oldProp.secret) {
+        props.type = "password";
+        props.showPassword = true;
+      }
+      if (component === "ElInput") {
+        props.placeholder = `请输入${oldProp.label}`;
+      } else if (component === "ElSelect") {
+        props.placeholder = `请选择${oldProp.label}`;
+      } else if (component === "ElInputNumber") {
+        props.placeholder = `请输入${oldProp.label}`;
+        props.style = { width: "100%" };
+      }
 
-    // 构建 options
-    const options = oldProp.enum?.map((value) => ({
-      label: String(value),
-      value: value,
-    }));
+      // 构建 options
+      const options = oldProp.enum?.map((value) => ({
+        label: String(value),
+        value: value,
+      }));
 
-    return {
-      id: key,
-      label: oldProp.label,
-      component: component as any,
-      modelPath: key,
-      hint: oldProp.description || "",
-      defaultValue: oldProp.default,
-      layout,
-      props,
-      options,
-      keywords: `${key} ${oldProp.label} ${oldProp.description || ""}`,
-    } as SettingItem;
-  });
+      return {
+        id: key,
+        label: oldProp.label,
+        component: component as any,
+        modelPath: key,
+        hint: oldProp.description || "",
+        defaultValue: oldProp.default,
+        layout,
+        props,
+        options,
+        keywords: `${key} ${oldProp.label} ${oldProp.description || ""}`,
+      } as SettingItem;
+    });
 });
 /**
  * 加载插件配置
@@ -187,7 +188,7 @@ watch(
       loadConfig();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 </script>
 

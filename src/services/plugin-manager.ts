@@ -18,7 +18,6 @@ import type { PluginContext, PluginStorageAPI } from "./plugin-types";
 import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
 import { getAppConfigDir } from "@/utils/appPath";
 import { emit, listen } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const logger = createModuleLogger("services/plugin-manager");
 const errorHandler = createModuleErrorHandler("services/plugin-manager");
@@ -38,10 +37,7 @@ function isEmoji(str: string): boolean {
  * @param pluginPath 插件安装路径
  * @param iconConfig 图标配置
  */
-export async function resolvePluginIconUrl(
-  pluginPath: string,
-  iconConfig?: string
-): Promise<string | undefined> {
+export async function resolvePluginIconUrl(pluginPath: string, iconConfig?: string): Promise<string | undefined> {
   if (!iconConfig) return undefined;
 
   // 判断是否为 Emoji
@@ -199,7 +195,7 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
         const componentLoader = window.__PLUGIN_COMPONENTS__.get(componentPath);
         if (!componentLoader) {
           throw new Error(
-            `未找到插件组件: ${componentPath}\n可用组件: ${Array.from(window.__PLUGIN_COMPONENTS__.keys()).join(", ")}`
+            `未找到插件组件: ${componentPath}\n可用组件: ${Array.from(window.__PLUGIN_COMPONENTS__.keys()).join(", ")}`,
           );
         }
 
@@ -273,9 +269,7 @@ function createPluginComponentLoader(pluginPath: string, componentFile: string) 
           componentFile,
         },
       });
-      throw new Error(
-        `加载插件组件失败: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`加载插件组件失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 }
@@ -327,14 +321,13 @@ export function unregisterPluginUi(pluginId: string): void {
   logger.info(`插件UI已移除: ${pluginId}`, { path: toolPath });
 }
 
-
 /**
  * 插件管理器类
  */
 class PluginManager {
   private loader: PluginLoader | null = null;
   private initialized = false;
-  
+
   // 响应式插件状态追踪
   public pluginStates = reactive<Record<string, { enabled: boolean; isBroken: boolean }>>({});
 
@@ -349,7 +342,7 @@ class PluginManager {
   private async createPluginStorageAPI(pluginId: string): Promise<PluginStorageAPI> {
     const { join } = await import("@tauri-apps/api/path");
     const fs = await import("@tauri-apps/plugin-fs");
-    
+
     // 获取应用配置目录
     const appConfigDir = await getAppConfigDir();
     // 插件数据根目录：appDataDir/plugins-data/pluginId
@@ -382,7 +375,10 @@ class PluginManager {
       writeText: async (path: string, data: string) => {
         const fullPath = await resolvePath(path);
         // 确保父目录存在
-        const parentDir = fullPath.substring(0, fullPath.lastIndexOf(/[/\\]/.test(fullPath) ? fullPath.match(/[/\\]/)![0] : ""));
+        const parentDir = fullPath.substring(
+          0,
+          fullPath.lastIndexOf(/[/\\]/.test(fullPath) ? fullPath.match(/[/\\]/)![0] : ""),
+        );
         if (parentDir && parentDir !== dataDir && !(await fs.exists(parentDir))) {
           await fs.mkdir(parentDir, { recursive: true });
         }
@@ -412,11 +408,11 @@ class PluginManager {
       readDir: async (path: string) => {
         const fullPath = await resolvePath(path);
         const entries = await fs.readDir(fullPath);
-        return entries.map(e => ({
+        return entries.map((e) => ({
           name: e.name,
-          isDirectory: e.isDirectory
+          isDirectory: e.isDirectory,
         }));
-      }
+      },
     };
   }
 
@@ -477,7 +473,7 @@ class PluginManager {
       const { pluginId, enabled } = event.payload;
       logger.info(`收到跨窗口插件状态变更: ${pluginId} -> ${enabled}`);
       this.updateRuntimeState(pluginId, enabled, true);
-    }).catch(err => {
+    }).catch((err) => {
       logger.error("监听插件状态变更失败", err);
     });
 
@@ -503,14 +499,11 @@ class PluginManager {
       for (const plugin of result.plugins) {
         try {
           // 预先解析图标 URL
-          plugin.iconUrl = await resolvePluginIconUrl(
-            plugin.installPath,
-            plugin.manifest.icon
-          );
+          plugin.iconUrl = await resolvePluginIconUrl(plugin.installPath, plugin.manifest.icon);
 
           // 初始化响应式状态
           const isBroken = (plugin as any).isBroken || false;
-          
+
           // 根据持久化状态决定是否激活插件
           const shouldEnable = await pluginStateService.isEnabled(plugin.id);
           if (shouldEnable && !isBroken) {
@@ -520,7 +513,7 @@ class PluginManager {
 
           this.pluginStates[plugin.id] = {
             enabled: plugin.enabled,
-            isBroken
+            isBroken,
           };
 
           // 只为启用的且未损坏的插件注册 UI
@@ -529,7 +522,7 @@ class PluginManager {
           } else {
             logger.info(`跳过禁用或损坏插件的UI注册: ${plugin.id}`, {
               enabled: plugin.enabled,
-              isBroken
+              isBroken,
             });
           }
         } catch (error) {
@@ -552,7 +545,7 @@ class PluginManager {
    * @internal
    * @param isRemote 是否为来自其他窗口的远程同步更新
    */
-  public updateRuntimeState(pluginId: string, enabled: boolean, isRemote: boolean = false): void {
+  public async updateRuntimeState(pluginId: string, enabled: boolean, isRemote: boolean = false): Promise<void> {
     // 防止状态未改变时的重复处理（以及潜在的死循环）
     if (this.pluginStates[pluginId] && this.pluginStates[pluginId].enabled === enabled) {
       return;
@@ -563,18 +556,18 @@ class PluginManager {
     } else {
       this.pluginStates[pluginId] = { enabled, isBroken: false };
     }
-    
+
     const plugin = this.getPlugin(pluginId);
 
     // 如果是远程更新，或者状态不一致，同步插件实例的启用状态
     if (plugin && plugin.enabled !== enabled) {
       if (enabled) {
-        plugin.enable(this.createPluginContext(pluginId));
+        await plugin.enable(this.createPluginContext(pluginId));
       } else {
-        plugin.disable();
+        await plugin.disable();
       }
     }
-    
+
     // 处理 UI 注册/注销
     if (!enabled) {
       unregisterPluginUi(pluginId);
@@ -584,7 +577,7 @@ class PluginManager {
 
     // 如果不是来自远程的更新（即本窗口发起的），则广播给其他窗口
     if (!isRemote) {
-      emit("plugin-runtime-state-changed", { pluginId, enabled }).catch(err => {
+      emit("plugin-runtime-state-changed", { pluginId, enabled }).catch((err) => {
         logger.error("广播插件状态失败", err);
       });
     }
@@ -595,7 +588,7 @@ class PluginManager {
    */
   private isUiRegistered(pluginId: string): boolean {
     const toolsStore = useToolsStore();
-    return toolsStore.tools.some(t => t.path === `/plugin-${pluginId}`);
+    return toolsStore.tools.some((t) => t.path === `/plugin-${pluginId}`);
   }
 
   /**
@@ -614,7 +607,7 @@ class PluginManager {
     try {
       unregisterPluginUi(pluginId);
     } catch (error) {
-      errorHandler.error(error, '移除插件UI失败', { context: { pluginId } });
+      errorHandler.error(error, "移除插件UI失败", { context: { pluginId } });
     }
 
     // 2. 从工具注册表注销
@@ -635,9 +628,7 @@ class PluginManager {
     const allRegistries = toolRegistryManager.getAllTools();
 
     // 过滤出插件（检查是否有 manifest 属性）
-    return allRegistries.filter(
-      (registry): registry is PluginProxy => "manifest" in registry && "enabled" in registry
-    );
+    return allRegistries.filter((registry): registry is PluginProxy => "manifest" in registry && "enabled" in registry);
   }
 
   /**
@@ -701,10 +692,7 @@ class PluginManager {
           for (const plugin of loadResult.plugins) {
             try {
               // 预先解析图标 URL
-              plugin.iconUrl = await resolvePluginIconUrl(
-                plugin.installPath,
-                plugin.manifest.icon
-              );
+              plugin.iconUrl = await resolvePluginIconUrl(plugin.installPath, plugin.manifest.icon);
 
               // 激活插件
               const shouldEnable = await pluginStateService.isEnabled(plugin.id);

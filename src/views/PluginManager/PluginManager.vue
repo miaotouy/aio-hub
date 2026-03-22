@@ -96,10 +96,10 @@ const handleTogglePlugin = async () => {
 
   try {
     if (selectedPlugin.value.enabled) {
-      selectedPlugin.value.disable();
+      await selectedPlugin.value.disable();
       customMessage.success(`已禁用插件: ${selectedPlugin.value.name}`);
     } else {
-      await selectedPlugin.value.enable();
+      await selectedPlugin.value.enable(pluginManager.createPluginContext(selectedPlugin.value.id));
       customMessage.success(`已启用插件: ${selectedPlugin.value.name}`);
     }
   } catch (error) {

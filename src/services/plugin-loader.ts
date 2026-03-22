@@ -14,14 +14,7 @@ declare global {
 import { path } from "@tauri-apps/api";
 import { getAppConfigDir } from "@/utils/appPath";
 import { readTextFile, readDir, exists } from "@tauri-apps/plugin-fs";
-import type {
-  PluginManifest,
-  PluginLoadOptions,
-  PluginLoadResult,
-  JsPluginExport,
-  PluginProxy,
-  PluginContext,
-} from "./plugin-types";
+import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport, PluginProxy } from "./plugin-types";
 import { createJsPluginProxy } from "./js-plugin-adapter";
 import type { JsPluginAdapter } from "./js-plugin-adapter";
 import { createSidecarPluginProxy } from "./sidecar-plugin-adapter";
@@ -83,7 +76,7 @@ export class PluginLoader {
       });
     } else {
       // 生产模式：仅加载生产插件
-      return await this.loadProdPlugins(contextFactory);
+      return await this.loadProdPlugins();
     }
 
     return result;
@@ -433,13 +426,8 @@ export class PluginLoader {
       // 创建 Sidecar 插件代理（标记为生产模式）
       const proxy = createSidecarPluginProxy(manifest, pluginPath, false);
 
-      // 根据持久化状态决定是否启用插件
-      const shouldEnable = await pluginStateService.isEnabled(proxy.id);
-      if (shouldEnable) {
-        await proxy.enable();
-      } else {
-        logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
-      }
+      // 记录加载状态，启用逻辑由 PluginManager 统一处理
+      logger.debug(`Sidecar 插件 ${proxy.id} 已加载`);
 
       // 初始化插件配置
       try {
@@ -473,13 +461,8 @@ export class PluginLoader {
       // 创建原生插件代理（标记为生产模式）
       const proxy = createNativePluginProxy(manifest, pluginPath, false);
 
-      // 根据持久化状态决定是否启用插件
-      const shouldEnable = await pluginStateService.isEnabled(proxy.id);
-      if (shouldEnable) {
-        await proxy.enable();
-      } else {
-        logger.info(`插件 ${proxy.id} 根据持久化状态保持禁用`);
-      }
+      // 记录加载状态，启用逻辑由 PluginManager 统一处理
+      logger.debug(`原生插件 ${proxy.id} 已加载`);
 
       // 初始化插件配置
       try {

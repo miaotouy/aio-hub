@@ -8,7 +8,6 @@ import type { ServiceMetadata, ToolContext } from "./types";
 import type { PluginProxy, PluginManifest, JsPluginExport } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { pluginConfigService } from "./plugin-config.service";
 import { pluginManager } from "./plugin-manager";
 
 const logger = createModuleLogger("services/js-plugin-adapter");
@@ -159,7 +158,7 @@ export class JsPluginAdapter implements PluginProxy {
               !existingMethodNames.has(key) &&
               key !== "activate" &&
               key !== "deactivate" &&
-              key !== "getMetadata"
+              key !== "getMetadata",
           )
           .map((key) => ({
             name: key,
@@ -185,7 +184,7 @@ export class JsPluginAdapter implements PluginProxy {
           typeof (this.pluginExport as any)[key] === "function" &&
           key !== "activate" &&
           key !== "deactivate" &&
-          key !== "getMetadata"
+          key !== "getMetadata",
       )
       .map((key) => ({
         name: key,
@@ -225,7 +224,7 @@ export class JsPluginAdapter implements PluginProxy {
       // 插件应该在 activate 时保存自己的 context，而不是依赖这里注入
       return method(params, toolContext);
     } catch (error) {
-      errorHandler.error(error, '插件方法调用失败', { context: { pluginId: this.id, methodName } });
+      errorHandler.error(error, "插件方法调用失败", { context: { pluginId: this.id, methodName } });
       throw error;
     }
   }
@@ -243,7 +242,7 @@ export class JsPluginAdapter implements PluginProxy {
 export function createJsPluginProxy(
   manifest: PluginManifest,
   installPath: string,
-  devMode: boolean = false
+  devMode: boolean = false,
 ): PluginProxy {
   const adapter = new JsPluginAdapter(manifest, installPath, devMode);
 
@@ -259,13 +258,13 @@ export function createJsPluginProxy(
       }
 
       // 2. 排除生命周期钩子和元数据方法
-      if (propStr === 'activate' || propStr === 'deactivate' || propStr === 'getMetadata') {
+      if (propStr === "activate" || propStr === "deactivate" || propStr === "getMetadata") {
         return undefined;
       }
 
       // 3. 检查是否为有效方法（manifest 声明 或 动态导出）
       const hasMethodInManifest = target.manifest.methods?.some((m) => m.name === propStr);
-      const hasMethodInExport = target.pluginExport && typeof (target.pluginExport as any)[propStr] === 'function';
+      const hasMethodInExport = target.pluginExport && typeof (target.pluginExport as any)[propStr] === "function";
 
       if (hasMethodInManifest || hasMethodInExport) {
         // 返回一个函数，调用插件的实际方法

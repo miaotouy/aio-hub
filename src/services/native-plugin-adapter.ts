@@ -56,18 +56,18 @@ export class NativePluginAdapter implements PluginProxy {
     try {
       // 获取库文件路径
       const libraryPath = await this.getLibraryPath();
-      
+
       // 调用后端加载动态库
-      await invoke('load_native_plugin', {
+      await invoke("load_native_plugin", {
         pluginId: this.manifest.id,
         libraryPath,
         reloadable: this.manifest.native?.reloadable ?? false,
       });
-      
+
       this.enabled = true;
       logger.info(`原生插件 ${this.id} 启用成功`);
     } catch (error) {
-      errorHandler.error(error, '启用原生插件失败', { context: { pluginId: this.id } });
+      errorHandler.error(error, "启用原生插件失败", { context: { pluginId: this.id } });
       throw error;
     }
   }
@@ -75,21 +75,21 @@ export class NativePluginAdapter implements PluginProxy {
   /**
    * 禁用插件 - 卸载动态库
    */
-  disable(): void {
+  async disable(): Promise<void> {
     if (!this.enabled) {
       logger.warn(`插件 ${this.id} 已经禁用`);
       return;
     }
 
     logger.info(`禁用原生插件: ${this.id}`);
-    
+
     try {
       // 调用后端卸载动态库
-      invoke('unload_native_plugin', { pluginId: this.manifest.id });
+      invoke("unload_native_plugin", { pluginId: this.manifest.id });
       this.enabled = false;
       logger.info(`原生插件 ${this.id} 禁用成功`);
     } catch (error) {
-      errorHandler.error(error, '禁用原生插件失败', { context: { pluginId: this.id } });
+      errorHandler.error(error, "禁用原生插件失败", { context: { pluginId: this.id } });
       // 即使卸载失败，也标记为禁用
       this.enabled = false;
     }
@@ -144,8 +144,8 @@ export class NativePluginAdapter implements PluginProxy {
   /**
    * 销毁方法 (ToolRegistry 接口)
    */
-  dispose(): void {
-    this.disable();
+  async dispose(): Promise<void> {
+    await this.disable();
     logger.debug(`销毁插件: ${this.id}`);
   }
 
@@ -181,7 +181,7 @@ export class NativePluginAdapter implements PluginProxy {
       };
 
       // 调用后端命令
-      const result = await invoke<string>('call_native_plugin_method', {
+      const result = await invoke<string>("call_native_plugin_method", {
         request: {
           plugin_id: this.manifest.id,
           method_name: methodName,
@@ -196,7 +196,7 @@ export class NativePluginAdapter implements PluginProxy {
         return result;
       }
     } catch (error) {
-      errorHandler.error(error, '原生方法调用失败', { context: { pluginId: this.id, methodName } });
+      errorHandler.error(error, "原生方法调用失败", { context: { pluginId: this.id, methodName } });
       throw error;
     }
   }
@@ -224,7 +224,7 @@ export class NativePluginAdapter implements PluginProxy {
 export function createNativePluginProxy(
   manifest: PluginManifest,
   installPath: string,
-  devMode: boolean = false
+  devMode: boolean = false,
 ): PluginProxy {
   const adapter = new NativePluginAdapter(manifest, installPath, devMode);
 

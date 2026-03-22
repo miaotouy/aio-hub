@@ -79,11 +79,11 @@ export class SidecarPluginAdapter implements PluginProxy {
     // 监听 Sidecar 输出事件
     this.unlisten = await listen<SidecarOutputEvent>("sidecar-output", (event) => {
       const data = event.payload;
-      
+
       // 只处理本插件的事件
       if (data.plugin_id === this.manifest.id) {
         logger.debug(`收到 Sidecar 输出事件: ${data.event_type}`, { data: data.data });
-        
+
         // 触发对应的事件处理器
         const handler = this.eventHandlers.get(data.event_type);
         if (handler) {
@@ -98,7 +98,7 @@ export class SidecarPluginAdapter implements PluginProxy {
   /**
    * 禁用插件 - 移除事件监听
    */
-  disable(): void {
+  async disable(): Promise<void> {
     if (!this.enabled) {
       logger.warn(`插件 ${this.id} 已经禁用`);
       return;
@@ -128,8 +128,8 @@ export class SidecarPluginAdapter implements PluginProxy {
   /**
    * 销毁方法 (ToolRegistry 接口)
    */
-  dispose(): void {
-    this.disable();
+  async dispose(): Promise<void> {
+    await this.disable();
     logger.debug(`销毁插件: ${this.id}`);
   }
 
@@ -236,12 +236,12 @@ export class SidecarPluginAdapter implements PluginProxy {
         try {
           const data = JSON.parse(event.data);
           logger.info(`方法执行成功: ${methodName}`, { result: data.data });
-          
+
           // 清理临时处理器
           this.eventHandlers.delete("progress");
           this.eventHandlers.delete("result");
           this.eventHandlers.delete("error");
-          
+
           resolve(data.data);
         } catch (error) {
           errorHandler.error(error, "解析结果数据失败", { context: { data: event.data } });
@@ -253,16 +253,16 @@ export class SidecarPluginAdapter implements PluginProxy {
         if (hasResult) return;
         hasResult = true;
 
-        errorHandler.error(new Error(event.data), '方法执行失败', { context: { methodName } });
-        
+        errorHandler.error(new Error(event.data), "方法执行失败", { context: { methodName } });
+
         // 清理临时处理器
         this.eventHandlers.delete("progress");
         this.eventHandlers.delete("result");
         this.eventHandlers.delete("error");
-        
+
         reject(new Error(event.data));
       };
- 
+
       // 注册临时处理器
       this.eventHandlers.set("progress", progressHandler);
       this.eventHandlers.set("result", resultHandler);
@@ -277,12 +277,12 @@ export class SidecarPluginAdapter implements PluginProxy {
               const data = JSON.parse(result);
               if (data.type === "result") {
                 hasResult = true;
-                
+
                 // 清理临时处理器
                 this.eventHandlers.delete("progress");
                 this.eventHandlers.delete("result");
                 this.eventHandlers.delete("error");
-                
+
                 resolve(data.data);
               }
             } catch (error) {
@@ -293,13 +293,13 @@ export class SidecarPluginAdapter implements PluginProxy {
         .catch((error) => {
           if (!hasResult) {
             hasResult = true;
-            
+
             // 清理临时处理器
             this.eventHandlers.delete("progress");
             this.eventHandlers.delete("result");
             this.eventHandlers.delete("error");
-            
-            errorHandler.error(error, '调用后端命令失败', { context: { methodName } });
+
+            errorHandler.error(error, "调用后端命令失败", { context: { methodName } });
             reject(error);
           }
         });
@@ -329,7 +329,7 @@ export class SidecarPluginAdapter implements PluginProxy {
 export function createSidecarPluginProxy(
   manifest: PluginManifest,
   installPath: string,
-  devMode: boolean = false
+  devMode: boolean = false,
 ): PluginProxy {
   const adapter = new SidecarPluginAdapter(manifest, installPath, devMode);
 

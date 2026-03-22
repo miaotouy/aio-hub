@@ -51,6 +51,8 @@ export interface SettingsProperty {
   description?: string;
   /** 是否为敏感信息（如密码、API Key） */
   secret?: boolean;
+  /** 是否为内部配置（不显示在设置界面） */
+  internal?: boolean;
   /** 可选值列表（用于下拉选择） */
   enum?: string[];
 }
@@ -185,11 +187,64 @@ export interface PluginSettingsAPI {
   set: (key: string, value: any) => Promise<void>;
 }
 
+/**
+ * 插件存储 API 接口
+ *
+ * 为插件提供专属的本地文件存储空间，用于存储大数据包、二进制文件或缓存
+ */
+export interface PluginStorageAPI {
+  /**
+   * 获取插件专属的数据目录路径
+   */
+  getDataDir: () => Promise<string>;
+  /**
+   * 读取文件内容 (文本)
+   * @param path 相对路径（相对于插件数据目录）
+   */
+  readText: (path: string) => Promise<string>;
+  /**
+   * 读取文件内容 (二进制)
+   * @param path 相对路径
+   */
+  readBinary: (path: string) => Promise<Uint8Array>;
+  /**
+   * 写入文件内容 (文本)
+   * @param path 相对路径
+   * @param data 文本内容
+   */
+  writeText: (path: string, data: string) => Promise<void>;
+  /**
+   * 写入文件内容 (二进制)
+   * @param path 相对路径
+   * @param data 二进制数据
+   */
+  writeBinary: (path: string, data: Uint8Array | ArrayBuffer) => Promise<void>;
+  /**
+   * 检查文件或目录是否存在
+   * @param path 相对路径
+   */
+  exists: (path: string) => Promise<boolean>;
+  /**
+   * 删除文件或目录
+   * @param path 相对路径
+   */
+  remove: (path: string) => Promise<void>;
+  /**
+   * 列出目录内容
+   * @param path 相对路径
+   */
+  readDir: (path: string) => Promise<Array<{ name: string; isDirectory: boolean }>>;
+}
+
 export interface PluginContext {
   /**
    * 插件配置 API
    */
   settings: PluginSettingsAPI;
+  /**
+   * 插件专属存储 API
+   */
+  storage: PluginStorageAPI;
   /**
    * 聊天上下文管道 API
    */

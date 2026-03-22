@@ -144,22 +144,12 @@ class PluginConfigService {
     }
 
     const schema = this.schemas.get(pluginId);
-    if (!schema) {
-      const err = new Error(`插件 ${pluginId} 的配置模式不存在`);
-      errorHandler.error(err, `插件配置模式不存在`, { context: { pluginId } });
-      throw err;
-    }
+    
+    // 验证配置键是否存在于模式中
+    const property = schema?.properties?.[key];
 
-    // 验证配置键是否存在
-    if (!(key in schema.properties)) {
-      const err = new Error(`配置键 ${key} 不存在于插件 ${pluginId} 的配置模式中`);
-      errorHandler.error(err, `配置键不存在`, { context: { pluginId, key } });
-      throw err;
-    }
-
-    // 验证值类型（仅对旧格式的 SettingsProperty 进行类型检查）
-    const property = schema.properties[key];
-    if ("type" in property) {
+    // 如果在模式中定义了，进行类型验证（仅对旧格式的 SettingsProperty 进行类型检查）
+    if (property && "type" in property) {
       // SettingsProperty 格式，进行类型检查
       const oldProp = property as SettingsProperty;
       const valueType = typeof value;
@@ -180,11 +170,29 @@ class PluginConfigService {
 
     // 更新配置
     await manager.update({ [key]: value });
-    logger.debug(`配置已更新`, { pluginId, key });
+    
+    // 如果不在 schema 中，记录为私有状态更新
+    if (!property) {
+      logger.debug(`插件私有状态已更新`, { pluginId, key });
+    } else {
+      logger.debug(`配置已更新`, { pluginId, key });
+    }
   }
 
   /**
-   * 获取插件的所有配置
+   * 获取插件的所有配置数据（包括私有状态）
+   * @param pluginId 插件 ID
+   */
+  async getFullConfig(pluginId: string): Promise<Record<string, any> | undefined> {
+    const manager = this.configManagers.get(pluginId);
+    if (!manager) return undefined;
+    const config = await manager.load();
+    const { version, ...settings } = config;
+    return settings;
+  }
+
+  /**
+   * 获取插件的公开配置（仅限 schema 中定义的且非 internal 的项）
    * @param pluginId 插件 ID
    */
   async getAll(pluginId: string): Promise<Record<string, any> | undefined> {
@@ -194,10 +202,27 @@ class PluginConfigService {
       return undefined;
     }
 
+    const schema = this.schemas.get(pluginId);
     const config = await manager.load();
-    // 移除 version 字段，只返回配置数据
-    const { version, ...settings } = config;
-    return settings;
+    
+    // 如果没有 schema，返回空对象（因为没有“公开”配置）
+    if (!schema) return {};
+
+    // 过滤出 schema 中定义的项
+    const publicSettings: Record<string, any> = {};
+    for (const key of Object.keys(schema.properties)) {
+      const property = schema.properties[key];
+      
+      // 过滤掉 internal 项
+      const isInternal = ("internal" in property && property.internal) ||
+                        ("layout" in property && property.layout === "hidden");
+      
+      if (!isInternal && key in config) {
+        publicSettings[key] = config[key];
+      }
+    }
+    
+    return publicSettings;
   }
 
   /**
@@ -228,9 +253,10 @@ class PluginConfigService {
     let targetPluginId = pluginId;
     if (import.meta.env.DEV && !pluginId.endsWith("-dev")) {
       const devPluginId = `${pluginId}-dev`;
+      // 只有当原始 ID 没有对应的管理器，或者我们明确想在开发模式下强制重定向时才这样做
       if (this.configManagers.has(devPluginId)) {
         targetPluginId = devPluginId;
-        logger.debug(`配置 API 重定向: ${pluginId} -> ${devPluginId}`);
+        logger.debug(`[DEV] 配置 API 重定向: ${pluginId} -> ${devPluginId} (为了解决插件内部硬编码 ID 的兼容性)`);
       }
     }
 
@@ -242,10 +268,10 @@ class PluginConfigService {
         return this.getValue<T>(targetPluginId, key);
       },
       /**
-       * 获取所有配置
+       * 获取所有配置（插件内部访问应返回全部数据，包括私有状态）
        */
       getAll: async (): Promise<Record<string, any> | undefined> => {
-        return this.getAll(targetPluginId);
+        return this.getFullConfig(targetPluginId);
       },
 
       /**

@@ -33,11 +33,18 @@ const settingsSchema = computed<SettingsSchema | undefined>(() => {
 const settingsItems = computed<SettingItem[]>(() => {
   if (!settingsSchema.value) return [];
 
-  return Object.entries(settingsSchema.value.properties).map(([key, property]) => {
-    // 如果已经是完整的 SettingItem，直接使用
-    if ("component" in property && "modelPath" in property) {
-      return property as SettingItem;
-    }
+  return Object.entries(settingsSchema.value.properties)
+    .filter(([_, property]) => {
+      // 过滤掉隐藏项或内部项
+      if ("layout" in property && property.layout === "hidden") return false;
+      if ("internal" in property && property.internal) return false;
+      return true;
+    })
+    .map(([key, property]) => {
+      // 如果已经是完整的 SettingItem，直接使用
+      if ("component" in property && "modelPath" in property) {
+        return property as SettingItem;
+      }
 
     // 否则从旧格式的 SettingsProperty 转换
     const oldProp = property as SettingsProperty;

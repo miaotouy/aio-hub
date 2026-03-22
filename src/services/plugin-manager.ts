@@ -9,13 +9,16 @@ import { createPluginLoader, PluginLoader } from "./plugin-loader";
 import type { PluginProxy } from "./plugin-types";
 import { useToolsStore } from "@/stores/tools";
 import type { ToolConfig } from "@/services/types";
-import { markRaw, h, ref, type Component } from "vue";
+import { markRaw, h, ref, reactive, type Component } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginStateService } from "./plugin-state.service";
 import { pluginConfigService } from "./plugin-config.service";
-import type { PluginContext } from "./plugin-types";
+import type { PluginContext, PluginStorageAPI } from "./plugin-types";
 import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
+import { getAppConfigDir } from "@/utils/appPath";
+import { emit, listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const logger = createModuleLogger("services/plugin-manager");
 const errorHandler = createModuleErrorHandler("services/plugin-manager");
@@ -331,9 +334,90 @@ export function unregisterPluginUi(pluginId: string): void {
 class PluginManager {
   private loader: PluginLoader | null = null;
   private initialized = false;
+  
+  // 响应式插件状态追踪
+  public pluginStates = reactive<Record<string, { enabled: boolean; isBroken: boolean }>>({});
 
   constructor() {
     // 构造函数中不再创建 context，延迟到使用时
+  }
+
+  /**
+   * 创建插件专属的存储 API
+   * @param pluginId 插件 ID
+   */
+  private async createPluginStorageAPI(pluginId: string): Promise<PluginStorageAPI> {
+    const { join } = await import("@tauri-apps/api/path");
+    const fs = await import("@tauri-apps/plugin-fs");
+    
+    // 获取应用配置目录
+    const appConfigDir = await getAppConfigDir();
+    // 插件数据根目录：appDataDir/plugins-data/pluginId
+    const dataDir = await join(appConfigDir, "plugins-data", pluginId);
+
+    // 内部辅助函数：确保目录存在并返回完整路径
+    const resolvePath = async (subPath: string) => {
+      // 确保基础目录存在
+      if (!(await fs.exists(dataDir))) {
+        await fs.mkdir(dataDir, { recursive: true });
+      }
+      return await join(dataDir, subPath);
+    };
+
+    return {
+      getDataDir: async () => {
+        if (!(await fs.exists(dataDir))) {
+          await fs.mkdir(dataDir, { recursive: true });
+        }
+        return dataDir;
+      },
+      readText: async (path: string) => {
+        const fullPath = await resolvePath(path);
+        return await fs.readTextFile(fullPath);
+      },
+      readBinary: async (path: string) => {
+        const fullPath = await resolvePath(path);
+        return await fs.readFile(fullPath);
+      },
+      writeText: async (path: string, data: string) => {
+        const fullPath = await resolvePath(path);
+        // 确保父目录存在
+        const parentDir = fullPath.substring(0, fullPath.lastIndexOf(/[/\\]/.test(fullPath) ? fullPath.match(/[/\\]/)![0] : ""));
+        if (parentDir && parentDir !== dataDir && !(await fs.exists(parentDir))) {
+          await fs.mkdir(parentDir, { recursive: true });
+        }
+        await fs.writeTextFile(fullPath, data);
+      },
+      writeBinary: async (path: string, data: Uint8Array | ArrayBuffer) => {
+        const fullPath = await resolvePath(path);
+        const uint8Data = data instanceof Uint8Array ? data : new Uint8Array(data);
+        await fs.writeFile(fullPath, uint8Data);
+      },
+      exists: async (path: string) => {
+        const fullPath = await resolvePath(path);
+        return await fs.exists(fullPath);
+      },
+      remove: async (path: string) => {
+        const fullPath = await resolvePath(path);
+        if (await fs.exists(fullPath)) {
+          // 判断是文件还是目录
+          const metadata = await fs.stat(fullPath);
+          if (metadata.isDirectory) {
+            await fs.remove(fullPath, { recursive: true });
+          } else {
+            await fs.remove(fullPath);
+          }
+        }
+      },
+      readDir: async (path: string) => {
+        const fullPath = await resolvePath(path);
+        const entries = await fs.readDir(fullPath);
+        return entries.map(e => ({
+          name: e.name,
+          isDirectory: e.isDirectory
+        }));
+      }
+    };
   }
 
   /**
@@ -344,8 +428,23 @@ class PluginManager {
     // 在方法内部获取 store 实例，确保 Pinia 已初始化
     const contextPipelineStore = useContextPipelineStore();
 
+    // 预创建 storage（由于 context 接口不能是 Promise，我们通过 Proxy 或延迟加载来处理，
+    // 或者直接在这里使用已经初始化的 storage，但 createPluginContext 往往是同步调用的。
+    // 为了保持兼容性，我们返回一个包含异步方法的 storage 对象）
+    const storagePromise = this.createPluginStorageAPI(pluginId);
+
     return {
       settings: pluginConfigService.createPluginSettingsAPI(pluginId),
+      storage: {
+        getDataDir: async () => (await storagePromise).getDataDir(),
+        readText: async (path) => (await storagePromise).readText(path),
+        readBinary: async (path) => (await storagePromise).readBinary(path),
+        writeText: async (path, data) => (await storagePromise).writeText(path, data),
+        writeBinary: async (path, data) => (await storagePromise).writeBinary(path, data),
+        exists: async (path) => (await storagePromise).exists(path),
+        remove: async (path) => (await storagePromise).remove(path),
+        readDir: async (path) => (await storagePromise).readDir(path),
+      },
       chat: {
         registerProcessor: (processor: any) => {
           logger.info(`插件正在注册上下文处理器: ${processor.id} (Plugin: ${pluginId})`);
@@ -372,6 +471,15 @@ class PluginManager {
 
     // 初始化插件状态服务
     await pluginStateService.initialize();
+
+    // 监听来自其他窗口的状态变更
+    listen<{ pluginId: string; enabled: boolean }>("plugin-runtime-state-changed", (event) => {
+      const { pluginId, enabled } = event.payload;
+      logger.info(`收到跨窗口插件状态变更: ${pluginId} -> ${enabled}`);
+      this.updateRuntimeState(pluginId, enabled, true);
+    }).catch(err => {
+      logger.error("监听插件状态变更失败", err);
+    });
 
     this.loader = await createPluginLoader();
     this.initialized = true;
@@ -400,6 +508,12 @@ class PluginManager {
             plugin.manifest.icon
           );
 
+          // 初始化响应式状态
+          this.pluginStates[plugin.id] = {
+            enabled: plugin.enabled,
+            isBroken: (plugin as any).isBroken || false
+          };
+
           // 只为启用的且未损坏的插件注册 UI
           if (plugin.enabled && !(plugin as any).isBroken) {
             await registerPluginUi(plugin);
@@ -422,6 +536,57 @@ class PluginManager {
         failed: result.failed.map((f) => ({ id: f.id, error: f.error.message })),
       });
     }
+  }
+
+  /**
+   * 更新插件的运行状态（由适配器调用）
+   * @internal
+   * @param isRemote 是否为来自其他窗口的远程同步更新
+   */
+  public updateRuntimeState(pluginId: string, enabled: boolean, isRemote: boolean = false): void {
+    // 防止状态未改变时的重复处理（以及潜在的死循环）
+    if (this.pluginStates[pluginId] && this.pluginStates[pluginId].enabled === enabled) {
+      return;
+    }
+
+    if (this.pluginStates[pluginId]) {
+      this.pluginStates[pluginId].enabled = enabled;
+    } else {
+      this.pluginStates[pluginId] = { enabled, isBroken: false };
+    }
+    
+    const plugin = this.getPlugin(pluginId);
+
+    // 如果是远程更新，或者状态不一致，同步插件实例的启用状态
+    if (plugin && plugin.enabled !== enabled) {
+      if (enabled) {
+        plugin.enable();
+      } else {
+        plugin.disable();
+      }
+    }
+    
+    // 处理 UI 注册/注销
+    if (!enabled) {
+      unregisterPluginUi(pluginId);
+    } else if (plugin && !this.isUiRegistered(pluginId)) {
+      registerPluginUi(plugin);
+    }
+
+    // 如果不是来自远程的更新（即本窗口发起的），则广播给其他窗口
+    if (!isRemote) {
+      emit("plugin-runtime-state-changed", { pluginId, enabled }).catch(err => {
+        logger.error("广播插件状态失败", err);
+      });
+    }
+  }
+
+  /**
+   * 检查插件 UI 是否已注册
+   */
+  private isUiRegistered(pluginId: string): boolean {
+    const toolsStore = useToolsStore();
+    return toolsStore.tools.some(t => t.path === `/plugin-${pluginId}`);
   }
 
   /**

@@ -9,6 +9,7 @@ import type { PluginProxy, PluginManifest, JsPluginExport } from "./plugin-types
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
+import { pluginManager } from "./plugin-manager";
 
 const logger = createModuleLogger("services/js-plugin-adapter");
 const errorHandler = createModuleErrorHandler("services/js-plugin-adapter");
@@ -53,6 +54,7 @@ export class JsPluginAdapter implements PluginProxy {
 
     logger.info(`启用 JS 插件: ${this.id}`);
     this.enabled = true;
+    pluginManager.updateRuntimeState(this.id, true);
     // 注意：activate 钩子在加载时调用，而不是启用时
   }
 
@@ -79,6 +81,7 @@ export class JsPluginAdapter implements PluginProxy {
 
     this.pluginExport = null;
     this.enabled = false;
+    pluginManager.updateRuntimeState(this.id, false);
   }
   /**
    * 设置插件导出对象
@@ -183,12 +186,11 @@ export class JsPluginAdapter implements PluginProxy {
    * @internal 此方法通过 Proxy 动态调用
    */
   public callPluginMethod(methodName: string, params: any, toolContext?: ToolContext): any {
-    if (!this.enabled) {
-      throw new Error(`插件 ${this.id} 未启用`);
-    }
-
-    if (!this.pluginExport) {
-      throw new Error(`插件 ${this.id} 未正确加载`);
+    if (!this.enabled || !this.pluginExport) {
+      const status = !this.enabled ? "已禁用" : "未正确加载";
+      const err = new Error(`无法调用方法 ${methodName}: 插件 ${this.id} ${status}`);
+      logger.warn(err.message);
+      throw err;
     }
 
     const method = this.pluginExport[methodName];

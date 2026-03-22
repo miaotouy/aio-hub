@@ -183,10 +183,34 @@ class PluginConfigService {
    * 获取插件的所有配置数据（包括私有状态）
    * @param pluginId 插件 ID
    */
-  async getFullConfig(pluginId: string): Promise<Record<string, any> | undefined> {
+  async getFullConfig(pluginId: string): Promise<Record<string, any>> {
     const manager = this.configManagers.get(pluginId);
-    if (!manager) return undefined;
+    if (!manager) {
+      logger.warn(`插件配置管理器不存在，返回空配置`, { pluginId });
+      return {};
+    }
+
     const config = await manager.load();
+    const schema = this.schemas.get(pluginId);
+
+    // 如果有 schema，确保返回的配置包含默认值
+    if (schema) {
+      const settings: Record<string, any> = {};
+
+      // 1. 先填充默认值
+      for (const [key, property] of Object.entries(schema.properties)) {
+        if ("defaultValue" in property) {
+          settings[key] = property.defaultValue;
+        } else if ("default" in property) {
+          settings[key] = (property as SettingsProperty).default;
+        }
+      }
+
+      // 2. 用已加载的配置覆盖默认值
+      const { version, ...loadedSettings } = config;
+      return { ...settings, ...loadedSettings };
+    }
+
     const { version, ...settings } = config;
     return settings;
   }
@@ -271,8 +295,8 @@ class PluginConfigService {
       /**
        * 获取所有配置（插件内部访问应返回全部数据，包括私有状态）
        */
-      getAll: async (): Promise<Record<string, any> | undefined> => {
-        return this.getFullConfig(targetPluginId);
+      getAll: async (): Promise<Record<string, any>> => {
+        return (await this.getFullConfig(targetPluginId)) || {};
       },
 
       /**

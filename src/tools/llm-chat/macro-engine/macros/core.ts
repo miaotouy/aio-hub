@@ -6,6 +6,7 @@
 import type { MacroRegistry } from "../MacroRegistry";
 import { MacroPhase, MacroType } from "../MacroRegistry";
 import type { MacroDefinition } from "../MacroRegistry";
+import { DEFAULT_VISUAL_GUIDELINE } from "../../config/visualGuidelinePresets";
 
 /**
  * 注册核心宏
@@ -250,6 +251,25 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       supported: true,
       contextFree: false,
       execute: (context) => context.providerType || "",
+    },
+
+    // 视觉化输出指南
+    {
+      name: "visual_guideline",
+      type: MacroType.VALUE,
+      // 放在预处理阶段，以便展开后的内容中包含的宏（如 {{char}}）能在后续阶段被解析
+      phase: MacroPhase.PRE_PROCESS,
+      description: "AIO Hub 视觉化输出指南（HTML/CSS 渲染规范）",
+      example: "{{visual_guideline}}",
+      acceptsArgs: false,
+      priority: 10,
+      supported: true,
+      contextFree: false,
+      execute: (context) => {
+        // 优先使用 Agent 自定义的指南，否则使用默认值
+        const agentGuideline = context.agent?.visualGuideline;
+        return agentGuideline || DEFAULT_VISUAL_GUIDELINE;
+      },
     },
   ];
 

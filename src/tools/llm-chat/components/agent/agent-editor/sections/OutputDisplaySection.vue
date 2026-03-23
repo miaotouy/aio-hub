@@ -5,11 +5,12 @@ import type { SettingItem } from "@/types/settings-renderer";
 
 const ChatRegexEditor = defineAsyncComponent(() => import("../../../common/ChatRegexEditor.vue"));
 const LlmThinkRulesEditor = defineAsyncComponent(
-  () => import("@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue")
+  () => import("@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue"),
 );
 const MarkdownStyleEditor = defineAsyncComponent(
-  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
+  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue"),
 );
+const VisualGuidelineEditor = defineAsyncComponent(() => import("../components/VisualGuidelineEditor.vue"));
 
 const editForm = inject<any>("agent-edit-form");
 
@@ -89,11 +90,15 @@ const outputSettings = computed<SettingItem[]>(() => [
 
 <template>
   <div class="agent-section">
+    <!-- 基础渲染设置 -->
     <SettingListRenderer
       :items="outputSettings"
       :settings="editForm"
       @update:settings="Object.assign(editForm, $event)"
     />
+
+    <!-- 视觉化输出指南 (完全委托给组件处理) -->
+    <VisualGuidelineEditor v-model="editForm.visualGuideline" />
   </div>
 </template>
 

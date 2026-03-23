@@ -346,6 +346,12 @@ export interface AgentBaseConfig {
   /** 工具调用配置 */
   toolCallConfig?: ToolCallConfig;
 
+  /**
+   * 视觉化输出指南
+   * 用于指导 LLM 如何使用 HTML/CSS/JS 进行视觉化输出
+   */
+  visualGuideline?: string;
+
   /** 会话变量配置 */
   variableConfig?: VariableConfig;
 }

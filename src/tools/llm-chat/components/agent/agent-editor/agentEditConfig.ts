@@ -119,6 +119,11 @@ export const agentEditTabs: AgentEditTab[] = [
         label: "回复样式自定义",
         keywords: "style markdown css 样式 渲染",
       },
+      {
+        id: "visualGuideline",
+        label: "视觉化输出指南",
+        keywords: "visual guideline html css js 视觉化 渲染 规范",
+      },
     ],
   },
 ];

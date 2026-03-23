@@ -81,7 +81,7 @@ const handleResetToDefault = async () => {
 
             <div class="preview-container">
               <div class="preview-label">当前默认规范预览 (只读)</div>
-              <RichCodeEditor :model-value="DEFAULT_VISUAL_GUIDELINE" mode="markdown" read-only height="400px" />
+              <RichCodeEditor :model-value="DEFAULT_VISUAL_GUIDELINE" language="markdown" read-only height="400px" />
             </div>
           </div>
 
@@ -99,7 +99,7 @@ const handleResetToDefault = async () => {
             <RichCodeEditor
               :model-value="modelValue"
               @update:model-value="emit('update:modelValue', $event)"
-              mode="markdown"
+              language="markdown"
               height="500px"
             />
           </div>

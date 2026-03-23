@@ -23,6 +23,7 @@ import ImageNode from "./nodes/ImageNode.vue";
 import HardBreakNode from "./nodes/HardBreakNode.vue";
 import HtmlInlineNode from "./nodes/HtmlInlineNode.vue";
 import GenericHtmlNode from "./nodes/GenericHtmlNode.vue";
+import StyleNode from "./nodes/StyleNode.vue";
 import ActionButtonNode from "./nodes/ActionButtonNode.vue";
 import SvarNode from "./nodes/SvarNode.vue";
 // 块级节点
@@ -160,16 +161,28 @@ const AstNodeRenderer = defineComponent({
   setup(props) {
     return (): VNode[] => {
       return props.nodes.map((node: AstNode): VNode => {
-        const NodeComponent = componentMap[node.type] || FallbackNode;
+        let NodeComponent = componentMap[node.type] || FallbackNode;
+
+        // 特殊处理：如果是一个 generic_html 且标签名为 style，则使用专门的 StyleNode
+        // 这样可以避免 CSS 内容被渲染成普通的 span 文本溢出到页面上
+        if (node.type === "generic_html" && node.props?.tagName === "style") {
+          NodeComponent = StyleNode;
+        }
+
+        // 尝试获取或生成容器 ID，用于样式隔离
+        const containerId =
+          (node.props as any)?.id || (node.type === "generic_html" ? `html-node-${node.id.slice(0, 8)}` : undefined);
 
         // 构建子节点 - 通过变量引用实现递归
-        const children: VNode | undefined = node.children?.length
-          ? h(AstNodeRenderer, {
-              nodes: node.children,
-              generationMeta: props.generationMeta,
-              enableEnterAnimation: props.enableEnterAnimation,
-            })
-          : undefined;
+        const children: VNode | undefined =
+          node.children?.length && NodeComponent !== StyleNode
+            ? h(AstNodeRenderer, {
+                nodes: node.children,
+                generationMeta: props.generationMeta,
+                enableEnterAnimation: props.enableEnterAnimation,
+                parentContainerId: containerId || (props as any).parentContainerId,
+              })
+            : undefined;
 
         // 根据节点类型决定是否应用动画
         const shouldAnimate = props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
@@ -181,12 +194,19 @@ const AstNodeRenderer = defineComponent({
         const componentProps: any = {
           key: node.id,
           nodeId: node.id,
+          id: containerId,
           "data-node-status": node.meta.status,
           class: [shouldAnimate ? "rich-text-node" : undefined, isBlock ? "rich-text-block" : undefined]
             .filter(Boolean)
             .join(" "),
           ...node.props,
           generationMeta: props.generationMeta,
+          // 如果是 StyleNode，我们需要传递原始子节点以提取文本
+          sourceNodes: NodeComponent === StyleNode ? node.children : undefined,
+          // 传递父级容器 ID 给子节点，方便 StyleNode 进行样式隔离
+          parentContainerId: props.nodes.some((n) => n.type === "generic_html" && (n.props as any)?.tagName === "style")
+            ? containerId
+            : (props as any).parentContainerId,
         };
 
         // 根据节点类型设置 displayMode

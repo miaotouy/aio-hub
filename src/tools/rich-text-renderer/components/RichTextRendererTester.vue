@@ -1,9 +1,5 @@
 <template>
-  <div
-    ref="containerRef"
-    class="rich-text-renderer-tester"
-    :class="{ 'is-narrow': isNarrow, 'is-mobile': isMobile }"
-  >
+  <div ref="containerRef" class="rich-text-renderer-tester" :class="{ 'is-narrow': isNarrow, 'is-mobile': isMobile }">
     <div class="tester-layout">
       <!-- 左侧配置栏 -->
       <TesterConfigSidebar
@@ -62,10 +58,7 @@
           </div>
 
           <!-- 预览区 -->
-          <div
-            v-show="layoutMode === 'split' || layoutMode === 'preview-only'"
-            class="preview-area"
-          >
+          <div v-show="layoutMode === 'split' || layoutMode === 'preview-only'" class="preview-area">
             <div class="area-header" ref="previewHeaderRef">
               <h4 style="min-width: 80px">渲染预览</h4>
               <div class="preview-header-controls" :class="{ 'is-compact': isHeaderCompact }">
@@ -80,11 +73,7 @@
                   >
                     {{ renderStats.speed.toFixed(1) }} token/秒
                   </el-tag>
-                  <el-tag
-                    v-if="renderStats.elapsedTime > 0"
-                    size="small"
-                    :type="isRendering ? 'warning' : 'info'"
-                  >
+                  <el-tag v-if="renderStats.elapsedTime > 0" size="small" :type="isRendering ? 'warning' : 'info'">
                     {{ formatElapsedTime(renderStats.elapsedTime) }}
                   </el-tag>
                   <el-tag size="small" type="success">{{ renderStats.totalChars }} 字符 </el-tag>
@@ -101,7 +90,26 @@
                   </el-tooltip>
                   <span>可视化块状态</span>
                 </div>
+                <div class="visualizer-toggle">
+                  <el-tooltip content="切换样式逃逸检测器" placement="top" :show-after="300">
+                    <el-button
+                      circle
+                      size="small"
+                      :type="showEscapeDetector ? 'danger' : ''"
+                      @click="showEscapeDetector = !showEscapeDetector"
+                    >
+                      <el-icon :size="14"><ShieldAlert /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                </div>
               </div>
+            </div>
+            <div class="escape-detection-bar" v-if="showEscapeDetector">
+              <div class="detection-label">外部逃逸检测区：</div>
+              <div class="test-escape-detector">
+                <span>🛡️ 我只是普通文本，如果我具有非一般的样式，说明样式逃逸了！</span>
+              </div>
+              <div class="detection-hint">(此容器在渲染器组件外部，不应受其内部 style 影响)</div>
             </div>
             <div
               class="render-container"
@@ -183,6 +191,7 @@
 <script setup lang="ts">
 import { ref, reactive, shallowRef, onMounted, watch, nextTick, computed, provide } from "vue";
 import { useElementSize } from "@vueuse/core";
+import { ShieldAlert } from "lucide-vue-next";
 import RichTextRenderer from "../RichTextRenderer.vue";
 import type { StreamSource } from "../types";
 import { presets } from "../config/presets";
@@ -190,10 +199,7 @@ import { useRichTextRendererStore } from "../stores/store";
 import { storeToRefs } from "pinia";
 import { llmChatRegistry } from "@/tools/llm-chat/llmChat.registry";
 import { useAgentPresets } from "@/composables/useAgentPresets";
-import {
-  processMessageAssetsSync,
-  initAgentAssetCache,
-} from "@/tools/llm-chat/utils/agentAssetUtils";
+import { processMessageAssetsSync, initAgentAssetCache } from "@/tools/llm-chat/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/llm-chat/types";
 import customMessage from "@/utils/customMessage";
 import MarkdownStyleEditor from "./style-editor/MarkdownStyleEditor.vue";
@@ -310,6 +316,9 @@ const typedRegexConfig = computed({
     storeRegexConfig.value = val;
   },
 });
+
+// 样式逃逸检测器显示状态
+const showEscapeDetector = ref(false);
 
 // 样式编辑器显示状态
 const isStyleEditorVisible = ref(false);
@@ -485,7 +494,7 @@ const createStreamSource = (content: string): StreamSource => {
       const tokenized = await tokenCalculatorEngine.getTokenizedText(
         content,
         selectedTokenizer.value,
-        true // 使用分词器名称
+        true, // 使用分词器名称
       );
 
       if (!tokenized || !tokenized.tokens.length) {
@@ -545,7 +554,7 @@ const createStreamSource = (content: string): StreamSource => {
             // 随机 token 数量（在设定范围内波动）
             const randomTokens = Math.floor(
               Math.random() * (charsFluctuation.value.max - charsFluctuation.value.min + 1) +
-                charsFluctuation.value.min
+                charsFluctuation.value.min,
             );
             const actualTokens = Math.min(randomTokens, tokens.length - tokenIndex);
 
@@ -568,7 +577,7 @@ const createStreamSource = (content: string): StreamSource => {
               // 随机延迟（在波动范围内）
               const randomDelay = Math.floor(
                 Math.random() * (delayFluctuation.value.max - delayFluctuation.value.min + 1) +
-                  delayFluctuation.value.min
+                  delayFluctuation.value.min,
               );
 
               // 计算本次实际应该延迟的时间（考虑累计偏差进行补偿）
@@ -629,8 +638,7 @@ const createStreamSource = (content: string): StreamSource => {
       generationMeta.requestEndTime = Date.now();
       // 计算 TPS
       if (generationMeta.requestStartTime) {
-        const durationSeconds =
-          (generationMeta.requestEndTime - generationMeta.requestStartTime) / 1000;
+        const durationSeconds = (generationMeta.requestEndTime - generationMeta.requestStartTime) / 1000;
         if (durationSeconds > 0) {
           generationMeta.tokensPerSecond = renderStats.totalTokens / durationSeconds;
         }
@@ -977,7 +985,7 @@ watch(
     if (isRendering.value) {
       scrollToBottom();
     }
-  }
+  },
 );
 
 // 组件挂载时加载配置
@@ -1197,6 +1205,37 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+/* 逃逸检测工具栏 */
+.escape-detection-bar {
+  padding: 10px 20px;
+  background: var(--bg-color-page);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.detection-label {
+  font-weight: bold;
+  color: var(--text-color-secondary);
+}
+
+.detection-hint {
+  color: var(--text-color-placeholder);
+  font-style: italic;
+}
+
+/* 逃逸检测器默认样式（未被污染时） */
+.test-escape-detector {
+  padding: 4px 12px;
+  background: var(--fill-color-light);
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color-regular);
+  transition: all 0.3s ease;
 }
 
 /* 渲染容器 */

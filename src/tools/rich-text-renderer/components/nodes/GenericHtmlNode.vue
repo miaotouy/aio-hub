@@ -79,6 +79,8 @@ const props = defineProps<{
   nodeId: string;
   tagName: string;
   attributes: Record<string, string>;
+  /** 显式传递 ID 属性 */
+  id?: string;
   /** 是否允许渲染危险的 HTML 标签（覆盖 context 中的设置） */
   allowDangerousHtml?: boolean;
 }>();
@@ -156,8 +158,7 @@ const isHiddenAudio = computed(() => {
   const style = props.attributes.style || "";
   const hasNoControls = props.attributes.controls === undefined;
   const isDisplayNone = style.includes("display: none") || style.includes("display:none");
-  const isVisibilityHidden =
-    style.includes("visibility: hidden") || style.includes("visibility:hidden");
+  const isVisibilityHidden = style.includes("visibility: hidden") || style.includes("visibility:hidden");
 
   return isDisplayNone || isVisibilityHidden || hasNoControls;
 });
@@ -203,7 +204,7 @@ watch(
   () => chatSettings?.value?.uiPreferences?.globalMediaVolume,
   () => {
     updateAudioVolume();
-  }
+  },
 );
 
 const togglePlay = () => {
@@ -264,18 +265,18 @@ const DANGEROUS_TAGS = new Set([
 // 内联 style 属性安全清理
 // 过滤可能导致布局逃逸或覆盖宿主 UI 的 CSS 属性
 const DANGEROUS_STYLE_PATTERNS = [
-  /position\s*:\s*(fixed|sticky)/gi,        // 脱离正常文档流，覆盖宿主 UI
-  /z-index\s*:\s*\d{4,}/gi,                  // 过大的 z-index（4 位数以上）
+  /position\s*:\s*(fixed|sticky)/gi, // 脱离正常文档流，覆盖宿主 UI
+  /z-index\s*:\s*\d{4,}/gi, // 过大的 z-index（4 位数以上）
   // 注意：不拦截 top/left/right/bottom，因为 position:absolute 是相对父元素定位（安全）
   // position:fixed/sticky 已被拦截，contain:layout 兜底防止逃逸
 ];
 
 const sanitizeInlineStyle = (styleStr: string): string => {
-  if (!styleStr || typeof styleStr !== 'string') return '';
+  if (!styleStr || typeof styleStr !== "string") return "";
   let sanitized = styleStr;
   for (const pattern of DANGEROUS_STYLE_PATTERNS) {
     pattern.lastIndex = 0; // 重置 regex 状态
-    sanitized = sanitized.replace(pattern, '/* blocked */');
+    sanitized = sanitized.replace(pattern, "/* blocked */");
   }
   return sanitized;
 };
@@ -286,12 +287,11 @@ const safeTagName = computed(() => {
 
   // 检查是否在黑名单中
   // 仅在未显式允许危险 HTML 时进行检查
-  const isDangerousAllowed =
-    props.allowDangerousHtml ?? context?.allowDangerousHtml?.value ?? false;
+  const isDangerousAllowed = props.allowDangerousHtml ?? context?.allowDangerousHtml?.value ?? false;
 
   if (DANGEROUS_TAGS.has(tag) && !isDangerousAllowed) {
     console.warn(
-      `[GenericHtmlNode] Dangerous tag blocked: "${props.tagName}", fallback to <span>. Set allowDangerousHtml to true to bypass.`
+      `[GenericHtmlNode] Dangerous tag blocked: "${props.tagName}", fallback to <span>. Set allowDangerousHtml to true to bypass.`,
     );
     return "span";
   }
@@ -301,9 +301,7 @@ const safeTagName = computed(() => {
   }
 
   // 非法标签名，使用 span 包裹，并在控制台警告
-  console.warn(
-    `[GenericHtmlNode] Invalid tag name detected: "${props.tagName}", fallback to <span>`
-  );
+  console.warn(`[GenericHtmlNode] Invalid tag name detected: "${props.tagName}", fallback to <span>`);
   return "span";
 });
 
@@ -358,11 +356,7 @@ const filteredAttributes = computed(() => {
 
     // 过滤 javascript: 协议的 URL 属性
     const isUrlAttr = ["src", "href", "action", "formaction", "data"].includes(lowerKey);
-    if (
-      isUrlAttr &&
-      typeof value === "string" &&
-      value.toLowerCase().trim().startsWith("javascript:")
-    ) {
+    if (isUrlAttr && typeof value === "string" && value.toLowerCase().trim().startsWith("javascript:")) {
       console.warn(`[GenericHtmlNode] Blocked javascript: URL in attribute "${key}"`);
       continue;
     }
@@ -370,6 +364,9 @@ const filteredAttributes = computed(() => {
     // 处理特殊属性
     if (lowerKey === "style") {
       attrs.style = sanitizeInlineStyle(value);
+    } else if (lowerKey === "id") {
+      // 保持 ID 原始值
+      attrs.id = value;
     } else if (isUrlAttr && typeof value === "string") {
       // 解析资产链接（包括 agent-asset:// 和 【file::assetId】等占位符）
       if (context?.resolveAsset) {
@@ -381,6 +378,11 @@ const filteredAttributes = computed(() => {
       // 其他属性直接传递
       attrs[key] = value;
     }
+  }
+
+  // 确保传入的 id prop 也能生效（如果 attributes 中没有的话）
+  if (props.id && !attrs.id) {
+    attrs.id = props.id;
   }
 
   return attrs;
@@ -517,10 +519,12 @@ const filteredAttributes = computed(() => {
     transform: scale(0.8);
     opacity: 0.5;
   }
+
   50% {
     transform: scale(1.2);
     opacity: 1;
   }
+
   100% {
     transform: scale(0.8);
     opacity: 0.5;

@@ -236,8 +236,13 @@ export class Tokenizer {
           if (isClosing) {
             tokens.push({ type: "html_close", tagName, raw: rawTag });
           } else {
+            // 只有当存在对应的闭合标签时，才进入 raw 模式
+            // 这可以防止孤立的 <style> 标签吞噬掉后续的所有 Markdown 内容
             if (!isSelfClosing && Tokenizer.rawElements.has(tagName)) {
-              rawTagStack.push(tagName);
+              const closeTag = `</${tagName}>`;
+              if (text.toLowerCase().indexOf(closeTag, i + rawTag.length) !== -1) {
+                rawTagStack.push(tagName);
+              }
             }
             tokens.push({ type: "html_open", tagName, attributes, selfClosing: isSelfClosing, raw: rawTag });
           }

@@ -46,21 +46,38 @@
 
 ### 1.3. 项目脚本与开发命令
 
-项目使用 Bun 作为包管理器，在 `package.json` 的 `scripts` 字段中定义了一系列开发、构建、检查与格式化的命令。以下为常用脚本的说明：
+项目使用 Bun 作为包管理器。由于本项目包含桌面端和移动端，不同的端有各自的开发和检查命令。
 
+#### 1.3.1. 桌面端 (Desktop)
+在根目录下执行：
 - **`dev`** – 启动 Vite 开发服务器，用于前端开发。
 - **`build`** – 执行类型检查（`vue-tsc`）并构建前端生产包。
 - **`preview`** – 预览生产构建结果。
-- **`tauri`** – 调用 Tauri CLI（需配合子命令使用）。
-- **`tauri:dev`** – 启动 Tauri 开发模式（同时运行前端开发服务器与本地应用）。
-- **`tauri:build`** – 构建 Tauri 桌面应用（生成安装包）。
-- **`t:d`** – `tauri:dev` 的快捷别名。
-- **`t:b`** – `tauri:build` 的快捷别名。
+- **`tauri:dev`** (或 **`t:d`**) – 启动 Tauri 开发模式（同时运行前端开发服务器与本地应用）。
+- **`tauri:build`** (或 **`t:b`**) – 构建 Tauri 桌面应用（生成安装包）。
 - **`check`** – 同时运行前端类型检查与后端代码检查（`cargo clippy`）。
 - **`check:frontend`** – 仅运行前端 TypeScript 类型检查。
 - **`check:backend`** – 仅运行 Rust 代码的 Clippy 检查。
 
-这些脚本可通过 `bun run <script>` 执行（例如 `bun run dev`）。在开发过程中，最常用的命令是 `bun run tauri:dev`（或 `bun run t:d`）以启动完整的桌面应用开发环境。
+#### 1.3.2. 移动端 (Mobile)
+移动端位于 `mobile/` 目录，有独立的 `package.json` 和命令。
+
+**在根目录下执行（推荐，使用快捷命令）：**
+- **`mtad`** – `cd mobile ; bun run tauri android dev` (Android 开发模式)。
+- **`mtab`** – `cd mobile ; bun run tauri android build` (Android 构建)。
+- **`mtid`** – `cd mobile ; bun run tauri ios dev` (iOS 开发模式)。
+- **`mtib`** – `cd mobile ; bun run tauri ios build` (iOS 构建)。
+- **`check:mobile`** – 移动端全量检查（前端 `vue-tsc` + 后端 `clippy`）。
+- **`check:mobile:frontend`** – 仅运行移动端前端类型检查。
+- **`check:mobile:backend`** – 仅运行移动端 Rust 代码检查。
+
+**或在 `mobile/` 目录下直接执行：**
+- **`mtad`** / **`mtab`** / **`mtid`** / **`mtib`** – Tauri 移动端开发/构建命令。
+- **`check`** – 移动端全量检查。
+- **`check:frontend`** – 仅前端类型检查。
+- **`check:backend`** – 仅 Rust 代码检查。
+
+> **重要**: 在进行移动端开发或代码检查时，请务必确认当前操作的是 `mobile/` 目录下的代码，并使用对应的 `check:mobile*` 系列命令，严禁混用桌面端的 `check` 命令。
 
 ## 2. 版本号管理与发布规范 (Versioning & Release Protocols)
 

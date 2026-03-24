@@ -1,5 +1,10 @@
 <template>
-  <div class="audio-player" :class="{ 'is-playing': isPlaying, 'is-mini': mini }" @keydown="handleKeydown" tabindex="0">
+  <div
+    class="audio-player"
+    :class="[`layout-${effectiveLayout}`, { 'is-playing': isPlaying }]"
+    @keydown="handleKeydown"
+    tabindex="0"
+  >
     <!-- 音频元素 (隐藏) -->
     <audio
       ref="audioRef"
@@ -16,8 +21,8 @@
       @error="handleError"
     ></audio>
 
-    <!-- 顶部信息区 (非 Mini 模式) -->
-    <div v-if="!mini" class="audio-header">
+    <!-- 顶部信息区 (Full 模式) -->
+    <div v-if="effectiveLayout === 'full'" class="audio-header">
       <div class="header-actions-top">
         <slot name="actions"></slot>
       </div>
@@ -45,8 +50,8 @@
       </div>
     </div>
 
-    <!-- Mini 模式信息栏 -->
-    <div v-if="mini" class="mini-header">
+    <!-- Compact/Minimal 模式信息栏 -->
+    <div v-if="effectiveLayout !== 'full'" class="mini-header">
       <div class="mini-info">
         <div class="mini-poster" v-if="audioPoster">
           <img :src="audioPoster" alt="poster" />
@@ -56,6 +61,32 @@
           <span class="mini-artist">{{ audioArtist }}</span>
         </div>
       </div>
+
+      <!-- Minimal 模式下的精简控制按钮 -->
+      <div v-if="effectiveLayout === 'minimal'" class="minimal-controls">
+        <button class="control-btn main-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
+          <component :is="isPlaying ? Pause : Play" :size="16" fill="currentColor" />
+        </button>
+        <!-- 音量控制 -->
+        <div class="volume-control">
+          <button class="control-btn" @click="toggleMute">
+            <component :is="volumeIcon" :size="16" />
+          </button>
+          <div class="volume-slider-container">
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="volume"
+              @input="setVolume"
+              class="volume-slider"
+              :style="{ '--volume-percent': volume * 100 + '%' }"
+            />
+          </div>
+        </div>
+      </div>
+
       <div class="mini-actions">
         <slot name="actions"></slot>
       </div>
@@ -92,8 +123,8 @@
       </div>
     </div>
 
-    <!-- 控制栏 -->
-    <div class="controls-bar">
+    <!-- 控制栏 (Minimal 模式下隐藏，因为已经移到第一行了) -->
+    <div v-if="effectiveLayout !== 'minimal'" class="controls-bar">
       <div class="controls-left">
         <!-- 倍速控制 -->
         <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
@@ -179,7 +210,6 @@
         </button>
       </div>
     </div>
-
     <!-- 加载/错误状态 -->
     <div v-if="isLoading" class="status-overlay">
       <div class="spinner"></div>
@@ -269,6 +299,7 @@ const props = withDefaults(
     muted?: boolean;
     showWaveform?: boolean;
     mini?: boolean;
+    layout?: "full" | "compact" | "minimal";
   }>(),
   {
     src: "",
@@ -277,6 +308,7 @@ const props = withDefaults(
     muted: false,
     showWaveform: true,
     mini: false,
+    layout: undefined,
     playlist: () => [],
     initialIndex: 0,
   },
@@ -337,6 +369,11 @@ const hoverPosition = ref(0);
 const showPlaybackRateMenu = ref(false);
 
 // 计算属性
+const effectiveLayout = computed(() => {
+  if (props.layout) return props.layout;
+  return props.mini ? "compact" : "full";
+});
+
 const progressPercentage = computed(() => {
   if (duration.value === 0) return 0;
   return (currentTime.value / duration.value) * 100;
@@ -546,16 +583,16 @@ async function parseMetadata() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const arrayBuffer = await response.arrayBuffer();
-  
+
       // 1. 解析元数据
       const metadata = await mm.parseBuffer(new Uint8Array(arrayBuffer), {
         mimeType: response.headers.get("content-type") || undefined,
       });
-  
+
       if (metadata.common) {
         metaTitle.value = metadata.common.title || null;
         metaArtist.value = metadata.common.artist || null;
-  
+
         // 解析封面
         if (metadata.common.picture && metadata.common.picture.length > 0) {
           const pic = metadata.common.picture[0];
@@ -563,7 +600,7 @@ async function parseMetadata() {
           metaPoster.value = URL.createObjectURL(blob);
         }
       }
-  
+
       return arrayBuffer;
     } catch (err: any) {
       logger.warn("元数据解析失败", {
@@ -691,8 +728,9 @@ function drawWaveformPath(
 ) {
   if (data.length === 0) return;
 
-  const padding = 8; // 上下留白
-  const availableHeight = (height - padding * 2) / 2;
+  const isMinimal = effectiveLayout.value === "minimal";
+  const padding = isMinimal ? 2 : 8; // 极简模式减小留白
+  const availableHeight = Math.max(2, (height - padding * 2) / 2);
   const centerY = height / 2;
   const stepX = width / (data.length - 1);
 
@@ -964,9 +1002,14 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
-.audio-player.is-mini {
+.audio-player.layout-compact {
   padding: 12px;
   gap: 10px;
+}
+
+.audio-player.layout-minimal {
+  padding: 8px 12px;
+  gap: 4px;
 }
 
 .audio-header {
@@ -1110,8 +1153,14 @@ onBeforeUnmount(() => {
   transition: height 0.3s;
 }
 
-.is-mini .waveform-container {
+.layout-compact .waveform-container {
   height: 32px;
+}
+
+.layout-minimal .waveform-container {
+  height: 24px;
+  border-radius: 4px;
+  background: var(--el-fill-color-lighter);
 }
 
 .waveform-canvas {
@@ -1196,7 +1245,8 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
-.is-mini .controls-center {
+.layout-compact .controls-center,
+.layout-minimal .controls-center {
   gap: 8px;
 }
 
@@ -1230,13 +1280,33 @@ onBeforeUnmount(() => {
   border-radius: 50%;
 }
 
-.is-mini .control-btn.main-btn {
+.layout-compact .control-btn.main-btn,
+.layout-minimal .control-btn.main-btn {
   padding: 6px;
 }
 
-.is-mini .control-btn.main-btn :deep(svg) {
+.layout-compact .control-btn.main-btn :deep(svg) {
   width: 20px;
   height: 20px;
+}
+
+.layout-minimal .control-btn.main-btn :deep(svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.layout-minimal .control-btn {
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+}
+
+.layout-minimal .control-btn.main-btn {
+  border-radius: 8px; /* 在极简模式下使用圆角矩形而非圆形，减少视觉突兀感 */
+}
+
+.layout-minimal .minimal-controls .control-btn:not(.main-btn) {
+  background: var(--el-fill-color-lighter);
 }
 
 .control-btn.main-btn:hover {
@@ -1371,6 +1441,13 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.minimal-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .mini-info {
   display: flex;
   align-items: center;
@@ -1416,11 +1493,26 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
-.is-mini .volume-slider-container {
+.layout-compact .volume-slider-container {
   width: 80px;
 }
 
-.is-mini .volume-value {
+.layout-minimal .volume-slider-container {
+  width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+}
+
+.layout-minimal .volume-control:hover .volume-slider-container {
+  width: 60px;
+  margin-left: 4px;
+  opacity: 1;
+}
+
+.layout-compact .volume-value,
+.layout-minimal .volume-value {
   display: none;
 }
 

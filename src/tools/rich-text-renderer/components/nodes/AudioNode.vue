@@ -8,7 +8,7 @@
       :autoplay="autoplay"
       :loop="loop"
       :muted="muted"
-      mini
+      :layout="layout || 'minimal'"
       class="rich-text-audio-player"
     />
   </div>
@@ -30,6 +30,7 @@ const props = defineProps<{
   loop?: boolean;
   muted?: boolean;
   controls?: boolean;
+  layout?: "full" | "compact" | "minimal";
 }>();
 
 const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);

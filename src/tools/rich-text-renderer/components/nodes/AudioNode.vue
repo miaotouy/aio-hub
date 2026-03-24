@@ -18,6 +18,7 @@
 import { computed, inject } from "vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
+import { resolveLocalPath } from "../../utils/path-utils";
 
 const props = defineProps<{
   nodeId: string;
@@ -33,13 +34,17 @@ const props = defineProps<{
 
 const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
 const isStreaming = computed(() => context?.isStreaming?.value ?? false);
-
 // 解析资源链接
 const resolvedSrc = computed(() => {
+  let src = props.src;
+
+  // 1. 优先处理 Agent 内部资产 (Chat 专用钩子)
   if (context?.resolveAsset) {
-    return context.resolveAsset(props.src);
+    src = context.resolveAsset(props.src);
   }
-  return props.src;
+
+  // 2. 处理本地路径或特殊协议
+  return resolveLocalPath(src);
 });
 </script>
 

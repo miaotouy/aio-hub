@@ -145,41 +145,72 @@ export class Tokenizer {
         continue;
       }
 
-      // 2. MathJax 块级公式 \[...\] (优先级高于转义)
-      if (char === 92 && i + 1 < len && text.charCodeAt(i + 1) === 91) {
-        const startIdx = i + 2;
-        let endIdx = startIdx;
-        while (endIdx < len) {
-          if (text.charCodeAt(endIdx) === 92 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 93) break;
-          endIdx++;
-        }
-
-        const formulaContent = text.slice(startIdx, endIdx).trim();
-        i = endIdx < len ? endIdx + 2 : endIdx;
-        tokens.push({ type: "katex_block", content: formulaContent });
-        atLineStart = false;
-        continue;
-      }
-
-      // 3. MathJax 行内公式 \(...\)
-      if (char === 92 && i + 1 < len && text.charCodeAt(i + 1) === 40) {
-        const mathjaxMatch = stickyMatch(RE_MATHJAX_INLINE, text, i);
-        if (mathjaxMatch) {
-          const formulaContent = mathjaxMatch[1];
-          if (!formulaContent.includes("\n") && !formulaContent.includes("\\(") && !formulaContent.includes("\\[")) {
-            tokens.push({ type: "katex_inline", content: formulaContent });
-            i += mathjaxMatch[0].length;
-            atLineStart = false;
-            continue;
-          }
-        }
-      }
-
-      // 4. 转义字符
+      // 4. 转义字符 (优先级调高，以防 Windows 路径中的 \[ 被误认为 MathJax)
       if (char === 92) {
+        // 先检查是否是转义标点
         if (i + 1 < len && RE_ESCAPE_PUNCT.test(text[i + 1])) {
-          tokens.push({ type: "text", content: text[i + 1] });
-          i += 2;
+          // 在转义之前，我们先尝试匹配 MathJax
+          // 只有在不是常见的转义场景（如 \[ \] \( \)）或者 MathJax 匹配失败时，才走转义
+
+          // 尝试 MathJax 块级公式 \[...\]
+          if (text.charCodeAt(i + 1) === 91) {
+            const startIdx = i + 2;
+            let endIdx = startIdx;
+            let found = false;
+            while (endIdx < len) {
+              if (text.charCodeAt(endIdx) === 92 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 93) {
+                found = true;
+                break;
+              }
+              endIdx++;
+            }
+            // 只有当公式内容不包含明显的路径特征（如反斜杠，且长度合理）时才认为是公式
+            const formulaContent = text.slice(startIdx, endIdx);
+            // 启发式判断：如果包含盘符特征（如 G:\ 或 C:/），则极大概率是 Windows 路径而不是公式
+            const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(formulaContent);
+            // 如果包含大量的反斜杠且没有 LaTeX 关键字，也倾向于是路径
+            const hasLatexKeywords = /\\(?:frac|sum|sqrt|alpha|beta|gamma|delta|theta|pi|infty|int)/.test(
+              formulaContent,
+            );
+
+            if (
+              found &&
+              formulaContent.length < 2000 &&
+              !isWindowsPath &&
+              (hasLatexKeywords || !formulaContent.includes("\\"))
+            ) {
+              i = endIdx + 2;
+              tokens.push({ type: "katex_block", content: formulaContent.trim() });
+              atLineStart = false;
+              continue;
+            }
+          }
+
+          // 尝试 MathJax 行内公式 \(...\)
+          if (text.charCodeAt(i + 1) === 40) {
+            const mathjaxMatch = stickyMatch(RE_MATHJAX_INLINE, text, i);
+            if (mathjaxMatch) {
+              const formulaContent = mathjaxMatch[1];
+              if (!formulaContent.includes("\n") && !formulaContent.includes("\\") && formulaContent.length < 500) {
+                tokens.push({ type: "katex_inline", content: formulaContent });
+                i += mathjaxMatch[0].length;
+                atLineStart = false;
+                continue;
+              }
+            }
+          }
+
+          // 否则，作为普通转义字符
+          // 启发式：如果后面跟着 [ 且前面看起来像 Windows 盘符，则不转义，保留反斜杠
+          // 这样可以保护像 G:\[... 这样的路径
+          const isWindowsPathEscape = text[i + 1] === "[" && i > 1 && text[i - 1] === ":";
+          if (isWindowsPathEscape) {
+            tokens.push({ type: "text", content: "\\" });
+            i += 1;
+          } else {
+            tokens.push({ type: "text", content: text[i + 1] });
+            i += 2;
+          }
         } else {
           tokens.push({ type: "text", content: "\\" });
           i += 1;
@@ -755,6 +786,29 @@ export class Tokenizer {
         continue;
       }
       if (char === 40) {
+        // 优化：如果是链接或图片的 URL 部分 (紧跟在 ] 之后)
+        // 我们贪婪地匹配到闭合括号，以保护其中的 Windows 路径不被转义逻辑破坏
+        const prevToken = tokens[tokens.length - 1];
+        if (prevToken && prevToken.type === "link_text_close") {
+          let depth = 1;
+          let j = i + 1;
+          while (j < len && depth > 0) {
+            if (text.charCodeAt(j) === 40)
+              depth++; // (
+            else if (text.charCodeAt(j) === 41) depth--; // )
+            j++;
+          }
+          if (depth === 0) {
+            const urlContent = text.slice(i + 1, j - 1);
+            tokens.push({ type: "link_url_open", raw: "(" });
+            tokens.push({ type: "text", content: urlContent });
+            tokens.push({ type: "link_url_close", raw: ")" });
+            i = j;
+            atLineStart = false;
+            continue;
+          }
+        }
+
         tokens.push({ type: "link_url_open", raw: "(" });
         i += 1;
         atLineStart = false;

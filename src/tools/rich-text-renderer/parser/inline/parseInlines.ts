@@ -12,7 +12,8 @@ const AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg", "aac", "m4a", "flac"]);
 function isVideoUrl(url: string): boolean {
   if (!url) return false;
   // 简单的后缀提取，不依赖完整的 URL 构造函数，以支持各种协议
-  const cleanUrl = url.split("?")[0].split("#")[0];
+  // 兼容 Windows 路径的反斜杠
+  const cleanUrl = url.replace(/\\/g, "/").split("?")[0].split("#")[0];
   const ext = cleanUrl.split(".").pop()?.toLowerCase() || "";
   return VIDEO_EXTENSIONS.has(ext);
 }
@@ -22,7 +23,8 @@ function isVideoUrl(url: string): boolean {
  */
 function isAudioUrl(url: string): boolean {
   if (!url) return false;
-  const cleanUrl = url.split("?")[0].split("#")[0];
+  // 兼容 Windows 路径的反斜杠
+  const cleanUrl = url.replace(/\\/g, "/").split("?")[0].split("#")[0];
   const ext = cleanUrl.split(".").pop()?.toLowerCase() || "";
   return AUDIO_EXTENSIONS.has(ext);
 }
@@ -73,7 +75,36 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
 
       const tagName = token.tagName.toLowerCase(); // 统一转为小写
 
-      // --- 新增逻辑：处理 <button> 标签 ---
+      // --- 新增逻辑：处理 <button>、<audio>、<video> 标签 ---
+      if (tagName === "audio" || tagName === "video") {
+        const src = token.attributes.src;
+        if (src) {
+          const title = token.attributes.title || token.attributes.alt;
+          const poster = token.attributes.poster;
+          const autoplay = token.attributes.autoplay !== undefined;
+          const loop = token.attributes.loop !== undefined;
+          const muted = token.attributes.muted !== undefined;
+
+          if (tagName === "audio") {
+            nodes.push({
+              id: "",
+              type: "audio",
+              props: { src, title, poster, autoplay, loop, muted },
+              meta: { range: { start: 0, end: 0 }, status: "stable" },
+            } as AudioNode);
+          } else {
+            nodes.push({
+              id: "",
+              type: "video",
+              props: { src, title, poster, autoplay, loop, muted },
+              meta: { range: { start: 0, end: 0 }, status: "stable" },
+            } as VideoNode);
+          }
+          i++;
+          continue;
+        }
+      }
+
       if (tagName === "button") {
         const action = token.attributes.type as "send" | "input" | "copy" | undefined;
 
@@ -637,6 +668,9 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
               i++;
               break;
             }
+
+            // 在 URL 括号内，所有的 Markdown 定界符都应视为普通文本
+            // 除非是 link_url_close (即 ')')
             if (t.type === "text") {
               // 支持 title：(url "title")
               const parts = t.content.match(/^([^\s]+)(?:\s+"([^"]+)")?$/);
@@ -648,6 +682,16 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
               } else {
                 src += t.content;
               }
+            } else if (t.type === "link_text_open") {
+              src += "[";
+            } else if (t.type === "link_text_close") {
+              src += "]";
+            } else if ("raw" in t && t.raw) {
+              src += t.raw;
+            } else if ("marker" in t && t.marker) {
+              src += t.marker;
+            } else if ("content" in t && t.content) {
+              src += t.content;
             }
             i++;
           }
@@ -763,6 +807,16 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
             } else {
               href += t.content;
             }
+          } else if (t.type === "link_text_open") {
+            href += "[";
+          } else if (t.type === "link_text_close") {
+            href += "]";
+          } else if ("raw" in t && t.raw) {
+            href += t.raw;
+          } else if ("marker" in t && t.marker) {
+            href += t.marker;
+          } else if ("content" in t && t.content) {
+            href += t.content;
           }
           i++;
         }

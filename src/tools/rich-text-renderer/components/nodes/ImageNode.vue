@@ -42,7 +42,6 @@
 
 <script setup lang="ts">
 import { ref, watch, inject, type ComputedRef } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
@@ -50,6 +49,7 @@ import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { customMessage } from "@/utils/customMessage";
 import { resolveAgentAssetUrlSync } from "@/tools/llm-chat/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/llm-chat/types";
+import { resolveLocalPath } from "../../utils/path-utils";
 
 const props = defineProps<{
   nodeId: string;
@@ -77,23 +77,23 @@ const resolveUrl = async () => {
   hasError.value = false;
 
   try {
-    if (props.src.startsWith("agent-asset://")) {
-      // Agent 资产协议：优先使用上下文提供的解析钩子
-      if (context?.resolveAsset) {
-        resolvedSrc.value = context.resolveAsset(props.src);
+    let src = props.src;
+
+    // 1. 优先尝试 Agent 资产解析 (Chat 专用)
+    if (context?.resolveAsset) {
+      src = context.resolveAsset(props.src);
+    } else if (src.startsWith("agent-asset://")) {
+      // 降级使用同步解析（依赖缓存）
+      const agent = currentAgent?.value;
+      if (agent) {
+        src = resolveAgentAssetUrlSync(src, agent);
       } else {
-        // 降级使用同步解析（依赖缓存）
-        const agent = currentAgent?.value;
-        if (agent) {
-          const resolved = resolveAgentAssetUrlSync(props.src, agent);
-          resolvedSrc.value = resolved;
-        } else {
-          // 没有 Agent 上下文，无法解析
-          console.warn(`[ImageNode] No agent context or resolveAsset hook for agent-asset:// URL: ${props.src}`);
-          resolvedSrc.value = props.src;
-        }
+        console.warn(`[ImageNode] No agent context or resolveAsset hook for agent-asset:// URL: ${src}`);
       }
-    } else if (props.src.startsWith("appdata://")) {
+    }
+
+    // 2. 处理特殊协议或本地路径
+    if (src.startsWith("appdata://")) {
       if (!basePath) {
         basePath = await assetManagerEngine.getAssetBasePath();
       }
@@ -103,17 +103,9 @@ const resolveUrl = async () => {
       // 协议相对 URL (如 //example.com/image.png)
       // 默认使用 https
       resolvedSrc.value = `https:${props.src}`;
-    } else if (
-      // 检查是否为本地绝对路径 (Windows 盘符, UNC 路径, 或 Unix 绝对路径)
-      /^[a-zA-Z]:[\\/]/.test(props.src) ||
-      props.src.startsWith("\\\\") ||
-      props.src.startsWith("/")
-    ) {
-      // 本地绝对路径：使用 convertFileSrc 转换为 asset 协议 URL
-      resolvedSrc.value = convertFileSrc(props.src);
     } else {
-      // 其他情况（http/https/base64 等）直接使用
-      resolvedSrc.value = props.src;
+      // 处理本地路径转换
+      resolvedSrc.value = resolveLocalPath(src);
     }
   } catch (error) {
     console.error(`[ImageNode] Failed to resolve image source: ${props.src}`, error);
@@ -216,28 +208,33 @@ if (context?.images) {
  * 辅助函数：将路径转换为可预览的 URL
  */
 const convertToPreviewUrl = async (src: string): Promise<string> => {
-  if (src.startsWith("agent-asset://")) {
-    // Agent 资产协议
+  let finalSrc = src;
+
+  // 1. 处理 Agent 资产
+  if (finalSrc.startsWith("agent-asset://")) {
     if (context?.resolveAsset) {
-      return context.resolveAsset(src);
+      finalSrc = context.resolveAsset(finalSrc);
+    } else {
+      const agent = currentAgent?.value;
+      if (agent) {
+        finalSrc = resolveAgentAssetUrlSync(finalSrc, agent);
+      }
     }
-    const agent = currentAgent?.value;
-    if (agent) {
-      return resolveAgentAssetUrlSync(src, agent);
-    }
-    return src;
-  } else if (src.startsWith("appdata://")) {
+  }
+
+  // 2. 处理特殊协议
+  if (finalSrc.startsWith("appdata://")) {
     if (!basePath) {
       basePath = await assetManagerEngine.getAssetBasePath();
     }
-    const assetPath = src.substring("appdata://".length);
+    const assetPath = finalSrc.substring("appdata://".length);
     return assetManagerEngine.convertToAssetProtocol(assetPath, basePath);
-  } else if (src.startsWith("//")) {
-    return `https:${src}`;
-  } else if (/^[a-zA-Z]:[\\/]/.test(src) || src.startsWith("\\\\") || src.startsWith("/")) {
-    return convertFileSrc(src);
+  } else if (finalSrc.startsWith("//")) {
+    return `https:${finalSrc}`;
   }
-  return src;
+
+  // 3. 处理本地路径
+  return resolveLocalPath(finalSrc);
 };
 
 /**

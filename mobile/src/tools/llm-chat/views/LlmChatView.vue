@@ -4,6 +4,9 @@ import { useRoute } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
+import { useChatExecutor } from "../composables/useChatExecutor";
+import { useNodeManager } from "../composables/useNodeManager";
+import type { ChatMessageNode } from "../types";
 import { ChevronLeft } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import MessageList from "../components/MessageList.vue";
@@ -13,6 +16,8 @@ const router = useRouter();
 const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
 const { isKeyboardVisible } = useKeyboardAvoidance();
+const { regenerate } = useChatExecutor();
+const nodeManager = useNodeManager();
 
 const messageListRef = ref<any>(null);
 
@@ -41,7 +46,7 @@ watch(
   () => chatStore.currentActivePath.length,
   () => {
     scrollToBottom();
-  }
+  },
 );
 
 // 监听键盘状态，键盘弹出时也尝试滚动到底部
@@ -56,6 +61,19 @@ const scrollToBottom = () => {
     messageListRef.value?.scrollToBottom?.();
   });
 };
+
+const handleRegenerate = async (message: ChatMessageNode) => {
+  if (chatStore.currentSession) {
+    await regenerate(chatStore.currentSession, message);
+  }
+};
+
+const handleDelete = async (message: ChatMessageNode) => {
+  if (chatStore.currentSession) {
+    nodeManager.hardDeleteNode(chatStore.currentSession, message.id);
+    await chatStore.persistCurrentSession();
+  }
+};
 </script>
 
 <template>
@@ -69,13 +87,7 @@ const scrollToBottom = () => {
       class="nav-bar"
     >
       <template #left>
-        <var-button
-          round
-          text
-          color="transparent"
-          text-color="var(--text-color)"
-          @click="router.back()"
-        >
+        <var-button round text color="transparent" text-color="var(--text-color)" @click="router.back()">
           <ChevronLeft :size="24" />
         </var-button>
       </template>
@@ -87,6 +99,8 @@ const scrollToBottom = () => {
         ref="messageListRef"
         :messages="chatStore.currentActivePath"
         class="message-list-area"
+        @regenerate="handleRegenerate"
+        @delete="handleDelete"
       />
 
       <ChatInput class="chat-input-area" />

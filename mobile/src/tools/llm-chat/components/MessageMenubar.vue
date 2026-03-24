@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { ChevronLeft, ChevronRight, Copy, RotateCcw, Trash2, Edit3 } from 'lucide-vue-next';
-import { Snackbar } from '@varlet/ui';
-import type { ChatMessageNode, ChatSession } from '../types';
-import { BranchNavigator } from '../utils/BranchNavigator';
-import { useBranchManager } from '../composables/useBranchManager';
+import { computed } from "vue";
+import { ChevronLeft, ChevronRight, Copy, RotateCcw, Trash2, Edit3 } from "lucide-vue-next";
+import { Snackbar } from "@varlet/ui";
+import type { ChatMessageNode, ChatSession } from "../types";
+import { BranchNavigator } from "../utils/BranchNavigator";
+import { useBranchManager } from "../composables/useBranchManager";
+import { useLlmChatStore } from "../stores/llmChatStore";
 
 const props = defineProps<{
   session: ChatSession | null;
@@ -12,14 +13,15 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'copy'): void;
-  (e: 'edit'): void;
-  (e: 'regenerate'): void;
-  (e: 'delete'): void;
-  (e: 'close'): void;
+  (e: "copy"): void;
+  (e: "edit"): void;
+  (e: "regenerate"): void;
+  (e: "delete"): void;
+  (e: "close"): void;
 }>();
 
 const branchManager = useBranchManager();
+const chatStore = useLlmChatStore();
 
 // 分支信息
 const branchInfo = computed(() => {
@@ -30,35 +32,34 @@ const branchInfo = computed(() => {
 const hasSiblings = computed(() => branchInfo.value.total > 1);
 
 // 切换分支
-const handleSwitchBranch = (direction: 'prev' | 'next') => {
+const handleSwitchBranch = async (direction: "prev" | "next") => {
   if (!props.session) return;
-  const newLeafId = BranchNavigator.switchToSibling(props.session, props.message.id, direction);
-  props.session.activeLeafId = newLeafId;
+  await chatStore.switchSibling(props.message.id, direction);
 };
 
 // 操作处理
 const handleCopy = () => {
   navigator.clipboard.writeText(props.message.content);
-  Snackbar.success('已复制内容');
-  emit('copy');
-  emit('close');
+  Snackbar.success("已复制内容");
+  emit("copy");
+  emit("close");
 };
 
 const handleDelete = () => {
   if (props.session) {
     branchManager.deleteMessage(props.session, props.message.id);
-    emit('delete');
+    emit("delete");
   }
 };
 
 const handleEdit = () => {
-  emit('edit');
-  emit('close');
+  emit("edit");
+  emit("close");
 };
 
 const handleRegenerate = () => {
-  emit('regenerate');
-  emit('close');
+  emit("regenerate");
+  emit("close");
 };
 </script>
 
@@ -84,11 +85,7 @@ const handleRegenerate = () => {
       <var-button text round size="mini" class="menu-btn" @click="handleEdit">
         <Edit3 :size="14" />
       </var-button>
-      <var-button 
-        v-if="message.role === 'assistant'" 
-        text round size="mini" class="menu-btn" 
-        @click="handleRegenerate"
-      >
+      <var-button v-if="message.role === 'assistant'" text round size="mini" class="menu-btn" @click="handleRegenerate">
         <RotateCcw :size="14" />
       </var-button>
       <var-button text round size="mini" class="menu-btn danger" @click="handleDelete">

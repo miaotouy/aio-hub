@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import type { ChatMessageNode } from '../types';
-import ChatMessage from './ChatMessage.vue';
+import { ref } from "vue";
+import type { ChatMessageNode } from "../types";
+import ChatMessage from "./ChatMessage.vue";
 
 defineProps<{
   messages: ChatMessageNode[];
@@ -26,13 +26,18 @@ const scrollToBottom = () => {
   if (scrollContainerRef.value) {
     scrollContainerRef.value.scrollTo({
       top: scrollContainerRef.value.scrollHeight,
-      behavior: 'smooth'
+      behavior: "smooth",
     });
   }
 };
 
+const emit = defineEmits<{
+  (e: "regenerate", message: ChatMessageNode): void;
+  (e: "delete", message: ChatMessageNode): void;
+}>();
+
 defineExpose({
-  scrollToBottom
+  scrollToBottom,
 });
 </script>
 
@@ -46,6 +51,8 @@ defineExpose({
         :is-active="activeMessageId === msg.id"
         @click.stop="handleMessageClick(msg.id)"
         @close="activeMessageId = null"
+        @regenerate="(m) => emit('regenerate', m)"
+        @delete="(m) => emit('delete', m)"
       />
     </div>
   </div>

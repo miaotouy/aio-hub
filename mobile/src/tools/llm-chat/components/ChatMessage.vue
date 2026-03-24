@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { ChatMessageNode } from '../types';
-import { User, Bot } from 'lucide-vue-next';
-import { useLlmChatStore } from '../stores/llmChatStore';
-import MessageContent from './MessageContent.vue';
-import MessageMenubar from './MessageMenubar.vue';
+import type { ChatMessageNode } from "../types";
+import { User, Bot } from "lucide-vue-next";
+import { useLlmChatStore } from "../stores/llmChatStore";
+import MessageContent from "./MessageContent.vue";
+import MessageMenubar from "./MessageMenubar.vue";
+import BranchSwitcher from "./BranchSwitcher.vue";
 
 defineProps<{
   message: ChatMessageNode;
@@ -11,18 +12,17 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'click'): void;
-  (e: 'close'): void;
+  (e: "click"): void;
+  (e: "close"): void;
+  (e: "regenerate", message: ChatMessageNode): void;
+  (e: "delete", message: ChatMessageNode): void;
 }>();
 
 const chatStore = useLlmChatStore();
 </script>
 
 <template>
-  <div
-    class="message-item"
-    :class="[message.role, message.status, { 'is-active': isActive }]"
-  >
+  <div class="message-item" :class="[message.role, message.status, { 'is-active': isActive }]">
     <!-- 头部：头像 + 信息 -->
     <div class="message-header">
       <div class="avatar">
@@ -35,9 +35,20 @@ const chatStore = useLlmChatStore();
     </div>
 
     <div class="message-container">
-      <div class="content-body" @click="(e) => { e.stopPropagation(); emit('click'); }">
+      <div
+        class="content-body"
+        @click="
+          (e) => {
+            e.stopPropagation();
+            emit('click');
+          }
+        "
+      >
         <MessageContent :message="message" />
       </div>
+
+      <!-- 分支切换器 -->
+      <BranchSwitcher :message="message" />
 
       <!-- 悬挂操作栏 -->
       <transition name="fade">
@@ -46,6 +57,8 @@ const chatStore = useLlmChatStore();
             :session="chatStore.currentSession"
             :message="message"
             @close="emit('close')"
+            @regenerate="emit('regenerate', message)"
+            @delete="emit('delete', message)"
           />
         </div>
       </transition>
@@ -162,7 +175,9 @@ const chatStore = useLlmChatStore();
 /* 动画 */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
 }
 
 .fade-enter-from,

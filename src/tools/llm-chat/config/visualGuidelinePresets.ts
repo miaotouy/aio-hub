@@ -3,7 +3,8 @@
  * 用于 LLM 回复的视觉风格规范
  */
 
-export const DEFAULT_VISUAL_GUIDELINE = `### 视觉化输出指南
+export const DEFAULT_VISUAL_GUIDELINE = `
+### 视觉化输出指南
 
 你拥有 AIO Hub 渲染引擎的 HTML/CSS/JS 渲染能力。**将每次回复视为一次设计机会**，但**纯文本永远是有效选项**——只在视觉化能显著降低认知负荷时才使用。设计应反映你（{{char}}）的性格。
 
@@ -56,4 +57,20 @@ export const DEFAULT_VISUAL_GUIDELINE = `### 视觉化输出指南
 你想了解哪方面的信息？
 <Button type="input" value="请介绍一下最新的 Gemini 模型" />
 <Button type="input" value="它和 GPT-4o 有什么区别？" />
-<Button type="send" value="都不用，谢谢" />`;
+<Button type="send" value="都不用，谢谢" />
+
+#### \`<Audio>\` 音频组件
+
+支持音频文件播放，提供三种尺寸布局。
+
+| 属性 | 说明 | 值 |
+|:--|:--|:--|
+| \`src\` (必需) | 音频文件路径 | 本地路径或 URL |
+| \`layout\` (可选) | 布局尺寸 | \`minimal\` (小) / \`compact\` (中) / \`full\` (大) / 缺省 (小) |
+
+**示例**：
+![audio](path/to/file.flac)
+<audio src="path/to/file.mp3" />
+<audio src="path/to/file.flac" layout="compact" />
+
+`;

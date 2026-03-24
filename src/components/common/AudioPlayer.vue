@@ -1,10 +1,5 @@
 <template>
-  <div
-    class="audio-player"
-    :class="{ 'is-playing': isPlaying }"
-    @keydown="handleKeydown"
-    tabindex="0"
-  >
+  <div class="audio-player" :class="{ 'is-playing': isPlaying, 'is-mini': mini }" @keydown="handleKeydown" tabindex="0">
     <!-- 音频元素 (隐藏) -->
     <audio
       ref="audioRef"
@@ -21,27 +16,19 @@
       @error="handleError"
     ></audio>
 
-    <!-- 顶部信息区 -->
-    <div class="audio-header">
+    <!-- 顶部信息区 (非 Mini 模式) -->
+    <div v-if="!mini" class="audio-header">
       <div class="header-actions-top">
         <slot name="actions"></slot>
       </div>
-      <div
-        class="cover-wrapper"
-        :style="{ '--ripple-color': posterColor || 'var(--el-color-primary)' }"
-      >
+      <div class="cover-wrapper" :style="{ '--ripple-color': posterColor || 'var(--el-color-primary)' }">
         <div v-if="isPlaying" class="ripples">
           <div class="ripple"></div>
           <div class="ripple"></div>
           <div class="ripple"></div>
         </div>
         <div class="cover-container" :class="{ rotating: isPlaying }">
-          <img
-            v-if="currentAudio.poster"
-            :src="currentAudio.poster"
-            class="cover-image"
-            alt="poster"
-          />
+          <img v-if="currentAudio.poster" :src="currentAudio.poster" class="cover-image" alt="poster" />
           <div v-else class="cover-placeholder">
             <Music :size="48" />
           </div>
@@ -55,6 +42,22 @@
             ({{ currentIndex + 1 }}/{{ effectivePlaylist.length }})
           </span>
         </p>
+      </div>
+    </div>
+
+    <!-- Mini 模式信息栏 -->
+    <div v-if="mini" class="mini-header">
+      <div class="mini-info">
+        <div class="mini-poster" v-if="currentAudio.poster">
+          <img :src="currentAudio.poster" alt="poster" />
+        </div>
+        <div class="mini-text">
+          <span class="mini-title">{{ audioName }}</span>
+          <span class="mini-artist">{{ currentAudio.artist || "未知艺术家" }}</span>
+        </div>
+      </div>
+      <div class="mini-actions">
+        <slot name="actions"></slot>
       </div>
     </div>
 
@@ -116,33 +119,19 @@
       </div>
 
       <div class="controls-center">
-        <button
-          v-if="effectivePlaylist.length > 1"
-          class="control-btn"
-          @click="prev"
-          title="上一曲"
-        >
+        <button v-if="effectivePlaylist.length > 1" class="control-btn" @click="prev" title="上一曲">
           <SkipBack :size="20" fill="currentColor" />
         </button>
         <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
           <Rewind :size="20" />
         </button>
-        <button
-          class="control-btn main-btn"
-          @click="togglePlay"
-          :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'"
-        >
+        <button class="control-btn main-btn" @click="togglePlay" :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'">
           <component :is="isPlaying ? Pause : Play" :size="28" fill="currentColor" />
         </button>
         <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
           <FastForward :size="20" />
         </button>
-        <button
-          v-if="effectivePlaylist.length > 1"
-          class="control-btn"
-          @click="next"
-          title="下一曲"
-        >
+        <button v-if="effectivePlaylist.length > 1" class="control-btn" @click="next" title="下一曲">
           <SkipForward :size="20" fill="currentColor" />
         </button>
       </div>
@@ -278,6 +267,7 @@ const props = withDefaults(
     loop?: boolean;
     muted?: boolean;
     showWaveform?: boolean;
+    mini?: boolean;
   }>(),
   {
     src: "",
@@ -285,9 +275,10 @@ const props = withDefaults(
     loop: false,
     muted: false,
     showWaveform: true,
+    mini: false,
     playlist: () => [],
     initialIndex: 0,
-  }
+  },
 );
 
 const emit = defineEmits<{
@@ -431,10 +422,7 @@ function updateBuffered() {
   const buffered = audioRef.value.buffered;
   if (buffered.length > 0) {
     for (let i = 0; i < buffered.length; i++) {
-      if (
-        buffered.start(i) <= audioRef.value.currentTime &&
-        buffered.end(i) >= audioRef.value.currentTime
-      ) {
+      if (buffered.start(i) <= audioRef.value.currentTime && buffered.end(i) >= audioRef.value.currentTime) {
         bufferedPercentage.value = (buffered.end(i) / audioRef.value.duration) * 100;
         break;
       }
@@ -509,7 +497,7 @@ function handleError(e: any) {
 
 // 波形解析
 async function initWaveform() {
-  if (!props.src || !props.showWaveform) {
+  if (!currentAudio.value.src || !props.showWaveform) {
     // 填充默认数据
     waveformData.value = Array(samples).fill(0.1);
     drawWaveform();
@@ -517,7 +505,7 @@ async function initWaveform() {
   }
 
   try {
-    const response = await fetch(props.src);
+    const response = await fetch(currentAudio.value.src);
     const arrayBuffer = await response.arrayBuffer();
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
@@ -605,7 +593,7 @@ function drawWaveformPath(
   height: number,
   fillStyle: string | CanvasGradient,
   startRatio: number,
-  endRatio: number
+  endRatio: number,
 ) {
   if (data.length === 0) return;
 
@@ -762,10 +750,7 @@ function toggleLoop() {
 
 function skip(seconds: number) {
   if (!audioRef.value) return;
-  audioRef.value.currentTime = Math.min(
-    Math.max(audioRef.value.currentTime + seconds, 0),
-    duration.value
-  );
+  audioRef.value.currentTime = Math.min(Math.max(audioRef.value.currentTime + seconds, 0), duration.value);
 }
 
 function handleKeydown(e: KeyboardEvent) {
@@ -838,7 +823,7 @@ watch(
     error.value = false;
     isLoading.value = true;
     initWaveform();
-  }
+  },
 );
 
 // 监听封面变化
@@ -883,6 +868,11 @@ onBeforeUnmount(() => {
   overflow: hidden;
   user-select: none;
   box-sizing: border-box;
+}
+
+.audio-player.is-mini {
+  padding: 12px;
+  gap: 10px;
 }
 
 .audio-header {
@@ -940,6 +930,7 @@ onBeforeUnmount(() => {
     transform: scale(1);
     opacity: 0.25;
   }
+
   100% {
     transform: scale(1.36);
     opacity: 0;
@@ -971,6 +962,7 @@ onBeforeUnmount(() => {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -1021,6 +1013,11 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--el-fill-color-lighter);
   overflow: hidden;
+  transition: height 0.3s;
+}
+
+.is-mini .waveform-container {
+  height: 32px;
 }
 
 .waveform-canvas {
@@ -1084,6 +1081,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
+
 /* 控制栏 */
 .controls-bar {
   display: flex;
@@ -1102,6 +1100,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.is-mini .controls-center {
+  gap: 8px;
 }
 
 .controls-right {
@@ -1132,6 +1134,15 @@ onBeforeUnmount(() => {
   color: white;
   padding: 10px;
   border-radius: 50%;
+}
+
+.is-mini .control-btn.main-btn {
+  padding: 6px;
+}
+
+.is-mini .control-btn.main-btn :deep(svg) {
+  width: 20px;
+  height: 20px;
 }
 
 .control-btn.main-btn:hover {
@@ -1255,6 +1266,68 @@ onBeforeUnmount(() => {
 
 .status-overlay.error {
   color: var(--el-color-danger);
+}
+
+/* Mini 模式特定样式 */
+.mini-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mini-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mini-poster {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mini-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mini-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mini-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-artist {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.is-mini .volume-slider-container {
+  width: 80px;
+}
+
+.is-mini .volume-value {
+  display: none;
 }
 
 /* 播放列表样式 */
@@ -1388,6 +1461,7 @@ onBeforeUnmount(() => {
   from {
     height: 4px;
   }
+
   to {
     height: 12px;
   }

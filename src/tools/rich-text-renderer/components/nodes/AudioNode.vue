@@ -8,6 +8,7 @@
       :autoplay="autoplay"
       :loop="loop"
       :muted="muted"
+      mini
       class="rich-text-audio-player"
     />
   </div>

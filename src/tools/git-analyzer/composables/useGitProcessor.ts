@@ -18,13 +18,13 @@ export function formatDate(date: string, format: string): string {
     case "iso":
       return d.toISOString();
     case "local":
-      return formatDateTime(d, 'yyyy-MM-dd HH:mm:ss');
+      return formatDateTime(d, "yyyy-MM-dd HH:mm:ss");
     case "relative":
       return getRelativeTime(d);
     case "timestamp":
       return String(d.getTime());
     default:
-      return formatDateTime(d, 'yyyy-MM-dd HH:mm:ss');
+      return formatDateTime(d, "yyyy-MM-dd HH:mm:ss");
   }
 }
 
@@ -71,7 +71,7 @@ export function getContributorStats(commits: GitCommit[]): Array<{ name: string;
       acc[c.author] = (acc[c.author] || 0) + 1;
       return acc;
     },
-    {} as Record<string, number>
+    {} as Record<string, number>,
   );
 
   return Object.entries(authorCounts)
@@ -89,7 +89,7 @@ export function generateTimelineData(commits: GitCommit[]): Array<{ date: string
       acc[date] = (acc[date] || 0) + 1;
       return acc;
     },
-    {} as Record<string, number>
+    {} as Record<string, number>,
   );
 
   return Object.entries(dateCounts)
@@ -100,9 +100,7 @@ export function generateTimelineData(commits: GitCommit[]): Array<{ date: string
 /**
  * 生成提交热力图数据（按星期几和小时统计）
  */
-export function generateHeatmapData(
-  commits: GitCommit[]
-): Array<{ day: number; hour: number; count: number }> {
+export function generateHeatmapData(commits: GitCommit[]): Array<{ day: number; hour: number; count: number }> {
   const heatmapData: Array<{ day: number; hour: number; count: number }> = [];
   const dayMap = new Map<string, number>();
 
@@ -153,14 +151,22 @@ export interface FilterOptions {
 export function filterCommits(commits: GitCommit[], options: FilterOptions): GitCommit[] {
   let filtered = [...commits];
 
-  // 搜索筛选（支持 hash、首行摘要、完整提交消息）
+  // 搜索筛选（支持 hash、首行摘要、完整提交消息、变更文件路径）
   if (options.searchQuery) {
     const query = options.searchQuery.toLowerCase();
+    // 路径兼容处理：将反斜杠替换为正斜杠
+    const pathQuery = query.replace(/\\/g, "/");
+
     filtered = filtered.filter(
       (c) =>
         c.message.toLowerCase().includes(query) ||
         c.hash.toLowerCase().includes(query) ||
-        (c.full_message && c.full_message.toLowerCase().includes(query))
+        (c.full_message && c.full_message.toLowerCase().includes(query)) ||
+        (c.files &&
+          c.files.some((f) => {
+            const normalizedPath = f.path.toLowerCase().replace(/\\/g, "/");
+            return normalizedPath.includes(pathQuery);
+          })),
     );
   }
 

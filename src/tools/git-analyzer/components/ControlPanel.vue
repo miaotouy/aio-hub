@@ -97,7 +97,7 @@
       <div class="filters-row">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索 Hash / 提交消息..."
+          placeholder="搜索 Hash / 消息 / 文件..."
           clearable
           @input="$emit('filter-commits')"
           class="search-input"

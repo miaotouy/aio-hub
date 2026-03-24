@@ -70,7 +70,7 @@ const hasActiveFilters = computed(() => {
 const filterSummary = computed(() => {
   const parts: string[] = [];
   if (searchQuery.value) {
-    parts.push(`关键词: "${searchQuery.value}"`);
+    parts.push(`搜索: "${searchQuery.value}"`);
   }
   if (authorFilter.value) {
     parts.push(`作者: "${authorFilter.value}"`);

@@ -200,6 +200,41 @@ export interface ImageNode extends BaseAstNode {
 }
 
 /**
+ * 视频节点
+ */
+export interface VideoNode extends BaseAstNode {
+  type: "video";
+  props: {
+    src: string;
+    title?: string;
+    poster?: string;
+    autoplay?: boolean;
+    loop?: boolean;
+    muted?: boolean;
+    controls?: boolean;
+  };
+  children?: never;
+}
+
+/**
+ * 音频节点
+ */
+export interface AudioNode extends BaseAstNode {
+  type: "audio";
+  props: {
+    src: string;
+    title?: string;
+    artist?: string;
+    poster?: string;
+    autoplay?: boolean;
+    loop?: boolean;
+    muted?: boolean;
+    controls?: boolean;
+  };
+  children?: never;
+}
+
+/**
  * 引用块节点
  */
 export interface BlockquoteNode extends BaseAstNode {
@@ -359,6 +394,8 @@ export type AstNode =
   | ListNode
   | ListItemNode
   | ImageNode
+  | VideoNode
+  | AudioNode
   | BlockquoteNode
   | AlertNode
   | HrNode

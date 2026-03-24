@@ -16,7 +16,8 @@
         :alt="alt || ''"
         :title="title || undefined"
         class="markdown-image"
-        @error="hasError = true"
+        referrerpolicy="no-referrer"
+        @error="handleImageError"
         @click="handlePreview"
       />
 
@@ -66,6 +67,7 @@ const imageViewer = useImageViewer();
 const resolvedSrc = ref("");
 const isLoading = ref(true);
 const hasError = ref(false);
+const isRetrying = ref(false);
 const isHovered = ref(false);
 const isCopying = ref(false);
 let basePath: string | null = null;
@@ -120,6 +122,53 @@ const resolveUrl = async () => {
     isLoading.value = false;
   }
 };
+
+/**
+ * 处理图片加载失败：尝试使用 fetch 代理（绕过 Referer 限制）
+ */
+const handleImageError = async () => {
+  // 只有 http/https 链接且未重试过才尝试
+  if (isRetrying.value || !resolvedSrc.value.startsWith("http")) {
+    hasError.value = true;
+    return;
+  }
+
+  isRetrying.value = true;
+  isLoading.value = true;
+
+  try {
+    // 使用 fetch 获取图片，显式设置不带 referrer 并伪装 User-Agent
+    const response = await fetch(resolvedSrc.value, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      },
+      referrer: "",
+      referrerPolicy: "no-referrer",
+      credentials: "omit",
+      mode: "cors",
+    });
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    const blob = await response.blob();
+    // 检查是否真的是图片
+    if (!blob.type.startsWith("image/")) throw new Error("Not an image");
+
+    // 释放旧的 URL (如果是我们自己生成的)
+    if (resolvedSrc.value.startsWith("blob:")) {
+      URL.revokeObjectURL(resolvedSrc.value);
+    }
+
+    resolvedSrc.value = URL.createObjectURL(blob);
+    hasError.value = false;
+  } catch (error) {
+    console.warn(`[ImageNode] Proxy fetch failed for ${props.src}:`, error);
+    hasError.value = true;
+  } finally {
+    isLoading.value = false;
+  }
+};
 // 性能优化：使用 watchEffect 替代 watch，避免不必要的重复触发
 // 只在 src 真正变化时才重新解析
 let lastSrc = "";
@@ -134,7 +183,7 @@ watch(
       resolveUrl();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Agent 上下文变化时重新解析（仅针对 agent-asset:// 协议）
@@ -145,7 +194,7 @@ watch(
     if (props.src.startsWith("agent-asset://")) {
       resolveUrl();
     }
-  }
+  },
 );
 
 // 监听降级模式：如果检测到降级，停止所有异步操作
@@ -157,7 +206,7 @@ if (context?.images) {
       if (images.length === 0 && lastSrc) {
         isActive = false; // 停用组件
       }
-    }
+    },
   );
 }
 

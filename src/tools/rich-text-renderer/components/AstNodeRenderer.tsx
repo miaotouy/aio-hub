@@ -20,6 +20,8 @@ import QuoteNode from "./nodes/QuoteNode.vue";
 import InlineCodeNode from "./nodes/InlineCodeNode.vue";
 import LinkNode from "./nodes/LinkNode.vue";
 import ImageNode from "./nodes/ImageNode.vue";
+import VideoNode from "./nodes/VideoNode.vue";
+import AudioNode from "./nodes/AudioNode.vue";
 import HardBreakNode from "./nodes/HardBreakNode.vue";
 import HtmlInlineNode from "./nodes/HtmlInlineNode.vue";
 import GenericHtmlNode from "./nodes/GenericHtmlNode.vue";
@@ -61,6 +63,8 @@ const componentMap: Record<string, any> = {
   katex_inline: KatexRenderer,
   link: LinkNode,
   image: ImageNode,
+  video: VideoNode,
+  audio: AudioNode,
   hard_break: HardBreakNode,
   html_inline: HtmlInlineNode,
   generic_html: GenericHtmlNode,
@@ -157,6 +161,9 @@ const AstNodeRenderer = defineComponent({
       type: Boolean,
       default: true,
     },
+    parentContainerId: {
+      type: String,
+    },
   },
   setup(props) {
     return (): VNode[] => {
@@ -167,6 +174,16 @@ const AstNodeRenderer = defineComponent({
         // 这样可以避免 CSS 内容被渲染成普通的 span 文本溢出到页面上
         if (node.type === "generic_html" && node.props?.tagName === "style") {
           NodeComponent = StyleNode;
+        }
+
+        // 特殊处理：拦截 HTML video 标签并转换为 VideoNode
+        if (node.type === "generic_html" && node.props?.tagName === "video") {
+          NodeComponent = VideoNode;
+        }
+
+        // 特殊处理：拦截 HTML audio 标签并转换为 AudioNode
+        if (node.type === "generic_html" && node.props?.tagName === "audio") {
+          NodeComponent = AudioNode;
         }
 
         // 尝试获取或生成容器 ID，用于样式隔离
@@ -180,7 +197,7 @@ const AstNodeRenderer = defineComponent({
                 nodes: node.children,
                 generationMeta: props.generationMeta,
                 enableEnterAnimation: props.enableEnterAnimation,
-                parentContainerId: containerId || (props as any).parentContainerId,
+                parentContainerId: containerId || props.parentContainerId,
               })
             : undefined;
 
@@ -199,14 +216,35 @@ const AstNodeRenderer = defineComponent({
           class: [shouldAnimate ? "rich-text-node" : undefined, isBlock ? "rich-text-block" : undefined]
             .filter(Boolean)
             .join(" "),
-          ...node.props,
+          ...(node.type === "generic_html" && (node.props?.tagName === "video" || node.props?.tagName === "audio")
+            ? (() => {
+                const attrs = { ...node.props.attributes };
+                // 确保 src 存在，优先使用 attributes.src
+                let src = attrs.src || (node.props as any).src || "";
+
+                // 如果父节点没有 src，尝试从子节点 <source> 提取
+                if (!src && node.children) {
+                  const sourceNode = node.children.find(
+                    (c) => c.type === "generic_html" && (c.props as any)?.tagName === "source",
+                  );
+                  if (sourceNode && (sourceNode.props as any)?.attributes?.src) {
+                    src = (sourceNode.props as any).attributes.src;
+                  }
+                }
+
+                return {
+                  ...attrs,
+                  src,
+                };
+              })()
+            : node.props),
           generationMeta: props.generationMeta,
           // 如果是 StyleNode，我们需要传递原始子节点以提取文本
           sourceNodes: NodeComponent === StyleNode ? node.children : undefined,
           // 传递父级容器 ID 给子节点，方便 StyleNode 进行样式隔离
           parentContainerId: props.nodes.some((n) => n.type === "generic_html" && (n.props as any)?.tagName === "style")
             ? containerId
-            : (props as any).parentContainerId,
+            : props.parentContainerId,
         };
 
         // 根据节点类型设置 displayMode

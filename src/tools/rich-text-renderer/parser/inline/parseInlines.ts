@@ -1,6 +1,31 @@
 import { Token, ParserContext } from "../types";
-import { ActionButtonNode, AstNode, GenericHtmlNode } from "../../types";
+import { ActionButtonNode, AstNode, GenericHtmlNode, VideoNode, AudioNode } from "../../types";
 import { createTextNode, computeFingerprint } from "../utils/text-utils";
+
+// 媒体文件后缀定义
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogg", "mov", "m4v"]);
+const AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg", "aac", "m4a", "flac"]);
+
+/**
+ * 判断 URL 是否为视频
+ */
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  // 简单的后缀提取，不依赖完整的 URL 构造函数，以支持各种协议
+  const cleanUrl = url.split("?")[0].split("#")[0];
+  const ext = cleanUrl.split(".").pop()?.toLowerCase() || "";
+  return VIDEO_EXTENSIONS.has(ext);
+}
+
+/**
+ * 判断 URL 是否为音频
+ */
+function isAudioUrl(url: string): boolean {
+  if (!url) return false;
+  const cleanUrl = url.split("?")[0].split("#")[0];
+  const ext = cleanUrl.split(".").pop()?.toLowerCase() || "";
+  return AUDIO_EXTENSIONS.has(ext);
+}
 
 /**
  * 从 AST 节点数组中提取纯文本内容
@@ -105,7 +130,6 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         }
       }
       // --- 结束新增逻辑 ---
-
 
       const htmlNode: GenericHtmlNode = {
         id: "",
@@ -294,9 +318,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       if (hasClosing) {
         i++;
         // 既然 *** 视为 <em><strong>，那么 innerTokens 应该以 <strong> 开始
-        const innerTokens: Token[] = [
-          { type: "strong_delimiter", marker: "**", raw: "**" }
-        ];
+        const innerTokens: Token[] = [{ type: "strong_delimiter", marker: "**", raw: "**" }];
 
         while (i < tokens.length) {
           const t = tokens[i];
@@ -632,12 +654,33 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         }
 
         if (hasUrl && isClosed) {
-          nodes.push({
-            id: "",
-            type: "image",
-            props: { src, alt, title },
-            meta: { range: { start: 0, end: 0 }, status: "stable" },
-          });
+          // 自动升级为视频或音频
+          // 判定逻辑：后缀匹配 OR alt 文本明确标识
+          const isVideo = isVideoUrl(src) || alt.toLowerCase() === "video";
+          const isAudio = isAudioUrl(src) || alt.toLowerCase() === "audio";
+
+          if (isVideo) {
+            nodes.push({
+              id: "",
+              type: "video",
+              props: { src, title: title || alt },
+              meta: { range: { start: 0, end: 0 }, status: "stable" },
+            } as VideoNode);
+          } else if (isAudio) {
+            nodes.push({
+              id: "",
+              type: "audio",
+              props: { src, title: title || alt },
+              meta: { range: { start: 0, end: 0 }, status: "stable" },
+            } as AudioNode);
+          } else {
+            nodes.push({
+              id: "",
+              type: "image",
+              props: { src, alt, title },
+              meta: { range: { start: 0, end: 0 }, status: "stable" },
+            });
+          }
           continue;
         } else {
           // 缺少 URL 部分，回退为普通文本
@@ -794,7 +837,8 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           url = "https://" + url;
         }
         // 如果是邮箱，补全 mailto:
-        else if (match[2]) { // match[2] 是邮箱捕获组
+        else if (match[2]) {
+          // match[2] 是邮箱捕获组
           url = "mailto:" + url;
         }
 
@@ -852,18 +896,9 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
     }
 
     // 处理未被消费的特殊字符 (如孤立的括号)
-    if (
-      token.type === "link_url_open" ||
-      token.type === "link_url_close" ||
-      token.type === "link_text_close"
-    ) {
+    if (token.type === "link_url_open" || token.type === "link_url_close" || token.type === "link_text_close") {
       accumulatedText +=
-        token.raw ||
-        (token.type === "link_url_open"
-          ? "("
-          : token.type === "link_url_close"
-            ? ")"
-            : "]");
+        token.raw || (token.type === "link_url_open" ? "(" : token.type === "link_url_close" ? ")" : "]");
       i++;
       continue;
     }

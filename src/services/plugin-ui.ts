@@ -40,7 +40,8 @@ for (const path in toolRegistryModules) {
 
 // --- 3. 手动补充或重写 ---
 const manualComponents: Record<string, Component> = {
-  // 如果有特殊的映射需求，可以在这里定义
+  // 修正 RichTextRenderer 的指向，registry 中注册的是测试器，插件需要的是渲染器本体
+  RichTextRenderer: defineAsyncComponent(() => import("../tools/rich-text-renderer/RichTextRenderer.vue")),
 };
 
 // 汇总所有组件 Map，供插件 SDK 动态查询

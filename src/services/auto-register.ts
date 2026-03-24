@@ -1,5 +1,5 @@
 import { toolRegistryManager } from "./registry";
-import type { ToolRegistry } from "./types";
+import type { ToolRegistryItem } from "./types";
 import { pluginManager } from "./plugin-manager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -10,9 +10,9 @@ const errorHandler = createModuleErrorHandler("services/auto-register");
 
 import type { ToolConfig } from "./types";
 
-// 定义模块导出的类型，期望是一个可以 new 的类
+// 定义模块导出的类型，支持单例类、数组或工厂
 type ServiceModule = {
-  default?: new () => ToolRegistry;
+  default?: any; // 可以是类、数组或工厂实例
   toolConfig?: ToolConfig;
 };
 
@@ -43,7 +43,7 @@ export async function autoRegisterServices(): Promise<void> {
       return;
     }
 
-    const instances: ToolRegistry[] = [];
+    const registerItems: ToolRegistryItem[] = [];
     const failedModules: Array<{ path: string; error: any }> = [];
     const toolsStore = useToolsStore();
 
@@ -52,51 +52,54 @@ export async function autoRegisterServices(): Promise<void> {
       try {
         // logger.debug(`正在加载工具模块: ${path}`);
         const module = await serviceModules[path]();
-        
+
         // 1. 处理 UI 工具配置 (ToolConfig)
         if (module.toolConfig) {
           toolsStore.addTool(module.toolConfig);
           // logger.debug(`已从模块注册 UI 工具: ${module.toolConfig.name}`);
         }
 
-        // 2. 处理服务注册 (ToolRegistry)
-        const RegistryClass = module.default;
+        // 2. 处理服务注册 (ToolRegistryItem)
+        const exported = module.default;
 
-        if (RegistryClass) {
-          if (typeof RegistryClass !== "function") {
-            throw new Error("默认导出不是一个可实例化的类");
+        if (exported) {
+          if (Array.isArray(exported)) {
+            // 方式二：数组导出（静态多实例）
+            // 数组中可能包含对象实例，也可能包含需要实例化的类
+            for (const item of exported) {
+              if (typeof item === "function") {
+                registerItems.push(new (item as any)());
+              } else {
+                registerItems.push(item);
+              }
+            }
+          } else if (typeof exported === "function") {
+            // 方式一/三：类构造函数（单例工具类或工厂类）
+            const instance = new (exported as any)();
+            registerItems.push(instance);
+          } else if (typeof exported === "object") {
+            // 方式四：直接导出的对象实例（可能是单例或工厂实例）
+            registerItems.push(exported);
           }
-
-          const instance = new RegistryClass();
-
-          // 验证实例是否实现了 ToolRegistry 接口
-          if (!instance.id) {
-            throw new Error("工具实例缺少必需的 id 属性");
-          }
-
-          instances.push(instance);
         }
       } catch (error) {
-        errorHandler.error(error, '加载工具模块失败', { context: { path } });
+        errorHandler.error(error, "加载工具模块失败", { context: { path } });
         failedModules.push({ path, error });
       }
     }
 
-    // 批量注册所有成功加载的工具
-    if (instances.length > 0) {
-      await toolRegistryManager.register(...instances);
+    // 批量注册所有成功加载的工具项
+    if (registerItems.length > 0) {
+      await toolRegistryManager.register(...registerItems);
     }
 
     // 输出工具注册摘要（合并成功和失败）
+    const totalTools = toolRegistryManager.getAllToolIds().length;
     logger.info("工具自动注册完成", {
-      总计: modulePaths.length,
-      成功: instances.length,
+      总计文件: modulePaths.length,
+      注册项: registerItems.length,
+      总计工具: totalTools,
       失败: failedModules.length,
-      成功列表: instances.map((i) => ({
-        id: i.id,
-        name: i.name,
-        description: i.description,
-      })),
       ...(failedModules.length > 0 && {
         失败列表: failedModules.map((m) => ({
           路径: m.path,

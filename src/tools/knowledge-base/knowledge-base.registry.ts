@@ -3,14 +3,31 @@ import { markRaw } from "vue";
 import { Database } from "lucide-vue-next";
 import * as agentActions from "./actions/agentActions";
 
-class KnowledgeBaseRegistry implements ToolRegistry {
-  public readonly id = "knowledge-base";
-  public readonly name = "知识库";
-  public readonly description = "管理和检索结构化知识，支持 RAG 向量化";
+/**
+ * 知识库 (基础) 实例 - 日常 Agent 常驻
+ */
+const kbBasic: ToolRegistry = {
+  id: "kb-basic",
+  name: "知识库",
+  description: "知识库的日常读写操作：搜索、创建和更新条目",
 
-  public getMetadata(): ServiceMetadata {
+  getMetadata(): ServiceMetadata {
     return {
       methods: [
+        {
+          name: "searchEntries",
+          displayName: "搜索条目",
+          description: "在知识库中搜索条目。支持关键词或向量搜索。结果包含 index 序号方便后续操作引用。",
+          agentCallable: true,
+          parameters: [
+            { name: "kbNames", type: "string[]", description: "知识库名称列表", required: false },
+            { name: "query", type: "string", description: "搜索查询词", required: true },
+            { name: "engineId", type: "string", description: "检索引擎 (keyword/vector)", required: false },
+            { name: "limit", type: "number", description: "结果数量", required: false },
+            { name: "tags", type: "string[]", description: "标签过滤", required: false },
+          ],
+          returnType: "Promise<SearchEntriesResult>",
+        },
         {
           name: "upsertEntry",
           displayName: "创建或更新条目",
@@ -56,47 +73,50 @@ class KnowledgeBaseRegistry implements ToolRegistry {
           ],
           returnType: "Promise<UpdateEntryContentResult>",
         },
+      ],
+    };
+  },
+
+  async searchEntries(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return (await agentActions.searchEntries(args as any)) as any;
+  },
+
+  async upsertEntry(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return (await agentActions.upsertEntry(args as any)) as any;
+  },
+
+  async updateEntryContent(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return (await agentActions.updateEntryContent(args as any)) as any;
+  },
+};
+
+/**
+ * 知识库 (管理) 实例 - 管理员专用
+ */
+const kbAdmin: ToolRegistry = {
+  id: "kb-admin",
+  name: "知识库 (管理)",
+  description: "知识库的高级管理操作：索引浏览、元数据批量管理、条目删除",
+
+  getMetadata(): ServiceMetadata {
+    return {
+      methods: [
         {
-          name: "deleteEntry",
-          displayName: "删除条目",
-          description: "删除指定的知识库条目。需要显式确认。",
+          name: "listKnowledgeBases",
+          displayName: "列出知识库列表",
+          description: "列出所有知识库及其基本信息和统计数据。支持名称搜索和统计信息开关。",
           agentCallable: true,
           parameters: [
-            { name: "kbName", type: "string", description: "知识库名称", required: false },
-            { name: "kbId", type: "string", description: "知识库 ID", required: false },
-            { name: "entryId", type: "string", description: "条目 ID", required: false },
-            { name: "key", type: "string", description: "条目标题", required: false },
-            { name: "confirm", type: "boolean", description: "确认删除", required: true },
+            { name: "query", type: "string", description: "知识库名称关键词搜索（模糊匹配）", required: false },
+            {
+              name: "includeStats",
+              type: "boolean",
+              description: "是否包含统计信息",
+              required: false,
+              defaultValue: true,
+            },
           ],
-          returnType: "Promise<DeleteEntryResult>",
-        },
-        {
-          name: "searchEntries",
-          displayName: "搜索条目",
-          description: "在知识库中搜索条目。支持关键词或向量搜索。结果包含 index 序号方便后续操作引用。",
-          agentCallable: true,
-          parameters: [
-            { name: "kbNames", type: "string[]", description: "知识库名称列表", required: false },
-            { name: "query", type: "string", description: "搜索查询词", required: true },
-            { name: "engineId", type: "string", description: "检索引擎 (keyword/vector)", required: false },
-            { name: "limit", type: "number", description: "结果数量", required: false },
-            { name: "tags", type: "string[]", description: "标签过滤", required: false },
-          ],
-          returnType: "Promise<SearchEntriesResult>",
-        },
-        {
-          name: "batchUpdateMetadata",
-          displayName: "批量更新元数据",
-          description: "批量更新条目的元数据（不修改内容）。",
-          agentCallable: true,
-          parameters: [
-            { name: "kbName", type: "string", description: "知识库名称", required: false },
-            { name: "entryIds", type: "string[]", description: "条目 ID 列表", required: true },
-            { name: "enabled", type: "boolean", description: "启用状态", required: false },
-            { name: "addTags", type: "string[]", description: "添加标签", required: false },
-            { name: "removeTags", type: "string[]", description: "移除标签", required: false },
-          ],
-          returnType: "Promise<BatchUpdateMetadataResult>",
+          returnType: "Promise<ListKnowledgeBasesResult>",
         },
         {
           name: "listEntriesMetadata",
@@ -124,56 +144,56 @@ class KnowledgeBaseRegistry implements ToolRegistry {
           returnType: "Promise<ListEntriesMetadataResult>",
         },
         {
-          name: "listKnowledgeBases",
-          displayName: "列出知识库列表",
-          description: "列出所有知识库及其基本信息和统计数据。支持名称搜索和统计信息开关。",
+          name: "batchUpdateMetadata",
+          displayName: "批量更新元数据",
+          description: "批量更新条目的元数据（不修改内容）。",
           agentCallable: true,
           parameters: [
-            { name: "query", type: "string", description: "知识库名称关键词搜索（模糊匹配）", required: false },
-            {
-              name: "includeStats",
-              type: "boolean",
-              description: "是否包含统计信息",
-              required: false,
-              defaultValue: true,
-            },
+            { name: "kbName", type: "string", description: "知识库名称", required: false },
+            { name: "entryIds", type: "string[]", description: "条目 ID 列表", required: true },
+            { name: "enabled", type: "boolean", description: "启用状态", required: false },
+            { name: "addTags", type: "string[]", description: "添加标签", required: false },
+            { name: "removeTags", type: "string[]", description: "移除标签", required: false },
           ],
-          returnType: "Promise<ListKnowledgeBasesResult>",
+          returnType: "Promise<BatchUpdateMetadataResult>",
+        },
+        {
+          name: "deleteEntry",
+          displayName: "删除条目",
+          description: "删除指定的知识库条目。需要显式确认。",
+          agentCallable: true,
+          parameters: [
+            { name: "kbName", type: "string", description: "知识库名称", required: false },
+            { name: "kbId", type: "string", description: "知识库 ID", required: false },
+            { name: "entryId", type: "string", description: "条目 ID", required: false },
+            { name: "key", type: "string", description: "条目标题", required: false },
+            { name: "confirm", type: "boolean", description: "确认删除", required: true },
+          ],
+          returnType: "Promise<DeleteEntryResult>",
         },
       ],
     };
-  }
+  },
 
-  public async upsertEntry(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return (await agentActions.upsertEntry(args as any)) as any;
-  }
-
-  public async updateEntryContent(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return (await agentActions.updateEntryContent(args as any)) as any;
-  }
-
-  public async deleteEntry(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return (await agentActions.deleteEntry(args as any)) as any;
-  }
-
-  public async searchEntries(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return (await agentActions.searchEntries(args as any)) as any;
-  }
-
-  public async batchUpdateMetadata(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return (await agentActions.batchUpdateMetadata(args as any)) as any;
-  }
-
-  public async listEntriesMetadata(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return (await agentActions.listEntriesMetadata(args as any)) as any;
-  }
-
-  public async listKnowledgeBases(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async listKnowledgeBases(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     return (await agentActions.listKnowledgeBases(args as any)) as any;
-  }
-}
+  },
 
-export default KnowledgeBaseRegistry;
+  async listEntriesMetadata(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return (await agentActions.listEntriesMetadata(args as any)) as any;
+  },
+
+  async batchUpdateMetadata(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return (await agentActions.batchUpdateMetadata(args as any)) as any;
+  },
+
+  async deleteEntry(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return (await agentActions.deleteEntry(args as any)) as any;
+  },
+};
+
+// 导出实例数组（多实例注册）
+export default [kbBasic, kbAdmin];
 
 /**
  * UI 工具配置

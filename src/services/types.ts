@@ -145,7 +145,33 @@ export interface ToolRegistry {
    * 直接使用现有的 SettingItem 类型，确保与 SettingListRenderer 完美兼容
    */
   readonly settingsSchema?: SettingItem<any>[];
+
+  /**
+   * 允许工具实现自定义的 Agent 方法
+   */
+  [key: string]: any;
 }
+
+/**
+ * 工具注册工厂接口
+ * 用于动态生成多个 ToolRegistry 实例，适用于桥接层等场景
+ */
+export interface ToolRegistryFactory {
+  /**
+   * 工厂标识符，用于追踪和批量注销
+   */
+  readonly factoryId: string;
+
+  /**
+   * 创建并返回多个 ToolRegistry 实例
+   */
+  createRegistries(): Promise<ToolRegistry[]> | ToolRegistry[];
+}
+
+/**
+ * 联合类型：工具注册项（单例或工厂）
+ */
+export type ToolRegistryItem = ToolRegistry | ToolRegistryFactory;
 
 /**
  * 工具调用时的统一上下文环境

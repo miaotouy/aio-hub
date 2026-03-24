@@ -64,8 +64,8 @@
                 <div class="input-row">
                   <span>插入位置:</span>
                   <el-radio-group v-model="movePosition" size="small">
-                    <el-radio-button label="before">之前</el-radio-button>
-                    <el-radio-button label="after">之后</el-radio-button>
+                    <el-radio-button value="before">之前</el-radio-button>
+                    <el-radio-button value="after">之后</el-radio-button>
                   </el-radio-group>
                 </div>
                 <div class="quick-anchors" v-if="anchors.length > 0">

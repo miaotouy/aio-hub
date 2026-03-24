@@ -492,13 +492,13 @@ const previewInfo = computed(() => {
       <div class="strategy-section">
         <div class="section-title">覆盖策略</div>
         <el-radio-group v-model="upgradeStrategy">
-          <el-radio-button label="merge" value="merge">
+          <el-radio-button value="merge">
             <div class="radio-content">
               <el-icon><Refresh /></el-icon>
               <span>深度合并</span>
             </div>
           </el-radio-button>
-          <el-radio-button label="overwrite" value="overwrite">
+          <el-radio-button value="overwrite">
             <div class="radio-content">
               <el-icon><Document /></el-icon>
               <span>完全替换</span>

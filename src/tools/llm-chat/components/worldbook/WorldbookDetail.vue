@@ -1018,8 +1018,8 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
           <label>操作模式</label>
           <div style="margin-top: 8px">
             <el-radio-group v-model="isMoveMode">
-              <el-radio :label="false">复制 (保留当前条目)</el-radio>
-              <el-radio :label="true">移动 (删除当前条目)</el-radio>
+              <el-radio :value="false">复制 (保留当前条目)</el-radio>
+              <el-radio :value="true">移动 (删除当前条目)</el-radio>
             </el-radio-group>
           </div>
         </div>

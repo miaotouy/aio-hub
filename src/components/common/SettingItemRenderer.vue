@@ -58,7 +58,6 @@
                 v-for="option in resolvedOptions"
                 :key="option.value.toString()"
                 :value="option.value"
-                :label="option.value"
               >
                 {{ option.label }}
               </el-radio-button>
@@ -68,7 +67,6 @@
               v-for="option in resolvedOptions"
               :key="option.value.toString()"
               :value="option.value"
-              :label="option.value"
             >
               {{ option.label }}
             </el-radio>

@@ -11,8 +11,8 @@
       <div class="export-section">
         <p class="section-title">导出格式</p>
         <el-radio-group v-model="exportFormat" class="format-group">
-          <el-radio-button label="markdown">Markdown</el-radio-button>
-          <el-radio-button label="json">JSON (Raw)</el-radio-button>
+          <el-radio-button value="markdown">Markdown</el-radio-button>
+          <el-radio-button value="json">JSON (Raw)</el-radio-button>
         </el-radio-group>
       </div>
 

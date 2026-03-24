@@ -33,8 +33,8 @@
         <label class="control-label">测试角色 (用于资产解析)</label>
         <div class="profile-selector">
           <el-radio-group v-model="profileType" size="small" class="profile-type-radio">
-            <el-radio-button label="agent">智能体</el-radio-button>
-            <el-radio-button label="user">用户</el-radio-button>
+            <el-radio-button value="agent">智能体</el-radio-button>
+            <el-radio-button value="user">用户</el-radio-button>
           </el-radio-group>
 
           <el-select

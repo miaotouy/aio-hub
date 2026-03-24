@@ -32,6 +32,7 @@
 - **代码编辑**: CodeMirror, Monaco Editor
 - **桌面框架**: Tauri 2.3
 - **包管理器**: Bun
+- **CSP配置**: 在根目录的 `index.html` 中
 
 ### 1.2. 后端 (Rust) 技术栈
 

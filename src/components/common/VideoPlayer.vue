@@ -79,20 +79,12 @@
             @mouseleave="showHoverPreview = false"
           >
             <!-- 悬停时间预览 -->
-            <div
-              v-if="showHoverPreview"
-              class="hover-time-tooltip"
-              :style="{ left: hoverPosition + '%' }"
-            >
+            <div v-if="showHoverPreview" class="hover-time-tooltip" :style="{ left: hoverPosition + '%' }">
               {{ formattedHoverTime }}
             </div>
 
             <!-- 悬停指示器 (上下三角) -->
-            <div
-              v-if="showHoverPreview"
-              class="hover-indicator"
-              :style="{ left: hoverPosition + '%' }"
-            >
+            <div v-if="showHoverPreview" class="hover-indicator" :style="{ left: hoverPosition + '%' }">
               <div class="indicator-top"></div>
               <div class="indicator-bottom"></div>
             </div>
@@ -169,11 +161,7 @@
 
               <!-- 音量控制 -->
               <div class="menu-container" @mouseleave="showVolumeSlider = false">
-                <button
-                  class="control-btn"
-                  @click="toggleMute"
-                  @mouseenter="showVolumeSlider = true"
-                >
+                <button class="control-btn" @click="toggleMute" @mouseenter="showVolumeSlider = true">
                   <component :is="volumeIcon" />
                 </button>
                 <div v-if="showVolumeSlider" class="popup-menu volume-menu">
@@ -215,12 +203,7 @@
                   </div>
                   <div class="menu-item" @click="cycleObjectFit">
                     <Monitor :size="16" />
-                    <span
-                      >画面:
-                      {{
-                        objectFit === "contain" ? "适应" : objectFit === "cover" ? "填充" : "拉伸"
-                      }}</span
-                    >
+                    <span>画面: {{ objectFit === "contain" ? "适应" : objectFit === "cover" ? "填充" : "拉伸" }}</span>
                   </div>
                   <div class="menu-item" @click="toggleShowPlayIconOnPause">
                     <PlayCircle :size="16" />
@@ -231,12 +214,7 @@
               </div>
 
               <!-- 网页全屏 -->
-              <button
-                v-if="!isUltraNarrow"
-                class="control-btn"
-                @click="toggleWebFullscreen"
-                title="网页全屏"
-              >
+              <button v-if="!isUltraNarrow" class="control-btn" @click="toggleWebFullscreen" title="网页全屏">
                 <component :is="isWebFullscreen ? Shrink : Expand" :size="20" />
               </button>
 
@@ -300,7 +278,7 @@ const props = withDefaults(
     loop: false,
     muted: false,
     globalHotkey: false,
-  }
+  },
 );
 
 // 引用
@@ -371,15 +349,30 @@ const formattedDuration = computed(() => formatTime(duration.value));
 const formattedHoverTime = computed(() => formatTime(hoverTime.value));
 
 const videoName = computed(() => {
+  // 优先级：外部传入标题 > 文件名 (视频暂无元数据解析，保持原样但增加注释)
   if (props.title) return props.title;
   if (!props.src) return "video";
   try {
-    // 尝试从 URL/路径中提取文件名
-    const urlParts = props.src.split(/[/\\]/);
-    let name = urlParts.pop() || "";
-    // 去除 query string
+    // 1. 先解码 URL
+    let decodedSrc = decodeURIComponent(props.src);
+    // 2. 移除常见的 Tauri asset 协议前缀
+    decodedSrc = decodedSrc.replace(/^https?:\/\/asset\.localhost\//, "");
+    decodedSrc = decodedSrc.replace(/^asset:\/\//, "");
+
+    // 3. 统一分隔符并提取最后一部分
+    const parts = decodedSrc.split(/[/\\]/);
+    let name = parts.pop() || "";
+
+    // 4. 去除 query string
     name = name.split("?")[0];
-    return decodeURIComponent(name);
+
+    // 5. 去除扩展名
+    const lastDotIndex = name.lastIndexOf(".");
+    if (lastDotIndex > 0) {
+      name = name.substring(0, lastDotIndex);
+    }
+
+    return name || "video";
   } catch {
     return "video";
   }
@@ -431,10 +424,7 @@ function updateBuffered() {
   const buffered = videoRef.value.buffered;
   if (buffered.length > 0) {
     for (let i = 0; i < buffered.length; i++) {
-      if (
-        buffered.start(i) <= videoRef.value.currentTime &&
-        buffered.end(i) >= videoRef.value.currentTime
-      ) {
+      if (buffered.start(i) <= videoRef.value.currentTime && buffered.end(i) >= videoRef.value.currentTime) {
         bufferedPercentage.value = (buffered.end(i) / videoRef.value.duration) * 100;
         break;
       }
@@ -593,7 +583,7 @@ function stepFrame(frames: number) {
   const frameDuration = 1 / 30;
   videoRef.value.currentTime = Math.min(
     Math.max(videoRef.value.currentTime + frames * frameDuration, 0),
-    duration.value
+    duration.value,
   );
 }
 
@@ -734,10 +724,7 @@ function handleKeydown(e: KeyboardEvent) {
 
 function skip(seconds: number) {
   if (!videoRef.value) return;
-  videoRef.value.currentTime = Math.min(
-    Math.max(videoRef.value.currentTime + seconds, 0),
-    duration.value
-  );
+  videoRef.value.currentTime = Math.min(Math.max(videoRef.value.currentTime + seconds, 0), duration.value);
 }
 
 function adjustVolume(delta: number) {

@@ -1,8 +1,8 @@
 <template>
-  <div class="video-node-container" :class="{ 'is-streaming': isStreaming }">
+  <div class="video-node-container" :class="{ 'is-streaming': isStreaming }" :title="title">
     <VideoPlayer
       :src="resolvedSrc"
-      :title="title"
+      :title="displayTitle"
       :poster="poster"
       :autoplay="autoplay"
       :loop="loop"
@@ -31,6 +31,12 @@ const props = defineProps<{
 
 const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
 const isStreaming = computed(() => context?.isStreaming?.value ?? false);
+
+// 过滤掉默认的 "video" 标题
+const displayTitle = computed(() => {
+  if (props.title?.toLowerCase() === "video") return undefined;
+  return props.title;
+});
 
 // 解析资源链接
 const resolvedSrc = computed(() => {

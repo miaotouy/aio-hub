@@ -30,6 +30,12 @@ import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
 import "@/utils/monaco-i18n/nls";
 import { initMonacoShikiThemes } from "@/utils/monacoShikiSetup";
+import { Buffer } from "buffer";
+
+// 解决 music-metadata-browser 在浏览器环境下缺少 Buffer 的问题
+if (typeof (window as any).Buffer === "undefined") {
+  (window as any).Buffer = Buffer;
+}
 
 // 将 Vue 和 ElementPlus 挂载到全局，供插件 ESM Shim 使用
 (window as any).Vue = Vue;

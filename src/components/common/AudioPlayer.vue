@@ -28,7 +28,7 @@
           <div class="ripple"></div>
         </div>
         <div class="cover-container" :class="{ rotating: isPlaying }">
-          <img v-if="currentAudio.poster" :src="currentAudio.poster" class="cover-image" alt="poster" />
+          <img v-if="audioPoster" :src="audioPoster" class="cover-image" alt="poster" />
           <div v-else class="cover-placeholder">
             <Music :size="48" />
           </div>
@@ -37,7 +37,7 @@
       <div class="audio-info">
         <h3 class="audio-title">{{ audioName }}</h3>
         <p class="audio-artist">
-          {{ currentAudio.artist || "未知艺术家" }}
+          {{ audioArtist }}
           <span v-if="effectivePlaylist.length > 1" style="opacity: 0.5; font-size: 12px">
             ({{ currentIndex + 1 }}/{{ effectivePlaylist.length }})
           </span>
@@ -48,12 +48,12 @@
     <!-- Mini 模式信息栏 -->
     <div v-if="mini" class="mini-header">
       <div class="mini-info">
-        <div class="mini-poster" v-if="currentAudio.poster">
-          <img :src="currentAudio.poster" alt="poster" />
+        <div class="mini-poster" v-if="audioPoster">
+          <img :src="audioPoster" alt="poster" />
         </div>
         <div class="mini-text">
           <span class="mini-title">{{ audioName }}</span>
-          <span class="mini-artist">{{ currentAudio.artist || "未知艺术家" }}</span>
+          <span class="mini-artist">{{ audioArtist }}</span>
         </div>
       </div>
       <div class="mini-actions">
@@ -229,6 +229,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import ColorThief from "color-thief-ts";
+import * as mm from "music-metadata-browser";
 import {
   Play,
   Pause,
@@ -301,6 +302,11 @@ const duration = ref(0);
 const isLoading = ref(true);
 const error = ref(false);
 
+// 元数据状态
+const metaTitle = ref<string | null>(null);
+const metaArtist = ref<string | null>(null);
+const metaPoster = ref<string | null>(null);
+
 const STORAGE_KEY_VOLUME = "audio-player-volume";
 const STORAGE_KEY_MUTED = "audio-player-muted";
 
@@ -367,16 +373,42 @@ const effectivePlaylist = computed(() => {
 });
 
 const audioName = computed(() => {
+  // 优先级：元数据标题 > 外部传入标题 > 文件名
+  if (metaTitle.value) return metaTitle.value;
   if (currentAudio.value.title) return currentAudio.value.title;
   if (!currentAudio.value.src) return "未知音频";
   try {
-    const urlParts = currentAudio.value.src.split(/[/\\]/);
-    let name = urlParts.pop() || "";
+    // 1. 先解码 URL
+    let decodedSrc = decodeURIComponent(currentAudio.value.src);
+    // 2. 移除常见的 Tauri asset 协议前缀
+    decodedSrc = decodedSrc.replace(/^https?:\/\/asset\.localhost\//, "");
+    decodedSrc = decodedSrc.replace(/^asset:\/\//, "");
+
+    // 3. 统一分隔符并提取最后一部分
+    const parts = decodedSrc.split(/[/\\]/);
+    let name = parts.pop() || "";
+
+    // 4. 去除 query string
     name = name.split("?")[0];
-    return decodeURIComponent(name);
+
+    // 5. 去除扩展名
+    const lastDotIndex = name.lastIndexOf(".");
+    if (lastDotIndex > 0) {
+      name = name.substring(0, lastDotIndex);
+    }
+
+    return name || "未知音频";
   } catch {
     return "未知音频";
   }
+});
+
+const audioArtist = computed(() => {
+  return currentAudio.value.artist || metaArtist.value || "未知艺术家";
+});
+
+const audioPoster = computed(() => {
+  return currentAudio.value.poster || metaPoster.value;
 });
 
 // 方法
@@ -495,18 +527,80 @@ function handleError(e: any) {
   emit("error", e);
 }
 
+// 解析元数据
+async function parseMetadata() {
+  metaTitle.value = null;
+  metaArtist.value = null;
+  // 清理旧的 Blob URL
+  if (metaPoster.value?.startsWith("blob:")) {
+    URL.revokeObjectURL(metaPoster.value);
+  }
+  metaPoster.value = null;
+
+  if (!currentAudio.value.src) return;
+
+  try {
+    try {
+      const response = await fetch(currentAudio.value.src);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+  
+      // 1. 解析元数据
+      const metadata = await mm.parseBuffer(new Uint8Array(arrayBuffer), {
+        mimeType: response.headers.get("content-type") || undefined,
+      });
+  
+      if (metadata.common) {
+        metaTitle.value = metadata.common.title || null;
+        metaArtist.value = metadata.common.artist || null;
+  
+        // 解析封面
+        if (metadata.common.picture && metadata.common.picture.length > 0) {
+          const pic = metadata.common.picture[0];
+          const blob = new Blob([pic.data], { type: pic.format });
+          metaPoster.value = URL.createObjectURL(blob);
+        }
+      }
+  
+      return arrayBuffer;
+    } catch (err: any) {
+      logger.warn("元数据解析失败", {
+        error: err?.message || String(err),
+        stack: err?.stack,
+        src: currentAudio.value.src,
+      });
+      return null;
+    }
+  } catch (err: any) {
+    logger.warn("fetch 失败", {
+      error: err?.message || String(err),
+      src: currentAudio.value.src,
+    });
+    return null;
+  }
+}
+
 // 波形解析
 async function initWaveform() {
-  if (!currentAudio.value.src || !props.showWaveform) {
-    // 填充默认数据
+  if (!currentAudio.value.src) {
     waveformData.value = Array(samples).fill(0.1);
     drawWaveform();
     return;
   }
 
   try {
-    const response = await fetch(currentAudio.value.src);
-    const arrayBuffer = await response.arrayBuffer();
+    // 先解析元数据并获取 buffer
+    const arrayBuffer = await parseMetadata();
+    if (!arrayBuffer || !props.showWaveform) {
+      if (!waveformData.value.length) {
+        waveformData.value = Array(samples).fill(0.1);
+      }
+      drawWaveform();
+      return;
+    }
+
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 

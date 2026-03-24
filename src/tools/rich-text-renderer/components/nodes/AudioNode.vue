@@ -1,8 +1,8 @@
 <template>
-  <div class="audio-node-container" :class="{ 'is-streaming': isStreaming }">
+  <div class="audio-node-container" :class="{ 'is-streaming': isStreaming }" :title="title">
     <AudioPlayer
       :src="resolvedSrc"
-      :title="title"
+      :title="displayTitle"
       :artist="artist"
       :poster="poster"
       :autoplay="autoplay"
@@ -34,6 +34,13 @@ const props = defineProps<{
 
 const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
 const isStreaming = computed(() => context?.isStreaming?.value ?? false);
+
+// 过滤掉默认的 "audio" 标题，让播放器自己解析元数据或文件名
+const displayTitle = computed(() => {
+  if (props.title?.toLowerCase() === "audio") return undefined;
+  return props.title;
+});
+
 // 解析资源链接
 const resolvedSrc = computed(() => {
   let src = props.src;

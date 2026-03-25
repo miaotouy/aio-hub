@@ -1,4 +1,4 @@
-.kilocode\rules\rules.md
+去看  .kilocode\rules\rules.md
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

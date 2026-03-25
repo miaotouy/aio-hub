@@ -108,6 +108,11 @@ export function createToolDiscoveryService(): {
     const discovered: DiscoveredToolMethods[] = [];
 
     for (const tool of allTools) {
+      // 如果工具明确标记为禁用（通常是插件），则跳过
+      if ((tool as any).enabled === false) {
+        continue;
+      }
+
       if (!hasMetadataProvider(tool)) {
         continue;
       }

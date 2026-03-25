@@ -82,9 +82,10 @@
                         <code class="method-raw-name">{{ cmd.command }}</code>
                       </div>
                       <el-switch
-                        :model-value="!isCommandDisabled(tool.name, cmd.command)"
+                        v-if="cmd.command"
+                        :model-value="!isCommandDisabled(tool.name, cmd.command!)"
                         size="small"
-                        @change="(val: boolean) => toggleCommand(tool.name, cmd.command, val)"
+                        @change="(val: boolean) => toggleCommand(tool.name, cmd.command!, val)"
                       />
                     </div>
                     <span v-if="cmd.description" class="method-desc">{{ cmd.description }}</span>

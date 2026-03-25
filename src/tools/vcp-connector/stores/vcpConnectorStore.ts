@@ -502,6 +502,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       nodeProtocol.value?.handleVcpManifestsResponse(data.data);
     } else if (data.type === "vcp_tool_result") {
       nodeProtocol.value?.handleVcpToolResult(data.data);
+    } else if (data.type === "vcp_tool_status") {
+      nodeProtocol.value?.handleVcpToolStatus(data.data);
     } else if (data.type === "assign_node_id") {
       const distStore = useVcpDistributedStore();
       const nodeId = extractNodeId(data);

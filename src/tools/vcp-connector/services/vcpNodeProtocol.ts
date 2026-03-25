@@ -79,6 +79,13 @@ export class VcpNodeProtocol {
   }
 
   /**
+   * VCP -> AIO: 远程工具执行状态 (vcp_tool_status)
+   */
+  public handleVcpToolStatus(data: any) {
+    vcpBridgeFactory.handleToolStatus(data);
+  }
+
+  /**
    * VCP -> AIO: 执行请求 (execute_tool)
    */
   public async handleExecuteTool(request: ExecuteToolRequest) {

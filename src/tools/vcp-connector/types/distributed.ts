@@ -54,8 +54,21 @@ export interface VcpDistributedMessage {
     | "get_vcp_manifests"
     | "vcp_manifest_response"
     | "execute_vcp_tool"
-    | "vcp_tool_result";
+    | "vcp_tool_result"
+    | "vcp_tool_status";
   data: any;
+}
+
+/** VCP -> AIO: 远程工具执行状态（进度更新） */
+export interface VcpToolStatusData {
+  taskId: string;
+  bridgeType: "log" | "info";
+  content?: string;
+  status?: string;
+  progress?: number;
+  job_id?: string;
+  tool_name?: string;
+  [key: string]: any;
 }
 
 /** VCP 侧返回的插件清单（来自 VCPToolBridge 插件） */

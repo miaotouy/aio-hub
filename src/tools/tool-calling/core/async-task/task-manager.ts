@@ -72,7 +72,7 @@ export class TaskManager {
     toolId: string,
     methodName: string,
     args: Record<string, unknown>,
-    requestId: string
+    requestId: string,
   ): Promise<string> {
     await this.waitForInitialization();
 
@@ -205,6 +205,65 @@ export class TaskManager {
   }
 
   /**
+   * 提交外部托管任务（任务已在外部系统如 VCP 中启动）
+   */
+  async submitExternalTask(metadata: Omit<AsyncTaskMetadata, "createdAt" | "status">): Promise<string> {
+    await this.waitForInitialization();
+
+    const fullMetadata: AsyncTaskMetadata = {
+      ...metadata,
+      createdAt: Date.now(),
+      status: "running",
+      startedAt: Date.now(),
+    };
+
+    this.tasks.set(metadata.taskId, fullMetadata);
+    await this.persistImmediately();
+    this.notifyUpdate(fullMetadata);
+
+    logger.info("外部任务已登记", { taskId: metadata.taskId, toolName: metadata.toolName });
+    return metadata.taskId;
+  }
+
+  /**
+   * 更新任务进度（公共接口）
+   */
+  async reportExternalProgress(taskId: string, progress: number, message?: string): Promise<void> {
+    await this.updateProgress(taskId, progress, message);
+  }
+
+  /**
+   * 标记外部任务完成
+   */
+  async completeExternalTask(taskId: string, result: any): Promise<void> {
+    await this.updateTask(
+      taskId,
+      {
+        status: "completed",
+        completedAt: Date.now(),
+        result,
+        progress: 100,
+      },
+      true,
+    );
+  }
+
+  /**
+   * 标记外部任务失败
+   */
+  async failExternalTask(taskId: string, error: string): Promise<void> {
+    await this.updateTask(
+      taskId,
+      {
+        status: "failed",
+        completedAt: Date.now(),
+        error,
+      },
+      true,
+    );
+  }
+
+  /**
    * 更新任务（内部使用）
    */
   private async updateTask(taskId: string, updates: Partial<AsyncTaskMetadata>, immediate = false): Promise<void> {
@@ -249,7 +308,7 @@ export class TaskManager {
           status: "cancelled",
           completedAt: Date.now(),
         },
-        true
+        true,
       );
     }
 

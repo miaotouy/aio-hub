@@ -3,7 +3,8 @@ import type { ToolRegistry, ToolRegistryFactory } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { VcpToolProxy } from "./VcpToolProxy";
 import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
-import type { VcpBridgeManifest, VcpToolExecutionResult } from "../types/distributed";
+import type { VcpBridgeManifest, VcpToolExecutionResult, VcpToolStatusData } from "../types/distributed";
+import { taskManager } from "../../tool-calling/core/async-task/task-manager";
 
 const logger = createModuleLogger("vcp-connector/bridge-factory");
 
@@ -17,8 +18,16 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
   private sendJson: ((data: any) => void) | null = null;
   private pendingRequests = new Map<
     string,
-    { resolve: (val: any) => void; reject: (err: any) => void; timeout: any }
+    {
+      resolve: (val: any) => void;
+      reject: (err: any) => void;
+      timeout: any;
+      toolName?: string;
+      command?: string;
+      args?: Record<string, any>;
+    }
   >();
+  private vcpToAioTaskMap = new Map<string, string>(); // vcpTaskId -> aioTaskId
   private currentManifests: VcpBridgeManifest[] = [];
   private isInitializing = false;
   private isRefreshing = false;
@@ -190,7 +199,7 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
         reject(new Error(`VCP tool execution timeout: ${toolName}.${command}`));
       }, 30000);
 
-      this.pendingRequests.set(requestId, { resolve, reject, timeout });
+      this.pendingRequests.set(requestId, { resolve, reject, timeout, toolName, command, args });
 
       this.sendJson!({
         type: "execute_vcp_tool",
@@ -209,9 +218,54 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
   /**
    * 处理从 VCP 返回的执行结果
    */
-  public handleToolResult(requestId: string, response: VcpToolExecutionResult) {
+  public async handleToolResult(requestId: string, response: VcpToolExecutionResult) {
     const pending = this.pendingRequests.get(requestId);
     if (pending) {
+      // 如果 VCP 返回了 taskId，说明这是一个异步任务启动成功
+      if (response.status === "success" && response.result && response.result.taskId) {
+        const vcpTaskId = response.result.taskId;
+        const aioTaskId = `vcp_${vcpTaskId}`;
+
+        logger.info(`VCP task started: ${vcpTaskId}, registering as AIO task: ${aioTaskId}`);
+
+        // 在 AIO 侧登记外部任务
+        await taskManager.submitExternalTask({
+          taskId: aioTaskId,
+          requestId,
+          toolId: `vcp:${pending.toolName || "unknown"}`,
+          methodName: pending.command || "unknown",
+          toolName: `[VCP] ${pending.toolName || "unknown"}.${pending.command || "unknown"}`,
+          args: pending.args || {},
+          cancellable: false, // VCP 侧任务暂时不支持从 AIO 取消
+        });
+
+        // 建立映射
+        this.vcpToAioTaskMap.set(vcpTaskId, aioTaskId);
+
+        // 注意：这里我们 resolve 了结果（包含 taskId），让原始 Promise 结束
+        // AIO 侧的 UI 会根据 taskId 自动进入异步监控模式
+        pending.resolve(response.result);
+
+        // 此时不要清理 pendingRequests，因为后面可能还有 vcp_tool_status 或最终结果？
+        // 不对，VCP 协议中，vcp_tool_result 是最终结果。
+        // 如果返回了 taskId，这个 vcp_tool_result 只是“启动成功”的回执。
+        // 真正的结果会通过另一个 vcp_tool_result (requestId 为 taskId) 传回。
+        clearTimeout(pending.timeout);
+        this.pendingRequests.delete(requestId);
+        return;
+      }
+
+      // 如果 requestId 对应的是一个 vcpTaskId，说明这是异步任务的最终完成回调
+      const aioTaskId = this.vcpToAioTaskMap.get(requestId);
+      if (aioTaskId) {
+        if (response.status === "success") {
+          await taskManager.completeExternalTask(aioTaskId, response.result);
+        } else {
+          await taskManager.failExternalTask(aioTaskId, response.error || "VCP task failed");
+        }
+        this.vcpToAioTaskMap.delete(requestId);
+      }
+
       clearTimeout(pending.timeout);
       this.pendingRequests.delete(requestId);
 
@@ -220,6 +274,48 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
       } else {
         pending.reject(new Error(response.error || "Unknown VCP tool error"));
       }
+    } else {
+      // 如果没有 pending 请求，但 requestId 在 vcpToAioTaskMap 中，说明是异步任务的最终结果
+      const aioTaskId = this.vcpToAioTaskMap.get(requestId);
+      if (aioTaskId) {
+        logger.info(`Received final result for VCP task: ${requestId}`);
+        if (response.status === "success") {
+          await taskManager.completeExternalTask(aioTaskId, response.result);
+        } else {
+          await taskManager.failExternalTask(aioTaskId, response.error || "VCP task failed");
+        }
+        this.vcpToAioTaskMap.delete(requestId);
+      }
+    }
+  }
+
+  /**
+   * 处理从 VCP 返回的执行进度
+   */
+  public handleToolStatus(data: VcpToolStatusData) {
+    const vcpTaskId = data.job_id || data.taskId;
+    if (!vcpTaskId) return;
+
+    const aioTaskId = this.vcpToAioTaskMap.get(vcpTaskId);
+    if (!aioTaskId) {
+      // 如果没找到映射，可能是 AIO 重启后丢失了内存映射，尝试猜测
+      // 或者干脆不处理
+      return;
+    }
+
+    if (data.bridgeType === "log" || data.bridgeType === "info") {
+      const message = data.content || data.message || "";
+      const progress = typeof data.progress === "number" ? data.progress : undefined;
+
+      taskManager.reportExternalProgress(aioTaskId, progress ?? 0, message);
+    }
+
+    // 如果状态指示已完成或失败
+    if (data.status === "completed" || data.status === "success") {
+      // 理论上应该等 vcp_tool_result，但如果 status 明确了也可以更新
+      taskManager.reportExternalProgress(aioTaskId, 100, data.content || "任务完成");
+    } else if (data.status === "error" || data.status === "failed") {
+      taskManager.failExternalTask(aioTaskId, data.content || "VCP 侧执行失败");
     }
   }
 

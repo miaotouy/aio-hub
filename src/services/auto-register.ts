@@ -64,12 +64,14 @@ export async function autoRegisterServices(): Promise<void> {
 
         if (exported) {
           if (Array.isArray(exported)) {
-            // 方式二：数组导出（静态多实例）
-            // 数组中可能包含对象实例，也可能包含需要实例化的类
+            // 方式二：数组导出（静态多实例或工厂）
+            // 数组中可能包含对象实例，也可能包含需要实例化的类，或者工厂
             for (const item of exported) {
               if (typeof item === "function") {
                 registerItems.push(new (item as any)());
               } else {
+                // 可能是 ToolRegistry 实例，也可能是 ToolRegistryFactory 实例
+                // toolRegistryManager.register 会自动处理这两者
                 registerItems.push(item);
               }
             }

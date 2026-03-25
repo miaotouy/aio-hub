@@ -207,19 +207,26 @@ export function useVcpDistributedNode() {
     };
   }
 
+  let reregisterTimer: ReturnType<typeof setTimeout> | null = null;
+
   /**
-   * 注册工具到 VCP
+   * 注册工具到 VCP (带防抖)
    */
   function reregisterTools() {
-    if (distStore.status !== "connected" || !store.nodeProtocol) {
-      logger.warn("Cannot register tools: Distributed WS not connected or nodeProtocol missing");
-      return;
-    }
+    if (reregisterTimer) clearTimeout(reregisterTimer);
 
-    const tools = discoverTools();
-    distStore.setExposedTools(tools);
-    store.nodeProtocol.sendRegisterTools(distStore.config.serverName, tools);
-    logger.info(`Requested registration of ${tools.length} tools`);
+    reregisterTimer = setTimeout(() => {
+      if (distStore.status !== "connected" || !store.nodeProtocol) {
+        logger.debug("Skip reregister: Not connected");
+        return;
+      }
+
+      const tools = discoverTools();
+      distStore.setExposedTools(tools);
+      store.nodeProtocol.sendRegisterTools(distStore.config.serverName, tools);
+      logger.info(`Requested registration of ${tools.length} tools`);
+      reregisterTimer = null;
+    }, 500); // 500ms 防抖，避开连接初期的多次状态抖动
   }
 
   /**
@@ -286,18 +293,22 @@ export function useVcpDistributedNode() {
           stopHeartbeat();
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     // 监听配置变化自动重注册
     watch(
-      [() => distStore.config.exposedToolIds, () => distStore.config.autoRegisterTools],
+      [
+        () => distStore.config.exposedToolIds,
+        () => distStore.config.autoRegisterTools,
+        () => distStore.config.disabledToolIds,
+      ],
       () => {
         if (distStore.status === "connected") {
           reregisterTools();
         }
       },
-      { deep: true }
+      { deep: true },
     );
   }
 

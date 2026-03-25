@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useStorage } from "@vueuse/core";
 import { Search, FileText, Zap, ListTodo } from "lucide-vue-next";
+import { toolRegistryManager } from "@/services/registry";
+import { createModuleLogger } from "@/utils/logger";
 import { createToolDiscoveryService } from "./core/discovery";
+
+const logger = createModuleLogger("tool-calling/tester-ui");
 import { VcpToolCallingProtocol } from "./core/protocols/vcp-protocol";
 
 // 导入拆分后的组件
@@ -20,7 +24,11 @@ const discoveredGroups = ref<any[]>([]);
 const executorRef = ref<InstanceType<typeof ExecutorPane> | null>(null);
 
 const refreshDiscovery = async () => {
+  discoveryService.invalidateCache();
   discoveredGroups.value = discoveryService.getDiscoveredMethods();
+  logger.info(`工具库已刷新，当前发现 ${discoveredGroups.value.length} 个工具组`, {
+    tools: discoveredGroups.value.map((g) => g.toolId),
+  });
 };
 
 /**
@@ -34,8 +42,21 @@ const handleLoadToExecutor = (group: any, method: any) => {
   });
 };
 
+let unsubscribe: (() => void) | null = null;
+
 onMounted(() => {
   refreshDiscovery();
+  // 订阅注册表变更，自动刷新工具列表
+  unsubscribe = toolRegistryManager.subscribe(() => {
+    refreshDiscovery();
+  });
+});
+
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
 });
 </script>
 

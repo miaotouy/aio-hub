@@ -2,6 +2,7 @@ import type { ToolConfig, ToolRegistry } from "@/services/types";
 import { markRaw } from "vue";
 import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
 import { useVcpStore } from "./stores/vcpConnectorStore";
+import { useVcpDistributedStore } from "./stores/vcpDistributedStore";
 import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
 import { vcpBridgeFactory } from "./services/VcpBridgeFactory";
 
@@ -15,14 +16,16 @@ export class VcpConnectorRegistry implements ToolRegistry {
     description: "应用启动时自动尝试连接到 VCP 服务器",
     defaultEnabled: false,
   };
-
   public async onStartup() {
     const vcpStore = useVcpStore();
+    const distStore = useVcpDistributedStore();
     const { startDistributedNode } = useVcpDistributedNode();
 
     // 等待 store 的异步 init() 完成（配置加载），再触发连接
     // 否则 wsUrl/vcpKey 为空，connect() 会静默失败
-    await vcpStore.initPromise;
+    await Promise.all([vcpStore.initPromise, distStore.initPromise]);
+
+    // 显式触发连接
     vcpStore.connect();
 
     // 启动分布式节点逻辑（包括工具注册和心跳）

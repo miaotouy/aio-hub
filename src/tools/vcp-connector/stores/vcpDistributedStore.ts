@@ -20,6 +20,12 @@ const configManager = createConfigManager<VcpDistributedConfig>({
 });
 
 export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
+  // 初始化完成的 Promise，供外部等待配置加载
+  let _initResolve!: () => void;
+  const initPromise = new Promise<void>((resolve) => {
+    _initResolve = resolve;
+  });
+
   const config = ref<VcpDistributedConfig>({
     serverName: "AIO-Node",
     exposedToolIds: [],
@@ -40,6 +46,7 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
 
   async function init() {
     config.value = await configManager.load();
+    _initResolve();
   }
 
   function setNodeId(id: string | null) {
@@ -135,6 +142,7 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     setExposedTools,
     setBridgeManifests,
     setBridgeStatus,
+    initPromise,
     updateConfig,
     registerToolToVcp,
     unregisterToolFromVcp,

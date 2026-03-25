@@ -417,9 +417,12 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         });
 
         if (distStore.config.enableBridge) {
-          vcpBridgeFactory.refresh().catch((err) => {
-            logger.error("Failed to refresh VCP bridged tools", err);
-          });
+          // 延迟一小会儿再请求，给 VCP 一点准备时间
+          setTimeout(() => {
+            vcpBridgeFactory.refresh().catch((err) => {
+              logger.error("Failed to refresh VCP bridged tools", err);
+            });
+          }, 500);
         }
       };
 

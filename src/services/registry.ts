@@ -16,6 +16,27 @@ class ToolRegistryManager {
   private factories = new Map<string, ToolRegistryFactory>();
   private factoryToolIds = new Map<string, string[]>(); // factoryId -> toolIds[]
   private initialized = false;
+  private changeListeners: (() => void)[] = [];
+
+  /**
+   * 订阅注册表变更
+   */
+  public subscribe(listener: () => void): () => void {
+    this.changeListeners.push(listener);
+    return () => {
+      this.changeListeners = this.changeListeners.filter((l) => l !== listener);
+    };
+  }
+
+  private notifyListeners() {
+    this.changeListeners.forEach((l) => {
+      try {
+        l();
+      } catch (e) {
+        logger.error("Error in registry change listener", e);
+      }
+    });
+  }
 
   /**
    * 注册一个或多个工具项（可以是 ToolRegistry 实例或 ToolRegistryFactory）。
@@ -36,6 +57,7 @@ class ToolRegistryManager {
     logger.debug("工具注册表处理完成", {
       totalTools: this.registries.size,
     });
+    this.notifyListeners();
   }
 
   private isFactory(item: ToolRegistryItem): item is ToolRegistryFactory {
@@ -142,7 +164,8 @@ class ToolRegistryManager {
   public async unregister(id: string): Promise<boolean> {
     const tool = this.registries.get(id);
     if (!tool) {
-      logger.warn(`尝试注销不存在的工具: ${id}`);
+      // 如果工具已经不存在，可能是被并发注销了，静默返回即可
+      logger.debug(`尝试注销不存在的工具: ${id} (可能已由工厂注销)`);
       return false;
     }
 
@@ -155,7 +178,9 @@ class ToolRegistryManager {
 
       this.registries.delete(id);
 
-      // 如果这个 ID 属于某个工厂，也需要从 factoryToolIds 中移除（可选，主要为了保持状态一致）
+      // 如果这个 ID 属于某个工厂，也需要从 factoryToolIds 中移除
+      // 注意：如果是从 unregisterFactory 调用的，factoryToolIds 会在 unregisterFactory 结尾统一处理
+      // 这里的逻辑主要针对手动调用 unregister(id) 的场景
       for (const [factoryId, ids] of this.factoryToolIds.entries()) {
         const index = ids.indexOf(id);
         if (index !== -1) {
@@ -169,6 +194,7 @@ class ToolRegistryManager {
       }
 
       logger.info(`工具 "${id}" 已注销`);
+      this.notifyListeners();
       return true;
     } catch (error) {
       errorHandler.error(error, "注销工具时出错", { context: { toolId: id } });
@@ -177,13 +203,22 @@ class ToolRegistryManager {
   }
 
   /**
+   * 检查工厂是否已注册
+   */
+  public hasFactory(factoryId: string): boolean {
+    return this.factories.has(factoryId);
+  }
+
+  /**
    * 注销工厂及其产生的所有工具
    * @param factoryId 工厂 ID
    */
   public async unregisterFactory(factoryId: string): Promise<boolean> {
-    const toolIds = this.factoryToolIds.get(factoryId);
-    if (!toolIds) {
-      logger.warn(`尝试注销不存在的工厂: ${factoryId}`);
+    const toolIds = this.factoryToolIds.get(factoryId) || [];
+
+    // 如果工厂根本不存在
+    if (!this.factories.has(factoryId)) {
+      logger.debug(`尝试注销不存在的工厂: ${factoryId}`);
       return false;
     }
 
@@ -191,12 +226,14 @@ class ToolRegistryManager {
 
     // 必须创建一个副本，因为 unregister 会修改原数组
     const idsToUnregister = [...toolIds];
+
+    // 先清理 factoryToolIds 状态，防止 unregister 内部重复处理
+    this.factoryToolIds.delete(factoryId);
+    this.factories.delete(factoryId);
+
     for (const id of idsToUnregister) {
       await this.unregister(id);
     }
-
-    this.factories.delete(factoryId);
-    this.factoryToolIds.delete(factoryId);
     return true;
   }
 

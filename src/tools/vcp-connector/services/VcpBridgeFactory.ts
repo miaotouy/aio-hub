@@ -21,6 +21,7 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
   >();
   private currentManifests: VcpBridgeManifest[] = [];
   private isInitializing = false;
+  private isRefreshing = false;
 
   /**
    * 设置 WebSocket 发送函数
@@ -34,34 +35,53 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
    * 实现 ToolRegistryFactory 接口
    */
   public async createRegistries(): Promise<ToolRegistry[]> {
+    const distStore = useVcpDistributedStore();
+
+    // 如果桥接功能已关闭，直接返回空
+    if (!distStore.config.enableBridge) {
+      logger.debug("Bridge feature is disabled, skipping registry creation");
+      return [];
+    }
+
     if (this.currentManifests.length === 0) {
-      // 如果没有清单，尝试拉取一次
-      try {
-        if (!this.isInitializing) {
+      // 如果没有清单且已连接，尝试拉取一次
+      if (this.sendJson && !this.isInitializing) {
+        try {
+          // 此处使用 refreshManifests 可能抛错，我们捕获它并静默处理
+          // 因为在应用启动阶段，WS 可能尚未连接，这是正常的
           await this.refreshManifests();
+        } catch (error) {
+          logger.debug("Silent failure: Could not fetch VCP manifests during early registration", error);
         }
-      } catch (error) {
-        logger.error("Failed to fetch VCP manifests during createRegistries", error);
       }
     }
 
-    const distStore = useVcpDistributedStore();
     const disabledIds = distStore.config.disabledBridgeToolIds || [];
 
-    return this.currentManifests
+    const registries = this.currentManifests
       .filter((m) => !disabledIds.includes(m.name)) // 过滤掉整个被禁用的工具
       .map((manifest) => new VcpToolProxy(manifest, this.executeRemote.bind(this), disabledIds));
+
+    logger.info(`Factory created ${registries.length} tool registries from ${this.currentManifests.length} manifests`);
+    return registries;
   }
 
   /**
    * 向 VCP 请求最新的工具清单
    */
   public async refreshManifests(): Promise<void> {
+    const distStore = useVcpDistributedStore();
+
+    // 如果桥接功能已关闭，拒绝请求
+    if (!distStore.config.enableBridge) {
+      logger.warn("Bridge feature is disabled, cannot refresh manifests");
+      return;
+    }
+
     if (!this.sendJson) {
       throw new Error("WebSocket not connected, cannot fetch VCP manifests");
     }
 
-    const distStore = useVcpDistributedStore();
     distStore.setBridgeStatus("fetching");
 
     this.isInitializing = true;
@@ -70,10 +90,17 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
       const timeout = setTimeout(() => {
-        this.pendingRequests.delete(requestId);
-        this.isInitializing = false;
-        reject(new Error("Timeout waiting for VCP tool manifests"));
-      }, 10000);
+        const pending = this.pendingRequests.get(requestId);
+        if (pending) {
+          this.pendingRequests.delete(requestId);
+          this.isInitializing = false;
+          // 超时不再抛出 Error 而是 resolve 空清单，避免上层逻辑崩溃
+          // 并在日志中记录警告
+          // 清单请求通常很快，如果超时说明对方没准备好，我们 resolve 当前已有的清单
+          logger.warn(`Timeout waiting for VCP tool manifests (Req: ${requestId}), using current cache`);
+          resolve();
+        }
+      }, 3000); // 缩短超时时间到 3s，清单请求不应阻塞太久
 
       this.pendingRequests.set(requestId, {
         resolve: (manifests: VcpBridgeManifest[]) => {
@@ -90,7 +117,12 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
 
       this.sendJson!({
         type: "get_vcp_manifests",
-        data: { requestId },
+        data: {
+          requestId,
+          // 增加一些元数据，帮助 VCP 识别请求来源
+          client: "aio-hub",
+          version: "1.0.0",
+        },
       });
     });
   }
@@ -101,6 +133,9 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
   public handleManifestsResponse(requestId: string, manifests: VcpBridgeManifest[]) {
     const pending = this.pendingRequests.get(requestId);
 
+    // 同步更新本地缓存，确保 createRegistries 能拿到最新数据
+    this.currentManifests = manifests;
+
     // 更新 Store 状态
     const distStore = useVcpDistributedStore();
     distStore.setBridgeManifests(manifests);
@@ -110,7 +145,31 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
       clearTimeout(pending.timeout);
       this.pendingRequests.delete(requestId);
       pending.resolve(manifests);
-      logger.info(`Received ${manifests.length} tool manifests from VCP`);
+      logger.info(`Received ${manifests.length} tool manifests from VCP (Request ID: ${requestId})`);
+    } else {
+      // 可能是超时后才返回的数据，或者主动推送的数据
+      logger.info(`Received ${manifests.length} tool manifests from VCP (Async/Late update)`);
+
+      // 如果没有挂起的请求，说明可能是超时了，此时我们需要手动触发一次注册表刷新
+      // 否则虽然数据到了，但工具并没有被注册到系统中
+      this.refreshRegistriesOnly();
+    }
+  }
+
+  /**
+   * 仅刷新注册表，不重新请求清单
+   */
+  private async refreshRegistriesOnly(): Promise<void> {
+    if (this.isRefreshing) return;
+    this.isRefreshing = true;
+
+    try {
+      if (toolRegistryManager.hasFactory(this.factoryId)) {
+        await toolRegistryManager.unregisterFactory(this.factoryId);
+      }
+      await toolRegistryManager.register(this);
+    } finally {
+      this.isRefreshing = false;
     }
   }
 
@@ -166,13 +225,32 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
    * 触发重新加载和注册
    */
   public async refresh(): Promise<void> {
-    logger.info("Refreshing VCP bridged tools...");
-    await this.refreshManifests();
+    if (this.isInitializing || this.isRefreshing) {
+      logger.debug("Bridge factory is already busy, skipping refresh");
+      return;
+    }
 
-    // 注销旧的工厂实例产生的工具
-    await toolRegistryManager.unregisterFactory(this.factoryId);
-    // 重新注册自己，触发 createRegistries
-    await toolRegistryManager.register(this);
+    this.isRefreshing = true;
+    logger.info("Refreshing VCP bridged tools...");
+
+    try {
+      try {
+        await this.refreshManifests();
+      } catch (error) {
+        logger.warn("Failed to fetch manifests during refresh", error);
+        // 即使拉取失败，也要继续，可能会清空旧工具
+      }
+
+      // 只有在已注册的情况下才注销，避免初次加载时的警告
+      if (toolRegistryManager.hasFactory(this.factoryId)) {
+        await toolRegistryManager.unregisterFactory(this.factoryId);
+      }
+
+      // 重新注册自己，触发 createRegistries
+      await toolRegistryManager.register(this);
+    } finally {
+      this.isRefreshing = false;
+    }
   }
 
   /**
@@ -184,12 +262,15 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
     // 拒绝所有挂起的请求
     for (const [_id, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout);
-      pending.reject(new Error("VCP connection closed"));
+      // 只有清单请求需要静默处理，工具执行请求还是需要报错
+      pending.resolve([]); // 或者 reject 一个特定的静默错误
     }
     this.pendingRequests.clear();
 
     // 注销所有代理工具
-    await toolRegistryManager.unregisterFactory(this.factoryId);
+    if (toolRegistryManager.hasFactory(this.factoryId)) {
+      await toolRegistryManager.unregisterFactory(this.factoryId);
+    }
     this.currentManifests = [];
   }
 }

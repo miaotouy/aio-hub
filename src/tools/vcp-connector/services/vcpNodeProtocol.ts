@@ -3,7 +3,15 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
 import { invoke } from "@tauri-apps/api/core";
 import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
-import type { VcpToolManifest, ExecuteToolRequest, ToolResultResponse, ReportIpData } from "../types/distributed";
+import { vcpBridgeFactory } from "./VcpBridgeFactory";
+import type {
+  VcpToolManifest,
+  ExecuteToolRequest,
+  ToolResultResponse,
+  ReportIpData,
+  VcpManifestsResponse,
+  VcpToolExecutionResult,
+} from "../types/distributed";
 
 const logger = createModuleLogger("vcp-connector/node-protocol");
 const errorHandler = createModuleErrorHandler("vcp-connector/node-protocol");
@@ -56,6 +64,21 @@ export class VcpNodeProtocol {
   }
 
   /**
+   * VCP -> AIO: 清单响应 (vcp_manifest_response)
+   */
+  public handleVcpManifestsResponse(response: VcpManifestsResponse) {
+    const requestId = (response as any).requestId; // 假设后端回传了 requestId
+    vcpBridgeFactory.handleManifestsResponse(requestId, response.plugins);
+  }
+
+  /**
+   * VCP -> AIO: 远程工具执行结果 (vcp_tool_result)
+   */
+  public handleVcpToolResult(response: VcpToolExecutionResult) {
+    vcpBridgeFactory.handleToolResult(response.requestId, response);
+  }
+
+  /**
    * VCP -> AIO: 执行请求 (execute_tool)
    */
   public async handleExecuteTool(request: ExecuteToolRequest) {
@@ -77,7 +100,7 @@ export class VcpNodeProtocol {
       if (!rawToolId || !rawMethodName) {
         throw new Error(
           `Invalid tool call: toolName="${toolName}", command="${rawMethodName}". ` +
-          `VCP protocol requires toolArgs.command to be provided.`
+            `VCP protocol requires toolArgs.command to be provided.`,
         );
       }
 

@@ -17,6 +17,7 @@ import {
   VcpLogMessage,
 } from "../types/protocol";
 import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
+import { vcpBridgeFactory } from "../services/VcpBridgeFactory";
 import { useVcpDistributedStore } from "./vcpDistributedStore";
 import { useNotification } from "@/composables/useNotification";
 import { customMessage } from "@/utils/customMessage";
@@ -407,6 +408,19 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
         const distStore = useVcpDistributedStore();
         distStore.setStatus("connected");
+
+        // 初始化桥接工厂
+        vcpBridgeFactory.setSendFunction((data) => {
+          if (distributedWs.value?.readyState === WebSocket.OPEN) {
+            distributedWs.value.send(JSON.stringify(data));
+          }
+        });
+
+        if (distStore.config.enableBridge) {
+          vcpBridgeFactory.refresh().catch((err) => {
+            logger.error("Failed to refresh VCP bridged tools", err);
+          });
+        }
       };
 
       distributedWs.value.onclose = (event) => {
@@ -417,6 +431,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         distStore.setStatus("disconnected");
         distStore.setNodeId(null);
         nodeProtocol.value = null;
+
+        // 清理桥接工厂
+        vcpBridgeFactory.teardown().catch((err) => {
+          logger.error("Failed to teardown VCP bridge factory", err);
+        });
 
         if (!event.wasClean && config.value.autoConnect) {
           scheduleReconnect();
@@ -476,6 +495,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       }
     } else if (data.type === "execute_tool") {
       nodeProtocol.value?.handleExecuteTool(data.data);
+    } else if (data.type === "vcp_manifest_response") {
+      nodeProtocol.value?.handleVcpManifestsResponse(data.data);
+    } else if (data.type === "vcp_tool_result") {
+      nodeProtocol.value?.handleVcpToolResult(data.data);
     } else if (data.type === "assign_node_id") {
       const distStore = useVcpDistributedStore();
       const nodeId = extractNodeId(data);

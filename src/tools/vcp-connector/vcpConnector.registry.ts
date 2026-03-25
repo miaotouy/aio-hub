@@ -3,6 +3,7 @@ import { markRaw } from "vue";
 import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
 import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
+import { vcpBridgeFactory } from "./services/VcpBridgeFactory";
 
 export class VcpConnectorRegistry implements ToolRegistry {
   public readonly id = "vcp-connector";
@@ -36,7 +37,7 @@ export class VcpConnectorRegistry implements ToolRegistry {
   }
 }
 
-export default VcpConnectorRegistry;
+export default [new VcpConnectorRegistry(), vcpBridgeFactory];
 
 // VCP 即 Variable & Command Protocol
 export const toolConfig: ToolConfig = {

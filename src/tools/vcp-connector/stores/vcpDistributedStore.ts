@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
-import type { VcpDistributedConfig, VcpToolManifest } from "../types/distributed";
+import type { VcpDistributedConfig, VcpToolManifest, VcpBridgeManifest } from "../types/distributed";
 
 const logger = createModuleLogger("vcp-connector/distributed-store");
 
@@ -14,6 +14,8 @@ const configManager = createConfigManager<VcpDistributedConfig>({
     exposedToolIds: [],
     disabledToolIds: [],
     autoRegisterTools: true,
+    enableBridge: true,
+    disabledBridgeToolIds: [],
   }),
 });
 
@@ -23,12 +25,18 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     exposedToolIds: [],
     disabledToolIds: [],
     autoRegisterTools: true,
+    enableBridge: true,
+    disabledBridgeToolIds: [],
   });
 
   const nodeId = ref<string | null>(null);
   const status = ref<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const exposedTools = ref<VcpToolManifest[]>([]);
   const lastHeartbeat = ref<number | null>(null);
+
+  // 桥接相关的状态
+  const bridgeManifests = ref<VcpBridgeManifest[]>([]);
+  const bridgeStatus = ref<"idle" | "fetching" | "ready" | "error">("idle");
 
   async function init() {
     config.value = await configManager.load();
@@ -51,6 +59,14 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     exposedTools.value = tools;
   }
 
+  function setBridgeManifests(manifests: VcpBridgeManifest[]) {
+    bridgeManifests.value = manifests;
+  }
+
+  function setBridgeStatus(newStatus: typeof bridgeStatus.value) {
+    bridgeStatus.value = newStatus;
+  }
+
   function updateConfig(newConfig: Partial<VcpDistributedConfig>) {
     config.value = { ...config.value, ...newConfig };
     configManager.saveDebounced(config.value);
@@ -70,7 +86,7 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
 
   function unregisterToolFromVcp(toolId: string, methodName: string) {
     const fullId = `${toolId}:${methodName}`;
-    config.value.exposedToolIds = config.value.exposedToolIds.filter(id => id !== fullId);
+    config.value.exposedToolIds = config.value.exposedToolIds.filter((id) => id !== fullId);
     configManager.saveDebounced(config.value);
   }
 
@@ -88,6 +104,20 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     configManager.saveDebounced(config.value);
   }
 
+  /**
+   * 禁用/启用某个桥接工具或命令的暴露
+   */
+  function toggleBridgeToolDisabled(id: string, disabled: boolean) {
+    const current = new Set(config.value.disabledBridgeToolIds || []);
+    if (disabled) {
+      current.add(id);
+    } else {
+      current.delete(id);
+    }
+    config.value.disabledBridgeToolIds = Array.from(current);
+    configManager.saveDebounced(config.value);
+  }
+
   // 初始化
   init();
 
@@ -97,13 +127,18 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
     status,
     exposedTools,
     lastHeartbeat,
+    bridgeManifests,
+    bridgeStatus,
     setNodeId,
     setStatus,
     updateHeartbeat,
     setExposedTools,
+    setBridgeManifests,
+    setBridgeStatus,
     updateConfig,
     registerToolToVcp,
     unregisterToolFromVcp,
     toggleToolDisabled,
+    toggleBridgeToolDisabled,
   };
 });

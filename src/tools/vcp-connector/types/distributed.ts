@@ -7,6 +7,10 @@ export interface VcpDistributedConfig {
   disabledToolIds: string[];
   /** 是否自动发现并注册所有 AI 工具 (agentCallable) */
   autoRegisterTools: boolean;
+  /** 是否开启桥接 VCP 工具功能 */
+  enableBridge: boolean;
+  /** 被禁用的桥接工具/命令 ID 列表 (格式: toolName 或 toolName:command) */
+  disabledBridgeToolIds: string[];
 }
 
 export interface VcpToolManifest {
@@ -46,8 +50,52 @@ export interface VcpDistributedMessage {
     | "execute_tool"
     | "tool_result"
     | "report_ip"
-    | "update_static_placeholders";
+    | "update_static_placeholders"
+    | "get_vcp_manifests"
+    | "vcp_manifest_response"
+    | "execute_vcp_tool"
+    | "vcp_tool_result";
   data: any;
+}
+
+/** VCP 侧返回的插件清单（来自 VCPToolBridge 插件） */
+export interface VcpBridgeManifest {
+  name: string; // 插件 ID (e.g. "FileOperator")
+  displayName: string; // 插件显示名
+  description: string; // 插件描述
+  capabilities: {
+    invocationCommands: VcpBridgeCommand[];
+  };
+}
+
+/** VCP 插件暴露的单个命令 */
+export interface VcpBridgeCommand {
+  command: string; // 命令名称 (e.g. "ReadFile")
+  displayName?: string; // 显示名称
+  description: string; // 命令描述
+  parameters?: any; // JSON Schema 格式的参数描述
+  example?: string; // 调用示例
+}
+
+/** VCP -> AIO: 清单响应 */
+export interface VcpManifestsResponse {
+  plugins: VcpBridgeManifest[];
+  vcpVersion?: string;
+}
+
+/** AIO -> VCP: 执行远程工具请求 */
+export interface ExecuteVcpToolRequest {
+  requestId: string;
+  toolName: string; // VCP 插件名 (e.g. "FileOperator")
+  toolArgs: Record<string, any>; // 包含 command 和参数
+}
+
+/** VCP -> AIO: 远程工具执行结果 */
+export interface VcpToolExecutionResult {
+  requestId: string;
+  status: "success" | "error";
+  result?: any;
+  error?: string;
 }
 
 export interface ExecuteToolRequest {

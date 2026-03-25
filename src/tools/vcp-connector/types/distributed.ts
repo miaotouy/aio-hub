@@ -63,6 +63,8 @@ export interface VcpBridgeManifest {
   name: string; // 插件 ID (e.g. "FileOperator")
   displayName: string; // 插件显示名
   description: string; // 插件描述
+  /** 插件配置定义 (映射到 AIO 的 settingsSchema) */
+  configSchema?: Record<string, { type: string; description: string; default?: any }>;
   capabilities: {
     invocationCommands: VcpBridgeCommand[];
   };

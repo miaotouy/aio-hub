@@ -122,6 +122,8 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
           // 增加一些元数据，帮助 VCP 识别请求来源
           client: "aio-hub",
           version: "1.0.0",
+          // 告知 VCP 我们支持 configSchema
+          features: ["configSchema"],
         },
       });
     });

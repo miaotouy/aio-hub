@@ -1,4 +1,5 @@
 import type { ToolRegistry, ServiceMetadata, MethodParameter } from "@/services/types";
+import type { SettingItem, BuiltinSettingComponent } from "@/types/settings-renderer";
 import type { VcpBridgeManifest, VcpBridgeCommand } from "../types/distributed";
 
 export type VcpRemoteExecuteFn = (pluginId: string, command: string, args: Record<string, any>) => Promise<any>;
@@ -11,6 +12,7 @@ export class VcpToolProxy implements ToolRegistry {
   public readonly id: string;
   public readonly name: string;
   public readonly description: string;
+  public readonly settingsSchema?: SettingItem<any>[];
 
   private bridgeCommands: VcpBridgeCommand[];
   private executeRemote: VcpRemoteExecuteFn;
@@ -21,6 +23,27 @@ export class VcpToolProxy implements ToolRegistry {
     this.name = manifest.displayName || manifest.name;
     this.description = manifest.description || `VCP 桥接工具: ${this.name}`;
     this.executeRemote = executeFn;
+
+    // 映射 configSchema 到 settingsSchema
+    if (manifest.configSchema) {
+      this.settingsSchema = Object.entries(manifest.configSchema).map(([key, schema]) => {
+        const type = schema.type?.toLowerCase();
+        let component: BuiltinSettingComponent = "ElInput";
+
+        if (type === "boolean") component = "ElSwitch";
+        else if (type === "number" || type === "integer") component = "ElInputNumber";
+
+        return {
+          id: `${this.id}:${key}`,
+          component,
+          label: key,
+          modelPath: key,
+          hint: schema.description || "",
+          keywords: key,
+          defaultValue: schema.default,
+        };
+      });
+    }
 
     // 过滤掉被禁用的命令
     const allCommands = manifest.capabilities?.invocationCommands || [];
@@ -58,17 +81,59 @@ export class VcpToolProxy implements ToolRegistry {
 
   /**
    * 解析 VCP 命令参数
-   * 由于 VCP 插件的参数元数据可能不完整，这里进行启发式解析或使用默认参数
+   * 由于 VCP 插件的参数元数据可能不完整，这里进行启发式解析
    */
   private parseParameters(cmd: VcpBridgeCommand): MethodParameter[] {
-    if (cmd.parameters) {
-      // 如果有 JSON Schema，可以进行转换（此处简化处理）
-      // 实际应用中可以根据 schema 动态生成参数列表
-      return [];
+    // 1. 如果有显式的参数定义，优先使用
+    if (cmd.parameters && typeof cmd.parameters === "object") {
+      // 如果是符合 AIO 格式的数组，直接返回
+      if (Array.isArray(cmd.parameters)) {
+        return cmd.parameters;
+      }
+      // 如果是 JSON Schema 格式，尝试简单转换
+      if (cmd.parameters.properties) {
+        return Object.entries(cmd.parameters.properties).map(([name, prop]: [string, any]) => ({
+          name,
+          type: prop.type || "string",
+          description: prop.description,
+          required: Array.isArray(cmd.parameters.required) ? cmd.parameters.required.includes(name) : true,
+        }));
+      }
     }
 
-    // 默认提供一个通用的参数对象，或者根据 description 尝试提取
-    // 在 VCP 协议中，LLM 通常会根据 description 自行构造键值对
-    return [];
+    // 2. 启发式解析：从描述中提取参数
+    // 匹配模式：- 参数名 (类型, 必需/可选): 描述
+    // 例如：- SearchTopic (字符串, 必需): 检索的目标主题
+    const parameters: MethodParameter[] = [];
+    const lines = cmd.description.split("\n");
+    const paramRegex = /[-*]\s*([a-zA-Z0-9_-]+)\s*\(([^)]+)\):\s*(.*)/;
+
+    for (const line of lines) {
+      const match = line.match(paramRegex);
+      if (match) {
+        const [, name, typeAndRequired, description] = match;
+        const isRequired = typeAndRequired.includes("必需") || typeAndRequired.includes("必需");
+        let type = "string";
+
+        if (typeAndRequired.includes("布尔") || typeAndRequired.includes("boolean")) type = "boolean";
+        else if (
+          typeAndRequired.includes("数字") ||
+          typeAndRequired.includes("number") ||
+          typeAndRequired.includes("整数")
+        )
+          type = "number";
+        else if (typeAndRequired.includes("数组") || typeAndRequired.includes("array")) type = "array";
+        else if (typeAndRequired.includes("对象") || typeAndRequired.includes("object")) type = "object";
+
+        parameters.push({
+          name: name.trim(),
+          type,
+          description: description.trim(),
+          required: isRequired,
+        });
+      }
+    }
+
+    return parameters;
   }
 }

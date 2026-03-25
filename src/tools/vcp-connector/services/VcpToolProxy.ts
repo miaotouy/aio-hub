@@ -48,13 +48,16 @@ export class VcpToolProxy implements ToolRegistry {
     // 过滤掉被禁用的命令
     const allCommands = manifest.capabilities?.invocationCommands || [];
     this.bridgeCommands = allCommands.filter((cmd) => {
-      const fullId = `${manifest.name}:${cmd.command}`;
+      const cmdName = cmd.command || cmd.commandIdentifier || "";
+      const fullId = `${manifest.name}:${cmdName}`;
       return !disabledIds.includes(fullId);
     });
 
     // 动态挂载方法到实例上，供 ToolRegistryManager 调用
     for (const cmd of this.bridgeCommands) {
-      const methodName = cmd.command;
+      const methodName = cmd.command || cmd.commandIdentifier || "";
+      if (!methodName) continue;
+
       (this as any)[methodName] = async (args: Record<string, any>) => {
         return this.executeRemote(manifest.name, methodName, args);
       };
@@ -66,16 +69,20 @@ export class VcpToolProxy implements ToolRegistry {
    */
   public getMetadata(): ServiceMetadata {
     return {
-      methods: this.bridgeCommands.map((cmd) => ({
-        name: cmd.command,
-        displayName: cmd.displayName || cmd.command,
-        description: cmd.description,
-        parameters: this.parseParameters(cmd),
-        returnType: "Promise<any>",
-        example: cmd.example,
-        agentCallable: true, // 桥接工具默认允许 Agent 调用
-        distributedExposed: false, // 禁止循环暴露回 VCP
-      })),
+      methods: this.bridgeCommands.map((cmd) => {
+        const cmdName = cmd.command || cmd.commandIdentifier || "";
+        return {
+          name: cmdName,
+          toolName: this.name,
+          displayName: cmd.displayName || cmdName,
+          description: cmd.description,
+          parameters: this.parseParameters(cmd),
+          returnType: "Promise<any>",
+          example: cmd.example,
+          agentCallable: true, // 桥接工具默认允许 Agent 调用
+          distributedExposed: false, // 禁止循环暴露回 VCP
+        };
+      }),
     };
   }
 

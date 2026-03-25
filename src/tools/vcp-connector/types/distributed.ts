@@ -72,7 +72,8 @@ export interface VcpBridgeManifest {
 
 /** VCP 插件暴露的单个命令 */
 export interface VcpBridgeCommand {
-  command: string; // 命令名称 (e.g. "ReadFile")
+  command?: string; // 命令名称 (e.g. "ReadFile")
+  commandIdentifier?: string; // 兼容 VCP 原始 manifest 中的字段名
   displayName?: string; // 显示名称
   description: string; // 命令描述
   parameters?: any; // JSON Schema 格式的参数描述

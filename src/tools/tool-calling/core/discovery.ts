@@ -132,7 +132,10 @@ export function createToolDiscoveryService(): {
         toolId: tool.id,
         toolName: tool.name || tool.id,
         toolDescription: tool.description,
-        methods: callableMethods,
+        methods: callableMethods.map((m) => ({
+          ...m,
+          toolName: m.toolName || tool.name || tool.id,
+        })),
       });
     }
 

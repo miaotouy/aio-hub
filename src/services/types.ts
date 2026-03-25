@@ -19,6 +19,8 @@ export interface MethodParameter {
 
 export interface MethodMetadata {
   name: string;
+  /** 所属工具/插件的显示名称 */
+  toolName?: string;
   /** 方法的显示名称，用于 UI 或对外暴露时的友好名称 */
   displayName?: string;
   description?: string;

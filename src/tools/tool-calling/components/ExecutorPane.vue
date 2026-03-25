@@ -36,7 +36,7 @@ const methodOptions = computed(() =>
       method,
       group,
     })),
-  }))
+  })),
 );
 
 const applyMethod = (group: any, method: any) => {
@@ -130,7 +130,7 @@ watch(
       restoreSelectedMethod();
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 // 暴露加载方法（供父组件从 DiscoveryPane 跳转调用）
@@ -211,7 +211,7 @@ const runExecutionTest = async () => {
           parallelExecution: true,
           defaultAutoApprove: true,
         } as any,
-      }
+      },
     );
     executionResults.value = [...results, ...executionResults.value].slice(0, 10);
     customMessage.success("执行完成");
@@ -269,7 +269,7 @@ const generateVcpCommand = () => {
             <label>目标工具方法</label>
             <div class="label-actions">
               <el-tag v-if="selectedMethod" size="small" type="info" class="method-tag">
-                {{ selectedMethod.name }}
+                {{ selectedMethod.toolName || selectedMethod.name }}
               </el-tag>
               <el-tooltip content="重置配置" placement="top">
                 <el-button link :icon="RotateCcw" class="reset-icon-btn" @click="resetConfig" />

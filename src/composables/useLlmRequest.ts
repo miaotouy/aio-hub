@@ -298,17 +298,16 @@ export function useLlmRequest() {
           signalReason: options.signal?.reason,
         });
 
-        // 如果提供了 requestId 且不是因为超时导致的取消，尝试发送主动停止信号
+        // 如果提供了 requestId 且不是因为超时导致的取消，尝试发送主动停止信号到上游
         if (options.requestId && !isTimeoutError(error, options.signal)) {
           const profile = getProfileById(options.profileId);
           if (profile?.baseUrl) {
-            // 构造停止端点，目前约定为 baseUrl/interrupt
-            // 实际使用时会经过 openAiUrlHandler 处理或直接拼接
+            // 构造停止端点：/v1/interrupt
             const interruptUrl = profile.baseUrl.endsWith("/")
-              ? `${profile.baseUrl}interrupt`
-              : `${profile.baseUrl}/interrupt`;
+              ? `${profile.baseUrl}v1/interrupt`
+              : `${profile.baseUrl}/v1/interrupt`;
 
-            logger.debug("发送主动停止信号", { requestId: options.requestId, url: interruptUrl });
+            logger.debug("发送主动停止信号到上游", { requestId: options.requestId, url: interruptUrl });
 
             // 补发停止请求，不等待结果，不使用原有的 signal
             window
@@ -320,7 +319,7 @@ export function useLlmRequest() {
                   ...(selectedApiKey ? { Authorization: `Bearer ${selectedApiKey}` } : {}),
                 },
                 body: JSON.stringify({
-                  request_id: options.requestId,
+                  requestId: options.requestId, // 使用 camelCase 匹配上游的参数名
                 }),
               })
               .catch((e) => {

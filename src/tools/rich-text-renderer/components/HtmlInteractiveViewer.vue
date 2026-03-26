@@ -142,7 +142,8 @@ const { themedContent } = useIframeTheme(() => renderContent.value);
 const cspContent = computed(() => {
   const allowExternal = props.allowExternalScripts ?? contextAllowExternalScripts?.value ?? false;
   if (allowExternal) {
-    return "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *;";
+    // 允许外部脚本时，放开限制
+    return "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *; script-src * 'unsafe-inline' 'unsafe-eval' blob: data:;";
   } else {
     return "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: asset:; style-src 'self' 'unsafe-inline' asset:; img-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; media-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; connect-src 'self' asset: agent-asset: http://asset.localhost https://asset.localhost; frame-src 'self';";
   }
@@ -205,12 +206,6 @@ const logCaptureScript = `
     document.addEventListener('mouseleave', () => {
       window.parent.postMessage({ type: 'iframe-mouseleave' }, '*');
     });
-    
-    // 注入 CSP
-    const meta = document.createElement('meta');
-    meta.httpEquiv = "Content-Security-Policy";
-    meta.content = __CSP_CONTENT__;
-    document.head.appendChild(meta);
 
     // 高度自适应监测
     if (__AUTO_HEIGHT__) {
@@ -258,7 +253,6 @@ const srcDoc = computed(() => {
   if (!content) return "";
 
   const processedLogCaptureScript = logCaptureScript
-    .replace("__CSP_CONTENT__", JSON.stringify(cspContent.value))
     .replace("__AUTO_HEIGHT__", String(props.autoHeight));
 
   if (enableCdnLocalizer?.value !== false) {
@@ -269,11 +263,14 @@ const srcDoc = computed(() => {
   const trimmed = content.trim().toLowerCase();
   const isFullHtml = trimmed.includes("<html") || trimmed.includes("<!doctype");
 
+  // CSP meta 标签（直接插入到 head 顶部，确保在文档解析初期生效）
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${cspContent.value.replace(/"/g, '&quot;')}">`;
+
   if (isFullHtml) {
     const autoHeightStyle = props.autoHeight
       ? "<style>html,body{height:auto!important;overflow:hidden!important;margin:0!important;padding:0!important;} body > * { margin-top: 0 !important; }</style>"
       : "";
-    const injection = processedLogCaptureScript + autoHeightStyle;
+    const injection = cspMeta + processedLogCaptureScript + autoHeightStyle;
     if (/<\/head>/i.test(content)) {
       return content.replace(/<\/head>/i, `${injection}</head>`);
     } else if (/<head[^>]*>/i.test(content)) {
@@ -288,7 +285,7 @@ const srcDoc = computed(() => {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <meta http-equiv="Content-Security-Policy" content="${cspContent.value}">
+          ${cspMeta}
           ${processedLogCaptureScript}
           <style>
             body {

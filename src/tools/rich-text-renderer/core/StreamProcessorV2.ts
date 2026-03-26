@@ -41,6 +41,7 @@ class MarkdownBoundaryDetector {
 
     // VCP 协议检查
     if (this.hasUnclosedVcpBlock(text)) return false;
+    if (this.hasUnclosedVcpRoleBlock(text)) return false;
 
     return true;
   }
@@ -246,6 +247,21 @@ class MarkdownBoundaryDetector {
     }
 
     return false;
+  }
+
+  /**
+   * 检查是否存在未闭合的 VCP 角色分割块
+   */
+  private hasUnclosedVcpRoleBlock(text: string): boolean {
+    // 统计所有角色开始标记
+    const roleOpenRegex = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/g;
+    const roleCloseRegex = /<<<\[END_ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/g;
+
+    const openMatches = text.match(roleOpenRegex) || [];
+    const closeMatches = text.match(roleCloseRegex) || [];
+
+    // 如果开启和闭合数量不一致，说明有未闭合的块
+    return openMatches.length !== closeMatches.length;
   }
 
   /**

@@ -12,6 +12,43 @@
       </div>
 
       <div class="toolbar-right">
+        <!-- 错误提示按钮 -->
+        <div v-if="iframeErrors.length > 0" class="error-toolbar-item">
+          <el-popover placement="bottom-end" :width="400" trigger="click" popper-class="iframe-error-popper">
+            <template #reference>
+              <button class="tool-btn error-btn">
+                <AlertCircle :size="12" />
+                <span class="error-count">{{ iframeErrors.length }}</span>
+              </button>
+            </template>
+
+            <div class="error-details-container">
+              <div class="error-details-header">
+                <span class="error-title">渲染错误 ({{ iframeErrors.length }})</span>
+                <div class="error-header-actions">
+                  <el-button size="small" link @click="copyAllErrors">
+                    <template #icon><Copy :size="14" /></template>
+                    复制全部
+                  </el-button>
+                  <el-button size="small" link @click="clearErrors"> 清空 </el-button>
+                </div>
+              </div>
+              <div class="error-list">
+                <div v-for="(err, index) in iframeErrors" :key="index" class="error-item">
+                  <div class="error-item-main">
+                    <span class="error-msg">{{ err.message }}</span>
+                    <el-button size="small" link @click="copyError(err)">
+                      <Copy :size="12" />
+                    </el-button>
+                  </div>
+                  <div v-if="err.stack" class="error-stack">{{ err.stack }}</div>
+                  <div class="error-time">{{ err.time }}</div>
+                </div>
+              </div>
+            </div>
+          </el-popover>
+        </div>
+
         <el-tooltip content="刷新预览" placement="bottom">
           <button class="tool-btn" @click="refresh">
             <RotateCw :size="14" />
@@ -29,12 +66,16 @@
     <!-- 内容区域 -->
     <div
       class="viewer-content"
-      :style="autoHeight ? {
-        height: contentHeight + 'px',
-        maxHeight: typeof maxHeight === 'number' ? maxHeight + 'px' : maxHeight,
-        flex: 'none',
-        overflow: contentHeight > (parseInt(String(maxHeight)) || Infinity) ? 'auto' : 'hidden'
-      } : {}"
+      :style="
+        autoHeight
+          ? {
+              height: contentHeight + 'px',
+              maxHeight: typeof maxHeight === 'number' ? maxHeight + 'px' : maxHeight,
+              flex: 'none',
+              overflow: contentHeight > (parseInt(String(maxHeight)) || Infinity) ? 'auto' : 'hidden',
+            }
+          : {}
+      "
     >
       <div v-if="loading" class="loading-overlay">
         <Loader2 class="animate-spin" :size="24" />
@@ -49,17 +90,57 @@
         :scrolling="autoHeight ? 'no' : 'auto'"
         @load="onLoad"
       ></iframe>
+
+      <!-- 错误提示浮窗 -->
+      <div v-if="iframeErrors.length > 0" class="error-floating-indicator">
+        <el-popover placement="top-end" :width="400" trigger="click" popper-class="iframe-error-popper">
+          <template #reference>
+            <div class="error-trigger">
+              <div class="error-capsule">
+                <AlertCircle :size="14" />
+                <span class="error-count">{{ iframeErrors.length }}</span>
+              </div>
+            </div>
+          </template>
+
+          <div class="error-details-container">
+            <div class="error-details-header">
+              <span class="error-title">渲染错误 ({{ iframeErrors.length }})</span>
+              <div class="error-header-actions">
+                <el-button size="small" link @click="copyAllErrors">
+                  <template #icon><Copy :size="14" /></template>
+                  复制全部
+                </el-button>
+                <el-button size="small" link @click="clearErrors"> 清空 </el-button>
+              </div>
+            </div>
+            <div class="error-list">
+              <div v-for="(err, index) in iframeErrors" :key="index" class="error-item">
+                <div class="error-item-main">
+                  <span class="error-msg">{{ err.message }}</span>
+                  <el-button size="small" link @click="copyError(err)">
+                    <Copy :size="12" />
+                  </el-button>
+                </div>
+                <div v-if="err.stack" class="error-stack">{{ err.stack }}</div>
+                <div class="error-time">{{ err.time }}</div>
+              </div>
+            </div>
+          </div>
+        </el-popover>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, inject } from "vue";
-import { RotateCw, ExternalLink, Loader2 } from "lucide-vue-next";
+import { RotateCw, ExternalLink, Loader2, AlertCircle, Copy } from "lucide-vue-next";
 import { useThrottleFn } from "@vueuse/core";
 import { localizeCdnLinks } from "../utils/cdnLocalizer";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { customMessage } from "@/utils/customMessage";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../types";
 import { useIframeTheme } from "@/composables/useIframeTheme";
 
@@ -106,7 +187,7 @@ const props = withDefaults(
     immediate: false,
     autoHeight: false,
     allowExternalScripts: false,
-  }
+  },
 );
 
 const isToolbarVisible = computed(() => props.showToolbar && !props.seamless);
@@ -117,6 +198,13 @@ const contentHeight = ref(40);
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 const iframeKey = ref(0);
 const renderContent = ref("");
+
+interface IframeError {
+  message: string;
+  stack?: string;
+  time: string;
+}
+const iframeErrors = ref<IframeError[]>([]);
 
 // 检查 HTML 内容是否足够稳定以进行渲染
 const isContentStable = (html: string): boolean => {
@@ -183,10 +271,34 @@ const logCaptureScript = `
     ['log', 'info', 'warn', 'error', 'debug'].forEach(proxyConsole);
     
     window.addEventListener('error', function(event) {
+      const error = event.error;
+      const stack = error && error.stack ? error.stack : [event.message, 'at', event.filename || 'unknown', ':', event.lineno, ':', event.colno].join(' ');
+      
       window.parent.postMessage({
         type: 'iframe-log',
         level: 'error',
-        args: [event.message, 'at', event.filename || 'unknown', ':', event.lineno, ':', event.colno]
+        args: [event.message],
+        stack: stack
+      }, '*');
+    });
+
+    window.addEventListener('unhandledrejection', function(event) {
+      const reason = event.reason;
+      let message = 'Unhandled Promise Rejection';
+      let stack = '';
+      
+      if (reason instanceof Error) {
+        message = reason.message;
+        stack = reason.stack;
+      } else {
+        message = String(reason);
+      }
+
+      window.parent.postMessage({
+        type: 'iframe-log',
+        level: 'error',
+        args: [message],
+        stack: stack || 'No stack trace available'
       }, '*');
     });
 
@@ -252,8 +364,7 @@ const srcDoc = computed(() => {
   let content = themedContent.value;
   if (!content) return "";
 
-  const processedLogCaptureScript = logCaptureScript
-    .replace("__AUTO_HEIGHT__", String(props.autoHeight));
+  const processedLogCaptureScript = logCaptureScript.replace("__AUTO_HEIGHT__", String(props.autoHeight));
 
   if (enableCdnLocalizer?.value !== false) {
     const { html: localizedContent } = localizeCdnLinks(content);
@@ -264,7 +375,7 @@ const srcDoc = computed(() => {
   const isFullHtml = trimmed.includes("<html") || trimmed.includes("<!doctype");
 
   // CSP meta 标签（直接插入到 head 顶部，确保在文档解析初期生效）
-  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${cspContent.value.replace(/"/g, '&quot;')}">`;
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${cspContent.value.replace(/"/g, "&quot;")}">`;
 
   if (isFullHtml) {
     const autoHeightStyle = props.autoHeight
@@ -290,9 +401,9 @@ const srcDoc = computed(() => {
           <style>
             body {
               margin: 0;
-              padding: ${props.autoHeight ? '0' : '16px'};
-              height: ${props.autoHeight ? 'auto' : '100%'};
-              overflow: ${props.autoHeight ? 'hidden' : 'auto'};
+              padding: ${props.autoHeight ? "0" : "16px"};
+              height: ${props.autoHeight ? "auto" : "100%"};
+              overflow: ${props.autoHeight ? "hidden" : "auto"};
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
               color: var(--text-color, #333);
               background-color: transparent;
@@ -346,10 +457,21 @@ const handleIframeMessage = (event: MessageEvent) => {
         logger.warn(message, extraData);
         break;
       case "error":
+        // 记录到内部错误列表
+        const stack = event.data.stack || (extraData?.length ? extraData.join(" ") : "");
+        iframeErrors.value.push({
+          message,
+          stack: stack,
+          time: new Date().toLocaleTimeString(),
+        });
+
         iframeErrorHandler.handle(message, {
           level: ErrorLevel.ERROR,
           showToUser: false,
-          context: { originalArgs: extraData },
+          context: {
+            originalArgs: extraData,
+            stack: stack,
+          },
         });
         break;
       case "debug":
@@ -374,6 +496,25 @@ const onLoad = () => {
 const refresh = () => {
   loading.value = true;
   iframeKey.value++;
+  iframeErrors.value = [];
+};
+
+const clearErrors = () => {
+  iframeErrors.value = [];
+};
+
+const copyError = (err: IframeError) => {
+  const text = `Error: ${err.message}\nStack: ${err.stack || "N/A"}\nTime: ${err.time}`;
+  navigator.clipboard.writeText(text);
+  customMessage.success("已复制到剪贴板");
+};
+
+const copyAllErrors = () => {
+  const text = iframeErrors.value
+    .map((err, i) => `[${i + 1}] ${err.message}\nStack: ${err.stack || "N/A"}\nTime: ${err.time}`)
+    .join("\n\n---\n\n");
+  navigator.clipboard.writeText(text);
+  customMessage.success("已复制全部错误");
 };
 
 const openInBrowser = () => {
@@ -397,7 +538,7 @@ watch(
       throttledUpdateContent(newContent);
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 </script>
 
@@ -480,6 +621,27 @@ watch(
   cursor: not-allowed;
 }
 
+.error-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background-color: rgba(var(--el-color-danger-rgb), 0.1);
+  color: var(--el-color-danger);
+  transition: all 0.2s ease;
+}
+
+.error-btn:hover {
+  background-color: rgba(var(--el-color-danger-rgb), 0.2);
+}
+
+.error-btn .error-count {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .viewer-content {
   flex: 1;
   position: relative;
@@ -517,5 +679,124 @@ watch(
   to {
     transform: rotate(360deg);
   }
+}
+
+.error-floating-indicator {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 100;
+}
+
+.error-trigger {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.error-trigger:hover {
+  transform: scale(1.05);
+}
+
+.error-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  background-color: var(--el-bg-color-overlay);
+  color: var(--el-text-color-regular);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(var(--ui-blur, 10px));
+  border: 1px solid var(--el-border-color-lighter);
+  transition: all 0.2s ease;
+}
+
+.error-trigger:hover .error-capsule {
+  color: var(--el-color-danger);
+  border-color: var(--el-color-danger-light-7);
+  background-color: rgba(var(--el-color-danger-rgb), 0.1);
+}
+
+.error-capsule .error-count {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.error-details-container {
+  display: flex;
+  flex-direction: column;
+  max-height: 400px;
+}
+
+.error-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.error-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--el-color-danger);
+}
+
+.error-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.error-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.error-item {
+  padding: 10px;
+  border-radius: 8px;
+  background-color: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-lighter);
+  font-family: var(--el-font-family-mono);
+  transition: all 0.2s ease;
+}
+
+.error-item:hover {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-color-danger-light-7);
+}
+
+.error-item-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.error-msg {
+  font-size: 13px;
+  color: var(--el-color-danger);
+  word-break: break-all;
+  font-weight: 500;
+}
+
+.error-stack {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  opacity: 0.8;
+}
+
+.error-time {
+  font-size: 10px;
+  color: var(--el-text-color-placeholder);
+  margin-top: 4px;
+  text-align: right;
 }
 </style>

@@ -1806,6 +1806,35 @@ export const llmPresets: LlmPreset[] = [
       { label: "模型库", url: "https://ollama.com/library" },
     ],
   },
+  // Ollama Cloud
+  {
+    type: "ollama",
+    name: "Ollama Cloud",
+    description: "Ollama 官方云端服务 (无需本地 GPU)",
+    defaultBaseUrl: "https://ollama.com",
+    logoUrl: "/model-icons/ollama.svg",
+    links: [
+      { label: "官网", url: "https://ollama.com" },
+      { label: "API Keys", url: "https://ollama.com/settings/keys" },
+      { label: "云端模型库", url: "https://ollama.com/search?c=cloud" },
+    ],
+    defaultModels: [
+      {
+        id: "gpt-oss:120b",
+        name: "GPT-OSS 120B (Cloud)",
+        group: "Ollama Cloud",
+        provider: "ollama",
+        description: "Ollama 云端旗舰模型",
+      },
+      {
+        id: "gpt-oss:120b-cloud",
+        name: "GPT-OSS 120B-Cloud",
+        group: "Ollama Cloud",
+        provider: "ollama",
+        description: "自动卸载至云端的超大模型",
+      },
+    ],
+  },
   // NewAPI / One API 聚合
   {
     type: "openai",

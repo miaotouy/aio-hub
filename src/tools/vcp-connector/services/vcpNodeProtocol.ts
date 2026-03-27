@@ -4,6 +4,7 @@ import { toolRegistryManager } from "@/services/registry";
 import { invoke } from "@tauri-apps/api/core";
 import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
 import { vcpBridgeFactory } from "./VcpBridgeFactory";
+import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
 import type {
   VcpToolManifest,
   ExecuteToolRequest,
@@ -11,6 +12,7 @@ import type {
   ReportIpData,
   VcpManifestsResponse,
   VcpToolExecutionResult,
+  VcpToolApprovalRequest,
 } from "../types/distributed";
 
 const logger = createModuleLogger("vcp-connector/node-protocol");
@@ -60,6 +62,49 @@ export class VcpNodeProtocol {
     this.sendJson({
       type: "tool_result",
       data: response,
+    });
+  }
+
+  /**
+   * VCP -> AIO: 处理工具调用批准请求
+   */
+  public async handleToolApprovalRequest(data: VcpToolApprovalRequest): Promise<void> {
+    const { requestId, toolName, args, maid } = data;
+    logger.info(`Received tool approval request from VCP: ${toolName}`, { requestId, maid, args });
+
+    const toolCallingStore = useToolCallingStore();
+
+    // 1. 转换为 AIO 内部格式 (ParsedToolRequest)
+    // 注意：VCP 的 toolName 可能是插件名，args 中可能包含 command
+    const parsedRequest = {
+      requestId,
+      toolId: toolName,
+      methodName: (args.command as string) || "",
+      toolName: toolName,
+      rawBlock: JSON.stringify(args, null, 2),
+      args: args,
+    };
+
+    // 2. 映射 sessionId (vcp-${maid})
+    const sessionId = `vcp-${maid}`;
+
+    // 3. 调用 toolCallingStore.requestApproval 并等待用户操作
+    const result = await toolCallingStore.requestApproval(sessionId, parsedRequest as any, requestId);
+
+    // 4. 发送响应回 VCP
+    // AIO 的结果有多种，映射为布尔值
+    const approved = result === "approved" || result === "silent_approved";
+    this.sendToolApprovalResponse(requestId, approved);
+  }
+
+  /**
+   * AIO -> VCP: 发送工具调用批准响应
+   */
+  public sendToolApprovalResponse(requestId: string, approved: boolean): void {
+    logger.info(`Sending tool approval response to VCP: ${requestId}`, { approved });
+    this.sendJson({
+      type: "tool_approval_response",
+      data: { requestId, approved },
     });
   }
 

@@ -55,7 +55,11 @@ export interface VcpDistributedMessage {
     | "vcp_manifest_response"
     | "execute_vcp_tool"
     | "vcp_tool_result"
-    | "vcp_tool_status";
+    | "vcp_tool_status"
+    | "tool_approval_request"
+    | "tool_approval_response"
+    | "connection_ack"
+    | "assign_node_id";
   data: any;
 }
 
@@ -131,4 +135,19 @@ export interface ReportIpData {
   localIPs: string[];
   publicIP: string;
   serverName: string;
+}
+
+/** VCP -> AIO: 工具调用批准请求 */
+export interface VcpToolApprovalRequest {
+  requestId: string;
+  toolName: string;
+  maid: string;
+  args: Record<string, any>;
+  timestamp: string;
+}
+
+/** AIO -> VCP / VCP -> AIO: 工具调用批准响应 */
+export interface VcpToolApprovalResponse {
+  requestId: string;
+  approved: boolean;
 }

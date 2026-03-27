@@ -6,6 +6,8 @@ export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled" | 
 
 export interface PendingToolRequest {
   id: string;
+  /** 外部 ID (例如 VCP 的 requestId)，用于同步状态 */
+  externalId?: string;
   sessionId: string;
   request: ParsedToolRequest;
   resolve: (result: ToolApprovalResult) => void;
@@ -17,10 +19,15 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
   /**
    * 请求批准
    */
-  function requestApproval(sessionId: string, request: ParsedToolRequest): Promise<ToolApprovalResult> {
+  function requestApproval(
+    sessionId: string,
+    request: ParsedToolRequest,
+    externalId?: string,
+  ): Promise<ToolApprovalResult> {
     return new Promise((resolve) => {
       pendingRequests.value.push({
         id: Math.random().toString(36).substring(2, 11),
+        externalId,
         sessionId,
         request,
         resolve,
@@ -120,6 +127,19 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     pendingRequests.value = pendingRequests.value.filter((r) => r.sessionId !== sessionId);
   }
 
+  /**
+   * 处理外部响应（用于同步状态，例如 VCP 另一端已经批准了）
+   */
+  function handleExternalResponse(externalId: string, approved: boolean) {
+    const index = pendingRequests.value.findIndex((r) => r.externalId === externalId);
+    if (index !== -1) {
+      const pending = pendingRequests.value[index];
+      // 如果外部已经处理了，我们这边静默完成
+      pending.resolve(approved ? "silent_approved" : "silent_cancelled");
+      pendingRequests.value.splice(index, 1);
+    }
+  }
+
   return {
     pendingRequests,
     requestApproval,
@@ -131,5 +151,6 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     rejectAll,
     silentCancelAll,
     silentApproveAll,
+    handleExternalResponse,
   };
 });

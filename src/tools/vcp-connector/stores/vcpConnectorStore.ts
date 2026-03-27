@@ -19,6 +19,7 @@ import {
 import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
 import { vcpBridgeFactory } from "../services/VcpBridgeFactory";
 import { useVcpDistributedStore } from "./vcpDistributedStore";
+import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
 import { useNotification } from "@/composables/useNotification";
 import { customMessage } from "@/utils/customMessage";
 
@@ -498,6 +499,12 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       }
     } else if (data.type === "execute_tool") {
       nodeProtocol.value?.handleExecuteTool(data.data);
+    } else if (data.type === "tool_approval_request") {
+      nodeProtocol.value?.handleToolApprovalRequest(data.data);
+    } else if (data.type === "tool_approval_response") {
+      const { requestId, approved } = data.data;
+      const toolCallingStore = useToolCallingStore();
+      toolCallingStore.handleExternalResponse(requestId, approved);
     } else if (data.type === "vcp_manifest_response") {
       nodeProtocol.value?.handleVcpManifestsResponse(data.data);
     } else if (data.type === "vcp_tool_result") {

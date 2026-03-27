@@ -13,6 +13,9 @@ const currentSessionPendingRequests = computed(() => {
 
 const hasRequests = computed(() => currentSessionPendingRequests.value.length > 0);
 
+const hasExternalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !!r.externalId));
+const hasLocalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !r.externalId));
+
 const handleApprove = (id: string) => {
   toolCallingStore.approveRequest(id);
 };
@@ -69,7 +72,7 @@ const handleSilentApproveAll = () => {
               <template #icon><Play :size="14" /></template>
               全部允许
             </el-button>
-            <el-button type="success" plain @click="handleSilentApproveAll">
+            <el-button v-if="hasLocalRequests" type="success" plain @click="handleSilentApproveAll">
               <template #icon><FastForward :size="14" /></template>
               全部静默允许
             </el-button>
@@ -77,7 +80,7 @@ const handleSilentApproveAll = () => {
               <template #icon><X :size="14" /></template>
               全部拒绝
             </el-button>
-            <el-button type="info" plain @click="handleSilentCancelAll">
+            <el-button v-if="hasLocalRequests" type="info" plain @click="handleSilentCancelAll">
               <template #icon><Ban :size="14" /></template>
               静默取消
             </el-button>
@@ -123,6 +126,7 @@ const handleSilentApproveAll = () => {
               <template #icon><Play :size="12" /></template>
             </el-button>
             <el-button
+              v-if="!item.externalId"
               size="small"
               circle
               type="success"
@@ -135,6 +139,7 @@ const handleSilentApproveAll = () => {
               <template #icon><X :size="12" /></template>
             </el-button>
             <el-button
+              v-if="!item.externalId"
               size="small"
               circle
               type="info"
@@ -149,7 +154,9 @@ const handleSilentApproveAll = () => {
 
       <div class="bar-footer">
         <AlertCircle :size="12" />
-        <span>这些工具将以你的身份在本地执行，请确认安全后再允许。</span>
+        <span v-if="hasExternalRequests && hasLocalRequests"> 包含本地和远程工具调用请求，请确认安全后再允许。 </span>
+        <span v-else-if="hasExternalRequests"> 这些工具将在远程 VCP 节点执行，请确认安全后再允许。 </span>
+        <span v-else> 这些工具将以你的身份在本地执行，请确认安全后再允许。 </span>
       </div>
     </div>
   </transition>

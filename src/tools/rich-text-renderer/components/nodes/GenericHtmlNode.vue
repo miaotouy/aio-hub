@@ -74,6 +74,7 @@
 import { computed, inject, ref, onMounted, watch } from "vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { Play, Pause, Square, Volume2 } from "lucide-vue-next";
+import { resolveLocalPath } from "../../utils/path-utils";
 
 const props = defineProps<{
   nodeId: string;
@@ -368,12 +369,15 @@ const filteredAttributes = computed(() => {
       // 保持 ID 原始值
       attrs.id = value;
     } else if (isUrlAttr && typeof value === "string") {
-      // 解析资产链接（包括 agent-asset:// 和 【file::assetId】等占位符）
+      // 1. 解析业务资产链接（包括 agent-asset:// 和 【file::assetId】等占位符）
+      let resolved = value;
       if (context?.resolveAsset) {
-        attrs[key] = context.resolveAsset(value);
-      } else {
-        attrs[key] = value;
+        resolved = context.resolveAsset(value);
       }
+
+      // 2. 兜底处理本地路径转换 (file:// -> asset://)
+      // 这样可以确保即便业务钩子没处理 file 协议，渲染器也能正常加载本地资源
+      attrs[key] = resolveLocalPath(resolved);
     } else {
       // 其他属性直接传递
       attrs[key] = value;

@@ -219,11 +219,16 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       const methodBlocks: string[] = [];
       for (const method of toolMethods) {
         const description = method.description?.trim() || "无描述";
+        const example = method.example?.trim();
         const body = buildMethodDescription(method, tool.toolId);
 
-        const block = [`指令描述：${description}`, "", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END].join("\n");
+        const blockLines = [`指令描述：${description}`];
+        if (example) {
+          blockLines.push(`指令示例：${example}`);
+        }
+        blockLines.push("", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END);
 
-        methodBlocks.push(block);
+        methodBlocks.push(blockLines.join("\n"));
       }
 
       const toolSection = [...header, "", ...methodBlocks].join("\n\n");

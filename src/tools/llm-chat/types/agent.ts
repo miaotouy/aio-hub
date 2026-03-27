@@ -117,6 +117,19 @@ export interface ToolCallConfig {
    * 开启后，如果预设消息中未找到 {{tools}} 宏，系统会自动将工具定义注入到 chat_history 锚点之前
    */
   autoInjectIfMacroMissing?: boolean;
+  /**
+   * 工具或方法的描述覆盖
+   * key: toolId 或 toolId:methodName
+   */
+  overrides?: Record<
+    string,
+    {
+      enabled: boolean;
+      displayName?: string;
+      description?: string;
+      example?: string;
+    }
+  >;
 }
 
 export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
@@ -136,6 +149,7 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   convertToolRoleToUser: true,
   toolSettings: {},
   autoInjectIfMacroMissing: false,
+  overrides: {},
 };
 
 /**

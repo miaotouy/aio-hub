@@ -80,6 +80,13 @@ function stableStringifyConfig(config: ToolCallConfig): string {
       return acc;
     }, {});
 
+  const sortedOverrides = Object.keys(config.overrides || {})
+    .sort()
+    .reduce<Record<string, any>>((acc, key) => {
+      acc[key] = config.overrides![key];
+      return acc;
+    }, {});
+
   return JSON.stringify({
     enabled: config.enabled,
     mode: config.mode,
@@ -87,6 +94,7 @@ function stableStringifyConfig(config: ToolCallConfig): string {
     methodToggles: sortedMethodToggles,
     autoApproveTools: sortedAutoApprove,
     autoApproveMethods: sortedMethodAutoApprove,
+    overrides: sortedOverrides,
     defaultToolEnabled: config.defaultToolEnabled,
     defaultAutoApprove: config.defaultAutoApprove,
     maxIterations: config.maxIterations,
@@ -186,25 +194,42 @@ export function createToolDiscoveryService(): {
       return "";
     }
 
-    const protocolInput: ToolDefinitionInput[] = enabledToolsWithMethods.map((tool) => ({
-      toolId: tool.toolId,
-      toolName: tool.toolName,
-      toolDescription: tool.toolDescription,
-      methods: tool.methods.map((method) => {
-        // 为异步方法添加标注
-        if (method.executionMode === "async") {
-          const asyncNote = "[异步方法] 此方法会立即返回任务ID，需要使用 tool-calling_getTaskStatus 查询结果";
-          const estimatedDuration = method.asyncConfig?.estimatedDuration;
-          const durationNote = estimatedDuration ? ` (预计耗时: ${estimatedDuration}秒)` : "";
+    const protocolInput: ToolDefinitionInput[] = enabledToolsWithMethods.map((tool) => {
+      const toolOverride = options.config.overrides?.[tool.toolId];
 
-          return {
-            ...method,
-            description: `${asyncNote}${durationNote}\n${method.description || ""}`.trim(),
-          };
-        }
-        return method;
-      }),
-    }));
+      return {
+        toolId: tool.toolId,
+        toolName: toolOverride?.enabled ? toolOverride.displayName || tool.toolName : tool.toolName,
+        toolDescription: toolOverride?.enabled ? toolOverride.description || tool.toolDescription : tool.toolDescription,
+        methods: tool.methods.map((method) => {
+          const methodKey = `${tool.toolId}:${method.name}`;
+          const methodOverride = options.config.overrides?.[methodKey];
+
+          let baseMethod = { ...method };
+          if (methodOverride?.enabled) {
+            baseMethod = {
+              ...method,
+              displayName: methodOverride.displayName || method.displayName,
+              description: methodOverride.description || method.description,
+              example: methodOverride.example || method.example,
+            };
+          }
+
+          // 为异步方法添加标注
+          if (baseMethod.executionMode === "async") {
+            const asyncNote = "[异步方法] 此方法会立即返回任务ID，需要使用 tool-calling_getTaskStatus 查询结果";
+            const estimatedDuration = method.asyncConfig?.estimatedDuration;
+            const durationNote = estimatedDuration ? ` (预计耗时: ${estimatedDuration}秒)` : "";
+
+            return {
+              ...baseMethod,
+              description: `${asyncNote}${durationNote}\n${baseMethod.description || ""}`.trim(),
+            };
+          }
+          return baseMethod;
+        }),
+      };
+    });
 
     const definitions = protocolImpl.generateToolDefinitions(protocolInput);
     const instructions = protocolImpl.generateUsageInstructions();

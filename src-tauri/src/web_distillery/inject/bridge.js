@@ -54,7 +54,6 @@
           payload: finalPayload
         }, '*');
       }
-      }
 
       // 备选：尝试通过 nativePost 发送符合协议的 JSON
       if (nativePost) {

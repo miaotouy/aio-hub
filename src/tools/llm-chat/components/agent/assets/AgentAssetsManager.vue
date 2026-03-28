@@ -664,7 +664,7 @@ const handleDeleteAsset = async (asset: AgentAsset) => {
       customMessage.success("资产已删除");
     }
   } catch (error) {
-    if (error === "cancel" || error === "cancel") return;
+    if (error === "cancel") return;
     logger.error("删除资产失败", error);
     errorHandler.error(error, "删除资产失败");
   }

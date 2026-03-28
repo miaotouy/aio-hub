@@ -1,5 +1,13 @@
 {
   "rules": {
-    "no-useless-escape": "off"
+    "no-useless-escape": "off",
+    "no-unused-vars": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-useless-length-check": "off",
+    "unicorn/no-new-array": "off",
+    "unicorn/prefer-string-starts-ends-with": "off",
+    "no-control-regex": "off",
+    "no-useless-catch": "off",
+    "no-async-promise-executor": "off"
   }
 }

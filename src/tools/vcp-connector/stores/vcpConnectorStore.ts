@@ -52,6 +52,12 @@ const messagesManager = createConfigManager<{ list: VcpMessage[] }>({
 });
 
 export const useVcpStore = defineStore("vcp-connector", () => {
+  // 检查是否为分离的消息监控窗口
+  const isDetachedMonitor = window.location.search.includes("id=vcp-monitor");
+
+  // 标记监控面板是否在主窗口中已经分离（由主窗口维护）
+  const isMonitorDetached = ref(false);
+
   // 初始化完成的 Promise，供外部等待配置加载
   let _initResolve!: () => void;
   const initPromise = new Promise<void>((resolve) => {
@@ -304,8 +310,16 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       return;
     }
 
+    // 如果是分离的消息监控模式，强制只连接 Observer
+    if (isDetachedMonitor) {
+      logger.info("Detached monitor mode: connecting to Observer only");
+      connectObserver(wsUrl, vcpKey);
+      return;
+    }
+
     // 1. 连接观察者端点 (Observer)
-    if (mode === "observer" || mode === "both") {
+    // 如果主窗口中监控已分离，主窗口可以选择不连 Observer 以节省资源
+    if (!isMonitorDetached.value && (mode === "observer" || mode === "both")) {
       connectObserver(wsUrl, vcpKey);
     }
 
@@ -372,7 +386,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           logger.warn("Failed to parse observer message", e);
         }
       };
-    } catch (e) {
+    } catch (error) {
+      logger.error("Failed to setup observer WebSocket", error);
       isConnecting.value = false;
       setConnectionStatus("error");
       if (config.value.autoConnect) {
@@ -575,6 +590,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (filter.value.paused) return;
 
     messages.value.push(msg);
+
+    // 如果监控已分离，主窗口停止向本地文件写入，防止文件竞争
+    if (isMonitorDetached.value && !isDetachedMonitor) {
+      return;
+    }
     stats.value.totalCount += 1;
 
     switch (msg.type) {
@@ -701,6 +721,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
   return {
     config,
+    isDetachedMonitor,
+    isMonitorDetached,
     connection,
     messages,
     filteredMessages,

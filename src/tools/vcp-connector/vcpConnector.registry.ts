@@ -1,5 +1,6 @@
 import type { ToolConfig, ToolRegistry } from "@/services/types";
-import { markRaw } from "vue";
+import type { DetachableComponentRegistration } from "@/types/detachable";
+import { markRaw, ref } from "vue";
 import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
 import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpDistributedStore } from "./stores/vcpDistributedStore";
@@ -10,6 +11,15 @@ export class VcpConnectorRegistry implements ToolRegistry {
   public readonly id = "vcp-connector";
   public readonly name = "VCP 连接器";
   public readonly description = "VCP 分布式连接与监控中心";
+  public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
+    "vcp-monitor": {
+      component: () => import("./components/monitor/MessageMonitorPage.vue"),
+      logicHook: () => ({
+        props: ref({}),
+        listeners: {},
+      }),
+    },
+  };
 
   public readonly startupConfig = {
     label: "VCP 自动连接",

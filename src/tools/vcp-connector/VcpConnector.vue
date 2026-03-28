@@ -26,7 +26,19 @@
         </div>
         <el-tabs v-model="activeTab" class="monitor-tabs">
           <el-tab-pane label="消息监控" name="messages">
-            <MessageMonitorPage @show-json="selectedMessage = $event" />
+            <div v-if="isMonitorDetached" class="detached-placeholder">
+              <el-result title="监控面板已分离" sub-title="消息监控正在独立窗口中运行">
+                <template #icon>
+                  <div class="detached-icon-wrapper">
+                    <Monitor :size="48" class="detached-icon" />
+                  </div>
+                </template>
+                <template #extra>
+                  <el-button type="primary" @click="reattachMonitor" round> 收回面板 </el-button>
+                </template>
+              </el-result>
+            </div>
+            <MessageMonitorPage v-else @show-json="selectedMessage = $event" />
           </el-tab-pane>
           <el-tab-pane label="分布式节点" name="distributed">
             <DistributedNodePage />
@@ -43,8 +55,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
-import { PanelLeft } from "lucide-vue-next";
+import { useDetachedManager } from "@/composables/useDetachedManager";
+import { PanelLeft, Monitor } from "lucide-vue-next";
 import InfoCard from "@/components/common/InfoCard.vue";
 import ConnectionPanel from "./components/monitor/ConnectionPanel.vue";
 import FilterPanel from "./components/monitor/FilterPanel.vue";
@@ -53,7 +67,9 @@ import DistributedNodePage from "./components/distributed/DistributedNodePage.vu
 import JsonViewer from "./components/shared/JsonViewer.vue";
 import type { VcpMessage } from "./types/protocol";
 
+const store = useVcpStore();
 const { startDistributedNode } = useVcpDistributedNode();
+const { isDetached, closeWindow } = useDetachedManager();
 
 const activeTab = ref("messages");
 const selectedMessage = ref<VcpMessage | null>(null);
@@ -62,6 +78,32 @@ const isConfigCollapsed = ref(false);
 
 // 启动分布式节点逻辑
 startDistributedNode();
+
+const isMonitorDetached = ref(false);
+
+// 监听分离状态并同步到 store
+watch(
+  () => isDetached("vcp-monitor"),
+  (val) => {
+    isMonitorDetached.value = val;
+    store.isMonitorDetached = val;
+
+    // 如果在主窗口中监控被分离，且当前是已连接状态，
+    // 主窗口可以选择断开 Observer 连接以节省资源（因为分离窗口会连）
+    if (val) {
+      // 这里我们可以选择断开 Observer
+      // store.disconnectObserver(); // 如果有这个方法
+    } else {
+      // 如果收回了，主窗口重新连接
+      store.connect();
+    }
+  },
+  { immediate: true },
+);
+
+async function reattachMonitor() {
+  await closeWindow("vcp-monitor");
+}
 
 watch(selectedMessage, (msg: VcpMessage | null) => {
   showJsonViewer.value = !!msg;
@@ -165,5 +207,29 @@ watch(showJsonViewer, (visible: boolean) => {
 :deep(.el-tabs__active-bar) {
   height: 3px;
   border-radius: 3px;
+}
+
+.detached-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-bg);
+}
+
+.detached-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.detached-icon {
+  color: var(--el-color-primary);
+  opacity: 0.8;
 }
 </style>

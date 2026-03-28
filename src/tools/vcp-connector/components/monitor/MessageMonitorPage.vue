@@ -1,5 +1,12 @@
 <template>
-  <div class="message-monitor-page">
+  <div class="message-monitor-page" :class="{ 'is-detached': store.isDetachedMonitor }">
+    <ComponentHeader
+      v-if="!store.isDetachedMonitor"
+      title="消息监控"
+      drag-mode="detach"
+      @mousedown="handleStartDetaching"
+      @detach="handleDetach"
+    />
     <div class="monitor-header">
       <div class="header-left">
         <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
@@ -83,8 +90,10 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useThrottleFn } from "@vueuse/core";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
+import { useDetachable } from "@/composables/useDetachable";
 import { customMessage } from "@/utils/customMessage";
 import { Pause, Play, Trash2, Download, Search } from "lucide-vue-next";
+import ComponentHeader from "@/components/ComponentHeader.vue";
 import BroadcastCard from "./BroadcastCard.vue";
 import type { VcpMessage } from "../../types/protocol";
 
@@ -94,6 +103,7 @@ const emit = defineEmits<{
 
 const store = useVcpStore();
 const { connectionStatus } = useVcpWebSocket();
+const { startDetaching, detachByClick } = useDetachable();
 
 const filteredMessages = computed(() => [...store.filteredMessages].reverse());
 const filter = computed(() => store.filter);
@@ -110,7 +120,7 @@ watch(
   () => store.filter.keyword,
   (kw) => {
     searchKeyword.value = kw;
-  }
+  },
 );
 
 /**
@@ -165,7 +175,7 @@ watch(
     if (newLength > oldLength && isNearTop.value) {
       scrollToTop();
     }
-  }
+  },
 );
 
 const connectionStatusTagType = computed(() => {
@@ -213,6 +223,28 @@ function exportMessages() {
   URL.revokeObjectURL(url);
   customMessage.success("导出成功");
 }
+
+function handleStartDetaching(event: MouseEvent) {
+  startDetaching({
+    id: "vcp-monitor",
+    displayName: "VCP 消息监控",
+    type: "component",
+    width: 800,
+    height: 600,
+    mouseX: event.screenX,
+    mouseY: event.screenY,
+  });
+}
+
+async function handleDetach() {
+  await detachByClick({
+    id: "vcp-monitor",
+    displayName: "VCP 消息监控",
+    type: "component",
+    width: 800,
+    height: 600,
+  });
+}
 </script>
 
 <style scoped lang="css">
@@ -220,6 +252,14 @@ function exportMessages() {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.is-detached {
+  background: var(--card-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  box-shadow: var(--el-box-shadow-light);
 }
 
 .monitor-header {

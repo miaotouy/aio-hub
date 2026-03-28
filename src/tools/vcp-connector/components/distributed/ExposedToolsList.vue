@@ -134,7 +134,7 @@ import { ref, computed } from "vue";
 import { useVcpDistributedStore } from "../../stores/vcpDistributedStore";
 import { toolRegistryManager } from "@/services/registry";
 import { CheckCircle2, Clock, ChevronRight } from "lucide-vue-next";
-import { BUILTIN_VCP_TOOLS } from "../../composables/useVcpDistributedNode";
+import { BUILTIN_VCP_TOOLS, getExposableTools } from "../../composables/useVcpDistributedNode";
 
 const distStore = useVcpDistributedStore();
 const selectedToolId = ref("");
@@ -194,16 +194,16 @@ const displayTools = computed(() => {
     }
   }
 
+  // 使用统一的工具发现逻辑
+  const exposableTools = getExposableTools();
+
   // 2. 自动发现
   if (autoRegister) {
-    const discovery = toolRegistryManager.getAllTools();
-    for (const tool of discovery) {
-      if (typeof tool.getMetadata !== "function") continue;
-      const methods = tool.getMetadata()?.methods || [];
-      for (const method of methods) {
+    for (const tool of exposableTools) {
+      for (const method of tool.methods) {
         if (method.agentCallable || method.distributedExposed) {
-          const fullId = `${tool.id}:${method.name}`;
-          const entry = getOrCreateTool(tool.id, false, true);
+          const fullId = `${tool.toolId}:${method.name}`;
+          const entry = getOrCreateTool(tool.toolId, false, true);
           if (!entry.methods.some((m: any) => m.name === method.name)) {
             entry.methods.push({
               name: method.name,
@@ -221,6 +221,9 @@ const displayTools = computed(() => {
   // 3. 手动添加
   for (const fullId of manualIds) {
     const [toolId, methodName] = fullId.split(":");
+
+    // 检查是否在可暴露列表中（已在 getExposableTools 中过滤了 vcp:）
+    if (!exposableTools.some((t) => t.toolId === toolId)) continue;
 
     // 检查是否已经被自动发现了
     let entry = toolMap.get(toolId);
@@ -315,7 +318,7 @@ function handleToggleMethodEnabled(toolId: string, methodName: string, enabled: 
  * 彻底放开：显示 Registry 中存在的所有方法
  */
 const availableTools = computed(() => {
-  const allTools = toolRegistryManager.getAllTools();
+  const exposableTools = getExposableTools();
   const options: { fullId: string; displayName: string; isAgent: boolean; isExposed: boolean }[] = [];
 
   const currentFullIds = new Set();
@@ -323,12 +326,9 @@ const availableTools = computed(() => {
     t.methods.forEach((m: any) => currentFullIds.add(`${t.toolId}:${m.name}`));
   });
 
-  for (const tool of allTools) {
-    const metadata = tool.getMetadata?.();
-    const methods = metadata?.methods || [];
-
-    for (const method of methods) {
-      const fullId = `${tool.id}:${method.name}`;
+  for (const tool of exposableTools) {
+    for (const method of tool.methods) {
+      const fullId = `${tool.toolId}:${method.name}`;
       options.push({
         fullId,
         displayName: method.displayName || "",

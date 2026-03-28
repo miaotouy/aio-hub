@@ -50,6 +50,15 @@ export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
   },
 ];
 
+/**
+ * 获取所有可暴露给 VCP 的工具列表（统一过滤逻辑）
+ * 排除掉本身就是通过 VCP 桥接进来的工具，防止循环暴露
+ */
+export function getExposableTools() {
+  const discovery = createToolDiscoveryService();
+  return discovery.getDiscoveredMethods(() => true).filter((tool) => !tool.toolId.startsWith("vcp:"));
+}
+
 export function useVcpDistributedNode() {
   const store = useVcpStore();
   const distStore = useVcpDistributedStore();
@@ -63,24 +72,25 @@ export function useVcpDistributedNode() {
    * 发现并生成工具清单
    */
   function discoverTools(): VcpToolManifest[] {
-    const discovery = createToolDiscoveryService();
     const exposedIds = distStore.config.exposedToolIds || [];
     const disabledIds = new Set(distStore.config.disabledToolIds || []);
     const autoRegister = distStore.config.autoRegisterTools;
 
-    // 使用 Discovery Service 统一过滤逻辑
-    // 自动发现所有标记为 agentCallable 的方法，无需工具显式感知 VCP
-    const discovered = discovery.getDiscoveredMethods((method: MethodMetadata) => {
-      return method.agentCallable === true || method.distributedExposed === true;
-    });
+    // 使用统一的工具获取方法
+    const allExposable = getExposableTools();
 
     // 按 toolId 分组收集方法
     const toolMethodsMap = new Map<string, any[]>();
 
     // 1. 处理自动发现的
     if (autoRegister) {
-      for (const tool of discovered) {
-        for (const method of tool.methods) {
+      for (const tool of allExposable) {
+        // 过滤出标记为可暴露的方法
+        const methods = tool.methods.filter(
+          (method: MethodMetadata) => method.agentCallable === true || method.distributedExposed === true,
+        );
+
+        for (const method of methods) {
           const fullId = `${tool.toolId}:${method.name}`;
           // 排除掉在黑名单中的工具
           if (!disabledIds.has(fullId)) {

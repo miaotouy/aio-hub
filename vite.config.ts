@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { configDefaults } from "vitest/config";
+import { configDefaults, defineConfig as defineVitestConfig, mergeConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import Icons from "unplugin-icons/vite";
 import { FileSystemIconLoader } from "unplugin-icons/loaders";
@@ -16,35 +16,11 @@ const PORT = parseInt(process.env.VITE_PORT || "1420");
 const HMR_PORT = parseInt(process.env.VITE_HMR_PORT || (PORT + 1).toString());
 
 // https://vite.dev/config/
-export default defineConfig({
-  // Vitest 测试配置
-  test: {
-    globals: true,
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      exclude: [
-        ...configDefaults.coverage.exclude || [],
-        "src/test/**",
-        "**/*.d.ts",
-        "**/*.config.*",
-        "**/mockData/**",
-        "src-tauri/**",
-      ],
-    },
-    // 排除 Tauri 后端和构建产物
-    exclude: [
-      ...configDefaults.exclude,
-      "src-tauri/**",
-      "dist/**",
-      "mobile/**",
-    ],
-  },
-
+const viteConfig = defineConfig({
   // 路径别名配置
   resolve: {
+    // Vite 8 内置支持 tsconfig 路径别名
+    tsconfigPaths: true,
     alias: {
       "fs": "node:fs",
       "path": "node:path",
@@ -168,18 +144,9 @@ export default defineConfig({
     // 禁用 source map 以减少内存消耗
     sourcemap: false,
     
-    // 减少 minify 选项以降低内存使用
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: false,
-        drop_debugger: true,
-        passes: 1, // 减少压缩次数
-      },
-      format: {
-        comments: false, // 移除注释
-      },
-    },
+    // Vite 8 默认使用 Lightning CSS 和 Rolldown，性能更好
+    // 如果需要保留 terser 的某些特定行为，可以重新开启
+    // minify: 'terser',
     
     commonjsOptions: {
       include: [/node_modules/],
@@ -187,29 +154,32 @@ export default defineConfig({
     },
     
     // 优化代码分割,减少内存消耗
-    rollupOptions: {
+    // Vite 8 推荐使用 rolldownOptions，它提供了更好的性能
+    rolldownOptions: {
       // 外部化 macOS 专用依赖和插件构建脚本
       external: [
         'fsevents',
         /^.*\/plugins\/.*\/(build\.js|vite\.config\.js|package\.json|Cargo\.toml|.*\.rs)$/,
       ],
       output: {
-        manualChunks: {
-          // 将大型依赖单独打包
-          'vendor-vue': ['vue', 'vue-router', 'pinia'],
-          'vendor-element': ['element-plus'],
-          'vendor-editor': ['codemirror', '@guolao/vue-monaco-editor'],
-          'vendor-prettier': ['prettier', '@prettier/plugin-php', '@prettier/plugin-xml'],
-          'vendor-tokenizers': [
-            '@lenml/tokenizers',
-            '@lenml/tokenizer-claude',
-            '@lenml/tokenizer-deepseek_v3',
-            '@lenml/tokenizer-gemini',
-            '@lenml/tokenizer-gpt4',
-            '@lenml/tokenizer-gpt4o',
-            '@lenml/tokenizer-llama3_2',
-            '@lenml/tokenizer-qwen3',
-          ],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('vue') || id.includes('vue-router') || id.includes('pinia')) {
+              return 'vendor-vue';
+            }
+            if (id.includes('element-plus')) {
+              return 'vendor-element';
+            }
+            if (id.includes('codemirror') || id.includes('@guolao/vue-monaco-editor')) {
+              return 'vendor-editor';
+            }
+            if (id.includes('prettier')) {
+              return 'vendor-prettier';
+            }
+            if (id.includes('@lenml/tokenizers') || id.includes('@lenml/tokenizer-')) {
+              return 'vendor-tokenizers';
+            }
+          }
         },
       },
     },
@@ -239,3 +209,33 @@ export default defineConfig({
     },
   },
 });
+
+export default mergeConfig(
+  viteConfig,
+  defineVitestConfig({
+    test: {
+      globals: true,
+      environment: "jsdom",
+      setupFiles: ["./src/test/setup.ts"],
+      coverage: {
+        provider: "v8",
+        reporter: ["text", "json", "html"],
+        exclude: [
+          ...(configDefaults.coverage?.exclude || []),
+          "src/test/**",
+          "**/*.d.ts",
+          "**/*.config.*",
+          "**/mockData/**",
+          "src-tauri/**",
+        ],
+      },
+      // 排除 Tauri 后端和构建产物
+      exclude: [
+        ...configDefaults.exclude,
+        "src-tauri/**",
+        "dist/**",
+        "mobile/**",
+      ],
+    },
+  })
+);

@@ -10,6 +10,8 @@ import { Converter } from "./stages/converter";
 import { Postprocessor } from "./stages/postprocessor";
 import type { FetchResult, QuickFetchOptions, FetchFormat, SiteRecipe } from "../types";
 import { createModuleLogger } from "@/utils/logger";
+import { inferMimeTypeFromHint, isTextMimeType } from "@/utils/fileTypeDetector";
+import { mapMimeToLanguage } from "@/utils/mimeToLanguage";
 
 const logger = createModuleLogger("web-distillery/transformer");
 
@@ -36,6 +38,13 @@ export class Transformer {
     if (trimmedHtml.startsWith("<?xml") || trimmedHtml.startsWith("<rss") || trimmedHtml.startsWith("<feed")) {
       logger.info("Detected RSS/Atom feed, using native XML parser");
       return await this.processRss(trimmedHtml, url, format);
+    }
+
+    // 检测是否为已知的文件类型链接 (如 .md, .txt, .json, .js 等)
+    const mimeType = inferMimeTypeFromHint(url);
+    if (mimeType && isTextMimeType(mimeType) && mimeType !== "text/html") {
+      logger.info("Detected file URL, skipping HTML extraction pipeline", { url, mimeType });
+      return await this.processFile(html, url, mimeType, format);
     }
 
     // 预处理 (Preprocessor)
@@ -179,6 +188,47 @@ export class Transformer {
     const doc = new DOMParser().parseFromString(htmlString, "text/html");
     // 复用 Converter 的 HTML 到 Markdown 的转换逻辑
     return this.converter.process(doc.body, "markdown");
+  }
+
+  /**
+   * 处理文件内容
+   */
+  private async processFile(content: string, url: string, mimeType: string, format: FetchFormat): Promise<FetchResult> {
+    let fileName = "unnamed_file";
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      fileName = pathname.substring(pathname.lastIndexOf("/") + 1) || "unnamed_file";
+    } catch {
+      // 忽略 URL 解析错误
+    }
+
+    let processedContent = content;
+    const title = fileName;
+
+    const lang = mapMimeToLanguage(mimeType);
+
+    // 根据语言类型进行包装
+    if (lang === "md" || lang === "markdown") {
+      // Markdown 文件直接输出
+      processedContent = content;
+    } else if (lang !== "plaintext") {
+      // 已知的代码语言，包裹在代码块中
+      processedContent = `\`\`\`${lang}\n${content}\n\`\`\``;
+    } else {
+      // 纯文本或其他文本文件，如果输出是 HTML，则包裹在 <pre> 中
+      if (format === "html") {
+        processedContent = `<pre>${content}</pre>`;
+      } else {
+        processedContent = content;
+      }
+    }
+
+    // 交给后处理器进行组装
+    const result = await this.postprocessor.process(processedContent, title, url, format, {});
+    // 文件内容是原始的，质量设为最高
+    result.quality = 1.0;
+    return result;
   }
 }
 

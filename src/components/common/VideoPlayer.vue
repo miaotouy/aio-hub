@@ -1110,7 +1110,6 @@ onBeforeUnmount(() => {
 
 .volume-slider {
   appearance: none;
-  -webkit-appearance: none;
   width: 4px;
   height: 100px;
   background: linear-gradient(
@@ -1131,7 +1130,7 @@ onBeforeUnmount(() => {
 }
 
 .volume-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+  appearance: none;
   width: 12px;
   height: 12px;
   background: white;

@@ -368,7 +368,6 @@ const handleDownload = async () => {
   gap: 4px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
   padding: 4px;
   border-radius: 6px;
   z-index: 10;

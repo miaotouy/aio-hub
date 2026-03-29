@@ -721,7 +721,6 @@ defineExpose({
   border-top: var(--border-width) solid var(--border-color);
   background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
   z-index: 10;
 }
 

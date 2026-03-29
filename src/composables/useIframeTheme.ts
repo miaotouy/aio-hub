@@ -110,7 +110,6 @@ export function useIframeTheme(contentRef: () => string | undefined) {
         box-sizing: border-box;
         transition: background-color 0.3s, color 0.3s;
         /* 优化字体渲染 */
-        -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
 

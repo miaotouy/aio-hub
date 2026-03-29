@@ -259,8 +259,8 @@ const handleViewDetail = (e: Event) => {
   margin-bottom: 10px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
-  line-clamp: 3;
   -webkit-box-orient: vertical;
+  line-clamp: 3;
   overflow: hidden;
   word-break: break-word;
 }

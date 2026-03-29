@@ -651,7 +651,6 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   border-radius: 12px;
   outline: none;
   transition: all 0.2s ease;
-  -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
 }

@@ -106,7 +106,11 @@ export async function convertPdfToImages(
             canvas.width = viewport.width;
 
             // 渲染页面
-            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            await page.render({
+              canvasContext: context,
+              viewport: viewport,
+              canvas: canvas
+            }).promise;
 
             // 转换为 Base64 (image/png)
             const dataUrl = canvas.toDataURL("image/png");

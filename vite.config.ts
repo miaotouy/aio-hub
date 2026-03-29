@@ -24,6 +24,7 @@ const viteConfig = defineConfig({
     alias: {
       "fs": "node:fs",
       "path": "node:path",
+      "buffer": "buffer/",
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@types": fileURLToPath(new URL("./src/types", import.meta.url)),
       "@components": fileURLToPath(new URL("./src/components", import.meta.url)),
@@ -51,6 +52,11 @@ const viteConfig = defineConfig({
 
   // 将 .gz 文件标记为资源文件
   assetsInclude: ['**/*.gz'],
+
+  define: {
+    // 修复 Prettier 3.x 在 Rolldown 环境下内部依赖 regexp-tree 的 RegExpParser 报错
+    'process.env.PRETTIER_DEBUG': 'false',
+  },
 
   // 使用绝对路径作为 base，确保分离窗口（如 /detached-component/xxx）中的资源能正确加载
   // 如果使用相对路径 './'，当路由是 /detached-component/chat-area 时，
@@ -173,9 +179,9 @@ const viteConfig = defineConfig({
             if (id.includes('codemirror') || id.includes('@guolao/vue-monaco-editor')) {
               return 'vendor-editor';
             }
-            if (id.includes('prettier')) {
-              return 'vendor-prettier';
-            }
+            // if (id.includes('prettier')) {
+            //   return 'vendor-prettier';
+            // }
             if (id.includes('@lenml/tokenizers') || id.includes('@lenml/tokenizer-')) {
               return 'vendor-tokenizers';
             }

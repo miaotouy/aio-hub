@@ -60,47 +60,6 @@ html,
 body {
   background-color: rgba(var(--bg-color-rgb), var(--window-bg-opacity));
 }
-/* ========================================================================== */
-/* 可复用工具类
-/* ========================================================================== */
-
-/**
- * 通用毛玻璃效果
- * 将这个类应用到需要模糊背景的组件上
- */
-.glass-effect {
-  backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
-}
-/**
- * 卡片毛玻璃效果
- * 专为卡片类组件设计，使用由 JS 注入的 --card-bg 变量（已包含混合后的颜色和透明度）
- */
-.glass-card {
-  background-color: var(--card-bg) !important;
-  backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
-}
-
-/**
- * 侧边栏毛玻璃效果
- * 专为侧边栏设计，使用由 JS 注入的 --sidebar-bg 变量（已包含混合后的颜色和透明度）
- */
-.glass-sidebar {
-  background-color: var(--sidebar-bg) !important;
-  backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
-}
-
-/**
- * 弹窗/覆盖层毛玻璃效果
- * 专为 Dialog, Popover, Dropdown 等设计，使用由 JS 注入的 --container-bg 变量（已包含混合后的颜色和透明度）
- */
-.glass-overlay {
-  background-color: var(--container-bg) !important;
-  backdrop-filter: blur(var(--ui-blur));
-  -webkit-backdrop-filter: blur(var(--ui-blur));
-}
 
 /* ========================================================================== */
 /* 编辑器主题覆盖
@@ -112,23 +71,23 @@ body {
 */
 
 /* 核心：覆盖编辑器默认的、不透明的背景色 */
-:deep(.monaco-editor .monaco-editor-background),
-:deep(.monaco-editor .lines-content) {
+.monaco-editor .monaco-editor-background,
+.monaco-editor .lines-content {
   background-color: var(--vscode-editor-background) !important;
 }
 
 /* 覆盖行号区域 (gutter) 的背景色 */
-:deep(.monaco-editor .margin),
-:deep(.monaco-editor .gutter-container) {
+.monaco-editor .margin,
+.monaco-editor .gutter-container {
   background-color: var(--vscode-editorGutter-background) !important;
 }
 
 /* 针对 Diff Editor 的特殊覆盖 */
-:deep(.monaco-diff-editor .monaco-editor .lines-content) {
+.monaco-diff-editor .monaco-editor .lines-content {
   background-color: var(--vscode-editor-background) !important;
 }
 
-:deep(.text-diff-container) {
+.text-diff-container {
   /* 
     直接覆盖 Monaco 的核心背景变量。
     使用 !important 是为了确保我们的定义能战胜 Monaco 内部的所有定义。

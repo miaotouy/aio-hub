@@ -339,7 +339,9 @@ pub fn run() {
     let log_dir = get_app_data_dir(context.config()).join("logs");
 
     let log_filename = format!("backend-{}", date_filename);
-    tauri::Builder::<tauri::Wry>::default()
+    let mut builder = tauri::Builder::<tauri::Wry>::default();
+
+    builder = builder
         .plugin(
             tauri_plugin_log::Builder::new()
                 .clear_targets() // 清除默认目标
@@ -363,12 +365,14 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_os::init())
-        .plugin(match () {
-            #[cfg(not(debug_assertions))]
-            _ if std::env::var("AIO_PORTABLE_MODE").is_ok() => tauri_plugin_opener::init(),
-            #[cfg(not(debug_assertions))]
-            _ => tauri_plugin_single_instance::init(|app, args, cwd| {
+        .plugin(tauri_plugin_os::init());
+
+    #[cfg(not(debug_assertions))]
+    let mut builder = builder;
+    #[cfg(not(debug_assertions))]
+    {
+        if std::env::var("AIO_PORTABLE_MODE").is_err() {
+            builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
                 log::info!("[SingleInstance] 收到新实例请求, args: {:?}", args);
 
                 #[derive(Clone, serde::Serialize)]
@@ -383,10 +387,11 @@ pub fn run() {
                     let _ = w.unminimize();
                     let _ = w.set_focus();
                 });
-            }),
-            #[cfg(debug_assertions)]
-            _ => tauri_plugin_opener::init(),
-        })
+            }));
+        }
+    }
+
+    builder
         // 管理状态
         .manage(ClipboardMonitorState::new())
         .manage(commands::native_plugin::NativePluginState::default())

@@ -140,8 +140,6 @@ body {
   transition:
     background-color 0.1s,
     color 0.1s;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* 分离组件窗口需要完全透明的背景 */
@@ -1028,7 +1026,6 @@ pre code {
 
 /* --- 范围滑块 (Range Input) --- */
 input[type="range"] {
-  -webkit-appearance: none;
   appearance: none;
   width: 100%;
   height: 6px;
@@ -1040,11 +1037,9 @@ input[type="range"] {
   border: none;
   /* 清除继承的背景效果 */
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
   appearance: none;
   width: 18px;
   height: 18px;

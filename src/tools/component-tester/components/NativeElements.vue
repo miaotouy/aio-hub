@@ -592,7 +592,6 @@ textarea:disabled {
 
 input[type="checkbox"],
 input[type="radio"] {
-  -webkit-appearance: none;
   appearance: none;
   background-color: var(--input-bg);
   backdrop-filter: blur(var(--ui-blur));
@@ -789,7 +788,6 @@ summary {
 
 progress,
 meter {
-  -webkit-appearance: none;
   appearance: none;
   width: 100%;
   height: 10px;

@@ -235,7 +235,7 @@ watch(
         toolsStore.openTool(newPath);
       }
     }
-  }
+  },
 );
 
 // 清理事件监听器
@@ -344,17 +344,6 @@ onUnmounted(() => {
   margin-top: 0; /* 移除顶部边距 */
 }
 
-.main-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: var(--header-bg);
-  border-bottom: var(--border-width) solid var(--border-color);
-  padding: 0 20px;
-  height: 60px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-
 .header-title {
   font-size: 20px;
   color: var(--text-color);
@@ -362,7 +351,7 @@ onUnmounted(() => {
 
 .main-content {
   background-color: var(--bg-color);
-  padding: 0;
+  /* padding: 0;  */
   overflow-y: auto;
   flex-grow: 1;
   height: 100%;

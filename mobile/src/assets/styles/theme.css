@@ -62,7 +62,6 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: var(--app-font-size);
   line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
 }
 
 /* IDE 风格卡片适配 */

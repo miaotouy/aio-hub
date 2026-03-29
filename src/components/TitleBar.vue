@@ -342,7 +342,7 @@ const handleDropdownSelect = () => {
       class="title-bar"
       :class="{
         macos: isMacOS,
-        'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
+        'has-glass-effect': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
       }"
       data-tauri-drag-region
     >
@@ -533,6 +533,10 @@ const handleDropdownSelect = () => {
   -webkit-app-region: drag;
 }
 
+.title-bar.has-glass-effect {
+  backdrop-filter: blur(var(--ui-blur));
+}
+
 .title-bar-content {
   width: 100%;
   display: flex;
@@ -652,19 +656,7 @@ const handleDropdownSelect = () => {
   color: white;
 }
 
-/* 暗色主题适配 */
-:root.dark .title-bar {
-  background: #1f1f1f;
-  border-bottom-color: #333;
-}
-
-:root.dark .control-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-:root.dark .close-btn:hover {
-  background-color: #e81123;
-}
+/* 移除硬编码的暗色主题适配，由全局变量和主题系统统一处理 */
 
 /* Windows风格的圆角（仅在非最大化时） */
 @media (prefers-color-scheme: light) {

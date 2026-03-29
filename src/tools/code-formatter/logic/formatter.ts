@@ -1,10 +1,10 @@
-import * as prettier from 'prettier/standalone';
-import * as parserBabel from 'prettier/plugins/babel';
-import * as parserHtml from 'prettier/plugins/html';
-import * as parserCss from 'prettier/plugins/postcss';
-import * as parserMarkdown from 'prettier/plugins/markdown';
-import * as parserTypeScript from 'prettier/plugins/typescript';
-import * as parserEstree from 'prettier/plugins/estree';
+import prettier from 'prettier/standalone';
+import parserBabel from 'prettier/plugins/babel';
+import parserHtml from 'prettier/plugins/html';
+import parserCss from 'prettier/plugins/postcss';
+import parserMarkdown from 'prettier/plugins/markdown';
+import parserTypeScript from 'prettier/plugins/typescript';
+import parserEstree from 'prettier/plugins/estree';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import type { FormatOptions, FormatResult, SupportedLanguage } from '../types';

@@ -151,8 +151,8 @@ const languages: LanguageDefinition[] = [
     aliases: ['rb', 'ruby'],
     monaco: 'ruby',
     codemirror: async () => {
-      const { ruby } = await import('runno-codemirror-lang-ruby');
-      return ruby();
+      const { ruby } = await import('@codemirror/legacy-modes/mode/ruby');
+      return new LanguageSupport(StreamLanguage.define(ruby));
     },
   },
   {

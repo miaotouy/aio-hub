@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed, shallowRef, watch, onUnmounted } from "vue";
+import { ref, computed, shallowRef, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
 import {
@@ -784,10 +784,6 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       }, 500);
     }
   }
-
-  onUnmounted(() => {
-    unlistenFns.forEach((fn) => fn());
-  });
 
   // 初始化逻辑
   async function init() {

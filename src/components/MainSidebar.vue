@@ -81,7 +81,7 @@ onUnmounted(() => {
       'main-sidebar',
       {
         'is-collapsed': isCollapsed,
-        'glass-sidebar': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
+        'has-glass-effect': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
       },
     ]"
   >
@@ -134,6 +134,10 @@ onUnmounted(() => {
   flex-direction: column;
   transition: width 0.3s ease;
   overflow-x: hidden;
+}
+
+.main-sidebar.has-glass-effect {
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .sidebar-top {

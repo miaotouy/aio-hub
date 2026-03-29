@@ -5,9 +5,11 @@
 
     <!-- 头部区域：包含窗口拖拽手柄和控制栏 -->
     <div class="monitor-page-header" :style="headerStyle">
+      <!-- 仅在分离模式下显示独立的头部 -->
       <ComponentHeader
-        :title="isActuallyDetached ? 'VCP 消息监控' : '消息监控'"
-        :drag-mode="isActuallyDetached ? 'window' : 'detach'"
+        v-if="isActuallyDetached"
+        title="VCP 消息监控"
+        drag-mode="window"
         show-actions
         :collapsible="false"
         class="detachable-handle"
@@ -53,6 +55,18 @@
             <el-button size="small" :icon="Trash2" @click="clearMessages"> 清空 </el-button>
             <el-button size="small" :icon="Download" @click="exportMessages"> 导出 </el-button>
           </el-button-group>
+
+          <!-- 在非分离模式下，将 ComponentHeader 作为工具栏的一部分 -->
+          <ComponentHeader
+            v-if="!isActuallyDetached"
+            title=""
+            drag-mode="detach"
+            :show-actions="true"
+            :collapsible="false"
+            class="inline-detachable-handle"
+            @mousedown="handleStartDetaching"
+            @detach="handleDetach"
+          />
         </div>
       </div>
     </div>
@@ -363,6 +377,28 @@ async function handleReattach() {
 .message-monitor-page.detached-mode .monitor-controls,
 .message-monitor-page.detached-mode .detachable-handle {
   -webkit-app-region: no-drag;
+}
+
+/* 分离手柄样式适配 (分离模式下) */
+.detachable-handle {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: move;
+  border-radius: 16px 16px 0 0;
+}
+
+/* 内联手柄样式 (非分离模式) */
+.inline-detachable-handle {
+  margin-left: 8px;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.inline-detachable-handle :deep(.drag-handle) {
+  padding: 2px;
 }
 
 .monitor-controls {

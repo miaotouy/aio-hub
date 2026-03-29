@@ -197,13 +197,7 @@ const handleDragInteraction = (event: MouseEvent) => {
 
       <!-- Menu Button -->
       <div class="menu-container">
-        <el-tooltip
-          content="菜单"
-          :placement="tooltipPlacement"
-          :show-arrow="false"
-          :offset="10"
-          :enterable="false"
-        >
+        <el-tooltip content="菜单" :placement="tooltipPlacement" :show-arrow="false" :offset="10" :enterable="false">
           <button @click="toggleMenu" class="action-btn" :class="{ active: showMenu }">
             <i-ep-menu />
           </button>
@@ -232,11 +226,7 @@ const handleDragInteraction = (event: MouseEvent) => {
                 :offset="10"
                 :enterable="false"
               >
-                <button
-                  @click="togglePin"
-                  class="action-btn menu-action-btn"
-                  :class="{ pinned: isPinned }"
-                >
+                <button @click="togglePin" class="action-btn menu-action-btn" :class="{ pinned: isPinned }">
                   <Pin :size="16" :fill="isPinned ? 'currentColor' : 'none'" />
                 </button>
               </el-tooltip>
@@ -266,8 +256,8 @@ const handleDragInteraction = (event: MouseEvent) => {
 <style scoped>
 .component-header {
   display: flex;
-  background: var(--sidebar-bg);
-  backdrop-filter: blur(8px);
+  /* 移除固定背景和毛玻璃，交给父容器控制 */
+  background: transparent;
   color: var(--text-color);
   user-select: none;
   transition: background 0.2s ease;
@@ -284,14 +274,13 @@ const handleDragInteraction = (event: MouseEvent) => {
   padding: 2px 8px;
   gap: 4px;
 }
-.position-top {
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 8px 8px 0 0;
-}
-.position-bottom {
-  border-top: 1px solid var(--border-color);
-  border-radius: 0 0 8px 8px;
-}
+
+/* .position-top { */
+/* 移除默认边框和圆角，由使用方决定是否需要 */
+/* } */
+/* .position-bottom { */
+/* 移除默认边框和圆角 */
+/* } */
 
 .position-left,
 .position-right {
@@ -300,14 +289,13 @@ const handleDragInteraction = (event: MouseEvent) => {
   align-items: center;
   padding: 8px 4px;
 }
-.position-left {
-  border-right: 1px solid var(--border-color);
-  border-radius: 8px 0 0 8px;
-}
-.position-right {
-  border-left: 1px solid var(--border-color);
-  border-radius: 0 8px 8px 0;
-}
+
+/* .position-left { */
+/* 移除默认边框和圆角 */
+/* } */
+/* .position-right { */
+/* 移除默认边框和圆角 */
+/* } */
 
 /* --- Drag Area --- */
 .drag-area {

@@ -45,7 +45,7 @@ interface Emits {
       attachments?: Asset[];
       temporaryModel?: any; // 保持与 LlmChat.vue 一致
       disableMacroParsing?: boolean;
-    }
+    },
   ): void;
   (e: "abort"): void;
   (e: "delete-message", messageId: string): void;
@@ -354,7 +354,7 @@ onLongPress(
 
     isAgentSwitchVisible.value = true;
   },
-  { delay: 500 }
+  { delay: 500 },
 );
 
 // 每次按下时重置拦截标记
@@ -576,7 +576,7 @@ watch(
       }
     }
     previousMessageCount.value = newCount;
-  }
+  },
 );
 
 // 导航器事件处理
@@ -673,7 +673,7 @@ onMounted(async () => {
         firstMessageContent: props.messages && props.messages.length > 0 ? props.messages[0].content : "N/A",
       });
     },
-    { immediate: true }
+    { immediate: true },
   );
 });
 </script>
@@ -1167,10 +1167,11 @@ onMounted(async () => {
 .detachable-handle {
   flex-shrink: 0;
   padding: 0;
-  border: 1px solid var(--border-color);
+  /* 移除原本 ComponentHeader 的圆角和边框，由父容器 .chat-header 统一处理 */
+  border: none;
   background: transparent;
   cursor: move;
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 /* 分离模式下手柄光标样式已统一为 move，无需重复定义 */

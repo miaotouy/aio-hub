@@ -565,8 +565,9 @@ const handleDragStart = (e: MouseEvent) => {
   flex-shrink: 0;
   width: 26px;
   padding: 0;
+  /* MessageInput 的手柄是侧边的，补上边框和背景以保持可见性 */
   border: 1px solid var(--border-color);
-  background: transparent;
+  background: rgba(var(--primary-color-rgb), 0.05);
   cursor: move;
   border-radius: 8px;
   align-self: flex-start;

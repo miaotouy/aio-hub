@@ -22,14 +22,13 @@ type ServiceModule = {
  * 此函数会扫描 src/tools 目录下所有以 .registry.ts 结尾的文件，
  * 动态导入它们，实例化默认导出的注册类，并注册到工具注册表中。
  *
- * 约定：
- * - 工具注册表文件必须以 .registry.ts 结尾
- * - 文件必须默认导出一个实现了 ToolRegistry 接口的类
+ * 优化：支持分阶段加载。在分离窗口模式下，可优先加载指定工具。
  *
- * @returns Promise，在所有工具注册完成后 resolve
+ * @param priorityToolId - 可选的优先级工具 ID。如果提供，将首先加载该工具。
+ * @returns Promise，返回一个函数 `loadRemaining`，调用该函数可继续异步加载剩余工具和插件。
  */
-export async function autoRegisterServices(): Promise<void> {
-  logger.info("开始自动扫描和注册服务");
+export async function autoRegisterServices(priorityToolId?: string): Promise<() => Promise<void>> {
+  logger.info("开始自动扫描和注册服务", { priorityToolId });
 
   try {
     // 使用 Vite 的 import.meta.glob 匹配 src/tools/ 目录下所有以 .registry.ts 结尾的文件
@@ -38,96 +37,118 @@ export async function autoRegisterServices(): Promise<void> {
     const modulePaths = Object.keys(serviceModules);
     logger.info(`发现 ${modulePaths.length} 个服务模块文件`, { paths: modulePaths });
 
-    if (modulePaths.length === 0) {
-      logger.debug("未发现任何工具注册表模块，请确保文件以 .registry.ts 结尾");
-      return;
-    }
-
-    const registerItems: ToolRegistryItem[] = [];
-    const failedModules: Array<{ path: string; error: any }> = [];
     const toolsStore = useToolsStore();
+    const remainingPaths: string[] = [...modulePaths];
+    const failedModules: Array<{ path: string; error: any }> = [];
 
-    // 动态导入并实例化所有工具
-    for (const path in serviceModules) {
-      try {
-        // logger.debug(`正在加载工具模块: ${path}`);
-        const module = await serviceModules[path]();
+    /**
+     * 加载并注册单个工具模块
+     */
+    async function loadAndRegisterModule(path: string) {
+      const module = await serviceModules[path]();
+      const registerItems: ToolRegistryItem[] = [];
 
-        // 1. 处理 UI 工具配置 (ToolConfig)
-        if (module.toolConfig) {
-          toolsStore.addTool(module.toolConfig);
-          // logger.debug(`已从模块注册 UI 工具: ${module.toolConfig.name}`);
-        }
+      // 1. 处理 UI 工具配置 (ToolConfig)
+      if (module.toolConfig) {
+        toolsStore.addTool(module.toolConfig);
+      }
 
-        // 2. 处理服务注册 (ToolRegistryItem)
-        const exported = module.default;
-
-        if (exported) {
-          if (Array.isArray(exported)) {
-            // 方式二：数组导出（静态多实例或工厂）
-            // 数组中可能包含对象实例，也可能包含需要实例化的类，或者工厂
-            for (const item of exported) {
-              if (typeof item === "function") {
-                registerItems.push(new (item as any)());
-              } else {
-                // 可能是 ToolRegistry 实例，也可能是 ToolRegistryFactory 实例
-                // toolRegistryManager.register 会自动处理这两者
-                registerItems.push(item);
-              }
+      // 2. 处理服务注册 (ToolRegistryItem)
+      const exported = module.default;
+      if (exported) {
+        if (Array.isArray(exported)) {
+          for (const item of exported) {
+            if (typeof item === "function") {
+              registerItems.push(new (item as any)());
+            } else {
+              registerItems.push(item);
             }
-          } else if (typeof exported === "function") {
-            // 方式一/三：类构造函数（单例工具类或工厂类）
-            const instance = new (exported as any)();
-            registerItems.push(instance);
-          } else if (typeof exported === "object") {
-            // 方式四：直接导出的对象实例（可能是单例或工厂实例）
-            registerItems.push(exported);
           }
+        } else if (typeof exported === "function") {
+          const instance = new (exported as any)();
+          registerItems.push(instance);
+        } else if (typeof exported === "object") {
+          registerItems.push(exported);
         }
-      } catch (error) {
-        errorHandler.error(error, "加载工具模块失败", { context: { path } });
-        failedModules.push({ path, error });
+      }
+
+      // 立即注册该模块的工具项
+      if (registerItems.length > 0) {
+        await toolRegistryManager.register(...registerItems);
       }
     }
 
-    // 批量注册所有成功加载的工具项
-    if (registerItems.length > 0) {
-      await toolRegistryManager.register(...registerItems);
+    // 如果有优先级工具，先加载它
+    if (priorityToolId) {
+      const priorityPath = modulePaths.find(
+        (p) => p.includes(`/${priorityToolId}/`) || p.endsWith(`${priorityToolId}.registry.ts`),
+      );
+
+      if (priorityPath) {
+        logger.info(`正在优先加载工具: ${priorityToolId}`, { path: priorityPath });
+        try {
+          await loadAndRegisterModule(priorityPath);
+          // 从剩余路径中移除已加载的优先级路径
+          const index = remainingPaths.indexOf(priorityPath);
+          if (index !== -1) remainingPaths.splice(index, 1);
+        } catch (error) {
+          errorHandler.error(error, "优先加载工具模块失败", { context: { path: priorityPath } });
+          failedModules.push({ path: priorityPath, error });
+        }
+      }
     }
 
-    // 输出工具注册摘要（合并成功和失败）
-    const totalTools = toolRegistryManager.getAllToolIds().length;
-    logger.info("工具自动注册完成", {
-      总计文件: modulePaths.length,
-      注册项: registerItems.length,
-      总计工具: totalTools,
-      失败: failedModules.length,
-      ...(failedModules.length > 0 && {
-        失败列表: failedModules.map((m) => ({
-          路径: m.path,
-          错误: m.error?.message || String(m.error),
-        })),
-      }),
-    });
+    /**
+     * 继续加载剩余工具和插件的函数
+     */
+    const loadRemaining = async () => {
+      logger.info("开始加载剩余工具和插件...");
+      const startTime = Date.now();
 
-    // 加载插件
-    logger.info("开始加载插件");
-    try {
-      await pluginManager.initialize();
-      await pluginManager.loadAllPlugins();
+      // 1. 加载剩余工具
+      for (const path of remainingPaths) {
+        try {
+          await loadAndRegisterModule(path);
+        } catch (error) {
+          errorHandler.error(error, "加载工具模块失败", { context: { path } });
+          failedModules.push({ path, error });
+        }
+      }
 
-      const loadedPlugins = pluginManager.getInstalledPlugins();
-      logger.info(`已加载 ${loadedPlugins.length} 个插件`);
-    } catch (error) {
-      errorHandler.error(error, "插件加载过程中发生错误");
-      // 插件加载失败不应阻止应用启动
+      // 2. 加载插件
+      try {
+        await pluginManager.initialize();
+        await pluginManager.loadAllPlugins();
+        const loadedPlugins = pluginManager.getInstalledPlugins();
+        logger.info(`已加载 ${loadedPlugins.length} 个插件`);
+      } catch (error) {
+        errorHandler.error(error, "插件加载过程中发生错误");
+      }
+
+      // 3. 完成初始化
+      toolsStore.initializeOrder();
+      toolsStore.setReady();
+
+      const totalTools = toolRegistryManager.getAllToolIds().length;
+      logger.info("所有服务和插件加载完成", {
+        耗时: `${Date.now() - startTime}ms`,
+        总计工具: totalTools,
+        失败: failedModules.length,
+      });
+    };
+
+    // 如果没有优先级工具，或者只有优先级工具（这不太可能），则立即完成第一阶段
+    if (!priorityToolId || remainingPaths.length === 0) {
+      // 在这种情况下，我们可能希望在返回前完成所有加载，
+      // 或者返回一个立即执行剩余加载的函数。
+      // 为了保持一致性，如果不是分离窗口（没有 priorityToolId），我们在这里完成所有加载。
+      if (!priorityToolId) {
+        await loadRemaining();
+        return async () => {}; // 返回空函数
+      }
     }
 
-    // 所有工具和服务加载完成后，标记 tools store 为就绪状态
-    // 这对于分离窗口正确加载插件至关重要
-    toolsStore.initializeOrder(); // 初始化工具顺序
-    toolsStore.setReady();
-    logger.info("Tools store 已标记为就绪状态");
+    return loadRemaining;
   } catch (error) {
     errorHandler.error(error, "自动注册服务过程中发生严重错误");
     throw error;

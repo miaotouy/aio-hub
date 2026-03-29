@@ -35,6 +35,17 @@ class StartupManager {
    */
   async run(): Promise<void> {
     if (this.isRunning) return;
+
+    // 额外检查：如果是分离窗口，默认不执行启动项（除非未来有特殊需求）
+    const isDetached =
+      window.location.pathname.startsWith("/detached-window/") ||
+      window.location.pathname.startsWith("/detached-component/");
+
+    if (isDetached) {
+      logger.info("分离窗口环境下跳过启动项执行");
+      return;
+    }
+
     this.isRunning = true;
 
     logger.info("开始执行启动项任务");

@@ -216,14 +216,31 @@ const initializeApp = async () => {
     // 3.5 预注册 Monaco Shiki 主题（异步，不阻塞启动）
     initMonacoShikiThemes().catch(() => {});
 
-    // 4. 自动注册所有工具服务
-    await autoRegisterServices();
-    logger.info("工具服务注册完成");
+    // 4. 自动注册工具服务（区分优先级加载）
+    let priorityToolId: string | undefined;
 
-    // 4.5 执行启动项任务
-    startupManager.run().catch((err) => {
-      moduleErrorHandler.error(err, "执行启动项任务失败");
-    });
+    // 如果是分离窗口，尝试从路径解析优先级工具 ID
+    // 路径格式如: /detached-component/llm-chat:chat-area
+    if (isDetachedComponentLoader() || isDetachedWindow()) {
+      const parts = window.location.pathname.split("/");
+      const lastPart = parts[parts.length - 1]; // llm-chat:chat-area
+      if (lastPart && lastPart.includes(":")) {
+        priorityToolId = lastPart.split(":")[0];
+      } else if (lastPart) {
+        priorityToolId = lastPart;
+      }
+    }
+
+    // 第一阶段：注册优先级工具（如果是分离窗口）或全量注册（如果是主窗口）
+    const resumeLoading = await autoRegisterServices(priorityToolId);
+    logger.info("工具服务第一阶段注册完成", { priorityToolId });
+
+    // 4.5 执行启动项任务 (仅在非分离窗口运行)
+    if (!isDetachedComponentLoader() && !isDetachedWindow()) {
+      startupManager.run().catch((err) => {
+        moduleErrorHandler.error(err, "执行启动项任务失败");
+      });
+    }
 
     // 5. 初始化动态路由（必须在 Pinia 注册后，且在服务注册后）
     initDynamicRoutes();
@@ -236,6 +253,16 @@ const initializeApp = async () => {
     // 7. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
+
+    // 8. 第二阶段：在应用挂载后，异步加载剩余的工具和插件
+    if (priorityToolId) {
+      // 延迟加载，不阻塞首屏交互
+      setTimeout(() => {
+        resumeLoading().catch((err) => {
+          logger.error("异步加载剩余服务失败", err);
+        });
+      }, 1000);
+    }
   } catch (error) {
     // 可以在这里显示一个全局的错误提示
     errorHandler.handle(error, {

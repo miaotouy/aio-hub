@@ -1,52 +1,63 @@
 <template>
-  <div class="message-monitor-page" :class="{ 'is-detached': store.isDetachedMonitor }">
-    <ComponentHeader
-      v-if="!store.isDetachedMonitor"
-      title="消息监控"
-      drag-mode="detach"
-      @mousedown="handleStartDetaching"
-      @detach="handleDetach"
-    />
-    <div class="monitor-header">
-      <div class="header-left">
-        <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
-          {{ connectionStatusText }}
-        </el-tag>
-        <span class="message-count"> {{ filteredMessages.length }} 条消息 </span>
-        <span class="msg-rate"> {{ stats.messagesPerMinute }} msg/min </span>
-      </div>
+  <div class="message-monitor-page" :class="{ 'detached-mode': isActuallyDetached }">
+    <!-- 分离模式下的壁纸层 -->
+    <div v-if="isActuallyDetached" class="detached-wallpaper"></div>
 
-      <div class="header-center">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索消息内容..."
-          size="small"
-          clearable
-          class="search-input"
-          @input="handleSearch"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-      </div>
+    <!-- 头部区域：包含窗口拖拽手柄和控制栏 -->
+    <div class="monitor-page-header" :style="headerStyle">
+      <ComponentHeader
+        :title="isActuallyDetached ? 'VCP 消息监控' : '消息监控'"
+        :drag-mode="isActuallyDetached ? 'window' : 'detach'"
+        show-actions
+        :collapsible="false"
+        class="detachable-handle"
+        @mousedown="handleStartDetaching"
+        @detach="handleDetach"
+        @reattach="handleReattach"
+      />
 
-      <div class="header-right">
-        <el-button-group>
-          <el-button
-            :type="filter.paused ? 'warning' : ''"
+      <div class="monitor-controls">
+        <div class="header-left">
+          <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
+            {{ connectionStatusText }}
+          </el-tag>
+          <span class="message-count"> {{ filteredMessages.length }} 条消息 </span>
+          <span class="msg-rate"> {{ stats.messagesPerMinute }} msg/min </span>
+        </div>
+
+        <div class="header-center">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索消息内容..."
             size="small"
-            @click="togglePause"
-            :icon="filter.paused ? Play : Pause"
+            clearable
+            class="search-input"
+            @input="handleSearch"
           >
-            {{ filter.paused ? "继续" : "暂停" }}
-          </el-button>
-          <el-button size="small" :icon="Trash2" @click="clearMessages"> 清空 </el-button>
-          <el-button size="small" :icon="Download" @click="exportMessages"> 导出 </el-button>
-        </el-button-group>
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
+
+        <div class="header-right">
+          <el-button-group>
+            <el-button
+              :type="filter.paused ? 'warning' : ''"
+              size="small"
+              @click="togglePause"
+              :icon="filter.paused ? Play : Pause"
+            >
+              {{ filter.paused ? "继续" : "暂停" }}
+            </el-button>
+            <el-button size="small" :icon="Trash2" @click="clearMessages"> 清空 </el-button>
+            <el-button size="small" :icon="Download" @click="exportMessages"> 导出 </el-button>
+          </el-button-group>
+        </div>
       </div>
     </div>
 
+    <!-- 消息列表区 -->
     <div ref="messagesContainer" class="message-container" @scroll="onScroll">
       <!-- 虚拟滚动容器 -->
       <div
@@ -81,6 +92,17 @@
 
       <el-empty v-else description="暂无消息" :image-size="120" />
     </div>
+
+    <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
+    <div
+      v-if="isActuallyDetached"
+      class="window-resize-indicator"
+      @mousedown="handleResizeStart"
+      title="拖拽调整窗口大小"
+    >
+      <div class="indicator-border"></div>
+      <div class="indicator-handle"></div>
+    </div>
   </div>
 </template>
 
@@ -91,19 +113,37 @@ import { useThrottleFn } from "@vueuse/core";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
 import { useDetachable } from "@/composables/useDetachable";
+import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useWindowResize } from "@/composables/useWindowResize";
 import { customMessage } from "@/utils/customMessage";
+import { getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
 import { Pause, Play, Trash2, Download, Search } from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import BroadcastCard from "./BroadcastCard.vue";
 import type { VcpMessage } from "../../types/protocol";
+
+interface Props {
+  isDetached?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  isDetached: false,
+});
 
 const emit = defineEmits<{
   "show-json": [message: VcpMessage];
 }>();
 
 const store = useVcpStore();
+
+// 统一的分离状态判断：优先使用 prop (由容器注入)，其次使用 store (由 URL 判断)
+const isActuallyDetached = computed(() => props.isDetached || store.isDetachedMonitor);
 const { connectionStatus } = useVcpWebSocket();
 const { startDetaching, detachByClick } = useDetachable();
+const { closeWindow } = useDetachedManager();
+const { createResizeHandler } = useWindowResize();
+
+const handleResizeStart = createResizeHandler("SouthEast");
 
 const filteredMessages = computed(() => [...store.filteredMessages].reverse());
 const filter = computed(() => store.filter);
@@ -115,13 +155,29 @@ function handleSearch() {
   store.setFilter({ keyword: searchKeyword.value });
 }
 
-// 同步 store 中的关键词变化（例如从其他地方重置了过滤条件）
+// 同步 store 中的关键词变化
 watch(
   () => store.filter.keyword,
   (kw) => {
     searchKeyword.value = kw;
   },
 );
+
+/**
+ * 头部样式计算 (参考 ChatArea)
+ */
+const headerStyle = computed(() => {
+  if (!isActuallyDetached.value) return {};
+
+  // 分离模式下应用渐变遮罩和背景
+  const backgroundColor = getBlendedBackgroundColor("--card-bg-rgb", 0.7);
+  return {
+    backgroundColor,
+    backdropFilter: "blur(12px)",
+    maskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
+    webkitMaskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
+  };
+});
 
 /**
  * 虚拟滚动相关
@@ -147,18 +203,17 @@ const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 // 总高度
 const totalSize = computed(() => virtualizer.value.getTotalSize());
 
-// 记录用户是否接近顶部（倒序排列，最新在顶）
+// 记录用户是否接近顶部
 const isNearTop = ref(true);
 
 // 滚动事件处理
 const onScroll = () => {
   if (!messagesContainer.value) return;
   const { scrollTop } = messagesContainer.value;
-  // 阈值设为 100px，在这个范围内认为用户想看最新消息
   isNearTop.value = scrollTop < 100;
 };
 
-// 自动滚动到顶部（倒序）
+// 自动滚动到顶部
 const scrollToTop = useThrottleFn(() => {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -167,11 +222,10 @@ const scrollToTop = useThrottleFn(() => {
   });
 }, 100);
 
-// 监听消息数量变化，新消息时自动滚动到顶部
+// 监听消息数量变化
 watch(
   () => filteredMessages.value.length,
   (newLength, oldLength) => {
-    // 如果有新消息且用户在顶部附近，则自动滚动
     if (newLength > oldLength && isNearTop.value) {
       scrollToTop();
     }
@@ -245,24 +299,73 @@ async function handleDetach() {
     height: 600,
   });
 }
+
+async function handleReattach() {
+  await closeWindow("vcp-monitor");
+}
 </script>
 
 <style scoped lang="css">
 .message-monitor-page {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-}
-
-.is-detached {
-  background: var(--card-bg);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
   overflow: hidden;
-  box-shadow: var(--el-box-shadow-light);
+  background-color: var(--card-bg);
 }
 
-.monitor-header {
+/* 分离模式下添加更强的阴影和圆角 */
+.message-monitor-page.detached-mode {
+  height: 100vh;
+  border-radius: 16px;
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.25),
+    0 4px 16px rgba(0, 0, 0, 0.15);
+  /* 分离模式下使用专用的底层背景 */
+  background-color: var(--detached-base-bg, var(--container-bg));
+  border: 1px solid var(--border-color);
+}
+
+/* 分离模式壁纸层 */
+.detached-wallpaper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  background-image: var(--wallpaper-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--wallpaper-opacity);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* 头部容器 */
+.monitor-page-header {
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* 分离模式下的特定头部样式 */
+.message-monitor-page.detached-mode .monitor-page-header {
+  cursor: move;
+  -webkit-app-region: drag;
+}
+
+/* 内部控件禁止拖拽 */
+.message-monitor-page.detached-mode .monitor-controls,
+.message-monitor-page.detached-mode .detachable-handle {
+  -webkit-app-region: no-drag;
+}
+
+.monitor-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -270,8 +373,13 @@ async function handleDetach() {
   border-bottom: 1px solid var(--border-color);
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  flex-shrink: 0;
-  z-index: 10;
+}
+
+/* 分离模式下控制栏背景透明，交给父级 header 处理背景 */
+.message-monitor-page.detached-mode .monitor-controls {
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: none;
 }
 
 .header-left {
@@ -300,11 +408,6 @@ async function handleDetach() {
   transition: all 0.2s;
 }
 
-.search-input :deep(.el-input__wrapper.is-focus) {
-  border-color: var(--el-color-primary);
-  background-color: var(--card-bg);
-}
-
 .message-count {
   font-size: 13px;
   color: var(--text-color-secondary);
@@ -329,9 +432,80 @@ async function handleDetach() {
   flex: 1;
   overflow-y: auto;
   padding: 12px;
+  position: relative;
+  z-index: 1;
+  background-color: transparent;
 }
 
 .message-item {
   padding-bottom: 12px;
+}
+
+/* 右下角调整大小手柄 - 仅在分离模式下显示 */
+.window-resize-indicator {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.indicator-border {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  bottom: 6px;
+  left: 6px;
+  border: 1px solid var(--primary-color);
+  border-radius: 10px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.indicator-handle {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  pointer-events: auto;
+  cursor: se-resize;
+  border-radius: 0 0 10px 0;
+  overflow: hidden;
+}
+
+.indicator-handle::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--primary-color);
+  border-radius: 0 0 10px 0;
+  border-top: none;
+  border-left: none;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+
+.indicator-handle:hover::before {
+  opacity: 0.8;
+  border-color: var(--primary-hover-color, var(--primary-color));
+}
+
+.indicator-handle:hover ~ .indicator-border {
+  opacity: 0.3;
+}
+
+.indicator-handle:active::before {
+  opacity: 1;
+}
+
+.indicator-handle:active ~ .indicator-border {
+  opacity: 0.5;
 }
 </style>

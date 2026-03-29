@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed, shallowRef } from "vue";
+import { ref, computed, shallowRef, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
 import {
@@ -19,6 +19,7 @@ import {
 import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
 import { vcpBridgeFactory } from "../services/VcpBridgeFactory";
 import { useVcpDistributedStore } from "./vcpDistributedStore";
+import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
 import { useNotification } from "@/composables/useNotification";
 import { customMessage } from "@/utils/customMessage";
@@ -57,6 +58,16 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
   // 标记监控面板是否在主窗口中已经分离（由主窗口维护）
   const isMonitorDetached = ref(false);
+
+  // 监听全局分离状态，同步 isMonitorDetached
+  const { detachedComponents } = useDetachedManager();
+  watch(
+    () => detachedComponents.value,
+    (list) => {
+      isMonitorDetached.value = list.includes("vcp-monitor");
+    },
+    { immediate: true },
+  );
 
   // 初始化完成的 Promise，供外部等待配置加载
   let _initResolve!: () => void;

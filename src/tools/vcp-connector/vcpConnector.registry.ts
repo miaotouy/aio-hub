@@ -15,7 +15,10 @@ export class VcpConnectorRegistry implements ToolRegistry {
     "vcp-monitor": {
       component: () => import("./components/monitor/MessageMonitorPage.vue"),
       logicHook: () => ({
-        props: ref({}),
+        // 显式注入 isDetached 状态，告知组件它正处于分离模式
+        props: ref({
+          isDetached: true,
+        }),
         listeners: {},
       }),
     },

@@ -24,9 +24,35 @@
 
       <div class="monitor-controls">
         <div class="header-left">
-          <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
-            {{ connectionStatusText }}
-          </el-tag>
+          <div class="connection-status-wrapper">
+            <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
+              {{ connectionStatusText }}
+            </el-tag>
+            <template v-if="isActuallyDetached">
+              <el-button
+                v-if="connectionStatus === 'disconnected' || connectionStatus === 'error'"
+                type="primary"
+                size="small"
+                circle
+                plain
+                :icon="Link"
+                title="连接 VCP"
+                class="connection-action-btn"
+                @click="store.connect()"
+              />
+              <el-button
+                v-if="connectionStatus === 'connected' || connectionStatus === 'connecting'"
+                type="danger"
+                size="small"
+                circle
+                plain
+                :icon="Link2Off"
+                title="断开连接"
+                class="connection-action-btn"
+                @click="store.disconnect()"
+              />
+            </template>
+          </div>
           <span class="message-count"> {{ filteredMessages.length }} 条消息 </span>
           <span class="msg-rate"> {{ stats.messagesPerMinute }} msg/min </span>
         </div>
@@ -135,7 +161,7 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { customMessage } from "@/utils/customMessage";
 import { getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
-import { Pause, Play, Trash2, Download, Search } from "lucide-vue-next";
+import { Pause, Play, Trash2, Download, Search, Link, Link2Off } from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
 import BroadcastCard from "./BroadcastCard.vue";
@@ -188,13 +214,11 @@ watch(
 const headerStyle = computed(() => {
   if (!isActuallyDetached.value) return {};
 
-  // 分离模式下应用渐变遮罩和背景
+  // 分离模式下应用背景
   const backgroundColor = getBlendedBackgroundColor("--card-bg-rgb", 0.7);
   return {
     backgroundColor,
     backdropFilter: "blur(12px)",
-    maskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
-    webkitMaskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
   };
 });
 
@@ -442,6 +466,25 @@ async function handleReattach() {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+.connection-status-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.connection-action-btn {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.connection-action-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
 }
 
 .header-center {

@@ -94,7 +94,8 @@ watch(
       // 这里我们可以选择断开 Observer
       // store.disconnectObserver(); // 如果有这个方法
     } else {
-      // 如果收回了，主窗口重新连接
+      // 如果收回了，主窗口重新加载消息并连接
+      store.reloadMessages();
       store.connect();
     }
   },

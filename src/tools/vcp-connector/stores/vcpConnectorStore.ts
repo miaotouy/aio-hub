@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed, shallowRef, watch } from "vue";
+import { ref, computed, shallowRef, watch, onUnmounted } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
 import {
@@ -20,6 +20,7 @@ import { VcpNodeProtocol } from "../services/vcpNodeProtocol";
 import { vcpBridgeFactory } from "../services/VcpBridgeFactory";
 import { useVcpDistributedStore } from "./vcpDistributedStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
 import { useNotification } from "@/composables/useNotification";
 import { customMessage } from "@/utils/customMessage";
@@ -53,8 +54,11 @@ const messagesManager = createConfigManager<{ list: VcpMessage[] }>({
 });
 
 export const useVcpStore = defineStore("vcp-connector", () => {
+  const bus = useWindowSyncBus();
+
   // 检查是否为分离的消息监控窗口
-  const isDetachedMonitor = window.location.search.includes("id=vcp-monitor");
+  const isDetachedMonitor =
+    window.location.search.includes("id=vcp-monitor") || window.location.search.includes('"id":"vcp-monitor"');
 
   // 标记监控面板是否在主窗口中已经分离（由主窗口维护）
   const isMonitorDetached = ref(false);
@@ -318,6 +322,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const { wsUrl, vcpKey, mode = "observer" } = config.value;
     if (!wsUrl || !vcpKey) {
       setConnectionStatus("disconnected");
+      if (isDetachedMonitor) {
+        customMessage.warning("WebSocket URL 或 VCP Key 为空，请先在主窗口配置");
+      }
       return;
     }
 
@@ -708,6 +715,80 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     return JSON.stringify(filteredMessages.value, null, 2);
   }
 
+  /**
+   * 重新从磁盘加载消息（用于窗口回归时同步数据）
+   */
+  async function reloadMessages() {
+    logger.info("Reloading messages from disk...");
+    const loadedMessages = await messagesManager.load();
+    messages.value = loadedMessages.list || [];
+    calculateInitialStats();
+  }
+
+  // --- 窗口同步逻辑 ---
+
+  function broadcastState() {
+    // 只有主窗口负责广播状态给分离窗口
+    if (bus.windowType === "main") {
+      bus.syncState(
+        "vcp-connector" as any,
+        {
+          status: connection.value.status,
+          config: config.value,
+        },
+        0,
+        true,
+      );
+    }
+  }
+
+  const unlistenFns: (() => void)[] = [];
+
+  async function setupSync() {
+    // 监听状态同步
+    const unlistenSync = bus.onMessage("state-sync", (payload: any) => {
+      if (payload.stateType === "vcp-connector") {
+        const { status: mainStatus, config: syncedConfig } = payload.data;
+
+        // 同步配置
+        if (syncedConfig) {
+          config.value = { ...config.value, ...syncedConfig };
+        }
+
+        // 如果是分离窗口，且收到主窗口已连接的消息，且自己还没连，则自动连接
+        if (isDetachedMonitor && mainStatus === "connected" && connection.value.status === "disconnected") {
+          logger.info("收到主窗口已连接信号，分离窗口自动建立观察者连接");
+          connect();
+        }
+      }
+    });
+    unlistenFns.push(unlistenSync);
+
+    // 主窗口监听初始状态请求
+    if (bus.windowType === "main") {
+      const unlistenInitial = bus.onInitialStateRequest(() => {
+        logger.info("响应初始状态请求，广播 VCP 当前状态");
+        broadcastState();
+      });
+      unlistenFns.push(unlistenInitial);
+
+      // 监听连接状态变化并广播
+      watch(
+        () => connection.value.status,
+        () => broadcastState(),
+      );
+    } else {
+      // 分离窗口请求初始状态
+      setTimeout(() => {
+        bus.requestInitialState();
+      }, 500);
+    }
+  }
+
+  onUnmounted(() => {
+    unlistenFns.forEach((fn) => fn());
+  });
+
   // 初始化逻辑
   async function init() {
     // 加载配置
@@ -719,6 +800,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     messages.value = loadedMessages.list || [];
 
     calculateInitialStats();
+
+    // 设置同步逻辑
+    await setupSync();
 
     if (config.value.autoConnect) {
       connect();
@@ -753,5 +837,6 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     setFilter,
     togglePause,
     exportMessages,
+    reloadMessages,
   };
 });

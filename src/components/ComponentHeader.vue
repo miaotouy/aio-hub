@@ -171,7 +171,10 @@ const handleDragInteraction = (event: MouseEvent) => {
       >
         <slot name="drag-region">
           <div class="drag-handle">
-            <i-ep-rank class="drag-icon" />
+            <slot>
+              <span v-if="title" class="title">{{ title }}</span>
+              <i-ep-rank v-else class="drag-icon" />
+            </slot>
           </div>
         </slot>
       </div>

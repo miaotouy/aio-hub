@@ -8,7 +8,6 @@
       <!-- 仅在分离模式下显示独立的头部 -->
       <ComponentHeader
         v-if="isActuallyDetached"
-        title="VCP 消息监控"
         drag-mode="window"
         show-actions
         :collapsible="false"
@@ -16,7 +15,12 @@
         @mousedown="handleStartDetaching"
         @detach="handleDetach"
         @reattach="handleReattach"
-      />
+      >
+        <div class="monitor-title">
+          <VcpConnectorIcon class="title-icon" />
+          <span>VCP 消息监控</span>
+        </div>
+      </ComponentHeader>
 
       <div class="monitor-controls">
         <div class="header-left">
@@ -133,6 +137,7 @@ import { customMessage } from "@/utils/customMessage";
 import { getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
 import { Pause, Play, Trash2, Download, Search } from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
+import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
 import BroadcastCard from "./BroadcastCard.vue";
 import type { VcpMessage } from "../../types/protocol";
 
@@ -382,11 +387,25 @@ async function handleReattach() {
 /* 分离手柄样式适配 (分离模式下) */
 .detachable-handle {
   flex-shrink: 0;
-  padding: 0;
+  padding: 10px;
   border: none;
   background: transparent;
   cursor: move;
   border-radius: 16px 16px 0 0;
+}
+
+.monitor-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.title-icon {
+  font-size: 16px;
+  color: var(--primary-color);
 }
 
 /* 内联手柄样式 (非分离模式) */

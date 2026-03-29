@@ -244,7 +244,7 @@ const handleRemix = async () => {
 .content-box {
   padding: 12px;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   line-height: 1.5;
@@ -294,7 +294,7 @@ const handleRemix = async () => {
   padding: 12px;
   background-color: var(--input-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .param-item {

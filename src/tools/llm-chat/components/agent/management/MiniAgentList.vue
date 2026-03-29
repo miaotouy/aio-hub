@@ -188,7 +188,7 @@ const handleCreate = () => {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   align-items: center;
 }
 

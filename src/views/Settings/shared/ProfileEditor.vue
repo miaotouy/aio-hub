@@ -52,7 +52,7 @@ const emit = defineEmits<Emits>();
 <style scoped>
 .profile-editor {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
   display: flex;
@@ -64,7 +64,7 @@ const emit = defineEmits<Emits>();
 
 .editor-header {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;

@@ -327,7 +327,7 @@ const emit = defineEmits<{
   justify-content: space-between;
   align-items: center;
   padding: 4px 8px 10px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .header-title {
@@ -485,7 +485,7 @@ const emit = defineEmits<{
 .settings-footer {
   margin-top: 4px;
   padding: 8px 8px 4px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;

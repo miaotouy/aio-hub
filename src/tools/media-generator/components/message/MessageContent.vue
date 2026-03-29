@@ -367,7 +367,7 @@ const generationMetaForRenderer = computed(() => {
   gap: 8px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: var(--input-bg);
   backdrop-filter: blur(var(--ui-blur));
   margin-bottom: 8px;
@@ -382,7 +382,7 @@ const generationMetaForRenderer = computed(() => {
 .edit-textarea {
   width: 100%;
   padding: 10px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
   color: var(--text-color);
@@ -451,7 +451,7 @@ const generationMetaForRenderer = computed(() => {
   padding: 12px;
   border-radius: 8px;
   background: var(--bg-color-soft);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .status-loading,

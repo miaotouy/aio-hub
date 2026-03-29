@@ -204,7 +204,7 @@ defineProps<{
 .sidebar {
   height: 100%;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   position: relative;
   flex-shrink: 0;
   display: flex;
@@ -247,7 +247,7 @@ defineProps<{
   display: flex;
   padding: 12px;
   gap: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   justify-content: space-around;
 }
 
@@ -257,7 +257,7 @@ defineProps<{
   flex-direction: column;
   height: 100%;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
 }
 
@@ -282,7 +282,7 @@ defineProps<{
   padding: 12px;
   min-height: 52px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
 }
 
@@ -311,7 +311,7 @@ defineProps<{
   padding: 0 8px;
   height: 28px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 /* 消息区域 - 模拟真实消息列表（全宽卡片式） */
@@ -328,7 +328,7 @@ defineProps<{
 .skeleton-message-card {
   padding: 16px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
 }
@@ -360,7 +360,7 @@ defineProps<{
   min-height: 50px;
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--input-bg, var(--card-bg));
   box-sizing: border-box;
 }

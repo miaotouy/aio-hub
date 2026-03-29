@@ -96,7 +96,7 @@ const handleClear = async () => {
   padding: 10px;
   border-radius: 12px;
   background: var(--input-bg, var(--container-bg));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   margin-bottom: 4px;
   max-height: 200px;
   overflow-y: auto;

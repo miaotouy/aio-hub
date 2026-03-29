@@ -329,7 +329,7 @@ onMounted(() => {
 .markdown-code-block {
   margin: 12px 0;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   overflow: hidden;
   display: flex;
@@ -352,7 +352,7 @@ onMounted(() => {
 .html-preview-container {
   min-height: 50px;
   height: auto;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .html-preview-frozen {

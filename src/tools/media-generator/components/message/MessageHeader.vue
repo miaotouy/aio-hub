@@ -158,7 +158,7 @@ const duration = computed(() => {
   justify-content: center;
   flex-shrink: 0;
   background-color: var(--bg-color-soft);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
 }
 
@@ -174,7 +174,7 @@ const duration = computed(() => {
 }
 
 .user-avatar {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--bg-color-soft);
   flex-shrink: 0;
 }
@@ -241,7 +241,7 @@ const duration = computed(() => {
   background-color: var(--bg-color-soft);
   padding: 0px 5px;
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   line-height: 1.4;
 }
 

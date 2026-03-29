@@ -377,7 +377,7 @@ function downloadContent() {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
@@ -472,7 +472,7 @@ function downloadContent() {
 /* 元数据 */
 .metadata-section {
   flex-shrink: 0;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
 }
 .metadata-section summary {

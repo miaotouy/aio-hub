@@ -125,7 +125,7 @@ const emit = defineEmits<{
 .agent-list-scroll {
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   padding: 4px;
 }
@@ -171,7 +171,7 @@ const emit = defineEmits<{
   display: flex;
   justify-content: flex-end;
   padding-top: 8px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .el-radio-group {

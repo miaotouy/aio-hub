@@ -114,7 +114,7 @@ const copyContent = async () => {
 <style scoped>
 .info-card {
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg); /* 使用卡片背景色 */
   color: var(--text-color); /* 确保文本颜色与主题一致 */
   display: flex;

@@ -144,7 +144,7 @@ function saveEnumOptions() {
   background: var(--container-bg);
   border-radius: 8px;
   padding: 20px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   box-sizing: border-box;
 }
@@ -176,7 +176,7 @@ function saveEnumOptions() {
   background: var(--input-bg);
   padding: 10px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-sizing: border-box;
 }
 

@@ -187,7 +187,7 @@ const copyAsJson = () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .header-left {
@@ -219,7 +219,7 @@ const copyAsJson = () => {
   color: var(--text-color-light);
   margin-bottom: 12px;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }

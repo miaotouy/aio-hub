@@ -384,7 +384,7 @@ function handleRetry() {
 }
 
 .code-container {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -406,7 +406,7 @@ function handleRetry() {
   padding: 12px;
   background-color: var(--input-bg);
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .log-item {

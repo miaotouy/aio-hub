@@ -106,7 +106,7 @@ function handleAbort() {
   border-radius: 8px;
   padding: 8px;
   padding-bottom: 20px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .url-builder {

@@ -87,6 +87,7 @@ export interface AppearanceSettings {
   detachedUiBaseOpacity?: number; // 分离窗口 UI 基础不透明度 (0.0 - 1.0)
   uiBlurIntensity: number; // UI 模糊强度 (px)
   borderOpacity: number; // 边线不透明度 (0.0 - 1.0)
+  borderWidth?: number; // 边线宽度 (px)
   codeBlockOpacity?: number; // 代码块背景不透明度
 
   // --- 分层透明度微调 ---
@@ -196,6 +197,7 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   detachedUiBaseOpacity: 0.95, // 分离窗口更不透明，适合独立悬浮效果
   uiBlurIntensity: 15, // 15px 模糊
   borderOpacity: 0.5, // 默认半透明
+  borderWidth: 1, // 默认 1px
   codeBlockOpacity: 0.9, // 代码块背景不透明度
 
   // 分层透明度微调（默认不设置，使用自动计算的值）

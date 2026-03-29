@@ -210,7 +210,7 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
   position: relative;
@@ -253,7 +253,7 @@ onMounted(() => {
 
 .sync-card {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   backdrop-filter: blur(var(--ui-blur));

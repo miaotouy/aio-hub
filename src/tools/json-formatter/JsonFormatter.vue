@@ -442,7 +442,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   overflow: hidden;
@@ -455,7 +455,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 12px 20px;
   background-color: transparent;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   z-index: 10;
   flex-shrink: 0;
 }
@@ -510,7 +510,7 @@ onUnmounted(() => {
 }
 
 .input-panel {
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 /* 窄屏时的上下布局 */
@@ -521,7 +521,7 @@ onUnmounted(() => {
 
   .input-panel {
     border-right: none;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: var(--border-width) solid var(--border-color);
   }
 
   .divider {
@@ -537,7 +537,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 12px 16px;
   background-color: transparent;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 

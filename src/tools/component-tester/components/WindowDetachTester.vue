@@ -252,7 +252,7 @@ const handleDemoHeaderDrag = (e: MouseEvent, pos: string) => {
   gap: 12px;
   padding: 16px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -310,7 +310,7 @@ const handleDemoHeaderDrag = (e: MouseEvent, pos: string) => {
 }
 
 .header-box {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   height: 150px;
   display: flex;

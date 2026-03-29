@@ -191,7 +191,7 @@ const enabledToolsCount = computed(() => {
 }
 
 .setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .setting-label {

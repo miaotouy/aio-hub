@@ -136,7 +136,7 @@ const goToSettings = () => {
 .action-card {
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 16px;
   padding: 20px;
   display: flex;

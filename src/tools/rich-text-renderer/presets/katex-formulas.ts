@@ -308,29 +308,29 @@ $$
 
 ### 24.4 HTML 表格中的公式
 
-<table style="width: 100%; border-collapse: collapse; border: 1px solid var(--border-color);">
+<table style="width: 100%; border-collapse: collapse; border: var(--border-width) solid var(--border-color);">
   <thead>
     <tr>
-      <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">变换类型</th>
-      <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">公式</th>
+      <th style="border: var(--border-width) solid var(--border-color); padding: 8px; text-align: left;">变换类型</th>
+      <th style="border: var(--border-width) solid var(--border-color); padding: 8px; text-align: left;">公式</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="border: 1px solid var(--border-color); padding: 8px;">
+      <td style="border: var(--border-width) solid var(--border-color); padding: 8px;">
         傅里叶变换
       </td>
-      <td style="border: 1px solid var(--border-color); padding: 8px;">
+      <td style="border: var(--border-width) solid var(--border-color); padding: 8px;">
         $$
         F(\\omega) = \\int_{-\\infty}^{\\infty} f(t) e^{-i\\omega t} dt
         $$
       </td>
     </tr>
     <tr>
-      <td style="border: 1px solid var(--border-color); padding: 8px;">
+      <td style="border: var(--border-width) solid var(--border-color); padding: 8px;">
         拉普拉斯变换
       </td>
-      <td style="border: 1px solid var(--border-color); padding: 8px;">
+      <td style="border: var(--border-width) solid var(--border-color); padding: 8px;">
         $$
         F(s) = \\int_{0}^{\\infty} f(t) e^{-st} dt
         $$

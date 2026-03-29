@@ -341,7 +341,7 @@ function handleCancel() {
   background: var(--card-bg);
   padding: 16px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .presets-grid {
@@ -352,7 +352,7 @@ function handleCancel() {
 
 .preset-card {
   padding: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
@@ -386,7 +386,7 @@ function handleCancel() {
   background: var(--card-bg);
   padding: 16px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .empty-state {
@@ -417,7 +417,7 @@ function handleCancel() {
   margin-top: 8px;
   padding: 12px 16px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
 

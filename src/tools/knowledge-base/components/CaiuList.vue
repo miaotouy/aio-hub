@@ -540,7 +540,7 @@ const handleSelect = (id: string) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
 }
 
@@ -551,7 +551,7 @@ const handleSelect = (id: string) => {
 .search-bar :deep(.el-input__wrapper) {
   background-color: var(--input-bg);
   box-shadow: none;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s;
 }
 
@@ -665,7 +665,7 @@ const handleSelect = (id: string) => {
   border-radius: 8px;
   cursor: pointer;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;

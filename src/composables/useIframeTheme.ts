@@ -169,7 +169,7 @@ export function useIframeTheme(contentRef: () => string | undefined) {
         margin: 1em 0;
       }
       th, td {
-        border: 1px solid var(--border-color);
+        border: var(--border-width) solid var(--border-color);
         padding: 8px;
         text-align: left;
       }

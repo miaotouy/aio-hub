@@ -302,7 +302,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   padding: 12px;
   border-radius: 10px;
   cursor: pointer;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   background-color: var(--card-bg);
   position: relative;
@@ -380,7 +380,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   align-items: center;
   justify-content: center;
   background: var(--bg-color-soft);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -488,7 +488,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--bg-color-soft);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   transition: transform 0.2s;
 }

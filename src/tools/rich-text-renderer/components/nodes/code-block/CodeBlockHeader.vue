@@ -182,7 +182,7 @@ defineEmits<{
 .code-header.floating .header-actions {
   background-color: var(--el-bg-color);
   backdrop-filter: blur(var(--ui-blur, 10px));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   padding: 4px;
   box-shadow: var(--el-box-shadow-light);

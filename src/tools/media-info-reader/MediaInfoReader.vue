@@ -371,7 +371,7 @@ const sendToChat = async () => {
   overflow: hidden;
   background-color: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .empty-state {
@@ -412,7 +412,7 @@ const sendToChat = async () => {
 
 .full-info-header {
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
 }
 

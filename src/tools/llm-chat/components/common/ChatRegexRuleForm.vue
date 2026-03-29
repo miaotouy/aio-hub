@@ -661,7 +661,7 @@ const highlightedOutput = computed(() => {
   background: var(--container-bg);
   border-radius: 8px;
   padding: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .test-content {
@@ -784,7 +784,7 @@ const highlightedOutput = computed(() => {
 .test-result {
   padding: 12px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: var(--container-bg);
   min-height: 60px;
   width: 100%;

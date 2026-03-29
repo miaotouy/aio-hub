@@ -174,7 +174,7 @@ const copyToClipboard = async (text: string) => {
 
 .code-block {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   padding: 12px;
   padding-right: 44px;

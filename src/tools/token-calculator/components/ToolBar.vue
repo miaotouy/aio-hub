@@ -97,7 +97,7 @@ defineEmits<Emits>();
   justify-content: space-between;
   padding: 16px 20px;
   background-color: transparent;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   border-radius: 12px 12px 0 0;
   z-index: 10;
   flex-shrink: 0;
@@ -130,7 +130,7 @@ defineEmits<Emits>();
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 .control-label {

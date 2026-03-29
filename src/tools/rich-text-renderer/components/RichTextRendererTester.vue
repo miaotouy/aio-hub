@@ -1093,7 +1093,7 @@ onMounted(async () => {
   flex-direction: column;
   min-width: 0;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1120,7 +1120,7 @@ onMounted(async () => {
 
 /* Split 模式下的分割线 */
 .workspace-content.split .input-area {
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 /* 工作区紧凑模式（宽度不足时自动垂直排列） */
@@ -1130,7 +1130,7 @@ onMounted(async () => {
 
 .workspace-content.split.is-compact .input-area {
   border-right: none;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 /* 单一视图模式 */
@@ -1162,7 +1162,7 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px; /*稍微减小一点高度，更紧凑 */
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
@@ -1211,7 +1211,7 @@ onMounted(async () => {
 .escape-detection-bar {
   padding: 10px 20px;
   background: var(--bg-color-page);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 12px;

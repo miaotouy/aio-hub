@@ -418,7 +418,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 .input-container {
   background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 24px;
   padding: 12px;
   padding-top: 8px;

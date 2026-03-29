@@ -314,7 +314,7 @@ const pasteAllToolSettings = async () => {
   padding: 16px;
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -339,7 +339,7 @@ const pasteAllToolSettings = async () => {
   margin-top: 16px;
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -350,7 +350,7 @@ const pasteAllToolSettings = async () => {
   align-items: center;
   padding: 8px 12px;
   background: var(--el-fill-color-light);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .box-title {

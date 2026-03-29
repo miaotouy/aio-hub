@@ -40,7 +40,7 @@ const jsonString = computed(() => {
   height: 100%;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-sizing: border-box;
 }
 </style>

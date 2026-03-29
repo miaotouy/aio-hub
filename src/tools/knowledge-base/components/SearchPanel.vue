@@ -108,7 +108,7 @@ function formatHighlight(text: string) {
   padding: 12px;
   background-color: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .search-filters {
@@ -129,7 +129,7 @@ function formatHighlight(text: string) {
 .result-item {
   padding: 12px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   cursor: pointer;
   transition: all 0.2s;
   background-color: rgba(var(--el-color-primary-rgb), 0.02);

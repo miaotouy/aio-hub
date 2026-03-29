@@ -792,7 +792,7 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: visible;
   background: var(--bg-color);
@@ -1090,7 +1090,7 @@ onUnmounted(() => {
   min-width: 160px;
   max-width: 320px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 10px;
   flex-direction: row;
   padding: 0;

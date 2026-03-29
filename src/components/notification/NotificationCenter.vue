@@ -219,7 +219,7 @@ const getTypeText = (type: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .header-title {
@@ -295,7 +295,7 @@ const getTypeText = (type: string) => {
 
 .center-footer {
   padding: 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: center;
 }
@@ -322,7 +322,7 @@ const getTypeText = (type: string) => {
 
 /* 适配暗色模式下的边框 */
 :root.dark :global(.notification-drawer) {
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
 }
 
 .detail-container {
@@ -379,7 +379,7 @@ const getTypeText = (type: string) => {
   overflow-y: auto;
   padding: 16px;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
 }
 

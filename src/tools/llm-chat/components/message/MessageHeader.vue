@@ -318,7 +318,7 @@ const formatLatency = (ms: number) => {
   align-items: center;
   justify-content: center;
   background-color: var(--bg-color-soft);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   color: var(--primary-color);
 }

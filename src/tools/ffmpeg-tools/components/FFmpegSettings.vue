@@ -67,7 +67,7 @@ const testFFmpeg = async () => {
   background: var(--card-bg);
   padding: 24px;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .help-text {
@@ -80,7 +80,7 @@ const testFFmpeg = async () => {
 .actions {
   margin-top: 32px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 /* 自定义滚动条 */
 .settings-container::-webkit-scrollbar {

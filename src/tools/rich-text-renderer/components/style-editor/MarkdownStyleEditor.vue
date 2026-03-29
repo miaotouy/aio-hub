@@ -385,7 +385,7 @@ const localValue = {
 <style scoped>
 .markdown-style-editor {
   position: relative;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--card-bg);
@@ -401,7 +401,7 @@ const localValue = {
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--bg-color-soft);
   flex-shrink: 0;
   height: 48px;

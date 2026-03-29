@@ -22,6 +22,7 @@
   --text-color-light: #666;
   --border-color-rgb: 221, 221, 221;
   --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
+  --border-width: 1px;
   --primary-color: #409eff; /* Element Plus primary color */
   --primary-hover-color: #66b1ff;
   --success-color: #67c23a;
@@ -217,7 +218,7 @@ body.transparent-window #app {
 
 /* Element Plus 全局主题适配 - 卡片组件 */
 .el-card {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   color: var(--text-color);
 }
@@ -550,23 +551,23 @@ body.transparent-window #app {
 .el-popper.is-dark {
   background-color: var(--container-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .el-popper.is-dark > .el-popper__arrow::before {
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .el-popper.is-light {
   background-color: var(--container-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .el-popper.is-light > .el-popper__arrow::before {
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 /* 箭头方向颜色 - dark 模式 */
@@ -626,7 +627,7 @@ body.transparent-window #app {
 .el-drawer {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-lighter);
 }
@@ -1009,7 +1010,7 @@ pre,
 blockquote {
   background-color: var(--card-bg);
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 blockquote {

@@ -271,7 +271,7 @@ const highlightText = (text: string, query: string) => {
   width: 640px;
   max-width: 90vw;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 16px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
   display: flex;
@@ -366,7 +366,7 @@ const highlightText = (text: string, query: string) => {
 }
 
 .results-container {
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   max-height: 500px;
@@ -510,7 +510,7 @@ const highlightText = (text: string, query: string) => {
 .search-footer {
   padding: 10px 18px;
   background: var(--hover-bg);
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -532,7 +532,7 @@ const highlightText = (text: string, query: string) => {
 
 kbd {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 1px 5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

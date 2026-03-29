@@ -431,7 +431,7 @@ onUnmounted(() => {
   margin-bottom: 16px;
   flex-shrink: 0;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   padding: 12px 20px;
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));

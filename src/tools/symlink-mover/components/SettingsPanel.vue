@@ -226,7 +226,7 @@ const emit = defineEmits<{
 .action-area {
   flex-shrink: 0;
   padding: 16px 20px 20px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 12px;

@@ -279,7 +279,7 @@ onMounted(async () => {
 
 .tool-card {
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
   padding: 25px;
@@ -344,7 +344,7 @@ onMounted(async () => {
   padding: 0.75rem 1rem;
   background: var(--input-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   font-size: 1rem;
   box-sizing: border-box;
@@ -370,7 +370,7 @@ onMounted(async () => {
   padding: 0.6rem 1.2rem;
   background: var(--card-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   cursor: pointer;

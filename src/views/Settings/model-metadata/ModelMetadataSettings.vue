@@ -753,7 +753,7 @@ function formatDate(dateString: string): string {
   align-items: center;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .test-result-title {
@@ -781,7 +781,7 @@ function formatDate(dateString: string): string {
   color: var(--text-color-light);
   font-size: 0.95rem;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -791,7 +791,7 @@ function formatDate(dateString: string): string {
   gap: 1rem;
   padding: 1rem;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
 
@@ -854,7 +854,7 @@ function formatDate(dateString: string): string {
   width: 64px;
   height: 64px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .no-icon {
@@ -955,7 +955,7 @@ function formatDate(dateString: string): string {
   gap: 0.5rem 1rem; /* row-gap column-gap */
   padding: 1rem;
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   transition: all 0.2s;
   align-items: center;
@@ -1019,7 +1019,7 @@ function formatDate(dateString: string): string {
   gap: 1rem;
   padding: 1rem;
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   transition: all 0.2s;
 }
@@ -1129,7 +1129,7 @@ function formatDate(dateString: string): string {
   padding: 1rem 0;
   margin-top: 0.5rem;
   flex-shrink: 0;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   background: var(--container-bg);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));

@@ -747,7 +747,7 @@ const handleClearDuplicates = () => {
 <style scoped>
 .progress-container {
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 .progress-container span {
   font-size: 12px;
@@ -759,7 +759,7 @@ const handleClearDuplicates = () => {
   flex-direction: column;
   background-color: var(--bg-color);
   box-sizing: border-box;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -771,7 +771,7 @@ const handleClearDuplicates = () => {
 
 .sidebar-container {
   background-color: var(--sidebar-bg);
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   overflow-y: auto;
   backdrop-filter: blur(var(--ui-blur));
 }

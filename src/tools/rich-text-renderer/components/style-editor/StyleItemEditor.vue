@@ -789,12 +789,12 @@ const emitValue = () => {
   align-items: center;
   gap: 12px;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .preview-section {
   margin-bottom: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   /* overflow: hidden; 防止阴影被遮挡 */
 }
@@ -802,7 +802,7 @@ const emitValue = () => {
 .preview-header {
   padding: 8px 12px;
   background-color: var(--el-fill-color-light);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   font-size: 12px;
   color: var(--text-color-secondary);
 }

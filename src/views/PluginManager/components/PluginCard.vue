@@ -143,7 +143,7 @@ const pluginTypeInfo = computed(() => {
   gap: 12px;
   padding: 12px 16px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s ease;
   cursor: pointer;

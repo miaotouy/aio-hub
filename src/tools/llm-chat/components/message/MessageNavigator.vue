@@ -189,7 +189,7 @@ watch(
   padding: 8px 6px;
 
   background: var(--el-bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 
@@ -257,7 +257,7 @@ watch(
 /* 跳转按钮样式 */
 .nav-button-jump {
   background: var(--el-fill-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .nav-button-jump:hover:not(.disabled) {

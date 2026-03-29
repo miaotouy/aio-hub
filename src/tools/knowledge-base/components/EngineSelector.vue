@@ -49,7 +49,7 @@ const kbStore = useKnowledgeBaseStore();
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;

@@ -341,7 +341,7 @@ const showReset = computed(() => {
 
 :deep(.el-slider__runway) {
   background-color: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   flex: 1;
 }
 

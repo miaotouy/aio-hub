@@ -96,7 +96,7 @@ defineExpose({
   padding: 12px;
   background-color: rgba(var(--el-text-color-placeholder-rgb), 0.05);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .item-header {

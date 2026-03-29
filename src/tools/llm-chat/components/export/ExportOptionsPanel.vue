@@ -89,7 +89,7 @@ const mergePresetIntoMessages = defineModel<boolean>("mergePresetIntoMessages", 
   padding: 12px;
   background-color: var(--container-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .options-section {
@@ -114,13 +114,13 @@ const mergePresetIntoMessages = defineModel<boolean>("mergePresetIntoMessages", 
 
 .format-group :deep(.el-radio-button) {
   .el-radio-button__inner {
-    border: 1px solid var(--border-color);
+    border: var(--border-width) solid var(--border-color);
     border-radius: 4px !important;
     padding: 5px 15px;
   }
 
   &:not(:last-child) .el-radio-button__inner {
-    border-right: 1px solid var(--border-color);
+    border-right: var(--border-width) solid var(--border-color);
   }
 
   &.is-active .el-radio-button__inner {

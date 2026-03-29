@@ -1119,7 +1119,7 @@ function handleSave() {
 
 .editor-wrapper {
   flex: 1;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
   display: flex;
@@ -1128,7 +1128,7 @@ function handleSave() {
 
 .preview-wrapper {
   flex: 1;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   background-color: var(--card-bg);
   padding: 16px;

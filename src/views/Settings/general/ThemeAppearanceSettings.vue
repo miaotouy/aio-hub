@@ -348,6 +348,10 @@
               <el-slider v-model="borderOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
 
+            <el-form-item label="边线宽度 (px)">
+              <el-slider v-model="borderWidth" :min="0" :max="5" :step="0.5" />
+            </el-form-item>
+
             <el-form-item label="代码块背景不透明度">
               <el-slider v-model="codeBlockOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
@@ -749,6 +753,11 @@ const borderOpacity = computed({
   set: (val) => updateAppearanceSetting({ borderOpacity: val }, { debounceUi: true }),
 });
 
+const borderWidth = computed({
+  get: () => appearanceSettings.value.borderWidth ?? 1,
+  set: (val) => updateAppearanceSetting({ borderWidth: val }, { debounceUi: true }),
+});
+
 const windowEffect = computed({
   get: () => appearanceSettings.value.windowEffect,
   set: (val) => updateAppearanceSetting({ windowEffect: val }),
@@ -937,7 +946,7 @@ const wallpaperPreviewStyle = computed(() => {
   background-color: var(--card-bg);
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .slideshow-controls {
@@ -953,7 +962,7 @@ const wallpaperPreviewStyle = computed(() => {
   background-color: var(--card-bg);
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .thumbnail-container {
@@ -1004,7 +1013,7 @@ const wallpaperPreviewStyle = computed(() => {
 }
 
 .tile-options {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 20px 20px 0 20px;
   margin-bottom: 18px;

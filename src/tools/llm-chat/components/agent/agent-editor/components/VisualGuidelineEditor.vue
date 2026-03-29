@@ -113,11 +113,11 @@ const handleResetToDefault = async () => {
 .visual-guideline-editor-wrapper {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .visual-guideline-collapse {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--card-bg);
@@ -128,7 +128,7 @@ const handleResetToDefault = async () => {
   padding: 0 16px;
   height: 48px;
   background-color: transparent;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .visual-guideline-collapse :deep(.el-collapse-item__wrap) {
@@ -165,7 +165,7 @@ const handleResetToDefault = async () => {
   padding: 2px 4px;
   border-radius: 4px;
   font-family: var(--el-font-family-mono);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .editor-content {
@@ -183,7 +183,7 @@ const handleResetToDefault = async () => {
   padding: 10px 14px;
   background-color: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
 }
 

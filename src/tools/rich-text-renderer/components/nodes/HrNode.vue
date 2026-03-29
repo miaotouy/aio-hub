@@ -12,6 +12,6 @@ defineProps<{
 .markdown-hr {
   margin: 16px 0;
   border: none;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 </style>

@@ -381,7 +381,7 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
 .model-list-container {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 8px;
 }

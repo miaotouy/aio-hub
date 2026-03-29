@@ -332,7 +332,7 @@ function isPresetSelected(presetId: string | null): boolean {
   align-items: center;
   padding: 16px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   flex-shrink: 0;
   backdrop-filter: blur(var(--ui-blur));
@@ -412,7 +412,7 @@ function isPresetSelected(presetId: string | null): boolean {
 .presets-sidebar {
   width: 300px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -423,7 +423,7 @@ function isPresetSelected(presetId: string | null): boolean {
 
 .sidebar-header {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -558,7 +558,7 @@ function isPresetSelected(presetId: string | null): boolean {
   background: var(--card-bg);
   padding: 20px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -611,7 +611,7 @@ function isPresetSelected(presetId: string | null): boolean {
 /* 提示折叠面板 */
 .info-collapse {
   flex-shrink: 0;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   background: var(--card-bg);
 }
@@ -645,7 +645,7 @@ function isPresetSelected(presetId: string | null): boolean {
 .alert-content code {
   padding: 2px 6px;
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 3px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 12px;

@@ -136,7 +136,7 @@ const handleToggleSelectAll = () => {
   align-items: center;
   justify-content: space-between;
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   margin-bottom: 16px;
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));

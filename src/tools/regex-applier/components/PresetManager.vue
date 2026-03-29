@@ -969,7 +969,7 @@ function escapeRegex(str: string): string {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   padding-top: 20px;
 }
 
@@ -980,7 +980,7 @@ function escapeRegex(str: string): string {
 .rules-list-container {
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   background-color: var(--container-bg);
 }
@@ -996,7 +996,7 @@ function escapeRegex(str: string): string {
   padding: 12px;
   margin-bottom: 8px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
@@ -1179,7 +1179,7 @@ function escapeRegex(str: string): string {
   padding: 8px;
   background-color: var(--container-bg);
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .quick-patterns-label {
@@ -1220,7 +1220,7 @@ function escapeRegex(str: string): string {
   min-height: 120px;
   max-height: 300px;
   padding: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   background-color: var(--input-bg);
   color: var(--text-color);

@@ -444,7 +444,7 @@ const isEditing = (blockId: string) => {
 
 .panel-header {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -499,7 +499,7 @@ const isEditing = (blockId: string) => {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.2s;
   user-select: none;
@@ -530,7 +530,7 @@ const isEditing = (blockId: string) => {
 }
 
 .result-item {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--bg-color);
@@ -544,7 +544,7 @@ const isEditing = (blockId: string) => {
 .result-header {
   padding: 10px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;

@@ -633,7 +633,7 @@ const previewInfo = computed(() => {
   padding: 12px;
   background: var(--card-bg);
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .preview-item {

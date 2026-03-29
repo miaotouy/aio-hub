@@ -528,7 +528,7 @@ const handleDropdownSelect = () => {
   left: 0;
   right: 0;
   z-index: var(--z-index-title-bar);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   /* 允许拖动窗口 */
   -webkit-app-region: drag;
 }

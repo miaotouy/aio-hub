@@ -537,7 +537,7 @@ const formatTokens = (num: number) => {
 .search-input :deep(.el-input__wrapper) {
   background-color: var(--input-bg);
   box-shadow: none;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s;
   padding: 0 8px;
 }

@@ -126,7 +126,7 @@ watch(
 
 .panel-section {
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .section-title {
@@ -262,7 +262,7 @@ watch(
   padding: 12px 8px;
   border-radius: 8px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   transition: all 0.3s ease;
 }

@@ -98,7 +98,7 @@ html.dark {
   background-color: var(--bg-color); /* ✅ 正确 */
   color: var(--text-color); /* ✅ 正确 */
   border: 1px solid #ccc; /* ❌ 错误：在深色模式下会太亮 */
-  border: 1px solid var(--border-color); /* ✅ 正确 */
+  border: var(--border-width) solid var(--border-color); /* ✅ 正确 */
 }
 ```
 

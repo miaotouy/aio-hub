@@ -294,7 +294,7 @@ const isAllSelected = computed(() => {
   align-items: center;
   padding: 12px 20px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   gap: 16px;
   z-index: 10;

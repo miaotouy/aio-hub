@@ -655,7 +655,7 @@ onBeforeUnmount(() => {
 .mermaid-node {
   margin: 12px 0;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   overflow: hidden;
   display: flex;
@@ -673,7 +673,7 @@ onBeforeUnmount(() => {
 
 .mermaid-node.seamless-mode .mermaid-container {
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   max-height: none;
 }
 
@@ -683,7 +683,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 8px 12px;
   background-color: var(--code-block-bg, var(--card-bg));
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -709,7 +709,7 @@ onBeforeUnmount(() => {
 
 .mermaid-header.floating .header-actions {
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   padding: 4px;
   box-shadow: var(--el-box-shadow-light);

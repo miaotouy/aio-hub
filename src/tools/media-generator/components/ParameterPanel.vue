@@ -465,7 +465,7 @@ watch(sizeOptions, (newOptions) => {
   background: var(--input-bg);
   padding: 10px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .toggle-row {

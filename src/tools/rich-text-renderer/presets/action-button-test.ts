@@ -44,8 +44,8 @@ export const actionButtonTestPreset: RenderPreset = {
 你来到了一个分岔路口。左边的通道传来潮湿的气息，右边的通道隐约闪烁着火光。
 
 <div style="display: flex; gap: 12px; margin-top: 16px;">
-  <Button type="send" value="go left" style="background: var(--card-bg); backdrop-filter: blur(var(--ui-blur)); border: 1px solid var(--border-color); color: var(--el-text-color-primary); padding: 8px 16px; border-radius: 8px;">⬅️ 走左边</Button>
-  <Button type="send" value="go right" style="background: var(--card-bg); backdrop-filter: blur(var(--ui-blur)); border: 1px solid var(--border-color); color: var(--el-text-color-primary); padding: 8px 16px; border-radius: 8px;">➡️ 走右边</Button>
+  <Button type="send" value="go left" style="background: var(--card-bg); backdrop-filter: blur(var(--ui-blur)); border: var(--border-width) solid var(--border-color); color: var(--el-text-color-primary); padding: 8px 16px; border-radius: 8px;">⬅️ 走左边</Button>
+  <Button type="send" value="go right" style="background: var(--card-bg); backdrop-filter: blur(var(--ui-blur)); border: var(--border-width) solid var(--border-color); color: var(--el-text-color-primary); padding: 8px 16px; border-radius: 8px;">➡️ 走右边</Button>
   <Button type="input" value="check map" style="background: color-mix(in srgb, var(--el-color-primary) 10%, transparent); backdrop-filter: blur(var(--ui-blur)); border: 1px solid var(--el-color-primary); color: var(--el-color-primary); padding: 8px 16px; border-radius: 8px;">🗺️ 查看地图</Button>
 </div>
 
@@ -53,7 +53,7 @@ export const actionButtonTestPreset: RenderPreset = {
 
 神秘商人向你展示了他的货物：“有些东西可能对你有帮助，旅行者。”
 
-<div style="background: var(--card-bg); backdrop-filter: blur(var(--ui-blur)); padding: 12px; border-radius: 8px; border-left: 4px solid var(--el-color-primary); margin-top: 12px; border: 1px solid var(--border-color);">
+<div style="background: var(--card-bg); backdrop-filter: blur(var(--ui-blur)); padding: 12px; border-radius: 8px; border-left: 4px solid var(--el-color-primary); margin-top: 12px; border: var(--border-width) solid var(--border-color);">
   <p style="margin: 0 0 8px 0; font-weight: bold; font-size: 14px; color: var(--el-text-color-primary);">💬 回复选项：</p>
   <div style="display: flex; flex-direction: column; gap: 8px;">
     <Button type="send" value="ask price" style="text-align: left; background: transparent; border: none; padding: 4px 0; color: var(--el-text-color-regular); cursor: pointer; transition: color 0.2s;">👉 "这些怎么卖？"</Button>
@@ -66,7 +66,7 @@ export const actionButtonTestPreset: RenderPreset = {
 
 ### 4.1 紧凑排版与特殊字符
 
-在一段描述文本中，你可以随时<Button type="input" value="inspect item" style="padding: 2px 6px; margin: 0 4px; font-size: 0.9em; background: var(--el-fill-color-light); border-radius: 4px; border: 1px solid var(--border-color);">🔍 检查物品</Button>或者直接<Button type="send" value="take item" style="padding: 2px 6px; margin: 0 4px; font-size: 0.9em; background: var(--el-fill-color-light); border-radius: 4px; border: 1px solid var(--border-color);">✋ 拿走它</Button>。
+在一段描述文本中，你可以随时<Button type="input" value="inspect item" style="padding: 2px 6px; margin: 0 4px; font-size: 0.9em; background: var(--el-fill-color-light); border-radius: 4px; border: var(--border-width) solid var(--border-color);">🔍 检查物品</Button>或者直接<Button type="send" value="take item" style="padding: 2px 6px; margin: 0 4px; font-size: 0.9em; background: var(--el-fill-color-light); border-radius: 4px; border: var(--border-width) solid var(--border-color);">✋ 拿走它</Button>。
 测试特殊字符：<Button type="send" value="I choose 'Excalibur'!">选择 'Excalibur'</Button>
 
 ### 4.2 错误类型（不应渲染为 ActionButton）
@@ -76,7 +76,7 @@ export const actionButtonTestPreset: RenderPreset = {
 
 ## 5. 高级布局：技能面板 (使用 color-mix)
 
-<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; background: var(--el-fill-color-lighter); padding: 16px; border-radius: 12px; margin-top: 12px; border: 1px solid var(--border-color);">
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; background: var(--el-fill-color-lighter); padding: 16px; border-radius: 12px; margin-top: 12px; border: var(--border-width) solid var(--border-color);">
   <!-- 攻击技能：Danger 风格 -->
   <Button type="send" value="skill:slash" style="background: color-mix(in srgb, var(--el-color-danger) 10%, transparent); backdrop-filter: blur(var(--ui-blur)); color: var(--el-color-danger); border: 1px solid var(--el-color-danger); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
     <span style="font-size: 20px;">⚔️</span>

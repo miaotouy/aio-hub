@@ -281,7 +281,7 @@ watch(
   position: fixed;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -308,7 +308,7 @@ watch(
   align-items: center;
   padding: 8px 12px;
   background-color: var(--bg-color-soft);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   cursor: move;
   user-select: none;
   flex-shrink: 0;
@@ -335,7 +335,7 @@ watch(
   gap: 8px;
   align-items: center;
   padding-left: 8px;
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
 }
 
 .control-btn {

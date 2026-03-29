@@ -454,7 +454,7 @@ function getBaseProgress(baseId: string): number {
   padding: 24px 12px 24px 24px;
   overflow-y: auto;
   overflow-x: hidden;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   background: var(--el-bg-color);
 }
 
@@ -482,7 +482,7 @@ function getBaseProgress(baseId: string): number {
 
 .sidebar-section {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
 }
@@ -592,7 +592,7 @@ function getBaseProgress(baseId: string): number {
 .stat-item-full {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -673,7 +673,7 @@ function getBaseProgress(baseId: string): number {
 
 .kb-stat-card {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   display: flex;

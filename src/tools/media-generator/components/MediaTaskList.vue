@@ -366,7 +366,7 @@ watch(
 .stat-item {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
   display: flex;
@@ -442,7 +442,7 @@ watch(
 .task-card {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -461,7 +461,7 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: rgba(0, 0, 0, 0.02);
 }
 
@@ -517,7 +517,7 @@ watch(
   border-radius: 8px;
   overflow: hidden;
   position: relative;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .media-preview {
@@ -614,7 +614,7 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .actions {

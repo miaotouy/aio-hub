@@ -128,7 +128,7 @@ onUnmounted(() => {
 .main-sidebar {
   background-color: var(--sidebar-bg);
   color: var(--sidebar-text);
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;

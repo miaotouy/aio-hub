@@ -149,7 +149,7 @@ function toggleConnection() {
   flex-direction: column;
   background: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   margin-bottom: 16px;
   overflow: hidden;
 }

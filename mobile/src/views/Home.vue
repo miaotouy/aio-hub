@@ -92,7 +92,7 @@ const handleToolClick = (tool: ToolRegistry) => {
   gap: 12px;
   cursor: pointer;
   transition: background-color 0.2s;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .tool-card:active {

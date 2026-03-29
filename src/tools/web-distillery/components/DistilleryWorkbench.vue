@@ -388,7 +388,7 @@ function handleSendToChat() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 .webview-mask {
@@ -427,7 +427,7 @@ function handleSendToChat() {
 /* 右侧边栏 */
 .side-panel {
   width: 260px;
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
   background-color: var(--sidebar-bg);
   padding: 12px;
   overflow-y: auto;
@@ -457,7 +457,7 @@ function handleSendToChat() {
 
 .quality-card {
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   padding: 10px 12px;
 }

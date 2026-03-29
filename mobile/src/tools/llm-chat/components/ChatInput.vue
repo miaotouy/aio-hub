@@ -56,7 +56,7 @@ const handleSend = async () => {
   padding: 12px;
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 8px;

@@ -242,7 +242,7 @@ function handleJumpTo(index: number): void {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .history-panel-header .title {
@@ -403,7 +403,7 @@ function handleJumpTo(index: number): void {
 
 .history-footer {
   padding: 12px 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 8px;

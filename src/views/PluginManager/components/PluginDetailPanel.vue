@@ -332,7 +332,7 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   /* 启用容器查询 */
@@ -391,7 +391,7 @@ watch(
 /* ========== 顶部区域 ========== */
 .header-section {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .plugin-header {
@@ -529,7 +529,7 @@ watch(
 .readme-content :deep(h1) {
   font-size: 2em;
   font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   padding-bottom: 0.3em;
   margin-top: 24px;
   margin-bottom: 16px;
@@ -538,7 +538,7 @@ watch(
 .readme-content :deep(h2) {
   font-size: 1.5em;
   font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   padding-bottom: 0.3em;
   margin-top: 24px;
   margin-bottom: 16px;
@@ -585,7 +585,7 @@ watch(
 
 .readme-content :deep(pre) {
   background-color: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   padding: 16px;
   overflow-x: auto;
@@ -628,7 +628,7 @@ watch(
 
 .readme-content :deep(table th),
 .readme-content :deep(table td) {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   padding: 6px 13px;
 }
 
@@ -643,7 +643,7 @@ watch(
 
 .readme-content :deep(hr) {
   border: none;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   margin: 24px 0;
 }
 
@@ -665,7 +665,7 @@ watch(
 .info-sidebar {
   width: 280px;
   flex-shrink: 0;
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
   overflow-y: auto;
   padding: 24px 20px;
 }
@@ -777,7 +777,7 @@ watch(
   .info-sidebar {
     width: 100%;
     border-left: none;
-    border-top: 1px solid var(--border-color);
+    border-top: var(--border-width) solid var(--border-color);
     max-height: 400px;
     order: 1; /* 插件信息在上面 */
   }

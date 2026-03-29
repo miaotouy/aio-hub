@@ -238,7 +238,7 @@ function getDisplayIconPath(iconPath: string): string {
   padding: 0.5rem;
   background: var(--input-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   font-size: 0.9rem;
   box-sizing: border-box;
@@ -302,7 +302,7 @@ function getDisplayIconPath(iconPath: string): string {
   padding: 0.5rem 1rem;
   background: var(--card-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9rem;

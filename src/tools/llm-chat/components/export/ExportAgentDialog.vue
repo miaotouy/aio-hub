@@ -423,7 +423,7 @@ const canExport = computed(() => {
   padding: 16px;
   background-color: var(--bg-color-soft);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .single-agent-info .info-text {
@@ -489,7 +489,7 @@ const canExport = computed(() => {
   margin-top: 8px;
   width: 100px;
   height: 100px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
   display: flex;

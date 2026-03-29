@@ -357,7 +357,7 @@ function addTool() {
   padding: 16px;
   background: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-sizing: border-box;
 }
 
@@ -453,7 +453,7 @@ function addTool() {
 }
 
 .tool-item {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
   transition: all 0.2s ease;
@@ -563,7 +563,7 @@ function addTool() {
 .tool-detail {
   padding: 12px 12px 16px 12px;
   background: rgba(var(--el-color-primary-rgb), 0.02);
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
 }
 
@@ -597,7 +597,7 @@ function addTool() {
   padding: 8px 12px;
   padding-left: 24px;
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   transition: all 0.15s;
   position: relative;

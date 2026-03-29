@@ -75,7 +75,7 @@ const activeTab = ref("storage-perf");
   justify-content: space-between;
   padding: 16px 20px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
 }
 

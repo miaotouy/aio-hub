@@ -563,7 +563,7 @@ const pasteToolSettings = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   transition: background-color 0.15s;
 }
 
@@ -615,7 +615,7 @@ const pasteToolSettings = async () => {
 .tool-settings-container {
   padding: 12px;
   background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.03));
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .prompt-preview-section {
@@ -643,7 +643,7 @@ const pasteToolSettings = async () => {
   line-height: 1.6;
   color: var(--el-text-color-regular);
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   white-space: pre-wrap;
   word-break: break-all;
@@ -744,7 +744,7 @@ const pasteToolSettings = async () => {
   padding: 8px 12px;
   padding-left: 24px;
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   transition: all 0.15s;
   position: relative;

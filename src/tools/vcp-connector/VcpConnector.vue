@@ -159,7 +159,7 @@ watch(showJsonViewer, (visible: boolean) => {
   min-width: 0;
   position: relative;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   backdrop-filter: blur(var(--ui-blur));
@@ -176,7 +176,7 @@ watch(showJsonViewer, (visible: boolean) => {
   margin: 0;
   padding: 0 16px;
   background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .expand-trigger {

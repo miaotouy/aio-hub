@@ -71,7 +71,7 @@ const handleQuickImport = async () => {
 .worldbook-overview {
   width: 100%;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -159,7 +159,7 @@ const handleQuickImport = async () => {
   gap: 12px;
   padding: 10px 16px;
   background-color: rgba(0, 0, 0, 0.03);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
 }

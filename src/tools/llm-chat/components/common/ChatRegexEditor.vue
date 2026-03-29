@@ -811,7 +811,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
   display: flex;
   flex-direction: column;
   height: 600px; /* 固定高度以支持滚动 */
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -826,7 +826,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
   width: 280px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   background-color: var(--bg-color-soft);
 }
 
@@ -835,7 +835,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  /* border-bottom: 1px solid var(--border-color); */
+  /* border-bottom: var(--border-width) solid var(--border-color); */
   background-color: var(--bg-color-soft);
 }
 
@@ -1024,7 +1024,7 @@ function truncateRegex(regex: string, maxLength = 30): string {
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--bg-color-soft);
   gap: 8px;
   flex-shrink: 0;

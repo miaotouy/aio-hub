@@ -150,7 +150,7 @@ const copyText = async () => {
   overflow: hidden;
   background-color: var(--card-bg);
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-sizing: border-box;
   backdrop-filter: blur(var(--ui-blur));
 }

@@ -462,7 +462,7 @@ const getSelectedPresetColor = (type: ColorType) => {
 
 .reset-btn {
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-color-secondary);
 }
 
@@ -501,7 +501,7 @@ const getSelectedPresetColor = (type: ColorType) => {
 }
 
 .native-color-picker::-webkit-color-swatch {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
 }
 
@@ -509,7 +509,7 @@ const getSelectedPresetColor = (type: ColorType) => {
   width: 100%;
   height: 60px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   margin-bottom: 12px;
   transition: background-color 0.3s ease;
 }

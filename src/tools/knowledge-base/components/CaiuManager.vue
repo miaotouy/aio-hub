@@ -71,7 +71,7 @@ const handleAddEntry = async () => {
 .list-sidebar {
   width: 320px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   background-color: var(--sidebar-bg);
 }
 .is-small .list-sidebar {

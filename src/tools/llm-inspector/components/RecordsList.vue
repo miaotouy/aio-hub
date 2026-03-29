@@ -163,7 +163,7 @@ function getStatusClass(status?: number): string {
 <style scoped>
 .records-panel {
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -173,7 +173,7 @@ function getStatusClass(status?: number): string {
 
 .records-header {
   padding: 15px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -193,7 +193,7 @@ function getStatusClass(status?: number): string {
 .filter-select {
   padding: 6px 10px;
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-color);
   border-radius: 4px;
 }

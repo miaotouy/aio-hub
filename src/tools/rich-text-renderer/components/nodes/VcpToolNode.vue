@@ -454,7 +454,7 @@ const copyContent = async () => {
   padding: 8px;
   background: rgba(var(--el-color-primary-rgb), 0.02);
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .json-row {

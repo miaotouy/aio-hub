@@ -222,7 +222,7 @@ const stDisplayData = computed(() => {
 .st-card-view {
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 20px;
@@ -232,7 +232,7 @@ const stDisplayData = computed(() => {
 .st-header {
   padding: 32px;
   background: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .header-main {
@@ -325,7 +325,7 @@ const stDisplayData = computed(() => {
 /* Info Card */
 .info-card {
   background: var(--el-fill-color-blank);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   transition: border-color 0.2s;

@@ -138,7 +138,7 @@ const updateWeight = (tag: TagWithWeight, delta: number) => {
   display: flex;
   align-items: center;
   background-color: var(--el-fill-color-light);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 2px 6px;
   gap: 6px;
@@ -185,8 +185,8 @@ const updateWeight = (tag: TagWithWeight, delta: number) => {
   align-items: center;
   gap: 4px;
   padding: 0 4px;
-  border-left: 1px solid var(--border-color);
-  border-right: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 .weight-value {

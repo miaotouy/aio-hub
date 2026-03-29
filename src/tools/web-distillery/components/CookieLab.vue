@@ -153,7 +153,7 @@ onErrorCaptured((err) => {
 
 .cookie-content {
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   min-height: 120px;
   max-height: 400px;

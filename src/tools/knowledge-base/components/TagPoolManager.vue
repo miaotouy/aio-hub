@@ -450,7 +450,7 @@ async function handleClearOtherModels() {
 
 .tag-pool-section {
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
   position: relative;

@@ -192,7 +192,7 @@ const toggleCommand = async (toolName: string, command: string, enabled: boolean
   padding: 16px;
   background: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-sizing: border-box;
 }
 
@@ -240,7 +240,7 @@ const toggleCommand = async (toolName: string, command: string, enabled: boolean
 }
 
 .tool-item {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
   transition: all 0.2s ease;
@@ -319,7 +319,7 @@ const toggleCommand = async (toolName: string, command: string, enabled: boolean
 .tool-detail {
   padding: 12px 12px 16px 12px;
   background: rgba(var(--el-color-primary-rgb), 0.02);
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
 }
 
@@ -351,7 +351,7 @@ const toggleCommand = async (toolName: string, command: string, enabled: boolean
   flex-direction: column;
   padding: 10px 12px;
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
 }
 

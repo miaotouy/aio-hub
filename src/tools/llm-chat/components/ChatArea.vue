@@ -917,7 +917,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
 }
 

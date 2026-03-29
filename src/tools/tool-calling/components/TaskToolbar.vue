@@ -122,7 +122,7 @@ function handleSearch() {
   align-items: center;
   padding: 16px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -163,7 +163,7 @@ function handleSearch() {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
 }
 
 .auto-refresh .label {

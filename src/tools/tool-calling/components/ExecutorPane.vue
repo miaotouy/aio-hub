@@ -361,7 +361,7 @@ const generateVcpCommand = () => {
 }
 
 .config-panel {
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -417,7 +417,7 @@ const generateVcpCommand = () => {
 
 .editor-wrapper {
   flex: 1;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--vscode-editor-background);
@@ -434,7 +434,7 @@ const generateVcpCommand = () => {
 
 .section-header {
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;

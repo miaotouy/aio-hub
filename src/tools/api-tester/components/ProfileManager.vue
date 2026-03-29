@@ -118,7 +118,7 @@ function getPresetName(presetId: string): string {
 }
 
 .profile-list {
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   padding-top: 24px;
 }
 
@@ -136,7 +136,7 @@ function getPresetName(presetId: string): string {
   padding: 12px;
   background: var(--card-bg);
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   margin-bottom: 10px;
   transition: all 0.2s;
 }

@@ -176,7 +176,7 @@ const handleOpenDirectory = async () => {
   margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   background-color: var(--container-bg);
   border-left: 3px solid transparent;

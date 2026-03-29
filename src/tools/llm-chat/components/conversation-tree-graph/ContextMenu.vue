@@ -110,7 +110,7 @@ onUnmounted(() => {
   z-index: 9999;
   min-width: 160px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   padding: 4px 0;

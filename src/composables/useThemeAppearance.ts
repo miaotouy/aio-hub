@@ -382,6 +382,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     }
 
     root.style.setProperty("--border-opacity", String(settings.borderOpacity));
+    root.style.setProperty("--border-width", `${settings.borderWidth ?? 1}px`);
 
     // 代码块背景：使用独立的透明度设置
     const codeBlockOpacity = settings.codeBlockOpacity ?? defaultAppearanceSettings.codeBlockOpacity;
@@ -426,6 +427,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty("--card-opacity", "1");
     root.style.setProperty("--overlay-opacity", "1");
     root.style.setProperty("--border-opacity", "1");
+    root.style.removeProperty("--border-width");
     root.style.removeProperty("--code-block-opacity");
     root.style.removeProperty("--scrollbar-thumb-opacity");
     root.style.removeProperty("--scrollbar-thumb-hover-opacity");

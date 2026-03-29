@@ -283,7 +283,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
   display: flex;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background: var(--container-bg);
   flex-shrink: 0;
   position: sticky;
@@ -414,7 +414,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
   -webkit-appearance: none;
   appearance: none;
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .param-slider::-webkit-slider-thumb {
@@ -458,7 +458,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
   padding: 10px;
   font-size: 13px;
   line-height: 1.5;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   background-color: var(--container-bg);
   color: var(--text-color);

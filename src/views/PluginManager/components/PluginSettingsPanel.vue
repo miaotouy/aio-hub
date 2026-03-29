@@ -262,7 +262,7 @@ watch(
 .settings-header {
   flex-shrink: 0;
   padding: 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;

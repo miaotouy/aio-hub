@@ -386,7 +386,7 @@ const { isDraggingOver } = useFileDrop({
   gap: 8px;
   padding: 6px 10px;
   background-color: var(--el-fill-color-light);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   font-size: 12px;
   transition: all 0.2s;

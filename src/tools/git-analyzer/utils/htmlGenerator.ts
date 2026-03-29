@@ -179,7 +179,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       padding: 15px;
       border-radius: 5px;
       margin: 20px 0;
-      border: 1px solid var(--border-color);
+      border: var(--border-width) solid var(--border-color);
     }
     
     .${cssPrefix}-info p {
@@ -199,7 +199,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       padding: 20px;
       border-radius: 5px;
       text-align: center;
-      border: 1px solid var(--border-color);
+      border: var(--border-width) solid var(--border-color);
     }
     
     .${cssPrefix}-stat-value {
@@ -218,7 +218,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       background: var(--bg-card);
       border-collapse: collapse;
       margin: 20px 0;
-      border: 1px solid var(--border-color);
+      border: var(--border-width) solid var(--border-color);
       border-radius: 5px;
       overflow: hidden;
     }
@@ -227,7 +227,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
     .${cssPrefix}-table td {
       padding: 12px;
       text-align: left;
-      border-bottom: 1px solid var(--border-color);
+      border-bottom: var(--border-width) solid var(--border-color);
       color: var(--text-primary);
     }
     
@@ -250,7 +250,7 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       padding: 15px;
       margin: 15px 0;
       border-radius: 5px;
-      border: 1px solid var(--border-color);
+      border: var(--border-width) solid var(--border-color);
     }
     
     .${cssPrefix}-commit p {

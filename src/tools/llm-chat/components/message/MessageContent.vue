@@ -853,7 +853,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 .message-meta {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
 }
 
@@ -892,7 +892,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
   gap: 8px;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: var(--container-bg);
   transition:
     border-color 0.2s,

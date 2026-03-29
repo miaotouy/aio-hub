@@ -282,7 +282,7 @@ const toggleSortOrder = () => {
 
 .session-header {
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 10px;

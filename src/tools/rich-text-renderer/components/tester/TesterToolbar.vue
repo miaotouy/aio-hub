@@ -172,7 +172,7 @@ const { inputContent, streamEnabled, syncInputProgress, copyOptions } = storeToR
   /* justify-content: space-between; */
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
@@ -219,7 +219,7 @@ const { inputContent, streamEnabled, syncInputProgress, copyOptions } = storeToR
   color: var(--text-color);
   margin-bottom: 4px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .copy-options :deep(.el-checkbox) {

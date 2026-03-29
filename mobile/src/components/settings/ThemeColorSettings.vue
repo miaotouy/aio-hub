@@ -313,7 +313,7 @@ const showDrawer = ref(false);
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -335,7 +335,7 @@ const showDrawer = ref(false);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .drawer-title {
@@ -386,7 +386,7 @@ const showDrawer = ref(false);
   padding: 16px;
   background-color: var(--color-surface-container-low);
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .preview-info {

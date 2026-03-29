@@ -367,7 +367,7 @@ const handleImagePreview = () => {
   min-width: 0;
   background: var(--bg-color);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
 }
 
@@ -447,7 +447,7 @@ const handleImagePreview = () => {
   gap: 4px;
   padding: 4px 8px;
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   color: var(--text-color);
   font-size: 12px;
@@ -463,7 +463,7 @@ const handleImagePreview = () => {
 .editor-wrapper {
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -494,7 +494,7 @@ const handleImagePreview = () => {
 
 .btn-secondary {
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-color);
 }
 

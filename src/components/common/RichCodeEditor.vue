@@ -624,7 +624,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   background-color: var(--card-bg);
   transition: border-color 0.2s ease-in-out;
@@ -718,7 +718,7 @@ defineExpose({
 }
 /* 搜索面板适配 - 纯配色适配，不干扰布局 */
 :deep(.cm-panels) {
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
   -webkit-backdrop-filter: blur(var(--ui-blur));
@@ -735,7 +735,7 @@ defineExpose({
 /* 输入框适配 */
 :deep(.cm-panel input.cm-textfield) {
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-color);
   border-radius: 4px;
   padding: 4px 8px;
@@ -765,7 +765,7 @@ defineExpose({
 :deep(.cm-panel button.cm-button) {
   background-color: var(--card-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   padding: 4px 12px;
   border-radius: 4px;
   cursor: pointer;

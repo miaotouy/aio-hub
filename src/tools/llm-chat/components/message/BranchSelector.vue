@@ -278,7 +278,7 @@ const siblingsWithDisplayInfo = computed(() => {
   padding: 10px;
   border-radius: 8px;
   cursor: pointer;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s ease;
   background-color: var(--card-bg);
   position: relative;

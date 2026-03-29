@@ -237,7 +237,7 @@ const handleSelect = (item: any) => {
 .config-panel {
   grid-column: 1 / -1;
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 20px;
   backdrop-filter: blur(var(--ui-blur));
@@ -330,7 +330,7 @@ const handleSelect = (item: any) => {
   width: 120px;
   padding: 8px 12px;
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-color);
   border-radius: 4px;
 }
@@ -383,8 +383,8 @@ const handleSelect = (item: any) => {
   display: flex;
   gap: 20px;
   padding: 10px 0;
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .stat-item {

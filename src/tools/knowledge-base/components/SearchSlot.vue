@@ -239,7 +239,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   background-color: var(--card-bg);
   overflow: hidden;
@@ -253,7 +253,7 @@ defineExpose({
   align-items: center;
   gap: 8px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .engine-select-wrapper {
@@ -293,7 +293,7 @@ defineExpose({
 }
 
 .config-section {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   /* 移除 overflow: hidden 以免干扰 collapse 动画 */
   background-color: rgba(var(--el-text-color-placeholder-rgb), 0.02);
@@ -391,7 +391,7 @@ defineExpose({
   padding: 10px;
   background-color: rgba(var(--el-color-primary-rgb), 0.02);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .query-preview .label {
@@ -428,7 +428,7 @@ defineExpose({
 
 .result-card {
   padding: 10px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;

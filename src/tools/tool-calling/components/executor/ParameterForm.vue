@@ -304,7 +304,7 @@ const handlePathSelect = async (paramName: string, description: string) => {
 }
 
 .embedded-editor {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
 }

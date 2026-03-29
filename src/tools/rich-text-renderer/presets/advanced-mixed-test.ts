@@ -21,7 +21,7 @@ export const advancedMixedTestPreset: RenderPreset = {
   </div>
 
   <!-- 主容器 -->
-  <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; box-shadow: var(--el-box-shadow-light); backdrop-filter: blur(var(--ui-blur)); overflow: hidden;">
+  <div style="background: var(--card-bg); border: var(--border-width) solid var(--border-color); border-radius: 12px; padding: 25px; box-shadow: var(--el-box-shadow-light); backdrop-filter: blur(var(--ui-blur)); overflow: hidden;">
     
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
       <div>
@@ -66,7 +66,7 @@ export const advancedMixedTestPreset: RenderPreset = {
       </div>
 
       <!-- 右侧：技术指标 -->
-      <div style="background: var(--vscode-editor-background); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px;">
+      <div style="background: var(--vscode-editor-background); border: var(--border-width) solid var(--border-color); border-radius: 6px; padding: 15px;">
         <h5 style="margin: 0 0 10px 0; font-family: monospace; color: var(--el-color-info);">TECHNICAL_METRICS.log</h5>
         
 \`\`\`mermaid

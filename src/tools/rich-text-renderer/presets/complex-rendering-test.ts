@@ -20,10 +20,10 @@ export const complexRenderingTestPreset: RenderPreset = {
 解码完成。准备渲染仪表盘。
 </think>
 
-<div style="font-family: 'JetBrains Mono', Consolas, monospace; background: var(--vscode-editor-background); color: var(--text-color); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color);">
+<div style="font-family: 'JetBrains Mono', Consolas, monospace; background: var(--vscode-editor-background); color: var(--text-color); padding: 20px; border-radius: 8px; border: var(--border-width) solid var(--border-color);">
 
   <!-- Header -->
-  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: var(--border-width) solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px;">
     <div style="display: flex; align-items: center; gap: 15px;">
       <div style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary-color), var(--el-color-success)); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px var(--primary-color-light-5, rgba(64, 158, 255, 0.5));">
         <span style="font-size: 20px;">⚛️</span>
@@ -45,7 +45,7 @@ export const complexRenderingTestPreset: RenderPreset = {
   <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px;">
     
     <!-- Panel 1: Theoretical Model (KaTeX & Markdown) -->
-    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px;; backdrop-filter: blur(var(--ui-blur))">
+    <div style="background: var(--card-bg); border: var(--border-width) solid var(--border-color); border-radius: 6px; padding: 15px;; backdrop-filter: blur(var(--ui-blur))">
       <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color-light); padding-bottom: 10px; font-size: 1em; color: var(--el-color-warning);">
         📐 理论模型参数
       </h3>
@@ -118,7 +118,7 @@ export const complexRenderingTestPreset: RenderPreset = {
     </div>
 
     <!-- Panel 2: Network Topology (Mermaid) -->
-    <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; backdrop-filter: blur(var(--ui-blur));">
+    <div style="background: var(--card-bg); border: var(--border-width) solid var(--border-color); border-radius: 6px; padding: 15px; backdrop-filter: blur(var(--ui-blur));">
       <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color-light); padding-bottom: 10px; font-size: 1em; color: var(--el-color-success);">
         🕸️ 网络拓扑状态
       </h3>
@@ -143,7 +143,7 @@ graph TD
   </div>
 
   <!-- Panel 3: SVG Visualization (New!) -->
-  <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 20px; backdrop-filter: blur(var(--ui-blur));">
+  <div style="background: var(--card-bg); border: var(--border-width) solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 20px; backdrop-filter: blur(var(--ui-blur));">
     <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color-light); padding-bottom: 10px; font-size: 1em; color: var(--primary-color);">
       📡 相位干涉雷达 (SVG Rendering)
     </h3>
@@ -197,7 +197,7 @@ graph TD
   </div>
 
   <!-- Panel 4: Data Stream (Complex Table) -->
-  <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 20px; backdrop-filter: blur(var(--ui-blur));">
+  <div style="background: var(--card-bg); border: var(--border-width) solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 20px; backdrop-filter: blur(var(--ui-blur));">
     <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color-light); padding-bottom: 10px; font-size: 1em; color: var(--el-color-warning);">
       📊 实时数据流缓冲
     </h3>
@@ -214,7 +214,7 @@ graph TD
   </div>
 
   <!-- Panel 5: System Logs (Nested Details) -->
-  <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; backdrop-filter: blur(var(--ui-blur));">
+  <div style="background: var(--card-bg); border: var(--border-width) solid var(--border-color); border-radius: 6px; padding: 15px; backdrop-filter: blur(var(--ui-blur));">
     <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color-light); padding-bottom: 10px; font-size: 1em; color: var(--el-color-info);">
       📜 系统日志 (Level 3)
     </h3>
@@ -222,7 +222,7 @@ graph TD
     <details>
       <summary style="cursor: pointer; color: var(--text-color-secondary); padding: 5px 0;">点击展开详细调试日志</summary>
       
-      <div style="padding: 10px; background: var(--container-bg); border-radius: 4px; margin-top: 10px; border: 1px solid var(--border-color);">
+      <div style="padding: 10px; background: var(--container-bg); border-radius: 4px; margin-top: 10px; border: var(--border-width) solid var(--border-color);">
         
         **2025-11-24 16:20:01** [INFO] 初始化量子存储器...
         

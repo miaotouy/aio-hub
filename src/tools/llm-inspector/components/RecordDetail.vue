@@ -183,7 +183,7 @@ const {
 <style scoped>
 .detail-panel {
   background: var(--container-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -193,7 +193,7 @@ const {
 
 .detail-header {
   padding: 15px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -214,7 +214,7 @@ const {
   padding: 6px 12px;
   background: var(--card-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
@@ -267,7 +267,7 @@ const {
 .section h4 {
   margin: 0 0 15px 0;
   color: var(--text-color);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   padding-bottom: 5px;
 }
 
@@ -398,7 +398,7 @@ const {
   padding: 4px 8px;
   background: transparent;
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
@@ -413,7 +413,7 @@ const {
 
 .headers-list {
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 10px;
   max-height: 200px;
@@ -455,7 +455,7 @@ const {
 
 .body-content {
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 15px;
   max-height: 400px;

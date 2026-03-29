@@ -294,7 +294,7 @@ const actionIcons: Record<string, any> = {
 
 .editor-header {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
 }
 
@@ -344,7 +344,7 @@ const actionIcons: Record<string, any> = {
 
 .meta-item input {
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;
@@ -390,7 +390,7 @@ const actionIcons: Record<string, any> = {
   gap: 8px;
   padding: 8px;
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   position: relative;
 }
@@ -424,7 +424,7 @@ const actionIcons: Record<string, any> = {
   flex: 1;
   display: flex;
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -464,7 +464,7 @@ const actionIcons: Record<string, any> = {
 .number-input {
   width: 100%;
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;

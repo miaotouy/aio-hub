@@ -348,7 +348,7 @@ const handleRefresh = () => {
   border-radius: 12px;
   overflow: hidden;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   cursor: pointer;
   transition:
     transform 0.2s,

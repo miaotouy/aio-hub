@@ -959,14 +959,14 @@ onUnmounted(() => {
 .flow-tree-graph-wrapper :deep(.vue-flow__controls) {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .flow-tree-graph-wrapper :deep(.vue-flow__controls-button) {
   background-color: transparent;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   color: var(--el-text-color-primary);
 }
 
@@ -986,7 +986,7 @@ onUnmounted(() => {
 .flow-tree-graph-wrapper :deep(.vue-flow__minimap) {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -1132,7 +1132,7 @@ onUnmounted(() => {
   z-index: 2000;
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));

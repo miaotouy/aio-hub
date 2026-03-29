@@ -109,7 +109,7 @@ const handleViewDetail = (e: Event) => {
 <style scoped>
 .notification-item {
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 8px;
@@ -288,7 +288,7 @@ const handleViewDetail = (e: Event) => {
 
 .detail-btn {
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-color-secondary);
   cursor: pointer;
   padding: 4px 8px;

@@ -127,7 +127,7 @@ const selectedModelCombo = computed({
   overflow: hidden;
   background-color: var(--card-bg);
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-sizing: border-box;
   backdrop-filter: blur(var(--ui-blur));
 }
@@ -138,7 +138,7 @@ const selectedModelCombo = computed({
   justify-content: space-between;
   padding: 0 16px;
   height: 56px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: rgba(255, 255, 255, 0.02);
   flex-shrink: 0;
 }

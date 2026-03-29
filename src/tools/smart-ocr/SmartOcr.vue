@@ -463,7 +463,7 @@ const handleReRecognize = async (recordId: string) => {
 .panel {
   height: 100%;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   position: relative;
   flex-shrink: 0;
   display: flex;
@@ -597,7 +597,7 @@ const handleReRecognize = async (recordId: string) => {
   overflow: hidden;
   background-color: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   min-width: 0;
   position: relative;
 }

@@ -640,7 +640,7 @@ const handleNavigateToSettings = () => {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
@@ -664,7 +664,7 @@ const handleNavigateToSettings = () => {
 .section-block {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   margin-bottom: 12px;
   overflow: hidden;
@@ -679,7 +679,7 @@ const handleNavigateToSettings = () => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--bg-color);
 }
 
@@ -698,7 +698,7 @@ const handleNavigateToSettings = () => {
 
 .panel-footer {
   padding: 12px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 

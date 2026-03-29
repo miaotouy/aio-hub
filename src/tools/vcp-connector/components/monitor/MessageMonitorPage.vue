@@ -367,7 +367,7 @@ async function handleReattach() {
     0 4px 16px rgba(0, 0, 0, 0.15);
   /* 分离模式下使用专用的底层背景 */
   background-color: var(--detached-base-bg, var(--container-bg));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 /* 分离模式壁纸层 */
@@ -449,7 +449,7 @@ async function handleReattach() {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
 }
@@ -502,7 +502,7 @@ async function handleReattach() {
 .search-input :deep(.el-input__wrapper) {
   background-color: var(--input-bg);
   box-shadow: none;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s;
 }
 

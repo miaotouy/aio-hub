@@ -147,7 +147,7 @@ const getResourceTypeTag = (type: string) => {
 
 .params-box {
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 12px;
   font-family: var(--font-code);

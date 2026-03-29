@@ -627,7 +627,7 @@ const maskKey = (key: string) => {
 
 .stats-card {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   backdrop-filter: blur(var(--ui-blur));
@@ -670,7 +670,7 @@ const maskKey = (key: string) => {
 
 .settings-bar {
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 8px 16px;
   margin-bottom: 16px;
@@ -770,7 +770,7 @@ const maskKey = (key: string) => {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 13px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .error-info {
@@ -821,7 +821,7 @@ const maskKey = (key: string) => {
 .key-table {
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: transparent !important;
 }
 

@@ -313,7 +313,7 @@ const handleIntegration = async (command: string, task: any) => {
 .stat-card {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
   display: flex;
@@ -366,7 +366,7 @@ const handleIntegration = async (command: string, task: any) => {
   min-height: 0;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   position: relative;

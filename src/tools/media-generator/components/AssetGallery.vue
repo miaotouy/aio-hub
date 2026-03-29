@@ -131,7 +131,7 @@ onMounted(() => {
 
 .gallery-header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -181,7 +181,7 @@ onMounted(() => {
   background-color: var(--card-bg);
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;

@@ -642,7 +642,7 @@ const handleIconClick = async () => {
 .history-hint {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
   color: var(--el-text-color-placeholder);
   text-align: center;

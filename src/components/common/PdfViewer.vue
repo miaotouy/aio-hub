@@ -752,7 +752,7 @@ watch(currentPage, (newPage) => {
   justify-content: center;
   padding: 8px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   gap: 16px;
   flex-shrink: 0;
   z-index: 10;

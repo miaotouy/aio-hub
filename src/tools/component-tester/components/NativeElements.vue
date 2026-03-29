@@ -257,7 +257,7 @@ const selectedColor = ref("#409eff");
 .section {
   margin-bottom: 32px;
   padding: 20px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--el-bg-color);
 }
@@ -298,7 +298,7 @@ blockquote {
   backdrop-filter: blur(var(--ui-blur));
   color: var(--el-text-color-regular);
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 pre {
@@ -308,7 +308,7 @@ pre {
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 4px;
   overflow-x: auto;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 code {
@@ -338,7 +338,7 @@ pre code {
 
 button {
   padding: 8px 16px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   background-color: var(--el-bg-color);
   color: var(--el-text-color-primary);
@@ -551,7 +551,7 @@ input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
   padding: 8px 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   color: var(--el-text-color-primary);
   transition: border-color 0.3s;
@@ -601,7 +601,7 @@ input[type="radio"] {
   color: currentColor;
   width: 1.15em;
   height: 1.15em;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 0.25em;
   transform: translateY(-0.075em);
   display: grid;
@@ -731,7 +731,7 @@ table {
   border-collapse: separate;
   border-spacing: 0;
   margin: 16px 0;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--card-bg);
@@ -742,7 +742,7 @@ th,
 td {
   padding: 12px;
   text-align: left;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 thead {
@@ -775,7 +775,7 @@ details,
 fieldset {
   margin: 12px 0;
   padding: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
@@ -795,7 +795,7 @@ meter {
   height: 10px;
   margin: 8px 0;
   border-radius: 5px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--input-bg);
   overflow: hidden;
 }

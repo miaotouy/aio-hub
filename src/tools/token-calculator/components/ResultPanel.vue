@@ -529,7 +529,7 @@ defineExpose({ rootEl });
 /* 汇总卡片 */
 .summary-card {
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -688,7 +688,7 @@ defineExpose({ rootEl });
 
 .detail-card {
   background-color: var(--bg-color-soft);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 12px 16px;
   display: flex;
@@ -718,7 +718,7 @@ defineExpose({ rootEl });
 /* 可视化区域 */
 .visualization-section {
   background-color: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 18px;
   box-sizing: border-box;

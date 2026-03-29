@@ -1522,7 +1522,7 @@ const processFiles = async () => {
 
 .log-output {
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 12px;
   font-family: monospace;

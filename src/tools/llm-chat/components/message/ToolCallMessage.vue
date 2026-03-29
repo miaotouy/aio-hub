@@ -800,7 +800,7 @@ defineExpose({
   z-index: 2;
   pointer-events: none;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: border-color 0.2s;
 }
 
@@ -923,7 +923,7 @@ defineExpose({
   padding: 2px 8px;
   border-radius: 6px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-color-secondary);
 }
 
@@ -980,7 +980,7 @@ defineExpose({
   padding: 12px;
   background: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .edit-actions {
@@ -1020,7 +1020,7 @@ defineExpose({
   padding: 12px;
   background-color: var(--input-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .tool-call-item {
@@ -1028,7 +1028,7 @@ defineExpose({
   flex-direction: column;
   gap: 8px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .tool-call-item:last-child {
@@ -1095,7 +1095,7 @@ defineExpose({
 .tool-args-preview {
   padding: 10px;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   max-height: 250px;
   overflow-y: auto;
@@ -1126,7 +1126,7 @@ defineExpose({
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: var(--card-bg);
   color: var(--text-color-secondary);
   cursor: pointer;
@@ -1298,7 +1298,7 @@ defineExpose({
 .message-meta {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   font-size: 11px;
   display: flex;
   flex-direction: column;
@@ -1344,7 +1344,7 @@ defineExpose({
   margin-bottom: 16px;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--input-bg);
 }
 
@@ -1388,7 +1388,7 @@ defineExpose({
   background-color: var(--card-bg);
   border-radius: 4px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .progress-fill {

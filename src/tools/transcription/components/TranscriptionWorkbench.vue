@@ -772,7 +772,7 @@ const toggleQuickConfig = () => {
 
 .workbench-toolbar {
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -808,7 +808,7 @@ const toggleQuickConfig = () => {
   background-color: var(--input-bg);
   padding: 2px 12px;
   border-radius: 20px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .auto-start-control .control-label {
@@ -827,7 +827,7 @@ const toggleQuickConfig = () => {
 
 .quick-config-panel {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--input-bg);
   display: flex;
   flex-direction: column;
@@ -907,7 +907,7 @@ const toggleQuickConfig = () => {
   display: flex;
   flex-direction: column;
   position: relative;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   background-color: var(--container-bg);
   transition: flex 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -918,7 +918,7 @@ const toggleQuickConfig = () => {
 
 .preview-header {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1055,7 +1055,7 @@ const toggleQuickConfig = () => {
 
 .result-header {
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;

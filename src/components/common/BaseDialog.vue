@@ -294,7 +294,7 @@ onBeforeUnmount(() => {
   background-color: var(--card-bg);
   border-radius: 8px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 /* 无样式模式 */
@@ -325,7 +325,7 @@ onBeforeUnmount(() => {
 }
 
 .dialog-header.with-border {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .dialog-title {
@@ -383,7 +383,7 @@ onBeforeUnmount(() => {
 }
 
 .dialog-footer.with-border {
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 /* 滚动条样式 */

@@ -128,7 +128,7 @@ const toggleExpand = () => {
   margin-bottom: 8px;
   border-radius: 8px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
   transition: all 0.2s ease;
   backdrop-filter: blur(var(--ui-blur));
@@ -220,7 +220,7 @@ const toggleExpand = () => {
 
 .card-content {
   padding: 0 12px 12px 36px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   background-color: rgba(0, 0, 0, 0.02);
 }
 

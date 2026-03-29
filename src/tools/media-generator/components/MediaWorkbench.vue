@@ -115,13 +115,13 @@ watch(
 
 .side-panel.left {
   width: 320px;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 .side-panel.right {
   width: 300px;
   border-right: none;
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
 }
 
 .side-panel.collapsed {
@@ -149,7 +149,7 @@ watch(
   width: 16px;
   height: 48px;
   background-color: var(--sidebar-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -652,7 +652,7 @@ onUnmounted(() => {
 .install-progress-container {
   padding: 24px;
   background: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 20px;
 }

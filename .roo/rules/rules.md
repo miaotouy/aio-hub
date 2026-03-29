@@ -419,7 +419,7 @@
     - `backdrop-filter: blur(var(--ui-blur));`
 
 3.  **边框**: 边框颜色已经预设了透明度，可以直接使用 `--border-color` 变量。
-    - `border: 1px solid var(--border-color);`
+    - `border: var(--border-width) solid var(--border-color);`
 
 4.  **代码编辑器**: 对于代码编辑区域（如 CodeMirror/Monaco），应使用特定变量以匹配用户设置：
     - `background-color: var(--vscode-editor-background);`
@@ -432,7 +432,7 @@
 .my-custom-card {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-sizing: border-box;
   /*box-shadow: var(--el-box-shadow-light); /* 可选，复用 Element Plus 的阴影 */

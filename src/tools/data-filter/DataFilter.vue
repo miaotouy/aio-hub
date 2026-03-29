@@ -514,7 +514,7 @@ function doExecuteFilter() {
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   overflow: hidden;
@@ -526,7 +526,7 @@ function doExecuteFilter() {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -562,11 +562,11 @@ function doExecuteFilter() {
 }
 
 .input-panel {
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 .result-panel {
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
 }
 
 .config-panel {
@@ -584,7 +584,7 @@ function doExecuteFilter() {
   justify-content: space-between;
   padding: 0 16px;
   background-color: var(--sidebar-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   height: 42px;
   box-sizing: border-box;
@@ -625,7 +625,7 @@ function doExecuteFilter() {
 .condition-card {
   padding: 12px;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   margin-bottom: 12px;
   transition: border-color 0.2s;
@@ -668,7 +668,7 @@ function doExecuteFilter() {
 .config-footer {
   padding: 16px;
   background-color: var(--sidebar-bg);
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .execute-btn {

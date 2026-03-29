@@ -161,7 +161,7 @@ const formatFileSize = (bytes: number) => {
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;

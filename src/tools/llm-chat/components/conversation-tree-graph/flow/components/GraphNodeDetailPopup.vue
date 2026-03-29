@@ -241,7 +241,7 @@ const chatMessageProps = computed(() => {
   flex: 1; /* Allow this to grow and shrink */
   min-height: 0; /* Crucial for nested flex scrolling */
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
   backdrop-filter: blur(var(--ui-blur));
@@ -254,7 +254,7 @@ const chatMessageProps = computed(() => {
   align-items: center;
   padding: 8px 12px;
   background-color: var(--sidebar-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   cursor: move;
   user-select: none;
 }

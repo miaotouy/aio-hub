@@ -180,7 +180,7 @@ const validateTool = (toolName: string) => {
 .pane-header {
   padding: 10px 20px;
   background-color: rgba(var(--text-color-rgb), 0.02);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -232,7 +232,7 @@ const validateTool = (toolName: string) => {
 
 /* 左侧配置面板 */
 .config-panel {
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -276,7 +276,7 @@ const validateTool = (toolName: string) => {
 .section-header {
   height: 40px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -336,7 +336,7 @@ const validateTool = (toolName: string) => {
 
 /* 结果卡片 */
 .req-card {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
   overflow: hidden;
@@ -362,7 +362,7 @@ const validateTool = (toolName: string) => {
 .req-head {
   padding: 8px 12px;
   background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.08));
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -435,7 +435,7 @@ const validateTool = (toolName: string) => {
   font-size: 12px;
   font-family: var(--el-font-family-mono);
   background-color: var(--vscode-editor-background);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   white-space: pre-wrap;
   word-break: break-all;

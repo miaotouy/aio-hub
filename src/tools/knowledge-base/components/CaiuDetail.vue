@@ -540,7 +540,7 @@ const handleDetailFileChange = (e: Event) => {
 .editor-header {
   padding: 10px 16px;
   height: 56px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -717,7 +717,7 @@ const handleDetailFileChange = (e: Event) => {
 
 .attr-card {
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -727,7 +727,7 @@ const handleDetailFileChange = (e: Event) => {
 .attr-header {
   padding: 8px 12px;
   background-color: rgba(var(--el-text-color-primary-rgb), 0.03);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;

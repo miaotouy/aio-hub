@@ -181,7 +181,7 @@ const addWb = (id: string) => {
 .wb-list {
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
 }
 
@@ -199,7 +199,7 @@ const addWb = (id: string) => {
 }
 
 .wb-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .wb-info {

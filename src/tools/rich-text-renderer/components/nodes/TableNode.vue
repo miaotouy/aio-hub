@@ -24,7 +24,7 @@ defineProps<{
   border-spacing: 0;
   width: 100%;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   overflow: hidden;
 }
@@ -32,7 +32,7 @@ defineProps<{
 .markdown-table :deep(th),
 .markdown-table :deep(td) {
   padding: 8px 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .markdown-table :deep(th) {

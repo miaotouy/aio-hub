@@ -100,7 +100,7 @@ watch(
   background: var(--container-bg);
   border-radius: 8px;
   padding: 20px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   height: 100%;
   box-sizing: border-box;
   display: flex;
@@ -161,7 +161,7 @@ watch(
 
 .response-body {
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: auto;
   flex: 1; /* 让其填充剩余空间 */

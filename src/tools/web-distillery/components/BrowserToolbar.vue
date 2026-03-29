@@ -235,7 +235,7 @@ async function handleFileChange(event: Event) {
   padding: 8px 12px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -253,7 +253,7 @@ async function handleFileChange(event: Event) {
   padding: 5px 8px;
   height: 32px;
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   color: var(--text-color-light);
   cursor: pointer;
@@ -300,7 +300,7 @@ async function handleFileChange(event: Event) {
   height: 32px;
   padding: 0 10px;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   transition: border-color 0.2s;
   backdrop-filter: blur(var(--ui-blur));

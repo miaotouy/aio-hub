@@ -377,7 +377,7 @@ const handleManualSave = async () => {
 .qa-sidebar {
   width: 200px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   background-color: var(--sidebar-bg);
@@ -388,7 +388,7 @@ const handleManualSave = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .sidebar-header .title {
@@ -464,7 +464,7 @@ const handleManualSave = async () => {
 
 .editor-header {
   padding: 12px 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -478,7 +478,7 @@ const handleManualSave = async () => {
 
 .action-name-input :deep(.el-input__wrapper) {
   box-shadow: none;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: transparent;
 }
 
@@ -522,7 +522,7 @@ const handleManualSave = async () => {
 }
 
 .editor-wrapper {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -550,7 +550,7 @@ const handleManualSave = async () => {
 }
 
 .section-group-settings {
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   padding-top: 20px;
 }
 

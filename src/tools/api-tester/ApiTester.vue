@@ -104,7 +104,7 @@ async function handleSend() {
   align-items: center;
   margin-bottom: 20px;
   padding: 16px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));

@@ -627,7 +627,7 @@ onUnmounted(() => {
 /* 桌面端侧边栏 */
 .settings-sidebar {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
   padding: 20px 16px;
@@ -732,7 +732,7 @@ onUnmounted(() => {
   z-index: 100;
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   margin: 12px 12px 0; /* 增加顶部边距，移除底部边距由 main 的 padding 处理 */
   padding: 8px 16px 12px;
@@ -801,7 +801,7 @@ onUnmounted(() => {
 /* 设置卡片 */
 .settings-section {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px;
@@ -818,7 +818,7 @@ onUnmounted(() => {
   color: var(--text-color);
   margin: 0 0 16px 0;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 /* 滚动条 */

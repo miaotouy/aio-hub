@@ -62,7 +62,7 @@ const resolvedSrc = computed(() => {
   max-width: 100%;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
 }

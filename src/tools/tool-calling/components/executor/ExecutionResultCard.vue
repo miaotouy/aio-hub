@@ -279,7 +279,7 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
 
 <style scoped>
 .res-card {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
   overflow: hidden;
@@ -288,7 +288,7 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
 .res-head {
   padding: 6px 12px;
   background-color: rgba(var(--text-color-rgb), 0.03);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -383,7 +383,7 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
 /* 异步任务面板样式 */
 .async-task-panel {
   margin-top: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   background-color: var(--card-bg);
   overflow: hidden;
@@ -395,7 +395,7 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
   gap: 8px;
   padding: 8px 12px;
   background-color: rgba(var(--el-color-primary-rgb), 0.05);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   font-weight: 600;
   font-size: 13px;
 }
@@ -464,7 +464,7 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
   max-height: 200px;
   overflow-y: auto;
   background-color: var(--vscode-editor-background);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 8px;
   margin-top: 4px;
@@ -494,7 +494,7 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
 
 .task-panel-actions {
   padding: 8px 12px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   gap: 8px;
   justify-content: flex-end;

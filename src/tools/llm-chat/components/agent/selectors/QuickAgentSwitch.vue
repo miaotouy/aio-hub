@@ -72,7 +72,7 @@ const getAgentAvatar = (agent: any) => {
   z-index: 9999;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
   min-width: 220px;
@@ -87,7 +87,7 @@ const getAgentAvatar = (agent: any) => {
   padding: 8px 12px;
   font-size: 12px;
   color: var(--text-color-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: rgba(var(--el-fill-color-rgb), 0.5);
 }
 

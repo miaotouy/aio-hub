@@ -251,7 +251,7 @@ function toggleViewMode() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
   background-color: var(--vscode-editor-background);
@@ -265,7 +265,7 @@ function toggleViewMode() {
   align-items: center;
   padding: 4px 8px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 

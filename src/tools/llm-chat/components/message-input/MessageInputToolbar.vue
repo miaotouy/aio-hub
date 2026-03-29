@@ -801,7 +801,7 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   flex-wrap: wrap;
   gap: 6px;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background: rgba(var(--el-fill-color-light-rgb), 0.3);
   min-height: 32px;
   align-items: center;
@@ -844,7 +844,7 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   gap: 4px;
   padding: 2px 8px;
   height: 22px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   background: var(--card-bg);
   cursor: pointer;

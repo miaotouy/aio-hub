@@ -133,7 +133,7 @@ const formattedDuration = (ms: number) => {
 .stat-card {
   padding: 10px;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   display: flex;
   flex-direction: column;

@@ -182,7 +182,7 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   padding: 0.5rem 1rem;
   background: var(--card-bg);
   color: var(--text-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85rem;
@@ -221,7 +221,7 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;

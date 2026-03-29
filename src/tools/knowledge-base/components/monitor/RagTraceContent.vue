@@ -122,7 +122,7 @@ const formattedDuration = (ms: number) => {
   padding: 10px;
   background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .stat-item {
@@ -259,7 +259,7 @@ const formattedDuration = (ms: number) => {
 }
 .result-item {
   padding: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   background-color: rgba(255, 255, 255, 0.03);
   box-sizing: border-box;

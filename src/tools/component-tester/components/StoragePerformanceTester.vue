@@ -809,7 +809,7 @@ function generateMockSession(count: number, sizeKB: number) {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   flex-wrap: wrap;
 }
 .bar-title {
@@ -820,7 +820,7 @@ function generateMockSession(count: number, sizeKB: number) {
   color: var(--el-text-color-primary);
   font-size: 14px;
   padding-right: 16px;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 .config-form :deep(.el-form-item) {
   margin-bottom: 0;
@@ -849,7 +849,7 @@ function generateMockSession(count: number, sizeKB: number) {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
 }
 .card-header {
@@ -857,7 +857,7 @@ function generateMockSession(count: number, sizeKB: number) {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   font-size: 14px;
   font-weight: 600;
   background-color: rgba(var(--el-color-primary-rgb), 0.05);
@@ -981,7 +981,7 @@ function generateMockSession(count: number, sizeKB: number) {
   flex-direction: column;
   background-color: rgba(0, 0, 0, 0.2);
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
   backdrop-filter: blur(var(--ui-blur));
   transition: all 0.3s ease;
@@ -996,7 +996,7 @@ function generateMockSession(count: number, sizeKB: number) {
   gap: 8px;
   padding: 8px 16px;
   background-color: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   font-size: 13px;
   font-weight: 600;
   color: #ccc;

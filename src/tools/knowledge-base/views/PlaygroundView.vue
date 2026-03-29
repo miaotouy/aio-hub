@@ -360,7 +360,7 @@ function handleSelect(result: SearchResult) {
   gap: 20px;
   padding: 10px 16px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   box-sizing: border-box;
 }
@@ -412,7 +412,7 @@ function handleSelect(result: SearchResult) {
   flex-shrink: 0;
   padding: 8px 16px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
 }
 

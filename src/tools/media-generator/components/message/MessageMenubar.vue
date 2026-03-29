@@ -205,7 +205,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   padding: 4px;
   border-radius: 8px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -268,7 +268,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   border-radius: 4px;
   cursor: pointer;
   background-color: var(--bg-color);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s;
 }
 

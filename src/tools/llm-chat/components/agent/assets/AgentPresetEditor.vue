@@ -1245,7 +1245,7 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -1352,7 +1352,7 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
 
 .pagination-container {
   padding: 8px 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   display: flex;
   justify-content: center;
@@ -1371,7 +1371,7 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   padding: 16px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s;
 }
@@ -1530,7 +1530,7 @@ function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "create
   padding: 8px 12px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   transition: all 0.2s;
   cursor: pointer;

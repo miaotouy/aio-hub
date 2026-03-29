@@ -459,7 +459,7 @@ watch(
 
 .history-card {
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   transition: all 0.3s ease;
@@ -533,7 +533,7 @@ watch(
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   cursor: pointer;
   transition: transform 0.2s ease;
 }

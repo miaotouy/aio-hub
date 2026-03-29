@@ -522,7 +522,7 @@ const networkSettingSummary = computed(() => {
   height: auto;
   max-height: 360px;
   min-height: 200px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .is-narrow :deep(.profile-editor) {
@@ -543,7 +543,7 @@ const networkSettingSummary = computed(() => {
 
 .empty-state {
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -600,7 +600,7 @@ const networkSettingSummary = computed(() => {
   margin-top: 8px;
   padding: 8px 12px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
 }
 

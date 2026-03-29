@@ -95,7 +95,7 @@ const toggleViewMode = () => {
   display: flex;
   flex-direction: column;
   min-height: 300px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--card-bg);
@@ -107,7 +107,7 @@ const toggleViewMode = () => {
   align-items: center;
   padding: 6px 12px;
   background-color: var(--container-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 

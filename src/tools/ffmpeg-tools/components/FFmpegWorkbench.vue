@@ -466,7 +466,7 @@ watch(
   flex-direction: column;
   background: var(--card-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   overflow: hidden;
 }
 
@@ -642,7 +642,7 @@ watch(
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   position: relative;
 }
 
@@ -673,7 +673,7 @@ watch(
   background: var(--input-bg);
   border-radius: 8px;
   padding: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .preview-header {
@@ -696,7 +696,7 @@ watch(
 
 .submit-area {
   padding: 16px 20px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   background: var(--card-bg);
   flex-shrink: 0;
 }

@@ -35,6 +35,9 @@
   --app-radius-md: 8px;
   --app-radius-sm: 4px;
 
+  /* 边框规范 (与桌面端变量名对齐) */
+  --border-width: 1px;
+
   /* 导航栏与安全区域变量 */
   --app-bar-height: 54px;
   /* 状态栏避让高度 */
@@ -66,7 +69,7 @@ body {
 .app-card {
   background-color: var(--card-bg) !important;
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color) !important;
+  border: var(--border-width) solid var(--border-color) !important;
   border-radius: var(--app-radius-lg) !important;
   overflow: hidden;
 }

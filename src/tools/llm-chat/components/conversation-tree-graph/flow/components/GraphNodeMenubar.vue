@@ -227,7 +227,7 @@ const handleSelectModelAndRegenerate = async () => {
   border-radius: 8px;
   background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   z-index: 10;
 }

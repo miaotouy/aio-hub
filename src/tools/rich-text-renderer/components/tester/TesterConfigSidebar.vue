@@ -619,7 +619,7 @@ const loadPreset = () => {
   padding: 12px;
   background-color: var(--input-bg);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .profile-type-radio {

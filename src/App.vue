@@ -349,7 +349,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   background-color: var(--header-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   padding: 0 20px;
   height: 60px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);

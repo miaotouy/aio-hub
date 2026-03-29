@@ -1055,7 +1055,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--sidebar-bg);
   flex-shrink: 0;
   height: 48px;
@@ -1072,7 +1072,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   width: 600px; /* 增加宽度以容纳表格行 */
   max-width: 55%; /* 防止在较窄屏幕挤压编辑器 */
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   display: flex;
   flex-direction: column;
   background-color: var(--sidebar-bg);
@@ -1083,7 +1083,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .header-top-row {
@@ -1122,7 +1122,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   display: flex;
   padding: 4px 8px;
   background-color: color-mix(in srgb, var(--el-fill-color-lighter), transparent 40%);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   font-size: 11px;
   color: var(--el-text-color-secondary);
   font-weight: bold;
@@ -1186,7 +1186,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   display: flex;
   align-items: center;
   padding: 4px 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -1281,7 +1281,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
   align-items: center;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .filter-group {
@@ -1304,7 +1304,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 
 .editor-header {
   padding: 16px 24px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1317,7 +1317,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 
 .entry-name-input :deep(.el-input__wrapper) {
   box-shadow: none;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   padding-left: 0;
   transition: border-color 0.2s;
   background: transparent;
@@ -1362,7 +1362,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 }
 
 .editor-wrapper {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -1375,7 +1375,7 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 }
 
 .flat-section {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
   background-color: var(--input-bg);

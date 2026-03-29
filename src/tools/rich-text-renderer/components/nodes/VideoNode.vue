@@ -58,7 +58,7 @@ const resolvedSrc = computed(() => {
   max-width: 100%;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: #000;
   /* 初始高度，防止布局抖动 */
   aspect-ratio: 16 / 9;

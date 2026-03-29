@@ -131,7 +131,7 @@ onUnmounted(() => {
   margin: 0;
   padding: 0 16px;
   background-color: var(--sidebar-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 :deep(.el-tabs__content) {

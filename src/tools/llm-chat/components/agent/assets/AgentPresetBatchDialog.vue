@@ -368,7 +368,7 @@ function handleSave() {
   padding: 8px 12px;
   background-color: var(--el-fill-color-light);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .selection-info {
@@ -396,7 +396,7 @@ function handleSave() {
 .table-container {
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -444,7 +444,7 @@ function handleSave() {
 }
 
 .quick-anchors {
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   padding-top: 8px;
 }
 

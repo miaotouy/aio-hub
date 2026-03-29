@@ -312,7 +312,7 @@ const embeddingModelInfo = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--sidebar-bg);
   box-sizing: border-box;
 }
@@ -330,7 +330,7 @@ const embeddingModelInfo = computed(() => {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background-color: var(--input-bg);
   color: var(--el-text-color-primary);
   cursor: pointer;
@@ -394,7 +394,7 @@ const embeddingModelInfo = computed(() => {
   background-color: var(--input-bg);
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   text-align: center;
 }
 
@@ -494,7 +494,7 @@ const embeddingModelInfo = computed(() => {
   justify-content: center;
   flex-shrink: 0;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
 }
 

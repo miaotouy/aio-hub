@@ -48,7 +48,7 @@ const isCollapsed = ref(false);
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   cursor: pointer;
   user-select: none;
 }

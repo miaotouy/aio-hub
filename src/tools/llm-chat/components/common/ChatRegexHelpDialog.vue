@@ -389,7 +389,7 @@ li {
   padding: 16px;
   border-radius: 8px;
   margin-bottom: 24px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .use-cases {
@@ -404,7 +404,7 @@ li {
   gap: 12px;
   padding: 12px;
   background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   transition: transform 0.2s;
 }
@@ -505,7 +505,7 @@ li {
 .concept-card {
   padding: 16px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: var(--card-bg);
   position: relative;
   overflow: auto;
@@ -544,7 +544,7 @@ li {
 
 .macro-table th,
 .macro-table td {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   padding: 8px 12px;
   text-align: left;
 }
@@ -560,7 +560,7 @@ li {
   border-radius: 6px;
   font-family: monospace;
   font-size: 13px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .code-line {

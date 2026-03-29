@@ -1376,7 +1376,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   padding: 4px;
   margin-bottom: 8px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   z-index: 100;
   min-width: 80px;
 }
@@ -1527,7 +1527,7 @@ onBeforeUnmount(() => {
   z-index: 100;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   border-radius: 16px 16px 0 0;
 }
 
@@ -1536,7 +1536,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   font-weight: 600;
 }
 

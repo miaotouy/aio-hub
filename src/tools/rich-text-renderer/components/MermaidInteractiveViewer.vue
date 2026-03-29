@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 12px 16px;
   background-color: var(--code-block-bg, var(--card-bg));
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   gap: 16px;
   flex-wrap: wrap;
@@ -755,7 +755,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   padding: 6px 10px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   background-color: var(--card-bg);
   color: var(--el-text-color-secondary);
@@ -812,7 +812,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
 }
 
 .view-mode-diagram .diagram-panel,
@@ -926,7 +926,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 12px 16px;
   background-color: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 

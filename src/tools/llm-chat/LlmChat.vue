@@ -560,7 +560,7 @@ useStateSyncEngine(parametersToSync, {
 .sidebar {
   height: 100%;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   position: relative;
   flex-shrink: 0;
   display: flex;
@@ -707,7 +707,7 @@ useStateSyncEngine(parametersToSync, {
   align-items: center;
   justify-content: center;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .placeholder-content {

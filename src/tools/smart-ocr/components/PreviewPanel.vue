@@ -595,7 +595,7 @@ onUnmounted(() => {
   padding: 16px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -638,7 +638,7 @@ onUnmounted(() => {
 }
 .images-list {
   width: 160px;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   overflow-y: auto;
   padding: 8px;
   display: flex;
@@ -820,7 +820,7 @@ onUnmounted(() => {
   align-items: flex-start;
 }
 .original-view canvas {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -853,7 +853,7 @@ onUnmounted(() => {
 }
 
 .block-item {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--bg-color);
@@ -863,7 +863,7 @@ onUnmounted(() => {
 .block-header {
   padding: 12px;
   background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;

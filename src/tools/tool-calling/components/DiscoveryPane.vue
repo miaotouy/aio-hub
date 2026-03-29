@@ -193,7 +193,7 @@ const toggleSort = () => {
 .pane-header {
   padding: 10px 20px;
   background-color: rgba(var(--text-color-rgb), 0.02);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -249,7 +249,7 @@ const toggleSort = () => {
 }
 
 .tool-card {
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
   cursor: pointer;
@@ -314,7 +314,7 @@ const toggleSort = () => {
 .detail-sidebar {
   width: 340px;
   flex-shrink: 0;
-  border-left: 1px solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
   display: flex;
   flex-direction: column;
@@ -324,7 +324,7 @@ const toggleSort = () => {
 
 .sidebar-header {
   padding: 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background-color: rgba(var(--text-color-rgb), 0.01);
 }
 
@@ -355,7 +355,7 @@ const toggleSort = () => {
   padding: 12px;
   border-radius: 8px;
   background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .method-header {

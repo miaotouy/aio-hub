@@ -403,7 +403,7 @@ function handleCancel() {
   padding: 10px;
   background: var(--container-bg);
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .rules-container {
@@ -419,7 +419,7 @@ function handleCancel() {
   padding: 12px;
   background: var(--card-bg);
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   transition: all 0.2s;
 }
 
@@ -455,7 +455,7 @@ function handleCancel() {
   padding: 16px;
   background: var(--container-bg);
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .preset-title {

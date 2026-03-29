@@ -158,7 +158,7 @@ const handleCreateBranch = () => emit("create-branch");
   position: relative;
   padding: 16px;
   padding-bottom: 24px; /* 为下方的 menubar 留出空间 */
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));

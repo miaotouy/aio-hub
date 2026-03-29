@@ -476,7 +476,7 @@ function exportLogs(format: "json" | "md" = "json") {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   /* 使用透明背景，利用上游容器的背景 */
   background: transparent;
   flex-shrink: 0;
@@ -562,7 +562,7 @@ function exportLogs(format: "json" | "md" = "json") {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background: rgba(var(--el-fill-color-light-rgb), 0.3);
   flex-shrink: 0;
 }
@@ -715,7 +715,7 @@ function exportLogs(format: "json" | "md" = "json") {
   padding: 20px;
   background: rgba(var(--el-bg-color-rgb), 0.5);
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .health-status {
@@ -777,7 +777,7 @@ function exportLogs(format: "json" | "md" = "json") {
   padding: 16px;
   background: rgba(var(--el-bg-color-rgb), 0.3);
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .info-row {

@@ -503,7 +503,7 @@ const handleDragStart = (e: MouseEvent) => {
   padding: 12px;
   padding-top: 8px; /* 为拖拽手柄留出空间 */
   border-radius: 24px;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
   transition:
@@ -566,7 +566,7 @@ const handleDragStart = (e: MouseEvent) => {
   width: 26px;
   padding: 0;
   /* MessageInput 的手柄是侧边的，补上边框和背景以保持可见性 */
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   background: rgba(var(--primary-color-rgb), 0.05);
   cursor: move;
   border-radius: 8px;

@@ -421,7 +421,7 @@ const handleBatchExport = async () => {
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   box-sizing: border-box;
 }
 
@@ -431,7 +431,7 @@ const handleBatchExport = async () => {
   align-items: center;
   padding: 12px 16px;
   background-color: var(--sidebar-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   gap: 16px;
 }
@@ -482,7 +482,7 @@ const handleBatchExport = async () => {
 .wb-list-sidebar {
   width: 240px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: var(--border-width) solid var(--border-color);
   background-color: var(--sidebar-bg);
   display: flex;
   flex-direction: column;
@@ -493,7 +493,7 @@ const handleBatchExport = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .sidebar-top .title {
@@ -573,7 +573,7 @@ const handleBatchExport = async () => {
 
 .sidebar-footer {
   padding: 12px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .full-width {
@@ -636,7 +636,7 @@ const handleBatchExport = async () => {
   margin-bottom: 8px;
   gap: 12px;
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
 }
 
 .narrow-selection-list .wb-item:hover {

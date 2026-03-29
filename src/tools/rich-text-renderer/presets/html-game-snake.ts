@@ -59,7 +59,7 @@ export const htmlGameSnakePreset: RenderPreset = {
     background: var(--game-bg);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--border-color);
+    border: var(--border-width) solid var(--border-color);
     backdrop-filter: blur(var(--ui-blur, 10px));
     transition: all 0.3s ease;
   }
@@ -129,7 +129,7 @@ export const htmlGameSnakePreset: RenderPreset = {
 
   kbd {
     background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--border-color);
+    border: var(--border-width) solid var(--border-color);
     border-radius: 3px;
     padding: 2px 6px;
     font-family: monospace;

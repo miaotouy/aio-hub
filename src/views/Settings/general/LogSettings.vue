@@ -424,7 +424,7 @@ watch(internalMaxFileSize, (newValue) => {
 }
 
 .setting-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .setting-label {
@@ -462,7 +462,7 @@ watch(internalMaxFileSize, (newValue) => {
   padding: 12px;
   border-radius: 8px;
   background: var(--bg-color-page);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
   border-left: 4px solid var(--border-color);
 }
@@ -524,7 +524,7 @@ watch(internalMaxFileSize, (newValue) => {
   margin-top: 20px;
   padding: 12px;
   background: var(--bg-color-page);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
 }

@@ -107,7 +107,7 @@ const handleReset = async () => {
   justify-content: space-between;
   align-items: flex-start;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   margin-bottom: 8px;
 }
 

@@ -432,7 +432,7 @@ const handleSearch = async () => {
 
 .doc-item {
   background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 10px;
   padding: 14px;
   display: flex;

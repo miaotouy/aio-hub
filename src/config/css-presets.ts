@@ -31,7 +31,7 @@ export const builtInCssPresets: CssPreset[] = [
 }
 
 /* 为主要组件添加模糊背景 */
-.glass-card, .glass-sidebar, .glass-overlay {
+.has-glass-effect {
   backdrop-filter: blur(var(--ui-blur)) !important;
 }`,
   },

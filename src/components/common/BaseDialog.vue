@@ -20,7 +20,7 @@
           {
             'dialog-enter': showContentTransition,
             'dialog-leave': !showContentTransition,
-            'glass-overlay': isGlassEffectActive && !props.bare,
+            'has-glass-effect': isGlassEffectActive && !props.bare,
             'no-transition': !props.enableTransition,
           },
         ]"
@@ -287,6 +287,11 @@ onBeforeUnmount(() => {
   max-width: 90vw;
   max-height: 90vh;
   transition: all 0.3s ease;
+}
+
+/* 毛玻璃效果 */
+.base-dialog-container.has-glass-effect {
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 样式模式 */

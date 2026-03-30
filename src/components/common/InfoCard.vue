@@ -4,7 +4,7 @@
     :class="[
       'info-card',
       `shadow-${shadow}`,
-      { 'glass-card': appearanceSettings?.enableUiBlur, 'is-bare': bare },
+      { 'has-glass-effect': appearanceSettings?.enableUiBlur, 'is-bare': bare },
     ]"
   >
     <template v-if="showHeader" #header>
@@ -133,7 +133,7 @@ const copyContent = async () => {
 }
 
 /* 毛玻璃效果 */
-.info-card.glass-card {
+.info-card.has-glass-effect {
   backdrop-filter: blur(var(--ui-blur));
 }
 

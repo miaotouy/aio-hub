@@ -237,7 +237,7 @@ watch(
     } catch (error) {
       errorHandler.error(error, "更新托盘图标失败", { show: newValue });
     }
-  }
+  },
 );
 
 // 监听最小化到托盘设置变化
@@ -250,7 +250,7 @@ watch(
     } catch (error) {
       errorHandler.error(error, "更新托盘设置失败", { enabled: newValue });
     }
-  }
+  },
 );
 
 // 监听主题色变化
@@ -260,7 +260,7 @@ watch(
     if (newColor) {
       applyThemeColors({ primary: newColor });
     }
-  }
+  },
 );
 
 // 监听成功色变化
@@ -270,7 +270,7 @@ watch(
     if (newColor) {
       applyThemeColors({ success: newColor });
     }
-  }
+  },
 );
 
 // 监听警告色变化
@@ -280,7 +280,7 @@ watch(
     if (newColor) {
       applyThemeColors({ warning: newColor });
     }
-  }
+  },
 );
 
 // 监听危险色变化
@@ -290,7 +290,7 @@ watch(
     if (newColor) {
       applyThemeColors({ danger: newColor });
     }
-  }
+  },
 );
 
 // 监听信息色变化
@@ -300,7 +300,7 @@ watch(
     if (newColor) {
       applyThemeColors({ info: newColor });
     }
-  }
+  },
 );
 
 // 监听设置变化，自动应用（Store 内部处理保存）
@@ -321,7 +321,7 @@ watch(
       info: newSettings.infoColor,
     });
   },
-  { deep: true }
+  { deep: true },
 );
 
 onMounted(async () => {
@@ -410,7 +410,7 @@ watch(
     if (!isLoading.value) {
       checkRouteAndScroll(newQuery);
     }
-  }
+  },
 );
 
 // 监听移动端状态变化，重新初始化观察器
@@ -527,13 +527,17 @@ onUnmounted(() => {
                 :sidebar-mode="settings.sidebarMode"
                 :proxy="settings.proxy"
                 :timezone="settings.timezone"
+                :download="settings.download"
                 @update:show-tray-icon="(val: any) => appSettingsStore.update({ showTrayIcon: val })"
                 @update:minimize-to-tray="(val: any) => appSettingsStore.update({ minimizeToTray: val })"
                 @update:theme="(val: any) => appSettingsStore.update({ theme: val })"
-                @update:auto-adjust-window-position="(val: any) => appSettingsStore.update({ autoAdjustWindowPosition: val })"
+                @update:auto-adjust-window-position="
+                  (val: any) => appSettingsStore.update({ autoAdjustWindowPosition: val })
+                "
                 @update:sidebar-mode="(val: any) => appSettingsStore.update({ sidebarMode: val })"
                 @update:proxy="(val: any) => appSettingsStore.update({ proxy: val })"
                 @update:timezone="(val: any) => appSettingsStore.update({ timezone: val })"
+                @update:download="(val: any) => appSettingsStore.update({ download: val })"
                 @config-imported="onConfigImported"
               />
 

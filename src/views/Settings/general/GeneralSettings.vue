@@ -10,7 +10,7 @@ import { formatDateTime } from "@/utils/time";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { getAppConfigDir } from "@/utils/appPath";
-import type { ProxySettings, ProxyMode } from "@/utils/appSettings";
+import type { ProxySettings, ProxyMode, DownloadSettings } from "@/utils/appSettings";
 
 const logger = createModuleLogger("GeneralSettings");
 const errorHandler = createModuleErrorHandler("GeneralSettings");
@@ -23,6 +23,7 @@ const props = defineProps<{
   sidebarMode: string;
   proxy: ProxySettings;
   timezone: string;
+  download?: DownloadSettings;
 }>();
 
 const emit = defineEmits([
@@ -33,6 +34,7 @@ const emit = defineEmits([
   "update:sidebarMode",
   "update:proxy",
   "update:timezone",
+  "update:download",
   "configImported",
 ]);
 
@@ -75,6 +77,47 @@ const timezone = computed({
   get: () => props.timezone,
   set: (value) => emit("update:timezone", value),
 });
+
+const downloadSettings = computed(() => props.download);
+
+const alwaysAskSavePath = computed({
+  get: () => downloadSettings.value?.alwaysAskSavePath ?? false,
+  set: (value) => emit("update:download", { ...downloadSettings.value, alwaysAskSavePath: value }),
+});
+
+const showNotification = computed({
+  get: () => downloadSettings.value?.showNotification ?? true,
+  set: (value) => emit("update:download", { ...downloadSettings.value, showNotification: value }),
+});
+
+const showDownloadButtonInTitleBar = computed({
+  get: () => downloadSettings.value?.showDownloadButtonInTitleBar ?? true,
+  set: (value) => emit("update:download", { ...downloadSettings.value, showDownloadButtonInTitleBar: value }),
+});
+
+const defaultDownloadPath = computed({
+  get: () => downloadSettings.value?.defaultDownloadPath || "",
+  set: (value) => emit("update:download", { ...downloadSettings.value, defaultDownloadPath: value || undefined }),
+});
+
+/**
+ * 选择下载目录
+ */
+const handleSelectDownloadPath = async () => {
+  try {
+    const selected = await openDialog({
+      directory: true,
+      multiple: false,
+      defaultPath: defaultDownloadPath.value,
+    });
+
+    if (selected) {
+      defaultDownloadPath.value = selected as string;
+    }
+  } catch (error) {
+    errorHandler.error(error as Error, "选择下载目录失败");
+  }
+};
 
 // 获取系统支持的所有时区
 // @ts-ignore - TypeScript lib definitions might be outdated for this relatively new API
@@ -360,6 +403,74 @@ const handleImportConfig = async () => {
         </div>
       </div>
     </div>
+
+    <el-divider />
+
+    <div class="download-settings-section">
+      <div class="setting-item">
+        <div class="setting-label">
+          <span>默认下载路径</span>
+          <el-tooltip content="设置文件自动下载时的存放目录，留空则使用系统默认下载目录" placement="top">
+            <el-icon class="info-icon">
+              <InfoFilled />
+            </el-icon>
+          </el-tooltip>
+        </div>
+        <div class="path-selector">
+          <el-input v-model="defaultDownloadPath" placeholder="系统默认下载目录" readonly size="small">
+            <template #append>
+              <el-button @click="handleSelectDownloadPath">浏览</el-button>
+            </template>
+          </el-input>
+          <el-button
+            v-if="defaultDownloadPath"
+            type="danger"
+            link
+            size="small"
+            @click="defaultDownloadPath = ''"
+            style="margin-left: 8px"
+          >
+            重置
+          </el-button>
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-label">
+          <span>总是询问保存位置</span>
+          <el-tooltip content="启用后，每次下载都会弹出另存为对话框" placement="top">
+            <el-icon class="info-icon">
+              <InfoFilled />
+            </el-icon>
+          </el-tooltip>
+        </div>
+        <el-switch v-model="alwaysAskSavePath" />
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-label">
+          <span>显示下载完成通知</span>
+          <el-tooltip content="下载完成后是否弹出系统通知" placement="top">
+            <el-icon class="info-icon">
+              <InfoFilled />
+            </el-icon>
+          </el-tooltip>
+        </div>
+        <el-switch v-model="showNotification" />
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-label">
+          <span>标题栏显示下载按钮</span>
+          <el-tooltip content="是否在应用标题栏显示下载管理器按钮" placement="top">
+            <el-icon class="info-icon">
+              <InfoFilled />
+            </el-icon>
+          </el-tooltip>
+        </div>
+        <el-switch v-model="showDownloadButtonInTitleBar" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -420,5 +531,15 @@ const handleImportConfig = async () => {
 
 .proxy-input-wrapper {
   width: 240px;
+}
+
+.path-selector {
+  display: flex;
+  align-items: center;
+  width: 400px;
+}
+
+.path-selector :deep(.el-input) {
+  flex: 1;
 }
 </style>

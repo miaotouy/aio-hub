@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted } from "vue";
+import { ref, onMounted, computed, onUnmounted, watch } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -21,15 +21,17 @@ import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { platform } from "@tauri-apps/plugin-os";
-import { CornerDownLeft } from "lucide-vue-next";
+import { CornerDownLeft, Download } from "lucide-vue-next";
 import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useDownloadStore } from "@/stores/downloadStore";
 import SystemThemeIcon from "./icons/SystemThemeIcon.vue";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import SidebarMenu from "@/components/SidebarMenu.vue";
 import NotificationBell from "@/components/notification/NotificationBell.vue";
+import DownloadManager from "@/components/DownloadManager.vue";
 import { debounce } from "lodash-es";
 import { useResolvedAvatar, resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
 import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
@@ -51,11 +53,12 @@ const appSettingsStore = useAppSettingsStore();
 const { appearanceSettings } = useThemeAppearance();
 const userProfileStore = useUserProfileStore();
 const detachedManager = useDetachedManager();
+const downloadStore = useDownloadStore();
 
 // 解析当前选中的全局用户档案头像
 const globalProfileAvatarSrc = useResolvedAvatar(
   computed(() => userProfileStore.globalProfile),
-  "user-profile"
+  "user-profile",
 );
 
 const appWindow = getCurrentWindow();
@@ -67,6 +70,7 @@ const settings = computed(() => appSettingsStore.settings);
 const showProfileManagerDialog = ref(false);
 const drawerVisible = ref(false);
 const dropdownRef = ref<any>(null);
+const downloadButtonAnimating = ref(false);
 
 // 用于区分手动和自动的最大化状态变更
 const isManualMaximizeChange = ref(false);
@@ -145,7 +149,7 @@ const checkMaximized = async () => {
     });
 
     console.log(
-      `[${new Date().toLocaleString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`
+      `[${new Date().toLocaleString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`,
     );
   }
 
@@ -307,6 +311,20 @@ const handleDropdownSelect = () => {
     dropdownRef.value.handleClose();
   }
 };
+
+// 监听下载完成事件
+watch(
+  () => downloadStore.lastCompletedId,
+  (newId) => {
+    if (newId) {
+      // 触发动画
+      downloadButtonAnimating.value = true;
+      setTimeout(() => {
+        downloadButtonAnimating.value = false;
+      }, 1000); // 动画持续时间
+    }
+  },
+);
 </script>
 
 <template>
@@ -475,6 +493,26 @@ const handleDropdownSelect = () => {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+
+          <!-- 下载管理入口（仅主窗口显示） -->
+          <el-popover
+            v-if="isMainWindow && settings?.download?.showDownloadButtonInTitleBar"
+            placement="bottom-end"
+            :width="350"
+            trigger="click"
+            popper-class="download-manager-popper"
+          >
+            <template #reference>
+              <button
+                class="control-btn download-btn"
+                :class="{ 'is-animating': downloadButtonAnimating }"
+                title="下载记录"
+              >
+                <el-icon><Download /></el-icon>
+              </button>
+            </template>
+            <DownloadManager />
+          </el-popover>
 
           <!-- 消息通知入口（仅主窗口显示） -->
           <NotificationBell v-if="isMainWindow" />
@@ -645,6 +683,21 @@ const handleDropdownSelect = () => {
 
 .control-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+.download-btn.is-animating {
+  animation: download-bounce 0.6s ease-in-out;
+  color: var(--el-color-success);
+}
+
+@keyframes download-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 .menu-btn {

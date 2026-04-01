@@ -39,6 +39,10 @@
         <el-tab-pane label="存储性能测试" name="storage-perf">
           <StoragePerformanceTester />
         </el-tab-pane>
+
+        <el-tab-pane label="下载测试" name="download-test">
+          <DownloadTester />
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -54,8 +58,9 @@ import MessagingTest from "./components/MessagingTest.vue";
 import ThemeColorPalette from "./components/ThemeColorPalette.vue";
 import DocumentViewerTester from "./components/DocumentViewerTester.vue";
 import StoragePerformanceTester from "./components/StoragePerformanceTester.vue";
+import DownloadTester from "./components/DownloadTester.vue";
 
-const activeTab = ref("storage-perf");
+const activeTab = ref("native");
 </script>
 
 <style scoped>

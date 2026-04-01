@@ -165,6 +165,9 @@ export interface AppSettings {
 
   // 时区设置
   timezone?: string;
+
+  // 下载设置
+  download?: DownloadSettings;
 }
 
 // 默认外观设置
@@ -248,6 +251,15 @@ export interface ProxySettings {
   customUrl: string;
 }
 
+// 下载设置接口
+export interface DownloadSettings {
+  defaultDownloadPath?: string; // 为空则使用系统默认
+  alwaysAskSavePath: boolean; // 是否总是弹出另存为对话框
+  showNotification: boolean; // 下载完成后是否显示通知
+  openFolderAfterDownload: boolean; // 是否下载后自动打开文件夹
+  showDownloadButtonInTitleBar: boolean; // 是否在标题栏显示下载按钮
+}
+
 // 默认设置
 export const defaultAppSettings: AppSettings = {
   sidebarCollapsed: false,
@@ -298,6 +310,14 @@ export const defaultAppSettings: AppSettings = {
   proxy: {
     mode: "system",
     customUrl: "",
+  },
+  // 默认下载设置
+  download: {
+    defaultDownloadPath: undefined,
+    alwaysAskSavePath: false,
+    showNotification: true,
+    openFolderAfterDownload: false,
+    showDownloadButtonInTitleBar: true,
   },
   // 默认时区
   timezone: "auto",
@@ -352,12 +372,19 @@ export const appSettingsManager = createConfigManager<AppSettings>({
       ...(loadedConfig.proxy as ProxySettings),
     };
 
+    // 合并 download 设置
+    const mergedDownload = {
+      ...defaultConfig.download!,
+      ...(loadedConfig.download as DownloadSettings),
+    };
+
     return {
       ...defaultConfig,
       ...loadedConfig,
       toolsVisible: mergedToolsVisible,
       appearance: mergedAppearance,
       proxy: mergedProxy,
+      download: mergedDownload,
     };
   },
 });

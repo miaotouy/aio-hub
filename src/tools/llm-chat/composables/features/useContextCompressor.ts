@@ -114,7 +114,7 @@ export function useContextCompressor() {
     messages: ChatMessageNode[],
     config: ContextCompressionConfig,
     agentId?: string,
-    previousSummary?: string
+    previousSummary?: string,
   ): Promise<string> => {
     logger.info("开始生成摘要", {
       messageCount: messages.length,
@@ -224,7 +224,7 @@ export function useContextCompressor() {
     session: ChatSession,
     nodesToCompress: ChatMessageNode[],
     summaryContent: string,
-    config: ContextCompressionConfig
+    config: ContextCompressionConfig,
   ): Promise<ChatMessageNode | null> => {
     if (nodesToCompress.length === 0) return null;
 
@@ -372,12 +372,12 @@ export function useContextCompressor() {
    */
   const checkAndCompress = async (
     session: ChatSession,
-    config?: ContextCompressionConfig
+    config?: ContextCompressionConfig,
   ): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig(config);
 
-    // 检查是否启用
-    if (!effectiveConfig.enabled) {
+    // 检查是否启用以及是否允许自动触发
+    if (!effectiveConfig.enabled || effectiveConfig.autoTrigger === false) {
       return { success: false };
     }
 
@@ -413,7 +413,7 @@ export function useContextCompressor() {
   const executeCompression = async (
     session: ChatSession,
     path: ChatMessageNode[],
-    effectiveConfig: ContextCompressionConfig
+    effectiveConfig: ContextCompressionConfig,
   ): Promise<CompressionResult> => {
     // 4. 确定压缩范围
     // 策略：保护最近 N 条，压缩之前的 M 条
@@ -427,7 +427,7 @@ export function useContextCompressor() {
     // 获取所有“可见”的普通消息节点 (排除 system prompt? 通常 system prompt 不压缩)
     // 排除 System 角色
     const candidateNodes = path.filter(
-      (node) => !hiddenNodeIds.has(node.id) && !node.metadata?.isCompressionNode && node.role !== "system"
+      (node) => !hiddenNodeIds.has(node.id) && !node.metadata?.isCompressionNode && node.role !== "system",
     );
 
     const protectCount = effectiveConfig.protectRecentCount || 10;

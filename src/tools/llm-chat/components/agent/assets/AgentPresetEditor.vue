@@ -487,6 +487,8 @@ import { ref, computed, watch, toRaw, markRaw } from "vue";
 import { useDebounceFn, useElementSize } from "@vueuse/core";
 import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import yaml from "js-yaml";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
@@ -514,7 +516,6 @@ import {
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { calculateShortHash } from "@/utils/hash";
-import { useFileDownload } from "@/composables/useFileDownload";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
 import EditUserProfileDialog from "../../user-profile/EditUserProfileDialog.vue";
@@ -559,7 +560,6 @@ const userProfileStore = useUserProfileStore();
 const chatStore = useLlmChatStore();
 const showUserProfileDialog = ref(false);
 const anchorRegistry = useAnchorRegistry();
-const { downloadFile } = useFileDownload();
 
 // 容器宽度监测
 const headerRef = ref<HTMLElement | null>(null);
@@ -1078,18 +1078,28 @@ async function handleExport(format: "json" | "yaml" = "json") {
   }
 
   const agentNamePart = props.agentName ? `${props.agentName}-` : "";
-  const filename = `${agentNamePart}preset-${new Date().toISOString().split("T")[0]}.${format}`;
+  const defaultFilename = `${agentNamePart}preset-${new Date().toISOString().split("T")[0]}.${format}`;
 
-  const result = await downloadFile({
-    content: dataStr,
-    filename,
-    mode: "manual", // 预设导出建议使用手动选择路径模式，更符合用户预期
-    type: "text",
+  // 弹出系统保存对话框
+  const filePath = await save({
+    defaultPath: defaultFilename,
+    filters: [
+      {
+        name: format.toUpperCase(),
+        extensions: [format],
+      },
+    ],
   });
 
-  if (result) {
-    customMessage.success(`已成功导出至: ${result}`);
+  if (!filePath) {
+    // 用户取消保存
+    return;
   }
+
+  // 直接写入文件
+  await writeTextFile(filePath, dataStr);
+
+  customMessage.success(`已成功导出至：${filePath}`);
 }
 
 async function handleCopy(format: "json" | "yaml" = "json") {

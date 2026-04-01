@@ -13,25 +13,25 @@
 
 ## 1. 技术栈概览
 
-本项目是一个基于 Tauri v2 构建的跨平台桌面应用，前端采用 Vue 3，后端核心逻辑由 Rust 编写。
+本项目是一个基于 Tauri v2 构建的跨平台桌面应用，前端采用 Vue 3.5+，后端核心逻辑由 Rust 编写。
 
 ### 1.1. 前端技术栈
 
-- **核心框架**: Vue 3 + Vite
-- **UI 框架**: Element Plus + lucide-vue-next
-- **状态管理**: Pinia
+- **核心框架**: Vue 3.5+ + Vite 8.0+
+- **UI 框架**: Element Plus 2.10+ + lucide-vue-next
+- **状态管理**: Pinia 3.0+
 - **核心工具**:
-  - `@vueuse/core`: 响应式工具集
+  - `@vueuse/core`: 响应式工具集 (v13+)
   - `lodash-es`: 实用工具函数库
-  - `echarts`: 数据可视化
-  - `date-fns`: 日期时间处理
+  - `echarts`: 数据可视化 (v6+)
+  - `date-fns`: 日期时间处理 (v4+)
   - `markdown-it`: Markdown 解析
   - `dompurify`: HTML 安全净化
   - `viewerjs`: 图片查看器核心
-  - `@vue-flow/core`: 节点编辑器与图谱引擎
-- **代码编辑**: CodeMirror, Monaco Editor
-- **桌面框架**: Tauri 2.3
-- **包管理器**: Bun
+  - `@vue-flow/core`: 节点编辑器与图谱引擎 (v1.47+)
+- **代码编辑**: CodeMirror 6, Monaco Editor 0.55+
+- **桌面框架**: Tauri 2.10+
+- **包管理器**: Bun 1.3+
 - **CSP配置**: 在根目录的 `index.html` 中
 
 ### 1.2. 后端 (Rust) 技术栈

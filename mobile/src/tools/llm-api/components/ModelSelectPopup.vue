@@ -21,7 +21,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const { tRaw } = useI18n();
+const { t, tRaw } = useI18n();
 const store = useLlmProfilesStore();
 const { getModelIcon } = useModelMetadata();
 

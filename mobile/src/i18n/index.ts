@@ -48,7 +48,7 @@ export function setI18nLanguage(locale: any) {
 }
 
 // 扩展全局组件类型，让模板中的 t 也能享受类型提示
-declare module '@vue/runtime-core' {
+declare module 'vue' {
   interface ComponentCustomProperties {
     t: TypedT;
     tRaw: RawT;

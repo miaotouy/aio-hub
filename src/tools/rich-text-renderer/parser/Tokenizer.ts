@@ -623,12 +623,55 @@ export class Tokenizer {
       }
 
       if (char === 126) {
-        // ~
-        if (i + 1 < len && text.charCodeAt(i + 1) === 126) {
-          tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
+        // ~ (下标或删除线)
+        const isWordCharacter = (code: number) =>
+          (code >= 48 && code <= 57) || // 0-9
+          (code >= 65 && code <= 90) || // A-Z
+          (code >= 97 && code <= 122) || // a-z
+          code > 127; // 中文等非 ASCII 字符
+
+        const isWhitespace = (code: number) => code <= 32;
+
+        // 标点符号判断 (包含中文标点)
+        const isPunctuation = (code: number) => {
+          // 常见标点：! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+          if (code >= 33 && code <= 47) return true;
+          if (code >= 58 && code <= 64) return true;
+          if (code >= 91 && code <= 96) return true;
+          if (code >= 123 && code <= 126) return true;
+          // 中文标点范围 (部分常用)
+          if (code >= 0x3000 && code <= 0x303f) return true; // 句号、逗号等
+          if (code >= 0xff00 && code <= 0xffef) return true; // 全角标点
+          return false;
+        };
+
+        const prevChar = i > 0 ? text.charCodeAt(i - 1) : -1;
+        const nextChar = i + 1 < len ? text.charCodeAt(i + 1) : -1;
+
+        if (nextChar === 126) {
+          // ~~ (删除线)
+          const nextNextChar = i + 2 < len ? text.charCodeAt(i + 2) : -1;
+          // 如果两侧都是词内字符，则不视为删除线
+          if (isWordCharacter(prevChar) && isWordCharacter(nextNextChar)) {
+            tokens.push({ type: "text", content: "~~" });
+          } else {
+            tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
+          }
           i += 2;
         } else {
-          tokens.push({ type: "subscript_delimiter", marker: "~", raw: "~" });
+          // ~ (下标)
+          // 语气助词保护：如果 ~ 右侧是标点符号或空白，或者两侧都是词内字符，则不视为下标
+          if (
+            (isWordCharacter(prevChar) && isWordCharacter(nextChar)) ||
+            (isWhitespace(prevChar) && isWhitespace(nextChar)) ||
+            isPunctuation(nextChar) ||
+            isWhitespace(nextChar) ||
+            nextChar === -1 // 文本末尾
+          ) {
+            tokens.push({ type: "text", content: "~" });
+          } else {
+            tokens.push({ type: "subscript_delimiter", marker: "~", raw: "~" });
+          }
           i += 1;
         }
         atLineStart = false;

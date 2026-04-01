@@ -21,37 +21,41 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-tooltip content="将当前预设导出为文件" placement="top" :show-after="300">
-          <el-dropdown trigger="click" @command="handleExport">
-            <el-button size="small">
-              <el-icon><Download /></el-icon>
-              导出
-              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
-                <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </el-tooltip>
+        <el-dropdown trigger="click" @command="handleExport">
+          <div>
+            <el-tooltip content="将当前预设导出为文件" placement="top" :show-after="300">
+              <el-button size="small">
+                <el-icon><Download /></el-icon>
+                导出
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
+              <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
-        <el-tooltip content="将当前预设复制到剪贴板" placement="top" :show-after="300">
-          <el-dropdown trigger="click" @command="handleCopy">
-            <el-button size="small">
-              <el-icon><CopyDocument /></el-icon>
-              复制
-              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="json">复制为 JSON</el-dropdown-item>
-                <el-dropdown-item command="yaml">复制为 YAML</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </el-tooltip>
+        <el-dropdown trigger="click" @command="handleCopy">
+          <div>
+            <el-tooltip content="将当前预设复制到剪贴板" placement="top" :show-after="300">
+              <el-button size="small">
+                <el-icon><CopyDocument /></el-icon>
+                复制
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+            </el-tooltip>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="json">复制为 JSON</el-dropdown-item>
+              <el-dropdown-item command="yaml">复制为 YAML</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-tooltip content="从剪贴板粘贴并覆盖整个预设" placement="top" :show-after="300">
           <el-button size="small" @click="handlePaste">
             <el-icon><DocumentCopy /></el-icon>
@@ -510,6 +514,7 @@ import {
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { calculateShortHash } from "@/utils/hash";
+import { useFileDownload } from "@/composables/useFileDownload";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
 import EditUserProfileDialog from "../../user-profile/EditUserProfileDialog.vue";
@@ -554,6 +559,7 @@ const userProfileStore = useUserProfileStore();
 const chatStore = useLlmChatStore();
 const showUserProfileDialog = ref(false);
 const anchorRegistry = useAnchorRegistry();
+const { downloadFile } = useFileDownload();
 
 // 容器宽度监测
 const headerRef = ref<HTMLElement | null>(null);
@@ -710,7 +716,7 @@ const calculateAllTokens = async () => {
     const sessionContext = extractContextFromSession(
       chatStore.currentSession,
       props.agent as any,
-      effectiveUserProfile.value || undefined
+      effectiveUserProfile.value || undefined,
     );
     Object.assign(baseContext, sessionContext);
   }
@@ -796,7 +802,7 @@ watch(
       debouncedCalculateTokens();
     }
   },
-  { deep: true, immediate: true }
+  { deep: true, immediate: true },
 );
 
 // #endregion
@@ -840,7 +846,7 @@ watch(
       emit("update:modelValue", existingMessages);
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 );
 
 function onDragStart() {}
@@ -1058,10 +1064,11 @@ function cleanMessagesForExport(messages: ChatMessageNode[]): any[] {
     });
 }
 
-function handleExport(format: "json" | "yaml" = "json") {
+async function handleExport(format: "json" | "yaml" = "json") {
   if (localMessages.value.length === 0) {
     return customMessage.warning("没有可导出的预设消息");
   }
+
   const dataToExport = cleanMessagesForExport(localMessages.value);
   let dataStr = "";
   if (format === "yaml") {
@@ -1069,15 +1076,20 @@ function handleExport(format: "json" | "yaml" = "json") {
   } else {
     dataStr = JSON.stringify(dataToExport, null, 2);
   }
-  const blob = new Blob([dataStr], { type: `application/${format}` });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+
   const agentNamePart = props.agentName ? `${props.agentName}-` : "";
-  link.download = `${agentNamePart}preset-${new Date().toISOString().split("T")[0]}.${format}`;
-  link.href = url;
-  link.click();
-  URL.revokeObjectURL(url);
-  customMessage.success(`已导出为 ${format.toUpperCase()}`);
+  const filename = `${agentNamePart}preset-${new Date().toISOString().split("T")[0]}.${format}`;
+
+  const result = await downloadFile({
+    content: dataStr,
+    filename,
+    mode: "manual", // 预设导出建议使用手动选择路径模式，更符合用户预期
+    type: "text",
+  });
+
+  if (result) {
+    customMessage.success(`已成功导出至: ${result}`);
+  }
 }
 
 async function handleCopy(format: "json" | "yaml" = "json") {

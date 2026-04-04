@@ -39,7 +39,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
 
 import type { QuickAction, QuickActionSet } from "../../types/quick-action";
-import { computed, ref, onMounted, defineAsyncComponent } from "vue";
+import { computed, ref, onMounted, defineAsyncComponent, watch } from "vue";
 import { useChatContext } from "../../composables/chat/useChatContext";
 
 const QuickActionManagerDialog = defineAsyncComponent(() => import("../quick-action/QuickActionManagerDialog.vue"));
@@ -65,6 +65,7 @@ interface Props {
   isCompressing?: boolean;
   continuationModel?: ModelIdentifier | null;
   isCompleting?: boolean;
+  anyMenuOpen?: boolean; // 新增：用于向父组件同步菜单状态
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -78,6 +79,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: "toggle-streaming"): void;
   (e: "update:macroSelectorVisible", value: boolean): void;
+  (e: "update:anyMenuOpen", value: boolean): void;
   (e: "update:settings", value: InputToolbarSettings): void;
   (e: "insert", macro: MacroDefinition): void;
   (e: "toggle-expand"): void;
@@ -188,7 +190,17 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 
 const sessionListVisible = ref(false);
 const toolSettingsVisible = ref(false);
+const moreMenuVisible = ref(false);
+const settingsVisible = ref(false);
 const miniSessionListRef = ref<any>(null);
+
+// 汇总所有菜单状态并向上同步
+watch(
+  [() => props.macroSelectorVisible, sessionListVisible, toolSettingsVisible, moreMenuVisible, settingsVisible],
+  ([macro, session, tool, more, settings]) => {
+    emit("update:anyMenuOpen", !!(macro || session || tool || more || settings));
+  },
+);
 
 const handleSessionListShow = () => {
   // 气泡显示后，延迟一点点触发滚动，确保容器高度已计算
@@ -334,8 +346,8 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         </el-tooltip>
 
         <!-- 更多工具菜单 -->
-        <el-dropdown trigger="click" placement="top">
-          <button class="tool-btn">
+        <el-dropdown trigger="click" placement="top" @visible-change="(val: boolean) => (moreMenuVisible = val)">
+          <button class="tool-btn" :class="{ active: moreMenuVisible }">
             <MoreHorizontal :size="16" />
           </button>
           <template #dropdown>
@@ -459,9 +471,15 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         <!-- 设置菜单 -->
         <el-tooltip content="工具栏设置" placement="top" :show-after="500">
           <div>
-            <el-popover placement="top" :width="240" trigger="click" popper-class="toolbar-settings-popover">
+            <el-popover
+              v-model:visible="settingsVisible"
+              placement="top"
+              :width="240"
+              trigger="click"
+              popper-class="toolbar-settings-popover"
+            >
               <template #reference>
-                <button class="tool-btn settings-btn">
+                <button class="tool-btn settings-btn" :class="{ active: settingsVisible }">
                   <Settings :size="16" />
                 </button>
               </template>

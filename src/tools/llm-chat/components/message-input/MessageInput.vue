@@ -104,10 +104,12 @@ const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
 const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
+const { height: containerHeight } = useElementSize(containerRef);
 
 // 状态
 const macroSelectorVisible = ref(false);
 const isExpanded = ref(false);
+const isAnyMenuOpen = ref(false); // 追踪是否有任何气泡菜单打开
 
 // 使用全局输入管理器
 const inputManager = useChatInputManager();
@@ -249,6 +251,59 @@ watch(inputManager.focusRequest, () => {
   textareaRef.value?.focus();
 });
 
+/**
+ * 动态调整分离窗口高度以适应菜单显示或内容变化
+ * @param expanding 是否强制展开高度（用于菜单显示）
+ */
+const updateDetachedWindowSize = async (expanding: boolean = isAnyMenuOpen.value) => {
+  if (!props.isDetached) return;
+  try {
+    const win = getCurrentWindow();
+    const size = await win.innerSize();
+    const scale = window.devicePixelRatio || 1;
+
+    // 获取当前容器的实际像素高度
+    const currentContentHeight = Math.ceil((containerHeight.value + 10) * scale);
+
+    if (expanding) {
+      // 展开菜单时，窗口高度至少为 650，但不能小于内容高度
+      const targetHeight = Math.max(currentContentHeight, 650 * scale);
+      // 只有在当前高度小于目标高度时才扩充，避免不必要的抖动
+      if (size.height < targetHeight) {
+        await win.setSize(new PhysicalSize(size.width, targetHeight));
+        logger.debug("展开分离窗口以适应菜单", { targetHeight });
+      }
+    } else {
+      // 关闭菜单时，精确收缩到内容高度
+      // 只有在高度差异超过一定阈值时才调整，避免微小的渲染差异导致频繁调用
+      if (Math.abs(size.height - currentContentHeight) > 2) {
+        await win.setSize(new PhysicalSize(size.width, currentContentHeight));
+        logger.debug("收缩分离窗口到内容高度", { currentContentHeight });
+      }
+    }
+  } catch (e) {
+    logger.warn("动态调整分离窗口大小失败", e);
+  }
+};
+
+// 监听菜单状态变化
+watch(isAnyMenuOpen, (val) => {
+  updateDetachedWindowSize(val);
+});
+
+// 监听容器内容高度变化 (如输入多行、添加附件、手动拖拽高度)
+watch(containerHeight, () => {
+  if (props.isDetached) {
+    updateDetachedWindowSize();
+  }
+});
+
+// 监听宏选择器状态
+watch(macroSelectorVisible, (val) => {
+  if (val) isAnyMenuOpen.value = true;
+  // 关闭逻辑由 MessageInputToolbar 的汇总状态处理
+});
+
 // Provide context for child components (MessageInputToolbar)
 provideChatContext({
   state: {
@@ -280,19 +335,10 @@ onMounted(async () => {
   transcriptionManager.init();
   if (!settingsLoaded.value) {
     await loadSettings();
-  }
-  if (props.isDetached) {
-    setTimeout(async () => {
-      try {
-        const win = getCurrentWindow();
-        const size = await win.innerSize();
-        if (size.height < 900) {
-          await win.setSize(new PhysicalSize(size.width, 900));
-        }
-      } catch (e) {
-        logger.warn("调整分离窗口大小失败", e);
-      }
-    }, 100);
+    if (props.isDetached) {
+      // 初始状态下收缩窗口到输入框实际大小
+      setTimeout(() => updateDetachedWindowSize(false), 300);
+    }
   }
 });
 
@@ -319,7 +365,7 @@ const getDetachConfig = (mouseX?: number, mouseY?: number) => {
     displayName: "聊天输入框",
     type: "component" as const,
     width: rect.width + 80,
-    height: Math.max(rect.height + 80, 900),
+    height: rect.height + 40,
     mouseX: mouseX ?? window.screenX + rect.left + rect.width / 2,
     mouseY: mouseY ?? window.screenY + rect.top + rect.height / 2,
     handleOffsetX,
@@ -453,6 +499,7 @@ const handleDragStart = (e: MouseEvent) => {
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"
             v-model:macro-selector-visible="macroSelectorVisible"
+            v-model:any-menu-open="isAnyMenuOpen"
             v-model:settings="inputSettings"
             :context-stats="chatStore.contextStats"
             :token-count="tokenCount"
@@ -519,11 +566,15 @@ const handleDragStart = (e: MouseEvent) => {
 /* 分离模式下组件完全一致，只是添加更强的阴影 */
 .message-input-container.detached-mode {
   /* 移除 height: 100%，改为绝对定位沉底，让出上方空间给气泡 */
-  position: absolute;
+  position: fixed; /* 使用 fixed 配合 bottom: 0 锁定在窗口底部 */
   bottom: 0;
   left: 0;
   right: 0;
   height: auto;
+  margin: 0; /* 移除可能的 margin 干扰 */
+  border-bottom: none; /* 底部不需要边框，因为它贴着窗口边缘 */
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),
     0 4px 16px rgba(0, 0, 0, 0.15);

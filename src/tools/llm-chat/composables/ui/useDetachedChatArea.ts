@@ -9,70 +9,70 @@
  * 2. 提供一系列函数，将组件的操作请求通过 WindowSyncBus 代理到主窗口。
  * 3. 不再包含任何状态同步或数据填充逻辑。
  */
-import { computed, onUnmounted } from 'vue';
-import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
+import { computed, onUnmounted } from "vue";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
-import { createModuleLogger } from '@/utils/logger';
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('DetachedChatArea');
+const logger = createModuleLogger("DetachedChatArea");
 
 export function useDetachedChatArea() {
   const bus = useWindowSyncBus();
   const store = useLlmChatStore();
   const agentStore = useAgentStore();
 
-  logger.info('useDetachedChatArea 已初始化 (简化版)');
+  logger.info("useDetachedChatArea 已初始化 (简化版)");
 
   // 1. 操作代理
   const sendMessage = (content: string, attachments?: any[]) => {
-    logger.info('代理发送消息操作', { content, attachmentCount: attachments?.length });
-    return bus.requestAction('send-message', { content, attachments });
+    logger.info("代理发送消息操作", { content, attachmentCount: attachments?.length });
+    return bus.requestAction("llm-chat:send-message", { content, attachments });
   };
 
   const abortSending = () => {
-    logger.info('代理中止发送操作');
-    return bus.requestAction('abort-sending', {});
+    logger.info("代理中止发送操作");
+    return bus.requestAction("llm-chat:abort-sending", {});
   };
 
   const regenerateLastMessage = (messageId: string, options?: { modelId?: string; profileId?: string }) => {
-    logger.info('代理重新生成操作', { messageId, options });
-    return bus.requestAction('regenerate-from-node', { messageId, options });
+    logger.info("代理重新生成操作", { messageId, options });
+    return bus.requestAction("llm-chat:regenerate-from-node", { messageId, options });
   };
 
   const deleteMessage = (messageId: string) => {
-    logger.info('代理删除消息操作', { messageId });
-    return bus.requestAction('delete-message', { messageId });
+    logger.info("代理删除消息操作", { messageId });
+    return bus.requestAction("llm-chat:delete-message", { messageId });
   };
 
-  const switchSibling = (nodeId: string, direction: 'prev' | 'next') => {
-    logger.info('代理切换兄弟分支操作', { nodeId, direction });
-    return bus.requestAction('switch-sibling', { nodeId, direction });
+  const switchSibling = (nodeId: string, direction: "prev" | "next") => {
+    logger.info("代理切换兄弟分支操作", { nodeId, direction });
+    return bus.requestAction("llm-chat:switch-sibling", { nodeId, direction });
   };
 
   const toggleEnabled = (nodeId: string) => {
-    logger.info('代理切换节点启用状态操作', { nodeId });
-    return bus.requestAction('toggle-enabled', { nodeId });
+    logger.info("代理切换节点启用状态操作", { nodeId });
+    return bus.requestAction("llm-chat:toggle-enabled", { nodeId });
   };
 
   const editMessage = (nodeId: string, newContent: string, attachments?: any[]) => {
-    logger.info('代理编辑消息操作', { nodeId, contentLength: newContent.length, attachmentCount: attachments?.length });
-    return bus.requestAction('edit-message', { nodeId, newContent, attachments });
+    logger.info("代理编辑消息操作", { nodeId, contentLength: newContent.length, attachmentCount: attachments?.length });
+    return bus.requestAction("llm-chat:edit-message", { nodeId, newContent, attachments });
   };
 
   const createBranch = (nodeId: string) => {
-    logger.info('代理创建分支操作', { nodeId });
-    return bus.requestAction('create-branch', { nodeId });
+    logger.info("代理创建分支操作", { nodeId });
+    return bus.requestAction("llm-chat:create-branch", { nodeId });
   };
 
   const abortNode = (nodeId: string) => {
-    logger.info('代理中止节点生成操作', { nodeId });
-    return bus.requestAction('abort-node', { nodeId });
+    logger.info("代理中止节点生成操作", { nodeId });
+    return bus.requestAction("llm-chat:abort-node", { nodeId });
   };
 
   const analyzeContext = (nodeId: string) => {
-    logger.info('代理上下文分析操作', { nodeId });
-    return bus.requestAction('analyze-context', { nodeId });
+    logger.info("代理上下文分析操作", { nodeId });
+    return bus.requestAction("llm-chat:analyze-context", { nodeId });
   };
 
   // 4. 导出的计算属性和操作（现在可以直接从 Store 获取）
@@ -85,7 +85,7 @@ export function useDetachedChatArea() {
   });
 
   onUnmounted(() => {
-    logger.info('DetachedChatArea composable 已卸载');
+    logger.info("DetachedChatArea composable 已卸载");
   });
 
   return {

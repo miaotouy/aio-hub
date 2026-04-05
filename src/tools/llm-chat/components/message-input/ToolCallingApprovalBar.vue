@@ -22,7 +22,7 @@ const isDetached = computed(() => bus.windowType === "detached-component");
 
 const handleApprove = (id: string) => {
   if (isDetached.value) {
-    bus.requestAction("approve-tool-call", { requestId: id });
+    bus.requestAction("llm-chat:approve-tool-call", { requestId: id });
   } else {
     toolCallingStore.approveRequest(id);
   }
@@ -30,7 +30,7 @@ const handleApprove = (id: string) => {
 
 const handleReject = (id: string) => {
   if (isDetached.value) {
-    bus.requestAction("reject-tool-call", { requestId: id });
+    bus.requestAction("llm-chat:reject-tool-call", { requestId: id });
   } else {
     toolCallingStore.rejectRequest(id);
   }
@@ -38,7 +38,7 @@ const handleReject = (id: string) => {
 
 const handleSilentCancel = (id: string) => {
   if (isDetached.value) {
-    bus.requestAction("silent-cancel-tool-call", { requestId: id });
+    bus.requestAction("llm-chat:silent-cancel-tool-call", { requestId: id });
   } else {
     toolCallingStore.silentCancelRequest(id);
   }
@@ -46,7 +46,7 @@ const handleSilentCancel = (id: string) => {
 
 const handleSilentApprove = (id: string) => {
   if (isDetached.value) {
-    bus.requestAction("silent-approve-tool-call", { requestId: id });
+    bus.requestAction("llm-chat:silent-approve-tool-call", { requestId: id });
   } else {
     toolCallingStore.silentApproveRequest(id);
   }
@@ -55,7 +55,7 @@ const handleSilentApprove = (id: string) => {
 const handleApproveAll = () => {
   if (llmChatStore.currentSessionId) {
     if (isDetached.value) {
-      bus.requestAction("approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+      bus.requestAction("llm-chat:approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
     } else {
       toolCallingStore.approveAll(llmChatStore.currentSessionId);
     }
@@ -65,7 +65,7 @@ const handleApproveAll = () => {
 const handleRejectAll = () => {
   if (llmChatStore.currentSessionId) {
     if (isDetached.value) {
-      bus.requestAction("reject-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+      bus.requestAction("llm-chat:reject-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
     } else {
       toolCallingStore.rejectAll(llmChatStore.currentSessionId);
     }
@@ -75,7 +75,7 @@ const handleRejectAll = () => {
 const handleSilentCancelAll = () => {
   if (llmChatStore.currentSessionId) {
     if (isDetached.value) {
-      bus.requestAction("silent-cancel-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+      bus.requestAction("llm-chat:silent-cancel-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
     } else {
       toolCallingStore.silentCancelAll(llmChatStore.currentSessionId);
     }
@@ -85,7 +85,7 @@ const handleSilentCancelAll = () => {
 const handleSilentApproveAll = () => {
   if (llmChatStore.currentSessionId) {
     if (isDetached.value) {
-      bus.requestAction("silent-approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+      bus.requestAction("llm-chat:silent-approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
     } else {
       toolCallingStore.silentApproveAll(llmChatStore.currentSessionId);
     }

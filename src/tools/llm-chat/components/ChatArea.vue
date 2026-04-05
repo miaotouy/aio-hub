@@ -277,7 +277,7 @@ const handleSelectModel = async () => {
 
     if (bus.windowType === "detached-component") {
       try {
-        await bus.requestAction("update-agent", {
+        await bus.requestAction("llm-chat:update-agent", {
           agentId: currentAgent.value.id,
           updates,
         });
@@ -303,7 +303,7 @@ const handleSaveAgent = async (data: AgentEditData, options: { silent?: boolean;
 
     if (bus.windowType === "detached-component") {
       try {
-        await bus.requestAction("update-agent", {
+        await bus.requestAction("llm-chat:update-agent", {
           agentId: targetId,
           updates,
         });
@@ -384,7 +384,7 @@ const handleQuickSwitchAgent = async (agentId: string) => {
   if (bus.windowType === "detached-component") {
     try {
       // 分离窗口通过 bus 请求
-      await bus.requestAction("select-agent", { agentId });
+      await bus.requestAction("llm-chat:select-agent", { agentId });
     } catch (error) {
       errorHandler.error(error, "请求切换智能体失败");
     }
@@ -399,7 +399,7 @@ const handleSaveUserProfile = async (updates: Partial<Omit<UserProfile, "id" | "
     logger.info("保存用户档案", { profileId: effectiveUserProfile.value.id, updates });
     if (bus.windowType === "detached-component") {
       try {
-        await bus.requestAction("update-user-profile", {
+        await bus.requestAction("llm-chat:update-user-profile", {
           profileId: effectiveUserProfile.value.id,
           updates,
         });
@@ -649,6 +649,16 @@ onMounted(async () => {
   logger.info("聊天设置已加载");
 
   isReady.value = true;
+
+  // 监听来自同步总线的 UI 请求
+  if (bus.windowType === "main" || bus.windowType === "detached-tool") {
+    bus.onMessage("action-request", (payload: any) => {
+      if (payload.action === "llm-chat:select-continuation-model") {
+        logger.info("收到续写模型选择 UI 请求");
+        emit("select-continuation-model");
+      }
+    });
+  }
 
   logger.info("ChatArea mounted", {
     props: {

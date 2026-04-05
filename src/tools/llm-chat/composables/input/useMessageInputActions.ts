@@ -100,7 +100,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     const payload = { content, attachments, temporaryModel, disableMacroParsing };
 
     if (options.props.isDetached) {
-      options.bus.requestAction("send-message", payload);
+      options.bus.requestAction("llm-chat:send-message", payload);
     } else {
       options.emit("send", payload);
     }
@@ -109,7 +109,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   // 处理中止
   const handleAbort = () => {
     if (options.props.isDetached) {
-      options.bus.requestAction("abort-sending", {});
+      options.bus.requestAction("llm-chat:abort-sending", {});
       return;
     }
 
@@ -317,7 +317,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   // 处理续写模型选择
   const handleSelectContinuationModel = async () => {
     if (options.props.isDetached) {
-      options.bus.requestAction("select-continuation-model", {});
+      options.bus.requestAction("llm-chat:select-continuation-model", {});
       return;
     }
 
@@ -426,7 +426,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       : undefined;
 
     if (options.props.isDetached) {
-      options.bus.requestAction("complete-input", { content, options: options_ });
+      options.bus.requestAction("llm-chat:complete-input", { content, options: options_ });
     } else {
       options.emit("complete-input", content, options_);
     }
@@ -435,7 +435,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   // 处理切换会话
   const handleSwitchSession = (sessionId: string) => {
     if (options.props.isDetached) {
-      options.bus.requestAction("switch-session", { sessionId });
+      options.bus.requestAction("llm-chat:switch-session", { sessionId });
     } else {
       chatStore.switchSession(sessionId);
     }
@@ -450,7 +450,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     }
 
     if (options.props.isDetached) {
-      options.bus.requestAction("create-session", { agentId });
+      options.bus.requestAction("llm-chat:create-session", { agentId });
     } else {
       chatStore.createSession(agentId);
     }

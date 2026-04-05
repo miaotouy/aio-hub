@@ -30,12 +30,7 @@
 
         <!-- 快速导航标签页 -->
         <div class="settings-tabs">
-          <el-tabs
-            v-model="activeTab"
-            type="card"
-            @tab-click="handleTabClick"
-            class="navigation-tabs"
-          >
+          <el-tabs v-model="activeTab" type="card" @tab-click="handleTabClick" class="navigation-tabs">
             <el-tab-pane
               v-for="section in mergedSettingsConfig"
               :key="section.title"
@@ -52,11 +47,7 @@
           </el-tabs>
         </div>
         <div class="settings-content" ref="scrollContainerRef">
-          <el-form
-            :model="localSettings"
-            :label-width="formLabelWidth"
-            :label-position="formLabelPosition"
-          >
+          <el-form :model="localSettings" :label-width="formLabelWidth" :label-position="formLabelPosition">
             <template v-for="(section, sectionIndex) in mergedSettingsConfig" :key="section.title">
               <div class="settings-section">
                 <div class="section-title">
@@ -110,16 +101,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from "vue";
-import {
-  ElMessageBox,
-  ElTabs,
-  ElTabPane,
-  ElForm,
-  ElDivider,
-  ElAutocomplete,
-  ElButton,
-  ElIcon,
-} from "element-plus";
+import { ElMessageBox, ElTabs, ElTabPane, ElForm, ElDivider, ElAutocomplete, ElButton, ElIcon } from "element-plus";
 import { set, debounce } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
 import { useElementSize, useWindowSize } from "@vueuse/core";
@@ -215,7 +197,7 @@ watch(
   () => localSettings.value.shortcuts.send,
   (sendKey) => {
     localSettings.value.shortcuts.newLine = sendKey === "ctrl+enter" ? "enter" : "shift+enter";
-  }
+  },
 );
 
 const autoSave = debounce(async () => {
@@ -224,7 +206,7 @@ const autoSave = debounce(async () => {
     saveStatus.value = "saving";
 
     if (bus.windowType === "detached-component") {
-      await bus.requestAction("update-chat-settings", {
+      await bus.requestAction("llm-chat:update-chat-settings", {
         updates: localSettings.value,
       });
     } else {
@@ -249,7 +231,7 @@ watch(
     }
     autoSave();
   },
-  { deep: true }
+  { deep: true },
 );
 
 const handleClose = () => {
@@ -266,7 +248,7 @@ const handleReset = async () => {
     });
 
     if (bus.windowType === "detached-component") {
-      await bus.requestAction("update-chat-settings", {
+      await bus.requestAction("llm-chat:update-chat-settings", {
         updates: DEFAULT_SETTINGS,
       });
     } else {
@@ -391,8 +373,8 @@ const searchIndex = computed<SearchIndexItem[]>(() =>
         label: item.label,
         keywords: item.keywords,
         value: renderHint(`${section.title} > ${item.label}`),
-      }))
-  )
+      })),
+  ),
 );
 
 const querySearch = (queryString: string, cb: (results: SearchIndexItem[]) => void) => {
@@ -413,9 +395,7 @@ const querySearch = (queryString: string, cb: (results: SearchIndexItem[]) => vo
 const handleSearchSelect = (item: Record<string, any>) => {
   if (!scrollContainerRef.value) return;
 
-  const targetElement = scrollContainerRef.value.querySelector(
-    `[data-setting-id="${item.id}"]`
-  ) as HTMLElement;
+  const targetElement = scrollContainerRef.value.querySelector(`[data-setting-id="${item.id}"]`) as HTMLElement;
 
   if (targetElement) {
     targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -495,7 +475,7 @@ watch(
       removeScrollListener();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 </script>
 

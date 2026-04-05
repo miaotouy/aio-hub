@@ -81,6 +81,12 @@ export interface ToolConfig {
   component: () => Promise<any>; // 组件动态导入函数
   description?: string;
   category?: string;
+  /**
+   * 工具运行模式
+   * - 'main-only': 仅在主窗口运行（默认，保守策略）
+   * - 'any': 可以在任何窗口（包括分离窗口）运行
+   */
+  runMode?: "main-only" | "any";
 }
 
 export interface ToolRegistry {
@@ -94,6 +100,13 @@ export interface ToolRegistry {
    * 服务的显示名称（可选）
    */
   readonly name?: string;
+
+  /**
+   * 工具运行模式
+   * - 'main-only': 仅在主窗口运行（默认，保守策略）
+   * - 'any': 可以在任何窗口（包括分离窗口）运行
+   */
+  readonly runMode?: "main-only" | "any";
 
   /**
    * 服务描述（可选）

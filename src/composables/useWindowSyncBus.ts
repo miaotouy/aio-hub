@@ -47,7 +47,8 @@ class WindowSyncBus {
   private connectionHandlers = new Set<ConnectionHandler>();
   private disconnectionHandlers = new Set<ConnectionHandler>();
   private reconnectionHandlers = new Set<() => void>();
-  private actionHandler: ActionHandler | null = null;
+  private actionHandlers = new Map<string, ActionHandler>();
+  private defaultActionHandler: ActionHandler | null = null;
   private initialStateRequestHandlers = new Set<InitialStateRequestHandler>();
 
   // 心跳管理
@@ -284,19 +285,37 @@ class WindowSyncBus {
    * 处理操作请求
    */
   private async handleActionRequest(message: BaseMessage<ActionRequestPayload>): Promise<void> {
-    if (this.actionHandler) {
+    const { action, params, requestId } = message.payload;
+    let handler: ActionHandler | undefined;
+    let actionName = action;
+
+    // 解析命名空间 (例如 "chat:sendMessage")
+    const colonIndex = action.indexOf(":");
+    if (colonIndex !== -1) {
+      const namespace = action.substring(0, colonIndex);
+      handler = this.actionHandlers.get(namespace);
+      if (handler) {
+        // 如果匹配到命名空间处理器，传递短名称
+        actionName = action.substring(colonIndex + 1);
+      }
+    }
+
+    // 如果没有命名空间处理器，Fallback 到默认处理器
+    if (!handler && this.defaultActionHandler) {
+      handler = this.defaultActionHandler;
+      // 传递完整名称
+      actionName = action;
+    }
+
+    if (handler) {
       try {
-        const result = await this.actionHandler(
-          message.payload.action,
-          message.payload.params,
-          message.payload.requestId,
-        );
+        const result = await handler(actionName, params, requestId);
 
         // 发送成功响应
         await this.sendMessage<ActionResponsePayload>(
           "action-response",
           {
-            requestId: message.payload.requestId,
+            requestId,
             success: true,
             data: result,
           },
@@ -307,7 +326,7 @@ class WindowSyncBus {
         await this.sendMessage<ActionResponsePayload>(
           "action-response",
           {
-            requestId: message.payload.requestId,
+            requestId,
             success: false,
             error: error instanceof Error ? error.message : String(error),
           },
@@ -315,9 +334,17 @@ class WindowSyncBus {
         );
       }
     } else {
-      logger.warn("未注册操作处理器，无法处理操作请求", {
-        action: message.payload.action,
-      });
+      logger.warn("未找到匹配的操作处理器", { action });
+      // 发送错误响应，告知未找到处理器
+      await this.sendMessage<ActionResponsePayload>(
+        "action-response",
+        {
+          requestId,
+          success: false,
+          error: `未找到匹配的操作处理器: ${action}`,
+        },
+        message.from,
+      );
     }
   }
 
@@ -532,13 +559,28 @@ class WindowSyncBus {
   }
 
   /**
-   * 注册操作处理器（主窗口使用）
+   * 注册操作处理器
+   * 支持重载：
+   * 1. onActionRequest(handler: ActionHandler): 注册默认处理器
+   * 2. onActionRequest(namespace: string, handler: ActionHandler): 注册命名空间处理器
    */
-  onActionRequest(handler: ActionHandler): UnlistenFn {
-    this.actionHandler = handler;
-    return () => {
-      this.actionHandler = null;
-    };
+  onActionRequest(handler: ActionHandler): UnlistenFn;
+  onActionRequest(namespace: string, handler: ActionHandler): UnlistenFn;
+  onActionRequest(namespaceOrHandler: string | ActionHandler, handler?: ActionHandler): UnlistenFn {
+    if (typeof namespaceOrHandler === "string") {
+      const namespace = namespaceOrHandler;
+      const actualHandler = handler!;
+      this.actionHandlers.set(namespace, actualHandler);
+      return () => {
+        this.actionHandlers.delete(namespace);
+      };
+    } else {
+      const actualHandler = namespaceOrHandler;
+      this.defaultActionHandler = actualHandler;
+      return () => {
+        this.defaultActionHandler = null;
+      };
+    }
   }
 
   /**
@@ -631,7 +673,8 @@ class WindowSyncBus {
     this.connectionHandlers.clear();
     this.disconnectionHandlers.clear();
     this.reconnectionHandlers.clear();
-    this.actionHandler = null;
+    this.actionHandlers.clear();
+    this.defaultActionHandler = null;
     this.initialStateRequestHandlers.clear();
 
     this.initialized = false;

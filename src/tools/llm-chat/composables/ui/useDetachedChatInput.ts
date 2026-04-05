@@ -4,13 +4,13 @@
  * 封装了 MessageInput 组件在独立窗口中运行时的所有逻辑，
  * 主要包括状态消费和操作代理。
  */
-import { computed } from 'vue';
-import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
-import { createModuleLogger } from '@/utils/logger';
+import { computed } from "vue";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 
-const logger = createModuleLogger('DetachedChatInput');
+const logger = createModuleLogger("DetachedChatInput");
 
 export function useDetachedChatInput() {
   const bus = useWindowSyncBus();
@@ -25,20 +25,20 @@ export function useDetachedChatInput() {
     return settingsLoaded.value ? settings.value.uiPreferences.isStreaming : false;
   });
 
-  logger.info('分离的 MessageInput 同步引擎已初始化', {
+  logger.info("分离的 MessageInput 同步引擎已初始化", {
     isStreamingEnabled: isStreamingEnabled.value,
-    settingsLoaded: settingsLoaded.value
+    settingsLoaded: settingsLoaded.value,
   });
 
   // 4. 操作代理
   const handleSendMessage = (content: string, attachments?: any[]) => {
-    logger.info('代理发送消息操作', { content, attachmentCount: attachments?.length });
-    bus.requestAction('send-message', { content, attachments });
+    logger.info("代理发送消息操作", { content, attachmentCount: attachments?.length });
+    bus.requestAction("llm-chat:send-message", { content, attachments });
   };
 
   const handleAbort = () => {
-    logger.info('代理中止发送操作');
-    bus.requestAction('abort-sending', {});
+    logger.info("代理中止发送操作");
+    bus.requestAction("llm-chat:abort-sending", {});
   };
 
   // 5. 返回 props 和事件监听器（与 useDetachedChatArea 保持一致的结构）

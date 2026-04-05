@@ -16,6 +16,14 @@ type ServiceModule = {
   toolConfig?: ToolConfig;
 };
 
+// 检查是否为分离窗口
+const isDetached = () => {
+  return (
+    window.location.pathname.startsWith("/detached-window/") ||
+    window.location.pathname.startsWith("/detached-component/")
+  );
+};
+
 /**
  * 自动发现并注册所有工具
  *
@@ -44,7 +52,18 @@ export async function autoRegisterServices(priorityToolId?: string): Promise<() 
     /**
      * 加载并注册单个工具模块
      */
-    async function loadAndRegisterModule(path: string) {
+    async function loadAndRegisterModule(path: string, isRemainingPhase = false) {
+      // 在分离窗口的 loadRemaining 阶段，先检查 runMode
+      if (isRemainingPhase && isDetached()) {
+        const module = await serviceModules[path]();
+        const runMode = module.toolConfig?.runMode || (module.default as any)?.runMode || "main-only";
+
+        if (runMode === "main-only") {
+          logger.debug(`跳过主窗口专用工具: ${path}`);
+          return;
+        }
+      }
+
       const module = await serviceModules[path]();
       const registerItems: ToolRegistryItem[] = [];
 
@@ -108,7 +127,7 @@ export async function autoRegisterServices(priorityToolId?: string): Promise<() 
       // 1. 加载剩余工具
       for (const path of remainingPaths) {
         try {
-          await loadAndRegisterModule(path);
+          await loadAndRegisterModule(path, true);
         } catch (error) {
           errorHandler.error(error, "加载工具模块失败", { context: { path } });
           failedModules.push({ path, error });

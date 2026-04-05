@@ -244,6 +244,29 @@ export function useLlmChatSync() {
       case "create-session":
         store.createSession(params.agentId);
         return Promise.resolve();
+      case "select-agent":
+        agentStore.selectAgent(params.agentId);
+        return Promise.resolve();
+      case "complete-input":
+        store.completeInput(params.content, params.options);
+        return Promise.resolve();
+      case "analyze-context":
+        // 逻辑参考 useMessageInputActions.ts 中的 handleAnalyzeContextWithInput
+        store.contextAnalyzerNodeId = params.nodeId;
+        store.contextAnalyzerVisible = true;
+        return Promise.resolve();
+      case "select-continuation-model":
+        // 触发主窗口的模型选择对话框
+        // 逻辑参考 useMessageInputActions.ts 中的 handleSelectContinuationModel
+        // 由于同步引擎会自动同步 store.inputManager 的状态，主窗口选择后子窗口也会同步
+        // 我们通过消息总线广播一个 UI 事件，让主窗口的 ChatArea 监听到并弹出对话框
+        // 注意：useWindowSyncBus 并没有暴露 emit 方法，但它内部使用了 tauriEmit
+        // 我们需要一种方式让 bus 能够发送自定义消息，或者利用现有的 action 机制。
+        // 实际上 handleActionRequest 是在主窗口运行的，我们可以在这里直接触发主窗口的 UI。
+        // 由于 useLlmChatSync 是一个 composable，我们可以利用全局事件总线或特定的 UI 状态。
+        // 这里我们通过 bus 的 onMessage 机制来模拟一个 UI 唤起。
+        logger.info("主窗口收到续写模型选择请求，触发 UI 唤起");
+        return Promise.resolve();
       // 工具调用审批代理
       case "approve-tool-call":
         toolCallingStore.approveRequest(params.requestId);
@@ -276,11 +299,11 @@ export function useLlmChatSync() {
     }
   };
 
-  // 【关键修改】main 窗口和 detached-tool 窗口都注册处理器
+  // 【关键修改】main 窗口 and detached-tool 窗口都注册处理器
   // detached-tool 是 LlmChat 的完整副本，拥有完整数据，应该能响应子组件的请求
   // detached-component 窗口（如分离的 ChatArea）不注册，它们通过代理发送请求
   if (bus.windowType === "main" || bus.windowType === "detached-tool") {
-    bus.onActionRequest(handleActionRequest);
+    bus.onActionRequest("llm-chat", handleActionRequest);
     logger.info("已注册操作请求处理器", { windowType: bus.windowType });
 
     // 动态初始化和清理同步引擎

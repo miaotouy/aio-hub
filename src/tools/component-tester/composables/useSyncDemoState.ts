@@ -40,7 +40,7 @@ export function useSyncDemoState() {
   // 2. 跨窗口 Action 处理
   // 只有主窗口或分离工具窗口（拥有数据的窗口）才注册处理器
   if (bus.windowType === "main" || bus.windowType === "detached-tool") {
-    bus.onActionRequest(async (action, params) => {
+    bus.onActionRequest("component-tester", async (action, params) => {
       logger.info("收到测试 Action 请求", { action, params });
       if (action === "test-notify") {
         syncData.remoteActionCount++;
@@ -79,7 +79,7 @@ export function useSyncDemoState() {
    */
   const triggerRemoteNotify = async (msg: string) => {
     if (bus.windowType === "detached-component") {
-      return await bus.requestAction("test-notify", { msg });
+      return await bus.requestAction("component-tester:test-notify", { msg });
     }
     return null;
   };
@@ -89,7 +89,7 @@ export function useSyncDemoState() {
    */
   const requestUpdateSyncData = async (key: string, value: any) => {
     if (bus.windowType === "detached-component") {
-      return await bus.requestAction("update-sync-data", { key, value });
+      return await bus.requestAction("component-tester:update-sync-data", { key, value });
     }
     return null;
   };

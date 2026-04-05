@@ -11,6 +11,7 @@ type DiscoveredToolMethods = {
   toolId: string;
   toolName: string;
   toolDescription?: string;
+  factoryId?: string;
   methods: MethodMetadata[];
   settingsSchema?: any[];
 };
@@ -136,10 +137,23 @@ export function createToolDiscoveryService(): {
         continue;
       }
 
+      // 获取工厂 ID
+      let factoryId: string | undefined;
+      const allFactories = (toolRegistryManager as any).factoryToolIds as Map<string, string[]>;
+      if (allFactories) {
+        for (const [fid, ids] of allFactories.entries()) {
+          if (ids.includes(tool.id)) {
+            factoryId = fid;
+            break;
+          }
+        }
+      }
+
       discovered.push({
         toolId: tool.id,
         toolName: tool.name || tool.id,
         toolDescription: tool.description,
+        factoryId,
         methods: callableMethods.map((m) => ({
           ...m,
           toolName: m.toolName || tool.name || tool.id,
@@ -200,7 +214,9 @@ export function createToolDiscoveryService(): {
       return {
         toolId: tool.toolId,
         toolName: toolOverride?.enabled ? toolOverride.displayName || tool.toolName : tool.toolName,
-        toolDescription: toolOverride?.enabled ? toolOverride.description || tool.toolDescription : tool.toolDescription,
+        toolDescription: toolOverride?.enabled
+          ? toolOverride.description || tool.toolDescription
+          : tool.toolDescription,
         methods: tool.methods.map((method) => {
           const methodKey = `${tool.toolId}:${method.name}`;
           const methodOverride = options.config.overrides?.[methodKey];

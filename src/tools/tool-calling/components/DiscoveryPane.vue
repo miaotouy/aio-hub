@@ -8,6 +8,11 @@ import {
   RefreshCw,
   ArrowDownAZ,
   Hash,
+  Filter,
+  FilterX,
+  Clock,
+  Zap,
+  Factory,
 } from "lucide-vue-next";
 
 const props = defineProps<{
@@ -21,20 +26,65 @@ const emit = defineEmits<{
 
 const selectedToolId = ref<string | null>(null);
 const searchQuery = ref("");
+const excludeQuery = ref("");
 const sortBy = ref<"name" | "count">("name");
+const filterExecutionMode = ref<"all" | "sync" | "async">("all");
+const filterFactoryId = ref<string>("");
+const showFilterPanel = ref(false);
+
+const factories = computed(() => {
+  const ids = new Set<string>();
+  props.groups.forEach((g) => {
+    if (g.factoryId) ids.add(g.factoryId);
+  });
+  return Array.from(ids).sort();
+});
 
 const filteredGroups = computed(() => {
-  let result = [...props.groups];
+  let result = props.groups.map((g) => ({
+    ...g,
+    // 预克隆方法列表，因为我们要对方法进行过滤
+    methods: [...g.methods],
+  }));
 
-  // 搜索过滤
+  // 1. 搜索过滤 (包含)
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
     result = result.filter(
       (g) =>
         g.toolName.toLowerCase().includes(query) ||
         g.toolId.toLowerCase().includes(query) ||
-        g.methods.some((m: any) => m.name.toLowerCase().includes(query))
+        g.methods.some((m: any) => m.name.toLowerCase().includes(query)),
     );
+  }
+
+  // 2. 排除过滤
+  if (excludeQuery.value.trim()) {
+    const query = excludeQuery.value.toLowerCase();
+    result = result.filter(
+      (g) =>
+        !g.toolName.toLowerCase().includes(query) &&
+        !g.toolId.toLowerCase().includes(query) &&
+        !g.methods.some((m: any) => m.name.toLowerCase().includes(query)),
+    );
+  }
+
+  // 3. 工厂过滤
+  if (filterFactoryId.value) {
+    result = result.filter((g) => g.factoryId === filterFactoryId.value);
+  }
+
+  // 4. 执行模式过滤 (过滤方法，如果组内无方法则过滤组)
+  if (filterExecutionMode.value !== "all") {
+    result = result
+      .map((g) => ({
+        ...g,
+        methods: g.methods.filter((m: any) => {
+          const mode = m.executionMode || "sync";
+          return mode === filterExecutionMode.value;
+        }),
+      }))
+      .filter((g) => g.methods.length > 0);
   }
 
   // 排序
@@ -72,12 +122,7 @@ const toggleSort = () => {
   <div class="pane discovery-pane">
     <div class="pane-header">
       <div class="header-left">
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索工具或方法..."
-          clearable
-          class="search-input"
-        >
+        <el-input v-model="searchQuery" placeholder="搜索工具或方法..." clearable class="search-input">
           <template #prefix>
             <Search :size="14" />
           </template>
@@ -85,21 +130,85 @@ const toggleSort = () => {
       </div>
 
       <div class="header-actions">
-        <el-tooltip
-          :content="sortBy === 'name' ? '当前按名称排序' : '当前按方法数量排序'"
-          placement="top"
-        >
-          <el-button @click="toggleSort">
+        <el-button-group>
+          <el-tooltip :content="sortBy === 'name' ? '当前按名称排序' : '当前按方法数量排序'" placement="top">
+            <el-button @click="toggleSort">
+              <template #icon>
+                <ArrowDownAZ v-if="sortBy === 'name'" :size="16" />
+                <Hash v-else :size="16" />
+              </template>
+              {{ sortBy === "name" ? "名称" : "数量" }}
+            </el-button>
+          </el-tooltip>
+          <el-button :type="showFilterPanel ? 'primary' : ''" @click="showFilterPanel = !showFilterPanel">
             <template #icon>
-              <ArrowDownAZ v-if="sortBy === 'name'" :size="16" />
-              <Hash v-else :size="16" />
+              <Filter :size="16" />
             </template>
-            {{ sortBy === "name" ? "名称" : "数量" }}
+            筛选
           </el-button>
-        </el-tooltip>
+        </el-button-group>
         <el-button :icon="RefreshCw" @click="emit('refresh')">刷新库</el-button>
       </div>
     </div>
+
+    <!-- 筛选面板 -->
+    <el-collapse-transition>
+      <div v-if="showFilterPanel" class="filter-panel">
+        <div class="filter-row">
+          <div class="filter-item">
+            <span class="filter-label">执行模式:</span>
+            <el-radio-group v-model="filterExecutionMode" size="small">
+              <el-radio-button label="all">全部</el-radio-button>
+              <el-radio-button label="sync">
+                <div class="radio-content">
+                  <Zap :size="12" />
+                  <span>同步</span>
+                </div>
+              </el-radio-button>
+              <el-radio-button label="async">
+                <div class="radio-content">
+                  <Clock :size="12" />
+                  <span>异步</span>
+                </div>
+              </el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div v-if="factories.length > 0" class="filter-item">
+            <span class="filter-label">工厂类:</span>
+            <el-select v-model="filterFactoryId" placeholder="选择工厂" size="small" clearable style="width: 160px">
+              <template #prefix>
+                <Factory :size="14" />
+              </template>
+              <el-option v-for="fid in factories" :key="fid" :label="fid" :value="fid" />
+            </el-select>
+          </div>
+
+          <div class="filter-item">
+            <span class="filter-label">排除词:</span>
+            <el-input v-model="excludeQuery" placeholder="排除名称或ID..." size="small" clearable style="width: 180px">
+              <template #prefix>
+                <FilterX :size="14" />
+              </template>
+            </el-input>
+          </div>
+
+          <div class="filter-actions">
+            <el-button
+              link
+              size="small"
+              @click="
+                filterExecutionMode = 'all';
+                filterFactoryId = '';
+                excludeQuery = '';
+              "
+            >
+              重置筛选
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </el-collapse-transition>
 
     <div class="pane-content">
       <!-- 左侧网格区域 -->
@@ -107,8 +216,18 @@ const toggleSort = () => {
         <div v-if="filteredGroups.length === 0" class="empty-state">
           <Search :size="48" class="empty-icon" />
           <p>未找到匹配的工具</p>
-          <el-button v-if="searchQuery" link type="primary" @click="searchQuery = ''">
-            清空搜索条件
+          <el-button
+            v-if="searchQuery || excludeQuery || filterFactoryId || filterExecutionMode !== 'all'"
+            link
+            type="primary"
+            @click="
+              searchQuery = '';
+              excludeQuery = '';
+              filterFactoryId = '';
+              filterExecutionMode = 'all';
+            "
+          >
+            清空所有筛选条件
           </el-button>
         </div>
 
@@ -125,7 +244,12 @@ const toggleSort = () => {
                 <Package :size="20" />
               </div>
               <div class="tool-info">
-                <div class="tool-name">{{ group.toolName }}</div>
+                <div class="tool-name">
+                  {{ group.toolName }}
+                  <el-tooltip v-if="group.factoryId" :content="`工厂: ${group.factoryId}`" placement="top">
+                    <Factory :size="12" class="factory-badge" />
+                  </el-tooltip>
+                </div>
                 <div class="tool-id">{{ group.toolId }}</div>
               </div>
               <div class="method-count">
@@ -150,7 +274,13 @@ const toggleSort = () => {
           <div class="method-list">
             <div v-for="method in selectedGroup.methods" :key="method.name" class="method-item">
               <div class="method-header">
-                <code class="method-name">{{ method.name }}</code>
+                <div class="method-name-wrapper">
+                  <code class="method-name">{{ method.name }}</code>
+                  <el-tooltip :content="method.executionMode === 'async' ? '异步方法' : '同步方法'" placement="top">
+                    <Clock v-if="method.executionMode === 'async'" :size="14" class="mode-icon async" />
+                    <Zap v-else :size="14" class="mode-icon sync" />
+                  </el-tooltip>
+                </div>
                 <el-button
                   class="load-btn"
                   size="small"
@@ -199,6 +329,45 @@ const toggleSort = () => {
   justify-content: space-between;
   flex-shrink: 0;
   gap: 20px;
+  z-index: 20;
+}
+
+.filter-panel {
+  padding: 12px 20px;
+  background-color: var(--card-bg);
+  border-bottom: var(--border-width) solid var(--border-color);
+  flex-shrink: 0;
+  z-index: 15;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+}
+
+.radio-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-actions {
+  margin-left: auto;
 }
 
 .header-left {
@@ -299,6 +468,14 @@ const toggleSort = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.factory-badge {
+  color: var(--el-color-info);
+  opacity: 0.6;
 }
 
 .tool-id {
@@ -365,11 +542,29 @@ const toggleSort = () => {
   margin-bottom: 8px;
 }
 
+.method-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .method-name {
   font-weight: 700;
   font-size: 13px;
   color: var(--text-color);
   font-family: var(--el-font-family-mono);
+}
+
+.mode-icon {
+  opacity: 0.7;
+}
+
+.mode-icon.async {
+  color: var(--el-color-warning);
+}
+
+.mode-icon.sync {
+  color: var(--el-color-success);
 }
 
 .method-desc {

@@ -1,24 +1,25 @@
 /**
  * LLM Chat 状态同步 Composable
- * 
+ *
  * 封装了 LlmChat.vue 与分离窗口之间的所有状态同步和操作代理逻辑
  */
-import { toRef, type Ref, watch, computed, onUnmounted } from 'vue';
+import { toRef, type Ref, watch, computed, onUnmounted } from "vue";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useWorldbookStore } from "../../stores/worldbookStore";
-import { useDetachedManager } from '@/composables/useDetachedManager';
+import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useLlmChatUiState } from "../ui/useLlmChatUiState";
 import { useChatSettings } from "../settings/useChatSettings";
-import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
-import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
-import { createModuleLogger } from '@/utils/logger';
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
+import { useToolCallingStore } from "../../stores/toolCallingStore";
+import { createModuleLogger } from "@/utils/logger";
 import type { LlmChatStateKey } from "../../types/sync";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "../../types/sync";
 import type { ChatSession } from "../../types";
 
-const logger = createModuleLogger('LlmChatSync');
+const logger = createModuleLogger("LlmChatSync");
 
 export function useLlmChatSync() {
   const store = useLlmChatStore();
@@ -27,6 +28,7 @@ export function useLlmChatSync() {
   const worldbookStore = useWorldbookStore();
   const { currentAgentId } = useLlmChatUiState();
   const { settings } = useChatSettings();
+  const toolCallingStore = useToolCallingStore();
   const bus = useWindowSyncBus();
 
   // 状态同步引擎实例化（延迟初始化）
@@ -38,8 +40,8 @@ export function useLlmChatSync() {
   // 必须在 setup 期间注册，而不是在 initialize (可能异步) 中注册
   onUnmounted(() => {
     if (stateEngines.length > 0) {
-      logger.info('组件卸载，清理所有同步引擎', { count: stateEngines.length });
-      stateEngines.forEach(engine => engine.cleanup());
+      logger.info("组件卸载，清理所有同步引擎", { count: stateEngines.length });
+      stateEngines.forEach((engine) => engine.cleanup());
       stateEngines.length = 0;
     }
   });
@@ -49,8 +51,8 @@ export function useLlmChatSync() {
    */
   function cleanupEngines() {
     if (stateEngines.length > 0) {
-      logger.info('清理所有同步引擎', { count: stateEngines.length });
-      stateEngines.forEach(engine => engine.cleanup());
+      logger.info("清理所有同步引擎", { count: stateEngines.length });
+      stateEngines.forEach((engine) => engine.cleanup());
       stateEngines.length = 0;
     }
     isInitialized = false;
@@ -62,7 +64,7 @@ export function useLlmChatSync() {
    */
   function initialize() {
     if (isInitialized) {
-      logger.warn('同步引擎已初始化，跳过重复初始化');
+      logger.warn("同步引擎已初始化，跳过重复初始化");
       return;
     }
 
@@ -72,34 +74,43 @@ export function useLlmChatSync() {
     // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
     // 这样分离窗口能获得完整的上下文，可以独立工作
     // 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
-    const allAgents = toRef(agentStore, 'agents');
+    const allAgents = toRef(agentStore, "agents");
     // 性能优化：同步会话列表时只同步索引信息，不包含巨大的 nodes 树
     // 这样可以极大地减少全量同步时的 JSON 序列化开销和 IPC 传输负担
-    const allSessionsIndex = computed(() => store.sessions.map(s => {
-      // 如果是当前正在使用的会话，保留完整数据，否则只保留索引信息
-      if (s.id === store.currentSessionId) {
-        return {
-          ...s,
-          messageCount: s.messageCount ?? (Object.keys(s.nodes || {}).length - 1)
-        };
-      }
+    const allSessionsIndex = computed(() =>
+      store.sessions.map((s) => {
+        // 如果是当前正在使用的会话，保留完整数据，否则只保留索引信息
+        if (s.id === store.currentSessionId) {
+          return {
+            ...s,
+            messageCount: s.messageCount ?? Object.keys(s.nodes || {}).length - 1,
+          };
+        }
 
-      const { nodes, history, ...index } = s;
-      return {
-        ...index,
-        messageCount: s.messageCount ?? (Object.keys(nodes || {}).length - 1)
-      };
-    }));
+        const { nodes, history, ...index } = s;
+        return {
+          ...index,
+          messageCount: s.messageCount ?? Object.keys(nodes || {}).length - 1,
+        };
+      }),
+    );
     // 使用 computed 获取当前会话对象，用于单独同步
     // 注意：因为 computed 是只读的，在接收端(子窗口)不能直接绑定到这个 computed
     // 但在发送端(主窗口)，我们可以把它作为源
     const currentSessionData = computed(() => store.currentSession);
-    const currentSessionId = toRef(store, 'currentSessionId');
-    const isSending = toRef(store, 'isSending');
+    const currentSessionId = toRef(store, "currentSessionId");
+    const isSending = toRef(store, "isSending");
     // 将 generatingNodes Set 转换为数组进行同步
     const generatingNodesArray = computed(() => Array.from(store.generatingNodes));
-    const userProfiles = toRef(userProfileStore, 'profiles');
-    const globalProfileId = toRef(userProfileStore, 'globalProfileId');
+    const userProfiles = toRef(userProfileStore, "profiles");
+    const globalProfileId = toRef(userProfileStore, "globalProfileId");
+    // 同步工具调用请求（排除不可序列化的 resolve 函数）
+    const toolPendingRequests = computed(() =>
+      toolCallingStore.pendingRequests.map((r) => {
+        const { resolve, ...serializable } = r;
+        return serializable;
+      }),
+    );
 
     const createStateEngine = <T>(stateSource: Ref<T>, stateKey: LlmChatStateKey) => {
       // 创建引擎并收集到数组中
@@ -130,32 +141,38 @@ export function useLlmChatSync() {
     createStateEngine(globalProfileId, CHAT_STATE_KEYS.GLOBAL_PROFILE_ID);
     // 同步聊天设置（UI偏好、快捷键等）
     createStateEngine(settings, CHAT_STATE_KEYS.SETTINGS);
+    // 同步工具调用请求
+    createStateEngine(toolPendingRequests as Ref<any[]>, CHAT_STATE_KEYS.TOOL_PENDING_REQUESTS);
 
     // 同步世界书索引
     worldbookStore.initializeSync();
 
     // 【重要】在非主窗口中，监听同步过来的 settings 变化
     // 因为 settings 是单例 ref，同步引擎会更新它的值，我们需要确保UI能响应这个变化
-    if (bus.windowType !== 'main') {
-      watch(settings, (newSettings) => {
-        logger.info('分离窗口接收到设置同步', {
-          isStreaming: newSettings.uiPreferences.isStreaming,
-          windowType: bus.windowType
-        });
-      }, { deep: true, immediate: true });
+    if (bus.windowType !== "main") {
+      watch(
+        settings,
+        (newSettings) => {
+          logger.info("分离窗口接收到设置同步", {
+            isStreaming: newSettings.uiPreferences.isStreaming,
+            windowType: bus.windowType,
+          });
+        },
+        { deep: true, immediate: true },
+      );
     }
 
     // 当组件被重新附加时，强制进行一次全量状态广播
     // 这确保了父窗口（main 或 detached-tool）的UI能够反映
     // 子窗口（detached-component）中可能发生的最后状态变化
-    if (bus.windowType === 'main' || bus.windowType === 'detached-tool') {
+    if (bus.windowType === "main" || bus.windowType === "detached-tool") {
       const detachedManager = useDetachedManager();
       watch(
         () => detachedManager.detachedComponents.value.length,
         (newLength, oldLength) => {
           // 只有当组件数量减少时，才认为是“还原”操作
-          if (typeof oldLength === 'number' && newLength < oldLength) {
-            logger.info('检测到组件重新附着，强制进行全量状态广播', {
+          if (typeof oldLength === "number" && newLength < oldLength) {
+            logger.info("检测到组件重新附着，强制进行全量状态广播", {
               windowType: bus.windowType,
               newLength,
               oldLength,
@@ -165,70 +182,96 @@ export function useLlmChatSync() {
               engine.manualPush(true, undefined, true);
             }
           }
-        }
+        },
       );
     }
 
-    logger.info('LLM Chat 同步引擎已初始化', {
+    logger.info("LLM Chat 同步引擎已初始化", {
       windowType: bus.windowType,
       states: Object.values(CHAT_STATE_KEYS),
-      currentStreamingState: settings.value.uiPreferences.isStreaming
+      currentStreamingState: settings.value.uiPreferences.isStreaming,
     });
 
     isInitialized = true;
   }
   // 2. 操作代理：监听并处理来自子窗口的请求
   const handleActionRequest = (action: string, params: any): Promise<any> => {
-    logger.info('收到操作请求', { action, params });
+    logger.info("收到操作请求", { action, params });
     switch (action) {
-      case 'send-message':
+      case "send-message":
         // 不要 await，立即返回，防止请求超时
         store.sendMessage(params.content, params.attachments);
         return Promise.resolve();
-      case 'abort-sending':
+      case "abort-sending":
         store.abortSending();
         return Promise.resolve();
-      case 'regenerate-from-node':
+      case "regenerate-from-node":
         // 不要 await，立即返回，防止请求超时
         store.regenerateFromNode(params.messageId);
         return Promise.resolve();
-      case 'delete-message':
+      case "delete-message":
         store.deleteMessage(params.messageId);
         return Promise.resolve();
-      case 'switch-sibling':
+      case "switch-sibling":
         store.switchToSiblingBranch(params.nodeId, params.direction);
         return Promise.resolve();
-      case 'toggle-enabled':
+      case "toggle-enabled":
         store.toggleNodeEnabled(params.nodeId);
         return Promise.resolve();
-      case 'edit-message':
+      case "edit-message":
         store.editMessage(params.nodeId, params.newContent, params.attachments);
         return Promise.resolve();
-      case 'create-branch':
+      case "create-branch":
         store.createBranch(params.nodeId);
         return Promise.resolve();
-      case 'abort-node':
+      case "abort-node":
         store.abortNodeGeneration(params.nodeId);
         return Promise.resolve();
-      case 'update-agent':
+      case "update-agent":
         agentStore.updateAgent(params.agentId, params.updates);
         return Promise.resolve();
-      case 'update-user-profile':
+      case "update-user-profile":
         userProfileStore.updateProfile(params.profileId, params.updates);
         return Promise.resolve();
-      case 'update-chat-settings':
+      case "update-chat-settings":
         // 使用 useChatSettings 的 updateSettings 方法更新设置
         // 这会更新主窗口的 settings ref，进而触发 useStateSyncEngine 的广播
         const { updateSettings } = useChatSettings();
         return updateSettings(params.updates);
-      case 'switch-session':
+      case "switch-session":
         store.switchSession(params.sessionId);
         return Promise.resolve();
-      case 'create-session':
+      case "create-session":
         store.createSession(params.agentId);
         return Promise.resolve();
+      // 工具调用审批代理
+      case "approve-tool-call":
+        toolCallingStore.approveRequest(params.requestId);
+        return Promise.resolve();
+      case "reject-tool-call":
+        toolCallingStore.rejectRequest(params.requestId);
+        return Promise.resolve();
+      case "approve-all-tool-calls":
+        toolCallingStore.approveAll(params.sessionId);
+        return Promise.resolve();
+      case "reject-all-tool-calls":
+        toolCallingStore.rejectAll(params.sessionId);
+        return Promise.resolve();
+      case "silent-approve-tool-call":
+        toolCallingStore.silentApproveRequest(params.requestId);
+        return Promise.resolve();
+      case "silent-cancel-tool-call":
+        toolCallingStore.silentCancelRequest(params.requestId);
+        return Promise.resolve();
+      case "silent-approve-all-tool-calls":
+        toolCallingStore.silentApproveAll(params.sessionId);
+        return Promise.resolve();
+      case "silent-cancel-all-tool-calls":
+        toolCallingStore.silentCancelAll(params.sessionId);
+        return Promise.resolve();
+
       default:
-        logger.warn('未知的操作请求', { action });
+        logger.warn("未知的操作请求", { action });
         return Promise.reject(new Error(`Unknown action: ${action}`));
     }
   };
@@ -236,29 +279,33 @@ export function useLlmChatSync() {
   // 【关键修改】main 窗口和 detached-tool 窗口都注册处理器
   // detached-tool 是 LlmChat 的完整副本，拥有完整数据，应该能响应子组件的请求
   // detached-component 窗口（如分离的 ChatArea）不注册，它们通过代理发送请求
-  if (bus.windowType === 'main' || bus.windowType === 'detached-tool') {
+  if (bus.windowType === "main" || bus.windowType === "detached-tool") {
     bus.onActionRequest(handleActionRequest);
-    logger.info('已注册操作请求处理器', { windowType: bus.windowType });
-    
+    logger.info("已注册操作请求处理器", { windowType: bus.windowType });
+
     // 动态初始化和清理同步引擎
-    watch(bus.hasDownstreamWindows, (hasDownstream) => {
-      if (hasDownstream) {
-        logger.info('检测到下游窗口，初始化同步引擎');
-        initialize();
-      } else {
-        logger.info('所有下游窗口已关闭，清理同步引擎');
-        cleanupEngines();
-      }
-    }, { immediate: true });
+    watch(
+      bus.hasDownstreamWindows,
+      (hasDownstream) => {
+        if (hasDownstream) {
+          logger.info("检测到下游窗口，初始化同步引擎");
+          initialize();
+        } else {
+          logger.info("所有下游窗口已关闭，清理同步引擎");
+          cleanupEngines();
+        }
+      },
+      { immediate: true },
+    );
 
     // 注意：初始状态请求和重连广播现已由 useStateSyncEngine 的全局注册中心自动处理
     // 无需在此处手动维护
   } else {
-    logger.info('detached-component 窗口，不注册处理器（操作将代理至拥有数据的窗口）', { windowType: bus.windowType });
+    logger.info("detached-component 窗口，不注册处理器（操作将代理至拥有数据的窗口）", { windowType: bus.windowType });
   }
 
   // detached-component 窗口需要主动请求初始状态
-  if (bus.windowType === 'detached-component') {
+  if (bus.windowType === "detached-component") {
     // 延迟一点，确保主窗口的监听器已准备好
     setTimeout(() => {
       bus.requestInitialState();

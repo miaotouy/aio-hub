@@ -33,6 +33,7 @@ export type LlmChatStateKey =
   | "chat-settings" // 聊天设置（UI偏好、快捷键等）
   | "chat-worldbook-index" // 世界书索引列表
   | "chat-quick-action-index" // 快捷操作索引列表
+  | "chat-tool-pending-requests" // 工具调用待处理请求
   | "chat-current-session-data"; // 当前会话的完整数据（用于轻量级同步）
 
 /**
@@ -54,6 +55,7 @@ export const CHAT_STATE_KEYS = {
   SETTINGS: "chat-settings" as const,
   WORLDBOOK_INDEX: "chat-worldbook-index" as const,
   QUICK_ACTION_INDEX: "chat-quick-action-index" as const,
+  TOOL_PENDING_REQUESTS: "chat-tool-pending-requests" as const,
   CURRENT_SESSION_DATA: "chat-current-session-data" as const,
 } as const;
 

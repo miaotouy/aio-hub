@@ -3,9 +3,11 @@ import { computed } from "vue";
 import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Ban, FastForward } from "lucide-vue-next";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
 const toolCallingStore = useToolCallingStore();
 const llmChatStore = useLlmChatStore();
+const bus = useWindowSyncBus();
 
 const currentSessionPendingRequests = computed(() => {
   return toolCallingStore.pendingRequests.filter((r) => r.sessionId === llmChatStore.currentSessionId);
@@ -16,43 +18,77 @@ const hasRequests = computed(() => currentSessionPendingRequests.value.length > 
 const hasExternalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !!r.externalId));
 const hasLocalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !r.externalId));
 
+const isDetached = computed(() => bus.windowType === "detached-component");
+
 const handleApprove = (id: string) => {
-  toolCallingStore.approveRequest(id);
+  if (isDetached.value) {
+    bus.requestAction("approve-tool-call", { requestId: id });
+  } else {
+    toolCallingStore.approveRequest(id);
+  }
 };
 
 const handleReject = (id: string) => {
-  toolCallingStore.rejectRequest(id);
+  if (isDetached.value) {
+    bus.requestAction("reject-tool-call", { requestId: id });
+  } else {
+    toolCallingStore.rejectRequest(id);
+  }
 };
 
 const handleSilentCancel = (id: string) => {
-  toolCallingStore.silentCancelRequest(id);
+  if (isDetached.value) {
+    bus.requestAction("silent-cancel-tool-call", { requestId: id });
+  } else {
+    toolCallingStore.silentCancelRequest(id);
+  }
 };
 
 const handleSilentApprove = (id: string) => {
-  toolCallingStore.silentApproveRequest(id);
+  if (isDetached.value) {
+    bus.requestAction("silent-approve-tool-call", { requestId: id });
+  } else {
+    toolCallingStore.silentApproveRequest(id);
+  }
 };
 
 const handleApproveAll = () => {
   if (llmChatStore.currentSessionId) {
-    toolCallingStore.approveAll(llmChatStore.currentSessionId);
+    if (isDetached.value) {
+      bus.requestAction("approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+    } else {
+      toolCallingStore.approveAll(llmChatStore.currentSessionId);
+    }
   }
 };
 
 const handleRejectAll = () => {
   if (llmChatStore.currentSessionId) {
-    toolCallingStore.rejectAll(llmChatStore.currentSessionId);
+    if (isDetached.value) {
+      bus.requestAction("reject-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+    } else {
+      toolCallingStore.rejectAll(llmChatStore.currentSessionId);
+    }
   }
 };
 
 const handleSilentCancelAll = () => {
   if (llmChatStore.currentSessionId) {
-    toolCallingStore.silentCancelAll(llmChatStore.currentSessionId);
+    if (isDetached.value) {
+      bus.requestAction("silent-cancel-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+    } else {
+      toolCallingStore.silentCancelAll(llmChatStore.currentSessionId);
+    }
   }
 };
 
 const handleSilentApproveAll = () => {
   if (llmChatStore.currentSessionId) {
-    toolCallingStore.silentApproveAll(llmChatStore.currentSessionId);
+    if (isDetached.value) {
+      bus.requestAction("silent-approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
+    } else {
+      toolCallingStore.silentApproveAll(llmChatStore.currentSessionId);
+    }
   }
 };
 </script>

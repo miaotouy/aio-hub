@@ -262,8 +262,8 @@ const updateDetachedWindowSize = async (expanding: boolean = isAnyMenuOpen.value
     const size = await win.innerSize();
     const scale = window.devicePixelRatio || 1;
 
-    // 获取当前容器的实际像素高度
-    const currentContentHeight = Math.ceil((containerHeight.value + 10) * scale);
+    // 获取当前容器的实际像素高度，加上底部边距 (12px) 和顶部阴影空间 (约 20px)
+    const currentContentHeight = Math.ceil((containerHeight.value + 32 + 10) * scale);
 
     if (expanding) {
       // 展开菜单时，窗口高度至少为 650，但不能小于内容高度
@@ -365,7 +365,7 @@ const getDetachConfig = (mouseX?: number, mouseY?: number) => {
     displayName: "聊天输入框",
     type: "component" as const,
     width: rect.width + 80,
-    height: rect.height + 40,
+    height: rect.height + 80, // 进一步增加初始高度以适应外边距和阴影
     mouseX: mouseX ?? window.screenX + rect.left + rect.width / 2,
     mouseY: mouseY ?? window.screenY + rect.top + rect.height / 2,
     handleOffsetX,
@@ -567,17 +567,17 @@ const handleDragStart = (e: MouseEvent) => {
 .message-input-container.detached-mode {
   /* 移除 height: 100%，改为绝对定位沉底，让出上方空间给气泡 */
   position: fixed; /* 使用 fixed 配合 bottom: 0 锁定在窗口底部 */
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 12px; /* 留出底部边距，防止贴边 */
+  left: 12px; /* 留出左侧边距 */
+  right: 12px; /* 留出右侧边距 */
   height: auto;
   margin: 0; /* 移除可能的 margin 干扰 */
-  border-bottom: none; /* 底部不需要边框，因为它贴着窗口边缘 */
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+  border-bottom: var(--border-width) solid var(--border-color); /* 恢复底部边框 */
+  border-bottom-left-radius: 24px; /* 恢复圆角 */
+  border-bottom-right-radius: 24px;
   box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.25),
-    0 4px 16px rgba(0, 0, 0, 0.15);
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.1);
   /* 分离模式下使用专用的底层背景 */
   background-color: var(--detached-base-bg, var(--container-bg));
 }

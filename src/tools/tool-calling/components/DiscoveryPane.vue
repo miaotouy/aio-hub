@@ -241,7 +241,10 @@ const toggleSort = () => {
           >
             <div class="card-body">
               <div class="tool-icon">
-                <Package :size="20" />
+                <span class="icon-inner">
+                  <component :is="group.icon" v-if="group.icon" :size="20" />
+                  <Package v-else :size="20" />
+                </span>
               </div>
               <div class="tool-info">
                 <div class="tool-name">
@@ -265,7 +268,10 @@ const toggleSort = () => {
         <div v-if="selectedGroup" class="detail-sidebar scrollbar-styled">
           <div class="sidebar-header">
             <div class="sidebar-title">
-              <Box :size="18" />
+              <span class="sidebar-icon-wrapper">
+                <component :is="selectedGroup.icon" v-if="selectedGroup.icon" :size="18" />
+                <Box v-else :size="18" />
+              </span>
               <span>{{ selectedGroup.toolName }}</span>
             </div>
             <div class="sidebar-id">{{ selectedGroup.toolId }}</div>
@@ -454,6 +460,23 @@ const toggleSort = () => {
   justify-content: center;
   color: var(--el-color-primary);
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.icon-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.icon-inner :deep(svg),
+.icon-inner :deep(img) {
+  width: 1em;
+  height: 1em;
 }
 
 .tool-info {
@@ -513,6 +536,22 @@ const toggleSort = () => {
   font-size: 16px;
   color: var(--el-color-primary);
   margin-bottom: 4px;
+}
+
+.sidebar-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.sidebar-icon-wrapper :deep(svg),
+.sidebar-icon-wrapper :deep(img) {
+  width: 1em;
+  height: 1em;
 }
 
 .sidebar-id {

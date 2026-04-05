@@ -1,5 +1,6 @@
 import type { MethodMetadata, ToolRegistry } from "@/services/types";
 import { toolRegistryManager } from "@/services/registry";
+import { useToolsStore } from "@/stores/tools";
 import type { ToolCallConfig } from "@/tools/llm-chat/types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import type { ToolCallingProtocol, ToolDefinitionInput } from "./protocols/base";
@@ -11,6 +12,7 @@ type DiscoveredToolMethods = {
   toolId: string;
   toolName: string;
   toolDescription?: string;
+  icon?: any;
   factoryId?: string;
   methods: MethodMetadata[];
   settingsSchema?: any[];
@@ -114,6 +116,7 @@ export function createToolDiscoveryService(): {
 
   function getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[] {
     const allTools = toolRegistryManager.getAllTools();
+    const toolsStore = useToolsStore();
     const discovered: DiscoveredToolMethods[] = [];
 
     for (const tool of allTools) {
@@ -149,10 +152,14 @@ export function createToolDiscoveryService(): {
         }
       }
 
+      // 尝试从 toolsStore 获取图标
+      const toolConfig = toolsStore.tools.find((t) => t.path.includes(tool.id));
+
       discovered.push({
         toolId: tool.id,
         toolName: tool.name || tool.id,
         toolDescription: tool.description,
+        icon: toolConfig?.icon,
         factoryId,
         methods: callableMethods.map((m) => ({
           ...m,

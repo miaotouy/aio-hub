@@ -13,6 +13,7 @@ const logger = createModuleLogger("services/text-diff");
  */
 export default class TextDiffRegistry implements ToolRegistry {
   public readonly id = "text-diff";
+  public readonly runMode = "any";
   public readonly name = "文本差异对比工具";
   public readonly description = "提供文本差异对比的文件操作、补丁生成等功能";
 
@@ -123,6 +124,7 @@ export default class TextDiffRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "文本差异对比",
   path: "/text-diff",
+  runMode: "any",
   icon: markRaw(TextDiffIcon),
   component: () => import("./TextDiff.vue"),
   description: "对比文本文件的差异",

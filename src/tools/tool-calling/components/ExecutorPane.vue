@@ -4,7 +4,7 @@ import { useStorage } from "@vueuse/core";
 import { Play, Zap, RotateCcw, Copy } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
-import { executeToolRequests } from "../core/executor";
+import { execute } from "@/services/executor";
 import { VcpToolCallingProtocol } from "../core/protocols/vcp-protocol";
 
 // 导入拆分后的子组件
@@ -193,28 +193,38 @@ const runExecutionTest = async () => {
       }
     }
 
-    const results = await executeToolRequests(
-      [
-        {
-          requestId: "debug-" + Math.random().toString(36).slice(2, 7),
-          toolId: targetToolId,
-          methodName: targetMethodName,
-          toolName: testToolName.value,
-          args,
-          rawBlock: "",
+    const result = await execute({
+      service: "tool-calling",
+      method: "executeToolRequests",
+      params: {
+        requests: [
+          {
+            requestId: "debug-" + Math.random().toString(36).slice(2, 7),
+            toolId: targetToolId,
+            methodName: targetMethodName,
+            toolName: testToolName.value,
+            args,
+            rawBlock: "",
+          },
+        ],
+        options: {
+          config: {
+            mode: "auto",
+            timeout: 60000,
+            parallelExecution: true,
+            defaultAutoApprove: true,
+          } as any,
         },
-      ],
-      {
-        config: {
-          mode: "auto",
-          timeout: 60000,
-          parallelExecution: true,
-          defaultAutoApprove: true,
-        } as any,
       },
-    );
-    executionResults.value = [...results, ...executionResults.value].slice(0, 10);
-    customMessage.success("执行完成");
+    });
+
+    if (result.success) {
+      const results = result.data;
+      executionResults.value = [...results, ...executionResults.value].slice(0, 10);
+      customMessage.success("执行完成");
+    } else {
+      throw result.error;
+    }
   } catch (e: any) {
     customMessage.error("执行异常: " + e.message);
   } finally {

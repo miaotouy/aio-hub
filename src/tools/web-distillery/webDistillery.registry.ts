@@ -6,6 +6,7 @@ import { formatFetchResult } from "./formatters";
 
 export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";
+  public readonly runMode = "any";
   public readonly name = "网页蒸馏室";
   public readonly description = "高纯度网页内容提取方案，支持从快速 HTTP 获取到交互式浏览器爬取。";
 
@@ -108,6 +109,7 @@ export default class WebDistilleryRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "网页蒸馏室",
   path: "/web-distillery",
+  runMode: "any",
   icon: markRaw(GlassWater),
   component: () => import("./WebDistillery.vue"),
   category: "AI 工具",

@@ -58,6 +58,7 @@ export interface FormattedCleanupResult {
  */
 export default class DirectoryJanitorRegistry implements ToolRegistry {
   public readonly id = "directory-janitor";
+  public readonly runMode = "any";
   public readonly name = "目录清道夫";
   public readonly description = "扫描和清理目录中的过期文件和大文件";
 
@@ -396,6 +397,7 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "目录清洁工具",
   path: "/directory-janitor",
+  runMode: "any",
   icon: markRaw(DirectoryJanitorIcon),
   component: () => import("./DirectoryJanitor.vue"),
   description: "智能清理过时的缓存和存档，支持按规则、日期和大小过滤",

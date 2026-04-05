@@ -11,6 +11,7 @@ import type { MoveAndLinkOptions, CreateLinksOnlyOptions } from "./types";
  */
 export default class SymlinkMoverRegistry implements ToolRegistry {
   public readonly id = "symlink-mover";
+  public readonly runMode = "main-only";
   public readonly name = "符号链接移动工具";
   public readonly description = "将文件移动到目标目录并在原位置创建链接，或仅创建链接";
 
@@ -49,6 +50,7 @@ export default class SymlinkMoverRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "符号链接搬家工具",
   path: "/symlink-mover",
+  runMode: "main-only",
   icon: markRaw(SymlinkMoverIcon),
   component: () => import("./SymlinkMover.vue"),
   description: "支持拖拽的文件批量移动和符号链接创建工具",

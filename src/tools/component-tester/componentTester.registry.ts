@@ -8,6 +8,7 @@ import { FlaskConical } from "lucide-vue-next";
  */
 export default class ComponentTesterRegistry implements ToolRegistry {
   public readonly id = "component-tester";
+  public readonly runMode = "any";
   public readonly name = "组件测试器";
   public readonly description = "测试和展示各种 UI 组件、Element Plus 元素、消息提示和主题色板";
 
@@ -51,6 +52,7 @@ export default class ComponentTesterRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "组件测试器",
   path: "/component-tester",
+  runMode: "any",
   icon: markRaw(FlaskConical),
   component: () => import("./ComponentTester.vue"),
   description: "测试和展示各种 UI 组件、窗口分离同步体系、Element Plus 元素、消息提示和主题色板",

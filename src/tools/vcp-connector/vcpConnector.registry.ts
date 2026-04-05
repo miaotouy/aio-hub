@@ -9,6 +9,7 @@ import { vcpBridgeFactory } from "./services/VcpBridgeFactory";
 
 export class VcpConnectorRegistry implements ToolRegistry {
   public readonly id = "vcp-connector";
+  public readonly runMode = "main-only";
   public readonly name = "VCP 连接器";
   public readonly description = "VCP 分布式连接与监控中心";
   public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
@@ -59,6 +60,7 @@ export default [new VcpConnectorRegistry(), vcpBridgeFactory];
 export const toolConfig: ToolConfig = {
   name: "VCP 连接器",
   path: "/vcp-connector",
+  runMode: "main-only",
   icon: markRaw(VcpConnectorIcon),
   component: () => import("./VcpConnector.vue"),
   description: "VCP 分布式连接中心 - 支持跨节点工具共享、RAG 监控及 Agent 消息广播",

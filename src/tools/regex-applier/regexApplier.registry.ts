@@ -21,6 +21,7 @@ const errorHandler = createModuleErrorHandler("services/regex-applier");
 
 export default class RegexApplierRegistry implements ToolRegistry {
   public readonly id = "regex-applier";
+  public readonly runMode = "any";
   public readonly name = "正则批量替换";
   public readonly description = "正则表达式批量应用工具";
 
@@ -246,6 +247,7 @@ export default class RegexApplierRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "正则批量替换",
   path: "/regex-applier",
+  runMode: "any",
   icon: markRaw(MagicStick),
   component: () => import("./RegexApplier.vue"),
   description: "使用正则表达式批量处理文本或文件",

@@ -3,11 +3,10 @@ import { computed } from "vue";
 import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Ban, FastForward } from "lucide-vue-next";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { execute } from "@/services/executor";
 
 const toolCallingStore = useToolCallingStore();
 const llmChatStore = useLlmChatStore();
-const bus = useWindowSyncBus();
 
 const currentSessionPendingRequests = computed(() => {
   return toolCallingStore.pendingRequests.filter((r) => r.sessionId === llmChatStore.currentSessionId);
@@ -18,77 +17,51 @@ const hasRequests = computed(() => currentSessionPendingRequests.value.length > 
 const hasExternalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !!r.externalId));
 const hasLocalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !r.externalId));
 
-const isDetached = computed(() => bus.windowType === "detached-component");
-
 const handleApprove = (id: string) => {
-  if (isDetached.value) {
-    bus.requestAction("llm-chat:approve-tool-call", { requestId: id });
-  } else {
-    toolCallingStore.approveRequest(id);
-  }
+  execute({ service: "tool-calling", method: "approveRequest", params: { requestId: id } });
 };
 
 const handleReject = (id: string) => {
-  if (isDetached.value) {
-    bus.requestAction("llm-chat:reject-tool-call", { requestId: id });
-  } else {
-    toolCallingStore.rejectRequest(id);
-  }
+  execute({ service: "tool-calling", method: "rejectRequest", params: { requestId: id } });
 };
 
 const handleSilentCancel = (id: string) => {
-  if (isDetached.value) {
-    bus.requestAction("llm-chat:silent-cancel-tool-call", { requestId: id });
-  } else {
-    toolCallingStore.silentCancelRequest(id);
-  }
+  execute({ service: "tool-calling", method: "silentCancelRequest", params: { requestId: id } });
 };
 
 const handleSilentApprove = (id: string) => {
-  if (isDetached.value) {
-    bus.requestAction("llm-chat:silent-approve-tool-call", { requestId: id });
-  } else {
-    toolCallingStore.silentApproveRequest(id);
-  }
+  execute({ service: "tool-calling", method: "silentApproveRequest", params: { requestId: id } });
 };
 
 const handleApproveAll = () => {
   if (llmChatStore.currentSessionId) {
-    if (isDetached.value) {
-      bus.requestAction("llm-chat:approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
-    } else {
-      toolCallingStore.approveAll(llmChatStore.currentSessionId);
-    }
+    execute({ service: "tool-calling", method: "approveAll", params: { sessionId: llmChatStore.currentSessionId } });
   }
 };
 
 const handleRejectAll = () => {
   if (llmChatStore.currentSessionId) {
-    if (isDetached.value) {
-      bus.requestAction("llm-chat:reject-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
-    } else {
-      toolCallingStore.rejectAll(llmChatStore.currentSessionId);
-    }
+    execute({ service: "tool-calling", method: "rejectAll", params: { sessionId: llmChatStore.currentSessionId } });
   }
 };
 
 const handleSilentCancelAll = () => {
   if (llmChatStore.currentSessionId) {
-    if (isDetached.value) {
-      bus.requestAction("llm-chat:silent-cancel-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
-    } else {
-      toolCallingStore.silentCancelAll(llmChatStore.currentSessionId);
-    }
+    execute({
+      service: "tool-calling",
+      method: "silentCancelAll",
+      params: { sessionId: llmChatStore.currentSessionId },
+    });
   }
 };
 
 const handleSilentApproveAll = () => {
   if (llmChatStore.currentSessionId) {
-    if (isDetached.value) {
-      bus.requestAction("llm-chat:silent-approve-all-tool-calls", { sessionId: llmChatStore.currentSessionId });
-    } else {
-      toolCallingStore.silentApproveAll(llmChatStore.currentSessionId);
-    }
+    execute({
+      service: "tool-calling",
+      method: "silentApproveAll",
+      params: { sessionId: llmChatStore.currentSessionId },
+    });
   }
 };
 </script>

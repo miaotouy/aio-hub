@@ -27,6 +27,7 @@ const errorHandler = createModuleErrorHandler("transcription/registry");
 
 export default class TranscriptionRegistry implements ToolRegistry {
   public readonly id = "transcription";
+  public readonly runMode = "main-only";
   public readonly name = "多模态转写管理";
   public readonly description = "管理从图片、音频、视频和 PDF 中提取文本内容的转写任务";
 
@@ -203,6 +204,7 @@ export const transcriptionRegistry = new TranscriptionRegistry();
 export const toolConfig: ToolConfig = {
   name: "多模态转写",
   path: "/transcription",
+  runMode: "main-only",
   icon: markRaw(FileAudio),
   component: () => import("./TranscriptionTool.vue"),
   description: "从图片、音频、视频和 PDF 中提取文本内容",

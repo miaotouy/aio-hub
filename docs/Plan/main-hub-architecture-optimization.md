@@ -1,8 +1,9 @@
 # 架构优化建议：多窗口分布式执行引擎 (Main-Hub Architecture)
 
-**状态**: `Implementing` (施工中)
+**状态**: `Completed` (已完成)
 **最后核查**: 2026-04-05
 **施工调查完成**: 2026-04-05
+**第一阶段完成**: 2026-04-05 ✅
 
 ---
 
@@ -96,33 +97,35 @@ graph TB
 
 ## 3. 实施步骤
 
-### 第一阶段：基础设施升级 (Core Infrastructure)
+### 第一阶段：基础设施升级 (Core Infrastructure) ✅ 完成
 
-1.  **WindowSyncBus 重构**：将 [`actionHandler`](src/composables/useWindowSyncBus.ts:50) 从单一处理器改为**命名空间路由表**（`Map<string, ActionHandler>`）。
-    - Action 名称统一采用 `namespace:action` 格式（如 `llm-chat:send-message`、`executor:execute-tool`）。
-    - 无命名空间的旧格式走兼容通道（默认路由到第一个注册的处理器），避免 breaking change。
-    - `onActionRequest` 签名变更为 `onActionRequest(namespace: string, handler: ActionHandler)`。
+1.  **WindowSyncBus 重构**：将 [`actionHandler`](src/composables/useWindowSyncBus.ts:50) 从单一处理器改为**命名空间路由表**。 ✅
+2.  **Registry 扩展**：在 [`types.ts`](src/services/types.ts:77) 中添加 `runMode` 支持。 ✅
+3.  **auto-register 优化**：在分离窗口跳过 `main-only` 工具的加载。 ✅
+4.  **现有迁移**：迁移了 `llm-chat` 和 `component-tester` 的现有 Action。 ✅
 
-2.  **Executor 透明化**：在 [`executor.ts`](src/services/executor.ts:59) 中集成 `useWindowSyncBus`，注册 `executor:execute-tool` 处理器，实现自动转发逻辑。
+**核查结论**: 基础设施已就绪，命名空间路由和 `runMode` 标记已生效。
 
-3.  **Registry 扩展**：
-    - 在 [`ToolConfig`](src/services/types.ts:77) 和 [`ToolRegistry`](src/services/types.ts:86) 接口添加 `runMode?: 'main-only' | 'any'`。
-    - 修改 [`autoRegisterServices`](src/services/auto-register.ts:30) 的 `loadRemaining()`，使其在分离窗口中：先导入模块读取 `toolConfig.runMode`，若为 `main-only` 则跳过实例化和注册。
+### 第二阶段：业务层下沉与通用化 (Generalization) ✅ 完成
 
-### 第二阶段：业务层下沉与通用化 (Generalization)
+**`[核查修正]`** Tool Calling 的跨窗口闭环已在 [`ToolCallingApprovalBar.vue`](src/tools/llm-chat/components/message-input/ToolCallingApprovalBar.vue:22) 中**完整实现**。本阶段的目标是将硬编码方案**下沉为通用基础设施**。
 
-**`[核查修正]`** Tool Calling 的跨窗口闭环已在 [`ToolCallingApprovalBar.vue`](src/tools/llm-chat/components/message-input/ToolCallingApprovalBar.vue:22) 和 [`useLlmChatSync.ts:247-271`](src/tools/llm-chat/composables/chat/useLlmChatSync.ts:247) 中**完整实现**。本阶段的目标不是"解决问题"，而是将硬编码方案**下沉为通用基础设施**。
+1.  **Executor 透明转发**：✅ 已完成。`executor.ts` 自动识别分离窗口环境并转发请求。
+2.  **Tool Calling 通用化**：✅ 已完成。
+    - 在 [`tool-calling.registry.ts`](src/tools/tool-calling/tool-calling.registry.ts) 中暴露审批方法。
+    - `ToolCallingApprovalBar.vue` 移除 `isDetached` 判断，通过 `execute({ service: 'tool-calling', ... })` 调用。
+3.  **LLM Chat Action 迁移**：✅ 已完成。
+    - **原则**：仅下沉跨窗口同步必须的 Action，不移动 chat 内部业务逻辑。
+    - `useLlmChatSync.ts` 已完成命名空间重构，并修复了 4 个缺失的 Handler。
 
-1.  **Tool Calling 通用化**：将 `ToolCallingApprovalBar.vue` 中的 `isDetached ? bus.requestAction(...) : store.method(...)` 模式替换为通用的 Executor Proxy 调用，消除 UI 组件中的窗口环境判断逻辑。
+### 第三阶段：典型案例迁移 (Case Migration) 🚀
 
-2.  **LLM Chat Action 迁移**：将 [`useLlmChatSync.ts:198-276`](src/tools/llm-chat/composables/chat/useLlmChatSync.ts:198) 中的 20+ 个硬编码 Action 分类处理：
-    - **Store 操作类**（如 `send-message`, `switch-session`）：迁移到通用 Executor Proxy，通过 `executor:execute-tool` 路由。
-    - **状态同步类**（如 `update-chat-settings`）：保留在 `llm-chat:*` 命名空间下，因为这些操作与 Chat 的状态引擎紧耦合。
-
-### 第三阶段：典型案例迁移 (Case Migration)
-
-- **VCP Connector**：标记为 `main-only`，WebSocket 仅在主窗口维持，分离窗口通过代理获取连接状态。
-- **Canvas 系统**：利用此架构实现"主窗口持久化，画布窗口预览"的解耦。
+1.  **VCP Connector 闭环**：✅ 已完成 `runMode: main-only` 标记。
+2.  **Canvas 系统**：**设计阶段**，尚未动工。利用此架构实现"主窗口持久化，画布窗口预览"的解耦。
+3.  **全量工具审计**：✅ **已完成**。
+    - 遍历了 `src/tools/` 下所有工具。
+    - 对 11 个具有 `ToolRegistry` 实现的工具完成了 `runMode` 标记（其中 `git-analyzer` 经核查标记为 `any`）。
+    - 识别出 20 个纯 UI 页面工具（无 `ToolRegistry`），无需标记。
 
 ## 4. 预期收益
 

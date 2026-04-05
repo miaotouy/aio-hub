@@ -43,6 +43,7 @@ export interface FormattedDedupResult {
 
 export default class ContentDeduplicatorRegistry implements ToolRegistry {
   public readonly id = "content-deduplicator";
+  public readonly runMode = "any";
   public readonly name = "内容查重";
   public readonly description = "扫描目录中的重复文本文件，支持精确匹配和规范化匹配";
 
@@ -157,6 +158,7 @@ export default class ContentDeduplicatorRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "内容查重",
   path: "/content-deduplicator",
+  runMode: "any",
   icon: markRaw(FileSearch),
   component: () => import("./ContentDeduplicator.vue"),
   description: "扫描目录中的重复文本文件，支持多种匹配模式和预设",

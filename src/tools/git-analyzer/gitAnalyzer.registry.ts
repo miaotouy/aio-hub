@@ -18,6 +18,7 @@ import { reportComponents, formatCommitList, formatBranchList, createAgentExport
  */
 export default class GitAnalyzerRegistry implements ToolRegistry {
   public readonly id = "git-analyzer";
+  public readonly runMode = "any";
   public readonly name = "Git 分析器";
   public readonly description = "分析 Git 仓库的提交历史、贡献者统计和活跃度";
 
@@ -395,6 +396,7 @@ export default class GitAnalyzerRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "Git 分析器",
   path: "/git-analyzer",
+  runMode: "any",
   icon: markRaw(GitBranchIcon),
   component: () => import("./GitAnalyzer.vue"),
   description: "Git提交记录分析和可视化处理工具",

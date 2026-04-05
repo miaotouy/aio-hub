@@ -10,6 +10,7 @@ import { Pipette } from "lucide-vue-next";
  */
 export default class ColorPickerRegistry implements ToolRegistry {
   public readonly id = "color-picker";
+  public readonly runMode = "any";
   public readonly name = "图片色彩分析";
   public readonly description = "从图片中提取和分析颜色方案";
 
@@ -29,6 +30,7 @@ export default class ColorPickerRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "图片色彩分析",
   path: "/color-picker",
+  runMode: "any",
   icon: markRaw(Pipette),
   component: () => import("./ColorPicker.vue"),
   description: "从图片中提取颜色，支持多种算法分析主色调、调色板和平均色",

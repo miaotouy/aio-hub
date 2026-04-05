@@ -14,6 +14,7 @@ const logger = createModuleLogger("tools/asset-manager");
  */
 class AssetManagerRegistry implements ToolRegistry {
   public readonly id = "asset-manager";
+  public readonly runMode = "main-only";
   public readonly name = "资产管理器";
   public readonly description = "管理应用内导入的所有资产，如图片、文档等。";
 
@@ -50,6 +51,7 @@ export const assetManagerService = assetManagerRegistry;
 export const toolConfig: ToolConfig = {
   name: "资产管理器",
   path: "/asset-manager",
+  runMode: "main-only",
   icon: markRaw(FolderOpened),
   component: () => import("./AssetManager.vue"),
   description: "可视化管理应用内导入的所有资产，支持搜索、筛选和预览",

@@ -12,6 +12,7 @@ import type { GenerateTreeOptions } from "./actions";
  */
 export default class DirectoryTreeRegistry implements ToolRegistry {
   public readonly id = "directory-tree";
+  public readonly runMode = "any";
   public readonly name = "目录结构浏览器";
   public readonly description = "生成目录树结构，支持过滤规则和深度限制";
   public readonly settingsSchema: SettingItem[] = [
@@ -192,6 +193,7 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "目录结构浏览器",
   path: "/directory-tree",
+  runMode: "any",
   icon: markRaw(DirectoryTreeIcon),
   component: () => import("./DirectoryTree.vue"),
   description: "生成目录树结构，支持过滤规则和深度限制",

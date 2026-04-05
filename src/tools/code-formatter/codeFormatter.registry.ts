@@ -7,6 +7,7 @@ import { Setting } from "@element-plus/icons-vue";
  */
 export const toolConfig: ToolConfig = {
   name: "代码格式化",
+  runMode: "any",
   path: "/code-formatter",
   icon: markRaw(Setting),
   component: () => import("./CodeFormatter.vue"),

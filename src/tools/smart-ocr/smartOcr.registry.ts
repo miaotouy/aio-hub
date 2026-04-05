@@ -13,6 +13,7 @@ import { useImageSlicer } from "./composables/useImageSlicer";
  */
 export default class SmartOcrRegistry implements ToolRegistry {
   public readonly id = "smart-ocr";
+  public readonly runMode = "main-only";
   public readonly name = "智能 OCR";
   public readonly description = "智能图片文字识别工具，支持智能切图";
 
@@ -55,6 +56,7 @@ export default class SmartOcrRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "智能 OCR",
   path: "/smart-ocr",
+  runMode: "main-only",
   icon: markRaw(OcrIcon),
   component: () => import("./SmartOcr.vue"),
   description: "智能OCR文字识别工具，支持多引擎和智能切图",

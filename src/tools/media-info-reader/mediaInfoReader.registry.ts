@@ -25,6 +25,7 @@ export type { ImageMetadataResult, WebUIInfo };
  */
 export default class MediaInfoReaderRegistry implements ToolRegistry {
   public readonly id = "media-info-reader";
+  public readonly runMode = "any";
   public readonly name = "AI 信息解析器";
   public readonly description =
     "解析 AI 图片（SD/ComfyUI）、SillyTavern 角色卡及 AioBundle (AIO 角色包) 的元数据与 Prompt。";
@@ -128,6 +129,7 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "AI 信息解析",
   path: "/media-info-reader",
+  runMode: "any",
   icon: markRaw(PictureFilled),
   component: () => import("./MediaInfoReader.vue"),
   description: "深度解析 AI 图片元数据、SillyTavern 角色卡及 AioBundle (AIO 角色包) 信息",

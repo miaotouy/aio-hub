@@ -24,6 +24,7 @@ import TokenCalculatorIcon from '@/components/icons/TokenCalculatorIcon.vue';
  */
 class TokenCalculatorRegistry implements ToolRegistry {
   public readonly id = 'token-calculator';
+  public readonly runMode = 'any';
   public readonly name = 'Token 计算器';
   public readonly description = '计算文本的 Token 数量，支持多种 LLM 分词器';
 
@@ -273,6 +274,7 @@ export type { TokenCalculationResult } from './composables/useTokenCalculator';
 export const toolConfig: ToolConfig = {
   name: 'Token 计算器',
   path: '/token-calculator',
+  runMode: 'any',
   icon: markRaw(TokenCalculatorIcon),
   component: () => import('./TokenCalculator.vue'),
   description: '计算文本的 Token 数量，支持多种 LLM 分词器',

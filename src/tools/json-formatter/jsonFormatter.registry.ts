@@ -11,6 +11,7 @@ import * as logic from "./logic/jsonFormatter.logic";
  */
 export default class JsonFormatterRegistry implements ToolRegistry {
   public readonly id = "json-formatter";
+  public readonly runMode = "any";
   public readonly name = "JSON 格式化工具";
   public readonly description = "提供 JSON 解析、格式化和美化功能，支持文件路径输入和自定义展开层级";
   public readonly settingsSchema: SettingItem[] = [
@@ -115,6 +116,7 @@ export default class JsonFormatterRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "JSON 格式化",
   path: "/json-formatter",
+  runMode: "any",
   icon: markRaw(Braces),
   component: () => import("./JsonFormatter.vue"),
   description: "格式化和美化JSON数据",

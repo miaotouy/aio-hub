@@ -4,6 +4,9 @@ import { Wrench } from "lucide-vue-next";
 import { taskManager } from "./core/async-task";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
+import { useAsyncTaskStore } from "./stores/asyncTaskStore";
+import { executeToolRequests as internalExecuteToolRequests } from "./core/executor";
 
 const logger = createModuleLogger("tool-calling/registry");
 const errorHandler = createModuleErrorHandler("tool-calling/registry");
@@ -20,6 +23,7 @@ export class ToolCallingRegistry implements ToolRegistry {
   readonly id = "tool-calling";
   readonly name = "工具调用";
   readonly description = "工具调用系统与异步任务管理";
+  readonly runMode = "main-only";
 
   async initialize(): Promise<void> {
     // 等待 TaskManager 初始化完成
@@ -306,6 +310,54 @@ export class ToolCallingRegistry implements ToolRegistry {
       logger.error("测试任务失败", error, { taskId: context.taskId });
       throw error;
     }
+  }
+
+  // ==================== 工具调用审批方法 (供跨窗口转发使用) ====================
+
+  public approveRequest(params: { requestId: string }): void {
+    useToolCallingStore().approveRequest(params.requestId);
+  }
+
+  public rejectRequest(params: { requestId: string }): void {
+    useToolCallingStore().rejectRequest(params.requestId);
+  }
+
+  public approveAll(params: { sessionId: string }): void {
+    useToolCallingStore().approveAll(params.sessionId);
+  }
+
+  public rejectAll(params: { sessionId: string }): void {
+    useToolCallingStore().rejectAll(params.sessionId);
+  }
+
+  public silentApproveRequest(params: { requestId: string }): void {
+    useToolCallingStore().silentApproveRequest(params.requestId);
+  }
+
+  public silentCancelRequest(params: { requestId: string }): void {
+    useToolCallingStore().silentCancelRequest(params.requestId);
+  }
+
+  public silentApproveAll(params: { sessionId: string }): void {
+    useToolCallingStore().silentApproveAll(params.sessionId);
+  }
+
+  public silentCancelAll(params: { sessionId: string }): void {
+    useToolCallingStore().silentCancelAll(params.sessionId);
+  }
+
+  // ==================== 任务管理方法 (供跨窗口转发使用) ====================
+
+  public async deleteTasks(params: { taskIds: string[] }): Promise<number> {
+    return useAsyncTaskStore().deleteTasks(params.taskIds);
+  }
+
+  public async deleteTask(params: { taskId: string }): Promise<boolean> {
+    return useAsyncTaskStore().deleteTask(params.taskId);
+  }
+
+  public async executeToolRequests(params: { requests: any[]; options?: any }): Promise<any[]> {
+    return internalExecuteToolRequests(params.requests, params.options);
   }
 }
 

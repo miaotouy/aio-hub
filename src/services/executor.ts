@@ -6,6 +6,7 @@
 import { toolRegistryManager } from './registry';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
+import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
 
 const logger = createModuleLogger('services/executor');
 const errorHandler = createModuleErrorHandler('services/executor');
@@ -60,15 +61,50 @@ export async function execute<TData = any>(
   call: ToolCall
 ): Promise<ServiceResult<TData>> {
   const { service: serviceId, method, params } = call;
+  const bus = useWindowSyncBus();
 
   logger.info('执行服务调用', {
     serviceId,
     method,
     paramsKeys: Object.keys(params || {}),
+    windowType: bus.windowType,
   });
 
   try {
-    // 1. 查找工具实例
+    // 1. 环境感知路由：如果是分离窗口且工具不在本地或标记为 main-only，则转发给主窗口
+    const isDetached = bus.windowType !== 'main';
+    const hasLocalTool = toolRegistryManager.hasTool(serviceId);
+    
+    // 获取工具运行模式 (如果是本地工具)
+    let runMode = 'main-only';
+    if (hasLocalTool) {
+      const registry = toolRegistryManager.getRegistry(serviceId);
+      runMode = registry.runMode || 'main-only';
+    }
+
+    // 转发决策逻辑：
+    // 1. 当前是分离窗口
+    // 2. 且 (本地没有该工具 OR 工具明确要求在主窗口运行)
+    if (isDetached && (!hasLocalTool || runMode === 'main-only')) {
+      logger.info('转发工具调用请求至主窗口', { serviceId, method, runMode });
+      
+      try {
+        const result = await bus.requestAction<ToolCall, TData>(
+          'executor:execute-tool',
+          call
+        );
+        return { success: true, data: result };
+      } catch (error) {
+        logger.error('转发工具调用失败', error, { serviceId, method });
+        return {
+          success: false,
+          error: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
+    }
+
+    // 2. 本地执行逻辑
+    // 查找工具实例
     let toolInstance;
 
     // 1. 优先尝试寻找对应的 -dev 版本 (如果请求的是原始 ID)

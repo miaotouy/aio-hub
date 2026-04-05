@@ -11,6 +11,7 @@ import { getCurrentWebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/w
 import { getOrCreateInstance } from "@/utils/singleton";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { execute, type ToolCall } from "@/services/executor";
 import type {
   WindowType,
   WindowMessageType,
@@ -698,6 +699,23 @@ export function useWindowSyncBus() {
   const initializeSyncBus = async (config?: WindowSyncBusConfig) => {
     if (bus["initialized"]) {
       return;
+    }
+
+    // 注册全局 Executor 处理器 (仅在主窗口或拥有数据的工具窗口)
+    if (bus["windowType"] === "main" || bus["windowType"] === "detached-tool") {
+      bus.onActionRequest("executor", async (action, params) => {
+        if (action === "execute-tool") {
+          const call = params as ToolCall;
+          logger.info("主窗口收到转发的工具调用", { service: call.service, method: call.method });
+          const result = await execute(call);
+          if (result.success) {
+            return result.data;
+          } else {
+            throw result.error;
+          }
+        }
+        return null;
+      });
     }
 
     // 如果提供了配置，则更新实例的配置

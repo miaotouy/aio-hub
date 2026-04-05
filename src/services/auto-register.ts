@@ -56,7 +56,12 @@ export async function autoRegisterServices(priorityToolId?: string): Promise<() 
       // 在分离窗口的 loadRemaining 阶段，先检查 runMode
       if (isRemainingPhase && isDetached()) {
         const module = await serviceModules[path]();
-        const runMode = module.toolConfig?.runMode || (module.default as any)?.runMode || "main-only";
+        // 尝试从 toolConfig 或 导出的类/对象上获取 runMode
+        const runMode =
+          module.toolConfig?.runMode ||
+          (module.default as any)?.runMode ||
+          (module.default?.prototype as any)?.runMode ||
+          "main-only";
 
         if (runMode === "main-only") {
           logger.debug(`跳过主窗口专用工具: ${path}`);

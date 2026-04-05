@@ -5,6 +5,7 @@ import * as logic from "./logic/dataFilter.logic";
 
 export default class DataFilterRegistry implements ToolRegistry {
   public readonly id = "data-filter";
+  public readonly runMode = "any";
   public readonly name = "数据筛选工具";
   public readonly description =
     "针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配和自定义脚本，轻松剔除无关配置。";
@@ -68,6 +69,7 @@ export default class DataFilterRegistry implements ToolRegistry {
 export const toolConfig: ToolConfig = {
   name: "数据筛选工具",
   path: "/data-filter",
+  runMode: "any",
   icon: markRaw(Filter),
   component: () => import("./DataFilter.vue"),
   description: "针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配和自定义脚本",

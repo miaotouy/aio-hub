@@ -55,6 +55,35 @@
           </div>
           <span class="message-count"> {{ filteredMessages.length }} 条消息 </span>
           <span class="msg-rate"> {{ stats.messagesPerMinute }} msg/min </span>
+
+          <!-- 快速筛选入口 -->
+          <el-popover placement="bottom-start" :width="240" trigger="click" popper-class="vcp-filter-popover">
+            <template #reference>
+              <el-button size="small" :type="isAnyFilterActive ? 'primary' : ''" :icon="Filter" circle plain />
+            </template>
+            <div class="filter-popover-content">
+              <div class="filter-header">
+                <span class="filter-title">类型筛选</span>
+                <el-link type="primary" :underline="false" @click="toggleAllTypes">
+                  {{ isAllTypesSelected ? "全不选" : "全选" }}
+                </el-link>
+              </div>
+              <div class="type-filter-list">
+                <div
+                  v-for="type in typeOptions"
+                  :key="type.value"
+                  class="type-filter-option"
+                  :class="[type.class, { active: store.filter.types.includes(type.value) }]"
+                  @click="toggleType(type.value)"
+                >
+                  <div class="type-indicator"></div>
+                  <span class="type-name">{{ type.label }}</span>
+                  <span class="type-desc">{{ type.desc }}</span>
+                  <el-icon v-if="store.filter.types.includes(type.value)" class="check-icon"><Check /></el-icon>
+                </div>
+              </div>
+            </div>
+          </el-popover>
         </div>
 
         <div class="header-center">
@@ -161,7 +190,7 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { customMessage } from "@/utils/customMessage";
 import { getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
-import { Pause, Play, Trash2, Download, Search, Link, Link2Off } from "lucide-vue-next";
+import { Pause, Play, Trash2, Download, Search, Link, Link2Off, Filter, Check } from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
 import BroadcastCard from "./BroadcastCard.vue";
@@ -193,6 +222,37 @@ const handleResizeStart = createResizeHandler("SouthEast");
 const filteredMessages = computed(() => [...store.filteredMessages].reverse());
 const filter = computed(() => store.filter);
 const stats = computed(() => store.stats);
+
+const typeOptions = [
+  { value: "RAG_RETRIEVAL_DETAILS", label: "RAG", desc: "检索详情", class: "rag" },
+  { value: "META_THINKING_CHAIN", label: "Chain", desc: "思考链", class: "chain" },
+  { value: "AGENT_PRIVATE_CHAT_PREVIEW", label: "Agent", desc: "私聊预览", class: "agent" },
+  { value: "AI_MEMO_RETRIEVAL", label: "Memo", desc: "记忆回溯", class: "memo" },
+  { value: "PLUGIN_STEP_STATUS", label: "Plugin", desc: "插件步骤", class: "plugin" },
+  { value: "vcp_log", label: "Log", desc: "运行日志", class: "log" },
+] as const;
+
+const isAnyFilterActive = computed(() => store.filter.types.length < typeOptions.length);
+const isAllTypesSelected = computed(() => store.filter.types.length === typeOptions.length);
+
+function toggleType(type: any) {
+  const current = [...store.filter.types];
+  const index = current.indexOf(type);
+  if (index > -1) {
+    current.splice(index, 1);
+  } else {
+    current.push(type);
+  }
+  store.setFilter({ types: current });
+}
+
+function toggleAllTypes() {
+  if (isAllTypesSelected.value) {
+    store.setFilter({ types: [] });
+  } else {
+    store.setFilter({ types: typeOptions.map((t) => t.value) });
+  }
+}
 
 const searchKeyword = ref(store.filter.keyword);
 
@@ -518,6 +578,115 @@ async function handleReattach() {
   border-radius: 10px;
   background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
   font-weight: 500;
+  margin-right: 4px;
+}
+
+/* 筛选 Popover 样式 */
+.filter-popover-content {
+  padding: 4px;
+}
+
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.filter-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.type-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.type-filter-option {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.type-filter-option:hover {
+  background: var(--el-fill-color-light);
+}
+
+.type-indicator {
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  margin-right: 10px;
+  background: var(--el-text-color-placeholder);
+}
+
+.type-name {
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 45px;
+  margin-right: 8px;
+}
+
+.type-desc {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  flex: 1;
+}
+
+.check-icon {
+  font-size: 14px;
+  color: var(--el-color-primary);
+}
+
+/* 颜色定义 */
+.type-filter-option.rag .type-indicator {
+  background: #3b82f6;
+}
+.type-filter-option.rag.active {
+  background: #3b82f615;
+}
+
+.type-filter-option.chain .type-indicator {
+  background: #a855f7;
+}
+.type-filter-option.chain.active {
+  background: #a855f715;
+}
+
+.type-filter-option.agent .type-indicator {
+  background: #f59e0b;
+}
+.type-filter-option.agent.active {
+  background: #f59e0b15;
+}
+
+.type-filter-option.memo .type-indicator {
+  background: #10b981;
+}
+.type-filter-option.memo.active {
+  background: #10b98115;
+}
+
+.type-filter-option.plugin .type-indicator {
+  background: #71717a;
+}
+.type-filter-option.plugin.active {
+  background: #71717a15;
+}
+
+.type-filter-option.log .type-indicator {
+  background: #7f8c8d;
+}
+.type-filter-option.log.active {
+  background: #7f8c8d15;
 }
 
 .header-right {

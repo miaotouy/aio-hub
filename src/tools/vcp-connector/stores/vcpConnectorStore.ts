@@ -115,6 +115,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       "AGENT_PRIVATE_CHAT_PREVIEW",
       "AI_MEMO_RETRIEVAL",
       "PLUGIN_STEP_STATUS",
+      "vcp_log",
     ],
     keyword: "",
     paused: false,

@@ -60,6 +60,10 @@
           <span class="stat-value plugin">{{ stats.pluginCount || 0 }}</span>
           <span class="stat-label">Plugin</span>
         </div>
+        <div class="stat-item">
+          <span class="stat-value log">{{ stats.logCount || 0 }}</span>
+          <span class="stat-label">Log</span>
+        </div>
       </div>
     </div>
   </div>
@@ -83,6 +87,7 @@ const typeOptions = [
   { value: "AGENT_PRIVATE_CHAT_PREVIEW", label: "Agent", desc: "私聊预览", class: "agent" },
   { value: "AI_MEMO_RETRIEVAL", label: "Memo", desc: "记忆回溯", class: "memo" },
   { value: "PLUGIN_STEP_STATUS", label: "Plugin", desc: "插件步骤", class: "plugin" },
+  { value: "vcp_log", label: "Log", desc: "运行日志", class: "log" },
 ] as const;
 
 function toggleType(type: VcpMessageType) {
@@ -105,14 +110,14 @@ watch(
   () => store.filter.types,
   (types) => {
     selectedTypes.value = [...types];
-  }
+  },
 );
 
 watch(
   () => store.config.maxHistory,
   (val) => {
     maxHistory.value = val;
-  }
+  },
 );
 </script>
 
@@ -245,6 +250,14 @@ watch(
   background: #71717a20;
 }
 
+.type-filter-item.log .type-indicator {
+  background: #7f8c8d;
+}
+.type-filter-item.log.active {
+  border-color: #7f8c8d80;
+  background: #7f8c8d20;
+}
+
 .stats-section {
   flex: 1;
 }
@@ -292,6 +305,9 @@ watch(
 }
 .stat-value.plugin {
   color: #71717a;
+}
+.stat-value.log {
+  color: #7f8c8d;
 }
 
 .stat-label {

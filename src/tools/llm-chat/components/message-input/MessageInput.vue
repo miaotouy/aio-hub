@@ -2,7 +2,6 @@
 import { ref, toRef, computed, onMounted, watch } from "vue";
 import { useStorage, useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -110,6 +109,7 @@ const { height: containerHeight } = useElementSize(containerRef);
 const macroSelectorVisible = ref(false);
 const isExpanded = ref(false);
 const isAnyMenuOpen = ref(false); // 追踪是否有任何气泡菜单打开
+const isUpdatingSize = ref(false); // 锁，防止并发调整大小导致抖动
 
 // 使用全局输入管理器
 const inputManager = useChatInputManager();
@@ -256,36 +256,35 @@ watch(inputManager.focusRequest, () => {
  * @param expanding 是否强制展开高度（用于菜单显示）
  */
 const updateDetachedWindowSize = async (expanding: boolean = isAnyMenuOpen.value) => {
-  if (!props.isDetached) return;
+  if (!props.isDetached || isUpdatingSize.value) return;
+  isUpdatingSize.value = true;
   try {
-    const win = getCurrentWindow();
-    const size = await win.innerSize();
     const scale = window.devicePixelRatio || 1;
 
     // 获取当前容器的实际像素高度，加上底部边距 (12px) 和顶部阴影空间 (约 20px)
     const currentContentHeight = Math.ceil((containerHeight.value + 32 + 10) * scale);
 
+    let targetHeight;
     if (expanding) {
       // 展开菜单时，窗口高度至少为 650，但不能小于内容高度
-      const targetHeight = Math.max(currentContentHeight, 650 * scale);
-      // 只有在当前高度小于目标高度时才扩充，避免不必要的抖动
-      if (size.height < targetHeight) {
-        await win.setSize(new PhysicalSize(size.width, targetHeight));
-        logger.debug("展开分离窗口以适应菜单", { targetHeight });
-      }
+      targetHeight = Math.max(currentContentHeight, 650 * scale);
     } else {
       // 关闭菜单时，精确收缩到内容高度
-      // 只有在高度差异超过一定阈值时才调整，避免微小的渲染差异导致频繁调用
-      if (Math.abs(size.height - currentContentHeight) > 2) {
-        await win.setSize(new PhysicalSize(size.width, currentContentHeight));
-        logger.debug("收缩分离窗口到内容高度", { currentContentHeight });
-      }
+      targetHeight = currentContentHeight;
     }
+
+    // 使用全局尺寸处理方法，指定 anchor 为 bottom 以实现“向上增长”
+    await animateWindowSize({
+      height: targetHeight,
+      anchor: "bottom",
+      threshold: 2,
+    });
   } catch (e) {
     logger.warn("动态调整分离窗口大小失败", e);
+  } finally {
+    isUpdatingSize.value = false;
   }
 };
-
 // 监听菜单状态变化
 watch(isAnyMenuOpen, (val) => {
   updateDetachedWindowSize(val);
@@ -414,7 +413,7 @@ const handleConvertPaths = async () => {
 };
 
 // ===== 窗口大小调整功能 =====
-const { createResizeHandler } = useWindowResize();
+const { createResizeHandler, animateWindowSize } = useWindowResize();
 const handleResizeEast = createResizeHandler("East");
 const handleResizeWest = createResizeHandler("West");
 

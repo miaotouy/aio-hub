@@ -1,4 +1,17 @@
 /**
+ * 下载历史记录项
+ */
+export interface DownloadItem {
+  id: string;
+  filename: string;
+  filepath: string;
+  size: number;
+  timestamp: number;
+  status: "success" | "failed" | "pending";
+  error?: string;
+}
+
+/**
  * 下载事件的标准负载结构
  */
 export interface DownloadCompletedPayload {

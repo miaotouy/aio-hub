@@ -1,27 +1,16 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { LazyStore } from "@tauri-apps/plugin-store";
 import { listen } from "@tauri-apps/api/event";
 import { v4 as uuidv4 } from "uuid";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { DOWNLOAD_EVENTS, type DownloadCompletedPayload } from "@/types/download";
+import { DOWNLOAD_EVENTS, type DownloadCompletedPayload, type DownloadItem } from "@/types/download";
+import { downloadHistoryManager } from "@/utils/downloadHistory";
 
 const logger = createModuleLogger("DownloadStore");
 const errorHandler = createModuleErrorHandler("DownloadStore");
 
-export interface DownloadItem {
-  id: string;
-  filename: string;
-  filepath: string;
-  size: number;
-  timestamp: number;
-  status: "success" | "failed" | "pending";
-  error?: string;
-}
-
 const MAX_HISTORY_COUNT = 50;
-const STORE_PATH = "download-history.json";
 
 /**
  * 下载历史存储 Store
@@ -31,9 +20,6 @@ export const useDownloadStore = defineStore("download", () => {
   const isLoaded = ref(false);
   const lastCompletedId = ref<string>(""); // 用于触发 UI 动画
   let unlistenCompleted: (() => void) | null = null;
-
-  // 使用 LazyStore 进行持久化
-  const store = new LazyStore(STORE_PATH);
 
   /**
    * 从全局事件同步下载记录
@@ -98,9 +84,9 @@ export const useDownloadStore = defineStore("download", () => {
    */
   async function load() {
     try {
-      const saved = await store.get<DownloadItem[]>("history");
-      if (saved) {
-        history.value = saved;
+      const data = await downloadHistoryManager.load();
+      if (data && data.history) {
+        history.value = data.history;
       }
       isLoaded.value = true;
 
@@ -121,8 +107,10 @@ export const useDownloadStore = defineStore("download", () => {
    */
   async function save() {
     try {
-      await store.set("history", history.value);
-      await store.save();
+      await downloadHistoryManager.save({
+        history: history.value,
+        version: "1.0.0",
+      });
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "保存下载历史失败",

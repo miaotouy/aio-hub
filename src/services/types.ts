@@ -120,6 +120,24 @@ export interface ToolRegistry {
   initialize?(): Promise<void> | void;
 
   /**
+   * 当用户在 UI 上明确拒绝某个工具调用请求时触发。
+   * 用于清理内存缓冲区、撤销临时状态等预览数据。
+   * @param requestId 请求唯一标识
+   * @param methodName 被调用的方法名
+   * @param args 原始调用参数
+   */
+  onToolCallDiscarded?(requestId: string, methodName: string, args: Record<string, any>): void | Promise<void>;
+
+  /**
+   * 当工具调用进入待定（审批）状态前触发。
+   * 用于实现“自动预览”功能，工具可以在此阶段将数据写入内存缓冲区。
+   * @param requestId 请求唯一标识
+   * @param methodName 被调用的方法名
+   * @param args 原始调用参数
+   */
+  onToolCallPreview?(requestId: string, methodName: string, args: Record<string, any>): void | Promise<void>;
+
+  /**
    * 工具销毁方法，在应用关闭或工具热重载时调用。
    * 可用于清理资源，如取消订阅、清除定时器等。
    */

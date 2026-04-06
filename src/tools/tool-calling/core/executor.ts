@@ -90,9 +90,37 @@ async function executeSingleRequest(
   const shouldAutoApprove = isGlobalAuto && (isMethodAutoApprove || isToolAutoApprove);
 
   if (!shouldAutoApprove) {
+    // 方案 2.3：在进入审批挂起状态前，允许工具实例先接收到“预览数据”
+    try {
+      const toolInstance = toolRegistryManager.getRegistry(target.toolId) as any;
+      if (typeof toolInstance?.onToolCallPreview === "function") {
+        await Promise.resolve(toolInstance.onToolCallPreview(request.requestId, target.methodName, request.args ?? {}));
+      }
+    } catch (e) {
+      logger.debug(`工具预览分发失败: ${target.toolId}`, e);
+    }
+
     const approvalResult = await options.onBeforeExecute?.(request);
     if (approvalResult === false || approvalResult === "rejected") {
-      return buildErrorResult(request, "工具调用被拒绝：用户未授权", Date.now() - startedAt);
+      // 尝试通知工具实例执行清理逻辑
+      try {
+        const toolInstance = toolRegistryManager.getRegistry(target.toolId) as any;
+        if (typeof toolInstance?.onToolCallDiscarded === "function") {
+          await Promise.resolve(
+            toolInstance.onToolCallDiscarded(request.requestId, target.methodName, request.args ?? {}),
+          );
+        }
+      } catch (e) {
+        logger.warn(`通知工具清理失败: ${target.toolId}`, e);
+      }
+
+      return {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        status: "denied",
+        result: "工具调用被拒绝：用户未授权",
+        durationMs: Date.now() - startedAt,
+      };
     }
     if (approvalResult === "silent_cancelled") {
       return {

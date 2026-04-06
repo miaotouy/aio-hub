@@ -22,6 +22,7 @@ type GeneratePromptOptions = {
   protocol: string;
   config: ToolCallConfig;
   agentId?: string;
+  includeToolIds?: string[];
 };
 
 const SUPPORTED_PROTOCOLS: Record<string, ToolCallingProtocol> = {
@@ -110,9 +111,13 @@ function stableStringifyConfig(config: ToolCallConfig): string {
 export function createToolDiscoveryService(): {
   generatePrompt(options: GeneratePromptOptions): string;
   /**
+   * 获取协议使用说明
+   */
+  getInstructions(protocol?: string): string;
+  /**
    * 收集所有已启用工具提供的额外 Prompt 上下文
    */
-  getToolContexts(options: { config: ToolCallConfig; agentId?: string }): Promise<string>;
+  getToolContexts(options: { config: ToolCallConfig; agentId?: string; includeToolIds?: string[] }): Promise<string>;
   getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[];
   invalidateCache(): void;
 } {
@@ -184,20 +189,29 @@ export function createToolDiscoveryService(): {
       return "";
     }
 
-    const cacheKey = `${protocol}|${options.agentId || "anonymous"}|${stableStringifyConfig(options.config)}`;
+    const cacheKey = `${protocol}|${options.agentId || "anonymous"}|${stableStringifyConfig(options.config)}|${(
+      options.includeToolIds || []
+    ).join(",")}`;
     const cached = promptCache.get(cacheKey);
     if (cached !== undefined) {
       return cached;
     }
 
-    if (!options.config.enabled) {
+    if (!options.config.enabled && (!options.includeToolIds || options.includeToolIds.length === 0)) {
       promptCache.set(cacheKey, "");
       return "";
     }
 
     const allDiscovered = getDiscoveredMethods();
     const enabledToolsWithMethods = allDiscovered
-      .filter((tool) => resolveToolEnabled(tool.toolId, options.config))
+      .filter((tool) => {
+        // 如果指定了包含列表，则直接检查包含列表（强制开启）
+        if (options.includeToolIds && options.includeToolIds.length > 0) {
+          return options.includeToolIds.includes(tool.toolId);
+        }
+        // 否则遵循配置
+        return resolveToolEnabled(tool.toolId, options.config);
+      })
       .map((tool) => {
         // 根据 methodToggles 过滤方法
         const filteredMethods = tool.methods.filter((method) => {
@@ -258,22 +272,34 @@ export function createToolDiscoveryService(): {
       };
     });
 
-    const definitions = protocolImpl.generateToolDefinitions(protocolInput);
-    const instructions = protocolImpl.generateUsageInstructions();
-
-    const prompt = ["## 可用工具列表", definitions, "", instructions].join("\n");
+    const prompt = protocolImpl.generateToolDefinitions(protocolInput);
 
     promptCache.set(cacheKey, prompt);
     return prompt;
   }
 
-  async function getToolContexts(options: { config: ToolCallConfig; agentId?: string }): Promise<string> {
-    if (!options.config.enabled) {
+  function getInstructions(protocol: string = "vcp"): string {
+    const protocolImpl = SUPPORTED_PROTOCOLS[protocol];
+    if (!protocolImpl) return "";
+    return protocolImpl.generateUsageInstructions();
+  }
+
+  async function getToolContexts(options: {
+    config: ToolCallConfig;
+    agentId?: string;
+    includeToolIds?: string[];
+  }): Promise<string> {
+    if (!options.config.enabled && (!options.includeToolIds || options.includeToolIds.length === 0)) {
       return "";
     }
 
     const allTools = toolRegistryManager.getAllTools();
-    const enabledTools = allTools.filter((tool) => resolveToolEnabled(tool.id, options.config));
+    const enabledTools = allTools.filter((tool) => {
+      if (options.includeToolIds && options.includeToolIds.length > 0) {
+        return options.includeToolIds.includes(tool.id);
+      }
+      return resolveToolEnabled(tool.id, options.config);
+    });
 
     const contextPromises = enabledTools.map(async (tool) => {
       if (typeof tool.getExtraPromptContext === "function") {
@@ -305,6 +331,7 @@ export function createToolDiscoveryService(): {
 
   return {
     generatePrompt,
+    getInstructions,
     getToolContexts,
     getDiscoveredMethods,
     invalidateCache,

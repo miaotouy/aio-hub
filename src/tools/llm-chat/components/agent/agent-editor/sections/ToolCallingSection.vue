@@ -9,6 +9,8 @@ import ToolCallingItem from "./ToolCallingItem.vue";
 
 // 宏示例常量（避免格式化工具添加空格）
 const toolsMacro = "{{tools}}";
+const toolUsageMacro = "{{tool_usage}}";
+const toolsParamMacro = "{{tools::id}}";
 
 const editForm = inject<any>("agent-edit-form");
 const activeTab = inject<Ref<string>>("active-tab");
@@ -113,9 +115,13 @@ const pasteAllToolSettings = async () => {
         <el-switch v-model="editForm.toolCallConfig.enabled" @change="ensureConfig" />
       </div>
       <div class="form-hint">
-        允许智能体在对话中使用 AIO 内部工具。启用后，智能体将能够通过
+        允许智能体在对话中使用 AIO 内部工具。启用后，你可以通过
         <code style="color: var(--el-color-primary)">{{ toolsMacro }}</code>
-        宏获取工具定义并发出调用请求。
+        获取定义，通过
+        <code style="color: var(--el-color-primary)">{{ toolUsageMacro }}</code>
+        获取协议说明，或使用
+        <code style="color: var(--el-color-primary)">{{ toolsParamMacro }}</code>
+        精确注入指定工具。
       </div>
 
       <!-- 宏缺失警告 -->

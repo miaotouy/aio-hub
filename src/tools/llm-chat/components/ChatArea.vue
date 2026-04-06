@@ -33,7 +33,7 @@ interface Props {
   messages?: ChatMessageNode[];
   isSending?: boolean;
   disabled?: boolean;
-  isDetached?: boolean; // 是否在独立窗口中
+  isDetached?: boolean; // 是否在悬浮窗中
   currentAgentId?: string; // 当前智能体 ID
   currentModelId?: string; // 当前模型 ID
 }
@@ -422,7 +422,7 @@ const { createResizeHandler } = useWindowResize();
 const handleResizeStart = createResizeHandler("SouthEast");
 
 const isInputVisible = computed(() => {
-  // 只要输入框被独立分离出去，无论 ChatArea 在主窗口还是独立窗口，都应隐藏内部的输入框。
+  // 只要输入框被独立分离出去，无论 ChatArea 在主窗口还是悬浮窗，都应隐藏内部的输入框。
   const isInputDetached = detachedComponents.value.includes("llm-chat:chat-input");
   logger.info("MessageInput 分离状态检查", {
     isInputDetached,
@@ -432,7 +432,7 @@ const isInputVisible = computed(() => {
   return !isInputDetached;
 });
 
-// 处理从菜单打开独立窗口
+// 处理从菜单打开悬浮窗
 const handleDetach = async () => {
   const rect = containerRef.value?.getBoundingClientRect();
   if (!rect) {
@@ -714,8 +714,8 @@ onMounted(async () => {
 
     <!-- 头部区域 -->
     <div class="chat-header" :style="chatHeaderStyle">
-      <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
-      <!-- 仅在分离模式下总是显示，或在非分离模式且设置允许时显示 -->
+      <!-- 悬浮窗手柄：非悬浮模式用于触发分离，悬浮模式用于拖动窗口 -->
+      <!-- 仅在悬浮模式下总是显示，或在非悬浮模式且设置允许时显示 -->
       <ComponentHeader
         v-if="props.isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"

@@ -25,7 +25,7 @@
     <div class="content-body">
       <div class="status-indicator">
         <el-tag :type="isDetached ? 'success' : 'info'" effect="dark">
-          {{ isDetached ? "独立窗口模式" : "主窗口内嵌模式" }}
+          {{ isDetached ? "悬浮窗模式" : "主窗口内嵌模式" }}
         </el-tag>
       </div>
 
@@ -199,7 +199,7 @@ onMounted(() => {
     win.onFocusChanged(({ payload: focused }) => {
       isFocused.value = focused;
     });
-    console.log("[DetachedWindowContent] 已在独立窗口中挂载");
+    console.log("[DetachedWindowContent] 已在悬浮窗中挂载");
   }
 });
 </script>

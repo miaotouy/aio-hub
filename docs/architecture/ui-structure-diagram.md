@@ -17,7 +17,7 @@ flowchart TB
         Settings["⚙️ /settings 设置页<br/>Settings.vue"]
         Extensions["📦 /extensions 插件管理<br/>PluginManager.vue"]
         DetachedWindow["/detached-window/:path<br/>分离工具窗口"]
-        DetachedComponent["/detached-component/:id<br/>分离组件窗口"]
+        DetachedComponent["/detached-component/:id<br/>悬浮组件窗口"]
         Tools["🔧 /tool-path 工具页面<br/>(动态路由)"]
     end
 
@@ -179,7 +179,7 @@ flowchart LR
 
 ## 6. 窗口分离机制
 
-应用支持将工具和组件分离为独立窗口：
+应用支持将工具和组件分离为独立窗口或悬浮窗：
 
 ```mermaid
 flowchart TB

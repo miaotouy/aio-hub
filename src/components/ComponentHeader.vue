@@ -38,7 +38,7 @@ const isPinned = ref(false);
 const isMac = ref(false);
 
 onMounted(async () => {
-  // 仅在独立窗口模式下检查置顶状态
+  // 仅在悬浮窗模式下检查置顶状态
   if (props.dragMode === "window") {
     try {
       const win = getCurrentWebviewWindow();
@@ -78,7 +78,7 @@ const tooltipPlacement = computed(() => {
 });
 
 const dragTooltip = computed(() => {
-  return props.dragMode === "window" ? "拖拽以移动窗口" : "拖拽以分离，可在独立窗口打开";
+  return props.dragMode === "window" ? "拖拽以移动窗口" : "拖拽以分离，可在悬浮窗打开";
 });
 
 const toggleCollapse = () => {
@@ -237,7 +237,7 @@ const handleDragInteraction = (event: MouseEvent) => {
             <!-- 内嵌模式下的按钮 -->
             <template v-else>
               <el-tooltip
-                content="在独立窗口打开"
+                content="悬浮窗化"
                 :placement="tooltipPlacement"
                 :show-arrow="false"
                 :offset="10"

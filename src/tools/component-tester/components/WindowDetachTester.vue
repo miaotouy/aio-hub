@@ -5,7 +5,7 @@
         <h3>窗口分离与同步体系测试</h3>
         <p>
           本模块用于展示 <code>useDetachable</code> 和 <code>useDetachedManager</code>
-          如何协同工作，实现组件从主窗口分离到独立窗口，并保持状态同步。
+          如何协同工作，实现组件从主窗口分离到悬浮窗，并保持状态同步。
         </p>
       </div>
 
@@ -68,8 +68,8 @@
           <div v-else class="detached-placeholder">
             <el-result icon="info" title="组件已分离">
               <template #sub-title>
-                <p>该组件现在正在独立窗口中运行。</p>
-                <p class="hint">尝试在分离窗口中修改数据，你会看到上方卡片实时更新。</p>
+                <p>该组件现在正在悬浮窗中运行。</p>
+                <p class="hint">尝试在悬浮窗中修改数据，你会看到上方卡片实时更新。</p>
               </template>
             </el-result>
           </div>

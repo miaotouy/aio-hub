@@ -328,7 +328,7 @@ src/tools/rich-text-renderer/
 ### 5.2 扩展功能
 
 - **数学公式**: 支持 KaTeX 语法的块级 (`$$...$$`) 和内联 (`$...$`) 公式渲染，以及 MathJax 语法的块级 (`\[...\]`) 和内联 (`\(...\)`) 公式渲染。通过专用的 `KatexRenderer` 组件和 `katex_inline`/`katex_block` AST 节点实现。
-- **图表绘制**: 支持 Mermaid 语法。其渲染组件 `MermaidNode` 提供了丰富的交互功能，包括**缩放、下载为 SVG/PNG、复制图片到剪贴板、在独立窗口中进行高级交互（含分屏源码视图）、复制源码、Mermaid 代码自动修复**以及优雅的加载和错误状态处理。
+- **图表绘制**: 支持 Mermaid 语法。其渲染组件 `MermaidNode` 提供了丰富的交互功能，包括**缩放、下载为 SVG/PNG、复制图片到剪贴板、在悬浮窗中进行高级交互（含分屏源码视图）、复制源码、Mermaid 代码自动修复**以及优雅的加载和错误状态处理。
 - **HTML 原生支持**:
   - 支持块级、内联及 `<details>`, `<article>` 等语义化 HTML 标签与 Markdown 的深度混合排版。
   - 通过 `GenericHtmlNode` 实现结构化 HTML 标签的 AST 表示，支持任意深度嵌套。
@@ -339,7 +339,7 @@ src/tools/rich-text-renderer/
   - **危险标签黑名单**: `script`, `iframe`, `object` 等危险标签默认被拦截并降级为 `<span>`，可通过 `allowDangerousHtml` 配置绕过。
   - 安全地处理未闭合的 HTML 标签。
   - **样式隔离保障**: 即使在非沙箱模式下，通过 `StyleNode` 和 `cssUtils` 也能确保内联样式仅作用于当前 HTML 块及其后续兄弟节点，不会破坏主应用布局。
-  - **嵌入式单页应用 (SPA) 渲染**: `html` 代码块不再仅仅是静态预览，而是作为一个功能完备的沙箱环境（`HtmlInteractiveViewer`），可以直接渲染和运行包含 JavaScript 的复杂单页应用，并支持在独立窗口中进行完整交互。
+  - **嵌入式单页应用 (SPA) 渲染**: `html` 代码块不再仅仅是静态预览，而是作为一个功能完备的沙箱环境（`HtmlInteractiveViewer`），可以直接渲染和运行包含 JavaScript 的复杂单页应用，并支持在悬浮窗中进行完整交互。
   - **性能冻结 (Freeze) 策略**: 当 HTML 预览节点过多或处于非活动状态时，引擎会自动冻结其渲染以节省资源，用户可点击手动恢复。
 - **CDN 资源本地化**: 自动将 HTML 预览中的 CDN 链接替换为本地资源，支持 d3、mermaid、jquery、echarts 等 10 种常见库。
 - **外部工具调用 (VCP Support)**:

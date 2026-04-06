@@ -76,7 +76,7 @@ const toggleStreaming = () => {
 interface Props {
   disabled: boolean;
   isSending: boolean;
-  isDetached?: boolean; // 是否在独立窗口中
+  isDetached?: boolean; // 是否在悬浮窗中
 }
 
 interface Emits {
@@ -377,7 +377,7 @@ const getDetachConfig = (mouseX?: number, mouseY?: number) => {
   };
 };
 
-// 处理从菜单打开独立窗口
+// 处理从菜单打开悬浮窗
 const handleDetach = async () => {
   const config = getDetachConfig();
   if (!config) {
@@ -463,7 +463,7 @@ const handleDragStart = (e: MouseEvent) => {
     <!-- 分离模式下的壁纸层 -->
     <div v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode" class="detached-wallpaper"></div>
 
-    <!-- 拖拽手柄 - 非分离模式下在顶部 -->
+    <!-- 调整高度手柄 - 非悬浮模式下在顶部 -->
     <div
       v-if="!isDetached"
       class="resize-handle"
@@ -474,7 +474,7 @@ const handleDragStart = (e: MouseEvent) => {
 
     <!-- 主内容区 -->
     <div class="main-content">
-      <!-- 拖拽手柄：非分离模式用于触发分离，分离模式用于拖动窗口 -->
+      <!-- 悬浮窗手柄：非悬浮模式用于触发分离，悬浮模式用于拖动窗口 -->
       <ComponentHeader
         v-if="isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"

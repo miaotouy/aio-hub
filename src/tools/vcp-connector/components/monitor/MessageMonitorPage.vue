@@ -3,7 +3,7 @@
     <!-- 分离模式下的壁纸层 -->
     <div v-if="isActuallyDetached" class="detached-wallpaper"></div>
 
-    <!-- 头部区域：包含窗口拖拽手柄和控制栏 -->
+    <!-- 头部区域：包含悬浮窗手柄和控制栏 -->
     <div class="monitor-page-header" :style="headerStyle">
       <!-- 仅在分离模式下显示独立的头部 -->
       <ComponentHeader

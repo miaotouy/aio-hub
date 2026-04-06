@@ -50,7 +50,7 @@
         </el-tooltip>
 
         <!-- 独立查看按钮 -->
-        <el-tooltip content="在独立窗口中查看" :show-after="300">
+        <el-tooltip content="在悬浮窗中查看" :show-after="300">
           <button class="action-btn" @click="openViewer">
             <ExternalLink :size="14" />
           </button>

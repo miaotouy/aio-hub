@@ -27,7 +27,7 @@
         <el-tabs v-model="activeTab" class="monitor-tabs">
           <el-tab-pane label="消息监控" name="messages">
             <div v-if="isMonitorDetached" class="detached-placeholder">
-              <el-result title="监控面板已分离" sub-title="消息监控正在独立窗口中运行">
+              <el-result title="监控面板已分离" sub-title="消息监控正在悬浮窗中运行">
                 <template #icon>
                   <div class="detached-icon-wrapper">
                     <Monitor :size="48" class="detached-icon" />

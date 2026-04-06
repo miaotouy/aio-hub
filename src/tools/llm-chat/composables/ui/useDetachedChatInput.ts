@@ -1,7 +1,7 @@
 /**
  * 分离的 MessageInput Composable
  *
- * 封装了 MessageInput 组件在独立窗口中运行时的所有逻辑，
+ * 封装了 MessageInput 组件在悬浮窗中运行时的所有逻辑，
  * 主要包括状态消费和操作代理。
  */
 import { computed } from "vue";

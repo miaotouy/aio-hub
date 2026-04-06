@@ -467,7 +467,7 @@ useStateSyncEngine(parametersToSync, {
                 <path d="M9 3v18M3 9h18M3 15h6M15 15h6" stroke-width="2" />
               </svg>
               <h3 class="placeholder-title">对话区域已分离</h3>
-              <p class="placeholder-description">对话区域已在独立窗口中打开</p>
+              <p class="placeholder-description">对话区域已在悬浮窗中打开</p>
             </div>
           </div>
 

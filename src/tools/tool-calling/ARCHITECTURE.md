@@ -35,9 +35,18 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 
 ### 2.3. 工具发现 (Tool Discovery)
 
-工具发现是自动化的。系统通过 [`toolRegistryManager`](../../services/registry.ts) 扫描所有已注册的工具，筛选出实现了 [`getMetadata()`](../../services/types.ts:86) 并标记了 `agentCallable: true` 的方法，自动生成工具定义 Prompt。
+工具发现是自动化的。系统通过 [`toolRegistryManager`](../../services/registry.ts) 扫描所有已注册的工具，筛选出实现了 [`getMetadata()`](../../services/types.ts:150) 并标记了 `agentCallable: true` 的方法，自动生成工具定义 Prompt。
 
-### 2.4. 配置 (ToolCallConfig)
+### 2.4. 工具上下文 (Tool Context)
+
+工具可以提供实时的运行时上下文（如 Canvas 的影子文件状态、Undo 栈深度等）。通过实现 [`getExtraPromptContext()`](../../services/types.ts:187) 方法，工具可以将这些动态变化的信息注入到 Prompt 中。
+
+为了优化性能，系统将**工具定义**（静态）与**工具上下文**（动态）分离：
+
+- `{{tools}}`：包含工具的 Schema 和用法，适合 Prompt 缓存。
+- `{{tool_context}}`：包含实时的环境信息，建议放在 Prompt 末尾。
+
+### 2.5. 配置 (ToolCallConfig)
 
 工具调用的行为由 [`ToolCallConfig`](../llm-chat/types/agent.ts:78) 控制，该配置挂载在智能体 (ChatAgent) 上，支持以下维度：
 
@@ -232,9 +241,9 @@ path2:「始」src/main.ts「末」
 
 #### `getDiscoveredMethods(filter?)`
 
-扫描 [`toolRegistryManager.getAllTools()`](../../services/registry.ts:78) 中所有工具：
+扫描 [`toolRegistryManager.getAllTools()`](../../services/registry.ts:141) 中所有工具：
 
-1. 筛选实现了 [`getMetadata()`](../../services/types.ts:86) 的工具
+1. 筛选实现了 [`getMetadata()`](../../services/types.ts:150) 的工具
 2. 提取其中 `agentCallable === true` 的方法（或应用自定义 filter）
 3. 返回 `{ toolId, toolName, methods }[]` 结构
 
@@ -243,9 +252,17 @@ path2:「始」src/main.ts「末」
 基于发现的方法和配置，生成注入 LLM 的工具定义 Prompt：
 
 1. 检查 `config.enabled` 总开关
-2. 按 [`resolveToolEnabled()`](core/discovery.ts:32) 过滤工具（`toolToggles` > `defaultToolEnabled`）
+2. 按 [`resolveToolEnabled()`](core/discovery.ts:37) 过滤工具（`toolToggles` > `defaultToolEnabled`）
 3. 委托协议实现生成定义文本
 4. 结果缓存（key = `protocol|agentId|stableConfigHash`）
+
+#### `getToolContexts(options)`
+
+异步收集所有已启用工具提供的额外上下文：
+
+1. 遍历所有已启用的工具实例。
+2. 调用 `getExtraPromptContext()`。
+3. 将结果使用 `<tool_context id="toolId">` 标签包裹并聚合。
 
 #### `invalidateCache()`
 
@@ -463,7 +480,7 @@ interface ToolCallingProtocol {
 
 - [`MethodMetadata`](../../services/types.ts:18): 方法元数据（名称、描述、参数、agentCallable 标记等）
 - [`MethodParameter`](../../services/types.ts:7): 方法参数定义（名称、类型、必填、默认值等）
-- [`ToolRegistry`](../../services/types.ts:53): 工具注册接口（id、getMetadata 等）
+- [`ToolRegistry`](../../services/types.ts:92): 工具注册接口（id、getMetadata 等）
 - [`ToolCallConfig`](../llm-chat/types/agent.ts:78): 工具调用配置（从 llm-chat 重导出）
 
 ## 9. 扩展指南
@@ -477,10 +494,11 @@ interface ToolCallingProtocol {
 
 ### 9.2. 让工具方法可被 Agent 调用
 
-1. 确保工具实现了 [`ToolRegistry`](../../services/types.ts:53) 接口并注册到 [`toolRegistryManager`](../../services/registry.ts:147)
-2. 在 [`getMetadata()`](../../services/types.ts:86) 返回的方法列表中，将目标方法标记为 `agentCallable: true`
-3. 可选：通过 `protocolConfig.vcpCommand` 自定义 VCP 协议中的命令名称
-4. 方法签名应为 `(args: Record<string, string>) => Promise<string> | string`
+1. 确保工具实现了 [`ToolRegistry`](../../services/types.ts:92) 接口并注册到 [`toolRegistryManager`](../../services/registry.ts:45)
+2. 在 [`getMetadata()`](../../services/types.ts:150) 返回的方法列表中，将目标方法标记为 `agentCallable: true`
+3. **可选**：实现 `getExtraPromptContext()` 以提供实时环境信息。
+4. 可选：通过 `protocolConfig.vcpCommand` 自定义 VCP 协议中的命令名称
+5. 方法签名应为 `(args: Record<string, string>) => Promise<string> | string`
 
 ### 9.3. 注意事项
 

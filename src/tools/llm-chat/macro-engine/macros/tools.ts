@@ -30,6 +30,28 @@ export function registerToolMacros(registry: MacroRegistry): void {
         });
       },
     },
+    {
+      name: "tool_context",
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: "注入当前已启用工具的实时运行时上下文（如影子文件状态）",
+      example: "{{tool_context}}",
+      acceptsArgs: false,
+      priority: 90,
+      supported: true,
+      contextFree: false,
+      execute: async (context) => {
+        const config = context.agent?.toolCallConfig;
+        if (!config?.enabled) {
+          return "";
+        }
+
+        return toolDiscovery.getToolContexts({
+          config,
+          agentId: context.agent?.id,
+        });
+      },
+    },
   ];
 
   registry.registerMany(toolMacros);

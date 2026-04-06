@@ -180,6 +180,13 @@ export interface ToolRegistry {
   readonly settingsSchema?: SettingItem<any>[];
 
   /**
+   * 允许工具提供额外的 Prompt 上下文。
+   * 用于向 Agent 注入当前工具的运行时状态、操作指南或环境信息。
+   * 建议在 {{tool_context}} 宏中使用，以保持 {{tools}} 定义的静态性（利于缓存）。
+   */
+  getExtraPromptContext?(): string | Promise<string>;
+
+  /**
    * 允许工具实现自定义的 Agent 方法
    */
   [key: string]: any;

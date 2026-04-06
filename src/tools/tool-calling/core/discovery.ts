@@ -109,6 +109,10 @@ function stableStringifyConfig(config: ToolCallConfig): string {
 
 export function createToolDiscoveryService(): {
   generatePrompt(options: GeneratePromptOptions): string;
+  /**
+   * 收集所有已启用工具提供的额外 Prompt 上下文
+   */
+  getToolContexts(options: { config: ToolCallConfig; agentId?: string }): Promise<string>;
   getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[];
   invalidateCache(): void;
 } {
@@ -263,12 +267,45 @@ export function createToolDiscoveryService(): {
     return prompt;
   }
 
+  async function getToolContexts(options: { config: ToolCallConfig; agentId?: string }): Promise<string> {
+    if (!options.config.enabled) {
+      return "";
+    }
+
+    const allTools = toolRegistryManager.getAllTools();
+    const enabledTools = allTools.filter((tool) => resolveToolEnabled(tool.id, options.config));
+
+    const contextPromises = enabledTools.map(async (tool) => {
+      if (typeof tool.getExtraPromptContext === "function") {
+        try {
+          const context = await tool.getExtraPromptContext();
+          if (context && context.trim()) {
+            return `<tool_context id="${tool.id}">\n${context.trim()}\n</tool_context>`;
+          }
+        } catch (error) {
+          logger.error(`获取工具 "${tool.id}" 的额外上下文失败`, error);
+        }
+      }
+      return "";
+    });
+
+    const contexts = await Promise.all(contextPromises);
+    const filteredContexts = contexts.filter((c) => !!c);
+
+    if (filteredContexts.length === 0) {
+      return "";
+    }
+
+    return ["## 工具运行时上下文", ...filteredContexts].join("\n\n");
+  }
+
   function invalidateCache(): void {
     promptCache.clear();
   }
 
   return {
     generatePrompt,
+    getToolContexts,
     getDiscoveredMethods,
     invalidateCache,
   };

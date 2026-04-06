@@ -269,11 +269,13 @@ path2:「始」src/main.ts「末」
 flowchart TD
     A[接收 ParsedToolRequest] --> B{需要用户确认?}
     B -- 是 --> C[调用 onBeforeExecute]
-    C -- 拒绝 --> ERR1[返回错误: 用户未授权]
+    C -- 拒绝 --> DIS[onToolCallDiscarded<br/>清理回调]
+    DIS --> ERR1[返回结果: status: denied]
     C -- 通过 --> D
     B -- 否 --> D[解析 toolName]
 
-    D --> E{格式有效?<br/>toolId_methodName}
+    D --> PRE[onToolCallPreview<br/>自动预览分发]
+    PRE --> E{格式有效?<br/>toolId_methodName}
     E -- 否 --> ERR2[返回错误: 无效格式]
     E -- 是 --> F{工具已注册?}
 
@@ -295,7 +297,8 @@ flowchart TD
 
 - **路由规则**: 统一使用 `tool_name` (对应 toolId) 和 `command` (对应 methodName) 分离格式。执行器会自动路由到对应的工具实例和方法。
 - **参数合并策略**: 执行前会按 `Schema 默认值 < Agent 预设 < LLM 实时参数` 的优先级合并参数。
-- **审批状态**: 支持 `approved`, `rejected` 和 `silent_cancelled`。其中 `silent_cancelled` 用于静默取消执行且不报错。
+- **审批状态**: 支持 `approved`, `rejected` 和 `silent_cancelled`。其中 `silent_cancelled` 用于静默取消执行且不报错；`rejected` 会触发工具的 `onToolCallDiscarded` 回调并返回 `denied` 状态。
+- **自动预览 (Auto-Preview)**: 在进入审批挂起状态前，执行器会尝试调用工具的 `onToolCallPreview` 钩子，允许工具（如 Canvas）将数据写入内存缓冲区以供用户即时预览效果。
 - **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
 - **超时保护**: 通过 [`withTimeout()`](core/executor.ts:37) 包装 Promise，超时后自动 reject。
 - **结果序列化**: 返回值如果不是字符串，自动 `JSON.stringify`。

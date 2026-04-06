@@ -26,6 +26,7 @@
             :content="macro.description"
             placement="right"
             effect="light"
+            popper-class="macro-tooltip-popper"
           >
             <div class="macro-item" @click="handleInsertMacro(macro)">
               <span class="macro-name">{{ formatMacroName(macro.name) }}</span>
@@ -45,6 +46,7 @@
             :content="macro.description"
             placement="right"
             effect="light"
+            popper-class="macro-tooltip-popper"
           >
             <div class="macro-item" @click="handleInsertMacro(macro)">
               <span class="macro-name">
@@ -66,6 +68,7 @@
             :content="macro.description"
             placement="right"
             effect="light"
+            popper-class="macro-tooltip-popper"
           >
             <div class="macro-item" @click="handleInsertMacro(macro)">
               <span class="macro-name">

@@ -318,6 +318,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   const handleSelectContinuationModel = async () => {
     if (options.props.isDetached) {
       options.bus.requestAction("llm-chat:select-continuation-model", {});
+      customMessage.info("正在主窗口中打开模型选择弹窗...");
       return;
     }
 
@@ -427,6 +428,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
     if (options.props.isDetached) {
       options.bus.requestAction("llm-chat:complete-input", { content, options: options_ });
+      customMessage.info("正在主窗口中执行智能补全...");
     } else {
       options.emit("complete-input", content, options_);
     }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, toRef, onMounted, watch } from "vue";
+import { ref, computed, toRef, onMounted, watch, defineAsyncComponent } from "vue";
 import { useElementSize, onLongPress } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip, ElIcon } from "element-plus";
@@ -22,6 +22,7 @@ import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import ChatSearchPanel from "./search/ChatSearchPanel.vue";
+const QuickActionManagerDialog = defineAsyncComponent(() => import("./quick-action/QuickActionManagerDialog.vue"));
 import { Settings2, Search } from "lucide-vue-next";
 // import { Setting } from "@element-plus/icons-vue";
 
@@ -225,6 +226,9 @@ const showChatSettings = ref(false);
 
 // ===== 搜索功能 =====
 const showSearchPanel = ref(false);
+
+// ===== 快捷操作管理 =====
+const showQuickActionManager = ref(false);
 
 const handleSearchSelect = (messageId: string) => {
   messageListRef.value?.scrollToMessageId(messageId);
@@ -650,15 +654,24 @@ onMounted(async () => {
 
   isReady.value = true;
 
-  // 监听来自同步总线的 UI 请求
-  if (bus.windowType === "main" || bus.windowType === "detached-tool") {
-    bus.onMessage("action-request", (payload: any) => {
-      if (payload.action === "llm-chat:select-continuation-model") {
-        logger.info("收到续写模型选择 UI 请求");
-        emit("select-continuation-model");
-      }
-    });
-  }
+  // 注册来自同步总线的 UI 请求处理器 (llm-chat 命名空间)
+  // 无论在什么类型的窗口，只要 ChatArea 存在，就应该响应这些 UI 操作请求
+  bus.onActionRequest("llm-chat", async (action, data) => {
+    if (action === "select-continuation-model") {
+      logger.info("收到续写模型选择 UI 请求");
+      emit("select-continuation-model");
+      return true;
+    } else if (action === "open-agent-settings") {
+      logger.info("收到打开智能体设置 UI 请求", data);
+      handleEditAgent(data?.tab, data?.section);
+      return true;
+    } else if (action === "open-quick-action-manager") {
+      logger.info("收到打开快捷操作管理 UI 请求");
+      showQuickActionManager.value = true;
+      return true;
+    }
+    return null;
+  });
 
   logger.info("ChatArea mounted", {
     props: {
@@ -918,6 +931,9 @@ onMounted(async () => {
       @select="handleSearchSelect"
       @close="showSearchPanel = false"
     />
+
+    <!-- 快捷操作管理弹窗 -->
+    <QuickActionManagerDialog v-model:visible="showQuickActionManager" />
   </div>
 </template>
 
@@ -979,7 +995,6 @@ onMounted(async () => {
 
 /* 分离模式下，整个头部区域可以拖拽窗口 */
 .chat-area-container.detached-mode .chat-header {
-  cursor: move;
   -webkit-app-region: drag; /* 允许拖拽窗口 */
 }
 

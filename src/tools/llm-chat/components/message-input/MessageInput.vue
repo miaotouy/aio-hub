@@ -2,6 +2,7 @@
 import { ref, toRef, computed, onMounted, watch } from "vue";
 import { useStorage, useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -240,7 +241,9 @@ const handleOpenAgentSettings = (tab?: string) => {
 
 // 计算 placeholder 文本
 const placeholderText = computed(() => {
-  if (props.disabled) return "请先创建或选择一个对话";
+  // 只有在真正没有会话时才显示“请创建”
+  if (!chatStore.currentSessionId) return "请先创建或选择一个对话";
+
   const sendKey = settings.value.shortcuts.send;
   const sendHint = sendKey === "ctrl+enter" ? "Ctrl/Cmd + Enter 发送" : "Enter 发送, Shift + Enter 换行";
   return `输入消息、拖入或粘贴文件... (${sendHint})`;
@@ -261,8 +264,10 @@ const updateDetachedWindowSize = async (expanding: boolean = isAnyMenuOpen.value
   try {
     const scale = window.devicePixelRatio || 1;
 
-    // 获取当前容器的实际像素高度，加上底部边距 (12px) 和顶部阴影空间 (约 20px)
-    const currentContentHeight = Math.ceil((containerHeight.value + 32 + 10) * scale);
+    // 获取当前容器的实际像素高度
+    // 这里的计算需要考虑到 DetachedComponentContainer.vue 中的 padding (32px * 2)
+    // 以及组件自身的 top: 12px 定位和底部留出的缓冲空间
+    const currentContentHeight = Math.ceil((containerHeight.value + 12 + 64 + 16) * scale);
 
     let targetHeight;
     if (expanding) {
@@ -273,10 +278,10 @@ const updateDetachedWindowSize = async (expanding: boolean = isAnyMenuOpen.value
       targetHeight = currentContentHeight;
     }
 
-    // 使用全局尺寸处理方法，指定 anchor 为 bottom 以实现“向上增长”
+    // 使用全局尺寸处理方法，指定 anchor 为 top 以实现“向下增长”，避免抖动
     await animateWindowSize({
       height: targetHeight,
-      anchor: "bottom",
+      anchor: "top",
       threshold: 2,
     });
   } catch (e) {
@@ -416,11 +421,28 @@ const handleConvertPaths = async () => {
 const { createResizeHandler, animateWindowSize } = useWindowResize();
 const handleResizeEast = createResizeHandler("East");
 const handleResizeWest = createResizeHandler("West");
-
 // ===== 拖拽与分离功能 =====
 const { startDetaching } = useDetachable();
 const handleDragStart = (e: MouseEvent) => {
-  if (props.isDetached) return;
+  // 排除掉具有交互性的元素，只允许在背景区域触发拖拽
+  const target = e.target as HTMLElement;
+
+  // 检查是否点击在非交互的背景区域
+  const isBackground =
+    target.classList.contains("message-input-container") ||
+    target.classList.contains("main-content") ||
+    target.classList.contains("input-content") ||
+    target.classList.contains("input-wrapper") ||
+    target.classList.contains("detachable-handle") ||
+    target.classList.contains("detached-wallpaper");
+
+  if (!isBackground) return;
+
+  if (props.isDetached) {
+    // 分离模式下，直接调用原生窗口拖拽
+    getCurrentWindow().startDragging();
+    return;
+  }
 
   const config = getDetachConfig(e.screenX, e.screenY);
   if (!config) {
@@ -436,12 +458,14 @@ const handleDragStart = (e: MouseEvent) => {
   <div
     ref="containerRef"
     :class="['message-input-container', { 'detached-mode': isDetached, 'dragging-over': isDraggingOver }]"
+    @mousedown="handleDragStart"
   >
     <!-- 分离模式下的壁纸层 -->
     <div v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode" class="detached-wallpaper"></div>
 
-    <!-- 拖拽手柄 -->
+    <!-- 拖拽手柄 - 非分离模式下在顶部 -->
     <div
+      v-if="!isDetached"
       class="resize-handle"
       @mousedown="handleInputResizeStart"
       @dblclick="handleResizeDoubleClick"
@@ -564,14 +588,15 @@ const handleDragStart = (e: MouseEvent) => {
 
 /* 分离模式下组件完全一致，只是添加更强的阴影 */
 .message-input-container.detached-mode {
-  /* 移除 height: 100%，改为绝对定位沉底，让出上方空间给气泡 */
-  position: fixed; /* 使用 fixed 配合 bottom: 0 锁定在窗口底部 */
-  bottom: 12px; /* 留出底部边距，防止贴边 */
-  left: 12px; /* 留出左侧边距 */
-  right: 12px; /* 留出右侧边距 */
+  /* 移除原本的沉底逻辑，改为绝对定位在顶部，向下生长 */
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  bottom: auto;
   height: auto;
-  margin: 0; /* 移除可能的 margin 干扰 */
-  border-bottom: var(--border-width) solid var(--border-color); /* 恢复底部边框 */
+  margin: 0;
+  border-bottom: var(--border-width) solid var(--border-color);
   border-bottom-left-radius: 24px; /* 恢复圆角 */
   border-bottom-right-radius: 24px;
   box-shadow:
@@ -649,11 +674,11 @@ const handleDragStart = (e: MouseEvent) => {
 
 /* 分离模式下输入框沉底 */
 .message-input-container.detached-mode .input-content {
-  justify-content: flex-end; /* 让输入框在分离窗口中沉底 */
+  justify-content: flex-start; /* 分离模式下顶部对齐 */
 }
 
 .message-input-container.detached-mode .input-wrapper {
-  flex: none; /* 让 wrapper 根据内容自适应高度，配合 justify-content: flex-end */
+  flex: 1; /* 允许占据剩余空间 */
 }
 
 /* 拖拽调整大小手柄 - 位于顶部 */
@@ -684,7 +709,7 @@ const handleDragStart = (e: MouseEvent) => {
   top: 0;
   bottom: 0;
   left: -8px; /* 热区超出容器边界 8px，更容易触发 */
-  width: 32px; /* 扩展的热区宽度 */
+  width: 24px; /* 扩展的热区宽度 */
   cursor: w-resize;
   z-index: 20;
 }
@@ -695,29 +720,29 @@ const handleDragStart = (e: MouseEvent) => {
   top: 0;
   bottom: 0;
   right: -8px; /* 热区超出容器边界 8px，更容易触发 */
-  width: 32px; /* 扩展的热区宽度 */
+  width: 16px; /* 扩展的热区宽度 */
   cursor: e-resize;
   z-index: 20;
 }
 
-/* 当左侧手柄被 hover 时，给容器添加左侧粗描边 - 描边从容器自己"长出来" */
+/* 当左侧手柄被 hover 时，给容器添加左侧描边 */
 .message-input-container.detached-mode:has(.resize-handle-left:hover) {
-  border-left: 4px solid var(--primary-color);
+  border-left: 2px solid var(--primary-color);
 }
 
-/* 当右侧手柄被 hover 时，给容器添加右侧粗描边 - 描边从容器自己"长出来" */
+/* 当右侧手柄被 hover 时，给容器添加右侧描边 */
 .message-input-container.detached-mode:has(.resize-handle-right:hover) {
-  border-right: 4px solid var(--primary-color);
+  border-right: 2px solid var(--primary-color);
 }
 
-/* 当手柄被激活（拖拽中）时，描边更亮 */
+/* 当手柄被激活（拖拽中）时，描边 */
 .message-input-container.detached-mode:has(.resize-handle-left:active) {
-  border-left: 4px solid var(--primary-color);
-  box-shadow: -4px 0 12px rgba(var(--primary-color-rgb, 64, 158, 255), 0.4);
+  border-left: 2px solid var(--primary-color);
+  box-shadow: -2px 0 8px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
 }
 
 .message-input-container.detached-mode:has(.resize-handle-right:active) {
-  border-right: 4px solid var(--primary-color);
-  box-shadow: 4px 0 12px rgba(var(--primary-color-rgb, 64, 158, 255), 0.4);
+  border-right: 2px solid var(--primary-color);
+  box-shadow: 2px 0 8px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
 }
 </style>

@@ -175,7 +175,7 @@ const debouncedCssUpdate = debounce(
     _updateCssVariables(settings);
   },
   50,
-  { leading: false, trailing: true }
+  { leading: false, trailing: true },
 );
 
 // 这些是运行时 UI 状态，不持久化
@@ -232,7 +232,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
   if (settings.enableWindowEffects) {
     root.style.setProperty(
       "--window-bg-opacity",
-      String(settings.windowBackgroundOpacity ?? defaultAppearanceSettings.windowBackgroundOpacity)
+      String(settings.windowBackgroundOpacity ?? defaultAppearanceSettings.windowBackgroundOpacity),
     );
   } else {
     // 关闭特效时，窗口恢复不透明
@@ -311,7 +311,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
      */
     const setElementBackground = (
       element: "sidebar" | "card" | "header" | "input" | "container",
-      opacityValue: string | number
+      opacityValue: string | number,
     ) => {
       // 决定使用哪个基础 RGB 变量
       let baseRgbVar = "";
@@ -342,6 +342,8 @@ function _updateCssVariables(settings: AppearanceSettings) {
         }
 
         root.style.setProperty(finalBgVar, `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${opacityValue})`);
+        // 额外提供一个不透明/高浓度的背景变量，用于分离窗口中需要隔绝背景干扰的场景（如气泡）
+        root.style.setProperty(`${finalBgVar}-solid`, `rgb(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b})`);
       }
     };
 
@@ -377,7 +379,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
 
       root.style.setProperty(
         "--detached-base-bg",
-        `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${detachedBaseOpacity})`
+        `rgba(${finalRgb.r}, ${finalRgb.g}, ${finalRgb.b}, ${detachedBaseOpacity})`,
       );
     }
 
@@ -770,7 +772,7 @@ export async function initThemeAppearance(isDetached = false) {
       // 总是应用窗口特效设置，即使是 'none'
       await _applyWindowEffect(
         appearanceSettings.value.windowEffect,
-        appearanceSettings.value.enableWindowEffects ?? true
+        appearanceSettings.value.enableWindowEffects ?? true,
       );
     }
 
@@ -840,7 +842,7 @@ export async function initThemeAppearance(isDetached = false) {
           await _applyWindowEffect(newSettings.windowEffect, newSettings.enableWindowEffects ?? true);
         }
       },
-      { deep: true }
+      { deep: true },
     );
 
     // 监听根元素 class 的变化（例如主题切换），并重新应用 CSS 变量
@@ -1088,7 +1090,7 @@ export function useThemeAppearance() {
     appearanceSettings: computed(() => appearanceSettings.value),
     currentWallpaper: computed(() => currentWallpaper.value),
     currentWallpaperList: computed(() =>
-      appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value
+      appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value,
     ),
     isSlideshowPaused: computed(() => isSlideshowPaused.value),
     isShuffleEnabled: computed(() => appearanceSettings.value.wallpaperSlideshowShuffle ?? false),

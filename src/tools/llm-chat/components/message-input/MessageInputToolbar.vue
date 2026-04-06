@@ -35,6 +35,8 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { customMessage } from "@/utils/customMessage";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
 
@@ -107,6 +109,7 @@ const { getProfileById } = useLlmProfiles();
 const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
+const bus = useWindowSyncBus();
 const { settings: chatSettings, updateSettings: updateChatSettings } = useChatSettings();
 
 /**
@@ -218,10 +221,24 @@ const handleNewSession = () => {
   emit("new-session");
   sessionListVisible.value = false;
 };
-
 const handleOpenAdvanced = (tab: string | undefined) => {
   toolSettingsVisible.value = false;
-  emit("open-agent-settings", tab);
+  if (props.isDetached) {
+    // 分离模式下，请求主窗口打开设置
+    bus.requestAction("llm-chat:open-agent-settings", { tab });
+    customMessage.info("正在主窗口中打开智能体设置...");
+  } else {
+    emit("open-agent-settings", tab);
+  }
+};
+
+const handleOpenQuickActionManager = () => {
+  if (props.isDetached) {
+    bus.requestAction("llm-chat:open-quick-action-manager", {});
+    customMessage.info("正在主窗口中打开快捷操作管理...");
+  } else {
+    quickActionManagerVisible.value = true;
+  }
 };
 
 const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
@@ -289,10 +306,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
             <el-popover
               :visible="props.macroSelectorVisible"
               @update:visible="onMacroSelectorUpdate"
-              :placement="props.isDetached ? 'top-start' : 'bottom-start'"
+              :placement="props.isDetached ? 'bottom-start' : 'bottom-start'"
               :width="300"
               trigger="click"
-              popper-class="macro-selector-popover"
+              :popper-class="['macro-selector-popover', { 'detached-popover': props.isDetached }]"
             >
               <template #reference>
                 <button class="macro-icon-button" :class="{ active: props.macroSelectorVisible }">
@@ -316,10 +333,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           <div>
             <el-popover
               v-model:visible="sessionListVisible"
-              :placement="props.isDetached ? 'top-start' : 'bottom-start'"
+              :placement="props.isDetached ? 'bottom-start' : 'bottom-start'"
               :width="300"
               trigger="click"
-              popper-class="session-list-popover"
+              :popper-class="['session-list-popover', { 'detached-popover': props.isDetached }]"
               @show="handleSessionListShow"
             >
               <template #reference>
@@ -340,13 +357,18 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 
         <!-- 快捷操作管理按钮 -->
         <el-tooltip content="管理快捷操作" placement="top" :show-after="500">
-          <button class="tool-btn" @click="quickActionManagerVisible = true">
+          <button class="tool-btn" @click="handleOpenQuickActionManager">
             <Grip :size="16" />
           </button>
         </el-tooltip>
 
         <!-- 更多工具菜单 -->
-        <el-dropdown trigger="click" placement="top" @visible-change="(val: boolean) => (moreMenuVisible = val)">
+        <el-dropdown
+          trigger="click"
+          :placement="props.isDetached ? 'bottom' : 'top'"
+          :popper-class="props.isDetached ? 'detached-dropdown-menu' : ''"
+          @visible-change="(val: boolean) => (moreMenuVisible = val)"
+        >
           <button class="tool-btn" :class="{ active: moreMenuVisible }">
             <MoreHorizontal :size="16" />
           </button>
@@ -446,10 +468,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           <div>
             <el-popover
               v-model:visible="toolSettingsVisible"
-              placement="top"
+              :placement="props.isDetached ? 'bottom' : 'top'"
               :width="360"
               trigger="click"
-              popper-class="tool-settings-popover"
+              :popper-class="['tool-settings-popover', { 'detached-popover': props.isDetached }]"
             >
               <template #reference>
                 <button
@@ -473,10 +495,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           <div>
             <el-popover
               v-model:visible="settingsVisible"
-              placement="top"
+              :placement="props.isDetached ? 'bottom' : 'top'"
               :width="240"
               trigger="click"
-              popper-class="toolbar-settings-popover"
+              :popper-class="['toolbar-settings-popover', { 'detached-popover': props.isDetached }]"
             >
               <template #reference>
                 <button class="tool-btn settings-btn" :class="{ active: settingsVisible }">
@@ -1225,6 +1247,28 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   overflow-y: auto;
 }
 
+/* 宏选择器 Tooltip 样式优化 - 允许换行并限制宽度 */
+.macro-tooltip-popper.el-popper {
+  max-width: min(320px, 60vw) !important;
+  line-height: 1.5 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  padding: 8px 12px !important;
+}
+
+/* 分离模式下宏选择器高度调小，确保在扩充后的 600px 窗口内有良好表现 */
+.detached-popover.macro-selector-popover {
+  max-height: 320px !important;
+}
+
+.detached-popover.macro-selector-popover .el-popover__body {
+  max-height: calc(320px - 24px);
+}
+
+.detached-popover.macro-selector-popover .macro-selector-body {
+  max-height: calc(320px - 100px);
+}
+
 .toolbar-settings-content {
   display: flex;
   flex-direction: column;
@@ -1302,5 +1346,49 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 
 .session-list-popover .el-popover__body {
   padding: 0;
+}
+/* 分离模式下气泡/下拉菜单背景增强 */
+.detached-popover,
+.detached-dropdown-menu {
+  background-color: var(--card-bg-solid) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 处理 Tooltip 的背景色，适配分离模式下的通透感 */
+.macro-tooltip-popper.is-light {
+  background-color: var(--card-bg-solid) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-color-primary) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.macro-tooltip-popper.is-light .el-popper__arrow::before {
+  background-color: var(--card-bg-solid) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.detached-popover :deep(.el-popover__title) {
+  color: var(--text-color-primary) !important;
+}
+
+/* 适配 dropdown-menu 内部样式 */
+.detached-dropdown-menu :deep(.el-dropdown-menu) {
+  background-color: transparent !important;
+  background: none !important;
+}
+
+.detached-dropdown-menu :deep(.el-dropdown-menu__item) {
+  color: var(--text-color-primary);
+}
+
+.detached-dropdown-menu :deep(.el-dropdown-menu__item:hover) {
+  background-color: rgba(var(--primary-color-rgb), 0.1) !important;
+  color: var(--primary-color) !important;
+}
+
+.detached-dropdown-menu :deep(.dropdown-divider) {
+  background-color: var(--primary-color-alpha) !important;
+  opacity: 0.3;
 }
 </style>

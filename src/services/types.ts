@@ -89,35 +89,53 @@ export interface ToolConfig {
   runMode?: "main-only" | "any";
 }
 
-export interface ToolRegistry {
+/**
+ * Agent 扩展基础接口
+ *
+ * 用于定义 Agent 的生命周期管理和 Prompt 上下文注入能力。
+ * 它是 ToolRegistry 的基类。
+ */
+export interface AgentExtension {
   /**
-   * 工具的唯一标识符，通常与工具路径对应。
-   * @example 'directory-tree'
+   * 扩展的唯一标识符
+   * @example 'system-info'
    */
   readonly id: string;
 
   /**
-   * 服务的显示名称（可选）
+   * 扩展的显示名称（可选）
    */
   readonly name?: string;
 
+  /**
+   * 扩展描述（可选）
+   */
+  readonly description?: string;
+
+  /**
+   * 初始化方法，在注册时由 ToolRegistryManager 调用。
+   */
+  initialize?(): Promise<void> | void;
+
+  /**
+   * 销毁方法，在应用关闭或热重载时调用。
+   */
+  dispose?(): void;
+
+  /**
+   * 允许扩展提供额外的 Prompt 上下文。
+   * 用于向 Agent 注入当前环境信息、运行时状态或操作指南。
+   */
+  getExtraPromptContext?(): string | Promise<string>;
+}
+
+export interface ToolRegistry extends AgentExtension {
   /**
    * 工具运行模式
    * - 'main-only': 仅在主窗口运行（默认，保守策略）
    * - 'any': 可以在任何窗口（包括分离窗口）运行
    */
   readonly runMode?: "main-only" | "any";
-
-  /**
-   * 服务描述（可选）
-   */
-  readonly description?: string;
-
-  /**
-   * 工具初始化方法，在注册时由 ToolRegistryManager 调用。
-   * 可用于执行一次性设置，如加载初始配置等。
-   */
-  initialize?(): Promise<void> | void;
 
   /**
    * 当用户在 UI 上明确拒绝某个工具调用请求时触发。
@@ -136,12 +154,6 @@ export interface ToolRegistry {
    * @param args 原始调用参数
    */
   onToolCallPreview?(requestId: string, methodName: string, args: Record<string, any>): void | Promise<void>;
-
-  /**
-   * 工具销毁方法，在应用关闭或工具热重载时调用。
-   * 可用于清理资源，如取消订阅、清除定时器等。
-   */
-  dispose?(): void;
 
   /**
    * 提供工具的元数据，用于工具监控、文档生成和未来的工具调用。
@@ -178,13 +190,6 @@ export interface ToolRegistry {
    * 直接使用现有的 SettingItem 类型，确保与 SettingListRenderer 完美兼容
    */
   readonly settingsSchema?: SettingItem<any>[];
-
-  /**
-   * 允许工具提供额外的 Prompt 上下文。
-   * 用于向 Agent 注入当前工具的运行时状态、操作指南或环境信息。
-   * 建议在 {{tool_context}} 宏中使用，以保持 {{tools}} 定义的静态性（利于缓存）。
-   */
-  getExtraPromptContext?(): string | Promise<string>;
 
   /**
    * 允许工具实现自定义的 Agent 方法

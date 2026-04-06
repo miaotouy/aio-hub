@@ -26,7 +26,7 @@ export function useToolCalling() {
     assistantText: string,
     config: ToolCallConfig,
     onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>,
-    onStatusChange?: (requestId: string, status: ToolCallStatus) => void
+    onStatusChange?: (requestId: string, status: ToolCallStatus) => void,
   ): Promise<ToolCallCycleResult> => {
     const protocol = resolveProtocol(config.protocol);
     return await processToolCallCycle(assistantText, {
@@ -39,7 +39,7 @@ export function useToolCalling() {
 
   const formatCycleResults = (
     results: ToolCallCycleResult["executionResults"],
-    protocolId?: ToolCallConfig["protocol"]
+    protocolId?: ToolCallConfig["protocol"],
   ): string => {
     return formatResultsForContext(results, resolveProtocol(protocolId));
   };
@@ -59,6 +59,7 @@ export function useToolCalling() {
     formatCycleResults,
     generateToolsPrompt,
     getDiscoveredMethods: toolDiscovery.getDiscoveredMethods,
+    getDiscoveredExtensions: toolDiscovery.getDiscoveredExtensions,
     invalidateDiscoveryCache: toolDiscovery.invalidateCache,
     hasToolCallingEnabled,
   };

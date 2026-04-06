@@ -132,6 +132,23 @@ export interface ToolCallConfig {
   >;
 }
 
+/**
+ * Agent 扩展配置
+ */
+export interface AgentExtensionConfig {
+  enabled: boolean;
+  /** 扩展插件启用状态 (key: extensionId) */
+  extensionToggles: Record<string, boolean>;
+  /** 新发现扩展是否默认启用 */
+  defaultExtensionEnabled: boolean;
+}
+
+export const DEFAULT_AGENT_EXTENSION_CONFIG: AgentExtensionConfig = {
+  enabled: true,
+  extensionToggles: {},
+  defaultExtensionEnabled: true,
+};
+
 export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   enabled: false,
   mode: "auto",
@@ -359,6 +376,9 @@ export interface AgentBaseConfig {
 
   /** 工具调用配置 */
   toolCallConfig?: ToolCallConfig;
+
+  /** 环境增强配置 */
+  extensionConfig?: AgentExtensionConfig;
 
   /**
    * 视觉化输出指南

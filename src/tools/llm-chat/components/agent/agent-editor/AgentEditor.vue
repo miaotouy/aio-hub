@@ -7,6 +7,7 @@ import BasicInfoSection from "./sections/BasicInfoSection.vue";
 import PersonalitySection from "./sections/PersonalitySection.vue";
 import CapabilitiesSection from "./sections/CapabilitiesSection.vue";
 import ToolCallingSection from "./sections/ToolCallingSection.vue";
+import EnvironmentSection from "./sections/EnvironmentSection.vue";
 import OutputDisplaySection from "./sections/OutputDisplaySection.vue";
 import SessionVariableSection from "./sections/SessionVariableSection.vue";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
@@ -106,7 +107,7 @@ const searchIndex = computed(() => {
       tabId: tab.id,
       tabLabel: tab.label,
       value: `${tab.label} > ${item.label}`,
-    }))
+    })),
   );
 });
 
@@ -219,6 +220,7 @@ defineExpose({
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />
           <SessionVariableSection v-show="activeTab === 'variables'" />
           <ToolCallingSection v-show="activeTab === 'tool-calling'" />
+          <EnvironmentSection v-show="activeTab === 'environment-enhancement'" />
           <OutputDisplaySection v-show="activeTab === 'output'" />
         </el-form>
       </div>

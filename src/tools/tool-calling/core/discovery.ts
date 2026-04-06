@@ -1,7 +1,7 @@
 import type { MethodMetadata, ToolRegistry } from "@/services/types";
 import { toolRegistryManager } from "@/services/registry";
 import { useToolsStore } from "@/stores/tools";
-import type { ToolCallConfig } from "@/tools/llm-chat/types/agent";
+import type { AgentExtensionConfig, ToolCallConfig } from "@/tools/llm-chat/types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import type { ToolCallingProtocol, ToolDefinitionInput } from "./protocols/base";
 import { VcpToolCallingProtocol } from "./protocols/vcp-protocol";
@@ -16,6 +16,14 @@ type DiscoveredToolMethods = {
   factoryId?: string;
   methods: MethodMetadata[];
   settingsSchema?: any[];
+};
+
+type DiscoveredExtension = {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: any;
+  hasContext: boolean;
 };
 
 type GeneratePromptOptions = {
@@ -41,6 +49,16 @@ function resolveToolEnabled(toolId: string, config: ToolCallConfig): boolean {
     return toggle;
   }
   return config.defaultToolEnabled;
+}
+
+function resolveExtensionEnabled(extensionId: string, config?: AgentExtensionConfig): boolean {
+  if (!config) return false;
+  if (!config.enabled) return false;
+  const toggle = config.extensionToggles?.[extensionId];
+  if (typeof toggle === "boolean") {
+    return toggle;
+  }
+  return config.defaultExtensionEnabled;
 }
 
 function stableStringifyConfig(config: ToolCallConfig): string {
@@ -115,13 +133,42 @@ export function createToolDiscoveryService(): {
    */
   getInstructions(protocol?: string): string;
   /**
-   * 收集所有已启用工具提供的额外 Prompt 上下文
+   * 收集所有已启用工具或扩展提供的额外 Prompt 上下文
+   */
+  getAgentContexts(options: {
+    toolConfig: ToolCallConfig;
+    extensionConfig?: AgentExtensionConfig;
+    agentId?: string;
+    includeToolIds?: string[];
+  }): Promise<string>;
+  /**
+   * 兼容旧版调用
+   * @deprecated 使用 getAgentContexts 替代
    */
   getToolContexts(options: { config: ToolCallConfig; agentId?: string; includeToolIds?: string[] }): Promise<string>;
   getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[];
+  getDiscoveredExtensions(): DiscoveredExtension[];
   invalidateCache(): void;
 } {
   const promptCache = new Map<string, string>();
+
+  function getDiscoveredExtensions(): DiscoveredExtension[] {
+    const allTools = toolRegistryManager.getAllTools();
+    const toolsStore = useToolsStore();
+
+    return allTools
+      .filter((ext) => typeof ext.getExtraPromptContext === "function")
+      .map((ext) => {
+        const toolConfig = toolsStore.tools.find((t) => t.path.includes(ext.id));
+        return {
+          id: ext.id,
+          name: ext.name || ext.id,
+          description: ext.description,
+          icon: toolConfig?.icon,
+          hasContext: true,
+        };
+      });
+  }
 
   function getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[] {
     const allTools = toolRegistryManager.getAllTools();
@@ -284,32 +331,52 @@ export function createToolDiscoveryService(): {
     return protocolImpl.generateUsageInstructions();
   }
 
-  async function getToolContexts(options: {
-    config: ToolCallConfig;
+  async function getAgentContexts(options: {
+    toolConfig: ToolCallConfig;
+    extensionConfig?: AgentExtensionConfig;
     agentId?: string;
     includeToolIds?: string[];
   }): Promise<string> {
-    if (!options.config.enabled && (!options.includeToolIds || options.includeToolIds.length === 0)) {
+    const { toolConfig, extensionConfig, includeToolIds } = options;
+
+    // 如果两个开关都关了，且没有强制包含列表，则直接返回
+    const toolsEnabled = toolConfig.enabled || (includeToolIds && includeToolIds.length > 0);
+    const extensionsEnabled = extensionConfig?.enabled;
+
+    if (!toolsEnabled && !extensionsEnabled) {
       return "";
     }
 
-    const allTools = toolRegistryManager.getAllTools();
-    const enabledTools = allTools.filter((tool) => {
-      if (options.includeToolIds && options.includeToolIds.length > 0) {
-        return options.includeToolIds.includes(tool.id);
+    const allExtensions = toolRegistryManager.getAllTools();
+
+    // 筛选出已启用的扩展（包括工具和纯扩展）
+    const enabledExtensions = allExtensions.filter((ext) => {
+      // 1. 检查是否在强制包含列表中
+      if (includeToolIds && includeToolIds.length > 0 && includeToolIds.includes(ext.id)) {
+        return true;
       }
-      return resolveToolEnabled(tool.id, options.config);
+
+      // 2. 检查是否作为工具启用
+      const isEnabledAsTool = toolConfig.enabled && resolveToolEnabled(ext.id, toolConfig);
+      if (isEnabledAsTool) return true;
+
+      // 3. 检查是否作为环境扩展启用
+      const isEnabledAsExtension = resolveExtensionEnabled(ext.id, extensionConfig);
+      if (isEnabledAsExtension) return true;
+
+      return false;
     });
 
-    const contextPromises = enabledTools.map(async (tool) => {
-      if (typeof tool.getExtraPromptContext === "function") {
+    const contextPromises = enabledExtensions.map(async (ext) => {
+      if (typeof ext.getExtraPromptContext === "function") {
         try {
-          const context = await tool.getExtraPromptContext();
+          const context = await ext.getExtraPromptContext();
           if (context && context.trim()) {
-            return `<tool_context id="${tool.id}">\n${context.trim()}\n</tool_context>`;
+            // 统一使用 <context_provider> 标签
+            return `<context_provider id="${ext.id}">\n${context.trim()}\n</context_provider>`;
           }
         } catch (error) {
-          logger.error(`获取工具 "${tool.id}" 的额外上下文失败`, error);
+          logger.error(`获取扩展 "${ext.id}" 的额外上下文失败`, error);
         }
       }
       return "";
@@ -322,7 +389,22 @@ export function createToolDiscoveryService(): {
       return "";
     }
 
-    return ["## 工具运行时上下文", ...filteredContexts].join("\n\n");
+    return ["## 环境与工具上下文", ...filteredContexts].join("\n\n");
+  }
+
+  /**
+   * 兼容旧版调用
+   */
+  async function getToolContexts(options: {
+    config: ToolCallConfig;
+    agentId?: string;
+    includeToolIds?: string[];
+  }): Promise<string> {
+    return getAgentContexts({
+      toolConfig: options.config,
+      agentId: options.agentId,
+      includeToolIds: options.includeToolIds,
+    });
   }
 
   function invalidateCache(): void {
@@ -332,8 +414,10 @@ export function createToolDiscoveryService(): {
   return {
     generatePrompt,
     getInstructions,
+    getAgentContexts,
     getToolContexts,
     getDiscoveredMethods,
+    getDiscoveredExtensions,
     invalidateCache,
   };
 }

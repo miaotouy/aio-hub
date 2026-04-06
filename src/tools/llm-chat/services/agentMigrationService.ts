@@ -5,6 +5,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import type { ChatAgent } from "../types";
+import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { useAnchorRegistry } from "../composables/ui/useAnchorRegistry";
 
 const logger = createModuleLogger("llm-chat/agentMigrationService");
@@ -27,6 +28,18 @@ export function migrateAgents(agents: ChatAgent[]): boolean {
 }
 
 /**
+ * 迁移环境增强配置
+ */
+function migrateExtensionConfig(agent: ChatAgent): boolean {
+  if (!agent.extensionConfig) {
+    logger.info("迁移环境增强配置 (缺失填充)", { agentId: agent.id });
+    agent.extensionConfig = JSON.parse(JSON.stringify(DEFAULT_AGENT_EXTENSION_CONFIG));
+    return true;
+  }
+  return false;
+}
+
+/**
  * 迁移单个智能体的数据
  */
 export function migrateAgent(agent: ChatAgent): boolean {
@@ -44,6 +57,9 @@ export function migrateAgent(agent: ChatAgent): boolean {
   // 4. 迁移内置资产路径
   if (migratePresetAssetPaths(agent)) hasChanges = true;
 
+  // 5. 迁移环境增强配置
+  if (migrateExtensionConfig(agent)) hasChanges = true;
+
   return hasChanges;
 }
 
@@ -53,12 +69,7 @@ export function migrateAgent(agent: ChatAgent): boolean {
 function migrateCustomParameters(agent: ChatAgent): boolean {
   if (agent.parameters?.custom) {
     const custom = agent.parameters.custom as any;
-    if (
-      typeof custom === "object" &&
-      custom !== null &&
-      !("enabled" in custom) &&
-      !("params" in custom)
-    ) {
+    if (typeof custom === "object" && custom !== null && !("enabled" in custom) && !("params" in custom)) {
       logger.info("迁移旧版 custom 参数格式", { agentId: agent.id });
       agent.parameters.custom = {
         enabled: Object.keys(custom).length > 0,

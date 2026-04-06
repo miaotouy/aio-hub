@@ -9,6 +9,7 @@ import { useChatSettings } from "../composables/settings/useChatSettings";
 import { useAgentStorageSeparated as useAgentStorage } from "../composables/storage/useAgentStorageSeparated";
 import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import type { ChatAgent, ChatMessageNode, LlmParameters } from "../types";
+import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -99,7 +100,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
       name: string,
       profileId: string,
       modelId: string,
-      options?: Partial<Omit<ChatAgent, "id" | "name" | "profileId" | "modelId" | "createdAt" | "lastUsedAt">>
+      options?: Partial<Omit<ChatAgent, "id" | "name" | "profileId" | "modelId" | "createdAt" | "lastUsedAt">>,
     ): string {
       const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = getLocalISOString();
@@ -130,6 +131,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         createdAt: now,
         avatarHistory: options?.avatarHistory ?? [],
         quickActionSetIds: options?.quickActionSetIds ?? [],
+        extensionConfig: options?.extensionConfig ?? JSON.parse(JSON.stringify(DEFAULT_AGENT_EXTENSION_CONFIG)),
       };
 
       this.agents.push(agent);
@@ -426,7 +428,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
           userMessage: "持久化智能体失败",
           showToUser: false,
           context: { agentId: agent.id },
-        })
+        }),
       );
     },
 
@@ -440,7 +442,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
           userMessage: "持久化所有智能体失败",
           showToUser: false,
           context: { agentCount: this.agents.length },
-        })
+        }),
       );
     },
 
@@ -553,7 +555,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
       agentId: string,
       overrides?: {
         parameterOverrides?: Partial<LlmParameters>;
-      }
+      },
     ) {
       const agent = this.getAgentById(agentId);
       if (!agent) {
@@ -604,7 +606,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         exportType?: "zip" | "folder" | "file" | "png";
         separateFolders?: boolean;
         previewImage?: File | string;
-      }
+      },
     ): Promise<void> {
       const agentsToExport = this.agents.filter((agent) => agentIds.includes(agent.id));
       await exportAgents(agentsToExport, options);

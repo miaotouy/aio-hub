@@ -35,16 +35,22 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 
 ### 2.3. 工具发现 (Tool Discovery)
 
-工具发现是自动化的。系统通过 [`toolRegistryManager`](../../services/registry.ts) 扫描所有已注册的工具，筛选出实现了 [`getMetadata()`](../../services/types.ts:150) 并标记了 `agentCallable: true` 的方法，自动生成工具定义 Prompt。
+工具发现是自动化的。系统通过 [`toolRegistryManager`](../../services/registry.ts) 扫描所有已注册的工具：
 
-### 2.4. 工具上下文 (Tool Context)
+1. **工具方法发现**：筛选出实现了 `getMetadata()` 并标记了 `agentCallable: true` 的方法，自动生成工具定义 Prompt。
+2. **环境扩展发现**：筛选出实现了 `getExtraPromptContext()` 的模块（即 `AgentExtension`），用于注入实时上下文。
 
-工具可以提供实时的运行时上下文（如 Canvas 的影子文件状态、Undo 栈深度等）。通过实现 [`getExtraPromptContext()`](../../services/types.ts:187) 方法，工具可以将这些动态变化的信息注入到 Prompt 中。
+### 2.4. 环境与工具上下文 (Context)
 
-为了优化性能，系统将**工具定义**（静态）与**工具上下文**（动态）分离：
+模块可以提供实时的运行时上下文（如系统状态、Canvas 影子文件、用户偏好等）。
+
+- **AgentExtension**: 基础接口，仅需实现 `getExtraPromptContext()` 即可成为“环境增强”插件。
+- **ToolRegistry**: 继承自 `AgentExtension`，既可以提供可调用方法，也可以提供上下文。
+
+为了优化性能，系统将**工具定义**（静态）与**上下文**（动态）分离：
 
 - `{{tools}}`：包含工具的 Schema 和用法，适合 Prompt 缓存。
-- `{{tool_context}}`：包含实时的环境信息，建议放在 Prompt 末尾。
+- `{{tool_context}}`：包含实时的环境信息（由所有已启用的工具和环境扩展提供），建议放在 Prompt 末尾。
 
 ### 2.5. 配置 (ToolCallConfig)
 

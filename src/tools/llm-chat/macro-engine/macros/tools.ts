@@ -59,15 +59,20 @@ export function registerToolMacros(registry: MacroRegistry): void {
       supported: true,
       contextFree: false,
       execute: async (context, args) => {
-        const config = context.agent?.toolCallConfig;
+        const toolConfig = context.agent?.toolCallConfig;
+        const extensionConfig = context.agent?.extensionConfig;
         const includeToolIds = args && args.length > 0 ? args.map((a) => a.trim()).filter(Boolean) : undefined;
 
-        if (!config?.enabled && (!includeToolIds || includeToolIds.length === 0)) {
+        const toolsEnabled = toolConfig?.enabled || (includeToolIds && includeToolIds.length > 0);
+        const extensionsEnabled = extensionConfig?.enabled;
+
+        if (!toolsEnabled && !extensionsEnabled) {
           return "";
         }
 
-        return toolDiscovery.getToolContexts({
-          config: config || ({} as any),
+        return toolDiscovery.getAgentContexts({
+          toolConfig: toolConfig || ({} as any),
+          extensionConfig,
           agentId: context.agent?.id,
           includeToolIds,
         });

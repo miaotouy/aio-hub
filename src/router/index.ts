@@ -10,9 +10,9 @@ import type { ToolConfig } from "@/services/types";
 function pathToRouteName(path: string): string {
   return path
     .substring(1) // 移除开头的 /
-    .split('-')
+    .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
+    .join("");
 }
 
 /**
@@ -55,6 +55,13 @@ const routes: Array<RouteRecordRaw> = [
     name: "DetachedComponent",
     component: () => import("../views/DetachedComponentContainer.vue"),
   },
+  {
+    // 捕获所有未匹配路由，防止初始导航报错
+    // 同时也作为动态路由加载前的占位
+    path: "/:pathMatch(.*)*",
+    name: "NotFound",
+    component: () => import("../views/HomePage.vue"), // 初始指向首页或空白
+  },
 ];
 
 const router = createRouter({
@@ -93,7 +100,7 @@ function removeToolRoute(toolPath: string) {
  */
 export function initDynamicRoutes() {
   const toolsStore = useToolsStore();
-  
+
   // 初始化：为所有现有工具添加路由
   toolsStore.tools.forEach(addToolRoute);
 
@@ -103,8 +110,8 @@ export function initDynamicRoutes() {
   watch(
     () => [...toolsStore.tools],
     (newTools) => {
-      const newPaths = new Set(newTools.map(t => t.path));
-      
+      const newPaths = new Set(newTools.map((t) => t.path));
+
       // 1. 移除不再需要的路由
       for (const path of Array.from(addedRoutes)) {
         if (!newPaths.has(path)) {
@@ -113,14 +120,26 @@ export function initDynamicRoutes() {
       }
 
       // 2. 添加新增的路由
-      newTools.forEach(tool => {
+      newTools.forEach((tool) => {
         if (!addedRoutes.has(tool.path)) {
           addToolRoute(tool);
         }
       });
     },
-    { immediate: true }
+    { immediate: true },
   );
+}
+
+/**
+ * 强制重新评估当前路由匹配情况
+ * 用于在动态路由添加后，让 Router 重新匹配当前路径
+ */
+export function refreshCurrentRoute() {
+  const { fullPath, matched } = router.currentRoute.value;
+  // 如果当前没有匹配到路由，或者匹配到了 fallback，则尝试重新导航到当前路径
+  if (matched.length === 0 || matched.some((m) => m.name === "NotFound" || !m.components?.default)) {
+    router.replace(fullPath);
+  }
 }
 
 export default router;

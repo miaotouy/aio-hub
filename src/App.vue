@@ -7,6 +7,10 @@ import GlobalProviders from "./components/GlobalProviders.vue";
 import LoadingScreen from "./components/LoadingScreen.vue";
 import MainLayout from "./views/MainLayout.vue";
 
+defineOptions({
+  name: "App",
+});
+
 // 初始化根组件通用逻辑（主题、分离管理器、通信总线等）
 useRootInit();
 

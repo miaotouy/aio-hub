@@ -21,6 +21,10 @@ const { currentTheme } = useTheme();
 const toolsStore = useToolsStore();
 const appInitStore = useAppInitStore();
 
+defineOptions({
+  name: "DetachedWindowContainer",
+});
+
 // 初始化根组件逻辑
 useRootInit();
 

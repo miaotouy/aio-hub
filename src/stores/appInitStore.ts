@@ -4,6 +4,7 @@ import { useAppSettingsStore } from "./appSettingsStore";
 import { applyLogConfig } from "@/utils/logConfig";
 import { initTheme } from "@/composables/useTheme";
 import { autoRegisterServices, startupManager } from "@/services";
+import { refreshCurrentRoute } from "@/router";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
@@ -62,6 +63,10 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(40, "正在扫描插件和工具...");
       // 主窗口不传 priorityToolId，内部会完成全量注册
       await autoRegisterServices();
+      
+      // 插件加载后，立即刷新当前路由匹配状态，确保初始进入插件页面能正确加载
+      refreshCurrentRoute();
+      
       setProgress(60, "插件加载完成");
 
       // 5. 加载用户档案
@@ -119,6 +124,9 @@ export const useAppInitStore = defineStore("appInit", () => {
       // 4. 自动注册工具服务（第一阶段）
       setProgress(50, "加载工具服务...");
       const resumeLoading = await autoRegisterServices(priorityToolId);
+
+      // 插件加载后，立即刷新当前路由匹配状态
+      refreshCurrentRoute();
 
       // 5. 初始化分离窗口管理器
       setProgress(70, "同步窗口状态...");

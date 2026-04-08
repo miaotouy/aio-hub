@@ -66,7 +66,7 @@ let unlistenAttached: (() => void) | null = null;
 let unlistenCloseConfirmation: (() => void) | null = null;
 
 onMounted(async () => {
-  // 监听来自分离窗口的导航请求
+  // 监听来分窗口的导航请求
   unlisten = await listen<{ sectionId: string }>("navigate-to-settings", (event) => {
     const { sectionId } = event.payload;
     logger.info("收到来自分离窗口的导航请求", { sectionId });
@@ -114,7 +114,7 @@ onMounted(async () => {
 watch(
   () => route.path,
   (newPath, oldPath) => {
-    if (newPath === oldPath) return;
+    if (newPath === oldPath && oldPath !== undefined) return;
     if (newPath.startsWith("/") && newPath !== "/" && newPath !== "/settings" && newPath !== "/extensions") {
       if (toolsStore.openedToolPaths.includes(newPath)) return;
       const toolId = getToolIdFromPath(newPath);
@@ -123,6 +123,7 @@ watch(
       }
     }
   },
+  { immediate: true },
 );
 
 onUnmounted(() => {

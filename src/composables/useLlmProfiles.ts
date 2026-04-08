@@ -28,6 +28,7 @@ const configManager = createConfigManager<{ profiles: LlmProfile[] }>({
 // 全局状态
 const profiles = ref<LlmProfile[]>([]);
 const isLoaded = ref(false);
+let loadingPromise: Promise<void> | null = null;
 
 export function useLlmProfiles() {
   /**
@@ -67,48 +68,60 @@ export function useLlmProfiles() {
    * 从文件系统加载配置（支持 localStorage 迁移）
    */
   const loadProfiles = async () => {
-    try {
-      logger.info("开始加载 LLM 配置");
+    // 如果已经加载完成，直接返回
+    if (isLoaded.value) return;
 
-      // 尝试从文件系统加载
-      const config = await configManager.load();
-      let loadedProfiles = config.profiles || [];
+    // 如果正在加载中，返回现有的 promise
+    if (loadingPromise) return loadingPromise;
 
-      // 如果文件系统中没有数据，尝试从 localStorage 迁移
-      if (loadedProfiles.length === 0) {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          logger.info("检测到 localStorage 数据，开始迁移到文件系统");
-          try {
-            const rawProfiles = JSON.parse(stored);
-            loadedProfiles = rawProfiles.map(normalizeProfile);
+    loadingPromise = (async () => {
+      try {
+        logger.info("开始加载 LLM 配置");
 
-            // 保存到文件系统
-            await configManager.save({ profiles: loadedProfiles });
+        // 尝试从文件系统加载
+        const config = await configManager.load();
+        let loadedProfiles = config.profiles || [];
 
-            // 清除 localStorage 数据
-            localStorage.removeItem(STORAGE_KEY);
-            logger.info("数据迁移完成", { profileCount: loadedProfiles.length });
-          } catch (parseError) {
-            errorHandler.handle(parseError, {
-              userMessage: "解析 localStorage 数据失败",
-              showToUser: false,
-            });
+        // 如果文件系统中没有数据，尝试从 localStorage 迁移
+        if (loadedProfiles.length === 0) {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            logger.info("检测到 localStorage 数据，开始迁移到文件系统");
+            try {
+              const rawProfiles = JSON.parse(stored);
+              loadedProfiles = rawProfiles.map(normalizeProfile);
+
+              // 保存到文件系统
+              await configManager.save({ profiles: loadedProfiles });
+
+              // 清除 localStorage 数据
+              localStorage.removeItem(STORAGE_KEY);
+              logger.info("数据迁移完成", { profileCount: loadedProfiles.length });
+            } catch (parseError) {
+              errorHandler.handle(parseError, {
+                userMessage: "解析 localStorage 数据失败",
+                showToUser: false,
+              });
+            }
           }
+        } else {
+          // 规范化现有数据，确保新字段合并
+          loadedProfiles = loadedProfiles.map(normalizeProfile);
         }
-      } else {
-        // 规范化现有数据，确保新字段合并
-        loadedProfiles = loadedProfiles.map(normalizeProfile);
-      }
 
-      profiles.value = loadedProfiles;
-      isLoaded.value = true;
-      logger.info("LLM 配置加载成功", { profileCount: loadedProfiles.length });
-    } catch (error) {
-      errorHandler.error(error, "加载 LLM 配置失败");
-      profiles.value = [];
-      isLoaded.value = true;
-    }
+        profiles.value = loadedProfiles;
+        isLoaded.value = true;
+        logger.info("LLM 配置加载成功", { profileCount: loadedProfiles.length });
+      } catch (error) {
+        errorHandler.error(error, "加载 LLM 配置失败");
+        profiles.value = [];
+        isLoaded.value = true;
+      } finally {
+        loadingPromise = null;
+      }
+    })();
+
+    return loadingPromise;
   };
 
   /**

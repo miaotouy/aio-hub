@@ -516,10 +516,10 @@ class PluginManager {
             isBroken,
           };
 
-          // 只为启用的且未损坏的插件注册 UI
-          if (plugin.enabled && !isBroken) {
-            await registerPluginUi(plugin);
-          } else {
+          // 注意：plugin.enable() 内部已经调用了 updateRuntimeState()，
+          // updateRuntimeState() 已经负责了 registerPluginUi()。
+          // 这里不需要再次手动注册，除非插件是禁用的。
+          if (!plugin.enabled || isBroken) {
             logger.info(`跳过禁用或损坏插件的UI注册: ${plugin.id}`, {
               enabled: plugin.enabled,
               isBroken,

@@ -1,4 +1,10 @@
 use local_ip_address::list_afinet_netifas;
+use tauri_plugin_opener::OpenerExt;
+
+#[tauri::command]
+pub async fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    app.opener().open_url(url, None::<String>).map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 pub async fn get_local_ips() -> Result<Vec<String>, String> {

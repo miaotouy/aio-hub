@@ -43,6 +43,9 @@ export const useAppInitStore = defineStore("appInit", () => {
       error.value = null;
       setProgress(0, "准备启动...");
 
+      // 模拟启动错误测试
+      // throw new Error("模拟启动失败：无法连接到核心服务。请检查网络配置或重试。");
+
       // 1. 加载应用设置
       setProgress(10, "加载应用设置...");
       const appSettingsStore = useAppSettingsStore();

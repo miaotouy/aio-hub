@@ -6,7 +6,7 @@ import iconBlack from "@/assets/aio-icon-black.svg";
 import iconWhite from "@/assets/aio-icon-white.svg";
 import { RefreshRight, Warning, CopyDocument, ChatLineRound, Link } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
-import { open } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
 
 const isDark = useDark();
 const appInitStore = useAppInitStore();
@@ -34,7 +34,7 @@ const copyError = async () => {
 
 const openUrl = async (url: string) => {
   try {
-    await open(url);
+    await invoke("open_url", { url });
   } catch (e) {
     customMessage.error("无法打开链接");
   }

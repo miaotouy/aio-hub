@@ -20,6 +20,7 @@ use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
 use commands::{
+    open_url,
     add_asset_source,
     analyze_directory_for_cleanup,
     append_file_force,
@@ -405,6 +406,7 @@ pub fn run() {
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             greet,
+            open_url,
             get_local_ips,
             get_app_config_dir,
             update_tray_setting,

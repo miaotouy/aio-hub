@@ -349,7 +349,7 @@ onMounted(async () => {
 }
 
 .category-tab.active {
-  background: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 30%, transparent 0%);
   color: white;
   border-color: var(--primary-color);
   box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.3);

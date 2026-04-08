@@ -405,13 +405,41 @@ function _updateCssVariables(settings: AppearanceSettings) {
     }
 
     // --- 滚动条颜色 ---
-    root.style.setProperty("--scrollbar-thumb-opacity", String(settings.borderOpacity * 0.6));
-    root.style.setProperty("--scrollbar-thumb-hover-opacity", String(settings.borderOpacity * 0.8));
+    // 确保滚动条滑块在低边框透明度下依然可见，设置最小透明度阈值
+    const minThumbOpacity = 0.3;
+    const thumbOpacity = Math.max(minThumbOpacity, settings.borderOpacity * 0.8);
+    const thumbHoverOpacity = Math.max(minThumbOpacity + 0.2, settings.borderOpacity);
+
+    root.style.setProperty("--scrollbar-thumb-opacity", String(thumbOpacity));
+    root.style.setProperty("--scrollbar-thumb-hover-opacity", String(thumbHoverOpacity));
+
     const trackBaseRgb =
       getComputedStyle(root).getPropertyValue("--container-bg-rgb").trim() ||
       getComputedStyle(root).getPropertyValue("--card-bg-rgb").trim();
     if (trackBaseRgb) {
-      root.style.setProperty("--scrollbar-track-color", `rgba(${trackBaseRgb}, 0.1)`);
+      // 轨道颜色保持极低透明度，增加与滑块的对比度
+      root.style.setProperty("--scrollbar-track-color", `rgba(${trackBaseRgb}, 0.05)`);
+    }
+
+    // 针对滑块颜色进行增强：如果开启了颜色叠加，让滑块颜色也带有一点叠加色的倾向，但保持足够的对比度
+    const thumbBaseRgbVar = "--scrollbar-thumb-color-rgb";
+    const thumbBaseRgbString = getComputedStyle(root).getPropertyValue(thumbBaseRgbVar).trim();
+    if (thumbBaseRgbString) {
+      const [tr, tg, tb] = thumbBaseRgbString.split(",").map(Number);
+      let thumbRgb: RGB = { r: tr, g: tg, b: tb };
+
+      if (overlayEnabled && overlayColorRgb) {
+        // 降低叠加权重，只取 30% 的叠加色倾向，保证滑块本身的中性色调不丢失
+        thumbRgb = applyBlendMode(thumbRgb, overlayColorRgb, 0.3, "normal");
+      }
+      root.style.setProperty(
+        "--scrollbar-thumb-color",
+        `rgba(${thumbRgb.r}, ${thumbRgb.g}, ${thumbRgb.b}, ${thumbOpacity})`,
+      );
+      root.style.setProperty(
+        "--scrollbar-thumb-hover-color",
+        `rgba(${thumbRgb.r}, ${thumbRgb.g}, ${thumbRgb.b}, ${thumbHoverOpacity})`,
+      );
     }
   } else {
     // 禁用UI特效，恢复默认不透明样式

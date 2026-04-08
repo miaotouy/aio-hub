@@ -169,9 +169,11 @@
         <el-progress :percentage="100" status="success" />
         <el-progress :percentage="70" status="warning" />
         <el-progress :percentage="50" status="exception" />
-        <el-progress :percentage="50" type="circle" />
-        <el-progress :percentage="100" type="circle" status="success" />
-        <el-progress :percentage="70" type="dashboard" />
+        <div class="circle-progress-container">
+          <el-progress :percentage="50" type="circle" />
+          <el-progress :percentage="100" type="circle" status="success" />
+          <el-progress :percentage="70" type="dashboard" />
+        </div>
       </div>
     </div>
 
@@ -392,13 +394,7 @@
           <el-button>鼠标悬浮</el-button>
         </template>
       </el-popover>
-      <el-popover
-        placement="bottom"
-        title="标题"
-        :width="200"
-        trigger="click"
-        content="这是一段内容"
-      >
+      <el-popover placement="bottom" title="标题" :width="200" trigger="click" content="这是一段内容">
         <template #reference>
           <el-button>点击激活</el-button>
         </template>
@@ -407,11 +403,7 @@
 
     <div class="section">
       <h2 class="section-title">树形控件 Tree</h2>
-      <el-tree
-        :data="treeData"
-        :props="{ children: 'children', label: 'label' }"
-        default-expand-all
-      />
+      <el-tree :data="treeData" :props="{ children: 'children', label: 'label' }" default-expand-all />
     </div>
 
     <div class="section">
@@ -718,9 +710,11 @@ const timelineEvents = ref([
   gap: 20px;
 }
 
-.progress-demo :deep(.el-progress--circle),
-.progress-demo :deep(.el-progress--dashboard) {
-  align-self: flex-start;
+.circle-progress-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 10px;
 }
 
 .card-demo {

@@ -18,20 +18,11 @@ use url::Url;
 pub static DISTILLERY_PROXY_STATE: Lazy<Arc<Mutex<DistilleryProxyState>>> =
     Lazy::new(|| Arc::new(Mutex::new(DistilleryProxyState::default())));
 
+#[derive(Default)]
 pub struct DistilleryProxyState {
     pub is_running: bool,
     pub port: u16,
     pub shutdown_tx: Option<oneshot::Sender<()>>,
-}
-
-impl Default for DistilleryProxyState {
-    fn default() -> Self {
-        Self {
-            is_running: false,
-            port: 0,
-            shutdown_tx: None,
-        }
-    }
 }
 
 #[derive(Deserialize)]
@@ -53,9 +44,9 @@ pub async fn distillery_start_proxy() -> Result<u16, String> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|e| format!("Failed to bind to random port: {}", e))?;
-    
+
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    
+
     // 避开高频端口（虽然 0 是随机的，但如果随机到了也换一个，虽然概率极低）
     let forbidden_ports = [3000, 5000, 8000, 8080];
     if forbidden_ports.contains(&port) {
@@ -69,18 +60,24 @@ pub async fn distillery_start_proxy() -> Result<u16, String> {
     state.shutdown_tx = Some(tx);
 
     let state_clone = DISTILLERY_PROXY_STATE.clone();
-    
+
     tokio::spawn(async move {
         let app = Router::new()
             .route("/proxy", get(handle_proxy_html))
             .route("/proxy-resource", get(handle_proxy_resource))
             .route("/__distillery/bridge.js", get(handle_bridge_js))
             .route("/__distillery/sniffer.js", get(handle_sniffer_js))
-            .route("/__distillery/anti-detection.js", get(handle_anti_detection_js))
+            .route(
+                "/__distillery/anti-detection.js",
+                get(handle_anti_detection_js),
+            )
             .layer(tower_http::cors::CorsLayer::permissive());
 
-        info!("[Distillery-Proxy] Server starting on http://127.0.0.1:{}", port);
-        
+        info!(
+            "[Distillery-Proxy] Server starting on http://127.0.0.1:{}",
+            port
+        );
+
         let server = axum::serve(listener, app).with_graceful_shutdown(async {
             rx.await.ok();
         });
@@ -121,17 +118,21 @@ pub async fn distillery_get_proxy_port() -> Result<u16, String> {
 }
 
 /// 处理 HTML 代理请求
-async fn handle_proxy_html(Query(query): Query<ProxyQuery>) -> Result<impl IntoResponse, (StatusCode, String)> {
+async fn handle_proxy_html(
+    Query(query): Query<ProxyQuery>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
     let target_url = query.url;
-    let decoded_url = urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-    
+    let decoded_url =
+        urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let response = client.get(decoded_url.as_ref())
+    let response = client
+        .get(decoded_url.as_ref())
         .send()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
@@ -160,9 +161,15 @@ async fn handle_proxy_html(Query(query): Query<ProxyQuery>) -> Result<impl IntoR
     }
 
     // 强制设置 Content-Type
-    resp_headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+    resp_headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
 
-    let bytes = response.bytes().await.map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     let mut html = String::from_utf8_lossy(&bytes).to_string();
 
     // 计算 <base> 标签的 href
@@ -175,7 +182,12 @@ async fn handle_proxy_html(Query(query): Query<ProxyQuery>) -> Result<impl IntoR
                 path = "/".to_string();
             }
         }
-        format!("{}://{}{}", parsed_url.scheme(), parsed_url.host_str().unwrap_or(""), path)
+        format!(
+            "{}://{}{}",
+            parsed_url.scheme(),
+            parsed_url.host_str().unwrap_or(""),
+            path
+        )
     } else {
         decoded_url.to_string()
     };
@@ -201,9 +213,12 @@ async fn handle_proxy_html(Query(query): Query<ProxyQuery>) -> Result<impl IntoR
 }
 
 /// 处理子资源代理请求 (CSS/JS/Images)
-async fn handle_proxy_resource(Query(query): Query<ProxyQuery>) -> Result<impl IntoResponse, (StatusCode, String)> {
+async fn handle_proxy_resource(
+    Query(query): Query<ProxyQuery>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
     let target_url = query.url;
-    let decoded_url = urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let decoded_url =
+        urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -211,7 +226,8 @@ async fn handle_proxy_resource(Query(query): Query<ProxyQuery>) -> Result<impl I
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let response = client.get(decoded_url.as_ref())
+    let response = client
+        .get(decoded_url.as_ref())
         .send()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
@@ -239,7 +255,10 @@ async fn handle_proxy_resource(Query(query): Query<ProxyQuery>) -> Result<impl I
         }
     }
 
-    let bytes = response.bytes().await.map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     Ok((status, resp_headers, Body::from(bytes)))
 }
 
@@ -248,7 +267,7 @@ async fn handle_bridge_js() -> Response {
     let content = include_str!("inject/bridge.js");
     let nonce = nanoid::nanoid!();
     let final_js = content.replace("__NONCE_PLACEHOLDER__", &nonce);
-    
+
     Response::builder()
         .header(header::CONTENT_TYPE, "application/javascript")
         .body(Body::from(final_js))

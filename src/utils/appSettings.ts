@@ -102,8 +102,10 @@ export interface AppearanceSettings {
   // --- 窗口层特效 (OS级) ---
   enableWindowEffects?: boolean; // 是否启用窗口特效
   windowEffect: WindowEffect; // 窗口背景特效类型
+  enableWindowBackgroundOpacity?: boolean; // 是否启用窗口背景不透明度调节
   windowBackgroundOpacity: number; // 窗口背景色不透明度（用于透出桌面）
   backgroundColorOpacity?: number; // 背景色不透明度（用于 CSS 变量）
+  showWindowShadow: boolean; // 是否显示窗口阴影
 
   // --- 背景色叠加 ---
   backgroundColorOverlayEnabled?: boolean; // 是否启用背景色叠加
@@ -214,10 +216,12 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   // 窗口特效
   enableWindowEffects: false, // 默认关闭
   windowEffect: "none",
+  enableWindowBackgroundOpacity: false, // 默认关闭不透明度调节
   windowBackgroundOpacity: 1.0, // 默认不透明
 
   // 背景色设置
   backgroundColorOpacity: 1.0, // 默认完全不透明
+  showWindowShadow: true, // 默认显示阴影
 
   // 背景色叠加
   backgroundColorOverlayEnabled: false,

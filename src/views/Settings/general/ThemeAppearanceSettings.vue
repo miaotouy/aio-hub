@@ -33,11 +33,7 @@
               <div v-show="wallpaperMode === 'slideshow'">
                 <!-- 预览和缩略图容器 -->
                 <div class="wallpaper-preview-container" :class="{ 'wide-layout': isWideLayout }">
-                  <el-tooltip
-                    content="点击查看大图"
-                    placement="bottom"
-                    :disabled="!currentWallpaper"
-                  >
+                  <el-tooltip content="点击查看大图" placement="bottom" :disabled="!currentWallpaper">
                     <div
                       class="wallpaper-preview"
                       :class="{ 'is-clickable': currentWallpaper }"
@@ -70,48 +66,20 @@
                 <!-- 轮播控制（现在是分离的） -->
                 <div v-if="currentWallpaperList.length > 0" class="slideshow-controls-container">
                   <div class="slideshow-controls">
-                    <el-button
-                      :icon="RefreshLeft"
-                      circle
-                      @click="refreshWallpaperList"
-                      title="刷新列表"
-                    />
-                    <el-button
-                      :icon="ArrowLeft"
-                      circle
-                      @click="playPreviousWallpaper"
-                      title="上一张"
-                    />
+                    <el-button :icon="RefreshLeft" circle @click="refreshWallpaperList" title="刷新列表" />
+                    <el-button :icon="ArrowLeft" circle @click="playPreviousWallpaper" title="上一张" />
                     <el-button
                       :icon="isSlideshowPaused ? VideoPlay : VideoPause"
                       circle
                       @click="toggleSlideshowPlayback"
                       :title="isSlideshowPaused ? '继续播放' : '暂停播放'"
                     />
-                    <el-button
-                      :icon="ArrowRight"
-                      circle
-                      @click="playNextWallpaper"
-                      title="下一张"
-                    />
-                    <el-tooltip
-                      :content="isShuffleEnabled ? '顺序播放' : '随机播放'"
-                      placement="top"
-                    >
-                      <el-button
-                        :icon="Sort"
-                        circle
-                        @click="toggleShuffle"
-                        :type="isShuffleEnabled ? 'primary' : ''"
-                      />
+                    <el-button :icon="ArrowRight" circle @click="playNextWallpaper" title="下一张" />
+                    <el-tooltip :content="isShuffleEnabled ? '顺序播放' : '随机播放'" placement="top">
+                      <el-button :icon="Sort" circle @click="toggleShuffle" :type="isShuffleEnabled ? 'primary' : ''" />
                     </el-tooltip>
                     <el-tooltip content="重新洗牌" placement="top">
-                      <el-button
-                        :icon="MagicStick"
-                        circle
-                        @click="reshuffle"
-                        :disabled="!isShuffleEnabled"
-                      />
+                      <el-button :icon="MagicStick" circle @click="reshuffle" :disabled="!isShuffleEnabled" />
                     </el-tooltip>
                   </div>
                 </div>
@@ -141,12 +109,7 @@
             </el-row>
 
             <el-form-item v-if="wallpaperMode === 'slideshow'" label="轮播间隔（分钟）">
-              <el-input-number
-                v-model="wallpaperSlideshowInterval"
-                :min="1"
-                :max="1440"
-                class="full-width"
-              />
+              <el-input-number v-model="wallpaperSlideshowInterval" :min="1" :max="1440" class="full-width" />
             </el-form-item>
 
             <!-- 内置壁纸选择 -->
@@ -163,10 +126,7 @@
               </div>
             </div>
 
-            <el-form-item
-              v-if="wallpaperMode === 'static' && wallpaperSource === 'custom'"
-              label="图片路径"
-            >
+            <el-form-item v-if="wallpaperMode === 'static' && wallpaperSource === 'custom'" label="图片路径">
               <el-input v-model="wallpaperPath" placeholder="输入图片路径或选择文件">
                 <template #append>
                   <el-button @click="selectWallpaper">选择图片</el-button>
@@ -174,10 +134,7 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item
-              v-if="wallpaperMode === 'slideshow' && wallpaperSource === 'custom'"
-              label="目录路径"
-            >
+            <el-form-item v-if="wallpaperMode === 'slideshow' && wallpaperSource === 'custom'" label="目录路径">
               <el-input v-model="wallpaperSlideshowPath" placeholder="输入目录路径或选择目录">
                 <template #append>
                   <el-button @click="selectWallpaperDirectory">选择目录</el-button>
@@ -239,9 +196,7 @@
 
             <el-form-item label="分离窗口不透明度">
               <el-slider v-model="detachedUiBaseOpacity" :min="0" :max="1" :step="0.05" />
-              <p class="form-item-description">
-                控制分离出去的独立组件窗口内部元素的透明度，独立于主窗口设置。
-              </p>
+              <p class="form-item-description">控制分离出去的独立组件窗口内部元素的透明度，独立于主窗口设置。</p>
             </el-form-item>
 
             <!-- 背景色叠加 -->
@@ -254,18 +209,12 @@
               </el-divider>
             </div>
 
-            <div
-              class="color-overlay-group"
-              :class="{ 'is-disabled': !backgroundColorOverlayEnabled }"
-            >
+            <div class="color-overlay-group" :class="{ 'is-disabled': !backgroundColorOverlayEnabled }">
               <el-form-item>
                 <div style="display: flex; align-items: center; gap: 8px">
                   <el-switch v-model="autoExtractColorFromWallpaper" />
                   <span style="font-size: 14px">自动从壁纸提取颜色</span>
-                  <el-tooltip
-                    content="启用后，每次切换壁纸时会自动提取主色调并应用到背景色叠加"
-                    placement="top"
-                  >
+                  <el-tooltip content="启用后，每次切换壁纸时会自动提取主色调并应用到背景色叠加" placement="top">
                     <el-icon style="cursor: help; color: var(--el-text-color-secondary)">
                       <QuestionFilled />
                     </el-icon>
@@ -305,12 +254,7 @@
                 <el-col :span="10">
                   <el-form-item label="混合模式">
                     <el-select v-model="backgroundColorOverlayBlendMode" class="full-width">
-                      <el-option
-                        v-for="mode in blendModes"
-                        :key="mode"
-                        :label="mode"
-                        :value="mode"
-                      />
+                      <el-option v-for="mode in blendModes" :key="mode" :label="mode" :value="mode" />
                     </el-select>
                   </el-form-item>
                 </el-col>
@@ -331,7 +275,7 @@
               <el-divider>
                 <div class="divider-content">
                   <el-switch v-model="enableUiBlur" size="small" />
-                  <span style="width: 120px;">UI 模糊 (毛玻璃)</span>
+                  <span style="width: 120px">UI 模糊 (毛玻璃)</span>
                 </div>
               </el-divider>
             </div>
@@ -384,14 +328,31 @@
                 <el-option label="亚克力 (Acrylic)" value="acrylic" />
                 <el-option label="云母 (Mica)" value="mica" />
               </el-select>
-              <p class="form-item-description">
-                效果即时生效。此功能依赖操作系统支持 (Windows 10+, macOS)。
-              </p>
+              <p class="form-item-description">效果即时生效。此功能依赖操作系统支持 (Windows 10+, macOS)。</p>
             </el-form-item>
 
             <el-form-item label="窗口背景不透明度">
-              <el-slider v-model="windowBackgroundOpacity" :min="0" :max="1" :step="0.05" />
-              <p class="form-item-description">降低此值以透出桌面或窗口后的内容。</p>
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px">
+                <el-switch v-model="enableWindowBackgroundOpacity" />
+                <span style="font-size: 14px">{{ enableWindowBackgroundOpacity ? "已启用" : "已禁用" }}</span>
+              </div>
+              <el-slider
+                v-model="windowBackgroundOpacity"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                :disabled="!enableWindowBackgroundOpacity"
+              />
+              <p class="form-item-description">
+                降低此值以透出桌面或窗口后的内容。需要开启窗口特效且该开关启用才生效。
+              </p>
+            </el-form-item>
+
+            <el-form-item label="窗口阴影">
+              <div style="display: flex; align-items: center; gap: 8px">
+                <el-switch v-model="showWindowShadow" />
+                <span style="font-size: 14px">{{ showWindowShadow ? "已启用" : "已禁用" }}</span>
+              </div>
             </el-form-item>
           </el-form>
         </InfoCard>
@@ -445,7 +406,7 @@ const {
 } = useThemeAppearance();
 
 const isGlassEffectActive = computed(
-  () => appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur
+  () => appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur,
 );
 
 const imageViewer = useImageViewer();
@@ -561,7 +522,7 @@ watch(
       });
     }
   },
-  { flush: "post" }
+  { flush: "post" },
 );
 
 // 确认清除壁纸
@@ -684,7 +645,7 @@ const wallpaperTileScale = computed({
       {
         wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, scale: val },
       },
-      { debounceUi: true }
+      { debounceUi: true },
     ),
 });
 
@@ -695,7 +656,7 @@ const wallpaperTileRotation = computed({
       {
         wallpaperTileOptions: { ...appearanceSettings.value.wallpaperTileOptions, rotation: val },
       },
-      { debounceUi: true }
+      { debounceUi: true },
     ),
 });
 
@@ -768,6 +729,11 @@ const windowBackgroundOpacity = computed({
   set: (val) => updateAppearanceSetting({ windowBackgroundOpacity: val }, { debounceUi: true }),
 });
 
+const enableWindowBackgroundOpacity = computed({
+  get: () => appearanceSettings.value.enableWindowBackgroundOpacity ?? false,
+  set: (val) => updateAppearanceSetting({ enableWindowBackgroundOpacity: val }),
+});
+
 const codeBlockOpacity = computed({
   get: () => appearanceSettings.value.codeBlockOpacity,
   set: (val) => updateAppearanceSetting({ codeBlockOpacity: val }, { debounceUi: true }),
@@ -776,6 +742,11 @@ const codeBlockOpacity = computed({
 const enableWindowEffects = computed({
   get: () => appearanceSettings.value.enableWindowEffects ?? true,
   set: (val) => updateAppearanceSetting({ enableWindowEffects: val }),
+});
+
+const showWindowShadow = computed({
+  get: () => appearanceSettings.value.showWindowShadow ?? true,
+  set: (val) => updateAppearanceSetting({ showWindowShadow: val }),
 });
 
 // --- 背景色叠加 ---
@@ -803,8 +774,7 @@ const onOverlayColorChange = (val: string) => {
 
 const backgroundColorOverlayOpacity = computed({
   get: () => appearanceSettings.value.backgroundColorOverlayOpacity ?? 0.3,
-  set: (val) =>
-    updateAppearanceSetting({ backgroundColorOverlayOpacity: val }, { debounceUi: true }),
+  set: (val) => updateAppearanceSetting({ backgroundColorOverlayOpacity: val }, { debounceUi: true }),
 });
 
 const backgroundColorOverlayBlendMode = computed({

@@ -229,7 +229,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
   const root = document.documentElement;
 
   // 根据开关状态设置窗口背景不透明度
-  if (settings.enableWindowEffects) {
+  if (settings.enableWindowEffects && settings.enableWindowBackgroundOpacity) {
     root.style.setProperty(
       "--window-bg-opacity",
       String(settings.windowBackgroundOpacity ?? defaultAppearanceSettings.windowBackgroundOpacity),
@@ -774,6 +774,14 @@ export async function initThemeAppearance(isDetached = false) {
         appearanceSettings.value.windowEffect,
         appearanceSettings.value.enableWindowEffects ?? true,
       );
+
+      // 应用窗口阴影设置
+      invoke("set_window_shadow", {
+        label: "main",
+        hasShadow: appearanceSettings.value.showWindowShadow ?? true,
+      }).catch((err) => {
+        logger.error("初始化窗口阴影失败", err);
+      });
     }
 
     // 监听主题变化（亮/暗模式切换），如果开启了自动取色，则重新提取适合当前主题的颜色
@@ -840,6 +848,16 @@ export async function initThemeAppearance(isDetached = false) {
           (newSettings.enableWindowEffects ?? true) !== (old.enableWindowEffects ?? true)
         ) {
           await _applyWindowEffect(newSettings.windowEffect, newSettings.enableWindowEffects ?? true);
+        }
+
+        // 监听阴影设置变化
+        if (newSettings.showWindowShadow !== old.showWindowShadow) {
+          invoke("set_window_shadow", {
+            label: "main",
+            hasShadow: newSettings.showWindowShadow ?? true,
+          }).catch((err) => {
+            logger.error("更新窗口阴影失败", err);
+          });
         }
       },
       { deep: true },

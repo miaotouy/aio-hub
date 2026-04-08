@@ -122,6 +122,7 @@ use commands::{
     save_asset_thumbnail,
     save_uploaded_file,
     save_window_config,
+    set_window_shadow,
     scan_content_duplicates,
     search_llm_data,
     search_media_generator_data,
@@ -276,38 +277,36 @@ pub fn run() {
     let context = tauri::generate_context!();
 
     // 读取配置以获取时区
-    let (show_tray_icon, minimize_to_tray, timezone_str) = {
+    // 读取配置以获取时区和窗口特效
+    let (show_tray_icon, minimize_to_tray, timezone_str, window_effects_config) = {
         let app_data_dir = get_app_data_dir(context.config());
         let settings_path = app_data_dir.join("settings.json");
+
+        let mut show = true;
+        let mut minimize = true;
+        let mut tz = "auto".to_string();
+        let mut enable_effects = false;
+        let mut effect_type = "none".to_string();
+        let mut show_shadow = true;
 
         if settings_path.exists() {
             if let Ok(contents) = std::fs::read_to_string(&settings_path) {
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
-                    let show = json
-                        .get("showTrayIcon")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(true);
-                    let minimize = json
-                        .get("minimizeToTray")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(true);
-                    let tz = json
-                        .get("timezone")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("auto")
-                        .to_string();
-                    (show, minimize, tz)
-                } else {
-                    (true, true, "auto".to_string())
-                }
-            } else {
-                (true, true, "auto".to_string())
-            }
-        } else {
-            (true, true, "auto".to_string())
-        }
-    };
+                    show = json.get("showTrayIcon").and_then(|v| v.as_bool()).unwrap_or(true);
+                    minimize = json.get("minimizeToTray").and_then(|v| v.as_bool()).unwrap_or(true);
+                    tz = json.get("timezone").and_then(|v| v.as_str()).unwrap_or("auto").to_string();
 
+                    // 读取外观设置
+                    if let Some(appearance) = json.get("appearance") {
+                        enable_effects = appearance.get("enableWindowEffects").and_then(|v| v.as_bool()).unwrap_or(false);
+                        effect_type = appearance.get("windowEffect").and_then(|v| v.as_str()).unwrap_or("none").to_string();
+                        show_shadow = appearance.get("showWindowShadow").and_then(|v| v.as_bool()).unwrap_or(true);
+                    }
+                }
+            }
+        }
+        (show, minimize, tz, (enable_effects, effect_type, show_shadow))
+    };
     // 解析时区并计算偏移量
     let (timezone_strategy, now_formatted, date_filename) = {
         let now_utc = Utc::now();
@@ -480,6 +479,7 @@ pub fn run() {
             create_tool_window,
             focus_window,
             set_window_position,
+            set_window_shadow,
             ensure_window_visible,
             // 窗口配置管理命令
             save_window_config,
@@ -689,6 +689,23 @@ pub fn run() {
             }
 
             let main_window = win_builder.build()?;
+
+            // 在启动时应用窗口特效和阴影，避免前端加载延迟导致的闪烁
+            let (enable_effects, effect_type, show_shadow) = window_effects_config;
+            if enable_effects && effect_type != "none" {
+                let window_clone = main_window.as_ref().window().clone();
+                let effect_clone = effect_type.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = apply_window_effect(window_clone, &effect_clone).await {
+                        log::error!("[WINDOW_EFFECT] 启动时应用特效失败: {}", e);
+                    }
+                });
+            }
+
+            // 应用阴影设置
+            if let Err(e) = main_window.set_shadow(show_shadow) {
+                log::error!("[WINDOW_SHADOW] 启动时设置阴影失败: {}", e);
+            }
 
             // 应用保存的窗口配置（如果存在）
             let main_window_clone = main_window.clone();

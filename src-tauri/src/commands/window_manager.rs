@@ -944,3 +944,20 @@ pub async fn navigate_main_window_to_settings(
     log::info!("[NAVIGATION] 已请求主窗口导航到设置页面: {}", section_id);
     Ok(())
 }
+
+/// 动态设置窗口阴影
+/// 注意：在某些平台上，这可能需要窗口是不透明的或具有特定的装饰设置
+#[tauri::command]
+pub async fn set_window_shadow(
+    app: AppHandle,
+    label: String,
+    has_shadow: bool,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(&label) {
+        window.set_shadow(has_shadow).map_err(|e| e.to_string())?;
+        log::debug!("[WINDOW] 设置窗口 '{}' 阴影为: {}", label, has_shadow);
+        Ok(())
+    } else {
+        Err(format!("Window '{}' not found", label))
+    }
+}

@@ -189,13 +189,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.home-skeleton {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
 .home-page {
   display: flex;
   flex-direction: column;

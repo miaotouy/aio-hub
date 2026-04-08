@@ -21,7 +21,138 @@
   </head>
 
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <style>
+        :root {
+          --primary-color: #409eff;
+        }
+
+        html,
+        body,
+        #app {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          background-color: transparent;
+          flex-direction: column;
+          -moz-osx-font-smoothing: grayscale;
+          overflow: hidden;
+        }
+
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+        }
+
+        .logo-wrapper {
+          position: relative;
+          width: 120px;
+          height: 120px;
+          margin-bottom: 24px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .logo {
+          width: 100px;
+          height: 100px;
+          z-index: 2;
+          animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(180deg);
+          }
+        }
+
+        .logo-dark {
+          display: none;
+        }
+
+        .logo-pulse {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: var(--primary-color);
+          border-radius: 50%;
+          opacity: 0.2;
+          filter: blur(20px);
+          animation: pulse 2s infinite ease-in-out;
+          z-index: 1;
+        }
+
+        .loading-text {
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial,
+            sans-serif;
+          font-size: 14px;
+          color: #909399;
+          margin-top: 48px;
+        }
+
+        h1 {
+          color: #303133;
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial,
+            sans-serif;
+          font-size: 28px;
+          font-weight: 600;
+          margin: 0;
+          letter-spacing: 1px;
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(0.8);
+            opacity: 0.1;
+          }
+          50% {
+            transform: scale(1.2);
+            opacity: 0.3;
+          }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+          body,
+          #app {
+            background-color: transparent;
+          }
+          .logo-light {
+            display: none;
+          }
+          .logo-dark {
+            display: block;
+          }
+          .loading-text {
+            color: #666;
+          }
+          h1 {
+            color: #ffffff;
+          }
+        }
+      </style>
+      <div class="loading-container">
+        <div class="logo-wrapper">
+          <img src="/src/assets/aio-icon-black.svg" class="logo logo-light" alt="AIO Hub Logo" />
+          <img src="/src/assets/aio-icon-white.svg" class="logo logo-dark" alt="AIO Hub Logo" />
+          <div class="logo-pulse"></div>
+        </div>
+        <h1>AIO Hub</h1>
+        <p class="loading-text">正在启动...</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

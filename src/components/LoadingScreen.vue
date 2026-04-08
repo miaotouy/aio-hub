@@ -22,7 +22,7 @@ const handleRetry = () => {
 
 <template>
   <div class="loading-screen" :class="{ 'is-dark': isDark }">
-    <div class="loading-content">
+      <div class="loading-content">
       <!-- 应用图标 -->
       <div class="app-logo-container">
         <img :src="appIcon" alt="AIO Hub" class="app-logo" />
@@ -45,11 +45,11 @@ const handleRetry = () => {
       </div>
     </div>
 
-    <!-- 底部版本信息 -->
-    <div class="loading-footer">
-      <p>一站式桌面 AI 工具枢纽</p>
+      <!-- 底部版本信息 -->
+      <div class="loading-footer">
+        <p>一站式桌面 AI 工具枢纽</p>
+      </div>
     </div>
-  </div>
 </template>
 
 <style scoped>
@@ -63,13 +63,12 @@ const handleRetry = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: #ffffff;
   z-index: 9999;
   user-select: none;
+  background-color: var(--bg-color);
 }
 
 .loading-screen.is-dark {
-  background-color: #1a1a1a;
   color: #ffffff;
 }
 
@@ -86,14 +85,24 @@ const handleRetry = () => {
   width: 120px;
   height: 120px;
   margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .app-logo {
-  width: 100%;
-  height: 100%;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
   position: relative;
   z-index: 2;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(180deg);
+  }
 }
 
 .logo-pulse {

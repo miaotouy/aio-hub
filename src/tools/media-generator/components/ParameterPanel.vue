@@ -5,7 +5,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { Settings, Image, Video, Music, Sparkles, Info } from "lucide-vue-next";
+import { Settings, Image, Video, Music, Sparkles, Info, ArrowLeftRight } from "lucide-vue-next";
 
 const store = useMediaGenStore();
 const { getProfileById, saveProfile } = useLlmProfiles();
@@ -40,6 +40,34 @@ const mediaType = computed({
 
 // 基础参数 - 绑定到当前选中的媒体类型参数
 const params = computed(() => store.currentConfig.types[store.currentConfig.activeType].params);
+
+// 分辨率拆分逻辑
+const sizeWidth = computed({
+  get: () => {
+    const [w] = (params.value.size || "1024x1024").split("x");
+    return parseInt(w) || 1024;
+  },
+  set: (val) => {
+    const [_, h] = (params.value.size || "1024x1024").split("x");
+    params.value.size = `${val}x${h || 1024}`;
+  },
+});
+
+const sizeHeight = computed({
+  get: () => {
+    const [_, h] = (params.value.size || "1024x1024").split("x");
+    return parseInt(h) || 1024;
+  },
+  set: (val) => {
+    const [w] = (params.value.size || "1024x1024").split("x");
+    params.value.size = `${w || 1024}x${val}`;
+  },
+});
+
+const swapSize = () => {
+  const [w, h] = (params.value.size || "1024x1024").split("x");
+  params.value.size = `${h || 1024}x${w || 1024}`;
+};
 
 // 连续对话设置
 const includeContext = computed({
@@ -171,8 +199,7 @@ watch(
 
     // 优先从模型本身的配置中读取设置
     if (selectedModelInfo.value?.model?.capabilities?.iterativeRefinement !== undefined) {
-      store.currentConfig.includeContext =
-        selectedModelInfo.value.model.capabilities.iterativeRefinement;
+      store.currentConfig.includeContext = selectedModelInfo.value.model.capabilities.iterativeRefinement;
       return;
     }
 
@@ -183,15 +210,8 @@ watch(
       store.currentConfig.includeContext = props.capabilities.iterativeRefinement;
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
-
-// 监听模型变化，如果当前参数不在新模型的可选范围内，重置为第一个可用项
-watch(sizeOptions, (newOptions) => {
-  if (newOptions.length > 0 && !newOptions.find((opt) => opt.value === params.value.size)) {
-    params.value.size = newOptions[0].value;
-  }
-});
 </script>
 
 <template>
@@ -228,19 +248,13 @@ watch(sizeOptions, (newOptions) => {
 
       <div class="section">
         <div class="section-title">生成模型</div>
-        <LlmModelSelector
-          v-model="selectedModelCombo"
-          :capabilities="modelCapabilities"
-          placeholder="选择生成引擎"
-        />
+        <LlmModelSelector v-model="selectedModelCombo" :capabilities="modelCapabilities" placeholder="选择生成引擎" />
       </div>
 
       <div class="section context-toggle-section">
         <div class="section-title">
           <span>连续对话 (Iterative)</span>
-          <el-tooltip
-            content="开启后将包含历史消息作为上下文，支持对生成结果进行迭代修改（需模型支持）"
-          >
+          <el-tooltip content="开启后将包含历史消息作为上下文，支持对生成结果进行迭代修改（需模型支持）">
             <el-icon class="info-icon"><Info /></el-icon>
           </el-tooltip>
         </div>
@@ -257,15 +271,44 @@ watch(sizeOptions, (newOptions) => {
       <!-- 图片特定参数 -->
       <template v-if="mediaType === 'image'">
         <div class="section">
-          <div class="section-title">分辨率</div>
-          <el-select v-model="params.size" size="small" style="width: 100%">
-            <el-option
-              v-for="opt in sizeOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
+          <div class="section-title">
+            <span>分辨率</span>
+            <el-dropdown trigger="click" @command="(val: string) => (params.size = val)">
+              <span class="preset-link">
+                预设 <el-icon><Sparkles /></el-icon>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-for="opt in sizeOptions" :key="opt.value" :command="opt.value">
+                    {{ opt.label }}
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+          <div class="size-control-row">
+            <el-input-number
+              v-model="sizeWidth"
+              :min="64"
+              :max="4096"
+              :step="64"
+              size="small"
+              controls-position="right"
+              class="size-input"
             />
-          </el-select>
+            <el-button size="small" circle class="swap-btn" @click="swapSize">
+              <el-icon><ArrowLeftRight /></el-icon>
+            </el-button>
+            <el-input-number
+              v-model="sizeHeight"
+              :min="64"
+              :max="4096"
+              :step="64"
+              size="small"
+              controls-position="right"
+              class="size-input"
+            />
+          </div>
         </div>
 
         <div v-if="supportsQuality" class="section">
@@ -315,11 +358,43 @@ watch(sizeOptions, (newOptions) => {
       <!-- 视频特定参数 -->
       <template v-else-if="mediaType === 'video'">
         <div class="section">
-          <div class="section-title">分辨率</div>
-          <el-select v-model="params.size" size="small" style="width: 100%">
-            <el-option label="720p (1280x720)" value="1280x720" />
-            <el-option label="1080p (1920x1080)" value="1920x1080" />
-          </el-select>
+          <div class="section-title">
+            <span>分辨率</span>
+            <el-dropdown trigger="click" @command="(val: string) => (params.size = val)">
+              <span class="preset-link">
+                预设 <el-icon><Sparkles /></el-icon>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="1280x720">720p (1280x720)</el-dropdown-item>
+                  <el-dropdown-item command="1920x1080">1080p (1920x1080)</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+          <div class="size-control-row">
+            <el-input-number
+              v-model="sizeWidth"
+              :min="64"
+              :max="4096"
+              :step="64"
+              size="small"
+              controls-position="right"
+              class="size-input"
+            />
+            <el-button size="small" circle class="swap-btn" @click="swapSize">
+              <el-icon><ArrowLeftRight /></el-icon>
+            </el-button>
+            <el-input-number
+              v-model="sizeHeight"
+              :min="64"
+              :max="4096"
+              :step="64"
+              size="small"
+              controls-position="right"
+              class="size-input"
+            />
+          </div>
         </div>
         <div class="section">
           <div class="section-title">时长 (秒)</div>
@@ -512,6 +587,46 @@ watch(sizeOptions, (newOptions) => {
 
 .type-btn span {
   font-size: 11px;
+}
+
+.preset-link {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: normal;
+}
+
+.preset-link:hover {
+  opacity: 0.8;
+}
+
+.size-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.size-input {
+  flex: 1;
+}
+
+.size-input :deep(.el-input__inner) {
+  text-align: left;
+}
+
+.swap-btn {
+  color: var(--el-text-color-secondary);
+  border-color: var(--border-color);
+  background: transparent;
+}
+
+.swap-btn:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
 }
 
 .advanced-collapse {

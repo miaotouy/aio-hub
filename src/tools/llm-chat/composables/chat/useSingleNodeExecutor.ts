@@ -220,7 +220,13 @@ export function useSingleNodeExecutor() {
         break;
       } catch (error) {
         const isAbort = isAbortError(error);
-        const shouldRetry = !isAbort && !hasReceivedStreamData && attempt < maxRetries;
+        // 检查 error 对象是否为 400 错误或 INVALID_ARGUMENT，避免重试
+        const isBadRequest =
+          error &&
+          typeof error === "object" &&
+          (("code" in error && (error as any).code === 400) ||
+            ("status" in error && (error as any).status === "INVALID_ARGUMENT"));
+        const shouldRetry = !isAbort && !isBadRequest && !hasReceivedStreamData && attempt < maxRetries;
         if (shouldRetry) {
           const delayTime = retryMode === "exponential" ? retryInterval * Math.pow(2, attempt) : retryInterval;
           await new Promise((resolve) => setTimeout(resolve, delayTime));

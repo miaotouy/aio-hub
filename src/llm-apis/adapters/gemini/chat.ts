@@ -181,6 +181,12 @@ export const callGeminiChatApi = async (
   if (options.requestId) {
     headers["X-Request-ID"] = options.requestId;
   }
+
+  // Gemini 不支持 requestId 作为请求体参数，主动清理掉
+  if ("requestId" in body) {
+    delete body.requestId;
+  }
+
   if (profile.customHeaders) Object.assign(headers, profile.customHeaders);
 
   if (options.stream && options.onStream) {

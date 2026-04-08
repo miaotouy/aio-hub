@@ -1,420 +1,49 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, onUnmounted, nextTick } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
-import { ElMessageBox } from "element-plus";
-import { Loading } from "@element-plus/icons-vue";
-import { useDark } from "@vueuse/core";
-import { useDetachedManager } from "./composables/useDetachedManager";
-import { type AppSettings } from "./utils/appSettings";
-import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
-import { createModuleErrorHandler } from "./utils/errorHandler";
-import { applyThemeColors } from "./utils/themeColors";
-import TitleBar from "./components/TitleBar.vue";
-import MainSidebar from "./components/MainSidebar.vue";
+import { onMounted } from "vue";
+import { useAppInitStore } from "@/stores/appInitStore";
+import { useRootInit } from "@/composables/useRootInit";
+import { useDeepLinkHandler } from "@/composables/useDeepLinkHandler";
 import GlobalProviders from "./components/GlobalProviders.vue";
-import LlmDeepLinkConfirmDialog from "./views/Settings/llm-service/components/LlmDeepLinkConfirmDialog.vue";
-import { useTheme } from "@/composables/useTheme";
-import { initThemeAppearance, cleanupThemeAppearance } from "./composables/useThemeAppearance";
-import { useDeepLinkHandler } from "./composables/useDeepLinkHandler";
-import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
-import { useToolsStore } from "@/stores/tools";
-import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import LoadingScreen from "./components/LoadingScreen.vue";
+import MainLayout from "./views/MainLayout.vue";
 
-const logger = createModuleLogger("App");
-const errorHandler = createModuleErrorHandler("App");
-const isLoading = ref(true); // 控制骨架屏显示
-
-// 初始化主题，必须在其他操作之前
-useTheme();
+// 初始化根组件通用逻辑（主题、分离管理器、通信总线等）
+useRootInit();
 
 // 初始化 Deep Link 处理器
 useDeepLinkHandler();
 
-const route = useRoute();
-const router = useRouter();
-const detachedManager = useDetachedManager();
-const userProfileStore = useUserProfileStore();
-const toolsStore = useToolsStore();
-const appSettingsStore = useAppSettingsStore();
-const isCollapsed = ref(true); // 控制侧边栏收起状态（默认收起，避免加载时闪烁）
-const isDark = useDark(); // 监听主题模式
-
-// 判断当前是否为特殊路由（不需要显示侧边栏）
-const isSpecialRoute = computed(() => {
-  const path = route.path;
-  // 使用路径匹配判断是否为分离窗口或特殊路由
-  return path.startsWith("/detached-window/") || path.startsWith("/detached-component/");
-});
-
-// 监听 isCollapsed 变化并保存
-watch(isCollapsed, (newVal) => {
-  if (appSettingsStore.isLoaded && appSettingsStore.settings.sidebarCollapsed !== newVal) {
-    appSettingsStore.update({ sidebarCollapsed: newVal });
-  }
-});
-
-// 监听主题模式切换，重新应用颜色变体
-watch(isDark, () => {
-  logger.info("主题模式切换，重新应用颜色");
-  if (appSettingsStore.settings.themeColor) {
-    applyThemeColors({
-      primary: appSettingsStore.settings.themeColor,
-      success: appSettingsStore.settings.successColor,
-      warning: appSettingsStore.settings.warningColor,
-      danger: appSettingsStore.settings.dangerColor,
-      info: appSettingsStore.settings.infoColor,
-    });
-  }
-});
-
-// 缓存工具可见性配置
-const cacheToolsVisible = (toolsVisible: Record<string, boolean> | undefined) => {
-  if (toolsVisible) {
-    try {
-      localStorage.setItem("app-tools-visible", JSON.stringify(toolsVisible));
-    } catch (error) {
-      logger.warn("缓存工具可见性失败", { error });
-    }
-  }
-};
-
-// 将驼峰命名转换为短横线路径
-const camelToKebab = (str: string): string => {
-  return str
-    .replace(/([A-Z])/g, "-$1")
-    .toLowerCase()
-    .replace(/^-/, "");
-};
-
-// 从路径提取工具ID（短横线转驼峰）
-const getToolIdFromPath = (path: string): string => {
-  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-};
-
-// 应用日志配置到 logger 实例
-const applyLogConfig = (settings: AppSettings) => {
-  // 应用日志级别
-  if (settings.logLevel) {
-    const levelMap: Record<string, LogLevel> = {
-      DEBUG: LogLevel.DEBUG,
-      INFO: LogLevel.INFO,
-      WARN: LogLevel.WARN,
-      ERROR: LogLevel.ERROR,
-    };
-    globalLogger.setLevel(levelMap[settings.logLevel] ?? LogLevel.INFO);
-  }
-
-  // 应用日志输出配置
-  globalLogger.setLogToFile(settings.logToFile ?? true);
-  globalLogger.setLogToConsole(settings.logToConsole ?? true);
-
-  // 应用日志缓冲区大小
-  if (settings.logBufferSize) {
-    globalLogger.setLogBufferSize(settings.logBufferSize);
-  }
-};
-
-// 存储事件处理函数的引用，用于清理
-let unlisten: (() => void) | null = null;
-let unlistenDetached: (() => void) | null = null;
-let unlistenAttached: (() => void) | null = null;
-let unlistenCloseConfirmation: (() => void) | null = null;
+const appInitStore = useAppInitStore();
 
 onMounted(async () => {
-  isLoading.value = true;
-  try {
-    // 初始化统一的分离窗口管理器
-    await detachedManager.initialize();
-
-    // 初始化工具顺序和标签
-    toolsStore.initializeOrder();
-
-    // 初始同步侧边栏折叠状态
-    isCollapsed.value = appSettingsStore.settings.sidebarCollapsed;
-
-    // 应用日志配置
-    applyLogConfig(appSettingsStore.settings);
-
-    // 缓存工具可见性
-    cacheToolsVisible(appSettingsStore.settings.toolsVisible);
-
-    // 应用主题色
-    if (appSettingsStore.settings.themeColor) {
-      applyThemeColors({ primary: appSettingsStore.settings.themeColor });
-    }
-
-    // 初始化用户档案
-    await userProfileStore.loadProfiles();
-
-    // 初始化主题外观
-    await initThemeAppearance();
-  } catch (error) {
-    errorHandler.error(error, "App 初始化失败");
-  } finally {
-    await nextTick();
-    isLoading.value = false;
-  }
-
-  // 监听来自分离窗口的导航请求
-  unlisten = await listen<{ sectionId: string }>("navigate-to-settings", (event) => {
-    const { sectionId } = event.payload;
-    logger.info("收到来自分离窗口的导航请求", { sectionId });
-
-    // 导航到设置页面
-    router.push({ path: "/settings", query: { section: sectionId } });
-  });
-
-  // 监听窗口分离事件，自动导航回主页
-  unlistenDetached = await listen<{ label: string; id: string; type: string }>("window-detached", (event) => {
-    const { id, type } = event.payload;
-
-    // 只处理工具类型的分离
-    if (type === "tool") {
-      // 将工具ID（驼峰命名）转换为路由路径（短横线命名）
-      const toolPath = "/" + camelToKebab(id);
-
-      logger.info("工具已分离，检查是否需要导航", {
-        toolId: id,
-        toolPath,
-        currentPath: route.path,
-      });
-
-      // 如果当前路由正是被分离的工具页面，自动导航回主页
-      if (route.path === toolPath) {
-        logger.info("当前页面已分离，导航回主页", { from: toolPath });
-        router.push("/");
-      }
-    }
-  });
-
-  // 监听窗口重新附着事件，自动恢复工具标签
-  unlistenAttached = await listen<{ label: string; id: string; type: string }>("window-attached", (event) => {
-    const { id, type } = event.payload;
-
-    if (type === "tool") {
-      const toolPath = "/" + camelToKebab(id);
-      logger.info("工具已重新附着，恢复标签页", { toolId: id, toolPath });
-      toolsStore.openTool(toolPath);
-    }
-  });
-
-  // 监听关闭确认请求
-  unlistenCloseConfirmation = await listen("request-close-confirmation", async () => {
-    try {
-      await ElMessageBox.confirm("确定要退出程序吗？", "退出确认", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      });
-      // 用户确认退出
-      await invoke("exit_app");
-    } catch {
-      // 用户取消退出，不做任何操作
-      logger.info("用户取消退出操作");
-    }
-  });
-});
-
-// 监听路由变化
-watch(
-  () => route.path,
-  async (newPath, oldPath) => {
-    // 只有路径真正改变时才处理
-    if (newPath === oldPath) return;
-
-    // 自动打开工具标签
-    if (newPath.startsWith("/") && newPath !== "/" && newPath !== "/settings" && newPath !== "/extensions") {
-      // 检查路径是否已经是已打开的标签，避免重复触发
-      if (toolsStore.openedToolPaths.includes(newPath)) return;
-
-      // 如果工具已分离，不自动打开侧边栏标签
-      const toolId = getToolIdFromPath(newPath);
-      if (!detachedManager.isDetached(toolId)) {
-        toolsStore.openTool(newPath);
-      }
-    }
-  },
-);
-
-// 清理事件监听器
-onUnmounted(() => {
-  // 清理主题外观资源
-  cleanupThemeAppearance();
-
-  // 清理 Tauri 事件监听器
-  if (unlisten) {
-    unlisten();
-  }
-  if (unlistenDetached) {
-    unlistenDetached();
-  }
-  if (unlistenAttached) {
-    unlistenAttached();
-  }
-  if (unlistenCloseConfirmation) {
-    unlistenCloseConfirmation();
-  }
+  // 触发主应用初始化序列
+  await appInitStore.initMainApp();
 });
 </script>
 
 <template>
   <GlobalProviders>
-    <!-- 自定义标题栏 - 仅在非特殊路由显示 -->
-    <TitleBar v-if="!isSpecialRoute" />
-
-    <!-- Deep Link 确认弹窗 -->
-    <LlmDeepLinkConfirmDialog />
-
-    <!-- 主布局容器，需要添加padding-top来避让标题栏 -->
-    <el-container :class="['common-layout', { 'no-titlebar': isSpecialRoute }]">
-      <!-- 骨架屏 -->
-      <template v-if="isLoading">
-        <div class="app-skeleton">
-          <!-- Sidebar Skeleton -->
-          <el-skeleton
-            v-if="!isCollapsed && !isSpecialRoute"
-            class="sidebar-skeleton"
-            :style="{ width: isCollapsed ? '64px' : '200px' }"
-            animated
-          >
-            <template #template>
-              <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
-            </template>
-          </el-skeleton>
-          <!-- Main Content Skeleton -->
-          <div class="main-content-skeleton">
-            <el-skeleton animated>
-              <template #template>
-                <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
-              </template>
-            </el-skeleton>
-          </div>
-        </div>
-      </template>
-
-      <!-- 实际内容 -->
-      <template v-else>
-        <!-- 侧边栏 - 仅在非特殊路由且模式为 sidebar 时显示 -->
-        <MainSidebar
-          v-if="!isSpecialRoute && (!appSettingsStore.sidebarMode || appSettingsStore.sidebarMode === 'sidebar')"
-          v-model:collapsed="isCollapsed"
-          :tools-visible="appSettingsStore.toolsVisible || {}"
-          :is-detached="detachedManager.isDetached"
-        />
-
-        <el-container>
-          <el-main class="main-content">
-            <router-view v-slot="{ Component, route }">
-              <Suspense>
-                <template #default>
-                  <keep-alive :exclude="['Settings']">
-                    <component :is="Component" :key="route.path" />
-                  </keep-alive>
-                </template>
-                <template #fallback>
-                  <div class="loading-container">
-                    <el-icon class="is-loading" :size="32">
-                      <Loading />
-                    </el-icon>
-                    <p>加载中...</p>
-                  </div>
-                </template>
-              </Suspense>
-            </router-view>
-          </el-main>
-        </el-container>
-      </template>
-    </el-container>
+    <!-- 根据初始化状态切换界面 -->
+    <MainLayout v-if="appInitStore.isReady" />
+    <LoadingScreen v-else />
   </GlobalProviders>
 </template>
 
 <style>
-.common-layout {
-  height: calc(100vh - var(--titlebar-height));
-  width: 100vw;
-  overflow: hidden; /* 隐藏整个布局的滚动条 */
-  margin-top: var(--titlebar-height);
-}
-
-/* 特殊路由（无标题栏）样式 */
-.common-layout.no-titlebar {
-  height: 100vh; /* 无标题栏时占满全屏 */
-  margin-top: 0; /* 移除顶部边距 */
-}
-
-.header-title {
-  font-size: 20px;
-  color: var(--text-color);
-}
-
-.main-content {
-  background-color: var(--bg-color);
-  /* padding: 0;  */
-  overflow-y: auto;
-  flex-grow: 1;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-/* 确保整个应用没有默认边距 */
+/* 全局基础样式保留在 App.vue */
 html,
 body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  overflow: hidden; /* 强制禁止根元素滚动，防止 scrollIntoView 等行为导致应用整体偏移 */
+  overflow: hidden;
 }
 
-/* 为透明窗口添加背景 */
 #app {
   position: relative;
   z-index: 0;
   background: var(--bg-color);
   min-height: 100vh;
-}
-
-/* 独立窗口模式样式 */
-.detached-content {
-  padding: 20px;
-  width: 100%;
-  height: 100%;
-}
-
-/* 组件加载状态样式 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 16px;
-  color: var(--text-color);
-}
-
-.loading-container p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-color-secondary);
-}
-
-/* 骨架屏样式 */
-.app-skeleton {
-  display: flex;
-  width: 100%;
-  height: 100%;
-}
-
-.sidebar-skeleton {
-  flex-shrink: 0;
-  padding: 0;
-  transition: width 0.3s ease;
-}
-
-.main-content-skeleton {
-  flex-grow: 1;
-  padding: 0;
 }
 </style>

@@ -18,18 +18,12 @@ import { listen } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";
 import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia"; // 导入 Pinia
-import { errorHandler, ErrorLevel, createModuleErrorHandler } from "./utils/errorHandler";
-import { createModuleLogger, logger as globalLogger, LogLevel } from "./utils/logger";
-import { type AppSettings } from "./utils/appSettings";
-import { useAppSettingsStore } from "./stores/appSettingsStore";
-import { initTheme } from "./composables/useTheme";
-import { customMessage } from "./utils/customMessage";
-import { autoRegisterServices, startupManager } from "./services";
+import { errorHandler, ErrorLevel } from "./utils/errorHandler";
+import { createModuleLogger } from "./utils/logger";
 import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
 import "@/utils/monaco-i18n/nls";
-import { initMonacoShikiThemes } from "@/utils/monacoShikiSetup";
 import { Buffer } from "buffer";
 
 // 解决 music-metadata-browser 在浏览器环境下缺少 Buffer 的问题
@@ -45,44 +39,6 @@ if (typeof (window as any).Buffer === "undefined") {
 (window as any).AiohubUI = PluginUI;
 
 const logger = createModuleLogger("Main");
-const moduleErrorHandler = createModuleErrorHandler("Main");
-
-/**
- * 应用日志配置到 logger 实例
- * 必须在应用初始化早期调用，确保所有日志都使用正确的级别
- */
-const applyLogConfig = (settings: AppSettings) => {
-  try {
-    // 应用日志级别
-    if (settings.logLevel) {
-      const levelMap: Record<string, LogLevel> = {
-        DEBUG: LogLevel.DEBUG,
-        INFO: LogLevel.INFO,
-        WARN: LogLevel.WARN,
-        ERROR: LogLevel.ERROR,
-      };
-      globalLogger.setLevel(levelMap[settings.logLevel] ?? LogLevel.INFO);
-    }
-
-    // 应用日志输出配置
-    globalLogger.setLogToFile(settings.logToFile ?? true);
-    globalLogger.setLogToConsole(settings.logToConsole ?? true);
-
-    // 应用日志缓冲区大小
-    if (settings.logBufferSize) {
-      globalLogger.setLogBufferSize(settings.logBufferSize);
-    }
-
-    logger.info("日志配置已应用", {
-      level: settings.logLevel,
-      logToFile: settings.logToFile,
-      logToConsole: settings.logToConsole,
-      bufferSize: settings.logBufferSize,
-    });
-  } catch (error) {
-    moduleErrorHandler.handle(error, { userMessage: "应用日志配置失败", showToUser: false });
-  }
-};
 
 // 检查是否为独立工具窗口（需要标题栏和标准布局）
 const isDetachedWindow = () => {
@@ -101,6 +57,7 @@ if (needsTransparentBackground) {
   document.body.classList.add("transparent-window");
   logger.info(`透明窗口 (${window.location.pathname})：已添加透明背景类`);
 }
+
 // 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
 // 这样可以避免应用启动时的颜色闪烁
 (() => {
@@ -138,9 +95,6 @@ const pinia = createPinia(); // 创建 Pinia 实例
 app.use(ElementPlus, { locale: zhCn });
 app.use(pinia); // 注册 Pinia（必须在所有依赖它的模块之前）
 
-// 全局注册 customMessage，这样在所有组件中都可以使用
-app.config.globalProperties.$message = customMessage;
-
 // 全局错误处理
 app.config.errorHandler = (err, instance, info) => {
   errorHandler.handle(err, {
@@ -177,14 +131,11 @@ window.addEventListener("unhandledrejection", (event) => {
 // 全局错误捕获
 window.addEventListener("error", (event) => {
   // 过滤良性的 ResizeObserver 警告
-  // 这个警告在使用 Monaco Editor 等复杂 UI 组件时很常见，不影响功能
   if (event.message?.includes("ResizeObserver loop completed with undelivered notifications")) {
     event.preventDefault();
     return;
   }
 
-  // 某些情况下（如跨域脚本错误或 Worker 错误），event.error 可能为空
-  // 此时回退使用 event.message 以获取有用的错误信息
   const errorToHandle = event.error || event.message || "Unknown Global Error";
 
   errorHandler.handle(errorToHandle, {
@@ -198,83 +149,33 @@ window.addEventListener("error", (event) => {
   });
 });
 
-// 异步启动函数
-const initializeApp = async () => {
+// 异步挂载应用
+const mountApp = async () => {
   try {
-    // 1. 首先异步加载应用设置
-    const appSettingsStore = useAppSettingsStore();
-    const settings = await appSettingsStore.load();
-    logger.info("应用设置加载完成");
-
-    // 2. 立即应用日志配置（必须在其他初始化步骤之前）
-    applyLogConfig(settings);
-
-    // 3. 初始化主题
-    await initTheme();
-    logger.info("主题初始化完成");
-
-    // 3.5 预注册 Monaco Shiki 主题（异步，不阻塞启动）
-    initMonacoShikiThemes().catch(() => {});
-
-    // 4. 自动注册工具服务（区分优先级加载）
-    let priorityToolId: string | undefined;
-
-    // 如果是分离窗口，尝试从路径解析优先级工具 ID
-    // 路径格式如: /detached-component/llm-chat:chat-area
-    if (isDetachedComponentLoader() || isDetachedWindow()) {
-      const parts = window.location.pathname.split("/");
-      const lastPart = parts[parts.length - 1]; // llm-chat:chat-area
-      if (lastPart && lastPart.includes(":")) {
-        priorityToolId = lastPart.split(":")[0];
-      } else if (lastPart) {
-        priorityToolId = lastPart;
-      }
-    }
-
-    // 第一阶段：注册优先级工具（如果是分离窗口）或全量注册（如果是主窗口）
-    const resumeLoading = await autoRegisterServices(priorityToolId);
-    logger.info("工具服务第一阶段注册完成", { priorityToolId });
-
-    // 4.5 执行启动项任务 (仅在非分离窗口运行)
-    if (!isDetachedComponentLoader() && !isDetachedWindow()) {
-      startupManager.run().catch((err) => {
-        moduleErrorHandler.error(err, "执行启动项任务失败");
-      });
-    }
-
-    // 5. 初始化动态路由（必须在 Pinia 注册后，且在服务注册后）
+    // 1. 初始化动态路由（必须在 Pinia 注册后）
+    // 注意：此时 autoRegisterServices 尚未运行，但 initDynamicRoutes 会设置一个 watch
+    // 监听 toolsStore.tools 的变化，从而在后续工具注册时自动添加路由。
     initDynamicRoutes();
     logger.info("动态路由初始化完成");
 
-    // 6. 注册 Router（必须在动态路由初始化之后，这样插件路由才能被识别）
+    // 2. 注册 Router
     app.use(router);
     logger.info("Router 注册完成");
 
-    // 7. 挂载 Vue 应用
+    // 3. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
-
-    // 8. 第二阶段：在应用挂载后，异步加载剩余的工具和插件
-    if (priorityToolId) {
-      // 延迟加载，不阻塞首屏交互
-      setTimeout(() => {
-        resumeLoading().catch((err) => {
-          logger.error("异步加载剩余服务失败", err);
-        });
-      }, 1000);
-    }
   } catch (error) {
-    // 可以在这里显示一个全局的错误提示
     errorHandler.handle(error, {
       module: "Main",
       level: ErrorLevel.CRITICAL,
-      userMessage: "应用启动失败，请检查配置或联系支持。",
+      userMessage: "应用挂载失败，请检查配置或联系支持。",
     });
   }
 };
 
 logger.info("应用启动", { version: packageJson.version });
-initializeApp();
+mountApp();
 
 // 在 Vue 应用挂载后执行
 window.addEventListener("DOMContentLoaded", () => {
@@ -329,8 +230,6 @@ window.addEventListener("DOMContentLoaded", () => {
         onClick: () => {
           if (targetRoute) {
             router.push(targetRoute);
-            // 考虑如何将文件内容传递给目标组件
-            // 目前只跳转，内容读取需要组件内部实现
           }
         },
       });

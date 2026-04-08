@@ -1,17 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
+import { computed, onMounted, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
 import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useTheme } from "../composables/useTheme";
-import { useDetachedManager } from "../composables/useDetachedManager";
-import { initThemeAppearance, cleanupThemeAppearance } from "../composables/useThemeAppearance";
 import { createModuleLogger } from "../utils/logger";
-import { useAppSettingsStore } from "../stores/appSettingsStore";
-import { applyThemeColors } from "../utils/themeColors";
 import { useToolsStore } from "../stores/tools";
+import { useAppInitStore } from "../stores/appInitStore";
+import { useRootInit } from "../composables/useRootInit";
+import { useDetachedPreview } from "../composables/useDetachedPreview";
 import TitleBar from "../components/TitleBar.vue";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import GlobalProviders from "../components/GlobalProviders.vue";
@@ -19,17 +15,22 @@ import { createModuleErrorHandler } from "../utils/errorHandler";
 
 const logger = createModuleLogger("DetachedWindowContainer");
 const errorHandler = createModuleErrorHandler("DetachedWindowContainer");
-const appSettingsStore = useAppSettingsStore();
 
 const route = useRoute();
 const { currentTheme } = useTheme();
-const { initialize: initializeDetachedManager } = useDetachedManager();
 const toolsStore = useToolsStore();
+const appInitStore = useAppInitStore();
+
+// 初始化根组件逻辑
+useRootInit();
+
+// 初始化预览/固定模式逻辑
+const { isPreview } = useDetachedPreview();
 
 // 从路由参数获取工具路径
 const toolPath = computed(() => `/${route.params.toolPath as string}`);
 
-// 从工具配置中查找对应的工具（支持内置工具和插件工具）
+// 从工具配置中查找对应的工具
 const toolConfig = computed(() => toolsStore.tools.find((t) => t.path === toolPath.value));
 
 // 工具标题
@@ -41,51 +42,24 @@ const toolIcon = computed(() => toolConfig.value?.icon);
 // 动态加载的工具组件
 const toolComponent = shallowRef<Component | null>(null);
 
-const isPreview = ref(true);
-
 // 判断是否需要显示标题栏
 const showTitleBar = computed(() => true);
 
 onMounted(async () => {
-  // 初始化统一的分离窗口管理器
-  await initializeDetachedManager();
-  // 初始化主题外观系统（包括壁纸、透明度、模糊等）
-  try {
-    await initThemeAppearance();
-    logger.info("分离窗口主题外观系统已初始化");
-  } catch (error) {
-    logger.warn("初始化分离窗口主题外观失败", { error });
-  }
-  // 加载并应用主题色系统
-  try {
-    const settings = appSettingsStore.settings;
-    applyThemeColors({
-      primary: settings.themeColor,
-      success: settings.successColor,
-      warning: settings.warningColor,
-      danger: settings.dangerColor,
-      info: settings.infoColor,
-    });
-    logger.info("分离窗口主题色已应用", {
-      themeColor: settings.themeColor,
-      successColor: settings.successColor,
-      warningColor: settings.warningColor,
-      dangerColor: settings.dangerColor,
-      infoColor: settings.infoColor,
-    });
-  } catch (error) {
-    logger.warn("应用分离窗口主题色失败", { error });
+  // 解析优先级工具 ID
+  const parts = window.location.pathname.split("/");
+  const lastPart = parts[parts.length - 1];
+  let priorityToolId: string | undefined;
+  if (lastPart && lastPart.includes(":")) {
+    priorityToolId = lastPart.split(":")[0];
+  } else if (lastPart) {
+    priorityToolId = lastPart;
   }
 
-  // 如果是 llm-chat 工具窗口，启动状态消费者
-  // 这确保分离的工具窗口能从主窗口接收完整状态，成为主窗口的副本
-  // if (toolPath.value === '/llm-chat') {
-  //   logger.info('启动 LLM Chat 状态消费者（作为主窗口的副本）');
-  //   useLlmChatStateConsumer();
-  // }
+  // 初始化分离应用
+  await appInitStore.initDetachedApp(priorityToolId);
 
   // 监听 tools store 的就绪状态
-  // 分离窗口需要等待主窗口的插件加载完成后才能正确渲染插件 UI
   watch(
     () => toolsStore.isReady,
     (isReady) => {
@@ -110,54 +84,12 @@ onMounted(async () => {
             showToUser: false,
           });
         }
-      } else {
-        logger.info("等待 Tools store 就绪...");
       }
     },
-    { immediate: true }
+    { immediate: true },
   );
 
-  // 检查窗口是否已经固定（用于刷新时恢复状态）
-  const checkIfFinalized = async () => {
-    try {
-      const currentWindow = getCurrentWebviewWindow();
-      const label = currentWindow.label;
-      logger.info("检查窗口固定状态", { label });
-
-      const windows = await invoke<Array<{ id: string; label: string }>>("get_all_detached_windows");
-      const isFinalized = windows.some((w) => w.label === label);
-
-      logger.info("窗口固定状态检查结果", { label, isFinalized });
-
-      if (isFinalized) {
-        isPreview.value = false;
-        logger.info("窗口已固定，设置为最终模式");
-      } else {
-        isPreview.value = true;
-        logger.info("窗口未固定，保持预览模式");
-      }
-    } catch (error) {
-      errorHandler.handle(error, { userMessage: "检查窗口固定状态失败，默认使用预览模式", showToUser: false });
-      isPreview.value = true;
-    }
-  };
-
-  // 检查窗口是否已固定
-  await checkIfFinalized();
-
-  // 监听固定事件（用于拖拽后的固定）
-  await listen("finalize-component-view", () => {
-    logger.info("收到固定事件，切换到最终模式");
-    isPreview.value = false;
-  });
-
   logger.info("DetachedWindowContainer 初始化完成");
-});
-
-// 清理资源
-onUnmounted(() => {
-  cleanupThemeAppearance();
-  logger.info("DetachedWindowContainer 资源已清理");
 });
 </script>
 
@@ -167,28 +99,35 @@ onUnmounted(() => {
     :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
   >
     <GlobalProviders>
-      <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
+      <template v-if="appInitStore.isReady">
+        <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
 
-      <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
-        <Suspense v-if="toolComponent">
-          <component :is="toolComponent" />
-          <template #fallback>
-            <div class="loading-message">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <p>组件加载中...</p>
-            </div>
-          </template>
-        </Suspense>
-        <div v-else class="loading-message">
-          <p>加载中...</p>
+        <div class="tool-content" :class="{ 'no-titlebar': !showTitleBar }">
+          <Suspense v-if="toolComponent">
+            <component :is="toolComponent" />
+            <template #fallback>
+              <div class="loading-message">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <p>组件加载中...</p>
+              </div>
+            </template>
+          </Suspense>
+          <div v-else class="loading-message">
+            <p>加载中...</p>
+          </div>
         </div>
-      </div>
 
-      <!-- 预览模式提示 -->
-      <DetachPreviewHint :visible="isPreview" />
+        <!-- 预览模式提示 -->
+        <DetachPreviewHint :visible="isPreview" />
+      </template>
+      <div v-else class="loading-message">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+        <p>{{ appInitStore.statusText }}</p>
+      </div>
     </GlobalProviders>
   </div>
 </template>
+
 <style scoped>
 .detached-container {
   width: 100vw;
@@ -211,12 +150,10 @@ onUnmounted(() => {
   padding-top: 0;
 }
 
-/* 预览模式样式 - 半透明提示 */
 .preview-mode {
   opacity: 0.5;
 }
 
-/* 最终模式样式 - 完全不透明 */
 .final-mode {
   opacity: 1;
 }

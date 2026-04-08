@@ -1,106 +1,83 @@
 <template>
   <div class="home-page">
-    <!-- 骨架屏 -->
-    <template v-if="isLoading">
-      <div class="home-skeleton">
-        <!-- Header Skeleton -->
-        <div class="header-section">
-          <el-skeleton-item variant="text" style="width: 150px; height: 40px; margin-bottom: 20px" />
-          <el-skeleton-item variant="rect" style="width: 100%; max-width: 600px; height: 40px" />
-        </div>
-        <!-- Grid Skeleton -->
-        <div class="content-section">
-          <div class="tool-grid">
-            <el-skeleton v-for="i in 8" :key="i" style="height: 200px" animated>
-              <template #template>
-                <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
-              </template>
-            </el-skeleton>
-          </div>
-        </div>
-      </div>
-    </template>
-
     <!-- 实际内容 -->
-    <template v-else>
-      <!-- 固定的头部区域 -->
-      <div class="header-section">
-        <span class="title">AIO Hub</span>
+    <!-- 固定的头部区域 -->
+    <div class="header-section">
+      <span class="title">AIO Hub</span>
 
-        <!-- 搜索栏 -->
-        <div class="search-bar">
-          <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
-        </div>
-
-        <!-- 分类标签 -->
-        <div v-if="categories.length > 1" class="category-tabs">
-          <button
-            v-for="category in categories"
-            :key="category"
-            @click="selectedCategory = category"
-            :class="{ active: selectedCategory === category }"
-            class="category-tab"
-          >
-            {{ category }}
-          </button>
-        </div>
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
       </div>
 
-      <!-- 可滚动的内容区域 -->
-      <div class="content-section">
-        <div class="tool-grid">
-          <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
-          <component
-            :is="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
-            v-for="tool in filteredTools"
-            :key="tool.path"
-            :to="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
-            :class="['tool-card', { 'tool-card-detached': detachedManager.isDetached(getToolIdFromPath(tool.path)) }]"
-            @click="handleToolClick(tool.path)"
-          >
-            <!-- 已分离徽章（带下拉菜单） -->
-            <el-dropdown
-              v-if="detachedManager.isDetached(getToolIdFromPath(tool.path))"
-              class="detached-badge-dropdown"
-              trigger="hover"
-              @command="(command: string) => handleDropdownCommand(command, tool.path)"
-            >
-              <div class="detached-badge" @click.stop>
-                <el-icon><i-ep-full-screen /></el-icon>
-              </div>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-
-            <!-- 统一的图标容器 -->
-            <span class="icon-wrapper">
-              <component :is="tool.icon" />
-            </span>
-            <div class="tool-name">{{ tool.name }}</div>
-            <div class="tool-description">{{ tool.description }}</div>
-          </component>
-        </div>
-
-        <!-- 空状态 -->
-        <div v-if="filteredTools.length === 0" class="empty-state">
-          <div class="empty-icon">🔍</div>
-          <div class="empty-text">
-            {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
-          </div>
-          <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
-            前往设置页面配置工具
-          </el-button>
-        </div>
+      <!-- 分类标签 -->
+      <div v-if="categories.length > 1" class="category-tabs">
+        <button
+          v-for="category in categories"
+          :key="category"
+          @click="selectedCategory = category"
+          :class="{ active: selectedCategory === category }"
+          class="category-tab"
+        >
+          {{ category }}
+        </button>
       </div>
-    </template>
+    </div>
+
+    <!-- 可滚动的内容区域 -->
+    <div class="content-section">
+      <div class="tool-grid">
+        <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
+        <component
+          :is="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
+          v-for="tool in filteredTools"
+          :key="tool.path"
+          :to="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
+          :class="['tool-card', { 'tool-card-detached': detachedManager.isDetached(getToolIdFromPath(tool.path)) }]"
+          @click="handleToolClick(tool.path)"
+        >
+          <!-- 已分离徽章（带下拉菜单） -->
+          <el-dropdown
+            v-if="detachedManager.isDetached(getToolIdFromPath(tool.path))"
+            class="detached-badge-dropdown"
+            trigger="hover"
+            @command="(command: string) => handleDropdownCommand(command, tool.path)"
+          >
+            <div class="detached-badge" @click.stop>
+              <el-icon><i-ep-full-screen /></el-icon>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="cancel"> 取消分离 </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 统一的图标容器 -->
+          <span class="icon-wrapper">
+            <component :is="tool.icon" />
+          </span>
+          <div class="tool-name">{{ tool.name }}</div>
+          <div class="tool-description">{{ tool.description }}</div>
+        </component>
+      </div>
+
+      <!-- 空状态 -->
+      <div v-if="filteredTools.length === 0" class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">
+          {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
+        </div>
+        <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
+          前往设置页面配置工具
+        </el-button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, nextTick } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useDetachedManager } from "../composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
@@ -112,7 +89,6 @@ const toolsStore = useToolsStore();
 const appSettingsStore = useAppSettingsStore();
 const detachedManager = useDetachedManager();
 
-const isLoading = ref(true);
 // 搜索文本
 const searchText = ref("");
 
@@ -166,7 +142,7 @@ const filteredTools = computed(() => {
   if (searchText.value.trim()) {
     const search = searchText.value.toLowerCase();
     result = result.filter(
-      (tool) => tool.name.toLowerCase().includes(search) || tool.description?.toLowerCase().includes(search)
+      (tool) => tool.name.toLowerCase().includes(search) || tool.description?.toLowerCase().includes(search),
     );
   }
 
@@ -207,14 +183,8 @@ const handleDropdownCommand = async (command: string, toolPath: string) => {
 };
 
 onMounted(async () => {
-  isLoading.value = true;
-  try {
-    // 初始化统一的分离窗口管理器
-    await detachedManager.initialize();
-  } finally {
-    await nextTick();
-    isLoading.value = false;
-  }
+  // 初始化统一的分离窗口管理器
+  await detachedManager.initialize();
 });
 </script>
 

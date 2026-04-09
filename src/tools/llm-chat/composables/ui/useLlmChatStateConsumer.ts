@@ -42,6 +42,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   const userProfileStore = useUserProfileStore();
   const worldbookStore = useWorldbookStore();
   const bus = useWindowSyncBus();
+  const uiState = useLlmChatUiState();
 
   logger.info('初始化 LLM Chat 状态消费者', { syncAllSessions });
 
@@ -100,9 +101,8 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   watch(syncedCurrentAgentId, (newId) => {
     if (newId) {
       logger.info('接收到 currentAgentId 同步数据', { agentId: newId });
-      // 正确的做法：更新 useLlmChatUiState 提供的 ref
-      const { currentAgentId: uiCurrentAgentId } = useLlmChatUiState();
-      uiCurrentAgentId.value = newId;
+      // 更新单例状态，不再在异步回调中重新调用 useLlmChatUiState
+      uiState.currentAgentId.value = newId;
     }
   });
 

@@ -9,7 +9,7 @@
  * 2. 提供一系列函数，将组件的操作请求通过 WindowSyncBus 代理到主窗口。
  * 3. 不再包含任何状态同步或数据填充逻辑。
  */
-import { computed, onUnmounted } from "vue";
+import { computed, onUnmounted, getCurrentInstance } from "vue";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -84,9 +84,11 @@ export function useDetachedChatArea() {
     return agentId ? agentStore.getAgentById(agentId)?.modelId : undefined;
   });
 
-  onUnmounted(() => {
-    logger.info("DetachedChatArea composable 已卸载");
-  });
+  if (getCurrentInstance()) {
+    onUnmounted(() => {
+      logger.info("DetachedChatArea composable 已卸载");
+    });
+  }
 
   return {
     // 状态（直接从 Store 读取）

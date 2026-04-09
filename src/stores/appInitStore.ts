@@ -59,8 +59,9 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(25, "配置界面主题...");
       await initTheme();
 
-      // 异步初始化 Monaco Shiki 主题，不阻塞
-      initMonacoShikiThemes().catch(() => {});
+      // 初始化 Monaco Shiki 主题
+      setProgress(30, "初始化编辑器主题...");
+      await initMonacoShikiThemes();
 
       // 4. 自动注册工具服务
       setProgress(40, "正在扫描插件和工具...");
@@ -121,8 +122,12 @@ export const useAppInitStore = defineStore("appInit", () => {
       applyLogConfig(settings);
 
       // 3. 初始化主题
-      setProgress(30, "初始化主题...");
+      setProgress(25, "初始化主题...");
       await initTheme();
+
+      // 4. 初始化编辑器主题
+      setProgress(35, "初始化编辑器主题...");
+      await initMonacoShikiThemes();
 
       // 4. 自动注册工具服务（第一阶段）
       setProgress(50, "加载工具服务...");

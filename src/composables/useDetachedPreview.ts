@@ -27,18 +27,22 @@ export function useDetachedPreview() {
     }
   }
 
+  let unlistenFn: (() => void) | null = null;
+
   onMounted(async () => {
     await checkIfFinalized();
 
     // 监听窗口被固定的事件
-    const unlisten = await listen("finalize-component-view", () => {
+    unlistenFn = await listen("finalize-component-view", () => {
       logger.info("收到固定窗口事件，切换预览模式");
       isPreview.value = false;
     });
+  });
 
-    onUnmounted(() => {
-      unlisten();
-    });
+  onUnmounted(() => {
+    if (unlistenFn) {
+      unlistenFn();
+    }
   });
 
   return { isPreview, checkIfFinalized };

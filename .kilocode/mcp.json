@@ -1,1 +1,1 @@
-{"mcpServers":{"gitnexus":{"command":"bunx","args":["gitnexus","mcp"],"alwaysAllow":["context","query"]}}}
+{"mcpServers":{"gitnexus":{"command":"bunx","args":["gitnexus","mcp"],"alwaysAllow":["context","query","detect_changes"]}}}

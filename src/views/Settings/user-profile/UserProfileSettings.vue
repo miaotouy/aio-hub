@@ -47,7 +47,7 @@
         </template>
 
         <UserProfileForm
-          v-model="editForm"
+          v-model="(editForm as any)"
           :profile-id="editForm.id"
           :show-upload="true"
           :show-clear="true"
@@ -133,8 +133,12 @@ const selectedProfile = computed(() => {
 });
 
 // 选择档案
-const selectProfile = (profileId: string) => {
+const selectProfile = async (profileId: string) => {
   selectedProfileId.value = profileId;
+
+  // ★ 触发按需加载：selectGlobalProfile 内部会处理详情加载
+  await userProfileStore.selectGlobalProfile(profileId);
+
   const profile = userProfileStore.profiles.find((p) => p.id === profileId);
   if (profile) {
     editForm.value = JSON.parse(JSON.stringify(profile));
@@ -171,7 +175,8 @@ const saveCurrentProfile = () => {
     customMessage.error("请输入档案名称");
     return false;
   }
-  if (!editForm.value.content.trim()) {
+  const content = editForm.value.content || "";
+  if (!content.trim()) {
     customMessage.error("请输入档案描述");
     return false;
   }
@@ -181,7 +186,7 @@ const saveCurrentProfile = () => {
 
   if (!existingProfile) {
     // 新档案：创建
-    userProfileStore.createProfile(editForm.value.name.trim(), editForm.value.content.trim(), {
+    userProfileStore.createProfile(editForm.value.name.trim(), content.trim(), {
       displayName: editForm.value.displayName?.trim() || undefined,
       icon: editForm.value.icon,
       // 保存富文本样式和正则配置
@@ -195,7 +200,7 @@ const saveCurrentProfile = () => {
       name: editForm.value.name.trim(),
       displayName: editForm.value.displayName?.trim() || undefined,
       icon: editForm.value.icon?.trim() || undefined,
-      content: editForm.value.content.trim(),
+      content: content.trim(),
       // 保存富文本样式和正则配置
       richTextStyleBehavior: editForm.value.richTextStyleBehavior,
       richTextStyleOptions: editForm.value.richTextStyleOptions,

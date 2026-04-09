@@ -172,7 +172,7 @@ export function useChatStorageSeparated() {
 
       logger.debug("会话保存成功", {
         sessionId: session.id,
-        nodeCount: Object.keys(session.nodes).length,
+        nodeCount: Object.keys(session.nodes || {}).length,
       });
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -242,7 +242,7 @@ export function useChatStorageSeparated() {
       name: session.name,
       updatedAt: session.updatedAt,
       createdAt: session.createdAt,
-      messageCount: Object.keys(session.nodes).length - 1, // 排除根节点
+      messageCount: Object.keys(session.nodes || {}).length - 1, // 排除根节点
       displayAgentId: session.displayAgentId,
     };
   }
@@ -288,31 +288,28 @@ export function useChatStorageSeparated() {
   }
 
   /**
-   * 加载所有会话（兼容接口）
+   * 加载会话索引（轻量级，仅包含元数据）
    */
-  async function loadSessions(): Promise<{
-    sessions: ChatSession[];
+  async function loadSessionsIndex(): Promise<{
+    sessions: SessionIndexItem[];
     currentSessionId: string | null;
   }> {
     try {
-      logger.debug("开始加载所有会话");
+      logger.debug("开始加载会话索引");
 
       // 1. 加载索引
       let index = await loadIndex();
 
       // 2. 迁移旧版本索引（v2.0.0 只有 sessionIds）
-      // 定义旧版本索引接口用于类型安全访问
       interface LegacyIndex {
         sessionIds?: string[];
       }
-      
+
       if (!index.sessions && (index as unknown as LegacyIndex).sessionIds) {
         logger.info("检测到旧版本索引，开始迁移");
         const oldIds = (index as unknown as LegacyIndex).sessionIds as string[];
         const sessions = await Promise.all(oldIds.map((id) => loadSession(id)));
-        index.sessions = sessions
-          .filter((s): s is ChatSession => s !== null)
-          .map((s) => createIndexItem(s));
+        index.sessions = sessions.filter((s): s is ChatSession => s !== null).map((s) => createIndexItem(s));
         index.version = "1.1.2";
         await saveIndex(index);
         logger.info("索引迁移完成", { count: index.sessions.length });
@@ -321,72 +318,77 @@ export function useChatStorageSeparated() {
       // 3. 同步索引（自动发现新文件并加载其元数据）
       const syncedItems = await syncIndex(index);
 
-      // 4. 并行加载所有会话的完整数据
-      const sessionPromises = syncedItems.map((item) => loadSession(item.id));
-      const sessionResults = await Promise.all(sessionPromises);
-
-      // 5. 过滤掉加载失败的会话
-      const sessions = sessionResults.filter((s): s is ChatSession => s !== null);
-
-      // 6. 验证数据格式：检查是否是树形结构
-      const validSessions = sessions.filter(
-        (session) =>
-          session.nodes !== undefined &&
-          session.rootNodeId !== undefined &&
-          session.activeLeafId !== undefined
-      );
-
-      if (validSessions.length !== sessions.length) {
-        logger.warn("部分会话格式无效，已过滤", {
-          total: sessions.length,
-          valid: validSessions.length,
-          invalid: sessions.length - validSessions.length,
-        });
-      }
-
-      // 7. 如果索引被同步过，保存更新后的索引
-      const validItems = validSessions.map((s) => createIndexItem(s));
+      // 4. 如果索引被同步过，保存更新后的索引
       if (
         syncedItems.length !== index.sessions.length ||
         !syncedItems.every((item, i) => item.id === index.sessions[i]?.id)
       ) {
-        index.sessions = validItems;
+        index.sessions = syncedItems;
         await saveIndex(index);
       }
 
-      logger.info(`加载了 ${validSessions.length} 个会话`, {
-        currentSessionId: index.currentSessionId,
-      });
-
-      logger.debug(
-        "会话列表详情",
-        {
-          sessions: validSessions.map((s) => ({
-            id: s.id,
-            name: s.name,
-            messages: Object.keys(s.nodes).length,
-          })),
-        },
-        true
-      );
-
       return {
-        sessions: validSessions,
+        sessions: syncedItems,
         currentSessionId: index.currentSessionId,
       };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载所有会话失败", showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "加载会话索引失败", showToUser: false });
       return { sessions: [], currentSessionId: null };
     }
   }
 
   /**
+   * 加载所有会话（全量加载，已标记为重型操作）
+   * @deprecated 请优先使用 loadSessionsIndex + loadSession 组合
+   */
+  async function loadSessionsAll(): Promise<{
+    sessions: ChatSession[];
+    currentSessionId: string | null;
+  }> {
+    try {
+      logger.debug("开始全量加载所有会话");
+
+      // 1. 先加载索引元数据
+      const { sessions: indexItems, currentSessionId } = await loadSessionsIndex();
+
+      // 2. 并行加载所有会话的完整数据
+      const sessionPromises = indexItems.map((item) => loadSession(item.id));
+      const sessionResults = await Promise.all(sessionPromises);
+
+      // 3. 过滤掉加载失败的会话
+      const sessions = sessionResults.filter((s): s is ChatSession => s !== null);
+
+      // 4. 验证数据格式：检查是否是树形结构
+      const validSessions = sessions.filter(
+        (session) =>
+          session.nodes !== undefined && session.rootNodeId !== undefined && session.activeLeafId !== undefined,
+      );
+
+      logger.info(`全量加载了 ${validSessions.length} 个会话`);
+
+      return {
+        sessions: validSessions,
+        currentSessionId,
+      };
+    } catch (error) {
+      errorHandler.handle(error as Error, { userMessage: "全量加载会话失败", showToUser: false });
+      return { sessions: [], currentSessionId: null };
+    }
+  }
+
+  /**
+   * 加载所有会话（兼容接口，目前指向全量加载）
+   */
+  async function loadSessions(): Promise<{
+    sessions: ChatSession[];
+    currentSessionId: string | null;
+  }> {
+    return await loadSessionsAll();
+  }
+  /**
    * 保存单个会话并更新索引
    */
-  async function persistSession(
-    session: ChatSession,
-    currentSessionId: string | null
-  ): Promise<void> {
+  async function persistSession(session: ChatSession, currentSessionId: string | null): Promise<void> {
     try {
       logger.debug("保存单个会话", { sessionId: session.id });
 
@@ -423,15 +425,18 @@ export function useChatStorageSeparated() {
   /**
    * 保存所有会话（仅用于批量操作，如初始化）
    */
-  async function saveSessions(
-    sessions: ChatSession[],
-    currentSessionId: string | null
-  ): Promise<void> {
+  async function saveSessions(sessions: ChatSession[], currentSessionId: string | null): Promise<void> {
     try {
-      logger.debug("开始批量保存所有会话", { sessionCount: sessions.length });
+      // 过滤掉详情未加载的会话，防止空数据覆盖磁盘文件
+      const sessionsWithDetails = sessions.filter(s => s.nodes !== undefined);
+      
+      logger.debug("开始批量保存会话", {
+        total: sessions.length,
+        toSave: sessionsWithDetails.length
+      });
 
-      // 1. 并行保存所有会话文件（强制写入）
-      await Promise.all(sessions.map((session) => saveSession(session, true)));
+      // 1. 并行保存已加载详情的会话文件（强制写入）
+      await Promise.all(sessionsWithDetails.map((session) => saveSession(session, true)));
 
       // 2. 更新索引（保存元数据）
       const index: SessionsIndex = {
@@ -530,6 +535,8 @@ export function useChatStorageSeparated() {
 
   return {
     loadSessions,
+    loadSessionsIndex,
+    loadSessionsAll,
     saveSessions,
     persistSession, // 新增：单会话保存
     deleteSession,

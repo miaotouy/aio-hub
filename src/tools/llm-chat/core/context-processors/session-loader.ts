@@ -36,7 +36,7 @@ function postProcessMarkdown(md: string): string {
  */
 function getActiveBranchHistory(session: PipelineContext["session"]): ChatMessageNode[] {
   const history: ChatMessageNode[] = [];
-  let currentId: string | null = session.activeLeafId;
+  let currentId: string | null = session.activeLeafId || null;
 
   // 1. 收集被压缩节点 ID (这些节点应该被隐藏)
   const hiddenNodeIds = new Set<string>();
@@ -47,7 +47,7 @@ function getActiveBranchHistory(session: PipelineContext["session"]): ChatMessag
   // 所以从 activeLeafId 往上遍历时，会先遇到 Summary 节点。
   let tempId: string | null = currentId;
   while (tempId) {
-    const node: ChatMessageNode = session.nodes[tempId];
+    const node: ChatMessageNode = (session.nodes || {})[tempId];
     if (!node) break;
 
     if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
@@ -59,7 +59,7 @@ function getActiveBranchHistory(session: PipelineContext["session"]): ChatMessag
 
   // 2. 第二遍遍历：构建历史记录并过滤
   while (currentId) {
-    const node: ChatMessageNode | undefined = session.nodes[currentId];
+    const node: ChatMessageNode | undefined = session.nodes?.[currentId];
     if (!node) {
       logger.warn("提取历史记录中断：找不到节点", { nodeId: currentId });
       break;

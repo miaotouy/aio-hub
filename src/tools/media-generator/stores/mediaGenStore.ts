@@ -173,7 +173,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     taskManager.removeTask(taskId);
     const result = branchManager.deleteMessage(currentSession.value, taskId);
     if (result.success) {
-      activeLeafId.value = currentSession.value.activeLeafId;
+      activeLeafId.value = currentSession.value.activeLeafId || '';
       persistence.persist();
     }
   };
@@ -228,8 +228,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     sessions.value.unshift(session);
     currentSessionId.value = session.id;
     nodes.value = session.nodes;
-    rootNodeId.value = session.rootNodeId;
-    activeLeafId.value = session.activeLeafId;
+    rootNodeId.value = session.rootNodeId || '';
+    activeLeafId.value = session.activeLeafId || '';
     inputPrompt.value = "";
     currentConfig.value.activeType = "image";
     await sessionManager.persistSession(session);

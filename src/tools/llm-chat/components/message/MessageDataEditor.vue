@@ -81,7 +81,7 @@ watch(
   (isOpening) => {
     if (isOpening && props.messageId) {
       const session = store.currentSession;
-      if (session && session.nodes[props.messageId]) {
+      if (session && session.nodes && session.nodes[props.messageId]) {
         const node = session.nodes[props.messageId];
         // 保存原始数据用于比较
         originalNodeData.value = JSON.parse(JSON.stringify(node));

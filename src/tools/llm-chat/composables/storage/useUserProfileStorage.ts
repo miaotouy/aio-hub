@@ -191,7 +191,6 @@ export function useUserProfileStorage() {
         await saveProfile(profile, true);
       }
 
-      // logger.debug('用户档案加载成功', { profileId, name: profile.name });
       return profile;
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -202,6 +201,7 @@ export function useUserProfileStorage() {
       return null;
     }
   }
+
   /**
    * 确保用户档案目录存在
    */
@@ -462,11 +462,14 @@ export function useUserProfileStorage() {
   }
 
   /**
-   * 加载所有用户档案
+   * 加载用户档案索引（轻量级，仅包含元数据）
    */
-  const loadProfiles = async (): Promise<UserProfile[]> => {
+  const loadProfilesIndex = async (): Promise<{
+    profiles: ProfileIndexItem[];
+    globalProfileId: string | null;
+  }> => {
     try {
-      logger.debug("开始加载所有用户档案");
+      logger.debug("开始加载用户档案索引");
 
       // 在加载前执行数据迁移
       await runMigration();
@@ -477,33 +480,56 @@ export function useUserProfileStorage() {
       // 2. 同步索引（自动发现新文件并加载其元数据）
       const syncedItems = await syncIndex(index);
 
-      // 3. 并行加载所有档案的完整数据
-      const profilePromises = syncedItems.map((item) => loadProfile(item.id));
-      const profileResults = await Promise.all(profilePromises);
-
-      // 4. 过滤掉加载失败的档案
-      const profiles = profileResults.filter((p): p is UserProfile => p !== null);
-
-      // 5. 如果索引被同步过，保存更新后的索引
-      const validItems = profiles.map((p) => createIndexItem(p));
+      // 3. 如果索引被同步过，保存更新后的索引
       if (
         syncedItems.length !== index.profiles.length ||
         !syncedItems.every((item, i) => item.id === index.profiles[i]?.id)
       ) {
-        index.profiles = validItems;
+        index.profiles = syncedItems;
         await saveIndex(index);
       }
 
-      logger.info(`加载了 ${profiles.length} 个用户档案`, {
+      return {
+        profiles: syncedItems,
         globalProfileId: index.globalProfileId,
-        profiles: profiles.map((p) => ({ id: p.id, name: p.name })),
-      });
+      };
+    } catch (error) {
+      errorHandler.handle(error as Error, { userMessage: "加载用户档案索引失败", showToUser: false });
+      return { profiles: [], globalProfileId: null };
+    }
+  };
 
+  /**
+   * 加载所有用户档案（全量加载，已标记为重型操作）
+   * @deprecated 请优先使用 loadProfilesIndex + loadProfile 组合
+   */
+  const loadProfilesAll = async (): Promise<UserProfile[]> => {
+    try {
+      logger.debug("开始全量加载所有用户档案");
+
+      // 1. 先加载索引元数据
+      const { profiles: indexItems } = await loadProfilesIndex();
+
+      // 2. 并行加载所有档案的完整数据
+      const profilePromises = indexItems.map((item) => loadProfile(item.id));
+      const profileResults = await Promise.all(profilePromises);
+
+      // 3. 过滤掉加载失败的档案
+      const profiles = profileResults.filter((p): p is UserProfile => p !== null);
+
+      logger.info(`全量加载了 ${profiles.length} 个用户档案`);
       return profiles;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载所有用户档案失败", showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "全量加载用户档案失败", showToUser: false });
       return [];
     }
+  };
+
+  /**
+   * 加载所有用户档案（兼容接口，目前指向全量加载）
+   */
+  const loadProfiles = async (): Promise<UserProfile[]> => {
+    return await loadProfilesAll();
   };
 
   /**
@@ -547,10 +573,16 @@ export function useUserProfileStorage() {
    */
   const saveProfiles = async (profiles: UserProfile[]): Promise<void> => {
     try {
-      logger.debug("开始批量保存所有用户档案", { profileCount: profiles.length });
+      // 过滤掉详情未加载的用户档案，防止空数据覆盖磁盘文件
+      const profilesWithDetails = profiles.filter(p => p.content !== undefined);
 
-      // 1. 并行保存所有档案文件
-      await Promise.all(profiles.map((profile) => saveProfile(profile, true)));
+      logger.debug("开始批量保存用户档案", {
+        total: profiles.length,
+        toSave: profilesWithDetails.length
+      });
+
+      // 1. 并行保存已加载详情的档案文件
+      await Promise.all(profilesWithDetails.map((profile) => saveProfile(profile, true)));
 
       // 2. 更新索引
       const index = await loadIndex();
@@ -634,9 +666,12 @@ export function useUserProfileStorage() {
 
   return {
     loadProfiles,
+    loadProfilesIndex,
+    loadProfilesAll,
     saveProfiles,
-    persistProfile, // 新增：单档案保存
-    deleteProfile, // 新增：删除档案
+    persistProfile,
+    deleteProfile,
+    loadProfile,
     loadSettings,
     saveSettings,
     getProfileDirPath,

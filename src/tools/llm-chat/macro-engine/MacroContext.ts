@@ -112,11 +112,11 @@ export function extractContextFromSession(
   
   // 内部实现路径回溯，避免依赖 useNodeManager (Composable)
   const enabledNodes: ChatMessageNode[] = [];
-  let currentId: string | null = startNodeId;
+  let currentId: string | null = startNodeId || null;
   const visited = new Set<string>(); // 防止循环引用导致的死循环
 
   while (currentId) {
-    const node: ChatMessageNode | undefined = session.nodes[currentId];
+    const node: ChatMessageNode | undefined = session.nodes?.[currentId];
     if (!node) break;
 
     if (visited.has(currentId)) break;

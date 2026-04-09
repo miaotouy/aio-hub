@@ -369,9 +369,10 @@ const handleExportBranch = async (options: ExportOptions) => {
       // Raw 格式：导出原始节点数据
       const branchNodes: Record<string, ChatMessageNode> = {};
       let currentId: string | null = props.message.id;
+      const sessionNodes = session.nodes;
 
-      while (currentId !== null) {
-        const node: ChatMessageNode | undefined = session.nodes[currentId];
+      while (currentId !== null && sessionNodes) {
+        const node: ChatMessageNode | undefined = sessionNodes[currentId];
         if (node) {
           branchNodes[currentId] = node;
         }

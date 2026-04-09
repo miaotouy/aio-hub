@@ -465,10 +465,11 @@ const handleCopyArgs = (args?: Record<string, any>) => {
 
 // ===== 菜单栏相关计算 =====
 const siblings = computed(() => {
-  if (!props.session || !props.message.parentId) return [props.message];
-  const parent = props.session.nodes[props.message.parentId];
+  const nodes = props.session?.nodes;
+  if (!props.session || !nodes || !props.message.parentId) return [props.message];
+  const parent = nodes[props.message.parentId];
   if (!parent) return [props.message];
-  return parent.childrenIds.map((id) => props.session!.nodes[id]).filter(Boolean);
+  return parent.childrenIds.map((id) => nodes[id]).filter(Boolean);
 });
 
 const currentSiblingIndex = computed(() => {

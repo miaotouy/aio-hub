@@ -14,7 +14,7 @@ export function extractRelationChange(
   const newParentId = operation === 'create' ? node.parentId : null;
   const affectedParents: NodeRelationChange["affectedParents"] = {};
 
-  if (oldParentId) {
+  if (oldParentId && session.nodes) {
     const oldParent = session.nodes[oldParentId];
     if (oldParent) {
       affectedParents[oldParentId] = {
@@ -24,7 +24,7 @@ export function extractRelationChange(
     }
   }
 
-  if (newParentId) {
+  if (newParentId && session.nodes) {
     const newParent = session.nodes[newParentId];
     if (newParent) {
       affectedParents[newParentId] = {
@@ -50,6 +50,7 @@ export function captureRelationChangesForGraft(
   nodeId: string,
   newParentId: string
 ): NodeRelationChange[] {
+  if (!session.nodes) return [];
   const node = session.nodes[nodeId];
   if (!node) return [];
   const oldParentId = node.parentId;
@@ -65,7 +66,7 @@ export function captureRelationChangesForGraft(
     }
   }
 
-  const newParent = session.nodes[newParentId];
+  const newParent = session.nodes?.[newParentId];
   if (newParent) {
     affectedParents[newParentId] = {
       oldChildren: [...newParent.childrenIds],

@@ -46,7 +46,7 @@ export function useGraphActions(
       return;
     }
 
-    const node = session.nodes[nodeId];
+    const node = session.nodes ? session.nodes[nodeId] : undefined;
     if (!node) return;
 
     // 1. 创建快照
@@ -97,13 +97,13 @@ export function useGraphActions(
     }
 
     // 使用 JSON 序列化来创建快照，避免 structuredClone 处理 Vue Proxy 或特殊对象时出错
-    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
+    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
     const success = branchManager.editMessage(session, nodeId, newContent, attachments);
 
     if (success) {
       // 手动更新时间戳
-      session.nodes[nodeId].updatedAt = new Date().toISOString();
-      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
+      session.nodes![nodeId].updatedAt = new Date().toISOString();
+      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
       const delta: HistoryDelta = {
         type: 'update',
         payload: { nodeId, previousNodeState, finalNodeState },
@@ -162,7 +162,7 @@ export function useGraphActions(
       if (oldLeafId !== newLeafId) {
         const delta: HistoryDelta = {
           type: 'active_leaf_change',
-          payload: { oldLeafId, newLeafId },
+          payload: { oldLeafId: oldLeafId || '', newLeafId: newLeafId || '' },
         };
         historyManager.recordHistory('ACTIVE_NODE_SWITCH', [delta], {
           sourceNodeId: oldLeafId,
@@ -202,7 +202,7 @@ export function useGraphActions(
     const newNodeId = branchManager.createBranch(session, sourceNodeId);
 
     if (newNodeId) {
-      const newNode = session.nodes[newNodeId];
+      const newNode = session.nodes ? session.nodes[newNodeId] : undefined;
       if (newNode) {
         const relationChange = extractRelationChange(session, newNode, 'create');
         const delta: HistoryDelta = {
@@ -232,11 +232,11 @@ export function useGraphActions(
       return;
     }
 
-    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
+    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
     const success = branchManager.toggleNodeEnabled(session, nodeId);
 
     if (success) {
-      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes[nodeId])));
+      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
       const delta: HistoryDelta = {
         type: 'update',
         payload: { nodeId, previousNodeState, finalNodeState },
@@ -307,7 +307,7 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
-    const node = session.nodes[nodeId];
+    const node = session.nodes ? session.nodes[nodeId] : undefined;
     if (!node) return;
 
     // 更新 metadata

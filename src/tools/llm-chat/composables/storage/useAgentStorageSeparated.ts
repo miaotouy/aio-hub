@@ -387,6 +387,7 @@ export function useAgentStorageSeparated() {
       tags: agent.tags,
     };
   }
+
   /**
    * 同步索引：合并索引中的 ID 和目录中的文件，加载新文件的元数据
    */
@@ -506,11 +507,14 @@ export function useAgentStorageSeparated() {
   }
 
   /**
-   * 加载所有智能体（兼容接口）
+   * 加载智能体索引（轻量级，仅包含元数据）
    */
-  async function loadAgents(): Promise<ChatAgent[]> {
+  async function loadAgentsIndex(): Promise<{
+    agents: AgentIndexItem[];
+    currentAgentId: string | null;
+  }> {
     try {
-      logger.debug("开始加载所有智能体");
+      logger.debug("开始加载智能体索引");
 
       // 在加载前执行数据迁移
       await runMigration();
@@ -521,41 +525,58 @@ export function useAgentStorageSeparated() {
       // 2. 同步索引（自动发现新文件并加载其元数据）
       const syncedItems = await syncIndex(index);
 
-      // 3. 并行加载所有智能体的完整数据
-      const agentPromises = syncedItems.map((item) => loadAgent(item.id));
-      const agentResults = await Promise.all(agentPromises);
-
-      // 4. 过滤掉加载失败的智能体
-      const agents = agentResults.filter((a): a is ChatAgent => a !== null);
-
-      // 5. 如果索引被同步过，保存更新后的索引
-      const validItems = agents.map((a) => createIndexItem(a));
+      // 3. 如果索引被同步过，保存更新后的索引
       if (
         syncedItems.length !== index.agents.length ||
         !syncedItems.every((item, i) => item.id === index.agents[i]?.id)
       ) {
-        index.agents = validItems;
+        index.agents = syncedItems;
         await saveIndex(index);
       }
 
-      logger.info(`加载了 ${agents.length} 个智能体`);
+      return {
+        agents: syncedItems,
+        currentAgentId: index.currentAgentId,
+      };
+    } catch (error) {
+      errorHandler.handle(error as Error, { userMessage: "加载智能体索引失败", showToUser: false });
+      return { agents: [], currentAgentId: null };
+    }
+  }
 
-      logger.debug(
-        "智能体加载详情",
-        {
-          count: agents.length,
-          fromFile_currentAgentId: index.currentAgentId,
-          agents: agents.map((a) => ({ id: a.id, name: a.name })),
-        },
-        true
-      );
+  /**
+   * 加载所有智能体（全量加载，已标记为重型操作）
+   * @deprecated 请优先使用 loadAgentsIndex + loadAgent 组合
+   */
+  async function loadAgentsAll(): Promise<ChatAgent[]> {
+    try {
+      logger.debug("开始全量加载所有智能体");
 
+      // 1. 先加载索引元数据
+      const { agents: indexItems } = await loadAgentsIndex();
+
+      // 2. 并行加载所有智能体的完整数据
+      const agentPromises = indexItems.map((item) => loadAgent(item.id));
+      const agentResults = await Promise.all(agentPromises);
+
+      // 3. 过滤掉加载失败的智能体
+      const agents = agentResults.filter((a): a is ChatAgent => a !== null);
+
+      logger.info(`全量加载了 ${agents.length} 个智能体`);
       return agents;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载所有智能体失败", showToUser: false });
+      errorHandler.handle(error as Error, { userMessage: "全量加载智能体失败", showToUser: false });
       return [];
     }
   }
+
+  /**
+   * 加载所有智能体（兼容接口，目前指向全量加载）
+   */
+  async function loadAgents(): Promise<ChatAgent[]> {
+    return await loadAgentsAll();
+  }
+
   /**
    * 保存单个智能体并更新索引
    */
@@ -593,10 +614,16 @@ export function useAgentStorageSeparated() {
    */
   async function saveAgents(agents: ChatAgent[]): Promise<void> {
     try {
-      logger.debug("开始批量保存所有智能体", { agentCount: agents.length });
+      // 过滤掉详情未加载的智能体，防止空数据覆盖磁盘文件
+      const agentsWithDetails = agents.filter(a => a.parameters !== undefined);
 
-      // 1. 并行保存所有智能体文件（强制写入）
-      await Promise.all(agents.map((agent) => saveAgent(agent, true)));
+      logger.debug("开始批量保存智能体", {
+        total: agents.length,
+        toSave: agentsWithDetails.length
+      });
+
+      // 1. 并行保存已加载详情的智能体文件（强制写入）
+      await Promise.all(agentsWithDetails.map((agent) => saveAgent(agent, true)));
 
       // 2. 更新索引（保存元数据）
       const index = await loadIndex();
@@ -694,8 +721,10 @@ export function useAgentStorageSeparated() {
 
   return {
     loadAgents,
+    loadAgentsIndex,
+    loadAgentsAll,
     saveAgents,
-    persistAgent, // 新增：单智能体保存
+    persistAgent,
     deleteAgent,
     loadAgent,
     saveAgent,

@@ -106,13 +106,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
   const currentActivePath = computed((): ChatMessageNode[] => {
     const session = currentSession.value;
-    if (!session) return [];
+    if (!session || !session.nodes || !session.activeLeafId) return [];
 
+    const nodes = session.nodes;
     const path: ChatMessageNode[] = [];
     let currentId: string | null = session.activeLeafId;
 
     while (currentId !== null) {
-      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      const node: ChatMessageNode | undefined = nodes[currentId];
       if (!node) {
         logger.warn("活动路径中断：节点不存在", {
           sessionId: session.id,
@@ -180,7 +181,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const currentMessageCount = computed((): number => {
     const session = currentSession.value;
     if (!session) return 0;
-    return Object.keys(session.nodes).length;
+    // 如果详情已加载，使用实时节点数；否则使用索引中缓存的数量
+    if (session.nodes) {
+      return Object.keys(session.nodes).length;
+    }
+    return (session.messageCount || 0) + 1; // +1 是因为 messageCount 排除根节点
   });
 
   // ==================== 历史记录管理 ====================
@@ -249,32 +254,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return sessionId;
   }
 
-  /**
-   * 切换当前会话
-   */
-  function switchSession(sessionId: string): void {
-    const session = sessions.value.find((s) => s.id === sessionId);
-    if (!session) {
-      logger.warn("切换会话失败：会话不存在", { sessionId });
-      return;
-    }
-
-    // ★ 确保切换到的会话有初始化的历史记录
-    if (session.history === undefined || session.historyIndex === undefined) {
-      // 临时设置当前会话ID，以便 historyManager 能正确操作
-      const originalSessionId = currentSessionId.value;
-      currentSessionId.value = session.id;
-      historyManager.clearHistory();
-      // 恢复原始ID，因为下面的代码会正确设置它
-      currentSessionId.value = originalSessionId;
-      logger.info("为旧会话初始化了历史堆栈", { sessionId });
-    }
-
-    currentSessionId.value = sessionId;
-    const sessionManager = useSessionManager();
-    sessionManager.updateCurrentSessionId(sessionId);
-    logger.info("切换会话", { sessionId, sessionName: session.name });
-  }
 
   /**
    * 删除会话
@@ -309,29 +288,98 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
-   * 从文件加载会话
-   */
-  async function loadSessions(): Promise<void> {
-    const sessionManager = useSessionManager();
-    const { sessions: loadedSessions, currentSessionId: loadedId } = await sessionManager.loadSessions();
-
-    sessions.value = loadedSessions;
-    currentSessionId.value = loadedId;
-
-    // 确保加载后的当前会话有历史记录
-    if (
-      currentSession.value &&
-      (currentSession.value.history === undefined || currentSession.value.historyIndex === undefined)
-    ) {
-      historyManager.clearHistory();
-      logger.info("为加载的当前会话初始化了历史堆栈", {
-        sessionId: currentSession.value.id,
-      });
-    }
-
-    await fillMissingTokenMetadata();
-  }
-
+   /**
+    * 从文件加载会话（优化后的按需加载）
+    */
+   async function loadSessions(): Promise<void> {
+     const sessionManager = useSessionManager();
+     const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
+     const storage = useChatStorageSeparated();
+ 
+     // 1. 先加载索引（轻量级）
+     const { sessions: indexItems, currentSessionId: loadedId } = await sessionManager.loadSessionsIndex();
+ 
+     // 2. 将元数据转换为轻量会话对象放入 store
+     sessions.value = indexItems.map(item => ({
+       id: item.id,
+       name: item.name,
+       updatedAt: item.updatedAt,
+       createdAt: item.createdAt,
+       messageCount: item.messageCount,
+       displayAgentId: item.displayAgentId,
+       // nodes 等详情字段设为 undefined，待按需加载
+       nodes: undefined,
+       rootNodeId: undefined,
+       activeLeafId: undefined,
+     }));
+ 
+     currentSessionId.value = loadedId;
+ 
+     // 3. 核心优化：只针对当前活跃会话加载完整详情
+     if (loadedId) {
+       const fullSession = await storage.loadSession(loadedId);
+       if (fullSession) {
+         const index = sessions.value.findIndex(s => s.id === loadedId);
+         if (index !== -1) {
+           sessions.value[index] = fullSession;
+           logger.info("当前活跃会话详情加载完成", { sessionId: loadedId });
+         }
+       }
+     }
+ 
+     // 确保加载后的当前会话有历史记录
+     if (
+       currentSession.value &&
+       (currentSession.value.history === undefined || currentSession.value.historyIndex === undefined)
+     ) {
+       historyManager.clearHistory();
+       logger.info("为加载的当前会话初始化了历史堆栈", {
+         sessionId: currentSession.value.id,
+       });
+     }
+ 
+     // 补充 token 元数据（仅对已加载详情的会话）
+     await fillMissingTokenMetadata();
+   }
+ 
+   /**
+    * 切换当前会话（增强：支持按需加载详情）
+    */
+   async function switchSession(sessionId: string): Promise<void> {
+     const session = sessions.value.find((s) => s.id === sessionId);
+     if (!session) {
+       logger.warn("切换会话失败：会话不存在", { sessionId });
+       return;
+     }
+ 
+     // ★ 按需加载详情：如果该会话尚未加载节点数据（通过 nodes 是否为 undefined 判断）
+     if (session.nodes === undefined) {
+       const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
+       const storage = useChatStorageSeparated();
+       const fullSession = await storage.loadSession(sessionId);
+       if (fullSession) {
+         const index = sessions.value.findIndex(s => s.id === sessionId);
+         sessions.value[index] = fullSession;
+         logger.info("会话详情按需加载完成", { sessionId });
+       }
+     }
+ 
+     // ★ 确保切换到的会话有初始化的历史记录
+     if (session.history === undefined || session.historyIndex === undefined) {
+       // 临时设置当前会话ID，以便 historyManager 能正确操作
+       const originalSessionId = currentSessionId.value;
+       currentSessionId.value = session.id;
+       historyManager.clearHistory();
+       // 恢复原始ID，因为下面的代码会正确设置它
+       currentSessionId.value = originalSessionId;
+       logger.info("为旧会话初始化了历史堆栈", { sessionId });
+     }
+ 
+     currentSessionId.value = sessionId;
+     const sessionManager = useSessionManager();
+     sessionManager.updateCurrentSessionId(sessionId);
+     logger.info("切换会话", { sessionId, sessionName: session.name });
+   }
   /**
    * 持久化会话到文件
    */
@@ -577,7 +625,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         controller.abort();
 
         // 在删除之前，先更新节点状态
-        if (session && session.nodes[nodeId]) {
+        if (session && session.nodes && session.nodes[nodeId]) {
           const node = session.nodes[nodeId];
           if (node.content?.trim()) {
             node.status = "complete";
@@ -610,7 +658,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
       // 在删除之前，先更新节点状态，防止 watch 误判为"僵死节点"
       const session = currentSession.value;
-      if (session && session.nodes[nodeId]) {
+      if (session && session.nodes && session.nodes[nodeId]) {
         const node = session.nodes[nodeId];
         // 如果节点已经有内容，标记为 complete；否则标记为 error 并设置正确的错误信息
         if (node.content?.trim()) {

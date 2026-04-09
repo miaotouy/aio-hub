@@ -87,6 +87,7 @@ export function useBranchManager() {
     newContent: string,
     attachments?: Asset[]
   ): boolean => {
+    if (!session.nodes) return false;
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn('编辑消息失败：节点不存在', { sessionId: session.id, nodeId });
@@ -135,6 +136,7 @@ export function useBranchManager() {
    * 用于在同一父节点下创建新的分支
    */
   const createBranch = (session: ChatSession, sourceNodeId: string): string | null => {
+    if (!session.nodes) return null;
     const sourceNode = session.nodes[sourceNodeId];
     if (!sourceNode) {
       logger.warn('创建分支失败：源节点不存在', { sessionId: session.id, sourceNodeId });
@@ -230,6 +232,7 @@ export function useBranchManager() {
    * 切换节点启用状态
    */
   const toggleNodeEnabled = (session: ChatSession, nodeId: string): boolean => {
+    if (!session.nodes) return false;
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn('切换节点状态失败：节点不存在', { sessionId: session.id, nodeId });
@@ -257,6 +260,7 @@ export function useBranchManager() {
   const prepareRegenerateLastMessage = (
     session: ChatSession
   ): { shouldRegenerate: boolean; userContent?: string; newActiveLeafId?: string } => {
+    if (!session.nodes || !session.activeLeafId) return { shouldRegenerate: false };
     const currentLeaf = session.nodes[session.activeLeafId];
     if (!currentLeaf) {
       logger.warn('重新生成失败：当前叶节点不存在', { sessionId: session.id });

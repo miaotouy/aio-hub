@@ -29,12 +29,17 @@ export function useSessionManager() {
   };
 
   const updateSessionDisplayAgent = (session: ChatSession): void => {
+    // 如果详情未加载，无法更新显示智能体，直接返回
+    if (!session.nodes || !session.activeLeafId) return;
+
     let currentId: string | null = session.activeLeafId;
     let foundAgentId: string | null = null;
 
+    const nodes = session.nodes;
+
     // 从活跃叶节点向上遍历，找到第一个助手消息
     while (currentId !== null) {
-      const node: ChatMessageNode = session.nodes[currentId];
+      const node: ChatMessageNode = nodes[currentId];
       if (!node) break;
 
       // 找到第一个助手角色的消息
@@ -180,22 +185,47 @@ export function useSessionManager() {
   };
 
   /**
-   * 从文件加载会话
+   * 从文件加载会话索引（轻量级）
+   */
+  const loadSessionsIndex = async (): Promise<{
+    sessions: any[]; // SessionIndexItem[]
+    currentSessionId: string | null;
+  }> => {
+    try {
+      const { loadSessionsIndex: loadIndexFromStorage } = useChatStorage();
+      const { sessions, currentSessionId } = await loadIndexFromStorage();
+      return { sessions, currentSessionId };
+    } catch (error) {
+      errorHandler.handle(error as Error, { userMessage: "加载会话索引失败", showToUser: false });
+      return { sessions: [], currentSessionId: null };
+    }
+  };
+
+  /**
+   * 从文件加载所有会话（全量）
+   */
+  const loadSessionsAll = async (): Promise<{
+    sessions: ChatSession[];
+    currentSessionId: string | null;
+  }> => {
+    try {
+      const { loadSessionsAll: loadAllFromStorage } = useChatStorage();
+      const { sessions, currentSessionId } = await loadAllFromStorage();
+      return { sessions, currentSessionId };
+    } catch (error) {
+      errorHandler.handle(error as Error, { userMessage: "全量加载会话失败", showToUser: false });
+      return { sessions: [], currentSessionId: null };
+    }
+  };
+
+  /**
+   * 从文件加载会话（兼容接口）
    */
   const loadSessions = async (): Promise<{
     sessions: ChatSession[];
     currentSessionId: string | null;
   }> => {
-    try {
-      const { loadSessions: loadSessionsFromStorage } = useChatStorage();
-      const { sessions, currentSessionId } = await loadSessionsFromStorage();
-
-      logger.info("加载会话成功", { sessionCount: sessions.length });
-      return { sessions, currentSessionId };
-    } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载会话失败", showToUser: false });
-      return { sessions: [], currentSessionId: null };
-    }
+    return await loadSessionsAll();
   };
 
   /**
@@ -264,6 +294,7 @@ export function useSessionManager() {
     deleteSession,
     updateSession,
     loadSessions,
+    loadSessionsIndex,
     persistSession, // 新增：单会话保存
     persistSessions, // 批量保存
     updateCurrentSessionId, // 新增：更新当前会话ID

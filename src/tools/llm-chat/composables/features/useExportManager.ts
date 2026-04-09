@@ -123,7 +123,7 @@ export function useExportManager() {
     let currentId: string | null = nodeId;
 
     while (currentId !== null) {
-      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      const node: ChatMessageNode | undefined = session.nodes?.[currentId];
       if (!node) {
         logger.warn("导出分支失败：节点不存在", { nodeId: currentId });
         break;
@@ -370,7 +370,7 @@ export function useExportManager() {
     let currentId: string | null = nodeId;
 
     while (currentId !== null) {
-      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      const node: ChatMessageNode | undefined = session.nodes?.[currentId];
       if (!node) {
         logger.warn("导出分支失败：节点不存在", { nodeId: currentId });
         break;
@@ -561,7 +561,7 @@ export function useExportManager() {
     ];
 
     // 统计节点数量（排除根节点）
-    const totalNodes = Object.keys(session.nodes).length - 1;
+    const totalNodes = Object.keys(session.nodes || {}).length - 1;
     lines.push(`**总消息数**: ${totalNodes} 条`);
     lines.push("");
     lines.push("---");
@@ -573,7 +573,7 @@ export function useExportManager() {
      * @param depth 当前深度（用于缩进）
      */
     const traverseNode = (nodeId: string, depth: number = 0): void => {
-      const node = session.nodes[nodeId];
+      const node = session.nodes?.[nodeId];
       if (!node) return;
 
       // 跳过系统根节点（不显示）
@@ -696,7 +696,7 @@ export function useExportManager() {
     };
 
     // 从根节点开始遍历
-    traverseNode(session.rootNodeId, 0);
+    traverseNode(session.rootNodeId || "", 0);
 
     logger.info("导出完整会话为 Markdown 树", {
       sessionId: session.id,

@@ -272,8 +272,9 @@ export interface AgentBaseConfig {
 
   /**
    * 参数配置
+   * 按需加载模式下，详情加载前为 undefined
    */
-  parameters: LlmParameters;
+  parameters?: LlmParameters;
 
   /**
    * LLM 思考块规则配置

@@ -125,13 +125,13 @@ const formatDate = (timestamp?: string) => {
 
 // 计算总消息数（排除根节点）
 const totalMessageCount = computed(() => {
-  if (!props.session) return 0;
+  if (!props.session || !props.session.nodes) return 0;
   return Object.keys(props.session.nodes).length - 1;
 });
 
 // 计算分支数（拥有多个子节点的节点数量）
 const branchCount = computed(() => {
-  if (!props.session) return 0;
+  if (!props.session || !props.session.nodes) return 0;
   let count = 0;
   Object.values(props.session.nodes).forEach((node) => {
     if (node.childrenIds.length > 1) {
@@ -171,7 +171,7 @@ const previewContent = computed(() => {
       exportTime: new Date().toISOString(),
       totalNodes: totalMessageCount.value,
       branchCount: branchCount.value,
-      nodes: props.session.nodes,
+      nodes: props.session.nodes || {},
     };
     return JSON.stringify(jsonData, null, 2);
   } else {
@@ -186,11 +186,13 @@ const resolveAsset = (content: string) => {
 
   // 收集会话中涉及的所有智能体
   const agentIds = new Set<string>();
-  Object.values(props.session.nodes).forEach((node) => {
-    if (node.role === "assistant" && node.metadata?.agentId) {
-      agentIds.add(node.metadata.agentId);
-    }
-  });
+  if (props.session.nodes) {
+    Object.values(props.session.nodes).forEach((node) => {
+      if (node.role === "assistant" && node.metadata?.agentId) {
+        agentIds.add(node.metadata.agentId);
+      }
+    });
+  }
 
   agentIds.forEach((id) => {
     const agent = agentStore.getAgentById(id);

@@ -121,7 +121,7 @@ const analyzeContext = async () => {
   try {
     const chatStore = useLlmChatStore();
     const { getLlmContextForPreview } = useChatHandler();
-    const node = props.session.nodes[props.nodeId];
+    const node = props.session.nodes?.[props.nodeId];
     const historicalAgentId = node?.metadata?.agentId;
 
     if (!historicalAgentId) {

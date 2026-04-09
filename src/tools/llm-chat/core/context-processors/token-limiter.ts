@@ -12,7 +12,7 @@ export const tokenLimiter: ContextProcessor = {
   execute: async (context: PipelineContext) => {
     const { messages, agentConfig } = context;
     const { parameters, modelId } = agentConfig;
-    const contextManagement = parameters.contextManagement;
+    const contextManagement = parameters?.contextManagement;
 
     if (!contextManagement?.enabled || !contextManagement.maxContextTokens) {
       const message = "上下文管理未启用或未设置最大 Token，已跳过。";

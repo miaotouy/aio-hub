@@ -262,8 +262,9 @@ export function useFlowTreeGraph(
   /**
     * 计算每个节点的直接子节点数
     */
-  function calculateDirectChildrenCount(nodes: Record<string, ChatMessageNode>): Map<string, number> {
+  function calculateDirectChildrenCount(nodes: Record<string, ChatMessageNode> | undefined): Map<string, number> {
     const counts = new Map<string, number>();
+    if (!nodes) return counts;
 
     // 初始化所有节点的子节点计数为 0
     for (const nodeId in nodes) {
@@ -284,6 +285,7 @@ export function useFlowTreeGraph(
    * 只关注节点ID和父子关系，不关注内容
    */
   function getStructureFingerprint(session: ChatSession): string {
+    if (!session.nodes) return "not-loaded";
     return Object.values(session.nodes)
       .map(n => `${n.id}:${n.parentId || ''}`)
       .sort()
@@ -425,6 +427,7 @@ export function useFlowTreeGraph(
    */
   function calculateNodeDepth(session: ChatSession, nodeId: string): number {
     let depth = 0;
+    if (!session.nodes || !session.rootNodeId) return depth;
     let currentId: string | null = nodeId;
 
     while (currentId && currentId !== session.rootNodeId) {
@@ -445,7 +448,7 @@ export function useFlowTreeGraph(
     border: string;
   } {
     const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
-    const isActiveLeaf = node.id === session.activeLeafId;
+    const isActiveLeaf = !!session.activeLeafId && node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false && !isCompressed;
 
     type RoleColorKey = 'user' | 'assistant' | 'system';
@@ -633,6 +636,7 @@ export function useFlowTreeGraph(
     const nodeRepMap = new Map<string, string>(); // OriginalId -> RepresentativeId (SummaryNodeId)
     const logicalParentMap = new Map<string, string>(); // SummaryNodeId -> LogicalParentId (FirstNode.parentId)
 
+    if (!session.nodes) return;
     Object.values(session.nodes).forEach(node => {
       if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
         const compressedIds = node.metadata.compressedNodeIds || [];
@@ -654,7 +658,7 @@ export function useFlowTreeGraph(
           // 2. 确定压缩节点的逻辑父节点
           // 找到第一个被压缩的节点，取其父节点
           const firstNodeId = compressedIds[0];
-          const firstNode = session.nodes[firstNodeId];
+          const firstNode = session.nodes![firstNodeId];
           if (firstNode && firstNode.parentId) {
             logicalParentMap.set(node.id, firstNode.parentId);
           }
@@ -793,6 +797,7 @@ export function useFlowTreeGraph(
     // 遍历生成的 flowNodes 来建立连接，而不是遍历 session.nodes
     // 这样可以确保只连接可见的节点
     flowNodes.forEach(targetNode => {
+      if (!session.nodes) return;
       const node = session.nodes[targetNode.id];
       if (!node) return;
 
@@ -889,9 +894,11 @@ export function useFlowTreeGraph(
 
     // 计算每个节点的层级深度
     const depthMap: Record<string, number> = {};
-    Object.values(session.nodes).forEach((node) => {
-      depthMap[node.id] = calculateNodeDepth(session, node.id);
-    });
+    if (session.nodes) {
+      Object.values(session.nodes).forEach((node) => {
+        depthMap[node.id] = calculateNodeDepth(session, node.id);
+      });
+    }
 
     // 基于深度预设一个大致的垂直间距，让树有明显的"自上而下"方向
     const levelGap = 280; // 增加层级间距以适应更高的节点（6行文本）
@@ -937,6 +944,7 @@ export function useFlowTreeGraph(
     const nodeWidth = 220;
     const nodeHorizontalPadding = 120;
 
+    if (!session.nodes) return;
     const rootHierarchy = stratify<ChatMessageNode>()
       .id((d: ChatMessageNode) => d.id)
       .parentId((d: ChatMessageNode) => d.parentId)
@@ -1062,7 +1070,7 @@ export function useFlowTreeGraph(
       });
       // 将根节点固定在计算出的位置，作为整个物理系统的锚点
       const rootNode = simulation.nodes().find(n => n.id === session.rootNodeId);
-      const rootPos = calculatedPositions.get(session.rootNodeId);
+      const rootPos = session.rootNodeId ? calculatedPositions.get(session.rootNodeId) : null;
       if (rootNode && rootPos) {
         rootNode.fx = rootPos.x;
         rootNode.fy = rootPos.y;
@@ -1230,7 +1238,7 @@ export function useFlowTreeGraph(
       if (shouldRebound) {
         const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
         simulation.nodes().forEach(d3Node => {
-          if (allNodeIds.includes(d3Node.id) && d3Node.id !== session.rootNodeId) {
+          if (allNodeIds.includes(d3Node.id) && (!session.rootNodeId || d3Node.id !== session.rootNodeId)) {
             d3Node.fx = null;
             d3Node.fy = null;
           }
@@ -1278,6 +1286,7 @@ export function useFlowTreeGraph(
     // 规则 1: 不能连接到自身
     if (nodeIdToMove === newParentId) return false;
 
+    if (!session.nodes) return false;
     const nodeToMove = session.nodes[nodeIdToMove];
     const newParent = session.nodes[newParentId];
     if (!nodeToMove || !newParent) return false;
@@ -1406,7 +1415,7 @@ export function useFlowTreeGraph(
     event.preventDefault();
 
     const session = sessionRef();
-    if (!session) return;
+    if (!session || !session.nodes) return;
 
     const node = session.nodes[nodeId];
     if (!node) return;
@@ -1506,7 +1515,7 @@ export function useFlowTreeGraph(
    */
   function handleNodeCopy(nodeId: string): void {
     const session = sessionRef();
-    if (!session) return;
+    if (!session || !session.nodes) return;
 
     const node = session.nodes[nodeId];
     if (!node) return;
@@ -1535,7 +1544,7 @@ export function useFlowTreeGraph(
    */
   function handleNodeDelete(nodeId: string): void {
     const session = sessionRef();
-    if (!session) return;
+    if (!session || !session.nodes) return;
 
     const node = session.nodes[nodeId];
     if (!node) return;
@@ -1555,7 +1564,7 @@ export function useFlowTreeGraph(
    */
   function handleNodeRegenerate(nodeId: string, options?: { modelId?: string; profileId?: string }): void {
     const session = sessionRef();
-    if (!session) return;
+    if (!session || !session.nodes) return;
 
     const node = session.nodes[nodeId];
     if (!node) return;
@@ -1568,7 +1577,7 @@ export function useFlowTreeGraph(
    */
   function handleNodeCreateBranch(nodeId: string): void {
     const session = sessionRef();
-    if (!session) return;
+    if (!session || !session.nodes) return;
 
     const node = session.nodes[nodeId];
     if (!node) return;

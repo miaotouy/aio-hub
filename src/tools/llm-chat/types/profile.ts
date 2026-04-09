@@ -33,8 +33,9 @@ export interface UserProfile {
 
   /**
    * 档案内容（描述性文本）
+   * 按需加载模式下，详情加载前为 undefined
    */
-  content: string;
+  content?: string;
 
   /**
    * 是否启用（默认为 true）

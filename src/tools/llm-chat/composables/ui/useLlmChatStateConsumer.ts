@@ -120,7 +120,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
       if (newSessionData) {
         logger.info('接收到 currentSessionData 同步数据（轻量级模式）', {
           sessionId: newSessionData.id,
-          messageCount: Object.keys(newSessionData.nodes).length
+          messageCount: Object.keys(newSessionData.nodes || {}).length
         });
         
         // 查找是否已存在该会话

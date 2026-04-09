@@ -205,7 +205,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     };
 
     // 通过 store 开启分析器
-    chatStore.contextAnalyzerNodeId = session.activeLeafId;
+    chatStore.contextAnalyzerNodeId = session.activeLeafId || null;
     chatStore.contextAnalyzerPendingInput = pendingInput;
     chatStore.contextAnalyzerVisible = true;
   };

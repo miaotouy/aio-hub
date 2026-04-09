@@ -93,6 +93,8 @@ export function useNodeManager() {
    * 将节点添加到会话（更新父子关系）
    */
   const addNodeToSession = (session: ChatSession, node: ChatMessageNode): void => {
+    if (!session.nodes) session.nodes = {};
+    
     // 添加节点到会话
     session.nodes[node.id] = node;
 
@@ -116,6 +118,7 @@ export function useNodeManager() {
    * 递归禁用节点及其所有子节点
    */
   const disableNodeTree = (session: ChatSession, nodeId: string): void => {
+    if (!session.nodes) return;
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn("禁用节点失败：节点不存在", { sessionId: session.id, nodeId });
@@ -192,6 +195,7 @@ export function useNodeManager() {
     session: ChatSession,
     targetNodeId: string
   ): { assistantNode: ChatMessageNode; userNode: ChatMessageNode } | null => {
+    if (!session.nodes) return null;
     const targetNode = session.nodes[targetNodeId];
 
     if (!targetNode) {
@@ -289,6 +293,7 @@ export function useNodeManager() {
     session: ChatSession,
     targetNodeId: string
   ): { assistantNode: ChatMessageNode; userNode: ChatMessageNode | null } | null => {
+    if (!session.nodes) return null;
     const targetNode = session.nodes[targetNodeId];
     if (!targetNode) return null;
 
@@ -350,6 +355,7 @@ export function useNodeManager() {
    * 更新活跃叶节点
    */
   const updateActiveLeaf = (session: ChatSession, nodeId: string): boolean => {
+    if (!session.nodes) return false;
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn("更新活跃叶节点失败：节点不存在", {
@@ -379,6 +385,7 @@ export function useNodeManager() {
    * 软删除节点（标记为禁用）
    */
   const softDeleteNode = (session: ChatSession, nodeId: string): boolean => {
+    if (!session.nodes) return false;
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn("软删除节点失败：节点不存在", {
@@ -409,6 +416,7 @@ export function useNodeManager() {
   ): { success: boolean; deletedNodes: ChatMessageNode[] } => {
     logger.info("🗑️ [硬删除] 开始硬删除节点", { sessionId: session.id, nodeId });
 
+    if (!session.nodes) return { success: false, deletedNodes: [] };
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn("🗑️ [硬删除] 失败：节点不存在", { sessionId: session.id, nodeId });
@@ -449,7 +457,7 @@ export function useNodeManager() {
 
         // 2. 更新子节点的父引用
         childrenToReturn.forEach((childId) => {
-          const childNode = session.nodes[childId];
+          const childNode = session.nodes?.[childId];
           if (childNode) {
             childNode.parentId = parentNode.id;
           }
@@ -463,6 +471,7 @@ export function useNodeManager() {
     } else {
       // 普通节点：递归收集所有后代
       const collectDescendants = (id: string) => {
+        if (!session.nodes) return;
         const currentNode = session.nodes[id];
         if (!currentNode) return;
         currentNode.childrenIds.forEach((childId) => {
@@ -479,10 +488,10 @@ export function useNodeManager() {
     }
 
     const oldActiveLeafId = session.activeLeafId;
-    if (nodesToDeleteIds.has(session.activeLeafId)) {
+    if (session.activeLeafId && nodesToDeleteIds.has(session.activeLeafId)) {
       logger.info("🗑️ [硬删除] 当前活动叶节点将被删除，需要调整", { oldActiveLeafId });
 
-      const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
+      const siblings = (node.parentId && session.nodes) ? session.nodes[node.parentId]?.childrenIds || [] : [];
 
       // 找到被删除节点在兄弟列表中的索引
       const deletedIndex = siblings.indexOf(nodeId);
@@ -501,15 +510,17 @@ export function useNodeManager() {
       }
 
       // 如果找到了相邻兄弟节点
-      if (targetSiblingId && session.nodes[targetSiblingId]) {
+      if (targetSiblingId && session.nodes?.[targetSiblingId]) {
         const findDeepestLeaf = (n: ChatMessageNode): string => {
           if (n.childrenIds.length === 0) return n.id;
           const lastChildId = n.childrenIds[n.childrenIds.length - 1];
-          const lastChild = session.nodes[lastChildId];
+          const lastChild = session.nodes![lastChildId];
           return lastChild ? findDeepestLeaf(lastChild) : n.id;
         };
         session.activeLeafId = findDeepestLeaf(session.nodes[targetSiblingId]);
-        BranchNavigator.updateSelectionMemory(session, session.activeLeafId);
+        if (session.activeLeafId) {
+          BranchNavigator.updateSelectionMemory(session, session.activeLeafId as string);
+        }
         logger.info("🗑️ [硬删除] 切换到相邻兄弟节点的最深叶子", {
           targetSiblingId,
           newActiveLeafId: session.activeLeafId,
@@ -517,7 +528,7 @@ export function useNodeManager() {
       } else {
         // 没有相邻兄弟节点，回退到父节点
         session.activeLeafId = node.parentId || session.rootNodeId;
-        BranchNavigator.updateSelectionMemory(session, session.activeLeafId);
+        BranchNavigator.updateSelectionMemory(session, session.activeLeafId || "");
         logger.info("🗑️ [硬删除] 回退到父节点", { newActiveLeafId: session.activeLeafId });
       }
     }
@@ -532,7 +543,7 @@ export function useNodeManager() {
 
     const deletedNodes: ChatMessageNode[] = [];
     nodesToDeleteIds.forEach((id) => {
-      if (session.nodes[id]) {
+      if (session.nodes?.[id]) {
         try {
           // 使用 toRaw 获取原始对象，避免 DataCloneError
           deletedNodes.push(structuredClone(toRaw(session.nodes[id])));
@@ -569,30 +580,33 @@ export function useNodeManager() {
     errors: string[];
   } => {
     const errors: string[] = [];
+    if (!session.nodes) {
+      return { isValid: false, errors: ["会话数据尚未加载"] };
+    }
 
     // 检查根节点
-    if (!session.nodes[session.rootNodeId]) {
+    if (session.rootNodeId && !session.nodes[session.rootNodeId]) {
       errors.push(`根节点不存在: ${session.rootNodeId}`);
     }
 
     // 检查活跃叶节点
-    if (!session.nodes[session.activeLeafId]) {
+    if (session.activeLeafId && !session.nodes[session.activeLeafId]) {
       errors.push(`活跃叶节点不存在: ${session.activeLeafId}`);
     }
 
     // 检查所有节点的父子关系
     Object.values(session.nodes).forEach((node) => {
       // 检查父节点引用
-      if (node.parentId !== null && !session.nodes[node.parentId]) {
+      if (node.parentId !== null && !session.nodes![node.parentId]) {
         errors.push(`节点 ${node.id} 的父节点不存在: ${node.parentId}`);
       }
 
       // 检查子节点引用
       node.childrenIds.forEach((childId) => {
-        if (!session.nodes[childId]) {
+        if (!session.nodes![childId]) {
           errors.push(`节点 ${node.id} 的子节点不存在: ${childId}`);
         } else {
-          const child = session.nodes[childId];
+          const child = session.nodes![childId];
           if (child.parentId !== node.id) {
             errors.push(
               `节点关系不一致: ${node.id} 认为 ${childId} 是子节点，但 ${childId} 的父节点是 ${child.parentId}`
@@ -623,6 +637,7 @@ export function useNodeManager() {
    */
   const getNodePath = (session: ChatSession, targetNodeId: string): ChatMessageNode[] => {
     const path: ChatMessageNode[] = [];
+    if (!session.nodes) return path;
     let currentId: string | null = targetNodeId;
 
     while (currentId !== null) {
@@ -651,12 +666,13 @@ export function useNodeManager() {
    */
   const getAllDescendants = (session: ChatSession, nodeId: string): ChatMessageNode[] => {
     const descendants: ChatMessageNode[] = [];
+    if (!session.nodes) return descendants;
     const node = session.nodes[nodeId];
 
     if (!node) return descendants;
 
     node.childrenIds.forEach((childId) => {
-      const childNode = session.nodes[childId];
+      const childNode = session.nodes![childId];
       if (childNode) {
         descendants.push(childNode);
         descendants.push(...getAllDescendants(session, childId));
@@ -671,6 +687,7 @@ export function useNodeManager() {
    */
   const getAllAncestors = (session: ChatSession, nodeId: string): ChatMessageNode[] => {
     const ancestors: ChatMessageNode[] = [];
+    if (!session.nodes) return ancestors;
     let currentId: string | null = nodeId;
 
     while (currentId !== null) {
@@ -705,6 +722,7 @@ export function useNodeManager() {
     nodeA: string,
     nodeB: string
   ): "ancestor" | "descendant" | "sibling" | "other" => {
+    if (!session.nodes) return "other";
     const nodeAObj = session.nodes[nodeA];
     const nodeBObj = session.nodes[nodeB];
 
@@ -735,6 +753,7 @@ export function useNodeManager() {
    * 用于非破坏性编辑时转移子树
    */
   const transferChildren = (session: ChatSession, fromNodeId: string, toNodeId: string): void => {
+    if (!session.nodes) return;
     const fromNode = session.nodes[fromNodeId];
     const toNode = session.nodes[toNodeId];
 
@@ -752,7 +771,7 @@ export function useNodeManager() {
 
     // 更新每个子节点的 parentId
     toNode.childrenIds.forEach((childId) => {
-      const child = session.nodes[childId];
+      const child = session.nodes![childId];
       if (child) {
         child.parentId = toNode.id;
       }
@@ -785,6 +804,8 @@ export function useNodeManager() {
       nodeId,
       newParentId,
     });
+
+    if (!session.nodes) return false;
 
     // 验证节点存在性
     const node = session.nodes[nodeId];
@@ -897,6 +918,8 @@ export function useNodeManager() {
       newParentId,
     });
 
+    if (!session.nodes) return false;
+
     const nodeToMove = session.nodes[nodeId];
     const newParent = session.nodes[newParentId];
 
@@ -939,7 +962,7 @@ export function useNodeManager() {
       if (nodeToMove.childrenIds.length > 0) {
         oldParent.childrenIds.push(...nodeToMove.childrenIds);
         nodeToMove.childrenIds.forEach((childId) => {
-          const child = session.nodes[childId];
+          const child = session.nodes![childId];
           if (child) {
             child.parentId = oldParent.id;
           }
@@ -980,6 +1003,7 @@ export function useNodeManager() {
     newContent: string,
     attachments?: Asset[]
   ): ChatMessageNode | null => {
+    if (!session.nodes) return null;
     const sourceNode = session.nodes[sourceNodeId];
     if (!sourceNode) {
       logger.warn("从编辑创建分支失败：源节点不存在", {

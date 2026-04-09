@@ -135,7 +135,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       totalTokenCount += tokenCount;
     } else if (msg.sourceType === "session_history") {
       // 会话历史消息：需要处理附件
-      const sourceNode = session.nodes[msg.sourceId as string];
+      const sourceNode = session.nodes?.[msg.sourceId as string];
       if (!sourceNode) {
         // 回退到简单计算
         const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);

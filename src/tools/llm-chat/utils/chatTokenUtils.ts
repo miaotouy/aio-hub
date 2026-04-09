@@ -43,6 +43,7 @@ export async function prepareMessageForTokenCalc(
  * 重新计算单个节点的 token
  */
 export async function recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
+  if (!session.nodes) return;
   const node = session.nodes[nodeId];
   if (!node || !node.content) return;
   if (node.role !== "user" && node.role !== "assistant") return;
@@ -51,7 +52,7 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
   if (node.role === "assistant" && node.metadata?.modelId) {
     modelId = node.metadata.modelId;
   } else if (node.role === "user") {
-    let currentId: string | null = session.activeLeafId;
+    let currentId: string | null = session.activeLeafId || null;
     while (currentId !== null) {
       const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
       if (pathNode?.role === "assistant" && pathNode.metadata?.modelId) {
@@ -124,6 +125,7 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
   const updatedSessionIds = new Set<string>();
 
   for (const session of sessions) {
+    if (!session.nodes) continue;
     for (const [nodeId, node] of Object.entries(session.nodes)) {
       if (!node.content || node.metadata?.contentTokens !== undefined) continue;
 
@@ -131,7 +133,7 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
       if (node.role === "assistant" && node.metadata?.modelId) {
         modelId = node.metadata.modelId;
       } else if (node.role === "user") {
-        let currentId: string | null = session.activeLeafId;
+        let currentId: string | null = session.activeLeafId || null;
         while (currentId !== null) {
           const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
           if (pathNode?.role === "assistant" && pathNode.metadata?.modelId) {

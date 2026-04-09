@@ -16,6 +16,7 @@ export class BranchNavigator {
     session: ChatSession,
     nodeId: string
   ): ChatMessageNode[] {
+    if (!session.nodes) return [];
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn('获取兄弟节点失败：节点不存在', { nodeId });
@@ -34,7 +35,7 @@ export class BranchNavigator {
     }
 
     return parent.childrenIds
-      .map(id => session.nodes[id])
+      .map(id => session.nodes![id])
       .filter((n): n is ChatMessageNode => n !== undefined);
   }
 
@@ -89,6 +90,7 @@ export class BranchNavigator {
     session: ChatSession,
     startNodeId: string
   ): string {
+    if (!session.nodes) return startNodeId;
     let current = session.nodes[startNodeId];
 
     if (!current) {
@@ -115,7 +117,7 @@ export class BranchNavigator {
         });
       }
 
-      const nextNode = session.nodes[nextId];
+      const nextNode = session.nodes![nextId];
       if (!nextNode) {
         logger.warn('查找叶节点中断：子节点不存在', {
           currentId: current.id,
@@ -137,6 +139,7 @@ export class BranchNavigator {
     session: ChatSession,
     leafNodeId: string
   ): void {
+    if (!session.nodes) return;
     const path: string[] = [];
     let currentId: string | null = leafNodeId;
 
@@ -155,7 +158,7 @@ export class BranchNavigator {
     for (let i = 0; i < path.length - 1; i++) {
       const parentId = path[i];
       const childId = path[i + 1];
-      const parentNode = session.nodes[parentId];
+      const parentNode = session.nodes![parentId];
 
       if (parentNode) {
         // 只有当子节点确实存在于父节点的子节点列表中时才更新
@@ -182,6 +185,7 @@ export class BranchNavigator {
     session: ChatSession,
     nodeId: string
   ): boolean {
+    if (!session.nodes || !session.activeLeafId) return false;
     let currentId: string | null = session.activeLeafId;
 
     while (currentId !== null) {
@@ -214,6 +218,7 @@ export class BranchNavigator {
    * 如果当前 activeLeafId 指向的节点不存在，则重置为根节点
    */
   static ensureValidActiveLeaf(session: ChatSession): void {
+    if (!session.nodes || !session.activeLeafId) return;
     if (!session.nodes[session.activeLeafId]) {
       const oldLeafId = session.activeLeafId;
       session.activeLeafId = session.rootNodeId;

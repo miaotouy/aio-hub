@@ -19,18 +19,19 @@ export interface ChatSession {
 
   /**
    * 存储会话中所有消息节点的字典，以节点ID为键
+   * 按需加载模式下，详情加载前为 undefined
    */
-  nodes: Record<string, ChatMessageNode>;
+  nodes?: Record<string, ChatMessageNode>;
 
   /**
    * 根节点的ID
    */
-  rootNodeId: string;
+  rootNodeId?: string;
 
   /**
    * 当前活跃分支的叶节点ID
    */
-  activeLeafId: string;
+  activeLeafId?: string;
 
   /**
    * 会话的标题

@@ -61,9 +61,9 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     if (!session) return undefined;
 
     // 2. 尝试从活动路径的助手消息中获取模型 ID
-    let currentId: string | null = session.activeLeafId;
+    let currentId: string | null = session.activeLeafId || null;
     while (currentId !== null) {
-      const node: ChatMessageNode | undefined = session.nodes[currentId];
+      const node: ChatMessageNode | undefined = session.nodes?.[currentId];
       if (node?.role === "assistant" && node.metadata?.modelId) {
         return node.metadata.modelId;
       }
@@ -71,7 +71,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     }
 
     // 3. 如果活动路径上没有，查找整个会话中的任意助手消息
-    for (const n of Object.values(session.nodes)) {
+    for (const n of Object.values(session.nodes || {})) {
       const node = n as ChatMessageNode;
       if (node.role === "assistant" && node.metadata?.modelId) {
         return node.metadata.modelId;

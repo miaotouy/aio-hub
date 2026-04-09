@@ -78,7 +78,7 @@ export function useSingleNodeExecutor() {
         toolCallingEnabled: executionAgent.toolCallConfig?.enabled ?? false,
       },
     };
-    if (session.nodes[assistantNode.id]) {
+    if (session.nodes && session.nodes[assistantNode.id]) {
       session.nodes[assistantNode.id].metadata = assistantNode.metadata;
     }
 

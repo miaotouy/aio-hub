@@ -16,7 +16,6 @@ import { customMessage } from "@/utils/customMessage";
 import { getLocalISOString } from "@/utils/time";
 import { exportAgents } from "../services/agentExportService";
 import { preflightImportAgents, commitImportAgents } from "../services/agentImportService";
-import { migrateAgents } from "../services/agentMigrationService";
 import { ensurePresetAssetsImported as ensurePresetAssetsImportedService } from "../services/agentAssetService";
 import type { ConfirmImportParams } from "../types/agentImportExport";
 
@@ -298,11 +297,41 @@ export const useAgentStore = defineStore("llmChatAgent", {
     },
 
     /**
+     * 确保智能体详情已加载（按需加载核心逻辑）
+     */
+    async ensureAgentLoaded(agentId: string): Promise<ChatAgent | null> {
+      const agent = this.agents.find((a) => a.id === agentId);
+      if (!agent) return null;
+
+      // 如果详情已加载（以 parameters 是否为 undefined 为判断标准），直接返回
+      if (agent.parameters !== undefined) {
+        return agent;
+      }
+
+      try {
+        const { loadAgent } = useAgentStorage();
+        const fullAgent = await loadAgent(agentId);
+        if (fullAgent) {
+          const index = this.agents.findIndex((a) => a.id === agentId);
+          if (index !== -1) {
+            this.agents[index] = fullAgent;
+            logger.info("智能体详情按需加载完成", { agentId });
+            return fullAgent;
+          }
+        }
+      } catch (error) {
+        logger.error("按需加载智能体详情失败", error as Error, { agentId });
+      }
+
+      return agent;
+    },
+
+    /**
      * 选择智能体（独立于会话）
      * 注意：仅选择不更新 lastUsedAt，只有真正使用（如发送消息）时才更新
      */
-    selectAgent(agentId: string): void {
-      const agent = this.agents.find((a) => a.id === agentId);
+    async selectAgent(agentId: string): Promise<void> {
+      const agent = await this.ensureAgentLoaded(agentId);
       if (!agent) {
         logger.warn("选择智能体失败：智能体不存在", { agentId });
         return;
@@ -447,24 +476,39 @@ export const useAgentStore = defineStore("llmChatAgent", {
     },
 
     /**
-     * 从文件加载智能体
+     * 从文件加载智能体（优化后的按需加载）
      */
     async loadAgents(): Promise<void> {
       try {
-        const { loadAgents } = useAgentStorage();
-        const agents = await loadAgents();
+        const { loadAgentsIndex, loadAgent } = useAgentStorage();
+        const { agents: indexItems, currentAgentId: savedCurrentId } = await loadAgentsIndex();
 
-        if (agents.length > 0) {
-          // 在加载后立即进行数据迁移
-          migrateAgents(agents);
+        if (indexItems.length > 0) {
+          // 1. 将元数据转换为轻量智能体对象放入 store
+          this.agents = indexItems.map(item => ({
+            ...item,
+            // 详情字段设为 undefined，待按需加载
+            parameters: undefined,
+            presetMessages: undefined,
+          } as any));
 
-          this.agents = agents;
-          logger.info("加载智能体成功", { agentCount: this.agents.length });
+          logger.info("加载智能体索引成功", { agentCount: this.agents.length });
 
-          // 自动选择默认智能体（最近使用的）
+          // 2. 核心优化：只针对当前活跃智能体加载完整详情
           const { currentAgentId } = useLlmChatUiState();
-          if (!currentAgentId.value && this.defaultAgent) {
-            currentAgentId.value = this.defaultAgent.id;
+          const targetId = currentAgentId.value || savedCurrentId || (this.agents.length > 0 ? this.agents[0].id : null);
+
+          if (targetId) {
+            const fullAgent = await loadAgent(targetId);
+            if (fullAgent) {
+              const index = this.agents.findIndex(a => a.id === targetId);
+              if (index !== -1) {
+                this.agents[index] = fullAgent;
+                // 确保 UI 状态同步
+                if (!currentAgentId.value) currentAgentId.value = targetId;
+                logger.info("当前活跃智能体详情加载完成", { agentId: targetId });
+              }
+            }
           }
         } else {
           // 首次加载，创建默认智能体
@@ -563,9 +607,14 @@ export const useAgentStore = defineStore("llmChatAgent", {
         return null;
       }
 
+      // 检查详情是否已加载
+      if (agent.parameters === undefined) {
+        logger.warn("获取智能体配置时详情尚未加载，将使用默认参数。请确保在调用前执行了 ensureAgentLoaded", { agentId });
+      }
+
       // 分别合并基础参数和自定义参数容器
       // 合并参数时需要更智能地处理 custom 结构
-      const baseParams = agent.parameters;
+      const baseParams = agent.parameters || { temperature: 0.7, maxTokens: 4096 };
       const overrideParams = overrides?.parameterOverrides || {};
 
       const parameters: LlmParameters = {

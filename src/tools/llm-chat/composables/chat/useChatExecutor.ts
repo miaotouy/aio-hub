@@ -166,7 +166,9 @@ export function useChatExecutor() {
     if (!attachments || attachments.length === 0) return;
     const allImported = await waitForAssetsImport(attachments);
     if (!allImported) throw new Error("附件导入超时，请稍后重试");
-    session.nodes[userNode.id].attachments = attachments;
+    if (session.nodes) {
+      session.nodes[userNode.id].attachments = attachments;
+    }
     if (pathUserNode) pathUserNode.attachments = attachments;
   };
 
@@ -197,7 +199,7 @@ export function useChatExecutor() {
       }
 
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(combinedText, modelId, mediaAttachments);
-      const node = session.nodes[userNode.id];
+      const node = session.nodes ? session.nodes[userNode.id] : undefined;
       if (node) {
         if (!node.metadata) node.metadata = {};
         node.metadata.contentTokens = tokenResult.count;
@@ -236,7 +238,7 @@ export function useChatExecutor() {
     const userProfileStore = useUserProfileStore();
     const { getProfileById } = useLlmProfiles();
 
-    const targetNode = session.nodes[targetNodeId];
+    const targetNode = session.nodes ? session.nodes[targetNodeId] : undefined;
     const pathToUserNode = nodeManager.getNodePath(session, targetNodeId);
 
     const historicalProfileId = targetNode?.metadata?.profileId;

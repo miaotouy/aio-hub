@@ -122,7 +122,7 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
         const exportData: AgentExportFile = {
           version: 1,
           type: "AIO_Agent_Export",
-          agents: [exportableAgent],
+          agents: [exportableAgent as ExportableAgent],
         };
 
         const contentString = format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
@@ -222,7 +222,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
         lastUsedAt: _lastUsedAt,
         ...exportableAgentBase
       } = agent;
-      const exportableAgent: ExportableAgent = { ...exportableAgentBase };
+      const exportableAgent: ExportableAgent = {
+        ...exportableAgentBase,
+        parameters: exportableAgentBase.parameters || { temperature: 0.7, maxTokens: 4096 }
+      };
 
       // 清理预设消息中的运行时元数据
       if (exportableAgent.presetMessages) {

@@ -129,7 +129,7 @@ export function useToolCallOrchestrator() {
               metadata: { agentId: executionAgent.id },
             };
 
-            session.nodes[toolNode.id] = toolNode;
+            if (session.nodes) session.nodes[toolNode.id] = toolNode;
             currentAssistantNode.childrenIds.push(toolNode.id);
             generatingNodes.add(toolNode.id);
 
@@ -246,7 +246,7 @@ export function useToolCallOrchestrator() {
               },
             };
 
-            session.nodes[nextAssistantNode.id] = nextAssistantNode;
+            if (session.nodes) session.nodes[nextAssistantNode.id] = nextAssistantNode;
             toolNode!.childrenIds.push(nextAssistantNode.id);
             generatingNodes.add(nextAssistantNode.id);
             abortControllers.set(nextAssistantNode.id, abortController);

@@ -8,7 +8,7 @@
   >
     <template #content>
       <UserProfileForm
-        v-model="form"
+        v-model="(form as any)"
         :profile-id="profile?.id"
         :required="true"
         :description-rows="8"
@@ -55,6 +55,7 @@ type FormState = Omit<UserProfile, "id">;
 // 这里我们初始化一个空状态，具体值会由 watch 填充
 const form = ref<FormState>({
   ...createDefaultUserProfileConfig(),
+  content: "",
   createdAt: "",
   lastUsedAt: "",
 });
@@ -70,6 +71,8 @@ watch(
       form.value = {
         ...defaults, // 先应用默认值
         ...profile,  // 再应用实际值
+        // 确保必填字段不为 undefined
+        content: profile.content ?? "",
         // 确保可选字段不为 undefined/null，虽然 defaults 已经处理了，但 profile 中的 null/undefined 可能会覆盖 defaults
         displayName: profile.displayName ?? defaults.displayName,
         icon: profile.icon ?? defaults.icon,
@@ -85,7 +88,7 @@ watch(
 
 // 验证表单是否有效
 const isValid = computed(() => {
-  return form.value.name.trim() !== "" && form.value.content.trim() !== "";
+  return form.value.name.trim() !== "" && (form.value.content?.trim() ?? "") !== "";
 });
 
 // 处理对话框显示状态变化
@@ -117,7 +120,7 @@ const handleSave = () => {
     // 3. 覆盖需要特殊处理的字段 (trim, empty string to undefined)
     name: form.value.name.trim(),
     displayName: form.value.displayName?.trim() || undefined,
-    content: form.value.content.trim(),
+    content: (form.value.content || "").trim(),
     icon: form.value.icon?.trim() || undefined,
   };
 

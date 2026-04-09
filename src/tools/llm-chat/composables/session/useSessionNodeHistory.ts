@@ -58,6 +58,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
     change: NodeRelationChange,
     direction: 'forward' | 'backward'
   ): void {
+    if (!session.nodes) return;
     const node = session.nodes[change.nodeId];
     if (!node) {
       logger.warn('在应用关系变更时未找到节点', { nodeId: change.nodeId });
@@ -96,6 +97,8 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
    * @param direction - 'forward' 表示重做, 'backward' 表示撤销。
    */
   function applyDelta(session: ChatSession, delta: HistoryDelta, direction: 'forward' | 'backward'): void {
+    if (!session.nodes) return;
+
     if (delta.type === 'create') {
       if (direction === 'forward') {
         session.nodes[delta.payload.node.id] = cloneNodes({ [delta.payload.node.id]: delta.payload.node })[delta.payload.node.id];
@@ -148,7 +151,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
 
     const initialEntry: HistoryEntry = {
       isSnapshot: true,
-      snapshot: cloneNodes(session.nodes),
+      snapshot: cloneNodes(session.nodes || {}),
       actionTag: 'INITIAL_STATE',
       timestamp: Date.now(),
       context: {},
@@ -272,7 +275,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
     const newEntry: HistoryEntry = shouldCreateSnapshot
       ? {
         isSnapshot: true,
-        snapshot: cloneNodes(session.nodes),
+        snapshot: cloneNodes(session.nodes || {}),
         actionTag,
         timestamp: Date.now(),
         context: { ...context, affectedNodeCount: currentAffectedCount },

@@ -57,6 +57,7 @@ export function useChatResponseHandler() {
     chunk: string,
     isReasoning: boolean = false
   ): void => {
+    if (!session.nodes) return;
     const node = session.nodes[nodeId];
     if (!node) return;
 
@@ -89,6 +90,7 @@ export function useChatResponseHandler() {
       if (!state.isScheduled) {
         state.isScheduled = true;
         requestAnimationFrame(() => {
+          if (!session.nodes) return;
           const nodeToUpdate = session.nodes[nodeId];
           if (nodeToUpdate && nodeToUpdate.metadata) {
             nodeToUpdate.metadata.reasoningContent += state.buffer;
@@ -111,6 +113,7 @@ export function useChatResponseHandler() {
       if (!contentState.isScheduled) {
         contentState.isScheduled = true;
         requestAnimationFrame(() => {
+          if (!session.nodes) return;
           const nodeToUpdate = session.nodes[nodeId];
           if (nodeToUpdate) {
             // 在更新前检查是否需要结束 reasoning
@@ -232,6 +235,7 @@ export function useChatResponseHandler() {
   ): Promise<void> => {
     // 强制刷新所有缓冲区以确保最终状态正确
     const flushAllBuffers = () => {
+      if (!session.nodes) return;
       const node = session.nodes[nodeId];
       if (!node) return;
 
@@ -250,7 +254,7 @@ export function useChatResponseHandler() {
     };
     flushAllBuffers();
 
-    const finalNode = session.nodes[nodeId];
+    const finalNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!finalNode) return;
 
     // 处理响应内容中的 Base64 数据，转换为附件
@@ -407,7 +411,7 @@ export function useChatResponseHandler() {
     error: unknown,
     context: string
   ): void => {
-    const errorNode = session.nodes[nodeId];
+    const errorNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!errorNode) return;
 
     // 兼容 Tauri HTTP 插件的 "Request canceled" 错误

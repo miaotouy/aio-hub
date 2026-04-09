@@ -92,7 +92,7 @@ export function useTopicNamer() {
 
       // 获取会话的最新消息作为上下文
       const nodeManager = useNodeManager();
-      const activePath = nodeManager.getNodePath(session, session.activeLeafId);
+      const activePath = nodeManager.getNodePath(session, session.activeLeafId || "");
 
       // 过滤掉系统消息和禁用消息，只保留用户和助手的消息
       const validMessages = activePath
@@ -241,7 +241,7 @@ export function useTopicNamer() {
 
     // 统计用户消息数量
     const nodeManager = useNodeManager();
-    const activePath = nodeManager.getNodePath(session, session.activeLeafId);
+    const activePath = nodeManager.getNodePath(session, session.activeLeafId || "");
     const userMessageCount = activePath.filter(
       (node: ChatMessageNode) => node.role === "user" && node.isEnabled !== false
     ).length;

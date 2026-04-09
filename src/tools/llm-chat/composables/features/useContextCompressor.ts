@@ -289,7 +289,7 @@ export function useContextCompressor() {
     // 注意：不能使用 reparentNode，因为它会清空被移动节点的 childrenIds 并将其子节点交给旧父节点
     // 这里需要保持子树完整，只更新 parentId 关系
     for (const childId of childrenToTransfer) {
-      const childNode = session.nodes[childId];
+      const childNode = session.nodes?.[childId];
       if (!childNode) {
         logger.warn("转移子节点失败：子节点不存在", { childId, summaryNodeId: summaryNode.id });
         continue;
@@ -382,7 +382,7 @@ export function useContextCompressor() {
     }
 
     // 2. 获取路径并计算统计
-    const path = getNodePath(session, session.activeLeafId);
+    const path = getNodePath(session, session.activeLeafId || "");
     const contextStats = calculateContextStats(path);
 
     // 3. 判断是否需要压缩
@@ -400,7 +400,7 @@ export function useContextCompressor() {
    */
   const manualCompress = async (session: ChatSession): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig();
-    const path = getNodePath(session, session.activeLeafId);
+    const path = getNodePath(session, session.activeLeafId || "");
 
     logger.info("手动触发上下文压缩", { config: effectiveConfig });
 

@@ -148,7 +148,7 @@ export function useChatHandler() {
     });
 
     // 使用指定的 parentId 或当前活跃叶节点作为父节点
-    const parentId = options?.parentId || session.activeLeafId;
+    const parentId = options?.parentId || session.activeLeafId || "";
 
     // 使用节点管理器创建消息对（使用处理后的内容）
     const { userNode, assistantNode } = nodeManager.createMessagePair(session, processedContent, parentId);
@@ -239,7 +239,7 @@ export function useChatHandler() {
       name: string;
       displayName?: string;
       icon?: string;
-      content: string;
+      content?: string;
     } | null = null;
     if (currentAgent?.userProfileId) {
       const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
@@ -269,19 +269,21 @@ export function useChatHandler() {
 
     // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
     // 直接修改 session.nodes 中的节点，确保响应式更新
-    session.nodes[assistantNode.id].metadata = {
-      agentId: agentStore.currentAgentId,
-      agentName: currentAgent?.name,
-      agentDisplayName: currentAgent?.displayName || currentAgent?.name,
-      agentIcon: currentAgent?.icon,
-      profileId: agentConfig.profileId,
-      profileName: profile?.name,
-      profileDisplayName: profile?.name,
-      modelId: agentConfig.modelId,
-      modelName: model?.name || model?.id,
-      modelDisplayName: model?.name || model?.id,
-      virtualTimeConfig: currentAgent?.virtualTimeConfig,
-    };
+    if (session.nodes) {
+      session.nodes[assistantNode.id].metadata = {
+        agentId: agentStore.currentAgentId,
+        agentName: currentAgent?.name,
+        agentDisplayName: currentAgent?.displayName || currentAgent?.name,
+        agentIcon: currentAgent?.icon,
+        profileId: agentConfig.profileId,
+        profileName: profile?.name,
+        profileDisplayName: profile?.name,
+        modelId: agentConfig.modelId,
+        modelName: model?.name || model?.id,
+        modelDisplayName: model?.name || model?.id,
+        virtualTimeConfig: currentAgent?.virtualTimeConfig,
+      };
+    }
 
     logger.debug("已设置助手节点元数据", {
       nodeId: assistantNode.id,
@@ -318,7 +320,7 @@ export function useChatHandler() {
     const nodeManager = useNodeManager();
 
     // 定位目标节点
-    const targetNode = session.nodes[nodeId];
+    const targetNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!targetNode) {
       logger.warn("重新生成失败：目标节点不存在", {
         sessionId: session.id,
@@ -405,19 +407,21 @@ export function useChatHandler() {
 
     // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
     // 直接修改 session.nodes 中的节点，确保响应式更新
-    session.nodes[assistantNode.id].metadata = {
-      agentId: agentStore.currentAgentId,
-      agentName: currentAgent?.name,
-      agentDisplayName: currentAgent?.displayName || currentAgent?.name,
-      agentIcon: currentAgent?.icon,
-      profileId: agentConfig.profileId,
-      profileName: profile?.name,
-      profileDisplayName: profile?.name,
-      modelId: agentConfig.modelId,
-      modelName: model?.name || model?.id,
-      modelDisplayName: model?.name || model?.id,
-      virtualTimeConfig: currentAgent?.virtualTimeConfig,
-    };
+    if (session.nodes) {
+      session.nodes[assistantNode.id].metadata = {
+        agentId: agentStore.currentAgentId,
+        agentName: currentAgent?.name,
+        agentDisplayName: currentAgent?.displayName || currentAgent?.name,
+        agentIcon: currentAgent?.icon,
+        profileId: agentConfig.profileId,
+        profileName: profile?.name,
+        profileDisplayName: profile?.name,
+        modelId: agentConfig.modelId,
+        modelName: model?.name || model?.id,
+        modelDisplayName: model?.name || model?.id,
+        virtualTimeConfig: currentAgent?.virtualTimeConfig,
+      };
+    }
 
     logger.info("🔄 从节点重新生成", {
       sessionId: session.id,
@@ -479,7 +483,7 @@ export function useChatHandler() {
     // 如果是 User 续写，路径包含 User 节点（新节点是空的助手节点，接在后面）
     const pathToUserNode = nodeManager.getNodePath(
       session,
-      session.nodes[nodeId].role === "assistant" ? assistantNode.id : userNode?.id || nodeId
+      (session.nodes ? session.nodes[nodeId].role : "user") === "assistant" ? assistantNode.id : userNode?.id || nodeId
     );
     // 4. 获取配置
     const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId || "", {
@@ -525,17 +529,19 @@ export function useChatHandler() {
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
     const currentAgent = agentStore.getAgentById(agentStore.currentAgentId || "");
 
-    session.nodes[assistantNode.id].metadata = {
-      ...session.nodes[assistantNode.id].metadata,
-      agentId: agentStore.currentAgentId || undefined,
-      agentName: currentAgent?.name,
-      agentDisplayName: currentAgent?.displayName || currentAgent?.name,
-      agentIcon: currentAgent?.icon,
-      profileId: agentConfig.profileId,
-      profileName: profile?.name,
-      modelId: agentConfig.modelId,
-      modelName: model?.name || model?.id,
-    };
+    if (session.nodes) {
+      session.nodes[assistantNode.id].metadata = {
+        ...session.nodes[assistantNode.id].metadata,
+        agentId: agentStore.currentAgentId || undefined,
+        agentName: currentAgent?.name,
+        agentDisplayName: currentAgent?.displayName || currentAgent?.name,
+        agentIcon: currentAgent?.icon,
+        profileId: agentConfig.profileId,
+        profileName: profile?.name,
+        modelId: agentConfig.modelId,
+        modelName: model?.name || model?.id,
+      };
+    }
 
     // 6. 执行请求
     await executeRequest({

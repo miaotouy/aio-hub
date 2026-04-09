@@ -147,7 +147,7 @@ export function useNodeManager() {
     };
     collectDescendants(nodeId);
 
-    if (nodesToDeleteIds.has(session.activeLeafId)) {
+    if (nodesToDeleteIds.has(session.activeLeafId || "")) {
       const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
       const siblingNodes = siblings
         .filter((id) => id !== nodeId)
@@ -165,7 +165,7 @@ export function useNodeManager() {
         BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId);
       } else {
         session.activeLeafId = node.parentId || session.rootNodeId;
-        BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId);
+        BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId || "");
       }
     }
 

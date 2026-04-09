@@ -144,7 +144,7 @@ const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
 
 // 计算路径中的所有参与节点
 const pathNodes = computed(() => {
-  if (!props.session || !props.messageId) return [];
+  if (!props.session || !props.session.nodes || !props.messageId) return [];
   const nodes: ChatMessageNode[] = [];
   let currentId: string | null = props.messageId;
   while (currentId !== null) {
@@ -246,9 +246,10 @@ const previewContent = computed(() => {
   if (exportFormat.value === "raw") {
     const branchNodes: Record<string, ChatMessageNode> = {};
     let currentId: string | null = props.messageId;
+    const sessionNodes = props.session.nodes;
 
-    while (currentId !== null) {
-      const node: ChatMessageNode | undefined = props.session.nodes[currentId];
+    while (currentId !== null && sessionNodes) {
+      const node: ChatMessageNode | undefined = sessionNodes[currentId];
       if (node) {
         branchNodes[currentId] = node;
       }

@@ -579,7 +579,7 @@ const handleNodeViewDetail = (nodeId: string, event: MouseEvent) => {
 
 // 计算选中节点用于详情显示
 const selectedNodeForDetail = computed<ChatMessageNode | null>(() => {
-  if (!detailPopupState.value.nodeId || !props.session) {
+  if (!detailPopupState.value.nodeId || !props.session || !props.session.nodes) {
     return null;
   }
   return props.session.nodes[detailPopupState.value.nodeId] || null;

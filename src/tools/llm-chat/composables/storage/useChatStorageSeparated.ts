@@ -237,12 +237,18 @@ export function useChatStorageSeparated() {
    * 从会话创建索引项
    */
   function createIndexItem(session: ChatSession): SessionIndexItem {
+    // 核心修复：只有在 nodes 存在时才重新计算计数
+    // 如果 nodes 不存在（详情未加载），必须保留原有的 messageCount，否则会因为 Object.keys({}).length - 1 变成 -1
+    const messageCount = session.nodes
+      ? Math.max(0, Object.keys(session.nodes).length - 1)
+      : (session.messageCount || 0);
+
     return {
       id: session.id,
       name: session.name,
       updatedAt: session.updatedAt,
       createdAt: session.createdAt,
-      messageCount: Object.keys(session.nodes || {}).length - 1, // 排除根节点
+      messageCount: Math.max(0, messageCount), // 最终防御，确保不为负数
       displayAgentId: session.displayAgentId,
     };
   }

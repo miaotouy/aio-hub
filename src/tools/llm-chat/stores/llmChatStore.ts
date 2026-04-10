@@ -185,7 +185,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     if (session.nodes) {
       return Object.keys(session.nodes).length;
     }
-    return (session.messageCount || 0) + 1; // +1 是因为 messageCount 排除根节点
+    // 增加对 -1 的容错：如果 messageCount 是负数，说明索引已损坏，回退到 0
+    const cachedCount = session.messageCount !== undefined && session.messageCount >= 0
+      ? session.messageCount
+      : 0;
+    return cachedCount + 1; // +1 是因为 messageCount 排除根节点
   });
 
   // ==================== 历史记录管理 ====================

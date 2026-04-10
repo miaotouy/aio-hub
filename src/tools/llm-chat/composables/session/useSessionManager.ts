@@ -24,7 +24,8 @@ export function useSessionManager() {
    */
   const updateMessageCount = (session: ChatSession): void => {
     if (session.nodes) {
-      session.messageCount = Object.keys(session.nodes).length - 1; // 排除根节点
+      // 增加 Math.max(0, ...) 保护，防止根节点丢失或其他异常导致负数
+      session.messageCount = Math.max(0, Object.keys(session.nodes).length - 1); // 排除根节点
     }
   };
 

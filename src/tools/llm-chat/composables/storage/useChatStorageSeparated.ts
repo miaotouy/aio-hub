@@ -239,9 +239,7 @@ export function useChatStorageSeparated() {
   function createIndexItem(session: ChatSession): SessionIndexItem {
     // 核心修复：只有在 nodes 存在时才重新计算计数
     // 如果 nodes 不存在（详情未加载），必须保留原有的 messageCount，否则会因为 Object.keys({}).length - 1 变成 -1
-    const messageCount = session.nodes
-      ? Math.max(0, Object.keys(session.nodes).length - 1)
-      : (session.messageCount || 0);
+    const messageCount = session.nodes ? Math.max(0, Object.keys(session.nodes).length - 1) : session.messageCount || 0;
 
     return {
       id: session.id,
@@ -434,11 +432,11 @@ export function useChatStorageSeparated() {
   async function saveSessions(sessions: ChatSession[], currentSessionId: string | null): Promise<void> {
     try {
       // 过滤掉详情未加载的会话，防止空数据覆盖磁盘文件
-      const sessionsWithDetails = sessions.filter(s => s.nodes !== undefined);
-      
+      const sessionsWithDetails = sessions.filter((s) => s.nodes !== undefined);
+
       logger.debug("开始批量保存会话", {
         total: sessions.length,
-        toSave: sessionsWithDetails.length
+        toSave: sessionsWithDetails.length,
       });
 
       // 1. 并行保存已加载详情的会话文件（强制写入）
@@ -531,6 +529,51 @@ export function useChatStorageSeparated() {
   }
 
   /**
+   * 修复索引中损坏的项（如 messageCount 为 -1）
+   * 仅在启动后执行一次，不重试
+   */
+  async function repairIndex(): Promise<{ repairedCount: number }> {
+    try {
+      const index = await loadIndex();
+      const damagedItems = index.sessions.filter((item) => item.messageCount < 0);
+
+      if (damagedItems.length === 0) {
+        return { repairedCount: 0 };
+      }
+
+      logger.info("检测到索引损坏，开始自愈", { count: damagedItems.length });
+
+      let repairedCount = 0;
+      for (const item of damagedItems) {
+        try {
+          // 加载完整会话以重新计算计数
+          const session = await loadSession(item.id);
+          if (session && session.nodes) {
+            const newItem = createIndexItem(session);
+            const idx = index.sessions.findIndex((s) => s.id === item.id);
+            if (idx !== -1) {
+              index.sessions[idx] = newItem;
+              repairedCount++;
+            }
+          }
+        } catch (e) {
+          logger.warn("修复单个会话索引失败", { sessionId: item.id, error: e });
+        }
+      }
+
+      if (repairedCount > 0) {
+        await saveIndex(index);
+        logger.info("索引自愈完成", { repairedCount });
+      }
+
+      return { repairedCount };
+    } catch (error) {
+      logger.error("索引自愈过程发生错误", error);
+      return { repairedCount: 0 };
+    }
+  }
+
+  /**
    * 获取会话存储目录路径
    */
   async function getSessionsDir(): Promise<string> {
@@ -545,6 +588,7 @@ export function useChatStorageSeparated() {
     loadSessionsAll,
     saveSessions,
     persistSession, // 新增：单会话保存
+    repairIndex,
     deleteSession,
     updateCurrentSessionId, // 新增：更新当前会话ID
     createDebouncedSave,

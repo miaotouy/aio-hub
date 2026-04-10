@@ -85,7 +85,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         }
       }
     },
-    { flush: "post" }
+    { flush: "post" },
   );
 
   const currentSession = computed((): ChatSession | null => {
@@ -148,7 +148,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           role: node.role as "user" | "assistant",
           content: node.content,
         }));
-    }
+    },
   );
 
   const getSiblings = (nodeId: string): ChatMessageNode[] => {
@@ -186,9 +186,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       return Object.keys(session.nodes).length;
     }
     // 增加对 -1 的容错：如果 messageCount 是负数，说明索引已损坏，回退到 0
-    const cachedCount = session.messageCount !== undefined && session.messageCount >= 0
-      ? session.messageCount
-      : 0;
+    const cachedCount = session.messageCount !== undefined && session.messageCount >= 0 ? session.messageCount : 0;
     return cachedCount + 1; // +1 是因为 messageCount 排除根节点
   });
 
@@ -258,7 +256,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return sessionId;
   }
 
-
   /**
    * 删除会话
    */
@@ -267,7 +264,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     const { updatedSessions, newCurrentSessionId } = await sessionManager.deleteSession(
       sessions.value,
       sessionId,
-      currentSessionId.value
+      currentSessionId.value,
     );
 
     sessions.value = updatedSessions;
@@ -292,98 +289,120 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
-   /**
-    * 从文件加载会话（优化后的按需加载）
-    */
-   async function loadSessions(): Promise<void> {
-     const sessionManager = useSessionManager();
-     const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
-     const storage = useChatStorageSeparated();
- 
-     // 1. 先加载索引（轻量级）
-     const { sessions: indexItems, currentSessionId: loadedId } = await sessionManager.loadSessionsIndex();
- 
-     // 2. 将元数据转换为轻量会话对象放入 store
-     sessions.value = indexItems.map(item => ({
-       id: item.id,
-       name: item.name,
-       updatedAt: item.updatedAt,
-       createdAt: item.createdAt,
-       messageCount: item.messageCount,
-       displayAgentId: item.displayAgentId,
-       // nodes 等详情字段设为 undefined，待按需加载
-       nodes: undefined,
-       rootNodeId: undefined,
-       activeLeafId: undefined,
-     }));
- 
-     currentSessionId.value = loadedId;
- 
-     // 3. 核心优化：只针对当前活跃会话加载完整详情
-     if (loadedId) {
-       const fullSession = await storage.loadSession(loadedId);
-       if (fullSession) {
-         const index = sessions.value.findIndex(s => s.id === loadedId);
-         if (index !== -1) {
-           sessions.value[index] = fullSession;
-           logger.info("当前活跃会话详情加载完成", { sessionId: loadedId });
-         }
-       }
-     }
- 
-     // 确保加载后的当前会话有历史记录
-     if (
-       currentSession.value &&
-       (currentSession.value.history === undefined || currentSession.value.historyIndex === undefined)
-     ) {
-       historyManager.clearHistory();
-       logger.info("为加载的当前会话初始化了历史堆栈", {
-         sessionId: currentSession.value.id,
-       });
-     }
- 
-     // 补充 token 元数据（仅对已加载详情的会话）
-     await fillMissingTokenMetadata();
-   }
- 
-   /**
-    * 切换当前会话（增强：支持按需加载详情）
-    */
-   async function switchSession(sessionId: string): Promise<void> {
-     const session = sessions.value.find((s) => s.id === sessionId);
-     if (!session) {
-       logger.warn("切换会话失败：会话不存在", { sessionId });
-       return;
-     }
- 
-     // ★ 按需加载详情：如果该会话尚未加载节点数据（通过 nodes 是否为 undefined 判断）
-     if (session.nodes === undefined) {
-       const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
-       const storage = useChatStorageSeparated();
-       const fullSession = await storage.loadSession(sessionId);
-       if (fullSession) {
-         const index = sessions.value.findIndex(s => s.id === sessionId);
-         sessions.value[index] = fullSession;
-         logger.info("会话详情按需加载完成", { sessionId });
-       }
-     }
- 
-     // ★ 确保切换到的会话有初始化的历史记录
-     if (session.history === undefined || session.historyIndex === undefined) {
-       // 临时设置当前会话ID，以便 historyManager 能正确操作
-       const originalSessionId = currentSessionId.value;
-       currentSessionId.value = session.id;
-       historyManager.clearHistory();
-       // 恢复原始ID，因为下面的代码会正确设置它
-       currentSessionId.value = originalSessionId;
-       logger.info("为旧会话初始化了历史堆栈", { sessionId });
-     }
- 
-     currentSessionId.value = sessionId;
-     const sessionManager = useSessionManager();
-     sessionManager.updateCurrentSessionId(sessionId);
-     logger.info("切换会话", { sessionId, sessionName: session.name });
-   }
+   * 从文件加载会话（优化后的按需加载）
+   */
+  async function loadSessions(): Promise<void> {
+    const sessionManager = useSessionManager();
+    const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
+    const storage = useChatStorageSeparated();
+
+    // 1. 先加载索引（轻量级）
+    const { sessions: indexItems, currentSessionId: loadedId } = await sessionManager.loadSessionsIndex();
+
+    // 2. 将元数据转换为轻量会话对象放入 store
+    sessions.value = indexItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      updatedAt: item.updatedAt,
+      createdAt: item.createdAt,
+      messageCount: item.messageCount,
+      displayAgentId: item.displayAgentId,
+      // nodes 等详情字段设为 undefined，待按需加载
+      nodes: undefined,
+      rootNodeId: undefined,
+      activeLeafId: undefined,
+    }));
+
+    currentSessionId.value = loadedId;
+
+    // 3. 核心优化：只针对当前活跃会话加载完整详情
+    if (loadedId) {
+      const fullSession = await storage.loadSession(loadedId);
+      if (fullSession) {
+        const index = sessions.value.findIndex((s) => s.id === loadedId);
+        if (index !== -1) {
+          sessions.value[index] = fullSession;
+          logger.info("当前活跃会话详情加载完成", { sessionId: loadedId });
+        }
+      }
+    }
+
+    // 确保加载后的当前会话有历史记录
+    if (
+      currentSession.value &&
+      (currentSession.value.history === undefined || currentSession.value.historyIndex === undefined)
+    ) {
+      historyManager.clearHistory();
+      logger.info("为加载的当前会话初始化了历史堆栈", {
+        sessionId: currentSession.value.id,
+      });
+    }
+
+    // 补充 token 元数据（仅对已加载详情的会话）
+    await fillMissingTokenMetadata();
+
+    // 4. 索引自愈：检测并修复损坏的索引项（如 messageCount 为 -1）
+    // 延迟一会执行，避免阻塞首屏加载
+    setTimeout(async () => {
+      try {
+        const { repairedCount } = await storage.repairIndex();
+        if (repairedCount > 0) {
+          // 如果有修复，重新同步内存中的 sessions 列表
+          const { sessions: updatedIndexItems } = await sessionManager.loadSessionsIndex();
+          // 仅更新元数据，不覆盖已加载详情的 nodes
+          sessions.value.forEach((s) => {
+            const updated = updatedIndexItems.find((item) => item.id === s.id);
+            if (updated) {
+              s.messageCount = updated.messageCount;
+              s.name = updated.name;
+              s.displayAgentId = updated.displayAgentId;
+            }
+          });
+        }
+      } catch (e) {
+        logger.warn("索引自愈执行失败", e);
+      }
+    }, 3000);
+  }
+
+  /**
+   * 切换当前会话（增强：支持按需加载详情）
+   */
+  async function switchSession(sessionId: string): Promise<void> {
+    const session = sessions.value.find((s) => s.id === sessionId);
+    if (!session) {
+      logger.warn("切换会话失败：会话不存在", { sessionId });
+      return;
+    }
+
+    // ★ 按需加载详情：如果该会话尚未加载节点数据（通过 nodes 是否为 undefined 判断）
+    if (session.nodes === undefined) {
+      const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
+      const storage = useChatStorageSeparated();
+      const fullSession = await storage.loadSession(sessionId);
+      if (fullSession) {
+        const index = sessions.value.findIndex((s) => s.id === sessionId);
+        sessions.value[index] = fullSession;
+        logger.info("会话详情按需加载完成", { sessionId });
+      }
+    }
+
+    // ★ 确保切换到的会话有初始化的历史记录
+    if (session.history === undefined || session.historyIndex === undefined) {
+      // 临时设置当前会话ID，以便 historyManager 能正确操作
+      const originalSessionId = currentSessionId.value;
+      currentSessionId.value = session.id;
+      historyManager.clearHistory();
+      // 恢复原始ID，因为下面的代码会正确设置它
+      currentSessionId.value = originalSessionId;
+      logger.info("为旧会话初始化了历史堆栈", { sessionId });
+    }
+
+    currentSessionId.value = sessionId;
+    const sessionManager = useSessionManager();
+    sessionManager.updateCurrentSessionId(sessionId);
+    logger.info("切换会话", { sessionId, sessionName: session.name });
+  }
   /**
    * 持久化会话到文件
    */
@@ -448,7 +467,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       temporaryModel?: ModelIdentifier | null;
       parentId?: string;
       disableMacroParsing?: boolean;
-    }
+    },
   ): Promise<void> {
     const session = currentSession.value;
     if (!session) throw new Error("请先创建或选择一个会话");
@@ -479,7 +498,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         abortControllers.value,
         generatingNodes.value,
         options,
-        currentSessionId.value
+        currentSessionId.value,
       );
 
       // 反向驱动：立即清空输入框
@@ -578,7 +597,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         currentActivePath.value,
         abortControllers.value,
         generatingNodes.value,
-        options
+        options,
       );
 
       const sessionManager = useSessionManager();
@@ -700,7 +719,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   // 上下文统计管理 (委托给 Composable)
   const { contextStats, isLoadingContextStats, refreshContextStats } = useChatContextStats(
     currentSession,
-    currentSessionId
+    currentSessionId,
   );
 
   // ==================== 返回 ====================

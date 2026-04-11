@@ -115,7 +115,7 @@
 ### 3.1. 存放路径
 
 - **具体模块修改计划**: 针对特定工具（Tool）的修改或重构计划，应存放在该工具目录下的文档目录中。
-  - **路径**: `src/tools/{toolId}/design/Plan/` (桌面端) 或 `mobile/src/tools/{toolId}/design/Plan/` (移动端)。
+  - **路径**: `src/tools/{toolId}/doc/Plan/` (桌面端) 或 `mobile/src/tools/{toolId}/doc/Plan/` (移动端)。
 - **全局/跨模块计划**: 涉及应用整体架构、多个工具协同或全局基础设施的修改计划。
   - **路径**: `docs/Plan/`。
 - **架构文档**: 描述已实现的系统架构、核心原理和技术选型。

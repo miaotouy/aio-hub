@@ -427,22 +427,37 @@ const handleDragStart = (e: MouseEvent) => {
   // 排除掉具有交互性的元素，只允许在背景区域触发拖拽
   const target = e.target as HTMLElement;
 
-  // 检查是否点击在非交互的背景区域
+  // 0. 排除交互性元素（按钮、输入框等），防止拦截它们的点击事件
+  if (
+    target.closest("button") ||
+    target.closest("input") ||
+    target.closest("textarea") ||
+    target.closest(".el-dropdown")
+  ) {
+    return;
+  }
+
+  // 1. 检查是否点击了手柄区域 (ComponentHeader 或显式标记的手柄)
+  const isHandle = target.closest(".detachable-handle");
+
+  // 2. 检查是否点击在非交互的背景区域
   const isBackground =
-    target.classList.contains("message-input-container") ||
+    target === containerRef.value ||
     target.classList.contains("main-content") ||
     target.classList.contains("input-content") ||
     target.classList.contains("input-wrapper") ||
-    target.classList.contains("detachable-handle") ||
     target.classList.contains("detached-wallpaper");
 
-  if (!isBackground) return;
-
   if (props.isDetached) {
-    // 分离模式下，直接调用原生窗口拖拽
-    getCurrentWindow().startDragging();
+    // 分离模式下：手柄或背景区域均可触发原生窗口拖拽
+    if (isHandle || isBackground) {
+      getCurrentWindow().startDragging();
+    }
     return;
   }
+
+  // 非分离模式下：只有点击手柄区域才允许触发分离拖拽
+  if (!isHandle) return;
 
   const config = getDetachConfig(e.screenX, e.screenY);
   if (!config) {

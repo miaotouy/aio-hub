@@ -858,12 +858,12 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     currentSession,
     currentSessionDetail,
     setSessions: (sessions: ChatSessionIndex[]) => {
-      // 避免无意义的清空重写，减少响应式抖动
-      // TODO: 如果 ID 列表完全一致且长度一致，可以考虑更细粒度的对比，但这里先简单处理
-      sessionIndexMap.value.clear();
-      sessions.forEach((s) => sessionIndexMap.value.set(s.id, s));
+      // 性能优化：创建一个新的 Map 并一次性替换，避免逐个 set 触发响应式风暴
+      const newMap = new Map<string, ChatSessionIndex>();
+      sessions.forEach((s) => newMap.set(s.id, s));
+      sessionIndexMap.value = newMap;
       
-      logger.debug("已同步会话列表索引", { count: sessions.length });
+      logger.debug("已批量同步会话列表索引", { count: sessions.length });
     },
     isCurrentSessionGenerating,
     currentActivePath,

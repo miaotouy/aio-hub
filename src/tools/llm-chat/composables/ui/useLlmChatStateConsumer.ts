@@ -109,43 +109,32 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   });
 
   // 全量会话同步
-  watch(
-    syncedSessions,
-    (newSessions) => {
-      if (newSessions && newSessions.length > 0) {
-        logger.info("接收到 sessions 同播数据", { count: newSessions.length });
-        // 更新索引 Map
-        newSessions.forEach((s) => {
-          store.sessionIndexMap.set(s.id, s as any);
-        });
-      }
-    },
-    { deep: true },
-  );
+  watch(syncedSessions, (newSessions) => {
+    if (newSessions && newSessions.length > 0) {
+      logger.info("接收到 sessions 同播数据", { count: newSessions.length });
+      // 使用 Store 提供的批量更新方法，只触发一次响应式更新
+      store.setSessions(newSessions as any);
+    }
+  });
 
   // 会话详情数据同步（关键：包含消息树）
-  watch(
-    syncedCurrentSessionData,
-    (newSessionData) => {
-      if (newSessionData) {
-        const nodeCount = Object.keys(newSessionData.nodes || {}).length;
-        logger.info("接收到 currentSessionData 同步数据", {
-          sessionId: newSessionData.id,
-          nodeCount,
-        });
+  watch(syncedCurrentSessionData, (newSessionData) => {
+    if (newSessionData) {
+      const nodeCount = Object.keys(newSessionData.nodes || {}).length;
+      logger.info("接收到 currentSessionData 同步数据", {
+        sessionId: newSessionData.id,
+        nodeCount,
+      });
 
-        // 写入详情 Map（索引由 syncedSessions 独立同步）
-        store.sessionDetailMap.set(newSessionData.id, newSessionData as any);
+      // 写入详情 Map（索引由 syncedSessions 独立同步）
+      store.sessionDetailMap.set(newSessionData.id, newSessionData as any);
 
-        // 如果当前 ID 还没设置，顺便设置一下，确保 UI 能够响应
-        if (!store.currentSessionId) {
-          store.currentSessionId = newSessionData.id;
-        }
+      // 如果当前 ID 还没设置，顺便设置一下，确保 UI 能够响应
+      if (!store.currentSessionId) {
+        store.currentSessionId = newSessionData.id;
       }
-    },
-    { deep: true },
-  );
-
+    }
+  });
   watch(syncedCurrentSessionId, (newId) => {
     if (newId) {
       logger.info("接收到 currentSessionId 同步数据", { sessionId: newId });

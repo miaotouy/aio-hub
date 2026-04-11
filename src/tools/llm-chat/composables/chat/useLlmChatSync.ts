@@ -35,6 +35,10 @@ export function useLlmChatSync() {
   let isInitialized = false;
   // 收集所有状态同步引擎实例，用于批量操作
   const stateEngines: ReturnType<typeof useStateSyncEngine>[] = [];
+  
+  // 核心引擎引用，用于在 Action 处理中手动触发同步
+  let sessionDataEngine: ReturnType<typeof useStateSyncEngine> | null = null;
+  let sessionIdEngine: ReturnType<typeof useStateSyncEngine> | null = null;
 
   // 在组件卸载时手动清理所有异步创建的引擎
   // 必须在 setup 期间注册，而不是在 initialize (可能异步) 中注册
@@ -141,16 +145,16 @@ export function useLlmChatSync() {
     createStateEngine(allSessionsIndex as Ref<ChatSessionIndex[]>, CHAT_STATE_KEYS.SESSIONS);
 
     // 同步当前会话的完整数据
-    const sessionDataEngine = createStateEngine(currentSessionData as Ref<any>, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
+    sessionDataEngine = createStateEngine(currentSessionData as Ref<any>, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
 
     // 步骤 3：同步引擎降频
     // 监听发送状态，动态调整同步频率
     watch(isSending, (sending) => {
       if (bus.windowType === "main" || bus.windowType === "detached-tool") {
-        if (sending) {
+        if (sending && sessionDataEngine) {
           logger.info("检测到正在发送消息，调低全量同步频率 (2000ms)");
           sessionDataEngine.setDebounce(2000);
-        } else {
+        } else if (sessionDataEngine) {
           logger.info("发送结束，恢复全量同步频率 (100ms) 并执行全量广播");
           sessionDataEngine.setDebounce(100);
           // 强制执行一次全量同步作为生成结束后的兜底
@@ -160,7 +164,7 @@ export function useLlmChatSync() {
     });
 
     // 同步当前激活的会话ID
-    createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
+    sessionIdEngine = createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
     // 同步发送状态
     createStateEngine(isSending, CHAT_STATE_KEYS.IS_SENDING);
     // 同步正在生成的节点列表
@@ -296,7 +300,14 @@ export function useLlmChatSync() {
       case "update-session":
         return store.updateSession(params.sessionId, params.updates);
       case "create-session":
-        return store.createSession(params.agentId, params.name);
+        return store.createSession(params.agentId, params.name).then((sessionId) => {
+          // 性能优化：创建会话后立即强制推送关键状态，不等待 debounce 延迟
+          // 这能显著提升悬浮窗创建会话后的响应速度
+          logger.info("主窗口 createSession 完成，强制推送状态", { sessionId });
+          if (sessionIdEngine) sessionIdEngine.manualPush(true);
+          if (sessionDataEngine) sessionDataEngine.manualPush(true);
+          return sessionId;
+        });
       case "select-agent":
         return (agentStore as any).selectAgent(params.agentId);
       case "complete-input":

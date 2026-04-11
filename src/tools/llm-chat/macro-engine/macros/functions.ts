@@ -61,7 +61,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
           return '[错误: pick 需要至少1个参数]';
         }
         // 使用会话ID或最后一条消息作为种子
-        const seed = context.session?.id || context.lastMessage || '';
+        const seed = context.detail?.id || context.lastMessage || '';
         const hash = simpleHash(seed);
         const index = hash % args.length;
         return args[index];

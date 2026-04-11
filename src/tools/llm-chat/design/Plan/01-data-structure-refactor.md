@@ -31,33 +31,33 @@
 
 ### 步骤 1：类型定义调整
 
-- [ ] 修改 `src/tools/llm-chat/types/session.ts`，新增 `ChatSessionIndex` 和 `ChatSessionDetail` 接口。
-- [ ] **彻底移除旧的 `ChatSession` 定义**。让编译器在全工程范围内报错，通过类型驱动进行全量重构，拒绝“半吊子”兼容。
+- [x] 修改 `src/tools/llm-chat/types/session.ts`，新增 `ChatSessionIndex` 和 `ChatSessionDetail` 接口。
+- [x] **彻底移除旧的 `ChatSession` 定义**。让编译器在全工程范围内报错，通过类型驱动进行全量重构，拒绝“半吊子”兼容。
 
 ### 步骤 2：Store 核心改造
 
-- [ ] 在 `llmChatStore.ts` 中声明 `sessionIndexMap` 和 `sessionDetailMap`。
-- [ ] **重写 `loadSessions`**:
+- [x] 在 `llmChatStore.ts` 中声明 `sessionIndexMap` 和 `sessionDetailMap`。
+- [x] **重写 `loadSessions`**:
   - 调用 `sessionManager.loadSessionsIndex()` 填充 `sessionIndexMap`。
   - 仅为 `currentSessionId` 加载详情并填充 `sessionDetailMap`。
-- [ ] **重写 `switchSession`**:
+- [x] **重写 `switchSession`**:
   - 切换前检查 `sessionDetailMap` 是否有数据，无则异步加载。
-- [ ] **修复 Getters**:
+- [x] **修复 Getters**:
   - `currentSession`: 返回 `sessionIndexMap.get(currentSessionId)`。
   - `currentSessionDetail`: (新增) 返回 `sessionDetailMap.get(currentSessionId)`。
   - `currentActivePath`: 改为依赖 `currentSessionDetail`，并增加空值防御。
-- [ ] **撤销/重做同步**:
+- [x] **撤销/重做同步**:
   - 在 `switchSession` 中显式调用 `historyManager.clearHistory()` 或切换历史上下文。
 
 ### 步骤 3：逻辑层适配 (`useSessionManager.ts`)
 
-- [ ] **修改 `updateMessageCount`**: 接受 `id` 和 `nodes`，直接更新 `sessionIndexMap` 中的对应项。
-- [ ] **修改 `persistSession`**: 确保在保存详情文件（`session-xxx.json`）的同时，触发索引文件（`sessions.json`）的更新。
+- [x] **修改 `updateMessageCount`**: 接受 `id` 和 `nodes`，直接更新 `sessionIndexMap` 中的对应项。
+- [x] **修改 `persistSession`**: 确保在保存详情文件（`session-xxx.json`）的同时，触发索引文件（`sessions.json`）的更新。
 
 ### 步骤 4：UI 表现适配
 
-- [ ] **侧边栏 (`SessionItem.vue`)**: 仅绑定 `sessionIndexMap` 中的数据。
-- [ ] **对话区 (`MessageList.vue`)**: 增加 `v-if` 保护，当 `sessionDetailMap` 对应数据加载中时显示 Loading。
+- [x] **侧边栏 (`SessionItem.vue`)**: 仅绑定 `sessionIndexMap` 中的数据。
+- [x] **对话区 (`MessageList.vue`)**: 增加 `v-if` 保护，当 `sessionDetailMap` 对应数据加载中时显示 Loading。
 
 ## 4. 额外注意事项
 

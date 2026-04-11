@@ -16,7 +16,7 @@ import { useLlmChatStateConsumer } from "./composables/ui/useLlmChatStateConsume
 import { resolveAvatarPath } from "./composables/ui/useResolvedAvatar";
 import { llmChatService, type InputOperationResult, type AddContentOptions } from "./services/llmChatService";
 import type { Asset } from "@/types/asset-management";
-import type { ChatSession, ChatAgent, UserProfile } from "./types";
+import type { ChatSessionIndex, ChatSessionDetail, ChatAgent, UserProfile } from "./types";
 
 // ==================== 服务类 ====================
 
@@ -112,17 +112,24 @@ export default class LlmChatRegistry implements ToolRegistry {
   }
 
   /**
-   * 获取所有会话
+   * 获取所有会话索引
    */
-  public getSessions(): ChatSession[] {
+  public getSessions(): ChatSessionIndex[] {
     return llmChatService.getSessions();
   }
 
   /**
-   * 获取当前活跃会话
+   * 获取当前活跃会话索引
    */
-  public getCurrentSession(): ChatSession | null {
+  public getCurrentSession(): ChatSessionIndex | null {
     return llmChatService.getCurrentSession();
+  }
+
+  /**
+   * 获取当前活跃会话详情
+   */
+  public getCurrentSessionDetail(): ChatSessionDetail | null {
+    return llmChatService.getCurrentSessionDetail();
   }
 
   /**
@@ -362,9 +369,9 @@ export default class LlmChatRegistry implements ToolRegistry {
         },
         {
           name: "getSessions",
-          description: "获取所有会话列表",
+          description: "获取所有会话索引列表",
           parameters: [],
-          returnType: "ChatSession[]",
+          returnType: "ChatSessionIndex[]",
         },
         {
           name: "getAgents",

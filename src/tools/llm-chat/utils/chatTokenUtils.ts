@@ -1,4 +1,4 @@
-import type { ChatSession, ChatMessageNode } from "../types";
+import type { ChatSessionDetail, ChatMessageNode, ChatSessionIndex } from "../types";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -42,9 +42,13 @@ export async function prepareMessageForTokenCalc(
 /**
  * 重新计算单个节点的 token
  */
-export async function recalculateNodeTokens(session: ChatSession, nodeId: string): Promise<void> {
-  if (!session.nodes) return;
-  const node = session.nodes[nodeId];
+export async function recalculateNodeTokens(
+  _index: ChatSessionIndex,
+  detail: ChatSessionDetail,
+  nodeId: string
+): Promise<void> {
+  if (!detail.nodes) return;
+  const node = detail.nodes[nodeId];
   if (!node || !node.content) return;
   if (node.role !== "user" && node.role !== "assistant") return;
 
@@ -52,9 +56,9 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
   if (node.role === "assistant" && node.metadata?.modelId) {
     modelId = node.metadata.modelId;
   } else if (node.role === "user") {
-    let currentId: string | null = session.activeLeafId || null;
+    let currentId: string | null = detail.activeLeafId || null;
     while (currentId !== null) {
-      const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
+      const pathNode: ChatMessageNode | undefined = detail.nodes[currentId];
       if (pathNode?.role === "assistant" && pathNode.metadata?.modelId) {
         modelId = pathNode.metadata.modelId;
         break;
@@ -62,7 +66,7 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
       currentId = pathNode?.parentId ?? null;
     }
     if (!modelId) {
-      for (const n of Object.values(session.nodes)) {
+      for (const n of Object.values(detail.nodes)) {
         if (n.role === "assistant" && n.metadata?.modelId) {
           modelId = n.metadata.modelId;
           break;
@@ -73,7 +77,7 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
 
   if (!modelId) {
     logger.warn("无法确定模型ID，跳过token重新计算", {
-      sessionId: session.id,
+      sessionId: detail.id,
       nodeId,
       role: node.role,
     });
@@ -98,7 +102,7 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
     node.metadata.contentTokens = tokenResult.count;
 
     logger.debug("重新计算消息 token", {
-      sessionId: session.id,
+      sessionId: detail.id,
       nodeId,
       role: node.role,
       tokens: tokenResult.count,
@@ -106,7 +110,7 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
     });
   } catch (error) {
     logger.warn("重新计算 token 失败", {
-      sessionId: session.id,
+      sessionId: detail.id,
       nodeId,
       role: node.role,
       error: error instanceof Error ? error.message : String(error),
@@ -118,13 +122,15 @@ export async function recalculateNodeTokens(session: ChatSession, nodeId: string
  * 补充会话中缺失的 token 元数据
  * @returns 返回是否有会话被更新
  */
-export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise<ChatSession[]> {
+export async function fillMissingTokenMetadata(
+  sessions: { index: any; detail: ChatSessionDetail }[]
+): Promise<{ index: any; detail: ChatSessionDetail }[]> {
   let updatedCount = 0;
-  const sessionsToSave: ChatSession[] = [];
+  const sessionsToSave: { index: any; detail: ChatSessionDetail }[] = [];
   const calculationPromises: Promise<void>[] = [];
   const updatedSessionIds = new Set<string>();
 
-  for (const session of sessions) {
+  for (const { detail: session } of sessions) {
     if (!session.nodes) continue;
     for (const [nodeId, node] of Object.entries(session.nodes)) {
       if (!node.content || node.metadata?.contentTokens !== undefined) continue;
@@ -198,7 +204,7 @@ export async function fillMissingTokenMetadata(sessions: ChatSession[]): Promise
     }
 
     for (const session of sessions) {
-      if (updatedSessionIds.has(session.id)) {
+      if (updatedSessionIds.has(session.detail.id)) {
         sessionsToSave.push(session);
       }
     }

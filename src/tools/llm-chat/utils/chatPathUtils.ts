@@ -2,11 +2,11 @@
  * 会话路径计算工具
  */
 
-import type { ChatSession, ChatMessageNode, ChatAgent } from "../types";
+import type { ChatMessageNode, ChatAgent, ChatSessionIndex, ChatSessionDetail } from "../types";
 
 /**
  * 计算包含智能体预设展示的消息路径
- * 
+ *
  * 逻辑：
  * 1. 获取当前活动路径。
  * 2. 如果智能体配置了 displayPresetCount，则从预设消息中提取对应的消息。
@@ -14,10 +14,11 @@ import type { ChatSession, ChatMessageNode, ChatAgent } from "../types";
  */
 export function getActivePathWithPresets(
   activePath: ChatMessageNode[],
-  session: ChatSession | null,
+  index: ChatSessionIndex | null,
+  detail: ChatSessionDetail | null,
   agent: ChatAgent | null
 ): ChatMessageNode[] {
-  if (!session || !agent || !agent.presetMessages || !agent.displayPresetCount || agent.displayPresetCount <= 0) {
+  if (!index || !detail || !agent || !agent.presetMessages || !agent.displayPresetCount || agent.displayPresetCount <= 0) {
     return activePath;
   }
 

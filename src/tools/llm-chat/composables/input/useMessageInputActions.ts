@@ -113,14 +113,15 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       return;
     }
 
-    const session = chatStore.currentSession;
-    if (session && session.activeLeafId && options.isCurrentBranchGenerating.value) {
-      chatStore.abortNodeGeneration(session.activeLeafId);
+    const detail = chatStore.currentSessionDetail;
+    if (detail && detail.activeLeafId && options.isCurrentBranchGenerating.value) {
+      chatStore.abortNodeGeneration(detail.activeLeafId);
     } else {
       options.emit("abort");
     }
   };
 
+  // 执行快捷操作
   // 执行快捷操作
   const handleQuickAction = async (action: QuickAction) => {
     const textarea = options.textareaRef.value;
@@ -135,18 +136,18 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
     try {
       // 准备完整的宏上下文
-      const session = chatStore.currentSession;
+      const session = chatStore.currentFullSession;
       const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
       const userProfile = profileStore.globalProfile;
 
       const context = createMacroContext({
         userName: userProfile?.name,
         charName: agent?.name,
-        session: session || undefined,
+        index: session?.index,
+        detail: session?.detail,
         agent: agent || undefined,
         userProfile: userProfile || undefined,
       });
-
       // 注入 input 宏内容
       context.input = inputText;
 
@@ -193,8 +194,8 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
   // 处理分析当前上下文
   const handleAnalyzeContextWithInput = () => {
-    const session = chatStore.currentSession;
-    if (!session) return;
+    const detail = chatStore.currentSessionDetail;
+    if (!detail) return;
 
     // 直接从 inputManager 获取当前状态
     const pendingInput: PendingInputData = {
@@ -205,7 +206,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     };
 
     // 通过 store 开启分析器
-    chatStore.contextAnalyzerNodeId = session.activeLeafId || null;
+    chatStore.contextAnalyzerNodeId = detail.activeLeafId || null;
     chatStore.contextAnalyzerPendingInput = pendingInput;
     chatStore.contextAnalyzerVisible = true;
   };
@@ -256,12 +257,12 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   // 压缩上下文
   const handleCompressContext = async () => {
     if (isCompressing.value) return;
-    const session = chatStore.currentSession;
-    if (!session) return;
+    const fullSession = chatStore.currentFullSession;
+    if (!fullSession || !fullSession.index || !fullSession.detail) return;
 
     isCompressing.value = true;
     try {
-      const result = await manualCompress(session);
+      const result = await manualCompress(fullSession.index, fullSession.detail);
       if (result.success) {
         const msg =
           `上下文压缩成功：已压缩 ${result.messageCount} 条消息` +

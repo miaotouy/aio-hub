@@ -2,7 +2,7 @@ import { computed, type Ref } from 'vue';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
 import type {
-  ChatSession,
+  ChatSessionDetail,
   HistoryEntry,
   HistoryDelta,
   HistoryActionTag,
@@ -43,10 +43,10 @@ const SNAPSHOT_INTERVAL = 15;
 
 /**
  * 管理聊天会话节点操作的撤销/重做历史记录。
- * @param sessionRef 对当前 ChatSession 的 Ref 引用。
+ * @param sessionRef 对当前 ChatSessionDetail 的 Ref 引用。
  * @see UNDO_REDO_DESIGN.md
  */
-export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
+export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>) {
   /**
    * 应用关系变化。
    * @param session - 当前会话。
@@ -54,7 +54,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
    * @param direction - 'forward' 表示重做, 'backward' 表示撤销。
    */
   function applyRelationChange(
-    session: ChatSession,
+    session: ChatSessionDetail,
     change: NodeRelationChange,
     direction: 'forward' | 'backward'
   ): void {
@@ -96,7 +96,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSession | null>) {
    * @param delta - 增量历史记录对象。
    * @param direction - 'forward' 表示重做, 'backward' 表示撤销。
    */
-  function applyDelta(session: ChatSession, delta: HistoryDelta, direction: 'forward' | 'backward'): void {
+  function applyDelta(session: ChatSessionDetail, delta: HistoryDelta, direction: 'forward' | 'backward'): void {
     if (!session.nodes) return;
 
     if (delta.type === 'create') {

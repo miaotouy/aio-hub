@@ -2,7 +2,7 @@
 import { ref, watch, nextTick, computed } from "vue";
 import { useThrottleFn, useRafFn } from "@vueuse/core";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import type { ChatMessageNode, ChatSession } from "../../types";
+import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
@@ -11,7 +11,8 @@ import CompressionMessage from "./CompressionMessage.vue";
 import ToolCallMessage from "./ToolCallMessage.vue";
 
 interface Props {
-  session: ChatSession | null;
+  sessionIndex: ChatSessionIndex | null;
+  sessionDetail: ChatSessionDetail | null;
   messages: ChatMessageNode[];
   isSending: boolean;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
@@ -219,7 +220,7 @@ const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
 
 // 监听会话切换，启用渐进式加载
 watch(
-  () => props.session?.id,
+  () => props.sessionIndex?.id,
   (newId, oldId) => {
     if (newId !== oldId && newId) {
       // 会话切换时启用渐进式加载
@@ -498,7 +499,8 @@ defineExpose({
             <!-- 压缩节点渲染 -->
             <CompressionMessage
               v-if="displayMessages[virtualItem.index].metadata?.isCompressionNode"
-              :session="props.session"
+              :session-index="props.sessionIndex"
+              :session-detail="props.sessionDetail"
               :message="displayMessages[virtualItem.index]"
               :message-depth="displayMessages.length - 1 - virtualItem.index"
               @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
@@ -511,7 +513,8 @@ defineExpose({
             <!-- 工具调用结果渲染 -->
             <ToolCallMessage
               v-else-if="displayMessages[virtualItem.index].role === 'tool'"
-              :session="props.session"
+              :session-index="props.sessionIndex"
+              :session-detail="props.sessionDetail"
               :message="displayMessages[virtualItem.index]"
               :message-depth="displayMessages.length - 1 - virtualItem.index"
               :is-sending="isSending"
@@ -541,7 +544,8 @@ defineExpose({
             <!-- 普通消息渲染 -->
             <ChatMessage
               v-else
-              :session="props.session"
+              :session-index="props.sessionIndex"
+              :session-detail="props.sessionDetail"
               :message="displayMessages[virtualItem.index]"
               :is-compressed="compressedNodeIds.has(displayMessages[virtualItem.index].id)"
               :message-depth="displayMessages.length - 1 - virtualItem.index"

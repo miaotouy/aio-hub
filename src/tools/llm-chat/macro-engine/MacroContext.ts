@@ -3,7 +3,7 @@
  * 提供宏执行时需要的所有数据和状态
  */
 
-import type { ChatSession, ChatAgent, ChatMessageNode } from '../types';
+import type { ChatAgent, ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from '../types';
 import type { UserProfile } from '../types';
 
 /**
@@ -37,8 +37,10 @@ export interface MacroContext {
   variables: Map<string, string | number>;
   /** 全局变量存储（应用级别） */
   globalVariables: Map<string, string | number>;
-  /** 当前会话引用 */
-  session?: ChatSession;
+  /** 当前会话索引引用 */
+  index?: ChatSessionIndex;
+  /** 当前会话详情引用 */
+  detail?: ChatSessionDetail;
   /** 当前智能体引用 */
   agent?: ChatAgent;
   /** 当前用户档案引用 */
@@ -65,7 +67,8 @@ export interface MacroContext {
 export function createMacroContext(options: {
   userName?: string;
   charName?: string;
-  session?: ChatSession;
+  index?: ChatSessionIndex;
+  detail?: ChatSessionDetail;
   agent?: ChatAgent;
   userProfile?: UserProfile;
   timestamp?: number;
@@ -82,7 +85,8 @@ export function createMacroContext(options: {
     charDescription: options.agent?.description,
     variables: new Map(),
     globalVariables: new Map(),
-    session: options.session,
+    index: options.index,
+    detail: options.detail,
     agent: options.agent,
     userProfileObj: options.userProfile,
     timestamp: options.timestamp,
@@ -102,13 +106,14 @@ export function createMacroContext(options: {
  * @param targetNodeId - 目标节点 ID，如果提供，则从该节点开始回溯（用于调试/预览特定历史点）
  */
 export function extractContextFromSession(
-  session: ChatSession,
+  index: ChatSessionIndex,
+  detail: ChatSessionDetail,
   agent?: ChatAgent,
   userProfile?: UserProfile,
   targetNodeId?: string
 ): Partial<MacroContext> {
   // 1. 获取目标路径（优先使用指定的 targetNodeId，否则使用当前活动叶子）
-  const startNodeId = targetNodeId || session.activeLeafId;
+  const startNodeId = targetNodeId || detail.activeLeafId;
   
   // 内部实现路径回溯，避免依赖 useNodeManager (Composable)
   const enabledNodes: ChatMessageNode[] = [];
@@ -116,14 +121,14 @@ export function extractContextFromSession(
   const visited = new Set<string>(); // 防止循环引用导致的死循环
 
   while (currentId) {
-    const node: ChatMessageNode | undefined = session.nodes?.[currentId];
+    const node: ChatMessageNode | undefined = detail.nodes?.[currentId];
     if (!node) break;
 
     if (visited.has(currentId)) break;
     visited.add(currentId);
     
     // 过滤掉根节点和禁用的节点
-    if (node.id !== session.rootNodeId && node.isEnabled !== false) {
+    if (node.id !== detail.rootNodeId && node.isEnabled !== false) {
       enabledNodes.unshift(node);
     }
     
@@ -139,7 +144,8 @@ export function extractContextFromSession(
     lastMessage,
     lastUserMessage,
     lastCharMessage,
-    session,
+    index,
+    detail,
     agent,
     userProfileObj: userProfile,
     charDescription: agent?.description,

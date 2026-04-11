@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import {
-  ElMessageBox,
-  ElTooltip,
-  ElDropdown,
-  ElDropdownMenu,
-  ElDropdownItem,
-  ElPopover,
-} from "element-plus";
+import { ElMessageBox, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElPopover } from "element-plus";
 import BranchSelector from "./BranchSelector.vue";
 import {
   Copy,
@@ -33,7 +26,11 @@ import {
   Hash,
   Variable,
 } from "lucide-vue-next";
-import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
+import type {
+  ChatMessageNode,
+  ButtonVisibility,
+  TranslationDisplayMode,
+} from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
@@ -140,16 +137,12 @@ const handleCreateBranch = () => emit("create-branch");
 const handleDelete = async () => {
   // 硬删除需要二次确认
   try {
-    await ElMessageBox.confirm(
-      "删除后将无法恢复，且所有分支回复也会被删除。",
-      "确定要永久删除这条消息吗？",
-      {
-        confirmButtonText: "确定删除",
-        cancelButtonText: "取消",
-        type: "warning",
-        confirmButtonClass: "el-button--danger",
-      }
-    );
+    await ElMessageBox.confirm("删除后将无法恢复，且所有分支回复也会被删除。", "确定要永久删除这条消息吗？", {
+      confirmButtonText: "确定删除",
+      cancelButtonText: "取消",
+      type: "warning",
+      confirmButtonClass: "el-button--danger",
+    });
     // 用户确认后才执行删除
     emit("delete");
   } catch {
@@ -311,13 +304,13 @@ const handleAnalyzeContext = () => {
 
 // 重新计算 Token 数
 const handleRecalculateTokens = async () => {
-  const session = store.currentSession;
-  if (!session) return;
+  const fullSession = store.currentFullSession;
+  if (!fullSession) return;
 
   logger.info("重新计算 Token", { nodeId: props.message.id });
 
   try {
-    await store.recalculateNodeTokens(session, props.message.id);
+    await store.recalculateNodeTokens(fullSession.index, fullSession.detail, props.message.id);
     customMessage.success("Token 重新计算完成");
     logger.info("Token 重新计算完成", { nodeId: props.message.id });
   } catch (error) {
@@ -337,12 +330,12 @@ interface ExportOptions {
   includeAttachments: boolean;
   includeErrors: boolean;
 }
-
 // 处理导出分支
 const handleExportBranch = async (options: ExportOptions) => {
   try {
-    const session = store.currentSession;
-    if (!session) {
+    const detail = store.currentSessionDetail;
+    const index = store.currentSession;
+    if (!detail || !index) {
       customMessage.error("没有活动会话");
       return;
     }
@@ -353,7 +346,7 @@ const handleExportBranch = async (options: ExportOptions) => {
       const agent = agentStore.getAgentById(agentStore.currentAgentId);
       if (agent?.presetMessages) {
         presetMessages = agent.presetMessages.filter(
-          (msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history"
+          (msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history",
         );
       }
     }
@@ -369,7 +362,7 @@ const handleExportBranch = async (options: ExportOptions) => {
       // Raw 格式：导出原始节点数据
       const branchNodes: Record<string, ChatMessageNode> = {};
       let currentId: string | null = props.message.id;
-      const sessionNodes = session.nodes;
+      const sessionNodes = detail.nodes;
 
       while (currentId !== null && sessionNodes) {
         const node: ChatMessageNode | undefined = sessionNodes[currentId];
@@ -380,15 +373,19 @@ const handleExportBranch = async (options: ExportOptions) => {
       }
 
       const rawBranchData = {
-        ...session,
-        nodes: branchNodes,
+        index,
+        detail: {
+          ...detail,
+          nodes: branchNodes,
+        },
       };
       content = JSON.stringify(rawBranchData, null, 2);
       fileExtension = "json";
       filterName = "JSON";
     } else if (options.format === "json") {
       const jsonData = exportBranchAsJson(
-        session,
+        index,
+        detail,
         props.message.id,
         options.includePreset,
         presetMessages,
@@ -399,14 +396,15 @@ const handleExportBranch = async (options: ExportOptions) => {
           includeTokenUsage: options.includeTokenUsage,
           includeAttachments: options.includeAttachments,
           includeErrors: options.includeErrors,
-        }
+        },
       );
       content = JSON.stringify(jsonData, null, 2);
       fileExtension = "json";
       filterName = "JSON";
     } else {
       content = exportBranchAsMarkdown(
-        session,
+        index,
+        detail,
         props.message.id,
         options.includePreset,
         presetMessages,
@@ -417,7 +415,7 @@ const handleExportBranch = async (options: ExportOptions) => {
           includeTokenUsage: options.includeTokenUsage,
           includeAttachments: options.includeAttachments,
           includeErrors: options.includeErrors,
-        }
+        },
       );
       fileExtension = "md";
       filterName = "Markdown";
@@ -427,7 +425,7 @@ const handleExportBranch = async (options: ExportOptions) => {
     const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
 
     // 清理文件名，确保 Windows 下可用
-    const safeSessionName = sanitizeFilename(session.name || "未命名会话");
+    const safeSessionName = sanitizeFilename(index.name || "未命名会话");
     const defaultName = `${safeSessionName}-分支-${timestamp}.${fileExtension}`;
 
     const filePath = await save({
@@ -455,9 +453,7 @@ const currentPresetMessages = computed(() => {
   if (!agentStore.currentAgentId) return [];
   const agent = agentStore.getAgentById(agentStore.currentAgentId);
   if (!agent?.presetMessages) return [];
-  return agent.presetMessages.filter(
-    (msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history"
-  );
+  return agent.presetMessages.filter((msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history");
 });
 
 // 计算预设消息数量
@@ -492,11 +488,7 @@ const handleTranslateClick = (e: MouseEvent) => {
     <!-- Branch control (if applicable) -->
     <div v-if="siblings.length > 1" class="branch-control">
       <el-tooltip content="上一个版本" placement="top" :show-after="500">
-        <button
-          class="menu-btn"
-          :disabled="currentSiblingIndex === 0"
-          @click="emit('switch', 'prev')"
-        >
+        <button class="menu-btn" :disabled="currentSiblingIndex === 0" @click="emit('switch', 'prev')">
           <ChevronLeft :size="16" />
         </button>
       </el-tooltip>
@@ -512,10 +504,7 @@ const handleTranslateClick = (e: MouseEvent) => {
         <template #reference>
           <div class="branch-indicator-wrapper">
             <el-tooltip content="点击查看分支列表" placement="top" :show-after="500">
-              <div
-                class="branch-indicator clickable"
-                :class="{ 'popover-active': showBranchPopover }"
-              >
+              <div class="branch-indicator clickable" :class="{ 'popover-active': showBranchPopover }">
                 {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
               </div>
             </el-tooltip>
@@ -551,10 +540,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       <template #reference>
         <div>
           <el-tooltip content="查看会话变量状态" placement="top" :show-after="500">
-            <button
-              class="menu-btn"
-              :class="{ 'menu-btn-active': !!sessionVariableSnapshot?.changes?.length }"
-            >
+            <button class="menu-btn" :class="{ 'menu-btn-active': !!sessionVariableSnapshot?.changes?.length }">
               <Variable :size="16" />
             </button>
           </el-tooltip>
@@ -564,12 +550,7 @@ const handleTranslateClick = (e: MouseEvent) => {
     </el-popover>
 
     <!-- 更多菜单 -->
-    <el-tooltip
-      v-if="props.buttonVisibility.moreMenu"
-      content="更多"
-      placement="top"
-      :show-after="500"
-    >
+    <el-tooltip v-if="props.buttonVisibility.moreMenu" content="更多" placement="top" :show-after="500">
       <el-dropdown trigger="click" placement="top">
         <button class="menu-btn">
           <Menu :size="16" />
@@ -594,19 +575,13 @@ const handleTranslateClick = (e: MouseEvent) => {
                 <span>选择模型续写</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item
-              v-if="props.buttonVisibility.analyzeContext"
-              @click="handleAnalyzeContext"
-            >
+            <el-dropdown-item v-if="props.buttonVisibility.analyzeContext" @click="handleAnalyzeContext">
               <div class="dropdown-item-content">
                 <BarChart3 :size="16" />
                 <span>上下文分析</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item
-              v-if="props.buttonVisibility.exportBranch"
-              @click="showExportDialog = true"
-            >
+            <el-dropdown-item v-if="props.buttonVisibility.exportBranch" @click="showExportDialog = true">
               <div class="dropdown-item-content">
                 <Download :size="16" />
                 <span>导出分支</span>
@@ -636,23 +611,14 @@ const handleTranslateClick = (e: MouseEvent) => {
     </el-tooltip>
     <!-- 翻译 -->
     <el-tooltip
-      v-if="
-        !isGenerating &&
-        !isPresetDisplay &&
-        settings.translation.enabled &&
-        props.buttonVisibility.translate
-      "
+      v-if="!isGenerating && !isPresetDisplay && settings.translation.enabled && props.buttonVisibility.translate"
       :content="`翻译 (按住 Shift 点击可快速翻译为 ${settings.translation.messageTargetLang})`"
       placement="top"
       :show-after="500"
     >
       <el-dropdown trigger="click" placement="top" @command="handleTranslationCommand">
         <div class="dropdown-trigger-wrapper">
-          <button
-            class="menu-btn"
-            :class="{ 'menu-btn-active': isTranslationVisible }"
-            @click="handleTranslateClick"
-          >
+          <button class="menu-btn" :class="{ 'menu-btn-active': isTranslationVisible }" @click="handleTranslateClick">
             <Languages :size="16" />
           </button>
         </div>
@@ -663,18 +629,10 @@ const handleTranslateClick = (e: MouseEvent) => {
               <span style="font-size: 12px; opacity: 0.7">目标语言</span>
             </el-dropdown-item>
 
-            <el-dropdown-item
-              v-for="lang in settings.translation.targetLangList"
-              :key="lang"
-              :command="'lang-' + lang"
-            >
+            <el-dropdown-item v-for="lang in settings.translation.targetLangList" :key="lang" :command="'lang-' + lang">
               <div class="dropdown-item-content">
                 <span>{{ lang }}</span>
-                <Check
-                  v-if="message.metadata?.translation?.targetLang === lang"
-                  :size="14"
-                  class="mode-active-icon"
-                />
+                <Check v-if="message.metadata?.translation?.targetLang === lang" :size="14" class="mode-active-icon" />
               </div>
             </el-dropdown-item>
 
@@ -711,16 +669,10 @@ const handleTranslateClick = (e: MouseEvent) => {
                 @click.stop="handleTranslationCommand('toggle-visible')"
               >
                 <Languages :size="14" />
-                <span>{{
-                  hasTranslation ? (isTranslationVisible ? "隐藏" : "显示") : "翻译"
-                }}</span>
+                <span>{{ hasTranslation ? (isTranslationVisible ? "隐藏" : "显示") : "翻译" }}</span>
               </div>
 
-              <div
-                class="action-btn retry-btn"
-                @click.stop="handleTranslationCommand('retry')"
-                title="重新翻译"
-              >
+              <div class="action-btn retry-btn" @click.stop="handleTranslationCommand('retry')" title="重新翻译">
                 <RefreshCw :size="14" />
               </div>
             </div>
@@ -792,9 +744,7 @@ const handleTranslateClick = (e: MouseEvent) => {
     <!-- 重新生成（用户、助手和工具消息都可以，不禁用以支持并行生成，预设消息不可重新生成） -->
     <el-tooltip
       v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) &&
-        !isPresetDisplay &&
-        props.buttonVisibility.regenerate
+        (isUserMessage || isAssistantMessage || isToolMessage) && !isPresetDisplay && props.buttonVisibility.regenerate
       "
       :content="isUserMessage ? '重新生成回复' : '重新生成'"
       placement="top"
@@ -808,9 +758,7 @@ const handleTranslateClick = (e: MouseEvent) => {
     <!-- 切换模型重新生成（用户、助手和工具消息都可以，预设消息不可） -->
     <el-tooltip
       v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) &&
-        !isPresetDisplay &&
-        props.buttonVisibility.regenerate
+        (isUserMessage || isAssistantMessage || isToolMessage) && !isPresetDisplay && props.buttonVisibility.regenerate
       "
       content="切换模型重新生成"
       placement="top"
@@ -840,11 +788,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       placement="top"
       :show-after="500"
     >
-      <button
-        class="menu-btn"
-        :class="{ 'menu-btn-highlight': isDisabled }"
-        @click="handleToggleEnabled"
-      >
+      <button class="menu-btn" :class="{ 'menu-btn-highlight': isDisabled }" @click="handleToggleEnabled">
         <Eye v-if="isDisabled" :size="16" />
         <EyeOff v-else :size="16" />
       </button>
@@ -878,7 +822,7 @@ const handleTranslateClick = (e: MouseEvent) => {
     <ExportBranchDialog
       v-model:visible="showExportDialog"
       :preset-count="presetCount"
-      :session="store.currentSession"
+      :session="store.currentSessionDetail"
       :message-id="props.message.id"
       :preset-messages="currentPresetMessages"
       @export="handleExportBranch"

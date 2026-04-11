@@ -509,7 +509,8 @@ watch(
       agent: effectiveAgent as any, // 使用带有正确时间配置的 agent
       userProfile: effectiveUserProfile || undefined,
       timestamp: newData.targetTimestamp,
-      session: newData.session,
+      index: newData.sessionIndex,
+      detail: newData.sessionDetail,
     });
 
     if (newData.parameters) {
@@ -543,14 +544,16 @@ watch(
           agent: baseContext.agent,
           userProfile: baseContext.userProfileObj,
           timestamp: msg.timestamp || newData.targetTimestamp,
-          session: newData.session,
+          index: newData.sessionIndex,
+          detail: newData.sessionDetail,
         });
 
         // 从会话中提取历史上下文（如 lastMessage、lastUserMessage 等）
         // 注意：预设消息的宏应该基于当前会话的最新状态来解析
-        if (newData.session) {
+        if (newData.sessionIndex && newData.sessionDetail) {
           const sessionContext = extractContextFromSession(
-            newData.session,
+            newData.sessionIndex,
+            newData.sessionDetail,
             baseContext.agent,
             baseContext.userProfileObj
           );

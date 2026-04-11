@@ -7,7 +7,8 @@ import {
   DEFAULT_CONTEXT_COMPRESSION_CONFIG,
   DEFAULT_CONTEXT_COMPRESSION_PROMPT,
   CONTINUE_CONTEXT_COMPRESSION_PROMPT,
-  type ChatSession,
+  type ChatSessionIndex,
+  type ChatSessionDetail,
   type ChatMessageNode,
   type ContextCompressionConfig,
   type MessageRole,
@@ -221,7 +222,8 @@ export function useContextCompressor() {
    * 创建摘要节点并插入到树中
    */
   const compressNodes = async (
-    session: ChatSession,
+    _index: ChatSessionIndex,
+    detail: ChatSessionDetail,
     nodesToCompress: ChatMessageNode[],
     summaryContent: string,
     config: ContextCompressionConfig,
@@ -283,13 +285,13 @@ export function useContextCompressor() {
 
     // 2. 将 summaryNode 添加到会话
     // 这会将 summaryNode 添加到 lastNode.childrenIds 中
-    addNodeToSession(session, summaryNode);
+    addNodeToSession(detail, summaryNode);
 
     // 3. 将原有的子节点转移到 summaryNode 下
     // 注意：不能使用 reparentNode，因为它会清空被移动节点的 childrenIds 并将其子节点交给旧父节点
     // 这里需要保持子树完整，只更新 parentId 关系
     for (const childId of childrenToTransfer) {
-      const childNode = session.nodes?.[childId];
+      const childNode = detail.nodes?.[childId];
       if (!childNode) {
         logger.warn("转移子节点失败：子节点不存在", { childId, summaryNodeId: summaryNode.id });
         continue;
@@ -371,7 +373,8 @@ export function useContextCompressor() {
    * @returns 压缩执行结果
    */
   const checkAndCompress = async (
-    session: ChatSession,
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail,
     config?: ContextCompressionConfig,
   ): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig(config);
@@ -382,7 +385,7 @@ export function useContextCompressor() {
     }
 
     // 2. 获取路径并计算统计
-    const path = getNodePath(session, session.activeLeafId || "");
+    const path = getNodePath(detail, detail.activeLeafId || "");
     const contextStats = calculateContextStats(path);
 
     // 3. 判断是否需要压缩
@@ -392,26 +395,27 @@ export function useContextCompressor() {
 
     logger.info("触发上下文压缩", { contextStats, config: effectiveConfig });
 
-    return await executeCompression(session, path, effectiveConfig);
+    return await executeCompression(index, detail, path, effectiveConfig);
   };
 
   /**
    * 手动触发压缩（忽略自动触发阈值）
    */
-  const manualCompress = async (session: ChatSession): Promise<CompressionResult> => {
+  const manualCompress = async (index: ChatSessionIndex, detail: ChatSessionDetail): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig();
-    const path = getNodePath(session, session.activeLeafId || "");
+    const path = getNodePath(detail, detail.activeLeafId || "");
 
     logger.info("手动触发上下文压缩", { config: effectiveConfig });
 
-    return await executeCompression(session, path, effectiveConfig);
+    return await executeCompression(index, detail, path, effectiveConfig);
   };
 
   /**
    * 执行压缩核心逻辑
    */
   const executeCompression = async (
-    session: ChatSession,
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail,
     path: ChatMessageNode[],
     effectiveConfig: ContextCompressionConfig,
   ): Promise<CompressionResult> => {
@@ -469,7 +473,7 @@ export function useContextCompressor() {
       nodesToCompress.forEach((n) => (originalTokenCount += n.metadata?.tokenCount || 0));
 
       // 创建节点并更新树
-      await compressNodes(session, nodesToCompress, summary, effectiveConfig);
+      await compressNodes(index, detail, nodesToCompress, summary, effectiveConfig);
 
       // 持久化会话状态，防止压缩结果丢失
       llmChatStore.persistSessions();

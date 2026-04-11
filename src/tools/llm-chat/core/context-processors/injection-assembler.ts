@@ -285,7 +285,7 @@ export const injectionAssembler: ContextProcessor = {
   description: "处理预设、注入、宏，并与历史消息组装。",
   priority: 400,
   execute: async (context: PipelineContext) => {
-    const { messages: history, agentConfig, session, userProfile, timestamp } = context;
+    const { messages: history, agentConfig, userProfile, timestamp } = context;
     const allPresetMessages = agentConfig.presetMessages || [];
     const modelId = agentConfig.modelId;
 
@@ -401,7 +401,8 @@ export const injectionAssembler: ContextProcessor = {
     const macroProcessor = new MacroProcessor();
 
     const macroContext = buildMacroContext({
-      session,
+      index: context.index,
+      detail: context.detail,
       agent: agentConfig,
       userProfile,
       timestamp,

@@ -3,7 +3,7 @@
  * 负责所有与用户交互的树结构操作：编辑、删除、切换分支等
  */
 
-import type { ChatSession, ChatMessageNode } from "../../types";
+import type { ChatSessionDetail, ChatMessageNode } from "../../types";
 import type { Asset } from '@/types/asset-management';
 import { useNodeManager } from './useNodeManager';
 import { BranchNavigator } from "../../utils/BranchNavigator";
@@ -19,7 +19,7 @@ export function useBranchManager() {
    * @returns 返回一个包含成功状态和被删除节点列表的对象
    */
   const deleteMessage = (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string
   ): { success: boolean; deletedNodes: ChatMessageNode[] } => {
     const nodeManager = useNodeManager();
@@ -39,7 +39,7 @@ export function useBranchManager() {
   /**
    * 切换到指定分支（将某个节点设为活跃叶节点）
    */
-  const switchBranch = (session: ChatSession, nodeId: string): boolean => {
+  const switchBranch = (session: ChatSessionDetail, nodeId: string): boolean => {
     const nodeManager = useNodeManager();
     const success = nodeManager.updateActiveLeaf(session, nodeId);
 
@@ -54,7 +54,7 @@ export function useBranchManager() {
    * 切换到兄弟分支
    */
   const switchToSiblingBranch = (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     direction: 'prev' | 'next'
   ): string => {
@@ -82,7 +82,7 @@ export function useBranchManager() {
    * 直接修改节点内容，不创建新节点
    */
   const editMessage = (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     newContent: string,
     attachments?: Asset[]
@@ -117,9 +117,6 @@ export function useBranchManager() {
       }
     }
 
-    // 更新时间戳
-    session.updatedAt = new Date().toISOString();
-
     logger.info('消息已编辑', {
       sessionId: session.id,
       nodeId,
@@ -135,7 +132,7 @@ export function useBranchManager() {
    * 创建分支（创建源节点的兄弟节点，复制内容）
    * 用于在同一父节点下创建新的分支
    */
-  const createBranch = (session: ChatSession, sourceNodeId: string): string | null => {
+  const createBranch = (session: ChatSessionDetail, sourceNodeId: string): string | null => {
     if (!session.nodes) return null;
     const sourceNode = session.nodes[sourceNodeId];
     if (!sourceNode) {
@@ -215,9 +212,6 @@ export function useBranchManager() {
     // 更新路径上所有父节点的选择记忆
     BranchNavigator.updateSelectionMemory(session, newNode.id);
 
-    // 更新时间戳
-    session.updatedAt = new Date().toISOString();
-
     logger.info('分支已创建', {
       sessionId: session.id,
       sourceNodeId,
@@ -231,7 +225,7 @@ export function useBranchManager() {
   /**
    * 切换节点启用状态
    */
-  const toggleNodeEnabled = (session: ChatSession, nodeId: string): boolean => {
+  const toggleNodeEnabled = (session: ChatSessionDetail, nodeId: string): boolean => {
     if (!session.nodes) return false;
     const node = session.nodes[nodeId];
     if (!node) {
@@ -258,7 +252,7 @@ export function useBranchManager() {
    * 这个函数返回新的活跃叶节点ID，由调用方负责实际的重新生成
    */
   const prepareRegenerateLastMessage = (
-    session: ChatSession
+    session: ChatSessionDetail
   ): { shouldRegenerate: boolean; userContent?: string; newActiveLeafId?: string } => {
     if (!session.nodes || !session.activeLeafId) return { shouldRegenerate: false };
     const currentLeaf = session.nodes[session.activeLeafId];
@@ -293,14 +287,14 @@ export function useBranchManager() {
   /**
    * 获取某个节点的兄弟节点（包括自己）
    */
-  const getSiblings = (session: ChatSession, nodeId: string): ChatMessageNode[] => {
+  const getSiblings = (session: ChatSessionDetail, nodeId: string): ChatMessageNode[] => {
     return BranchNavigator.getSiblings(session, nodeId);
   };
 
   /**
    * 判断节点是否在当前活动路径上
    */
-  const isNodeInActivePath = (session: ChatSession, nodeId: string): boolean => {
+  const isNodeInActivePath = (session: ChatSessionDetail, nodeId: string): boolean => {
     return BranchNavigator.isNodeInActivePath(session, nodeId);
   };
 
@@ -308,7 +302,7 @@ export function useBranchManager() {
    * 获取当前节点在兄弟节点中的索引
    */
   const getSiblingIndex = (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string
   ): { index: number; total: number } => {
     return BranchNavigator.getSiblingIndex(session, nodeId);
@@ -325,7 +319,7 @@ export function useBranchManager() {
    * @returns 操作是否成功
    */
   const graftBranch = (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     newParentId: string
   ): boolean => {
@@ -347,7 +341,7 @@ export function useBranchManager() {
    * 移动单个节点（不包含子树）
    */
   const moveNode = (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     newParentId: string
   ): boolean => {

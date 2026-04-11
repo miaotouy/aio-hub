@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from "vue";
 import { useResizeObserver, useThrottleFn } from "@vueuse/core";
-import type { ChatMessageNode, ChatSession } from "../../types";
+import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import MessageHeader from "./MessageHeader.vue";
 import MessageContent from "./MessageContent.vue";
@@ -13,7 +13,8 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
 
 interface Props {
-  session: ChatSession | null;
+  sessionIndex: ChatSessionIndex | null;
+  sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
   isSending: boolean;
   siblings: ChatMessageNode[];
@@ -265,7 +266,8 @@ defineExpose({
       <MessageHeader :message="message" />
 
       <MessageContent
-        :session="props.session"
+        :session-index="props.sessionIndex"
+        :session-detail="props.sessionDetail"
         :message="message"
         :is-editing="isEditing"
         :is-translating="isTranslating"

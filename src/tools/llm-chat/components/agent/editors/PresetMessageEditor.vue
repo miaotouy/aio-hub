@@ -675,8 +675,13 @@ const processPreviewMacros = async () => {
 
   // 2. 从 store 获取当前活跃会话，提取会话相关的动态上下文（如 last_message）
   let sessionContext: Partial<MacroContext> = {};
-  if (chatStore.currentSession) {
-    sessionContext = extractContextFromSession(chatStore.currentSession, props.agent, props.userProfile || undefined);
+  if (chatStore.currentFullSession) {
+    sessionContext = extractContextFromSession(
+      chatStore.currentFullSession.index,
+      chatStore.currentFullSession.detail,
+      props.agent,
+      props.userProfile || undefined
+    );
   }
 
   // 3. 合并上下文

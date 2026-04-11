@@ -419,7 +419,7 @@ const loadContextStats = async () => {
   if (props.externalStats !== undefined) return;
 
   const chatStore = useLlmChatStore();
-  const session = chatStore.currentSession;
+  const session = chatStore.currentSessionDetail;
 
   if (!session || !session.activeLeafId) {
     localContextStats.value = null;
@@ -465,7 +465,7 @@ const handleStateChange = () => {
 };
 
 watch(() => chatStore.currentSessionId, handleStateChange);
-watch(() => chatStore.currentSession?.activeLeafId, handleStateChange);
+watch(() => chatStore.currentSessionDetail?.activeLeafId, handleStateChange);
 watch(() => agentStore.currentAgentId, handleStateChange);
 watch(() => {
   if (!agentStore.currentAgentId) return null;
@@ -508,7 +508,7 @@ watch(
   { deep: true }
 );
 watch(
-  () => chatStore.currentSession?.updatedAt,
+  () => chatStore.currentSession?.updatedAt, // 索引中的 updatedAt 变化也触发
   (newTime, oldTime) => {
     if (chatStore.generatingNodes.size === 0 && newTime !== oldTime) {
       handleStateChange();

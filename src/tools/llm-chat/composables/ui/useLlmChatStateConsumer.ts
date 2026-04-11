@@ -11,19 +11,19 @@
  * - 只接收状态，不推送状态（autoPush: false）
  * - 不处理业务逻辑，所有操作都代理回上游窗口
  */
-import { ref, watch } from 'vue';
-import { useStateSyncEngine } from '@/composables/useStateSyncEngine';
-import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
+import { ref, watch } from "vue";
+import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useWorldbookStore } from "../../stores/worldbookStore";
-import { useLlmChatUiState } from './useLlmChatUiState';
-import { createModuleLogger } from '@/utils/logger';
-import type { ChatAgent, ChatSession, UserProfile } from "../../types";
+import { useLlmChatUiState } from "./useLlmChatUiState";
+import { createModuleLogger } from "@/utils/logger";
+import type { ChatAgent, ChatSessionIndex, ChatSessionDetail, UserProfile } from "../../types";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "../../types/sync";
 
-const logger = createModuleLogger('LlmChatStateConsumer');
+const logger = createModuleLogger("LlmChatStateConsumer");
 
 interface ConsumerOptions {
   /**
@@ -44,13 +44,13 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   const bus = useWindowSyncBus();
   const uiState = useLlmChatUiState();
 
-  logger.info('初始化 LLM Chat 状态消费者', { syncAllSessions });
+  logger.info("初始化 LLM Chat 状态消费者", { syncAllSessions });
 
   // 1. 创建本地 ref 用于接收所有需要同步的数据
   const syncedAgents = ref<ChatAgent[]>([]);
   const syncedCurrentAgentId = ref<string | null>(null);
-  const syncedSessions = ref<ChatSession[]>([]);
-  const syncedCurrentSessionData = ref<ChatSession | null>(null);
+  const syncedSessions = ref<ChatSessionIndex[]>([]);
+  const syncedCurrentSessionData = ref<ChatSessionDetail | null>(null);
   const syncedCurrentSessionId = ref<string | null>(null);
   const syncedUserProfiles = ref<UserProfile[]>([]);
   const syncedGlobalProfileId = ref<string | null>(null);
@@ -66,8 +66,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     // 根据 syncAllSessions 决定订阅哪个状态
     ...(syncAllSessions
       ? [{ state: syncedSessions, key: CHAT_STATE_KEYS.SESSIONS }]
-      : [{ state: syncedCurrentSessionData, key: CHAT_STATE_KEYS.CURRENT_SESSION_DATA }]
-    ),
+      : [{ state: syncedCurrentSessionData, key: CHAT_STATE_KEYS.CURRENT_SESSION_DATA }]),
     { state: syncedCurrentSessionId, key: CHAT_STATE_KEYS.CURRENT_SESSION_ID },
     { state: syncedUserProfiles, key: CHAT_STATE_KEYS.USER_PROFILES },
     { state: syncedGlobalProfileId, key: CHAT_STATE_KEYS.GLOBAL_PROFILE_ID },
@@ -91,16 +90,20 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   bus.requestInitialState();
 
   // 4. 监听同步数据的变化，并填充到对应的 Pinia Store
-  watch(syncedAgents, (newAgents) => {
-    if (newAgents && newAgents.length > 0) {
-      logger.info('接收到 agents 同步数据', { count: newAgents.length });
-      agentStore.agents = newAgents;
-    }
-  }, { deep: true });
+  watch(
+    syncedAgents,
+    (newAgents) => {
+      if (newAgents && newAgents.length > 0) {
+        logger.info("接收到 agents 同步数据", { count: newAgents.length });
+        agentStore.agents = newAgents;
+      }
+    },
+    { deep: true },
+  );
 
   watch(syncedCurrentAgentId, (newId) => {
     if (newId) {
-      logger.info('接收到 currentAgentId 同步数据', { agentId: newId });
+      logger.info("接收到 currentAgentId 同步数据", { agentId: newId });
       // 更新单例状态，不再在异步回调中重新调用 useLlmChatUiState
       uiState.currentAgentId.value = newId;
     }
@@ -108,60 +111,72 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
 
   // 全量会话同步（完整模式）
   if (syncAllSessions) {
-    watch(syncedSessions, (newSessions) => {
-      if (newSessions && newSessions.length > 0) {
-        logger.info('接收到 sessions 同步数据（完整模式）', { count: newSessions.length });
-        store.sessions = newSessions;
-      }
-    }, { deep: true });
+    watch(
+      syncedSessions,
+      (newSessions) => {
+        if (newSessions && newSessions.length > 0) {
+          logger.info("接收到 sessions 同步数据（完整模式）", { count: newSessions.length });
+          // 更新索引 Map
+          newSessions.forEach((s) => {
+            store.sessionIndexMap.set(s.id, s as any);
+          });
+        }
+      },
+      { deep: true },
+    );
   } else {
     // 轻量级同步：只接收当前会话
-    watch(syncedCurrentSessionData, (newSessionData) => {
-      if (newSessionData) {
-        logger.info('接收到 currentSessionData 同步数据（轻量级模式）', {
-          sessionId: newSessionData.id,
-          messageCount: Object.keys(newSessionData.nodes || {}).length
-        });
-        
-        // 查找是否已存在该会话
-        const existingIndex = store.sessions.findIndex((s: ChatSession) => s.id === newSessionData.id);
-        
-        if (existingIndex >= 0) {
-          // 更新现有会话
-          store.sessions[existingIndex] = newSessionData;
-        } else {
-          // 添加新会话
-          store.sessions.push(newSessionData);
+    watch(
+      syncedCurrentSessionData,
+      (newSessionData) => {
+        if (newSessionData) {
+          logger.info("接收到 currentSessionData 同步数据（轻量级模式）", {
+            sessionId: newSessionData.id,
+            messageCount: Object.keys(newSessionData.nodes || {}).length,
+          });
+
+          // 更新索引和详情 Map
+          store.sessionIndexMap.set(newSessionData.id, newSessionData as any);
+          store.sessionDetailMap.set(newSessionData.id, newSessionData as any);
         }
-      }
-    }, { deep: true });
+      },
+      { deep: true },
+    );
   }
 
   watch(syncedCurrentSessionId, (newId) => {
     if (newId) {
-      logger.info('接收到 currentSessionId 同步数据', { sessionId: newId });
+      logger.info("接收到 currentSessionId 同步数据", { sessionId: newId });
       store.currentSessionId = newId;
     }
   });
 
-  watch(syncedUserProfiles, (newProfiles) => {
-    if (newProfiles && newProfiles.length > 0) {
-      logger.info('接收到 userProfiles 同步数据', { count: newProfiles.length });
-      userProfileStore.profiles = newProfiles;
-    }
-  }, { deep: true });
+  watch(
+    syncedUserProfiles,
+    (newProfiles) => {
+      if (newProfiles && newProfiles.length > 0) {
+        logger.info("接收到 userProfiles 同步数据", { count: newProfiles.length });
+        userProfileStore.profiles = newProfiles;
+      }
+    },
+    { deep: true },
+  );
 
   watch(syncedGlobalProfileId, (newId) => {
-    logger.info('接收到 globalProfileId 同步数据', { profileId: newId });
+    logger.info("接收到 globalProfileId 同步数据", { profileId: newId });
     userProfileStore.globalProfileId = newId;
   });
 
-  watch(syncedWorldbooks, (newWbs) => {
-    if (newWbs) {
-      logger.info('接收到 worldbooks 同步数据', { count: newWbs.length });
-      worldbookStore.worldbooks = newWbs;
-    }
-  }, { deep: true });
+  watch(
+    syncedWorldbooks,
+    (newWbs) => {
+      if (newWbs) {
+        logger.info("接收到 worldbooks 同步数据", { count: newWbs.length });
+        worldbookStore.worldbooks = newWbs;
+      }
+    },
+    { deep: true },
+  );
 
   watch(syncedIsSending, (newValue) => {
     // logger.info('接收到 isSending 同步数据', { isSending: newValue });
@@ -175,7 +190,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     }
   });
 
-  logger.info('LLM Chat 状态消费者已初始化，将与上游窗口完全同步');
+  logger.info("LLM Chat 状态消费者已初始化，将与上游窗口完全同步");
 
   return {};
 }

@@ -1,17 +1,17 @@
-import type { ChatSession, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
+import type { ChatSessionDetail, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
 import { useSingleNodeExecutor } from "./useSingleNodeExecutor";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useSessionManager } from "../session/useSessionManager";
 import { useNodeManager } from "../session/useNodeManager";
-import { useTopicNamer } from "./useTopicNamer";
 import { useChatResponseHandler } from "./useChatResponseHandler";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("llm-chat/tool-call-orchestrator");
 
 export interface OrchestrateParams {
-  session: ChatSession;
+  session: ChatSessionDetail;
   /** 初始助手响应节点 */
   assistantNode: ChatMessageNode;
   /** 到用户消息的完整路径 */
@@ -104,7 +104,7 @@ export function useToolCallOrchestrator() {
         if (executionAgent.toolCallConfig?.enabled && !isVcpChannel) {
           let toolNode: ChatMessageNode | null = null;
 
-          const ensureNodesCreated = (parsedRequests: Array<{ requestId: string; toolName: string; args: any }>) => {
+          const ensureNodesCreated = async (parsedRequests: Array<{ requestId: string; toolName: string; args: any }>) => {
             if (toolNode) return;
             logger.info(`🛠️ 检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
 
@@ -134,24 +134,32 @@ export function useToolCallOrchestrator() {
             generatingNodes.add(toolNode.id);
 
             nodeManager.updateActiveLeaf(session, toolNode.id);
-            sessionManager.persistSession(session, session.id);
+            const chatStore = await import("../../stores/llmChatStore").then((m) => m.useLlmChatStore());
+            const index = chatStore.sessionIndexMap.get(session.id);
+            if (index) {
+              sessionManager.persistSession(index, session, session.id);
+            }
           };
 
           const cycleResult = await processCycle(
             response.content,
             executionAgent.toolCallConfig,
             async (request) => await toolCallingStore.requestApproval(session.id, request),
-            (requestId, status) => {
+            async (requestId, status) => {
               if (status === "executing") {
                 const reqs = currentAssistantNode.metadata?.toolCallsRequested;
                 if (reqs) {
                   const req = reqs.find((r) => r.requestId === requestId);
                   if (req) {
                     req.status = "executing";
-                    ensureNodesCreated(
+                    await ensureNodesCreated(
                       reqs.map((r) => ({ requestId: r.requestId, toolName: r.toolName, args: r.args })),
                     );
-                    sessionManager.persistSession(session, session.id);
+                    const chatStore = useLlmChatStore();
+                    const index = chatStore.sessionIndexMap.get(session.id);
+                    if (index) {
+                      sessionManager.persistSession(index, session, session.id);
+                    }
                   }
                 }
               }
@@ -159,7 +167,7 @@ export function useToolCallOrchestrator() {
           );
 
           if (cycleResult.hasToolRequests) {
-            ensureNodesCreated(cycleResult.parsedRequests);
+            await ensureNodesCreated(cycleResult.parsedRequests);
 
             const hasSilentCancel = cycleResult.executionResults.some((r) => r.result === "SILENT_CANCEL");
             const hasSilentStop = cycleResult.executionResults.some((r) => r.silentStop);
@@ -185,7 +193,11 @@ export function useToolCallOrchestrator() {
                   })),
                 };
                 generatingNodes.delete(node.id);
-                sessionManager.persistSession(session, session.id);
+                const chatStore = useLlmChatStore();
+                const index = chatStore.sessionIndexMap.get(session.id);
+                if (index) {
+                  sessionManager.persistSession(index, session, session.id);
+                }
               }
 
               if (currentAssistantNode.metadata?.toolCallsRequested) {
@@ -252,7 +264,11 @@ export function useToolCallOrchestrator() {
             abortControllers.set(nextAssistantNode.id, abortController);
 
             nodeManager.updateActiveLeaf(session, nextAssistantNode.id);
-            sessionManager.persistSession(session, session.id);
+            const chatStore = useLlmChatStore();
+            const index = chatStore.sessionIndexMap.get(session.id);
+            if (index) {
+              sessionManager.persistSession(index, session, session.id);
+            }
 
             currentPathToUserNode = [...currentPathToUserNode, currentAssistantNode, toolNode!];
             currentAssistantNode = nextAssistantNode;
@@ -263,12 +279,8 @@ export function useToolCallOrchestrator() {
       }
 
       // 4. 自动命名
-      const { shouldAutoName, generateTopicName } = useTopicNamer();
-      if (shouldAutoName(session)) {
-        generateTopicName(session, (updatedSession, currentSessionId) => {
-          sessionManager.persistSession(updatedSession, currentSessionId);
-        }).catch((err) => logger.warn("自动生成标题失败", err));
-      }
+      const llmChatStore = await import("../../stores/llmChatStore").then((m) => m.useLlmChatStore());
+      llmChatStore.generateSessionTopic(session.id);
     } catch (error) {
       handleNodeError(session, assistantNode.id, error, "请求执行");
     } finally {

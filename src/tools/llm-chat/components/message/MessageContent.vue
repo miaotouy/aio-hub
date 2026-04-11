@@ -3,7 +3,7 @@ import { ref, computed, watch, provide, nextTick } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
-import type { ChatMessageNode, ChatSession, TranslationDisplayMode } from "../../types";
+import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, TranslationDisplayMode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -40,7 +40,8 @@ const { computeWillUseTranscription } = useTranscriptionManager();
 const macroProcessor = new MacroProcessor();
 
 interface Props {
-  session: ChatSession | null;
+  sessionIndex: ChatSessionIndex | null;
+  sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
   isEditing?: boolean;
   isTranslating?: boolean;
@@ -70,7 +71,7 @@ provide("chatSettings", settings);
 const emit = defineEmits<Emits>();
 
 const agentStore = useAgentStore();
-const chatStore = useLlmChatStore();
+const llmChatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
 
 /**
@@ -175,16 +176,16 @@ const isReasoning = computed(() => {
     props.message.metadata?.reasoningContent &&
     !props.message.metadata?.reasoningEndTime &&
     !props.message.metadata?.error && // 如果有错误，停止动画
-    chatStore.isNodeGenerating(props.message.id) // 增加 store 校验，确保 executor 还在运行
+    llmChatStore.isNodeGenerating(props.message.id) // 增加 store 校验，确保 executor 还在运行
   );
 });
 
 // 判断是否正在生成内容（原文）
 const isGenerating = computed(() => {
-  return (
+  return !!(
     props.message.status === "generating" &&
     !props.message.metadata?.error &&
-    chatStore.isNodeGenerating(props.message.id) // 增加 store 校验
+    llmChatStore.isNodeGenerating(props.message.id) // 增加 store 校验
   );
 });
 
@@ -243,8 +244,14 @@ const processedRules = ref<ChatRegexRule[]>([]);
 
 // 监听 activeRules 变化，进行宏处理
 watch(
-  [activeRules, () => props.session, () => props.message.metadata, () => settings.value.regexConfig.bindingMode],
-  async ([rules, session, metadata, bindingMode]) => {
+  [
+    activeRules,
+    () => props.sessionIndex,
+    () => props.sessionDetail,
+    () => props.message.metadata,
+    () => settings.value.regexConfig.bindingMode,
+  ],
+  async ([rules, sessionIndex, sessionDetail, metadata, bindingMode]) => {
     if (!rules || rules.length === 0) {
       processedRules.value = [];
       return;
@@ -260,7 +267,8 @@ watch(
     const macroContext = createMacroContext({
       agent,
       userProfile: userProfile ?? undefined,
-      session: session ?? undefined,
+      index: sessionIndex ?? undefined,
+      detail: sessionDetail ?? undefined,
     });
 
     processedRules.value = await processRulesWithMacros(rules, macroContext);
@@ -397,9 +405,10 @@ watch(
   [
     () => props.message.content,
     () => currentAgent.value, // 监听解析后的 Agent 对象变化
-    () => props.session,
+    () => props.sessionIndex,
+    () => props.sessionDetail,
   ],
-  async ([content, agent, session]) => {
+  async ([content, agent, sessionIndex, sessionDetail]) => {
     // 仅对预设消息进行宏处理（非编辑模式下）
     // 普通会话消息在发送时已经处理过宏，不需要二次处理
     const isPresetMessage = props.message.metadata?.isPresetDisplay === true;
@@ -408,7 +417,8 @@ watch(
       // 构建宏上下文
       const context = buildMacroContext({
         agent,
-        session: session ?? undefined,
+        index: sessionIndex ?? undefined,
+        detail: sessionDetail ?? undefined,
       });
       const macroProcessed = await processMacros(macroProcessor, content, context);
       // 不再提前处理资产链接，交给 RichTextRenderer 内部的节点处理，避免 Markdown 二次编码问题

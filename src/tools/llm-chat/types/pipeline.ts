@@ -1,4 +1,4 @@
-import type { ChatSession } from "@/tools/llm-chat/types/session";
+import type { ChatSessionIndex, ChatSessionDetail } from "@/tools/llm-chat/types/session";
 import type { UserProfile } from "@/tools/llm-chat/types/profile";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ModelCapabilities } from "@/types/llm-profiles";
@@ -14,7 +14,8 @@ export interface PipelineContext {
   messages: ProcessableMessage[];
 
   // --- 只读元数据 ---
-  readonly session: ChatSession;
+  readonly index: ChatSessionIndex;
+  readonly detail: ChatSessionDetail;
   readonly userProfile?: UserProfile;
   readonly agentConfig: ChatAgent; // 完整的智能体配置
   readonly settings: ChatSettings; // 全局聊天设置

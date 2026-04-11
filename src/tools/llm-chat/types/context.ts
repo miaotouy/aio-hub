@@ -3,7 +3,7 @@ import type { LlmParameters } from "./llm";
 import type { ModelIdentifier } from "./llm";
 import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
-import type { ChatSession } from "./session";
+import type { ChatSessionIndex, ChatSessionDetail } from "./session";
 import type { STWorldbookPosition } from "./worldbook";
 
 /**
@@ -261,8 +261,10 @@ export interface ContextPreviewData {
     displayName?: string;
     icon?: string;
   };
-  /** 完整的会话对象，用于宏调试等需要完整上下文的场景 */
-  session?: ChatSession;
+  /** 完整的会话对象索引，用于宏调试等需要完整上下文的场景 */
+  sessionIndex?: ChatSessionIndex;
+  /** 完整的会话对象详情，用于宏调试等需要完整上下文的场景 */
+  sessionDetail?: ChatSessionDetail;
   /** 激活的世界书条目 */
   worldbookEntries?: WorldbookEntryPreview[];
   /**

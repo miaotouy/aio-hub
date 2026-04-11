@@ -106,7 +106,7 @@ export class KnowledgeProcessor implements ContextProcessor {
 
     // 初始化缓存与历史（模块级持久化，跨请求存活）
     const { settings } = useChatSettings();
-    const sessionId = context.session.id;
+    const sessionId = context.detail.id;
     const sessionCache = getSessionRetrievalCache(
       sessionId,
       settings.value.knowledgeBase.retrievalCacheMaxItems

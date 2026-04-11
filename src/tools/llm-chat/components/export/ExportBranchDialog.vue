@@ -81,7 +81,8 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import type { ChatSession, ChatMessageNode } from "../../types";
+import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
+import type { ChatMessageNode } from "../../types/message";
 import { useExportManager } from "../../composables/features/useExportManager";
 import { useAgentStore } from "../../stores/agentStore";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
@@ -90,7 +91,8 @@ import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 interface Props {
   visible: boolean;
   presetCount?: number;
-  session: ChatSession | null;
+  session: ChatSessionDetail | null;
+  sessionIndex?: ChatSessionIndex | null;
   messageId: string;
   presetMessages?: ChatMessageNode[];
 }
@@ -242,44 +244,52 @@ const previewContent = computed(() => {
     includeAttachments: includeAttachments.value,
     includeErrors: includeErrors.value,
   };
+if (exportFormat.value === "raw") {
+  const branchNodes: Record<string, ChatMessageNode> = {};
+  let currentId: string | null = props.messageId;
+  const sessionNodes = props.session.nodes;
 
-  if (exportFormat.value === "raw") {
-    const branchNodes: Record<string, ChatMessageNode> = {};
-    let currentId: string | null = props.messageId;
-    const sessionNodes = props.session.nodes;
-
-    while (currentId !== null && sessionNodes) {
-      const node: ChatMessageNode | undefined = sessionNodes[currentId];
-      if (node) {
-        branchNodes[currentId] = node;
-      }
-      currentId = node ? node.parentId : null;
+  while (currentId !== null && sessionNodes) {
+    const node: ChatMessageNode | undefined = sessionNodes[currentId];
+    if (node) {
+      branchNodes[currentId] = node;
     }
+    currentId = node ? node.parentId : null;
+  }
 
-    const rawBranchData = {
+  const rawBranchData = {
+    index: props.sessionIndex,
+    detail: {
       ...props.session,
       nodes: branchNodes,
-    };
-    return JSON.stringify(rawBranchData, null, 2);
-  } else if (exportFormat.value === "json") {
-    const jsonData = exportBranchAsJson(
-      props.session,
-      props.messageId,
-      includePreset.value,
-      props.presetMessages,
-      options
-    );
-    return JSON.stringify(jsonData, null, 2);
-  } else {
-    // Markdown 导出保持原始协议，不做字符串替换
-    return exportBranchAsMarkdown(
-      props.session,
-      props.messageId,
-      includePreset.value,
-      props.presetMessages,
-      options
-    );
-  }
+    },
+  };
+  return JSON.stringify(rawBranchData, null, 2);
+} else if (exportFormat.value === "json") {
+  if (!props.sessionIndex || !props.session) return "";
+
+  const jsonData = exportBranchAsJson(
+    props.sessionIndex,
+    props.session,
+    props.messageId,
+    includePreset.value,
+    props.presetMessages,
+    options
+  );
+  return JSON.stringify(jsonData, null, 2);
+} else {
+  if (!props.sessionIndex || !props.session) return "";
+
+  // Markdown 导出保持原始协议，不做字符串替换
+  return exportBranchAsMarkdown(
+    props.sessionIndex,
+    props.session,
+    props.messageId,
+    includePreset.value,
+    props.presetMessages,
+    options
+  );
+}
 });
 
 // 资产路径解析钩子：在预览渲染时动态解析 agent-asset://

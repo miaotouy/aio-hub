@@ -2,7 +2,7 @@ import { createModuleLogger } from "@/utils/logger";
 import TurndownService from "turndown";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
-import type { ChatMessageNode } from "@/tools/llm-chat/types";
+import type { ChatMessageNode, ChatSessionDetail } from "@/tools/llm-chat/types";
 
 const logger = createModuleLogger("primary:session-loader");
 
@@ -34,7 +34,7 @@ function postProcessMarkdown(md: string): string {
  * @param session - 聊天会话对象
  * @returns 线性消息节点数组
  */
-function getActiveBranchHistory(session: PipelineContext["session"]): ChatMessageNode[] {
+function getActiveBranchHistory(session: ChatSessionDetail): ChatMessageNode[] {
   const history: ChatMessageNode[] = [];
   let currentId: string | null = session.activeLeafId || null;
 
@@ -87,8 +87,8 @@ export const sessionLoader: ContextProcessor = {
   description: "加载会话历史记录并将其转换为可处理的消息格式。",
   priority: 100,
   execute: async (context: PipelineContext) => {
-    if (!context.session) {
-      const message = "上下文中缺少 session 对象，已跳过。";
+    if (!context.detail) {
+      const message = "上下文中缺少 session 详情对象，已跳过。";
       logger.warn(message, { context });
       context.logs.push({
         processorId: "primary:session-loader",
@@ -98,7 +98,7 @@ export const sessionLoader: ContextProcessor = {
       return;
     }
 
-    const historyNodes = getActiveBranchHistory(context.session);
+    const historyNodes = getActiveBranchHistory(context.detail);
 
     const { convertHtmlToMd, htmlToMdLastMessages } = context.settings.contextOptimization || {
       convertHtmlToMd: false,

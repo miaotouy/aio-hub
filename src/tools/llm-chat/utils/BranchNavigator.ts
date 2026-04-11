@@ -3,7 +3,7 @@
  * 负责管理分支的切换和遍历
  */
 
-import type { ChatSession, ChatMessageNode } from '../types';
+import type { ChatSessionDetail, ChatMessageNode } from '../types';
 import { createModuleLogger } from '@utils/logger';
 
 const logger = createModuleLogger('llm-chat/BranchNavigator');
@@ -13,7 +13,7 @@ export class BranchNavigator {
    * 获取节点的所有兄弟节点（包括自己）
    */
   static getSiblings(
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string
   ): ChatMessageNode[] {
     if (!session.nodes) return [];
@@ -44,7 +44,7 @@ export class BranchNavigator {
    * @returns 新的 activeLeafId
    */
   static switchToSibling(
-    session: ChatSession,
+    session: ChatSessionDetail,
     currentNodeId: string,
     direction: 'prev' | 'next'
   ): string {
@@ -87,7 +87,7 @@ export class BranchNavigator {
    * 策略：优先使用上次选择的子节点（lastSelectedChildId），没有则选择第一个子节点
    */
   static findLeafOfBranch(
-    session: ChatSession,
+    session: ChatSessionDetail,
     startNodeId: string
   ): string {
     if (!session.nodes) return startNodeId;
@@ -136,7 +136,7 @@ export class BranchNavigator {
    * 当切换到新的分支时调用此方法，让沿途的每个父节点都记住走的是哪条路
    */
   static updateSelectionMemory(
-    session: ChatSession,
+    session: ChatSessionDetail,
     leafNodeId: string
   ): void {
     if (!session.nodes) return;
@@ -182,7 +182,7 @@ export class BranchNavigator {
    * 判断某个节点是否在当前活动路径上
    */
   static isNodeInActivePath(
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string
   ): boolean {
     if (!session.nodes || !session.activeLeafId) return false;
@@ -202,7 +202,7 @@ export class BranchNavigator {
    * 获取当前节点在兄弟节点中的索引
    */
   static getSiblingIndex(
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string
   ): { index: number; total: number } {
     const siblings = this.getSiblings(session, nodeId);
@@ -217,7 +217,7 @@ export class BranchNavigator {
    * 确保当前活动叶节点 ID 是有效的
    * 如果当前 activeLeafId 指向的节点不存在，则重置为根节点
    */
-  static ensureValidActiveLeaf(session: ChatSession): void {
+  static ensureValidActiveLeaf(session: ChatSessionDetail): void {
     if (!session.nodes || !session.activeLeafId) return;
     if (!session.nodes[session.activeLeafId]) {
       const oldLeafId = session.activeLeafId;

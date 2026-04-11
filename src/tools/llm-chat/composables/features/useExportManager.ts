@@ -3,7 +3,7 @@
  * 负责会话和分支的导出功能
  */
 
-import type { ChatSession, ChatMessageNode } from "../../types";
+import type { ChatSessionDetail, ChatSessionIndex, ChatMessageNode } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -43,19 +43,20 @@ export function useExportManager() {
    * 导出当前会话为 Markdown
    */
   const exportSessionAsMarkdown = (
-    session: ChatSession | null,
+    index: ChatSessionIndex | null,
+    detail: ChatSessionDetail | null,
     currentActivePath: ChatMessageNode[]
   ): string => {
-    if (!session) {
-      logger.warn("导出失败：会话不存在");
+    if (!index || !detail) {
+      logger.warn("导出失败：会话不存在或详情未加载");
       return "";
     }
 
     const lines: string[] = [
-      `# 对话记录: ${session.name}`,
+      `# 对话记录: ${index.name}`,
       "",
-      `会话创建：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
-      `最后更新：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `会话创建：${formatDateTime(index.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `最后更新：${formatDateTime(index.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
       "",
       "---",
       "",
@@ -88,20 +89,22 @@ export function useExportManager() {
       }
     });
 
-    logger.info("导出会话为 Markdown", { sessionId: session.id });
+    logger.info("导出会话为 Markdown", { sessionId: index.id });
     return lines.join("\n");
   };
 
   /**
    * 导出分支为 Markdown（从指定节点开始的路径）
-   * @param session 会话
+   * @param index 会话索引
+   * @param detail 会话详情
    * @param nodeId 目标节点 ID
    * @param includePreset 是否包含预设消息
    * @param presetMessages 预设消息列表（如果需要包含）
    * @param options 细粒度导出选项
    */
   const exportBranchAsMarkdown = (
-    session: ChatSession,
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail,
     nodeId: string,
     includePreset: boolean = false,
     presetMessages: ChatMessageNode[] = [],
@@ -123,7 +126,7 @@ export function useExportManager() {
     let currentId: string | null = nodeId;
 
     while (currentId !== null) {
-      const node: ChatMessageNode | undefined = session.nodes?.[currentId];
+      const node: ChatMessageNode | undefined = detail.nodes?.[currentId];
       if (!node) {
         logger.warn("导出分支失败：节点不存在", { nodeId: currentId });
         break;
@@ -133,10 +136,10 @@ export function useExportManager() {
     }
 
     // 过滤掉系统根节点
-    const messagePath = path.filter((node) => node.id !== session.rootNodeId);
+    const messagePath = path.filter((node) => node.id !== detail.rootNodeId);
 
     const lines: string[] = [
-      `# 对话记录: ${session.name}`,
+      `# 对话记录: ${index.name}`,
       "",
       `导出时间：${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`,
       `消息统计：共 ${messagePath.length} 条消息`,
@@ -329,7 +332,7 @@ export function useExportManager() {
     });
 
     logger.info("导出分支为 Markdown", {
-      sessionId: session.id,
+      sessionId: index.id,
       nodeId,
       messageCount: messagePath.length,
       includePreset,
@@ -341,14 +344,16 @@ export function useExportManager() {
 
   /**
    * 导出分支为 JSON（从指定节点开始的路径）
-   * @param session 会话
+   * @param index 会话索引
+   * @param detail 会话详情
    * @param nodeId 目标节点 ID
    * @param includePreset 是否包含预设消息
    * @param presetMessages 预设消息列表（如果需要包含）
    * @param options 细粒度导出选项
    */
   const exportBranchAsJson = (
-    session: ChatSession,
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail,
     nodeId: string,
     includePreset: boolean = false,
     presetMessages: ChatMessageNode[] = [],
@@ -370,7 +375,7 @@ export function useExportManager() {
     let currentId: string | null = nodeId;
 
     while (currentId !== null) {
-      const node: ChatMessageNode | undefined = session.nodes?.[currentId];
+      const node: ChatMessageNode | undefined = detail.nodes?.[currentId];
       if (!node) {
         logger.warn("导出分支失败：节点不存在", { nodeId: currentId });
         break;
@@ -380,7 +385,7 @@ export function useExportManager() {
     }
 
     // 过滤掉系统根节点
-    const messagePath = path.filter((node) => node.id !== session.rootNodeId);
+    const messagePath = path.filter((node) => node.id !== detail.rootNodeId);
 
     interface ExportMessage {
       role: string;
@@ -410,9 +415,9 @@ export function useExportManager() {
 
     const result: ExportResult = {
       session: {
-        name: session.name,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
+        name: index.name,
+        createdAt: index.createdAt,
+        updatedAt: index.updatedAt,
       },
       exportTime: new Date().toISOString(),
       messageCount: messagePath.length,
@@ -520,7 +525,7 @@ export function useExportManager() {
     });
 
     logger.info("导出分支为 JSON", {
-      sessionId: session.id,
+      sessionId: index.id,
       nodeId,
       messageCount: messagePath.length,
       includePreset,
@@ -532,11 +537,13 @@ export function useExportManager() {
 
   /**
    * 导出完整会话为 Markdown 树状格式（包含所有分支）
-   * @param session 会话
+   * @param index 会话索引
+   * @param detail 会话详情
    * @param options 导出选项
    */
   const exportSessionAsMarkdownTree = (
-    session: ChatSession,
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail,
     options: ExportOptions = {}
   ): string => {
     // 设置默认值
@@ -550,18 +557,18 @@ export function useExportManager() {
     } = options;
 
     const lines: string[] = [
-      `# 完整对话记录: ${session.name}`,
+      `# 完整对话记录: ${index.name}`,
       "",
       `导出时间：${formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss')}`,
-      `会话创建：${formatDateTime(session.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
-      `最后更新：${formatDateTime(session.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `会话创建：${formatDateTime(index.createdAt, 'yyyy-MM-dd HH:mm:ss')}`,
+      `最后更新：${formatDateTime(index.updatedAt, 'yyyy-MM-dd HH:mm:ss')}`,
       "",
       "---",
       "",
     ];
 
     // 统计节点数量（排除根节点）
-    const totalNodes = Object.keys(session.nodes || {}).length - 1;
+    const totalNodes = Object.keys(detail.nodes || {}).length - 1;
     lines.push(`**总消息数**: ${totalNodes} 条`);
     lines.push("");
     lines.push("---");
@@ -573,11 +580,11 @@ export function useExportManager() {
      * @param depth 当前深度（用于缩进）
      */
     const traverseNode = (nodeId: string, depth: number = 0): void => {
-      const node = session.nodes?.[nodeId];
+      const node = detail.nodes?.[nodeId];
       if (!node) return;
 
       // 跳过系统根节点（不显示）
-      if (node.id === session.rootNodeId) {
+      if (node.id === detail.rootNodeId) {
         // 直接遍历根节点的子节点
         node.childrenIds.forEach((childId) => {
           traverseNode(childId, depth);
@@ -696,10 +703,10 @@ export function useExportManager() {
     };
 
     // 从根节点开始遍历
-    traverseNode(session.rootNodeId || "", 0);
+    traverseNode(detail.rootNodeId || "", 0);
 
     logger.info("导出完整会话为 Markdown 树", {
-      sessionId: session.id,
+      sessionId: index.id,
       totalNodes,
     });
 

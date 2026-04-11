@@ -3,7 +3,7 @@ import { useMagicKeys, onKeyStroke } from '@vueuse/core';
 import { useChatSettings } from "../settings/useChatSettings";
 import * as d3Force from "d3-force";
 import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
-import type { ChatSession, ChatMessageNode } from "../../types";
+import type { ChatSessionDetail, ChatMessageNode } from "../../types";
 import { BranchNavigator } from "../../utils/BranchNavigator";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -177,7 +177,7 @@ function gravityForce(strength: number) {
  * 使用 D3 力导向布局 + Vue Flow 渲染
  */
 export function useFlowTreeGraph(
-  sessionRef: () => ChatSession | null,
+  sessionRef: () => ChatSessionDetail | null,
   contextMenuState: Ref<ContextMenuState>,
   target: Ref<HTMLElement | null>
 ) {
@@ -284,7 +284,7 @@ export function useFlowTreeGraph(
    * 计算会话的拓扑结构指纹
    * 只关注节点ID和父子关系，不关注内容
    */
-  function getStructureFingerprint(session: ChatSession): string {
+  function getStructureFingerprint(session: ChatSessionDetail): string {
     if (!session.nodes) return "not-loaded";
     return Object.values(session.nodes)
       .map(n => `${n.id}:${n.parentId || ''}`)
@@ -425,7 +425,7 @@ export function useFlowTreeGraph(
   /**
    * 计算节点的层级深度（根节点为 0）
    */
-  function calculateNodeDepth(session: ChatSession, nodeId: string): number {
+  function calculateNodeDepth(session: ChatSessionDetail, nodeId: string): number {
     let depth = 0;
     if (!session.nodes || !session.rootNodeId) return depth;
     let currentId: string | null = nodeId;
@@ -443,7 +443,7 @@ export function useFlowTreeGraph(
   /**
    * 根据节点状态计算颜色
    */
-  function getNodeColor(session: ChatSession, node: ChatMessageNode, isCompressed: boolean = false): {
+  function getNodeColor(session: ChatSessionDetail, node: ChatMessageNode, isCompressed: boolean = false): {
     background: string;
     border: string;
   } {

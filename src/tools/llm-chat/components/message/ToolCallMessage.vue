@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useResizeObserver, useClipboard } from "@vueuse/core";
-import type { ChatMessageNode, ChatSession, TranslationDisplayMode, ButtonVisibility } from "../../types";
+import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, TranslationDisplayMode, ButtonVisibility } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import {
   Terminal,
@@ -40,7 +40,8 @@ import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor
 import type { AsyncTaskMetadata } from "@/tools/tool-calling/core/async-task/types";
 
 interface Props {
-  session: ChatSession | null;
+  sessionIndex: ChatSessionIndex | null;
+  sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
   messageDepth?: number;
   isEditing?: boolean;
@@ -345,8 +346,8 @@ const activeRules = computed(() => {
 const processedRules = ref<ChatRegexRule[]>([]);
 
 watch(
-  [activeRules, () => props.session, () => props.message.metadata],
-  async ([rules, session]) => {
+  [activeRules, () => props.sessionIndex, () => props.sessionDetail, () => props.message.metadata],
+  async ([rules, sessionIndex, sessionDetail]) => {
     if (!rules || rules.length === 0) {
       processedRules.value = [];
       return;
@@ -354,7 +355,8 @@ watch(
     const macroContext = createMacroContext({
       agent: currentAgent.value,
       userProfile: userProfileStore.globalProfile ?? undefined,
-      session: session ?? undefined,
+      index: sessionIndex ?? undefined,
+      detail: sessionDetail ?? undefined,
     });
     processedRules.value = await processRulesWithMacros(rules, macroContext);
   },
@@ -465,8 +467,8 @@ const handleCopyArgs = (args?: Record<string, any>) => {
 
 // ===== 菜单栏相关计算 =====
 const siblings = computed(() => {
-  const nodes = props.session?.nodes;
-  if (!props.session || !nodes || !props.message.parentId) return [props.message];
+  const nodes = props.sessionDetail?.nodes;
+  if (!props.sessionDetail || !nodes || !props.message.parentId) return [props.message];
   const parent = nodes[props.message.parentId];
   if (!parent) return [props.message];
   return parent.childrenIds.map((id) => nodes[id]).filter(Boolean);

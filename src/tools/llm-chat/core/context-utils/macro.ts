@@ -3,7 +3,7 @@
  * 负责创建宏上下文和处理宏的纯函数
  */
 
-import type { ChatSession, ChatAgent, UserProfile } from "../../types";
+import type { ChatSessionIndex, ChatSessionDetail, ChatAgent, UserProfile } from "../../types";
 import {
   createMacroContext,
   extractContextFromSession,
@@ -19,7 +19,8 @@ const errorHandler = createModuleErrorHandler("llm-chat/core/macro-processor");
  * 宏上下文构建所需的基础数据
  */
 export interface MacroContextData {
-  session?: ChatSession;
+  index?: ChatSessionIndex;
+  detail?: ChatSessionDetail;
   agent?: ChatAgent;
   userProfile?: UserProfile;
   input?: string;
@@ -47,7 +48,8 @@ export const buildMacroContext = (data: MacroContextData) => {
     charName,
     agent: data.agent,
     userProfile: data.userProfile,
-    session: data.session,
+    index: data.index,
+    detail: data.detail,
     timestamp: data.timestamp,
   });
 
@@ -58,9 +60,10 @@ export const buildMacroContext = (data: MacroContextData) => {
   if (data.profileName) baseContext.profileName = data.profileName;
   if (data.providerType) baseContext.providerType = data.providerType;
 
-  if (data.session) {
+  if (data.index && data.detail) {
     const extractedContext = extractContextFromSession(
-      data.session,
+      data.index,
+      data.detail,
       data.agent,
       data.userProfile,
     );
@@ -99,7 +102,7 @@ export const processMacros = async (
     logger.debug("处理宏", {
       hasAgent: !!context.agent,
       hasUserProfile: !!context.userProfile,
-      hasSession: !!context.session,
+      hasSession: !!context.detail,
       hasInput: !!context.input,
       textLength: text.length,
     });

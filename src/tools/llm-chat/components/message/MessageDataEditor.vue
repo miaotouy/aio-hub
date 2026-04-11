@@ -80,7 +80,7 @@ watch(
   () => props.modelValue,
   (isOpening) => {
     if (isOpening && props.messageId) {
-      const session = store.currentSession;
+      const session = store.currentSessionDetail;
       if (session && session.nodes && session.nodes[props.messageId]) {
         const node = session.nodes[props.messageId];
         // 保存原始数据用于比较

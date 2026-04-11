@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useVirtualList } from "@vueuse/core";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import type { ChatSession } from "../../types";
+import type { ChatSessionIndex } from "../../types";
 import { useLlmSearch, type SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
@@ -83,7 +83,7 @@ const localFilteredSessions = computed(() => {
 const searchResultSessions = computed(() => {
   if (!isInSearchMode.value) return [];
 
-  const sessions: ChatSession[] = [];
+  const sessions: ChatSessionIndex[] = [];
   const sessionMap = new Map(chatStore.sessions.map((s) => [s.id, s]));
 
   for (const result of sessionResults.value) {
@@ -143,13 +143,13 @@ const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(displayS
 });
 
 // 获取会话当前显示的智能体信息
-const getSessionDisplayAgent = (session: ChatSession) => {
+const getSessionDisplayAgent = (session: ChatSessionIndex) => {
   if (!session.displayAgentId) return null;
   return agentStore.getAgentById(session.displayAgentId);
 };
 
 // 处理会话点击
-const handleSessionClick = (session: ChatSession) => {
+const handleSessionClick = (session: ChatSessionIndex) => {
   if (settings.value.uiPreferences.autoSwitchAgentOnSessionChange && session.displayAgentId) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
@@ -164,13 +164,8 @@ const handleNewSession = () => {
 };
 
 // 获取消息数量（排除系统根节点）
-const getMessageCount = (session: any) => {
-  // 优先使用同步过来的预计算字段，避免访问可能已被剔除的 nodes 属性
-  if (typeof session.messageCount === "number") {
-    return session.messageCount;
-  }
-  // 回退到实时计算（主窗口或完整数据场景）
-  return session.nodes ? Object.keys(session.nodes).length - 1 : 0;
+const getMessageCount = (session: ChatSessionIndex) => {
+  return session.messageCount ?? 0;
 };
 
 // 自动定位到当前会话

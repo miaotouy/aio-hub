@@ -12,7 +12,7 @@ import { useUserProfileStore } from "../stores/userProfileStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import type { Asset } from "@/types/asset-management";
-import type { ChatSession, ChatAgent, UserProfile } from "../types";
+import type { ChatSessionIndex, ChatSessionDetail, ChatAgent, UserProfile } from "../types";
 
 const logger = createModuleLogger("services/llm-chat-service");
 const errorHandler = createModuleErrorHandler("services/llm-chat-service");
@@ -374,7 +374,7 @@ export class LlmChatService {
   /**
    * 获取所有会话
    */
-  public getSessions(): ChatSession[] {
+  public getSessions(): ChatSessionIndex[] {
     if (this.chatStore.sessions.length === 0) {
       this.chatStore.loadSessions();
     }
@@ -384,8 +384,15 @@ export class LlmChatService {
   /**
    * 获取当前活跃会话
    */
-  public getCurrentSession(): ChatSession | null {
+  public getCurrentSession(): ChatSessionIndex | null {
     return this.chatStore.currentSession;
+  }
+
+  /**
+   * 获取当前活跃会话详情
+   */
+  public getCurrentSessionDetail(): ChatSessionDetail | null {
+    return this.chatStore.currentSessionDetail;
   }
 
   /**

@@ -3,7 +3,7 @@
  * 负责核心的 LLM 请求执行逻辑，消除重复代码
  */
 
-import type { ChatSession, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
+import type { ChatSessionDetail, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useAgentStore } from "../../stores/agentStore";
@@ -16,6 +16,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 import { useContextPipelineStore } from "../../stores/contextPipelineStore";
 import type { PipelineContext } from "../../types/pipeline";
 import { useNodeManager } from "../session/useNodeManager";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ContextPreviewData } from "../../types/context";
 import { buildPreviewDataFromContext } from "../../core/context-utils/preview-builder";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
@@ -33,7 +34,7 @@ const errorHandler = createModuleErrorHandler("llm-chat/executor");
  */
 interface ExecuteRequestParams {
   /** 会话对象 */
-  session: ChatSession;
+  session: ChatSessionDetail;
   /** 用户消息节点 */
   userNode: ChatMessageNode;
   /** 助手响应节点 */
@@ -159,7 +160,7 @@ export function useChatExecutor() {
 
   const processUserAttachments = async (
     userNode: ChatMessageNode,
-    session: ChatSession,
+    session: ChatSessionDetail,
     attachments: Asset[] | undefined,
     pathUserNode?: ChatMessageNode,
   ): Promise<void> => {
@@ -174,7 +175,7 @@ export function useChatExecutor() {
 
   const calculateUserMessageTokens = async (
     userNode: ChatMessageNode,
-    session: ChatSession,
+    session: ChatSessionDetail,
     content: string,
     modelId: string,
     attachments?: Asset[],
@@ -227,7 +228,7 @@ export function useChatExecutor() {
   };
 
   const getContextForPreview = async (
-    session: ChatSession,
+    session: ChatSessionDetail,
     targetNodeId: string,
     agentId?: string,
     parameterOverrides?: LlmParameters,
@@ -286,10 +287,14 @@ export function useChatExecutor() {
     const capabilities = model?.capabilities;
 
     const { settings } = useChatSettings();
+    const chatStore = useLlmChatStore();
+    const sessionIndex = chatStore.sessionIndexMap.get(session.id);
+    if (!sessionIndex) return null;
 
     const pipelineContext: PipelineContext = {
       messages: [],
-      session,
+      index: sessionIndex,
+      detail: session,
       userProfile: effectiveUserProfile || undefined,
       agentConfig: executionAgent,
       settings: settings.value,
@@ -402,7 +407,8 @@ export function useChatExecutor() {
         postProcessingTokenCount: postProcessingTokenDelta,
         postProcessingCharCount: postProcessingCharDelta,
       },
-      session,
+      sessionIndex: pipelineContext.index,
+      sessionDetail: pipelineContext.detail,
     };
 
     return previewData;

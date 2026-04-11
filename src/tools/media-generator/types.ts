@@ -1,4 +1,4 @@
-import type { ChatSession } from "@/tools/llm-chat/types/session";
+import type { ChatSessionIndex, ChatSessionDetail } from "@/tools/llm-chat/types/session";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { TranslationConfig } from "@/tools/llm-chat/types/settings";
 import type { Asset } from "@/types/asset-management";
@@ -182,7 +182,7 @@ export interface MediaGeneratorSettings {
  * 媒体生成会话
  * 全面对齐 ChatSession 的树形结构，但标记为 media-gen 类型并携带生成配置
  */
-export interface GenerationSession extends Omit<ChatSession, "nodes"> {
+export interface GenerationSession extends ChatSessionIndex, Omit<ChatSessionDetail, "nodes"> {
   /** 标记会话类型 */
   type: "media-gen";
   /** 媒体生成专属配置 */

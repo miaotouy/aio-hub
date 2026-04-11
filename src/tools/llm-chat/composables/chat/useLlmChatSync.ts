@@ -17,7 +17,7 @@ import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { createModuleLogger } from "@/utils/logger";
 import type { LlmChatStateKey } from "../../types/sync";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "../../types/sync";
-import type { ChatSession } from "../../types";
+import type { ChatSessionIndex } from "../../types";
 
 const logger = createModuleLogger("LlmChatSync");
 
@@ -72,32 +72,18 @@ export function useLlmChatSync() {
     cleanupEngines();
 
     // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
-    // 这样分离窗口能获得完整的上下文，可以独立工作
-    // 注意：必须使用 toRef 而不是 computed，因为 computed 是只读的
     const allAgents = toRef(agentStore, "agents");
-    // 性能优化：同步会话列表时只同步索引信息，不包含巨大的 nodes 树
-    // 这样可以极大地减少全量同步时的 JSON 序列化开销和 IPC 传输负担
-    const allSessionsIndex = computed(() =>
-      store.sessions.map((s) => {
-        // 如果是当前正在使用的会话，保留完整数据，否则只保留索引信息
-        if (s.id === store.currentSessionId) {
-          return {
-            ...s,
-            messageCount: s.messageCount ?? Object.keys(s.nodes || {}).length - 1,
-          };
-        }
 
-        const { nodes, history, ...index } = s;
-        return {
-          ...index,
-          messageCount: s.messageCount ?? Object.keys(nodes || {}).length - 1,
-        };
-      }),
-    );
+    // 性能优化：同步会话列表时只同步索引信息
+    // 由于 store.sessions 已经是 computed 的索引数组，直接使用即可
+    const allSessionsIndex = computed(() => store.sessions);
+
     // 使用 computed 获取当前会话对象，用于单独同步
-    // 注意：因为 computed 是只读的，在接收端(子窗口)不能直接绑定到这个 computed
-    // 但在发送端(主窗口)，我们可以把它作为源
-    const currentSessionData = computed(() => store.currentSession);
+    // 注意：这里发送的是 Detail，消费端需要对应处理
+    const currentSessionData = computed(() => {
+      return store.currentSessionDetail;
+    });
+
     const currentSessionId = toRef(store, "currentSessionId");
     const isSending = toRef(store, "isSending");
     // 将 generatingNodes Set 转换为数组进行同步
@@ -124,11 +110,9 @@ export function useLlmChatSync() {
     // 同步当前选中的智能体ID（全局）
     createStateEngine(currentAgentId, CHAT_STATE_KEYS.CURRENT_AGENT_ID);
     // 同步会话列表索引（不包含消息树）
-    createStateEngine(allSessionsIndex, CHAT_STATE_KEYS.SESSIONS);
-    // 同步当前会话的完整数据（作为独立通道，供轻量级消费者使用）
-    // 注意：这里我们传递 computed ref，useStateSyncEngine 会将其视为只读源进行发送
-    // 使用 Ref<T> 强制转换 computed 属性，因为 useStateSyncEngine 接受只读源
-    createStateEngine(currentSessionData as Ref<ChatSession | undefined>, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
+    createStateEngine(allSessionsIndex as Ref<ChatSessionIndex[]>, CHAT_STATE_KEYS.SESSIONS);
+    // 同步当前会话的完整数据
+    createStateEngine(currentSessionData as Ref<any>, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
     // 同步当前激活的会话ID
     createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
     // 同步发送状态
@@ -148,7 +132,6 @@ export function useLlmChatSync() {
     worldbookStore.initializeSync();
 
     // 【重要】在非主窗口中，监听同步过来的 settings 变化
-    // 因为 settings 是单例 ref，同步引擎会更新它的值，我们需要确保UI能响应这个变化
     if (bus.windowType !== "main") {
       watch(
         settings,
@@ -163,8 +146,6 @@ export function useLlmChatSync() {
     }
 
     // 当组件被重新附加时，强制进行一次全量状态广播
-    // 这确保了父窗口（main 或 detached-tool）的UI能够反映
-    // 子窗口（detached-component）中可能发生的最后状态变化
     if (bus.windowType === "main" || bus.windowType === "detached-tool") {
       const detachedManager = useDetachedManager();
       watch(
@@ -199,30 +180,28 @@ export function useLlmChatSync() {
     logger.info("收到操作请求", { action, params });
     switch (action) {
       case "send-message":
-        // 不要 await，立即返回，防止请求超时
         store.sendMessage(params.content, params.attachments);
         return Promise.resolve();
       case "abort-sending":
         store.abortSending();
         return Promise.resolve();
       case "regenerate-from-node":
-        // 不要 await，立即返回，防止请求超时
         store.regenerateFromNode(params.messageId);
         return Promise.resolve();
       case "delete-message":
-        store.deleteMessage(params.messageId);
+        (store as any).deleteMessage(params.messageId);
         return Promise.resolve();
       case "switch-sibling":
-        store.switchToSiblingBranch(params.nodeId, params.direction);
+        (store as any).switchToSiblingBranch(params.nodeId, params.direction);
         return Promise.resolve();
       case "toggle-enabled":
-        store.toggleNodeEnabled(params.nodeId);
+        (store as any).toggleNodeEnabled(params.nodeId);
         return Promise.resolve();
       case "edit-message":
-        store.editMessage(params.nodeId, params.newContent, params.attachments);
+        (store as any).editMessage(params.nodeId, params.newContent, params.attachments);
         return Promise.resolve();
       case "create-branch":
-        store.createBranch(params.nodeId);
+        (store as any).createBranch(params.nodeId);
         return Promise.resolve();
       case "abort-node":
         store.abortNodeGeneration(params.nodeId);
@@ -234,8 +213,6 @@ export function useLlmChatSync() {
         userProfileStore.updateProfile(params.profileId, params.updates);
         return Promise.resolve();
       case "update-chat-settings":
-        // 使用 useChatSettings 的 updateSettings 方法更新设置
-        // 这会更新主窗口的 settings ref，进而触发 useStateSyncEngine 的广播
         const { updateSettings } = useChatSettings();
         return updateSettings(params.updates);
       case "switch-session":
@@ -251,20 +228,10 @@ export function useLlmChatSync() {
         store.completeInput(params.content, params.options);
         return Promise.resolve();
       case "analyze-context":
-        // 逻辑参考 useMessageInputActions.ts 中的 handleAnalyzeContextWithInput
         store.contextAnalyzerNodeId = params.nodeId;
         store.contextAnalyzerVisible = true;
         return Promise.resolve();
       case "select-continuation-model":
-        // 触发主窗口的模型选择对话框
-        // 逻辑参考 useMessageInputActions.ts 中的 handleSelectContinuationModel
-        // 由于同步引擎会自动同步 store.inputManager 的状态，主窗口选择后子窗口也会同步
-        // 我们通过消息总线广播一个 UI 事件，让主窗口的 ChatArea 监听到并弹出对话框
-        // 注意：useWindowSyncBus 并没有暴露 emit 方法，但它内部使用了 tauriEmit
-        // 我们需要一种方式让 bus 能够发送自定义消息，或者利用现有的 action 机制。
-        // 实际上 handleActionRequest 是在主窗口运行的，我们可以在这里直接触发主窗口的 UI。
-        // 由于 useLlmChatSync 是一个 composable，我们可以利用全局事件总线或特定的 UI 状态。
-        // 这里我们通过 bus 的 onMessage 机制来模拟一个 UI 唤起。
         logger.info("主窗口收到续写模型选择请求，触发 UI 唤起");
         return Promise.resolve();
       // 工具调用审批代理
@@ -299,9 +266,6 @@ export function useLlmChatSync() {
     }
   };
 
-  // 【关键修改】main 窗口 and detached-tool 窗口都注册处理器
-  // detached-tool 是 LlmChat 的完整副本，拥有完整数据，应该能响应子组件的请求
-  // detached-component 窗口（如分离的 ChatArea）不注册，它们通过代理发送请求
   if (bus.windowType === "main" || bus.windowType === "detached-tool") {
     bus.onActionRequest("llm-chat", handleActionRequest);
     logger.info("已注册操作请求处理器", { windowType: bus.windowType });
@@ -320,21 +284,16 @@ export function useLlmChatSync() {
       },
       { immediate: true },
     );
-
-    // 注意：初始状态请求和重连广播现已由 useStateSyncEngine 的全局注册中心自动处理
-    // 无需在此处手动维护
   } else {
     logger.info("detached-component 窗口，不注册处理器（操作将代理至拥有数据的窗口）", { windowType: bus.windowType });
   }
 
   // detached-component 窗口需要主动请求初始状态
   if (bus.windowType === "detached-component") {
-    // 延迟一点，确保主窗口的监听器已准备好
     setTimeout(() => {
       bus.requestInitialState();
     }, 100);
   }
 
-  // 返回一个空对象或特定函数，因为现在初始化是自动的
   return {};
 }

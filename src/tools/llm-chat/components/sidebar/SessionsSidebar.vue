@@ -6,7 +6,7 @@ import type { SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { invoke } from "@tauri-apps/api/core";
 import { useChatStorageSeparated } from "../../composables/storage/useChatStorageSeparated";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatSession } from "../../types";
+import type { ChatSessionDetail, ChatSessionIndex } from "../../types";
 
 import SessionItem from "./SessionItem.vue";
 import FilterPanel from "./FilterPanel.vue";
@@ -15,7 +15,7 @@ import ExportSessionDialog from "../export/ExportSessionDialog.vue";
 import { useSessionsSidebarLogic } from "../../composables/sidebar/useSessionsSidebarLogic";
 
 interface Props {
-  sessions: ChatSession[];
+  sessions: ChatSessionIndex[];
   currentSessionId: string | null;
 }
 
@@ -77,7 +77,8 @@ const handleMatchModeChange = (mode: SearchMatchMode) => {
 
 // 导出会话相关状态
 const exportSessionDialogVisible = ref(false);
-const sessionToExport = ref<ChatSession | null>(null);
+const sessionToExport = ref<ChatSessionIndex | null>(null);
+const sessionToExportDetail = ref<ChatSessionDetail | null>(null);
 
 // 虚拟滚动列表
 const parentRef = ref<HTMLElement | null>(null);
@@ -99,15 +100,36 @@ const confirmRename = (newName: string) => {
   emit("rename", { sessionId: renamingSession.value.id, newName });
   renamingSession.value = null;
 };
-
 // 打开导出会话对话框
-const openExportDialog = (session: ChatSession) => {
-  sessionToExport.value = session;
+const openExportDialog = async (sessionIndex: ChatSessionIndex) => {
+  const llmChatStore = (await import("../../stores/llmChatStore")).useLlmChatStore();
+
+  // 确保详情已加载
+  let detail = llmChatStore.sessionDetailMap.get(sessionIndex.id);
+  if (!detail) {
+    const { useChatStorageSeparated } = await import("../../composables/storage/useChatStorageSeparated");
+    const storage = useChatStorageSeparated();
+    const fullSession = await storage.loadSession(sessionIndex.id);
+    if (fullSession && fullSession.detail.nodes) {
+      detail = {
+        id: sessionIndex.id,
+        nodes: fullSession.detail.nodes,
+        rootNodeId: fullSession.detail.rootNodeId!,
+        activeLeafId: fullSession.detail.activeLeafId!,
+        history: fullSession.detail.history || [],
+        historyIndex: fullSession.detail.historyIndex || 0,
+      };
+      llmChatStore.sessionDetailMap.set(sessionIndex.id, detail);
+    }
+  }
+
+  sessionToExport.value = sessionIndex;
+  sessionToExportDetail.value = detail || null;
   exportSessionDialogVisible.value = true;
 };
 
 // 打开会话目录并选中文件
-const handleOpenDirectory = async (session: ChatSession) => {
+const handleOpenDirectory = async (session: ChatSessionIndex) => {
   try {
     const { getSessionPath } = useChatStorageSeparated();
     const sessionPath = await getSessionPath(session.id);
@@ -118,7 +140,7 @@ const handleOpenDirectory = async (session: ChatSession) => {
 };
 
 // 处理菜单命令
-const handleMenuCommand = (command: string, session: ChatSession) => {
+const handleMenuCommand = (command: string, session: ChatSessionIndex) => {
   switch (command) {
     case "delete":
       confirmDelete(session);
@@ -150,7 +172,7 @@ const scrollToCurrentSession = () => {
 };
 
 // 处理会话点击
-const handleSessionClick = (session: ChatSession) => {
+const handleSessionClick = (session: ChatSessionIndex) => {
   if (settings.value.uiPreferences.autoSwitchAgentOnSessionChange && session.displayAgentId) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
@@ -300,7 +322,11 @@ const handleSessionClick = (session: ChatSession) => {
       @confirm="confirmRename"
     />
 
-    <ExportSessionDialog v-model:visible="exportSessionDialogVisible" :session="sessionToExport" />
+    <ExportSessionDialog
+      v-model:visible="exportSessionDialogVisible"
+      :session-index="sessionToExport"
+      :session-detail="sessionToExportDetail"
+    />
   </div>
 </template>
 

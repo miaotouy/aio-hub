@@ -1,4 +1,4 @@
-import type { ChatSession, ChatMessageNode, NodeRelationChange } from "../types";
+import type { ChatSessionDetail, ChatMessageNode, NodeRelationChange } from "../types";
 
 /**
  * 提取节点关系变更（用于历史记录）
@@ -6,7 +6,7 @@ import type { ChatSession, ChatMessageNode, NodeRelationChange } from "../types"
  * 计算节点在创建或删除操作前后的父子关系变化
  */
 export function extractRelationChange(
-  session: ChatSession,
+  session: ChatSessionDetail,
   node: ChatMessageNode,
   operation: "delete" | "create"
 ): NodeRelationChange {
@@ -46,7 +46,7 @@ export function extractRelationChange(
  * 捕获嫁接操作的关系变更
  */
 export function captureRelationChangesForGraft(
-  session: ChatSession,
+  session: ChatSessionDetail,
   nodeId: string,
   newParentId: string
 ): NodeRelationChange[] {
@@ -86,7 +86,7 @@ export function captureRelationChangesForGraft(
  * 捕获移动操作的关系变更（目前逻辑与嫁接相同）
  */
 export function captureRelationChangesForMove(
-  session: ChatSession,
+  session: ChatSessionDetail,
   nodeId: string,
   newParentId: string
 ): NodeRelationChange[] {

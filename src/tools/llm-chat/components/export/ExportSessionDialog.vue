@@ -12,15 +12,15 @@
         <div class="export-summary">
           <div class="summary-item summary-item-full">
             <span class="summary-label">会话名称:</span>
-            <span class="summary-value">{{ session?.name || "未命名" }}</span>
+            <span class="summary-value">{{ sessionIndex?.name || "未命名" }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">创建时间:</span>
-            <span class="summary-value">{{ formatDate(session?.createdAt) }}</span>
+            <span class="summary-value">{{ formatDate(sessionIndex?.createdAt) }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">更新时间:</span>
-            <span class="summary-value">{{ formatDate(session?.updatedAt) }}</span>
+            <span class="summary-value">{{ formatDate(sessionIndex?.updatedAt) }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">总消息数:</span>
@@ -64,7 +64,7 @@ import { ElButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
-import type { ChatSession } from "../../types";
+import type { ChatSessionDetail, ChatSessionIndex } from "../../types";
 import { useExportManager } from "../../composables/features/useExportManager";
 import { useAgentStore } from "../../stores/agentStore";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
@@ -77,18 +77,10 @@ import { formatDateTime } from "@/utils/time";
 
 interface Props {
   visible: boolean;
-  session: ChatSession | null;
+  sessionIndex: ChatSessionIndex | null;
+  sessionDetail?: ChatSessionDetail | null;
 }
 
-interface ExportOptions {
-  format: "markdown" | "json" | "raw";
-  includeUserProfile: boolean;
-  includeAgentInfo: boolean;
-  includeModelInfo: boolean;
-  includeTokenUsage: boolean;
-  includeAttachments: boolean;
-  includeErrors: boolean;
-}
 
 interface Emits {
   (e: "update:visible", value: boolean): void;
@@ -125,16 +117,18 @@ const formatDate = (timestamp?: string) => {
 
 // 计算总消息数（排除根节点）
 const totalMessageCount = computed(() => {
-  if (!props.session || !props.session.nodes) return 0;
-  return Object.keys(props.session.nodes).length - 1;
+  if (props.sessionDetail?.nodes) {
+    return Object.keys(props.sessionDetail.nodes).length - 1;
+  }
+  return props.sessionIndex?.messageCount || 0;
 });
 
 // 计算分支数（拥有多个子节点的节点数量）
 const branchCount = computed(() => {
-  if (!props.session || !props.session.nodes) return 0;
+  if (!props.sessionDetail || !props.sessionDetail.nodes) return 0;
   let count = 0;
-  Object.values(props.session.nodes).forEach((node) => {
-    if (node.childrenIds.length > 1) {
+  Object.values(props.sessionDetail.nodes).forEach((node: any) => {
+    if (node.childrenIds && node.childrenIds.length > 1) {
       count += node.childrenIds.length;
     }
   });
@@ -143,12 +137,16 @@ const branchCount = computed(() => {
 
 // 生成预览内容
 const previewContent = computed(() => {
-  if (!props.session) {
+  if (!props.sessionIndex) {
     return "暂无会话数据";
+  }
+  
+  if (!props.sessionDetail) {
+    return "正在加载会话详情...";
   }
 
   const { exportSessionAsMarkdownTree } = useExportManager();
-  const options: Partial<ExportOptions> = {
+  const options: any = {
     includeUserProfile: includeUserProfile.value,
     includeAgentInfo: includeAgentInfo.value,
     includeModelInfo: includeModelInfo.value,
@@ -158,36 +156,39 @@ const previewContent = computed(() => {
   };
 
   if (exportFormat.value === "raw") {
-    return JSON.stringify(props.session, null, 2);
+    return JSON.stringify({
+      index: props.sessionIndex,
+      detail: props.sessionDetail
+    }, null, 2);
   } else if (exportFormat.value === "json") {
     // 简化的 JSON 导出（包含完整节点树）
     const jsonData = {
       session: {
-        id: props.session.id,
-        name: props.session.name,
-        createdAt: props.session.createdAt,
-        updatedAt: props.session.updatedAt,
+        id: props.sessionIndex.id,
+        name: props.sessionIndex.name,
+        createdAt: props.sessionIndex.createdAt,
+        updatedAt: props.sessionIndex.updatedAt,
       },
       exportTime: new Date().toISOString(),
       totalNodes: totalMessageCount.value,
       branchCount: branchCount.value,
-      nodes: props.session.nodes || {},
+      nodes: props.sessionDetail.nodes || {},
     };
     return JSON.stringify(jsonData, null, 2);
   } else {
-    return exportSessionAsMarkdownTree(props.session, options);
+    return exportSessionAsMarkdownTree(props.sessionIndex, props.sessionDetail, options);
   }
 });
 
 // 资产路径解析钩子
 const resolveAsset = (content: string) => {
-  if (!props.session) return content;
+  if (!props.sessionDetail) return content;
   let processed = content;
 
   // 收集会话中涉及的所有智能体
   const agentIds = new Set<string>();
-  if (props.session.nodes) {
-    Object.values(props.session.nodes).forEach((node) => {
+  if (props.sessionDetail.nodes) {
+    Object.values(props.sessionDetail.nodes).forEach((node: any) => {
       if (node.role === "assistant" && node.metadata?.agentId) {
         agentIds.add(node.metadata.agentId);
       }
@@ -205,8 +206,8 @@ const resolveAsset = (content: string) => {
 };
 
 const handleExport = async () => {
-  if (!props.session) {
-    customMessage.error("没有可导出的会话");
+  if (!props.sessionIndex || !props.sessionDetail) {
+    customMessage.error("没有可导出的会话数据");
     return;
   }
 
@@ -220,7 +221,7 @@ const handleExport = async () => {
     const extension = isJson ? "json" : "md";
 
     // 对会话名称和时间戳分别清理并合并，确保万无一失
-    const safeSessionName = sanitizeFilename(props.session.name || "未命名会话");
+    const safeSessionName = sanitizeFilename(props.sessionIndex.name || "未命名会话");
     const defaultFileName = `${safeSessionName}-${timestamp}.${extension}`;
 
     // 打开保存对话框

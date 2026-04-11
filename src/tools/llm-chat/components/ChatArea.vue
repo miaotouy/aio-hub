@@ -827,7 +827,8 @@ onMounted(async () => {
             <!-- 消息列表 -->
             <MessageList
               ref="messageListRef"
-              :session="llmChatStore.currentSession"
+              :session-index="llmChatStore.currentSession"
+              :session-detail="llmChatStore.currentSessionDetail"
               :messages="finalMessages"
               :is-sending="finalIsSending"
               :llm-think-rules="currentAgent?.llmThinkRules"
@@ -865,7 +866,9 @@ onMounted(async () => {
           <!-- V2 树图视图 (力导向布局) -->
           <template v-else-if="viewMode === 'force-graph'">
             <div class="force-graph-container conversation-tree-graph-box">
-              <FlowTreeGraph :session="llmChatStore.currentSession" />
+              <FlowTreeGraph
+                :session="llmChatStore.currentSessionDetail"
+              />
             </div>
           </template>
         </div>

@@ -1,6 +1,6 @@
-import { toRaw, type Ref } from 'vue';
-import type { ChatSession, HistoryDelta } from "../../types";
-import type { Asset } from '@/types/asset-management';
+import { toRaw, type Ref } from "vue";
+import type { ChatSessionDetail, HistoryDelta, ChatSessionIndex } from "../../types";
+import type { Asset } from "@/types/asset-management";
 import { useBranchManager } from "../session/useBranchManager";
 import { useSessionManager } from "../session/useSessionManager";
 import { useNodeManager } from "../session/useNodeManager";
@@ -8,27 +8,28 @@ import { useAgentStore } from "../../stores/agentStore";
 import {
   extractRelationChange,
   captureRelationChangesForGraft,
-  captureRelationChangesForMove
+  captureRelationChangesForMove,
 } from "../../utils/graphUtils";
 import { recalculateNodeTokens } from "../../utils/chatTokenUtils";
 import type { useSessionNodeHistory } from "../session/useSessionNodeHistory";
-import { createModuleLogger } from '@/utils/logger';
+import { createModuleLogger } from "@/utils/logger";
 import type { ChatMessageNode } from "../../types";
 
-const logger = createModuleLogger('llm-chat/graph-actions');
+const logger = createModuleLogger("llm-chat/graph-actions");
 
 type HistoryManager = ReturnType<typeof useSessionNodeHistory>;
 
 /**
  * 图操作 Actions Composable
- * 
+ *
  * 封装了图结构的修改、历史记录、持久化等组合操作。
  * 旨在减轻 Store 的负担，将复杂的业务流程逻辑分离。
  */
 export function useGraphActions(
-  currentSession: Ref<ChatSession | null>,
+  currentSession: Ref<ChatSessionDetail | null>,
   currentSessionId: Ref<string | null>,
-  historyManager: HistoryManager
+  historyManager: HistoryManager,
+  sessionIndexMap?: Ref<Map<string, ChatSessionIndex>>, // 传入索引 Map 以便更新
 ) {
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
@@ -41,8 +42,8 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
-    if (nodeId.startsWith('preset-')) {
-      logger.warn('暂不支持直接编辑预设消息的数据', { nodeId });
+    if (nodeId.startsWith("preset-")) {
+      logger.warn("暂不支持直接编辑预设消息的数据", { nodeId });
       return;
     }
 
@@ -66,20 +67,30 @@ export function useGraphActions(
     // 3. 记录历史
     const finalNodeState = JSON.parse(JSON.stringify(toRaw(node)));
     const delta: HistoryDelta = {
-      type: 'update',
+      type: "update",
       payload: { nodeId, previousNodeState, finalNodeState },
     };
     // 使用自定义的操作类型名称，或者复用 NODE_EDIT
-    historyManager.recordHistory('NODE_DATA_UPDATE', [delta], { targetNodeId: nodeId });
+    historyManager.recordHistory("NODE_DATA_UPDATE", [delta], { targetNodeId: nodeId });
 
     // 4. 重新计算 token (因为 content 或 metadata 可能变了)
-    await recalculateNodeTokens(session, nodeId);
+    if (sessionIndexMap?.value) {
+      const index = sessionIndexMap.value.get(session.id);
+      if (index) {
+        await recalculateNodeTokens(index, session, nodeId);
+      }
+    }
 
     // 5. 持久化
-    sessionManager.updateMessageCount(session);
-    sessionManager.persistSession(session, currentSessionId.value);
+    if (sessionIndexMap?.value) {
+      sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+      const index = sessionIndexMap.value.get(session.id);
+      if (index) {
+        sessionManager.persistSession(index, session, currentSessionId.value);
+      }
+    }
 
-    logger.info('已全量更新节点数据', { nodeId });
+    logger.info("已全量更新节点数据", { nodeId });
   }
 
   /**
@@ -89,7 +100,7 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
-    if (nodeId.startsWith('preset-')) {
+    if (nodeId.startsWith("preset-")) {
       const agentStore = useAgentStore();
       if (!agentStore.currentAgentId) return;
       agentStore.updatePresetMessage(agentStore.currentAgentId, nodeId, newContent);
@@ -105,14 +116,25 @@ export function useGraphActions(
       session.nodes![nodeId].updatedAt = new Date().toISOString();
       const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
       const delta: HistoryDelta = {
-        type: 'update',
+        type: "update",
         payload: { nodeId, previousNodeState, finalNodeState },
       };
-      historyManager.recordHistory('NODE_EDIT', [delta], { targetNodeId: nodeId });
+      historyManager.recordHistory("NODE_EDIT", [delta], { targetNodeId: nodeId });
 
-      await recalculateNodeTokens(session, nodeId);
-      sessionManager.updateMessageCount(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          await recalculateNodeTokens(index, session, nodeId);
+        }
+      }
+
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -127,21 +149,26 @@ export function useGraphActions(
 
     if (success && deletedNodes.length > 0) {
       const deltas: HistoryDelta[] = deletedNodes.map((node) => {
-        const relationChange = extractRelationChange(session, node, 'delete');
+        const relationChange = extractRelationChange(session, node, "delete");
         return {
-          type: 'delete',
+          type: "delete",
           payload: { deletedNode: node, relationChange },
         };
       });
 
-      historyManager.recordHistory('NODES_DELETE', deltas, {
+      historyManager.recordHistory("NODES_DELETE", deltas, {
         targetNodeId: nodeId,
         affectedNodeCount: deletedNodes.length,
       });
 
-      sessionManager.updateMessageCount(session);
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -161,18 +188,23 @@ export function useGraphActions(
       // 只有当活动节点真正改变时才记录历史
       if (oldLeafId !== newLeafId) {
         const delta: HistoryDelta = {
-          type: 'active_leaf_change',
-          payload: { oldLeafId: oldLeafId || '', newLeafId: newLeafId || '' },
+          type: "active_leaf_change",
+          payload: { oldLeafId: oldLeafId || "", newLeafId: newLeafId || "" },
         };
-        historyManager.recordHistory('ACTIVE_NODE_SWITCH', [delta], {
+        historyManager.recordHistory("ACTIVE_NODE_SWITCH", [delta], {
           sourceNodeId: oldLeafId,
           targetNodeId: newLeafId,
         });
       }
 
-      sessionManager.updateMessageCount(session);
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -186,9 +218,14 @@ export function useGraphActions(
     const newLeafId = branchManager.switchToSiblingBranch(session, nodeId, direction);
 
     if (newLeafId !== session.activeLeafId) {
-      sessionManager.updateMessageCount(session);
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -204,17 +241,22 @@ export function useGraphActions(
     if (newNodeId) {
       const newNode = session.nodes ? session.nodes[newNodeId] : undefined;
       if (newNode) {
-        const relationChange = extractRelationChange(session, newNode, 'create');
+        const relationChange = extractRelationChange(session, newNode, "create");
         const delta: HistoryDelta = {
-          type: 'create',
+          type: "create",
           payload: { node: newNode, relationChange },
         };
-        historyManager.recordHistory('BRANCH_CREATE', [delta], { targetNodeId: newNodeId });
+        historyManager.recordHistory("BRANCH_CREATE", [delta], { targetNodeId: newNodeId });
       }
 
-      sessionManager.updateMessageCount(session);
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -225,7 +267,7 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
-    if (nodeId.startsWith('preset-')) {
+    if (nodeId.startsWith("preset-")) {
       const agentStore = useAgentStore();
       if (!agentStore.currentAgentId) return;
       agentStore.togglePresetMessageEnabled(agentStore.currentAgentId, nodeId);
@@ -238,13 +280,18 @@ export function useGraphActions(
     if (success) {
       const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
       const delta: HistoryDelta = {
-        type: 'update',
+        type: "update",
         payload: { nodeId, previousNodeState, finalNodeState },
       };
-      historyManager.recordHistory('NODE_TOGGLE_ENABLED', [delta], { targetNodeId: nodeId });
+      historyManager.recordHistory("NODE_TOGGLE_ENABLED", [delta], { targetNodeId: nodeId });
 
-      sessionManager.updateMessageCount(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -260,17 +307,22 @@ export function useGraphActions(
 
     if (success) {
       const delta: HistoryDelta = {
-        type: 'relation',
+        type: "relation",
         payload: { changes: relationChanges },
       };
-      historyManager.recordHistory('BRANCH_GRAFT', [delta], {
+      historyManager.recordHistory("BRANCH_GRAFT", [delta], {
         targetNodeId: nodeId,
         destinationNodeId: newParentId,
       });
 
-      sessionManager.updateMessageCount(session);
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -286,17 +338,22 @@ export function useGraphActions(
 
     if (success) {
       const delta: HistoryDelta = {
-        type: 'relation',
+        type: "relation",
         payload: { changes: relationChanges },
       };
-      historyManager.recordHistory('NODE_MOVE', [delta], {
+      historyManager.recordHistory("NODE_MOVE", [delta], {
         targetNodeId: nodeId,
         destinationNodeId: newParentId,
       });
 
-      sessionManager.updateMessageCount(session);
-      sessionManager.updateSessionDisplayAgent(session);
-      sessionManager.persistSession(session, currentSessionId.value);
+      if (sessionIndexMap?.value) {
+        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        const index = sessionIndexMap.value.get(session.id);
+        if (index) {
+          sessionManager.persistSession(index, session, currentSessionId.value);
+        }
+      }
     }
   }
 
@@ -319,43 +376,39 @@ export function useGraphActions(
     node.metadata.translation = JSON.parse(JSON.stringify(translation));
 
     // 持久化
-    sessionManager.updateMessageCount(session);
-    sessionManager.persistSession(session, currentSessionId.value);
+    if (sessionIndexMap?.value) {
+      sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+      const index = sessionIndexMap.value.get(session.id);
+      if (index) {
+        sessionManager.persistSession(index, session, currentSessionId.value);
+      }
+    }
   }
 
   /**
    * 从编辑内容创建新分支（保存编辑到分支）
    * 本质上是 createBranch + editMessage 的组合
    */
-  async function createBranchFromEdit(
-    sourceNodeId: string,
-    newContent: string,
-    attachments?: Asset[]
-  ): Promise<void> {
+  async function createBranchFromEdit(sourceNodeId: string, newContent: string, attachments?: Asset[]): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
     const nodeManager = useNodeManager();
 
     // 使用 nodeManager 创建新分支节点（保留源节点角色，附件已包含在内）
-    const newNode = nodeManager.createBranchFromEdit(
-      session,
-      sourceNodeId,
-      newContent,
-      attachments
-    );
+    const newNode = nodeManager.createBranchFromEdit(session, sourceNodeId, newContent, attachments);
 
     if (!newNode) {
       return;
     }
 
     // 记录历史
-    const relationChange = extractRelationChange(session, newNode, 'create');
+    const relationChange = extractRelationChange(session, newNode, "create");
     const delta: HistoryDelta = {
-      type: 'create',
+      type: "create",
       payload: { node: newNode, relationChange },
     };
-    historyManager.recordHistory('BRANCH_CREATE_FROM_EDIT', [delta], {
+    historyManager.recordHistory("BRANCH_CREATE_FROM_EDIT", [delta], {
       sourceNodeId,
       targetNodeId: newNode.id,
     });
@@ -364,12 +417,22 @@ export function useGraphActions(
     nodeManager.updateActiveLeaf(session, newNode.id);
 
     // 重新计算 token
-    await recalculateNodeTokens(session, newNode.id);
+    if (sessionIndexMap?.value) {
+      const index = sessionIndexMap.value.get(session.id);
+      if (index) {
+        await recalculateNodeTokens(index, session, newNode.id);
+      }
+    }
 
     // 持久化
-    sessionManager.updateMessageCount(session);
-    sessionManager.updateSessionDisplayAgent(session);
-    sessionManager.persistSession(session, currentSessionId.value);
+    if (sessionIndexMap?.value) {
+      sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+      sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+      const index = sessionIndexMap.value.get(session.id);
+      if (index) {
+        sessionManager.persistSession(index, session, currentSessionId.value);
+      }
+    }
 
     logger.info("🌿 从编辑创建新分支", {
       sessionId: session.id,

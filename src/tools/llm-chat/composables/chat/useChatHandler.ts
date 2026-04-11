@@ -10,7 +10,7 @@
  *   - useChatExecutor: 核心请求执行
  */
 
-import type { ChatSession, ChatMessageNode } from "../../types";
+import type { ChatSessionDetail, ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
@@ -21,6 +21,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useChatExecutor } from "./useChatExecutor";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useContextCompressor } from "../features/useContextCompressor";
 import { filterParametersForModel } from "../../config/parameter-config";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
@@ -49,7 +50,7 @@ export function useChatHandler() {
    * 发送消息
    */
   const sendMessage = async (
-    session: ChatSession,
+    session: ChatSessionDetail,
     content: string,
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
@@ -60,21 +61,26 @@ export function useChatHandler() {
       parentId?: string;
       disableMacroParsing?: boolean;
     },
-    currentSessionId?: string | null
+    currentSessionId?: string | null,
   ): Promise<void> => {
-    // 尝试执行自动上下文压缩
-    // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
-    // 我们在创建新消息之前执行压缩，以确保新消息基于最新的上下文状态
-    try {
-      await checkAndCompress(session);
-    } catch (error) {
-      // 压缩失败仅记录日志，不阻断发送流程
-      logger.error("自动上下文压缩执行出错", error);
-    }
+    const chatStore = useLlmChatStore();
+    const sessionIndex = chatStore.sessionIndexMap.get(session.id);
+    if (!sessionIndex) throw new Error("Session index not found");
 
     const agentStore = useAgentStore();
     const userProfileStore = useUserProfileStore();
     const nodeManager = useNodeManager();
+    const sessionManager = useSessionManager();
+
+    // 尝试执行自动上下文压缩
+    // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
+    // 我们在创建新消息之前执行压缩，以确保新消息基于最新的上下文状态
+    try {
+      await checkAndCompress(sessionIndex, session);
+    } catch (error) {
+      // 压缩失败仅记录日志，不阻断发送流程
+      logger.error("自动上下文压缩执行出错", error);
+    }
     // 获取当前智能体（在函数开头，以便后续宏处理使用）
     const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
 
@@ -113,7 +119,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities
+          targetModel.capabilities,
         );
         logger.info("使用临时指定的模型（参数已过滤）", {
           modelId: agentConfig.modelId,
@@ -133,7 +139,8 @@ export function useChatHandler() {
     let processedContent = content;
     if (!options?.disableMacroParsing) {
       const macroContext = buildMacroContext({
-        session,
+        index: sessionIndex,
+        detail: session,
         agent: currentAgent ?? undefined,
         input: content,
         userProfile: userProfileStore.globalProfile ?? undefined, // 传递 userProfile
@@ -173,8 +180,9 @@ export function useChatHandler() {
 
     // 立即保存用户消息，防止等待 LLM 响应或转写期间程序崩溃导致消息丢失
     // 这里先保存消息本身，后续的转写等待和元数据更新会在完成后再次触发保存
-    const sessionManager = useSessionManager();
-    sessionManager.persistSession(session, currentSessionId ?? null);
+    if (sessionIndex) {
+      sessionManager.persistSession(sessionIndex, session, currentSessionId ?? null);
+    }
     logger.debug("用户消息已即时保存（转写前）", {
       sessionId: session.id,
       userNodeId: userNode.id,
@@ -199,7 +207,7 @@ export function useChatHandler() {
           transcriptionManager.ensureTranscriptions(
             options.attachments,
             agentConfig.modelId,
-            agentConfig.profileId
+            agentConfig.profileId,
             // 当前消息的附件深度为0，不需要强制转写，传 undefined 即可
           ),
           new Promise((_, reject) => {
@@ -221,7 +229,9 @@ export function useChatHandler() {
           nodeManager.hardDeleteNode(session, assistantNode.id);
           // 更新活跃叶节点为用户消息
           nodeManager.updateActiveLeaf(session, userNode.id);
-          sessionManager.persistSession(session, currentSessionId ?? null);
+          if (sessionIndex) {
+            sessionManager.persistSession(sessionIndex, session, currentSessionId ?? null);
+          }
           return;
         }
         // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
@@ -260,7 +270,9 @@ export function useChatHandler() {
     await calculateUserMessageTokens(userNode, session, content, agentConfig.modelId, options?.attachments);
 
     // 计算完成后立即持久化一次，确保用户消息的 tokens 及时保存并触发 UI 更新
-    sessionManager.persistSession(session, currentSessionId ?? null);
+    if (sessionIndex) {
+      sessionManager.persistSession(sessionIndex, session, currentSessionId ?? null);
+    }
 
     // 获取模型信息用于元数据（提前设置，确保即时显示）
     const { getProfileById } = useLlmProfiles();
@@ -309,12 +321,12 @@ export function useChatHandler() {
    * 支持从用户消息或助手消息重新生成
    */
   const regenerateFromNode = async (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     _activePath: ChatMessageNode[],
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string }
+    options?: { modelId?: string; profileId?: string },
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -365,7 +377,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities
+          targetModel.capabilities,
         );
 
         logger.info("使用指定的模型进行重试（参数已过滤）", {
@@ -457,11 +469,11 @@ export function useChatHandler() {
    * 续写生成
    */
   const continueGeneration = async (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
-    options?: { modelId?: string; profileId?: string }
+    options?: { modelId?: string; profileId?: string },
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -483,7 +495,7 @@ export function useChatHandler() {
     // 如果是 User 续写，路径包含 User 节点（新节点是空的助手节点，接在后面）
     const pathToUserNode = nodeManager.getNodePath(
       session,
-      (session.nodes ? session.nodes[nodeId].role : "user") === "assistant" ? assistantNode.id : userNode?.id || nodeId
+      (session.nodes ? session.nodes[nodeId].role : "user") === "assistant" ? assistantNode.id : userNode?.id || nodeId,
     );
     // 4. 获取配置
     const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId || "", {
@@ -513,7 +525,7 @@ export function useChatHandler() {
         agentConfig.parameters = filterParametersForModel(
           agentConfig.parameters,
           supportedParameters,
-          targetModel.capabilities
+          targetModel.capabilities,
         );
 
         logger.info("续写使用指定的模型（参数已过滤）", {
@@ -561,8 +573,8 @@ export function useChatHandler() {
    */
   const completeInput = async (
     text: string,
-    _session?: ChatSession,
-    options?: { modelId?: string; profileId?: string }
+    _session?: ChatSessionDetail,
+    options?: { modelId?: string; profileId?: string },
   ): Promise<string> => {
     const { sendRequest } = useLlmRequest();
     const agentStore = useAgentStore();
@@ -609,13 +621,16 @@ export function useChatHandler() {
    * 实现原理：将虚拟节点临时注入 session.nodes，走标准上下文管道，结束后清理。
    */
   const getLlmContextForPreview = async (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     historicalAgentId?: string,
-    options?: GetContextPreviewOptions
+    options?: GetContextPreviewOptions,
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
+    const chatStore = useLlmChatStore();
     const userProfileStore = useUserProfileStore();
+
+    const sessionIndex = chatStore.sessionIndexMap.get(session.id);
 
     const pendingInput = options?.pendingInput;
     const parameterOverrides = options?.parameterOverrides ?? session.parameterOverrides;
@@ -629,7 +644,8 @@ export function useChatHandler() {
       let processedContent = pendingInput.text;
       if (pendingInput.text && pendingInput.enableMacroParsing !== false) {
         const macroContext = buildMacroContext({
-          session,
+          index: sessionIndex,
+          detail: session,
           agent: currentAgent ?? undefined,
           input: pendingInput.text,
           userProfile: userProfileStore.globalProfile ?? undefined,

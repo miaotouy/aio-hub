@@ -712,9 +712,10 @@ const calculateAllTokens = async () => {
   });
 
   // 如果有活跃会话，合并会话上下文
-  if (chatStore.currentSession) {
+  if (chatStore.currentFullSession) {
     const sessionContext = extractContextFromSession(
-      chatStore.currentSession,
+      chatStore.currentFullSession.index,
+      chatStore.currentFullSession.detail,
       props.agent as any,
       effectiveUserProfile.value || undefined,
     );

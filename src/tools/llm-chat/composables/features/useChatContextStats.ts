@@ -9,13 +9,17 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatHandler } from "../chat/useChatHandler";
 import { useChatInputManager } from "../input/useChatInputManager";
-import type { ChatSession } from "../../types";
+import type { ChatSessionIndex, ChatSessionDetail } from "../../types/session";
 import type { ContextPreviewData } from "../../types/context";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("llm-chat/useChatContextStats");
 
-export function useChatContextStats(currentSession: Ref<ChatSession | null>, currentSessionId: Ref<string | null>) {
+export function useChatContextStats(
+  currentSessionIndex: Ref<ChatSessionIndex | null>,
+  currentSessionDetail: Ref<ChatSessionDetail | null>,
+  currentSessionId: Ref<string | null>
+) {
   const contextStats = ref<ContextPreviewData["statistics"] | null>(null);
   const isLoadingContextStats = ref(false);
 
@@ -23,14 +27,15 @@ export function useChatContextStats(currentSession: Ref<ChatSession | null>, cur
     // 强制等待一个微任务，确保 Vue 响应式数据和 Store 状态已经同步
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const session = currentSession.value;
+    const index = currentSessionIndex.value;
+    const detail = currentSessionDetail.value;
     logger.debug(`[ContextStats] 准备刷新统计, 原因: ${reason}`, {
-      sessionId: session?.id,
-      activeLeafId: session?.activeLeafId,
-      updatedAt: session?.updatedAt,
+      sessionId: index?.id,
+      activeLeafId: detail?.activeLeafId,
+      updatedAt: index?.updatedAt,
     });
 
-    if (!session || !session.activeLeafId) {
+    if (!index || !detail || !detail.activeLeafId) {
       contextStats.value = null;
       return;
     }
@@ -46,17 +51,15 @@ export function useChatContextStats(currentSession: Ref<ChatSession | null>, cur
       const temporaryModel = inputManager.temporaryModel.value;
 
       const previewData = await getLlmContextForPreview(
-        session,
-        session.activeLeafId,
+        detail,
+        detail.activeLeafId,
         agentStore.currentAgentId ?? undefined,
         {
-          pendingInput: {
-            // 仅传递临时模型以确保统计口径正确。
-            // 不传递 text 字段，这样预览引擎就不会在结果中包含“待发送消息”的虚拟节点，
-            // 从而实现纯粹的“历史上下文统计”，避免与输入框自身的 Token 计数重叠。
+          pendingInput: temporaryModel ? {
+            text: "", // 不传递实际文本，仅用于传递模型信息
             temporaryModel,
-          },
-        },
+          } : undefined
+        }
       );
 
       if (previewData) {
@@ -75,8 +78,8 @@ export function useChatContextStats(currentSession: Ref<ChatSession | null>, cur
   watch(
     [
       currentSessionId,
-      () => currentSession.value?.activeLeafId,
-      () => currentSession.value?.updatedAt,
+      () => currentSessionDetail.value?.activeLeafId,
+      () => currentSessionIndex.value?.updatedAt,
       () => {
         const chatStore = useLlmChatStore();
         return chatStore.isSending;

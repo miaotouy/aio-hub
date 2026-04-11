@@ -281,8 +281,9 @@
     <!-- 节点详情悬浮窗 - 使用 Teleport 挂载到 body，避免被父级层叠上下文限制 -->
     <Teleport to="body">
       <GraphNodeDetailPopup
-        v-if="session"
-        :session="session"
+        v-if="session && sessionIndex"
+        :session-index="sessionIndex"
+        :session-detail="session"
         :visible="detailPopupState.visible"
         :message="selectedNodeForDetail"
         :llm-think-rules="agentConfigForDetail.llmThinkRules"
@@ -370,7 +371,7 @@ import {
   Operation,
 } from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
-import type { ChatSession, ChatMessageNode } from "../../../types";
+import type { ChatSessionDetail, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "../../../composables/visualization/useFlowTreeGraph";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import { useAgentStore } from "../../../stores/agentStore";
@@ -392,7 +393,7 @@ import "@vue-flow/minimap/dist/style.css";
  */
 
 interface Props {
-  session: ChatSession | null;
+  session: ChatSessionDetail | null;
 }
 
 const props = defineProps<Props>();
@@ -532,6 +533,11 @@ const redoTooltip = computed(() => {
 
 // 获取历史记录堆栈和当前索引
 const historyStack = computed(() => props.session?.history ?? []);
+// 获取会话索引
+const sessionIndex = computed(() => {
+  if (!props.session) return null;
+  return llmChatStore.sessionIndexMap.get(props.session.id) || null;
+});
 const currentHistoryIndex = computed(() => props.session?.historyIndex ?? 0);
 
 // 关闭历史记录面板

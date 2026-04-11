@@ -2,7 +2,7 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { X } from "lucide-vue-next";
 import { useDraggable } from "@vueuse/core";
-import type { ChatMessageNode, ChatSession, MessageRole } from "../../../../types";
+import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, MessageRole } from "../../../../types";
 import type { Asset } from "@/types/asset-management";
 import ChatMessage from "../../../message/ChatMessage.vue";
 import CompressionMessage from "../../../message/CompressionMessage.vue";
@@ -10,7 +10,8 @@ import { useLlmChatStore } from "../../../../stores/llmChatStore";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
 
 interface Props {
-  session: ChatSession;
+  sessionIndex: ChatSessionIndex | null;
+  sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode | null;
   llmThinkRules?: LlmThinkRule[];
   richTextStyleOptions?: RichTextRendererStyleOptions;
@@ -152,11 +153,12 @@ const initResize = (e: MouseEvent) => {
 
 // 为 ChatMessage 组件准备 props
 const chatMessageProps = computed(() => {
-  if (!props.message || !props.session) {
+  if (!props.message || !props.sessionIndex || !props.sessionDetail) {
     return null;
   }
   return {
-    session: props.session,
+    sessionIndex: props.sessionIndex,
+    sessionDetail: props.sessionDetail,
     message: props.message,
     isSending: false, // 在详情弹窗中，消息永远不是正在发送状态
     siblings: [props.message], // 传自身组成的数组，禁用分支切换
@@ -202,7 +204,8 @@ const chatMessageProps = computed(() => {
       <div class="detail-popup-content">
         <template v-if="message?.metadata?.isCompressionNode">
           <CompressionMessage
-            :session="session"
+            :session-index="sessionIndex"
+            :session-detail="sessionDetail"
             :message="message"
             @toggle-enabled="handleToggleEnabled"
             @delete="handleDelete"

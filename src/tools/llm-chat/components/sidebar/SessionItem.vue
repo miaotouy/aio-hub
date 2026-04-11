@@ -8,7 +8,7 @@ import {
   FolderOpened,
   Operation,
 } from "@element-plus/icons-vue";
-import type { ChatSession } from "../../types";
+import type { ChatSessionIndex } from "../../types";
 import type { MatchDetail } from "../../composables/chat/useLlmSearch";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
@@ -16,7 +16,7 @@ import { formatRelativeTime } from "@/utils/time";
 import { useAgentStore } from "../../stores/agentStore";
 
 interface Props {
-  session: ChatSession;
+  session: ChatSessionIndex;
   active: boolean;
   isGenerating: boolean;
   matches?: MatchDetail[];
@@ -26,8 +26,8 @@ interface Props {
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: "click", session: ChatSession): void;
-  (e: "command", command: string, session: ChatSession): void;
+  (e: "click", session: ChatSessionIndex): void;
+  (e: "command", command: string, session: ChatSessionIndex): void;
 }>();
 
 const agentStore = useAgentStore();
@@ -38,10 +38,7 @@ const displayAgent = computed(() => {
 });
 
 const messageCount = computed(() => {
-  if (typeof props.session.messageCount === "number") {
-    return props.session.messageCount;
-  }
-  return props.session.nodes ? Object.keys(props.session.nodes).length - 1 : 0;
+  return props.session.messageCount ?? 0;
 });
 
 const filteredMatches = computed(() => {

@@ -57,8 +57,9 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
       return temporaryModel.value.modelId;
     }
 
-    const session = chatStore.currentSession;
-    if (!session) return undefined;
+    const session = chatStore.currentSessionDetail;
+    const index = chatStore.currentSession;
+    if (!session || !index) return undefined;
 
     // 2. 尝试从活动路径的助手消息中获取模型 ID
     let currentId: string | null = session.activeLeafId || null;
@@ -79,8 +80,8 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     }
 
     // 4. 尝试使用会话的 displayAgentId
-    if (session.displayAgentId) {
-      const agent = agentStore.getAgentById(session.displayAgentId);
+    if (index.displayAgentId) {
+      const agent = agentStore.getAgentById(index.displayAgentId);
       if (agent?.modelId) {
         return agent.modelId;
       }
@@ -108,14 +109,19 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     if (!text || !text.includes("{{")) return text;
 
     try {
-      const session = chatStore.currentSession;
+      const session = chatStore.currentSessionDetail;
+      const index = chatStore.currentSession;
       if (!macroProcessor) {
         macroProcessor = new MacroProcessor();
       }
-      const agentId = agentStore.currentAgentId || session?.displayAgentId;
+      const agentId = agentStore.currentAgentId || index?.displayAgentId;
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
 
-      const context = buildMacroContext({ session: session || undefined, agent });
+      const context = buildMacroContext({
+        index: index || undefined,
+        detail: session || undefined,
+        agent,
+      });
       return await processMacros(macroProcessor, text, context, { silent: true });
     } catch (e) {
       logger.warn("输入框 Token 预览宏展开失败", e);

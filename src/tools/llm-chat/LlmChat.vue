@@ -538,7 +538,8 @@ useStateSyncEngine(parametersToSync, {
     <ContextAnalyzerDialog
       v-model:visible="store.contextAnalyzerVisible"
       :node-id="store.contextAnalyzerNodeId"
-      :session="store.currentSession"
+      :session-index="store.currentSession"
+      :session-detail="store.currentSessionDetail"
     />
   </div>
 </template>

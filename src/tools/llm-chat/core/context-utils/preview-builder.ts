@@ -17,7 +17,7 @@ import type { MatchedWorldbookEntry } from "../../types/worldbook";
  * @returns ContextPreviewData 对象。
  */
 export async function buildPreviewDataFromContext(context: PipelineContext): Promise<ContextPreviewData> {
-  const { messages, session, agentConfig, userProfile, timestamp } = context;
+  const { messages, index: sessionIndex, detail: sessionDetail, agentConfig, userProfile, timestamp } = context;
 
   const presetMessages: ContextPreviewData["presetMessages"] = [];
   const chatHistory: ContextPreviewData["chatHistory"] = [];
@@ -135,7 +135,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       totalTokenCount += tokenCount;
     } else if (msg.sourceType === "session_history") {
       // 会话历史消息：需要处理附件
-      const sourceNode = session.nodes?.[msg.sourceId as string];
+      const sourceNode = sessionDetail.nodes?.[msg.sourceId as string];
       if (!sourceNode) {
         // 回退到简单计算
         const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);
@@ -178,7 +178,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       if (sourceNode.attachments && sourceNode.attachments.length > 0) {
         // 关键修复：在解析前获取最新的 Asset 对象，确保能拿到转写结果
         const latestAssets = await Promise.all(
-          sourceNode.attachments.map(async (asset) => {
+          sourceNode.attachments.map(async (asset: Asset) => {
             const latest = await assetManagerEngine.getAssetById(asset.id);
             return latest || asset;
           })
@@ -512,6 +512,8 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
     },
     parameters: agentConfig.parameters,
     targetTimestamp: timestamp,
+    sessionIndex,
+    sessionDetail,
     userInfo: userProfile
       ? {
           id: userProfile.id,

@@ -56,9 +56,9 @@ const inputSettings = useStorage<InputToolbarSettings>(
 
 // 计算当前分支是否正在生成
 const isCurrentBranchGenerating = computed(() => {
-  const session = chatStore.currentSession;
-  if (!session || !session.activeLeafId) return false;
-  return chatStore.isNodeGenerating(session.activeLeafId);
+  const detail = chatStore.currentSessionDetail;
+  if (!detail || !detail.activeLeafId) return false;
+  return chatStore.isNodeGenerating(detail.activeLeafId);
 });
 
 // 切换流式输出模式

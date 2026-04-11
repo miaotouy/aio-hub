@@ -1,7 +1,8 @@
-import type { ChatSession, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
+import type { ChatSessionDetail, ChatMessageNode, LlmParameters, UserProfile, ChatAgent, ChatSessionIndex } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatSettings } from "../settings/useChatSettings";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatResponseHandler } from "./useChatResponseHandler";
@@ -17,7 +18,7 @@ import { isAbortError } from "@/llm-apis/common";
 const logger = createModuleLogger("llm-chat/single-node-executor");
 
 export interface SingleNodeExecuteParams {
-  session: ChatSession;
+  session: ChatSessionDetail;
   assistantNode: ChatMessageNode;
   /** 到用户消息的完整路径 */
   currentPathToUserNode: ChatMessageNode[];
@@ -66,6 +67,7 @@ export function useSingleNodeExecutor() {
 
     const { settings } = useChatSettings();
     const agentStore = useAgentStore();
+    const chatStore = useLlmChatStore();
 
     // 1. 准备参数
     const effectiveParams = buildEffectiveParameters(agentConfig.parameters);
@@ -89,10 +91,12 @@ export function useSingleNodeExecutor() {
     const profile = getProfileById(agentConfig.profileId);
     const model = profile?.models.find((m) => m.id === agentConfig.modelId);
     const capabilities = model?.capabilities || {};
+    const sessionIndex = chatStore.sessionIndexMap.get(session.id);
 
     const pipelineContext: PipelineContext = {
       messages: [],
-      session,
+      index: sessionIndex as ChatSessionIndex,
+      detail: session,
       userProfile: effectiveUserProfile || undefined,
       agentConfig: executionAgent,
       settings: settings.value,
@@ -241,7 +245,10 @@ export function useSingleNodeExecutor() {
       await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId || "");
 
       try {
-        await checkAndCompress(session);
+        const sessionIndex = chatStore.sessionIndexMap.get(session.id);
+        if (sessionIndex) {
+          await checkAndCompress(sessionIndex, session);
+        }
       } catch (error) {
         logger.warn("自动上下文压缩执行失败", error);
       }

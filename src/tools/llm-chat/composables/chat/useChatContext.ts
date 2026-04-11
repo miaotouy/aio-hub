@@ -1,5 +1,5 @@
 import { inject, provide, type InjectionKey, type Ref } from "vue";
-import type { ChatSession } from "../../types";
+import type { ChatSessionIndex, ChatSessionDetail } from "../../types/session";
 import type { Asset } from "@/types/asset-management";
 import type { MacroDefinition } from "../../macro-engine";
 import type { QuickAction } from "../../types/quick-action";
@@ -14,8 +14,10 @@ export interface ChatContextState {
   disabled: Ref<boolean>;
   /** 当前选中的智能体 ID */
   currentAgentId?: Ref<string | undefined>;
-  /** 当前会话对象 */
-  currentSession?: Ref<ChatSession | null>;
+  /** 当前会话索引 */
+  currentSessionIndex?: Ref<ChatSessionIndex | null>;
+  /** 当前会话详情 */
+  currentSessionDetail?: Ref<ChatSessionDetail | null>;
 }
 
 /**

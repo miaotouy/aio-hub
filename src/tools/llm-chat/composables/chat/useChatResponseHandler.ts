@@ -3,7 +3,8 @@
  * 负责处理来自 LLM 的响应，并更新节点状态
  */
 
-import type { ChatSession } from "../../types";
+import type { ChatSessionDetail } from "../../types";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { isAbortError, isTimeoutError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
@@ -27,7 +28,7 @@ export function useChatResponseHandler() {
   /**
    * 触发增量保存
    */
-  const triggerIncrementalSave = (session: ChatSession) => {
+  const triggerIncrementalSave = (session: ChatSessionDetail) => {
     const { settings } = useChatSettings();
     const config = settings.value.requestSettings;
 
@@ -38,8 +39,12 @@ export function useChatResponseHandler() {
 
     if (now - lastSave >= config.incrementalSaveInterval) {
       const { persistSession } = useSessionManager();
-      // 正在生成中，进行静默保存以防崩溃/刷新丢失
-      persistSession(session, session.id);
+      const chatStore = useLlmChatStore();
+      const index = chatStore.sessionIndexMap.get(session.id);
+      if (index) {
+        // 正在生成中，进行静默保存以防崩溃/刷新丢失
+        persistSession(index, session, session.id);
+      }
       lastPersistTimeMap.set(session.id, now);
       logger.debug("💾 已触发生成中的增量保存", {
         sessionId: session.id,
@@ -52,10 +57,10 @@ export function useChatResponseHandler() {
    * 处理流式响应更新
    */
   const handleStreamUpdate = (
-    session: ChatSession,
+    session: ChatSessionDetail,
     nodeId: string,
     chunk: string,
-    isReasoning: boolean = false
+    isReasoning: boolean = false,
   ): void => {
     if (!session.nodes) return;
     const node = session.nodes[nodeId];
@@ -134,8 +139,7 @@ export function useChatResponseHandler() {
                 nodeId,
                 startTime: nodeToUpdate.metadata.reasoningStartTime,
                 endTime: nodeToUpdate.metadata.reasoningEndTime,
-                duration:
-                  nodeToUpdate.metadata.reasoningEndTime - nodeToUpdate.metadata.reasoningStartTime,
+                duration: nodeToUpdate.metadata.reasoningEndTime - nodeToUpdate.metadata.reasoningStartTime,
               });
             }
             nodeToUpdate.content += contentState.buffer;
@@ -160,7 +164,7 @@ export function useChatResponseHandler() {
     messages: Array<{
       role: "system" | "user" | "assistant";
       content: string | LlmMessageContent[];
-    }>
+    }>,
   ): Promise<void> => {
     // 检查 usage 是否可靠
     const hasContent = response.content && response.content.trim() !== "";
@@ -178,10 +182,7 @@ export function useChatResponseHandler() {
 
       try {
         // 计算 completionTokens（助手回复）
-        const completionResult = await tokenCalculatorService.calculateTokens(
-          response.content,
-          modelId
-        );
+        const completionResult = await tokenCalculatorService.calculateTokens(response.content, modelId);
 
         // 计算 promptTokens（所有消息）
         let promptText = "";
@@ -227,12 +228,7 @@ export function useChatResponseHandler() {
   /**
    * 完成节点生成（更新最终状态和元数据）
    */
-  const finalizeNode = async (
-    session: ChatSession,
-    nodeId: string,
-    response: any,
-    agentId: string
-  ): Promise<void> => {
+  const finalizeNode = async (session: ChatSessionDetail, nodeId: string, response: any, agentId: string): Promise<void> => {
     // 强制刷新所有缓冲区以确保最终状态正确
     const flushAllBuffers = () => {
       if (!session.nodes) return;
@@ -361,8 +357,7 @@ export function useChatResponseHandler() {
     // 在 finalize 阶段，确保所有缓冲的内容都已写入
     const reasoningState = reasoningUpdateBuffer.get(nodeId);
     if (reasoningState && reasoningState.buffer) {
-      finalNode.metadata.reasoningContent =
-        (finalNode.metadata.reasoningContent || "") + reasoningState.buffer;
+      finalNode.metadata.reasoningContent = (finalNode.metadata.reasoningContent || "") + reasoningState.buffer;
       reasoningState.buffer = "";
       logger.debug("Flushed remaining reasoning buffer on finalize", { nodeId });
     }
@@ -405,12 +400,7 @@ export function useChatResponseHandler() {
   /**
    * 处理节点生成错误
    */
-  const handleNodeError = (
-    session: ChatSession,
-    nodeId: string,
-    error: unknown,
-    context: string
-  ): void => {
+  const handleNodeError = (session: ChatSessionDetail, nodeId: string, error: unknown, context: string): void => {
     const errorNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!errorNode) return;
 
@@ -435,7 +425,7 @@ export function useChatResponseHandler() {
         ...errorNode.metadata,
         error: error instanceof Error ? error.message : String(error),
       };
-      errorHandler.handle(error as Error || new Error(String(error)), {
+      errorHandler.handle((error as Error) || new Error(String(error)), {
         level: ErrorLevel.ERROR,
         userMessage: `${context}失败`,
         showToUser: false,

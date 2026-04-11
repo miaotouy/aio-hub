@@ -1,37 +1,15 @@
-import type { HistoryEntry } from './history';
-import type { LlmParameters } from './llm';
-import type { ChatMessageNode } from './message';
+import type { HistoryEntry } from "./history";
+import type { LlmParameters } from "./llm";
+import type { ChatMessageNode } from "./message";
 
 /**
- * 聊天会话（树形历史结构）
- *
- * 设计理念：会话与智能体完全解耦
- * - 智能体选择是全局的（存储在 agentStore 中）
- * - 每条消息的 metadata 记录生成时使用的智能体/模型
- * - 用户可以随时切换智能体，影响所有会话的后续消息
- * - 会话也可以临时覆盖智能体的参数（参数微调）
+ * 聊天会话索引（轻量级，用于列表展示）
  */
-export interface ChatSession {
+export interface ChatSessionIndex {
   /**
    * 聊天会话的唯一标识符
    */
   id: string;
-
-  /**
-   * 存储会话中所有消息节点的字典，以节点ID为键
-   * 按需加载模式下，详情加载前为 undefined
-   */
-  nodes?: Record<string, ChatMessageNode>;
-
-  /**
-   * 根节点的ID
-   */
-  rootNodeId?: string;
-
-  /**
-   * 当前活跃分支的叶节点ID
-   */
-  activeLeafId?: string;
 
   /**
    * 会话的标题
@@ -44,15 +22,41 @@ export interface ChatSession {
   displayAgentId?: string | null;
 
   /**
-   * 会话中智能体使用情况统计
-   */
-  agentUsage?: Record<string, number>;
-
-  /**
    * 缓存的消息总数（排除根节点）
    * 用于列表展示性能优化
    */
-  messageCount?: number;
+  messageCount: number;
+
+  /**
+   * 会话创建和最后更新的时间戳
+   */
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 聊天会话详情（重量级，包含完整消息树和历史记录）
+ */
+export interface ChatSessionDetail {
+  /**
+   * 会话 ID，与索引中的 id 对应
+   */
+  id: string;
+
+  /**
+   * 存储会话中所有消息节点的字典，以节点ID为键
+   */
+  nodes: Record<string, ChatMessageNode>;
+
+  /**
+   * 根节点的ID
+   */
+  rootNodeId: string;
+
+  /**
+   * 当前活跃分支的叶节点ID
+   */
+  activeLeafId: string;
 
   /**
    * 会话级别的参数覆盖（可选）
@@ -61,19 +65,17 @@ export interface ChatSession {
   parameterOverrides?: Partial<LlmParameters>;
 
   /**
-   * 会话创建和最后更新的时间戳
-   */
-  createdAt: string;
-  updatedAt: string;
-
-  /**
    * 撤销/重做历史记录
-   * @see UNDO_REDO_DESIGN.md
    */
-  history?: HistoryEntry[];
+  history: HistoryEntry[];
 
   /**
    * 当前在历史记录中的索引
    */
-  historyIndex?: number;
+  historyIndex: number;
+
+  /**
+   * 会话中智能体使用情况统计（可选，通常随详情加载）
+   */
+  agentUsage?: Record<string, number>;
 }

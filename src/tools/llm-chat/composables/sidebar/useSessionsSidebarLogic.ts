@@ -1,9 +1,8 @@
 import { ref, computed, watch } from "vue";
-import type { ChatSession } from "../../types";
+import type { ChatSessionIndex } from "../../types";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmSearch } from "../../composables/chat/useLlmSearch";
 import { useTopicNamer } from "../../composables/chat/useTopicNamer";
-import { useSessionManager } from "../../composables/session/useSessionManager";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
@@ -19,7 +18,7 @@ interface SidebarEmits {
 
 interface UseSessionsSidebarLogicOptions {
   props: {
-    sessions: ChatSession[];
+    sessions: ChatSessionIndex[];
     currentSessionId: string | null;
   };
   emit: SidebarEmits;
@@ -28,8 +27,7 @@ interface UseSessionsSidebarLogicOptions {
 export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogicOptions) {
   const agentStore = useAgentStore();
   const searchQuery = ref("");
-  const { generateTopicName, isGenerating } = useTopicNamer();
-  const { persistSession } = useSessionManager();
+  const { isGenerating } = useTopicNamer();
   const { settings } = useChatSettings();
 
   // 后端搜索功能
@@ -72,7 +70,7 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
 
   // 重命名相关状态
   const renameDialogVisible = ref(false);
-  const renamingSession = ref<ChatSession | null>(null);
+  const renamingSession = ref<ChatSessionIndex | null>(null);
   const newSessionName = ref("");
 
   const handleQuickNewSession = () => {
@@ -96,7 +94,7 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
       .filter((agent): agent is NonNullable<typeof agent> => !!agent);
   });
 
-  const filterByTime = (sessions: ChatSession[]) => {
+  const filterByTime = (sessions: ChatSessionIndex[]) => {
     if (filterTime.value === "all") return sessions;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -120,12 +118,12 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
     });
   };
 
-  const filterByAgent = (sessions: ChatSession[]) => {
+  const filterByAgent = (sessions: ChatSessionIndex[]) => {
     if (filterAgent.value === "all") return sessions;
     return sessions.filter((session) => session.displayAgentId === filterAgent.value);
   };
 
-  const sortSessions = (sessions: ChatSession[]) => {
+  const sortSessions = (sessions: ChatSessionIndex[]) => {
     return [...sessions].sort((a, b) => {
       let comparison = 0;
       switch (sortBy.value) {
@@ -160,7 +158,7 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
 
   const searchResultSessions = computed(() => {
     if (!isInSearchMode.value) return [];
-    const sessions: ChatSession[] = [];
+    const sessions: ChatSessionIndex[] = [];
     const sessionMap = new Map(props.sessions.map((s) => [s.id, s]));
     for (const result of sessionResults.value) {
       const session = sessionMap.get(result.id);
@@ -198,7 +196,7 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
     filterTime.value = "all";
   };
 
-  const confirmDelete = (session: ChatSession) => {
+  const confirmDelete = (session: ChatSessionIndex) => {
     ElMessageBox.confirm(`确定要删除对话"${session.name}"吗？`, "删除会话", {
       confirmButtonText: "删除",
       cancelButtonText: "取消",
@@ -210,17 +208,17 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
       .catch(() => {});
   };
 
-  const openRenameDialog = (session: ChatSession) => {
+  const openRenameDialog = (session: ChatSessionIndex) => {
     renamingSession.value = session;
     newSessionName.value = session.name;
     renameDialogVisible.value = true;
   };
 
-  const handleGenerateName = async (session: ChatSession) => {
-    const result = await generateTopicName(session, (updatedSession, currentSessionId) => {
-      persistSession(updatedSession, currentSessionId);
-    });
-    if (result) {
+  const handleGenerateName = async (session: ChatSessionIndex) => {
+    const llmChatStore = (await import("../../stores/llmChatStore")).useLlmChatStore();
+    await llmChatStore.generateSessionTopic(session.id);
+    const result = llmChatStore.sessionIndexMap.get(session.id)?.name;
+    if (result && result !== session.name) {
       customMessage.success(`标题已生成：${result}`);
       emit("session-updated");
     }

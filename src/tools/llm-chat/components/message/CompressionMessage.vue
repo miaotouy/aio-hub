@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, provide, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
-import type { ChatMessageNode, MessageRole, ChatSession } from "../../types";
+import type { ChatMessageNode, MessageRole, ChatSessionIndex, ChatSessionDetail } from "../../types";
 import { Database, Edit2, Check, X, User, Bot, Settings, Trash2 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
@@ -17,7 +17,8 @@ import type { ChatRegexRule } from "../../types/chatRegex";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 
 interface Props {
-  session: ChatSession | null;
+  sessionIndex: ChatSessionIndex | null;
+  sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
   messageDepth?: number;
 }
@@ -106,10 +107,9 @@ const activeRules = computed(() => {
 });
 
 const processedRules = ref<ChatRegexRule[]>([]);
-
 watch(
-  [activeRules, () => props.session, () => props.message.metadata],
-  async ([rules, session, metadata]) => {
+  [activeRules, () => props.sessionIndex, () => props.sessionDetail, () => props.message.metadata],
+  async ([rules, sessionIndex, sessionDetail, metadata]) => {
     if (!rules || rules.length === 0) {
       processedRules.value = [];
       return;
@@ -123,7 +123,8 @@ watch(
     const macroContext = createMacroContext({
       agent,
       userProfile: userProfile ?? undefined,
-      session: session ?? undefined,
+      index: sessionIndex ?? undefined,
+      detail: sessionDetail ?? undefined,
     });
 
     processedRules.value = await processRulesWithMacros(rules, macroContext);

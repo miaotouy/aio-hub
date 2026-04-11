@@ -58,6 +58,7 @@ export function useSessionManager() {
       type: "media-gen",
       createdAt: now,
       updatedAt: now,
+      messageCount: 0,
       generationConfig: {
         activeType: "image",
         includeContext: false,
@@ -73,6 +74,8 @@ export function useSessionManager() {
       rootNodeId: rootNode.id,
       activeLeafId: rootNode.id,
       inputPrompt: "",
+      history: [],
+      historyIndex: -1,
     };
 
     return session;

@@ -299,19 +299,41 @@ export class Tokenizer {
             posAfterIndent + 1 < len &&
             text.charCodeAt(posAfterIndent + 1) === 36
           ) {
-            let startIdx = posAfterIndent + 2;
-            let endIdx = startIdx;
-            while (endIdx < len) {
-              if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
-                break;
+            // 启发式：如果后面紧跟数字（如 $$1.85），极大概率是金额而非公式起始
+            const nextChar = posAfterIndent + 2 < len ? text.charCodeAt(posAfterIndent + 2) : -1;
+            const isMoneyPattern = nextChar >= 48 && nextChar <= 57;
+
+            if (!isMoneyPattern) {
+              let startIdx = posAfterIndent + 2;
+              let endIdx = startIdx;
+              let found = false;
+
+              // 寻找闭合的 $$，但不能跨越段落或 VCP 边界
+              while (endIdx < len) {
+                // 检查闭合标记
+                if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
+                  found = true;
+                  break;
+                }
+                // 检查边界：段落分隔、VCP 角色切换、工具请求
+                if (text.charCodeAt(endIdx) === 10) {
+                  if (endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 10) break; // \n\n
+                }
+                if (text.startsWith("<<<", endIdx) || text.startsWith("[[VCP", endIdx)) {
+                  break;
+                }
+                endIdx++;
               }
-              endIdx++;
+
+              if (found) {
+                const formulaContent = text.slice(startIdx, endIdx).trim();
+                i = endIdx + 2;
+                tokens.push({ type: "katex_block", content: formulaContent });
+                atLineStart = true;
+                continue;
+              }
             }
-            const formulaContent = text.slice(startIdx, endIdx).trim();
-            i = endIdx < len ? endIdx + 2 : endIdx;
-            tokens.push({ type: "katex_block", content: formulaContent });
-            atLineStart = true;
-            continue;
+            // 如果没找到闭合或被判定为金额，则回退，让后续逻辑处理（可能会被识别为 text 或内联公式）
           }
 
           // 代码围栏 ```
@@ -781,19 +803,40 @@ export class Tokenizer {
       if (char === 36) {
         // $$
         if (i + 1 < len && text.charCodeAt(i + 1) === 36) {
-          const startIdx = i + 2;
-          let endIdx = startIdx;
-          while (endIdx < len) {
-            if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
-              break;
+          // 启发式：如果后面紧跟数字（如 $$1.85），极大概率是金额而非公式起始
+          const nextChar = i + 2 < len ? text.charCodeAt(i + 2) : -1;
+          const isMoneyPattern = nextChar >= 48 && nextChar <= 57;
+
+          if (!isMoneyPattern) {
+            const startIdx = i + 2;
+            let endIdx = startIdx;
+            let found = false;
+
+            // 寻找闭合的 $$，但不能跨越段落或 VCP 边界
+            while (endIdx < len) {
+              if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
+                found = true;
+                break;
+              }
+              // 检查边界
+              if (text.charCodeAt(endIdx) === 10) {
+                if (endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 10) break; // \n\n
+              }
+              if (text.startsWith("<<<", endIdx) || text.startsWith("[[VCP", endIdx)) {
+                break;
+              }
+              endIdx++;
             }
-            endIdx++;
+
+            if (found) {
+              const formulaContent = text.slice(startIdx, endIdx).trim();
+              i = endIdx + 2;
+              tokens.push({ type: "katex_block", content: formulaContent });
+              atLineStart = false;
+              continue;
+            }
           }
-          const formulaContent = text.slice(startIdx, endIdx).trim();
-          i = endIdx < len ? endIdx + 2 : endIdx;
-          tokens.push({ type: "katex_block", content: formulaContent });
-          atLineStart = false;
-          continue;
+          // 如果没找到闭合或判定为金额，则作为普通文本处理第一个 $，循环继续会处理第二个 $
         }
         // $
         const formulaMatch = stickyMatch(RE_KATEX_INLINE, text, i);

@@ -134,8 +134,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
           nodeCount,
         });
 
-        // 写入索引和详情 Map
-        store.sessionIndexMap.set(newSessionData.id, newSessionData as any);
+        // 写入详情 Map（索引由 syncedSessions 独立同步）
         store.sessionDetailMap.set(newSessionData.id, newSessionData as any);
 
         // 如果当前 ID 还没设置，顺便设置一下，确保 UI 能够响应

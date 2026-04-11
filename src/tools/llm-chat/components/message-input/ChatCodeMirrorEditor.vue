@@ -49,6 +49,7 @@ let isSyncingFromProps = false;
 
 const editableConf = new Compartment();
 const themeConf = new Compartment();
+const placeholderConf = new Compartment();
 const { isDark } = useTheme();
 
 // CodeMirror 搜索面板汉化
@@ -226,7 +227,7 @@ onMounted(() => {
             },
             shift: insertNewline,
           },
-        ])
+        ]),
       ),
       history(),
       editableConf.of(EditorView.editable.of(!props.disabled)),
@@ -242,7 +243,7 @@ onMounted(() => {
       tooltips({
         parent: document.body,
       }),
-      cmPlaceholder(props.placeholder),
+      placeholderConf.of(cmPlaceholder(props.placeholder || "")),
       baseTheme,
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
@@ -315,7 +316,7 @@ watch(
         }
       }
     }
-  }
+  },
 );
 
 // 监听禁用状态
@@ -327,7 +328,7 @@ watch(
         effects: editableConf.reconfigure(EditorView.editable.of(!disabled)),
       });
     }
-  }
+  },
 );
 
 // 监听主题变化
@@ -338,6 +339,18 @@ watch(isDark, (dark) => {
     });
   }
 });
+
+// 监听 placeholder 变化
+watch(
+  () => props.placeholder,
+  (placeholder) => {
+    if (view.value) {
+      view.value.dispatch({
+        effects: placeholderConf.reconfigure(cmPlaceholder(placeholder || "")),
+      });
+    }
+  },
+);
 
 // 暴露方法给父组件
 defineExpose({

@@ -76,12 +76,40 @@ export function useLlmChatSync() {
 
     // 性能优化：同步会话列表时只同步索引信息
     // 由于 store.sessions 已经是 computed 的索引数组，直接使用即可
-    const allSessionsIndex = computed(() => store.sessions);
+    const allSessionsIndex = computed({
+      get: () => store.sessions,
+      set: (val) => {
+        if (Array.isArray(val) && bus.windowType === "detached-component") {
+          logger.debug("同步引擎尝试写入会话列表", { count: val.length });
+          store.setSessions(val);
+        }
+      },
+    });
 
     // 使用 computed 获取当前会话对象，用于单独同步
     // 注意：这里发送的是 Detail，消费端需要对应处理
-    const currentSessionData = computed(() => {
-      return store.currentSessionDetail;
+    const currentSessionData = computed({
+      get: () => store.currentSessionDetail,
+      set: (val) => {
+        // 仅在非 Data Owner 窗口（如 detached-component）中应用同步过来的数据
+        if (val && val.id && (bus.windowType === "detached-component")) {
+          // 增加更详细的日志，方便排查加载问题
+          const nodeCount = Object.keys(val.nodes || {}).length;
+          logger.info("同步引擎应用会话详情", {
+            sessionId: val.id,
+            nodeCount,
+            activeLeafId: val.activeLeafId
+          });
+          
+          store.sessionDetailMap.set(val.id, val);
+          
+          // 如果当前 ID 不匹配，也同步更新 ID，确保 UI 能够响应
+          if (store.currentSessionId !== val.id) {
+            logger.info("同步引擎顺便更新了 currentSessionId", { old: store.currentSessionId, new: val.id });
+            store.currentSessionId = val.id;
+          }
+        }
+      },
     });
 
     const currentSessionId = toRef(store, "currentSessionId");
@@ -111,8 +139,26 @@ export function useLlmChatSync() {
     createStateEngine(currentAgentId, CHAT_STATE_KEYS.CURRENT_AGENT_ID);
     // 同步会话列表索引（不包含消息树）
     createStateEngine(allSessionsIndex as Ref<ChatSessionIndex[]>, CHAT_STATE_KEYS.SESSIONS);
+
     // 同步当前会话的完整数据
-    createStateEngine(currentSessionData as Ref<any>, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
+    const sessionDataEngine = createStateEngine(currentSessionData as Ref<any>, CHAT_STATE_KEYS.CURRENT_SESSION_DATA);
+
+    // 步骤 3：同步引擎降频
+    // 监听发送状态，动态调整同步频率
+    watch(isSending, (sending) => {
+      if (bus.windowType === "main" || bus.windowType === "detached-tool") {
+        if (sending) {
+          logger.info("检测到正在发送消息，调低全量同步频率 (2000ms)");
+          sessionDataEngine.setDebounce(2000);
+        } else {
+          logger.info("发送结束，恢复全量同步频率 (100ms) 并执行全量广播");
+          sessionDataEngine.setDebounce(100);
+          // 强制执行一次全量同步作为生成结束后的兜底
+          sessionDataEngine.manualPush(true);
+        }
+      }
+    });
+
     // 同步当前激活的会话ID
     createStateEngine(currentSessionId, CHAT_STATE_KEYS.CURRENT_SESSION_ID);
     // 同步发送状态
@@ -130,6 +176,35 @@ export function useLlmChatSync() {
 
     // 同步世界书索引
     worldbookStore.initializeSync();
+
+    // 步骤 2：流式增量通道接收端
+    // 只有非 Data Owner 窗口需要监听并应用增量
+    if (bus.windowType === "detached-component") {
+      const unlistenDelta = bus.onMessage<any>("state-sync", (payload) => {
+        if (payload.stateType === "chat:streaming-delta") {
+          const { sessionId, nodeId, delta, isReasoning } = payload.data;
+
+          // 定位本地 Store 中的节点并更新
+          const detail = store.sessionDetailMap.get(sessionId);
+          if (detail && detail.nodes && detail.nodes[nodeId]) {
+            const node = detail.nodes[nodeId];
+
+            // 使用 useStateSyncEngine 的标志位避免触发反向同步
+            // 注意：这里需要从引擎中获取标志位或者直接操作，但由于我们是直接修改 store，
+            // 而 store 上的 watch 是由引擎管理的。
+            // 实际上，detached-component 通常不推送 CURRENT_SESSION_DATA，所以风险较小。
+            if (isReasoning) {
+              if (!node.metadata) node.metadata = {};
+              node.metadata.reasoningContent = (node.metadata.reasoningContent || "") + delta;
+            } else {
+              node.content = (node.content || "") + delta;
+            }
+          }
+        }
+      });
+      // 注册清理
+      onUnmounted(() => unlistenDelta());
+    }
 
     // 【重要】在非主窗口中，监听同步过来的 settings 变化
     if (bus.windowType !== "main") {
@@ -180,29 +255,22 @@ export function useLlmChatSync() {
     logger.info("收到操作请求", { action, params });
     switch (action) {
       case "send-message":
-        store.sendMessage(params.content, params.attachments);
-        return Promise.resolve();
+        return store.sendMessage(params.content, params.options);
       case "abort-sending":
         store.abortSending();
         return Promise.resolve();
       case "regenerate-from-node":
-        store.regenerateFromNode(params.messageId);
-        return Promise.resolve();
+        return store.regenerateFromNode(params.nodeId, params.options);
       case "delete-message":
-        (store as any).deleteMessage(params.messageId);
-        return Promise.resolve();
+        return (store as any).deleteMessage(params.messageId);
       case "switch-sibling":
-        (store as any).switchToSiblingBranch(params.nodeId, params.direction);
-        return Promise.resolve();
+        return (store as any).switchToSiblingBranch(params.nodeId, params.direction);
       case "toggle-enabled":
-        (store as any).toggleNodeEnabled(params.nodeId);
-        return Promise.resolve();
+        return (store as any).toggleNodeEnabled(params.nodeId);
       case "edit-message":
-        (store as any).editMessage(params.nodeId, params.newContent, params.attachments);
-        return Promise.resolve();
+        return (store as any).editMessage(params.nodeId, params.newContent, params.attachments);
       case "create-branch":
-        (store as any).createBranch(params.nodeId);
-        return Promise.resolve();
+        return (store as any).createBranch(params.nodeId);
       case "abort-node":
         store.abortNodeGeneration(params.nodeId);
         return Promise.resolve();
@@ -216,24 +284,36 @@ export function useLlmChatSync() {
         const { updateSettings } = useChatSettings();
         return updateSettings(params.updates);
       case "switch-session":
-        store.switchSession(params.sessionId);
-        return Promise.resolve();
+        logger.info("主窗口处理 switch-session 请求", { sessionId: params.sessionId });
+        return store.switchSession(params.sessionId).then(() => {
+          logger.info("主窗口 switchSession 完成，当前 sessionId", {
+            id: store.currentSessionId,
+            hasDetail: store.sessionDetailMap.has(params.sessionId)
+          });
+        });
+      case "delete-session":
+        return store.deleteSession(params.sessionId);
+      case "update-session":
+        return store.updateSession(params.sessionId, params.updates);
       case "create-session":
-        store.createSession(params.agentId);
-        return Promise.resolve();
+        return store.createSession(params.agentId, params.name);
       case "select-agent":
-        agentStore.selectAgent(params.agentId);
-        return Promise.resolve();
+        return (agentStore as any).selectAgent(params.agentId);
       case "complete-input":
-        store.completeInput(params.content, params.options);
-        return Promise.resolve();
+        return (store as any).completeInput(params.content, params.options);
       case "analyze-context":
         store.contextAnalyzerNodeId = params.nodeId;
         store.contextAnalyzerVisible = true;
         return Promise.resolve();
       case "select-continuation-model":
-        logger.info("主窗口收到续写模型选择请求，触发 UI 唤起");
-        return Promise.resolve();
+        logger.info("主窗口收到续写模型选择请求，转发至 UI 命名空间");
+        return bus.requestAction("llm-chat-ui:select-continuation-model", params);
+      case "open-agent-settings":
+        logger.info("主窗口收到打开智能体设置请求，转发至 UI 命名空间");
+        return bus.requestAction("llm-chat-ui:open-agent-settings", params);
+      case "open-quick-action-manager":
+        logger.info("主窗口收到打开快捷操作管理请求，转发至 UI 命名空间");
+        return bus.requestAction("llm-chat-ui:open-quick-action-manager", params);
       // 工具调用审批代理
       case "approve-tool-call":
         toolCallingStore.approveRequest(params.requestId);

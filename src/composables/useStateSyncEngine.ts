@@ -174,7 +174,16 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     lastSyncedValue = safeDeepClone(newValue);
   };
 
-  const debouncedPushState = debounce(pushState, debounceDelay);
+  let currentDebounceDelay = debounceDelay;
+  let debouncedPushState = debounce(pushState, currentDebounceDelay);
+
+  const setDebounce = (newDelay: number) => {
+    if (newDelay === currentDebounceDelay) return;
+    currentDebounceDelay = newDelay;
+    debouncedPushState.cancel();
+    debouncedPushState = debounce(pushState, currentDebounceDelay);
+    logger.debug('同步引擎 Debounce 已更新', { stateKey, newDelay });
+  };
 
   const receiveState = (payload: StateSyncPayload, _message: BaseMessage) => {
     if (payload.stateType !== stateKey) return;
@@ -237,8 +246,17 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   if (autoPush && (bus.windowType === 'main' || bus.windowType === 'detached-tool')) {
     stopWatching = watch(
       state,
-      () => {
+      (newVal) => {
         if (isApplyingExternalState) return;
+        
+        // 针对会话相关的关键 Key 添加诊断日志
+        if (stateKey === 'chat-current-session-id' || stateKey === 'chat-current-session-data') {
+          logger.debug(`[诊断] 监听到状态变更: ${stateKey}`, {
+            hasNewVal: !!newVal,
+            isId: stateKey === 'chat-current-session-id' ? newVal : (newVal as any)?.id
+          });
+        }
+        
         debouncedPushState();
       },
       { deep: true }
@@ -286,6 +304,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     state,
     stateVersion,
     manualPush,
+    setDebounce,
     cleanup,
   };
 }

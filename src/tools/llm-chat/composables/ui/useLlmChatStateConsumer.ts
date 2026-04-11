@@ -63,10 +63,9 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   const engines = [
     { state: syncedAgents, key: CHAT_STATE_KEYS.AGENTS },
     { state: syncedCurrentAgentId, key: CHAT_STATE_KEYS.CURRENT_AGENT_ID },
-    // 根据 syncAllSessions 决定订阅哪个状态
-    ...(syncAllSessions
-      ? [{ state: syncedSessions, key: CHAT_STATE_KEYS.SESSIONS }]
-      : [{ state: syncedCurrentSessionData, key: CHAT_STATE_KEYS.CURRENT_SESSION_DATA }]),
+    // 无论是否同步所有会话，都必须订阅当前会话数据，否则分离窗口无法显示消息
+    { state: syncedSessions, key: CHAT_STATE_KEYS.SESSIONS },
+    { state: syncedCurrentSessionData, key: CHAT_STATE_KEYS.CURRENT_SESSION_DATA },
     { state: syncedCurrentSessionId, key: CHAT_STATE_KEYS.CURRENT_SESSION_ID },
     { state: syncedUserProfiles, key: CHAT_STATE_KEYS.USER_PROFILES },
     { state: syncedGlobalProfileId, key: CHAT_STATE_KEYS.GLOBAL_PROFILE_ID },
@@ -109,40 +108,44 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     }
   });
 
-  // 全量会话同步（完整模式）
-  if (syncAllSessions) {
-    watch(
-      syncedSessions,
-      (newSessions) => {
-        if (newSessions && newSessions.length > 0) {
-          logger.info("接收到 sessions 同步数据（完整模式）", { count: newSessions.length });
-          // 更新索引 Map
-          newSessions.forEach((s) => {
-            store.sessionIndexMap.set(s.id, s as any);
-          });
-        }
-      },
-      { deep: true },
-    );
-  } else {
-    // 轻量级同步：只接收当前会话
-    watch(
-      syncedCurrentSessionData,
-      (newSessionData) => {
-        if (newSessionData) {
-          logger.info("接收到 currentSessionData 同步数据（轻量级模式）", {
-            sessionId: newSessionData.id,
-            messageCount: Object.keys(newSessionData.nodes || {}).length,
-          });
+  // 全量会话同步
+  watch(
+    syncedSessions,
+    (newSessions) => {
+      if (newSessions && newSessions.length > 0) {
+        logger.info("接收到 sessions 同播数据", { count: newSessions.length });
+        // 更新索引 Map
+        newSessions.forEach((s) => {
+          store.sessionIndexMap.set(s.id, s as any);
+        });
+      }
+    },
+    { deep: true },
+  );
 
-          // 更新索引和详情 Map
-          store.sessionIndexMap.set(newSessionData.id, newSessionData as any);
-          store.sessionDetailMap.set(newSessionData.id, newSessionData as any);
+  // 会话详情数据同步（关键：包含消息树）
+  watch(
+    syncedCurrentSessionData,
+    (newSessionData) => {
+      if (newSessionData) {
+        const nodeCount = Object.keys(newSessionData.nodes || {}).length;
+        logger.info("接收到 currentSessionData 同步数据", {
+          sessionId: newSessionData.id,
+          nodeCount,
+        });
+
+        // 写入索引和详情 Map
+        store.sessionIndexMap.set(newSessionData.id, newSessionData as any);
+        store.sessionDetailMap.set(newSessionData.id, newSessionData as any);
+
+        // 如果当前 ID 还没设置，顺便设置一下，确保 UI 能够响应
+        if (!store.currentSessionId) {
+          store.currentSessionId = newSessionData.id;
         }
-      },
-      { deep: true },
-    );
-  }
+      }
+    },
+    { deep: true },
+  );
 
   watch(syncedCurrentSessionId, (newId) => {
     if (newId) {

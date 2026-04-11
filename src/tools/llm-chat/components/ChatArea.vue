@@ -654,9 +654,9 @@ onMounted(async () => {
 
   isReady.value = true;
 
-  // 注册来自同步总线的 UI 请求处理器 (llm-chat 命名空间)
+  // 注册来自同步总线的 UI 请求处理器 (使用独立的 llm-chat-ui 命名空间，避免覆盖核心逻辑)
   // 无论在什么类型的窗口，只要 ChatArea 存在，就应该响应这些 UI 操作请求
-  bus.onActionRequest("llm-chat", async (action, data) => {
+  bus.onActionRequest("llm-chat-ui", async (action, data) => {
     if (action === "select-continuation-model") {
       logger.info("收到续写模型选择 UI 请求");
       emit("select-continuation-model");

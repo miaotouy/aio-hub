@@ -13,6 +13,7 @@ import { useAgentStore } from "./agentStore";
 import { useSessionNodeHistory } from "../composables/session/useSessionNodeHistory";
 import { useGraphActions } from "../composables/visualization/useGraphActions";
 import { useChatContextStats } from "../composables/features/useChatContextStats";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { getActivePathWithPresets } from "../utils/chatPathUtils";
 import {
   recalculateNodeTokens as recalculateNodeTokensService,
@@ -220,6 +221,21 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   // ==================== 历史记录管理 ====================
   const historyManager = useSessionNodeHistory(currentSessionDetail as any);
 
+  // ==================== 代理辅助函数 ====================
+  const bus = useWindowSyncBus();
+
+  /**
+   * 执行本地逻辑或代理到主窗口
+   * 确保 detached-component 窗口的操作始终转发给 Data Owner
+   */
+  async function executeOrProxy<T>(action: string, params: any, localFn: () => T | Promise<T>): Promise<T> {
+    if (bus.windowType === "detached-component") {
+      logger.info(`代理操作到主窗口: ${action}`, { params });
+      return bus.requestAction<any, T>(`llm-chat:${action}`, params);
+    }
+    return localFn();
+  }
+
   function undo() {
     const detail = currentSessionDetail.value;
     if (!detail || !historyManager.canUndo.value) return;
@@ -282,61 +298,66 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 创建新会话（使用智能体）
    */
-  function createSession(agentId: string, name?: string): string {
-    const sessionManager = useSessionManager();
-    const { index, detail, sessionId } = sessionManager.createSession(agentId, name);
+  async function createSession(agentId: string, name?: string): Promise<string> {
+    return executeOrProxy("create-session", { agentId, name }, () => {
+      const sessionManager = useSessionManager();
+      const { index, detail, sessionId } = sessionManager.createSession(agentId, name);
 
-    sessionIndexMap.value.set(sessionId, index);
-    sessionDetailMap.value.set(sessionId, detail);
-    currentSessionId.value = sessionId;
+      sessionIndexMap.value.set(sessionId, index);
+      sessionDetailMap.value.set(sessionId, detail);
+      currentSessionId.value = sessionId;
 
-    sessionManager.updateMessageCount(sessionId, detail.nodes, sessionIndexMap.value);
-    sessionManager.persistSession(index, detail, currentSessionId.value);
+      sessionManager.updateMessageCount(sessionId, detail.nodes, sessionIndexMap.value);
+      sessionManager.persistSession(index, detail, currentSessionId.value);
 
-    // 新会话需要初始化历史
-    historyManager.clearHistory();
+      // 新会话需要初始化历史
+      historyManager.clearHistory();
 
-    return sessionId;
+      return sessionId;
+    });
   }
 
   /**
    * 删除会话
    */
   async function deleteSession(sessionId: string): Promise<void> {
-    
-    const sessionManager = useSessionManager();
-    const { newCurrentSessionId } = await sessionManager.deleteSession(
-      Array.from(sessionIndexMap.value.values()),
-      sessionId,
-      currentSessionId.value
-    );
+    return executeOrProxy("delete-session", { sessionId }, async () => {
+      const sessionManager = useSessionManager();
+      const { newCurrentSessionId } = await sessionManager.deleteSession(
+        Array.from(sessionIndexMap.value.values()),
+        sessionId,
+        currentSessionId.value,
+      );
 
-    sessionIndexMap.value.delete(sessionId);
-    sessionDetailMap.value.delete(sessionId);
+      sessionIndexMap.value.delete(sessionId);
+      sessionDetailMap.value.delete(sessionId);
 
-    if (currentSessionId.value === sessionId) {
-      currentSessionId.value = newCurrentSessionId;
-      if (currentSessionId.value) {
-        await switchSession(currentSessionId.value);
+      if (currentSessionId.value === sessionId) {
+        currentSessionId.value = newCurrentSessionId;
+        if (currentSessionId.value) {
+          await switchSession(currentSessionId.value);
+        }
       }
-    }
 
-    clearSessionCache(sessionId);
-    persistSessions();
+      clearSessionCache(sessionId);
+      persistSessions();
+    });
   }
 
   /**
    * 更新会话信息
    */
-  function updateSession(sessionId: string, updates: Partial<ChatSessionIndex & ChatSessionDetail>): void {
-    const sessionManager = useSessionManager();
-    sessionManager.updateSession(sessionId, updates, sessionIndexMap.value, sessionDetailMap.value);
+  async function updateSession(sessionId: string, updates: Partial<ChatSessionIndex & ChatSessionDetail>): Promise<void> {
+    return executeOrProxy("update-session", { sessionId, updates }, () => {
+      const sessionManager = useSessionManager();
+      sessionManager.updateSession(sessionId, updates, sessionIndexMap.value, sessionDetailMap.value);
 
-    const index = sessionIndexMap.value.get(sessionId);
-    const detail = sessionDetailMap.value.get(sessionId);
-    if (index && detail) {
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-    }
+      const index = sessionIndexMap.value.get(sessionId);
+      const detail = sessionDetailMap.value.get(sessionId);
+      if (index && detail) {
+        sessionManager.persistSession(index, detail, currentSessionId.value);
+      }
+    });
   }
 
   /**
@@ -362,12 +383,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     if (loadedId) {
       const fullSession = await storage.loadSession(loadedId);
       if (fullSession && fullSession.detail) {
-        const { nodes, rootNodeId, activeLeafId, history, historyIndex } = fullSession.detail;
+        const { nodes, rootNodeId, activeLeafId, history, historyIndex, updatedAt } = fullSession.detail;
         sessionDetailMap.value.set(loadedId, {
           id: loadedId,
           nodes: nodes!,
           rootNodeId: rootNodeId!,
           activeLeafId: activeLeafId!,
+          updatedAt: updatedAt || fullSession.index.updatedAt,
           history: history || [],
           historyIndex: historyIndex || 0,
         });
@@ -410,7 +432,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 切换当前会话（增强：支持按需加载详情）
    */
   async function switchSession(sessionId: string): Promise<void> {
-    const index = sessionIndexMap.value.get(sessionId);
+    return executeOrProxy("switch-session", { sessionId }, async () => {
+      const index = sessionIndexMap.value.get(sessionId);
     if (!index) {
       logger.warn("切换会话失败：会话不存在", { sessionId });
       return;
@@ -423,12 +446,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       const storage = useChatStorageSeparated();
       const fullSession = await storage.loadSession(sessionId);
       if (fullSession && fullSession.detail) {
-        const { nodes, rootNodeId, activeLeafId, history, historyIndex } = fullSession.detail;
+        const { nodes, rootNodeId, activeLeafId, history, historyIndex, updatedAt } = fullSession.detail;
         detail = {
           id: sessionId,
           nodes: nodes!,
           rootNodeId: rootNodeId!,
           activeLeafId: activeLeafId!,
+          updatedAt: updatedAt || fullSession.index.updatedAt,
           history: history || [],
           historyIndex: historyIndex || 0,
         };
@@ -446,10 +470,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       logger.info("为旧会话初始化了历史堆栈", { sessionId });
     }
 
-    currentSessionId.value = sessionId;
-    const sessionManager = useSessionManager();
-    sessionManager.updateCurrentSessionId(sessionId);
-    logger.info("切换会话", { sessionId, sessionName: index.name });
+      currentSessionId.value = sessionId;
+      const sessionManager = useSessionManager();
+      sessionManager.updateCurrentSessionId(sessionId);
+      logger.info("切换会话", { sessionId, sessionName: index.name });
+    });
   }
 
   /**
@@ -543,7 +568,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       disableMacroParsing?: boolean;
     },
   ): Promise<void> {
-    const index = currentSession.value;
+    return executeOrProxy("send-message", { content, options }, async () => {
+      const index = currentSession.value;
     const detail = currentSessionDetail.value;
     if (!index || !detail) throw new Error("请先创建或选择一个会话");
 
@@ -592,10 +618,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       sessionManager.persistSession(index, detail, currentSessionId.value);
       throw error;
     } finally {
-      if (generatingNodes.value.size === 0) {
-        isSending.value = false;
+        if (generatingNodes.value.size === 0) {
+          isSending.value = false;
+        }
       }
-    }
+    });
   }
 
   /**
@@ -651,7 +678,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 从指定节点重新生成（历史断点）
    */
   async function regenerateFromNode(nodeId: string, options?: { modelId?: string; profileId?: string }): Promise<void> {
-    const index = currentSession.value;
+    return executeOrProxy("regenerate-from-node", { nodeId, options }, async () => {
+      const index = currentSession.value;
     const detail = currentSessionDetail.value;
     if (!index || !detail) return;
 
@@ -677,10 +705,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       sessionManager.persistSession(index, detail, currentSessionId.value);
       throw error;
     } finally {
-      if (generatingNodes.value.size === 0) {
-        isSending.value = false;
+        if (generatingNodes.value.size === 0) {
+          isSending.value = false;
+        }
       }
-    }
+    });
   }
 
   /**
@@ -828,6 +857,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     // Getters
     currentSession,
     currentSessionDetail,
+    setSessions: (sessions: ChatSessionIndex[]) => {
+      // 避免无意义的清空重写，减少响应式抖动
+      // TODO: 如果 ID 列表完全一致且长度一致，可以考虑更细粒度的对比，但这里先简单处理
+      sessionIndexMap.value.clear();
+      sessions.forEach((s) => sessionIndexMap.value.set(s.id, s));
+      
+      logger.debug("已同步会话列表索引", { count: sessions.length });
+    },
     isCurrentSessionGenerating,
     currentActivePath,
     currentActivePathWithPresets,

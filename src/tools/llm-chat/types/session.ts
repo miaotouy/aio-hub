@@ -44,6 +44,11 @@ export interface ChatSessionDetail {
   id: string;
 
   /**
+   * 最后更新时间戳（用于同步校验）
+   */
+  updatedAt: string;
+
+  /**
    * 存储会话中所有消息节点的字典，以节点ID为键
    */
   nodes: Record<string, ChatMessageNode>;

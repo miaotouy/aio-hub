@@ -13,6 +13,7 @@ import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator
 import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useSessionManager } from "../session/useSessionManager";
 import { useChatSettings } from "../settings/useChatSettings";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
@@ -28,6 +29,8 @@ export function useChatResponseHandler() {
   /**
    * 触发增量保存
    */
+  const bus = useWindowSyncBus();
+
   const triggerIncrementalSave = (session: ChatSessionDetail) => {
     const { settings } = useChatSettings();
     const config = settings.value.requestSettings;
@@ -99,6 +102,19 @@ export function useChatResponseHandler() {
           const nodeToUpdate = session.nodes[nodeId];
           if (nodeToUpdate && nodeToUpdate.metadata) {
             nodeToUpdate.metadata.reasoningContent += state.buffer;
+
+            // 跨窗口同步增量
+            bus.syncState(
+              "chat:streaming-delta" as any,
+              {
+                sessionId: session.id,
+                nodeId,
+                delta: state.buffer,
+                isReasoning: true,
+              },
+              0,
+              false,
+            );
           }
           state.buffer = "";
           state.isScheduled = false;
@@ -143,6 +159,19 @@ export function useChatResponseHandler() {
               });
             }
             nodeToUpdate.content += contentState.buffer;
+
+            // 跨窗口同步增量
+            bus.syncState(
+              "chat:streaming-delta" as any,
+              {
+                sessionId: session.id,
+                nodeId,
+                delta: contentState.buffer,
+                isReasoning: false,
+              },
+              0,
+              false,
+            );
           }
           contentState.buffer = "";
           contentState.isScheduled = false;

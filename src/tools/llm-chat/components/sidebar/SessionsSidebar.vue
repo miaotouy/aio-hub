@@ -116,6 +116,7 @@ const openExportDialog = async (sessionIndex: ChatSessionIndex) => {
         nodes: fullSession.detail.nodes,
         rootNodeId: fullSession.detail.rootNodeId!,
         activeLeafId: fullSession.detail.activeLeafId!,
+        updatedAt: fullSession.detail.updatedAt || sessionIndex.updatedAt,
         history: fullSession.detail.history || [],
         historyIndex: fullSession.detail.historyIndex || 0,
       };

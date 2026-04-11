@@ -107,6 +107,7 @@ export function useChatStorageSeparated() {
         nodes: fullData.nodes || {},
         rootNodeId: fullData.rootNodeId || '',
         activeLeafId: fullData.activeLeafId || '',
+        updatedAt: fullData.updatedAt || fullData.createdAt,
         parameterOverrides: fullData.parameterOverrides,
         history: fullData.history || [],
         historyIndex: fullData.historyIndex || 0,

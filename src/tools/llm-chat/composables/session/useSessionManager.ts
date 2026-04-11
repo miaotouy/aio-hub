@@ -128,6 +128,7 @@ export function useSessionManager() {
       },
       rootNodeId,
       activeLeafId: rootNodeId,
+      updatedAt: now,
       history: [],
       historyIndex: 0,
     };
@@ -228,7 +229,7 @@ export function useSessionManager() {
       if (updates.historyIndex !== undefined) detailUpdates.historyIndex = updates.historyIndex;
       if (updates.agentUsage !== undefined) detailUpdates.agentUsage = updates.agentUsage;
 
-      Object.assign(detail, detailUpdates);
+      Object.assign(detail, detailUpdates, { updatedAt: now });
     }
 
     logger.info("更新会话", { sessionId, updates });
@@ -260,6 +261,11 @@ export function useSessionManager() {
     currentSessionId: string | null,
   ): void => {
     const { persistSession: persistSessionToStorage } = useChatStorage();
+    const now = getLocalISOString();
+
+    // 同步更新 updatedAt
+    index.updatedAt = now;
+    detail.updatedAt = now;
 
     persistSessionToStorage(index, detail, currentSessionId).catch((error) => {
       errorHandler.handle(error as Error, {

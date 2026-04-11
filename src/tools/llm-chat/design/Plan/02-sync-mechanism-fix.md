@@ -1,6 +1,6 @@
 # LLM Chat 重构计划阶段 02：同步机制修复与双向通信
 
-> **状态**: Implementing
+> **状态**: Completed
 > **前置依赖**: 阶段 01（数据结构解耦与响应式修复）已完成
 > **最后更新**: 2026-04-11（基于阶段 01 重构后的代码重新调查）
 
@@ -106,22 +106,22 @@ interface StreamingDeltaPayload {
 
 **目标文件**: [`stores/llmChatStore.ts`](../../stores/llmChatStore.ts)
 
-- [ ] 新增 `executeOrProxy` 辅助函数，检测 `bus.windowType`：
+- [x] 新增 `executeOrProxy` 辅助函数，检测 `bus.windowType`：
   - `main` / `detached-tool`: 直接执行本地逻辑
   - `detached-component`: 调用 `bus.requestAction('llm-chat:xxx', params)` 并返回
-- [ ] 改造以下 Action 使用代理模式：
+- [x] 改造以下 Action 使用代理模式：
   - `createSession` → 代理 `create-session`
   - `deleteSession` → 代理 `delete-session`
   - `updateSession` → 代理 `update-session`
   - `sendMessage` → 代理 `send-message`
   - `switchSession` → 代理 `switch-session`
-- [ ] 在 [`useLlmChatSync.ts:179`](../../composables/chat/useLlmChatSync.ts:179) 的 `handleActionRequest` 中补充缺失的 `delete-session` 和 `update-session` 分支
+- [x] 在 [`useLlmChatSync.ts:179`](../../composables/chat/useLlmChatSync.ts:179) 的 `handleActionRequest` 中补充缺失的 `delete-session` 和 `update-session` 分支
 
 ### 步骤 2：流式增量通道实现
 
 **发送端**: [`composables/chat/useChatResponseHandler.ts`](../../composables/chat/useChatResponseHandler.ts)
 
-- [ ] 在 `handleStreamUpdate` 的 `requestAnimationFrame` 回调中，除了更新本地节点，还通过 `bus` 广播增量：
+- [x] 在 `handleStreamUpdate` 的 `requestAnimationFrame` 回调中，除了更新本地节点，还通过 `bus` 广播增量：
   ```typescript
   bus.syncState("chat:streaming-delta", { sessionId, nodeId, delta: state.buffer, isReasoning }, version, true);
   ```
@@ -129,25 +129,25 @@ interface StreamingDeltaPayload {
 
 **接收端**: [`composables/chat/useLlmChatSync.ts`](../../composables/chat/useLlmChatSync.ts)
 
-- [ ] 注册 `streaming-delta` 消息监听器
-- [ ] 收到增量后，直接定位 `sessionDetailMap.get(sessionId)?.nodes[nodeId]`，追加文本
-- [ ] 设置 `isApplyingExternalState` 标志避免触发反向同步
+- [x] 注册 `streaming-delta` 消息监听器
+- [x] 收到增量后，直接定位 `sessionDetailMap.get(sessionId)?.nodes[nodeId]`，追加文本
+- [x] 设置 `isApplyingExternalState` 标志避免触发反向同步
 
 ### 步骤 3：同步引擎降频
 
 **目标文件**: [`composables/chat/useLlmChatSync.ts`](../../composables/chat/useLlmChatSync.ts)
 
-- [ ] 监听 `store.isSending` 的变化：
+- [x] 监听 `store.isSending` 的变化：
   - `true` → 对 `CURRENT_SESSION_DATA` 引擎暂停自动推送或调高 debounce（2000ms）
   - `false` → 恢复正常频率，并执行一次强制全量同步 (`engine.manualPush(true)`)
-- [ ] 考虑在 `createChatSyncConfig` 中为 `CURRENT_SESSION_DATA` 提供可配置的降频选项
+- [x] 考虑在 `createChatSyncConfig` 中为 `CURRENT_SESSION_DATA` 提供可配置的降频选项
 
 ### 步骤 4：类型增强
 
 **目标文件**: [`types/session.ts`](../../types/session.ts)
 
-- [ ] 在 `ChatSessionDetail` 接口中增加可选字段 `updatedAt?: string`
-- [ ] 在 `useSessionManager.persistSession` 中同步更新 Detail 的 `updatedAt`
+- [x] 在 `ChatSessionDetail` 接口中增加可选字段 `updatedAt?: string`
+- [x] 在 `useSessionManager.persistSession` 中同步更新 Detail 的 `updatedAt`
 
 ### 步骤 5：验收与回归测试
 

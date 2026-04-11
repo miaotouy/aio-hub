@@ -213,7 +213,9 @@ class WindowSyncBus {
         this.handleStateSync(message as BaseMessage<StateSyncPayload>);
         break;
       case "action-request":
-        this.handleActionRequest(message as BaseMessage<ActionRequestPayload>);
+        this.handleActionRequest(message as BaseMessage<ActionRequestPayload>).catch((err) => {
+          errorHandler.error(err, "handleActionRequest 未捕获异常", { context: { from: message.from } });
+        });
         break;
       case "action-response":
         this.handleActionResponse(message as BaseMessage<ActionResponsePayload>);
@@ -290,6 +292,13 @@ class WindowSyncBus {
     let handler: ActionHandler | undefined;
     let actionName = action;
 
+    logger.info("[诊断] handleActionRequest 进入", {
+      action,
+      requestId,
+      registeredNamespaces: Array.from(this.actionHandlers.keys()),
+      hasDefaultHandler: !!this.defaultActionHandler,
+    });
+
     // 解析命名空间 (例如 "chat:sendMessage")
     const colonIndex = action.indexOf(":");
     if (colonIndex !== -1) {
@@ -299,6 +308,7 @@ class WindowSyncBus {
         // 如果匹配到命名空间处理器，传递短名称
         actionName = action.substring(colonIndex + 1);
       }
+      logger.info("[诊断] 命名空间解析", { namespace, found: !!handler, actionName });
     }
 
     // 如果没有命名空间处理器，Fallback 到默认处理器
@@ -500,12 +510,8 @@ class WindowSyncBus {
       idempotencyKey: options?.idempotencyKey,
     };
 
-    // 广播到所有窗口，由有处理器的窗口响应
-    // 这样无论服务端在主窗口还是分离的工具窗口都能正确处理
-    await this.sendMessage("action-request", payload);
-
-    // 等待响应
-    return new Promise((resolve, reject) => {
+    // 等待响应 - 先注册监听器，防止竞态条件
+    const responsePromise = new Promise<TResult>((resolve, reject) => {
       const timeout = setTimeout(() => {
         unlisten();
         reject(new Error(`操作请求超时: ${action}`));
@@ -523,6 +529,12 @@ class WindowSyncBus {
         }
       });
     });
+
+    // 广播到所有窗口，由有处理器的窗口响应
+    // 这样无论服务端在主窗口还是分离的工具窗口都能正确处理
+    await this.sendMessage("action-request", payload);
+
+    return responsePromise;
   }
 
   /**

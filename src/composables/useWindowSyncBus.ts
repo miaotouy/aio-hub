@@ -21,6 +21,7 @@ import type {
   StateSyncPayload,
   ActionRequestPayload,
   ActionResponsePayload,
+  StateSyncBatchPayload,
   HeartbeatPayload,
   MessageHandler,
   UnlistenFn,
@@ -66,6 +67,7 @@ class WindowSyncBus {
 
   // 初始化状态
   private initialized = false;
+  private isReadyForReconnect = false;
 
   constructor(config?: WindowSyncBusConfig) {
     // 获取当前窗口信息
@@ -134,6 +136,12 @@ class WindowSyncBus {
 
       this.initialized = true;
       logger.info("WindowSyncBus 核心监听器初始化完成");
+
+      // 延迟允许重连逻辑，避免启动期间的焦点切换导致同步风暴
+      setTimeout(() => {
+        this.isReadyForReconnect = true;
+        logger.info("WindowSyncBus 重连监听已就绪");
+      }, 5000);
     } catch (error) {
       errorHandler.error(error, "WindowSyncBus 初始化失败");
       throw error;
@@ -223,6 +231,9 @@ class WindowSyncBus {
       case "heartbeat":
         this.handleHeartbeat(message as BaseMessage<HeartbeatPayload>);
         break;
+      case "state-sync-batch":
+        this.handleStateSyncBatch(message as BaseMessage<StateSyncBatchPayload>);
+        break;
       case "request-initial-state":
         this.handleInitialStateRequest(message.from);
         break;
@@ -281,6 +292,15 @@ class WindowSyncBus {
       stateType: message.payload.stateType,
       version: message.payload.version,
       isFull: message.payload.isFull,
+    });
+  }
+
+  /**
+   * 处理批量状态同步消息
+   */
+  private handleStateSyncBatch(message: BaseMessage<StateSyncBatchPayload>): void {
+    logger.info("收到批量状态同步", {
+      statesCount: message.payload.states.length,
     });
   }
 
@@ -443,6 +463,11 @@ class WindowSyncBus {
    * 添加防抖机制，避免频繁触发导致性能问题
    */
   private handleReconnect(): void {
+    if (!this.isReadyForReconnect) {
+      logger.debug("重连请求被忽略（启动保护期）");
+      return;
+    }
+
     const now = Date.now();
 
     // 防抖检查：如果距离上次重连不到指定时间，则跳过
@@ -491,6 +516,17 @@ class WindowSyncBus {
     };
 
     await this.sendMessage("state-sync", payload, target);
+  }
+
+  /**
+   * 批量同步状态
+   */
+  async syncStateBatch(states: StateSyncPayload[], target?: string): Promise<void> {
+    const payload: StateSyncBatchPayload = {
+      states,
+    };
+
+    await this.sendMessage("state-sync-batch", payload, target);
   }
   /**
    * 请求操作
@@ -760,6 +796,7 @@ export function useWindowSyncBus() {
 
     // 核心 API
     syncState: bus.syncState.bind(bus),
+    syncStateBatch: bus.syncStateBatch.bind(bus),
     requestAction: bus.requestAction.bind(bus),
 
     // 事件监听

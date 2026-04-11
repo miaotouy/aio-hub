@@ -4,7 +4,6 @@ import type { Operation } from "fast-json-patch";
  * 窗口同步系统类型定义
  *
  * 本文件定义了窗口分离状态同步系统的核心类型
- * 遵循重构方案 v3.0 的架构设计
  */
 
 // 基础类型
@@ -23,7 +22,8 @@ export type WindowMessageType =
   | "action-request" // 操作请求（分离窗口 → 主窗口）
   | "action-response" // 操作响应（主窗口 → 分离窗口）
   | "heartbeat" // 心跳检测
-  | "request-initial-state"; // 请求初始状态（通用）
+  | "request-initial-state" // 请求初始状态（通用）
+  | "state-sync-batch"; // 批量状态同步
 
 /**
  * 状态键类型（用于标识不同的状态数据）
@@ -97,6 +97,14 @@ export interface StateSyncPayload<K extends StateKey = StateKey> {
 }
 
 /**
+ * 批量状态同步消息载荷
+ */
+export interface StateSyncBatchPayload {
+  /** 状态载荷列表 */
+  states: StateSyncPayload[];
+}
+
+/**
  * 操作请求消息载荷
  */
 export interface ActionRequestPayload {
@@ -136,6 +144,7 @@ export interface HeartbeatPayload {
 
 export type HandshakeMessage = BaseMessage<HandshakePayload>;
 export type StateSyncMessage = BaseMessage<StateSyncPayload>;
+export type StateSyncBatchMessage = BaseMessage<StateSyncBatchPayload>;
 export type ActionRequestMessage = BaseMessage<ActionRequestPayload>;
 export type ActionResponseMessage = BaseMessage<ActionResponsePayload>;
 export type HeartbeatMessage = BaseMessage<HeartbeatPayload>;
@@ -143,6 +152,7 @@ export type HeartbeatMessage = BaseMessage<HeartbeatPayload>;
 export type WindowMessage =
   | HandshakeMessage
   | StateSyncMessage
+  | StateSyncBatchMessage
   | ActionRequestMessage
   | ActionResponseMessage
   | HeartbeatMessage;
@@ -177,8 +187,8 @@ export type InitialStateRequestHandler = (requesterLabel: string) => void;
 // 配置选项
 
 /**
-  * 状态同步引擎配置
-  */
+ * 状态同步引擎配置
+ */
 export interface StateSyncConfig<K extends StateKey = StateKey> {
   /** 状态类型标识 */
   stateKey: K;

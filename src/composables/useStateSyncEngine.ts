@@ -9,7 +9,14 @@ import { useWindowSyncBus } from './useWindowSyncBus';
 import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator, deepEqual } from '@/utils/sync-helpers';
 import { createModuleLogger } from '@/utils/logger';
 import { createModuleErrorHandler } from '@/utils/errorHandler';
-import type { StateSyncConfig, StateSyncPayload, JsonPatchOperation, BaseMessage, StateKey } from '@/types/window-sync';
+import type {
+  StateSyncConfig,
+  StateSyncPayload,
+  JsonPatchOperation,
+  BaseMessage,
+  StateKey,
+  StateSyncBatchPayload
+} from '@/types/window-sync';
 
 const logger = createModuleLogger('StateSyncEngine');
 const errorHandler = createModuleErrorHandler('StateSyncEngine');
@@ -20,6 +27,7 @@ const errorHandler = createModuleErrorHandler('StateSyncEngine');
 
 type SyncSource = {
   pushState: (isFullSync?: boolean, targetWindowLabel?: string, silent?: boolean) => Promise<void>;
+  getStatePayload: (isFullSync?: boolean) => Promise<StateSyncPayload | null>;
   stateKey: string;
 };
 
@@ -41,17 +49,35 @@ function initRegistryListeners() {
   }
 
   // 1. 监听初始状态请求，批量推送所有注册源的全量状态
-  bus.onInitialStateRequest((requesterLabel) => {
-    logger.info(`[${bus.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，开始批量推送...`);
+  bus.onInitialStateRequest(async (requesterLabel) => {
+    logger.info(`[${bus.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，开始打包批量推送...`);
+    
+    const batchStates: StateSyncPayload[] = [];
     
     for (const source of syncRegistry) {
-      // 强制推送全量状态给请求者（静默模式）
-      source.pushState(true, requesterLabel, true).catch(err => {
-        errorHandler.handle(err, { userMessage: '批量推送状态失败', context: { stateKey: source.stateKey }, showToUser: false });
-      });
+      try {
+        // 获取全量状态载荷
+        const payload = await source.getStatePayload(true);
+        if (payload) {
+          batchStates.push(payload);
+        }
+      } catch (err) {
+        errorHandler.handle(err, {
+          userMessage: '获取批量同步状态失败',
+          context: { stateKey: source.stateKey },
+          showToUser: false
+        });
+      }
     }
     
-    logger.info(`[${bus.windowType}] 已向 ${requesterLabel} 批量推送所有状态`);
+    if (batchStates.length > 0) {
+      await bus.syncStateBatch(batchStates, requesterLabel);
+      logger.info(`[${bus.windowType}] 已向 ${requesterLabel} 发送批量状态同步包`, {
+        statesCount: batchStates.length
+      });
+    } else {
+      logger.warn(`[${bus.windowType}] 初始状态请求没有可用的状态源`, { requesterLabel });
+    }
   });
 
   // 2. 监听重连事件，广播所有注册源的全量状态
@@ -118,10 +144,36 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   let unlistenStateSync: (() => void) | null = null;
   let stopWatching: (() => void) | null = null;
 
+    /**
+     * 获取当前状态的同步载荷
+     */
+    const getStatePayload = async (isFullSync = false): Promise<StateSyncPayload | null> => {
+      if (!isInitialized) return null;
+
+      const newValue = state.value;
+      const newVersion = VersionGenerator.next();
+
+      const shouldForceFullSync = isFullSync || !enableDelta ||
+        newValue === null || newValue === undefined ||
+        lastSyncedValue === null || lastSyncedValue === undefined;
+
+      if (shouldForceFullSync) {
+        return { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
+      } else {
+        const patches = calculateDiff(lastSyncedValue, newValue);
+        if (patches.length === 0) return null;
+
+        if (shouldUseDelta(patches, newValue, deltaThreshold)) {
+          return { stateType: stateKey, version: newVersion, isFull: false, patches };
+        } else {
+          return { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
+        }
+      }
+    };
+
     const pushState = async (isFullSync = false, targetWindowLabel?: string, silent = false) => {
       // 如果没有目标窗口，且没有下游消费者，则跳过同步
       if (!targetWindowLabel && !bus.hasDownstreamWindows.value) {
-        // logger.debug('没有下游窗口，跳过同步', { stateKey });
         return;
       }
       
@@ -136,43 +188,31 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
         return;
       }
   
-      const newValue = state.value;
-      const newVersion = VersionGenerator.next();
-  
-      let payload: StateSyncPayload;
-  
-      const shouldForceFullSync = isFullSync || !enableDelta ||
-        newValue === null || newValue === undefined ||
-        lastSyncedValue === null || lastSyncedValue === undefined;
-  
-      if (shouldForceFullSync) {
-        payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
-        if (!silent) logger.debug('执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
-      } else {
-        const patches = calculateDiff(lastSyncedValue, newValue);
-        if (patches.length === 0) {
-          if (!silent) logger.debug('状态无变化，跳过同步', { stateKey });
-          return;
-        }
-  
-        if (shouldUseDelta(patches, newValue, deltaThreshold)) {
-          payload = { stateType: stateKey, version: newVersion, isFull: false, patches };
-          if (!silent) logger.debug('执行增量同步', { stateKey, version: newVersion, patchesCount: patches.length, targetWindow: targetWindowLabel });
-        } else {
-          payload = { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
-          if (!silent) logger.debug('增量过大，执行全量同步', { stateKey, version: newVersion, targetWindow: targetWindowLabel });
-        }
+      const payload = await getStatePayload(isFullSync);
+      if (!payload) {
+        if (!silent) logger.debug('状态无变化，跳过同步', { stateKey });
+        return;
       }
-    await bus.syncState(
-      stateKey,
-      payload.isFull ? payload.data : payload.patches,
-      newVersion,
-      payload.isFull,
-      targetWindowLabel
-    );
-    stateVersion.value = newVersion;
-    lastSyncedValue = safeDeepClone(newValue);
-  };
+
+      if (!silent) {
+        logger.debug(`执行${payload.isFull ? '全量' : '增量'}同步`, {
+          stateKey,
+          version: payload.version,
+          targetWindow: targetWindowLabel
+        });
+      }
+  
+      await bus.syncState(
+        stateKey,
+        payload.isFull ? payload.data : payload.patches,
+        payload.version,
+        payload.isFull,
+        targetWindowLabel
+      );
+      
+      stateVersion.value = payload.version;
+      lastSyncedValue = safeDeepClone(state.value);
+    };
 
   let currentDebounceDelay = debounceDelay;
   let debouncedPushState = debounce(pushState, currentDebounceDelay);
@@ -265,8 +305,23 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   }
 
   if (autoReceive) {
-    unlistenStateSync = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
-    logger.debug('已启动自动接收', { stateKey, windowType: bus.windowType });
+    // 监听单条状态同步
+    const unlistenSingle = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
+    
+    // 监听批量状态同步
+    const unlistenBatch = bus.onMessage<StateSyncBatchPayload>('state-sync-batch', (payload, message) => {
+      const statePayload = payload.states.find(s => s.stateType === stateKey);
+      if (statePayload) {
+        receiveState(statePayload, message);
+      }
+    });
+
+    unlistenStateSync = () => {
+      unlistenSingle();
+      unlistenBatch();
+    };
+
+    logger.debug('已启动自动接收（含批量模式）', { stateKey, windowType: bus.windowType });
   }
 
   const manualPush = (isFullSync = true, targetWindowLabel?: string, silent = false) => {
@@ -280,6 +335,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   if (autoPush && (bus.windowType === 'main' || bus.windowType === 'detached-tool')) {
     unregister = registerSyncSource({
       pushState: manualPush,
+      getStatePayload: (isFull) => getStatePayload(isFull),
       stateKey
     });
   }

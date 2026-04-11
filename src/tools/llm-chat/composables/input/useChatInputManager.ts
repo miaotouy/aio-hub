@@ -395,6 +395,16 @@ class ChatInputManager {
         pushState: async (isFullSync, targetWindowLabel, silent) => {
           this.pushState(isFullSync, targetWindowLabel, silent);
         },
+        getStatePayload: async (_isFullSync) => {
+          const newValue = this.syncState.value;
+          const newVersion = VersionGenerator.next();
+          return {
+            stateType: CHAT_STATE_KEYS.INPUT_STATE,
+            version: newVersion,
+            isFull: true,
+            data: newValue,
+          };
+        },
         stateKey: CHAT_STATE_KEYS.INPUT_STATE,
       });
     }

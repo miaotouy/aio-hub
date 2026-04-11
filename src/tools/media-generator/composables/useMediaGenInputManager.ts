@@ -125,6 +125,19 @@ class MediaGenInputManager {
         pushState: async (isFullSync, targetWindowLabel, silent) => {
           this.pushState(isFullSync, targetWindowLabel, silent);
         },
+        getStatePayload: async (_isFullSync) => {
+          const newValue = {
+            prompt: this.store.inputPrompt,
+            attachments: [...this.store.attachments],
+          };
+          const newVersion = VersionGenerator.next();
+          return {
+            stateType: MEDIA_GEN_STATE_KEYS.INPUT_STATE,
+            version: newVersion,
+            isFull: true,
+            data: newValue,
+          };
+        },
         stateKey: MEDIA_GEN_STATE_KEYS.INPUT_STATE,
       });
     }

@@ -369,11 +369,7 @@ export function useLlmChatSync() {
   }
 
   // detached-component 窗口需要主动请求初始状态
-  if (bus.windowType === "detached-component") {
-    setTimeout(() => {
-      bus.requestInitialState();
-    }, 100);
-  }
+  // 【注意】已移除冗余的 requestInitialState 调用，统一由 useLlmChatStateConsumer 负责
 
   return {};
 }

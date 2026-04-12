@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import { useVcpStore } from "./stores/vcpConnectorStore";
 import { useVcpDistributedNode } from "./composables/useVcpDistributedNode";
 import { useDetachedManager } from "@/composables/useDetachedManager";
@@ -69,7 +69,7 @@ import type { VcpMessage } from "./types/protocol";
 
 const store = useVcpStore();
 const { startDistributedNode } = useVcpDistributedNode();
-const { isDetached, closeWindow } = useDetachedManager();
+const { closeWindow } = useDetachedManager();
 
 const activeTab = ref("messages");
 const selectedMessage = ref<VcpMessage | null>(null);
@@ -79,31 +79,23 @@ const isConfigCollapsed = ref(false);
 // 启动分布式节点逻辑
 startDistributedNode();
 
-const isMonitorDetached = ref(false);
+// 直接使用 store 中维护的分离状态（store 内部已通过 useDetachedManager watch 同步）
+const isMonitorDetached = computed(() => store.isMonitorDetached);
 
-// 监听分离状态并同步到 store
+// 监听分离状态变化，执行副作用（收回时重新加载消息并连接）
 watch(
-  () => isDetached("vcp-monitor"),
-  (val) => {
-    isMonitorDetached.value = val;
-    store.isMonitorDetached = val;
-
-    // 如果在主窗口中监控被分离，且当前是已连接状态，
-    // 主窗口可以选择断开 Observer 连接以节省资源（因为分离窗口会连）
-    if (val) {
-      // 这里我们可以选择断开 Observer
-      // store.disconnectObserver(); // 如果有这个方法
-    } else {
-      // 如果收回了，主窗口重新加载消息并连接
+  () => store.isMonitorDetached,
+  (val, oldVal) => {
+    if (oldVal && !val) {
+      // 从分离变为非分离（收回），主窗口重新加载消息并连接
       store.reloadMessages();
       store.connect();
     }
   },
-  { immediate: true },
 );
 
 async function reattachMonitor() {
-  await closeWindow("vcp-monitor");
+  await closeWindow("vcp-connector:monitor");
 }
 
 watch(selectedMessage, (msg: VcpMessage | null) => {

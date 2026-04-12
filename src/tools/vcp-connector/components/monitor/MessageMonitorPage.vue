@@ -285,7 +285,6 @@ const headerStyle = computed(() => {
     backdropFilter: "blur(12px)",
   };
 });
-
 /**
  * 虚拟滚动相关
  */
@@ -318,7 +317,7 @@ const onScroll = () => {
   isNearTop.value = scrollTop < 100;
 };
 
-// 自动滚动到顶部
+// 自动滚动到顶部（最新消息在顶部）
 const scrollToTop = useThrottleFn(() => {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -470,7 +469,6 @@ async function handleReattach() {
 
 /* 分离模式下的特定头部样式 */
 .message-monitor-page.detached-mode .monitor-page-header {
-  cursor: move;
   -webkit-app-region: drag;
 }
 
@@ -486,7 +484,6 @@ async function handleReattach() {
   padding: 10px;
   border: none;
   background: transparent;
-  cursor: move;
   border-radius: 16px 16px 0 0;
 }
 

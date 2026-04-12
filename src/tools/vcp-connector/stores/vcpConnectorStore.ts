@@ -57,9 +57,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   const bus = useWindowSyncBus();
 
   // 检查是否为分离的消息监控窗口
-  const isDetachedMonitor =
-    window.location.search.includes("id=vcp-connector:monitor") ||
-    window.location.search.includes('"id":"vcp-connector:monitor"');
+  // 路径格式通常为 /detached-component/vcp-connector:monitor
+  const isDetachedMonitor = window.location.pathname.includes("vcp-connector:monitor");
 
   // 标记监控面板是否在主窗口中已经分离（由主窗口维护）
   const isMonitorDetached = ref(false);

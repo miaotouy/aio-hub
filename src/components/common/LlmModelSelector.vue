@@ -145,7 +145,7 @@ const modelGroups = computed(() => {
     <el-link
       v-if="availableModels.length === 0"
       type="warning"
-      :underline="false"
+      underline="never"
       style="margin-top: 8px; display: block; cursor: pointer"
       @click="goToLlmSettings"
     >

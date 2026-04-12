@@ -66,7 +66,7 @@
             <div class="filter-popover-content">
               <div class="filter-header">
                 <span class="filter-title">类型筛选</span>
-                <el-link type="primary" :underline="false" @click="toggleAllTypes">
+                <el-link type="primary" underline="never" @click="toggleAllTypes">
                   {{ isAllTypesSelected ? "全不选" : "全选" }}
                 </el-link>
               </div>

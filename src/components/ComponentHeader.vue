@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
+import { getDetachableComponentConfig } from "@/config/detachable-components";
+import type { DetachableConfig } from "@/composables/useDetachable";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { CornerDownLeft, Pin, ExternalLink, Minus, Plus } from "lucide-vue-next";
@@ -11,11 +13,13 @@ const logger = createModuleLogger("ComponentHeader");
 const errorHandler = createModuleErrorHandler("ComponentHeader");
 
 interface Props {
+  id?: string;
   position?: "top" | "bottom" | "left" | "right";
   collapsible?: boolean;
   title?: string;
   dragMode?: "window" | "detach";
   showActions?: boolean;
+  metadata?: Record<string, any>;
 }
 
 interface Emits {
@@ -151,6 +155,32 @@ const handleDragInteraction = (event: MouseEvent) => {
     emit("mousedown", event);
   }
 };
+
+/**
+ * 获取当前组件的分离配置
+ * 供父组件在触发分离时使用
+ */
+const getDetachableConfig = (event: MouseEvent): DetachableConfig => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const componentConfig = getDetachableComponentConfig(props.id || "");
+
+  return {
+    id: props.id || "",
+    displayName: props.title || "",
+    type: "component",
+    width: rect.width,
+    height: rect.height,
+    mouseX: event.screenX,
+    mouseY: event.screenY,
+    handleOffsetX: event.clientX - rect.left,
+    handleOffsetY: event.clientY - rect.top,
+    disableNativeResize: componentConfig?.disableNativeResize,
+  };
+};
+
+defineExpose({
+  getDetachableConfig,
+});
 </script>
 
 <template>

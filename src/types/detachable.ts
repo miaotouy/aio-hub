@@ -1,4 +1,4 @@
-import type { Component, Ref } from 'vue';
+import type { Component, Ref } from "vue";
 
 /**
  * 分离逻辑钩子 (Logic Hook) 的接口定义
@@ -31,4 +31,9 @@ export interface DetachableComponentRegistration {
    * 在组件被加载到分离容器时执行，用于设置特定的环境（如启动状态消费者）
    */
   initializeEnvironment?: () => void;
+  /**
+   * 是否禁用原生窗口边缘的拖拽响应（即禁用窗口缩放）
+   * 适用于组件自带拖拽逻辑的场景
+   */
+  disableNativeResize?: boolean;
 }

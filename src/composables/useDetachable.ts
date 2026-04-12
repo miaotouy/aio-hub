@@ -1,6 +1,6 @@
-import { ref, reactive } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { useEventListener } from '@vueuse/core';
+import { ref, reactive } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { useEventListener } from "@vueuse/core";
 
 /**
  * 统一窗口分离的配置，与 Rust 端的 `DetachableConfig` 对应。
@@ -11,7 +11,7 @@ export interface DetachableConfig {
   /** 显示名称 (e.g., "JSON Formatter" or "对话区域") */
   displayName: string;
   /** 窗口类型: 'tool' 或 'component' */
-  type: 'tool' | 'component';
+  type: "tool" | "component";
   /** 初始宽度 */
   width: number;
   /** 初始高度 */
@@ -26,6 +26,8 @@ export interface DetachableConfig {
   handleOffsetY?: number;
   /** 可选的元数据，可用于传递额外信息 */
   metadata?: Record<string, any>;
+  /** 是否禁用原生窗口边缘的拖拽响应（即禁用窗口缩放） */
+  disableNativeResize?: boolean;
   /** 如果未触发拖拽（视为点击），调用此回调 */
   onClickInstead?: () => void;
 }
@@ -44,9 +46,9 @@ const dragState = reactive({
 
 // 拖拽触发配置
 const DRAG_THRESHOLD = {
-  DISTANCE: 8,        // 启动距离阈值（像素）- 移动超过此距离才开始拖拽会话
-  TIME_MIN: 100,      // 最小按下时间（毫秒）- 防止误触
-  TIME_MAX: 300,      // 超过此时间即使移动很小也触发拖拽（毫秒）
+  DISTANCE: 8, // 启动距离阈值（像素）- 移动超过此距离才开始拖拽会话
+  TIME_MIN: 100, // 最小按下时间（毫秒）- 防止误触
+  TIME_MAX: 300, // 超过此时间即使移动很小也触发拖拽（毫秒）
 };
 
 const DETACH_THRESHOLD = 50; // 分离阈值：拖拽距离超过此距离才能创建独立窗口
@@ -69,17 +71,17 @@ export function useDetachable() {
     dragState.startTime = Date.now();
     dragState.canDetach = false;
     dragState.config = config;
-    
-    console.log('[DETACH] 准备拖拽', {
+
+    console.log("[DETACH] 准备拖拽", {
       startX: config.mouseX,
       startY: config.mouseY,
-      startTime: dragState.startTime
+      startTime: dragState.startTime,
     });
 
     // 添加超时检查，防止状态卡在 'isPreparing'
     setTimeout(() => {
       if (dragState.isPreparing && !isDragging.value) {
-        console.warn('[DETACH] 拖拽准备超时，自动重置状态');
+        console.warn("[DETACH] 拖拽准备超时，自动重置状态");
         dragState.isPreparing = false;
         dragState.config = null;
         dragState.startTime = 0;
@@ -93,15 +95,15 @@ export function useDetachable() {
     try {
       isDragging.value = true;
       dragState.isPreparing = false;
-      
+
       // 使用新的基于 rdev 的拖拽会话
-      await invoke('start_drag_session', {
-        config: dragState.config
+      await invoke("start_drag_session", {
+        config: dragState.config,
       });
-      
-      console.log('[DETACH] 基于 rdev 的拖拽会话已启动');
+
+      console.log("[DETACH] 基于 rdev 的拖拽会话已启动");
     } catch (error) {
-      console.error('[DETACH] 启动拖拽会话失败:', error);
+      console.error("[DETACH] 启动拖拽会话失败:", error);
       isDragging.value = false;
       dragState.isPreparing = false;
       dragState.config = null;
@@ -124,10 +126,10 @@ export function useDetachable() {
         (elapsed >= DRAG_THRESHOLD.TIME_MAX && distance >= 3);
 
       if (shouldTrigger) {
-        console.log('[DETACH] 触发拖拽会话', {
+        console.log("[DETACH] 触发拖拽会话", {
           distance,
           elapsed,
-          thresholds: DRAG_THRESHOLD
+          thresholds: DRAG_THRESHOLD,
         });
         await beginDragSession();
       }
@@ -142,13 +144,13 @@ export function useDetachable() {
   const stopDragging = () => {
     // 如果还在准备阶段（没有真正开始拖拽），视为点击
     if (dragState.isPreparing && !isDragging.value) {
-      console.log('[DETACH] 未达到启动条件，视为点击');
-      
+      console.log("[DETACH] 未达到启动条件，视为点击");
+
       // 如果提供了点击回调，执行它
       if (dragState.config?.onClickInstead) {
         dragState.config.onClickInstead();
       }
-      
+
       // 清理状态
       dragState.isPreparing = false;
       dragState.config = null;
@@ -159,19 +161,19 @@ export function useDetachable() {
 
     // 如果已经开始拖拽，调用新的结束命令
     if (isDragging.value) {
-      console.log('[DETACH] 结束拖拽会话，是否固化由后端根据距离判断');
+      console.log("[DETACH] 结束拖拽会话，是否固化由后端根据距离判断");
 
-      invoke<boolean>('end_drag_session')
+      invoke<boolean>("end_drag_session")
         .then((created) => {
-          console.log(`[DETACH] 拖拽会话结束，窗口${created ? '已' : '未'}创建`);
+          console.log(`[DETACH] 拖拽会话结束，窗口${created ? "已" : "未"}创建`);
         })
         .catch((error) => {
           const errorStr = error.toString();
           // 如果后端已经结束了会话（例如已经触发了分离），则忽略此错误
-          if (errorStr.includes('没有活动的拖拽会话')) {
-            console.log('[DETACH] 拖拽会话已由后端正常结束');
+          if (errorStr.includes("没有活动的拖拽会话")) {
+            console.log("[DETACH] 拖拽会话已由后端正常结束");
           } else {
-            console.error('[DETACH] 结束拖拽会话失败:', error);
+            console.error("[DETACH] 结束拖拽会话失败:", error);
           }
         })
         .finally(() => {
@@ -190,28 +192,28 @@ export function useDetachable() {
   };
 
   // 在准备阶段和拖拽阶段都需要监听全局事件
-  useEventListener(window, 'mousemove', (event) => {
+  useEventListener(window, "mousemove", (event) => {
     if (isDragging.value || dragState.isPreparing) {
       handleMouseMove(event);
     }
   });
 
-  useEventListener(window, 'mouseup', (event) => {
+  useEventListener(window, "mouseup", (event) => {
     if (isDragging.value || dragState.isPreparing) {
       handleMouseUp(event);
     }
   });
 
   // 添加全局键盘监听，用于处理 ESC 取消
-  useEventListener(window, 'keydown', (event) => {
-    if ((isDragging.value || dragState.isPreparing) && event.key === 'Escape') {
-      console.log('[DETACH] 检测到 ESC 键，强制取消拖拽');
+  useEventListener(window, "keydown", (event) => {
+    if ((isDragging.value || dragState.isPreparing) && event.key === "Escape") {
+      console.log("[DETACH] 检测到 ESC 键，强制取消拖拽");
       // 强制结束会话，不创建窗口
-      invoke('end_drag_session')
-        .catch(error => {
+      invoke("end_drag_session")
+        .catch((error) => {
           // 忽略 "没有活动会话" 的错误，因为可能已经由后端取消
-          if (!error.toString().includes('没有活动的拖拽会话')) {
-            console.error('[DETACH] ESC 取消拖拽会话失败:', error);
+          if (!error.toString().includes("没有活动的拖拽会话")) {
+            console.error("[DETACH] ESC 取消拖拽会话失败:", error);
           }
         })
         .finally(() => {
@@ -229,10 +231,12 @@ export function useDetachable() {
    * 适用于 macOS 等不支持全局鼠标监听的平台
    * @param config 分离配置
    */
-  const detachByClick = async (config: Omit<DetachableConfig, 'mouseX' | 'mouseY' | 'handleOffsetX' | 'handleOffsetY'>): Promise<boolean> => {
+  const detachByClick = async (
+    config: Omit<DetachableConfig, "mouseX" | "mouseY" | "handleOffsetX" | "handleOffsetY">,
+  ): Promise<boolean> => {
     try {
-      console.log('[DETACH] 通过点击分离窗口', config);
-      
+      console.log("[DETACH] 通过点击分离窗口", config);
+
       // 调用 begin_detach_session 命令直接创建分离窗口
       // 这个命令不依赖 rdev，在所有平台上都可用
       const fullConfig: DetachableConfig = {
@@ -242,19 +246,19 @@ export function useDetachable() {
         handleOffsetX: 0,
         handleOffsetY: 0,
       };
-      
-      await invoke('begin_detach_session', { config: fullConfig });
-      
+
+      await invoke("begin_detach_session", { config: fullConfig });
+
       // 直接固化窗口（因为不需要拖拽判断）
-      await invoke('finalize_detach_session', {
+      await invoke("finalize_detach_session", {
         sessionId: `detached-${config.id}`,
-        shouldDetach: true
+        shouldDetach: true,
       });
-      
-      console.log('[DETACH] 窗口已成功分离');
+
+      console.log("[DETACH] 窗口已成功分离");
       return true;
     } catch (error) {
-      console.error('[DETACH] 分离窗口失败:', error);
+      console.error("[DETACH] 分离窗口失败:", error);
       return false;
     }
   };

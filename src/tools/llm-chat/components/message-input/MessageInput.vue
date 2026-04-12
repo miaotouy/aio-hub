@@ -349,32 +349,46 @@ onMounted(async () => {
 /**
  * 获取分离窗口的配置
  */
-const getDetachConfig = (mouseX?: number, mouseY?: number) => {
-  const rect = containerRef.value?.getBoundingClientRect();
-  if (!rect) return null;
+const getDetachConfig = (e?: MouseEvent) => {
+  if (!headerRef.value) return null;
 
-  const headerEl = headerRef.value?.$el as HTMLElement;
-  const headerRect = headerEl?.getBoundingClientRect();
+  // 如果没有传入事件，创建一个模拟事件用于获取基础配置
+  const event =
+    e ||
+    ({
+      currentTarget: headerRef.value.$el,
+      screenX: window.screenX + (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
+      screenY: window.screenY + (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
+      clientX: (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
+      clientY: (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
+    } as unknown as MouseEvent);
 
-  let handleOffsetX = 0;
-  let handleOffsetY = 0;
+  const config = headerRef.value.getDetachableConfig(event);
 
-  if (headerRect) {
-    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
-    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+  // 应用开发者设置：强制允许原生缩放
+  if (settings.value.developer.forceNativeResize) {
+    config.disableNativeResize = false;
   }
 
-  return {
-    id: "llm-chat:chat-input",
-    displayName: "聊天输入框",
-    type: "component" as const,
-    width: rect.width + 80,
-    height: rect.height + 80, // 进一步增加初始高度以适应外边距和阴影
-    mouseX: mouseX ?? window.screenX + rect.left + rect.width / 2,
-    mouseY: mouseY ?? window.screenY + rect.top + rect.height / 2,
-    handleOffsetX,
-    handleOffsetY,
-  };
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (rect) {
+    config.width = rect.width + 80;
+    config.height = rect.height + 80;
+
+    // 重新计算手柄偏移量
+    const headerEl = headerRef.value.$el as HTMLElement;
+    const headerRect = headerEl.getBoundingClientRect();
+    config.handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+    config.handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+
+    if (!e) {
+      // 菜单点击模式，使用中心点
+      config.mouseX = window.screenX + rect.left + rect.width / 2;
+      config.mouseY = window.screenY + rect.top + rect.height / 2;
+    }
+  }
+
+  return config;
 };
 
 // 处理从菜单打开悬浮窗
@@ -459,7 +473,7 @@ const handleDragStart = (e: MouseEvent) => {
   // 非分离模式下：只有点击手柄区域才允许触发分离拖拽
   if (!isHandle) return;
 
-  const config = getDetachConfig(e.screenX, e.screenY);
+  const config = getDetachConfig(e);
   if (!config) {
     errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸，无法开始拖拽");
     return;
@@ -493,6 +507,8 @@ const handleDragStart = (e: MouseEvent) => {
       <ComponentHeader
         v-if="isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"
+        id="llm-chat:chat-input"
+        title="聊天输入框"
         position="left"
         :drag-mode="isDetached ? 'window' : 'detach'"
         show-actions

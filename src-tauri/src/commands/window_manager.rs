@@ -361,6 +361,9 @@ pub struct DetachableConfig {
     /// 手柄相对于窗口左上角的Y偏移量（可选）
     #[serde(default)]
     pub handle_offset_y: f64,
+    /// 是否禁用原生窗口边缘的拖拽响应（即禁用窗口缩放）
+    #[serde(default)]
+    pub disable_native_resize: bool,
 }
 
 /// 统一的拖拽分离会话状态
@@ -613,6 +616,11 @@ async fn finalize_window_internal(
         window.set_always_on_top(true).map_err(|e| e.to_string())?;
     }
 
+    // 如果配置了禁用原生缩放，则设置窗口不可缩放
+    if config.disable_native_resize {
+        window.set_resizable(false).map_err(|e| e.to_string())?;
+    }
+
     // 通知前端视图更新 (e.g., to hide preview-only elements)
     window
         .emit("finalize-component-view", ())
@@ -744,6 +752,7 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         mouse_y: 0.0,
         handle_offset_x: 0.0,
         handle_offset_y: 0.0,
+        disable_native_resize: false,
     };
 
     finalize_window_internal(&app, &config.label, &detachable_config).await

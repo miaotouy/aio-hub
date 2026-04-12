@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, type Component, watch } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 import { useTheme } from "../composables/useTheme";
@@ -66,6 +67,15 @@ onMounted(async () => {
         const componentConfig = getDetachableComponentConfig(id);
 
         if (componentConfig) {
+          // 处理禁用原生缩放
+          if (componentConfig.disableNativeResize) {
+            getCurrentWindow()
+              .setResizable(false)
+              .catch((err) => {
+                logger.warn("设置窗口不可缩放失败", err);
+              });
+          }
+
           if (componentConfig.initializeEnvironment) {
             componentConfig.initializeEnvironment();
           }

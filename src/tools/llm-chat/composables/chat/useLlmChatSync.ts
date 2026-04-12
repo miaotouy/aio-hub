@@ -35,7 +35,7 @@ export function useLlmChatSync() {
   let isInitialized = false;
   // 收集所有状态同步引擎实例，用于批量操作
   const stateEngines: ReturnType<typeof useStateSyncEngine>[] = [];
-  
+
   // 核心引擎引用，用于在 Action 处理中手动触发同步
   let sessionDataEngine: ReturnType<typeof useStateSyncEngine> | null = null;
   let sessionIdEngine: ReturnType<typeof useStateSyncEngine> | null = null;
@@ -96,17 +96,17 @@ export function useLlmChatSync() {
       get: () => store.currentSessionDetail,
       set: (val) => {
         // 仅在非 Data Owner 窗口（如 detached-component）中应用同步过来的数据
-        if (val && val.id && (bus.windowType === "detached-component")) {
+        if (val && val.id && bus.windowType === "detached-component") {
           // 增加更详细的日志，方便排查加载问题
           const nodeCount = Object.keys(val.nodes || {}).length;
           logger.info("同步引擎应用会话详情", {
             sessionId: val.id,
             nodeCount,
-            activeLeafId: val.activeLeafId
+            activeLeafId: val.activeLeafId,
           });
-          
+
           store.sessionDetailMap.set(val.id, val);
-          
+
           // 如果当前 ID 不匹配，也同步更新 ID，确保 UI 能够响应
           if (store.currentSessionId !== val.id) {
             logger.info("同步引擎顺便更新了 currentSessionId", { old: store.currentSessionId, new: val.id });
@@ -292,7 +292,7 @@ export function useLlmChatSync() {
         return store.switchSession(params.sessionId).then(() => {
           logger.info("主窗口 switchSession 完成，当前 sessionId", {
             id: store.currentSessionId,
-            hasDetail: store.sessionDetailMap.has(params.sessionId)
+            hasDetail: store.sessionDetailMap.has(params.sessionId),
           });
         });
       case "delete-session":
@@ -300,7 +300,7 @@ export function useLlmChatSync() {
       case "update-session":
         return store.updateSession(params.sessionId, params.updates);
       case "create-session":
-        return store.createSession(params.agentId, params.name).then((sessionId) => {
+        return store.createSession(params.agentId, params.name).then((sessionId: string) => {
           // 性能优化：创建会话后立即强制推送关键状态，不等待 debounce 延迟
           // 这能显著提升悬浮窗创建会话后的响应速度
           logger.info("主窗口 createSession 完成，强制推送状态", { sessionId });

@@ -1646,6 +1646,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "启用后，将在高级关系图等区域显示用于调试的额外按钮和信息。",
         keywords: "developer debug 开发者 调试",
       },
+      {
+        id: "forceNativeResize",
+        label: "强制允许原生缩放",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "developer.forceNativeResize",
+        hint: "即便组件声明了禁用原生缩放（如输入框），开启此项后依然可以从窗口边缘调整尺寸，方便调试。",
+        keywords: "developer debug native resize 开发者 调试 缩放 窗口",
+      },
     ],
   },
 ];

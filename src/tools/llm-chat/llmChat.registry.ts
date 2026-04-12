@@ -209,12 +209,14 @@ export default class LlmChatRegistry implements ToolRegistry {
       component: () => import("./components/ChatArea.vue"),
       logicHook: () => this.useDetachedChatAreaAdapter(),
       initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: true }),
+      disableNativeResize: true, // 禁用原生窗口边缘缩放，使用组件自带的缩放逻辑
     },
     // LLM Chat: 消息输入框
     "llm-chat:chat-input": {
       component: () => import("./components/message-input/MessageInput.vue"),
       logicHook: useDetachedChatInput,
       initializeEnvironment: () => useLlmChatStateConsumer({ syncAllSessions: true }),
+      disableNativeResize: true, // 禁用原生窗口边缘缩放，使用组件自带的缩放逻辑
     },
   };
 

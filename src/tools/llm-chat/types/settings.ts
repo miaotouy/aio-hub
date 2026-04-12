@@ -221,6 +221,8 @@ export interface ChatSettings {
   developer: {
     /** 是否启用调试模式 */
     debugModeEnabled: boolean;
+    /** 是否强制允许原生窗口缩放（即便组件声明了禁用） */
+    forceNativeResize: boolean;
   };
   /** 全局正则管道配置 */
   regexConfig: ChatRegexConfig;
@@ -362,6 +364,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   },
   developer: {
     debugModeEnabled: false,
+    forceNativeResize: false,
   },
   regexConfig: createDefaultChatRegexConfig(),
   plugins: {},

@@ -171,46 +171,28 @@ const { startDetaching } = useDetachable();
 const handleDragStart = (e: MouseEvent) => {
   if (props.isDetached) return;
 
-  const rect = containerRef.value?.getBoundingClientRect();
-  if (!rect) {
-    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸，无法开始拖拽");
-    return;
+  if (headerRef.value) {
+    const config = headerRef.value.getDetachableConfig(e);
+    // 覆盖容器尺寸，因为 ComponentHeader 只知道自己的尺寸，不知道整体容器尺寸
+    const rect = containerRef.value?.getBoundingClientRect();
+    if (rect) {
+      config.width = rect.width;
+      config.height = rect.height;
+
+      // 重新计算手柄偏移量，使其相对于整体容器
+      const headerEl = headerRef.value.$el as HTMLElement;
+      const headerRect = headerEl.getBoundingClientRect();
+      config.handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+      config.handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+    }
+
+    // 应用开发者设置：强制允许原生缩放
+    if (settings.value.developer.forceNativeResize) {
+      config.disableNativeResize = false;
+    }
+
+    startDetaching(config);
   }
-
-  // 获取拖拽手柄的位置
-  const headerEl = headerRef.value?.$el as HTMLElement;
-  const headerRect = headerEl?.getBoundingClientRect();
-
-  // 计算手柄相对于容器的偏移量
-  let handleOffsetX = 0;
-  let handleOffsetY = 0;
-
-  if (headerRect) {
-    // 手柄中心相对于容器左上角的偏移量
-    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
-    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
-
-    logger.info("拖拽手柄偏移量计算", {
-      mouseX: e.screenX,
-      mouseY: e.screenY,
-      handleOffsetX,
-      handleOffsetY,
-      headerWidth: headerRect.width,
-      headerHeight: headerRect.height,
-    });
-  }
-
-  startDetaching({
-    id: "llm-chat:chat-area",
-    displayName: "对话区域",
-    type: "component",
-    width: rect.width,
-    height: rect.height,
-    mouseX: e.screenX,
-    mouseY: e.screenY,
-    handleOffsetX,
-    handleOffsetY,
-  });
 };
 
 // ===== 用户档案编辑 =====
@@ -434,36 +416,40 @@ const isInputVisible = computed(() => {
 
 // 处理从菜单打开悬浮窗
 const handleDetach = async () => {
+  if (!headerRef.value) return;
+
+  // 模拟一个 MouseEvent 来调用 getDetachableConfig
+  const dummyEvent = {
+    currentTarget: headerRef.value.$el,
+    screenX: window.screenX + (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
+    screenY: window.screenY + (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
+    clientX: (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
+    clientY: (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
+  } as unknown as MouseEvent;
+
+  const config = headerRef.value.getDetachableConfig(dummyEvent);
+
+  // 应用开发者设置：强制允许原生缩放
+  if (settings.value.developer.forceNativeResize) {
+    config.disableNativeResize = false;
+  }
+
+  // 覆盖容器尺寸
   const rect = containerRef.value?.getBoundingClientRect();
-  if (!rect) {
-    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸");
-    return;
+  if (rect) {
+    config.width = rect.width;
+    config.height = rect.height;
+
+    // 重新计算手柄偏移量
+    const headerEl = headerRef.value.$el as HTMLElement;
+    const headerRect = headerEl.getBoundingClientRect();
+    config.handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
+    config.handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
+
+    // 更新坐标为中心点
+    config.mouseX = window.screenX + rect.left + rect.width / 2;
+    config.mouseY = window.screenY + rect.top + rect.height / 2;
   }
-
-  // 获取手柄位置用于计算偏移量
-  const headerEl = headerRef.value?.$el as HTMLElement;
-  const headerRect = headerEl?.getBoundingClientRect();
-
-  let handleOffsetX = 0;
-  let handleOffsetY = 0;
-
-  if (headerRect) {
-    handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
-    handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
-  }
-
-  const config = {
-    id: "llm-chat:chat-area",
-    displayName: "对话区域",
-    type: "component" as const,
-    width: rect.width,
-    height: rect.height,
-    // 对于菜单点击，我们使用组件中心作为起始点（需要转换为屏幕坐标）
-    mouseX: window.screenX + rect.left + rect.width / 2,
-    mouseY: window.screenY + rect.top + rect.height / 2,
-    handleOffsetX,
-    handleOffsetY,
-  };
 
   logger.info("通过菜单请求分离窗口", { config });
 
@@ -719,6 +705,8 @@ onMounted(async () => {
       <ComponentHeader
         v-if="props.isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"
+        id="llm-chat:chat-area"
+        title="对话区域"
         position="top"
         :drag-mode="props.isDetached ? 'window' : 'detach'"
         show-actions
@@ -866,9 +854,7 @@ onMounted(async () => {
           <!-- V2 树图视图 (力导向布局) -->
           <template v-else-if="viewMode === 'force-graph'">
             <div class="force-graph-container conversation-tree-graph-box">
-              <FlowTreeGraph
-                :session="llmChatStore.currentSessionDetail"
-              />
+              <FlowTreeGraph :session="llmChatStore.currentSessionDetail" />
             </div>
           </template>
         </div>

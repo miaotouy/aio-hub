@@ -704,39 +704,29 @@ function getPreviewSrc(): string {
 
 ## 6. 实施步骤
 
-### 第一阶段：基础设施与“影子文件”系统 (P0)
+### 第一阶段：基础设施与“影子文件”系统 (P0) - [已完成]
 
-1. 创建 `src/tools/canvas/` 目录结构。
-2. 实现 `canvas.registry.ts`，接入主程序侧边栏。
-3. 实现 `CanvasStore` (Pinia)：支持 `pendingUpdates` 状态管理。
-4. **实现 `GitInternalService.ts`**：封装 `isomorphic-git`，提供基础的 init/add/commit 能力。
-5. 开发基础管理界面 `CanvasManager.vue`。
-6. 实现 `CanvasRegistry.ts` (Agent 接口)：
-   - `update_file` 改为写入 Store 内存。
-   - 暴露 `commit` / `discard` 接口给 UI。
-7. 实现 `useCanvasStorage` composable，统一管理物理路径逻辑。
-8. **实现 `useCanvasSync.ts`**：在第一阶段即引入同步基础设施：
-   - 注册 `canvas` 命名空间 Action 处理器（`bus.onActionRequest('canvas', handler)`）
-   - 使用 `registerSyncSource` 注册影子文件同步源
-   - 创建 Layer 1 元数据同步引擎
-   - 参照 `useLlmChatSync.ts` 的延迟初始化模式：监听 `bus.hasDownstreamWindows` 动态创建/清理引擎
+1.  **✅ 目录结构**：已创建 `src/tools/canvas/` 及其子目录（components, composables, services, stores, types）。
+2.  **✅ 工具注册**：实现 `canvas.registry.ts` 并注册到 `src/config/tools.ts`。
+3.  **✅ 状态管理**：实现 `CanvasStore` (Pinia)，支持多画布的 `pendingUpdates` 影子文件管理及 Search/Replace Diff 应用引擎。
+4.  **✅ 版本控制**：实现 `GitInternalService.ts`，封装 `isomorphic-git` 并提供完整的 Tauri FS 适配层。
+5.  **✅ 管理界面**：实现 `CanvasWorkbench.vue`、`CanvasProjectList.vue`、`CanvasProjectCard.vue` 和 `CreateCanvasDialog.vue`。
+6.  **✅ Agent 接口**：在 `CanvasRegistry` 中定义了 `create_canvas`, `read_canvas_file`, `apply_canvas_diff`, `write_canvas_file`, `commit_changes` 等接口。
+7.  **✅ 存储逻辑**：实现 `useCanvasStorage`，对接 Tauri FS 插件及 Rust 后端高性能指令（`generate_directory_tree`, `delete_directory_in_app_data`）。
+8.  **✅ 同步基础设施**：实现 `useCanvasSync.ts`，注册了 Action 处理器及 Layer 1/2 同步引擎。
 
-### 第二阶段：独立窗口开发 (P1)
+### 第二阶段：编辑器与独立窗口开发 (P1) - [已完成]
 
-1. 开发极致纯净的 `CanvasWindow.vue` (无边框舞台模式)。
-2. 实现悬浮控制条与边缘触发交互逻辑。
-3. **实现混合渲染逻辑**：
-   - 优先从本地影子文件副本读取内容。
-   - 缺失时通过 `convertFileSrc` 从物理路径加载。
-4. 实现 `CanvasSidePanel.vue`，作为管理侧边栏。
-5. 实现“在 VSCode 中打开”的桥接指令。
-6. **实现 `useCanvasStateConsumer.ts`**（画布窗口端）：
-   - 参照 `useLlmChatStateConsumer.ts`，只接收不推送（`autoPush: false`）
-   - 监听 `canvas:file-delta` 增量通道，实时更新本地副本并刷新预览
-   - 启动时调用 `bus.requestInitialState()` 触发批量初始同步
-7. 实现文件监听刷新（主窗口 Tauri FS Watcher → 同步到画布窗口）。
+1.  **✅ 编辑器面板**：实现 `CanvasEditorPanel.vue`，集成 Monaco 编辑器（`RichCodeEditor`）及多文件 Tab 切换。
+2.  **✅ 文件树**：实现 `CanvasFileTree.vue` 和 `CanvasFileTreeItem.vue`，支持状态标记（Modified/New）。
+3.  **✅ 影子文件管理**：实现 `PendingChangesBar.vue` 用于 Commit/Discard 操作。
+4.  **✅ 独立预览窗口**：实现 `CanvasWindow.vue`（无边框舞台模式）及 `CanvasPreviewPane.vue`。
+5.  **✅ 悬浮控制条**：实现 `CanvasFloatingBar.vue`，支持热区触发、自动隐藏及窗口控制。
+6.  **✅ 预览引擎**：实现 `useCanvasPreview.ts`，支持基于 `srcdoc` 的多文件内联渲染及控制台日志捕获。
+7.  **✅ 状态消费者**：实现 `useCanvasStateConsumer.ts`，处理跨窗口增量同步及初始状态请求。
+8.  **✅ 状态栏**：实现 `CanvasStatusBar.vue` 展示项目统计及同步状态。
 
-### 第三阶段：Chat 集成 (P2)
+### 第三阶段：Chat 集成与细节优化 (P2) - [待启动]
 
 1. 编写 `CanvasInjectionProcessor` 并接入上下文管道。
 2. 在 Chat 界面增加“打开画布”快捷入口。

@@ -8,6 +8,7 @@ export const DEFAULT_TOOLS_ORDER = [
   // AI 工具
   '/llm-chat',
   '/media-generator',
+  '/canvas',
   '/vcp-connector',
   '/st-worldbook-editor',
   '/media-info-reader',

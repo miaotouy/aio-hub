@@ -36,6 +36,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
+const headerRef = ref<HTMLElement | null>(null);
 const isCollapsed = ref(false);
 const showMenu = ref(false);
 const isPinned = ref(false);
@@ -155,13 +156,15 @@ const handleDragInteraction = (event: MouseEvent) => {
     emit("mousedown", event);
   }
 };
-
 /**
  * 获取当前组件的分离配置
  * 供父组件在触发分离时使用
+ * @param event 可选的鼠标事件。如果未提供，则使用组件中心点作为起始位置。
  */
-const getDetachableConfig = (event: MouseEvent): DetachableConfig => {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+const getDetachableConfig = (event?: MouseEvent): DetachableConfig => {
+  // 优先使用事件目标，否则使用组件根元素
+  const el = (event?.currentTarget as HTMLElement) || headerRef.value;
+  const rect = el ? el.getBoundingClientRect() : { width: 0, height: 0, left: 0, top: 0 };
   const componentConfig = getDetachableComponentConfig(props.id || "");
 
   return {
@@ -170,10 +173,11 @@ const getDetachableConfig = (event: MouseEvent): DetachableConfig => {
     type: "component",
     width: rect.width,
     height: rect.height,
-    mouseX: event.screenX,
-    mouseY: event.screenY,
-    handleOffsetX: event.clientX - rect.left,
-    handleOffsetY: event.clientY - rect.top,
+    // 如果有事件则使用事件坐标，否则使用元素中心点
+    mouseX: event ? event.screenX : window.screenX + rect.left + rect.width / 2,
+    mouseY: event ? event.screenY : window.screenY + rect.top + rect.height / 2,
+    handleOffsetX: event ? event.clientX - rect.left : rect.width / 2,
+    handleOffsetY: event ? event.clientY - rect.top : rect.height / 2,
     disableNativeResize: componentConfig?.disableNativeResize,
   };
 };
@@ -184,7 +188,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="component-header" :class="positionClasses">
+  <div ref="headerRef" class="component-header" :class="positionClasses">
     <!-- Drag and Title Area -->
     <el-tooltip
       :content="dragTooltip"

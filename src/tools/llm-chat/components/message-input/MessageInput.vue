@@ -352,18 +352,7 @@ onMounted(async () => {
 const getDetachConfig = (e?: MouseEvent) => {
   if (!headerRef.value) return null;
 
-  // 如果没有传入事件，创建一个模拟事件用于获取基础配置
-  const event =
-    e ||
-    ({
-      currentTarget: headerRef.value.$el,
-      screenX: window.screenX + (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
-      screenY: window.screenY + (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
-      clientX: (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
-      clientY: (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
-    } as unknown as MouseEvent);
-
-  const config = headerRef.value.getDetachableConfig(event);
+  const config = headerRef.value.getDetachableConfig(e);
 
   // 应用开发者设置：强制允许原生缩放
   if (settings.value.developer.forceNativeResize) {

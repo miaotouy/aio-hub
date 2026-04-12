@@ -418,16 +418,7 @@ const isInputVisible = computed(() => {
 const handleDetach = async () => {
   if (!headerRef.value) return;
 
-  // 模拟一个 MouseEvent 来调用 getDetachableConfig
-  const dummyEvent = {
-    currentTarget: headerRef.value.$el,
-    screenX: window.screenX + (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
-    screenY: window.screenY + (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
-    clientX: (containerRef.value?.offsetLeft || 0) + (containerRef.value?.offsetWidth || 0) / 2,
-    clientY: (containerRef.value?.offsetTop || 0) + (containerRef.value?.offsetHeight || 0) / 2,
-  } as unknown as MouseEvent;
-
-  const config = headerRef.value.getDetachableConfig(dummyEvent);
+  const config = headerRef.value.getDetachableConfig();
 
   // 应用开发者设置：强制允许原生缩放
   if (settings.value.developer.forceNativeResize) {

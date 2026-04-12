@@ -309,14 +309,54 @@ export const useCanvasStore = defineStore("canvas", () => {
 
     let mergedTree = mergeUpdates(physicalTree);
 
-    // TODO: 处理影子文件中新增但物理磁盘尚不存在的文件（New 状态）
-    // 目前简单返回物理树的增强版
+    // 处理影子文件中新增但物理磁盘尚不存在的文件（New 状态）
+    const pendingPaths = Object.keys(updates);
+    
+    for (const fullPath of pendingPaths) {
+      const parts = fullPath.split("/");
+      let currentLevel = mergedTree;
+      let currentPath = "";
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        const isLast = i === parts.length - 1;
+
+        let node = currentLevel.find((n) => n.path === currentPath);
+
+        if (!node) {
+          // 创建新节点
+          node = {
+            name: part,
+            path: currentPath,
+            isDirectory: !isLast,
+            status: isLast ? "new" : "clean",
+            children: isLast ? undefined : [],
+          };
+          currentLevel.push(node);
+          // 排序：目录在前，文件名在后，按名称排序
+          currentLevel.sort((a, b) => {
+            if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+        } else if (isLast && node.status === "clean") {
+          // 如果物理树中已存在，mergeUpdates 已经处理过 status 了，这里确保万一
+          node.status = "modified";
+        }
+
+        if (node.isDirectory) {
+          if (!node.children) node.children = [];
+          currentLevel = node.children;
+        }
+      }
+    }
 
     return mergedTree;
   }
 
   /**
    * 核心 Diff 应用逻辑：解析 Search/Replace 块
+   * 增强版：支持缩进容错、行尾空格容错、多块累积
    */
   function applySearchReplaceDiff(originalContent: string, diff: string): string {
     const SEARCH_MARKER = "<<<<<<< SEARCH";
@@ -335,14 +375,14 @@ export const useCanvasStore = defineStore("canvas", () => {
         let replaceContentLines: string[] = [];
         i++;
 
-        // 读取 SEARCH 部分
+        // 读取 SEARCH 部分 (保留原始行，不 trim)
         while (i < lines.length && lines[i].trim() !== DIVIDER_MARKER) {
           searchContentLines.push(lines[i]);
           i++;
         }
         i++; // 跳过 =======
 
-        // 读取 REPLACE 部分
+        // 读取 REPLACE 部分 (保留原始行)
         while (i < lines.length && lines[i].trim() !== REPLACE_MARKER) {
           replaceContentLines.push(lines[i]);
           i++;
@@ -352,17 +392,74 @@ export const useCanvasStore = defineStore("canvas", () => {
         const replaceStr = replaceContentLines.join("\n");
 
         if (searchStr === "") {
-          // 如果 SEARCH 为空，通常意味着追加到末尾（或者 Agent 错误）
+          // 如果 SEARCH 为空，追加到末尾
           result += (result.endsWith("\n") ? "" : "\n") + replaceStr;
         } else {
-          // 精准替换
-          // 注意：这里可能需要处理缩进对齐等复杂情况，目前先实现基础替换
+          // 1. 尝试精确匹配
           if (result.includes(searchStr)) {
             result = result.replace(searchStr, replaceStr);
           } else {
-            logger.warn("Diff 匹配失败：未找到 SEARCH 内容", { searchStr });
-            // 抛出错误让 errorHandler 捕获
-            throw new Error("无法匹配文件中的代码块，请确保 SEARCH 部分与文件内容完全一致（包括缩进）");
+            // 2. 模糊匹配尝试
+            const resultLines = result.split(/\r?\n/);
+            let matchedIndex = -1;
+
+            // 策略 A: 忽略行尾空格匹配
+            const searchLinesNoTrailing = searchContentLines.map(l => l.trimEnd());
+            for (let j = 0; j <= resultLines.length - searchLinesNoTrailing.length; j++) {
+              let match = true;
+              for (let k = 0; k < searchLinesNoTrailing.length; k++) {
+                if (resultLines[j + k].trimEnd() !== searchLinesNoTrailing[k]) {
+                  match = false;
+                  break;
+                }
+              }
+              if (match) {
+                matchedIndex = j;
+                break;
+              }
+            }
+
+            // 策略 B: 忽略前导空格匹配 (但替换时尝试保持原缩进)
+            if (matchedIndex === -1) {
+              const searchLinesTrimmed = searchContentLines.map(l => l.trim());
+              for (let j = 0; j <= resultLines.length - searchLinesTrimmed.length; j++) {
+                let match = true;
+                for (let k = 0; k < searchLinesTrimmed.length; k++) {
+                  if (resultLines[j + k].trim() !== searchLinesTrimmed[k]) {
+                    match = false;
+                    break;
+                  }
+                }
+                if (match) {
+                  matchedIndex = j;
+                  break;
+                }
+              }
+            }
+
+            if (matchedIndex !== -1) {
+              // 执行替换
+              const before = resultLines.slice(0, matchedIndex);
+              const after = resultLines.slice(matchedIndex + searchContentLines.length);
+              
+              // 简单的缩进修复：取匹配到的第一行的前导空格，应用到 replaceStr 的每一行
+              const originalIndentation = resultLines[matchedIndex].match(/^\s*/)?.[0] || "";
+              const searchFirstLineIndentation = searchContentLines[0].match(/^\s*/)?.[0] || "";
+              
+              const fixedReplaceLines = replaceContentLines.map(line => {
+                // 如果 replace 行的缩进与 search 第一行一致，则替换为原文件缩进
+                if (line.startsWith(searchFirstLineIndentation)) {
+                  return originalIndentation + line.substring(searchFirstLineIndentation.length);
+                }
+                return line;
+              });
+
+              result = [...before, ...fixedReplaceLines, ...after].join("\n");
+            } else {
+              const context = searchContentLines.slice(0, 3).join("\n");
+              logger.warn("Diff 匹配失败", { searchStr: context });
+              throw new Error(`无法匹配代码块。未找到以下内容（前几行）：\n${context}\n请确保 SEARCH 部分与文件内容逻辑一致。`);
+            }
           }
         }
       }

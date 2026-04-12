@@ -1,5 +1,6 @@
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { debounce } from "lodash-es";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 export interface ConsoleMessage {
   id: string;
@@ -16,9 +17,19 @@ export function useCanvasPreview(options: {
   basePath: () => string | null;
 }) {
   const srcdoc = ref("");
+  const physicalSrc = ref("");
   const isRefreshing = ref(false);
   const previewMode = ref<"srcdoc" | "physical">("srcdoc");
   const consoleMessages = ref<ConsoleMessage[]>([]);
+
+  // 影子文件覆盖策略：当有影子文件时，强制回退到 srcdoc 模式以实时预览
+  const effectiveMode = computed(() => {
+    const pending = options.pendingUpdates();
+    if (Object.keys(pending).length > 0) {
+      return "srcdoc";
+    }
+    return previewMode.value;
+  });
 
   // 解析文件内容：优先影子文件，回退物理文件
   async function resolveFileContent(filepath: string): Promise<string> {
@@ -59,7 +70,8 @@ export function useCanvasPreview(options: {
         const href = match[1];
         if (href.startsWith("http://") || href.startsWith("https://")) continue;
         const cssContent = await resolveFileContent(href);
-        result = result.replace(match[0], `<style>/* ${href} */\n${cssContent}</style>`);
+        // 添加 data-file 属性以便 CSS 热替换定位
+        result = result.replace(match[0], `<style data-file="${href}">/* ${href} */\n${cssContent}</style>`);
       }
     }
     return result;
@@ -79,10 +91,11 @@ export function useCanvasPreview(options: {
     return result;
   }
 
-  // 注入控制台捕获脚本
+  // 注入控制台捕获脚本与热替换监听
   function injectConsoleCapture(html: string): string {
     const captureScript = `<script>
 (function() {
+  // 1. 控制台捕获
   const origConsole = { log: console.log, warn: console.warn, error: console.error, info: console.info };
   function send(level, args) {
     try {
@@ -104,16 +117,72 @@ export function useCanvasPreview(options: {
   window.addEventListener('error', function(e) {
     send('error', [e.message + ' at ' + e.filename + ':' + e.lineno]);
   });
+
+  // 2. CSS 热替换监听
+  window.addEventListener('message', function(e) {
+    if (e.data?.type === 'canvas-css-reload') {
+      // 处理外部 link 标签
+      const links = document.querySelectorAll('link[rel="stylesheet"]');
+      links.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && !href.startsWith('http')) {
+          // 添加时间戳强制刷新
+          const url = new URL(link.getAttribute('href'), window.location.href);
+          url.searchParams.set('t', Date.now().toString());
+          link.setAttribute('href', url.pathname + url.search);
+        }
+      });
+      // 处理内联 style 标签 (srcdoc 模式)
+      if (e.data.styles) {
+        Object.entries(e.data.styles).forEach(([filename, content]) => {
+          const style = document.querySelector(\`style[data-file="\${filename}"]\`);
+          if (style) style.textContent = content;
+        });
+      }
+    }
+  });
 })();
 </script>`;
     return html.replace(/<head[^>]*>/i, (match) => match + "\n" + captureScript);
   }
 
+  // 构建物理路径预览 URL
+  async function buildPhysicalPreview() {
+    const path = options.basePath();
+    if (!path) return "";
+    // Windows 路径分隔符替换为 /
+    const normalizedPath = path.replace(/\\/g, "/");
+    return convertFileSrc(normalizedPath + "/index.html");
+  }
+
+  // CSS 热替换
+  function hotReloadCss(changedFiles: Record<string, string>, iframe: HTMLIFrameElement | null) {
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage({
+      type: 'canvas-css-reload',
+      styles: changedFiles,
+    }, '*');
+  }
+
   // 刷新预览（防抖）
-  const refreshPreview = debounce(async () => {
+  const refreshPreview = debounce(async (iframe?: HTMLIFrameElement | null) => {
+    // 检查是否可以进行 CSS 热替换
+    const pending = options.pendingUpdates();
+    const changedFiles = Object.keys(pending);
+    const isOnlyCss = changedFiles.length > 0 && changedFiles.every(f => f.endsWith(".css"));
+
+    if (isOnlyCss && iframe) {
+      hotReloadCss(pending, iframe);
+      return;
+    }
+
     isRefreshing.value = true;
     try {
-      srcdoc.value = await buildSrcdoc();
+      if (effectiveMode.value === "srcdoc") {
+        srcdoc.value = await buildSrcdoc();
+      } else {
+        physicalSrc.value = await buildPhysicalPreview();
+      }
     } finally {
       isRefreshing.value = false;
     }
@@ -123,10 +192,19 @@ export function useCanvasPreview(options: {
   async function forceRefresh() {
     isRefreshing.value = true;
     try {
-      srcdoc.value = await buildSrcdoc();
+      if (effectiveMode.value === "srcdoc") {
+        srcdoc.value = await buildSrcdoc();
+      } else {
+        physicalSrc.value = await buildPhysicalPreview();
+      }
     } finally {
       isRefreshing.value = false;
     }
+  }
+
+  function setPreviewMode(mode: "srcdoc" | "physical") {
+    previewMode.value = mode;
+    forceRefresh();
   }
 
   // 清空控制台
@@ -136,12 +214,15 @@ export function useCanvasPreview(options: {
 
   return {
     srcdoc,
+    physicalSrc,
     isRefreshing,
     previewMode,
+    effectiveMode,
     consoleMessages,
     refreshPreview,
     forceRefresh,
     clearConsole,
     resolveFileContent,
+    setPreviewMode,
   };
 }

@@ -26,6 +26,12 @@
             <PanelBottom :size="16" />
           </button>
         </el-tooltip>
+        <el-tooltip :content="effectiveMode === 'srcdoc' ? '切换到物理预览 (支持图片/资源)' : '切换到内联预览 (实时影子文件)'" placement="bottom">
+          <button class="icon-btn" :class="{ 'is-active': effectiveMode === 'physical' }" @click="$emit('toggle-preview-mode')">
+            <Monitor :size="16" v-if="effectiveMode === 'srcdoc'" />
+            <Code :size="16" v-else />
+          </button>
+        </el-tooltip>
         <el-tooltip content="在 VSCode 中打开" placement="bottom">
           <button class="icon-btn" @click="$emit('open-vscode')">
             <ExternalLink :size="16" />
@@ -44,16 +50,18 @@
 
 <script setup lang="ts">
 import { ref, onUnmounted } from "vue";
-import { Brush, RefreshCw, PanelBottom, ExternalLink, X } from "lucide-vue-next";
+import { Brush, RefreshCw, PanelBottom, ExternalLink, X, Monitor, Code } from "lucide-vue-next";
 
 defineProps<{
   title: string;
   showStatusBar: boolean;
+  effectiveMode: "srcdoc" | "physical";
 }>();
 
 defineEmits<{
   (e: 'refresh'): void;
   (e: 'toggle-status-bar'): void;
+  (e: 'toggle-preview-mode'): void;
   (e: 'open-vscode'): void;
   (e: 'close'): void;
 }>();

@@ -5,9 +5,17 @@
     </div>
 
     <iframe
+      v-if="effectiveMode === 'srcdoc'"
       ref="iframeRef"
       class="preview-iframe"
       :srcdoc="srcdoc"
+      sandbox="allow-scripts allow-same-origin allow-popups"
+    ></iframe>
+    <iframe
+      v-else
+      ref="iframeRef"
+      class="preview-iframe"
+      :src="physicalSrc"
       sandbox="allow-scripts allow-same-origin allow-popups"
     ></iframe>
   </div>
@@ -19,6 +27,8 @@ import { Loader2 } from "lucide-vue-next";
 
 defineProps<{
   srcdoc: string;
+  physicalSrc: string;
+  effectiveMode: "srcdoc" | "physical";
   isRefreshing: boolean;
 }>();
 
@@ -27,6 +37,10 @@ const emit = defineEmits<{
 }>();
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
+
+defineExpose({
+  iframe: iframeRef,
+});
 
 const handleMessage = (event: MessageEvent) => {
   if (event.data?.type === "canvas-console") {

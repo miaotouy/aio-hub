@@ -62,6 +62,34 @@ export function useCanvasSync() {
     createStateEngine(activeCanvasId, "active-id");
     createStateEngine(pendingUpdates, "pending-updates");
 
+    // Layer 3: 监听 pendingUpdates 变化，发送增量推送
+    watch(
+      () => store.pendingUpdates[store.activeCanvasId || ""],
+      (newUpdates, oldUpdates) => {
+        if (!newUpdates || bus.windowType !== "main") return;
+
+        // 找出变更的文件
+        const changedPaths = Object.keys(newUpdates).filter(
+          (path) => !oldUpdates || newUpdates[path] !== oldUpdates[path]
+        );
+
+        for (const path of changedPaths) {
+          bus.syncState(
+            "canvas:file-delta" as any,
+            {
+              canvasId: store.activeCanvasId,
+              filePath: path,
+              content: newUpdates[path],
+              changeType: "full",
+            },
+            0,
+            false
+          );
+        }
+      },
+      { deep: true }
+    );
+
     // 处理重新附着
     if (bus.windowType === "main" || bus.windowType === "detached-tool") {
       const detachedManager = useDetachedManager();
@@ -81,12 +109,47 @@ export function useCanvasSync() {
   }
 
   // 注册 Action 处理器
-  const handleActionRequest = (action: string, params: any): Promise<any> => {
+  const handleActionRequest = async (action: string, params: any): Promise<any> => {
     logger.info("Canvas 收到操作请求", { action, params });
+    const canvasId = params.canvasId || store.activeCanvasId;
+
     switch (action) {
-      case "write-file":
-        store.writeFile(params.canvasId || store.activeCanvasId, params.filepath, params.content);
+      case "write-file": {
+        store.writeFile(canvasId, params.filepath, params.content);
+        // 主动推送增量
+        bus.syncState(
+          "canvas:file-delta" as any,
+          {
+            canvasId,
+            filePath: params.filepath,
+            content: params.content,
+            changeType: "full",
+          },
+          0,
+          false
+        );
         return Promise.resolve();
+      }
+      case "apply-diff": {
+        await store.applyDiff(canvasId, params.filepath, params.diff);
+        // applyDiff 内部会调用 writeFile，上面的 watch 会处理推送。
+        // 但为了即时性，也可以在这里手动推送一次最新的内容
+        const newContent = await store.readCanvasFileAsync(canvasId, params.filepath);
+        if (newContent !== null) {
+          bus.syncState(
+            "canvas:file-delta" as any,
+            {
+              canvasId,
+              filePath: params.filepath,
+              content: newContent,
+              changeType: "full",
+            },
+            0,
+            false
+          );
+        }
+        return Promise.resolve();
+      }
       case "commit-changes":
         return store.commitChanges(params.canvasId || store.activeCanvasId, params.message);
       case "discard-changes":

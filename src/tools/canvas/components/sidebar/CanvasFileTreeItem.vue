@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { ChevronRight, Folder, FolderOpen, Plus } from "lucide-vue-next";
+import { ChevronRight, Folder, FolderOpen, Plus, Trash2 } from "lucide-vue-next";
 import type { CanvasFileNode } from "../../types";
 import FileIcon from "@/components/common/FileIcon.vue";
 
@@ -42,6 +42,7 @@ const onChildSelect = (path: string) => {
       :class="{
         'is-active': activeFile === node.path,
         'is-directory': node.isDirectory,
+        'is-deleted': node.status === 'deleted',
       }"
       :style="{ paddingLeft: `${12 + depth * 16}px` }"
       @click="handleSelect"
@@ -67,6 +68,9 @@ const onChildSelect = (path: string) => {
         <div v-if="node.status === 'modified'" class="status-dot modified" title="已修改"></div>
         <div v-if="node.status === 'new'" class="status-icon new" title="新增文件">
           <Plus :size="10" />
+        </div>
+        <div v-if="node.status === 'deleted'" class="status-icon deleted" title="已删除">
+          <Trash2 :size="10" />
         </div>
       </div>
     </div>
@@ -104,6 +108,13 @@ const onChildSelect = (path: string) => {
     background-color: rgba(var(--el-color-primary-rgb), 0.1);
     color: var(--el-color-primary);
     font-weight: 500;
+  }
+
+  &.is-deleted {
+    opacity: 0.6;
+    .item-name {
+      text-decoration: line-through;
+    }
   }
 
   .item-icon-wrapper {
@@ -155,7 +166,11 @@ const onChildSelect = (path: string) => {
       justify-content: center;
       
       &.new {
-        color: var(--el-color-warning);
+        color: var(--el-color-success);
+      }
+
+      &.deleted {
+        color: var(--el-color-danger);
       }
     }
   }

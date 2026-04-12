@@ -4,8 +4,10 @@
     <CanvasFloatingBar
       :title="activeCanvas?.metadata.name || 'Canvas Stage'"
       :show-status-bar="showStatusBar"
+      :effective-mode="effectiveMode"
       @refresh="forceRefresh"
       @toggle-status-bar="showStatusBar = !showStatusBar"
+      @toggle-preview-mode="togglePreviewMode"
       @open-vscode="openInVSCode"
       @close="closeWindow"
     />
@@ -13,7 +15,10 @@
     <!-- 主预览区域 -->
     <div class="preview-container">
       <CanvasPreviewPane
+        ref="previewPaneRef"
         :srcdoc="srcdoc"
+        :physical-src="physicalSrc"
+        :effective-mode="effectiveMode"
         :is-refreshing="isRefreshing"
         @console-message="handleConsoleMessage"
       />
@@ -49,18 +54,24 @@ const { activeCanvasId, pendingUpdates } = useCanvasStateConsumer();
 // 2. 存储访问（用于物理文件回退）
 const storage = useCanvasStorage();
 
+const previewPaneRef = ref<any>(null);
+const canvasBasePath = ref<string | null>(null);
+
 // 3. 预览引擎
 const {
   srcdoc,
+  physicalSrc,
+  effectiveMode,
   isRefreshing,
   consoleMessages,
   refreshPreview,
   forceRefresh,
+  setPreviewMode,
 } = useCanvasPreview({
   canvasId: () => activeCanvasId.value,
   pendingUpdates: () => pendingUpdates,
   readPhysicalFile: (id, path) => storage.readPhysicalFile(id, path),
-  basePath: () => null, // 暂时不需要
+  basePath: () => canvasBasePath.value,
 });
 
 // 4. UI 状态
@@ -70,17 +81,22 @@ const activeCanvas = ref<any>(null); // 这里的 metadata 需要通过某种方
 // 监听 ID 变化，加载元数据（如果是第一次打开）
 watch(activeCanvasId, async (newId) => {
   if (newId) {
-    const metadata = await storage.readCanvasMetadata(newId);
+    const [metadata, basePath] = await Promise.all([
+      storage.readCanvasMetadata(newId),
+      storage.getCanvasBasePath(newId)
+    ]);
+    
     if (metadata) {
       activeCanvas.value = { metadata };
     }
-    refreshPreview();
+    canvasBasePath.value = basePath;
+    refreshPreview(previewPaneRef.value?.iframe);
   }
 }, { immediate: true });
 
 // 监听影子文件变化，自动刷新预览
 watch(() => ({ ...pendingUpdates }), () => {
-  refreshPreview();
+  refreshPreview(previewPaneRef.value?.iframe);
 }, { deep: true });
 
 function handleConsoleMessage(payload: any) {
@@ -99,8 +115,13 @@ function handleConsoleMessage(payload: any) {
 
 async function openInVSCode() {
   if (!activeCanvasId.value) return;
-  const basePath = await storage.getCanvasBasePath(activeCanvasId.value);
+  const basePath = canvasBasePath.value || await storage.getCanvasBasePath(activeCanvasId.value);
   await invoke("open_path_in_vscode", { path: basePath });
+}
+
+function togglePreviewMode() {
+  const nextMode = effectiveMode.value === "srcdoc" ? "physical" : "srcdoc";
+  setPreviewMode(nextMode);
 }
 
 function closeWindow() {

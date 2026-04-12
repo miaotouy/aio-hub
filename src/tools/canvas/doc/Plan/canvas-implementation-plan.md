@@ -101,11 +101,21 @@
   - 定义 `ToolConfig`，包含图标 (`LayoutTemplate` 或 `Brush`)、名称 ("画布")。
   - 注册主视图路由 `/canvas-manager`。
   - 导出 `CanvasRegistry` 类，对接 `tool-calling` 系统。
-- **管理界面 (`CanvasManager.vue`)**：
-  - **项目列表**：以卡片或列表形式展示所有物理存储的画布项目。
-  - **预览图**：(可选) 展示画布最后一次运行的截图。
-  - **操作栏**：新建项目、导入/导出项目、批量删除。
-  - **状态指示**：显示哪些画布当前正处于“独立窗口打开”状态。
+- **工作台界面 (`CanvasWorkbench.vue`)**：
+  - **采用“主控制台”架构**：顶层提供持久化的 `WorkbenchHeader`，支持多项目标签页切换。
+  - **WorkbenchHeader**：
+    - **主页按钮**：固定在最左侧，点击回到项目大厅（卡片列表）。
+    - **项目标签页**：显示当前已打开编辑的画布项目，支持点击切换、关闭，并显示“未提交更改”的小圆点提示。
+    - **全局操作**：新建项目按钮、独立预览窗口全局开关、一键 Commit/Discard 所有项目更改。
+  - **主页视图 (`CanvasProjectList.vue`)**：
+    - 以卡片或列表形式展示所有物理存储的画布项目。
+    - **预览图**：(可选) 展示画布最后一次运行的截图。
+    - **操作栏**：导入/导出项目、批量删除。
+  - **编辑视图 (`CanvasEditorPanel.vue`)**：
+    - 当从主页选中某个项目后，在当前 Tab 下加载。
+    - **左侧文件树**：展示当前项目的文件结构，支持双击打开文件。
+    - **中心编辑区**：基于 `RichCodeEditor`，支持多文件 Tab 切换。
+    - **底部面板**：集成 Diff 审核视图、控制台日志、Git 版本历史。
 
 ### 4.2 CanvasRegistry (工具调用接口 - 手术刀模式)
 
@@ -144,9 +154,9 @@ CanvasWindow 采用“极致纯净”设计，旨在作为一个独立的展示/
 - **UI 交互与控制**：
   - **无边框设计**：默认隐藏标题栏，支持通过 `useDetachable` 的无边框窗口配置。
   - **全屏/桌面化**：支持无边框最大化，可作为桌面背景或全屏应用使用。
-  - **悬浮控制条 (Floating Controller)**：鼠标悬停在窗口顶部边缘时，平滑滑出一个半透明毛玻璃控制条，包含：窗口控制（关闭/最小化/最大化）、置顶切换、以及“管理面板”入口。
-  - **侧边触发菜单 (Edge Trigger)**：鼠标悬停在左/右侧边缘时，可滑出极简的文件切换列表或项目快照。
-  - **右键上下文菜单**：提供“在 VSCode 中打开”、“刷新预览”、“复制项目路径”、“切换渲染引擎”等高级操作。
+  - **悬浮控制条 (Floating Controller)**：鼠标悬停在窗口顶部边缘时，平滑滑出一个半透明毛玻璃控制条，作为全局操作中心。包含：窗口控制、置顶切换、**侧边栏开关、状态栏开关**以及“管理面板”入口。
+  - **显式 UI 开关 (Manual Toggle)**：文件树侧边栏和底部状态栏默认**隐藏**，且**不使用**自动滑出逻辑，以避免干扰页面交互。用户必须通过控制条、右键菜单或快捷键显式开启。
+  - **右键上下文菜单**：提供“显示/隐藏文件树”、“显示/隐藏状态栏”、“在 VSCode 中打开”、“刷新预览”、“复制项目路径”、“切换渲染引擎”等操作。
   - **全局快捷键**：`F5` (刷新), `Ctrl+B` (切换管理面板), `Alt+Enter` (全屏/窗口模式切换)。
 - **技术实现**：基于 `HtmlInteractiveViewer` 的 VFS 升级版，直接加载本地物理路径资源（通过 Tauri `convertFileSrc`）。
 
@@ -328,7 +338,347 @@ metadataEngine.manualPush(true); // 全量兜底广播
 
 > **注意**：无需手动实现初始同步逻辑。只需确保 Layer 1 的引擎使用 `autoReceive: true`，Layer 2 的 `registerSyncSource` 正确注册即可。
 
-### 4.5 Git Analyzer 联动 (Ecosystem Integration)
+### 4.5 UI 组件体系 (Component Architecture)
+
+Canvas 的 UI 分为三个场景：**主窗口管理界面**、**独立窗口（舞台）**、**共享组件**。以下是完整的组件树和职责定义。
+
+#### 4.5.1 目录结构
+
+```
+src/tools/canvas/
+├── canvas.registry.ts              # 工具注册入口
+├── CanvasWorkbench.vue             # 主窗口工作台（顶层路由组件）
+├── types/
+│   ├── index.ts                    # 核心类型定义
+│   └── canvas-metadata.ts          # 画布元数据类型
+├── stores/
+│   └── canvasStore.ts              # Pinia Store
+├── composables/
+│   ├── useCanvasStorage.ts         # 物理路径与文件 IO
+│   ├── useCanvasSync.ts            # 主窗口端同步层
+│   ├── useCanvasStateConsumer.ts   # 画布窗口端同步消费者
+│   ├── useCanvasPreview.ts         # 预览引擎（VFS 合并 + iframe 控制）
+│   ├── useCanvasFileTree.ts        # 文件树状态管理
+│   ├── useCanvasConsole.ts         # 控制台日志收集
+│   └── useCanvasKeyboard.ts        # 全局快捷键绑定
+├── services/
+│   └── GitInternalService.ts       # isomorphic-git 封装
+├── components/
+│   ├── workbench/                  # === 主窗口工作台组件 ===
+│   │   ├── WorkbenchHeader.vue     # 持久化导航头部（主页+项目Tab）
+│   │   ├── WorkbenchFooter.vue     # 全局状态栏
+│   │   ├── CanvasProjectList.vue   # 项目大厅（卡片/列表双视图）
+│   │   ├── CanvasProjectCard.vue   # 单个项目卡片
+│   │   ├── CreateCanvasDialog.vue  # 新建画布对话框
+│   │   └── CanvasEditorPanel.vue   # 编辑视图容器
+│   ├── window/                     # === 独立窗口（舞台）组件 ===
+│   │   ├── CanvasWindow.vue        # 舞台顶层容器
+│   │   ├── CanvasPreviewPane.vue   # 预览区域（VFS-aware iframe）
+│   │   ├── CanvasFloatingBar.vue   # 悬浮控制条
+│   │   ├── CanvasStatusBar.vue     # 底部状态栏
+│   │   └── CanvasContextMenu.vue   # 右键上下文菜单
+│   ├── sidebar/                    # === 侧边栏组件 ===
+│   │   ├── CanvasSidePanel.vue     # 侧边栏容器（可折叠）
+│   │   ├── CanvasFileTree.vue      # 文件树组件
+│   │   ├── CanvasFileTreeItem.vue  # 文件树节点
+│   │   └── CanvasConsolePanel.vue  # 控制台/日志面板
+│   └── shared/                     # === 跨场景共享组件 ===
+│       ├── PendingChangesBar.vue   # 待定更改操作栏（Commit/Discard）
+│       ├── CanvasVersionHistory.vue # 版本历史面板（Git log 可视化）
+│       └── CanvasFileIcon.vue      # 画布文件图标（复用 FileIcon）
+└── doc/
+    └── Plan/
+        └── canvas-implementation-plan.md
+```
+
+#### 4.5.2 主窗口管理界面 (`CanvasManager.vue`)
+
+管理界面是用户在主程序侧边栏点击"画布"后看到的页面，负责画布项目的 CRUD 和全局状态展示。
+
+```
+┌─────────────────────────────────────────────────────┐
+│  CanvasManagerToolbar                               │
+│  [+ 新建] [导入] [搜索...]          [列表/卡片切换] │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  CanvasProjectList                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐            │
+│  │ Project  │ │ Project  │ │ Project  │            │
+│  │ Card     │ │ Card     │ │ Card     │            │
+│  │          │ │ 🟢打开中  │ │ 🟡有更改  │            │
+│  │ [打开]   │ │ [聚焦]   │ │ [打开]   │            │
+│  └──────────┘ └──────────┘ └──────────┘            │
+│                                                     │
+│  ┌──────────┐ ┌──────────┐                          │
+│  │ Project  │ │ + 新建   │                          │
+│  │ Card     │ │ 画布     │                          │
+│  └──────────┘ └──────────┘                          │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**组件职责**：
+
+- **`CanvasManager.vue`**：顶层路由组件，组合工具栏和项目列表，管理视图模式状态。
+- **`CanvasManagerToolbar.vue`**：顶部操作栏。包含新建按钮、导入按钮、搜索框、视图切换（卡片/列表）。
+- **`CanvasProjectList.vue`**：项目列表容器，支持卡片网格和紧凑列表两种布局。接收过滤/排序后的画布列表，渲染 `CanvasProjectCard`。空状态显示引导提示。
+- **`CanvasProjectCard.vue`**：单个项目卡片。展示：缩略图（可选）、标题、最后修改时间、文件数量、状态徽章。操作：打开独立窗口、在 VSCode 中打开、删除、在 Git Analyzer 中分析。
+- **`CreateCanvasDialog.vue`**：新建画布对话框（基于 `BaseDialog`）。输入项目标题，选择模板（空白 / HTML 基础 / Vue SFC / React），确认后调用 Store 创建。
+- **`CanvasStatusBadge.vue`**：状态指示组件。状态枚举：`idle`（未打开）、`open`（独立窗口已打开）、`pending`（有未提交更改）、`syncing`（同步中）。
+
+#### 4.5.3 独立窗口 — 舞台模式 (`CanvasWindow.vue`)
+
+CanvasWindow 是画布的核心展示/运行环境，以**极致纯净**为设计目标。默认全屏预览，所有控制元素均为悬浮/触发式，不占用永久空间。
+
+```
+┌─────────────────────────────────────────────────────┐
+│ (悬浮控制条 - 鼠标悬停顶部时滑出)                    │
+│  CanvasFloatingBar                                  │
+│  [标题] [刷新] [切换引擎] [VSCode] [置顶] [—][□][×] │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│                                                     │
+│              CanvasPreviewPane                      │
+│           (iframe 全屏预览区域)                      │
+│                                                     │
+│                                                     │
+│  ┌─────────┐                                        │
+│  │[文件][Git][控制台]  ← 顶部水平 Tab 切换           │
+│  │ Side    │ (显式开关 - 默认隐藏)                   │
+│  │ Panel   │                                        │
+│  │ (当前面板内容)                                    │
+│  │  文件树 / Git 状态 / 控制台日志                   │
+│  └─────────┘                                        │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│ CanvasStatusBar (底部状态栏 - 显式开关 - 默认隐藏)    │
+│ [index.html] [3 files] [● 2 pending] [Git: clean]  │
+└─────────────────────────────────────────────────────┘
+```
+
+**组件职责**：
+
+- **`CanvasWindow.vue`**：舞台顶层容器。职责：
+  - 组合所有子组件（预览、控制条、侧边栏、状态栏、右键菜单）
+  - 管理 UI 组件的显隐持久化状态（`showSidebar`, `showStatusBar`）
+  - 注册全局快捷键（通过 `useCanvasKeyboard`）
+  - 分离模式下的壁纸层和 resize 手柄（参照 `ChatArea.vue` 的模式）
+  - 通过 `useCanvasStateConsumer` 接收同步数据
+
+- **`CanvasPreviewPane.vue`**：VFS-aware 的 iframe 预览器。核心升级点（相对于 `HtmlInteractiveViewer`）：
+  - **VFS 合并渲染**：不直接使用 `srcdoc`，而是通过 `convertFileSrc` 加载物理文件，同时将影子文件（`pendingUpdates`）通过 Service Worker 或 iframe 内注入的方式覆盖。
+  - **多文件项目支持**：处理 `<link>`, `<script src>`, `<img src>` 等相对路径引用，自动解析到画布项目目录。
+  - **热重载**：监听影子文件变更，自动刷新 iframe（可配置为全量刷新或 CSS-only 热替换）。
+  - **错误捕获**：复用 `HtmlInteractiveViewer` 的 `logCaptureScript`，将 iframe 内的 console/error 转发到控制台面板。
+  - **CSP 策略**：在 Canvas 场景下放宽 CSP，允许 `asset:` 协议和本地资源加载。
+  - **渲染引擎切换**：支持 `srcdoc`（内联模式）和 `src`（物理路径模式）两种引擎，用户可在控制条中切换。
+
+- **`CanvasFloatingBar.vue`**：悬浮控制条。交互设计：
+  - **触发方式**：鼠标进入窗口顶部 40px 热区时，以 `transform: translateY` 动画从上方滑出。
+  - **自动隐藏**：鼠标离开控制条区域 1.5 秒后自动滑回。
+  - **视觉**：半透明毛玻璃背景（`backdrop-filter: blur(var(--ui-blur))`），圆角胶囊形。
+  - **按钮组**：
+    - 左侧：画布标题（可编辑）、当前文件名
+    - 中间：刷新预览、**[文件树开关]、[状态栏开关]**、切换渲染引擎
+    - 右侧：在 VSCode 中打开、置顶切换、最小化、最大化/还原、关闭
+  - **拖拽**：整个控制条区域支持 `data-tauri-drag-region` 拖拽窗口。
+
+- **`CanvasStatusBar.vue`**：底部状态栏。单行极简设计：
+  - 左侧：当前活跃文件名、项目文件总数
+  - 中间：待定更改数量（点击展开 `PendingChangesBar`）
+  - 右侧：Git 状态（clean/dirty）、渲染引擎标识
+  - 高度固定 28px，背景使用 `var(--card-bg)` 半透明。
+
+- **`CanvasContextMenu.vue`**：右键上下文菜单（使用 Teleport 到 body）。菜单项：
+  - 刷新预览 (`F5`)
+  - 在浏览器中打开
+  - 在 VSCode 中打开 (`Ctrl+Shift+E`)
+  - 切换管理面板 (`Ctrl+B`)
+  - 复制项目路径
+  - 切换渲染引擎
+  - 全屏/窗口模式 (`Alt+Enter`)
+
+#### 4.5.4 侧边栏组件 (`CanvasSidePanel`)
+
+侧边栏承载文件管理和调试信息，可在独立窗口中通过边缘触发展开，也可在主窗口中作为常驻面板。
+
+- **`CanvasSidePanel.vue`**：侧边栏容器。
+  - **触发方式**（独立窗口）：通过 `CanvasFloatingBar` 开关或快捷键显式切换。展开时可选择"叠加（Overlay）"或"挤压（Push）"布局，宽度 280px。
+  - **常驻模式**（主窗口）：作为 `CanvasManager` 的右侧面板，始终可见。
+  - **选项卡设计**：在侧边栏**顶部**使用一行小型水平 Tab 切换（文件树 / Git / 控制台），**不采用** VSCode 式的左侧竖排图标栏。理由：主程序本身已有左侧竖排工具切换侧边栏，Canvas 内部不需要再嵌套一层竖排图标；且 Canvas 侧边栏的面板数量有限（3~4 个），水平 Tab 完全够用，视觉更简洁。
+  - **Tab 样式**：紧凑的图标+文字组合（如 `📁 文件` / `🔀 Git` / `📋 控制台` 此处为示例，实施应使用项目规范的图标库），选中态使用底部高亮条，未选中态为半透明文字。Tab 栏高度约 32px，不占用过多纵向空间。
+  - **视觉**：半透明毛玻璃背景，与主预览区域通过 1px 分隔线区分。
+
+- **`CanvasFileTree.vue`**：文件树组件。
+  - **数据源**：合并物理文件树（来自 `generate_directory_tree`）和影子文件（`pendingUpdates` 中的新文件）。
+  - **节点渲染**：使用 `CanvasFileTreeItem` 递归渲染，每个节点显示文件图标（复用 `FileIcon`）、文件名、修改状态标记。
+  - **状态标记**：
+    - 🟢 `modified` — 影子文件中有更改（绿色圆点）
+    - 🟡 `new` — 仅存在于影子文件中的新文件（黄色加号）
+    - ⚪ `clean` — 与物理文件一致（无标记）
+  - **交互**：
+    - 单击文件：在预览中高亮/跳转到该文件（如果是入口文件则刷新预览）
+    - 双击文件：（如果集成了编辑器）在编辑器中打开
+    - 右键文件：复制路径、在 VSCode 中打开、删除
+  - **过滤**：默认隐藏 `.git/` 和 `.canvas.json`，可通过设置显示。
+
+- **`CanvasFileTreeItem.vue`**：文件树节点组件。
+  - 展示：缩进层级、展开/折叠箭头（目录）、文件图标、文件名、状态标记。
+  - 支持拖拽排序（未来扩展）。
+
+- **`CanvasConsolePanel.vue`**：控制台/日志面板。
+  - **数据源**：通过 `useCanvasConsole` 收集 iframe 内转发的 `console.log/warn/error` 和运行时错误。
+  - **展示**：类似浏览器 DevTools 的控制台，支持 log/warn/error 级别过滤、时间戳、可折叠的对象展示。
+  - **操作**：清空日志、复制全部、过滤级别切换。
+  - **视觉**：暗色背景（`var(--vscode-editor-background)`），等宽字体。
+
+#### 4.5.5 共享组件
+
+- **`PendingChangesBar.vue`**：待定更改操作栏。
+  - **触发位置**：在 CanvasWindow 的状态栏上方弹出，或在 CanvasManager 的项目详情中显示。
+  - **展示**：列出所有有更改的文件名和变更类型（modified/new/deleted）。
+  - **操作**：
+    - **Commit All**：提交所有更改（调用 `canvas:commit-changes` Action）
+    - **Discard All**：丢弃所有更改（调用 `canvas:discard-changes` Action，需二次确认）
+    - **单文件操作**：对单个文件进行 Commit 或 Discard
+  - **视觉**：类似 VSCode 的 Source Control 面板，紧凑的文件列表 + 操作按钮。
+
+- **`CanvasVersionHistory.vue`**：版本历史面板。
+  - **数据源**：通过 `GitInternalService` 读取 Git log。
+  - **展示**：时间线形式，每个节点显示 commit hash（短）、commit message、时间。
+  - **操作**：
+    - 查看某次提交的 diff
+    - 回滚到某个版本（`git checkout`）
+    - 在 Git Analyzer 中打开（跳转到 Git Analyzer 工具）
+
+- **`CanvasFileIcon.vue`**：画布文件图标。轻量封装，直接复用项目中的 `FileIcon` 组件，传入文件名即可自动匹配图标。
+
+#### 4.5.6 交互状态机
+
+**悬浮控制条 (`CanvasFloatingBar`) 状态机**：
+
+```
+                    ┌─────────────┐
+                    │   hidden    │ (默认状态)
+                    └──────┬──────┘
+                           │ mouseenter 顶部热区
+                           ▼
+                    ┌─────────────┐
+           ┌───────│  revealing  │ (200ms 动画滑出)
+           │       └──────┬──────┘
+           │              │ 动画完成
+           │              ▼
+           │       ┌─────────────┐
+           │       │   visible   │ (完全可见)
+           │       └──────┬──────┘
+           │              │ mouseleave 控制条区域
+           │              ▼
+           │       ┌─────────────┐
+           │       │   waiting   │ (等待 1.5s)
+           │       └──────┬──────┘
+           │              │ 1.5s 超时 / mouseenter 取消等待
+           │              ▼
+           │       ┌─────────────┐
+           └───────│   hiding    │ (200ms 动画滑入)
+                   └──────┬──────┘
+                          │ 动画完成
+                          ▼
+                   ┌─────────────┐
+                   │   hidden    │
+                   └─────────────┘
+
+特殊规则：
+- 如果用户正在与控制条内的元素交互（如编辑标题），锁定为 visible
+- 右键菜单打开时，锁定为 visible
+- 全屏模式下，热区扩大到顶部 60px
+```
+
+**侧边栏 (`CanvasSidePanel`) 状态机**：
+
+```
+                    ┌─────────────┐
+                    │   hidden    │ (默认状态)
+                    └──────┬──────┘
+                           │ Ctrl+B / 控制条开关 / 右键菜单
+                           ▼
+                    ┌─────────────┐
+                    │   visible   │ (280px 宽度)
+                    └──────┬──────┘
+                           │ Ctrl+B / 关闭按钮 / Esc
+                           ▼
+                    ┌─────────────┐
+                    │   hidden    │
+                    └─────────────┘
+
+特殊规则：
+- 状态持久化：记录用户在每个画布中是否开启了侧边栏
+- 自动避让：检测到 Agent 正在大规模修改文件时，如果侧边栏开启，可提供“自动折叠”选项
+- 主窗口中始终为常驻模式
+```
+
+#### 4.5.7 快捷键映射
+
+| 快捷键         | 作用域                     | 功能                                 |
+| -------------- | -------------------------- | ------------------------------------ |
+| `F5`           | 独立窗口                   | 刷新预览（浏览器自带）               |
+| `Ctrl+B`       | 独立窗口                   | 切换侧边栏（文件树）                 |
+| `Ctrl+J`       | 独立窗口                   | 切换底部状态栏                       |
+| `Ctrl+Shift+E` | 独立窗口                   | 在 VSCode 中打开                     |
+| `Alt+Enter`    | 独立窗口                   | 全屏/窗口模式切换                    |
+| `Ctrl+S`       | 独立窗口                   | 提交所有待定更改（Commit）           |
+| `Ctrl+Z`       | 独立窗口（非编辑器焦点时） | 撤回上一次影子文件修改（Undo）       |
+| `Esc`          | 独立窗口                   | 关闭侧边栏 / 关闭右键菜单 / 取消选中 |
+
+#### 4.5.8 预览引擎设计 (`useCanvasPreview`)
+
+Canvas 的预览引擎是对 `HtmlInteractiveViewer` 的重大升级，核心差异在于**多文件项目支持**和**VFS 合并**。
+
+**渲染模式对比**：
+
+| 特性         | 模式 A：srcdoc 内联               | 模式 B：物理路径                       |
+| ------------ | --------------------------------- | -------------------------------------- |
+| 入口加载     | 将 `index.html` 内容注入 `srcdoc` | 使用 `convertFileSrc(path)` 设置 `src` |
+| CSS/JS 引用  | 需要内联合并所有引用文件          | 浏览器自动解析相对路径                 |
+| 影子文件覆盖 | 直接替换 srcdoc 中的内容          | 需要 Service Worker 拦截请求           |
+| 适用场景     | 单文件 HTML、简单项目             | 多文件项目、复杂资源引用               |
+| 热重载       | 全量替换 srcdoc                   | 可实现 CSS-only 热替换                 |
+
+**VFS 合并策略**：
+
+```typescript
+// useCanvasPreview.ts 核心逻辑
+function resolveFileContent(filePath: string): string {
+  // 1. 优先从影子文件读取（内存层）
+  if (pendingUpdates[filePath]) {
+    return pendingUpdates[filePath];
+  }
+  // 2. 回退到物理文件（通过 Tauri read_text_file_force）
+  return await readPhysicalFile(canvasBasePath + "/" + filePath);
+}
+
+// 模式 A：srcdoc 合并
+function buildSrcdoc(): string {
+  let html = resolveFileContent("index.html");
+  // 将 <link href="style.css"> 替换为内联 <style>
+  // 将 <script src="script.js"> 替换为内联 <script>
+  return inlineAllReferences(html, resolveFileContent);
+}
+
+// 模式 B：物理路径 + Service Worker
+function getPreviewSrc(): string {
+  return convertFileSrc(canvasBasePath + "/index.html");
+  // Service Worker 拦截子资源请求，优先返回影子文件内容
+}
+```
+
+**热重载策略**：
+
+- 当 `pendingUpdates` 中的文件变更时，判断变更文件类型：
+  - `.css` 文件：尝试 CSS-only 热替换（通过 `postMessage` 通知 iframe 内的注入脚本重新加载 `<link>` 标签）
+  - `.js` / `.html` 文件：全量刷新 iframe
+- 防抖：连续变更时，300ms 防抖后执行刷新，避免 Agent 批量修改时的频繁刷新。
+
+### 4.6 Git Analyzer 联动 (Ecosystem Integration)
 
 - **入口接入**：在 Canvas 管理界面提供“在 Git Analyzer 中分析”按钮。
 - **数据共享**：Git Analyzer 通过 Rust 后端的 `git2-rs` 直接读取画布目录下的 `.git` 文件夹，生成开发者报告。

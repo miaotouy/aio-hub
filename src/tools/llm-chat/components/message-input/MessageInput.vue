@@ -497,7 +497,6 @@ const handleDragStart = (e: MouseEvent) => {
         v-if="isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"
         id="llm-chat:chat-input"
-        title="聊天输入框"
         position="left"
         :drag-mode="isDetached ? 'window' : 'detach'"
         show-actions

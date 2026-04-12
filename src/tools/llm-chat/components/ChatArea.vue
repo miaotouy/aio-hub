@@ -697,7 +697,6 @@ onMounted(async () => {
         v-if="props.isDetached || settings.uiPreferences.enableDetachableHandle"
         ref="headerRef"
         id="llm-chat:chat-area"
-        title="对话区域"
         position="top"
         :drag-mode="props.isDetached ? 'window' : 'detach'"
         show-actions

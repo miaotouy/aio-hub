@@ -420,7 +420,9 @@ async function handleReattach() {
 
 /* 分离模式下添加更强的阴影和圆角 */
 .message-monitor-page.detached-mode {
-  height: 100vh;
+  position: absolute;
+  inset: 32px;
+  height: auto;
   border-radius: 16px;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),

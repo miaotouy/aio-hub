@@ -605,9 +605,9 @@ const handleDragStart = (e: MouseEvent) => {
 .message-input-container.detached-mode {
   /* 移除原本的沉底逻辑，改为绝对定位在顶部，向下生长 */
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  top: 32px;
+  left: 32px;
+  right: 32px;
   bottom: auto;
   height: auto;
   margin: 0;

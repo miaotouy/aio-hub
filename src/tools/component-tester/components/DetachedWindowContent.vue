@@ -220,9 +220,14 @@ onMounted(() => {
 }
 
 .detached-window-content.is-detached {
+  margin: 32px;
+  height: calc(100% - 64px);
   border: none;
-  border-radius: 0;
+  border-radius: 16px;
   background-color: var(--detached-base-bg, var(--container-bg));
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.25),
+    0 0 0 1px var(--border-color);
 }
 
 /* 模拟壁纸 */

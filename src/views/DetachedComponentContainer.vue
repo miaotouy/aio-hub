@@ -160,8 +160,6 @@ onMounted(async () => {
   background: transparent !important;
   overflow: visible;
   pointer-events: none;
-  gap: 8px;
-  padding: 32px;
   box-sizing: border-box;
 }
 

@@ -952,7 +952,8 @@ onMounted(async () => {
 
 /* 分离模式下添加更强的阴影和圆角 */
 .chat-area-container.detached-mode {
-  height: 90vh;
+  margin: 32px;
+  height: calc(100% - 64px);
   border-radius: 16px;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),

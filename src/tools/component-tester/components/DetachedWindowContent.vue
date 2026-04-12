@@ -14,6 +14,8 @@
     <div class="resize-handle-top" title="模拟高度调整"></div>
     <!-- 分离窗口必须包含 ComponentHeader 才能被拖拽和重附着 -->
     <ComponentHeader
+      ref="headerRef"
+      :id="SYNC_DEMO_COMPONENT_ID"
       :title="title"
       :drag-mode="isDetached ? 'window' : 'detach'"
       :collapsible="false"
@@ -104,6 +106,7 @@ import { useSyncDemoState, SYNC_DEMO_COMPONENT_ID } from "../composables/useSync
 import { customMessage } from "@/utils/customMessage";
 
 const containerRef = ref<HTMLElement>();
+const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 
 interface Props {
   isDetached?: boolean;
@@ -165,30 +168,16 @@ const handleManualUpdate = (key: string, value: any) => {
 };
 
 const handleDragStart = (e: MouseEvent) => {
-  if (props.isDetached) return;
+  if (props.isDetached || !headerRef.value) return;
 
+  const config = headerRef.value.getDetachableConfig(e);
   const rect = containerRef.value?.getBoundingClientRect();
-  if (!rect) return;
+  if (rect) {
+    config.width = rect.width;
+    config.height = rect.height;
+  }
 
-  // 获取拖拽手柄的位置（ComponentHeader 内部）
-  const headerEl = e.currentTarget as HTMLElement;
-  const headerRect = headerEl.getBoundingClientRect();
-
-  // 计算偏移量
-  const handleOffsetX = headerRect.left - rect.left + headerRect.width / 2;
-  const handleOffsetY = headerRect.top - rect.top + headerRect.height / 2;
-
-  startDetaching({
-    id: SYNC_DEMO_COMPONENT_ID,
-    displayName: "同步测试组件",
-    type: "component",
-    width: rect.width,
-    height: rect.height,
-    mouseX: e.screenX,
-    mouseY: e.screenY,
-    handleOffsetX,
-    handleOffsetY,
-  });
+  startDetaching(config);
 };
 
 const isFocused = ref(true);

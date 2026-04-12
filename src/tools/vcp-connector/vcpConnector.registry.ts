@@ -13,7 +13,7 @@ export class VcpConnectorRegistry implements ToolRegistry {
   public readonly name = "VCP 连接器";
   public readonly description = "VCP 分布式连接与监控中心";
   public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
-    "vcp-monitor": {
+    "vcp-connector:monitor": {
       component: () => import("./components/monitor/MessageMonitorPage.vue"),
       logicHook: () => ({
         // 显式注入 isDetached 状态，告知组件它正处于分离模式

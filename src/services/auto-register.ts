@@ -52,51 +52,66 @@ export async function autoRegisterServices(priorityToolId?: string): Promise<() 
     /**
      * 加载并注册单个工具模块
      */
+    /**
+     * 将导出的模块内容标准化为 ToolRegistryItem 数组
+     */
+    function normalizeExported(exported: any): ToolRegistryItem[] {
+      const items: ToolRegistryItem[] = [];
+      if (Array.isArray(exported)) {
+        for (const item of exported) {
+          if (typeof item === "function") {
+            items.push(new (item as any)());
+          } else {
+            items.push(item);
+          }
+        }
+      } else if (typeof exported === "function") {
+        const instance = new (exported as any)();
+        items.push(instance);
+      } else if (typeof exported === "object") {
+        items.push(exported);
+      }
+      return items;
+    }
+
     async function loadAndRegisterModule(path: string, isRemainingPhase = false) {
-      // 在分离窗口的 loadRemaining 阶段，先检查 runMode
+      const module = await serviceModules[path]();
+      const exported = module.default;
+      const registerItems = normalizeExported(exported);
+
+      // 在分离窗口的 loadRemaining 阶段，检查 runMode
+      // 注意：即使是 main-only，我们也需要注册 detachableComponents，以便分离窗口能渲染组件
       if (isRemainingPhase && isDetached()) {
-        const module = await serviceModules[path]();
         // 尝试从 toolConfig 或 导出的类/对象上获取 runMode
         const runMode =
           module.toolConfig?.runMode ||
-          (module.default as any)?.runMode ||
-          (module.default?.prototype as any)?.runMode ||
+          (exported as any)?.runMode ||
+          (exported?.prototype as any)?.runMode ||
           "main-only";
 
         if (runMode === "main-only") {
-          logger.debug(`跳过主窗口专用工具: ${path}`);
+          logger.debug(`主窗口专用工具，仅注册 UI 配置和可分离组件: ${path}`);
+
+          // 1. 处理 UI 工具配置 (主要为了其中的 detachableComponents)
+          if (module.toolConfig) {
+            toolsStore.addTool(module.toolConfig);
+          }
+
+          // 2. 仅注册 Registry 对象以获取 detachableComponents，但不执行任何生命周期或业务逻辑
+          if (registerItems.length > 0) {
+            // toolRegistryManager.register 仅注册，不触发 onStartup
+            await toolRegistryManager.register(...registerItems);
+          }
           return;
         }
       }
-
-      const module = await serviceModules[path]();
-      const registerItems: ToolRegistryItem[] = [];
 
       // 1. 处理 UI 工具配置 (ToolConfig)
       if (module.toolConfig) {
         toolsStore.addTool(module.toolConfig);
       }
 
-      // 2. 处理服务注册 (ToolRegistryItem)
-      const exported = module.default;
-      if (exported) {
-        if (Array.isArray(exported)) {
-          for (const item of exported) {
-            if (typeof item === "function") {
-              registerItems.push(new (item as any)());
-            } else {
-              registerItems.push(item);
-            }
-          }
-        } else if (typeof exported === "function") {
-          const instance = new (exported as any)();
-          registerItems.push(instance);
-        } else if (typeof exported === "object") {
-          registerItems.push(exported);
-        }
-      }
-
-      // 立即注册该模块的工具项
+      // 2. 立即注册该模块的工具项
       if (registerItems.length > 0) {
         await toolRegistryManager.register(...registerItems);
       }

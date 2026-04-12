@@ -8,6 +8,8 @@
       <!-- 仅在分离模式下显示独立的头部 -->
       <ComponentHeader
         v-if="isActuallyDetached"
+        ref="headerRef"
+        id="vcp-connector:monitor"
         drag-mode="window"
         show-actions
         :collapsible="false"
@@ -118,6 +120,8 @@
           <!-- 在非分离模式下，将 ComponentHeader 作为工具栏的一部分 -->
           <ComponentHeader
             v-if="!isActuallyDetached"
+            ref="headerRef"
+            id="vcp-connector:monitor"
             title=""
             drag-mode="detach"
             :show-actions="true"
@@ -286,8 +290,6 @@ const headerStyle = computed(() => {
  * 虚拟滚动相关
  */
 const messagesContainer = ref<HTMLElement | null>(null);
-
-// 消息数量
 const messageCount = computed(() => filteredMessages.value.length);
 
 // 创建虚拟化器
@@ -295,7 +297,7 @@ const virtualizer = useVirtualizer({
   get count() {
     return messageCount.value;
   },
-  getScrollElement: () => messagesContainer.value,
+  getScrollElement: () => messagesContainer.value as HTMLElement,
   estimateSize: () => 120, // 预估每条消息的高度
   overscan: 5, //  overscan 数量
 });
@@ -381,30 +383,38 @@ function exportMessages() {
   customMessage.success("导出成功");
 }
 
+const headerRef = ref<InstanceType<typeof ComponentHeader>>();
+
 function handleStartDetaching(event: MouseEvent) {
-  startDetaching({
-    id: "vcp-monitor",
-    displayName: "VCP 消息监控",
-    type: "component",
-    width: 800,
-    height: 600,
-    mouseX: event.screenX,
-    mouseY: event.screenY,
-  });
+  if (!headerRef.value) return;
+  const config = headerRef.value.getDetachableConfig(event);
+
+  // 覆盖容器尺寸
+  const rect = messagesContainer.value?.parentElement?.getBoundingClientRect();
+  if (rect) {
+    config.width = rect.width;
+    config.height = rect.height;
+  }
+
+  startDetaching(config);
 }
 
 async function handleDetach() {
-  await detachByClick({
-    id: "vcp-monitor",
-    displayName: "VCP 消息监控",
-    type: "component",
-    width: 800,
-    height: 600,
-  });
+  if (!headerRef.value) return;
+  const config = headerRef.value.getDetachableConfig();
+
+  // 覆盖容器尺寸
+  const rect = messagesContainer.value?.parentElement?.getBoundingClientRect();
+  if (rect) {
+    config.width = rect.width;
+    config.height = rect.height;
+  }
+
+  await detachByClick(config);
 }
 
 async function handleReattach() {
-  await closeWindow("vcp-monitor");
+  await closeWindow("vcp-connector:monitor");
 }
 </script>
 

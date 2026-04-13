@@ -830,18 +830,18 @@ function syncCanvasBinding(agent: ChatAgent) {
 当 Agent 调用画布写入操作（`write_canvas_file` / `apply_canvas_diff`）但当前未绑定画布时：
 
 1. Canvas 的 `canvasStore` 检测到 `activeCanvasId === null`
-2. 自动创建一个新画布（以默认名称如 "未命名画布" 命名）
+2. 自动创建一个新画布（以默认名称如 `canvas_{timestamp}` 命名）
 3. 设置 `activeCanvasId` 为新画布 ID
 4. **通过事件总线通知 llm-chat 侧**更新 Agent 的 `toolSettings.canvas.canvasId`
 
 ```typescript
 // canvasStore 中的自动创建逻辑
 async function ensureActiveCanvas(): Promise<string> {
-  if (activeCanvasId.value) return activeCanvasId.value;
+if (activeCanvasId.value) return activeCanvasId.value;
 
-  // 自动创建
-  const metadata = await createCanvas("未命名画布");
-  if (!metadata) throw new Error("自动创建画布失败");
+// 自动创建
+const metadata = await createCanvas(`canvas_${formatDateTime(new Date(), "yyyyMMdd_HHmmss")}`);
+if (!metadata) throw new Error("自动创建画布失败");
 
   // 通知外部（通过事件总线，不直接 import llm-chat）
   // llm-chat 侧监听此事件并更新 Agent 配置

@@ -7,6 +7,7 @@ import { useCanvasStore } from "../../stores/canvasStore";
 import type { CanvasMetadata } from "../../types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
+import { formatDateTime } from "@/utils/time";
 
 const visible = defineModel<boolean>({ required: true });
 
@@ -23,7 +24,7 @@ const isCreating = ref(false);
 const titleInputRef = ref<any>(null);
 
 const handleOpen = () => {
-  title.value = "";
+  title.value = `canvas_${formatDateTime(new Date(), "yyyyMMdd_HHmmss")}`;
   selectedTemplateId.value = CANVAS_TEMPLATES[0].id;
   nextTick(() => {
     titleInputRef.value?.focus();

@@ -7,6 +7,7 @@ import { useCanvasStorage } from "../composables/useCanvasStorage";
 import { GitInternalService } from "../services/GitInternalService";
 import { CANVAS_TEMPLATES } from "../templates";
 import { nanoid } from "nanoid";
+import { formatDateTime } from "@/utils/time";
 
 const logger = createModuleLogger("Canvas/Store");
 const errorHandler = createModuleErrorHandler("Canvas/Store");
@@ -76,7 +77,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   async function ensureActiveCanvas(): Promise<string> {
     if (activeCanvasId.value) return activeCanvasId.value;
 
-    const metadata = await createCanvas("未命名画布");
+    const metadata = await createCanvas(`canvas_${formatDateTime(new Date(), "yyyyMMdd_HHmmss")}`);
     if (!metadata) {
       throw new Error("自动创建画布失败");
     }

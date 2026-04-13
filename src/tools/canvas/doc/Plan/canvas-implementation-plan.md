@@ -857,31 +857,30 @@ async function ensureActiveCanvas(): Promise<string> {
 
 > **注意**：Canvas 通过 DOM 事件或全局事件总线通知外部，**不直接 import agentStore**。llm-chat 侧监听事件并自行更新 Agent 配置。
 
-#### 5.6.4 Chat 侧画布控制 UI
+#### 5.6.4 Chat 侧画布控制 UI (展示+控制合一)
 
-**位置**：[`MessageInputToolbar.vue`](src/tools/llm-chat/components/message-input/MessageInputToolbar.vue) 的 `.tool-actions` 区域
+**位置**：[`MessageInputToolbar.vue`](src/tools/llm-chat/components/message-input/MessageInputToolbar.vue) 的右侧 `.input-actions` 区域。
 
-**显示条件**：当前 Agent 的 `toolToggles.canvas === true` 时，**联动性地**在工具栏中显示画布控制按钮。
+**设计意图**：将原来的左侧独立控制按钮与右侧展示标签合并。右侧的药丸标签既是状态展示区，也是 `MiniCanvasControl` 的 Popover 触发器。
 
-**组件**：`MiniCanvasControl.vue`（位于 `src/tools/llm-chat/components/message-input/`）
+**显示条件**：当前 Agent 的 `toolToggles.canvas === true` 时显示。
+
+**交互逻辑**：
+- **未绑定**：显示为 `[🖌️ 未绑定]` (半透明/虚线边框)。
+- **已绑定**：显示图标 + 画布名称。点击弹出管理面板。
+- **有待定更改**：药丸变为 warning 色，并显示脉冲圆点。
+- **解绑**：点击药丸内的 `×` 按钮。
 
 ```
-工具栏布局（画布工具启用时）：
-┌──────────────────────────────────────────────────────────────────┐
-│ [A_] [🪄] [📎] [💬] [@] [⊞] [···] [🔧] [🖌️] [⚙] [⤡]         │
-│                                          ↑                      │
-│                                     画布控制按钮（条件显示）      │
-│                                                                  │
-│                              🖌️ 我的前端项目 [×]  [Token]  [发送] │
-│                              ↑ 画布状态标签（条件显示）            │
-└──────────────────────────────────────────────────────────────────┘
+工具栏布局：
+┌─────────────────────────────────────────────────────────────────────┐
+│ [A_] [🪄] [📎] [💬] [@] [⊞] [···] [🔧] [⚙] [⤡]                     │
+│                                                                     │
+│                    [🖌️ 我的项目 · ●] [Token计数] [发送]              │
+│                     ↑                                               │
+│            点击弹出 MiniCanvasControl Popover                        │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
-**画布控制按钮**：
-
-- **图标**：`Brush`（与 canvas toolConfig 一致）
-- **状态**：未绑定时半透明，已绑定时高亮，有待定更改时显示小圆点
-- **点击**：弹出 Popover
 
 **MiniCanvasControl Popover 内容**：
 
@@ -894,9 +893,9 @@ async function ensureActiveCanvas(): Promise<string> {
 │  │ 📁 我的前端项目        [×]  │    │  ← 下拉选择器
 │  └─────────────────────────────┘    │
 │  ○ 首次写入时自动创建               │  ← 未绑定时提示
-│                                     │
-│  ● 2 个待定更改                     │  ← 有更改时显示
-│                                     │
+│  │                                     │
+│  ● 2 个待定更改 (工具调用预览)       │  ← 接入审批系统的待定更改
+│  │                                     │
 ├─────────────────────────────────────┤
 │  [+ 新建画布]  [👁 预览]  [📂 管理]  │
 └─────────────────────────────────────┘
@@ -928,7 +927,31 @@ function bindCanvas(canvasId: string | null) {
 }
 ```
 
-### 5.7 废弃 CanvasInjectionProcessor [已完成]
+### 5.7 工具调用审批集成 (Preview/Discard 钩子)
+
+为了与系统的统一审批 UI ([`ToolCallingApprovalBar.vue`](src/tools/llm-chat/components/message-input/ToolCallingApprovalBar.vue)) 集成，Canvas 实现了预览和丢弃钩子。
+
+#### 5.7.1 预览机制 (onToolCallPreview)
+
+当 Agent 发起 `apply_canvas_diff` 或 `write_canvas_file` 调用时，在进入审批挂起状态前，`executor` 会调用此钩子：
+1. `CanvasRegistry` 拦截调用，将变更写入 `canvasStore` 的 `pendingUpdates`。
+2. 此时变更标记为 `preview` 状态，并关联 `requestId`。
+3. 画布预览窗口通过 Layer 3 通道实时同步此变更，用户可以**在点击批准前看到修改效果**。
+
+#### 5.7.2 丢弃机制 (onToolCallDiscarded)
+
+如果用户在审批栏点击"拒绝"或"清空"：
+1. `executor` 调用此钩子。
+2. `canvasStore` 根据 `requestId` 找到对应的快照，撤销 `pendingUpdates` 中的临时变更。
+3. 预览窗口自动回退到物理文件版本。
+
+#### 5.7.3 确认机制 (Approve)
+
+如果用户点击"批准"：
+1. `executor` 执行实际的工具方法。
+2. 工具方法检测到 `pendingUpdates` 中已存在该 `requestId` 的预览数据，直接将其转正（或跳过重复写入逻辑）。
+
+### 5.8 废弃 CanvasInjectionProcessor [已完成]
 
 以下文件已删除或移除：
 
@@ -962,11 +985,11 @@ function bindCanvas(canvasId: string | null) {
 7.  **✅ 状态消费者**：实现 `useCanvasStateConsumer.ts`。
 8.  **✅ 状态栏**：实现 `CanvasStatusBar.vue`。
 
-### 第三阶段：Chat 集成与细节优化 (P2) - [已完成]
+### 第三阶段：Chat 集成与细节优化 (P2) - [进行中]
 
 1. ✅ 实现 `getExtraPromptContext()` + `{{tool_context}}` 宏注入（替代已废弃的 CanvasInjectionProcessor）。
-2. ✅ 在 Chat 界面增加"打开画布"快捷入口（MiniCanvasControl）。
-3. ✅ 实现画布状态标签，支持快速预览和解绑。
+2. ✅ 重构 Chat 界面画布控制 UI：展示+控制合一，移除左侧独立按钮。
+3. ⏳ 接入工具调用审批系统：实现 `onToolCallPreview` 和 `onToolCallDiscarded` 钩子。
 4. ✅ 实现 Agent 写入时自动创建画布逻辑。
 
 ## 7. 风险与优化

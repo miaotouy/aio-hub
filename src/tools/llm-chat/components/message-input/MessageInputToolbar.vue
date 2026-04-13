@@ -207,10 +207,6 @@ const isCanvasEnabled = computed(() => {
   return agent?.toolCallConfig?.toolToggles?.canvas === true;
 });
 
-const hasCanvasBinding = computed(() => {
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-  return !!agent?.toolCallConfig?.toolSettings?.canvas?.canvasId;
-});
 
 const hasCanvasPendingChanges = computed(() => {
   try {
@@ -229,7 +225,7 @@ const canvasBindingInfo = computed(() => {
   if (!canvasId) return null;
   try {
     const canvasStore = useCanvasStore();
-    const canvas = canvasStore.canvasList.find((c) => c.metadata.id === canvasId);
+    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === canvasId);
     return canvas ? { id: canvasId, name: canvas.metadata.name } : null;
   } catch {
     return null;
@@ -251,9 +247,16 @@ const unbindCanvas = () => {
 
 // 汇总所有菜单状态并向上同步
 watch(
-  [() => props.macroSelectorVisible, sessionListVisible, toolSettingsVisible, moreMenuVisible, settingsVisible],
-  ([macro, session, tool, more, settings]) => {
-    emit("update:anyMenuOpen", !!(macro || session || tool || more || settings));
+  [
+    () => props.macroSelectorVisible,
+    sessionListVisible,
+    toolSettingsVisible,
+    moreMenuVisible,
+    settingsVisible,
+    canvasControlVisible,
+  ],
+  ([macro, session, tool, more, settings, canvas]) => {
+    emit("update:anyMenuOpen", !!(macro || session || tool || more || settings || canvas));
   },
 );
 
@@ -511,30 +514,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </template>
         </el-dropdown>
 
-        <!-- 画布控制 -->
-        <el-tooltip v-if="isCanvasEnabled" content="画布控制" placement="top" :show-after="500">
-          <div>
-            <el-popover
-              v-model:visible="canvasControlVisible"
-              :placement="props.isDetached ? 'bottom' : 'top'"
-              :width="320"
-              trigger="click"
-              :popper-class="['canvas-control-popover', { 'detached-popover': props.isDetached }]"
-            >
-              <template #reference>
-                <button
-                  class="tool-btn"
-                  :class="{ active: canvasControlVisible || hasCanvasBinding, 'has-pending': hasCanvasPendingChanges }"
-                >
-                  <Brush :size="16" />
-                </button>
-              </template>
-              <div v-if="canvasControlVisible">
-                <MiniCanvasControl />
-              </div>
-            </el-popover>
-          </div>
-        </el-tooltip>
 
         <!-- 工具调用设置 -->
         <el-tooltip
@@ -689,25 +668,44 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         </el-tooltip>
       </div>
       <div class="input-actions">
-        <!-- 画布状态标签 -->
+        <!-- 画布状态标签 (展示+控制合一) -->
         <el-tooltip
-          v-if="isCanvasEnabled && canvasBindingInfo"
-          :content="`当前绑定画布: ${canvasBindingInfo.name} (点击预览)`"
+          v-if="isCanvasEnabled"
+          :content="canvasBindingInfo ? `当前绑定画布: ${canvasBindingInfo.name} (点击管理)` : '画布未绑定 (点击管理)'"
           placement="top"
           :show-after="500"
         >
-          <div
-            class="temporary-model-indicator canvas-indicator"
-            :class="{ 'has-pending': hasCanvasPendingChanges }"
-            @click="bus.requestAction('canvas:open-window', { canvasId: canvasBindingInfo.id })"
-          >
-            <Brush :size="14" />
-            <span class="model-name">
-              {{ canvasBindingInfo.name }}
-            </span>
-            <button class="clear-btn" @click.stop="unbindCanvas">
-              <X :size="14" />
-            </button>
+          <div>
+            <el-popover
+              v-model:visible="canvasControlVisible"
+              :placement="props.isDetached ? 'bottom-end' : 'top-end'"
+              :width="320"
+              trigger="click"
+              :popper-class="['canvas-control-popover', { 'detached-popover': props.isDetached }]"
+            >
+              <template #reference>
+                <div
+                  class="temporary-model-indicator canvas-indicator"
+                  :class="{
+                    'has-pending': hasCanvasPendingChanges,
+                    'is-unbound': !canvasBindingInfo,
+                    'is-active': canvasControlVisible,
+                  }"
+                >
+                  <Brush :size="14" />
+                  <span class="model-name">
+                    {{ canvasBindingInfo ? canvasBindingInfo.name : "未绑定" }}
+                  </span>
+                  <div v-if="hasCanvasPendingChanges" class="pending-pulse"></div>
+                  <button v-if="canvasBindingInfo" class="clear-btn" @click.stop="unbindCanvas">
+                    <X :size="14" />
+                  </button>
+                </div>
+              </template>
+              <div v-if="canvasControlVisible">
+                <MiniCanvasControl />
+              </div>
+            </el-popover>
           </div>
         </el-tooltip>
 
@@ -1338,6 +1336,42 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 
 .canvas-indicator.has-pending .clear-btn {
   color: var(--el-color-warning) !important;
+}
+
+.canvas-indicator.is-unbound {
+  opacity: 0.6;
+  border-style: dashed;
+  background: transparent;
+}
+
+.canvas-indicator.is-active {
+  border-color: var(--primary-color);
+  background: rgba(var(--el-color-primary-rgb), 0.2);
+}
+
+.pending-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--el-color-warning);
+  box-shadow: 0 0 0 rgba(var(--el-color-warning-rgb), 0.4);
+  animation: pulse-dot 2s infinite;
+  margin: 0 2px;
+}
+
+@keyframes pulse-dot {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(var(--el-color-warning-rgb), 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0);
+  }
 }
 </style>
 

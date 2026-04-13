@@ -29,6 +29,17 @@ export const useCanvasStore = defineStore("canvas", () => {
   const pendingUpdates = reactive<Record<string, Record<string, string>>>({});
   // 撤销栈: canvasId -> DiffOperation[]
   const undoStacks = reactive<Record<string, DiffOperation[]>>({});
+  // 预览快照 (用于审批系统的预览/撤回): requestId -> Snapshot
+  const previewSnapshots = reactive<
+    Record<
+      string,
+      {
+        canvasId: string;
+        filePath: string;
+        previousContent: string | null; // null 表示文件原本不存在
+      }
+    >
+  >({});
   // 是否正在加载
   const isLoading = ref(false);
 
@@ -188,6 +199,22 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
+   * 写入文件到预览缓冲区（用于工具审批预览）
+   */
+  async function writeFileAsPreview(canvasId: string, filepath: string, content: string, requestId: string) {
+    // 保存快照以便拒绝时恢复
+    const originalContent = (await readCanvasFileAsync(canvasId, filepath)) || null;
+    previewSnapshots[requestId] = {
+      canvasId,
+      filePath: filepath,
+      previousContent: originalContent,
+    };
+
+    writeFile(canvasId, filepath, content);
+    logger.info("已写入预览内容", { filepath, requestId });
+  }
+
+  /**
    * 写入文件到内存缓存（影子文件）
    */
   function writeFile(canvasId: string, filepath: string, content: string) {
@@ -202,6 +229,22 @@ export const useCanvasStore = defineStore("canvas", () => {
       item.pendingFileCount = Object.keys(pendingUpdates[canvasId]).length;
       if (item.status === "idle") item.status = "pending";
     }
+  }
+
+  /**
+   * 应用 Diff 到预览缓冲区（用于工具审批预览）
+   */
+  async function applyDiffAsPreview(canvasId: string, filepath: string, diff: string, requestId: string) {
+    // 保存快照以便拒绝时恢复
+    const originalContent = (await readCanvasFileAsync(canvasId, filepath)) || null;
+    previewSnapshots[requestId] = {
+      canvasId,
+      filePath: filepath,
+      previousContent: originalContent,
+    };
+
+    await applyDiff(canvasId, filepath, diff);
+    logger.info("已应用预览 Diff", { filepath, requestId });
   }
 
   /**
@@ -235,6 +278,27 @@ export const useCanvasStore = defineStore("canvas", () => {
       },
       { userMessage: "应用更改失败" },
     );
+  }
+
+  /**
+   * 撤销特定请求生成的预览内容
+   */
+  function revertPreview(requestId: string) {
+    const snapshot = previewSnapshots[requestId];
+    if (!snapshot) return;
+
+    if (snapshot.previousContent === null) {
+      // 原本不存在，从影子文件中删除
+      if (pendingUpdates[snapshot.canvasId]) {
+        delete pendingUpdates[snapshot.canvasId][snapshot.filePath];
+      }
+    } else {
+      // 恢复原内容
+      writeFile(snapshot.canvasId, snapshot.filePath, snapshot.previousContent);
+    }
+
+    delete previewSnapshots[requestId];
+    logger.info("已撤销预览内容", { requestId, filePath: snapshot.filePath });
   }
 
   /**
@@ -518,5 +582,9 @@ export const useCanvasStore = defineStore("canvas", () => {
     undoDiff,
     getFileTree,
     ensureActiveCanvas,
+    applyDiffAsPreview,
+    writeFileAsPreview,
+    revertPreview,
+    previewSnapshots,
   };
 });

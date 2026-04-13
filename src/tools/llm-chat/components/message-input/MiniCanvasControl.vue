@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import { ElSelect, ElOption, ElButton, ElDivider } from "element-plus";
 import { Brush, Plus, Eye, FolderOpen, X } from "lucide-vue-next";
 import { useCanvasStore } from "@/tools/canvas/stores/canvasStore";
+import { useToolsStore } from "@/stores/tools";
 import { useAgentStore } from "../../stores/agentStore";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
 const logger = createModuleLogger("llm-chat/MiniCanvasControl");
+const router = useRouter();
 const agentStore = useAgentStore();
+const toolsStore = useToolsStore();
 const bus = useWindowSyncBus();
 
 // 安全获取 canvasStore
@@ -37,7 +41,6 @@ const pendingChangesCount = computed(() => {
   return Object.keys(canvasStore.pendingUpdates[boundCanvasId.value] || {}).length;
 });
 
-
 /**
  * 绑定画布到当前 Agent
  */
@@ -51,15 +54,15 @@ function bindCanvas(canvasId: string | null) {
   if (agent.toolCallConfig && !agent.toolCallConfig.toolSettings) {
     agent.toolCallConfig.toolSettings = {};
   }
-  
+
   if (agent.toolCallConfig && agent.toolCallConfig.toolSettings) {
     agent.toolCallConfig.toolSettings.canvas = { canvasId };
   }
-  
+
   if (canvasId) {
     bus.requestAction("canvas:open-canvas", { canvasId });
   }
-  
+
   agentStore.persistAgent(agent);
   logger.info("Agent 画布绑定已更新", { agentId: agent.id, canvasId });
 }
@@ -87,8 +90,9 @@ function handlePreview() {
  * 跳转到画布管理
  */
 function handleManage() {
-  // 这里假设有一个路由或全局动作可以跳转到画布工具
-  bus.requestAction("shell:switch-tool", { toolId: "canvas" });
+  const toolPath = "/canvas";
+  toolsStore.openTool(toolPath);
+  router.push(toolPath);
 }
 
 // 监听自动创建事件
@@ -99,11 +103,11 @@ onMounted(() => {
     bindCanvas(canvasId);
   };
   window.addEventListener("canvas:auto-created", handler);
-  
+
   onUnmounted(() => {
     window.removeEventListener("canvas:auto-created", handler);
   });
-  
+
   // 确保列表已加载
   canvasStore?.loadCanvasList();
 });
@@ -137,13 +141,7 @@ onMounted(() => {
             <div class="empty-hint">暂无可用画布</div>
           </template>
         </el-select>
-        <el-button 
-          v-if="boundCanvasId" 
-          type="info" 
-          link 
-          @click="bindCanvas(null)"
-          class="unbind-btn"
-        >
+        <el-button v-if="boundCanvasId" type="info" link @click="bindCanvas(null)" class="unbind-btn">
           <X :size="14" />
         </el-button>
       </div>
@@ -221,7 +219,8 @@ onMounted(() => {
   height: 32px;
 }
 
-.hint-text, .pending-status {
+.hint-text,
+.pending-status {
   display: flex;
   align-items: center;
   gap: 6px;

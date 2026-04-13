@@ -176,20 +176,34 @@ ${changesStr}
     // 为内容添加行号
     return content
       .split(/\r?\n/)
-      .map((line, index) => `${String(index + 1).padStart(4, " ")} | ${line}`)
+      .map((line: string, index: number) => `${String(index + 1).padStart(4, " ")} | ${line}`)
       .join("\n");
   }
 
-  async apply_canvas_diff(args: { path: string; diff: string }): Promise<string> {
+  async apply_canvas_diff(args: { path: string; diff: string }, requestId?: string): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = await canvasStore.ensureActiveCanvas();
+
+    // 如果 preview 阶段已经写入了，直接确认即可
+    if (requestId && canvasStore.previewSnapshots[requestId]) {
+      delete canvasStore.previewSnapshots[requestId];
+      return `Successfully applied diff to ${args.path} (confirmed from preview)`;
+    }
+
     await canvasStore.applyDiff(canvasId, args.path, args.diff);
     return `Successfully applied diff to ${args.path}`;
   }
 
-  async write_canvas_file(args: { path: string; content: string }): Promise<string> {
+  async write_canvas_file(args: { path: string; content: string }, requestId?: string): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = await canvasStore.ensureActiveCanvas();
+
+    // 如果 preview 阶段已经写入了，直接确认即可
+    if (requestId && canvasStore.previewSnapshots[requestId]) {
+      delete canvasStore.previewSnapshots[requestId];
+      return `Successfully wrote to ${args.path} (confirmed from preview)`;
+    }
+
     canvasStore.writeFile(canvasId, args.path, args.content);
     return `Successfully wrote to ${args.path}`;
   }
@@ -223,6 +237,35 @@ ${changesStr}
     const canvasId = canvasStore.activeCanvasId;
     if (!canvasId) return [];
     return await canvasStore.getFileTree(canvasId);
+  }
+
+  // ==================== Approval System Hooks ====================
+
+  /**
+   * 工具调用进入审批挂起前的预览钩子
+   * 将修改临时写入影子文件，用户可在画布窗口即时预览效果
+   */
+  async onToolCallPreview(requestId: string, methodName: string, args: Record<string, any>) {
+    const canvasStore = useCanvasStore();
+
+    if (methodName === "apply_canvas_diff" && args.path && args.diff) {
+      const canvasId = await canvasStore.ensureActiveCanvas();
+      await canvasStore.applyDiffAsPreview(canvasId, args.path, args.diff, requestId);
+    }
+
+    if (methodName === "write_canvas_file" && args.path && args.content) {
+      const canvasId = await canvasStore.ensureActiveCanvas();
+      await canvasStore.writeFileAsPreview(canvasId, args.path, args.content, requestId);
+    }
+  }
+
+  /**
+   * 用户拒绝工具调用后的清理钩子
+   * 从影子文件中撤回预览数据
+   */
+  async onToolCallDiscarded(requestId: string, _methodName: string, _args: Record<string, any>) {
+    const canvasStore = useCanvasStore();
+    canvasStore.revertPreview(requestId);
   }
 }
 

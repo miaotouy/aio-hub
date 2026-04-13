@@ -562,7 +562,7 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
                   <Wrench :size="16" />
                 </button>
               </template>
-              <MiniToolCallingSettings @open-advanced="handleOpenAdvanced" />
+              <MiniToolCallingSettings :is-vcp="isVcpChannel" @open-advanced="handleOpenAdvanced" />
             </el-popover>
           </div>
         </el-tooltip>

@@ -149,10 +149,20 @@ const getToolIcon = (toolId: string) => {
   return tool?.icon || markRaw(Cpu);
 };
 
+interface Props {
+  isVcp?: boolean;
+}
+
+const props = defineProps<Props>();
+
 // 触发打开 Agent 编辑器的事件，由父组件处理
 const emit = defineEmits<{
   (e: "open-advanced", tab?: string): void;
 }>();
+
+const effectiveIsVcp = computed(() => {
+  return props.isVcp !== undefined ? props.isVcp : isVcpChannel.value;
+});
 </script>
 
 <template>
@@ -168,7 +178,7 @@ const emit = defineEmits<{
     </div>
 
     <!-- VCP 渠道提示条 -->
-    <el-tooltip v-if="isVcpChannel && config.enabled" placement="bottom" :show-after="400">
+    <el-tooltip v-if="effectiveIsVcp && config.enabled" placement="bottom" :show-after="400">
       <template #content>
         <div style="max-width: 260px; line-height: 1.5">
           当前渠道由 <strong>VCP 后端</strong>管理工具调用和工具执行。<br />

@@ -2,6 +2,7 @@ import { toRef, computed, onUnmounted, type Ref, watch } from "vue";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
+import { useDetachable } from "@/composables/useDetachable";
 import { createModuleLogger } from "@/utils/logger";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 
@@ -114,6 +115,26 @@ export function useCanvasSync() {
     const canvasId = params.canvasId || store.activeCanvasId;
 
     switch (action) {
+      case "open-window": {
+        const { detachByClick } = useDetachable();
+        return detachByClick({
+          id: `canvas:preview:${canvasId}`,
+          displayName: `画布预览 - ${canvasId}`,
+          type: "component",
+          width: 1200,
+          height: 800,
+          metadata: {
+            componentId: "canvas:preview",
+            canvasId,
+          },
+        });
+      }
+      case "open-canvas": {
+        if (params.canvasId) {
+          await store.openCanvas(params.canvasId);
+        }
+        return Promise.resolve();
+      }
       case "write-file": {
         store.writeFile(canvasId, params.filepath, params.content);
         // 主动推送增量

@@ -30,6 +30,7 @@ import { type ContextPreviewData, type GetContextPreviewOptions } from "../../ty
 import type { ModelIdentifier } from "../../types";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useChatSettings } from "../settings/useChatSettings";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -83,6 +84,18 @@ export function useChatHandler() {
     }
     // 获取当前智能体（在函数开头，以便后续宏处理使用）
     const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+
+    // === 画布绑定同步 ===
+    // 如果当前 Agent 启用了画布工具并绑定了画布，同步激活状态到 canvasStore
+    if (currentAgent?.toolCallConfig?.toolToggles?.canvas) {
+      const canvasId = currentAgent.toolCallConfig.toolSettings?.canvas?.canvasId;
+      if (canvasId) {
+        const bus = useWindowSyncBus();
+        bus.requestAction("canvas:open-canvas", { canvasId }).catch((e: Error) => {
+          logger.warn("画布绑定同步失败", e);
+        });
+      }
+    }
 
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {

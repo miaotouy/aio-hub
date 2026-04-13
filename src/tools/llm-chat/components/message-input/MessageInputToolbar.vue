@@ -20,6 +20,7 @@ import {
   MoreHorizontal,
   Sparkles,
   Wrench,
+  Brush,
   Grip,
   FileUp,
   ScanSearch,
@@ -28,13 +29,16 @@ import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/selectors/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
 import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
+import MiniCanvasControl from "./MiniCanvasControl.vue";
 import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ModelIdentifier } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
 import { useUserProfileStore } from "../../stores/userProfileStore";
+import { useCanvasStore } from "@/tools/canvas/stores/canvasStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { customMessage } from "@/utils/customMessage";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
@@ -192,10 +196,58 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 };
 
 const sessionListVisible = ref(false);
+const canvasControlVisible = ref(false);
 const toolSettingsVisible = ref(false);
 const moreMenuVisible = ref(false);
 const settingsVisible = ref(false);
 const miniSessionListRef = ref<any>(null);
+
+const isCanvasEnabled = computed(() => {
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  return agent?.toolCallConfig?.toolToggles?.canvas === true;
+});
+
+const hasCanvasBinding = computed(() => {
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  return !!agent?.toolCallConfig?.toolSettings?.canvas?.canvasId;
+});
+
+const hasCanvasPendingChanges = computed(() => {
+  try {
+    const canvasStore = useCanvasStore();
+    const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+    const canvasId = agent?.toolCallConfig?.toolSettings?.canvas?.canvasId;
+    if (!canvasId) return false;
+    return Object.keys(canvasStore.pendingUpdates[canvasId] || {}).length > 0;
+  } catch {
+    return false;
+  }
+});
+const canvasBindingInfo = computed(() => {
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const canvasId = agent?.toolCallConfig?.toolSettings?.canvas?.canvasId;
+  if (!canvasId) return null;
+  try {
+    const canvasStore = useCanvasStore();
+    const canvas = canvasStore.canvasList.find((c) => c.metadata.id === canvasId);
+    return canvas ? { id: canvasId, name: canvas.metadata.name } : null;
+  } catch {
+    return null;
+  }
+});
+
+const unbindCanvas = () => {
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  if (!agent) return;
+  if (!agent.toolCallConfig) {
+    agent.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+  }
+  if (!agent.toolCallConfig!.toolSettings) {
+    agent.toolCallConfig!.toolSettings = {};
+  }
+  agent.toolCallConfig!.toolSettings!.canvas = { canvasId: null };
+  agentStore.persistAgent(agent);
+};
 
 // 汇总所有菜单状态并向上同步
 watch(
@@ -459,6 +511,31 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </template>
         </el-dropdown>
 
+        <!-- 画布控制 -->
+        <el-tooltip v-if="isCanvasEnabled" content="画布控制" placement="top" :show-after="500">
+          <div>
+            <el-popover
+              v-model:visible="canvasControlVisible"
+              :placement="props.isDetached ? 'bottom' : 'top'"
+              :width="320"
+              trigger="click"
+              :popper-class="['canvas-control-popover', { 'detached-popover': props.isDetached }]"
+            >
+              <template #reference>
+                <button
+                  class="tool-btn"
+                  :class="{ active: canvasControlVisible || hasCanvasBinding, 'has-pending': hasCanvasPendingChanges }"
+                >
+                  <Brush :size="16" />
+                </button>
+              </template>
+              <div v-if="canvasControlVisible">
+                <MiniCanvasControl />
+              </div>
+            </el-popover>
+          </div>
+        </el-tooltip>
+
         <!-- 工具调用设置 -->
         <el-tooltip
           :content="isVcpChannel ? 'VCP 后端接管工具调用（点击查看详情）' : '工具调用设置'"
@@ -612,6 +689,28 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         </el-tooltip>
       </div>
       <div class="input-actions">
+        <!-- 画布状态标签 -->
+        <el-tooltip
+          v-if="isCanvasEnabled && canvasBindingInfo"
+          :content="`当前绑定画布: ${canvasBindingInfo.name} (点击预览)`"
+          placement="top"
+          :show-after="500"
+        >
+          <div
+            class="temporary-model-indicator canvas-indicator"
+            :class="{ 'has-pending': hasCanvasPendingChanges }"
+            @click="bus.requestAction('canvas:open-window', { canvasId: canvasBindingInfo.id })"
+          >
+            <Brush :size="14" />
+            <span class="model-name">
+              {{ canvasBindingInfo.name }}
+            </span>
+            <button class="clear-btn" @click.stop="unbindCanvas">
+              <X :size="14" />
+            </button>
+          </div>
+        </el-tooltip>
+
         <!-- 续写模型显示 -->
         <el-tooltip
           v-if="continuationModelInfo"
@@ -1218,6 +1317,26 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 }
 
 .continuation-model .clear-btn {
+  color: var(--el-color-warning) !important;
+}
+.canvas-indicator {
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 30%, transparent);
+}
+
+.canvas-indicator:hover {
+  background: rgba(var(--el-color-primary-rgb), 0.2);
+  transform: translateY(-1px);
+}
+
+.canvas-indicator.has-pending {
+  border-color: var(--el-color-warning);
+  color: var(--el-color-warning);
+  background: rgba(var(--el-color-warning-rgb), 0.1);
+}
+
+.canvas-indicator.has-pending .clear-btn {
   color: var(--el-color-warning) !important;
 }
 </style>

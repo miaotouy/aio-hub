@@ -69,6 +69,27 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
+   * 确保当前有激活的画布，如果没有则自动创建一个
+   */
+  async function ensureActiveCanvas(): Promise<string> {
+    if (activeCanvasId.value) return activeCanvasId.value;
+
+    const metadata = await createCanvas("未命名画布");
+    if (!metadata) {
+      throw new Error("自动创建画布失败");
+    }
+
+    // 通过 DOM 事件通知外部（如 llm-chat）
+    window.dispatchEvent(
+      new CustomEvent("canvas:auto-created", {
+        detail: { canvasId: metadata.id },
+      }),
+    );
+
+    return metadata.id;
+  }
+
+  /**
    * 创建新画布
    */
   async function createCanvas(title: string, templateId?: string) {
@@ -363,6 +384,14 @@ export const useCanvasStore = defineStore("canvas", () => {
     const DIVIDER_MARKER = "=======";
     const REPLACE_MARKER = ">>>>>>> REPLACE";
 
+    // 预处理 diff，尝试剥离可能存在的行号前缀 (例如 "  1 | ")
+    const stripLineNumbers = (contentLines: string[]) => {
+      return contentLines.map(line => {
+        const match = line.match(/^\s*\d+\s*\|\s?(.*)$/);
+        return match ? match[1] : line;
+      });
+    };
+
     let result = originalContent;
     const lines = diff.split(/\r?\n/);
     let i = 0;
@@ -388,8 +417,8 @@ export const useCanvasStore = defineStore("canvas", () => {
           i++;
         }
 
-        const searchStr = searchContentLines.join("\n");
-        const replaceStr = replaceContentLines.join("\n");
+        const searchStr = stripLineNumbers(searchContentLines).join("\n");
+        const replaceStr = stripLineNumbers(replaceContentLines).join("\n");
 
         if (searchStr === "") {
           // 如果 SEARCH 为空，追加到末尾
@@ -488,5 +517,6 @@ export const useCanvasStore = defineStore("canvas", () => {
     discardChanges,
     undoDiff,
     getFileTree,
+    ensureActiveCanvas,
   };
 });

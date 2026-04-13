@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, markRaw, ref } from "vue";
-import { ElSwitch, ElEmpty, ElIcon, ElTooltip } from "element-plus";
-import { Cpu, Settings2, Power, Zap, Share2, ChevronDown } from "lucide-vue-next";
+import { ElSwitch, ElEmpty, ElIcon, ElTooltip, ElInput } from "element-plus";
+import { Cpu, Settings2, Power, Zap, Share2, ChevronDown, Search } from "lucide-vue-next";
 import { useAgentStore } from "../../stores/agentStore";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
+import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { useToolsStore } from "@/stores/tools";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
 import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
@@ -15,6 +16,7 @@ const { isVcpChannel } = useIsVcpChannel();
 
 // 展开的工具ID
 const expandedToolId = ref<string | null>(null);
+const searchQuery = ref("");
 
 const currentAgent = computed(() => {
   return agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
@@ -28,6 +30,8 @@ const discoveredTools = computed(() => {
   if (!config.value.enabled) return [];
   return getDiscoveredMethods();
 });
+
+const { filteredTools } = useToolSearch(discoveredTools, searchQuery);
 
 const ensureConfig = () => {
   if (!currentAgent.value) return;
@@ -178,12 +182,17 @@ const emit = defineEmits<{
       </div>
     </el-tooltip>
 
+    <!-- 搜索框移到列表外部，固定在上方 -->
+    <div v-if="config.enabled" class="search-container">
+      <el-input v-model="searchQuery" placeholder="搜索工具或方法..." size="small" clearable :prefix-icon="Search" />
+    </div>
+
     <div v-if="config.enabled" class="tools-mini-list">
-      <div v-if="discoveredTools.length === 0" class="empty-hint">
-        <el-empty :image-size="30" description="未发现可用工具" />
+      <div v-if="filteredTools.length === 0" class="empty-hint">
+        <el-empty :image-size="30" :description="searchQuery ? '未找到匹配结果' : '未发现可用工具'" />
       </div>
       <div v-else class="tool-items-container">
-        <template v-for="tool in discoveredTools" :key="tool.toolId">
+        <template v-for="tool in filteredTools" :key="tool.toolId">
           <div class="mini-tool-item" :class="{ disabled: !isToolEnabled(tool.toolId) }">
             <div class="tool-main" @click="toggleToolExpand(tool.toolId)">
               <el-icon class="tool-icon">
@@ -345,9 +354,14 @@ const emit = defineEmits<{
 }
 
 .tools-mini-list {
-  max-height: 240px;
+  max-height: 280px;
   overflow-y: auto;
   padding: 4px 0;
+}
+
+.search-container {
+  padding: 8px 8px 4px;
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 /* 自定义滚动条 */

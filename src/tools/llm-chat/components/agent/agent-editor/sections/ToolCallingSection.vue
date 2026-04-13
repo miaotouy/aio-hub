@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { inject, computed, ref, type Ref } from "vue";
-import { CopyDocument, Files, InfoFilled } from "@element-plus/icons-vue";
+import { CopyDocument, Files, InfoFilled, Search } from "@element-plus/icons-vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
+import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
 import { customMessage } from "@/utils/customMessage";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -35,6 +36,9 @@ const discoveredTools = computed(() => {
   if (!editForm.toolCallConfig?.enabled) return [];
   return getDiscoveredMethods();
 });
+
+const searchQuery = ref("");
+const { filteredTools } = useToolSearch(discoveredTools, searchQuery);
 
 // 展开配置的工具ID
 const expandedToolId = ref<string | null>(null);
@@ -243,13 +247,24 @@ const pasteAllToolSettings = async () => {
             </div>
           </div>
 
-          <div v-if="discoveredTools.length === 0" class="empty-tools">
-            <el-empty :image-size="40" description="未发现可调用的工具方法" />
+          <!-- 搜索栏独立出来 -->
+          <div class="box-search-bar">
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索工具名称、ID、方法或描述..."
+              size="small"
+              clearable
+              :prefix-icon="Search"
+            />
+          </div>
+
+          <div v-if="filteredTools.length === 0" class="empty-tools">
+            <el-empty :image-size="40" :description="searchQuery ? '未找到匹配结果' : '未发现可调用的工具方法'" />
           </div>
 
           <div v-else class="tools-list">
             <ToolCallingItem
-              v-for="tool in discoveredTools"
+              v-for="tool in filteredTools"
               :key="tool.toolId"
               :tool="tool"
               :expanded="expandedToolId === tool.toolId"
@@ -369,6 +384,12 @@ const pasteAllToolSettings = async () => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.box-search-bar {
+  padding: 10px 12px;
+  background: var(--el-fill-color-lighter);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .header-actions {

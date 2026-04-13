@@ -1,11 +1,20 @@
-import type { ToolConfig, ToolRegistry } from "@/services/types";
+import type { ToolConfig, ToolRegistry, ServiceMetadata } from "@/services/types";
 import { markRaw, ref } from "vue";
 import { useCanvasStore } from "./stores/canvasStore";
 import { Brush } from "@element-plus/icons-vue";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import { useCanvasStateConsumer } from "./composables/useCanvasStateConsumer";
 
-export default class CanvasRegistry implements ToolRegistry {
+export const toolConfig: ToolConfig = {
+  name: "画布",
+  path: "/canvas",
+  icon: markRaw(Brush),
+  component: () => import("./CanvasWorkbench.vue"),
+  description: "Agent 协作画布，支持多文件编辑与实时预览",
+  category: "AI 工具",
+};
+
+export class CanvasRegistry implements ToolRegistry {
   public readonly id = "canvas";
   public readonly name = "画布";
   public readonly description = "多文件协作与预览空间";
@@ -51,9 +60,13 @@ export default class CanvasRegistry implements ToolRegistry {
         return nodes
           .map((node) => {
             const statusTag =
-              node.status === "modified" ? " (modified)" :
-              node.status === "new" ? " (new)" :
-              node.status === "deleted" ? " (deleted)" : "";
+              node.status === "modified"
+                ? " (modified)"
+                : node.status === "new"
+                  ? " (new)"
+                  : node.status === "deleted"
+                    ? " (deleted)"
+                    : "";
             if (node.isDirectory) {
               const children = node.children ? buildFileList(node.children, indent + "  ") : "";
               return `${indent}- ${node.name}/${children ? "\n" + children : ""}`;
@@ -64,9 +77,7 @@ export default class CanvasRegistry implements ToolRegistry {
       };
 
       const fileListStr = buildFileList(fileTree);
-      const changesStr = pendingFiles.length > 0
-        ? pendingFiles.map((f) => `- ${f}`).join("\n")
-        : "None";
+      const changesStr = pendingFiles.length > 0 ? pendingFiles.map((f) => `- ${f}`).join("\n") : "None";
 
       return `Canvas Project: ${activeCanvas.metadata.name}
 Entry File: ${activeCanvas.metadata.entryFile || "index.html"}
@@ -83,135 +94,136 @@ ${changesStr}
     }
   }
 
-  public getMetadata() {
+  public getMetadata(): ServiceMetadata {
     return {
       methods: [
         {
           name: "read_canvas_file",
+          displayName: "读取画布文件",
           description: "读取画布文件内容（带行号）",
-          parameters: [
-            { name: "path", type: "string", required: true, description: "文件路径" }
-          ],
+          parameters: [{ name: "path", type: "string", required: true, description: "文件路径" }],
           returnType: "Promise<string>",
+          agentCallable: true,
         },
         {
           name: "apply_canvas_diff",
+          displayName: "应用 Diff",
           description: "使用 Search/Replace 块模式修改画布文件",
           parameters: [
             { name: "path", type: "string", required: true, description: "文件路径" },
-            { name: "diff", type: "string", required: true, description: "Diff 内容" }
+            { name: "diff", type: "string", required: true, description: "Diff 内容" },
           ],
-          returnType: "Promise<void>",
+          returnType: "Promise<string>",
+          agentCallable: true,
         },
         {
           name: "write_canvas_file",
+          displayName: "写入文件",
           description: "全量覆盖画布文件内容",
           parameters: [
             { name: "path", type: "string", required: true, description: "文件路径" },
-            { name: "content", type: "string", required: true, description: "文件内容" }
+            { name: "content", type: "string", required: true, description: "文件内容" },
           ],
-          returnType: "Promise<void>",
+          returnType: "Promise<string>",
+          agentCallable: true,
         },
         {
           name: "commit_changes",
+          displayName: "提交更改",
           description: "提交所有待定更改到物理磁盘并创建 Git 提交",
-          parameters: [
-            { name: "message", type: "string", required: false, description: "提交说明" }
-          ],
-          returnType: "Promise<void>",
+          parameters: [{ name: "message", type: "string", required: false, description: "提交说明" }],
+          returnType: "Promise<string>",
+          agentCallable: true,
         },
         {
           name: "discard_changes",
+          displayName: "丢弃更改",
           description: "丢弃所有未提交的更改",
           parameters: [],
-          returnType: "Promise<void>",
+          returnType: "Promise<string>",
+          agentCallable: true,
         },
         {
           name: "list_canvas_files",
+          displayName: "列出文件",
           description: "获取画布的文件树",
           parameters: [],
-          returnType: "Promise<CanvasFileNode[]>",
+          returnType: "Promise<any>",
+          agentCallable: true,
         },
         {
           name: "undo_canvas_diff",
+          displayName: "撤销 Diff",
           description: "撤回上一次内存修改",
           parameters: [],
-          returnType: "void",
-        }
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
       ],
     };
   }
 
-  /**
-   * 执行工具调用
-   */
-  async execute(command: string, args: any): Promise<any> {
+  // ==================== Agent Callable Methods ====================
+
+  async read_canvas_file(args: { path: string }): Promise<string> {
     const canvasStore = useCanvasStore();
+    const canvasId = canvasStore.activeCanvasId;
+    if (!canvasId) throw new Error("No active canvas. Please open or create a canvas first.");
 
-    switch (command) {
-      case "read_canvas_file": {
-        const canvasId = canvasStore.activeCanvasId;
-        if (!canvasId) throw new Error("No active canvas. Please open or create a canvas first.");
-        const content = await canvasStore.readCanvasFileAsync(canvasId, args.path);
-        if (content === null) throw new Error(`File not found: ${args.path}`);
+    const content = await canvasStore.readCanvasFileAsync(canvasId, args.path);
+    if (content === null) throw new Error(`File not found: ${args.path}`);
 
-        // 为内容添加行号
-        return content
-          .split(/\r?\n/)
-          .map((line, index) => `${String(index + 1).padStart(4, " ")} | ${line}`)
-          .join("\n");
-      }
+    // 为内容添加行号
+    return content
+      .split(/\r?\n/)
+      .map((line, index) => `${String(index + 1).padStart(4, " ")} | ${line}`)
+      .join("\n");
+  }
 
-      case "apply_canvas_diff": {
-        const canvasId = await canvasStore.ensureActiveCanvas();
-        await canvasStore.applyDiff(canvasId, args.path, args.diff);
-        return `Successfully applied diff to ${args.path}`;
-      }
+  async apply_canvas_diff(args: { path: string; diff: string }): Promise<string> {
+    const canvasStore = useCanvasStore();
+    const canvasId = await canvasStore.ensureActiveCanvas();
+    await canvasStore.applyDiff(canvasId, args.path, args.diff);
+    return `Successfully applied diff to ${args.path}`;
+  }
 
-      case "write_canvas_file": {
-        const canvasId = await canvasStore.ensureActiveCanvas();
-        canvasStore.writeFile(canvasId, args.path, args.content);
-        return `Successfully wrote to ${args.path}`;
-      }
+  async write_canvas_file(args: { path: string; content: string }): Promise<string> {
+    const canvasStore = useCanvasStore();
+    const canvasId = await canvasStore.ensureActiveCanvas();
+    canvasStore.writeFile(canvasId, args.path, args.content);
+    return `Successfully wrote to ${args.path}`;
+  }
 
-      case "commit_changes": {
-        const canvasId = canvasStore.activeCanvasId;
-        if (!canvasId) throw new Error("No active canvas to commit.");
-        await canvasStore.commitChanges(canvasId, args.message);
-        return "Changes committed successfully.";
-      }
+  async commit_changes(args: { message?: string }): Promise<string> {
+    const canvasStore = useCanvasStore();
+    const canvasId = canvasStore.activeCanvasId;
+    if (!canvasId) throw new Error("No active canvas to commit.");
+    await canvasStore.commitChanges(canvasId, args.message);
+    return "Changes committed successfully.";
+  }
 
-      case "discard_changes": {
-        const canvasId = canvasStore.activeCanvasId;
-        if (!canvasId) return "No active canvas.";
-        canvasStore.discardChanges(canvasId);
-        return "Changes discarded.";
-      }
+  async discard_changes(): Promise<string> {
+    const canvasStore = useCanvasStore();
+    const canvasId = canvasStore.activeCanvasId;
+    if (!canvasId) return "No active canvas.";
+    canvasStore.discardChanges(canvasId);
+    return "Changes discarded.";
+  }
 
-      case "undo_canvas_diff": {
-        const canvasId = canvasStore.activeCanvasId;
-        if (!canvasId) return;
-        canvasStore.undoDiff(canvasId);
-        return "Last change undone.";
-      }
+  async undo_canvas_diff(): Promise<string> {
+    const canvasStore = useCanvasStore();
+    const canvasId = canvasStore.activeCanvasId;
+    if (!canvasId) return "No active canvas.";
+    canvasStore.undoDiff(canvasId);
+    return "Last change undone.";
+  }
 
-      case "list_canvas_files": {
-        const canvasId = canvasStore.activeCanvasId;
-        if (!canvasId) return [];
-        return await canvasStore.getFileTree(canvasId);
-      }
-
-      default:
-        throw new Error(`Unknown canvas command: ${command}`);
-    }
+  async list_canvas_files(): Promise<any> {
+    const canvasStore = useCanvasStore();
+    const canvasId = canvasStore.activeCanvasId;
+    if (!canvasId) return [];
+    return await canvasStore.getFileTree(canvasId);
   }
 }
 
-export const toolConfig: ToolConfig = {
-  name: "画布",
-  path: "/canvas",
-  icon: markRaw(Brush),
-  component: () => import("./CanvasWorkbench.vue"),
-  description: "Agent 协作画布，支持多文件编辑与实时预览",
-  category: "AI 工具",
-};
+export default CanvasRegistry;

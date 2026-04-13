@@ -16,10 +16,29 @@ export class GitInternalService {
   constructor(private basePath: string) {
     // isomorphic-git 需要一个符合 fs 接口的对象
     // 这里我们需要适配 Tauri 的 fs 插件
+    const wrapENOENT = async <T>(fn: () => Promise<T>): Promise<T> => {
+      try {
+        return await fn();
+      } catch (err: any) {
+        const errorMsg = String(err);
+        if (errorMsg.includes("os error 2") || errorMsg.includes("os error 3") || errorMsg.includes("系统找不到指定的路径")) {
+          const error = new Error(errorMsg);
+          (error as any).code = "ENOENT";
+          throw error;
+        }
+        throw err;
+      }
+    };
+
     this.fs = {
       promises: {
-        readFile: async (path: string) => {
-          return await readFile(path);
+        readFile: async (path: string, options?: any) => {
+          const data = await wrapENOENT(() => readFile(path));
+          // isomorphic-git 可能会要求 utf8 编码的字符串
+          if (options === "utf8" || options?.encoding === "utf8") {
+            return new TextDecoder().decode(data);
+          }
+          return data;
         },
         writeFile: async (path: string, data: Uint8Array | string) => {
           const uint8 = typeof data === "string" ? new TextEncoder().encode(data) : data;
@@ -37,25 +56,45 @@ export class GitInternalService {
           return await remove(path);
         },
         stat: async (path: string) => {
-          const s = await stat(path);
+          const s = await wrapENOENT(() => stat(path));
+          const now = new Date();
+          const mtime = s.mtime || now;
+          const ctime = (s as any).ctime || mtime; // Tauri 可能不提供 ctime，回退到 mtime
           return {
             isFile: () => s.isFile,
             isDirectory: () => s.isDirectory,
             isSymbolicLink: () => s.isSymlink,
-            mode: s.mode,
+            mode: s.mode || 0o644,
             size: s.size,
-            mtimeMs: s.mtime?.getTime() ?? Date.now(),
+            mtime,
+            ctime,
+            mtimeMs: mtime.getTime(),
+            ctimeMs: ctime.getTime(),
+            dev: 1,
+            ino: 1,
+            uid: 1,
+            gid: 1,
           };
         },
         lstat: async (path: string) => {
-          const s = await stat(path);
+          const s = await wrapENOENT(() => stat(path));
+          const now = new Date();
+          const mtime = s.mtime || now;
+          const ctime = (s as any).ctime || mtime;
           return {
             isFile: () => s.isFile,
             isDirectory: () => s.isDirectory,
             isSymbolicLink: () => s.isSymlink,
-            mode: s.mode,
+            mode: s.mode || 0o644,
             size: s.size,
-            mtimeMs: s.mtime?.getTime() ?? Date.now(),
+            mtime,
+            ctime,
+            mtimeMs: mtime.getTime(),
+            ctimeMs: ctime.getTime(),
+            dev: 1,
+            ino: 1,
+            uid: 1,
+            gid: 1,
           };
         },
         readdir: async (path: string) => {

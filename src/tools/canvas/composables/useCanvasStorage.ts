@@ -151,7 +151,7 @@ export function useCanvasStorage() {
       async () => {
         // 使用 Rust 后端的安全删除指令
         await invoke("delete_directory_in_app_data", {
-          relative_path: `canvases/${canvasId}`,
+          relativePath: `canvases/${canvasId}`,
         });
         logger.info("画布已成功删除（进入回收站）", { canvasId });
       },
@@ -167,24 +167,34 @@ export function useCanvasStorage() {
       async () => {
         const basePath = await getCanvasBasePath(canvasId);
         // 调用 Rust 后端的高性能目录树生成指令
-        const tree = await invoke<CanvasFileNode[]>("generate_directory_tree", {
+        const result = await invoke<{ structure: any }>("generate_directory_tree", {
           path: basePath,
-          recursive: true,
-          show_size: true,
+          showFiles: true,
+          showHidden: false,
+          maxDepth: 0,
+          ignorePatterns: ["__USE_GITIGNORE__"],
         });
 
-        // 过滤掉 .git 和 .canvas.json
-        const filterNodes = (nodes: CanvasFileNode[]): CanvasFileNode[] => {
+        // 过滤掉 .git 和 .canvas.json，并转换 snake_case 为 camelCase，同时拼接相对路径
+        const filterNodes = (nodes: any[], parentPath: string = ""): CanvasFileNode[] => {
+          if (!nodes) return [];
           return nodes
             .filter((node) => node.name !== ".git" && node.name !== ".canvas.json")
-            .map((node) => ({
-              ...node,
-              children: node.children ? filterNodes(node.children) : undefined,
-              status: "clean" as const,
-            }));
+            .map((node) => {
+              const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+              return {
+                name: node.name,
+                path: currentPath,
+                isDirectory: node.is_dir,
+                size: node.size,
+                children: node.children ? filterNodes(node.children, currentPath) : undefined,
+                status: "clean" as const,
+              };
+            });
         };
 
-        return filterNodes(tree);
+        // 从根节点的子节点开始过滤
+        return filterNodes(result.structure.children);
       },
       { userMessage: "获取文件树失败" },
     );

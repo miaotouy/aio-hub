@@ -124,9 +124,14 @@ export const useCanvasStore = defineStore("canvas", () => {
         // 3. 初始化 Git
         const basePath = await storage.getCanvasBasePath(id);
         const gitService = new GitInternalService(basePath);
-        await gitService.init();
-        await gitService.add(Object.keys(template.files));
-        await gitService.commit("Initial commit from template");
+        const initRes = await gitService.init();
+        if (initRes === null) throw new Error("Git 初始化失败");
+
+        const addRes = await gitService.add(Object.keys(template.files));
+        if (addRes === null) throw new Error("Git 添加文件失败");
+
+        const commitRes = await gitService.commit("Initial commit from template");
+        if (commitRes === null) throw new Error("Git 初始提交失败");
 
         // 4. 写入元数据
         await storage.writeCanvasMetadata(id, metadata);

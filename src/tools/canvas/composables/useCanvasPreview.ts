@@ -158,10 +158,13 @@ export function useCanvasPreview(options: {
   // CSS 热替换
   function hotReloadCss(changedFiles: Record<string, string>, iframe: HTMLIFrameElement | null) {
     if (!iframe?.contentWindow) return;
-    iframe.contentWindow.postMessage({
-      type: 'canvas-css-reload',
-      styles: changedFiles,
-    }, '*');
+    iframe.contentWindow.postMessage(
+      {
+        type: "canvas-css-reload",
+        styles: changedFiles,
+      },
+      "*",
+    );
   }
 
   // 刷新预览（防抖）
@@ -169,7 +172,7 @@ export function useCanvasPreview(options: {
     // 检查是否可以进行 CSS 热替换
     const pending = options.pendingUpdates();
     const changedFiles = Object.keys(pending);
-    const isOnlyCss = changedFiles.length > 0 && changedFiles.every(f => f.endsWith(".css"));
+    const isOnlyCss = changedFiles.length > 0 && changedFiles.every((f) => f.endsWith(".css"));
 
     if (isOnlyCss && iframe) {
       hotReloadCss(pending, iframe);

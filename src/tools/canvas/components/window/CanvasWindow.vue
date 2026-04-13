@@ -79,25 +79,33 @@ const showStatusBar = ref(true);
 const activeCanvas = ref<any>(null); // 这里的 metadata 需要通过某种方式获取，或者从 activeCanvasId 监听获取
 
 // 监听 ID 变化，加载元数据（如果是第一次打开）
-watch(activeCanvasId, async (newId) => {
-  if (newId) {
-    const [metadata, basePath] = await Promise.all([
-      storage.readCanvasMetadata(newId),
-      storage.getCanvasBasePath(newId)
-    ]);
-    
-    if (metadata) {
-      activeCanvas.value = { metadata };
+watch(
+  activeCanvasId,
+  async (newId) => {
+    if (newId) {
+      const [metadata, basePath] = await Promise.all([
+        storage.readCanvasMetadata(newId),
+        storage.getCanvasBasePath(newId),
+      ]);
+
+      if (metadata) {
+        activeCanvas.value = { metadata };
+      }
+      canvasBasePath.value = basePath;
+      refreshPreview(previewPaneRef.value?.iframe);
     }
-    canvasBasePath.value = basePath;
-    refreshPreview(previewPaneRef.value?.iframe);
-  }
-}, { immediate: true });
+  },
+  { immediate: true },
+);
 
 // 监听影子文件变化，自动刷新预览
-watch(() => ({ ...pendingUpdates }), () => {
-  refreshPreview(previewPaneRef.value?.iframe);
-}, { deep: true });
+watch(
+  () => ({ ...pendingUpdates }),
+  () => {
+    refreshPreview(previewPaneRef.value?.iframe);
+  },
+  { deep: true },
+);
 
 function handleConsoleMessage(payload: any) {
   const msg: ConsoleMessage = {
@@ -115,7 +123,7 @@ function handleConsoleMessage(payload: any) {
 
 async function openInVSCode() {
   if (!activeCanvasId.value) return;
-  const basePath = canvasBasePath.value || await storage.getCanvasBasePath(activeCanvasId.value);
+  const basePath = canvasBasePath.value || (await storage.getCanvasBasePath(activeCanvasId.value));
   await invoke("open_path_in_vscode", { path: basePath });
 }
 

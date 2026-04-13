@@ -1,15 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import {
-  ArrowLeft,
-  Save,
-  X,
-  ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  FileCode,
-  History
-} from "lucide-vue-next";
+import { ArrowLeft, Save, X, ExternalLink, ChevronLeft, ChevronRight, FileCode, History } from "lucide-vue-next";
 import { useCanvasStore } from "../../stores/canvasStore";
 import type { CanvasFileNode } from "../../types";
 import CanvasFileTree from "../sidebar/CanvasFileTree.vue";
@@ -42,23 +33,23 @@ const isFileLoading = ref(false);
 const activeCanvas = computed(() => store.activeCanvas);
 
 const EXT_LANGUAGE_MAP: Record<string, string> = {
-  '.html': 'html',
-  '.htm': 'html',
-  '.css': 'css',
-  '.scss': 'scss',
-  '.sass': 'sass',
-  '.js': 'javascript',
-  '.jsx': 'javascript',
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.json': 'json',
-  '.md': 'markdown',
-  '.xml': 'xml',
-  '.svg': 'xml',
-  '.yaml': 'yaml',
-  '.yml': 'yaml',
-  '.py': 'python',
-  '.vue': 'vue',
+  ".html": "html",
+  ".htm": "html",
+  ".css": "css",
+  ".scss": "scss",
+  ".sass": "sass",
+  ".js": "javascript",
+  ".jsx": "javascript",
+  ".ts": "typescript",
+  ".tsx": "typescript",
+  ".json": "json",
+  ".md": "markdown",
+  ".xml": "xml",
+  ".svg": "xml",
+  ".yaml": "yaml",
+  ".yml": "yaml",
+  ".py": "python",
+  ".vue": "vue",
 };
 
 const currentLanguage = computed(() => {
@@ -137,16 +128,16 @@ const detachedManager = useDetachedManager();
 const handlePreview = async () => {
   const canvasId = props.canvasId;
   if (!canvasId) return;
-  
+
   const isAlreadyOpen = detachedManager.isDetached("canvas:preview");
   if (isAlreadyOpen) {
     await detachedManager.focusWindow("canvas:preview");
     return;
   }
-  
+
   await detachedManager.createToolWindow({
     label: `canvas-preview-${canvasId}`,
-    title: `Canvas: ${activeCanvas.value?.metadata.name || 'Preview'}`,
+    title: `Canvas: ${activeCanvas.value?.metadata.name || "Preview"}`,
     url: `/detached-component/canvas:preview?id=${canvasId}`,
     width: 1200,
     height: 800,
@@ -168,11 +159,14 @@ watch(activeTab, () => {
 });
 
 // 监听 store 中的 pendingUpdates，如果当前文件在外部被修改（如 AI 写入），需要同步
-watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newVal) => {
-  if (newVal !== undefined && newVal !== fileContent.value) {
-    fileContent.value = newVal;
-  }
-});
+watch(
+  () => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""],
+  (newVal) => {
+    if (newVal !== undefined && newVal !== fileContent.value) {
+      fileContent.value = newVal;
+    }
+  },
+);
 </script>
 
 <template>
@@ -191,14 +185,14 @@ watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newV
       <div class="header-center">
         <!-- Tab 栏 -->
         <div class="tabs-container">
-          <div 
-            v-for="path in openTabs" 
-            :key="path" 
+          <div
+            v-for="path in openTabs"
+            :key="path"
             class="tab-item"
             :class="{ 'is-active': activeTab === path }"
             @click="activeTab = path"
           >
-            <span class="tab-name">{{ path.split('/').pop() }}</span>
+            <span class="tab-name">{{ path.split("/").pop() }}</span>
             <el-icon class="close-icon" @click.stop="closeTab(path)"><X :size="12" /></el-icon>
           </div>
         </div>
@@ -206,47 +200,29 @@ watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newV
 
       <div class="header-right">
         <el-button-group>
-          <el-button 
-            type="primary" 
-            :icon="Save" 
-            :disabled="!store.hasPendingChanges"
-            @click="handleCommit"
-          >
+          <el-button type="primary" :icon="Save" :disabled="!store.hasPendingChanges" @click="handleCommit">
             Commit All
           </el-button>
-          <el-button
-            :icon="ExternalLink"
-            @click="handlePreview"
-          >
-            独立预览
-          </el-button>
+          <el-button :icon="ExternalLink" @click="handlePreview"> 独立预览 </el-button>
         </el-button-group>
       </div>
     </header>
 
     <div class="editor-body">
       <!-- 左侧边栏 -->
-      <aside 
-        v-if="isSidebarVisible" 
-        class="editor-sidebar" 
-        :style="{ width: sidebarWidth + 'px' }"
-      >
+      <aside v-if="isSidebarVisible" class="editor-sidebar" :style="{ width: sidebarWidth + 'px' }">
         <div class="sidebar-section explorer">
           <div class="section-header">
             <span>资源管理器</span>
           </div>
           <div class="section-content">
-            <CanvasFileTree 
-              :nodes="fileTree" 
-              :active-file="activeTab" 
-              @select="handleSelectFile" 
-            />
+            <CanvasFileTree :nodes="fileTree" :active-file="activeTab" @select="handleSelectFile" />
           </div>
         </div>
 
         <div class="sidebar-section changes">
-          <PendingChangesBar 
-            :canvas-id="canvasId" 
+          <PendingChangesBar
+            :canvas-id="canvasId"
             :pending-files="store.pendingUpdates[canvasId] || {}"
             @commit="handleCommit"
             @discard="handleDiscard"
@@ -282,9 +258,7 @@ watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newV
     <!-- 底部状态栏 -->
     <footer class="editor-footer">
       <div class="footer-left">
-        <span v-if="activeTab" class="status-item">
-          <FileCode :size="12" /> {{ activeTab }}
-        </span>
+        <span v-if="activeTab" class="status-item"> <FileCode :size="12" /> {{ activeTab }} </span>
       </div>
       <div class="footer-right">
         <span class="status-item">
@@ -350,7 +324,7 @@ watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newV
         height: 100%;
         align-items: flex-end;
         overflow-x: auto;
-        
+
         &::-webkit-scrollbar {
           display: none;
         }
@@ -374,7 +348,7 @@ watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newV
 
           &:hover {
             background-color: rgba(var(--el-fill-color-light), 0.5);
-            
+
             .close-icon {
               opacity: 1;
             }
@@ -486,7 +460,7 @@ watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newV
         align-items: center;
         justify-content: center;
         color: var(--el-text-color-placeholder);
-        
+
         .empty-content {
           text-align: center;
           p {
@@ -514,7 +488,8 @@ watch(() => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""], (newV
       gap: 6px;
     }
 
-    .footer-left, .footer-right {
+    .footer-left,
+    .footer-right {
       display: flex;
       gap: 16px;
     }

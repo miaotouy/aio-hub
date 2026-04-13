@@ -866,6 +866,7 @@ async function ensureActiveCanvas(): Promise<string> {
 **显示条件**：当前 Agent 的 `toolToggles.canvas === true` 时显示。
 
 **交互逻辑**：
+
 - **未绑定**：显示为 `[🖌️ 未绑定]` (半透明/虚线边框)。
 - **已绑定**：显示图标 + 画布名称。点击弹出管理面板。
 - **有待定更改**：药丸变为 warning 色，并显示脉冲圆点。
@@ -934,6 +935,7 @@ function bindCanvas(canvasId: string | null) {
 #### 5.7.1 预览机制 (onToolCallPreview)
 
 当 Agent 发起 `apply_canvas_diff` 或 `write_canvas_file` 调用时，在进入审批挂起状态前，`executor` 会调用此钩子：
+
 1. `CanvasRegistry` 拦截调用，将变更写入 `canvasStore` 的 `pendingUpdates`。
 2. 此时变更标记为 `preview` 状态，并关联 `requestId`。
 3. 画布预览窗口通过 Layer 3 通道实时同步此变更，用户可以**在点击批准前看到修改效果**。
@@ -941,6 +943,7 @@ function bindCanvas(canvasId: string | null) {
 #### 5.7.2 丢弃机制 (onToolCallDiscarded)
 
 如果用户在审批栏点击"拒绝"或"清空"：
+
 1. `executor` 调用此钩子。
 2. `canvasStore` 根据 `requestId` 找到对应的快照，撤销 `pendingUpdates` 中的临时变更。
 3. 预览窗口自动回退到物理文件版本。
@@ -948,6 +951,7 @@ function bindCanvas(canvasId: string | null) {
 #### 5.7.3 确认机制 (Approve)
 
 如果用户点击"批准"：
+
 1. `executor` 执行实际的工具方法。
 2. 工具方法检测到 `pendingUpdates` 中已存在该 `requestId` 的预览数据，直接将其转正（或跳过重复写入逻辑）。
 

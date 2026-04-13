@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { 
-  Plus, 
-  Search, 
-  LayoutGrid, 
-  List 
-} from "lucide-vue-next";
+import { Plus, Search, LayoutGrid, List } from "lucide-vue-next";
 import { useCanvasStore } from "./stores/canvasStore";
 import CanvasProjectList from "./components/workbench/CanvasProjectList.vue";
 import CreateCanvasDialog from "./components/workbench/CreateCanvasDialog.vue";
@@ -15,7 +10,7 @@ import { customMessage } from "@/utils/customMessage";
 const store = useCanvasStore();
 
 // --- 状态 ---
-const viewMode = ref<'grid' | 'list'>('grid');
+const viewMode = ref<"grid" | "list">("grid");
 const searchQuery = ref("");
 const isCreateDialogVisible = ref(false);
 
@@ -48,28 +43,18 @@ const handleCanvasCreated = (_metadata: any) => {
   <div class="canvas-workbench">
     <!-- 编辑视图 -->
     <template v-if="store.activeCanvasId">
-      <CanvasEditorPanel
-        :canvas-id="store.activeCanvasId"
-        @back="store.activeCanvasId = null"
-      />
+      <CanvasEditorPanel :canvas-id="store.activeCanvasId" @back="store.activeCanvasId = null" />
     </template>
 
     <!-- 项目大厅 -->
     <template v-else>
       <header class="workbench-header">
         <div class="header-left">
-          <el-button type="primary" :icon="Plus" @click="isCreateDialogVisible = true">
-            新建画布
-          </el-button>
+          <el-button type="primary" :icon="Plus" @click="isCreateDialogVisible = true"> 新建画布 </el-button>
         </div>
 
         <div class="header-center">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索画布项目..."
-            clearable
-            class="search-input"
-          >
+          <el-input v-model="searchQuery" placeholder="搜索画布项目..." clearable class="search-input">
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
@@ -98,19 +83,14 @@ const handleCanvasCreated = (_metadata: any) => {
           @open-vscode="handleOpenVSCode"
         >
           <template #empty-action>
-            <el-button type="primary" @click="isCreateDialogVisible = true">
-              立即创建
-            </el-button>
+            <el-button type="primary" @click="isCreateDialogVisible = true"> 立即创建 </el-button>
           </template>
         </CanvasProjectList>
       </main>
     </template>
 
     <!-- 弹窗 -->
-    <CreateCanvasDialog
-      v-model="isCreateDialogVisible"
-      @created="handleCanvasCreated"
-    />
+    <CreateCanvasDialog v-model="isCreateDialogVisible" @created="handleCanvasCreated" />
   </div>
 </template>
 
@@ -119,6 +99,7 @@ const handleCanvasCreated = (_metadata: any) => {
   width: 100%;
   height: 100%;
   display: flex;
+  border-radius: 12px;
   flex-direction: column;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
@@ -131,7 +112,7 @@ const handleCanvasCreated = (_metadata: any) => {
     align-items: center;
     justify-content: space-between;
     border-bottom: var(--border-width) solid var(--border-color);
-    background-color: rgba(var(--card-bg-rgb), 0.5);
+    background-color: var(--card-bg);
     flex-shrink: 0;
 
     .header-center {
@@ -141,10 +122,9 @@ const handleCanvasCreated = (_metadata: any) => {
 
       .search-input {
         :deep(.el-input__wrapper) {
-          background-color: var(--input-bg);
           box-shadow: none;
           border: var(--border-width) solid var(--border-color);
-          
+
           &.is-focus {
             border-color: var(--el-color-primary);
           }
@@ -152,7 +132,8 @@ const handleCanvasCreated = (_metadata: any) => {
       }
     }
 
-    .header-left, .header-right {
+    .header-left,
+    .header-right {
       display: flex;
       align-items: center;
       gap: 12px;

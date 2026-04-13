@@ -154,7 +154,7 @@ const onChildSelect = (path: string) => {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      
+
       &.modified {
         background-color: var(--el-color-success);
       }
@@ -164,7 +164,7 @@ const onChildSelect = (path: string) => {
       display: flex;
       align-items: center;
       justify-content: center;
-      
+
       &.new {
         color: var(--el-color-success);
       }

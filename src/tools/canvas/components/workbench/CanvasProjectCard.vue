@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { 
-  MoreVertical,
-  ExternalLink,
-  Trash2,
-  FileText,
-  Clock
-} from "lucide-vue-next";
+import { MoreVertical, ExternalLink, Trash2, FileText, Clock } from "lucide-vue-next";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { CanvasListItem } from "../../types";
@@ -14,53 +8,57 @@ import { ElMessageBox } from "element-plus";
 
 const props = defineProps<{
   canvas: CanvasListItem;
-  viewMode: 'grid' | 'list';
+  viewMode: "grid" | "list";
 }>();
 
 const emit = defineEmits<{
-  (e: 'open'): void;
-  (e: 'delete'): void;
-  (e: 'open-vscode'): void;
+  (e: "open"): void;
+  (e: "delete"): void;
+  (e: "open-vscode"): void;
 }>();
 
 const relativeTime = computed(() => {
   return formatDistanceToNow(props.canvas.metadata.updatedAt, {
     addSuffix: true,
-    locale: zhCN
+    locale: zhCN,
   });
 });
 
 const statusType = computed(() => {
   switch (props.canvas.status) {
-    case 'open': return 'success';
-    case 'pending': return 'warning';
-    case 'syncing': return 'primary';
-    default: return 'info';
+    case "open":
+      return "success";
+    case "pending":
+      return "warning";
+    case "syncing":
+      return "primary";
+    default:
+      return "info";
   }
 });
 
 const statusLabel = computed(() => {
   switch (props.canvas.status) {
-    case 'open': return '正在编辑';
-    case 'pending': return '待提交';
-    case 'syncing': return '同步中';
-    default: return '空闲';
+    case "open":
+      return "正在编辑";
+    case "pending":
+      return "待提交";
+    case "syncing":
+      return "同步中";
+    default:
+      return "空闲";
   }
 });
 
 const handleDelete = async () => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除画布 "${props.canvas.metadata.name}" 吗？此操作不可撤销。`,
-      '删除确认',
-      {
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
-    );
-    emit('delete');
+    await ElMessageBox.confirm(`确定要删除画布 "${props.canvas.metadata.name}" 吗？此操作不可撤销。`, "删除确认", {
+      confirmButtonText: "确定删除",
+      cancelButtonText: "取消",
+      type: "warning",
+      confirmButtonClass: "el-button--danger",
+    });
+    emit("delete");
   } catch {
     // 用户取消
   }
@@ -68,11 +66,7 @@ const handleDelete = async () => {
 </script>
 
 <template>
-  <div 
-    class="canvas-project-card" 
-    :class="[viewMode, { 'is-active': canvas.status === 'open' }]"
-    @click="emit('open')"
-  >
+  <div class="canvas-project-card" :class="[viewMode, { 'is-active': canvas.status === 'open' }]" @click="emit('open')">
     <!-- 卡片模式 -->
     <template v-if="viewMode === 'grid'">
       <div class="card-header">
@@ -103,10 +97,8 @@ const handleDelete = async () => {
       </div>
 
       <div class="card-footer" @click.stop>
-        <el-button size="small" type="primary" plain @click="emit('open')">
-          打开预览
-        </el-button>
-        
+        <el-button size="small" type="primary" plain @click="emit('open')"> 打开预览 </el-button>
+
         <el-dropdown trigger="click">
           <div class="more-btn">
             <el-icon><MoreVertical :size="16" /></el-icon>
@@ -132,7 +124,7 @@ const handleDelete = async () => {
       <div class="list-item-content">
         <span class="emoji">🎨</span>
         <div class="list-title" :title="canvas.metadata.name">{{ canvas.metadata.name }}</div>
-        
+
         <div class="list-stats">
           <span class="file-count">{{ canvas.metadata.fileCount }} files</span>
           <el-tag v-if="canvas.pendingFileCount > 0" type="warning" size="small" class="pending-tag">
@@ -156,7 +148,7 @@ const handleDelete = async () => {
               <el-icon><ExternalLink :size="16" /></el-icon>
             </div>
           </el-tooltip>
-          
+
           <el-dropdown trigger="click">
             <div class="action-icon">
               <el-icon><MoreVertical :size="16" /></el-icon>
@@ -250,7 +242,7 @@ const handleDelete = async () => {
 
           &.pending {
             color: var(--el-color-warning);
-            
+
             .dot {
               width: 6px;
               height: 6px;
@@ -371,7 +363,7 @@ const handleDelete = async () => {
 
 .delete-item {
   color: var(--el-color-danger) !important;
-  
+
   &:hover {
     background-color: var(--el-color-danger-light-9) !important;
   }

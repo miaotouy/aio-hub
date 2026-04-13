@@ -1,11 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, reactive, computed } from "vue";
-import type {
-  CanvasMetadata,
-  CanvasListItem,
-  CanvasFileNode,
-  DiffOperation,
-} from "../types";
+import type { CanvasMetadata, CanvasListItem, CanvasFileNode, DiffOperation } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useCanvasStorage } from "../composables/useCanvasStorage";
@@ -46,9 +41,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   // --- 计算属性 ---
 
   // 当前激活的画布对象
-  const activeCanvas = computed(() =>
-    canvasList.value.find((c) => c.metadata.id === activeCanvasId.value),
-  );
+  const activeCanvas = computed(() => canvasList.value.find((c) => c.metadata.id === activeCanvasId.value));
 
   // 当前激活画布的影子文件
   const activePendingUpdates = computed(() =>
@@ -56,9 +49,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   );
 
   // 当前激活画布是否有未提交的更改
-  const hasPendingChanges = computed(
-    () => Object.keys(activePendingUpdates.value).length > 0,
-  );
+  const hasPendingChanges = computed(() => Object.keys(activePendingUpdates.value).length > 0);
 
   // --- Actions ---
 
@@ -186,10 +177,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   /**
    * 异步读取文件内容（优先从影子文件读取）
    */
-  async function readCanvasFileAsync(
-    canvasId: string,
-    filepath: string,
-  ): Promise<string | null> {
+  async function readCanvasFileAsync(canvasId: string, filepath: string): Promise<string | null> {
     // 1. 优先从影子文件读
     const pending = pendingUpdates[canvasId]?.[filepath];
     if (pending !== undefined) return pending;
@@ -396,7 +384,7 @@ export const useCanvasStore = defineStore("canvas", () => {
 
     // 处理影子文件中新增但物理磁盘尚不存在的文件（New 状态）
     const pendingPaths = Object.keys(updates);
-    
+
     for (const fullPath of pendingPaths) {
       const parts = fullPath.split("/");
       let currentLevel = mergedTree;
@@ -450,7 +438,7 @@ export const useCanvasStore = defineStore("canvas", () => {
 
     // 预处理 diff，尝试剥离可能存在的行号前缀 (例如 "  1 | ")
     const stripLineNumbers = (contentLines: string[]) => {
-      return contentLines.map(line => {
+      return contentLines.map((line) => {
         const match = line.match(/^\s*\d+\s*\|\s?(.*)$/);
         return match ? match[1] : line;
       });
@@ -497,7 +485,7 @@ export const useCanvasStore = defineStore("canvas", () => {
             let matchedIndex = -1;
 
             // 策略 A: 忽略行尾空格匹配
-            const searchLinesNoTrailing = searchContentLines.map(l => l.trimEnd());
+            const searchLinesNoTrailing = searchContentLines.map((l) => l.trimEnd());
             for (let j = 0; j <= resultLines.length - searchLinesNoTrailing.length; j++) {
               let match = true;
               for (let k = 0; k < searchLinesNoTrailing.length; k++) {
@@ -514,7 +502,7 @@ export const useCanvasStore = defineStore("canvas", () => {
 
             // 策略 B: 忽略前导空格匹配 (但替换时尝试保持原缩进)
             if (matchedIndex === -1) {
-              const searchLinesTrimmed = searchContentLines.map(l => l.trim());
+              const searchLinesTrimmed = searchContentLines.map((l) => l.trim());
               for (let j = 0; j <= resultLines.length - searchLinesTrimmed.length; j++) {
                 let match = true;
                 for (let k = 0; k < searchLinesTrimmed.length; k++) {
@@ -534,12 +522,12 @@ export const useCanvasStore = defineStore("canvas", () => {
               // 执行替换
               const before = resultLines.slice(0, matchedIndex);
               const after = resultLines.slice(matchedIndex + searchContentLines.length);
-              
+
               // 简单的缩进修复：取匹配到的第一行的前导空格，应用到 replaceStr 的每一行
               const originalIndentation = resultLines[matchedIndex].match(/^\s*/)?.[0] || "";
               const searchFirstLineIndentation = searchContentLines[0].match(/^\s*/)?.[0] || "";
-              
-              const fixedReplaceLines = replaceContentLines.map(line => {
+
+              const fixedReplaceLines = replaceContentLines.map((line) => {
                 // 如果 replace 行的缩进与 search 第一行一致，则替换为原文件缩进
                 if (line.startsWith(searchFirstLineIndentation)) {
                   return originalIndentation + line.substring(searchFirstLineIndentation.length);
@@ -551,7 +539,9 @@ export const useCanvasStore = defineStore("canvas", () => {
             } else {
               const context = searchContentLines.slice(0, 3).join("\n");
               logger.warn("Diff 匹配失败", { searchStr: context });
-              throw new Error(`无法匹配代码块。未找到以下内容（前几行）：\n${context}\n请确保 SEARCH 部分与文件内容逻辑一致。`);
+              throw new Error(
+                `无法匹配代码块。未找到以下内容（前几行）：\n${context}\n请确保 SEARCH 部分与文件内容逻辑一致。`,
+              );
             }
           }
         }

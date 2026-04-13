@@ -7,18 +7,18 @@ const logger = createModuleLogger("Canvas/StateConsumer");
 
 export function useCanvasStateConsumer() {
   const bus = useWindowSyncBus();
-  
+
   // 本地状态副本
   const activeCanvasId = ref<string | null>(null);
   const pendingUpdates = reactive<Record<string, string>>({});
   const canvasMetadata = ref<any>(null);
-  
+
   const engines: ReturnType<typeof useStateSyncEngine>[] = [];
 
   function initialize() {
     // Layer 1: 元数据同步（只接收）
     const idEngine = useStateSyncEngine(activeCanvasId, {
-      stateKey: 'canvas:active-id' as any,
+      stateKey: "canvas:active-id" as any,
       autoPush: false,
       autoReceive: true,
       enableDelta: true,
@@ -26,14 +26,14 @@ export function useCanvasStateConsumer() {
     engines.push(idEngine);
 
     // 监听 Layer 3: 预览增量通道
-    const unlisten = bus.onMessage('state-sync', (payload: any) => {
-      if (payload.stateType === 'canvas:file-delta') {
+    const unlisten = bus.onMessage("state-sync", (payload: any) => {
+      if (payload.stateType === "canvas:file-delta") {
         const { filePath, content } = payload.data;
         pendingUpdates[filePath] = content;
-      } else if (payload.stateType === 'canvas:pending-updates') {
+      } else if (payload.stateType === "canvas:pending-updates") {
         // 全量同步
         // 清理旧的
-        Object.keys(pendingUpdates).forEach(k => delete pendingUpdates[k]);
+        Object.keys(pendingUpdates).forEach((k) => delete pendingUpdates[k]);
         // 如果是全量同步，data 包含所有文件
         if (payload.isFull && payload.data) {
           // 这里需要注意结构，store 中的 pendingUpdates 是 { canvasId: { path: content } }
@@ -50,7 +50,7 @@ export function useCanvasStateConsumer() {
 
     // 请求初始状态
     bus.requestInitialState();
-    
+
     logger.info("Canvas 状态消费者已初始化");
     return unlisten;
   }
@@ -62,7 +62,7 @@ export function useCanvasStateConsumer() {
   });
 
   onUnmounted(() => {
-    engines.forEach(e => e.cleanup());
+    engines.forEach((e) => e.cleanup());
     engines.length = 0;
     if (unlistenFn) unlistenFn();
   });

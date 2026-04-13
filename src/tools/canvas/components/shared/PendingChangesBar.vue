@@ -15,13 +15,13 @@ const emit = defineEmits<{
 }>();
 
 const fileList = computed(() => {
-  return Object.keys(props.pendingFiles).map(path => {
-    const name = path.split('/').pop() || path;
+  return Object.keys(props.pendingFiles).map((path) => {
+    const name = path.split("/").pop() || path;
     return {
       path,
       name,
       // 目前简单判断，后续可以从 store 获取更精准的状态
-      status: 'modified' as const
+      status: "modified" as const,
     };
   });
 });
@@ -29,17 +29,15 @@ const fileList = computed(() => {
 const hasChanges = computed(() => fileList.value.length > 0);
 
 const handleDiscard = () => {
-  ElMessageBox.confirm(
-    '确定要丢弃所有未提交的更改吗？此操作不可撤销。',
-    '提示',
-    {
-      confirmButtonText: '确定丢弃',
-      cancelButtonText: '取消',
-      type: 'warning',
-    }
-  ).then(() => {
-    emit('discard');
-  }).catch(() => {});
+  ElMessageBox.confirm("确定要丢弃所有未提交的更改吗？此操作不可撤销。", "提示", {
+    confirmButtonText: "确定丢弃",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(() => {
+      emit("discard");
+    })
+    .catch(() => {});
 };
 </script>
 
@@ -49,30 +47,16 @@ const handleDiscard = () => {
       <span class="title">待定更改 ({{ fileList.length }})</span>
       <div class="actions" v-if="hasChanges">
         <el-tooltip content="丢弃所有更改" placement="top">
-          <el-button 
-            link 
-            type="danger" 
-            :icon="X" 
-            @click="handleDiscard" 
-          />
+          <el-button link type="danger" :icon="X" @click="handleDiscard" />
         </el-tooltip>
         <el-tooltip content="提交所有更改" placement="top">
-          <el-button 
-            link 
-            type="success" 
-            :icon="Check" 
-            @click="emit('commit')" 
-          />
+          <el-button link type="success" :icon="Check" @click="emit('commit')" />
         </el-tooltip>
       </div>
     </div>
 
     <div class="changes-list" v-if="hasChanges">
-      <div 
-        v-for="file in fileList" 
-        :key="file.path" 
-        class="change-item"
-      >
+      <div v-for="file in fileList" :key="file.path" class="change-item">
         <FileIcon :file-name="file.name" :size="14" class="file-icon" />
         <span class="file-path" :title="file.path">{{ file.name }}</span>
         <div class="status-tag" :class="file.status">
@@ -88,12 +72,7 @@ const handleDiscard = () => {
     </div>
 
     <div class="bottom-actions" v-if="hasChanges">
-      <el-button 
-        type="primary" 
-        class="commit-btn" 
-        size="small"
-        @click="emit('commit')"
-      >
+      <el-button type="primary" class="commit-btn" size="small" @click="emit('commit')">
         提交更改 (Commit All)
       </el-button>
     </div>
@@ -163,8 +142,12 @@ const handleDiscard = () => {
       }
 
       .status-tag {
-        &.modified { color: var(--el-color-success); }
-        &.new { color: var(--el-color-warning); }
+        &.modified {
+          color: var(--el-color-success);
+        }
+        &.new {
+          color: var(--el-color-warning);
+        }
       }
     }
   }

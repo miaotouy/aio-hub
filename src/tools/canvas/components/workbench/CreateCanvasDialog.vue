@@ -53,22 +53,11 @@ const handleCreate = async () => {
 </script>
 
 <template>
-  <BaseDialog
-    v-model="visible"
-    title="新建画布"
-    width="500px"
-    :loading="isCreating"
-    @open="handleOpen"
-  >
+  <BaseDialog v-model="visible" title="新建画布" width="500px" :loading="isCreating" @open="handleOpen">
     <div class="create-canvas-form">
       <div class="form-item">
         <label>项目名称</label>
-        <el-input
-          ref="titleInputRef"
-          v-model="title"
-          placeholder="输入画布标题..."
-          @keyup.enter="handleCreate"
-        />
+        <el-input ref="titleInputRef" v-model="title" placeholder="输入画布标题..." @keyup.enter="handleCreate" />
       </div>
 
       <div class="form-item">
@@ -99,9 +88,7 @@ const handleCreate = async () => {
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="isCreating" @click="handleCreate">
-        创建
-      </el-button>
+      <el-button type="primary" :loading="isCreating" @click="handleCreate"> 创建 </el-button>
     </template>
   </BaseDialog>
 </template>

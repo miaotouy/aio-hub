@@ -46,7 +46,7 @@ export function useCanvasSync() {
         if (bus.windowType === "detached-component") {
           Object.assign(store.pendingUpdates, val);
         }
-      }
+      },
     });
 
     const createStateEngine = (stateSource: Ref<any>, stateKey: string) => {
@@ -71,7 +71,7 @@ export function useCanvasSync() {
 
         // 找出变更的文件
         const changedPaths = Object.keys(newUpdates).filter(
-          (path) => !oldUpdates || newUpdates[path] !== oldUpdates[path]
+          (path) => !oldUpdates || newUpdates[path] !== oldUpdates[path],
         );
 
         for (const path of changedPaths) {
@@ -84,11 +84,11 @@ export function useCanvasSync() {
               changeType: "full",
             },
             0,
-            false
+            false,
           );
         }
       },
-      { deep: true }
+      { deep: true },
     );
 
     // 处理重新附着
@@ -99,9 +99,9 @@ export function useCanvasSync() {
         (newLength, oldLength) => {
           if (typeof oldLength === "number" && newLength < oldLength) {
             logger.info("Canvas 检测到组件重新附着，强制全量广播");
-            stateEngines.forEach(e => e.manualPush(true, undefined, true));
+            stateEngines.forEach((e) => e.manualPush(true, undefined, true));
           }
-        }
+        },
       );
     }
 
@@ -147,7 +147,7 @@ export function useCanvasSync() {
             changeType: "full",
           },
           0,
-          false
+          false,
         );
         return Promise.resolve();
       }
@@ -166,7 +166,7 @@ export function useCanvasSync() {
               changeType: "full",
             },
             0,
-            false
+            false,
           );
         }
         return Promise.resolve();
@@ -183,7 +183,7 @@ export function useCanvasSync() {
 
   if (bus.windowType === "main" || bus.windowType === "detached-tool") {
     bus.onActionRequest("canvas", handleActionRequest);
-    
+
     watch(
       bus.hasDownstreamWindows,
       (hasDownstream) => {
@@ -193,7 +193,7 @@ export function useCanvasSync() {
           cleanupEngines();
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
   }
 

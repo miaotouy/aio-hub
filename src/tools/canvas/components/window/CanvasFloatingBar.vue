@@ -1,10 +1,7 @@
 <template>
-  <div 
-    class="canvas-floating-bar-trigger" 
-    @mouseenter="handleMouseEnterTrigger"
-  >
-    <div 
-      class="canvas-floating-bar" 
+  <div class="canvas-floating-bar-trigger" @mouseenter="handleMouseEnterTrigger">
+    <div
+      class="canvas-floating-bar"
       :class="{ 'is-visible': isVisible }"
       data-tauri-drag-region
       @mouseenter="handleMouseEnterBar"
@@ -26,8 +23,15 @@
             <PanelBottom :size="16" />
           </button>
         </el-tooltip>
-        <el-tooltip :content="effectiveMode === 'srcdoc' ? '切换到物理预览 (支持图片/资源)' : '切换到内联预览 (实时影子文件)'" placement="bottom">
-          <button class="icon-btn" :class="{ 'is-active': effectiveMode === 'physical' }" @click="$emit('toggle-preview-mode')">
+        <el-tooltip
+          :content="effectiveMode === 'srcdoc' ? '切换到物理预览 (支持图片/资源)' : '切换到内联预览 (实时影子文件)'"
+          placement="bottom"
+        >
+          <button
+            class="icon-btn"
+            :class="{ 'is-active': effectiveMode === 'physical' }"
+            @click="$emit('toggle-preview-mode')"
+          >
             <Monitor :size="16" v-if="effectiveMode === 'srcdoc'" />
             <Code :size="16" v-else />
           </button>
@@ -59,11 +63,11 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (e: 'refresh'): void;
-  (e: 'toggle-status-bar'): void;
-  (e: 'toggle-preview-mode'): void;
-  (e: 'open-vscode'): void;
-  (e: 'close'): void;
+  (e: "refresh"): void;
+  (e: "toggle-status-bar"): void;
+  (e: "toggle-preview-mode"): void;
+  (e: "open-vscode"): void;
+  (e: "close"): void;
 }>();
 
 const isVisible = ref(false);

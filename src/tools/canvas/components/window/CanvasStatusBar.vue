@@ -2,7 +2,7 @@
   <div class="canvas-status-bar">
     <div class="status-left">
       <FileText :size="12" />
-      <span class="status-text">{{ currentFile || 'No file' }}</span>
+      <span class="status-text">{{ currentFile || "No file" }}</span>
     </div>
     <div class="status-center">
       <span class="status-text">Files: {{ fileCount }}</span>
@@ -39,7 +39,9 @@ defineProps<{
   color: var(--el-text-color-secondary);
   user-select: none;
 
-  .status-left, .status-center, .status-right {
+  .status-left,
+  .status-center,
+  .status-right {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -70,8 +72,17 @@ defineProps<{
 }
 
 @keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(var(--el-color-warning-rgb), 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0); }
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(var(--el-color-warning-rgb), 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0);
+  }
 }
 </style>

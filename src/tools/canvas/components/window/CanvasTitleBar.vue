@@ -206,7 +206,7 @@ const toggleMaximize = () => appWindow.toggleMaximize();
   }
 }
 
-/* ── 中间：操作按钮（no-drag，按钮可点击） ── */
+/* ── 中间：操作按钮 ── */
 .bar-center {
   display: flex;
   align-items: center;
@@ -214,7 +214,6 @@ const toggleMaximize = () => appWindow.toggleMaximize();
   padding: 0 8px;
   flex-shrink: 0;
   height: 100%;
-  -webkit-app-region: no-drag;
 
   .divider {
     width: 1px;
@@ -224,14 +223,13 @@ const toggleMaximize = () => appWindow.toggleMaximize();
   }
 }
 
-/* ── 右侧：窗口控制（no-drag，按钮可点击） ── */
+/* ── 右侧：窗口控制 ── */
 .bar-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   flex: 1;
   height: 100%;
-  -webkit-app-region: no-drag;
 }
 
 /* ── 操作按钮样式 ── */
@@ -248,6 +246,7 @@ const toggleMaximize = () => appWindow.toggleMaximize();
   color: var(--el-text-color-regular);
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-app-region: no-drag;
 
   &:hover {
     background: var(--el-fill-color-light);
@@ -273,6 +272,7 @@ const toggleMaximize = () => appWindow.toggleMaximize();
   color: var(--el-text-color-regular);
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-app-region: no-drag;
 
   &:hover {
     background: var(--el-fill-color-light);

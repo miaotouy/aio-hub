@@ -18,8 +18,8 @@ export interface CanvasState {
 // 画布列表项（用于管理界面展示）
 export interface CanvasListItem {
   metadata: CanvasMetadata;
-  status: "idle" | "open" | "pending" | "syncing";
-  pendingFileCount: number; // 有多少文件在影子缓存中
+  status: "idle" | "open" | "dirty" | "syncing";
+  dirtyFileCount: number; // 有多少未提交的更改
 }
 
 // 文件树节点

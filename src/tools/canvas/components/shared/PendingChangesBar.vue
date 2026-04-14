@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ElMessageBox } from "element-plus";
-import { Check, X, Plus, FileEdit, AlertCircle } from "lucide-vue-next";
+import { Check, X, Plus, FileEdit, AlertCircle, Trash2 } from "lucide-vue-next";
 import FileIcon from "@/components/common/FileIcon.vue";
 
 const props = defineProps<{
   canvasId: string;
-  pendingFiles: Record<string, string>; // filepath -> content
+  dirtyFiles: Map<string, string>; // filepath -> status ('new'|'modified'|'deleted')
 }>();
 
 const emit = defineEmits<{
@@ -15,15 +15,15 @@ const emit = defineEmits<{
 }>();
 
 const fileList = computed(() => {
-  return Object.keys(props.pendingFiles).map((path) => {
-    const name = path.split("/").pop() || path;
-    return {
+  const list: Array<{ path: string; name: string; status: string }> = [];
+  props.dirtyFiles.forEach((status, path) => {
+    list.push({
       path,
-      name,
-      // 目前简单判断，后续可以从 store 获取更精准的状态
-      status: "modified" as const,
-    };
+      name: path.split("/").pop() || path,
+      status,
+    });
   });
+  return list.sort((a, b) => a.path.localeCompare(b.path));
 });
 
 const hasChanges = computed(() => fileList.value.length > 0);
@@ -44,7 +44,7 @@ const handleDiscard = () => {
 <template>
   <div class="pending-changes-bar">
     <div class="bar-header">
-      <span class="title">待定更改 ({{ fileList.length }})</span>
+      <span class="title">未提交更改 ({{ fileList.length }})</span>
       <div class="actions" v-if="hasChanges">
         <el-tooltip content="丢弃所有更改" placement="top">
           <el-button link type="danger" :icon="X" @click="handleDiscard" />
@@ -62,18 +62,19 @@ const handleDiscard = () => {
         <div class="status-tag" :class="file.status">
           <FileEdit v-if="file.status === 'modified'" :size="12" />
           <Plus v-else-if="file.status === 'new'" :size="12" />
+          <Trash2 v-else-if="file.status === 'deleted'" :size="12" />
         </div>
       </div>
     </div>
 
     <div v-else class="no-changes">
       <el-icon class="info-icon"><AlertCircle :size="14" /></el-icon>
-      <span>没有待定更改</span>
+      <span>没有未提交的更改</span>
     </div>
 
     <div class="bottom-actions" v-if="hasChanges">
       <el-button type="primary" class="commit-btn" size="small" @click="emit('commit')">
-        提交更改 (Commit All)
+        提交所有更改 (Commit All)
       </el-button>
     </div>
   </div>
@@ -147,6 +148,9 @@ const handleDiscard = () => {
         }
         &.new {
           color: var(--el-color-warning);
+        }
+        &.deleted {
+          color: var(--el-color-danger);
         }
       }
     }

@@ -177,4 +177,40 @@ export class GitInternalService {
       { userMessage: "获取版本历史失败" },
     );
   }
+
+  /**
+   * 将指定文件回退到 HEAD 版本
+   * @param filepaths 要回退的文件路径数组，传空数组表示回退所有文件
+   */
+  async checkout(filepaths: string[]): Promise<void | null> {
+    return await errorHandler.wrapAsync(
+      async () => {
+        logger.info("正在回退文件", { filepaths });
+        await git.checkout({
+          fs: this.fs,
+          dir: this.basePath,
+          filepaths: filepaths.length > 0 ? filepaths : undefined,
+          force: true,
+        });
+      },
+      { userMessage: "回退文件失败" },
+    );
+  }
+
+  /**
+   * 获取工作区的文件状态矩阵
+   * @returns 状态矩阵数组 [filepath, HEAD, WORKDIR, STAGE]
+   */
+  async statusMatrix(): Promise<Array<[string, number, number, number]> | null> {
+    return await errorHandler.wrapAsync(
+      async () => {
+        return await git.statusMatrix({
+          fs: this.fs,
+          dir: this.basePath,
+          filter: (f: string) => !f.startsWith(".canvas") && !f.startsWith(".git"),
+        });
+      },
+      { userMessage: "获取工作区状态失败" },
+    );
+  }
 }

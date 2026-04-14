@@ -1,4 +1,4 @@
-import { toRef, computed, onUnmounted, type Ref, watch } from "vue";
+import { toRef, onUnmounted, type Ref, watch } from "vue";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
@@ -8,7 +8,7 @@ import { useCanvasWindowManager } from "./useCanvasWindowManager";
 const logger = createModuleLogger("Canvas/Sync");
 
 /**
- * Canvas 状态同步 Composable
+ * Canvas 状态同步 Composable (Physical-First 版)
  */
 export function useCanvasSync() {
   const store = useCanvasStore();
@@ -17,19 +17,21 @@ export function useCanvasSync() {
 
   let isInitialized = false;
   const stateEngines: ReturnType<typeof useStateSyncEngine>[] = [];
+  let fileChangedUnlisten: (() => void) | null = null;
 
   onUnmounted(() => {
-    if (stateEngines.length > 0) {
-      logger.info("组件卸载，清理 Canvas 同步引擎");
-      stateEngines.forEach((engine) => engine.cleanup());
-      stateEngines.length = 0;
-    }
+    cleanupEngines();
   });
 
   function cleanupEngines() {
     if (stateEngines.length > 0) {
+      logger.info("清理 Canvas 同步引擎");
       stateEngines.forEach((engine) => engine.cleanup());
       stateEngines.length = 0;
+    }
+    if (fileChangedUnlisten) {
+      fileChangedUnlisten();
+      fileChangedUnlisten = null;
     }
     isInitialized = false;
   }
@@ -39,15 +41,6 @@ export function useCanvasSync() {
     cleanupEngines();
 
     const activeCanvasId = toRef(store, "activeCanvasId");
-    // 影子文件缓存同步（转换为普通对象以支持序列化）
-    const pendingUpdates = computed({
-      get: () => ({ ...store.pendingUpdates }),
-      set: (val) => {
-        if (bus.windowType === "detached-component") {
-          Object.assign(store.pendingUpdates, val);
-        }
-      },
-    });
 
     const createStateEngine = (stateSource: Ref<any>, stateKey: string) => {
       const engine = useStateSyncEngine(stateSource, {
@@ -60,38 +53,24 @@ export function useCanvasSync() {
       return engine;
     };
 
+    // 只同步 active-id
     createStateEngine(activeCanvasId, "active-id");
-    createStateEngine(pendingUpdates, "pending-updates");
 
-    // Layer 3: 监听 pendingUpdates 变化，发送增量推送
-    watch(
-      () => store.pendingUpdates[store.activeCanvasId || ""],
-      (newUpdates, oldUpdates) => {
-        if (!newUpdates || bus.windowType !== "main") return;
-
-        // 找出变更的文件
-        const changedPaths = Object.keys(newUpdates).filter(
-          (path) => !oldUpdates || newUpdates[path] !== oldUpdates[path],
-        );
-
-        for (const path of changedPaths) {
-          const targetLabel = windowManager.getWindowLabel(store.activeCanvasId || "");
-          bus.syncState(
-            "canvas:file-delta" as any,
-            {
-              canvasId: store.activeCanvasId,
-              filePath: path,
-              content: newUpdates[path],
-              changeType: "full",
-            },
-            0,
-            false,
-            targetLabel, // 定向推送
-          );
-        }
-      },
-      { deep: true },
-    );
+    // 监听 store 的文件变更事件，广播到分离窗口
+    fileChangedUnlisten = store.onFileChanged((canvasId, filepath) => {
+      const targetLabel = windowManager.getWindowLabel(canvasId);
+      bus.syncState(
+        "canvas:file-changed" as any,
+        {
+          canvasId,
+          filepath,
+          timestamp: Date.now(),
+        },
+        0,
+        false,
+        targetLabel,
+      );
+    });
 
     // 处理窗口打开事件（全量同步）
     if (bus.windowType === "main" || bus.windowType === "detached-tool") {
@@ -126,50 +105,18 @@ export function useCanvasSync() {
         return Promise.resolve();
       }
       case "write-file": {
-        store.writeFile(canvasId, params.filepath, params.content);
-        // 主动推送增量
-        const targetLabel = windowManager.getWindowLabel(canvasId);
-        bus.syncState(
-          "canvas:file-delta" as any,
-          {
-            canvasId,
-            filePath: params.filepath,
-            content: params.content,
-            changeType: "full",
-          },
-          0,
-          false,
-          targetLabel,
-        );
+        // 重构后调用物理写入
+        await store.writeFilePhysical(canvasId, params.filepath, params.content);
         return Promise.resolve();
       }
       case "apply-diff": {
         await store.applyDiff(canvasId, params.filepath, params.diff);
-        // applyDiff 内部会调用 writeFile，上面的 watch 会处理推送。
-        // 但为了即时性，也可以在这里手动推送一次最新的内容
-        const newContent = await store.readCanvasFileAsync(canvasId, params.filepath);
-        if (newContent !== null) {
-          const targetLabel = windowManager.getWindowLabel(canvasId);
-          bus.syncState(
-            "canvas:file-delta" as any,
-            {
-              canvasId,
-              filePath: params.filepath,
-              content: newContent,
-              changeType: "full",
-            },
-            0,
-            false,
-            targetLabel,
-          );
-        }
         return Promise.resolve();
       }
       case "commit-changes":
-        return store.commitChanges(params.canvasId || store.activeCanvasId, params.message);
+        return store.commitChanges(canvasId, params.message);
       case "discard-changes":
-        store.discardChanges(params.canvasId || store.activeCanvasId);
-        return Promise.resolve();
+        return store.discardChanges(canvasId);
       default:
         return Promise.reject(new Error(`Unknown canvas action: ${action}`));
     }

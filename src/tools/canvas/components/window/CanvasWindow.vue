@@ -4,10 +4,8 @@
     <CanvasFloatingBar
       :title="activeCanvas?.metadata.name || 'Canvas Stage'"
       :show-status-bar="showStatusBar"
-      :effective-mode="effectiveMode"
       @refresh="forceRefresh"
       @toggle-status-bar="showStatusBar = !showStatusBar"
-      @toggle-preview-mode="togglePreviewMode"
       @open-vscode="openInVSCode"
       @close="closeWindow"
     />
@@ -16,9 +14,8 @@
     <div class="preview-container">
       <CanvasPreviewPane
         ref="previewPaneRef"
-        :srcdoc="srcdoc"
-        :physical-src="physicalSrc"
-        :effective-mode="effectiveMode"
+        :preview-src="previewSrc"
+        :preview-srcdoc="previewSrcdoc"
         :is-refreshing="isRefreshing"
         @console-message="handleConsoleMessage"
       />
@@ -29,13 +26,13 @@
       v-if="showStatusBar"
       current-file="index.html"
       :file-count="activeCanvas?.metadata.fileCount || 0"
-      :pending-count="Object.keys(pendingUpdates).length"
+      :pending-count="0"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, useAttrs } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { useCanvasStateConsumer } from "../../composables/useCanvasStateConsumer";
@@ -47,40 +44,56 @@ import CanvasStatusBar from "./CanvasStatusBar.vue";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("Canvas/Window");
+const attrs = useAttrs();
 
 // 1. 状态同步消费者
-const { activeCanvasId, pendingUpdates } = useCanvasStateConsumer();
+const { activeCanvasId: syncedId, lastFileChangeTimestamp } = useCanvasStateConsumer();
+const activeCanvasId = ref<string | null>(null);
 
-// 2. 存储访问（用于物理文件回退）
+// 调试日志：检查状态来源
+onMounted(() => {
+  logger.info("CanvasWindow 挂载检查", {
+    attrs: attrs,
+    syncedId: syncedId.value,
+    canvasIdAttr: attrs['canvas-id']
+  });
+});
+
+// 优先使用同步 ID，如果没有则尝试从 attrs 获取（兼容嵌入模式）
+watch([syncedId, () => attrs['canvas-id']], ([sId, aId]) => {
+  const finalId = sId || (aId as string) || null;
+  if (finalId !== activeCanvasId.value) {
+    logger.info("CanvasWindow ID 更新", { sId, aId, finalId });
+    activeCanvasId.value = finalId;
+  }
+}, { immediate: true });
+
+// 2. 存储访问
 const storage = useCanvasStorage();
 
-const previewPaneRef = ref<any>(null);
 const canvasBasePath = ref<string | null>(null);
 
 // 3. 预览引擎
 const {
-  srcdoc,
-  physicalSrc,
-  effectiveMode,
+  previewSrc,
+  previewSrcdoc,
   isRefreshing,
   consoleMessages,
   refreshPreview,
   forceRefresh,
-  setPreviewMode,
 } = useCanvasPreview({
   canvasId: () => activeCanvasId.value,
-  pendingUpdates: () => pendingUpdates,
-  readPhysicalFile: (id, path) => storage.readPhysicalFile(id, path),
   basePath: () => canvasBasePath.value,
+  readPhysicalFile: (id, path) => storage.readPhysicalFile(id, path),
 });
 
 // 4. UI 状态
 const showStatusBar = ref(true);
-const activeCanvas = ref<any>(null); // 这里的 metadata 需要通过某种方式获取，或者从 activeCanvasId 监听获取
+const activeCanvas = ref<any>(null);
 
-// 监听 ID 变化，加载元数据（如果是第一次打开）
+// 监听 ID 变化，加载元数据
 watch(
-  activeCanvasId,
+  () => activeCanvasId.value,
   async (newId) => {
     if (newId) {
       const [metadata, basePath] = await Promise.all([
@@ -92,20 +105,20 @@ watch(
         activeCanvas.value = { metadata };
       }
       canvasBasePath.value = basePath;
-      refreshPreview(previewPaneRef.value?.iframe);
+      logger.info("Canvas 路径已加载", { basePath });
+      refreshPreview();
+    } else {
+      activeCanvas.value = null;
+      canvasBasePath.value = null;
     }
   },
   { immediate: true },
 );
 
-// 监听影子文件变化，自动刷新预览
-watch(
-  () => ({ ...pendingUpdates }),
-  () => {
-    refreshPreview(previewPaneRef.value?.iframe);
-  },
-  { deep: true },
-);
+// 监听文件变更通知，自动刷新预览
+watch(lastFileChangeTimestamp, () => {
+  refreshPreview();
+});
 
 function handleConsoleMessage(payload: any) {
   const msg: ConsoleMessage = {
@@ -115,7 +128,6 @@ function handleConsoleMessage(payload: any) {
     timestamp: payload.timestamp,
   };
   consoleMessages.value.push(msg);
-  // 保持最近 100 条
   if (consoleMessages.value.length > 100) {
     consoleMessages.value.shift();
   }
@@ -125,11 +137,6 @@ async function openInVSCode() {
   if (!activeCanvasId.value) return;
   const basePath = canvasBasePath.value || (await storage.getCanvasBasePath(activeCanvasId.value));
   await invoke("open_path_in_vscode", { path: basePath });
-}
-
-function togglePreviewMode() {
-  const nextMode = effectiveMode.value === "srcdoc" ? "physical" : "srcdoc";
-  setPreviewMode(nextMode);
 }
 
 function closeWindow() {

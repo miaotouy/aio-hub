@@ -78,6 +78,27 @@ export function useCanvasStorage() {
   }
 
   /**
+   * 删除物理文件
+   */
+  async function deletePhysicalFile(canvasId: string, filepath: string) {
+    return await errorHandler.wrapAsync(
+      async () => {
+        const basePath = await getCanvasBasePath(canvasId);
+        const fullPath = await join(basePath, filepath);
+        if (await exists(fullPath)) {
+          // 这里使用 invoke 调用 Rust 后端的删除，或者直接使用 fs.remove
+          // 为了保持一致性，如果只是删除文件，可以使用 remove
+          await invoke("delete_file_in_app_data", {
+            relativePath: `canvases/${canvasId}/${filepath}`,
+          });
+          logger.info("物理文件已删除", { fullPath });
+        }
+      },
+      { userMessage: "删除文件失败" },
+    );
+  }
+
+  /**
    * 读取单个画布的元数据
    */
   async function readCanvasMetadata(canvasId: string): Promise<CanvasMetadata | null> {
@@ -211,5 +232,6 @@ export function useCanvasStorage() {
     listAllCanvases,
     deleteCanvas,
     getCanvasFileTree,
+    deletePhysicalFile,
   };
 }

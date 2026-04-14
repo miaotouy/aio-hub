@@ -2,6 +2,8 @@ import type { ToolConfig, ToolRegistry, ServiceMetadata } from "@/services/types
 import { markRaw } from "vue";
 import { useCanvasStore } from "./stores/canvasStore";
 import { Brush } from "@element-plus/icons-vue";
+import { useCanvasStorage } from "./composables/useCanvasStorage";
+import { GitInternalService } from "./services/GitInternalService";
 
 export const toolConfig: ToolConfig = {
   name: "画布",
@@ -18,7 +20,7 @@ export class CanvasRegistry implements ToolRegistry {
   public readonly description = "多文件协作与预览空间";
 
   /**
-   * 为 Agent 提供额外的上下文信息（当前画布的文件树和待定更改）
+   * 为 Agent 提供额外的上下文信息
    */
   async getExtraPromptContext(): Promise<string> {
     let canvasStore;
@@ -36,7 +38,7 @@ export class CanvasRegistry implements ToolRegistry {
 
     try {
       const fileTree = await canvasStore.getFileTree(canvasId);
-      const pendingFiles = Object.keys(canvasStore.activePendingUpdates);
+      const dirtyFiles = canvasStore.dirtyFiles;
 
       const buildFileList = (nodes: any[], indent = ""): string => {
         return nodes
@@ -59,7 +61,7 @@ export class CanvasRegistry implements ToolRegistry {
       };
 
       const fileListStr = buildFileList(fileTree);
-      const changesStr = pendingFiles.length > 0 ? pendingFiles.map((f) => `- ${f}`).join("\n") : "None";
+      const changesStr = dirtyFiles.size > 0 ? Array.from(dirtyFiles.keys()).map((f) => `- ${f}`).join("\n") : "None";
 
       return `Canvas Project: ${activeCanvas.metadata.name}
 Entry File: ${activeCanvas.metadata.entryFile || "index.html"}
@@ -67,10 +69,10 @@ Entry File: ${activeCanvas.metadata.entryFile || "index.html"}
 Project Files:
 ${fileListStr}
 
-Uncommitted Changes: ${pendingFiles.length} files
+Uncommitted Changes: ${dirtyFiles.size} files
 ${changesStr}
 
-(Agent notice: These changes are only in memory. Use 'commit_changes' to save them to disk.)`;
+(Agent notice: All changes are immediately written to disk and visible in preview. Use 'commit_changes' to create a Git checkpoint.)`;
     } catch (error) {
       return "";
     }
@@ -133,14 +135,6 @@ ${changesStr}
           returnType: "Promise<any>",
           agentCallable: true,
         },
-        {
-          name: "undo_canvas_diff",
-          displayName: "撤销 Diff",
-          description: "撤回上一次内存修改",
-          parameters: [],
-          returnType: "Promise<string>",
-          agentCallable: true,
-        },
       ],
     };
   }
@@ -155,38 +149,25 @@ ${changesStr}
     const content = await canvasStore.readCanvasFileAsync(canvasId, args.path);
     if (content === null) throw new Error(`File not found: ${args.path}`);
 
-    // 为内容添加行号
     return content
       .split(/\r?\n/)
       .map((line: string, index: number) => `${String(index + 1).padStart(4, " ")} | ${line}`)
       .join("\n");
   }
 
-  async apply_canvas_diff(args: { path: string; diff: string }, requestId?: string): Promise<string> {
+  async apply_canvas_diff(args: { path: string; diff: string }): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = await canvasStore.ensureActiveCanvas();
-
-    // 如果 preview 阶段已经写入了，直接确认即可
-    if (requestId && canvasStore.previewSnapshots[requestId]) {
-      delete canvasStore.previewSnapshots[requestId];
-      return `Successfully applied diff to ${args.path} (confirmed from preview)`;
-    }
 
     await canvasStore.applyDiff(canvasId, args.path, args.diff);
     return `Successfully applied diff to ${args.path}`;
   }
 
-  async write_canvas_file(args: { path: string; content: string }, requestId?: string): Promise<string> {
+  async write_canvas_file(args: { path: string; content: string }): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = await canvasStore.ensureActiveCanvas();
 
-    // 如果 preview 阶段已经写入了，直接确认即可
-    if (requestId && canvasStore.previewSnapshots[requestId]) {
-      delete canvasStore.previewSnapshots[requestId];
-      return `Successfully wrote to ${args.path} (confirmed from preview)`;
-    }
-
-    canvasStore.writeFile(canvasId, args.path, args.content);
+    await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
     return `Successfully wrote to ${args.path}`;
   }
 
@@ -202,16 +183,8 @@ ${changesStr}
     const canvasStore = useCanvasStore();
     const canvasId = canvasStore.activeCanvasId;
     if (!canvasId) return "No active canvas.";
-    canvasStore.discardChanges(canvasId);
+    await canvasStore.discardChanges(canvasId);
     return "Changes discarded.";
-  }
-
-  async undo_canvas_diff(): Promise<string> {
-    const canvasStore = useCanvasStore();
-    const canvasId = canvasStore.activeCanvasId;
-    if (!canvasId) return "No active canvas.";
-    canvasStore.undoDiff(canvasId);
-    return "Last change undone.";
   }
 
   async list_canvas_files(): Promise<any> {
@@ -225,29 +198,56 @@ ${changesStr}
 
   /**
    * 工具调用进入审批挂起前的预览钩子
-   * 将修改临时写入影子文件，用户可在画布窗口即时预览效果
+   * 重构后：直接写入物理文件，预览窗口自动刷新
    */
   async onToolCallPreview(requestId: string, methodName: string, args: Record<string, any>) {
     const canvasStore = useCanvasStore();
 
     if (methodName === "apply_canvas_diff" && args.path && args.diff) {
       const canvasId = await canvasStore.ensureActiveCanvas();
-      await canvasStore.applyDiffAsPreview(canvasId, args.path, args.diff, requestId);
+      await canvasStore.applyDiff(canvasId, args.path, args.diff);
+      canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
 
     if (methodName === "write_canvas_file" && args.path && args.content) {
       const canvasId = await canvasStore.ensureActiveCanvas();
-      await canvasStore.writeFileAsPreview(canvasId, args.path, args.content, requestId);
+      await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
+      canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
   }
 
   /**
    * 用户拒绝工具调用后的清理钩子
-   * 从影子文件中撤回预览数据
+   * 通过 git checkout 回退被拒绝的文件
    */
   async onToolCallDiscarded(requestId: string, _methodName: string, _args: Record<string, any>) {
     const canvasStore = useCanvasStore();
-    canvasStore.revertPreview(requestId);
+    const storage = useCanvasStorage();
+    const request = canvasStore.getPreviewRequest(requestId);
+    if (!request) return;
+
+    const basePath = await storage.getCanvasBasePath(request.canvasId);
+    const gitService = new GitInternalService(basePath);
+
+    // 获取当前状态矩阵，判断是否是新文件
+    const matrix = await gitService.statusMatrix();
+    
+    for (const filepath of request.affectedFiles) {
+      const fileStatus = matrix?.find(([f]) => f === filepath);
+      if (fileStatus && fileStatus[1] === 0) {
+        // HEAD=0 表示新文件 (untracked)，checkout 不会删除，需要手动删除
+        await storage.deletePhysicalFile(request.canvasId, filepath);
+      } else {
+        // 已存在的文件，回退到 HEAD
+        await gitService.checkout([filepath]);
+      }
+    }
+
+    canvasStore.removePreviewRequest(requestId);
+    // 通知预览窗口刷新
+    request.affectedFiles.forEach(f => canvasStore.emitFileChanged(request.canvasId, f));
+    // 刷新 Git 状态
+    await canvasStore.refreshGitStatus(request.canvasId);
   }
 }
 

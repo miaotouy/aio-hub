@@ -5,17 +5,10 @@
     </div>
 
     <iframe
-      v-if="effectiveMode === 'srcdoc'"
       ref="iframeRef"
       class="preview-iframe"
-      :srcdoc="srcdoc"
-      sandbox="allow-scripts allow-same-origin allow-popups"
-    ></iframe>
-    <iframe
-      v-else
-      ref="iframeRef"
-      class="preview-iframe"
-      :src="physicalSrc"
+      :src="previewSrc || undefined"
+      :srcdoc="previewSrcdoc || undefined"
       sandbox="allow-scripts allow-same-origin allow-popups"
     ></iframe>
   </div>
@@ -26,9 +19,8 @@ import { ref, onMounted, onUnmounted } from "vue";
 import { Loader2 } from "lucide-vue-next";
 
 defineProps<{
-  srcdoc: string;
-  physicalSrc: string;
-  effectiveMode: "srcdoc" | "physical";
+  previewSrc: string;
+  previewSrcdoc?: string;
   isRefreshing: boolean;
 }>();
 

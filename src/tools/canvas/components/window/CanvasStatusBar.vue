@@ -10,7 +10,7 @@
     <div class="status-right">
       <div v-if="pendingCount > 0" class="pending-badge">
         <div class="pulse-dot"></div>
-        <span>{{ pendingCount }} pending changes</span>
+        <span>{{ pendingCount }} uncommitted changes</span>
       </div>
     </div>
   </div>

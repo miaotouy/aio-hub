@@ -214,7 +214,8 @@ const hasCanvasPendingChanges = computed(() => {
     const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
     const canvasId = agent?.toolCallConfig?.toolSettings?.canvas?.canvasId;
     if (!canvasId) return false;
-    return Object.keys(canvasStore.pendingUpdates[canvasId] || {}).length > 0;
+    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === canvasId);
+    return (canvas?.dirtyFileCount || 0) > 0;
   } catch {
     return false;
   }

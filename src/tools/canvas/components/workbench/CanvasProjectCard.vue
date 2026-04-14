@@ -29,7 +29,7 @@ const statusType = computed(() => {
   switch (props.canvas.status) {
     case "open":
       return "success";
-    case "pending":
+    case "dirty":
       return "warning";
     case "syncing":
       return "primary";
@@ -42,7 +42,7 @@ const statusLabel = computed(() => {
   switch (props.canvas.status) {
     case "open":
       return "正在编辑";
-    case "pending":
+    case "dirty":
       return "待提交";
     case "syncing":
       return "同步中";
@@ -86,9 +86,9 @@ const handleDelete = async () => {
             <el-icon><FileText :size="14" /></el-icon>
             <span>{{ canvas.metadata.fileCount }} 个文件</span>
           </div>
-          <div v-if="canvas.pendingFileCount > 0" class="stat-item pending">
+          <div v-if="canvas.dirtyFileCount > 0" class="stat-item pending">
             <div class="dot"></div>
-            <span>{{ canvas.pendingFileCount }} 个待定更改</span>
+            <span>{{ canvas.dirtyFileCount }} 个未提交更改</span>
           </div>
         </div>
         <div class="time">
@@ -136,8 +136,8 @@ const handleDelete = async () => {
 
         <div class="list-stats">
           <span class="file-count">{{ canvas.metadata.fileCount }} files</span>
-          <el-tag v-if="canvas.pendingFileCount > 0" type="warning" size="small" class="pending-tag">
-            {{ canvas.pendingFileCount }} pending
+          <el-tag v-if="canvas.dirtyFileCount > 0" type="warning" size="small" class="pending-tag">
+            {{ canvas.dirtyFileCount }} dirty
           </el-tag>
         </div>
 

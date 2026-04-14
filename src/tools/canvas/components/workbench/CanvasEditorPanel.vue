@@ -96,13 +96,14 @@ const loadActiveFileContent = async () => {
   }
 };
 
-const debouncedWriteFile = debounce((content: string) => {
+// 重构后：写入物理文件
+const debouncedWriteFile = debounce(async (content: string) => {
   if (activeTab.value) {
-    store.writeFile(props.canvasId, activeTab.value, content);
+    await store.writeFilePhysical(props.canvasId, activeTab.value, content);
     // 刷新文件树以更新修改状态
     loadFileTree();
   }
-}, 300);
+}, 500); // 防抖延长，减少磁盘写入频率
 
 const handleContentChange = (content: string) => {
   fileContent.value = content;
@@ -115,12 +116,12 @@ const handleCommit = async () => {
   loadFileTree();
 };
 
-const handleDiscard = () => {
-  store.discardChanges(props.canvasId);
+const handleDiscard = async () => {
+  await store.discardChanges(props.canvasId);
   customMessage.info("已丢弃更改");
   loadFileTree();
   // 重新加载当前文件内容
-  loadActiveFileContent();
+  await loadActiveFileContent();
 };
 
 const windowManager = useCanvasWindowManager();
@@ -140,21 +141,21 @@ onMounted(() => {
   if (activeCanvas.value?.metadata.entryFile) {
     handleSelectFile(activeCanvas.value.metadata.entryFile);
   }
+
+  // 监听文件变更事件 (如 AI 写入)
+  store.onFileChanged((canvasId, filepath) => {
+    if (canvasId === props.canvasId && filepath === activeTab.value) {
+      loadActiveFileContent();
+    }
+    if (canvasId === props.canvasId) {
+      loadFileTree();
+    }
+  });
 });
 
 watch(activeTab, () => {
   loadActiveFileContent();
 });
-
-// 监听 store 中的 pendingUpdates，如果当前文件在外部被修改（如 AI 写入），需要同步
-watch(
-  () => store.pendingUpdates[props.canvasId]?.[activeTab.value || ""],
-  (newVal) => {
-    if (newVal !== undefined && newVal !== fileContent.value) {
-      fileContent.value = newVal;
-    }
-  },
-);
 </script>
 
 <template>
@@ -211,7 +212,7 @@ watch(
         <div class="sidebar-section changes">
           <PendingChangesBar
             :canvas-id="canvasId"
-            :pending-files="store.pendingUpdates[canvasId] || {}"
+            :dirty-files="store.dirtyFiles"
             @commit="handleCommit"
             @discard="handleDiscard"
           />
@@ -250,7 +251,7 @@ watch(
       </div>
       <div class="footer-right">
         <span class="status-item">
-          <History :size="12" /> {{ Object.keys(store.pendingUpdates[canvasId] || {}).length }} 个待定更改
+          <History :size="12" /> {{ store.dirtyFiles.size }} 个未提交更改
         </span>
       </div>
     </footer>

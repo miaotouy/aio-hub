@@ -22,18 +22,19 @@ useRootInit({ isDetachedComponent: true });
 
 const canvasId = ref<string>("");
 
+// 提前初始化状态消费者（在同步阶段，避免 lifecycle 警告）
+const { initialize: initStateConsumer } = useCanvasStateConsumer();
+
 onMounted(async () => {
   // 从 URL 路径直接获取 canvasId（因为作为根组件挂载时 route.params 为空）
   const pathParts = window.location.pathname.split("/");
   canvasId.value = pathParts[pathParts.length - 1] || "";
 
   // 初始化应用环境（确保 Pinia 等 Store 可用）
-  // 画布属于 canvas 工具，所以传入 canvas 作为 priorityToolId
   await appInitStore.initDetachedApp("canvas");
 
-  // 初始化画布状态同步消费者
-  // 这会监听来自主窗口的同步总线事件
-  useCanvasStateConsumer();
+  // 手动启动状态消费者
+  initStateConsumer();
 
   logger.info("CanvasWindowContainer 初始化完成", { canvasId: canvasId.value });
 });

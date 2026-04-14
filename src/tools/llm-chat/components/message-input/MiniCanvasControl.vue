@@ -38,7 +38,8 @@ const boundCanvasId = computed(() => {
 
 const pendingChangesCount = computed(() => {
   if (!canvasStore || !boundCanvasId.value) return 0;
-  return Object.keys(canvasStore.pendingUpdates[boundCanvasId.value] || {}).length;
+  const canvas = canvasStore.canvasList.find((c) => c.metadata.id === boundCanvasId.value);
+  return canvas?.dirtyFileCount || 0;
 });
 
 /**

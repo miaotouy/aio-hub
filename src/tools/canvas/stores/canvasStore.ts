@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, reactive, computed } from "vue";
-import type { CanvasMetadata, CanvasListItem, CanvasFileNode, DiffOperation } from "../types";
+import type { CanvasMetadata, CanvasListItem, CanvasFileNode } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useCanvasStorage } from "../composables/useCanvasStorage";
@@ -12,6 +12,10 @@ import { formatDateTime } from "@/utils/time";
 const logger = createModuleLogger("Canvas/Store");
 const errorHandler = createModuleErrorHandler("Canvas/Store");
 
+// 文件变更事件系统
+type FileChangeHandler = (canvasId: string, filepath: string) => void;
+const fileChangeHandlers = new Set<FileChangeHandler>();
+
 export const useCanvasStore = defineStore("canvas", () => {
   const storage = useCanvasStorage();
 
@@ -21,38 +25,79 @@ export const useCanvasStore = defineStore("canvas", () => {
   const canvasList = ref<CanvasListItem[]>([]);
   // 当前激活的画布 ID
   const activeCanvasId = ref<string | null>(null);
-  // 影子文件内存缓存: canvasId -> { filepath -> content }
-  const pendingUpdates = reactive<Record<string, Record<string, string>>>({});
-  // 撤销栈: canvasId -> DiffOperation[]
-  const undoStacks = reactive<Record<string, DiffOperation[]>>({});
-  // 预览快照 (用于审批系统的预览/撤回): requestId -> Snapshot
-  const previewSnapshots = reactive<
+  // 未提交的文件状态: filepath -> status ('new'|'modified'|'deleted')
+  const dirtyFiles = ref<Map<string, string>>(new Map());
+  // 是否正在加载
+  const isLoading = ref(false);
+
+  // 审批系统轻量级映射 (替代 previewSnapshots)
+  const previewRequests = reactive<
     Record<
       string,
       {
         canvasId: string;
-        filePath: string;
-        previousContent: string | null; // null 表示文件原本不存在
+        affectedFiles: string[];
       }
     >
   >({});
-  // 是否正在加载
-  const isLoading = ref(false);
 
   // --- 计算属性 ---
 
   // 当前激活的画布对象
   const activeCanvas = computed(() => canvasList.value.find((c) => c.metadata.id === activeCanvasId.value));
 
-  // 当前激活画布的影子文件
-  const activePendingUpdates = computed(() =>
-    activeCanvasId.value ? (pendingUpdates[activeCanvasId.value] ?? {}) : {},
-  );
-
   // 当前激活画布是否有未提交的更改
-  const hasPendingChanges = computed(() => Object.keys(activePendingUpdates.value).length > 0);
+  const hasPendingChanges = computed(() => dirtyFiles.value.size > 0);
 
   // --- Actions ---
+
+  /**
+   * 注册文件变更监听器
+   */
+  function onFileChanged(handler: FileChangeHandler) {
+    fileChangeHandlers.add(handler);
+    return () => fileChangeHandlers.delete(handler);
+  }
+
+  /**
+   * 发送文件变更事件
+   */
+  function emitFileChanged(canvasId: string, filepath: string) {
+    fileChangeHandlers.forEach((handler) => handler(canvasId, filepath));
+  }
+
+  /**
+   * 刷新 Git 状态
+   */
+  async function refreshGitStatus(canvasId: string) {
+    const basePath = await storage.getCanvasBasePath(canvasId);
+    const gitService = new GitInternalService(basePath);
+    const matrix = await gitService.statusMatrix();
+    
+    const dirty = new Map<string, string>();
+    if (matrix) {
+      for (const [filepath, head, workdir] of matrix) {
+        if (head !== workdir) {
+          if (head === 0 && workdir === 2) dirty.set(filepath, "new");
+          else if (head === 1 && workdir === 2) dirty.set(filepath, "modified");
+          else if (head === 1 && workdir === 0) dirty.set(filepath, "deleted");
+          else dirty.set(filepath, "modified");
+        }
+      }
+    }
+    dirtyFiles.value = dirty;
+
+    // 更新列表中的状态
+    const item = canvasList.value.find((c) => c.metadata.id === canvasId);
+    if (item) {
+      item.dirtyFileCount = dirty.size;
+      if (dirty.size > 0) {
+        if (item.status === "idle") item.status = "dirty";
+      } else {
+        if (item.status === "dirty") item.status = "open";
+      }
+    }
+  }
 
   /**
    * 加载所有画布列表
@@ -64,8 +109,13 @@ export const useCanvasStore = defineStore("canvas", () => {
       canvasList.value = metadatas.map((metadata) => ({
         metadata,
         status: metadata.id === activeCanvasId.value ? "open" : "idle",
-        pendingFileCount: Object.keys(pendingUpdates[metadata.id] ?? {}).length,
+        dirtyFileCount: 0, // 初始为 0，打开后会刷新
       }));
+      
+      // 如果有激活的画布，刷新其状态
+      if (activeCanvasId.value) {
+        await refreshGitStatus(activeCanvasId.value);
+      }
     } finally {
       isLoading.value = false;
     }
@@ -82,7 +132,7 @@ export const useCanvasStore = defineStore("canvas", () => {
       throw new Error("自动创建画布失败");
     }
 
-    // 通过 DOM 事件通知外部（如 llm-chat）
+    // 通过 DOM 事件通知外部
     window.dispatchEvent(
       new CustomEvent("canvas:auto-created", {
         detail: { canvasId: metadata.id },
@@ -151,11 +201,13 @@ export const useCanvasStore = defineStore("canvas", () => {
    */
   async function openCanvas(canvasId: string) {
     activeCanvasId.value = canvasId;
+    await refreshGitStatus(canvasId);
+    
     // 更新列表中的状态
     canvasList.value.forEach((item) => {
       if (item.metadata.id === canvasId) {
-        item.status = "open";
-      } else if (item.status === "open") {
+        item.status = dirtyFiles.value.size > 0 ? "dirty" : "open";
+      } else {
         item.status = "idle";
       }
     });
@@ -171,9 +223,8 @@ export const useCanvasStore = defineStore("canvas", () => {
         await storage.deleteCanvas(canvasId);
         if (activeCanvasId.value === canvasId) {
           activeCanvasId.value = null;
+          dirtyFiles.value.clear();
         }
-        delete pendingUpdates[canvasId];
-        delete undoStacks[canvasId];
         await loadCanvasList();
       },
       { userMessage: "删除画布失败" },
@@ -181,73 +232,28 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 异步读取文件内容（优先从影子文件读取）
+   * 异步读取物理文件内容
    */
   async function readCanvasFileAsync(canvasId: string, filepath: string): Promise<string | null> {
-    // 1. 优先从影子文件读
-    const pending = pendingUpdates[canvasId]?.[filepath];
-    if (pending !== undefined) return pending;
-
-    // 2. 否则从物理文件读
     return await storage.readPhysicalFile(canvasId, filepath);
   }
 
   /**
-   * 写入文件到预览缓冲区（用于工具审批预览）
+   * 直接物理写入 (替代 writeFile)
    */
-  async function writeFileAsPreview(canvasId: string, filepath: string, content: string, requestId: string) {
-    // 保存快照以便拒绝时恢复
-    const originalContent = (await readCanvasFileAsync(canvasId, filepath)) || null;
-    previewSnapshots[requestId] = {
-      canvasId,
-      filePath: filepath,
-      previousContent: originalContent,
-    };
-
-    writeFile(canvasId, filepath, content);
-    logger.info("已写入预览内容", { filepath, requestId });
+  async function writeFilePhysical(canvasId: string, filepath: string, content: string) {
+    await storage.writePhysicalFile(canvasId, filepath, content);
+    emitFileChanged(canvasId, filepath);
+    await refreshGitStatus(canvasId);
   }
 
   /**
-   * 写入文件到内存缓存（影子文件）
-   */
-  function writeFile(canvasId: string, filepath: string, content: string) {
-    if (!pendingUpdates[canvasId]) {
-      pendingUpdates[canvasId] = {};
-    }
-    pendingUpdates[canvasId][filepath] = content;
-
-    // 更新列表中的待处理文件数
-    const item = canvasList.value.find((c) => c.metadata.id === canvasId);
-    if (item) {
-      item.pendingFileCount = Object.keys(pendingUpdates[canvasId]).length;
-      if (item.status === "idle") item.status = "pending";
-    }
-  }
-
-  /**
-   * 应用 Diff 到预览缓冲区（用于工具审批预览）
-   */
-  async function applyDiffAsPreview(canvasId: string, filepath: string, diff: string, requestId: string) {
-    // 保存快照以便拒绝时恢复
-    const originalContent = (await readCanvasFileAsync(canvasId, filepath)) || null;
-    previewSnapshots[requestId] = {
-      canvasId,
-      filePath: filepath,
-      previousContent: originalContent,
-    };
-
-    await applyDiff(canvasId, filepath, diff);
-    logger.info("已应用预览 Diff", { filepath, requestId });
-  }
-
-  /**
-   * 解析并应用 Search/Replace Diff 到影子文件
+   * 应用 Search/Replace Diff 到物理文件
    */
   async function applyDiff(canvasId: string, filepath: string, diff: string) {
     return await errorHandler.wrapAsync(
       async () => {
-        const originalContent = (await readCanvasFileAsync(canvasId, filepath)) || "";
+        const originalContent = (await storage.readPhysicalFile(canvasId, filepath)) || "";
         const newContent = applySearchReplaceDiff(originalContent, diff);
 
         if (newContent === originalContent) {
@@ -255,97 +261,51 @@ export const useCanvasStore = defineStore("canvas", () => {
           return;
         }
 
-        // 保存到撤销栈
-        if (!undoStacks[canvasId]) undoStacks[canvasId] = [];
-        undoStacks[canvasId].push({
-          id: nanoid(),
-          timestamp: Date.now(),
-          filePath: filepath,
-          previousContent: originalContent,
-          newContent: newContent,
-          description: `Update ${filepath}`,
-        });
-
-        // 写入影子文件
-        writeFile(canvasId, filepath, newContent);
-        logger.info("Diff 已应用到影子文件", { filepath });
+        await storage.writePhysicalFile(canvasId, filepath, newContent);
+        emitFileChanged(canvasId, filepath);
+        await refreshGitStatus(canvasId);
+        logger.info("Diff 已应用到物理文件", { filepath });
       },
       { userMessage: "应用更改失败" },
     );
   }
 
   /**
-   * 撤销特定请求生成的预览内容
-   */
-  function revertPreview(requestId: string) {
-    const snapshot = previewSnapshots[requestId];
-    if (!snapshot) return;
-
-    if (snapshot.previousContent === null) {
-      // 原本不存在，从影子文件中删除
-      if (pendingUpdates[snapshot.canvasId]) {
-        delete pendingUpdates[snapshot.canvasId][snapshot.filePath];
-      }
-    } else {
-      // 恢复原内容
-      writeFile(snapshot.canvasId, snapshot.filePath, snapshot.previousContent);
-    }
-
-    delete previewSnapshots[requestId];
-    logger.info("已撤销预览内容", { requestId, filePath: snapshot.filePath });
-  }
-
-  /**
-   * 撤销最后一次 Diff
-   */
-  function undoDiff(canvasId: string) {
-    const stack = undoStacks[canvasId];
-    if (!stack || stack.length === 0) return;
-
-    const lastOp = stack.pop()!;
-    writeFile(canvasId, lastOp.filePath, lastOp.previousContent);
-    logger.info("已撤销更改", { filepath: lastOp.filePath });
-  }
-
-  /**
-   * 提交更改到物理磁盘（并创建 Git 提交）
+   * 提交更改到物理磁盘并创建 Git 提交
    */
   async function commitChanges(canvasId: string, message?: string) {
     return await errorHandler.wrapAsync(
       async () => {
-        const updates = pendingUpdates[canvasId];
-        if (!updates || Object.keys(updates).length === 0) return;
+        const basePath = await storage.getCanvasBasePath(canvasId);
+        const gitService = new GitInternalService(basePath);
+        const matrix = await gitService.statusMatrix();
+        
+        if (!matrix) return;
+
+        const filesToAdd = matrix
+          .filter(([_, head, workdir]) => head !== workdir)
+          .map(([filepath]) => filepath);
+
+        if (filesToAdd.length === 0) return;
 
         logger.info("正在提交画布更改", {
           canvasId,
-          fileCount: Object.keys(updates).length,
+          fileCount: filesToAdd.length,
         });
 
-        // 1. 写入物理文件
-        const filesToCommit: string[] = [];
-        for (const [filepath, content] of Object.entries(updates)) {
-          await storage.writePhysicalFile(canvasId, filepath, content);
-          filesToCommit.push(filepath);
-        }
+        // 1. 执行 Git 提交
+        await gitService.add(filesToAdd);
+        await gitService.commit(message || `Update ${filesToAdd.length} files`);
 
-        // 2. 执行 Git 提交
-        const basePath = await storage.getCanvasBasePath(canvasId);
-        const gitService = new GitInternalService(basePath);
-        await gitService.add(filesToCommit);
-        await gitService.commit(message || `Update ${filesToCommit.length} files`);
-
-        // 3. 更新元数据（updatedAt）
+        // 2. 更新元数据 (updatedAt)
         const metadata = await storage.readCanvasMetadata(canvasId);
         if (metadata) {
           metadata.updatedAt = Date.now();
           await storage.writeCanvasMetadata(canvasId, metadata);
         }
 
-        // 4. 清空缓存
-        delete pendingUpdates[canvasId];
-        delete undoStacks[canvasId];
-
-        // 5. 刷新列表
+        // 3. 刷新状态
+        await refreshGitStatus(canvasId);
         await loadCanvasList();
       },
       { userMessage: "保存更改失败" },
@@ -353,96 +313,63 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 丢弃所有未提交的更改
+   * 丢弃所有未提交的更改 (用 Git checkout 替代)
    */
-  function discardChanges(canvasId: string) {
-    logger.info("丢弃未提交的更改", { canvasId });
-    delete pendingUpdates[canvasId];
-    delete undoStacks[canvasId];
-
-    const item = canvasList.value.find((c) => c.metadata.id === canvasId);
-    if (item) {
-      item.pendingFileCount = 0;
-      if (item.status === "pending") item.status = "open";
-    }
+  async function discardChanges(canvasId: string) {
+    return await errorHandler.wrapAsync(
+      async () => {
+        const basePath = await storage.getCanvasBasePath(canvasId);
+        const gitService = new GitInternalService(basePath);
+        await gitService.checkout([]);
+        await refreshGitStatus(canvasId);
+        emitFileChanged(canvasId, "*");
+        logger.info("已丢弃未提交的更改", { canvasId });
+      },
+      { userMessage: "丢弃更改失败" },
+    );
   }
 
   /**
-   * 获取合并了影子文件的文件树
+   * 获取文件树 (基于 Git status 标记状态)
    */
   async function getFileTree(canvasId: string): Promise<CanvasFileNode[]> {
     const physicalTree = await storage.getCanvasFileTree(canvasId);
-    const updates = pendingUpdates[canvasId] || {};
+    const dirty = dirtyFiles.value;
 
-    // 递归标记修改状态
-    const mergeUpdates = (nodes: CanvasFileNode[]): CanvasFileNode[] => {
-      return nodes.map((node) => {
-        const hasPending = updates[node.path] !== undefined;
-        return {
-          ...node,
-          status: hasPending ? "modified" : node.status,
-          children: node.children ? mergeUpdates(node.children) : undefined,
-        };
-      });
+    const markStatus = (nodes: CanvasFileNode[]): CanvasFileNode[] => {
+      return nodes.map((node) => ({
+        ...node,
+        status: (dirty.get(node.path) as any) || "clean",
+        children: node.children ? markStatus(node.children) : undefined,
+      }));
     };
 
-    let mergedTree = mergeUpdates(physicalTree);
+    return markStatus(physicalTree);
+  }
 
-    // 处理影子文件中新增但物理磁盘尚不存在的文件（New 状态）
-    const pendingPaths = Object.keys(updates);
+  /**
+   * 审批系统支持
+   */
+  function registerPreviewRequest(requestId: string, canvasId: string, files: string[]) {
+    previewRequests[requestId] = { canvasId, affectedFiles: files };
+  }
 
-    for (const fullPath of pendingPaths) {
-      const parts = fullPath.split("/");
-      let currentLevel = mergedTree;
-      let currentPath = "";
+  function getPreviewRequest(requestId: string) {
+    return previewRequests[requestId] || null;
+  }
 
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        currentPath = currentPath ? `${currentPath}/${part}` : part;
-        const isLast = i === parts.length - 1;
-
-        let node = currentLevel.find((n) => n.path === currentPath);
-
-        if (!node) {
-          // 创建新节点
-          node = {
-            name: part,
-            path: currentPath,
-            isDirectory: !isLast,
-            status: isLast ? "new" : "clean",
-            children: isLast ? undefined : [],
-          };
-          currentLevel.push(node);
-          // 排序：目录在前，文件名在后，按名称排序
-          currentLevel.sort((a, b) => {
-            if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-            return a.name.localeCompare(b.name);
-          });
-        } else if (isLast && node.status === "clean") {
-          // 如果物理树中已存在，mergeUpdates 已经处理过 status 了，这里确保万一
-          node.status = "modified";
-        }
-
-        if (node.isDirectory) {
-          if (!node.children) node.children = [];
-          currentLevel = node.children;
-        }
-      }
-    }
-
-    return mergedTree;
+  function removePreviewRequest(requestId: string) {
+    delete previewRequests[requestId];
   }
 
   /**
    * 核心 Diff 应用逻辑：解析 Search/Replace 块
-   * 增强版：支持缩进容错、行尾空格容错、多块累积
    */
   function applySearchReplaceDiff(originalContent: string, diff: string): string {
     const SEARCH_MARKER = "<<<<<<< SEARCH";
     const DIVIDER_MARKER = "=======";
     const REPLACE_MARKER = ">>>>>>> REPLACE";
 
-    // 预处理 diff，尝试剥离可能存在的行号前缀 (例如 "  1 | ")
     const stripLineNumbers = (contentLines: string[]) => {
       return contentLines.map((line) => {
         const match = line.match(/^\s*\d+\s*\|\s?(.*)$/);
@@ -462,14 +389,12 @@ export const useCanvasStore = defineStore("canvas", () => {
         let replaceContentLines: string[] = [];
         i++;
 
-        // 读取 SEARCH 部分 (保留原始行，不 trim)
         while (i < lines.length && lines[i].trim() !== DIVIDER_MARKER) {
           searchContentLines.push(lines[i]);
           i++;
         }
-        i++; // 跳过 =======
+        i++;
 
-        // 读取 REPLACE 部分 (保留原始行)
         while (i < lines.length && lines[i].trim() !== REPLACE_MARKER) {
           replaceContentLines.push(lines[i]);
           i++;
@@ -479,18 +404,14 @@ export const useCanvasStore = defineStore("canvas", () => {
         const replaceStr = stripLineNumbers(replaceContentLines).join("\n");
 
         if (searchStr === "") {
-          // 如果 SEARCH 为空，追加到末尾
           result += (result.endsWith("\n") ? "" : "\n") + replaceStr;
         } else {
-          // 1. 尝试精确匹配
           if (result.includes(searchStr)) {
             result = result.replace(searchStr, replaceStr);
           } else {
-            // 2. 模糊匹配尝试
             const resultLines = result.split(/\r?\n/);
             let matchedIndex = -1;
 
-            // 策略 A: 忽略行尾空格匹配
             const searchLinesNoTrailing = searchContentLines.map((l) => l.trimEnd());
             for (let j = 0; j <= resultLines.length - searchLinesNoTrailing.length; j++) {
               let match = true;
@@ -506,7 +427,6 @@ export const useCanvasStore = defineStore("canvas", () => {
               }
             }
 
-            // 策略 B: 忽略前导空格匹配 (但替换时尝试保持原缩进)
             if (matchedIndex === -1) {
               const searchLinesTrimmed = searchContentLines.map((l) => l.trim());
               for (let j = 0; j <= resultLines.length - searchLinesTrimmed.length; j++) {
@@ -525,16 +445,13 @@ export const useCanvasStore = defineStore("canvas", () => {
             }
 
             if (matchedIndex !== -1) {
-              // 执行替换
               const before = resultLines.slice(0, matchedIndex);
               const after = resultLines.slice(matchedIndex + searchContentLines.length);
 
-              // 简单的缩进修复：取匹配到的第一行的前导空格，应用到 replaceStr 的每一行
               const originalIndentation = resultLines[matchedIndex].match(/^\s*/)?.[0] || "";
               const searchFirstLineIndentation = searchContentLines[0].match(/^\s*/)?.[0] || "";
 
               const fixedReplaceLines = replaceContentLines.map((line) => {
-                // 如果 replace 行的缩进与 search 第一行一致，则替换为原文件缩进
                 if (line.startsWith(searchFirstLineIndentation)) {
                   return originalIndentation + line.substring(searchFirstLineIndentation.length);
                 }
@@ -561,26 +478,26 @@ export const useCanvasStore = defineStore("canvas", () => {
   return {
     canvasList,
     activeCanvasId,
-    pendingUpdates,
+    dirtyFiles,
     isLoading,
     activeCanvas,
-    activePendingUpdates,
     hasPendingChanges,
+    onFileChanged,
+    emitFileChanged,
+    refreshGitStatus,
     loadCanvasList,
+    ensureActiveCanvas,
     createCanvas,
-    deleteCanvas,
     openCanvas,
+    deleteCanvas,
     readCanvasFileAsync,
-    writeFile,
+    writeFilePhysical,
     applyDiff,
     commitChanges,
     discardChanges,
-    undoDiff,
     getFileTree,
-    ensureActiveCanvas,
-    applyDiffAsPreview,
-    writeFileAsPreview,
-    revertPreview,
-    previewSnapshots,
+    registerPreviewRequest,
+    getPreviewRequest,
+    removePreviewRequest,
   };
 });

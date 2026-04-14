@@ -223,8 +223,10 @@ export function useTranscriptionManager() {
     const chatConfig = settings.value.transcription;
 
     // 构造覆盖配置，优先使用传入的 options，否则使用聊天设置
+    const targetModelId = options?.modelId || chatConfig.modelIdentifier;
+
     const overrideConfig: any = {
-      modelIdentifier: options?.modelId || chatConfig.modelIdentifier,
+      modelIdentifier: targetModelId,
       customPrompt: chatConfig.customPrompt,
       temperature: chatConfig.temperature,
       maxTokens: chatConfig.maxTokens,
@@ -245,10 +247,11 @@ export function useTranscriptionManager() {
       enableImageSlicer: chatConfig.enableImageSlicer,
       imageSlicerConfig: chatConfig.imageSlicerConfig,
       ffmpegPath: chatConfig.ffmpegPath,
-      image: chatConfig.image,
-      audio: chatConfig.audio,
-      video: chatConfig.video,
-      document: chatConfig.document,
+      // 关键修复：如果指定了 modelId，则将其应用到所有分类配置中，防止被分类配置中的旧模型 ID 覆盖
+      image: { ...chatConfig.image, modelIdentifier: options?.modelId || chatConfig.image?.modelIdentifier || targetModelId },
+      audio: { ...chatConfig.audio, modelIdentifier: options?.modelId || chatConfig.audio?.modelIdentifier || targetModelId },
+      video: { ...chatConfig.video, modelIdentifier: options?.modelId || chatConfig.video?.modelIdentifier || targetModelId },
+      document: { ...chatConfig.document, modelIdentifier: options?.modelId || chatConfig.document?.modelIdentifier || targetModelId },
     };
 
     return transcriptionRegistry.addTask(asset, overrideConfig);

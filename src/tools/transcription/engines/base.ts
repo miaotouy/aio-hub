@@ -19,6 +19,13 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
   const config = getEffectiveConfig(ctx);
   const { task } = ctx;
 
+  // 优先级逻辑：
+  // 1. 任务级别的显式覆盖 (task.overrideConfig) -> 这里的 specific 字段 (如 task.overrideConfig.image.modelIdentifier)
+  // 2. 任务级别的全局覆盖 (task.overrideConfig.modelIdentifier)
+  // 3. 模块全局的分类型配置 (store.config[type].modelIdentifier)
+  // 4. 模块全局的默认配置 (store.config.modelIdentifier)
+
+  // 基础值来自全局配置
   let modelIdentifier = config.modelIdentifier;
   let prompt = config.customPrompt;
   let temperature = config.temperature;
@@ -26,6 +33,7 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
   let enableRepetitionDetection = config.enableRepetitionDetection;
 
   // 1. 合并分类型特定配置 (specific)
+  // 注意：这里的 config 已经是 store.config 和 task.overrideConfig 合并后的结果
   const specific = config[type];
   if (specific) {
     modelIdentifier = specific.modelIdentifier || modelIdentifier;
@@ -35,13 +43,11 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
     enableRepetitionDetection = specific.enableRepetitionDetection ?? enableRepetitionDetection;
   }
 
-  // 2. 应用任务级别的覆盖配置 (最高优先级)
-  if (task.overrideConfig) {
-    modelIdentifier = task.overrideConfig.modelIdentifier || modelIdentifier;
-    prompt = task.overrideConfig.customPrompt || prompt;
-    temperature = task.overrideConfig.temperature ?? temperature;
-    maxTokens = task.overrideConfig.maxTokens ?? maxTokens;
-    enableRepetitionDetection = task.overrideConfig.enableRepetitionDetection ?? enableRepetitionDetection;
+  // 2. 特殊处理：如果 overrideConfig 中显式提供了针对该类型的模型，则它具有最高优先级
+  // 这是为了解决 llm-chat 等适配层传入的配置被全局配置覆盖的问题
+  const taskSpecific = task.overrideConfig?.[type] as any;
+  if (taskSpecific?.modelIdentifier) {
+    modelIdentifier = taskSpecific.modelIdentifier;
   }
 
   // 3. 处理 additionalPrompt 追加逻辑 (集中分发)

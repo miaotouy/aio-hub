@@ -209,26 +209,40 @@ const isCanvasEnabled = computed(() => {
   return agent?.toolCallConfig?.toolToggles?.canvas === true;
 });
 
+const boundCanvasId = computed(() => {
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  return agent?.toolCallConfig?.toolSettings?.canvas?.canvasId || null;
+});
+
+// 监听画布状态和绑定 ID，变化时自动加载列表以同步胶囊显示
+watch(
+  [isCanvasEnabled, boundCanvasId],
+  ([enabled, canvasId]) => {
+    if (enabled && canvasId) {
+      const canvasStore = useCanvasStore();
+      canvasStore.loadCanvasList();
+    }
+  },
+  { immediate: true },
+);
+
 const hasCanvasPendingChanges = computed(() => {
+  if (!boundCanvasId.value) return false;
   try {
     const canvasStore = useCanvasStore();
-    const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-    const canvasId = agent?.toolCallConfig?.toolSettings?.canvas?.canvasId;
-    if (!canvasId) return false;
-    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === canvasId);
+    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === boundCanvasId.value);
     return (canvas?.dirtyFileCount || 0) > 0;
   } catch {
     return false;
   }
 });
+
 const canvasBindingInfo = computed(() => {
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-  const canvasId = agent?.toolCallConfig?.toolSettings?.canvas?.canvasId;
-  if (!canvasId) return null;
+  if (!boundCanvasId.value) return null;
   try {
     const canvasStore = useCanvasStore();
-    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === canvasId);
-    return canvas ? { id: canvasId, name: canvas.metadata.name } : null;
+    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === boundCanvasId.value);
+    return canvas ? { id: boundCanvasId.value, name: canvas.metadata.name } : null;
   } catch {
     return null;
   }

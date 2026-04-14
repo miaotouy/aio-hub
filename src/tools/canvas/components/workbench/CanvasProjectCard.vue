@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MoreVertical, ExternalLink, Trash2, FileText, Clock } from "lucide-vue-next";
+import { MoreVertical, ExternalLink, Trash2, FileText, Clock, Monitor } from "lucide-vue-next";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { CanvasListItem } from "../../types";
@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: "open"): void;
   (e: "delete"): void;
   (e: "open-vscode"): void;
+  (e: "preview"): void;
 }>();
 
 const relativeTime = computed(() => {
@@ -97,7 +98,15 @@ const handleDelete = async () => {
       </div>
 
       <div class="card-footer" @click.stop>
-        <el-button size="small" type="primary" plain @click="emit('open')"> 打开预览 </el-button>
+        <div class="footer-left">
+          <el-button size="small" type="primary" @click="emit('open')"> 编辑 </el-button>
+          <el-button size="small" type="primary" plain @click="emit('preview')">
+            <template #icon>
+              <el-icon><Monitor /></el-icon>
+            </template>
+            预览
+          </el-button>
+        </div>
 
         <el-dropdown trigger="click">
           <div class="more-btn">
@@ -143,6 +152,12 @@ const handleDelete = async () => {
         </div>
 
         <div class="list-actions" @click.stop>
+          <el-tooltip content="打开预览" placement="top">
+            <div class="action-icon" @click="emit('preview')">
+              <el-icon><Monitor :size="16" /></el-icon>
+            </div>
+          </el-tooltip>
+
           <el-tooltip content="在 VSCode 中打开" placement="top">
             <div class="action-icon" @click="emit('open-vscode')">
               <el-icon><ExternalLink :size="16" /></el-icon>
@@ -267,6 +282,11 @@ const handleDelete = async () => {
       justify-content: space-between;
       align-items: center;
       margin-top: 12px;
+
+      .footer-left {
+        display: flex;
+        gap: 8px;
+      }
 
       .more-btn {
         width: 28px;

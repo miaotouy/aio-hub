@@ -3,6 +3,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
 import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
+import CanvasWindowContainer from "./tools/canvas/components/window/CanvasWindowContainer.vue";
 import * as ElementPlus from "element-plus";
 import * as ElementPlusIconsVue from "@element-plus/icons-vue";
 import * as PluginSDK from "@/services/plugin-sdk";
@@ -50,8 +51,13 @@ const isDetachedComponentLoader = () => {
   return window.location.pathname.startsWith("/detached-component/");
 };
 
+// 检查是否为画布窗口
+const isCanvasWindow = () => {
+  return window.location.pathname.startsWith("/canvas-window/");
+};
+
 // 为所有需要透明背景的窗口添加类名
-const needsTransparentBackground = isDetachedComponentLoader();
+const needsTransparentBackground = isDetachedComponentLoader() || isCanvasWindow();
 if (needsTransparentBackground) {
   document.documentElement.classList.add("transparent-window");
   document.body.classList.add("transparent-window");
@@ -75,6 +81,7 @@ if (needsTransparentBackground) {
 const rootComponent = (() => {
   if (isDetachedWindow()) return DetachedWindowContainer;
   if (isDetachedComponentLoader()) return DetachedComponentContainer;
+  if (isCanvasWindow()) return CanvasWindowContainer;
   return App;
 })();
 

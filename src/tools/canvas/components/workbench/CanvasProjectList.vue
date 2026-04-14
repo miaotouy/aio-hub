@@ -13,6 +13,7 @@ const emit = defineEmits<{
   (e: "open", canvasId: string): void;
   (e: "delete", canvasId: string): void;
   (e: "open-vscode", canvasId: string): void;
+  (e: "preview", canvasId: string): void;
 }>();
 
 const filteredCanvases = computed(() => {
@@ -34,6 +35,7 @@ const filteredCanvases = computed(() => {
           @open="emit('open', canvas.metadata.id)"
           @delete="emit('delete', canvas.metadata.id)"
           @open-vscode="emit('open-vscode', canvas.metadata.id)"
+          @preview="emit('preview', canvas.metadata.id)"
         />
       </div>
     </template>

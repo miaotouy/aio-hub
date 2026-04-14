@@ -18,9 +18,11 @@ type ServiceModule = {
 
 // 检查是否为分离窗口
 const isDetached = () => {
+  const path = window.location.pathname;
   return (
-    window.location.pathname.startsWith("/detached-window/") ||
-    window.location.pathname.startsWith("/detached-component/")
+    path.startsWith("/detached-window/") ||
+    path.startsWith("/detached-component/") ||
+    path.startsWith("/canvas-window/")
   );
 };
 

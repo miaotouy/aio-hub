@@ -33,6 +33,10 @@ use commands::{
     cleanup_items,
     clear_all_window_configs,
     close_detached_window,
+    close_canvas_window,
+    close_all_canvas_windows,
+    create_canvas_window,
+    get_canvas_windows,
     copy_directory_in_app_data,
     copy_file_to_app_data,
     create_dir_force,
@@ -497,6 +501,11 @@ pub fn run() {
             get_all_detached_windows,
             close_detached_window,
             end_drag_session,
+            // 画布窗口命令
+            create_canvas_window,
+            close_canvas_window,
+            close_all_canvas_windows,
+            get_canvas_windows,
             // 窗口导航命令
             navigate_main_window_to_settings,
             // 配置管理命令
@@ -752,14 +761,23 @@ pub fn run() {
 
                 // 如果关闭的是分离窗口（非主窗口），调用统一的关闭命令
                 if window_label != "main" {
-                    let app_handle = window.app_handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        if let Err(e) =
-                            commands::close_detached_window(app_handle, window_label).await
-                        {
-                            log::error!("Error closing detached window: {}", e);
-                        }
-                    });
+                    if commands::canvas_window::is_canvas_window(&window_label) {
+                        // 画布窗口：走画布模块的清理路径
+                        commands::canvas_window::handle_canvas_window_close(
+                            window.app_handle(),
+                            &window_label,
+                        );
+                    } else {
+                        // 分离窗口：走现有逻辑（不变）
+                        let app_handle = window.app_handle().clone();
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(e) =
+                                commands::close_detached_window(app_handle, window_label).await
+                            {
+                                log::error!("Error closing detached window: {}", e);
+                            }
+                        });
+                    }
                 }
                 // 如果是主窗口，处理托盘逻辑
                 else if let Some(app_state) = window.app_handle().try_state::<AppState>() {

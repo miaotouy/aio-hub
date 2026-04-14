@@ -8,7 +8,7 @@ import PendingChangesBar from "../shared/PendingChangesBar.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { debounce } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
-import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useCanvasWindowManager } from "../../composables/useCanvasWindowManager";
 
 const props = defineProps<{
   canvasId: string;
@@ -123,25 +123,13 @@ const handleDiscard = () => {
   loadActiveFileContent();
 };
 
-const detachedManager = useDetachedManager();
+const windowManager = useCanvasWindowManager();
 
 const handlePreview = async () => {
   const canvasId = props.canvasId;
   if (!canvasId) return;
 
-  const isAlreadyOpen = detachedManager.isDetached("canvas:preview");
-  if (isAlreadyOpen) {
-    await detachedManager.focusWindow("canvas:preview");
-    return;
-  }
-
-  await detachedManager.createToolWindow({
-    label: `canvas-preview-${canvasId}`,
-    title: `Canvas: ${activeCanvas.value?.metadata.name || "Preview"}`,
-    url: `/detached-component/canvas:preview?id=${canvasId}`,
-    width: 1200,
-    height: 800,
-  });
+  await windowManager.openPreviewWindow(canvasId, `Canvas: ${activeCanvas.value?.metadata.name || "Preview"}`);
 };
 
 // --- 生命周期与监听 ---

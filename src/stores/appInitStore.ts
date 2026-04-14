@@ -168,9 +168,11 @@ export const useAppInitStore = defineStore("appInit", () => {
 
   const retry = () => {
     // 根据当前环境决定重试哪种初始化
+    const path = window.location.pathname;
     const isDetached =
-      window.location.pathname.startsWith("/detached-window/") ||
-      window.location.pathname.startsWith("/detached-component/");
+      path.startsWith("/detached-window/") ||
+      path.startsWith("/detached-component/") ||
+      path.startsWith("/canvas-window/");
 
     if (isDetached) {
       // 尝试从路径解析 priorityToolId

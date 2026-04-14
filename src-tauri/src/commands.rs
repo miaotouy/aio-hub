@@ -1,6 +1,7 @@
 // 命令模块汇总
 pub mod agent_asset_manager;
 pub mod asset_manager;
+pub mod canvas_window;
 pub mod clipboard;
 pub mod config_manager;
 pub mod content_deduplicator;
@@ -23,6 +24,7 @@ pub mod system;
 
 // 重新导出所有命令
 pub use agent_asset_manager::*;
+pub use canvas_window::*;
 pub use asset_manager::*;
 pub use clipboard::*;
 pub use config_manager::*;

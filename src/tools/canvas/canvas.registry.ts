@@ -1,9 +1,7 @@
 import type { ToolConfig, ToolRegistry, ServiceMetadata } from "@/services/types";
-import { markRaw, ref } from "vue";
+import { markRaw } from "vue";
 import { useCanvasStore } from "./stores/canvasStore";
 import { Brush } from "@element-plus/icons-vue";
-import type { DetachableComponentRegistration } from "@/types/detachable";
-import { useCanvasStateConsumer } from "./composables/useCanvasStateConsumer";
 
 export const toolConfig: ToolConfig = {
   name: "画布",
@@ -18,22 +16,6 @@ export class CanvasRegistry implements ToolRegistry {
   public readonly id = "canvas";
   public readonly name = "画布";
   public readonly description = "多文件协作与预览空间";
-
-  public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
-    "canvas:preview": {
-      component: () => import("./components/window/CanvasWindow.vue"),
-      logicHook: () => {
-        return {
-          props: ref({}),
-          listeners: {},
-        };
-      },
-      initializeEnvironment: () => {
-        const consumer = useCanvasStateConsumer();
-        return consumer;
-      },
-    },
-  };
 
   /**
    * 为 Agent 提供额外的上下文信息（当前画布的文件树和待定更改）

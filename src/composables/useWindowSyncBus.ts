@@ -80,7 +80,7 @@ class WindowSyncBus {
     } else {
       // 对于分离窗口，检查当前路由路径
       const currentPath = window.location.pathname;
-      if (currentPath.startsWith("/detached-component/")) {
+      if (currentPath.startsWith("/detached-component/") || currentPath.startsWith("/canvas-window/")) {
         this.windowType = "detached-component";
       } else if (currentPath.startsWith("/detached-window/")) {
         this.windowType = "detached-tool";
@@ -152,9 +152,18 @@ class WindowSyncBus {
    * 发送握手消息
    */
   async sendHandshake(): Promise<void> {
+    let componentId: string | undefined;
+    if (this.windowType === "detached-component") {
+      if (this.windowLabel.startsWith("canvas-win-")) {
+        componentId = this.windowLabel.replace("canvas-win-", "");
+      } else {
+        componentId = this.windowLabel.replace("component-", "");
+      }
+    }
+
     const payload: HandshakePayload = {
       windowType: this.windowType,
-      componentId: this.windowType === "detached-component" ? this.windowLabel.replace("component-", "") : undefined,
+      componentId,
     };
 
     await this.sendMessage("handshake", payload);

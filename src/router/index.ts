@@ -56,6 +56,12 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("../views/DetachedComponentContainer.vue"),
   },
   {
+    // 动态路由：画布专用预览窗口 /canvas-window/{canvasId}
+    path: "/canvas-window/:canvasId",
+    name: "CanvasWindow",
+    component: () => import("../tools/canvas/components/window/CanvasWindowContainer.vue"),
+  },
+  {
     // 捕获所有未匹配路由，防止初始导航报错
     // 同时也作为动态路由加载前的占位
     path: "/:pathMatch(.*)*",

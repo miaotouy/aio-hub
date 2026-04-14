@@ -6,8 +6,10 @@ import CanvasProjectList from "./components/workbench/CanvasProjectList.vue";
 import CreateCanvasDialog from "./components/workbench/CreateCanvasDialog.vue";
 import CanvasEditorPanel from "./components/workbench/CanvasEditorPanel.vue";
 import { customMessage } from "@/utils/customMessage";
+import { useCanvasWindowManager } from "./composables/useCanvasWindowManager";
 
 const store = useCanvasStore();
+const windowManager = useCanvasWindowManager();
 
 // --- 状态 ---
 const viewMode = ref<"grid" | "list">("grid");
@@ -32,6 +34,13 @@ const handleDeleteCanvas = async (id: string) => {
 const handleOpenVSCode = async (_id: string) => {
   // 后续批次实现：调用后端 API 打开 VSCode
   customMessage.info("在 VSCode 中打开功能开发中...");
+};
+
+const handlePreviewCanvas = async (id: string) => {
+  const canvas = store.canvasList.find((c) => c.metadata.id === id);
+  if (canvas) {
+    await windowManager.openPreviewWindow(id, `画布预览 - ${canvas.metadata.name}`);
+  }
 };
 
 const handleCanvasCreated = (_metadata: any) => {
@@ -81,6 +90,7 @@ const handleCanvasCreated = (_metadata: any) => {
           @open="handleOpenCanvas"
           @delete="handleDeleteCanvas"
           @open-vscode="handleOpenVSCode"
+          @preview="handlePreviewCanvas"
         >
           <template #empty-action>
             <el-button type="primary" @click="isCreateDialogVisible = true"> 立即创建 </el-button>

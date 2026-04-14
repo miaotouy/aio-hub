@@ -2,9 +2,8 @@ import { toRef, computed, onUnmounted, type Ref, watch } from "vue";
 import { useCanvasStore } from "../stores/canvasStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
-import { useDetachable } from "@/composables/useDetachable";
 import { createModuleLogger } from "@/utils/logger";
-import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useCanvasWindowManager } from "./useCanvasWindowManager";
 
 const logger = createModuleLogger("Canvas/Sync");
 
@@ -14,6 +13,7 @@ const logger = createModuleLogger("Canvas/Sync");
 export function useCanvasSync() {
   const store = useCanvasStore();
   const bus = useWindowSyncBus();
+  const windowManager = useCanvasWindowManager();
 
   let isInitialized = false;
   const stateEngines: ReturnType<typeof useStateSyncEngine>[] = [];
@@ -75,6 +75,7 @@ export function useCanvasSync() {
         );
 
         for (const path of changedPaths) {
+          const targetLabel = windowManager.getWindowLabel(store.activeCanvasId || "");
           bus.syncState(
             "canvas:file-delta" as any,
             {
@@ -85,20 +86,20 @@ export function useCanvasSync() {
             },
             0,
             false,
+            targetLabel, // 定向推送
           );
         }
       },
       { deep: true },
     );
 
-    // 处理重新附着
+    // 处理窗口打开事件（全量同步）
     if (bus.windowType === "main" || bus.windowType === "detached-tool") {
-      const detachedManager = useDetachedManager();
       watch(
-        () => detachedManager.detachedComponents.value.length,
-        (newLength, oldLength) => {
-          if (typeof oldLength === "number" && newLength < oldLength) {
-            logger.info("Canvas 检测到组件重新附着，强制全量广播");
+        () => windowManager.openWindows.value.size,
+        (newSize, oldSize) => {
+          if (typeof oldSize === "number" && newSize > oldSize) {
+            logger.info("Canvas 检测到新窗口打开，强制全量广播");
             stateEngines.forEach((e) => e.manualPush(true, undefined, true));
           }
         },
@@ -116,18 +117,7 @@ export function useCanvasSync() {
 
     switch (action) {
       case "open-window": {
-        const { detachByClick } = useDetachable();
-        return detachByClick({
-          id: `canvas:preview:${canvasId}`,
-          displayName: `画布预览 - ${canvasId}`,
-          type: "component",
-          width: 1200,
-          height: 800,
-          metadata: {
-            componentId: "canvas:preview",
-            canvasId,
-          },
-        });
+        return windowManager.openPreviewWindow(canvasId, `画布预览 - ${canvasId}`);
       }
       case "open-canvas": {
         if (params.canvasId) {
@@ -138,6 +128,7 @@ export function useCanvasSync() {
       case "write-file": {
         store.writeFile(canvasId, params.filepath, params.content);
         // 主动推送增量
+        const targetLabel = windowManager.getWindowLabel(canvasId);
         bus.syncState(
           "canvas:file-delta" as any,
           {
@@ -148,6 +139,7 @@ export function useCanvasSync() {
           },
           0,
           false,
+          targetLabel,
         );
         return Promise.resolve();
       }
@@ -157,6 +149,7 @@ export function useCanvasSync() {
         // 但为了即时性，也可以在这里手动推送一次最新的内容
         const newContent = await store.readCanvasFileAsync(canvasId, params.filepath);
         if (newContent !== null) {
+          const targetLabel = windowManager.getWindowLabel(canvasId);
           bus.syncState(
             "canvas:file-delta" as any,
             {
@@ -167,6 +160,7 @@ export function useCanvasSync() {
             },
             0,
             false,
+            targetLabel,
           );
         }
         return Promise.resolve();

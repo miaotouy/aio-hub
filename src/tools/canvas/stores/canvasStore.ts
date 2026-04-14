@@ -215,6 +215,26 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
+   * 打开并聚焦独立预览窗口
+   */
+  async function openPreviewWindow(canvasId: string) {
+    // 1. 确保它是激活的
+    if (activeCanvasId.value !== canvasId) {
+      await openCanvas(canvasId);
+    }
+
+    // 2. 发送总线事件，请求打开/聚焦窗口
+    // 这里的逻辑由 src/tools/canvas/composables/useCanvasSync.ts 等订阅者处理
+    // 或者直接通过 window.dispatchEvent 通知特定组件
+    window.dispatchEvent(
+      new CustomEvent("canvas:request-window", {
+        detail: { canvasId },
+      }),
+    );
+    logger.info("已请求打开预览窗口", { canvasId });
+  }
+
+  /**
    * 删除画布
    */
   async function deleteCanvas(canvasId: string) {
@@ -489,6 +509,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     ensureActiveCanvas,
     createCanvas,
     openCanvas,
+    openPreviewWindow,
     deleteCanvas,
     readCanvasFileAsync,
     writeFilePhysical,

@@ -203,10 +203,11 @@ const settingsVisible = ref(false);
 const miniSessionListRef = ref<any>(null);
 
 const isCanvasEnabled = computed(() => {
+  // 必须同时满足：1. 工具调用总开关开启 2. 画布工具开关开启
+  if (!isToolCallingEnabled.value) return false;
   const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
   return agent?.toolCallConfig?.toolToggles?.canvas === true;
 });
-
 
 const hasCanvasPendingChanges = computed(() => {
   try {
@@ -515,7 +516,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </template>
         </el-dropdown>
 
-
         <!-- 工具调用设置 -->
         <el-tooltip
           :content="isVcpChannel ? 'VCP 后端接管工具调用（点击查看详情）' : '工具调用设置'"
@@ -669,6 +669,42 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         </el-tooltip>
       </div>
       <div class="input-actions">
+        <!-- 续写模型显示 -->
+        <el-tooltip
+          v-if="continuationModelInfo"
+          :content="`续写模型: ${continuationModelInfo.profileName} - ${continuationModelInfo.modelName}`"
+          placement="top"
+          :show-after="500"
+        >
+          <div class="temporary-model-indicator continuation-model">
+            <Sparkles :size="14" />
+            <span class="model-name">
+              {{ continuationModelInfo.modelName }}
+            </span>
+            <button class="clear-btn" @click="emit('clear-continuation-model')">
+              <X :size="14" />
+            </button>
+          </div>
+        </el-tooltip>
+
+        <!-- 临时模型显示 -->
+        <el-tooltip
+          v-if="temporaryModelInfo"
+          :content="`临时模型: ${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
+          placement="top"
+          :show-after="500"
+        >
+          <div class="temporary-model-indicator">
+            <AtSign :size="14" />
+            <span class="model-name">
+              {{ temporaryModelInfo.modelName }}
+            </span>
+            <button class="clear-btn" @click="emit('clear-temporary-model')">
+              <X :size="14" />
+            </button>
+          </div>
+        </el-tooltip>
+
         <!-- 画布状态标签 (展示+控制合一) -->
         <el-tooltip
           v-if="isCanvasEnabled"
@@ -710,40 +746,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </div>
         </el-tooltip>
 
-        <!-- 续写模型显示 -->
-        <el-tooltip
-          v-if="continuationModelInfo"
-          :content="`续写模型: ${continuationModelInfo.profileName} - ${continuationModelInfo.modelName}`"
-          placement="top"
-          :show-after="500"
-        >
-          <div class="temporary-model-indicator continuation-model">
-            <Sparkles :size="14" />
-            <span class="model-name">
-              {{ continuationModelInfo.modelName }}
-            </span>
-            <button class="clear-btn" @click="emit('clear-continuation-model')">
-              <X :size="14" />
-            </button>
-          </div>
-        </el-tooltip>
-        <!-- 临时模型显示 -->
-        <el-tooltip
-          v-if="temporaryModelInfo"
-          :content="`临时模型: ${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
-          placement="top"
-          :show-after="500"
-        >
-          <div class="temporary-model-indicator">
-            <AtSign :size="14" />
-            <span class="model-name">
-              {{ temporaryModelInfo.modelName }}
-            </span>
-            <button class="clear-btn" @click="emit('clear-temporary-model')">
-              <X :size="14" />
-            </button>
-          </div>
-        </el-tooltip>
         <!-- 历史上下文统计 -->
         <el-tooltip
           v-if="props.settings.showTokenUsage && props.contextStats && props.contextStats.totalTokenCount !== undefined"

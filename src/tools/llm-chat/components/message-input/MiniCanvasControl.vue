@@ -57,11 +57,11 @@ function bindCanvas(canvasId: string | null) {
   }
 
   if (agent.toolCallConfig && agent.toolCallConfig.toolSettings) {
-    agent.toolCallConfig.toolSettings.canvas = { canvasId };
-  }
-
-  if (canvasId) {
-    bus.requestAction("canvas:open-canvas", { canvasId });
+    // 确保 canvas 配置对象存在
+    if (!agent.toolCallConfig.toolSettings.canvas) {
+      agent.toolCallConfig.toolSettings.canvas = {};
+    }
+    agent.toolCallConfig.toolSettings.canvas.canvasId = canvasId;
   }
 
   agentStore.persistAgent(agent);

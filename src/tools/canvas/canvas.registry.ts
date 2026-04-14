@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolRegistry, ServiceMetadata } from "@/services/types";
+import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import { useCanvasStore } from "./stores/canvasStore";
 import { Brush } from "@element-plus/icons-vue";
@@ -18,6 +19,22 @@ export class CanvasRegistry implements ToolRegistry {
   public readonly id = "canvas";
   public readonly name = "画布";
   public readonly description = "多文件协作与预览空间";
+
+  public readonly settingsSchema: SettingItem[] = [
+    {
+      id: "canvas-bound-id",
+      label: "绑定画布 ID",
+      component: "ElInput",
+      modelPath: "canvasId",
+      hint: "输入要与此智能体绑定的画布 ID (在画布工具中查看)",
+      keywords: "画布 绑定 协作 ID canvas",
+      defaultValue: "",
+      props: {
+        clearable: true,
+        placeholder: "输入画布 ID",
+      },
+    },
+  ];
 
   /**
    * 为 Agent 提供额外的上下文信息
@@ -61,7 +78,12 @@ export class CanvasRegistry implements ToolRegistry {
       };
 
       const fileListStr = buildFileList(fileTree);
-      const changesStr = dirtyFiles.size > 0 ? Array.from(dirtyFiles.keys()).map((f) => `- ${f}`).join("\n") : "None";
+      const changesStr =
+        dirtyFiles.size > 0
+          ? Array.from(dirtyFiles.keys())
+              .map((f) => `- ${f}`)
+              .join("\n")
+          : "None";
 
       return `Canvas Project: ${activeCanvas.metadata.name}
 Entry File: ${activeCanvas.metadata.entryFile || "index.html"}
@@ -135,15 +157,23 @@ ${changesStr}
           returnType: "Promise<any>",
           agentCallable: true,
         },
+        {
+          name: "open_window",
+          displayName: "打开预览窗",
+          description: "打开或聚焦画布的独立预览窗口",
+          parameters: [{ name: "canvasId", type: "string", required: true, description: "画布 ID" }],
+          returnType: "Promise<void>",
+          agentCallable: false,
+        },
       ],
     };
   }
 
   // ==================== Agent Callable Methods ====================
 
-  async read_canvas_file(args: { path: string }): Promise<string> {
+  async read_canvas_file(args: { path: string; canvasId?: string }): Promise<string> {
     const canvasStore = useCanvasStore();
-    const canvasId = canvasStore.activeCanvasId;
+    const canvasId = args.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) throw new Error("No active canvas. Please open or create a canvas first.");
 
     const content = await canvasStore.readCanvasFileAsync(canvasId, args.path);
@@ -155,43 +185,48 @@ ${changesStr}
       .join("\n");
   }
 
-  async apply_canvas_diff(args: { path: string; diff: string }): Promise<string> {
+  async apply_canvas_diff(args: { path: string; diff: string; canvasId?: string }): Promise<string> {
     const canvasStore = useCanvasStore();
-    const canvasId = await canvasStore.ensureActiveCanvas();
+    const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
 
     await canvasStore.applyDiff(canvasId, args.path, args.diff);
     return `Successfully applied diff to ${args.path}`;
   }
 
-  async write_canvas_file(args: { path: string; content: string }): Promise<string> {
+  async write_canvas_file(args: { path: string; content: string; canvasId?: string }): Promise<string> {
     const canvasStore = useCanvasStore();
-    const canvasId = await canvasStore.ensureActiveCanvas();
+    const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
 
     await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
     return `Successfully wrote to ${args.path}`;
   }
 
-  async commit_changes(args: { message?: string }): Promise<string> {
+  async commit_changes(args: { message?: string; canvasId?: string }): Promise<string> {
     const canvasStore = useCanvasStore();
-    const canvasId = canvasStore.activeCanvasId;
+    const canvasId = args.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) throw new Error("No active canvas to commit.");
     await canvasStore.commitChanges(canvasId, args.message);
     return "Changes committed successfully.";
   }
 
-  async discard_changes(): Promise<string> {
+  async discard_changes(args: { canvasId?: string }): Promise<string> {
     const canvasStore = useCanvasStore();
-    const canvasId = canvasStore.activeCanvasId;
+    const canvasId = args.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) return "No active canvas.";
     await canvasStore.discardChanges(canvasId);
     return "Changes discarded.";
   }
 
-  async list_canvas_files(): Promise<any> {
+  async list_canvas_files(args: { canvasId?: string }): Promise<any> {
     const canvasStore = useCanvasStore();
-    const canvasId = canvasStore.activeCanvasId;
+    const canvasId = args.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) return [];
     return await canvasStore.getFileTree(canvasId);
+  }
+
+  async open_window(args: { canvasId: string }): Promise<void> {
+    const canvasStore = useCanvasStore();
+    await canvasStore.openPreviewWindow(args.canvasId);
   }
 
   // ==================== Approval System Hooks ====================
@@ -204,13 +239,13 @@ ${changesStr}
     const canvasStore = useCanvasStore();
 
     if (methodName === "apply_canvas_diff" && args.path && args.diff) {
-      const canvasId = await canvasStore.ensureActiveCanvas();
+      const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
       await canvasStore.applyDiff(canvasId, args.path, args.diff);
       canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
 
     if (methodName === "write_canvas_file" && args.path && args.content) {
-      const canvasId = await canvasStore.ensureActiveCanvas();
+      const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
       await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
       canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
@@ -231,7 +266,7 @@ ${changesStr}
 
     // 获取当前状态矩阵，判断是否是新文件
     const matrix = await gitService.statusMatrix();
-    
+
     for (const filepath of request.affectedFiles) {
       const fileStatus = matrix?.find(([f]) => f === filepath);
       if (fileStatus && fileStatus[1] === 0) {
@@ -245,7 +280,7 @@ ${changesStr}
 
     canvasStore.removePreviewRequest(requestId);
     // 通知预览窗口刷新
-    request.affectedFiles.forEach(f => canvasStore.emitFileChanged(request.canvasId, f));
+    request.affectedFiles.forEach((f) => canvasStore.emitFileChanged(request.canvasId, f));
     // 刷新 Git 状态
     await canvasStore.refreshGitStatus(request.canvasId);
   }

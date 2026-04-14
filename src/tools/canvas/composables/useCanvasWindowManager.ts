@@ -39,6 +39,12 @@ export function useCanvasWindowManager() {
     listen<CanvasWindowInfo>("canvas-window-closed", (event) => {
       openWindows.value.delete(event.payload.canvasId);
     });
+
+    // 监听 DOM 事件请求（来自 Store 或 Registry）
+    window.addEventListener("canvas:request-window", (e: any) => {
+      const { canvasId } = e.detail;
+      openPreviewWindow(canvasId);
+    });
   };
 
   /**

@@ -310,6 +310,9 @@ export function useChatExecutor() {
     if (model) {
       pipelineContext.sharedData.set("model", model);
     }
+    if (profile) {
+      pipelineContext.sharedData.set("profile", profile);
+    }
     pipelineContext.sharedData.set("transcriptionConfig", settings.value.transcription);
 
     const worldbookStore = import.meta.env.SSR

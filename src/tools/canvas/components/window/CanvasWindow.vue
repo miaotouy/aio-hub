@@ -1,7 +1,8 @@
 <template>
   <div class="canvas-window">
-    <!-- 顶部悬浮栏 -->
-    <CanvasFloatingBar
+    <!-- 顶部标题栏 -->
+    <CanvasTitleBar
+      v-model:pinned="titleBarPinned"
       :title="activeCanvas?.metadata.name || 'Canvas Stage'"
       :show-status-bar="showStatusBar"
       @refresh="forceRefresh"
@@ -39,7 +40,7 @@ import { useCanvasStateConsumer } from "../../composables/useCanvasStateConsumer
 import { useCanvasPreview, type ConsoleMessage } from "../../composables/useCanvasPreview";
 import { useCanvasStorage } from "../../composables/useCanvasStorage";
 import CanvasPreviewPane from "./CanvasPreviewPane.vue";
-import CanvasFloatingBar from "./CanvasFloatingBar.vue";
+import CanvasTitleBar from "./CanvasTitleBar.vue";
 import CanvasStatusBar from "./CanvasStatusBar.vue";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -86,7 +87,12 @@ const { previewSrc, previewSrcdoc, isRefreshing, consoleMessages, refreshPreview
 
 // 4. UI 状态
 const showStatusBar = ref(true);
+const titleBarPinned = ref(localStorage.getItem("canvas-titlebar-pinned") !== "false");
 const activeCanvas = ref<any>(null);
+
+watch(titleBarPinned, (val) => {
+  localStorage.setItem("canvas-titlebar-pinned", String(val));
+});
 
 // 监听 ID 变化，加载元数据
 watch(

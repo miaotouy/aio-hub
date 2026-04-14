@@ -40,16 +40,30 @@
     />
 
     <!-- 代码查看器组件 -->
-    <MonacoSourceViewer
-      v-show="viewMode === 'code'"
-      :content="content"
-      :language="language"
-      :is-expanded="isExpanded"
-      :word-wrap-enabled="wordWrapEnabled"
-      :code-font-size="codeFontSize"
-      :closed="closed"
-      @ready="handleEditorReady"
-    />
+    <template v-if="viewMode === 'code'">
+      <div class="code-preview-block">
+        <MonacoSourceViewer
+          v-if="context?.codeEditorEngine?.value !== 'codemirror'"
+          :content="content"
+          :language="language"
+          :is-expanded="isExpanded"
+          :word-wrap-enabled="wordWrapEnabled"
+          :code-font-size="codeFontSize"
+          :closed="closed"
+          @ready="handleEditorReady"
+        />
+        <CodeMirrorSourceViewer
+          v-else
+          :content="content"
+          :language="language"
+          :is-expanded="isExpanded"
+          :code-font-size="codeFontSize"
+          :word-wrap-enabled="wordWrapEnabled"
+          :closed="closed"
+          @ready="handleEditorReady"
+        />
+      </div>
+    </template>
 
     <!-- HTML 预览区域 (内嵌) -->
     <div v-if="viewMode === 'preview'" class="html-preview-container">
@@ -89,6 +103,7 @@ import { calculatorProxy } from "@/tools/token-calculator/worker/calculator.prox
 // 导入拆分出的组件
 import CodeBlockHeader from "./code-block/CodeBlockHeader.vue";
 import MonacoSourceViewer from "./code-block/MonacoSourceViewer.vue";
+import CodeMirrorSourceViewer from "./code-block/CodeMirrorSourceViewer.vue";
 
 defineOptions({
   inheritAttrs: false,
@@ -110,12 +125,10 @@ const props = withDefaults(
   {
     seamless: undefined,
     defaultExpanded: undefined,
-  }
+  },
 );
 
-const errorHandler = createModuleErrorHandler(
-  "tools/rich-text-renderer/components/nodes/CodeBlockNode.vue"
-);
+const errorHandler = createModuleErrorHandler("tools/rich-text-renderer/components/nodes/CodeBlockNode.vue");
 
 // 注入上下文以获取全局设置
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
@@ -195,7 +208,7 @@ watch(
       viewMode.value = "preview";
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 悬停状态管理
@@ -275,7 +288,7 @@ watch(
       updateTokenCount();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 监听开关变化
@@ -285,7 +298,7 @@ watch(
     if (show) {
       updateTokenCount();
     }
-  }
+  },
 );
 
 // 复制代码
@@ -347,6 +360,10 @@ onMounted(() => {
 
 .markdown-code-block.seamless-mode .html-preview-container {
   border-top: none;
+}
+
+.code-preview-block {
+  backdrop-filter: blur(var(--ui-blur, 10px));
 }
 
 .html-preview-container {

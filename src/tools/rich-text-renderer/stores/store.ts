@@ -120,6 +120,7 @@ const configManager = createConfigManager<TesterConfig>({
     selectedTokenizer: "gpt4o",
     profileType: "agent",
     selectedProfileId: "",
+    codeEditorEngine: "codemirror",
     llmThinkRules: defaultLlmThinkRules,
     richTextStyleOptions: {},
     regexConfig: createDefaultChatRegexConfig(),
@@ -175,6 +176,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   const selectedTokenizer = ref("gpt4o");
   const profileType = ref<"agent" | "user">("agent");
   const selectedProfileId = ref("");
+  const codeEditorEngine = ref<"monaco" | "codemirror">("codemirror");
   const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
   const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
   const regexConfig = ref<ChatRegexConfig>(createDefaultChatRegexConfig());
@@ -251,6 +253,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedTokenizer.value = config.selectedTokenizer ?? "gpt4o";
       profileType.value = config.profileType ?? "agent";
       selectedProfileId.value = config.selectedProfileId ?? "";
+      codeEditorEngine.value = config.codeEditorEngine ?? "monaco";
       llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
       richTextStyleOptions.value = config.richTextStyleOptions || {};
       regexConfig.value = config.regexConfig || createDefaultChatRegexConfig();
@@ -318,6 +321,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
         selectedTokenizer: selectedTokenizer.value,
         profileType: profileType.value,
         selectedProfileId: selectedProfileId.value,
+        codeEditorEngine: codeEditorEngine.value,
         llmThinkRules: llmThinkRules.value,
         richTextStyleOptions: richTextStyleOptions.value,
         regexConfig: regexConfig.value,
@@ -381,6 +385,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedTokenizer: selectedTokenizer.value,
       profileType: profileType.value,
       selectedProfileId: selectedProfileId.value,
+      codeEditorEngine: codeEditorEngine.value,
       llmThinkRules: llmThinkRules.value,
       richTextStyleOptions: richTextStyleOptions.value,
       regexConfig: regexConfig.value,
@@ -425,6 +430,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     selectedTokenizer.value = "gpt4o";
     profileType.value = "agent";
     selectedProfileId.value = "";
+    codeEditorEngine.value = "codemirror";
     llmThinkRules.value = [...defaultLlmThinkRules];
     richTextStyleOptions.value = {};
     regexConfig.value = createDefaultChatRegexConfig();
@@ -522,6 +528,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       selectedTokenizer,
       profileType,
       selectedProfileId,
+      codeEditorEngine,
       llmThinkRules,
       richTextStyleOptions,
       regexConfig,
@@ -537,7 +544,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     () => {
       autoSaveConfig();
     },
-    { deep: true }
+    { deep: true },
   );
 
   return {
@@ -573,6 +580,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     selectedTokenizer,
     profileType,
     selectedProfileId,
+    codeEditorEngine,
     llmThinkRules,
     richTextStyleOptions,
     regexConfig,

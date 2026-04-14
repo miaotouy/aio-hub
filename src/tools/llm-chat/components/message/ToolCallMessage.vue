@@ -696,6 +696,7 @@ defineExpose({
                   :default-render-html="settings.uiPreferences.defaultRenderHtml"
                   :throttle-ms="settings.uiPreferences.rendererThrottleMs"
                   :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
+                  :code-editor-engine="settings.uiPreferences.codeEditorEngine"
                 />
               </div>
             </div>
@@ -718,6 +719,7 @@ defineExpose({
                   :default-render-html="settings.uiPreferences.defaultRenderHtml"
                   :throttle-ms="settings.uiPreferences.rendererThrottleMs"
                   :is-streaming="isTranslating"
+                  :code-editor-engine="settings.uiPreferences.codeEditorEngine"
                 />
               </div>
             </div>

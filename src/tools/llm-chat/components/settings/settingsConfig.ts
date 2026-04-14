@@ -280,6 +280,22 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui renderer markdown parser 渲染器 解析器",
       },
       {
+        id: "codeEditorEngine",
+        label: "代码编辑器引擎",
+        component: "ElSelect",
+        props: {
+          placeholder: "选择代码编辑器引擎",
+          style: { width: "100%" },
+        },
+        options: [
+          { label: "CodeMirror (轻量/快)", value: "codemirror" },
+          { label: "Monaco (专业/重)", value: "monaco" },
+        ],
+        modelPath: "uiPreferences.codeEditorEngine",
+        hint: "控制消息中代码块的显示引擎。CodeMirror 启动速度更快，Monaco 功能更丰富。",
+        keywords: "ui code editor engine monaco codemirror 代码 编辑器 引擎",
+      },
+      {
         id: "throttleEnabled",
         label: "启用渲染节流",
         layout: "inline",

@@ -334,6 +334,7 @@
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
                 :resolve-asset="resolveAsset"
+                :code-editor-engine="settings.uiPreferences.codeEditorEngine"
               />
             </div>
           </div>

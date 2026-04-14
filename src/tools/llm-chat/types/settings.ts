@@ -124,6 +124,8 @@ export interface ChatSettings {
     htmlFreezerKeepAliveCount: number;
     /** 是否启用渲染安全护栏 */
     safetyGuardEnabled: boolean;
+    /** 代码编辑器引擎 */
+    codeEditorEngine: "monaco" | "codemirror";
     /** 全局媒体音量 (0-100) */
     globalMediaVolume: number;
   };
@@ -291,8 +293,9 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     allowExternalScripts: false, // 默认禁止外部资源，增强安全性
     allowDangerousHtml: false, // 默认禁止危险 HTML
     enableHtmlFreezer: true, // 默认启用 HTML 预览冻结
-    htmlFreezerKeepAliveCount: 5, // 默认保持最近 5 个预览活动
+    htmlFreezerKeepAliveCount: 5, // 默认 保持最近 5 个预览活动
     safetyGuardEnabled: true, // 默认启用渲染安全护栏
+    codeEditorEngine: "codemirror", // 默认使用 CodeMirror
     globalMediaVolume: 80, // 默认媒体音量 80%
   },
   modelPreferences: {

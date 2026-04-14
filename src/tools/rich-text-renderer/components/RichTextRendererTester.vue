@@ -140,6 +140,7 @@
                 :verbose-logging="verboseLogging"
                 :safety-guard-enabled="safetyGuardEnabled"
                 :seamless-mode="seamlessMode"
+                :code-editor-engine="codeEditorEngine"
               />
               <div v-else class="empty-placeholder">
                 <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
@@ -268,6 +269,7 @@ const {
   seamlessMode,
   profileType,
   selectedProfileId,
+  codeEditorEngine,
 } = storeToRefs(store);
 
 const activeRegexRules = computed(() => store.getActiveRegexRules());

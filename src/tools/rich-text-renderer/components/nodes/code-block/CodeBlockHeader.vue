@@ -11,17 +11,12 @@
       <!-- 预览模式指示器 -->
       <span v-if="isHtml && viewMode === 'preview'" class="mode-tag">预览模式</span>
       <!-- Token 计数 -->
-      <span v-if="showTokenCount" class="token-info">
-        {{ contentLength }} 字 / ~{{ tokenCount }} tokens
-      </span>
+      <span v-if="showTokenCount" class="token-info"> {{ contentLength }} 字 / ~{{ tokenCount }} tokens </span>
     </div>
     <div class="header-actions">
       <!-- HTML 预览切换按钮 -->
       <template v-if="isHtml">
-        <el-tooltip
-          :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'"
-          :show-after="300"
-        >
+        <el-tooltip :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'" :show-after="300">
           <button
             class="action-btn"
             :class="{ 'action-btn-active': viewMode === 'preview' }"
@@ -32,10 +27,7 @@
           </button>
         </el-tooltip>
 
-        <el-tooltip
-          :content="closed === false ? '内容生成中...' : '在弹窗中预览'"
-          :show-after="300"
-        >
+        <el-tooltip :content="closed === false ? '内容生成中...' : '在弹窗中预览'" :show-after="300">
           <button class="action-btn" :disabled="closed === false" @click="$emit('open-dialog-preview')">
             <ExternalLink :size="14" />
           </button>
@@ -46,11 +38,7 @@
 
       <!-- 字体大小调整按钮 -->
       <el-tooltip content="减小字体" :show-after="300">
-        <button
-          class="action-btn"
-          :disabled="codeFontSize <= codeFontMin"
-          @click="$emit('decrease-font')"
-        >
+        <button class="action-btn" :disabled="codeFontSize <= codeFontMin" @click="$emit('decrease-font')">
           <Minus :size="14" />
         </button>
       </el-tooltip>
@@ -64,22 +52,14 @@
         </button>
       </el-tooltip>
       <el-tooltip content="增大字体" :show-after="300">
-        <button
-          class="action-btn"
-          :disabled="codeFontSize >= codeFontMax"
-          @click="$emit('increase-font')"
-        >
+        <button class="action-btn" :disabled="codeFontSize >= codeFontMax" @click="$emit('increase-font')">
           <Plus :size="14" />
         </button>
       </el-tooltip>
 
       <!-- 换行切换按钮 -->
       <el-tooltip :content="wordWrapEnabled ? '禁用换行' : '启用换行'" :show-after="300">
-        <button
-          class="action-btn"
-          :class="{ 'action-btn-active': wordWrapEnabled }"
-          @click="$emit('toggle-word-wrap')"
-        >
+        <button class="action-btn" :class="{ 'action-btn-active': wordWrapEnabled }" @click="$emit('toggle-word-wrap')">
           <WrapText :size="14" />
         </button>
       </el-tooltip>
@@ -157,6 +137,7 @@ defineEmits<{
   justify-content: space-between;
   padding: 8px 12px;
   background-color: var(--code-block-bg, var(--card-bg));
+  backdrop-filter: blur(var(--ui-blur, 10px));
   flex-shrink: 0;
 }
 
@@ -181,7 +162,6 @@ defineEmits<{
 
 .code-header.floating .header-actions {
   background-color: var(--el-bg-color);
-  backdrop-filter: blur(var(--ui-blur, 10px));
   border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   padding: 4px;

@@ -51,6 +51,7 @@ const props = withDefaults(
     throttleEnabled?: boolean; // 是否启用 AST 更新节流（默认 true）
     verboseLogging?: boolean; // 是否启用高级调试日志（默认 false，开启后会刷屏）
     safetyGuardEnabled?: boolean; // 是否启用渲染安全护栏（默认 true）
+    codeEditorEngine?: "monaco" | "codemirror"; // 代码编辑器引擎
   }>(),
   {
     version: RendererVersion.V2_CUSTOM_PARSER,
@@ -68,6 +69,7 @@ const props = withDefaults(
     smoothingEnabled: true,
     throttleEnabled: true,
     safetyGuardEnabled: true,
+    codeEditorEngine: "codemirror",
     throttleMs: 80, // 默认 80ms 节流，避免打字机效果过于频繁
     llmThinkRules: () => [
       // 默认规则：标准 <think> 标签
@@ -238,6 +240,7 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   shouldFreeze: computed(() => props.shouldFreeze),
   isStreaming: computed(() => props.isStreaming || internalIsStreaming.value),
   showTokenCount: computed(() => props.showTokenCount),
+  codeEditorEngine: computed(() => props.codeEditorEngine),
 });
 
 // 纯 markdown-it 渲染的 HTML

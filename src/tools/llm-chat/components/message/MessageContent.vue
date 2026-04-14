@@ -605,6 +605,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
         :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
         :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
+        :code-editor-engine="settings.uiPreferences.codeEditorEngine"
       />
     </LlmThinkNode>
 
@@ -694,6 +695,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
           :should-freeze="shouldFreezeHtml"
           :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
+          :code-editor-engine="settings.uiPreferences.codeEditorEngine"
         />
         <div v-if="isGenerating" class="streaming-indicator">
           <span class="dot"></span>
@@ -741,6 +743,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :resolve-asset="resolveAsset"
             :should-freeze="shouldFreezeHtml"
             :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
+            :code-editor-engine="settings.uiPreferences.codeEditorEngine"
           />
           <div v-if="isTranslating" class="streaming-indicator translation-loading">
             <span class="dot"></span>

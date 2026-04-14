@@ -106,6 +106,15 @@
         </el-select>
       </div>
 
+      <!-- 代码编辑器引擎选择 -->
+      <div class="control-section">
+        <label class="control-label">代码编辑器引擎</label>
+        <el-select v-model="codeEditorEngine" style="width: 100%">
+          <el-option label="Monaco (专业/重)" value="monaco" />
+          <el-option label="CodeMirror (轻量/快)" value="codemirror" />
+        </el-select>
+      </div>
+
       <!-- HTML 渲染控制 -->
       <div class="control-section">
         <div class="control-header">
@@ -477,6 +486,7 @@ const {
   seamlessMode,
   profileType,
   selectedProfileId,
+  codeEditorEngine,
 } = storeToRefs(store);
 
 // Computed

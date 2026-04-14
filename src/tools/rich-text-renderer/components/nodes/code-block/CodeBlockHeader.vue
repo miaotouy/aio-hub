@@ -272,8 +272,8 @@ defineEmits<{
 }
 
 .action-btn-active {
-  background-color: var(--el-color-primary);
-  color: white;
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.2));
+  color: var(--el-color-primary);
 }
 
 .action-btn-active::before {
@@ -281,8 +281,8 @@ defineEmits<{
 }
 
 .action-btn-active:hover:not(:disabled) {
-  background-color: rgba(var(--el-color-primary-rgb), 0.7);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.35));
+  box-shadow: 0 2px 8px rgba(var(--el-color-primary-rgb), 0.2);
 }
 
 .divider {

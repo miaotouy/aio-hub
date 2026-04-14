@@ -199,7 +199,7 @@ const handleDelete = async () => {
 
   &.is-active {
     border-color: var(--el-color-primary);
-    background-color: rgba(var(--el-color-primary-rgb), 0.05);
+    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
   }
 
   /* Grid Mode */
@@ -208,101 +208,101 @@ const handleDelete = async () => {
     flex-direction: column;
     height: 180px;
     padding: 16px;
+  }
 
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 12px;
+  &.grid .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
 
-      .title-area {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
+  &.grid .title-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
 
-        .emoji {
-          font-size: 20px;
-        }
+  &.grid .emoji {
+    font-size: 20px;
+  }
 
-        .title {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--el-text-color-primary);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-      }
-    }
+  &.grid .title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-    .card-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+  &.grid .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-      .stats {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
+  &.grid .stats {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
 
-        .stat-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 13px;
-          color: var(--el-text-color-regular);
+  &.grid .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--el-text-color-regular);
+  }
 
-          &.pending {
-            color: var(--el-color-warning);
+  &.grid .stat-item.pending {
+    color: var(--el-color-warning);
+  }
 
-            .dot {
-              width: 6px;
-              height: 6px;
-              border-radius: 50%;
-              background-color: var(--el-color-warning);
-            }
-          }
-        }
-      }
+  &.grid .stat-item.pending .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--el-color-warning);
+  }
 
-      .time {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        color: var(--el-text-color-secondary);
-      }
-    }
+  &.grid .time {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
 
-    .card-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 12px;
+  &.grid .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+  }
 
-      .footer-left {
-        display: flex;
-        gap: 8px;
-      }
+  &.grid .footer-left {
+    display: flex;
+    gap: 8px;
+  }
 
-      .more-btn {
-        width: 28px;
-        height: 28px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 4px;
-        color: var(--el-text-color-secondary);
-        transition: all 0.2s;
+  &.grid .more-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--el-text-color-secondary);
+    transition: all 0.2s;
 
-        &:hover {
-          background-color: var(--el-fill-color-light);
-          color: var(--el-text-color-primary);
-        }
-      }
+    &:hover {
+      background-color: var(--el-fill-color-light);
+      color: var(--el-text-color-primary);
     }
   }
 
@@ -314,69 +314,69 @@ const handleDelete = async () => {
     &:last-child {
       margin-bottom: 0;
     }
+  }
 
-    .list-item-content {
-      display: flex;
-      align-items: center;
-      gap: 16px;
+  .list-item-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
 
-      .emoji {
-        font-size: 18px;
-      }
+  .list-item-content .emoji {
+    font-size: 18px;
+  }
 
-      .list-title {
-        flex: 1;
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--el-text-color-primary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+  .list-title {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-      .list-stats {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        width: 150px;
+  .list-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 150px;
+  }
 
-        .file-count {
-          font-size: 13px;
-          color: var(--el-text-color-secondary);
-        }
-      }
+  .file-count {
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+  }
 
-      .list-time {
-        width: 120px;
-        font-size: 13px;
-        color: var(--el-text-color-secondary);
-      }
+  .list-time {
+    width: 120px;
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+  }
 
-      .list-status {
-        width: 100px;
-      }
+  .list-status {
+    width: 100px;
+  }
 
-      .list-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+  .list-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-        .action-icon {
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 4px;
-          color: var(--el-text-color-secondary);
-          transition: all 0.2s;
+  .action-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--el-text-color-secondary);
+    transition: all 0.2s;
 
-          &:hover {
-            background-color: var(--el-fill-color-light);
-            color: var(--el-text-color-primary);
-          }
-        }
-      }
+    &:hover {
+      background-color: var(--el-fill-color-light);
+      color: var(--el-text-color-primary);
     }
   }
 }
@@ -385,7 +385,7 @@ const handleDelete = async () => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    background-color: var(--el-color-danger-light-9) !important;
+    background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.1)) !important;
   }
 }
 </style>

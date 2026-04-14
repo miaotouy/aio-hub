@@ -54,7 +54,7 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   height: 100%;
-  background: white;
+  background-color: #fff;
   overflow: hidden;
 
   .preview-iframe {
@@ -70,8 +70,8 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(2px);
+    background-color: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(var(--ui-blur));
     z-index: 10;
     color: var(--el-color-primary);
   }

@@ -64,26 +64,26 @@ const filteredCanvases = computed(() => {
     background: var(--el-border-color-light);
     border-radius: 3px;
   }
+}
 
-  .grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-    align-content: start;
-  }
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  align-content: start;
+}
 
-  .list-container {
-    display: flex;
-    flex-direction: column;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
+.list-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  margin: 0 auto;
+}
 
-  .empty-state {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+.empty-state {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

@@ -55,18 +55,22 @@ onMounted(() => {
   logger.info("CanvasWindow 挂载检查", {
     attrs: attrs,
     syncedId: syncedId.value,
-    canvasIdAttr: attrs['canvas-id']
+    canvasIdAttr: attrs["canvas-id"],
   });
 });
 
 // 优先使用同步 ID，如果没有则尝试从 attrs 获取（兼容嵌入模式）
-watch([syncedId, () => attrs['canvas-id']], ([sId, aId]) => {
-  const finalId = sId || (aId as string) || null;
-  if (finalId !== activeCanvasId.value) {
-    logger.info("CanvasWindow ID 更新", { sId, aId, finalId });
-    activeCanvasId.value = finalId;
-  }
-}, { immediate: true });
+watch(
+  [syncedId, () => attrs["canvas-id"]],
+  ([sId, aId]) => {
+    const finalId = sId || (aId as string) || null;
+    if (finalId !== activeCanvasId.value) {
+      logger.info("CanvasWindow ID 更新", { sId, aId, finalId });
+      activeCanvasId.value = finalId;
+    }
+  },
+  { immediate: true },
+);
 
 // 2. 存储访问
 const storage = useCanvasStorage();
@@ -74,14 +78,7 @@ const storage = useCanvasStorage();
 const canvasBasePath = ref<string | null>(null);
 
 // 3. 预览引擎
-const {
-  previewSrc,
-  previewSrcdoc,
-  isRefreshing,
-  consoleMessages,
-  refreshPreview,
-  forceRefresh,
-} = useCanvasPreview({
+const { previewSrc, previewSrcdoc, isRefreshing, consoleMessages, refreshPreview, forceRefresh } = useCanvasPreview({
   canvasId: () => activeCanvasId.value,
   basePath: () => canvasBasePath.value,
   readPhysicalFile: (id, path) => storage.readPhysicalFile(id, path),
@@ -155,7 +152,7 @@ onMounted(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #f5f5f5;
+  background-color: var(--container-bg);
 
   .preview-container {
     flex: 1;

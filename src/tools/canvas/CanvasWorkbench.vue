@@ -124,29 +124,27 @@ const handleCanvasCreated = (_metadata: any) => {
     border-bottom: var(--border-width) solid var(--border-color);
     background-color: var(--card-bg);
     flex-shrink: 0;
+  }
 
-    .header-center {
-      flex: 1;
-      max-width: 400px;
-      margin: 0 24px;
+  .header-left,
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 
-      .search-input {
-        :deep(.el-input__wrapper) {
-          box-shadow: none;
-          border: var(--border-width) solid var(--border-color);
+  .header-center {
+    flex: 1;
+    max-width: 400px;
+    margin: 0 24px;
+  }
 
-          &.is-focus {
-            border-color: var(--el-color-primary);
-          }
-        }
-      }
-    }
+  .search-input :deep(.el-input__wrapper) {
+    box-shadow: none;
+    border: var(--border-width) solid var(--border-color);
 
-    .header-left,
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    &.is-focus {
+      border-color: var(--el-color-primary);
     }
   }
 

@@ -104,13 +104,13 @@ const handleCreate = async () => {
     display: flex;
     flex-direction: column;
     gap: 8px;
-
-    label {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--el-text-color-regular);
-    }
   }
+}
+
+.form-item label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
 }
 
 .template-grid {
@@ -138,42 +138,42 @@ const handleCreate = async () => {
 
   &.active {
     border-color: var(--el-color-primary);
-    background-color: rgba(var(--el-color-primary-rgb), 0.1);
+    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
   }
+}
 
-  .template-icon {
-    font-size: 24px;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--card-bg);
-    border-radius: 6px;
-  }
+.template-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--card-bg);
+  border-radius: 6px;
+}
 
-  .template-info {
-    flex: 1;
-    min-width: 0;
+.template-info {
+  flex: 1;
+  min-width: 0;
+}
 
-    .template-name {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--el-text-color-primary);
-    }
+.template-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
 
-    .template-desc {
-      font-size: 12px;
-      color: var(--el-text-color-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
+.template-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-  .check-mark {
-    color: var(--el-color-primary);
-    font-size: 18px;
-  }
+.check-mark {
+  color: var(--el-color-primary);
+  font-size: 18px;
 }
 </style>

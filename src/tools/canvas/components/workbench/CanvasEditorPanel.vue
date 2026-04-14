@@ -250,9 +250,7 @@ watch(activeTab, () => {
         <span v-if="activeTab" class="status-item"> <FileCode :size="12" /> {{ activeTab }} </span>
       </div>
       <div class="footer-right">
-        <span class="status-item">
-          <History :size="12" /> {{ store.dirtyFiles.size }} 个未提交更改
-        </span>
+        <span class="status-item"> <History :size="12" /> {{ store.dirtyFiles.size }} 个未提交更改 </span>
       </div>
     </footer>
   </div>
@@ -274,89 +272,90 @@ watch(activeTab, () => {
     align-items: center;
     justify-content: space-between;
     border-bottom: var(--border-width) solid var(--border-color);
-    background-color: rgba(var(--card-bg-rgb), 0.8);
+    background-color: rgba(var(--card-bg-rgb), calc(var(--card-opacity) * 0.8));
+    backdrop-filter: blur(var(--ui-blur));
     flex-shrink: 0;
+  }
 
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 200px;
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 200px;
+  }
 
-      .divider {
-        width: 1px;
-        height: 20px;
-        background-color: var(--border-color);
-      }
+  .header-left .divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-color);
+  }
 
-      .canvas-info {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--el-text-color-primary);
-        font-weight: 500;
+  .canvas-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--el-text-color-primary);
+    font-weight: 500;
+  }
 
-        .canvas-icon {
-          color: var(--el-color-primary);
-        }
+  .canvas-icon {
+    color: var(--el-color-primary);
+  }
+
+  .header-center {
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+    margin: 0 16px;
+  }
+
+  .tabs-container {
+    display: flex;
+    height: 100%;
+    align-items: flex-end;
+    overflow-x: auto;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .tab-item {
+    height: 36px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.3));
+    border: var(--border-width) solid var(--border-color);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    margin-right: 4px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+
+    &:hover {
+      background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.5));
+
+      .close-icon {
+        opacity: 1;
       }
     }
 
-    .header-center {
-      flex: 1;
-      height: 100%;
-      overflow: hidden;
-      margin: 0 16px;
+    &.is-active {
+      background-color: var(--card-bg);
+      color: var(--el-color-primary);
+      border-top: 2px solid var(--el-color-primary);
+    }
 
-      .tabs-container {
-        display: flex;
-        height: 100%;
-        align-items: flex-end;
-        overflow-x: auto;
-
-        &::-webkit-scrollbar {
-          display: none;
-        }
-
-        .tab-item {
-          height: 36px;
-          padding: 0 12px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background-color: rgba(var(--el-fill-color-light), 0.3);
-          border: var(--border-width) solid var(--border-color);
-          border-bottom: none;
-          border-radius: 6px 6px 0 0;
-          margin-right: 4px;
-          font-size: 12px;
-          color: var(--el-text-color-secondary);
-          cursor: pointer;
-          white-space: nowrap;
-          transition: all 0.2s;
-
-          &:hover {
-            background-color: rgba(var(--el-fill-color-light), 0.5);
-
-            .close-icon {
-              opacity: 1;
-            }
-          }
-
-          &.is-active {
-            background-color: var(--card-bg);
-            color: var(--el-color-primary);
-            border-top: 2px solid var(--el-color-primary);
-          }
-
-          .close-icon {
-            opacity: 0.5;
-            transition: opacity 0.2s;
-            &:hover {
-              color: var(--el-color-danger);
-            }
-          }
-        }
+    .close-icon {
+      opacity: 0.5;
+      transition: opacity 0.2s;
+      &:hover {
+        color: var(--el-color-danger);
       }
     }
   }
@@ -366,97 +365,98 @@ watch(activeTab, () => {
     display: flex;
     overflow: hidden;
     position: relative;
+  }
 
-    .editor-sidebar {
-      display: flex;
-      flex-direction: column;
-      border-right: var(--border-width) solid var(--border-color);
-      background-color: rgba(var(--card-bg-rgb), 0.5);
-      flex-shrink: 0;
+  .editor-sidebar {
+    display: flex;
+    flex-direction: column;
+    border-right: var(--border-width) solid var(--border-color);
+    background-color: rgba(var(--card-bg-rgb), calc(var(--card-opacity) * 0.5));
+    backdrop-filter: blur(var(--ui-blur));
+    flex-shrink: 0;
+  }
 
-      .sidebar-section {
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
+  .sidebar-section {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 
-        &.explorer {
-          flex: 1;
-        }
-
-        &.changes {
-          flex-shrink: 0;
-        }
-
-        .section-header {
-          height: 32px;
-          padding: 0 12px;
-          display: flex;
-          align-items: center;
-          background-color: rgba(var(--el-fill-color-light), 0.3);
-          font-size: 11px;
-          font-weight: 600;
-          text-transform: uppercase;
-          color: var(--el-text-color-secondary);
-        }
-
-        .section-content {
-          flex: 1;
-          overflow: hidden;
-        }
-      }
-    }
-
-    .sidebar-toggle {
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 12px;
-      height: 48px;
-      background-color: var(--border-color);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 10;
-      border-radius: 0 4px 4px 0;
-      opacity: 0;
-      transition: opacity 0.2s;
-
-      &:hover {
-        opacity: 1;
-      }
-    }
-
-    &:hover .sidebar-toggle {
-      opacity: 0.5;
-    }
-
-    .editor-main {
+    &.explorer {
       flex: 1;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+    }
 
-      :deep(.rich-code-editor-wrapper) {
-        border: none;
-        border-radius: 0;
-      }
+    &.changes {
+      flex-shrink: 0;
+    }
+  }
 
-      .empty-editor {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--el-text-color-placeholder);
+  .section-header {
+    height: 32px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.3));
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--el-text-color-secondary);
+  }
 
-        .empty-content {
-          text-align: center;
-          p {
-            margin-top: 16px;
-          }
-        }
-      }
+  .section-content {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .sidebar-toggle {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 48px;
+    background-color: var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    border-radius: 0 4px 4px 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  .editor-body:hover .sidebar-toggle {
+    opacity: 0.5;
+  }
+
+  .editor-main {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    :deep(.rich-code-editor-wrapper) {
+      border: none;
+      border-radius: 0;
+    }
+  }
+
+  .empty-editor {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-placeholder);
+  }
+
+  .empty-content {
+    text-align: center;
+    p {
+      margin-top: 16px;
     }
   }
 
@@ -470,18 +470,18 @@ watch(activeTab, () => {
     color: #fff;
     font-size: 11px;
     flex-shrink: 0;
+  }
 
-    .status-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-    .footer-left,
-    .footer-right {
-      display: flex;
-      gap: 16px;
-    }
+  .footer-left,
+  .footer-right {
+    display: flex;
+    gap: 16px;
   }
 }
 </style>

@@ -126,71 +126,71 @@ onUnmounted(() => {
   &.is-visible {
     transform: translate(-50%, 0);
   }
+}
 
-  .bar-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    overflow: hidden;
+.bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  overflow: hidden;
+}
 
-    .title-icon {
-      color: var(--el-color-primary);
-      flex-shrink: 0;
-    }
+.title-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
 
-    .title-text {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--el-text-color-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+.title-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.bar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--el-fill-color-light);
+    color: var(--el-color-primary);
   }
 
-  .bar-center {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 20px;
+  &.is-active {
+    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+    color: var(--el-color-primary);
   }
 
-  .bar-right {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex: 1;
-  }
-
-  .icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--el-text-color-regular);
-    cursor: pointer;
-    transition: all 0.2s;
-
-    &:hover {
-      background: var(--el-fill-color-light);
-      color: var(--el-color-primary);
-    }
-
-    &.is-active {
-      background: var(--el-color-primary-light-9);
-      color: var(--el-color-primary);
-    }
-
-    &.close-btn:hover {
-      background: var(--el-color-danger-light-9);
-      color: var(--el-color-danger);
-    }
+  &.close-btn:hover {
+    background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.1));
+    color: var(--el-color-danger);
   }
 }
 </style>

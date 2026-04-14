@@ -84,100 +84,100 @@ const handleDiscard = () => {
 .pending-changes-bar {
   display: flex;
   flex-direction: column;
-  background-color: rgba(var(--card-bg-rgb), 0.5);
+  background-color: rgba(var(--card-bg-rgb), calc(var(--card-opacity) * 0.5));
   border-top: var(--border-width) solid var(--border-color);
   max-height: 300px;
   overflow: hidden;
+}
 
-  .bar-header {
-    height: 32px;
-    padding: 0 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background-color: rgba(var(--el-fill-color-light), 0.3);
-    flex-shrink: 0;
+.bar-header {
+  height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.3));
+  flex-shrink: 0;
 
-    .title {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--el-text-color-secondary);
-    }
-
-    .actions {
-      display: flex;
-      gap: 4px;
-    }
+  .title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--el-text-color-secondary);
   }
 
-  .changes-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 4px 0;
-
-    &::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .change-item {
-      height: 24px;
-      padding: 0 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      cursor: default;
-
-      &:hover {
-        background-color: rgba(var(--el-color-primary-rgb), 0.05);
-      }
-
-      .file-path {
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        color: var(--el-text-color-regular);
-      }
-
-      .status-tag {
-        &.modified {
-          color: var(--el-color-success);
-        }
-        &.new {
-          color: var(--el-color-warning);
-        }
-        &.deleted {
-          color: var(--el-color-danger);
-        }
-      }
-    }
-  }
-
-  .no-changes {
-    height: 60px;
+  .actions {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
     gap: 4px;
-    color: var(--el-text-color-placeholder);
-    font-size: 12px;
+  }
+}
 
-    .info-icon {
-      opacity: 0.5;
-    }
+.changes-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+}
+
+.change-item {
+  height: 24px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: default;
+
+  &:hover {
+    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
   }
 
-  .bottom-actions {
-    padding: 8px 12px;
-    flex-shrink: 0;
+  .file-path {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--el-text-color-regular);
+  }
 
-    .commit-btn {
-      width: 100%;
+  .status-tag {
+    &.modified {
+      color: var(--el-color-success);
     }
+    &.new {
+      color: var(--el-color-warning);
+    }
+    &.deleted {
+      color: var(--el-color-danger);
+    }
+  }
+}
+
+.no-changes {
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+
+  .info-icon {
+    opacity: 0.5;
+  }
+}
+
+.bottom-actions {
+  padding: 8px 12px;
+  flex-shrink: 0;
+
+  .commit-btn {
+    width: 100%;
   }
 }
 </style>

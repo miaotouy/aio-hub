@@ -101,78 +101,79 @@ const onChildSelect = (path: string) => {
   gap: 6px;
 
   &:hover {
-    background-color: rgba(var(--el-color-primary-rgb), 0.05);
+    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
   }
 
   &.is-active {
-    background-color: rgba(var(--el-color-primary-rgb), 0.1);
+    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
     color: var(--el-color-primary);
     font-weight: 500;
   }
 
   &.is-deleted {
     opacity: 0.6;
-    .item-name {
-      text-decoration: line-through;
-    }
   }
 
-  .item-icon-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    width: 32px;
-    flex-shrink: 0;
+  &.is-deleted .item-name {
+    text-decoration: line-through;
+  }
+}
 
-    .arrow-icon {
-      transition: transform 0.2s;
-      color: var(--el-text-color-placeholder);
+.item-icon-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 32px;
+  flex-shrink: 0;
+}
 
-      &.is-rotated {
-        transform: rotate(90deg);
-      }
-    }
+.arrow-icon {
+  transition: transform 0.2s;
+  color: var(--el-text-color-placeholder);
 
-    .folder-icon {
-      color: var(--el-color-warning);
-    }
+  &.is-rotated {
+    transform: rotate(90deg);
+  }
+}
+
+.folder-icon {
+  color: var(--el-color-warning);
+}
+
+.item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-status {
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+
+  &.modified {
+    background-color: var(--el-color-success);
+  }
+}
+
+.status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &.new {
+    color: var(--el-color-success);
   }
 
-  .item-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .item-status {
-    margin-right: 8px;
-    display: flex;
-    align-items: center;
-
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-
-      &.modified {
-        background-color: var(--el-color-success);
-      }
-    }
-
-    .status-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      &.new {
-        color: var(--el-color-success);
-      }
-
-      &.deleted {
-        color: var(--el-color-danger);
-      }
-    }
+  &.deleted {
+    color: var(--el-color-danger);
   }
 }
 

@@ -38,37 +38,37 @@ defineProps<{
   font-size: 11px;
   color: var(--el-text-color-secondary);
   user-select: none;
+}
 
-  .status-left,
-  .status-center,
-  .status-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+.status-left,
+.status-center,
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
-  .status-text {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 300px;
-  }
+.status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
 
-  .pending-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--el-color-warning);
-    font-weight: 500;
+.pending-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--el-color-warning);
+  font-weight: 500;
+}
 
-    .pulse-dot {
-      width: 6px;
-      height: 6px;
-      background-color: var(--el-color-warning);
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-  }
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--el-color-warning);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
 }
 
 @keyframes pulse {

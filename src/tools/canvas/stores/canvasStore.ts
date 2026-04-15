@@ -322,15 +322,18 @@ export const useCanvasStore = defineStore("canvas", () => {
   /**
    * 应用 Search/Replace Diff 到物理文件
    */
-  async function applyDiff(canvasId: string, filepath: string, search: string, replace: string) {
+  async function applyDiff(canvasId: string, filepath: string, search: string, replace: string, startLine?: number) {
     return await errorHandler.wrapAsync(
       async () => {
         const originalContent = (await storage.readPhysicalFile(canvasId, filepath)) || "";
-        const newContent = applySearchReplaceDiff(originalContent, search, replace);
+        const result = applySearchReplaceDiff(originalContent, search, replace, {
+          startLine,
+        });
+        const newContent = result.content;
 
         if (newContent === originalContent) {
           logger.warn("Diff 应用后内容无变化", { filepath });
-          return;
+          return result;
         }
 
         await storage.writePhysicalFile(canvasId, filepath, newContent);
@@ -340,12 +343,18 @@ export const useCanvasStore = defineStore("canvas", () => {
         errorModule.markErrorsAsStale(canvasId);
 
         await refreshGitStatus(canvasId);
-        logger.info("Diff 已应用到物理文件", { filepath });
+        logger.info("Diff 已应用到物理文件", {
+          filepath,
+          strategy: result.strategy,
+          confidence: result.confidence,
+          duplicates: result.duplicateCount,
+        });
+
+        return result;
       },
       { userMessage: "应用更改失败" },
     );
   }
-
   /**
    * 提交更改到物理磁盘并创建 Git 提交
    */

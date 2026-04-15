@@ -5,6 +5,7 @@ import { useCanvasStore } from "./stores/canvasStore";
 import { Brush } from "@element-plus/icons-vue";
 import { useCanvasStorage } from "./composables/useCanvasStorage";
 import { GitInternalService } from "./services/GitInternalService";
+import { type DiffResult } from "./types/diff";
 
 export const toolConfig: ToolConfig = {
   name: "画布",
@@ -153,6 +154,12 @@ ${changesStr}`;
               description: "要查找的代码块（必须与原文件内容逻辑一致）",
             },
             { name: "replace", type: "string", required: true, description: "要替换成的代码块" },
+            {
+              name: "start_line",
+              type: "number",
+              required: false,
+              description: "搜索起始行号提示（1-based），用于缩小搜索范围和重复消歧义",
+            },
           ],
           returnType: "Promise<string>",
           agentCallable: true,
@@ -239,12 +246,50 @@ ${changesStr}`;
       .join("\n");
   }
 
-  async apply_canvas_diff(args: { path: string; search: string; replace: string; canvasId?: string }): Promise<string> {
+  async apply_canvas_diff(args: {
+    path: string;
+    search: string;
+    replace: string;
+    start_line?: number;
+    canvasId?: string;
+  }): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
 
-    await canvasStore.applyDiff(canvasId, args.path, args.search, args.replace);
-    return `Successfully applied diff to ${args.path}`;
+    const result = (await canvasStore.applyDiff(
+      canvasId,
+      args.path,
+      args.search,
+      args.replace,
+      args.start_line,
+    )) as DiffResult;
+
+    return this.formatDiffFeedback(result, args.path);
+  }
+
+  private formatDiffFeedback(result: DiffResult, filepath: string): string {
+    const parts = [`Applied diff to ${filepath}`];
+
+    // 匹配策略提示
+    if (result.strategy !== "exact") {
+      const strategyLabels: Record<string, string> = {
+        exact: "exact match",
+        trimEnd: "matched after trimming trailing whitespace",
+        trim: "matched after trimming all whitespace (indentation-insensitive)",
+        fuzzy: `fuzzy matched (confidence: ${(result.confidence * 100).toFixed(0)}%)`,
+      };
+      parts.push(`[${strategyLabels[result.strategy]}]`);
+    }
+
+    // 行范围
+    parts.push(`at lines ${result.matchRange[0]}-${result.matchRange[1]}`);
+
+    // 警告
+    if (result.warnings.length > 0) {
+      parts.push(`\nWarnings:\n${result.warnings.map((w) => `- ${w}`).join("\n")}`);
+    }
+
+    return parts.join(" ");
   }
 
   async write_canvas_file(args: { path: string; content: string; canvasId?: string }): Promise<string> {
@@ -309,7 +354,7 @@ ${changesStr}`;
 
     if (methodName === "apply_canvas_diff" && args.path && args.search !== undefined && args.replace !== undefined) {
       const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-      await canvasStore.applyDiff(canvasId, args.path, args.search, args.replace);
+      await canvasStore.applyDiff(canvasId, args.path, args.search, args.replace, args.start_line);
       canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
 

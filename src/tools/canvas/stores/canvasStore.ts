@@ -98,6 +98,32 @@ export const useCanvasStore = defineStore("canvas", () => {
       } else {
         if (item.status === "dirty") item.status = "open";
       }
+
+      // 顺便更新文件总数（如果发生了文件增删）
+      const tree = await storage.getCanvasFileTree(canvasId);
+      const countFiles = (nodes: CanvasFileNode[]): number => {
+        let count = 0;
+        for (const node of nodes) {
+          if (!node.isDirectory) count++;
+          if (node.children) count += countFiles(node.children);
+        }
+        return count;
+      };
+      const totalCount = countFiles(tree);
+      if (item.metadata.fileCount !== totalCount) {
+        item.metadata.fileCount = totalCount;
+        // 异步更新磁盘元数据
+        storage.readCanvasMetadata(canvasId).then((meta) => {
+          if (meta) {
+            meta.fileCount = totalCount;
+            storage.writeCanvasMetadata(canvasId, meta);
+            canvasIndexManager.upsertProject({
+              ...meta,
+              relPath: `projects/${canvasId}`,
+            });
+          }
+        });
+      }
     }
   }
 
@@ -115,10 +141,13 @@ export const useCanvasStore = defineStore("canvas", () => {
         metadata: {
           id: p.id,
           name: p.name,
+          description: p.description,
           updatedAt: p.updatedAt,
-          createdAt: p.updatedAt, // 索引中暂不存 createdAt，先用 updatedAt
+          createdAt: p.createdAt || p.updatedAt,
           basePath: p.id,
-          fileCount: 0,
+          fileCount: p.fileCount || 0,
+          previewUrl: p.previewUrl,
+          entryFile: "index.html", // 默认值，深度扫描时会校准
         } as CanvasMetadata,
         status: p.id === activeCanvasId.value ? "open" : "idle",
         dirtyFileCount: 0,
@@ -246,8 +275,12 @@ export const useCanvasStore = defineStore("canvas", () => {
         await canvasIndexManager.upsertProject({
           id,
           name: title,
-          updatedAt: now,
+          description: metadata.description,
+          createdAt: metadata.createdAt,
+          updatedAt: metadata.updatedAt,
           relPath: `projects/${id}`,
+          fileCount: metadata.fileCount,
+          previewUrl: metadata.previewUrl,
         });
 
         // 6. 更新列表并打开
@@ -265,6 +298,16 @@ export const useCanvasStore = defineStore("canvas", () => {
    */
   async function openCanvas(canvasId: string) {
     activeCanvasId.value = canvasId;
+
+    // 重新读取元数据以确保信息最新（如文件数量）
+    const metadata = await storage.readCanvasMetadata(canvasId);
+    if (metadata) {
+      const item = canvasList.value.find((c) => c.metadata.id === canvasId);
+      if (item) {
+        item.metadata = metadata;
+      }
+    }
+
     await refreshGitStatus(canvasId);
 
     // 更新列表中的状态
@@ -393,8 +436,12 @@ export const useCanvasStore = defineStore("canvas", () => {
           await canvasIndexManager.upsertProject({
             id: canvasId,
             name: metadata.name,
+            description: metadata.description,
+            createdAt: metadata.createdAt,
             updatedAt: now,
             relPath: `projects/${canvasId}`,
+            fileCount: metadata.fileCount,
+            previewUrl: metadata.previewUrl,
           });
         }
 
@@ -472,8 +519,12 @@ export const useCanvasStore = defineStore("canvas", () => {
             await canvasIndexManager.upsertProject({
               id: metadata.id,
               name: metadata.name,
+              description: metadata.description,
+              createdAt: metadata.createdAt,
               updatedAt: metadata.updatedAt,
               relPath: `projects/${metadata.id}`,
+              fileCount: metadata.fileCount,
+              previewUrl: metadata.previewUrl,
             });
           } else if (action === "restore_metadata") {
             // 如果元数据损毁，尝试从索引中的快照恢复

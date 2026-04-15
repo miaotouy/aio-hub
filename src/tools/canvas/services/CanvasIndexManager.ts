@@ -9,8 +9,12 @@ const errorHandler = createModuleErrorHandler("Canvas/IndexManager");
 export interface CanvasIndexItem {
   id: string;
   name: string;
+  description?: string;
+  createdAt: number;
   updatedAt: number;
   relPath: string; // "projects/cp_xxx"
+  fileCount?: number;
+  previewUrl?: string;
 }
 
 export interface CanvasIndex {

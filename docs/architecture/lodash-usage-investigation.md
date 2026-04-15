@@ -1,6 +1,6 @@
 # Lodash 使用情况调查报告
 
-> **文档状态**: 已对照代码库（`.ts` + `.vue` 全量扫描）核实并修订（2026-04-15）。第一、二阶段已完成（2026-04-15）。
+> **文档状态**: 已完成全量迁移与依赖清理（2026-04-15）。
 
 ## 1. 现状分析
 
@@ -10,10 +10,10 @@
 
 | 包名 | 版本 | 位置 | 状态 |
 |:-----|:-----|:-----|:-----|
-| `lodash` | `^4.17.23` | `dependencies` | ⚠️ **有实际引用（4个 `.vue` 文件）**，待迁移后移除 |
-| `lodash-es` | `^4.17.21` | `dependencies` | ✅ 主力包，应保留 |
-| `@types/lodash-es` | `^4.17.12` | `dependencies` | ❌ **类型包误放运行时依赖**，应移至 `devDependencies` |
-| `@types/lodash` | `^4.17.24` | `devDependencies` | ⚠️ 可随 `lodash` 一并移除 |
+| `lodash` | - | - | ✅ 已移除 |
+| `lodash-es` | `^4.17.21` | `dependencies` | ✅ 主力包，已清理冗余引用 |
+| `@types/lodash-es` | `^4.17.12` | `devDependencies` | ✅ 已移至开发依赖 |
+| `@types/lodash` | - | - | ✅ 已移除 |
 
 ### 1.2 导入风格不统一（三种并存）
 
@@ -68,15 +68,15 @@ CJS 路径导入的具体位置（**4 处**，全部需要修复）：
 
 - [x] `filter`、`isArray`、`isObject` → 原生实现（`data-filter/logic/dataFilter.logic.ts`）。
 - [x] 将 `.vue` 组件层和 Composables 层的 `debounce` / `throttle` 迁移到 `@vueuse/core`（`useDebounceFn` / `useThrottleFn`），涉及 15+ 处。
-- [ ] 简单场景的 `cloneDeep` → `structuredClone()`（逐处确认数据类型）。
+- [x] 简单场景的 `cloneDeep` → `structuredClone()`（已完成 `knowledgeBaseStore.ts` 和 `variable-processor.ts`）。
 - [x] `shuffle` → 封装 Fisher-Yates 原生实现（`useThemeAppearance.ts`）。
 - [x] `escapeRegExp` → 封装项目工具函数（`chatRegexUtils.ts`）。
 
 ### 第三阶段：评估剩余必要依赖（谨慎）
 
-- [ ] 审查 `escape` 的使用场景，评估是否引入 DOMPurify 统一处理 HTML 安全。
+- [x] 审查 `escape` 的使用场景，封装原生 `escapeHtml` 替代（`src/utils/errorHandler.ts`）。
 - [ ] 逐一审查 `isEqual`、`get`/`set`、`defaultsDeep`、`merge` 的边界条件。
-- [ ] 完成上述清理后，移除 `lodash` 及 `@types/lodash` 依赖。
+- [x] 完成上述清理后，移除 `lodash` 及 `@types/lodash` 依赖。
 - [ ] 评估 `radash` 引入价值：⚠️ `radash` 无 `debounce`/`throttle`，`isEqual` 不支持循环引用，**不能作为 `lodash-es` 的 drop-in 替换**，迁移成本高。
 
 ## 4. 结论

@@ -14,7 +14,6 @@ import type {
   KbMessageType,
 } from "../types";
 import { DEFAULT_WORKSPACE_CONFIG, getKnowledgeSettingsConfig } from "../config";
-import { cloneDeep } from "lodash-es";
 import { kbStorage, type WorkspaceData } from "../utils/kbStorage";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { vectorCacheManager } from "../utils/vectorCache";
@@ -45,7 +44,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
     /** 当前选中的条目 ID */
     activeEntryId: null as string | null,
     /** 工作区配置 (从 workspace.config 同步) */
-    config: cloneDeep(DEFAULT_WORKSPACE_CONFIG) as WorkspaceConfig,
+    config: structuredClone(DEFAULT_WORKSPACE_CONFIG) as WorkspaceConfig,
     /** 全局加载状态 */
     loading: false,
     /** 向量化进度 */
@@ -267,7 +266,7 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
      * 重置配置
      */
     async resetConfig() {
-      this.config = cloneDeep(DEFAULT_WORKSPACE_CONFIG);
+      this.config = structuredClone(DEFAULT_WORKSPACE_CONFIG);
       await this.saveWorkspace();
     },
 

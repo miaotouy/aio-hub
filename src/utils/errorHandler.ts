@@ -4,7 +4,6 @@
  */
 
 import { ElNotification } from "element-plus";
-import { escape } from "lodash-es";
 import { createModuleLogger } from "./logger";
 import { customMessage } from "./customMessage";
 
@@ -52,6 +51,20 @@ export interface StandardError {
   context?: Record<string, any>;
   timestamp: string;
   originalError?: any;
+}
+
+/** HTML 转义映射表，替代 lodash.escape，提升为常量避免每次调用重建对象 */
+const HTML_ESCAPE_MAP: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+/** HTML 转义函数，替代 lodash.escape */
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, (s) => HTML_ESCAPE_MAP[s]);
 }
 
 /**
@@ -240,9 +253,9 @@ class GlobalErrorHandler {
   private showToUser(error: StandardError, userMessage?: string): void {
     const friendlyMessage = this.getUserFriendlyMessage(error);
     const truncatedMessage = this.truncateMessage(friendlyMessage, this.maxUserMessageLength);
-    const safeFriendlyMessage = escape(truncatedMessage);
-    const safeModule = escape(error.module);
-    const safeUserMessage = userMessage ? escape(userMessage) : "";
+    const safeFriendlyMessage = escapeHtml(truncatedMessage);
+    const safeModule = escapeHtml(error.module);
+    const safeUserMessage = userMessage ? escapeHtml(userMessage) : "";
 
     // 构建 HTML 格式的消息
     let htmlMessage = "";

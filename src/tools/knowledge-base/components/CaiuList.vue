@@ -4,7 +4,7 @@ import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { useKnowledgeBase } from "../composables/useKnowledgeBase";
 import { createModuleLogger } from "@/utils/logger";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { Search, RotateCw, Plus, Zap, Clock, FileUp, ArrowUpDown, Check } from "lucide-vue-next";
+import { Search, RotateCw, Plus, Zap, Clock, FileUp, ArrowUpDown, Check, Coins } from "lucide-vue-next";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { customMessage } from "@/utils/customMessage";
@@ -49,7 +49,7 @@ watch(
     debounceTimer = setTimeout(() => {
       debouncedSearchQuery.value = val;
     }, 300);
-  }
+  },
 );
 
 // 监听搜索词变化，触发后端搜索
@@ -189,7 +189,7 @@ const localFilteredEntries = computed(() => {
   if (!debouncedSearchQuery.value.trim()) return [];
   const q = debouncedSearchQuery.value.toLowerCase();
   return kbStore.sortedEntries.filter(
-    (e) => e.key.toLowerCase().includes(q) || (e.summary || "").toLowerCase().includes(q)
+    (e) => e.key.toLowerCase().includes(q) || (e.summary || "").toLowerCase().includes(q),
   );
 });
 

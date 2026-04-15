@@ -1,6 +1,6 @@
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
-import { get, set, cloneDeep } from "lodash-es";
+import { get, set } from "lodash-es";
 import type { VariableChange, VariableOperator, FlatVariableDefinition } from "../../types/sessionVariable";
 import { flattenDefinitions } from "../../utils/variableUtils";
 
@@ -52,7 +52,7 @@ export const variableProcessor: ContextProcessor = {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       if (msg.metadata?.sessionVariableSnapshot) {
-        currentState = cloneDeep(msg.metadata.sessionVariableSnapshot.values);
+        currentState = structuredClone(msg.metadata.sessionVariableSnapshot.values);
         snapshotStartIndex = i;
         break;
       }
@@ -146,7 +146,7 @@ export const variableProcessor: ContextProcessor = {
       if (changes.length > 0) {
         if (!message.metadata) message.metadata = {};
         message.metadata.sessionVariableSnapshot = {
-          values: cloneDeep(currentState),
+          values: structuredClone(currentState),
           changes,
           timestamp: Date.now(),
         };
@@ -154,7 +154,7 @@ export const variableProcessor: ContextProcessor = {
         // 对于压缩节点，强制持久化快照，即使没有新变更
         if (!message.metadata) message.metadata = {};
         message.metadata.sessionVariableSnapshot = {
-          values: cloneDeep(currentState),
+          values: structuredClone(currentState),
           timestamp: Date.now(),
         };
       }

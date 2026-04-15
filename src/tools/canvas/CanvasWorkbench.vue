@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { Plus, Search, LayoutGrid, List } from "lucide-vue-next";
+import { Plus, Search, LayoutGrid, List, RefreshCw } from "lucide-vue-next";
 import { useCanvasStore } from "./stores/canvasStore";
 import CanvasProjectList from "./components/workbench/CanvasProjectList.vue";
 import CreateCanvasDialog from "./components/workbench/CreateCanvasDialog.vue";
@@ -46,6 +46,16 @@ const handlePreviewCanvas = async (id: string) => {
 const handleCanvasCreated = (_metadata: any) => {
   // 创建成功后自动打开（Store 中已处理）
 };
+
+const handleRepairProject = async (id: string, action: "remove_index" | "reindex" | "restore_metadata") => {
+  await store.repairProject(id, action);
+  customMessage.success("项目修复成功");
+};
+
+const handleDeepScan = async () => {
+  await store.performHealthCheck();
+  customMessage.success("扫描完成");
+};
 </script>
 
 <template>
@@ -60,6 +70,9 @@ const handleCanvasCreated = (_metadata: any) => {
       <header class="workbench-header">
         <div class="header-left">
           <el-button type="primary" :icon="Plus" @click="isCreateDialogVisible = true"> 新建画布 </el-button>
+          <el-tooltip content="深度扫描磁盘项目" placement="top">
+            <el-button :icon="RefreshCw" circle @click="handleDeepScan" />
+          </el-tooltip>
         </div>
 
         <div class="header-center">
@@ -91,6 +104,7 @@ const handleCanvasCreated = (_metadata: any) => {
           @delete="handleDeleteCanvas"
           @open-vscode="handleOpenVSCode"
           @preview="handlePreviewCanvas"
+          @repair="handleRepairProject"
         >
           <template #empty-action>
             <el-button type="primary" @click="isCreateDialogVisible = true"> 立即创建 </el-button>

@@ -14,6 +14,7 @@ const emit = defineEmits<{
   (e: "delete", canvasId: string): void;
   (e: "open-vscode", canvasId: string): void;
   (e: "preview", canvasId: string): void;
+  (e: "repair", canvasId: string, action: "remove_index" | "reindex" | "restore_metadata"): void;
 }>();
 
 const filteredCanvases = computed(() => {
@@ -36,6 +37,7 @@ const filteredCanvases = computed(() => {
           @delete="emit('delete', canvas.metadata.id)"
           @open-vscode="emit('open-vscode', canvas.metadata.id)"
           @preview="emit('preview', canvas.metadata.id)"
+          @repair="(action) => emit('repair', canvas.metadata.id, action)"
         />
       </div>
     </template>

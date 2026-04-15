@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MoreVertical, ExternalLink, Trash2, FileText, Clock, Monitor } from "lucide-vue-next";
+import { MoreVertical, ExternalLink, Trash2, FileText, Clock, Monitor, AlertCircle, RefreshCw } from "lucide-vue-next";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { CanvasListItem } from "../../types";
@@ -16,6 +16,7 @@ const emit = defineEmits<{
   (e: "delete"): void;
   (e: "open-vscode"): void;
   (e: "preview"): void;
+  (e: "repair", action: "remove_index" | "reindex" | "restore_metadata"): void;
 }>();
 
 const relativeTime = computed(() => {
@@ -39,6 +40,17 @@ const statusType = computed(() => {
 });
 
 const statusLabel = computed(() => {
+  if (props.canvas.health && props.canvas.health !== "healthy") {
+    switch (props.canvas.health) {
+      case "missing":
+        return "索引异常";
+      case "unindexed":
+        return "未索引";
+      case "corrupted":
+        return "元数据损坏";
+    }
+  }
+
   switch (props.canvas.status) {
     case "open":
       return "正在编辑";
@@ -49,6 +61,15 @@ const statusLabel = computed(() => {
     default:
       return "空闲";
   }
+});
+
+const healthStatus = computed(() => {
+  if (!props.canvas.health || props.canvas.health === "healthy") return null;
+  return {
+    type: props.canvas.health === "missing" ? "danger" : "warning",
+    icon: AlertCircle,
+    label: statusLabel.value,
+  };
 });
 
 const handleDelete = async () => {
@@ -75,9 +96,30 @@ const handleDelete = async () => {
           <span class="emoji">🎨</span>
           <h3 class="title" :title="canvas.metadata.name">{{ canvas.metadata.name }}</h3>
         </div>
-        <el-tag :type="statusType" size="small" effect="plain" class="status-tag">
-          {{ statusLabel }}
-        </el-tag>
+        <div class="header-right">
+          <el-dropdown v-if="healthStatus" trigger="click" @click.stop>
+            <el-tag :type="healthStatus.type" size="small" effect="dark" class="status-tag health-warning">
+              <el-icon><AlertCircle /></el-icon>
+              {{ healthStatus.label }}
+            </el-tag>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-if="canvas.health === 'missing'" @click="emit('repair', 'remove_index')">
+                  <el-icon><Trash2 /></el-icon> 移除孤儿索引
+                </el-dropdown-item>
+                <el-dropdown-item v-if="canvas.health === 'unindexed'" @click="emit('repair', 'reindex')">
+                  <el-icon><RefreshCw /></el-icon> 重新建立索引
+                </el-dropdown-item>
+                <el-dropdown-item v-if="canvas.health === 'corrupted'" @click="emit('repair', 'restore_metadata')">
+                  <el-icon><RefreshCw /></el-icon> 尝试恢复元数据
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-tag v-else :type="statusType" size="small" effect="plain" class="status-tag">
+            {{ statusLabel }}
+          </el-tag>
+        </div>
       </div>
 
       <div class="card-body">
@@ -226,6 +268,23 @@ const handleDelete = async () => {
 
   &.grid .emoji {
     font-size: 20px;
+  }
+
+  &.grid .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .health-warning {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    &:hover {
+      filter: brightness(1.1);
+    }
   }
 
   &.grid .title {

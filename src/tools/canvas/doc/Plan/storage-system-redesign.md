@@ -1,100 +1,110 @@
 # 画布存储架构重构方案
 
-> **状态**: RFC (Request for Comments)  
+> **状态**: Done (已完成核心重构)
 > **日期**: 2025-04-15  
 > **影响范围**: `src/tools/canvas/` 存储层、Store 层、初始化流程
 
 ---
 
-## 一、 现状与问题
+## 一、 现状分析
 
-目前画布项目直接存储在 `AppData/canvases/{id}` 目录下，存在以下问题：
+根据对 [`useCanvasStorage.ts`](src/tools/canvas/composables/useCanvasStorage.ts) 和 [`canvasStore.ts`](src/tools/canvas/stores/canvasStore.ts) 的调查，当前存储系统存在以下具体问题：
 
-1. **加载性能**：每次启动需遍历磁盘目录并读取每个项目的 `.canvas.json`。
-2. **状态不一致**：
-   - **僵尸项目**：前端删除失败或手动移动目录导致的索引残留（目前无索引，仅表现为读取失败）。
-   - **残留目录**：创建失败或后端删除失败导致的孤儿目录，占用空间且无法管理。
-3. **结构混乱**：项目与未来规划的模板目录混杂，缺乏清晰的命名空间。
+1.  **路径硬编码与平铺结构**:
+    - [`useCanvasStorage.ts:18`](src/tools/canvas/composables/useCanvasStorage.ts:18) 的 `getCanvasBasePath` 直接拼接 `canvases/{canvasId}`。
+    - [`deleteCanvas`](src/tools/canvas/composables/useCanvasStorage.ts:174) 硬编码了 `canvases/${canvasId}`。
+    - 这种结构导致用户项目与未来可能存在的 `templates/` 目录混杂。
+2.  **加载性能 O(N)**:
+    - [`listAllCanvases`](src/tools/canvas/composables/useCanvasStorage.ts:139) 使用 `readDir` 遍历根目录并逐个读取 `.canvas.json`，在项目较多时会产生明显的 IO 延迟。
+3.  **ID 语义化缺失**:
+    - [`canvasStore.ts:151`](src/tools/canvas/stores/canvasStore.ts:151) 使用 `nanoid()` 生成纯随机 ID，无法从文件名判断创建时间或进行自然排序。
+4.  **缺乏一致性校验**:
+    - [`loadCanvasList`](src/tools/canvas/stores/canvasStore.ts:105) 没有任何健康检查逻辑，无法处理“有索引无目录”或“有目录无索引”的情况。
 
 ## 二、 目标设计
 
-### 2.0 ID 生成策略改进 (New)
+### 2.1 ID 生成策略 (New)
 
-为了提高文件系统的辨识度和管理效率，弃用纯随机 ID，改用语义化 ID：
+弃用纯随机 ID，改用 **时间戳 + 短随机码**。
 
 - **格式**: `cp_{yyyyMMdd}_{short_id}`
-- **示例**: `cp_20240415_x7r2p9`
-- **优点**: 目录排序自然按时间排列，且一眼能看出项目创建时间。
+- **实现**: 使用 `date-fns` 的 `format` 和 `nanoid(6)`。
+- **优点**: 磁盘目录天然按日期排序，易于手动维护和排查问题。
 
-### 2.1 目录结构标准化
-
-重构后的 `AppData/canvases/` 目录结构：
+### 2.2 目录结构标准化
 
 ```
 AppData/canvases/
-├── projects/               # 用户画布项目存储区
-│   ├── {id_1}/             # 项目目录
-│   └── ...
-├── templates/              # 模板存储区（由模板系统重设计方案管理）
-└── projects.json           # 全局项目索引文件
+├── projects/               # 用户项目 (ID 为 cp_20250415_xxxx)
+│   └── {id}/
+│       ├── .canvas.json    # 项目元数据
+│       └── ...             # 项目文件
+├── templates/              # 预设模板
+└── projects.json           # 全局索引文件 (快照)
 ```
 
-### 2.2 索引文件 (`projects.json`)
-
-维护一份轻量级的项目快照，用于快速渲染列表：
+### 2.3 全局索引 (`projects.json`)
 
 ```typescript
-interface CanvasIndex {
+export interface CanvasIndexItem {
+  id: string;
+  name: string;
+  updatedAt: number;
+  relPath: string; // "projects/cp_xxx"
+}
+
+export interface CanvasIndex {
   version: string;
-  projects: {
-    id: string;
-    name: string;
-    updatedAt: number;
-    relPath: string; // 相对于 projects/ 目录
-  }[];
+  lastUpdated: number;
+  projects: CanvasIndexItem[];
 }
 ```
 
-### 2.3 健康检查与修复机制 (Health Check & Repair)
+### 2.4 健康检查与修复矩阵
 
-在 `loadCanvasList` 时进行双向校验，并提供相应的修复策略：
+| 状态          | 表现                 | 修复动作 (`repairProject`)                              |
+| :------------ | :------------------- | :------------------------------------------------------ |
+| **Healthy**   | 索引与磁盘对齐       | 无                                                      |
+| **Missing**   | 索引有，磁盘无       | `remove_index`: 移除孤儿索引记录                        |
+| **Unindexed** | 磁盘有，索引无       | `reindex`: 读取物理 `.canvas.json` 补全索引             |
+| **Corrupted** | 磁盘有，但元数据损毁 | `restore_metadata`: 利用索引快照尝试恢复 `.canvas.json` |
 
-| 状态        | 定义                              | UI 处理      | 修复动作                                |
-| :---------- | :-------------------------------- | :----------- | :-------------------------------------- |
-| `healthy`   | 索引与磁盘目录均存在且完整        | 正常展示     | -                                       |
-| `missing`   | 索引有记录，但磁盘目录丢失        | 标记“异常”   | 提供“移除索引”选项                      |
-| `unindexed` | 磁盘有完整目录，但索引无记录      | 标记“未识别” | 读取 `.canvas.json` 重新加入索引        |
-| `corrupted` | 磁盘有目录，但缺少 `.canvas.json` | 标记“损坏”   | 利用索引快照数据重新生成 `.canvas.json` |
-
-## 三、 实施计划
+## 三、 详细实施计划
 
 > **注意**: 鉴于功能尚未发布，本项目暂不考虑旧数据的自动迁移逻辑，采取直接切换新结构的策略。
 
-### Phase 1: 基础设施
+### Phase 1: 基础设施改造
 
-1. 新增 `src/tools/canvas/utils/id.ts` 实现 `generateCanvasId()` (格式: `cp_{yyyyMMdd}_{nanoid(6)}`)。
-2. 新增 `src/tools/canvas/types/storage.ts` 定义索引类型。
-3. 封装 `CanvasIndexManager`：
-   - 负责 `projects.json` 的原子化读写。
-   - 明确 Workbench 为唯一操作主体，其他辅助窗口（如预览窗）不接触索引文件。
-4. 改造 `useCanvasStorage.ts`：
-   - 路径逻辑收口至 `resolveProjectPath(id)`，指向 `projects/` 子目录。
-   - 移除基于 `readDir` 的全量扫描逻辑。
+1.  **ID 工具**: 创建 `src/tools/canvas/utils/id.ts`。
+2.  **索引管理器**: 创建 `src/tools/canvas/services/CanvasIndexManager.ts`。
+    - 实现原子化写入（先写 `.tmp` 文件再 `rename`）。
+    - 仅由 Workbench 进程负责维护，预览窗仅读不写。
+3.  **Storage 层适配**:
+    - 修改 `useCanvasStorage.ts`：
+      - `getCanvasBasePath`: 改为返回 `canvases/projects/{id}`。
+      - `deleteCanvas`: 更新相对路径逻辑。
+      - 新增 `listIndexedProjects`: 直接读取 `projects.json`。
 
 ### Phase 2: Store 逻辑重构
 
-1. 修改 `canvasStore.ts` 的 `loadCanvasList`：
-   - 优先加载索引文件。
-   - 触发异步健康扫描对比物理目录。
-2. 完善 Action 流程：
-   - `createCanvas`: 先确保磁盘目录和初始文件写入成功，再更新索引。
-   - `deleteCanvas`: 先执行磁盘安全删除（进回收站），成功后移除索引记录。
-3. 增加修复 Action：`repairProject(id, action: 'delete' | 'reindex' | 'remove_index' | 'restore_metadata')`。
+1.  **类型扩展**:
+    - [`CanvasListItem`](src/tools/canvas/types/index.ts:19) 增加 `health: 'healthy' | 'missing' | 'unindexed' | 'corrupted'` 字段。
+2.  **加载流程改造**:
+    - `loadCanvasList`:
+      1. 首先从 `CanvasIndexManager` 加载快照。
+      2. 启动异步扫描任务（对比磁盘 `projects/` 目录）。
+      3. 更新列表中的 `health` 状态。
+3.  **Action 原子化**:
+    - `createCanvas`: 磁盘写入成功后，必须同步调用 `IndexManager.addProject`。
+    - `deleteCanvas`: 磁盘删除成功后，同步调用 `IndexManager.removeProject`。
 
-### Phase 3: UI 适配
+### Phase 3: UI 增强
 
-1. 在 `CanvasProjectCard` 中增加异常状态的视觉反馈。
-2. 增加“扫描并清理”管理界面。
+1.  **CanvasProjectCard**:
+    - 针对非 `healthy` 状态显示黄色/红色警告图标。
+    - 点击警告图标弹出修复菜单。
+2.  **管理工具**:
+    - 在项目列表顶部增加“深度扫描”按钮，手动触发全量健康检查。
 
 ## 四、 风险评估
 

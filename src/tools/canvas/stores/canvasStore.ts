@@ -5,9 +5,11 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useCanvasStorage } from "../composables/useCanvasStorage";
 import { GitInternalService } from "../services/GitInternalService";
+import { canvasIndexManager } from "../services/CanvasIndexManager";
+import { generateCanvasId } from "../utils/id";
 import { CANVAS_TEMPLATES } from "../templates";
-import { nanoid } from "nanoid";
 import { formatDateTime } from "@/utils/time";
+import { readDir, exists } from "@tauri-apps/plugin-fs";
 
 const logger = createModuleLogger("Canvas/Store");
 const errorHandler = createModuleErrorHandler("Canvas/Store");
@@ -73,7 +75,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     const basePath = await storage.getCanvasBasePath(canvasId);
     const gitService = new GitInternalService(basePath);
     const matrix = await gitService.statusMatrix();
-    
+
     const dirty = new Map<string, string>();
     if (matrix) {
       for (const [filepath, head, workdir] of matrix) {
@@ -100,18 +102,32 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 加载所有画布列表
+   * 加载所有画布列表 (带健康检查)
    */
   async function loadCanvasList() {
     isLoading.value = true;
     try {
-      const metadatas = await storage.listAllCanvases();
-      canvasList.value = metadatas.map((metadata) => ({
-        metadata,
-        status: metadata.id === activeCanvasId.value ? "open" : "idle",
-        dirtyFileCount: 0, // 初始为 0，打开后会刷新
+      // 1. 从索引加载
+      const index = await canvasIndexManager.loadIndex();
+
+      // 2. 初步映射
+      canvasList.value = index.projects.map((p) => ({
+        metadata: {
+          id: p.id,
+          name: p.name,
+          updatedAt: p.updatedAt,
+          createdAt: p.updatedAt, // 索引中暂不存 createdAt，先用 updatedAt
+          basePath: p.id,
+          fileCount: 0,
+        } as CanvasMetadata,
+        status: p.id === activeCanvasId.value ? "open" : "idle",
+        dirtyFileCount: 0,
+        health: "healthy",
       }));
-      
+
+      // 3. 异步启动健康检查
+      performHealthCheck();
+
       // 如果有激活的画布，刷新其状态
       if (activeCanvasId.value) {
         await refreshGitStatus(activeCanvasId.value);
@@ -119,6 +135,43 @@ export const useCanvasStore = defineStore("canvas", () => {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /**
+   * 执行健康检查
+   */
+  async function performHealthCheck() {
+    const rootDir = await storage.getCanvasesRootDir();
+    if (!(await exists(rootDir))) return;
+
+    const entries = await readDir(rootDir);
+    const diskIds = new Set(entries.filter((e) => e.isDirectory).map((e) => e.name));
+    const indexedIds = new Set(canvasList.value.map((c) => c.metadata.id));
+
+    // 检查 Missing (索引有，磁盘无)
+    canvasList.value.forEach((item) => {
+      if (!diskIds.has(item.metadata.id)) {
+        item.health = "missing";
+      }
+    });
+
+    // 检查 Unindexed (磁盘有，索引无)
+    for (const id of diskIds) {
+      if (!indexedIds.has(id)) {
+        const metadata = await storage.readCanvasMetadata(id);
+        if (metadata) {
+          canvasList.value.push({
+            metadata,
+            status: "idle",
+            dirtyFileCount: 0,
+            health: "unindexed",
+          });
+        }
+      }
+    }
+
+    // 排序
+    canvasList.value.sort((a, b) => b.metadata.updatedAt - a.metadata.updatedAt);
   }
 
   /**
@@ -148,7 +201,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   async function createCanvas(title: string, templateId?: string) {
     return await errorHandler.wrapAsync(
       async () => {
-        const id = nanoid();
+        const id = generateCanvasId();
         const now = Date.now();
         const template = CANVAS_TEMPLATES.find((t) => t.id === templateId) || CANVAS_TEMPLATES[0];
 
@@ -163,7 +216,7 @@ export const useCanvasStore = defineStore("canvas", () => {
           fileCount: Object.keys(template.files).length,
         };
 
-        // 1. 确保目录存在
+        // 1. 确保目录存在 (磁盘先行)
         await storage.ensureCanvasDir(id);
 
         // 2. 写入初始文件
@@ -186,7 +239,15 @@ export const useCanvasStore = defineStore("canvas", () => {
         // 4. 写入元数据
         await storage.writeCanvasMetadata(id, metadata);
 
-        // 5. 更新列表并打开
+        // 5. 更新索引 (同步索引)
+        await canvasIndexManager.upsertProject({
+          id,
+          name: title,
+          updatedAt: now,
+          relPath: `projects/${id}`,
+        });
+
+        // 6. 更新列表并打开
         await loadCanvasList();
         await openCanvas(id);
 
@@ -202,7 +263,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   async function openCanvas(canvasId: string) {
     activeCanvasId.value = canvasId;
     await refreshGitStatus(canvasId);
-    
+
     // 更新列表中的状态
     canvasList.value.forEach((item) => {
       if (item.metadata.id === canvasId) {
@@ -224,8 +285,6 @@ export const useCanvasStore = defineStore("canvas", () => {
     }
 
     // 2. 发送总线事件，请求打开/聚焦窗口
-    // 这里的逻辑由 src/tools/canvas/composables/useCanvasSync.ts 等订阅者处理
-    // 或者直接通过 window.dispatchEvent 通知特定组件
     window.dispatchEvent(
       new CustomEvent("canvas:request-window", {
         detail: { canvasId },
@@ -240,7 +299,12 @@ export const useCanvasStore = defineStore("canvas", () => {
   async function deleteCanvas(canvasId: string) {
     return await errorHandler.wrapAsync(
       async () => {
+        // 1. 磁盘删除
         await storage.deleteCanvas(canvasId);
+
+        // 2. 索引删除
+        await canvasIndexManager.removeProject(canvasId);
+
         if (activeCanvasId.value === canvasId) {
           activeCanvasId.value = null;
           dirtyFiles.value.clear();
@@ -299,12 +363,10 @@ export const useCanvasStore = defineStore("canvas", () => {
         const basePath = await storage.getCanvasBasePath(canvasId);
         const gitService = new GitInternalService(basePath);
         const matrix = await gitService.statusMatrix();
-        
+
         if (!matrix) return;
 
-        const filesToAdd = matrix
-          .filter(([_, head, workdir]) => head !== workdir)
-          .map(([filepath]) => filepath);
+        const filesToAdd = matrix.filter(([_, head, workdir]) => head !== workdir).map(([filepath]) => filepath);
 
         if (filesToAdd.length === 0) return;
 
@@ -318,10 +380,19 @@ export const useCanvasStore = defineStore("canvas", () => {
         await gitService.commit(message || `Update ${filesToAdd.length} files`);
 
         // 2. 更新元数据 (updatedAt)
+        const now = Date.now();
         const metadata = await storage.readCanvasMetadata(canvasId);
         if (metadata) {
-          metadata.updatedAt = Date.now();
+          metadata.updatedAt = now;
           await storage.writeCanvasMetadata(canvasId, metadata);
+
+          // 同时更新索引
+          await canvasIndexManager.upsertProject({
+            id: canvasId,
+            name: metadata.name,
+            updatedAt: now,
+            relPath: `projects/${canvasId}`,
+          });
         }
 
         // 3. 刷新状态
@@ -380,6 +451,50 @@ export const useCanvasStore = defineStore("canvas", () => {
 
   function removePreviewRequest(requestId: string) {
     delete previewRequests[requestId];
+  }
+
+  /**
+   * 修复项目
+   */
+  async function repairProject(canvasId: string, action: "remove_index" | "reindex" | "restore_metadata") {
+    return await errorHandler.wrapAsync(
+      async () => {
+        logger.info("正在修复项目", { canvasId, action });
+
+        if (action === "remove_index") {
+          await canvasIndexManager.removeProject(canvasId);
+        } else if (action === "reindex" || action === "restore_metadata") {
+          const metadata = await storage.readCanvasMetadata(canvasId);
+          if (metadata) {
+            await canvasIndexManager.upsertProject({
+              id: metadata.id,
+              name: metadata.name,
+              updatedAt: metadata.updatedAt,
+              relPath: `projects/${metadata.id}`,
+            });
+          } else if (action === "restore_metadata") {
+            // 如果元数据损毁，尝试从索引中的快照恢复
+            const index = await canvasIndexManager.loadIndex();
+            const p = index.projects.find((x) => x.id === canvasId);
+            if (p) {
+              const newMetadata: CanvasMetadata = {
+                id: p.id,
+                name: p.name,
+                updatedAt: p.updatedAt,
+                createdAt: p.updatedAt,
+                basePath: p.id,
+                fileCount: 0,
+                entryFile: "index.html", // 默认入口
+              };
+              await storage.writeCanvasMetadata(canvasId, newMetadata);
+            }
+          }
+        }
+
+        await loadCanvasList();
+      },
+      { userMessage: "修复项目失败" },
+    );
   }
 
   /**
@@ -520,5 +635,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     registerPreviewRequest,
     getPreviewRequest,
     removePreviewRequest,
+    repairProject,
+    performHealthCheck,
   };
 });

@@ -15,11 +15,14 @@ export interface CanvasState {
   hasPendingChanges: boolean;
 }
 
+export type CanvasProjectHealth = "healthy" | "missing" | "unindexed" | "corrupted";
+
 // 画布列表项（用于管理界面展示）
 export interface CanvasListItem {
   metadata: CanvasMetadata;
   status: "idle" | "open" | "dirty" | "syncing";
   dirtyFileCount: number; // 有多少未提交的更改
+  health?: CanvasProjectHealth;
 }
 
 // 文件树节点

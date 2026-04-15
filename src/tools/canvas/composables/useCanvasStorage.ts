@@ -1,5 +1,5 @@
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { readTextFile, writeTextFile, mkdir, exists, readDir } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -17,15 +17,15 @@ export function useCanvasStorage() {
    */
   async function getCanvasBasePath(canvasId: string) {
     const dataDir = await appDataDir();
-    return await join(dataDir, "canvases", canvasId);
+    return await join(dataDir, "canvases", "projects", canvasId);
   }
 
   /**
-   * 获取所有画布列表的根目录
+   * 获取所有画布列表的根目录 (物理存储位置)
    */
   async function getCanvasesRootDir() {
     const dataDir = await appDataDir();
-    return await join(dataDir, "canvases");
+    return await join(dataDir, "canvases", "projects");
   }
 
   /**
@@ -89,7 +89,7 @@ export function useCanvasStorage() {
           // 这里使用 invoke 调用 Rust 后端的删除，或者直接使用 fs.remove
           // 为了保持一致性，如果只是删除文件，可以使用 remove
           await invoke("delete_file_in_app_data", {
-            relativePath: `canvases/${canvasId}/${filepath}`,
+            relativePath: `canvases/projects/${canvasId}/${filepath}`,
           });
           logger.info("物理文件已删除", { fullPath });
         }
@@ -134,27 +134,25 @@ export function useCanvasStorage() {
 
   /**
    /**
-    * 列出所有画布
+    * 列出所有画布 (基于索引加载)
     */
   async function listAllCanvases(): Promise<CanvasMetadata[]> {
     const result = await errorHandler.wrapAsync(
       async () => {
-        const rootDir = await getCanvasesRootDir();
-        if (!(await exists(rootDir))) {
-          await mkdir(rootDir, { recursive: true });
-          return [];
-        }
-
-        const entries = await readDir(rootDir);
+        const { canvasIndexManager } = await import("../services/CanvasIndexManager");
+        const index = await canvasIndexManager.loadIndex();
         const canvases: CanvasMetadata[] = [];
 
-        for (const entry of entries) {
-          if (entry.isDirectory) {
-            const metadata = await readCanvasMetadata(entry.name);
-            if (metadata) {
-              canvases.push(metadata);
-            }
-          }
+        for (const p of index.projects) {
+          canvases.push({
+            id: p.id,
+            name: p.name,
+            updatedAt: p.updatedAt,
+            createdAt: p.updatedAt,
+            basePath: p.id,
+            fileCount: 0,
+            entryFile: "index.html", // 默认入口
+          });
         }
 
         return canvases.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -163,7 +161,6 @@ export function useCanvasStorage() {
     );
     return result ?? [];
   }
-
   /**
    * 删除画布（安全回收站）
    */
@@ -172,7 +169,7 @@ export function useCanvasStorage() {
       async () => {
         // 使用 Rust 后端的安全删除指令
         await invoke("delete_directory_in_app_data", {
-          relativePath: `canvases/${canvasId}`,
+          relativePath: `canvases/projects/${canvasId}`,
         });
         logger.info("画布已成功删除（进入回收站）", { canvasId });
       },

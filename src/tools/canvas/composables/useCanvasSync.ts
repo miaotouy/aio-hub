@@ -110,7 +110,7 @@ export function useCanvasSync() {
         return Promise.resolve();
       }
       case "apply-diff": {
-        await store.applyDiff(canvasId, params.filepath, params.diff);
+        await store.applyDiff(canvasId, params.filepath, params.search, params.replace);
         return Promise.resolve();
       }
       case "commit-changes":

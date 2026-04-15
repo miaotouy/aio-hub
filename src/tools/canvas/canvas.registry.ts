@@ -146,7 +146,13 @@ ${changesStr}`;
           description: "使用 Search/Replace 块模式修改画布文件",
           parameters: [
             { name: "path", type: "string", required: true, description: "文件路径" },
-            { name: "diff", type: "string", required: true, description: "Diff 内容" },
+            {
+              name: "search",
+              type: "string",
+              required: true,
+              description: "要查找的代码块（必须与原文件内容逻辑一致）",
+            },
+            { name: "replace", type: "string", required: true, description: "要替换成的代码块" },
           ],
           returnType: "Promise<string>",
           agentCallable: true,
@@ -233,11 +239,11 @@ ${changesStr}`;
       .join("\n");
   }
 
-  async apply_canvas_diff(args: { path: string; diff: string; canvasId?: string }): Promise<string> {
+  async apply_canvas_diff(args: { path: string; search: string; replace: string; canvasId?: string }): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
 
-    await canvasStore.applyDiff(canvasId, args.path, args.diff);
+    await canvasStore.applyDiff(canvasId, args.path, args.search, args.replace);
     return `Successfully applied diff to ${args.path}`;
   }
 
@@ -301,9 +307,9 @@ ${changesStr}`;
   async onToolCallPreview(requestId: string, methodName: string, args: Record<string, any>) {
     const canvasStore = useCanvasStore();
 
-    if (methodName === "apply_canvas_diff" && args.path && args.diff) {
+    if (methodName === "apply_canvas_diff" && args.path && args.search !== undefined && args.replace !== undefined) {
       const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-      await canvasStore.applyDiff(canvasId, args.path, args.diff);
+      await canvasStore.applyDiff(canvasId, args.path, args.search, args.replace);
       canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
 

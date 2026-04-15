@@ -9,27 +9,15 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useCanvasStorage } from "../composables/useCanvasStorage";
 import { GitInternalService } from "../services/GitInternalService";
 import { canvasIndexManager } from "../services/CanvasIndexManager";
-import { generateCanvasId } from "../utils/id";
-import { useTemplateRegistry } from "../composables/useTemplateRegistry";
+import { useCanvasErrors } from "../composables/useCanvasErrors";
+import { CanvasService } from "../services/CanvasService";
+import { applySearchReplaceDiff } from "../utils/diff";
 import { formatDateTime } from "@/utils/time";
-import { readDir, exists } from "@tauri-apps/plugin-fs";
 
-export interface RuntimeError {
-  id: string; // 唯一标识
-  canvasId: string; // 所属画布 ID
-  level: "error" | "warn" | "info"; // 错误级别
-  message: string; // 错误消息
-  filename?: string; // 出错文件名
-  lineno?: number; // 行号
-  colno?: number; // 列号
-  stack?: string; // 堆栈信息
-  timestamp: number; // 发生时间戳
-  stale: boolean; // 是否过期（文件已修改但预览未刷新）
-}
 const logger = createModuleLogger("Canvas/Store");
 const errorHandler = createModuleErrorHandler("Canvas/Store");
 
-// 文件变更事件系统
+// 文件变更事件 system
 type FileChangeHandler = (canvasId: string, filepath: string) => void;
 const fileChangeHandlers = new Set<FileChangeHandler>();
 
@@ -49,9 +37,6 @@ export const useCanvasStore = defineStore("canvas", () => {
   // 是否正在加载
   const isLoading = ref(false);
 
-  // 运行时错误列表
-  const runtimeErrors = ref<RuntimeError[]>([]);
-
   // --- 配置 ---
   const config = useLocalStorage<CanvasConfig>("aio-canvas-config", { ...DEFAULT_CANVAS_CONFIG });
 
@@ -62,7 +47,11 @@ export const useCanvasStore = defineStore("canvas", () => {
     config.value = { ...DEFAULT_CANVAS_CONFIG };
   }
 
-  // 审批系统轻量级映射 (替代 previewSnapshots)
+  // --- 子模块 ---
+  const errorModule = useCanvasErrors(config);
+  const canvasService = new CanvasService(storage);
+
+  // 审批系统轻量级映射
   const previewRequests = reactive<
     Record<
       string,
@@ -158,7 +147,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 加载所有画布列表 (带健康检查)
+   * 加载所有画布列表
    */
   async function loadCanvasList() {
     isLoading.value = true;
@@ -177,7 +166,7 @@ export const useCanvasStore = defineStore("canvas", () => {
           basePath: p.id,
           fileCount: p.fileCount || 0,
           previewUrl: p.previewUrl,
-          entryFile: "index.html", // 默认值，深度扫描时会校准
+          entryFile: "index.html",
         } as CanvasMetadata,
         status: p.id === activeCanvasId.value ? "open" : "idle",
         dirtyFileCount: 0,
@@ -200,37 +189,7 @@ export const useCanvasStore = defineStore("canvas", () => {
    * 执行健康检查
    */
   async function performHealthCheck() {
-    const rootDir = await storage.getCanvasesRootDir();
-    if (!(await exists(rootDir))) return;
-
-    const entries = await readDir(rootDir);
-    const diskIds = new Set(entries.filter((e) => e.isDirectory).map((e) => e.name));
-    const indexedIds = new Set(canvasList.value.map((c) => c.metadata.id));
-
-    // 检查 Missing (索引有，磁盘无)
-    canvasList.value.forEach((item) => {
-      if (!diskIds.has(item.metadata.id)) {
-        item.health = "missing";
-      }
-    });
-
-    // 检查 Unindexed (磁盘有，索引无)
-    for (const id of diskIds) {
-      if (!indexedIds.has(id)) {
-        const metadata = await storage.readCanvasMetadata(id);
-        if (metadata) {
-          canvasList.value.push({
-            metadata,
-            status: "idle",
-            dirtyFileCount: 0,
-            health: "unindexed",
-          });
-        }
-      }
-    }
-
-    // 排序
-    canvasList.value.sort((a, b) => b.metadata.updatedAt - a.metadata.updatedAt);
+    canvasList.value = await canvasService.performHealthCheck(canvasList.value);
   }
 
   /**
@@ -258,64 +217,13 @@ export const useCanvasStore = defineStore("canvas", () => {
    * 创建新画布
    */
   async function createCanvas(title: string, templateId?: string) {
-    const registry = useTemplateRegistry();
     return await errorHandler.wrapAsync(
       async () => {
-        const id = generateCanvasId();
-        const now = Date.now();
+        const metadata = await canvasService.createCanvas(title, templateId);
 
-        // 获取模板
-        const template = await registry.getTemplateById(templateId ?? "blank-html");
-        if (!template) throw new Error(`模板不存在: ${templateId}`);
-
-        const metadata: CanvasMetadata = {
-          id,
-          name: title,
-          createdAt: now,
-          updatedAt: now,
-          basePath: id,
-          entryFile: template.entryFile,
-          template: template.id,
-          fileCount: 0, // 稍后更新
-        };
-
-        // 1. 确保目录存在 (磁盘先行)
-        await storage.ensureCanvasDir(id);
-
-        // 2. 写入初始文件 (从模板目录递归复制)
-        const basePath = await storage.getCanvasBasePath(id);
-        const copiedFiles = await registry.copyTemplateFiles(template, basePath);
-        metadata.fileCount = copiedFiles.length;
-
-        // 3. 初始化 Git
-        const gitService = new GitInternalService(basePath);
-        const initRes = await gitService.init();
-        if (initRes === null) throw new Error("Git 初始化失败");
-
-        const addRes = await gitService.add(copiedFiles);
-        if (addRes === null) throw new Error("Git 添加文件失败");
-
-        const commitRes = await gitService.commit(`Initial commit from template: ${template.name}`);
-        if (commitRes === null) throw new Error("Git 初始提交失败");
-
-        // 4. 写入元数据
-        await storage.writeCanvasMetadata(id, metadata);
-
-        // 5. 更新索引 (同步索引)
-        await canvasIndexManager.upsertProject({
-          id,
-          name: title,
-          description: metadata.description,
-          createdAt: metadata.createdAt,
-          updatedAt: metadata.updatedAt,
-          relPath: `projects/${id}`,
-          fileCount: metadata.fileCount,
-          previewUrl: metadata.previewUrl,
-        });
-
-        // 6. 更新列表并打开
+        // 更新列表并打开
         await loadCanvasList();
-        await openCanvas(id);
+        await openCanvas(metadata.id);
 
         return metadata;
       },
@@ -329,7 +237,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   async function openCanvas(canvasId: string) {
     activeCanvasId.value = canvasId;
 
-    // 重新读取元数据以确保信息最新（如文件数量）
+    // 重新读取元数据以确保信息最新
     const metadata = await storage.readCanvasMetadata(canvasId);
     if (metadata) {
       const item = canvasList.value.find((c) => c.metadata.id === canvasId);
@@ -360,7 +268,7 @@ export const useCanvasStore = defineStore("canvas", () => {
       await openCanvas(canvasId);
     }
 
-    // 2. 发送总线事件，请求打开/聚焦窗口
+    // 2. 发送总线事件
     window.dispatchEvent(
       new CustomEvent("canvas:request-window", {
         detail: { canvasId },
@@ -399,14 +307,14 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 直接物理写入 (替代 writeFile)
+   * 直接物理写入
    */
   async function writeFilePhysical(canvasId: string, filepath: string, content: string) {
     await storage.writePhysicalFile(canvasId, filepath, content);
     emitFileChanged(canvasId, filepath);
 
-    // 标记错误为过期（等待预览刷新后清除）
-    markErrorsAsStale(canvasId);
+    // 标记错误为过期
+    errorModule.markErrorsAsStale(canvasId);
 
     await refreshGitStatus(canvasId);
   }
@@ -414,11 +322,11 @@ export const useCanvasStore = defineStore("canvas", () => {
   /**
    * 应用 Search/Replace Diff 到物理文件
    */
-  async function applyDiff(canvasId: string, filepath: string, diff: string) {
+  async function applyDiff(canvasId: string, filepath: string, search: string, replace: string) {
     return await errorHandler.wrapAsync(
       async () => {
         const originalContent = (await storage.readPhysicalFile(canvasId, filepath)) || "";
-        const newContent = applySearchReplaceDiff(originalContent, diff);
+        const newContent = applySearchReplaceDiff(originalContent, search, replace);
 
         if (newContent === originalContent) {
           logger.warn("Diff 应用后内容无变化", { filepath });
@@ -429,7 +337,7 @@ export const useCanvasStore = defineStore("canvas", () => {
         emitFileChanged(canvasId, filepath);
 
         // 标记错误为过期
-        markErrorsAsStale(canvasId);
+        errorModule.markErrorsAsStale(canvasId);
 
         await refreshGitStatus(canvasId);
         logger.info("Diff 已应用到物理文件", { filepath });
@@ -492,7 +400,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 丢弃所有未提交的更改 (用 Git checkout 替代)
+   * 丢弃所有未提交的更改
    */
   async function discardChanges(canvasId: string) {
     return await errorHandler.wrapAsync(
@@ -509,7 +417,7 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 获取文件树 (基于 Git status 标记状态)
+   * 获取文件树
    */
   async function getFileTree(canvasId: string): Promise<CanvasFileNode[]> {
     const physicalTree = await storage.getCanvasFileTree(canvasId);
@@ -542,268 +450,16 @@ export const useCanvasStore = defineStore("canvas", () => {
   }
 
   /**
-   * 添加运行时错误
-   */
-  function addRuntimeError(error: Omit<RuntimeError, "id" | "stale">) {
-    const newError: RuntimeError = {
-      ...error,
-      id: Math.random().toString(36).slice(2),
-      stale: false,
-    };
-
-    const maxErrors = config.value.maxRuntimeErrors ?? 10;
-
-    // 检查是否已存在相同错误（避免重复）
-    const exists = runtimeErrors.value.some(
-      (e) =>
-        e.canvasId === newError.canvasId &&
-        e.message === newError.message &&
-        e.filename === newError.filename &&
-        e.lineno === newError.lineno,
-    );
-
-    if (!exists) {
-      runtimeErrors.value.push(newError);
-
-      // 超出限制时，移除最旧的错误
-      if (runtimeErrors.value.length > maxErrors) {
-        runtimeErrors.value.shift();
-      }
-    }
-  }
-
-  /**
-   * 清空指定画布的错误
-   */
-  function clearRuntimeErrors(canvasId: string) {
-    runtimeErrors.value = runtimeErrors.value.filter((e) => e.canvasId !== canvasId);
-  }
-
-  /**
-   * 标记指定画布的错误为过期（文件修改后调用）
-   */
-  function markErrorsAsStale(canvasId: string) {
-    runtimeErrors.value.forEach((e) => {
-      if (e.canvasId === canvasId) {
-        e.stale = true;
-      }
-    });
-  }
-
-  /**
-   * 清除指定画布的过期错误（预览刷新完成后调用）
-   */
-  function clearStaleRuntimeErrors(canvasId: string) {
-    runtimeErrors.value = runtimeErrors.value.filter((e) => !(e.canvasId === canvasId && e.stale));
-  }
-
-  /**
-   * 获取指定画布的活跃错误（未过期）
-   */
-  function getActiveRuntimeErrors(canvasId: string): RuntimeError[] {
-    return runtimeErrors.value.filter((e) => e.canvasId === canvasId && !e.stale);
-  }
-
-  /**
-   * 获取格式化后的错误信息（用于上下文注入）
-   */
-  function getFormattedErrorContext(canvasId: string, limit = 10): string {
-    const errors = getActiveRuntimeErrors(canvasId);
-
-    if (errors.length === 0) {
-      return "";
-    }
-
-    let context = `⚠️ Runtime Errors in Preview (${errors.length}):\n`;
-
-    errors.slice(0, limit).forEach((err, idx) => {
-      context += `${idx + 1}. [${err.level.toUpperCase()}] ${err.message}\n`;
-      if (err.filename) {
-        // 尝试缩短文件名，如果是 asset:// 协议，只保留相对路径
-        const shortFile = err.filename.includes("asset://") ? err.filename.split("/").pop() : err.filename;
-        context += `   at ${shortFile}:${err.lineno}:${err.colno}\n`;
-      }
-      if (err.stack && err.level === "error") {
-        // 只取前两行堆栈，避免太长
-        const stackLines = err.stack
-          .split("\n")
-          .filter((line) => line.trim())
-          .slice(0, 2);
-        if (stackLines.length > 0) {
-          context += `   Stack: ${stackLines.join("\n   ")}\n`;
-        }
-      }
-      context += `   Time: ${new Date(err.timestamp).toLocaleTimeString()}\n`;
-    });
-
-    if (errors.length > limit) {
-      context += `... and ${errors.length - limit} more errors.\n`;
-    }
-
-    context += `\n(Note: These errors occurred in the live preview. Please fix them before proceeding.)`;
-
-    return context;
-  }
-
-  /**
    * 修复项目
    */
   async function repairProject(canvasId: string, action: "remove_index" | "reindex" | "restore_metadata") {
     return await errorHandler.wrapAsync(
       async () => {
-        logger.info("正在修复项目", { canvasId, action });
-
-        if (action === "remove_index") {
-          await canvasIndexManager.removeProject(canvasId);
-        } else if (action === "reindex" || action === "restore_metadata") {
-          const metadata = await storage.readCanvasMetadata(canvasId);
-          if (metadata) {
-            await canvasIndexManager.upsertProject({
-              id: metadata.id,
-              name: metadata.name,
-              description: metadata.description,
-              createdAt: metadata.createdAt,
-              updatedAt: metadata.updatedAt,
-              relPath: `projects/${metadata.id}`,
-              fileCount: metadata.fileCount,
-              previewUrl: metadata.previewUrl,
-            });
-          } else if (action === "restore_metadata") {
-            // 如果元数据损毁，尝试从索引中的快照恢复
-            const index = await canvasIndexManager.loadIndex();
-            const p = index.projects.find((x) => x.id === canvasId);
-            if (p) {
-              const newMetadata: CanvasMetadata = {
-                id: p.id,
-                name: p.name,
-                updatedAt: p.updatedAt,
-                createdAt: p.updatedAt,
-                basePath: p.id,
-                fileCount: 0,
-                entryFile: "index.html", // 默认入口
-              };
-              await storage.writeCanvasMetadata(canvasId, newMetadata);
-            }
-          }
-        }
-
+        await canvasService.repairProject(canvasId, action);
         await loadCanvasList();
       },
       { userMessage: "修复项目失败" },
     );
-  }
-
-  /**
-   * 核心 Diff 应用逻辑：解析 Search/Replace 块
-   */
-  function applySearchReplaceDiff(originalContent: string, diff: string): string {
-    const SEARCH_MARKER = "<<<<<<< SEARCH";
-    const DIVIDER_MARKER = "=======";
-    const REPLACE_MARKER = ">>>>>>> REPLACE";
-
-    const stripLineNumbers = (contentLines: string[]) => {
-      return contentLines.map((line) => {
-        const match = line.match(/^\s*\d+\s*\|\s?(.*)$/);
-        return match ? match[1] : line;
-      });
-    };
-
-    let result = originalContent;
-    const lines = diff.split(/\r?\n/);
-    let i = 0;
-
-    while (i < lines.length) {
-      const line = lines[i].trim();
-
-      if (line === SEARCH_MARKER) {
-        let searchContentLines: string[] = [];
-        let replaceContentLines: string[] = [];
-        i++;
-
-        while (i < lines.length && lines[i].trim() !== DIVIDER_MARKER) {
-          searchContentLines.push(lines[i]);
-          i++;
-        }
-        i++;
-
-        while (i < lines.length && lines[i].trim() !== REPLACE_MARKER) {
-          replaceContentLines.push(lines[i]);
-          i++;
-        }
-
-        const searchStr = stripLineNumbers(searchContentLines).join("\n");
-        const replaceStr = stripLineNumbers(replaceContentLines).join("\n");
-
-        if (searchStr === "") {
-          result += (result.endsWith("\n") ? "" : "\n") + replaceStr;
-        } else {
-          if (result.includes(searchStr)) {
-            result = result.replace(searchStr, replaceStr);
-          } else {
-            const resultLines = result.split(/\r?\n/);
-            let matchedIndex = -1;
-
-            const searchLinesNoTrailing = searchContentLines.map((l) => l.trimEnd());
-            for (let j = 0; j <= resultLines.length - searchLinesNoTrailing.length; j++) {
-              let match = true;
-              for (let k = 0; k < searchLinesNoTrailing.length; k++) {
-                if (resultLines[j + k].trimEnd() !== searchLinesNoTrailing[k]) {
-                  match = false;
-                  break;
-                }
-              }
-              if (match) {
-                matchedIndex = j;
-                break;
-              }
-            }
-
-            if (matchedIndex === -1) {
-              const searchLinesTrimmed = searchContentLines.map((l) => l.trim());
-              for (let j = 0; j <= resultLines.length - searchLinesTrimmed.length; j++) {
-                let match = true;
-                for (let k = 0; k < searchLinesTrimmed.length; k++) {
-                  if (resultLines[j + k].trim() !== searchLinesTrimmed[k]) {
-                    match = false;
-                    break;
-                  }
-                }
-                if (match) {
-                  matchedIndex = j;
-                  break;
-                }
-              }
-            }
-
-            if (matchedIndex !== -1) {
-              const before = resultLines.slice(0, matchedIndex);
-              const after = resultLines.slice(matchedIndex + searchContentLines.length);
-
-              const originalIndentation = resultLines[matchedIndex].match(/^\s*/)?.[0] || "";
-              const searchFirstLineIndentation = searchContentLines[0].match(/^\s*/)?.[0] || "";
-
-              const fixedReplaceLines = replaceContentLines.map((line) => {
-                if (line.startsWith(searchFirstLineIndentation)) {
-                  return originalIndentation + line.substring(searchFirstLineIndentation.length);
-                }
-                return line;
-              });
-
-              result = [...before, ...fixedReplaceLines, ...after].join("\n");
-            } else {
-              const context = searchContentLines.slice(0, 3).join("\n");
-              logger.warn("Diff 匹配失败", { searchStr: context });
-              throw new Error(
-                `无法匹配代码块。未找到以下内容（前几行）：\n${context}\n请确保 SEARCH 部分与文件内容逻辑一致。`,
-              );
-            }
-          }
-        }
-      }
-      i++;
-    }
-
-    return result;
   }
 
   return {
@@ -834,14 +490,14 @@ export const useCanvasStore = defineStore("canvas", () => {
     removePreviewRequest,
     repairProject,
     performHealthCheck,
-    // 运行时错误管理
-    runtimeErrors,
-    addRuntimeError,
-    clearRuntimeErrors,
-    markErrorsAsStale,
-    clearStaleRuntimeErrors,
-    getActiveRuntimeErrors,
-    getFormattedErrorContext,
+    // 运行时错误管理（转发子模块）
+    runtimeErrors: errorModule.runtimeErrors,
+    addRuntimeError: errorModule.addRuntimeError,
+    clearRuntimeErrors: errorModule.clearRuntimeErrors,
+    markErrorsAsStale: errorModule.markErrorsAsStale,
+    clearStaleRuntimeErrors: errorModule.clearStaleRuntimeErrors,
+    getActiveRuntimeErrors: errorModule.getActiveRuntimeErrors,
+    getFormattedErrorContext: errorModule.getFormattedErrorContext,
     // 配置
     config,
     resetConfig,

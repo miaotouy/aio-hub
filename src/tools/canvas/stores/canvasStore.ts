@@ -1,6 +1,9 @@
 import { defineStore } from "pinia";
 import { ref, reactive, computed } from "vue";
+import { useLocalStorage } from "@vueuse/core";
 import type { CanvasMetadata, CanvasListItem, CanvasFileNode } from "../types";
+import { DEFAULT_CANVAS_CONFIG } from "../config";
+import type { CanvasConfig } from "../types/config";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useCanvasStorage } from "../composables/useCanvasStorage";
@@ -31,6 +34,16 @@ export const useCanvasStore = defineStore("canvas", () => {
   const dirtyFiles = ref<Map<string, string>>(new Map());
   // 是否正在加载
   const isLoading = ref(false);
+
+  // --- 配置 ---
+  const config = useLocalStorage<CanvasConfig>("aio-canvas-config", { ...DEFAULT_CANVAS_CONFIG });
+
+  /**
+   * 重置配置
+   */
+  function resetConfig() {
+    config.value = { ...DEFAULT_CANVAS_CONFIG };
+  }
 
   // 审批系统轻量级映射 (替代 previewSnapshots)
   const previewRequests = reactive<
@@ -691,5 +704,8 @@ export const useCanvasStore = defineStore("canvas", () => {
     removePreviewRequest,
     repairProject,
     performHealthCheck,
+    // 配置
+    config,
+    resetConfig,
   };
 });

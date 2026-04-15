@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { Plus, Search, LayoutGrid, List, RefreshCw } from "lucide-vue-next";
+import { Plus, Search, LayoutGrid, List, RefreshCw, Settings, ChevronLeft } from "lucide-vue-next";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useTemplateRegistry } from "./composables/useTemplateRegistry";
 import CanvasProjectList from "./components/workbench/CanvasProjectList.vue";
 import CreateCanvasDialog from "./components/workbench/CreateCanvasDialog.vue";
 import CanvasEditorPanel from "./components/workbench/CanvasEditorPanel.vue";
+import CanvasSettings from "./components/CanvasSettings.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useCanvasWindowManager } from "./composables/useCanvasWindowManager";
 
@@ -16,6 +17,7 @@ const windowManager = useCanvasWindowManager();
 const viewMode = ref<"grid" | "list">("grid");
 const searchQuery = ref("");
 const isCreateDialogVisible = ref(false);
+const isSettingsVisible = ref(false);
 
 // --- 生命周期 ---
 onMounted(async () => {
@@ -72,10 +74,15 @@ const handleDeepScan = async () => {
     <template v-else>
       <header class="workbench-header">
         <div class="header-left">
-          <el-button type="primary" :icon="Plus" @click="isCreateDialogVisible = true"> 新建画布 </el-button>
-          <el-tooltip content="深度扫描磁盘项目" placement="top">
-            <el-button :icon="RefreshCw" circle @click="handleDeepScan" />
-          </el-tooltip>
+          <template v-if="isSettingsVisible">
+            <el-button :icon="ChevronLeft" @click="isSettingsVisible = false"> 返回项目 </el-button>
+          </template>
+          <template v-else>
+            <el-button type="primary" :icon="Plus" @click="isCreateDialogVisible = true"> 新建画布 </el-button>
+            <el-tooltip content="深度扫描磁盘项目" placement="top">
+              <el-button :icon="RefreshCw" circle @click="handleDeepScan" />
+            </el-tooltip>
+          </template>
         </div>
 
         <div class="header-center">
@@ -95,11 +102,22 @@ const handleDeepScan = async () => {
               <el-icon><List :size="14" /></el-icon>
             </el-radio-button>
           </el-radio-group>
+          <el-divider direction="vertical" />
+          <el-tooltip content="画布设置" placement="top">
+            <el-button
+              :icon="Settings"
+              circle
+              @click="isSettingsVisible = !isSettingsVisible"
+              :type="isSettingsVisible ? 'primary' : ''"
+            />
+          </el-tooltip>
         </div>
       </header>
 
       <main class="workbench-main">
+        <CanvasSettings v-if="isSettingsVisible" />
         <CanvasProjectList
+          v-else
           :canvases="store.canvasList"
           :view-mode="viewMode"
           :search-query="searchQuery"

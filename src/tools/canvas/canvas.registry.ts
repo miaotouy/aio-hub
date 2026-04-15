@@ -34,6 +34,25 @@ export class CanvasRegistry implements ToolRegistry {
         placeholder: "输入画布 ID",
       },
     },
+    {
+      id: "canvas-max-runtime-errors",
+      label: "最大运行时错误数",
+      component: "ElInputNumber",
+      modelPath: "config.maxRuntimeErrors",
+      hint: "上下文中包含的最大错误数量（值越大消耗 token 越多）",
+      keywords: "画布 错误 限制 runtime errors",
+      defaultValue: 10,
+      props: { min: 0, max: 50, step: 1 },
+    },
+    {
+      id: "canvas-auto-include-errors",
+      label: "自动包含运行时错误",
+      component: "ElSwitch",
+      modelPath: "config.autoIncludeErrors",
+      hint: "启用后，预览中的运行时错误将自动包含在 Agent 上下文中",
+      keywords: "画布 错误 上下文 runtime errors context",
+      defaultValue: true,
+    },
   ];
 
   /**

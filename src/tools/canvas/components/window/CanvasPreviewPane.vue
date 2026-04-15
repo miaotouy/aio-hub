@@ -35,7 +35,8 @@ defineExpose({
 });
 
 const handleMessage = (event: MessageEvent) => {
-  if (event.data?.type === "canvas-console") {
+  const type = event.data?.type;
+  if (type === "canvas-console" || type === "canvas-runtime-error") {
     emit("console-message", event.data);
   }
 };

@@ -83,10 +83,75 @@ export function useCanvasPreview(options: {
             }, '*');
           }
 
+          function sendErrorToHost(errorData) {
+            // 避免发送空消息
+            if (!errorData.message) return;
+            
+            window.parent.postMessage({
+              type: 'canvas-runtime-error',
+              ...errorData,
+              timestamp: Date.now()
+            }, '*');
+          }
+
           console.log = function() { sendToHost('log', arguments); originalLog.apply(console, arguments); };
-          console.warn = function() { sendToHost('warn', arguments); originalWarn.apply(console, arguments); };
-          console.error = function() { sendToHost('error', arguments); originalError.apply(console, arguments); };
+          console.warn = function() {
+            sendToHost('warn', arguments);
+            originalWarn.apply(console, arguments);
+            sendErrorToHost({
+              level: 'warn',
+              message: Array.from(arguments).map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+            });
+          };
+          console.error = function() {
+            sendToHost('error', arguments);
+            originalError.apply(console, arguments);
+            
+            const message = Array.from(arguments).map(arg => {
+              if (arg instanceof Error) return arg.message;
+              return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+            }).join(' ');
+            
+            const firstArg = arguments[0];
+            sendErrorToHost({
+              level: 'error',
+              message: message,
+              stack: firstArg instanceof Error ? firstArg.stack : new Error().stack
+            });
+          };
           console.info = function() { sendToHost('info', arguments); originalInfo.apply(console, arguments); };
+
+          // 1. 全局错误捕获
+          window.addEventListener('error', function(event) {
+            // 忽略资源加载错误（message 为空）
+            if (!event.message && (event.target?.src || event.target?.href)) {
+              sendErrorToHost({
+                level: 'warn',
+                message: 'Failed to load resource: ' + (event.target.src || event.target.href),
+                filename: event.target.src || event.target.href
+              });
+              return;
+            }
+
+            sendErrorToHost({
+              level: 'error',
+              message: event.message || 'Unknown runtime error',
+              filename: event.filename,
+              lineno: event.lineno,
+              colno: event.colno,
+              stack: event.error?.stack
+            });
+          }, true); // 使用捕获阶段以捕获资源错误
+
+          // 2. 未处理的 Promise Rejection
+          window.addEventListener('unhandledrejection', function(event) {
+            const reason = event.reason;
+            sendErrorToHost({
+              level: 'error',
+              message: reason?.message || String(reason),
+              stack: reason?.stack || 'No stack trace available'
+            });
+          });
         })();
       </script>
     `;

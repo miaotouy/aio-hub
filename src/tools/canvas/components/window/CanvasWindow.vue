@@ -19,23 +19,26 @@
         :preview-srcdoc="previewSrcdoc"
         :is-refreshing="isRefreshing"
         @console-message="handleConsoleMessage"
+        @load="onPreviewLoad"
       />
     </div>
 
     <!-- 底部状态栏 -->
     <CanvasStatusBar
       v-if="showStatusBar"
-      current-file="index.html"
+      :canvas-id="activeCanvasId || ''"
+      :current-file="canvasStore.activeFile || activeCanvas?.metadata.entryFile || 'index.html'"
       :file-count="activeCanvas?.metadata.fileCount || 0"
-      :pending-count="0"
+      :pending-count="dirtyFilesCount"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, useAttrs } from "vue";
+import { ref, watch, onMounted, useAttrs, computed } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
+import { useCanvasStore } from "../../stores/canvasStore";
 import { useCanvasStateConsumer } from "../../composables/useCanvasStateConsumer";
 import { useCanvasPreview, type ConsoleMessage } from "../../composables/useCanvasPreview";
 import { useCanvasStorage } from "../../composables/useCanvasStorage";
@@ -75,6 +78,7 @@ watch(
 
 // 2. 存储访问
 const storage = useCanvasStorage();
+const canvasStore = useCanvasStore();
 
 const canvasBasePath = ref<string | null>(null);
 
@@ -89,6 +93,7 @@ const { previewSrc, previewSrcdoc, isRefreshing, consoleMessages, refreshPreview
 const showStatusBar = ref(true);
 const titleBarPinned = ref(localStorage.getItem("canvas-titlebar-pinned") !== "false");
 const activeCanvas = ref<any>(null);
+const dirtyFilesCount = computed(() => (activeCanvasId.value ? canvasStore.dirtyFiles.size : 0));
 
 watch(titleBarPinned, (val) => {
   localStorage.setItem("canvas-titlebar-pinned", String(val));
@@ -124,6 +129,22 @@ watch(lastFileChangeTimestamp, () => {
 });
 
 function handleConsoleMessage(payload: any) {
+  // 处理运行时错误
+  if (payload.type === "canvas-runtime-error" && activeCanvasId.value) {
+    canvasStore.addRuntimeError({
+      canvasId: activeCanvasId.value,
+      level: payload.level,
+      message: payload.message,
+      filename: payload.filename,
+      lineno: payload.lineno,
+      colno: payload.colno,
+      stack: payload.stack,
+      timestamp: payload.timestamp,
+    });
+    return;
+  }
+
+  // 处理控制台消息
   const msg: ConsoleMessage = {
     id: Math.random().toString(36).slice(2),
     level: payload.level,
@@ -133,6 +154,12 @@ function handleConsoleMessage(payload: any) {
   consoleMessages.value.push(msg);
   if (consoleMessages.value.length > 100) {
     consoleMessages.value.shift();
+  }
+}
+
+function onPreviewLoad() {
+  if (activeCanvasId.value) {
+    canvasStore.clearStaleRuntimeErrors(activeCanvasId.value);
   }
 }
 

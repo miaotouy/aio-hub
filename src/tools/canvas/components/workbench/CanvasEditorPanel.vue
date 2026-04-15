@@ -153,8 +153,9 @@ onMounted(() => {
   });
 });
 
-watch(activeTab, () => {
+watch(activeTab, (newTab) => {
   loadActiveFileContent();
+  store.activeFile = newTab;
 });
 </script>
 

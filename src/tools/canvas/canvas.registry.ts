@@ -104,16 +104,26 @@ export class CanvasRegistry implements ToolRegistry {
               .join("\n")
           : "None";
 
-      return `Canvas Project: ${activeCanvas.metadata.name}
+      let context = `Canvas Project: ${activeCanvas.metadata.name}
 Entry File: ${activeCanvas.metadata.entryFile || "index.html"}
 
 Project Files:
 ${fileListStr}
 
 Uncommitted Changes: ${dirtyFiles.size} files
-${changesStr}
+${changesStr}`;
 
-(Agent notice: All changes are immediately written to disk and visible in preview. Use 'commit_changes' to create a Git checkpoint.)`;
+      // 注入运行时错误信息
+      if (canvasStore.config.autoIncludeErrors) {
+        const errorContext = canvasStore.getFormattedErrorContext(canvasId, canvasStore.config.maxRuntimeErrors);
+        if (errorContext) {
+          context += `\n\n--- RUNTIME ERRORS ---\n${errorContext}\n----------------------`;
+        }
+      }
+
+      context += `\n\n(Agent notice: All changes are immediately written to disk and visible in preview. Use 'commit_changes' to create a Git checkpoint.)`;
+
+      return context;
     } catch (error) {
       return "";
     }
@@ -195,6 +205,14 @@ ${changesStr}
           returnType: "Promise<void>",
           agentCallable: false,
         },
+        {
+          name: "clear_runtime_errors",
+          displayName: "清空运行时错误",
+          description: "清空当前预览中的运行时错误列表",
+          parameters: [{ name: "canvasId", type: "string", required: false, description: "画布 ID" }],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
       ],
     };
   }
@@ -263,6 +281,15 @@ ${changesStr}
   async open_window(args: { canvasId: string }): Promise<void> {
     const canvasStore = useCanvasStore();
     await canvasStore.openPreviewWindow(args.canvasId);
+  }
+
+  async clear_runtime_errors(args: { canvasId?: string }): Promise<string> {
+    const canvasStore = useCanvasStore();
+    const canvasId = args.canvasId || canvasStore.activeCanvasId;
+    if (!canvasId) return "No active canvas.";
+
+    canvasStore.clearRuntimeErrors(canvasId);
+    return "Runtime errors cleared.";
   }
 
   // ==================== Approval System Hooks ====================

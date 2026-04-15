@@ -1,7 +1,8 @@
 # 画布模板系统重设计方案
 
-> **状态**: RFC (Request for Comments)  
-> **日期**: 2025-04-15  
+> **状态**: Implementing (Phase 1 & 2 已完成)
+> **日期**: 2025-04-15
+> **施工检查**: 2026-04-15
 > **影响范围**: `src/tools/canvas/` 模块内部，`src-tauri/tauri.conf.json` 资源配置
 
 ---

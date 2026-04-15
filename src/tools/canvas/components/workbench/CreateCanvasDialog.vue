@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, nextTick } from "vue";
+import { ref, nextTick, computed } from "vue";
 import { Check } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { CANVAS_TEMPLATES } from "../../templates";
 import { useCanvasStore } from "../../stores/canvasStore";
+import { useTemplateRegistry } from "../../composables/useTemplateRegistry";
+import type { ResolvedTemplate, TemplateCategory } from "../../types/template";
 import type { CanvasMetadata } from "../../types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -14,18 +15,47 @@ const visible = defineModel<boolean>({ required: true });
 const emit = defineEmits<{
   (e: "created", metadata: CanvasMetadata): void;
 }>();
-
 const store = useCanvasStore();
+const registry = useTemplateRegistry();
 const errorHandler = createModuleErrorHandler("Canvas/CreateDialog");
 
 const title = ref("");
-const selectedTemplateId = ref(CANVAS_TEMPLATES[0].id);
+const templates = ref<ResolvedTemplate[]>([]);
+const selectedTemplateId = ref("");
+const activeCategory = ref<TemplateCategory | "all">("all");
 const isCreating = ref(false);
 const titleInputRef = ref<any>(null);
 
-const handleOpen = () => {
+const categories: { label: string; value: TemplateCategory | "all" }[] = [
+  { label: "全部", value: "all" },
+  { label: "基础", value: "basic" },
+  { label: "动效", value: "animation" },
+  { label: "数据可视化", value: "data-viz" },
+  { label: "游戏", value: "game" },
+  { label: "作品集", value: "portfolio" },
+  { label: "工具", value: "tool" },
+  { label: "用户", value: "custom" },
+];
+
+const availableCategories = computed(() => {
+  const usedCategories = new Set(templates.value.map((t) => t.category));
+  return categories.filter((cat) => cat.value === "all" || usedCategories.has(cat.value as any));
+});
+
+const filteredTemplates = computed(() => {
+  if (activeCategory.value === "all") return templates.value;
+  return templates.value.filter((t) => t.category === activeCategory.value);
+});
+
+const handleOpen = async () => {
   title.value = `canvas_${formatDateTime(new Date(), "yyyyMMdd_HHmmss")}`;
-  selectedTemplateId.value = CANVAS_TEMPLATES[0].id;
+
+  // 加载模板
+  templates.value = await registry.getAllTemplates();
+  if (templates.value.length > 0 && !selectedTemplateId.value) {
+    selectedTemplateId.value = templates.value[0].id;
+  }
+
   nextTick(() => {
     titleInputRef.value?.focus();
   });
@@ -62,27 +92,47 @@ const handleCreate = async () => {
       </div>
 
       <div class="form-item">
-        <label>选择模板</label>
+        <div class="template-header">
+          <label style="width: 80px">选择模板</label>
+          <div class="category-tabs" v-if="availableCategories.length > 1">
+            <div
+              v-for="cat in availableCategories"
+              :key="cat.value"
+              class="category-tab"
+              :class="{ active: activeCategory === cat.value }"
+              @click="activeCategory = cat.value"
+            >
+              {{ cat.label }}
+            </div>
+          </div>
+        </div>
+
         <div class="template-grid">
           <div
-            v-for="template in CANVAS_TEMPLATES"
+            v-for="template in filteredTemplates"
             :key="template.id"
             class="template-card"
             :class="{ active: selectedTemplateId === template.id }"
             @click="selectedTemplateId = template.id"
           >
             <div class="template-icon">
-              <span v-if="template.id.includes('html')">🎨</span>
-              <span v-else>📄</span>
+              <span>{{ template.icon || (template.id.includes("html") ? "🎨" : "📄") }}</span>
             </div>
             <div class="template-info">
-              <div class="template-name">{{ template.name }}</div>
+              <div class="template-name-row">
+                <span class="template-name">{{ template.name }}</span>
+                <el-tag v-if="template.source === 'user'" size="small" type="info" effect="plain" class="source-tag"
+                  >用户</el-tag
+                >
+              </div>
               <div class="template-desc">{{ template.description }}</div>
             </div>
             <div class="check-mark" v-if="selectedTemplateId === template.id">
               <el-icon><Check /></el-icon>
             </div>
           </div>
+
+          <div v-if="filteredTemplates.length === 0" class="empty-templates">暂无该分类下的模板</div>
         </div>
       </div>
     </div>
@@ -113,10 +163,51 @@ const handleCreate = async () => {
   color: var(--el-text-color-regular);
 }
 
+.template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.category-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+}
+
+.category-tab {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: var(--el-fill-color-light);
+    color: var(--el-text-color-primary);
+  }
+  &.active {
+    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+    color: var(--el-color-primary);
+    font-weight: 500;
+  }
+}
+
 .template-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .template-card {
@@ -158,10 +249,23 @@ const handleCreate = async () => {
   min-width: 0;
 }
 
+.template-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .template-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--el-text-color-primary);
+}
+
+.source-tag {
+  font-size: 10px;
+  height: 16px;
+  padding: 0 4px;
+  line-height: 14px;
 }
 
 .template-desc {
@@ -175,5 +279,12 @@ const handleCreate = async () => {
 .check-mark {
   color: var(--el-color-primary);
   font-size: 18px;
+}
+
+.empty-templates {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 </style>

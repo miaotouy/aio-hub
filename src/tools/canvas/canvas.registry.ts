@@ -158,6 +158,17 @@ ${changesStr}
           agentCallable: true,
         },
         {
+          name: "create_canvas",
+          displayName: "创建画布",
+          description: "创建一个新的画布项目",
+          parameters: [
+            { name: "title", type: "string", required: true, description: "画布标题" },
+            { name: "templateId", type: "string", required: false, description: "模板 ID (如 blank-html, blank)" },
+          ],
+          returnType: "Promise<any>",
+          agentCallable: true,
+        },
+        {
           name: "open_window",
           displayName: "打开预览窗",
           description: "打开或聚焦画布的独立预览窗口",
@@ -222,6 +233,12 @@ ${changesStr}
     const canvasId = args.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) return [];
     return await canvasStore.getFileTree(canvasId);
+  }
+
+  async create_canvas(args: { title: string; templateId?: string }): Promise<any> {
+    const canvasStore = useCanvasStore();
+    const metadata = await canvasStore.createCanvas(args.title, args.templateId);
+    return { success: !!metadata, canvasId: metadata?.id };
   }
 
   async open_window(args: { canvasId: string }): Promise<void> {

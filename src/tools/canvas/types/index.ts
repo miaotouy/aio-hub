@@ -36,6 +36,7 @@ export interface CanvasFileNode {
 }
 
 // 画布模板
+/** @deprecated 请使用 CanvasTemplateDef (来自 ./template.ts) */
 export interface CanvasTemplate {
   id: string;
   name: string;

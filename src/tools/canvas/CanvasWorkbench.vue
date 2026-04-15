@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { Plus, Search, LayoutGrid, List, RefreshCw } from "lucide-vue-next";
 import { useCanvasStore } from "./stores/canvasStore";
+import { useTemplateRegistry } from "./composables/useTemplateRegistry";
 import CanvasProjectList from "./components/workbench/CanvasProjectList.vue";
 import CreateCanvasDialog from "./components/workbench/CreateCanvasDialog.vue";
 import CanvasEditorPanel from "./components/workbench/CanvasEditorPanel.vue";
@@ -18,6 +19,8 @@ const isCreateDialogVisible = ref(false);
 
 // --- 生命周期 ---
 onMounted(async () => {
+  const registry = useTemplateRegistry();
+  await registry.initBuiltinTemplates();
   await store.loadCanvasList();
 });
 

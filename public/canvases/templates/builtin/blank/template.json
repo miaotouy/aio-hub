@@ -1,0 +1,11 @@
+{
+  "id": "blank",
+  "name": "空白项目",
+  "description": "仅包含一个基础 index.html 文件的空项目",
+  "version": "1.0.0",
+  "category": "basic",
+  "tags": ["HTML"],
+  "entryFile": "index.html",
+  "icon": "📄",
+  "author": "AIO Hub"
+}

@@ -7,7 +7,7 @@ import { useCanvasStorage } from "../composables/useCanvasStorage";
 import { GitInternalService } from "../services/GitInternalService";
 import { canvasIndexManager } from "../services/CanvasIndexManager";
 import { generateCanvasId } from "../utils/id";
-import { CANVAS_TEMPLATES } from "../templates";
+import { useTemplateRegistry } from "../composables/useTemplateRegistry";
 import { formatDateTime } from "@/utils/time";
 import { readDir, exists } from "@tauri-apps/plugin-fs";
 
@@ -199,11 +199,15 @@ export const useCanvasStore = defineStore("canvas", () => {
    * 创建新画布
    */
   async function createCanvas(title: string, templateId?: string) {
+    const registry = useTemplateRegistry();
     return await errorHandler.wrapAsync(
       async () => {
         const id = generateCanvasId();
         const now = Date.now();
-        const template = CANVAS_TEMPLATES.find((t) => t.id === templateId) || CANVAS_TEMPLATES[0];
+
+        // 获取模板
+        const template = await registry.getTemplateById(templateId ?? "blank-html");
+        if (!template) throw new Error(`模板不存在: ${templateId}`);
 
         const metadata: CanvasMetadata = {
           id,
@@ -212,28 +216,27 @@ export const useCanvasStore = defineStore("canvas", () => {
           updatedAt: now,
           basePath: id,
           entryFile: template.entryFile,
-          template: templateId,
-          fileCount: Object.keys(template.files).length,
+          template: template.id,
+          fileCount: 0, // 稍后更新
         };
 
         // 1. 确保目录存在 (磁盘先行)
         await storage.ensureCanvasDir(id);
 
-        // 2. 写入初始文件
-        for (const [path, content] of Object.entries(template.files)) {
-          await storage.writePhysicalFile(id, path, content);
-        }
+        // 2. 写入初始文件 (从模板目录递归复制)
+        const basePath = await storage.getCanvasBasePath(id);
+        const copiedFiles = await registry.copyTemplateFiles(template, basePath);
+        metadata.fileCount = copiedFiles.length;
 
         // 3. 初始化 Git
-        const basePath = await storage.getCanvasBasePath(id);
         const gitService = new GitInternalService(basePath);
         const initRes = await gitService.init();
         if (initRes === null) throw new Error("Git 初始化失败");
 
-        const addRes = await gitService.add(Object.keys(template.files));
+        const addRes = await gitService.add(copiedFiles);
         if (addRes === null) throw new Error("Git 添加文件失败");
 
-        const commitRes = await gitService.commit("Initial commit from template");
+        const commitRes = await gitService.commit(`Initial commit from template: ${template.name}`);
         if (commitRes === null) throw new Error("Git 初始提交失败");
 
         // 4. 写入元数据

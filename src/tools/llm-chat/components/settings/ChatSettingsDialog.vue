@@ -102,9 +102,9 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from "vue";
 import { ElMessageBox, ElTabs, ElTabPane, ElForm, ElDivider, ElAutocomplete, ElButton, ElIcon } from "element-plus";
-import { set, debounce } from "lodash-es";
+import { set } from "lodash-es";
 import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
-import { useElementSize, useWindowSize } from "@vueuse/core";
+import { useElementSize, useWindowSize, useDebounceFn } from "@vueuse/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -200,7 +200,7 @@ watch(
   },
 );
 
-const autoSave = debounce(async () => {
+const autoSave = useDebounceFn(async () => {
   if (isLoadingSettings.value) return;
   try {
     saveStatus.value = "saving";
@@ -235,7 +235,6 @@ watch(
 );
 
 const handleClose = () => {
-  autoSave.flush();
   emit("update:visible", false);
 };
 
@@ -455,7 +454,6 @@ const addScrollListener = () => {
 };
 
 onUnmounted(() => {
-  autoSave.cancel();
   removeScrollListener();
 });
 

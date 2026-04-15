@@ -6,7 +6,7 @@ import type { CanvasFileNode } from "../../types";
 import CanvasFileTree from "../sidebar/CanvasFileTree.vue";
 import PendingChangesBar from "../shared/PendingChangesBar.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { debounce } from "lodash-es";
+import { useDebounceFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import { useCanvasWindowManager } from "../../composables/useCanvasWindowManager";
 
@@ -97,7 +97,7 @@ const loadActiveFileContent = async () => {
 };
 
 // 重构后：写入物理文件
-const debouncedWriteFile = debounce(async (content: string) => {
+const debouncedWriteFile = useDebounceFn(async (content: string) => {
   if (activeTab.value) {
     await store.writeFilePhysical(props.canvasId, activeTab.value, content);
     // 刷新文件树以更新修改状态

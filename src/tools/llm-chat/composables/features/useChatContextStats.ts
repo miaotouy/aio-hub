@@ -4,7 +4,7 @@
  */
 
 import { ref, watch, type Ref } from "vue";
-import { debounce } from "lodash-es";
+import { useDebounceFn } from "@vueuse/core";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatHandler } from "../chat/useChatHandler";
@@ -72,7 +72,7 @@ export function useChatContextStats(
     }
   };
 
-  const debouncedRefreshContextStats = debounce(refreshContextStats, 500);
+  const debouncedRefreshContextStats = useDebounceFn(refreshContextStats, 500);
 
   // 监听核心状态变化
   watch(

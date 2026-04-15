@@ -303,6 +303,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
 import InfoCard from "@/components/common/InfoCard.vue";
 import { customMessage } from "@/utils/customMessage";
@@ -323,7 +324,6 @@ import { open as openFile, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { usePresetStore } from "../stores/store";
 import type { RegexPreset } from "../types";
-import debounce from "lodash/debounce";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { parseRegexPattern } from "../core/engine";
@@ -783,7 +783,7 @@ const onRulesReordered = () => {
 };
 
 // Rust 兼容性验证（防抖）
-const validateRustCompatibility = debounce(async () => {
+const validateRustCompatibility = useDebounceFn(async () => {
   if (!selectedRule.value?.regex) {
     rustValidation.value = null;
     return;
@@ -817,7 +817,7 @@ const validateRustCompatibility = debounce(async () => {
 }, 300);
 
 // 规则编辑时的防抖保存
-const onRuleEdit = debounce(() => {
+const onRuleEdit = useDebounceFn(() => {
   if (store.activePresetId) {
     store.touchPreset(store.activePresetId);
   }

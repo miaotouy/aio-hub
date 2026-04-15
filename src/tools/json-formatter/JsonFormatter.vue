@@ -133,6 +133,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
@@ -149,7 +150,6 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ElNotification } from "element-plus";
-import debounce from "lodash/debounce";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
 import * as jsonLogic from "./logic/jsonFormatter.logic";
 import { useSendToChat } from "@/composables/useSendToChat";
@@ -277,7 +277,7 @@ const formatJsonInternal = () => {
   }
 };
 
-const handleFormatJson = debounce(formatJsonInternal, 300);
+const handleFormatJson = useDebounceFn(formatJsonInternal, 300);
 
 const pasteToJson = async () => {
   try {

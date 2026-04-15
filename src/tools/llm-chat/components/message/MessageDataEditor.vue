@@ -44,7 +44,6 @@ import { ref, watch, computed, nextTick } from "vue";
 import { ElButton, ElTag } from "element-plus";
 import { Copy } from "lucide-vue-next";
 import { useClipboard } from "@vueuse/core";
-import { isEqual } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -134,7 +133,7 @@ const handleSave = async () => {
   delete (newComparable as any).childrenIds;
   delete (newComparable as any).updatedAt;
 
-  if (isEqual(originalComparable, newComparable)) {
+  if (JSON.stringify(originalComparable) === JSON.stringify(newComparable)) {
     customMessage.info("未检测到数据更改。");
     handleClose();
     return;

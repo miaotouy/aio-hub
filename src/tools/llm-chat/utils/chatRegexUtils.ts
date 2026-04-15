@@ -5,7 +5,6 @@
  * @see design/chat-regex-pipeline.md
  */
 
-import { escapeRegExp } from "lodash-es";
 import type {
   ChatRegexConfig,
   ChatRegexPreset,
@@ -154,7 +153,7 @@ export async function processRulesWithMacros(
     if (newRule.substitutionMode && newRule.substitutionMode !== "NONE") {
       const transform =
         newRule.substitutionMode === "ESCAPED"
-          ? (value: unknown) => escapeRegExp(String(value))
+          ? (value: unknown) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
           : undefined;
 
       // 处理 regex 字段

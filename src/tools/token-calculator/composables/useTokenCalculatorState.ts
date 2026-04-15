@@ -4,7 +4,7 @@
  */
 
 import { ref, computed, watch } from "vue";
-import debounce from "lodash-es/debounce";
+import { debounce } from "lodash-es";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { useLlmProfiles } from "@composables/useLlmProfiles";

@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, watch, ref, computed, provide } from "vue";
-import { throttle } from "lodash-es";
+import { useThrottleFn } from "@vueuse/core";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
 import { StreamProcessor } from "./core/StreamProcessor";
@@ -187,13 +187,9 @@ const extractImages = (nodes: AstNode[]): string[] => {
  * 节流版的图片提取函数
  * 避免在流式输出过程中频繁深度遍历 AST 导致性能下降
  */
-const throttledUpdateImageList = throttle(
-  (nodes: AstNode[]) => {
-    imageList.value = extractImages(nodes);
-  },
-  1000,
-  { leading: true, trailing: true }
-);
+const throttledUpdateImageList = useThrottleFn((nodes: AstNode[]) => {
+  imageList.value = extractImages(nodes);
+}, 1000);
 
 // 监听 AST 变化，更新图片列表
 // 性能优化：移除 deep: true，改用 shallowRef 的引用变化检测
@@ -206,8 +202,6 @@ watch(
         // 触发紧急停止，清理所有异步操作
         emergencyShutdown();
         imageList.value = [];
-        // 停止节流函数
-        throttledUpdateImageList.cancel();
         return;
       }
 

@@ -32,7 +32,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import SidebarMenu from "@/components/SidebarMenu.vue";
 import NotificationBell from "@/components/notification/NotificationBell.vue";
 import DownloadManager from "@/components/DownloadManager.vue";
-import { debounce } from "lodash-es";
+import { useDebounceFn } from "@vueuse/core";
 import { useResolvedAvatar, resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
 import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
 
@@ -160,7 +160,7 @@ const checkMaximized = async () => {
 };
 
 // 保存窗口配置（带防抖）
-const saveWindowConfig = debounce(async () => {
+const saveWindowConfig = useDebounceFn(async () => {
   const windowLabel = appWindow.label;
 
   try {

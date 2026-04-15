@@ -9,7 +9,6 @@ import { useAgentStore } from "../../../stores/agentStore";
 import { useChatHandler } from "../../../composables/chat/useChatHandler";
 import type { ContextPreviewData } from "../../../types/context";
 import { getModelFamily } from "@/llm-apis/request-builder";
-import { isEqual } from "lodash-es";
 import ConfigSection from "../../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "./ContextCompressionConfigPanel.vue";
@@ -475,7 +474,7 @@ watch(() => {
 watch(
   () => localParams.value.contextManagement,
   (newVal, oldVal) => {
-    if (isEqual(newVal, oldVal)) return;
+    if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
   { deep: true }
@@ -484,7 +483,7 @@ watch(
 watch(
   () => localParams.value.contextPostProcessing,
   (newVal, oldVal) => {
-    if (isEqual(newVal, oldVal)) return;
+    if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
   { deep: true }

@@ -136,8 +136,7 @@ import type {
   AssetGroupBy,
   AssetSortBy,
 } from "@/types/asset-management";
-import { useInfiniteScroll } from "@vueuse/core";
-import { debounce } from "lodash-es";
+import { useInfiniteScroll, useDebounceFn } from "@vueuse/core";
 import { assetManagerConfigManager, debouncedSaveConfig, createDefaultConfig } from "./config";
 import Toolbar from "./components/Toolbar.vue";
 import Sidebar from "./components/Sidebar.vue";
@@ -220,7 +219,7 @@ const handleRefresh = async () => {
 };
 
 // 防抖的搜索触发
-const debouncedFetchData = debounce(() => fetchData(false), 300);
+const debouncedFetchData = useDebounceFn(() => fetchData(false), 300);
 
 // 组件挂载时加载初始数据
 onMounted(async () => {

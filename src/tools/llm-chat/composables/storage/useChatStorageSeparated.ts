@@ -7,7 +7,7 @@ import { exists, readTextFile, writeTextFile, remove } from "@tauri-apps/plugin-
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
-import { debounce } from "lodash-es";
+import { useDebounceFn } from "@vueuse/core";
 import type { ChatSessionIndex, ChatSessionDetail } from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -538,7 +538,7 @@ export function useChatStorageSeparated() {
    * 创建防抖保存函数
    */
   function createDebouncedSave(delay: number = 500) {
-    return debounce(
+    return useDebounceFn(
       async (
         sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>,
         currentSessionId: string | null,

@@ -318,6 +318,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import {
@@ -336,7 +337,6 @@ import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { listen } from "@tauri-apps/api/event";
-import debounce from "lodash/debounce";
 import { VueDraggableNext } from "vue-draggable-next";
 import InfoCard from "@/components/common/InfoCard.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -589,7 +589,7 @@ const removePreset = (presetId: string) => {
 };
 
 // ===== 文本模式处理 =====
-const debouncedProcessText = debounce(() => {
+const debouncedProcessText = useDebounceFn(() => {
   processText();
 }, 300);
 

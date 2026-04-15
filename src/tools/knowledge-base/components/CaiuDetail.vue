@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted, computed, nextTick } from "vue";
+import { ref, watch, computed, nextTick } from "vue";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { useKnowledgeBase } from "../composables/useKnowledgeBase";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -27,7 +27,8 @@ import { invoke } from "@tauri-apps/api/core";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import TagEditor from "./TagEditor.vue";
 import type { CaiuInput } from "../types";
-import { debounce, isEqual } from "lodash-es";
+import { isEqual } from "lodash-es";
+import { useDebounceFn } from "@vueuse/core";
 
 defineProps<{
   isWide: boolean;
@@ -76,7 +77,7 @@ const hasValidEntry = computed(
 );
 
 // 自动保存逻辑
-const debouncedSave = debounce(async () => {
+const debouncedSave = useDebounceFn(async () => {
   if (!kbStore.activeEntryId) return;
 
   // 检查数据是否有实际变化
@@ -99,9 +100,6 @@ const debouncedSave = debounce(async () => {
 watch(
   () => kbStore.activeEntryId,
   async (newId) => {
-    // 切换前如果还有没保存的，立即保存
-    debouncedSave.flush();
-
     if (newId) {
       isDetailLoading.value = true;
       const entry = await kbStore.getOrLoadEntry(newId);
@@ -156,9 +154,6 @@ watch(
   { deep: true }
 );
 
-onUnmounted(() => {
-  debouncedSave.cancel();
-});
 
 const handleDelete = async () => {
   if (!kbStore.activeEntryId) return;

@@ -1,4 +1,4 @@
-import { get, filter, isArray, isObject } from "lodash-es";
+import { get } from "lodash-es";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import yaml from "js-yaml";
 import { createModuleLogger } from "@/utils/logger";
@@ -41,8 +41,8 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
       target = get(input, options.dataPath);
     }
 
-    if (!isArray(target)) {
-      if (isObject(target)) {
+    if (!Array.isArray(target)) {
+      if (typeof target === "object" && target !== null) {
         // 如果不是数组但是对象，尝试自动找数组字段（可选增强）
         return { data: target, total: 0, filtered: 0, error: "目标路径不是一个数组" };
       }
@@ -52,7 +52,7 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
     const total = target.length;
 
     // 2. 执行过滤
-    const filteredData = filter(target, (item) => {
+    const filteredData = target.filter((item) => {
       return options.conditions.every((cond) => {
         // 跳过未启用的条件
         if (cond.enabled === false) {

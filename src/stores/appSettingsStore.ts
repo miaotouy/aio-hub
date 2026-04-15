@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import debounce from "lodash-es/debounce";
+import { debounce } from "lodash-es";
 import {
   appSettingsManager,
   defaultAppSettings,

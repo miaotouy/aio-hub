@@ -78,12 +78,12 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import InfoCard from "@/components/common/InfoCard.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { WarningFilled } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import debounce from "lodash/debounce";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { formatterCore } from "./logic/formatter";
 import type { SupportedLanguage } from "./types";
@@ -121,7 +121,7 @@ const formatCodeInternal = async () => {
   }
 };
 
-const formatCode = debounce(formatCodeInternal, 500);
+const formatCode = useDebounceFn(formatCodeInternal, 500);
 
 // 复制格式化后的代码
 const copyFormattedCode = async () => {

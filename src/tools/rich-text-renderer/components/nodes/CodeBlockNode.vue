@@ -92,7 +92,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, inject } from "vue";
-import { throttle } from "lodash-es";
+import { useThrottleFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import HtmlInteractiveViewer from "../HtmlInteractiveViewer.vue";
@@ -266,7 +266,7 @@ const tokenCount = ref<number>(0);
 /**
  * 计算 Token 数
  */
-const updateTokenCount = throttle(async () => {
+const updateTokenCount = useThrottleFn(async () => {
   if (!context?.showTokenCount?.value || !props.content) {
     return;
   }

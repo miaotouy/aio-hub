@@ -1,6 +1,5 @@
 import { ref, computed, watch } from "vue";
-import debounce from "lodash-es/debounce";
-import shuffle from "lodash-es/shuffle";
+import { debounce, shuffle } from "lodash-es";
 import {
   type AppearanceSettings,
   type WindowEffect,

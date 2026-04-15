@@ -96,7 +96,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, inject, watch } from "vue";
-import { throttle } from "lodash-es";
+import { useThrottleFn } from "@vueuse/core";
 import { Settings, Loader2, ChevronRight, Copy, Check, CheckCircle2, AlertCircle } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
@@ -191,7 +191,7 @@ const toggleCollapse = () => {
 /**
  * 计算 Token 数
  */
-const updateTokenCount = throttle(async () => {
+const updateTokenCount = useThrottleFn(async () => {
   if (!context?.showTokenCount?.value || !props.raw) {
     return;
   }

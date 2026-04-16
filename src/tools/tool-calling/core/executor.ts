@@ -81,15 +81,7 @@ async function executeSingleRequest(
 
   let silentStop = false;
 
-  // 自动化批准逻辑判断
-  const isGlobalAuto = options.config.mode === "auto";
-  const isToolAutoApprove = options.config.autoApproveTools?.[target.toolId] ?? options.config.defaultAutoApprove;
-  const isMethodAutoApprove = options.config.autoApproveMethods?.[methodKey] ?? false;
-
-  // 方法级自动批准优先级高于工具级
-  const shouldAutoApprove = isGlobalAuto && (isMethodAutoApprove || isToolAutoApprove);
-
-  if (!shouldAutoApprove) {
+  if (!shouldAutoApprove(request, options.config)) {
     // 方案 2.3：在进入审批挂起状态前，允许工具实例先接收到“预览数据”
     try {
       const toolInstance = toolRegistryManager.getRegistry(target.toolId) as any;
@@ -277,6 +269,19 @@ async function executeSingleRequest(
 }
 
 /**
+ * 判断一个工具请求是否应该被自动批准
+ */
+function shouldAutoApprove(request: ParsedToolRequest, config: ToolCallConfig): boolean {
+  const isGlobalAuto = config.mode === "auto";
+  const isToolAutoApprove = config.autoApproveTools?.[request.toolId] ?? config.defaultAutoApprove;
+  const methodKey = `${request.toolId}_${request.methodName}`;
+  const isMethodAutoApprove = config.autoApproveMethods?.[methodKey] ?? false;
+
+  // 方法级自动批准优先级高于工具级
+  return isGlobalAuto && (isMethodAutoApprove || isToolAutoApprove);
+}
+
+/**
  * 执行一批解析后的工具请求
  */
 export async function executeToolRequests(
@@ -285,6 +290,43 @@ export async function executeToolRequests(
 ): Promise<ToolExecutionResult[]> {
   if (requests.length === 0) {
     return [];
+  }
+
+  // 💡 预审批逻辑：如果不是并行执行模式，我们需要手动触发所有需要审批的请求，
+  // 这样 UI 层就能一次性显示所有待处理的请求，而不是串行等待。
+  if (!options.config.parallelExecution && options.onBeforeExecute) {
+    const approvalPromises: Promise<unknown>[] = [];
+
+    for (const request of requests) {
+      // 只有那些不满足自动批准条件且验证通过的请求才需要预审批
+      const needsApproval = !shouldAutoApprove(request, options.config);
+      const isParsedValid = !request.validation || request.validation.isValid;
+
+      if (needsApproval && isParsedValid) {
+        // 💡 兼容预览钩子：在进入审批挂起状态前，允许工具实例先接收到“预览数据”
+        try {
+          const toolInstance = toolRegistryManager.getRegistry(request.toolId) as any;
+          if (typeof toolInstance?.onToolCallPreview === "function") {
+            // 注意：这里我们不 await 预览执行完成，以保证预审批的响应速度
+            Promise.resolve(
+              toolInstance.onToolCallPreview(request.requestId, request.methodName, request.args ?? {}),
+            ).catch((e) => logger.debug(`预审批预览分发失败: ${request.toolId}`, e));
+          }
+        } catch (e) {
+          // 静默失败
+        }
+
+        // 我们发起审批请求但不在这里 await 结果，
+        // 真正的等待会发生在 executeSingleRequest 内部。
+        // 这会触发 toolCallingStore.requestApproval 从而更新 UI。
+        approvalPromises.push(options.onBeforeExecute(request));
+      }
+    }
+
+    // 给 UI 一点时间来接收这些请求并渲染
+    if (approvalPromises.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   }
 
   if (options.config.parallelExecution) {

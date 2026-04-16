@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, provide, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useResizeObserver, useClipboard } from "@vueuse/core";
-import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, TranslationDisplayMode, ButtonVisibility } from "../../types";
+import type {
+  ChatMessageNode,
+  ChatSessionIndex,
+  ChatSessionDetail,
+  TranslationDisplayMode,
+  ButtonVisibility,
+} from "../../types";
 import type { Asset } from "@/types/asset-management";
 import {
   Terminal,
@@ -68,7 +74,7 @@ interface Emits {
   (e: "cancel-edit"): void;
   (
     e: "update-translation",
-    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined
+    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined,
   ): void;
   (e: "resize", el: HTMLElement | null): void;
 }
@@ -100,6 +106,9 @@ let pollingTimer: ReturnType<typeof setInterval> | null = null;
 
 // 从消息内容中提取 taskId
 onMounted(() => {
+  // 初始挂载时通知重新测量
+  emit("resize", messageRef.value);
+
   const extractedTaskId = extractTaskId(props.message.content);
   if (extractedTaskId) {
     taskId.value = extractedTaskId;
@@ -129,7 +138,7 @@ watch(
       stopPolling();
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 // 启动轮询
@@ -222,6 +231,11 @@ useResizeObserver(messageRef, (entries) => {
   const { height, width } = entry.contentRect;
   messageHeight.value = height;
   containerWidth.value = width;
+
+  // 通知父组件（虚拟列表）重新测量高度
+  if (height > 0) {
+    emit("resize", messageRef.value);
+  }
 });
 
 const backgroundBlocks = computed(() => {
@@ -360,7 +374,7 @@ watch(
     });
     processedRules.value = await processRulesWithMacros(rules, macroContext);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // ===== 翻译显示逻辑 =====
@@ -408,7 +422,7 @@ const handleTranslate = async (targetLang?: string) => {
         // 这里的流式内容处理通常在父组件或 store 中维护
       },
       undefined,
-      lang
+      lang,
     );
 
     const translation = {

@@ -104,8 +104,17 @@ export function useToolCallOrchestrator() {
         if (executionAgent.toolCallConfig?.enabled && !isVcpChannel) {
           let toolNode: ChatMessageNode | null = null;
 
-          const ensureNodesCreated = async (parsedRequests: Array<{ requestId: string; toolName: string; args: any }>) => {
+          const ensureNodesCreated = async (
+            parsedRequests: Array<{ requestId: string; toolName: string; args: any }>,
+          ) => {
             if (toolNode) return;
+
+            // 💡 逻辑延迟：避开上一个助手节点结束时的 UI 测量高峰。
+            // AI 消息结束瞬间立即插入工具节点会导致虚拟列表高度计算竞争，引起滚动位置跳动或列表错乱。
+            // 这里延迟一些给 UI 留出足够的缓冲时间。
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            if (toolNode) return;
+
             logger.info(`🛠️ 检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
 
             currentAssistantNode.metadata = {

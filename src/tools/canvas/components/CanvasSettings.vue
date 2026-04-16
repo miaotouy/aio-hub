@@ -6,12 +6,22 @@ import { canvasSettingsConfig } from "../config";
 import { ElMessageBox } from "element-plus";
 import { RotateCcw } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
+import { VSCodeDetector } from "../services/VSCodeDetector";
 
 const store = useCanvasStore();
 const activeCollapse = ref(canvasSettingsConfig.map((s) => s.title));
 
 const handleAction = async (actionName: string) => {
-  // 目前 Canvas 暂无特殊 action，留作扩展
+  if (actionName === "scan-vscode") {
+    const path = await VSCodeDetector.scan();
+    if (path) {
+      store.config.vscodePath = path;
+      customMessage.success(`已自动识别 VSCode 路径: ${path}`);
+    } else {
+      customMessage.warning("未能在常见安装目录中找到 VSCode，请手动指定路径");
+    }
+    return;
+  }
   console.log("Canvas settings action:", actionName);
 };
 

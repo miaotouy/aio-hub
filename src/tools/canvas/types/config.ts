@@ -16,4 +16,7 @@ export interface CanvasConfig {
 
   // 项目管理
   defaultTemplate: string;
+
+  // 外部编辑器
+  vscodePath?: string;
 }

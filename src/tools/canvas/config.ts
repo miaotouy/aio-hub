@@ -1,4 +1,5 @@
-import { Settings2, Monitor, Type, AlertCircle } from "lucide-vue-next";
+import { h } from "vue";
+import { Settings2, Monitor, Type, AlertCircle, Scan } from "lucide-vue-next";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type { CanvasConfig } from "./types/config";
 
@@ -13,6 +14,7 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   fontSize: 14,
   wordWrap: "on",
   defaultTemplate: "blank-html",
+  vscodePath: "",
 };
 
 /**
@@ -94,6 +96,28 @@ export const canvasSettingsConfig: SettingsSection<CanvasConfig>[] = [
         modelPath: "wordWrap",
         hint: "编辑器是否自动换行",
         keywords: "word wrap 换行",
+      },
+    ],
+  },
+  {
+    title: "外部编辑器",
+    icon: Settings2,
+    items: [
+      {
+        id: "vscodePath",
+        label: "VSCode 路径",
+        component: "ElInput",
+        modelPath: "vscodePath",
+        hint: "用于在外部编辑器中打开项目。通常为 code.exe 或 code.cmd 的完整路径",
+        keywords: "vscode path 路径 编辑器",
+        props: {
+          placeholder: "请输入 VSCode 可执行文件路径",
+          clearable: true,
+        },
+        action: "scan-vscode",
+        slots: {
+          append: () => h(Scan, { size: 16 }),
+        },
       },
     ],
   },

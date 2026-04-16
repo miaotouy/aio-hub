@@ -36,9 +36,8 @@ const handleDeleteCanvas = async (id: string) => {
   customMessage.success("画布已删除");
 };
 
-const handleOpenVSCode = async (_id: string) => {
-  // 后续批次实现：调用后端 API 打开 VSCode
-  customMessage.info("在 VSCode 中打开功能开发中...");
+const handleOpenVSCode = async (id: string) => {
+  await store.openInVSCode(id);
 };
 
 const handlePreviewCanvas = async (id: string) => {

@@ -6,6 +6,7 @@ import { DEFAULT_CANVAS_CONFIG } from "../config";
 import type { CanvasConfig } from "../types/config";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { Command } from "@tauri-apps/plugin-shell";
 import { useCanvasStorage } from "../composables/useCanvasStorage";
 import { GitInternalService } from "../services/GitInternalService";
 import { canvasIndexManager } from "../services/CanvasIndexManager";
@@ -13,6 +14,7 @@ import { useCanvasErrors } from "../composables/useCanvasErrors";
 import { CanvasService } from "../services/CanvasService";
 import { applySearchReplaceDiff } from "../utils/diff";
 import { formatDateTime } from "@/utils/time";
+import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("Canvas/Store");
 const errorHandler = createModuleErrorHandler("Canvas/Store");
@@ -471,6 +473,32 @@ export const useCanvasStore = defineStore("canvas", () => {
     );
   }
 
+  /**
+   * 在 VSCode 中打开画布项目
+   */
+  async function openInVSCode(canvasId: string) {
+    return await errorHandler.wrapAsync(
+      async () => {
+        if (!config.value.vscodePath) {
+          customMessage.warning("请先在设置中配置 VSCode 路径");
+          return;
+        }
+
+        const basePath = await storage.getCanvasBasePath(canvasId);
+        logger.info("正在 VSCode 中打开项目", { canvasId, basePath, vscodePath: config.value.vscodePath });
+
+        // 使用 Command 启动 VSCode
+        // 注意：code.cmd / code.exe 后面跟路径即可
+        const command = Command.create(config.value.vscodePath, [basePath]);
+        const child = await command.spawn();
+
+        logger.info("VSCode 已启动", { pid: child.pid });
+        customMessage.success("正在打开 VSCode...");
+      },
+      { userMessage: "打开 VSCode 失败，请检查路径配置是否正确" },
+    );
+  }
+
   return {
     canvasList,
     activeCanvasId,
@@ -499,6 +527,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     removePreviewRequest,
     repairProject,
     performHealthCheck,
+    openInVSCode,
     // 运行时错误管理（转发子模块）
     runtimeErrors: errorModule.runtimeErrors,
     addRuntimeError: errorModule.addRuntimeError,

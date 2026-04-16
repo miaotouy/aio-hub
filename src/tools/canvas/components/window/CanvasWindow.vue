@@ -37,7 +37,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, useAttrs, computed } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { invoke } from "@tauri-apps/api/core";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useCanvasStateConsumer } from "../../composables/useCanvasStateConsumer";
 import { useCanvasPreview, type ConsoleMessage } from "../../composables/useCanvasPreview";
@@ -165,8 +164,7 @@ function onPreviewLoad() {
 
 async function openInVSCode() {
   if (!activeCanvasId.value) return;
-  const basePath = canvasBasePath.value || (await storage.getCanvasBasePath(activeCanvasId.value));
-  await invoke("open_path_in_vscode", { path: basePath });
+  await canvasStore.openInVSCode(activeCanvasId.value);
 }
 
 function closeWindow() {

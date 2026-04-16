@@ -208,12 +208,22 @@ const asyncTaskStatus = computed(() => {
 });
 
 const isCollapsed = ref(true);
+const argsCollapsedMap = ref<Record<string, boolean>>({}); // 用于存储每个工具调用的参数折叠状态
 const editingContent = ref("");
 const editorRef = ref<any>(null);
 
 const toggleCollapse = () => {
   if (isEditing.value) return; // 编辑模式不允许折叠
   isCollapsed.value = !isCollapsed.value;
+};
+
+const toggleArgsCollapse = (requestId: string) => {
+  argsCollapsedMap.value[requestId] = !argsCollapsedMap.value[requestId];
+};
+
+const isArgsCollapsed = (requestId: string) => {
+  // 默认不折叠，除非明确设置为 true
+  return argsCollapsedMap.value[requestId] === true;
 };
 
 // 提供消息 ID 给后代组件
@@ -482,6 +492,12 @@ const handleCopyArgs = (args?: Record<string, any>) => {
   }
 };
 
+const formatArgValue = (val: any) => {
+  if (val === null) return "null";
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+};
+
 // ===== 菜单栏相关计算 =====
 const siblings = computed(() => {
   const nodes = props.sessionDetail?.nodes;
@@ -615,23 +631,55 @@ defineExpose({
                   <div class="item-status" :class="`status-${tc.status}`">{{ tc.status }}</div>
                 </div>
               </div>
-              <div v-if="tc.rawArgs" class="tool-args-preview mini">
-                <div class="args-header">
-                  <div class="args-title">参数</div>
-                  <button class="copy-small-btn" @click="handleCopyArgs(tc.rawArgs)">复制</button>
+              <div
+                v-if="tc.rawArgs"
+                class="tool-args-preview mini"
+                :class="{ 'is-collapsed': isArgsCollapsed(tc.requestId) }"
+              >
+                <div class="args-header" @click="toggleArgsCollapse(tc.requestId)">
+                  <div class="args-title">
+                    <span class="collapse-arrow">
+                      <ChevronRight :size="12" :class="{ 'is-expanded': !isArgsCollapsed(tc.requestId) }" />
+                    </span>
+                    参数
+                  </div>
+                  <button class="copy-small-btn" @click.stop="handleCopyArgs(tc.rawArgs)">复制</button>
                 </div>
-                <pre class="args-content">{{ JSON.stringify(tc.rawArgs, null, 2) }}</pre>
+                <div v-show="!isArgsCollapsed(tc.requestId)" class="args-content-wrapper">
+                  <div class="args-list">
+                    <div v-for="(value, key) in tc.rawArgs" :key="key" class="arg-item">
+                      <span class="arg-key">{{ key }}:</span>
+                      <span class="arg-value">{{ formatArgValue(value) }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- 单工具参数预览 (始终在顶部) -->
-          <div v-else-if="toolCalls.length === 1 && toolCalls[0].rawArgs" class="tool-args-preview">
-            <div class="args-header">
-              <div class="args-title">输入参数</div>
-              <button class="copy-small-btn" @click="handleCopyArgs(toolCalls[0].rawArgs)">复制</button>
+          <div
+            v-else-if="toolCalls.length === 1 && toolCalls[0].rawArgs"
+            class="tool-args-preview"
+            :class="{ 'is-collapsed': isArgsCollapsed(toolCalls[0].requestId) }"
+          >
+            <div class="args-header" @click="toggleArgsCollapse(toolCalls[0].requestId)">
+              <div class="args-title">
+                <span class="collapse-arrow">
+                  <ChevronRight :size="12" :class="{ 'is-expanded': !isArgsCollapsed(toolCalls[0].requestId) }" />
+                </span>
+                输入参数
+              </div>
+              <button class="copy-small-btn" @click.stop="handleCopyArgs(toolCalls[0].rawArgs)">复制</button>
             </div>
-            <pre class="args-content">{{ JSON.stringify(toolCalls[0].rawArgs, null, 2) }}</pre>
+            <div v-show="!isArgsCollapsed(toolCalls[0].requestId)" class="args-content-wrapper">
+              <div class="args-list">
+                <div v-for="(value, key) in toolCalls[0].rawArgs" :key="key" class="arg-item">
+                  <span class="arg-key">{{ key }}:</span>
+                  <span class="arg-value">{{ formatArgValue(value) }}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 异步任务状态块 -->
@@ -1128,13 +1176,10 @@ defineExpose({
   background-color: var(--input-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
-  max-height: 250px;
-  overflow-y: auto;
 }
 
 .tool-args-preview.mini {
   padding: 8px;
-  max-height: 150px;
   background-color: var(--card-bg);
 }
 
@@ -1143,6 +1188,8 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .args-title {
@@ -1151,6 +1198,20 @@ defineExpose({
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.collapse-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--text-color-tertiary);
+  transition: transform 0.2s ease;
+}
+
+.collapse-arrow .is-expanded {
+  transform: rotate(90deg);
 }
 
 .copy-small-btn {
@@ -1163,13 +1224,65 @@ defineExpose({
   cursor: pointer;
 }
 
-.args-content {
-  margin: 0;
+.args-content-wrapper {
+  animation: slideDown 0.2s ease;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.mini .args-content-wrapper {
+  max-height: 150px;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.args-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arg-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   font-size: 12px;
+  line-height: 1.6;
+}
+
+.arg-key {
   font-family: var(--font-family-mono);
-  white-space: pre-wrap;
-  word-break: break-all;
+  color: var(--text-color-tertiary);
+  font-weight: 600;
+  min-width: 80px;
+  text-align: right;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.arg-value {
   color: var(--text-color-secondary);
+  word-break: break-all;
+  white-space: pre-wrap;
+  flex-grow: 1;
+}
+
+.tool-args-preview.is-collapsed {
+  max-height: 32px;
+  overflow: hidden;
+}
+
+.tool-args-preview.is-collapsed .args-header {
+  margin-bottom: 0;
 }
 
 /* 结果展示 */

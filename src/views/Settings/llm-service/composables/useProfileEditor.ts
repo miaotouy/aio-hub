@@ -76,7 +76,7 @@ export function useProfileEditor() {
           }
         });
       }
-    }
+    },
   );
 
   // 将分隔的 API Key 字符串转换为数组
@@ -103,7 +103,7 @@ export function useProfileEditor() {
         apiKeyInput.value = newKeys.join(", ");
       }
     },
-    { deep: true }
+    { deep: true },
   );
 
   // 选择配置
@@ -118,9 +118,11 @@ export function useProfileEditor() {
 
   // 创建新配置 - 从空白开始
   const createNewProfile = () => {
+    console.log("[useProfileEditor] Creating new blank profile");
+    const newName = `未命名渠道 ${profiles.value.length + 1}`;
     editForm.value = {
       id: generateId(),
-      name: "",
+      name: newName,
       type: "openai",
       baseUrl: "https://api.openai.com",
       apiKeys: [],
@@ -133,6 +135,9 @@ export function useProfileEditor() {
     };
     apiKeyInput.value = "";
     selectedProfileId.value = editForm.value.id;
+
+    // 立即保存一次，确保新创建的 Profile 出现在列表中
+    saveCurrentProfile();
   };
 
   // 从预设创建配置
@@ -140,6 +145,7 @@ export function useProfileEditor() {
     editForm.value = createFromPreset(preset);
     apiKeyInput.value = "";
     selectedProfileId.value = editForm.value.id;
+    saveCurrentProfile();
   };
 
   // 保存配置（验证并保存）
@@ -174,7 +180,7 @@ export function useProfileEditor() {
         autoSave();
       }
     },
-    { deep: true }
+    { deep: true },
   );
 
   // 删除配置
@@ -182,15 +188,11 @@ export function useProfileEditor() {
     if (!selectedProfile.value) return;
 
     try {
-      await ElMessageBox.confirm(
-        `确定要删除渠道 "${selectedProfile.value.name}" 吗？此操作不可撤销。`,
-        "删除确认",
-        {
-          confirmButtonText: "确定",
-          cancelButtonText: "取消",
-          type: "warning",
-        }
-      );
+      await ElMessageBox.confirm(`确定要删除渠道 "${selectedProfile.value.name}" 吗？此操作不可撤销。`, "删除确认", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      });
       deleteProfile(selectedProfile.value.id);
       selectedProfileId.value = profiles.value[0]?.id || null;
       if (selectedProfileId.value) {

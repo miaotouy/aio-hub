@@ -87,7 +87,6 @@ export function useChatHandler() {
     // 获取当前智能体（在函数开头，以便后续宏处理使用）
     const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
 
-
     // 使用当前选中的智能体
     if (!agentStore.currentAgentId) {
       errorHandler.handle(new Error("No agent selected"), {
@@ -176,6 +175,55 @@ export function useChatHandler() {
     // 获取路径中的用户节点引用
     const pathUserNode = pathWithNewMessage[pathWithNewMessage.length - 1];
 
+    // --- 核心优化：提前填充元数据快照，确保 UI 即时显示头像 ---
+
+    // 1. 确定生效的用户档案（智能体绑定 > 全局配置）
+    let effectiveUserProfile: {
+      id: string;
+      name: string;
+      displayName?: string;
+      icon?: string;
+      content?: string;
+    } | null = null;
+    if (currentAgent?.userProfileId) {
+      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
+      if (profile) {
+        effectiveUserProfile = profile;
+      }
+    } else if (userProfileStore.globalProfileId) {
+      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
+      if (profile) {
+        effectiveUserProfile = profile;
+      }
+    }
+
+    // 2. 保存用户档案快照到用户消息节点
+    saveUserProfileSnapshot(userNode, effectiveUserProfile);
+
+    // 3. 获取模型信息用于元数据
+    const { getProfileById } = useLlmProfiles();
+    const profile = getProfileById(agentConfig.profileId);
+    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
+
+    // 4. 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
+    if (session.nodes) {
+      session.nodes[assistantNode.id].metadata = {
+        agentId: agentStore.currentAgentId,
+        agentName: currentAgent?.name,
+        agentDisplayName: currentAgent?.displayName || currentAgent?.name,
+        agentIcon: currentAgent?.icon,
+        profileId: agentConfig.profileId,
+        profileName: profile?.name,
+        profileDisplayName: profile?.name,
+        modelId: agentConfig.modelId,
+        modelName: model?.name || model?.id,
+        modelDisplayName: model?.name || model?.id,
+        virtualTimeConfig: currentAgent?.virtualTimeConfig,
+      };
+    }
+
+    // --- 元数据填充结束 ---
+
     // 处理附件（如果有）
     const { settings } = useChatSettings();
     if (options?.attachments && options.attachments.length > 0) {
@@ -183,7 +231,6 @@ export function useChatHandler() {
     }
 
     // 立即保存用户消息，防止等待 LLM 响应或转写期间程序崩溃导致消息丢失
-    // 这里先保存消息本身，后续的转写等待和元数据更新会在完成后再次触发保存
     if (sessionIndex) {
       sessionManager.persistSession(sessionIndex, session, currentSessionId ?? null);
     }
@@ -193,8 +240,6 @@ export function useChatHandler() {
     });
 
     // 附件转写等待逻辑（在消息上屏并保存后执行）
-    // 无论设置为何种发送行为，此处都采用“先上屏，后等待”的策略以提升响应感。
-    // 等待是必须的，以确保后续 executeRequest 构建上下文时能拿到转写文本。
     if (options?.attachments && options.attachments.length > 0 && settings.value.transcription.enabled) {
       const transcriptionManager = useTranscriptionManager();
       const transcriptionController = new AbortController();
@@ -241,34 +286,9 @@ export function useChatHandler() {
         // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
         logger.warn("⚠️ 转写等待期间出错，将使用原始附件发送", error);
       } finally {
-        // 注意：这里不立即从 generatingNodes 中删除，
-        // 而是保持状态直到 executeRequest 接管或流程结束，
-        // 以避免在转写结束和请求开始之间的异步空窗期（如 Token 计算）导致 UI 闪烁。
         abortControllers.delete(assistantNode.id);
       }
     }
-    // 确定生效的用户档案（智能体绑定 > 全局配置）
-    let effectiveUserProfile: {
-      id: string;
-      name: string;
-      displayName?: string;
-      icon?: string;
-      content?: string;
-    } | null = null;
-    if (currentAgent?.userProfileId) {
-      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
-      if (profile) {
-        effectiveUserProfile = profile;
-      }
-    } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
-      if (profile) {
-        effectiveUserProfile = profile;
-      }
-    }
-
-    // 保存用户档案快照到用户消息节点
-    saveUserProfileSnapshot(userNode, effectiveUserProfile);
 
     // 计算用户消息的 token 数（包括文本和附件）
     await calculateUserMessageTokens(userNode, session, content, agentConfig.modelId, options?.attachments);
@@ -276,29 +296,6 @@ export function useChatHandler() {
     // 计算完成后立即持久化一次，确保用户消息的 tokens 及时保存并触发 UI 更新
     if (sessionIndex) {
       sessionManager.persistSession(sessionIndex, session, currentSessionId ?? null);
-    }
-
-    // 获取模型信息用于元数据（提前设置，确保即时显示）
-    const { getProfileById } = useLlmProfiles();
-    const profile = getProfileById(agentConfig.profileId);
-    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
-
-    // 在助手节点中设置基本 metadata（包括 Agent 名称和图标的快照）
-    // 直接修改 session.nodes 中的节点，确保响应式更新
-    if (session.nodes) {
-      session.nodes[assistantNode.id].metadata = {
-        agentId: agentStore.currentAgentId,
-        agentName: currentAgent?.name,
-        agentDisplayName: currentAgent?.displayName || currentAgent?.name,
-        agentIcon: currentAgent?.icon,
-        profileId: agentConfig.profileId,
-        profileName: profile?.name,
-        profileDisplayName: profile?.name,
-        modelId: agentConfig.modelId,
-        modelName: model?.name || model?.id,
-        modelDisplayName: model?.name || model?.id,
-        virtualTimeConfig: currentAgent?.virtualTimeConfig,
-      };
     }
 
     logger.debug("已设置助手节点元数据", {
@@ -708,7 +705,7 @@ export function useChatHandler() {
     // 获取到该助手节点的完整路径（包含该节点本身）
     // 这样可以正确构建上下文，即使该节点的父节点是 tool 节点
     const pathToAssistantNode = nodeManager.getNodePath(session, nodeId);
-    
+
     // 从路径中找到最近的 user 节点
     let pathToUserNode = pathToAssistantNode;
     for (let i = pathToAssistantNode.length - 1; i >= 0; i--) {
@@ -738,7 +735,7 @@ export function useChatHandler() {
       logger.warn("重新解析失败：Agent 不存在", { nodeId, agentId });
       return;
     }
-    
+
     const executionAgent = { ...currentAgent, ...agentConfig };
 
     // 获取用户档案

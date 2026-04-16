@@ -53,6 +53,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
 async function executeSingleRequest(
   request: ParsedToolRequest,
   options: ExecutorOptions,
+  approvalCache?: Map<string, Promise<ToolApprovalResult | boolean>>,
 ): Promise<ToolExecutionResult> {
   const startedAt = Date.now();
 
@@ -92,7 +93,10 @@ async function executeSingleRequest(
       logger.debug(`工具预览分发失败: ${target.toolId}`, e);
     }
 
-    const approvalResult = await options.onBeforeExecute?.(request);
+    // 优先从缓存中获取审批结果，避免重复触发审批流程
+    const approvalResult = approvalCache?.has(request.requestId)
+      ? await approvalCache.get(request.requestId)
+      : await options.onBeforeExecute?.(request);
     if (approvalResult === false || approvalResult === "rejected") {
       // 尝试通知工具实例执行清理逻辑
       try {
@@ -292,13 +296,13 @@ export async function executeToolRequests(
     return [];
   }
 
-  // 💡 预审批逻辑：如果不是并行执行模式，我们需要手动触发所有需要审批的请求，
-  // 这样 UI 层就能一次性显示所有待处理的请求，而不是串行等待。
-  if (!options.config.parallelExecution && options.onBeforeExecute) {
-    const approvalPromises: Promise<unknown>[] = [];
+  // 审批缓存，用于解耦审批发起与执行等待
+  const approvalCache = new Map<string, Promise<ToolApprovalResult | boolean>>();
 
+  // 1. 统一处理预审批逻辑
+  // 无论是否并行，如果提供了审批回调，我们都先发起所有必要的审批
+  if (options.onBeforeExecute) {
     for (const request of requests) {
-      // 只有那些不满足自动批准条件且验证通过的请求才需要预审批
       const needsApproval = !shouldAutoApprove(request, options.config);
       const isParsedValid = !request.validation || request.validation.isValid;
 
@@ -307,7 +311,6 @@ export async function executeToolRequests(
         try {
           const toolInstance = toolRegistryManager.getRegistry(request.toolId) as any;
           if (typeof toolInstance?.onToolCallPreview === "function") {
-            // 注意：这里我们不 await 预览执行完成，以保证预审批的响应速度
             Promise.resolve(
               toolInstance.onToolCallPreview(request.requestId, request.methodName, request.args ?? {}),
             ).catch((e) => logger.debug(`预审批预览分发失败: ${request.toolId}`, e));
@@ -316,26 +319,30 @@ export async function executeToolRequests(
           // 静默失败
         }
 
-        // 我们发起审批请求但不在这里 await 结果，
-        // 真正的等待会发生在 executeSingleRequest 内部。
-        // 这会触发 toolCallingStore.requestApproval 从而更新 UI。
-        approvalPromises.push(options.onBeforeExecute(request));
+        // 发起审批并存入缓存
+        approvalCache.set(request.requestId, options.onBeforeExecute(request));
       }
     }
 
-    // 给 UI 一点时间来接收这些请求并渲染
-    if (approvalPromises.length > 0) {
+    // 给 UI 渲染留出微量缓冲时间
+    if (approvalCache.size > 0) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
 
+  // 2. 执行阶段
   if (options.config.parallelExecution) {
-    return await Promise.all(requests.map((request) => executeSingleRequest(request, options)));
+    return await Promise.all(requests.map((request) => executeSingleRequest(request, options, approvalCache)));
   }
 
   const results: ToolExecutionResult[] = [];
   for (const request of requests) {
-    results.push(await executeSingleRequest(request, options));
+    const result = await executeSingleRequest(request, options, approvalCache);
+    results.push(result);
+    if (result.result === "SILENT_CANCEL") {
+      logger.info("检测到静默取消，停止后续工具执行", { requestId: request.requestId });
+      break;
+    }
   }
   return results;
 }

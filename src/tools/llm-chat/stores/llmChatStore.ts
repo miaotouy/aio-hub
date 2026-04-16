@@ -390,8 +390,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           rootNodeId: rootNodeId!,
           activeLeafId: activeLeafId!,
           updatedAt: updatedAt || fullSession.index.updatedAt,
-          history: history || [],
-          historyIndex: historyIndex || 0,
+          history: history && history.length > 0 ? (history as any) : [],
+          historyIndex: historyIndex !== undefined ? historyIndex : -1,
         });
         logger.info("当前活跃会话详情加载完成", { sessionId: loadedId });
       }
@@ -399,7 +399,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     // 确保加载后的当前会话有历史记录
     const detail = currentSessionDetail.value;
-    if (detail && (detail.history === undefined || detail.historyIndex === undefined)) {
+    if (detail && (detail.history === undefined || detail.historyIndex === undefined || detail.history.length === 0)) {
       historyManager.clearHistory();
       logger.info("为加载的当前会话初始化了历史堆栈", {
         sessionId: detail.id,
@@ -453,8 +453,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           rootNodeId: rootNodeId!,
           activeLeafId: activeLeafId!,
           updatedAt: updatedAt || fullSession.index.updatedAt,
-          history: history || [],
-          historyIndex: historyIndex || 0,
+          history: history && history.length > 0 ? (history as any) : [],
+          historyIndex: historyIndex !== undefined ? historyIndex : -1,
         };
         sessionDetailMap.value.set(sessionId, detail);
         logger.info("会话详情按需加载完成", { sessionId });
@@ -462,12 +462,13 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
 
     // ★ 确保切换到的会话有初始化的历史记录
-    if (detail && (detail.history === undefined || detail.historyIndex === undefined)) {
+    if (detail && (detail.history === undefined || detail.historyIndex === undefined || detail.history.length === 0)) {
       const originalSessionId = currentSessionId.value;
       currentSessionId.value = sessionId;
+      // 强制触发一次 computed 更新（虽然由于响应式批处理不一定立即生效，但 historyManager.clearHistory 会检查 sessionRef.value）
       historyManager.clearHistory();
       currentSessionId.value = originalSessionId;
-      logger.info("为旧会话初始化了历史堆栈", { sessionId });
+      logger.info("为会话初始化了历史堆栈", { sessionId });
     }
 
       currentSessionId.value = sessionId;

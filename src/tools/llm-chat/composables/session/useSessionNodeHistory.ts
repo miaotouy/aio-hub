@@ -232,11 +232,16 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
     const session = sessionRef.value;
     if (!session) return;
 
-    if (session.history === undefined || session.historyIndex === undefined) {
+    if (session.history === undefined || session.historyIndex === undefined || session.history.length === 0) {
       clearHistory();
     }
 
-    if (session.historyIndex! < session.history!.length - 1) {
+    // 确保索引在合法范围内
+    if (session.historyIndex! >= session.history!.length) {
+      session.historyIndex = session.history!.length - 1;
+    }
+
+    if (session.historyIndex! < session.history!.length - 1 && session.historyIndex! >= 0) {
       session.history = session.history!.slice(0, session.historyIndex! + 1);
     }
 
@@ -245,11 +250,13 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
 
     for (let i = session.historyIndex!; i >= 0; i--) {
       const entry = session.history![i];
+      if (!entry) continue;
+      
       if (entry.isSnapshot) break;
 
       deltasSinceLastSnapshot++;
       if (!entry.isSnapshot) {
-        affectedNodesCount += entry.deltas.reduce((count, delta) => {
+        affectedNodesCount += (entry.deltas || []).reduce((count, delta) => {
           if (delta.type === 'create' || delta.type === 'delete') return count + 1;
           if (delta.type === 'update') return count + 1;
           if (delta.type === 'relation') return count + delta.payload.changes.length;

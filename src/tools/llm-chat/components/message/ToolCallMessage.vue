@@ -261,12 +261,31 @@ const toolCalls = computed(() => {
   if (props.message.metadata?.toolCall) {
     return [props.message.metadata.toolCall];
   }
+
+  // 保底逻辑：从内容中尝试解析工具名称 (针对重新解析模式元数据丢失的情况或执行中的状态)
+  if (props.message.content && props.message.content.includes("### 结果")) {
+    const lines = props.message.content.split("\n");
+    const results: any[] = [];
+    for (const line of lines) {
+      const match = line.match(/### 结果 \d+: \[(.*?)\]/);
+      if (match) {
+        results.push({
+          requestId: `reparsed-${results.length}`,
+          toolName: match[1],
+          status: "success",
+        });
+      }
+    }
+    if (results.length > 0) return results;
+  }
+
   return [];
 });
 
 const mainStatus = computed(() => {
   if (props.message.metadata?.isCancelled) return "cancelled";
   if (toolCalls.value.length === 0) return "pending";
+  if (toolCalls.value.some((t) => t.status === "executing")) return "executing";
   if (toolCalls.value.some((t) => t.status === "error" || t.status === "denied")) return "error";
   return "success";
 });
@@ -275,6 +294,8 @@ const statusIcon = computed(() => {
   switch (mainStatus.value) {
     case "success":
       return Play;
+    case "executing":
+      return Loader2;
     case "error":
       return AlertCircle;
     case "cancelled":
@@ -799,7 +820,7 @@ defineExpose({
           <span class="preview-tool-name" v-else-if="toolCalls.length > 1">[{{ toolCalls.length }} 个工具]</span>
           <span class="preview-tool-name" v-else>[未知工具]</span>
           <span class="preview-text">
-            {{ message.content.trim().slice(0, 120) }}{{ message.content.trim().length > 120 ? "..." : "" }}
+            {{ displayContent.trim().slice(0, 120) }}{{ displayContent.trim().length > 120 ? "..." : "" }}
           </span>
         </div>
         <div v-if="toolCalls.length > 0" class="preview-status-tag" :class="statusClass">
@@ -947,6 +968,19 @@ defineExpose({
   transition: transform 0.2s;
   background-color: transparent;
   z-index: 4;
+}
+
+.bar-icon .lucide-loader2 {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .tool-bar:hover .bar-icon {

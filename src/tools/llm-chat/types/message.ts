@@ -280,17 +280,17 @@ export interface ChatMessageNode {
     toolCall?: {
       requestId: string;
       toolName: string;
-      status: "success" | "error" | "denied";
-      durationMs: number;
-      rawArgs?: Record<string, string>;
+      status: "success" | "error" | "denied" | "pending" | "executing";
+      durationMs?: number;
+      rawArgs?: Record<string, any>;
     };
     /** 多个工具调用结果（用于 role: "tool" 的节点） */
     toolCalls?: Array<{
       requestId: string;
       toolName: string;
-      status: "success" | "error" | "denied";
-      durationMs: number;
-      rawArgs?: Record<string, string>;
+      status: "success" | "error" | "denied" | "pending" | "executing";
+      durationMs?: number;
+      rawArgs?: Record<string, any>;
     }>;
     /** AI 请求的工具调用列表（用于 role: "assistant" 的节点） */
     toolCallsRequested?: Array<{

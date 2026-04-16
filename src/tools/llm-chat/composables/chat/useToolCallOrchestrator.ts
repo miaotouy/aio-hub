@@ -85,7 +85,7 @@ export function useToolCallOrchestrator() {
     try {
       while (iterationCount < maxIterations) {
         iterationCount++;
-        
+
         let responseContent: string;
 
         // 2. 执行单次请求（重新解析模式下第一轮跳过）
@@ -97,7 +97,7 @@ export function useToolCallOrchestrator() {
           if (iterationCount > 1) {
             logger.info(`🔄 开始第 ${iterationCount} 轮工具调用迭代...`);
           }
-          
+
           // 确保节点已注册
           if (!generatingNodes.has(currentAssistantNode.id)) {
             registerNode(currentAssistantNode.id);
@@ -143,7 +143,7 @@ export function useToolCallOrchestrator() {
             // 而是将这些请求信息记录在即将创建的工具节点或新的元数据快照中？
             // 不，为了保持逻辑一致，我们还是记录在当前助手节点上，
             // 但因为是 push 到 childrenIds，它会产生新分支。
-            
+
             // 1. 更新助手节点的元数据，记录请求
             currentAssistantNode.metadata = {
               ...currentAssistantNode.metadata,
@@ -156,7 +156,7 @@ export function useToolCallOrchestrator() {
             };
 
             // 2. 创建工具节点
-            toolNode = {
+            const newNode: ChatMessageNode = {
               id: `tool-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
               parentId: currentAssistantNode.id,
               childrenIds: [],
@@ -167,16 +167,24 @@ export function useToolCallOrchestrator() {
               metadata: {
                 agentId: executionAgent.id,
                 isReparse: isReparse || undefined,
+                // 提前注入工具调用信息，避免 UI 显示“未知工具”
+                toolCalls: parsedRequests.map((req) => ({
+                  requestId: req.requestId,
+                  toolName: req.toolName,
+                  status: "executing",
+                  rawArgs: req.args,
+                })),
               },
             };
+            toolNode = newNode;
 
             // 3. 挂载到会话树
-            if (session.nodes) session.nodes[toolNode.id] = toolNode;
-            currentAssistantNode.childrenIds.push(toolNode.id);
-            generatingNodes.add(toolNode.id);
+            if (session.nodes) session.nodes[newNode.id] = newNode;
+            currentAssistantNode.childrenIds.push(newNode.id);
+            generatingNodes.add(newNode.id);
 
             // 4. 切换到新分支
-            nodeManager.updateActiveLeaf(session, toolNode.id);
+            nodeManager.updateActiveLeaf(session, newNode.id);
             const chatStore = await import("../../stores/llmChatStore").then((m) => m.useLlmChatStore());
             const index = chatStore.sessionIndexMap.get(session.id);
             if (index) {
@@ -189,6 +197,7 @@ export function useToolCallOrchestrator() {
             executionAgent.toolCallConfig,
             async (request) => await toolCallingStore.requestApproval(session.id, request),
             async (requestId, status) => {
+              // 处理 executing 状态：确保节点已创建
               if (status === "executing") {
                 const reqs = currentAssistantNode.metadata?.toolCallsRequested;
                 if (reqs) {
@@ -228,25 +237,48 @@ export function useToolCallOrchestrator() {
 
               if (toolNode) {
                 const node = toolNode as ChatMessageNode;
-                node.status = "complete";
-                node.content = hasSilentCancel ? "已取消执行" : toolResultText;
-                node.metadata = {
-                  ...node.metadata,
-                  isCancelled: hasSilentCancel || undefined,
-                  toolCalls: cycleResult.executionResults.map((res, idx) => ({
-                    requestId: res.requestId,
-                    toolName: res.toolName,
-                    status: res.status,
-                    durationMs: res.durationMs,
-                    rawArgs: cycleResult.parsedRequests[idx]?.args,
-                  })),
+                logger.info(`🛠️ 更新工具节点状态（静默取消/停止）`, {
+                  nodeId: node.id,
+                  hasSilentCancel,
+                  hasSilentStop,
+                  executionResultsCount: cycleResult.executionResults.length,
+                });
+
+                // 强制触发响应式更新：替换整个节点对象
+                const updatedNode: ChatMessageNode = {
+                  ...node,
+                  status: "complete",
+                  content: hasSilentCancel ? "已取消执行" : toolResultText,
+                  metadata: {
+                    ...node.metadata,
+                    isCancelled: hasSilentCancel || undefined,
+                    toolCalls: cycleResult.executionResults.map((res, idx) => ({
+                      requestId: res.requestId,
+                      toolName: res.toolName,
+                      status: res.status,
+                      durationMs: res.durationMs,
+                      rawArgs: cycleResult.parsedRequests[idx]?.args,
+                    })),
+                  },
                 };
+
+                // 替换 session.nodes 中的节点引用
+                if (session.nodes) {
+                  session.nodes[node.id] = updatedNode;
+                }
+                toolNode = updatedNode;
+
                 generatingNodes.delete(node.id);
                 const chatStore = useLlmChatStore();
                 const index = chatStore.sessionIndexMap.get(session.id);
                 if (index) {
                   sessionManager.persistSession(index, session, session.id);
                 }
+              } else {
+                logger.warn(`🛠️ 静默取消/停止时工具节点为 null`, {
+                  hasSilentCancel,
+                  hasSilentStop,
+                });
               }
 
               if (currentAssistantNode.metadata?.toolCallsRequested) {
@@ -265,19 +297,45 @@ export function useToolCallOrchestrator() {
 
             if (toolNode) {
               const node = toolNode as ChatMessageNode;
-              node.content = toolResultText;
-              node.status = "complete";
-              node.metadata = {
-                ...node.metadata,
-                toolCalls: cycleResult.executionResults.map((res, idx) => ({
-                  requestId: res.requestId,
-                  toolName: res.toolName,
-                  status: res.status,
-                  durationMs: res.durationMs,
-                  rawArgs: cycleResult.parsedRequests[idx]?.args,
-                })),
+              logger.info(`🛠️ 更新工具节点状态（正常完成）`, {
+                nodeId: node.id,
+                executionResultsCount: cycleResult.executionResults.length,
+                contentLength: toolResultText.length,
+              });
+
+              // 强制触发响应式更新：替换整个节点对象
+              const updatedNode: ChatMessageNode = {
+                ...node,
+                content: toolResultText,
+                status: "complete",
+                metadata: {
+                  ...node.metadata,
+                  toolCalls: cycleResult.executionResults.map((res, idx) => ({
+                    requestId: res.requestId,
+                    toolName: res.toolName,
+                    status: res.status,
+                    durationMs: res.durationMs,
+                    rawArgs: cycleResult.parsedRequests[idx]?.args,
+                  })),
+                },
               };
+
+              // 替换 session.nodes 中的节点引用
+              if (session.nodes) {
+                session.nodes[node.id] = updatedNode;
+              }
+              toolNode = updatedNode;
+
               generatingNodes.delete(node.id);
+
+              // 确保更新被持久化并触发响应式
+              const chatStore = useLlmChatStore();
+              const index = chatStore.sessionIndexMap.get(session.id);
+              if (index) {
+                sessionManager.persistSession(index, session, session.id);
+              }
+            } else {
+              logger.warn(`🛠️ 正常完成时工具节点为 null`);
             }
 
             if (currentAssistantNode.metadata?.toolCallsRequested) {

@@ -1199,6 +1199,24 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "Gemini 3 系列模型分组",
   },
+  // Gemini 3.1 系列（独立分组，优先级高于 gemini-3）
+  {
+    id: "model-prefix-gemini-3.1",
+    matchType: "modelPrefix",
+    matchValue: "gemini-3.1",
+    properties: {
+      group: "Gemini 3.1",
+      capabilities: {
+        visionTokenCost: {
+          calculationMethod: "gemini_2_0", // Gemini 3.1 沿用 2.0 的计算规则
+          parameters: {},
+        },
+      },
+    },
+    priority: 23,
+    enabled: true,
+    description: "Gemini 3.1 系列模型分组（3.1 Pro / 3.1 Flash / 3.1 Flash-Lite / 3.1 Flash Live / 3.1 Flash TTS）",
+  },
   {
     id: "model-prefix-gemini-2.5",
     matchType: "modelPrefix",
@@ -1222,6 +1240,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchValue: "gemini-2.0",
     properties: {
       group: "Gemini 2.0",
+      deprecated: true, // Google 官方已宣布 Gemini 2.0 系列废弃，即将关闭
       capabilities: {
         visionTokenCost: {
           calculationMethod: "gemini_2_0",
@@ -1233,7 +1252,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 22,
     enabled: true,
-    description: "Gemini 2.0 系列模型分组",
+    description: "Gemini 2.0 系列模型分组（已废弃，Gemini 2.0 Flash / Flash-Lite 即将关闭，请迁移至 2.5 系列）",
   },
   {
     id: "model-prefix-gemini-1.5",
@@ -1248,11 +1267,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   },
   // === Gemini 细分能力匹配（优先级 25-26） ===
   // Gemini 高级能力模型 (Thinking, Code Execution, Search)
-  // 覆盖: Gemini 3 Pro, Gemini 2.5 Pro/Flash/Flash-Lite
+  // 覆盖: Gemini 3 / 3.1 Pro/Flash, Gemini 2.5 Pro/Flash（排除 image / tts / live）
   {
     id: "model-gemini-advanced",
     matchType: "modelPrefix",
-    matchValue: "gemini-(?:3|2\\.5)-(?:pro|flash)(?!.*(?:image|tts))",
+    matchValue: "gemini-(?:3(?:\\.\\d+)?|2\\.5)-(?:pro|flash)(?!.*(?:image|tts|live))",
     useRegex: true,
     properties: {
       capabilities: {
@@ -1264,7 +1283,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 高级模型（支持思考、代码执行、联网搜索）",
+    description: "Gemini 高级模型（支持思考、代码执行、联网搜索），覆盖 Gemini 3/3.1/2.5 的 Pro/Flash 变体",
   },
   // Gemini 2.0 Flash (Code Execution, Search)
   {
@@ -1282,7 +1301,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "Gemini 2.0 Flash（支持代码执行、联网搜索）",
   },
-  // Gemini 图像生成模型
+  // Gemini 图像生成模型（包括 Nano Banana 系列）
   {
     id: "model-gemini-image",
     matchType: "modelPrefix",
@@ -1296,13 +1315,13 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 图像生成模型（支持迭代微调）",
+    description: "Gemini 图像生成模型（支持迭代微调），包括 Nano Banana 系列",
   },
-  // Gemini 2.5 Live 模型
+  // Gemini Live 实时对话模型（覆盖 2.5 和 3.x 系列）
   {
-    id: "model-gemini-2.5-live",
+    id: "model-gemini-live",
     matchType: "modelPrefix",
-    matchValue: "gemini-2\\.5-.*live",
+    matchValue: "gemini-(?:2\\.5|3(?:\\.\\d+)?)-.*live",
     useRegex: true,
     properties: {
       capabilities: {
@@ -1312,7 +1331,22 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 2.5 Live 模型（支持思考、联网搜索）",
+    description: "Gemini Live 实时对话模型（覆盖 2.5 Flash Live / 3.1 Flash Live，支持思考与联网搜索）",
+  },
+  // Gemini TTS 语音生成模型（覆盖 2.5 和 3.x 的 TTS 变体）
+  {
+    id: "model-gemini-tts",
+    matchType: "modelPrefix",
+    matchValue: "gemini-.*-tts",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        audioGeneration: true,
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description: "Gemini TTS 语音生成模型（覆盖 2.5 Flash TTS / 2.5 Pro TTS / 3.1 Flash TTS）",
   },
 
   {

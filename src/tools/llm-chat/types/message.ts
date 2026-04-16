@@ -306,6 +306,10 @@ export interface ChatMessageNode {
     isContinuation?: boolean;
     /** 续写时的原始前缀内容 */
     continuationPrefix?: string;
+    /** 是否为重新解析工具产生的节点 */
+    isReparse?: boolean;
+    /** 工具执行是否被取消（静默取消或手动拒绝） */
+    isCancelled?: boolean;
     /** 是否为压缩/摘要节点 */
     isCompressionNode?: boolean;
     /** 被此节点压缩/隐藏的节点 ID 列表 */

@@ -696,11 +696,12 @@ export function useChatHandler() {
       return;
     }
 
-    // 边界检查：如果节点已有子节点，警告用户可能覆盖现有结果
+    // 架构说明：重新解析工具调用本质上是在 Assistant 节点下开启一个新的工具调用分支
+    // 我们的树形架构天然支持这一点，新生成的 Tool 节点将作为 assistantNode 的新子节点
     if (assistantNode.childrenIds.length > 0) {
-      logger.warn("重新解析警告：目标节点已有子节点，可能覆盖现有工具调用结果", {
+      logger.info("重新解析：目标节点已有子节点，将创建新的工具分支", {
         nodeId,
-        childrenCount: assistantNode.childrenIds.length,
+        existingChildren: assistantNode.childrenIds.length,
       });
     }
 

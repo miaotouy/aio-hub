@@ -139,6 +139,12 @@ export function useToolCallOrchestrator() {
             const logPrefix = isReparse ? "🛠️ 重新解析：" : "🛠️";
             logger.info(`${logPrefix}检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
 
+            // 如果是重新解析模式，我们不修改原始助手节点的元数据，
+            // 而是将这些请求信息记录在即将创建的工具节点或新的元数据快照中？
+            // 不，为了保持逻辑一致，我们还是记录在当前助手节点上，
+            // 但因为是 push 到 childrenIds，它会产生新分支。
+            
+            // 1. 更新助手节点的元数据，记录请求
             currentAssistantNode.metadata = {
               ...currentAssistantNode.metadata,
               toolCallsRequested: parsedRequests.map((req) => ({
@@ -149,6 +155,7 @@ export function useToolCallOrchestrator() {
               })),
             };
 
+            // 2. 创建工具节点
             toolNode = {
               id: `tool-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
               parentId: currentAssistantNode.id,
@@ -157,13 +164,18 @@ export function useToolCallOrchestrator() {
               content: "",
               status: "generating",
               timestamp: new Date().toISOString(),
-              metadata: { agentId: executionAgent.id },
+              metadata: {
+                agentId: executionAgent.id,
+                isReparse: isReparse || undefined,
+              },
             };
 
+            // 3. 挂载到会话树
             if (session.nodes) session.nodes[toolNode.id] = toolNode;
             currentAssistantNode.childrenIds.push(toolNode.id);
             generatingNodes.add(toolNode.id);
 
+            // 4. 切换到新分支
             nodeManager.updateActiveLeaf(session, toolNode.id);
             const chatStore = await import("../../stores/llmChatStore").then((m) => m.useLlmChatStore());
             const index = chatStore.sessionIndexMap.get(session.id);
@@ -209,12 +221,18 @@ export function useToolCallOrchestrator() {
                 executionAgent.toolCallConfig.protocol,
               );
 
+              // 如果是静默取消，必须确保工具节点已创建并标记为取消
+              if (hasSilentCancel) {
+                await ensureNodesCreated(cycleResult.parsedRequests);
+              }
+
               if (toolNode) {
                 const node = toolNode as ChatMessageNode;
                 node.status = "complete";
                 node.content = hasSilentCancel ? "已取消执行" : toolResultText;
                 node.metadata = {
                   ...node.metadata,
+                  isCancelled: hasSilentCancel || undefined,
                   toolCalls: cycleResult.executionResults.map((res, idx) => ({
                     requestId: res.requestId,
                     toolName: res.toolName,

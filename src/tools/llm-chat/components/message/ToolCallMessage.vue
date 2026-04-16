@@ -255,6 +255,7 @@ const toolCalls = computed(() => {
 });
 
 const mainStatus = computed(() => {
+  if (props.message.metadata?.isCancelled) return "cancelled";
   if (toolCalls.value.length === 0) return "pending";
   if (toolCalls.value.some((t) => t.status === "error" || t.status === "denied")) return "error";
   return "success";
@@ -266,6 +267,8 @@ const statusIcon = computed(() => {
       return Play;
     case "error":
       return AlertCircle;
+    case "cancelled":
+      return XCircle;
     default:
       return Terminal;
   }
@@ -877,6 +880,9 @@ defineExpose({
 .tool-bar.status-denied {
   color: var(--el-color-danger);
 }
+.tool-bar.status-cancelled {
+  color: var(--el-color-info);
+}
 
 .bar-line {
   flex: 1;
@@ -957,6 +963,12 @@ defineExpose({
   background-color: color-mix(in srgb, var(--el-color-danger) 10%, var(--card-bg));
   color: var(--el-color-danger);
   border-color: color-mix(in srgb, var(--el-color-danger) 30%, var(--border-color));
+}
+
+.role-badge.tool.status-cancelled {
+  background-color: color-mix(in srgb, var(--el-color-info) 10%, var(--card-bg));
+  color: var(--el-color-info);
+  border-color: color-mix(in srgb, var(--el-color-info) 30%, var(--border-color));
 }
 
 .tool-name {
@@ -1311,6 +1323,10 @@ defineExpose({
 .preview-status-tag.status-error {
   background: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
   color: var(--el-color-danger);
+}
+.preview-status-tag.status-cancelled {
+  background: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  color: var(--el-color-info);
 }
 
 /* 元数据 */

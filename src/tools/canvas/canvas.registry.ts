@@ -1,4 +1,4 @@
-import type { ToolConfig, ToolRegistry, ServiceMetadata } from "@/services/types";
+import type { ToolConfig, ToolRegistry, ServiceMetadata, AgentExtensionContext } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import { Brush } from "@element-plus/icons-vue";
@@ -56,8 +56,8 @@ export class CanvasRegistry implements ToolRegistry {
   /**
    * 为 Agent 提供额外的上下文信息
    */
-  async getExtraPromptContext(): Promise<string> {
-    return await canvasAgentService.getExtraPromptContext();
+  async getExtraPromptContext(context?: AgentExtensionContext): Promise<string> {
+    return await canvasAgentService.getExtraPromptContext(context);
   }
   public getMetadata(): ServiceMetadata {
     return {

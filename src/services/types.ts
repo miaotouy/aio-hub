@@ -125,8 +125,21 @@ export interface AgentExtension {
   /**
    * 允许扩展提供额外的 Prompt 上下文。
    * 用于向 Agent 注入当前环境信息、运行时状态或操作指南。
+   * @param context 可选的运行时上下文（由上层解析并下推）
    */
-  getExtraPromptContext?(): string | Promise<string>;
+  getExtraPromptContext?(context?: AgentExtensionContext): string | Promise<string>;
+}
+
+/**
+ * Agent 扩展上下文（配置下推模式）
+ * 由中间层解析 Agent 配置后传递给工具
+ */
+export interface AgentExtensionContext {
+  /**
+   * 当前工具的特定配置分片
+   * 从 agent.toolCallConfig.toolSettings[extensionId] 提取
+   */
+  toolSettings?: Record<string, any>;
 }
 
 export interface ToolRegistry extends AgentExtension {

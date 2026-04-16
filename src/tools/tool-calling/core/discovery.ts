@@ -1,4 +1,4 @@
-import type { MethodMetadata, ToolRegistry } from "@/services/types";
+import type { AgentExtensionContext, MethodMetadata, ToolRegistry } from "@/services/types";
 import { toolRegistryManager } from "@/services/registry";
 import { useToolsStore } from "@/stores/tools";
 import type { AgentExtensionConfig, ToolCallConfig } from "@/tools/llm-chat/types/agent";
@@ -370,7 +370,12 @@ export function createToolDiscoveryService(): {
     const contextPromises = enabledExtensions.map(async (ext) => {
       if (typeof ext.getExtraPromptContext === "function") {
         try {
-          const context = await ext.getExtraPromptContext();
+          // 构建扩展上下文（配置下推）
+          const extensionContext: AgentExtensionContext = {
+            toolSettings: toolConfig.toolSettings?.[ext.id] || {},
+          };
+
+          const context = await ext.getExtraPromptContext(extensionContext);
           if (context && context.trim()) {
             // 统一使用 <context_provider> 标签
             return `<context_provider id="${ext.id}">\n${context.trim()}\n</context_provider>`;

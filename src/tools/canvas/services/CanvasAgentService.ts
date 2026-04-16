@@ -1,8 +1,9 @@
-import { useCanvasStore } from "../stores/canvasStore";
-import { useCanvasStorage } from "../composables/useCanvasStorage";
-import { GitInternalService } from "./GitInternalService";
-import type { DiffResult } from "../types/diff";
+import type { AgentExtensionContext } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
+import { useCanvasStorage } from "../composables/useCanvasStorage";
+import { useCanvasStore } from "../stores/canvasStore";
+import type { DiffResult } from "../types/diff";
+import { GitInternalService } from "./GitInternalService";
 
 const logger = createModuleLogger("Canvas/AgentService");
 
@@ -14,7 +15,7 @@ export class CanvasAgentService {
   /**
    * 为 Agent 提供额外的上下文信息
    */
-  async getExtraPromptContext(): Promise<string> {
+  async getExtraPromptContext(context?: AgentExtensionContext): Promise<string> {
     let canvasStore;
     try {
       canvasStore = useCanvasStore();
@@ -22,10 +23,11 @@ export class CanvasAgentService {
       return "";
     }
 
-    const canvasId = canvasStore.activeCanvasId;
+    // 优先级：Agent 绑定的 ID > UI 激活的 ID
+    const canvasId = context?.toolSettings?.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) return "";
 
-    const activeCanvas = canvasStore.activeCanvas;
+    const activeCanvas = canvasStore.canvasList.find((c) => c.metadata.id === canvasId);
     if (!activeCanvas) return "";
 
     try {

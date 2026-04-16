@@ -4,9 +4,11 @@ export interface ParsedToolRequest {
   requestId: string;
   /** 工具 ID (例如: tool-calling) */
   toolId: string;
-  /** 方法名稱 (例如: testAsyncTask) */
+  /** 方法名称 (例如: testAsyncTask) */
   methodName: string;
-  /** 原始工具名稱 (可能為扁平化格式，用於向下兼容) */
+  /** 方法显示名称 (例如: 测试异步任务) */
+  methodDisplayName?: string;
+  /** 原始工具名称 (可能为扁平化格式，用于向下兼容) */
   toolName: string;
   rawBlock: string;
   args: Record<string, string>;

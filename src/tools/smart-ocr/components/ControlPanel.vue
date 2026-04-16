@@ -633,6 +633,7 @@ const handleNavigateToSettings = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .panel-header {
@@ -642,7 +643,6 @@ const handleNavigateToSettings = () => {
   padding: 16px;
   border-bottom: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   flex-shrink: 0;
   border-radius: 8px 8px 0 0;
 }
@@ -656,14 +656,12 @@ const handleNavigateToSettings = () => {
 
 .panel-content {
   flex: 1;
-  padding: 12px;
   overflow-y: auto;
+  background-color: var(--card-bg);
 }
 
 /* 区块样式 */
 .section-block {
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   margin-bottom: 12px;

@@ -326,7 +326,9 @@ const handleAbortNode = (nodeId: string) => {
 const handleReparseTools = async (nodeId: string) => {
   try {
     customMessage.info("正在重新解析工具...");
-    await store.reparseNodeTools(nodeId);
+    await store.reparseNodeTools(nodeId, {
+      temporaryModel: inputManager.temporaryModel.value,
+    });
     customMessage.success("工具重新解析完成");
   } catch (error) {
     logger.error("重新解析工具失败", error);

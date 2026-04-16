@@ -681,6 +681,7 @@ export function useChatHandler() {
     nodeId: string,
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
+    options?: { temporaryModel?: ModelIdentifier | null },
   ): Promise<void> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -728,6 +729,31 @@ export function useChatHandler() {
     if (!agentConfig) {
       logger.warn("重新解析失败：无法获取 Agent 配置", { nodeId, agentId });
       return;
+    }
+
+    // 如果提供了临时模型，则覆盖配置
+    if (options?.temporaryModel) {
+      const targetProfile = getProfileById(options.temporaryModel.profileId);
+      const targetModel = targetProfile?.models.find((m) => m.id === options.temporaryModel?.modelId);
+
+      if (targetProfile && targetModel) {
+        agentConfig.modelId = options.temporaryModel.modelId;
+        agentConfig.profileId = options.temporaryModel.profileId;
+
+        // 过滤参数
+        const { getSupportedParameters } = useLlmProfiles();
+        const supportedParameters = getSupportedParameters(targetProfile.type);
+        agentConfig.parameters = filterParametersForModel(
+          agentConfig.parameters,
+          supportedParameters,
+          targetModel.capabilities,
+        );
+
+        logger.info("重新解析使用临时指定的模型", {
+          modelId: agentConfig.modelId,
+          profileId: agentConfig.profileId,
+        });
+      }
     }
 
     const currentAgent = agentStore.getAgentById(agentId);

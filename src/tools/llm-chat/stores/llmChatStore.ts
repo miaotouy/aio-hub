@@ -901,11 +901,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sendMessage,
     regenerateFromNode,
     regenerateLastMessage,
-    reparseNodeTools: async (nodeId: string): Promise<void> => {
+    reparseNodeTools: async (nodeId: string, options?: { temporaryModel?: ModelIdentifier | null }): Promise<void> => {
       const detail = currentSessionDetail.value;
       if (!detail) return;
       const chatHandler = useChatHandler();
-      await chatHandler.reparseNodeTools(detail, nodeId, abortControllers.value, generatingNodes.value);
+      await chatHandler.reparseNodeTools(detail, nodeId, abortControllers.value, generatingNodes.value, options);
     },
     continueGeneration,
     completeInput,

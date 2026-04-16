@@ -1429,6 +1429,79 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "通义千问 QwQ 系列模型",
   },
 
+  // Qwen3.6 系列（最新旗舰视觉语言模型，优先级高于 qwen3）
+  {
+    id: "model-prefix-qwen3.6",
+    matchType: "modelPrefix",
+    matchValue: "qwen3.6",
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+      tokenizer: "qwen3",
+      capabilities: {
+        vision: true,
+        thinking: true,
+      },
+    },
+    priority: 27,
+    enabled: true,
+    description: "通义千问 Qwen3.6 系列模型（原生视觉语言 + 深度思考）",
+  },
+
+  // Qwen3.5 系列（视觉语言模型，优先级高于 qwen3）
+  {
+    id: "model-prefix-qwen3.5",
+    matchType: "modelPrefix",
+    matchValue: "qwen3.5",
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+      tokenizer: "qwen3",
+      capabilities: {
+        vision: true,
+        thinking: true,
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description: "通义千问 Qwen3.5 系列模型（原生视觉语言 + 深度思考）",
+  },
+
+  // Qwen3-VL 视觉理解系列（在 qwen3 基础上覆盖能力，优先级高于 qwen3）
+  {
+    id: "model-prefix-qwen3-vl",
+    matchType: "modelPrefix",
+    matchValue: "qwen3-vl",
+    properties: {
+      capabilities: {
+        vision: true,
+        thinking: true,
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description: "Qwen3-VL 视觉理解系列（深度思考 + 视觉）",
+  },
+
+  // QVQ 视觉推理系列（不同于 QwQ 文本推理）
+  {
+    id: "model-prefix-qvq",
+    matchType: "modelPrefix",
+    matchValue: "qvq-",
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+      tokenizer: "qwen3",
+      capabilities: {
+        vision: true,
+        thinking: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "通义千问 QVQ 视觉推理系列模型",
+  },
+
   // 字节跳动豆包系列模型
   {
     id: "model-prefix-doubao",
@@ -1873,6 +1946,57 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "千问万象系列模型图标",
   },
 
+  // 万象（Wan）wan2.x 系列基础图标匹配
+  {
+    id: "model-prefix-wan",
+    matchType: "modelPrefix",
+    matchValue: "wan2\\.\\d",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+    },
+    priority: 20,
+    enabled: true,
+    description: "万象（Wan）wan2.x 系列模型图标",
+  },
+
+  // 万象视频生成系列（I2V / R2V / T2V / VideoEdit）
+  {
+    id: "model-prefix-wan-video",
+    matchType: "modelPrefix",
+    matchValue: "wan2\\.\\d+-(?:i2v|r2v|t2v|videoedit)",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+      capabilities: {
+        videoGeneration: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "万象（Wan）视频生成系列（图生视频 / 参考视频 / 文生视频 / 视频编辑）",
+  },
+
+  // 万象图片生成系列（T2I / Image）
+  {
+    id: "model-prefix-wan-image-gen",
+    matchType: "modelPrefix",
+    matchValue: "wan2\\.\\d+-(?:image|t2i)",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+      capabilities: {
+        imageGeneration: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "万象（Wan）图片生成系列（文生图 / 图片编辑）",
+  },
+
   // StepFun 系列模型
   {
     id: "model-prefix-stepfun",
@@ -2297,5 +2421,57 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 30,
     enabled: true,
     description: "Luma Dream Machine 视频生成模型",
+  },
+
+  // 通义千问 Qwen Image Edit 官方图片编辑系列（优先级高于 qwen-image，先匹配 edit）
+  {
+    id: "model-qwen-image-edit-official",
+    matchType: "modelPrefix",
+    matchValue: "qwen-image-edit",
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+    },
+    priority: 35,
+    enabled: true,
+    description: "Qwen Image Edit 官方图片编辑系列（qwen-image-edit-max / qwen-image-edit-plus，支持迭代修改）",
+  },
+
+  // 通义千问 Qwen Image 官方图片生成系列
+  {
+    id: "model-qwen-image-official",
+    matchType: "modelPrefix",
+    matchValue: "qwen-image",
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Qwen",
+      capabilities: {
+        imageGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "Qwen Image 官方图片生成系列（qwen-image-2.0 / qwen-image-max / qwen-image-plus）",
+  },
+
+  // Z AI 图像生成系列（Z-Image-Turbo 等）
+  {
+    id: "model-z-image",
+    matchType: "modelPrefix",
+    matchValue: "z-image",
+    properties: {
+      icon: `/model-icons/zai.svg`,
+      group: "Z AI",
+      capabilities: {
+        imageGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "Z AI 图像生成系列（Z-Image-Turbo，文生图开源模型）",
   },
 ];

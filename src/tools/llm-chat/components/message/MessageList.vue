@@ -30,6 +30,7 @@ interface Emits {
   (e: "continue", nodeId: string, options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch", nodeId: string): void;
   (e: "analyze-context", nodeId: string): void;
+  (e: "reparse-tools", nodeId: string): void;
   (e: "save-to-branch", nodeId: string, newContent: string, attachments?: Asset[]): void;
 }
 
@@ -534,6 +535,7 @@ defineExpose({
               @continue="handleContinue($event, displayMessages[virtualItem.index].id)"
               @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
               @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
+              @reparse-tools="emit('reparse-tools', displayMessages[virtualItem.index].id)"
               @save-to-branch="handleSaveToBranch(displayMessages[virtualItem.index].id, $event)"
               @update-translation="
                 (translation: any) => store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
@@ -576,6 +578,7 @@ defineExpose({
               @continue="handleContinue($event, displayMessages[virtualItem.index].id)"
               @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
               @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
+              @reparse-tools="emit('reparse-tools', displayMessages[virtualItem.index].id)"
               @update-translation="
                 (translation: any) => store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
               "

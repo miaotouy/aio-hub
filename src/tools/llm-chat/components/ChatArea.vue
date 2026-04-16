@@ -63,6 +63,7 @@ interface Emits {
   (e: "create-branch", nodeId: string): void;
   (e: "analyze-context", nodeId: string): void;
   (e: "save-to-branch", nodeId: string, newContent: string, attachments?: Asset[]): void;
+  (e: "reparse-tools", nodeId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -493,6 +494,7 @@ const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
 const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
 const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: Asset[]) =>
   emit("save-to-branch", nodeId, newContent, attachments);
+const handleReparseTools = (nodeId: string) => emit("reparse-tools", nodeId);
 
 // ===== 响应式显示控制 =====
 // 阈值设定原则：空间不足时优先去掉文字显示，保住图标和关键操作
@@ -823,6 +825,7 @@ onMounted(async () => {
               @create-branch="handleCreateBranch"
               @analyze-context="handleAnalyzeContext"
               @save-to-branch="handleSaveToBranch"
+              @reparse-tools="handleReparseTools"
               :style="contentWidthStyle"
             />
 

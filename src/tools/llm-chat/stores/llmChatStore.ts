@@ -900,6 +900,12 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sendMessage,
     regenerateFromNode,
     regenerateLastMessage,
+    reparseNodeTools: async (nodeId: string): Promise<void> => {
+      const detail = currentSessionDetail.value;
+      if (!detail) return;
+      const chatHandler = useChatHandler();
+      await chatHandler.reparseNodeTools(detail, nodeId, abortControllers.value, generatingNodes.value);
+    },
     continueGeneration,
     completeInput,
     abortSending,

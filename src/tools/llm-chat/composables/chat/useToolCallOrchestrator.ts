@@ -32,6 +32,8 @@ export interface OrchestrateParams {
   generatingNodes: Set<string>;
   /** 是否为 VCP 渠道 */
   isVcpChannel: boolean;
+  /** 是否为重新解析模式（跳过第一轮 LLM 请求，直接解析现有内容） */
+  isReparse?: boolean;
 }
 
 export function useToolCallOrchestrator() {
@@ -55,6 +57,7 @@ export function useToolCallOrchestrator() {
       abortControllers,
       generatingNodes,
       isVcpChannel,
+      isReparse = false,
     } = params;
 
     // 1. 创建共享的 AbortController
@@ -69,7 +72,10 @@ export function useToolCallOrchestrator() {
       abortControllers.set(nodeId, abortController);
     };
 
-    registerNode(assistantNode.id);
+    // 重新解析模式下，只在需要新请求时才标记为生成中
+    if (!isReparse) {
+      registerNode(assistantNode.id);
+    }
 
     let currentAssistantNode = assistantNode;
     let currentPathToUserNode = [...pathToUserNode];
@@ -79,26 +85,41 @@ export function useToolCallOrchestrator() {
     try {
       while (iterationCount < maxIterations) {
         iterationCount++;
-        if (iterationCount > 1) {
-          logger.info(`🔄 开始第 ${iterationCount} 轮工具调用迭代...`);
+        
+        let responseContent: string;
+
+        // 2. 执行单次请求（重新解析模式下第一轮跳过）
+        if (isReparse && iterationCount === 1) {
+          // 重新解析模式：直接使用现有内容
+          logger.info(`🔄 重新解析模式：使用现有内容进行工具调用检测`);
+          responseContent = currentAssistantNode.content;
+        } else {
+          if (iterationCount > 1) {
+            logger.info(`🔄 开始第 ${iterationCount} 轮工具调用迭代...`);
+          }
+          
+          // 确保节点已注册
+          if (!generatingNodes.has(currentAssistantNode.id)) {
+            registerNode(currentAssistantNode.id);
+          }
+
+          const { response } = await executeSingleNode({
+            session,
+            assistantNode: currentAssistantNode,
+            currentPathToUserNode,
+            isContinuation: iterationCount === 1 ? isContinuation : false,
+            agentConfig,
+            executionAgent,
+            effectiveUserProfile,
+            abortController,
+          });
+
+          // 节点完成后立即从生成集合中移除
+          generatingNodes.delete(currentAssistantNode.id);
+
+          if (!response) break;
+          responseContent = response.content;
         }
-
-        // 2. 执行单次请求
-        const { response } = await executeSingleNode({
-          session,
-          assistantNode: currentAssistantNode,
-          currentPathToUserNode,
-          isContinuation: iterationCount === 1 ? isContinuation : false,
-          agentConfig,
-          executionAgent,
-          effectiveUserProfile,
-          abortController,
-        });
-
-        // 节点完成后立即从生成集合中移除
-        generatingNodes.delete(currentAssistantNode.id);
-
-        if (!response) break;
 
         // 3. 工具调用检测与执行
         if (executionAgent.toolCallConfig?.enabled && !isVcpChannel) {
@@ -115,7 +136,8 @@ export function useToolCallOrchestrator() {
             await new Promise((resolve) => setTimeout(resolve, 200));
             if (toolNode) return;
 
-            logger.info(`🛠️ 检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
+            const logPrefix = isReparse ? "🛠️ 重新解析：" : "🛠️";
+            logger.info(`${logPrefix}检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
 
             currentAssistantNode.metadata = {
               ...currentAssistantNode.metadata,
@@ -151,7 +173,7 @@ export function useToolCallOrchestrator() {
           };
 
           const cycleResult = await processCycle(
-            response.content,
+            responseContent,
             executionAgent.toolCallConfig,
             async (request) => await toolCallingStore.requestApproval(session.id, request),
             async (requestId, status) => {
@@ -291,7 +313,7 @@ export function useToolCallOrchestrator() {
       const llmChatStore = await import("../../stores/llmChatStore").then((m) => m.useLlmChatStore());
       llmChatStore.generateSessionTopic(session.id);
     } catch (error) {
-      handleNodeError(session, assistantNode.id, error, "请求执行");
+      handleNodeError(session, assistantNode.id, error, isReparse ? "重新解析执行" : "请求执行");
     } finally {
       // 5. 清理状态
       abortControllers.delete(assistantNode.id);
@@ -305,5 +327,13 @@ export function useToolCallOrchestrator() {
     }
   };
 
-  return { orchestrate };
+  /**
+   * 重新解析已有节点中的工具调用并继续执行
+   * 这是 orchestrate 的便捷包装，设置 isReparse=true
+   */
+  const reparseAndOrchestrate = async (params: OrchestrateParams): Promise<void> => {
+    return orchestrate({ ...params, isReparse: true });
+  };
+
+  return { orchestrate, reparseAndOrchestrate };
 }

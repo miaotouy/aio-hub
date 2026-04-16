@@ -25,6 +25,7 @@ import {
   StepForward,
   Hash,
   Variable,
+  Wand2,
 } from "lucide-vue-next";
 import type {
   ChatMessageNode,
@@ -70,6 +71,7 @@ interface Emits {
   (e: "translate", targetLang?: string): void;
   (e: "toggle-translation-visible"): void;
   (e: "change-translation-mode", mode: TranslationDisplayMode): void;
+  (e: "reparse-tools"): void;
 }
 
 const agentStore = useAgentStore();
@@ -251,6 +253,7 @@ const handleRegenerateWithModel = async () => {
   // result 为 null 表示用户取消选择，不做任何操作
 };
 const handleToggleEnabled = () => emit("toggle-enabled");
+const handleReparseTools = () => emit("reparse-tools");
 const handleAbort = () => {
   logger.info("停止按钮点击", {
     nodeId: props.message.id,
@@ -594,6 +597,15 @@ const handleTranslateClick = (e: MouseEvent) => {
               <div class="dropdown-item-content">
                 <Hash :size="16" />
                 <span>重新计算 Token</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item
+              v-if="isAssistantMessage && !isGenerating"
+              @click="handleReparseTools"
+            >
+              <div class="dropdown-item-content">
+                <Wand2 :size="16" />
+                <span>重新解析工具</span>
               </div>
             </el-dropdown-item>
             <el-dropdown-item

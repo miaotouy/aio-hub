@@ -22,6 +22,7 @@ const ContextAnalyzerDialog = defineAsyncComponent(
 );
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
 import { initializeMacroEngine } from "./macro-engine";
 import { initAgentAssetCache } from "./utils/agentAssetUtils";
 import { useChatInputManager } from "./composables/input/useChatInputManager";
@@ -321,6 +322,18 @@ const handleAbortNode = (nodeId: string) => {
   store.abortNodeGeneration(nodeId);
 };
 
+// 处理重新解析工具
+const handleReparseTools = async (nodeId: string) => {
+  try {
+    customMessage.info("正在重新解析工具...");
+    await store.reparseNodeTools(nodeId);
+    customMessage.success("工具重新解析完成");
+  } catch (error) {
+    logger.error("重新解析工具失败", error);
+    customMessage.error("重新解析失败");
+  }
+};
+
 // 处理打开上下文分析器
 const handleAnalyzeContext = (nodeId: string) => {
   logger.info("打开上下文分析器", { nodeId });
@@ -453,6 +466,7 @@ useStateSyncEngine(parametersToSync, {
             @create-branch="handleCreateBranch"
             @analyze-context="handleAnalyzeContext"
             @save-to-branch="handleSaveToBranch"
+            @reparse-tools="handleReparseTools"
             @continue="handleContinue"
             @complete-input="handleCompleteInput"
             @select-continuation-model="handleSelectContinuationModel"

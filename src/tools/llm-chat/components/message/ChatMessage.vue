@@ -38,6 +38,7 @@ interface Emits {
   (e: "continue", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
   (e: "analyze-context"): void;
+  (e: "reparse-tools"): void;
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
   (
     e: "update-translation",
@@ -300,6 +301,7 @@ defineExpose({
         @continue="onContinue"
         @create-branch="emit('create-branch')"
         @analyze-context="emit('analyze-context')"
+        @reparse-tools="emit('reparse-tools')"
         @translate="handleTranslate"
         @change-translation-mode="handleChangeTranslationMode"
         @toggle-translation-visible="handleToggleTranslationVisible"

@@ -21,6 +21,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useChatExecutor } from "./useChatExecutor";
+import { useToolCallOrchestrator } from "./useToolCallOrchestrator";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useContextCompressor } from "../features/useContextCompressor";
 import { filterParametersForModel } from "../../config/parameter-config";
@@ -30,6 +31,7 @@ import { type ContextPreviewData, type GetContextPreviewOptions } from "../../ty
 import type { ModelIdentifier } from "../../types";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useChatSettings } from "../settings/useChatSettings";
+import type { UserProfile } from "../../types";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -44,6 +46,7 @@ export function useChatHandler() {
     saveUserProfileSnapshot,
     getContextForPreview,
   } = useChatExecutor();
+  const { reparseAndOrchestrate } = useToolCallOrchestrator();
   const { checkAndCompress } = useContextCompressor();
 
   /**
@@ -673,11 +676,109 @@ export function useChatHandler() {
     return result;
   };
 
+  /**
+   * 重新解析节点中的工具调用
+   */
+  const reparseNodeTools = async (
+    session: ChatSessionDetail,
+    nodeId: string,
+    abortControllers: Map<string, AbortController>,
+    generatingNodes: Set<string>,
+  ): Promise<void> => {
+    const agentStore = useAgentStore();
+    const nodeManager = useNodeManager();
+    const userProfileStore = useUserProfileStore();
+    const { getProfileById } = useLlmProfiles();
+
+    const assistantNode = session.nodes ? session.nodes[nodeId] : undefined;
+    if (!assistantNode || assistantNode.role !== "assistant") {
+      logger.warn("重新解析失败：目标节点不是助手消息", { nodeId });
+      return;
+    }
+
+    // 边界检查：如果节点已有子节点，警告用户可能覆盖现有结果
+    if (assistantNode.childrenIds.length > 0) {
+      logger.warn("重新解析警告：目标节点已有子节点，可能覆盖现有工具调用结果", {
+        nodeId,
+        childrenCount: assistantNode.childrenIds.length,
+      });
+    }
+
+    // 获取到该助手节点的完整路径（包含该节点本身）
+    // 这样可以正确构建上下文，即使该节点的父节点是 tool 节点
+    const pathToAssistantNode = nodeManager.getNodePath(session, nodeId);
+    
+    // 从路径中找到最近的 user 节点
+    let pathToUserNode = pathToAssistantNode;
+    for (let i = pathToAssistantNode.length - 1; i >= 0; i--) {
+      if (pathToAssistantNode[i].role === "user") {
+        pathToUserNode = pathToAssistantNode.slice(0, i + 1);
+        break;
+      }
+    }
+
+    // 获取配置
+    const agentId = assistantNode.metadata?.agentId || agentStore.currentAgentId;
+    if (!agentId) {
+      logger.warn("重新解析失败：无法确定 Agent ID", { nodeId });
+      return;
+    }
+
+    const agentConfig = agentStore.getAgentConfig(agentId, {
+      parameterOverrides: session.parameterOverrides,
+    });
+    if (!agentConfig) {
+      logger.warn("重新解析失败：无法获取 Agent 配置", { nodeId, agentId });
+      return;
+    }
+
+    const currentAgent = agentStore.getAgentById(agentId);
+    if (!currentAgent) {
+      logger.warn("重新解析失败：Agent 不存在", { nodeId, agentId });
+      return;
+    }
+    
+    const executionAgent = { ...currentAgent, ...agentConfig };
+
+    // 获取用户档案
+    let effectiveUserProfile: UserProfile | null = null;
+    const profileId = currentAgent.userProfileId || userProfileStore.globalProfileId;
+    if (profileId) {
+      effectiveUserProfile = userProfileStore.getProfileById(profileId) || null;
+    }
+
+    const profile = getProfileById(agentConfig.profileId);
+    const vcpStore = (await import("@/tools/vcp-connector/stores/vcpConnectorStore")).useVcpStore();
+    const { isSameHost } = await import("../useIsVcpChannel");
+    const isVcpChannel =
+      profile?.baseUrl && vcpStore.config.wsUrl ? isSameHost(profile.baseUrl, vcpStore.config.wsUrl) : false;
+
+    logger.info("开始重新解析工具调用", {
+      nodeId,
+      agentId,
+      pathLength: pathToUserNode.length,
+      hasChildren: assistantNode.childrenIds.length > 0,
+    });
+
+    await reparseAndOrchestrate({
+      session,
+      assistantNode,
+      pathToUserNode,
+      agentConfig,
+      executionAgent,
+      effectiveUserProfile,
+      abortControllers,
+      generatingNodes,
+      isVcpChannel,
+    });
+  };
+
   return {
     sendMessage,
     regenerateFromNode,
     continueGeneration,
     completeInput,
     getLlmContextForPreview,
+    reparseNodeTools,
   };
 }

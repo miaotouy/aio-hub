@@ -5,7 +5,7 @@ import { useCanvasStore } from "../../stores/canvasStore";
 import type { CanvasFileNode } from "../../types";
 import CanvasFileTree from "../sidebar/CanvasFileTree.vue";
 import PendingChangesBar from "../shared/PendingChangesBar.vue";
-import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import CanvasMonacoEditor from "../editor/CanvasMonacoEditor.vue";
 import { useDebounceFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import { useCanvasWindowManager } from "../../composables/useCanvasWindowManager";
@@ -229,10 +229,11 @@ watch(activeTab, (newTab) => {
       <!-- 编辑器区域 -->
       <main class="editor-main">
         <template v-if="activeTab">
-          <RichCodeEditor
+          <CanvasMonacoEditor
             v-model="fileContent"
+            :canvas-id="canvasId"
+            :filepath="activeTab"
             :language="currentLanguage"
-            editor-type="monaco"
             @update:model-value="handleContentChange"
           />
         </template>
@@ -440,10 +441,6 @@ watch(activeTab, (newTab) => {
     display: flex;
     flex-direction: column;
 
-    :deep(.rich-code-editor-wrapper) {
-      border: none;
-      border-radius: 0;
-    }
   }
 
   .empty-editor {

@@ -1,11 +1,8 @@
 import type { ToolConfig, ToolRegistry, ServiceMetadata } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
-import { useCanvasStore } from "./stores/canvasStore";
 import { Brush } from "@element-plus/icons-vue";
-import { useCanvasStorage } from "./composables/useCanvasStorage";
-import { GitInternalService } from "./services/GitInternalService";
-import { type DiffResult } from "./types/diff";
+import { canvasAgentService } from "./services/CanvasAgentService";
 
 export const toolConfig: ToolConfig = {
   name: "画布",
@@ -60,76 +57,8 @@ export class CanvasRegistry implements ToolRegistry {
    * 为 Agent 提供额外的上下文信息
    */
   async getExtraPromptContext(): Promise<string> {
-    let canvasStore;
-    try {
-      canvasStore = useCanvasStore();
-    } catch {
-      return "";
-    }
-
-    const canvasId = canvasStore.activeCanvasId;
-    if (!canvasId) return "";
-
-    const activeCanvas = canvasStore.activeCanvas;
-    if (!activeCanvas) return "";
-
-    try {
-      const fileTree = await canvasStore.getFileTree(canvasId);
-      const dirtyFiles = canvasStore.dirtyFiles;
-
-      const buildFileList = (nodes: any[], indent = ""): string => {
-        return nodes
-          .map((node) => {
-            const statusTag =
-              node.status === "modified"
-                ? " (modified)"
-                : node.status === "new"
-                  ? " (new)"
-                  : node.status === "deleted"
-                    ? " (deleted)"
-                    : "";
-            if (node.isDirectory) {
-              const children = node.children ? buildFileList(node.children, indent + "  ") : "";
-              return `${indent}- ${node.name}/${children ? "\n" + children : ""}`;
-            }
-            return `${indent}- ${node.name}${statusTag}`;
-          })
-          .join("\n");
-      };
-
-      const fileListStr = buildFileList(fileTree);
-      const changesStr =
-        dirtyFiles.size > 0
-          ? Array.from(dirtyFiles.keys())
-              .map((f) => `- ${f}`)
-              .join("\n")
-          : "None";
-
-      let context = `Canvas Project: ${activeCanvas.metadata.name}
-Entry File: ${activeCanvas.metadata.entryFile || "index.html"}
-
-Project Files:
-${fileListStr}
-
-Uncommitted Changes: ${dirtyFiles.size} files
-${changesStr}`;
-
-      // 注入运行时错误信息
-      if (canvasStore.config.autoIncludeErrors) {
-        const errorContext = canvasStore.getFormattedErrorContext(canvasId, canvasStore.config.maxRuntimeErrors);
-        if (errorContext) {
-          context += `\n\n--- RUNTIME ERRORS ---\n${errorContext}\n----------------------`;
-        }
-      }
-
-      context += `\n\n(Agent notice: All changes are immediately written to disk and visible in preview. Use 'commit_changes' to create a Git checkpoint.)`;
-
-      return context;
-    } catch (error) {
-      return "";
-    }
+    return await canvasAgentService.getExtraPromptContext();
   }
-
   public getMetadata(): ServiceMetadata {
     return {
       methods: [
@@ -233,17 +162,7 @@ ${changesStr}`;
   // ==================== Agent Callable Methods ====================
 
   async read_canvas_file(args: { path: string; canvasId?: string }): Promise<string> {
-    const canvasStore = useCanvasStore();
-    const canvasId = args.canvasId || canvasStore.activeCanvasId;
-    if (!canvasId) throw new Error("No active canvas. Please open or create a canvas first.");
-
-    const content = await canvasStore.readCanvasFileAsync(canvasId, args.path);
-    if (content === null) throw new Error(`File not found: ${args.path}`);
-
-    return content
-      .split(/\r?\n/)
-      .map((line: string, index: number) => `${String(index + 1).padStart(4, " ")} | ${line}`)
-      .join("\n");
+    return await canvasAgentService.readFileWithLineNumbers(args.path, args.canvasId);
   }
 
   async apply_canvas_diff(args: {
@@ -253,150 +172,55 @@ ${changesStr}`;
     start_line?: number;
     canvasId?: string;
   }): Promise<string> {
-    const canvasStore = useCanvasStore();
-    const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-
-    const result = (await canvasStore.applyDiff(
-      canvasId,
-      args.path,
-      args.search,
-      args.replace,
-      args.start_line,
-    )) as DiffResult;
-
-    return this.formatDiffFeedback(result, args.path);
-  }
-
-  private formatDiffFeedback(result: DiffResult, filepath: string): string {
-    const parts = [`Applied diff to ${filepath}`];
-
-    // 匹配策略提示
-    if (result.strategy !== "exact") {
-      const strategyLabels: Record<string, string> = {
-        exact: "exact match",
-        trimEnd: "matched after trimming trailing whitespace",
-        trim: "matched after trimming all whitespace (indentation-insensitive)",
-        fuzzy: `fuzzy matched (confidence: ${(result.confidence * 100).toFixed(0)}%)`,
-      };
-      parts.push(`[${strategyLabels[result.strategy]}]`);
-    }
-
-    // 行范围
-    parts.push(`at lines ${result.matchRange[0]}-${result.matchRange[1]}`);
-
-    // 警告
-    if (result.warnings.length > 0) {
-      parts.push(`\nWarnings:\n${result.warnings.map((w) => `- ${w}`).join("\n")}`);
-    }
-
-    return parts.join(" ");
+    return await canvasAgentService.applyDiff(args);
   }
 
   async write_canvas_file(args: { path: string; content: string; canvasId?: string }): Promise<string> {
-    const canvasStore = useCanvasStore();
-    const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-
-    await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
-    return `Successfully wrote to ${args.path}`;
+    return await canvasAgentService.writeFile(args);
   }
 
   async commit_changes(args: { message?: string; canvasId?: string }): Promise<string> {
-    const canvasStore = useCanvasStore();
-    const canvasId = args.canvasId || canvasStore.activeCanvasId;
-    if (!canvasId) throw new Error("No active canvas to commit.");
-    await canvasStore.commitChanges(canvasId, args.message);
-    return "Changes committed successfully.";
+    return await canvasAgentService.commitChanges(args);
   }
 
   async discard_changes(args: { canvasId?: string }): Promise<string> {
-    const canvasStore = useCanvasStore();
-    const canvasId = args.canvasId || canvasStore.activeCanvasId;
-    if (!canvasId) return "No active canvas.";
-    await canvasStore.discardChanges(canvasId);
-    return "Changes discarded.";
+    return await canvasAgentService.discardChanges(args);
   }
 
   async list_canvas_files(args: { canvasId?: string }): Promise<any> {
-    const canvasStore = useCanvasStore();
-    const canvasId = args.canvasId || canvasStore.activeCanvasId;
-    if (!canvasId) return [];
-    return await canvasStore.getFileTree(canvasId);
+    return await canvasAgentService.listFiles(args);
   }
 
   async create_canvas(args: { title: string; templateId?: string }): Promise<any> {
-    const canvasStore = useCanvasStore();
-    const metadata = await canvasStore.createCanvas(args.title, args.templateId);
-    return { success: !!metadata, canvasId: metadata?.id };
+    return await canvasAgentService.createCanvas(args);
   }
 
   async open_window(args: { canvasId: string }): Promise<void> {
+    // open_window 是非 Agent Callable 的内部方法，直接调用 store 即可
+    // 但为了保持一致性，我们也可以通过 Service 暴露，或者保留简单的 store 调用
+    const { useCanvasStore } = await import("./stores/canvasStore");
     const canvasStore = useCanvasStore();
     await canvasStore.openPreviewWindow(args.canvasId);
   }
 
   async clear_runtime_errors(args: { canvasId?: string }): Promise<string> {
-    const canvasStore = useCanvasStore();
-    const canvasId = args.canvasId || canvasStore.activeCanvasId;
-    if (!canvasId) return "No active canvas.";
-
-    canvasStore.clearRuntimeErrors(canvasId);
-    return "Runtime errors cleared.";
+    return await canvasAgentService.clearRuntimeErrors(args);
   }
 
   // ==================== Approval System Hooks ====================
 
   /**
    * 工具调用进入审批挂起前的预览钩子
-   * 重构后：直接写入物理文件，预览窗口自动刷新
    */
   async onToolCallPreview(requestId: string, methodName: string, args: Record<string, any>) {
-    const canvasStore = useCanvasStore();
-
-    if (methodName === "apply_canvas_diff" && args.path && args.search !== undefined && args.replace !== undefined) {
-      const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-      await canvasStore.applyDiff(canvasId, args.path, args.search, args.replace, args.start_line);
-      canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
-    }
-
-    if (methodName === "write_canvas_file" && args.path && args.content) {
-      const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-      await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
-      canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
-    }
+    return await canvasAgentService.onToolCallPreview(requestId, methodName, args);
   }
 
   /**
    * 用户拒绝工具调用后的清理钩子
-   * 通过 git checkout 回退被拒绝的文件
    */
   async onToolCallDiscarded(requestId: string, _methodName: string, _args: Record<string, any>) {
-    const canvasStore = useCanvasStore();
-    const storage = useCanvasStorage();
-    const request = canvasStore.getPreviewRequest(requestId);
-    if (!request) return;
-
-    const basePath = await storage.getCanvasBasePath(request.canvasId);
-    const gitService = new GitInternalService(basePath);
-
-    // 获取当前状态矩阵，判断是否是新文件
-    const matrix = await gitService.statusMatrix();
-
-    for (const filepath of request.affectedFiles) {
-      const fileStatus = matrix?.find(([f]) => f === filepath);
-      if (fileStatus && fileStatus[1] === 0) {
-        // HEAD=0 表示新文件 (untracked)，checkout 不会删除，需要手动删除
-        await storage.deletePhysicalFile(request.canvasId, filepath);
-      } else {
-        // 已存在的文件，回退到 HEAD
-        await gitService.checkout([filepath]);
-      }
-    }
-
-    canvasStore.removePreviewRequest(requestId);
-    // 通知预览窗口刷新
-    request.affectedFiles.forEach((f) => canvasStore.emitFileChanged(request.canvasId, f));
-    // 刷新 Git 状态
-    await canvasStore.refreshGitStatus(request.canvasId);
+    return await canvasAgentService.onToolCallDiscarded(requestId);
   }
 }
 

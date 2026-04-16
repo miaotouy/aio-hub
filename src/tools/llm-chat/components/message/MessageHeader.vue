@@ -162,11 +162,7 @@ const displayIcon = computed<any>(() => {
 
 // 检查是否应该显示副标题（基于设置和数据可用性）
 const shouldShowSubtitle = computed(() => {
-  return (
-    settings.value.uiPreferences.showModelInfo &&
-    props.message.role === "assistant" &&
-    !!agentProfileInfo.value
-  );
+  return settings.value.uiPreferences.showModelInfo && props.message.role === "assistant" && !!agentProfileInfo.value;
 });
 
 const nameForAlt = computed(() => {
@@ -240,15 +236,12 @@ const formatLatency = (ms: number) => {
       <!-- 工具执行状态 -->
       <div v-if="message.role === 'tool' && message.metadata?.toolCall" class="tool-status-tag">
         <div class="status-item" :class="message.metadata.toolCall.status">
-          <component
-            :is="message.metadata.toolCall.status === 'success' ? CheckCircle2 : XCircle"
-            :size="12"
-          />
+          <component :is="message.metadata.toolCall.status === 'success' ? CheckCircle2 : XCircle" :size="12" />
           <span>{{ message.metadata.toolCall.status === "success" ? "已完成" : "失败" }}</span>
         </div>
         <div class="status-item duration">
           <Clock :size="12" />
-          <span>{{ formatLatency(message.metadata.toolCall.durationMs) }}</span>
+          <span>{{ formatLatency(message.metadata.toolCall.durationMs || 0) }}</span>
         </div>
       </div>
 
@@ -265,7 +258,7 @@ const formatLatency = (ms: number) => {
           <span class="stat-item">{{ message.metadata.tokensPerSecond }} t/s</span>
         </el-tooltip>
         <el-tooltip
-          v-if="message.metadata.requestStartTime && message.metadata.firstTokenTime"
+          v-if="message.metadata.requestStartTime !== undefined && message.metadata.firstTokenTime !== undefined"
           content="首字延迟 (TTFT)"
           placement="top"
         >
@@ -279,12 +272,7 @@ const formatLatency = (ms: number) => {
           placement="top"
         >
           <span class="stat-item">
-            {{
-              (
-                (message.metadata.requestEndTime - message.metadata.requestStartTime) /
-                1000
-              ).toFixed(1)
-            }}s
+            {{ ((message.metadata.requestEndTime - message.metadata.requestStartTime) / 1000).toFixed(1) }}s
           </span>
         </el-tooltip>
       </div>

@@ -121,7 +121,11 @@ function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedT
   if (!toolId) {
     errors.push("缺少关键字段: tool_name");
   }
-  if (!command) {
+
+  // 检查是否存在索引化的 command (command1, command2, ...)
+  const hasIndexedCommands = Object.keys(allParams).some((key) => /^command\d+$/.test(key));
+
+  if (!command && !hasIndexedCommands) {
     errors.push("缺少关键字段: command");
   }
 

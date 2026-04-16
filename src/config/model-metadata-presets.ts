@@ -1092,6 +1092,67 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
 
   // Anthropic 系列模型
   {
+    id: "model-prefix-claude-4",
+    matchType: "modelPrefix",
+    matchValue: "claude-(?:sonnet|opus)-4",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/claude-color.svg`,
+      group: "Claude 4",
+      tokenizer: "claude",
+      capabilities: {
+        vision: true,
+        thinking: true,
+        toolUse: true,
+        document: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "Claude 4 系列模型（Sonnet 4 / Opus 4，原生支持视觉与深度思考）",
+  },
+  {
+    id: "model-prefix-claude-3-7",
+    matchType: "modelPrefix",
+    matchValue: "claude-3-7",
+    properties: {
+      icon: `/model-icons/claude-color.svg`,
+      group: "Claude 3.7",
+      tokenizer: "claude",
+      capabilities: {
+        vision: true,
+        thinking: true,
+        toolUse: true,
+        document: true,
+      },
+      deprecated: true,
+      retirementDate: "2026-02-19",
+    },
+    priority: 25,
+    enabled: true,
+    description: "Claude 3.7 系列模型（已退役）",
+  },
+  {
+    id: "model-prefix-claude-3-5",
+    matchType: "modelPrefix",
+    matchValue: "claude-3-5",
+    properties: {
+      icon: `/model-icons/claude-color.svg`,
+      group: "Claude 3.5",
+      tokenizer: "claude",
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        document: true,
+      },
+      deprecated: true,
+      retirementDate: "2026-02-19",
+    },
+    priority: 25,
+    enabled: true,
+    description: "Claude 3.5 系列模型（已退役）",
+  },
+  {
     id: "model-prefix-claude",
     matchType: "modelPrefix",
     matchValue: "claude-",

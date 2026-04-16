@@ -391,7 +391,7 @@ const handleCreateFromBlank = () => {
         timestamp: new Date().toISOString(),
       },
     ],
-    temperature: 0.7,
+    temperature: 1,
     maxTokens: 8192,
   };
 
@@ -429,7 +429,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     // 兼容处理 parameters (扁平化映射到 editDialogInitialData)
     // 注意：EditAgentDialog 内部已经支持处理嵌套的 parameters 对象，
     // 但为了保险和统一，这里我们保留 parameters 对象传递，让 Dialog 内部去解构
-    parameters: parameters ? JSON.parse(JSON.stringify(parameters)) : { temperature: 0.7, maxTokens: 8192 },
+    parameters: parameters ? JSON.parse(JSON.stringify(parameters)) : { temperature: 1, maxTokens: 8192 },
 
     // 深度复制 presetMessages，并确保它们有唯一的 ID，同时保持引用关系
     presetMessages: (() => {

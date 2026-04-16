@@ -82,7 +82,7 @@ const modelParameters = computed<LlmParameters>({
   get: () => {
     return (
       currentAgent.value?.parameters ?? {
-        temperature: 0.7,
+        temperature: 1,
         maxTokens: 4096,
       }
     );

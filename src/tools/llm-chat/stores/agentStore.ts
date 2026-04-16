@@ -120,7 +120,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         // 特殊处理 parameters 的默认值和合并逻辑
         parameters: {
           // 默认值
-          temperature: 0.7,
+          temperature: 1,
           maxTokens: 4096,
           // 传入的标准参数会覆盖默认值
           ...(options?.parameters || {}),
@@ -575,7 +575,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         icon: "✨",
         presetMessages: defaultPresetMessages,
         parameters: {
-          temperature: 0.7,
+          temperature: 1, // 模型逐渐开始不支持温度参数了，已经有部分模型使用非1的值时会报错或空回复
           maxTokens: 4096,
           topP: undefined,
           topK: undefined,
@@ -614,7 +614,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
       // 分别合并基础参数和自定义参数容器
       // 合并参数时需要更智能地处理 custom 结构
-      const baseParams = agent.parameters || { temperature: 0.7, maxTokens: 4096 };
+      const baseParams = agent.parameters || { temperature: 1, maxTokens: 4096 };
       const overrideParams = overrides?.parameterOverrides || {};
 
       const parameters: LlmParameters = {

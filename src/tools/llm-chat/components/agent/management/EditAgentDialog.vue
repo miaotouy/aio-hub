@@ -258,7 +258,7 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
     return;
   }
 
-  let parameters: ChatAgent["parameters"] = { temperature: 0.7, maxTokens: 8192 };
+  let parameters: ChatAgent["parameters"] = { temperature: 1, maxTokens: 8192 };
 
   if (props.mode === "edit" && currentEditingAgent.value) {
     parameters = currentEditingAgent.value.parameters;

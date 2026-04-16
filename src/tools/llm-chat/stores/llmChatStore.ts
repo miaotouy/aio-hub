@@ -40,7 +40,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   const sessionDetailMap = ref<Map<string, ChatSessionDetail>>(new Map());
   const currentSessionId = ref<string | null>(null);
   const parameters = ref<LlmParameters>({
-    temperature: 0.7,
+    temperature: 1,
     maxTokens: 4096,
   });
   const isSending = ref(false);

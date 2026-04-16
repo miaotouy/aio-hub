@@ -48,7 +48,7 @@ describe("OpenAI Adapter - Chat", () => {
         { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: "Hello!" },
       ],
-      temperature: 0.7,
+      temperature: 1,
       maxTokens: 100,
     };
 

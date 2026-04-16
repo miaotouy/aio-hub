@@ -63,7 +63,7 @@ export function useAgentPresets() {
           return {
             ...metadata,
             presetMessages: [],
-            parameters: { temperature: 0.7, maxTokens: 4096 }
+            parameters: { temperature: 1, maxTokens: 4096 }
           } as AgentPreset;
         }
         return null;

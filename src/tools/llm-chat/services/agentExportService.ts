@@ -224,7 +224,7 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
       } = agent;
       const exportableAgent: ExportableAgent = {
         ...exportableAgentBase,
-        parameters: exportableAgentBase.parameters || { temperature: 0.7, maxTokens: 4096 }
+        parameters: exportableAgentBase.parameters || { temperature: 1, maxTokens: 4096 }
       };
 
       // 清理预设消息中的运行时元数据

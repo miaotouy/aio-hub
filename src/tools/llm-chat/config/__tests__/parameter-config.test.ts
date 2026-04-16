@@ -6,7 +6,7 @@ import type { LlmParameterSupport, ModelCapabilities } from "@/types/llm-profile
 describe("parameter-config", () => {
   describe("filterParametersForModel", () => {
     const mockParameters: LlmParameters = {
-      temperature: 0.7,
+      temperature: 1,
       maxTokens: 2000,
       topP: 0.9,
       thinkingEnabled: true,

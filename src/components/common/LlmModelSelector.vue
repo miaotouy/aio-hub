@@ -31,7 +31,7 @@ const emit = defineEmits<Emits>();
 
 const router = useRouter();
 const { enabledProfiles } = useLlmProfiles();
-const { getModelIcon } = useModelMetadata();
+const { getModelIcon, getModelGroup } = useModelMetadata();
 
 const goToLlmSettings = () => {
   router.push({ path: "/settings", query: { section: "llm-service" } });
@@ -75,7 +75,17 @@ const availableModels = computed(() => {
     });
   });
 
-  return models;
+  // 排序：先按分组排序，分组相同按 ID 排序
+  return models.sort((a, b) => {
+    const groupA = getModelGroup(a.model);
+    const groupB = getModelGroup(b.model);
+
+    if (groupA !== groupB) {
+      return groupA.localeCompare(groupB, "zh-CN");
+    }
+
+    return a.model.id.localeCompare(b.model.id);
+  });
 });
 
 // 当前选中的模型组合值
@@ -128,12 +138,7 @@ const modelGroups = computed(() => {
           :value="item.value"
         >
           <div class="option-item">
-            <DynamicIcon
-              :src="getModelIcon(item.model) || ''"
-              :alt="item.label"
-              class="model-icon"
-              lazy
-            />
+            <DynamicIcon :src="getModelIcon(item.model) || ''" :alt="item.label" class="model-icon" lazy />
             <span class="model-name">{{ item.label }}</span>
             <el-text v-if="item.model.group" size="small" type="info" class="model-group-tag">
               {{ item.model.group }}

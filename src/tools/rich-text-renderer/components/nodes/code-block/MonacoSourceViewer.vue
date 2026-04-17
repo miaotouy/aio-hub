@@ -105,6 +105,7 @@ let setTheme: (theme: any) => Promise<void> = async () => {};
 let getEditorView: () => any = () => ({ updateOptions: () => {} });
 
 let cleanupResizeObserver: (() => void) | null = null;
+let stopIntersectionObserver: (() => void) | null = null;
 
 const monacoLanguage = computed(() => getMonacoLanguageId(props.language));
 
@@ -393,11 +394,15 @@ onMounted(() => {
         if (isIntersecting && !isIntersected.value) {
           isIntersected.value = true;
           initEditor();
-          stop();
+          if (stopIntersectionObserver) {
+            stopIntersectionObserver();
+            stopIntersectionObserver = null;
+          }
         }
       },
       { rootMargin: "400px" }
     );
+    stopIntersectionObserver = stop;
   }
 });
 
@@ -411,11 +416,29 @@ onUnmounted(() => {
     cancelAnimationFrame(pendingLayoutFrame);
     pendingLayoutFrame = null;
   }
+  
+  // 必须停止 IntersectionObserver，防止内存泄漏
+  if (stopIntersectionObserver) {
+    stopIntersectionObserver();
+    stopIntersectionObserver = null;
+  }
+
   if (typeof cleanupEditor === "function") cleanupEditor();
+  
   if (cleanupResizeObserver) {
     cleanupResizeObserver();
     cleanupResizeObserver = null;
   }
+
+  // 确保 IntersectionObserver 彻底停止
+  if (stopIntersectionObserver) {
+    (stopIntersectionObserver as any)();
+    stopIntersectionObserver = null;
+  }
+
+  // 清空大字符串引用，帮助 GC
+  lastContent.value = "";
+  isIntersected.value = false;
 });
 
 watch(

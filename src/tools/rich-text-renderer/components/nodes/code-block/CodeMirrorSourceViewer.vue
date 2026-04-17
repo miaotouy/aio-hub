@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import { ref, onMounted, onUnmounted, watch, shallowRef, computed, type WatchStopHandle } from "vue";
 import { EditorState, Compartment } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLineGutter, keymap } from "@codemirror/view";
 import { foldGutter, foldKeymap } from "@codemirror/language";
@@ -41,6 +41,9 @@ const wordWrapCompartment = new Compartment();
 
 const { isDark } = useTheme();
 const cmTheme = computed(() => (isDark.value ? vscodeDark : vscodeLight));
+
+// Watch 停止句柄
+const watchStopHandles: WatchStopHandle[] = [];
 
 const initEditor = async () => {
   if (!containerRef.value) return;
@@ -96,61 +99,79 @@ const initEditor = async () => {
       });
     }
   }
+
+  // 监听 content 变化
+  watchStopHandles.push(
+    watch(
+      () => props.content,
+      (newContent) => {
+        if (editorView.value && newContent !== editorView.value.state.doc.toString()) {
+          editorView.value.dispatch({
+            changes: { from: 0, to: editorView.value.state.doc.length, insert: newContent },
+          });
+        }
+      },
+    ),
+  );
+
+  watchStopHandles.push(
+    watch(cmTheme, (newTheme) => {
+      if (editorView.value) {
+        editorView.value.dispatch({
+          effects: themeCompartment.reconfigure(newTheme),
+        });
+      }
+    }),
+  );
+
+  watchStopHandles.push(
+    watch(
+      () => props.codeFontSize,
+      (size) => {
+        if (editorView.value) {
+          editorView.value.dispatch({
+            effects: fontSizeCompartment.reconfigure(
+              EditorView.theme({
+                "&": { fontSize: `${size}px` },
+              }),
+            ),
+          });
+        }
+      },
+    ),
+  );
+
+  watchStopHandles.push(
+    watch(
+      () => props.wordWrapEnabled,
+      (enabled) => {
+        if (editorView.value) {
+          editorView.value.dispatch({
+            effects: wordWrapCompartment.reconfigure(enabled ? EditorView.lineWrapping : []),
+          });
+        }
+      },
+    ),
+  );
 };
-
-watch(
-  () => props.content,
-  (newContent) => {
-    if (editorView.value && newContent !== editorView.value.state.doc.toString()) {
-      editorView.value.dispatch({
-        changes: { from: 0, to: editorView.value.state.doc.length, insert: newContent },
-      });
-    }
-  },
-);
-
-watch(cmTheme, (newTheme) => {
-  if (editorView.value) {
-    editorView.value.dispatch({
-      effects: themeCompartment.reconfigure(newTheme),
-    });
-  }
-});
-
-watch(
-  () => props.codeFontSize,
-  (size) => {
-    if (editorView.value) {
-      editorView.value.dispatch({
-        effects: fontSizeCompartment.reconfigure(
-          EditorView.theme({
-            "&": { fontSize: `${size}px` },
-          }),
-        ),
-      });
-    }
-  },
-);
-
-watch(
-  () => props.wordWrapEnabled,
-  (enabled) => {
-    if (editorView.value) {
-      editorView.value.dispatch({
-        effects: wordWrapCompartment.reconfigure(enabled ? EditorView.lineWrapping : []),
-      });
-    }
-  },
-);
 
 onMounted(() => {
   initEditor();
 });
 
 onUnmounted(() => {
+  // 停止所有 watch 监听器
+  watchStopHandles.forEach((stop) => stop());
+  watchStopHandles.length = 0;
+
+  // 销毁编辑器实例
   if (editorView.value) {
     editorView.value.destroy();
+    editorView.value = null;
   }
+
+  // 清空容器引用
+  containerRef.value = null;
 });
 </script>
 

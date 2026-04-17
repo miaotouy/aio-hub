@@ -487,6 +487,32 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("message", handleIframeMessage);
+
+  // 强制清理 iframe 内存，这是防止 WebView2 内存泄漏的关键
+  if (iframeRef.value) {
+    try {
+      // 指向空页面以触发内部上下文释放
+      iframeRef.value.src = "about:blank";
+      // 移除所有子节点
+      if (iframeRef.value.contentWindow) {
+        iframeRef.value.contentWindow.document.write("");
+        iframeRef.value.contentWindow.close();
+      }
+    } catch (e) {
+      // 跨域或已销毁时忽略
+    }
+    iframeRef.value.remove();
+    iframeRef.value = null;
+  }
+
+  // 清空大字符串引用，释放内存
+  renderContent.value = "";
+  iframeErrors.value = [];
+  
+  // 强制解绑所有事件，防止闭包引起的内存泄漏
+  if (throttledUpdateContent && "cancel" in throttledUpdateContent) {
+    (throttledUpdateContent as any).cancel();
+  }
 });
 
 const onLoad = () => {

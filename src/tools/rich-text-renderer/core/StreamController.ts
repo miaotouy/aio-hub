@@ -268,7 +268,7 @@ export class StreamController {
 
         if (this.verboseLogging) {
           console.debug(
-            `[StreamController] Emit: "${this.displayBuffer.replace(/\n/g, "\\n")}" (+${emitLen}) | Interval: ${interval}ms | EmitEvery: ${this.targetEmitIntervalMs.toFixed(0)}ms | ChunkInterval: ${this.estimatedChunkInterval.toFixed(0)}ms | Backlog: ${this.semanticQueue.length} chunks`
+            `[StreamController] Emit: "${this.displayBuffer.replace(/\n/g, "\\n")}" (+${emitLen}) | Interval: ${interval}ms | EmitEvery: ${this.targetEmitIntervalMs.toFixed(0)}ms | ChunkInterval: ${this.estimatedChunkInterval.toFixed(0)}ms | Backlog: ${this.semanticQueue.length} chunks`,
           );
         }
 
@@ -434,6 +434,19 @@ export class StreamController {
     this.totalEmittedChars = 0;
     this.chunkCount = 0;
     this.lastEmitTime = 0;
+  }
+
+  /**
+   * 完全清理所有状态（用于组件卸载）
+   */
+  cleanup(): void {
+    this.reset();
+    // 清空回调引用，帮助 GC
+    // @ts-ignore - 允许清空以释放内存
+    this.onContent = null;
+    this.preBufferQueue = [];
+    this.semanticQueue = [];
+    this.displayBuffer = "";
   }
 }
 

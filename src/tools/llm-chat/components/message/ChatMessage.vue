@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from "vue";
+import { ref, computed, nextTick, watch, onBeforeUnmount } from "vue";
 import { useResizeObserver, useThrottleFn } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -42,7 +42,7 @@ interface Emits {
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
   (
     e: "update-translation",
-    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined
+    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined,
   ): void;
   (e: "resize", el: HTMLElement | null): void;
 }
@@ -113,7 +113,7 @@ watch(
         lastEmittedHeight.value = messageHeight.value;
       });
     }
-  }
+  },
 );
 
 // 计算需要多少个背景块
@@ -186,7 +186,7 @@ const handleTranslate = async (targetLang?: string) => {
         translationContent.value += chunk;
       },
       undefined,
-      lang // 传递目标语言
+      lang, // 传递目标语言
     );
 
     // 翻译完成，发射事件更新消息节点
@@ -231,6 +231,12 @@ const handleToggleTranslationVisible = () => {
 
   emit("update-translation", newTranslation);
 };
+
+// 清理函数
+onBeforeUnmount(() => {
+  // 清空翻译内容，释放字符串内存
+  translationContent.value = "";
+});
 
 // 暴露方法供父组件调用
 defineExpose({

@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch, ref, shallowRef, computed, provide } from "vue";
+import { onMounted, onBeforeUnmount, watch, ref, computed, provide } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
@@ -83,7 +83,7 @@ const props = withDefaults(
     ],
     styleOptions: () => ({}),
     regexRules: () => [],
-  },
+  }
 );
 
 /**
@@ -137,16 +137,11 @@ const cssVariables = computed(() => {
 
 // 是否使用 AST 渲染器（V1 / V2 等）
 const useAstRenderer = computed(
-  () => props.version === RendererVersion.V1_MARKDOWN_IT || props.version === RendererVersion.V2_CUSTOM_PARSER,
+  () => props.version === RendererVersion.V1_MARKDOWN_IT || props.version === RendererVersion.V2_CUSTOM_PARSER
 );
 
 // AST 状态
-const {
-  ast,
-  enqueuePatch,
-  emergencyShutdown,
-  cleanup: cleanupAst,
-} = useMarkdownAst({
+const { ast, enqueuePatch, emergencyShutdown } = useMarkdownAst({
   throttleMs: props.throttleMs,
   throttleEnabled: props.throttleEnabled,
   verboseLogging: props.verboseLogging,
@@ -160,34 +155,31 @@ const imageList = ref<string[]>([]);
  * 递归提取 AST 中的所有图片链接
  * 性能优化：添加节点数量限制，避免在大型 AST 中卡顿
  */
-/**
- * 提取 AST 中的所有图片链接 (迭代版)
- * 优化：使用栈替代递归，避免大 AST 下的栈溢出风险，并严格控制遍历深度
- */
 const extractImages = (nodes: AstNode[]): string[] => {
   const images: string[] = [];
-  const MAX_NODES_TO_TRAVERSE = 50000; // 降低遍历上限，平衡性能
+  const MAX_NODES_TO_TRAVERSE = 100000; // 最多遍历的节点数
   let nodeCount = 0;
 
-  const stack: AstNode[][] = [nodes];
-
-  while (stack.length > 0) {
-    const currentList = stack.pop()!;
-    for (const node of currentList) {
+  const traverse = (nodeList: AstNode[]): boolean => {
+    for (const nodeListElement of nodeList) {
       if (++nodeCount > MAX_NODES_TO_TRAVERSE) {
-        return images;
+        console.warn(`[RichTextRenderer] Image extraction stopped: node count exceeded ${MAX_NODES_TO_TRAVERSE}`);
+        return false; // 停止遍历
       }
 
-      if (node.type === "image" && node.props?.src) {
-        images.push(node.props.src as string);
+      if (nodeListElement.type === "image" && "src" in nodeListElement.props) {
+        images.push((nodeListElement.props as { src: string }).src);
       }
-
-      if (node.children && node.children.length > 0) {
-        stack.push(node.children);
+      if (nodeListElement.children && nodeListElement.children.length > 0) {
+        if (!traverse(nodeListElement.children)) {
+          return false; // 传播停止信号
+        }
       }
     }
-  }
+    return true;
+  };
 
+  traverse(nodes);
   return images;
 };
 
@@ -221,7 +213,7 @@ watch(
         imageList.value = extractImages(newAst);
       }
     }
-  },
+  }
   // 移除 { deep: true }，因为 ast 是 shallowRef，引用变化即可触发
 );
 
@@ -246,10 +238,9 @@ provide(RICH_TEXT_CONTEXT_KEY, {
 });
 
 // 纯 markdown-it 渲染的 HTML
-const htmlContent = shallowRef("");
+const htmlContent = ref("");
 
 // 流式累积的原始文本缓冲
-// 优化：仅在流式模式下使用，静态模式下直接透传 props.content
 const buffer = ref("");
 
 // markdown-it 实例（纯渲染模式）
@@ -338,8 +329,7 @@ watch(
       return;
     }
 
-    // 优化：非流式模式下，不将大字符串存入 buffer.value 响应式变量，减少内存占用
-    // 只有在 streamSource 模式下才需要 buffer 来累积 chunk
+    buffer.value = newContent;
 
     if (useAstRenderer.value) {
       if (!streamProcessor.value) {
@@ -356,7 +346,7 @@ watch(
       htmlContent.value = md.render(newContent);
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 /**
@@ -390,7 +380,7 @@ watch(
       htmlContent.value = md.render(props.content);
     }
   },
-  { deep: true },
+  { deep: true }
 );
 
 /**
@@ -403,7 +393,7 @@ watch(
     if (!newIsStreaming && useAstRenderer.value && streamProcessor.value) {
       streamProcessor.value.finalize();
     }
-  },
+  }
 );
 
 /**
@@ -416,7 +406,7 @@ onMounted(() => {
     console.log(
       `%c[RichTextRenderer] Streaming Started%c\nVersion: ${props.version}\nSmoothing: ${props.smoothingEnabled}\nThrottle: ${props.throttleEnabled} (${props.throttleMs}ms)`,
       "color: #409EFF; font-weight: bold; font-size: 12px;",
-      "color: inherit;",
+      "color: inherit;"
     );
   }
 
@@ -445,7 +435,7 @@ onMounted(() => {
           const displayStr = smoothedContent.length > 20 ? smoothedContent.slice(0, 20) + "..." : smoothedContent;
           console.log(
             `%c[RichTextRenderer] Smooth Emit: "${displayStr.replace(/\n/g, "\\n")}" (len: ${smoothedContent.length})`,
-            "color: #67C23A;",
+            "color: #67C23A;"
           );
         }
 
@@ -551,32 +541,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   unsubscribe?.();
   unsubscribeComplete?.();
-
-  // 停止并清理流控制器
-  if (streamController) {
-    streamController.flushAndStop();
-    streamController.cleanup?.();
-    streamController = null;
-  }
-
-  // 清理流处理器
-  if (streamProcessor.value) {
-    streamProcessor.value.reset?.();
-    streamProcessor.value.cleanup?.();
-    streamProcessor.value = null;
-  }
-
-  // 清空缓冲区和 HTML 内容，释放字符串内存
-  buffer.value = "";
-  htmlContent.value = "";
-
-  // 清空图片列表
-  imageList.value = [];
-
-  // 完全清理 AST 状态（包括 nodeMap）
-  if (typeof cleanupAst === "function") {
-    cleanupAst();
-  }
+  // 停止 rAF 循环，防止卸载后继续触发 onContent 回调导致内存泄漏
+  streamController?.stop();
+  streamController = null;
+  streamProcessor.value?.reset?.();
 });
 
 // 暴露 AST 给父组件（用于测试和调试）

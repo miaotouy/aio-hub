@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onBeforeUnmount } from "vue";
+import { ref, watch, nextTick, computed } from "vue";
 import { useThrottleFn, useRafFn } from "@vueuse/core";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
@@ -216,7 +216,7 @@ const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
       }
     }
   },
-  { immediate: false },
+  { immediate: false }
 );
 
 // 监听会话切换，启用渐进式加载
@@ -228,8 +228,6 @@ watch(
       isSessionSwitching.value = true;
       progressiveOverscan.value = 2;
       measuredElements = new WeakSet<HTMLElement>(); // 重新创建 WeakSet 以清空缓存
-      // 强制重置虚拟列表的测量缓存，这是防止切换会话内存泄漏的关键
-      virtualizer.value.measure();
 
       // 如果是多消息会话（>5条），先滚动到底部，实现倒序加载效果
       // 这样可以优先渲染最新的消息，提升用户体验
@@ -247,7 +245,7 @@ watch(
         }, 150);
       });
     }
-  },
+  }
 );
 
 // 监听消息列表引用变化（关键：覆盖切换智能体但 session.id 不变的场景）
@@ -281,7 +279,7 @@ watch(
         }
       }
     }
-  },
+  }
 );
 
 // 监听消息数量、总高度变化以及最后一条消息的内容变化
@@ -322,7 +320,7 @@ watch(
         scrollToBottom();
       }
     }
-  },
+  }
 );
 
 // 滚动到顶部
@@ -451,18 +449,6 @@ const measureElementOnce = (el: HTMLElement) => {
     measuredElements.add(el);
   }
 };
-
-// 清理函数
-onBeforeUnmount(() => {
-  // 停止渐进式加载的 RAF 循环
-  pauseProgressive();
-
-  // 强制重置虚拟列表，释放内部对 DOM 元素的引用
-  virtualizer.value.measure();
-
-  // 清空测量缓存
-  measuredElements = new WeakSet<HTMLElement>();
-});
 
 // 暴露滚动方法和容器引用供外部调用
 defineExpose({

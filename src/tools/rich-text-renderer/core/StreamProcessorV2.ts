@@ -557,9 +557,6 @@ export class StreamProcessorV2 {
    * 性能优化：引用冻结 - 如果 stableText 没有变化，复用已有的 stableAst 引用
    */
   private async processIncremental(): Promise<void> {
-    // 组件已卸载，停止处理
-    if (!this.parser) return;
-
     if (this.isProcessing) {
       // 如果正在处理中，则记录当前 buffer，等处理完后再运行一次最新的
       this.pendingBuffer = this.buffer;
@@ -569,9 +566,6 @@ export class StreamProcessorV2 {
     try {
       this.isProcessing = true;
       while (true) {
-        // 每次循环都检查 parser 是否还存在（防止组件卸载后继续处理）
-        if (!this.parser) break;
-
         const iterationStart = performance.now();
 
         // 1. 划分稳定区和待定区
@@ -597,7 +591,6 @@ export class StreamProcessorV2 {
         } else {
           // 稳定区文本发生变化，重新解析
           const stableParseStart = performance.now();
-          if (!this.parser) break;
           this.parser.reset();
           newStableAst = await this.parser.parseAsync(stableText);
           this.lastStableText = stableText;
@@ -612,7 +605,6 @@ export class StreamProcessorV2 {
 
         // 3. 解析待定区（带超时保护）
         const pendingParseStart = performance.now();
-        if (!this.parser) break;
         this.parser.reset();
         const newPendingAst = await this.parser.parseAsync(pendingText);
 
@@ -681,9 +673,6 @@ export class StreamProcessorV2 {
    * 然后与当前的 AST 进行 diff，确保正确处理节点合并等情况
    */
   private async processComplete(): Promise<void> {
-    // 组件已卸载，停止处理
-    if (!this.parser) return;
-
     if (this.isProcessing) {
       // 如果正在处理中，创建一个 Promise 等待它结束
       if (!this.resolveProcessing) {
@@ -697,9 +686,6 @@ export class StreamProcessorV2 {
 
     try {
       this.isProcessing = true;
-      // 再次检查 parser 是否还存在
-      if (!this.parser) return;
-
       // 将整个 buffer 作为最终内容重新解析
       this.parser.reset();
       const finalAst = await this.parser.parseAsync(this.buffer);
@@ -725,10 +711,6 @@ export class StreamProcessorV2 {
       if (patches.length > 0) {
         this.onPatch(patches);
       }
-
-      // 关键优化：解析完成后，如果不是流式状态，释放 buffer 内存
-      // 因为 AST 已经生成并传递出去了，保留 buffer 会占用双倍内存
-      this.releaseData();
     } finally {
       this.isProcessing = false;
     }
@@ -975,50 +957,6 @@ export class StreamProcessorV2 {
     this.lastStableLength = 0;
     this.stallCount = 0;
     this.isDegraded = false;
-    this.pendingBuffer = null;
-    this.isProcessing = false;
-    this.resolveProcessing = null;
-    // 安全调用 parser.reset()
-    if (this.parser) {
-      this.parser.reset();
-    }
-  }
-
-  /**
-   * 完全清理所有状态（用于组件卸载）
-   */
-  cleanup(): void {
-    // 先手动清理状态，不直接调用可能触发异常的 reset()
-    this.buffer = "";
-    this.stableAst = [];
-    this.pendingAst = [];
-    this.lastStableText = "";
-    this.isProcessing = false;
-    this.pendingBuffer = null;
-    this.resolveProcessing = null;
-
-    if (this.parser) {
-      this.parser.reset();
-    }
-
-    // 最后清空 parser 引用，帮助 GC
-    if (this.parser) {
-      // @ts-ignore - 允许调用新增加的 cleanup
-      this.parser.cleanup?.();
-    }
-    // @ts-ignore - 允许清空以释放内存
-    this.parser = null;
-    // @ts-ignore - 允许清空以释放内存
-    this.onPatch = null;
-  }
-
-  /**
-   * 释放大型数据缓存，但保留解析器
-   * 适用于流式结束后，消息变为静态状态时
-   */
-  releaseData(): void {
-    this.buffer = "";
-    this.lastStableText = "";
-    this.pendingBuffer = null;
+    this.parser.reset();
   }
 }

@@ -22,7 +22,7 @@ export function useMarkdownAst(
     throttleEnabled?: boolean;
     verboseLogging?: boolean;
     safetyGuardEnabled?: boolean;
-  } = {},
+  } = {}
 ) {
   const ast: ShallowRef<AstNode[]> = shallowRef([]);
   const nodeMap: NodeMap = new Map();
@@ -340,7 +340,7 @@ export function useMarkdownAst(
       if (verboseLogging) {
         const interval = lastFlushTime ? (now - lastFlushTime).toFixed(2) : 0;
         console.debug(
-          `[useMarkdownAst] Flush #${flushCount}: Applying ${patchQueue.length} patches | Interval: ${interval}ms`,
+          `[useMarkdownAst] Flush #${flushCount}: Applying ${patchQueue.length} patches | Interval: ${interval}ms`
         );
       }
 
@@ -372,7 +372,7 @@ export function useMarkdownAst(
     if (rafRetryCount > MAX_RAF_RETRIES) {
       if (verboseLogging) {
         console.warn(
-          `[useMarkdownAst] rAF retry limit reached (${MAX_RAF_RETRIES}), forcing flush with ${patchQueue.length} patches`,
+          `[useMarkdownAst] rAF retry limit reached (${MAX_RAF_RETRIES}), forcing flush with ${patchQueue.length} patches`
         );
       }
       flushPatches();
@@ -436,26 +436,12 @@ export function useMarkdownAst(
       timeoutHandle = 0;
     }
     rafRetryCount = 0;
-
-    // 清空 AST 和 nodeMap，释放内存
-    ast.value = [];
-    nodeMap.clear();
   }
 
-  /**
-   * 完全清理所有状态（用于组件卸载）
-   */
-  function cleanup() {
-    emergencyShutdown();
-    // 重置性能监控计数器
-    lastFlushTime = 0;
-    flushCount = 0;
-  }
   return {
     ast,
     enqueuePatch,
     nodeMap,
     emergencyShutdown,
-    cleanup,
   };
 }

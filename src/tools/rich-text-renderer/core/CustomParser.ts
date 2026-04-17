@@ -250,15 +250,6 @@ export class CustomParser implements ParserContext {
   public reset(): void {
     // 不再需要重置计数器
   }
-
-  /**
-   * 清理资源
-   */
-  public cleanup(): void {
-    // 目前主要是无状态的，但清空大对象引用以防万一
-    this.llmThinkRules = [];
-    this.llmThinkTagNames.clear();
-  }
 }
 
 // ============ 导出工具函数 ============

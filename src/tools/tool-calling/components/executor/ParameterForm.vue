@@ -209,6 +209,7 @@ const handlePathSelect = async (paramName: string, description: string) => {
         <LlmModelSelector
           v-else-if="isModelParameter(p)"
           v-model="modelValue[p.name]"
+          :capabilities="{ embedding: false, rerank: false }"
           class="w-full"
           @change="notifyChange"
         />

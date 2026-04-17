@@ -179,10 +179,11 @@ const isSuno = computed(() => {
 
 // 根据媒体类型筛选模型能力
 const modelCapabilities = computed(() => {
-  if (mediaType.value === "image") return { imageGeneration: true };
-  if (mediaType.value === "video") return { videoGeneration: true };
-  if (mediaType.value === "audio") return { audioGeneration: true };
-  return {};
+  const baseCaps = { embedding: false, rerank: false };
+  if (mediaType.value === "image") return { ...baseCaps, imageGeneration: true };
+  if (mediaType.value === "video") return { ...baseCaps, videoGeneration: true };
+  if (mediaType.value === "audio") return { ...baseCaps, audioGeneration: true };
+  return baseCaps;
 });
 
 // 监听媒体类型变化，不再清空模型，因为状态已经独立管理了

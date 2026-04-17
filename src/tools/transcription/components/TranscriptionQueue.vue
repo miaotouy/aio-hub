@@ -130,17 +130,18 @@ const retryEnableRepetitionDetection = ref(true);
 // 根据任务类型计算需要的模型能力
 const retryRequiredCapabilities = computed(() => {
   if (!retryingTask.value) return {};
+  const baseCaps = { embedding: false, rerank: false };
   switch (retryingTask.value.assetType) {
     case "image":
-      return { vision: true };
+      return { ...baseCaps, vision: true };
     case "audio":
-      return { audio: true };
+      return { ...baseCaps, audio: true };
     case "video":
-      return { video: true };
+      return { ...baseCaps, video: true };
     case "document":
-      return { document: true };
+      return { ...baseCaps, document: true };
     default:
-      return {};
+      return baseCaps;
   }
 });
 

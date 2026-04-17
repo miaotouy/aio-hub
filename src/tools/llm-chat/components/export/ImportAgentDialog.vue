@@ -241,6 +241,7 @@ const handleCancel = () => {
                 <p class="help-text">原模型 ({{ agent.modelId }}) 不可用，请选择一个新模型：</p>
                 <LlmModelSelector
                   :model-value="`${resolvedAgents[index].finalProfileId}:${resolvedAgents[index].finalModelId}`"
+                  :capabilities="{ embedding: false, rerank: false }"
                   @update:model-value="
                     (val) => {
                       const [pId, mId] = parseModelCombo(val);

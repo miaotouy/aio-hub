@@ -167,7 +167,7 @@ function getBaseProgress(baseId: string): number {
           </div>
           <LlmModelSelector
             v-model="selectedComboId"
-            :capabilities="{ embedding: true }"
+            :capabilities="{ embedding: true, rerank: false }"
             placeholder="选择 Embedding 模型"
             :clearable="false"
             class="model-selector"

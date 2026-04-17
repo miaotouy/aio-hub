@@ -40,7 +40,7 @@
           <div class="model-selector-wrapper">
             <LlmModelSelector
               v-model="selectedModelCombo"
-              :capabilities="{ embedding: true }"
+              :capabilities="{ embedding: true, rerank: false }"
               placeholder="选择 Embedding 模型"
             />
           </div>

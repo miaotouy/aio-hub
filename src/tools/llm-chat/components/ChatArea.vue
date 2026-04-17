@@ -248,7 +248,10 @@ const handleSelectModel = async () => {
     }
   }
 
-  const result = await openModelSelectDialog({ current: currentSelection });
+  const result = await openModelSelectDialog({
+    current: currentSelection,
+    initialCapabilities: { embedding: false, rerank: false },
+  });
 
   if (result) {
     logger.info("用户选择了新模型", {

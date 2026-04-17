@@ -348,6 +348,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
               <LlmModelSelector
                 v-model="optimizeModelId"
                 placeholder="选择优化模型"
+                :capabilities="{ embedding: false, rerank: false }"
                 :teleported="true"
                 popper-class="optimize-model-popper"
               />

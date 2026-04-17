@@ -308,7 +308,10 @@ const handleSelectContinuationModel = async () => {
     }
   }
 
-  const result = await openModelSelectDialog({ current: currentSelection });
+  const result = await openModelSelectDialog({
+    current: currentSelection,
+    initialCapabilities: { embedding: false, rerank: false },
+  });
   if (result) {
     inputManager.setContinuationModel({
       profileId: result.profile.id,

@@ -192,7 +192,10 @@ const handleContinueWithModel = async () => {
     }
   }
 
-  const result = await openModelSelectDialog({ current: currentSelection });
+  const result = await openModelSelectDialog({
+    current: currentSelection,
+    initialCapabilities: { embedding: false, rerank: false },
+  });
   if (result) {
     emit("continue", {
       modelId: result.model.id,
@@ -243,7 +246,10 @@ const handleRegenerateWithModel = async () => {
     }
   }
 
-  const result = await openModelSelectDialog({ current: currentSelection });
+  const result = await openModelSelectDialog({
+    current: currentSelection,
+    initialCapabilities: { embedding: false, rerank: false },
+  });
   if (result) {
     emit("regenerate", {
       modelId: result.model.id,

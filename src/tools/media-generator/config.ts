@@ -107,6 +107,9 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
         id: "topicModelCombo",
         label: "命名模型",
         component: LlmModelSelector,
+        props: {
+          capabilities: { embedding: false, rerank: false },
+        },
         modelPath: "topicNaming.modelCombo",
         hint: "用于生成会话标题的语言模型",
         keywords: "topic model 话题 模型 llm",
@@ -143,6 +146,9 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
         id: "optModelCombo",
         label: "优化模型",
         component: LlmModelSelector,
+        props: {
+          capabilities: { embedding: false, rerank: false },
+        },
         modelPath: "promptOptimization.modelCombo",
         hint: "用于对用户输入的提示词进行润色和扩充的语言模型",
         keywords: "prompt optimization model 提示词 优化 模型",
@@ -221,6 +227,9 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
         id: "transModelCombo",
         label: "翻译模型",
         component: LlmModelSelector,
+        props: {
+          capabilities: { embedding: false, rerank: false },
+        },
         modelPath: "translation.modelIdentifier",
         hint: "用于执行翻译任务的语言模型",
         keywords: "translation model 翻译 模型",

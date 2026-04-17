@@ -179,6 +179,9 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
         id: "tagGenModel",
         label: "生成模型",
         component: LlmModelSelector,
+        props: {
+          capabilities: { embedding: false, rerank: false },
+        },
         modelPath: "tagGeneration.modelId",
         hint: "用于提取标签的 LLM 模型，建议使用轻量级模型以提高速度",
         keywords: "tag model 标签 模型",

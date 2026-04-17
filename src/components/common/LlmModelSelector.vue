@@ -59,8 +59,16 @@ const availableModels = computed(() => {
         if (requiredValue === undefined) {
           return true;
         }
-        // 检查模型是否具有该能力并符合要求
-        return model.capabilities?.[key] === requiredValue;
+
+        const modelHasCap = !!model.capabilities?.[key];
+
+        if (requiredValue === true) {
+          // 必须具备该能力
+          return modelHasCap;
+        } else {
+          // 必须不具备该能力 (requiredValue === false)
+          return !modelHasCap;
+        }
       });
 
       if (meetsRequirements) {

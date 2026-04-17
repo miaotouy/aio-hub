@@ -69,20 +69,21 @@ const modelCapabilities = computed(() => {
   }
 
   const assetType = previewType.value || currentAsset.value.type;
+  const baseCaps = { embedding: false, rerank: false };
 
   switch (assetType) {
     case "image":
     case "document":
-      return { vision: true };
+      return { ...baseCaps, vision: true };
     case "audio":
-      return { audio: true };
+      return { ...baseCaps, audio: true };
     case "video":
-      return { video: true, vision: true };
+      return { ...baseCaps, video: true, vision: true };
     case "text":
       // 纯文本不需要转写，但为了界面一致性，返回视觉能力
-      return { vision: true };
+      return { ...baseCaps, vision: true };
     default:
-      return { vision: true };
+      return { ...baseCaps, vision: true };
   }
 });
 

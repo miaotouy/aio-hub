@@ -72,6 +72,21 @@ const allModels = computed(() => {
       if (!hasAllCaps) return false;
     }
 
+    // 3. 初始强制能力匹配 (支持排除逻辑)
+    if (initialCapabilities.value && Object.keys(initialCapabilities.value).length > 0) {
+      const requiredCaps = Object.keys(initialCapabilities.value) as Array<keyof typeof model.capabilities>;
+      const meetsInitialRequirements = requiredCaps.every((key) => {
+        const requiredValue = initialCapabilities.value![key as string];
+        if (requiredValue === undefined) return true;
+
+        const modelHasCap = !!model.capabilities?.[key as keyof typeof model.capabilities];
+        if (requiredValue === true) return modelHasCap;
+        return !modelHasCap; // requiredValue === false
+      });
+
+      if (!meetsInitialRequirements) return false;
+    }
+
     return true;
   });
 });
@@ -133,8 +148,14 @@ function handleClose() {
 // 滚动到当前选中的模型，并设置初始筛选
 watch(isDialogVisible, async (visible) => {
   if (visible) {
-    // 自动应用初始能力筛选
-    selectedCapabilities.value = initialCapabilities.value || [];
+    // 自动应用初始能力筛选 (仅同步值为 true 的能力到 UI 选择器)
+    if (initialCapabilities.value) {
+      selectedCapabilities.value = Object.entries(initialCapabilities.value)
+        .filter(([_, value]) => value === true)
+        .map(([key, _]) => key);
+    } else {
+      selectedCapabilities.value = [];
+    }
 
     // 滚动到当前选中的模型
     if (currentSelection.value) {

@@ -219,7 +219,11 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
             <span>模型</span>
           </label>
           <div class="model-selector-row">
-            <LlmModelSelector v-model="selectedModelCombo" class="model-selector" />
+            <LlmModelSelector
+              v-model="selectedModelCombo"
+              class="model-selector"
+              :capabilities="{ embedding: false, rerank: false }"
+            />
             <el-tooltip content="编辑模型配置" placement="top">
               <el-button
                 :icon="Setting"

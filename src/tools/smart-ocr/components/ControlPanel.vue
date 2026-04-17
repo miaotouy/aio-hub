@@ -358,7 +358,7 @@ const handleNavigateToSettings = () => {
             <el-form-item label="视觉模型">
               <LlmModelSelector
                 v-model="selectedModelCombo"
-                :capabilities="{ vision: true }"
+                :capabilities="{ vision: true, embedding: false, rerank: false }"
                 :disabled="visionProfiles.length === 0"
               />
             </el-form-item>

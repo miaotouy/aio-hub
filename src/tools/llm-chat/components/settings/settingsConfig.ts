@@ -44,6 +44,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "默认模型",
         component: LlmModelSelector,
         modelPath: "modelPreferences.defaultModel",
+        props: {
+          capabilities: { embedding: false, rerank: false },
+        },
         hint: "新建智能体或会话时默认使用的模型，作为兜底选项",
         keywords: "model default 默认 模型",
         defaultValue: "",
@@ -599,6 +602,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "命名模型",
         component: LlmModelSelector,
         modelPath: "topicNaming.modelIdentifier",
+        props: {
+          capabilities: { embedding: false, rerank: false },
+        },
         hint: "用于生成会话标题的 LLM 模型。留空则使用全局默认模型。",
         keywords: "topic naming model 话题 命名 模型",
         visible: (settings) => settings.topicNaming.enabled,
@@ -678,6 +684,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "翻译模型",
         component: LlmModelSelector,
         modelPath: "translation.modelIdentifier",
+        props: {
+          capabilities: { embedding: false, rerank: false },
+        },
         hint: "用于执行翻译任务的 LLM 模型。留空则使用全局默认模型。",
         keywords: "translation model 翻译 模型",
         visible: (settings) => settings.translation.enabled,
@@ -788,7 +797,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "兜底转写模型",
         component: LlmModelSelector,
         props: {
-          capabilities: { vision: true, audio: true },
+          capabilities: { vision: true, audio: true, embedding: false, rerank: false },
         },
         modelPath: "transcription.modelIdentifier",
         hint: "当具体分类（如图片、视频）未配置独立模型时，将使用此模型作为保底",
@@ -980,7 +989,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "图片转写模型",
         component: LlmModelSelector,
         props: {
-          capabilities: { vision: true },
+          capabilities: { vision: true, embedding: false, rerank: false },
         },
         modelPath: "transcription.image.modelIdentifier",
         hint: "专门用于图片转写的模型。留空则使用上述兜底模型。",
@@ -1066,7 +1075,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "音频转写模型",
         component: LlmModelSelector,
         props: {
-          capabilities: { audio: true },
+          capabilities: { audio: true, embedding: false, rerank: false },
         },
         modelPath: "transcription.audio.modelIdentifier",
         hint: "专门用于音频转写的模型。留空则使用上述兜底模型。",
@@ -1159,7 +1168,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "视频转写模型",
         component: LlmModelSelector,
         props: {
-          capabilities: { video: true },
+          capabilities: { video: true, embedding: false, rerank: false },
         },
         modelPath: "transcription.video.modelIdentifier",
         hint: "专门用于视频转写的模型。留空则使用上述兜底模型。",
@@ -1307,7 +1316,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "文档转写模型",
         component: LlmModelSelector,
         props: {
-          capabilities: { document: true },
+          capabilities: { document: true, embedding: false, rerank: false },
         },
         modelPath: "transcription.document.modelIdentifier",
         hint: "专门用于文档（PDF/Word等）转写的模型。留空则使用上述兜底模型。",

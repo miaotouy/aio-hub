@@ -9,13 +9,13 @@ export interface ModelSelection {
 
 export interface ModelSelectOptions {
   current?: ModelSelection | null;
-  initialCapabilities?: string[];
+  initialCapabilities?: Record<string, boolean>;
 }
 
 export const useModelSelectDialog = createGlobalState(() => {
   const isDialogVisible = ref(false);
   const currentSelection = ref<ModelSelection | null>(null);
-  const initialCapabilities = ref<string[]>([]);
+  const initialCapabilities = ref<Record<string, boolean>>({});
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let _resolvePromise: (value: ModelSelection | null) => void = (
@@ -24,7 +24,7 @@ export const useModelSelectDialog = createGlobalState(() => {
 
   const open = (options?: ModelSelectOptions): Promise<ModelSelection | null> => {
     currentSelection.value = options?.current || null;
-    initialCapabilities.value = options?.initialCapabilities || [];
+    initialCapabilities.value = options?.initialCapabilities || {};
     isDialogVisible.value = true;
     return new Promise((resolve) => {
       _resolvePromise = resolve;
@@ -33,7 +33,7 @@ export const useModelSelectDialog = createGlobalState(() => {
 
   const close = () => {
     isDialogVisible.value = false;
-    initialCapabilities.value = []; // 重置
+    initialCapabilities.value = {}; // 重置
   };
 
   const select = (selection: ModelSelection) => {

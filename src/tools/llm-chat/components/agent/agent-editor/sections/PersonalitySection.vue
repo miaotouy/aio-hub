@@ -12,7 +12,7 @@ import type { SettingItem } from "@/types/settings-renderer";
 import { ElButton } from "element-plus";
 
 const QuickActionManagerDialog = defineAsyncComponent(
-  () => import("@/tools/llm-chat/components/quick-action/QuickActionManagerDialog.vue")
+  () => import("@/tools/llm-chat/components/quick-action/QuickActionManagerDialog.vue"),
 );
 
 const editForm = inject<any>("agent-edit-form");
@@ -110,7 +110,9 @@ const personalitySettings = computed<SettingItem[]>(() => [
     modelPath: "modelCombo",
     hint: "智能体使用的核心对话模型",
     keywords: "model 模型",
-    props: {},
+    props: {
+      capabilities: { embedding: false, rerank: false },
+    },
   },
   {
     id: "userProfile",
@@ -147,7 +149,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
               minWidth: "unset",
             },
           },
-          () => "管理用户档案"
+          () => "管理用户档案",
         ),
     },
     action: "manageUserProfile",
@@ -175,7 +177,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
               minWidth: "unset",
             },
           },
-          () => "管理快捷操作"
+          () => "管理快捷操作",
         ),
     },
     action: "manageQuickAction",
@@ -203,7 +205,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
               minWidth: "unset",
             },
           },
-          () => "管理世界书"
+          () => "管理世界书",
         ),
     },
     action: "manageWorldbook",
@@ -300,6 +302,9 @@ const personalitySettings = computed<SettingItem[]>(() => [
     modelPath: "knowledgeSettings.embeddingModelId",
     hint: "用于向量检索的 Embedding 模型。如果不设置，将无法使用向量检索引擎。",
     keywords: "knowledge embedding model 向量 模型",
+    props: {
+      capabilities: { embedding: true },
+    },
     groupCollapsible: {
       name: "knowledge-advanced",
       title: "知识库高级设置",

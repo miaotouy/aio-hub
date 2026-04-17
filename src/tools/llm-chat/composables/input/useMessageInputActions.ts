@@ -306,7 +306,10 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   // 处理临时模型选择
   const handleSelectTemporaryModel = async () => {
     const currentSelection = getCurrentModelSelection(options.inputManager.temporaryModel);
-    const result = await openModelSelectDialog({ current: currentSelection });
+    const result = await openModelSelectDialog({
+      current: currentSelection,
+      initialCapabilities: { embedding: false, rerank: false },
+    });
     if (result) {
       options.inputManager.setTemporaryModel({
         profileId: result.profile.id,
@@ -324,7 +327,10 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     }
 
     const currentSelection = getCurrentModelSelection(options.inputManager.continuationModel);
-    const result = await openModelSelectDialog({ current: currentSelection });
+    const result = await openModelSelectDialog({
+      current: currentSelection,
+      initialCapabilities: { embedding: false, rerank: false },
+    });
     if (result) {
       options.inputManager.setContinuationModel({
         profileId: result.profile.id,

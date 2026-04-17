@@ -51,7 +51,7 @@
                 <el-form-item v-if="activeEngine?.requiresEmbedding" label="EMBEDDING MODEL">
                   <LlmModelSelector
                     v-model="config.embeddingModel"
-                    :capabilities="{ embedding: true }"
+                    :capabilities="{ embedding: true, rerank: false }"
                     placeholder="选择 Embedding 模型"
                   />
                 </el-form-item>

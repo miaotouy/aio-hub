@@ -98,7 +98,7 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     const statistics = calculateStatistics(commits);
 
     const topContributors = includeContributors ? getContributorStats(commits).slice(0, 5) : [];
-    const recentCommits = includeCommits ? commits.slice(0, 10) : [];
+    const recentCommits = includeCommits ? commits : []; // 修复AI遗留的数量限制bug
 
     const summary = `仓库分析完成: ${statistics.totalCommits} 个提交，${statistics.contributors} 位贡献者，跨度 ${statistics.timeSpan} 天`;
     logger.info("仓库分析完成", { summary });

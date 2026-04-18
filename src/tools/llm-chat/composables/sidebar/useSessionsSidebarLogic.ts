@@ -1,7 +1,7 @@
 import { ref, computed, watch } from "vue";
 import type { ChatSessionIndex } from "../../types";
 import { useAgentStore } from "../../stores/agentStore";
-import { useLlmSearch } from "../../composables/chat/useLlmSearch";
+import { useLlmSearch, type MatchDetail } from "../../composables/chat/useLlmSearch";
 import { useTopicNamer } from "../../composables/chat/useTopicNamer";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
@@ -44,7 +44,7 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
 
   // 搜索结果 ID 到匹配详情的映射
   const searchMatchesMap = computed(() => {
-    const map = new Map<string, any>();
+    const map = new Map<string, MatchDetail[]>();
     for (const result of sessionResults.value) {
       map.set(result.id, result.matches);
     }

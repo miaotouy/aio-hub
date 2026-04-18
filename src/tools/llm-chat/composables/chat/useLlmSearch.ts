@@ -17,11 +17,26 @@ const errorHandler = createModuleErrorHandler("llm-chat/useLlmSearch");
 /** 匹配详情 */
 export interface MatchDetail {
   /** 匹配的字段名 */
-  field: "name" | "displayName" | "description" | "presetMessage" | "presetMessageName" | "content" | "reasoningContent";
+  field:
+    | "name"
+    | "displayName"
+    | "description"
+    | "presetMessage"
+    | "presetMessageName"
+    | "content"
+    | "reasoningContent";
   /** 包含匹配项的上下文片段 */
   context: string;
   /** 消息角色（仅在消息匹配时存在） */
   role?: string;
+  /** 匹配项在 context 中的起止字节偏移 (start, end) */
+  match_offsets: [number, number][];
+}
+
+/** 高亮片段 */
+export interface HighlightPart {
+  text: string;
+  isMatch: boolean;
 }
 
 /** 搜索结果项 */
@@ -66,7 +81,13 @@ export interface SearchOptions {
  * @returns 搜索状态和方法
  */
 export function useLlmSearch(options: SearchOptions = {}) {
-  const { limit = 50, scope = "all", matchMode: initialMatchMode = "exact", debounceMs = 300, loadingDelayMs = 300 } = options;
+  const {
+    limit = 50,
+    scope = "all",
+    matchMode: initialMatchMode = "exact",
+    debounceMs = 300,
+    loadingDelayMs = 300,
+  } = options;
 
   // 搜索匹配模式（响应式，可由 UI 动态切换）
   const matchMode = ref<SearchMatchMode>(initialMatchMode);
@@ -77,7 +98,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
   const searchResults = ref<SearchResult[]>([]);
   const searchError = ref<string | null>(null);
   const lastQuery = ref("");
-  
+
   // loading 延迟计时器
   let loadingDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -260,6 +281,81 @@ export function useLlmSearch(options: SearchOptions = {}) {
     return labels[role] || role;
   };
 
+  /**
+   * 格式化搜索结果的上下文，进行智能截断和高亮标记
+   * @param match 匹配详情
+   * @param maxChars 最大显示字符数
+   */
+  const formatMatchContext = (match: MatchDetail, maxChars: number = 40): HighlightPart[] => {
+    const { context, match_offsets } = match;
+    if (!match_offsets || match_offsets.length === 0) {
+      return [{ text: context, isMatch: false }];
+    }
+
+    // 1. 确定“窗口”。以第一个匹配项为准
+    const firstMatch = match_offsets[0];
+    const matchStart = firstMatch[0];
+    const matchEnd = firstMatch[1];
+    const matchLen = matchEnd - matchStart;
+
+    // 2. 计算截断范围
+    // 侧边栏空间有限，前缀预留少一点，让高亮更靠前 (约 1/4 处)
+    const prefixChars = Math.max(0, Math.floor(maxChars * 0.25));
+    const suffixChars = Math.max(0, maxChars - matchLen - prefixChars);
+
+    let startIdx = 0;
+    let endIdx = context.length;
+    let prefix = "";
+    let suffix = "";
+
+    // 向前截断
+    if (matchStart > prefixChars) {
+      startIdx = matchStart - prefixChars;
+      prefix = "...";
+    }
+
+    // 向后截断
+    if (context.length - matchEnd > suffixChars) {
+      endIdx = matchEnd + suffixChars;
+      suffix = "...";
+    }
+
+    const parts: HighlightPart[] = [];
+
+    // 添加前缀
+    if (prefix) {
+      parts.push({ text: prefix, isMatch: false });
+    }
+
+    // 3. 在窗口内拆分高亮部分
+
+    let lastPos = startIdx;
+
+    // 过滤出在窗口内的偏移量
+    const relevantOffsets = match_offsets
+      .filter(([s, e]) => !(e <= startIdx || s >= endIdx))
+      .map(([s, e]) => [Math.max(s, startIdx), Math.min(e, endIdx)]);
+
+    for (const [s, e] of relevantOffsets) {
+      if (s > lastPos) {
+        parts.push({ text: context.substring(lastPos, s), isMatch: false });
+      }
+      parts.push({ text: context.substring(s, e), isMatch: true });
+      lastPos = e;
+    }
+
+    if (lastPos < endIdx) {
+      parts.push({ text: context.substring(lastPos, endIdx), isMatch: false });
+    }
+
+    // 添加后缀
+    if (suffix) {
+      parts.push({ text: suffix, isMatch: false });
+    }
+
+    return parts;
+  };
+
   return {
     // 状态
     isSearching, // 内部搜索状态（用于逻辑判断）
@@ -279,6 +375,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
     // 辅助方法
     getFieldLabel,
     getRoleLabel,
+    formatMatchContext,
   };
 }
 

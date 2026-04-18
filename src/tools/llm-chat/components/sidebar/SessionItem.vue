@@ -1,15 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import {
-  Delete,
-  MoreFilled,
-  Edit,
-  MagicStick,
-  FolderOpened,
-  Operation,
-} from "@element-plus/icons-vue";
+import { Delete, MoreFilled, Edit, MagicStick, FolderOpened, Operation } from "@element-plus/icons-vue";
 import type { ChatSessionIndex } from "../../types";
 import type { MatchDetail } from "../../composables/chat/useLlmSearch";
+import { useLlmSearch } from "../../composables/chat/useLlmSearch";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { formatRelativeTime } from "@/utils/time";
@@ -31,6 +25,7 @@ const emit = defineEmits<{
 }>();
 
 const agentStore = useAgentStore();
+const { formatMatchContext } = useLlmSearch();
 
 const displayAgent = computed(() => {
   if (!props.session.displayAgentId) return null;
@@ -43,7 +38,13 @@ const messageCount = computed(() => {
 
 const filteredMatches = computed(() => {
   if (!props.matches) return [];
-  return props.matches.filter((m) => m.field !== "name").slice(0, 3);
+  return props.matches
+    .filter((m) => m.field !== "name")
+    .slice(0, 3)
+    .map((m) => ({
+      ...m,
+      parts: formatMatchContext(m, 35),
+    }));
 });
 
 const handleCommand = (command: string) => {
@@ -81,11 +82,14 @@ const handleCommand = (command: string) => {
           <span class="match-field">
             {{ getFieldLabel(match.field) }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
           </span>
-          <span class="match-context" :title="match.context">{{ match.context }}</span>
+          <div class="match-context" :title="match.context">
+            <template v-for="(part, pIdx) in match.parts" :key="pIdx">
+              <span v-if="part.isMatch" class="highlight">{{ part.text }}</span>
+              <span v-else>{{ part.text }}</span>
+            </template>
+          </div>
         </div>
-        <div v-if="matches && matches.length > 3" class="match-more">
-          +{{ matches.length - 3 }} 处匹配
-        </div>
+        <div v-if="matches && matches.length > 3" class="match-more">+{{ matches.length - 3 }} 处匹配</div>
       </div>
 
       <div class="session-info">
@@ -104,9 +108,7 @@ const handleCommand = (command: string) => {
               </el-dropdown-item>
               <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
               <el-dropdown-item command="export" :icon="Operation"> 导出会话 </el-dropdown-item>
-              <el-dropdown-item command="open-directory" :icon="FolderOpened">
-                打开目录
-              </el-dropdown-item>
+              <el-dropdown-item command="open-directory" :icon="FolderOpened"> 打开目录 </el-dropdown-item>
               <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -190,6 +192,16 @@ const handleCommand = (command: string) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.highlight {
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.15);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 500;
 }
 
 .match-more {

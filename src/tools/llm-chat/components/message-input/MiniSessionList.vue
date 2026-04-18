@@ -33,6 +33,7 @@ const {
   clearSearch,
   getFieldLabel,
   getRoleLabel,
+  formatMatchContext,
 } = useLlmSearch({ debounceMs: 300, scope: "session" });
 
 // 搜索模式配置
@@ -118,14 +119,18 @@ const searchMatchesMap = computed(() => {
   }
   return map;
 });
-
 // 获取 session 的匹配详情
 const getSessionMatches = (sessionId: string) => {
   if (!isInSearchMode.value) return undefined;
   const matches = searchMatchesMap.value.get(sessionId);
   if (!matches) return undefined;
   // 过滤掉名称匹配，因为名称已经显示在标题中了
-  return matches.filter((m) => m.field !== "name");
+  return matches
+    .filter((m) => m.field !== "name")
+    .map((m) => ({
+      ...m,
+      parts: formatMatchContext(m, 30),
+    }));
 };
 
 // 虚拟滚动列表
@@ -238,11 +243,15 @@ defineExpose({
                 :key="index"
                 class="match-item"
               >
-                <span class="match-field"
-                  >{{ getFieldLabel(match.field)
-                  }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:</span
-                >
-                <span class="match-context" :title="match.context">{{ match.context }}</span>
+                <span class="match-field">
+                  {{ getFieldLabel(match.field) }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
+                </span>
+                <div class="match-context" :title="match.context">
+                  <template v-for="(part, pIdx) in match.parts" :key="pIdx">
+                    <span v-if="part.isMatch" class="highlight">{{ part.text }}</span>
+                    <span v-else>{{ part.text }}</span>
+                  </template>
+                </div>
               </div>
             </div>
 
@@ -423,6 +432,16 @@ defineExpose({
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.highlight {
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.15);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 500;
 }
 
 .session-meta {

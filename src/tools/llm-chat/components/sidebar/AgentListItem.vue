@@ -16,7 +16,7 @@ import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { useAgentStorageSeparated } from "../../composables/storage/useAgentStorageSeparated";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
-import type { MatchDetail } from "../../composables/chat/useLlmSearch";
+import { useLlmSearch, type MatchDetail } from "../../composables/chat/useLlmSearch";
 import AgentUpgradeDialog from "../agent/management/AgentUpgradeDialog.vue";
 
 const props = defineProps<{
@@ -42,20 +42,7 @@ const avatarSrc = computed(() => {
   return resolveAvatarPath(props.agent, "agent");
 });
 
-// 字段标签映射
-const fieldLabels: Record<string, string> = {
-  name: "名称",
-  displayName: "显示名称",
-  description: "描述",
-  presetMessage: "预设消息",
-  presetMessageName: "预设消息名",
-  content: "消息内容",
-  reasoningContent: "推理内容",
-};
-
-const getFieldLabel = (field: string): string => {
-  return fieldLabels[field] || field;
-};
+const { getFieldLabel, formatMatchContext } = useLlmSearch();
 
 const handleVisibleChange = (visible: boolean) => {
   isMenuOpen.value = visible;
@@ -64,6 +51,17 @@ const handleVisibleChange = (visible: boolean) => {
 // 只有在 hover 或菜单打开时才显示操作按钮区域
 // 只有在确实需要交互时才渲染 el-dropdown，极大提升长列表性能
 const showActions = computed(() => isHovered.value || isMenuOpen.value);
+
+const filteredMatches = computed(() => {
+  if (!props.matches) return [];
+  return props.matches
+    .filter((m) => m.field !== "name" && m.field !== "displayName")
+    .slice(0, 3)
+    .map((m) => ({
+      ...m,
+      parts: formatMatchContext(m, 35),
+    }));
+});
 
 // 打开智能体目录并选中配置文件
 const handleOpenDirectory = async () => {
@@ -95,14 +93,17 @@ const handleOpenDirectory = async () => {
       <div class="agent-name">{{ agent.displayName || agent.name }}</div>
       
       <!-- 搜索匹配详情 -->
-      <div v-if="matches && matches.length > 0" class="match-details">
-        <div v-for="(match, index) in matches.slice(0, 3)" :key="index" class="match-item">
-          <span class="match-field">{{ getFieldLabel(match.field) }}{{ match.role ? `(${match.role})` : '' }}:</span>
-          <span class="match-context" :title="match.context">{{ match.context }}</span>
+      <div v-if="filteredMatches.length > 0" class="match-details">
+        <div v-for="(match, index) in filteredMatches" :key="index" class="match-item">
+          <span class="match-field">{{ getFieldLabel(match.field) }}{{ match.role ? `(${match.role})` : "" }}:</span>
+          <div class="match-context" :title="match.context">
+            <template v-for="(part, pIdx) in match.parts" :key="pIdx">
+              <span v-if="part.isMatch" class="highlight">{{ part.text }}</span>
+              <span v-else>{{ part.text }}</span>
+            </template>
+          </div>
         </div>
-        <div v-if="matches.length > 3" class="match-more">
-          +{{ matches.length - 3 }} 处匹配
-        </div>
+        <div v-if="matches && matches.length > 3" class="match-more">+{{ matches.length - 3 }} 处匹配</div>
       </div>
 
       <!-- 只在选中且无搜索结果时显示详细信息 -->
@@ -258,6 +259,16 @@ const handleOpenDirectory = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.highlight {
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.15);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 500;
 }
 
 .match-more {

@@ -83,7 +83,7 @@ const props = withDefaults(
     ],
     styleOptions: () => ({}),
     regexRules: () => [],
-  }
+  },
 );
 
 /**
@@ -137,7 +137,7 @@ const cssVariables = computed(() => {
 
 // 是否使用 AST 渲染器（V1 / V2 等）
 const useAstRenderer = computed(
-  () => props.version === RendererVersion.V1_MARKDOWN_IT || props.version === RendererVersion.V2_CUSTOM_PARSER
+  () => props.version === RendererVersion.V1_MARKDOWN_IT || props.version === RendererVersion.V2_CUSTOM_PARSER,
 );
 
 // AST 状态
@@ -213,7 +213,7 @@ watch(
         imageList.value = extractImages(newAst);
       }
     }
-  }
+  },
   // 移除 { deep: true }，因为 ast 是 shallowRef，引用变化即可触发
 );
 
@@ -346,7 +346,7 @@ watch(
       htmlContent.value = md.render(newContent);
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 /**
@@ -380,7 +380,7 @@ watch(
       htmlContent.value = md.render(props.content);
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 /**
@@ -393,7 +393,7 @@ watch(
     if (!newIsStreaming && useAstRenderer.value && streamProcessor.value) {
       streamProcessor.value.finalize();
     }
-  }
+  },
 );
 
 /**
@@ -406,7 +406,7 @@ onMounted(() => {
     console.log(
       `%c[RichTextRenderer] Streaming Started%c\nVersion: ${props.version}\nSmoothing: ${props.smoothingEnabled}\nThrottle: ${props.throttleEnabled} (${props.throttleMs}ms)`,
       "color: #409EFF; font-weight: bold; font-size: 12px;",
-      "color: inherit;"
+      "color: inherit;",
     );
   }
 
@@ -435,7 +435,7 @@ onMounted(() => {
           const displayStr = smoothedContent.length > 20 ? smoothedContent.slice(0, 20) + "..." : smoothedContent;
           console.log(
             `%c[RichTextRenderer] Smooth Emit: "${displayStr.replace(/\n/g, "\\n")}" (len: ${smoothedContent.length})`,
-            "color: #67C23A;"
+            "color: #67C23A;",
           );
         }
 
@@ -544,7 +544,14 @@ onBeforeUnmount(() => {
   // 停止 rAF 循环，防止卸载后继续触发 onContent 回调导致内存泄漏
   streamController?.stop();
   streamController = null;
-  streamProcessor.value?.reset?.();
+  // 销毁处理器，防止卸载后的异步操作继续更新 AST
+  if (streamProcessor.value) {
+    if (typeof streamProcessor.value.destroy === "function") {
+      streamProcessor.value.destroy();
+    } else {
+      streamProcessor.value.reset?.();
+    }
+  }
 });
 
 // 暴露 AST 给父组件（用于测试和调试）

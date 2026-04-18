@@ -461,6 +461,7 @@ export class StreamProcessorV2 {
   }
 
   private isProcessing = false;
+  private isDestroyed = false;
   private pendingBuffer: string | null = null;
   private resolveProcessing: (() => void) | null = null;
 
@@ -557,7 +558,7 @@ export class StreamProcessorV2 {
    * 性能优化：引用冻结 - 如果 stableText 没有变化，复用已有的 stableAst 引用
    */
   private async processIncremental(): Promise<void> {
-    if (this.isProcessing) {
+    if (this.isProcessing || this.isDestroyed) {
       // 如果正在处理中，则记录当前 buffer，等处理完后再运行一次最新的
       this.pendingBuffer = this.buffer;
       return;
@@ -566,6 +567,7 @@ export class StreamProcessorV2 {
     try {
       this.isProcessing = true;
       while (true) {
+        if (this.isDestroyed) break;
         const iterationStart = performance.now();
 
         // 1. 划分稳定区和待定区
@@ -593,6 +595,7 @@ export class StreamProcessorV2 {
           const stableParseStart = performance.now();
           this.parser.reset();
           newStableAst = await this.parser.parseAsync(stableText);
+          if (this.isDestroyed) break;
           this.lastStableText = stableText;
 
           // 安全护栏：单次解析超时检查
@@ -607,6 +610,7 @@ export class StreamProcessorV2 {
         const pendingParseStart = performance.now();
         this.parser.reset();
         const newPendingAst = await this.parser.parseAsync(pendingText);
+        if (this.isDestroyed) break;
 
         // 安全护栏：单次解析超时检查
         const pendingElapsed = performance.now() - pendingParseStart;
@@ -673,6 +677,8 @@ export class StreamProcessorV2 {
    * 然后与当前的 AST 进行 diff，确保正确处理节点合并等情况
    */
   private async processComplete(): Promise<void> {
+    if (this.isDestroyed) return;
+
     if (this.isProcessing) {
       // 如果正在处理中，创建一个 Promise 等待它结束
       if (!this.resolveProcessing) {
@@ -684,11 +690,15 @@ export class StreamProcessorV2 {
       }
     }
 
+    if (this.isDestroyed) return;
+
     try {
       this.isProcessing = true;
       // 将整个 buffer 作为最终内容重新解析
       this.parser.reset();
       const finalAst = await this.parser.parseAsync(this.buffer);
+
+      if (this.isDestroyed) return;
 
       // 保留现有节点的 ID
       const currentFullAst = [...this.stableAst, ...this.pendingAst];
@@ -957,6 +967,18 @@ export class StreamProcessorV2 {
     this.lastStableLength = 0;
     this.stallCount = 0;
     this.isDegraded = false;
+    this.parser.reset();
+  }
+
+  /**
+   * 销毁处理器，停止所有后续 patch 发送
+   */
+  destroy(): void {
+    this.isDestroyed = true;
+    this.buffer = "";
+    this.pendingBuffer = null;
+    this.stableAst = [];
+    this.pendingAst = [];
     this.parser.reset();
   }
 }

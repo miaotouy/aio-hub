@@ -34,6 +34,7 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const editorView = shallowRef<EditorView | null>(null);
+let isDestroyed = false;
 const languageCompartment = new Compartment();
 const themeCompartment = new Compartment();
 const fontSizeCompartment = new Compartment();
@@ -86,16 +87,25 @@ const initEditor = async () => {
   });
 
   emit("ready", props.codeFontSize);
+// 加载语言
+if (props.language) {
+  const langExt = await getCodeMirrorLanguage(props.language);
 
-  // 加载语言
-  if (props.language) {
-    const langExt = await getCodeMirrorLanguage(props.language);
-    if (langExt) {
-      editorView.value.dispatch({
-        effects: languageCompartment.reconfigure(langExt),
-      });
+  // 如果在异步加载期间组件已卸载，则清理并退出
+  if (isDestroyed) {
+    if (editorView.value) {
+      editorView.value.destroy();
+      editorView.value = null;
     }
+    return;
   }
+
+  if (langExt && editorView.value) {
+    editorView.value.dispatch({
+      effects: languageCompartment.reconfigure(langExt),
+    });
+  }
+}
 };
 
 watch(
@@ -148,8 +158,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  isDestroyed = true;
   if (editorView.value) {
     editorView.value.destroy();
+    editorView.value = null;
   }
 });
 </script>

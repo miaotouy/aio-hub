@@ -80,7 +80,7 @@ function ensureMonacoPassiveTouchListeners() {
       this: Element,
       type: string,
       listener: EventListenerOrEventListenerObject,
-      options?: boolean | AddEventListenerOptions
+      options?: boolean | AddEventListenerOptions,
     ) {
       const isTouchStart = type === "touchstart";
       const isMonaco = this.closest?.(".monaco-editor, .monaco-diff-editor");
@@ -105,6 +105,7 @@ let setTheme: (theme: any) => Promise<void> = async () => {};
 let getEditorView: () => any = () => ({ updateOptions: () => {} });
 
 let cleanupResizeObserver: (() => void) | null = null;
+let stopIntersectionObserver: (() => void) | null = null;
 
 const monacoLanguage = computed(() => getMonacoLanguageId(props.language));
 
@@ -393,11 +394,15 @@ onMounted(() => {
         if (isIntersecting && !isIntersected.value) {
           isIntersected.value = true;
           initEditor();
-          stop();
+          if (stopIntersectionObserver) {
+            stopIntersectionObserver();
+            stopIntersectionObserver = null;
+          }
         }
       },
-      { rootMargin: "400px" }
+      { rootMargin: "400px" },
     );
+    stopIntersectionObserver = stop;
   }
 });
 
@@ -411,6 +416,13 @@ onUnmounted(() => {
     cancelAnimationFrame(pendingLayoutFrame);
     pendingLayoutFrame = null;
   }
+
+  // 停止 IntersectionObserver，防止内存泄漏
+  if (stopIntersectionObserver) {
+    stopIntersectionObserver();
+    stopIntersectionObserver = null;
+  }
+
   if (typeof cleanupEditor === "function") cleanupEditor();
   if (cleanupResizeObserver) {
     cleanupResizeObserver();
@@ -433,7 +445,7 @@ watch(
       // 编辑器未就绪，仅同步状态
       lastContent.value = newContent;
     }
-  }
+  },
 );
 
 watch(
@@ -451,7 +463,7 @@ watch(
         adjustLayout();
       });
     }
-  }
+  },
 );
 
 watch(
@@ -467,7 +479,7 @@ watch(
       editor.updateOptions({ scrollbar: { handleMouseWheel: true } });
     }
     adjustLayout();
-  }
+  },
 );
 
 watch(
@@ -477,7 +489,7 @@ watch(
     if (editor && typeof editor.updateOptions === "function") {
       editor.updateOptions({ fontSize: size });
     }
-  }
+  },
 );
 
 watch(
@@ -488,7 +500,7 @@ watch(
       editor.updateOptions({ wordWrap: enabled ? "on" : "off" });
       adjustLayout();
     }
-  }
+  },
 );
 
 // 暴露 layout 方法

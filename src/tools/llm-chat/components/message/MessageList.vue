@@ -95,6 +95,8 @@ const messageCount = computed(() => displayMessages.value.length);
 // 渐进式加载控制（仅用于会话切换）
 const isSessionSwitching = ref(false);
 const progressiveOverscan = ref(2); // 初始只预渲染2条
+// 会话初始化保护期：渐进加载结束后仍需一段时间等内容稳定，期间强制瞬时滚动
+const isSessionInitializing = ref(false);
 
 // 创建虚拟化器
 const virtualizer = useVirtualizer({
@@ -151,8 +153,10 @@ const scrollToBottom = useThrottleFn(() => {
   nextTick(() => {
     if (messagesContainer.value) {
       const container = messagesContainer.value;
-      if (settings.value.uiPreferences.smoothAutoScroll) {
-        // 平滑滚动
+      // 初始化保护期内强制使用瞬时滚动：
+      // smooth 动画会在内容高度频繁变化时中途停止，导致永远追不到底部
+      if (!isSessionInitializing.value && settings.value.uiPreferences.smoothAutoScroll) {
+        // 平滑滚动（仅在非初始化保护期内）
         container.scrollTo({
           top: container.scrollHeight,
           behavior: "smooth",
@@ -193,30 +197,25 @@ const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
       isSessionSwitching.value = false;
       pauseProgressive();
 
-      // 渐进加载完成后，如果启用了自动滚动，则滚动到底部
-      // 这样可以处理初始加载多消息会话的场景
+      // 渐进加载完成后，再做一次最终定位到底部
+      // 此时虚拟列表已经测量了大部分元素，高度更准确
       if (settings.value.uiPreferences.autoScroll && props.messages.length > 0) {
-        // 多次重试确保滚到底部，因为虚拟列表在测量完成后可能还会异步调整 totalSize
-        const ensureScrollToBottom = (retries: number) => {
-          if (retries <= 0) return;
-          nextTick(() => {
-            virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
-            nextTick(() => {
-              if (messagesContainer.value) {
-                messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-              }
-              // 如果还没到底，继续重试
-              if (retries > 1) {
-                requestAnimationFrame(() => ensureScrollToBottom(retries - 1));
-              }
-            });
-          });
-        };
-        ensureScrollToBottom(3);
+        nextTick(() => {
+          if (messagesContainer.value) {
+            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+          }
+          // 延迟关闭保护期，给 Markdown 渲染留出稳定时间
+          // 保护期内 scrollToBottom 强制使用瞬时滚动，防止 smooth 动画中途停止
+          setTimeout(() => {
+            isSessionInitializing.value = false;
+          }, 800);
+        });
+      } else {
+        isSessionInitializing.value = false;
       }
     }
   },
-  { immediate: false }
+  { immediate: false },
 );
 
 // 监听会话切换，启用渐进式加载
@@ -224,18 +223,20 @@ watch(
   () => props.sessionIndex?.id,
   (newId, oldId) => {
     if (newId !== oldId && newId) {
-      // 会话切换时启用渐进式加载
+      // 会话切换时启用渐进式加载，同时激活初始化保护期
       isSessionSwitching.value = true;
+      isSessionInitializing.value = true;
       progressiveOverscan.value = 2;
       measuredElements = new WeakSet<HTMLElement>(); // 重新创建 WeakSet 以清空缓存
 
-      // 如果是多消息会话（>5条），先滚动到底部，实现倒序加载效果
-      // 这样可以优先渲染最新的消息，提升用户体验
-      if (props.messages.length > 5) {
-        nextTick(() => {
-          // 使用虚拟列表的 scrollToIndex，比直接设置 scrollTop 更能引导虚拟列表从底部开始渲染
-          virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
-        });
+      // 核心优化：同步设置 scrollTop 到估算底部位置
+      // 虚拟列表基于 scrollTop 决定渲染哪些 items，
+      // 因此第一帧就会渲染底部消息，无需等待内容加载完再滚动
+      if (messagesContainer.value && props.messages.length > 0) {
+        // 使用 estimateSize(400) * 消息数量作为估算总高度
+        const estimatedTotal = props.messages.length * 400;
+        messagesContainer.value.scrollTop = estimatedTotal;
+        isNearBottom.value = true; // 标记当前在底部，触发后续自动跟随逻辑
       }
 
       // 延迟启动渐进式加载，给初始渲染留出时间
@@ -245,7 +246,7 @@ watch(
         }, 150);
       });
     }
-  }
+  },
 );
 
 // 监听消息列表引用变化（关键：覆盖切换智能体但 session.id 不变的场景）
@@ -279,7 +280,7 @@ watch(
         }
       }
     }
-  }
+  },
 );
 
 // 监听消息数量、总高度变化以及最后一条消息的内容变化
@@ -320,7 +321,7 @@ watch(
         scrollToBottom();
       }
     }
-  }
+  },
 );
 
 // 滚动到顶部

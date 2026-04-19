@@ -328,6 +328,8 @@ defineExpose({
   /* 容器本身负责圆角 */
   border-radius: 8px;
   overflow: hidden; /* 确保切片不溢出圆角 */
+  /* 强制触发合成层，确保 overflow: hidden 在圆角处生效 */
+  transform: translateZ(0);
 }
 
 /* 独立的边框层：避免被 overflow: hidden 裁剪圆角 */
@@ -349,7 +351,8 @@ defineExpose({
   right: 0;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  /* 移除子元素的边框和圆角，由容器统一管理 */
+  /* 继承容器的圆角，防止在某些浏览器下直角溢出 */
+  border-radius: inherit;
 }
 
 /* 内容层样式 */

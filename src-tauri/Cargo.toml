@@ -1,6 +1,6 @@
 [package]
 name = "aiohub"
-version = "0.5.5-alpha.6"
+version = "0.5.5-alpha.7"
 description = "AIO Hub - 综合枢纽应用"
 authors = ["miaotouy"]
 edition = "2021"

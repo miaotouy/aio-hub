@@ -42,7 +42,7 @@ interface Emits {
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
   (
     e: "update-translation",
-    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined
+    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined,
   ): void;
   (e: "resize", el: HTMLElement | null): void;
 }
@@ -68,13 +68,13 @@ const messageRef = ref<HTMLElement | null>(null);
 const messageHeight = ref(0);
 const lastEmittedHeight = ref(0); // 记录上次 emit 时的高度
 const BLOCK_SIZE = 2000; // 每个背景块的高度限制在 2000px 以内
-const HEIGHT_CHANGE_THRESHOLD = 100; // 高度变化阈值（px），超过此值才重新测量
+const HEIGHT_CHANGE_THRESHOLD = 30; // 高度变化阈值（px），超过此值才重新测量
 
 // 节流的 resize 通知函数
 const throttledEmitResize = useThrottleFn(() => {
   emit("resize", messageRef.value);
   lastEmittedHeight.value = messageHeight.value;
-}, 200); // 200ms 节流，平衡性能和响应速度
+}, 100); // 平衡性能和响应速度
 
 useResizeObserver(messageRef, (entries) => {
   const entry = entries[0];
@@ -113,7 +113,7 @@ watch(
         lastEmittedHeight.value = messageHeight.value;
       });
     }
-  }
+  },
 );
 
 // 计算需要多少个背景块
@@ -186,7 +186,7 @@ const handleTranslate = async (targetLang?: string) => {
         translationContent.value += chunk;
       },
       undefined,
-      lang // 传递目标语言
+      lang, // 传递目标语言
     );
 
     // 翻译完成，发射事件更新消息节点
